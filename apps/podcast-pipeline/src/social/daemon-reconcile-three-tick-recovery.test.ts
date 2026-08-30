@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  alignPendingSocialPublishSchedules: vi.fn(),
+  listPastDueSocialPublishJobs: vi.fn().mockResolvedValue([]),
+  rescheduleSocialPublishJob: vi.fn().mockResolvedValue(true),
   claimSocialPublishBatch: vi.fn(),
   completeSocialPublishJob: vi.fn(),
   enqueueSocialPublishJob: vi.fn(),
@@ -17,11 +18,9 @@ const mocks = vi.hoisted(() => ({
   listMetricWindowsForPosts: vi.fn(),
   listSocialPublishCandidates: vi.fn(),
   listSocialPublishCandidatesForEpisodes: vi.fn(),
-  listPartiallyPublishedCohorts: vi.fn().mockResolvedValue([]),
   listUnfinishedSocialPublishJobs: vi.fn(),
   reconcileSocialPublishJob: vi.fn(),
   releaseSocialPublishJobLease: vi.fn(),
-  skipOverdueSocialPublishJobs: vi.fn().mockResolvedValue(0),
   insertSocialPostMetric: vi.fn(),
   listSocialPostIdentitiesByEpisodes: vi.fn(),
   listSocialPostsByEpisode: vi.fn(),
@@ -32,7 +31,8 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('./daemon-store.js', () => ({
-  alignPendingSocialPublishSchedules: mocks.alignPendingSocialPublishSchedules,
+  listPastDueSocialPublishJobs: mocks.listPastDueSocialPublishJobs,
+  rescheduleSocialPublishJob: mocks.rescheduleSocialPublishJob,
   claimSocialPublishBatch: mocks.claimSocialPublishBatch,
   completeSocialPublishJob: mocks.completeSocialPublishJob,
   enqueueSocialPublishJob: mocks.enqueueSocialPublishJob,
@@ -50,11 +50,9 @@ vi.mock('./daemon-store.js', () => ({
   listSocialPublishCandidates: mocks.listSocialPublishCandidates,
   listSocialPublishCandidatesForEpisodes:
     mocks.listSocialPublishCandidatesForEpisodes,
-  listPartiallyPublishedCohorts: mocks.listPartiallyPublishedCohorts,
   listUnfinishedSocialPublishJobs: mocks.listUnfinishedSocialPublishJobs,
   reconcileSocialPublishJob: mocks.reconcileSocialPublishJob,
   releaseSocialPublishJobLease: mocks.releaseSocialPublishJobLease,
-  skipOverdueSocialPublishJobs: mocks.skipOverdueSocialPublishJobs,
 }));
 vi.mock('../services/db.js', () => ({
   insertSocialPostMetric: mocks.insertSocialPostMetric,
@@ -85,7 +83,8 @@ const times = [
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.alignPendingSocialPublishSchedules.mockResolvedValue(0);
+  mocks.listPastDueSocialPublishJobs.mockResolvedValue([]);
+  mocks.rescheduleSocialPublishJob.mockResolvedValue(true);
   mocks.listSocialPublishCandidates.mockResolvedValue([]);
   mocks.getActiveSocialStrategies.mockResolvedValue([]);
   mocks.latestPendingSocialPublishSchedule.mockResolvedValue(null);

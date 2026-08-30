@@ -1,31 +1,47 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { WalletBalanceETLProcessor } from '../../../../src/modules/wallet/processor.js';
+import type { ETLUserCandidate } from '../../../../src/types/index.js';
 import { createEtlJob } from '../../../utils/createEtlJob.js';
 
 const successfulWallet = '0x1234567890123456789012345678901234567890';
 const failedWallet = '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd';
 
 const {
-  fetchAndFilterVipUsersForProcessing,
+  selectDueUsers,
   fetchWalletDataFromDeBank,
+  recordUserResourceUsageNonFatal,
   updatePortfolioTimestampsNonFatal,
+  recordWalletSourceRefresh,
   writePortfolioSnapshots,
   writeWalletBalanceSnapshots,
 } = vi.hoisted(() => ({
-  fetchAndFilterVipUsersForProcessing: vi.fn(),
+  selectDueUsers: vi.fn(),
   fetchWalletDataFromDeBank: vi.fn(),
+  recordUserResourceUsageNonFatal: vi.fn(),
   updatePortfolioTimestampsNonFatal: vi.fn(),
+  recordWalletSourceRefresh: vi.fn(),
   writePortfolioSnapshots: vi.fn(),
   writeWalletBalanceSnapshots: vi.fn(),
 }));
 
-vi.mock('../../../../src/modules/vip-users/processing.js', () => ({
-  fetchAndFilterVipUsersForProcessing,
+vi.mock('../../../../src/modules/user-service/selector.js', () => ({
+  selectDueUsers,
   updatePortfolioTimestampsNonFatal,
 }));
 
-vi.mock('../../../../src/modules/vip-users/common.js', () => ({
+vi.mock(
+  '../../../../src/modules/user-service/attribution.js',
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import('../../../../src/modules/user-service/attribution.js')
+      >();
+    return { ...actual, recordUserResourceUsageNonFatal };
+  },
+);
+
+vi.mock('../../../../src/modules/wallet/debank-io.js', () => ({
   fetchWalletDataFromDeBank,
   mapTokenBalancesToSnapshots: vi.fn((tokens, wallet) =>
     tokens.map((token) => ({
@@ -38,8 +54,10 @@ vi.mock('../../../../src/modules/vip-users/common.js', () => ({
   ),
 }));
 
-vi.mock('../../../../src/modules/vip-users/supabaseFetcher.js', () => ({
-  SupabaseFetcher: class {},
+vi.mock('../../../../src/modules/user-service/supabaseFetcher.js', () => ({
+  SupabaseFetcher: class {
+    recordWalletSourceRefresh = recordWalletSourceRefresh;
+  },
 }));
 
 vi.mock('../../../../src/modules/wallet/fetcher.js', () => ({
@@ -83,27 +101,41 @@ vi.mock('../../../../src/utils/mask.js', () => ({
   maskWalletAddress: vi.fn((wallet: string) => wallet),
 }));
 
+function dueUser(userId: string, wallet: string): ETLUserCandidate {
+  return {
+    userId,
+    wallet,
+    planCode: 'vip',
+    defaultTier: 'priority',
+    overrideTier: null,
+    effectiveTier: 'priority',
+    lastActivityAt: null,
+    lastPortfolioUpdateAt: null,
+    refreshIntervalHours: 24,
+    dueForRefresh: true,
+    dueSources: ['debank'],
+  };
+}
+
+function selection(usersToUpdate: ETLUserCandidate[]) {
+  return {
+    usersToUpdate,
+    candidatesTotal: usersToUpdate.length,
+    skippedNotDue: 0,
+    skippedByTier: 0,
+  };
+}
+
 describe('WalletBalanceETLProcessor partial wallet failures', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    fetchAndFilterVipUsersForProcessing.mockResolvedValue({
-      usersToUpdate: [
-        {
-          user_id: 'user-success',
-          wallet: successfulWallet,
-          last_activity_at: null,
-          last_portfolio_update_at: null,
-        },
-        {
-          user_id: 'user-failed',
-          wallet: failedWallet,
-          last_activity_at: null,
-          last_portfolio_update_at: null,
-        },
-      ],
-      vipUsersTotal: 2,
-    });
+    selectDueUsers.mockResolvedValue(
+      selection([
+        dueUser('user-success', successfulWallet),
+        dueUser('user-failed', failedWallet),
+      ]),
+    );
 
     fetchWalletDataFromDeBank
       .mockResolvedValueOnce({
@@ -120,6 +152,8 @@ describe('WalletBalanceETLProcessor partial wallet failures', () => {
       .mockRejectedValueOnce(new Error('DeBank unavailable'));
 
     updatePortfolioTimestampsNonFatal.mockResolvedValue(undefined);
+    recordUserResourceUsageNonFatal.mockResolvedValue(undefined);
+    recordWalletSourceRefresh.mockResolvedValue(undefined);
     writeWalletBalanceSnapshots.mockResolvedValue({
       success: true,
       recordsInserted: 1,
@@ -147,11 +181,32 @@ describe('WalletBalanceETLProcessor partial wallet failures', () => {
     expect(result.success).toBe(false);
     expect(result.recordsInserted).toBe(1);
     expect(result.errors).toContain(`User ${failedWallet}: DeBank unavailable`);
+    // Freshness is scoped to the wallet, not to the batch. The write landed, so
+    // the wallet DeBank answered for is fresh and the wallet it did not is
+    // still due. Condemning the whole batch here would let one permanently
+    // unreachable address hold the entire priority fleet due for ever — daily
+    // DeBank re-billing, and a dashboard reporting wallets as never refreshed
+    // on the very days their data was written.
     expect(updatePortfolioTimestampsNonFatal).toHaveBeenCalledWith(
       expect.anything(),
       [successfulWallet],
       'partial-wallet-failure',
     );
+    expect(recordWalletSourceRefresh).toHaveBeenCalledWith([
+      {
+        wallet: successfulWallet,
+        source: 'debank',
+        user_id: 'user-success',
+        succeeded: true,
+      },
+      {
+        wallet: failedWallet,
+        source: 'debank',
+        user_id: 'user-failed',
+        succeeded: false,
+        error: `User ${failedWallet}: DeBank unavailable`,
+      },
+    ]);
     expect(writeWalletBalanceSnapshots).toHaveBeenCalledWith(
       [expect.objectContaining({ user_wallet_address: successfulWallet })],
       [successfulWallet],
@@ -164,18 +219,35 @@ describe('WalletBalanceETLProcessor partial wallet failures', () => {
     expect(replacementWallets).not.toContain(failedWallet);
   });
 
-  it('fails when every eligible wallet fails without replacing any wallet slice', async () => {
-    fetchAndFilterVipUsersForProcessing.mockResolvedValue({
-      usersToUpdate: [
-        {
-          user_id: 'user-failed',
-          wallet: failedWallet,
-          last_activity_at: null,
-          last_portfolio_update_at: null,
-        },
+  it('bills the usage ledger only for the wallet DeBank actually answered', async () => {
+    await new WalletBalanceETLProcessor().process(
+      createEtlJob({
+        jobId: 'partial-wallet-failure',
+        sources: ['debank'],
+        filters: {},
+        createdAt: new Date('2026-08-24T00:00:00.000Z'),
+      }),
+    );
+
+    expect(recordUserResourceUsageNonFatal).toHaveBeenCalledWith(
+      expect.anything(),
+      [
+        expect.objectContaining({
+          user_id: 'user-success',
+          wallet: successfulWallet,
+          provider: 'debank',
+          resource: 'portfolio_refresh',
+          request_count: 2,
+        }),
       ],
-      vipUsersTotal: 1,
-    });
+      'partial-wallet-failure',
+    );
+  });
+
+  it('fails when every eligible wallet fails without replacing any wallet slice', async () => {
+    selectDueUsers.mockResolvedValue(
+      selection([dueUser('user-failed', failedWallet)]),
+    );
     fetchWalletDataFromDeBank.mockReset();
     fetchWalletDataFromDeBank.mockRejectedValue(
       new Error('DeBank unavailable'),
@@ -197,10 +269,7 @@ describe('WalletBalanceETLProcessor partial wallet failures', () => {
   });
 
   it('succeeds with no errors when there are no eligible wallets', async () => {
-    fetchAndFilterVipUsersForProcessing.mockResolvedValue({
-      usersToUpdate: [],
-      vipUsersTotal: 0,
-    });
+    selectDueUsers.mockResolvedValue(selection([]));
 
     const result = await new WalletBalanceETLProcessor().process(
       createEtlJob({

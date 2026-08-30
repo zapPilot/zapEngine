@@ -1,12 +1,51 @@
-export function usd(value: number | null | undefined): string {
+import type { OperationalStatus } from '../shared/types.js';
+
+function currencyWithRange(
+  value: number | null | undefined,
+  minFraction: number,
+  maxFraction: number,
+): string {
   return value === null || value === undefined
     ? '—'
     : new Intl.NumberFormat('en-US', {
         style: 'currency',
         currency: 'USD',
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
+        minimumFractionDigits: minFraction,
+        maximumFractionDigits: maxFraction,
       }).format(value);
+}
+
+function currency(
+  value: number | null | undefined,
+  fractionDigits: number,
+): string {
+  return currencyWithRange(value, fractionDigits, fractionDigits);
+}
+
+export function usd(value: number | null | undefined): string {
+  return currency(value, 2);
+}
+
+/**
+ * Money at a glance. Cents are noise in a headline figure and they are what
+ * pushed "$179,612.34" past its column into "$179,6…"; the exact amount stays
+ * one click away in Economics.
+ */
+export function usdWhole(value: number | null | undefined): string {
+  return currency(value, 0);
+}
+
+/**
+ * A headline figure shrinks rather than clips. A twenty-five digit AUM is a
+ * broken feed telling on itself, and the old strip hid exactly that by
+ * ellipsising it to "−$26,963,…".
+ */
+export function headlineScale(value: string): string {
+  return value.length > 12 ? 'long' : '';
+}
+
+export function unitUsd(value: number | null | undefined): string {
+  return currencyWithRange(value, 2, 4);
 }
 
 export function integer(value: number | null | undefined): string {
@@ -54,4 +93,22 @@ export function filterKnownAccruedCost<
     (point): point is T & { accruedCostUsd: number } =>
       point.accruedCostUsd !== null,
   );
+}
+
+export function statusLabel(status: OperationalStatus | undefined): string {
+  return status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Unknown';
+}
+
+export function daysAgo(value: number | null | undefined): string {
+  if (value === null || value === undefined) {
+    return 'never';
+  }
+  return value === 0 ? 'today' : `${integer(value)}d ago`;
+}
+
+export function hoursAgo(value: number | null | undefined): string {
+  if (value === null || value === undefined) {
+    return 'never';
+  }
+  return value < 48 ? `${Math.round(value)}h` : `${Math.round(value / 24)}d`;
 }

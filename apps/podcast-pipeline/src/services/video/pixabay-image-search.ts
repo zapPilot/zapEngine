@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import type { ImageCandidate } from '../../types.js';
-import { performStockImageSearch } from './stock-image-search.js';
+import { performJsonImageSearch } from './json-image-search.js';
 
 const PIXABAY_SEARCH_ENDPOINT = 'https://pixabay.com/api/';
 const DEFAULT_RESULT_COUNT = 60;
@@ -113,7 +113,7 @@ export async function searchPixabayImages(
   if (!apiKey.trim()) {
     throw new PixabayImagesProviderError('Pixabay API key must not be empty');
   }
-  return performStockImageSearch({
+  return performJsonImageSearch({
     providerName: 'Pixabay',
     searchUrl: buildPixabaySearchUrl(query, apiKey, options),
     headers: { accept: 'application/json' },

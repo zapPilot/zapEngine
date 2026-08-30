@@ -16,7 +16,7 @@ import {
   updateEpisodeLocalizationArticleContent,
   updateEpisodeLocalizationStatus,
 } from '../db.js';
-import { generateScriptWithLLM } from '../llm.js';
+import { generateScriptWithLLM, type LlmAttemptRecord } from '../llm.js';
 import { convertArticleToZhTW } from '../opencc.js';
 import {
   packagePodcastScript,
@@ -28,6 +28,22 @@ import { logIngestSkip, step } from './step.js';
 export interface EpisodeLocalizationState {
   episode: EpisodeRow | null;
   localization: EpisodeLocalizationRow | null;
+}
+
+/**
+ * Written to as the stage advances rather than returned.
+ *
+ * The two things the ledger most needs from a language -- which episode it
+ * belonged to, and how long each LLM request ran -- are only knowable from
+ * inside a run that may never return at all. `lines` is the same array the
+ * stages already push cost onto, so a language that dies mid-flight still
+ * leaves its partial spend behind.
+ */
+export interface IngestLanguageTelemetry {
+  lines: UsageCostLine[];
+  attempts: LlmAttemptRecord[];
+  episodeId: string | null;
+  localizationId: string | null;
 }
 
 interface ScrapedArticleState {
@@ -59,6 +75,7 @@ export async function ensureEpisodeLocalizationScript(
   languageCode: LanguageClassroomLanguageCode,
   costBreakdown: UsageCostLine[],
   state?: EpisodeLocalizationState,
+  telemetry?: IngestLanguageTelemetry,
 ): Promise<{
   episode: EpisodeRow;
   localization: EpisodeLocalizationRow;
@@ -71,6 +88,11 @@ export async function ensureEpisodeLocalizationScript(
     episode = await ensureEpisodeRow(url, scraped.sourceTitle, episode);
   }
 
+  // Recorded before script generation, which is the stage most likely to be
+  // the one that fails: the run row would otherwise have no episode to point
+  // at precisely when someone needs to find it.
+  if (telemetry && episode) telemetry.episodeId = episode.id;
+
   localization = await ensureLocalizationScript({
     article: scraped.article,
     costBreakdown,
@@ -78,6 +100,7 @@ export async function ensureEpisodeLocalizationScript(
     languageCode,
     localization,
     needsScrape: scraped.needsScrape,
+    telemetry,
   });
 
   if (!episode || !localization) {
@@ -154,6 +177,7 @@ async function ensureLocalizationScript(input: {
   languageCode: LanguageClassroomLanguageCode;
   localization: EpisodeLocalizationRow | null;
   needsScrape: boolean;
+  telemetry?: IngestLanguageTelemetry;
 }): Promise<EpisodeLocalizationRow | null> {
   let { localization } = input;
 
@@ -177,6 +201,8 @@ async function ensureLocalizationScript(input: {
     );
   }
 
+  if (input.telemetry) input.telemetry.localizationId = localization.id;
+
   const persistedBody = localization.script_body?.trim();
   const canRepackage =
     persistedBody &&
@@ -199,8 +225,17 @@ async function ensureLocalizationScript(input: {
         }),
     );
   } else if (needsGeneratedScript(localization)) {
+    const attempts = input.telemetry?.attempts;
     const generated = await step('generateScript', () =>
-      generateScriptWithLLM(input.article.title, input.article.text),
+      generateScriptWithLLM(input.article.title, input.article.text, {
+        ...(attempts
+          ? {
+              onAttempt: (record) => {
+                attempts.push(record);
+              },
+            }
+          : {}),
+      }),
     );
     input.costBreakdown.push(
       buildLlmCostLine('LLM script', {

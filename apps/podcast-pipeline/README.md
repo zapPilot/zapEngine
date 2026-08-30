@@ -28,7 +28,7 @@ already knowing that language's localization id.
 
 Runtime keys are registered in root `config/env.manifest.mjs`. Non-secret values
 live in `config/env/dev.env` and `config/env/prod.env`; secrets live in Infisical.
-Required for full ingest: `OPENROUTER_API_KEY`, `R2_*`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_DB_SCHEMA=from_fed_to_chain`, `INGEST_ADMIN_TOKEN`, `FISH_AUDIO_API_KEY`, and `FISH_AUDIO_REFERENCE_ID`. Fish Audio is the only TTS provider. Script generation and language-classroom generation use `LLM_MODEL` via OpenRouter. Title/script translation always uses OpenRouter's code-owned `openrouter/free` router; there is no secondary translation provider or paid fallback.
+Required for full ingest: `OPENROUTER_API_KEY`, `R2_*`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_DB_SCHEMA=from_fed_to_chain`, `INGEST_ADMIN_TOKEN`, `FISH_AUDIO_API_KEY`, `FISH_AUDIO_REFERENCE_ID`, and `BRAVE_SEARCH_API_KEY` (the image index the video pipeline retrieves from; see [Vertical news video](#vertical-news-video-image-only-multilingual)). Fish Audio is the only TTS provider. Script generation and language-classroom generation use `LLM_MODEL` via OpenRouter. Title/script translation always uses OpenRouter's code-owned `openrouter/free` router; there is no secondary translation provider or paid fallback.
 
 Fish Audio configuration is code-owned in `src/services/tts/tts-config.ts` and applies to both main and classroom audio for all languages (`zh-Hant`, `ja`, `en`). There is no provider switch: a missing or blank `FISH_AUDIO_REFERENCE_ID` fails ingest instead of degrading to another voice. `FISH_AUDIO_ENGINE` overrides only the Fish Audio engine and defaults to `s2-pro`.
 
@@ -36,13 +36,17 @@ Telegram trigger support is optional. Use `PIPELINE_TELEGRAM_BOT_TOKEN`, `PIPELI
 
 `PIPELINE_FLY_API_TOKEN` is the one setting behind the render machine stopping when idle and being started again (see [Deployment](#on-demand-render-machines)). It is an Infisical prod secret synced to Fly like every other one. It stays unset in normal local development: without `FLY_APP_NAME` the API process reports that there is no render machine to manage and skips the reconciler.
 
-`OPENROUTER_TIMEOUT_MS` limits each OpenRouter request and defaults to `120000` milliseconds. Invalid or empty values use that default; SDK-level retries stay disabled so a stuck provider request is still killed by the timeout, but the script-generation, language-classroom, and translation steps each retry once on a transient failure (timeout/429/5xx) before failing the run, and a resubmission still resumes from the latest committed ingest stage. Translation additionally retries a response that arrived but is unusable (malformed JSON, a missing or blank field, model chatter), re-prompting with the rejection reason — at `temperature: 0` an identical resend would only reproduce the same output.
+`OPENROUTER_TIMEOUT_MS` limits each OpenRouter request and defaults to `120000` milliseconds. Invalid or empty values use that default; SDK-level retries stay disabled so a stuck provider request is still killed by the timeout, and the language-classroom and translation steps each retry once on a transient failure (timeout/429/5xx) before failing the run. A resubmission still resumes from the latest committed ingest stage. Translation additionally retries a response that arrived but is unusable (malformed JSON, a missing or blank field, model chatter), re-prompting with the rejection reason — at `temperature: 0` an identical resend would only reproduce the same output.
 
 That deadline only helps if the request itself is bounded, so every OpenRouter call sends `provider: { sort: 'throughput', require_parameters: true }` at the top level of the body. Without it OpenRouter load-balances on price, and the cheapest endpoints for a slug can be fp4-quantized or degraded ones that never answer inside the deadline — which means changing `LLM_MODEL` to a different snapshot silently moves the workload onto a different provider pool. `require_parameters` additionally keeps the request off endpoints that would accept but ignore `response_format` or `reasoning`.
 
 Language-classroom generation is the heaviest call in the pipeline: one response carries a full narration script for every target language. It therefore also pins `response_format: json_object`, an 8000-token output ceiling, and `reasoning: { enabled: false }` — it is concept selection and writing, not a reasoning task. Those three are what make a degenerate provider truncate instead of running to the deadline.
 
 All of these are top-level body fields. They previously travelled inside an `extra_body` wrapper, which is the Python SDK's client-side kwarg: that SDK flattens it before the request is sent, so a literal `extra_body` key never reaches OpenRouter and everything inside it was dropped — including `usage: { include: true }`, which is why recorded LLM cost defaulted to zero. A failed request now logs `llm:failed` with the model, input size, timeout, output ceiling and reasoning setting; `llm:response` carries the provider that served it, but only ever fires on success.
+
+**Script generation is the exception, and it is deliberately not configurable.** Its prompt forbids summarizing, permits an output longer than its input, and sets no token ceiling, so a 13k-character article legitimately generates for minutes. The shared 120 s deadline was therefore killing correct work, and the shared retry then replayed the identical request for another 120 s — one Telegram ingest spent 248 s that way before failing. The step now runs on a private 600 s deadline in `src/services/llm.ts`. That is a constant rather than an environment variable because it is a property of the prompt, not of a deployment.
+
+Within that deadline the policy is: **a timeout is terminal**, because a request that ran ten minutes had a model working on it, and resubmitting the URL resumes from the persisted scrape far more cheaply than regenerating. A gateway-shaped failure — connection error, 5xx, or 408/409/429 — never reached a model at all, so it is re-routed exactly **once**, with `sort` dropped from `provider`: the throughput sort is deterministic, so an identical resend would go straight back to the endpoint that just refused it, while dropping it hands endpoint selection back to OpenRouter's own load balancer. The JSON-contract re-prompt is unchanged and is not a replay — it carries the rejection reason, so the model is being asked to fix a contract violation rather than to redo work. Language-classroom generation keeps the shared deadline and the ceiling above on purpose: its output is bounded by design, so a request still running after two minutes there is a degenerate provider rather than a long article.
 
 Scene alignment for `ja` and `en` is selected independently with `VIDEO_ALIGNMENT_PROVIDER=openrouter|nvidia`. `VIDEO_ALIGNMENT_MODEL` is interpreted by that provider. NVIDIA alignment uses `NVIDIA_API_KEY` and `NVIDIA_BASE_URL`; for example, set `VIDEO_ALIGNMENT_PROVIDER=nvidia` with `VIDEO_ALIGNMENT_MODEL=deepseek-ai/deepseek-v4-flash`. Invalid semantic output falls back to deterministic proportional alignment so rendering remains resumable.
 
@@ -52,37 +56,65 @@ After all three audio localizations complete, ingest idempotently enqueues one e
 
 What each scene searches for is written by an LLM, not by a keyword table. The
 deterministic storyboard still owns the scene split and timing — it is what makes
-a 64-scene episode resumable — but its search intents are a small table of canned
-photographic subjects, so every finance or crypto scene asked for the same
-`blockchain developers office photo`. After the storyboard is built,
+a 64-scene episode resumable — but its search intents are a canned photographic
+subject glued to a word-by-word rendering of the head of the Chinese sentence, so
+a scene about 「一千五百枚比特幣」 searched for
+`thousand five hundred Bitcoin holdings`. After the storyboard is built,
 `src/services/video/storyboard/search-intents.ts` sends the scenes to OpenRouter
 (`LLM_MODEL`) in batches with both the canonical and English sentences, and
-replaces each scene's intents with 1-3 concrete English subjects: the
-institution, person, place, object, or event that scene is actually about.
+replaces each scene's intents with 1-3 concrete English subjects, named entities
+first: the company, product, organization, person, or place that scene is actually
+about, using only names written in that scene's own sentences. A generic
+photographable subject is the last resort, for a scene that names nothing.
 
-That pass is best effort and can never fail a visual job. A batch that errors,
-comes back in the wrong shape, or claims a number absent from its own sentences
-keeps its deterministic intents (the same numeric grounding rule
-`validateStoryboardDraft` applies), and an unset `OPENROUTER_API_KEY` skips
-enrichment entirely. `visual:intents enriched=N/M model=...` reports how much of
-an episode was rewritten, and the completed payload records the model in
-`provenance.searchIntentModel` — `null` there means the episode ran on
-deterministic intents.
+That pass is fail-closed, and the unit is the scene. Transport failures are
+retried once by the shared OpenRouter retry policy; after that, anything that
+leaves even one content scene without a usable phrase raises — an unset
+`OPENROUTER_API_KEY`, a batch that keeps erroring, a response that omits a scene
+or answers it with junk, a phrase claiming a number absent from its own
+sentences (the numeric grounding rule `validateStoryboardDraft` applies), a
+merged draft that no longer validates. Accepting the rest would put the
+transliterated phrase back into image search for the scenes that were left out:
+the same failure, only smaller and harder to see. The visual job is then retried
+by the queue and eventually ends `failed`. Recovery is resubmitting the episode
+URL, which resets the visual and render rows and reports the wiped message once
+as `previousError`.
+
+What the pass does tolerate is a badly _shaped_ answer: scenes are read by id,
+so a response may reorder, repeat, or invent them and still be used, as long as
+every requested scene is in it somewhere. `provenance.searchIntentModel` on a
+completed payload is therefore never `null`, and
+`visual:intents enriched=N/M brand=B entities=K model=...` reports how much of
+the episode was rewritten and how much of it image search can anchor on a name.
+
+Each scene also comes back with the proper nouns it names, checked verbatim
+against its own sentences and stored as `imageSearchEntities`. That is what
+image search is held to below. A scene that names nothing has no entities, which
+is legitimate — some scenes really are about a general idea.
 
 Images are tried in this order per scene (`selectionMode: 'resilient'`, what
 production uses):
 
 1. `og:image`, article/figure images, lazy-load attributes, and the largest `srcset` candidate from the source article.
-2. Bing Images HTML with strict SafeSearch. It goes first deliberately: a news product wants the editorial photo of the event, and the candidate ranking rewards wire/official domains and penalizes generic stock alt text. Bing images are retained as `license: unknown`; that path does not claim usage rights.
-3. Pexels then Pixabay photo search (`orientation=square`, SafeSearch) when `PEXELS_API_KEY` / `PIXABAY_API_KEY` are set — license-clean sources that record `license: pexels` / `license: pixabay` plus photographer attribution, and that catch the scenes Bing cannot fill.
-4. Each provider is queried with the scene's own intents first, then with relaxed variants of them.
+2. Brave Image Search (`BRAVE_SEARCH_API_KEY`, strict SafeSearch). A news product wants the editorial photo of the event, which is on the open web and not in a stock library, so this is the web index the pipeline retrieves from and it is not optional — a missing key is a startup error, never a quiet fall-through to stock imagery. Only the publisher's own image URL is mirrored, never Brave's thumbnail CDN. Results are retained as `license: unknown`; that path does not claim usage rights.
+3. Pexels then Pixabay photo search (`orientation=square`, SafeSearch) when `PEXELS_API_KEY` / `PIXABAY_API_KEY` are set — license-clean sources with photographer attribution. They are only ever asked about scenes that name nothing: no stock library holds a photograph of a named company or product, so asking one for a named scene can only return a convincing picture of something else.
+4. A scene that names something is queried with its phrased intents first, then with each bare name. A scene that names nothing falls back to relaxed `... official event photo` variants instead.
 5. A non-consecutive reuse of an already validated image when no search can produce a new one, and only then a consecutive one.
 
-`selectionMode: 'strict'` (tests and the storyboard smoke CLI) instead queries the
-providers in declaration order — Pexels, Pixabay, Bing — and raises search
-failures rather than reusing an image.
+**A candidate must mention what the scene names.** For a scene with entities,
+the candidate's title, page URL and image URL have to contain one of them —
+separators collapsed, so `coldcard-mk4-review` counts. This is the one hard
+relevance rule, and it is about identity rather than wording: sharing a word
+with the query is exactly how a thousand-yard-stare war portrait and an
+odd-and-even-numbers worksheet were once selected for a Bitcoin episode. When
+nothing survives it, the scene reuses an image already validated for this
+episode — a repeat, never an unrelated picture.
 
-Candidates must pass HTTPS/SSRF, download timeout, format, size, pixel-dimension, animation, SHA-256, and perceptual-hash checks. Bing HTML is an unofficial interface: zero parseable results or a markup change raises `BingImagesProviderError`, which fails the checkpoint outright under `strict` and degrades to the next provider (then to reuse) under `resilient`. Either way the failure is reported in the `visual:search` log line, never swallowed.
+`selectionMode: 'strict'` (tests and the storyboard smoke CLI) instead queries the
+providers in declaration order — Brave, Pexels, Pixabay — without the bare-name
+retry, and raises search failures rather than reusing an image.
+
+Candidates must pass HTTPS/SSRF, download timeout, format, size, pixel-dimension, animation, SHA-256, and perceptual-hash checks. A non-OK response or an unexpected body from any provider raises its typed error (`BraveImagesProviderError`, `PexelsImagesProviderError`, `PixabayImagesProviderError`), which fails the checkpoint outright under `strict` and degrades to the next provider (then to reuse) under `resilient`. An empty result set from these official APIs is trustworthy and is not an error. Either way the failure is reported in the `visual:search` log line, never swallowed.
 
 Once the shared visual checkpoint completes, each of `zh-Hant`, `ja`, and `en` uses its own main HLS duration, sentence timing, subtitles, and audio to render a progressive MP4. All three encodes reuse the same visual checkpoint. Classroom HLS is an ingest-readiness check for the canonical localization only and is never used as video audio.
 
@@ -163,8 +195,8 @@ Writes go through `from_fed_to_chain.ops_record_pipeline_run`, reads through the
 Three gaps are deliberate, and worth knowing before trusting a total:
 
 - `estimated_cost_usd` on a `video_render` row prices the **encode window only**, because that is the number `fly.toml`'s "until production telemetry proves a smaller shape is cheaper" note has to be settled against. Narration download, alignment and upload hold the same dedicated CPU; the wider span is recorded as `usage.jobWallMs`. Boot time, stopped-machine rootfs and bandwidth are in neither.
-- Ingest stage rows carry no timing. `UsageCostLine` has none to give, and adding it would mean changing every ingest stage signature. Per-language elapsed time is still only in the `localization:done elapsedMs=` log line; the run row has the whole-run wall clock.
-- The language that was mid-flight when an ingest failed loses its partial spend. The sink only collects languages that returned.
+- Ingest stage rows other than `script` carry no timing. `UsageCostLine` has none to give, and adding it would mean changing every ingest stage signature. Per-language elapsed time for those is still only in the `localization:done elapsedMs=` log line; the run row has the whole-run wall clock. `script` is the exception: one row per upstream request, carrying `started_at`/`finished_at`/`elapsed_ms`, the deadline and route it used, token counts, and — on a failed attempt — its failure category and message. A failed attempt is recorded as `unpriced` rather than as a zero cost, which would read as a free success.
+- A language that fails before its episode row exists — a scrape failure, say — is still not recorded, because there is nothing to attach it to. Once the episode exists, the failing language pushes its own entry, so its partial spend and its script attempts survive the throw, and the run row can name the episode it died on.
 - Shared visual (storyboard) jobs are not recorded at all yet, though they also run on the render machine.
 
 `RENDER_MACHINE_SHAPE` in `src/services/ops-ledger.ts` names the machine renders are priced against. Fly exposes no runtime signal for it, so `ops-ledger.test.ts` parses `fly.toml` and fails if the two drift — resizing the `render` group means changing the constant and adding a new rate version in the same change.
@@ -220,10 +252,10 @@ Fly.io via the zapEngine deploy registry. The Fly app name remains `from-fed-to-
 
 Two process groups, because video rendering and the HTTP service cannot share a CPU:
 
-| Group    | Command               | Machine                  | Serves HTTP | Lifecycle          |
-| -------- | --------------------- | ------------------------ | ----------- | ------------------ |
-| `app`    | `node dist/index.js`  | `shared-cpu-1x` / 512 MB | yes         | always on          |
-| `render` | `node dist/worker.js` | `performance-2x` / 4 GB  | no          | on demand (opt-in) |
+| Group    | Command               | Machine                  | Serves HTTP | Lifecycle |
+| -------- | --------------------- | ------------------------ | ----------- | --------- |
+| `app`    | `node dist/index.js`  | `shared-cpu-1x` / 512 MB | yes         | always on |
+| `render` | `node dist/worker.js` | `performance-2x` / 4 GB  | no          | on demand |
 
 A shared vCPU has a baseline of 1/16 of a core, and once its burst balance is spent x264 collapses — a co-located render was measured at `speed=0.00434x` while starving `/health` past its 5 s timeout, which took the only instance out of the proxy pool. The `render` group therefore keeps dedicated CPUs. New 720p renders log wall time, realtime factor, Node RSS, current cgroup memory, and the highest cgroup memory observed by a 250 ms sampler during the render as `video:render-metrics`. The sampled field is `cgroupPeakObservedMb`; it deliberately replaces the unreliable post-mortem `memory.peak` reading that returned zero after an ffmpeg OOM. The group stays at 4 GB until production samples show enough headroom to resize safely.
 

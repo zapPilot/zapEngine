@@ -13,7 +13,7 @@ export type ImageCandidateOrigin =
   | 'figure'
   | 'pexels'
   | 'pixabay'
-  | 'bing';
+  | 'brave';
 
 export interface ImageCandidate {
   imageUrl: string;

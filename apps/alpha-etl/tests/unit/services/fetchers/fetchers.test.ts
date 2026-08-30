@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { BaseApiFetcher } from '../../../../src/core/fetchers/baseApiFetcher.js';
-import { SupabaseFetcher } from '../../../../src/modules/vip-users/supabaseFetcher.js';
+import { SupabaseFetcher } from '../../../../src/modules/user-service/supabaseFetcher.js';
 import { logger } from '../../../../src/utils/logger.js';
 
 vi.mock('../../../../src/utils/logger.js', async () => {
@@ -103,13 +103,13 @@ describe('Fetchers', () => {
       fetcher = new SupabaseFetcher();
     });
 
-    it('should handle error in fetchVipUsersWithActivity', async () => {
+    it('should handle error in fetchUserServiceStates', async () => {
       vi.spyOn(fetcher as unknown, 'withDatabaseClient').mockRejectedValue(
         new Error('DB Failed'),
       );
 
-      await expect(fetcher.fetchVipUsersWithActivity()).rejects.toThrow(
-        'DB fetch with activity failed: DB Failed',
+      await expect(fetcher.fetchUserServiceStates()).rejects.toThrow(
+        'DB fetch of service states failed: DB Failed',
       );
     });
 

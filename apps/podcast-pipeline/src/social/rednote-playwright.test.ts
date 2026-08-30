@@ -55,7 +55,6 @@ function rednoteCount(value: string): number {
 
 const PAYLOAD = {
   title: '利率真的轉向？',
-  body: '第一段。\n\n第二段。',
   hashtags: ['宏觀經濟', '市場結構'],
   videoPath: '/fixtures/episode.mp4',
 };
@@ -245,9 +244,9 @@ describe('createPlaywrightRednotePublisher', () => {
       hashtags: ['宏觀經濟', '市場結構'],
     });
 
-    // The description carries the body alone -- a hashtag typed in as text has
-    // no topic page behind it and is what this replaced.
-    expect(body.fill).toHaveBeenCalledWith(PAYLOAD.body);
+    // The note carries no prose body -- the editor only ever receives the
+    // `#`-typed topic anchors `attachTopics` types into it.
+    expect(body.fill).not.toHaveBeenCalled();
     // Queried in Simplified: 宏觀經濟 and 宏观经济 are separate topics, and the
     // audience is on the Simplified one.
     expect(keyboard.type).toHaveBeenNthCalledWith(
@@ -324,12 +323,21 @@ describe('createPlaywrightRednotePublisher', () => {
     expect(state.titleModel).toBe(PAYLOAD.title);
     // Ordering is load-bearing: the SPA re-renders the form while the topic
     // panel is open and drops a title written earlier.
-    expect(body.fill.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(body.click.mock.invocationCallOrder[0]).toBeLessThan(
       row.click.mock.invocationCallOrder[0] ?? 0,
     );
     expect(row.click.mock.invocationCallOrder.at(-1) ?? 0).toBeLessThan(
       title.fill.mock.invocationCallOrder[0] ?? 0,
     );
+  });
+
+  it('reports an empty published body, since the note carries none', async () => {
+    const { page } = fakePage({ existingTopics: ['宏观经济', '市场结构'] });
+    mocks.page = page;
+
+    await expect(
+      createPlaywrightRednotePublisher().publishRednote(PAYLOAD),
+    ).resolves.toMatchObject({ body: '' });
   });
 
   // The regression this whole check exists for: notes shipped with `title: ""`

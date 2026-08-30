@@ -68,6 +68,14 @@ const LANGUAGE_CLASSROOM_MAX_TOKENS = 8_000;
 /** Selecting concepts and writing narration, not a reasoning task. */
 const LANGUAGE_CLASSROOM_REASONING: OpenRouterReasoning = { enabled: false };
 const SCRIPT_PAYLOAD_MAX_ATTEMPTS = 2;
+/**
+ * The one workload the shared ceiling is wrong for. The script prompt forbids
+ * summarizing, permits an output longer than its input, and sets no token cap,
+ * so a 13k-character article legitimately generates for minutes -- the 120s
+ * default killed those runs while the model was still working correctly. Every
+ * other workload keeps the shared deadline.
+ */
+const SCRIPT_OPENROUTER_TIMEOUT_MS = 600_000;
 const RETRYABLE_OPENROUTER_STATUS = new Set([408, 409, 429]);
 
 type ScriptTitleFallbackReason =
@@ -397,6 +405,17 @@ const OPENROUTER_PROVIDER_ROUTING: OpenRouterProviderRouting = {
   require_parameters: true,
 };
 
+/**
+ * Dropping `sort` is the whole point of the script fallback: the throughput
+ * sort is deterministic, so re-sending an identical request would be handed
+ * straight back to the endpoint that just refused it. Without it OpenRouter
+ * load-balances the retry itself, while `require_parameters` still keeps
+ * `response_format` honoured.
+ */
+const OPENROUTER_FALLBACK_ROUTING: OpenRouterProviderRouting = {
+  require_parameters: true,
+};
+
 export type OpenRouterParams =
   OpenAI.Chat.ChatCompletionCreateParamsNonStreaming & {
     usage?: { include: boolean };
@@ -414,13 +433,18 @@ export type OpenRouterParams =
 export function withOpenRouterOptions(
   params: OpenAI.Chat.ChatCompletionCreateParamsNonStreaming,
   reasoning?: OpenRouterReasoning,
+  providerRouting: OpenRouterProviderRouting = OPENROUTER_PROVIDER_ROUTING,
 ): OpenRouterParams {
   return {
     ...params,
     usage: { include: true },
-    provider: OPENROUTER_PROVIDER_ROUTING,
+    provider: providerRouting,
     ...(reasoning ? { reasoning } : {}),
   };
+}
+
+function routingLabel(routing: OpenRouterProviderRouting): string {
+  return routing.sort ?? 'default';
 }
 
 function reasoningLabel(reasoning: OpenRouterReasoning | undefined): string {
@@ -436,6 +460,10 @@ export type OpenRouterChatCompletion = OpenAI.Chat.ChatCompletion & {
 export interface OpenRouterRequestOptions {
   signal?: AbortSignal;
   reasoning?: OpenRouterReasoning;
+  /** Overrides the shared deadline for a workload whose output is long-form. */
+  timeoutMs?: number;
+  /** Overrides endpoint selection; used by the script fallback. */
+  providerRouting?: OpenRouterProviderRouting;
   logContext?: {
     prefix: string;
     details?: LogDetails;
@@ -464,8 +492,9 @@ export async function createOpenRouterChatCompletion(
   requestOptions: OpenRouterRequestOptions = {},
 ): Promise<OpenRouterChatCompletion> {
   const inputChars = userInputCharacterCount(params.messages);
-  const timeoutMs = getOpenRouterTimeoutMs();
+  const timeoutMs = requestOptions.timeoutMs ?? getOpenRouterTimeoutMs();
   const reasoning = reasoningLabel(requestOptions.reasoning);
+  const routing = requestOptions.providerRouting ?? OPENROUTER_PROVIDER_ROUTING;
   // Explicit 'unset' rather than an omitted field: an absent output ceiling is
   // exactly the condition worth spotting on the failure line.
   const maxTokens = params.max_tokens ?? 'unset';
@@ -482,7 +511,11 @@ export async function createOpenRouterChatCompletion(
     requestOptions.logContext,
   );
 
-  const request = withOpenRouterOptions(params, requestOptions.reasoning);
+  const request = withOpenRouterOptions(
+    params,
+    requestOptions.reasoning,
+    routing,
+  );
   const deadline = combineAbortSignalWithTimeout(
     requestOptions.signal,
     timeoutMs,
@@ -490,8 +523,13 @@ export async function createOpenRouterChatCompletion(
   );
   let completion: OpenRouterChatCompletion;
   try {
+    // The SDK carries its own timeout alongside our AbortSignal, and the
+    // cached client was built with the shared 120s one. Overriding it per
+    // request is what lets a longer per-workload deadline actually apply
+    // without minting a second client for every distinct timeout.
     completion = await openai.chat.completions.create(request, {
       signal: deadline.signal,
+      timeout: timeoutMs,
     });
   } catch (error) {
     const abortReason = deadline.signal.reason;
@@ -500,7 +538,7 @@ export async function createOpenRouterChatCompletion(
         ? abortReason
         : error;
     // `llm:response` is the only line carrying the provider, and it fires only
-    // on success — a timeout otherwise left no record of what was requested.
+    // on success -- a timeout otherwise left no record of what was requested.
     logOpenRouterEvent(
       'llm:failed',
       {
@@ -509,7 +547,7 @@ export async function createOpenRouterChatCompletion(
         timeoutMs,
         maxTokens,
         reasoning,
-        routing: OPENROUTER_PROVIDER_ROUTING.sort ?? 'default',
+        routing: routingLabel(routing),
         error: errorMessage(failure),
       },
       requestOptions.logContext,
@@ -588,7 +626,9 @@ export function completionMetadata(
 
 /**
  * Transport-level failures worth one more attempt. Shared with translation so a
- * single OpenRouter retry policy covers every caller of this client.
+ * single OpenRouter retry policy covers every caller of this client. Script
+ * generation is deliberately not one of them: see
+ * `classifyScriptCompletionError`.
  */
 export function isRetryableOpenRouterError(error: unknown): boolean {
   if (!error || typeof error !== 'object') {
@@ -603,19 +643,22 @@ export function isRetryableOpenRouterError(error: unknown): boolean {
   const name = (error as { name?: unknown }).name;
   return (
     name === 'APIConnectionError' ||
+    name === 'APIConnectionTimeoutError' ||
     name === 'APITimeoutError' ||
     name === 'TimeoutError'
   );
 }
 
-type LLMCompletionOperation = 'generateScript' | 'generateLanguageClassrooms';
+type LLMCompletionOperation =
+  | 'generateLanguageClassrooms'
+  | 'suggestSearchIntents';
 
-async function createCompletionWithRetry(
+export async function createCompletionWithRetry(
   openai: OpenAI,
   params: OpenAI.Chat.ChatCompletionCreateParamsNonStreaming,
   thinkingModel: string | null,
   operation: LLMCompletionOperation,
-  reasoning?: OpenRouterReasoning,
+  requestOptions: OpenRouterRequestOptions = {},
 ): Promise<OpenRouterChatCompletion> {
   for (let attempt = 1; attempt <= LLM_COMPLETION_MAX_ATTEMPTS; attempt++) {
     try {
@@ -623,11 +666,15 @@ async function createCompletionWithRetry(
         openai,
         params,
         thinkingModel,
-        { reasoning },
+        requestOptions,
       );
     } catch (error) {
+      // A caller whose own signal is already aborted gains nothing from another
+      // attempt. The per-request deadline aborts an internal signal instead, so
+      // its `TimeoutError` still gets its retry.
       const shouldRetry =
         attempt < LLM_COMPLETION_MAX_ATTEMPTS &&
+        !requestOptions.signal?.aborted &&
         isRetryableOpenRouterError(error);
       if (!shouldRetry) {
         throw error;
@@ -648,19 +695,237 @@ async function createCompletionWithRetry(
   throw new Error(`OpenRouter ${operation} retry loop exhausted`);
 }
 
+export type ScriptCompletionErrorCategory =
+  | 'timeout'
+  | 'retry_safe'
+  | 'terminal';
+
+/**
+ * Script generation gets its own classification because the shared retry policy
+ * is wrong for it in both directions.
+ *
+ * `timeout` is terminal: the deadline is already ten minutes, so a request that
+ * hit it had a model working on it, and replaying an identical prompt just
+ * spends those minutes again -- which is exactly how one ingest burned 248
+ * seconds before failing. `retry_safe` failures never reached a model at all,
+ * so a single re-route is genuinely a different attempt rather than a replay.
+ */
+export function classifyScriptCompletionError(
+  error: unknown,
+): ScriptCompletionErrorCategory {
+  if (!error || typeof error !== 'object') return 'terminal';
+
+  const name = (error as { name?: unknown }).name;
+  if (
+    name === 'TimeoutError' ||
+    name === 'APITimeoutError' ||
+    name === 'APIConnectionTimeoutError'
+  ) {
+    return 'timeout';
+  }
+
+  const status = (error as { status?: unknown }).status;
+  if (typeof status === 'number') {
+    return RETRYABLE_OPENROUTER_STATUS.has(status) || status >= 500
+      ? 'retry_safe'
+      : 'terminal';
+  }
+
+  return name === 'APIConnectionError' ? 'retry_safe' : 'terminal';
+}
+
+/**
+ * One upstream request, successful or not. `ops.pipeline_stage_runs` can hold a
+ * row per attempt, but the only place that knows how long a request ran, which
+ * endpoint served it, and why it failed is this module -- a caller that sees
+ * only the thrown error cannot reconstruct any of it.
+ */
+export interface LlmAttemptRecord {
+  operation: 'generateScript';
+  attempt: number;
+  model: string;
+  provider: string | null;
+  status: 'completed' | 'failed';
+  startedAt: Date;
+  finishedAt: Date;
+  elapsedMs: number;
+  timeoutMs: number;
+  inputChars: number;
+  outputChars: number | null;
+  promptTokens: number | null;
+  completionTokens: number | null;
+  generationId: string | null;
+  routing: string;
+  errorCategory: ScriptCompletionErrorCategory | null;
+  errorMessage: string | null;
+  costUsd: number | null;
+}
+
+export interface GenerateScriptOptions {
+  onAttempt?: (record: LlmAttemptRecord) => void;
+}
+
+function tokenCount(
+  usage: OpenRouterChatCompletion['usage'],
+  key: 'prompt_tokens' | 'completion_tokens',
+): number | null {
+  const value = usage?.[key];
+  return typeof value === 'number' ? value : null;
+}
+
+interface ScriptAttemptInput {
+  openai: OpenAI;
+  params: OpenAI.Chat.ChatCompletionCreateParamsNonStreaming;
+  thinkingModel: string | null;
+  routing: OpenRouterProviderRouting;
+  attempt: number;
+  onAttempt: GenerateScriptOptions['onAttempt'];
+}
+
+async function runScriptAttempt(
+  input: ScriptAttemptInput,
+): Promise<OpenRouterChatCompletion> {
+  const startedAt = new Date();
+  const base = {
+    operation: 'generateScript' as const,
+    attempt: input.attempt,
+    model: input.params.model,
+    startedAt,
+    timeoutMs: SCRIPT_OPENROUTER_TIMEOUT_MS,
+    inputChars: userInputCharacterCount(input.params.messages),
+    routing: routingLabel(input.routing),
+  };
+  try {
+    const completion = await createOpenRouterChatCompletion(
+      input.openai,
+      input.params,
+      input.thinkingModel,
+      {
+        timeoutMs: SCRIPT_OPENROUTER_TIMEOUT_MS,
+        providerRouting: input.routing,
+      },
+    );
+    const metadata = completionMetadata(
+      completion,
+      input.params.model,
+      input.thinkingModel,
+    );
+    emitScriptAttempt(input.onAttempt, {
+      ...base,
+      model: metadata.model,
+      provider: metadata.provider,
+      status: 'completed',
+      ...elapsed(startedAt),
+      outputChars: completionOutputCharacterCount(completion),
+      promptTokens: tokenCount(completion.usage, 'prompt_tokens'),
+      completionTokens: tokenCount(completion.usage, 'completion_tokens'),
+      generationId: completion.id || null,
+      errorCategory: null,
+      errorMessage: null,
+      costUsd: metadata.costUsd,
+    });
+    return completion;
+  } catch (error) {
+    emitScriptAttempt(input.onAttempt, {
+      ...base,
+      provider: null,
+      status: 'failed',
+      ...elapsed(startedAt),
+      outputChars: null,
+      promptTokens: null,
+      completionTokens: null,
+      generationId: null,
+      errorCategory: classifyScriptCompletionError(error),
+      errorMessage: errorMessage(error),
+      costUsd: null,
+    });
+    throw error;
+  }
+}
+
+function elapsed(startedAt: Date): { finishedAt: Date; elapsedMs: number } {
+  const finishedAt = new Date();
+  return {
+    finishedAt,
+    elapsedMs: finishedAt.getTime() - startedAt.getTime(),
+  };
+}
+
+// Telemetry must never be the reason an ingest fails, so a throwing consumer is
+// swallowed here rather than surfacing as a script-generation error.
+function emitScriptAttempt(
+  onAttempt: GenerateScriptOptions['onAttempt'],
+  record: LlmAttemptRecord,
+): void {
+  if (!onAttempt) return;
+  try {
+    onAttempt(record);
+  } catch (error) {
+    logIngestEvent('llm:attempt-record-failed', {
+      operation: record.operation,
+      attempt: record.attempt,
+      error: errorMessage(error),
+    });
+  }
+}
+
+async function createScriptCompletion(input: {
+  openai: OpenAI;
+  params: OpenAI.Chat.ChatCompletionCreateParamsNonStreaming;
+  thinkingModel: string | null;
+  nextAttempt: () => number;
+  onAttempt: GenerateScriptOptions['onAttempt'];
+}): Promise<OpenRouterChatCompletion> {
+  const attemptInput = {
+    openai: input.openai,
+    params: input.params,
+    thinkingModel: input.thinkingModel,
+    onAttempt: input.onAttempt,
+  };
+  try {
+    return await runScriptAttempt({
+      ...attemptInput,
+      routing: OPENROUTER_PROVIDER_ROUTING,
+      attempt: input.nextAttempt(),
+    });
+  } catch (error) {
+    if (classifyScriptCompletionError(error) !== 'retry_safe') throw error;
+    logIngestEvent('llm:fallback', {
+      operation: 'generateScript',
+      model: input.params.model,
+      routing: routingLabel(OPENROUTER_FALLBACK_ROUTING),
+      error: errorMessage(error),
+    });
+    return await runScriptAttempt({
+      ...attemptInput,
+      routing: OPENROUTER_FALLBACK_ROUTING,
+      attempt: input.nextAttempt(),
+    });
+  }
+}
+
 export async function generateScriptWithLLM(
   title: string,
   text: string,
+  options: GenerateScriptOptions = {},
 ): Promise<ScriptResult> {
   const { openai, model, thinkingModel } = getOpenRouterConfig();
   const system = getSystemPrompt();
   let retryError: ScriptPayloadValidationError | null = null;
   let costUsd = 0;
+  let attempt = 0;
 
-  for (let attempt = 1; attempt <= SCRIPT_PAYLOAD_MAX_ATTEMPTS; attempt += 1) {
-    const completion = await createCompletionWithRetry(
+  for (
+    let payloadAttempt = 1;
+    payloadAttempt <= SCRIPT_PAYLOAD_MAX_ATTEMPTS;
+    payloadAttempt += 1
+  ) {
+    // Not a replay: the re-prompt carries the rejection reason, so the model is
+    // being asked to fix a contract violation rather than to redo work that
+    // already succeeded.
+    const completion = await createScriptCompletion({
       openai,
-      {
+      params: {
         model,
         response_format: { type: 'json_object' },
         messages: [
@@ -676,8 +941,9 @@ export async function generateScriptWithLLM(
         temperature: 0.7,
       },
       thinkingModel,
-      'generateScript',
-    );
+      nextAttempt: () => (attempt += 1),
+      onAttempt: options.onAttempt,
+    });
 
     const metadata = completionMetadata(completion, model, thinkingModel);
     costUsd += metadata.costUsd;
@@ -698,7 +964,7 @@ export async function generateScriptWithLLM(
     } catch (error) {
       if (
         !(error instanceof ScriptPayloadValidationError) ||
-        attempt === SCRIPT_PAYLOAD_MAX_ATTEMPTS
+        payloadAttempt === SCRIPT_PAYLOAD_MAX_ATTEMPTS
       ) {
         throw error;
       }
@@ -748,7 +1014,7 @@ export async function generateLanguageClassroomsWithLLM(
     },
     thinkingModel,
     'generateLanguageClassrooms',
-    LANGUAGE_CLASSROOM_REASONING,
+    { reasoning: LANGUAGE_CLASSROOM_REASONING },
   );
 
   const content = completion.choices[0]?.message?.content || '';

@@ -101,14 +101,44 @@ export interface TokenBackfillConfig {
   daysBack?: number | undefined;
 }
 
-export interface VipUser {
-  user_id: string;
-  wallet: string;
-}
+/**
+ * Scheduling policy, not billing. `planCode` is what the account bought;
+ * `effectiveTier` is what operations decided to spend on it, and the two
+ * diverge as soon as an operator pauses a dormant account.
+ */
+export type ServiceTier = 'priority' | 'standard' | 'paused';
 
-export interface VipUserWithActivity extends VipUser {
-  last_activity_at: Nullable<string>;
-  last_portfolio_update_at: Nullable<string>;
+/**
+ * One ownership-verified wallet with its resolved service policy, as returned
+ * by `public.get_user_service_states()`.
+ *
+ * The policy itself — which tier applies, how often to refresh, whether this
+ * wallet is due — is decided in SQL so the ETL, the Control Center, and an
+ * operator reading the table cannot drift apart. This type only carries the
+ * answer.
+ */
+export interface ETLUserCandidate {
+  userId: string;
+  wallet: string;
+  planCode: string;
+  defaultTier: ServiceTier;
+  overrideTier: Nullable<ServiceTier>;
+  effectiveTier: ServiceTier;
+  lastActivityAt: Nullable<string>;
+  lastPortfolioUpdateAt: Nullable<string>;
+  refreshIntervalHours: Nullable<number>;
+  dueForRefresh: boolean;
+  /**
+   * The portfolio providers that have not landed data for this wallet inside
+   * the refresh fence. `dueForRefresh` is the coarse "any of them" answer and
+   * cannot tell DeBank apart from Hyperliquid, which is how one provider's
+   * success used to declare the wallet fresh for the other.
+   *
+   * Left as `string[]` rather than a union of known providers: it is whatever
+   * the SQL function named, and a provider added there must widen the schedule
+   * before it can widen this type.
+   */
+  dueSources: string[];
 }
 
 export interface BaseBatchResult {

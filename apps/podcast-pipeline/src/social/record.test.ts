@@ -203,6 +203,26 @@ describe('buildSocialPostRecord', () => {
       contentFeatures: expect.objectContaining({ hashtagCount: 2 }),
     });
   });
+
+  // Rednote's note carries no prose body; the publisher reports `body: ''`
+  // and telemetry has to store that instead of the composed (never-sent)
+  // draft. `generated_body` is untouched, so the two remain comparable.
+  it('honors an empty published body reported by the platform', () => {
+    expect(
+      buildSocialPostRecord({
+        episodeId: 'episode-1',
+        platform: 'rednote',
+        result: result({ body: '' }),
+        snapshot,
+        episode,
+        videoDurationSeconds: 321,
+      }),
+    ).toMatchObject({
+      publishedBody: '',
+      generatedBody: 'AI 產生的正文',
+      contentFeatures: expect.objectContaining({ bodyChars: 0 }),
+    });
+  });
 });
 
 describe('createSocialPostPersister', () => {

@@ -401,7 +401,14 @@ export const ENV_MANIFEST = {
   CONTROL_CENTER_PORT: server(['control-center']),
   CONTROL_CENTER_CACHE_TTL_MS: server(['control-center']),
   FLY_COST_MODE: server(['control-center']),
-  SOCIAL_PUBLISH_SKIP_OVERDUE_MINUTES: server(['podcast-pipeline']),
+  // Read-only credentials for the operations snapshot. Deliberately without
+  // `requiredFor`: each adapter reports `unknown` rather than failing when its
+  // credential is absent, so the dashboard ships before the tokens exist.
+  OPS_GITHUB_TOKEN: server(['control-center'], { sensitive: true }),
+  SENTRY_OPS_AUTH_TOKEN: server(['control-center'], { sensitive: true }),
+  SENTRY_ORG_SLUG: server(['control-center']),
+  POSTHOG_PERSONAL_API_KEY: server(['control-center'], { sensitive: true }),
+  POSTHOG_PROJECT_ID: server(['control-center']),
   THREADS_APP_ID: server(['podcast-pipeline'], { sensitive: true }),
   THREADS_APP_SECRET: server(['podcast-pipeline'], { sensitive: true }),
   THREADS_ACCESS_TOKEN: server(['podcast-pipeline'], { sensitive: true }),
@@ -429,6 +436,10 @@ export const ENV_MANIFEST = {
   }),
   VIDEO_FFMPEG_PATH: host(['podcast-pipeline']),
   VIDEO_FFPROBE_PATH: host(['podcast-pipeline']),
+  BRAVE_SEARCH_API_KEY: server(['podcast-pipeline'], {
+    sensitive: true,
+    requiredFor: ['podcast-pipeline:base'],
+  }),
   PEXELS_API_KEY: server(['podcast-pipeline'], { sensitive: true }),
   PIXABAY_API_KEY: server(['podcast-pipeline'], { sensitive: true }),
   SUPABASE_DB_SCHEMA: server(['podcast-pipeline', 'control-center']),

@@ -380,9 +380,10 @@ describe('runSocialCli media preparation', () => {
       `🎬 video: 10m 00s, 5.0 MB\n${VIDEO.path}`,
     );
     // Review previews Rednote's own title field, not a hook line prepended to
-    // the description.
+    // the description. The preview never prints the generated body: it is not
+    // part of what actually gets published.
     expect(console.log).toHaveBeenCalledWith(`標題：${copy.rednote!.title}`);
-    expect(console.log).toHaveBeenCalledWith(copy.rednote!.body);
+    expect(console.log).not.toHaveBeenCalledWith(copy.rednote!.body);
   });
 
   it('fails before generation when a required canonical video URL is absent', async () => {

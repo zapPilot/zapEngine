@@ -22,6 +22,14 @@ const schema = z.object({
   SUPABASE_URL: optionalString,
   SUPABASE_SERVICE_ROLE_KEY: optionalString,
   SUPABASE_DB_SCHEMA: z.string().trim().min(1).default('from_fed_to_chain'),
+  // Read-only operational integrations. Every one of these ships dark: an
+  // absent credential makes its adapter report `unknown`, never `healthy`,
+  // and never sends a request that would be rejected or rate-limited.
+  OPS_GITHUB_TOKEN: optionalString,
+  SENTRY_OPS_AUTH_TOKEN: optionalString,
+  SENTRY_ORG_SLUG: optionalString,
+  POSTHOG_PERSONAL_API_KEY: optionalString,
+  POSTHOG_PROJECT_ID: optionalString,
 });
 
 export type ControlCenterConfig = z.infer<typeof schema>;

@@ -1,9 +1,7 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
-
 import type { CostSnapshot } from '@zapengine/cost-observability';
 
-const execFileAsync = promisify(execFile);
+import { runFlyctl } from './flyctl.js';
+
 const REFERENCE_SHARED_CPU_MONTHLY_USD = 2.02;
 const REFERENCE_PERFORMANCE_CPU_MONTHLY_USD = 32.19;
 const REFERENCE_EXTRA_RAM_GB_MONTHLY_USD = 5.2;
@@ -137,14 +135,6 @@ function estimateMachineMonthlyUsd(machine: FlyMachineRow): number | null {
     );
   }
   return null;
-}
-
-async function runFlyctl(args: string[]): Promise<string> {
-  const { stdout } = await execFileAsync('flyctl', args, {
-    timeout: 20_000,
-    maxBuffer: 10 * 1024 * 1024,
-  });
-  return stdout;
 }
 
 function parseArray<T>(value: string): T[] {

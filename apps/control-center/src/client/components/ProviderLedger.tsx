@@ -8,8 +8,8 @@ export function ProviderLedger(props: {
   detailed?: boolean;
 }) {
   return (
-    <div className="ledger-wrap">
-      <table className="ledger-table">
+    <div className="table-wrap">
+      <table className="data-table">
         <thead>
           <tr>
             <th>Provider</th>
@@ -27,10 +27,7 @@ export function ProviderLedger(props: {
             );
             return (
               <tr key={provider.provider}>
-                <td className="provider-name">
-                  <i className={`provider-mark ${provider.provider}`} />
-                  {provider.label}
-                </td>
+                <td className="cell-title">{provider.label}</td>
                 <td className={`basis-${provider.costType}`}>
                   {basisLabel(provider.costType)}
                 </td>
@@ -56,7 +53,7 @@ export function ProviderLedger(props: {
         </tbody>
       </table>
       {props.providers.length === 0 ? (
-        <div className="empty-row">No providers configured.</div>
+        <div className="empty-inline">No providers configured.</div>
       ) : null}
     </div>
   );

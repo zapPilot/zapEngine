@@ -9,10 +9,17 @@ app = 'from-fed-to-chain-api'
 # require Tokyo-local compute latency.
 primary_region = 'iad'
 kill_signal = 'SIGINT'
-kill_timeout = '30s'
+# Ingest can still be waiting on LLM/TTS work when a deploy starts. Give the
+# process enough time to drain active work before Fly terminates the old Machine.
+kill_timeout = '300s'
 
 [build]
   dockerfile = 'Dockerfile'
+
+# Keep the healthy release serving until the replacement passes /health. This
+# avoids the single app Machine disappearing during the new Machine's cold boot.
+[deploy]
+  strategy = 'bluegreen'
 
 [env]
   NODE_ENV = 'production'

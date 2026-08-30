@@ -11,8 +11,10 @@ import {
   createVideoWorker,
   type CreateVideoWorkerOptions,
   type EpisodeVideoWorker,
+  type ProcessEpisodeVideoVisualJob,
   type VideoWorkerPollResult,
 } from './services/video-worker.js';
+import { recordVisualPipelineCost } from './services/visual-cost.js';
 
 /**
  * Render process entry point — the `render` Fly process group runs this while
@@ -47,6 +49,34 @@ export interface VideoWorkerProcessHandle {
   videoWorker: EpisodeVideoWorker;
   shutdown(reason?: string): Promise<void>;
 }
+
+const processPricedVisualJob: ProcessEpisodeVideoVisualJob = async (
+  job,
+  source,
+  context,
+) => {
+  const startedAt = new Date();
+  try {
+    const completion = await processEpisodeVideoVisualJob(job, source, context);
+    await recordVisualPipelineCost({
+      episodeId: job.episode_id,
+      runRef: context.runId,
+      attempt: job.attempt_count,
+      status: 'completed',
+      startedAt,
+    });
+    return completion;
+  } catch (error) {
+    await recordVisualPipelineCost({
+      episodeId: job.episode_id,
+      runRef: context.runId,
+      attempt: job.attempt_count,
+      status: 'failed',
+      startedAt,
+    });
+    throw error;
+  }
+};
 
 export function startVideoWorkerProcess(
   options: VideoWorkerProcessOptions = {},
@@ -92,7 +122,7 @@ export function startVideoWorkerProcess(
 
   videoWorker = (options.createWorker ?? createVideoWorker)({
     processJob: processEpisodeVideoJob,
-    processVisualJob: processEpisodeVideoVisualJob,
+    processVisualJob: processPricedVisualJob,
     onPollResult: trackIdle,
   });
 

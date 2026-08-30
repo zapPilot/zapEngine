@@ -9,14 +9,23 @@ import {
   withValidatedJob,
 } from '../../core/processors/baseETLProcessor.js';
 import { buildRequestStats } from '../../modules/core/processorStats.js';
-import { fetchAndFilterVipUsersForProcessing } from '../../modules/vip-users/processing.js';
-import { SupabaseFetcher } from '../../modules/vip-users/supabaseFetcher.js';
+import {
+  buildUserResourceUsageRows,
+  recordUserResourceUsageNonFatal,
+} from '../../modules/user-service/attribution.js';
+import {
+  buildSourceRefreshRecords,
+  recordSourceRefreshOutcomeNonFatal,
+  type WalletRefreshOutcome,
+} from '../../modules/user-service/refreshState.js';
+import { selectDueUsers } from '../../modules/user-service/selector.js';
+import { SupabaseFetcher } from '../../modules/user-service/supabaseFetcher.js';
 import { PortfolioItemWriter } from '../../modules/wallet/portfolioWriter.js';
 import type {
   HyperliquidVaultAprSnapshotInsert,
   PortfolioItemSnapshotInsert,
 } from '../../types/database.js';
-import type { ETLJob, VipUserWithActivity } from '../../types/index.js';
+import type { ETLJob, ETLUserCandidate } from '../../types/index.js';
 import { toErrorMessage } from '../../utils/errors.js';
 import { createCompositeHealthCheck } from '../../utils/healthCheck.js';
 import { logger } from '../../utils/logger.js';
@@ -28,6 +37,7 @@ import {
   type HyperliquidProcessSummary,
   type HyperliquidTransformBatch,
   type HyperliquidUserTransformResult,
+  toWalletRefreshOutcome,
   updateProcessSummary,
 } from './processor.helpers.js';
 import { HyperliquidDataTransformer } from './transformer.js';
@@ -79,7 +89,7 @@ export class HyperliquidVaultETLProcessor implements BaseETLProcessor {
     job: ETLJob,
     summary: HyperliquidProcessSummary,
   ): Promise<ETLProcessResult> {
-    return executeETLFlow<VipUserWithActivity, HyperliquidTransformBatch>(
+    return executeETLFlow<ETLUserCandidate, HyperliquidTransformBatch>(
       job,
       'hyperliquid',
       this.fetchUsersToUpdate.bind(this, job.jobId),
@@ -88,7 +98,8 @@ export class HyperliquidVaultETLProcessor implements BaseETLProcessor {
         updateProcessSummary(summary, usersToUpdate.length, batch);
         return [batch];
       },
-      async (transformedData) => this.writeTransformedData(transformedData),
+      async (transformedData) =>
+        this.writeTransformedData(transformedData, job.jobId),
       {
         allowEmptyFetch: true,
         allowEmptyTransform: true,
@@ -96,19 +107,17 @@ export class HyperliquidVaultETLProcessor implements BaseETLProcessor {
     );
   }
 
-  private async fetchUsersToUpdate(
-    jobId: string,
-  ): Promise<VipUserWithActivity[]> {
-    const { usersToUpdate } = await fetchAndFilterVipUsersForProcessing(
-      this.supabaseFetcher,
+  private async fetchUsersToUpdate(jobId: string): Promise<ETLUserCandidate[]> {
+    const { usersToUpdate } = await selectDueUsers({
+      fetcher: this.supabaseFetcher,
+      source: 'hyperliquid',
       jobId,
-      'No VIP users returned for Hyperliquid processing',
-    );
+    });
     return usersToUpdate;
   }
 
   private async transformUsers(
-    usersToUpdate: VipUserWithActivity[],
+    usersToUpdate: ETLUserCandidate[],
     jobId: string,
   ): Promise<HyperliquidTransformBatch> {
     const positionRecords: PortfolioItemSnapshotInsert[] = [];
@@ -118,6 +127,7 @@ export class HyperliquidVaultETLProcessor implements BaseETLProcessor {
     >();
     const successfulWallets: string[] = [];
     const errors: string[] = [];
+    const outcomes: WalletRefreshOutcome[] = [];
     let success = true;
 
     for (const user of usersToUpdate) {
@@ -129,10 +139,24 @@ export class HyperliquidVaultETLProcessor implements BaseETLProcessor {
         successfulWallets,
         errors,
       );
+      outcomes.push(toWalletRefreshOutcome(user, userResult));
       if (hadError) {
         success = false;
       }
     }
+
+    // The vault fetch is the ETL flow's transform stage, so this is the only
+    // point where the wallets that actually cost a Hyperliquid call are known.
+    await recordUserResourceUsageNonFatal(
+      this.supabaseFetcher,
+      buildUserResourceUsageRows(usersToUpdate, successfulWallets, {
+        provider: 'hyperliquid',
+        resource: 'vault_details',
+        // One getVaultDetails call per wallet.
+        requestCount: 1,
+      }),
+      jobId,
+    );
 
     return {
       portfolioRecords: positionRecords,
@@ -140,11 +164,12 @@ export class HyperliquidVaultETLProcessor implements BaseETLProcessor {
       successfulWallets,
       errors,
       success,
+      outcomes,
     };
   }
 
   private async processUser(
-    user: VipUserWithActivity,
+    user: ETLUserCandidate,
     jobId: string,
   ): Promise<HyperliquidUserTransformResult> {
     try {
@@ -186,7 +211,7 @@ export class HyperliquidVaultETLProcessor implements BaseETLProcessor {
       const message = toErrorMessage(error);
       logger.error('Failed to process Hyperliquid vault for user', {
         jobId,
-        userId: user.user_id,
+        userId: user.userId,
         wallet: maskWalletAddress(user.wallet),
         error: message,
       });
@@ -196,6 +221,7 @@ export class HyperliquidVaultETLProcessor implements BaseETLProcessor {
 
   private async writeTransformedData(
     transformedData: HyperliquidTransformBatch[],
+    jobId: string,
   ): Promise<WriteResult> {
     const batch = transformedData[0];
     if (!batch) {
@@ -207,9 +233,28 @@ export class HyperliquidVaultETLProcessor implements BaseETLProcessor {
       batch.successfulWallets,
     );
     const aprResult = await this.writeAprRecords(batch.aprRecords);
+    // The writers alone, not the merged `success` below: that one ands in the
+    // per-wallet fetch errors, which each outcome already carries, and would
+    // hold a wallet whose position landed due on another wallet's outage.
+    const loadSucceeded = portfolioResult.success && aprResult.success;
+
+    await recordSourceRefreshOutcomeNonFatal(
+      this.supabaseFetcher,
+      buildSourceRefreshRecords('hyperliquid', batch.outcomes, {
+        succeeded: loadSucceeded,
+        ...(loadSucceeded
+          ? {}
+          : {
+              error: [...portfolioResult.errors, ...aprResult.errors].join(
+                '; ',
+              ),
+            }),
+      }),
+      jobId,
+    );
 
     return {
-      success: batch.success && portfolioResult.success && aprResult.success,
+      success: batch.success && loadSucceeded,
       recordsInserted:
         portfolioResult.recordsInserted + aprResult.recordsInserted,
       duplicatesSkipped:

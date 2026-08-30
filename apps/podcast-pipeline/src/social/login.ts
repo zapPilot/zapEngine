@@ -12,6 +12,7 @@ import { assertYouTubeChannel } from './youtube.js';
 import {
   ensureYouTubeSession,
   YOUTUBE_ANALYTICS_SCOPE,
+  YOUTUBE_READONLY_SCOPE,
 } from './youtube-auth.js';
 
 export async function runSocialLogin(
@@ -51,7 +52,7 @@ export async function runSocialLogin(
 
   try {
     const session = await ensureYouTubeSession({
-      additionalScopes: [YOUTUBE_ANALYTICS_SCOPE],
+      additionalScopes: [YOUTUBE_ANALYTICS_SCOPE, YOUTUBE_READONLY_SCOPE],
     });
     const channelId = await assertYouTubeChannel({
       accessToken: session.accessToken,

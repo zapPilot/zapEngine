@@ -296,6 +296,7 @@ printf "\n${BOLD}Checking env manifest for dead env vars...${RESET}\n\n"
 declared_vars=$(node "$REPO_ROOT/scripts/env/cli.mjs" keys)
 
 node --test "$REPO_ROOT/scripts/env/lib.test.mjs"
+node --test "$REPO_ROOT/scripts/ops-lib.test.mjs"
 
 manifest_mappings=$(node "$REPO_ROOT/scripts/env/cli.mjs" mappings)
 projected_vars=$(

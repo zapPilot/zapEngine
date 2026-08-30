@@ -92,7 +92,7 @@ describe('verifySecret', () => {
 });
 
 describe('video lifecycle messages', () => {
-  it('uses the canonical zh-Hant share link for queued and terminal updates', () => {
+  it('keeps the canonical zh-Hant share link for audio and failure updates', () => {
     const link =
       'https://from-fed-to-chain-api.fly.dev/e/episode%2F1?lang=zh-Hant';
     expect(buildEpisodeShareUrl('episode/1')).toBe(link);
@@ -105,13 +105,26 @@ describe('video lifecycle messages', () => {
     expect(
       buildTelegramAudioReadyMessage('✅ 已存在', 'episode/1', 'unavailable'),
     ).toContain('音頻完成／影片稍後補上');
-    expect(buildTelegramVideoCompletedMessage('episode/1')).toBe(
-      `🎬 影片完成\n${link}`,
-    );
     expect(buildTelegramVideoFailedMessage('episode/1')).toBe(
       `⚠️ 影片失敗，但音頻仍可使用\n${link}`,
     );
   });
+
+  it.each([
+    ['zh-Hant', '🇹🇼 繁中'],
+    ['ja', '🇯🇵 日文'],
+    ['en', '🇺🇸 英文'],
+  ] as const)(
+    'labels completed %s videos and links to that localization',
+    (languageCode, label) => {
+      const link = `https://from-fed-to-chain-api.fly.dev/e/episode%2F1?lang=${languageCode}`;
+
+      expect(buildEpisodeShareUrl('episode/1', languageCode)).toBe(link);
+      expect(
+        buildTelegramVideoCompletedMessage('episode/1', languageCode),
+      ).toBe(`🎬 ${label}影片完成\n${link}`);
+    },
+  );
 
   it('names the stored failure reason when the job recorded one', () => {
     const link =

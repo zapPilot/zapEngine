@@ -2,8 +2,8 @@ import { isCurrentScript, writeGeneratedFile } from './paths.js';
 import { loadTokens } from './tokens.js';
 const header = `/* Generated from packages/design-tokens/tokens.json. Do not edit by hand. */`;
 export function renderCssVariables(tokens) {
-    const { color, font, radius, easing } = tokens;
-    return `${header}
+  const { color, font, radius, easing } = tokens;
+  return `${header}
 :root,
 .v2-root {
   --bg: ${color.bg};
@@ -19,6 +19,7 @@ export function renderCssVariables(tokens) {
   --accent-soft: ${color['accent-soft']};
   --accent-muted: ${color['accent-muted']};
   --error: ${color.error};
+  --warning: ${color.warning};
   --success: ${color.success};
   --spy: ${color.pillar.spy};
   --btc: ${color.pillar.btc};
@@ -57,9 +58,12 @@ export function renderCssVariables(tokens) {
 `;
 }
 export function writeCssVariables() {
-    writeGeneratedFile('dist/css/variables.css', renderCssVariables(loadTokens()));
+  writeGeneratedFile(
+    'dist/css/variables.css',
+    renderCssVariables(loadTokens()),
+  );
 }
 if (isCurrentScript(import.meta.url)) {
-    writeCssVariables();
+  writeCssVariables();
 }
 //# sourceMappingURL=css-variables.js.map

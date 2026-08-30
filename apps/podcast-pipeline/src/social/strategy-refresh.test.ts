@@ -4,6 +4,7 @@ import type { SocialPostMetricRow, SocialPostRow } from '../types.js';
 
 const store = vi.hoisted(() => ({
   activateSocialStrategy: vi.fn(),
+  deactivateSocialStrategy: vi.fn(),
   getActiveSocialStrategies: vi.fn(),
   listLearningSocialMetrics: vi.fn(),
   listLearningSocialPosts: vi.fn(),
@@ -169,10 +170,8 @@ describe('refreshSocialStrategies', () => {
         id: 'strategy-existing',
         platform: 'rednote',
         version: 1,
+        language_code: 'zh-Hant',
         config: {
-          publishSlotsJst: [
-            ...(learned.config.publishSlotsJst ?? []),
-          ].reverse(),
           preferredHookTypes: [
             ...(learned.config.preferredHookTypes ?? []),
           ].reverse(),
@@ -203,6 +202,7 @@ describe('refreshSocialStrategies', () => {
       {
         id: 'x-default',
         platform: 'x',
+        language_code: 'en',
         version: 1,
         config: defaultSocialStrategy(),
         based_on_samples: 0,
@@ -215,5 +215,48 @@ describe('refreshSocialStrategies', () => {
       refreshSocialStrategies({ now: new Date('2026-08-17T12:00:00.000Z') }),
     ).resolves.toBeUndefined();
     expect(store.activateSocialStrategy).not.toHaveBeenCalled();
+    expect(store.deactivateSocialStrategy).not.toHaveBeenCalled();
+  });
+
+  it('retires an active lane the publish policy no longer ships', async () => {
+    store.listLearningSocialPosts.mockResolvedValue([]);
+    store.listLearningSocialMetrics.mockResolvedValue([]);
+    store.getActiveSocialStrategies.mockResolvedValue([
+      {
+        id: 'youtube-ja',
+        platform: 'youtube',
+        language_code: 'ja',
+        version: 3,
+        config: defaultSocialStrategy(),
+        based_on_samples: 9,
+        active: true,
+        created_at: '2026-08-16T00:00:00.000Z',
+      },
+      {
+        id: 'threads-ja',
+        platform: 'threads',
+        language_code: 'ja',
+        version: 2,
+        config: defaultSocialStrategy(),
+        based_on_samples: 9,
+        active: true,
+        created_at: '2026-08-16T00:00:00.000Z',
+      },
+    ]);
+    const log = vi.fn();
+
+    // Self-healing rather than a one-off cleanup: YouTube in Japanese stopped
+    // being a lane when the policy went English-only, and an active row for it
+    // would otherwise outlive the policy indefinitely.
+    await refreshSocialStrategies({
+      now: new Date('2026-08-17T12:00:00.000Z'),
+      log,
+    });
+
+    expect(store.deactivateSocialStrategy).toHaveBeenCalledTimes(1);
+    expect(store.deactivateSocialStrategy).toHaveBeenCalledWith('youtube-ja');
+    expect(log).toHaveBeenCalledWith(
+      expect.stringContaining('no longer in the publish policy'),
+    );
   });
 });

@@ -11,6 +11,7 @@ import {
   type CostRepository,
 } from './cost-repository.js';
 import { syncCosts } from './cost-sync.js';
+import { sumKnown } from './numbers.js';
 import { loadProductHealth } from './product-health.js';
 import { loadSocialPerformance } from './social.js';
 
@@ -139,8 +140,4 @@ function repositoryErrorProviders(error: unknown): CostProviderResult[] {
     status: 'error' as const,
     message,
   }));
-}
-
-function sumKnown(values: number[]): number | null {
-  return values.length ? values.reduce((sum, value) => sum + value, 0) : null;
 }

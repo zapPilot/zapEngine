@@ -33,10 +33,10 @@ function acquired(id: string): AcquiredRemoteImage {
   };
 }
 
-function bingProvider(
+function braveProvider(
   search: ImageSearchProvider['search'],
 ): ImageSearchProvider {
-  return { origin: 'bing', search };
+  return { origin: 'brave', search };
 }
 
 const twoScenes: VisualAssetScene[] = [
@@ -56,7 +56,7 @@ describe('planVisualAssets resilient selection', () => {
       onProgress: (event) => progress.push(event),
       dependencies: {
         acquireImage: vi.fn().mockResolvedValue(acquired('article-a')),
-        searchProviders: [bingProvider(vi.fn().mockResolvedValue([]))],
+        searchProviders: [braveProvider(vi.fn().mockResolvedValue([]))],
         fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
       },
     });
@@ -80,7 +80,7 @@ describe('planVisualAssets resilient selection', () => {
 
   it('tries a broader official-event query before reusing an image', async () => {
     const searched = {
-      ...candidate('ethereum-validator-conference', 'bing'),
+      ...candidate('ethereum-validator-conference', 'brave'),
       altText: 'Ethereum validator conference event',
       sourceUrl: 'https://ethereum.org/community/events/',
     };
@@ -108,7 +108,7 @@ describe('planVisualAssets resilient selection', () => {
       selectionMode: 'resilient',
       dependencies: {
         acquireImage,
-        searchProviders: [bingProvider(search)],
+        searchProviders: [braveProvider(search)],
         fingerprintImage: vi
           .fn()
           .mockResolvedValueOnce('0000000000000000')
@@ -124,17 +124,17 @@ describe('planVisualAssets resilient selection', () => {
     });
   });
 
-  it('prefers editorial Bing results and drops obvious synthetic artwork', async () => {
+  it('prefers editorial Brave results and drops obvious synthetic artwork', async () => {
     const synthetic = {
-      ...candidate('federal-reserve-ai-art', 'bing'),
+      ...candidate('federal-reserve-ai-art', 'brave'),
       altText: 'AI-generated 3D render of a Federal Reserve policy meeting',
     };
     const genericStock = {
-      ...candidate('federal-reserve-business-team', 'bing'),
+      ...candidate('federal-reserve-business-team', 'brave'),
       altText: 'Federal Reserve business team meeting in office',
     };
     const editorial = {
-      ...candidate('federal-reserve-chair', 'bing'),
+      ...candidate('federal-reserve-chair', 'brave'),
       altText: 'Federal Reserve chair speaking after a policy meeting',
       sourceUrl:
         'https://www.reuters.com/world/us/federal-reserve-policy-meeting/',
@@ -145,7 +145,7 @@ describe('planVisualAssets resilient selection', () => {
         altText: 'Financial traders looking at screens',
       },
     ]);
-    const bingSearch = vi
+    const braveSearch = vi
       .fn()
       .mockResolvedValue([synthetic, genericStock, editorial]);
     const acquireImage = vi.fn().mockResolvedValue(acquired('editorial'));
@@ -164,7 +164,7 @@ describe('planVisualAssets resilient selection', () => {
         // Deliberately put stock first; resilient mode must reorder providers.
         searchProviders: [
           { origin: 'pexels', search: pexelsSearch },
-          bingProvider(bingSearch),
+          braveProvider(braveSearch),
         ],
         fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
       },
@@ -197,7 +197,7 @@ describe('planVisualAssets resilient selection', () => {
           .fn()
           .mockResolvedValueOnce(acquired('article-a'))
           .mockResolvedValueOnce(acquired('article-b')),
-        searchProviders: [bingProvider(search)],
+        searchProviders: [braveProvider(search)],
         fingerprintImage: vi
           .fn()
           .mockResolvedValueOnce('0000000000000000')
@@ -225,7 +225,7 @@ describe('planVisualAssets resilient selection', () => {
     const progress: VisualAssetProgress[] = [];
     const search = vi
       .fn()
-      .mockRejectedValueOnce(new Error('Bing Images search failed: 503'))
+      .mockRejectedValueOnce(new Error('Brave Images search failed: 503'))
       .mockResolvedValueOnce([]);
 
     const result = await planVisualAssets({
@@ -236,7 +236,7 @@ describe('planVisualAssets resilient selection', () => {
       onProgress: (event) => progress.push(event),
       dependencies: {
         acquireImage: vi.fn().mockResolvedValue(acquired('article-a')),
-        searchProviders: [bingProvider(search)],
+        searchProviders: [braveProvider(search)],
         fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
       },
     });
@@ -251,6 +251,49 @@ describe('planVisualAssets resilient selection', () => {
         rejectedCandidateCount: 1,
         rejectionSummary: 'search-provider-failure:1',
       }),
+    );
+  });
+
+  it('reuses an already validated image when an entity scene finds nothing', async () => {
+    const braveSearch = vi.fn(async (query: string) =>
+      query.includes('stablecoin')
+        ? [
+            {
+              ...candidate('stablecoin-desk', 'brave'),
+              altText: 'stablecoin trading desk',
+            },
+          ]
+        : [],
+    );
+    const progress: VisualAssetProgress[] = [];
+
+    const result = await planVisualAssets({
+      scenes: [
+        { sceneId: 'scene-01', imageSearchIntent: ['stablecoin desk'] },
+        {
+          sceneId: 'scene-02',
+          imageSearchIntent: ['Coldcard air-gapped signing device'],
+          imageSearchEntities: ['Coldcard'],
+        },
+      ],
+      workingDirectory: '/work/visual-assets',
+      selectionMode: 'resilient',
+      onProgress: (event) => progress.push(event),
+      dependencies: {
+        acquireImage: vi.fn().mockResolvedValue(acquired('stablecoin-desk')),
+        searchProviders: [braveProvider(braveSearch)],
+        fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
+      },
+    });
+
+    // Under entity anchoring the reuse pool is only images already validated for
+    // this episode, so an unfillable scene repeats rather than going off-topic.
+    expect(result.scenes).toEqual([
+      { sceneId: 'scene-01', assetId: 'image-01' },
+      { sceneId: 'scene-02', assetId: 'image-01' },
+    ]);
+    expect(progress).toContainEqual(
+      expect.objectContaining({ sceneId: 'scene-02', provider: 'reuse' }),
     );
   });
 });

@@ -173,8 +173,8 @@ describe('selectCoverAssetForFirstScene', () => {
     const acquireImage = vi.fn().mockResolvedValue(null);
     const searchProviders = [
       {
-        origin: 'bing' as const,
-        search: vi.fn().mockRejectedValue(new Error('Bing unavailable')),
+        origin: 'brave' as const,
+        search: vi.fn().mockRejectedValue(new Error('Brave unavailable')),
       },
     ];
 

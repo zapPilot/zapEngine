@@ -231,7 +231,6 @@ describe('createSocialPublishJobs', () => {
     await job?.publish();
     expect(mocks.publishRednote).toHaveBeenCalledWith({
       title: copy.rednote!.title,
-      body: copy.rednote!.body,
       hashtags: copy.rednote!.hashtags,
       videoPath: VIDEO_PATH,
     });

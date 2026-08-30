@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { APIError } from '../../../../src/utils/errors.js';
-import { SupabaseFetcher } from '../../../../src/modules/vip-users/supabaseFetcher.js';
+import { SupabaseFetcher } from '../../../../src/modules/user-service/supabaseFetcher.js';
 import { logger } from '../../../../src/utils/logger.js';
 
 const { mockClient, mockGetDbClient } = vi.hoisted(() => {
@@ -46,203 +45,6 @@ describe('SupabaseFetcher', () => {
     expect(fetcher.getRequestStats()).toEqual({
       requestCount: 0,
       lastRequestTime: 0,
-    });
-  });
-
-  describe('fetchVipUsers', () => {
-    it('returns normalized wallets on success', async () => {
-      mockClient.query.mockResolvedValueOnce({
-        rows: [
-          { user_id: 'u1', wallet: '0xABC' },
-          { user_id: 'u2', wallet: '0xDEF' },
-        ],
-      });
-
-      const result = await fetcher.fetchVipUsers();
-
-      expect(mockClient.query).toHaveBeenCalledWith(
-        'select user_id, wallet from public.get_users_wallets_by_plan($1)',
-        ['vip'],
-      );
-      expect(result).toEqual([
-        { user_id: 'u1', wallet: '0xabc' },
-        { user_id: 'u2', wallet: '0xdef' },
-      ]);
-      expect(logger.info).toHaveBeenCalledWith(
-        'VIP users fetched successfully',
-        { userCount: 2 },
-      );
-      expect(fetcher.getRequestStats().requestCount).toBe(1);
-    });
-
-    it('filters invalid rows and logs a warning', async () => {
-      mockClient.query.mockResolvedValueOnce({
-        rows: [
-          { user_id: 'u1', wallet: '0xABC' },
-          { user_id: null, wallet: '0xDEF' },
-          { user_id: 'u2', wallet: '' },
-        ],
-      });
-
-      const result = await fetcher.fetchVipUsers();
-
-      expect(result).toEqual([{ user_id: 'u1', wallet: '0xabc' }]);
-      expect(logger.warn).toHaveBeenCalledWith(
-        'Some invalid user records filtered out',
-        {
-          total: 3,
-          valid: 1,
-          invalid: 2,
-        },
-      );
-    });
-
-    it('re-throws APIError instances without wrapping', async () => {
-      const apiError = new APIError('db error', 500, 'db', 'SupabaseFetcher');
-      vi.spyOn(
-        fetcher as unknown as {
-          withDatabaseClient: (callback: unknown) => Promise<never>;
-        },
-        'withDatabaseClient',
-      ).mockRejectedValueOnce(apiError);
-
-      await expect(fetcher.fetchVipUsers()).rejects.toBe(apiError);
-    });
-
-    it('wraps unexpected errors in APIError', async () => {
-      vi.spyOn(
-        fetcher as unknown as {
-          withDatabaseClient: (callback: unknown) => Promise<never>;
-        },
-        'withDatabaseClient',
-      ).mockRejectedValueOnce(new Error('boom'));
-
-      await expect(fetcher.fetchVipUsers()).rejects.toThrow(
-        'DB fetch failed: boom',
-      );
-      await expect(fetcher.fetchVipUsers()).rejects.toBeInstanceOf(APIError);
-    });
-
-    it('uses Unknown error for non-Error failures', async () => {
-      vi.spyOn(
-        fetcher as unknown as {
-          withDatabaseClient: (callback: unknown) => Promise<never>;
-        },
-        'withDatabaseClient',
-      ).mockRejectedValueOnce('String Error');
-
-      await expect(fetcher.fetchVipUsers()).rejects.toThrow(
-        'DB fetch failed: Unknown error',
-      );
-    });
-  });
-
-  describe('fetchVipUsersWithActivity', () => {
-    it('normalizes, deduplicates, and summarizes activity rows', async () => {
-      mockClient.query.mockResolvedValueOnce({
-        rows: [
-          {
-            user_id: 'u1',
-            wallet: '0xABC',
-            last_activity_at: '2023-01-01',
-            last_portfolio_update_at: '2023-01-02',
-          },
-          {
-            user_id: 'u1',
-            wallet: '0xabc',
-            last_activity_at: '2023-01-01',
-            last_portfolio_update_at: '2023-01-02',
-          },
-        ],
-      });
-
-      const result = await fetcher.fetchVipUsersWithActivity();
-
-      expect(result).toEqual([
-        {
-          user_id: 'u1',
-          wallet: '0xabc',
-          last_activity_at: '2023-01-01',
-          last_portfolio_update_at: '2023-01-02',
-        },
-      ]);
-      expect(logger.warn).toHaveBeenCalledWith(
-        'Duplicate wallets detected after SQL query',
-        {
-          total: 2,
-          unique: 1,
-          duplicates: 1,
-        },
-      );
-      expect(logger.info).toHaveBeenCalledWith(
-        'VIP users with activity fetched successfully',
-        {
-          userCount: 1,
-          withActivity: 1,
-          withPortfolioUpdate: 1,
-        },
-      );
-    });
-
-    it('filters invalid rows', async () => {
-      mockClient.query.mockResolvedValueOnce({
-        rows: [
-          {
-            user_id: 'u1',
-            wallet: '0xABC',
-            last_activity_at: '2023',
-            last_portfolio_update_at: '2023',
-          },
-          {
-            user_id: null,
-            wallet: '0xDEF',
-          },
-        ],
-      });
-
-      const result = await fetcher.fetchVipUsersWithActivity();
-
-      expect(result).toHaveLength(1);
-      expect(result[0].wallet).toBe('0xabc');
-      expect(logger.warn).toHaveBeenCalledWith(
-        'Some invalid user records filtered out',
-        {
-          total: 2,
-          valid: 1,
-          invalid: 1,
-        },
-      );
-    });
-
-    it('propagates APIError instances', async () => {
-      const apiError = new APIError('db error', 500, 'db', 'SupabaseFetcher');
-      vi.spyOn(
-        fetcher as unknown as {
-          withDatabaseClient: (callback: unknown) => Promise<never>;
-        },
-        'withDatabaseClient',
-      ).mockRejectedValueOnce(apiError);
-
-      await expect(fetcher.fetchVipUsersWithActivity()).rejects.toBe(apiError);
-    });
-
-    it('wraps generic and non-Error failures', async () => {
-      const withDatabaseClientSpy = vi.spyOn(
-        fetcher as unknown as {
-          withDatabaseClient: (callback: unknown) => Promise<never>;
-        },
-        'withDatabaseClient',
-      );
-
-      withDatabaseClientSpy.mockRejectedValueOnce(new Error('boom'));
-      await expect(fetcher.fetchVipUsersWithActivity()).rejects.toThrow(
-        'DB fetch with activity failed: boom',
-      );
-
-      withDatabaseClientSpy.mockRejectedValueOnce('String Error');
-      await expect(fetcher.fetchVipUsersWithActivity()).rejects.toThrow(
-        'DB fetch with activity failed: Unknown error',
-      );
     });
   });
 
@@ -303,64 +105,6 @@ describe('SupabaseFetcher', () => {
     });
   });
 
-  describe('fetchUsersByIds', () => {
-    it('returns empty array for empty input', async () => {
-      await expect(fetcher.fetchUsersByIds([])).resolves.toEqual([]);
-      await expect(
-        fetcher.fetchUsersByIds(null as unknown as string[]),
-      ).resolves.toEqual([]);
-      expect(mockGetDbClient).not.toHaveBeenCalled();
-    });
-
-    it('returns normalized filtered rows', async () => {
-      mockClient.query.mockResolvedValueOnce({
-        rows: [
-          { user_id: 'u1', wallet: '0xABC' },
-          { user_id: null, wallet: '0xDEF' },
-        ],
-      });
-
-      const result = await fetcher.fetchUsersByIds(['u1', 'u2']);
-
-      expect(mockClient.query).toHaveBeenCalledWith(
-        'select user_id, wallet from public.get_users_wallets_by_ids($1)',
-        [['u1', 'u2']],
-      );
-      expect(result).toEqual([{ user_id: 'u1', wallet: '0xabc' }]);
-    });
-
-    it('propagates APIError instances', async () => {
-      const apiError = new APIError('db error', 500, 'db', 'SupabaseFetcher');
-      vi.spyOn(
-        fetcher as unknown as {
-          withDatabaseClient: (callback: unknown) => Promise<never>;
-        },
-        'withDatabaseClient',
-      ).mockRejectedValueOnce(apiError);
-
-      await expect(fetcher.fetchUsersByIds(['u1'])).rejects.toBe(apiError);
-    });
-
-    it('wraps generic and non-Error failures', async () => {
-      const withDatabaseClientSpy = vi.spyOn(
-        fetcher as unknown as {
-          withDatabaseClient: (callback: unknown) => Promise<never>;
-        },
-        'withDatabaseClient',
-      );
-
-      withDatabaseClientSpy.mockRejectedValueOnce(new Error('boom'));
-      await expect(fetcher.fetchUsersByIds(['u1'])).rejects.toThrow(
-        'DB fetch by IDs failed: boom',
-      );
-
-      withDatabaseClientSpy.mockRejectedValueOnce('String Error');
-      await expect(fetcher.fetchUsersByIds(['u1'])).rejects.toThrow(
-        'DB fetch by IDs failed: Unknown error',
-      );
-    });
-  });
-
   describe('healthCheck', () => {
     it('returns healthy when ping and function lookup succeed', async () => {
       mockClient.query
@@ -370,6 +114,18 @@ describe('SupabaseFetcher', () => {
       await expect(fetcher.healthCheck()).resolves.toEqual({
         status: 'healthy',
       });
+    });
+
+    it('probes for the function the fetcher actually depends on', async () => {
+      mockClient.query
+        .mockResolvedValueOnce({ rows: [{ ok: 1 }] })
+        .mockResolvedValueOnce({ rows: [{ exists: true }] });
+
+      await fetcher.healthCheck();
+
+      expect(mockClient.query).toHaveBeenLastCalledWith(
+        "select exists (select 1 from pg_proc where proname = 'get_user_service_states') as exists",
+      );
     });
 
     it('returns unhealthy when ping fails', async () => {
@@ -390,7 +146,7 @@ describe('SupabaseFetcher', () => {
 
       await expect(fetcher.healthCheck()).resolves.toEqual({
         status: 'unhealthy',
-        details: 'Function get_users_wallets_by_plan not found',
+        details: 'Function get_user_service_states not found',
       });
     });
 

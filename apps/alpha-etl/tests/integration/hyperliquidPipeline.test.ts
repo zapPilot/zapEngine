@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { VaultDetailsResponse } from '../../src/modules/hyperliquid/fetcher.js';
 import type { WriteResult } from '../../src/core/database/baseWriter.js';
+import type { ETLUserCandidate } from '../../src/types/index.js';
 import { createEtlJob } from '../utils/createEtlJob.js';
 
 function createRequestStats(): { requestCount: number; lastRequestTime: null } {
@@ -30,11 +31,10 @@ function createMockHyperliquidFetcher() {
 }
 
 function createMockSupabaseFetcher() {
-  const fetchVipUsers = vi.fn();
-
   return {
-    fetchVipUsers,
-    fetchVipUsersWithActivity: fetchVipUsers,
+    fetchUserServiceStates: vi.fn(),
+    recordUserResourceUsage: vi.fn().mockResolvedValue(undefined),
+    recordWalletSourceRefresh: vi.fn().mockResolvedValue(undefined),
     healthCheck: vi.fn().mockResolvedValue({ status: 'healthy' }),
     getRequestStats: vi.fn().mockReturnValue(createRequestStats()),
   };
@@ -75,7 +75,7 @@ vi.mock('../../src/modules/hyperliquid/fetcher.js', () => ({
   }),
 }));
 
-vi.mock('../../src/modules/vip-users/supabaseFetcher.js', () => ({
+vi.mock('../../src/modules/user-service/supabaseFetcher.js', () => ({
   SupabaseFetcher: vi.fn().mockImplementation(function SupabaseFetcher() {
     return mockSupabaseFetcher;
   }),
@@ -150,12 +150,19 @@ const createMockVaultDetailsResponse = (
   ...overrides,
 });
 
-function createMockVipUser(userId: string, wallet: string) {
+function createMockCandidate(userId: string, wallet: string): ETLUserCandidate {
   return {
-    user_id: userId,
+    userId,
     wallet,
-    plan: 'vip' as const,
-    created_at: new Date().toISOString(),
+    planCode: 'vip',
+    defaultTier: 'priority',
+    overrideTier: null,
+    effectiveTier: 'priority',
+    lastActivityAt: null,
+    lastPortfolioUpdateAt: null,
+    refreshIntervalHours: 24,
+    dueForRefresh: true,
+    dueSources: ['hyperliquid'],
   };
 }
 
@@ -179,7 +186,7 @@ describe('Hyperliquid Pipeline Integration Tests', () => {
     mockAprWriter = createMockAprWriter();
 
     // Set up default mock responses for empty data scenarios
-    mockSupabaseFetcher.fetchVipUsers.mockResolvedValue([]);
+    mockSupabaseFetcher.fetchUserServiceStates.mockResolvedValue([]);
 
     // Create a new processor instance (will use the fresh mocks)
     processor = new HyperliquidVaultETLProcessor();
@@ -190,28 +197,28 @@ describe('Hyperliquid Pipeline Integration Tests', () => {
   });
 
   describe('Complete E2E Flow - Happy Path', () => {
-    it('should successfully process multiple VIP users through entire pipeline', async () => {
+    it('should successfully process multiple due wallets through entire pipeline', async () => {
       const job = createTestJob();
 
-      // Mock 3 VIP users
-      const vipUsers = [
-        createMockVipUser(
+      // Three wallets the policy marked due
+      const dueUsers = [
+        createMockCandidate(
           'user-1',
           '0xuser1111111111111111111111111111111111111',
         ),
-        createMockVipUser(
+        createMockCandidate(
           'user-2',
           '0xuser2222222222222222222222222222222222222',
         ),
-        createMockVipUser(
+        createMockCandidate(
           'user-3',
           '0xuser3333333333333333333333333333333333333',
         ),
       ];
-      mockSupabaseFetcher.fetchVipUsers.mockResolvedValue(vipUsers);
+      mockSupabaseFetcher.fetchUserServiceStates.mockResolvedValue(dueUsers);
 
       // Mock Hyperliquid API responses for each user
-      const vaultResponses = vipUsers.map((user, index) =>
+      const vaultResponses = dueUsers.map((user, index) =>
         createMockVaultDetailsResponse({
           followerState: {
             ...createMockVaultDetailsResponse().followerState!,
@@ -230,7 +237,7 @@ describe('Hyperliquid Pipeline Integration Tests', () => {
       // Mock extractors to return realistic data
       vaultResponses.forEach((response, index) => {
         mockHyperliquidFetcher.extractPositionData.mockReturnValueOnce({
-          userWallet: vipUsers[index].wallet,
+          userWallet: dueUsers[index].wallet,
           vaultAddress: response.vaultAddress,
           vaultName: response.name || 'HLP Vault',
           hlpBalance: response.followerState!.totalAccountValue!,
@@ -281,7 +288,9 @@ describe('Hyperliquid Pipeline Integration Tests', () => {
       expect(result.source).toBe('hyperliquid');
 
       // Assertions - API calls
-      expect(mockSupabaseFetcher.fetchVipUsers).toHaveBeenCalledTimes(1);
+      expect(mockSupabaseFetcher.fetchUserServiceStates).toHaveBeenCalledTimes(
+        1,
+      );
       expect(mockHyperliquidFetcher.getVaultDetails).toHaveBeenCalledTimes(3);
       expect(mockHyperliquidFetcher.extractPositionData).toHaveBeenCalledTimes(
         3,
@@ -305,20 +314,20 @@ describe('Hyperliquid Pipeline Integration Tests', () => {
     it('should verify data consistency through transformation pipeline', async () => {
       const job = createTestJob();
 
-      const vipUsers = [
-        createMockVipUser(
+      const dueUsers = [
+        createMockCandidate(
           'user-1',
           '0xuser1111111111111111111111111111111111111',
         ),
       ];
-      mockSupabaseFetcher.fetchVipUsers.mockResolvedValue(vipUsers);
+      mockSupabaseFetcher.fetchUserServiceStates.mockResolvedValue(dueUsers);
 
       const vaultResponse = createMockVaultDetailsResponse({
         apr: 0.3456,
         totalVlm: 20000000,
         followerState: {
           ...createMockVaultDetailsResponse().followerState!,
-          user: vipUsers[0].wallet,
+          user: dueUsers[0].wallet,
           totalAccountValue: 75000,
           vaultEquity: 75000,
           maxWithdrawable: 72000,
@@ -327,7 +336,7 @@ describe('Hyperliquid Pipeline Integration Tests', () => {
 
       mockHyperliquidFetcher.getVaultDetails.mockResolvedValue(vaultResponse);
       mockHyperliquidFetcher.extractPositionData.mockReturnValue({
-        userWallet: vipUsers[0].wallet,
+        userWallet: dueUsers[0].wallet,
         vaultAddress: vaultResponse.vaultAddress,
         vaultName: vaultResponse.name || 'HLP Vault',
         hlpBalance: 75000,
@@ -438,34 +447,34 @@ describe('Hyperliquid Pipeline Integration Tests', () => {
     it('should handle mixed success/failure for individual users', async () => {
       const job = createTestJob();
 
-      const vipUsers = [
-        createMockVipUser(
+      const dueUsers = [
+        createMockCandidate(
           'user-1',
           '0xuser1111111111111111111111111111111111111',
         ),
-        createMockVipUser(
+        createMockCandidate(
           'user-2',
           '0xuser2222222222222222222222222222222222222',
         ),
-        createMockVipUser(
+        createMockCandidate(
           'user-3',
           '0xuser3333333333333333333333333333333333333',
         ),
       ];
-      mockSupabaseFetcher.fetchVipUsers.mockResolvedValue(vipUsers);
+      mockSupabaseFetcher.fetchUserServiceStates.mockResolvedValue(dueUsers);
 
       // User 1: Success
       const vaultResponse1 = createMockVaultDetailsResponse({
         followerState: {
           ...createMockVaultDetailsResponse().followerState!,
-          user: vipUsers[0].wallet,
+          user: dueUsers[0].wallet,
         },
       });
       mockHyperliquidFetcher.getVaultDetails.mockResolvedValueOnce(
         vaultResponse1,
       );
       mockHyperliquidFetcher.extractPositionData.mockReturnValueOnce({
-        userWallet: vipUsers[0].wallet,
+        userWallet: dueUsers[0].wallet,
         vaultAddress: vaultResponse1.vaultAddress,
         vaultName: 'HLP Vault',
         hlpBalance: 50000,
@@ -497,14 +506,14 @@ describe('Hyperliquid Pipeline Integration Tests', () => {
       const vaultResponse3 = createMockVaultDetailsResponse({
         followerState: {
           ...createMockVaultDetailsResponse().followerState!,
-          user: vipUsers[2].wallet,
+          user: dueUsers[2].wallet,
         },
       });
       mockHyperliquidFetcher.getVaultDetails.mockResolvedValueOnce(
         vaultResponse3,
       );
       mockHyperliquidFetcher.extractPositionData.mockReturnValueOnce({
-        userWallet: vipUsers[2].wallet,
+        userWallet: dueUsers[2].wallet,
         vaultAddress: vaultResponse3.vaultAddress,
         vaultName: 'HLP Vault',
         hlpBalance: 60000,
@@ -560,13 +569,13 @@ describe('Hyperliquid Pipeline Integration Tests', () => {
     it('should continue APR processing even when portfolio transformation fails', async () => {
       const job = createTestJob();
 
-      const vipUsers = [
-        createMockVipUser(
+      const dueUsers = [
+        createMockCandidate(
           'user-1',
           '0xuser1111111111111111111111111111111111111',
         ),
       ];
-      mockSupabaseFetcher.fetchVipUsers.mockResolvedValue(vipUsers);
+      mockSupabaseFetcher.fetchUserServiceStates.mockResolvedValue(dueUsers);
 
       const vaultResponse = createMockVaultDetailsResponse({
         followerState: null, // Missing follower state - position transform will fail
@@ -605,7 +614,7 @@ describe('Hyperliquid Pipeline Integration Tests', () => {
       expect(mockPortfolioWriter.writeSnapshots).toHaveBeenCalledWith(
         [],
         'hyperliquid',
-        [vipUsers[0].wallet],
+        [dueUsers[0].wallet],
       );
 
       // APR writer should still be called
@@ -618,28 +627,28 @@ describe('Hyperliquid Pipeline Integration Tests', () => {
       const job = createTestJob();
 
       // 3 users all in the same vault
-      const vipUsers = [
-        createMockVipUser(
+      const dueUsers = [
+        createMockCandidate(
           'user-1',
           '0xuser1111111111111111111111111111111111111',
         ),
-        createMockVipUser(
+        createMockCandidate(
           'user-2',
           '0xuser2222222222222222222222222222222222222',
         ),
-        createMockVipUser(
+        createMockCandidate(
           'user-3',
           '0xuser3333333333333333333333333333333333333',
         ),
       ];
-      mockSupabaseFetcher.fetchVipUsers.mockResolvedValue(vipUsers);
+      mockSupabaseFetcher.fetchUserServiceStates.mockResolvedValue(dueUsers);
 
       const sharedVaultAddress = '0xdfc24b077bc1425ad1dea75bcb6f8158e10df303';
 
       // All users get vault data with different timestamps
       const baseTime = Date.now() / 1000;
 
-      vipUsers.forEach((user, index) => {
+      dueUsers.forEach((user, index) => {
         const vaultResponse = createMockVaultDetailsResponse({
           vaultAddress: sharedVaultAddress,
           followerState: {
@@ -712,17 +721,17 @@ describe('Hyperliquid Pipeline Integration Tests', () => {
     it('should keep latest APR snapshot when vault address matches', async () => {
       const job = createTestJob();
 
-      const vipUsers = [
-        createMockVipUser(
+      const dueUsers = [
+        createMockCandidate(
           'user-1',
           '0xuser1111111111111111111111111111111111111',
         ),
-        createMockVipUser(
+        createMockCandidate(
           'user-2',
           '0xuser2222222222222222222222222222222222222',
         ),
       ];
-      mockSupabaseFetcher.fetchVipUsers.mockResolvedValue(vipUsers);
+      mockSupabaseFetcher.fetchUserServiceStates.mockResolvedValue(dueUsers);
 
       const sharedVault = '0xdfc24b077bc1425ad1dea75bcb6f8158e10df303';
 
@@ -731,14 +740,14 @@ describe('Hyperliquid Pipeline Integration Tests', () => {
         vaultAddress: sharedVault,
         followerState: {
           ...createMockVaultDetailsResponse().followerState!,
-          user: vipUsers[0].wallet,
+          user: dueUsers[0].wallet,
         },
       });
       mockHyperliquidFetcher.getVaultDetails.mockResolvedValueOnce(
         vaultResponse1,
       );
       mockHyperliquidFetcher.extractPositionData.mockReturnValueOnce({
-        userWallet: vipUsers[0].wallet,
+        userWallet: dueUsers[0].wallet,
         vaultAddress: sharedVault,
         vaultName: 'HLP Vault',
         hlpBalance: 50000,
@@ -766,14 +775,14 @@ describe('Hyperliquid Pipeline Integration Tests', () => {
         vaultAddress: sharedVault,
         followerState: {
           ...createMockVaultDetailsResponse().followerState!,
-          user: vipUsers[1].wallet,
+          user: dueUsers[1].wallet,
         },
       });
       mockHyperliquidFetcher.getVaultDetails.mockResolvedValueOnce(
         vaultResponse2,
       );
       mockHyperliquidFetcher.extractPositionData.mockReturnValueOnce({
-        userWallet: vipUsers[1].wallet,
+        userWallet: dueUsers[1].wallet,
         vaultAddress: sharedVault,
         vaultName: 'HLP Vault',
         hlpBalance: 60000,
@@ -829,10 +838,10 @@ describe('Hyperliquid Pipeline Integration Tests', () => {
   });
 
   describe('Empty Data Scenarios', () => {
-    it('should handle zero VIP users gracefully', async () => {
+    it('should handle zero due wallets gracefully', async () => {
       const job = createTestJob();
 
-      mockSupabaseFetcher.fetchVipUsers.mockResolvedValue([]);
+      mockSupabaseFetcher.fetchUserServiceStates.mockResolvedValue([]);
 
       const result = await processor.process(job);
 
@@ -850,13 +859,13 @@ describe('Hyperliquid Pipeline Integration Tests', () => {
     it('should handle vault with no position data', async () => {
       const job = createTestJob();
 
-      const vipUsers = [
-        createMockVipUser(
+      const dueUsers = [
+        createMockCandidate(
           'user-1',
           '0xuser1111111111111111111111111111111111111',
         ),
       ];
-      mockSupabaseFetcher.fetchVipUsers.mockResolvedValue(vipUsers);
+      mockSupabaseFetcher.fetchUserServiceStates.mockResolvedValue(dueUsers);
 
       const vaultResponse = createMockVaultDetailsResponse({
         followerState: null, // No position
@@ -894,7 +903,7 @@ describe('Hyperliquid Pipeline Integration Tests', () => {
       expect(mockPortfolioWriter.writeSnapshots).toHaveBeenCalledWith(
         [],
         'hyperliquid',
-        [vipUsers[0].wallet],
+        [dueUsers[0].wallet],
       );
 
       // APR should still be written
@@ -906,24 +915,24 @@ describe('Hyperliquid Pipeline Integration Tests', () => {
     it('should report failure when portfolio writer fails', async () => {
       const job = createTestJob();
 
-      const vipUsers = [
-        createMockVipUser(
+      const dueUsers = [
+        createMockCandidate(
           'user-1',
           '0xuser1111111111111111111111111111111111111',
         ),
       ];
-      mockSupabaseFetcher.fetchVipUsers.mockResolvedValue(vipUsers);
+      mockSupabaseFetcher.fetchUserServiceStates.mockResolvedValue(dueUsers);
 
       const vaultResponse = createMockVaultDetailsResponse({
         followerState: {
           ...createMockVaultDetailsResponse().followerState!,
-          user: vipUsers[0].wallet,
+          user: dueUsers[0].wallet,
         },
       });
 
       mockHyperliquidFetcher.getVaultDetails.mockResolvedValue(vaultResponse);
       mockHyperliquidFetcher.extractPositionData.mockReturnValue({
-        userWallet: vipUsers[0].wallet,
+        userWallet: dueUsers[0].wallet,
         vaultAddress: vaultResponse.vaultAddress,
         vaultName: 'HLP Vault',
         hlpBalance: 50000,
@@ -973,24 +982,24 @@ describe('Hyperliquid Pipeline Integration Tests', () => {
     it('should report failure when APR writer fails', async () => {
       const job = createTestJob();
 
-      const vipUsers = [
-        createMockVipUser(
+      const dueUsers = [
+        createMockCandidate(
           'user-1',
           '0xuser1111111111111111111111111111111111111',
         ),
       ];
-      mockSupabaseFetcher.fetchVipUsers.mockResolvedValue(vipUsers);
+      mockSupabaseFetcher.fetchUserServiceStates.mockResolvedValue(dueUsers);
 
       const vaultResponse = createMockVaultDetailsResponse({
         followerState: {
           ...createMockVaultDetailsResponse().followerState!,
-          user: vipUsers[0].wallet,
+          user: dueUsers[0].wallet,
         },
       });
 
       mockHyperliquidFetcher.getVaultDetails.mockResolvedValue(vaultResponse);
       mockHyperliquidFetcher.extractPositionData.mockReturnValue({
-        userWallet: vipUsers[0].wallet,
+        userWallet: dueUsers[0].wallet,
         vaultAddress: vaultResponse.vaultAddress,
         vaultName: 'HLP Vault',
         hlpBalance: 50000,
@@ -1042,17 +1051,17 @@ describe('Hyperliquid Pipeline Integration Tests', () => {
     it('should process 10 users sequentially', async () => {
       const job = createTestJob();
 
-      // Create 10 VIP users
-      const vipUsers = Array.from({ length: 10 }, (_, i) =>
-        createMockVipUser(
+      // Ten wallets the policy marked due
+      const dueUsers = Array.from({ length: 10 }, (_, i) =>
+        createMockCandidate(
           `user-${i + 1}`,
           `0xuser${(i + 1).toString().padStart(40, '0')}`,
         ),
       );
-      mockSupabaseFetcher.fetchVipUsers.mockResolvedValue(vipUsers);
+      mockSupabaseFetcher.fetchUserServiceStates.mockResolvedValue(dueUsers);
 
       // Mock responses for all 10 users
-      vipUsers.forEach((user, index) => {
+      dueUsers.forEach((user, index) => {
         const vaultResponse = createMockVaultDetailsResponse({
           vaultAddress: `0xvault${(index + 1).toString().padStart(39, '0')}`, // Different vaults
           followerState: {

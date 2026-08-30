@@ -11,7 +11,7 @@ function candidate(overrides: Partial<ImageCandidate> = {}): ImageCandidate {
   return {
     imageUrl: 'https://media.example.test/image.jpg',
     sourceUrl: 'https://publisher.example.test/article',
-    origin: 'bing',
+    origin: 'brave',
     width: 1600,
     height: 900,
     ...overrides,
@@ -42,9 +42,9 @@ describe('validateImageCandidate', () => {
       code: 'insecure-image-url',
     },
     {
-      name: 'Bing thumbnail host',
+      name: 'Brave thumbnail host',
       value: candidate({
-        imageUrl: 'https://tse1.mm.bing.net/th/id/example',
+        imageUrl: 'https://imgs.search.brave.com/th/id/example',
       }),
       code: 'blocked-image-host',
     },
@@ -154,7 +154,7 @@ describe('validateImageCandidate', () => {
 
   it('allows a candidate when an explicit origin allowlist contains it', () => {
     expect(
-      validateImageCandidate(candidate(), { allowedOrigins: ['bing'] }).valid,
+      validateImageCandidate(candidate(), { allowedOrigins: ['brave'] }).valid,
     ).toBe(true);
   });
 
@@ -165,7 +165,7 @@ describe('validateImageCandidate', () => {
         origin: 'article',
       }),
       {
-        allowedOrigins: ['bing'],
+        allowedOrigins: ['brave'],
         blockedHostnames: ['blocked.example.test'],
         blockedExtensions: ['custom'],
       },

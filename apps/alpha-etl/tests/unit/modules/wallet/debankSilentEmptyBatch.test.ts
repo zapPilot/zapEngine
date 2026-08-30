@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { VipUserWithActivity } from '../../../../src/types/index.js';
+import type { ETLUserCandidate } from '../../../../src/types/index.js';
 import { createEtlJob } from '../../../utils/createEtlJob.js';
 
 const mocks = vi.hoisted(() => ({
-  fetchVipUsersWithActivity: vi.fn(),
+  fetchUserServiceStates: vi.fn(),
   batchUpdatePortfolioTimestamps: vi.fn(),
+  recordUserResourceUsage: vi.fn(),
+  recordWalletSourceRefresh: vi.fn(),
   fetchWalletTokenList: vi.fn(),
   fetchComplexProtocolList: vi.fn(),
   writeWalletBalanceSnapshots: vi.fn(),
@@ -22,10 +24,12 @@ vi.mock('../../../../src/observability/sentry.js', () => ({
   captureBackgroundException: mocks.captureBackgroundException,
 }));
 
-vi.mock('../../../../src/modules/vip-users/supabaseFetcher.js', () => ({
+vi.mock('../../../../src/modules/user-service/supabaseFetcher.js', () => ({
   SupabaseFetcher: class {
-    fetchVipUsersWithActivity = mocks.fetchVipUsersWithActivity;
+    fetchUserServiceStates = mocks.fetchUserServiceStates;
     batchUpdatePortfolioTimestamps = mocks.batchUpdatePortfolioTimestamps;
+    recordUserResourceUsage = mocks.recordUserResourceUsage;
+    recordWalletSourceRefresh = mocks.recordWalletSourceRefresh;
     healthCheck = vi.fn();
     getRequestCount = vi.fn(() => 0);
   },
@@ -64,12 +68,19 @@ const WALLETS = [
   '0x2222222222222222222222222222222222222222',
 ];
 
-function vipUsers(): VipUserWithActivity[] {
+function dueUsers(): ETLUserCandidate[] {
   return WALLETS.map((wallet, index) => ({
-    user_id: `user-${index}`,
+    userId: `user-${index}`,
     wallet,
-    last_activity_at: null,
-    last_portfolio_update_at: null,
+    planCode: 'vip',
+    defaultTier: 'priority',
+    overrideTier: null,
+    effectiveTier: 'priority',
+    lastActivityAt: null,
+    lastPortfolioUpdateAt: null,
+    refreshIntervalHours: 24,
+    dueForRefresh: true,
+    dueSources: ['debank'],
   }));
 }
 
@@ -85,11 +96,13 @@ async function runProcessor() {
   );
 }
 
-describe('DeBank VIP batch silent-empty detection', () => {
+describe('DeBank scheduled batch silent-empty detection', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.fetchVipUsersWithActivity.mockResolvedValue(vipUsers());
+    mocks.fetchUserServiceStates.mockResolvedValue(dueUsers());
     mocks.batchUpdatePortfolioTimestamps.mockResolvedValue(undefined);
+    mocks.recordUserResourceUsage.mockResolvedValue(undefined);
+    mocks.recordWalletSourceRefresh.mockResolvedValue(undefined);
     mocks.fetchWalletTokenList.mockResolvedValue([]);
     mocks.fetchComplexProtocolList.mockResolvedValue([]);
     mocks.writeWalletBalanceSnapshots.mockResolvedValue(writeResult(0));
@@ -118,7 +131,26 @@ describe('DeBank VIP batch silent-empty detection', () => {
 
     expect(mocks.writeWalletBalanceSnapshots).toHaveBeenCalledWith([], WALLETS);
     expect(mocks.writeSnapshots).toHaveBeenCalledWith([], 'debank', WALLETS);
-    expect(mocks.batchUpdatePortfolioTimestamps).toHaveBeenCalledWith(WALLETS);
+  });
+
+  it('leaves the batch due instead of stamping it fresh', async () => {
+    // Freshness asserts a day of data landed. This batch wrote nothing, so
+    // both wallets have to stay due; stamping them here is how four days of
+    // missing tokens hid behind a green job.
+    await runProcessor();
+
+    expect(mocks.batchUpdatePortfolioTimestamps).not.toHaveBeenCalled();
+    expect(mocks.recordWalletSourceRefresh).toHaveBeenCalledWith(
+      WALLETS.map((wallet, index) => ({
+        wallet,
+        source: 'debank',
+        user_id: `user-${index}`,
+        succeeded: false,
+        error: expect.stringContaining(
+          'DeBank returned no tokens and no positions',
+        ),
+      })),
+    );
   });
 
   it('stays successful when DeBank returned tokens for a wallet', async () => {
@@ -145,8 +177,8 @@ describe('DeBank VIP batch silent-empty detection', () => {
     expect(mocks.captureBackgroundException).not.toHaveBeenCalled();
   });
 
-  it('stays successful when there were no VIP users to fetch', async () => {
-    mocks.fetchVipUsersWithActivity.mockResolvedValue([]);
+  it('stays successful when no wallet was due for refresh', async () => {
+    mocks.fetchUserServiceStates.mockResolvedValue([]);
 
     const result = await runProcessor();
 

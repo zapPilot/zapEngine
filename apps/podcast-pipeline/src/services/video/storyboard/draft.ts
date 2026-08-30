@@ -7,6 +7,7 @@ export const MAX_STORYBOARD_SLIDES = 64;
 export const MIN_SEARCH_INTENT_CHARACTERS = 2;
 export const MAX_SEARCH_INTENT_CHARACTERS = 80;
 export const MAX_SEARCH_INTENTS_PER_SCENE = 3;
+export const MAX_SEARCH_ENTITIES_PER_SCENE = 4;
 
 const sentenceIdSchema = z.string().regex(/^s\d{4}$/);
 
@@ -24,6 +25,20 @@ export const storyboardDraftSceneSchema = z
       )
       .min(1)
       .max(MAX_SEARCH_INTENTS_PER_SCENE),
+    // The proper nouns this scene actually names, verbatim, when it names any.
+    // Image search anchors on them: a candidate that mentions none of a scene's
+    // entities is not about that scene, however well its wording overlaps.
+    // Absent means the scene names nothing — a legitimate, generic scene.
+    imageSearchEntities: z
+      .array(
+        z
+          .string()
+          .min(MIN_SEARCH_INTENT_CHARACTERS)
+          .max(MAX_SEARCH_INTENT_CHARACTERS),
+      )
+      .min(1)
+      .max(MAX_SEARCH_ENTITIES_PER_SCENE)
+      .optional(),
   })
   .strict();
 

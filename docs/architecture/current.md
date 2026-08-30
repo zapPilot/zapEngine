@@ -132,7 +132,7 @@ Historical portfolio semantics are documented in [snapshot architecture](../snap
 
 **Runtime:** founder-local Vite UI plus Hono API.
 
-**Owns:** operational decision views, persisted cost history, and social-performance evidence. Its cost ledger is stored in the private `ops` schema; recurring cost collection is scheduled by GitHub Actions.
+**Owns:** the unified operational read model, customer service/economics views, persisted cost history, and social-performance evidence. The detailed operational contracts live in [`apps/control-center/README.md`](../../apps/control-center/README.md); do not duplicate adapter thresholds or scoring rules here.
 
 **Does not own:** production application request traffic or production daemons.
 
@@ -144,7 +144,7 @@ The single Supabase project contains multiple logical schemas with different own
 - `analytics`: canonical daily portfolio history and derived analytical history, written by alpha-etl and read by analytics consumers. See [snapshot architecture](../snapshot_architecture.md).
 - `alpha_raw`: ETL-oriented source/staging data that remains part of the ingestion boundary where present.
 - `from_fed_to_chain` and `from_fed_to_chain_private`: podcast, localization, render, and social-pipeline state owned by podcast-pipeline.
-- `ops`: private operational cost ledger used by Control Center; it is not exposed directly through the Supabase Data API.
+- `ops`: private operational state used by Control Center and supporting pipelines, including cost accounting, customer-service overrides, and per-source refresh bookkeeping; it is not exposed directly through the Supabase Data API.
 
 All new schema changes go through the root [`supabase/migrations/`](../../supabase/migrations/) workflow. GitHub records migration history, but applying a migration to production remains an explicit operator step.
 

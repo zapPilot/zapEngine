@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import {
   capturePipelineException,
   type PipelineComponent,
@@ -8,6 +10,7 @@ import {
   type UsageCostGroup,
   type UsageCostLine,
 } from './cost.js';
+import type { LlmAttemptRecord } from './llm.js';
 import { getPipelineSupabase, throwSupabaseError } from './supabase-client.js';
 
 /**
@@ -83,6 +86,25 @@ export interface PipelineRunInput {
   component: PipelineComponent;
 }
 
+export function videoRenderRunBase(input: {
+  runRef: string;
+  status: PipelineStageStatus;
+  startedAt: Date;
+  finishedAt?: Date;
+  episodeId?: string | null;
+}): Omit<PipelineRunInput, 'component' | 'stages'> {
+  return {
+    runId: randomUUID(),
+    pipeline: 'video_render',
+    runRef: input.runRef,
+    trigger: 'worker',
+    status: input.status,
+    startedAt: input.startedAt,
+    finishedAt: input.finishedAt ?? new Date(),
+    episodeId: input.episodeId ?? null,
+  };
+}
+
 /**
  * Persists one run and its stages to the operations ledger.
  *
@@ -145,12 +167,19 @@ export interface CostLineStageContext {
  * Compaction runs per call, so two languages that produced an identical line
  * stay two rows — merging them would erase exactly the per-language breakdown
  * the ledger exists to provide.
+ *
+ * The `script` group is deliberately dropped: a cost line is one number per
+ * localization, so it cannot say how many upstream requests were made or how
+ * long any of them ran, and those are the facts a timed-out generation has to
+ * leave behind. {@link stageRunsFromLlmAttempts} writes those rows instead —
+ * emitting both would double-count the same spend.
  */
 export function stageRunsFromCostLines(
   lines: UsageCostLine[],
   context: CostLineStageContext,
 ): PipelineStageRunInput[] {
-  return compactUsageCostLines(lines).map((line) => ({
+  const priced = lines.filter((line) => classifyCostGroup(line) !== 'script');
+  return compactUsageCostLines(priced).map((line) => ({
     stage: classifyCostGroup(line),
     provider: line.provider,
     model: line.model,
@@ -167,6 +196,70 @@ export function stageRunsFromCostLines(
       : undefined,
     reportedCostUsd: line.costUsd,
   }));
+}
+
+export interface LlmAttemptStageContext {
+  languageCode: string;
+  episodeId?: string;
+  localizationId?: string;
+}
+
+/**
+ * One ledger row per upstream LLM request, successful or not.
+ *
+ * A failed attempt is the row that matters most here: `pipeline_stage_runs`
+ * could always express one, but nothing produced it, so a generation that
+ * burned four minutes and then timed out left the ledger looking like it had
+ * never started. `usage` carries the per-attempt facts -- deadline, routing,
+ * token counts, why it failed -- that no cost line has room for.
+ */
+export function stageRunsFromLlmAttempts(
+  attempts: readonly LlmAttemptRecord[],
+  context: LlmAttemptStageContext,
+): PipelineStageRunInput[] {
+  return attempts.map((record) => {
+    const stage: PipelineStageRunFields = {
+      stage: 'script',
+      provider: record.provider ?? 'unknown',
+      model: record.model,
+      status: record.status,
+      episodeId: context.episodeId,
+      localizationId: context.localizationId,
+      languageCode: context.languageCode,
+      attempt: record.attempt,
+      startedAt: record.startedAt,
+      finishedAt: record.finishedAt,
+      elapsedMs: record.elapsedMs,
+      usage: {
+        timeoutMs: record.timeoutMs,
+        inputChars: record.inputChars,
+        routing: record.routing,
+        ...definedFields({
+          outputChars: record.outputChars,
+          promptTokens: record.promptTokens,
+          completionTokens: record.completionTokens,
+          generationId: record.generationId,
+          errorCategory: record.errorCategory,
+          errorMessage: record.errorMessage,
+        }),
+      },
+    };
+    // A failed attempt has no provider-reported cost, and inventing a zero
+    // would make it indistinguishable from a free success on the cost report.
+    return record.costUsd === null
+      ? stage
+      : { ...stage, reportedCostUsd: record.costUsd };
+  });
+}
+
+function definedFields(
+  fields: Record<string, string | number | null>,
+): Record<string, string | number> {
+  return Object.fromEntries(
+    Object.entries(fields).flatMap(([key, value]) =>
+      value === null ? [] : [[key, value] as const],
+    ),
+  );
 }
 
 /**

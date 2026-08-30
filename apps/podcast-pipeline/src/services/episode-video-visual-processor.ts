@@ -183,7 +183,9 @@ export function createEpisodeVideoVisualProcessor(
         episode: source.episodeId,
         enriched: `${intents.enrichedSceneCount}/${intents.draft.scenes.length}`,
         brand: brandSceneCount,
-        discarded: intents.discardedSceneCount,
+        // How much of the episode image search can anchor on a named subject
+        // rather than a description — the rest genuinely name nothing.
+        entities: intents.entityAnchoredSceneCount,
         model: intents.model ?? 'deterministic',
       });
 
