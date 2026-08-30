@@ -2,11 +2,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const ledger = vi.hoisted(() => ({ recordPipelineRun: vi.fn() }));
 
-vi.mock('./ops-ledger.js', () => ({
-  recordPipelineRun: ledger.recordPipelineRun,
-  RENDER_MACHINE_SHAPE: 'performance-2x-4gb',
-  RENDER_PRICING_METRIC_KEY: 'machine_second_performance_2x_4gb',
-}));
+vi.mock('./ops-ledger.js', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return {
+    ...actual,
+    recordPipelineRun: ledger.recordPipelineRun,
+  };
+});
 
 import { recordVisualPipelineCost } from './visual-cost.js';
 
