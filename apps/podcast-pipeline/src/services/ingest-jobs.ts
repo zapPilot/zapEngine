@@ -1,4 +1,9 @@
-import type { LanguageClassroomLanguageCode } from '../types.js';
+import { errorMessage } from '../lib/errorMessage.js';
+import { isRecord } from '../lib/typeGuards.js';
+import {
+  type LanguageClassroomLanguageCode,
+  SUPPORTED_PRIMARY_LANGUAGE_CODES,
+} from '../types.js';
 import { getPipelineSupabase, throwSupabaseError } from './supabase-client.js';
 import type { TelegramChatId } from './telegram.js';
 
@@ -44,22 +49,112 @@ export interface PodcastIngestJobStore {
   ): Promise<void>;
 }
 
-function rpcRow(data: unknown): PodcastIngestJobRow | null {
-  if (!data) return null;
-  const value = Array.isArray(data) ? data[0] : data;
-  return (value ?? null) as PodcastIngestJobRow | null;
+export class PodcastIngestJobContractError extends Error {
+  readonly jobId?: string;
+
+  constructor(message: string, jobId?: string) {
+    super(`Invalid podcast ingest job row: ${message}`);
+    this.name = 'PodcastIngestJobContractError';
+    this.jobId = jobId;
+  }
 }
 
-async function callClaimRpc(
-  rpcName: string,
-  params: Record<string, unknown>,
-): Promise<PodcastIngestJobRow | null> {
-  const { data, error } = await getPipelineSupabase().rpc(
-    rpcName as never,
-    params as never,
-  );
-  if (error) throwSupabaseError(error);
-  return rpcRow(data);
+function contractJobId(value: unknown): string | undefined {
+  if (!isRecord(value)) return undefined;
+  const id = value['id'];
+  return typeof id === 'string' && id.trim() ? id.trim() : undefined;
+}
+
+function contractError(value: unknown, message: string): never {
+  throw new PodcastIngestJobContractError(message, contractJobId(value));
+}
+
+function requiredString(
+  row: Record<string, unknown>,
+  key: string,
+  raw: unknown,
+): string {
+  const value = row[key];
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    contractError(raw, `${key} must be a non-empty string`);
+  }
+  return value.trim();
+}
+
+function nullableString(
+  row: Record<string, unknown>,
+  key: string,
+  raw: unknown,
+): string | null {
+  const value = row[key];
+  if (value === null) return null;
+  if (typeof value !== 'string') {
+    contractError(raw, `${key} must be a string or null`);
+  }
+  return value;
+}
+
+function validHttpUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+export function parsePodcastIngestJobRow(value: unknown): PodcastIngestJobRow {
+  if (!isRecord(value)) {
+    contractError(value, 'payload must be an object');
+  }
+
+  const id = requiredString(value, 'id', value);
+  const sourceUrl = requiredString(value, 'source_url', value);
+  if (!validHttpUrl(sourceUrl)) {
+    contractError(value, 'source_url must be an http(s) URL');
+  }
+
+  const languageCode = requiredString(value, 'language_code', value);
+  if (
+    !(SUPPORTED_PRIMARY_LANGUAGE_CODES as readonly string[]).includes(
+      languageCode,
+    )
+  ) {
+    contractError(value, `unsupported language_code ${languageCode}`);
+  }
+
+  const telegramChatId = requiredString(value, 'telegram_chat_id', value);
+  const status = requiredString(value, 'status', value);
+  if (!['queued', 'processing', 'completed', 'failed'].includes(status)) {
+    contractError(value, `unsupported status ${status}`);
+  }
+
+  const attemptCount = value['attempt_count'];
+  if (!Number.isInteger(attemptCount) || (attemptCount as number) < 0) {
+    contractError(value, 'attempt_count must be a non-negative integer');
+  }
+
+  return {
+    id,
+    source_url: sourceUrl,
+    language_code: languageCode as LanguageClassroomLanguageCode,
+    telegram_chat_id: telegramChatId,
+    status: status as PodcastIngestJobStatus,
+    attempt_count: attemptCount as number,
+    lease_owner: nullableString(value, 'lease_owner', value),
+    lease_expires_at: nullableString(value, 'lease_expires_at', value),
+    last_error: nullableString(value, 'last_error', value),
+  };
+}
+
+function rawRpcRow(data: unknown): unknown {
+  if (!data) return null;
+  return Array.isArray(data) ? (data[0] ?? null) : data;
+}
+
+function rpcRow(data: unknown): PodcastIngestJobRow | null {
+  const value = rawRpcRow(data);
+  return value === null ? null : parsePodcastIngestJobRow(value);
 }
 
 async function updateProcessingJob(
@@ -79,6 +174,47 @@ async function updateProcessingJob(
   if (error) throwSupabaseError(error);
 }
 
+async function quarantineInvalidClaim(
+  error: PodcastIngestJobContractError,
+  owner: string,
+): Promise<void> {
+  if (!error.jobId) return;
+  try {
+    await updateProcessingJob(error.jobId, owner, {
+      status: 'failed',
+      lease_owner: null,
+      lease_expires_at: null,
+      last_error: error.message,
+    });
+  } catch (quarantineError) {
+    console.error('[telegram-ingest-queue] invalid claimed job quarantine failed', {
+      jobId: error.jobId,
+      error: errorMessage(quarantineError),
+    });
+  }
+}
+
+async function callClaimRpc(
+  rpcName: string,
+  params: Record<string, unknown>,
+  owner: string,
+): Promise<PodcastIngestJobRow | null> {
+  const { data, error } = await getPipelineSupabase().rpc(
+    rpcName as never,
+    params as never,
+  );
+  if (error) throwSupabaseError(error);
+
+  try {
+    return rpcRow(data);
+  } catch (parseError) {
+    if (parseError instanceof PodcastIngestJobContractError) {
+      await quarantineInvalidClaim(parseError, owner);
+    }
+    throw parseError;
+  }
+}
+
 export const podcastIngestJobStore: PodcastIngestJobStore = {
   async enqueue({ chatId, url, languageCode }) {
     const { data, error } = await getPipelineSupabase().rpc(
@@ -96,18 +232,26 @@ export const podcastIngestJobStore: PodcastIngestJobStore = {
   },
 
   async claim(jobId, owner, leaseSeconds) {
-    return callClaimRpc('claim_podcast_ingest_job', {
-      p_job_id: jobId,
-      p_owner: owner,
-      p_lease_seconds: leaseSeconds,
-    });
+    return callClaimRpc(
+      'claim_podcast_ingest_job',
+      {
+        p_job_id: jobId,
+        p_owner: owner,
+        p_lease_seconds: leaseSeconds,
+      },
+      owner,
+    );
   },
 
   async claimNext(owner, leaseSeconds) {
-    return callClaimRpc('claim_next_podcast_ingest_job', {
-      p_owner: owner,
-      p_lease_seconds: leaseSeconds,
-    });
+    return callClaimRpc(
+      'claim_next_podcast_ingest_job',
+      {
+        p_owner: owner,
+        p_lease_seconds: leaseSeconds,
+      },
+      owner,
+    );
   },
 
   async renew(jobId, owner, leaseSeconds) {
