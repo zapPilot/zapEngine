@@ -1,43 +1,43 @@
 {
-  "asOf": "2026-08-27T08:06:11.508+00:00",
+  "asOf": "2026-08-30T01:38:10.108029+00:00",
   "coverage": {
     "firstEpisodeAt": "2026-04-26T13:24:28.506345+00:00",
-    "lastEpisodeAt": "2026-08-26T22:55:47.257437+00:00",
+    "lastEpisodeAt": "2026-08-30T01:38:10.108029+00:00",
     "firstPostAt": "2026-08-12T07:13:20.207+00:00",
-    "lastPostAt": "2026-08-27T08:06:11.508+00:00"
+    "lastPostAt": "2026-08-28T03:48:00.936+00:00"
   },
   "funnel": {
-    "articles": 289,
-    "localizations": 794,
+    "articles": 296,
+    "localizations": 812,
     "videos": 177,
-    "posts": 160,
+    "posts": 170,
     "platforms": 4,
-    "reach": 9199
+    "reach": 10506
   },
   "languages": [
     {
       "code": "zh-Hant",
-      "localizations": 289,
-      "mainAudio": 286,
-      "classroomAudio": 234,
-      "posts": 128,
-      "reach": 8919
+      "localizations": 296,
+      "mainAudio": 293,
+      "classroomAudio": 241,
+      "posts": 130,
+      "reach": 9504
     },
     {
       "code": "ja",
-      "localizations": 255,
-      "mainAudio": 250,
+      "localizations": 262,
+      "mainAudio": 254,
       "classroomAudio": 25,
-      "posts": 20,
-      "reach": 222
+      "posts": 25,
+      "reach": 632
     },
     {
       "code": "en",
-      "localizations": 250,
-      "mainAudio": 244,
+      "localizations": 254,
+      "mainAudio": 248,
       "classroomAudio": 22,
-      "posts": 12,
-      "reach": 58
+      "posts": 15,
+      "reach": 370
     }
   ],
   "channels": [
@@ -46,7 +46,7 @@
       "language": "zh-Hant",
       "posts": 35,
       "postsWithMetrics": 35,
-      "reach": 6379,
+      "reach": 6469,
       "likes": 14,
       "comments": 2,
       "shares": 0,
@@ -56,21 +56,21 @@
     {
       "platform": "rednote",
       "language": "zh-Hant",
-      "posts": 24,
-      "postsWithMetrics": 23,
-      "reach": 1702,
-      "likes": 22,
+      "posts": 26,
+      "postsWithMetrics": 26,
+      "reach": 2151,
+      "likes": 25,
       "comments": 0,
-      "shares": 3,
+      "shares": 4,
       "firstPostAt": "2026-08-12T08:18:27.658+00:00",
-      "lastPostAt": "2026-08-27T08:02:32.562+00:00"
+      "lastPostAt": "2026-08-28T03:48:00.936+00:00"
     },
     {
       "platform": "threads",
       "language": "zh-Hant",
       "posts": 34,
       "postsWithMetrics": 34,
-      "reach": 781,
+      "reach": 788,
       "likes": 3,
       "comments": 0,
       "shares": 0,
@@ -79,89 +79,89 @@
     },
     {
       "platform": "x",
+      "language": "en",
+      "posts": 5,
+      "postsWithMetrics": 5,
+      "reach": 337,
+      "likes": 1,
+      "comments": 0,
+      "shares": 0,
+      "firstPostAt": "2026-08-26T03:04:36.595+00:00",
+      "lastPostAt": "2026-08-28T03:46:31.284+00:00"
+    },
+    {
+      "platform": "youtube",
       "language": "ja",
-      "posts": 4,
-      "postsWithMetrics": 4,
-      "reach": 174,
+      "posts": 10,
+      "postsWithMetrics": 10,
+      "reach": 297,
       "likes": 0,
       "comments": 0,
       "shares": 0,
+      "firstPostAt": "2026-08-26T03:01:30.374+00:00",
+      "lastPostAt": "2026-08-28T03:45:02.983+00:00"
+    },
+    {
+      "platform": "x",
+      "language": "ja",
+      "posts": 5,
+      "postsWithMetrics": 5,
+      "reach": 247,
+      "likes": 1,
+      "comments": 0,
+      "shares": 0,
       "firstPostAt": "2026-08-26T03:00:25.768+00:00",
-      "lastPostAt": "2026-08-27T05:32:32.204+00:00"
+      "lastPostAt": "2026-08-28T00:35:22.891+00:00"
     },
     {
       "platform": "youtube",
       "language": "zh-Hant",
       "posts": 35,
       "postsWithMetrics": 35,
-      "reach": 57,
+      "reach": 96,
       "likes": 1,
       "comments": 0,
-      "shares": 2,
+      "shares": 0,
       "firstPostAt": "2026-08-18T04:14:33.778+00:00",
       "lastPostAt": "2026-08-25T00:40:15.813+00:00"
     },
     {
-      "platform": "x",
-      "language": "en",
-      "posts": 4,
-      "postsWithMetrics": 3,
-      "reach": 54,
-      "likes": 0,
-      "comments": 0,
-      "shares": 0,
-      "firstPostAt": "2026-08-26T03:04:36.595+00:00",
-      "lastPostAt": "2026-08-27T08:04:15.516+00:00"
-    },
-    {
       "platform": "threads",
       "language": "ja",
-      "posts": 8,
-      "postsWithMetrics": 7,
-      "reach": 44,
+      "posts": 10,
+      "postsWithMetrics": 10,
+      "reach": 88,
       "likes": 0,
       "comments": 0,
       "shares": 0,
       "firstPostAt": "2026-08-26T03:01:21.296+00:00",
-      "lastPostAt": "2026-08-27T08:05:46.068+00:00"
-    },
-    {
-      "platform": "youtube",
-      "language": "ja",
-      "posts": 8,
-      "postsWithMetrics": 7,
-      "reach": 4,
-      "likes": 0,
-      "comments": 0,
-      "shares": 0,
-      "firstPostAt": "2026-08-26T03:01:30.374+00:00",
-      "lastPostAt": "2026-08-27T08:06:11.508+00:00"
+      "lastPostAt": "2026-08-28T03:44:48.481+00:00"
     },
     {
       "platform": "youtube",
       "language": "en",
-      "posts": 8,
-      "postsWithMetrics": 7,
-      "reach": 4,
+      "posts": 10,
+      "postsWithMetrics": 10,
+      "reach": 33,
       "likes": 0,
       "comments": 0,
       "shares": 0,
       "firstPostAt": "2026-08-26T00:32:40.916+00:00",
-      "lastPostAt": "2026-08-27T08:04:00.334+00:00"
+      "lastPostAt": "2026-08-28T03:46:09.418+00:00"
     }
   ],
   "reliability": {
     "publishJobs": 190,
-    "publishJobsCompleted": 180,
+    "publishJobsCompleted": 190,
     "publishJobsFailed": 0,
-    "metricSnapshots": 621,
-    "metricSnapshotsCollected": 621,
-    "strategyVersions": 29
+    "metricSnapshots": 764,
+    "metricSnapshotsCollected": 763,
+    "strategyVersions": 38
   },
   "example": {
-    "title": "CFTC主席摊牌：下一站，加密、算力和预测市场",
-    "sourceUrl": "https://www.panewslab.com/zh/articles/01a022be-399b-71c0-8bc3-7848534d4df4",
-    "createdAt": "2026-08-24T08:55:12.400877+00:00",
+    "title": "Coldcard被盗反思：源码可见不等于安全",
+    "sourceUrl": "https://www.panewslab.com/zh/articles/01a02d70-3c32-73d8-8cf6-450e11e90a55",
+    "createdAt": "2026-08-26T22:47:22.566573+00:00",
     "localizations": 3,
     "videos": 3,
     "posts": 5,
@@ -169,32 +169,32 @@
       {
         "platform": "rednote",
         "language": "zh-Hant",
-        "postUrl": "https://www.xiaohongshu.com/explore/6a8d05db000000003703591f",
-        "publishedAt": "2026-08-25T03:02:51.173+00:00"
+        "postUrl": "https://www.xiaohongshu.com/explore/6a90d734000000000403531f",
+        "publishedAt": "2026-08-28T00:32:52.977+00:00"
       },
       {
         "platform": "youtube",
         "language": "en",
-        "postUrl": "https://www.youtube.com/watch?v=xyp-H-gLJ54",
-        "publishedAt": "2026-08-26T00:32:40.916+00:00"
+        "postUrl": "https://www.youtube.com/watch?v=AUdanKLP6b4",
+        "publishedAt": "2026-08-28T00:33:23.596+00:00"
       },
       {
         "platform": "threads",
         "language": "ja",
         "postUrl": null,
-        "publishedAt": "2026-08-26T03:06:31.476+00:00"
+        "publishedAt": "2026-08-28T00:34:58.068+00:00"
       },
       {
         "platform": "youtube",
         "language": "ja",
-        "postUrl": "https://www.youtube.com/watch?v=1Lj-ElOWGkg",
-        "publishedAt": "2026-08-26T03:06:42.165+00:00"
+        "postUrl": "https://www.youtube.com/watch?v=b6nX0PBGXfs",
+        "publishedAt": "2026-08-28T00:35:04.717+00:00"
       },
       {
         "platform": "x",
         "language": "ja",
-        "postUrl": "https://x.com/i/web/status/2092448737486630926",
-        "publishedAt": "2026-08-26T03:07:09.911+00:00"
+        "postUrl": "https://x.com/i/web/status/2093135313657032766",
+        "publishedAt": "2026-08-28T00:35:22.891+00:00"
       }
     ]
   }
