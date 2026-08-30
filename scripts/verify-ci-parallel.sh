@@ -4,10 +4,7 @@
 # Runs every core CI job (ci-jobs.sh) in parallel, then writes the shared
 # .ai-verify/result.json + per-job logs (see ci-run-lib.sh). Wired to
 # `pnpm verify parallel` — use it to see ALL failures at once instead of the
-# stop-at-first-failure sequential gate (verify ci).
-#
-# Options:
-#   --timeout SECONDS   Per-job timeout (default: 0 = disabled)
+# stop-at-first-failure sequential gate (verify ci). Takes no arguments.
 
 set -euo pipefail
 
@@ -16,43 +13,10 @@ source "$SCRIPT_DIR/ci-run-lib.sh"
 
 cirun_die_if_shallow
 
-# ── CLI ──────────────────────────────────────────────────────────────────────
-ITER_TIMEOUT=0
-
-while [ "$#" -gt 0 ]; do
-  case "$1" in
-    --timeout)
-      [ "$#" -ge 2 ] || { echo "Error: --timeout requires a value" >&2; exit 64; }
-      ITER_TIMEOUT="$2"
-      shift 2
-      ;;
-    --)
-      shift
-      ;;
-    *)
-      echo "Error: unknown argument: $1" >&2
-      exit 64
-      ;;
-  esac
-done
-
-if ! [[ "$ITER_TIMEOUT" =~ ^[0-9]+$ ]]; then
-  echo "Error: --timeout must be a non-negative integer" >&2
+[ "$#" -eq 0 ] || {
+  echo "Error: unknown argument: $1" >&2
   exit 64
-fi
-
-# ── Timeout binary ───────────────────────────────────────────────────────────
-TIMEOUT_PREFIX=""
-if [ "$ITER_TIMEOUT" -gt 0 ]; then
-  if command -v timeout >/dev/null 2>&1; then
-    TIMEOUT_PREFIX="timeout $ITER_TIMEOUT"
-  elif command -v gtimeout >/dev/null 2>&1; then
-    TIMEOUT_PREFIX="gtimeout $ITER_TIMEOUT"
-  else
-    echo "Warning: no timeout/gtimeout in PATH; running without a per-job timeout." >&2
-    TIMEOUT_PREFIX=""
-  fi
-fi
+}
 
 cirun_init
 
@@ -82,11 +46,7 @@ for id in $CORE_CI_JOB_IDS; do
   esac
   log_file="$(cirun_core_log_path "$id")"
 
-  if [ -n "$TIMEOUT_PREFIX" ]; then
-    eval "$TIMEOUT_PREFIX $cmd" > "$log_file" 2>&1 &
-  else
-    eval "$cmd" > "$log_file" 2>&1 &
-  fi
+  eval "$cmd" > "$log_file" 2>&1 &
 
   job_ids_arr+=("$id")
   job_pids+=($!)

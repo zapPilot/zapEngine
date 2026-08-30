@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 # Pre-push hook: does not run the full gate by default.
-# Heavy checks are handled by CI and by the local gate (scripts/verify-ci.sh,
+# Heavy checks are handled by CI and by the local gate (scripts/verify-jobs.sh,
 # scripts/verify-ci-parallel.sh).
 # Desktop packaging is the exception: when pushed commits touch the desktop app
 # or package inputs, run the DMG package gate unless explicitly skipped.

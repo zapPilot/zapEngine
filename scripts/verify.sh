@@ -9,9 +9,9 @@ sub="${1:-parallel}"
 shift || true
 
 case "$sub" in
-  ci)       exec bash "$DIR/verify-ci.sh" "$@" ;;
-  changed)  exec bash "$DIR/verify-changed.sh" "$@" ;;
-  branch)   exec bash "$DIR/verify-branch.sh" "$@" ;;
+  ci)       exec bash "$DIR/verify-jobs.sh" --fail-fast "$@" ;;
+  changed)  exec bash "$DIR/verify-affected.sh" changed "$@" ;;
+  branch)   exec bash "$DIR/verify-affected.sh" branch "$@" ;;
   parallel) exec bash "$DIR/verify-ci-parallel.sh" "$@" ;;
   deploy)   exec bash "$DIR/verify-account-engine-package.sh" "$@" ;;
   *) echo "usage: pnpm verify [ci|changed|branch|parallel|deploy]" >&2; exit 2 ;;

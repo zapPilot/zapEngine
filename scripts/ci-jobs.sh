@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # scripts/ci-jobs.sh
 #
-# Canonical list of core CI jobs, sourced by scripts/verify-ci.sh (sequential
+# Canonical list of core CI jobs, sourced by scripts/verify-jobs.sh (sequential
 # gate, = `pnpm verify ci`) and scripts/verify-ci-parallel.sh (parallel runner,
 # = `pnpm verify parallel`). Each job has a stable ID, a display name, the
 # exact command, and a log filename (placed under .ai-verify/logs/ by callers).
