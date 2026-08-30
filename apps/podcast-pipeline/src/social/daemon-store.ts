@@ -271,6 +271,27 @@ export async function latestPendingSocialPublishSchedule(): Promise<
   return data?.scheduled_at ?? null;
 }
 
+/**
+ * Observational preflight only: this does not claim or mutate a lane. A slightly
+ * wider predicate than the cohort publish preflight is intentional; an extra
+ * recent baseline is harmless, while missing one weakens follower attribution.
+ */
+export async function listDueSocialPublishPlatforms(
+  now: Date,
+): Promise<SocialPlatform[]> {
+  const nowIso = now.toISOString();
+  const { data, error } = await getPipelineSupabase()
+    .from('social_publish_jobs')
+    .select('platform')
+    .in('status', ['queued', 'failed'])
+    .lte('scheduled_at', nowIso)
+    .lte('next_attempt_at', nowIso)
+    .lt('attempt_count', MAX_PUBLISH_ATTEMPTS)
+    .returns<{ platform: SocialPlatform }[]>();
+  if (error) throwSupabaseError(error);
+  return [...new Set((data ?? []).map((row) => row.platform))];
+}
+
 export interface PendingSocialPublishSchedule {
   episode_id: string;
   platform: SocialPlatform;

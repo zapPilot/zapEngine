@@ -8,6 +8,7 @@ import type {
   OverviewResponse,
   PodcastCostResponse,
   SocialPerformanceResponse,
+  SocialGrowthResponse,
 } from '../shared/types.js';
 import { AppShell, type DashboardView } from './components/AppShell.js';
 import { EconomicsView } from './components/EconomicsView.js';
@@ -57,6 +58,9 @@ export function App() {
     null,
   );
   const [social, setSocial] = useState<SocialPerformanceResponse | null>(null);
+  const [socialGrowth, setSocialGrowth] = useState<SocialGrowthResponse | null>(
+    null,
+  );
   const [operations, setOperations] = useState<OperationsResponse | null>(null);
   const [operationsSocial, setOperationsSocial] =
     useState<OperationsSocialResponse | null>(null);
@@ -109,13 +113,18 @@ export function App() {
   );
 
   const loadSocial = useCallback(
-    (window: SocialPerformanceResponse['window']) =>
+    (window: SocialPerformanceResponse['window'], force = false) =>
       run(async () => {
-        setSocial(
-          await getJson<SocialPerformanceResponse>(
+        const [performance, growth] = await Promise.all([
+          getJson<SocialPerformanceResponse>(
             `/api/social-performance?window=${encodeURIComponent(window)}`,
           ),
-        );
+          getJson<SocialGrowthResponse>(
+            `/api/social-growth${force ? '?force=1' : ''}`,
+          ),
+        ]);
+        setSocial(performance);
+        setSocialGrowth(growth);
       }),
     [run],
   );
@@ -160,7 +169,19 @@ export function App() {
     if (view === 'product' && !customers) {
       void loadCustomers();
     }
-  }, [customers, loadCustomers, loadReliability, operationsSocial, view]);
+    if (view === 'growth' && !socialGrowth) {
+      void loadSocial(social?.window ?? 'latest');
+    }
+  }, [
+    customers,
+    loadCustomers,
+    loadReliability,
+    loadSocial,
+    operationsSocial,
+    social,
+    socialGrowth,
+    view,
+  ]);
 
   return (
     <AppShell
@@ -176,8 +197,8 @@ export function App() {
       loading={loading}
       onNavigate={setView}
       onRefresh={() => {
-        if (view === 'growth' && social) {
-          void loadSocial(social.window);
+        if (view === 'growth') {
+          void loadSocial(social?.window ?? 'latest', true);
         } else if (view === 'reliability') {
           void loadReliability(true);
         } else if (view === 'product') {
@@ -218,7 +239,11 @@ export function App() {
         />
       ) : null}
       {view === 'growth' ? (
-        <GrowthView data={social} onWindowChange={loadSocial} />
+        <GrowthView
+          data={social}
+          growth={socialGrowth}
+          onWindowChange={loadSocial}
+        />
       ) : null}
     </AppShell>
   );

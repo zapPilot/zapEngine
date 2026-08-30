@@ -184,6 +184,18 @@ point.
 Strategy learning uses persisted posts plus standardized 24-hour metric samples;
 it does not change platform policy from one post.
 
+## Packaging experiments
+
+`packaging-experiments.ts` owns the active copy-style registry. The current
+experiments compare Rednote title framing, Threads broadcast versus conversation
+framing, and YouTube descriptive versus hook-first titles. X keeps its existing
+language experiment and strategy behavior.
+
+Assignments are persisted before copy generation and remain authoritative across
+retries. They are report-only: a packaging treatment cannot change release lanes,
+schedules, media, topic eligibility, or safety gates. The Control Center reports
+the evidence but never selects a winner automatically.
+
 ## Account follower snapshots
 
 The daemon samples account-level follower/subscriber counts on a best-effort
@@ -200,6 +212,18 @@ browser unnecessarily.
 Each platform is isolated: one expired session or unparseable response skips that
 platform's snapshot rather than failing the whole daemon tick or recording a
 fabricated zero. Rows are point-in-time observations and are not backfilled.
+
+Immediately before a due publish, the daemon also attempts a one-hour-fresh
+baseline for affected platforms. This is observational and cannot block a
+release. Regular account snapshots collect rolling observations for eligible
+posts from the previous 48 hours using the same browser session; unavailable
+reads write no row and retry naturally on a later tick.
+
+The Control Center estimates per-post follower attribution from adjacent account
+snapshot intervals and rolling observations. Estimated attribution is never
+written into exact telemetry fields. Missing activity and churn remain
+unattributed; YouTube uses the newest cumulative per-video subscriber gain rather
+than adding cumulative metric rows together.
 
 ## Failure behavior
 

@@ -9,6 +9,7 @@ import { captureServerException } from './observability/sentry.js';
 import { createOperationsService } from './services/operations/aggregate.js';
 import { createOverviewService } from './services/overview.js';
 import { createPodcastCostService } from './services/podcast-costs.js';
+import { createSocialGrowthService } from './services/social-growth.js';
 
 const WINDOWS: SocialPerformanceResponse['window'][] = [
   'latest',
@@ -21,6 +22,7 @@ export function createControlCenterApp(input: {
   config: ControlCenterConfig;
   service?: ReturnType<typeof createOverviewService>;
   operations?: ReturnType<typeof createOperationsService>;
+  socialGrowth?: ReturnType<typeof createSocialGrowthService>;
   serveClient?: boolean;
   /**
    * Local operator processes may explicitly refresh provider cost snapshots.
@@ -37,6 +39,8 @@ export function createControlCenterApp(input: {
   // existing fake of it to grow methods its tests do not care about.
   const operations =
     input.operations ?? createOperationsService({ config: input.config });
+  const socialGrowth =
+    input.socialGrowth ?? createSocialGrowthService({ config: input.config });
 
   app.get('/api/overview', async (context) => {
     return context.json(await service.getOverview());
@@ -77,6 +81,9 @@ export function createControlCenterApp(input: {
       ? (requested as SocialPerformanceResponse['window'])
       : 'latest';
     return context.json(await service.getSocial(window));
+  });
+  app.get('/api/social-growth', async (context) => {
+    return context.json(await socialGrowth.getSocialGrowth(isForced(context)));
   });
 
   app.get('/api/operations', async (context) => {

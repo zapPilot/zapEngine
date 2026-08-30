@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   getSocialStrategyById: vi.fn().mockResolvedValue(null),
   latestScheduledSocialJobs: vi.fn().mockResolvedValue({}),
   listPendingSocialPublishSchedules: vi.fn().mockResolvedValue([]),
+  listDueSocialPublishPlatforms: vi.fn().mockResolvedValue([]),
   listLearningSocialPosts: vi.fn().mockResolvedValue([]),
   listLearningSocialMetrics: vi.fn().mockResolvedValue([]),
   listMetricWindowsForPosts: vi.fn().mockResolvedValue([]),
@@ -60,6 +61,7 @@ vi.mock('./daemon-store.js', () => ({
     return values.at(-1) ?? null;
   },
   listPendingSocialPublishSchedules: mocks.listPendingSocialPublishSchedules,
+  listDueSocialPublishPlatforms: mocks.listDueSocialPublishPlatforms,
   listLearningSocialPosts: mocks.listLearningSocialPosts,
   listLearningSocialMetrics: mocks.listLearningSocialMetrics,
   listMetricWindowsForPosts: mocks.listMetricWindowsForPosts,

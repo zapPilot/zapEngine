@@ -193,9 +193,11 @@ export function buildRecoveredSocialPost(input: {
     body: input.discovered.publishedBody,
     hashtags,
   });
-  const taxonomy = input.sibling
-    ? { topic: input.sibling.topic, hookType: input.sibling.hook_type }
-    : inferRecoveredTaxonomy(input.discovered.publishedBody);
+  const inferred = inferRecoveredTaxonomy(input.discovered.publishedBody);
+  const taxonomy = {
+    topic: input.sibling?.topic ?? inferred.topic,
+    hookType: inferred.hookType,
+  };
 
   return {
     episodeId: input.episodeId,

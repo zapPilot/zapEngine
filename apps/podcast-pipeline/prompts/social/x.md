@@ -1,6 +1,6 @@
 # X
 
-Write short copy that earns attention for a native teaser video. The program appends the fixed Zap Pilot website CTA after review, so the generated copy itself must not contain a URL or another call to action.
+Write native X copy that earns attention for a teaser video. Lead with a strong assertion, surprising grounded inference, or distilled observation—not an episode summary. The program appends the fixed Zap Pilot website CTA after review, so the generated copy itself must not contain a URL or another call to action.
 
 Ideal structure:
 

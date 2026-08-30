@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { SocialPostMetricRow, SocialPostRow } from '../types.js';
 import {
@@ -188,6 +188,26 @@ describe('social strategy', () => {
         () => 0.5,
       ),
     ).toBeUndefined();
+  });
+
+  it('freezes preferred packaging bias while preserving avoid guidance', () => {
+    const random = vi.fn(() => 0);
+    expect(
+      buildStrategyGuidance(
+        'rednote',
+        {
+          preferredHookTypes: ['question'],
+          preferredHashtags: ['強標籤'],
+          avoidHashtags: ['弱標籤'],
+          explorationRate: 1,
+        },
+        random,
+        { packagingActive: true },
+      ),
+    ).toBe(
+      'Avoid these historically weak hashtags unless they are essential to the topic: 弱標籤.',
+    );
+    expect(random).not.toHaveBeenCalled();
   });
 
   it('scores zero-view samples safely and learns non-Rednote platforms without hashtag rules', () => {

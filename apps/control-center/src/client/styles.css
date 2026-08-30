@@ -1158,6 +1158,42 @@ select:focus-visible {
   color: var(--ink-faint);
   font-size: 10.5px;
 }
+.social-table-compact td:last-child {
+  min-width: 190px;
+  white-space: normal;
+}
+.growth-section {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 42px;
+}
+.growth-status {
+  padding: 3px 7px;
+  border: 1px solid var(--line);
+}
+.growth-status.eligible {
+  color: #197a51;
+}
+.growth-status.provisional {
+  color: #9a6300;
+}
+.growth-status.collecting,
+.growth-status.paired-cohort {
+  color: var(--muted);
+}
+.experiment-arm,
+.attribution-shares {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+}
+.experiment-arm small,
+.attribution-shares {
+  color: var(--muted);
+}
+.attribution-shares {
+  padding: 12px 2px;
+}
 .social-metrics {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

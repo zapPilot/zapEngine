@@ -3,6 +3,7 @@ import { applyPlatformCta, SOCIAL_PLATFORM_CONFIG } from './platforms.js';
 import type {
   GeneratedSocialCopy,
   SocialEpisode,
+  SocialHookType,
   SocialPlatform,
 } from './types.js';
 
@@ -17,9 +18,9 @@ export interface ComposedSocialContent {
   title: string | null;
   body: string;
   hashtags: string[];
+  hookType: SocialHookType;
 }
 
-const YOUTUBE_TITLE_MAX_CHARACTERS = 100;
 const YOUTUBE_DESCRIPTION_MAX_CHARACTERS = 4500;
 
 /**
@@ -59,25 +60,42 @@ function composePlatformContent(
   input: { copy: GeneratedSocialCopy; episode: SocialComposeEpisode },
 ): ComposedSocialContent {
   switch (platform) {
-    case 'x':
-    case 'threads':
-      // No title field on either platform; Threads deliberately reuses the X
-      // wording rather than asking the model for a third variant.
+    case 'x': {
+      const x = requireCopyBlock(input.copy.x, 'x');
       return {
         title: null,
-        body: requireCopyBlock(input.copy.short, 'short').text,
+        body: x.text,
         hashtags: [],
+        hookType: x.hookType,
       };
+    }
+    case 'threads': {
+      const threads = requireCopyBlock(input.copy.threads, 'threads');
+      return {
+        title: null,
+        body: threads.text,
+        hashtags: [],
+        hookType: threads.hookType,
+      };
+    }
     case 'rednote': {
       const rednote = requireCopyBlock(input.copy.rednote, 'rednote');
       return {
         title: rednote.title,
         body: rednote.body,
         hashtags: [...rednote.hashtags],
+        hookType: rednote.hookType,
       };
     }
-    case 'youtube':
-      return composeYouTubeContent(input.episode);
+    case 'youtube': {
+      const youtube = requireCopyBlock(input.copy.youtube, 'youtube');
+      return {
+        title: youtube.title,
+        body: composeYouTubeDescription(input.episode),
+        hashtags: [],
+        hookType: youtube.hookType,
+      };
+    }
     default:
       return assertNever(platform);
   }
@@ -88,15 +106,11 @@ function requireCopyBlock<T>(block: T | undefined, name: string): T {
   throw new Error(`Generated social copy is missing the ${name} block.`);
 }
 
-// YouTube copy is assembled from the episode rather than written by the model:
-// the title is the episode title and the description is its own summary, so
-// there is no separate pre-branding version of it to record.
-function composeYouTubeContent(
+// YouTube descriptions remain episode-derived; only the title participates in
+// copy generation and packaging experiments.
+export function composeYouTubeDescription(
   episode: SocialComposeEpisode,
-): ComposedSocialContent {
-  const title = Array.from(episode.title.trim())
-    .slice(0, YOUTUBE_TITLE_MAX_CHARACTERS)
-    .join('');
+): string {
   const summary = (episode.description?.trim() || episode.summary.trim()).slice(
     0,
     YOUTUBE_DESCRIPTION_MAX_CHARACTERS,
@@ -108,7 +122,7 @@ function composeYouTubeContent(
     summary && SOCIAL_PLATFORM_CONFIG.youtube.ctaMode === 'brand'
       ? `${summary}\n\n${YOUTUBE_DESCRIPTION_CTA_BY_LANGUAGE[episode.languageCode ?? 'zh-Hant']}`
       : summary;
-  return { title, body: branded, hashtags: [] };
+  return branded;
 }
 
 function assertNever(value: never): never {

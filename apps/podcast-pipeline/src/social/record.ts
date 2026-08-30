@@ -2,6 +2,7 @@ import { errorMessage } from '../lib/errorMessage.js';
 import { insertSocialPost, toSocialPostInsertPayload } from '../services/db.js';
 import type { NewSocialPost, SocialPostRow } from '../types.js';
 import { composeSocialContent, type SocialComposeEpisode } from './compose.js';
+import type { PackagingAssignment } from './packaging-experiments.js';
 import { platformVideoMode } from './platforms.js';
 import type {
   GeneratedSocialCopy,
@@ -33,6 +34,7 @@ export function buildContentFeatures(input: {
   title: string | null;
   body: string;
   hashtags: readonly string[];
+  packagingExperiment?: { key: string; variant: string };
 }): SocialContentFeatures {
   const visibleCopy = [input.title, input.body].filter(Boolean).join('\n');
   return {
@@ -41,6 +43,9 @@ export function buildContentFeatures(input: {
     titleChars: input.title === null ? null : Array.from(input.title).length,
     bodyChars: Array.from(input.body).length,
     hashtagCount: input.hashtags.length,
+    ...(input.packagingExperiment
+      ? { packagingExperiment: input.packagingExperiment }
+      : {}),
   };
 }
 
@@ -55,6 +60,7 @@ export function buildSocialPostRecord(input: {
   episode: SocialComposeEpisode;
   videoDurationSeconds: number;
   xVideoDurationSeconds?: number;
+  packagingExperiment?: { key: string; variant: string };
 }): NewSocialPost {
   // Recorded through the same composition the publisher used, so telemetry
   // cannot describe a different post than the one that went out. `cta: 'omit'`
@@ -87,7 +93,7 @@ export function buildSocialPostRecord(input: {
       input.platform === 'rednote' ? null : (input.result.postId ?? null),
     publishedAt: input.result.publishedAt,
     topic: input.snapshot.published.topic,
-    hookType: input.snapshot.published.hookType,
+    hookType: published.hookType,
     generatedTitle: generated.title,
     publishedTitle: published.title,
     generatedBody: generated.body,
@@ -102,6 +108,9 @@ export function buildSocialPostRecord(input: {
       title: published.title,
       body: publishedBody,
       hashtags: publishedHashtags,
+      ...(input.packagingExperiment
+        ? { packagingExperiment: input.packagingExperiment }
+        : {}),
     }),
     llmModel: input.snapshot.model,
   };
@@ -129,6 +138,7 @@ export function createSocialPostPersister(input: {
       { experimentKey: string | null; experimentVariant: string | null }
     >
   >;
+  packagingByPlatform?: Partial<Record<SocialPlatform, PackagingAssignment>>;
   snapshot: SocialCopySnapshot;
   episode: SocialComposeEpisode;
   videoDurationSeconds: number;
@@ -145,6 +155,14 @@ export function createSocialPostPersister(input: {
       platform,
       languageCode: input.languageCode,
       ...input.experimentByPlatform?.[platform],
+      ...(input.packagingByPlatform?.[platform]
+        ? {
+            packagingExperiment: {
+              key: input.packagingByPlatform[platform].key,
+              variant: input.packagingByPlatform[platform].variant,
+            },
+          }
+        : {}),
       result,
       snapshot: input.snapshot,
       episode: input.episode,

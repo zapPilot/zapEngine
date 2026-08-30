@@ -5,13 +5,15 @@ import type { GeneratedSocialCopy, SocialEpisode } from './types.js';
 
 const copy: GeneratedSocialCopy = {
   topic: 'macro',
-  hookType: 'question',
-  short: { text: '利率轉向了嗎？' },
+  x: { hookType: 'question', text: '利率轉向了嗎？' },
+  threads: { hookType: 'contrarian', text: '利率轉向，真的開始了嗎？' },
   rednote: {
+    hookType: 'question',
     title: '利率真的轉向？',
     body: '這集拆解了三個訊號。',
     hashtags: ['宏觀經濟', '市場結構', '產業研究'],
   },
+  youtube: { hookType: 'explainer', title: '聯準會的下一步' },
 };
 
 const episode: Pick<SocialEpisode, 'title' | 'summary' | 'description'> = {
@@ -21,14 +23,19 @@ const episode: Pick<SocialEpisode, 'title' | 'summary' | 'description'> = {
 };
 
 describe('composeSocialContent', () => {
-  it('gives X and Threads the same CTA-suffixed body and no title', () => {
-    for (const platform of ['x', 'threads'] as const) {
-      expect(composeSocialContent(platform, { copy, episode })).toEqual({
-        title: null,
-        body: '利率轉向了嗎？\n\n官網 https://www.zap-pilot.org',
-        hashtags: [],
-      });
-    }
+  it('uses native X and Threads copy with their own hook taxonomy', () => {
+    expect(composeSocialContent('x', { copy, episode })).toEqual({
+      title: null,
+      body: '利率轉向了嗎？\n\n官網 https://www.zap-pilot.org',
+      hashtags: [],
+      hookType: 'question',
+    });
+    expect(composeSocialContent('threads', { copy, episode })).toEqual({
+      title: null,
+      body: '利率轉向，真的開始了嗎？\n\n官網 https://www.zap-pilot.org',
+      hashtags: [],
+      hookType: 'contrarian',
+    });
   });
 
   it('maps Rednote onto its own title field with no off-platform CTA', () => {
@@ -36,6 +43,7 @@ describe('composeSocialContent', () => {
       title: '利率真的轉向？',
       body: '這集拆解了三個訊號。',
       hashtags: ['宏觀經濟', '市場結構', '產業研究'],
+      hookType: 'question',
     });
   });
 
@@ -44,6 +52,7 @@ describe('composeSocialContent', () => {
       title: '聯準會的下一步',
       body: '來源文章描述。\n\n更多市場洞察與工具：https://www.zap-pilot.org',
       hashtags: [],
+      hookType: 'explainer',
     });
 
     expect(
@@ -54,7 +63,7 @@ describe('composeSocialContent', () => {
     ).toBe('本集摘要。\n\n更多市場洞察與工具：https://www.zap-pilot.org');
   });
 
-  it('truncates the YouTube title to 100 characters and the description to 4500', () => {
+  it('preserves the validated generated YouTube title and truncates the description to 4500', () => {
     const composed = composeSocialContent('youtube', {
       copy,
       episode: {
@@ -63,7 +72,7 @@ describe('composeSocialContent', () => {
         description: '   ',
       },
     });
-    expect(Array.from(composed.title ?? '')).toHaveLength(100);
+    expect(composed.title).toBe('聯準會的下一步');
     expect(composed.body.startsWith('S'.repeat(4_500))).toBe(true);
     expect(composed.body).toContain('https://www.zap-pilot.org');
   });
@@ -74,6 +83,7 @@ describe('composeSocialContent', () => {
       title: null,
       body: '利率轉向了嗎？',
       hashtags: [],
+      hookType: 'question',
     });
     expect(
       composeSocialContent('rednote', { copy, episode, cta: 'omit' }),
@@ -91,7 +101,12 @@ describe('composeSocialContent', () => {
         copy,
         episode: { title: '聯準會的下一步', summary: '   ', description: '  ' },
       }),
-    ).toEqual({ title: '聯準會的下一步', body: '', hashtags: [] });
+    ).toEqual({
+      title: '聯準會的下一步',
+      body: '',
+      hashtags: [],
+      hookType: 'explainer',
+    });
   });
 
   it('rejects unsupported platform values at the exhaustive boundary', () => {

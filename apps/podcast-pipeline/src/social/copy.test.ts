@@ -23,7 +23,7 @@ vi.mock('./rednote-semantic-risk.js', async (importOriginal) => ({
 }));
 
 import {
-  generateSocialCopy,
+  generateSocialCopy as generateSocialCopyImpl,
   latinLetterRatio,
   parseGeneratedSocialCopy,
   weightedTweetLength,
@@ -45,13 +45,26 @@ beforeEach(() => {
 function socialCopyJson(xText: string): string {
   return JSON.stringify({
     topic: 'macro',
-    hookType: 'question',
-    short: { text: xText },
+    x: { hookType: 'question', text: xText },
+    threads: { hookType: 'contrarian', text: `${xText} 延伸討論` },
     rednote: {
+      hookType: 'question',
       title: '標題',
       body: '正文內容',
       hashtags: ['以太坊', '美聯儲', '投資'],
     },
+    youtube: { hookType: 'explainer', title: '這集值得看的核心脈絡' },
+  });
+}
+
+function generateSocialCopy(
+  input: Omit<Parameters<typeof generateSocialCopyImpl>[0], 'platforms'> & {
+    platforms?: Parameters<typeof generateSocialCopyImpl>[0]['platforms'];
+  },
+) {
+  return generateSocialCopyImpl({
+    ...input,
+    platforms: input.platforms ?? ['x', 'threads', 'rednote', 'youtube'],
   });
 }
 
@@ -119,7 +132,7 @@ describe('generateSocialCopy', () => {
         },
       }),
     ).resolves.toMatchObject({
-      copy: { short: { text: '有效文案' } },
+      copy: { x: { text: '有效文案' } },
       model: 'deepseek/deepseek-v4-flash',
     });
 
@@ -142,7 +155,7 @@ describe('generateSocialCopy', () => {
     const retryRequest =
       llmMocks.createOpenRouterChatCompletion.mock.calls[1]?.[1];
     expect(retryRequest?.messages.at(-1)?.content).toContain(
-      'short.text: X text is 252 weighted units; the maximum is 250.',
+      'x.text: X text is 252 weighted units; the maximum is 250.',
     );
     expect(retryRequest?.messages[0]?.content).toContain(
       'generated copy itself must not contain a URL',
@@ -192,6 +205,49 @@ describe('generateSocialCopy', () => {
         -1,
       )?.content,
     ).toContain('Prefer a contrarian hook and #AI.');
+  });
+
+  it('places persisted packaging instructions after strategy without weakening hard rules', async () => {
+    llmMocks.createOpenRouterChatCompletion.mockResolvedValue(
+      socialCompletion(socialCopyJson('策略文案')),
+    );
+
+    await generateSocialCopy({
+      episode: {
+        id: '123e4567-e89b-12d3-a456-426614174000',
+        title: 'Episode title',
+        summary: 'Episode summary',
+        transcript: 'Episode transcript',
+        publishedAt: '2026-08-12T00:00:00.000Z',
+        episodeUrl: 'https://example.com/e/episode',
+        videoDurationSeconds: 180,
+        languageCode: 'zh-Hant',
+        videoUrl: 'https://example.com/video.mp4',
+      },
+      strategyGuidance: 'Keep the grounded avoid guidance.',
+      packagingByPlatform: {
+        rednote: {
+          key: 'rednote-packaging-v1-zh-Hant',
+          variant: 'hook_first',
+          instruction: 'Write the Rednote title with a grounded hook first.',
+        },
+      },
+    });
+
+    const prompt = String(
+      llmMocks.createOpenRouterChatCompletion.mock.calls[0]?.[1]?.messages.at(
+        -1,
+      )?.content,
+    );
+    expect(
+      prompt.indexOf('Performance guidance from prior posts'),
+    ).toBeLessThan(prompt.indexOf('Packaging experiment assignments'));
+    expect(prompt).toContain(
+      '[rednote-packaging-v1-zh-Hant · hook_first] Write the Rednote title with a grounded hook first.',
+    );
+    expect(prompt).toContain(
+      'never editorial, platform, language, factual-grounding, or safety rules',
+    );
   });
 
   it('uses editor feedback and the provider-reported model when present', async () => {
@@ -252,13 +308,15 @@ describe('generateSocialCopy', () => {
   it('retries SyntaxError, empty completion, root Zod issue, and non-Error provider failures', async () => {
     const mostlyLatin = JSON.stringify({
       topic: 'eth',
-      hookType: 'risk_warning',
-      short: { text: 'staking burn' },
+      x: { hookType: 'risk_warning', text: 'staking burn' },
+      threads: { hookType: 'explainer', text: 'staking burn discussion' },
       rednote: {
+        hookType: 'risk_warning',
         title: 'qual Poo 燃換 LE?',
         body: 'ekom buscando 燃燒',
         hashtags: ['以太坊', '質押', '投資'],
       },
+      youtube: { hookType: 'risk_warning', title: 'staking burn' },
     });
     llmMocks.createOpenRouterChatCompletion
       .mockResolvedValueOnce(socialCompletion('{bad json'))
@@ -305,7 +363,7 @@ describe('generateSocialCopy', () => {
           videoUrl: 'https://example.com/video.mp4',
         },
       }),
-    ).resolves.toMatchObject({ copy: { short: { text: '恢復文案' } } });
+    ).resolves.toMatchObject({ copy: { x: { text: '恢復文案' } } });
     expect(
       llmMocks.createOpenRouterChatCompletion.mock.calls[1]?.[1]?.messages.at(
         -1,
@@ -337,7 +395,7 @@ describe('generateSocialCopy', () => {
           videoUrl: 'https://example.com/video.mp4',
         },
       }),
-    ).resolves.toMatchObject({ copy: { short: { text: '修正版文案' } } });
+    ).resolves.toMatchObject({ copy: { x: { text: '修正版文案' } } });
 
     const retryRequest =
       llmMocks.createOpenRouterChatCompletion.mock.calls[1]?.[1];
@@ -369,7 +427,7 @@ describe('generateSocialCopy', () => {
           videoUrl: 'https://example.com/video.mp4',
         },
       }),
-    ).resolves.toMatchObject({ copy: { short: { text: '修正版文案' } } });
+    ).resolves.toMatchObject({ copy: { x: { text: '修正版文案' } } });
 
     const retryRequest =
       llmMocks.createOpenRouterChatCompletion.mock.calls[1]?.[1];
@@ -405,7 +463,7 @@ describe('generateSocialCopy', () => {
           videoUrl: 'https://example.com/video.mp4',
         },
       }),
-    ).resolves.toMatchObject({ copy: { short: { text: '修正版文案' } } });
+    ).resolves.toMatchObject({ copy: { x: { text: '修正版文案' } } });
 
     expect(riskMocks.assertRednoteSemanticRisk).toHaveBeenCalledTimes(2);
     const retryRequest =
@@ -420,8 +478,10 @@ describe('generateSocialCopy', () => {
       socialCompletion(
         JSON.stringify({
           topic: 'macro',
-          hookType: 'question',
-          short: { text: 'Is the rate turn real? The episode breaks it down.' },
+          x: {
+            hookType: 'question',
+            text: 'Is the rate turn real? The episode breaks it down.',
+          },
         }),
       ),
     );
@@ -443,6 +503,19 @@ describe('generateSocialCopy', () => {
     });
 
     expect(riskMocks.assertRednoteSemanticRisk).not.toHaveBeenCalled();
+    const systemPrompt = String(
+      llmMocks.createOpenRouterChatCompletion.mock.calls[0]?.[1]?.messages[0]
+        ?.content,
+    );
+    const shape = /exactly this shape:\n(\{[\s\S]*?\})\n\nAllowed topic/u.exec(
+      systemPrompt,
+    )?.[1];
+    expect(shape).toBeDefined();
+    expect(() => JSON.parse(shape!)).not.toThrow();
+    expect(JSON.parse(shape!)).toEqual({
+      topic: 'one allowed topic',
+      x: { hookType: 'one allowed hook type', text: '...' },
+    });
   });
 });
 
@@ -451,38 +524,44 @@ function socialCompletion(content: string): object {
 }
 
 describe('parseGeneratedSocialCopy', () => {
-  it('accepts taxonomy-only output for a YouTube-only batch', () => {
+  it('accepts generated title output for a YouTube-only batch', () => {
     expect(
       parseGeneratedSocialCopy(
-        JSON.stringify({ topic: 'technology', hookType: 'explainer' }),
+        JSON.stringify({
+          topic: 'technology',
+          youtube: { hookType: 'explainer', title: 'How agents change work' },
+        }),
         'en',
-        { short: false, rednote: false },
+        { x: false, threads: false, rednote: false, youtube: true },
       ),
-    ).toEqual({ topic: 'technology', hookType: 'explainer' });
+    ).toEqual({
+      topic: 'technology',
+      youtube: { hookType: 'explainer', title: 'How agents change work' },
+    });
   });
 
   it('enforces Japanese kana and English CJK-free copy independently', () => {
     const japanese = JSON.stringify({
       topic: 'macro',
-      hookType: 'question',
-      short: { text: '金利転換は本当に始まったのか？' },
+      x: { hookType: 'question', text: '金利転換は本当に始まったのか？' },
     });
     expect(
       parseGeneratedSocialCopy(japanese, 'ja', {
-        short: true,
+        x: true,
+        threads: false,
         rednote: false,
-      }).short!.text,
+        youtube: false,
+      }).x!.text,
     ).toContain('のか');
 
     expect(() =>
       parseGeneratedSocialCopy(
         JSON.stringify({
           topic: 'macro',
-          hookType: 'question',
-          short: { text: '金利轉換' },
+          x: { hookType: 'question', text: '金利轉換' },
         }),
         'ja',
-        { short: true, rednote: false },
+        { x: true, threads: false, rednote: false, youtube: false },
       ),
     ).toThrow(/must contain kana/u);
 
@@ -490,11 +569,10 @@ describe('parseGeneratedSocialCopy', () => {
       parseGeneratedSocialCopy(
         JSON.stringify({
           topic: 'macro',
-          hookType: 'question',
-          short: { text: 'Rates are changing 金利' },
+          x: { hookType: 'question', text: 'Rates are changing 金利' },
         }),
         'en',
-        { short: true, rednote: false },
+        { x: true, threads: false, rednote: false, youtube: false },
       ),
     ).toThrow(/must not contain CJK/u);
   });
@@ -503,13 +581,18 @@ describe('parseGeneratedSocialCopy', () => {
     const copy = parseGeneratedSocialCopy(
       JSON.stringify({
         topic: 'eth',
-        hookType: 'contrarian',
-        short: { text: 'ETH 這波可能不是在交易 crypto narrative。' },
+        x: {
+          hookType: 'contrarian',
+          text: 'ETH 這波可能不是在交易 crypto narrative。',
+        },
+        threads: { hookType: 'question', text: 'ETH 這波究竟在交易什麼？' },
         rednote: {
+          hookType: 'contrarian',
           title: 'ETH到底在漲什麼？',
           body: '大家都在看 ETH，但這集真正想拆的是背後的利率與流動性脈絡。',
           hashtags: ['#以太坊', '美聯儲', '#投資'],
         },
+        youtube: { hookType: 'explainer', title: 'ETH 這波到底在交易什麼' },
       }),
     );
 
@@ -539,11 +622,10 @@ describe('parseGeneratedSocialCopy', () => {
       parseGeneratedSocialCopy(JSON.stringify(unknownTopic)),
     ).toThrow(/topic/);
 
-    const withoutHookType = JSON.parse(socialCopyJson('有效文案')) as Record<
-      string,
-      unknown
-    >;
-    delete withoutHookType['hookType'];
+    const withoutHookType = JSON.parse(socialCopyJson('有效文案')) as {
+      x: Record<string, unknown>;
+    };
+    delete withoutHookType.x['hookType'];
     expect(() =>
       parseGeneratedSocialCopy(JSON.stringify(withoutHookType)),
     ).toThrow();
@@ -565,7 +647,7 @@ describe('parseGeneratedSocialCopy', () => {
       }),
     );
 
-    expect(copy.short!.text).toBe('巢狀文案');
+    expect(copy.x!.text).toBe('巢狀文案');
   });
 
   it('accepts JSON wrapped in a markdown fence', () => {
@@ -573,12 +655,12 @@ describe('parseGeneratedSocialCopy', () => {
       `\`\`\`json\n${socialCopyJson('短文案')}\n\`\`\``,
     );
 
-    expect(copy.short!.text).toBe('短文案');
+    expect(copy.x!.text).toBe('短文案');
   });
 
   it('accepts X text at the 250 weighted-unit limit', () => {
     expect(
-      parseGeneratedSocialCopy(socialCopyJson('中'.repeat(125))).short!.text,
+      parseGeneratedSocialCopy(socialCopyJson('中'.repeat(125))).x!.text,
     ).toHaveLength(125);
   });
 
@@ -611,7 +693,7 @@ describe('parseGeneratedSocialCopy', () => {
         socialCopyJson(
           '以太坊提出EIP-8363提案：当质押率达50%时燃烧所有收益，迫使驗證者轉型。',
         ),
-      ).short!.text,
+      ).x!.text,
     ).toBe(
       '以太坊提出EIP-8363提案：當質押率達50%時燃燒所有收益，迫使驗證者轉型。',
     );
@@ -622,13 +704,15 @@ describe('parseGeneratedSocialCopy', () => {
       parseGeneratedSocialCopy(
         JSON.stringify({
           topic: 'eth',
-          hookType: 'explainer',
-          short: { text: '有效文案' },
+          x: { hookType: 'explainer', text: '有效文案' },
+          threads: { hookType: 'question', text: '有效討論文案？' },
           rednote: {
+            hookType: 'explainer',
             title: '標題',
             body: '正文內容',
             hashtags: ['以太坊', '质押', '加密货币'],
           },
+          youtube: { hookType: 'explainer', title: '有效影片標題' },
         }),
       ).rednote!.hashtags,
     ).toEqual(['以太坊', '質押', '加密貨幣']);
@@ -636,7 +720,7 @@ describe('parseGeneratedSocialCopy', () => {
 
   it('normalizes wording to the Taiwan phrase set', () => {
     expect(
-      parseGeneratedSocialCopy(socialCopyJson('以太坊社區在台灣的討論')).short!
+      parseGeneratedSocialCopy(socialCopyJson('以太坊社區在台灣的討論')).x!
         .text,
     ).toBe('以太坊社群在臺灣的討論');
   });
@@ -646,13 +730,15 @@ describe('parseGeneratedSocialCopy', () => {
       parseGeneratedSocialCopy(
         JSON.stringify({
           topic: 'eth',
-          hookType: 'question',
-          short: { text: '有效文案' },
+          x: { hookType: 'question', text: '有效文案' },
+          threads: { hookType: 'question', text: '有效討論文案？' },
           rednote: {
+            hookType: 'question',
             title: '這個標題實在太長了根本塞不進小紅書的欄位裡面',
             body: '正文內容',
             hashtags: ['以太坊', '質押', '投資'],
           },
+          youtube: { hookType: 'question', title: '有效影片標題？' },
         }),
       ),
     ).toThrow(/Rednote title is 22 characters; the maximum is 20/);
@@ -669,13 +755,15 @@ describe('parseGeneratedSocialCopy', () => {
       parseGeneratedSocialCopy(
         JSON.stringify({
           topic: 'eth',
-          hookType: 'risk_warning',
-          short: { text: 'staking burn' },
+          x: { hookType: 'risk_warning', text: 'staking burn' },
+          threads: { hookType: 'explainer', text: 'staking burn discussion' },
           rednote: {
+            hookType: 'risk_warning',
             title: 'qual Poo 燃換 LE?',
             body: 'ekom buscando 燃燒',
             hashtags: ['以太坊', '質押', '投資'],
           },
+          youtube: { hookType: 'risk_warning', title: 'staking burn' },
         }),
       ),
     ).toThrow(/Latin letters; the maximum is 35%/);
@@ -708,9 +796,14 @@ describe('parseGeneratedSocialCopy', () => {
       parseGeneratedSocialCopy(
         JSON.stringify({
           topic: 'eth',
-          hookType: 'explainer',
-          short: { text: 'x copy' },
-          rednote: { body: 'body', hashtags: ['a', 'b', 'c'] },
+          x: { hookType: 'explainer', text: 'x copy' },
+          threads: { hookType: 'question', text: 'threads copy?' },
+          rednote: {
+            hookType: 'explainer',
+            body: 'body',
+            hashtags: ['a', 'b', 'c'],
+          },
+          youtube: { hookType: 'explainer', title: 'video title' },
         }),
       ),
     ).toThrow();
@@ -721,9 +814,15 @@ describe('parseGeneratedSocialCopy', () => {
       parseGeneratedSocialCopy(
         JSON.stringify({
           topic: 'eth',
-          hookType: 'explainer',
-          short: { text: '' },
-          rednote: { title: 'title', body: 'body', hashtags: ['a', 'b', 'c'] },
+          x: { hookType: 'explainer', text: '' },
+          threads: { hookType: 'question', text: 'threads copy?' },
+          rednote: {
+            hookType: 'explainer',
+            title: 'title',
+            body: 'body',
+            hashtags: ['a', 'b', 'c'],
+          },
+          youtube: { hookType: 'explainer', title: 'video title' },
         }),
       ),
     ).toThrow();

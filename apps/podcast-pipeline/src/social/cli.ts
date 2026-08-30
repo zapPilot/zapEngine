@@ -16,6 +16,10 @@ import { generateSocialCopy, parseGeneratedSocialCopy } from './copy.js';
 import { getSocialEpisode, requireSocialEpisodeVideoUrl } from './episode.js';
 import { isMainModule } from './is-main-module.js';
 import {
+  type PackagingAssignment,
+  resolvePackagingAssignments,
+} from './packaging-experiments.js';
+import {
   platformLabel,
   requiresLocalTeaser,
   requiresLocalVideo,
@@ -106,12 +110,18 @@ export async function runSocialCli(
 
   const assets = await loadSocialAssets(options, platforms);
   const { episode, video, xVideo } = assets;
+  const packagingByPlatform = await resolvePackagingAssignments({
+    episodeId: options.episodeId,
+    languageCode: options.languageCode,
+    platforms,
+  });
 
   console.log('Generating social copy...');
   const generated = await generateSocialCopy({
     episode,
     languageCode: options.languageCode,
     platforms,
+    packagingByPlatform,
     ...(runtime.strategyGuidance
       ? { strategyGuidance: runtime.strategyGuidance }
       : {}),
@@ -146,6 +156,7 @@ export async function runSocialCli(
         video,
         xVideo,
         youtubePrivacy: options.youtubePrivacy,
+        packagingByPlatform,
       });
   if (!review) return [];
 
@@ -171,6 +182,7 @@ export async function runSocialCli(
         model: review.model,
       },
       episode,
+      packagingByPlatform,
       ...(video ? { video } : {}),
       ...(xVideo ? { teaserVideo: xVideo } : {}),
       force: options.force,
@@ -299,6 +311,7 @@ async function reviewSocialCopy(input: {
   video?: PreparedVideo;
   xVideo?: PreparedVideo;
   youtubePrivacy: PrivacyOverride;
+  packagingByPlatform: Partial<Record<SocialPlatform, PackagingAssignment>>;
 }): Promise<ReviewSelection | null> {
   let copy = input.initialCopy;
   let generatedCopy = input.initialCopy;
@@ -324,6 +337,7 @@ async function reviewSocialCopy(input: {
         episode: input.episode,
         languageCode: input.episode.languageCode,
         platforms: input.requestedPlatforms,
+        packagingByPlatform: input.packagingByPlatform,
         feedback,
       });
       copy = regenerated.copy;
@@ -421,29 +435,37 @@ function printPreview(
   // never show wording a platform will not receive.
   const compose = (platform: SocialPlatform) =>
     composeSocialContent(platform, { copy, episode });
-  console.log(`\nTaxonomy: ${copy.topic} / ${copy.hookType}`);
-  console.log(`\n${divider}\nX\n${divider}`);
-  console.log(compose('x').body);
-  console.log(
-    xVideo
-      ? `🎬 teaser: ${formatDuration(xTeaserDurationSeconds(episode.videoDurationSeconds))}, ${formatBytes(xVideo.sizeBytes)}\n${xVideo.path}`
-      : '🎬 teaser: not prepared for this platform selection',
-  );
-  console.log(`${divider}\nTHREADS\n${divider}`);
-  console.log(compose('threads').body);
-  console.log(`🎬 native video: ${episode.videoUrl}`);
-  console.log(`${divider}\nYOUTUBE\n${divider}`);
-  const youtube = compose('youtube');
-  console.log(youtube.title);
-  console.log(youtube.body);
-  if (youtubePrivacy) console.log(`🔒 privacy override: ${youtubePrivacy}`);
-  console.log(formatVideoPreview(video, episode.videoDurationSeconds));
-  console.log(`${divider}\nREDNOTE\n${divider}`);
-  const rednote = compose('rednote');
-  console.log(`標題：${rednote.title ?? ''}`);
-  console.log(rednote.hashtags.map((tag) => `#${tag}`).join(' '));
-  console.log('（正文不會發布，僅供內部比對用）');
-  console.log(formatVideoPreview(video, episode.videoDurationSeconds));
+  console.log(`\nTopic: ${copy.topic}`);
+  if (copy.x) {
+    console.log(`\n${divider}\nX · ${copy.x.hookType}\n${divider}`);
+    console.log(compose('x').body);
+    console.log(
+      xVideo
+        ? `🎬 teaser: ${formatDuration(xTeaserDurationSeconds(episode.videoDurationSeconds))}, ${formatBytes(xVideo.sizeBytes)}\n${xVideo.path}`
+        : '🎬 teaser: not prepared for this platform selection',
+    );
+  }
+  if (copy.threads) {
+    console.log(`${divider}\nTHREADS · ${copy.threads.hookType}\n${divider}`);
+    console.log(compose('threads').body);
+    console.log(`🎬 native video: ${episode.videoUrl}`);
+  }
+  if (copy.youtube) {
+    console.log(`${divider}\nYOUTUBE · ${copy.youtube.hookType}\n${divider}`);
+    const youtube = compose('youtube');
+    console.log(youtube.title);
+    console.log(youtube.body);
+    if (youtubePrivacy) console.log(`🔒 privacy override: ${youtubePrivacy}`);
+    console.log(formatVideoPreview(video, episode.videoDurationSeconds));
+  }
+  if (copy.rednote) {
+    console.log(`${divider}\nREDNOTE · ${copy.rednote.hookType}\n${divider}`);
+    const rednote = compose('rednote');
+    console.log(`標題：${rednote.title ?? ''}`);
+    console.log(rednote.hashtags.map((tag) => `#${tag}`).join(' '));
+    console.log('（正文不會發布，僅供內部比對用）');
+    console.log(formatVideoPreview(video, episode.videoDurationSeconds));
+  }
   console.log(divider);
 }
 
@@ -509,8 +531,10 @@ async function editCopy(
   const raw = await readFile(path, 'utf8');
   try {
     return parseGeneratedSocialCopy(raw, languageCode, {
-      short: copy.short !== undefined,
+      x: copy.x !== undefined,
+      threads: copy.threads !== undefined,
       rednote: copy.rednote !== undefined,
+      youtube: copy.youtube !== undefined,
     });
   } catch (error) {
     throw new Error(
