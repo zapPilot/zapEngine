@@ -115,7 +115,9 @@ describe('Fetchers', () => {
 
     it('logs non-fatal timestamp update failures without throwing', async () => {
       const error = new Error('Update Fail');
-      vi.spyOn(fetcher as unknown, 'withDatabaseClient').mockRejectedValue(error);
+      vi.spyOn(fetcher as unknown, 'withDatabaseClient').mockRejectedValue(
+        error,
+      );
 
       await expect(
         fetcher.batchUpdatePortfolioTimestamps(['0x123']),

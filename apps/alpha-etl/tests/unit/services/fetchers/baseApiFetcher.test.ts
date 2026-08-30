@@ -35,7 +35,7 @@ class TestApiFetcher extends BaseApiFetcher {
     url: string,
     options?: unknown,
     maxRetries?: number,
-    baseDelayMs?: number
+    baseDelayMs?: number,
   ): Promise<T> {
     return this.fetchWithRetry<T>(url, options, maxRetries, baseDelayMs);
   }
@@ -180,12 +180,14 @@ describe('BaseApiFetcher', () => {
     it('makes successful HTTP request with rate limiting', async () => {
       const mockResponse = new Response(JSON.stringify({ data: 'test' }), {
         status: 200,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
       });
 
       global.fetch = vi.fn().mockResolvedValue(mockResponse);
 
-      const response = await fetcher.testFetchWithRateLimit('https://api.example.com/test');
+      const response = await fetcher.testFetchWithRateLimit(
+        'https://api.example.com/test',
+      );
 
       expect(response.ok).toBe(true);
       expect(global.fetch).toHaveBeenCalledWith(
@@ -193,9 +195,9 @@ describe('BaseApiFetcher', () => {
         expect.objectContaining({
           headers: expect.objectContaining({
             'User-Agent': 'alpha-etl/1.0.0',
-            'Accept': 'application/json'
-          })
-        })
+            Accept: 'application/json',
+          }),
+        }),
       );
     });
 
@@ -205,9 +207,9 @@ describe('BaseApiFetcher', () => {
 
       await fetcher.testFetchWithRateLimit('https://api.example.com/test', {
         headers: {
-          'Authorization': 'Bearer token123',
-          'Custom-Header': 'value'
-        }
+          Authorization: 'Bearer token123',
+          'Custom-Header': 'value',
+        },
       });
 
       expect(global.fetch).toHaveBeenCalledWith(
@@ -215,23 +217,23 @@ describe('BaseApiFetcher', () => {
         expect.objectContaining({
           headers: expect.objectContaining({
             'User-Agent': 'alpha-etl/1.0.0',
-            'Accept': 'application/json',
-            'Authorization': 'Bearer token123',
-            'Custom-Header': 'value'
-          })
-        })
+            Accept: 'application/json',
+            Authorization: 'Bearer token123',
+            'Custom-Header': 'value',
+          }),
+        }),
       );
     });
 
     it('throws APIError on non-200 response', async () => {
       const mockResponse = new Response('Not Found', {
         status: 404,
-        statusText: 'Not Found'
+        statusText: 'Not Found',
       });
       global.fetch = vi.fn().mockResolvedValue(mockResponse);
 
       await expect(
-        fetcher.testFetchWithRateLimit('https://api.example.com/missing')
+        fetcher.testFetchWithRateLimit('https://api.example.com/missing'),
       ).rejects.toThrow(APIError);
 
       // Verify error properties
@@ -249,17 +251,19 @@ describe('BaseApiFetcher', () => {
     it('throws APIError on 500 server error', async () => {
       const mockResponse = new Response('Internal Server Error', {
         status: 500,
-        statusText: 'Internal Server Error'
+        statusText: 'Internal Server Error',
       });
       global.fetch = vi.fn().mockResolvedValue(mockResponse);
 
       await expect(
-        fetcher.testFetchWithRateLimit('https://api.example.com/error')
+        fetcher.testFetchWithRateLimit('https://api.example.com/error'),
       ).rejects.toThrow(/500 Internal Server Error/);
     });
 
     it('enforces rate limit before making request', async () => {
-      const fetchSpy = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }));
+      const fetchSpy = vi
+        .fn()
+        .mockResolvedValue(new Response('{}', { status: 200 }));
       global.fetch = fetchSpy;
 
       // First request
@@ -267,7 +271,9 @@ describe('BaseApiFetcher', () => {
       expect(fetchSpy).toHaveBeenCalledTimes(1);
 
       // Second request should be delayed
-      const promise = fetcher.testFetchWithRateLimit('https://api.example.com/2');
+      const promise = fetcher.testFetchWithRateLimit(
+        'https://api.example.com/2',
+      );
       expect(fetchSpy).toHaveBeenCalledTimes(1); // Not called yet
 
       await vi.advanceTimersByTimeAsync(1000);
@@ -277,7 +283,9 @@ describe('BaseApiFetcher', () => {
     });
 
     it('increments request count', async () => {
-      global.fetch = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }));
+      global.fetch = vi
+        .fn()
+        .mockResolvedValue(new Response('{}', { status: 200 }));
 
       expect(fetcher.getRequestStats().requestCount).toBe(0);
 
@@ -295,11 +303,13 @@ describe('BaseApiFetcher', () => {
       const mockData = { id: 123, name: 'Test', values: [1, 2, 3] };
       const mockResponse = new Response(JSON.stringify(mockData), {
         status: 200,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
       });
       global.fetch = vi.fn().mockResolvedValue(mockResponse);
 
-      const result = await fetcher.testFetchJson('https://api.example.com/data');
+      const result = await fetcher.testFetchJson(
+        'https://api.example.com/data',
+      );
 
       expect(result).toEqual(mockData);
     });
@@ -307,11 +317,13 @@ describe('BaseApiFetcher', () => {
     it('handles empty JSON object', async () => {
       const mockResponse = new Response('{}', {
         status: 200,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
       });
       global.fetch = vi.fn().mockResolvedValue(mockResponse);
 
-      const result = await fetcher.testFetchJson('https://api.example.com/empty');
+      const result = await fetcher.testFetchJson(
+        'https://api.example.com/empty',
+      );
 
       expect(result).toEqual({});
     });
@@ -320,11 +332,13 @@ describe('BaseApiFetcher', () => {
       const mockData = [{ id: 1 }, { id: 2 }, { id: 3 }];
       const mockResponse = new Response(JSON.stringify(mockData), {
         status: 200,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
       });
       global.fetch = vi.fn().mockResolvedValue(mockResponse);
 
-      const result = await fetcher.testFetchJson<typeof mockData>('https://api.example.com/list');
+      const result = await fetcher.testFetchJson<typeof mockData>(
+        'https://api.example.com/list',
+      );
 
       expect(result).toEqual(mockData);
       expect(Array.isArray(result)).toBe(true);
@@ -341,11 +355,13 @@ describe('BaseApiFetcher', () => {
       const mockData: TestType = { id: 1, name: 'Test', active: true };
       const mockResponse = new Response(JSON.stringify(mockData), {
         status: 200,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
       });
       global.fetch = vi.fn().mockResolvedValue(mockResponse);
 
-      const result = await fetcher.testFetchJson<TestType>('https://api.example.com/typed');
+      const result = await fetcher.testFetchJson<TestType>(
+        'https://api.example.com/typed',
+      );
 
       expect(result.id).toBe(1);
       expect(result.name).toBe('Test');
@@ -353,9 +369,11 @@ describe('BaseApiFetcher', () => {
     });
 
     it('enforces rate limit', async () => {
-      const fetchSpy = vi.fn().mockImplementation(() =>
-        Promise.resolve(new Response('{"status":"ok"}', { status: 200 }))
-      );
+      const fetchSpy = vi
+        .fn()
+        .mockImplementation(() =>
+          Promise.resolve(new Response('{"status":"ok"}', { status: 200 })),
+        );
       global.fetch = fetchSpy;
 
       await fetcher.testFetchJson('https://api.example.com/1');
@@ -381,7 +399,12 @@ describe('BaseApiFetcher', () => {
         .mockRejectedValueOnce('temporary failure')
         .mockResolvedValueOnce({ ok: true });
 
-      const promise = fetcher.testFetchWithRetry('https://api.example.com/retry', {}, 2, 50);
+      const promise = fetcher.testFetchWithRetry(
+        'https://api.example.com/retry',
+        {},
+        2,
+        50,
+      );
 
       await vi.advanceTimersByTimeAsync(50);
       const result = await promise;
@@ -393,20 +416,22 @@ describe('BaseApiFetcher', () => {
     });
 
     it('throws last error when all retries fail', async () => {
-      vi.spyOn(fetcher as unknown, 'fetchJson')
-        .mockRejectedValue(new Error('Persistent failure'));
+      vi.spyOn(fetcher as unknown, 'fetchJson').mockRejectedValue(
+        new Error('Persistent failure'),
+      );
 
       await expect(
-        fetcher.testFetchWithRetry('https://api.example.com/fail', {}, 3, 100)
+        fetcher.testFetchWithRetry('https://api.example.com/fail', {}, 3, 100),
       ).rejects.toThrow('Persistent failure');
     });
 
     it('throws unknown error when maxRetries is 0', async () => {
-      vi.spyOn(fetcher as unknown, 'fetchJson')
-        .mockRejectedValue(new Error('Unknown fetch error'));
+      vi.spyOn(fetcher as unknown, 'fetchJson').mockRejectedValue(
+        new Error('Unknown fetch error'),
+      );
 
       await expect(
-        fetcher.testFetchWithRetry('https://api.example.com/fail', {}, 0)
+        fetcher.testFetchWithRetry('https://api.example.com/fail', {}, 0),
       ).rejects.toThrow('Unknown fetch error');
     });
   });
@@ -422,7 +447,9 @@ describe('BaseApiFetcher', () => {
     });
 
     it('reflects updated statistics after requests', async () => {
-      global.fetch = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }));
+      global.fetch = vi
+        .fn()
+        .mockResolvedValue(new Response('{}', { status: 200 }));
 
       await fetcher.testEnforceRateLimit();
       const stats1 = fetcher.getRequestStats();
@@ -447,7 +474,10 @@ describe('BaseApiFetcher', () => {
 
   describe('Edge cases', () => {
     it('handles very long delay times', async () => {
-      const longDelayFetcher = new TestApiFetcher('https://api.example.com', 60000); // 1 minute
+      const longDelayFetcher = new TestApiFetcher(
+        'https://api.example.com',
+        60000,
+      ); // 1 minute
 
       await longDelayFetcher.testEnforceRateLimit();
 
@@ -482,12 +512,12 @@ describe('BaseApiFetcher', () => {
     it('handles malformed JSON gracefully', async () => {
       const mockResponse = new Response('{ invalid json }', {
         status: 200,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
       });
       global.fetch = vi.fn().mockResolvedValue(mockResponse);
 
       await expect(
-        fetcher.testFetchJson('https://api.example.com/malformed')
+        fetcher.testFetchJson('https://api.example.com/malformed'),
       ).rejects.toThrow();
     });
 
@@ -495,7 +525,7 @@ describe('BaseApiFetcher', () => {
       global.fetch = vi.fn().mockRejectedValue(new Error('Network error'));
 
       await expect(
-        fetcher.testFetchWithRateLimit('https://api.example.com/network-fail')
+        fetcher.testFetchWithRateLimit('https://api.example.com/network-fail'),
       ).rejects.toThrow('Network error');
     });
 
@@ -503,7 +533,7 @@ describe('BaseApiFetcher', () => {
       global.fetch = vi.fn().mockRejectedValue(new Error('Request timeout'));
 
       await expect(
-        fetcher.testFetchWithRateLimit('https://api.example.com/timeout')
+        fetcher.testFetchWithRateLimit('https://api.example.com/timeout'),
       ).rejects.toThrow('Request timeout');
     });
   });

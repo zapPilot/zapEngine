@@ -4,8 +4,8 @@ import { logger as mockLogger } from '../../src/utils/logger.js';
 vi.mock('../../src/config/environment.js', () => ({
   env: {
     PORT: 3001,
-    NODE_ENV: 'test'
-  }
+    NODE_ENV: 'test',
+  },
 }));
 
 vi.mock('../../src/utils/logger.js', async () => {
@@ -14,20 +14,21 @@ vi.mock('../../src/utils/logger.js', async () => {
 });
 
 vi.mock('../../src/config/database.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../src/config/database.js')>();
+  const actual =
+    await importOriginal<typeof import('../../src/config/database.js')>();
   return {
     ...actual,
     testDatabaseConnection: vi.fn().mockResolvedValue(true),
     getDbPool: vi.fn(() => ({
       query: vi.fn(),
       connect: vi.fn(),
-      end: vi.fn()
-    }))
+      end: vi.fn(),
+    })),
   };
 });
 
 vi.mock('../../src/modules/core/healthMonitor.js', () => ({
-  startDatabaseHealthMonitor: vi.fn()
+  startDatabaseHealthMonitor: vi.fn(),
 }));
 
 describe('startServer error handling', () => {
@@ -35,7 +36,9 @@ describe('startServer error handling', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
+    exitSpy = vi
+      .spyOn(process, 'exit')
+      .mockImplementation(() => undefined as never);
   });
 
   afterEach(() => {
@@ -51,7 +54,10 @@ describe('startServer error handling', () => {
 
     await startServer();
 
-    expect(mockLogger.error).toHaveBeenCalledWith('Failed to start server:', expect.any(Error));
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      'Failed to start server:',
+      expect.any(Error),
+    );
     expect(exitSpy).toHaveBeenCalledWith(1);
 
     listenSpy.mockRestore();

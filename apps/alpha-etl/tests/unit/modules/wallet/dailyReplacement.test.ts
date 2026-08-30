@@ -37,9 +37,7 @@ class DailyReplacementTestClient extends BaseDatabaseClient {
         batchSize: 2,
         buildInsertValues: (batch) => ({
           columns: ['value'],
-          placeholders: batch
-            .map((_, index) => `($${index + 1})`)
-            .join(', '),
+          placeholders: batch.map((_, index) => `($${index + 1})`).join(', '),
           values: batch,
         }),
       }),

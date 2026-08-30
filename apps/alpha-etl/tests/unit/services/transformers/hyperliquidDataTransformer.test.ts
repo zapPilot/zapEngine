@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { HyperliquidDataTransformer } from '../../../../src/modules/hyperliquid/transformer.js';
-import type { VaultPositionData, VaultAprData, VaultDetailsResponse } from '../../../../src/modules/hyperliquid/fetcher.js';
+import type {
+  VaultPositionData,
+  VaultAprData,
+  VaultDetailsResponse,
+} from '../../../../src/modules/hyperliquid/fetcher.js';
 import { logger } from '../../../../src/utils/logger.js';
 
 vi.mock('../../../../src/utils/logger.js', async () => {
@@ -136,11 +140,13 @@ describe('HyperliquidDataTransformer', () => {
 
     const result = transformer.transformPosition({
       position,
-      timestamp: customTimestamp
+      timestamp: customTimestamp,
     });
 
     expect(result?.snapshot_at).toBe(customTimestamp);
-    expect(result?.update_at).toBe(Math.floor(new Date(customTimestamp).getTime() / 1000));
+    expect(result?.update_at).toBe(
+      Math.floor(new Date(customTimestamp).getTime() / 1000),
+    );
   });
 
   it('returns null when position data contains invalid numbers', () => {
@@ -154,7 +160,10 @@ describe('HyperliquidDataTransformer', () => {
       relationshipType: null,
     };
 
-    const result = transformer.transformPosition({ userId: 'user-123', position: badPosition });
+    const result = transformer.transformPosition({
+      userId: 'user-123',
+      position: badPosition,
+    });
 
     expect(result).toBeNull();
   });
@@ -218,7 +227,9 @@ describe('HyperliquidDataTransformer', () => {
       allowDeposits: true,
     };
 
-    expect(() => transformer.transformApr(aprData, details)).toThrow('Invalid APR value');
+    expect(() => transformer.transformApr(aprData, details)).toThrow(
+      'Invalid APR value',
+    );
   });
 
   describe('position transformation edge cases', () => {
@@ -367,7 +378,9 @@ describe('HyperliquidDataTransformer', () => {
       const result = transformer.transformPosition({ position });
 
       expect(result).not.toBeNull();
-      expect(result!.site_url).toBe('https://app.hyperliquid.xyz/vaults/0x123abc');
+      expect(result!.site_url).toBe(
+        'https://app.hyperliquid.xyz/vaults/0x123abc',
+      );
     });
 
     it('transforms batches while filtering null positions', () => {
@@ -398,7 +411,7 @@ describe('HyperliquidDataTransformer', () => {
       };
 
       const result = transformer.transformPosition({
-        position: malformedPosition as VaultPositionData
+        position: malformedPosition as VaultPositionData,
       });
 
       expect(result).toBeNull();
@@ -406,8 +419,8 @@ describe('HyperliquidDataTransformer', () => {
         'Failed to transform Hyperliquid position data',
         expect.objectContaining({
           wallet: undefined,
-          vault: '0x123'
-        })
+          vault: '0x123',
+        }),
       );
     });
   });
@@ -541,7 +554,9 @@ describe('HyperliquidDataTransformer', () => {
         allowDeposits: true,
       };
 
-      expect(() => transformer.transformApr(aprData, details)).toThrow('Invalid APR value');
+      expect(() => transformer.transformApr(aprData, details)).toThrow(
+        'Invalid APR value',
+      );
     });
 
     it('handles very small TVL values', () => {

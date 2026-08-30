@@ -8,14 +8,12 @@ describe('columnHelpers', () => {
       optional_field: string | undefined;
     }
 
-    const records: TestRecord[] = [
-      { name: 'test', optional_field: undefined },
-    ];
+    const records: TestRecord[] = [{ name: 'test', optional_field: undefined }];
 
-    const result = buildGenericInsertValues(
-      records,
-      ['name', 'optional_field'] as const
-    );
+    const result = buildGenericInsertValues(records, [
+      'name',
+      'optional_field',
+    ] as const);
 
     expect(result.values).toEqual(['test', null]);
   });
@@ -23,10 +21,12 @@ describe('columnHelpers', () => {
   it('should preserve non-undefined values unchanged', () => {
     const records = [{ a: 'hello', b: 0, c: null, d: false }];
 
-    const result = buildGenericInsertValues(
-      records,
-      ['a', 'b', 'c', 'd'] as const
-    );
+    const result = buildGenericInsertValues(records, [
+      'a',
+      'b',
+      'c',
+      'd',
+    ] as const);
 
     expect(result.values).toEqual(['hello', 0, null, false]);
   });

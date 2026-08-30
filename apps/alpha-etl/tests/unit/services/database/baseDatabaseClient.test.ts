@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { BaseDatabaseClient } from "../../../../src/core/database/baseDatabaseClient.js";
-import { DatabaseError } from "../../../../src/utils/errors.js";
-import { getDbClient } from "../../../../src/config/database.js";
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { BaseDatabaseClient } from '../../../../src/core/database/baseDatabaseClient.js';
+import { DatabaseError } from '../../../../src/utils/errors.js';
+import { getDbClient } from '../../../../src/config/database.js';
 
 const { mockClient } = vi.hoisted(() => ({
   mockClient: {
@@ -10,17 +10,17 @@ const { mockClient } = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("../../../../src/config/database.js", async (importOriginal) => {
+vi.mock('../../../../src/config/database.js', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("../../../../src/config/database.js")>();
+    await importOriginal<typeof import('../../../../src/config/database.js')>();
   return {
     ...actual,
     getDbClient: vi.fn().mockResolvedValue(mockClient),
   };
 });
 
-vi.mock("../../../../src/utils/logger.js", async () => {
-  const { mockLogger } = await import("../../../setup/mocks.js");
+vi.mock('../../../../src/utils/logger.js', async () => {
+  const { mockLogger } = await import('../../../setup/mocks.js');
   return mockLogger();
 });
 
@@ -30,7 +30,7 @@ class TestClient extends BaseDatabaseClient {
   }
 }
 
-describe("BaseDatabaseClient", () => {
+describe('BaseDatabaseClient', () => {
   let client: TestClient;
 
   beforeEach(() => {
@@ -41,71 +41,71 @@ describe("BaseDatabaseClient", () => {
     client = new TestClient();
   });
 
-  it("acquires and releases client on success", async () => {
-    mockClient.query.mockResolvedValueOnce("ok");
+  it('acquires and releases client on success', async () => {
+    mockClient.query.mockResolvedValueOnce('ok');
 
-    const result = await client.run(async (db) => db.query("SELECT 1"));
+    const result = await client.run(async (db) => db.query('SELECT 1'));
 
-    expect(result).toBe("ok");
-    expect(mockClient.query).toHaveBeenCalledWith("SELECT 1");
+    expect(result).toBe('ok');
+    expect(mockClient.query).toHaveBeenCalledWith('SELECT 1');
     expect(mockClient.release).toHaveBeenCalled();
   });
 
-  it("preserves acquisition errors without rolling back or releasing", async () => {
+  it('preserves acquisition errors without rolling back or releasing', async () => {
     (getDbClient as unknown).mockRejectedValueOnce(
-      new Error("connection unavailable"),
+      new Error('connection unavailable'),
     );
     const operation = vi.fn();
 
     await expect(client.run(operation)).rejects.toThrow(
-      "connection unavailable",
+      'connection unavailable',
     );
     expect(operation).not.toHaveBeenCalled();
     expect(mockClient.query).not.toHaveBeenCalled();
     expect(mockClient.release).not.toHaveBeenCalled();
   });
 
-  it("wraps errors in DatabaseError and still releases client", async () => {
-    mockClient.query.mockRejectedValueOnce(new Error("fail"));
+  it('wraps errors in DatabaseError and still releases client', async () => {
+    mockClient.query.mockRejectedValueOnce(new Error('fail'));
 
     await expect(
-      client.run(async (db) => db.query("BAD")),
+      client.run(async (db) => db.query('BAD')),
     ).rejects.toBeInstanceOf(DatabaseError);
     expect(mockClient.release).toHaveBeenCalled();
   });
 
-  it("issues ROLLBACK on operation failure", async () => {
+  it('issues ROLLBACK on operation failure', async () => {
     // First query call is the operation itself (fails), second is ROLLBACK
     mockClient.query
-      .mockRejectedValueOnce(new Error("operation error"))
+      .mockRejectedValueOnce(new Error('operation error'))
       .mockResolvedValueOnce(undefined); // ROLLBACK succeeds
 
     await expect(
-      client.run(async (db) => db.query("INSERT ...")),
+      client.run(async (db) => db.query('INSERT ...')),
     ).rejects.toBeInstanceOf(DatabaseError);
-    expect(mockClient.query).toHaveBeenCalledWith("ROLLBACK");
+    expect(mockClient.query).toHaveBeenCalledWith('ROLLBACK');
     expect(mockClient.release).toHaveBeenCalled();
   });
 
-  it("preserves the operation error when rollback also fails", async () => {
+  it('preserves the operation error when rollback also fails', async () => {
     mockClient.query
-      .mockRejectedValueOnce(new Error("operation error"))
-      .mockRejectedValueOnce(new Error("rollback error"));
+      .mockRejectedValueOnce(new Error('operation error'))
+      .mockRejectedValueOnce(new Error('rollback error'));
 
     await expect(
-      client.run(async (db) => db.query("INSERT ...")),
-    ).rejects.toThrow("operation error");
-    expect(mockClient.query).toHaveBeenNthCalledWith(2, "ROLLBACK");
+      client.run(async (db) => db.query('INSERT ...')),
+    ).rejects.toThrow('operation error');
+    expect(mockClient.query).toHaveBeenNthCalledWith(2, 'ROLLBACK');
     expect(mockClient.release).toHaveBeenCalledTimes(1);
   });
 
-  it("wraps non-Error thrown values in DatabaseError with generic message", async () => {
+  it('wraps non-Error thrown values in DatabaseError with generic message', async () => {
     await expect(
       client.run(async () => {
         // eslint-disable-next-line no-throw-literal
-        throw "string error";
+        throw 'string error';
       }),
-    ).rejects.toThrow("Unknown database error");
+    ).rejects.toThrow('Unknown database error');
     expect(mockClient.release).toHaveBeenCalled();
   });
 });

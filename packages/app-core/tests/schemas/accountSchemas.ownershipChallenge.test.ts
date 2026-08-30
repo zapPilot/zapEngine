@@ -10,14 +10,22 @@ const validChallenge = {
 
 describe('ownershipChallengeSchema', () => {
   it('accepts the complete wallet ownership challenge contract', () => {
-    expect(ownershipChallengeSchema.parse(validChallenge)).toEqual(validChallenge);
+    expect(ownershipChallengeSchema.parse(validChallenge)).toEqual(
+      validChallenge,
+    );
   });
 
   it.each([
     ['short nonce', { ...validChallenge, nonce: 'a'.repeat(63) }],
     ['missing message', { ...validChallenge, message: '' }],
-    ['missing expiry', { nonce: validChallenge.nonce, message: validChallenge.message }],
-  ])('rejects a malformed challenge before signing: %s', (_label, challenge) => {
-    expect(() => ownershipChallengeSchema.parse(challenge)).toThrow();
-  });
+    [
+      'missing expiry',
+      { nonce: validChallenge.nonce, message: validChallenge.message },
+    ],
+  ])(
+    'rejects a malformed challenge before signing: %s',
+    (_label, challenge) => {
+      expect(() => ownershipChallengeSchema.parse(challenge)).toThrow();
+    },
+  );
 });

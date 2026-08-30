@@ -38,7 +38,9 @@ describe('DeBankFetcher protocol numeric boundaries', () => {
   ])('rejects %s in strict mode', async (_label, itemOverrides) => {
     const fetcher = new DeBankFetcher({ strictErrors: true });
     mockDeBankResponse(fetcher, [
-      validProtocol({ portfolio_item_list: [validProtocolItem(itemOverrides)] }),
+      validProtocol({
+        portfolio_item_list: [validProtocolItem(itemOverrides)],
+      }),
     ]);
 
     await expect(

@@ -27,4 +27,3 @@ describe('ETL source parity', () => {
     expect(DEFAULT_CURRENT_SOURCES).toEqual(currentCapableSources);
   });
 });
-

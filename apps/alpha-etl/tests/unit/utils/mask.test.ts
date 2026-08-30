@@ -249,12 +249,13 @@ describe('maskWalletAddress', () => {
 
   describe('performance considerations', () => {
     it('should handle masking many addresses efficiently', () => {
-      const addresses = Array.from({ length: 10000 }, (_, i) =>
-        `0x${i.toString().padStart(40, '0')}`
+      const addresses = Array.from(
+        { length: 10000 },
+        (_, i) => `0x${i.toString().padStart(40, '0')}`,
       );
 
       const startTime = performance.now();
-      const results = addresses.map(addr => maskWalletAddress(addr));
+      const results = addresses.map((addr) => maskWalletAddress(addr));
       const endTime = performance.now();
 
       expect(results).toHaveLength(10000);

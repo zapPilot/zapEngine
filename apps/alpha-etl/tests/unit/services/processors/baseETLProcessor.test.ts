@@ -20,9 +20,7 @@ describe('BaseETLProcessor - executeETLFlow', () => {
   async function runFlow<TRaw, TTransformed>(
     fetchFn: () => Promise<TRaw[]>,
     transformFn: (raw: TRaw[]) => Promise<TTransformed[]>,
-    writeFn: (
-      data: TTransformed[],
-    ) => Promise<{
+    writeFn: (data: TTransformed[]) => Promise<{
       success: boolean;
       recordsInserted: number;
       errors: string[];

@@ -15,7 +15,5 @@
     "import\\s.*from\\s.*",
     "import\\s*\\{[\\s\\S]*?\\}\\s*from\\s*'[^']*'"
   ],
-  "format": [
-    "typescript"
-  ]
+  "format": ["typescript"]
 }

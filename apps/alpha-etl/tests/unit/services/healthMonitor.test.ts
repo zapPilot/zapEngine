@@ -1,30 +1,30 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { startDatabaseHealthMonitor } from "../../../src/modules/core/healthMonitor.js";
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { startDatabaseHealthMonitor } from '../../../src/modules/core/healthMonitor.js';
 import {
   getHealthState,
   setHealthState,
-} from "../../../src/modules/core/healthStatus.js";
-import * as database from "../../../src/config/database.js";
+} from '../../../src/modules/core/healthStatus.js';
+import * as database from '../../../src/config/database.js';
 
 // Mock dependencies
-vi.mock("../../../src/utils/logger.js", async () => {
-  const { mockLogger } = await import("../../setup/mocks.js");
+vi.mock('../../../src/utils/logger.js', async () => {
+  const { mockLogger } = await import('../../setup/mocks.js');
   return mockLogger();
 });
 
-vi.mock("../../../src/config/database.js", async (importOriginal) => {
+vi.mock('../../../src/config/database.js', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("../../../src/config/database.js")>();
+    await importOriginal<typeof import('../../../src/config/database.js')>();
   return {
     ...actual,
     pingDatabase: vi.fn(),
   };
 });
 
-describe("HealthMonitor", () => {
+describe('HealthMonitor', () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    setHealthState({ status: "initializing", lastCheckedAt: null });
+    setHealthState({ status: 'initializing', lastCheckedAt: null });
     vi.clearAllMocks();
   });
 
@@ -34,9 +34,9 @@ describe("HealthMonitor", () => {
     vi.clearAllTimers();
   });
 
-  describe("startDatabaseHealthMonitor", () => {
-    it("runs initial health check immediately", async () => {
-      vi.spyOn(database, "pingDatabase").mockResolvedValue(true);
+  describe('startDatabaseHealthMonitor', () => {
+    it('runs initial health check immediately', async () => {
+      vi.spyOn(database, 'pingDatabase').mockResolvedValue(true);
 
       startDatabaseHealthMonitor();
 
@@ -44,34 +44,34 @@ describe("HealthMonitor", () => {
       await vi.runOnlyPendingTimersAsync();
 
       const state = getHealthState();
-      expect(state.status).toBe("healthy");
+      expect(state.status).toBe('healthy');
       expect(state.lastCheckedAt).toBeTruthy();
     });
 
-    it("marks service as healthy when database ping succeeds", async () => {
-      vi.spyOn(database, "pingDatabase").mockResolvedValue(true);
+    it('marks service as healthy when database ping succeeds', async () => {
+      vi.spyOn(database, 'pingDatabase').mockResolvedValue(true);
 
       startDatabaseHealthMonitor();
       await vi.runOnlyPendingTimersAsync();
 
       const state = getHealthState();
-      expect(state.status).toBe("healthy");
+      expect(state.status).toBe('healthy');
       expect(state.message).toBeUndefined();
     });
 
-    it("marks service as unhealthy when database ping fails", async () => {
-      vi.spyOn(database, "pingDatabase").mockResolvedValue(false);
+    it('marks service as unhealthy when database ping fails', async () => {
+      vi.spyOn(database, 'pingDatabase').mockResolvedValue(false);
 
       startDatabaseHealthMonitor();
       await vi.runOnlyPendingTimersAsync();
 
       const state = getHealthState();
-      expect(state.status).toBe("unhealthy");
-      expect(state.message).toBe("Database ping failed");
+      expect(state.status).toBe('unhealthy');
+      expect(state.message).toBe('Database ping failed');
     });
 
-    it("updates lastCheckedAt timestamp on each check", async () => {
-      vi.spyOn(database, "pingDatabase").mockResolvedValue(true);
+    it('updates lastCheckedAt timestamp on each check', async () => {
+      vi.spyOn(database, 'pingDatabase').mockResolvedValue(true);
 
       startDatabaseHealthMonitor(1000);
       await vi.runOnlyPendingTimersAsync();
@@ -88,9 +88,9 @@ describe("HealthMonitor", () => {
       expect(timestamp2).not.toBe(timestamp1);
     });
 
-    it("runs periodic health checks at specified interval", async () => {
+    it('runs periodic health checks at specified interval', async () => {
       const pingDatabaseSpy = vi
-        .spyOn(database, "pingDatabase")
+        .spyOn(database, 'pingDatabase')
         .mockResolvedValue(true);
 
       startDatabaseHealthMonitor(5000); // 5 second interval
@@ -111,9 +111,9 @@ describe("HealthMonitor", () => {
       await vi.waitFor(() => expect(pingDatabaseSpy).toHaveBeenCalledTimes(4));
     });
 
-    it("uses default interval of 15 seconds when not specified", async () => {
+    it('uses default interval of 15 seconds when not specified', async () => {
       const pingDatabaseSpy = vi
-        .spyOn(database, "pingDatabase")
+        .spyOn(database, 'pingDatabase')
         .mockResolvedValue(true);
 
       startDatabaseHealthMonitor(); // No interval specified
@@ -126,44 +126,44 @@ describe("HealthMonitor", () => {
       await vi.waitFor(() => expect(pingDatabaseSpy).toHaveBeenCalledTimes(2));
     });
 
-    it("transitions from healthy to unhealthy when database fails", async () => {
-      const pingDatabaseSpy = vi.spyOn(database, "pingDatabase");
+    it('transitions from healthy to unhealthy when database fails', async () => {
+      const pingDatabaseSpy = vi.spyOn(database, 'pingDatabase');
 
       // Start healthy
       pingDatabaseSpy.mockResolvedValue(true);
       startDatabaseHealthMonitor(1000);
       await vi.runOnlyPendingTimersAsync();
 
-      expect(getHealthState().status).toBe("healthy");
+      expect(getHealthState().status).toBe('healthy');
 
       // Database fails
       pingDatabaseSpy.mockResolvedValue(false);
       await vi.advanceTimersByTimeAsync(1000);
 
-      expect(getHealthState().status).toBe("unhealthy");
-      expect(getHealthState().message).toBe("Database ping failed");
+      expect(getHealthState().status).toBe('unhealthy');
+      expect(getHealthState().message).toBe('Database ping failed');
     });
 
-    it("transitions from unhealthy to healthy when database recovers", async () => {
-      const pingDatabaseSpy = vi.spyOn(database, "pingDatabase");
+    it('transitions from unhealthy to healthy when database recovers', async () => {
+      const pingDatabaseSpy = vi.spyOn(database, 'pingDatabase');
 
       // Start unhealthy
       pingDatabaseSpy.mockResolvedValue(false);
       startDatabaseHealthMonitor(1000);
       await vi.runOnlyPendingTimersAsync();
 
-      expect(getHealthState().status).toBe("unhealthy");
+      expect(getHealthState().status).toBe('unhealthy');
 
       // Database recovers
       pingDatabaseSpy.mockResolvedValue(true);
       await vi.advanceTimersByTimeAsync(1000);
 
-      expect(getHealthState().status).toBe("healthy");
+      expect(getHealthState().status).toBe('healthy');
       expect(getHealthState().message).toBeUndefined();
     });
 
-    it("continues checking after database failures", async () => {
-      const pingDatabaseSpy = vi.spyOn(database, "pingDatabase");
+    it('continues checking after database failures', async () => {
+      const pingDatabaseSpy = vi.spyOn(database, 'pingDatabase');
 
       // Sequence: fail → fail → succeed → fail
       pingDatabaseSpy
@@ -175,27 +175,27 @@ describe("HealthMonitor", () => {
       startDatabaseHealthMonitor(1000);
 
       // Wait for initial call (first fail)
-      await vi.waitFor(() => expect(getHealthState().status).toBe("unhealthy"));
+      await vi.waitFor(() => expect(getHealthState().status).toBe('unhealthy'));
 
       // Second call (second fail)
       await vi.advanceTimersByTimeAsync(1000);
       await vi.waitFor(() => expect(pingDatabaseSpy).toHaveBeenCalledTimes(2));
-      expect(getHealthState().status).toBe("unhealthy");
+      expect(getHealthState().status).toBe('unhealthy');
 
       // Third call (success)
       await vi.advanceTimersByTimeAsync(1000);
-      await vi.waitFor(() => expect(getHealthState().status).toBe("healthy"));
+      await vi.waitFor(() => expect(getHealthState().status).toBe('healthy'));
 
       // Fourth call (fail again)
       await vi.advanceTimersByTimeAsync(1000);
-      await vi.waitFor(() => expect(getHealthState().status).toBe("unhealthy"));
+      await vi.waitFor(() => expect(getHealthState().status).toBe('unhealthy'));
 
       expect(pingDatabaseSpy).toHaveBeenCalledTimes(4);
     });
 
-    it("allows multiple concurrent health monitors with different intervals", async () => {
+    it('allows multiple concurrent health monitors with different intervals', async () => {
       const pingDatabaseSpy = vi
-        .spyOn(database, "pingDatabase")
+        .spyOn(database, 'pingDatabase')
         .mockResolvedValue(true);
 
       startDatabaseHealthMonitor(1000); // 1 second
@@ -215,8 +215,8 @@ describe("HealthMonitor", () => {
       await vi.waitFor(() => expect(pingDatabaseSpy).toHaveBeenCalledTimes(3)); // 1 from previous + 2 more
     });
 
-    it("preserves state across multiple health check cycles", async () => {
-      vi.spyOn(database, "pingDatabase").mockResolvedValue(true);
+    it('preserves state across multiple health check cycles', async () => {
+      vi.spyOn(database, 'pingDatabase').mockResolvedValue(true);
 
       startDatabaseHealthMonitor(1000);
       await vi.runOnlyPendingTimersAsync();
@@ -229,14 +229,14 @@ describe("HealthMonitor", () => {
       }
 
       expect(getHealthState().status).toBe(initialStatus);
-      expect(getHealthState().status).toBe("healthy");
+      expect(getHealthState().status).toBe('healthy');
     });
   });
 
-  describe("Edge cases", () => {
-    it("handles very long intervals", async () => {
+  describe('Edge cases', () => {
+    it('handles very long intervals', async () => {
       const pingDatabaseSpy = vi
-        .spyOn(database, "pingDatabase")
+        .spyOn(database, 'pingDatabase')
         .mockResolvedValue(true);
 
       startDatabaseHealthMonitor(3600000); // 1 hour interval
@@ -247,8 +247,8 @@ describe("HealthMonitor", () => {
       await vi.waitFor(() => expect(pingDatabaseSpy).toHaveBeenCalledTimes(2));
     });
 
-    it("updates state even when transitioning between same status", async () => {
-      vi.spyOn(database, "pingDatabase").mockResolvedValue(true);
+    it('updates state even when transitioning between same status', async () => {
+      vi.spyOn(database, 'pingDatabase').mockResolvedValue(true);
 
       startDatabaseHealthMonitor(1000);
       await vi.runOnlyPendingTimersAsync();
@@ -261,12 +261,12 @@ describe("HealthMonitor", () => {
 
       const timestamp2 = getHealthState().lastCheckedAt;
 
-      expect(getHealthState().status).toBe("healthy");
+      expect(getHealthState().status).toBe('healthy');
       expect(timestamp2).not.toBe(timestamp1);
     });
 
-    it("handles rapid status oscillations", async () => {
-      const pingDatabaseSpy = vi.spyOn(database, "pingDatabase");
+    it('handles rapid status oscillations', async () => {
+      const pingDatabaseSpy = vi.spyOn(database, 'pingDatabase');
 
       // Alternate between healthy and unhealthy
       let shouldBeHealthy = true;
@@ -289,20 +289,20 @@ describe("HealthMonitor", () => {
     });
   });
 
-  describe("Interval timer behavior", () => {
-    it("uses unref() to allow process to exit", async () => {
-      vi.spyOn(database, "pingDatabase").mockResolvedValue(true);
+  describe('Interval timer behavior', () => {
+    it('uses unref() to allow process to exit', async () => {
+      vi.spyOn(database, 'pingDatabase').mockResolvedValue(true);
 
       startDatabaseHealthMonitor();
       await vi.runOnlyPendingTimersAsync();
 
       // The actual unref() behavior can't be directly tested in Vitest,
       // but we can verify the monitor starts without errors
-      expect(getHealthState().status).toBe("healthy");
+      expect(getHealthState().status).toBe('healthy');
     });
 
-    it("does not block other timers from running", async () => {
-      vi.spyOn(database, "pingDatabase").mockResolvedValue(true);
+    it('does not block other timers from running', async () => {
+      vi.spyOn(database, 'pingDatabase').mockResolvedValue(true);
 
       let otherTimerRan = false;
       setTimeout(() => {

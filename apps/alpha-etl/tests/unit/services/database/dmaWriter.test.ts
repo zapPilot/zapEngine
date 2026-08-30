@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { TokenPriceDmaWriter } from "../../../../src/modules/token-price/dmaWriter.js";
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { TokenPriceDmaWriter } from '../../../../src/modules/token-price/dmaWriter.js';
 
 // Mock DB client
 const mockClient = {
@@ -14,19 +14,19 @@ const mockPool = {
 };
 
 // Mock pg
-vi.mock("pg", () => ({
+vi.mock('pg', () => ({
   Pool: vi.fn().mockImplementation(function Pool() {
     return mockPool;
   }),
 }));
 
 // Mock logger
-vi.mock("../../../../src/utils/logger.js", async () => {
-  const { mockLogger } = await import("../../../setup/mocks.js");
+vi.mock('../../../../src/utils/logger.js', async () => {
+  const { mockLogger } = await import('../../../setup/mocks.js');
   return mockLogger();
 });
 
-describe("TokenPriceDmaWriter", () => {
+describe('TokenPriceDmaWriter', () => {
   let writer: TokenPriceDmaWriter;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let withDatabaseClientSpy: any;
@@ -36,7 +36,7 @@ describe("TokenPriceDmaWriter", () => {
     writer = new TokenPriceDmaWriter();
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    withDatabaseClientSpy = vi.spyOn(writer as any, "withDatabaseClient");
+    withDatabaseClientSpy = vi.spyOn(writer as any, 'withDatabaseClient');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     withDatabaseClientSpy.mockImplementation(async (fn: any) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -44,12 +44,12 @@ describe("TokenPriceDmaWriter", () => {
     });
   });
 
-  it("should handle successful DMA batch write", async () => {
+  it('should handle successful DMA batch write', async () => {
     const snapshots: unknown[] = [
       {
-        source: "coingecko",
-        token_symbol: "BTC",
-        snapshot_date: "2024-01-01",
+        source: 'coingecko',
+        token_symbol: 'BTC',
+        snapshot_date: '2024-01-01',
         snapshot_time: new Date().toISOString(),
         price_usd: 50000,
         dma_200: 45000,
@@ -68,12 +68,12 @@ describe("TokenPriceDmaWriter", () => {
     expect(mockClient.query).toHaveBeenCalled();
   });
 
-  it("should handle null rowCount from query result", async () => {
+  it('should handle null rowCount from query result', async () => {
     const snapshots: unknown[] = [
       {
-        source: "coingecko",
-        token_symbol: "BTC",
-        snapshot_date: "2024-01-01",
+        source: 'coingecko',
+        token_symbol: 'BTC',
+        snapshot_date: '2024-01-01',
         snapshot_time: new Date().toISOString(),
         price_usd: 50000,
         dma_200: 45000,
@@ -96,12 +96,12 @@ describe("TokenPriceDmaWriter", () => {
     expect(result.recordsInserted).toBe(0);
   });
 
-  it("should handle undefined rowCount and empty rows", async () => {
+  it('should handle undefined rowCount and empty rows', async () => {
     const snapshots: unknown[] = [
       {
-        source: "coingecko",
-        token_symbol: "BTC",
-        snapshot_date: "2024-01-01",
+        source: 'coingecko',
+        token_symbol: 'BTC',
+        snapshot_date: '2024-01-01',
         snapshot_time: new Date().toISOString(),
         price_usd: 50000,
         dma_200: null,
@@ -123,7 +123,7 @@ describe("TokenPriceDmaWriter", () => {
     expect(result.recordsInserted).toBe(0);
   });
 
-  it("should return empty result for empty batch", async () => {
+  it('should return empty result for empty batch', async () => {
     const result = await writer.writeDmaSnapshots([]);
 
     expect(result.success).toBe(true);
@@ -133,12 +133,12 @@ describe("TokenPriceDmaWriter", () => {
     expect(mockClient.query).not.toHaveBeenCalled();
   });
 
-  it("should handle db error during DMA write", async () => {
+  it('should handle db error during DMA write', async () => {
     const snapshots: unknown[] = [
       {
-        source: "coingecko",
-        token_symbol: "BTC",
-        snapshot_date: "2024-01-01",
+        source: 'coingecko',
+        token_symbol: 'BTC',
+        snapshot_date: '2024-01-01',
         snapshot_time: new Date().toISOString(),
         price_usd: 50000,
         dma_200: 45000,
@@ -148,11 +148,11 @@ describe("TokenPriceDmaWriter", () => {
       },
     ];
 
-    mockClient.query.mockRejectedValueOnce(new Error("DMA write failed"));
+    mockClient.query.mockRejectedValueOnce(new Error('DMA write failed'));
 
     const result = await writer.writeDmaSnapshots(snapshots);
 
     expect(result.success).toBe(false);
-    expect(result.errors).toContain("DMA write failed");
+    expect(result.errors).toContain('DMA write failed');
   });
 });

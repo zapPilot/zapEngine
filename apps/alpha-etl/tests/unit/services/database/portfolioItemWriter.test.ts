@@ -115,8 +115,12 @@ describe('PortfolioItemWriter', () => {
     expect(result.errors).toContain('insert failed');
     expect(query.mock.calls.map(([sql]) => sql)).toEqual([
       'BEGIN',
-      expect.stringContaining('DELETE FROM analytics.daily_portfolio_positions'),
-      expect.stringContaining('INSERT INTO analytics.daily_portfolio_positions'),
+      expect.stringContaining(
+        'DELETE FROM analytics.daily_portfolio_positions',
+      ),
+      expect.stringContaining(
+        'INSERT INTO analytics.daily_portfolio_positions',
+      ),
       'ROLLBACK',
     ]);
     expect(query.mock.calls.some(([sql]) => sql === 'COMMIT')).toBe(false);

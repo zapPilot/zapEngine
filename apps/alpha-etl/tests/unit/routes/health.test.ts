@@ -7,9 +7,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import request from 'supertest';
 import express from 'express';
 import type { HealthCheckResponse } from '../../../src/types/index.js';
-import {
-  setHealthState,
-} from '../../../src/modules/core/healthStatus.js';
+import { setHealthState } from '../../../src/modules/core/healthStatus.js';
 
 // Mock the logger to prevent console output during tests
 vi.mock('../../../src/utils/logger.js', async () => {
@@ -197,6 +195,5 @@ describe('Health Router', () => {
         Object.prototype.hasOwnProperty.call(response.body.data, 'message'),
       ).toBe(false);
     });
-
   });
 });

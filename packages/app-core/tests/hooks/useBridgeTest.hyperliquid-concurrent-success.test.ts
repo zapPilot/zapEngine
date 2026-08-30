@@ -105,7 +105,9 @@ describe('useBridgeTest Hyperliquid concurrent arrival success', () => {
       getBalance: mocks.getBalance,
       getGasPrice: mocks.getGasPrice,
     });
-    mocks.getPerpUsdcBalance.mockResolvedValue({ withdrawableUsd6: 5_000_000n });
+    mocks.getPerpUsdcBalance.mockResolvedValue({
+      withdrawableUsd6: 5_000_000n,
+    });
   });
 
   it('keeps the second execution result when the first arrival poll resolves later', async () => {

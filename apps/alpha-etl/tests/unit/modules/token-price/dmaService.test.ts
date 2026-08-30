@@ -6,7 +6,8 @@ vi.mock('../../../../src/utils/logger.js', async () => {
 });
 
 vi.mock('../../../../src/config/database.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../../../src/config/database.js')>();
+  const actual =
+    await importOriginal<typeof import('../../../../src/config/database.js')>();
   return {
     ...actual,
     getDbPool: vi.fn(() => ({
@@ -18,14 +19,24 @@ vi.mock('../../../../src/config/database.js', async (importOriginal) => {
 
 vi.mock('../../../../src/modules/token-price/dmaWriter.js', () => ({
   TokenPriceDmaWriter: class {
-    writeDmaSnapshots = vi.fn().mockResolvedValue({ recordsInserted: 0, success: true, errors: [], duplicatesSkipped: 0 });
+    writeDmaSnapshots = vi.fn().mockResolvedValue({
+      recordsInserted: 0,
+      success: true,
+      errors: [],
+      duplicatesSkipped: 0,
+    });
     getLatestDmaSnapshot = vi.fn().mockResolvedValue(null);
   },
 }));
 
 vi.mock('../../../../src/modules/token-price/ratioDmaWriter.js', () => ({
   TokenPairRatioDmaWriter: class {
-    writeRatioDmaSnapshots = vi.fn().mockResolvedValue({ recordsInserted: 0, success: true, errors: [], duplicatesSkipped: 0 });
+    writeRatioDmaSnapshots = vi.fn().mockResolvedValue({
+      recordsInserted: 0,
+      success: true,
+      errors: [],
+      duplicatesSkipped: 0,
+    });
   },
 }));
 
@@ -40,7 +51,9 @@ describe('TokenPriceDmaService', () => {
     vi.clearAllMocks();
     mockPool = { query: vi.fn() };
     (getDbPool as ReturnType<typeof vi.fn>).mockReturnValue(mockPool);
-    service = new TokenPriceDmaService(mockPool as unknown as import('pg').Pool);
+    service = new TokenPriceDmaService(
+      mockPool as unknown as import('pg').Pool,
+    );
   });
 
   describe('updateEthBtcRatioDma', () => {
@@ -56,10 +69,24 @@ describe('TokenPriceDmaService', () => {
       // Base has date A, quote has date B → no overlap
       mockPool.query
         .mockResolvedValueOnce({
-          rows: [{ token_symbol: 'ETH', token_id: 'ethereum', snapshot_date: '2024-01-01', price_usd: '100' }]
+          rows: [
+            {
+              token_symbol: 'ETH',
+              token_id: 'ethereum',
+              snapshot_date: '2024-01-01',
+              price_usd: '100',
+            },
+          ],
         })
         .mockResolvedValueOnce({
-          rows: [{ token_symbol: 'BTC', token_id: 'bitcoin', snapshot_date: '2024-01-02', price_usd: '50000' }]
+          rows: [
+            {
+              token_symbol: 'BTC',
+              token_id: 'bitcoin',
+              snapshot_date: '2024-01-02',
+              price_usd: '50000',
+            },
+          ],
         });
 
       const result = await service.updateEthBtcRatioDma('test-job');

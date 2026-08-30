@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { generateDateRange, calculateMissingDates, formatDateToYYYYMMDD } from '../../../src/utils/dateUtils.js';
+import {
+  generateDateRange,
+  calculateMissingDates,
+  formatDateToYYYYMMDD,
+} from '../../../src/utils/dateUtils.js';
 
 function createDateRange(start: string, end: string): Date[] {
   return generateDateRange(new Date(start), new Date(end));

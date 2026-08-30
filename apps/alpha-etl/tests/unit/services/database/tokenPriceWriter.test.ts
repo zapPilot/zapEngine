@@ -1,14 +1,14 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { logger } from "../../../../src/utils/logger.js";
-import { TokenPriceWriter } from "../../../../src/modules/token-price/writer.js";
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { logger } from '../../../../src/utils/logger.js';
+import { TokenPriceWriter } from '../../../../src/modules/token-price/writer.js';
 
 // Mock logger
-vi.mock("../../../../src/utils/logger.js", async () => {
-  const { mockLogger } = await import("../../../setup/mocks.js");
+vi.mock('../../../../src/utils/logger.js', async () => {
+  const { mockLogger } = await import('../../../setup/mocks.js');
   return mockLogger();
 });
 
-describe("TokenPriceWriter", () => {
+describe('TokenPriceWriter', () => {
   let writer: TokenPriceWriter;
   let mockClient: { query: ReturnType<typeof vi.fn> };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -19,7 +19,7 @@ describe("TokenPriceWriter", () => {
     writer = new TokenPriceWriter();
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    withDatabaseClientSpy = vi.spyOn(writer as any, "withDatabaseClient");
+    withDatabaseClientSpy = vi.spyOn(writer as any, 'withDatabaseClient');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     withDatabaseClientSpy.mockImplementation(async (fn: any) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -31,16 +31,16 @@ describe("TokenPriceWriter", () => {
     priceUsd: 50000,
     marketCapUsd: 1000000000000,
     volume24hUsd: 30000000000,
-    timestamp: new Date("2024-12-15T12:00:00Z"),
-    source: "coingecko",
-    tokenSymbol: "BTC",
-    tokenId: "bitcoin",
+    timestamp: new Date('2024-12-15T12:00:00Z'),
+    source: 'coingecko',
+    tokenSymbol: 'BTC',
+    tokenId: 'bitcoin',
   });
 
-  describe("insertSnapshot", () => {
-    it("should insert snapshot successfully", async () => {
+  describe('insertSnapshot', () => {
+    it('should insert snapshot successfully', async () => {
       mockClient.query.mockResolvedValue({
-        rows: [{ id: 1, snapshot_date: "2024-12-15" }],
+        rows: [{ id: 1, snapshot_date: '2024-12-15' }],
         rowCount: 1,
       });
 
@@ -48,30 +48,30 @@ describe("TokenPriceWriter", () => {
       await writer.insertSnapshot(priceData);
 
       expect(mockClient.query).toHaveBeenCalledWith(
-        expect.stringContaining("INSERT INTO alpha_raw.token_price_snapshots"),
+        expect.stringContaining('INSERT INTO alpha_raw.token_price_snapshots'),
         expect.arrayContaining([
           50000,
           1000000000000,
           30000000000,
-          "coingecko",
-          "BTC",
-          "bitcoin",
+          'coingecko',
+          'BTC',
+          'bitcoin',
         ]),
       );
     });
 
-    it("should throw error when database insert fails", async () => {
-      mockClient.query.mockRejectedValue(new Error("Connection refused"));
+    it('should throw error when database insert fails', async () => {
+      mockClient.query.mockRejectedValue(new Error('Connection refused'));
 
       const priceData = createMockPriceData();
       await expect(writer.insertSnapshot(priceData)).rejects.toThrow(
-        "Connection refused",
+        'Connection refused',
       );
     });
 
-    it("should include raw_data as JSON", async () => {
+    it('should include raw_data as JSON', async () => {
       mockClient.query.mockResolvedValue({
-        rows: [{ id: 1, snapshot_date: "2024-12-15" }],
+        rows: [{ id: 1, snapshot_date: '2024-12-15' }],
         rowCount: 1,
       });
 
@@ -83,8 +83,8 @@ describe("TokenPriceWriter", () => {
     });
   });
 
-  describe("insertBatch", () => {
-    it("should insert all snapshots successfully", async () => {
+  describe('insertBatch', () => {
+    it('should insert all snapshots successfully', async () => {
       mockClient.query.mockResolvedValue({
         rows: [{ id: 1 }, { id: 2 }],
         rowCount: 2,
@@ -94,7 +94,7 @@ describe("TokenPriceWriter", () => {
         createMockPriceData(),
         {
           ...createMockPriceData(),
-          timestamp: new Date("2024-12-14T12:00:00Z"),
+          timestamp: new Date('2024-12-14T12:00:00Z'),
         },
       ];
 
@@ -104,7 +104,7 @@ describe("TokenPriceWriter", () => {
       expect(mockClient.query).toHaveBeenCalledTimes(1);
     });
 
-    it("should fall back to UNKNOWN token symbol when missing", async () => {
+    it('should fall back to UNKNOWN token symbol when missing', async () => {
       mockClient.query.mockResolvedValue({
         rows: [{ id: 1 }],
         rowCount: 1,
@@ -122,7 +122,7 @@ describe("TokenPriceWriter", () => {
       expect(inserted).toBe(1);
     });
 
-    it("should fall back to rows length when rowCount is missing", async () => {
+    it('should fall back to rows length when rowCount is missing', async () => {
       mockClient.query.mockResolvedValue({
         rows: [{ id: 1 }, { id: 2 }],
       });
@@ -131,7 +131,7 @@ describe("TokenPriceWriter", () => {
         createMockPriceData(),
         {
           ...createMockPriceData(),
-          timestamp: new Date("2024-12-14T12:00:00Z"),
+          timestamp: new Date('2024-12-14T12:00:00Z'),
         },
       ];
 
@@ -140,7 +140,7 @@ describe("TokenPriceWriter", () => {
       expect(inserted).toBe(2);
     });
 
-    it("should return 0 when rowCount and rows length are missing", async () => {
+    it('should return 0 when rowCount and rows length are missing', async () => {
       mockClient.query.mockResolvedValue({});
 
       const snapshots = [createMockPriceData()];
@@ -150,75 +150,75 @@ describe("TokenPriceWriter", () => {
       expect(inserted).toBe(0);
     });
 
-    it("should throw on batch insert failure", async () => {
-      mockClient.query.mockRejectedValue(new Error("Duplicate key"));
+    it('should throw on batch insert failure', async () => {
+      mockClient.query.mockRejectedValue(new Error('Duplicate key'));
 
       const snapshots = [
         createMockPriceData(),
         {
           ...createMockPriceData(),
-          timestamp: new Date("2024-12-14T12:00:00Z"),
+          timestamp: new Date('2024-12-14T12:00:00Z'),
         },
         {
           ...createMockPriceData(),
-          timestamp: new Date("2024-12-13T12:00:00Z"),
+          timestamp: new Date('2024-12-13T12:00:00Z'),
         },
       ];
 
       await expect(writer.insertBatch(snapshots)).rejects.toThrow(
-        "Duplicate key",
+        'Duplicate key',
       );
     });
 
-    it("should handle empty array", async () => {
+    it('should handle empty array', async () => {
       const inserted = await writer.insertBatch([]);
       expect(inserted).toBe(0);
       expect(mockClient.query).not.toHaveBeenCalled();
     });
   });
 
-  describe("getLatestSnapshot", () => {
-    it("should return latest snapshot when exists", async () => {
+  describe('getLatestSnapshot', () => {
+    it('should return latest snapshot when exists', async () => {
       mockClient.query.mockResolvedValue({
         rows: [
           {
-            snapshot_date: new Date("2024-12-15T00:00:00Z"),
-            price_usd: "50000.50",
-            token_symbol: "BTC",
+            snapshot_date: new Date('2024-12-15T00:00:00Z'),
+            price_usd: '50000.50',
+            token_symbol: 'BTC',
           },
         ],
         rowCount: 1,
       });
 
-      const result = await writer.getLatestSnapshot("BTC");
+      const result = await writer.getLatestSnapshot('BTC');
 
       expect(result).toEqual({
-        date: "2024-12-15",
+        date: '2024-12-15',
         price: 50000.5,
-        tokenSymbol: "BTC",
+        tokenSymbol: 'BTC',
       });
     });
 
-    it("should return null when no snapshots exist", async () => {
+    it('should return null when no snapshots exist', async () => {
       mockClient.query.mockResolvedValue({
         rows: [],
         rowCount: 0,
       });
 
-      const result = await writer.getLatestSnapshot("BTC");
+      const result = await writer.getLatestSnapshot('BTC');
 
       expect(result).toBeNull();
     });
 
-    it("should throw error on database failure", async () => {
-      mockClient.query.mockRejectedValue(new Error("Database error"));
+    it('should throw error on database failure', async () => {
+      mockClient.query.mockRejectedValue(new Error('Database error'));
 
-      await expect(writer.getLatestSnapshot("BTC")).rejects.toThrow(
-        "Database error",
+      await expect(writer.getLatestSnapshot('BTC')).rejects.toThrow(
+        'Database error',
       );
     });
 
-    it("should use default token symbol", async () => {
+    it('should use default token symbol', async () => {
       mockClient.query.mockResolvedValue({
         rows: [],
         rowCount: 0,
@@ -227,73 +227,73 @@ describe("TokenPriceWriter", () => {
       await writer.getLatestSnapshot();
 
       expect(mockClient.query).toHaveBeenCalledWith(expect.any(String), [
-        "BTC",
+        'BTC',
       ]);
     });
   });
 
-  describe("getSnapshotCount", () => {
-    it("should return count when snapshots exist", async () => {
+  describe('getSnapshotCount', () => {
+    it('should return count when snapshots exist', async () => {
       mockClient.query.mockResolvedValue({
-        rows: [{ count: "150" }],
+        rows: [{ count: '150' }],
         rowCount: 1,
       });
 
-      const count = await writer.getSnapshotCount("BTC");
+      const count = await writer.getSnapshotCount('BTC');
 
       expect(count).toBe(150);
     });
 
-    it("should return 0 when no snapshots exist", async () => {
+    it('should return 0 when no snapshots exist', async () => {
       mockClient.query.mockResolvedValue({
-        rows: [{ count: "0" }],
+        rows: [{ count: '0' }],
         rowCount: 1,
       });
 
-      const count = await writer.getSnapshotCount("ETH");
+      const count = await writer.getSnapshotCount('ETH');
 
       expect(count).toBe(0);
     });
 
-    it("should return 0 when count is missing", async () => {
+    it('should return 0 when count is missing', async () => {
       mockClient.query.mockResolvedValue({
         rows: [],
         rowCount: 0,
       });
 
-      const count = await writer.getSnapshotCount("BTC");
+      const count = await writer.getSnapshotCount('BTC');
 
       expect(count).toBe(0);
     });
 
-    it("should return 0 on database error", async () => {
-      mockClient.query.mockRejectedValue(new Error("Connection lost"));
+    it('should return 0 on database error', async () => {
+      mockClient.query.mockRejectedValue(new Error('Connection lost'));
 
-      const count = await writer.getSnapshotCount("BTC");
+      const count = await writer.getSnapshotCount('BTC');
 
       expect(count).toBe(0);
     });
 
-    it("should use default token symbol", async () => {
+    it('should use default token symbol', async () => {
       mockClient.query.mockResolvedValue({
-        rows: [{ count: "10" }],
+        rows: [{ count: '10' }],
         rowCount: 1,
       });
 
       await writer.getSnapshotCount();
 
       expect(mockClient.query).toHaveBeenCalledWith(expect.any(String), [
-        "BTC",
+        'BTC',
       ]);
     });
   });
 
-  describe("getExistingDatesInRange", () => {
-    it("should return existing dates in range without timezone shift", async () => {
+  describe('getExistingDatesInRange', () => {
+    it('should return existing dates in range without timezone shift', async () => {
       const mockRows = [
-        { snapshot_date: "2024-12-01" },
-        { snapshot_date: "2024-12-03" },
-        { snapshot_date: "2024-12-05" },
+        { snapshot_date: '2024-12-01' },
+        { snapshot_date: '2024-12-03' },
+        { snapshot_date: '2024-12-05' },
       ];
 
       mockClient.query.mockResolvedValue({
@@ -302,92 +302,92 @@ describe("TokenPriceWriter", () => {
       });
 
       const result = await writer.getExistingDatesInRange(
-        new Date("2024-12-01"),
-        new Date("2024-12-05"),
-        "BTC",
-        "coingecko",
+        new Date('2024-12-01'),
+        new Date('2024-12-05'),
+        'BTC',
+        'coingecko',
       );
 
-      expect(result).toEqual(["2024-12-01", "2024-12-03", "2024-12-05"]);
+      expect(result).toEqual(['2024-12-01', '2024-12-03', '2024-12-05']);
       expect(mockClient.query).toHaveBeenCalledWith(
-        expect.stringContaining("to_char(snapshot_date"),
-        ["coingecko", "BTC", "2024-12-01", "2024-12-05"],
+        expect.stringContaining('to_char(snapshot_date'),
+        ['coingecko', 'BTC', '2024-12-01', '2024-12-05'],
       );
     });
 
-    it("should return empty array when no dates exist", async () => {
+    it('should return empty array when no dates exist', async () => {
       mockClient.query.mockResolvedValue({
         rows: [],
         rowCount: 0,
       });
 
       const result = await writer.getExistingDatesInRange(
-        new Date("2024-12-01"),
-        new Date("2024-12-05"),
-        "BTC",
+        new Date('2024-12-01'),
+        new Date('2024-12-05'),
+        'BTC',
       );
 
       expect(result).toEqual([]);
     });
 
-    it("should handle database errors gracefully", async () => {
+    it('should handle database errors gracefully', async () => {
       mockClient.query.mockRejectedValue(
-        new Error("Database connection failed"),
+        new Error('Database connection failed'),
       );
 
       const result = await writer.getExistingDatesInRange(
-        new Date("2024-12-01"),
-        new Date("2024-12-05"),
-        "BTC",
+        new Date('2024-12-01'),
+        new Date('2024-12-05'),
+        'BTC',
       );
 
       expect(result).toEqual([]); // Fallback to empty array
     });
 
-    it("should use correct SQL parameters", async () => {
+    it('should use correct SQL parameters', async () => {
       mockClient.query.mockResolvedValue({
         rows: [],
         rowCount: 0,
       });
 
       await writer.getExistingDatesInRange(
-        new Date("2024-11-01"),
-        new Date("2024-11-30"),
-        "ETH",
-        "coingecko",
+        new Date('2024-11-01'),
+        new Date('2024-11-30'),
+        'ETH',
+        'coingecko',
       );
 
       expect(mockClient.query).toHaveBeenCalledWith(expect.any(String), [
-        "coingecko",
-        "ETH",
-        "2024-11-01",
-        "2024-11-30",
+        'coingecko',
+        'ETH',
+        '2024-11-01',
+        '2024-11-30',
       ]);
     });
 
-    it("should use default parameters when not provided", async () => {
+    it('should use default parameters when not provided', async () => {
       mockClient.query.mockResolvedValue({
         rows: [],
         rowCount: 0,
       });
 
       await writer.getExistingDatesInRange(
-        new Date("2024-12-01"),
-        new Date("2024-12-05"),
+        new Date('2024-12-01'),
+        new Date('2024-12-05'),
       );
 
       expect(mockClient.query).toHaveBeenCalledWith(expect.any(String), [
-        "coingecko",
-        "BTC",
-        "2024-12-01",
-        "2024-12-05",
+        'coingecko',
+        'BTC',
+        '2024-12-01',
+        '2024-12-05',
       ]);
     });
 
-    it("should return dates as strings from PostgreSQL to_char()", async () => {
+    it('should return dates as strings from PostgreSQL to_char()', async () => {
       const mockRows = [
-        { snapshot_date: "2024-12-01" },
-        { snapshot_date: "2024-12-02" },
+        { snapshot_date: '2024-12-01' },
+        { snapshot_date: '2024-12-02' },
       ];
 
       mockClient.query.mockResolvedValue({
@@ -396,37 +396,37 @@ describe("TokenPriceWriter", () => {
       });
 
       const result = await writer.getExistingDatesInRange(
-        new Date("2024-12-01"),
-        new Date("2024-12-05"),
-        "BTC",
+        new Date('2024-12-01'),
+        new Date('2024-12-05'),
+        'BTC',
       );
 
-      expect(result).toEqual(["2024-12-01", "2024-12-02"]);
+      expect(result).toEqual(['2024-12-01', '2024-12-02']);
     });
 
-    it("should query with correct date order", async () => {
+    it('should query with correct date order', async () => {
       mockClient.query.mockResolvedValue({
         rows: [],
         rowCount: 0,
       });
 
       await writer.getExistingDatesInRange(
-        new Date("2024-12-01"),
-        new Date("2024-12-31"),
-        "SOL",
+        new Date('2024-12-01'),
+        new Date('2024-12-31'),
+        'SOL',
       );
 
       expect(mockClient.query).toHaveBeenCalledWith(
-        expect.stringContaining("ORDER BY snapshot_date ASC"),
+        expect.stringContaining('ORDER BY snapshot_date ASC'),
         expect.any(Array),
       );
     });
 
-    describe("timezone independence", () => {
-      it("should not shift dates regardless of server timezone", async () => {
+    describe('timezone independence', () => {
+      it('should not shift dates regardless of server timezone', async () => {
         const mockRows = [
-          { snapshot_date: "2025-12-16" },
-          { snapshot_date: "2025-12-17" },
+          { snapshot_date: '2025-12-16' },
+          { snapshot_date: '2025-12-17' },
         ];
 
         mockClient.query.mockResolvedValue({
@@ -435,20 +435,20 @@ describe("TokenPriceWriter", () => {
         });
 
         const result = await writer.getExistingDatesInRange(
-          new Date("2025-12-15"),
-          new Date("2025-12-18"),
-          "BTC",
-          "coingecko",
+          new Date('2025-12-15'),
+          new Date('2025-12-18'),
+          'BTC',
+          'coingecko',
         );
 
-        expect(result).toEqual(["2025-12-16", "2025-12-17"]);
+        expect(result).toEqual(['2025-12-16', '2025-12-17']);
       });
 
-      it("should handle date boundaries correctly without off-by-one errors", async () => {
+      it('should handle date boundaries correctly without off-by-one errors', async () => {
         const mockRows = [
-          { snapshot_date: "2024-11-30" },
-          { snapshot_date: "2024-12-01" },
-          { snapshot_date: "2024-12-31" },
+          { snapshot_date: '2024-11-30' },
+          { snapshot_date: '2024-12-01' },
+          { snapshot_date: '2024-12-31' },
         ];
 
         mockClient.query.mockResolvedValue({
@@ -457,19 +457,19 @@ describe("TokenPriceWriter", () => {
         });
 
         const result = await writer.getExistingDatesInRange(
-          new Date("2024-11-30"),
-          new Date("2024-12-31"),
-          "BTC",
-          "coingecko",
+          new Date('2024-11-30'),
+          new Date('2024-12-31'),
+          'BTC',
+          'coingecko',
         );
 
-        expect(result).toEqual(["2024-11-30", "2024-12-01", "2024-12-31"]);
+        expect(result).toEqual(['2024-11-30', '2024-12-01', '2024-12-31']);
       });
 
-      it("should return all dates as YYYY-MM-DD strings (never Date objects)", async () => {
+      it('should return all dates as YYYY-MM-DD strings (never Date objects)', async () => {
         const mockRows = [
-          { snapshot_date: "2025-01-15" },
-          { snapshot_date: "2025-01-16" },
+          { snapshot_date: '2025-01-15' },
+          { snapshot_date: '2025-01-16' },
         ];
 
         mockClient.query.mockResolvedValue({
@@ -478,29 +478,29 @@ describe("TokenPriceWriter", () => {
         });
 
         const result = await writer.getExistingDatesInRange(
-          new Date("2025-01-15"),
-          new Date("2025-01-16"),
-          "BTC",
-          "coingecko",
+          new Date('2025-01-15'),
+          new Date('2025-01-16'),
+          'BTC',
+          'coingecko',
         );
 
         result.forEach((date) => {
-          expect(typeof date).toBe("string");
+          expect(typeof date).toBe('string');
           expect(date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
         });
       });
 
-      it("should use to_char() in SQL query for timezone-safe formatting", async () => {
+      it('should use to_char() in SQL query for timezone-safe formatting', async () => {
         mockClient.query.mockResolvedValue({
           rows: [],
           rowCount: 0,
         });
 
         await writer.getExistingDatesInRange(
-          new Date("2025-12-01"),
-          new Date("2025-12-05"),
-          "BTC",
-          "coingecko",
+          new Date('2025-12-01'),
+          new Date('2025-12-05'),
+          'BTC',
+          'coingecko',
         );
 
         expect(mockClient.query).toHaveBeenCalledWith(
@@ -509,10 +509,10 @@ describe("TokenPriceWriter", () => {
         );
       });
 
-      it("should handle year boundaries without timezone shift", async () => {
+      it('should handle year boundaries without timezone shift', async () => {
         const mockRows = [
-          { snapshot_date: "2024-12-31" },
-          { snapshot_date: "2025-01-01" },
+          { snapshot_date: '2024-12-31' },
+          { snapshot_date: '2025-01-01' },
         ];
 
         mockClient.query.mockResolvedValue({
@@ -521,21 +521,21 @@ describe("TokenPriceWriter", () => {
         });
 
         const result = await writer.getExistingDatesInRange(
-          new Date("2024-12-31"),
-          new Date("2025-01-01"),
-          "BTC",
-          "coingecko",
+          new Date('2024-12-31'),
+          new Date('2025-01-01'),
+          'BTC',
+          'coingecko',
         );
 
-        expect(result).toEqual(["2024-12-31", "2025-01-01"]);
+        expect(result).toEqual(['2024-12-31', '2025-01-01']);
       });
     });
   });
 
-  describe("error logging", () => {
+  describe('error logging', () => {
     it('should throw "Unknown insert error" when executeBatchWrite returns empty errors', async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      vi.spyOn(writer as any, "executeBatchWrite").mockResolvedValueOnce({
+      vi.spyOn(writer as any, 'executeBatchWrite').mockResolvedValueOnce({
         success: false,
         errors: [],
         recordsInserted: 0,
@@ -544,61 +544,61 @@ describe("TokenPriceWriter", () => {
 
       const priceData = createMockPriceData();
       await expect(writer.insertSnapshot(priceData)).rejects.toThrow(
-        "Unknown insert error",
+        'Unknown insert error',
       );
     });
 
-    it("should log error context when insertSnapshot fails", async () => {
-      mockClient.query.mockRejectedValue(new Error("insert failed"));
+    it('should log error context when insertSnapshot fails', async () => {
+      mockClient.query.mockRejectedValue(new Error('insert failed'));
 
       const priceData = createMockPriceData();
       await expect(writer.insertSnapshot(priceData)).rejects.toThrow(
-        "insert failed",
+        'insert failed',
       );
       expect(logger.error).toHaveBeenCalledWith(
-        "Failed to save token price snapshot",
-        expect.objectContaining({ error: "insert failed", tokenSymbol: "BTC" }),
+        'Failed to save token price snapshot',
+        expect.objectContaining({ error: 'insert failed', tokenSymbol: 'BTC' }),
       );
     });
 
-    it("should log error context when getLatestSnapshot fails", async () => {
-      mockClient.query.mockRejectedValue(new Error("query failed"));
+    it('should log error context when getLatestSnapshot fails', async () => {
+      mockClient.query.mockRejectedValue(new Error('query failed'));
 
-      await expect(writer.getLatestSnapshot("BTC")).rejects.toThrow(
-        "query failed",
+      await expect(writer.getLatestSnapshot('BTC')).rejects.toThrow(
+        'query failed',
       );
       expect(logger.error).toHaveBeenCalledWith(
-        "Failed to get latest snapshot",
-        expect.objectContaining({ tokenSymbol: "BTC", error: "query failed" }),
+        'Failed to get latest snapshot',
+        expect.objectContaining({ tokenSymbol: 'BTC', error: 'query failed' }),
       );
     });
 
-    it("should log error context when getSnapshotCount fails", async () => {
-      mockClient.query.mockRejectedValue(new Error("count failed"));
+    it('should log error context when getSnapshotCount fails', async () => {
+      mockClient.query.mockRejectedValue(new Error('count failed'));
 
-      await writer.getSnapshotCount("BTC");
+      await writer.getSnapshotCount('BTC');
 
       expect(logger.error).toHaveBeenCalledWith(
-        "Failed to get snapshot count",
-        expect.objectContaining({ tokenSymbol: "BTC", error: "count failed" }),
+        'Failed to get snapshot count',
+        expect.objectContaining({ tokenSymbol: 'BTC', error: 'count failed' }),
       );
     });
 
-    it("should log error context when getExistingDatesInRange fails", async () => {
-      mockClient.query.mockRejectedValue(new Error("range query failed"));
+    it('should log error context when getExistingDatesInRange fails', async () => {
+      mockClient.query.mockRejectedValue(new Error('range query failed'));
 
       await writer.getExistingDatesInRange(
-        new Date("2023-01-01"),
-        new Date("2023-12-31"),
-        "BTC",
-        "coingecko",
+        new Date('2023-01-01'),
+        new Date('2023-12-31'),
+        'BTC',
+        'coingecko',
       );
 
       expect(logger.error).toHaveBeenCalledWith(
-        "Failed to get existing dates in range",
+        'Failed to get existing dates in range',
         expect.objectContaining({
-          tokenSymbol: "BTC",
-          error: "range query failed",
+          tokenSymbol: 'BTC',
+          error: 'range query failed',
         }),
       );
     });

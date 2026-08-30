@@ -44,7 +44,9 @@ describe('YouTube upload stream lifecycle', () => {
     let requestCount = 0;
     const fetchImpl = vi.fn<typeof fetch>(async (input, init = {}) => {
       const url = String(input);
-      if (url.startsWith('https://youtubeanalytics.googleapis.com/v2/reports')) {
+      if (
+        url.startsWith('https://youtubeanalytics.googleapis.com/v2/reports')
+      ) {
         return new Response(JSON.stringify({ rows: [[0]] }), { status: 200 });
       }
       requestCount += 1;

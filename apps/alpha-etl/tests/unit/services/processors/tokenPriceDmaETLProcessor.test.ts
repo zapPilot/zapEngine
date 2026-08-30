@@ -3,11 +3,9 @@ import type { Pool } from 'pg';
 import {
   buildAlignedPairRatioSeries,
   computeDma,
-  computeTokenPairRatioDma
+  computeTokenPairRatioDma,
 } from '../../../../src/modules/token-price/dmaCalculator.js';
-import {
-  TokenPriceDmaService
-} from '../../../../src/modules/token-price/dmaService.js';
+import { TokenPriceDmaService } from '../../../../src/modules/token-price/dmaService.js';
 import { TokenPriceDmaWriter } from '../../../../src/modules/token-price/dmaWriter.js';
 import { TokenPairRatioDmaWriter } from '../../../../src/modules/token-price/ratioDmaWriter.js';
 import type { WriteResult } from '../../../../src/core/database/baseWriter.js';
@@ -17,7 +15,7 @@ function createWriteResult(recordsInserted: number): WriteResult {
     success: true,
     recordsInserted,
     duplicatesSkipped: 0,
-    errors: []
+    errors: [],
   };
 }
 
@@ -26,7 +24,7 @@ describe('TokenPriceDmaService', () => {
 
   beforeEach(() => {
     mockPool = {
-      query: vi.fn()
+      query: vi.fn(),
     } as unknown as Pool;
   });
 
@@ -41,8 +39,11 @@ describe('TokenPriceDmaService', () => {
   });
 
   it('should compute DMA separately per token update call', async () => {
-    const writeSpy = vi.spyOn(TokenPriceDmaWriter.prototype, 'writeDmaSnapshots')
-      .mockImplementation(async (snapshots) => createWriteResult(snapshots.length));
+    const writeSpy = vi
+      .spyOn(TokenPriceDmaWriter.prototype, 'writeDmaSnapshots')
+      .mockImplementation(async (snapshots) =>
+        createWriteResult(snapshots.length),
+      );
 
     vi.mocked(mockPool.query).mockImplementation(async (_query, values) => {
       const tokenSymbol = values?.[1];
@@ -50,17 +51,37 @@ describe('TokenPriceDmaService', () => {
       if (tokenSymbol === 'BTC') {
         return {
           rows: [
-            { token_symbol: 'BTC', token_id: 'bitcoin', snapshot_date: '2026-02-06', price_usd: '100.00' },
-            { token_symbol: 'BTC', token_id: 'bitcoin', snapshot_date: '2026-02-07', price_usd: '105.00' }
-          ]
+            {
+              token_symbol: 'BTC',
+              token_id: 'bitcoin',
+              snapshot_date: '2026-02-06',
+              price_usd: '100.00',
+            },
+            {
+              token_symbol: 'BTC',
+              token_id: 'bitcoin',
+              snapshot_date: '2026-02-07',
+              price_usd: '105.00',
+            },
+          ],
         } as Awaited<ReturnType<Pool['query']>>;
       }
 
       return {
         rows: [
-          { token_symbol: 'ETH', token_id: 'ethereum', snapshot_date: '2026-02-06', price_usd: '200.00' },
-          { token_symbol: 'ETH', token_id: 'ethereum', snapshot_date: '2026-02-07', price_usd: '210.00' }
-        ]
+          {
+            token_symbol: 'ETH',
+            token_id: 'ethereum',
+            snapshot_date: '2026-02-06',
+            price_usd: '200.00',
+          },
+          {
+            token_symbol: 'ETH',
+            token_id: 'ethereum',
+            snapshot_date: '2026-02-07',
+            price_usd: '210.00',
+          },
+        ],
       } as Awaited<ReturnType<Pool['query']>>;
     });
 
@@ -70,40 +91,56 @@ describe('TokenPriceDmaService', () => {
     await service.updateDmaForToken('ETH', 'ethereum', 'job-eth');
 
     expect(writeSpy).toHaveBeenCalledTimes(2);
-    expect(writeSpy.mock.calls[0][0].every((row) => row.token_symbol === 'BTC')).toBe(true);
-    expect(writeSpy.mock.calls[1][0].every((row) => row.token_symbol === 'ETH')).toBe(true);
+    expect(
+      writeSpy.mock.calls[0][0].every((row) => row.token_symbol === 'BTC'),
+    ).toBe(true);
+    expect(
+      writeSpy.mock.calls[1][0].every((row) => row.token_symbol === 'ETH'),
+    ).toBe(true);
 
-    expect(mockPool.query).toHaveBeenNthCalledWith(
-      1,
-      expect.any(String),
-      ['coingecko', 'BTC', 'bitcoin']
-    );
-    expect(mockPool.query).toHaveBeenNthCalledWith(
-      2,
-      expect.any(String),
-      ['coingecko', 'ETH', 'ethereum']
-    );
+    expect(mockPool.query).toHaveBeenNthCalledWith(1, expect.any(String), [
+      'coingecko',
+      'BTC',
+      'bitcoin',
+    ]);
+    expect(mockPool.query).toHaveBeenNthCalledWith(2, expect.any(String), [
+      'coingecko',
+      'ETH',
+      'ethereum',
+    ]);
   });
 
   it('should return 0 records when no price history exists', async () => {
     vi.mocked(mockPool.query).mockResolvedValue({
-      rows: []
+      rows: [],
     } as Awaited<ReturnType<Pool['query']>>);
 
     const service = new TokenPriceDmaService(mockPool);
-    const result = await service.updateDmaForToken('UNKNOWN', 'unknown-token', 'job-empty');
+    const result = await service.updateDmaForToken(
+      'UNKNOWN',
+      'unknown-token',
+      'job-empty',
+    );
 
     expect(result).toEqual({ recordsInserted: 0 });
   });
 
   it('should generate a correlation ID when no jobId is provided', async () => {
-    const writeSpy = vi.spyOn(TokenPriceDmaWriter.prototype, 'writeDmaSnapshots')
-      .mockImplementation(async (snapshots) => createWriteResult(snapshots.length));
+    const writeSpy = vi
+      .spyOn(TokenPriceDmaWriter.prototype, 'writeDmaSnapshots')
+      .mockImplementation(async (snapshots) =>
+        createWriteResult(snapshots.length),
+      );
 
     vi.mocked(mockPool.query).mockResolvedValue({
       rows: [
-        { token_symbol: 'BTC', token_id: 'bitcoin', snapshot_date: '2026-02-06', price_usd: '100.00' }
-      ]
+        {
+          token_symbol: 'BTC',
+          token_id: 'bitcoin',
+          snapshot_date: '2026-02-06',
+          price_usd: '100.00',
+        },
+      ],
     } as Awaited<ReturnType<Pool['query']>>);
 
     const service = new TokenPriceDmaService(mockPool);
@@ -113,36 +150,57 @@ describe('TokenPriceDmaService', () => {
   });
 
   it('should normalize token context (trim, uppercase symbol, lowercase id)', async () => {
-    vi.spyOn(TokenPriceDmaWriter.prototype, 'writeDmaSnapshots')
-      .mockImplementation(async (snapshots) => createWriteResult(snapshots.length));
+    vi.spyOn(
+      TokenPriceDmaWriter.prototype,
+      'writeDmaSnapshots',
+    ).mockImplementation(async (snapshots) =>
+      createWriteResult(snapshots.length),
+    );
 
     vi.mocked(mockPool.query).mockResolvedValue({
       rows: [
-        { token_symbol: 'ETH', token_id: 'ethereum', snapshot_date: '2026-02-06', price_usd: '3000.00' }
-      ]
+        {
+          token_symbol: 'ETH',
+          token_id: 'ethereum',
+          snapshot_date: '2026-02-06',
+          price_usd: '3000.00',
+        },
+      ],
     } as Awaited<ReturnType<Pool['query']>>);
 
     const service = new TokenPriceDmaService(mockPool);
     await service.updateDmaForToken('  eth  ', '  Ethereum  ');
 
     // Verify the query used normalized values
-    expect(mockPool.query).toHaveBeenCalledWith(
-      expect.any(String),
-      ['coingecko', 'ETH', 'ethereum']
-    );
+    expect(mockPool.query).toHaveBeenCalledWith(expect.any(String), [
+      'coingecko',
+      'ETH',
+      'ethereum',
+    ]);
   });
 
   it('should recompute and upsert all token dates so price changes are refreshed', async () => {
     let latestPrice = '100.00';
 
-    const writeSpy = vi.spyOn(TokenPriceDmaWriter.prototype, 'writeDmaSnapshots')
-      .mockImplementation(async (snapshots) => createWriteResult(snapshots.length));
+    const writeSpy = vi
+      .spyOn(TokenPriceDmaWriter.prototype, 'writeDmaSnapshots')
+      .mockImplementation(async (snapshots) =>
+        createWriteResult(snapshots.length),
+      );
 
-    vi.mocked(mockPool.query).mockImplementation(async () => ({
-      rows: [
-        { token_symbol: 'BTC', token_id: 'bitcoin', snapshot_date: '2026-02-06', price_usd: latestPrice }
-      ]
-    }) as Awaited<ReturnType<Pool['query']>>);
+    vi.mocked(mockPool.query).mockImplementation(
+      async () =>
+        ({
+          rows: [
+            {
+              token_symbol: 'BTC',
+              token_id: 'bitcoin',
+              snapshot_date: '2026-02-06',
+              price_usd: latestPrice,
+            },
+          ],
+        }) as Awaited<ReturnType<Pool['query']>>,
+    );
 
     const service = new TokenPriceDmaService(mockPool);
 
@@ -156,8 +214,11 @@ describe('TokenPriceDmaService', () => {
   });
 
   it('should compute ETH/BTC ratio snapshots only for overlapping dates', async () => {
-    const ratioWriteSpy = vi.spyOn(TokenPairRatioDmaWriter.prototype, 'writeRatioDmaSnapshots')
-      .mockImplementation(async (snapshots) => createWriteResult(snapshots.length));
+    const ratioWriteSpy = vi
+      .spyOn(TokenPairRatioDmaWriter.prototype, 'writeRatioDmaSnapshots')
+      .mockImplementation(async (snapshots) =>
+        createWriteResult(snapshots.length),
+      );
 
     vi.mocked(mockPool.query).mockImplementation(async (_query, values) => {
       const tokenSymbol = values?.[1];
@@ -165,18 +226,43 @@ describe('TokenPriceDmaService', () => {
       if (tokenSymbol === 'ETH') {
         return {
           rows: [
-            { token_symbol: 'ETH', token_id: 'ethereum', snapshot_date: '2026-02-06', price_usd: '200.00' },
-            { token_symbol: 'ETH', token_id: 'ethereum', snapshot_date: '2026-02-07', price_usd: '210.00' },
-            { token_symbol: 'ETH', token_id: 'ethereum', snapshot_date: '2026-02-08', price_usd: '220.00' }
-          ]
+            {
+              token_symbol: 'ETH',
+              token_id: 'ethereum',
+              snapshot_date: '2026-02-06',
+              price_usd: '200.00',
+            },
+            {
+              token_symbol: 'ETH',
+              token_id: 'ethereum',
+              snapshot_date: '2026-02-07',
+              price_usd: '210.00',
+            },
+            {
+              token_symbol: 'ETH',
+              token_id: 'ethereum',
+              snapshot_date: '2026-02-08',
+              price_usd: '220.00',
+            },
+          ],
         } as Awaited<ReturnType<Pool['query']>>;
       }
 
       return {
         rows: [
-          { token_symbol: 'BTC', token_id: 'bitcoin', snapshot_date: '2026-02-07', price_usd: '10000.00' },
-          { token_symbol: 'BTC', token_id: 'bitcoin', snapshot_date: '2026-02-08', price_usd: '11000.00' }
-        ]
+          {
+            token_symbol: 'BTC',
+            token_id: 'bitcoin',
+            snapshot_date: '2026-02-07',
+            price_usd: '10000.00',
+          },
+          {
+            token_symbol: 'BTC',
+            token_id: 'bitcoin',
+            snapshot_date: '2026-02-08',
+            price_usd: '11000.00',
+          },
+        ],
       } as Awaited<ReturnType<Pool['query']>>;
     });
 
@@ -198,7 +284,12 @@ describe('TokenPriceDmaService', () => {
 describe('computeDma', () => {
   it('should return null DMA when fewer rows than windowSize', () => {
     const prices = [
-      { token_symbol: 'BTC', token_id: 'bitcoin', snapshot_date: '2026-02-06', price_usd: 100 }
+      {
+        token_symbol: 'BTC',
+        token_id: 'bitcoin',
+        snapshot_date: '2026-02-06',
+        price_usd: 100,
+      },
     ];
 
     const result = computeDma(prices, 2);
@@ -212,9 +303,24 @@ describe('computeDma', () => {
 
   it('should compute DMA when rows >= windowSize', () => {
     const prices = [
-      { token_symbol: 'BTC', token_id: 'bitcoin', snapshot_date: '2026-02-06', price_usd: 100 },
-      { token_symbol: 'BTC', token_id: 'bitcoin', snapshot_date: '2026-02-07', price_usd: 200 },
-      { token_symbol: 'BTC', token_id: 'bitcoin', snapshot_date: '2026-02-08', price_usd: 300 }
+      {
+        token_symbol: 'BTC',
+        token_id: 'bitcoin',
+        snapshot_date: '2026-02-06',
+        price_usd: 100,
+      },
+      {
+        token_symbol: 'BTC',
+        token_id: 'bitcoin',
+        snapshot_date: '2026-02-07',
+        price_usd: 200,
+      },
+      {
+        token_symbol: 'BTC',
+        token_id: 'bitcoin',
+        snapshot_date: '2026-02-08',
+        price_usd: 300,
+      },
     ];
 
     const result = computeDma(prices, 2);
@@ -237,8 +343,18 @@ describe('computeDma', () => {
 
   it('should set is_above_dma to false when price equals or is below DMA', () => {
     const prices = [
-      { token_symbol: 'BTC', token_id: 'bitcoin', snapshot_date: '2026-02-06', price_usd: 100 },
-      { token_symbol: 'BTC', token_id: 'bitcoin', snapshot_date: '2026-02-07', price_usd: 100 }
+      {
+        token_symbol: 'BTC',
+        token_id: 'bitcoin',
+        snapshot_date: '2026-02-06',
+        price_usd: 100,
+      },
+      {
+        token_symbol: 'BTC',
+        token_id: 'bitcoin',
+        snapshot_date: '2026-02-07',
+        price_usd: 100,
+      },
     ];
 
     const result = computeDma(prices, 2);
@@ -255,7 +371,7 @@ describe('computeDma', () => {
       token_symbol: 'BTC',
       token_id: 'bitcoin',
       snapshot_date: `2026-02-0${i + 1}`,
-      price_usd: 100 + i
+      price_usd: 100 + i,
     }));
 
     const result = computeDma(prices);
@@ -268,7 +384,12 @@ describe('computeDma', () => {
 
   it('should include source and snapshot_time fields', () => {
     const prices = [
-      { token_symbol: 'BTC', token_id: 'bitcoin', snapshot_date: '2026-02-06', price_usd: 100 }
+      {
+        token_symbol: 'BTC',
+        token_id: 'bitcoin',
+        snapshot_date: '2026-02-06',
+        price_usd: 100,
+      },
     ];
 
     const result = computeDma(prices, 1);
@@ -284,18 +405,46 @@ describe('buildAlignedPairRatioSeries', () => {
   it('should align base and quote prices by overlapping snapshot_date only', () => {
     const ratios = buildAlignedPairRatioSeries(
       [
-        { token_symbol: 'ETH', token_id: 'ethereum', snapshot_date: '2026-02-06', price_usd: 2000 },
-        { token_symbol: 'ETH', token_id: 'ethereum', snapshot_date: '2026-02-07', price_usd: 2100 },
-        { token_symbol: 'ETH', token_id: 'ethereum', snapshot_date: '2026-02-08', price_usd: 2200 }
+        {
+          token_symbol: 'ETH',
+          token_id: 'ethereum',
+          snapshot_date: '2026-02-06',
+          price_usd: 2000,
+        },
+        {
+          token_symbol: 'ETH',
+          token_id: 'ethereum',
+          snapshot_date: '2026-02-07',
+          price_usd: 2100,
+        },
+        {
+          token_symbol: 'ETH',
+          token_id: 'ethereum',
+          snapshot_date: '2026-02-08',
+          price_usd: 2200,
+        },
       ],
       [
-        { token_symbol: 'BTC', token_id: 'bitcoin', snapshot_date: '2026-02-07', price_usd: 100000 },
-        { token_symbol: 'BTC', token_id: 'bitcoin', snapshot_date: '2026-02-08', price_usd: 110000 }
-      ]
+        {
+          token_symbol: 'BTC',
+          token_id: 'bitcoin',
+          snapshot_date: '2026-02-07',
+          price_usd: 100000,
+        },
+        {
+          token_symbol: 'BTC',
+          token_id: 'bitcoin',
+          snapshot_date: '2026-02-08',
+          price_usd: 110000,
+        },
+      ],
     );
 
     expect(ratios).toHaveLength(2);
-    expect(ratios.map((row) => row.snapshot_date)).toEqual(['2026-02-07', '2026-02-08']);
+    expect(ratios.map((row) => row.snapshot_date)).toEqual([
+      '2026-02-07',
+      '2026-02-08',
+    ]);
     expect(ratios[0].ratio_value).toBeCloseTo(2100 / 100000);
     expect(ratios[1].ratio_value).toBeCloseTo(2200 / 110000);
   });
@@ -311,7 +460,7 @@ describe('computeTokenPairRatioDma', () => {
           quote_token_symbol: 'BTC',
           quote_token_id: 'bitcoin',
           snapshot_date: '2026-02-06',
-          ratio_value: 0.02
+          ratio_value: 0.02,
         },
         {
           base_token_symbol: 'ETH',
@@ -319,7 +468,7 @@ describe('computeTokenPairRatioDma', () => {
           quote_token_symbol: 'BTC',
           quote_token_id: 'bitcoin',
           snapshot_date: '2026-02-07',
-          ratio_value: 0.03
+          ratio_value: 0.03,
         },
         {
           base_token_symbol: 'ETH',
@@ -327,10 +476,10 @@ describe('computeTokenPairRatioDma', () => {
           quote_token_symbol: 'BTC',
           quote_token_id: 'bitcoin',
           snapshot_date: '2026-02-08',
-          ratio_value: 0.025
-        }
+          ratio_value: 0.025,
+        },
       ],
-      2
+      2,
     );
 
     expect(result[0].dma_200).toBeNull();

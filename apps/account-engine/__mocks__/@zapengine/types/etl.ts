@@ -4,19 +4,19 @@ export const JobStatusEnum = z.enum([
   'pending',
   'processing',
   'completed',
-  'failed'
+  'failed',
 ]);
 
 export const EtlErrorCodeEnum = z.enum([
   'API_ERROR',
   'VALIDATION_ERROR',
   'INTERNAL_ERROR',
-  'RATE_LIMIT_EXCEEDED'
+  'RATE_LIMIT_EXCEEDED',
 ]);
 
 export const EtlErrorSchema = z.object({
   code: EtlErrorCodeEnum,
-  message: z.string()
+  message: z.string(),
 });
 
 export const EtlJobStatusSchema = z.object({
@@ -27,11 +27,11 @@ export const EtlJobStatusSchema = z.object({
   recordsInserted: z.number().int().nonnegative().optional(),
   duration: z.number().int().nonnegative().optional(),
   completedAt: z.string().datetime().optional(),
-  error: EtlErrorSchema.optional()
+  error: EtlErrorSchema.optional(),
 });
 
 export const EtlJobCreatedSchema = z.object({
-  jobId: z.string()
+  jobId: z.string(),
 });
 
 export type JobStatus = z.infer<typeof JobStatusEnum>;

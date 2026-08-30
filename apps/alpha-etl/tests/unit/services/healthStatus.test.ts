@@ -22,7 +22,7 @@ describe('HealthStatus', () => {
 
       expect(state).toEqual({
         status: 'initializing',
-        lastCheckedAt: null
+        lastCheckedAt: null,
       });
     });
 
@@ -38,7 +38,7 @@ describe('HealthStatus', () => {
     it('updates health state to healthy', () => {
       const newState: HealthState = {
         status: 'healthy',
-        lastCheckedAt: '2024-01-15T10:00:00.000Z'
+        lastCheckedAt: '2024-01-15T10:00:00.000Z',
       };
 
       setHealthState(newState);
@@ -52,7 +52,7 @@ describe('HealthStatus', () => {
       const newState: HealthState = {
         status: 'unhealthy',
         lastCheckedAt: '2024-01-15T10:00:00.000Z',
-        message: 'Database connection failed'
+        message: 'Database connection failed',
       };
 
       setHealthState(newState);
@@ -68,7 +68,7 @@ describe('HealthStatus', () => {
 
       setHealthState({
         status: 'healthy',
-        lastCheckedAt: new Date().toISOString()
+        lastCheckedAt: new Date().toISOString(),
       });
 
       expect(getHealthState().status).toBe('healthy');
@@ -77,13 +77,13 @@ describe('HealthStatus', () => {
     it('allows transition from healthy to unhealthy', () => {
       setHealthState({
         status: 'healthy',
-        lastCheckedAt: '2024-01-15T10:00:00.000Z'
+        lastCheckedAt: '2024-01-15T10:00:00.000Z',
       });
 
       setHealthState({
         status: 'unhealthy',
         lastCheckedAt: '2024-01-15T10:05:00.000Z',
-        message: 'Service degraded'
+        message: 'Service degraded',
       });
 
       const state = getHealthState();
@@ -95,12 +95,12 @@ describe('HealthStatus', () => {
       setHealthState({
         status: 'unhealthy',
         lastCheckedAt: '2024-01-15T10:00:00.000Z',
-        message: 'Error occurred'
+        message: 'Error occurred',
       });
 
       setHealthState({
         status: 'healthy',
-        lastCheckedAt: '2024-01-15T10:10:00.000Z'
+        lastCheckedAt: '2024-01-15T10:10:00.000Z',
       });
 
       const state = getHealthState();
@@ -114,13 +114,13 @@ describe('HealthStatus', () => {
 
       setHealthState({
         status: 'healthy',
-        lastCheckedAt: timestamp1
+        lastCheckedAt: timestamp1,
       });
       expect(getHealthState().lastCheckedAt).toBe(timestamp1);
 
       setHealthState({
         status: 'healthy',
-        lastCheckedAt: timestamp2
+        lastCheckedAt: timestamp2,
       });
       expect(getHealthState().lastCheckedAt).toBe(timestamp2);
     });
@@ -129,12 +129,12 @@ describe('HealthStatus', () => {
       setHealthState({
         status: 'unhealthy',
         lastCheckedAt: '2024-01-15T10:00:00.000Z',
-        message: 'Database error'
+        message: 'Database error',
       });
 
       setHealthState({
         status: 'healthy',
-        lastCheckedAt: '2024-01-15T10:05:00.000Z'
+        lastCheckedAt: '2024-01-15T10:05:00.000Z',
       });
 
       expect(getHealthState().message).toBeUndefined();
@@ -145,7 +145,7 @@ describe('HealthStatus', () => {
     it('maintains state across multiple get calls', () => {
       setHealthState({
         status: 'healthy',
-        lastCheckedAt: '2024-01-15T10:00:00.000Z'
+        lastCheckedAt: '2024-01-15T10:00:00.000Z',
       });
 
       const state1 = getHealthState();
@@ -162,7 +162,7 @@ describe('HealthStatus', () => {
       setHealthState({
         status: 'unhealthy',
         lastCheckedAt: timestamp,
-        message: 'Test error'
+        message: 'Test error',
       });
 
       const state = getHealthState();
@@ -177,7 +177,7 @@ describe('HealthStatus', () => {
       for (let i = 0; i < 100; i++) {
         setHealthState({
           status: i % 2 === 0 ? 'healthy' : 'unhealthy',
-          lastCheckedAt: new Date().toISOString()
+          lastCheckedAt: new Date().toISOString(),
         });
       }
 
@@ -188,7 +188,7 @@ describe('HealthStatus', () => {
     it('handles missing optional message field', () => {
       setHealthState({
         status: 'healthy',
-        lastCheckedAt: '2024-01-15T10:00:00.000Z'
+        lastCheckedAt: '2024-01-15T10:00:00.000Z',
       });
 
       expect(getHealthState().message).toBeUndefined();
@@ -198,7 +198,7 @@ describe('HealthStatus', () => {
       setHealthState({
         status: 'healthy',
         lastCheckedAt: '2024-01-15T10:00:00.000Z',
-        message: undefined
+        message: undefined,
       });
 
       // Even when explicitly set to undefined, the property exists

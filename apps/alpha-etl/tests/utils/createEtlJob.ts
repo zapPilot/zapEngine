@@ -1,8 +1,6 @@
 import type { ETLJob } from '../../src/types/index.js';
 
-export function createEtlJob(
-  overrides: Partial<ETLJob> = {},
-): ETLJob {
+export function createEtlJob(overrides: Partial<ETLJob> = {}): ETLJob {
   return {
     jobId: 'job-123',
     sources: ['hyperliquid'],

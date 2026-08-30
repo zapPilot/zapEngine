@@ -60,7 +60,9 @@ describe('SupabaseFetcher - VIP User Deduplication (Integration)', () => {
     expect(duplicateCount).toBe(0);
     expect(totalRows).toBe(uniqueWallets);
 
-    console.log(`✓ SQL function returns ${totalRows} rows = ${uniqueWallets} unique wallets (${duplicateCount} duplicates)`);
+    console.log(
+      `✓ SQL function returns ${totalRows} rows = ${uniqueWallets} unique wallets (${duplicateCount} duplicates)`,
+    );
   });
 
   it('should handle users with multiple subscriptions correctly', async () => {
@@ -91,7 +93,9 @@ describe('SupabaseFetcher - VIP User Deduplication (Integration)', () => {
     `);
 
     if (multiSubUsers.length === 0) {
-      console.log('⊘ No users with multiple subscriptions found - skipping test');
+      console.log(
+        '⊘ No users with multiple subscriptions found - skipping test',
+      );
       return;
     }
 
@@ -100,17 +104,22 @@ describe('SupabaseFetcher - VIP User Deduplication (Integration)', () => {
     const walletCount = toCount(testUser.wallet_count);
 
     // Query the function for this specific user's wallets
-    const { rows: functionRows } = await pool.query<{ wallet: string }>(`
+    const { rows: functionRows } = await pool.query<{ wallet: string }>(
+      `
       SELECT wallet
       FROM public.get_users_wallets_by_plan_with_activity('vip')
       WHERE user_id = $1
-    `, [testUser.user_id]);
+    `,
+      [testUser.user_id],
+    );
 
     // Assert: Should return only walletCount rows, NOT subscriptionCount × walletCount
     expect(functionRows.length).toBe(walletCount);
     expect(functionRows.length).not.toBe(subscriptionCount * walletCount);
 
-    console.log(`✓ User with ${subscriptionCount} subscriptions × ${walletCount} wallets returns ${functionRows.length} rows (not ${subscriptionCount * walletCount})`);
+    console.log(
+      `✓ User with ${subscriptionCount} subscriptions × ${walletCount} wallets returns ${functionRows.length} rows (not ${subscriptionCount * walletCount})`,
+    );
   });
 
   it('should handle users with multiple wallets correctly', async () => {
@@ -147,11 +156,14 @@ describe('SupabaseFetcher - VIP User Deduplication (Integration)', () => {
     const walletCount = toCount(testUser.wallet_count);
 
     // Query the function for this specific user's wallets
-    const { rows: functionRows } = await pool.query<{ wallet: string }>(`
+    const { rows: functionRows } = await pool.query<{ wallet: string }>(
+      `
       SELECT wallet
       FROM public.get_users_wallets_by_plan_with_activity('vip')
       WHERE user_id = $1
-    `, [testUser.user_id]);
+    `,
+      [testUser.user_id],
+    );
 
     // Get unique wallets
     const uniqueWallets = new Set(functionRows.map((row) => row.wallet));
@@ -160,7 +172,9 @@ describe('SupabaseFetcher - VIP User Deduplication (Integration)', () => {
     expect(functionRows.length).toBe(walletCount);
     expect(uniqueWallets.size).toBe(walletCount);
 
-    console.log(`✓ User with ${walletCount} wallets returns ${functionRows.length} unique rows`);
+    console.log(
+      `✓ User with ${walletCount} wallets returns ${functionRows.length} unique rows`,
+    );
   });
 
   it('should prioritize most recent subscription data', async () => {

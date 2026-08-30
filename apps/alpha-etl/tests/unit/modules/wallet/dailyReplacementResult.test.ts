@@ -26,7 +26,12 @@ describe('recordReplacementResult', () => {
     const replace = vi.fn().mockResolvedValue(7);
 
     await expect(
-      recordReplacementResult(result, 3, 'Daily replacement completed', replace),
+      recordReplacementResult(
+        result,
+        3,
+        'Daily replacement completed',
+        replace,
+      ),
     ).resolves.toBe(result);
 
     expect(replace).toHaveBeenCalledTimes(1);
@@ -51,7 +56,12 @@ describe('recordReplacementResult', () => {
     });
 
     await expect(
-      recordReplacementResult(result, 3, 'Daily replacement completed', replace),
+      recordReplacementResult(
+        result,
+        3,
+        'Daily replacement completed',
+        replace,
+      ),
     ).rejects.toThrow('logger unavailable');
 
     expect(replace).toHaveBeenCalledTimes(1);
@@ -70,7 +80,12 @@ describe('recordReplacementResult', () => {
     const replace = vi.fn().mockRejectedValue(new Error('replacement failed'));
 
     await expect(
-      recordReplacementResult(result, 2, 'Daily replacement completed', replace),
+      recordReplacementResult(
+        result,
+        2,
+        'Daily replacement completed',
+        replace,
+      ),
     ).resolves.toBe(result);
 
     expect(result).toEqual({
@@ -89,7 +104,12 @@ describe('recordReplacementResult', () => {
     const replace = vi.fn().mockRejectedValue('replacement rejected');
 
     await expect(
-      recordReplacementResult(result, 1, 'Daily replacement completed', replace),
+      recordReplacementResult(
+        result,
+        1,
+        'Daily replacement completed',
+        replace,
+      ),
     ).resolves.toBe(result);
 
     expect(replace).toHaveBeenCalledTimes(1);

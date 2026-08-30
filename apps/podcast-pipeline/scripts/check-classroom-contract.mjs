@@ -12,7 +12,9 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-const llmPath = fileURLToPath(new URL('../src/services/llm.ts', import.meta.url));
+const llmPath = fileURLToPath(
+  new URL('../src/services/llm.ts', import.meta.url),
+);
 const source = readFileSync(llmPath, 'utf8');
 
 const failures = [];
@@ -55,4 +57,6 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log('Language classroom content contract OK (article/script grounding present).');
+console.log(
+  'Language classroom content contract OK (article/script grounding present).',
+);

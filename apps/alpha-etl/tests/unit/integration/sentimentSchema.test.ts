@@ -11,7 +11,7 @@ describe('SentimentDataSchema Integration', () => {
       value: 25,
       classification: 'EXTREME FEAR',
       timestamp: Date.now(),
-      source: 'coinmarketcap'
+      source: 'coinmarketcap',
     };
 
     const result = SentimentDataSchema.parse(testData);
@@ -27,7 +27,7 @@ describe('SentimentDataSchema Integration', () => {
       { input: 'FEAR', expected: 'Fear' },
       { input: '  neutral  ', expected: 'Neutral' },
       { input: 'GREED', expected: 'Greed' },
-      { input: 'extreme greed', expected: 'Extreme Greed' }
+      { input: 'extreme greed', expected: 'Extreme Greed' },
     ];
 
     for (const { input, expected } of testCases) {
@@ -35,7 +35,7 @@ describe('SentimentDataSchema Integration', () => {
         value: 50,
         classification: input,
         timestamp: Date.now(),
-        source: 'test'
+        source: 'test',
       };
 
       const result = SentimentDataSchema.parse(testData);
@@ -48,7 +48,7 @@ describe('SentimentDataSchema Integration', () => {
       value: 50,
       classification: 'invalid classification',
       timestamp: Date.now(),
-      source: 'test'
+      source: 'test',
     };
 
     expect(() => SentimentDataSchema.parse(testData)).toThrow();
@@ -60,9 +60,11 @@ describe('SentimentDataSchema Integration', () => {
       value: 50,
       classification: 'invalid',
       timestamp: Date.now(),
-      source: 'test'
+      source: 'test',
     };
 
-    expect(() => SentimentDataSchema.parse(testData)).toThrow('Invalid classification value');
+    expect(() => SentimentDataSchema.parse(testData)).toThrow(
+      'Invalid classification value',
+    );
   });
 });

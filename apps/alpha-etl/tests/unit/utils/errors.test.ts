@@ -1,4 +1,3 @@
-
 import { describe, it, expect } from 'vitest';
 import {
   ETLError,
@@ -8,7 +7,11 @@ import {
   TransformError,
 } from '../../../src/utils/errors';
 
-function expectErrorBasics(error: Error, expectedName: string, expectedMessage: string): void {
+function expectErrorBasics(
+  error: Error,
+  expectedName: string,
+  expectedMessage: string,
+): void {
   expect(error).toBeInstanceOf(Error);
   expect(error.name).toBe(expectedName);
   expect(error.message).toBe(expectedMessage);
@@ -23,7 +26,12 @@ describe('Custom Errors', () => {
   });
 
   it('should create an APIError with the correct properties', () => {
-    const error = new APIError('Failed to fetch data', 500, 'http://test.com', 'api-source');
+    const error = new APIError(
+      'Failed to fetch data',
+      500,
+      'http://test.com',
+      'api-source',
+    );
     expect(error).toBeInstanceOf(ETLError);
     expect(error).toBeInstanceOf(APIError);
     expectErrorBasics(error, 'APIError', 'Failed to fetch data');
@@ -51,7 +59,11 @@ describe('Custom Errors', () => {
 
   it('should create a TransformError with the correct properties', () => {
     const record = { id: 1, value: 'abc' };
-    const error = new TransformError('Transformation failed', record, 'transform-source');
+    const error = new TransformError(
+      'Transformation failed',
+      record,
+      'transform-source',
+    );
     expect(error).toBeInstanceOf(ETLError);
     expect(error).toBeInstanceOf(TransformError);
     expectErrorBasics(error, 'TransformError', 'Transformation failed');

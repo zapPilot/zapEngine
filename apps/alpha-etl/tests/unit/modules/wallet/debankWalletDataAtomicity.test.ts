@@ -47,11 +47,8 @@ describe('fetchWalletDataFromDeBank atomicity', () => {
       expectedError: 'portfolio fetch failed',
     },
   ])('$name', async ({ options, expectedError }) => {
-    const {
-      fetcher,
-      fetchWalletTokenList,
-      fetchComplexProtocolList,
-    } = createFetcher(options);
+    const { fetcher, fetchWalletTokenList, fetchComplexProtocolList } =
+      createFetcher(options);
 
     await expect(
       fetchWalletDataFromDeBank(fetcher, wallet, {

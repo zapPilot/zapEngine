@@ -22,8 +22,16 @@ type MockSocket = PassThrough & {
   setKeepAlive: (...args: unknown[]) => MockSocket;
 };
 
-type MutableIncomingRequest = IncomingMessage & { app?: Application; res?: ServerResponse; body?: unknown; _body?: boolean };
-type MutableServerResponse = ServerResponse & { app?: Application; req?: IncomingMessage };
+type MutableIncomingRequest = IncomingMessage & {
+  app?: Application;
+  res?: ServerResponse;
+  body?: unknown;
+  _body?: boolean;
+};
+type MutableServerResponse = ServerResponse & {
+  app?: Application;
+  req?: IncomingMessage;
+};
 type ExpressBodyParseError = Error & { status?: number; type?: string };
 
 class InMemoryTestRequest {
@@ -52,7 +60,7 @@ class InMemoryTestRequest {
       json: 'application/json',
       html: 'text/html',
       text: 'text/plain',
-      xml: 'application/xml'
+      xml: 'application/xml',
     };
 
     this.headers['content-type'] = mapping[normalized] ?? value;
@@ -62,7 +70,11 @@ class InMemoryTestRequest {
   send(payload: unknown): this {
     this.body = payload;
 
-    if (payload !== null && typeof payload === 'object' && !Buffer.isBuffer(payload)) {
+    if (
+      payload !== null &&
+      typeof payload === 'object' &&
+      !Buffer.isBuffer(payload)
+    ) {
       if (!this.headers['content-type']) {
         this.headers['content-type'] = 'application/json';
       }
@@ -77,14 +89,16 @@ class InMemoryTestRequest {
   }
 
   then<TResult1 = ResponsePayload, TResult2 = never>(
-    onfulfilled?: ((value: ResponsePayload) => TResult1 | PromiseLike<TResult1>) | null,
-    onrejected?: ((reason: Error) => TResult2 | PromiseLike<TResult2>) | null
+    onfulfilled?:
+      | ((value: ResponsePayload) => TResult1 | PromiseLike<TResult1>)
+      | null,
+    onrejected?: ((reason: Error) => TResult2 | PromiseLike<TResult2>) | null,
   ): Promise<TResult1 | TResult2> {
     return this.execute().then(onfulfilled, onrejected);
   }
 
   catch<TResult = never>(
-    onrejected?: ((reason: Error) => TResult | PromiseLike<TResult>) | null
+    onrejected?: ((reason: Error) => TResult | PromiseLike<TResult>) | null,
   ): Promise<ResponsePayload | TResult> {
     return this.execute().catch(onrejected);
   }
@@ -98,18 +112,25 @@ class InMemoryTestRequest {
       method: this.method,
       path: this.path,
       headers: this.headers,
-      body: this.body
+      body: this.body,
     });
 
-    if (this.expectedStatus !== null && payload.status !== this.expectedStatus) {
-      throw new Error(`Expected status ${this.expectedStatus} but received ${payload.status}`);
+    if (
+      this.expectedStatus !== null &&
+      payload.status !== this.expectedStatus
+    ) {
+      throw new Error(
+        `Expected status ${this.expectedStatus} but received ${payload.status}`,
+      );
     }
 
     return payload;
   }
 }
 
-function normalizeHeaders(headers: Record<string, number | string | string[] | undefined>): Record<string, string | string[]> {
+function normalizeHeaders(
+  headers: Record<string, number | string | string[] | undefined>,
+): Record<string, string | string[]> {
   const normalized: Record<string, string | string[]> = {};
   for (const [key, value] of Object.entries(headers)) {
     if (value !== undefined) {
@@ -119,7 +140,10 @@ function normalizeHeaders(headers: Record<string, number | string | string[] | u
   return normalized;
 }
 
-function buildPayload(body: unknown, headers: Headers): { raw: string | Buffer | null; contentType?: string } {
+function buildPayload(
+  body: unknown,
+  headers: Headers,
+): { raw: string | Buffer | null; contentType?: string } {
   if (body === null || body === undefined) {
     return { raw: null };
   }
@@ -133,7 +157,10 @@ function buildPayload(body: unknown, headers: Headers): { raw: string | Buffer |
   }
 
   const json = JSON.stringify(body);
-  return { raw: json, contentType: headers['content-type'] ?? 'application/json' };
+  return {
+    raw: json,
+    contentType: headers['content-type'] ?? 'application/json',
+  };
 }
 
 function createMockSocket(): MockSocket {
@@ -149,7 +176,8 @@ function createMockSocket(): MockSocket {
 }
 
 function createExpressBodyParseError(error: unknown): ExpressBodyParseError {
-  const parseError = error instanceof Error ? error : new SyntaxError('Invalid JSON');
+  const parseError =
+    error instanceof Error ? error : new SyntaxError('Invalid JSON');
   parseError.status = 400;
   parseError.type = 'entity.parse.failed';
   return parseError;
@@ -162,7 +190,7 @@ function dispatchRequest(
     path: string;
     headers: Headers;
     body: unknown;
-  }
+  },
 ): Promise<ResponsePayload> {
   return new Promise((resolve, reject) => {
     const socket = createMockSocket();
@@ -197,13 +225,21 @@ function dispatchRequest(
     };
 
     const originalWrite = res.write.bind(res);
-    res.write = ((chunk: unknown, encoding?: BufferEncoding, cb?: () => void) => {
+    res.write = ((
+      chunk: unknown,
+      encoding?: BufferEncoding,
+      cb?: () => void,
+    ) => {
       captureChunk(chunk, encoding);
       return originalWrite(chunk as never, encoding as never, cb);
     }) as typeof res.write;
 
     const originalEnd = res.end.bind(res);
-    res.end = ((chunk?: unknown, encoding?: BufferEncoding, cb?: () => void) => {
+    res.end = ((
+      chunk?: unknown,
+      encoding?: BufferEncoding,
+      cb?: () => void,
+    ) => {
       captureChunk(chunk, encoding);
       return originalEnd(chunk as never, encoding as never, cb);
     }) as typeof res.end;
@@ -218,7 +254,10 @@ function dispatchRequest(
     res.on('finish', () => {
       const text = Buffer.concat(chunks).toString('utf8');
       const headers = normalizeHeaders(res.getHeaders());
-      const responseContentType = typeof headers['content-type'] === 'string' ? headers['content-type'] : '';
+      const responseContentType =
+        typeof headers['content-type'] === 'string'
+          ? headers['content-type']
+          : '';
       let body: unknown = text;
 
       if (responseContentType.includes('application/json') && text) {
@@ -234,7 +273,7 @@ function dispatchRequest(
         status: res.statusCode,
         headers,
         text,
-        body
+        body,
       });
     });
 
@@ -253,12 +292,20 @@ function dispatchRequest(
     }
 
     const contentTypeHeader = req.headers['content-type'];
-    const contentTypeValue = typeof contentTypeHeader === 'string' ? contentTypeHeader.toLowerCase() : '';
+    const contentTypeValue =
+      typeof contentTypeHeader === 'string'
+        ? contentTypeHeader.toLowerCase()
+        : '';
     const isJsonBody = contentTypeValue.includes('application/json');
-    const isFormBody = contentTypeValue.includes('application/x-www-form-urlencoded');
+    const isFormBody = contentTypeValue.includes(
+      'application/x-www-form-urlencoded',
+    );
 
     const primeExpressResponse = () => {
-      const appAny = app as Application & { request?: object; response?: object };
+      const appAny = app as Application & {
+        request?: object;
+        response?: object;
+      };
       if (appAny.request && Object.getPrototypeOf(req) !== appAny.request) {
         Object.setPrototypeOf(req, appAny.request);
       }
@@ -271,7 +318,12 @@ function dispatchRequest(
       mutableRes.req = req;
     };
 
-    if (isJsonBody && options.body !== null && typeof options.body === 'object' && !Buffer.isBuffer(options.body)) {
+    if (
+      isJsonBody &&
+      options.body !== null &&
+      typeof options.body === 'object' &&
+      !Buffer.isBuffer(options.body)
+    ) {
       mutableReq.body = options.body;
       mutableReq._body = true;
     }
@@ -284,17 +336,28 @@ function dispatchRequest(
         } catch (error) {
           const parseError = createExpressBodyParseError(error);
 
-          const routerStack = (app as Application & { _router?: { stack: Array<{ handle?: (...args: unknown[]) => void }> } })._router?.stack ?? [];
-          const errorHandlerLayer = [...routerStack].reverse().find((layer) => (layer.handle?.length ?? 0) === 4);
+          const routerStack =
+            (
+              app as Application & {
+                _router?: {
+                  stack: Array<{ handle?: (...args: unknown[]) => void }>;
+                };
+              }
+            )._router?.stack ?? [];
+          const errorHandlerLayer = [...routerStack]
+            .reverse()
+            .find((layer) => (layer.handle?.length ?? 0) === 4);
 
           if (errorHandlerLayer?.handle) {
             primeExpressResponse();
-            (errorHandlerLayer.handle as (
-              err: Error,
-              req: IncomingMessage,
-              res: ServerResponse,
-              next: () => void
-            ) => void)(parseError, req, res, () => {});
+            (
+              errorHandlerLayer.handle as (
+                err: Error,
+                req: IncomingMessage,
+                res: ServerResponse,
+                next: () => void,
+              ) => void
+            )(parseError, req, res, () => {});
           } else {
             primeExpressResponse();
             res.statusCode = 400;
@@ -318,7 +381,9 @@ function dispatchRequest(
       app.handle(req, res);
     } catch (error) {
       cleanup();
-      reject(error instanceof Error ? error : new Error('Request handling failed'));
+      reject(
+        error instanceof Error ? error : new Error('Request handling failed'),
+      );
     }
 
     process.nextTick(() => {
@@ -342,11 +407,11 @@ function request(app: Application): {
   delete: (path: string) => InMemoryTestRequest;
 } {
   return {
-  get: (path: string) => new InMemoryTestRequest(app, 'GET', path),
-  post: (path: string) => new InMemoryTestRequest(app, 'POST', path),
-  put: (path: string) => new InMemoryTestRequest(app, 'PUT', path),
-  patch: (path: string) => new InMemoryTestRequest(app, 'PATCH', path),
-  delete: (path: string) => new InMemoryTestRequest(app, 'DELETE', path),
+    get: (path: string) => new InMemoryTestRequest(app, 'GET', path),
+    post: (path: string) => new InMemoryTestRequest(app, 'POST', path),
+    put: (path: string) => new InMemoryTestRequest(app, 'PUT', path),
+    patch: (path: string) => new InMemoryTestRequest(app, 'PATCH', path),
+    delete: (path: string) => new InMemoryTestRequest(app, 'DELETE', path),
   };
 }
 

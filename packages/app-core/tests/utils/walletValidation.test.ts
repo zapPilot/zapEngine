@@ -62,13 +62,16 @@ describe('walletValidation', () => {
       ['   ', 'Wallet address is required'],
       ['0x123', INVALID_WALLET_ERROR],
       ['742d35cc6634c0532925a3b844bc9e7595f8d1e9', INVALID_WALLET_ERROR],
-    ])('rejects wallet address %j for bundle wallet creation', (address, error) => {
-      expect(
-        validateNewWallet({
-          label: 'Main wallet',
-          address,
-        }),
-      ).toEqual({ isValid: false, error });
-    });
+    ])(
+      'rejects wallet address %j for bundle wallet creation',
+      (address, error) => {
+        expect(
+          validateNewWallet({
+            label: 'Main wallet',
+            address,
+          }),
+        ).toEqual({ isValid: false, error });
+      },
+    );
   });
 });

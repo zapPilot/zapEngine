@@ -3,11 +3,7 @@ import { createBackendVitestConfig } from '@zapengine/eslint-config/backend-vite
 
 export default createBackendVitestConfig({
   tsconfigRootDir: import.meta.dirname,
-  ignores: [
-    'dist/**',
-    'node_modules/**',
-    'coverage/**',
-  ],
+  ignores: ['dist/**', 'node_modules/**', 'coverage/**'],
   extraConfigs: [
     {
       files: ['**/*.ts'],

@@ -22,7 +22,8 @@ vi.mock('../../../../src/config/environment.js', () => ({
 }));
 
 vi.mock('../../../../src/config/database.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../../../src/config/database.js')>();
+  const actual =
+    await importOriginal<typeof import('../../../../src/config/database.js')>();
   return {
     ...actual,
     getDbClient: vi.fn().mockResolvedValue(mockClient),
@@ -40,7 +41,9 @@ describe('SentimentWriter', () => {
     writer = new SentimentWriter();
   });
 
-  const makeSnapshot = (overrides: Partial<SentimentSnapshotInsert> = {}): SentimentSnapshotInsert => ({
+  const makeSnapshot = (
+    overrides: Partial<SentimentSnapshotInsert> = {},
+  ): SentimentSnapshotInsert => ({
     sentiment_value: 50,
     classification: 'Neutral',
     source: 'coinmarketcap',
@@ -56,13 +59,16 @@ describe('SentimentWriter', () => {
       success: true,
       recordsInserted: 0,
       errors: [],
-      duplicatesSkipped: 0
+      duplicatesSkipped: 0,
     });
     expect(mockClient.query).not.toHaveBeenCalled();
   });
 
   it('writes valid snapshots and aggregates inserted/duplicate counts', async () => {
-    mockClient.query.mockResolvedValueOnce({ rows: [{ id: 1 }, { id: 2 }], rowCount: 2 });
+    mockClient.query.mockResolvedValueOnce({
+      rows: [{ id: 1 }, { id: 2 }],
+      rowCount: 2,
+    });
 
     const snapshots = [makeSnapshot(), makeSnapshot({ sentiment_value: 42 })];
     const result = await writer.writeSentimentSnapshots(snapshots, 'feargreed');
@@ -95,9 +101,14 @@ describe('SentimentWriter', () => {
   });
 
   it('returns failure result when batch throws unexpectedly', async () => {
-    vi.spyOn(writer as unknown, 'writeBatch').mockRejectedValueOnce(new Error('boom'));
+    vi.spyOn(writer as unknown, 'writeBatch').mockRejectedValueOnce(
+      new Error('boom'),
+    );
 
-    const result = await writer.writeSentimentSnapshots([makeSnapshot()], 'feargreed');
+    const result = await writer.writeSentimentSnapshots(
+      [makeSnapshot()],
+      'feargreed',
+    );
 
     expect(result.success).toBe(false);
     expect(result.errors).toContain('boom');
@@ -106,7 +117,10 @@ describe('SentimentWriter', () => {
   it('wraps database errors from writeBatch', async () => {
     mockClient.query.mockRejectedValueOnce(new Error('db down'));
 
-    const result = await writer.writeSentimentSnapshots([makeSnapshot()], 'feargreed');
+    const result = await writer.writeSentimentSnapshots(
+      [makeSnapshot()],
+      'feargreed',
+    );
 
     expect(result.success).toBe(false);
     expect(result.errors).toContain('db down');
@@ -125,9 +139,14 @@ describe('SentimentWriter', () => {
   });
 
   it('returns failure when writeBatch rejects with non-Error', async () => {
-    vi.spyOn(writer as unknown, 'writeBatch').mockRejectedValueOnce('string failure');
+    vi.spyOn(writer as unknown, 'writeBatch').mockRejectedValueOnce(
+      'string failure',
+    );
 
-    const result = await writer.writeSentimentSnapshots([makeSnapshot()], 'feargreed');
+    const result = await writer.writeSentimentSnapshots(
+      [makeSnapshot()],
+      'feargreed',
+    );
 
     expect(result.success).toBe(false);
     expect(result.errors).toContain('Unknown error');
@@ -136,7 +155,10 @@ describe('SentimentWriter', () => {
   it('captures non-Error failures inside writeBatch catch', async () => {
     mockClient.query.mockRejectedValueOnce('weird failure');
 
-    const result = await writer.writeSentimentSnapshots([makeSnapshot()], 'feargreed');
+    const result = await writer.writeSentimentSnapshots(
+      [makeSnapshot()],
+      'feargreed',
+    );
 
     expect(result.success).toBe(false);
     expect(result.errors).toContain('Unknown database error');
@@ -151,35 +173,47 @@ describe('SentimentWriter', () => {
       {
         sentiment_value: 50,
         classification: 'Neutral',
-        source: 'alternative.me',  // Historical source
+        source: 'alternative.me', // Historical source
         snapshot_time: timestamp,
-        raw_data: { legacy: true }
+        raw_data: { legacy: true },
       },
       {
         sentiment_value: 52,
         classification: 'Neutral',
-        source: 'coinmarketcap',  // New source
-        snapshot_time: timestamp,  // Same timestamp
-        raw_data: { migrated: true }
-      }
+        source: 'coinmarketcap', // New source
+        snapshot_time: timestamp, // Same timestamp
+        raw_data: { migrated: true },
+      },
     ];
 
     // Mock DB returning both records (no conflict due to different sources)
-    mockClient.query.mockResolvedValueOnce({ rows: [{ id: 1 }, { id: 2 }], rowCount: 2 });
+    mockClient.query.mockResolvedValueOnce({
+      rows: [{ id: 1 }, { id: 2 }],
+      rowCount: 2,
+    });
 
-    const result = await writer.writeSentimentSnapshots(snapshots as SentimentSnapshotInsert[], 'mixed');
+    const result = await writer.writeSentimentSnapshots(
+      snapshots as SentimentSnapshotInsert[],
+      'mixed',
+    );
 
     expect(result.success).toBe(true);
-    expect(result.recordsInserted).toBe(2);  // Both should be inserted
+    expect(result.recordsInserted).toBe(2); // Both should be inserted
     expect(result.duplicatesSkipped).toBe(0);
     expect(result.errors).toEqual([]);
   });
 
   describe('null/undefined rowCount handling', () => {
     it('should handle null rowCount from query result', async () => {
-      mockClient.query.mockResolvedValueOnce({ rowCount: null, rows: [{ id: 1 }] });
+      mockClient.query.mockResolvedValueOnce({
+        rowCount: null,
+        rows: [{ id: 1 }],
+      });
 
-      const result = await writer.writeSentimentSnapshots([makeSnapshot()], 'feargreed');
+      const result = await writer.writeSentimentSnapshots(
+        [makeSnapshot()],
+        'feargreed',
+      );
 
       expect(result.success).toBe(true);
       expect(result.recordsInserted).toBe(0);
@@ -188,7 +222,10 @@ describe('SentimentWriter', () => {
     it('should handle undefined rowCount and empty rows', async () => {
       mockClient.query.mockResolvedValueOnce({ rowCount: undefined, rows: [] });
 
-      const result = await writer.writeSentimentSnapshots([makeSnapshot()], 'feargreed');
+      const result = await writer.writeSentimentSnapshots(
+        [makeSnapshot()],
+        'feargreed',
+      );
 
       expect(result.success).toBe(true);
       expect(result.recordsInserted).toBe(0);
@@ -197,7 +234,10 @@ describe('SentimentWriter', () => {
     it('should handle undefined rowCount and undefined rows', async () => {
       mockClient.query.mockResolvedValueOnce({ rowCount: undefined });
 
-      const result = await writer.writeSentimentSnapshots([makeSnapshot()], 'feargreed');
+      const result = await writer.writeSentimentSnapshots(
+        [makeSnapshot()],
+        'feargreed',
+      );
 
       expect(result.success).toBe(true);
       expect(result.recordsInserted).toBe(0);
@@ -212,13 +252,19 @@ describe('SentimentWriter', () => {
         source: 'coinmarketcap',
         snapshot_time: timestamp,
         sentiment_value: 65,
-        classification: 'Greed'
+        classification: 'Greed',
       });
 
       // First call: insert succeeds
-      mockClient.query.mockResolvedValueOnce({ rows: [{ id: 1 }], rowCount: 1 });
+      mockClient.query.mockResolvedValueOnce({
+        rows: [{ id: 1 }],
+        rowCount: 1,
+      });
 
-      const firstResult = await writer.writeSentimentSnapshots([snapshot], 'feargreed');
+      const firstResult = await writer.writeSentimentSnapshots(
+        [snapshot],
+        'feargreed',
+      );
 
       expect(firstResult.success).toBe(true);
       expect(firstResult.recordsInserted).toBe(1);
@@ -231,15 +277,18 @@ describe('SentimentWriter', () => {
       const duplicateSnapshot = makeSnapshot({
         source: 'coinmarketcap',
         snapshot_time: timestamp,
-        sentiment_value: 67,  // Slightly different value
-        classification: 'Greed'
+        sentiment_value: 67, // Slightly different value
+        classification: 'Greed',
       });
 
-      const secondResult = await writer.writeSentimentSnapshots([duplicateSnapshot], 'feargreed');
+      const secondResult = await writer.writeSentimentSnapshots(
+        [duplicateSnapshot],
+        'feargreed',
+      );
 
       expect(secondResult.success).toBe(true);
-      expect(secondResult.recordsInserted).toBe(0);  // No new insert
-      expect(secondResult.duplicatesSkipped).toBe(1);  // Tracked as duplicate
+      expect(secondResult.recordsInserted).toBe(0); // No new insert
+      expect(secondResult.duplicatesSkipped).toBe(1); // Tracked as duplicate
     });
   });
 });

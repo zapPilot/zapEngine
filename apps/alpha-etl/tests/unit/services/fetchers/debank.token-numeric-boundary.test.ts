@@ -49,14 +49,17 @@ describe('DeBankFetcher token numeric boundaries', () => {
   it.each([
     ['price', { price: Number.POSITIVE_INFINITY }],
     ['24h price change', { price_24h_change: Number.NEGATIVE_INFINITY }],
-  ])('rejects non-finite token %s in strict mode', async (_label, overrides) => {
-    const fetcher = new DeBankFetcher({ strictErrors: true });
-    mockDeBankResponse(fetcher, [validToken(overrides)]);
+  ])(
+    'rejects non-finite token %s in strict mode',
+    async (_label, overrides) => {
+      const fetcher = new DeBankFetcher({ strictErrors: true });
+      mockDeBankResponse(fetcher, [validToken(overrides)]);
 
-    await expect(fetcher.fetchWalletTokenList(walletAddress)).rejects.toThrow(
-      'DeBank API error: DeBank token list validation failed',
-    );
-  });
+      await expect(fetcher.fetchWalletTokenList(walletAddress)).rejects.toThrow(
+        'DeBank API error: DeBank token list validation failed',
+      );
+    },
+  );
 
   it('rejects negative token prices in strict mode', async () => {
     const fetcher = new DeBankFetcher({ strictErrors: true });

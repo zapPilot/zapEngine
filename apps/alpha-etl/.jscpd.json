@@ -1,8 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/jscpd.json",
-  "format": [
-    "typescript"
-  ],
+  "format": ["typescript"],
   "ignore": [
     "**/node_modules/**",
     "**/dist/**",

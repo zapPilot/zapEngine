@@ -9,11 +9,11 @@ mid-track loop seams are masked by the low mix level.
 
 ## Current tracks
 
-| Track | Source | License | Added |
-| --- | --- | --- | --- |
+| Track        | Source                                                                 | License                               | Added      |
+| ------------ | ---------------------------------------------------------------------- | ------------------------------------- | ---------- |
 | `bgm-01.mp3` | Synthesized in-repo with ffmpeg `aevalsrc` (A-minor ambient pad, 32 s) | Original work — no third-party rights | 2026-07-23 |
-| `bgm-02.mp3` | Synthesized in-repo with ffmpeg `aevalsrc` (D-major airy pad, 32 s) | Original work — no third-party rights | 2026-07-23 |
-| `bgm-03.mp3` | Synthesized in-repo with ffmpeg `aevalsrc` (low pulse bed, 32 s) | Original work — no third-party rights | 2026-07-23 |
+| `bgm-02.mp3` | Synthesized in-repo with ffmpeg `aevalsrc` (D-major airy pad, 32 s)    | Original work — no third-party rights | 2026-07-23 |
+| `bgm-03.mp3` | Synthesized in-repo with ffmpeg `aevalsrc` (low pulse bed, 32 s)       | Original work — no third-party rights | 2026-07-23 |
 
 The synthesized beds are deliberate placeholders: unambiguous licensing so the
 pipeline ships end-to-end. Replace them with curated production music when

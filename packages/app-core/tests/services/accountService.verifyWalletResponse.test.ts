@@ -22,7 +22,8 @@ vi.mock('../../src/utils/logger', () => ({
   },
 }));
 
-const { verifyWalletOwnership } = await import('../../src/services/accountService');
+const { verifyWalletOwnership } =
+  await import('../../src/services/accountService');
 
 const verifyWallet = () =>
   verifyWalletOwnership('user-1', '0xabc', '0xsignature');

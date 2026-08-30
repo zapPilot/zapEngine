@@ -8,13 +8,21 @@ import { normalizeSentimentClassification } from '../../../src/utils/sentimentUt
 describe('Sentiment Utils', () => {
   describe('normalizeSentimentClassification', () => {
     it('should normalize sentiment classifications to exact enum values', () => {
-      expect(normalizeSentimentClassification('EXTREME FEAR')).toBe('Extreme Fear');
-      expect(normalizeSentimentClassification('extreme fear')).toBe('Extreme Fear');
-      expect(normalizeSentimentClassification('  extreme fear  ')).toBe('Extreme Fear');
+      expect(normalizeSentimentClassification('EXTREME FEAR')).toBe(
+        'Extreme Fear',
+      );
+      expect(normalizeSentimentClassification('extreme fear')).toBe(
+        'Extreme Fear',
+      );
+      expect(normalizeSentimentClassification('  extreme fear  ')).toBe(
+        'Extreme Fear',
+      );
       expect(normalizeSentimentClassification('FEAR')).toBe('Fear');
       expect(normalizeSentimentClassification('neutral')).toBe('Neutral');
       expect(normalizeSentimentClassification('Greed')).toBe('Greed');
-      expect(normalizeSentimentClassification('EXTREME GREED')).toBe('Extreme Greed');
+      expect(normalizeSentimentClassification('EXTREME GREED')).toBe(
+        'Extreme Greed',
+      );
     });
 
     it('should return original input if no valid match found', () => {
@@ -24,16 +32,25 @@ describe('Sentiment Utils', () => {
     });
 
     it('should handle exact matches correctly', () => {
-      expect(normalizeSentimentClassification('Extreme Fear')).toBe('Extreme Fear');
+      expect(normalizeSentimentClassification('Extreme Fear')).toBe(
+        'Extreme Fear',
+      );
       expect(normalizeSentimentClassification('Neutral')).toBe('Neutral');
-      expect(normalizeSentimentClassification('Extreme Greed')).toBe('Extreme Greed');
+      expect(normalizeSentimentClassification('Extreme Greed')).toBe(
+        'Extreme Greed',
+      );
     });
 
     it('should handle edge cases', () => {
-      expect(normalizeSentimentClassification('  Extreme  Fear  ')).toBe('  Extreme  Fear  ');
-      expect(normalizeSentimentClassification('extreme-fear')).toBe('extreme-fear');
-      expect(normalizeSentimentClassification('EXTREME_FEAR')).toBe('EXTREME_FEAR');
+      expect(normalizeSentimentClassification('  Extreme  Fear  ')).toBe(
+        '  Extreme  Fear  ',
+      );
+      expect(normalizeSentimentClassification('extreme-fear')).toBe(
+        'extreme-fear',
+      );
+      expect(normalizeSentimentClassification('EXTREME_FEAR')).toBe(
+        'EXTREME_FEAR',
+      );
     });
   });
-
 });
