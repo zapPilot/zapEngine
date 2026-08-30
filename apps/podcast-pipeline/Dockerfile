@@ -49,6 +49,10 @@ RUN addgroup --system --gid 1001 nodejs \
  && adduser --system --uid 1001 nodejs
 
 COPY --from=build --chown=nodejs:nodejs /out/ ./
+# Exercise the exact Alpine ffmpeg + libass + packaged fonts that production
+# will run. Merely finding the `ass` filter is insufficient: this smoke renders
+# a real subtitle frame and fails the image build when no subtitle pixels appear.
+RUN node dist/services/video/runtime-preflight.js
 USER nodejs
 EXPOSE 3000
 CMD ["node", "dist/index.js"]
