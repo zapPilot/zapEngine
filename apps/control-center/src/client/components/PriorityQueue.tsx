@@ -4,8 +4,8 @@ import { relativeTime, statusLabel } from '../format.js';
 /**
  * The ranked action list, shared by Home (top slice) and Reliability (all of
  * it). The ordering is the server's — see `services/operations/prioritize.ts`
- * — and is deliberately not re-sorted here: two views showing the same signals
- * in a different order is how a founder stops trusting either one.
+ * — and is deliberately not re-sorted here. Evidence is collapsed by default
+ * so the ranking can be scanned before a reader opts into the detail.
  */
 export function PriorityQueue(props: {
   emptyMessage: string;
@@ -38,28 +38,39 @@ function QueueRow({ priority }: { priority: OperationalPriority }) {
         <strong>{priority.score}</strong>
         <span>{statusLabel(signal.status)}</span>
       </div>
-      <div className="queue-body">
-        <p className="queue-title">
+      <details className="queue-body">
+        <summary className="queue-summary">
+          <span className="queue-title">{signal.title}</span>
+          <span aria-hidden="true" className="queue-toggle">
+            Details
+          </span>
+        </summary>
+        <div className="queue-expanded">
+          {signal.detail ? <p className="queue-detail">{signal.detail}</p> : null}
+          <p className="queue-meta">
+            {signal.source} · seen {relativeTime(signal.observedAt)}
+          </p>
+          {priority.reasons.length ? (
+            <div className="queue-reasons">
+              {priority.reasons.map((reason) => (
+                <span className="reason-chip" key={reason}>
+                  {reason}
+                </span>
+              ))}
+            </div>
+          ) : null}
           {signal.url ? (
-            <a href={signal.url} rel="noreferrer" target="_blank">
-              {signal.title}
+            <a
+              className="queue-source-link"
+              href={signal.url}
+              rel="noreferrer"
+              target="_blank"
+            >
+              Open source
             </a>
-          ) : (
-            signal.title
-          )}
-        </p>
-        {signal.detail ? <p className="queue-detail">{signal.detail}</p> : null}
-        <p className="queue-meta">
-          {signal.source} · seen {relativeTime(signal.observedAt)}
-        </p>
-        <div className="queue-reasons">
-          {priority.reasons.map((reason) => (
-            <span className="reason-chip" key={reason}>
-              {reason}
-            </span>
-          ))}
+          ) : null}
         </div>
-      </div>
+      </details>
     </li>
   );
 }
