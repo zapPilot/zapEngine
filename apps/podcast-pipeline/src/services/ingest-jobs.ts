@@ -1,4 +1,3 @@
-import { errorMessage } from '../lib/errorMessage.js';
 import { isRecord } from '../lib/typeGuards.js';
 import {
   type LanguageClassroomLanguageCode,
@@ -156,9 +155,35 @@ function rawRpcRow(data: unknown): unknown {
   return Array.isArray(data) ? (data[0] ?? null) : data;
 }
 
-function rpcRow(data: unknown): PodcastIngestJobRow | null {
+function isNullCompositeRow(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  const fields = Object.values(value);
+  return fields.length > 0 && fields.every((field) => field === null);
+}
+
+/**
+ * Postgres composite-returning functions serialize an unassigned row variable
+ * as an object whose every field is null. For claim RPCs that value means
+ * "nothing was claimed", not "a job full of nulls".
+ */
+export function parsePodcastIngestJobRpcResult(
+  data: unknown,
+): PodcastIngestJobRow | null {
   const value = rawRpcRow(data);
-  return value === null ? null : parsePodcastIngestJobRow(value);
+  if (value === null || isNullCompositeRow(value)) return null;
+  return parsePodcastIngestJobRow(value);
+}
+
+async function callClaimRpc(
+  rpcName: string,
+  params: Record<string, unknown>,
+): Promise<PodcastIngestJobRow | null> {
+  const { data, error } = await getPipelineSupabase().rpc(
+    rpcName as never,
+    params as never,
+  );
+  if (error) throwSupabaseError(error);
+  return parsePodcastIngestJobRpcResult(data);
 }
 
 async function updateProcessingJob(
@@ -178,47 +203,6 @@ async function updateProcessingJob(
   if (error) throwSupabaseError(error);
 }
 
-async function quarantineInvalidClaim(
-  error: PodcastIngestJobContractError,
-  owner: string,
-): Promise<void> {
-  if (!error.jobId) return;
-  try {
-    await updateProcessingJob(error.jobId, owner, {
-      status: 'failed',
-      lease_owner: null,
-      lease_expires_at: null,
-      last_error: error.message,
-    });
-  } catch (quarantineError) {
-    console.error('[telegram-ingest-queue] invalid claimed job quarantine failed', {
-      jobId: error.jobId,
-      error: errorMessage(quarantineError),
-    });
-  }
-}
-
-async function callClaimRpc(
-  rpcName: string,
-  params: Record<string, unknown>,
-  owner: string,
-): Promise<PodcastIngestJobRow | null> {
-  const { data, error } = await getPipelineSupabase().rpc(
-    rpcName as never,
-    params as never,
-  );
-  if (error) throwSupabaseError(error);
-
-  try {
-    return rpcRow(data);
-  } catch (parseError) {
-    if (parseError instanceof PodcastIngestJobContractError) {
-      await quarantineInvalidClaim(parseError, owner);
-    }
-    throw parseError;
-  }
-}
-
 export const podcastIngestJobStore: PodcastIngestJobStore = {
   async enqueue({ chatId, url, languageCode }) {
     const { data, error } = await getPipelineSupabase().rpc(
@@ -230,32 +214,24 @@ export const podcastIngestJobStore: PodcastIngestJobStore = {
       },
     );
     if (error) throwSupabaseError(error);
-    const job = rpcRow(data);
+    const job = parsePodcastIngestJobRpcResult(data);
     if (!job) throw new Error('Failed to enqueue podcast ingest job');
     return job;
   },
 
   async claim(jobId, owner, leaseSeconds) {
-    return callClaimRpc(
-      'claim_podcast_ingest_job',
-      {
-        p_job_id: jobId,
-        p_owner: owner,
-        p_lease_seconds: leaseSeconds,
-      },
-      owner,
-    );
+    return callClaimRpc('claim_podcast_ingest_job', {
+      p_job_id: jobId,
+      p_owner: owner,
+      p_lease_seconds: leaseSeconds,
+    });
   },
 
   async claimNext(owner, leaseSeconds) {
-    return callClaimRpc(
-      'claim_next_podcast_ingest_job',
-      {
-        p_owner: owner,
-        p_lease_seconds: leaseSeconds,
-      },
-      owner,
-    );
+    return callClaimRpc('claim_next_podcast_ingest_job', {
+      p_owner: owner,
+      p_lease_seconds: leaseSeconds,
+    });
   },
 
   async renew(jobId, owner, leaseSeconds) {
