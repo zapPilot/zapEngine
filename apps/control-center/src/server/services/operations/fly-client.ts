@@ -86,10 +86,7 @@ export function createFlyOpsClient(input: {
   const timeoutMs = input.timeoutMs ?? REQUEST_TIMEOUT_MS;
 
   return {
-    async listMachines(
-      app: string,
-      options = {},
-    ): Promise<FlyMachine[]> {
+    async listMachines(app: string, options = {}): Promise<FlyMachine[]> {
       const query = options.includeDeleted ? '?include_deleted=true' : '';
       const response = await fetchImpl(
         `${baseUrl}/apps/${encodeURIComponent(app)}/machines${query}`,

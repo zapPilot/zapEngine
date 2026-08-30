@@ -1,34 +1,26 @@
 import type { UsageCostLine } from './cost.js';
 
-const FISH_AUDIO_USD_PER_MILLION_UTF8_BYTES: Record<string, number> = {
-  // Fish advertises this model as developer-free. Keep the model key explicit
-  // so switching to the paid engine cannot silently inherit a zero price.
-  's2.1-pro-free': 0,
-  's2.1-pro': 15,
-};
-const DEFAULT_FISH_AUDIO_USD_PER_MILLION_UTF8_BYTES = 15;
-
-export function fishAudioPriceUsdPerMillionUtf8Bytes(model: string): number {
-  return (
-    FISH_AUDIO_USD_PER_MILLION_UTF8_BYTES[model] ??
-    DEFAULT_FISH_AUDIO_USD_PER_MILLION_UTF8_BYTES
-  );
-}
-
+/**
+ * Fish returns usage, not the exact amount billed for an individual TTS call.
+ * Do not pretend the public list price is provider-reported cost here.
+ *
+ * The durable pipeline ledger prices these UTF-8 bytes from versioned
+ * `ops.cost_rates` rows. Keeping the immediate ingest summary at zero is
+ * deliberate: it only shows costs the provider actually reported, while the
+ * Control Center remains the source of truth for estimated Fish spend.
+ */
 export function applyFishAudioPricing(lines: UsageCostLine[]): UsageCostLine[] {
   return lines.map((line) => {
     if (line.provider !== 'fish-audio' || line.usage?.unit !== 'utf8_bytes') {
       return line;
     }
 
-    const pricePerMillion = fishAudioPriceUsdPerMillionUtf8Bytes(line.model);
-    const unitPriceUsd = pricePerMillion / 1_000_000;
     return {
       ...line,
-      costUsd: line.usage.quantity * unitPriceUsd,
+      costUsd: 0,
       usage: {
         ...line.usage,
-        unitPriceUsd,
+        unitPriceUsd: 0,
       },
     };
   });

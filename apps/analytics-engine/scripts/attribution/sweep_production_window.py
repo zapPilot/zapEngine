@@ -8,7 +8,7 @@ import sys
 from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, NoReturn
 
 import httpx
 
@@ -424,12 +424,15 @@ def _guard_committed_roi_shift(
     expected: dict[str, Any] | None,
     actual: dict[str, Any],
     max_shift_pp: float,
+    endpoint: str | None,
+    client: Any | None,
 ) -> None:
-    """Refuse a refresh whose headline ROI moved further than the guard allows.
+    """Verify committed history before accepting a large headline ROI move.
 
     `expected` is the committed fixture — the only copy of the numbers that
-    predates this run — so this is the check `--update-snapshot` otherwise
-    cannot make: everything else it compares, it is about to overwrite.
+    predates this run. A large move can be a legitimate rolling-window
+    extension, so replay the committed window before deciding whether it is
+    safe to overwrite.
 
     Silent when there is nothing to compare against. A missing metric is not
     waved through downstream: the landing-curve generator reads the same
@@ -451,12 +454,87 @@ def _guard_committed_roi_shift(
     if abs(delta) <= max_shift_pp:
         return
 
+    reference_date_raw = expected.get("reference_date")
+    window_days = expected.get("window_days")
+    total_capital = expected.get("total_capital")
+    raw_tolerances = expected.get("tolerances")
+    if (
+        not isinstance(reference_date_raw, str)
+        or not isinstance(window_days, int)
+        or not isinstance(total_capital, int | float)
+        or not isinstance(raw_tolerances, dict)
+    ):
+        _refuse_roi_shift(
+            strategy_id=strategy_id,
+            delta=delta,
+            committed=float(committed),
+            fresh=float(fresh),
+            max_shift_pp=max_shift_pp,
+            evidence="Committed fixture lacks replay metadata; reproducibility unknown.",
+        )
+
+    try:
+        reference_date = _parse_reference_date(reference_date_raw)
+        tolerances = {metric: float(raw_tolerances[metric]) for metric in METRIC_KEYS}
+    except (KeyError, TypeError, ValueError) as exc:
+        _refuse_roi_shift(
+            strategy_id=strategy_id,
+            delta=delta,
+            committed=float(committed),
+            fresh=float(fresh),
+            max_shift_pp=max_shift_pp,
+            evidence=f"Committed fixture replay metadata is invalid: {exc}",
+        )
+
+    replay = _collect_snapshot_result(
+        endpoint=endpoint,
+        client=client,
+        reference_date=reference_date,
+        window_days=window_days,
+        total_capital=float(total_capital),
+        tolerances=tolerances,
+        exclude_deprecated=True,
+    )
+    rows = diff_snapshots(
+        expected=expected,
+        actual=replay.snapshot,
+        tolerances=tolerances,
+        exclude_deprecated=True,
+    )
+    evidence = render_drift_table(rows).rstrip()
+    if any(row.status != "OK" for row in rows):
+        _refuse_roi_shift(
+            strategy_id=strategy_id,
+            delta=delta,
+            committed=float(committed),
+            fresh=float(fresh),
+            max_shift_pp=max_shift_pp,
+            evidence=evidence,
+        )
+
+    print(
+        f"{strategy_id} roi_percent moved {delta:+.4f}pp "
+        f"({committed:.4f} -> {fresh:.4f}), but committed history is reproducible "
+        "(Drift rows: 0); treating the move as a legitimate window extension.",
+        file=sys.stderr,
+    )
+
+
+def _refuse_roi_shift(
+    *,
+    strategy_id: str,
+    delta: float,
+    committed: float,
+    fresh: float,
+    max_shift_pp: float,
+    evidence: str,
+) -> NoReturn:
     print(
         f"{strategy_id} roi_percent moved {delta:+.4f}pp "
         f"({committed:.4f} -> {fresh:.4f}), beyond the {max_shift_pp:.4f}pp refresh "
-        "guard \u2014 the upstream window was rewritten, not merely extended; "
-        "refusing to overwrite the committed artifacts. Re-run with "
-        "--max-roi-shift once the change is understood and intended.",
+        "guard and committed history is not reproducible; refusing to overwrite "
+        "the committed artifacts. Re-run with --max-roi-shift once the change "
+        f"is understood and intended.\n\nReproducibility evidence:\n{evidence}",
         file=sys.stderr,
     )
     raise SystemExit(1)
@@ -686,6 +764,14 @@ def main() -> None:
                 show_progress=not bool(args.no_progress),
                 exclude_deprecated=exclude_deprecated,
             )
+            if args.update_snapshot:
+                _guard_committed_roi_shift(
+                    expected=expected,
+                    actual=collection.snapshot,
+                    max_shift_pp=float(args.max_roi_shift),
+                    endpoint=None,
+                    client=client,
+                )
     else:
         collection = _collect_snapshot_result(
             endpoint=str(args.endpoint),
@@ -696,6 +782,14 @@ def main() -> None:
             show_progress=not bool(args.no_progress),
             exclude_deprecated=exclude_deprecated,
         )
+        if args.update_snapshot:
+            _guard_committed_roi_shift(
+                expected=expected,
+                actual=collection.snapshot,
+                max_shift_pp=float(args.max_roi_shift),
+                endpoint=str(args.endpoint),
+                client=None,
+            )
     actual = collection.snapshot
     if args.write_landing_curve:
         if expected is None:
@@ -715,14 +809,6 @@ def main() -> None:
             )
 
     if args.update_snapshot:
-        # First, before anything is written: _regenerate_landing_equity_curve
-        # overwrites equity-curve.json as a side effect, so a guard placed after
-        # it would fail with the artifact already dirty.
-        _guard_committed_roi_shift(
-            expected=expected,
-            actual=actual,
-            max_shift_pp=float(args.max_roi_shift),
-        )
         snapshot = _merge_preserved_excluded_entries(existing=expected, actual=actual)
         point_count = _regenerate_landing_equity_curve(
             compare_payload=collection.compare_payload,

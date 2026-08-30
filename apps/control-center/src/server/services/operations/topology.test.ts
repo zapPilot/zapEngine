@@ -4,10 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { findRepoRoot } from './repo-root.js';
-import {
-  resolveOperationalTopology,
-  SERVICE_TOPOLOGY,
-} from './topology.js';
+import { resolveOperationalTopology, SERVICE_TOPOLOGY } from './topology.js';
 
 const repoRoot = findRepoRoot(import.meta.dirname);
 
@@ -47,7 +44,9 @@ describe('operational topology', () => {
         join(repoRoot, 'apps', directory!, 'fly.toml'),
         'utf8',
       );
-      expect(toml).toContain(`app = '${service.flyApp}'`);
+      expect(toml).toMatch(
+        new RegExp(`^app\\s*=\\s*['"]${service.flyApp}['"]$`, 'mu'),
+      );
     }
   });
 

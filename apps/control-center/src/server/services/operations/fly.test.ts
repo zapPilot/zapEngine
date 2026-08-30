@@ -47,11 +47,13 @@ const HEALTHY_MACHINES: Record<string, FlyMachine[]> = {
   ],
 };
 
-function fleet(input: {
-  machines?: Record<string, FlyMachine[]>;
-  missingApps?: string[];
-  error?: Error;
-} = {}): FlyOpsClient {
+function fleet(
+  input: {
+    machines?: Record<string, FlyMachine[]>;
+    missingApps?: string[];
+    error?: Error;
+  } = {},
+): FlyOpsClient {
   const machines = { ...HEALTHY_MACHINES, ...input.machines };
   return {
     async listMachines(app) {
@@ -108,7 +110,7 @@ describe('collectFlySignals', () => {
       'fly:process-group/from-fed-to-chain-api/render',
     );
     expect(render.status).toBe('healthy');
-    expect(render.evidence.startedMachines).toBe(0);
+    expect(render.evidence['startedMachines']).toBe(0);
   });
 
   it('reports a render group scaled to zero without calling it an outage', async () => {
@@ -124,7 +126,7 @@ describe('collectFlySignals', () => {
       'fly:process-group/from-fed-to-chain-api/render',
     );
     expect(render.status).toBe('degraded');
-    expect(render.evidence.stoppedMachines).toBe(0);
+    expect(render.evidence['stoppedMachines']).toBe(0);
   });
 
   it('flags a stopped always-on app group even while render runs', async () => {

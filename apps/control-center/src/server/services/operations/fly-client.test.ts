@@ -23,7 +23,10 @@ describe('createFlyOpsClient', () => {
               metadata: { fly_process_group: 'render', secret: 'hidden' },
               env: { API_KEY: 'hidden' },
             },
-            image_ref: { repository: 'registry.fly.io/app', digest: 'sha256:1' },
+            image_ref: {
+              repository: 'registry.fly.io/app',
+              digest: 'sha256:1',
+            },
             events: [
               {
                 type: 'stop',

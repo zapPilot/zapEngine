@@ -669,7 +669,7 @@ describe('OpenRouter search intent provider', () => {
       expect.anything(),
       null,
       'suggestSearchIntents',
-      { signal: controller.signal },
+      { signal: controller.signal, reasoning: { enabled: false } },
     );
   });
 

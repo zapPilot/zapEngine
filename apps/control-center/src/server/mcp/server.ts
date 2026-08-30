@@ -84,7 +84,8 @@ export function createOpsMcpServer(operations: OpsMcpOperations): McpServer {
       }),
       annotations: READ_ONLY_ANNOTATIONS,
     },
-    async ({ fingerprint }) => result(await operations.inspectSignal(fingerprint)),
+    async ({ fingerprint }) =>
+      result(await operations.inspectSignal(fingerprint)),
   );
 
   server.registerTool(

@@ -18,9 +18,23 @@ function run(command, args, options = {}) {
     throw new Error(`not checkable: install ${command}`);
   }
   if (result.status !== 0) {
-    throw new Error(options.failure ?? `not checkable: ${command} failed`);
+    const label = options.failure ?? `not checkable: ${command} failed`;
+    throw new Error(`${label}\n${describeExit(command, result)}`);
   }
   return result.stdout;
+}
+
+// A swallowed exit code cost a whole investigation: `vercel` was rejecting an
+// argument, and every destination reported it as "VERCEL_TOKEN cannot list
+// Vercel variables", which reads like an expired token. Only stderr is echoed
+// — manifest values arrive on these CLIs' stdin and are not registered GitHub
+// secrets, so nothing would mask them if a CLI replayed them on stdout.
+function describeExit(command, result) {
+  const status = result.signal
+    ? `${command} was killed by ${result.signal}`
+    : `${command} exited ${result.status}`;
+  const stderr = (result.stderr ?? '').trim();
+  return stderr ? `${status}: ${stderr}` : status;
 }
 
 function parseJsonNames(output, label) {
@@ -68,20 +82,18 @@ function parseNameColumn(output) {
 
 function vercelProjectRef(destination) {
   const project = destination.projectId ?? destination.project;
-  if (!project) throw new Error('not checkable: Vercel project is not configured');
+  if (!project)
+    throw new Error('not checkable: Vercel project is not configured');
   return project;
 }
 
-function vercelProjectArgs(destination) {
-  return ['--project', vercelProjectRef(destination)];
-}
-
+// `vercel` resolves this through /v9/projects/{idOrName}, so a destination that
+// only knows its project name still links. Both variables have to be set: the
+// CLI rejects a run that supplies one without the other.
 function vercelProjectEnv(destination) {
   return {
     VERCEL_ORG_ID: destination.orgId,
-    ...(destination.projectId
-      ? { VERCEL_PROJECT_ID: destination.projectId }
-      : {}),
+    VERCEL_PROJECT_ID: vercelProjectRef(destination),
   };
 }
 
@@ -132,7 +144,6 @@ export function listVercelKeys(destination) {
       run(
         'vercel',
         [
-          ...vercelProjectArgs(destination),
           'env',
           'ls',
           destination.environment,
@@ -161,6 +172,14 @@ export function listDestinationKeys(destination) {
   );
 }
 
+// Both secret writes below redeploy the app, and that redeploy always uses the
+// config Fly stored at the last `fly deploy` -- passing `-c` here does not
+// change it (tried in c28e3418, reverted). `fly deploy --config` is the only
+// path that writes this repo's fly.toml back to the platform, so editing
+// fly.toml is not the same as changing how the app rolls out; check what Fly
+// actually holds with `flyctl config show --app <name>`. Ignoring that gap is
+// how podcast-pipeline stayed on bluegreen after its fly.toml banned it, and
+// every env-apply run cloned the whole fleet before failing `wait timeout`.
 export function importFlyValues(destination, values) {
   const input = `${Object.entries(values)
     .map(([name, value]) => `${name}=${value}`)
@@ -233,7 +252,6 @@ export function setVercelValue(destination, name, value, sensitive) {
   run(
     'vercel',
     [
-      ...vercelProjectArgs(destination),
       'env',
       'add',
       name,
@@ -257,7 +275,6 @@ export function deleteVercelKey(destination, name) {
   run(
     'vercel',
     [
-      ...vercelProjectArgs(destination),
       'env',
       'rm',
       name,

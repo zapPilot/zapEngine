@@ -16,10 +16,18 @@ kill_timeout = '300s'
 [build]
   dockerfile = 'Dockerfile'
 
-# Keep the healthy release serving until the replacement passes /health. This
-# avoids the single app Machine disappearing during the new Machine's cold boot.
+# Bluegreen is forbidden for this app. Fly clones every existing Machine into
+# the green release, including stopped orphans, and a failed or cancelled deploy
+# does not clean those clones up. It also starts every green render Machine,
+# burning performance-2x capacity while the worker's 90-second idle exit races
+# the deploy. Rolling updates the existing app and render Machines in place, so
+# the fleet cannot multiply. Its short Telegram webhook gap is absorbed by
+# Telegram retries and the durable ingest job/lease recovery path.
+# This block only reaches Fly through `fly deploy --config`; nothing else writes
+# the platform's stored config, so a fly.toml edit that is never deployed leaves
+# the old strategy live. Verify with `flyctl config show --app <name>`.
 [deploy]
-  strategy = 'bluegreen'
+  strategy = 'rolling'
 
 [env]
   NODE_ENV = 'production'
