@@ -88,12 +88,16 @@ export interface SocialPlatformPerformance {
 export interface SocialDecision {
   platform: string;
   evidenceSamples: number;
+  /** Sample-count coverage only; this is not statistical significance. */
   confidence: 'low' | 'medium' | 'high';
   preferredHookTypes: string[];
   preferredHashtags: string[];
   avoidHashtags: string[];
   bestTopic: string | null;
   bestTopicSamples: number | null;
+  bestTopicMedian24hViews: number | null;
+  platformMedian24hViews: number | null;
+  bestTopicLiftVsPlatformMedian: number | null;
   publishSlotsJst: string | null;
   topExample: string | null;
 }
