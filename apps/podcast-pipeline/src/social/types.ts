@@ -66,6 +66,7 @@ export interface SocialContentFeatures {
   mediaQuality?: {
     score: number;
   };
+  packagingExperiment?: { key: string; variant: string };
 }
 
 export interface SocialEpisode {
@@ -83,14 +84,23 @@ export interface SocialEpisode {
 
 export interface GeneratedSocialCopy {
   topic: SocialTopic;
-  hookType: SocialHookType;
-  short?: {
+  x?: {
+    hookType: SocialHookType;
+    text: string;
+  };
+  threads?: {
+    hookType: SocialHookType;
     text: string;
   };
   rednote?: {
+    hookType: SocialHookType;
     title: string;
     body: string;
     hashtags: string[];
+  };
+  youtube?: {
+    hookType: SocialHookType;
+    title: string;
   };
 }
 

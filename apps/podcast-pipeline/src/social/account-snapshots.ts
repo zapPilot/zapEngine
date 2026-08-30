@@ -19,23 +19,19 @@ import { readPublishState } from './state.js';
 import { assertThreadsSessionReady } from './threads-auth.js';
 import type { SocialPlatform } from './types.js';
 import { PROFILE_DIRECTORY as X_PROFILE_DIRECTORY } from './x-playwright.js';
-import {
-  assertYouTubeSessionReady,
-  YOUTUBE_READONLY_SCOPE,
-} from './youtube-auth.js';
 
 const REDNOTE_USER_INFO_URL =
   'https://creator.rednote.com/api/galaxy/user/info';
 const REDNOTE_PROFILE_URL_PREFIX = 'https://www.rednote.com/user/profile/';
 const THREADS_API_BASE = 'https://graph.threads.net';
-const YOUTUBE_CHANNELS_URL = 'https://www.googleapis.com/youtube/v3/channels';
 const BROWSER_TIMEOUT_MS = 30_000;
 // Best-effort three-hour sampling gives follower-delta intervals small enough
 // to correlate with the reduced publishing cadence without adding another cron.
 const SNAPSHOT_STALENESS_MS = 3 * 60 * 60_000;
+export const PRE_PUBLISH_SNAPSHOT_STALENESS_MS = 60 * 60_000;
 
 interface CollectorContext {
-  /** Opened on first use: two of the four collectors never need a browser. */
+  /** Opened on first use: the Threads collector never needs a browser. */
   browser: () => Promise<MetricsBrowserSession>;
   fetchImpl: typeof fetch;
 }
@@ -206,106 +202,102 @@ function readThreadsFollowerCount(payload: unknown): number | null {
   return null;
 }
 
-/**
- * The absolute subscriber count, which per-post `subscribersGained` cannot add
- * up to. It needs `youtube.readonly` on top of the publish scope: until the
- * operator re-consents once, `assertYouTubeSessionReady` throws here and the
- * per-platform isolation below turns that into a skipped snapshot rather than a
- * failed tick or a fabricated number.
- */
-async function collectYouTubeSubscribers({
-  fetchImpl,
-}: CollectorContext): Promise<NewSocialAccountSnapshot> {
-  const session = await assertYouTubeSessionReady({
-    additionalScopes: [YOUTUBE_READONLY_SCOPE],
-    fetchImpl,
-  });
-  const url = new URL(YOUTUBE_CHANNELS_URL);
-  url.searchParams.set('part', 'statistics');
-  url.searchParams.set('mine', 'true');
-
-  const response = await fetchImpl(url, {
-    headers: { authorization: `Bearer ${session.accessToken}` },
-    signal: AbortSignal.timeout(BROWSER_TIMEOUT_MS),
-  });
-  if (!response.ok) {
-    throw new Error(
-      `YouTube channels.list failed with HTTP ${response.status}.`,
-    );
-  }
-  const statistics = readYouTubeStatistics(
-    (await response.json().catch(() => null)) as unknown,
-  );
-  const followers = parseMetricNumber(statistics['subscriberCount'] ?? '');
-  if (followers === null) {
-    throw new Error('YouTube channels.list returned no subscriberCount.');
-  }
-  return {
-    platform: 'youtube',
-    followers,
-    details: {
-      ...(statistics['viewCount']
-        ? { viewCount: statistics['viewCount'] }
-        : {}),
-      ...(statistics['videoCount']
-        ? { videoCount: statistics['videoCount'] }
-        : {}),
-    },
-  };
-}
-
-function readYouTubeStatistics(payload: unknown): Record<string, string> {
-  if (!isRecord(payload)) return {};
-  const items = payload['items'];
-  const first = Array.isArray(items) ? items[0] : null;
-  if (!isRecord(first) || !isRecord(first['statistics'])) return {};
-  return Object.fromEntries(
-    Object.entries(first['statistics']).flatMap(([key, value]) =>
-      typeof value === 'string' ? [[key, value] as const] : [],
-    ),
-  );
-}
-
 const COLLECTORS: Partial<Record<SocialPlatform, FollowerCollector>> = {
   rednote: collectRednoteFollowers,
   x: collectXFollowers,
   threads: collectThreadsFollowers,
-  youtube: collectYouTubeSubscribers,
 };
 
-/**
- * At a three-hour cadence this runs eight times a day, so the browser is opened
- * only once something that needs one is actually due -- and closed here rather
- * than by the caller, which is what makes the lazy open safe.
- */
-export async function captureDueAccountSnapshots(input: {
+interface CaptureAccountSnapshotsInput {
   now: Date;
   openBrowser: () => MetricsBrowserSession;
   log?: (message: string) => void;
   fetchImpl?: typeof fetch;
   latest?: typeof latestSocialAccountSnapshots;
   insert?: typeof insertSocialAccountSnapshot;
-}): Promise<number> {
+}
+
+/**
+ * At a three-hour cadence this runs eight times a day, so the browser is opened
+ * only once something that needs one is actually due -- and closed here rather
+ * than by the caller, which is what makes the lazy open safe.
+ */
+export async function captureDueAccountSnapshots(
+  input: CaptureAccountSnapshotsInput & {
+    /** Keep a lazily opened session alive so the daemon can reuse it for rolling metrics. */
+    closeBrowser?: boolean;
+  },
+): Promise<SocialPlatform[]> {
   const log = input.log ?? (() => void 0);
   const latest = await (input.latest ?? latestSocialAccountSnapshots)();
   const insert = input.insert ?? insertSocialAccountSnapshot;
-  let session: MetricsBrowserSession | undefined;
-  const context: CollectorContext = {
-    browser: async () => (session ??= input.openBrowser()),
-    fetchImpl: input.fetchImpl ?? fetch,
-  };
+  const session = createCollectorSession(input);
 
   try {
     return await collectDueSnapshots({
       now: input.now,
       latest,
       insert,
-      context,
+      context: session.context,
       log,
     });
   } finally {
-    await session?.close();
+    if (input.closeBrowser !== false) await session.close();
   }
+}
+
+/**
+ * Captures a recent follower baseline immediately before any due publish. The
+ * one-hour gate improves attribution resolution without allowing this
+ * observational step to turn every publish tick into a browser launch.
+ */
+export async function capturePrePublishAccountSnapshots(
+  input: CaptureAccountSnapshotsInput & {
+    platforms: readonly SocialPlatform[];
+  },
+): Promise<SocialPlatform[]> {
+  const latest = await (input.latest ?? latestSocialAccountSnapshots)();
+  const due = [...new Set(input.platforms)].filter((platform) => {
+    if (!COLLECTORS[platform]) return false;
+    const previous = latest[platform];
+    return (
+      !previous ||
+      isStale(
+        previous.captured_at,
+        input.now,
+        PRE_PUBLISH_SNAPSHOT_STALENESS_MS,
+      )
+    );
+  });
+  if (due.length === 0) return [];
+
+  const session = createCollectorSession(input);
+  try {
+    return await collectDueSnapshots({
+      now: input.now,
+      latest,
+      platforms: due,
+      stalenessMs: PRE_PUBLISH_SNAPSHOT_STALENESS_MS,
+      insert: input.insert ?? insertSocialAccountSnapshot,
+      context: session.context,
+      log: input.log ?? (() => void 0),
+    });
+  } finally {
+    await session.close();
+  }
+}
+
+function createCollectorSession(
+  input: Pick<CaptureAccountSnapshotsInput, 'openBrowser' | 'fetchImpl'>,
+): { context: CollectorContext; close: () => Promise<void> } {
+  let browser: MetricsBrowserSession | undefined;
+  return {
+    context: {
+      browser: async () => (browser ??= input.openBrowser()),
+      fetchImpl: input.fetchImpl ?? fetch,
+    },
+    close: async () => browser?.close(),
+  };
 }
 
 async function collectDueSnapshots(input: {
@@ -314,20 +306,32 @@ async function collectDueSnapshots(input: {
   insert: typeof insertSocialAccountSnapshot;
   context: CollectorContext;
   log: (message: string) => void;
-}): Promise<number> {
+  platforms?: readonly SocialPlatform[];
+  stalenessMs?: number;
+}): Promise<SocialPlatform[]> {
   const { log, insert, context } = input;
-  let captured = 0;
+  const captured: SocialPlatform[] = [];
   for (const [platform, collect] of Object.entries(COLLECTORS)) {
-    const previous = input.latest[platform as SocialPlatform];
-    if (previous && !isStale(previous.captured_at, input.now)) continue;
+    const socialPlatform = platform as SocialPlatform;
+    if (input.platforms && !input.platforms.includes(socialPlatform)) continue;
+    const previous = input.latest[socialPlatform];
+    if (
+      previous &&
+      !isStale(
+        previous.captured_at,
+        input.now,
+        input.stalenessMs ?? SNAPSHOT_STALENESS_MS,
+      )
+    )
+      continue;
 
     // Isolated per platform: a logged-out browser profile on one platform must
-    // not cost the others their daily snapshot, and a failed read is never
+    // not cost the others their snapshot, and a failed read is never
     // recorded as a count.
     try {
       const snapshot = await collect(context);
       await insert(snapshot);
-      captured += 1;
+      captured.push(socialPlatform);
       log(
         `📊 [social-daemon] ${platformIcon(platform)} ${platform} · account snapshot · ${snapshot.followers} followers`,
       );
@@ -340,8 +344,12 @@ async function collectDueSnapshots(input: {
   return captured;
 }
 
-function isStale(capturedAt: string, now: Date): boolean {
+export function isStale(
+  capturedAt: string,
+  now: Date,
+  stalenessMs: number,
+): boolean {
   const captured = Date.parse(capturedAt);
   if (Number.isNaN(captured)) return true;
-  return now.getTime() - captured >= SNAPSHOT_STALENESS_MS;
+  return now.getTime() - captured >= stalenessMs;
 }

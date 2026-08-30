@@ -14,6 +14,7 @@ import { deriveCustomerSignals, loadCustomerEconomics } from '../customers.js';
 import { collectCostSignals } from './costs.js';
 import { collectFlySignals } from './fly.js';
 import { collectGithubSignals } from './github.js';
+import { inspectOperationalSignal } from './inspection/inspect.js';
 import { collectPosthogSignals } from './posthog.js';
 import { prioritize } from './prioritize.js';
 import { collectProductSignals } from './product.js';
@@ -150,6 +151,14 @@ export function createOperationsService(input: {
 
     async getCustomers(force = false): Promise<CustomerEconomicsResponse> {
       return (await caches.customers.get(force)).response;
+    },
+
+    async inspectSignal(fingerprint: string) {
+      return inspectOperationalSignal({
+        config: input.config,
+        fingerprint,
+        now,
+      });
     },
   };
 }

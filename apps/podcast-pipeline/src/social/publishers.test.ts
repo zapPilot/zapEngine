@@ -48,13 +48,15 @@ const episode: Pick<SocialEpisode, 'title' | 'summary' | 'description'> = {
 };
 const copy: GeneratedSocialCopy = {
   topic: 'macro',
-  hookType: 'question',
-  short: { text: '市場更新' },
+  x: { hookType: 'question', text: '市場更新' },
+  threads: { hookType: 'contrarian', text: '市場正在改變嗎？' },
   rednote: {
+    hookType: 'question',
     title: '市場更新',
     body: '正文',
     hashtags: ['市場', '投資', '宏觀'],
   },
+  youtube: { hookType: 'explainer', title: '市場更新' },
 };
 
 beforeEach(() => {
@@ -95,11 +97,11 @@ describe('createSocialPublishJobs', () => {
     await jobs[1]?.publish();
 
     expect(mocks.publishThreads).toHaveBeenCalledWith({
-      text: `${copy.short!.text}\n\n官網 https://www.zap-pilot.org`,
+      text: `${copy.threads!.text}\n\n官網 https://www.zap-pilot.org`,
       videoUrl: VIDEO_URL,
     });
     expect(mocks.publishX).toHaveBeenCalledWith({
-      text: `${copy.short!.text}\n\n官網 https://www.zap-pilot.org`,
+      text: `${copy.x!.text}\n\n官網 https://www.zap-pilot.org`,
       videoPath: X_VIDEO_PATH,
     });
   });
@@ -202,14 +204,17 @@ describe('createSocialPublishJobs', () => {
     ).rejects.toThrow('YouTube publishing requires a prepared video.');
 
     for (const blank of [
-      { title: '   ', summary: '完整說明' },
-      { title: '市場更新', summary: '   ' },
+      {
+        copy: { ...copy, youtube: { ...copy.youtube!, title: '   ' } },
+        episode,
+      },
+      { copy, episode: { title: '市場更新', summary: '   ' } },
     ]) {
       await expect(
         createSocialPublishJobs({
           platforms: ['youtube'],
-          copy,
-          episode: blank,
+          copy: blank.copy,
+          episode: blank.episode,
           videoUrl: VIDEO_URL,
           videoPath: VIDEO_PATH,
         }),

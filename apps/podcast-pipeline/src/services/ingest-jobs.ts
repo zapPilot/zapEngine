@@ -26,8 +26,15 @@ export interface PodcastIngestJobStore {
     url: string;
     languageCode: LanguageClassroomLanguageCode;
   }): Promise<PodcastIngestJobRow>;
-  claim(jobId: string, owner: string, leaseSeconds: number): Promise<PodcastIngestJobRow | null>;
-  claimNext(owner: string, leaseSeconds: number): Promise<PodcastIngestJobRow | null>;
+  claim(
+    jobId: string,
+    owner: string,
+    leaseSeconds: number,
+  ): Promise<PodcastIngestJobRow | null>;
+  claimNext(
+    owner: string,
+    leaseSeconds: number,
+  ): Promise<PodcastIngestJobRow | null>;
   renew(jobId: string, owner: string, leaseSeconds: number): Promise<void>;
   finish(
     jobId: string,
@@ -41,6 +48,35 @@ function rpcRow(data: unknown): PodcastIngestJobRow | null {
   if (!data) return null;
   const value = Array.isArray(data) ? data[0] : data;
   return (value ?? null) as PodcastIngestJobRow | null;
+}
+
+async function callClaimRpc(
+  rpcName: string,
+  params: Record<string, unknown>,
+): Promise<PodcastIngestJobRow | null> {
+  const { data, error } = await getPipelineSupabase().rpc(
+    rpcName as never,
+    params as never,
+  );
+  if (error) throwSupabaseError(error);
+  return rpcRow(data);
+}
+
+async function updateProcessingJob(
+  jobId: string,
+  owner: string,
+  patch: Record<string, unknown>,
+): Promise<void> {
+  const { error } = await getPipelineSupabase()
+    .from('podcast_ingest_jobs')
+    .update({
+      ...patch,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', jobId)
+    .eq('status', 'processing')
+    .eq('lease_owner', owner);
+  if (error) throwSupabaseError(error);
 }
 
 export const podcastIngestJobStore: PodcastIngestJobStore = {
@@ -60,57 +96,35 @@ export const podcastIngestJobStore: PodcastIngestJobStore = {
   },
 
   async claim(jobId, owner, leaseSeconds) {
-    const { data, error } = await getPipelineSupabase().rpc(
-      'claim_podcast_ingest_job',
-      {
-        p_job_id: jobId,
-        p_owner: owner,
-        p_lease_seconds: leaseSeconds,
-      },
-    );
-    if (error) throwSupabaseError(error);
-    return rpcRow(data);
+    return callClaimRpc('claim_podcast_ingest_job', {
+      p_job_id: jobId,
+      p_owner: owner,
+      p_lease_seconds: leaseSeconds,
+    });
   },
 
   async claimNext(owner, leaseSeconds) {
-    const { data, error } = await getPipelineSupabase().rpc(
-      'claim_next_podcast_ingest_job',
-      {
-        p_owner: owner,
-        p_lease_seconds: leaseSeconds,
-      },
-    );
-    if (error) throwSupabaseError(error);
-    return rpcRow(data);
+    return callClaimRpc('claim_next_podcast_ingest_job', {
+      p_owner: owner,
+      p_lease_seconds: leaseSeconds,
+    });
   },
 
   async renew(jobId, owner, leaseSeconds) {
-    const leaseExpiresAt = new Date(Date.now() + leaseSeconds * 1_000).toISOString();
-    const { error } = await getPipelineSupabase()
-      .from('podcast_ingest_jobs')
-      .update({
-        lease_expires_at: leaseExpiresAt,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', jobId)
-      .eq('status', 'processing')
-      .eq('lease_owner', owner);
-    if (error) throwSupabaseError(error);
+    const leaseExpiresAt = new Date(
+      Date.now() + leaseSeconds * 1_000,
+    ).toISOString();
+    await updateProcessingJob(jobId, owner, {
+      lease_expires_at: leaseExpiresAt,
+    });
   },
 
   async finish(jobId, owner, status, lastError) {
-    const { error } = await getPipelineSupabase()
-      .from('podcast_ingest_jobs')
-      .update({
-        status,
-        lease_owner: null,
-        lease_expires_at: null,
-        last_error: lastError ?? null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', jobId)
-      .eq('status', 'processing')
-      .eq('lease_owner', owner);
-    if (error) throwSupabaseError(error);
+    await updateProcessingJob(jobId, owner, {
+      status,
+      lease_owner: null,
+      lease_expires_at: null,
+      last_error: lastError ?? null,
+    });
   },
 };

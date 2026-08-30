@@ -87,6 +87,7 @@ export function buildStrategyGuidance(
   platform: SocialPlatform,
   config: SocialStrategyConfig | undefined,
   random: () => number = Math.random,
+  options: { packagingActive?: boolean } = {},
 ): string | undefined {
   if (!config) return undefined;
   // ε-greedy. `explorationRate` of publishes drop the preferred lines so the
@@ -94,14 +95,21 @@ export function buildStrategyGuidance(
   // it, a strategy version can only ever confirm itself. Avoid lines always
   // stay: a weak or moderation-risky hashtag is a safety signal, not a variant
   // worth exploring.
-  const exploring = random() < (config.explorationRate ?? 0);
+  const exploring = options.packagingActive
+    ? false
+    : random() < (config.explorationRate ?? 0);
   const lines: string[] = [];
-  if (!exploring && config.preferredHookTypes?.length) {
+  if (
+    !options.packagingActive &&
+    !exploring &&
+    config.preferredHookTypes?.length
+  ) {
     lines.push(
       `Prefer these historically strong hook types when they genuinely fit the episode: ${config.preferredHookTypes.join(', ')}.`,
     );
   }
   if (
+    !options.packagingActive &&
     !exploring &&
     platform === 'rednote' &&
     config.preferredHashtags?.length

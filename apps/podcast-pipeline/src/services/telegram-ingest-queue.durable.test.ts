@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { PodcastIngestJobRow, PodcastIngestJobStore } from './ingest-jobs.js';
+import type {
+  PodcastIngestJobRow,
+  PodcastIngestJobStore,
+} from './ingest-jobs.js';
 
 const mocks = vi.hoisted(() => ({
   perform: vi.fn(),
@@ -33,7 +36,9 @@ vi.mock('./telegram.js', () => ({
 
 import { createTelegramIngestQueue } from './telegram-ingest-queue.js';
 
-function row(overrides: Partial<PodcastIngestJobRow> = {}): PodcastIngestJobRow {
+function row(
+  overrides: Partial<PodcastIngestJobRow> = {},
+): PodcastIngestJobRow {
   return {
     id: '00000000-0000-4000-8000-000000000099',
     source_url: 'https://example.test/article',
@@ -48,7 +53,9 @@ function row(overrides: Partial<PodcastIngestJobRow> = {}): PodcastIngestJobRow 
   };
 }
 
-function fakeStore(overrides: Partial<PodcastIngestJobStore> = {}): PodcastIngestJobStore {
+function fakeStore(
+  overrides: Partial<PodcastIngestJobStore> = {},
+): PodcastIngestJobStore {
   return {
     enqueue: vi.fn(async () => row({ status: 'queued' })),
     claim: vi.fn(async () => row()),
@@ -116,7 +123,10 @@ describe('durable Telegram ingest queue', () => {
       telegram_chat_id: 'chat-recovered',
     });
     const store = fakeStore({
-      claimNext: vi.fn().mockResolvedValueOnce(recovered).mockResolvedValue(null),
+      claimNext: vi
+        .fn()
+        .mockResolvedValueOnce(recovered)
+        .mockResolvedValue(null),
     });
     const queue = createTelegramIngestQueue({
       jobStore: store,

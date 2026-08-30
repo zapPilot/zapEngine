@@ -23,23 +23,27 @@ import type {
 
 const generated: GeneratedSocialCopy = {
   topic: 'eth',
-  hookType: 'surprising_number',
-  short: { text: 'AI 產生的短文案' },
+  x: { hookType: 'surprising_number', text: 'AI 產生的短文案' },
+  threads: { hookType: 'explainer', text: 'AI 產生的 Threads 文案' },
   rednote: {
+    hookType: 'contrarian',
     title: 'AI 產生標題',
     body: 'AI 產生的正文',
     hashtags: ['以太坊', '質押', '投資'],
   },
+  youtube: { hookType: 'explainer', title: 'AI 產生的 YouTube 標題' },
 };
 const published: GeneratedSocialCopy = {
   topic: 'macro',
-  hookType: 'question',
-  short: { text: '編輯後的短文案？２０２６' },
+  x: { hookType: 'question', text: '編輯後的短文案？２０２６' },
+  threads: { hookType: 'question', text: '編輯後的 Threads 文案？２０２６' },
   rednote: {
+    hookType: 'question',
     title: '利率真的轉向？',
     body: '編輯後的正文含數字２',
     hashtags: ['總經', '利率', '市場事件'],
   },
+  youtube: { hookType: 'question', title: '編輯後的 YouTube 標題？' },
 };
 beforeEach(() => {
   vi.clearAllMocks();
@@ -152,8 +156,8 @@ describe('buildSocialPostRecord', () => {
       platform: 'youtube',
       postUrl: 'https://www.youtube.com/watch?v=video-1',
       platformPostId: 'video-1',
-      generatedTitle: '市場更新',
-      publishedTitle: '市場更新',
+      generatedTitle: 'AI 產生的 YouTube 標題',
+      publishedTitle: '編輯後的 YouTube 標題？',
       generatedBody:
         '完整說明\n\n更多市場洞察與工具：https://www.zap-pilot.org',
       publishedBody:
@@ -269,7 +273,7 @@ describe('createSocialPostPersister', () => {
     await persist({ platform: 'youtube', result: result() });
     expect(insert).toHaveBeenCalledWith(
       expect.objectContaining({
-        generatedTitle: '市場更新',
+        generatedTitle: 'AI 產生的 YouTube 標題',
         generatedBody:
           '完整說明\n\n更多市場洞察與工具：https://www.zap-pilot.org',
       }),

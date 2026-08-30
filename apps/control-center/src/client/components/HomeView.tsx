@@ -62,7 +62,10 @@ export function HomeView(props: {
         ) : null}
       </section>
 
-      <section aria-label="Business headlines" className="kpi-band kpi-band-three">
+      <section
+        aria-label="Business headlines"
+        className="kpi-band kpi-band-three"
+      >
         <KpiGroup
           caption="Observed portfolio value"
           label="Product"

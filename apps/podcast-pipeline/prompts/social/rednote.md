@@ -1,6 +1,6 @@
 # Rednote / 小紅書
 
-Write for a consumer feed, not as a research report. Rednote is the stricter distribution surface, so these rules apply only to the `rednote` fields and must not change the shared X / Threads copy.
+Write for a consumer feed, not as a research report. Rednote is the stricter distribution surface, so these rules apply only to the `rednote` fields and must not change another platform's copy.
 
 Output fields:
 

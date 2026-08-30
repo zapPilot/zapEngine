@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
     nextByPlatform: {},
   }),
   listPendingSocialPublishSchedules: vi.fn().mockResolvedValue([]),
+  listDueSocialPublishPlatforms: vi.fn().mockResolvedValue([]),
   listLearningSocialPosts: vi.fn().mockResolvedValue([]),
   listLearningSocialMetrics: vi.fn().mockResolvedValue([]),
   listMetricWindowsForPosts: vi.fn().mockResolvedValue([]),
@@ -39,7 +40,8 @@ const mocks = vi.hoisted(() => ({
     withPage: vi.fn(),
     close: vi.fn(),
   }),
-  captureDueAccountSnapshots: vi.fn().mockResolvedValue(0),
+  captureDueAccountSnapshots: vi.fn().mockResolvedValue([]),
+  capturePrePublishAccountSnapshots: vi.fn().mockResolvedValue([]),
   refreshSocialStrategies: vi.fn(),
   getOrCreateExperimentAssignment: vi.fn(),
   getAllowedTelegramUserIds: vi.fn(),
@@ -58,6 +60,7 @@ vi.mock('./daemon-store.js', () => ({
   getSocialQueueSnapshot: mocks.getSocialQueueSnapshot,
   latestPendingSocialPublishSchedule: vi.fn().mockResolvedValue(null),
   listPendingSocialPublishSchedules: mocks.listPendingSocialPublishSchedules,
+  listDueSocialPublishPlatforms: mocks.listDueSocialPublishPlatforms,
   listLearningSocialPosts: mocks.listLearningSocialPosts,
   listLearningSocialMetrics: mocks.listLearningSocialMetrics,
   listMetricWindowsForPosts: mocks.listMetricWindowsForPosts,
@@ -79,6 +82,7 @@ vi.mock('../services/db.js', () => ({
 }));
 vi.mock('./account-snapshots.js', () => ({
   captureDueAccountSnapshots: mocks.captureDueAccountSnapshots,
+  capturePrePublishAccountSnapshots: mocks.capturePrePublishAccountSnapshots,
 }));
 vi.mock('./publish-batch.js', () => ({
   publishSocialBatch: mocks.publishSocialBatch,

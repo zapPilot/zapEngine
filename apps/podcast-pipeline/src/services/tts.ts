@@ -1,11 +1,11 @@
 import { type LanguageClassroomLanguageCode } from '../types.js';
 import type { UsageCostLine } from './cost.js';
-import { applyFishAudioPricing } from './tts-pricing.js';
 import {
   getMetadata as getFishAudioMetadata,
   synthesize as synthesizeWithFishAudio,
 } from './tts/fish-audio.js';
 import { type FishAudioTtsConfig, getTtsConfig } from './tts/tts-config.js';
+import { applyFishAudioPricing } from './tts-pricing.js';
 
 export type { FishAudioTtsConfig } from './tts/tts-config.js';
 

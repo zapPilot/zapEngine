@@ -5,10 +5,12 @@ import { routePath } from 'hono/route';
 
 import type { SocialPerformanceResponse } from '../shared/types.js';
 import type { ControlCenterConfig } from './config/env.js';
+import { registerOpsMcpHttp } from './mcp/http.js';
 import { captureServerException } from './observability/sentry.js';
 import { createOperationsService } from './services/operations/aggregate.js';
 import { createOverviewService } from './services/overview.js';
 import { createPodcastCostService } from './services/podcast-costs.js';
+import { createSocialGrowthService } from './services/social-growth.js';
 
 const WINDOWS: SocialPerformanceResponse['window'][] = [
   'latest',
@@ -21,6 +23,7 @@ export function createControlCenterApp(input: {
   config: ControlCenterConfig;
   service?: ReturnType<typeof createOverviewService>;
   operations?: ReturnType<typeof createOperationsService>;
+  socialGrowth?: ReturnType<typeof createSocialGrowthService>;
   serveClient?: boolean;
   /**
    * Local operator processes may explicitly refresh provider cost snapshots.
@@ -37,6 +40,8 @@ export function createControlCenterApp(input: {
   // existing fake of it to grow methods its tests do not care about.
   const operations =
     input.operations ?? createOperationsService({ config: input.config });
+  const socialGrowth =
+    input.socialGrowth ?? createSocialGrowthService({ config: input.config });
 
   app.get('/api/overview', async (context) => {
     return context.json(await service.getOverview());
@@ -78,6 +83,9 @@ export function createControlCenterApp(input: {
       : 'latest';
     return context.json(await service.getSocial(window));
   });
+  app.get('/api/social-growth', async (context) => {
+    return context.json(await socialGrowth.getSocialGrowth(isForced(context)));
+  });
 
   app.get('/api/operations', async (context) => {
     return context.json(await operations.getOperations(isForced(context)));
@@ -87,6 +95,11 @@ export function createControlCenterApp(input: {
   });
   app.get('/api/customers', async (context) => {
     return context.json(await operations.getCustomers(isForced(context)));
+  });
+
+  registerOpsMcpHttp(app, {
+    operations,
+    token: input.config.OPS_MCP_TOKEN,
   });
 
   app.onError((error, context) => {
