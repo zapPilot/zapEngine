@@ -56,7 +56,7 @@
 }
 .home-disclosure-summary {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: baseline;
   gap: 16px;
   padding: 16px var(--pad);
