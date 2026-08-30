@@ -51,7 +51,9 @@ function banner(): HTMLElement {
 }
 
 function contextDisclosure(): HTMLDetailsElement {
-  return screen.getByText('More context').closest('details') as HTMLDetailsElement;
+  return screen
+    .getByText('More context')
+    .closest('details') as HTMLDetailsElement;
 }
 
 describe('HomeView', () => {
@@ -105,7 +107,9 @@ describe('HomeView', () => {
 
   it('shows only three business headlines before expansion', () => {
     renderHome();
-    const headlines = screen.getByRole('region', { name: 'Business headlines' });
+    const headlines = screen.getByRole('region', {
+      name: 'Business headlines',
+    });
     expect(within(headlines).getByText('Product')).toBeVisible();
     expect(within(headlines).getByText('Growth')).toBeVisible();
     expect(within(headlines).getByText('Spend')).toBeVisible();
