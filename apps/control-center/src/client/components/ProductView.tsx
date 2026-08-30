@@ -28,7 +28,10 @@ export function ProductView(props: {
 
   return (
     <div className="view-stack">
-      <section aria-label="Service decisions" className="metric-strip metric-strip-four">
+      <section
+        aria-label="Service decisions"
+        className="metric-strip metric-strip-four"
+      >
         <Metric
           label="Priority service"
           value={integer(summary?.priorityUsers)}
@@ -45,7 +48,11 @@ export function ProductView(props: {
         />
         <Metric
           label="Portfolio fresh <24h"
-          tone={freshnessRatio(product) !== null && freshnessRatio(product)! < 0.8 ? 'warning' : undefined}
+          tone={
+            freshnessRatio(product) !== null && freshnessRatio(product)! < 0.8
+              ? 'warning'
+              : undefined
+          }
           value={percent(freshnessRatio(product))}
         />
       </section>
@@ -94,8 +101,8 @@ export function ProductView(props: {
         <div className="panel-head">
           <h2>Accounts needing judgment</h2>
           <small className="panel-note">
-            Attention risks first, then AUM. Expand a row for plan, cost, refresh
-            policy, and wallet-level evidence.
+            Attention risks first, then AUM. Expand a row for plan, cost,
+            refresh policy, and wallet-level evidence.
           </small>
         </div>
         <div className="table-wrap">
@@ -316,7 +323,9 @@ function DetailLine(props: { label: string; value: string }) {
   );
 }
 
-function freshnessRatio(product: ProductHealthResponse | undefined): number | null {
+function freshnessRatio(
+  product: ProductHealthResponse | undefined,
+): number | null {
   if (
     product?.portfolioFresh24h === null ||
     product?.portfolioFresh24h === undefined ||
