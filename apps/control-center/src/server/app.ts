@@ -5,6 +5,7 @@ import { routePath } from 'hono/route';
 
 import type { SocialPerformanceResponse } from '../shared/types.js';
 import type { ControlCenterConfig } from './config/env.js';
+import { registerOpsMcpHttp } from './mcp/http.js';
 import { captureServerException } from './observability/sentry.js';
 import { createOperationsService } from './services/operations/aggregate.js';
 import { createOverviewService } from './services/overview.js';
@@ -94,6 +95,11 @@ export function createControlCenterApp(input: {
   });
   app.get('/api/customers', async (context) => {
     return context.json(await operations.getCustomers(isForced(context)));
+  });
+
+  registerOpsMcpHttp(app, {
+    operations,
+    token: input.config.OPS_MCP_TOKEN,
   });
 
   app.onError((error, context) => {
