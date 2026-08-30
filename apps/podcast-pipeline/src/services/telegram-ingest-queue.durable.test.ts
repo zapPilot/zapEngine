@@ -9,11 +9,13 @@ const mocks = vi.hoisted(() => ({
   perform: vi.fn(),
   send: vi.fn(),
   invalidate: vi.fn(),
+  capture: vi.fn(),
+  flush: vi.fn(async () => true),
 }));
 
 vi.mock('../observability/sentry.js', () => ({
-  capturePipelineException: vi.fn(),
-  flushSentry: vi.fn(async () => true),
+  capturePipelineException: mocks.capture,
+  flushSentry: mocks.flush,
 }));
 vi.mock('./post-ingest.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./post-ingest.js')>()),
@@ -69,6 +71,7 @@ function fakeStore(
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.send.mockResolvedValue(undefined);
+  mocks.flush.mockResolvedValue(true);
   mocks.perform.mockResolvedValue({
     ingest: { episode: { id: 'episode-1' } },
     videoJob: { status: 'queued' },
@@ -150,5 +153,40 @@ describe('durable Telegram ingest queue', () => {
         undefined,
       ),
     );
+  });
+
+  it('quarantines a poison recovered row before it can reach ingest', async () => {
+    const poison = {
+      ...row(),
+      source_url: null,
+    } as unknown as PodcastIngestJobRow;
+    const store = fakeStore({
+      claimNext: vi.fn(async () => poison),
+    });
+    const queue = createTelegramIngestQueue({
+      jobStore: store,
+      startRecoveryLoop: false,
+    });
+
+    await queue.recoverNow();
+
+    expect(mocks.perform).not.toHaveBeenCalled();
+    expect(store.finish).toHaveBeenCalledWith(
+      poison.id,
+      expect.any(String),
+      'failed',
+      expect.stringContaining('source_url must be a non-empty string'),
+    );
+    expect(mocks.capture).toHaveBeenCalledWith(
+      expect.any(Error),
+      expect.objectContaining({
+        component: 'ingest',
+        tags: expect.objectContaining({
+          entrypoint: 'telegram',
+          failure_kind: 'durable-job-contract',
+        }),
+      }),
+    );
+    expect(mocks.flush).toHaveBeenCalled();
   });
 });
