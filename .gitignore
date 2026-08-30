@@ -54,7 +54,6 @@ pnpm-debug.log*
 
 # Test & Coverage
 coverage/*
-!coverage/baseline.json
 coverage-html/
 coverage-summary/
 # Nested workspace coverage dirs (apps/*/coverage, packages/*/coverage, …)
@@ -89,6 +88,7 @@ support.js
 apps/analytics-engine/*.md
 !apps/analytics-engine/README.md
 !apps/analytics-engine/AGENTS.md
+!apps/analytics-engine/CLAUDE.md
 !apps/analytics-engine/GEMINI.md
 
 # podcast-pipeline & mobile credentials

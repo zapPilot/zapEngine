@@ -3,16 +3,14 @@
 Configured workspaces own an absolute coverage floor in `vitest.config.ts`
 (TypeScript) or `pyproject.toml` (Python). The separate GitHub `coverage` job
 runs every workspace's `test:coverage` script; configured floors fail locally,
-then the job publishes the reports available to the monorepo summary. The
-optional baseline comparison remains a manual no-regression tool.
+then the job publishes the reports available to the monorepo summary.
 
 ## Commands
 
 | Command                 | Purpose                                                                 |
 | ----------------------- | ----------------------------------------------------------------------- |
 | `pnpm coverage summary` | Run all coverage suites and write `coverage/summary.json`.              |
-| `pnpm coverage check`   | Run the summary, then compare it with committed `baseline.json`.        |
-| `pnpm coverage test`    | Unit-test `coverage-summary.ts` and `coverage-regression.ts`.           |
+| `pnpm coverage test`    | Unit-test `coverage-summary.ts`.                                        |
 | `pnpm test coverage`    | Run every workspace's `test:coverage` task without aggregating reports. |
 
 analytics-engine uses the configured database URLs when present and otherwise
@@ -62,18 +60,13 @@ PostgreSQL 15, uses the shared workspace setup action, and runs:
 
 ```bash
 pnpm run coverage test
-pnpm turbo run test:coverage
-pnpm exec tsx scripts/coverage-summary.ts
+pnpm run coverage summary
 ```
 
-The first command validates the aggregation and regression scripts. The Turbo
-run enforces the absolute workspace floors below. The final command creates the
-13-workspace aggregate. CI uploads `coverage/summary.json` for 30 days and
-per-workspace HTML reports for seven days.
-
-`scripts/coverage-regression.ts` is not part of the CI job. Baseline drift alone
-does not fail CI; use `pnpm coverage check` when a manual no-regression
-comparison is useful.
+The first command validates the aggregation script. The second runs
+`turbo run test:coverage`, which enforces the absolute workspace floors below,
+and then aggregates the 13 workspaces. CI uploads `coverage/summary.json` for
+30 days and per-workspace HTML reports for seven days.
 
 ## Per-workspace absolute floors
 
@@ -112,29 +105,3 @@ comparison is useful.
 Update this table whenever a workspace threshold changes. Ratchet floors upward
 only after sustained coverage improvements; do not lower them to conceal a
 regression.
-
-## Manual no-regression baseline
-
-`coverage/baseline.json` is the committed reference used only by
-`pnpm coverage check`. Do not regenerate it to make a failing change pass.
-Promote a new baseline only after the team agrees to ratchet it upward on
-`main`.
-
-```bash
-# 1. Supply optional external database URLs, if needed.
-# export DATABASE_READ_ONLY_URL="postgresql://...read-only..."
-# export DATABASE_INTEGRATION_URL=...
-# export TEST_DATABASE_URL=...
-
-# 2. Run the full sweep (reporters overwrite their workspace outputs).
-pnpm coverage summary
-
-# 3. Confirm all expected workspaces and inspect their metrics.
-jq '.workspaces | length' coverage/summary.json
-jq '.workspaces[] | {name, lines: .lines.pct}' coverage/summary.json
-
-# 4. Promote only an approved upward ratchet.
-cp coverage/summary.json coverage/baseline.json
-git add coverage/baseline.json
-git commit -m "chore(coverage): ratchet baseline to <date>"
-```

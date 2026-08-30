@@ -26,7 +26,7 @@ drifts.
 | `deploy-gates` | `bash scripts/check-dispatch-registry-drift.sh`; test `scripts/resolve-deploy-matrix.sh` with its documented env cases |
 | `ios-release-smoke` | `pnpm turbo run test:ios:release-smoke --filter=@zapengine/app` (macOS) |
 | `check-dead-env` | `pnpm lint dead-env` → **env-drift-ci-debugging** |
-| `coverage` | `pnpm run coverage test && pnpm turbo run test:coverage && pnpm exec tsx scripts/coverage-summary.ts` |
+| `coverage` | `pnpm run coverage test && pnpm run coverage summary` |
 
 `pnpm verify ci` / `pnpm verify parallel` cover only `quick-gates`,
 `code-quality`, `tests`, and `e2e`. Security, coverage, dead-env, deploy/Docker,

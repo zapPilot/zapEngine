@@ -419,7 +419,7 @@ jobs:
         run: pnpm run coverage test
 
       - name: Coverage summary (workspace thresholds)
-        run: pnpm turbo run test:coverage && pnpm exec tsx scripts/coverage-summary.ts
+        run: pnpm run coverage summary
 
       - name: Upload coverage summary artifact
         if: always()
