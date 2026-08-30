@@ -3,5 +3,11 @@
   "buildCommand": "cd ../.. && pnpm turbo build --filter=@zapengine/control-center",
   "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
   "outputDirectory": "dist/client",
-  "framework": null
+  "framework": null,
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "/api/index"
+    }
+  ]
 }
