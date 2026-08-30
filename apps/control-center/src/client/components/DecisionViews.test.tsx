@@ -265,7 +265,9 @@ describe('decision-first domain views', () => {
       .getByText('Signal evidence')
       .closest('details') as HTMLDetailsElement;
     expect(disclosure.open).toBe(false);
-    expect(screen.getByText('github-actions:workflow/healthy')).not.toBeVisible();
+    expect(
+      screen.getByText('github-actions:workflow/healthy'),
+    ).not.toBeVisible();
 
     fireEvent.click(screen.getByText('Signal evidence'));
     expect(screen.getByText('github-actions:workflow/healthy')).toBeVisible();
