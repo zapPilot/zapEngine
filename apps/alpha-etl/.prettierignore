@@ -1,0 +1,7 @@
+# prettier resolves .gitignore from its own CWD, so `prettier .` here
+# needs this list — the repo-root .gitignore never applies.
+dist
+coverage
+.turbo
+.jscpd
+*.tsbuildinfo
