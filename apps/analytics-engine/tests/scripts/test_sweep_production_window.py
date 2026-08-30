@@ -22,6 +22,10 @@ def _snapshot_with_roi(roi_percent: float, marker: str) -> dict[str, Any]:
     return {
         "default_strategy_id": "strategy-a",
         "marker": marker,
+        "reference_date": "2026-04-15",
+        "window_days": 500,
+        "total_capital": 10_000.0,
+        "tolerances": dict.fromkeys(METRIC_KEYS, 1.0),
         "strategies": {"strategy-a": {"roi_percent": roi_percent}},
     }
 
@@ -105,6 +109,8 @@ def _stub_main_dependencies(
     expected: dict[str, Any] | None = COMMITTED_FIXTURE,
     actual: dict[str, Any] = FRESH_SNAPSHOT,
     written: list[dict[str, Any]] | None = None,
+    drift_rows: list[Any] | None = None,
+    collection_requests: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     """Wire main() to fakes and record what it would have published.
 
@@ -124,14 +130,16 @@ def _stub_main_dependencies(
             expected,
         ),
     )
-    monkeypatch.setattr(
-        sweep_production_window,
-        "_collect_snapshot_result",
-        lambda **_: SnapshotCollection(
+
+    def collect(**kwargs: Any) -> SnapshotCollection:
+        if collection_requests is not None:
+            collection_requests.append(kwargs)
+        return SnapshotCollection(
             snapshot=actual,
             compare_payload={"timeline": [{"market": {"date": "2026-04-15"}}]},
-        ),
-    )
+        )
+
+    monkeypatch.setattr(sweep_production_window, "_collect_snapshot_result", collect)
     monkeypatch.setattr(
         sweep_production_window,
         "_regenerate_landing_equity_curve",
@@ -146,7 +154,11 @@ def _stub_main_dependencies(
             "--write-landing-curve must never touch the snapshot fixture"
         ),
     )
-    monkeypatch.setattr(sweep_production_window, "diff_snapshots", lambda **_: [])
+    monkeypatch.setattr(
+        sweep_production_window,
+        "diff_snapshots",
+        lambda **_: list(drift_rows or []),
+    )
     monkeypatch.setattr(sweep_production_window, "render_drift_table", lambda _: "")
     return regenerated
 
@@ -197,6 +209,8 @@ def _run_update_snapshot(
     expected: dict[str, Any] | None,
     actual: dict[str, Any],
     extra_args: list[str] | None = None,
+    drift_rows: list[Any] | None = None,
+    collection_requests: list[dict[str, Any]] | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     written: list[dict[str, Any]] = []
     regenerated = _stub_main_dependencies(
@@ -204,6 +218,8 @@ def _run_update_snapshot(
         expected=expected,
         actual=actual,
         written=written,
+        drift_rows=drift_rows,
+        collection_requests=collection_requests,
     )
     monkeypatch.setattr(
         "sys.argv",
@@ -232,13 +248,34 @@ def test_update_snapshot_publishes_an_ordinary_roi_move(
     assert [snapshot["marker"] for snapshot in written] == ["fresh"]
 
 
-def test_update_snapshot_refuses_a_rewritten_upstream_window(
+def test_update_snapshot_allows_a_large_move_when_committed_history_reproduces(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    collection_requests: list[dict[str, Any]] = []
+    regenerated, written = _run_update_snapshot(
+        monkeypatch,
+        expected=_snapshot_with_roi(10.0, "committed"),
+        actual=_snapshot_with_roi(24.75, "fresh"),
+        collection_requests=collection_requests,
+    )
+
+    sweep_production_window.main()
+
+    assert [snapshot["marker"] for snapshot in regenerated] == ["fresh"]
+    assert [snapshot["marker"] for snapshot in written] == ["fresh"]
+    assert len(collection_requests) == 2
+    assert collection_requests[1]["reference_date"] == date(2026, 4, 15)
+    assert collection_requests[1]["exclude_deprecated"] is True
+
+
+def test_update_snapshot_refuses_a_large_move_when_committed_history_drifts(
     monkeypatch: MonkeyPatch,
 ) -> None:
     regenerated, written = _run_update_snapshot(
         monkeypatch,
         expected=_snapshot_with_roi(10.0, "committed"),
         actual=_snapshot_with_roi(24.75, "fresh"),
+        drift_rows=[SimpleNamespace(status="DRIFT")],
     )
 
     with pytest.raises(SystemExit) as excinfo:

@@ -46,15 +46,21 @@ TRACK_RECORD_META_URL=file://$PWD/apps/landing-page/public/track-record-meta.jso
 
 Required or commonly used variables:
 
-- `TRACK_RECORD_CHAIN_IDS`
-- `TRACK_RECORD_RPC_URLS`
+- `TRACK_RECORD_RPC_URLS` as a JSON object keyed by chain ID; the snapshot's
+  sorted `chainIds` list is derived from these keys
 - `TRACK_RECORD_WALLET_ADDRESSES`
 - `TRACK_RECORD_TOKENS_JSON`
 - `TRACK_RECORD_PRICE_ORACLE_URL` or `TRACK_RECORD_PRICE_ORACLE_JSON`
 - `TRACK_RECORD_IPFS_PINATA_TOKEN`
 - `TRACK_RECORD_SIGNER_PRIVATE_KEY` for signed snapshots
 
-The generator reads balances, applies configured prices, computes NAV/performance, links `previousCid`, validates with `DailySnapshotSchema`, and signs when a private key is present. The publisher pins the validated snapshot and updates `apps/landing-page/public/track-record-meta.json`. The verifier checks schema, CID linkage, signature, signer, and performance calculations.
+Every token in `TRACK_RECORD_TOKENS_JSON` must reference a chain configured in
+`TRACK_RECORD_RPC_URLS`. The generator reads balances, applies configured
+prices, computes NAV/performance, links `previousCid`, validates with
+`DailySnapshotSchema`, and signs when a private key is present. The publisher
+pins the validated snapshot and updates
+`apps/landing-page/public/track-record-meta.json`. The verifier checks schema,
+CID linkage, signature, signer, and performance calculations.
 
 ## Failure handling
 

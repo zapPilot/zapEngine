@@ -46,7 +46,10 @@ jobs:
 
       - name: Regenerate landing market signals
         working-directory: apps/analytics-engine
-        run: uv run python scripts/landing/market_signals.py --days 365
+        run: |
+          uv run python scripts/landing/market_signals.py \
+            --days 365 \
+            --reference-date "$REFERENCE_DATE"
 
       - name: Sync landing strategy snapshot
         run: pnpm lint snapshot-sync --fix
