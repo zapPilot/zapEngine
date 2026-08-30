@@ -102,6 +102,33 @@ describe('createPodcastStorage sort direction', () => {
     expect(storedValues).toEqual(['oldest', 'newest']);
   });
 
+  it('waits for queued writes before loading the sort direction', async () => {
+    const writeGate = deferred();
+    let stored: string = 'newest';
+    const backend: PodcastKeyValueStorage = {
+      getItem: vi.fn(async () => stored),
+      setItem: vi.fn(async (_key, value) => {
+        await writeGate.promise;
+        stored = value;
+      }),
+    };
+    const storage = createPodcastStorage(backend);
+
+    const pendingWrite = storage.savePodcastSortDirection('oldest');
+    await Promise.resolve();
+
+    const pendingLoad = storage.loadPodcastSortDirection();
+    await Promise.resolve();
+    expect(backend.getItem).not.toHaveBeenCalled();
+
+    writeGate.resolve();
+    await pendingWrite;
+    await expect(pendingLoad).resolves.toBe('oldest');
+    expect(backend.getItem).toHaveBeenCalledWith(
+      PODCAST_SORT_DIRECTION_STORAGE_KEY,
+    );
+  });
+
   it('uses newest when backend reads reject', async () => {
     const storage = createPodcastStorage({
       getItem: async () => {
