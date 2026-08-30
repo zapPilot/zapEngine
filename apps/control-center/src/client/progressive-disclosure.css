@@ -1,7 +1,7 @@
 /*
  * Progressive-disclosure layer for the founder dashboard. The base stylesheet
  * still owns the visual system; this file only changes information density and
- * the open/closed treatment of Home and the ranked queue.
+ * the open/closed treatment of decision evidence.
  */
 
 .queue-summary {
@@ -13,7 +13,9 @@
   list-style: none;
 }
 .queue-summary::-webkit-details-marker,
-.home-disclosure-summary::-webkit-details-marker {
+.home-disclosure-summary::-webkit-details-marker,
+.decision-disclosure-summary::-webkit-details-marker,
+.podcast-episode-summary::-webkit-details-marker {
   display: none;
 }
 .queue-toggle {
@@ -51,10 +53,12 @@
   color: var(--ink);
 }
 
-.home-disclosure {
+.home-disclosure,
+.decision-disclosure {
   overflow: hidden;
 }
-.home-disclosure-summary {
+.home-disclosure-summary,
+.decision-disclosure-summary {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: baseline;
@@ -63,31 +67,67 @@
   cursor: pointer;
   list-style: none;
 }
-.home-disclosure-summary strong {
+.home-disclosure-summary strong,
+.decision-disclosure-summary strong {
   font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 500;
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
-.home-disclosure-summary span {
+.home-disclosure-summary span,
+.decision-disclosure-summary > span {
+  min-width: 0;
+}
+.home-disclosure-summary > span,
+.decision-disclosure-summary small {
   color: var(--ink-faint);
   font-size: 11.5px;
+}
+.decision-disclosure-summary > span {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 18px;
+}
+.decision-disclosure-summary small {
   text-align: right;
 }
-.home-disclosure-summary::after {
+.home-disclosure-summary::after,
+.decision-disclosure-summary::after {
   content: '+';
   grid-column: 3;
   color: var(--ink-faint);
   font-family: var(--font-mono);
   font-size: 14px;
 }
-.home-disclosure[open] .home-disclosure-summary {
+.home-disclosure[open] .home-disclosure-summary,
+.decision-disclosure[open] .decision-disclosure-summary {
   border-bottom: 1px solid var(--line);
 }
-.home-disclosure[open] .home-disclosure-summary::after {
+.home-disclosure[open] .home-disclosure-summary::after,
+.decision-disclosure[open] .decision-disclosure-summary::after {
   content: '−';
 }
+.decision-disclosure-body {
+  display: grid;
+}
+.disclosure-section {
+  min-width: 0;
+  border-top: 1px solid var(--line);
+}
+.disclosure-section:first-child {
+  border-top: 0;
+}
+.disclosure-grid,
+.evidence-stack {
+  padding: 0 var(--pad) var(--pad);
+}
+.evidence-stack {
+  display: grid;
+  gap: var(--gap);
+}
+
 .home-context-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -110,6 +150,240 @@
   text-transform: uppercase;
 }
 
+/* Decision metrics ---------------------------------------------------------*/
+
+.decision-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.decision-metric {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+  padding: 16px var(--pad) 18px;
+  background: var(--surface);
+}
+.decision-metric > span {
+  color: var(--ink-faint);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.decision-metric > strong {
+  font-family: var(--font-display);
+  font-size: clamp(23px, 2vw, 31px);
+  font-weight: 400;
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+}
+.decision-metric > small {
+  min-width: 0;
+  color: var(--ink-dim);
+  font-size: 11px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.warning-text {
+  color: var(--warning) !important;
+}
+.metric-strip-four {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.customers-table-compact {
+  min-width: 720px;
+}
+
+/* Economics ---------------------------------------------------------------*/
+
+.cost-driver-list {
+  display: grid;
+  padding: 6px var(--pad) 12px;
+}
+.cost-driver-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.8fr) minmax(160px, 2fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+.cost-driver-row:first-child {
+  border-top: 0;
+}
+.cost-driver-row > span:first-child {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.cost-driver-row > span:first-child strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 12.5px;
+  font-weight: 500;
+}
+.cost-driver-row small {
+  font-size: 9.5px;
+  white-space: nowrap;
+}
+.cost-driver-track,
+.podcast-cost-track {
+  display: block;
+  height: 5px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--surface-elevated);
+}
+.cost-driver-track i,
+.podcast-cost-track i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent-muted);
+}
+.cost-driver-row > strong {
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* Podcast unit economics --------------------------------------------------*/
+
+.podcast-episode-list {
+  display: grid;
+}
+.podcast-list-head,
+.podcast-episode-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 90px 90px 120px 18px;
+  align-items: center;
+  gap: 14px;
+}
+.podcast-list-head {
+  padding: 10px var(--pad);
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-faint);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.podcast-list-head span:first-child {
+  grid-column: 1;
+}
+.podcast-episode {
+  border-top: 1px solid var(--line);
+}
+.podcast-episode:first-of-type {
+  border-top: 0;
+}
+.podcast-episode-summary {
+  padding: 13px var(--pad);
+  cursor: pointer;
+  list-style: none;
+}
+.podcast-episode-summary:hover {
+  background: var(--surface-elevated);
+}
+.podcast-episode-summary::after {
+  content: '+';
+  color: var(--ink-faint);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  text-align: right;
+}
+.podcast-episode[open] .podcast-episode-summary::after {
+  content: '−';
+}
+.podcast-episode-title {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+.podcast-episode-title strong {
+  min-width: 0;
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.podcast-episode-title small {
+  color: var(--ink-faint);
+  font-size: 10px;
+}
+.podcast-total,
+.podcast-retry,
+.podcast-runs {
+  color: var(--ink-dim);
+  font-size: 10.5px;
+  text-align: right;
+}
+.podcast-total {
+  color: var(--ink);
+  font-weight: 600;
+}
+.podcast-cost-track {
+  grid-column: 1 / -1;
+  height: 3px;
+}
+.podcast-episode-detail {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.7fr) minmax(0, 1.6fr);
+  gap: 1px;
+  border-top: 1px solid var(--line);
+  background: var(--line);
+}
+.podcast-component-costs,
+.podcast-breakdown {
+  background: var(--bg);
+  padding: 15px var(--pad);
+}
+.podcast-component-costs {
+  display: grid;
+  gap: 10px;
+}
+.podcast-component-costs > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  color: var(--ink-dim);
+  font-size: 11.5px;
+}
+.podcast-component-costs span,
+.podcast-breakdown > strong {
+  color: var(--ink-faint);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.podcast-breakdown {
+  display: grid;
+  gap: 10px;
+}
+.podcast-breakdown-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.podcast-breakdown-items > span {
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  color: var(--ink-dim);
+  font-size: 10px;
+}
+.podcast-preview-note {
+  color: var(--ink-faint);
+  font-size: 10.5px;
+}
+
 @media (max-width: 1000px) {
   .home-context-grid {
     grid-template-columns: 1fr;
@@ -121,6 +395,51 @@
   .home-context-section:first-child {
     border-top: 0;
   }
+  .metric-strip-four {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .podcast-episode-detail {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .decision-metrics {
+    grid-template-columns: 1fr;
+  }
+  .podcast-list-head {
+    display: none;
+  }
+  .podcast-episode-summary {
+    grid-template-columns: minmax(0, 1fr) auto 18px;
+    gap: 8px 12px;
+  }
+  .podcast-total {
+    font-size: 12px;
+  }
+  .podcast-retry,
+  .podcast-runs {
+    grid-row: 2;
+    text-align: left;
+  }
+  .podcast-retry {
+    grid-column: 1;
+  }
+  .podcast-runs {
+    grid-column: 2;
+    text-align: right;
+  }
+  .podcast-cost-track {
+    grid-row: 3;
+  }
+  .cost-driver-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px 12px;
+  }
+  .cost-driver-track {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
 }
 
 @media (max-width: 640px) {
@@ -131,13 +450,22 @@
   .queue-summary {
     gap: 8px;
   }
-  .home-disclosure-summary {
+  .home-disclosure-summary,
+  .decision-disclosure-summary {
     grid-template-columns: 1fr auto;
   }
-  .home-disclosure-summary span {
+  .home-disclosure-summary > span,
+  .decision-disclosure-summary small {
     display: none;
   }
-  .home-disclosure-summary::after {
+  .decision-disclosure-summary > span {
+    display: block;
+  }
+  .home-disclosure-summary::after,
+  .decision-disclosure-summary::after {
     grid-column: 2;
+  }
+  .metric-strip-four {
+    grid-template-columns: 1fr;
   }
 }
