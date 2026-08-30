@@ -117,6 +117,18 @@ function createTestApp(
       getCustomers:
         operationsOverrides.getCustomers ??
         vi.fn().mockResolvedValue(customers),
+      inspectSignal:
+        operationsOverrides.inspectSignal ??
+        vi.fn().mockResolvedValue({
+          fingerprint: 'test',
+          source: null,
+          status: 'unsupported',
+          inspectedAt: new Date().toISOString(),
+          summary: 'unsupported',
+          entities: [],
+          evidence: {},
+          gaps: [],
+        }),
     },
     service: {
       getOverview: overrides.getOverview ?? vi.fn(async () => overview),

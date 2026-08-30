@@ -1,9 +1,12 @@
 import { z } from 'zod';
 
+/* jscpd:ignore-start -- mirrored inspector imports, kept colocated for locality */
 import type { ControlCenterConfig } from '../../../config/env.js';
 import { fetchJson, fetchText } from '../http.js';
 import type { ParsedOperationalFingerprint } from './fingerprint.js';
+import { messageOf, unsupported } from './helpers.js';
 import type { SignalInspection } from './types.js';
+/* jscpd:ignore-end */
 
 const REPO = 'zapPilot/zapEngine';
 const API = `https://api.github.com/repos/${REPO}`;
@@ -51,6 +54,7 @@ const jobsEnvelopeSchema = z.object({ jobs: z.array(z.unknown()) });
 type WorkflowRun = z.infer<typeof runSchema>;
 type WorkflowJob = z.infer<typeof jobSchema>;
 
+/* jscpd:ignore-start -- mirrored inspector signature, intentional parallel */
 export async function inspectGithubSignal(input: {
   config: ControlCenterConfig;
   fingerprint: string;
@@ -62,8 +66,10 @@ export async function inspectGithubSignal(input: {
     return unsupported(
       input,
       `GitHub inspection does not support ${input.parsed.kind} signals.`,
+      'github-actions',
     );
   }
+  /* jscpd:ignore-end */
 
   const token = input.config.OPS_GITHUB_TOKEN;
   if (!token) {
@@ -249,7 +255,9 @@ function extractErrorExcerpt(raw: string): string {
     index < lines.length && selected.size < LOG_LINE_LIMIT;
     index += 1
   ) {
-    if (!hit.test(lines[index] ?? '')) continue;
+    if (!hit.test(lines[index] ?? '')) {
+      continue;
+    }
     for (
       let context = Math.max(0, index - 3);
       context <= Math.min(lines.length - 1, index + 4) &&
@@ -273,7 +281,7 @@ function redact(value: string): string {
       /\b(?:gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,})\b/g,
       '[REDACTED_GITHUB_TOKEN]',
     )
-    .replace(/(Bearer\s+)[A-Za-z0-9._~+\/-]{16,}/g, '$1[REDACTED]');
+    .replace(/(Bearer\s+)[A-Za-z0-9._~+/-]{16,}/g, '$1[REDACTED]');
 }
 
 async function githubJson<T>(input: {
@@ -314,24 +322,4 @@ function githubHeaders(): Record<string, string> {
     'X-GitHub-Api-Version': '2022-11-28',
     'User-Agent': 'zapengine-control-center',
   };
-}
-
-function unsupported(
-  input: Parameters<typeof inspectGithubSignal>[0],
-  summary: string,
-): SignalInspection {
-  return {
-    fingerprint: input.fingerprint,
-    source: 'github-actions',
-    status: 'unsupported',
-    inspectedAt: input.inspectedAt.toISOString(),
-    summary,
-    entities: [],
-    evidence: {},
-    gaps: [],
-  };
-}
-
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

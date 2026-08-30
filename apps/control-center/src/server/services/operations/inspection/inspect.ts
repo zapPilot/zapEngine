@@ -18,6 +18,7 @@ export async function inspectOperationalSignal(input: {
       source: null,
       status: 'unsupported',
       inspectedAt: inspectedAt.toISOString(),
+      // eslint-disable-next-line no-template-curly-in-string
       summary: 'Fingerprint is not in `${source}:${kind}/${key}` form.',
       entities: [],
       evidence: {},

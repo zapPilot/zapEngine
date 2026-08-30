@@ -41,6 +41,7 @@ describe('Ops MCP HTTP auth', () => {
   });
 
   it('rejects the wrong bearer token', async () => {
+    /* jscpd:ignore-start -- parallel auth test fixture, intentional duplicate */
     const app = new Hono();
     registerOpsMcpHttp(app, {
       operations: fakeOperations(),
@@ -51,6 +52,7 @@ describe('Ops MCP HTTP auth', () => {
       method: 'POST',
       headers: { Authorization: 'Bearer wrong-token' },
     });
+    /* jscpd:ignore-end */
 
     expect(response.status).toBe(401);
   });

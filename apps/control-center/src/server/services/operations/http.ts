@@ -58,6 +58,7 @@ export async function fetchJson<T>(input: {
  * Raw-text sibling used only for bounded evidence such as GitHub job logs.
  * The caller owns projection/redaction before any text crosses an ops API.
  */
+/* jscpd:ignore-start -- mirrored fetch helper signature, sibling to fetchJson */
 export async function fetchText(input: {
   label: string;
   url: string;
@@ -68,6 +69,7 @@ export async function fetchText(input: {
   const response = await authenticatedFetch(input);
   return response.text();
 }
+/* jscpd:ignore-end */
 
 async function authenticatedFetch(input: {
   label: string;

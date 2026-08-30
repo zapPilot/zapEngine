@@ -66,7 +66,9 @@ export function createPodcastCostService(input: {
           .not('episode_id', 'is', null)
           .order('started_at', { ascending: false })
           .limit(RUN_LIMIT);
-        if (runError) throw runError;
+        if (runError) {
+          throw runError;
+        }
 
         const runs = (runData ?? []) as PipelineRunRow[];
         if (runs.length === 0) {
@@ -95,8 +97,12 @@ export function createPodcastCostService(input: {
             .select('id,source_title')
             .in('id', recentEpisodeIds),
         ]);
-        if (stageError) throw stageError;
-        if (episodeError) throw episodeError;
+        if (stageError) {
+          throw stageError;
+        }
+        if (episodeError) {
+          throw episodeError;
+        }
 
         const titles = new Map(
           ((episodeData ?? []) as EpisodeRow[]).map((row) => [
@@ -143,7 +149,9 @@ export function summarizePodcastCosts(
   >();
 
   for (const run of runs) {
-    if (!run.episode_id) continue;
+    if (!run.episode_id) {
+      continue;
+    }
     const current = summaries.get(run.episode_id) ?? {
       episodeId: run.episode_id,
       title: titles.get(run.episode_id) ?? null,
@@ -159,24 +167,34 @@ export function summarizePodcastCosts(
       breakdownMap: new Map<string, PodcastCostBreakdown>(),
     };
     current.runCount += 1;
-    if (run.status === 'failed') current.failedRuns += 1;
-    if (run.started_at > current.lastRunAt) current.lastRunAt = run.started_at;
+    if (run.status === 'failed') {
+      current.failedRuns += 1;
+    }
+    if (run.started_at > current.lastRunAt) {
+      current.lastRunAt = run.started_at;
+    }
     summaries.set(run.episode_id, current);
   }
 
   for (const stage of stages) {
     const run = runById.get(stage.run_id);
     const episodeId = stage.episode_id ?? run?.episode_id ?? null;
-    if (!run || !episodeId) continue;
+    if (!run || !episodeId) {
+      continue;
+    }
     const summary = summaries.get(episodeId);
-    if (!summary) continue;
+    if (!summary) {
+      continue;
+    }
 
     if (stage.estimated_cost_usd === null) {
       summary.unpricedStages += 1;
       continue;
     }
     const costUsd = Number(stage.estimated_cost_usd);
-    if (!Number.isFinite(costUsd)) continue;
+    if (!Number.isFinite(costUsd)) {
+      continue;
+    }
 
     summary.totalCostUsd += costUsd;
     if (run.pipeline === 'ingest') {
