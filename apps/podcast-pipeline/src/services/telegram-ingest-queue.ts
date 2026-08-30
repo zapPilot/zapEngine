@@ -1,3 +1,6 @@
+import { randomUUID } from 'node:crypto';
+
+import { errorMessage } from '../lib/errorMessage.js';
 import {
   capturePipelineException,
   flushSentry,
@@ -5,6 +8,11 @@ import {
 import type { LanguageClassroomLanguageCode } from '../types.js';
 import { buildIngestSummaryFromResult } from './cost.js';
 import { invalidateEpisodeSearchCache } from './episode-search.js';
+import {
+  type PodcastIngestJobRow,
+  type PodcastIngestJobStore,
+  podcastIngestJobStore,
+} from './ingest-jobs.js';
 import { failedStepName } from './ingest/step.js';
 import {
   failedIngestRunContext,
@@ -25,9 +33,19 @@ import {
   TELEGRAM_UNSUPPORTED_SOURCE_TEXT,
 } from './telegram-source.js';
 
+const INGEST_LEASE_SECONDS = 120;
+const INGEST_HEARTBEAT_MS = 30_000;
+const INGEST_RECOVERY_MS = 30_000;
+
 interface InflightTelegramIngest {
   latestChatId: TelegramChatId;
   promise: Promise<void>;
+  durableJobId?: string;
+}
+
+interface TelegramIngestQueueOptions {
+  jobStore?: PodcastIngestJobStore | null;
+  startRecoveryLoop?: boolean;
 }
 
 export interface TelegramIngestQueue {
@@ -37,6 +55,7 @@ export interface TelegramIngestQueue {
     languageCode: LanguageClassroomLanguageCode,
   ): void;
   scheduleMessage(chatId: TelegramChatId, text: string): void;
+  recoverNow(): Promise<void>;
 }
 
 function sourceHost(url: string): string | undefined {
@@ -47,20 +66,73 @@ function sourceHost(url: string): string | undefined {
   }
 }
 
+function queueKey(url: string, languageCode: LanguageClassroomLanguageCode) {
+  return `${languageCode}:${url}`;
+}
+
 function scheduleMessage(chatId: TelegramChatId, text: string): void {
   process.nextTick(() => {
     void sendTelegramNotification(chatId, text);
   });
 }
 
-export function createTelegramIngestQueue(): TelegramIngestQueue {
+export function createTelegramIngestQueue(
+  options: TelegramIngestQueueOptions = {},
+): TelegramIngestQueue {
   const inflightIngests = new Map<string, InflightTelegramIngest>();
+  const owner = randomUUID();
+  const jobStore =
+    options.jobStore === undefined
+      ? process.env['NODE_ENV'] === 'test'
+        ? null
+        : podcastIngestJobStore
+      : options.jobStore;
+  let recovering = false;
+
+  async function finishDurableJob(
+    jobId: string | undefined,
+    status: 'completed' | 'failed',
+    error?: unknown,
+  ): Promise<void> {
+    if (!jobStore || !jobId) return;
+    try {
+      await jobStore.finish(
+        jobId,
+        owner,
+        status,
+        status === 'failed' ? errorMessage(error) : undefined,
+      );
+    } catch (finishError) {
+      console.error('[telegram-ingest-queue] durable job finish failed', {
+        jobId,
+        status,
+        error: errorMessage(finishError),
+      });
+    }
+  }
+
+  function startHeartbeat(jobId: string | undefined) {
+    if (!jobStore || !jobId) return null;
+    const timer = setInterval(() => {
+      void jobStore
+        .renew(jobId, owner, INGEST_LEASE_SECONDS)
+        .catch((error) =>
+          console.error('[telegram-ingest-queue] lease renew failed', {
+            jobId,
+            error: errorMessage(error),
+          }),
+        );
+    }, INGEST_HEARTBEAT_MS);
+    timer.unref();
+    return timer;
+  }
 
   async function runIngest(
     inflight: InflightTelegramIngest,
     url: string,
     languageCode: LanguageClassroomLanguageCode,
   ): Promise<void> {
+    const heartbeat = startHeartbeat(inflight.durableJobId);
     await sendTelegramNotification(inflight.latestChatId, TELEGRAM_START_TEXT);
 
     try {
@@ -76,6 +148,7 @@ export function createTelegramIngestQueue(): TelegramIngestQueue {
       } else if (videoJob.status === 'completed') {
         videoLifecycle = 'completed';
       }
+      await finishDurableJob(inflight.durableJobId, 'completed');
       await sendTelegramNotification(
         inflight.latestChatId,
         buildTelegramAudioReadyMessage(
@@ -85,10 +158,6 @@ export function createTelegramIngestQueue(): TelegramIngestQueue {
         ),
       );
     } catch (error) {
-      // The terminal boundary for background ingest. Nothing rethrows past this
-      // point — the submitter gets a Telegram notice instead — so this is the
-      // only place a failed episode can become a Sentry event. Transient
-      // failures that a step recovered from deliberately do not reach here.
       capturePipelineException(error, {
         component: 'ingest',
         tags: {
@@ -102,15 +171,15 @@ export function createTelegramIngestQueue(): TelegramIngestQueue {
           ...failedIngestRunContext(error),
         },
       });
-      // This process is long-lived, so nothing else ever drains the queue. A
-      // deploy or a crash between here and the next event loses the only
-      // record of a failure the submitter was already told about.
+      await finishDurableJob(inflight.durableJobId, 'failed', error);
       await flushSentry();
       await sendTelegramNotification(
         inflight.latestChatId,
         buildTelegramFailureMessage(error, url),
         { replyMarkup: TELEGRAM_RETRY_REPLY_MARKUP },
       );
+    } finally {
+      if (heartbeat) clearInterval(heartbeat);
     }
   }
 
@@ -128,15 +197,84 @@ export function createTelegramIngestQueue(): TelegramIngestQueue {
   }
 
   async function clearWhenDone(
-    url: string,
+    key: string,
     inflight: InflightTelegramIngest,
   ): Promise<void> {
     try {
       await inflight.promise;
     } finally {
-      if (inflightIngests.get(url) === inflight) {
-        inflightIngests.delete(url);
+      if (inflightIngests.get(key) === inflight) {
+        inflightIngests.delete(key);
       }
+    }
+  }
+
+  function startLocalJob(
+    chatId: TelegramChatId,
+    url: string,
+    languageCode: LanguageClassroomLanguageCode,
+    durableJobId?: string,
+  ): void {
+    const key = queueKey(url, languageCode);
+    const existing = inflightIngests.get(key);
+    if (existing) {
+      existing.latestChatId = chatId;
+      scheduleMessage(chatId, TELEGRAM_INFLIGHT_TEXT);
+      return;
+    }
+
+    const inflight: InflightTelegramIngest = {
+      latestChatId: chatId,
+      promise: Promise.resolve(),
+      durableJobId,
+    };
+    const job = new Promise<void>((resolve) => {
+      process.nextTick(() => {
+        void runIngestJob(inflight, url, languageCode, resolve);
+      });
+    });
+
+    inflight.promise = job;
+    inflightIngests.set(key, inflight);
+    void clearWhenDone(key, inflight);
+  }
+
+  async function persistClaimAndStart(
+    chatId: TelegramChatId,
+    url: string,
+    languageCode: LanguageClassroomLanguageCode,
+  ): Promise<void> {
+    if (!jobStore) {
+      startLocalJob(chatId, url, languageCode);
+      return;
+    }
+
+    try {
+      const queued = await jobStore.enqueue({ chatId, url, languageCode });
+      const claimed = await jobStore.claim(
+        queued.id,
+        owner,
+        INGEST_LEASE_SECONDS,
+      );
+      if (!claimed) {
+        scheduleMessage(chatId, TELEGRAM_INFLIGHT_TEXT);
+        return;
+      }
+      startLocalJob(
+        claimed.telegram_chat_id,
+        claimed.source_url,
+        claimed.language_code,
+        claimed.id,
+      );
+    } catch (error) {
+      // Persistence is a recovery aid, not a reason to reject a user request.
+      // If Supabase is briefly unavailable the existing resumable ingest path
+      // still works exactly as before; it simply loses automatic crash pickup.
+      console.error('[telegram-ingest-queue] durable enqueue failed', {
+        url,
+        error: errorMessage(error),
+      });
+      startLocalJob(chatId, url, languageCode);
     }
   }
 
@@ -150,27 +288,66 @@ export function createTelegramIngestQueue(): TelegramIngestQueue {
       return;
     }
 
-    const existing = inflightIngests.get(url);
+    const existing = inflightIngests.get(queueKey(url, languageCode));
     if (existing) {
       existing.latestChatId = chatId;
+      if (jobStore) {
+        void jobStore
+          .enqueue({ chatId, url, languageCode })
+          .catch((error) =>
+            console.error('[telegram-ingest-queue] chat refresh failed', {
+              url,
+              error: errorMessage(error),
+            }),
+          );
+      }
       scheduleMessage(chatId, TELEGRAM_INFLIGHT_TEXT);
       return;
     }
 
-    const inflight: InflightTelegramIngest = {
-      latestChatId: chatId,
-      promise: Promise.resolve(),
-    };
-    const job = new Promise<void>((resolve) => {
-      process.nextTick(() => {
-        void runIngestJob(inflight, url, languageCode, resolve);
-      });
+    process.nextTick(() => {
+      void persistClaimAndStart(chatId, url, languageCode);
     });
-
-    inflight.promise = job;
-    inflightIngests.set(url, inflight);
-    void clearWhenDone(url, inflight);
   }
 
-  return { enqueue, scheduleMessage };
+  async function startRecoveredJob(job: PodcastIngestJobRow): Promise<void> {
+    const key = queueKey(job.source_url, job.language_code);
+    const existing = inflightIngests.get(key);
+    if (existing) {
+      existing.latestChatId = job.telegram_chat_id;
+      return;
+    }
+    startLocalJob(
+      job.telegram_chat_id,
+      job.source_url,
+      job.language_code,
+      job.id,
+    );
+  }
+
+  async function recoverNow(): Promise<void> {
+    if (!jobStore || recovering) return;
+    recovering = true;
+    try {
+      const job = await jobStore.claimNext(owner, INGEST_LEASE_SECONDS);
+      if (job) await startRecoveredJob(job);
+    } catch (error) {
+      console.error('[telegram-ingest-queue] recovery scan failed', {
+        error: errorMessage(error),
+      });
+    } finally {
+      recovering = false;
+    }
+  }
+
+  const shouldStartRecovery =
+    jobStore !== null &&
+    (options.startRecoveryLoop ?? process.env['NODE_ENV'] !== 'test');
+  if (shouldStartRecovery) {
+    process.nextTick(() => void recoverNow());
+    const recoveryTimer = setInterval(() => void recoverNow(), INGEST_RECOVERY_MS);
+    recoveryTimer.unref();
+  }
+
+  return { enqueue, scheduleMessage, recoverNow };
 }
