@@ -3,6 +3,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { getTelegramBotToken, trimTrailingSlash } from '../lib/env.js';
 import { errorMessage } from '../lib/errorMessage.js';
 import { isRecord } from '../lib/typeGuards.js';
+import { capturePipelineException } from '../observability/sentry.js';
 import type { LanguageClassroomLanguageCode } from '../types.js';
 
 export type TelegramChatId = number | string;
@@ -141,6 +142,26 @@ export function buildSocialReleaseFailedMessage(detail: string): string {
   ].join('\n');
 }
 
+async function telegramApiError(
+  operation: 'sendMessage' | 'answerCallbackQuery',
+  response: Response,
+): Promise<Error> {
+  let description: string | undefined;
+  try {
+    const body: unknown = await response.json();
+    if (isRecord(body) && typeof body['description'] === 'string') {
+      description = publicTelegramErrorMessage(body['description']);
+    }
+  } catch {
+    // Telegram can fail through a proxy or transport that does not preserve its
+    // JSON error body. Keep the status-only fallback in that case.
+  }
+
+  return new Error(
+    `Telegram ${operation} failed: ${response.status}${description ? ` ${description}` : ''}`,
+  );
+}
+
 export async function sendMessage(
   chatId: TelegramChatId,
   text: string,
@@ -163,7 +184,7 @@ export async function sendMessage(
   );
 
   if (!response.ok) {
-    throw new Error(`Telegram sendMessage failed: ${response.status}`);
+    throw await telegramApiError('sendMessage', response);
   }
 }
 
@@ -293,6 +314,10 @@ export async function sendTelegramNotification(
     console.error('[/telegram/webhook] sendMessage failed:', {
       message: errorMessage(error),
     });
+    capturePipelineException(error, {
+      component: 'telegram',
+      tags: { operation: 'sendMessage' },
+    });
   }
 }
 
@@ -316,13 +341,15 @@ export async function answerTelegramCallbackQuery(
       },
     );
     if (!response.ok) {
-      throw new Error(
-        `Telegram answerCallbackQuery failed: ${response.status}`,
-      );
+      throw await telegramApiError('answerCallbackQuery', response);
     }
   } catch (error) {
     console.error('[/telegram/webhook] answerCallbackQuery failed:', {
       message: errorMessage(error),
+    });
+    capturePipelineException(error, {
+      component: 'telegram',
+      tags: { operation: 'answerCallbackQuery' },
     });
   }
 }
