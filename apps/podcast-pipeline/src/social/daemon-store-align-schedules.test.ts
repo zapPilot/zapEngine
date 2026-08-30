@@ -8,15 +8,9 @@ interface PendingJob {
   next_attempt_at: string;
 }
 
-interface UpdateRecord {
-  id: string | undefined;
-  status: string | undefined;
-  patch: Record<string, unknown>;
-}
-
 const state = vi.hoisted(() => ({
   jobs: [] as PendingJob[],
-  updates: [] as UpdateRecord[],
+  updates: [] as AlignmentUpdateRecord[],
   updateResults: [] as boolean[],
 }));
 
@@ -30,49 +24,32 @@ const supabaseMocks = vi.hoisted(() => ({
 vi.mock('../services/supabase-client.js', () => supabaseMocks);
 
 import { alignPendingSocialPublishSchedules } from './daemon-store.js';
+import {
+  type AlignmentUpdateRecord,
+  createAlignmentReadFixture,
+  createAlignmentUpdateFixture,
+} from './daemon-store-align-schedules.test-helper.js';
 
 const NOW = new Date('2026-08-19T00:00:00.000Z');
 
-function createSelectBuilder() {
-  const returns = vi.fn(async () => ({ data: state.jobs, error: null }));
-  const inFilter = vi.fn(() => ({ returns }));
-  return vi.fn(() => ({ in: inFilter }));
-}
-
-function createUpdateBuilder(patch: Record<string, unknown>) {
-  let id: string | undefined;
-  let status: string | undefined;
-
-  const maybeSingle = vi.fn(async () => {
-    state.updates.push({ id, status, patch });
-    const updated = state.updateResults.shift() ?? true;
-    return { data: updated && id ? { id } : null, error: null };
-  });
-  const select = vi.fn(() => ({ maybeSingle }));
-  const builder = {
-    eq(field: string, value: string) {
-      if (field === 'id') id = value;
-      if (field === 'status') status = value;
-      return builder;
-    },
-    select,
-  };
-  return builder;
-}
-
 function createSupabaseClient() {
-  const select = createSelectBuilder();
-  const update = vi.fn((patch: Record<string, unknown>) =>
-    createUpdateBuilder(patch),
-  );
-  const from = vi.fn(() => ({ select, update }));
-  return { from };
+  const mutation = createAlignmentUpdateFixture((record) => {
+    const updated = state.updateResults.shift() ?? true;
+    return {
+      data: updated && record.id ? { id: record.id } : null,
+      error: null,
+    };
+  });
+  state.updates = mutation.updates;
+  return createAlignmentReadFixture<PendingJob>(
+    () => ({ data: state.jobs, error: null }),
+    mutation.update,
+  ).client;
 }
 
 describe('alignPendingSocialPublishSchedules', () => {
   beforeEach(() => {
     state.jobs = [];
-    state.updates = [];
     state.updateResults = [];
     supabaseMocks.getPipelineSupabase.mockReturnValue(createSupabaseClient());
   });

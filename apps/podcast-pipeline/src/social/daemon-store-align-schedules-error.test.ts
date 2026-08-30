@@ -10,6 +10,7 @@ const supabase = vi.hoisted(() => ({
 vi.mock('../services/supabase-client.js', () => supabase);
 
 import { alignPendingSocialPublishSchedules } from './daemon-store.js';
+import { createAlignmentReadFixture } from './daemon-store-align-schedules.test-helper.js';
 
 const NOW = new Date('2026-08-19T00:00:00.000Z');
 
@@ -80,14 +81,9 @@ describe('alignPendingSocialPublishSchedules update failures', () => {
       };
       return builder;
     });
-    const select = vi.fn(() => ({
-      in: vi.fn(() => ({
-        returns: vi.fn(async () => ({ data: jobs, error: null })),
-      })),
-    }));
-    supabase.getPipelineSupabase.mockReturnValue({
-      from: vi.fn(() => ({ select, update })),
-    });
+    supabase.getPipelineSupabase.mockReturnValue(
+      createAlignmentReadFixture({ data: jobs, error: null }, update).client,
+    );
 
     await expect(alignPendingSocialPublishSchedules(NOW)).rejects.toBe(
       databaseError,
@@ -176,14 +172,9 @@ describe('alignPendingSocialPublishSchedules update failures', () => {
       };
       return builder;
     });
-    const select = vi.fn(() => ({
-      in: vi.fn(() => ({
-        returns: vi.fn(async () => ({ data: jobs, error: null })),
-      })),
-    }));
-    supabase.getPipelineSupabase.mockReturnValue({
-      from: vi.fn(() => ({ select, update })),
-    });
+    supabase.getPipelineSupabase.mockReturnValue(
+      createAlignmentReadFixture({ data: jobs, error: null }, update).client,
+    );
 
     await expect(alignPendingSocialPublishSchedules(NOW)).rejects.toBe(
       databaseError,
@@ -240,20 +231,15 @@ describe('alignPendingSocialPublishSchedules update failures', () => {
       };
       return builder;
     });
-    const select = vi.fn(() => ({
-      in: vi.fn(() => ({
-        returns: vi.fn(async () => {
-          if (failListOnce) {
-            failListOnce = false;
-            return { data: null, error: databaseError };
-          }
-          return { data: jobs, error: null };
-        }),
-      })),
-    }));
-    supabase.getPipelineSupabase.mockReturnValue({
-      from: vi.fn(() => ({ select, update })),
-    });
+    supabase.getPipelineSupabase.mockReturnValue(
+      createAlignmentReadFixture(async () => {
+        if (failListOnce) {
+          failListOnce = false;
+          return { data: null, error: databaseError };
+        }
+        return { data: jobs, error: null };
+      }, update).client,
+    );
 
     await expect(alignPendingSocialPublishSchedules(NOW)).rejects.toBe(
       databaseError,
@@ -316,20 +302,15 @@ describe('alignPendingSocialPublishSchedules update failures', () => {
       };
       return builder;
     });
-    const select = vi.fn(() => ({
-      in: vi.fn(() => ({
-        returns: vi.fn(async () => {
-          listAttempt += 1;
-          if (listAttempt === 1) {
-            return { data: firstSnapshot, error: databaseError };
-          }
-          return { data: recoveredSnapshot, error: null };
-        }),
-      })),
-    }));
-    supabase.getPipelineSupabase.mockReturnValue({
-      from: vi.fn(() => ({ select, update })),
-    });
+    supabase.getPipelineSupabase.mockReturnValue(
+      createAlignmentReadFixture(async () => {
+        listAttempt += 1;
+        if (listAttempt === 1) {
+          return { data: firstSnapshot, error: databaseError };
+        }
+        return { data: recoveredSnapshot, error: null };
+      }, update).client,
+    );
 
     await expect(alignPendingSocialPublishSchedules(NOW)).rejects.toBe(
       databaseError,

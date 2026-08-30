@@ -8,15 +8,9 @@ interface CohortJob {
   next_attempt_at: string;
 }
 
-interface UpdateRecord {
-  id: string | undefined;
-  status: string | undefined;
-  patch: Record<string, unknown>;
-}
-
 const state = vi.hoisted(() => ({
   jobs: [] as CohortJob[],
-  updates: [] as UpdateRecord[],
+  updates: [] as AlignmentUpdateRecord[],
 }));
 
 const supabaseMocks = vi.hoisted(() => ({
@@ -29,42 +23,21 @@ const supabaseMocks = vi.hoisted(() => ({
 vi.mock('../services/supabase-client.js', () => supabaseMocks);
 
 import { alignPendingSocialPublishSchedules } from './daemon-store.js';
-
-function createSelectBuilder() {
-  const returns = vi.fn(async () => ({ data: state.jobs, error: null }));
-  const inFilter = vi.fn(() => ({ returns }));
-  return vi.fn(() => ({ in: inFilter }));
-}
-
-function createUpdateBuilder(patch: Record<string, unknown>) {
-  let id: string | undefined;
-  let status: string | undefined;
-  const maybeSingle = vi.fn(async () => {
-    state.updates.push({ id, status, patch });
-    return { data: id ? { id } : null, error: null };
-  });
-  const select = vi.fn(() => ({ maybeSingle }));
-  const builder = {
-    eq(field: string, value: string) {
-      if (field === 'id') id = value;
-      if (field === 'status') status = value;
-      return builder;
-    },
-    select,
-  };
-  return builder;
-}
+import {
+  type AlignmentUpdateRecord,
+  createAlignmentReadFixture,
+  createAlignmentUpdateFixture,
+} from './daemon-store-align-schedules.test-helper.js';
 
 function installFixture(jobs: CohortJob[]): void {
   state.jobs = jobs;
-  state.updates = [];
-  const select = createSelectBuilder();
-  const update = vi.fn((patch: Record<string, unknown>) =>
-    createUpdateBuilder(patch),
+  const mutation = createAlignmentUpdateFixture();
+  state.updates = mutation.updates;
+  const fixture = createAlignmentReadFixture<CohortJob>(
+    () => ({ data: state.jobs, error: null }),
+    mutation.update,
   );
-  supabaseMocks.getPipelineSupabase.mockReturnValue({
-    from: vi.fn(() => ({ select, update })),
-  });
+  supabaseMocks.getPipelineSupabase.mockReturnValue(fixture.client);
 }
 
 const NOW = new Date('2026-08-26T00:00:00.000Z');
