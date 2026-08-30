@@ -1,3 +1,5 @@
+import { useState } from 'react';
+
 import type { OperationalPriority } from '../../shared/types.js';
 import { relativeTime, statusLabel } from '../format.js';
 
@@ -32,21 +34,30 @@ export function PriorityQueue(props: {
 
 function QueueRow({ priority }: { priority: OperationalPriority }) {
   const { signal } = priority;
+  const [open, setOpen] = useState(false);
   return (
     <li className={`queue-row ${signal.status}`}>
       <div className="queue-score">
         <strong>{priority.score}</strong>
         <span>{statusLabel(signal.status)}</span>
       </div>
-      <details className="queue-body">
-        <summary className="queue-summary">
+      <details className="queue-body" open={open}>
+        <summary
+          className="queue-summary"
+          onClick={(event) => {
+            event.preventDefault();
+            setOpen((value) => !value);
+          }}
+        >
           <span className="queue-title">{signal.title}</span>
           <span aria-hidden="true" className="queue-toggle">
             Details
           </span>
         </summary>
         <div className="queue-expanded">
-          {signal.detail ? <p className="queue-detail">{signal.detail}</p> : null}
+          {signal.detail ? (
+            <p className="queue-detail">{signal.detail}</p>
+          ) : null}
           <p className="queue-meta">
             {signal.source} · seen {relativeTime(signal.observedAt)}
           </p>
@@ -59,7 +70,7 @@ function QueueRow({ priority }: { priority: OperationalPriority }) {
               ))}
             </div>
           ) : null}
-          {signal.url ? (
+          {signal.url && open ? (
             <a
               className="queue-source-link"
               href={signal.url}
