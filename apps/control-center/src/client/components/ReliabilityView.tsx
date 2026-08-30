@@ -94,7 +94,10 @@ function DomainChip({ domain }: { domain: OperationsDomainSummary }) {
   );
 }
 
-function SignalTable(props: { signals: OperationalSignal[]; waiting: boolean }) {
+function SignalTable(props: {
+  signals: OperationalSignal[];
+  waiting: boolean;
+}) {
   return (
     <div className="table-wrap">
       <table className="data-table">
@@ -116,7 +119,9 @@ function SignalTable(props: { signals: OperationalSignal[]; waiting: boolean }) 
       {!props.waiting && props.signals.length === 0 ? (
         <div className="empty-inline">No signals collected.</div>
       ) : null}
-      {props.waiting ? <div className="empty-inline">Waiting for data.</div> : null}
+      {props.waiting ? (
+        <div className="empty-inline">Waiting for data.</div>
+      ) : null}
     </div>
   );
 }
@@ -164,7 +169,7 @@ function SocialOpsPanel({
         <small className="info-note">
           {social.daemon.status === 'healthy'
             ? 'Daemon is reporting normally'
-            : social.daemon.lastError ?? 'Daemon needs attention'}
+            : (social.daemon.lastError ?? 'Daemon needs attention')}
         </small>
       </div>
       <InfoRow
