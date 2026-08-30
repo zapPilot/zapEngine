@@ -2,6 +2,7 @@ export const ENV_DESTINATIONS = {
   'account-engine': {
     platform: 'fly',
     app: 'account-engine',
+    config: 'apps/account-engine/fly.toml',
     environment: 'prod',
     target: 'account-engine',
     managed: ['FLY_APP_NAME', 'NODE_ENV', 'PORT'],
@@ -9,6 +10,7 @@ export const ENV_DESTINATIONS = {
   'alpha-etl': {
     platform: 'fly',
     app: 'alpha-etl',
+    config: 'apps/alpha-etl/fly.toml',
     environment: 'prod',
     target: 'alpha-etl',
     managed: ['FLY_APP_NAME', 'NODE_ENV', 'PORT'],
@@ -16,6 +18,7 @@ export const ENV_DESTINATIONS = {
   'analytics-engine': {
     platform: 'fly',
     app: 'analytics-engine-xws3ra',
+    config: 'apps/analytics-engine/fly.toml',
     environment: 'prod',
     target: 'analytics-engine',
     managed: ['FLY_APP_NAME', 'NODE_ENV', 'PORT'],
@@ -48,6 +51,7 @@ export const ENV_DESTINATIONS = {
   'podcast-pipeline': {
     platform: 'fly',
     app: 'from-fed-to-chain-api',
+    config: 'apps/podcast-pipeline/fly.toml',
     environment: 'prod',
     target: 'podcast-pipeline',
     managed: [

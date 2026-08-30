@@ -172,21 +172,59 @@ export function listDestinationKeys(destination) {
   );
 }
 
+// Both secret writes below redeploy the app to apply the change, and with no
+// `-c` flyctl deploys the config Fly kept from the last `fly deploy` instead of
+// the one in this repo. The two drift: podcast-pipeline's fly.toml bans
+// bluegreen, but that ban was never deployed, so every apply run redeployed it
+// bluegreen -- cloning the whole fleet, two performance-2x render Machines
+// included, then failing `wait timeout` because the app drains for its 300s
+// kill_timeout. Pointing flyctl at the committed config makes this repo, not
+// whatever Fly happens to be holding, decide how a secret rolls out.
+function flyDeployConfig(destination) {
+  if (!destination.config) {
+    throw new Error(
+      `not checkable: Fly destination ${destination.app} declares no config path`,
+    );
+  }
+  return ['--config', path.join(repoRoot, destination.config)];
+}
+
 export function importFlyValues(destination, values) {
   const input = `${Object.entries(values)
     .map(([name, value]) => `${name}=${value}`)
     .join('\n')}\n`;
-  run(FLY_BIN, ['secrets', 'import', '--app', destination.app], {
-    input,
-    failure: `Fly sync failed for ${destination.app}`,
-  });
+  run(
+    FLY_BIN,
+    [
+      'secrets',
+      'import',
+      '--app',
+      destination.app,
+      ...flyDeployConfig(destination),
+    ],
+    {
+      input,
+      failure: `Fly sync failed for ${destination.app}`,
+    },
+  );
 }
 
 export function unsetFlyKeys(destination, names) {
   if (names.length === 0) return;
-  run(FLY_BIN, ['secrets', 'unset', ...names, '--app', destination.app], {
-    failure: `Fly prune failed for ${destination.app}`,
-  });
+  run(
+    FLY_BIN,
+    [
+      'secrets',
+      'unset',
+      ...names,
+      '--app',
+      destination.app,
+      ...flyDeployConfig(destination),
+    ],
+    {
+      failure: `Fly prune failed for ${destination.app}`,
+    },
+  );
 }
 
 export function setEasValue(destination, name, value, sensitive) {
