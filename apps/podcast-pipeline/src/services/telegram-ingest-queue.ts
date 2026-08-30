@@ -8,7 +8,6 @@ import {
 import type { LanguageClassroomLanguageCode } from '../types.js';
 import { buildIngestSummaryFromResult } from './cost.js';
 import { invalidateEpisodeSearchCache } from './episode-search.js';
-import { failedStepName } from './ingest/step.js';
 import {
   PodcastIngestJobContractError,
   type PodcastIngestJobRow,
@@ -16,6 +15,7 @@ import {
   parsePodcastIngestJobRow,
   podcastIngestJobStore,
 } from './ingest-jobs.js';
+import { failedStepName } from './ingest/step.js';
 import {
   failedIngestRunContext,
   performMultilingualIngestAndEnqueueVideo,
@@ -78,6 +78,22 @@ function scheduleMessage(chatId: TelegramChatId, text: string): void {
   });
 }
 
+async function reportRecoveryContractFailure(
+  error: PodcastIngestJobContractError,
+): Promise<void> {
+  capturePipelineException(error, {
+    component: 'ingest',
+    tags: {
+      entrypoint: 'telegram',
+      failure_kind: 'durable-job-contract',
+    },
+    context: {
+      durableJobId: error.jobId,
+    },
+  });
+  await flushSentry();
+}
+
 export function createTelegramIngestQueue(
   options: TelegramIngestQueueOptions = {},
 ): TelegramIngestQueue {
@@ -109,22 +125,6 @@ export function createTelegramIngestQueue(
         error: errorMessage(finishError),
       });
     }
-  }
-
-  async function reportRecoveryContractFailure(
-    error: PodcastIngestJobContractError,
-  ): Promise<void> {
-    capturePipelineException(error, {
-      component: 'ingest',
-      tags: {
-        entrypoint: 'telegram',
-        failure_kind: 'durable-job-contract',
-      },
-      context: {
-        durableJobId: error.jobId,
-      },
-    });
-    await flushSentry();
   }
 
   function startHeartbeat(jobId: string | undefined) {
