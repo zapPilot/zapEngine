@@ -11,13 +11,13 @@ import { KpiGroup } from './KpiGroup.js';
 import { PriorityQueue } from './PriorityQueue.js';
 import { StatusBanner } from './Status.js';
 
-const QUEUE_PREVIEW = 6;
+const QUEUE_PREVIEW = 3;
 
 /**
- * The founder's first screen. Order is the whole design: what is wrong, what to
- * do about it, then the numbers that say whether the business is working.
- * Evidence tables live in the four domain views — putting a provider ledger
- * here is what buried the action list last time.
+ * The founder's first screen is deliberately sparse. It answers three things
+ * before exposing evidence: is something wrong, what should happen first, and
+ * are the business headlines moving. Qualifiers stay behind one disclosure;
+ * full evidence still belongs to the domain views.
  */
 export function HomeView(props: {
   data: OverviewResponse | null;
@@ -33,13 +33,15 @@ export function HomeView(props: {
 
   return (
     <div className="view-stack">
-      <StatusBanner data={operations} />
+      <StatusBanner compact data={operations} />
 
       <section className="panel queue-panel">
         <div className="panel-head">
           <h2>Do this first</h2>
           <small className="panel-note">
-            Ranked by status, blast radius and evidence — not by recency
+            {operations
+              ? `${integer(operations.priorities.length)} ranked decisions`
+              : 'Waiting for operational signals'}
           </small>
         </div>
         <PriorityQueue
@@ -60,114 +62,127 @@ export function HomeView(props: {
         ) : null}
       </section>
 
-      <section aria-label="Business vital signs" className="kpi-band">
+      <section aria-label="Business headlines" className="kpi-band kpi-band-three">
         <KpiGroup
           caption="Observed portfolio value"
           label="Product"
-          secondary={[
-            `${integer(product?.wau)} WAU`,
-            `${integer(product?.mau)} MAU`,
-            `${integer(product?.registeredUsers)} registered`,
-          ]}
           tone="accent"
           value={usdWhole(product?.observedPortfolioUsd)}
         />
         <KpiGroup
           caption="Tracked social followers"
           label="Growth"
-          secondary={[
-            `${integer(data?.social.accounts.length)} telemetry channels`,
-            `${integer(data?.social.episodes[0]?.totalViews)} views on the latest episode`,
-          ]}
           value={integer(data?.socialReach)}
         />
         <KpiGroup
           caption="Projected month-end spend"
           label="Spend"
-          secondary={[
-            `Month to date ${usd(data?.accruedCostUsd)}`,
-            `Cash spend ${usd(data?.cashInvoiceSpendUsd)}`,
-          ]}
           tone="warning"
           value={usdWhole(data?.projectedCostUsd)}
         />
-        <KpiGroup
-          caption="Domains reporting healthy"
-          label="Reliability"
-          secondary={[
-            `${integer(operations?.priorities.length)} need a decision`,
-            `${integer(operations?.signals.length)} signals collected`,
-          ]}
-          value={healthyDomains(operations)}
-        />
       </section>
 
-      <div className="home-lower">
-        <section className="panel">
-          <div className="panel-head">
-            <h2>What to publish next</h2>
-            <small className="panel-note">
-              Learned once per episode, shared by every platform
-            </small>
-          </div>
-          <div className="info-list">
-            {(data?.social.decisions ?? []).slice(0, 2).map((decision) => (
-              <PublishRow decision={decision} key={decision.platform} />
-            ))}
-            {data && data.social.decisions.length === 0 ? (
-              <div className="empty-inline">
-                No learned social strategy yet.
-              </div>
-            ) : null}
-            {data ? null : (
-              <div className="empty-inline">Waiting for data.</div>
-            )}
-          </div>
-          <div className="panel-foot">
-            <button
-              className="panel-link"
-              onClick={() => props.onNavigate('growth')}
-              type="button"
-            >
-              Per-platform evidence in Growth
-            </button>
-          </div>
-        </section>
+      <details className="panel home-disclosure">
+        <summary className="home-disclosure-summary">
+          <strong>More context</strong>
+          <span>Product, growth and spend qualifiers</span>
+        </summary>
+        <div className="home-context-grid">
+          <section className="home-context-section">
+            <h3>Product</h3>
+            <div className="info-list">
+              <InfoRow
+                label="Activity"
+                notes={[
+                  `${integer(product?.registeredUsers)} registered users`,
+                ]}
+                value={`${integer(product?.wau)} WAU · ${integer(product?.mau)} MAU`}
+              />
+              <InfoRow
+                label="Activation"
+                notes={[
+                  `Top 1 holds ${percent(product?.top1PortfolioShare)} of observed value`,
+                ]}
+                value={`${integer(product?.registeredUsers)} registered → ${integer(product?.verifiedWallets)} verified → ${integer(product?.portfolioUsers)} observed`}
+              />
+              <InfoRow
+                label="Portfolio freshness"
+                notes={[
+                  'Stale portfolios make every other product number older than it looks',
+                ]}
+                value={`${integer(product?.portfolioFresh24h)} fresh <24h · ${integer(product?.portfolioFresh7d)} fresh <7d`}
+              />
+            </div>
+            <div className="panel-foot">
+              <button
+                className="panel-link"
+                onClick={() => props.onNavigate('product')}
+                type="button"
+              >
+                Full Product view
+              </button>
+            </div>
+          </section>
 
-        <section className="panel">
-          <div className="panel-head">
-            <h2>Product health</h2>
-            <small className="panel-note">
-              Observed coverage, not authoritative AUM
-            </small>
-          </div>
-          <div className="info-list">
-            <InfoRow
-              label="Activation funnel"
-              notes={[
-                `Top 1 holds ${percent(product?.top1PortfolioShare)} of observed value`,
-              ]}
-              value={`${integer(product?.registeredUsers)} registered → ${integer(product?.verifiedWallets)} verified → ${integer(product?.portfolioUsers)} observed`}
-            />
-            <InfoRow
-              label="Portfolio freshness"
-              notes={[
-                'Stale portfolios make every other product number older than it looks',
-              ]}
-              value={`${integer(product?.portfolioFresh24h)} fresh <24h · ${integer(product?.portfolioFresh7d)} fresh <7d`}
-            />
-          </div>
-          <div className="panel-foot">
-            <button
-              className="panel-link"
-              onClick={() => props.onNavigate('product')}
-              type="button"
-            >
-              Per-customer detail in Product
-            </button>
-          </div>
-        </section>
-      </div>
+          <section className="home-context-section">
+            <h3>Growth</h3>
+            <div className="info-list">
+              <InfoRow
+                label="Coverage"
+                notes={[
+                  `${integer(data?.social.episodes[0]?.totalViews)} views on the latest episode`,
+                ]}
+                value={`${integer(data?.social.accounts.length)} telemetry channels`}
+              />
+              {(data?.social.decisions ?? []).slice(0, 2).map((decision) => (
+                <PublishRow decision={decision} key={decision.platform} />
+              ))}
+              {data && data.social.decisions.length === 0 ? (
+                <div className="empty-inline">
+                  No learned social strategy yet.
+                </div>
+              ) : null}
+              {data ? null : (
+                <div className="empty-inline">Waiting for data.</div>
+              )}
+            </div>
+            <div className="panel-foot">
+              <button
+                className="panel-link"
+                onClick={() => props.onNavigate('growth')}
+                type="button"
+              >
+                Full Growth view
+              </button>
+            </div>
+          </section>
+
+          <section className="home-context-section">
+            <h3>Spend</h3>
+            <div className="info-list">
+              <InfoRow
+                label="Month to date"
+                notes={['Usage-equivalent operating cost']}
+                value={usd(data?.accruedCostUsd)}
+              />
+              <InfoRow
+                label="Cash spend"
+                notes={['Invoices, top-ups and subscriptions']}
+                value={usd(data?.cashInvoiceSpendUsd)}
+              />
+            </div>
+            <div className="panel-foot">
+              <button
+                className="panel-link"
+                onClick={() => props.onNavigate('economics')}
+                type="button"
+              >
+                Full Economics view
+              </button>
+            </div>
+          </section>
+        </div>
+      </details>
     </div>
   );
 }
@@ -188,14 +203,4 @@ function PublishRow({ decision }: { decision: SocialDecision }) {
       }
     />
   );
-}
-
-function healthyDomains(data: OperationsResponse | null): string {
-  if (!data) {
-    return '—';
-  }
-  const healthy = data.domains.filter(
-    (domain) => domain.status === 'healthy',
-  ).length;
-  return `${healthy}/${data.domains.length}`;
 }
