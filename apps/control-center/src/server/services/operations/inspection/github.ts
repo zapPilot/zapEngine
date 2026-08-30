@@ -59,7 +59,10 @@ export async function inspectGithubSignal(input: {
   fetchImpl: typeof fetch;
 }): Promise<SignalInspection> {
   if (input.parsed.kind !== 'workflow') {
-    return unsupported(input, `GitHub inspection does not support ${input.parsed.kind} signals.`);
+    return unsupported(
+      input,
+      `GitHub inspection does not support ${input.parsed.kind} signals.`,
+    );
   }
 
   const token = input.config.OPS_GITHUB_TOKEN;
@@ -69,10 +72,13 @@ export async function inspectGithubSignal(input: {
       source: 'github-actions',
       status: 'unavailable',
       inspectedAt: input.inspectedAt.toISOString(),
-      summary: 'GitHub deep inspection is unavailable because OPS_GITHUB_TOKEN is unset.',
+      summary:
+        'GitHub deep inspection is unavailable because OPS_GITHUB_TOKEN is unset.',
       entities: [{ type: 'github-workflow', id: input.parsed.key }],
       evidence: {},
-      gaps: [{ source: 'github-actions', reason: 'OPS_GITHUB_TOKEN is unset.' }],
+      gaps: [
+        { source: 'github-actions', reason: 'OPS_GITHUB_TOKEN is unset.' },
+      ],
     };
   }
 
@@ -106,7 +112,9 @@ export async function inspectGithubSignal(input: {
 
   const completed = runs.filter((run) => run.status === 'completed');
   const target = completed.find(isFailedRun) ?? completed[0] ?? runs[0];
-  const failedJobs = target ? await inspectRunJobs(target, token, input.fetchImpl) : [];
+  const failedJobs = target
+    ? await inspectRunJobs(target, token, input.fetchImpl)
+    : [];
 
   return {
     fingerprint: input.fingerprint,
@@ -233,13 +241,19 @@ function isFailedConclusion(conclusion: string | null | undefined): boolean {
 
 function extractErrorExcerpt(raw: string): string {
   const lines = redact(raw).split(/\r?\n/);
-  const hit = /\b(error|failed|failure|fatal|exception|timeout|timed out|not configured|permission denied|forbidden|unauthorized)\b/i;
+  const hit =
+    /\b(error|failed|failure|fatal|exception|timeout|timed out|not configured|permission denied|forbidden|unauthorized)\b/i;
   const selected = new Set<number>();
-  for (let index = 0; index < lines.length && selected.size < LOG_LINE_LIMIT; index += 1) {
+  for (
+    let index = 0;
+    index < lines.length && selected.size < LOG_LINE_LIMIT;
+    index += 1
+  ) {
     if (!hit.test(lines[index] ?? '')) continue;
     for (
       let context = Math.max(0, index - 3);
-      context <= Math.min(lines.length - 1, index + 4) && selected.size < LOG_LINE_LIMIT;
+      context <= Math.min(lines.length - 1, index + 4) &&
+      selected.size < LOG_LINE_LIMIT;
       context += 1
     ) {
       selected.add(context);
@@ -255,7 +269,10 @@ function extractErrorExcerpt(raw: string): string {
 function redact(value: string): string {
   return value
     .replace(/(Authorization:\s*(?:Bearer|token)\s+)[^\s]+/gi, '$1[REDACTED]')
-    .replace(/\b(?:gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,})\b/g, '[REDACTED_GITHUB_TOKEN]')
+    .replace(
+      /\b(?:gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,})\b/g,
+      '[REDACTED_GITHUB_TOKEN]',
+    )
     .replace(/(Bearer\s+)[A-Za-z0-9._~+\/-]{16,}/g, '$1[REDACTED]');
 }
 

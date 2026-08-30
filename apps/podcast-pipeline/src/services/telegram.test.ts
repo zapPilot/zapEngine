@@ -5,6 +5,7 @@ import {
   buildEpisodeShareUrl,
   buildTelegramAudioReadyMessage,
   buildTelegramFailureMessage,
+  buildTelegramRenderFleetWarningMessage,
   buildTelegramVideoCompletedMessage,
   buildTelegramVideoFailedMessage,
   extractFailureSourceUrl,
@@ -17,6 +18,12 @@ import {
   sendTelegramNotification,
   verifySecret,
 } from './telegram.js';
+
+it('describes a render fleet anomaly without claiming the wake is blocked', () => {
+  expect(buildTelegramRenderFleetWarningMessage('2 current, 1 stale')).toBe(
+    '⚠️ 影片算圖機器數量異常\n原因：2 current, 1 stale\n目前只會喚醒現行版本的機器；影片工作仍會繼續。',
+  );
+});
 
 vi.mock('../lib/env.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../lib/env.js')>()),

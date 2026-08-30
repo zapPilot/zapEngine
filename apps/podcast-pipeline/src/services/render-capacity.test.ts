@@ -16,6 +16,8 @@ import { EPISODE_VIDEO_VISUAL_VERSION } from './video-jobs.js';
 const NOW = Date.parse('2026-07-30T12:00:00.000Z');
 const PAST = new Date(NOW - 60_000).toISOString();
 const FUTURE = new Date(NOW + 60_000).toISOString();
+const CURRENT_IMAGE = 'registry.fly.io/podcast:deployment-current';
+const STALE_IMAGE = 'registry.fly.io/podcast:deployment-stale';
 
 function visualRow(overrides: Partial<VisualWorkRow> = {}): VisualWorkRow {
   return {
@@ -261,6 +263,7 @@ function machine(
     id: 'machine-render',
     state: 'stopped',
     processGroup: 'render',
+    image: CURRENT_IMAGE,
     ...overrides,
   };
 }
@@ -284,6 +287,7 @@ function makeReconciler(input: {
 
   const reconciler = createRenderCapacityReconciler({
     machines: { listMachines, startMachine },
+    currentImageRef: CURRENT_IMAGE,
     probe: { loadSnapshot },
     notify,
     logger,
@@ -309,6 +313,7 @@ describe('createRenderCapacityReconciler', () => {
           listMachines: vi.fn(),
           startMachine: vi.fn(),
         },
+        currentImageRef: CURRENT_IMAGE,
       }),
     ).not.toThrow();
   });
@@ -370,14 +375,97 @@ describe('createRenderCapacityReconciler', () => {
     expect(startMachine).not.toHaveBeenCalled();
   });
 
-  it('falls back to the first render machine when none is explicitly wakeable', async () => {
+  it('wakes only the current release when a stale stopped machine also exists', async () => {
     const { reconciler, startMachine } = makeReconciler({
       pending: QUEUED_VISUAL,
-      machines: [machine({ id: 'machine-created', state: 'created' })],
+      machines: [
+        machine({ id: 'machine-stale', image: STALE_IMAGE }),
+        machine({
+          id: 'machine-current',
+          image: `${CURRENT_IMAGE}@sha256:abcdef`,
+        }),
+      ],
     });
 
     await expect(reconciler.runOnce()).resolves.toBe('started');
-    expect(startMachine).toHaveBeenCalledWith('machine-created');
+    expect(startMachine).toHaveBeenCalledOnce();
+    expect(startMachine).toHaveBeenCalledWith('machine-current');
+  });
+
+  it('warns once and does not wake when only stale machines exist', async () => {
+    const { reconciler, startMachine, notify, logger } = makeReconciler({
+      pending: snapshot({ visuals: [visualRow({ telegram_chat_id: '42' })] }),
+      machines: [machine({ image: STALE_IMAGE })],
+    });
+
+    await expect(reconciler.runOnce()).resolves.toBe('no-render-machines');
+    await expect(reconciler.runOnce()).resolves.toBe('no-render-machines');
+
+    expect(startMachine).not.toHaveBeenCalled();
+    expect(notify).toHaveBeenCalledTimes(1);
+    expect(notify).toHaveBeenCalledWith(
+      '42',
+      expect.stringContaining('1 stale machine'),
+    );
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining('no render machine for the current release'),
+    );
+  });
+
+  it('chooses the lowest-id wakeable current machine and warns once about multiplicity', async () => {
+    const { reconciler, startMachine, notify, logger } = makeReconciler({
+      pending: snapshot({ visuals: [visualRow({ telegram_chat_id: '42' })] }),
+      machines: [machine({ id: 'machine-z' }), machine({ id: 'machine-a' })],
+    });
+
+    await expect(reconciler.runOnce()).resolves.toBe('started');
+    await expect(reconciler.runOnce()).resolves.toBe('started');
+
+    expect(startMachine).toHaveBeenNthCalledWith(1, 'machine-a');
+    expect(startMachine).toHaveBeenNthCalledWith(2, 'machine-a');
+    expect(notify).toHaveBeenCalledTimes(1);
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining('2 current-release machines'),
+    );
+  });
+
+  it('keeps a current started machine authoritative when stale stopped machines exist', async () => {
+    const { reconciler, startMachine } = makeReconciler({
+      pending: QUEUED_VISUAL,
+      machines: [
+        machine({ id: 'machine-stale', image: STALE_IMAGE }),
+        machine({ id: 'machine-current', state: 'started' }),
+      ],
+    });
+
+    await expect(reconciler.runOnce()).resolves.toBe('render-running');
+    expect(startMachine).not.toHaveBeenCalled();
+  });
+
+  it('does not start a current machine while a stale machine is already running', async () => {
+    const { reconciler, startMachine } = makeReconciler({
+      pending: QUEUED_VISUAL,
+      machines: [
+        machine({ id: 'machine-stale', state: 'started', image: STALE_IMAGE }),
+        machine({ id: 'machine-current' }),
+      ],
+    });
+
+    await expect(reconciler.runOnce()).resolves.toBe('render-running');
+    expect(startMachine).not.toHaveBeenCalled();
+  });
+
+  it('deterministically selects a current machine when none is explicitly wakeable', async () => {
+    const { reconciler, startMachine } = makeReconciler({
+      pending: QUEUED_VISUAL,
+      machines: [
+        machine({ id: 'machine-z', state: 'created' }),
+        machine({ id: 'machine-a', state: 'created' }),
+      ],
+    });
+
+    await expect(reconciler.runOnce()).resolves.toBe('started');
+    expect(startMachine).toHaveBeenCalledWith('machine-a');
   });
 
   it('wakes a suspended machine too', async () => {
@@ -554,6 +642,7 @@ describe('createRenderCapacityReconciler', () => {
           listMachines: vi.fn(async () => []),
           startMachine: vi.fn(async () => undefined),
         },
+        currentImageRef: CURRENT_IMAGE,
         probe: { loadSnapshot },
         notify: vi.fn(async () => undefined),
         logger: { info: vi.fn(), error: vi.fn() },
@@ -609,6 +698,7 @@ describe('createRenderCapacityReconciler', () => {
           listMachines: vi.fn(async () => [machine()]),
           startMachine: vi.fn(async () => undefined),
         },
+        currentImageRef: CURRENT_IMAGE,
         probe: { loadSnapshot: vi.fn(async () => QUEUED_VISUAL) },
         notify: vi.fn(async () => undefined),
         logger,

@@ -144,6 +144,7 @@ describe('readFlyMachinesConfig', () => {
       if (appName === undefined) delete process.env['FLY_APP_NAME'];
       else vi.stubEnv('FLY_APP_NAME', appName);
       vi.stubEnv('PIPELINE_FLY_API_TOKEN', 'token');
+      vi.stubEnv('FLY_IMAGE_REF', 'registry.fly.io/podcast:deployment');
 
       expect(readFlyMachinesConfig()).toBeNull();
     },
@@ -162,13 +163,27 @@ describe('readFlyMachinesConfig', () => {
     },
   );
 
+  it.each([undefined, '   '])(
+    'throws on Fly when the current image ref is %o',
+    (imageRef) => {
+      vi.stubEnv('FLY_APP_NAME', 'podcast-app');
+      vi.stubEnv('PIPELINE_FLY_API_TOKEN', 'token');
+      if (imageRef === undefined) delete process.env['FLY_IMAGE_REF'];
+      else vi.stubEnv('FLY_IMAGE_REF', imageRef);
+
+      expect(() => readFlyMachinesConfig()).toThrow(/FLY_IMAGE_REF/);
+    },
+  );
+
   it('returns trimmed wake credentials when fully configured', () => {
     vi.stubEnv('FLY_APP_NAME', ' podcast-app ');
     vi.stubEnv('PIPELINE_FLY_API_TOKEN', ' token ');
+    vi.stubEnv('FLY_IMAGE_REF', ' registry.fly.io/podcast:deployment ');
 
     expect(readFlyMachinesConfig()).toEqual({
       appName: 'podcast-app',
       token: 'token',
+      currentImageRef: 'registry.fly.io/podcast:deployment',
     });
   });
 });
