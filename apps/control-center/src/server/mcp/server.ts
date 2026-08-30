@@ -22,10 +22,10 @@ const forceSchema = z.object({
 
 export function createOpsMcpServer(operations: OpsMcpOperations): McpServer {
   const server = new McpServer(
-    { name: 'zap-pilot-ops', version: '0.2.0' },
+    { name: 'zap-pilot-ops', version: '0.3.0' },
     {
       instructions:
-        'Start with ops_status. Drill into one domain or signal only when needed. Use ops_inspect_signal for bounded provider evidence behind a specific fingerprint. All tools are read-only; do not infer provider health from missing data.',
+        'Start with ops_status. For a priority incident, use ops_investigate next: it correlates bounded GitHub, Sentry, Fly, product/customer, and social evidence into one deterministic packet. Use ops_inspect_signal only for extra provider drill-down. All tools are read-only; do not infer provider health from missing data.',
     },
   );
 
@@ -78,13 +78,29 @@ export function createOpsMcpServer(operations: OpsMcpOperations): McpServer {
     {
       title: 'Inspect operational signal',
       description:
-        'Collect bounded provider evidence for one stable signal fingerprint. GitHub workflow inspection includes recent scheduled runs, failed jobs/steps, and redacted log excerpts; Sentry inspection includes top unresolved issues and a bounded exception stack sample. Unsupported providers return an explicit unsupported result.',
+        'Collect bounded provider evidence for one stable signal fingerprint. GitHub workflow inspection includes recent scheduled runs, failed jobs/steps, and redacted log excerpts; Sentry includes top unresolved issues and a bounded exception sample; Fly includes bounded Machine state, image, and recent lifecycle events.',
       inputSchema: z.object({
         fingerprint: z.string().trim().min(1),
       }),
       annotations: READ_ONLY_ANNOTATIONS,
     },
     async ({ fingerprint }) => result(await operations.inspectSignal(fingerprint)),
+  );
+
+  server.registerTool(
+    'ops_investigate',
+    {
+      title: 'Investigate operational incident',
+      description:
+        'Build one deterministic incident packet from a stable signal fingerprint: primary evidence, related GitHub/Sentry/Fly evidence, operational topology, chronological timeline, customer/business impact where proven, and explicit evidence gaps. Use this after ops_status for normal incident triage.',
+      inputSchema: z.object({
+        fingerprint: z.string().trim().min(1),
+        force: z.boolean().optional().default(false),
+      }),
+      annotations: READ_ONLY_ANNOTATIONS,
+    },
+    async ({ fingerprint, force }) =>
+      result(await operations.investigate(fingerprint, force)),
   );
 
   server.registerTool(
