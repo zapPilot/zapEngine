@@ -21,11 +21,17 @@ export function StatusDot({ status }: { status: OperationalStatus }) {
 }
 
 /**
- * The first thing on the page, on both Home and Reliability. It answers "is
- * anything wrong" before any number does, so the two views must never be able
- * to disagree about the answer.
+ * The first thing on the page, on both Home and Reliability. Home can request
+ * the compact copy so the answer is simply status + pending decisions; the
+ * Reliability view keeps the signal/domain counts for investigation.
  */
-export function StatusBanner({ data }: { data: OperationsResponse | null }) {
+export function StatusBanner({
+  compact = false,
+  data,
+}: {
+  compact?: boolean;
+  data: OperationsResponse | null;
+}) {
   const status = data?.status ?? 'unknown';
   return (
     <section
@@ -33,17 +39,20 @@ export function StatusBanner({ data }: { data: OperationsResponse | null }) {
       className={`status-banner ${status}`}
     >
       <strong className="status-word">{statusLabel(data?.status)}</strong>
-      <span className="status-note">{note(data)}</span>
+      <span className="status-note">{note(data, compact)}</span>
     </section>
   );
 }
 
-function note(data: OperationsResponse | null): string {
+function note(data: OperationsResponse | null, compact: boolean): string {
   if (!data) {
     return 'Waiting for data';
   }
   const decisions = data.priorities.length
     ? `${integer(data.priorities.length)} need a decision`
     : 'Nothing is asking for a decision';
+  if (compact) {
+    return decisions;
+  }
   return `${decisions} · ${integer(data.signals.length)} signals across ${integer(data.domains.length)} domains`;
 }
