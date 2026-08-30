@@ -1,5 +1,6 @@
 import type {
   SocialDecision,
+  SocialGrowthResponse,
   SocialPerformanceResponse,
   SocialPlatformPerformance,
 } from '../../shared/types.js';
@@ -15,6 +16,7 @@ const windows: SocialPerformanceResponse['window'][] = [
 
 export function SocialView(props: {
   data: SocialPerformanceResponse | null;
+  growth: SocialGrowthResponse | null;
   onWindowChange: (
     window: SocialPerformanceResponse['window'],
   ) => Promise<void>;
@@ -72,6 +74,129 @@ export function SocialView(props: {
           </div>
         </section>
 
+        <section className="growth-section">
+          <div className="section-heading">
+            <h2>Follower growth by platform</h2>
+            <span className="decision-note">
+              Platform counts; lane attribution is estimated
+            </span>
+          </div>
+          <div className="ledger-wrap">
+            <table className="social-table">
+              <thead>
+                <tr>
+                  <th>Platform</th>
+                  <th>Followers</th>
+                  <th>Δ 24h</th>
+                  <th>Δ 7d</th>
+                  <th>Lane evidence</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(props.growth?.platforms ?? []).map((platform) => (
+                  <tr key={platform.platform}>
+                    <td>{platformLabel(platform.platform)}</td>
+                    <td className="mono">{integer(platform.followersNow)}</td>
+                    <td className="mono">
+                      {signed(platform.followersDelta24h)}
+                    </td>
+                    <td className="mono">
+                      {platform.platform === 'youtube'
+                        ? `${signed(platform.exactSubscribersGained7d)} exact`
+                        : signed(platform.followersDelta7d)}
+                    </td>
+                    <td>
+                      {platform.lanes
+                        .map(
+                          (lane) =>
+                            `${lane.languageCode}: n=${lane.postCount7d}, ${decimal(lane.followersPer1kReach)} / 1k (${lane.basis})`,
+                        )
+                        .join(' · ') || 'No 7d posts'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="decision-section growth-section">
+          <div className="section-heading">
+            <h2>Growth experiments</h2>
+            <span className="decision-note">No automatic winner selection</span>
+          </div>
+          <div className="decision-grid">
+            {(props.growth?.experiments ?? []).map((experiment) => (
+              <article className="decision-card" key={experiment.experimentKey}>
+                <header>
+                  <strong>{experiment.experimentKey}</strong>
+                  <span className={`growth-status ${experiment.status}`}>
+                    {experiment.paired
+                      ? 'paired cohort — not an A/B test'
+                      : experiment.status}
+                  </span>
+                </header>
+                {experiment.arms.map((arm) => (
+                  <div className="experiment-arm" key={arm.variant}>
+                    <strong>{arm.variant}</strong>
+                    <span>
+                      n={arm.samples24h} · reach {decimal(arm.medianReach24h)}{' '}
+                      median / {decimal(arm.meanReach24h)} mean · engagement{' '}
+                      {percent(arm.medianEngagementRate)}
+                    </span>
+                    <small>
+                      {decimal(arm.followersAttributed)} {arm.basis} followers ·{' '}
+                      {decimal(arm.followersPer1kReach)} / 1k reach ·{' '}
+                      {arm.status}
+                    </small>
+                  </div>
+                ))}
+                <small>
+                  Interpret the evidence manually; this panel never declares a
+                  winner.
+                </small>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="performance-section growth-section">
+          <div className="section-heading">
+            <h2>Estimated attribution — never platform-reported truth</h2>
+            <span className="decision-note">Recent follower intervals</span>
+          </div>
+          {(props.growth?.attribution ?? []).map((interval) => (
+            <article
+              className="episode-ledger"
+              key={`${interval.platform}:${interval.startAt}:${interval.endAt}`}
+            >
+              <div className="episode-heading">
+                <div>
+                  <strong>{platformLabel(interval.platform)}</strong>
+                  <small>
+                    {interval.startAt} → {interval.endAt}
+                  </small>
+                </div>
+                <span className="mono">
+                  {signed(interval.netDelta)} net ·{' '}
+                  {decimal(interval.unattributed)} unattributed
+                </span>
+              </div>
+              <div className="attribution-shares">
+                {interval.posts.map((post) => (
+                  <span key={post.postId}>
+                    {post.postId.slice(0, 8)} · {percent(post.share)} ·{' '}
+                    {decimal(post.followersEstimated)} est.
+                  </span>
+                ))}
+                {interval.posts.length === 0 ? (
+                  <span>No attributable post activity</span>
+                ) : null}
+              </div>
+            </article>
+          ))}
+        </section>
+
         <section className="performance-section">
           <h2>Evidence by recent episode</h2>
           {(data?.episodes ?? []).map((episode) => (
@@ -97,7 +222,9 @@ export function SocialView(props: {
                   </thead>
                   <tbody>
                     {episode.platforms.map((platform) => (
-                      <tr key={platform.platform}>
+                      <tr
+                        key={`${episode.episodeId}:${platform.platform}:${platform.postUrl ?? 'none'}`}
+                      >
                         <td className="provider-name">
                           {platform.postUrl ? (
                             <a
@@ -240,4 +367,14 @@ function platformSignal(platform: SocialPlatformPerformance): string {
 function sumKnown(values: Array<number | null>): number | null {
   const known = values.filter((value): value is number => value !== null);
   return known.length ? known.reduce((sum, value) => sum + value, 0) : null;
+}
+
+function signed(value: number | null): string {
+  return value === null ? '—' : `${value >= 0 ? '+' : ''}${decimal(value)}`;
+}
+
+function decimal(value: number | null): string {
+  return value === null
+    ? '—'
+    : value.toLocaleString('en-US', { maximumFractionDigits: 2 });
 }

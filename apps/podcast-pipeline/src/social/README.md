@@ -451,25 +451,26 @@ accidentally reintroduce the review-triggering website promotion.
 `src/social/compose.ts` owns the whole mapping from one generated copy to what a
 platform receives:
 
-| Platform | Title field           | Body                               | Hashtags   |
-| -------- | --------------------- | ---------------------------------- | ---------- |
-| X        | none                  | `short.text` + localized brand CTA | none       |
-| Threads  | none                  | `short.text` + localized brand CTA | none       |
-| Rednote  | `rednote.title`       | `rednote.body`, no CTA             | 3-5 topics |
-| YouTube  | episode title (≤ 100) | episode summary (≤4500)            | none       |
+| Platform | Title field             | Body                                     | Hashtags   |
+| -------- | ----------------------- | ---------------------------------------- | ---------- |
+| X        | none                    | `x.text` + localized brand CTA           | none       |
+| Threads  | none                    | `threads.text` + localized brand CTA     | none       |
+| Rednote  | `rednote.title`         | blank at publish; generated draft stored | 3-5 topics |
+| YouTube  | `youtube.title` (≤ 100) | episode-derived description              | none       |
 
 The copy generator requests only the blocks needed by the language batch. A
-YouTube-only batch still performs one LLM call for `topic`/`hookType`, but its
-schema has no `short` or `rednote` field. Publishing (`publishers.ts`), telemetry (`record.ts`), and the review preview
+YouTube-only batch still performs one LLM call for `topic` and the YouTube
+block's `hookType`, but its schema has no X, Threads, or Rednote field.
+Publishing (`publishers.ts`), telemetry (`record.ts`), and the review preview
 (`cli.ts`) all read it from there, so they cannot disagree about which field
 carries the hook title or where the CTA goes — each used to hold its own copy of
 this table, and the YouTube CTA string existed in three places.
 
 The platform differences are deliberate product choices, not drift: X has no
 title field, Rednote caps its title at 20 characters against the 15-35 the
-editorial title uses, and YouTube metadata is assembled from the episode rather
-than written by the model. Threads reuses the X wording on purpose rather than
-asking for a third variant.
+editorial title uses, and YouTube's title is generated while its description is
+still assembled from the episode. Threads has its own native wording and is
+rejected when it is byte-for-byte equivalent to the X text after trimming.
 
 Telemetry reads the same mapping twice: once with the CTA (`published_*`) and
 once without (`generated_*`, defined as the copy before fixed branding). YouTube
@@ -479,6 +480,25 @@ pre-branding version of it to record.
 Each platform job also generates its own copy, so the same episode can carry
 different `topic`/`hook_type` labels per platform. That is intentional: guidance
 is per-platform, and a Rednote-specific rewrite must not change what X posts.
+
+### Packaging experiments
+
+`src/social/packaging-experiments.ts` owns the active copy-style registry. The
+current experiments compare Rednote title framing, Threads broadcast versus
+conversation framing, and YouTube descriptive versus hook-first titles. X is
+not enrolled and retains its existing language experiment and ε-greedy strategy
+behavior. The YouTube experiment key intentionally has no language suffix, so
+the same episode's English and Japanese lanes reuse one persisted variant.
+
+Assignments are resolved after a job is claimed and before copy generation.
+`social_experiment_assignments` remains authoritative across retries; never
+rename a live key or variant in place. The assignment is written to
+`content_features.packagingExperiment` and is report-only: it cannot change
+which lanes exist, their schedule, media, topic eligibility, or safety gates.
+When a packaging experiment is active, its style instruction replaces learned
+preferred hook/Rednote hashtag guidance for that platform, while learned avoid
+guidance remains active. A hand-edited post still records its assigned variant,
+which describes treatment assignment rather than verified compliance.
 
 Fixed acquisition branding itself lives in one module:
 
@@ -718,7 +738,7 @@ that page is paginated, so absence is ambiguous.
 `social_post_metrics.followers_gained` is per post and only YouTube can fill it,
 so the signal that matters most — did this account gain followers — was never
 collected. `social_account_snapshots` records a platform-level follower count,
-at most once per platform per day, from the same daemon tick:
+at most once per platform per three-hour interval, from the same daemon tick:
 
 | Platform | Source                                                               |
 | -------- | -------------------------------------------------------------------- |
@@ -732,7 +752,7 @@ daemon holds no credential that can read channel statistics, and per-post
 `subscribersGained` already comes from YouTube Analytics.
 
 Each platform is captured inside its own try/catch — a logged-out browser
-profile on one must not cost the others their daily snapshot — and a read that
+profile on one must not cost the others their snapshot — and a read that
 produces no parseable number records nothing rather than a zero. The URL each
 count was read from is stored in `details` so a collector that starts reading the
 wrong figure is diagnosable afterwards.
@@ -755,9 +775,26 @@ tab and at `/followers` on the rest; both are accepted, pinned to the
 publisher's own handle.
 
 Rows are point-in-time and never backfilled, the same rule the metric windows
-follow. Per-post follower attribution is deliberately not attempted; a strategy
-version's effect on growth is read as the platform-level delta across the period
-that version was active.
+follow. The regular staleness gate is three hours. Immediately before a due
+publish, the daemon also attempts a one-hour-fresh baseline for the affected
+collectable platforms; this observational step is isolated and can never block
+publishing. Whenever a regular account snapshot is captured, the same browser
+session collects NULL-window rolling observations for eligible posts from the
+last 48 hours on that platform. Retryable or unavailable reads write no rolling
+row and naturally retry at the next snapshot. YouTube does neither because it
+has no account-snapshot interval and already supplies exact per-video subscriber
+gains.
+
+The Control Center estimates per-post follower attribution from adjacent
+account-snapshot intervals and these observations. It never writes the estimate
+back to an exact telemetry field and always labels it `estimated`. Missing
+activity remains unattributed; missing profile-visit data removes that component
+and renormalizes reach/engagement weights; churn is wholly unattributed. YouTube
+instead displays the exact cumulative `followers_gained` value from the newest
+standardized age row for each video — those cumulative rows must never be added
+together. Experiment winners remain a manual decision; the dashboard only
+reports evidence and collection status, and Phase 1 strategy learning continues
+to consume standardized 24-hour performance rather than follower attribution.
 
 ## Failure behavior
 
@@ -828,7 +865,9 @@ without rewriting the publishing stack:
   which platform x language lanes an episode's release has;
 - `daemon.ts`: production orchestration for discovery, publishing, metrics, and
   strategy refresh;
-- `record.ts` / `metrics.ts`: telemetry persistence and manual metric diagnostics;
+- `record.ts` / `metrics.ts` / `rolling-metrics.ts`: telemetry persistence,
+  standard diagnostics, and rolling observations used to frame follower deltas;
+- `packaging-experiments.ts`: persisted copy-style treatment registry;
 - `apps/control-center`: optional read-only observability UI, never part of the
   daemon lifecycle.
 

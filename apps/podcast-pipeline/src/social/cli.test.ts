@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   publishSocialPlatforms: vi.fn(),
   question: vi.fn(),
   readPublishState: vi.fn(),
+  resolvePackagingAssignments: vi.fn(),
 }));
 
 vi.mock('node:readline/promises', async (importOriginal) => ({
@@ -28,6 +29,11 @@ vi.mock('./copy.js', async (importOriginal) => ({
 vi.mock('./episode.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./episode.js')>()),
   getSocialEpisode: mocks.getSocialEpisode,
+}));
+
+vi.mock('./packaging-experiments.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./packaging-experiments.js')>()),
+  resolvePackagingAssignments: mocks.resolvePackagingAssignments,
 }));
 
 vi.mock('./publish.js', () => ({
@@ -92,13 +98,15 @@ const episode: SocialEpisode = {
 };
 const copy: GeneratedSocialCopy = {
   topic: 'macro',
-  hookType: 'question',
-  short: { text: 'X copy' },
+  x: { hookType: 'question', text: '市場真的轉向了嗎？' },
+  threads: { hookType: 'contrarian', text: '市場轉向，大家怎麼看？' },
   rednote: {
+    hookType: 'question',
     title: '小紅書標題',
     body: '小紅書正文',
     hashtags: ['以太坊', '美聯儲', '投資'],
   },
+  youtube: { hookType: 'explainer', title: '市場轉向的三個訊號' },
 };
 const CTA = '官網 https://www.zap-pilot.org';
 const originalExitCode = process.exitCode;
@@ -150,6 +158,7 @@ beforeEach(() => {
   mocks.prepareSocialVideo.mockResolvedValue(VIDEO);
   mocks.prepareXTeaserVideo.mockResolvedValue(X_VIDEO);
   mocks.readPublishState.mockResolvedValue({});
+  mocks.resolvePackagingAssignments.mockResolvedValue({});
   mocks.createSocialPublishJobs.mockImplementation(
     async (input: { platforms: readonly string[] }) =>
       input.platforms.map((platform) => ({ platform, publish: vi.fn() })),
@@ -293,7 +302,7 @@ describe('runSocialCli media preparation', () => {
       sourcePath: VIDEO.path,
       durationSeconds: 600,
     });
-    expect(console.log).toHaveBeenCalledWith(`X copy\n\n${CTA}`);
+    expect(console.log).toHaveBeenCalledWith(`市場真的轉向了嗎？\n\n${CTA}`);
     expect(console.log).toHaveBeenCalledWith(
       `🎬 teaser: 2m 13s, 2.0 MB\n${X_VIDEO.path}`,
     );
@@ -581,7 +590,7 @@ describe('runSocialCli publishing', () => {
   it('regenerates with feedback and can recover from an unknown review choice', async () => {
     const regenerated: GeneratedSocialCopy = {
       ...copy,
-      short: { text: 'Regenerated X copy' },
+      threads: { hookType: 'question', text: '重新生成的討論文案？' },
     };
     mocks.generateSocialCopy
       .mockResolvedValueOnce({ copy, model: 'model-1' })
@@ -600,6 +609,7 @@ describe('runSocialCli publishing', () => {
       episode,
       languageCode: 'zh-Hant',
       platforms: ['threads'],
+      packagingByPlatform: {},
       feedback: 'make it sharper',
     });
     expect(console.log).toHaveBeenCalledWith('Unknown choice.');

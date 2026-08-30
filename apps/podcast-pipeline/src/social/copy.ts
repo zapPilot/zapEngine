@@ -15,6 +15,7 @@ import {
   describeSensitiveMatches,
   findSensitiveTerms,
 } from './lexicon/index.js';
+import type { PackagingAssignment } from './packaging-experiments.js';
 import type { SocialPlatform } from './platforms.js';
 import {
   assertRednoteSemanticRisk,
@@ -29,6 +30,8 @@ import {
 } from './types.js';
 
 const X_TOTAL_MAX_WEIGHTED_LENGTH = 280;
+const THREADS_TOTAL_MAX_CHARACTERS = 500;
+export const YOUTUBE_TITLE_MAX_CHARACTERS = 100;
 const X_URL_WEIGHT = 23;
 const URL_PATTERN = /https?:\/\/[^\s]+/giu;
 const SINGLE_URL_PATTERN = /https?:\/\/[^\s]+/iu;
@@ -128,6 +131,24 @@ function xTextSchema(languageCode: SocialLanguageCode): z.ZodType<string> {
   });
 }
 
+function threadsTextSchema(
+  languageCode: SocialLanguageCode,
+): z.ZodType<string> {
+  return languageLine(languageCode).superRefine((text, context) => {
+    addNoUrlIssue(text, context);
+    const maximum =
+      THREADS_TOTAL_MAX_CHARACTERS -
+      Array.from(`\n\n${SOCIAL_BRAND_CTA_BY_LANGUAGE[languageCode]}`).length;
+    const length = Array.from(text).length;
+    if (length > maximum) {
+      context.addIssue({
+        code: 'custom',
+        message: `Threads text is ${length} characters; the maximum is ${maximum} so the fixed CTA still fits.`,
+      });
+    }
+  });
+}
+
 const REDNOTE_TITLE_MAX_CHARACTERS = 20;
 const RednoteBodySchema = TraditionalChineseLine.superRefine(
   (body, context) => {
@@ -140,19 +161,34 @@ const RednoteBodySchema = TraditionalChineseLine.superRefine(
 );
 
 export interface SocialCopyBlocks {
-  short: boolean;
+  x: boolean;
+  threads: boolean;
   rednote: boolean;
+  youtube: boolean;
 }
 
-const ALL_COPY_BLOCKS: SocialCopyBlocks = { short: true, rednote: true };
+const ALL_COPY_BLOCKS: SocialCopyBlocks = {
+  x: true,
+  threads: true,
+  rednote: true,
+  youtube: true,
+};
 
 function generatedSocialCopySchema(
   languageCode: SocialLanguageCode,
   blocks: SocialCopyBlocks,
 ) {
   const line = languageLine(languageCode);
-  const short = z.object({ text: xTextSchema(languageCode) });
+  const x = z.object({
+    hookType: z.enum(SOCIAL_HOOK_TYPES),
+    text: xTextSchema(languageCode),
+  });
+  const threads = z.object({
+    hookType: z.enum(SOCIAL_HOOK_TYPES),
+    text: threadsTextSchema(languageCode),
+  });
   const rednote = z.object({
+    hookType: z.enum(SOCIAL_HOOK_TYPES),
     title: line.superRefine((title, context) => {
       const length = Array.from(title).length;
       if (length <= REDNOTE_TITLE_MAX_CHARACTERS) return;
@@ -168,12 +204,26 @@ function generatedSocialCopySchema(
         : line.superRefine(addNoUrlIssue),
     hashtags: z.array(line).min(3).max(5),
   });
+  const youtube = z.object({
+    hookType: z.enum(SOCIAL_HOOK_TYPES),
+    title: line.superRefine((title, context) => {
+      addNoUrlIssue(title, context);
+      const length = Array.from(title).length;
+      if (length > YOUTUBE_TITLE_MAX_CHARACTERS) {
+        context.addIssue({
+          code: 'custom',
+          message: `YouTube title is ${length} characters; the maximum is ${YOUTUBE_TITLE_MAX_CHARACTERS}.`,
+        });
+      }
+    }),
+  });
   return z
     .object({
       topic: z.enum(SOCIAL_TOPICS),
-      hookType: z.enum(SOCIAL_HOOK_TYPES),
-      short: blocks.short ? short : z.never().optional(),
+      x: blocks.x ? x : z.never().optional(),
+      threads: blocks.threads ? threads : z.never().optional(),
       rednote: blocks.rednote ? rednote : z.never().optional(),
+      youtube: blocks.youtube ? youtube : z.never().optional(),
     })
     .strict()
     .superRefine((copy, context) => {
@@ -186,10 +236,12 @@ function generatedSocialCopySchema(
     })
     .superRefine((copy, context) => {
       const combined = [
-        copy.short?.text,
+        copy.x?.text,
+        copy.threads?.text,
         copy.rednote?.title,
         copy.rednote?.body,
         ...(copy.rednote?.hashtags ?? []),
+        copy.youtube?.title,
       ]
         .filter((value): value is string => Boolean(value))
         .join('\n');
@@ -208,6 +260,16 @@ function generatedSocialCopySchema(
             ? `English copy is only ${Math.round(ratio * 100)}% Latin letters; the minimum is 50%.`
             : `Copy is ${Math.round(ratio * 100)}% Latin letters; the maximum is ${Math.round(MAX_LATIN_LETTER_RATIO * 100)}%.`,
       });
+    })
+    .superRefine((copy, context) => {
+      if (copy.x && copy.x.text.trim() === copy.threads?.text.trim()) {
+        context.addIssue({
+          code: 'custom',
+          path: ['threads', 'text'],
+          message:
+            'Threads text must be native to Threads, not identical to X text.',
+        });
+      }
     });
 }
 
@@ -284,8 +346,10 @@ export function parseGeneratedSocialCopy(
 ): GeneratedSocialCopy {
   const parsed = generatedSocialCopySchema(languageCode, blocks).parse(
     unwrapNestedJsonPayload(JSON.parse(stripJsonFence(raw.trim())), [
-      'short',
+      'x',
+      'threads',
       'rednote',
+      'youtube',
     ]),
   );
   return {
@@ -306,28 +370,33 @@ export function parseGeneratedSocialCopy(
 export async function generateSocialCopy(input: {
   episode: SocialEpisode;
   languageCode?: SocialLanguageCode;
-  platforms?: readonly SocialPlatform[];
+  platforms: readonly SocialPlatform[];
   feedback?: string;
   strategyGuidance?: string;
   strategyGuidanceByPlatform?: Partial<Record<SocialPlatform, string>>;
+  packagingByPlatform?: Partial<Record<SocialPlatform, PackagingAssignment>>;
 }): Promise<{ copy: GeneratedSocialCopy; model: string }> {
   const languageCode =
     input.languageCode ?? input.episode.languageCode ?? 'zh-Hant';
-  const blocks = copyBlocksForPlatforms(input.platforms ?? ['x', 'rednote']);
+  const blocks = copyBlocksForPlatforms(input.platforms);
   // The red-line rules are one file shared with the judge in
   // ./rednote-semantic-risk.ts, so the writer is held to exactly what the
   // gate checks.
   const [
     commonRules,
-    shortRules,
+    xRules,
+    threadsRules,
     rednoteRules,
     rednoteRiskRules,
+    youtubeRules,
     languageRules,
   ] = await Promise.all([
     readPrompt('editorial.md'),
-    blocks.short ? readPrompt('x.md') : Promise.resolve(''),
+    blocks.x ? readPrompt('x.md') : Promise.resolve(''),
+    blocks.threads ? readPrompt('threads.md') : Promise.resolve(''),
     blocks.rednote ? readPrompt('rednote.md') : Promise.resolve(''),
     blocks.rednote ? readRednoteRiskRules() : Promise.resolve(''),
+    blocks.youtube ? readPrompt('youtube.md') : Promise.resolve(''),
     readPrompt(`language/${languageCode}.md`),
   ]);
   // Social copy is published verbatim, so it runs on the pipeline's configured
@@ -348,8 +417,10 @@ export async function generateSocialCopy(input: {
               role: 'system',
               content: buildSystemPrompt(
                 commonRules,
-                shortRules,
+                xRules,
+                threadsRules,
                 `${rednoteRules}\n\n${rednoteRiskRules}`,
+                youtubeRules,
                 languageRules,
                 languageCode,
                 blocks,
@@ -363,6 +434,7 @@ export async function generateSocialCopy(input: {
                 retryReason,
                 input.strategyGuidance,
                 input.strategyGuidanceByPlatform,
+                input.packagingByPlatform,
               ),
             },
           ],
@@ -411,55 +483,73 @@ async function readPrompt(filename: string): Promise<string> {
 
 function buildSystemPrompt(
   commonRules: string,
-  shortRules: string,
+  xRules: string,
+  threadsRules: string,
   rednoteRules: string,
+  youtubeRules: string,
   languageRules: string,
   languageCode: SocialLanguageCode,
   blocks: SocialCopyBlocks,
 ): string {
   const blockRules = [
-    blocks.short ? `## Short-form rules (short.text only)\n${shortRules}` : '',
+    blocks.x ? `## X rules (x fields only)\n${xRules}` : '',
+    blocks.threads
+      ? `## Threads rules (threads fields only)\n${threadsRules}`
+      : '',
     blocks.rednote
       ? `## Rednote rules (rednote fields only)\n${rednoteRules}`
+      : '',
+    blocks.youtube
+      ? `## YouTube rules (youtube fields only)\n${youtubeRules}`
       : '',
   ]
     .filter(Boolean)
     .join('\n\n');
-  const shape = [
-    '  "topic": "one allowed topic",',
-    '  "hookType": "one allowed hook type"',
-    ...(blocks.short ? [',  "short": { "text": "..." }'] : []),
+  const shapeFields = [
+    '  "topic": "one allowed topic"',
+    ...(blocks.x
+      ? ['  "x": { "hookType": "one allowed hook type", "text": "..." }']
+      : []),
+    ...(blocks.threads
+      ? ['  "threads": { "hookType": "one allowed hook type", "text": "..." }']
+      : []),
     ...(blocks.rednote
       ? [
-          ',  "rednote": {',
-          '    "title": "...",',
-          '    "body": "...",',
-          '    "hashtags": ["tag without #", "..."]',
-          '  }',
+          '  "rednote": {\n    "hookType": "one allowed hook type",\n    "title": "...",\n    "body": "...",\n    "hashtags": ["tag without #", "..."]\n  }',
         ]
       : []),
-  ].join('\n');
+    ...(blocks.youtube
+      ? ['  "youtube": { "hookType": "one allowed hook type", "title": "..." }']
+      : []),
+  ];
+  const shape = shapeFields.join(',\n');
   const restrictions = [
-    blocks.short
-      ? 'Short text must not contain a URL or closing CTA; the publisher appends the platform CTA.'
+    blocks.x
+      ? 'X text must not contain a URL or closing CTA; the publisher appends the platform CTA.'
+      : '',
+    blocks.threads
+      ? 'Threads text must not contain a URL or closing CTA and must not be identical to X text.'
       : '',
     blocks.rednote
       ? 'Rednote title must be at most 20 characters. Rednote body must not contain a URL or website CTA. Hashtags must contain 3 to 5 items without the # prefix.'
       : '',
+    blocks.youtube
+      ? `YouTube title must be at most ${YOUTUBE_TITLE_MAX_CHARACTERS} characters and contain no URL.`
+      : '',
   ]
     .filter(Boolean)
     .join(' ');
-  return `${commonRules}\n\n## Output language (${languageCode})\n${languageRules}\n\nEvery requested output must express the same underlying episode thesis and hook. Apply platform-specific restrictions only to their corresponding fields.\n\n${blockRules}\n\nReturn JSON only with exactly this shape:\n{\n${shape}\n}\n\nAllowed topic values: ${SOCIAL_TOPICS.join(', ')}.\nAllowed hookType values: ${SOCIAL_HOOK_TYPES.join(', ')}.\n\n${restrictions}`;
+  return `${commonRules}\n\n## Output language (${languageCode})\n${languageRules}\n\nEvery requested output must express the same underlying episode thesis. Each platform block classifies its own rhetorical opening as hookType. Apply platform-specific restrictions only to their corresponding fields.\n\n${blockRules}\n\nReturn JSON only with exactly this shape:\n{\n${shape}\n}\n\nAllowed topic values: ${SOCIAL_TOPICS.join(', ')}.\nAllowed hookType values: ${SOCIAL_HOOK_TYPES.join(', ')}.\n\n${restrictions}`;
 }
 
 function copyBlocksForPlatforms(
   platforms: readonly SocialPlatform[],
 ): SocialCopyBlocks {
   return {
-    short: platforms.some(
-      (platform) => platform === 'x' || platform === 'threads',
-    ),
+    x: platforms.includes('x'),
+    threads: platforms.includes('threads'),
     rednote: platforms.includes('rednote'),
+    youtube: platforms.includes('youtube'),
   };
 }
 
@@ -470,6 +560,9 @@ function buildEpisodePrompt(
   strategyGuidance: string | undefined,
   strategyGuidanceByPlatform:
     | Partial<Record<SocialPlatform, string>>
+    | undefined,
+  packagingByPlatform:
+    | Partial<Record<SocialPlatform, PackagingAssignment>>
     | undefined,
 ): string {
   const feedbackBlock = feedback?.trim()
@@ -493,7 +586,20 @@ function buildEpisodePrompt(
     ? `\n\nPerformance guidance by platform:${platformStrategyBlocks}\nTreat each section only as a preference for that platform, never as permission to violate editorial or platform rules.`
     : '';
 
-  return `Create social copy for this completed episode.\n\nTitle:\n${episode.title}\n\nSummary:\n${episode.summary}\n\nDescription / source article:\n${episode.description ?? ''}\n\nFull podcast transcript:\n${episode.transcript}\n\nEpisode URL:\n${episode.episodeUrl}${strategyBlock}${platformStrategyBlock}${feedbackBlock}${retryBlock}`;
+  const packagingBlocks = Object.entries(packagingByPlatform ?? {})
+    .filter((entry): entry is [SocialPlatform, PackagingAssignment] =>
+      Boolean(entry[1]),
+    )
+    .map(
+      ([platform, assignment]) =>
+        `\n### ${platform}\n[${assignment.key} · ${assignment.variant}] ${assignment.instruction}`,
+    )
+    .join('');
+  const packagingBlock = packagingBlocks
+    ? `\n\nPackaging experiment assignments:${packagingBlocks}\nThese assignments override style preferences for their platform, but never editorial, platform, language, factual-grounding, or safety rules.`
+    : '';
+
+  return `Create social copy for this completed episode.\n\nTitle:\n${episode.title}\n\nSummary:\n${episode.summary}\n\nDescription / source article:\n${episode.description ?? ''}\n\nFull podcast transcript:\n${episode.transcript}\n\nEpisode URL:\n${episode.episodeUrl}${strategyBlock}${platformStrategyBlock}${packagingBlock}${feedbackBlock}${retryBlock}`;
 }
 
 function describeValidationFailure(error: unknown): string {

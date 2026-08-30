@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   getSocialQueueSnapshot: vi.fn(),
   latestScheduledSocialJobs: vi.fn(),
   listPendingSocialPublishSchedules: vi.fn().mockResolvedValue([]),
+  listDueSocialPublishPlatforms: vi.fn().mockResolvedValue([]),
   listLearningSocialPosts: vi.fn(),
   listLearningSocialMetrics: vi.fn(),
   listMetricWindowsForPosts: vi.fn(),
@@ -33,6 +34,8 @@ const mocks = vi.hoisted(() => ({
   collectX: vi.fn(),
   refreshSocialStrategies: vi.fn(),
   captureDueAccountSnapshots: vi.fn(),
+  capturePrePublishAccountSnapshots: vi.fn(),
+  collectRollingPostMetrics: vi.fn(),
   getOrCreateExperimentAssignment: vi.fn(),
   capturePipelineException: vi.fn(),
   flushSentry: vi.fn(),
@@ -61,6 +64,7 @@ vi.mock('./daemon-store.js', () => ({
     return values.at(-1) ?? null;
   },
   listPendingSocialPublishSchedules: mocks.listPendingSocialPublishSchedules,
+  listDueSocialPublishPlatforms: mocks.listDueSocialPublishPlatforms,
   listLearningSocialPosts: mocks.listLearningSocialPosts,
   listLearningSocialMetrics: mocks.listLearningSocialMetrics,
   listMetricWindowsForPosts: mocks.listMetricWindowsForPosts,
@@ -84,6 +88,10 @@ vi.mock('../services/db.js', () => ({
 
 vi.mock('./account-snapshots.js', () => ({
   captureDueAccountSnapshots: mocks.captureDueAccountSnapshots,
+  capturePrePublishAccountSnapshots: mocks.capturePrePublishAccountSnapshots,
+}));
+vi.mock('./rolling-metrics.js', () => ({
+  collectRollingPostMetrics: mocks.collectRollingPostMetrics,
 }));
 vi.mock('./publish-batch.js', () => ({
   publishSocialBatch: mocks.publishSocialBatch,
@@ -260,7 +268,9 @@ beforeEach(() => {
     withPage: vi.fn(),
     close: mocks.closeMetricsBrowserSession,
   });
-  mocks.captureDueAccountSnapshots.mockResolvedValue(0);
+  mocks.captureDueAccountSnapshots.mockResolvedValue([]);
+  mocks.capturePrePublishAccountSnapshots.mockResolvedValue([]);
+  mocks.collectRollingPostMetrics.mockResolvedValue(0);
 });
 
 describe('social daemon', () => {
@@ -1089,20 +1099,32 @@ describe('social daemon', () => {
   });
 
   it('hands account snapshots a browser factory and isolates their failure', async () => {
+    mocks.captureDueAccountSnapshots.mockImplementationOnce(
+      async ({ openBrowser }: { openBrowser: () => unknown }) => {
+        openBrowser();
+        return ['x'];
+      },
+    );
     await runSocialDaemonTick({
       now: NOW,
       firstStartedAt: '2026-08-16T08:00:00.000Z',
     });
 
     // A factory rather than an open session: at a three-hour cadence the
-    // browser must only start when something that needs one is actually due,
-    // and the snapshot step owns closing whatever it opened.
+    // The account step keeps its lazily opened session available for rolling
+    // metrics, then owns closing it after both reads finish.
     expect(mocks.captureDueAccountSnapshots).toHaveBeenCalledWith(
       expect.objectContaining({
         now: NOW,
-        openBrowser: mocks.createMetricsBrowserSession,
+        openBrowser: expect.any(Function),
+        closeBrowser: false,
       }),
     );
+    const browser = mocks.createMetricsBrowserSession.mock.results[0]?.value;
+    expect(mocks.collectRollingPostMetrics).toHaveBeenCalledWith(
+      expect.objectContaining({ now: NOW, platforms: ['x'], browser }),
+    );
+    expect(mocks.closeMetricsBrowserSession).toHaveBeenCalledOnce();
 
     vi.clearAllMocks();
     mocks.listSocialPublishCandidates.mockResolvedValue([]);
@@ -1136,6 +1158,41 @@ describe('social daemon', () => {
     expect(log.mock.calls.map(([line]) => String(line))).toEqual(
       expect.arrayContaining([
         expect.stringMatching(/account snapshots failed.*followers down/),
+      ]),
+    );
+  });
+
+  it('captures due pre-publish baselines without allowing a failure to block publishing', async () => {
+    mocks.listDueSocialPublishPlatforms.mockResolvedValue(['x']);
+    mocks.capturePrePublishAccountSnapshots.mockRejectedValue(
+      new Error('baseline unavailable'),
+    );
+    mocks.claimSocialPublishJob.mockResolvedValue(publishJob());
+    mocks.publishSocialBatch.mockResolvedValue([
+      { platform: 'x', status: 'published', url: 'https://x.com/zap/status/1' },
+    ]);
+    mocks.listSocialPostsByEpisode
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([socialPost()]);
+    const log = vi.fn();
+
+    await expect(
+      runSocialDaemonTick({
+        now: NOW_PUBLISHING,
+        firstStartedAt: '2026-08-16T08:00:00.000Z',
+        log,
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(mocks.capturePrePublishAccountSnapshots).toHaveBeenCalledWith(
+      expect.objectContaining({ now: NOW_PUBLISHING, platforms: ['x'] }),
+    );
+    expect(mocks.publishSocialBatch).toHaveBeenCalled();
+    expect(log.mock.calls.map(([line]) => String(line))).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(
+          /pre-publish snapshots failed.*baseline unavailable/,
+        ),
       ]),
     );
   });

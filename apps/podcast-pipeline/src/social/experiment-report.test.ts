@@ -51,6 +51,34 @@ describe('social experiment reporting', () => {
       ],
     });
   });
+
+  it('reports orthogonal packaging membership from content features', () => {
+    const posts = [post('en', 0), post('ja', 8)];
+    posts[0]!.content_features = {
+      packagingExperiment: {
+        key: 'youtube-title-packaging-v1',
+        variant: 'descriptive',
+      },
+    } as SocialPostRow['content_features'];
+    posts[1]!.content_features = {
+      packagingExperiment: {
+        key: 'youtube-title-packaging-v1',
+        variant: 'hook_first',
+      },
+    } as SocialPostRow['content_features'];
+    const reports = buildSocialExperimentReports({
+      posts,
+      metrics: [metric(posts[0]!.id, 100, 1), metric(posts[1]!.id, 120, 1)],
+    });
+    expect(reports.map((report) => report.experimentKey)).toEqual([
+      'x-language-v1',
+      'youtube-title-packaging-v1',
+    ]);
+    expect(reports[1]?.arms.map((arm) => arm.variant)).toEqual([
+      'descriptive',
+      'hook_first',
+    ]);
+  });
 });
 
 function post(variant: 'en' | 'ja', day: number): SocialPostRow {

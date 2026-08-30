@@ -28,6 +28,7 @@ import {
   failSocialPublishJob,
   getActiveSocialStrategies,
   getSocialQueueSnapshot,
+  listDueSocialPublishPlatforms,
   listLearningSocialMetrics,
   listLearningSocialPosts,
   listMetricWindowsForPosts,
@@ -53,6 +54,7 @@ function queryBuilder() {
     eq: vi.fn(),
     gte: vi.fn(),
     lt: vi.fn(),
+    lte: vi.fn(),
     order: vi.fn(),
     limit: vi.fn(),
     upsert: vi.fn(),
@@ -70,6 +72,7 @@ function queryBuilder() {
     'eq',
     'gte',
     'lt',
+    'lte',
     'order',
     'limit',
     'upsert',
@@ -108,6 +111,27 @@ beforeEach(() => {
 });
 
 describe('social daemon store', () => {
+  it('lists distinct claimable platforms for pre-publish baselines', async () => {
+    queue({
+      data: [{ platform: 'x' }, { platform: 'x' }, { platform: 'rednote' }],
+      error: null,
+    });
+    await expect(
+      listDueSocialPublishPlatforms(new Date('2026-08-30T00:00:00.000Z')),
+    ).resolves.toEqual(['x', 'rednote']);
+    expect(mocks.calls).toEqual(
+      expect.arrayContaining([
+        { method: 'in', args: ['status', ['queued', 'failed']] },
+        { method: 'lte', args: ['scheduled_at', '2026-08-30T00:00:00.000Z'] },
+        {
+          method: 'lte',
+          args: ['next_attempt_at', '2026-08-30T00:00:00.000Z'],
+        },
+        { method: 'lt', args: ['attempt_count', 8] },
+      ]),
+    );
+  });
+
   it('collapses channel-shaped waiting rows into language video requirements', async () => {
     queue(
       { data: [], error: null },

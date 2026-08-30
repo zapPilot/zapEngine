@@ -5,11 +5,13 @@ import type {
   OperationsResponse,
   OperationsSocialResponse,
   OverviewResponse,
+  SocialGrowthResponse,
 } from '../shared/types.js';
 import { createControlCenterApp } from './app.js';
 import { readControlCenterConfig } from './config/env.js';
 import type { createOperationsService } from './services/operations/aggregate.js';
 import { createOverviewService } from './services/overview.js';
+import type { createSocialGrowthService } from './services/social-growth.js';
 
 const overview: OverviewResponse = {
   generatedAt: '2026-08-16T12:00:00.000Z',
@@ -88,9 +90,19 @@ const customers: CustomerEconomicsResponse = {
   users: [],
 };
 
+const socialGrowth: SocialGrowthResponse = {
+  generatedAt: '2026-08-30T00:00:00.000Z',
+  status: 'ok',
+  message: null,
+  platforms: [],
+  experiments: [],
+  attribution: [],
+};
+
 function createTestApp(
   overrides: Partial<ReturnType<typeof createOverviewService>> = {},
   operationsOverrides: Partial<ReturnType<typeof createOperationsService>> = {},
+  growthOverrides: Partial<ReturnType<typeof createSocialGrowthService>> = {},
 ) {
   return createControlCenterApp({
     config: readControlCenterConfig({}),
@@ -123,6 +135,11 @@ function createTestApp(
         })),
       getSocial:
         overrides.getSocial ?? vi.fn().mockResolvedValue(overview.social),
+    },
+    socialGrowth: {
+      getSocialGrowth:
+        growthOverrides.getSocialGrowth ??
+        vi.fn().mockResolvedValue(socialGrowth),
     },
     serveClient: false,
   });
@@ -158,6 +175,15 @@ describe('control center API', () => {
       (await app.request('/api/social-performance?window=nope')).status,
     ).toBe(200);
     expect(getSocial).toHaveBeenCalledWith('latest');
+  });
+
+  it('serves social growth and forwards the force cache bypass', async () => {
+    const getSocialGrowth = vi.fn().mockResolvedValue(socialGrowth);
+    const app = createTestApp({}, {}, { getSocialGrowth });
+    const response = await app.request('/api/social-growth?force=1');
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ status: 'ok' });
+    expect(getSocialGrowth).toHaveBeenCalledWith(true);
   });
 
   it('syncs costs only through the POST endpoint', async () => {

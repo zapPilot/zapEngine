@@ -21,7 +21,10 @@ import {
   sendTelegramNotification,
 } from '../services/telegram.js';
 import type { SocialPostRow } from '../types.js';
-import { captureDueAccountSnapshots } from './account-snapshots.js';
+import {
+  captureDueAccountSnapshots,
+  capturePrePublishAccountSnapshots,
+} from './account-snapshots.js';
 import { type ReleaseCohortLane, resolveReleaseCohortLanes } from './cohort.js';
 import { recordSocialDaemonTick } from './daemon-heartbeat.js';
 import {
@@ -37,6 +40,7 @@ import {
   failSocialPublishJob,
   getActiveSocialStrategies,
   getSocialQueueSnapshot,
+  listDueSocialPublishPlatforms,
   listLearningSocialMetrics,
   listLearningSocialPosts,
   listMetricWindowsForPosts,
@@ -65,10 +69,12 @@ import {
   createMetricsBrowserSession,
 } from './metric-collectors.js';
 import { buildSocialPostMetric, collectPostMetrics } from './metrics.js';
+import { activePackagingExperiment } from './packaging-experiments.js';
 import type { SocialPlatform } from './platforms.js';
 import { SOCIAL_PUBLISH_WINDOW_JST } from './policy.js';
 import { publishSocialBatch } from './publish-batch.js';
 import { SocialReleaseFailureError } from './publish-error.js';
+import { collectRollingPostMetrics } from './rolling-metrics.js';
 import {
   nextBudgetSlot,
   occupiesPublishBudget,
@@ -188,7 +194,8 @@ export async function runSocialDaemon(
  * stages: a failure here can leave a cohort's lanes disagreeing about what was
  * actually published, or leave the queue mis-scheduled. Those propagate and
  * stop the whole process (see the `isMainModule` block below). `metrics`,
- * `account snapshots`, `strategy`, and `experiment report` are purely
+ * `pre-publish snapshots`, `account snapshots` (including rolling metrics),
+ * `strategy`, and `experiment report` are purely
  * observational -- losing one of them for a tick has no release-correctness
  * consequence, so those stay isolated.
  */
@@ -207,6 +214,17 @@ export async function runSocialDaemonTick(input: {
     now: input.now,
     firstStartedAt: input.firstStartedAt,
     log,
+  });
+
+  await isolate('pre-publish snapshots', log, async () => {
+    const platforms = await listDueSocialPublishPlatforms(input.now);
+    if (platforms.length === 0) return;
+    await capturePrePublishAccountSnapshots({
+      now: input.now,
+      platforms,
+      openBrowser: createMetricsBrowserSession,
+      log,
+    });
   });
 
   await publishDueJobs(input.now, log);
@@ -774,6 +792,12 @@ async function publishLanguageBatch(
       const guidance = buildStrategyGuidance(
         job.platform,
         active[strategyMapKey(job.platform, jobLanguage(job))]?.config,
+        Math.random,
+        {
+          packagingActive:
+            activePackagingExperiment(job.platform, jobLanguage(job)) !==
+            undefined,
+        },
       );
       return guidance ? [[job.platform, guidance]] : [];
     }),
@@ -1048,11 +1072,25 @@ async function captureAccountSnapshots(
   now: Date,
   log: (message: string) => void,
 ): Promise<void> {
-  await captureDueAccountSnapshots({
-    now,
-    openBrowser: createMetricsBrowserSession,
-    log,
-  });
+  let browser: ReturnType<typeof createMetricsBrowserSession> | undefined;
+  try {
+    const captured = await captureDueAccountSnapshots({
+      now,
+      openBrowser: () => (browser ??= createMetricsBrowserSession()),
+      closeBrowser: false,
+      log,
+    });
+    if (captured.length > 0) {
+      await collectRollingPostMetrics({
+        now,
+        platforms: captured,
+        browser,
+        log,
+      });
+    }
+  } finally {
+    await browser?.close();
+  }
 }
 
 export function earliestDueWindow(

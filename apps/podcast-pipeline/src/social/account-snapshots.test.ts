@@ -17,6 +17,7 @@ vi.mock('./youtube-auth.js', () => ({
 
 import {
   captureDueAccountSnapshots,
+  capturePrePublishAccountSnapshots,
   extractRednoteFollowerText,
   parseRednoteUserId,
   xFollowerLinkSelector,
@@ -232,7 +233,7 @@ describe('captureDueAccountSnapshots', () => {
         latest: vi.fn().mockResolvedValue({}),
         insert,
       }),
-    ).resolves.toBe(3);
+    ).resolves.toEqual(['rednote', 'x', 'threads']);
 
     expect(insert.mock.calls.map(([snapshot]) => snapshot)).toEqual([
       {
@@ -243,89 +244,6 @@ describe('captureDueAccountSnapshots', () => {
       { platform: 'x', followers: 8096, details: { profileUrl: X_PROFILE } },
       { platform: 'threads', followers: 310, details: {} },
     ]);
-  });
-
-  // YouTube's publish scope is upload-only, so no credential here can read
-  // channel statistics; per-post subscribersGained covers it instead.
-  it('skips YouTube until the operator consents to the readonly scope', async () => {
-    const insert = vi.fn().mockResolvedValue(undefined);
-    const log = vi.fn();
-    await captureDueAccountSnapshots({
-      now: NOW,
-      openBrowser: () => browserSession({}),
-      fetchImpl: threadsInsights(310),
-      latest: vi.fn().mockResolvedValue({}),
-      insert,
-      log,
-    });
-
-    // Skipped, not fabricated and not fatal: the other three platforms still
-    // get their snapshot on the same tick.
-    expect(
-      insert.mock.calls.some(([snapshot]) => snapshot.platform === 'youtube'),
-    ).toBe(false);
-    expect(log).toHaveBeenCalledWith(
-      expect.stringContaining('account snapshot failed'),
-    );
-  });
-
-  it('records the absolute subscriber count once the scope is granted', async () => {
-    const insert = vi.fn().mockResolvedValue(undefined);
-    mocks.assertYouTubeSessionReady.mockResolvedValue({
-      accessToken: 'youtube-token',
-    });
-    const fetchImpl = vi.fn(async (input: URL | RequestInfo) =>
-      String(input).startsWith('https://www.googleapis.com/youtube/v3/channels')
-        ? {
-            ok: true,
-            status: 200,
-            json: async () => ({
-              items: [
-                {
-                  statistics: {
-                    subscriberCount: '1420',
-                    viewCount: '98000',
-                    videoCount: '61',
-                  },
-                },
-              ],
-            }),
-          }
-        : {
-            ok: true,
-            status: 200,
-            json: async () => ({
-              data: [{ name: 'followers_count', total_value: { value: 310 } }],
-            }),
-          },
-    ) as unknown as typeof fetch;
-
-    await captureDueAccountSnapshots({
-      now: NOW,
-      openBrowser: () => browserSession({}),
-      fetchImpl,
-      latest: vi.fn().mockResolvedValue({}),
-      insert,
-    });
-
-    // Per-post `subscribersGained` cannot be summed into this number, which is
-    // why the channel is read directly.
-    expect(
-      insert.mock.calls.find(([snapshot]) => snapshot.platform === 'youtube'),
-    ).toEqual([
-      {
-        platform: 'youtube',
-        followers: 1420,
-        details: { viewCount: '98000', videoCount: '61' },
-      },
-    ]);
-    const requested = String(
-      (fetchImpl as unknown as { mock: { calls: [URL][] } }).mock.calls.find(
-        ([url]) => String(url).includes('/youtube/v3/channels'),
-      )?.[0],
-    );
-    expect(requested).toContain('mine=true');
-    expect(requested).toContain('part=statistics');
   });
 
   it('opens no browser when nothing that needs one is due', async () => {
@@ -396,7 +314,7 @@ describe('captureDueAccountSnapshots', () => {
         insert,
         log,
       }),
-    ).resolves.toBe(2);
+    ).resolves.toEqual(['x', 'threads']);
 
     expect(insert.mock.calls.map(([row]) => row.platform)).toEqual([
       'x',
@@ -424,10 +342,9 @@ describe('captureDueAccountSnapshots', () => {
         insert,
         log,
       }),
-    ).resolves.toBe(0);
+    ).resolves.toEqual([]);
     expect(insert).not.toHaveBeenCalled();
-    // One failure line per platform, YouTube's being the un-consented scope.
-    expect(log).toHaveBeenCalledTimes(4);
+    expect(log).toHaveBeenCalledTimes(3);
     expect(rednoteLine(log)).toEqual(
       expect.stringContaining(
         `Rednote profile ${REDNOTE_PROFILE_URL} exposed no follower count`,
@@ -542,5 +459,41 @@ describe('captureDueAccountSnapshots', () => {
       log,
     });
     expect(rednoteLine(log)).toEqual(expect.stringContaining('HTTP 503'));
+  });
+});
+
+describe('capturePrePublishAccountSnapshots', () => {
+  it('opens no browser for unsupported or less-than-one-hour-old baselines', async () => {
+    const openBrowser = vi.fn(() => browserSession({}));
+    await expect(
+      capturePrePublishAccountSnapshots({
+        now: NOW,
+        platforms: ['youtube', 'x'],
+        openBrowser,
+        latest: vi.fn().mockResolvedValue({
+          x: {
+            captured_at: new Date(NOW.getTime() - 59 * 60_000).toISOString(),
+          },
+        }),
+        insert: vi.fn(),
+      }),
+    ).resolves.toEqual([]);
+    expect(openBrowser).not.toHaveBeenCalled();
+  });
+
+  it('captures only stale due platforms and isolates failures', async () => {
+    const insert = vi.fn().mockResolvedValue(undefined);
+    await expect(
+      capturePrePublishAccountSnapshots({
+        now: NOW,
+        platforms: ['rednote', 'x'],
+        openBrowser: () => browserSession({ failFor: 'rednote' }),
+        latest: vi.fn().mockResolvedValue({}),
+        insert,
+      }),
+    ).resolves.toEqual(['x']);
+    expect(insert).toHaveBeenCalledWith(
+      expect.objectContaining({ platform: 'x', followers: 8096 }),
+    );
   });
 });

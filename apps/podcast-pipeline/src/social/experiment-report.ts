@@ -29,27 +29,38 @@ export function buildSocialExperimentReports(input: {
       .filter((metric) => metric.measurement_window === '24h')
       .map((metric) => [metric.social_post_id, metric]),
   );
-  const byExperiment = new Map<string, SocialPostRow[]>();
+  const byExperiment = new Map<
+    string,
+    { post: SocialPostRow; variant: string }[]
+  >();
   for (const post of input.posts) {
-    if (!post.experiment_key || !post.experiment_variant) continue;
-    const rows = byExperiment.get(post.experiment_key) ?? [];
-    rows.push(post);
-    byExperiment.set(post.experiment_key, rows);
+    const memberships = [
+      post.experiment_key && post.experiment_variant
+        ? { key: post.experiment_key, variant: post.experiment_variant }
+        : null,
+      packagingMembership(post.content_features),
+    ].filter(
+      (membership): membership is { key: string; variant: string } =>
+        membership !== null,
+    );
+    for (const membership of memberships) {
+      const rows = byExperiment.get(membership.key) ?? [];
+      rows.push({ post, variant: membership.variant });
+      byExperiment.set(membership.key, rows);
+    }
   }
 
-  return [...byExperiment.entries()].map(([experimentKey, posts]) => {
-    const timestamps = posts.map(({ published_at }) =>
-      Date.parse(published_at),
+  return [...byExperiment.entries()].map(([experimentKey, memberships]) => {
+    const timestamps = memberships.map(({ post }) =>
+      Date.parse(post.published_at),
     );
     const durationDays =
       (Math.max(...timestamps) - Math.min(...timestamps)) / (24 * 60 * 60_000);
-    const variants = [
-      ...new Set(posts.map((post) => post.experiment_variant!)),
-    ];
+    const variants = [...new Set(memberships.map(({ variant }) => variant))];
     const arms = variants.map((variant) => {
-      const samples = posts
-        .filter((post) => post.experiment_variant === variant)
-        .flatMap((post) => {
+      const samples = memberships
+        .filter((membership) => membership.variant === variant)
+        .flatMap(({ post }) => {
           const metric = metricsByPost.get(post.id);
           return metric ? [{ post, metric }] : [];
         });
@@ -67,7 +78,9 @@ export function buildSocialExperimentReports(input: {
         ),
       };
     });
-    const telemetryComplete = posts.every((post) => metricsByPost.has(post.id));
+    const telemetryComplete = memberships.every(({ post }) =>
+      metricsByPost.has(post.id),
+    );
     return {
       experimentKey,
       arms,
@@ -80,6 +93,24 @@ export function buildSocialExperimentReports(input: {
         telemetryComplete,
     };
   });
+}
+
+function packagingMembership(
+  features: SocialPostRow['content_features'],
+): { key: string; variant: string } | null {
+  if (!features || typeof features !== 'object') return null;
+  const value = (features as unknown as Record<string, unknown>)[
+    'packagingExperiment'
+  ];
+  if (!value || typeof value !== 'object') return null;
+  const key = (value as Record<string, unknown>)['key'];
+  const variant = (value as Record<string, unknown>)['variant'];
+  return typeof key === 'string' &&
+    key &&
+    typeof variant === 'string' &&
+    variant
+    ? { key, variant }
+    : null;
 }
 
 function engagements(metric: SocialPostMetricRow): number {

@@ -1,6 +1,10 @@
 import { generateSocialCopy } from './copy.js';
 import { getSocialEpisode, requireSocialEpisodeVideoUrl } from './episode.js';
 import {
+  type PackagingAssignment,
+  resolvePackagingAssignments,
+} from './packaging-experiments.js';
+import {
   requiresLocalTeaser,
   requiresLocalVideo,
   type SocialPlatform,
@@ -36,6 +40,7 @@ export async function publishSocialBatch(input: {
   languageCode: SocialLanguageCode;
   platforms: readonly SocialBatchPlatform[];
   strategyGuidanceByPlatform?: Partial<Record<SocialPlatform, string>>;
+  packagingByPlatform?: Partial<Record<SocialPlatform, PackagingAssignment>>;
   copySnapshot?: SocialCopySnapshot;
   episode?: SocialEpisode;
   video?: PreparedVideo;
@@ -67,12 +72,20 @@ export async function publishSocialBatch(input: {
           durationSeconds: episode.videoDurationSeconds,
         })
       : undefined);
+  const packagingByPlatform =
+    input.packagingByPlatform ??
+    (await resolvePackagingAssignments({
+      episodeId: input.episodeId,
+      languageCode: input.languageCode,
+      platforms,
+    }));
   let snapshot = input.copySnapshot;
   if (!snapshot) {
     const generated = await generateSocialCopy({
       episode,
       languageCode: input.languageCode,
       platforms,
+      packagingByPlatform,
       ...(input.strategyGuidanceByPlatform
         ? { strategyGuidanceByPlatform: input.strategyGuidanceByPlatform }
         : {}),
@@ -115,6 +128,7 @@ export async function publishSocialBatch(input: {
     episodeId: input.episodeId,
     languageCode: input.languageCode,
     experimentByPlatform,
+    packagingByPlatform,
     snapshot,
     episode,
     videoDurationSeconds: episode.videoDurationSeconds,

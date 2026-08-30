@@ -23,7 +23,9 @@ const mocks = vi.hoisted(() => ({
   getActiveSocialStrategies: vi.fn(),
   claimSocialPublishJob: vi.fn(),
   listPendingSocialPublishSchedules: vi.fn().mockResolvedValue([]),
+  listDueSocialPublishPlatforms: vi.fn().mockResolvedValue([]),
   captureDueAccountSnapshots: vi.fn(),
+  capturePrePublishAccountSnapshots: vi.fn(),
   refreshSocialStrategies: vi.fn(),
   publishSocialBatch: vi.fn(),
 }));
@@ -45,6 +47,7 @@ vi.mock('./daemon-store.js', () => ({
   getSocialQueueSnapshot: mocks.getSocialQueueSnapshot,
   latestPendingSocialPublishSchedule: vi.fn().mockResolvedValue(null),
   listPendingSocialPublishSchedules: mocks.listPendingSocialPublishSchedules,
+  listDueSocialPublishPlatforms: mocks.listDueSocialPublishPlatforms,
   listLearningSocialPosts: mocks.listLearningSocialPosts,
   listLearningSocialMetrics: mocks.listLearningSocialMetrics,
   listMetricWindowsForPosts: mocks.listMetricWindowsForPosts,
@@ -82,6 +85,7 @@ vi.mock('./metric-collectors.js', () => ({
 
 vi.mock('./account-snapshots.js', () => ({
   captureDueAccountSnapshots: mocks.captureDueAccountSnapshots,
+  capturePrePublishAccountSnapshots: mocks.capturePrePublishAccountSnapshots,
 }));
 
 vi.mock('./publish-batch.js', () => ({
@@ -166,7 +170,8 @@ beforeEach(() => {
     close: mocks.closeMetricsBrowserSession,
   });
   mocks.closeMetricsBrowserSession.mockResolvedValue(undefined);
-  mocks.captureDueAccountSnapshots.mockResolvedValue(0);
+  mocks.captureDueAccountSnapshots.mockResolvedValue([]);
+  mocks.capturePrePublishAccountSnapshots.mockResolvedValue([]);
 });
 
 describe('earliestDueWindow terminal', () => {

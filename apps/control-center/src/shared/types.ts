@@ -88,6 +88,78 @@ export interface SocialPerformanceResponse {
   episodes: SocialEpisodeSummary[];
 }
 
+export type SocialGrowthBasis = 'estimated' | 'exact';
+
+export interface SocialGrowthLane {
+  languageCode: string;
+  postCount7d: number;
+  medianReach24h: number | null;
+  followersGained7d: number | null;
+  followersPer1kReach: number | null;
+  basis: SocialGrowthBasis;
+}
+
+export interface SocialGrowthPlatform {
+  platform: string;
+  followersNow: number | null;
+  followersDelta24h: number | null;
+  followersDelta7d: number | null;
+  exactSubscribersGained7d: number | null;
+  lanes: SocialGrowthLane[];
+}
+
+export type SocialExperimentStatus =
+  | 'collecting'
+  | 'provisional'
+  | 'eligible'
+  | 'paired-cohort';
+
+export interface SocialExperimentArm {
+  variant: string;
+  samples24h: number;
+  status: Exclude<SocialExperimentStatus, 'paired-cohort'>;
+  medianReach24h: number | null;
+  meanReach24h: number | null;
+  medianEngagementRate: number | null;
+  followersAttributed: number | null;
+  followersPer1kReach: number | null;
+  basis: SocialGrowthBasis;
+}
+
+export interface SocialExperimentSummary {
+  experimentKey: string;
+  kind: 'language' | 'packaging';
+  paired: boolean;
+  status: SocialExperimentStatus;
+  arms: SocialExperimentArm[];
+}
+
+export interface SocialGrowthAttributionShare {
+  postId: string;
+  share: number;
+  followersEstimated: number;
+  basis: 'estimated';
+}
+
+export interface SocialGrowthInterval {
+  platform: string;
+  startAt: string;
+  endAt: string;
+  netDelta: number;
+  unattributed: number;
+  posts: SocialGrowthAttributionShare[];
+  basis: 'estimated';
+}
+
+export interface SocialGrowthResponse {
+  status: ProviderStatus;
+  message: string | null;
+  generatedAt: string;
+  platforms: SocialGrowthPlatform[];
+  experiments: SocialExperimentSummary[];
+  attribution: SocialGrowthInterval[];
+}
+
 export interface ProductHealthResponse {
   registeredUsers: number | null;
   verifiedWallets: number | null;

@@ -105,6 +105,10 @@ export async function loadSocialPerformance(input: {
             'social_post_id,captured_at,age_hours,measurement_window,collection_status,views,impressions,likes,comments,shares,saves,followers_gained,details',
           )
           .gte('captured_at', since)
+          // Rolling attribution rows have no window and would otherwise win a
+          // nearest-age lookup while also crowding standard samples out of the
+          // bounded payload.
+          .not('measurement_window', 'is', null)
           .order('captured_at', { ascending: false })
           .limit(3_000),
         client
