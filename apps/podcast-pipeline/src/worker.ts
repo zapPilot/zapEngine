@@ -4,9 +4,13 @@
 import './observability/sentry-init.js';
 
 import { installProcessShutdown } from './lib/process-shutdown.js';
-import { flushSentry } from './observability/sentry.js';
+import {
+  capturePipelineException,
+  flushSentry,
+} from './observability/sentry.js';
 import { processEpisodeVideoJob } from './services/episode-video-processor.js';
 import { processEpisodeVideoVisualJob } from './services/episode-video-visual-processor.js';
+import { assertVideoRenderRuntime } from './services/video/runtime-preflight.js';
 import {
   createVideoWorker,
   type CreateVideoWorkerOptions,
@@ -143,5 +147,18 @@ export function startVideoWorkerProcess(
 }
 
 if (process.env['NODE_ENV'] !== 'test') {
-  startVideoWorkerProcess();
+  try {
+    const runtime = await assertVideoRenderRuntime();
+    console.info(
+      `[video-worker] runtime:ready ffmpeg=${runtime.ffmpegPath} fonts=${runtime.fontsDirectory}`,
+    );
+    startVideoWorkerProcess();
+  } catch (error) {
+    capturePipelineException(error, {
+      component: 'video-worker',
+      tags: { phase: 'runtime-preflight' },
+    });
+    await flushSentry();
+    throw error;
+  }
 }
