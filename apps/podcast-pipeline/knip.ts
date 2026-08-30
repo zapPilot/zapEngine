@@ -20,9 +20,6 @@ export default defineKnipConfig({
   ignoreDependencies: [
     // Pre-existing: loaded via CSS @import; knip only resolves JS imports
     '@zapengine/design-tokens',
-    // Imported through the package's `./shared` export, which knip does not
-    // attribute to the workspace dependency.
-    '@zapengine/types',
   ],
   vitest: { config: ['vitest.config.ts'], entry: ['src/**/*.test.ts'] },
 });

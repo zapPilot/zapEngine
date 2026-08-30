@@ -1,5 +1,4 @@
 import * as Sentry from '@sentry/node';
-import { trimToUndefined } from '@zapengine/types/shared';
 
 export interface SentryEnv {
   APP_COMMIT_SHA?: string;
@@ -27,6 +26,10 @@ export interface PipelineExceptionOptions {
   /** High-cardinality detail: ids, URLs, attempt counts. */
   context?: Record<string, unknown>;
   level?: 'error' | 'warning';
+}
+
+function trimToUndefined(value?: string): string | undefined {
+  return value?.trim() || undefined;
 }
 
 export function initSentry(rawEnv: SentryEnv = process.env) {
