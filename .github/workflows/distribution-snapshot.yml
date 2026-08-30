@@ -24,9 +24,15 @@ jobs:
   refresh:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # Production application credentials come from the environment rail. Only
+    # the machine identity and destination CLI credentials live in GitHub.
     env:
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      INFISICAL_UNIVERSAL_AUTH_CLIENT_ID: ${{ secrets.INFISICAL_UNIVERSAL_AUTH_CLIENT_ID }}
+      INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET: ${{ secrets.INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET }}
+      INFISICAL_PROJECT_ID: ${{ secrets.INFISICAL_PROJECT_ID }}
       ARTIFACT: apps/landing-page/src/data/distribution-snapshot.json
     steps:
       - uses: actions/checkout@v4
@@ -35,28 +41,30 @@ jobs:
         with:
           uv: 'false'
 
+      - uses: ./.github/actions/setup-env-tooling
+
       # The generator skips with a warning and exit 0 when Supabase is not
       # configured, which is the right behaviour for a contributor but would
-      # silently turn this job into a no-op. Fail here instead.
+      # silently turn this job into a no-op. Validate inside the production env
+      # rail so the check sees the Infisical-provided values.
       - name: Validate required credentials
-        run: |
-          missing=0
-          for name in SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY; do
-            if [ -z "${!name}" ]; then
-              echo "$name is not configured" >&2
-              missing=1
-            fi
-          done
-          exit "$missing"
+        run: >-
+          node scripts/env/run.mjs --environment prod -- node -e
+          "const names=['SUPABASE_URL','SUPABASE_SERVICE_ROLE_KEY'];
+          const missing=names.filter((name)=>!process.env[name]);
+          for (const name of missing) console.error(name+' is not configured');
+          process.exit(missing.length ? 1 : 0)"
 
       - name: Record the committed post count
         run: |
           echo "PREVIOUS_POSTS=$(node -e "const s=require('./$ARTIFACT'); process.stdout.write(String(s.funnel.posts))")" >> "$GITHUB_ENV"
 
-      # Deliberately plain pnpm rather than turbo: turbo runs in strict env mode,
-      # which strips SUPABASE_* before the child process starts.
+      # Run the package command directly under the env rail rather than through
+      # turbo: turbo's strict env mode strips SUPABASE_* before the child starts.
       - name: Regenerate the distribution snapshot
-        run: pnpm --filter @zapengine/podcast-pipeline social:distribution-snapshot
+        run: >-
+          node scripts/env/run.mjs --environment prod --
+          pnpm --filter @zapengine/podcast-pipeline social:distribution-snapshot
 
       - name: Format the refreshed artifact
         run: |
