@@ -19,6 +19,15 @@ export interface FlyMachineSummary {
   id: string;
   state: string;
   processGroup: string | null;
+  image: string | null;
+}
+
+export function flyImageRefsMatch(
+  left: string | null,
+  right: string | null,
+): boolean {
+  if (left == null || right == null) return false;
+  return stripImageDigest(left) === stripImageDigest(right);
 }
 
 export class FlyApiError extends Error {
@@ -101,10 +110,17 @@ function toMachineSummary(entry: unknown): FlyMachineSummary | null {
   const metadata =
     config && isRecord(config['metadata']) ? config['metadata'] : null;
   const processGroup = metadata?.['fly_process_group'];
+  const image = config?.['image'];
 
   return {
     id,
     state,
     processGroup: typeof processGroup === 'string' ? processGroup : null,
+    image: typeof image === 'string' ? image : null,
   };
+}
+
+function stripImageDigest(imageRef: string): string {
+  const digestIndex = imageRef.indexOf('@sha256:');
+  return digestIndex === -1 ? imageRef : imageRef.slice(0, digestIndex);
 }

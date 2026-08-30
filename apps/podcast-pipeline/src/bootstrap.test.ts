@@ -190,6 +190,20 @@ describe('bootstrap', () => {
     ).not.toHaveBeenCalled();
   });
 
+  it('fails the boot when Fly does not provide the current image ref', async () => {
+    const { bootstrap } = await import('./index.js');
+    vi.stubEnv('FLY_APP_NAME', 'from-fed-to-chain-api');
+    vi.stubEnv('PIPELINE_FLY_API_TOKEN', 'fly-token');
+    vi.stubEnv('FLY_IMAGE_REF', '');
+
+    expect(() =>
+      bootstrap({ app: { fetch: vi.fn() } as unknown as Hono }),
+    ).toThrow(/FLY_IMAGE_REF/);
+    expect(
+      renderCapacityMock.createRenderCapacityReconciler,
+    ).not.toHaveBeenCalled();
+  });
+
   it('runs the reconciler whenever the Fly Machines config is complete', async () => {
     const { bootstrap } = await import('./index.js');
     const reconciler = { start: vi.fn(), runOnce: vi.fn(), stop: vi.fn() };
@@ -198,6 +212,7 @@ describe('bootstrap', () => {
     );
     vi.stubEnv('FLY_APP_NAME', 'from-fed-to-chain-api');
     vi.stubEnv('PIPELINE_FLY_API_TOKEN', 'fly-token');
+    vi.stubEnv('FLY_IMAGE_REF', 'registry.fly.io/podcast:deployment-current');
 
     const handle = bootstrap({
       app: { fetch: vi.fn() } as unknown as Hono,
@@ -205,6 +220,13 @@ describe('bootstrap', () => {
 
     expect(handle.renderCapacity).toBe(reconciler);
     expect(reconciler.start).toHaveBeenCalled();
+    expect(
+      renderCapacityMock.createRenderCapacityReconciler,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        currentImageRef: 'registry.fly.io/podcast:deployment-current',
+      }),
+    );
 
     await handle.shutdown('SIGTERM');
     expect(reconciler.stop).toHaveBeenCalled();

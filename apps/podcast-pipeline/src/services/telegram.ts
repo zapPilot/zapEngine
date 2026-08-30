@@ -121,6 +121,14 @@ export function buildTelegramRenderWakeFailedMessage(detail: string): string {
   ].join('\n');
 }
 
+export function buildTelegramRenderFleetWarningMessage(detail: string): string {
+  return [
+    '⚠️ 影片算圖機器數量異常',
+    `原因：${publicTelegramErrorMessage(detail)}`,
+    '目前只會喚醒現行版本的機器；影片工作仍會繼續。',
+  ].join('\n');
+}
+
 /**
  * `social:daemon` treats a release-cohort failure as fatal and exits; this is
  * the only signal that reaches a human when nobody is watching the terminal.
