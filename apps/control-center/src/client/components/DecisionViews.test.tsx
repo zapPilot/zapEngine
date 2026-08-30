@@ -203,7 +203,11 @@ describe('decision-first domain views', () => {
     ).toBeNull();
     expect(screen.getByText(/Fish TTS/)).not.toBeVisible();
 
-    fireEvent.click(screen.getByText('Expensive episode'));
+    fireEvent.click(
+      screen.getByText('Expensive episode', {
+        selector: '.podcast-episode-title strong',
+      }),
+    );
     expect(screen.getByText(/Fish TTS/)).toBeVisible();
     expect(screen.getByText('Stage breakdown')).toBeVisible();
   });
