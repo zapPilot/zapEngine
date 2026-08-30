@@ -16,6 +16,9 @@ export function ReliabilityView(props: {
   social: OperationsSocialResponse | null;
 }) {
   const data = props.data;
+  const problemSignals = (data?.signals ?? []).filter(
+    (signal) => signal.status !== 'healthy',
+  );
   return (
     <div className="view-stack">
       <StatusBanner data={data} />
@@ -44,43 +47,36 @@ export function ReliabilityView(props: {
           <div className="panel-head">
             <h2>Social daemon</h2>
             <small className="panel-note">
-              Runs on a laptop — nothing else notices when it stops
+              Health and overdue publishing only; queue detail stays secondary
             </small>
           </div>
           <SocialOpsPanel social={props.social} />
         </section>
       </div>
 
-      <section className="panel">
-        <div className="panel-head">
-          <h2>All signals</h2>
-          <small className="panel-note">
-            Every source, including the ones reporting nothing wrong
-          </small>
+      <details className="panel decision-disclosure reliability-evidence">
+        <summary className="decision-disclosure-summary">
+          <span>
+            <strong>Signal evidence</strong>
+            <small>
+              {data
+                ? `${integer(problemSignals.length)} non-healthy · ${integer(data.signals.length)} total`
+                : 'Waiting for operational signals'}
+            </small>
+          </span>
+        </summary>
+        <div className="decision-disclosure-body">
+          <section className="disclosure-section">
+            <div className="panel-head">
+              <h2>All signals</h2>
+              <small className="panel-note">
+                Raw source evidence, including healthy checks and fingerprints
+              </small>
+            </div>
+            <SignalTable signals={data?.signals ?? []} waiting={!data} />
+          </section>
         </div>
-        <div className="table-wrap">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Status</th>
-                <th>Domain</th>
-                <th>Signal</th>
-                <th>Evidence</th>
-                <th>Seen</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(data?.signals ?? []).map((signal) => (
-                <SignalRow key={signal.fingerprint} signal={signal} />
-              ))}
-            </tbody>
-          </table>
-          {data && data.signals.length === 0 ? (
-            <div className="empty-inline">No signals collected.</div>
-          ) : null}
-          {data ? null : <div className="empty-inline">Waiting for data.</div>}
-        </div>
-      </section>
+      </details>
     </div>
   );
 }
@@ -94,6 +90,33 @@ function DomainChip({ domain }: { domain: OperationsDomainSummary }) {
         {integer(domain.signalCount)} signal
         {domain.signalCount === 1 ? '' : 's'}
       </small>
+    </div>
+  );
+}
+
+function SignalTable(props: { signals: OperationalSignal[]; waiting: boolean }) {
+  return (
+    <div className="table-wrap">
+      <table className="data-table">
+        <thead>
+          <tr>
+            <th>Status</th>
+            <th>Domain</th>
+            <th>Signal</th>
+            <th>Evidence</th>
+            <th>Seen</th>
+          </tr>
+        </thead>
+        <tbody>
+          {props.signals.map((signal) => (
+            <SignalRow key={signal.fingerprint} signal={signal} />
+          ))}
+        </tbody>
+      </table>
+      {!props.waiting && props.signals.length === 0 ? (
+        <div className="empty-inline">No signals collected.</div>
+      ) : null}
+      {props.waiting ? <div className="empty-inline">Waiting for data.</div> : null}
     </div>
   );
 }
@@ -139,18 +162,10 @@ function SocialOpsPanel({
             : 'Never reported'}
         </strong>
         <small className="info-note">
-          {social.daemon.owner
-            ? `Owner ${social.daemon.owner}`
-            : 'No owner recorded'}
-          {social.daemon.daemonVersion
-            ? ` · ${social.daemon.daemonVersion}`
-            : ''}
+          {social.daemon.status === 'healthy'
+            ? 'Daemon is reporting normally'
+            : social.daemon.lastError ?? 'Daemon needs attention'}
         </small>
-        {social.daemon.lastError ? (
-          <small className="info-note error-text">
-            {social.daemon.lastError}
-          </small>
-        ) : null}
       </div>
       <InfoRow
         label="Publish queue"
