@@ -1,0 +1,55 @@
+# Failure alerting has three deliberate limits: workflow_run matches workflow
+# names, this workflow only runs from its default-branch version, and invalid
+# workflow YAML can fail at startup without emitting a workflow_run event.
+name: Cron Failure Alert
+
+on:
+  workflow_run:
+    workflows:
+      - Alpha ETL Daily Refresh
+      - Backtest Refresh
+      - Distribution Snapshot
+      - Environment drift
+      - Ops Cost Sync
+      - Strategy Change Broadcast
+      - Telegram Token Cleanup
+      - Track Record Snapshot
+    types: [completed]
+
+permissions: {}
+
+jobs:
+  notify:
+    if: >-
+      github.event.workflow_run.conclusion != 'success' &&
+      github.event.workflow_run.conclusion != 'cancelled' &&
+      github.event.workflow_run.conclusion != 'skipped'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Notify operator via Telegram
+        env:
+          CHAT_ID: ${{ secrets.TELEGRAM_ALERT_CHAT_ID }}
+          CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          RUN_EVENT: ${{ github.event.workflow_run.event }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          TOKEN: ${{ secrets.PIPELINE_TELEGRAM_BOT_TOKEN }}
+          WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
+        run: |
+          payload="$(jq -n \
+            --arg chat_id "$CHAT_ID" \
+            --arg workflow "$WORKFLOW_NAME" \
+            --arg conclusion "$CONCLUSION" \
+            --arg trigger "$RUN_EVENT" \
+            --arg branch "$HEAD_BRANCH" \
+            --arg url "$RUN_URL" \
+            '{
+              chat_id: $chat_id,
+              text: ("GitHub cron failed\nWorkflow: " + $workflow + "\nConclusion: " + $conclusion + "\nTrigger/branch: " + $trigger + " / " + $branch + "\n" + $url)
+            }')"
+          curl --silent --show-error --fail-with-body \
+            --request POST \
+            --header 'Content-Type: application/json' \
+            --data "$payload" \
+            "https://api.telegram.org/bot$TOKEN/sendMessage"

@@ -29,6 +29,21 @@ The check validates JSON structure, required fields, enum values, unique names, 
 
 The check does not contact Pipedream, Fly, a production database, an operator Mac, or a running Electron application. It prints the number of external claims it cannot verify. Re-inventory an external scheduler in its own control plane before changing its row.
 
+## Failure alerting
+
+Every GitHub Actions cron workflow is subscribed by `.github/workflows/cron-failure-alert.yml`. A completed run whose conclusion is anything other than `success`, `cancelled`, or `skipped` sends a plain-text alert through the podcast-pipeline Telegram bot. `pnpm lint schedules` enforces exact parity between scheduled workflow names and the alert subscription list.
+
+The alert workflow uses two GitHub Actions secrets. Rotate them from the production environment rail without printing either value:
+
+```bash
+node scripts/env/run.mjs --environment prod -- bash -c \
+  'gh secret set PIPELINE_TELEGRAM_BOT_TOKEN --repo zapPilot/zapEngine --body "$PIPELINE_TELEGRAM_BOT_TOKEN"'
+node scripts/env/run.mjs --environment prod -- bash -c \
+  'first="${PIPELINE_TELEGRAM_ALLOWED_USER_IDS%%,*}"; gh secret set TELEGRAM_ALERT_CHAT_ID --repo zapPilot/zapEngine --body "${first// /}"'
+```
+
+After rotation, send a smoke-test message with the same token and the first allowed user ID before relying on failure alerts.
+
 ## Recovery by runtime
 
 - GitHub Actions: inspect the workflow run and dispatch the same workflow manually after correcting credentials or transient failures.
