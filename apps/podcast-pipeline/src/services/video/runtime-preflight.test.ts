@@ -6,7 +6,7 @@ import type {
 } from './ffmpeg-video.js';
 import { assertVideoRenderRuntime } from './runtime-preflight.js';
 
-function capableRunner(): ReturnType<typeof vi.fn<VideoProcessRunner>> {
+function capableRunner() {
   return vi.fn<VideoProcessRunner>(
     async (_executable, args): Promise<VideoProcessResult> => {
       if (args.includes('-filters')) {
@@ -27,15 +27,22 @@ function capableRunner(): ReturnType<typeof vi.fn<VideoProcessRunner>> {
   );
 }
 
-function dependencies(overrides: Record<string, unknown> = {}) {
+function dependencies(
+  overrides: {
+    processRunner?: ReturnType<typeof capableRunner>;
+    readFrameMaxChannel?: ReturnType<
+      typeof vi.fn<(path: string) => Promise<number>>
+    >;
+  } = {},
+) {
   return {
     accessFile: vi.fn(async () => undefined),
     makeTemporaryDirectory: vi.fn(async () => '/tmp/subtitle-smoke'),
     writeText: vi.fn(async () => undefined),
     removeDirectory: vi.fn(async () => undefined),
-    processRunner: capableRunner(),
-    readFrameMaxChannel: vi.fn(async () => 244),
-    ...overrides,
+    processRunner: overrides.processRunner ?? capableRunner(),
+    readFrameMaxChannel:
+      overrides.readFrameMaxChannel ?? vi.fn(async () => 244),
   };
 }
 
