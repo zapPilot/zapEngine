@@ -10,8 +10,10 @@ import { buildIngestSummaryFromResult } from './cost.js';
 import { invalidateEpisodeSearchCache } from './episode-search.js';
 import { failedStepName } from './ingest/step.js';
 import {
+  PodcastIngestJobContractError,
   type PodcastIngestJobRow,
   type PodcastIngestJobStore,
+  parsePodcastIngestJobRow,
   podcastIngestJobStore,
 } from './ingest-jobs.js';
 import {
@@ -107,6 +109,22 @@ export function createTelegramIngestQueue(
         error: errorMessage(finishError),
       });
     }
+  }
+
+  async function reportRecoveryContractFailure(
+    error: PodcastIngestJobContractError,
+  ): Promise<void> {
+    capturePipelineException(error, {
+      component: 'ingest',
+      tags: {
+        entrypoint: 'telegram',
+        failure_kind: 'durable-job-contract',
+      },
+      context: {
+        durableJobId: error.jobId,
+      },
+    });
+    await flushSentry();
   }
 
   function startHeartbeat(jobId: string | undefined) {
@@ -323,17 +341,32 @@ export function createTelegramIngestQueue(
   }
 
   async function startRecoveredJob(job: PodcastIngestJobRow): Promise<void> {
-    const key = queueKey(job.source_url, job.language_code);
+    let recovered: PodcastIngestJobRow;
+    try {
+      // The production store already validates RPC payloads. Keep this boundary
+      // guard as well so alternate stores/tests cannot feed a poison envelope
+      // into the resumable ingest path.
+      recovered = parsePodcastIngestJobRow(job);
+    } catch (error) {
+      if (error instanceof PodcastIngestJobContractError) {
+        await finishDurableJob(error.jobId, 'failed', error);
+        await reportRecoveryContractFailure(error);
+        return;
+      }
+      throw error;
+    }
+
+    const key = queueKey(recovered.source_url, recovered.language_code);
     const existing = inflightIngests.get(key);
     if (existing) {
-      existing.latestChatId = job.telegram_chat_id;
+      existing.latestChatId = recovered.telegram_chat_id;
       return;
     }
     startLocalJob(
-      job.telegram_chat_id,
-      job.source_url,
-      job.language_code,
-      job.id,
+      recovered.telegram_chat_id,
+      recovered.source_url,
+      recovered.language_code,
+      recovered.id,
     );
   }
 
@@ -344,6 +377,9 @@ export function createTelegramIngestQueue(
       const job = await jobStore.claimNext(owner, INGEST_LEASE_SECONDS);
       if (job) await startRecoveredJob(job);
     } catch (error) {
+      if (error instanceof PodcastIngestJobContractError) {
+        await reportRecoveryContractFailure(error);
+      }
       console.error('[telegram-ingest-queue] recovery scan failed', {
         error: errorMessage(error),
       });
