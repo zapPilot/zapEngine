@@ -48,6 +48,26 @@ def normalize_meta_timestamp(payload: dict[str, Any]) -> dict[str, Any]:
     return payload
 
 
+def truncate_to_reference_date(
+    payload: dict[str, Any], reference_date: str
+) -> dict[str, Any]:
+    """Keep the requested window stable when upstream already has newer data."""
+    snapshots = [
+        snapshot
+        for snapshot in payload["snapshots"]
+        if snapshot["snapshot_date"] <= reference_date
+    ]
+    if not snapshots or snapshots[-1]["snapshot_date"] != reference_date:
+        last_date = snapshots[-1]["snapshot_date"] if snapshots else "none"
+        raise ValueError(
+            f"market dashboard ends at {last_date}, expected {reference_date}"
+        )
+
+    payload["snapshots"] = snapshots
+    payload["meta"]["count"] = len(snapshots)
+    return payload
+
+
 def write_payload(payload: dict[str, Any], out: Path) -> None:
     if not out.parent.is_dir():
         raise FileNotFoundError(out.parent)
@@ -59,6 +79,7 @@ def main() -> None:
         description="Generate the landing-page market signals artifact."
     )
     parser.add_argument("--days", type=int, default=365)
+    parser.add_argument("--reference-date")
     parser.add_argument("--out", type=Path, default=DEFAULT_OUTPUT)
     args = parser.parse_args()
 
@@ -76,11 +97,14 @@ def main() -> None:
     from src.main import app
 
     with TestClient(app) as client:
-        response = client.get(f"/api/v2/market/dashboard?days={args.days}")
+        requested_days = args.days + 1 if args.reference_date else args.days
+        response = client.get(f"/api/v2/market/dashboard?days={requested_days}")
         response.raise_for_status()
         payload = response.json()
 
     validate_dashboard_payload(payload)
+    if args.reference_date:
+        payload = truncate_to_reference_date(payload, args.reference_date)
     write_payload(normalize_meta_timestamp(payload), args.out)
     print(f"✓ wrote {args.out} ({len(payload['snapshots'])} daily points)")
 
