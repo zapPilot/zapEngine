@@ -28,7 +28,9 @@ export const ENV_DESTINATIONS = {
     sourceEnvironment: 'prod',
     target: 'control-center',
     include: [
+      'FLY_OPS_TOKEN',
       'OPS_GITHUB_TOKEN',
+      'OPS_MCP_TOKEN',
       'POSTHOG_PERSONAL_API_KEY',
       'POSTHOG_PROJECT_ID',
       'SENTRY_CONTROL_CENTER_DSN',
