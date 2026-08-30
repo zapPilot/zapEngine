@@ -1,5 +1,4 @@
 import { getActiveStrategy } from '@core/lib/domain/strategySelector';
-import { toInvestCompositionTarget } from '@core/regime/investAllocation';
 import {
   getRegimeAllocation,
   type RegimeId,
@@ -30,8 +29,8 @@ export function getTargetAllocation(regimeId: RegimeId): TargetAllocation {
     return createFallbackTargetAllocation();
   }
 
-  const allocation = getRegimeAllocation(regime);
-  return toInvestCompositionTarget(allocation);
+  const { spot, stable } = getRegimeAllocation(regime);
+  return { crypto: spot, stable };
 }
 
 export interface RegimeStrategyInfo {

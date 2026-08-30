@@ -243,25 +243,6 @@ export const regimes: Regime[] = [
 // regimeOrder removed - unused (2025-12-22)
 
 /**
- * Get regime configuration by ID
- * @param regimeId - The regime identifier
- * @returns Regime configuration object
- */
-export function getRegimeById(regimeId: RegimeId): Regime {
-  const regime = regimes.find((r) => r.id === regimeId);
-  if (regime) {
-    return regime;
-  }
-
-  // Fallback to neutral regime if the requested id is not found
-  const neutralRegime = regimes.find((r) => r.id === 'n');
-  if (!neutralRegime) {
-    throw new Error('Critical: Neutral regime not found in regimes array');
-  }
-  return neutralRegime;
-}
-
-/**
  * Get the target allocation for a regime based on its default strategy
  * @param regime - The regime configuration
  * @returns Allocation split (crypto/stable)

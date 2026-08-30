@@ -1,13 +1,6 @@
 /**
  * Unified Regime Domain Logic
  *
- * CONSOLIDATED from multiple sources (2026-04-28):
- * - lib/domain/regimeMapper.ts (labels, sentiment/status mappers)
- * - constants/regimes.ts (default quotes)
- * - marketDashboardConstants.ts (colors, color/label helpers)
- * - chartHelpers.ts (sentiment index map)
- * - strategySelector.ts (regime order)
- *
  * This is the SINGLE SOURCE OF TRUTH for all regime-related logic.
  *
  * Key systems:

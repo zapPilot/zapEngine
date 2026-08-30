@@ -1,31 +1,9 @@
 # Wallet Hooks
 
-Custom hooks for wallet management, operations, and account handling.
-
-## Architecture
-
-The wallet hooks follow a **facade pattern** where smaller, focused hooks are composed into a single
-orchestrator hook (`useWalletOperations`) for backward compatibility.
+Focused hooks for wallet management, operations, and account handling. There is
+no orchestrator: each consumer composes the hooks it needs.
 
 ## Hooks
-
-### useWalletOperations (Facade)
-
-Main orchestrator hook that composes all wallet functionality. Use this for full wallet management
-features.
-
-```typescript
-const {
-  wallets,
-  operations,
-  isRefreshing,
-  handleAddWallet,
-  handleDeleteWallet,
-  handleEditLabel,
-  handleDeleteAccount,
-  // ... other operations
-} = useWalletOperations({ viewingUserId, realUserId, isOwner, isOpen });
-```
 
 ### useWalletList
 
@@ -71,19 +49,23 @@ const { handleEditLabel } = useWalletLabels({
 });
 ```
 
-### useAccountDeletion
+### useEtlJobPolling
 
-Handles account deletion with wallet disconnection and cleanup.
+Polls an alpha-etl job until it settles, so a freshly added wallet can show
+indexing progress.
 
-```typescript
-const { isDeletingAccount, handleDeleteAccount } = useAccountDeletion({
-  userId,
-});
-```
+### useAtomicBatchExecution
+
+Runs an EIP-5792 batch through the connected wallet backend.
+
+### usePrivyWalletBackend / useWagmiWalletBackend
+
+Web-only wallet backends. React Native must not import these — see the
+restricted-import rules in `apps/app/eslint.config.mjs`.
 
 ## Guidelines
 
-- Use `useWalletOperations` for components that need full wallet management
-- Use individual hooks for components with specific needs (testing, composition)
+- Import each hook by its own module path; the barrels drag the whole app-core
+  services surface into the bundle.
 - All mutations include optimistic updates for better UX
 - Error handling with user-friendly toast notifications

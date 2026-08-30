@@ -4,25 +4,12 @@ Generic, reusable utility functions for React hooks.
 
 ## Available Utilities
 
-### useOperationStateHandlers
-
-Helper functions for managing operation states (loading, error, success).
-
-```typescript
-import { useOperationStateHandlers } from '@/hooks/utils';
-
-const { setLoading, setSuccess, setError } =
-  useOperationStateHandlers(setState);
-```
-
-**Use cases**: Consistent operation state management across components
-
 ### invalidateAndRefetch
 
 Utility for invalidating React Query cache and refetching queries.
 
 ```typescript
-import { invalidateAndRefetch } from '@/hooks/utils';
+import { invalidateAndRefetch } from '@core/hooks/utils/useQueryInvalidation';
 
 await invalidateAndRefetch({
   queryClient,

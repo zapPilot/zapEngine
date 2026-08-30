@@ -29,7 +29,6 @@ export type {
   LandingPageResponse,
   MarketDashboardPoint,
   MarketDashboardResponse,
-  PoolDetail,
   RiskMetrics,
   UnifiedDashboardResponse,
   YieldReturnsSummaryResponse,

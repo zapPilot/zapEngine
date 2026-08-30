@@ -125,19 +125,6 @@ export type BorrowingPosition = z.infer<typeof borrowingPositionSchema>;
 export type BorrowingPositionsResponse = z.infer<
   typeof borrowingPositionsResponseSchema
 >;
-export interface PoolDetail {
-  wallet: string;
-  protocol_id: string;
-  protocol: string;
-  protocol_name: string;
-  chain: string;
-  asset_usd_value: number;
-  pool_symbols: string[];
-  contribution_to_portfolio: number;
-  snapshot_id: string;
-  snapshot_ids?: string[] | null;
-}
-
 export const validateBorrowingPositionsResponse = createValidator(
   borrowingPositionsResponseSchema,
 );

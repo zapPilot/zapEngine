@@ -10,16 +10,9 @@ import type { Account, Chain, Hash, Hex, Transport, WalletClient } from 'viem';
  */
 
 /**
- * NOTE: Chain configuration has been moved to @/config/chains
- * Import chain utilities from there instead:
- *
- * import {
- *   getChainById,
- *   isChainSupported,
- *   getSupportedMainnetChains,
- *   getChainName,
- *   getChainSymbol
- * } from '@core/config/chains';
+ * NOTE: Chain display helpers live in @core/config/chains/display
+ * (`getDisplayChain`, `getExplorerTxUrl`, `getExplorerAddressUrl`,
+ * `HYPERCORE_CHAIN_ID`, `DisplayChainInfo`).
  */
 
 export type ConnectedWalletClient = WalletClient<Transport, Chain, Account>;

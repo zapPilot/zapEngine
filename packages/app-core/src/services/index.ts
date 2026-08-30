@@ -64,7 +64,6 @@ export {
   type LandingPageResponse,
   type MarketDashboardPoint,
   type MarketDashboardResponse,
-  type PoolDetail,
   type RiskMetrics,
   type UnifiedDashboardResponse,
   type YieldReturnsSummaryResponse,

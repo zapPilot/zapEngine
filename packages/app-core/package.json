@@ -46,14 +46,6 @@
       "types": "./dist/types/index.d.ts",
       "import": "./dist/types/index.js"
     },
-    "./regime": {
-      "types": "./dist/regime/index.d.ts",
-      "import": "./dist/regime/index.js"
-    },
-    "./hooks": {
-      "types": "./dist/hooks/index.d.ts",
-      "import": "./dist/hooks/index.js"
-    },
     "./hooks/queries": {
       "types": "./dist/hooks/queries/index.d.ts",
       "import": "./dist/hooks/queries/index.js"
@@ -69,10 +61,6 @@
     "./hooks/wallet": {
       "types": "./dist/hooks/wallet/index.d.ts",
       "import": "./dist/hooks/wallet/index.js"
-    },
-    "./hooks/utils": {
-      "types": "./dist/hooks/utils/index.d.ts",
-      "import": "./dist/hooks/utils/index.js"
     },
     "./hooks/queries/analytics/usePortfolioDataProgressive": {
       "types": "./dist/hooks/queries/analytics/usePortfolioDataProgressive.d.ts",
@@ -138,17 +126,9 @@
       "types": "./dist/lib/errors/index.d.ts",
       "import": "./dist/lib/errors/index.js"
     },
-    "./lib/portfolio": {
-      "types": "./dist/lib/portfolio/index.d.ts",
-      "import": "./dist/lib/portfolio/index.js"
-    },
     "./lib/analytics": {
       "types": "./dist/lib/analytics/index.d.ts",
       "import": "./dist/lib/analytics/index.js"
-    },
-    "./lib/bundle": {
-      "types": "./dist/lib/bundle/index.d.ts",
-      "import": "./dist/lib/bundle/index.js"
     },
     "./lib/domain/allocationCategories": {
       "types": "./dist/lib/domain/allocationCategories.d.ts",
