@@ -10,12 +10,40 @@ const supabase = vi.hoisted(() => ({
 vi.mock('../services/supabase-client.js', () => supabase);
 
 import { alignPendingSocialPublishSchedules } from './daemon-store.js';
-import {
-  createAlignmentReadFixture,
-  createAlignmentUpdateFixture,
-} from './daemon-store-align-schedules.test-helper.js';
+import { createAlignmentReadFixture } from './daemon-store-align-schedules.test-helper.js';
 
 const NOW = new Date('2026-08-20T00:00:00.000Z');
+
+interface AlignmentUpdate {
+  id: string | undefined;
+  status: string | undefined;
+  patch: Record<string, unknown>;
+}
+
+class AlignmentMutation {
+  private id: string | undefined;
+  private status: string | undefined;
+
+  constructor(
+    private readonly patch: Record<string, unknown>,
+    private readonly updates: AlignmentUpdate[],
+  ) {}
+
+  eq(field: string, value: string) {
+    if (field === 'id') this.id = value;
+    if (field === 'status') this.status = value;
+    return this;
+  }
+
+  select() {
+    return this;
+  }
+
+  async maybeSingle() {
+    this.updates.push({ id: this.id, status: this.status, patch: this.patch });
+    return { data: this.id ? { id: this.id } : null, error: null };
+  }
+}
 
 describe('alignPendingSocialPublishSchedules recovery snapshot', () => {
   it('drops a stale earliest job after another worker claims it', async () => {
@@ -45,8 +73,11 @@ describe('alignPendingSocialPublishSchedules recovery snapshot', () => {
       },
       staleSnapshot[1],
     ];
-    const { update, updates } = createAlignmentUpdateFixture();
+    const updates: AlignmentUpdate[] = [];
     let listAttempt = 0;
+    const update = vi.fn(
+      (patch: Record<string, unknown>) => new AlignmentMutation(patch, updates),
+    );
     const fixture = createAlignmentReadFixture(() => {
       listAttempt += 1;
       return listAttempt === 1

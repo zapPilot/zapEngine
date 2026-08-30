@@ -10,7 +10,6 @@ const supabase = vi.hoisted(() => ({
 vi.mock('../services/supabase-client.js', () => supabase);
 
 import { alignPendingSocialPublishSchedules } from './daemon-store.js';
-import { createAlignmentReadFixture } from './daemon-store-align-schedules.test-helper.js';
 
 const NOW = new Date('2026-08-20T00:00:00.000Z');
 
@@ -87,13 +86,18 @@ describe('alignPendingSocialPublishSchedules claim recovery', () => {
       };
       return builder;
     });
-    supabase.getPipelineSupabase.mockReturnValue(
-      createAlignmentReadFixture(async () => {
-        const snapshot = snapshots[listAttempt] ?? [];
-        listAttempt += 1;
-        return { data: snapshot, error: null };
-      }, update).client,
-    );
+    const select = vi.fn(() => ({
+      in: vi.fn(() => ({
+        returns: vi.fn(async () => {
+          const snapshot = snapshots[listAttempt] ?? [];
+          listAttempt += 1;
+          return { data: snapshot, error: null };
+        }),
+      })),
+    }));
+    supabase.getPipelineSupabase.mockReturnValue({
+      from: vi.fn(() => ({ select, update })),
+    });
 
     await expect(alignPendingSocialPublishSchedules(NOW)).resolves.toBe(0);
     await expect(alignPendingSocialPublishSchedules(NOW)).resolves.toBe(0);
@@ -184,13 +188,18 @@ describe('alignPendingSocialPublishSchedules claim recovery', () => {
       };
       return builder;
     });
-    supabase.getPipelineSupabase.mockReturnValue(
-      createAlignmentReadFixture(async () => {
-        const snapshot = snapshots[listAttempt] ?? [];
-        listAttempt += 1;
-        return { data: snapshot, error: null };
-      }, update).client,
-    );
+    const select = vi.fn(() => ({
+      in: vi.fn(() => ({
+        returns: vi.fn(async () => {
+          const snapshot = snapshots[listAttempt] ?? [];
+          listAttempt += 1;
+          return { data: snapshot, error: null };
+        }),
+      })),
+    }));
+    supabase.getPipelineSupabase.mockReturnValue({
+      from: vi.fn(() => ({ select, update })),
+    });
 
     await expect(alignPendingSocialPublishSchedules(NOW)).resolves.toBe(0);
     await expect(alignPendingSocialPublishSchedules(NOW)).resolves.toBe(0);
@@ -282,13 +291,18 @@ describe('alignPendingSocialPublishSchedules claim recovery', () => {
       };
       return builder;
     });
-    supabase.getPipelineSupabase.mockReturnValue(
-      createAlignmentReadFixture(async () => {
-        const snapshot = snapshots[listAttempt] ?? [];
-        listAttempt += 1;
-        return { data: snapshot, error: null };
-      }, update).client,
-    );
+    const select = vi.fn(() => ({
+      in: vi.fn(() => ({
+        returns: vi.fn(async () => {
+          const snapshot = snapshots[listAttempt] ?? [];
+          listAttempt += 1;
+          return { data: snapshot, error: null };
+        }),
+      })),
+    }));
+    supabase.getPipelineSupabase.mockReturnValue({
+      from: vi.fn(() => ({ select, update })),
+    });
 
     await expect(alignPendingSocialPublishSchedules(NOW)).resolves.toBe(0);
     await expect(alignPendingSocialPublishSchedules(NOW)).resolves.toBe(0);
@@ -345,9 +359,14 @@ describe('alignPendingSocialPublishSchedules claim recovery', () => {
       };
       return builder;
     });
-    supabase.getPipelineSupabase.mockReturnValue(
-      createAlignmentReadFixture({ data: jobs, error: null }, update).client,
-    );
+    const select = vi.fn(() => ({
+      in: vi.fn(() => ({
+        returns: vi.fn(async () => ({ data: jobs, error: null })),
+      })),
+    }));
+    supabase.getPipelineSupabase.mockReturnValue({
+      from: vi.fn(() => ({ select, update })),
+    });
 
     await expect(alignPendingSocialPublishSchedules(NOW)).resolves.toBe(1);
 
