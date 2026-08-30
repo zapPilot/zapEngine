@@ -18,7 +18,8 @@ export function PodcastUnitEconomics(props: {
       <div className="panel-head">
         <h2>Podcast unit economics</h2>
         <small className="panel-note">
-          Is one episode getting expensive, and are failed attempts wasting money?
+          Is one episode getting expensive, and are failed attempts wasting
+          money?
         </small>
       </div>
 
@@ -48,7 +49,7 @@ export function PodcastUnitEconomics(props: {
               label="Highest recent episode"
               note={
                 summary.highest
-                  ? summary.highest.title ?? shortId(summary.highest.episodeId)
+                  ? (summary.highest.title ?? shortId(summary.highest.episodeId))
                   : '—'
               }
               value={unitUsd(summary.highest?.totalCostUsd ?? null)}
@@ -73,7 +74,8 @@ export function PodcastUnitEconomics(props: {
 
           {episodes.length > preview.length ? (
             <div className="panel-foot podcast-preview-note">
-              Showing the {preview.length} most recent episodes of {episodes.length}.
+              Showing the {preview.length} most recent episodes of{' '}
+              {episodes.length}.
             </div>
           ) : null}
         </>
@@ -127,7 +129,10 @@ function EpisodeCostRow(props: {
 
       <div className="podcast-episode-detail">
         <div className="podcast-component-costs">
-          <DetailMetric label="Podcast" value={unitUsd(episode.podcastCostUsd)} />
+          <DetailMetric
+            label="Podcast"
+            value={unitUsd(episode.podcastCostUsd)}
+          />
           <DetailMetric label="Video" value={unitUsd(episode.videoCostUsd)} />
           <DetailMetric
             label="Retry waste"
@@ -143,7 +148,9 @@ function EpisodeCostRow(props: {
                 {item.operations > 1 ? ` ×${item.operations}` : ''}
               </span>
             ))}
-            {episode.breakdown.length === 0 ? <span>No priced stages</span> : null}
+            {episode.breakdown.length === 0 ? (
+              <span>No priced stages</span>
+            ) : null}
             {episode.unpricedStages > 0 ? (
               <span className="warning-text">
                 {episode.unpricedStages} unpriced stage
