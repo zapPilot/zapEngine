@@ -9,11 +9,34 @@ import type {
   SocialPerformanceResponse,
 } from '../shared/types.js';
 import { AppShell, type DashboardView } from './components/AppShell.js';
-import { CostsView } from './components/CostsView.js';
-import { CustomersView } from './components/CustomersView.js';
-import { OperationsView } from './components/OperationsView.js';
-import { OverviewView } from './components/OverviewView.js';
-import { SocialView } from './components/SocialView.js';
+import { EconomicsView } from './components/EconomicsView.js';
+import { GrowthView } from './components/GrowthView.js';
+import { HomeView } from './components/HomeView.js';
+import { ProductView } from './components/ProductView.js';
+import { ReliabilityView } from './components/ReliabilityView.js';
+
+const VIEW_META: Record<DashboardView, { subtitle: string; title: string }> = {
+  home: {
+    subtitle: 'What needs a decision right now',
+    title: 'Home',
+  },
+  growth: {
+    subtitle: 'What to publish next, and what the last posts actually did',
+    title: 'Growth',
+  },
+  product: {
+    subtitle: 'Who we serve, and whether their data is still current',
+    title: 'Product',
+  },
+  reliability: {
+    subtitle: 'Every source that can tell us something is wrong',
+    title: 'Reliability',
+  },
+  economics: {
+    subtitle: 'What the company spends, and which provider spends it',
+    title: 'Economics',
+  },
+};
 
 async function getJson<T>(url: string): Promise<T> {
   const response = await fetch(url);
@@ -24,7 +47,7 @@ async function getJson<T>(url: string): Promise<T> {
 }
 
 export function App() {
-  const [view, setView] = useState<DashboardView>('overview');
+  const [view, setView] = useState<DashboardView>('home');
   const [overview, setOverview] = useState<OverviewResponse | null>(null);
   const [costHistory, setCostHistory] = useState<CostHistoryResponse | null>(
     null,
@@ -51,7 +74,10 @@ export function App() {
     }
   }, []);
 
-  const loadOverview = useCallback(
+  // Home leads with the ranked action queue, so the operations snapshot is part
+  // of the first paint rather than a tab-open cost. Its per-source caches make
+  // the repeat reads cheap; the fan-out is paid once every few minutes.
+  const loadHome = useCallback(
     (sync = false) =>
       run(async () => {
         if (sync) {
@@ -63,13 +89,15 @@ export function App() {
             throw new Error(body.error ?? `HTTP ${syncResponse.status}`);
           }
         }
-        const [next, history] = await Promise.all([
+        const [next, history, snapshot] = await Promise.all([
           getJson<OverviewResponse>('/api/overview'),
           getJson<CostHistoryResponse>('/api/costs/history'),
+          getJson<OperationsResponse>('/api/operations'),
         ]);
         setOverview(next);
         setCostHistory(history);
         setSocial(next.social);
+        setOperations(snapshot);
       }),
     [run],
   );
@@ -86,7 +114,7 @@ export function App() {
     [run],
   );
 
-  const loadOperations = useCallback(
+  const loadReliability = useCallback(
     (force = false) =>
       run(async () => {
         const query = force ? '?force=1' : '';
@@ -113,24 +141,25 @@ export function App() {
   );
 
   useEffect(() => {
-    void loadOverview();
-  }, [loadOverview]);
+    void loadHome();
+  }, [loadHome]);
 
-  // Operations and Customers are only fetched once their tab is opened: both
-  // fan out to several providers, and paying for that on every dashboard load
-  // would make the Overview slower for no one's benefit.
+  // The publish queue and the per-customer ledger each fan out to their own
+  // sources, and neither is on Home. Paying for them before their view is
+  // opened would slow the first screen down for nobody's benefit.
   useEffect(() => {
-    if (view === 'operations' && !operations) {
-      void loadOperations();
+    if (view === 'reliability' && !operationsSocial) {
+      void loadReliability();
     }
-    if (view === 'customers' && !customers) {
+    if (view === 'product' && !customers) {
       void loadCustomers();
     }
-  }, [customers, loadCustomers, loadOperations, operations, view]);
+  }, [customers, loadCustomers, loadReliability, operationsSocial, view]);
 
   return (
     <AppShell
       activeView={view}
+      decisionsPending={operations?.priorities.length}
       generatedAt={generatedAt({
         view,
         overview,
@@ -141,19 +170,20 @@ export function App() {
       loading={loading}
       onNavigate={setView}
       onRefresh={() => {
-        if (view === 'social' && social) {
+        if (view === 'growth' && social) {
           void loadSocial(social.window);
-        } else if (view === 'operations') {
-          void loadOperations(true);
-        } else if (view === 'customers') {
+        } else if (view === 'reliability') {
+          void loadReliability(true);
+        } else if (view === 'product') {
           void loadCustomers(true);
         } else {
           // Local dev keeps the operator convenience of syncing costs before a
           // refresh. Production builds are read-only and only reread snapshots.
-          void loadOverview(import.meta.env.DEV);
+          void loadHome(import.meta.env.DEV);
         }
       }}
-      title={view === 'overview' ? 'Control Center' : titleCase(view)}
+      subtitle={VIEW_META[view].subtitle}
+      title={VIEW_META[view].title}
     >
       {error ? (
         <div className="error-state" role="alert">
@@ -161,40 +191,44 @@ export function App() {
           <span>{error}. Check the server process and provider access.</span>
         </div>
       ) : null}
-      {view === 'overview' ? <OverviewView data={overview} /> : null}
-      {view === 'operations' ? (
-        <OperationsView data={operations} social={operationsSocial} />
+      {view === 'home' ? (
+        <HomeView
+          data={overview}
+          onNavigate={setView}
+          operations={operations}
+        />
       ) : null}
-      {view === 'customers' ? <CustomersView data={customers} /> : null}
-      {view === 'costs' ? (
-        <CostsView data={overview} history={costHistory} />
+      {view === 'reliability' ? (
+        <ReliabilityView data={operations} social={operationsSocial} />
       ) : null}
-      {view === 'social' ? (
-        <SocialView data={social} onWindowChange={loadSocial} />
+      {view === 'product' ? (
+        <ProductView customers={customers} product={overview?.product} />
+      ) : null}
+      {view === 'economics' ? (
+        <EconomicsView data={overview} history={costHistory} />
+      ) : null}
+      {view === 'growth' ? (
+        <GrowthView data={social} onWindowChange={loadSocial} />
       ) : null}
     </AppShell>
   );
 }
 
 function generatedAt(input: {
-  view: DashboardView;
+  customers: CustomerEconomicsResponse | null;
+  operations: OperationsResponse | null;
   overview: OverviewResponse | null;
   social: SocialPerformanceResponse | null;
-  operations: OperationsResponse | null;
-  customers: CustomerEconomicsResponse | null;
+  view: DashboardView;
 }): string | undefined {
-  if (input.view === 'social') {
+  if (input.view === 'growth') {
     return input.social?.generatedAt;
   }
-  if (input.view === 'operations') {
+  if (input.view === 'reliability') {
     return input.operations?.generatedAt;
   }
-  if (input.view === 'customers') {
+  if (input.view === 'product') {
     return input.customers?.generatedAt;
   }
   return input.overview?.generatedAt;
-}
-
-function titleCase(value: string): string {
-  return value.charAt(0).toUpperCase() + value.slice(1);
 }

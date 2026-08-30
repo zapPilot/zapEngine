@@ -1,6 +1,8 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
+import '@zapengine/design-tokens/css/variables.css';
+
 import { App } from './App.js';
 import './styles.css';
 

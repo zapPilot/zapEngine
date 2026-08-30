@@ -3,35 +3,42 @@ import { type ReactNode, useState } from 'react';
 import type {
   CustomerEconomicsResponse,
   CustomerRecord,
+  ProductHealthResponse,
 } from '../../shared/types.js';
-import { daysAgo, hoursAgo, integer, relativeTime, usd } from '../format.js';
+import {
+  daysAgo,
+  hoursAgo,
+  integer,
+  percent,
+  relativeTime,
+  usd,
+} from '../format.js';
+import { InfoRow } from './InfoRow.js';
 import { Metric } from './Metric.js';
 
-export function CustomersView({
-  data,
-}: {
-  data: CustomerEconomicsResponse | null;
+export function ProductView(props: {
+  customers: CustomerEconomicsResponse | null;
+  product: ProductHealthResponse | undefined;
 }) {
   const [expanded, setExpanded] = useState<string | null>(null);
+  const data = props.customers;
   const summary = data?.summary;
+  const product = props.product;
 
   return (
     <div className="view-stack">
-      <section
-        className="metric-strip customers-metrics"
-        aria-label="Customer economics"
-      >
+      <section aria-label="Customer economics" className="metric-strip">
         <Metric label="Customers" value={integer(summary?.totalCustomers)} />
         <Metric label="Priority" value={integer(summary?.priorityUsers)} />
         <Metric label="Standard" value={integer(summary?.standardUsers)} />
         <Metric
-          accent="projected"
           label="Priority but inactive 30d+"
+          tone="warning"
           value={integer(summary?.inactiveButPriority)}
         />
         <Metric
-          accent="actual"
           label="AUM under service"
+          tone="accent"
           value={usd(summary?.aumUsd)}
         />
         <Metric
@@ -40,17 +47,48 @@ export function CustomersView({
         />
       </section>
 
-      <section className="open-panel customers-panel">
-        <div className="section-heading">
+      <section className="panel">
+        <div className="panel-head">
+          <h2>Product health</h2>
+          <small className="panel-note">
+            Coverage and freshness are part of the decision, so the portfolio
+            figure is labelled observed rather than authoritative AUM
+          </small>
+        </div>
+        <div className="info-list">
+          <InfoRow
+            label="Activation funnel"
+            value={`${integer(product?.registeredUsers)} registered → ${integer(product?.verifiedWallets)} verified → ${integer(product?.portfolioUsers)} observed`}
+          />
+          <InfoRow
+            label="Engagement"
+            value={`${integer(product?.wau)} WAU / ${integer(product?.mau)} MAU`}
+          />
+          <InfoRow
+            label="Portfolio freshness"
+            value={`${integer(product?.portfolioFresh24h)} fresh <24h · ${integer(product?.portfolioFresh7d)} fresh <7d`}
+          />
+          <InfoRow
+            label="Concentration"
+            notes={[
+              `${usd(product?.observedPortfolioUsd)} observed across every tracked wallet`,
+            ]}
+            value={`Top 1 ${percent(product?.top1PortfolioShare)} · Top 3 ${percent(product?.top3PortfolioShare)}`}
+          />
+        </div>
+      </section>
+
+      <section className="panel">
+        <div className="panel-head">
           <h2>Who we serve</h2>
-          <small className="decision-note">
+          <small className="panel-note">
             Cost is DeBank&apos;s account invoice split by request volume — an
             allocation, not a measurement. Revenue is unknown because nothing in
             this system bills anyone.
           </small>
         </div>
-        <div className="ledger-wrap">
-          <table className="ledger-table customers-table">
+        <div className="table-wrap">
+          <table className="data-table customers-table">
             <thead>
               <tr>
                 <th>User</th>
@@ -81,6 +119,7 @@ export function CustomersView({
               {data.message ?? 'No customers returned.'}
             </div>
           ) : null}
+          {data ? null : <div className="empty-inline">Waiting for data.</div>}
         </div>
         <small className="table-footnote">
           † account-engine route activity (dashboard visits), debounced hourly.
@@ -105,8 +144,8 @@ function CustomerRows(props: {
         onClick={props.onToggle}
       >
         <td>
-          <span className="provider-name">{user.email ?? user.userId}</span>
-          <small className="signal-fingerprint">
+          <span className="cell-title">{user.email ?? user.userId}</span>
+          <small className="cell-fingerprint">
             {integer(user.wallets.length)} wallet
             {user.wallets.length === 1 ? '' : 's'}
           </small>
@@ -118,8 +157,8 @@ function CustomerRows(props: {
           </span>
           {user.overrideTier ? <small> override</small> : null}
         </td>
-        <td>{daysAgo(user.inactiveDays)}</td>
-        <td>
+        <td className="cell-nowrap">{daysAgo(user.inactiveDays)}</td>
+        <td className="cell-nowrap">
           {user.refreshIntervalHours
             ? `every ${user.refreshIntervalHours}h`
             : 'not scheduled'}
@@ -229,8 +268,8 @@ function ServiceControls({ user }: { user: CustomerRecord }) {
       <select
         aria-label="Service tier"
         disabled
-        value={user.effectiveTier}
         onChange={() => undefined}
+        value={user.effectiveTier}
       >
         <option value="priority">priority</option>
         <option value="standard">standard</option>
@@ -247,7 +286,7 @@ function ServiceControls({ user }: { user: CustomerRecord }) {
   );
 }
 
-function DetailBlock(props: { title: string; children: ReactNode }) {
+function DetailBlock(props: { children: ReactNode; title: string }) {
   return (
     <div className="detail-block">
       <h3>{props.title}</h3>

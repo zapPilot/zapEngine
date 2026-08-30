@@ -8,8 +8,8 @@ export function RunwayChart(props: {
   const known = filterKnownAccruedCost(props.history);
   if (known.length === 0) {
     return (
-      <section className="runway-panel" aria-labelledby="runway-title">
-        <div className="section-heading runway-heading">
+      <section aria-labelledby="runway-title" className="panel runway-panel">
+        <div className="panel-head">
           <h2 id="runway-title">Current month cost pace</h2>
         </div>
         <div className="chart-empty">
@@ -43,8 +43,8 @@ export function RunwayChart(props: {
   const todayX = x(last.date);
 
   return (
-    <section className="runway-panel" aria-labelledby="runway-title">
-      <div className="section-heading runway-heading">
+    <section aria-labelledby="runway-title" className="panel runway-panel">
+      <div className="panel-head">
         <h2 id="runway-title">Current month cost pace</h2>
         <div className="chart-legend" aria-hidden="true">
           <span>

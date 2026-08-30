@@ -15,6 +15,37 @@ pnpm ops --status --json   # the same snapshot as JSON, for an agent
 
 The Vite UI listens on `127.0.0.1:4174`; its Hono API listens on `CONTROL_CENTER_PORT` (`4175` by default).
 
+## Views
+
+Five views, each answering one question. Home is a decision surface; the other
+four are where its evidence lives.
+
+| View            | Question it answers                                          | Reads                                                    |
+| --------------- | ------------------------------------------------------------ | -------------------------------------------------------- |
+| **Home**        | What needs a decision right now?                             | `/api/overview`, `/api/costs/history`, `/api/operations` |
+| **Growth**      | What should we publish next, and what did the last posts do? | `/api/social-performance`                                |
+| **Product**     | Who do we serve, and is their data still current?            | `/api/customers` + product health from `/api/overview`   |
+| **Reliability** | Which sources are telling us something is wrong?             | `/api/operations`, `/api/operations/social`              |
+| **Economics**   | What does the company spend, and which provider spends it?   | `/api/overview`, `/api/costs/history`                    |
+
+Home opens on the ranked action queue rather than on a metric grid: the queue is
+the only part of the dashboard that says what to do, and it went unread while it
+lived one tab away. The KPI band sits below it, grouped by concern rather than
+spread across six equal tiles, and the provider ledger has exactly one home —
+Economics.
+
+Because the queue is the first thing on the first screen, `/api/operations` is
+part of the first paint. Its per-source caches absorb the repeat reads; the
+per-customer ledger and the publish queue stay lazy because neither appears on
+Home.
+
+The interface is a single dark surface built on `@zapengine/design-tokens`.
+There is no light variant: the tokens are authored dark-first and the product
+has no light expression to match. Colours in `src/client/styles.css` are aliases
+of those tokens — `healthy` is `--success`, `degraded` is `--warning`,
+`critical` is `--error`, and `unknown` is `--ink-faint`, deliberately grey
+rather than green.
+
 ## Vercel deployment
 
 The Vercel deployment is a remote, read-only view of Control Center. Configure
@@ -46,7 +77,7 @@ defaults to a function duration below 15 seconds, configure a longer
 
 ## Operations snapshot
 
-`GET /api/operations` is one read model for "is anything wrong, and what should I do first", shared by the Operations view and by `pnpm ops --status` (`--json` for agents; exit code 1 when anything is `critical`).
+`GET /api/operations` is one read model for "is anything wrong, and what should I do first", shared by Home's action queue, the Reliability view, and `pnpm ops --status` (`--json` for agents; exit code 1 when anything is `critical`).
 
 Every source is an adapter that returns `OperationalSignal[]` and is contractually forbidden from throwing. Missing credentials produce `unknown`, never `healthy` — a provider nobody asked has not reported that it is fine — and a failed request produces a `degraded` source failure so a lost reading is visibly different from a healthy one.
 
@@ -69,7 +100,7 @@ All eight domains appear in every response even when nothing reported on them: a
 
 Ranking is deterministic (`services/operations/prioritize.ts`) rather than model-generated, so the dashboard and an agent agree on what matters: a status base, a domain weight, and capped boosts for evidence like overdue minutes, failure streaks, affected users, and AUM at risk. The threshold is set so an `unknown` signal can never reach the action list — an unconfigured integration is a setup task, not an incident.
 
-Every source has its own cache TTL, from 30s for the publish queue to 15 minutes for PostHog. `?force=1` bypasses them, which is what **Refresh data** uses.
+Every source has its own cache TTL, from 30s for the publish queue to 15 minutes for PostHog. `?force=1` bypasses them, which is what **Refresh** uses on Reliability and Product.
 
 ### Read-only credentials
 
@@ -111,7 +142,7 @@ vendor APIs / fixed pricing / Fly run-rate or manual estimate
               Control Center
 ```
 
-`GET /api/overview` and `GET /api/costs/history` read persisted cost snapshots directly on every request, so an external `pnpm ops:sync` is visible immediately rather than waiting for an in-process cache TTL. Social aggregation alone keeps the short in-memory cache. **Refresh data** calls `POST /api/costs/sync` first, then reloads the ledger.
+`GET /api/overview` and `GET /api/costs/history` read persisted cost snapshots directly on every request, so an external `pnpm ops:sync` is visible immediately rather than waiting for an in-process cache TTL. Social aggregation alone keeps the short in-memory cache. On a local development build **Refresh** calls `POST /api/costs/sync` first and then reloads the ledger; a production build only rereads snapshots, and the remote deployment does not register the route at all.
 
 The `ops` schema stays private and is not exposed through Supabase Data API. Control Center reaches it through service-role-only views and write RPCs in the already exposed `from_fed_to_chain` schema. `anon` and `authenticated` receive no access to the bridge or the underlying ledger.
 
@@ -183,6 +214,6 @@ Vendor credentials and Supabase service-role credentials are read only by the Ho
 
 ## Decision layers
 
-The overview reads product health from the existing public-schema account data: registered users, verified wallets, users with observed portfolio data, WAU/MAU, observed portfolio value, freshness coverage, and portfolio concentration. The portfolio value is deliberately labeled **observed**, not authoritative AUM, because coverage/freshness are part of the decision.
+The Product view reads product health from the existing public-schema account data: registered users, verified wallets, users with observed portfolio data, WAU/MAU, observed portfolio value, freshness coverage, and portfolio concentration. The portfolio value is deliberately labeled **observed**, not authoritative AUM, because coverage/freshness are part of the decision.
 
 Social decisions reuse the pipeline's active `social_strategy_versions` rather than implementing a second learner. Control Center supplements those preferred hook/hashtag choices with simple 24-hour evidence for timing and topic, reports the learner sample count/confidence, and keeps raw per-post metrics as a secondary evidence layer. Platform-specific decision signals replace universal columns that had no producer (for example impressions, cover CTR, and media-quality score).

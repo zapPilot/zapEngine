@@ -128,15 +128,23 @@ export interface OverviewResponse {
  */
 export type OperationalStatus = 'healthy' | 'degraded' | 'critical' | 'unknown';
 
-export type OperationsDomain =
-  | 'customers'
-  | 'product'
-  | 'costs'
-  | 'social'
-  | 'jobs'
-  | 'infra'
-  | 'errors'
-  | 'analytics';
+/**
+ * Every domain the Control Center reports on, in reading order. The type is
+ * derived from the list rather than declared beside it so a new domain cannot
+ * be added to one and forgotten in the other.
+ */
+export const OPERATIONS_DOMAINS = [
+  'customers',
+  'product',
+  'costs',
+  'social',
+  'jobs',
+  'infra',
+  'errors',
+  'analytics',
+] as const;
+
+export type OperationsDomain = (typeof OPERATIONS_DOMAINS)[number];
 
 export type OperationsSource =
   | 'customer-economics'

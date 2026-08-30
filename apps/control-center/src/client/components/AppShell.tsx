@@ -1,50 +1,57 @@
 import {
   Activity,
-  BarChart3,
-  LayoutDashboard,
+  Gauge,
   RefreshCw,
-  Share2,
+  TrendingUp,
   Users,
-  Zap,
+  Wallet,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 import { relativeTime } from '../format.js';
+import { BrandMark } from './BrandMark.js';
 
 export type DashboardView =
-  | 'overview'
-  | 'operations'
-  | 'customers'
-  | 'costs'
-  | 'social';
+  | 'home'
+  | 'growth'
+  | 'product'
+  | 'reliability'
+  | 'economics';
 
 const navigation = [
-  { id: 'overview' as const, label: 'Overview', Icon: LayoutDashboard },
-  { id: 'operations' as const, label: 'Operations', Icon: Activity },
-  { id: 'customers' as const, label: 'Customers', Icon: Users },
-  { id: 'costs' as const, label: 'Costs', Icon: BarChart3 },
-  { id: 'social' as const, label: 'Social', Icon: Share2 },
+  { id: 'home' as const, label: 'Home', Icon: Gauge },
+  { id: 'growth' as const, label: 'Growth', Icon: TrendingUp },
+  { id: 'product' as const, label: 'Product', Icon: Users },
+  { id: 'reliability' as const, label: 'Reliability', Icon: Activity },
+  { id: 'economics' as const, label: 'Economics', Icon: Wallet },
 ];
 
 export function AppShell(props: {
   activeView: DashboardView;
   children: ReactNode;
+  /** Open decisions, badged on Reliability so leaving Home cannot hide them. */
+  decisionsPending?: number;
   generatedAt?: string;
   loading: boolean;
   onNavigate: (view: DashboardView) => void;
   onRefresh: () => void;
+  subtitle: string;
   title: string;
 }) {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <div className="brand" aria-label="Zap Pilot">
-          <Zap aria-hidden="true" fill="currentColor" strokeWidth={1.8} />
-          <span>ZAP PILOT</span>
+        <div className="brand">
+          <BrandMark />
+          <span className="brand-text">
+            <strong>Zap Pilot</strong>
+            <small>Control Center</small>
+          </span>
         </div>
-        <nav className="primary-nav" aria-label="Control Center views">
+        <nav aria-label="Control Center views" className="primary-nav">
           {navigation.map(({ id, label, Icon }) => (
             <button
+              aria-current={props.activeView === id ? 'page' : undefined}
               className={
                 props.activeView === id ? 'nav-item active' : 'nav-item'
               }
@@ -54,6 +61,9 @@ export function AppShell(props: {
             >
               <Icon aria-hidden="true" />
               <span>{label}</span>
+              {id === 'reliability' && props.decisionsPending ? (
+                <em className="nav-badge">{props.decisionsPending}</em>
+              ) : null}
             </button>
           ))}
         </nav>
@@ -64,8 +74,16 @@ export function AppShell(props: {
       </aside>
       <main className="main-canvas">
         <header className="page-header">
-          <h1>{props.title}</h1>
+          <div className="page-title">
+            <h1>{props.title}</h1>
+            <p>{props.subtitle}</p>
+          </div>
           <div className="header-actions">
+            <span className="updated-at">
+              {props.generatedAt
+                ? `Updated ${relativeTime(props.generatedAt)}`
+                : 'Waiting for data'}
+            </span>
             <button
               className="refresh-button"
               disabled={props.loading}
@@ -76,13 +94,8 @@ export function AppShell(props: {
                 aria-hidden="true"
                 className={props.loading ? 'spin' : undefined}
               />
-              Refresh data
+              Refresh
             </button>
-            <span className="updated-at">
-              {props.generatedAt
-                ? `Updated ${relativeTime(props.generatedAt)}`
-                : 'Waiting for data'}
-            </span>
           </div>
         </header>
         {props.children}
