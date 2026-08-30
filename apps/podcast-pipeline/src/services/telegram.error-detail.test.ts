@@ -74,17 +74,13 @@ describe('Telegram API error details', () => {
     expect(consoleError).toHaveBeenCalledWith(
       '[/telegram/webhook] sendMessage failed:',
       {
-        message:
-          'Telegram sendMessage failed: 400 Bad Request: chat not found',
+        message: 'Telegram sendMessage failed: 400 Bad Request: chat not found',
       },
     );
-    expect(mocks.capture).toHaveBeenCalledWith(
-      expect.any(Error),
-      {
-        component: 'telegram',
-        tags: { operation: 'sendMessage' },
-      },
-    );
+    expect(mocks.capture).toHaveBeenCalledWith(expect.any(Error), {
+      component: 'telegram',
+      tags: { operation: 'sendMessage' },
+    });
     expect(JSON.stringify(mocks.capture.mock.calls)).not.toContain('bot-token');
     expect(JSON.stringify(mocks.capture.mock.calls)).not.toContain('123');
   });
