@@ -32,6 +32,11 @@ const SEARCH_INTENT_BATCH_SIZE = 14;
 // keeps the burst inside OpenRouter's per-key rate budget.
 const SEARCH_INTENT_BATCH_CONCURRENCY = 3;
 const SEARCH_INTENT_MAX_OUTPUT_TOKENS = 2_048;
+// Search-intent extraction is structured classification, not reasoning. Leaving
+// provider-default reasoning enabled lets some DeepSeek endpoints spend the
+// whole completion budget in hidden reasoning and return an empty final content
+// string, which the visual queue can only see as a generic parse failure.
+const SEARCH_INTENT_REASONING = { enabled: false } as const;
 // Image search is run against Brave, Pexels and Pixabay, all queried in English.
 const NON_LATIN_SCRIPT_PATTERN =
   /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u;
@@ -70,6 +75,13 @@ export interface SearchIntentEnrichment {
 interface SceneSuggestion {
   intents: string[];
   entities: string[];
+}
+
+interface SearchIntentCompletionDiagnostics {
+  provider: string;
+  model: string;
+  finishReason: string;
+  reasoningChars: number;
 }
 
 /**
@@ -264,11 +276,18 @@ export function createOpenRouterSearchIntentProvider(): SearchIntentProvider {
         },
         null,
         'suggestSearchIntents',
-        request.signal ? { signal: request.signal } : {},
+        {
+          ...(request.signal ? { signal: request.signal } : {}),
+          reasoning: SEARCH_INTENT_REASONING,
+        },
       );
-      return parseSearchIntentContent(
-        completion.choices[0]?.message?.content ?? '',
-      );
+      const choice = completion.choices[0];
+      return parseSearchIntentContent(choice?.message?.content ?? '', {
+        provider: completion.provider || 'unknown',
+        model: completion.model || model,
+        finishReason: choice?.finish_reason || 'unknown',
+        reasoningChars: searchIntentReasoningCharacterCount(choice?.message),
+      });
     },
   };
 }
@@ -307,14 +326,35 @@ function searchIntentMessages(
   ];
 }
 
-function parseSearchIntentContent(content: string): unknown {
+function parseSearchIntentContent(
+  content: string,
+  diagnostics?: SearchIntentCompletionDiagnostics,
+): unknown {
   const trimmed = content.trim();
-  if (!trimmed) throw new Error('Search intents returned empty content');
+  if (!trimmed) {
+    const suffix = diagnostics
+      ? ` (provider=${diagnostics.provider}, model=${diagnostics.model}, finishReason=${diagnostics.finishReason}, reasoningChars=${diagnostics.reasoningChars})`
+      : '';
+    throw new Error(`Search intents returned empty content${suffix}`);
+  }
   try {
     return JSON.parse(trimmed) as unknown;
   } catch (error) {
     throw new Error('Search intents returned malformed JSON', { cause: error });
   }
+}
+
+function searchIntentReasoningCharacterCount(message: unknown): number {
+  if (!isRecord(message)) return 0;
+  const reasoning = message['reasoning'];
+  if (typeof reasoning === 'string') return reasoning.length;
+  const details = message['reasoning_details'];
+  if (!Array.isArray(details)) return 0;
+  return details.reduce((total, detail) => {
+    if (!isRecord(detail)) return total;
+    const text = detail['text'];
+    return total + (typeof text === 'string' ? text.length : 0);
+  }, 0);
 }
 
 function searchIntentScenes(
