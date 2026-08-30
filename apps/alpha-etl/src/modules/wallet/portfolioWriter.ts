@@ -15,6 +15,7 @@ import type {
 import { formatDateToYYYYMMDD } from '../../utils/dateUtils.js';
 import { logger } from '../../utils/logger.js';
 import {
+  addEmptyWalletKeys,
   recordReplacementResult,
   replaceRowsInTransaction,
 } from './dailyReplacement.js';
@@ -132,17 +133,14 @@ function collectReplaceKeys(
       source,
     ]);
   }
-  const snapshotDate = formatDateToYYYYMMDD(new Date());
-  for (const wallet of successfulWallets) {
-    const normalizedWallet = wallet.toLowerCase();
-    if (walletsWithPositions.has(normalizedWallet)) {
-      continue;
-    }
-    keys.set(`${normalizedWallet}|${snapshotDate}|${source}`, [
-      normalizedWallet,
-      snapshotDate,
-      source,
-    ]);
-  }
+  addEmptyWalletKeys(
+    keys,
+    successfulWallets,
+    walletsWithPositions,
+    (wallet, snapshotDate) => [
+      `${wallet}|${snapshotDate}|${source}`,
+      [wallet, snapshotDate, source],
+    ],
+  );
   return [...keys.values()];
 }

@@ -1,6 +1,7 @@
 import type { PoolClient } from 'pg';
 
 import type { WriteResult } from '../../core/database/baseWriter.js';
+import { formatDateToYYYYMMDD } from '../../utils/dateUtils.js';
 import { logger } from '../../utils/logger.js';
 
 interface InsertValues {
@@ -70,4 +71,27 @@ export async function recordReplacementResult(
   });
 
   return result;
+}
+
+/**
+ * A wallet that fetched successfully but produced no rows still has yesterday's
+ * rows in the table, so it needs a key for today's UTC day or the replacement
+ * delete will skip it. `build` returns the map key and the value for it, which
+ * differ per table.
+ */
+export function addEmptyWalletKeys<K>(
+  keys: Map<string, K>,
+  successfulWallets: string[],
+  walletsWithRows: ReadonlySet<string>,
+  build: (wallet: string, snapshotDate: string) => readonly [string, K],
+): void {
+  const snapshotDate = formatDateToYYYYMMDD(new Date());
+  for (const wallet of successfulWallets) {
+    const normalizedWallet = wallet.toLowerCase();
+    if (walletsWithRows.has(normalizedWallet)) {
+      continue;
+    }
+    const [key, value] = build(normalizedWallet, snapshotDate);
+    keys.set(key, value);
+  }
 }
