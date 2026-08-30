@@ -75,6 +75,9 @@ export interface VisualAssetProgress {
   sceneIndex: number;
   sceneCount: number;
   candidateCount?: number;
+  searchResultCount?: number;
+  entityFilteredCount?: number;
+  searchEntities?: string;
   rejectedCandidateCount?: number;
   rejectionSummary?: string;
   provider?: VisualImageProvider | 'reuse' | 'cover';
@@ -121,6 +124,20 @@ interface SelectedVisualImage {
 interface SearchedVisualImage {
   asset: PlannedVisualImage | null;
   failures: Error[];
+  funnel: SearchFunnel;
+}
+
+/**
+ * `candidateCount` alone cannot say why a scene starved: an empty provider
+ * response, the quality filters, and the entity anchor all leave zero. Only the
+ * first is a supply problem, and only the last is fixable by rewording the
+ * intent -- so a scene that dies here is undiagnosable without the split.
+ */
+interface SearchFunnel {
+  searches: number;
+  returned: number;
+  viable: number;
+  entityFiltered: number;
 }
 
 interface CandidateRejections {
@@ -229,7 +246,12 @@ async function selectImageForScene(
   // search integration. Production uses resilient mode and may reuse an
   // existing image instead of dropping the entire video.
   if (state.mode === 'strict' && searched.failures.length > 0) {
-    throw visualSearchFailure(scene.sceneId, searched.failures, rejections);
+    throw visualSearchFailure(
+      scene.sceneId,
+      searched.failures,
+      rejections,
+      searched.funnel,
+    );
   }
 
   const previousAssetId = state.scenes.at(-1)?.assetId;
@@ -264,14 +286,34 @@ async function selectImageForScene(
   }
 
   if (searched.failures.length > 0) {
-    throw visualSearchFailure(scene.sceneId, searched.failures, rejections);
+    throw visualSearchFailure(
+      scene.sceneId,
+      searched.failures,
+      rejections,
+      searched.funnel,
+    );
   }
   if (rejections.total > 0) {
-    throw candidateExhaustionFailure(scene.sceneId, rejections);
+    throw candidateExhaustionFailure(
+      scene.sceneId,
+      rejections,
+      searched.funnel,
+    );
   }
   if (previousAsset) {
     throw new Error(
       `Visual scene ${scene.sceneId} cannot reuse the immediately preceding image`,
+    );
+  }
+  // Searches ran and every candidate was removed before a single download, by
+  // the quality filters or the entity anchor. Reporting the funnel here is the
+  // whole point: the detail-less error in `planVisualAssets` is what made this
+  // case unreadable, and it stays only for a scene that was never searched.
+  if (searched.funnel.searches > 0) {
+    throw candidateExhaustionFailure(
+      scene.sceneId,
+      rejections,
+      searched.funnel,
     );
   }
   return null;
@@ -326,6 +368,12 @@ async function acquireSearchedImage(
   );
   const intents = searchIntentsForScene(scene, state.mode);
   const entities = scene.imageSearchEntities ?? [];
+  const funnel: SearchFunnel = {
+    searches: 0,
+    returned: 0,
+    viable: 0,
+    entityFiltered: 0,
+  };
 
   for (const searchProvider of providers) {
     for (const intent of intents) {
@@ -341,12 +389,17 @@ async function acquireSearchedImage(
           failures.push(toError(error));
           return [];
         });
+      const viable = viableCandidates(searched, [searchProvider.origin]);
       const candidates = rankSearchCandidates(
-        viableCandidates(searched, [searchProvider.origin]),
+        viable,
         intent,
         state.assets,
         entities,
       );
+      funnel.searches += 1;
+      funnel.returned += searched.length;
+      funnel.viable += viable.length;
+      funnel.entityFiltered += viable.length - candidates.length;
       const rejectedBefore = rejections.total;
 
       for (const candidate of candidates) {
@@ -370,8 +423,9 @@ async function acquireSearchedImage(
             rejectedBefore,
             searchStartedAt,
             searchProvider.origin,
+            { returned: searched.length, viable: viable.length, entities },
           );
-          return { asset: acquired, failures };
+          return { asset: acquired, failures, funnel };
         }
       }
       reportSearchProgress(
@@ -383,10 +437,11 @@ async function acquireSearchedImage(
         rejectedBefore,
         searchStartedAt,
         searchProvider.origin,
+        { returned: searched.length, viable: viable.length, entities },
       );
     }
   }
-  return { asset: null, failures };
+  return { asset: null, failures, funnel };
 }
 
 function orderedSearchProviders(
@@ -477,14 +532,26 @@ function reportSearchProgress(
   rejectedBefore: number,
   searchStartedAt: number,
   provider: ImageSearchProvider['origin'],
+  search: { returned: number; viable: number; entities: readonly string[] },
 ): void {
   const rejectedCandidateCount = rejections.total - rejectedBefore;
+  const entityFilteredCount = search.viable - candidateCount;
   state.input.onProgress?.({
     phase: 'search',
     sceneId: scene.sceneId,
     sceneIndex: sceneIndex + 1,
     sceneCount: state.input.scenes.length,
     candidateCount,
+    searchResultCount: search.returned,
+    // Only meaningful when the anchor actually removed something: a scene that
+    // names nothing keeps every candidate, and a zero here would read as
+    // "the anchor was innocent" when it never ran.
+    ...(entityFilteredCount > 0
+      ? {
+          entityFilteredCount,
+          searchEntities: search.entities.join('|'),
+        }
+      : {}),
     ...(rejectedCandidateCount > 0
       ? {
           rejectedCandidateCount,
@@ -500,11 +567,12 @@ function visualSearchFailure(
   sceneId: string,
   failures: Error[],
   rejections: CandidateRejections,
+  funnel: SearchFunnel,
 ): Error {
   const messages = [...new Set(failures.map((failure) => failure.message))];
   const rejectionDetails = formatCandidateRejectionDetails(rejections);
   return new Error(
-    `Visual image search failed for scene ${sceneId}: ${messages.join('; ')}${rejectionDetails}`,
+    `Visual image search failed for scene ${sceneId}: ${messages.join('; ')}${rejectionDetails}${formatSearchFunnel(funnel)}`,
     { cause: new AggregateError(failures, 'Image search provider failures') },
   );
 }
@@ -512,10 +580,24 @@ function visualSearchFailure(
 function candidateExhaustionFailure(
   sceneId: string,
   rejections: CandidateRejections,
+  funnel: SearchFunnel,
 ): Error {
   return new Error(
-    `Visual scene ${sceneId} has no usable image${formatCandidateRejectionDetails(rejections)}`,
+    `Visual scene ${sceneId} has no usable image${formatCandidateRejectionDetails(rejections)}${formatSearchFunnel(funnel)}`,
   );
+}
+
+/**
+ * The counts a starved scene is diagnosed from, in the order they narrow:
+ * how many searches ran, what the providers returned, what survived the quality
+ * filters, and how many of those the entity anchor then dropped. This is the
+ * only place the anchor's effect is recorded -- `candidateCount` is measured
+ * after it, so an anchor that removes everything is indistinguishable from a
+ * provider that returned nothing.
+ */
+function formatSearchFunnel(funnel: SearchFunnel): string {
+  if (funnel.searches === 0) return '';
+  return ` [searches=${funnel.searches}, returned=${funnel.returned}, viable=${funnel.viable}, entityFiltered=${funnel.entityFiltered}]`;
 }
 
 async function tryAcquireUniqueImage(input: {

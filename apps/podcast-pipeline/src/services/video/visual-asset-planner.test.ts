@@ -975,6 +975,67 @@ describe('planVisualAssets', () => {
     );
   });
 
+  it('reports the entity anchor as the reason a scene starved', async () => {
+    // The anchor runs before any download, so this scene dies with zero
+    // rejections: without the funnel the error is indistinguishable from a
+    // provider that returned nothing, which is a different problem entirely.
+    const progress = vi.fn<(event: VisualAssetProgress) => void>();
+    const searched = [
+      candidate('brave-a', 'brave'),
+      candidate('brave-b', 'brave'),
+    ];
+
+    const result = planVisualAssets({
+      scenes: [
+        {
+          sceneId: 'scene-01',
+          imageSearchIntent: ['tokenized equities launch'],
+          imageSearchEntities: ['NVDAc'],
+        },
+      ],
+      workingDirectory: '/work/visual-assets',
+      onProgress: progress,
+      dependencies: {
+        acquireImage: vi.fn(),
+        searchProviders: braveProviders(vi.fn().mockResolvedValue(searched)),
+        fingerprintImage: vi.fn(),
+      },
+    });
+
+    await expect(result).rejects.toThrow(
+      'searches=1, returned=2, viable=2, entityFiltered=2',
+    );
+    expect(progress).toHaveBeenCalledWith(
+      expect.objectContaining({
+        phase: 'search',
+        candidateCount: 0,
+        searchResultCount: 2,
+        entityFilteredCount: 2,
+        searchEntities: 'NVDAc',
+      }),
+    );
+  });
+
+  it('leaves the entity fields off a scene the anchor never filtered', async () => {
+    const progress = vi.fn<(event: VisualAssetProgress) => void>();
+
+    await planVisualAssets({
+      scenes: scenes.slice(0, 1),
+      articleImages: [candidate('article-a')],
+      workingDirectory: '/work/visual-assets',
+      onProgress: progress,
+      dependencies: {
+        acquireImage: vi.fn(async () => acquired('article-a')),
+        searchProviders: braveProviders(vi.fn()),
+        fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
+      },
+    });
+
+    expect(progress).not.toHaveBeenCalledWith(
+      expect.objectContaining({ entityFilteredCount: expect.anything() }),
+    );
+  });
+
   it('propagates worker cancellation without converting it to a rejection', async () => {
     const controller = new AbortController();
     const leaseError = new Error('visual lease lost');
