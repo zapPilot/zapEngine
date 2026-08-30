@@ -50,9 +50,11 @@ function banner(): HTMLElement {
   return screen.getByRole('region', { name: 'Overall operational status' });
 }
 
+function contextDisclosure(): HTMLDetailsElement {
+  return screen.getByText('More context').closest('details') as HTMLDetailsElement;
+}
+
 describe('HomeView', () => {
-  // The old Overview opened on six KPI tiles and a provider ledger, which is
-  // why the ranked action list went unread on the next tab.
   it('opens on the action queue rather than on evidence', () => {
     renderHome({
       operations: operationsFixture({ priorities: priorities(3) }),
@@ -64,13 +66,13 @@ describe('HomeView', () => {
     expect(headings).not.toContain('Provider ledger');
   });
 
-  it('previews six decisions and sends the rest to Reliability', () => {
+  it('previews only three decisions and sends the rest to Reliability', () => {
     const { onNavigate } = renderHome({
       operations: operationsFixture({ priorities: priorities(8) }),
     });
-    expect(screen.getAllByRole('listitem')).toHaveLength(6);
+    expect(screen.getAllByRole('listitem')).toHaveLength(3);
 
-    fireEvent.click(screen.getByRole('button', { name: /2 more in/ }));
+    fireEvent.click(screen.getByRole('button', { name: /5 more in/ }));
     expect(onNavigate).toHaveBeenCalledWith('reliability');
   });
 
@@ -92,21 +94,36 @@ describe('HomeView', () => {
     expect(screen.getByText(/Nothing is asking for a decision/)).toBeVisible();
   });
 
-  it('states the overall status before any number', () => {
+  it('keeps the home status sentence compact', () => {
     renderHome({
       operations: operationsFixture({ priorities: priorities(3) }),
     });
     expect(within(banner()).getByText('Critical')).toBeVisible();
-    expect(within(banner()).getByText(/3 need a decision/)).toBeVisible();
+    expect(within(banner()).getByText('3 need a decision')).toBeVisible();
+    expect(within(banner()).queryByText(/signals across/)).toBeNull();
   });
 
-  // "$179,6…" is what the previous strip showed. Headline money now rounds to
-  // whole dollars so the figure survives its column.
-  it('prints headline money whole rather than clipped', () => {
+  it('shows only three business headlines before expansion', () => {
     renderHome();
-    expect(screen.getByText('$179,612')).toBeVisible();
-    expect(screen.getByText('$41')).toBeVisible();
-    expect(screen.getByText('Month to date $26.96')).toBeVisible();
+    const headlines = screen.getByRole('region', { name: 'Business headlines' });
+    expect(within(headlines).getByText('Product')).toBeVisible();
+    expect(within(headlines).getByText('Growth')).toBeVisible();
+    expect(within(headlines).getByText('Spend')).toBeVisible();
+    expect(within(headlines).queryByText('Reliability')).toBeNull();
+    expect(within(headlines).getByText('$179,612')).toBeVisible();
+    expect(within(headlines).getByText('$41')).toBeVisible();
+  });
+
+  it('keeps qualifiers behind one disclosure until requested', () => {
+    renderHome();
+    const disclosure = contextDisclosure();
+    expect(disclosure.open).toBe(false);
+    expect(screen.getByText('Month to date')).not.toBeVisible();
+
+    fireEvent.click(screen.getByText('More context'));
+    expect(disclosure.open).toBe(true);
+    expect(screen.getByText('Month to date')).toBeVisible();
+    expect(screen.getByText('$26.96')).toBeVisible();
   });
 
   // A twenty-five digit AUM is a broken feed telling on itself. It shrinks so
@@ -121,26 +138,21 @@ describe('HomeView', () => {
     expect(value.className).toContain('long');
   });
 
-  it('groups the KPI band by concern', () => {
-    renderHome();
-    expect(
-      screen.getAllByText(/^(Product|Growth|Spend|Reliability)$/).length,
-    ).toBeGreaterThanOrEqual(4);
-    expect(screen.getByText('7/8')).toBeVisible();
-  });
-
-  it('renders every figure as a dash while the first load is in flight', () => {
+  it('renders every headline as a dash while the first load is in flight', () => {
     renderHome({ data: null, operations: null });
     expect(screen.getByText('Unknown')).toBeVisible();
     expect(screen.getByText('Waiting for data')).toBeVisible();
-    expect(screen.getAllByText('—').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(3);
   });
 
-  it('hands the reader off to the view that owns the detail', () => {
+  it('hands expanded context off to the view that owns the detail', () => {
     const { onNavigate } = renderHome();
-    fireEvent.click(screen.getByRole('button', { name: /Growth/ }));
-    fireEvent.click(screen.getByRole('button', { name: /Product/ }));
+    fireEvent.click(screen.getByText('More context'));
+    fireEvent.click(screen.getByRole('button', { name: /Full Growth/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Full Product/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Full Economics/ }));
     expect(onNavigate).toHaveBeenNthCalledWith(1, 'growth');
     expect(onNavigate).toHaveBeenNthCalledWith(2, 'product');
+    expect(onNavigate).toHaveBeenNthCalledWith(3, 'economics');
   });
 });
