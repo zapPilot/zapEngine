@@ -350,7 +350,7 @@ function searchIntentReasoningCharacterCount(message: unknown): number {
   if (typeof reasoning === 'string') return reasoning.length;
   const details = message['reasoning_details'];
   if (!Array.isArray(details)) return 0;
-  return details.reduce((total, detail) => {
+  return details.reduce<number>((total: number, detail: unknown) => {
     if (!isRecord(detail)) return total;
     const text = detail['text'];
     return total + (typeof text === 'string' ? text.length : 0);
