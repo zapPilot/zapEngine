@@ -56,7 +56,9 @@ export function EconomicsView({
         <summary className="decision-disclosure-summary">
           <span>
             <strong>Provider cost audit</strong>
-            <small>Full ledger, usage counters, and accounting definitions</small>
+            <small>
+              Full ledger, usage counters, and accounting definitions
+            </small>
           </span>
         </summary>
         <div className="decision-disclosure-body">
@@ -86,7 +88,9 @@ export function EconomicsView({
               </small>
             </div>
             <div className="definition-list">
-              <Definition term="Actual">Provider-reported usage cost.</Definition>
+              <Definition term="Actual">
+                Provider-reported usage cost.
+              </Definition>
               <Definition term="Fixed">
                 Committed recurring monthly cost.
               </Definition>
@@ -95,8 +99,8 @@ export function EconomicsView({
                 stored.
               </Definition>
               <Definition term="Cash spend">
-                Charges, top-ups, subscriptions, and invoices recorded separately
-                from operating usage.
+                Charges, top-ups, subscriptions, and invoices recorded
+                separately from operating usage.
               </Definition>
             </div>
           </section>
