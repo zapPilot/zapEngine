@@ -66,10 +66,22 @@ function parseNameColumn(output) {
   return names;
 }
 
+function vercelProjectRef(destination) {
+  const project = destination.projectId ?? destination.project;
+  if (!project) throw new Error('not checkable: Vercel project is not configured');
+  return project;
+}
+
+function vercelProjectArgs(destination) {
+  return ['--project', vercelProjectRef(destination)];
+}
+
 function vercelProjectEnv(destination) {
   return {
     VERCEL_ORG_ID: destination.orgId,
-    VERCEL_PROJECT_ID: destination.projectId,
+    ...(destination.projectId
+      ? { VERCEL_PROJECT_ID: destination.projectId }
+      : {}),
   };
 }
 
@@ -120,6 +132,7 @@ export function listVercelKeys(destination) {
       run(
         'vercel',
         [
+          ...vercelProjectArgs(destination),
           'env',
           'ls',
           destination.environment,
@@ -131,7 +144,7 @@ export function listVercelKeys(destination) {
         ],
         {
           env: vercelProjectEnv(destination),
-          failure: 'not checkable: VERCEL_TOKEN cannot list Vercel variables',
+          failure: `not checkable: VERCEL_TOKEN cannot list Vercel variables for ${destination.project}`,
         },
       ),
     ),
@@ -220,6 +233,7 @@ export function setVercelValue(destination, name, value, sensitive) {
   run(
     'vercel',
     [
+      ...vercelProjectArgs(destination),
       'env',
       'add',
       name,
@@ -243,6 +257,7 @@ export function deleteVercelKey(destination, name) {
   run(
     'vercel',
     [
+      ...vercelProjectArgs(destination),
       'env',
       'rm',
       name,
