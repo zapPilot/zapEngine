@@ -893,8 +893,9 @@ describe('social daemon', () => {
       fullCohortCandidates(EPISODE_ID, '2026-08-10T00:00:00.000Z'),
     );
 
-    // 17:00 JST: the article slot is behind us, so the cohort waits for
-    // tomorrow rather than becoming instantly due and publishing off-slot.
+    // 17:00 JST: every article slot for today is behind us, so the cohort waits
+    // for tomorrow's first slot rather than becoming instantly due and
+    // publishing off-slot.
     await runSocialDaemonTick({
       now: new Date('2026-08-16T08:00:00.000Z'),
       firstStartedAt: '2026-08-01T00:00:00.000Z',
@@ -903,7 +904,7 @@ describe('social daemon', () => {
     const rednote = mocks.enqueueSocialPublishJob.mock.calls
       .map(([input]) => input)
       .find((input) => input.platform === 'rednote');
-    expect(rednote).toMatchObject({ scheduledAt: '2026-08-17T03:00:00.000Z' });
+    expect(rednote).toMatchObject({ scheduledAt: '2026-08-17T00:30:00.000Z' });
   });
 
   it('skips unavailable metric snapshots, logs collector failures, and ignores null recorded windows', async () => {

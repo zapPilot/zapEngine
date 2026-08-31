@@ -69,17 +69,22 @@ Current language allocation is:
 | X        | `en` / `ja` via `x-language-v1` | teaser     |
 | YouTube  | `en`                            | full video |
 
-Current article timing is **1 article per JST day at 12:00 JST**. Every active
-lane for that article receives the same `scheduled_at`.
+Current article timing is **3 articles per JST day at 09:30, 12:00 and 16:00
+JST**. Each article takes one of those times and every active lane of that
+article receives it.
+
+The cap and the slot list move together: `nextReleaseSlot()` places at most one
+article per slot, so raising `SOCIAL_RELEASE_DAILY_CAP` without adding a slot
+leaves the extra articles unschedulable.
 
 Correct:
 
 ```text
-Article A · 12:00 JST
-  Rednote  zh-Hant
-  Threads  ja
-  X        en or ja (assigned by x-language-v1)
-  YouTube  en
+Article A · 09:30 JST      Article B · 12:00 JST
+  Rednote  zh-Hant           Rednote  zh-Hant
+  Threads  ja                Threads  ja
+  X        en or ja          X        en or ja
+  YouTube  en                YouTube  en
 ```
 
 Forbidden:
@@ -91,6 +96,9 @@ Article A
   17:00  X
   17:15  YouTube
 ```
+
+Two articles on one day is throughput. One article split across four times is
+the drift this contract forbids.
 
 The platform transports run sequentially and can therefore complete seconds or
 a few minutes apart. That is one release cycle, not staggered scheduling.

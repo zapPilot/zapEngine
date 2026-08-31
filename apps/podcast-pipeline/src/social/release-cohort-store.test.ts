@@ -117,7 +117,8 @@ const GRACE_MS = 90 * 60_000;
 const ARTICLE_A = '123e4567-e89b-42d3-a456-426614174000';
 const ARTICLE_B = '123e4567-e89b-42d3-a456-426614174111';
 const ARTICLE_C = '123e4567-e89b-42d3-a456-426614174222';
-const NEXT_SLOT = '2026-09-02T03:00:00.000Z';
+// 14:00 JST is past the 12:00 slot, so the next free article slot is 16:00.
+const NEXT_SLOT = '2026-09-01T07:00:00.000Z';
 
 function row(
   episodeId: string,

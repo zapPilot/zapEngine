@@ -112,6 +112,8 @@ const NOW = new Date('2026-09-01T01:00:00.000Z'); // 10:00 JST
 const FIRST_STARTED_AT = '2026-08-31T00:00:00.000Z';
 const ARTICLE_A = '123e4567-e89b-42d3-a456-426614174000';
 const ARTICLE_B = '123e4567-e89b-42d3-a456-426614174111';
+const ARTICLE_C = '123e4567-e89b-42d3-a456-426614174222';
+const ARTICLE_D = '123e4567-e89b-42d3-a456-426614174333';
 const CREATED_AT = '2026-08-31T00:00:00.000Z';
 
 function candidate(episodeId: string, language_code: 'zh-Hant' | 'ja' | 'en') {
@@ -199,8 +201,13 @@ describe('NON-NEGOTIABLE episode release cohort contract', () => {
     expect(mocks.enqueueSocialPublishJob).not.toHaveBeenCalled();
   });
 
-  it('lets one episode consume one article slot and moves the next episode to the next day', async () => {
-    const candidates = [...readyEpisode(ARTICLE_A), ...readyEpisode(ARTICLE_B)];
+  it('gives each article its own slot and rolls over once the day is full', async () => {
+    const candidates = [
+      ...readyEpisode(ARTICLE_A),
+      ...readyEpisode(ARTICLE_B),
+      ...readyEpisode(ARTICLE_C),
+      ...readyEpisode(ARTICLE_D),
+    ];
     mocks.listSocialPublishCandidates.mockResolvedValue(candidates);
     mocks.listSocialPublishCandidatesForEpisodes.mockResolvedValue(candidates);
 
@@ -212,12 +219,18 @@ describe('NON-NEGOTIABLE episode release cohort contract', () => {
       set.add(input.scheduledAt);
       byEpisode.set(input.episodeId, set);
     }
-    expect(byEpisode.get(ARTICLE_A)?.size).toBe(1);
-    expect(byEpisode.get(ARTICLE_B)?.size).toBe(1);
-    const a = [...(byEpisode.get(ARTICLE_A) ?? [])][0];
-    const b = [...(byEpisode.get(ARTICLE_B) ?? [])][0];
-    expect(a).toBe('2026-09-01T03:00:00.000Z');
-    expect(b).toBe('2026-09-02T03:00:00.000Z');
+    const slotOf = (episodeId: string) => {
+      const times = byEpisode.get(episodeId) ?? new Set<string>();
+      expect(times.size).toBe(1);
+      return [...times][0];
+    };
+
+    // NOW is 10:00 JST, so 09-01 has only its 12:00 and 16:00 slots left; the
+    // third and fourth articles roll into the next JST day rather than sharing.
+    expect(slotOf(ARTICLE_A)).toBe('2026-09-01T03:00:00.000Z');
+    expect(slotOf(ARTICLE_B)).toBe('2026-09-01T07:00:00.000Z');
+    expect(slotOf(ARTICLE_C)).toBe('2026-09-02T00:30:00.000Z');
+    expect(slotOf(ARTICLE_D)).toBe('2026-09-02T03:00:00.000Z');
   });
 
   it('fences fresh episodes behind a partial publish recovery cohort', async () => {

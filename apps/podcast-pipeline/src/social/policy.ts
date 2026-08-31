@@ -56,9 +56,11 @@ export interface SocialReleaseSlot {
  * may change this article-level frequency or these candidate times, but must
  * never create a platform-specific schedule.
  */
-export const SOCIAL_RELEASE_DAILY_CAP = 1;
+export const SOCIAL_RELEASE_DAILY_CAP = 3;
 export const SOCIAL_RELEASE_SLOTS = [
+  { hour: 9, minute: 30 },
   { hour: 12, minute: 0 },
+  { hour: 16, minute: 0 },
 ] as const satisfies readonly SocialReleaseSlot[];
 
 /**
