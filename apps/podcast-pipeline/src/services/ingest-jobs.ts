@@ -1,4 +1,8 @@
-import type { LanguageClassroomLanguageCode } from '../types.js';
+import { isRecord } from '../lib/typeGuards.js';
+import {
+  type LanguageClassroomLanguageCode,
+  SUPPORTED_PRIMARY_LANGUAGE_CODES,
+} from '../types.js';
 import { getPipelineSupabase, throwSupabaseError } from './supabase-client.js';
 import type { TelegramChatId } from './telegram.js';
 
@@ -44,10 +48,130 @@ export interface PodcastIngestJobStore {
   ): Promise<void>;
 }
 
-function rpcRow(data: unknown): PodcastIngestJobRow | null {
-  if (!data) return null;
-  const value = Array.isArray(data) ? data[0] : data;
-  return (value ?? null) as PodcastIngestJobRow | null;
+export class PodcastIngestJobContractError extends Error {
+  readonly jobId: string | undefined;
+
+  constructor(message: string, jobId?: string) {
+    super(`Invalid podcast ingest job row: ${message}`);
+    this.name = 'PodcastIngestJobContractError';
+    this.jobId = jobId;
+  }
+}
+
+function contractJobId(value: unknown): string | undefined {
+  if (!isRecord(value)) return undefined;
+  const id = value['id'];
+  return typeof id === 'string' && id.trim() ? id.trim() : undefined;
+}
+
+function contractError(value: unknown, message: string): never {
+  throw new PodcastIngestJobContractError(message, contractJobId(value));
+}
+
+function requiredString(
+  row: Record<string, unknown>,
+  key: string,
+  raw: unknown,
+): string {
+  const value = row[key];
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    contractError(raw, `${key} must be a non-empty string`);
+  }
+  return value.trim();
+}
+
+function nullableString(
+  row: Record<string, unknown>,
+  key: string,
+  raw: unknown,
+): string | null {
+  const value = row[key];
+  if (value === null) return null;
+  if (typeof value !== 'string') {
+    contractError(raw, `${key} must be a string or null`);
+  }
+  return value;
+}
+
+function validHttpUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+export function parsePodcastIngestJobRow(value: unknown): PodcastIngestJobRow {
+  if (!isRecord(value)) {
+    contractError(value, 'payload must be an object');
+  }
+
+  const id = requiredString(value, 'id', value);
+  const sourceUrl = requiredString(value, 'source_url', value);
+  if (!validHttpUrl(sourceUrl)) {
+    contractError(value, 'source_url must be an http(s) URL');
+  }
+
+  const languageCode = requiredString(value, 'language_code', value);
+  if (
+    !(SUPPORTED_PRIMARY_LANGUAGE_CODES as readonly string[]).includes(
+      languageCode,
+    )
+  ) {
+    contractError(value, `unsupported language_code ${languageCode}`);
+  }
+
+  const telegramChatId = requiredString(value, 'telegram_chat_id', value);
+  const status = requiredString(value, 'status', value);
+  if (!['queued', 'processing', 'completed', 'failed'].includes(status)) {
+    contractError(value, `unsupported status ${status}`);
+  }
+
+  const attemptCount = value['attempt_count'];
+  if (
+    typeof attemptCount !== 'number' ||
+    !Number.isInteger(attemptCount) ||
+    attemptCount < 0
+  ) {
+    contractError(value, 'attempt_count must be a non-negative integer');
+  }
+
+  return {
+    id,
+    source_url: sourceUrl,
+    language_code: languageCode as LanguageClassroomLanguageCode,
+    telegram_chat_id: telegramChatId,
+    status: status as PodcastIngestJobStatus,
+    attempt_count: attemptCount,
+    lease_owner: nullableString(value, 'lease_owner', value),
+    lease_expires_at: nullableString(value, 'lease_expires_at', value),
+    last_error: nullableString(value, 'last_error', value),
+  };
+}
+
+function rawRpcRow(data: unknown): unknown {
+  if (data === null || data === undefined) return null;
+  return Array.isArray(data) ? (data[0] ?? null) : data;
+}
+
+function isNullCompositeRow(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  const fields = Object.values(value);
+  return fields.length > 0 && fields.every((field) => field === null);
+}
+
+/**
+ * Postgres composite-returning functions serialize an unassigned row variable
+ * as an object whose every field is null. For claim RPCs that value means
+ * "nothing was claimed", not "a job full of nulls".
+ */
+export function parsePodcastIngestJobRpcResult(
+  data: unknown,
+): PodcastIngestJobRow | null {
+  const value = rawRpcRow(data);
+  if (value === null || isNullCompositeRow(value)) return null;
+  return parsePodcastIngestJobRow(value);
 }
 
 async function callClaimRpc(
@@ -59,7 +183,7 @@ async function callClaimRpc(
     params as never,
   );
   if (error) throwSupabaseError(error);
-  return rpcRow(data);
+  return parsePodcastIngestJobRpcResult(data);
 }
 
 async function updateProcessingJob(
@@ -90,7 +214,7 @@ export const podcastIngestJobStore: PodcastIngestJobStore = {
       },
     );
     if (error) throwSupabaseError(error);
-    const job = rpcRow(data);
+    const job = parsePodcastIngestJobRpcResult(data);
     if (!job) throw new Error('Failed to enqueue podcast ingest job');
     return job;
   },
