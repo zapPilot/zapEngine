@@ -48,28 +48,25 @@ rather than green.
 
 ## Vercel deployment
 
-The Vercel deployment is a remote, read-only view of Control Center. Configure
-the project root as `apps/control-center` and enable Vercel Authentication for
-all deployments before adding credentials or performing the first deployment.
-The remote API deliberately does not register `POST /api/costs/sync`; cost
-collection remains an external operation. Because the Vercel runtime does not
-include `flyctl`, Fly operational signals are expected to report `unknown`.
+The Vercel deployment is a remote Control Center surface. Dashboard HTTP views remain read-only, while `/api/mcp` exposes the separately authenticated Ops MCP; its only current write capability is the narrowly allowlisted single-issue Sentry resolve operation documented in [`MCP.md`](./MCP.md). Configure the project root as `apps/control-center` and enable Vercel Authentication for all deployments before adding credentials or performing the first deployment. The remote API deliberately does not register `POST /api/costs/sync`; cost collection remains an external operation. Fly operational signals use the Fly Machines HTTP API and require `FLY_OPS_TOKEN`; they do not depend on `flyctl` being installed in Vercel.
 
-The read path uses only these environment variables:
+The remote server uses these environment variables as applicable to its read paths and bounded MCP remediation path:
 
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `SUPABASE_DB_SCHEMA` (only when using a non-default schema)
 - `OPS_GITHUB_TOKEN`
+- `FLY_OPS_TOKEN`
 - `SENTRY_OPS_AUTH_TOKEN`
+- `SENTRY_OPS_WRITE_TOKEN` (only for the bounded Sentry resolve tool)
 - `SENTRY_ORG_SLUG`
 - `POSTHOG_PERSONAL_API_KEY`
 - `POSTHOG_PROJECT_ID`
 - `SENTRY_CONTROL_CENTER_DSN`
+- `OPS_MCP_TOKEN` (remote MCP client authentication only)
 
 Do not deploy `DEBANK_*` or `OPENROUTER_*` credentials; they are used only by
-cost synchronization. `FLY_API_TOKEN` is also ineffective without the `flyctl`
-binary. Set `ENABLE_EXPERIMENTAL_COREPACK=1` so Vercel honors the repository's
+cost synchronization. Set `ENABLE_EXPERIMENTAL_COREPACK=1` so Vercel honors the repository's
 `pnpm@10.30.3` package manager declaration. Force refresh fans out to the
 operational adapters, each with a 10-second timeout; if the selected Vercel plan
 defaults to a function duration below 15 seconds, configure a longer
@@ -88,7 +85,7 @@ Every source is an adapter that returns `OperationalSignal[]` and is contractual
 | `costs`     | `cost-ledger`                    | `ops.cost_snapshots` through the bridge, plus its own staleness                     |
 | `social`    | `social-queue` / `social-daemon` | `social_publish_jobs`, `social_daemon_state`, waiting media                         |
 | `jobs`      | `github-actions`                 | `schedule`-triggered runs of the github-actions entries in `.github/schedules.json` |
-| `infra`     | `fly`                            | `flyctl` machine state per app and process group                                    |
+| `infra`     | `fly`                            | Fly Machines HTTP API state per app and process group                               |
 
 Job health reads `event=schedule` runs only. A workflow carries both a cron and a `workflow_dispatch` trigger, so counting manual runs would let a successful re-run mask a cron that has stopped firing — the exact failure this domain exists to catch. Staleness is derived from each entry's own cron expression rather than assumed daily, floored at 48h.
 
@@ -102,15 +99,18 @@ Ranking is deterministic (`services/operations/prioritize.ts`) rather than model
 
 Every source has its own cache TTL, from 30s for the publish queue to 15 minutes for PostHog. `?force=1` bypasses them, which is what **Refresh** uses on Reliability and Product.
 
-### Read-only credentials
+### Provider credentials
 
 These ship dark. Their adapters report `unknown` and send no request until the credential exists, so nothing here is required to run the dashboard.
 
 - `OPS_GITHUB_TOKEN` — fine-grained PAT, `zapPilot/zapEngine` Actions: read. Without it no request is made at all: anonymous `api.github.com` is capped at 60 requests/hour per IP.
+- `FLY_OPS_TOKEN` — read-only Fly organization token used by the Machines HTTP API for fleet state and incident inspection.
 - `SENTRY_OPS_AUTH_TOKEN` + `SENTRY_ORG_SLUG` — `org:read`, `project:read`, `event:read`.
 - `POSTHOG_PERSONAL_API_KEY` + `POSTHOG_PROJECT_ID` — `query:read`.
 
-The two non-secret values belong in `config/env/*.env`; the three tokens belong in Infisical.
+The read credentials remain separate from `SENTRY_OPS_WRITE_TOKEN`, whose only caller is the bounded Sentry issue-resolution path described in [`MCP.md`](./MCP.md). `OPS_MCP_TOKEN` authenticates remote MCP clients and is not a provider credential.
+
+Non-secret identifiers belong in `config/env/*.env`; sensitive tokens belong in Infisical.
 
 ## Customer economics
 
