@@ -114,7 +114,11 @@ export type VisualSceneSubjectAssignment = z.infer<
 export type VisualSelectionReason = VisualSceneSubjectAssignment['selectionReason'];
 
 export function parseVisualSubjectCatalog(input: unknown): VisualSubjectCatalog {
-  return visualSubjectCatalogSchema.parse(input);
+  const parsed = visualSubjectCatalogSchema.parse(input);
+  return visualSubjectCatalogSchema.parse({
+    ...parsed,
+    subjects: parsed.subjects.map(disambiguateSubjectIdentity),
+  });
 }
 
 export function visualSubjectById(
@@ -156,5 +160,59 @@ export function buildVisualSubjectSearchQueries(subject: VisualSubject): string[
 
 export function isAmbiguousVisualSubject(subject: VisualSubject): boolean {
   const compact = subject.canonicalName.replace(/[^\p{L}\p{N}]/gu, '');
-  return compact.length <= 4 || /^[a-z]+\d+$/i.test(compact);
+  return (
+    subject.negativeHints.length > 0 ||
+    compact.length <= 4 ||
+    /^[a-z]+\d+$/i.test(compact)
+  );
+}
+
+function disambiguateSubjectIdentity(subject: VisualSubject): VisualSubject {
+  if (!isAmbiguousVisualSubject(subject)) return subject;
+
+  const originalName = subject.canonicalName;
+  const longerAlias = subject.aliases
+    .filter((alias) => normalized(alias).includes(normalized(originalName)))
+    .sort((left, right) => right.length - left.length)[0];
+  if (longerAlias && normalized(longerAlias) !== normalized(originalName)) {
+    return {
+      ...subject,
+      canonicalName: longerAlias,
+      aliases: uniqueNames([originalName, ...subject.aliases]).filter(
+        (alias) => normalized(alias) !== normalized(longerAlias),
+      ),
+    };
+  }
+
+  const hint = subject.identityHints.find((value) => {
+    const trimmed = value.trim();
+    return trimmed.length >= 2 && trimmed.length <= 24 && !/\s{2,}/u.test(trimmed);
+  });
+  if (!hint) return subject;
+
+  const contextualName = `${hint} ${originalName}`.replace(/\s+/gu, ' ').trim();
+  if (contextualName.length > 80) return subject;
+  return {
+    ...subject,
+    canonicalName: contextualName,
+    aliases: uniqueNames([originalName, ...subject.aliases]),
+  };
+}
+
+function normalized(value: string): string {
+  return value
+    .normalize('NFKC')
+    .toLocaleLowerCase('en-US')
+    .replace(/\s+/gu, ' ')
+    .trim();
+}
+
+function uniqueNames(values: readonly string[]): string[] {
+  const seen = new Set<string>();
+  return values.filter((value) => {
+    const key = normalized(value);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
