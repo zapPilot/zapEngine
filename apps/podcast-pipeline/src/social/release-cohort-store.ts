@@ -101,7 +101,9 @@ async function alignPendingRows(
  *   day by `nextReleaseSlot`.
  * - A correctly aligned article that is only slightly overdue is left at its
  *   original timestamp so the existing catch-up grace still works.
- * - `processing` rows are never mutated; the claim lease remains authoritative.
+ * - A cohort containing a `processing` row is left entirely untouched until
+ *   that lease resolves. Moving only its queued siblings would itself split the
+ *   release cohort, and only the claim RPC may reclaim an expired lease.
  */
 export async function alignPendingSocialReleaseCohorts(
   now: Date,
@@ -133,8 +135,13 @@ export async function alignPendingSocialReleaseCohorts(
     const hasPending = group.some((row) => row.status !== 'completed');
     if (!hasPending) continue;
 
+    // The partial-publish fence still needs to know about the episode even if
+    // one sibling is currently leased, but alignment must not rewrite only the
+    // non-processing rows around that lease.
+    if (hasCompleted) recoveryEpisodes.push(episodeId);
+    if (group.some((row) => row.status === 'processing')) continue;
+
     if (hasCompleted) {
-      recoveryEpisodes.push(episodeId);
       alignedLanes += await alignPendingRows(
         group,
         earliestSchedule(group),
