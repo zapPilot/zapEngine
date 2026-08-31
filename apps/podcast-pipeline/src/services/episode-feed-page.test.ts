@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { feedRow } from '../__fixtures__/index-test.js';
 import { encodeCursor } from './db.js';
@@ -21,6 +21,11 @@ const { listHydratedEpisodeFeedPage } = await import('./episode-feed-page.js');
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.stubEnv('NODE_ENV', 'production');
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
 
 describe('listHydratedEpisodeFeedPage', () => {
