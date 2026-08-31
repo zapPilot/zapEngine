@@ -1,12 +1,25 @@
 import { Hono } from 'hono';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   OPERATIONS_DOMAINS,
   type OperationsResponse,
 } from '../../shared/types.js';
+import { captureServerException } from '../observability/sentry.js';
 import { registerOpsMcpHttp } from './http.js';
+import { createOpsMcpServer } from './server.js';
 import type { OpsMcpOperations } from './types.js';
+
+vi.mock('../observability/sentry.js', () => ({
+  captureServerException: vi.fn(),
+}));
+vi.mock('./server.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./server.js')>();
+  return {
+    ...actual,
+    createOpsMcpServer: vi.fn(actual.createOpsMcpServer),
+  };
+});
 
 const PROTOCOL_VERSION = '2025-06-18';
 const TOKEN = 'secret-token';
@@ -21,6 +34,10 @@ const SNAPSHOT: OperationsResponse = {
   priorities: [],
   signals: [],
 };
+
+beforeEach(() => {
+  vi.mocked(captureServerException).mockClear();
+});
 
 function fakeOperations(): OpsMcpOperations {
   return {
@@ -37,58 +54,26 @@ describe('Ops MCP HTTP auth', () => {
     const app = new Hono();
     registerOpsMcpHttp(app, { operations: fakeOperations() });
 
-    const response = await app.request('/api/mcp', { method: 'POST' });
-
-    expect(response.status).toBe(401);
-    expect(response.headers.get('www-authenticate')).toBe('Bearer');
-    await expect(response.json()).resolves.toEqual({ error: 'Unauthorized' });
+    await expectUnauthorized(app);
   });
 
   it('rejects requests without the configured bearer token', async () => {
-    const app = new Hono();
-    registerOpsMcpHttp(app, {
-      operations: fakeOperations(),
-      token: TOKEN,
-    });
-
-    const response = await app.request('/api/mcp', { method: 'POST' });
-
-    expect(response.status).toBe(401);
-    expect(response.headers.get('www-authenticate')).toBe('Bearer');
-    await expect(response.json()).resolves.toEqual({ error: 'Unauthorized' });
+    const app = createAuthenticatedApp();
+    await expectUnauthorized(app);
   });
 
   it('rejects the wrong bearer token', async () => {
-    /* jscpd:ignore-start -- parallel auth test fixture, intentional duplicate */
-    const app = new Hono();
-    registerOpsMcpHttp(app, {
-      operations: fakeOperations(),
-      token: TOKEN,
-    });
-
-    const response = await app.request('/api/mcp', {
-      method: 'POST',
+    const app = createAuthenticatedApp();
+    await expectUnauthorized(app, {
       headers: { Authorization: 'Bearer wrong-token' },
     });
-    /* jscpd:ignore-end */
-
-    expect(response.status).toBe(401);
   });
 });
 
 describe('Ops MCP HTTP protocol', () => {
   it('initializes the MCP server with the configured bearer token', async () => {
     const app = createAuthenticatedApp();
-    const { response, payload } = await mcpRequest(app, {
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'initialize',
-      params: {
-        protocolVersion: PROTOCOL_VERSION,
-        capabilities: {},
-        clientInfo: { name: 'control-center-test', version: '1.0.0' },
-      },
-    });
+    const { response, payload } = await mcpRequest(app, initializeRequest(1));
 
     expect(response.status).toBe(200);
     expect(payload.result?.serverInfo?.name).toBe('zap-pilot-ops');
@@ -132,12 +117,52 @@ describe('Ops MCP HTTP protocol', () => {
     expect(payload.result?.structuredContent).toEqual(SNAPSHOT);
     expect(operations.getOperations).toHaveBeenCalledWith(false);
   });
+
+  it('reports factory failures through the SDK error hook', async () => {
+    const error = new Error('sensitive factory failure');
+    vi.mocked(createOpsMcpServer).mockImplementationOnce(() => {
+      throw error;
+    });
+    const app = createAuthenticatedApp();
+
+    const { response, payload } = await mcpRequest(app, initializeRequest(4));
+
+    expect(response.status).toBe(500);
+    expect(JSON.stringify(payload)).not.toContain(error.message);
+    expect(captureServerException).toHaveBeenCalledWith(error, {
+      route: '/api/mcp',
+    });
+  });
 });
 
 function createAuthenticatedApp(operations = fakeOperations()) {
   const app = new Hono();
   registerOpsMcpHttp(app, { operations, token: TOKEN });
   return app;
+}
+
+async function expectUnauthorized(app: Hono, init: RequestInit = {}) {
+  const response = await app.request('/api/mcp', {
+    ...init,
+    method: 'POST',
+  });
+
+  expect(response.status).toBe(401);
+  expect(response.headers.get('www-authenticate')).toBe('Bearer');
+  await expect(response.json()).resolves.toEqual({ error: 'Unauthorized' });
+}
+
+function initializeRequest(id: number): Record<string, unknown> {
+  return {
+    jsonrpc: '2.0',
+    id,
+    method: 'initialize',
+    params: {
+      protocolVersion: PROTOCOL_VERSION,
+      capabilities: {},
+      clientInfo: { name: 'control-center-test', version: '1.0.0' },
+    },
+  };
 }
 
 async function mcpRequest(
@@ -160,9 +185,7 @@ async function mcpRequest(
 
 async function readMcpPayload(response: Response): Promise<JsonRpcResponse> {
   const text = await response.text();
-  const dataLine = text
-    .split('\n')
-    .find((line) => line.startsWith('data: '));
+  const dataLine = text.split('\n').find((line) => line.startsWith('data: '));
   return JSON.parse(
     dataLine ? dataLine.slice('data: '.length) : text,
   ) as JsonRpcResponse;

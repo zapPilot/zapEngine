@@ -2,10 +2,10 @@
 
 The Control Center exposes the same normalized, read-only operations model to agents over two MCP transports.
 
-| Transport | Entry point | Authentication | Intended use |
-| --- | --- | --- | --- |
-| stdio | `/.mcp.json` (Claude Code) or `/opencode.json` (OpenCode) -> `scripts/ops-mcp.mjs` | local Infisical access | repository-local agents |
-| remote HTTP | `POST /api/mcp` | `Authorization: Bearer $OPS_MCP_TOKEN` | remote MCP clients using the deployed Control Center |
+| Transport   | Entry point                                                                        | Authentication                         | Intended use                                         |
+| ----------- | ---------------------------------------------------------------------------------- | -------------------------------------- | ---------------------------------------------------- |
+| stdio       | `/.mcp.json` (Claude Code) or `/opencode.json` (OpenCode) -> `scripts/ops-mcp.mjs` | local Infisical access                 | repository-local agents                              |
+| remote HTTP | `POST /api/mcp`                                                                    | `Authorization: Bearer $OPS_MCP_TOKEN` | remote MCP clients using the deployed Control Center |
 
 ## Credential boundaries
 

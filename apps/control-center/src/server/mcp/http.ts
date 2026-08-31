@@ -16,7 +16,14 @@ export function registerOpsMcpHttp(
 ): void {
   // createMcpHandler is stateless by default and constructs a fresh McpServer
   // per HTTP request, which is the right lifecycle for Vercel functions.
-  const handler = createMcpHandler(() => createOpsMcpServer(input.operations));
+  const handler = createMcpHandler(() => createOpsMcpServer(input.operations), {
+    // The SDK converts factory, transport, and protocol-handler exceptions
+    // into generic MCP responses. Its error hook is therefore the reliable
+    // observability boundary; an outer fetch catch cannot see those errors.
+    onerror: (error) => {
+      captureServerException(error, { route: '/api/mcp' });
+    },
+  });
 
   app.all('/api/mcp', async (context) => {
     if (!isAuthorized(context.req.header('authorization'), input.token)) {
@@ -40,7 +47,9 @@ function isAuthorized(
   authorization: string | undefined,
   expectedToken: string | undefined,
 ): boolean {
-  if (!expectedToken || !authorization?.startsWith('Bearer ')) return false;
+  if (!expectedToken || !authorization?.startsWith('Bearer ')) {
+    return false;
+  }
 
   const presented = Buffer.from(authorization.slice('Bearer '.length));
   const expected = Buffer.from(expectedToken);
