@@ -33,6 +33,10 @@ import {
 import type { StoryboardProvider } from './video/storyboard/provider.js';
 import { enrichStoryboardSearchIntents } from './video/storyboard/search-intents.js';
 import { splitCanonicalSentences } from './video/storyboard/sentences.js';
+import type {
+  VisualSceneSubjectAssignment,
+  VisualSubjectCatalog,
+} from './video/storyboard/subject-catalog.js';
 import type { VisualAssetProgress } from './video/visual-asset-planner.js';
 import {
   EPISODE_VIDEO_VISUAL_VERSION,
@@ -161,6 +165,7 @@ export function createEpisodeVideoVisualProcessor(
           });
         }
       }
+
       // Branding establishes the final scene spans first. Enrichment then sees
       // the clipped content and skips the fixed brand card entirely.
       const intents = await dependencies.enrichSearchIntents(
@@ -183,9 +188,9 @@ export function createEpisodeVideoVisualProcessor(
         episode: source.episodeId,
         enriched: `${intents.enrichedSceneCount}/${intents.draft.scenes.length}`,
         brand: brandSceneCount,
-        // How much of the episode image search can anchor on a named subject
-        // rather than a description — the rest genuinely name nothing.
         entities: intents.entityAnchoredSceneCount,
+        subjects: intents.subjectCatalog?.subjects.length,
+        primarySubject: intents.subjectCatalog?.primarySubjectId,
         model: intents.model ?? 'deterministic',
       });
 
@@ -214,6 +219,12 @@ export function createEpisodeVideoVisualProcessor(
         workingDirectory: join(outputDirectory, 'images'),
         selectionMode: 'resilient',
         signal: context.signal,
+        ...(intents.subjectCatalog
+          ? { subjectCatalog: intents.subjectCatalog }
+          : {}),
+        ...(intents.sceneAssignments.length > 0
+          ? { sceneAssignments: intents.sceneAssignments }
+          : {}),
         onProgress: (progress) => {
           logPlannerProgress(
             dependencies.logger,
@@ -221,9 +232,6 @@ export function createEpisodeVideoVisualProcessor(
             source.episodeId,
             progress,
           );
-          // Only 'assets' advances the number. A scene can be searched several
-          // times before one candidate passes validation, so driving the bar
-          // from 'search' would make it jitter back and forth.
           if (progress.phase === 'assets') {
             context.reportProgress(
               visualStageProgress(
@@ -241,6 +249,8 @@ export function createEpisodeVideoVisualProcessor(
         scenes: storyboard.draft.scenes,
         selectedScenes: assetPlan.scenes,
         assets: assetPlan.assets,
+        subjectCatalog: intents.subjectCatalog,
+        sceneAssignments: intents.sceneAssignments,
       });
       const manifestPath = join(outputDirectory, 'visual-manifest.json');
       const sourceManifest = createSourceVisualManifest({
@@ -249,6 +259,8 @@ export function createEpisodeVideoVisualProcessor(
         storyboard,
         visualHash,
         assetPlan,
+        subjectCatalog: intents.subjectCatalog,
+        sceneAssignments: intents.sceneAssignments,
       });
       await dependencies.writeManifest(
         manifestPath,
@@ -290,6 +302,8 @@ export function createEpisodeVideoVisualProcessor(
         selectedScenes: assetPlan.scenes,
         assets: assetPlan.assets,
         r2ImageUrls: uploaded.imageUrls,
+        subjectCatalog: intents.subjectCatalog,
+        sceneAssignments: intents.sceneAssignments,
       });
       return {
         visualPayload: payload,
@@ -390,6 +404,8 @@ function createSourceVisualManifest(input: {
   storyboard: StoryboardGenerationResult;
   visualHash: string;
   assetPlan: Awaited<ReturnType<typeof planPodcastVisualAssets>>;
+  subjectCatalog: VisualSubjectCatalog | null;
+  sceneAssignments: readonly VisualSceneSubjectAssignment[];
 }): Record<string, unknown> {
   return {
     schemaVersion: EPISODE_VISUAL_PAYLOAD_SCHEMA_VERSION,
@@ -398,6 +414,12 @@ function createSourceVisualManifest(input: {
     sourceHash: input.job.source_hash,
     episodeId: input.source.episodeId,
     canonicalLocalizationId: input.source.canonicalLocalizationId,
+    ...(input.subjectCatalog
+      ? {
+          subjectCatalog: input.subjectCatalog,
+          sceneAssignments: input.sceneAssignments,
+        }
+      : {}),
     storyboard: {
       provider: input.storyboard.effectiveProvider,
       model: input.storyboard.model,
