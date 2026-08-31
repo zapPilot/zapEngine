@@ -27,6 +27,9 @@ export function PodcastPipelineView(props: {
   const active = props.data.episodes.filter(
     ({ currentPhase }) => currentPhase !== 'done',
   );
+  const recentlyCompleted = props.data.episodes
+    .filter(({ currentPhase }) => currentPhase === 'done')
+    .slice(0, 5);
   const failed = active.filter(({ videoStatus }) => videoStatus === 'failed');
 
   return (
@@ -58,15 +61,35 @@ export function PodcastPipelineView(props: {
       </section>
 
       <section className="pipeline-list" aria-label="Podcast production status">
-        {props.data.episodes.map((episode) => (
-          <PipelineEpisode
-            episode={episode}
-            isRestarting={props.restartingEpisodeId === episode.episodeId}
-            key={episode.episodeId}
-            onRestartVideo={props.onRestartVideo}
-          />
-        ))}
+        {active.length === 0 ? (
+          <div className="empty-row">No active podcast production work.</div>
+        ) : (
+          active.map((episode) => (
+            <PipelineEpisode
+              episode={episode}
+              isRestarting={props.restartingEpisodeId === episode.episodeId}
+              key={episode.episodeId}
+              onRestartVideo={props.onRestartVideo}
+            />
+          ))
+        )}
       </section>
+
+      {recentlyCompleted.length > 0 ? (
+        <details className="open-panel pipeline-completed">
+          <summary>Recently completed ({recentlyCompleted.length})</summary>
+          <div className="pipeline-list pipeline-completed-list">
+            {recentlyCompleted.map((episode) => (
+              <PipelineEpisode
+                episode={episode}
+                isRestarting={false}
+                key={episode.episodeId}
+                onRestartVideo={props.onRestartVideo}
+              />
+            ))}
+          </div>
+        </details>
+      ) : null}
     </div>
   );
 }
@@ -90,20 +113,22 @@ function PipelineEpisode(props: {
             Added {relativeTime(episode.createdAt)} · {shortId(episode.episodeId)}
           </small>
         </div>
-        <button
-          className="refresh-button pipeline-retry"
-          disabled={!episode.canRestartVideo || props.isRestarting}
-          onClick={() => props.onRestartVideo(episode.episodeId)}
-          title={
-            episode.canRestartVideo
-              ? 'Reset only visual planning and video rendering'
-              : 'Video retry requires completed audio and no active render lease'
-          }
-          type="button"
-        >
-          <RotateCcw aria-hidden="true" />
-          {props.isRestarting ? 'Restarting…' : 'Restart video'}
-        </button>
+        {episode.currentPhase !== 'done' ? (
+          <button
+            className="refresh-button pipeline-retry"
+            disabled={!episode.canRestartVideo || props.isRestarting}
+            onClick={() => props.onRestartVideo(episode.episodeId)}
+            title={
+              episode.canRestartVideo
+                ? 'Restart only unfinished visual/video checkpoints'
+                : 'Video retry requires completed audio and no active render lease'
+            }
+            type="button"
+          >
+            <RotateCcw aria-hidden="true" />
+            {props.isRestarting ? 'Restarting…' : 'Restart video'}
+          </button>
+        ) : null}
       </header>
 
       <div className="pipeline-phase-grid">
