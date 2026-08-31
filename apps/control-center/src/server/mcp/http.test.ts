@@ -34,6 +34,14 @@ const SNAPSHOT: OperationsResponse = {
   priorities: [],
   signals: [],
 };
+const RESOLUTION = {
+  provider: 'sentry' as const,
+  issueId: '12345',
+  shortId: 'ZAP-PILOT-NATIVE-1',
+  title: 'Example issue',
+  status: 'resolved' as const,
+  reason: 'The production fix is deployed.',
+};
 
 beforeEach(() => {
   vi.mocked(captureServerException).mockClear();
@@ -46,6 +54,7 @@ function fakeOperations(): OpsMcpOperations {
     getCustomers: vi.fn(),
     inspectSignal: vi.fn(),
     investigate: vi.fn(),
+    resolveSentryIssue: vi.fn().mockResolvedValue(RESOLUTION),
   };
 }
 
@@ -99,6 +108,7 @@ describe('Ops MCP HTTP protocol', () => {
         'ops_customers',
         'ops_social',
         'ops_costs',
+        'ops_resolve_sentry_issue',
       ]),
     );
   });
@@ -118,6 +128,30 @@ describe('Ops MCP HTTP protocol', () => {
     expect(operations.getOperations).toHaveBeenCalledWith(false);
   });
 
+  it('resolves one explicit Sentry issue through the bounded mutation tool', async () => {
+    const operations = fakeOperations();
+    const app = createAuthenticatedApp(operations);
+    const { response, payload } = await mcpRequest(app, {
+      jsonrpc: '2.0',
+      id: 4,
+      method: 'tools/call',
+      params: {
+        name: 'ops_resolve_sentry_issue',
+        arguments: {
+          issueId: '12345',
+          reason: 'The production fix is deployed.',
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(payload.result?.structuredContent).toEqual(RESOLUTION);
+    expect(operations.resolveSentryIssue).toHaveBeenCalledWith(
+      '12345',
+      'The production fix is deployed.',
+    );
+  });
+
   it('reports factory failures through the SDK error hook', async () => {
     const error = new Error('sensitive factory failure');
     vi.mocked(createOpsMcpServer).mockImplementationOnce(() => {
@@ -125,7 +159,7 @@ describe('Ops MCP HTTP protocol', () => {
     });
     const app = createAuthenticatedApp();
 
-    const { response, payload } = await mcpRequest(app, initializeRequest(4));
+    const { response, payload } = await mcpRequest(app, initializeRequest(5));
 
     expect(response.status).toBe(500);
     expect(JSON.stringify(payload)).not.toContain(error.message);
