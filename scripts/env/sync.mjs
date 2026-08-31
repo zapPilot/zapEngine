@@ -19,17 +19,23 @@ import { loadCommittedValues, resolveValues } from './sources.mjs';
 const args = process.argv.slice(2);
 const apply = args.includes('--apply');
 const prune = args.includes('--prune');
+const stageFly = args.includes('--stage-fly');
 const targetIndex = args.indexOf('--target');
 const target = targetIndex >= 0 ? args[targetIndex + 1] : undefined;
 
 if (!target || !DESTINATION_NAMES.includes(target)) {
   console.error(
-    `usage: pnpm env:sync --target ${DESTINATION_NAMES.join('|')} [--apply] [--prune]`,
+    `usage: pnpm env:sync --target ${DESTINATION_NAMES.join('|')} [--apply] [--prune] [--stage-fly]`,
   );
   process.exit(2);
 }
 
 const destination = ENV_DESTINATIONS[target];
+if (stageFly && (!apply || destination.platform !== 'fly')) {
+  console.error('error: --stage-fly requires --apply and a Fly destination');
+  process.exit(2);
+}
+
 const environment = destination.sourceEnvironment ?? destination.environment;
 const includedNames = destination.include
   ? new Set(destination.include)
@@ -112,7 +118,9 @@ const forbidden = [...actual]
   .filter((name) => !desiredNames.has(name) && !managed.has(name))
   .sort();
 
-console.log(`${apply ? 'Apply' : 'Dry run'} ${target}:`);
+console.log(
+  `${apply ? (stageFly ? 'Stage' : 'Apply') : 'Dry run'} ${target}:`,
+);
 for (const { name } of selected.sort((a, b) => a.name.localeCompare(b.name))) {
   console.log(`  SET ${name}`);
 }
@@ -128,8 +136,8 @@ const selectedValues = Object.fromEntries(
   selected.map(({ name, value }) => [name, value]),
 );
 if (destination.platform === 'fly') {
-  importFlyValues(destination, selectedValues);
-  if (prune) unsetFlyKeys(destination, forbidden);
+  importFlyValues(destination, selectedValues, { stage: stageFly });
+  if (prune) unsetFlyKeys(destination, forbidden, { stage: stageFly });
 } else if (destination.platform === 'eas') {
   for (const { name, value, definition } of selected) {
     setEasValue(destination, name, value, definition.sensitive);
@@ -141,4 +149,6 @@ if (destination.platform === 'fly') {
   }
   if (prune) for (const name of forbidden) deleteVercelKey(destination, name);
 }
-console.log(`Environment sync completed for ${target}.`);
+console.log(
+  `${stageFly ? 'Environment staged' : 'Environment sync completed'} for ${target}.`,
+);
