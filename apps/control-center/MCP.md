@@ -4,7 +4,7 @@ The Control Center exposes the same normalized, read-only operations model to ag
 
 | Transport | Entry point | Authentication | Intended use |
 | --- | --- | --- | --- |
-| stdio | repository `/.mcp.json` -> `scripts/ops-mcp.mjs` | local Infisical access | Claude Code, OpenCode, and other repository-local agents |
+| stdio | `/.mcp.json` (Claude Code) or `/opencode.json` (OpenCode) -> `scripts/ops-mcp.mjs` | local Infisical access | repository-local agents |
 | remote HTTP | `POST /api/mcp` | `Authorization: Bearer $OPS_MCP_TOKEN` | remote MCP clients using the deployed Control Center |
 
 ## Credential boundaries
@@ -39,14 +39,14 @@ The Vercel MCP function therefore has a 30-second maximum duration. Provider cal
 
 ## Local verification
 
-From a client that reads the repository `/.mcp.json`:
+From Claude Code or OpenCode at the repository root:
 
 1. Confirm `zap-pilot-ops` appears in `tools/list`.
 2. Call `ops_status` and confirm all eight domains are present.
 3. Confirm configured production providers do not all report `unknown` because of missing environment injection.
 4. Pick a real signal fingerprint and call `ops_investigate`.
 
-The repository tests also lock `/.mcp.json` to the canonical launcher and assert that the launcher explicitly selects the production environment.
+The repository tests lock both client discovery files to the canonical launcher and assert that the launcher explicitly selects the production environment.
 
 ## Remote verification
 
