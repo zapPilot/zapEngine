@@ -129,6 +129,7 @@ function createTestApp(
           evidence: {},
           gaps: [],
         }),
+      resolveSentryIssue: operationsOverrides.resolveSentryIssue ?? vi.fn(),
       investigate: operationsOverrides.investigate ?? vi.fn(),
     },
     service: {
@@ -168,7 +169,7 @@ describe('control center API', () => {
       getCostHistory: vi.fn().mockResolvedValue({
         currentMonthDaily: [],
         monthlyTotals: [],
-        cashSpendUsd: null,
+        cashInvoiceSpendUsd: null,
       }),
       getSocial: vi.fn().mockResolvedValue(overview.social),
     });
