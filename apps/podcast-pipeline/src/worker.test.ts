@@ -10,6 +10,7 @@ vi.mock('./services/episode-video-visual-processor.js', () => ({
 
 import type { VideoWorkerPollResult } from './services/video-worker.js';
 import {
+  preflightVideoWorkerRuntime,
   startVideoWorkerProcess,
   type VideoWorkerProcessHandle,
   type VideoWorkerProcessOptions,
@@ -164,5 +165,52 @@ describe('startVideoWorkerProcess', () => {
 
     expect(videoWorker.stop).toHaveBeenCalledTimes(1);
     expect(exit).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('preflightVideoWorkerRuntime', () => {
+  it('reports and flushes a runtime failure before rethrowing it', async () => {
+    const failure = new Error('libass is unavailable');
+    const captureException = vi.fn();
+    const flush = vi.fn().mockResolvedValue(true);
+
+    await expect(
+      preflightVideoWorkerRuntime({
+        assertRuntime: vi.fn().mockRejectedValue(failure),
+        captureException,
+        flush,
+        logger: { info: vi.fn() },
+      }),
+    ).rejects.toBe(failure);
+
+    expect(captureException).toHaveBeenCalledWith(failure, {
+      component: 'video-worker',
+      tags: { phase: 'runtime-preflight' },
+    });
+    expect(flush).toHaveBeenCalledOnce();
+  });
+
+  it('logs a successful runtime without reporting an exception', async () => {
+    const logger = { info: vi.fn() };
+    const captureException = vi.fn();
+    const flush = vi.fn().mockResolvedValue(true);
+
+    await preflightVideoWorkerRuntime({
+      assertRuntime: vi.fn().mockResolvedValue({
+        ffmpegPath: '/usr/bin/ffmpeg',
+        fontsDirectory: '/app/assets/video/fonts',
+        subtitleBurnInVerified: false,
+        subtitleFrameMaxChannel: null,
+      }),
+      captureException,
+      flush,
+      logger,
+    });
+
+    expect(logger.info).toHaveBeenCalledWith(
+      '[video-worker] runtime:ready ffmpeg=/usr/bin/ffmpeg fonts=/app/assets/video/fonts',
+    );
+    expect(captureException).not.toHaveBeenCalled();
+    expect(flush).not.toHaveBeenCalled();
   });
 });

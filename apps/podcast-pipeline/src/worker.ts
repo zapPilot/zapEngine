@@ -54,6 +54,13 @@ export interface VideoWorkerProcessHandle {
   shutdown(reason?: string): Promise<void>;
 }
 
+export interface VideoWorkerRuntimePreflightOptions {
+  assertRuntime?: typeof assertVideoRenderRuntime;
+  captureException?: typeof capturePipelineException;
+  flush?: typeof flushSentry;
+  logger?: Pick<Console, 'info'>;
+}
+
 const processPricedVisualJob: ProcessEpisodeVideoVisualJob = async (
   job,
   source,
@@ -146,19 +153,25 @@ export function startVideoWorkerProcess(
   return { videoWorker, shutdown };
 }
 
-if (process.env['NODE_ENV'] !== 'test') {
+export async function preflightVideoWorkerRuntime(
+  options: VideoWorkerRuntimePreflightOptions = {},
+): Promise<void> {
   try {
-    const runtime = await assertVideoRenderRuntime();
-    console.info(
+    const runtime = await (options.assertRuntime ?? assertVideoRenderRuntime)();
+    (options.logger ?? console).info(
       `[video-worker] runtime:ready ffmpeg=${runtime.ffmpegPath} fonts=${runtime.fontsDirectory}`,
     );
-    startVideoWorkerProcess();
   } catch (error) {
-    capturePipelineException(error, {
+    (options.captureException ?? capturePipelineException)(error, {
       component: 'video-worker',
       tags: { phase: 'runtime-preflight' },
     });
-    await flushSentry();
+    await (options.flush ?? flushSentry)();
     throw error;
   }
+}
+
+if (process.env['NODE_ENV'] !== 'test') {
+  await preflightVideoWorkerRuntime();
+  startVideoWorkerProcess();
 }
