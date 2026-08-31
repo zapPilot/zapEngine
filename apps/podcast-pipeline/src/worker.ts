@@ -51,7 +51,7 @@ export interface VideoWorkerProcessOptions {
   livenessIntervalMs?: number;
   idleShutdownMs?: number;
   exit?: (code: number) => void;
-  logger?: Pick<Console, 'info' | 'error'>;
+  logger?: Pick<Console, 'info'>;
 }
 
 export interface VideoWorkerProcessHandle {
@@ -102,7 +102,7 @@ export function startVideoWorkerProcess(
   const idleShutdownMs = options.idleShutdownMs ?? IDLE_SHUTDOWN_MS;
   const visualFailureNotifier = (
     options.createVisualFailureNotifier ??
-    (() => createVideoVisualFailureNotifier({ logger }))
+    (() => createVideoVisualFailureNotifier())
   )();
 
   let liveness: NodeJS.Timeout | null = null;
