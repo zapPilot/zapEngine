@@ -14,6 +14,7 @@ export interface SentryEnv {
 export type PipelineComponent =
   | 'http'
   | 'ingest'
+  | 'telegram'
   | 'video-render'
   | 'video-visual'
   | 'video-worker'

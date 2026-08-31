@@ -11,6 +11,13 @@ const migration = fs.readFileSync(
   ),
   'utf8',
 );
+const emptyClaimFixMigration = fs.readFileSync(
+  path.join(
+    repoRoot,
+    'supabase/migrations/20260830224500_fix_podcast_ingest_claim_empty_result.sql',
+  ),
+  'utf8',
+);
 
 describe('podcast ingest jobs migration', () => {
   it('stores Telegram ingest work durably with lease state', () => {
@@ -36,6 +43,15 @@ describe('podcast ingest jobs migration', () => {
       /status = 'queued'[\s\S]*status = 'processing'[\s\S]*lease_expires_at <= now\(\)/i,
     );
     expect(migration).toMatch(/for update skip locked/i);
+  });
+
+  it('returns a real null when a specific job claim loses the lease race', () => {
+    expect(emptyClaimFixMigration).toMatch(
+      /create or replace function from_fed_to_chain\.claim_podcast_ingest_job/i,
+    );
+    expect(emptyClaimFixMigration).toMatch(
+      /returning \* into v_job;[\s\S]*if v_job\.id is null then[\s\S]*return null;/i,
+    );
   });
 
   it('keeps the table and queue RPCs service-role only', () => {
