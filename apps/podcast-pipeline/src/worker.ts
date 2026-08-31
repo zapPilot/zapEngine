@@ -4,9 +4,13 @@
 import './observability/sentry-init.js';
 
 import { installProcessShutdown } from './lib/process-shutdown.js';
-import { flushSentry } from './observability/sentry.js';
+import {
+  capturePipelineException,
+  flushSentry,
+} from './observability/sentry.js';
 import { processEpisodeVideoJob } from './services/episode-video-processor.js';
 import { processEpisodeVideoVisualJob } from './services/episode-video-visual-processor.js';
+import { assertVideoRenderRuntime } from './services/video/runtime-preflight.js';
 import {
   createVideoWorker,
   type CreateVideoWorkerOptions,
@@ -48,6 +52,13 @@ export interface VideoWorkerProcessOptions {
 export interface VideoWorkerProcessHandle {
   videoWorker: EpisodeVideoWorker;
   shutdown(reason?: string): Promise<void>;
+}
+
+export interface VideoWorkerRuntimePreflightOptions {
+  assertRuntime?: typeof assertVideoRenderRuntime;
+  captureException?: typeof capturePipelineException;
+  flush?: typeof flushSentry;
+  logger?: Pick<Console, 'info'>;
 }
 
 const processPricedVisualJob: ProcessEpisodeVideoVisualJob = async (
@@ -142,6 +153,25 @@ export function startVideoWorkerProcess(
   return { videoWorker, shutdown };
 }
 
+export async function preflightVideoWorkerRuntime(
+  options: VideoWorkerRuntimePreflightOptions = {},
+): Promise<void> {
+  try {
+    const runtime = await (options.assertRuntime ?? assertVideoRenderRuntime)();
+    (options.logger ?? console).info(
+      `[video-worker] runtime:ready ffmpeg=${runtime.ffmpegPath} fonts=${runtime.fontsDirectory}`,
+    );
+  } catch (error) {
+    (options.captureException ?? capturePipelineException)(error, {
+      component: 'video-worker',
+      tags: { phase: 'runtime-preflight' },
+    });
+    await (options.flush ?? flushSentry)();
+    throw error;
+  }
+}
+
 if (process.env['NODE_ENV'] !== 'test') {
+  await preflightVideoWorkerRuntime();
   startVideoWorkerProcess();
 }
