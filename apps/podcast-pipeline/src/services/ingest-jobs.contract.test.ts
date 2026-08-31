@@ -53,6 +53,15 @@ describe('podcast ingest job RPC contract', () => {
     });
   });
 
+  it.each([false, 0, ''])(
+    'rejects a malformed non-null RPC payload %j',
+    (payload) => {
+      expect(() => parsePodcastIngestJobRpcResult(payload)).toThrow(
+        PodcastIngestJobContractError,
+      );
+    },
+  );
+
   it.each([
     [null, 'source_url must be a non-empty string'],
     ['', 'source_url must be a non-empty string'],

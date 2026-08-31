@@ -378,6 +378,11 @@ export function createTelegramIngestQueue(
       if (job) await startRecoveredJob(job);
     } catch (error) {
       if (error instanceof PodcastIngestJobContractError) {
+        // The production store validates the RPC result before returning it,
+        // so malformed claimed rows fail here rather than in startRecoveredJob.
+        // Release that owned lease as failed or the same poison row will be
+        // reclaimed after every lease expiry.
+        await finishDurableJob(error.jobId, 'failed', error);
         await reportRecoveryContractFailure(error);
       }
       console.error('[telegram-ingest-queue] recovery scan failed', {

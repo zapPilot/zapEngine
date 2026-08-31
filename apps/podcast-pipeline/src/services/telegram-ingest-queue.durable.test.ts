@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type {
-  PodcastIngestJobRow,
-  PodcastIngestJobStore,
+import {
+  PodcastIngestJobContractError,
+  type PodcastIngestJobRow,
+  type PodcastIngestJobStore,
 } from './ingest-jobs.js';
 
 const mocks = vi.hoisted(() => ({
@@ -188,5 +189,47 @@ describe('durable Telegram ingest queue', () => {
       }),
     );
     expect(mocks.flush).toHaveBeenCalled();
+  });
+
+  it('quarantines a poison row rejected by the production store parser', async () => {
+    const jobId = row().id;
+    const contractError = new PodcastIngestJobContractError(
+      'source_url must be a non-empty string',
+      jobId,
+    );
+    const store = fakeStore({
+      claimNext: vi.fn(async () => {
+        throw contractError;
+      }),
+    });
+    const queue = createTelegramIngestQueue({
+      jobStore: store,
+      startRecoveryLoop: false,
+    });
+    const consoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+
+    await queue.recoverNow();
+
+    expect(mocks.perform).not.toHaveBeenCalled();
+    expect(store.finish).toHaveBeenCalledWith(
+      jobId,
+      expect.any(String),
+      'failed',
+      expect.stringContaining('source_url must be a non-empty string'),
+    );
+    expect(mocks.capture).toHaveBeenCalledWith(
+      contractError,
+      expect.objectContaining({
+        component: 'ingest',
+        tags: expect.objectContaining({
+          entrypoint: 'telegram',
+          failure_kind: 'durable-job-contract',
+        }),
+      }),
+    );
+    expect(mocks.flush).toHaveBeenCalled();
+    consoleError.mockRestore();
   });
 });

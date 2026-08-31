@@ -151,7 +151,7 @@ export function parsePodcastIngestJobRow(value: unknown): PodcastIngestJobRow {
 }
 
 function rawRpcRow(data: unknown): unknown {
-  if (!data) return null;
+  if (data === null || data === undefined) return null;
   return Array.isArray(data) ? (data[0] ?? null) : data;
 }
 
