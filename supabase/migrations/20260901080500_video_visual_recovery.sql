@@ -3,6 +3,29 @@ begin;
 alter table from_fed_to_chain.episode_video_visuals
   add column if not exists failure_notified_at timestamptz;
 
+-- Every retry path, including the older enqueue RPC, must make a future
+-- terminal failure notify again. Centralize that invariant on the state
+-- transition instead of requiring every caller to remember the new column.
+create or replace function from_fed_to_chain.reset_episode_video_visual_failure_notification()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if old.status = 'failed' and new.status <> 'failed' then
+    new.failure_notified_at := null;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_reset_episode_video_visual_failure_notification
+  on from_fed_to_chain.episode_video_visuals;
+create trigger trg_reset_episode_video_visual_failure_notification
+before update of status on from_fed_to_chain.episode_video_visuals
+for each row
+execute function from_fed_to_chain.reset_episode_video_visual_failure_notification();
+
 -- Visual planning is a prerequisite for every language render. A terminal
 -- visual failure therefore blocks the whole episode even though the downstream
 -- episode_videos rows remain queued. Give it the same durable, at-least-once
