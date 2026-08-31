@@ -1,5 +1,6 @@
 import {
   Activity,
+  Clapperboard,
   Gauge,
   RefreshCw,
   TrendingUp,
@@ -13,6 +14,7 @@ import { BrandMark } from './BrandMark.js';
 
 export type DashboardView =
   | 'home'
+  | 'pipeline'
   | 'growth'
   | 'product'
   | 'reliability'
@@ -20,6 +22,7 @@ export type DashboardView =
 
 const navigation = [
   { id: 'home' as const, label: 'Home', Icon: Gauge },
+  { id: 'pipeline' as const, label: 'Pipeline', Icon: Clapperboard },
   { id: 'growth' as const, label: 'Growth', Icon: TrendingUp },
   { id: 'product' as const, label: 'Product', Icon: Users },
   { id: 'reliability' as const, label: 'Reliability', Icon: Activity },
@@ -69,7 +72,7 @@ export function AppShell(props: {
         </nav>
         <div className="sidebar-note">
           <span className="live-dot" />
-          Read-only operations view
+          Authenticated operator view
         </div>
       </aside>
       <main className="main-canvas">
