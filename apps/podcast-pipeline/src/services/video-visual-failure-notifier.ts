@@ -34,7 +34,6 @@ export function createVideoVisualFailureNotifier(options: {
   logger?: VisualFailureLogger;
   intervalMs?: number;
 } = {}): VideoVisualFailureNotifier {
-  const supabase = options.supabase ?? getPipelineSupabase();
   const notify = options.notify ?? sendMessage;
   const logger = options.logger ?? console;
   const intervalMs = options.intervalMs ?? DEFAULT_SWEEP_INTERVAL_MS;
@@ -45,7 +44,7 @@ export function createVideoVisualFailureNotifier(options: {
   const sweep = async (): Promise<void> => {
     if (stopped) return;
     if (activeSweep) return activeSweep;
-    const work = sweepOnce(supabase, notify, logger);
+    const work = sweepOnce(options.supabase, notify, logger);
     activeSweep = work;
     try {
       await work;
@@ -73,12 +72,14 @@ export function createVideoVisualFailureNotifier(options: {
 }
 
 async function sweepOnce(
-  supabase: PipelineSupabaseClient,
+  injectedSupabase: PipelineSupabaseClient | undefined,
   notify: (chatId: TelegramChatId, text: string) => Promise<void>,
   logger: VisualFailureLogger,
 ): Promise<void> {
   let failures: VisualFailureNotificationRow[];
+  let supabase: PipelineSupabaseClient;
   try {
+    supabase = injectedSupabase ?? getPipelineSupabase();
     const { data, error } = await supabase.rpc(
       'reap_failed_episode_video_visual_notifications',
       { p_limit: 20 },
