@@ -33,7 +33,6 @@ import {
   type SocialDaemonLock,
 } from './daemon-lock.js';
 import {
-  claimSocialPublishBatch,
   completeSocialPublishJob,
   enqueueSocialPublishJob,
   ensureSocialDaemonStart,
@@ -44,17 +43,14 @@ import {
   listLearningSocialMetrics,
   listLearningSocialPosts,
   listMetricWindowsForPosts,
-  listPastDueSocialPublishJobs,
   listPendingSocialPublishSchedules,
   listSocialEpisodeLocalizationTitles,
   listSocialPublishCandidates,
   listSocialPublishCandidatesForEpisodes,
   listUnfinishedSocialPublishJobs,
-  type PastDueSocialPublishJob,
   type PendingSocialPublishSchedule,
   reconcileSocialPublishJob,
   releaseSocialPublishJobLease,
-  rescheduleSocialPublishJob,
   type SocialEpisodeLocalizationTitle,
   type SocialMetricWindowLabel,
   type SocialPublishCandidate,
@@ -74,11 +70,15 @@ import type { SocialPlatform } from './platforms.js';
 import { SOCIAL_PUBLISH_WINDOW_JST } from './policy.js';
 import { publishSocialBatch } from './publish-batch.js';
 import { SocialReleaseFailureError } from './publish-error.js';
+import {
+  alignPendingSocialReleaseCohorts,
+  claimReleaseCohortJobs,
+  listPartiallyPublishedCohorts,
+} from './release-cohort-store.js';
 import { collectRollingPostMetrics } from './rolling-metrics.js';
 import {
-  nextBudgetSlot,
-  occupiesPublishBudget,
-  resolveLaneSlotPlan,
+  nextReleaseSlot,
+  occupiesReleaseBudget,
   SCHEDULING_HORIZON_DAYS,
   withinPublishWindow,
 } from './slot-policy.js';
@@ -88,16 +88,15 @@ import {
   refreshSocialStrategies,
   strategyMapKey,
 } from './strategy.js';
-import type { SocialLanguageCode } from './types.js';
 
 const POLL_INTERVAL_MS = 60_000;
 const METRIC_LOOKBACK_DAYS = 8;
 const STRATEGY_REFRESH_INTERVAL_MS = 6 * 60 * 60_000;
 const OWNER = `${hostname()}:${process.pid}`;
 /**
- * How late a slot may be before the lane is moved to the next one. It covers a
- * daemon that was asleep over its slot or a publish that took longer than
- * expected; anything beyond it would publish visibly off-schedule.
+ * An already-aligned article may still publish this long after its slot. Once
+ * that grace is exceeded, reconciliation moves the entire unpublished cohort
+ * to the next article slot rather than staggering lanes or inventing success.
  */
 const PUBLISH_SLOT_GRACE_MS = 90 * 60_000;
 
@@ -154,9 +153,6 @@ export async function runSocialDaemon(
           STRATEGY_REFRESH_INTERVAL_MS,
       });
     } catch (error) {
-      // Recorded and rethrown, never handled: a release-shape failure is
-      // supposed to stop the process (see the docblock below), and the row is
-      // the only place the reason survives that exit.
       await recordTick({
         phase: 'error',
         now: now(),
@@ -190,14 +186,11 @@ export async function runSocialDaemon(
 }
 
 /**
- * `reconcile`, `reschedule`, `discover`, and `publish` are release-shape
+ * `reconcile`, `align schedules`, `discover`, and `publish` are release-shape
  * stages: a failure here can leave a cohort's lanes disagreeing about what was
  * actually published, or leave the queue mis-scheduled. Those propagate and
- * stop the whole process (see the `isMainModule` block below). `metrics`,
- * `pre-publish snapshots`, `account snapshots` (including rolling metrics),
- * `strategy`, and `experiment report` are purely
- * observational -- losing one of them for a tick has no release-correctness
- * consequence, so those stay isolated.
+ * stop the whole process. Metrics, snapshots, strategy and reports are purely
+ * observational and stay isolated.
  */
 export async function runSocialDaemonTick(input: {
   now: Date;
@@ -208,7 +201,15 @@ export async function runSocialDaemonTick(input: {
   const log = input.log ?? (() => void 0);
 
   await reconcileAlreadyPublishedJobs(input.now, log);
-  await reschedulePastDueJobs(input.now, log);
+  const alignment = await alignPendingSocialReleaseCohorts(
+    input.now,
+    PUBLISH_SLOT_GRACE_MS,
+  );
+  if (alignment.alignedLanes > 0) {
+    log(
+      `📥 [social-daemon] repaired release cohorts · ${alignment.alignedLanes} lane${alignment.alignedLanes === 1 ? '' : 's'} aligned · ${alignment.rescheduledEpisodes} article${alignment.rescheduledEpisodes === 1 ? '' : 's'} rescheduled`,
+    );
+  }
 
   await discoverAndEnqueue({
     now: input.now,
@@ -268,13 +269,9 @@ async function logExperimentReports(
 }
 
 /**
- * The anchor-filtered `candidates` list only tells us which episodes have
- * *recent* activity; a canonical localization that finished ready before the
- * anchor would never show up there on its own. So the anchor decides which
- * episodes to look at, then `listSocialPublishCandidatesForEpisodes` (no
- * anchor) fetches every ready language for exactly those episodes -- that is
- * what lets an episode ready before the anchor still count toward its
- * cohort's readiness.
+ * The anchor-filtered candidate list decides which episodes to inspect. We then
+ * load every ready localization for those episodes so a language that became
+ * ready before the daemon anchor still counts toward the episode-wide barrier.
  */
 async function discoverAndEnqueue(input: {
   now: Date;
@@ -287,7 +284,7 @@ async function discoverAndEnqueue(input: {
   ]);
   if (candidates.length === 0) return;
 
-  const episodeIds = [...new Set(candidates.map((c) => c.episode_id))];
+  const episodeIds = [...new Set(candidates.map((candidate) => candidate.episode_id))];
   const [readyCandidates, titleByEpisodeLanguage] = await Promise.all([
     listSocialPublishCandidatesForEpisodes(episodeIds),
     loadEpisodeTitleMap(episodeIds),
@@ -298,7 +295,7 @@ async function discoverAndEnqueue(input: {
     list.push(candidate);
     candidatesByEpisode.set(candidate.episode_id, list);
   }
-  const scheduledByPlatform = platformBudgetIndex(schedules);
+  const scheduledArticles = releaseBudgetIndex(schedules);
 
   for (const episodeId of episodeIds) {
     const episodeCandidates = candidatesByEpisode.get(episodeId) ?? [];
@@ -311,235 +308,77 @@ async function discoverAndEnqueue(input: {
     });
     if (lanes.length === 0) continue;
 
-    const title =
-      titleByEpisodeLanguage.get(`${episodeId}|zh-Hant`) ??
-      titleByEpisodeLanguage.get(
-        `${episodeId}|${firstCandidate.language_code}`,
-      ) ??
-      null;
-
-    for (const platform of [...new Set(lanes.map((lane) => lane.platform))]) {
-      await enqueuePlatformCohort({
-        episodeId,
-        title,
-        platform,
-        lanes: lanes.filter((lane) => lane.platform === platform),
-        candidates: episodeCandidates,
-        schedules,
-        scheduledByPlatform,
-        now: input.now,
-        log: input.log,
-      });
-    }
-  }
-}
-
-/**
- * One timestamp per `(episode, platform)` cohort, which is the unit a daily cap
- * counts. Language siblings on one platform share a slot, so a multilingual
- * platform cannot publish once per language and call it one post -- and a
- * completed row that reconciliation bound to a future slot does not reserve a
- * day it never used (see {@link occupiesPublishBudget}).
- */
-function platformBudgetIndex(
-  schedules: readonly PendingSocialPublishSchedule[],
-): Map<SocialPlatform, Date[]> {
-  const byPlatform = new Map<SocialPlatform, Date[]>();
-  const seen = new Set<string>();
-  for (const schedule of schedules) {
-    if (!occupiesPublishBudget(schedule)) continue;
-    const key = `${schedule.episode_id}|${schedule.platform}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    const list = byPlatform.get(schedule.platform) ?? [];
-    list.push(new Date(schedule.scheduled_at));
-    byPlatform.set(schedule.platform, list);
-  }
-  return byPlatform;
-}
-
-/**
- * The media barrier is per platform, not per episode: platforms release on
- * their own budgets now, so a language YouTube is still waiting on must not
- * hold back a Rednote lane whose own language has been ready for days.
- */
-async function enqueuePlatformCohort(input: {
-  episodeId: string;
-  title: string | null;
-  platform: SocialPlatform;
-  lanes: readonly ReleaseCohortLane[];
-  candidates: readonly SocialPublishCandidate[];
-  schedules: readonly PendingSocialPublishSchedule[];
-  scheduledByPlatform: Map<SocialPlatform, Date[]>;
-  now: Date;
-  log: (message: string) => void;
-}): Promise<void> {
-  const { platform, episodeId } = input;
-  const label = `${platformIcon(platform)} ${platform} · ${episodeLabel(input.title, episodeId)}`;
-  const requiredLanguages = new Set(input.lanes.map((lane) => lane.language));
-  const readyLanguages = new Set(
-    input.candidates.map((candidate) => candidate.language_code),
-  );
-  const missingLanguages = [...requiredLanguages].filter(
-    (language) => !readyLanguages.has(language),
-  );
-  if (missingLanguages.length > 0) {
-    input.log(
-      `⏳ [social-daemon] ${label} · cohort not release-ready · ${missingLanguages.map((language) => `${languageFlag(language)} ${language}`).join(' · ')}`,
-    );
-    return;
-  }
-
-  const readyAt = new Date(
-    Math.max(
-      ...input.candidates
-        .filter((candidate) => requiredLanguages.has(candidate.language_code))
-        .map((candidate) => Date.parse(candidate.ready_at)),
-    ),
-  );
-  if (Number.isNaN(readyAt.getTime())) return;
-
-  // Idempotent: a cohort that already has a job row -- even a partial enqueue
-  // from a prior, interrupted tick -- reuses that row's slot rather than
-  // recomputing one, so a retried enqueue can never drift its lanes apart.
-  const existingSchedule = input.schedules.find(
-    (schedule) =>
-      schedule.episode_id === episodeId && schedule.platform === platform,
-  );
-  let scheduledAt = existingSchedule
-    ? new Date(existingSchedule.scheduled_at)
-    : null;
-  if (!scheduledAt) {
-    const plan = await resolveLaneSlotPlan({
-      platform,
+    const title = episodeTitle(
+      titleByEpisodeLanguage,
       episodeId,
-      language: input.lanes[0]!.language,
-    });
-    scheduledAt = nextBudgetSlot({
-      platform,
-      plan,
-      after: new Date(Math.max(readyAt.getTime(), input.now.getTime())),
-      scheduled: input.scheduledByPlatform.get(platform) ?? [],
-    });
-  }
-  if (!scheduledAt) {
-    // Not an error and not dropped: the backlog is longer than the horizon, so
-    // this cohort stays a candidate and the next tick offers it again in the
-    // same `ready_at` order. Compressing the schedule to fit it is exactly the
-    // burst the caps exist to prevent.
-    input.log(
-      `🗓️ [social-daemon] ${label} · no slot inside the ${SCHEDULING_HORIZON_DAYS}-day horizon · staying queued for a later tick`,
+      firstCandidate.language_code,
     );
-    return;
-  }
-
-  const insertedAny = await enqueueCohortJobs({
-    episodeId,
-    title: input.title,
-    lanes: input.lanes,
-    readyAt,
-    scheduledAt,
-    log: input.log,
-  });
-  if (insertedAny && !existingSchedule) {
-    const list = input.scheduledByPlatform.get(platform) ?? [];
-    list.push(scheduledAt);
-    input.scheduledByPlatform.set(platform, list);
-  }
-}
-
-/**
- * A slot the daemon slept through is moved forward, never dropped and never
- * published late in a burst. The old behaviour marked such a lane `completed`
- * with a `skipped: overdue` note -- a post that never existed, recorded as
- * published -- and the grace period was an environment variable, so the queue's
- * correctness depended on a value that was unset in practice.
- */
-async function reschedulePastDueJobs(
-  now: Date,
-  log: (message: string) => void,
-): Promise<void> {
-  const jobs = await listPastDueSocialPublishJobs(
-    new Date(now.getTime() - PUBLISH_SLOT_GRACE_MS),
-  );
-  if (jobs.length === 0) return;
-
-  const schedules = await listPendingSocialPublishSchedules();
-  const scheduledByPlatform = platformBudgetIndex(schedules);
-  let moved = 0;
-  // Grouped by cohort, not by lane: language lanes of one platform share a
-  // slot, and moving them apart is the drift this scheduler exists to prevent.
-  for (const cohort of pastDueCohorts(jobs)) {
-    const scheduledAt = nextBudgetSlot({
-      platform: cohort.platform,
-      plan: await resolveLaneSlotPlan({
-        platform: cohort.platform,
-        episodeId: cohort.episodeId,
-        language: cohort.language,
-      }),
-      after: now,
-      scheduled: (scheduledByPlatform.get(cohort.platform) ?? []).filter(
-        (at) => at.toISOString() !== cohort.scheduledAt,
-      ),
-    });
-    if (!scheduledAt) continue;
-
-    let cohortMoved = false;
-    for (const job of cohort.jobs) {
-      const rescheduled = await rescheduleSocialPublishJob({
-        jobId: job.id,
-        status: job.status,
-        scheduledAt,
-        now,
-      });
-      if (!rescheduled) continue;
-      cohortMoved = true;
-      moved += 1;
-    }
-    if (!cohortMoved) continue;
-
-    const list = scheduledByPlatform.get(cohort.platform) ?? [];
-    list.push(scheduledAt);
-    scheduledByPlatform.set(cohort.platform, list);
-    log(
-      `🗓️ [social-daemon] ${compactLaneLabel(cohort.platform, cohort.language)} · ${episodeLabel(null, cohort.episodeId)} · slot missed · moved to ${formatJst(scheduledAt.toISOString())}`,
+    const readyLanguages = new Set(
+      episodeCandidates.map((candidate) => candidate.language_code),
     );
-  }
-  if (moved > 0) {
-    log(
-      `📥 [social-daemon] rescheduled ${moved} past-due lane${moved === 1 ? '' : 's'} onto the next free platform slot.`,
+    const requiredLanguages = new Set(lanes.map((lane) => lane.language));
+    const missingLanguages = [...requiredLanguages].filter(
+      (language) => !readyLanguages.has(language),
     );
-  }
-}
-
-interface PastDueCohort {
-  episodeId: string;
-  platform: SocialPlatform;
-  language: SocialLanguageCode;
-  scheduledAt: string;
-  jobs: PastDueSocialPublishJob[];
-}
-
-function pastDueCohorts(
-  jobs: readonly PastDueSocialPublishJob[],
-): PastDueCohort[] {
-  const byCohort = new Map<string, PastDueCohort>();
-  for (const job of jobs) {
-    const key = `${job.episode_id}|${job.platform}`;
-    const cohort = byCohort.get(key);
-    if (cohort) {
-      cohort.jobs.push(job);
+    if (missingLanguages.length > 0) {
+      input.log(
+        `⏳ [social-daemon] ${episodeLabel(title, episodeId)} · cohort not release-ready · ${missingLanguages.map((language) => `${languageFlag(language)} ${language}`).join(' · ')}`,
+      );
       continue;
     }
-    byCohort.set(key, {
-      episodeId: job.episode_id,
-      platform: job.platform,
-      language: job.language_code ?? 'zh-Hant',
-      scheduledAt: job.scheduled_at,
-      jobs: [job],
+
+    const readyAt = new Date(
+      Math.max(
+        ...episodeCandidates
+          .filter((candidate) => requiredLanguages.has(candidate.language_code))
+          .map((candidate) => Date.parse(candidate.ready_at)),
+      ),
+    );
+    if (Number.isNaN(readyAt.getTime())) continue;
+
+    // An interrupted enqueue reuses the episode's existing release time. The
+    // queue reconciliation stage above already normalizes legacy staggered rows.
+    const existingSchedule = schedules.find(
+      (schedule) => schedule.episode_id === episodeId,
+    );
+    const scheduledAt = existingSchedule
+      ? new Date(existingSchedule.scheduled_at)
+      : nextReleaseSlot({
+          after: new Date(Math.max(readyAt.getTime(), input.now.getTime())),
+          scheduled: scheduledArticles,
+        });
+    if (!scheduledAt) {
+      input.log(
+        `🗓️ [social-daemon] ${episodeLabel(title, episodeId)} · no article slot inside the ${SCHEDULING_HORIZON_DAYS}-day horizon · staying discoverable for a later tick`,
+      );
+      continue;
+    }
+
+    const insertedAny = await enqueueCohortJobs({
+      episodeId,
+      title,
+      lanes,
+      readyAt,
+      scheduledAt,
+      log: input.log,
     });
+    if (insertedAny && !existingSchedule) scheduledArticles.push(scheduledAt);
   }
-  return [...byCohort.values()];
+}
+
+/** One budget entry per episode, never one per platform or language lane. */
+function releaseBudgetIndex(
+  schedules: readonly PendingSocialPublishSchedule[],
+): Date[] {
+  const scheduled: Date[] = [];
+  const seenEpisodes = new Set<string>();
+  for (const schedule of schedules) {
+    if (seenEpisodes.has(schedule.episode_id)) continue;
+    if (!occupiesReleaseBudget(schedule)) continue;
+    seenEpisodes.add(schedule.episode_id);
+    scheduled.push(new Date(schedule.scheduled_at));
+  }
+  return scheduled;
 }
 
 async function enqueueCohortJobs(input: {
@@ -581,8 +420,6 @@ async function reconcileAlreadyPublishedJobs(
   const jobs = await listUnfinishedSocialPublishJobs();
   if (jobs.length === 0) return;
 
-  // One lookup for the whole sweep: a backfilled queue can hold hundreds of
-  // jobs, and asking per job would spend most of a tick on round-trips.
   const episodeIds = [...new Set(jobs.map((job) => job.episode_id))];
   const [posts, titleByEpisodeLanguage] = await Promise.all([
     listSocialPostIdentitiesByEpisodes(episodeIds),
@@ -590,8 +427,6 @@ async function reconcileAlreadyPublishedJobs(
   ]);
   const postIdByJob = new Map<string, string>();
   for (const post of posts) {
-    // Rows arrive newest first, so the first one wins -- the same row the
-    // per-job lookup used to return.
     postIdByJob.set(
       `${post.episode_id}|${post.platform}|${post.language_code ?? 'zh-Hant'}`,
       postIdByJob.get(
@@ -646,18 +481,11 @@ async function persistPublishFailure(input: {
 }
 
 /**
- * Claims whatever is due, with no cross-episode fence.
- *
- * The old fence held every other episode shut until a partially published one
- * finished, which made sense while all five lanes shared one timestamp. Under
- * per-platform budgets a partial cohort is the steady state -- Rednote at
- * 14:30 and YouTube at 17:15 are the same episode, hours apart -- so fencing
- * on it would deadlock the queue against its own schedule.
- *
- * Working hours are the one gate that remains: Rednote and X publish through
- * real browser sessions on a Mac, and a failure at 04:00 is a failure nobody
- * sees. A lane whose slot passes while the window is shut is not lost -- it is
- * moved to the next slot by `reschedulePastDueJobs`.
+ * A partially published episode is exceptional recovery state. It fences the
+ * queue until that episode is complete; if none of its remaining lanes are due
+ * yet, this tick intentionally publishes nothing instead of starting a fresh
+ * article. Transport calls within one release cycle may differ by seconds or
+ * minutes, but that is not staggered scheduling.
  */
 async function publishDueJobs(
   now: Date,
@@ -665,16 +493,21 @@ async function publishDueJobs(
 ): Promise<void> {
   if (!withinPublishWindow(now, SOCIAL_PUBLISH_WINDOW_JST)) return;
 
-  const jobs = await claimSocialPublishBatch({ owner: OWNER, now });
+  const partialCohorts = await listPartiallyPublishedCohorts();
+  const recoveryEpisode = partialCohorts[0];
+  const jobs = recoveryEpisode
+    ? await claimReleaseCohortJobs({
+        owner: OWNER,
+        now,
+        episodeId: recoveryEpisode,
+      })
+    : await claimReleaseCohortJobs({ owner: OWNER, now });
   if (jobs.length === 0) return;
 
   const [active, titleByEpisodeLanguage] = await Promise.all([
     activeStrategiesForPublish(log),
     loadEpisodeTitleMap(jobs.map((job) => job.episode_id)),
   ]);
-  // Grouped by `(episode, language)`, not by platform: `publishSocialBatch`
-  // owns the cross-platform fail-fast, and splitting a language's platforms
-  // into separate calls would take that contract away from it.
   const pendingByEpisodeLanguage = new Map<string, SocialPublishJobRow[]>();
   for (const job of jobs) {
     try {
@@ -713,14 +546,6 @@ async function publishDueJobs(
         log,
       );
     } catch (error) {
-      // Every lane in `pendingJobs` itself is left alone here, even the ones
-      // after whichever one failed: some of them may already have published
-      // successfully (fail-fast stops the batch, but does not undo what it
-      // already did), so releasing their lease back to `queued` could
-      // re-publish a lane that is already live. They stay `processing` and
-      // self-heal through the normal lease-expiry + reconcile path. Only
-      // lanes in groups that were never even claimed for publishing --
-      // genuinely untouched -- are safe to hand back immediately.
       await releaseUntouchedLeases(groups.slice(index + 1).flat(), now, log);
       throw error;
     }
@@ -896,8 +721,8 @@ function episodeTitle(
   languageCode: string,
 ): string | null {
   return (
-    titleByEpisodeLanguage.get(`${episodeId}|${languageCode}`) ??
     titleByEpisodeLanguage.get(`${episodeId}|zh-Hant`) ??
+    titleByEpisodeLanguage.get(`${episodeId}|${languageCode}`) ??
     null
   );
 }
@@ -917,11 +742,6 @@ function compactLaneLabel(
   return `${platformIcon(platform)}${languageCode}`;
 }
 
-// Guidance is resolved when a job is claimed, never when it is queued: a job
-// queued before the first version existed, or scheduled days ahead of the next
-// refresh, would otherwise publish with stale or no guidance forever. Guidance
-// is only a preference, so a failed read degrades to publishing without it
-// rather than holding the queue.
 async function activeStrategiesForPublish(
   log: (message: string) => void,
 ): Promise<Record<string, SocialStrategyVersionRow | null>> {
@@ -1065,9 +885,6 @@ export async function collectDueMetricWindows(
   return inserted;
 }
 
-// Best-effort platform-level follower counts, approximately every three hours.
-// The attribution layer uses actual captured_at intervals, so daemon downtime
-// creates a wider interval rather than pretending a sample existed.
 async function captureAccountSnapshots(
   now: Date,
   log: (message: string) => void,
@@ -1183,8 +1000,6 @@ function logQueueSnapshot(
   if (snapshot.episodeQueue.length > 0 && nextLanes.length > 0) log('');
   for (const item of nextLanes) {
     const title = item.title ? ` “${truncateTitle(item.title)}”` : '';
-    // A lane past the claim RPC's attempt fence will never be picked up again;
-    // printing a timestamp for it would promise a retry that cannot happen.
     const timing = item.attemptsExhausted
       ? `blocked (${item.attemptCount} attempts exhausted; ${item.status})`
       : `${formatJst(item.nextAt)} (${formatRelative(item.nextAt, now)}; ${item.status})`;
@@ -1260,9 +1075,6 @@ export function buildFatalReport(error: unknown): string {
   return lines.join('\n');
 }
 
-// Best-effort only: the daemon has no terminal to watch once it is running
-// unattended, so this is the one signal that reaches a human -- but a broken
-// or unset Telegram config must never mask the fatal error already on stderr.
 export async function notifyFatalFailure(error: unknown): Promise<void> {
   try {
     const [chatId] = getAllowedTelegramUserIds();
@@ -1272,7 +1084,7 @@ export async function notifyFatalFailure(error: unknown): Promise<void> {
       buildSocialReleaseFailedMessage(fatalSummary(error)),
     );
   } catch {
-    // Swallowed deliberately -- see comment above.
+    // A broken notification channel must never mask the original fatal error.
   }
 }
 
