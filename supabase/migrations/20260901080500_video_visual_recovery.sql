@@ -81,8 +81,8 @@ end;
 $$;
 
 -- Narrow operator remediation for Control Center. This deliberately restarts
--- only the video phase: translation, scripts, narration and classroom audio are
--- prerequisites and are never rewritten here.
+-- only the unfinished video checkpoints: translation, scripts, narration and
+-- classroom audio are prerequisites and are never rewritten here.
 create or replace function from_fed_to_chain.retry_episode_video_generation(
   p_episode_id uuid
 )
@@ -97,6 +97,7 @@ declare
 begin
   select
     visual.status,
+    visual.visual_hash,
     visual.visual_version,
     visual.source_hash,
     visual.lease_expires_at
@@ -148,8 +149,61 @@ begin
       using errcode = '22023';
   end if;
 
-  -- Clear downstream checkpoint references first; episode_videos has a foreign
-  -- key to the visual checkpoint tuple.
+  -- A completed shared visual is a valid checkpoint. Keep it and every already
+  -- completed language asset; only requeue unfinished localization renders.
+  if visual_record.status = 'completed' then
+    if visual_record.visual_hash is null then
+      raise exception 'Completed episode visual is missing its checkpoint hash'
+        using errcode = '23514';
+    end if;
+
+    if not exists (
+      select 1
+      from from_fed_to_chain.episode_videos video
+      where video.episode_id = p_episode_id
+        and video.status <> 'completed'
+    ) then
+      raise exception 'Episode video generation is already completed'
+        using errcode = '22023';
+    end if;
+
+    update from_fed_to_chain.episode_videos video
+    set status = 'queued',
+        progress_percent = null,
+        progress_stage = null,
+        visual_hash = visual_record.visual_hash,
+        visual_version = visual_record.visual_version,
+        manifest = null,
+        manifest_hash = null,
+        renderer_version = null,
+        storyboard_provider = null,
+        storyboard_model = null,
+        storyboard_prompt_version = null,
+        script_hash = null,
+        mp4_url = null,
+        thumbnail_url = null,
+        manifest_url = null,
+        captions_ass_url = null,
+        r2_prefix = null,
+        duration_seconds = null,
+        attempt_count = 0,
+        next_attempt_at = now(),
+        lease_owner = null,
+        lease_expires_at = null,
+        last_error = null,
+        failure_notified_at = null,
+        started_at = null,
+        completed_at = null,
+        updated_at = now()
+    where video.episode_id = p_episode_id
+      and video.status <> 'completed';
+
+    return true;
+  end if;
+
+  -- An incomplete/failed shared visual cannot be reused. Clear downstream
+  -- checkpoint references first because episode_videos has a foreign key to
+  -- the visual checkpoint tuple, then requeue the shared visual itself.
   update from_fed_to_chain.episode_videos video
   set status = 'queued',
       progress_percent = null,
