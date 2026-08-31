@@ -1,3 +1,8 @@
 {
-  "mcpServers": {}
+  "mcpServers": {
+    "zap-pilot-ops": {
+      "command": "node",
+      "args": ["scripts/ops-mcp.mjs"]
+    }
+  }
 }
