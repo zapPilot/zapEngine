@@ -1,9 +1,9 @@
 import {
+  OPERATIONS_DOMAINS,
   type CustomerEconomicsResponse,
   type OperationalSignal,
   type OperationalStatus,
   type OperationsDomain,
-  OPERATIONS_DOMAINS,
   type OperationsResponse,
   type OperationsSocialResponse,
   type OperationsSource,
@@ -15,6 +15,7 @@ import { collectCostSignals } from './costs.js';
 import { collectFlySignals } from './fly.js';
 import { collectGithubSignals } from './github.js';
 import { inspectOperationalSignal } from './inspection/inspect.js';
+import { investigateOperationalSignal } from './investigation.js';
 import { collectPosthogSignals } from './posthog.js';
 import { prioritize } from './prioritize.js';
 import { collectProductSignals } from './product.js';
@@ -29,11 +30,6 @@ import { deriveSocialSignals, loadOperationsSocial } from './social.js';
  */
 const DOMAINS = OPERATIONS_DOMAINS;
 
-/**
- * Per-source freshness, chosen from how fast the underlying thing can change
- * and how expensive it is to ask. The publish queue can go from fine to
- * missing its window inside a minute; a PostHog audience count cannot.
- */
 const TTL_MS = {
   social: 30_000,
   customers: 60_000,
@@ -109,55 +105,69 @@ export function createOperationsService(input: {
       const value = await caches[key].get(force);
       return Array.isArray(value) ? value : value.signals;
     } catch (error) {
-      // An adapter is contractually not allowed to throw, but a route that
-      // returns 500 because one integration misbehaved would take the whole
-      // status page down with it — which is exactly when it is needed.
       return [sourceFailure({ ...ORIGIN[key], error, observedAt: now() })];
     }
   }
 
-  return {
-    async getOperations(force = false): Promise<OperationsResponse> {
-      const observedAt = now();
-      const signals = (
-        await Promise.all(
-          (Object.keys(ORIGIN) as Array<keyof OperationsAdapters>).map((key) =>
-            collect(key, force),
-          ),
-        )
-      ).flat();
+  async function getOperations(force = false): Promise<OperationsResponse> {
+    const observedAt = now();
+    const signals = (
+      await Promise.all(
+        (Object.keys(ORIGIN) as Array<keyof OperationsAdapters>).map((key) =>
+          collect(key, force),
+        ),
+      )
+    ).flat();
 
-      const domains = DOMAINS.map((domain) => {
-        const scoped = signals.filter((signal) => signal.domain === domain);
-        return {
-          domain,
-          status: worstOf(scoped.map((signal) => signal.status)),
-          signalCount: scoped.length,
-        };
-      });
-
+    const domains = DOMAINS.map((domain) => {
+      const scoped = signals.filter((signal) => signal.domain === domain);
       return {
-        generatedAt: observedAt.toISOString(),
-        status: worstOf(domains.map((domain) => domain.status)),
-        domains,
-        priorities: prioritize(signals),
-        signals: [...signals].sort(bySeverityThenName),
+        domain,
+        status: worstOf(scoped.map((signal) => signal.status)),
+        signalCount: scoped.length,
       };
-    },
+    });
 
-    async getSocial(force = false): Promise<OperationsSocialResponse> {
-      return (await caches.social.get(force)).response;
-    },
+    return {
+      generatedAt: observedAt.toISOString(),
+      status: worstOf(domains.map((domain) => domain.status)),
+      domains,
+      priorities: prioritize(signals),
+      signals: [...signals].sort(bySeverityThenName),
+    };
+  }
 
-    async getCustomers(force = false): Promise<CustomerEconomicsResponse> {
-      return (await caches.customers.get(force)).response;
-    },
+  async function getSocial(force = false): Promise<OperationsSocialResponse> {
+    return (await caches.social.get(force)).response;
+  }
 
-    async inspectSignal(fingerprint: string) {
-      return inspectOperationalSignal({
-        config: input.config,
+  async function getCustomers(
+    force = false,
+  ): Promise<CustomerEconomicsResponse> {
+    return (await caches.customers.get(force)).response;
+  }
+
+  async function inspectSignal(fingerprint: string) {
+    return inspectOperationalSignal({
+      config: input.config,
+      fingerprint,
+      now,
+    });
+  }
+
+  return {
+    getOperations,
+    getSocial,
+    getCustomers,
+    inspectSignal,
+
+    async investigate(fingerprint: string, force = false) {
+      return investigateOperationalSignal({
         fingerprint,
-        now,
+        snapshot: await getOperations(force),
+        inspect: inspectSignal,
+        loadCustomers: () => getCustomers(force),
+        loadSocial: () => getSocial(force),
       });
     },
   };
@@ -176,7 +186,7 @@ function defaultAdapters(
     product: () => collectProductSignals({ config, now: now() }),
     costs: () => collectCostSignals({ config, now: now() }),
     github: () => collectGithubSignals({ config, now: now() }),
-    fly: () => collectFlySignals({ now: now() }),
+    fly: () => collectFlySignals({ config, now: now() }),
     sentry: () => collectSentrySignals({ config, now: now() }),
     posthog: () => collectPosthogSignals({ config, now: now() }),
     social: async () => {

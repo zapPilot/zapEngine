@@ -179,13 +179,83 @@ describe('inspectOperationalSignal', () => {
     expect(event.exceptions?.[0]?.frames).toHaveLength(20);
   });
 
+  it('inspects Fly process-group state and bounded lifecycle events', async () => {
+    const fetchImpl: typeof fetch = async (input) => {
+      const url = String(input);
+      expect(url).toContain('/apps/from-fed-to-chain-api/machines');
+      return json([
+        {
+          id: 'render-1',
+          name: 'render-machine',
+          state: 'stopped',
+          region: 'iad',
+          instance_id: 'instance-1',
+          created_at: '2026-08-30T06:00:00.000Z',
+          updated_at: '2026-08-30T07:50:00.000Z',
+          config: {
+            metadata: {
+              fly_process_group: 'render',
+              secret_material: 'must-not-leak',
+            },
+            env: { API_KEY: 'must-not-leak' },
+          },
+          image_ref: {
+            repository: 'registry.fly.io/from-fed-to-chain-api',
+            digest: 'sha256:abc',
+          },
+          events: Array.from({ length: 12 }, (_, index) => ({
+            type: index === 0 ? 'stop' : 'start',
+            status: index === 0 ? 'stopped' : 'started',
+            source: 'flyd',
+            timestamp: Date.parse('2026-08-30T07:00:00.000Z') + index,
+          })),
+        },
+        {
+          id: 'app-1',
+          state: 'started',
+          region: 'iad',
+          config: { metadata: { fly_process_group: 'app' } },
+        },
+      ]);
+    };
+
+    const result = await inspectOperationalSignal({
+      config: readControlCenterConfig({ FLY_OPS_TOKEN: 'fly-token' }),
+      fingerprint: 'fly:process-group/from-fed-to-chain-api/render',
+      now: () => NOW,
+      fetchImpl,
+    });
+
+    expect(result.status).toBe('ok');
+    expect(result.evidence).toMatchObject({
+      app: 'from-fed-to-chain-api',
+      processGroup: 'render',
+      totalMachines: 1,
+      machines: [
+        {
+          id: 'render-1',
+          state: 'stopped',
+          region: 'iad',
+          image: { digest: 'sha256:abc' },
+        },
+      ],
+    });
+    const machines = result.evidence['machines'] as Array<{
+      recentEvents: unknown[];
+    }>;
+    expect(machines[0]?.recentEvents).toHaveLength(8);
+    const serialized = JSON.stringify(result);
+    expect(serialized).not.toContain('must-not-leak');
+    expect(serialized).not.toContain('API_KEY');
+  });
+
   it('returns explicit unsupported evidence for providers without an inspector', async () => {
     const neverFetch: typeof fetch = async () => {
       throw new Error('unsupported providers must not fetch');
     };
     const result = await inspectOperationalSignal({
       config: readControlCenterConfig({}),
-      fingerprint: 'fly:app/alpha-etl',
+      fingerprint: 'posthog:events/product',
       now: () => NOW,
       fetchImpl: neverFetch,
     });
@@ -193,7 +263,7 @@ describe('inspectOperationalSignal', () => {
     expect(result).toMatchObject({
       source: null,
       status: 'unsupported',
-      evidence: { source: 'fly', kind: 'app', key: 'alpha-etl' },
+      evidence: { source: 'posthog', kind: 'events', key: 'product' },
     });
   });
 });

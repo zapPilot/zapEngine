@@ -12,7 +12,16 @@ export interface EvidenceGap {
 }
 
 export interface OperationalEntityRef {
-  type: 'github-workflow' | 'github-run' | 'sentry-project' | 'sentry-issue';
+  type:
+    | 'workspace'
+    | 'github-workflow'
+    | 'github-run'
+    | 'fly-app'
+    | 'fly-process-group'
+    | 'fly-machine'
+    | 'sentry-project'
+    | 'sentry-issue'
+    | 'customer';
   id: string;
   url?: string | null;
 }

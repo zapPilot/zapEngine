@@ -129,6 +129,7 @@ function createTestApp(
           evidence: {},
           gaps: [],
         }),
+      investigate: operationsOverrides.investigate ?? vi.fn(),
     },
     service: {
       getOverview: overrides.getOverview ?? vi.fn(async () => overview),
