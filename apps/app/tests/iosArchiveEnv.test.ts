@@ -11,6 +11,7 @@ const canonicalMobileEnv = {
   PRIVY_MOBILE_APP_ID: 'mobile-app-id',
   PRIVY_MOBILE_CLIENT_ID: 'mobile-client-id',
   PRIVY_APP_SECRET: 'server-only-secret',
+  PLAN_SIMULATION_REQUIRED: 'true',
 };
 
 describe('iOS archive production environment', () => {
