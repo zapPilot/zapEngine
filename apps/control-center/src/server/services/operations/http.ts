@@ -11,7 +11,7 @@ import type { z } from 'zod';
 const REQUEST_TIMEOUT_MS = 10_000;
 
 /**
- * The one place these adapters read a provider API.
+ * The one place these adapters read or perform an allowlisted provider mutation.
  *
  * A non-2xx throws rather than resolving to an empty result, and that is the
  * whole point of routing every read through here. Each caller turns "no rows"
@@ -35,8 +35,10 @@ export async function fetchJson<T>(input: {
   schema: z.ZodType<T>;
   fetchImpl: typeof fetch;
   headers?: Record<string, string>;
-  /** Present sends a POST carrying this as JSON; absent sends a GET. */
+  /** Present sends JSON. Without an explicit method this defaults to POST. */
   body?: unknown;
+  /** GET by default without a body, POST by default with a body. */
+  method?: 'GET' | 'POST' | 'PUT';
 }): Promise<T> {
   const response = await authenticatedFetch({
     label: input.label,
@@ -45,6 +47,7 @@ export async function fetchJson<T>(input: {
     fetchImpl: input.fetchImpl,
     headers: input.headers,
     body: input.body,
+    method: input.method,
   });
 
   const parsed = input.schema.safeParse(await response.json());
@@ -78,10 +81,11 @@ async function authenticatedFetch(input: {
   fetchImpl: typeof fetch;
   headers?: Record<string, string>;
   body?: unknown;
+  method?: 'GET' | 'POST' | 'PUT';
 }): Promise<Response> {
   const sendsBody = input.body !== undefined;
   const response = await input.fetchImpl(input.url, {
-    method: sendsBody ? 'POST' : 'GET',
+    method: input.method ?? (sendsBody ? 'POST' : 'GET'),
     headers: {
       Authorization: `Bearer ${input.token}`,
       ...(sendsBody ? { 'Content-Type': 'application/json' } : {}),
