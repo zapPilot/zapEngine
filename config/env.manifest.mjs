@@ -408,6 +408,7 @@ export const ENV_MANIFEST = {
   FLY_OPS_TOKEN: server(['control-center'], { sensitive: true }),
   OPS_MCP_TOKEN: server(['control-center'], { sensitive: true }),
   SENTRY_OPS_AUTH_TOKEN: server(['control-center'], { sensitive: true }),
+  SENTRY_OPS_WRITE_TOKEN: server(['control-center'], { sensitive: true }),
   SENTRY_ORG_SLUG: server(['control-center']),
   POSTHOG_PERSONAL_API_KEY: server(['control-center'], { sensitive: true }),
   POSTHOG_PROJECT_ID: server(['control-center']),

@@ -34,6 +34,14 @@ const SNAPSHOT: OperationsResponse = {
   priorities: [],
   signals: [],
 };
+const RESOLUTION = {
+  provider: 'sentry' as const,
+  issueId: '12345',
+  shortId: 'ZAP-PILOT-NATIVE-1',
+  title: 'Example issue',
+  status: 'resolved' as const,
+  reason: 'The production fix is deployed.',
+};
 
 beforeEach(() => {
   vi.mocked(captureServerException).mockClear();
@@ -46,6 +54,7 @@ function fakeOperations(): OpsMcpOperations {
     getCustomers: vi.fn(),
     inspectSignal: vi.fn(),
     investigate: vi.fn(),
+    resolveSentryIssue: vi.fn().mockResolvedValue(RESOLUTION),
   };
 }
 
@@ -99,6 +108,7 @@ describe('Ops MCP HTTP protocol', () => {
         'ops_customers',
         'ops_social',
         'ops_costs',
+        'ops_resolve_sentry_issue',
       ]),
     );
   });
@@ -106,16 +116,34 @@ describe('Ops MCP HTTP protocol', () => {
   it('calls ops_status and returns structured content', async () => {
     const operations = fakeOperations();
     const app = createAuthenticatedApp(operations);
-    const { response, payload } = await mcpRequest(app, {
-      jsonrpc: '2.0',
-      id: 3,
-      method: 'tools/call',
-      params: { name: 'ops_status', arguments: {} },
-    });
+    const { response, payload } = await mcpRequest(
+      app,
+      toolCallRequest(3, 'ops_status'),
+    );
 
     expect(response.status).toBe(200);
     expect(payload.result?.structuredContent).toEqual(SNAPSHOT);
     expect(operations.getOperations).toHaveBeenCalledWith(false);
+  });
+
+  it('resolves one explicit Sentry issue through the bounded mutation tool', async () => {
+    const operations = fakeOperations();
+    const app = createAuthenticatedApp(operations);
+    const arguments_ = {
+      issueId: '12345',
+      reason: 'The production fix is deployed.',
+    };
+    const { response, payload } = await mcpRequest(
+      app,
+      toolCallRequest(4, 'ops_resolve_sentry_issue', arguments_),
+    );
+
+    expect(response.status).toBe(200);
+    expect(payload.result?.structuredContent).toEqual(RESOLUTION);
+    expect(operations.resolveSentryIssue).toHaveBeenCalledWith(
+      arguments_.issueId,
+      arguments_.reason,
+    );
   });
 
   it('reports factory failures through the SDK error hook', async () => {
@@ -125,7 +153,7 @@ describe('Ops MCP HTTP protocol', () => {
     });
     const app = createAuthenticatedApp();
 
-    const { response, payload } = await mcpRequest(app, initializeRequest(4));
+    const { response, payload } = await mcpRequest(app, initializeRequest(5));
 
     expect(response.status).toBe(500);
     expect(JSON.stringify(payload)).not.toContain(error.message);
@@ -162,6 +190,19 @@ function initializeRequest(id: number): Record<string, unknown> {
       capabilities: {},
       clientInfo: { name: 'control-center-test', version: '1.0.0' },
     },
+  };
+}
+
+function toolCallRequest(
+  id: number,
+  name: string,
+  arguments_: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    jsonrpc: '2.0',
+    id,
+    method: 'tools/call',
+    params: { name, arguments: arguments_ },
   };
 }
 

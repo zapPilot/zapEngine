@@ -129,6 +129,7 @@ function createTestApp(
           evidence: {},
           gaps: [],
         }),
+      resolveSentryIssue: operationsOverrides.resolveSentryIssue ?? vi.fn(),
       investigate: operationsOverrides.investigate ?? vi.fn(),
     },
     service: {

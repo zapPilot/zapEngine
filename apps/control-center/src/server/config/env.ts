@@ -31,6 +31,9 @@ const schema = z.object({
   SENTRY_ORG_SLUG: optionalString,
   POSTHOG_PERSONAL_API_KEY: optionalString,
   POSTHOG_PROJECT_ID: optionalString,
+  // Optional, narrowly scoped remediation credential. The only current caller
+  // may resolve one Sentry issue; normal reads never fall back to this token.
+  SENTRY_OPS_WRITE_TOKEN: optionalString,
   // Remote MCP is independently gated from the dashboard. Provider credentials
   // stay server-side; clients only receive the normalized read model.
   OPS_MCP_TOKEN: optionalString,

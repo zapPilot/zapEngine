@@ -12,6 +12,13 @@ const READ_ONLY_ANNOTATIONS = {
   openWorldHint: true,
 };
 
+const REMEDIATION_ANNOTATIONS = {
+  readOnlyHint: false,
+  destructiveHint: false,
+  idempotentHint: true,
+  openWorldHint: true,
+};
+
 const forceSchema = z.object({
   force: z
     .boolean()
@@ -27,10 +34,10 @@ const fingerprintForceSchema = z.object({
 
 export function createOpsMcpServer(operations: OpsMcpOperations): McpServer {
   const server = new McpServer(
-    { name: 'zap-pilot-ops', version: '0.3.0' },
+    { name: 'zap-pilot-ops', version: '0.4.0' },
     {
       instructions:
-        'Start with ops_status. For a priority incident, use ops_investigate next: it correlates bounded GitHub, Sentry, Fly, product/customer, and social evidence into one deterministic packet. Use ops_inspect_signal only for extra provider drill-down. All tools are read-only; do not infer provider health from missing data.',
+        'Start with ops_status. For a priority incident, use ops_investigate next: it correlates bounded GitHub, Sentry, Fly, product/customer, and social evidence into one deterministic packet. Use ops_inspect_signal only for extra provider drill-down. Read tools never mutate providers. The sole remediation tool, ops_resolve_sentry_issue, may only resolve one explicit Sentry issue and should be used only when the user asks to close/resolve that issue or explicitly delegates Sentry cleanup.',
     },
   );
 
@@ -138,6 +145,33 @@ export function createOpsMcpServer(operations: OpsMcpOperations): McpServer {
     },
     async ({ force }) =>
       result(projectDomain(await operations.getOperations(force), 'costs')),
+  );
+
+  server.registerTool(
+    'ops_resolve_sentry_issue',
+    {
+      title: 'Resolve Sentry issue',
+      description:
+        'Resolve exactly one Sentry issue by its internal numeric issue ID. This tool cannot ignore, merge, assign, publish, delete, or bulk-mutate issues. Use it only when the user explicitly asks to close/resolve the issue or explicitly delegates Sentry cleanup after the fix has been verified.',
+      inputSchema: z.object({
+        issueId: z
+          .string()
+          .trim()
+          .regex(/^\d+$/u)
+          .describe(
+            'Internal numeric Sentry issue ID from ops_inspect_signal.',
+          ),
+        reason: z
+          .string()
+          .trim()
+          .min(8)
+          .max(500)
+          .describe('Why it is appropriate to resolve this issue now.'),
+      }),
+      annotations: REMEDIATION_ANNOTATIONS,
+    },
+    async ({ issueId, reason }) =>
+      result(await operations.resolveSentryIssue(issueId, reason)),
   );
 
   return server;

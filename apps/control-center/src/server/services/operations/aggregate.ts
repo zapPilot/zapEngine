@@ -19,6 +19,7 @@ import { investigateOperationalSignal } from './investigation.js';
 import { collectPosthogSignals } from './posthog.js';
 import { prioritize } from './prioritize.js';
 import { collectProductSignals } from './product.js';
+import { resolveSentryIssue } from './sentry-remediation.js';
 import { collectSentrySignals } from './sentry.js';
 import { sourceFailure, worstOf } from './signal.js';
 import { deriveSocialSignals, loadOperationsSocial } from './social.js';
@@ -160,6 +161,10 @@ export function createOperationsService(input: {
     getSocial,
     getCustomers,
     inspectSignal,
+
+    resolveSentryIssue(issueId: string, reason: string) {
+      return resolveSentryIssue({ config: input.config, issueId, reason });
+    },
 
     async investigate(fingerprint: string, force = false) {
       return investigateOperationalSignal({
