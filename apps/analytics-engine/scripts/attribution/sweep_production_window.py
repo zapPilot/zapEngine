@@ -475,9 +475,7 @@ def _guard_committed_roi_shift(
 
     try:
         reference_date = _parse_reference_date(reference_date_raw)
-        tolerances = {
-            metric: float(raw_tolerances[metric]) for metric in METRIC_KEYS
-        }
+        tolerances = {metric: float(raw_tolerances[metric]) for metric in METRIC_KEYS}
     except (KeyError, TypeError, ValueError) as exc:
         _refuse_roi_shift(
             strategy_id=strategy_id,
