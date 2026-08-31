@@ -16,6 +16,17 @@ describe('Ops MCP repository wiring', () => {
     });
   });
 
+  it('advertises the same launcher to OpenCode', async () => {
+    const raw = await readFile(path.join(repoRoot, 'opencode.json'), 'utf8');
+    const config = JSON.parse(raw) as OpenCodeConfig;
+
+    expect(config.mcp['zap-pilot-ops']).toMatchObject({
+      type: 'local',
+      command: ['node', 'scripts/ops-mcp.mjs'],
+      enabled: true,
+    });
+  });
+
   it('pins the stdio launcher to the production environment', async () => {
     const launcher = await readFile(
       path.join(repoRoot, 'scripts/ops-mcp.mjs'),
@@ -31,4 +42,15 @@ describe('Ops MCP repository wiring', () => {
 
 interface McpConfig {
   mcpServers: Record<string, { command: string; args: string[] }>;
+}
+
+interface OpenCodeConfig {
+  mcp: Record<
+    string,
+    {
+      type: string;
+      command: string[];
+      enabled?: boolean;
+    }
+  >;
 }
