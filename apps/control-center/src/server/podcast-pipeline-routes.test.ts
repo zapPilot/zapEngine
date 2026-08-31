@@ -64,10 +64,11 @@ describe('podcast pipeline routes', () => {
     expect(restartVideo).toHaveBeenCalledWith(episodeId);
   });
 
-  it('returns a conflict instead of resetting a live render lease', async () => {
-    const restartVideo = vi
-      .fn()
-      .mockRejectedValue(new Error('Episode video generation is currently processing'));
+  it.each([
+    'Episode video generation is currently processing',
+    'Episode video generation is already completed',
+  ])('returns a conflict for a non-retryable state: %s', async (message) => {
+    const restartVideo = vi.fn().mockRejectedValue(new Error(message));
     const app = createApp({ getPipeline: vi.fn(), restartVideo });
 
     const response = await app.request(
