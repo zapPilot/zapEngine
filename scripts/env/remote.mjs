@@ -172,27 +172,29 @@ export function listDestinationKeys(destination) {
   );
 }
 
-// Both secret writes below redeploy the app, and that redeploy always uses the
-// config Fly stored at the last `fly deploy` -- passing `-c` here does not
-// change it (tried in c28e3418, reverted). `fly deploy --config` is the only
-// path that writes this repo's fly.toml back to the platform, so editing
-// fly.toml is not the same as changing how the app rolls out; check what Fly
-// actually holds with `flyctl config show --app <name>`. Ignoring that gap is
-// how podcast-pipeline stayed on bluegreen after its fly.toml banned it, and
-// every env-apply run cloned the whole fleet before failing `wait timeout`.
-export function importFlyValues(destination, values) {
+// Fly secret writes normally redeploy the app using the config Fly stored at
+// the last `fly deploy`; passing `-c` here does not replace that stored config.
+// During a code deploy we therefore stage secret writes and let the following
+// `fly deploy --config` apply staged secrets, the new image, and this repo's
+// fly.toml in one rollout. Standalone env-apply intentionally leaves stage=false
+// because its whole purpose is to make an env-only change live immediately.
+export function importFlyValues(destination, values, { stage = false } = {}) {
   const input = `${Object.entries(values)
     .map(([name, value]) => `${name}=${value}`)
     .join('\n')}\n`;
-  run(FLY_BIN, ['secrets', 'import', '--app', destination.app], {
+  const args = ['secrets', 'import', '--app', destination.app];
+  if (stage) args.push('--stage');
+  run(FLY_BIN, args, {
     input,
     failure: `Fly sync failed for ${destination.app}`,
   });
 }
 
-export function unsetFlyKeys(destination, names) {
+export function unsetFlyKeys(destination, names, { stage = false } = {}) {
   if (names.length === 0) return;
-  run(FLY_BIN, ['secrets', 'unset', ...names, '--app', destination.app], {
+  const args = ['secrets', 'unset', ...names, '--app', destination.app];
+  if (stage) args.push('--stage');
+  run(FLY_BIN, args, {
     failure: `Fly prune failed for ${destination.app}`,
   });
 }
@@ -243,7 +245,7 @@ export function deleteEasKey(destination, name) {
     ],
     {
       cwd: path.join(repoRoot, 'apps', 'app'),
-      failure: `EAS prune failed for ${name}`,
+      failure: `EAS sync failed for ${name}`,
     },
   );
 }
