@@ -217,20 +217,23 @@ export function listDestinationKeys(destination) {
 // `fly deploy --config` apply staged secrets, the new image, and this repo's
 // fly.toml in one rollout. For standalone env-apply we also stage both
 // `secrets import` and `secrets unset` and then run a single
-// `secrets deploy`. This collapses two immediate rollouts into one, and — when
-// `listStagedFlyKeys` shows nothing `Staged` (same-value updates do not create
-// a staged entry) — skips the rollout entirely, which covers the common
-// no-change merge. Both `secrets import` (SetSecretsAndDeploy → DeploySecrets
-// → MachineDeployment{RestartOnly:true}) and `secrets deploy` share the same
-// rollout code and the same 5 m DefaultWaitTimeout (machines.go:39); the
-// actual race was `kill_timeout = 300s` vs that 5 m budget — a 302 s
-// photo-finish (e.g. 06:21:47 import → 06:26:48 wait timeout → 06:26:49
-// machine started; deploy's app launch 06:36:20 → 06:41:22 started). Stored
-// `deploy.wait_timeout` is read by DeploySecrets when WaitTimeout is unset
-// (machines.go:214-218), so `wait_timeout = 8m` in fly.toml (applied on the
-// next `fly deploy`) gives drain headroom. Stopped `render` machines are not
-// the cause — the orchestrator leaves a `stopped` machine stopped in ~3 s
-// ("Machine was updated and left stopped", machines_deploymachinesapp.go:223).
+// `secrets deploy`. This collapses two immediate rollouts into one. When
+// `listStagedFlyKeys` shows nothing staged the deploy is skipped — a cheap
+// guard for the truly-no-change case — but same-value `secrets import --stage`
+// DOES create a staged entry (37 staged secrets observed on 2026-08-31), so in
+// practice `secrets deploy` runs on essentially every merge; the guard cannot
+// be relied on to avoid the restart cost. Both `secrets import`
+// (SetSecretsAndDeploy → DeploySecrets → MachineDeployment{RestartOnly:true})
+// and `secrets deploy` share the same rollout code and the same 5 m
+// DefaultWaitTimeout (machines.go:39); the actual race was `kill_timeout =
+// 300s` vs that 5 m budget — a 302 s photo-finish (e.g. 06:21:47 import →
+// 06:26:48 wait timeout → 06:26:49 machine started; deploy's app launch
+// 06:36:20 → 06:41:22 started). Stored `deploy.wait_timeout` is read by
+// DeploySecrets when WaitTimeout is unset (machines.go:214-218), so
+// `wait_timeout = 8m` in fly.toml (applied on the next `fly deploy`) gives
+// drain headroom. Stopped `render` machines are not the cause — the
+// orchestrator leaves a `stopped` machine stopped in ~3 s ("Machine was updated
+// and left stopped", machines_deploymachinesapp.go:223).
 export function importFlyValues(destination, values, { stage = false } = {}) {
   const input = `${Object.entries(values)
     .map(([name, value]) => `${name}=${value}`)

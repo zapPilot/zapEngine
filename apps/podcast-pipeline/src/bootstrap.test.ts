@@ -6,9 +6,15 @@ vi.mock('@hono/node-server', () => ({
     (
       _options: unknown,
       callback?: (info: { port: number }) => void,
-    ): { close: ReturnType<typeof vi.fn> } => {
+    ): {
+      close: ReturnType<typeof vi.fn>;
+      closeIdleConnections: ReturnType<typeof vi.fn>;
+    } => {
       callback?.({ port: 0 });
-      return { close: vi.fn() };
+      return {
+        close: vi.fn((callback?: (error?: Error) => void) => callback?.()),
+        closeIdleConnections: vi.fn(),
+      };
     },
   ),
 }));
@@ -286,5 +292,82 @@ describe('bootstrap', () => {
     });
 
     await handle.shutdown();
+  });
+
+  it('drops idle keep-alive sockets on shutdown so Fly restarts are prompt', async () => {
+    const { bootstrap } = await import('./index.js');
+
+    const close = vi.fn((callback?: (error?: Error) => void) => callback?.());
+    const closeIdleConnections = vi.fn();
+    const handle = bootstrap({
+      app: { fetch: vi.fn() } as unknown as Hono,
+      server: { close, closeIdleConnections },
+      renderCapacity: null,
+    });
+
+    await handle.shutdown('SIGINT');
+
+    expect(close).toHaveBeenCalledTimes(1);
+    expect(closeIdleConnections).toHaveBeenCalledTimes(1);
+  });
+
+  it('awaits server.close before stopping workers and flushing sentry', async () => {
+    const { bootstrap } = await import('./index.js');
+    const order: string[] = [];
+
+    const close = vi.fn((callback?: (error?: Error) => void) => {
+      order.push('close:start');
+      setTimeout(() => {
+        order.push('close:callback');
+        callback?.();
+      }, 10);
+    });
+    const closeIdleConnections = vi.fn(() => order.push('closeIdle'));
+    const renderCapacity = {
+      start: vi.fn(),
+      runOnce: vi.fn(),
+      stop: vi.fn(() => order.push('renderCapacity:stop')),
+    };
+    const videoWorker = {
+      start: vi.fn(),
+      runOnce: vi.fn(),
+      stop: vi.fn(async () => {
+        order.push('videoWorker:stop');
+      }),
+    };
+
+    const handle = bootstrap({
+      app: { fetch: vi.fn() } as unknown as Hono,
+      server: { close, closeIdleConnections },
+      renderCapacity,
+      videoWorker,
+    });
+
+    await handle.shutdown('SIGTERM');
+
+    expect(order).toEqual([
+      'close:start',
+      'closeIdle',
+      'close:callback',
+      'renderCapacity:stop',
+      'videoWorker:stop',
+    ]);
+    expect(closeIdleConnections).toHaveBeenCalledTimes(1);
+  });
+
+  it('tolerates a server without closeIdleConnections (test double)', async () => {
+    const { bootstrap } = await import('./index.js');
+    const close = vi.fn((callback?: (error?: Error) => void) => callback?.());
+    const handle = bootstrap({
+      app: { fetch: vi.fn() } as unknown as Hono,
+      server: { close } as unknown as {
+        close: (callback?: (error?: Error) => void) => void;
+        closeIdleConnections?: () => void;
+      },
+      renderCapacity: null,
+    });
+
+    await expect(handle.shutdown('SIGTERM')).resolves.toBeUndefined();
+    expect(close).toHaveBeenCalledTimes(1);
   });
 });
