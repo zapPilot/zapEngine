@@ -1,6 +1,9 @@
+import { timingSafeEqual } from 'node:crypto';
+
 import { createMcpHandler } from '@modelcontextprotocol/server';
 import type { Hono } from 'hono';
 
+import { captureServerException } from '../observability/sentry.js';
 import { createOpsMcpServer } from './server.js';
 import type { OpsMcpOperations } from './types.js';
 
@@ -16,18 +19,32 @@ export function registerOpsMcpHttp(
   const handler = createMcpHandler(() => createOpsMcpServer(input.operations));
 
   app.all('/api/mcp', async (context) => {
-    if (!input.token) {
-      return context.json(
-        { error: 'Ops MCP remote access is not configured.' },
-        503,
-      );
-    }
-
-    if (context.req.header('authorization') !== `Bearer ${input.token}`) {
+    if (!isAuthorized(context.req.header('authorization'), input.token)) {
       context.header('WWW-Authenticate', 'Bearer');
       return context.json({ error: 'Unauthorized' }, 401);
     }
 
-    return handler.fetch(context.req.raw);
+    try {
+      return await handler.fetch(context.req.raw);
+    } catch (error) {
+      captureServerException(error, {
+        method: context.req.method,
+        route: '/api/mcp',
+      });
+      return context.json({ error: 'Internal Server Error' }, 500);
+    }
   });
+}
+
+function isAuthorized(
+  authorization: string | undefined,
+  expectedToken: string | undefined,
+): boolean {
+  if (!expectedToken || !authorization?.startsWith('Bearer ')) return false;
+
+  const presented = Buffer.from(authorization.slice('Bearer '.length));
+  const expected = Buffer.from(expectedToken);
+  return (
+    presented.length === expected.length && timingSafeEqual(presented, expected)
+  );
 }
