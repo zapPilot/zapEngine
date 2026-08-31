@@ -650,6 +650,7 @@ export function isRetryableOpenRouterError(error: unknown): boolean {
 }
 
 type LLMCompletionOperation =
+  | 'buildVisualSubjectCatalog'
   | 'generateLanguageClassrooms'
   | 'suggestSearchIntents';
 

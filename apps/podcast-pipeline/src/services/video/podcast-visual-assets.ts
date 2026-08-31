@@ -14,7 +14,16 @@ import {
   type ImageSearchProvider,
 } from './image-search-provider.js';
 import { videoAssetPaths } from './runtime-assets.js';
-import { MAX_STORYBOARD_SLIDES } from './storyboard/draft.js';
+import {
+  MAX_SEARCH_INTENTS_PER_SCENE,
+  MAX_STORYBOARD_SLIDES,
+} from './storyboard/draft.js';
+import {
+  buildVisualSubjectSearchQueries,
+  type VisualSceneSubjectAssignment,
+  type VisualSubjectCatalog,
+  visualSubjectsForScene,
+} from './storyboard/subject-catalog.js';
 import {
   fingerprintImage,
   perceptualHashDistance,
@@ -33,6 +42,13 @@ if (MAX_STORYBOARD_SLIDES >= 98) {
 }
 if (MAX_STORYBOARD_SLIDES >= 99) {
   throw new Error('Podcast outro asset ID collides with storyboard assets');
+}
+
+export interface PodcastVisualAssetPlanInput extends PlanVisualAssetsInput {
+  /** Present on v8 jobs. Legacy callers/tests can omit it and keep the v7 cover
+   * selector behavior. */
+  subjectCatalog?: VisualSubjectCatalog;
+  sceneAssignments?: readonly VisualSceneSubjectAssignment[];
 }
 
 export interface CoverSelectionInput {
@@ -63,8 +79,6 @@ function resolveCoverDependencies(
 } {
   return {
     acquireImage: overrides?.acquireImage ?? acquireRemoteImage,
-    // Only built when the caller brought no chain of its own: the default one
-    // fails closed on a missing Brave key.
     searchProviders:
       overrides?.searchProviders ?? defaultImageSearchProviders(),
     fingerprintImage: overrides?.fingerprintImage ?? fingerprintImage,
@@ -239,6 +253,9 @@ async function tryAcquireCoverCandidate(
   return planned;
 }
 
+// Retained for legacy payload/tests. v8 deliberately does not use this special
+// path: the first content scene goes through the same hard subject identity gate
+// as every other scene instead of ranking generic topic matches as cover art.
 // eslint-disable-next-line sonarjs/cognitive-complexity
 export async function selectCoverAssetForFirstScene(
   input: CoverSelectionInput,
@@ -253,7 +270,6 @@ export async function selectCoverAssetForFirstScene(
 
   await mkdir(input.workingDirectory, { recursive: true });
 
-  // Try article images first (use viable filter to respect decorative / dedupe)
   const articleCandidates = viableCoverCandidates(input.articleImages ?? [], [
     'article',
     'openGraph',
@@ -322,8 +338,6 @@ export async function selectCoverAssetForFirstScene(
 
   if (collected.length === 0) return null;
 
-  // Rank collected assets by cover score (using their candidate intent)
-  // For ranking, use first intent
   const intent = input.scene.imageSearchIntent[0] ?? '';
   const scored = collected
     .map(({ candidate, asset }, idx) => ({
@@ -335,12 +349,10 @@ export async function selectCoverAssetForFirstScene(
     .sort((a, b) => b.score - a.score || a.idx - b.idx);
 
   const winner = scored[0]!.asset;
-  // Clean up losers
   for (let i = 1; i < scored.length; i++) {
     await rm(scored[i]!.asset.path, { force: true }).catch(() => {});
   }
 
-  // Winner should keep image-01
   return {
     asset: { ...winner, assetId: 'image-01' },
     candidateCount: collected.length,
@@ -348,43 +360,103 @@ export async function selectCoverAssetForFirstScene(
   };
 }
 
-// eslint-disable-next-line sonarjs/cognitive-complexity
 export async function planPodcastVisualAssets(
-  input: PlanVisualAssetsInput,
+  input: PodcastVisualAssetPlanInput,
 ): Promise<VisualAssetPlan> {
-  const brandScenes = input.scenes.filter(
-    (scene) => podcastBrandVisualKind(scene.imageSearchIntent) !== null,
-  );
-  const contentScenes = input.scenes.filter(
-    (scene) => podcastBrandVisualKind(scene.imageSearchIntent) === null,
-  );
-  const originalSceneIndex = new Map(
-    input.scenes.map((scene, index) => [scene.sceneId, index]),
-  );
-  const assets: PlannedVisualImage[] = [];
+  const { subjectCatalog, sceneAssignments } = input;
+  if (subjectCatalog && sceneAssignments) {
+    return planSubjectCatalogVisualAssets({
+      ...input,
+      subjectCatalog,
+      sceneAssignments,
+    });
+  }
+  return planLegacyPodcastVisualAssets(input);
+}
 
-  for (const brandScene of brandScenes) {
-    const kind = podcastBrandVisualKind(brandScene.imageSearchIntent);
-    if (kind === 'intro') {
-      const introAsset = await createPodcastIntroAsset(input.workingDirectory);
-      assets.push(introAsset);
-      reportBrandAssetProgress(
-        input,
-        brandScene.sceneId,
-        originalSceneIndex.get(brandScene.sceneId) ?? 0,
-        PODCAST_INTRO_ASSET_ID,
-      );
-    } else if (kind === 'outro') {
-      const outroAsset = await createPodcastOutroAsset(input.workingDirectory);
-      assets.push(outroAsset);
-      reportBrandAssetProgress(
-        input,
-        brandScene.sceneId,
-        originalSceneIndex.get(brandScene.sceneId) ?? 0,
-        PODCAST_OUTRO_ASSET_ID,
+async function planSubjectCatalogVisualAssets(
+  input: PodcastVisualAssetPlanInput & {
+    subjectCatalog: VisualSubjectCatalog;
+    sceneAssignments: readonly VisualSceneSubjectAssignment[];
+  },
+): Promise<VisualAssetPlan> {
+  const { assets, contentScenes, originalSceneIndex } =
+    await preparePodcastVisualAssets(input);
+  const assignmentBySceneId = new Map(
+    input.sceneAssignments.map(
+      (assignment) => [assignment.sceneId, assignment] as const,
+    ),
+  );
+  if (contentScenes.length === 0) {
+    return { assets, scenes: mapScenesWithBrand(input.scenes, new Map()) };
+  }
+
+  const firstAssignment = assignmentBySceneId.get(contentScenes[0]!.sceneId);
+  if (
+    firstAssignment?.subjectIds[0] !== input.subjectCatalog.primarySubjectId
+  ) {
+    throw new Error(
+      `Lead visual must be anchored to primary subject ${input.subjectCatalog.primarySubjectId}`,
+    );
+  }
+
+  const subjectScenes = contentScenes.map((scene) => {
+    const assignment = assignmentBySceneId.get(scene.sceneId);
+    if (!assignment) {
+      throw new Error(
+        `Visual subject assignment is missing for ${scene.sceneId}`,
       );
     }
-  }
+    const subjects = visualSubjectsForScene(input.subjectCatalog, assignment);
+    if (subjects.length === 0) {
+      throw new Error(`Visual subjects are missing for ${scene.sceneId}`);
+    }
+    const imageSearchIntent = [
+      ...new Set(subjects.flatMap(buildVisualSubjectSearchQueries)),
+    ].slice(0, MAX_SEARCH_INTENTS_PER_SCENE);
+    // v8 intentionally passes the disambiguated canonical identity into the
+    // existing hard gate. A local alias such as "Alpaca" or "B20" is not enough
+    // to accept an animal, camera flash, or engine with the same letters.
+    const imageSearchEntities = subjects.map(
+      (subject) => subject.canonicalName,
+    );
+    return {
+      ...scene,
+      imageSearchIntent,
+      imageSearchEntities,
+    };
+  });
+
+  const contentPlan = await planVisualAssets({
+    scenes: subjectScenes,
+    articleImages: input.articleImages,
+    workingDirectory: join(input.workingDirectory, 'subjects'),
+    selectionMode: input.selectionMode,
+    signal: input.signal,
+    dependencies: input.dependencies,
+    onProgress: remappedProgressHandler(
+      input.onProgress,
+      originalSceneIndex,
+      input.scenes.length,
+    ),
+  });
+  assets.push(...contentPlan.assets);
+  const assetByScene = new Map(
+    contentPlan.scenes.map((scene) => [scene.sceneId, scene.assetId] as const),
+  );
+  return {
+    assets,
+    scenes: mapScenesWithBrand(input.scenes, assetByScene),
+  };
+}
+
+// v7 behavior kept only for callers that do not provide the v8 subject catalog.
+
+async function planLegacyPodcastVisualAssets(
+  input: PlanVisualAssetsInput,
+): Promise<VisualAssetPlan> {
+  const { assets, contentScenes, originalSceneIndex } =
+    await preparePodcastVisualAssets(input);
 
   if (contentScenes.length === 0) {
     const scenes = mapScenesWithBrand(input.scenes, new Map());
@@ -396,51 +468,48 @@ export async function planPodcastVisualAssets(
   let coverResult: CoverSelectionResult | null = null;
   let coverFallback = false;
 
-  if (coverScene) {
-    const coverStart = Date.now();
-    try {
-      coverResult = await selectCoverAssetForFirstScene({
-        scene: coverScene,
-        articleImages: input.articleImages,
-        workingDirectory: join(input.workingDirectory, 'cover'),
-        signal: input.signal,
-        dependencies: input.dependencies,
-        existingAssets: [],
-      });
-      if (coverResult) {
-        assets.push(coverResult.asset);
-        input.onProgress?.({
-          phase: 'cover',
-          sceneId: coverScene.sceneId,
-          sceneIndex: (originalSceneIndex.get(coverScene.sceneId) ?? 0) + 1,
-          sceneCount: input.scenes.length,
-          candidateCount: coverResult.candidateCount,
-          provider: 'cover',
-          assetId: coverResult.asset.assetId,
-          elapsedMs: Date.now() - coverStart,
-        });
-      } else {
-        coverFallback = true;
-      }
-    } catch (error) {
-      if (input.signal?.aborted) throw error;
-      coverFallback = true;
-    }
-    if (coverFallback) {
+  const coverStart = Date.now();
+  try {
+    coverResult = await selectCoverAssetForFirstScene({
+      scene: coverScene,
+      articleImages: input.articleImages,
+      workingDirectory: join(input.workingDirectory, 'cover'),
+      signal: input.signal,
+      dependencies: input.dependencies,
+      existingAssets: [],
+    });
+    if (coverResult) {
+      assets.push(coverResult.asset);
       input.onProgress?.({
         phase: 'cover',
         sceneId: coverScene.sceneId,
         sceneIndex: (originalSceneIndex.get(coverScene.sceneId) ?? 0) + 1,
         sceneCount: input.scenes.length,
-        candidateCount: 0,
+        candidateCount: coverResult.candidateCount,
         provider: 'cover',
-        assetId: 'none',
+        assetId: coverResult.asset.assetId,
         elapsedMs: Date.now() - coverStart,
       });
+    } else {
+      coverFallback = true;
     }
+  } catch (error) {
+    if (input.signal?.aborted) throw error;
+    coverFallback = true;
+  }
+  if (coverFallback) {
+    input.onProgress?.({
+      phase: 'cover',
+      sceneId: coverScene.sceneId,
+      sceneIndex: (originalSceneIndex.get(coverScene.sceneId) ?? 0) + 1,
+      sceneCount: input.scenes.length,
+      candidateCount: 0,
+      provider: 'cover',
+      assetId: 'none',
+      elapsedMs: Date.now() - coverStart,
+    });
   }
 
-  // If cover selector failed, fallback to generic planner for all content scenes (covers WP12 fallback)
   if (!coverResult) {
     const fallbackPlan = await planVisualAssets({
       ...input,
@@ -463,10 +532,8 @@ export async function planPodcastVisualAssets(
 
   let remainingPlan: VisualAssetPlan | null = null;
   if (remainingScenes.length > 0) {
-    // Filter article images already used for cover
-    let remainingArticleImages = input.articleImages ?? [];
-    remainingArticleImages = remainingArticleImages.filter(
-      (c) => c.imageUrl !== coverResult.asset.originalImageUrl,
+    const remainingArticleImages = (input.articleImages ?? []).filter(
+      (candidate) => candidate.imageUrl !== coverResult?.asset.originalImageUrl,
     );
     remainingPlan = await planVisualAssets({
       ...input,
@@ -479,12 +546,10 @@ export async function planPodcastVisualAssets(
         input.scenes.length,
       ),
     });
-    // Remap IDs to avoid collision with cover image-01
     const remappedAssets: PlannedVisualImage[] = [];
     const idMap = new Map<string, string>();
     let nextId = 2;
     for (const asset of remainingPlan.assets) {
-      // If duplicate of cover, reuse cover
       if (
         asset.sha256 === coverResult.asset.sha256 ||
         perceptualHashDistance(
@@ -493,7 +558,6 @@ export async function planPodcastVisualAssets(
         ) <= 6
       ) {
         idMap.set(asset.assetId, coverResult.asset.assetId);
-        // Remove duplicate file
         await rm(asset.path, { force: true }).catch(() => {});
         continue;
       }
@@ -501,42 +565,73 @@ export async function planPodcastVisualAssets(
       idMap.set(asset.assetId, newId);
       remappedAssets.push({ ...asset, assetId: newId });
     }
-    const remappedScenes = remainingPlan.scenes.map((s) => ({
-      sceneId: s.sceneId,
-      assetId: idMap.get(s.assetId) ?? s.assetId,
+    const remappedScenes = remainingPlan.scenes.map((scene) => ({
+      sceneId: scene.sceneId,
+      assetId: idMap.get(scene.assetId) ?? scene.assetId,
     }));
     remainingPlan = { assets: remappedAssets, scenes: remappedScenes };
     assets.push(...remappedAssets);
   }
 
-  if (coverResult && remainingPlan) {
+  if (remainingPlan) {
     const combined = new Map<string, string>([
       [coverScene.sceneId, coverResult.asset.assetId],
-      ...remainingPlan.scenes.map((s) => [s.sceneId, s.assetId] as const),
+      ...remainingPlan.scenes.map(
+        (scene) => [scene.sceneId, scene.assetId] as const,
+      ),
     ]);
-    const finalScenes = mapScenesWithBrand(input.scenes, combined);
-    return { assets, scenes: finalScenes };
+    return { assets, scenes: mapScenesWithBrand(input.scenes, combined) };
   }
 
-  if (coverResult && !remainingPlan) {
-    const scenes = mapScenesWithBrand(
+  return {
+    assets,
+    scenes: mapScenesWithBrand(
       input.scenes,
       new Map([[coverScene.sceneId, coverResult.asset.assetId]]),
-    );
-    return { assets, scenes };
+    ),
+  };
+}
+
+async function preparePodcastVisualAssets(
+  input: PlanVisualAssetsInput,
+): Promise<{
+  assets: PlannedVisualImage[];
+  contentScenes: PlanVisualAssetsInput['scenes'];
+  originalSceneIndex: Map<string, number>;
+}> {
+  const brandScenes = input.scenes.filter(
+    (scene) => podcastBrandVisualKind(scene.imageSearchIntent) !== null,
+  );
+  const contentScenes = input.scenes.filter(
+    (scene) => podcastBrandVisualKind(scene.imageSearchIntent) === null,
+  );
+  const originalSceneIndex = new Map(
+    input.scenes.map((scene, index) => [scene.sceneId, index]),
+  );
+  const assets: PlannedVisualImage[] = [];
+
+  for (const brandScene of brandScenes) {
+    const kind = podcastBrandVisualKind(brandScene.imageSearchIntent);
+    if (kind === 'intro') {
+      assets.push(await createPodcastIntroAsset(input.workingDirectory));
+      reportBrandAssetProgress(
+        input,
+        brandScene.sceneId,
+        originalSceneIndex.get(brandScene.sceneId) ?? 0,
+        PODCAST_INTRO_ASSET_ID,
+      );
+    } else if (kind === 'outro') {
+      assets.push(await createPodcastOutroAsset(input.workingDirectory));
+      reportBrandAssetProgress(
+        input,
+        brandScene.sceneId,
+        originalSceneIndex.get(brandScene.sceneId) ?? 0,
+        PODCAST_OUTRO_ASSET_ID,
+      );
+    }
   }
 
-  // Fallback case already handled, but for completeness
-  const scenes = mapScenesWithBrand(
-    input.scenes,
-    new Map(
-      (remainingPlan?.scenes ?? []).map((scene) => [
-        scene.sceneId,
-        scene.assetId,
-      ]),
-    ),
-  );
-  return { assets, scenes };
+  return { assets, contentScenes, originalSceneIndex };
 }
 
 function reportBrandAssetProgress(
@@ -629,7 +724,6 @@ async function createBrandAsset(
 async function createPodcastIntroAsset(
   workingDirectory: string,
 ): Promise<PlannedVisualImage> {
-  // Deprecated legacy asset kept for old payload compatibility (read-old / never write new)
   return createBrandAsset(
     workingDirectory,
     PODCAST_INTRO_ASSET_ID,

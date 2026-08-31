@@ -36,8 +36,12 @@ export const remoteImageAssetSchema = z
     sourceId: z.string().min(1),
     url: z.string().url(),
     sha256: z.string().regex(/^[a-f\d]{64}$/),
-    layout: z.literal('fullBleed'),
+    layout: z.enum(['fullBleed', 'contain']).default('fullBleed'),
     position: z.enum(['center', 'top', 'bottom']).default('center'),
+    // Missing means legacy renderer behavior. Fresh v8 visual payloads always
+    // write one of these values, which is the explicit switch to restrained
+    // editorial motion and makes old/new rendering behavior distinguishable.
+    motion: z.enum(['static', 'pushIn', 'pan']).optional(),
   })
   .strict();
 
@@ -47,9 +51,8 @@ export const materializedVisualSceneSchema = z
     startSentenceId: z.string().regex(/^s\d{4}$/),
     endSentenceId: z.string().regex(/^s\d{4}$/),
     imageSearchIntent: z.array(z.string().min(2).max(80)).min(1).max(3),
-    // Carried through from the draft purely as an audit trail: it records which
-    // named subjects the stored image was required to be about. Optional, so
-    // manifests written before entity anchoring still parse.
+    // Carried through from the draft as an audit trail. v8 additionally stores
+    // the episode-level subject catalog/assignment in the episode payload.
     imageSearchEntities: z
       .array(z.string().min(2).max(80))
       .min(1)

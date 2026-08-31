@@ -14,9 +14,11 @@ import type { EpisodeVideoProgressUpdate } from './video-progress.js';
 // and the chunk-crossfade freeze fix; v6: cover + body + Zap Pilot outro,
 // BODY ONLY storyboard, intro extends first body; v7: per-scene fail-closed
 // entity-first LLM search intents, Brave image retrieval, and an
-// entity-anchored candidate gate).
+// entity-anchored candidate gate; v8: episode-wide subject catalog, primary
+// lead fencing, contextual subject fallback, persisted editorial decisions,
+// and restrained presentation metadata).
 export const EPISODE_VIDEO_VISUAL_VERSION =
-  'podcast-image-visual-plan.v7' as const;
+  'podcast-image-visual-plan.v8' as const;
 
 export type EpisodeVideoJobStatus =
   | 'queued'

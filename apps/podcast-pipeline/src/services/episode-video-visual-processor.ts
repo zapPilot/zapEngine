@@ -33,6 +33,10 @@ import {
 import type { StoryboardProvider } from './video/storyboard/provider.js';
 import { enrichStoryboardSearchIntents } from './video/storyboard/search-intents.js';
 import { splitCanonicalSentences } from './video/storyboard/sentences.js';
+import type {
+  VisualSceneSubjectAssignment,
+  VisualSubjectCatalog,
+} from './video/storyboard/subject-catalog.js';
 import type { VisualAssetProgress } from './video/visual-asset-planner.js';
 import {
   EPISODE_VIDEO_VISUAL_VERSION,
@@ -161,8 +165,7 @@ export function createEpisodeVideoVisualProcessor(
           });
         }
       }
-      // Branding establishes the final scene spans first. Enrichment then sees
-      // the clipped content and skips the fixed brand card entirely.
+
       const intents = await dependencies.enrichSearchIntents(
         {
           draft: brandedDraft,
@@ -174,6 +177,11 @@ export function createEpisodeVideoVisualProcessor(
         },
         { signal: context.signal },
       );
+      // Narrow injected test providers created before v8 can still return the
+      // old enrichment shape at runtime. Treat those as the explicit legacy
+      // path; the production provider always supplies both v8 fields.
+      const subjectCatalog = intents.subjectCatalog ?? null;
+      const sceneAssignments = intents.sceneAssignments ?? [];
       const storyboard = {
         ...generated,
         draft: intents.draft,
@@ -183,9 +191,9 @@ export function createEpisodeVideoVisualProcessor(
         episode: source.episodeId,
         enriched: `${intents.enrichedSceneCount}/${intents.draft.scenes.length}`,
         brand: brandSceneCount,
-        // How much of the episode image search can anchor on a named subject
-        // rather than a description — the rest genuinely name nothing.
         entities: intents.entityAnchoredSceneCount,
+        subjects: subjectCatalog?.subjects.length,
+        primarySubject: subjectCatalog?.primarySubjectId,
         model: intents.model ?? 'deterministic',
       });
 
@@ -214,6 +222,8 @@ export function createEpisodeVideoVisualProcessor(
         workingDirectory: join(outputDirectory, 'images'),
         selectionMode: 'resilient',
         signal: context.signal,
+        ...(subjectCatalog ? { subjectCatalog } : {}),
+        ...(sceneAssignments.length > 0 ? { sceneAssignments } : {}),
         onProgress: (progress) => {
           logPlannerProgress(
             dependencies.logger,
@@ -221,9 +231,6 @@ export function createEpisodeVideoVisualProcessor(
             source.episodeId,
             progress,
           );
-          // Only 'assets' advances the number. A scene can be searched several
-          // times before one candidate passes validation, so driving the bar
-          // from 'search' would make it jitter back and forth.
           if (progress.phase === 'assets') {
             context.reportProgress(
               visualStageProgress(
@@ -241,6 +248,8 @@ export function createEpisodeVideoVisualProcessor(
         scenes: storyboard.draft.scenes,
         selectedScenes: assetPlan.scenes,
         assets: assetPlan.assets,
+        subjectCatalog,
+        sceneAssignments,
       });
       const manifestPath = join(outputDirectory, 'visual-manifest.json');
       const sourceManifest = createSourceVisualManifest({
@@ -249,6 +258,8 @@ export function createEpisodeVideoVisualProcessor(
         storyboard,
         visualHash,
         assetPlan,
+        subjectCatalog,
+        sceneAssignments,
       });
       await dependencies.writeManifest(
         manifestPath,
@@ -290,6 +301,8 @@ export function createEpisodeVideoVisualProcessor(
         selectedScenes: assetPlan.scenes,
         assets: assetPlan.assets,
         r2ImageUrls: uploaded.imageUrls,
+        subjectCatalog,
+        sceneAssignments,
       });
       return {
         visualPayload: payload,
@@ -325,14 +338,12 @@ export async function generateVisualStoryboard(input: {
     input.editorialScript ?? getPodcastEditorialScript(input.script);
   const editorialSentences =
     input.editorialSentences ?? getPodcastEditorialSentences(input.script);
-  // Provider sees editorial script only (BODY ONLY invariant)
   const providerScript = isPackaged ? editorialScript : input.script;
   const providerSentences = isPackaged
     ? editorialSentences
     : splitCanonicalSentences(input.script);
   let englishBody: string | undefined;
   if (input.searchScript !== undefined) {
-    // If the caller already supplied editorialSentences, assume searchScript is already BODY ONLY
     englishBody =
       input.editorialSentences !== undefined
         ? input.searchScript
@@ -390,6 +401,8 @@ function createSourceVisualManifest(input: {
   storyboard: StoryboardGenerationResult;
   visualHash: string;
   assetPlan: Awaited<ReturnType<typeof planPodcastVisualAssets>>;
+  subjectCatalog: VisualSubjectCatalog | null;
+  sceneAssignments: readonly VisualSceneSubjectAssignment[];
 }): Record<string, unknown> {
   return {
     schemaVersion: EPISODE_VISUAL_PAYLOAD_SCHEMA_VERSION,
@@ -398,6 +411,12 @@ function createSourceVisualManifest(input: {
     sourceHash: input.job.source_hash,
     episodeId: input.source.episodeId,
     canonicalLocalizationId: input.source.canonicalLocalizationId,
+    ...(input.subjectCatalog
+      ? {
+          subjectCatalog: input.subjectCatalog,
+          sceneAssignments: input.sceneAssignments,
+        }
+      : {}),
     storyboard: {
       provider: input.storyboard.effectiveProvider,
       model: input.storyboard.model,

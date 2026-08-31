@@ -4,6 +4,12 @@ import { z } from 'zod';
 
 import type { StoryboardGenerationResult } from './storyboard/orchestrator.js';
 import {
+  type VisualSceneSubjectAssignment,
+  visualSceneSubjectAssignmentSchema,
+  type VisualSubjectCatalog,
+  visualSubjectCatalogSchema,
+} from './storyboard/subject-catalog.js';
+import {
   type ImageVisualPlan,
   imageVisualPlanSchema,
   materializeImageVisualPlan,
@@ -60,6 +66,10 @@ export const episodeVisualPayloadSchema = z
     manifestUrl: z.string().url(),
     visualPlan: imageVisualPlanSchema,
     assets: z.array(visualAssetMetadataSchema).min(1),
+    // Optional keeps stored v1 payloads readable. Fresh visual-v8 payloads
+    // always write both fields so the editorial decision can be audited later.
+    subjectCatalog: visualSubjectCatalogSchema.optional(),
+    sceneAssignments: z.array(visualSceneSubjectAssignmentSchema).optional(),
     provenance: z
       .object({
         storyboardProvider: z.string().min(1),
@@ -96,6 +106,42 @@ export const episodeVisualPayloadSchema = z
         });
       }
     }
+
+    if (payload.subjectCatalog || payload.sceneAssignments) {
+      if (!payload.subjectCatalog || !payload.sceneAssignments) {
+        context.addIssue({
+          code: 'custom',
+          message:
+            'Visual subject catalog and scene assignments must be stored together',
+          path: ['subjectCatalog'],
+        });
+        return;
+      }
+      const subjectIds = new Set(
+        payload.subjectCatalog.subjects.map((subject) => subject.id),
+      );
+      const visualSceneIds = new Set(
+        payload.visualPlan.scenes.map((scene) => scene.sceneId),
+      );
+      for (const [index, assignment] of payload.sceneAssignments.entries()) {
+        if (!visualSceneIds.has(assignment.sceneId)) {
+          context.addIssue({
+            code: 'custom',
+            message: `Visual assignment references unknown scene ${assignment.sceneId}`,
+            path: ['sceneAssignments', index, 'sceneId'],
+          });
+        }
+        for (const subjectId of assignment.subjectIds) {
+          if (!subjectIds.has(subjectId)) {
+            context.addIssue({
+              code: 'custom',
+              message: `Visual assignment references unknown subject ${subjectId}`,
+              path: ['sceneAssignments', index, 'subjectIds'],
+            });
+          }
+        }
+      }
+    }
   });
 
 export type EpisodeVisualPayload = z.infer<typeof episodeVisualPayloadSchema>;
@@ -118,6 +164,8 @@ export function hashEpisodeVisualSelection(input: {
   }[];
   selectedScenes: readonly PlannedVisualScene[];
   assets: readonly PlannedVisualImage[];
+  subjectCatalog?: VisualSubjectCatalog | null;
+  sceneAssignments?: readonly VisualSceneSubjectAssignment[];
 }): string {
   const hashInput = {
     visualVersion: input.visualVersion,
@@ -125,6 +173,8 @@ export function hashEpisodeVisualSelection(input: {
     canonicalLocalizationId: input.canonicalLocalizationId,
     scenes: input.scenes,
     selectedScenes: input.selectedScenes,
+    subjectCatalog: input.subjectCatalog ?? null,
+    sceneAssignments: input.sceneAssignments ?? [],
     assets: input.assets.map((asset) => ({
       assetId: asset.assetId,
       contentType: asset.contentType,
@@ -152,6 +202,8 @@ export function buildEpisodeVisualPayload(input: {
   selectedScenes: readonly PlannedVisualScene[];
   assets: readonly PlannedVisualImage[];
   r2ImageUrls: Readonly<Record<string, string>>;
+  subjectCatalog?: VisualSubjectCatalog | null;
+  sceneAssignments?: readonly VisualSceneSubjectAssignment[];
 }): EpisodeVisualPayload {
   const assetById = new Map(
     input.assets.map((asset) => [asset.assetId, asset] as const),
@@ -163,7 +215,7 @@ export function buildEpisodeVisualPayload(input: {
   );
   const visualPlan: ImageVisualPlan = materializeImageVisualPlan({
     draft: input.storyboard.draft,
-    sceneAssets: input.storyboard.draft.scenes.map((scene, index) => {
+    sceneAssets: input.storyboard.draft.scenes.map((scene) => {
       const assetId = sceneAssetById.get(scene.sceneId);
       const asset = assetId ? assetById.get(assetId) : undefined;
       const r2Url = assetId ? input.r2ImageUrls[assetId] : undefined;
@@ -171,6 +223,7 @@ export function buildEpisodeVisualPayload(input: {
         throw new Error(`Visual image is missing for ${scene.sceneId}`);
       }
       const sourceId = `${assetId}-source`;
+      const presentation = presentationForAsset(asset);
       return {
         sceneId: scene.sceneId,
         sources: [
@@ -191,12 +244,21 @@ export function buildEpisodeVisualPayload(input: {
           sourceId,
           url: r2Url,
           sha256: asset.sha256,
-          layout: 'fullBleed' as const,
-          position: (['center', 'top', 'bottom'] as const)[index % 3],
+          layout: presentation.layout,
+          position: 'center' as const,
+          motion: presentation.motion,
         },
       };
     }),
   });
+
+  const subjectContext =
+    input.subjectCatalog && input.sceneAssignments
+      ? {
+          subjectCatalog: input.subjectCatalog,
+          sceneAssignments: [...input.sceneAssignments],
+        }
+      : {};
 
   return parseEpisodeVisualPayload({
     schemaVersion: EPISODE_VISUAL_PAYLOAD_SCHEMA_VERSION,
@@ -229,6 +291,7 @@ export function buildEpisodeVisualPayload(input: {
         height: asset.height,
       };
     }),
+    ...subjectContext,
     provenance: {
       storyboardProvider: input.storyboard.effectiveProvider,
       storyboardModel: input.storyboard.model,
@@ -237,6 +300,22 @@ export function buildEpisodeVisualPayload(input: {
       searchIntentModel: input.searchIntentModel,
     },
   });
+}
+
+function presentationForAsset(asset: PlannedVisualImage): {
+  layout: 'fullBleed' | 'contain';
+  motion: 'static' | 'pushIn' | 'pan';
+} {
+  if (asset.provider === 'brand')
+    return { layout: 'contain', motion: 'static' };
+  const aspectRatio = asset.width / asset.height;
+  // The portrait renderer's media window is ~1.125:1. Preserve the complete
+  // composition when the source differs materially instead of cropping a 16:9
+  // news photo, screenshot, chart or portrait before the viewer can read it.
+  if (aspectRatio < 0.9 || aspectRatio > 1.45) {
+    return { layout: 'contain', motion: 'static' };
+  }
+  return { layout: 'fullBleed', motion: 'pushIn' };
 }
 
 const STOCK_LICENSE_URLS: Partial<
