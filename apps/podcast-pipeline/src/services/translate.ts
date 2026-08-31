@@ -8,8 +8,11 @@ import {
   createOpenRouterChatCompletion,
   getOpenRouterConfig,
   isRetryableOpenRouterError,
+  OPENROUTER_FALLBACK_ROUTING,
   type OpenRouterChatCompletion,
+  type OpenRouterProviderRouting,
 } from './llm.js';
+import { splitCanonicalSentences } from './video/storyboard/sentences.js';
 
 export type SecondaryLanguageCode = Exclude<
   LanguageClassroomLanguageCode,
@@ -18,6 +21,7 @@ export type SecondaryLanguageCode = Exclude<
 
 const TRANSLATION_MODEL = 'openrouter/free';
 const TRANSLATION_MAX_ATTEMPTS = 2;
+const TRANSLATION_MAX_CHUNK_CHARS = 2_000;
 const TRANSLATION_RETRY_DELAY_MS = 500;
 const TARGET_LANGUAGE_NAMES: Record<SecondaryLanguageCode, string> = {
   ja: 'Japanese',
@@ -49,11 +53,55 @@ export async function translateCanonicalScript({
   script,
   targetLanguageCode,
 }: TranslateCanonicalScriptOptions): Promise<TranslateCanonicalScriptResult> {
-  const { fields, cost } = await translateFields(
-    { title, script },
-    targetLanguageCode,
+  const chunks = splitScriptIntoTranslationChunks(
+    script,
+    TRANSLATION_MAX_CHUNK_CHARS,
   );
-  return { title: fields.title, script: fields.script, cost };
+  if (chunks.length <= 1) {
+    const { fields, cost } = await translateFields(
+      { title, script },
+      targetLanguageCode,
+    );
+    return { title: fields.title, script: fields.script, cost };
+  }
+
+  let translatedTitle = title;
+  const translatedChunks: string[] = [];
+  const cost: UsageCostLine[] = [];
+  for (const [index, chunk] of chunks.entries()) {
+    logIngestEvent('translate:chunk', {
+      targetLanguageCode,
+      chunkIndex: index + 1,
+      chunkCount: chunks.length,
+      chunkChars: chunk.length,
+      scriptChars: script.length,
+    });
+    if (index === 0) {
+      const result = await translateFields(
+        { title, script: chunk },
+        targetLanguageCode,
+        cost,
+      );
+      translatedTitle = result.fields.title;
+      translatedChunks.push(result.fields.script);
+      cost.push(...result.cost);
+      continue;
+    }
+
+    const result = await translateFields(
+      { script: chunk },
+      targetLanguageCode,
+      cost,
+    );
+    translatedChunks.push(result.fields.script);
+    cost.push(...result.cost);
+  }
+
+  return {
+    title: translatedTitle,
+    script: translatedChunks.join('\n\n'),
+    cost,
+  };
 }
 
 export async function translateChineseText(
@@ -78,6 +126,7 @@ export async function translateChineseText(
 async function translateFields<K extends string>(
   fields: Record<K, string>,
   targetLanguageCode: SecondaryLanguageCode,
+  priorCost: readonly UsageCostLine[] = [],
 ): Promise<{ fields: Record<K, string>; cost: UsageCostLine[] }> {
   if (!Object.values<string>(fields).some((value) => value.length > 0)) {
     return { fields: { ...fields }, cost: [] };
@@ -85,6 +134,7 @@ async function translateFields<K extends string>(
 
   const costs: UsageCostLine[] = [];
   let retryReason: string | null = null;
+  let providerRouting: OpenRouterProviderRouting | undefined;
 
   for (let attempt = 1; ; attempt += 1) {
     try {
@@ -92,6 +142,7 @@ async function translateFields<K extends string>(
         fields,
         targetLanguageCode,
         retryReason,
+        providerRouting,
       );
       return { fields: result.fields, cost: [...costs, ...result.cost] };
     } catch (error) {
@@ -108,22 +159,25 @@ async function translateFields<K extends string>(
           targetLanguageCode,
           model: TRANSLATION_MODEL,
           attempts: attempt,
-          spentUsd: sumUsageCostLines(costs),
+          spentUsd: sumUsageCostLines([...priorCost, ...costs]),
           error: errorMessage(error),
         });
         throw error;
       }
 
+      const rerouted = !(error instanceof TranslationResponseError);
       logIngestEvent('translate:retry', {
         targetLanguageCode,
         model: TRANSLATION_MODEL,
         attempt,
         nextAttempt: attempt + 1,
         delayMs: TRANSLATION_RETRY_DELAY_MS,
+        rerouted,
         error: errorMessage(error),
       });
       retryReason =
         error instanceof TranslationResponseError ? error.message : null;
+      providerRouting = rerouted ? OPENROUTER_FALLBACK_ROUTING : undefined;
       await sleep(TRANSLATION_RETRY_DELAY_MS);
     }
   }
@@ -133,6 +187,7 @@ async function translateFieldsWithOpenRouter<K extends string>(
   fields: Record<K, string>,
   targetLanguageCode: SecondaryLanguageCode,
   retryReason: string | null,
+  providerRouting: OpenRouterProviderRouting | undefined,
 ): Promise<{ fields: Record<K, string>; cost: UsageCostLine[] }> {
   const keys = Object.keys(fields) as K[];
   const { completion, model } = await createTranslationCompletion(
@@ -140,6 +195,7 @@ async function translateFieldsWithOpenRouter<K extends string>(
     JSON.stringify(fields),
     Object.fromEntries(keys.map((key) => [key, '...'])),
     retryReason,
+    providerRouting,
   );
   const costLine = buildOpenRouterTranslateCostLine(
     completion,
@@ -172,6 +228,7 @@ async function createTranslationCompletion(
   inputJson: string,
   outputFormat: Record<string, string>,
   retryReason: string | null,
+  providerRouting: OpenRouterProviderRouting | undefined,
 ): Promise<{ completion: OpenRouterChatCompletion; model: string }> {
   const { openai, model } = getOpenRouterConfig({
     model: TRANSLATION_MODEL,
@@ -199,9 +256,99 @@ async function createTranslationCompletion(
       temperature: 0,
     },
     null,
+    providerRouting ? { providerRouting } : {},
   );
 
   return { completion, model };
+}
+
+function splitScriptIntoTranslationChunks(
+  script: string,
+  maxChars: number,
+): string[] {
+  if (script.length === 0) return [];
+  if (script.length <= maxChars) return [script];
+
+  const chunks: string[] = [];
+  let pending = '';
+  const flushPending = (): void => {
+    if (!pending) return;
+    chunks.push(pending);
+    pending = '';
+  };
+
+  for (const rawParagraph of script.split(/\n{2,}/u)) {
+    const paragraph = rawParagraph.trim();
+    if (!paragraph) continue;
+    if (paragraph.length > maxChars) {
+      flushPending();
+      chunks.push(...splitLongTranslationParagraph(paragraph, maxChars));
+      continue;
+    }
+
+    const candidate = pending ? `${pending}\n\n${paragraph}` : paragraph;
+    if (candidate.length <= maxChars) {
+      pending = candidate;
+      continue;
+    }
+    flushPending();
+    pending = paragraph;
+  }
+  flushPending();
+  return chunks;
+}
+
+function splitLongTranslationParagraph(
+  paragraph: string,
+  maxChars: number,
+): string[] {
+  const sentences = splitCanonicalSentences(paragraph);
+  if (sentences.length === 0) {
+    return hardSliceTranslationText(paragraph, maxChars);
+  }
+
+  const chunks: string[] = [];
+  let chunkStart: number | null = null;
+  let chunkEnd = 0;
+  const flushSentenceChunk = (): void => {
+    if (chunkStart === null) return;
+    const chunk = paragraph.slice(chunkStart, chunkEnd).trim();
+    if (chunk) chunks.push(chunk);
+    chunkStart = null;
+    chunkEnd = 0;
+  };
+
+  for (const sentence of sentences) {
+    if (sentence.text.length > maxChars) {
+      flushSentenceChunk();
+      chunks.push(...hardSliceTranslationText(sentence.text, maxChars));
+      continue;
+    }
+    if (chunkStart === null) {
+      chunkStart = sentence.startOffset;
+      chunkEnd = sentence.endOffset;
+      continue;
+    }
+
+    const candidate = paragraph.slice(chunkStart, sentence.endOffset).trim();
+    if (candidate.length <= maxChars) {
+      chunkEnd = sentence.endOffset;
+      continue;
+    }
+    flushSentenceChunk();
+    chunkStart = sentence.startOffset;
+    chunkEnd = sentence.endOffset;
+  }
+  flushSentenceChunk();
+  return chunks;
+}
+
+function hardSliceTranslationText(text: string, maxChars: number): string[] {
+  const chunks: string[] = [];
+  for (let index = 0; index < text.length; index += maxChars) {
+    chunks.push(text.slice(index, index + maxChars));
+  }
+  return chunks;
 }
 
 function buildTranslationSystemPrompt(

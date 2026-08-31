@@ -40,6 +40,8 @@ const SUBJECT_CATALOG_MAX_OUTPUT_TOKENS = 3_072;
 const SEARCH_INTENT_REASONING = { enabled: false } as const;
 const NON_LATIN_SCRIPT_PATTERN =
   /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u;
+const CJK_CHARACTER_CAPTURE_PATTERN =
+  /([\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}])/gu;
 
 export interface SearchIntentScene {
   sceneId: string;
@@ -309,7 +311,7 @@ function validateSubjectCatalogGrounding(
       )
     ) {
       throw new Error(
-        `Visual subject ${subject.id} (${subject.canonicalName}) is not grounded in the episode`,
+        `Visual subject ${subject.id} (${subjectNames(subject).join(' / ')}) is not grounded in the episode`,
       );
     }
     for (const sceneId of subject.evidenceSceneIds) {
@@ -376,6 +378,7 @@ function normalizedEntityText(value: string): string {
     .normalize('NFKC')
     .toLocaleLowerCase('en-US')
     .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .replace(CJK_CHARACTER_CAPTURE_PATTERN, ' $1 ')
     .replace(/\s+/gu, ' ')
     .trim();
 }
@@ -451,6 +454,7 @@ export function buildSubjectCatalogSystemPrompt(): string {
     '- Include only named real-world subjects that the supplied title or scenes actually mention: companies, people, products, protocols, places, regulators, assets, standards, or organizations.',
     '- Pick exactly one primary subject: the actor or thing the headline/story is principally about, not a competitor that appears later.',
     '- canonicalName and aliases are identity labels. Do not merge competitors or similarly named things.',
+    '- Copy canonicalName verbatim from the title or scenes. When both an English and a local-script name are present, use the English spelling for canonicalName and put the local-script spelling in aliases. Put descriptive industry, category, and role terms only in identityHints.',
     '- searchQueries must be English news-photo queries and must contain the canonicalName or one alias plus concrete identity context.',
     '- identityHints are 2 to 6 short positive disambiguators such as industry, product, chain, role, or location. They must describe this identity, not a generic mood.',
     '- negativeHints are only known name-collision meanings to reject (for example animal, camera, engine); do not list ordinary competitors as negative hints.',

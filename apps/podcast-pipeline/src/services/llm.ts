@@ -412,7 +412,7 @@ const OPENROUTER_PROVIDER_ROUTING: OpenRouterProviderRouting = {
  * load-balances the retry itself, while `require_parameters` still keeps
  * `response_format` honoured.
  */
-const OPENROUTER_FALLBACK_ROUTING: OpenRouterProviderRouting = {
+export const OPENROUTER_FALLBACK_ROUTING: OpenRouterProviderRouting = {
   require_parameters: true,
 };
 

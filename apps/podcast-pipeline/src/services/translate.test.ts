@@ -14,6 +14,7 @@ vi.mock('./llm.js', async (importOriginal) => ({
   ...mocks,
 }));
 
+import { OPENROUTER_FALLBACK_ROUTING } from './llm.js';
 import { translateCanonicalScript, translateChineseText } from './translate.js';
 
 afterEach(() => {
@@ -47,6 +48,7 @@ describe('translateChineseText', () => {
         temperature: 0,
       }),
       null,
+      {},
     );
   });
 
@@ -158,9 +160,9 @@ describe('translateChineseText', () => {
     await vi.advanceTimersByTimeAsync(500);
     await promise;
 
-    const [, firstRequest] =
+    const [, firstRequest, , firstOptions] =
       mocks.createOpenRouterChatCompletion.mock.calls[0] ?? [];
-    const [, retriedRequest] =
+    const [, retriedRequest, , retriedOptions] =
       mocks.createOpenRouterChatCompletion.mock.calls[1] ?? [];
     expect(firstRequest.messages[1].content).not.toContain(
       'Correction required',
@@ -169,6 +171,8 @@ describe('translateChineseText', () => {
     expect(retriedRequest.messages[1].content).toContain(
       'OpenRouter translation returned explanatory text',
     );
+    expect(firstOptions).toEqual({});
+    expect(retriedOptions).toEqual({});
   });
 
   it('does not add a correction preamble when the provider itself failed', async () => {
@@ -183,11 +187,14 @@ describe('translateChineseText', () => {
     await vi.advanceTimersByTimeAsync(500);
     await promise;
 
-    const [, retriedRequest] =
+    const [, retriedRequest, , retriedOptions] =
       mocks.createOpenRouterChatCompletion.mock.calls[1] ?? [];
     expect(retriedRequest.messages[1].content).not.toContain(
       'Correction required',
     );
+    expect(retriedOptions).toEqual({
+      providerRouting: OPENROUTER_FALLBACK_ROUTING,
+    });
   });
 
   it.each([
@@ -275,6 +282,174 @@ describe('translateCanonicalScript', () => {
     expect(mocks.createOpenRouterChatCompletion).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps a 2,000-character script in one request with its title', async () => {
+    const script = '字'.repeat(2_000);
+    mockEchoedTranslation();
+
+    await expect(
+      translateCanonicalScript({
+        title: '標題',
+        script,
+        targetLanguageCode: 'ja',
+      }),
+    ).resolves.toMatchObject({ title: '標題', script });
+
+    expect(mocks.createOpenRouterChatCompletion).toHaveBeenCalledTimes(1);
+    expect(translationInputForCall(0)).toEqual({ title: '標題', script });
+  });
+
+  it('packs paragraphs into sequential chunks and sends the title only once', async () => {
+    const firstParagraph = '甲'.repeat(1_200);
+    const secondParagraph = '乙'.repeat(900);
+    const thirdParagraph = '丙'.repeat(900);
+    const script = [firstParagraph, secondParagraph, thirdParagraph].join(
+      '\n\n',
+    );
+    mocks.createOpenRouterChatCompletion
+      .mockResolvedValueOnce(
+        completion(
+          JSON.stringify({ title: '翻訳タイトル', script: '翻訳一' }),
+          0.00001,
+        ),
+      )
+      .mockResolvedValueOnce(
+        completion(JSON.stringify({ script: '翻訳二' }), 0.00002),
+      );
+
+    await expect(
+      translateCanonicalScript({
+        title: '標題',
+        script,
+        targetLanguageCode: 'ja',
+      }),
+    ).resolves.toEqual({
+      title: '翻訳タイトル',
+      script: '翻訳一\n\n翻訳二',
+      cost: [
+        expect.objectContaining({ costUsd: 0.00001 }),
+        expect.objectContaining({ costUsd: 0.00002 }),
+      ],
+    });
+
+    expect(translationInputForCall(0)).toEqual({
+      title: '標題',
+      script: firstParagraph,
+    });
+    expect(translationInputForCall(1)).toEqual({
+      script: `${secondParagraph}\n\n${thirdParagraph}`,
+    });
+  });
+
+  it('splits an oversized paragraph only at complete sentence boundaries', async () => {
+    const sentences = ['甲', '乙', '丙', '丁'].map(
+      (character) => `${character.repeat(700)}。`,
+    );
+    mockEchoedTranslation();
+
+    await translateCanonicalScript({
+      title: '標題',
+      script: sentences.join(''),
+      targetLanguageCode: 'ja',
+    });
+
+    const chunks = mocks.createOpenRouterChatCompletion.mock.calls.map(
+      (_call, index) => translationInputForCall(index)['script'] ?? '',
+    );
+    expect(chunks).toHaveLength(2);
+    expect(chunks.every((chunk) => chunk.length <= 2_000)).toBe(true);
+    expect(chunks.every((chunk) => chunk.endsWith('。'))).toBe(true);
+    expect(chunks.join('')).toBe(sentences.join(''));
+  });
+
+  it('hard-slices an oversized single sentence at the character cap', async () => {
+    const script = '甲'.repeat(4_501);
+    mockEchoedTranslation();
+
+    await translateCanonicalScript({
+      title: '標題',
+      script,
+      targetLanguageCode: 'ja',
+    });
+
+    expect(
+      mocks.createOpenRouterChatCompletion.mock.calls.map(
+        (_call, index) => translationInputForCall(index)['script']?.length,
+      ),
+    ).toEqual([2_000, 2_000, 501]);
+  });
+
+  it('retries only the failed chunk and adds correction context to that retry', async () => {
+    vi.useFakeTimers();
+    const script = ['甲'.repeat(1_200), '乙'.repeat(1_200)].join('\n\n');
+    mocks.createOpenRouterChatCompletion
+      .mockResolvedValueOnce(
+        completion(JSON.stringify({ title: '翻訳タイトル', script: '翻訳一' })),
+      )
+      .mockResolvedValueOnce(
+        completion(
+          JSON.stringify({ script: 'Here is the translation: 翻訳二' }),
+        ),
+      )
+      .mockResolvedValueOnce(completion(JSON.stringify({ script: '翻訳二' })));
+
+    const promise = translateCanonicalScript({
+      title: '標題',
+      script,
+      targetLanguageCode: 'ja',
+    });
+    await vi.advanceTimersByTimeAsync(500);
+
+    await expect(promise).resolves.toMatchObject({
+      title: '翻訳タイトル',
+      script: '翻訳一\n\n翻訳二',
+    });
+    expect(mocks.createOpenRouterChatCompletion).toHaveBeenCalledTimes(3);
+    expect(translationUserMessageForCall(0)).not.toContain(
+      'Correction required',
+    );
+    expect(translationUserMessageForCall(1)).not.toContain(
+      'Correction required',
+    );
+    expect(translationUserMessageForCall(2)).toContain('Correction required');
+    expect(translationInputForCall(0)).toHaveProperty('title', '標題');
+    expect(translationInputForCall(1)).not.toHaveProperty('title');
+    expect(translationInputForCall(2)).toEqual(translationInputForCall(1));
+  });
+
+  it('fails closed when one chunk exhausts its retry and logs prior chunk spend', async () => {
+    vi.useFakeTimers();
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const script = ['甲'.repeat(1_200), '乙'.repeat(1_200)].join('\n\n');
+    mocks.createOpenRouterChatCompletion
+      .mockResolvedValueOnce(
+        completion(
+          JSON.stringify({ title: '翻訳タイトル', script: '翻訳一' }),
+          0.1,
+        ),
+      )
+      .mockResolvedValueOnce(completion(JSON.stringify({ script: '   ' }), 0.2))
+      .mockResolvedValueOnce(
+        completion(JSON.stringify({ script: '   ' }), 0.2),
+      );
+
+    const promise = translateCanonicalScript({
+      title: '標題',
+      script,
+      targetLanguageCode: 'ja',
+    });
+    promise.catch(() => undefined);
+    await vi.advanceTimersByTimeAsync(500);
+
+    await expect(promise).rejects.toThrow(
+      'OpenRouter translation returned empty script',
+    );
+    expect(mocks.createOpenRouterChatCompletion).toHaveBeenCalledTimes(3);
+    expect(log.mock.calls.flat().join('\n')).toContain(
+      'translate:failed targetLanguageCode=ja model=openrouter/free attempts=2 spentUsd=0.5',
+    );
+    log.mockRestore();
+  });
+
   it('preserves an empty title while translating the script', async () => {
     mockOpenRouterCompletion(
       JSON.stringify({ title: 'model tried to fill it', script: '翻訳本文' }),
@@ -313,4 +488,41 @@ function completion(content: string, cost = 0.00003) {
     model: 'openrouter/free',
     usage: { cost },
   };
+}
+
+function mockEchoedTranslation(): void {
+  mocks.createOpenRouterChatCompletion.mockImplementation((_openai, request) =>
+    Promise.resolve(
+      completion(JSON.stringify(translationInputFromRequest(request))),
+    ),
+  );
+}
+
+function translationInputForCall(index: number): Record<string, string> {
+  const [, request] =
+    mocks.createOpenRouterChatCompletion.mock.calls[index] ?? [];
+  return translationInputFromRequest(request);
+}
+
+function translationUserMessageForCall(index: number): string {
+  const [, request] =
+    mocks.createOpenRouterChatCompletion.mock.calls[index] ?? [];
+  const content = request?.messages?.[1]?.content;
+  if (typeof content !== 'string') {
+    throw new Error(`Translation call ${index} has no user message`);
+  }
+  return content;
+}
+
+function translationInputFromRequest(request: unknown): Record<string, string> {
+  const content = (
+    request as { messages?: { content?: unknown }[] } | undefined
+  )?.messages?.[1]?.content;
+  if (typeof content !== 'string' || !content.startsWith('Input JSON:\n')) {
+    throw new Error('Translation request has no input JSON');
+  }
+  const json = content
+    .slice('Input JSON:\n'.length)
+    .split('\n\nCorrection required:', 1)[0];
+  return JSON.parse(json ?? '') as Record<string, string>;
 }
