@@ -116,11 +116,38 @@ export type VisualSceneSubjectAssignment = z.infer<
 export function parseVisualSubjectCatalog(
   input: unknown,
 ): VisualSubjectCatalog {
-  const parsed = visualSubjectCatalogSchema.parse(input);
+  const parsed = visualSubjectCatalogSchema.parse(
+    normalizeVisualSubjectCatalogInput(input),
+  );
   return visualSubjectCatalogSchema.parse({
     ...parsed,
     subjects: parsed.subjects.map(disambiguateSubjectIdentity),
   });
+}
+
+/**
+ * LLM JSON is not application state yet. Repair bounded, mechanically obvious
+ * shape drift before strict validation so one verbose completion cannot burn
+ * all three visual attempts for an otherwise valid episode.
+ *
+ * This intentionally does not invent identity content: malformed names, IDs,
+ * domains, missing hints, duplicate primary roles, and ungrounded evidence are
+ * still rejected by the strict schema / grounding pass.
+ */
+export function normalizeVisualSubjectCatalogInput(input: unknown): unknown {
+  if (!isRecord(input)) return input;
+  const primarySubjectId = input['primarySubjectId'];
+  const subjects = input['subjects'];
+  if (typeof primarySubjectId !== 'string' || !Array.isArray(subjects)) {
+    return input;
+  }
+
+  return {
+    ...input,
+    subjects: subjects.map((subject) =>
+      normalizeVisualSubjectInput(subject, primarySubjectId),
+    ),
+  };
 }
 
 export function visualSubjectById(
@@ -168,6 +195,44 @@ export function isAmbiguousVisualSubject(subject: VisualSubject): boolean {
     compact.length <= 4 ||
     /^[a-z]+\d+$/i.test(compact)
   );
+}
+
+function normalizeVisualSubjectInput(
+  input: unknown,
+  primarySubjectId: string,
+): unknown {
+  if (!isRecord(input)) return input;
+  const id = input['id'];
+  const storyRole = input['storyRole'];
+  return {
+    ...input,
+    storyRole: isVisualSubjectRole(storyRole)
+      ? storyRole
+      : id === primarySubjectId
+        ? 'primary'
+        : 'supporting',
+    aliases: capArray(input['aliases'], 6),
+    evidenceSceneIds: capArray(input['evidenceSceneIds'], 64),
+    searchQueries: capArray(input['searchQueries'], 3),
+    identityHints: capArray(input['identityHints'], 8),
+    negativeHints: capArray(input['negativeHints'], 8),
+    officialDomains: capArray(input['officialDomains'], 4),
+  };
+}
+
+function capArray(value: unknown, limit: number): unknown {
+  return Array.isArray(value) ? value.slice(0, limit) : value;
+}
+
+function isVisualSubjectRole(value: unknown): value is VisualSubject['storyRole'] {
+  return (
+    typeof value === 'string' &&
+    (VISUAL_SUBJECT_ROLES as readonly string[]).includes(value)
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function disambiguateSubjectIdentity(subject: VisualSubject): VisualSubject {
