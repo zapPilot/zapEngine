@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
+  alignPendingSocialReleaseCohorts: vi.fn().mockResolvedValue({
+    alignedLanes: 0,
+    rescheduledEpisodes: 0,
+    recoveryEpisodes: [],
+  }),
   listPastDueSocialPublishJobs: vi.fn().mockResolvedValue([]),
   rescheduleSocialPublishJob: vi.fn().mockResolvedValue(true),
   claimSocialPublishBatch: vi.fn().mockResolvedValue([]),
@@ -71,6 +76,11 @@ vi.mock('./daemon-store.js', () => ({
   listUnfinishedSocialPublishJobs: mocks.listUnfinishedSocialPublishJobs,
   reconcileSocialPublishJob: mocks.reconcileSocialPublishJob,
   releaseSocialPublishJobLease: mocks.releaseSocialPublishJobLease,
+}));
+vi.mock('./release-cohort-store.js', () => ({
+  alignPendingSocialReleaseCohorts: mocks.alignPendingSocialReleaseCohorts,
+  listPartiallyPublishedCohorts: vi.fn().mockResolvedValue([]),
+  claimReleaseCohortJobs: mocks.claimSocialPublishBatch,
 }));
 
 vi.mock('../services/db.js', () => ({
@@ -147,6 +157,11 @@ function job(input: Record<string, unknown>) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.alignPendingSocialReleaseCohorts.mockResolvedValue({
+    alignedLanes: 0,
+    rescheduledEpisodes: 0,
+    recoveryEpisodes: [],
+  });
   mocks.listPastDueSocialPublishJobs.mockResolvedValue([]);
   mocks.rescheduleSocialPublishJob.mockResolvedValue(true);
   mocks.claimSocialPublishBatch.mockResolvedValue([]);
@@ -172,19 +187,19 @@ describe('social daemon release-shape stages are fatal', () => {
       runSocialDaemonTick({ now: NOW, firstStartedAt: FIRST_STARTED_AT }),
     ).rejects.toThrow('reconcile lookup down');
 
-    expect(mocks.listPastDueSocialPublishJobs).not.toHaveBeenCalled();
+    expect(mocks.alignPendingSocialReleaseCohorts).not.toHaveBeenCalled();
     expect(mocks.listSocialPublishCandidates).not.toHaveBeenCalled();
     expect(mocks.claimSocialPublishBatch).not.toHaveBeenCalled();
   });
 
-  it('stops the tick when rescheduling a missed slot fails', async () => {
-    mocks.listPastDueSocialPublishJobs.mockRejectedValue(
-      new Error('past-due read down'),
+  it('stops the tick when cohort alignment fails', async () => {
+    mocks.alignPendingSocialReleaseCohorts.mockRejectedValue(
+      new Error('cohort alignment read down'),
     );
 
     await expect(
       runSocialDaemonTick({ now: NOW, firstStartedAt: FIRST_STARTED_AT }),
-    ).rejects.toThrow('past-due read down');
+    ).rejects.toThrow('cohort alignment read down');
 
     expect(mocks.listSocialPublishCandidates).not.toHaveBeenCalled();
     expect(mocks.claimSocialPublishBatch).not.toHaveBeenCalled();

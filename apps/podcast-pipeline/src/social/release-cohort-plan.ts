@@ -150,9 +150,7 @@ export function planPendingSocialReleaseCohorts(
     if (group.some((row) => row.status === 'processing')) continue;
 
     if (hasCompleted) {
-      updates.push(
-        ...pendingUpdates(group, releaseAnchor(group), 'recovery'),
-      );
+      updates.push(...pendingUpdates(group, releaseAnchor(group), 'recovery'));
       continue;
     }
 
@@ -182,9 +180,7 @@ export function planPendingSocialReleaseCohorts(
       continue;
     }
 
-    const after = new Date(
-      Math.max(cohort.earliest.getTime(), now.getTime()),
-    );
+    const after = new Date(Math.max(cohort.earliest.getTime(), now.getTime()));
     const scheduledAt = nextReleaseSlot({
       after,
       scheduled: scheduledArticles,

@@ -16,8 +16,9 @@ export const SOCIAL_DAEMON_STATE_ID = 'local-social-daemon-v1';
 
 // Mirrors the `attempt_count < 8` fence inside `claim_social_publish_batch`. A
 // lane that has burned every attempt is never claimable again, so the queue
-// snapshot flags it rather than reporting a time that will never arrive.
-const MAX_PUBLISH_ATTEMPTS = 8;
+// snapshot flags it rather than reporting a time that will never arrive, and
+// the partial-cohort fence stops treating it as recoverable work.
+export const MAX_PUBLISH_ATTEMPTS = 8;
 
 export type SocialMetricWindowLabel = '1h' | '6h' | '24h' | '72h' | '7d';
 

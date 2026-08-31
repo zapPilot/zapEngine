@@ -2,6 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   claimSocialPublishJob: vi.fn(),
+  alignPendingSocialReleaseCohorts: vi.fn().mockResolvedValue({
+    alignedLanes: 0,
+    rescheduledEpisodes: 0,
+    recoveryEpisodes: [],
+  }),
+  listPartiallyPublishedCohorts: vi.fn().mockResolvedValue([]),
   listPastDueSocialPublishJobs: vi.fn().mockResolvedValue([]),
   rescheduleSocialPublishJob: vi.fn().mockResolvedValue(true),
   completeSocialPublishJob: vi.fn(),
@@ -40,6 +46,15 @@ const mocks = vi.hoisted(() => ({
   capturePipelineException: vi.fn(),
   flushSentry: vi.fn(),
   initSentry: vi.fn(),
+}));
+
+vi.mock('./release-cohort-store.js', () => ({
+  alignPendingSocialReleaseCohorts: mocks.alignPendingSocialReleaseCohorts,
+  listPartiallyPublishedCohorts: mocks.listPartiallyPublishedCohorts,
+  claimReleaseCohortJobs: async (...args: unknown[]) => {
+    const job = await mocks.claimSocialPublishJob(...args);
+    return job ? [job] : [];
+  },
 }));
 
 vi.mock('./daemon-store.js', () => ({
@@ -206,6 +221,12 @@ function mockCandidates(
 }
 
 beforeEach(() => {
+  mocks.alignPendingSocialReleaseCohorts.mockReset().mockResolvedValue({
+    alignedLanes: 0,
+    rescheduledEpisodes: 0,
+    recoveryEpisodes: [],
+  });
+  mocks.listPartiallyPublishedCohorts.mockReset().mockResolvedValue([]);
   vi.clearAllMocks();
   mocks.listPastDueSocialPublishJobs.mockResolvedValue([]);
   mocks.rescheduleSocialPublishJob.mockResolvedValue(true);
@@ -274,10 +295,15 @@ beforeEach(() => {
 });
 
 describe('social daemon', () => {
-  it('reconciles and reschedules before discovering and claiming publish work', async () => {
+  it('reconciles and aligns cohorts before discovering and claiming publish work', async () => {
     mockCandidates(
       fullCohortCandidates(EPISODE_ID, '2026-08-16T00:00:00.000Z'),
     );
+    mocks.alignPendingSocialReleaseCohorts.mockResolvedValue({
+      alignedLanes: 3,
+      rescheduledEpisodes: 1,
+      recoveryEpisodes: [],
+    });
     const log = vi.fn();
 
     await runSocialDaemonTick({
@@ -289,75 +315,20 @@ describe('social daemon', () => {
     expect(
       mocks.listUnfinishedSocialPublishJobs.mock.invocationCallOrder[0],
     ).toBeLessThan(
-      mocks.listPastDueSocialPublishJobs.mock.invocationCallOrder[0]!,
+      mocks.alignPendingSocialReleaseCohorts.mock.invocationCallOrder[0]!,
     );
     expect(
-      mocks.listPastDueSocialPublishJobs.mock.invocationCallOrder[0],
+      mocks.alignPendingSocialReleaseCohorts.mock.invocationCallOrder[0],
     ).toBeLessThan(mocks.enqueueSocialPublishJob.mock.invocationCallOrder[0]!);
     expect(
       mocks.enqueueSocialPublishJob.mock.invocationCallOrder.at(-1),
     ).toBeLessThan(mocks.claimSocialPublishJob.mock.invocationCallOrder[0]!);
-    expect(mocks.publishSocialBatch).not.toHaveBeenCalled();
-  });
-
-  it('moves a lane whose slot it slept through onto the next free one', async () => {
-    mocks.listPastDueSocialPublishJobs.mockResolvedValue([
-      {
-        id: 'job-late',
-        episode_id: EPISODE_ID,
-        platform: 'rednote',
-        language_code: 'zh-Hant',
-        status: 'queued',
-        scheduled_at: '2026-08-15T05:30:00.000Z',
-      },
-    ]);
-    const log = vi.fn();
-
-    await runSocialDaemonTick({
-      now: NOW_PUBLISHING,
-      firstStartedAt: '2026-08-16T00:00:00.000Z',
-      log,
-    });
-
-    // Moved forward, never dropped and never published late in a burst.
-    const [call] = mocks.rescheduleSocialPublishJob.mock.calls;
-    expect(call?.[0]).toMatchObject({ jobId: 'job-late', status: 'queued' });
-    expect(call?.[0].scheduledAt.getTime()).toBeGreaterThan(
-      NOW_PUBLISHING.getTime(),
-    );
     expect(log).toHaveBeenCalledWith(
-      expect.stringContaining('slot missed · moved to'),
+      expect.stringContaining(
+        'repaired release cohorts · 3 lanes aligned · 1 article rescheduled',
+      ),
     );
-  });
-
-  it('moves the language lanes of one platform cohort to the same new slot', async () => {
-    const lane = (id: string, language: string) => ({
-      id,
-      episode_id: EPISODE_ID,
-      platform: 'x' as const,
-      language_code: language,
-      status: 'queued' as const,
-      scheduled_at: '2026-08-15T03:15:00.000Z',
-    });
-    mocks.listPastDueSocialPublishJobs.mockResolvedValue([
-      lane('job-ja', 'ja'),
-      lane('job-en', 'en'),
-    ]);
-
-    await runSocialDaemonTick({
-      now: NOW_PUBLISHING,
-      firstStartedAt: '2026-08-16T00:00:00.000Z',
-    });
-
-    // Lanes of one platform share a slot; moving them apart is the drift the
-    // whole cohort model exists to prevent.
-    const moved = mocks.rescheduleSocialPublishJob.mock.calls.map(
-      ([input]) => input,
-    );
-    expect(moved.map(({ jobId }) => jobId)).toEqual(['job-ja', 'job-en']);
-    expect(
-      new Set(moved.map(({ scheduledAt }) => scheduledAt.toISOString())),
-    ).toHaveProperty('size', 1);
+    expect(mocks.publishSocialBatch).not.toHaveBeenCalled();
   });
 
   it('claims nothing outside the hours a person can watch a browser fail', async () => {
@@ -431,12 +402,11 @@ describe('social daemon', () => {
     // rednote/zh-Hant, threads/ja, x/ja (assigned), youtube/en. Four lanes,
     // not five: YouTube distributes in English only.
     expect(mocks.enqueueSocialPublishJob).toHaveBeenCalledTimes(4);
-    // One log line per platform now, because each one is enqueued onto its own
-    // budget rather than all of them onto one shared slot.
+    // One article-level log line carries every lane on the shared timestamp.
     const enqueueLogs = log.mock.calls
       .map(([line]) => String(line))
-      .filter((line) => line.includes('· queued 1 lane ·'));
-    expect(enqueueLogs).toHaveLength(4);
+      .filter((line) => line.includes('· queued 4 lanes ·'));
+    expect(enqueueLogs).toHaveLength(1);
     expect(enqueueLogs.join('\n')).toContain('“穩定幣真實使用場景”');
     for (const lane of ['📕zh-Hant', '🧵ja', '𝕏ja', '▶️en']) {
       expect(enqueueLogs.some((line) => line.includes(lane))).toBe(true);
@@ -456,7 +426,7 @@ describe('social daemon', () => {
     );
   });
 
-  it('holds back only the platforms still waiting on their own language', async () => {
+  it('holds back the whole article until every required language is ready', async () => {
     mocks.listSocialPublishCandidates.mockResolvedValue([
       {
         episode_id: EPISODE_ID,
@@ -481,11 +451,7 @@ describe('social daemon', () => {
       log,
     });
 
-    // Rednote's own language is ready, so it goes; the platforms waiting on
-    // ja/en say so and wait.
-    expect(
-      mocks.enqueueSocialPublishJob.mock.calls.map(([input]) => input.platform),
-    ).toEqual(['rednote']);
+    expect(mocks.enqueueSocialPublishJob).not.toHaveBeenCalled();
     expect(log).toHaveBeenCalledWith(
       expect.stringContaining(
         '“穩定幣真實使用場景” · cohort not release-ready · 🇯🇵 ja',
@@ -905,8 +871,7 @@ describe('social daemon', () => {
       fullCohortCandidates(EPISODE_ID, '2026-08-10T00:00:00.000Z'),
     );
 
-    // 11:00 JST on the 16th: Rednote's 14:30 has not passed yet, so the
-    // backlog takes it today rather than waiting a whole day.
+    // 11:00 JST on the 16th: the article-level 12:00 slot is still ahead.
     await runSocialDaemonTick({
       now: new Date('2026-08-16T02:00:00.000Z'),
       firstStartedAt: '2026-08-01T00:00:00.000Z',
@@ -920,7 +885,7 @@ describe('social daemon', () => {
         (input) =>
           input.episodeId === EPISODE_ID && input.platform === 'rednote',
       ),
-    ).toMatchObject({ scheduledAt: '2026-08-16T05:30:00.000Z' });
+    ).toMatchObject({ scheduledAt: '2026-08-16T03:00:00.000Z' });
   });
 
   it('does not schedule a stale cohort into a slot that already passed today', async () => {
@@ -928,8 +893,8 @@ describe('social daemon', () => {
       fullCohortCandidates(EPISODE_ID, '2026-08-10T00:00:00.000Z'),
     );
 
-    // 17:00 JST: Rednote's slots are behind us, so it waits for tomorrow
-    // rather than becoming instantly due and publishing off-slot.
+    // 17:00 JST: the article slot is behind us, so the cohort waits for
+    // tomorrow rather than becoming instantly due and publishing off-slot.
     await runSocialDaemonTick({
       now: new Date('2026-08-16T08:00:00.000Z'),
       firstStartedAt: '2026-08-01T00:00:00.000Z',
@@ -938,7 +903,7 @@ describe('social daemon', () => {
     const rednote = mocks.enqueueSocialPublishJob.mock.calls
       .map(([input]) => input)
       .find((input) => input.platform === 'rednote');
-    expect(rednote).toMatchObject({ scheduledAt: '2026-08-17T05:30:00.000Z' });
+    expect(rednote).toMatchObject({ scheduledAt: '2026-08-17T03:00:00.000Z' });
   });
 
   it('skips unavailable metric snapshots, logs collector failures, and ignores null recorded windows', async () => {
@@ -1237,8 +1202,8 @@ describe('social daemon', () => {
   });
 
   it('does not run metrics, snapshots, or strategy when the publish stage fails fatally', async () => {
-    mocks.listPastDueSocialPublishJobs.mockRejectedValue(
-      new Error('past-due read down'),
+    mocks.alignPendingSocialReleaseCohorts.mockRejectedValue(
+      new Error('cohort alignment read down'),
     );
 
     await expect(
@@ -1247,7 +1212,7 @@ describe('social daemon', () => {
         firstStartedAt: '2026-08-16T08:00:00.000Z',
         refreshStrategy: true,
       }),
-    ).rejects.toThrow('past-due read down');
+    ).rejects.toThrow('cohort alignment read down');
 
     expect(mocks.claimSocialPublishJob).not.toHaveBeenCalled();
     expect(mocks.publishSocialBatch).not.toHaveBeenCalled();

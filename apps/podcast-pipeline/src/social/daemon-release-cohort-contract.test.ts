@@ -69,7 +69,8 @@ vi.mock('./daemon-store.js', () => ({
   listLearningSocialPosts: mocks.listLearningSocialPosts,
   listLearningSocialMetrics: mocks.listLearningSocialMetrics,
   listMetricWindowsForPosts: mocks.listMetricWindowsForPosts,
-  listSocialEpisodeLocalizationTitles: mocks.listSocialEpisodeLocalizationTitles,
+  listSocialEpisodeLocalizationTitles:
+    mocks.listSocialEpisodeLocalizationTitles,
   listSocialPublishCandidates: mocks.listSocialPublishCandidates,
   listSocialPublishCandidatesForEpisodes:
     mocks.listSocialPublishCandidatesForEpisodes,
@@ -144,7 +145,13 @@ beforeEach(() => {
   mocks.listSocialPostsByEpisode.mockResolvedValue([]);
   mocks.listSocialEpisodeLocalizationTitles.mockResolvedValue([]);
   mocks.getOrCreateExperimentAssignment.mockImplementation(
-    ({ experimentKey, episodeId }: { experimentKey: string; episodeId: string }) =>
+    ({
+      experimentKey,
+      episodeId,
+    }: {
+      experimentKey: string;
+      episodeId: string;
+    }) =>
       Promise.resolve({
         experiment_key: experimentKey,
         episode_id: episodeId,
@@ -230,6 +237,22 @@ describe('NON-NEGOTIABLE episode release cohort contract', () => {
     });
   });
 
+  it('says so when a partial release holds the queue with nothing due', async () => {
+    mocks.listPartiallyPublishedCohorts.mockResolvedValue([ARTICLE_A]);
+    mocks.claimReleaseCohortJobs.mockResolvedValue([]);
+    const log = vi.fn();
+
+    await runSocialDaemonTick({
+      now: NOW,
+      firstStartedAt: FIRST_STARTED_AT,
+      log,
+    });
+
+    expect(log).toHaveBeenCalledWith(
+      expect.stringContaining('partial release holds the queue'),
+    );
+  });
+
   it('repairs the durable queue before discovering any new article', async () => {
     const candidates = readyEpisode(ARTICLE_A);
     mocks.listSocialPublishCandidates.mockResolvedValue(candidates);
@@ -239,7 +262,9 @@ describe('NON-NEGOTIABLE episode release cohort contract', () => {
 
     expect(
       mocks.alignPendingSocialReleaseCohorts.mock.invocationCallOrder[0],
-    ).toBeLessThan(mocks.listSocialPublishCandidates.mock.invocationCallOrder[0]!);
+    ).toBeLessThan(
+      mocks.listSocialPublishCandidates.mock.invocationCallOrder[0]!,
+    );
   });
 
   it('uses the zh-Hant title as the article title even when another lane is discovered first', async () => {

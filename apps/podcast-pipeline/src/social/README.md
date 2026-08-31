@@ -10,16 +10,16 @@ in production; it does not define a competing policy.
 
 ## Canonical sources
 
-| Concern | Canonical source |
-| --- | --- |
-| Product invariant | `apps/podcast-pipeline/AGENTS.md` — Social release cohort invariant |
-| Executable invariant | `src/social/daemon-release-cohort-contract.test.ts` + `scripts/check-social-release-contract.mjs` |
-| Release-lane shape | `src/social/cohort.ts` + `src/social/policy.ts` (`SOCIAL_LANGUAGE_POLICY`) |
-| Article timing policy | `src/social/policy.ts` (`SOCIAL_RELEASE_DAILY_CAP`, `SOCIAL_RELEASE_SLOTS`) |
-| Scheduling / recovery implementation | `src/social/daemon.ts`, `src/social/release-cohort-store.ts`, `src/social/slot-policy.ts` |
-| Platform media / CTA behavior | `src/social/platforms.ts`, `src/brand/cta.ts` |
-| Session / auth behavior | platform auth modules under `src/social/` |
-| Runtime/env key registry | `config/env.manifest.mjs` |
+| Concern                              | Canonical source                                                                                  |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| Product invariant                    | `apps/podcast-pipeline/AGENTS.md` — Social release cohort invariant                               |
+| Executable invariant                 | `src/social/daemon-release-cohort-contract.test.ts` + `scripts/check-social-release-contract.mjs` |
+| Release-lane shape                   | `src/social/cohort.ts` + `src/social/policy.ts` (`SOCIAL_LANGUAGE_POLICY`)                        |
+| Article timing policy                | `src/social/policy.ts` (`SOCIAL_RELEASE_DAILY_CAP`, `SOCIAL_RELEASE_SLOTS`)                       |
+| Scheduling / recovery implementation | `src/social/daemon.ts`, `src/social/release-cohort-store.ts`, `src/social/slot-policy.ts`         |
+| Platform media / CTA behavior        | `src/social/platforms.ts`, `src/brand/cta.ts`                                                     |
+| Session / auth behavior              | platform auth modules under `src/social/`                                                         |
+| Runtime/env key registry             | `config/env.manifest.mjs`                                                                         |
 
 Implementation is not allowed to redefine the product invariant by observation.
 If code and the invariant disagree, the invariant and its executable contract are
@@ -62,12 +62,12 @@ active platform × language lanes are not independent scheduling units.
 
 Current language allocation is:
 
-| Platform | Language allocation | Media |
-| --- | --- | --- |
-| Rednote | `zh-Hant` | full video |
-| Threads | `ja` | teaser |
-| X | `en` / `ja` via `x-language-v1` | teaser |
-| YouTube | `en` | full video |
+| Platform | Language allocation             | Media      |
+| -------- | ------------------------------- | ---------- |
+| Rednote  | `zh-Hant`                       | full video |
+| Threads  | `ja`                            | teaser     |
+| X        | `en` / `ja` via `x-language-v1` | teaser     |
+| YouTube  | `en`                            | full video |
 
 Current article timing is **1 article per JST day at 12:00 JST**. Every active
 lane for that article receives the same `scheduled_at`.
@@ -145,8 +145,14 @@ normal steady state.
 
 While a partial cohort exists, `publishDueJobs()` restricts the claim RPC to that
 `episode_id`. If the remaining failed lane is still serving retry backoff, the
-daemon publishes nothing else that tick. Only after the article is complete may
-a fresh episode begin publishing.
+daemon publishes nothing else that tick and logs that it is holding. Only after
+the article is complete may a fresh episode begin publishing.
+
+That hold is always bounded. A lane that has burned every publish attempt can
+never be claimed again, so it is not counted as unfinished work: the article is
+reported as `blocked (N attempts exhausted)` in the queue summary and the rest of
+the queue keeps releasing. Recovering it is an operator action, not something the
+daemon waits on forever.
 
 A platform success is authoritative and is never undone. Recovery checks
 persisted `social_posts` before transport so a lane that published before a crash
@@ -224,12 +230,12 @@ override for smoke testing.
 
 Current media shape is owned by `platforms.ts`:
 
-| Platform | Local MP4 required | Published media |
-| --- | --- | --- |
-| X | yes | teaser, or full video when already within X duration limit |
-| Threads | no | teaser prepared/reused from the language public video |
-| Rednote | yes | local `zh-Hant` full video |
-| YouTube | yes | local `en` full video |
+| Platform | Local MP4 required | Published media                                            |
+| -------- | ------------------ | ---------------------------------------------------------- |
+| X        | yes                | teaser, or full video when already within X duration limit |
+| Threads  | no                 | teaser prepared/reused from the language public video      |
+| Rednote  | yes                | local `zh-Hant` full video                                 |
+| YouTube  | yes                | local `en` full video                                      |
 
 X and Threads share the deterministic teaser path where possible. Rednote and
 YouTube publish full localization videos for their active language policy.

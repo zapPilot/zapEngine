@@ -38,11 +38,7 @@ requireMatch(
   daemon,
   /resolveReleaseCohortLanes/,
 );
-requireMatch(
-  'daemon article slot scheduling',
-  daemon,
-  /nextReleaseSlot/,
-);
+requireMatch('daemon article slot scheduling', daemon, /nextReleaseSlot/);
 requireMatch(
   'daemon partial cohort fence',
   daemon,
@@ -53,6 +49,11 @@ requireMatch(
   recovery,
   /alignPendingSocialReleaseCohorts/,
 );
+// The partial-cohort fence stops every other article while it holds. Mirroring
+// the claim RPC's attempt fence is what keeps that hold bounded instead of
+// permanent, so it is guarded here and not only by the unit tests.
+requireMatch('bounded partial-cohort fence', recovery, /MAX_PUBLISH_ATTEMPTS/);
+requireMatch('paged durable queue read', recovery, /\.range\(\s*offset/);
 requireMatch(
   'README episode scheduling unit',
   readme,
@@ -74,11 +75,7 @@ forbidMatch('daemon', daemon, /platformBudgetIndex/);
 forbidMatch('daemon', daemon, /nextBudgetSlot/);
 forbidMatch('policy', policy, /PLATFORM_PUBLISH_POLICY/);
 forbidMatch('README', readme, /\(episode, platform\) is the scheduling unit/i);
-forbidMatch(
-  'README',
-  readme,
-  /different platforms[^\n]*independent releases/i,
-);
+forbidMatch('README', readme, /different platforms[^\n]*independent releases/i);
 
 for (const path of [contractTest, recoveryTest]) {
   if (!existsSync(resolve(root, path))) {

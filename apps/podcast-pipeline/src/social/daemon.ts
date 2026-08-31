@@ -284,7 +284,9 @@ async function discoverAndEnqueue(input: {
   ]);
   if (candidates.length === 0) return;
 
-  const episodeIds = [...new Set(candidates.map((candidate) => candidate.episode_id))];
+  const episodeIds = [
+    ...new Set(candidates.map((candidate) => candidate.episode_id)),
+  ];
   const [readyCandidates, titleByEpisodeLanguage] = await Promise.all([
     listSocialPublishCandidatesForEpisodes(episodeIds),
     loadEpisodeTitleMap(episodeIds),
@@ -484,8 +486,10 @@ async function persistPublishFailure(input: {
  * A partially published episode is exceptional recovery state. It fences the
  * queue until that episode is complete; if none of its remaining lanes are due
  * yet, this tick intentionally publishes nothing instead of starting a fresh
- * article. Transport calls within one release cycle may differ by seconds or
- * minutes, but that is not staggered scheduling.
+ * article. That hold is bounded by retry backoff, because a lane that can never
+ * be claimed again is excluded from the fence upstream. Transport calls within
+ * one release cycle may differ by seconds or minutes, but that is not staggered
+ * scheduling.
  */
 async function publishDueJobs(
   now: Date,
@@ -502,7 +506,16 @@ async function publishDueJobs(
         episodeId: recoveryEpisode,
       })
     : await claimReleaseCohortJobs({ owner: OWNER, now });
-  if (jobs.length === 0) return;
+  if (jobs.length === 0) {
+    // A fence that publishes nothing is the one state an operator cannot tell
+    // apart from an idle queue, so it says so rather than returning silently.
+    if (recoveryEpisode) {
+      log(
+        `⏸️ [social-daemon] ${shortId(recoveryEpisode)} · partial release holds the queue · no lane due yet`,
+      );
+    }
+    return;
+  }
 
   const [active, titleByEpisodeLanguage] = await Promise.all([
     activeStrategiesForPublish(log),

@@ -2,11 +2,19 @@ import {
   getPipelineSupabase,
   throwSupabaseError,
 } from '../services/supabase-client.js';
-import type { SocialPublishJobRow } from './daemon-store.js';
+import {
+  MAX_PUBLISH_ATTEMPTS,
+  type SocialPublishJobRow,
+} from './daemon-store.js';
 import {
   planPendingSocialReleaseCohorts,
   type ReleaseScheduleRow,
 } from './release-cohort-plan.js';
+
+/** The plan's input plus the one column only the claim fence cares about. */
+interface ReleaseQueueRow extends ReleaseScheduleRow {
+  attempt_count: number;
+}
 
 export interface ReleaseCohortAlignmentResult {
   alignedLanes: number;
@@ -14,15 +22,37 @@ export interface ReleaseCohortAlignmentResult {
   recoveryEpisodes: string[];
 }
 
-async function listReleaseScheduleRows(): Promise<ReleaseScheduleRow[]> {
-  const { data, error } = await getPipelineSupabase()
-    .from('social_publish_jobs')
-    .select('id,episode_id,status,scheduled_at,next_attempt_at,completed_at')
-    .in('status', ['queued', 'failed', 'processing', 'completed'])
-    .order('scheduled_at', { ascending: true })
-    .returns<ReleaseScheduleRow[]>();
-  if (error) throwSupabaseError(error);
-  return data ?? [];
+const RELEASE_QUEUE_PAGE_SIZE = 1000;
+
+/**
+ * Reads the whole durable queue. It is paged because PostgREST truncates a
+ * response at its default page size without an error, and a plan built from a
+ * truncated queue would silently double-book article slots. Paging is keyed on
+ * `id` rather than `scheduled_at`, because a cohort's lanes deliberately share
+ * one `scheduled_at` and rows would shift between pages; the article ordering
+ * the plan and the recovery fence rely on is restored in memory.
+ */
+async function listReleaseScheduleRows(): Promise<ReleaseQueueRow[]> {
+  const rows: ReleaseQueueRow[] = [];
+  for (let offset = 0; ; offset += RELEASE_QUEUE_PAGE_SIZE) {
+    const { data, error } = await getPipelineSupabase()
+      .from('social_publish_jobs')
+      .select(
+        'id,episode_id,status,scheduled_at,next_attempt_at,completed_at,attempt_count',
+      )
+      .in('status', ['queued', 'failed', 'processing', 'completed'])
+      .order('id', { ascending: true })
+      .range(offset, offset + RELEASE_QUEUE_PAGE_SIZE - 1)
+      .returns<ReleaseQueueRow[]>();
+    if (error) throwSupabaseError(error);
+    const page = data ?? [];
+    rows.push(...page);
+    if (page.length < RELEASE_QUEUE_PAGE_SIZE) break;
+  }
+  return rows.sort(
+    (left, right) =>
+      Date.parse(left.scheduled_at) - Date.parse(right.scheduled_at),
+  );
 }
 
 /**
@@ -66,20 +96,30 @@ export async function alignPendingSocialReleaseCohorts(
   };
 }
 
-/** A completed lane plus any unfinished sibling makes an exceptional recovery cohort. */
+/**
+ * A completed lane plus a sibling that can still be claimed makes an
+ * exceptional recovery cohort. A lane that has burned every attempt is dead,
+ * not unfinished: `claim_social_publish_batch` can never return it again, so
+ * fencing the queue on its article would stop every other article forever
+ * instead of for one retry backoff. Such an article is reported as blocked by
+ * the queue summary rather than held here.
+ */
 export async function listPartiallyPublishedCohorts(): Promise<string[]> {
   const rows = await listReleaseScheduleRows();
-  const byEpisode = new Map<string, Set<SocialPublishJobRow['status']>>();
+  const byEpisode = new Map<string, { published: boolean; claimable: boolean }>(
+    [],
+  );
   for (const row of rows) {
-    const statuses = byEpisode.get(row.episode_id) ?? new Set();
-    statuses.add(row.status);
-    byEpisode.set(row.episode_id, statuses);
+    const cohort = byEpisode.get(row.episode_id) ?? {
+      published: false,
+      claimable: false,
+    };
+    if (row.status === 'completed') cohort.published = true;
+    else if (row.attempt_count < MAX_PUBLISH_ATTEMPTS) cohort.claimable = true;
+    byEpisode.set(row.episode_id, cohort);
   }
-  return [...byEpisode.entries()].flatMap(([episodeId, statuses]) =>
-    statuses.has('completed') &&
-    [...statuses].some((status) => status !== 'completed')
-      ? [episodeId]
-      : [],
+  return [...byEpisode.entries()].flatMap(([episodeId, cohort]) =>
+    cohort.published && cohort.claimable ? [episodeId] : [],
   );
 }
 

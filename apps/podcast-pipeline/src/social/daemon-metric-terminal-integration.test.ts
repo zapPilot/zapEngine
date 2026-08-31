@@ -30,6 +30,16 @@ vi.mock('./daemon-store.js', async (importOriginal) => ({
   listUnfinishedSocialPublishJobs: mocks.listUnfinishedSocialPublishJobs,
 }));
 
+vi.mock('./release-cohort-store.js', () => ({
+  alignPendingSocialReleaseCohorts: vi.fn().mockResolvedValue({
+    alignedLanes: 0,
+    rescheduledEpisodes: 0,
+    recoveryEpisodes: [],
+  }),
+  listPartiallyPublishedCohorts: vi.fn().mockResolvedValue([]),
+  claimReleaseCohortJobs: mocks.claimSocialPublishBatch,
+}));
+
 vi.mock('../services/db.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../services/db.js')>()),
   insertSocialPostMetric: mocks.insertSocialPostMetric,
