@@ -80,6 +80,33 @@ function parseNameColumn(output) {
   return names;
 }
 
+function parseFlySecrets(output, label) {
+  let parsed;
+  try {
+    parsed = JSON.parse(output);
+  } catch {
+    throw new Error(`not checkable: ${label} did not return valid JSON`);
+  }
+  const entries = [];
+  const visit = (value) => {
+    if (Array.isArray(value)) {
+      for (const item of value) visit(item);
+      return;
+    }
+    if (!value || typeof value !== 'object') return;
+    if (
+      typeof value.name === 'string' &&
+      ENV_NAME.test(value.name) &&
+      typeof value.status === 'string'
+    ) {
+      entries.push({ name: value.name, status: value.status });
+    }
+    for (const child of Object.values(value)) visit(child);
+  };
+  visit(parsed);
+  return entries;
+}
+
 function vercelProjectRef(destination) {
   const project = destination.projectId ?? destination.project;
   if (!project)
@@ -97,15 +124,27 @@ function vercelProjectEnv(destination) {
   };
 }
 
-export function listFlyKeys(destination) {
+export function listFlySecrets(destination) {
   if (!process.env.FLY_API_TOKEN) {
     throw new Error('not checkable: set FLY_API_TOKEN');
   }
-  return parseJsonNames(
+  return parseFlySecrets(
     run(FLY_BIN, ['secrets', 'list', '--app', destination.app, '--json'], {
       failure: 'not checkable: FLY_API_TOKEN cannot read Fly secrets',
     }),
     `Fly ${destination.app}`,
+  );
+}
+
+export function listFlyKeys(destination) {
+  return new Set(listFlySecrets(destination).map((entry) => entry.name));
+}
+
+export function listStagedFlyKeys(destination) {
+  return new Set(
+    listFlySecrets(destination)
+      .filter((entry) => entry.status !== 'Deployed')
+      .map((entry) => entry.name),
   );
 }
 
@@ -172,27 +211,29 @@ export function listDestinationKeys(destination) {
   );
 }
 
-// Both secret writes below redeploy the app, and that redeploy always uses the
-// config Fly stored at the last `fly deploy` -- passing `-c` here does not
-// change it (tried in c28e3418, reverted). `fly deploy --config` is the only
-// path that writes this repo's fly.toml back to the platform, so editing
-// fly.toml is not the same as changing how the app rolls out; check what Fly
-// actually holds with `flyctl config show --app <name>`. Ignoring that gap is
-// how podcast-pipeline stayed on bluegreen after its fly.toml banned it, and
-// every env-apply run cloned the whole fleet before failing `wait timeout`.
-export function importFlyValues(destination, values) {
+// Fly secret writes normally redeploy the app using the config Fly stored at
+// the last `fly deploy`; passing `-c` here does not replace that stored config.
+// During a code deploy we therefore stage secret writes and let the following
+// `fly deploy --config` apply staged secrets, the new image, and this repo's
+// fly.toml in one rollout. Standalone env-apply intentionally leaves stage=false
+// because its whole purpose is to make an env-only change live immediately.
+export function importFlyValues(destination, values, { stage = false } = {}) {
   const input = `${Object.entries(values)
     .map(([name, value]) => `${name}=${value}`)
     .join('\n')}\n`;
-  run(FLY_BIN, ['secrets', 'import', '--app', destination.app], {
+  const args = ['secrets', 'import', '--app', destination.app];
+  if (stage) args.push('--stage');
+  run(FLY_BIN, args, {
     input,
     failure: `Fly sync failed for ${destination.app}`,
   });
 }
 
-export function unsetFlyKeys(destination, names) {
+export function unsetFlyKeys(destination, names, { stage = false } = {}) {
   if (names.length === 0) return;
-  run(FLY_BIN, ['secrets', 'unset', ...names, '--app', destination.app], {
+  const args = ['secrets', 'unset', ...names, '--app', destination.app];
+  if (stage) args.push('--stage');
+  run(FLY_BIN, args, {
     failure: `Fly prune failed for ${destination.app}`,
   });
 }

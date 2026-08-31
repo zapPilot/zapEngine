@@ -6,7 +6,16 @@ import path from 'node:path';
 import test from 'node:test';
 
 import { ENV_DESTINATIONS } from '../../config/env.destinations.mjs';
-import { listVercelKeys } from './remote.mjs';
+import {
+  buildFlyDeployArgs,
+  deployFly,
+  isDepotInfrastructureFailure,
+} from '../fly-deploy.mjs';
+import {
+  importFlyValues,
+  listStagedFlyKeys,
+  listVercelKeys,
+} from './remote.mjs';
 
 const VERCEL_DESTINATIONS = Object.entries(ENV_DESTINATIONS).filter(
   ([, destination]) => destination.platform === 'vercel',
@@ -36,6 +45,86 @@ function stubVercel({ stdout = '[]', stderr = '', status = 0 }) {
   return {
     argv: async () => (await readFile(argvLog, 'utf8')).trim().split('\n'),
     linkEnv: async () => (await readFile(envLog, 'utf8')).split('\n'),
+  };
+}
+
+function stubFlyctl() {
+  const dir = mkdtempSync(path.join(tmpdir(), 'env-fly-'));
+  const argvLog = path.join(dir, 'argv');
+  const stdinLog = path.join(dir, 'stdin');
+  writeFileSync(
+    path.join(dir, 'flyctl'),
+    [
+      '#!/bin/sh',
+      `printf '%s\n' "$@" > ${JSON.stringify(argvLog)}`,
+      `cat > ${JSON.stringify(stdinLog)}`,
+    ].join('\n'),
+    { mode: 0o755 },
+  );
+  process.env.PATH = `${dir}${path.delimiter}${process.env.PATH}`;
+  process.env.FLY_API_TOKEN = 'stub-token';
+  return {
+    argv: async () => (await readFile(argvLog, 'utf8')).trim().split('\n'),
+    stdin: async () => await readFile(stdinLog, 'utf8'),
+  };
+}
+
+function stubFlyctlJson(stdout) {
+  const dir = mkdtempSync(path.join(tmpdir(), 'env-fly-json-'));
+  const argvLog = path.join(dir, 'argv');
+  writeFileSync(
+    path.join(dir, 'flyctl'),
+    [
+      '#!/bin/sh',
+      `printf '%s\n' "$@" > ${JSON.stringify(argvLog)}`,
+      `printf '%s' ${JSON.stringify(stdout)}`,
+    ].join('\n'),
+    { mode: 0o755 },
+  );
+  process.env.PATH = `${dir}${path.delimiter}${process.env.PATH}`;
+  process.env.FLY_API_TOKEN = 'stub-token';
+  return {
+    argv: async () => (await readFile(argvLog, 'utf8')).trim().split('\n'),
+  };
+}
+
+function stubFlyctlDeploy(sequence) {
+  const dir = mkdtempSync(path.join(tmpdir(), 'env-fly-deploy-'));
+  const countFile = path.join(dir, 'count');
+  const sequenceFile = path.join(dir, 'sequence.json');
+  writeFileSync(countFile, '0');
+  writeFileSync(sequenceFile, JSON.stringify(sequence));
+  // Node stub handles arbitrary stdout/stderr and exit codes without shell escaping issues.
+  writeFileSync(
+    path.join(dir, 'flyctl'),
+    [
+      '#!/usr/bin/env node',
+      "import { readFileSync, writeFileSync } from 'node:fs';",
+      `const DIR = ${JSON.stringify(dir)};`,
+      `const COUNT_FILE = ${JSON.stringify(countFile)};`,
+      `const SEQUENCE_FILE = ${JSON.stringify(sequenceFile)};`,
+      'let count = 0;',
+      'try { count = parseInt(readFileSync(COUNT_FILE, "utf8"), 10) || 0; } catch {}',
+      'count += 1;',
+      'writeFileSync(COUNT_FILE, String(count));',
+      'writeFileSync(`${DIR}/argv-${count}`, process.argv.slice(2).join("\\n"));',
+      'const seq = JSON.parse(readFileSync(SEQUENCE_FILE, "utf8"));',
+      'const entry = seq[count - 1] ?? { code: 0, stdout: "", stderr: "" };',
+      'if (entry.stdout) process.stdout.write(entry.stdout);',
+      'if (entry.stderr) process.stderr.write(entry.stderr);',
+      'process.exit(entry.code ?? entry.status ?? 0);',
+    ].join('\n'),
+    { mode: 0o755 },
+  );
+  process.env.PATH = `${dir}${path.delimiter}${process.env.PATH}`;
+  process.env.FLY_API_TOKEN = 'stub-token';
+  return {
+    argv: async (n) =>
+      (await readFile(path.join(dir, `argv-${n}`), 'utf8'))
+        .trim()
+        .split('\n')
+        .filter((line) => line.length > 0),
+    count: async () => parseInt(await readFile(countFile, 'utf8'), 10) || 0,
   };
 }
 
@@ -69,4 +158,193 @@ test('a failing CLI reports its own stderr and exit code', () => {
       message: /vercel exited 1: Error: Project not found/u,
     },
   );
+});
+
+test('Fly env reconciliation can stage secrets without starting a rollout', async () => {
+  const stub = stubFlyctl();
+  const destination = ENV_DESTINATIONS['podcast-pipeline'];
+  importFlyValues(destination, { TEST_SECRET: 'value' }, { stage: true });
+
+  assert.deepEqual(await stub.argv(), [
+    'secrets',
+    'import',
+    '--app',
+    destination.app,
+    '--stage',
+  ]);
+  assert.equal(await stub.stdin(), 'TEST_SECRET=value\n');
+});
+
+test('standalone Fly env apply remains immediate by default', async () => {
+  const stub = stubFlyctl();
+  const destination = ENV_DESTINATIONS['podcast-pipeline'];
+  importFlyValues(destination, { TEST_SECRET: 'value' });
+  assert.equal((await stub.argv()).includes('--stage'), false);
+});
+
+test('Fly deploy builds args with release metadata', () => {
+  assert.deepEqual(
+    buildFlyDeployArgs({
+      config: 'apps/analytics-engine/fly.toml',
+      captureRelease: true,
+      commitSha: 'abc123',
+      buildTime: '2026-08-31T04:29:24Z',
+    }),
+    [
+      'deploy',
+      '.',
+      '--remote-only',
+      '--config',
+      'apps/analytics-engine/fly.toml',
+      '--build-arg',
+      'COMMIT_SHA=abc123',
+      '--build-arg',
+      'BUILD_TIME=2026-08-31T04:29:24Z',
+    ],
+  );
+});
+
+test('Fly deploy builds args without release metadata', () => {
+  assert.deepEqual(
+    buildFlyDeployArgs({
+      config: 'apps/podcast-pipeline/fly.toml',
+    }),
+    [
+      'deploy',
+      '.',
+      '--remote-only',
+      '--config',
+      'apps/podcast-pipeline/fly.toml',
+    ],
+  );
+});
+
+test('Depot fallback only matches builder infrastructure failures', () => {
+  assert.equal(
+    isDepotInfrastructureFailure(
+      'Error: failed to fetch an image or build from source: error building: timed out connecting to machine: failed to list workers: Unavailable: connection error: desc = "transport: authentication handshake failed: EOF"',
+    ),
+    true,
+  );
+  assert.equal(
+    isDepotInfrastructureFailure(
+      'Waiting for depot builder...\nError: failed to fetch an image or build from source: error building: process "/bin/sh -c pnpm build" did not complete successfully: exit code: 1',
+    ),
+    false,
+  );
+});
+
+test('deployFly retries once on Depot infrastructure failure with same argv', async () => {
+  const depotError =
+    'Error: failed to fetch an image or build from source: error building: failed to list workers: Unavailable: connection error: desc = "transport: authentication handshake failed: EOF"';
+  const stub = stubFlyctlDeploy([
+    { code: 1, stderr: depotError },
+    { code: 0, stderr: '' },
+  ]);
+
+  const code = await deployFly({
+    config: 'apps/analytics-engine/fly.toml',
+    sleepMs: 10,
+  });
+
+  assert.equal(code, 0);
+  assert.equal(await stub.count(), 2);
+  const argv1 = await stub.argv(1);
+  const argv2 = await stub.argv(2);
+  assert.deepEqual(argv1, argv2);
+});
+
+test('deployFly retry preserves release metadata', async () => {
+  const depotError =
+    'Error: failed to fetch an image or build from source: error building: timed out connecting to machine: failed to list workers: Unavailable';
+  const stub = stubFlyctlDeploy([
+    { code: 1, stderr: depotError },
+    { code: 0, stderr: '' },
+  ]);
+
+  const code = await deployFly({
+    config: 'apps/analytics-engine/fly.toml',
+    captureRelease: true,
+    commitSha: 'abc123',
+    buildTime: '2026-08-31T04:29:24Z',
+    sleepMs: 10,
+  });
+
+  assert.equal(code, 0);
+  assert.equal(await stub.count(), 2);
+  const argv1 = await stub.argv(1);
+  const argv2 = await stub.argv(2);
+  assert.deepEqual(argv1, argv2);
+  assert.ok(argv1.includes('--build-arg'));
+  assert.ok(argv1.includes('COMMIT_SHA=abc123'));
+  assert.ok(argv1.includes('BUILD_TIME=2026-08-31T04:29:24Z'));
+});
+
+test('deployFly does not retry on non-Depot failures', async () => {
+  const stub = stubFlyctlDeploy([
+    {
+      code: 1,
+      stderr:
+        'Waiting for depot builder...\nError: failed to fetch an image or build from source: error building: process "/bin/sh -c pnpm build" did not complete successfully: exit code: 1',
+    },
+  ]);
+
+  const code = await deployFly({
+    config: 'apps/analytics-engine/fly.toml',
+    sleepMs: 10,
+  });
+
+  assert.equal(code, 1);
+  assert.equal(await stub.count(), 1);
+});
+
+test('deployFly does not retry on success', async () => {
+  const stub = stubFlyctlDeploy([{ code: 0, stderr: '' }]);
+
+  const code = await deployFly({
+    config: 'apps/analytics-engine/fly.toml',
+    sleepMs: 10,
+  });
+
+  assert.equal(code, 0);
+  assert.equal(await stub.count(), 1);
+});
+
+test('deployFly returns second exit code when retry also fails', async () => {
+  const depotError =
+    'Error: failed to fetch an image or build from source: error building: deadline_exceeded: context deadline exceeded';
+  const stub = stubFlyctlDeploy([
+    { code: 1, stderr: depotError },
+    { code: 1, stderr: depotError },
+  ]);
+
+  const code = await deployFly({
+    config: 'apps/analytics-engine/fly.toml',
+    sleepMs: 10,
+  });
+
+  assert.equal(code, 1);
+  assert.equal(await stub.count(), 2);
+});
+
+test('listStagedFlyKeys reports staged secrets', async () => {
+  const stdout = JSON.stringify([
+    { name: 'SUPABASE_URL', digest: 'abc', status: 'Deployed' },
+    { name: 'STAGED_SECRET', digest: 'def', status: 'Staged' },
+    { name: 'PENDING_SECRET', digest: 'ghi', status: 'Pending' },
+  ]);
+  stubFlyctlJson(stdout);
+  const destination = ENV_DESTINATIONS['podcast-pipeline'];
+  const staged = listStagedFlyKeys(destination);
+  assert.deepEqual([...staged].sort(), ['PENDING_SECRET', 'STAGED_SECRET']);
+});
+
+test('listStagedFlyKeys returns empty when all Deployed', async () => {
+  const stdout = JSON.stringify([
+    { name: 'SUPABASE_URL', digest: 'abc', status: 'Deployed' },
+  ]);
+  stubFlyctlJson(stdout);
+  const destination = ENV_DESTINATIONS['podcast-pipeline'];
+  const staged = listStagedFlyKeys(destination);
+  assert.equal(staged.size, 0);
 });

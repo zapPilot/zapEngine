@@ -49,7 +49,7 @@ jobs:
     env:
       # `setup-env-tooling` fails unless all six credentials are present, so the
       # two this workflow never reads are still supplied. FLY_API_TOKEN here is
-      # the fleet token used to write secrets; the deploy step overrides it with
+      # the fleet token used to stage secrets; the deploy step overrides it with
       # the app's own deploy token.
       EXPO_TOKEN: ${{ secrets.expo_token }}
       FLY_API_TOKEN: ${{ secrets.env_fly_token }}
@@ -75,24 +75,26 @@ jobs:
         # admin-controlled via .github/fly-apps.json, so intentional word-splitting is safe.
         run: pnpm run $VERIFY_SCRIPT
 
-      # Also installs the pinned flyctl the deploy step below calls.
+      # Also installs the flyctl the deploy step below calls. Note the action
+      # SHA is pinned but the flyctl binary is not — it tracks latest.
       - uses: ./.github/actions/setup-env-tooling
 
-      # `Environment apply` only runs when a tracked env file changes, and it is
-      # ordered against nothing, so the code shipped below could otherwise reach
-      # production ahead of the manifest it needs — or behind a rail that failed
-      # silently. Re-asserting this one destination from the same manifest makes
-      # every deploy self-healing, and a missing `requiredFor` value fails here
-      # with a named key instead of as a boot crash loop after the release.
+      # Every code deploy reasserts this app's manifest so code cannot outrun a
+      # required env value. Fly secret writes normally trigger their own rollout
+      # using Fly's previously stored deployment config, which made a stale
+      # bluegreen config capable of blocking podcast-pipeline before its new
+      # rolling fly.toml could even be deployed. Stage the secrets instead: the
+      # following fly deploy applies staged secrets + image + fly.toml together
+      # in one rollout. Standalone env-apply remains immediate for env-only
+      # changes and rotations.
       #
       # Apply-only on purpose: removals stay with the `env:sync --prune` in
-      # env-apply.yml, whose dry run is reviewed on the pull request. A second
-      # writer that deletes keys would prune the running release out from under
-      # itself during the window before this deploy completes.
-      - name: Reconcile ${{ inputs.app }} environment
+      # env-apply.yml, whose dry run is reviewed on the pull request. A code
+      # deploy must not prune the running release before the replacement exists.
+      - name: Stage ${{ inputs.app }} environment for deploy
         env:
           TARGET: ${{ inputs.app }}
-        run: pnpm env:sync --target "$TARGET" --apply
+        run: pnpm env:sync --target "$TARGET" --apply --stage-fly
 
       - name: Capture release metadata
         if: inputs.capture_release_metadata
@@ -109,8 +111,8 @@ jobs:
           COMMIT_SHA: ${{ steps.release_metadata.outputs.commit_sha }}
           BUILD_TIME: ${{ steps.release_metadata.outputs.build_time }}
         run: |
-          args=(flyctl deploy . --remote-only --config "$FLY_CONFIG")
+          args=(--config "$FLY_CONFIG")
           if [ "$CAPTURE_RELEASE" = "true" ]; then
-            args+=(--build-arg "COMMIT_SHA=$COMMIT_SHA" --build-arg "BUILD_TIME=$BUILD_TIME")
+            args+=(--commit-sha "$COMMIT_SHA" --build-time "$BUILD_TIME")
           fi
-          "${args[@]}"
+          node scripts/fly-deploy.mjs "${args[@]}"
