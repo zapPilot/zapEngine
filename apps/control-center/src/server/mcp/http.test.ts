@@ -163,7 +163,9 @@ async function readMcpPayload(response: Response): Promise<JsonRpcResponse> {
   const dataLine = text
     .split('\n')
     .find((line) => line.startsWith('data: '));
-  return JSON.parse(dataLine ? dataLine.slice('data: '.length) : text) as JsonRpcResponse;
+  return JSON.parse(
+    dataLine ? dataLine.slice('data: '.length) : text,
+  ) as JsonRpcResponse;
 }
 
 interface JsonRpcResponse {
