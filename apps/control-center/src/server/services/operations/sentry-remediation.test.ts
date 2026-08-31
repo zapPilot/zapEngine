@@ -55,7 +55,9 @@ describe('resolveSentryIssue', () => {
         body: JSON.stringify({ status: 'resolved' }),
       }),
     );
-    expect(JSON.stringify(fetchImpl.mock.calls)).not.toContain('read-only-token');
+    expect(JSON.stringify(fetchImpl.mock.calls)).not.toContain(
+      'read-only-token',
+    );
     expect(result).toEqual({
       provider: 'sentry',
       issueId: '12345',
