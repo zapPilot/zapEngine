@@ -516,6 +516,14 @@ export interface BootstrapOptions {
   startVideoWorker?: boolean;
   /** Pass `null` to leave the render group alone; omit to read the Fly config. */
   renderCapacity?: RenderCapacityReconciler | null;
+  /**
+   * Injected HTTP server for tests. When provided, `serve()` is not called.
+   * The server must expose `close(cb?)` and optionally `closeIdleConnections()`.
+   */
+  server?: {
+    close: (callback?: (error?: Error) => void) => void;
+    closeIdleConnections?: () => void;
+  };
 }
 
 /**
@@ -552,21 +560,37 @@ export function bootstrap(options: BootstrapOptions = {}) {
       ? createRenderCapacityFromEnv()
       : options.renderCapacity;
 
-  const server = serve(
-    {
-      fetch: app.fetch,
-      port: getPort(),
-      hostname: '0.0.0.0',
-    },
-    (info) => {
-      console.log(`Pipeline API listening on http://localhost:${info.port}`);
-    },
-  );
+  const server =
+    options.server ??
+    serve(
+      {
+        fetch: app.fetch,
+        port: getPort(),
+        hostname: '0.0.0.0',
+      },
+      (info) => {
+        console.log(`Pipeline API listening on http://localhost:${info.port}`);
+      },
+    );
   videoWorker?.start();
   renderCapacity?.start();
 
   const { shutdown } = installProcessShutdown(async (signal) => {
-    server.close();
+    await new Promise<void>((resolve, reject) => {
+      server.close((error?: Error) => {
+        if (error) reject(error);
+        else resolve();
+      });
+      // `server.close()` alone does not drop idle keep-alive sockets (e.g. the
+      // 30s Fly health checks). Those sockets keep the event loop alive and make
+      // every `secrets deploy` restart pay the full `kill_timeout = 300s` even
+      // when idle. Dropping idle connections lets the process exit promptly while
+      // active ingest work keeps its own handles alive and therefore still drains
+      // until the next committed stage or the 300s guard.
+      (
+        server as unknown as { closeIdleConnections?: () => void }
+      ).closeIdleConnections?.();
+    });
     renderCapacity?.stop();
     await videoWorker?.stop(new Error(`Received ${signal}`));
     // Fly restarts this machine on every deploy, and buffered events do not
