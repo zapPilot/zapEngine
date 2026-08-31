@@ -15,6 +15,17 @@
 
 <!-- What should NOT be changed as part of this PR? -->
 
+## Product contract / invariants
+
+- [ ] This PR does not change a documented product/architecture invariant.
+- [ ] This PR intentionally changes an invariant with explicit product approval.
+
+Affected invariant:
+<!-- AGENTS.md / contract test / architecture decision -->
+
+Why:
+<!-- Explicit product decision, not an implementation inference or optimization side effect. -->
+
 ## Acceptance criteria
 
 <!-- Observable conditions that mean this work is complete. -->
@@ -24,6 +35,13 @@
 ## Implementation
 
 <!-- Summarize the approach and important design decisions. -->
+
+## Contract alignment
+
+- [ ] Implementation matches the invariant.
+- [ ] Regression / contract tests cover it.
+- [ ] Scoped `AGENTS.md` remains accurate.
+- [ ] README / runbook remains accurate.
 
 ## Validation
 
