@@ -37,7 +37,7 @@ export const visualSubjectSchema = z
     type: z.enum(VISUAL_SUBJECT_TYPES),
     aliases: z.array(shortTextSchema).max(6).default([]),
     storyRole: z.enum(VISUAL_SUBJECT_ROLES),
-    evidenceSceneIds: z.array(sceneIdSchema).min(1).max(24),
+    evidenceSceneIds: z.array(sceneIdSchema).min(1).max(64),
     searchQueries: z.array(shortTextSchema).min(1).max(3),
     identityHints: z.array(shortTextSchema).min(1).max(8),
     negativeHints: z.array(shortTextSchema).max(8).default([]),
