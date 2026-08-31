@@ -36,8 +36,11 @@ export const remoteImageAssetSchema = z
     sourceId: z.string().min(1),
     url: z.string().url(),
     sha256: z.string().regex(/^[a-f\d]{64}$/),
-    layout: z.literal('fullBleed'),
+    // Defaults keep stored v1 manifests readable while v8 writes the editorial
+    // presentation choice explicitly for deterministic re-renders.
+    layout: z.enum(['fullBleed', 'contain']).default('fullBleed'),
     position: z.enum(['center', 'top', 'bottom']).default('center'),
+    motion: z.enum(['static', 'pushIn', 'pan']).default('pushIn'),
   })
   .strict();
 
@@ -47,9 +50,8 @@ export const materializedVisualSceneSchema = z
     startSentenceId: z.string().regex(/^s\d{4}$/),
     endSentenceId: z.string().regex(/^s\d{4}$/),
     imageSearchIntent: z.array(z.string().min(2).max(80)).min(1).max(3),
-    // Carried through from the draft purely as an audit trail: it records which
-    // named subjects the stored image was required to be about. Optional, so
-    // manifests written before entity anchoring still parse.
+    // Carried through from the draft as an audit trail. v8 additionally stores
+    // the episode-level subject catalog/assignment in the episode payload.
     imageSearchEntities: z
       .array(z.string().min(2).max(80))
       .min(1)
