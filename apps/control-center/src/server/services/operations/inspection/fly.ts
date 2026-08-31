@@ -5,6 +5,7 @@ import {
   type FlyMachine,
 } from '../fly-client.js';
 import type { ParsedOperationalFingerprint } from './fingerprint.js';
+import { unsupported as unsupportedInspection } from './helpers.js';
 import type { SignalInspection } from './types.js';
 
 const MACHINE_LIMIT = 5;
@@ -19,9 +20,10 @@ export async function inspectFlySignal(input: {
   fetchImpl: typeof fetch;
 }): Promise<SignalInspection> {
   if (!['app', 'process-group'].includes(input.parsed.kind)) {
-    return unsupported(
+    return unsupportedInspection(
       input,
       `Fly inspection does not support ${input.parsed.kind} signals.`,
+      'fly',
     );
   }
 
@@ -42,9 +44,10 @@ export async function inspectFlySignal(input: {
 
   const target = parseTarget(input.parsed.kind, input.parsed.key);
   if (!target) {
-    return unsupported(
+    return unsupportedInspection(
       input,
       'Fly process-group fingerprint has no app/group boundary.',
+      'fly',
     );
   }
 
@@ -154,20 +157,4 @@ function summarizeMachine(machine: FlyMachine) {
 
 function processGroupOf(machine: FlyMachine): string {
   return machine.processGroup ?? DEFAULT_PROCESS_GROUP;
-}
-
-function unsupported(
-  input: Parameters<typeof inspectFlySignal>[0],
-  summary: string,
-): SignalInspection {
-  return {
-    fingerprint: input.fingerprint,
-    source: 'fly',
-    status: 'unsupported',
-    inspectedAt: input.inspectedAt.toISOString(),
-    summary,
-    entities: [],
-    evidence: {},
-    gaps: [],
-  };
 }

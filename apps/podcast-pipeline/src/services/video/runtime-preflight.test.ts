@@ -1,9 +1,7 @@
+/* eslint-disable sonarjs/publicly-writable-directories -- test uses controlled /tmp paths as mock harness data */
 import { describe, expect, it, vi } from 'vitest';
 
-import type {
-  VideoProcessResult,
-  VideoProcessRunner,
-} from './ffmpeg-video.js';
+import type { VideoProcessResult, VideoProcessRunner } from './ffmpeg-video.js';
 import { assertVideoRenderRuntime } from './runtime-preflight.js';
 
 function capableRunner() {
