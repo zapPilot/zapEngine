@@ -22,7 +22,7 @@ describe('Ops MCP repository wiring', () => {
       'utf8',
     );
 
-    expect(launcher).toMatch(/['"]--environment['"],\s*['"]prod['"]/);
+    expect(launcher).toMatch(/['"]--environment['"],\s*['"]prod['"]/u);
     expect(launcher).toContain(
       "'apps/control-center/src/server/mcp/stdio.ts'",
     );
