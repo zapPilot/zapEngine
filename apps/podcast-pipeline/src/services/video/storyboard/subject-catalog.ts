@@ -143,13 +143,10 @@ export function subjectNames(subject: VisualSubject): string[] {
 }
 
 export function buildVisualSubjectSearchQueries(subject: VisualSubject): string[] {
-  const names = subjectNames(subject);
   const canonical = subject.canonicalName.toLocaleLowerCase('en-US');
   const queries = subject.searchQueries.map((query) => {
     const lowered = query.toLocaleLowerCase('en-US');
-    if (names.some((name) => lowered.includes(name.toLocaleLowerCase('en-US')))) {
-      return query;
-    }
+    if (lowered.includes(canonical)) return query;
     return `${subject.canonicalName} ${query}`.slice(0, 80).trim();
   });
   if (!queries.some((query) => query.toLocaleLowerCase('en-US') === canonical)) {
