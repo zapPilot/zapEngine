@@ -158,7 +158,9 @@ export function createOpsMcpServer(operations: OpsMcpOperations): McpServer {
           .string()
           .trim()
           .regex(/^\d+$/u)
-          .describe('Internal numeric Sentry issue ID from ops_inspect_signal.'),
+          .describe(
+            'Internal numeric Sentry issue ID from ops_inspect_signal.',
+          ),
         reason: z
           .string()
           .trim()
