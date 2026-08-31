@@ -44,8 +44,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     concurrency:
-      group: deploy-${{ inputs.app }}-${{ github.ref }}
-      cancel-in-progress: true
+      group: fly-rollout-${{ inputs.app }}
+      cancel-in-progress: false
     env:
       # `setup-env-tooling` fails unless all six credentials are present, so the
       # two this workflow never reads are still supplied. FLY_API_TOKEN here is

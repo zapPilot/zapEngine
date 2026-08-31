@@ -28,6 +28,7 @@ kill_timeout = '300s'
 # the old strategy live. Verify with `flyctl config show --app <name>`.
 [deploy]
   strategy = 'rolling'
+  wait_timeout = '8m'
 
 [env]
   NODE_ENV = 'production'
