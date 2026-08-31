@@ -1,5 +1,11 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -203,13 +209,15 @@ describe('decision-first domain views', () => {
     ).toBeNull();
     expect(screen.getByText(/Fish TTS/)).not.toBeVisible();
 
-    fireEvent.click(
-      screen.getByText('Expensive episode', {
+    const episode = screen
+      .getByText('Expensive episode', {
         selector: '.podcast-episode-title strong',
-      }),
-    );
-    expect(screen.getByText(/Fish TTS/)).toBeVisible();
-    expect(screen.getByText('Stage breakdown')).toBeVisible();
+      })
+      .closest('details');
+    expect(episode).not.toBeNull();
+    fireEvent.click(within(episode!).getByText('Expensive episode'));
+    expect(within(episode!).getByText(/Fish TTS/)).toBeVisible();
+    expect(within(episode!).getByText('Stage breakdown')).toBeVisible();
   });
 
   it('keeps growth recommendations visible and research evidence collapsed', () => {
@@ -223,6 +231,11 @@ describe('decision-first domain views', () => {
 
     expect(screen.getByText('What to publish next')).toBeVisible();
     expect(screen.getByText('Prioritize regime shifts')).toBeVisible();
+    expect(
+      screen.getByText(
+        /410 median 24h views · n=6 · platform median 205 · 2× lift/,
+      ),
+    ).toBeVisible();
     expect(screen.getByText(/ja · 2.4 \/ 1k/)).toBeVisible();
 
     const disclosure = screen

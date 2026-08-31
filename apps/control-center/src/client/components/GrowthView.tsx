@@ -407,11 +407,15 @@ function topicEvidence(decision: SocialDecision): string {
       : `Platform median ${decimal(decision.platformMedian24hViews)} views; need 2 topic buckets with n≥3`;
   }
 
+  const platformMedian =
+    decision.platformMedian24hViews === null
+      ? ''
+      : ` · platform median ${decimal(decision.platformMedian24hViews)}`;
   const lift =
     decision.bestTopicLiftVsPlatformMedian === null
       ? ''
-      : ` · ${decimal(decision.bestTopicLiftVsPlatformMedian)}× platform median`;
-  return `${decimal(decision.bestTopicMedian24hViews)} median 24h views · n=${decision.bestTopicSamples}${lift}`;
+      : ` · ${decimal(decision.bestTopicLiftVsPlatformMedian)}× lift`;
+  return `${decimal(decision.bestTopicMedian24hViews)} median 24h views · n=${decision.bestTopicSamples}${platformMedian}${lift}`;
 }
 
 function bestLaneSignal(platform: SocialGrowthPlatform): string {
