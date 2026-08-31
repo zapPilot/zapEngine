@@ -24,7 +24,9 @@ For classroom generation, dual-HLS resume, and playback integrity, use
   - `translateCanonicalScript({ title, script, targetLanguageCode })`
   - `translateChineseText(text, targetLanguageCode)`
   - model: code-owned `openrouter/free`
+  - canonical scripts over 2,000 characters: split by paragraph, then sentence boundary, then hard cap; translated sequentially and rejoined with blank lines
   - transport failures: judged by `isRetryableOpenRouterError` from `llm.ts` — one shared OpenRouter retry policy, not a second copy
+  - transport retry drops deterministic throughput sorting via `OPENROUTER_FALLBACK_ROUTING`; response-validation retry keeps the normal route and adds correction context
   - response failures (`TranslationResponseError`): retried once with the rejection reason appended to the user message, then thrown
   - retries and the final failure log `translate:retry` / `translate:failed`, the latter carrying the spend already committed
   - empty source fields: preserved locally without a provider call
@@ -42,6 +44,8 @@ For classroom generation, dual-HLS resume, and playback integrity, use
 8. Translation cost uses OpenRouter `usage.cost`, including a completed but invalid response when a retry follows it.
 9. A response-validation retry carries `Correction required: ...`; a transport retry does not.
 10. `TRANSLATION_LLM_MODEL` is not part of the runtime contract; the router slug stays code-owned.
+11. Multi-chunk scripts send the title only with the first chunk, preserve chunk order, and aggregate every chunk's actual provider/model cost.
+12. Paragraphs are preferred boundaries; oversized paragraphs fall back to complete sentences, and only an oversized single sentence is hard-sliced at 2,000 characters.
 
 ## Validation loop
 

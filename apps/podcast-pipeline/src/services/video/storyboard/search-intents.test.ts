@@ -21,6 +21,7 @@ import type { StoryboardDraft } from './draft.js';
 import { createDeterministicStoryboard } from './fallback.js';
 import {
   buildSearchIntentSystemPrompt,
+  buildSubjectCatalogSystemPrompt,
   createOpenRouterSearchIntentProvider,
   enrichStoryboardSearchIntents,
   type SearchIntentProvider,
@@ -94,6 +95,77 @@ function stubProvider(suggest: (request: SearchIntentRequest) => unknown) {
     model: 'openrouter/test-model',
     suggest: vi.fn<SearchIntentProvider['suggest']>((request) =>
       Promise.resolve(suggest(request)),
+    ),
+  };
+}
+
+function catalogEnrichmentRequest(subjectName: string) {
+  const script = Array.from(
+    { length: 30 },
+    (_value, index) =>
+      `第${index + 1}段報導主管機關向${subjectName}透露最新政策方向。`,
+  ).join('');
+  const sentences = splitCanonicalSentences(script);
+  return {
+    draft: createDeterministicStoryboard({
+      title: '市場政策最新發展',
+      script,
+      durationMs: DURATION_MS,
+      sentences,
+    }),
+    title: '市場政策最新發展',
+    script,
+    durationMs: DURATION_MS,
+  };
+}
+
+function catalogSubject(
+  overrides: Partial<{
+    id: string;
+    canonicalName: string;
+    type: 'company' | 'regulator';
+    aliases: string[];
+    evidenceSceneIds: string[];
+    searchQueries: string[];
+    identityHints: string[];
+  }> = {},
+) {
+  return {
+    id: 'subject-cnbc',
+    canonicalName: 'CNBC',
+    type: 'company' as const,
+    aliases: [],
+    storyRole: 'primary' as const,
+    evidenceSceneIds: ['scene-01'],
+    searchQueries: ['CNBC newsroom journalists'],
+    identityHints: ['financial news network'],
+    negativeHints: [],
+    officialDomains: [],
+    ...overrides,
+  };
+}
+
+function stubCatalogProvider(
+  subject: ReturnType<typeof catalogSubject>,
+  entity?: string,
+): SearchIntentProvider {
+  return {
+    model: 'openrouter/test-model',
+    catalog: vi.fn(() =>
+      Promise.resolve({
+        primarySubjectId: subject.id,
+        subjects: [subject],
+      }),
+    ),
+    suggest: vi.fn((request: SearchIntentRequest) =>
+      Promise.resolve({
+        scenes: request.scenes.map((scene) => ({
+          sceneId: scene.sceneId,
+          subjectIds: [subject.id],
+          imageSearchIntent: ['financial newsroom journalists'],
+          entities: entity ? [entity] : [],
+        })),
+      }),
     ),
   };
 }
@@ -604,6 +676,101 @@ describe('storyboard search intent enrichment', () => {
     expect(prompt).toContain('"entities"');
     // The generic subject stays available, but only as the last resort.
     expect(prompt).toContain('Only when a scene names nothing at all');
+  });
+});
+
+describe('visual subject catalog grounding', () => {
+  it('grounds disambiguated CNBC through its preserved alias in adjacent CJK text', async () => {
+    const request = catalogEnrichmentRequest('CNBC');
+    const provider = stubCatalogProvider(catalogSubject(), 'CNBC');
+
+    const result = await enrichStoryboardSearchIntents(request, { provider });
+
+    expect(result.subjectCatalog?.subjects[0]).toMatchObject({
+      canonicalName: 'financial news network CNBC',
+      aliases: ['CNBC'],
+    });
+    expect(result.sceneAssignments).toHaveLength(request.draft.scenes.length);
+    expect(
+      result.sceneAssignments?.every(
+        (assignment) => assignment.selectionReason === 'direct',
+      ),
+    ).toBe(true);
+    expect(
+      result.draft.scenes.every(
+        (scene) => scene.imageSearchEntities?.[0] === 'CNBC',
+      ),
+    ).toBe(true);
+  });
+
+  it('grounds an all-CJK canonical name without punctuation boundaries', async () => {
+    const canonicalName = '金融監督管理委員會';
+    const request = catalogEnrichmentRequest(canonicalName);
+    const provider = stubCatalogProvider(
+      catalogSubject({
+        id: 'subject-financial-regulator',
+        canonicalName,
+        type: 'regulator',
+        searchQueries: ['financial regulator officials'],
+        identityHints: ['Taiwan regulator'],
+      }),
+    );
+
+    const result = await enrichStoryboardSearchIntents(request, { provider });
+
+    expect(result.subjectCatalog?.subjects[0]?.canonicalName).toBe(
+      canonicalName,
+    );
+    expect(
+      result.sceneAssignments?.every(
+        (assignment) => assignment.selectionReason === 'direct',
+      ),
+    ).toBe(true);
+  });
+
+  it('still rejects a subject that the episode never names', async () => {
+    const request = catalogEnrichmentRequest('財政部');
+    const provider = stubCatalogProvider(
+      catalogSubject({
+        id: 'subject-imaginary',
+        canonicalName: 'ImaginaryCorp',
+        searchQueries: ['ImaginaryCorp headquarters'],
+        identityHints: ['technology company'],
+      }),
+    );
+
+    await expect(
+      enrichStoryboardSearchIntents(request, { provider }),
+    ).rejects.toThrow(
+      /Visual subject subject-imaginary \(ImaginaryCorp\) is not grounded/u,
+    );
+    expect(provider.suggest).not.toHaveBeenCalled();
+  });
+
+  it('rejects a catalog subject that cites an unknown evidence scene', async () => {
+    const request = catalogEnrichmentRequest('CNBC');
+    const provider = stubCatalogProvider(
+      catalogSubject({ evidenceSceneIds: ['scene-99'] }),
+    );
+
+    await expect(
+      enrichStoryboardSearchIntents(request, { provider }),
+    ).rejects.toThrow(/cites unknown evidence scene scene-99/u);
+    expect(provider.suggest).not.toHaveBeenCalled();
+  });
+
+  it('requires exact evidence names and keeps descriptions in identity hints', () => {
+    const prompt = buildSubjectCatalogSystemPrompt();
+
+    expect(prompt).toContain(
+      'Copy canonicalName verbatim from the title or scenes.',
+    );
+    expect(prompt).toContain(
+      'use the English spelling for canonicalName and put the local-script spelling in aliases',
+    );
+    expect(prompt).toContain(
+      'Put descriptive industry, category, and role terms only in identityHints.',
+    );
   });
 });
 
