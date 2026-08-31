@@ -12,10 +12,7 @@ import {
   type VideoProcessRunner,
 } from './ffmpeg-video.js';
 import { videoAssetPaths } from './runtime-assets.js';
-import {
-  createAssSubtitles,
-  PORTRAIT_SUBTITLE_LAYOUT,
-} from './subtitles.js';
+import { createAssSubtitles, PORTRAIT_SUBTITLE_LAYOUT } from './subtitles.js';
 
 const SUBTITLE_SMOKE_DURATION_SECONDS = 1;
 const SUBTITLE_SMOKE_FRAME_SECONDS = 0.5;
@@ -38,7 +35,9 @@ const defaultDependencies: VideoRenderRuntimeDependencies = {
   processRunner: runProcess,
   readFrameMaxChannel: async (path) => {
     const stats = await sharp(path).stats();
-    return Math.max(...stats.channels.slice(0, 3).map((channel) => channel.max));
+    return Math.max(
+      ...stats.channels.slice(0, 3).map((channel) => channel.max),
+    );
   },
 };
 

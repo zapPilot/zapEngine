@@ -96,9 +96,11 @@ describe('createFlyOpsClient', () => {
   });
 });
 
+// jscpd:ignore-start -- shared test json helper duplicated across operation tests
 function json(value: unknown): Response {
   return new Response(JSON.stringify(value), {
     status: 200,
     headers: { 'Content-Type': 'application/json' },
   });
 }
+// jscpd:ignore-end

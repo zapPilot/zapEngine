@@ -106,6 +106,7 @@ const CUSTOMERS: CustomerEconomicsResponse = {
 
 const SOCIAL: OperationsSocialResponse = {
   generatedAt: '2026-08-30T10:06:00.000Z',
+  // jscpd:ignore-start -- test fixture mirrors social unknownDaemon shape, intentional duplication
   daemon: {
     status: 'healthy',
     owner: 'local-mac',
@@ -117,6 +118,7 @@ const SOCIAL: OperationsSocialResponse = {
     lastError: null,
     staleMinutes: null,
   },
+  // jscpd:ignore-end
   jobs: [],
   waitingMediaLanes: 0,
   invalidJobRows: 0,

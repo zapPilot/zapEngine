@@ -20,6 +20,11 @@ const forceSchema = z.object({
     .describe('Bypass provider caches and fetch a fresh operational snapshot.'),
 });
 
+const fingerprintForceSchema = z.object({
+  fingerprint: z.string().trim().min(1),
+  force: z.boolean().optional().default(false),
+});
+
 export function createOpsMcpServer(operations: OpsMcpOperations): McpServer {
   const server = new McpServer(
     { name: 'zap-pilot-ops', version: '0.3.0' },
@@ -63,10 +68,7 @@ export function createOpsMcpServer(operations: OpsMcpOperations): McpServer {
       title: 'Operational signal',
       description:
         'Look up one incident or condition by its stable OperationalSignal fingerprint. Returns the current signal and its deterministic priority entry when present.',
-      inputSchema: z.object({
-        fingerprint: z.string().trim().min(1),
-        force: z.boolean().optional().default(false),
-      }),
+      inputSchema: fingerprintForceSchema,
       annotations: READ_ONLY_ANNOTATIONS,
     },
     async ({ fingerprint, force }) =>
@@ -94,10 +96,7 @@ export function createOpsMcpServer(operations: OpsMcpOperations): McpServer {
       title: 'Investigate operational incident',
       description:
         'Build one deterministic incident packet from a stable signal fingerprint: primary evidence, related GitHub/Sentry/Fly evidence, operational topology, chronological timeline, customer/business impact where proven, and explicit evidence gaps. Use this after ops_status for normal incident triage.',
-      inputSchema: z.object({
-        fingerprint: z.string().trim().min(1),
-        force: z.boolean().optional().default(false),
-      }),
+      inputSchema: fingerprintForceSchema,
       annotations: READ_ONLY_ANNOTATIONS,
     },
     async ({ fingerprint, force }) =>
