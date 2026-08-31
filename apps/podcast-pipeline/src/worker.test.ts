@@ -26,6 +26,11 @@ function makeHarness(overrides: Partial<VideoWorkerProcessOptions> = {}) {
     runOnce: vi.fn(),
     stop: vi.fn().mockResolvedValue(undefined),
   };
+  const visualFailureNotifier = {
+    start: vi.fn(),
+    sweep: vi.fn().mockResolvedValue(undefined),
+    stop: vi.fn(),
+  };
   let onPollResult: ((result: VideoWorkerPollResult) => void) | undefined;
   const exit = vi.fn();
   const logger = { info: vi.fn() };
@@ -35,6 +40,7 @@ function makeHarness(overrides: Partial<VideoWorkerProcessOptions> = {}) {
       onPollResult = options.onPollResult;
       return videoWorker;
     },
+    createVisualFailureNotifier: () => visualFailureNotifier,
     exit,
     logger,
     ...overrides,
@@ -44,6 +50,7 @@ function makeHarness(overrides: Partial<VideoWorkerProcessOptions> = {}) {
   return {
     handle,
     videoWorker,
+    visualFailureNotifier,
     exit,
     logger,
     poll: (result: VideoWorkerPollResult) => onPollResult?.(result),
@@ -60,11 +67,12 @@ afterEach(async () => {
 });
 
 describe('startVideoWorkerProcess', () => {
-  it('starts the worker and stops it on a signal-driven shutdown', async () => {
-    const { handle, videoWorker } = makeHarness();
+  it('starts the worker and visual failure notifier and stops both on shutdown', async () => {
+    const { handle, videoWorker, visualFailureNotifier } = makeHarness();
 
     expect(handle.videoWorker).toBe(videoWorker);
     expect(videoWorker.start).toHaveBeenCalled();
+    expect(visualFailureNotifier.start).toHaveBeenCalledOnce();
 
     await handle.shutdown('SIGTERM');
     expect(videoWorker.stop).toHaveBeenCalledWith(
@@ -72,6 +80,7 @@ describe('startVideoWorkerProcess', () => {
         message: expect.stringContaining('SIGTERM'),
       }),
     );
+    expect(visualFailureNotifier.stop).toHaveBeenCalledOnce();
   });
 
   it('holds the event loop open with a liveness timer and releases it on shutdown', async () => {
