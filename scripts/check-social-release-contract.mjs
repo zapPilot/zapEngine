@@ -20,8 +20,13 @@ const readme = read('apps/podcast-pipeline/src/social/README.md');
 const recovery = read(
   'apps/podcast-pipeline/src/social/release-cohort-store.ts',
 );
+const claimMigration = read(
+  'supabase/migrations/20260826120000_claim_social_publish_batch_episode_scope.sql',
+);
 const contractTest =
   'apps/podcast-pipeline/src/social/daemon-release-cohort-contract.test.ts';
+const recoveryTest =
+  'apps/podcast-pipeline/src/social/release-cohort-store.test.ts';
 
 requireMatch(
   'AGENTS product invariant',
@@ -51,7 +56,17 @@ requireMatch(
 requireMatch(
   'README episode scheduling unit',
   readme,
-  /episode_id is the scheduling unit/i,
+  /`?episode_id`? is the scheduling unit/i,
+);
+requireMatch(
+  'episode-scoped claim RPC',
+  claimMigration,
+  /p_episode_id\s+uuid\s+default\s+null/i,
+);
+requireMatch(
+  'claim RPC chooses one seed episode',
+  claimMigration,
+  /into\s+seed_episode_id[\s\S]*limit\s+1/i,
 );
 
 forbidMatch('daemon', daemon, /enqueuePlatformCohort/);
@@ -65,8 +80,10 @@ forbidMatch(
   /different platforms[^\n]*independent releases/i,
 );
 
-if (!existsSync(resolve(root, contractTest))) {
-  failures.push(`${contractTest}: required executable contract test is missing`);
+for (const path of [contractTest, recoveryTest]) {
+  if (!existsSync(resolve(root, path))) {
+    failures.push(`${path}: required executable contract test is missing`);
+  }
 }
 
 if (failures.length > 0) {
