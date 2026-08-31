@@ -166,8 +166,6 @@ export function createEpisodeVideoVisualProcessor(
         }
       }
 
-      // Branding establishes the final scene spans first. Enrichment then sees
-      // the clipped content and skips the fixed brand card entirely.
       const intents = await dependencies.enrichSearchIntents(
         {
           draft: brandedDraft,
@@ -179,6 +177,11 @@ export function createEpisodeVideoVisualProcessor(
         },
         { signal: context.signal },
       );
+      // Narrow injected test providers created before v8 can still return the
+      // old enrichment shape at runtime. Treat those as the explicit legacy
+      // path; the production provider always supplies both v8 fields.
+      const subjectCatalog = intents.subjectCatalog ?? null;
+      const sceneAssignments = intents.sceneAssignments ?? [];
       const storyboard = {
         ...generated,
         draft: intents.draft,
@@ -189,8 +192,8 @@ export function createEpisodeVideoVisualProcessor(
         enriched: `${intents.enrichedSceneCount}/${intents.draft.scenes.length}`,
         brand: brandSceneCount,
         entities: intents.entityAnchoredSceneCount,
-        subjects: intents.subjectCatalog?.subjects.length,
-        primarySubject: intents.subjectCatalog?.primarySubjectId,
+        subjects: subjectCatalog?.subjects.length,
+        primarySubject: subjectCatalog?.primarySubjectId,
         model: intents.model ?? 'deterministic',
       });
 
@@ -219,12 +222,8 @@ export function createEpisodeVideoVisualProcessor(
         workingDirectory: join(outputDirectory, 'images'),
         selectionMode: 'resilient',
         signal: context.signal,
-        ...(intents.subjectCatalog
-          ? { subjectCatalog: intents.subjectCatalog }
-          : {}),
-        ...(intents.sceneAssignments.length > 0
-          ? { sceneAssignments: intents.sceneAssignments }
-          : {}),
+        ...(subjectCatalog ? { subjectCatalog } : {}),
+        ...(sceneAssignments.length > 0 ? { sceneAssignments } : {}),
         onProgress: (progress) => {
           logPlannerProgress(
             dependencies.logger,
@@ -249,8 +248,8 @@ export function createEpisodeVideoVisualProcessor(
         scenes: storyboard.draft.scenes,
         selectedScenes: assetPlan.scenes,
         assets: assetPlan.assets,
-        subjectCatalog: intents.subjectCatalog,
-        sceneAssignments: intents.sceneAssignments,
+        subjectCatalog,
+        sceneAssignments,
       });
       const manifestPath = join(outputDirectory, 'visual-manifest.json');
       const sourceManifest = createSourceVisualManifest({
@@ -259,8 +258,8 @@ export function createEpisodeVideoVisualProcessor(
         storyboard,
         visualHash,
         assetPlan,
-        subjectCatalog: intents.subjectCatalog,
-        sceneAssignments: intents.sceneAssignments,
+        subjectCatalog,
+        sceneAssignments,
       });
       await dependencies.writeManifest(
         manifestPath,
@@ -302,8 +301,8 @@ export function createEpisodeVideoVisualProcessor(
         selectedScenes: assetPlan.scenes,
         assets: assetPlan.assets,
         r2ImageUrls: uploaded.imageUrls,
-        subjectCatalog: intents.subjectCatalog,
-        sceneAssignments: intents.sceneAssignments,
+        subjectCatalog,
+        sceneAssignments,
       });
       return {
         visualPayload: payload,
@@ -339,14 +338,12 @@ export async function generateVisualStoryboard(input: {
     input.editorialScript ?? getPodcastEditorialScript(input.script);
   const editorialSentences =
     input.editorialSentences ?? getPodcastEditorialSentences(input.script);
-  // Provider sees editorial script only (BODY ONLY invariant)
   const providerScript = isPackaged ? editorialScript : input.script;
   const providerSentences = isPackaged
     ? editorialSentences
     : splitCanonicalSentences(input.script);
   let englishBody: string | undefined;
   if (input.searchScript !== undefined) {
-    // If the caller already supplied editorialSentences, assume searchScript is already BODY ONLY
     englishBody =
       input.editorialSentences !== undefined
         ? input.searchScript
