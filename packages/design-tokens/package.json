@@ -22,7 +22,7 @@
     "tokens.json"
   ],
   "scripts": {
-    "build": "pnpm codegen && tsc",
+    "build": "pnpm codegen && tsc && prettier --write dist/",
     "codegen": "pnpm codegen:css && pnpm codegen:ts",
     "codegen:css": "tsx src/css-variables.ts",
     "codegen:ts": "tsx src/ts-codegen.ts",

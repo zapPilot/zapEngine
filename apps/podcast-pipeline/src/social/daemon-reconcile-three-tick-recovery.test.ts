@@ -56,6 +56,15 @@ vi.mock('./daemon-store.js', () => ({
   reconcileSocialPublishJob: mocks.reconcileSocialPublishJob,
   releaseSocialPublishJobLease: mocks.releaseSocialPublishJobLease,
 }));
+vi.mock('./release-cohort-store.js', () => ({
+  alignPendingSocialReleaseCohorts: vi.fn().mockResolvedValue({
+    alignedLanes: 0,
+    rescheduledEpisodes: 0,
+    recoveryEpisodes: [],
+  }),
+  listPartiallyPublishedCohorts: vi.fn().mockResolvedValue([]),
+  claimReleaseCohortJobs: mocks.claimSocialPublishBatch,
+}));
 vi.mock('../services/db.js', () => ({
   insertSocialPostMetric: mocks.insertSocialPostMetric,
   listSocialPostIdentitiesByEpisodes: mocks.listSocialPostIdentitiesByEpisodes,

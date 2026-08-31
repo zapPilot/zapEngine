@@ -1,238 +1,129 @@
-import { describe, expect, it, vi } from 'vitest';
-
-const mocks = vi.hoisted(() => ({ assign: vi.fn() }));
-
-// The real bucketing stays in play: the 80/20 split is the variant array
-// itself, so a test that stubbed the hash would only be asserting its own
-// arithmetic.
-vi.mock('./experiments.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('./experiments.js')>();
-  return {
-    ...actual,
-    getOrCreateExperimentAssignment: mocks.assign.mockImplementation(
-      async (input: {
-        experimentKey: string;
-        episodeId: string;
-        variants?: readonly [string, ...string[]];
-      }) => ({
-        experiment_key: input.experimentKey,
-        episode_id: input.episodeId,
-        variant: actual.deterministicVariant(
-          input.experimentKey,
-          input.episodeId,
-          input.variants,
-        ),
-        assigned_at: '2026-08-29T00:00:00.000Z',
-      }),
-    ),
-  };
-});
+import { describe, expect, it } from 'vitest';
 
 import {
-  PLATFORM_PUBLISH_POLICY,
   SOCIAL_PUBLISH_WINDOW_JST,
+  SOCIAL_RELEASE_DAILY_CAP,
+  SOCIAL_RELEASE_SLOTS,
 } from './policy.js';
 import {
-  nextBudgetSlot,
-  occupiesPublishBudget,
-  resolveLaneSlotPlan,
+  nextReleaseSlot,
+  occupiesReleaseBudget,
   SCHEDULING_HORIZON_DAYS,
   startOfJstDay,
   withinPublishWindow,
 } from './slot-policy.js';
 
 const READY = new Date('2026-09-01T00:00:00.000Z');
+const DAY_MS = 24 * 60 * 60_000;
 
-function episodeIds(count: number): string[] {
-  return Array.from({ length: count }, (_, index) => `episode-${index}`);
+/** Every configured article time on one JST day, derived from the policy. */
+function slotsOfDay(dayStart: Date): Date[] {
+  return SOCIAL_RELEASE_SLOTS.map(
+    (slot) =>
+      new Date(dayStart.getTime() + (slot.hour * 60 + slot.minute) * 60_000),
+  );
 }
 
-async function slotFor(
-  platform: 'rednote' | 'threads' | 'x' | 'youtube',
-  episodeId: string,
-  language: 'zh-Hant' | 'ja' | 'en',
-  day = READY,
-): Promise<string> {
-  const plan = await resolveLaneSlotPlan({ platform, episodeId, language });
-  const slot = plan.slotOnDay(startOfJstDay(day));
-  return slot ? `${slot.hour}:${String(slot.minute).padStart(2, '0')}` : 'none';
-}
+describe('article release policy shape', () => {
+  it('offers at least one candidate time per article the day may release', () => {
+    // Raising the cap without adding slots silently leaves the extra articles
+    // unschedulable: nextReleaseSlot can only place one article per slot.
+    expect(SOCIAL_RELEASE_SLOTS.length).toBeGreaterThanOrEqual(
+      SOCIAL_RELEASE_DAILY_CAP,
+    );
+  });
 
-describe('publish policy shape', () => {
-  it('keeps every slot inside the hours someone is around to watch', () => {
-    for (const { slots } of Object.values(PLATFORM_PUBLISH_POLICY)) {
-      for (const slot of slots) {
-        expect(slot.hour).toBeGreaterThanOrEqual(
-          SOCIAL_PUBLISH_WINDOW_JST.startHour,
-        );
-        expect(slot.hour).toBeLessThan(SOCIAL_PUBLISH_WINDOW_JST.endHour);
-      }
+  it('lists article slots in ascending order without repeats', () => {
+    // nextReleaseSlot returns the first slot at or after `after`, so an
+    // out-of-order list would hand back a later time than the day still has.
+    const minutes = SOCIAL_RELEASE_SLOTS.map(
+      (slot) => slot.hour * 60 + slot.minute,
+    );
+    expect(minutes).toEqual([...new Set(minutes)].sort((a, b) => a - b));
+  });
+
+  it('keeps every article slot inside the watched publish window', () => {
+    for (const slot of SOCIAL_RELEASE_SLOTS) {
+      expect(slot.hour).toBeGreaterThanOrEqual(
+        SOCIAL_PUBLISH_WINDOW_JST.startHour,
+      );
+      expect(slot.hour).toBeLessThan(SOCIAL_PUBLISH_WINDOW_JST.endHour);
     }
   });
-
-  it('spends five posts a day across every platform', () => {
-    const total = Object.values(PLATFORM_PUBLISH_POLICY).reduce(
-      (sum, policy) => sum + policy.dailyCap,
-      0,
-    );
-    expect(total).toBe(5);
-  });
 });
 
-describe('resolveLaneSlotPlan', () => {
-  it('splits Rednote four-to-one toward the incumbent slot', async () => {
-    const slots = await Promise.all(
-      episodeIds(200).map((id) => slotFor('rednote', id, 'zh-Hant')),
-    );
-    const exploit = slots.filter((slot) => slot === '14:30').length;
-    expect(exploit / slots.length).toBeGreaterThan(0.7);
-    expect(exploit / slots.length).toBeLessThan(0.9);
-    expect(new Set(slots)).toEqual(new Set(['14:30', '12:00']));
-    expect(mocks.assign).toHaveBeenCalledWith(
-      expect.objectContaining({ experimentKey: 'rednote-slot-v1' }),
-    );
+describe('nextReleaseSlot', () => {
+  it('takes the next free time the same day before rolling over', () => {
+    const taken = new Date('2026-09-01T00:30:00.000Z');
+    const slot = nextReleaseSlot({ after: READY, scheduled: [taken] });
+    expect(slot?.toISOString()).toBe('2026-09-01T03:00:00.000Z');
   });
 
-  it('splits Threads evenly between two unmeasured times', async () => {
-    const slots = await Promise.all(
-      episodeIds(200).map((id) => slotFor('threads', id, 'ja')),
-    );
-    const early = slots.filter((slot) => slot === '9:30').length;
-    expect(early / slots.length).toBeGreaterThan(0.35);
-    expect(early / slots.length).toBeLessThan(0.65);
-    expect(mocks.assign).toHaveBeenCalledWith(
-      expect.objectContaining({ experimentKey: 'threads-timing-v1' }),
-    );
-  });
-
-  it('gives one episode the same slot on every call', async () => {
-    const first = await slotFor('rednote', 'episode-stable', 'zh-Hant');
-    const second = await slotFor('rednote', 'episode-stable', 'zh-Hant');
-    expect(second).toBe(first);
-  });
-
-  it('swaps the X languages between the two times each day', async () => {
-    const day = new Date('2026-09-01T03:00:00.000Z');
-    const nextDay = new Date('2026-09-02T03:00:00.000Z');
-    const japaneseToday = await slotFor('x', 'episode-1', 'ja', day);
-    const englishToday = await slotFor('x', 'episode-2', 'en', day);
-    expect(new Set([japaneseToday, englishToday])).toEqual(
-      new Set(['12:15', '17:00']),
-    );
-    // The crossover is the whole point: a language held to one time forever is
-    // indistinguishable from that time performing differently.
-    expect(await slotFor('x', 'episode-1', 'ja', nextDay)).toBe(englishToday);
-    expect(await slotFor('x', 'episode-2', 'en', nextDay)).toBe(japaneseToday);
-  });
-
-  it('does not create an assignment row for a platform with one slot', async () => {
-    mocks.assign.mockClear();
-    expect(await slotFor('youtube', 'episode-1', 'en')).toBe('17:15');
-    expect(mocks.assign).not.toHaveBeenCalled();
-  });
-});
-
-describe('nextBudgetSlot', () => {
-  const fixedPlan = { slotOnDay: () => ({ hour: 14, minute: 30 }) };
-
-  it('moves to the next day once the cap for one is spent', () => {
-    const taken = new Date('2026-09-01T05:30:00.000Z');
-    const slot = nextBudgetSlot({
-      platform: 'rednote',
-      plan: fixedPlan,
+  it('moves the next article to the next day once today is full', () => {
+    const slot = nextReleaseSlot({
       after: READY,
-      scheduled: [taken],
+      scheduled: slotsOfDay(startOfJstDay(READY)),
     });
-    expect(slot?.toISOString()).toBe('2026-09-02T05:30:00.000Z');
+    expect(slot?.toISOString()).toBe('2026-09-02T00:30:00.000Z');
   });
 
-  it('counts both X languages against the same daily cap', () => {
-    const day = startOfJstDay(new Date('2026-09-01T03:00:00.000Z'));
-    const morning = new Date(day.getTime() + (12 * 60 + 15) * 60_000);
-    const afternoon = new Date(day.getTime() + 17 * 60 * 60_000);
-    // Two lanes already placed, in two different languages: the cap of 2 is
-    // spent, so a third episode cannot slip through by being the other one.
-    const slot = nextBudgetSlot({
-      platform: 'x',
-      plan: { slotOnDay: () => ({ hour: 12, minute: 15 }) },
-      after: new Date('2026-09-01T00:00:00.000Z'),
-      scheduled: [morning, afternoon],
-    });
-    expect(slot?.getTime()).toBeGreaterThanOrEqual(
-      day.getTime() + 24 * 60 * 60_000,
-    );
+  it('counts articles parked off-slot against the day budget', () => {
+    // Legacy rows sit at times that are not article slots. They are still
+    // articles released that day, so they consume the day's budget instead of
+    // leaving its slots open for a fourth one.
+    const offSlot = [
+      new Date('2026-09-01T05:30:00.000Z'),
+      new Date('2026-09-01T06:00:00.000Z'),
+      new Date('2026-09-01T08:15:00.000Z'),
+    ];
+    expect(offSlot).toHaveLength(SOCIAL_RELEASE_DAILY_CAP);
+
+    const slot = nextReleaseSlot({ after: READY, scheduled: offSlot });
+    expect(slot?.toISOString()).toBe('2026-09-02T00:30:00.000Z');
   });
 
-  it('never reuses a slot another episode already holds', () => {
-    const day = startOfJstDay(READY);
-    const taken = new Date(day.getTime() + (12 * 60 + 15) * 60_000);
-    const slot = nextBudgetSlot({
-      platform: 'x',
-      plan: { slotOnDay: () => ({ hour: 12, minute: 15 }) },
-      after: READY,
-      scheduled: [taken],
-    });
-    expect(slot?.toISOString()).not.toBe(taken.toISOString());
-  });
-
-  it('never schedules a slot that has already passed today', () => {
+  it('never schedules a slot that already passed today', () => {
     const afternoon = new Date('2026-09-01T08:00:00.000Z');
-    const slot = nextBudgetSlot({
-      platform: 'rednote',
-      plan: fixedPlan,
-      after: afternoon,
-      scheduled: [],
-    });
-    expect(slot?.toISOString()).toBe('2026-09-02T05:30:00.000Z');
+    const slot = nextReleaseSlot({ after: afternoon, scheduled: [] });
+    expect(slot?.toISOString()).toBe('2026-09-02T00:30:00.000Z');
   });
 
-  it('returns nothing rather than compressing a backlog past the horizon', () => {
+  it('returns nothing rather than compressing backlog past the horizon', () => {
     const day = startOfJstDay(READY);
-    const full = Array.from(
-      { length: SCHEDULING_HORIZON_DAYS },
-      (_, index) =>
-        new Date(day.getTime() + index * 24 * 60 * 60_000 + 5.5 * 60 * 60_000),
+    const full = Array.from({ length: SCHEDULING_HORIZON_DAYS }).flatMap(
+      (_, index) => slotsOfDay(new Date(day.getTime() + index * DAY_MS)),
     );
-    expect(
-      nextBudgetSlot({
-        platform: 'rednote',
-        plan: fixedPlan,
-        after: READY,
-        scheduled: full,
-      }),
-    ).toBeNull();
+    expect(nextReleaseSlot({ after: READY, scheduled: full })).toBeNull();
   });
 });
 
-describe('occupiesPublishBudget', () => {
-  it('keeps a queued lane on the books', () => {
+describe('occupiesReleaseBudget', () => {
+  it('keeps a queued article on the books', () => {
     expect(
-      occupiesPublishBudget({
+      occupiesReleaseBudget({
         status: 'queued',
-        scheduled_at: '2026-09-01T05:30:00.000Z',
+        scheduled_at: '2026-09-01T03:00:00.000Z',
         completed_at: null,
       }),
     ).toBe(true);
   });
 
-  it('ignores a completed row bound to a slot it never used', () => {
-    // Reconciliation binds an already-live post to a job without moving its
-    // scheduled_at, which is how rows dated 9/1-9/4 carry an 08-19 completion.
+  it('ignores a completed ghost row bound to a slot it never used', () => {
     expect(
-      occupiesPublishBudget({
+      occupiesReleaseBudget({
         status: 'completed',
-        scheduled_at: '2026-09-01T05:30:00.000Z',
-        completed_at: '2026-08-19T05:30:00.000Z',
+        scheduled_at: '2026-09-01T03:00:00.000Z',
+        completed_at: '2026-08-19T03:00:00.000Z',
       }),
     ).toBe(false);
   });
 
-  it('still counts a row completed on the day it was scheduled', () => {
+  it('counts an article completed on its scheduled JST day', () => {
     expect(
-      occupiesPublishBudget({
+      occupiesReleaseBudget({
         status: 'completed',
-        scheduled_at: '2026-09-01T05:30:00.000Z',
-        completed_at: '2026-09-01T05:33:00.000Z',
+        scheduled_at: '2026-09-01T03:00:00.000Z',
+        completed_at: '2026-09-01T03:03:00.000Z',
       }),
     ).toBe(true);
   });
