@@ -16,10 +16,8 @@ export function buildFlyDeployArgs({
   captureRelease = false,
   commitSha,
   buildTime,
-  depot = true,
 }) {
   const args = ['deploy', '.', '--remote-only', '--config', config];
-  if (!depot) args.push('--depot=false');
   if (captureRelease) {
     args.push(
       '--build-arg',
@@ -38,16 +36,19 @@ function runFlyctl(args) {
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     let output = '';
+    const append = (chunk) => {
+      const text = chunk.toString();
+      // Keep only the tail that the Depot classifier inspects plus a small
+      // margin; the full build log can be many megabytes.
+      output = (output + text).slice(-16_000);
+      return text;
+    };
 
     child.stdout.on('data', (chunk) => {
-      const text = chunk.toString();
-      output += text;
-      process.stdout.write(chunk);
+      process.stdout.write(append(chunk));
     });
     child.stderr.on('data', (chunk) => {
-      const text = chunk.toString();
-      output += text;
-      process.stderr.write(chunk);
+      process.stderr.write(append(chunk));
     });
     child.on('error', reject);
     child.on('close', (code, signal) => {
@@ -56,11 +57,16 @@ function runFlyctl(args) {
   });
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function deployFly({
   config,
   captureRelease = false,
   commitSha,
   buildTime,
+  sleepMs = 60_000,
 }) {
   const primaryArgs = buildFlyDeployArgs({
     config,
@@ -74,36 +80,30 @@ export async function deployFly({
   if (!isDepotInfrastructureFailure(result.output)) return result.code;
 
   console.error(
-    '::warning::Fly Depot builder infrastructure failed; retrying once with --depot=false',
+    `::warning::Fly Depot builder infrastructure failed; retrying once after ${Math.round(sleepMs / 1000)}s on the same Depot builder`,
   );
-  result = await runFlyctl(
-    buildFlyDeployArgs({
-      config,
-      captureRelease,
-      commitSha,
-      buildTime,
-      depot: false,
-    }),
-  );
+  await sleep(sleepMs);
+  result = await runFlyctl(primaryArgs);
   return result.code;
 }
 
 async function main() {
-  const config = process.env.FLY_CONFIG;
-  const captureRelease = process.env.CAPTURE_RELEASE === 'true';
-  const commitSha = process.env.COMMIT_SHA;
-  const buildTime = process.env.BUILD_TIME;
+  const argv = process.argv.slice(2);
+  const configIndex = argv.indexOf('--config');
+  const config = configIndex >= 0 ? argv[configIndex + 1] : undefined;
+  const commitShaIndex = argv.indexOf('--commit-sha');
+  const commitSha = commitShaIndex >= 0 ? argv[commitShaIndex + 1] : undefined;
+  const buildTimeIndex = argv.indexOf('--build-time');
+  const buildTime = buildTimeIndex >= 0 ? argv[buildTimeIndex + 1] : undefined;
 
-  if (!config) throw new Error('FLY_CONFIG is required');
-  if (captureRelease && (!commitSha || !buildTime)) {
-    throw new Error(
-      'COMMIT_SHA and BUILD_TIME are required when CAPTURE_RELEASE=true',
-    );
+  if (!config) throw new Error('--config <path> is required');
+  if (Boolean(commitSha) !== Boolean(buildTime)) {
+    throw new Error('--commit-sha and --build-time must be passed together');
   }
 
   process.exitCode = await deployFly({
     config,
-    captureRelease,
+    captureRelease: Boolean(commitSha && buildTime),
     commitSha,
     buildTime,
   });

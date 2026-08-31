@@ -118,9 +118,7 @@ const forbidden = [...actual]
   .filter((name) => !desiredNames.has(name) && !managed.has(name))
   .sort();
 
-console.log(
-  `${apply ? (stageFly ? 'Stage' : 'Apply') : 'Dry run'} ${target}:`,
-);
+console.log(`${apply ? (stageFly ? 'Stage' : 'Apply') : 'Dry run'} ${target}:`);
 for (const { name } of selected.sort((a, b) => a.name.localeCompare(b.name))) {
   console.log(`  SET ${name}`);
 }

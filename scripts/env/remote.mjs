@@ -80,6 +80,33 @@ function parseNameColumn(output) {
   return names;
 }
 
+function parseFlySecrets(output, label) {
+  let parsed;
+  try {
+    parsed = JSON.parse(output);
+  } catch {
+    throw new Error(`not checkable: ${label} did not return valid JSON`);
+  }
+  const entries = [];
+  const visit = (value) => {
+    if (Array.isArray(value)) {
+      for (const item of value) visit(item);
+      return;
+    }
+    if (!value || typeof value !== 'object') return;
+    if (
+      typeof value.name === 'string' &&
+      ENV_NAME.test(value.name) &&
+      typeof value.status === 'string'
+    ) {
+      entries.push({ name: value.name, status: value.status });
+    }
+    for (const child of Object.values(value)) visit(child);
+  };
+  visit(parsed);
+  return entries;
+}
+
 function vercelProjectRef(destination) {
   const project = destination.projectId ?? destination.project;
   if (!project)
@@ -97,15 +124,27 @@ function vercelProjectEnv(destination) {
   };
 }
 
-export function listFlyKeys(destination) {
+export function listFlySecrets(destination) {
   if (!process.env.FLY_API_TOKEN) {
     throw new Error('not checkable: set FLY_API_TOKEN');
   }
-  return parseJsonNames(
+  return parseFlySecrets(
     run(FLY_BIN, ['secrets', 'list', '--app', destination.app, '--json'], {
       failure: 'not checkable: FLY_API_TOKEN cannot read Fly secrets',
     }),
     `Fly ${destination.app}`,
+  );
+}
+
+export function listFlyKeys(destination) {
+  return new Set(listFlySecrets(destination).map((entry) => entry.name));
+}
+
+export function listStagedFlyKeys(destination) {
+  return new Set(
+    listFlySecrets(destination)
+      .filter((entry) => entry.status !== 'Deployed')
+      .map((entry) => entry.name),
   );
 }
 
@@ -245,7 +284,7 @@ export function deleteEasKey(destination, name) {
     ],
     {
       cwd: path.join(repoRoot, 'apps', 'app'),
-      failure: `EAS sync failed for ${name}`,
+      failure: `EAS prune failed for ${name}`,
     },
   );
 }

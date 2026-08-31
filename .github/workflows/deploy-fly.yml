@@ -75,7 +75,8 @@ jobs:
         # admin-controlled via .github/fly-apps.json, so intentional word-splitting is safe.
         run: pnpm run $VERIFY_SCRIPT
 
-      # Also installs the pinned flyctl the deploy step below calls.
+      # Also installs the flyctl the deploy step below calls. Note the action
+      # SHA is pinned but the flyctl binary is not — it tracks latest.
       - uses: ./.github/actions/setup-env-tooling
 
       # Every code deploy reasserts this app's manifest so code cannot outrun a
@@ -109,4 +110,9 @@ jobs:
           CAPTURE_RELEASE: ${{ inputs.capture_release_metadata }}
           COMMIT_SHA: ${{ steps.release_metadata.outputs.commit_sha }}
           BUILD_TIME: ${{ steps.release_metadata.outputs.build_time }}
-        run: node scripts/fly-deploy.mjs
+        run: |
+          args=(--config "$FLY_CONFIG")
+          if [ "$CAPTURE_RELEASE" = "true" ]; then
+            args+=(--commit-sha "$COMMIT_SHA" --build-time "$BUILD_TIME")
+          fi
+          node scripts/fly-deploy.mjs "${args[@]}"

@@ -5,7 +5,7 @@ import {
 } from '../../config/env.destinations.mjs';
 import { ENV_MANIFEST, LEGACY_ENV_NAMES } from '../../config/env.manifest.mjs';
 import { auditSecretClassification } from './lib.mjs';
-import { listDestinationKeys } from './remote.mjs';
+import { listDestinationKeys, listFlySecrets } from './remote.mjs';
 import { loadCommittedValues, loadInfisicalValues } from './sources.mjs';
 
 const offline = process.argv.slice(2).includes('--offline');
@@ -116,12 +116,40 @@ if (!offline) {
   for (const destinationName of DESTINATION_NAMES) {
     const destination = ENV_DESTINATIONS[destinationName];
     let actual;
-    try {
-      actual = listDestinationKeys(destination);
-    } catch (error) {
-      errors.push(`${destinationName}: ${error.message}`);
-      report(destinationName, 'NOT_CHECKABLE', error.message);
-      continue;
+    let staged;
+    if (destination.platform === 'fly') {
+      let entries;
+      try {
+        entries = listFlySecrets(destination);
+      } catch (error) {
+        errors.push(`${destinationName}: ${error.message}`);
+        report(
+          destinationName,
+          'NOT_CHECKABLE',
+          destinationName,
+          error.message,
+        );
+        continue;
+      }
+      actual = new Set(entries.map((entry) => entry.name));
+      staged = new Set(
+        entries
+          .filter((entry) => entry.status !== 'Deployed')
+          .map((entry) => entry.name),
+      );
+    } else {
+      try {
+        actual = listDestinationKeys(destination);
+      } catch (error) {
+        errors.push(`${destinationName}: ${error.message}`);
+        report(
+          destinationName,
+          'NOT_CHECKABLE',
+          destinationName,
+          error.message,
+        );
+        continue;
+      }
     }
     const desired = desiredFor(destination);
     const desiredNames = new Set(desired.map(({ name }) => name));
@@ -142,6 +170,12 @@ if (!offline) {
           : 'UNMANAGED';
       errors.push(`${destinationName}/${name}: ${status.toLowerCase()}`);
       report(destinationName, status, name);
+    }
+    if (staged?.size) {
+      for (const name of [...staged].sort()) {
+        errors.push(`${destinationName}/${name}: staged`);
+        report(destinationName, 'STAGED', name, 'staged value pending deploy');
+      }
     }
   }
 }
