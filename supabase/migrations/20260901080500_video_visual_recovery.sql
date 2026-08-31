@@ -105,7 +105,7 @@ begin
   where visual.episode_id = p_episode_id
   for update;
 
-  if visual_record is null then
+  if not found then
     raise exception 'Episode has no video visual job'
       using errcode = '22023';
   end if;
