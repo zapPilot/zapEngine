@@ -116,12 +116,10 @@ describe('Ops MCP HTTP protocol', () => {
   it('calls ops_status and returns structured content', async () => {
     const operations = fakeOperations();
     const app = createAuthenticatedApp(operations);
-    const { response, payload } = await mcpRequest(app, {
-      jsonrpc: '2.0',
-      id: 3,
-      method: 'tools/call',
-      params: { name: 'ops_status', arguments: {} },
-    });
+    const { response, payload } = await mcpRequest(
+      app,
+      toolCallRequest(3, 'ops_status'),
+    );
 
     expect(response.status).toBe(200);
     expect(payload.result?.structuredContent).toEqual(SNAPSHOT);
@@ -131,24 +129,20 @@ describe('Ops MCP HTTP protocol', () => {
   it('resolves one explicit Sentry issue through the bounded mutation tool', async () => {
     const operations = fakeOperations();
     const app = createAuthenticatedApp(operations);
-    const { response, payload } = await mcpRequest(app, {
-      jsonrpc: '2.0',
-      id: 4,
-      method: 'tools/call',
-      params: {
-        name: 'ops_resolve_sentry_issue',
-        arguments: {
-          issueId: '12345',
-          reason: 'The production fix is deployed.',
-        },
-      },
-    });
+    const arguments_ = {
+      issueId: '12345',
+      reason: 'The production fix is deployed.',
+    };
+    const { response, payload } = await mcpRequest(
+      app,
+      toolCallRequest(4, 'ops_resolve_sentry_issue', arguments_),
+    );
 
     expect(response.status).toBe(200);
     expect(payload.result?.structuredContent).toEqual(RESOLUTION);
     expect(operations.resolveSentryIssue).toHaveBeenCalledWith(
-      '12345',
-      'The production fix is deployed.',
+      arguments_.issueId,
+      arguments_.reason,
     );
   });
 
@@ -196,6 +190,19 @@ function initializeRequest(id: number): Record<string, unknown> {
       capabilities: {},
       clientInfo: { name: 'control-center-test', version: '1.0.0' },
     },
+  };
+}
+
+function toolCallRequest(
+  id: number,
+  name: string,
+  arguments_: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    jsonrpc: '2.0',
+    id,
+    method: 'tools/call',
+    params: { name, arguments: arguments_ },
   };
 }
 
