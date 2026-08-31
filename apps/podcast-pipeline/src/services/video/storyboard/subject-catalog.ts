@@ -82,7 +82,8 @@ export const visualSubjectCatalogSchema = z
     if (primaryCount !== 1) {
       context.addIssue({
         code: 'custom',
-        message: 'Visual subject catalog must contain exactly one primary subject',
+        message:
+          'Visual subject catalog must contain exactly one primary subject',
         path: ['subjects'],
       });
     }
@@ -111,9 +112,10 @@ export type VisualSubjectCatalog = z.infer<typeof visualSubjectCatalogSchema>;
 export type VisualSceneSubjectAssignment = z.infer<
   typeof visualSceneSubjectAssignmentSchema
 >;
-export type VisualSelectionReason = VisualSceneSubjectAssignment['selectionReason'];
 
-export function parseVisualSubjectCatalog(input: unknown): VisualSubjectCatalog {
+export function parseVisualSubjectCatalog(
+  input: unknown,
+): VisualSubjectCatalog {
   const parsed = visualSubjectCatalogSchema.parse(input);
   return visualSubjectCatalogSchema.parse({
     ...parsed,
@@ -142,14 +144,18 @@ export function subjectNames(subject: VisualSubject): string[] {
   return [subject.canonicalName, ...subject.aliases];
 }
 
-export function buildVisualSubjectSearchQueries(subject: VisualSubject): string[] {
+export function buildVisualSubjectSearchQueries(
+  subject: VisualSubject,
+): string[] {
   const canonical = subject.canonicalName.toLocaleLowerCase('en-US');
   const queries = subject.searchQueries.map((query) => {
     const lowered = query.toLocaleLowerCase('en-US');
     if (lowered.includes(canonical)) return query;
     return `${subject.canonicalName} ${query}`.slice(0, 80).trim();
   });
-  if (!queries.some((query) => query.toLocaleLowerCase('en-US') === canonical)) {
+  if (
+    !queries.some((query) => query.toLocaleLowerCase('en-US') === canonical)
+  ) {
     queries.push(subject.canonicalName);
   }
   return [...new Set(queries)].slice(0, 4);
@@ -183,7 +189,9 @@ function disambiguateSubjectIdentity(subject: VisualSubject): VisualSubject {
 
   const hint = subject.identityHints.find((value) => {
     const trimmed = value.trim();
-    return trimmed.length >= 2 && trimmed.length <= 24 && !/\s{2,}/u.test(trimmed);
+    return (
+      trimmed.length >= 2 && trimmed.length <= 24 && !/\s{2,}/u.test(trimmed)
+    );
   });
   if (!hint) return subject;
 

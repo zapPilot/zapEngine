@@ -363,8 +363,13 @@ export async function selectCoverAssetForFirstScene(
 export async function planPodcastVisualAssets(
   input: PodcastVisualAssetPlanInput,
 ): Promise<VisualAssetPlan> {
-  if (input.subjectCatalog && input.sceneAssignments) {
-    return planSubjectCatalogVisualAssets(input);
+  const { subjectCatalog, sceneAssignments } = input;
+  if (subjectCatalog && sceneAssignments) {
+    return planSubjectCatalogVisualAssets({
+      ...input,
+      subjectCatalog,
+      sceneAssignments,
+    });
   }
   return planLegacyPodcastVisualAssets(input);
 }
@@ -375,51 +380,20 @@ async function planSubjectCatalogVisualAssets(
     sceneAssignments: readonly VisualSceneSubjectAssignment[];
   },
 ): Promise<VisualAssetPlan> {
-  const brandScenes = input.scenes.filter(
-    (scene) => podcastBrandVisualKind(scene.imageSearchIntent) !== null,
-  );
-  const contentScenes = input.scenes.filter(
-    (scene) => podcastBrandVisualKind(scene.imageSearchIntent) === null,
-  );
-  const originalSceneIndex = new Map(
-    input.scenes.map((scene, index) => [scene.sceneId, index]),
-  );
+  const { assets, contentScenes, originalSceneIndex } =
+    await preparePodcastVisualAssets(input);
   const assignmentBySceneId = new Map(
     input.sceneAssignments.map(
       (assignment) => [assignment.sceneId, assignment] as const,
     ),
   );
-  const assets: PlannedVisualImage[] = [];
-
-  for (const brandScene of brandScenes) {
-    const kind = podcastBrandVisualKind(brandScene.imageSearchIntent);
-    if (kind === 'intro') {
-      assets.push(await createPodcastIntroAsset(input.workingDirectory));
-      reportBrandAssetProgress(
-        input,
-        brandScene.sceneId,
-        originalSceneIndex.get(brandScene.sceneId) ?? 0,
-        PODCAST_INTRO_ASSET_ID,
-      );
-    } else if (kind === 'outro') {
-      assets.push(await createPodcastOutroAsset(input.workingDirectory));
-      reportBrandAssetProgress(
-        input,
-        brandScene.sceneId,
-        originalSceneIndex.get(brandScene.sceneId) ?? 0,
-        PODCAST_OUTRO_ASSET_ID,
-      );
-    }
-  }
-
   if (contentScenes.length === 0) {
     return { assets, scenes: mapScenesWithBrand(input.scenes, new Map()) };
   }
 
   const firstAssignment = assignmentBySceneId.get(contentScenes[0]!.sceneId);
   if (
-    !firstAssignment ||
-    firstAssignment.subjectIds[0] !== input.subjectCatalog.primarySubjectId
+    firstAssignment?.subjectIds[0] !== input.subjectCatalog.primarySubjectId
   ) {
     throw new Error(
       `Lead visual must be anchored to primary subject ${input.subjectCatalog.primarySubjectId}`,
@@ -429,7 +403,9 @@ async function planSubjectCatalogVisualAssets(
   const subjectScenes = contentScenes.map((scene) => {
     const assignment = assignmentBySceneId.get(scene.sceneId);
     if (!assignment) {
-      throw new Error(`Visual subject assignment is missing for ${scene.sceneId}`);
+      throw new Error(
+        `Visual subject assignment is missing for ${scene.sceneId}`,
+      );
     }
     const subjects = visualSubjectsForScene(input.subjectCatalog, assignment);
     if (subjects.length === 0) {
@@ -441,7 +417,9 @@ async function planSubjectCatalogVisualAssets(
     // v8 intentionally passes the disambiguated canonical identity into the
     // existing hard gate. A local alias such as "Alpaca" or "B20" is not enough
     // to accept an animal, camera flash, or engine with the same letters.
-    const imageSearchEntities = subjects.map((subject) => subject.canonicalName);
+    const imageSearchEntities = subjects.map(
+      (subject) => subject.canonicalName,
+    );
     return {
       ...scene,
       imageSearchIntent,
@@ -473,43 +451,12 @@ async function planSubjectCatalogVisualAssets(
 }
 
 // v7 behavior kept only for callers that do not provide the v8 subject catalog.
-// eslint-disable-next-line sonarjs/cognitive-complexity
+
 async function planLegacyPodcastVisualAssets(
   input: PlanVisualAssetsInput,
 ): Promise<VisualAssetPlan> {
-  const brandScenes = input.scenes.filter(
-    (scene) => podcastBrandVisualKind(scene.imageSearchIntent) !== null,
-  );
-  const contentScenes = input.scenes.filter(
-    (scene) => podcastBrandVisualKind(scene.imageSearchIntent) === null,
-  );
-  const originalSceneIndex = new Map(
-    input.scenes.map((scene, index) => [scene.sceneId, index]),
-  );
-  const assets: PlannedVisualImage[] = [];
-
-  for (const brandScene of brandScenes) {
-    const kind = podcastBrandVisualKind(brandScene.imageSearchIntent);
-    if (kind === 'intro') {
-      const introAsset = await createPodcastIntroAsset(input.workingDirectory);
-      assets.push(introAsset);
-      reportBrandAssetProgress(
-        input,
-        brandScene.sceneId,
-        originalSceneIndex.get(brandScene.sceneId) ?? 0,
-        PODCAST_INTRO_ASSET_ID,
-      );
-    } else if (kind === 'outro') {
-      const outroAsset = await createPodcastOutroAsset(input.workingDirectory);
-      assets.push(outroAsset);
-      reportBrandAssetProgress(
-        input,
-        brandScene.sceneId,
-        originalSceneIndex.get(brandScene.sceneId) ?? 0,
-        PODCAST_OUTRO_ASSET_ID,
-      );
-    }
-  }
+  const { assets, contentScenes, originalSceneIndex } =
+    await preparePodcastVisualAssets(input);
 
   if (contentScenes.length === 0) {
     const scenes = mapScenesWithBrand(input.scenes, new Map());
@@ -586,8 +533,7 @@ async function planLegacyPodcastVisualAssets(
   let remainingPlan: VisualAssetPlan | null = null;
   if (remainingScenes.length > 0) {
     const remainingArticleImages = (input.articleImages ?? []).filter(
-      (candidate) =>
-        candidate.imageUrl !== coverResult?.asset.originalImageUrl,
+      (candidate) => candidate.imageUrl !== coverResult?.asset.originalImageUrl,
     );
     remainingPlan = await planVisualAssets({
       ...input,
@@ -630,7 +576,9 @@ async function planLegacyPodcastVisualAssets(
   if (remainingPlan) {
     const combined = new Map<string, string>([
       [coverScene.sceneId, coverResult.asset.assetId],
-      ...remainingPlan.scenes.map((scene) => [scene.sceneId, scene.assetId] as const),
+      ...remainingPlan.scenes.map(
+        (scene) => [scene.sceneId, scene.assetId] as const,
+      ),
     ]);
     return { assets, scenes: mapScenesWithBrand(input.scenes, combined) };
   }
@@ -642,6 +590,48 @@ async function planLegacyPodcastVisualAssets(
       new Map([[coverScene.sceneId, coverResult.asset.assetId]]),
     ),
   };
+}
+
+async function preparePodcastVisualAssets(
+  input: PlanVisualAssetsInput,
+): Promise<{
+  assets: PlannedVisualImage[];
+  contentScenes: PlanVisualAssetsInput['scenes'];
+  originalSceneIndex: Map<string, number>;
+}> {
+  const brandScenes = input.scenes.filter(
+    (scene) => podcastBrandVisualKind(scene.imageSearchIntent) !== null,
+  );
+  const contentScenes = input.scenes.filter(
+    (scene) => podcastBrandVisualKind(scene.imageSearchIntent) === null,
+  );
+  const originalSceneIndex = new Map(
+    input.scenes.map((scene, index) => [scene.sceneId, index]),
+  );
+  const assets: PlannedVisualImage[] = [];
+
+  for (const brandScene of brandScenes) {
+    const kind = podcastBrandVisualKind(brandScene.imageSearchIntent);
+    if (kind === 'intro') {
+      assets.push(await createPodcastIntroAsset(input.workingDirectory));
+      reportBrandAssetProgress(
+        input,
+        brandScene.sceneId,
+        originalSceneIndex.get(brandScene.sceneId) ?? 0,
+        PODCAST_INTRO_ASSET_ID,
+      );
+    } else if (kind === 'outro') {
+      assets.push(await createPodcastOutroAsset(input.workingDirectory));
+      reportBrandAssetProgress(
+        input,
+        brandScene.sceneId,
+        originalSceneIndex.get(brandScene.sceneId) ?? 0,
+        PODCAST_OUTRO_ASSET_ID,
+      );
+    }
+  }
+
+  return { assets, contentScenes, originalSceneIndex };
 }
 
 function reportBrandAssetProgress(

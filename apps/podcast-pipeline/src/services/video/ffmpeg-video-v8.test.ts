@@ -84,7 +84,7 @@ describe('v8 editorial image presentation', () => {
     expect(filter).toContain('crop=1920:1080');
     expect(filter).toContain("z='1+0.0160*");
     expect(filter).toContain('max(0\\,min((on/119-0.30)/0.50\\,1))');
-    expect(filter).not.toContain("*(1-");
+    expect(filter).not.toContain('*(1-');
     expect(filter).not.toContain('1.15');
     expect(filter).not.toContain('0.1800');
   });

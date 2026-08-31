@@ -96,7 +96,9 @@ describe('visual subject catalog', () => {
       ],
     });
 
-    const b20 = catalog.subjects.find((subject) => subject.id === 'subject-b20');
+    const b20 = catalog.subjects.find(
+      (subject) => subject.id === 'subject-b20',
+    );
     expect(b20?.canonicalName).toBe('Base B20');
     expect(b20?.aliases).toContain('B20');
     expect(buildVisualSubjectSearchQueries(b20!)).toEqual(

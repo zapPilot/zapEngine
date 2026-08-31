@@ -4,10 +4,10 @@ import { z } from 'zod';
 
 import type { StoryboardGenerationResult } from './storyboard/orchestrator.js';
 import {
-  visualSceneSubjectAssignmentSchema,
-  visualSubjectCatalogSchema,
   type VisualSceneSubjectAssignment,
+  visualSceneSubjectAssignmentSchema,
   type VisualSubjectCatalog,
+  visualSubjectCatalogSchema,
 } from './storyboard/subject-catalog.js';
 import {
   type ImageVisualPlan,
@@ -111,7 +111,8 @@ export const episodeVisualPayloadSchema = z
       if (!payload.subjectCatalog || !payload.sceneAssignments) {
         context.addIssue({
           code: 'custom',
-          message: 'Visual subject catalog and scene assignments must be stored together',
+          message:
+            'Visual subject catalog and scene assignments must be stored together',
           path: ['subjectCatalog'],
         });
         return;
@@ -305,7 +306,8 @@ function presentationForAsset(asset: PlannedVisualImage): {
   layout: 'fullBleed' | 'contain';
   motion: 'static' | 'pushIn' | 'pan';
 } {
-  if (asset.provider === 'brand') return { layout: 'contain', motion: 'static' };
+  if (asset.provider === 'brand')
+    return { layout: 'contain', motion: 'static' };
   const aspectRatio = asset.width / asset.height;
   // The portrait renderer's media window is ~1.125:1. Preserve the complete
   // composition when the source differs materially instead of cropping a 16:9

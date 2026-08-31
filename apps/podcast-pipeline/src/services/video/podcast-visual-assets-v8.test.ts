@@ -73,18 +73,22 @@ describe('podcast visual assets v8 identity gate', () => {
       'https://images.example.test/honda-b20.jpg',
     ]);
     const downloaded: string[] = [];
-    const acquireImage = vi.fn(async (url: string): Promise<AcquiredRemoteImage> => {
-      downloaded.push(url);
-      const id = new URL(url).pathname.split('/').pop()!.replace('.jpg', '');
-      const hashCharacter = id.includes('coinbase') ? 'a' : id.includes('alpaca-markets') ? 'b' : 'c';
-      return {
-        path: join(directory, `${id}.jpg`),
-        contentType: 'image/jpeg',
-        sha256: hashCharacter.repeat(64),
-        width: 1600,
-        height: 900,
-      };
-    });
+    const acquireImage = vi.fn(
+      async (url: string): Promise<AcquiredRemoteImage> => {
+        downloaded.push(url);
+        const id = new URL(url).pathname.split('/').pop()!.replace('.jpg', '');
+        let hashCharacter = 'c';
+        if (id.includes('coinbase')) hashCharacter = 'a';
+        else if (id.includes('alpaca-markets')) hashCharacter = 'b';
+        return {
+          path: join(directory, `${id}.jpg`),
+          contentType: 'image/jpeg',
+          sha256: hashCharacter.repeat(64),
+          width: 1600,
+          height: 900,
+        };
+      },
+    );
     const fingerprintImage = vi
       .fn()
       .mockResolvedValueOnce('0000000000000000')

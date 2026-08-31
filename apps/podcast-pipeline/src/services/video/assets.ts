@@ -63,7 +63,7 @@ export type ResolvedSlideAsset =
       dataUri?: string;
       filePath?: string;
       contentType: string;
-      layout: 'fullBleed' | 'framed';
+      layout: 'fullBleed' | 'contain' | 'framed';
       position: 'center' | 'top' | 'bottom';
       width: number;
       height: number;
@@ -561,7 +561,7 @@ async function downloadRemoteImage(
 async function inspectDownloadedImage(
   outputPath: string,
   contentType: SupportedRemoteImageContentType,
-  layout: 'fullBleed' | 'framed',
+  layout: 'fullBleed' | 'contain' | 'framed',
 ): Promise<{ width: number; height: number }> {
   const metadata = await sharp(outputPath, {
     failOn: 'error',

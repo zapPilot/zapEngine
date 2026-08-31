@@ -407,19 +407,25 @@ function editorialKenBurnsFilter(
   const requested =
     slide.asset.kind === 'remoteImage' ? slide.asset.motion : 'pushIn';
 
-  let motion: 'static' | 'zoomIn' | 'leftToRight' | 'rightToLeft' | 'topToBottom';
+  let motion:
+    | 'static'
+    | 'zoomIn'
+    | 'leftToRight'
+    | 'rightToLeft'
+    | 'topToBottom';
   if (requested === 'static') motion = 'static';
   else if (requested === 'pushIn') motion = 'zoomIn';
   else {
     const varied = kenBurnsPanForScene(index, seed);
-    motion =
+    if (
       varied === 'leftToRight' ||
       varied === 'rightToLeft' ||
       varied === 'topToBottom'
-        ? varied
-        : index % 2 === 0
-          ? 'leftToRight'
-          : 'rightToLeft';
+    ) {
+      motion = varied;
+    } else {
+      motion = index % 2 === 0 ? 'leftToRight' : 'rightToLeft';
+    }
   }
   if (motion === 'topToBottom' && position !== 'center') motion = 'zoomIn';
   const isPan =
@@ -457,7 +463,15 @@ function kenBurnsFilter(
   const hasExplicitV8Motion =
     slide.asset.kind === 'remoteImage' && slide.asset.motion !== undefined;
   return hasExplicitV8Motion
-    ? editorialKenBurnsFilter(slide, index, seed, fps, width, height, holdFrames)
+    ? editorialKenBurnsFilter(
+        slide,
+        index,
+        seed,
+        fps,
+        width,
+        height,
+        holdFrames,
+      )
     : legacyKenBurnsFilter(slide, index, seed, fps, width, height, holdFrames);
 }
 

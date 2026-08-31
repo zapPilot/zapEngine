@@ -28,8 +28,8 @@ import {
   subjectNames,
   type VisualSceneSubjectAssignment,
   type VisualSubject,
-  type VisualSubjectCatalog,
   visualSubjectById,
+  type VisualSubjectCatalog,
 } from './subject-catalog.js';
 import { isGroundedSearchIntent } from './validation.js';
 
@@ -200,7 +200,9 @@ export async function enrichStoryboardSearchIntents(
 
     if (scene.sceneId === firstContentSceneId) {
       subjectIds = [subjectCatalog.primarySubjectId];
-      selectionReason = directSubjectIds.includes(subjectCatalog.primarySubjectId)
+      selectionReason = directSubjectIds.includes(
+        subjectCatalog.primarySubjectId,
+      )
         ? 'direct'
         : 'episode-context';
     } else if (directSubjectIds.length > 0) {
@@ -343,7 +345,9 @@ function subjectAppearsInScene(
   subject: VisualSubject,
   scene: SearchIntentScene,
 ): boolean {
-  const evidence = normalizedEntityText(`${scene.text}\n${scene.searchText ?? ''}`);
+  const evidence = normalizedEntityText(
+    `${scene.text}\n${scene.searchText ?? ''}`,
+  );
   return subjectNames(subject).some((name) =>
     containsEntityPhrase(evidence, normalizedEntityText(name)),
   );
@@ -354,7 +358,9 @@ function groundedEntities(
   scene: SearchIntentScene | undefined,
 ): string[] {
   if (!scene) return [];
-  const evidence = normalizedEntityText(`${scene.text}\n${scene.searchText ?? ''}`);
+  const evidence = normalizedEntityText(
+    `${scene.text}\n${scene.searchText ?? ''}`,
+  );
   return entities.filter((entity) =>
     containsEntityPhrase(evidence, normalizedEntityText(entity)),
   );
@@ -385,57 +391,58 @@ export function createOpenRouterSearchIntentProvider(): SearchIntentProvider {
   const { openai, model } = getOpenRouterConfig({ thinkingModel: null });
   return {
     model,
-    async catalog(request) {
-      const completion = await createCompletionWithRetry(
+    catalog: (request) =>
+      completeSearchIntentRequest({
         openai,
-        {
-          model,
-          messages: subjectCatalogMessages(request),
-          response_format: { type: 'json_object' },
-          temperature: 0.1,
-          max_tokens: SUBJECT_CATALOG_MAX_OUTPUT_TOKENS,
-        },
-        null,
-        'buildVisualSubjectCatalog',
-        {
-          ...(request.signal ? { signal: request.signal } : {}),
-          reasoning: SEARCH_INTENT_REASONING,
-        },
-      );
-      const choice = completion.choices[0];
-      return parseSearchIntentContent(choice?.message?.content ?? '', {
-        provider: completion.provider || 'unknown',
-        model: completion.model || model,
-        finishReason: choice?.finish_reason || 'unknown',
-        reasoningChars: searchIntentReasoningCharacterCount(choice?.message),
-      });
-    },
-    async suggest(request) {
-      const completion = await createCompletionWithRetry(
+        model,
+        messages: subjectCatalogMessages(request),
+        maxTokens: SUBJECT_CATALOG_MAX_OUTPUT_TOKENS,
+        operation: 'buildVisualSubjectCatalog',
+        signal: request.signal,
+      }),
+    suggest: (request) =>
+      completeSearchIntentRequest({
         openai,
-        {
-          model,
-          messages: searchIntentMessages(request),
-          response_format: { type: 'json_object' },
-          temperature: 0.1,
-          max_tokens: SEARCH_INTENT_MAX_OUTPUT_TOKENS,
-        },
-        null,
-        'suggestSearchIntents',
-        {
-          ...(request.signal ? { signal: request.signal } : {}),
-          reasoning: SEARCH_INTENT_REASONING,
-        },
-      );
-      const choice = completion.choices[0];
-      return parseSearchIntentContent(choice?.message?.content ?? '', {
-        provider: completion.provider || 'unknown',
-        model: completion.model || model,
-        finishReason: choice?.finish_reason || 'unknown',
-        reasoningChars: searchIntentReasoningCharacterCount(choice?.message),
-      });
-    },
+        model,
+        messages: searchIntentMessages(request),
+        maxTokens: SEARCH_INTENT_MAX_OUTPUT_TOKENS,
+        operation: 'suggestSearchIntents',
+        signal: request.signal,
+      }),
   };
+}
+
+async function completeSearchIntentRequest(input: {
+  openai: OpenAI;
+  model: string;
+  messages: OpenAI.Chat.ChatCompletionMessageParam[];
+  maxTokens: number;
+  operation: 'buildVisualSubjectCatalog' | 'suggestSearchIntents';
+  signal?: AbortSignal;
+}): Promise<unknown> {
+  const completion = await createCompletionWithRetry(
+    input.openai,
+    {
+      model: input.model,
+      messages: input.messages,
+      response_format: { type: 'json_object' },
+      temperature: 0.1,
+      max_tokens: input.maxTokens,
+    },
+    null,
+    input.operation,
+    {
+      ...(input.signal ? { signal: input.signal } : {}),
+      reasoning: SEARCH_INTENT_REASONING,
+    },
+  );
+  const choice = completion.choices[0];
+  return parseSearchIntentContent(choice?.message?.content ?? '', {
+    provider: completion.provider || 'unknown',
+    model: completion.model || input.model,
+    finishReason: choice?.finish_reason || 'unknown',
+    reasoningChars: searchIntentReasoningCharacterCount(choice?.message),
+  });
 }
 
 export function buildSubjectCatalogSystemPrompt(): string {
@@ -473,40 +480,41 @@ export function buildSearchIntentSystemPrompt(): string {
 function subjectCatalogMessages(
   request: SearchIntentCatalogRequest,
 ): OpenAI.Chat.ChatCompletionMessageParam[] {
-  return [
-    { role: 'system', content: buildSubjectCatalogSystemPrompt() },
-    {
-      role: 'user',
-      content: JSON.stringify({
-        title: request.title,
-        scenes: request.scenes.map((scene) => ({
-          sceneId: scene.sceneId,
-          sentences: scene.text,
-          ...(scene.searchText ? { englishSentences: scene.searchText } : {}),
-        })),
-      }),
-    },
-  ];
+  return promptMessages(buildSubjectCatalogSystemPrompt(), {
+    title: request.title,
+    scenes: promptScenes(request.scenes),
+  });
 }
 
 function searchIntentMessages(
   request: SearchIntentRequest,
 ): OpenAI.Chat.ChatCompletionMessageParam[] {
+  return promptMessages(buildSearchIntentSystemPrompt(), {
+    title: request.title,
+    ...(request.subjectCatalog
+      ? { subjectCatalog: request.subjectCatalog }
+      : {}),
+    scenes: promptScenes(request.scenes),
+  });
+}
+
+function promptScenes(scenes: readonly SearchIntentScene[]): unknown[] {
+  return scenes.map((scene) => ({
+    sceneId: scene.sceneId,
+    sentences: scene.text,
+    ...(scene.searchText ? { englishSentences: scene.searchText } : {}),
+  }));
+}
+
+function promptMessages(
+  systemPrompt: string,
+  payload: Record<string, unknown>,
+): OpenAI.Chat.ChatCompletionMessageParam[] {
   return [
-    { role: 'system', content: buildSearchIntentSystemPrompt() },
+    { role: 'system', content: systemPrompt },
     {
       role: 'user',
-      content: JSON.stringify({
-        title: request.title,
-        ...(request.subjectCatalog
-          ? { subjectCatalog: request.subjectCatalog }
-          : {}),
-        scenes: request.scenes.map((scene) => ({
-          sceneId: scene.sceneId,
-          sentences: scene.text,
-          ...(scene.searchText ? { englishSentences: scene.searchText } : {}),
-        })),
-      }),
+      content: JSON.stringify(payload),
     },
   ];
 }
@@ -603,7 +611,9 @@ function parseSearchIntents(
     throw new Error('Search intents must be an array of scenes');
   }
   const requested = new Set(batch.map((scene) => scene.sceneId));
-  const catalogIds = new Set(catalog?.subjects.map((subject) => subject.id) ?? []);
+  const catalogIds = new Set(
+    catalog?.subjects.map((subject) => subject.id) ?? [],
+  );
   const parsed = new Map<string, SceneSuggestion>();
   for (const entry of entries) {
     if (!isRecord(entry)) continue;

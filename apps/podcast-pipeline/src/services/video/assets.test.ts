@@ -92,6 +92,25 @@ function remoteImageSlide(options: {
   };
 }
 
+function containedImageSlide(imageHash: string): Slide {
+  return {
+    id: 'scene-01',
+    startMs: 0,
+    endMs: 4_000,
+    template: 'image',
+    sources: [openSource],
+    asset: {
+      kind: 'remoteImage',
+      sourceId: openSource.id,
+      url: 'https://example.test/image.png',
+      sha256: imageHash,
+      layout: 'contain',
+      position: 'center',
+      motion: 'static',
+    },
+  };
+}
+
 function bundledMapSlide(
   sourceId: string = openSource.id,
 ): Extract<Slide, { template: 'sourceQuote' }> {
@@ -176,6 +195,30 @@ describe('resolveSlideAsset', () => {
       );
     },
   );
+
+  it('accepts a contained v8 image at the framed quality floor', async () => {
+    const buffer = await sharp({
+      create: {
+        width: 800,
+        height: 450,
+        channels: 3,
+        background: '#d4c5a3',
+      },
+    })
+      .png()
+      .toBuffer();
+
+    await expect(
+      resolveSlideAsset(containedImageSlide(hash(buffer)), async () =>
+        imageResponse(buffer),
+      ),
+    ).resolves.toMatchObject({
+      kind: 'image',
+      layout: 'contain',
+      width: 800,
+      height: 450,
+    });
+  });
 
   it.each([
     { layout: 'framed' as const, width: 799, required: 800 },
