@@ -1,0 +1,185 @@
+begin;
+
+alter table from_fed_to_chain.episode_video_visuals
+  add column if not exists failure_notified_at timestamptz;
+
+-- Visual planning is a prerequisite for every language render. A terminal
+-- visual failure therefore blocks the whole episode even though the downstream
+-- episode_videos rows remain queued. Give it the same durable, at-least-once
+-- Telegram notification contract as localized render failures.
+create or replace function from_fed_to_chain.reap_failed_episode_video_visual_notifications(
+  p_limit integer default 20
+)
+returns table (
+  episode_id uuid,
+  telegram_chat_id text,
+  last_error text
+)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  return query
+  select
+    visual.episode_id,
+    visual.telegram_chat_id,
+    visual.last_error
+  from from_fed_to_chain.episode_video_visuals visual
+  where visual.status = 'failed'
+    and visual.telegram_chat_id is not null
+    and visual.failure_notified_at is null
+  order by visual.updated_at
+  limit greatest(coalesce(p_limit, 20), 1);
+end;
+$$;
+
+create or replace function from_fed_to_chain.mark_episode_video_visual_failure_notified(
+  p_episode_id uuid
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  updated_rows integer;
+begin
+  update from_fed_to_chain.episode_video_visuals visual
+  set failure_notified_at = now(),
+      updated_at = now()
+  where visual.episode_id = p_episode_id
+    and visual.status = 'failed'
+    and visual.failure_notified_at is null;
+
+  get diagnostics updated_rows = row_count;
+  return updated_rows = 1;
+end;
+$$;
+
+-- Narrow operator remediation for Control Center. This deliberately restarts
+-- only the video phase: translation, scripts, narration and classroom audio are
+-- prerequisites and are never rewritten here.
+create or replace function from_fed_to_chain.retry_episode_video_generation(
+  p_episode_id uuid
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  visual_record record;
+  ready_languages integer;
+begin
+  select
+    visual.status,
+    visual.visual_version,
+    visual.source_hash,
+    visual.lease_expires_at
+  into visual_record
+  from from_fed_to_chain.episode_video_visuals visual
+  where visual.episode_id = p_episode_id
+  for update;
+
+  if visual_record is null then
+    raise exception 'Episode has no video visual job'
+      using errcode = '22023';
+  end if;
+
+  if visual_record.status = 'processing'
+      and visual_record.lease_expires_at > now() then
+    raise exception 'Episode video generation is currently processing'
+      using errcode = '55000';
+  end if;
+
+  select count(distinct localization.language_code)
+  into ready_languages
+  from from_fed_to_chain.episode_localizations localization
+  where localization.episode_id = p_episode_id
+    and localization.language_code in ('zh-Hant', 'ja', 'en')
+    and localization.status = 'completed'
+    and nullif(btrim(localization.script), '') is not null
+    and nullif(btrim(localization.hls_url), '') is not null
+    and (
+      localization.language_code <> 'zh-Hant'
+      or nullif(btrim(localization.classroom_hls_url), '') is not null
+    );
+
+  if ready_languages <> 3 then
+    raise exception 'Episode video retry requires completed zh-Hant, ja, and en audio prerequisites'
+      using errcode = '22023';
+  end if;
+
+  -- Clear downstream checkpoint references first; episode_videos has a foreign
+  -- key to the visual checkpoint tuple.
+  update from_fed_to_chain.episode_videos video
+  set status = 'queued',
+      progress_percent = null,
+      progress_stage = null,
+      visual_hash = null,
+      visual_version = visual_record.visual_version,
+      manifest = null,
+      manifest_hash = null,
+      renderer_version = null,
+      storyboard_provider = null,
+      storyboard_model = null,
+      storyboard_prompt_version = null,
+      script_hash = null,
+      mp4_url = null,
+      thumbnail_url = null,
+      manifest_url = null,
+      captions_ass_url = null,
+      r2_prefix = null,
+      duration_seconds = null,
+      attempt_count = 0,
+      next_attempt_at = now(),
+      lease_owner = null,
+      lease_expires_at = null,
+      last_error = null,
+      failure_notified_at = null,
+      started_at = null,
+      completed_at = null,
+      updated_at = now()
+  where video.episode_id = p_episode_id;
+
+  update from_fed_to_chain.episode_video_visuals visual
+  set status = 'queued',
+      progress_percent = null,
+      progress_stage = null,
+      visual_payload = null,
+      visual_hash = null,
+      r2_prefix = null,
+      attempt_count = 0,
+      next_attempt_at = now(),
+      lease_owner = null,
+      lease_expires_at = null,
+      last_error = null,
+      failure_notified_at = null,
+      started_at = null,
+      completed_at = null,
+      updated_at = now()
+  where visual.episode_id = p_episode_id;
+
+  return true;
+end;
+$$;
+
+revoke execute on function from_fed_to_chain.reap_failed_episode_video_visual_notifications(integer)
+  from public, anon, authenticated;
+grant execute on function from_fed_to_chain.reap_failed_episode_video_visual_notifications(integer)
+  to service_role;
+
+revoke execute on function from_fed_to_chain.mark_episode_video_visual_failure_notified(uuid)
+  from public, anon, authenticated;
+grant execute on function from_fed_to_chain.mark_episode_video_visual_failure_notified(uuid)
+  to service_role;
+
+revoke execute on function from_fed_to_chain.retry_episode_video_generation(uuid)
+  from public, anon, authenticated;
+grant execute on function from_fed_to_chain.retry_episode_video_generation(uuid)
+  to service_role;
+
+notify pgrst, 'reload schema';
+
+commit;
