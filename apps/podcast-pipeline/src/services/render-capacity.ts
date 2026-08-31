@@ -45,7 +45,7 @@ const WAKEABLE_MACHINE_STATES = new Set(['stopped', 'suspended']);
 const ACTIVE_JOB_STATUSES = ['queued', 'processing', 'failed'];
 
 const VISUAL_WORK_FIELDS =
-  'episode_id, status, visual_version, visual_hash, next_attempt_at, attempt_count, lease_expires_at, telegram_chat_id';
+  'episode_id, status, visual_version, visual_hash, next_attempt_at, attempt_count, lease_expires_at, telegram_chat_id, failure_notified_at';
 const VIDEO_WORK_FIELDS =
   'episode_localization_id, episode_id, status, visual_version, visual_hash, next_attempt_at, attempt_count, lease_expires_at, telegram_chat_id, failure_notified_at';
 
@@ -61,7 +61,10 @@ interface JobLifecycleColumns {
   telegram_chat_id: string | null;
 }
 
-export type VisualWorkRow = JobLifecycleColumns;
+export interface VisualWorkRow extends JobLifecycleColumns {
+  /** Optional only so unit fakes written before the migration stay source-compatible. */
+  failure_notified_at?: string | null;
+}
 
 export interface VideoWorkRow extends JobLifecycleColumns {
   episode_localization_id: string;
@@ -437,9 +440,18 @@ function describeMachineCount(count: number, qualifier: string): string {
 function visualWorkReason(
   visual: VisualWorkRow,
   nowMs: number,
-): 'visual:queued' | 'visual:orphaned' | null {
+): 'visual:queued' | 'visual:orphaned' | 'visual:unnotified-failure' | null {
   if (isClaimable(visual, nowMs)) return 'visual:queued';
   if (isOrphaned(visual, nowMs)) return 'visual:orphaned';
+  if (
+    visual.status === 'failed' &&
+    visual.telegram_chat_id != null &&
+    visual.failure_notified_at == null
+  ) {
+    // The durable visual-failure sweep runs in the render process, so an
+    // undelivered notice must itself keep the on-demand group wakeable.
+    return 'visual:unnotified-failure';
+  }
   return null;
 }
 
