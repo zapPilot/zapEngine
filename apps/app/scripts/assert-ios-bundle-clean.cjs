@@ -25,11 +25,13 @@ const path = require('node:path');
 //      - Aave (1): "Aavegotchi GHST Token" in a vendor token list. Also a
 //        substring collision, unrelated to Aave lending.
 //
-// 2. First-party execution markers, baseline 0. These strings only exist in our
-//    own deposit/withdraw path, so any hit at all means that path became
-//    reachable. They exist because the historical `Hyperliquid` baseline of 3
-//    hid a leak that had grown to 32 hits (the whole @nktkas/hyperliquid SDK)
-//    plus 28 unguarded `GMX` hits.
+// 2. First-party wallet/execution markers, baseline 0. These strings only exist
+//    in our wallet context or deposit/withdraw paths, so any hit at all means
+//    that surface became reachable. They exist because the historical
+//    `Hyperliquid` baseline of 3 hid a leak that had grown to 32 hits (the whole
+//    @nktkas/hyperliquid SDK) plus 28 unguarded `GMX` hits. The wallet-provider
+//    invariant also guards the auth-only iOS account screen after Sentry issue
+//    ZAP-PILOT-NATIVE-2 exposed a wallet-backed account control there.
 //
 // The usual cause is not a missing `.ios.tsx` split but a BARREL import: one
 // module in the iOS graph importing `@zapengine/app-core/hooks/queries` or
@@ -45,7 +47,11 @@ const DENYLIST = [
   { term: 'Aave', baseline: 1 },
   { term: 'Hyperliquid', baseline: 1 },
   { term: 'createWalletClient', baseline: 1 },
-  // First-party execution surface — must stay absent.
+  // First-party wallet/execution surface — must stay absent.
+  {
+    term: 'useWalletProvider must be used within a WalletProvider',
+    baseline: 0,
+  },
   { term: 'GMX', baseline: 0 },
   { term: 'Moonwell', baseline: 0 },
   { term: 'vaultTransfer', baseline: 0 },
