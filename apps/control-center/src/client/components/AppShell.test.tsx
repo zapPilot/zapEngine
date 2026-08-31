@@ -28,14 +28,21 @@ function renderShell(props: Partial<Parameters<typeof AppShell>[0]> = {}) {
 }
 
 describe('AppShell', () => {
-  it('names the five domains a founder navigates between', () => {
+  it('names the six domains a founder navigates between', () => {
     renderShell();
     const nav = screen.getByRole('navigation', {
       name: 'Control Center views',
     });
     expect(
       [...nav.querySelectorAll('button')].map((button) => button.textContent),
-    ).toEqual(['Home', 'Growth', 'Product', 'Reliability', 'Economics']);
+    ).toEqual([
+      'Home',
+      'Pipeline',
+      'Growth',
+      'Product',
+      'Reliability',
+      'Economics',
+    ]);
   });
 
   it('marks only the active view as the current page', () => {
@@ -51,8 +58,8 @@ describe('AppShell', () => {
 
   it('reports the view a reader asked for', () => {
     const { onNavigate } = renderShell();
-    fireEvent.click(screen.getByRole('button', { name: 'Product' }));
-    expect(onNavigate).toHaveBeenCalledWith('product' satisfies DashboardView);
+    fireEvent.click(screen.getByRole('button', { name: 'Pipeline' }));
+    expect(onNavigate).toHaveBeenCalledWith('pipeline' satisfies DashboardView);
   });
 
   // Leaving Home must not be able to hide open decisions: the count follows
