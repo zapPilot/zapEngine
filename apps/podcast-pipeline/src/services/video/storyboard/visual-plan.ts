@@ -36,12 +36,12 @@ export const remoteImageAssetSchema = z
     sourceId: z.string().min(1),
     url: z.string().url(),
     sha256: z.string().regex(/^[a-f\d]{64}$/),
-    // Stored v1 manifests already carry layout/position. v8 adds motion; the
-    // default gives old manifests their historical push-in behavior while fresh
-    // v8 payloads always write the editorial choice explicitly.
     layout: z.enum(['fullBleed', 'contain']).default('fullBleed'),
     position: z.enum(['center', 'top', 'bottom']).default('center'),
-    motion: z.enum(['static', 'pushIn', 'pan']).default('pushIn'),
+    // Missing means legacy renderer behavior. Fresh v8 visual payloads always
+    // write one of these values, which is the explicit switch to restrained
+    // editorial motion and makes old/new rendering behavior distinguishable.
+    motion: z.enum(['static', 'pushIn', 'pan']).optional(),
   })
   .strict();
 
