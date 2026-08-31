@@ -169,7 +169,7 @@ describe('control center API', () => {
       getCostHistory: vi.fn().mockResolvedValue({
         currentMonthDaily: [],
         monthlyTotals: [],
-        cashInvoiceSpendUsd: null,
+        cashSpendUsd: null,
       }),
       getSocial: vi.fn().mockResolvedValue(overview.social),
     });
