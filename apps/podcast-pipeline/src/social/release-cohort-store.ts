@@ -3,19 +3,10 @@ import {
   throwSupabaseError,
 } from '../services/supabase-client.js';
 import type { SocialPublishJobRow } from './daemon-store.js';
-import { SOCIAL_RELEASE_SLOTS } from './policy.js';
-import { nextReleaseSlot } from './slot-policy.js';
-
-const JST_OFFSET_MS = 9 * 60 * 60_000;
-
-interface ReleaseScheduleRow {
-  id: string;
-  episode_id: string;
-  status: SocialPublishJobRow['status'];
-  scheduled_at: string;
-  next_attempt_at: string;
-  completed_at: string | null;
-}
+import {
+  planPendingSocialReleaseCohorts,
+  type ReleaseScheduleRow,
+} from './release-cohort-plan.js';
 
 export interface ReleaseCohortAlignmentResult {
   alignedLanes: number;
@@ -26,9 +17,7 @@ export interface ReleaseCohortAlignmentResult {
 async function listReleaseScheduleRows(): Promise<ReleaseScheduleRow[]> {
   const { data, error } = await getPipelineSupabase()
     .from('social_publish_jobs')
-    .select(
-      'id,episode_id,status,scheduled_at,next_attempt_at,completed_at',
-    )
+    .select('id,episode_id,status,scheduled_at,next_attempt_at,completed_at')
     .in('status', ['queued', 'failed', 'processing', 'completed'])
     .order('scheduled_at', { ascending: true })
     .returns<ReleaseScheduleRow[]>();
@@ -36,163 +25,45 @@ async function listReleaseScheduleRows(): Promise<ReleaseScheduleRow[]> {
   return data ?? [];
 }
 
-function earliestSchedule(rows: readonly ReleaseScheduleRow[]): Date {
-  return new Date(
-    Math.min(...rows.map((row) => Date.parse(row.scheduled_at))),
-  );
-}
-
-function isConfiguredArticleSlot(date: Date): boolean {
-  const jst = new Date(date.getTime() + JST_OFFSET_MS);
-  return SOCIAL_RELEASE_SLOTS.some(
-    (slot) =>
-      slot.hour === jst.getUTCHours() && slot.minute === jst.getUTCMinutes(),
-  );
-}
-
-async function alignPendingRows(
-  rows: readonly ReleaseScheduleRow[],
-  scheduledAt: Date,
-  now: Date,
-): Promise<number> {
-  let aligned = 0;
-  const scheduledIso = scheduledAt.toISOString();
-  for (const row of rows) {
-    if (row.status !== 'queued' && row.status !== 'failed') continue;
-
-    const nextAttemptAt =
-      row.status === 'failed' &&
-      Date.parse(row.next_attempt_at) > scheduledAt.getTime()
-        ? row.next_attempt_at
-        : scheduledIso;
-    if (
-      row.scheduled_at === scheduledIso &&
-      row.next_attempt_at === nextAttemptAt
-    ) {
-      continue;
-    }
-
-    const { data, error } = await getPipelineSupabase()
-      .from('social_publish_jobs')
-      .update({
-        scheduled_at: scheduledIso,
-        next_attempt_at: nextAttemptAt,
-        updated_at: now.toISOString(),
-      })
-      .eq('id', row.id)
-      .eq('status', row.status)
-      .select('id')
-      .maybeSingle<{ id: string }>();
-    if (error) throwSupabaseError(error);
-    if (data) aligned += 1;
-  }
-  return aligned;
-}
-
 /**
- * Repairs the production queue into the product contract before discovery.
- *
- * - A partially published episode is recovery state. Its remaining queued
- *   lanes are pulled back to the earliest sibling release time, while a failed
- *   lane keeps any later retry backoff.
- * - A completely unpublished episode is assigned exactly one article slot.
- *   Existing staggered per-platform timestamps are discarded and every movable
- *   lane is aligned to the same slot. Episodes are serialized at one per JST
- *   day by `nextReleaseSlot`.
- * - A correctly aligned article that is only slightly overdue is left at its
- *   original timestamp so the existing catch-up grace still works.
- * - A cohort containing a `processing` row is left entirely untouched until
- *   that lease resolves. Moving only its queued siblings would itself split the
- *   release cohort, and only the claim RPC may reclaim an expired lease.
+ * Applies the pure article-level repair plan with status CAS fences. A row that
+ * changed state after planning is left for the next daemon tick instead of
+ * being rewritten underneath a live claim.
  */
 export async function alignPendingSocialReleaseCohorts(
   now: Date,
   graceMs: number,
 ): Promise<ReleaseCohortAlignmentResult> {
   const rows = await listReleaseScheduleRows();
-  if (rows.length === 0) {
-    return { alignedLanes: 0, rescheduledEpisodes: 0, recoveryEpisodes: [] };
-  }
-
-  const byEpisode = new Map<string, ReleaseScheduleRow[]>();
-  for (const row of rows) {
-    const group = byEpisode.get(row.episode_id) ?? [];
-    group.push(row);
-    byEpisode.set(row.episode_id, group);
-  }
-
+  const plan = planPendingSocialReleaseCohorts(rows, now, graceMs);
   let alignedLanes = 0;
-  let rescheduledEpisodes = 0;
-  const recoveryEpisodes: string[] = [];
-  const unpublished: Array<{
-    episodeId: string;
-    rows: ReleaseScheduleRow[];
-    earliest: Date;
-  }> = [];
+  const rescheduledEpisodes = new Set<string>();
 
-  for (const [episodeId, group] of byEpisode) {
-    const hasCompleted = group.some((row) => row.status === 'completed');
-    const hasPending = group.some((row) => row.status !== 'completed');
-    if (!hasPending) continue;
-
-    // The partial-publish fence still needs to know about the episode even if
-    // one sibling is currently leased, but alignment must not rewrite only the
-    // non-processing rows around that lease.
-    if (hasCompleted) recoveryEpisodes.push(episodeId);
-    if (group.some((row) => row.status === 'processing')) continue;
-
-    if (hasCompleted) {
-      alignedLanes += await alignPendingRows(
-        group,
-        earliestSchedule(group),
-        now,
-      );
-      continue;
+  for (const update of plan.updates) {
+    const { data, error } = await getPipelineSupabase()
+      .from('social_publish_jobs')
+      .update({
+        scheduled_at: update.scheduledAt,
+        next_attempt_at: update.nextAttemptAt,
+        updated_at: now.toISOString(),
+      })
+      .eq('id', update.id)
+      .eq('status', update.status)
+      .select('id')
+      .maybeSingle<{ id: string }>();
+    if (error) throwSupabaseError(error);
+    if (!data) continue;
+    alignedLanes += 1;
+    if (update.reason === 'reschedule') {
+      rescheduledEpisodes.add(update.episodeId);
     }
-
-    unpublished.push({ episodeId, rows: group, earliest: earliestSchedule(group) });
   }
 
-  unpublished.sort(
-    (left, right) => left.earliest.getTime() - right.earliest.getTime(),
-  );
-  const scheduledArticles: Date[] = [];
-  for (const cohort of unpublished) {
-    const uniqueTimes = new Set(cohort.rows.map((row) => row.scheduled_at));
-    const alreadyAligned = uniqueTimes.size === 1;
-    const stillWithinGrace =
-      cohort.earliest.getTime() >= now.getTime() - graceMs;
-    if (
-      alreadyAligned &&
-      stillWithinGrace &&
-      isConfiguredArticleSlot(cohort.earliest)
-    ) {
-      scheduledArticles.push(cohort.earliest);
-      continue;
-    }
-
-    // Never bring an article forward relative to the time its existing queue
-    // first considered it ready. Once an old slot is actually missed, repair
-    // from `now` instead of fake-completing or burst-publishing it.
-    const after = new Date(
-      Math.max(cohort.earliest.getTime(), now.getTime()),
-    );
-    const scheduledAt = nextReleaseSlot({
-      after,
-      scheduled: scheduledArticles,
-      // Queue repair must be able to serialize a backlog longer than discovery's
-      // normal look-ahead horizon.
-      horizonDays: 366,
-    });
-    if (!scheduledAt) continue;
-    scheduledArticles.push(scheduledAt);
-
-    const moved = await alignPendingRows(cohort.rows, scheduledAt, now);
-    alignedLanes += moved;
-    if (moved > 0) rescheduledEpisodes += 1;
-  }
-
-  return { alignedLanes, rescheduledEpisodes, recoveryEpisodes };
+  return {
+    alignedLanes,
+    rescheduledEpisodes: rescheduledEpisodes.size,
+    recoveryEpisodes: plan.recoveryEpisodes,
+  };
 }
 
 /** A completed lane plus any unfinished sibling makes an exceptional recovery cohort. */
@@ -221,14 +92,15 @@ export async function claimReleaseCohortJobs(input: {
   now: Date;
   episodeId?: string;
 }): Promise<SocialPublishJobRow[]> {
-  const { data, error } = await getPipelineSupabase().rpc(
+  const params = {
+    p_owner: input.owner,
+    p_now: input.now.toISOString(),
+    ...(input.episodeId ? { p_episode_id: input.episodeId } : {}),
+  };
+  const response = await getPipelineSupabase().rpc(
     'claim_social_publish_batch',
-    {
-      p_owner: input.owner,
-      p_now: input.now.toISOString(),
-      ...(input.episodeId ? { p_episode_id: input.episodeId } : {}),
-    },
+    params,
   );
-  if (error) throwSupabaseError(error);
-  return (data ?? []) as SocialPublishJobRow[];
+  if (response.error) throwSupabaseError(response.error);
+  return response.data ? ([...response.data] as SocialPublishJobRow[]) : [];
 }
