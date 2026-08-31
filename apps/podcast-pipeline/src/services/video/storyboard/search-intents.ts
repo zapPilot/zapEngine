@@ -33,10 +33,6 @@ import {
 } from './subject-catalog.js';
 import { isGroundedSearchIntent } from './validation.js';
 
-// One request per batch of scenes: a 64-scene episode does not fit one useful
-// completion. The subject catalog is intentionally the one episode-wide pass;
-// scene assignment stays batched so the model can spend its output budget on
-// accurate local mapping without forgetting the story-wide identity context.
 const SEARCH_INTENT_BATCH_SIZE = 14;
 const SEARCH_INTENT_BATCH_CONCURRENCY = 3;
 const SEARCH_INTENT_MAX_OUTPUT_TOKENS = 2_048;
@@ -47,9 +43,7 @@ const NON_LATIN_SCRIPT_PATTERN =
 
 export interface SearchIntentScene {
   sceneId: string;
-  /** The canonical sentences this scene covers, and its grounding evidence. */
   text: string;
-  /** The same span of the English search script, when the episode has one. */
   searchText?: string;
 }
 
@@ -65,23 +59,20 @@ export interface SearchIntentRequest extends SearchIntentCatalogRequest {
 
 export interface SearchIntentProvider {
   readonly model: string;
-  /** Optional only so narrow test doubles written before v8 stay usable. The
-   * production OpenRouter provider always implements the episode-wide pass. */
+  /** Optional so pre-v8 injected providers keep the legacy per-scene path. */
   catalog?(request: SearchIntentCatalogRequest): Promise<unknown>;
   suggest(request: SearchIntentRequest): Promise<unknown>;
 }
 
 export interface SearchIntentEnrichment {
   draft: StoryboardDraft;
-  /** Null unless a scene actually took generated intents, so provenance never
-   * names a model that shaped nothing. */
   model: string | null;
   enrichedSceneCount: number;
   entityAnchoredSceneCount: number;
-  /** The durable editorial identity context for v8. Null is only reachable from
-   * legacy/narrow injected providers that do not implement catalog(). */
-  subjectCatalog: VisualSubjectCatalog | null;
-  sceneAssignments: VisualSceneSubjectAssignment[];
+  /** Present on v8 production enrichment. Optional keeps old injected providers
+   * and the brand-only no-op result source-compatible. */
+  subjectCatalog?: VisualSubjectCatalog | null;
+  sceneAssignments?: VisualSceneSubjectAssignment[];
 }
 
 interface SceneSuggestion {
@@ -97,19 +88,6 @@ interface SearchIntentCompletionDiagnostics {
   reasoningChars: number;
 }
 
-/**
- * Builds an episode-wide subject catalog first, then maps each scene onto that
- * trusted set. This reverses the old failure mode where every scene invented a
- * fresh phrase and search could confuse a name with another identity (Alpaca
- * the broker -> alpacas, Base B20 -> Profoto B20 / Honda B20, Coinbase lead ->
- * a Binance article that happened to mention Coinbase).
- *
- * Named scenes search the catalog subject. Abstract scenes never manufacture a
- * metaphor query: they inherit the nearest direct subject, or the episode's
- * primary subject when there is no nearer editorial anchor. The opening content
- * scene is hard-anchored to the primary subject so a competitor cannot become
- * the lead image simply because its article ranks for the same topic words.
- */
 export async function enrichStoryboardSearchIntents(
   request: {
     draft: StoryboardDraft;
@@ -137,8 +115,6 @@ export async function enrichStoryboardSearchIntents(
       model: null,
       enrichedSceneCount: 0,
       entityAnchoredSceneCount: 0,
-      subjectCatalog: null,
-      sceneAssignments: [],
     };
   }
 
@@ -373,11 +349,6 @@ function subjectAppearsInScene(
   );
 }
 
-/**
- * Entities remain in the draft as a backwards-readable audit hint. v8 identity
- * decisions use subject IDs; this verbatim list only records names literally
- * present in the local scene.
- */
 function groundedEntities(
   entities: readonly string[],
   scene: SearchIntentScene | undefined,
@@ -486,13 +457,16 @@ export function buildSubjectCatalogSystemPrompt(): string {
 export function buildSearchIntentSystemPrompt(): string {
   return [
     'Map every storyboard scene onto the supplied episode-wide visual subject catalog.',
-    '- Return subjectIds only for catalog subjects literally named in that scene. Never invent a subject and never carry a local name from another scene.',
-    '- A scene with no named catalog subject must return an empty subjectIds list. The application will select a contextual catalog fallback; do not invent an abstract stock-photo metaphor.',
-    '- imageSearchIntent is only an audit hint. For named subjects, use the subject plus concrete scene context. For unnamed scenes, return the most concrete wording already present, but never generic metaphors such as financial risk concept, liquidity concept, teamwork, handshake, or futuristic interface.',
+    '- Start with proper nouns: companies, products, organizations, people, places, protocols, regulators, assets, and standards.',
+    "- Use only names written in that scene's own sentences. Never invent a name and never carry one from another scene.",
+    '- Never write a number, date, share, or amount that is not already written in that scene.',
+    '- Return subjectIds only for catalog subjects literally named in that scene.',
+    '- Only when a scene names nothing at all, return an empty subjectIds list. The application will choose the contextual subject fallback; if imageSearchIntent needs an audit phrase, describe what a camera could see from the concrete wording already present.',
+    '- Never invent generic stock-photo metaphors such as financial risk concept, liquidity concept, teamwork, handshake, or futuristic interface.',
     '- Repeat locally written proper nouns in entities, spelled exactly as the scene writes them. Return [] when it names none.',
     '- Each phrase must be English only, 2 to 8 words, and at most 80 characters.',
     '- Return every scene once, in order, with the original sceneId.',
-    'Return valid JSON only: {"scenes":[{"sceneId":"scene-01","subjectIds":["subject-coinbase"],"imageSearchIntent":["Coinbase tokenized stocks"],"entities":["Coinbase"]}]}',
+    'Return valid JSON only with a "scenes" array: {"scenes":[{"sceneId":"scene-01","subjectIds":["subject-coinbase"],"imageSearchIntent":["Coinbase tokenized stocks"],"entities":["Coinbase"]}]}',
   ].join('\n');
 }
 
