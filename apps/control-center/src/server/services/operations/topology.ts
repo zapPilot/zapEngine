@@ -70,7 +70,9 @@ export function resolveOperationalTopology(
   fingerprint: string,
 ): TopologyResolution {
   const parsed = parseOperationalFingerprint(fingerprint);
-  const service = parsed ? serviceFor(parsed.source, parsed.kind, parsed.key) : null;
+  const service = parsed
+    ? serviceFor(parsed.source, parsed.kind, parsed.key)
+    : null;
   if (!service) {
     return {
       service: null,

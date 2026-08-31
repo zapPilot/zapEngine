@@ -39,7 +39,7 @@ export async function inspectOperationalSignal(input: {
 
   const source = inspectionSource(parsed.source);
   const inspector = source ? INSPECTORS[source] : undefined;
-  if (!inspector) {
+  if (!source || !inspector) {
     return unsupportedInspection({
       fingerprint: input.fingerprint,
       source: null,

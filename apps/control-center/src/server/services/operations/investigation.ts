@@ -128,10 +128,10 @@ export async function investigateOperationalSignal(input: {
       relatedEvidence.social = {
         daemonStatus: social.daemon.status,
         waitingMediaLanes: social.waitingMediaLanes,
-        overdueJobs: social.jobs.filter(
-          (job) => (job.overdueMinutes ?? 0) > 0,
-        ).length,
-        exhaustedJobs: social.jobs.filter((job) => job.attemptsExhausted).length,
+        overdueJobs: social.jobs.filter((job) => (job.overdueMinutes ?? 0) > 0)
+          .length,
+        exhaustedJobs: social.jobs.filter((job) => job.attemptsExhausted)
+          .length,
       };
       if (social.message) {
         gaps.push({ source: 'social-queue', reason: social.message });
@@ -216,11 +216,15 @@ async function safeInspect(
   }
 }
 
-function providerSource(provider: 'github' | 'sentry' | 'fly'): OperationsSource {
+function providerSource(
+  provider: 'github' | 'sentry' | 'fly',
+): OperationsSource {
   return provider === 'github' ? 'github-actions' : provider;
 }
 
-function operationsSource(value: string | null | undefined): OperationsSource | null {
+function operationsSource(
+  value: string | null | undefined,
+): OperationsSource | null {
   switch (value) {
     case 'customer-economics':
     case 'product-health':
@@ -266,8 +270,7 @@ function customerImpact(
   }
   const freshness = snapshot.signals.find(
     (signal) =>
-      signal.fingerprint ===
-      'customer-economics:freshness/priority-portfolios',
+      signal.fingerprint === 'customer-economics:freshness/priority-portfolios',
   );
   return {
     affectedCustomers: numericEvidence(freshness, 'affectedUsers'),

@@ -125,52 +125,54 @@ const SOCIAL: OperationsSocialResponse = {
 
 describe('investigateOperationalSignal', () => {
   it('correlates a cron failure with Fly and customer impact while preserving a Sentry evidence gap', async () => {
-    const inspect = vi.fn(async (fingerprint: string): Promise<SignalInspection> => {
-      if (fingerprint.startsWith('github-actions:')) {
-        return inspection(fingerprint, 'github-actions', {
-          selectedRun: {
-            id: 100,
-            startedAt: '2026-08-30T10:00:00.000Z',
-            completedAt: '2026-08-30T10:02:00.000Z',
-            conclusion: 'failure',
-          },
-          failedJobs: [
-            {
-              id: 101,
-              name: 'refresh',
-              startedAt: '2026-08-30T10:00:30.000Z',
+    const inspect = vi.fn(
+      async (fingerprint: string): Promise<SignalInspection> => {
+        if (fingerprint.startsWith('github-actions:')) {
+          return inspection(fingerprint, 'github-actions', {
+            selectedRun: {
+              id: 100,
+              startedAt: '2026-08-30T10:00:00.000Z',
               completedAt: '2026-08-30T10:02:00.000Z',
               conclusion: 'failure',
             },
-          ],
-        });
-      }
-      if (fingerprint.startsWith('sentry:')) {
-        return {
-          ...inspection(fingerprint, 'sentry'),
-          status: 'unavailable',
-          summary: 'Sentry timed out',
-          gaps: [{ source: 'sentry', reason: 'request timed out' }],
-        };
-      }
-      return inspection(fingerprint, 'fly', {
-        machines: [
-          {
-            id: 'etl-1',
-            state: 'stopped',
-            createdAt: '2026-08-30T09:00:00.000Z',
-            updatedAt: '2026-08-30T10:04:00.000Z',
-            recentEvents: [
+            failedJobs: [
               {
-                type: 'stop',
-                status: 'stopped',
-                at: '2026-08-30T10:04:00.000Z',
+                id: 101,
+                name: 'refresh',
+                startedAt: '2026-08-30T10:00:30.000Z',
+                completedAt: '2026-08-30T10:02:00.000Z',
+                conclusion: 'failure',
               },
             ],
-          },
-        ],
-      });
-    });
+          });
+        }
+        if (fingerprint.startsWith('sentry:')) {
+          return {
+            ...inspection(fingerprint, 'sentry'),
+            status: 'unavailable',
+            summary: 'Sentry timed out',
+            gaps: [{ source: 'sentry', reason: 'request timed out' }],
+          };
+        }
+        return inspection(fingerprint, 'fly', {
+          machines: [
+            {
+              id: 'etl-1',
+              state: 'stopped',
+              createdAt: '2026-08-30T09:00:00.000Z',
+              updatedAt: '2026-08-30T10:04:00.000Z',
+              recentEvents: [
+                {
+                  type: 'stop',
+                  status: 'stopped',
+                  at: '2026-08-30T10:04:00.000Z',
+                },
+              ],
+            },
+          ],
+        });
+      },
+    );
 
     const result = await investigateOperationalSignal({
       fingerprint: PRIMARY.fingerprint,

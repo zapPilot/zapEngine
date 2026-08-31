@@ -1,10 +1,7 @@
 import type { OperationsSource } from '../../../../shared/types.js';
 import type { ControlCenterConfig } from '../../../config/env.js';
 import type { ParsedOperationalFingerprint } from './fingerprint.js';
-import type {
-  OperationalEntityRef,
-  SignalInspection,
-} from './types.js';
+import type { OperationalEntityRef, SignalInspection } from './types.js';
 
 export interface InspectorInput {
   config: ControlCenterConfig;
