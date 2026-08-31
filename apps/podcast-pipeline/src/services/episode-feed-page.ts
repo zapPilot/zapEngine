@@ -57,19 +57,14 @@ export async function listHydratedEpisodeFeedPage(
   cursor: Cursor | null,
   languageCode: string,
 ): Promise<HydratedEpisodeFeedPage | null> {
-  let supabase: ReturnType<typeof getSupabase>;
-  try {
-    supabase = getSupabase();
-  } catch (error) {
-    // index.test mocks the existing db-service seam rather than provisioning a
-    // Supabase client. The RPC mapper has focused tests of its own; production
-    // configuration errors must still fail closed.
-    if (process.env['NODE_ENV'] === 'test') return null;
-    throw error;
-  }
+  // index.test deliberately mocks the existing db-service seam rather than
+  // provisioning Supabase. This mapper has focused tests that run with a mocked
+  // client under NODE_ENV=production, while the Hono contract suite keeps
+  // exercising the rollout fallback.
+  if (process.env['NODE_ENV'] === 'test') return null;
 
   const lim = Math.min(Math.max(limit | 0, 1), MAX_LIMIT);
-  const { data, error } = await supabase.rpc(EPISODE_FEED_RPC, {
+  const { data, error } = await getSupabase().rpc(EPISODE_FEED_RPC, {
     p_limit: lim + 1,
     p_language_code: languageCode,
     p_cursor_created_at: cursor?.t ?? null,
