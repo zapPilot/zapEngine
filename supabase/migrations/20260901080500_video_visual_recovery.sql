@@ -116,6 +116,20 @@ begin
       using errcode = '55000';
   end if;
 
+  -- The UI applies the same guard for operator feedback, but correctness lives
+  -- here: a service-role caller must not be able to clear a live ffmpeg/render
+  -- lease underneath the worker.
+  if exists (
+    select 1
+    from from_fed_to_chain.episode_videos video
+    where video.episode_id = p_episode_id
+      and video.status = 'processing'
+      and video.lease_expires_at > now()
+  ) then
+    raise exception 'Episode video generation is currently processing'
+      using errcode = '55000';
+  end if;
+
   select count(distinct localization.language_code)
   into ready_languages
   from from_fed_to_chain.episode_localizations localization
