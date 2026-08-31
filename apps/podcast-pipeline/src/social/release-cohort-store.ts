@@ -3,7 +3,10 @@ import {
   throwSupabaseError,
 } from '../services/supabase-client.js';
 import type { SocialPublishJobRow } from './daemon-store.js';
+import { SOCIAL_RELEASE_SLOTS } from './policy.js';
 import { nextReleaseSlot } from './slot-policy.js';
+
+const JST_OFFSET_MS = 9 * 60 * 60_000;
 
 interface ReleaseScheduleRow {
   id: string;
@@ -36,6 +39,14 @@ async function listReleaseScheduleRows(): Promise<ReleaseScheduleRow[]> {
 function earliestSchedule(rows: readonly ReleaseScheduleRow[]): Date {
   return new Date(
     Math.min(...rows.map((row) => Date.parse(row.scheduled_at))),
+  );
+}
+
+function isConfiguredArticleSlot(date: Date): boolean {
+  const jst = new Date(date.getTime() + JST_OFFSET_MS);
+  return SOCIAL_RELEASE_SLOTS.some(
+    (slot) =>
+      slot.hour === jst.getUTCHours() && slot.minute === jst.getUTCMinutes(),
   );
 }
 
@@ -88,10 +99,13 @@ async function alignPendingRows(
  *   Existing staggered per-platform timestamps are discarded and every movable
  *   lane is aligned to the same slot. Episodes are serialized at one per JST
  *   day by `nextReleaseSlot`.
+ * - A correctly aligned article that is only slightly overdue is left at its
+ *   original timestamp so the existing catch-up grace still works.
  * - `processing` rows are never mutated; the claim lease remains authoritative.
  */
 export async function alignPendingSocialReleaseCohorts(
   now: Date,
+  graceMs: number,
 ): Promise<ReleaseCohortAlignmentResult> {
   const rows = await listReleaseScheduleRows();
   if (rows.length === 0) {
@@ -137,9 +151,22 @@ export async function alignPendingSocialReleaseCohorts(
   );
   const scheduledArticles: Date[] = [];
   for (const cohort of unpublished) {
+    const uniqueTimes = new Set(cohort.rows.map((row) => row.scheduled_at));
+    const alreadyAligned = uniqueTimes.size === 1;
+    const stillWithinGrace =
+      cohort.earliest.getTime() >= now.getTime() - graceMs;
+    if (
+      alreadyAligned &&
+      stillWithinGrace &&
+      isConfiguredArticleSlot(cohort.earliest)
+    ) {
+      scheduledArticles.push(cohort.earliest);
+      continue;
+    }
+
     // Never bring an article forward relative to the time its existing queue
-    // first considered it ready, but a slot that has already passed is repaired
-    // from `now` instead of being fake-completed or burst-published.
+    // first considered it ready. Once an old slot is actually missed, repair
+    // from `now` instead of fake-completing or burst-publishing it.
     const after = new Date(
       Math.max(cohort.earliest.getTime(), now.getTime()),
     );
