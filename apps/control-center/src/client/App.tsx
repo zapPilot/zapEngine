@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 
+import type { PodcastPipelineResponse } from '../shared/podcast-pipeline.js';
 import type {
   CostHistoryResponse,
   CustomerEconomicsResponse,
@@ -14,6 +15,7 @@ import { AppShell, type DashboardView } from './components/AppShell.js';
 import { EconomicsView } from './components/EconomicsView.js';
 import { GrowthView } from './components/GrowthView.js';
 import { HomeView } from './components/HomeView.js';
+import { PodcastPipelineView } from './components/PodcastPipelineView.js';
 import { ProductView } from './components/ProductView.js';
 import { ReliabilityView } from './components/ReliabilityView.js';
 
@@ -21,6 +23,10 @@ const VIEW_META: Record<DashboardView, { subtitle: string; title: string }> = {
   home: {
     subtitle: 'What needs a decision right now',
     title: 'Home',
+  },
+  pipeline: {
+    subtitle: 'Where each article is, what failed, and what can be restarted',
+    title: 'Pipeline',
   },
   growth: {
     subtitle: 'What to publish next, and what the last posts actually did',
@@ -55,6 +61,11 @@ export function App() {
     null,
   );
   const [podcastCosts, setPodcastCosts] = useState<PodcastCostResponse | null>(
+    null,
+  );
+  const [podcastPipeline, setPodcastPipeline] =
+    useState<PodcastPipelineResponse | null>(null);
+  const [restartingEpisodeId, setRestartingEpisodeId] = useState<string | null>(
     null,
   );
   const [social, setSocial] = useState<SocialPerformanceResponse | null>(null);
@@ -112,6 +123,38 @@ export function App() {
     [run],
   );
 
+  const loadPipeline = useCallback(
+    () =>
+      run(async () => {
+        setPodcastPipeline(
+          await getJson<PodcastPipelineResponse>('/api/podcast-pipeline'),
+        );
+      }),
+    [run],
+  );
+
+  const restartVideo = useCallback(
+    (episodeId: string) => {
+      setRestartingEpisodeId(episodeId);
+      void run(async () => {
+        const response = await fetch(
+          `/api/podcast-pipeline/${encodeURIComponent(episodeId)}/video/retry`,
+          { method: 'POST' },
+        );
+        if (!response.ok) {
+          const body = (await response.json().catch(() => null)) as {
+            error?: string;
+          } | null;
+          throw new Error(body?.error ?? `HTTP ${response.status}`);
+        }
+        setPodcastPipeline(
+          await getJson<PodcastPipelineResponse>('/api/podcast-pipeline'),
+        );
+      }).finally(() => setRestartingEpisodeId(null));
+    },
+    [run],
+  );
+
   const loadSocial = useCallback(
     (window: SocialPerformanceResponse['window'], force = false) =>
       run(async () => {
@@ -159,10 +202,13 @@ export function App() {
     void loadHome();
   }, [loadHome]);
 
-  // The publish queue and the per-customer ledger each fan out to their own
-  // sources, and neither is on Home. Paying for them before their view is
-  // opened would slow the first screen down for nobody's benefit.
+  // The pipeline, publish queue and per-customer ledger are view-specific. Keep
+  // them lazy so Home remains a fast decision surface rather than preloading
+  // every operational dataset on first paint.
   useEffect(() => {
+    if (view === 'pipeline' && !podcastPipeline) {
+      void loadPipeline();
+    }
     if (view === 'reliability' && !operationsSocial) {
       void loadReliability();
     }
@@ -175,9 +221,11 @@ export function App() {
   }, [
     customers,
     loadCustomers,
+    loadPipeline,
     loadReliability,
     loadSocial,
     operationsSocial,
+    podcastPipeline,
     social,
     socialGrowth,
     view,
@@ -193,11 +241,14 @@ export function App() {
         social,
         operations,
         customers,
+        podcastPipeline,
       })}
       loading={loading}
       onNavigate={setView}
       onRefresh={() => {
-        if (view === 'growth') {
+        if (view === 'pipeline') {
+          void loadPipeline();
+        } else if (view === 'growth') {
           void loadSocial(social?.window ?? 'latest', true);
         } else if (view === 'reliability') {
           void loadReliability(true);
@@ -205,7 +256,7 @@ export function App() {
           void loadCustomers(true);
         } else {
           // Local dev keeps the operator convenience of syncing costs before a
-          // refresh. Production builds are read-only and only reread snapshots.
+          // refresh. Production builds only reread persisted cost snapshots.
           void loadHome(import.meta.env.DEV);
         }
       }}
@@ -223,6 +274,13 @@ export function App() {
           data={overview}
           onNavigate={setView}
           operations={operations}
+        />
+      ) : null}
+      {view === 'pipeline' ? (
+        <PodcastPipelineView
+          data={podcastPipeline}
+          onRestartVideo={restartVideo}
+          restartingEpisodeId={restartingEpisodeId}
         />
       ) : null}
       {view === 'reliability' ? (
@@ -252,9 +310,13 @@ function generatedAt(input: {
   customers: CustomerEconomicsResponse | null;
   operations: OperationsResponse | null;
   overview: OverviewResponse | null;
+  podcastPipeline: PodcastPipelineResponse | null;
   social: SocialPerformanceResponse | null;
   view: DashboardView;
 }): string | undefined {
+  if (input.view === 'pipeline') {
+    return input.podcastPipeline?.generatedAt;
+  }
   if (input.view === 'growth') {
     return input.social?.generatedAt;
   }
