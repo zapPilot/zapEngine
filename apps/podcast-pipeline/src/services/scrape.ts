@@ -312,6 +312,17 @@ export async function scrapeArticle(
   url: string,
   options: ScrapeArticleOptions = {},
 ): Promise<Article> {
+  if (typeof url !== 'string' || !url.trim()) {
+    throw new Error(`Failed to parse URL from ${String(url)}`);
+  }
+  try {
+    const parsed = new URL(url.trim());
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      throw new Error(`Failed to parse URL from ${String(url)}`);
+    }
+  } catch {
+    throw new Error(`Failed to parse URL from ${String(url)}`);
+  }
   const html = await fetchArticleHtml(url, options);
   options.signal?.throwIfAborted();
   const dom = new JSDOM(html, {
@@ -340,6 +351,9 @@ async function fetchArticleHtml(
   url: string,
   options: ScrapeArticleOptions,
 ): Promise<string> {
+  if (typeof url !== 'string' || !url.trim()) {
+    throw new Error(`Failed to parse URL from ${String(url)}`);
+  }
   const request = async (signal?: AbortSignal): Promise<string> => {
     const response = await fetch(url, {
       headers: {
