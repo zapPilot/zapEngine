@@ -19,16 +19,12 @@ export type VideoProcessRunner = (
   onStdoutLine?: (line: string) => void,
 ) => Promise<VideoProcessResult>;
 
-// Streamed runs are long (a full render) and ffmpeg's -stats writes a line per
-// second, so the retained copy has to be bounded. Keeping the tail is what
-// matters: it holds the error ffmpeg printed just before it died.
 const STREAMED_OUTPUT_TAIL_LIMIT = 8_000;
 
 interface SlideVideoRenderOptionsBase {
   audioSource: string;
   outputPath: string;
   signal?: AbortSignal;
-  /** Fraction 0..1 of the encode, from ffmpeg's own output clock. */
   onEncodeProgress?: (fraction: number) => void;
 }
 
@@ -60,9 +56,6 @@ function invokeProcessRunner(
   signal: AbortSignal | undefined,
   onStdoutLine?: (line: string) => void,
 ): Promise<VideoProcessResult> {
-  // The arity branches below are load-bearing: injected test doubles assert the
-  // exact argument shape they are called with, so a caller that wants none of
-  // the optional arguments must still be invoked with none of them.
   if (onStdoutLine) {
     return processRunner(executable, args, streamStdio, signal, onStdoutLine);
   }
@@ -72,17 +65,6 @@ function invokeProcessRunner(
     : processRunner(executable, args);
 }
 
-/**
- * `streamStdio` relays the child's *stderr* to this process as it arrives — the
- * render needs its progress visible in the service log — while still retaining a
- * bounded tail of both streams. The previous `stdio: 'inherit'` gave up the
- * retained copy entirely, so a failed render threw
- * `ffmpeg failed (signal SIGKILL): ` with nothing after the colon.
- *
- * Stdout is deliberately not relayed in this mode: renders pass
- * `-progress pipe:1`, which makes it a machine stream. Pass `onStdoutLine` to
- * consume it line by line instead.
- */
 export async function runProcess(
   executable: string,
   args: string[],
@@ -130,17 +112,12 @@ export async function runProcess(
     child.stderr?.setEncoding('utf8');
     child.stdout?.on('data', (chunk: string) => {
       if (streamStdio) {
-        // Renders pass `-progress pipe:1`, so child stdout is a machine stream
-        // of ~24 key=value lines per second. Relaying it would bury the service
-        // log; the bounded tail is still kept for failure diagnostics.
         stdout = boundedTail(stdout, chunk);
         if (onStdoutLine) {
           stdoutResidual = consumeLines(stdoutResidual, chunk, onStdoutLine);
         }
         return;
       }
-      // Capability probes regex over the whole of `ffmpeg -filters`, so the
-      // non-streaming path must keep every byte.
       stdout += chunk;
     });
     child.stderr?.on('data', (chunk: string) => {
@@ -172,13 +149,6 @@ export async function runProcess(
   });
 }
 
-/**
- * Microseconds of output written so far, from one `-progress` line.
- *
- * ffmpeg's `out_time_ms` key is a long-standing misnomer: it carries the same
- * microsecond value as `out_time_us`. Dividing it by 1000 would report an encode
- * as 0.1% done for its entire run.
- */
 export function parseFfmpegProgressOutTimeUs(line: string): number | null {
   const match = /^out_time_(?:us|ms)=(-?\d+)$/.exec(line.trim());
   if (!match?.[1]) return null;
@@ -188,11 +158,6 @@ export function parseFfmpegProgressOutTimeUs(line: string): number | null {
     : null;
 }
 
-/**
- * Turns `-progress` lines into a monotonic 0..1 fraction of the encode.
- * `out_time_us=N/A` appears before the first frame is written, and `progress=end`
- * is ffmpeg's own statement that the output is complete.
- */
 export function createFfmpegEncodeProgressReader(
   totalDurationMs: number,
   onFraction: (fraction: number) => void,
@@ -202,12 +167,7 @@ export function createFfmpegEncodeProgressReader(
   let highWaterMark = 0;
   return (line) => {
     if (line.trim() === 'progress=end') {
-      // SIGTERM lets ffmpeg flush and emit progress=end while the requested
-      // encode is still incomplete. Do not turn that graceful abort into a
-      // false 100% report.
       if (signal?.aborted) return;
-      // A fast encode can have its last out_time sample already reach the end,
-      // in which case the end marker would emit a duplicate 1.
       if (highWaterMark >= 1) return;
       highWaterMark = 1;
       onFraction(1);
@@ -222,10 +182,6 @@ export function createFfmpegEncodeProgressReader(
   };
 }
 
-/**
- * Emits every complete line in `chunk` and returns the trailing partial line, so
- * a `key=value` pair split across two stream chunks is still parsed once.
- */
 function consumeLines(
   residual: string,
   chunk: string,
@@ -251,14 +207,9 @@ function processFailureError(
   stderr: string,
 ): Error {
   const how = signal ? `signal ${signal}` : `exit ${String(code)}`;
-  // The Linux OOM killer prints nothing the child can capture. An unrequested
-  // SIGKILL during a render is almost always the kernel reclaiming memory, and
-  // saying so is the difference between a diagnosable failure and a dead end.
   const hint = signal === 'SIGKILL' ? ', likely out of memory' : '';
   const tail = stderr.trim();
   const summary = lastNonBlankLine(tail);
-  // Telegram surfaces only the first line of a failure, so it has to stand on
-  // its own; the full tail follows for the job's stored last_error.
   const firstLine = `${executable} failed (${how}${hint})${summary ? `: ${summary}` : ''}`;
   return new Error(
     tail && tail !== summary ? `${firstLine}\n${tail}` : firstLine,
@@ -266,8 +217,6 @@ function processFailureError(
 }
 
 function lastNonBlankLine(value: string): string {
-  // ffmpeg's -stats output overwrites itself with bare carriage returns, so
-  // splitting on \n alone would return every progress update as one line.
   const lines = value.split(/\r\n|[\n\r]/);
   for (let index = lines.length - 1; index >= 0; index -= 1) {
     const line = lines[index]?.trim();
@@ -332,8 +281,6 @@ export async function assertVideoFfmpegCapabilities(
     ),
     !/\blibx264\b/.test(encoderOutput) ? 'libx264 encoder' : null,
     !/\baac\b/.test(encoderOutput) ? 'AAC encoder' : null,
-    // amix appears in `-filters` on old builds too, but the normalize option
-    // the BGM mix relies on needs ffmpeg >= 4.4 — probe the filter help.
     !/\bnormalize\b/.test(amixHelpOutput)
       ? 'amix normalize option (ffmpeg >= 4.4)'
       : null,
@@ -351,23 +298,16 @@ function escapeFilterPath(path: string): string {
     .replaceAll("'", "\\'");
 }
 
-// zoompan quantizes x/y and the crop size to integer pixels of its INPUT, so a
-// pan across a window-sized input advances ~0.3px per frame and rounds into a
-// visible stair-step. Media crops are therefore supplied at this multiple of
-// the media window and zoompan's own `s=` performs the final downscale.
 export const MEDIA_MOTION_SUPERSAMPLE = 4 as const;
-// Supersampled portrait images are the dominant ffmpeg memory consumer. Keep
-// only a small bounded set of them alive at once, then compose those 720x640
-// chunk videos in the final pass. This turns peak memory from O(scene count)
-// into O(chunk size) without dropping the Ken Burns supersampling quality.
 export const VERTICAL_MEDIA_CHUNK_SIZE = 8 as const;
-// v8 shows the composition before it moves: the first 30% is a hold, motion is
-// confined to the middle 50%, and the last 20% settles before the crossfade.
-// Total motion is deliberately small; news imagery should be read, not chased.
-const KEN_BURNS_ZOOM_RATE_PER_SECOND = 0.004;
-const KEN_BURNS_MAX_EXTRA_ZOOM = 0.05;
+
+const LEGACY_KEN_BURNS_ZOOM_RATE_PER_SECOND = 0.014;
+const LEGACY_KEN_BURNS_MAX_EXTRA_ZOOM = 0.18;
+const LEGACY_KEN_BURNS_PAN_ZOOM = 1.15;
+const EDITORIAL_ZOOM_RATE_PER_SECOND = 0.004;
+const EDITORIAL_MAX_EXTRA_ZOOM = 0.05;
+const EDITORIAL_PAN_ZOOM = 1.04;
 const KEN_BURNS_HOLD_SAFETY_FRAMES = 2;
-const KEN_BURNS_PAN_ZOOM = 1.04;
 
 export type KenBurnsPan =
   | 'zoomIn'
@@ -395,23 +335,7 @@ export function kenBurnsPanForScene(index: number, seed = 0): KenBurnsPan {
   );
 }
 
-function presentationMotionForScene(
-  slide: SlideVideoManifest['slides'][number],
-  index: number,
-  seed: number,
-): 'static' | 'zoomIn' | 'leftToRight' | 'rightToLeft' | 'topToBottom' {
-  const requested =
-    slide.asset.kind === 'remoteImage' ? slide.asset.motion : 'pushIn';
-  if (requested === 'static') return 'static';
-  if (requested === 'pushIn') return 'zoomIn';
-  const varied = kenBurnsPanForScene(index, seed);
-  if (varied === 'leftToRight' || varied === 'rightToLeft' || varied === 'topToBottom') {
-    return varied;
-  }
-  return index % 2 === 0 ? 'leftToRight' : 'rightToLeft';
-}
-
-function kenBurnsFilter(
+function legacyKenBurnsFilter(
   slide: SlideVideoManifest['slides'][number],
   index: number,
   seed: number,
@@ -425,25 +349,23 @@ function kenBurnsFilter(
     Math.round(((slide.endMs - slide.startMs) * fps) / 1_000),
   );
   const finalFrame = durationFrames - 1;
-  // Hold 30%, move for 50%, hold the completed composition for 20%.
-  const progress = `max(0\\,min((on/${finalFrame}-0.30)/0.50\\,1))`;
+  const progress = `min(on/${finalFrame}\\,1)`;
   const eased = `pow(${progress}\\,2)*(3-2*${progress})`;
   const extraZoom = Math.min(
-    (KEN_BURNS_ZOOM_RATE_PER_SECOND * (slide.endMs - slide.startMs)) / 1_000,
-    KEN_BURNS_MAX_EXTRA_ZOOM,
+    (LEGACY_KEN_BURNS_ZOOM_RATE_PER_SECOND * (slide.endMs - slide.startMs)) /
+      1_000,
+    LEGACY_KEN_BURNS_MAX_EXTRA_ZOOM,
   ).toFixed(4);
 
   const position =
     slide.asset.kind === 'remoteImage' ? slide.asset.position : 'center';
-  let motion = presentationMotionForScene(slide, index, seed);
+  let motion = kenBurnsPanForScene(index, seed);
   if (motion === 'topToBottom' && position !== 'center') motion = 'zoomIn';
-  const isPan =
-    motion === 'leftToRight' ||
-    motion === 'rightToLeft' ||
-    motion === 'topToBottom';
+  const isPan = motion !== 'zoomIn' && motion !== 'zoomOut';
 
-  let zoom = motion === 'static' ? '1' : `1+${extraZoom}*${eased}`;
-  if (isPan) zoom = String(KEN_BURNS_PAN_ZOOM);
+  let zoom = `1+${extraZoom}*${eased}`;
+  if (motion === 'zoomOut') zoom = `1+${extraZoom}*(1-${eased})`;
+  if (isPan) zoom = String(LEGACY_KEN_BURNS_PAN_ZOOM);
 
   let x = '(iw-iw/zoom)/2';
   let y = '(ih-ih/zoom)/2';
@@ -458,6 +380,85 @@ function kenBurnsFilter(
   }
 
   return `zoompan=z='${zoom}':x='${x}':y='${y}':d=${durationFrames + holdFrames}:s=${width}x${height}:fps=${fps}`;
+}
+
+function editorialKenBurnsFilter(
+  slide: SlideVideoManifest['slides'][number],
+  index: number,
+  seed: number,
+  fps: number,
+  width: number,
+  height: number,
+  holdFrames: number,
+): string {
+  const durationFrames = Math.max(
+    2,
+    Math.round(((slide.endMs - slide.startMs) * fps) / 1_000),
+  );
+  const finalFrame = durationFrames - 1;
+  const progress = `max(0\\,min((on/${finalFrame}-0.30)/0.50\\,1))`;
+  const eased = `pow(${progress}\\,2)*(3-2*${progress})`;
+  const extraZoom = Math.min(
+    (EDITORIAL_ZOOM_RATE_PER_SECOND * (slide.endMs - slide.startMs)) / 1_000,
+    EDITORIAL_MAX_EXTRA_ZOOM,
+  ).toFixed(4);
+  const position =
+    slide.asset.kind === 'remoteImage' ? slide.asset.position : 'center';
+  const requested =
+    slide.asset.kind === 'remoteImage' ? slide.asset.motion : 'pushIn';
+
+  let motion: 'static' | 'zoomIn' | 'leftToRight' | 'rightToLeft' | 'topToBottom';
+  if (requested === 'static') motion = 'static';
+  else if (requested === 'pushIn') motion = 'zoomIn';
+  else {
+    const varied = kenBurnsPanForScene(index, seed);
+    motion =
+      varied === 'leftToRight' ||
+      varied === 'rightToLeft' ||
+      varied === 'topToBottom'
+        ? varied
+        : index % 2 === 0
+          ? 'leftToRight'
+          : 'rightToLeft';
+  }
+  if (motion === 'topToBottom' && position !== 'center') motion = 'zoomIn';
+  const isPan =
+    motion === 'leftToRight' ||
+    motion === 'rightToLeft' ||
+    motion === 'topToBottom';
+
+  let zoom = motion === 'static' ? '1' : `1+${extraZoom}*${eased}`;
+  if (isPan) zoom = String(EDITORIAL_PAN_ZOOM);
+
+  let x = '(iw-iw/zoom)/2';
+  let y = '(ih-ih/zoom)/2';
+  if (position === 'top') y = '0';
+  if (position === 'bottom') y = 'ih-ih/zoom';
+  if (motion === 'leftToRight') {
+    x = `(iw-iw/zoom)*${eased}`;
+  } else if (motion === 'rightToLeft') {
+    x = `(iw-iw/zoom)*(1-${eased})`;
+  } else if (motion === 'topToBottom') {
+    y = `(ih-ih/zoom)*${eased}`;
+  }
+
+  return `zoompan=z='${zoom}':x='${x}':y='${y}':d=${durationFrames + holdFrames}:s=${width}x${height}:fps=${fps}`;
+}
+
+function kenBurnsFilter(
+  slide: SlideVideoManifest['slides'][number],
+  index: number,
+  seed: number,
+  fps: number,
+  width: number,
+  height: number,
+  holdFrames: number,
+): string {
+  const hasExplicitV8Motion =
+    slide.asset.kind === 'remoteImage' && slide.asset.motion !== undefined;
+  return hasExplicitV8Motion
+    ? editorialKenBurnsFilter(slide, index, seed, fps, width, height, holdFrames)
+    : legacyKenBurnsFilter(slide, index, seed, fps, width, height, holdFrames);
 }
 
 function imagePreparationFilter(
@@ -550,8 +551,6 @@ export function buildStaticSlideFilter(
 ): string {
   const fps = manifest.clip.fps;
   const totalFrames = Math.round((manifest.clip.durationMs * fps) / 1_000);
-  // Legacy landscape rasters already arrive at output size; only vertical
-  // media crops are supersampled for motion.
   const { filters, priorLabel } = sceneChain(
     manifest,
     manifest.clip.width,
@@ -606,17 +605,6 @@ export function planVerticalMediaChunks(
   return chunks;
 }
 
-/**
- * Frames one media chunk must hold past its own nominal span.
- *
- * The final pass crossfades chunks on the absolute timeline, so the stream
- * accumulated up to chunk k has to reach `offset_k + transitionFrames`. A chunk
- * cut exactly at its own duration leaves that stream one transition short: the
- * xfade A side hits EOF, every chunk from the third onward is dropped, and the
- * media window freezes on one frame for the rest of the video while captions,
- * narration and BGM keep playing. Each scene already carries the same hold
- * inside a chunk (see `slideSceneFilters`); the chunk layer owes it too.
- */
 function verticalChunkHoldFrames(clip: VerticalVideoManifest['clip']): number {
   return (
     Math.round((clip.transitionMs * clip.fps) / 1_000) +
@@ -624,10 +612,6 @@ function verticalChunkHoldFrames(clip: VerticalVideoManifest['clip']): number {
   );
 }
 
-/**
- * Length of one chunk's intermediate MP4. The filter's `trim` and the encoder's
- * `-frames:v`/`-t` all read it here so they cannot drift apart.
- */
 function verticalMediaChunkFrameCount(
   manifest: VerticalVideoManifest,
   chunk: VerticalMediaChunk,
@@ -662,8 +646,6 @@ export function buildVerticalMediaChunkFilter(
     chunk.startIndex,
   );
   const totalFrames = verticalMediaChunkFrameCount(manifest, chunk);
-  // The scene chain already ends on the last scene's own hold, so tpad only
-  // covers the frame that per-scene and per-chunk rounding can disagree on.
   const holdSeconds = verticalChunkHoldFrames(manifest.clip) / fps;
   filters.push(
     `[${priorLabel}]fps=${fps},tpad=stop_mode=clone:stop_duration=${holdSeconds.toFixed(6)},trim=end_frame=${totalFrames},settb=expr=1/${fps},setpts=N,format=yuv420p[vout]`,
@@ -709,8 +691,6 @@ function appendVerticalPresentationFilters(
     `[branded]ass=filename='${escapeFilterPath(subtitlePath)}':fontsdir='${escapeFilterPath(fontsDirectory)}',format=yuv420p[vout]`,
   );
 
-  // Narration is padded with silence through the outro tail and split so the
-  // pre-pad signal keys the BGM ducking compressor.
   filters.push(
     `[${narrationInputIndex}:a]aresample=sample_rate=48000:async=1:first_pts=0,aformat=channel_layouts=stereo,apad=whole_dur=${totalSeconds},atrim=end_sample=${totalSamples},asetpts=N/SR/TB,asplit=2[nar_mix][nar_key]`,
   );
@@ -777,10 +757,6 @@ function stillImageInputs(paths: readonly string[]): string[] {
   return paths.flatMap((path) => ['-i', path]);
 }
 
-// Ken Burns stills plus burned-in captions gain almost nothing from x264's
-// slower presets, and `slow` is what stalled production: a portrait render on
-// a throttled shared vCPU encoded at 0.004x realtime before the OOM killer took
-// ffmpeg. `veryfast` at crf 20 is visually equivalent on this material.
 const X264_PRESET = 'veryfast';
 const X264_CRF = '20';
 const INTERMEDIATE_X264_CRF = '18';
@@ -859,9 +835,6 @@ function streamedRenderPrefix(): string[] {
     '-loglevel',
     'warning',
     '-stats',
-    // `-stats` writes a human line to stderr that overwrites itself with bare
-    // carriage returns; `-progress` writes parseable key=value pairs to stdout.
-    // Both are kept: the first for `fly logs`, the second to drive the bar.
     '-progress',
     'pipe:1',
   ];
@@ -1033,8 +1006,6 @@ function encodeProgressOptions(
   | undefined {
   const onFraction = options.onEncodeProgress;
   if (!onFraction) return undefined;
-  // The same clip.durationMs drives `-frames:v` and `-t`, so ffmpeg's output
-  // clock genuinely reaches this value rather than approaching it.
   return { totalDurationMs: options.manifest.clip.durationMs, onFraction };
 }
 
@@ -1126,7 +1097,6 @@ async function removeIntermediateFile(path: string): Promise<void> {
   try {
     await rm(path, { force: true });
   } catch {
-    // The whole render directory is removed by the caller. Cleanup here is a
-    // best-effort fast path so successful local renders do not leave chunks.
+    // Best-effort cleanup; the caller removes the render directory as well.
   }
 }
