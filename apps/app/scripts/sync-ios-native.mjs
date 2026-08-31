@@ -12,7 +12,7 @@ const appRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const iosRoot = resolve(appRoot, 'ios');
 const pnpmCommand = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
 
-function run(command, args, cwd, logPath) {
+function run(command, args, cwd, logPath, extraEnv = {}) {
   let logFd;
   if (logPath) {
     mkdirSync(dirname(logPath), { recursive: true });
@@ -23,6 +23,7 @@ function run(command, args, cwd, logPath) {
     cwd,
     env: {
       ...process.env,
+      ...extraEnv,
       EXPO_NO_TELEMETRY: '1',
     },
     stdio: logFd === undefined ? 'inherit' : ['ignore', logFd, logFd],
@@ -42,6 +43,7 @@ function run(command, args, cwd, logPath) {
 export function syncIosNative({
   clean = process.env.ZAP_IOS_CLEAN_PREBUILD === '1',
   logPath,
+  env = {},
 } = {}) {
   if (process.platform !== 'darwin') {
     throw new Error('iOS native synchronization requires macOS.');
@@ -62,12 +64,12 @@ export function syncIosNative({
       ? 'Regenerating the iOS project from clean Expo config...'
       : 'Synchronizing Expo config into the existing iOS project...',
   );
-  run(pnpmCommand, prebuildArgs, appRoot, logPath);
+  run(pnpmCommand, prebuildArgs, appRoot, logPath, env);
 
   console.log(
     'Installing iOS Pods from the current JavaScript dependencies...',
   );
-  run('pod', ['install'], iosRoot, logPath);
+  run('pod', ['install'], iosRoot, logPath, env);
 
   assertIosNativeDependencies(appRoot, {
     CONFIGURATION: 'Release',
