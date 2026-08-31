@@ -127,6 +127,10 @@ function toEpisodeFeedRow(row: EpisodeFeedRpcRow): EpisodeFeedRow {
   };
 }
 
+// jscpd:ignore-start -- this is the RPC projection of the same public video
+// contract mapped in db.ts. Keeping the status/asset validation identical is a
+// compatibility requirement; the progress math itself remains centralized in
+// composeEpisodeVideoProgress rather than being copied into SQL.
 function toVideoSummary(row: EpisodeFeedRpcRow): {
   video: EpisodeVideoResponse | null;
   videoGeneration: EpisodeVideoGenerationSummary;
@@ -191,6 +195,7 @@ function isPublicStatus(
     status === 'failed'
   );
 }
+// jscpd:ignore-end
 
 function isMissingFeedRpcError(error: unknown): boolean {
   if (!error || typeof error !== 'object' || Array.isArray(error)) return false;
