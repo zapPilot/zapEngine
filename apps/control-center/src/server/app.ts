@@ -10,6 +10,7 @@ import { captureServerException } from './observability/sentry.js';
 import { createOperationsService } from './services/operations/aggregate.js';
 import { createOverviewService } from './services/overview.js';
 import { createPodcastCostService } from './services/podcast-costs.js';
+import { createPodcastPipelineService } from './services/podcast-pipeline.js';
 import { createSocialGrowthService } from './services/social-growth.js';
 
 const WINDOWS: SocialPerformanceResponse['window'][] = [
@@ -18,16 +19,19 @@ const WINDOWS: SocialPerformanceResponse['window'][] = [
   '72h',
   '7d',
 ];
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export function createControlCenterApp(input: {
   config: ControlCenterConfig;
   service?: ReturnType<typeof createOverviewService>;
   operations?: ReturnType<typeof createOperationsService>;
   socialGrowth?: ReturnType<typeof createSocialGrowthService>;
+  podcastPipeline?: ReturnType<typeof createPodcastPipelineService>;
   serveClient?: boolean;
   /**
    * Local operator processes may explicitly refresh provider cost snapshots.
-   * Remote dashboards stay read-only by omitting the mutation route entirely.
+   * Remote dashboards stay read-only for cost collection by omitting this route.
    */
   allowCostSync?: boolean;
 }) {
@@ -35,6 +39,8 @@ export function createControlCenterApp(input: {
   const service =
     input.service ?? createOverviewService({ config: input.config });
   const podcastCosts = createPodcastCostService({ config: input.config });
+  const podcastPipeline =
+    input.podcastPipeline ?? createPodcastPipelineService({ config: input.config });
   // Injected separately from the overview service on purpose: the two share no
   // state, and folding operations into createOverviewService would force every
   // existing fake of it to grow methods its tests do not care about.
@@ -97,6 +103,39 @@ export function createControlCenterApp(input: {
     return context.json(await operations.getCustomers(isForced(context)));
   });
 
+  app.get('/api/podcast-pipeline', async (context) => {
+    return context.json(await podcastPipeline.getPipeline());
+  });
+
+  // The Vercel deployment is required to sit behind Vercel Authentication.
+  // Inside that authenticated operator surface this is intentionally the only
+  // podcast mutation exposed: one service-role-only RPC that resets video work,
+  // never translation/TTS or arbitrary database state.
+  app.post('/api/podcast-pipeline/:episodeId/video/retry', async (context) => {
+    const episodeId = context.req.param('episodeId');
+    if (!UUID_PATTERN.test(episodeId)) {
+      return context.json({ error: 'Invalid episode id' }, 400);
+    }
+    try {
+      await podcastPipeline.restartVideo(episodeId);
+      return context.json({ ok: true });
+    } catch (error) {
+      const message = errorMessage(error);
+      if (
+        message.includes('currently processing') ||
+        message.includes('requires completed') ||
+        message.includes('has no video visual job')
+      ) {
+        return context.json({ error: message }, 409);
+      }
+      captureServerException(error, {
+        method: context.req.method,
+        route: routePath(context),
+      });
+      return context.json({ error: message }, 503);
+    }
+  });
+
   registerOpsMcpHttp(app, {
     operations,
     token: input.config.OPS_MCP_TOKEN,
@@ -129,4 +168,13 @@ export function createControlCenterApp(input: {
  */
 function isForced(context: Context): boolean {
   return context.req.query('force') === '1';
+}
+
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === 'object' && 'message' in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string' && message.trim()) return message;
+  }
+  return 'Podcast video retry failed';
 }
