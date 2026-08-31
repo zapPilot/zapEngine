@@ -215,7 +215,8 @@ export function summarizePodcastPipeline(
             ? 'video'
             : 'done';
     const activeVideoLease = [visual, ...renders].some(
-      (job) => job?.status === 'processing' && leaseIsActive(job.leaseExpiresAt, now),
+      (job) =>
+        job?.status === 'processing' && leaseIsActive(job.leaseExpiresAt, now),
     );
 
     return {
@@ -230,7 +231,11 @@ export function summarizePodcastPipeline(
       localizations,
       visual,
       renders,
-      canRestartVideo: ttsStatus === 'completed' && !activeVideoLease,
+      canRestartVideo:
+        ttsStatus === 'completed' &&
+        visual !== null &&
+        videoStatus !== 'completed' &&
+        !activeVideoLease,
     };
   });
 }
