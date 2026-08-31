@@ -1,29 +1,46 @@
-## Summary
+## Intent
 
-<1-2 sentences: what changed and why>
+<!-- Why does this change exist? What problem are we solving? -->
 
-## Changes
+## Context
 
-- <Concrete change>
-- <Concrete change>
+<!-- Relevant architecture, previous decisions, constraints, or incidents.
+     Include information the next engineer would otherwise need to rediscover. -->
 
-## Test Plan
+## Scope
 
-- [ ] `pnpm verify` passes locally
-- [ ] <App-specific verification, for example `pnpm turbo run type-check lint test --filter=@zapengine/app`>
-- [ ] <Manual verification, if any>
+<!-- What is intentionally included in this PR? -->
 
-## Risk
+### Out of scope
 
-<What could break? Include affected services and blast radius.>
+<!-- What should NOT be changed as part of this PR? -->
 
-## Rollback
+## Acceptance criteria
 
-<How to revert if this causes issues in production.>
+<!-- Observable conditions that mean this work is complete. -->
 
-## Checklist
+- [ ]
 
-- [ ] Followed conventions in the relevant scoped instruction files
-- [ ] Updated `config/env.manifest.mjs` if env-var references changed
-- [ ] If touching strategy or signal code: ran `pnpm --filter @zapengine/analytics-engine test:strategy-snapshot:fast`
-- [ ] If touching cross-service contracts: confirmed `pnpm contracts check` covers the change
+## Implementation
+
+<!-- Summarize the approach and important design decisions. -->
+
+## Validation
+
+<!-- Commands/checks actually run, with results. -->
+
+- `...` — PASS
+
+## Validation gaps
+
+<!-- What could not be validated in the current environment?
+     Especially important for cloud coding agents. -->
+
+## Known unrelated failures
+
+<!-- Existing CI/test/repository failures not introduced by this PR.
+     Write "None known" when applicable. -->
+
+## Reviewer notes
+
+<!-- Areas that deserve extra scrutiny, uncertainties, follow-up questions, etc. -->
