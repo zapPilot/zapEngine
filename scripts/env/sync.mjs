@@ -8,6 +8,7 @@ import { auditSecretClassification, validateProductionEnv } from './lib.mjs';
 import {
   deleteEasKey,
   deleteVercelKey,
+  deployStagedFlySecrets,
   importFlyValues,
   listDestinationKeys,
   setEasValue,
@@ -134,8 +135,9 @@ const selectedValues = Object.fromEntries(
   selected.map(({ name, value }) => [name, value]),
 );
 if (destination.platform === 'fly') {
-  importFlyValues(destination, selectedValues, { stage: stageFly });
-  if (prune) unsetFlyKeys(destination, forbidden, { stage: stageFly });
+  importFlyValues(destination, selectedValues, { stage: true });
+  if (prune) unsetFlyKeys(destination, forbidden, { stage: true });
+  if (!stageFly) deployStagedFlySecrets(destination);
 } else if (destination.platform === 'eas') {
   for (const { name, value, definition } of selected) {
     setEasValue(destination, name, value, definition.sensitive);

@@ -12,9 +12,11 @@ import {
   isDepotInfrastructureFailure,
 } from '../fly-deploy.mjs';
 import {
+  deployStagedFlySecrets,
   importFlyValues,
   listStagedFlyKeys,
   listVercelKeys,
+  unsetFlyKeys,
 } from './remote.mjs';
 
 const VERCEL_DESTINATIONS = Object.entries(ENV_DESTINATIONS).filter(
@@ -347,4 +349,103 @@ test('listStagedFlyKeys returns empty when all Deployed', async () => {
   const destination = ENV_DESTINATIONS['podcast-pipeline'];
   const staged = listStagedFlyKeys(destination);
   assert.equal(staged.size, 0);
+});
+
+test('Fly prune stages unset without immediate rollout', async () => {
+  const stub = stubFlyctl();
+  const destination = ENV_DESTINATIONS['podcast-pipeline'];
+  unsetFlyKeys(destination, ['OLD_SECRET'], { stage: true });
+  assert.deepEqual(await stub.argv(), [
+    'secrets',
+    'unset',
+    'OLD_SECRET',
+    '--app',
+    destination.app,
+    '--stage',
+  ]);
+});
+
+test('deployStagedFlySecrets deploys when staged secrets exist', async () => {
+  const destination = ENV_DESTINATIONS['podcast-pipeline'];
+  const stagedJson = JSON.stringify([
+    { name: 'SUPABASE_URL', digest: 'abc', status: 'Deployed' },
+    { name: 'STAGED_SECRET', digest: 'def', status: 'Staged' },
+  ]);
+  const stub = stubFlyctlDeploy([
+    { code: 0, stdout: stagedJson },
+    { code: 0, stdout: '' },
+  ]);
+  deployStagedFlySecrets(destination);
+  assert.equal(await stub.count(), 2);
+  const listArgv = await stub.argv(1);
+  assert.deepEqual(listArgv.slice(0, 2), ['secrets', 'list']);
+  assert.ok(listArgv.includes('--json'));
+  const deployArgv = await stub.argv(2);
+  assert.deepEqual(deployArgv, ['secrets', 'deploy', '--app', destination.app]);
+});
+
+test('deployStagedFlySecrets skips deploy when no staged secrets', async () => {
+  const destination = ENV_DESTINATIONS['podcast-pipeline'];
+  const deployedJson = JSON.stringify([
+    { name: 'SUPABASE_URL', digest: 'abc', status: 'Deployed' },
+  ]);
+  const stub = stubFlyctlDeploy([{ code: 0, stdout: deployedJson }]);
+  deployStagedFlySecrets(destination);
+  assert.equal(await stub.count(), 1);
+  const listArgv = await stub.argv(1);
+  assert.deepEqual(listArgv.slice(0, 2), ['secrets', 'list']);
+});
+
+test('deployStagedFlySecrets propagates deploy failure', () => {
+  const destination = ENV_DESTINATIONS['podcast-pipeline'];
+  const stagedJson = JSON.stringify([
+    { name: 'STAGED_SECRET', digest: 'def', status: 'Staged' },
+  ]);
+  stubFlyctlDeploy([
+    { code: 0, stdout: stagedJson },
+    {
+      code: 1,
+      stderr: "timeout reached waiting for machine's state to change",
+    },
+  ]);
+  assert.throws(() => deployStagedFlySecrets(destination), {
+    message: /Fly deploy failed for from-fed-to-chain-api/u,
+  });
+});
+
+test('staged Fly env apply uses single rollout: stage import + stage unset + one deploy', async () => {
+  const destination = ENV_DESTINATIONS['podcast-pipeline'];
+  const stagedJson = JSON.stringify([
+    { name: 'STAGED_SECRET', digest: 'def', status: 'Staged' },
+  ]);
+  // Sequence: import (stage), unset (stage), list (for deploy check), deploy
+  const stub = stubFlyctlDeploy([
+    { code: 0, stdout: '' },
+    { code: 0, stdout: '' },
+    { code: 0, stdout: stagedJson },
+    { code: 0, stdout: '' },
+  ]);
+  importFlyValues(destination, { TEST_SECRET: 'value' }, { stage: true });
+  unsetFlyKeys(destination, ['OLD_SECRET'], { stage: true });
+  deployStagedFlySecrets(destination);
+  assert.equal(await stub.count(), 4);
+  const importArgv = await stub.argv(1);
+  assert.deepEqual(importArgv, [
+    'secrets',
+    'import',
+    '--app',
+    destination.app,
+    '--stage',
+  ]);
+  const unsetArgv = await stub.argv(2);
+  assert.deepEqual(unsetArgv, [
+    'secrets',
+    'unset',
+    'OLD_SECRET',
+    '--app',
+    destination.app,
+    '--stage',
+  ]);
+  const deployArgv = await stub.argv(4);
+  assert.deepEqual(deployArgv, ['secrets', 'deploy', '--app', destination.app]);
 });
