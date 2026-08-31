@@ -1,9 +1,21 @@
 import type {
   OperationalSignal,
+  OperationsSource,
   OperationsDomainSummary,
   OperationsResponse,
   OperationsSocialResponse,
 } from '../../shared/types.js';
+import {
+  Activity,
+  BarChart3,
+  Bug,
+  Database,
+  Github,
+  RadioTower,
+  Server,
+  Users,
+  Wallet,
+} from 'lucide-react';
 import { integer, relativeTime, statusLabel } from '../format.js';
 import { InfoRow } from './InfoRow.js';
 import { PriorityQueue } from './PriorityQueue.js';
@@ -25,7 +37,15 @@ export function ReliabilityView(props: {
 
       <section aria-label="Domain status" className="domain-strip">
         {(data?.domains ?? []).map((domain) => (
-          <DomainChip domain={domain} key={domain.domain} />
+          <DomainChip
+            domain={domain}
+            key={domain.domain}
+            sources={uniqueSources(
+              data?.signals.filter(
+                (signal) => signal.domain === domain.domain,
+              ) ?? [],
+            )}
+          />
         ))}
       </section>
 
@@ -75,10 +95,26 @@ export function ReliabilityView(props: {
   );
 }
 
-function DomainChip({ domain }: { domain: OperationsDomainSummary }) {
+function DomainChip({
+  domain,
+  sources,
+}: {
+  domain: OperationsDomainSummary;
+  sources: OperationsSource[];
+}) {
   return (
     <div className={`domain-chip ${domain.status}`}>
-      <span>{domain.domain}</span>
+      <div className="domain-chip-heading">
+        <span>{domain.domain}</span>
+        <div
+          className="source-icon-stack"
+          aria-label={sourceListLabel(sources)}
+        >
+          {sources.map((source) => (
+            <SourceIcon key={source} source={source} />
+          ))}
+        </div>
+      </div>
       <strong>{statusLabel(domain.status)}</strong>
       <small>
         {integer(domain.signalCount)} signal
@@ -110,7 +146,13 @@ function SignalAudit({
             <strong>{signal.title}</strong>
             <small>{signal.fingerprint}</small>
           </div>
-          <span className="signal-audit-domain">{signal.domain}</span>
+          <div className="signal-source signal-audit-domain">
+            <SourceIcon source={signal.source} />
+            <span>
+              <strong>{sourceLabel(signal.source)}</strong>
+              <small>{signal.domain}</small>
+            </span>
+          </div>
           <span className="signal-audit-evidence">
             {formatEvidence(signal.evidence)}
           </span>
@@ -119,6 +161,50 @@ function SignalAudit({
       ))}
     </div>
   );
+}
+
+function SourceIcon({ source }: { source: OperationsSource }) {
+  const Icon =
+    {
+      'customer-economics': Users,
+      'product-health': Activity,
+      'cost-ledger': Wallet,
+      'social-queue': RadioTower,
+      'social-daemon': RadioTower,
+      'github-actions': Github,
+      fly: Server,
+      sentry: Bug,
+      posthog: BarChart3,
+    }[source] ?? Database;
+  return (
+    <span aria-hidden="true" className={`source-icon source-${source}`}>
+      <Icon />
+    </span>
+  );
+}
+
+function sourceLabel(source: OperationsSource): string {
+  return {
+    'customer-economics': 'Customer data',
+    'product-health': 'Product data',
+    'cost-ledger': 'Cost ledger',
+    'social-queue': 'Social queue',
+    'social-daemon': 'Social daemon',
+    'github-actions': 'GitHub Actions',
+    fly: 'Fly.io',
+    sentry: 'Sentry',
+    posthog: 'PostHog',
+  }[source];
+}
+
+function uniqueSources(signals: OperationalSignal[]): OperationsSource[] {
+  return [...new Set(signals.map((signal) => signal.source))];
+}
+
+function sourceListLabel(sources: OperationsSource[]): string {
+  return sources.length
+    ? `Sources: ${sources.map(sourceLabel).join(', ')}`
+    : 'No source signals';
 }
 
 function SocialOpsPanel({

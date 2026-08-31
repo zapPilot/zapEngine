@@ -64,6 +64,11 @@ const INACTIVE_WINDOW_DAYS = 30;
  */
 const PORTFOLIO_STALE_HOURS = 48;
 const AUM_AT_RISK_FLOOR_USD = 10_000;
+// A negative balance is debt, not assets under management. Values above one
+// quadrillion dollars are also necessarily a broken token price or decimal
+// conversion for this product. Keep corrupt rows out of both the headline and
+// account ranking instead of turning a feed failure into a business metric.
+const MAX_PLAUSIBLE_AUM_USD = 1_000_000_000_000_000;
 
 const EMPTY_SUMMARY: CustomerEconomicsResponse['summary'] = {
   totalCustomers: 0,
@@ -335,7 +340,7 @@ function toCustomer(
     refreshIntervalHours: toNumber(head.refresh_interval_hours),
     lastActivityAt: head.last_activity_at,
     inactiveDays: elapsedDays(head.last_activity_at, input.now),
-    aumUsd: toNumber(head.aum_usd),
+    aumUsd: toAumNumber(head.aum_usd),
     wallets,
     portfolioStaleHours: freshness.freshest,
     portfolioWorstStaleHours: freshness.worst,
@@ -473,6 +478,13 @@ function toNumber(value: number | string | null): number | null {
   }
   const parsed = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function toAumNumber(value: number | string | null): number | null {
+  const parsed = toNumber(value);
+  return parsed !== null && parsed >= 0 && parsed <= MAX_PLAUSIBLE_AUM_USD
+    ? parsed
+    : null;
 }
 
 function elapsedDays(value: string | null, now: Date): number | null {

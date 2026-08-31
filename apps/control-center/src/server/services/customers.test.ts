@@ -293,6 +293,29 @@ describe('loadCustomerEconomics', () => {
 
     expect(response.users.map((user) => user.userId)).toEqual(['user-8']);
   });
+
+  it('excludes corrupt negative and impossible AUM values from the headline', async () => {
+    const response = await loadRows([
+      stateRow({
+        user_id: 'negative',
+        wallet: '0xneg',
+        aum_usd: -26_963_562_382_406_235_000_000,
+      }),
+      stateRow({
+        user_id: 'impossible',
+        wallet: '0xhuge',
+        aum_usd: '1000000000000001',
+      }),
+      stateRow({ user_id: 'valid', wallet: '0xvalid', aum_usd: '125000.50' }),
+    ]);
+
+    expect(response.summary.aumUsd).toBe(125_000.5);
+    expect(
+      response.users
+        .filter((user) => user.userId !== 'valid')
+        .map((user) => user.aumUsd),
+    ).toEqual([null, null]);
+  });
 });
 
 describe('deriveCustomerSignals', () => {

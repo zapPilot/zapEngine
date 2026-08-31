@@ -1,19 +1,12 @@
 import type {
   SocialDecision,
-  SocialGrowthPlatform,
+  SocialGrowthLane,
   SocialGrowthResponse,
   SocialPerformanceResponse,
   SocialPlatformPerformance,
 } from '../../shared/types.js';
 import { duration, integer, percent, relativeTime } from '../format.js';
 import { platformLabel } from '../platform.js';
-
-const windows: SocialPerformanceResponse['window'][] = [
-  'latest',
-  '24h',
-  '72h',
-  '7d',
-];
 
 export function GrowthView(props: {
   data: SocialPerformanceResponse | null;
@@ -26,101 +19,74 @@ export function GrowthView(props: {
   const followerTotal = sumKnown(
     data?.accounts.map((account) => account.followers) ?? [],
   );
-  const latest = data?.episodes[0];
+  const brief = buildPublishingBrief(data?.decisions ?? []);
 
   return (
-    <div className="social-layout">
+    <div className="social-layout social-layout-focused">
       <div className="social-main">
-        <div className="window-tabs" aria-label="Metric snapshot window">
-          {windows.map((window) => (
-            <button
-              className={data?.window === window ? 'active' : undefined}
-              key={window}
-              onClick={() => void props.onWindowChange(window)}
-              type="button"
-            >
-              {window === 'latest' ? 'Latest' : window}
-            </button>
-          ))}
-        </div>
+        <section className="publishing-brief" aria-label="Next publishing plan">
+          <div className="brief-kicker">Next publishing plan</div>
+          <div className="brief-primary">
+            <span>Publish every platform together at</span>
+            <strong>{brief.time}</strong>
+            <small>{brief.timeBasis}</small>
+          </div>
+          <div className="brief-direction">
+            <span>What to write next</span>
+            <strong>{brief.topic}</strong>
+            <p>{brief.topicAdvice}</p>
+          </div>
+        </section>
 
         <section className="decision-section">
           <div className="section-head">
             <h2>What to publish next</h2>
             <small className="panel-note">
-              24h performance evidence; configured defaults are shown separately
+              One article direction, packaged for how each audience reads
             </small>
           </div>
-          <div className="decision-grid">
+          <div className="platform-playbook">
             {(data?.decisions ?? []).map((decision) => (
-              <DecisionCard decision={decision} key={decision.platform} />
+              <PlatformPlaybook
+                decision={decision}
+                key={decision.platform}
+                lane={bestLanguageLane(props.growth, decision.platform)}
+              />
             ))}
           </div>
         </section>
 
-        <section className="social-metrics" aria-label="Social overview">
-          <div>
-            <strong className="mono">{integer(followerTotal)}</strong>
-            <span>Tracked followers</span>
+        <section className="growth-section growth-summary-section">
+          <div className="section-heading">
+            <h2>Audience pulse</h2>
+            <span className="decision-note">
+              Follower totals and recent movement
+            </span>
           </div>
-          <div>
-            <strong className="mono">
-              {integer(data?.status === 'ok' ? data.accounts.length : null)}
-            </strong>
-            <span>Follower telemetry channels</span>
-          </div>
-          <div>
-            <strong className="mono">{integer(latest?.totalViews)}</strong>
-            <span>Latest episode views</span>
-          </div>
-        </section>
-
-        <section className="panel growth-overview">
-          <div className="panel-head">
-            <h2>Follower movement</h2>
-            <small className="panel-note">
-              Direction first; lane-level attribution remains estimated
-            </small>
-          </div>
-          <div className="table-wrap">
-            <table className="data-table social-table-compact">
-              <thead>
-                <tr>
-                  <th>Platform</th>
-                  <th>Followers</th>
-                  <th>Δ 24h</th>
-                  <th>Δ 7d</th>
-                  <th>Best 7d lane</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(props.growth?.platforms ?? []).map((platform) => (
-                  <tr key={platform.platform}>
-                    <td className="cell-title">
-                      {platformLabel(platform.platform)}
-                    </td>
-                    <td className="mono">{integer(platform.followersNow)}</td>
-                    <td className="mono">
-                      {signed(platform.followersDelta24h)}
-                    </td>
-                    <td className="mono">
+          <div className="audience-grid">
+            {(props.growth?.platforms ?? []).map((platform) => (
+              <article className="audience-card" key={platform.platform}>
+                <div>
+                  <strong>{platformLabel(platform.platform)}</strong>
+                  <span>{integer(platform.followersNow)} followers</span>
+                  <small>{bestLaneEfficiency(platform.lanes)}</small>
+                </div>
+                <div className="audience-deltas">
+                  <span>
+                    <small>24h</small>
+                    <strong>{signed(platform.followersDelta24h)}</strong>
+                  </span>
+                  <span>
+                    <small>7d</small>
+                    <strong>
                       {platform.platform === 'youtube'
-                        ? `${signed(platform.exactSubscribersGained7d)} exact`
+                        ? signed(platform.exactSubscribersGained7d)
                         : signed(platform.followersDelta7d)}
-                    </td>
-                    <td>{bestLaneSignal(platform)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {props.growth && props.growth.platforms.length === 0 ? (
-              <div className="empty-inline">
-                No follower growth snapshots yet.
-              </div>
-            ) : null}
-            {props.growth ? null : (
-              <div className="empty-inline">Waiting for growth data.</div>
-            )}
+                    </strong>
+                  </span>
+                </div>
+              </article>
+            ))}
           </div>
         </section>
 
@@ -302,7 +268,11 @@ export function GrowthView(props: {
       </div>
 
       <aside className="followers-rail">
-        <h2>Follower telemetry</h2>
+        <h2>Collection status</h2>
+        <div className="collection-total">
+          <strong className="mono">{integer(followerTotal)}</strong>
+          <span>tracked followers</span>
+        </div>
         {(data?.accounts ?? []).map((account) => (
           <div className="follower-entry" key={account.platform}>
             <span>{platformLabel(account.platform)}</span>
@@ -315,85 +285,141 @@ export function GrowthView(props: {
         ) : null}
         <p>
           Missing platforms are collection gaps, not zero followers. Optimize
-          posts from the decision cards; use the evidence disclosure only to
-          audit them.
+          from the playbook; open the evidence only when you need to audit the
+          recommendation.
         </p>
       </aside>
     </div>
   );
 }
 
-function DecisionCard({ decision }: { decision: SocialDecision }) {
+function PlatformPlaybook(props: {
+  decision: SocialDecision;
+  lane: SocialGrowthLane | null;
+}) {
+  const { decision, lane } = props;
   return (
-    <article className="decision-card">
+    <article className="playbook-card">
       <header>
         <strong>{platformLabel(decision.platform)}</strong>
         <span className={`confidence-${decision.confidence}`}>
-          {decision.confidence} sample coverage
+          {decision.evidenceSamples} samples
         </span>
       </header>
-
-      <small className="decision-note">Performance evidence</small>
-      <DecisionLine
-        label="Do next"
-        value={
-          decision.bestTopic
+      <div className="playbook-language">
+        <span>Use</span>
+        <strong>
+          {lane ? languageLabel(lane.languageCode) : 'Keep testing'}
+        </strong>
+        <small>
+          {lane
+            ? `${lane.languageCode} · ${decimal(lane.followersPer1kReach)} / 1k ${lane.basis} follower conversion · ${lane.postCount7d} posts`
+            : 'Not enough language evidence yet'}
+        </small>
+      </div>
+      <div className="playbook-title">
+        <span>Shape the title like this</span>
+        <strong>{titleDirection(decision)}</strong>
+      </div>
+      <div className="playbook-evidence">
+        <span>Next article</span>
+        <strong>
+          {decision.bestTopic
             ? `Prioritize ${decision.bestTopic}`
-            : 'Keep exploring topics'
-        }
-      />
-      <DecisionLine label="Why" value={topicEvidence(decision)} />
-      <DecisionLine
-        label="Top example"
-        value={decision.topExample ?? 'More samples needed'}
-      />
-      <small>
-        {decision.evidenceSamples} comparable 24h samples · coverage reflects
-        sample count, not statistical significance
-      </small>
-
-      <small className="decision-note">
-        Current strategy defaults — configured, not learned
-      </small>
-      <DecisionLine
-        label="Hook"
-        value={
-          decision.preferredHookTypes.length
-            ? decision.preferredHookTypes.join(' / ')
-            : 'No platform override'
-        }
-      />
-      <DecisionLine
-        label="Schedule"
-        value={
-          decision.publishSlotsJst
-            ? `${decision.publishSlotsJst} JST (fixed)`
-            : 'Use scheduler defaults'
-        }
-      />
-      {decision.platform === 'rednote' ? (
-        <>
-          <DecisionLine
-            label="Prefer tags"
-            value={decision.preferredHashtags.join(' · ') || 'No preference'}
-          />
-          <DecisionLine
-            label="Avoid tags"
-            value={decision.avoidHashtags.join(' · ') || 'None'}
-          />
-        </>
+            : 'Keep exploring topics'}
+        </strong>
+        <small>{topicEvidence(decision)}</small>
+      </div>
+      {decision.platform === 'rednote' &&
+      decision.preferredHashtags.length > 0 ? (
+        <div className="playbook-tags">
+          {decision.preferredHashtags.map((tag) => (
+            <span key={tag}>{tag}</span>
+          ))}
+        </div>
       ) : null}
     </article>
   );
 }
 
-function DecisionLine(props: { label: string; value: string }) {
+function buildPublishingBrief(decisions: SocialDecision[]): {
+  time: string;
+  timeBasis: string;
+  topic: string;
+  topicAdvice: string;
+} {
+  const slots = new Map<string, { platforms: number; weight: number }>();
+  for (const decision of decisions) {
+    const times = decision.publishSlotsJst?.match(/\d{1,2}:\d{2}/g) ?? [];
+    for (const time of new Set(times)) {
+      const current = slots.get(time) ?? { platforms: 0, weight: 0 };
+      current.platforms += 1;
+      current.weight += decision.evidenceSamples;
+      slots.set(time, current);
+    }
+  }
+  const bestTime = [...slots.entries()].sort(
+    (left, right) =>
+      right[1].platforms - left[1].platforms ||
+      right[1].weight - left[1].weight ||
+      left[0].localeCompare(right[0]),
+  )[0];
+
+  const topics = new Map<string, number>();
+  for (const decision of decisions) {
+    if (decision.bestTopic) {
+      topics.set(
+        decision.bestTopic,
+        (topics.get(decision.bestTopic) ?? 0) +
+          (decision.bestTopicSamples ?? 0),
+      );
+    }
+  }
+  const bestTopic = [...topics.entries()].sort(
+    (left, right) => right[1] - left[1],
+  )[0];
+
+  return {
+    time: bestTime ? `${bestTime[0]} JST` : 'Use the next regular slot',
+    timeBasis: bestTime
+      ? `The strongest shared slot across ${bestTime[1].platforms} platform${bestTime[1].platforms === 1 ? '' : 's'}`
+      : 'No cross-platform timing winner yet',
+    topic: bestTopic ? topicLabel(bestTopic[0]) : 'Keep the next topic broad',
+    topicAdvice: bestTopic
+      ? `The clearest repeatable signal is ${topicLabel(bestTopic[0]).toLowerCase()}. Lead with one concrete consequence, then explain why the consensus view misses it.`
+      : 'There is not enough repeated topic evidence yet. Publish the same article everywhere and keep the angle easy to compare.',
+  };
+}
+
+function bestLanguageLane(
+  growth: SocialGrowthResponse | null,
+  platform: string,
+): SocialGrowthLane | null {
+  const lanes =
+    growth?.platforms.find((item) => item.platform === platform)?.lanes ?? [];
   return (
-    <div className="decision-line">
-      <span>{props.label}</span>
-      <strong>{props.value}</strong>
-    </div>
+    lanes
+      .filter((lane) => lane.postCount7d > 0 && lane.medianReach24h !== null)
+      .sort(
+        (left, right) =>
+          (right.medianReach24h ?? -1) - (left.medianReach24h ?? -1) ||
+          right.postCount7d - left.postCount7d,
+      )[0] ?? null
   );
+}
+
+function bestLaneEfficiency(lanes: SocialGrowthLane[]): string {
+  const best = lanes
+    .filter(
+      (lane): lane is SocialGrowthLane & { followersPer1kReach: number } =>
+        lane.followersPer1kReach !== null,
+    )
+    .sort(
+      (left, right) => right.followersPer1kReach - left.followersPer1kReach,
+    )[0];
+  return best
+    ? `${best.languageCode} · ${decimal(best.followersPer1kReach)} / 1k (${best.basis})`
+    : 'No language conversion signal yet';
 }
 
 function topicEvidence(decision: SocialDecision): string {
@@ -404,7 +430,7 @@ function topicEvidence(decision: SocialDecision): string {
   ) {
     return decision.platformMedian24hViews === null
       ? 'No comparable 24h evidence yet'
-      : `Platform median ${decimal(decision.platformMedian24hViews)} views; need 2 topic buckets with n≥3`;
+      : `Platform median ${decimal(decision.platformMedian24hViews)} views; more topic samples needed`;
   }
 
   const platformMedian =
@@ -416,21 +442,6 @@ function topicEvidence(decision: SocialDecision): string {
       ? ''
       : ` · ${decimal(decision.bestTopicLiftVsPlatformMedian)}× lift`;
   return `${decimal(decision.bestTopicMedian24hViews)} median 24h views · n=${decision.bestTopicSamples}${platformMedian}${lift}`;
-}
-
-function bestLaneSignal(platform: SocialGrowthPlatform): string {
-  const known = platform.lanes
-    .filter(
-      (lane): lane is typeof lane & { followersPer1kReach: number } =>
-        lane.followersPer1kReach !== null,
-    )
-    .sort(
-      (left, right) => right.followersPer1kReach - left.followersPer1kReach,
-    );
-  const best = known[0];
-  return best
-    ? `${best.languageCode} · ${decimal(best.followersPer1kReach)} / 1k (${best.basis})`
-    : 'No 7d efficiency signal';
 }
 
 function platformSignal(platform: SocialPlatformPerformance): string {
@@ -451,13 +462,48 @@ function platformSignal(platform: SocialPlatformPerformance): string {
   return `${integer(platform.shares)} shares · ${integer(platform.comments)} replies`;
 }
 
+function titleDirection(decision: SocialDecision): string {
+  const hook = decision.preferredHookTypes[0];
+  if (hook === 'surprising_number') {
+    return 'Open with the strongest number, then say what it changes.';
+  }
+  if (hook === 'contrarian') {
+    return 'State the common belief first, then overturn it with the consequence.';
+  }
+  if (hook === 'question') {
+    return 'Ask the decision the reader is already facing, then answer it plainly.';
+  }
+  if (hook) {
+    return `Lead with ${hook.replaceAll('_', ' ')}, then name the practical consequence.`;
+  }
+  return 'Lead with one concrete consequence, not a generic topic label.';
+}
+
+function topicLabel(topic: string): string {
+  return topic.replaceAll('_', ' ');
+}
+
+function languageLabel(code: string): string {
+  const labels: Record<string, string> = {
+    en: 'English',
+    ja: 'Japanese',
+    'zh-Hant': 'Traditional Chinese',
+    'zh-Hans': 'Simplified Chinese',
+  };
+  return labels[code] ?? code;
+}
+
 function sumKnown(values: Array<number | null>): number | null {
   const known = values.filter((value): value is number => value !== null);
   return known.length ? known.reduce((sum, value) => sum + value, 0) : null;
 }
 
 function signed(value: number | null): string {
-  return value === null ? '—' : `${value >= 0 ? '+' : ''}${decimal(value)}`;
+  return value === null
+    ? '—'
+    : `${value >= 0 ? '+' : ''}${value.toLocaleString('en-US', {
+        maximumFractionDigits: 2,
+      })}`;
 }
 
 function decimal(value: number | null): string {
