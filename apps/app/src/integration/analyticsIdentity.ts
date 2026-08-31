@@ -1,36 +1,14 @@
-import { type ReactElement, useEffect, useRef } from 'react';
-
-import {
-  identifyAnalyticsUser,
-  resetAnalyticsUser,
-  trackEvent,
-} from '@/observability/analytics';
-import { useAccount } from '@/integration/useAccount';
+import type { ReactElement } from 'react';
 
 /**
- * Joins the anonymous PostHog session to the account-engine user id.
+ * Native analytics is intentionally inert: App Store builds ship the
+ * podcast-only surface and do not include the PostHog client.
  *
- * Watches the resolved `userId` rather than the wallet's `isConnected` flag:
- * a connection is only useful for analytics once the backend user record has
- * settled, and that is also the identifier the marketing site's funnel joins on.
+ * Keep this component provider-free. The shared root layout renders it on every
+ * platform, so reading account/wallet context here would make native startup
+ * depend on WalletProvider even though native analytics never sends identity.
+ * The web implementation lives in analyticsIdentity.web.ts.
  */
 export function AnalyticsIdentitySync(): ReactElement | null {
-  const { userId, isNewUser } = useAccount();
-  const identifiedRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (userId === identifiedRef.current) return;
-
-    if (userId === null) {
-      identifiedRef.current = null;
-      resetAnalyticsUser();
-      return;
-    }
-
-    identifiedRef.current = userId;
-    identifyAnalyticsUser(userId);
-    trackEvent('wallet_connected', { is_new_user: isNewUser });
-  }, [isNewUser, userId]);
-
   return null;
 }
