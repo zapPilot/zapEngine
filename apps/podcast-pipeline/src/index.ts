@@ -37,6 +37,7 @@ import {
   toEpisodeResponse,
   toEpisodeResponseFromLocalization,
 } from './services/db.js';
+import { listHydratedEpisodeFeedPage } from './services/episode-feed-page.js';
 import {
   invalidateEpisodeSearchCache,
   searchEpisodes,
@@ -132,6 +133,10 @@ function toIngestLocalizationSummaries(
 
 function emptyTelegramResponse(c: Context): Response {
   return c.body(null, 200);
+}
+
+function episodeFeedServerTiming(startedAt: number): string {
+  return `episode-feed;dur=${Math.max(0, performance.now() - startedAt).toFixed(1)}`;
 }
 
 type EpisodeRow = NonNullable<Awaited<ReturnType<typeof findEpisodeById>>>;
@@ -347,6 +352,7 @@ export function createApp(): Hono {
   });
 
   app.get('/episodes', async (c) => {
+    const startedAt = performance.now();
     const limitRaw = c.req.query('limit');
     const cursorRaw = c.req.query('cursor');
     const languageCode = parsePrimaryLanguageCode(c.req.query('language'));
@@ -365,6 +371,19 @@ export function createApp(): Hono {
       }
     }
 
+    const hydratedPage = await listHydratedEpisodeFeedPage(
+      limit,
+      cursor,
+      languageCode,
+    );
+    if (hydratedPage) {
+      c.header('Server-Timing', episodeFeedServerTiming(startedAt));
+      return c.json(hydratedPage);
+    }
+
+    // Deployment-order safety only: until the migration has been pushed, serve
+    // the old path. The optimized loader throws real runtime/query failures, so
+    // this cannot silently become a permanent catch-all fallback.
     const { rows, nextCursor } = await listEpisodeFeedPaged(
       limit,
       cursor,
@@ -375,6 +394,7 @@ export function createApp(): Hono {
       listEpisodeVideoSummariesByLocalizationIds(localizationIds),
       listLanguageClassroomAudioByLocalizationIds(localizationIds),
     ]);
+    c.header('Server-Timing', episodeFeedServerTiming(startedAt));
     return c.json({
       items: rows.map((row) => {
         const summary = videoSummaries.get(row.localization_id);
