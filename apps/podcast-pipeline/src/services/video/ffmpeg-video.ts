@@ -361,14 +361,13 @@ export const MEDIA_MOTION_SUPERSAMPLE = 4 as const;
 // chunk videos in the final pass. This turns peak memory from O(scene count)
 // into O(chunk size) without dropping the Ken Burns supersampling quality.
 export const VERTICAL_MEDIA_CHUNK_SIZE = 8 as const;
-// Zoom grows with scene length instead of being a fixed total, so short and
-// long scenes move at the same perceived speed; the cap keeps 13s+ scenes calm.
-const KEN_BURNS_ZOOM_RATE_PER_SECOND = 0.014;
-const KEN_BURNS_MAX_EXTRA_ZOOM = 0.18;
+// v8 shows the composition before it moves: the first 30% is a hold, motion is
+// confined to the middle 50%, and the last 20% settles before the crossfade.
+// Total motion is deliberately small; news imagery should be read, not chased.
+const KEN_BURNS_ZOOM_RATE_PER_SECOND = 0.004;
+const KEN_BURNS_MAX_EXTRA_ZOOM = 0.05;
 const KEN_BURNS_HOLD_SAFETY_FRAMES = 2;
-// Pans hold a constant zoom and translate along one axis only: ramping zoom
-// and position together doubles zoompan's rounding sources and reads as wobble.
-const KEN_BURNS_PAN_ZOOM = 1.15;
+const KEN_BURNS_PAN_ZOOM = 1.04;
 
 export type KenBurnsPan =
   | 'zoomIn'
@@ -377,7 +376,6 @@ export type KenBurnsPan =
   | 'rightToLeft'
   | 'topToBottom';
 
-// Zooms interleave with pans so xfade neighbors differ in motion character.
 const KEN_BURNS_MOTIONS: readonly KenBurnsPan[] = [
   'zoomIn',
   'leftToRight',
@@ -386,9 +384,6 @@ const KEN_BURNS_MOTIONS: readonly KenBurnsPan[] = [
   'topToBottom',
 ];
 
-// Same deterministic-variety pattern as pickBgmTrack: every locale of one
-// episode shares a motion order, while different episodes start elsewhere in
-// the rotation.
 export function kenBurnsSeedForEpisode(episodeId: string): number {
   const digest = createHash('sha256').update(episodeId).digest();
   return (digest[0] ?? 0) % KEN_BURNS_MOTIONS.length;
@@ -398,6 +393,22 @@ export function kenBurnsPanForScene(index: number, seed = 0): KenBurnsPan {
   return (
     KEN_BURNS_MOTIONS[(index + seed) % KEN_BURNS_MOTIONS.length] ?? 'zoomIn'
   );
+}
+
+function presentationMotionForScene(
+  slide: SlideVideoManifest['slides'][number],
+  index: number,
+  seed: number,
+): 'static' | 'zoomIn' | 'leftToRight' | 'rightToLeft' | 'topToBottom' {
+  const requested =
+    slide.asset.kind === 'remoteImage' ? slide.asset.motion : 'pushIn';
+  if (requested === 'static') return 'static';
+  if (requested === 'pushIn') return 'zoomIn';
+  const varied = kenBurnsPanForScene(index, seed);
+  if (varied === 'leftToRight' || varied === 'rightToLeft' || varied === 'topToBottom') {
+    return varied;
+  }
+  return index % 2 === 0 ? 'leftToRight' : 'rightToLeft';
 }
 
 function kenBurnsFilter(
@@ -414,9 +425,8 @@ function kenBurnsFilter(
     Math.round(((slide.endMs - slide.startMs) * fps) / 1_000),
   );
   const finalFrame = durationFrames - 1;
-  const progress = `min(on/${finalFrame}\\,1)`;
-  // Smoothstep easing (3P²−2P³): velocity is zero at both endpoints, so
-  // motion never pops across an xfade boundary.
+  // Hold 30%, move for 50%, hold the completed composition for 20%.
+  const progress = `max(0\\,min((on/${finalFrame}-0.30)/0.50\\,1))`;
   const eased = `pow(${progress}\\,2)*(3-2*${progress})`;
   const extraZoom = Math.min(
     (KEN_BURNS_ZOOM_RATE_PER_SECOND * (slide.endMs - slide.startMs)) / 1_000,
@@ -425,14 +435,14 @@ function kenBurnsFilter(
 
   const position =
     slide.asset.kind === 'remoteImage' ? slide.asset.position : 'center';
-  let motion = kenBurnsPanForScene(index, seed);
-  // A crop pinned to its top or bottom edge cannot pan vertically, and a
-  // constant-zoom topToBottom there would be a static frame.
+  let motion = presentationMotionForScene(slide, index, seed);
   if (motion === 'topToBottom' && position !== 'center') motion = 'zoomIn';
-  const isPan = motion !== 'zoomIn' && motion !== 'zoomOut';
+  const isPan =
+    motion === 'leftToRight' ||
+    motion === 'rightToLeft' ||
+    motion === 'topToBottom';
 
-  let zoom = `1+${extraZoom}*${eased}`;
-  if (motion === 'zoomOut') zoom = `1+${extraZoom}*(1-${eased})`;
+  let zoom = motion === 'static' ? '1' : `1+${extraZoom}*${eased}`;
   if (isPan) zoom = String(KEN_BURNS_PAN_ZOOM);
 
   let x = '(iw-iw/zoom)/2';
@@ -450,6 +460,23 @@ function kenBurnsFilter(
   return `zoompan=z='${zoom}':x='${x}':y='${y}':d=${durationFrames + holdFrames}:s=${width}x${height}:fps=${fps}`;
 }
 
+function imagePreparationFilter(
+  slide: SlideVideoManifest['slides'][number],
+  width: number,
+  height: number,
+  supersample: number,
+): string {
+  const targetWidth = width * supersample;
+  const targetHeight = height * supersample;
+  const flags = 'lanczos+accurate_rnd';
+  const layout =
+    slide.asset.kind === 'remoteImage' ? slide.asset.layout : 'fullBleed';
+  if (layout === 'contain') {
+    return `scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=decrease:flags=${flags}:in_range=pc:out_range=tv:out_color_matrix=bt709,pad=${targetWidth}:${targetHeight}:(ow-iw)/2:(oh-ih)/2:color=0x101014`;
+  }
+  return `scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=increase:flags=${flags}:in_range=pc:out_range=tv:out_color_matrix=bt709,crop=${targetWidth}:${targetHeight}`;
+}
+
 function slideSceneFilters(
   slides: SlideVideoManifest['slides'],
   seed: number,
@@ -464,7 +491,7 @@ function slideSceneFilters(
     Math.round((transitionMs * fps) / 1_000) + KEN_BURNS_HOLD_SAFETY_FRAMES;
   return slides.map(
     (slide, index) =>
-      `[${index}:v]scale=${width * supersample}:${height * supersample}:flags=lanczos+accurate_rnd:in_range=pc:out_range=tv:out_color_matrix=bt709,${kenBurnsFilter(slide, index + indexOffset, seed, fps, width, height, holdFrames)},setsar=1,format=yuv444p,settb=expr=1/${fps},setpts=N[s${index}]`,
+      `[${index}:v]${imagePreparationFilter(slide, width, height, supersample)},${kenBurnsFilter(slide, index + indexOffset, seed, fps, width, height, holdFrames)},setsar=1,format=yuv444p,settb=expr=1/${fps},setpts=N[s${index}]`,
   );
 }
 
