@@ -188,6 +188,11 @@ begin
 end;
 $$;
 
+revoke execute on function from_fed_to_chain.reset_episode_video_visual_failure_notification()
+  from public, anon, authenticated;
+grant execute on function from_fed_to_chain.reset_episode_video_visual_failure_notification()
+  to service_role;
+
 revoke execute on function from_fed_to_chain.reap_failed_episode_video_visual_notifications(integer)
   from public, anon, authenticated;
 grant execute on function from_fed_to_chain.reap_failed_episode_video_visual_notifications(integer)
