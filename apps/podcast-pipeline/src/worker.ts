@@ -12,6 +12,10 @@ import { processEpisodeVideoJob } from './services/episode-video-processor.js';
 import { processEpisodeVideoVisualJob } from './services/episode-video-visual-processor.js';
 import { assertVideoRenderRuntime } from './services/video/runtime-preflight.js';
 import {
+  createVideoVisualFailureNotifier,
+  type VideoVisualFailureNotifier,
+} from './services/video-visual-failure-notifier.js';
+import {
   createVideoWorker,
   type CreateVideoWorkerOptions,
   type EpisodeVideoWorker,
@@ -43,10 +47,11 @@ const IDLE_SHUTDOWN_MS = 90_000;
 
 export interface VideoWorkerProcessOptions {
   createWorker?: (options: CreateVideoWorkerOptions) => EpisodeVideoWorker;
+  createVisualFailureNotifier?: () => VideoVisualFailureNotifier;
   livenessIntervalMs?: number;
   idleShutdownMs?: number;
   exit?: (code: number) => void;
-  logger?: Pick<Console, 'info'>;
+  logger?: Pick<Console, 'info' | 'error'>;
 }
 
 export interface VideoWorkerProcessHandle {
@@ -95,6 +100,10 @@ export function startVideoWorkerProcess(
   const logger = options.logger ?? console;
   const exit = options.exit ?? ((code: number) => process.exit(code));
   const idleShutdownMs = options.idleShutdownMs ?? IDLE_SHUTDOWN_MS;
+  const visualFailureNotifier = (
+    options.createVisualFailureNotifier ??
+    (() => createVideoVisualFailureNotifier({ logger }))
+  )();
 
   let liveness: NodeJS.Timeout | null = null;
   let videoWorker: EpisodeVideoWorker | null = null;
@@ -103,6 +112,7 @@ export function startVideoWorkerProcess(
 
   const { shutdown } = installProcessShutdown(async (reason) => {
     if (liveness) clearInterval(liveness);
+    visualFailureNotifier.stop();
     await videoWorker?.stop(new Error(`Video worker stopping: ${reason}`));
     await flushSentry();
   });
@@ -140,6 +150,13 @@ export function startVideoWorkerProcess(
   logger.info(
     `[video-worker] on-demand: exits after ${idleShutdownMs}ms of an empty queue`,
   );
+
+  // Visual planning is a shared prerequisite for all language renders. Its
+  // terminal failure does not create a failed episode_videos row, so the
+  // localized failure sweep cannot see it. Keep a parallel durable sweep alive
+  // for the lifetime of this render process; the DB stamp makes delivery
+  // at-least-once across ordinary worker restarts.
+  visualFailureNotifier.start();
 
   // The worker's poll timer is unref'd so bootstrap() and tests never hang on
   // it, which means a process whose only job is polling would exit
