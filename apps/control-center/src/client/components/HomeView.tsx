@@ -141,9 +141,7 @@ export function HomeView(props: {
                 <PublishRow decision={decision} key={decision.platform} />
               ))}
               {data && data.social.decisions.length === 0 ? (
-                <div className="empty-inline">
-                  No learned social strategy yet.
-                </div>
+                <div className="empty-inline">No publishing evidence yet.</div>
               ) : null}
               {data ? null : (
                 <div className="empty-inline">Waiting for data.</div>
@@ -193,17 +191,24 @@ export function HomeView(props: {
 function PublishRow({ decision }: { decision: SocialDecision }) {
   return (
     <InfoRow
-      label={`${platformLabel(decision.platform)} · ${decision.confidence} confidence`}
-      notes={[
-        decision.bestTopic
-          ? `Top topic: ${decision.bestTopic} (median of ${integer(decision.bestTopicSamples)} posts)`
-          : 'Not enough topic evidence yet',
-      ]}
+      label={`${platformLabel(decision.platform)} · ${integer(decision.evidenceSamples)} 24h samples`}
+      notes={[publishEvidenceNote(decision)]}
       value={
-        decision.preferredHookTypes.length
-          ? decision.preferredHookTypes.join(' / ')
-          : 'Keep exploring'
+        decision.bestTopic
+          ? `Prioritize ${decision.bestTopic}`
+          : 'Keep exploring topics'
       }
     />
   );
+}
+
+function publishEvidenceNote(decision: SocialDecision): string {
+  if (
+    decision.bestTopic &&
+    decision.bestTopicMedian24hViews !== null &&
+    decision.bestTopicLiftVsPlatformMedian !== null
+  ) {
+    return `${integer(decision.bestTopicMedian24hViews)} median views · ${decision.bestTopicLiftVsPlatformMedian.toLocaleString('en-US', { maximumFractionDigits: 2 })}× platform median · ${decision.confidence} sample coverage`;
+  }
+  return `Not enough qualified topic buckets yet · ${decision.confidence} sample coverage`;
 }

@@ -82,23 +82,28 @@ describe('buildDecisions', () => {
       {
         bestTopic: null,
         bestTopicSamples: null,
+        bestTopicMedian24hViews: null,
+        platformMedian24hViews: 30,
+        bestTopicLiftVsPlatformMedian: null,
       },
     );
   });
 
-  it('selects the higher-median qualified topic and reports its sample count', () => {
+  it('selects the higher-median qualified topic and quantifies its lift', () => {
     const samples = topicSamples({
       alpha: [10, 20, 30],
       beta: [80, 100, 200],
     });
 
-    expect(buildDecisions(samples.posts, samples.metrics, [])[0]).toMatchObject(
-      {
-        bestTopic: 'beta',
-        bestTopicSamples: 3,
-        topExample: '“beta post 3” · 200 views',
-      },
-    );
+    const decision = buildDecisions(samples.posts, samples.metrics, [])[0]!;
+    expect(decision).toMatchObject({
+      bestTopic: 'beta',
+      bestTopicSamples: 3,
+      bestTopicMedian24hViews: 100,
+      platformMedian24hViews: 55,
+      topExample: '“beta post 3” · 200 views',
+    });
+    expect(decision.bestTopicLiftVsPlatformMedian).toBeCloseTo(100 / 55);
   });
 
   it('uses the current qualified 24h samples for evidence and confidence', () => {
@@ -112,7 +117,11 @@ describe('buildDecisions', () => {
 
     expect(
       buildDecisions(samples.posts, metrics, [strategy('x')])[0],
-    ).toMatchObject({ evidenceSamples: 3, confidence: 'low' });
+    ).toMatchObject({
+      evidenceSamples: 3,
+      confidence: 'low',
+      platformMedian24hViews: 20,
+    });
   });
 
   it('keeps rejected and effectively unseen Rednote posts out of evidence', () => {
@@ -138,6 +147,7 @@ describe('buildDecisions', () => {
       )[0],
     ).toMatchObject({
       evidenceSamples: 1,
+      platformMedian24hViews: 42,
       topExample: '“Accepted post” · 42 views',
     });
   });
@@ -172,6 +182,9 @@ describe('buildDecisions', () => {
         evidenceSamples: 0,
         bestTopic: null,
         bestTopicSamples: null,
+        bestTopicMedian24hViews: null,
+        platformMedian24hViews: null,
+        bestTopicLiftVsPlatformMedian: null,
         publishSlotsJst: null,
         topExample: null,
       }),

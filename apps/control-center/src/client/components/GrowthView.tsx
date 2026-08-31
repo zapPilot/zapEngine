@@ -1,5 +1,6 @@
 import type {
   SocialDecision,
+  SocialGrowthPlatform,
   SocialGrowthResponse,
   SocialPerformanceResponse,
   SocialPlatformPerformance,
@@ -45,9 +46,9 @@ export function GrowthView(props: {
 
         <section className="decision-section">
           <div className="section-head">
-            <h2>Publishing decisions</h2>
+            <h2>What to publish next</h2>
             <small className="panel-note">
-              Learned from standardized 24h samples
+              24h performance evidence; configured defaults are shown separately
             </small>
           </div>
           <div className="decision-grid">
@@ -74,28 +75,30 @@ export function GrowthView(props: {
           </div>
         </section>
 
-        <section className="growth-section">
-          <div className="section-heading">
-            <h2>Follower growth by platform</h2>
-            <span className="decision-note">
-              Platform counts; lane attribution is estimated
-            </span>
+        <section className="panel growth-overview">
+          <div className="panel-head">
+            <h2>Follower movement</h2>
+            <small className="panel-note">
+              Direction first; lane-level attribution remains estimated
+            </small>
           </div>
-          <div className="ledger-wrap">
-            <table className="social-table">
+          <div className="table-wrap">
+            <table className="data-table social-table-compact">
               <thead>
                 <tr>
                   <th>Platform</th>
                   <th>Followers</th>
                   <th>Δ 24h</th>
                   <th>Δ 7d</th>
-                  <th>Lane evidence</th>
+                  <th>Best 7d lane</th>
                 </tr>
               </thead>
               <tbody>
                 {(props.growth?.platforms ?? []).map((platform) => (
                   <tr key={platform.platform}>
-                    <td>{platformLabel(platform.platform)}</td>
+                    <td className="cell-title">
+                      {platformLabel(platform.platform)}
+                    </td>
                     <td className="mono">{integer(platform.followersNow)}</td>
                     <td className="mono">
                       {signed(platform.followersDelta24h)}
@@ -105,164 +108,197 @@ export function GrowthView(props: {
                         ? `${signed(platform.exactSubscribersGained7d)} exact`
                         : signed(platform.followersDelta7d)}
                     </td>
-                    <td>
-                      {platform.lanes
-                        .map(
-                          (lane) =>
-                            `${lane.languageCode}: n=${lane.postCount7d}, ${decimal(lane.followersPer1kReach)} / 1k (${lane.basis})`,
-                        )
-                        .join(' · ') || 'No 7d posts'}
-                    </td>
+                    <td>{bestLaneSignal(platform)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
-        </section>
-
-        <section className="decision-section growth-section">
-          <div className="section-heading">
-            <h2>Growth experiments</h2>
-            <span className="decision-note">No automatic winner selection</span>
-          </div>
-          <div className="decision-grid">
-            {(props.growth?.experiments ?? []).map((experiment) => (
-              <article className="decision-card" key={experiment.experimentKey}>
-                <header>
-                  <strong>{experiment.experimentKey}</strong>
-                  <span className={`growth-status ${experiment.status}`}>
-                    {experiment.paired
-                      ? 'paired cohort — not an A/B test'
-                      : experiment.status}
-                  </span>
-                </header>
-                {experiment.arms.map((arm) => (
-                  <div className="experiment-arm" key={arm.variant}>
-                    <strong>{arm.variant}</strong>
-                    <span>
-                      n={arm.samples24h} · reach {decimal(arm.medianReach24h)}{' '}
-                      median / {decimal(arm.meanReach24h)} mean · engagement{' '}
-                      {percent(arm.medianEngagementRate)}
-                    </span>
-                    <small>
-                      {decimal(arm.followersAttributed)} {arm.basis} followers ·{' '}
-                      {decimal(arm.followersPer1kReach)} / 1k reach ·{' '}
-                      {arm.status}
-                    </small>
-                  </div>
-                ))}
-                <small>
-                  Interpret the evidence manually; this panel never declares a
-                  winner.
-                </small>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section className="performance-section growth-section">
-          <div className="section-heading">
-            <h2>Estimated attribution — never platform-reported truth</h2>
-            <span className="decision-note">Recent follower intervals</span>
-          </div>
-          {(props.growth?.attribution ?? []).map((interval) => (
-            <article
-              className="episode-ledger"
-              key={`${interval.platform}:${interval.startAt}:${interval.endAt}`}
-            >
-              <div className="episode-heading">
-                <div>
-                  <strong>{platformLabel(interval.platform)}</strong>
-                  <small>
-                    {interval.startAt} → {interval.endAt}
-                  </small>
-                </div>
-                <span className="mono">
-                  {signed(interval.netDelta)} net ·{' '}
-                  {decimal(interval.unattributed)} unattributed
-                </span>
+            {props.growth && props.growth.platforms.length === 0 ? (
+              <div className="empty-inline">
+                No follower growth snapshots yet.
               </div>
-              <div className="attribution-shares">
-                {interval.posts.map((post) => (
-                  <span key={post.postId}>
-                    {post.postId.slice(0, 8)} · {percent(post.share)} ·{' '}
-                    {decimal(post.followersEstimated)} est.
-                  </span>
+            ) : null}
+            {props.growth ? null : (
+              <div className="empty-inline">Waiting for growth data.</div>
+            )}
+          </div>
+        </section>
+
+        <details className="panel decision-disclosure growth-evidence">
+          <summary className="decision-disclosure-summary">
+            <span>
+              <strong>Research &amp; evidence</strong>
+              <small>
+                Experiments, estimated attribution, and episode-level metrics
+              </small>
+            </span>
+          </summary>
+          <div className="decision-disclosure-body">
+            <section className="disclosure-section">
+              <div className="panel-head">
+                <h2>Growth experiments</h2>
+                <small className="panel-note">
+                  No automatic winner selection
+                </small>
+              </div>
+              <div className="decision-grid disclosure-grid">
+                {(props.growth?.experiments ?? []).map((experiment) => (
+                  <article
+                    className="decision-card"
+                    key={experiment.experimentKey}
+                  >
+                    <header>
+                      <strong>{experiment.experimentKey}</strong>
+                      <span className={`growth-status ${experiment.status}`}>
+                        {experiment.paired
+                          ? 'paired cohort — not an A/B test'
+                          : experiment.status}
+                      </span>
+                    </header>
+                    {experiment.arms.map((arm) => (
+                      <div className="experiment-arm" key={arm.variant}>
+                        <strong>{arm.variant}</strong>
+                        <span>
+                          n={arm.samples24h} · reach{' '}
+                          {decimal(arm.medianReach24h)} median /{' '}
+                          {decimal(arm.meanReach24h)} mean · engagement{' '}
+                          {percent(arm.medianEngagementRate)}
+                        </span>
+                        <small>
+                          {decimal(arm.followersAttributed)} {arm.basis}{' '}
+                          followers · {decimal(arm.followersPer1kReach)} / 1k
+                          reach · {arm.status}
+                        </small>
+                      </div>
+                    ))}
+                    <small>
+                      Interpret the evidence manually; this panel never declares
+                      a winner.
+                    </small>
+                  </article>
                 ))}
-                {interval.posts.length === 0 ? (
-                  <span>No attributable post activity</span>
+                {props.growth && props.growth.experiments.length === 0 ? (
+                  <div className="empty-inline">No active experiments.</div>
                 ) : null}
               </div>
-            </article>
-          ))}
-        </section>
+            </section>
 
-        <section className="performance-section">
-          <h2>Evidence by recent episode</h2>
-          {(data?.episodes ?? []).map((episode) => (
-            <article className="episode-ledger" key={episode.episodeId}>
-              <div className="episode-heading">
-                <div>
-                  <strong>{episode.title}</strong>
-                  <small>{episode.episodeId}</small>
-                </div>
-                <span className="mono">
-                  {integer(episode.totalViews)} views
-                </span>
+            <section className="disclosure-section">
+              <div className="panel-head">
+                <h2>Estimated attribution</h2>
+                <small className="panel-note">
+                  Recent follower intervals — never platform-reported truth
+                </small>
               </div>
-              <div className="table-wrap">
-                <table className="data-table episode-table">
-                  <thead>
-                    <tr>
-                      <th>Platform</th>
-                      <th>Views</th>
-                      <th>Engagement</th>
-                      <th>Decision signal</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {/* One episode can carry several posts on the same
-                        platform — YouTube gets one per language — so the
-                        platform alone is not a unique key. */}
-                    {episode.platforms.map((platform, index) => (
-                      <tr
-                        key={`${episode.episodeId}:${platform.platform}:${platform.postUrl ?? index}`}
-                      >
-                        <td className="cell-title">
-                          {platform.postUrl ? (
-                            <a
-                              href={platform.postUrl}
-                              rel="noreferrer"
-                              target="_blank"
+              <div className="evidence-stack">
+                {(props.growth?.attribution ?? []).map((interval) => (
+                  <article
+                    className="episode-ledger"
+                    key={`${interval.platform}:${interval.startAt}:${interval.endAt}`}
+                  >
+                    <div className="episode-heading">
+                      <div>
+                        <strong>{platformLabel(interval.platform)}</strong>
+                        <small>
+                          {interval.startAt} → {interval.endAt}
+                        </small>
+                      </div>
+                      <span className="mono">
+                        {signed(interval.netDelta)} net ·{' '}
+                        {decimal(interval.unattributed)} unattributed
+                      </span>
+                    </div>
+                    <div className="attribution-shares">
+                      {interval.posts.map((post) => (
+                        <span key={post.postId}>
+                          {post.postId.slice(0, 8)} · {percent(post.share)} ·{' '}
+                          {decimal(post.followersEstimated)} est.
+                        </span>
+                      ))}
+                      {interval.posts.length === 0 ? (
+                        <span>No attributable post activity</span>
+                      ) : null}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+
+            <section className="disclosure-section">
+              <div className="panel-head">
+                <h2>Evidence by recent episode</h2>
+                <small className="panel-note">
+                  Audit the recommendation only when the aggregate decision
+                  looks surprising
+                </small>
+              </div>
+              <div className="evidence-stack">
+                {(data?.episodes ?? []).map((episode) => (
+                  <article className="episode-ledger" key={episode.episodeId}>
+                    <div className="episode-heading">
+                      <div>
+                        <strong>{episode.title}</strong>
+                        <small>{episode.episodeId}</small>
+                      </div>
+                      <span className="mono">
+                        {integer(episode.totalViews)} views
+                      </span>
+                    </div>
+                    <div className="table-wrap">
+                      <table className="data-table episode-table">
+                        <thead>
+                          <tr>
+                            <th>Platform</th>
+                            <th>Views</th>
+                            <th>Engagement</th>
+                            <th>Decision signal</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {episode.platforms.map((platform, index) => (
+                            <tr
+                              key={`${episode.episodeId}:${platform.platform}:${platform.postUrl ?? index}`}
                             >
-                              {platformLabel(platform.platform)}
-                            </a>
-                          ) : (
-                            platformLabel(platform.platform)
-                          )}
-                        </td>
-                        <td className="mono">{integer(platform.views)}</td>
-                        <td className="mono">
-                          {percent(platform.engagementRate)}
-                        </td>
-                        <td>{platformSignal(platform)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                              <td className="cell-title">
+                                {platform.postUrl ? (
+                                  <a
+                                    href={platform.postUrl}
+                                    rel="noreferrer"
+                                    target="_blank"
+                                  >
+                                    {platformLabel(platform.platform)}
+                                  </a>
+                                ) : (
+                                  platformLabel(platform.platform)
+                                )}
+                              </td>
+                              <td className="mono">
+                                {integer(platform.views)}
+                              </td>
+                              <td className="mono">
+                                {percent(platform.engagementRate)}
+                              </td>
+                              <td>{platformSignal(platform)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </article>
+                ))}
+                {data?.episodes.length === 0 ? (
+                  <div className="social-empty">
+                    <strong>No social metric snapshots yet.</strong>
+                    <span>
+                      {data.message ??
+                        'Keep pnpm social:daemon running to collect telemetry.'}
+                    </span>
+                  </div>
+                ) : null}
               </div>
-            </article>
-          ))}
-          {data?.episodes.length === 0 ? (
-            <div className="social-empty">
-              <strong>No social metric snapshots yet.</strong>
-              <span>
-                {data.message ??
-                  'Keep pnpm social:daemon running to collect telemetry.'}
-              </span>
-            </div>
-          ) : null}
-        </section>
+            </section>
+          </div>
+        </details>
       </div>
 
       <aside className="followers-rail">
@@ -279,7 +315,8 @@ export function GrowthView(props: {
         ) : null}
         <p>
           Missing platforms are collection gaps, not zero followers. Optimize
-          posts from per-post evidence above instead.
+          posts from the decision cards; use the evidence disclosure only to
+          audit them.
         </p>
       </aside>
     </div>
@@ -292,15 +329,38 @@ function DecisionCard({ decision }: { decision: SocialDecision }) {
       <header>
         <strong>{platformLabel(decision.platform)}</strong>
         <span className={`confidence-${decision.confidence}`}>
-          {decision.confidence} confidence
+          {decision.confidence} sample coverage
         </span>
       </header>
+
+      <small className="decision-note">Performance evidence</small>
+      <DecisionLine
+        label="Do next"
+        value={
+          decision.bestTopic
+            ? `Prioritize ${decision.bestTopic}`
+            : 'Keep exploring topics'
+        }
+      />
+      <DecisionLine label="Why" value={topicEvidence(decision)} />
+      <DecisionLine
+        label="Top example"
+        value={decision.topExample ?? 'More samples needed'}
+      />
+      <small>
+        {decision.evidenceSamples} comparable 24h samples · coverage reflects
+        sample count, not statistical significance
+      </small>
+
+      <small className="decision-note">
+        Current strategy defaults — configured, not learned
+      </small>
       <DecisionLine
         label="Hook"
         value={
           decision.preferredHookTypes.length
             ? decision.preferredHookTypes.join(' / ')
-            : 'Keep exploring'
+            : 'No platform override'
         }
       />
       <DecisionLine
@@ -308,34 +368,21 @@ function DecisionCard({ decision }: { decision: SocialDecision }) {
         value={
           decision.publishSlotsJst
             ? `${decision.publishSlotsJst} JST (fixed)`
-            : 'Default slots'
+            : 'Use scheduler defaults'
         }
-      />
-      <DecisionLine
-        label="Best topic evidence"
-        value={
-          decision.bestTopic
-            ? `${decision.bestTopic} (n=${decision.bestTopicSamples})`
-            : 'More samples needed'
-        }
-      />
-      <DecisionLine
-        label="Winning example"
-        value={decision.topExample ?? 'More samples needed'}
       />
       {decision.platform === 'rednote' ? (
         <>
           <DecisionLine
             label="Prefer tags"
-            value={decision.preferredHashtags.join(' · ') || 'Keep exploring'}
+            value={decision.preferredHashtags.join(' · ') || 'No preference'}
           />
           <DecisionLine
             label="Avoid tags"
-            value={decision.avoidHashtags.join(' · ') || 'None yet'}
+            value={decision.avoidHashtags.join(' · ') || 'None'}
           />
         </>
       ) : null}
-      <small>{decision.evidenceSamples} comparable 24h samples</small>
     </article>
   );
 }
@@ -347,6 +394,43 @@ function DecisionLine(props: { label: string; value: string }) {
       <strong>{props.value}</strong>
     </div>
   );
+}
+
+function topicEvidence(decision: SocialDecision): string {
+  if (
+    !decision.bestTopic ||
+    decision.bestTopicMedian24hViews === null ||
+    decision.bestTopicSamples === null
+  ) {
+    return decision.platformMedian24hViews === null
+      ? 'No comparable 24h evidence yet'
+      : `Platform median ${decimal(decision.platformMedian24hViews)} views; need 2 topic buckets with n≥3`;
+  }
+
+  const platformMedian =
+    decision.platformMedian24hViews === null
+      ? ''
+      : ` · platform median ${decimal(decision.platformMedian24hViews)}`;
+  const lift =
+    decision.bestTopicLiftVsPlatformMedian === null
+      ? ''
+      : ` · ${decimal(decision.bestTopicLiftVsPlatformMedian)}× lift`;
+  return `${decimal(decision.bestTopicMedian24hViews)} median 24h views · n=${decision.bestTopicSamples}${platformMedian}${lift}`;
+}
+
+function bestLaneSignal(platform: SocialGrowthPlatform): string {
+  const known = platform.lanes
+    .filter(
+      (lane): lane is typeof lane & { followersPer1kReach: number } =>
+        lane.followersPer1kReach !== null,
+    )
+    .sort(
+      (left, right) => right.followersPer1kReach - left.followersPer1kReach,
+    );
+  const best = known[0];
+  return best
+    ? `${best.languageCode} · ${decimal(best.followersPer1kReach)} / 1k (${best.basis})`
+    : 'No 7d efficiency signal';
 }
 
 function platformSignal(platform: SocialPlatformPerformance): string {

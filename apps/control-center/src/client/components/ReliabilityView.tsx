@@ -16,6 +16,9 @@ export function ReliabilityView(props: {
   social: OperationsSocialResponse | null;
 }) {
   const data = props.data;
+  const problemSignals = (data?.signals ?? []).filter(
+    (signal) => signal.status !== 'healthy',
+  );
   return (
     <div className="view-stack">
       <StatusBanner data={data} />
@@ -44,43 +47,30 @@ export function ReliabilityView(props: {
           <div className="panel-head">
             <h2>Social daemon</h2>
             <small className="panel-note">
-              Runs on a laptop — nothing else notices when it stops
+              Health and overdue publishing only; queue detail stays secondary
             </small>
           </div>
           <SocialOpsPanel social={props.social} />
         </section>
       </div>
 
-      <section className="panel">
-        <div className="panel-head">
-          <h2>All signals</h2>
-          <small className="panel-note">
-            Every source, including the ones reporting nothing wrong
-          </small>
+      <details className="panel signal-evidence">
+        <summary className="signal-evidence-summary">
+          <strong>Signal evidence</strong>
+          <span>
+            {data
+              ? `${integer(problemSignals.length)} non-healthy · ${integer(data.signals.length)} total`
+              : 'Waiting for operational signals'}
+          </span>
+        </summary>
+        <div className="signal-evidence-body">
+          <p>
+            Raw source evidence, including healthy checks and fingerprints. Open
+            this only when a ranked decision needs auditing.
+          </p>
+          <SignalAudit signals={data?.signals ?? []} waiting={!data} />
         </div>
-        <div className="table-wrap">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Status</th>
-                <th>Domain</th>
-                <th>Signal</th>
-                <th>Evidence</th>
-                <th>Seen</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(data?.signals ?? []).map((signal) => (
-                <SignalRow key={signal.fingerprint} signal={signal} />
-              ))}
-            </tbody>
-          </table>
-          {data && data.signals.length === 0 ? (
-            <div className="empty-inline">No signals collected.</div>
-          ) : null}
-          {data ? null : <div className="empty-inline">Waiting for data.</div>}
-        </div>
-      </section>
+      </details>
     </div>
   );
 }
@@ -98,20 +88,36 @@ function DomainChip({ domain }: { domain: OperationsDomainSummary }) {
   );
 }
 
-function SignalRow({ signal }: { signal: OperationalSignal }) {
+function SignalAudit({
+  signals,
+  waiting,
+}: {
+  signals: OperationalSignal[];
+  waiting: boolean;
+}) {
+  if (waiting) {
+    return <div className="empty-inline">Waiting for data.</div>;
+  }
+  if (signals.length === 0) {
+    return <div className="empty-inline">No signals collected.</div>;
+  }
   return (
-    <tr>
-      <td>
-        <StatusPill compact status={signal.status} />
-      </td>
-      <td className="cell-domain">{signal.domain}</td>
-      <td>
-        <span className="cell-title">{signal.title}</span>
-        <small className="cell-fingerprint">{signal.fingerprint}</small>
-      </td>
-      <td className="cell-evidence">{formatEvidence(signal.evidence)}</td>
-      <td className="cell-nowrap">{relativeTime(signal.observedAt)}</td>
-    </tr>
+    <div className="signal-audit-list">
+      {signals.map((signal) => (
+        <article className="signal-audit-row" key={signal.fingerprint}>
+          <StatusPill compact status={signal.status} />
+          <div className="signal-audit-title">
+            <strong>{signal.title}</strong>
+            <small>{signal.fingerprint}</small>
+          </div>
+          <span className="signal-audit-domain">{signal.domain}</span>
+          <span className="signal-audit-evidence">
+            {formatEvidence(signal.evidence)}
+          </span>
+          <time>{relativeTime(signal.observedAt)}</time>
+        </article>
+      ))}
+    </div>
   );
 }
 
@@ -139,18 +145,10 @@ function SocialOpsPanel({
             : 'Never reported'}
         </strong>
         <small className="info-note">
-          {social.daemon.owner
-            ? `Owner ${social.daemon.owner}`
-            : 'No owner recorded'}
-          {social.daemon.daemonVersion
-            ? ` · ${social.daemon.daemonVersion}`
-            : ''}
+          {social.daemon.status === 'healthy'
+            ? 'Daemon is reporting normally'
+            : (social.daemon.lastError ?? 'Daemon needs attention')}
         </small>
-        {social.daemon.lastError ? (
-          <small className="info-note error-text">
-            {social.daemon.lastError}
-          </small>
-        ) : null}
       </div>
       <InfoRow
         label="Publish queue"
