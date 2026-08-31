@@ -124,7 +124,8 @@ export function createControlCenterApp(input: {
       if (
         message.includes('currently processing') ||
         message.includes('requires completed') ||
-        message.includes('has no video visual job')
+        message.includes('has no video visual job') ||
+        message.includes('already completed')
       ) {
         return context.json({ error: message }, 409);
       }
