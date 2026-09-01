@@ -33,7 +33,9 @@ export async function resolveReleaseCohortLanes(input: {
   scheduledAt: Date;
 }): Promise<ReleaseCohortLane[]> {
   if (usesLanguageRotation(input.episodeCreatedAt, input.scheduledAt)) {
-    const slotProfile = languageRotationProfileForSlot(input.scheduledAt).profile;
+    const slotProfile = languageRotationProfileForSlot(
+      input.scheduledAt,
+    ).profile;
     const assignment = await getOrCreateExperimentAssignment({
       experimentKey: SOCIAL_LANGUAGE_PROFILE_ASSIGNMENT_KEY,
       episodeId: input.episodeId,
