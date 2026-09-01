@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { summarizePodcastPipeline } from './podcast-pipeline.js';
 
+const NOW = new Date('2026-09-01T00:00:00.000Z');
 const episode = {
   id: '826f4b87-6278-4275-bff5-535ba5ef438d',
   source_title: 'From bananas to AI',
@@ -37,25 +38,49 @@ const queuedRenders = () =>
     updated_at: '2026-08-31T22:35:47.000Z',
   }));
 
+function visual(overrides: Record<string, unknown>) {
+  return {
+    episode_id: episode.id,
+    status: 'queued',
+    progress_percent: null,
+    progress_stage: null,
+    attempt_count: 0,
+    lease_expires_at: null,
+    last_error: null,
+    updated_at: '2026-08-31T22:49:35.000Z',
+    ...overrides,
+  };
+}
+
+function ingest(overrides: Record<string, unknown>) {
+  return {
+    source_url: episode.source_url,
+    status: 'processing',
+    attempt_count: 1,
+    lease_expires_at: '2026-09-01T00:09:00.000Z',
+    last_error: null,
+    updated_at: '2026-09-01T00:00:00.000Z',
+    ...overrides,
+  };
+}
+
 describe('podcast pipeline summary', () => {
   it('shows a terminal visual failure instead of pretending queued renders are still progressing', () => {
     const [summary] = summarizePodcastPipeline(
       [episode],
+      [],
       localizations(),
       [
-        {
-          episode_id: episode.id,
+        visual({
           status: 'failed',
           progress_percent: 5,
           progress_stage: 'analyzing-audio',
           attempt_count: 3,
-          lease_expires_at: null,
           last_error: 'Visual subject catalog failed',
-          updated_at: '2026-08-31T22:49:35.000Z',
-        },
+        }),
       ],
       queuedRenders(),
-      new Date('2026-09-01T00:00:00.000Z'),
+      NOW,
     );
 
     expect(summary).toMatchObject({
@@ -79,18 +104,17 @@ describe('podcast pipeline summary', () => {
   it('disables restart while a live visual lease owns the episode', () => {
     const [summary] = summarizePodcastPipeline(
       [episode],
+      [],
       localizations(),
       [
-        {
-          episode_id: episode.id,
+        visual({
           status: 'processing',
           progress_percent: 30,
           progress_stage: 'planning-scenes',
           attempt_count: 1,
           lease_expires_at: '2026-09-01T00:09:00.000Z',
-          last_error: null,
           updated_at: '2026-09-01T00:00:00.000Z',
-        },
+        }),
       ],
       queuedRenders(),
       new Date('2026-09-01T00:01:00.000Z'),
@@ -106,10 +130,11 @@ describe('podcast pipeline summary', () => {
   it('keeps an article in TTS until all three languages have renderable audio', () => {
     const [summary] = summarizePodcastPipeline(
       [episode],
+      [],
       localizations(false),
       [],
       [],
-      new Date('2026-09-01T00:00:00.000Z'),
+      NOW,
     );
 
     expect(summary).toMatchObject({
@@ -118,6 +143,58 @@ describe('podcast pipeline summary', () => {
       ttsStatus: 'processing',
       videoStatus: 'pending',
       canRestartVideo: false,
+    });
+  });
+
+  it('surfaces a terminal ingest failure on the phase it actually blocked', () => {
+    const incomplete = localizations(false).slice(0, 2);
+    const [summary] = summarizePodcastPipeline(
+      [episode],
+      [
+        ingest({
+          status: 'failed',
+          attempt_count: 3,
+          lease_expires_at: null,
+          last_error: 'translation provider failed',
+        }),
+      ],
+      incomplete,
+      [],
+      [],
+      NOW,
+    );
+
+    expect(summary).toMatchObject({
+      currentPhase: 'translation',
+      translationStatus: 'failed',
+      ttsStatus: 'pending',
+      ingest: {
+        status: 'failed',
+        attempts: 3,
+        lastError: 'translation provider failed',
+      },
+    });
+  });
+
+  it('marks an expired ingest lease as stuck instead of indefinitely processing', () => {
+    const [summary] = summarizePodcastPipeline(
+      [episode],
+      [
+        ingest({
+          lease_expires_at: '2026-08-31T23:59:00.000Z',
+          last_error: 'Worker lease expired',
+        }),
+      ],
+      [],
+      [],
+      [],
+      NOW,
+    );
+
+    expect(summary).toMatchObject({
+      currentPhase: 'translation',
+      translationStatus: 'stuck',
+      ingest: { status: 'stuck' },
     });
   });
 });
