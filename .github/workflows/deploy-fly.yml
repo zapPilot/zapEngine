@@ -39,6 +39,16 @@ on:
       infisical_project_id:
         required: true
 
+# The deploy stages the app's complete secret set before `fly deploy` consumes
+# it. Keep that transient Fly state mutually exclusive with env-apply and the
+# fleet-wide drift audit; otherwise env:status can observe legitimate `Staged`
+# entries between those two steps and fail a healthy merge. Do not cancel a
+# holder: interrupting after the stage step is exactly the state this rail is
+# meant to prevent readers from observing.
+concurrency:
+  group: env-rail
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
