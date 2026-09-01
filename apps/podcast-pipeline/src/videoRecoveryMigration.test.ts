@@ -47,9 +47,9 @@ describe('video visual recovery migration', () => {
   });
 
   it('preserves completed visual and language checkpoints while retrying only unfinished renders', () => {
-    const completedVisualBranch = migration.match(
-      /if visual_record\.status = 'completed' then([\s\S]+?)return true;\s+end if;/i,
-    )?.[1];
+    const branchPattern =
+      /if visual_record\.status = 'completed' then([\s\S]+?)return true;\s+end if;/i;
+    const completedVisualBranch = branchPattern.exec(migration)?.[1];
     expect(completedVisualBranch).toBeTruthy();
     expect(completedVisualBranch).toMatch(
       /video\.status <> 'completed'[\s\S]+?visual_hash = visual_record\.visual_hash[\s\S]+?attempt_count = 0/i,
