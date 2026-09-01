@@ -118,11 +118,11 @@ function SocialFlow({ social }: { social: OperationsSocialResponse | null }) {
         </span>
       </div>
       <b aria-hidden="true">→</b>
-      <div className="social-flow-node healthy">
-        <StatusDot status="healthy" />
+      <div className="social-flow-node unknown">
+        <StatusDot status="unknown" />
         <span>
-          <strong>Platforms</strong>
-          <small>Threads · X · Rednote · YouTube</small>
+          <strong>Distribution targets</strong>
+          <small>Outcome health is not verified by this read model</small>
         </span>
       </div>
     </div>
