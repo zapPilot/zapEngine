@@ -6,7 +6,9 @@
 // entity-first LLM search intents, Brave image retrieval, and an
 // entity-anchored candidate gate; v8: episode-wide subject catalog, primary
 // lead fencing, contextual subject fallback, persisted editorial decisions,
-// and restrained presentation metadata).
+// and restrained presentation metadata; v9: publisher-title lead identity,
+// publisher-image body reuse, free-first entity-gated search, bounded subject
+// image pools, and Brave as the relevance escalation path).
 //
 // It lives here rather than in the pipeline because it is a cross-app contract:
 // both claim RPCs fence on it, so any surface that requeues video work has to
@@ -14,4 +16,4 @@
 // claim. `@zapengine/podcast-pipeline` re-exports this as the value its workers
 // pass; Control Center passes it when restarting an episode's video.
 export const EPISODE_VIDEO_VISUAL_VERSION =
-  'podcast-image-visual-plan.v8' as const;
+  'podcast-image-visual-plan.v9' as const;

@@ -499,16 +499,20 @@ describe('planVisualAssets', () => {
     expect(result.assets[0]?.originalImageUrl).toBe(generic.imageUrl);
   });
 
-  it('keeps an entity scene off the stock libraries entirely', async () => {
-    const braveSearch = vi.fn().mockResolvedValue([
+  it('tries free stock for an entity scene but rejects unrelated results', async () => {
+    const braveCandidate = {
+      ...candidate('coldcard-device', 'brave'),
+      altText: 'Coldcard hardware wallet',
+    };
+    const braveSearch = vi.fn().mockResolvedValue([braveCandidate]);
+    const pexelsSearch = vi.fn().mockResolvedValue([
       {
-        ...candidate('coldcard-device', 'brave'),
-        altText: 'Coldcard hardware wallet',
+        ...candidate('generic-hardware-wallet', 'pexels'),
+        altText: 'Generic hardware wallet on a desk',
       },
     ]);
-    const pexelsSearch = vi.fn();
 
-    await planVisualAssets({
+    const result = await planVisualAssets({
       scenes: [
         {
           sceneId: 'scene-01',
@@ -528,10 +532,9 @@ describe('planVisualAssets', () => {
       },
     });
 
-    // No stock library holds a photograph of a named product, so asking one
-    // could only return a convincing picture of something else.
-    expect(pexelsSearch).not.toHaveBeenCalled();
+    expect(pexelsSearch).toHaveBeenCalled();
     expect(braveSearch).toHaveBeenCalled();
+    expect(result.assets[0]?.originalImageUrl).toBe(braveCandidate.imageUrl);
   });
 
   it('retries an entity scene on the bare name before giving up on it', async () => {

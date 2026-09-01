@@ -83,7 +83,7 @@ describe('createEpisodeVideoVisualProcessor', () => {
       expect.objectContaining({
         title: source().title,
         script: source().script,
-        searchTitle: source().englishTitle,
+        searchTitle: source().sourceTitle,
         searchScript: source().englishScript,
         durationMs: 90_000,
         signal: expect.any(AbortSignal),
@@ -269,7 +269,7 @@ describe('createEpisodeVideoVisualProcessor', () => {
       {
         draft: storyboard().draft,
         title: source().title,
-        searchTitle: source().englishTitle,
+        searchTitle: source().sourceTitle,
         script: source().script,
         searchScript: source().englishScript,
         durationMs: 90_000,
@@ -308,9 +308,10 @@ describe('createEpisodeVideoVisualProcessor', () => {
     ]);
   });
 
-  it('handles sources without English search metadata or article images', async () => {
+  it('handles sources without any visual search title or article images', async () => {
     const bareSource: EpisodeVideoVisualSource = {
       ...source(),
+      sourceTitle: null,
       englishTitle: '',
       englishScript: '',
     };
@@ -352,9 +353,11 @@ describe('createEpisodeVideoVisualProcessor', () => {
 
     expect(generateStoryboard).toHaveBeenCalledWith(
       expect.objectContaining({
-        searchTitle: '',
         searchScript: '',
       }),
+    );
+    expect(generateStoryboard.mock.calls[0]?.[0]).not.toHaveProperty(
+      'searchTitle',
     );
     expect(enrichSearchIntents).toHaveBeenCalledWith(
       {

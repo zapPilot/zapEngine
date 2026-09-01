@@ -17,6 +17,8 @@ import {
 
 const MAX_SEARCH_CANDIDATES_PER_SCENE = 100;
 const MAX_BRAVE_SEARCHES_PER_VISUAL_PLAN = 4;
+const MAX_SEARCH_INTENTS_PER_PROVIDER = 2;
+const MAX_DISTINCT_SEARCHED_ASSETS_PER_SUBJECT = 3;
 const PERCEPTUAL_HASH_DISTANCE_LIMIT = 6;
 
 export interface VisualAssetScene {
@@ -79,6 +81,8 @@ export interface VisualAssetProgress {
   searchResultCount?: number;
   entityFilteredCount?: number;
   searchEntities?: string;
+  searchIntent?: string;
+  subjectKey?: string;
   rejectedCandidateCount?: number;
   rejectionSummary?: string;
   provider?: VisualImageProvider | 'reuse' | 'cover';
@@ -115,6 +119,7 @@ interface VisualAssetPlannerState {
   scenes: PlannedVisualScene[];
   searchCache: Map<string, ImageCandidate[]>;
   braveSearchCount: number;
+  subjectAssetIds: Map<string, string[]>;
 }
 
 interface SelectedVisualImage {
@@ -185,6 +190,7 @@ export async function planVisualAssets(
     scenes: [],
     searchCache: new Map(),
     braveSearchCount: 0,
+    subjectAssetIds: new Map(),
   };
 
   for (const [sceneIndex, scene] of input.scenes.entries()) {
@@ -200,6 +206,7 @@ export async function planVisualAssets(
       sceneId: scene.sceneId,
       assetId: selected.asset.assetId,
     });
+    rememberSubjectAsset(state, scene, selected.asset.assetId);
     const sourceHostname = candidateHostname(selected.asset.sourcePageUrl);
     input.onProgress?.({
       phase: 'assets',
@@ -210,6 +217,9 @@ export async function planVisualAssets(
       assetId: selected.asset.assetId,
       ...(sourceHostname ? { sourceHostname } : {}),
       ...(selected.reuseKind ? { reuseKind: selected.reuseKind } : {}),
+      ...(visualSubjectKey(scene)
+        ? { subjectKey: visualSubjectKey(scene)! }
+        : {}),
       ...(selected.rejections.total > 0
         ? {
             rejectedCandidateCount: selected.rejections.total,
@@ -229,9 +239,34 @@ async function selectImageForScene(
   sceneIndex: number,
 ): Promise<SelectedVisualImage | null> {
   const rejections = createCandidateRejections();
-  const articleAsset = await acquireNextArticleImage(state, scene, rejections);
+  const isLeadNamedScene =
+    sceneIndex === 0 && (scene.imageSearchEntities?.length ?? 0) > 0;
+
+  // The publisher's own images are valuable source material, but the lead
+  // visual must be independently sourced from the original headline subject.
+  // Do not consume the first article image here; scene 2 can still use it.
+  const articleAsset = isLeadNamedScene
+    ? null
+    : await acquireNextArticleImage(state, scene, rejections);
   if (articleAsset) {
     return { asset: articleAsset, provider: 'article', rejections };
+  }
+
+  const subjectReuse = reusableSubjectAsset(state, scene);
+  const subjectKey = visualSubjectKey(scene);
+  if (
+    state.mode === 'resilient' &&
+    subjectReuse &&
+    subjectKey &&
+    (state.subjectAssetIds.get(subjectKey)?.length ?? 0) >=
+      MAX_DISTINCT_SEARCHED_ASSETS_PER_SUBJECT
+  ) {
+    return {
+      asset: subjectReuse.asset,
+      provider: 'reuse',
+      reuseKind: subjectReuse.reuseKind,
+      rejections,
+    };
   }
 
   const searched = await acquireSearchedImage(
@@ -260,10 +295,54 @@ async function selectImageForScene(
     );
   }
 
+  if (subjectReuse) {
+    if (state.mode === 'resilient') {
+      recordSearchFailures(rejections, searched.failures);
+    }
+    return {
+      asset: subjectReuse.asset,
+      provider: 'reuse',
+      reuseKind: subjectReuse.reuseKind,
+      rejections,
+    };
+  }
+
+  // Named subjects are never allowed to fall through to an unrelated global
+  // asset. A repeated on-topic photo is acceptable; a random photo is not.
+  if (subjectKey) {
+    throwSearchExhaustion(scene.sceneId, searched, rejections);
+  }
+
+  return resolveUnanchoredFallback(state, scene, searched, rejections);
+}
+
+function throwSearchExhaustion(
+  sceneId: string,
+  searched: SearchedVisualImage,
+  rejections: CandidateRejections,
+): never {
+  if (searched.failures.length > 0) {
+    throw visualSearchFailure(
+      sceneId,
+      searched.failures,
+      rejections,
+      searched.funnel,
+    );
+  }
+  throw candidateExhaustionFailure(sceneId, rejections, searched.funnel);
+}
+
+function resolveUnanchoredFallback(
+  state: VisualAssetPlannerState,
+  scene: VisualAssetScene,
+  searched: SearchedVisualImage,
+  rejections: CandidateRejections,
+): SelectedVisualImage | null {
   const previousAssetId = state.scenes.at(-1)?.assetId;
   const previousAsset = previousAssetId
     ? (state.assets.find((asset) => asset.assetId === previousAssetId) ?? null)
     : null;
+
   const nonConsecutiveReusable =
     [...state.assets]
       .reverse()
@@ -323,6 +402,54 @@ async function selectImageForScene(
     );
   }
   return null;
+}
+
+function visualSubjectKey(scene: VisualAssetScene): string | null {
+  const entities = [
+    ...new Set(
+      (scene.imageSearchEntities ?? [])
+        .map((entity) => entityMatchText(entity))
+        .filter(Boolean),
+    ),
+  ].sort();
+  return entities.length > 0 ? entities.join('|') : null;
+}
+
+function rememberSubjectAsset(
+  state: VisualAssetPlannerState,
+  scene: VisualAssetScene,
+  assetId: string,
+): void {
+  const key = visualSubjectKey(scene);
+  if (!key) return;
+  const assetIds = state.subjectAssetIds.get(key) ?? [];
+  if (!assetIds.includes(assetId)) assetIds.push(assetId);
+  state.subjectAssetIds.set(key, assetIds);
+}
+
+function reusableSubjectAsset(
+  state: VisualAssetPlannerState,
+  scene: VisualAssetScene,
+): { asset: PlannedVisualImage; reuseKind: VisualReuseKind } | null {
+  const key = visualSubjectKey(scene);
+  if (!key) return null;
+  const pool = state.subjectAssetIds.get(key) ?? [];
+  if (pool.length === 0) return null;
+  const previousAssetId = state.scenes.at(-1)?.assetId;
+  const useCount = new Map<string, number>();
+  for (const selection of state.scenes) {
+    useCount.set(selection.assetId, (useCount.get(selection.assetId) ?? 0) + 1);
+  }
+  const sorted = [...pool].sort(
+    (left, right) => (useCount.get(left) ?? 0) - (useCount.get(right) ?? 0),
+  );
+  const assetId = sorted.find((id) => id !== previousAssetId) ?? sorted[0]!;
+  const asset = state.assets.find((candidate) => candidate.assetId === assetId);
+  if (!asset) return null;
+  return {
+    asset,
+    reuseKind: assetId === previousAssetId ? 'consecutive' : 'non-consecutive',
+  };
 }
 
 function recordSearchFailures(
@@ -398,14 +525,6 @@ async function searchWithPlanBudget(
   return searched;
 }
 
-function rankingEntitiesForProvider(
-  mode: VisualSelectionMode,
-  provider: ImageSearchProvider['origin'],
-  entities: readonly string[],
-): readonly string[] {
-  return mode === 'resilient' && provider !== 'brave' ? [] : entities;
-}
-
 async function acquireSearchedImage(
   state: VisualAssetPlannerState,
   scene: VisualAssetScene,
@@ -419,7 +538,6 @@ async function acquireSearchedImage(
     scene,
   );
   const intents = searchIntentsForScene(scene, state.mode);
-  const entities = scene.imageSearchEntities ?? [];
   const braveRequestAllowance = braveRequestAllowanceForScene(
     state,
     scene,
@@ -440,73 +558,80 @@ async function acquireSearchedImage(
       braveRequestAllowance,
     );
     for (const intent of providerIntents) {
-      state.input.signal?.throwIfAborted();
-      const searchStartedAt = Date.now();
-      const searched = await searchWithPlanBudget(
+      const acquired = await acquireFromSearchIntent(
         state,
+        scene,
+        sceneIndex,
+        rejections,
+        failures,
+        funnel,
         searchProvider,
         intent,
-        failures,
       );
-      if (!searched) continue;
+      if (acquired) return { asset: acquired, failures, funnel };
+    }
+  }
+  return { asset: null, failures, funnel };
+}
 
-      const partitioned = partitionViableCandidates(searched, [
-        searchProvider.origin,
-      ]);
-      const viable = partitioned.candidates;
-      const rankingEntities = rankingEntitiesForProvider(
-        state.mode,
-        searchProvider.origin,
-        entities,
-      );
-      const candidates = rankSearchCandidates(
-        viable,
-        intent,
-        state.assets,
-        rankingEntities,
-      );
-      funnel.searches += 1;
-      funnel.returned += searched.length;
-      funnel.viable += viable.length;
-      funnel.entityFiltered += viable.length - candidates.length;
-      for (const [reason, count] of partitioned.drops) {
-        funnel.viableDrops.set(
-          reason,
-          (funnel.viableDrops.get(reason) ?? 0) + count,
-        );
-      }
-      const rejectedBefore = rejections.total;
+async function acquireFromSearchIntent(
+  state: VisualAssetPlannerState,
+  scene: VisualAssetScene,
+  sceneIndex: number,
+  rejections: CandidateRejections,
+  failures: Error[],
+  funnel: SearchFunnel,
+  searchProvider: ImageSearchProvider,
+  intent: string,
+): Promise<PlannedVisualImage | null> {
+  state.input.signal?.throwIfAborted();
+  const searchStartedAt = Date.now();
+  const searched = await searchWithPlanBudget(
+    state,
+    searchProvider,
+    intent,
+    failures,
+  );
+  if (!searched) return null;
 
-      for (const candidate of candidates) {
-        const acquired = await tryAcquireUniqueImage({
-          candidate,
-          provider: searchProvider.origin,
-          scene,
-          input: state.input,
-          dependencies: state.dependencies,
-          assets: state.assets,
-          attemptedUrls: state.attemptedUrls,
-          rejections,
-        });
-        if (acquired) {
-          reportSearchProgress(
-            state,
-            scene,
-            sceneIndex,
-            candidates.length,
-            rejections,
-            rejectedBefore,
-            searchStartedAt,
-            searchProvider.origin,
-            {
-              returned: searched.length,
-              viable: viable.length,
-              entities: rankingEntities,
-            },
-          );
-          return { asset: acquired, failures, funnel };
-        }
-      }
+  const partitioned = partitionViableCandidates(searched, [
+    searchProvider.origin,
+  ]);
+  const viable = partitioned.candidates;
+  const entities = scene.imageSearchEntities ?? [];
+  const candidates = rankSearchCandidates(
+    viable,
+    intent,
+    state.assets,
+    entities,
+  );
+  funnel.searches += 1;
+  funnel.returned += searched.length;
+  funnel.viable += viable.length;
+  funnel.entityFiltered += viable.length - candidates.length;
+  for (const [reason, count] of partitioned.drops) {
+    funnel.viableDrops.set(
+      reason,
+      (funnel.viableDrops.get(reason) ?? 0) + count,
+    );
+  }
+  const rejectedBefore = rejections.total;
+
+  for (const candidate of candidates) {
+    if (sceneIndex === 0 && isPublisherArticleCandidate(state, candidate)) {
+      continue;
+    }
+    const acquired = await tryAcquireUniqueImage({
+      candidate,
+      provider: searchProvider.origin,
+      scene,
+      input: state.input,
+      dependencies: state.dependencies,
+      assets: state.assets,
+      attemptedUrls: state.attemptedUrls,
+      rejections,
+    });
+    if (acquired) {
       reportSearchProgress(
         state,
         scene,
@@ -516,15 +641,45 @@ async function acquireSearchedImage(
         rejectedBefore,
         searchStartedAt,
         searchProvider.origin,
-        {
-          returned: searched.length,
-          viable: viable.length,
-          entities: rankingEntities,
-        },
+        intent,
+        { returned: searched.length, viable: viable.length, entities },
       );
+      return acquired;
     }
   }
-  return { asset: null, failures, funnel };
+  reportSearchProgress(
+    state,
+    scene,
+    sceneIndex,
+    candidates.length,
+    rejections,
+    rejectedBefore,
+    searchStartedAt,
+    searchProvider.origin,
+    intent,
+    { returned: searched.length, viable: viable.length, entities },
+  );
+  return null;
+}
+
+function isPublisherArticleCandidate(
+  state: VisualAssetPlannerState,
+  candidate: ImageCandidate,
+): boolean {
+  const sourceUrl = state.articleImages[0]?.sourceUrl;
+  if (!sourceUrl) return false;
+  try {
+    const article = new URL(sourceUrl);
+    const candidateSource = new URL(candidate.sourceUrl);
+    return (
+      article.hostname.toLowerCase() ===
+        candidateSource.hostname.toLowerCase() &&
+      article.pathname.replace(/\/$/u, '') ===
+        candidateSource.pathname.replace(/\/$/u, '')
+    );
+  } catch {
+    return false;
+  }
 }
 
 function orderedSearchProviders(
@@ -549,9 +704,14 @@ function orderedSearchProviders(
   }
   if (mode === 'strict') return usable;
 
-  const priority: Record<ImageSearchProvider['origin'], number> = namedScene
-    ? { brave: 0, pexels: 1, pixabay: 2 }
-    : { pexels: 0, pixabay: 1, brave: 2 };
+  // Production is free-first for every scene. Named subjects keep the same hard
+  // entity gate on stock results, so Pexels/Pixabay are cheap attempts rather
+  // than permission to accept unrelated B-roll; Brave is the escalation path.
+  const priority: Record<ImageSearchProvider['origin'], number> = {
+    pexels: 0,
+    pixabay: 1,
+    brave: 2,
+  };
   return usable
     .map((provider, index) => ({ provider, index }))
     .sort(
@@ -567,9 +727,11 @@ function limitedIntentsForProvider(
   intents: readonly string[],
   braveRequestAllowance: number,
 ): readonly string[] {
-  return provider.origin === 'brave'
-    ? intents.slice(0, braveRequestAllowance)
-    : intents;
+  const allowance =
+    provider.origin === 'brave'
+      ? Math.min(braveRequestAllowance, MAX_SEARCH_INTENTS_PER_PROVIDER)
+      : MAX_SEARCH_INTENTS_PER_PROVIDER;
+  return intents.slice(0, allowance);
 }
 
 function braveRequestAllowanceForScene(
@@ -622,23 +784,32 @@ function searchIntentsForScene(
   ];
   if (mode === 'strict') return original;
 
-  // A named subject is its own best second query: when the phrased intent finds
-  // nothing, the bare name still finds photographs of the thing. The generic
-  // relaxation below would widen the query away from it instead.
+  // Named subjects get one descriptive query plus one bare identity query.
+  // Additional phrasing mostly spends quota without increasing visual
+  // distinctness, while the provider result cache already supplies many photos
+  // for repeated scenes of the same subject.
   const entities = [
     ...new Set(
       (scene.imageSearchEntities ?? [])
         .map((entity) => entity.trim())
-        .filter((entity) => entity.length > 0 && !original.includes(entity)),
+        .filter((entity) => entity.length > 0),
     ),
   ];
-  if (entities.length > 0) return [...original, ...entities];
+  if (entities.length > 0) {
+    const descriptive = original[0];
+    return [
+      ...new Set([...(descriptive ? [descriptive] : []), ...entities]),
+    ].slice(0, MAX_SEARCH_INTENTS_PER_PROVIDER);
+  }
 
   const relaxed = original
     .map(relaxedSearchIntent)
     .filter((intent): intent is string => intent !== null)
     .filter((intent) => !original.includes(intent));
-  return [...original, ...new Set(relaxed)];
+  return [...original, ...new Set(relaxed)].slice(
+    0,
+    MAX_SEARCH_INTENTS_PER_PROVIDER,
+  );
 }
 
 const RELAXED_SEARCH_NOISE_WORDS = new Set([
@@ -668,6 +839,7 @@ function reportSearchProgress(
   rejectedBefore: number,
   searchStartedAt: number,
   provider: ImageSearchProvider['origin'],
+  intent: string,
   search: { returned: number; viable: number; entities: readonly string[] },
 ): void {
   const rejectedCandidateCount = rejections.total - rejectedBefore;
@@ -679,6 +851,10 @@ function reportSearchProgress(
     sceneCount: state.input.scenes.length,
     candidateCount,
     searchResultCount: search.returned,
+    searchIntent: intent,
+    ...(visualSubjectKey(scene)
+      ? { subjectKey: visualSubjectKey(scene)! }
+      : {}),
     // Only meaningful when the anchor actually removed something: a scene that
     // names nothing keeps every candidate, and a zero here would read as
     // "the anchor was innocent" when it never ran.

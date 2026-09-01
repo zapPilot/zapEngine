@@ -56,6 +56,23 @@ const visualAssetMetadataSchema = z
   })
   .strict();
 
+const visualSearchTraceEntrySchema = z
+  .object({
+    sceneId: z.string().regex(/^scene-\d{2}$/),
+    provider: z.enum(['pexels', 'pixabay', 'brave']),
+    intent: z.string().min(1).max(200),
+    subjectKey: z.string().min(1).max(320).nullable(),
+    returned: z.number().int().nonnegative(),
+    accepted: z.number().int().nonnegative(),
+    entityFiltered: z.number().int().nonnegative(),
+    rejected: z.number().int().nonnegative(),
+  })
+  .strict();
+
+export type VisualSearchTraceEntry = z.infer<
+  typeof visualSearchTraceEntrySchema
+>;
+
 export const episodeVisualPayloadSchema = z
   .object({
     schemaVersion: z.literal(EPISODE_VISUAL_PAYLOAD_SCHEMA_VERSION),
@@ -66,8 +83,8 @@ export const episodeVisualPayloadSchema = z
     manifestUrl: z.string().url(),
     visualPlan: imageVisualPlanSchema,
     assets: z.array(visualAssetMetadataSchema).min(1),
-    // Optional keeps stored v1 payloads readable. Fresh visual-v8 payloads
-    // always write both fields so the editorial decision can be audited later.
+    // Optional keeps stored v1 payloads readable. Fresh visual-v8+ payloads
+    // write both fields so the editorial decision can be audited later.
     subjectCatalog: visualSubjectCatalogSchema.optional(),
     sceneAssignments: z.array(visualSceneSubjectAssignmentSchema).optional(),
     provenance: z
@@ -81,6 +98,13 @@ export const episodeVisualPayloadSchema = z
         // Null means every scene kept its deterministic search intent, so a
         // payload can never imply a model that shaped nothing.
         searchIntentModel: z.string().min(1).nullable(),
+        // v9 audit fields are optional so stored v1-v8 payloads remain readable.
+        searchTitleSource: z
+          .enum(['publisher', 'english-localization', 'none'])
+          .optional(),
+        articleImageCandidateCount: z.number().int().nonnegative().optional(),
+        articleImageAssetCount: z.number().int().nonnegative().optional(),
+        searchTrace: z.array(visualSearchTraceEntrySchema).max(256).optional(),
       })
       .strict(),
   })
@@ -204,6 +228,9 @@ export function buildEpisodeVisualPayload(input: {
   r2ImageUrls: Readonly<Record<string, string>>;
   subjectCatalog?: VisualSubjectCatalog | null;
   sceneAssignments?: readonly VisualSceneSubjectAssignment[];
+  searchTitleSource?: 'publisher' | 'english-localization' | 'none';
+  articleImageCandidateCount?: number;
+  searchTrace?: readonly VisualSearchTraceEntry[];
 }): EpisodeVisualPayload {
   const assetById = new Map(
     input.assets.map((asset) => [asset.assetId, asset] as const),
@@ -259,6 +286,9 @@ export function buildEpisodeVisualPayload(input: {
           sceneAssignments: [...input.sceneAssignments],
         }
       : {};
+  const articleImageAssetCount = input.assets.filter(
+    (asset) => asset.provider === 'article',
+  ).length;
 
   return parseEpisodeVisualPayload({
     schemaVersion: EPISODE_VISUAL_PAYLOAD_SCHEMA_VERSION,
@@ -298,6 +328,14 @@ export function buildEpisodeVisualPayload(input: {
       storyboardPromptVersion: EPISODE_VISUAL_STORYBOARD_PROMPT_VERSION,
       usedFallback: input.storyboard.usedFallback,
       searchIntentModel: input.searchIntentModel,
+      ...(input.searchTitleSource
+        ? { searchTitleSource: input.searchTitleSource }
+        : {}),
+      ...(input.articleImageCandidateCount !== undefined
+        ? { articleImageCandidateCount: input.articleImageCandidateCount }
+        : {}),
+      articleImageAssetCount,
+      ...(input.searchTrace ? { searchTrace: [...input.searchTrace] } : {}),
     },
   });
 }

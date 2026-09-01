@@ -19,6 +19,7 @@ import {
   EPISODE_VISUAL_PAYLOAD_SCHEMA_VERSION,
   EPISODE_VISUAL_STORYBOARD_PROMPT_VERSION,
   hashEpisodeVisualSelection,
+  type VisualSearchTraceEntry,
 } from './video/episode-visual.js';
 import { planPodcastVisualAssets } from './video/podcast-visual-assets.js';
 import {
@@ -49,6 +50,7 @@ import {
 import { visualStageProgress } from './video-progress.js';
 
 export const VISUAL_ARTICLE_SCRAPE_TIMEOUT_MS = 15_000;
+const MAX_PERSISTED_VISUAL_SEARCH_TRACE_ENTRIES = 256;
 
 export type ProcessEpisodeVideoVisualJob = (
   job: EpisodeVideoVisualJobRow,
@@ -113,6 +115,19 @@ export function createEpisodeVideoVisualProcessor(
         source.englishScript,
         visualSections.isPackaged,
       );
+      // Visual identity follows the publisher headline, not a localized title
+      // that editorial packaging may have rewritten and stripped proper nouns
+      // from. English body text remains useful search evidence for scenes.
+      const publisherTitle = source.sourceTitle?.trim();
+      const englishTitle = source.englishTitle.trim();
+      const visualSearchTitle = publisherTitle || englishTitle;
+      let searchTitleSource: 'publisher' | 'english-localization' | 'none' =
+        'none';
+      if (publisherTitle) {
+        searchTitleSource = 'publisher';
+      } else if (englishTitle) {
+        searchTitleSource = 'english-localization';
+      }
       const editorialSentences = getPodcastEditorialSentences(source.script);
       const generated = await dependencies.generateStoryboard({
         title: source.title,
@@ -120,7 +135,7 @@ export function createEpisodeVideoVisualProcessor(
         editorialScript,
         editorialSentences,
         isPackaged: visualSections.isPackaged,
-        searchTitle: source.englishTitle,
+        ...(visualSearchTitle ? { searchTitle: visualSearchTitle } : {}),
         searchScript: englishBodyScript,
         durationMs: analysis.durationMs,
         signal: context.signal,
@@ -135,6 +150,7 @@ export function createEpisodeVideoVisualProcessor(
                 visualSections.body.length
             : 0,
         ),
+        searchTitleSource,
       });
       const brandedDraft = applyAndValidatePodcastBrandingToStoryboard(
         source.script,
@@ -170,7 +186,7 @@ export function createEpisodeVideoVisualProcessor(
         {
           draft: brandedDraft,
           title: source.title,
-          ...(source.englishTitle ? { searchTitle: source.englishTitle } : {}),
+          ...(visualSearchTitle ? { searchTitle: visualSearchTitle } : {}),
           script: source.script,
           ...(englishBodyScript ? { searchScript: englishBodyScript } : {}),
           durationMs: analysis.durationMs,
@@ -208,14 +224,16 @@ export function createEpisodeVideoVisualProcessor(
         signal: context.signal,
         timeoutMs: VISUAL_ARTICLE_SCRAPE_TIMEOUT_MS,
       });
+      const articleImageCandidateCount = article.images?.length ?? 0;
       logVisualProgress(dependencies.logger, 'visual:search', {
         run: context.runId,
         episode: source.episodeId,
         phase: 'article-images',
-        candidateCount: article.images?.length ?? 0,
+        candidateCount: articleImageCandidateCount,
         elapsedMs: Date.now() - searchStartedAt,
       });
 
+      const searchTrace: VisualSearchTraceEntry[] = [];
       const assetPlan = await dependencies.planAssets({
         scenes: storyboard.draft.scenes,
         articleImages: article.images ?? [],
@@ -231,6 +249,7 @@ export function createEpisodeVideoVisualProcessor(
             source.episodeId,
             progress,
           );
+          appendSearchTrace(searchTrace, progress);
           if (progress.phase === 'assets') {
             context.reportProgress(
               visualStageProgress(
@@ -287,6 +306,9 @@ export function createEpisodeVideoVisualProcessor(
         episode: source.episodeId,
         phase: 'uploaded',
         candidateCount: assetPlan.assets.length,
+        articleAssetCount: assetPlan.assets.filter(
+          (asset) => asset.provider === 'article',
+        ).length,
         elapsedMs: Date.now() - uploadStartedAt,
       });
 
@@ -303,6 +325,9 @@ export function createEpisodeVideoVisualProcessor(
         r2ImageUrls: uploaded.imageUrls,
         subjectCatalog,
         sceneAssignments,
+        searchTitleSource,
+        articleImageCandidateCount,
+        searchTrace,
       });
       return {
         visualPayload: payload,
@@ -318,6 +343,32 @@ export function createEpisodeVideoVisualProcessor(
       });
     }
   };
+}
+
+function appendSearchTrace(
+  trace: VisualSearchTraceEntry[],
+  progress: VisualAssetProgress,
+): void {
+  if (
+    trace.length >= MAX_PERSISTED_VISUAL_SEARCH_TRACE_ENTRIES ||
+    progress.phase !== 'search' ||
+    !progress.searchIntent ||
+    (progress.provider !== 'pexels' &&
+      progress.provider !== 'pixabay' &&
+      progress.provider !== 'brave')
+  ) {
+    return;
+  }
+  trace.push({
+    sceneId: progress.sceneId,
+    provider: progress.provider,
+    intent: progress.searchIntent,
+    subjectKey: progress.subjectKey ?? null,
+    returned: progress.searchResultCount ?? 0,
+    accepted: progress.candidateCount ?? 0,
+    entityFiltered: progress.entityFilteredCount ?? 0,
+    rejected: progress.rejectedCandidateCount ?? 0,
+  });
 }
 
 export async function generateVisualStoryboard(input: {
@@ -478,6 +529,8 @@ function logPlannerProgress(
     searchResultCount: progress.searchResultCount,
     entityFilteredCount: progress.entityFilteredCount,
     searchEntities: progress.searchEntities,
+    searchIntent: progress.searchIntent,
+    subjectKey: progress.subjectKey,
     rejectedCandidateCount: progress.rejectedCandidateCount,
     rejectionSummary: progress.rejectionSummary,
     elapsedMs: progress.elapsedMs,
