@@ -10,8 +10,27 @@ const episode = {
   created_at: '2026-08-31T15:54:10.000Z',
 };
 
-const localizations = (audio = true) =>
-  (['zh-Hant', 'ja', 'en'] as const).map((language, index) => ({
+type SummaryArgs = Parameters<typeof summarizePodcastPipeline>;
+type IngestRow = SummaryArgs[1][number];
+type LocalizationRow = SummaryArgs[2][number];
+type VisualRow = SummaryArgs[3][number];
+type RenderRow = SummaryArgs[4][number];
+
+function lifecycle(overrides: Record<string, unknown> = {}) {
+  return {
+    status: 'queued',
+    progress_percent: null,
+    progress_stage: null,
+    attempt_count: 0,
+    lease_expires_at: null,
+    last_error: null,
+    updated_at: '2026-08-31T22:49:35.000Z',
+    ...overrides,
+  };
+}
+
+function localizations(audio = true): LocalizationRow[] {
+  return (['zh-Hant', 'ja', 'en'] as const).map((language, index) => ({
     id: `00000000-0000-4000-8000-00000000000${index}`,
     episode_id: episode.id,
     language_code: language,
@@ -24,53 +43,57 @@ const localizations = (audio = true) =>
         : null,
     updated_at: '2026-08-31T16:00:00.000Z',
   }));
-
-const queuedRenders = () =>
-  localizations().map((localization) => ({
-    episode_localization_id: localization.id,
-    episode_id: episode.id,
-    status: 'queued',
-    progress_percent: null,
-    progress_stage: null,
-    attempt_count: 0,
-    lease_expires_at: null,
-    last_error: null,
-    updated_at: '2026-08-31T22:35:47.000Z',
-  }));
-
-function visual(overrides: Record<string, unknown>) {
-  return {
-    episode_id: episode.id,
-    status: 'queued',
-    progress_percent: null,
-    progress_stage: null,
-    attempt_count: 0,
-    lease_expires_at: null,
-    last_error: null,
-    updated_at: '2026-08-31T22:49:35.000Z',
-    ...overrides,
-  };
 }
 
-function ingest(overrides: Record<string, unknown>) {
+function queuedRenders(): RenderRow[] {
+  return localizations().map((localization) => ({
+    ...lifecycle({ updated_at: '2026-08-31T22:35:47.000Z' }),
+    episode_localization_id: localization.id,
+    episode_id: episode.id,
+  }));
+}
+
+function visual(overrides: Record<string, unknown> = {}): VisualRow {
   return {
+    ...lifecycle(overrides),
+    episode_id: episode.id,
+  } as VisualRow;
+}
+
+function ingest(overrides: Record<string, unknown> = {}): IngestRow {
+  return {
+    ...lifecycle({
+      status: 'processing',
+      attempt_count: 1,
+      lease_expires_at: '2026-09-01T00:09:00.000Z',
+      updated_at: '2026-09-01T00:00:00.000Z',
+      ...overrides,
+    }),
     source_url: episode.source_url,
-    status: 'processing',
-    attempt_count: 1,
-    lease_expires_at: '2026-09-01T00:09:00.000Z',
-    last_error: null,
-    updated_at: '2026-09-01T00:00:00.000Z',
-    ...overrides,
-  };
+  } as IngestRow;
+}
+
+function summarize(input: {
+  ingests?: IngestRow[];
+  localizationRows?: LocalizationRow[];
+  visuals?: VisualRow[];
+  renders?: RenderRow[];
+  now?: Date;
+} = {}) {
+  return summarizePodcastPipeline(
+    [episode],
+    input.ingests ?? [],
+    input.localizationRows ?? localizations(),
+    input.visuals ?? [],
+    input.renders ?? [],
+    input.now ?? NOW,
+  )[0];
 }
 
 describe('podcast pipeline summary', () => {
   it('shows a terminal visual failure instead of pretending queued renders are still progressing', () => {
-    const [summary] = summarizePodcastPipeline(
-      [episode],
-      [],
-      localizations(),
-      [
+    const summary = summarize({
+      visuals: [
         visual({
           status: 'failed',
           progress_percent: 5,
@@ -79,9 +102,8 @@ describe('podcast pipeline summary', () => {
           last_error: 'Visual subject catalog failed',
         }),
       ],
-      queuedRenders(),
-      NOW,
-    );
+      renders: queuedRenders(),
+    });
 
     expect(summary).toMatchObject({
       currentPhase: 'video',
@@ -102,11 +124,8 @@ describe('podcast pipeline summary', () => {
   });
 
   it('disables restart while a live visual lease owns the episode', () => {
-    const [summary] = summarizePodcastPipeline(
-      [episode],
-      [],
-      localizations(),
-      [
+    const summary = summarize({
+      visuals: [
         visual({
           status: 'processing',
           progress_percent: 30,
@@ -116,9 +135,9 @@ describe('podcast pipeline summary', () => {
           updated_at: '2026-09-01T00:00:00.000Z',
         }),
       ],
-      queuedRenders(),
-      new Date('2026-09-01T00:01:00.000Z'),
-    );
+      renders: queuedRenders(),
+      now: new Date('2026-09-01T00:01:00.000Z'),
+    });
 
     expect(summary).toMatchObject({
       currentPhase: 'video',
@@ -128,14 +147,7 @@ describe('podcast pipeline summary', () => {
   });
 
   it('keeps an article in TTS until all three languages have renderable audio', () => {
-    const [summary] = summarizePodcastPipeline(
-      [episode],
-      [],
-      localizations(false),
-      [],
-      [],
-      NOW,
-    );
+    const summary = summarize({ localizationRows: localizations(false) });
 
     expect(summary).toMatchObject({
       currentPhase: 'tts',
@@ -147,10 +159,8 @@ describe('podcast pipeline summary', () => {
   });
 
   it('surfaces a terminal ingest failure on the phase it actually blocked', () => {
-    const incomplete = localizations(false).slice(0, 2);
-    const [summary] = summarizePodcastPipeline(
-      [episode],
-      [
+    const summary = summarize({
+      ingests: [
         ingest({
           status: 'failed',
           attempt_count: 3,
@@ -158,11 +168,8 @@ describe('podcast pipeline summary', () => {
           last_error: 'translation provider failed',
         }),
       ],
-      incomplete,
-      [],
-      [],
-      NOW,
-    );
+      localizationRows: localizations(false).slice(0, 2),
+    });
 
     expect(summary).toMatchObject({
       currentPhase: 'translation',
@@ -177,19 +184,15 @@ describe('podcast pipeline summary', () => {
   });
 
   it('marks an expired ingest lease as stuck instead of indefinitely processing', () => {
-    const [summary] = summarizePodcastPipeline(
-      [episode],
-      [
+    const summary = summarize({
+      ingests: [
         ingest({
           lease_expires_at: '2026-08-31T23:59:00.000Z',
           last_error: 'Worker lease expired',
         }),
       ],
-      [],
-      [],
-      [],
-      NOW,
-    );
+      localizationRows: [],
+    });
 
     expect(summary).toMatchObject({
       currentPhase: 'translation',
