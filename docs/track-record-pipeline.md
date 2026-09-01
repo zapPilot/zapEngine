@@ -26,7 +26,7 @@ running: the homepage backtest-proof section still consumes these artifacts.
 
 ```text
 read previous CID from track-record-meta.json
-→ generate snapshot from configured wallets, tokens, RPCs, and prices
+→ generate snapshot from configured wallets, tokens, RPCs, and LI.FI spot prices
 → optionally sign with the official EOA
 → pin JSON to Pinata
 → update track-record-meta.json
@@ -50,14 +50,18 @@ Required or commonly used variables:
   sorted `chainIds` list is derived from these keys
 - `TRACK_RECORD_WALLET_ADDRESSES`
 - `TRACK_RECORD_TOKENS_JSON`
-- `TRACK_RECORD_PRICE_ORACLE_URL` or `TRACK_RECORD_PRICE_ORACLE_JSON`
+- `TRACK_RECORD_PRICE_ORACLE_JSON` only when an explicit deterministic price
+  override is needed for backfills/tests; normal daily runs fetch spot USD
+  prices from LI.FI using each token's chain ID and address
 - `TRACK_RECORD_IPFS_PINATA_TOKEN`
 - `TRACK_RECORD_SIGNER_PRIVATE_KEY` for signed snapshots
 
 Every token in `TRACK_RECORD_TOKENS_JSON` must reference a chain configured in
-`TRACK_RECORD_RPC_URLS`. The generator reads balances, applies configured
-prices, computes NAV/performance, links `previousCid`, validates with
-`DailySnapshotSchema`, and signs when a private key is present. The publisher
+`TRACK_RECORD_RPC_URLS`. The generator reads balances, fetches spot prices from
+the existing LI.FI token-pricing adapter, computes NAV/performance, links
+`previousCid`, validates with `DailySnapshotSchema`, and signs when a private
+key is present. `TRACK_RECORD_PRICE_ORACLE_JSON` takes precedence when supplied,
+so deterministic fixtures/backfills do not depend on live prices. The publisher
 pins the validated snapshot and updates
 `apps/landing-page/public/track-record-meta.json`. The verifier checks schema,
 CID linkage, signature, signer, and performance calculations.
