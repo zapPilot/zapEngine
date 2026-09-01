@@ -7,18 +7,117 @@ export interface SocialLanguagePolicyEntry {
   experimentKey?: string;
   experimentVariant?: string;
   /**
-   * How `experimentKey` gates inclusion. `exclusive` resolves a real
-   * `social_experiment_assignments` row and only the assigned language's lane
-   * is included. `always` means every language listed always ships together;
-   * `experimentKey`/`experimentVariant` are then just a reporting label, and no
-   * assignment row is created for them, so consumers must not expect one.
+   * Historical policies used `exclusive` to resolve one persisted language arm.
+   * Current Latin-square allocation is resolved at article-slot scope instead;
+   * `always` marks candidate lanes for strategy/reporting policy only.
    */
   assignment?: 'exclusive' | 'always';
 }
 
 const MULTILINGUAL_ACTIVE_SINCE = '2026-08-24T00:00:00.000Z';
 
+/**
+ * The balanced language experiment starts at 09:00 JST on 2026-09-01. Existing
+ * cohorts already scheduled before this instant keep their legacy lane shape.
+ */
+export const SOCIAL_LANGUAGE_ROTATION_ACTIVE_SINCE =
+  '2026-09-01T00:00:00.000Z';
+
+export const SOCIAL_LANGUAGE_EXPERIMENT_KEYS = {
+  x: 'x-language-v2',
+  threads: 'threads-language-v1',
+  youtube: 'youtube-language-v1',
+} as const satisfies Record<'x' | 'threads' | 'youtube', string>;
+
+/**
+ * Current candidate language surface. Rednote stays Traditional Chinese while
+ * X, Threads, and YouTube each rotate through all three primary languages.
+ * `language-allocation.ts` selects exactly one candidate per rotating platform
+ * for each article slot, while preserving one cross-platform release cohort.
+ */
 export const SOCIAL_LANGUAGE_POLICY = {
+  rednote: [
+    { language: 'zh-Hant', activeSince: MULTILINGUAL_ACTIVE_SINCE },
+  ],
+  threads: [
+    {
+      language: 'en',
+      activeSince: SOCIAL_LANGUAGE_ROTATION_ACTIVE_SINCE,
+      experimentKey: SOCIAL_LANGUAGE_EXPERIMENT_KEYS.threads,
+      experimentVariant: 'en',
+      assignment: 'always',
+    },
+    {
+      language: 'ja',
+      activeSince: SOCIAL_LANGUAGE_ROTATION_ACTIVE_SINCE,
+      experimentKey: SOCIAL_LANGUAGE_EXPERIMENT_KEYS.threads,
+      experimentVariant: 'ja',
+      assignment: 'always',
+    },
+    {
+      language: 'zh-Hant',
+      activeSince: SOCIAL_LANGUAGE_ROTATION_ACTIVE_SINCE,
+      experimentKey: SOCIAL_LANGUAGE_EXPERIMENT_KEYS.threads,
+      experimentVariant: 'zh-Hant',
+      assignment: 'always',
+    },
+  ],
+  x: [
+    {
+      language: 'en',
+      activeSince: SOCIAL_LANGUAGE_ROTATION_ACTIVE_SINCE,
+      experimentKey: SOCIAL_LANGUAGE_EXPERIMENT_KEYS.x,
+      experimentVariant: 'en',
+      assignment: 'always',
+    },
+    {
+      language: 'ja',
+      activeSince: SOCIAL_LANGUAGE_ROTATION_ACTIVE_SINCE,
+      experimentKey: SOCIAL_LANGUAGE_EXPERIMENT_KEYS.x,
+      experimentVariant: 'ja',
+      assignment: 'always',
+    },
+    {
+      language: 'zh-Hant',
+      activeSince: SOCIAL_LANGUAGE_ROTATION_ACTIVE_SINCE,
+      experimentKey: SOCIAL_LANGUAGE_EXPERIMENT_KEYS.x,
+      experimentVariant: 'zh-Hant',
+      assignment: 'always',
+    },
+  ],
+  youtube: [
+    {
+      language: 'en',
+      activeSince: SOCIAL_LANGUAGE_ROTATION_ACTIVE_SINCE,
+      experimentKey: SOCIAL_LANGUAGE_EXPERIMENT_KEYS.youtube,
+      experimentVariant: 'en',
+      assignment: 'always',
+    },
+    {
+      language: 'ja',
+      activeSince: SOCIAL_LANGUAGE_ROTATION_ACTIVE_SINCE,
+      experimentKey: SOCIAL_LANGUAGE_EXPERIMENT_KEYS.youtube,
+      experimentVariant: 'ja',
+      assignment: 'always',
+    },
+    {
+      language: 'zh-Hant',
+      activeSince: SOCIAL_LANGUAGE_ROTATION_ACTIVE_SINCE,
+      experimentKey: SOCIAL_LANGUAGE_EXPERIMENT_KEYS.youtube,
+      experimentVariant: 'zh-Hant',
+      assignment: 'always',
+    },
+  ],
+} as const satisfies Record<
+  SocialPlatform,
+  readonly SocialLanguagePolicyEntry[]
+>;
+
+/**
+ * Kept only so an interrupted cohort scheduled before the v2 activation can
+ * finish with the exact language contract it was created under.
+ */
+export const LEGACY_SOCIAL_LANGUAGE_POLICY = {
   rednote: [{ language: 'zh-Hant', activeSince: MULTILINGUAL_ACTIVE_SINCE }],
   threads: [{ language: 'ja', activeSince: MULTILINGUAL_ACTIVE_SINCE }],
   x: [
@@ -37,8 +136,6 @@ export const SOCIAL_LANGUAGE_POLICY = {
       assignment: 'exclusive',
     },
   ],
-  // Assets may still exist in other languages, but distribution is deliberately
-  // English-only until a YouTube language experiment is explicitly activated.
   youtube: [{ language: 'en', activeSince: MULTILINGUAL_ACTIVE_SINCE }],
 } as const satisfies Record<
   SocialPlatform,
