@@ -40,7 +40,8 @@ export function createControlCenterApp(input: {
     input.service ?? createOverviewService({ config: input.config });
   const podcastCosts = createPodcastCostService({ config: input.config });
   const podcastPipeline =
-    input.podcastPipeline ?? createPodcastPipelineService({ config: input.config });
+    input.podcastPipeline ??
+    createPodcastPipelineService({ config: input.config });
   // Injected separately from the overview service on purpose: the two share no
   // state, and folding operations into createOverviewService would force every
   // existing fake of it to grow methods its tests do not care about.
@@ -172,10 +173,14 @@ function isForced(context: Context): boolean {
 }
 
 function errorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
+  if (error instanceof Error) {
+    return error.message;
+  }
   if (error && typeof error === 'object' && 'message' in error) {
     const message = (error as { message?: unknown }).message;
-    if (typeof message === 'string' && message.trim()) return message;
+    if (typeof message === 'string' && message.trim()) {
+      return message;
+    }
   }
   return 'Podcast video retry failed';
 }
