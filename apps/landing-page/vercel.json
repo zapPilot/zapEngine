@@ -3,5 +3,11 @@
   "buildCommand": "cd ../.. && pnpm turbo build --filter=@zapengine/landing-page",
   "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
   "outputDirectory": "out",
-  "framework": null
+  "framework": null,
+  "git": {
+    "deploymentEnabled": {
+      "*": false,
+      "main": true
+    }
+  }
 }
