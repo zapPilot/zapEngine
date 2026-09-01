@@ -93,6 +93,13 @@ The variant is the lane language. Assignment comes from the article's release
 slot rather than independent per-platform randomization, so language coverage is
 guaranteed and time-of-day is balanced instead of confounded with language.
 
+The selected A/B/C profile is also stored once per episode under the internal
+`social-language-profile-v2` assignment key. Its variant is the profile letter,
+not a post-performance arm. That durable assignment is created from the chosen
+article slot before lane enqueue, then reused if missed-slot repair later moves
+the whole article to another timestamp. Rescheduling therefore changes timing,
+not the language identities already allocated to that release transaction.
+
 Episodes created before the v2 activation remain on the historical policy even
 if they are released later: Rednote `zh-Hant`, Threads `ja`, X `en`/`ja` via
 `x-language-v1`, and YouTube `en`. This rollout fence prevents deployment from
@@ -171,6 +178,12 @@ item is not made newly incomplete by deploying the experiment.
 `resolveReleaseCohortLanes()` owns the final slot-derived lane shape. Discovery
 must use both rather than reconstructing language policy from platform timing.
 
+`social_waiting_media` is only the pre-scheduling episode-language readiness
+signal. It reports missing media for the required languages without pretending a
+future article slot has already assigned those languages to platforms. As soon
+as an episode has any durable publish job or social post, that view stops
+representing the episode; durable release state owns recovery from then on.
+
 ## Missed slots and production queue repair
 
 An already-aligned article remains eligible for the normal catch-up grace after
@@ -192,6 +205,13 @@ Durable jobs keep their originally assigned languages during repair. A recovery
 or reschedule is not allowed to reshape an already-created cohort merely to make
 the Latin-square counts prettier; balancing describes new steady-state cohorts,
 while duplicate safety and recovery correctness take precedence.
+
+For v2, profile identity survives timestamp repair through the persisted
+`social-language-profile-v2` assignment. New v2 cohorts also enqueue a rotating,
+experiment-tagged lane before Rednote so even an interrupted lane insert leaves a
+clear generation marker. A database insert guard fails closed when an episode
+already has durable legacy jobs but no v2 language marker, preventing a delayed
+rollout from silently adding v2-only lanes to a legacy cohort.
 
 This reconciliation runs before new discovery on every daemon tick, so deploy of
 a scheduler fix repairs existing Supabase queue state instead of only affecting
