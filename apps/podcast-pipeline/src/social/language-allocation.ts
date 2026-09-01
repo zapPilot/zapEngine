@@ -90,15 +90,33 @@ export function languageRotationProfileForSlot(
 export function rotatingReleaseCohortLanes(
   scheduledAt: Date,
 ): RotatingReleaseCohortLane[] {
-  const profile = languageRotationProfileForSlot(scheduledAt);
+  return rotatingReleaseCohortLanesForProfile(
+    languageRotationProfileForSlot(scheduledAt).profile,
+  );
+}
+
+/**
+ * Rebuild a durable v2 cohort from its persisted profile rather than from its
+ * current timestamp. Missed-slot repair may move the whole article to a later
+ * slot, but that must never change the languages it was originally assigned.
+ *
+ * Rotating lanes intentionally come before Rednote. `enqueueCohortJobs()`
+ * persists lanes sequentially, so any interrupted v2 enqueue that wrote at
+ * least one row leaves a platform-specific experiment key behind. Recovery can
+ * then distinguish it from a legacy partial cohort; Rednote alone is ambiguous
+ * because its lane is identical in both generations.
+ */
+export function rotatingReleaseCohortLanesForProfile(
+  profileName: SocialLanguageRotationProfile,
+): RotatingReleaseCohortLane[] {
+  const profile = ROTATION_PROFILES.find(
+    (candidate) => candidate.profile === profileName,
+  );
+  if (!profile) {
+    throw new Error(`Unknown social language rotation profile ${profileName}.`);
+  }
+
   return [
-    { platform: 'rednote', language: 'zh-Hant' },
-    {
-      platform: 'threads',
-      language: profile.threads,
-      experimentKey: SOCIAL_LANGUAGE_EXPERIMENT_KEYS.threads,
-      experimentVariant: profile.threads,
-    },
     {
       platform: 'x',
       language: profile.x,
@@ -106,12 +124,31 @@ export function rotatingReleaseCohortLanes(
       experimentVariant: profile.x,
     },
     {
+      platform: 'threads',
+      language: profile.threads,
+      experimentKey: SOCIAL_LANGUAGE_EXPERIMENT_KEYS.threads,
+      experimentVariant: profile.threads,
+    },
+    {
       platform: 'youtube',
       language: profile.youtube,
       experimentKey: SOCIAL_LANGUAGE_EXPERIMENT_KEYS.youtube,
       experimentVariant: profile.youtube,
     },
+    { platform: 'rednote', language: 'zh-Hant' },
   ];
+}
+
+/** A rotating platform/language pair uniquely identifies its Latin-square profile. */
+export function languageRotationProfileForLane(
+  platform: SocialPlatform,
+  language: SocialLanguageCode,
+): SocialLanguageRotationProfile | null {
+  if (platform === 'rednote') return null;
+  return (
+    ROTATION_PROFILES.find((profile) => profile[platform] === language)?.profile ??
+    null
+  );
 }
 
 function mod(value: number, divisor: number): number {
