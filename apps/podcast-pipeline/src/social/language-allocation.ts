@@ -1,4 +1,4 @@
-import type { ReleaseCohortLane } from './cohort.js';
+import type { SocialPlatform } from './platforms.js';
 import {
   SOCIAL_LANGUAGE_EXPERIMENT_KEYS,
   SOCIAL_LANGUAGE_ROTATION_ACTIVE_SINCE,
@@ -9,6 +9,13 @@ import type { SocialLanguageCode } from './types.js';
 const JST_OFFSET_MS = 9 * 60 * 60_000;
 const DAY_MS = 24 * 60 * 60_000;
 const ROTATION_ANCHOR_JST_DAY = Date.UTC(2026, 8, 1);
+
+export interface RotatingReleaseCohortLane {
+  platform: SocialPlatform;
+  language: SocialLanguageCode;
+  experimentKey?: string;
+  experimentVariant?: string;
+}
 
 export const SOCIAL_REQUIRED_ROTATION_LANGUAGES = [
   'zh-Hant',
@@ -82,7 +89,7 @@ export function languageRotationProfileForSlot(
 
 export function rotatingReleaseCohortLanes(
   scheduledAt: Date,
-): ReleaseCohortLane[] {
+): RotatingReleaseCohortLane[] {
   const profile = languageRotationProfileForSlot(scheduledAt);
   return [
     { platform: 'rednote', language: 'zh-Hant' },
