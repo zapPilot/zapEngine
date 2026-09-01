@@ -108,18 +108,18 @@ vi.mock('./experiments.js', async (importOriginal) => ({
 
 import { runSocialDaemonTick } from './daemon.js';
 
-const NOW = new Date('2026-09-01T01:00:00.000Z'); // 10:00 JST
-const FIRST_STARTED_AT = '2026-08-31T00:00:00.000Z';
+const NOW = new Date('2026-09-02T01:00:00.000Z'); // 10:00 JST
+const FIRST_STARTED_AT = '2026-09-01T00:00:00.000Z';
 const ARTICLE_A = '123e4567-e89b-42d3-a456-426614174000';
 const ARTICLE_B = '123e4567-e89b-42d3-a456-426614174111';
 const ARTICLE_C = '123e4567-e89b-42d3-a456-426614174222';
 const ARTICLE_D = '123e4567-e89b-42d3-a456-426614174333';
-const CREATED_AT = '2026-09-01T00:10:00.000Z';
+const CREATED_AT = '2026-09-02T00:10:00.000Z';
 
 function candidate(episodeId: string, language_code: 'zh-Hant' | 'ja' | 'en') {
   return {
     episode_id: episodeId,
-    ready_at: '2026-09-01T00:30:00.000Z',
+    ready_at: '2026-09-02T00:30:00.000Z',
     language_code,
     episode_created_at: CREATED_AT,
   };
@@ -247,12 +247,12 @@ describe('NON-NEGOTIABLE episode release cohort contract', () => {
       return [...times][0];
     };
 
-    // NOW is 10:00 JST, so 09-01 has only its 12:00 and 16:00 slots left; the
+    // NOW is 10:00 JST, so 09-02 has only its 12:00 and 16:00 slots left; the
     // third and fourth articles roll into the next JST day rather than sharing.
-    expect(slotOf(ARTICLE_A)).toBe('2026-09-01T03:00:00.000Z');
-    expect(slotOf(ARTICLE_B)).toBe('2026-09-01T07:00:00.000Z');
-    expect(slotOf(ARTICLE_C)).toBe('2026-09-02T00:30:00.000Z');
-    expect(slotOf(ARTICLE_D)).toBe('2026-09-02T03:00:00.000Z');
+    expect(slotOf(ARTICLE_A)).toBe('2026-09-02T03:00:00.000Z');
+    expect(slotOf(ARTICLE_B)).toBe('2026-09-02T07:00:00.000Z');
+    expect(slotOf(ARTICLE_C)).toBe('2026-09-03T00:30:00.000Z');
+    expect(slotOf(ARTICLE_D)).toBe('2026-09-03T03:00:00.000Z');
   });
 
   it('fences fresh episodes behind a partial publish recovery cohort', async () => {
