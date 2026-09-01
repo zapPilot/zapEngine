@@ -2,6 +2,12 @@
   "buildCommand": "cd ../.. && pnpm turbo run build:web --filter=@zapengine/app",
   "framework": null,
   "outputDirectory": "dist/web",
+  "git": {
+    "deploymentEnabled": {
+      "*": false,
+      "main": true
+    }
+  },
   "rewrites": [
     {
       "source": "/(.*)",
