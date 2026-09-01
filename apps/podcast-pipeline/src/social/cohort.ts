@@ -1,7 +1,9 @@
 import { getOrCreateExperimentAssignment } from './experiments.js';
 import {
   isLanguageRotationActive,
-  rotatingReleaseCohortLanes,
+  languageRotationProfileForSlot,
+  rotatingReleaseCohortLanesForProfile,
+  SOCIAL_LANGUAGE_PROFILE_ASSIGNMENT_KEY,
   SOCIAL_REQUIRED_ROTATION_LANGUAGES,
 } from './language-allocation.js';
 import type { SocialPlatform } from './platforms.js';
@@ -31,7 +33,13 @@ export async function resolveReleaseCohortLanes(input: {
   scheduledAt: Date;
 }): Promise<ReleaseCohortLane[]> {
   if (usesLanguageRotation(input.episodeCreatedAt, input.scheduledAt)) {
-    return rotatingReleaseCohortLanes(input.scheduledAt);
+    const slotProfile = languageRotationProfileForSlot(input.scheduledAt).profile;
+    const assignment = await getOrCreateExperimentAssignment({
+      experimentKey: SOCIAL_LANGUAGE_PROFILE_ASSIGNMENT_KEY,
+      episodeId: input.episodeId,
+      variants: [slotProfile],
+    });
+    return rotatingReleaseCohortLanesForProfile(assignment.variant);
   }
   return resolveLegacyReleaseCohortLanes(input);
 }
