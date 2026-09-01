@@ -12,7 +12,7 @@ flowchart TD
     APP[Expo app\nWeb · iOS · Android]
     LAND[Landing / docs\nNext.js]
     DESK[Desktop\nElectron / macOS DMG]
-    CC[Control Center\nVercel read-only + founder-local operator UI]
+    CC[Control Center\nVercel + founder-local operator UI]
   end
 
   subgraph Compute[Application compute]
@@ -130,9 +130,9 @@ Historical portfolio semantics are documented in [snapshot architecture](../snap
 
 ### Control Center
 
-**Runtime:** remote read-only Vercel deployment plus founder-local Vite UI / Hono API for operator workflows.
+**Runtime:** Vercel deployment plus founder-local Vite UI / Hono API for operator workflows.
 
-**Owns:** the unified operational read model, customer service/economics views, persisted cost history, and social-performance evidence. The detailed operational contracts live in [`apps/control-center/README.md`](../../apps/control-center/README.md); do not duplicate adapter thresholds or scoring rules here.
+**Owns:** the unified operational read model, customer service/economics views, persisted cost history, social-performance evidence, and the narrowly bounded remediation capabilities documented in [`apps/control-center/MCP.md`](../../apps/control-center/MCP.md). The detailed operational contracts live in [`apps/control-center/README.md`](../../apps/control-center/README.md); do not duplicate adapter thresholds or scoring rules here.
 
 **Does not own:** production application request traffic or production daemons.
 
