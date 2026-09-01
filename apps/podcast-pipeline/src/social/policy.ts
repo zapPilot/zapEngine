@@ -17,12 +17,12 @@ export interface SocialLanguagePolicyEntry {
 const MULTILINGUAL_ACTIVE_SINCE = '2026-08-24T00:00:00.000Z';
 
 /**
- * The balanced language experiment starts at 09:00 JST on 2026-09-01. Episodes
+ * The balanced language experiment starts at 09:00 JST on 2026-09-02. Episodes
  * created before this instant keep their legacy lane shape even if released
  * later, so deploying the experiment never reshapes backlog.
  */
 export const SOCIAL_LANGUAGE_ROTATION_ACTIVE_SINCE =
-  '2026-09-01T00:00:00.000Z';
+  '2026-09-02T00:00:00.000Z';
 
 export const SOCIAL_LANGUAGE_EXPERIMENT_KEYS = {
   x: 'x-language-v2',
@@ -55,9 +55,7 @@ function rotatingLanguagePolicy(
  * for each article slot, while preserving one cross-platform release cohort.
  */
 export const SOCIAL_LANGUAGE_POLICY = {
-  rednote: [
-    { language: 'zh-Hant', activeSince: MULTILINGUAL_ACTIVE_SINCE },
-  ],
+  rednote: [{ language: 'zh-Hant', activeSince: MULTILINGUAL_ACTIVE_SINCE }],
   threads: rotatingLanguagePolicy(SOCIAL_LANGUAGE_EXPERIMENT_KEYS.threads),
   x: rotatingLanguagePolicy(SOCIAL_LANGUAGE_EXPERIMENT_KEYS.x),
   youtube: rotatingLanguagePolicy(SOCIAL_LANGUAGE_EXPERIMENT_KEYS.youtube),
