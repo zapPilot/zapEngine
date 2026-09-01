@@ -95,6 +95,31 @@ test('secret classification rejects sensitive and credential-like committed valu
   assert.ok(errors.some((error) => error.includes('credential-like')));
 });
 
+test('secret classification allows committed public EVM address lists', () => {
+  const errors = auditSecretClassification({
+    prod: {
+      values: {
+        TRACK_RECORD_WALLET_ADDRESSES:
+          '0x0000000000000000000000000000000000000001, 0x0000000000000000000000000000000000000002',
+      },
+      duplicates: [],
+    },
+  });
+  assert.deepEqual(errors, []);
+});
+
+test('secret classification still rejects 0x-prefixed private-key-shaped values', () => {
+  const errors = auditSecretClassification({
+    prod: {
+      values: {
+        TRACK_RECORD_WALLET_ADDRESSES: `0x${'a'.repeat(64)}`,
+      },
+      duplicates: [],
+    },
+  });
+  assert.ok(errors.some((error) => error.includes('credential-like')));
+});
+
 test('production validation rejects local endpoints and placeholders', () => {
   const errors = validateProductionEnv({
     ACCOUNT_API_URL: 'http://localhost:3004',
