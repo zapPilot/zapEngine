@@ -86,7 +86,10 @@ async function repoWith(names: readonly string[]): Promise<string> {
   ]);
 }
 
-function recordingFetch(respond: (file: string) => Response): {
+function recordingFetch(
+  respond: (file: string) => Response,
+  scheduleEntries: readonly unknown[] = [githubEntry('env-drift')],
+): {
   fetchImpl: typeof fetch;
   calls: Call[];
 } {
@@ -94,17 +97,18 @@ function recordingFetch(respond: (file: string) => Response): {
   const fetchImpl: typeof fetch = (input, init) => {
     const url = String(input);
     calls.push({ url, headers: new Headers(init?.headers) });
+    if (url.includes('/contents/.github/schedules.json')) {
+      return Promise.resolve(
+        new Response(JSON.stringify(scheduleEntries), { status: 200 }),
+      );
+    }
     const file = url.split('/runs?')[0]?.split('/').at(-1) ?? '';
     return Promise.resolve(respond(file));
   };
   return { fetchImpl, calls };
 }
 
-/**
- * One adapter run against a scratch repository. An absent `repoRoot` is the
- * real thing rather than a default fixture: that is how the workspace-root
- * walk gets exercised.
- */
+/** One adapter run against either a scratch repository or the remote registry. */
 async function collect(input: {
   repoRoot?: string;
   config?: ControlCenterConfig;
@@ -328,19 +332,23 @@ describe('collectGithubSignals', () => {
     expect(signals[0]?.detail).toContain('lists no github-actions workflows');
   });
 
-  it('finds the workspace root when no repoRoot is passed', async () => {
+  it('reads the schedule registry from GitHub when no repoRoot is passed', async () => {
     const { signals, calls } = await collect({
       respond: everyWorkflowRuns(
         completedRun({ conclusion: 'success', startedAt: hoursAgo(4) }),
       ),
     });
 
-    expect(calls.length).toBeGreaterThan(0);
-    expect(
-      calls.every((call) =>
-        call.url.includes('.yml/runs?per_page=5&event=schedule'),
-      ),
-    ).toBe(true);
+    expect(calls[0]?.url).toBe(
+      'https://api.github.com/repos/zapPilot/zapEngine/contents/.github/schedules.json?ref=main',
+    );
+    expect(calls[0]?.headers.get('Authorization')).toBe('Bearer ops-token');
+    expect(calls[0]?.headers.get('Accept')).toBe(
+      'application/vnd.github.raw+json',
+    );
+    expect(calls[1]?.url).toContain(
+      'env-drift.yml/runs?per_page=5&event=schedule',
+    );
     expect(signals.every((signal) => signal.status === 'healthy')).toBe(true);
   });
 });

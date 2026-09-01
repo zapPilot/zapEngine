@@ -5,7 +5,7 @@ import { z } from 'zod';
 
 import type { OperationalSignal } from '../../../shared/types.js';
 import type { ControlCenterConfig } from '../../config/env.js';
-import { fetchJson } from './http.js';
+import { fetchJson, fetchText } from './http.js';
 import {
   buildSignal,
   collectOrFail,
@@ -13,7 +13,6 @@ import {
   sourceFailure,
   unknownSignal,
 } from './signal.js';
-import { findRepoRoot } from './repo-root.js';
 import { staleAfterMs } from './schedule-interval.js';
 
 const ORIGIN = { source: 'github-actions', domain: 'jobs' } as const;
@@ -111,9 +110,11 @@ export async function collectGithubSignals(input: {
 
   const fetchImpl = input.fetchImpl ?? globalThis.fetch;
   return collectOrFail(ORIGIN, input.now, async () => {
-    const workflows = await readScheduledWorkflows(
-      input.repoRoot ?? findRepoRoot(import.meta.dirname),
-    );
+    const workflows = await readScheduledWorkflows({
+      repoRoot: input.repoRoot,
+      token,
+      fetchImpl,
+    });
     const outcomes = await Promise.all(
       workflows.map((workflow) =>
         inspectWorkflow({ workflow, token, fetchImpl, now: input.now }),
@@ -139,13 +140,29 @@ export async function collectGithubSignals(input: {
   });
 }
 
-async function readScheduledWorkflows(
-  repoRoot: string,
-): Promise<ScheduledWorkflow[]> {
-  const path = join(repoRoot, '.github', 'schedules.json');
-  const entries = z
-    .array(z.unknown())
-    .parse(JSON.parse(await readFile(path, 'utf8')) as unknown);
+async function readScheduledWorkflows(input: {
+  repoRoot?: string;
+  token: string;
+  fetchImpl: typeof fetch;
+}): Promise<ScheduledWorkflow[]> {
+  const source = input.repoRoot
+    ? join(input.repoRoot, '.github', 'schedules.json')
+    : '.github/schedules.json on main';
+  const raw = input.repoRoot
+    ? await readFile(source, 'utf8')
+    : await fetchText({
+        label: 'GitHub schedules registry',
+        url:
+          `https://api.github.com/repos/${REPO}/contents/.github/` +
+          'schedules.json?ref=main',
+        token: input.token,
+        fetchImpl: input.fetchImpl,
+        headers: {
+          Accept: 'application/vnd.github.raw+json',
+          'X-GitHub-Api-Version': '2022-11-28',
+        },
+      });
+  const entries = z.array(z.unknown()).parse(JSON.parse(raw) as unknown);
   const workflows = entries.flatMap((entry) => {
     const result = scheduleEntrySchema.safeParse(entry);
     return result.success && result.data.runtime === 'github-actions'
@@ -164,7 +181,7 @@ async function readScheduledWorkflows(
   if (workflows.length === 0) {
     // Not "nothing is wrong": the inventory that drives this adapter has lost
     // its GitHub entries, and reporting zero signals would read as green.
-    throw new Error(`${path} lists no github-actions workflows`);
+    throw new Error(`${source} lists no github-actions workflows`);
   }
   return workflows;
 }

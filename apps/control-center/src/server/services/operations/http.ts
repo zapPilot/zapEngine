@@ -58,8 +58,9 @@ export async function fetchJson<T>(input: {
 }
 
 /**
- * Raw-text sibling used only for bounded evidence such as GitHub job logs.
- * The caller owns projection/redaction before any text crosses an ops API.
+ * Raw-text sibling for bounded provider documents such as GitHub job logs or
+ * the repository schedule registry. The caller owns parsing plus any
+ * projection/redaction before text crosses an ops API.
  */
 /* jscpd:ignore-start -- mirrored fetch helper signature, sibling to fetchJson */
 export async function fetchText(input: {
