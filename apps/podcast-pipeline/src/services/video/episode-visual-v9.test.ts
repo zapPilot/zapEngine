@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { EPISODE_VIDEO_VISUAL_VERSION } from '../video-jobs.js';
 import {
   buildEpisodeVisualPayload,
   hashEpisodeVisualSelection,
@@ -7,7 +8,6 @@ import {
 } from './episode-visual.js';
 import type { StoryboardGenerationResult } from './storyboard/orchestrator.js';
 import type { PlannedVisualImage } from './visual-asset-planner.js';
-import { EPISODE_VIDEO_VISUAL_VERSION } from '../video-jobs.js';
 
 const episodeId = '00000000-0000-4000-8000-000000000001';
 const localizationId = '00000000-0000-4000-8000-000000000002';

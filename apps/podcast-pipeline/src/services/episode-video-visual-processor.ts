@@ -118,13 +118,16 @@ export function createEpisodeVideoVisualProcessor(
       // Visual identity follows the publisher headline, not a localized title
       // that editorial packaging may have rewritten and stripped proper nouns
       // from. English body text remains useful search evidence for scenes.
-      const visualSearchTitle =
-        source.sourceTitle?.trim() || source.englishTitle.trim();
-      const searchTitleSource = source.sourceTitle?.trim()
-        ? ('publisher' as const)
-        : source.englishTitle.trim()
-          ? ('english-localization' as const)
-          : ('none' as const);
+      const publisherTitle = source.sourceTitle?.trim();
+      const englishTitle = source.englishTitle.trim();
+      const visualSearchTitle = publisherTitle || englishTitle;
+      let searchTitleSource: 'publisher' | 'english-localization' | 'none' =
+        'none';
+      if (publisherTitle) {
+        searchTitleSource = 'publisher';
+      } else if (englishTitle) {
+        searchTitleSource = 'english-localization';
+      }
       const editorialSentences = getPodcastEditorialSentences(source.script);
       const generated = await dependencies.generateStoryboard({
         title: source.title,

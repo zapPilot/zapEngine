@@ -217,7 +217,9 @@ export async function planVisualAssets(
       assetId: selected.asset.assetId,
       ...(sourceHostname ? { sourceHostname } : {}),
       ...(selected.reuseKind ? { reuseKind: selected.reuseKind } : {}),
-      ...(visualSubjectKey(scene) ? { subjectKey: visualSubjectKey(scene)! } : {}),
+      ...(visualSubjectKey(scene)
+        ? { subjectKey: visualSubjectKey(scene)! }
+        : {}),
       ...(selected.rejections.total > 0
         ? {
             rejectedCandidateCount: selected.rejections.total,
@@ -305,28 +307,41 @@ async function selectImageForScene(
     };
   }
 
-  const previousAssetId = state.scenes.at(-1)?.assetId;
-  const previousAsset = previousAssetId
-    ? (state.assets.find((asset) => asset.assetId === previousAssetId) ?? null)
-    : null;
-
   // Named subjects are never allowed to fall through to an unrelated global
   // asset. A repeated on-topic photo is acceptable; a random photo is not.
   if (subjectKey) {
-    if (searched.failures.length > 0) {
-      throw visualSearchFailure(
-        scene.sceneId,
-        searched.failures,
-        rejections,
-        searched.funnel,
-      );
-    }
-    throw candidateExhaustionFailure(
-      scene.sceneId,
+    throwSearchExhaustion(scene.sceneId, searched, rejections);
+  }
+
+  return resolveUnanchoredFallback(state, scene, searched, rejections);
+}
+
+function throwSearchExhaustion(
+  sceneId: string,
+  searched: SearchedVisualImage,
+  rejections: CandidateRejections,
+): never {
+  if (searched.failures.length > 0) {
+    throw visualSearchFailure(
+      sceneId,
+      searched.failures,
       rejections,
       searched.funnel,
     );
   }
+  throw candidateExhaustionFailure(sceneId, rejections, searched.funnel);
+}
+
+function resolveUnanchoredFallback(
+  state: VisualAssetPlannerState,
+  scene: VisualAssetScene,
+  searched: SearchedVisualImage,
+  rejections: CandidateRejections,
+): SelectedVisualImage | null {
+  const previousAssetId = state.scenes.at(-1)?.assetId;
+  const previousAsset = previousAssetId
+    ? (state.assets.find((asset) => asset.assetId === previousAssetId) ?? null)
+    : null;
 
   const nonConsecutiveReusable =
     [...state.assets]
@@ -423,10 +438,7 @@ function reusableSubjectAsset(
   const previousAssetId = state.scenes.at(-1)?.assetId;
   const useCount = new Map<string, number>();
   for (const selection of state.scenes) {
-    useCount.set(
-      selection.assetId,
-      (useCount.get(selection.assetId) ?? 0) + 1,
-    );
+    useCount.set(selection.assetId, (useCount.get(selection.assetId) ?? 0) + 1);
   }
   const sorted = [...pool].sort(
     (left, right) => (useCount.get(left) ?? 0) - (useCount.get(right) ?? 0),
@@ -526,7 +538,6 @@ async function acquireSearchedImage(
     scene,
   );
   const intents = searchIntentsForScene(scene, state.mode);
-  const entities = scene.imageSearchEntities ?? [];
   const braveRequestAllowance = braveRequestAllowanceForScene(
     state,
     scene,
@@ -547,72 +558,80 @@ async function acquireSearchedImage(
       braveRequestAllowance,
     );
     for (const intent of providerIntents) {
-      state.input.signal?.throwIfAborted();
-      const searchStartedAt = Date.now();
-      const searched = await searchWithPlanBudget(
+      const acquired = await acquireFromSearchIntent(
         state,
+        scene,
+        sceneIndex,
+        rejections,
+        failures,
+        funnel,
         searchProvider,
         intent,
-        failures,
       );
-      if (!searched) continue;
+      if (acquired) return { asset: acquired, failures, funnel };
+    }
+  }
+  return { asset: null, failures, funnel };
+}
 
-      const partitioned = partitionViableCandidates(searched, [
-        searchProvider.origin,
-      ]);
-      const viable = partitioned.candidates;
-      const candidates = rankSearchCandidates(
-        viable,
-        intent,
-        state.assets,
-        entities,
-      );
-      funnel.searches += 1;
-      funnel.returned += searched.length;
-      funnel.viable += viable.length;
-      funnel.entityFiltered += viable.length - candidates.length;
-      for (const [reason, count] of partitioned.drops) {
-        funnel.viableDrops.set(
-          reason,
-          (funnel.viableDrops.get(reason) ?? 0) + count,
-        );
-      }
-      const rejectedBefore = rejections.total;
+async function acquireFromSearchIntent(
+  state: VisualAssetPlannerState,
+  scene: VisualAssetScene,
+  sceneIndex: number,
+  rejections: CandidateRejections,
+  failures: Error[],
+  funnel: SearchFunnel,
+  searchProvider: ImageSearchProvider,
+  intent: string,
+): Promise<PlannedVisualImage | null> {
+  state.input.signal?.throwIfAborted();
+  const searchStartedAt = Date.now();
+  const searched = await searchWithPlanBudget(
+    state,
+    searchProvider,
+    intent,
+    failures,
+  );
+  if (!searched) return null;
 
-      for (const candidate of candidates) {
-        if (sceneIndex === 0 && isPublisherArticleCandidate(state, candidate)) {
-          continue;
-        }
-        const acquired = await tryAcquireUniqueImage({
-          candidate,
-          provider: searchProvider.origin,
-          scene,
-          input: state.input,
-          dependencies: state.dependencies,
-          assets: state.assets,
-          attemptedUrls: state.attemptedUrls,
-          rejections,
-        });
-        if (acquired) {
-          reportSearchProgress(
-            state,
-            scene,
-            sceneIndex,
-            candidates.length,
-            rejections,
-            rejectedBefore,
-            searchStartedAt,
-            searchProvider.origin,
-            intent,
-            {
-              returned: searched.length,
-              viable: viable.length,
-              entities,
-            },
-          );
-          return { asset: acquired, failures, funnel };
-        }
-      }
+  const partitioned = partitionViableCandidates(searched, [
+    searchProvider.origin,
+  ]);
+  const viable = partitioned.candidates;
+  const entities = scene.imageSearchEntities ?? [];
+  const candidates = rankSearchCandidates(
+    viable,
+    intent,
+    state.assets,
+    entities,
+  );
+  funnel.searches += 1;
+  funnel.returned += searched.length;
+  funnel.viable += viable.length;
+  funnel.entityFiltered += viable.length - candidates.length;
+  for (const [reason, count] of partitioned.drops) {
+    funnel.viableDrops.set(
+      reason,
+      (funnel.viableDrops.get(reason) ?? 0) + count,
+    );
+  }
+  const rejectedBefore = rejections.total;
+
+  for (const candidate of candidates) {
+    if (sceneIndex === 0 && isPublisherArticleCandidate(state, candidate)) {
+      continue;
+    }
+    const acquired = await tryAcquireUniqueImage({
+      candidate,
+      provider: searchProvider.origin,
+      scene,
+      input: state.input,
+      dependencies: state.dependencies,
+      assets: state.assets,
+      attemptedUrls: state.attemptedUrls,
+      rejections,
+    });
+    if (acquired) {
       reportSearchProgress(
         state,
         scene,
@@ -623,15 +642,24 @@ async function acquireSearchedImage(
         searchStartedAt,
         searchProvider.origin,
         intent,
-        {
-          returned: searched.length,
-          viable: viable.length,
-          entities,
-        },
+        { returned: searched.length, viable: viable.length, entities },
       );
+      return acquired;
     }
   }
-  return { asset: null, failures, funnel };
+  reportSearchProgress(
+    state,
+    scene,
+    sceneIndex,
+    candidates.length,
+    rejections,
+    rejectedBefore,
+    searchStartedAt,
+    searchProvider.origin,
+    intent,
+    { returned: searched.length, viable: viable.length, entities },
+  );
+  return null;
 }
 
 function isPublisherArticleCandidate(
@@ -644,7 +672,8 @@ function isPublisherArticleCandidate(
     const article = new URL(sourceUrl);
     const candidateSource = new URL(candidate.sourceUrl);
     return (
-      article.hostname.toLowerCase() === candidateSource.hostname.toLowerCase() &&
+      article.hostname.toLowerCase() ===
+        candidateSource.hostname.toLowerCase() &&
       article.pathname.replace(/\/$/u, '') ===
         candidateSource.pathname.replace(/\/$/u, '')
     );
@@ -769,10 +798,7 @@ function searchIntentsForScene(
   if (entities.length > 0) {
     const descriptive = original[0];
     return [
-      ...new Set([
-        ...(descriptive ? [descriptive] : []),
-        ...entities,
-      ]),
+      ...new Set([...(descriptive ? [descriptive] : []), ...entities]),
     ].slice(0, MAX_SEARCH_INTENTS_PER_PROVIDER);
   }
 
@@ -826,7 +852,9 @@ function reportSearchProgress(
     candidateCount,
     searchResultCount: search.returned,
     searchIntent: intent,
-    ...(visualSubjectKey(scene) ? { subjectKey: visualSubjectKey(scene)! } : {}),
+    ...(visualSubjectKey(scene)
+      ? { subjectKey: visualSubjectKey(scene)! }
+      : {}),
     // Only meaningful when the anchor actually removed something: a scene that
     // names nothing keeps every candidate, and a zero here would read as
     // "the anchor was innocent" when it never ran.

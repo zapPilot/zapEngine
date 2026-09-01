@@ -483,9 +483,9 @@ describe('planVisualAssets resilient selection', () => {
 
     expect(braveSearch).toHaveBeenCalledTimes(4);
     expect(result.assets).toHaveLength(5);
-    expect(result.assets.slice(0, 4).every((asset) => asset.provider === 'brave')).toBe(
-      true,
-    );
+    expect(
+      result.assets.slice(0, 4).every((asset) => asset.provider === 'brave'),
+    ).toBe(true);
     expect(result.assets[4]?.provider).toBe('pexels');
   });
 
