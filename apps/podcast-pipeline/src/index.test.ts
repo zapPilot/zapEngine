@@ -61,6 +61,7 @@ const {
   mockConvertArticleToZhTW,
   mockSearchEpisodes,
   mockTelegramFetch,
+  mockListHydratedEpisodeFeedPage,
 } = vi.hoisted(() => ({
   mockConcatMp3Buffers: vi.fn(),
   mockDecodeCursor: vi.fn(),
@@ -106,6 +107,7 @@ const {
   mockConvertArticleToZhTW: vi.fn(),
   mockSearchEpisodes: vi.fn(),
   mockTelegramFetch: vi.fn(),
+  mockListHydratedEpisodeFeedPage: vi.fn().mockResolvedValue(null),
 }));
 
 vi.mock('@hono/node-server', () => ({
@@ -245,6 +247,10 @@ vi.mock('./services/video-jobs.js', async (importOriginal) => ({
 vi.mock('./services/video-status.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./services/video-status.js')>()),
   loadEpisodeVideoGeneration: mockLoadEpisodeVideoGeneration,
+}));
+
+vi.mock('./services/episode-feed-page.js', () => ({
+  listHydratedEpisodeFeedPage: mockListHydratedEpisodeFeedPage,
 }));
 
 process.env['FISH_AUDIO_REFERENCE_ID'] = 'test-fish-reference';

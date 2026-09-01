@@ -65,7 +65,10 @@ export function normalizeClassroomAudioTrack(
 
   const value = raw as Record<string, unknown>;
   const languageCode = readString(
-    value['targetLanguageCode'] ?? value['target_language_code'],
+    value['targetLanguageCode'] ??
+      value['target_language_code'] ??
+      value['languageCode'] ??
+      value['language_code'],
   );
   const hlsUrl = readString(value['hlsUrl'] ?? value['hls_url']);
 
