@@ -21,8 +21,7 @@ const MULTILINGUAL_ACTIVE_SINCE = '2026-08-24T00:00:00.000Z';
  * created before this instant keep their legacy lane shape even if released
  * later, so deploying the experiment never reshapes backlog.
  */
-export const SOCIAL_LANGUAGE_ROTATION_ACTIVE_SINCE =
-  '2026-09-02T00:00:00.000Z';
+export const SOCIAL_LANGUAGE_ROTATION_ACTIVE_SINCE = '2026-09-02T00:00:00.000Z';
 
 export const SOCIAL_LANGUAGE_EXPERIMENT_KEYS = {
   x: 'x-language-v2',

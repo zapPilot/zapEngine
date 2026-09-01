@@ -324,4 +324,111 @@ describe('NON-NEGOTIABLE episode release cohort contract', () => {
 
     expect(log).toHaveBeenCalledWith(expect.stringContaining('“繁中標題”'));
   });
+
+  it('does not reshape a legacy durable cohort created after activation', async () => {
+    // Simulate old daemon that, before this deployment, enqueued a legacy cohort
+    // for an episode created after activation (2026-09-02T00:10:00Z). The durable
+    // rows are the legacy shape: Threads/ja + X/en + YouTube/en + Rednote/zh-Hant.
+    // New code must treat those rows as SoT and not add v2 lanes (e.g. Threads/zh-Hant / X/ja).
+    const legacyScheduledAt = '2026-09-02T03:00:00.000Z'; // 12:00 JST Day 1 Slot 2 = profile B for v2
+    mocks.listPendingSocialPublishSchedules.mockResolvedValue([
+      {
+        episode_id: ARTICLE_A,
+        platform: 'rednote',
+        language_code: 'zh-Hant',
+        scheduled_at: legacyScheduledAt,
+        completed_at: null,
+        status: 'queued',
+      },
+      {
+        episode_id: ARTICLE_A,
+        platform: 'threads',
+        language_code: 'ja',
+        scheduled_at: legacyScheduledAt,
+        completed_at: null,
+        status: 'queued',
+      },
+      {
+        episode_id: ARTICLE_A,
+        platform: 'x',
+        language_code: 'en',
+        scheduled_at: legacyScheduledAt,
+        completed_at: null,
+        status: 'queued',
+        experiment_key: 'x-language-v1',
+        experiment_variant: 'en',
+      },
+      {
+        episode_id: ARTICLE_A,
+        platform: 'youtube',
+        language_code: 'en',
+        scheduled_at: legacyScheduledAt,
+        completed_at: null,
+        status: 'queued',
+      },
+    ]);
+    const candidates = readyEpisode(ARTICLE_A);
+    mocks.listSocialPublishCandidates.mockResolvedValue(candidates);
+    mocks.listSocialPublishCandidatesForEpisodes.mockResolvedValue(candidates);
+
+    await runSocialDaemonTick({ now: NOW, firstStartedAt: FIRST_STARTED_AT });
+
+    // Must not enqueue any v2 lane that was not in the durable cohort.
+    const enqueued = mocks.enqueueSocialPublishJob.mock.calls.map(
+      ([input]) => `${input.platform}|${input.languageCode}`,
+    );
+    // Durable cohort lanes may be re-enqueued idempotently (ignoreDuplicates), but no v2-only lane should appear.
+    expect(enqueued).not.toContain('threads|zh-Hant');
+    expect(enqueued).not.toContain('x|ja');
+    // Legacy lanes are the only ones that may be retried.
+    expect(new Set(enqueued).size).toBeLessThanOrEqual(4);
+    if (enqueued.length > 0) {
+      for (const key of enqueued) {
+        expect([
+          'rednote|zh-Hant',
+          'threads|ja',
+          'x|en',
+          'youtube|en',
+        ]).toContain(key);
+      }
+    }
+  });
+
+  it('completes an interrupted v2 enqueue without reshaping', async () => {
+    // New daemon crashed after inserting 2 of 4 v2 lanes for the same slot.
+    const scheduledAt = '2026-09-02T03:00:00.000Z'; // profile B
+    mocks.listPendingSocialPublishSchedules.mockResolvedValue([
+      {
+        episode_id: ARTICLE_A,
+        platform: 'rednote',
+        language_code: 'zh-Hant',
+        scheduled_at: scheduledAt,
+        completed_at: null,
+        status: 'queued',
+      },
+      {
+        episode_id: ARTICLE_A,
+        platform: 'threads',
+        language_code: 'zh-Hant',
+        scheduled_at: scheduledAt,
+        completed_at: null,
+        status: 'queued',
+        experiment_key: 'threads-language-v1',
+        experiment_variant: 'zh-Hant',
+      },
+    ]);
+    const candidates = readyEpisode(ARTICLE_A);
+    mocks.listSocialPublishCandidates.mockResolvedValue(candidates);
+    mocks.listSocialPublishCandidatesForEpisodes.mockResolvedValue(candidates);
+
+    await runSocialDaemonTick({ now: NOW, firstStartedAt: FIRST_STARTED_AT });
+
+    const enqueued = mocks.enqueueSocialPublishJob.mock.calls.map(
+      ([input]) => `${input.platform}|${input.languageCode}`,
+    );
+    // Missing v2 lanes should be filled (X/ja + YouTube/en) because existing is subset of intended.
+    expect(enqueued).toEqual(expect.arrayContaining(['x|ja', 'youtube|en']));
+    expect(enqueued).not.toContain('threads|ja');
+    expect(enqueued).not.toContain('x|en');
+  });
 });

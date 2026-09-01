@@ -71,7 +71,10 @@ import {
 import { buildSocialPostMetric, collectPostMetrics } from './metrics.js';
 import { activePackagingExperiment } from './packaging-experiments.js';
 import type { SocialPlatform } from './platforms.js';
-import { SOCIAL_PUBLISH_WINDOW_JST } from './policy.js';
+import {
+  SOCIAL_LANGUAGE_EXPERIMENT_KEYS,
+  SOCIAL_PUBLISH_WINDOW_JST,
+} from './policy.js';
 import { publishSocialBatch } from './publish-batch.js';
 import { SocialReleaseFailureError } from './publish-error.js';
 import {
@@ -336,13 +339,166 @@ async function discoverAndEnqueueEpisode(input: {
   const existingSchedule = input.schedules.find(
     (schedule) => schedule.episode_id === input.episodeId,
   );
-  const prospectiveScheduledAt = existingSchedule
-    ? new Date(existingSchedule.scheduled_at)
-    : input.now;
+
+  if (existingSchedule) {
+    await enqueueExistingCohort({
+      episodeId: input.episodeId,
+      firstCandidate,
+      title,
+      existingSchedule,
+      schedules: input.schedules,
+      episodeCandidates: input.episodeCandidates,
+      log: input.log,
+    });
+    return;
+  }
+
+  await enqueueNewCohort({
+    episodeId: input.episodeId,
+    firstCandidate,
+    title,
+    episodeCandidates: input.episodeCandidates,
+    scheduledArticles: input.scheduledArticles,
+    now: input.now,
+    log: input.log,
+  });
+}
+
+function durableLanesForEpisode(
+  schedules: readonly PendingSocialPublishSchedule[],
+  episodeId: string,
+): ReleaseCohortLane[] {
+  const deduped = new Map<string, PendingSocialPublishSchedule>();
+  for (const schedule of schedules) {
+    if (schedule.episode_id !== episodeId) continue;
+    const key = `${schedule.platform}|${schedule.language_code}`;
+    if (!deduped.has(key)) deduped.set(key, schedule);
+  }
+  return [...deduped.values()].map((schedule) => ({
+    platform: schedule.platform,
+    language: schedule.language_code,
+    ...(schedule.experiment_key
+      ? { experimentKey: schedule.experiment_key }
+      : {}),
+    ...(schedule.experiment_variant
+      ? { experimentVariant: schedule.experiment_variant }
+      : {}),
+  }));
+}
+
+function readyAtForLanguages(
+  candidates: readonly SocialPublishCandidate[],
+  requiredLanguages: ReadonlySet<string>,
+): Date | null {
+  const timestamps = candidates
+    .filter((candidate) => requiredLanguages.has(candidate.language_code))
+    .map((candidate) => Date.parse(candidate.ready_at));
+  if (timestamps.length === 0) return null;
+  const max = Math.max(...timestamps);
+  const date = new Date(max);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function missingLanguages(
+  required: ReadonlySet<string>,
+  ready: ReadonlySet<string>,
+): string[] {
+  return [...required].filter((language) => !ready.has(language));
+}
+
+async function enqueueExistingCohort(input: {
+  episodeId: string;
+  firstCandidate: SocialPublishCandidate;
+  title: string | null;
+  existingSchedule: PendingSocialPublishSchedule;
+  schedules: readonly PendingSocialPublishSchedule[];
+  episodeCandidates: readonly SocialPublishCandidate[];
+  log: (message: string) => void;
+}): Promise<void> {
+  // Durable cohort preservation: once an episode has any durable jobs, its lane
+  // identities are the source of truth. Re-deriving lanes from the current policy
+  // would reshape a cohort created under a different policy (e.g. legacy cohort
+  // created after activation but before this deployment) and insert extra lanes
+  // because the unique key is (episode_id, platform, language_code).
+  const existingLanes = durableLanesForEpisode(
+    input.schedules,
+    input.episodeId,
+  );
+  if (existingLanes.length === 0) return;
+  const requiredLanguages = new Set(existingLanes.map((lane) => lane.language));
+  const readyLanguages = new Set(
+    input.episodeCandidates.map((candidate) => candidate.language_code),
+  );
+  const missing = missingLanguages(requiredLanguages, readyLanguages);
+  if (missing.length > 0) {
+    input.log(
+      `⏳ [social-daemon] ${episodeLabel(input.title, input.episodeId)} · cohort not release-ready · ${missing.map((language) => `${languageFlag(language)} ${language}`).join(' · ')}`,
+    );
+    return;
+  }
+  const readyAt = readyAtForLanguages(
+    input.episodeCandidates,
+    requiredLanguages,
+  );
+  if (!readyAt) return;
+  const scheduledAt = new Date(input.existingSchedule.scheduled_at);
+
+  // Determine whether this is an interrupted enqueue (subset) vs a reshape.
+  const intendedLanes = await resolveReleaseCohortLanes({
+    episodeId: input.episodeId,
+    episodeCreatedAt: input.firstCandidate.episode_created_at,
+    scheduledAt,
+  });
+  const existingKeys = new Set(
+    existingLanes.map((lane) => `${lane.platform}|${lane.language}`),
+  );
+  const intendedKeys = new Set(
+    intendedLanes.map((lane) => `${lane.platform}|${lane.language}`),
+  );
+  const isSubset = [...existingKeys].every((key) => intendedKeys.has(key));
+  const isEqual = isSubset && existingKeys.size === intendedKeys.size;
+
+  const lanes =
+    isEqual || (isSubset && existingKeys.size < intendedKeys.size)
+      ? intendedLanes
+      : existingLanes;
+  if (lanes.length === 0) return;
+
+  const finalMissing = missingLanguages(
+    new Set(lanes.map((lane) => lane.language)),
+    readyLanguages,
+  );
+  if (finalMissing.length > 0) {
+    input.log(
+      `⏳ [social-daemon] ${episodeLabel(input.title, input.episodeId)} · cohort not release-ready · ${finalMissing.map((language) => `${languageFlag(language)} ${language}`).join(' · ')}`,
+    );
+    return;
+  }
+
+  await enqueueCohortJobs({
+    episodeId: input.episodeId,
+    title: input.title,
+    lanes,
+    readyAt,
+    scheduledAt,
+    log: input.log,
+  });
+}
+
+async function enqueueNewCohort(input: {
+  episodeId: string;
+  firstCandidate: SocialPublishCandidate;
+  title: string | null;
+  episodeCandidates: readonly SocialPublishCandidate[];
+  scheduledArticles: Date[];
+  now: Date;
+  log: (message: string) => void;
+}): Promise<void> {
+  const prospectiveScheduledAt = input.now;
   const requiredLanguages = new Set(
     await resolveRequiredReleaseLanguages({
       episodeId: input.episodeId,
-      episodeCreatedAt: firstCandidate.episode_created_at,
+      episodeCreatedAt: input.firstCandidate.episode_created_at,
       prospectiveScheduledAt,
     }),
   );
@@ -351,71 +507,58 @@ async function discoverAndEnqueueEpisode(input: {
   const readyLanguages = new Set(
     input.episodeCandidates.map((candidate) => candidate.language_code),
   );
-  const missingLanguages = [...requiredLanguages].filter(
-    (language) => !readyLanguages.has(language),
-  );
-  if (missingLanguages.length > 0) {
+  const missing = missingLanguages(requiredLanguages, readyLanguages);
+  if (missing.length > 0) {
     input.log(
-      `⏳ [social-daemon] ${episodeLabel(title, input.episodeId)} · cohort not release-ready · ${missingLanguages.map((language) => `${languageFlag(language)} ${language}`).join(' · ')}`,
+      `⏳ [social-daemon] ${episodeLabel(input.title, input.episodeId)} · cohort not release-ready · ${missing.map((language) => `${languageFlag(language)} ${language}`).join(' · ')}`,
     );
     return;
   }
 
-  const readyAt = new Date(
-    Math.max(
-      ...input.episodeCandidates
-        .filter((candidate) => requiredLanguages.has(candidate.language_code))
-        .map((candidate) => Date.parse(candidate.ready_at)),
-    ),
+  const readyAt = readyAtForLanguages(
+    input.episodeCandidates,
+    requiredLanguages,
   );
-  if (Number.isNaN(readyAt.getTime())) return;
+  if (!readyAt) return;
 
-  // An interrupted enqueue reuses the episode's existing release time. The
-  // queue reconciliation stage above already normalizes legacy staggered rows.
-  const scheduledAt = existingSchedule
-    ? new Date(existingSchedule.scheduled_at)
-    : nextReleaseSlot({
-        after: new Date(Math.max(readyAt.getTime(), input.now.getTime())),
-        scheduled: input.scheduledArticles,
-      });
+  const scheduledAt = nextReleaseSlot({
+    after: new Date(Math.max(readyAt.getTime(), input.now.getTime())),
+    scheduled: input.scheduledArticles,
+  });
   if (!scheduledAt) {
     input.log(
-      `🗓️ [social-daemon] ${episodeLabel(title, input.episodeId)} · no article slot inside the ${SCHEDULING_HORIZON_DAYS}-day horizon · staying discoverable for a later tick`,
+      `🗓️ [social-daemon] ${episodeLabel(input.title, input.episodeId)} · no article slot inside the ${SCHEDULING_HORIZON_DAYS}-day horizon · staying discoverable for a later tick`,
     );
     return;
   }
 
   const lanes = await resolveReleaseCohortLanes({
     episodeId: input.episodeId,
-    episodeCreatedAt: firstCandidate.episode_created_at,
+    episodeCreatedAt: input.firstCandidate.episode_created_at,
     scheduledAt,
   });
   if (lanes.length === 0) return;
 
-  // The v2 policy activates at a concrete instant. A daemon tick immediately
-  // before that boundary can select a slot immediately after it, so verify the
-  // final slot-derived lane set before enqueueing rather than assuming the
-  // prospective readiness check and the final schedule can never differ.
-  const finalRequiredLanguages = new Set(lanes.map((lane) => lane.language));
-  const finalMissingLanguages = [...finalRequiredLanguages].filter(
-    (language) => !readyLanguages.has(language),
+  const finalMissing = missingLanguages(
+    new Set(lanes.map((lane) => lane.language)),
+    readyLanguages,
   );
-  if (finalMissingLanguages.length > 0) {
+  if (finalMissing.length > 0) {
     input.log(
-      `⏳ [social-daemon] ${episodeLabel(title, input.episodeId)} · cohort not release-ready · ${finalMissingLanguages.map((language) => `${languageFlag(language)} ${language}`).join(' · ')}`,
+      `⏳ [social-daemon] ${episodeLabel(input.title, input.episodeId)} · cohort not release-ready · ${finalMissing.map((language) => `${languageFlag(language)} ${language}`).join(' · ')}`,
     );
     return;
   }
 
   const insertedAny = await enqueueCohortJobs({
     episodeId: input.episodeId,
-    title,
+    title: input.title,
     lanes,
     readyAt,
     scheduledAt,
     log: input.log,
   });
-  if (insertedAny && !existingSchedule) {
+  if (insertedAny) {
     input.scheduledArticles.push(scheduledAt);
   }
 }
@@ -668,6 +811,10 @@ async function reconcileClaimedJob(
   return true;
 }
 
+const LANGUAGE_EXPERIMENT_KEYS: ReadonlySet<string> = new Set(
+  Object.values(SOCIAL_LANGUAGE_EXPERIMENT_KEYS) as string[],
+);
+
 async function publishLanguageBatch(
   jobs: SocialPublishJobRow[],
   active: Record<string, SocialStrategyVersionRow | null>,
@@ -679,6 +826,9 @@ async function publishLanguageBatch(
   if (!firstJob) return;
   const guidanceByPlatform = Object.fromEntries(
     jobs.flatMap((job) => {
+      const isLanguageExperiment = Boolean(
+        job.experiment_key && LANGUAGE_EXPERIMENT_KEYS.has(job.experiment_key),
+      );
       const guidance = buildStrategyGuidance(
         job.platform,
         active[strategyMapKey(job.platform, jobLanguage(job))]?.config,
@@ -687,6 +837,7 @@ async function publishLanguageBatch(
           packagingActive:
             activePackagingExperiment(job.platform, jobLanguage(job)) !==
             undefined,
+          languageExperimentActive: isLanguageExperiment,
         },
       );
       return guidance ? [[job.platform, guidance]] : [];
