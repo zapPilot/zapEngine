@@ -14,8 +14,12 @@ const forbidMatch = (label, text, pattern) => {
 };
 
 const agents = read('apps/podcast-pipeline/AGENTS.md');
+const socialAgents = read('apps/podcast-pipeline/src/social/AGENTS.md');
 const daemon = read('apps/podcast-pipeline/src/social/daemon.ts');
 const policy = read('apps/podcast-pipeline/src/social/policy.ts');
+const languageAllocation = read(
+  'apps/podcast-pipeline/src/social/language-allocation.ts',
+);
 const readme = read('apps/podcast-pipeline/src/social/README.md');
 const recovery = read(
   'apps/podcast-pipeline/src/social/release-cohort-store.ts',
@@ -25,6 +29,8 @@ const claimMigration = read(
 );
 const contractTest =
   'apps/podcast-pipeline/src/social/daemon-release-cohort-contract.test.ts';
+const languageContractTest =
+  'apps/podcast-pipeline/src/social/language-allocation.test.ts';
 const recoveryTest =
   'apps/podcast-pipeline/src/social/release-cohort-store.test.ts';
 
@@ -34,15 +40,40 @@ requireMatch(
   /NON-NEGOTIABLE PRODUCT CONTRACT:[^\n]*episode releases as one cross-platform cohort/i,
 );
 requireMatch(
+  'scoped AGENTS readiness-before-slot invariant',
+  socialAgents,
+  /Readiness then slot then lanes/i,
+);
+requireMatch(
+  'scoped AGENTS language coverage invariant',
+  socialAgents,
+  /Each article must cover all three languages/i,
+);
+requireMatch(
   'daemon episode-level lane resolver',
   daemon,
   /resolveReleaseCohortLanes/,
+);
+requireMatch(
+  'daemon pre-slot readiness resolver',
+  daemon,
+  /resolveRequiredReleaseLanguages/,
 );
 requireMatch('daemon article slot scheduling', daemon, /nextReleaseSlot/);
 requireMatch(
   'daemon partial cohort fence',
   daemon,
   /listPartiallyPublishedCohorts/,
+);
+requireMatch(
+  'language allocation balanced profiles',
+  languageAllocation,
+  /profile:\s*'A'[\s\S]*profile:\s*'B'[\s\S]*profile:\s*'C'/,
+);
+requireMatch(
+  'language allocation platform experiment keys',
+  policy,
+  /x-language-v2[\s\S]*threads-language-v1[\s\S]*youtube-language-v1/,
 );
 requireMatch(
   'production queue reconciliation',
@@ -77,7 +108,7 @@ forbidMatch('policy', policy, /PLATFORM_PUBLISH_POLICY/);
 forbidMatch('README', readme, /\(episode, platform\) is the scheduling unit/i);
 forbidMatch('README', readme, /different platforms[^\n]*independent releases/i);
 
-for (const path of [contractTest, recoveryTest]) {
+for (const path of [contractTest, languageContractTest, recoveryTest]) {
   if (!existsSync(resolve(root, path))) {
     failures.push(`${path}: required executable contract test is missing`);
   }
