@@ -43,7 +43,7 @@ Classify each inspected issue before taking action:
 | `unfixed`              | Root cause is not fixed                                            | Candidate for repair        |
 | `fixed_pending_deploy` | Fix is merged but affected production runtime is still old         | Keep open                   |
 | `deployed_observing`   | Fixed version is deployed but observation window is incomplete     | Keep open                   |
-| `resolvable`           | Fix is deployed and production evidence satisfies the resolve gate | Resolve                     |
+| `resolvable`           | Fix is deployed and production evidence satisfies the resolve gate | Resolve — only with explicit user delegation |
 | `defer`                | Root cause, behavior, or safe fix is ambiguous                     | Leave unchanged and explain |
 
 ### Resolve gate
@@ -67,11 +67,18 @@ post-release zero-event window.
 Never resolve merely because an issue has been quiet for 24 hours when the fix
 has not yet reached production.
 
+Resolving also requires explicit user delegation (see
+`apps/control-center/MCP.md:37`): the user asked to close/resolve that issue
+or explicitly delegated Sentry cleanup. Without delegation, treat `resolvable`
+as ready but do not call `ops_resolve_sentry_issue`; report it instead. Pure
+`inspect production health` never auto-resolves.
+
 ## Clean up completed incidents
 
-Resolve every inspected issue that clearly satisfies the resolve gate before
-starting a new repair. Use `ops_resolve_sentry_issue` one issue at a time and
-include a concise evidence-based reason containing, when available:
+Only when the resolve gate passes **and** the delegation gate passes, resolve
+the inspected issues before starting a new repair. Use
+`ops_resolve_sentry_issue` one issue at a time and include a concise
+evidence-based reason containing, when available:
 
 - fix commit or PR;
 - production deploy/release identity or timestamp;
@@ -120,8 +127,9 @@ For the single selected incident:
    silencing the error.
 3. Add or update a regression test that reproduces the failure where practical.
 4. Run the narrowest repo-native checks: `pnpm turbo run test --filter=@zapengine/<pkg>`,
-   `pnpm turbo run type-check --filter=@zapengine/<pkg>`, `bash scripts/verify-jobs.sh format`
-   (widen to `type-check lint` for shared packages).
+   `pnpm turbo run type-check --filter=@zapengine/<pkg>`,
+   `bash scripts/verify-jobs.sh format` (widen to
+   `bash scripts/verify-jobs.sh type-check lint` for shared packages).
 5. Re-inspect with `force: true` only after deploy/release when fresh evidence is useful.
 6. Do not resolve just because tests pass or the fix is merged. Keep
    `fixed_pending_deploy`/`deployed_observing` until the resolve gate passes.
@@ -136,7 +144,8 @@ Operational: `ops_status` → `ops_investigate <fingerprint>` →
 
 Local post-fix: `pnpm turbo run test --filter=@zapengine/<pkg>`,
 `pnpm turbo run type-check --filter=@zapengine/<pkg>`,
-`bash scripts/verify-jobs.sh format repo contracts` / `type-check lint`.
+`bash scripts/verify-jobs.sh format repo contracts` /
+`bash scripts/verify-jobs.sh type-check lint`.
 
 CI: `quick-gates` = `format repo contracts`; `code-quality` =
 `type-check lint deadcode dup` — keep green, never weaken gates.
@@ -152,6 +161,7 @@ CI: `quick-gates` = `format repo contracts`; `code-quality` =
 | "Downgrading or suppressing the event is enough."     | Fix the underlying behavior; do not hide the signal.                                            |
 | "The mobile fix is on main."                          | Wait for an actual distributed release, then observe it.                                        |
 | "The provider is unknown, so there is nothing wrong." | Unknown is not healthy.                                                                         |
+| "The resolve gate is met, so resolve everything."     | Also require explicit user delegation; otherwise report ready but unresolved.                |
 
 ## Completion report
 
