@@ -203,14 +203,10 @@ function normalizeVisualSubjectInput(
 ): unknown {
   if (!isRecord(input)) return input;
   const id = input['id'];
-  const storyRole = input['storyRole'];
+  const storyRole = normalizedStoryRole(input['storyRole'], id, primarySubjectId);
   return {
     ...input,
-    storyRole: isVisualSubjectRole(storyRole)
-      ? storyRole
-      : id === primarySubjectId
-        ? 'primary'
-        : 'supporting',
+    storyRole,
     aliases: capArray(input['aliases'], 6),
     evidenceSceneIds: capArray(input['evidenceSceneIds'], 64),
     searchQueries: capArray(input['searchQueries'], 3),
@@ -220,11 +216,24 @@ function normalizeVisualSubjectInput(
   };
 }
 
+function normalizedStoryRole(
+  value: unknown,
+  subjectId: unknown,
+  primarySubjectId: string,
+): VisualSubject['storyRole'] {
+  if (isVisualSubjectRole(value)) {
+    return value;
+  }
+  return subjectId === primarySubjectId ? 'primary' : 'supporting';
+}
+
 function capArray(value: unknown, limit: number): unknown {
   return Array.isArray(value) ? value.slice(0, limit) : value;
 }
 
-function isVisualSubjectRole(value: unknown): value is VisualSubject['storyRole'] {
+function isVisualSubjectRole(
+  value: unknown,
+): value is VisualSubject['storyRole'] {
   return (
     typeof value === 'string' &&
     (VISUAL_SUBJECT_ROLES as readonly string[]).includes(value)
