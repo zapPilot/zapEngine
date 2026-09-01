@@ -9,9 +9,10 @@ app = 'from-fed-to-chain-api'
 # require Tokyo-local compute latency.
 primary_region = 'iad'
 kill_signal = 'SIGINT'
-# Ingest can still be waiting on LLM/TTS work when a deploy starts. Give the
-# process enough time to drain active work before Fly terminates the old Machine.
-kill_timeout = '300s'
+# Ingest work is durable and can be reclaimed after a restart, so shutdown only
+# needs a short grace window for HTTP drain and process cleanup rather than five
+# minutes to finish an entire LLM/TTS ingest in place.
+kill_timeout = '30s'
 
 [build]
   dockerfile = 'Dockerfile'
