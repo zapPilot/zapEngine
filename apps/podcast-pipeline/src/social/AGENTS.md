@@ -15,14 +15,17 @@ does not silently drift it back to per-platform language/timing behavior.
 - Recovery preserves already-created lane identities. A missed-slot repair may
   move an unpublished cohort as a whole, but must not reshape languages to make
   experimental counts look balanced. A successful lane is never resent.
-- **V2 generation identity is durable state, not something to infer from the
-  current clock.** A new v2 enqueue persists a rotating, experiment-tagged lane
-  before the generation-ambiguous Rednote lane. The database generation guard
-  rejects v2 rotating-lane inserts when an episode already has durable publish
-  jobs but none carry a v2 language experiment key. Do not reorder Rednote to be
-  first, remove that guard, or re-derive a durable cohort from a later repaired
-  `scheduled_at`; all three changes can silently reshape a legacy/interrupted
-  cohort across the rollout boundary.
+- **V2 generation and profile identity are durable state, not something to infer
+  from the current clock after enqueue starts.** `resolveReleaseCohortLanes()`
+  first persists the selected A/B/C slot profile under
+  `social-language-profile-v2`; missed-slot repair may change `scheduled_at` but
+  must reuse that persisted profile. A new v2 enqueue also persists a rotating,
+  experiment-tagged lane before the generation-ambiguous Rednote lane. The
+  database generation guard rejects v2 rotating-lane inserts when an episode
+  already has durable publish jobs but none carry a v2 language experiment key.
+  Do not reorder Rednote to be first, remove the profile assignment/guard, or
+  re-derive a durable cohort from a later repaired `scheduled_at`; those changes
+  can silently reshape a legacy/interrupted cohort across the rollout boundary.
 
 ## Language experiment v2
 
@@ -37,9 +40,10 @@ For episodes created from **2026-09-02 09:00 JST**
   B/C/A, C/A/B across successive JST days. Do not replace this with independent
   per-platform randomization; independent randomization can drop a language from
   an article and confound language with time-of-day.
-- Platform-specific experiment keys are `x-language-v2`,
-  `threads-language-v1`, and `youtube-language-v1`. The experiment variant is the
-  lane language.
+- Platform-specific post experiment keys are `x-language-v2`,
+  `threads-language-v1`, and `youtube-language-v1`; their variants are the lane
+  language. `social-language-profile-v2` is an internal durable allocation
+  record whose variant is A/B/C, not a post-performance arm.
 - Episodes created before activation stay on `LEGACY_SOCIAL_LANGUAGE_POLICY`
   even when released later. Deploying this experiment must not reshape backlog.
 
@@ -54,7 +58,7 @@ lane allocation:
 2. `discoverAndEnqueue()` chooses/reuses exactly one article slot only after that
    readiness barrier passes.
 3. `resolveReleaseCohortLanes()` derives the final platform × language lanes from
-   that selected slot.
+   that selected slot and durably records/reuses the article's A/B/C profile.
 4. `enqueueCohortJobs()` writes the same slot timestamp to every lane.
 
 Do not collapse these steps by deriving v2 readiness from a profile chosen before
@@ -77,6 +81,6 @@ state owns recovery from that point onward.
   but cannot alter lane allocation, readiness, or release timing.
 
 Any change to the coverage rule, rotation matrix, activation fence, durable v2
-generation marker/guard, or one-article/one-timestamp transaction boundary
-requires an explicit product decision plus updates to this file,
-`src/social/README.md`, and the executable contract tests.
+profile assignment/generation marker/guard, or one-article/one-timestamp
+transaction boundary requires an explicit product decision plus updates to this
+file, `src/social/README.md`, and the executable contract tests.
