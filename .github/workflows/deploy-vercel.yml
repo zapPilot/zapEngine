@@ -28,5 +28,4 @@ jobs:
       - name: Deploy production Vercel projects
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_GIT_SHA: ${{ github.event.workflow_run.head_sha }}
         run: node scripts/deploy-vercel-main.mjs
