@@ -114,7 +114,7 @@ const ARTICLE_A = '123e4567-e89b-42d3-a456-426614174000';
 const ARTICLE_B = '123e4567-e89b-42d3-a456-426614174111';
 const ARTICLE_C = '123e4567-e89b-42d3-a456-426614174222';
 const ARTICLE_D = '123e4567-e89b-42d3-a456-426614174333';
-const CREATED_AT = '2026-08-31T00:00:00.000Z';
+const CREATED_AT = '2026-09-01T00:10:00.000Z';
 
 function candidate(episodeId: string, language_code: 'zh-Hant' | 'ja' | 'en') {
   return {
