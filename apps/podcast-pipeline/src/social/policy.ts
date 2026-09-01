@@ -30,7 +30,11 @@ export const SOCIAL_LANGUAGE_EXPERIMENT_KEYS = {
   youtube: 'youtube-language-v1',
 } as const satisfies Record<'x' | 'threads' | 'youtube', string>;
 
-const ROTATING_LANGUAGES = ['en', 'ja', 'zh-Hant'] as const satisfies readonly SocialLanguageCode[];
+const ROTATING_LANGUAGES = [
+  'en',
+  'ja',
+  'zh-Hant',
+] as const satisfies readonly SocialLanguageCode[];
 
 function rotatingLanguagePolicy(
   experimentKey: string,
