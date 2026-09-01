@@ -55,11 +55,13 @@ beforeEach(() => {
 describe('publishSocialPlatforms', () => {
   it('records every successful job', async () => {
     const path = await statePath();
+    // The durable `social_posts` write runs before the machine-local file, so
+    // the local entry must NOT exist yet when this is invoked.
     const persistPublished = vi.fn(async (published: PublishedSocialPost) => {
       const state = await readPublishState(path);
       expect(
         getPublishedPlatform(state, 'episode-1', published.platform),
-      ).toBeDefined();
+      ).toBeUndefined();
     });
     const jobs = [
       job(
@@ -237,7 +239,7 @@ describe('publishSocialPlatforms', () => {
     ).toMatchObject({ url: 'https://x.com/status/2' });
   });
 
-  it('fails the lane when telemetry recording throws a non-Error value, after the post is already saved locally', async () => {
+  it('fails the lane when the durable post record throws a non-Error value, before anything is saved locally', async () => {
     const path = await statePath();
     const onLog = vi.fn();
     const persistPublished = vi
@@ -263,19 +265,21 @@ describe('publishSocialPlatforms', () => {
     expect((error as Error).cause).toMatchObject({
       message: 'database string failure',
     });
+    // Nothing durable and nothing local: the next tick re-checks `social_posts`,
+    // finds no post, and legitimately retries the lane.
     expect(
       getPublishedPlatform(
         await readPublishState(path),
         'episode-string-error',
         'threads',
       ),
-    ).toBeDefined();
+    ).toBeUndefined();
     expect(onLog).toHaveBeenCalledWith(
       '[threads] ⚠ Published remotely, but telemetry recording failed: database string failure',
     );
   });
 
-  it('fails the lane when local duplicate state cannot be saved, before telemetry ever runs', async () => {
+  it('keeps the durable post record when the local duplicate state cannot be saved', async () => {
     const path = await statePath();
     const stateFailure = new Error('rename denied');
     fsMocks.rename.mockRejectedValueOnce(stateFailure);
@@ -303,7 +307,10 @@ describe('publishSocialPlatforms', () => {
     expect(error).toBeInstanceOf(SocialReleaseFailureError);
     expect((error as SocialReleaseFailureError).phase).toBe('state');
     expect((error as Error).cause).toBe(stateFailure);
-    expect(persistPublished).not.toHaveBeenCalled();
+    // The durable record is what protects against a duplicate publish, and it
+    // has to survive a local-filesystem failure. This is the interleaving that
+    // already produced two live Rednote posts for one episode.
+    expect(persistPublished).toHaveBeenCalledTimes(1);
     expect(onLog).toHaveBeenCalledWith(
       '[x] ⚠ Published remotely, but local duplicate state was not saved: rename denied',
     );

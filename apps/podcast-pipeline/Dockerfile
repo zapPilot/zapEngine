@@ -14,6 +14,7 @@ COPY packages/design-tokens/package.json packages/design-tokens/package.json
 COPY packages/eslint-config/package.json packages/eslint-config/package.json
 COPY packages/knip-config/package.json packages/knip-config/package.json
 COPY packages/tsconfig/package.json packages/tsconfig/package.json
+COPY packages/types/package.json packages/types/package.json
 RUN HUSKY=0 pnpm install --frozen-lockfile --filter @zapengine/podcast-pipeline... --store-dir=/pnpm/store
 
 FROM deps AS build
@@ -21,8 +22,10 @@ COPY packages/design-tokens packages/design-tokens
 COPY packages/eslint-config packages/eslint-config
 COPY packages/knip-config packages/knip-config
 COPY packages/tsconfig packages/tsconfig
+COPY packages/types packages/types
 COPY apps/podcast-pipeline apps/podcast-pipeline
 RUN pnpm --filter @zapengine/design-tokens build \
+ && pnpm --filter @zapengine/types build \
  && pnpm --filter @zapengine/podcast-pipeline build \
  && pnpm --filter @zapengine/podcast-pipeline deploy --legacy /out \
  && cp -R apps/podcast-pipeline/assets /out/assets \

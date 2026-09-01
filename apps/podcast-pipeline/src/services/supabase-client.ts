@@ -41,6 +41,29 @@ export function throwSupabaseError(error: unknown): never {
   throw normalized;
 }
 
+/**
+ * Fly deploys `main` automatically while Supabase migrations are applied by hand
+ * afterwards, so code routinely reaches production before the RPC it calls
+ * exists. Separate that one rollout condition from a real failure: PostgREST
+ * answers `PGRST202` and Postgres `42883` for an unknown function, and
+ * PostgREST's message names the function it could not resolve.
+ */
+export function isMissingSupabaseRpc(error: unknown, rpcName: string): boolean {
+  if (!isRecord(error)) {
+    return false;
+  }
+  const code = error['code'];
+  if (code === 'PGRST202' || code === '42883') {
+    return true;
+  }
+  const message = error['message'];
+  return (
+    typeof message === 'string' &&
+    message.includes(rpcName) &&
+    message.includes('schema cache')
+  );
+}
+
 function formatSupabaseError(error: unknown): string {
   if (!isRecord(error)) {
     return String(error);

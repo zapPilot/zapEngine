@@ -117,7 +117,9 @@ describe('PodcastPipelineView', () => {
     });
 
     expect(screen.queryByText('Visual failure')).not.toBeInTheDocument();
-    expect(screen.queryByText('previous attempt failed')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('previous attempt failed'),
+    ).not.toBeInTheDocument();
   });
 
   it('disables retry while the server read model says video cannot be restarted', () => {

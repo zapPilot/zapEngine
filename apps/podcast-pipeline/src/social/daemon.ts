@@ -54,6 +54,7 @@ import {
   listUnfinishedSocialPublishJobs,
   type PendingSocialPublishSchedule,
   reconcileSocialPublishJob,
+  refundSocialPublishJobAttempt,
   releaseSocialPublishJobLease,
   type SocialEpisodeLocalizationTitle,
   type SocialMetricWindowLabel,
@@ -755,6 +756,7 @@ async function publishDueJobs(
       );
     } catch (error) {
       await releaseUntouchedLeases(groups.slice(index + 1).flat(), now, log);
+      await refundUntriedLanesInFailedGroup(pendingJobs, error, now, log);
       throw error;
     }
   }
@@ -771,6 +773,7 @@ async function releaseUntouchedLeases(
         jobId: job.id,
         owner: OWNER,
         scheduledAt: job.scheduled_at,
+        attemptCount: job.attempt_count,
         now,
       });
     } catch (releaseError) {
@@ -782,6 +785,38 @@ async function releaseUntouchedLeases(
           phase: 'lease',
           cause: releaseError,
         }).message,
+      );
+    }
+  }
+}
+
+/**
+ * The lanes after the failing one in its own group keep their lease on purpose
+ * (see `releaseSocialPublishJobLease`), so `releaseUntouchedLeases` never sees
+ * them -- but the cohort claim already charged them an attempt they never used.
+ * Give exactly those back, identified by the error's own untouched-lane list.
+ */
+async function refundUntriedLanesInFailedGroup(
+  jobs: readonly SocialPublishJobRow[],
+  error: unknown,
+  now: Date,
+  log: (message: string) => void,
+): Promise<void> {
+  if (!(error instanceof SocialReleaseFailureError)) return;
+  const untouched = new Set<string>(error.untouchedLanes);
+  if (untouched.size === 0) return;
+  for (const job of jobs) {
+    if (!untouched.has(job.platform)) continue;
+    try {
+      await refundSocialPublishJobAttempt({
+        jobId: job.id,
+        owner: OWNER,
+        attemptCount: job.attempt_count,
+        now,
+      });
+    } catch (refundError) {
+      log(
+        `⚠️ [social-daemon] ${laneLabel(job.platform, jobLanguage(job))} · attempt refund failed · job=${job.id} · ${errorMessage(refundError)}`,
       );
     }
   }

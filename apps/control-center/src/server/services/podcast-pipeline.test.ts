@@ -148,6 +148,26 @@ describe('podcast pipeline summary', () => {
     });
   });
 
+  it('disables restart when a language has no render row for the RPC to update', () => {
+    // Legacy single-language episodes and partial enqueues leave fewer than
+    // three `episode_videos` rows. The retry RPC only updates existing rows and
+    // reads a missing one as completed, so it answers 409 "already completed"
+    // for an episode this same view reports as queued.
+    const summary = summarize({
+      visuals: [visual({ status: 'completed' })],
+      renders: queuedRenders().slice(0, 1),
+    });
+
+    expect(summary).toMatchObject({
+      videoStatus: 'queued',
+      canRestartVideo: false,
+    });
+    expect(summary?.renders).toHaveLength(3);
+    expect(
+      summary?.renders.filter(({ updatedAt }) => updatedAt === null),
+    ).toHaveLength(2);
+  });
+
   it('keeps an article in TTS until all three languages have renderable audio', () => {
     const summary = summarize({ localizationRows: localizations(false) });
 

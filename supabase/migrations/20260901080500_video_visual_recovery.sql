@@ -83,8 +83,18 @@ $$;
 -- Narrow operator remediation for Control Center. This deliberately restarts
 -- only the unfinished video checkpoints: translation, scripts, narration and
 -- classroom audio are prerequisites and are never rewritten here.
+--
+-- `p_visual_version` is the caller's currently deployed visual version. Both
+-- claim RPCs fence on `visual_version`, so requeueing work under a checkpoint
+-- version the running workers no longer pass writes it into a state nothing can
+-- ever claim -- and, because leaving 'failed' also re-arms the notification, it
+-- would stop alerting too. Supplying it lets a stale checkpoint be repaired the
+-- same way `enqueue_episode_video_visual` repairs one. It defaults to null so
+-- the signature stays callable during the rollout window; a null caller keeps
+-- the row's existing version.
 create or replace function from_fed_to_chain.retry_episode_video_generation(
-  p_episode_id uuid
+  p_episode_id uuid,
+  p_visual_version text default null
 )
 returns boolean
 language plpgsql
@@ -94,7 +104,10 @@ as $$
 declare
   visual_record record;
   ready_languages integer;
+  target_visual_version text;
 begin
+  target_visual_version := nullif(btrim(coalesce(p_visual_version, '')), '');
+
   select
     visual.status,
     visual.visual_hash,
@@ -116,6 +129,34 @@ begin
     raise exception 'Episode video generation is currently processing'
       using errcode = '55000';
   end if;
+
+  -- Locking the visual row alone is not enough: `claim_episode_video_v2` locks
+  -- only `episode_videos`, so without this a worker can claim -- and then fail
+  -- -- a render between the lease preflight below and the resets further down,
+  -- leaving that language terminal while this function still returns success.
+  --
+  -- `nowait`, not a plain wait, because that same claim RPC opens with a
+  -- table-wide expired-lease reap UPDATE which does wait and which the planner
+  -- drives through the lease index, taking rows in `lease_expires_at` order --
+  -- unrelated to the key order used here. Two stuck renders of one episode
+  -- whose lease order inverts their key order is exactly the state that makes
+  -- an operator click Retry, and a waiting lock there forms a real cycle whose
+  -- victim is the worker's claim rather than this call. Never waiting on a
+  -- render row while holding one makes the cycle impossible, and the visual row
+  -- is always taken first and never while holding a render row, so it cannot
+  -- close one either. The cost is an honest conflict when a millisecond-scale
+  -- worker RPC happens to hold a row.
+  begin
+    perform 1
+    from from_fed_to_chain.episode_videos video
+    where video.episode_id = p_episode_id
+    order by video.episode_localization_id
+    for update nowait;
+  exception
+    when lock_not_available then
+      raise exception 'Episode video generation is currently processing'
+        using errcode = '55000';
+  end;
 
   -- The UI applies the same guard for operator feedback, but correctness lives
   -- here: a service-role caller must not be able to clear a live ffmpeg/render
@@ -151,7 +192,16 @@ begin
 
   -- A completed shared visual is a valid checkpoint. Keep it and every already
   -- completed language asset; only requeue unfinished localization renders.
-  if visual_record.status = 'completed' then
+  --
+  -- Only when it was produced under the version the workers still claim. A
+  -- checkpoint from an older visual version is precisely what a version bump
+  -- invalidates, so it falls through to the re-plan path below rather than
+  -- being stamped back onto the renders.
+  if visual_record.status = 'completed'
+      and (
+        target_visual_version is null
+        or visual_record.visual_version = target_visual_version
+      ) then
     if visual_record.visual_hash is null then
       raise exception 'Completed episode visual is missing its checkpoint hash'
         using errcode = '23514';
@@ -202,19 +252,27 @@ begin
         and video.lease_expires_at > now()
       );
 
-    -- A render can be claimed after the preflight check but before the update
-    -- above. If that happens, keep the claim intact and abort the whole retry
-    -- transaction instead of returning success after only partially requeueing
-    -- the episode.
+    -- Post-condition, not a race window patch: the render rows are locked for
+    -- this transaction, so nothing can have moved underneath the reset. Assert
+    -- the outcome anyway, because the failure it guards against is silent --
+    -- a language left 'failed' or 'processing' keeps its exhausted attempt
+    -- count, is never claimed again, and the operator was told the retry
+    -- succeeded. Everything must now be either an intact completed checkpoint
+    -- or a freshly queued render.
+    --
+    -- Deliberately NOT the '55000' used by the lease conflicts above. Those are
+    -- expected states the route answers with a bare 409, so reusing the code
+    -- would route an assertion breach into the one path that reports nothing.
+    -- Row locks do not block inserts, so a concurrent `enqueue_episode_video`
+    -- plus a claim can still reach this; it must arrive as telemetry.
     if exists (
       select 1
       from from_fed_to_chain.episode_videos video
       where video.episode_id = p_episode_id
-        and video.status = 'processing'
-        and video.lease_expires_at > now()
+        and video.status not in ('completed', 'queued')
     ) then
-      raise exception 'Episode video generation is currently processing'
-        using errcode = '55000';
+      raise exception 'Episode video retry could not requeue every unfinished render'
+        using errcode = '40001';
     end if;
 
     return true;
@@ -228,7 +286,10 @@ begin
       progress_percent = null,
       progress_stage = null,
       visual_hash = null,
-      visual_version = visual_record.visual_version,
+      visual_version = coalesce(
+        target_visual_version,
+        visual_record.visual_version
+      ),
       manifest = null,
       manifest_hash = null,
       renderer_version = null,
@@ -259,6 +320,12 @@ begin
       progress_stage = null,
       visual_payload = null,
       visual_hash = null,
+      -- Safe to move only because the render rows above already dropped their
+      -- checkpoint hash: the composite FK is not enforced while it is null.
+      visual_version = coalesce(
+        target_visual_version,
+        visual.visual_version
+      ),
       r2_prefix = null,
       attempt_count = 0,
       next_attempt_at = now(),
@@ -290,9 +357,13 @@ revoke execute on function from_fed_to_chain.mark_episode_video_visual_failure_n
 grant execute on function from_fed_to_chain.mark_episode_video_visual_failure_notified(uuid)
   to service_role;
 
-revoke execute on function from_fed_to_chain.retry_episode_video_generation(uuid)
+-- The single-argument signature existed only inside this branch; drop it so the
+-- overload cannot be resolved with the version argument silently omitted.
+drop function if exists from_fed_to_chain.retry_episode_video_generation(uuid);
+
+revoke execute on function from_fed_to_chain.retry_episode_video_generation(uuid, text)
   from public, anon, authenticated;
-grant execute on function from_fed_to_chain.retry_episode_video_generation(uuid)
+grant execute on function from_fed_to_chain.retry_episode_video_generation(uuid, text)
   to service_role;
 
 notify pgrst, 'reload schema';

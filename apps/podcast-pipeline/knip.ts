@@ -21,6 +21,10 @@ export default defineKnipConfig({
   ignoreDependencies: [
     // Pre-existing: loaded via CSS @import; knip only resolves JS imports
     '@zapengine/design-tokens',
+    // Imported only through the `./shared` subpath, which knip cannot trace
+    // back from the package's `exports` map to source. Same reason it is listed
+    // in apps/control-center and apps/account-engine.
+    '@zapengine/types',
   ],
   vitest: { config: ['vitest.config.ts'], entry: ['src/**/*.test.ts'] },
 });

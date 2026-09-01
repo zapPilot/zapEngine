@@ -313,7 +313,15 @@ function disambiguateSubjectIdentity(subject: VisualSubject): VisualSubject {
   return {
     ...subject,
     canonicalName: contextualName,
-    aliases: uniqueNames([originalName, ...subject.aliases]),
+    // Demoting the original name grows the array, so it has to be re-capped:
+    // `parseVisualSubjectCatalog` re-validates the disambiguated catalog against
+    // the same strict schema, and a subject that arrived at the bound would
+    // otherwise fail that second parse and burn a visual attempt. The original
+    // name leads because it is the term the image search still needs.
+    aliases: uniqueNames([originalName, ...subject.aliases]).slice(
+      0,
+      SUBJECT_LIMITS.aliases,
+    ),
   };
 }
 

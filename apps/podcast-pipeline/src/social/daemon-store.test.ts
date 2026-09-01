@@ -38,6 +38,7 @@ import {
   listUnfinishedSocialPublishJobs,
   publishRetryDelayMs,
   reconcileSocialPublishJob,
+  refundSocialPublishJobAttempt,
   releaseSocialPublishJobLease,
   rescheduleSocialPublishJob,
 } from './daemon-store.js';
@@ -56,6 +57,7 @@ function queryBuilder() {
     lt: vi.fn(),
     lte: vi.fn(),
     order: vi.fn(),
+    range: vi.fn(),
     limit: vi.fn(),
     upsert: vi.fn(),
     update: vi.fn(),
@@ -74,6 +76,7 @@ function queryBuilder() {
     'lt',
     'lte',
     'order',
+    'range',
     'limit',
     'upsert',
     'update',
@@ -272,6 +275,70 @@ describe('social daemon store', () => {
     await expect(listUnfinishedSocialPublishJobs()).rejects.toThrow(
       'list boom',
     );
+  });
+
+  it('pages the candidate view instead of trusting one PostgREST response', async () => {
+    // The view grows forever and PostgREST truncates at its row cap without an
+    // error. Ascending order means a truncated read returns only the OLDEST
+    // rows, so new episodes would silently stop being discovered.
+    const page = (from: number, count: number) =>
+      Array.from({ length: count }, (_unused, index) => ({
+        episode_id: `episode-${from + index}`,
+        ready_at: '2026-08-16T10:00:00Z',
+        language_code: 'zh-Hant',
+        episode_created_at: '2026-08-16T00:00:00Z',
+      }));
+    queue(
+      { data: page(0, 1000), error: null },
+      { data: page(1000, 7), error: null },
+    );
+
+    await expect(
+      listSocialPublishCandidates('2026-08-16T09:00:00Z'),
+    ).resolves.toHaveLength(1007);
+
+    const ranges = mocks.calls.filter((call) => call.method === 'range');
+    expect(ranges.map((call) => call.args)).toEqual([
+      [0, 999],
+      [1000, 1999],
+    ]);
+    // A tie on ready_at must not let rows drift between pages.
+    expect(
+      mocks.calls
+        .filter((call) => call.method === 'order')
+        .map((call) => call.args[0]),
+    ).toEqual([
+      'ready_at',
+      'episode_id',
+      'language_code',
+      'ready_at',
+      'episode_id',
+      'language_code',
+    ]);
+  });
+
+  it('chunks the per-episode candidate lookup so the request line cannot overflow', async () => {
+    // supabase-js puts the whole id list in the GET query string and never falls
+    // back to POST, so an unchunked `.in()` dies on the gateway header buffer
+    // well before the row cap is reached.
+    const ids = Array.from(
+      { length: 250 },
+      (_unused, index) => `episode-${index}`,
+    );
+    queue(
+      { data: [], error: null },
+      { data: [], error: null },
+      { data: [], error: null },
+    );
+
+    await expect(
+      listSocialPublishCandidatesForEpisodes(ids),
+    ).resolves.toHaveLength(0);
+
+    const inCalls = mocks.calls.filter((call) => call.method === 'in');
+    expect(inCalls.map((call) => (call.args[1] as string[]).length)).toEqual([
+      100, 100, 50,
+    ]);
   });
 
   it('maps candidate, enqueue, schedule, claim, and metric-list queries', async () => {
@@ -724,7 +791,7 @@ describe('social daemon store', () => {
     ).resolves.toBe(false);
   });
 
-  it('releases an untouched lane back to queued without applying retry backoff', async () => {
+  it('releases an untouched lane back to queued and hands its attempt back', async () => {
     const now = new Date('2026-08-16T10:05:00Z');
     queue({ data: { id: 'job-1' }, error: null });
     await expect(
@@ -732,6 +799,7 @@ describe('social daemon store', () => {
         jobId: 'job-1',
         owner: 'mac:1',
         scheduledAt: '2026-08-16T10:00:00Z',
+        attemptCount: 3,
         now,
       }),
     ).resolves.toBeUndefined();
@@ -741,6 +809,9 @@ describe('social daemon store', () => {
       next_attempt_at: '2026-08-16T10:00:00Z',
       lease_owner: null,
       lease_expires_at: null,
+      // The cohort claim charged this lane an attempt it never spent; without
+      // the refund a persistently failing sibling walks it to the claim ceiling.
+      attempt_count: 2,
       updated_at: now.toISOString(),
     });
 
@@ -750,8 +821,41 @@ describe('social daemon store', () => {
         jobId: 'job-lost',
         owner: 'mac:1',
         scheduledAt: '2026-08-16T10:00:00Z',
+        attemptCount: 1,
         now,
       }),
     ).rejects.toThrow('lease was lost');
+  });
+
+  it('refunds an untried lane in place, leaving its lease and status alone', async () => {
+    const now = new Date('2026-08-16T10:05:00Z');
+    queue({ data: { id: 'job-2' }, error: null });
+    await expect(
+      refundSocialPublishJobAttempt({
+        jobId: 'job-2',
+        owner: 'mac:1',
+        attemptCount: 4,
+        now,
+      }),
+    ).resolves.toBeUndefined();
+    const updates = mocks.calls.filter((call) => call.method === 'update');
+    expect(updates[updates.length - 1]?.args[0]).toEqual({
+      attempt_count: 3,
+      updated_at: now.toISOString(),
+    });
+
+    // Nothing to give back, so nothing is written at all.
+    mocks.calls.length = 0;
+    await expect(
+      refundSocialPublishJobAttempt({
+        jobId: 'job-3',
+        owner: 'mac:1',
+        attemptCount: 0,
+        now,
+      }),
+    ).resolves.toBeUndefined();
+    expect(mocks.calls.filter((call) => call.method === 'update')).toHaveLength(
+      0,
+    );
   });
 });

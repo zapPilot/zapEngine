@@ -68,6 +68,7 @@ The remote API deliberately does not register `POST /api/costs/sync`; cost colle
 Fly operational signals use the Fly Machines HTTP API and require `FLY_OPS_TOKEN`; they do not depend on `flyctl` being installed in Vercel.
 
 The remote server uses these environment variables as applicable to its read paths and bounded remediation paths:
+
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `SUPABASE_DB_SCHEMA` (only when using a non-default schema)

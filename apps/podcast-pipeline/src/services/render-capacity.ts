@@ -6,6 +6,7 @@ import {
 } from './fly-machines.js';
 import {
   getPipelineSupabase,
+  isMissingSupabaseRpc,
   type PipelineSupabaseClient,
 } from './supabase-client.js';
 import {
@@ -15,6 +16,7 @@ import {
   type TelegramChatId,
 } from './telegram.js';
 import { EPISODE_VIDEO_VISUAL_VERSION } from './video-jobs.js';
+import { VISUAL_FAILURE_NOTICE_RPC } from './video-visual-failure-notifier.js';
 
 /**
  * Keeps the on-demand `render` Fly process group alive exactly as long as there
@@ -540,32 +542,16 @@ function toEpochMs(timestamp: string): number {
 async function loadOptionalVisualFailureNotices(
   supabase: PipelineSupabaseClient,
 ): Promise<VisualFailureNoticeWork[]> {
-  const { data, error } = await supabase.rpc(
-    'reap_failed_episode_video_visual_notifications',
-    { p_limit: 20 },
-  );
+  const { data, error } = await supabase.rpc(VISUAL_FAILURE_NOTICE_RPC, {
+    p_limit: 20,
+  });
   if (!error) {
     return (data ?? []) as VisualFailureNoticeWork[];
   }
-  if (isMissingVisualFailureNoticeRpc(error)) {
+  if (isMissingSupabaseRpc(error, VISUAL_FAILURE_NOTICE_RPC)) {
     return [];
   }
   throw new Error(supabaseErrorMessage(error), { cause: error });
-}
-
-function isMissingVisualFailureNoticeRpc(error: unknown): boolean {
-  if (!error || typeof error !== 'object') {
-    return false;
-  }
-  const record = error as { code?: unknown; message?: unknown };
-  if (record.code === 'PGRST202' || record.code === '42883') {
-    return true;
-  }
-  return (
-    typeof record.message === 'string' &&
-    record.message.includes('reap_failed_episode_video_visual_notifications') &&
-    record.message.includes('schema cache')
-  );
 }
 
 async function selectRows<T>(

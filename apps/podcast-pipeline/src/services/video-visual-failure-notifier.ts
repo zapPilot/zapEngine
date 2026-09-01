@@ -1,6 +1,7 @@
 import { toError } from '../lib/errorMessage.js';
 import {
   getPipelineSupabase,
+  isMissingSupabaseRpc,
   type PipelineSupabaseClient,
   throwSupabaseError,
 } from './supabase-client.js';
@@ -11,6 +12,14 @@ import {
 } from './telegram.js';
 
 const DEFAULT_SWEEP_INTERVAL_MS = 15_000;
+
+/**
+ * Owned here because the only other caller -- the render-capacity reconciler --
+ * reads this RPC purely to decide whether to wake the process that runs this
+ * notifier.
+ */
+export const VISUAL_FAILURE_NOTICE_RPC =
+  'reap_failed_episode_video_visual_notifications';
 
 interface VisualFailureNotificationRow {
   episode_id: string | null;
@@ -82,12 +91,11 @@ async function sweepOnce(
   let supabase: PipelineSupabaseClient;
   try {
     supabase = injectedSupabase ?? getPipelineSupabase();
-    const { data, error } = await supabase.rpc(
-      'reap_failed_episode_video_visual_notifications',
-      { p_limit: 20 },
-    );
+    const { data, error } = await supabase.rpc(VISUAL_FAILURE_NOTICE_RPC, {
+      p_limit: 20,
+    });
     if (error) {
-      if (isMissingVisualFailureNoticeRpc(error)) return;
+      if (isMissingSupabaseRpc(error, VISUAL_FAILURE_NOTICE_RPC)) return;
       throwSupabaseError(error);
     }
     failures = Array.isArray(data)
@@ -137,19 +145,4 @@ async function sweepOnce(
       );
     }
   }
-}
-
-function isMissingVisualFailureNoticeRpc(error: unknown): boolean {
-  if (!error || typeof error !== 'object') {
-    return false;
-  }
-  const record = error as { code?: unknown; message?: unknown };
-  if (record.code === 'PGRST202' || record.code === '42883') {
-    return true;
-  }
-  return (
-    typeof record.message === 'string' &&
-    record.message.includes('reap_failed_episode_video_visual_notifications') &&
-    record.message.includes('schema cache')
-  );
 }

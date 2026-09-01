@@ -1,3 +1,5 @@
+import { EPISODE_VIDEO_VISUAL_VERSION } from '@zapengine/types/shared';
+
 import type {
   PodcastPipelineEpisode,
   PodcastPipelineJobState,
@@ -159,9 +161,14 @@ export function createPodcastPipelineService(input: {
       if (!client) {
         throw new Error('Supabase podcast pipeline is not connected');
       }
+      // Both claim RPCs fence on visual_version, so a requeue that does not
+      // stamp the version the deployed workers pass is never claimed again.
       const { data, error } = await client.rpc(
         'retry_episode_video_generation',
-        { p_episode_id: episodeId },
+        {
+          p_episode_id: episodeId,
+          p_visual_version: EPISODE_VIDEO_VISUAL_VERSION,
+        },
       );
       if (error) {
         throw error;
@@ -263,11 +270,19 @@ export function summarizePodcastPipeline(
       localizations,
       visual,
       renders,
+      // `renders` carries one entry per audio-complete language, and a language
+      // with no `episode_videos` row is synthesised as 'pending'. The retry RPC
+      // only updates existing rows, so those episodes -- legacy single-language
+      // renders, and partial enqueues -- can never be repaired by it. Offering
+      // the button there produces a 409 that claims the video is already
+      // completed while this same view shows it queued.
       canRestartVideo:
         ttsStatus === 'completed' &&
         visual !== null &&
         videoStatus !== 'completed' &&
-        !activeVideoLease,
+        !activeVideoLease &&
+        renders.length === LANGUAGES.length &&
+        renders.every(({ updatedAt }) => updatedAt !== null),
     };
   });
 }
