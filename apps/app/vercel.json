@@ -2,7 +2,9 @@
   "buildCommand": "cd ../.. && pnpm turbo run build:web --filter=@zapengine/app",
   "framework": null,
   "outputDirectory": "dist/web",
-  "ignoreCommand": "if [ -n \"$VERCEL_GIT_COMMIT_REF\" ] && [ \"$VERCEL_GIT_COMMIT_REF\" != \"main\" ]; then exit 0; fi; exit 1",
+  "git": {
+    "deploymentEnabled": false
+  },
   "rewrites": [
     {
       "source": "/(.*)",
