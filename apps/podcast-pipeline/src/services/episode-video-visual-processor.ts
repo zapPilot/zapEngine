@@ -113,6 +113,11 @@ export function createEpisodeVideoVisualProcessor(
         source.englishScript,
         visualSections.isPackaged,
       );
+      // Visual identity follows the publisher headline, not a localized title
+      // that editorial packaging may have rewritten and stripped proper nouns
+      // from. English body text remains useful search evidence for scenes.
+      const visualSearchTitle =
+        source.sourceTitle?.trim() || source.englishTitle.trim();
       const editorialSentences = getPodcastEditorialSentences(source.script);
       const generated = await dependencies.generateStoryboard({
         title: source.title,
@@ -120,7 +125,7 @@ export function createEpisodeVideoVisualProcessor(
         editorialScript,
         editorialSentences,
         isPackaged: visualSections.isPackaged,
-        searchTitle: source.englishTitle,
+        ...(visualSearchTitle ? { searchTitle: visualSearchTitle } : {}),
         searchScript: englishBodyScript,
         durationMs: analysis.durationMs,
         signal: context.signal,
@@ -135,6 +140,9 @@ export function createEpisodeVideoVisualProcessor(
                 visualSections.body.length
             : 0,
         ),
+        searchTitleSource: source.sourceTitle?.trim()
+          ? 'publisher'
+          : 'english-localization',
       });
       const brandedDraft = applyAndValidatePodcastBrandingToStoryboard(
         source.script,
@@ -170,7 +178,7 @@ export function createEpisodeVideoVisualProcessor(
         {
           draft: brandedDraft,
           title: source.title,
-          ...(source.englishTitle ? { searchTitle: source.englishTitle } : {}),
+          ...(visualSearchTitle ? { searchTitle: visualSearchTitle } : {}),
           script: source.script,
           ...(englishBodyScript ? { searchScript: englishBodyScript } : {}),
           durationMs: analysis.durationMs,
@@ -287,6 +295,9 @@ export function createEpisodeVideoVisualProcessor(
         episode: source.episodeId,
         phase: 'uploaded',
         candidateCount: assetPlan.assets.length,
+        articleAssetCount: assetPlan.assets.filter(
+          (asset) => asset.provider === 'article',
+        ).length,
         elapsedMs: Date.now() - uploadStartedAt,
       });
 
@@ -478,6 +489,8 @@ function logPlannerProgress(
     searchResultCount: progress.searchResultCount,
     entityFilteredCount: progress.entityFilteredCount,
     searchEntities: progress.searchEntities,
+    searchIntent: progress.searchIntent,
+    subjectKey: progress.subjectKey,
     rejectedCandidateCount: progress.rejectedCandidateCount,
     rejectionSummary: progress.rejectionSummary,
     elapsedMs: progress.elapsedMs,
