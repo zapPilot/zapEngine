@@ -12,7 +12,7 @@ in production; it does not define a competing policy.
 
 | Concern                              | Canonical source                                                                                  |
 | ------------------------------------ | ------------------------------------------------------------------------------------------------- |
-| Product invariant                    | `apps/podcast-pipeline/AGENTS.md` — Social release cohort invariant                               |
+| Product invariant                    | `apps/podcast-pipeline/AGENTS.md` + `src/social/AGENTS.md`                                        |
 | Executable invariant                 | `src/social/daemon-release-cohort-contract.test.ts` + `scripts/check-social-release-contract.mjs` |
 | Release-lane shape                   | `src/social/cohort.ts` + `src/social/language-allocation.ts` + `src/social/policy.ts`             |
 | Article timing policy                | `src/social/policy.ts` (`SOCIAL_RELEASE_DAILY_CAP`, `SOCIAL_RELEASE_SLOTS`)                       |
@@ -60,7 +60,7 @@ before running a command that drives one of the same browser profiles.
 `episode_id` is the scheduling unit. One article consumes one release slot; its
 active platform × language lanes are not independent scheduling units.
 
-For episodes created from **2026-09-01 09:00 JST**, Rednote stays fixed to
+For episodes created from **2026-09-02 09:00 JST**, Rednote stays fixed to
 `zh-Hant`, while X, Threads, and YouTube run a balanced three-language experiment:
 
 | Profile | X         | Threads   | YouTube   |
