@@ -95,10 +95,15 @@ describe('social strategy', () => {
   it('lists exactly the lanes the publish policy still ships', () => {
     expect(policyStrategyLanes()).toEqual([
       { platform: 'rednote', languageCode: 'zh-Hant' },
+      { platform: 'threads', languageCode: 'en' },
       { platform: 'threads', languageCode: 'ja' },
+      { platform: 'threads', languageCode: 'zh-Hant' },
       { platform: 'x', languageCode: 'en' },
       { platform: 'x', languageCode: 'ja' },
+      { platform: 'x', languageCode: 'zh-Hant' },
       { platform: 'youtube', languageCode: 'en' },
+      { platform: 'youtube', languageCode: 'ja' },
+      { platform: 'youtube', languageCode: 'zh-Hant' },
     ]);
   });
 
@@ -208,6 +213,62 @@ describe('social strategy', () => {
       'Avoid these historically weak hashtags unless they are essential to the topic: 弱標籤.',
     );
     expect(random).not.toHaveBeenCalled();
+  });
+
+  it('freezes preferred copy for language experiment lanes while preserving avoid guidance', () => {
+    const random = vi.fn(() => 0);
+    // X/Threads/YouTube language experiment must not emit language-specific hook bias.
+    expect(
+      buildStrategyGuidance(
+        'x',
+        {
+          preferredHookTypes: ['question'],
+          preferredHashtags: ['強標籤'],
+          avoidHashtags: ['弱標籤'],
+          explorationRate: 1,
+        },
+        random,
+        { languageExperimentActive: true },
+      ),
+    ).toBeUndefined();
+    expect(
+      buildStrategyGuidance(
+        'threads',
+        {
+          preferredHookTypes: ['surprising_number'],
+          explorationRate: 1,
+        },
+        random,
+        { languageExperimentActive: true },
+      ),
+    ).toBeUndefined();
+    // Rednote is not a language experiment platform; avoid still emitted even when language flag is true,
+    // but preferred hashtags remain suppressed.
+    expect(
+      buildStrategyGuidance(
+        'rednote',
+        {
+          preferredHookTypes: ['question'],
+          preferredHashtags: ['強標籤'],
+          avoidHashtags: ['弱標籤'],
+          explorationRate: 1,
+        },
+        random,
+        { languageExperimentActive: true },
+      ),
+    ).toBe(
+      'Avoid these historically weak hashtags unless they are essential to the topic: 弱標籤.',
+    );
+    expect(random).not.toHaveBeenCalled();
+
+    // Without the flag, the same config yields preferred guidance (control).
+    expect(
+      buildStrategyGuidance(
+        'x',
+        { preferredHookTypes: ['question'], explorationRate: 0 },
+        () => 0.9,
+      ),
+    ).toContain('question');
   });
 
   it('scores zero-view samples safely and learns non-Rednote platforms without hashtag rules', () => {

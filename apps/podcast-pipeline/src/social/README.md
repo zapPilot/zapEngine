@@ -12,9 +12,9 @@ in production; it does not define a competing policy.
 
 | Concern                              | Canonical source                                                                                  |
 | ------------------------------------ | ------------------------------------------------------------------------------------------------- |
-| Product invariant                    | `apps/podcast-pipeline/AGENTS.md` — Social release cohort invariant                               |
+| Product invariant                    | `apps/podcast-pipeline/AGENTS.md` + `src/social/AGENTS.md`                                        |
 | Executable invariant                 | `src/social/daemon-release-cohort-contract.test.ts` + `scripts/check-social-release-contract.mjs` |
-| Release-lane shape                   | `src/social/cohort.ts` + `src/social/policy.ts` (`SOCIAL_LANGUAGE_POLICY`)                        |
+| Release-lane shape                   | `src/social/cohort.ts` + `src/social/language-allocation.ts` + `src/social/policy.ts`             |
 | Article timing policy                | `src/social/policy.ts` (`SOCIAL_RELEASE_DAILY_CAP`, `SOCIAL_RELEASE_SLOTS`)                       |
 | Scheduling / recovery implementation | `src/social/daemon.ts`, `src/social/release-cohort-store.ts`, `src/social/slot-policy.ts`         |
 | Platform media / CTA behavior        | `src/social/platforms.ts`, `src/brand/cta.ts`                                                     |
@@ -60,14 +60,50 @@ before running a command that drives one of the same browser profiles.
 `episode_id` is the scheduling unit. One article consumes one release slot; its
 active platform × language lanes are not independent scheduling units.
 
-Current language allocation is:
+For episodes created from **2026-09-02 09:00 JST**, Rednote stays fixed to
+`zh-Hant`, while X, Threads, and YouTube run a balanced three-language experiment:
 
-| Platform | Language allocation             | Media      |
-| -------- | ------------------------------- | ---------- |
-| Rednote  | `zh-Hant`                       | full video |
-| Threads  | `ja`                            | teaser     |
-| X        | `en` / `ja` via `x-language-v1` | teaser     |
-| YouTube  | `en`                            | full video |
+| Profile | X         | Threads   | YouTube   |
+| ------- | --------- | --------- | --------- |
+| A       | `en`      | `ja`      | `zh-Hant` |
+| B       | `ja`      | `zh-Hant` | `en`      |
+| C       | `zh-Hant` | `en`      | `ja`      |
+
+The three daily article slots use a Latin-square rotation:
+
+| JST day in cycle | 09:30 | 12:00 | 16:00 |
+| ---------------- | ----- | ----- | ----- |
+| Day 1            | A     | B     | C     |
+| Day 2            | B     | C     | A     |
+| Day 3            | C     | A     | B     |
+
+Then the three-day cycle repeats. This gives every rotating platform one
+`zh-Hant`, one `ja`, and one `en` article per full three-slot day, while each
+fixed clock slot sees every profile over three days. Every article therefore has
+at least one lane in each of the three languages; Rednote adds a second
+`zh-Hant` lane.
+
+The experiment memberships are platform-specific:
+
+- X: `x-language-v2`
+- Threads: `threads-language-v1`
+- YouTube: `youtube-language-v1`
+
+The variant is the lane language. Assignment comes from the article's release
+slot rather than independent per-platform randomization, so language coverage is
+guaranteed and time-of-day is balanced instead of confounded with language.
+
+The selected A/B/C profile is also stored once per episode under the internal
+`social-language-profile-v2` assignment key. Its variant is the profile letter,
+not a post-performance arm. That durable assignment is created from the chosen
+article slot before lane enqueue, then reused if missed-slot repair later moves
+the whole article to another timestamp. Rescheduling therefore changes timing,
+not the language identities already allocated to that release transaction.
+
+Episodes created before the v2 activation remain on the historical policy even
+if they are released later: Rednote `zh-Hant`, Threads `ja`, X `en`/`ja` via
+`x-language-v1`, and YouTube `en`. This rollout fence prevents deployment from
+reshaping backlog or an already-scheduled cohort.
 
 Current article timing is **3 articles per JST day at 09:30, 12:00 and 16:00
 JST**. Each article takes one of those times and every active lane of that
@@ -77,14 +113,26 @@ The cap and the slot list move together: `nextReleaseSlot()` places at most one
 article per slot, so raising `SOCIAL_RELEASE_DAILY_CAP` without adding a slot
 leaves the extra articles unschedulable.
 
-Correct:
+Correct steady-state v2 examples:
 
 ```text
-Article A · 09:30 JST      Article B · 12:00 JST
-  Rednote  zh-Hant           Rednote  zh-Hant
-  Threads  ja                Threads  ja
-  X        en or ja          X        en or ja
-  YouTube  en                YouTube  en
+Day 1 · 09:30 JST · profile A
+  Rednote  zh-Hant
+  X        en
+  Threads  ja
+  YouTube  zh-Hant
+
+Day 1 · 12:00 JST · profile B
+  Rednote  zh-Hant
+  X        ja
+  Threads  zh-Hant
+  YouTube  en
+
+Day 1 · 16:00 JST · profile C
+  Rednote  zh-Hant
+  X        zh-Hant
+  Threads  en
+  YouTube  ja
 ```
 
 Forbidden:
@@ -114,15 +162,27 @@ Rednote and X drive local browser sessions.
 
 ## Release readiness barrier
 
-A cohort is enqueued only after every language required by its active lanes has
-ready media. The barrier is episode-wide, not platform-specific.
+A v2 cohort is enqueued only after `zh-Hant`, `ja`, and `en` media are all ready.
+The barrier is episode-wide and is evaluated before the article consumes a
+release slot. Only after all three localizations are ready does the chosen slot
+determine which language X, Threads, and YouTube receive.
 
-Example: if the English video required by YouTube is not ready, Rednote does not
-enqueue early merely because the Chinese video is ready. The entire article
-waits, then all lanes are enqueued at one timestamp.
+This ordering is deliberate: choosing a profile before all three languages are
+ready could let media readiness bias the language/time experiment. A ready
+Rednote lane never releases early while another language is still missing.
 
-`resolveReleaseCohortLanes()` is the single lane-shape resolver used by discovery
-and release logic. Do not reconstruct the lane set from platform timing policy.
+Pre-v2 episodes retain their historical required-language set so an old backlog
+item is not made newly incomplete by deploying the experiment.
+
+`resolveRequiredReleaseLanguages()` owns the readiness set and
+`resolveReleaseCohortLanes()` owns the final slot-derived lane shape. Discovery
+must use both rather than reconstructing language policy from platform timing.
+
+`social_waiting_media` is only the pre-scheduling episode-language readiness
+signal. It reports missing media for the required languages without pretending a
+future article slot has already assigned those languages to platforms. As soon
+as an episode has any durable publish job or social post, that view stops
+representing the episode; durable release state owns recovery from then on.
 
 ## Missed slots and production queue repair
 
@@ -140,6 +200,18 @@ per-platform scheduler:
   lanes become a recovery cohort and are prioritized before fresh episodes;
 - failed lanes preserve any later `next_attempt_at` retry backoff;
 - `processing` rows are not rewritten underneath an active lease.
+
+Durable jobs keep their originally assigned languages during repair. A recovery
+or reschedule is not allowed to reshape an already-created cohort merely to make
+the Latin-square counts prettier; balancing describes new steady-state cohorts,
+while duplicate safety and recovery correctness take precedence.
+
+For v2, profile identity survives timestamp repair through the persisted
+`social-language-profile-v2` assignment. New v2 cohorts also enqueue a rotating,
+experiment-tagged lane before Rednote so even an interrupted lane insert leaves a
+clear generation marker. A database insert guard fails closed when an episode
+already has durable legacy jobs but no v2 language marker, preventing a delayed
+rollout from silently adding v2-only lanes to a legacy cohort.
 
 This reconciliation runs before new discovery on every daemon tick, so deploy of
 a scheduler fix repairs existing Supabase queue state instead of only affecting
@@ -241,12 +313,13 @@ Current media shape is owned by `platforms.ts`:
 | Platform | Local MP4 required | Published media                                            |
 | -------- | ------------------ | ---------------------------------------------------------- |
 | X        | yes                | teaser, or full video when already within X duration limit |
-| Threads  | no                 | teaser prepared/reused from the language public video      |
+| Threads  | no                 | teaser prepared/reused from the assigned language video    |
 | Rednote  | yes                | local `zh-Hant` full video                                 |
-| YouTube  | yes                | local `en` full video                                      |
+| YouTube  | yes                | full video for the assigned experiment language            |
 
-X and Threads share the deterministic teaser path where possible. Rednote and
-YouTube publish full localization videos for their active language policy.
+X and Threads share the deterministic teaser path where possible. Rednote always
+publishes the Traditional Chinese full video. YouTube uses whichever full
+localization the active profile assigns to it.
 
 ## Duplicate state and telemetry
 
@@ -267,16 +340,23 @@ point.
 Strategy learning uses persisted posts plus standardized 24-hour metric samples.
 It may influence copy/content guidance but does not own release timing.
 
-## Packaging experiments
+## Language and packaging experiments
 
-`packaging-experiments.ts` owns active copy-style experiments. Assignments are
-persisted before copy generation and remain authoritative across retries. They
-are report-only with respect to release semantics: a packaging treatment cannot
-change release lanes, article timestamps, media readiness, topic eligibility, or
-safety gates.
+Language is the primary active experiment on X, Threads, and YouTube. Their
+`social_posts.experiment_key` / `experiment_variant` values identify the
+platform-specific language arm, and evaluation compares languages within the
+same platform using standardized 24-hour samples. Raw view counts are not
+compared across platforms as though their distributions were interchangeable.
 
-X keeps its language experiment, but the language assignment only decides which
-X lane joins the article cohort; it does not select a separate X publish slot.
+Competing X/Threads/YouTube packaging experiments are paused while this language
+experiment is running. At the current sample volume, simultaneously varying copy
+style and language would fragment each cell and make attribution weak. Rednote's
+`rednote-packaging-v1-zh-Hant` remains active because Rednote is not part of the
+rotating language experiment.
+
+`packaging-experiments.ts` owns active copy-style treatments. Any treatment is
+report-only with respect to release semantics: it cannot change release lanes,
+article timestamps, media readiness, topic eligibility, or safety gates.
 
 ## Account follower snapshots
 

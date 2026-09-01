@@ -87,7 +87,10 @@ export function buildStrategyGuidance(
   platform: SocialPlatform,
   config: SocialStrategyConfig | undefined,
   random: () => number = Math.random,
-  options: { packagingActive?: boolean } = {},
+  options: {
+    packagingActive?: boolean;
+    languageExperimentActive?: boolean;
+  } = {},
 ): string | undefined {
   if (!config) return undefined;
   // ε-greedy. `explorationRate` of publishes drop the preferred lines so the
@@ -95,12 +98,16 @@ export function buildStrategyGuidance(
   // it, a strategy version can only ever confirm itself. Avoid lines always
   // stay: a weak or moderation-risky hashtag is a safety signal, not a variant
   // worth exploring.
-  const exploring = options.packagingActive
-    ? false
-    : random() < (config.explorationRate ?? 0);
+  // Language-experiment lanes freeze preferred copy guidance so the language
+  // cell is not confounded by learned hook/hashtag treatments at low volume.
+  let exploring = false;
+  if (!options.packagingActive && !options.languageExperimentActive) {
+    exploring = random() < (config.explorationRate ?? 0);
+  }
   const lines: string[] = [];
   if (
     !options.packagingActive &&
+    !options.languageExperimentActive &&
     !exploring &&
     config.preferredHookTypes?.length
   ) {
@@ -110,6 +117,7 @@ export function buildStrategyGuidance(
   }
   if (
     !options.packagingActive &&
+    !options.languageExperimentActive &&
     !exploring &&
     platform === 'rednote' &&
     config.preferredHashtags?.length
@@ -150,9 +158,9 @@ export function learnSocialStrategies(input: {
     .filter(isLearnableSample);
 
   // Only lanes the publish policy still ships. Learning a lane that was
-  // retired -- Threads in zh-Hant, YouTube in ja -- produces an active row
-  // nothing will ever publish under, which is how four stale strategies
-  // outlived the policy that created them.
+  // retired -- e.g. Rednote in en/ja -- produces an active row nothing will
+  // ever publish under, which is how stale strategies outlived the policy that
+  // created them.
   return policyStrategyLanes().flatMap(({ platform, languageCode }) => {
     const platformSamples = samples.filter(
       (sample) =>

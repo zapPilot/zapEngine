@@ -300,6 +300,8 @@ export interface PendingSocialPublishSchedule {
   scheduled_at: string;
   completed_at: string | null;
   status: SocialPublishJobRow['status'];
+  experiment_key?: string | null;
+  experiment_variant?: string | null;
 }
 
 export async function listPendingSocialPublishSchedules(): Promise<
@@ -308,7 +310,7 @@ export async function listPendingSocialPublishSchedules(): Promise<
   const { data, error } = await getPipelineSupabase()
     .from('social_publish_jobs')
     .select(
-      'episode_id,platform,language_code,scheduled_at,completed_at,status',
+      'episode_id,platform,language_code,scheduled_at,completed_at,status,experiment_key,experiment_variant',
     )
     .in('status', ['queued', 'failed', 'processing', 'completed'])
     .order('scheduled_at', { ascending: true })

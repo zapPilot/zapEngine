@@ -23,6 +23,12 @@ export interface PackagingAssignment {
   instruction: string;
 }
 
+/**
+ * Keep only Rednote packaging exploration active while X, Threads, and YouTube
+ * run the cross-platform language experiment. Mixing language and copy-treatment
+ * experiments at the current sample volume would fragment each cell and make a
+ * language winner impossible to attribute cleanly.
+ */
 export const PACKAGING_EXPERIMENTS: readonly PackagingExperiment[] = [
   {
     key: 'rednote-packaging-v1-zh-Hant',
@@ -38,39 +44,6 @@ export const PACKAGING_EXPERIMENTS: readonly PackagingExperiment[] = [
         variant: 'hook_first',
         instruction:
           'Write the Rednote title to lead with the strongest grounded curiosity hook without exaggerating the episode finding.',
-      },
-    ],
-  },
-  {
-    key: 'threads-packaging-v1-ja',
-    platform: 'threads',
-    languageCode: 'ja',
-    variants: [
-      {
-        variant: 'broadcast',
-        instruction:
-          'Write a compact standalone observation for the feed, grounded only in the episode.',
-      },
-      {
-        variant: 'conversation',
-        instruction:
-          'Open a natural conversation around one grounded episode insight without fabricating a personal experience.',
-      },
-    ],
-  },
-  {
-    key: 'youtube-title-packaging-v1',
-    platform: 'youtube',
-    variants: [
-      {
-        variant: 'descriptive',
-        instruction:
-          'Write a precise descriptive YouTube title that truthfully names the episode subject and finding.',
-      },
-      {
-        variant: 'hook_first',
-        instruction:
-          'Write the YouTube title with the strongest grounded hook first while keeping it accurate and free of exaggeration.',
       },
     ],
   },

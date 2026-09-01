@@ -15,61 +15,55 @@ import {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.getOrCreateExperimentAssignment.mockImplementation(
-    async ({
-      experimentKey,
-      episodeId,
-    }: {
-      experimentKey: string;
-      episodeId: string;
-    }) => ({
-      experiment_key: experimentKey,
-      episode_id: episodeId,
-      variant: experimentKey.includes('threads')
-        ? 'conversation'
-        : 'hook_first',
-      assigned_at: '2026-08-30T00:00:00.000Z',
-    }),
-  );
+  mocks.getOrCreateExperimentAssignment.mockResolvedValue({
+    experiment_key: 'rednote-packaging-v1-zh-Hant',
+    episode_id: 'episode-1',
+    variant: 'hook_first',
+    assigned_at: '2026-08-30T00:00:00.000Z',
+  });
 });
 
 describe('packaging experiments', () => {
-  it('activates only the registered platform-language lanes and never X', () => {
+  it('keeps Rednote active while X, Threads, and YouTube language tests stay unconfounded', () => {
     expect(activePackagingExperiment('rednote', 'zh-Hant')?.key).toBe(
       'rednote-packaging-v1-zh-Hant',
     );
-    expect(activePackagingExperiment('threads', 'ja')?.key).toBe(
-      'threads-packaging-v1-ja',
-    );
-    expect(activePackagingExperiment('threads', 'en')).toBeUndefined();
-    expect(activePackagingExperiment('x', 'ja')).toBeUndefined();
-  });
-
-  it('uses one language-neutral YouTube key so EN and JA resolve the same persisted arm', async () => {
-    for (const languageCode of ['en', 'ja'] as const) {
-      await resolvePackagingAssignments({
-        episodeId: 'episode-1',
-        languageCode,
-        platforms: ['youtube'],
-      });
+    for (const platform of ['x', 'threads', 'youtube'] as const) {
+      for (const language of ['zh-Hant', 'ja', 'en'] as const) {
+        expect(activePackagingExperiment(platform, language)).toBeUndefined();
+      }
     }
-    expect(
-      mocks.getOrCreateExperimentAssignment.mock.calls.map(([input]) => input),
-    ).toEqual([
-      expect.objectContaining({
-        experimentKey: 'youtube-title-packaging-v1',
-        episodeId: 'episode-1',
-      }),
-      expect.objectContaining({
-        experimentKey: 'youtube-title-packaging-v1',
-        episodeId: 'episode-1',
-      }),
-    ]);
   });
 
-  it('fails loudly when a persisted variant is no longer registered', async () => {
+  it('creates no packaging assignment for a rotating language lane', async () => {
+    await expect(
+      resolvePackagingAssignments({
+        episodeId: 'episode-1',
+        languageCode: 'ja',
+        platforms: ['threads', 'x', 'youtube'],
+      }),
+    ).resolves.toEqual({});
+    expect(mocks.getOrCreateExperimentAssignment).not.toHaveBeenCalled();
+  });
+
+  it('still resolves the Rednote packaging treatment', async () => {
+    await expect(
+      resolvePackagingAssignments({
+        episodeId: 'episode-1',
+        languageCode: 'zh-Hant',
+        platforms: ['rednote'],
+      }),
+    ).resolves.toEqual({
+      rednote: expect.objectContaining({
+        key: 'rednote-packaging-v1-zh-Hant',
+        variant: 'hook_first',
+      }),
+    });
+  });
+
+  it('fails loudly when the Rednote persisted variant is no longer registered', async () => {
     mocks.getOrCreateExperimentAssignment.mockResolvedValue({
-      experiment_key: 'threads-packaging-v1-ja',
+      experiment_key: 'rednote-packaging-v1-zh-Hant',
       episode_id: 'episode-1',
       variant: 'retired',
       assigned_at: '2026-08-30T00:00:00.000Z',
@@ -77,8 +71,8 @@ describe('packaging experiments', () => {
     await expect(
       resolvePackagingAssignments({
         episodeId: 'episode-1',
-        languageCode: 'ja',
-        platforms: ['threads'],
+        languageCode: 'zh-Hant',
+        platforms: ['rednote'],
       }),
     ).rejects.toThrow(/not registered/u);
   });

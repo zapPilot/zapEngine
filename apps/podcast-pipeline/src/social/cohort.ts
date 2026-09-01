@@ -1,10 +1,23 @@
-import { getOrCreateExperimentAssignment } from './experiments.js';
+import {
+  getExperimentAssignment,
+  getOrCreateExperimentAssignment,
+} from './experiments.js';
+import {
+  isLanguageRotationActive,
+  languageRotationProfileForSlot,
+  rotatingReleaseCohortLanesForProfile,
+  SOCIAL_LANGUAGE_PROFILE_ASSIGNMENT_KEY,
+  SOCIAL_REQUIRED_ROTATION_LANGUAGES,
+} from './language-allocation.js';
 import type { SocialPlatform } from './platforms.js';
 import {
-  SOCIAL_LANGUAGE_POLICY,
+  LEGACY_SOCIAL_LANGUAGE_POLICY,
+  SOCIAL_LANGUAGE_ROTATION_ACTIVE_SINCE,
   type SocialLanguagePolicyEntry,
 } from './policy.js';
 import type { SocialLanguageCode } from './types.js';
+
+const LEGACY_LANGUAGE_GENERATION_MARKER = 'x-language-v1';
 
 export interface ReleaseCohortLane {
   platform: SocialPlatform;
@@ -15,22 +28,92 @@ export interface ReleaseCohortLane {
 
 /**
  * The single definition of "which lanes does this episode's release cohort
- * have": every platform × language pair whose policy is active for this
- * episode, with `exclusive` experiments resolved to the one assigned
- * language. Enqueue, the media readiness barrier, and publish preflight all
- * call this so they can never disagree about the cohort's shape.
+ * have". Only episodes created after the v2 activation enter the slot-balanced
+ * Latin square; older backlog and already-scheduled cohorts keep the exact
+ * historical policy even when their release slot lands after activation.
  */
 export async function resolveReleaseCohortLanes(input: {
+  episodeId: string;
+  episodeCreatedAt: string;
+  scheduledAt: Date;
+}): Promise<ReleaseCohortLane[]> {
+  if (usesLanguageRotation(input.episodeCreatedAt, input.scheduledAt)) {
+    if (await hasLegacyLanguageGeneration(input.episodeId)) {
+      return resolveLegacyReleaseCohortLanes(input);
+    }
+
+    const slotProfile = languageRotationProfileForSlot(
+      input.scheduledAt,
+    ).profile;
+    const assignment = await getOrCreateExperimentAssignment({
+      experimentKey: SOCIAL_LANGUAGE_PROFILE_ASSIGNMENT_KEY,
+      episodeId: input.episodeId,
+      variants: [slotProfile],
+    });
+    return rotatingReleaseCohortLanesForProfile(assignment.variant);
+  }
+  return resolveLegacyReleaseCohortLanes(input);
+}
+
+/**
+ * New language-v2 articles must wait for all three localizations before a slot
+ * is consumed. Legacy cohorts only wait for the languages their historical lane
+ * assignment actually needs.
+ */
+export async function resolveRequiredReleaseLanguages(input: {
+  episodeId: string;
+  episodeCreatedAt: string;
+  prospectiveScheduledAt: Date;
+}): Promise<SocialLanguageCode[]> {
+  if (
+    usesLanguageRotation(
+      input.episodeCreatedAt,
+      input.prospectiveScheduledAt,
+    ) &&
+    !(await hasLegacyLanguageGeneration(input.episodeId))
+  ) {
+    return [...SOCIAL_REQUIRED_ROTATION_LANGUAGES];
+  }
+  const lanes = await resolveLegacyReleaseCohortLanes({
+    episodeId: input.episodeId,
+    episodeCreatedAt: input.episodeCreatedAt,
+  });
+  return [...new Set(lanes.map((lane) => lane.language))];
+}
+
+function usesLanguageRotation(
+  episodeCreatedAt: string,
+  scheduledAt: Date,
+): boolean {
+  const episodeCreatedAtMs = Date.parse(episodeCreatedAt);
+  return (
+    Number.isFinite(episodeCreatedAtMs) &&
+    episodeCreatedAtMs >= Date.parse(SOCIAL_LANGUAGE_ROTATION_ACTIVE_SINCE) &&
+    isLanguageRotationActive(scheduledAt)
+  );
+}
+
+async function hasLegacyLanguageGeneration(
+  episodeId: string,
+): Promise<boolean> {
+  return Boolean(
+    await getExperimentAssignment({
+      experimentKey: LEGACY_LANGUAGE_GENERATION_MARKER,
+      episodeId,
+    }),
+  );
+}
+
+async function resolveLegacyReleaseCohortLanes(input: {
   episodeId: string;
   episodeCreatedAt: string;
 }): Promise<ReleaseCohortLane[]> {
   const episodeCreatedAtMs = Date.parse(input.episodeCreatedAt);
   const lanes: ReleaseCohortLane[] = [];
 
-  for (const [platform, entries] of Object.entries(SOCIAL_LANGUAGE_POLICY) as [
-    SocialPlatform,
-    readonly SocialLanguagePolicyEntry[],
-  ][]) {
+  for (const [platform, entries] of Object.entries(
+    LEGACY_SOCIAL_LANGUAGE_POLICY,
+  ) as [SocialPlatform, readonly SocialLanguagePolicyEntry[]][]) {
     const activeEntries = entries.filter(
       (entry) => episodeCreatedAtMs >= Date.parse(entry.activeSince),
     );
