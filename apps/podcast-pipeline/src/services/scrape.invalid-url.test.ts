@@ -20,9 +20,9 @@ describe('scrapeArticle invalid URL boundary', () => {
     const mockFetch = vi.fn();
     vi.stubGlobal('fetch', mockFetch);
 
-    await expect(
-      scrapeArticle(value as unknown as string),
-    ).rejects.toThrow('Failed to parse URL');
+    await expect(scrapeArticle(value as unknown as string)).rejects.toThrow(
+      'Failed to parse URL',
+    );
     expect(mockFetch).not.toHaveBeenCalled();
   });
 });

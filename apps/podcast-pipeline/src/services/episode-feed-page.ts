@@ -83,9 +83,7 @@ export async function listHydratedEpisodeFeedPage(
 
   return {
     items: pageRows.map(toHydratedEpisodeFeedResponse),
-    nextCursor: last
-      ? encodeCursor({ t: last.created_at, i: last.id })
-      : null,
+    nextCursor: last ? encodeCursor({ t: last.created_at, i: last.id }) : null,
   };
 }
 

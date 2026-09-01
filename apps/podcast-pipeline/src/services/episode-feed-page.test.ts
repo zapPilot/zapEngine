@@ -109,8 +109,7 @@ describe('listHydratedEpisodeFeedPage', () => {
               classrooms: [
                 {
                   languageCode: 'en',
-                  hlsUrl:
-                    'https://cdn.example.com/classroom/en/playlist.m3u8',
+                  hlsUrl: 'https://cdn.example.com/classroom/en/playlist.m3u8',
                 },
               ],
             },

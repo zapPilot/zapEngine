@@ -110,7 +110,7 @@ as $$
     coalesce(
       jsonb_agg(
         jsonb_build_object(
-          'languageCode', lc.target_language_code,
+          'targetLanguageCode', lc.target_language_code,
           'hlsUrl', lc.hls_url
         )
         order by lc.target_language_code
