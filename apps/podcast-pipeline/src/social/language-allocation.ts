@@ -146,8 +146,8 @@ export function languageRotationProfileForLane(
 ): SocialLanguageRotationProfile | null {
   if (platform === 'rednote') return null;
   return (
-    ROTATION_PROFILES.find((profile) => profile[platform] === language)?.profile ??
-    null
+    ROTATION_PROFILES.find((profile) => profile[platform] === language)
+      ?.profile ?? null
   );
 }
 
