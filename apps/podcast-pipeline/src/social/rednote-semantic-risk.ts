@@ -9,6 +9,10 @@ import {
   stripJsonFence,
   unwrapNestedJsonPayload,
 } from '../services/llm.js';
+import {
+  getOpenRouterModelCandidates,
+  supportsJsonResponseFormat,
+} from '../services/llm-model-fallback.js';
 import type { SocialEpisode } from './types.js';
 
 /**
@@ -85,8 +89,9 @@ export async function readRednoteRiskRules(): Promise<string> {
 
 /**
  * Judges one generated Rednote note. Throws on a verdict of risk and on being
- * unable to reach a verdict; returns quietly only when the model answered and
- * found nothing.
+ * unable to reach a verdict; returns quietly only when a model answered and
+ * found nothing. Output-contract failures fail over to the ordered model list
+ * before the gate is considered unavailable.
  */
 export async function assertRednoteSemanticRisk(input: {
   rednote: { title: string; body: string; hashtags: readonly string[] };
@@ -94,58 +99,84 @@ export async function assertRednoteSemanticRisk(input: {
   episode: Pick<SocialEpisode, 'title' | 'summary' | 'transcript'>;
 }): Promise<void> {
   const rules = await readRednoteRiskRules();
-  const config = getOpenRouterConfig({ thinkingModel: null });
+  const primaryConfig = getOpenRouterConfig({ thinkingModel: null });
+  const models = getOpenRouterModelCandidates(primaryConfig.model);
+  let lastUnavailableDetail = 'the judge returned no verdict';
+  let lastUnavailableCause: unknown;
 
-  let content: string | null | undefined;
-  try {
-    const completion = await createOpenRouterChatCompletion(
-      config.openai,
-      {
-        model: config.model,
-        response_format: { type: 'json_object' },
-        max_tokens: JUDGE_MAX_TOKENS,
-        messages: [
-          { role: 'system', content: buildJudgeSystemPrompt(rules) },
-          { role: 'user', content: buildJudgeUserPrompt(input) },
-        ],
-      },
-      config.thinkingModel,
-      { logContext: { prefix: '[rednote-risk]' } },
-    );
-    content = completion.choices[0]?.message.content;
-  } catch (error) {
-    throw unavailable('the judge request failed', error);
+  for (const model of models) {
+    const config =
+      model === primaryConfig.model
+        ? primaryConfig
+        : getOpenRouterConfig({ model, thinkingModel: null });
+
+    let content: string | null | undefined;
+    try {
+      const completion = await createOpenRouterChatCompletion(
+        config.openai,
+        {
+          model: config.model,
+          ...(supportsJsonResponseFormat(config.model)
+            ? { response_format: { type: 'json_object' as const } }
+            : {}),
+          max_tokens: JUDGE_MAX_TOKENS,
+          messages: [
+            { role: 'system', content: buildJudgeSystemPrompt(rules) },
+            { role: 'user', content: buildJudgeUserPrompt(input) },
+          ],
+        },
+        config.thinkingModel,
+        {
+          reasoning: { enabled: false },
+          logContext: { prefix: '[rednote-risk]' },
+        },
+      );
+      content = completion.choices[0]?.message.content;
+    } catch (error) {
+      lastUnavailableDetail = `model ${model} request failed`;
+      lastUnavailableCause = error;
+      continue;
+    }
+
+    if (typeof content !== 'string' || !content.trim()) {
+      lastUnavailableDetail = `model ${model} returned an empty response`;
+      lastUnavailableCause = undefined;
+      continue;
+    }
+
+    let judgement: z.infer<typeof JudgementSchema>;
+    try {
+      judgement = JudgementSchema.parse(
+        unwrapNestedJsonPayload(JSON.parse(stripJsonFence(content.trim())), [
+          'risks',
+        ]),
+      );
+    } catch (error) {
+      lastUnavailableDetail = `model ${model} returned an unreadable verdict`;
+      lastUnavailableCause = error;
+      continue;
+    }
+
+    if (judgement.risks.length === 0) return;
+
+    const detail = judgement.risks
+      .map((risk) => `${risk.rule} — "${risk.evidence}" (${risk.reason})`)
+      .join('; ');
+    throw new RednoteSemanticRiskError({
+      reason: 'risk',
+      rules: judgement.risks
+        .map((risk) => risk.rule)
+        .filter(isRednoteRiskRule)
+        // One rule reported twice adds nothing to the rewrite instruction.
+        .filter((rule, index, all) => all.indexOf(rule) === index),
+      message: `Rednote copy breaks investment-direction red lines (${detail}). Rewrite the copy so it reports the same finding without giving direction or asserting an unattributed claim; do not drop or soften the episode's subject to satisfy this.`,
+    });
   }
 
-  if (typeof content !== 'string' || !content.trim()) {
-    throw unavailable('the judge returned an empty response');
-  }
-
-  let judgement: z.infer<typeof JudgementSchema>;
-  try {
-    judgement = JudgementSchema.parse(
-      unwrapNestedJsonPayload(JSON.parse(stripJsonFence(content.trim())), [
-        'risks',
-      ]),
-    );
-  } catch (error) {
-    throw unavailable('the judge returned an unreadable verdict', error);
-  }
-
-  if (judgement.risks.length === 0) return;
-
-  const detail = judgement.risks
-    .map((risk) => `${risk.rule} — "${risk.evidence}" (${risk.reason})`)
-    .join('; ');
-  throw new RednoteSemanticRiskError({
-    reason: 'risk',
-    rules: judgement.risks
-      .map((risk) => risk.rule)
-      .filter(isRednoteRiskRule)
-      // One rule reported twice adds nothing to the rewrite instruction.
-      .filter((rule, index, all) => all.indexOf(rule) === index),
-    message: `Rednote copy breaks investment-direction red lines (${detail}). Rewrite the copy so it reports the same finding without giving direction or asserting an unattributed claim; do not drop or soften the episode's subject to satisfy this.`,
-  });
+  throw unavailable(
+    `${lastUnavailableDetail} after trying ${models.length} model${models.length === 1 ? '' : 's'}`,
+    lastUnavailableCause,
+  );
 }
 
 function isRednoteRiskRule(value: string): value is RednoteRiskRule {

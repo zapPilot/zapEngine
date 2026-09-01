@@ -20,6 +20,7 @@ import type { SocialPlatform } from './platforms.js';
 import {
   assertRednoteSemanticRisk,
   readRednoteRiskRules,
+  RednoteSemanticRiskError,
 } from './rednote-semantic-risk.js';
 import {
   type GeneratedSocialCopy,
@@ -466,6 +467,12 @@ export async function generateSocialCopy(input: {
 
       return { copy, model: completion.model ?? config.model };
     } catch (error) {
+      if (
+        error instanceof RednoteSemanticRiskError &&
+        error.reason === 'unavailable'
+      ) {
+        throw error;
+      }
       lastError = error;
       retryReason = describeValidationFailure(error);
     }
