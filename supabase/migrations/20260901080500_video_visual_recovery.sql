@@ -196,7 +196,26 @@ begin
         completed_at = null,
         updated_at = now()
     where video.episode_id = p_episode_id
-      and video.status <> 'completed';
+      and video.status <> 'completed'
+      and not (
+        video.status = 'processing'
+        and video.lease_expires_at > now()
+      );
+
+    -- A render can be claimed after the preflight check but before the update
+    -- above. If that happens, keep the claim intact and abort the whole retry
+    -- transaction instead of returning success after only partially requeueing
+    -- the episode.
+    if exists (
+      select 1
+      from from_fed_to_chain.episode_videos video
+      where video.episode_id = p_episode_id
+        and video.status = 'processing'
+        and video.lease_expires_at > now()
+    ) then
+      raise exception 'Episode video generation is currently processing'
+        using errcode = '55000';
+    end if;
 
     return true;
   end if;

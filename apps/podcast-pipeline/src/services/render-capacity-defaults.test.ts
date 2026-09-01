@@ -25,7 +25,8 @@ function emptyQuery() {
 describe('render work probe default wiring', () => {
   it('builds the pipeline Supabase client lazily when no client is injected', async () => {
     const from = vi.fn(() => emptyQuery());
-    mocks.getPipelineSupabase.mockReturnValue({ from });
+    const rpc = vi.fn(async () => ({ data: [], error: null }));
+    mocks.getPipelineSupabase.mockReturnValue({ from, rpc });
 
     const probe = createRenderWorkProbe();
     await expect(probe.loadSnapshot()).resolves.toMatchObject({
@@ -36,5 +37,9 @@ describe('render work probe default wiring', () => {
 
     expect(mocks.getPipelineSupabase).toHaveBeenCalledOnce();
     expect(from).toHaveBeenCalledTimes(2);
+    expect(rpc).toHaveBeenCalledWith(
+      'reap_failed_episode_video_visual_notifications',
+      { p_limit: 20 },
+    );
   });
 });

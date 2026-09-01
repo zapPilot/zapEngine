@@ -29,18 +29,38 @@ export const VISUAL_SELECTION_REASONS = [
 const subjectIdSchema = z.string().regex(/^subject-[a-z0-9]+(?:-[a-z0-9]+)*$/);
 const sceneIdSchema = z.string().regex(/^scene-\d{2}$/);
 const shortTextSchema = z.string().min(2).max(80);
+const SUBJECT_LIMITS = {
+  aliases: 6,
+  evidenceSceneIds: 64,
+  searchQueries: 3,
+  identityHints: 8,
+  negativeHints: 8,
+  officialDomains: 4,
+} as const;
 
 export const visualSubjectSchema = z
   .object({
     id: subjectIdSchema,
     canonicalName: shortTextSchema,
     type: z.enum(VISUAL_SUBJECT_TYPES),
-    aliases: z.array(shortTextSchema).max(6).default([]),
+    aliases: z.array(shortTextSchema).max(SUBJECT_LIMITS.aliases).default([]),
     storyRole: z.enum(VISUAL_SUBJECT_ROLES),
-    evidenceSceneIds: z.array(sceneIdSchema).min(1).max(64),
-    searchQueries: z.array(shortTextSchema).min(1).max(3),
-    identityHints: z.array(shortTextSchema).min(1).max(8),
-    negativeHints: z.array(shortTextSchema).max(8).default([]),
+    evidenceSceneIds: z
+      .array(sceneIdSchema)
+      .min(1)
+      .max(SUBJECT_LIMITS.evidenceSceneIds),
+    searchQueries: z
+      .array(shortTextSchema)
+      .min(1)
+      .max(SUBJECT_LIMITS.searchQueries),
+    identityHints: z
+      .array(shortTextSchema)
+      .min(1)
+      .max(SUBJECT_LIMITS.identityHints),
+    negativeHints: z
+      .array(shortTextSchema)
+      .max(SUBJECT_LIMITS.negativeHints)
+      .default([]),
     officialDomains: z
       .array(
         z
@@ -49,7 +69,7 @@ export const visualSubjectSchema = z
           .max(120)
           .regex(/^[a-z0-9.-]+\.[a-z]{2,}$/i),
       )
-      .max(4)
+      .max(SUBJECT_LIMITS.officialDomains)
       .default([]),
   })
   .strict();
@@ -203,16 +223,35 @@ function normalizeVisualSubjectInput(
 ): unknown {
   if (!isRecord(input)) return input;
   const id = input['id'];
-  const storyRole = normalizedStoryRole(input['storyRole'], id, primarySubjectId);
+  const storyRole = normalizedStoryRole(
+    input['storyRole'],
+    id,
+    primarySubjectId,
+  );
   return {
     ...input,
     storyRole,
-    aliases: capArray(input['aliases'], 6),
-    evidenceSceneIds: capArray(input['evidenceSceneIds'], 64),
-    searchQueries: capArray(input['searchQueries'], 3),
-    identityHints: capArray(input['identityHints'], 8),
-    negativeHints: capArray(input['negativeHints'], 8),
-    officialDomains: capArray(input['officialDomains'], 4),
+    aliases: capArray(input['aliases'], SUBJECT_LIMITS.aliases),
+    evidenceSceneIds: capArray(
+      input['evidenceSceneIds'],
+      SUBJECT_LIMITS.evidenceSceneIds,
+    ),
+    searchQueries: capArray(
+      input['searchQueries'],
+      SUBJECT_LIMITS.searchQueries,
+    ),
+    identityHints: capArray(
+      input['identityHints'],
+      SUBJECT_LIMITS.identityHints,
+    ),
+    negativeHints: capArray(
+      input['negativeHints'],
+      SUBJECT_LIMITS.negativeHints,
+    ),
+    officialDomains: capArray(
+      input['officialDomains'],
+      SUBJECT_LIMITS.officialDomains,
+    ),
   };
 }
 

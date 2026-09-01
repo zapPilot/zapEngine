@@ -23,8 +23,8 @@ import { EPISODE_VIDEO_VISUAL_VERSION } from './video-jobs.js';
  * thing that starts it again.
  *
  * The pending-work test below MIRRORS the WHERE clauses of
- * `claim_episode_video_v2` / `claim_episode_video_visual_v2`
- * (apps/podcast-pipeline/supabase/schema.sql). Loosening it here without
+ * `claim_episode_video_v2` / `claim_episode_video_visual_v2` in the current
+ * root Supabase migrations. Loosening it here without
  * loosening the claim RPCs makes the group wake, claim nothing, idle out and
  * wake again; tightening it below the claim RPCs strands jobs on a stopped
  * machine. Change both together.

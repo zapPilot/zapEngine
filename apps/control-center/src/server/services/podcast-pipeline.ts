@@ -1,5 +1,3 @@
-import { createClient } from '@supabase/supabase-js';
-
 import type {
   PodcastPipelineEpisode,
   PodcastPipelineJobState,
@@ -9,6 +7,7 @@ import type {
   PodcastPipelineStatus,
 } from '../../shared/podcast-pipeline.js';
 import type { ControlCenterConfig } from '../config/env.js';
+import { createServiceRoleClient } from './supabase.js';
 
 const EPISODE_LIMIT = 40;
 const LANGUAGES = ['zh-Hant', 'ja', 'en'] as const;
@@ -63,13 +62,10 @@ export function createPodcastPipelineService(input: {
   );
 
   const client = configured
-    ? createClient(
+    ? createServiceRoleClient(
         input.config.SUPABASE_URL!,
         input.config.SUPABASE_SERVICE_ROLE_KEY!,
-        {
-          db: { schema: input.config.SUPABASE_DB_SCHEMA },
-          auth: { autoRefreshToken: false, persistSession: false },
-        },
+        input.config.SUPABASE_DB_SCHEMA,
       )
     : null;
 
@@ -96,36 +92,40 @@ export function createPodcastPipelineService(input: {
         }
 
         const episodeIds = episodes.map(({ id }) => id);
-        const sourceUrls = [...
-          new Set(episodes.map(({ source_url }) => source_url)),
+        const sourceUrls = [
+          ...new Set(episodes.map(({ source_url }) => source_url)),
         ];
-        const [ingestsResult, localizationsResult, visualsResult, rendersResult] =
-          await Promise.all([
-            client
-              .from('podcast_ingest_jobs')
-              .select(
-                'source_url,status,attempt_count,lease_expires_at,last_error,updated_at',
-              )
-              .in('source_url', sourceUrls),
-            client
-              .from('episode_localizations')
-              .select(
-                'id,episode_id,language_code,status,script,hls_url,classroom_hls_url,updated_at',
-              )
-              .in('episode_id', episodeIds),
-            client
-              .from('episode_video_visuals')
-              .select(
-                'episode_id,status,progress_percent,progress_stage,attempt_count,lease_expires_at,last_error,updated_at',
-              )
-              .in('episode_id', episodeIds),
-            client
-              .from('episode_videos')
-              .select(
-                'episode_localization_id,episode_id,status,progress_percent,progress_stage,attempt_count,lease_expires_at,last_error,updated_at',
-              )
-              .in('episode_id', episodeIds),
-          ]);
+        const [
+          ingestsResult,
+          localizationsResult,
+          visualsResult,
+          rendersResult,
+        ] = await Promise.all([
+          client
+            .from('podcast_ingest_jobs')
+            .select(
+              'source_url,status,attempt_count,lease_expires_at,last_error,updated_at',
+            )
+            .in('source_url', sourceUrls),
+          client
+            .from('episode_localizations')
+            .select(
+              'id,episode_id,language_code,status,script,hls_url,classroom_hls_url,updated_at',
+            )
+            .in('episode_id', episodeIds),
+          client
+            .from('episode_video_visuals')
+            .select(
+              'episode_id,status,progress_percent,progress_stage,attempt_count,lease_expires_at,last_error,updated_at',
+            )
+            .in('episode_id', episodeIds),
+          client
+            .from('episode_videos')
+            .select(
+              'episode_localization_id,episode_id,status,progress_percent,progress_stage,attempt_count,lease_expires_at,last_error,updated_at',
+            )
+            .in('episode_id', episodeIds),
+        ]);
 
         const queryError = [
           ingestsResult.error,
@@ -216,10 +216,11 @@ export function summarizePodcastPipeline(
       translationState(localizationByLanguage),
       ingest,
     );
-    const ttsStatus = applyIngestStatus(
-      ttsState(localizationByLanguage, translationStatus),
-      ingest,
-    );
+    const ttsBaseStatus = ttsState(localizationByLanguage, translationStatus);
+    const ttsStatus =
+      translationStatus === 'completed'
+        ? applyIngestStatus(ttsBaseStatus, ingest)
+        : ttsBaseStatus;
     const visualRow = visualByEpisode.get(episode.id) ?? null;
     const visual = visualRow ? jobState(visualRow, now) : null;
     const renderByLocalizationId = new Map(
@@ -246,8 +247,7 @@ export function summarizePodcastPipeline(
     );
     const activeVideoLease = [visual, ...renders].some(
       (job) =>
-        job?.status === 'processing' &&
-        leaseIsActive(job.leaseExpiresAt, now),
+        job?.status === 'processing' && leaseIsActive(job.leaseExpiresAt, now),
     );
 
     return {
@@ -383,10 +383,7 @@ function localizationState(
   };
 }
 
-function jobState(
-  row: LifecycleRow,
-  now: Date,
-): PodcastPipelineJobState {
+function jobState(row: LifecycleRow, now: Date): PodcastPipelineJobState {
   return {
     status: normalizeJobStatus(row.status, row.lease_expires_at, now),
     progressPercent: row.progress_percent ?? null,
@@ -460,10 +457,7 @@ function isLanguage(value: string): value is LanguageCode {
   return (LANGUAGES as readonly string[]).includes(value);
 }
 
-function groupBy<T, K>(
-  rows: readonly T[],
-  keyOf: (row: T) => K,
-): Map<K, T[]> {
+function groupBy<T, K>(rows: readonly T[], keyOf: (row: T) => K): Map<K, T[]> {
   const grouped = new Map<K, T[]>();
   for (const row of rows) {
     const key = keyOf(row);

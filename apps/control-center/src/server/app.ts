@@ -122,12 +122,7 @@ export function createControlCenterApp(input: {
       return context.json({ ok: true });
     } catch (error) {
       const message = errorMessage(error);
-      if (
-        message.includes('currently processing') ||
-        message.includes('requires completed') ||
-        message.includes('has no video visual job') ||
-        message.includes('already completed')
-      ) {
+      if (isPodcastRetryConflict(error, message)) {
         return context.json({ error: message }, 409);
       }
       captureServerException(error, {
@@ -170,6 +165,21 @@ export function createControlCenterApp(input: {
  */
 function isForced(context: Context): boolean {
   return context.req.query('force') === '1';
+}
+
+function isPodcastRetryConflict(error: unknown, message: string): boolean {
+  if (error && typeof error === 'object' && 'code' in error) {
+    const code = (error as { code?: unknown }).code;
+    if (code === '55000' || code === '22023' || code === '23514') {
+      return true;
+    }
+  }
+  return (
+    message.includes('currently processing') ||
+    message.includes('requires completed') ||
+    message.includes('has no video visual job') ||
+    message.includes('already completed')
+  );
 }
 
 function errorMessage(error: unknown): string {

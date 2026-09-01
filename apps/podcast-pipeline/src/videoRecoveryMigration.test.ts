@@ -44,6 +44,9 @@ describe('video visual recovery migration', () => {
     expect(migration).toMatch(
       /from from_fed_to_chain\.episode_videos video[\s\S]+?video\.status = 'processing'[\s\S]+?video\.lease_expires_at > now\(\)[\s\S]+?currently processing/i,
     );
+    expect(migration).toMatch(
+      /video\.status <> 'completed'[\s\S]+?and not \([\s\S]+?video\.status = 'processing'[\s\S]+?video\.lease_expires_at > now\(\)[\s\S]+?if exists \([\s\S]+?video\.status = 'processing'[\s\S]+?video\.lease_expires_at > now\(\)[\s\S]+?currently processing/i,
+    );
   });
 
   it('preserves completed visual and language checkpoints while retrying only unfinished renders', () => {

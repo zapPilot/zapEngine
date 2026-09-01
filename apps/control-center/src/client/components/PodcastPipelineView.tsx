@@ -105,7 +105,9 @@ function PipelineEpisode(props: {
           <small>
             Added {relativeTime(episode.createdAt)} ·{' '}
             {shortId(episode.episodeId)}
-            {episode.ingest ? ` · ingest ${statusLabel(episode.ingest.status)}` : ''}
+            {episode.ingest
+              ? ` · ingest ${statusLabel(episode.ingest.status)}`
+              : ''}
           </small>
         </div>
         {episode.currentPhase !== 'done' ? (

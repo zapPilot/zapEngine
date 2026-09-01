@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { createControlCenterApp } from './app.js';
 import { readControlCenterConfig } from './config/env.js';
 
+const EPISODE_ID = '826f4b87-6278-4275-bff5-535ba5ef438d';
+
 function createApp(pipeline: {
   getPipeline: ReturnType<typeof vi.fn>;
   restartVideo: ReturnType<typeof vi.fn>;
@@ -29,6 +31,28 @@ function createApp(pipeline: {
   });
 }
 
+function retryRequest(
+  app: ReturnType<typeof createApp>,
+  episodeId = EPISODE_ID,
+) {
+  return app.request(`/api/podcast-pipeline/${episodeId}/video/retry`, {
+    method: 'POST',
+  });
+}
+
+function retryApp(rejection?: unknown) {
+  const restartVideo = vi.fn();
+  if (rejection === undefined) {
+    restartVideo.mockResolvedValue(undefined);
+  } else {
+    restartVideo.mockRejectedValue(rejection);
+  }
+  return {
+    app: createApp({ getPipeline: vi.fn(), restartVideo }),
+    restartVideo,
+  };
+}
+
 describe('podcast pipeline routes', () => {
   it('serves the current production phase read model', async () => {
     const getPipeline = vi.fn().mockResolvedValue({
@@ -50,44 +74,52 @@ describe('podcast pipeline routes', () => {
   });
 
   it('restarts only through the explicit episode video endpoint', async () => {
-    const restartVideo = vi.fn().mockResolvedValue(undefined);
-    const app = createApp({ getPipeline: vi.fn(), restartVideo });
-    const episodeId = '826f4b87-6278-4275-bff5-535ba5ef438d';
+    const { app, restartVideo } = retryApp();
 
-    const response = await app.request(
-      `/api/podcast-pipeline/${episodeId}/video/retry`,
-      { method: 'POST' },
-    );
+    const response = await retryRequest(app);
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true });
-    expect(restartVideo).toHaveBeenCalledWith(episodeId);
+    expect(restartVideo).toHaveBeenCalledWith(EPISODE_ID);
   });
 
   it.each([
-    'Episode video generation is currently processing',
-    'Episode video generation is already completed',
-  ])('returns a conflict for a non-retryable state: %s', async (message) => {
-    const restartVideo = vi.fn().mockRejectedValue(new Error(message));
-    const app = createApp({ getPipeline: vi.fn(), restartVideo });
+    ['55000', 'worker already owns this lease'],
+    ['22023', 'audio prerequisites are incomplete'],
+    ['23514', 'completed visual checkpoint is invalid'],
+  ])('maps stable postgres code %s to a conflict', async (code, message) => {
+    const { app, restartVideo } = retryApp({ code, message });
 
-    const response = await app.request(
-      '/api/podcast-pipeline/826f4b87-6278-4275-bff5-535ba5ef438d/video/retry',
-      { method: 'POST' },
-    );
+    const response = await retryRequest(app);
 
     expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({ error: message });
     expect(restartVideo).toHaveBeenCalledOnce();
   });
 
-  it('rejects malformed episode ids before touching the database', async () => {
-    const restartVideo = vi.fn();
-    const app = createApp({ getPipeline: vi.fn(), restartVideo });
-
-    const response = await app.request(
-      '/api/podcast-pipeline/not-a-uuid/video/retry',
-      { method: 'POST' },
+  it('keeps message matching as a compatibility fallback', async () => {
+    const { app } = retryApp(
+      new Error('Episode video generation is already completed'),
     );
+
+    expect((await retryRequest(app)).status).toBe(409);
+  });
+
+  it('returns 503 for an unexpected retry failure', async () => {
+    const { app } = retryApp(new Error('database offline'));
+
+    const response = await retryRequest(app);
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({
+      error: 'database offline',
+    });
+  });
+
+  it('rejects malformed episode ids before touching the database', async () => {
+    const { app, restartVideo } = retryApp();
+
+    const response = await retryRequest(app, 'not-a-uuid');
 
     expect(response.status).toBe(400);
     expect(restartVideo).not.toHaveBeenCalled();

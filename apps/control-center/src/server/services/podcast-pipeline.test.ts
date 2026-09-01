@@ -73,13 +73,15 @@ function ingest(overrides: Record<string, unknown> = {}): IngestRow {
   } as IngestRow;
 }
 
-function summarize(input: {
-  ingests?: IngestRow[];
-  localizationRows?: LocalizationRow[];
-  visuals?: VisualRow[];
-  renders?: RenderRow[];
-  now?: Date;
-} = {}) {
+function summarize(
+  input: {
+    ingests?: IngestRow[];
+    localizationRows?: LocalizationRow[];
+    visuals?: VisualRow[];
+    renders?: RenderRow[];
+    now?: Date;
+  } = {},
+) {
   return summarizePodcastPipeline(
     [episode],
     input.ingests ?? [],
