@@ -96,7 +96,9 @@ export function createPodcastPipelineService(input: {
         }
 
         const episodeIds = episodes.map(({ id }) => id);
-        const sourceUrls = [...new Set(episodes.map(({ source_url }) => source_url))];
+        const sourceUrls = [...
+          new Set(episodes.map(({ source_url }) => source_url)),
+        ];
         const [ingestsResult, localizationsResult, visualsResult, rendersResult] =
           await Promise.all([
             client
@@ -130,7 +132,7 @@ export function createPodcastPipelineService(input: {
           localizationsResult.error,
           visualsResult.error,
           rendersResult.error,
-        ].find((error) => error != null);
+        ].find((error) => error !== null);
         if (queryError) {
           throw queryError;
         }
