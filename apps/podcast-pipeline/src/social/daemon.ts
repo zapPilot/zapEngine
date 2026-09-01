@@ -25,7 +25,11 @@ import {
   captureDueAccountSnapshots,
   capturePrePublishAccountSnapshots,
 } from './account-snapshots.js';
-import { type ReleaseCohortLane, resolveReleaseCohortLanes } from './cohort.js';
+import {
+  type ReleaseCohortLane,
+  resolveReleaseCohortLanes,
+  resolveRequiredReleaseLanguages,
+} from './cohort.js';
 import { recordSocialDaemonTick } from './daemon-heartbeat.js';
 import {
   acquireSocialDaemonLock,
@@ -304,21 +308,29 @@ async function discoverAndEnqueue(input: {
     const firstCandidate = episodeCandidates[0];
     if (!firstCandidate) continue;
 
-    const lanes = await resolveReleaseCohortLanes({
-      episodeId,
-      episodeCreatedAt: firstCandidate.episode_created_at,
-    });
-    if (lanes.length === 0) continue;
-
     const title = episodeTitle(
       titleByEpisodeLanguage,
       episodeId,
       firstCandidate.language_code,
     );
+    const existingSchedule = schedules.find(
+      (schedule) => schedule.episode_id === episodeId,
+    );
+    const prospectiveScheduledAt = existingSchedule
+      ? new Date(existingSchedule.scheduled_at)
+      : input.now;
+    const requiredLanguages = new Set(
+      await resolveRequiredReleaseLanguages({
+        episodeId,
+        episodeCreatedAt: firstCandidate.episode_created_at,
+        prospectiveScheduledAt,
+      }),
+    );
+    if (requiredLanguages.size === 0) continue;
+
     const readyLanguages = new Set(
       episodeCandidates.map((candidate) => candidate.language_code),
     );
-    const requiredLanguages = new Set(lanes.map((lane) => lane.language));
     const missingLanguages = [...requiredLanguages].filter(
       (language) => !readyLanguages.has(language),
     );
@@ -340,9 +352,6 @@ async function discoverAndEnqueue(input: {
 
     // An interrupted enqueue reuses the episode's existing release time. The
     // queue reconciliation stage above already normalizes legacy staggered rows.
-    const existingSchedule = schedules.find(
-      (schedule) => schedule.episode_id === episodeId,
-    );
     const scheduledAt = existingSchedule
       ? new Date(existingSchedule.scheduled_at)
       : nextReleaseSlot({
@@ -352,6 +361,28 @@ async function discoverAndEnqueue(input: {
     if (!scheduledAt) {
       input.log(
         `🗓️ [social-daemon] ${episodeLabel(title, episodeId)} · no article slot inside the ${SCHEDULING_HORIZON_DAYS}-day horizon · staying discoverable for a later tick`,
+      );
+      continue;
+    }
+
+    const lanes = await resolveReleaseCohortLanes({
+      episodeId,
+      episodeCreatedAt: firstCandidate.episode_created_at,
+      scheduledAt,
+    });
+    if (lanes.length === 0) continue;
+
+    // The v2 policy activates at a concrete instant. A daemon tick immediately
+    // before that boundary can select a slot immediately after it, so verify the
+    // final slot-derived lane set before enqueueing rather than assuming the
+    // prospective readiness check and the final schedule can never differ.
+    const finalRequiredLanguages = new Set(lanes.map((lane) => lane.language));
+    const finalMissingLanguages = [...finalRequiredLanguages].filter(
+      (language) => !readyLanguages.has(language),
+    );
+    if (finalMissingLanguages.length > 0) {
+      input.log(
+        `⏳ [social-daemon] ${episodeLabel(title, episodeId)} · cohort not release-ready · ${finalMissingLanguages.map((language) => `${languageFlag(language)} ${language}`).join(' · ')}`,
       );
       continue;
     }
