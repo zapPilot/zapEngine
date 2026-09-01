@@ -1,6 +1,6 @@
 # Zap Pilot Control Center
 
-Founder decision dashboard for operational status, customer economics, product health, persisted cost history, and learned social publishing guidance. It is lifecycle-independent from production daemons and pipelines.
+Founder decision dashboard for operational status, customer economics, product health, persisted cost history, learned social publishing guidance, and podcast production recovery. It is lifecycle-independent from production daemons and pipelines.
 
 ```bash
 pnpm ops             # dashboard + social daemon, from the repository root
@@ -17,16 +17,17 @@ The Vite UI listens on `127.0.0.1:4174`; its Hono API listens on `CONTROL_CENTER
 
 ## Views
 
-Five views, each answering one question. Home is a decision surface; the other
-four are where its evidence lives.
+Six views, each answering one question. Home is a decision surface; the other
+five are where its evidence or narrow operator actions live.
 
-| View            | Question it answers                                          | Reads                                                    |
-| --------------- | ------------------------------------------------------------ | -------------------------------------------------------- |
-| **Home**        | What needs a decision right now?                             | `/api/overview`, `/api/costs/history`, `/api/operations` |
-| **Growth**      | What should we publish next, and what did the last posts do? | `/api/social-performance`                                |
-| **Product**     | Who do we serve, and is their data still current?            | `/api/customers` + product health from `/api/overview`   |
-| **Reliability** | Which sources are telling us something is wrong?             | `/api/operations`, `/api/operations/social`              |
-| **Economics**   | What does the company spend, and which provider spends it?   | `/api/overview`, `/api/costs/history`                    |
+| View            | Question it answers                                                    | Reads / actions                                          |
+| --------------- | ---------------------------------------------------------------------- | -------------------------------------------------------- |
+| **Home**        | What needs a decision right now?                                       | `/api/overview`, `/api/costs/history`, `/api/operations` |
+| **Pipeline**    | Where is each article, what failed, and can video be restarted safely? | `/api/podcast-pipeline` + explicit video retry action    |
+| **Growth**      | What should we publish next, and what did the last posts do?           | `/api/social-performance`                                |
+| **Product**     | Who do we serve, and is their data still current?                      | `/api/customers` + product health from `/api/overview`   |
+| **Reliability** | Which sources are telling us something is wrong?                       | `/api/operations`, `/api/operations/social`              |
+| **Economics**   | What does the company spend, and which provider spends it?             | `/api/overview`, `/api/costs/history`                    |
 
 Home opens on the ranked action queue rather than on a metric grid: the queue is
 the only part of the dashboard that says what to do, and it went unread while it
@@ -36,8 +37,15 @@ Economics.
 
 Because the queue is the first thing on the first screen, `/api/operations` is
 part of the first paint. Its per-source caches absorb the repeat reads; the
-per-customer ledger and the publish queue stay lazy because neither appears on
-Home.
+podcast pipeline, per-customer ledger, and publish queue stay lazy because none
+appears on Home.
+
+The Pipeline view derives its state directly from production sources of truth:
+`episode_localizations` for script/translation/TTS readiness,
+`episode_video_visuals` for shared visual planning, and `episode_videos` for the
+three language renders. A terminal visual failure is shown as failed even when
+downstream render rows are still queued; the dashboard must never translate
+that state into a vague "still rendering" message.
 
 The interface is a single dark surface built on `@zapengine/design-tokens`.
 There is no light variant: the tokens are authored dark-first and the product
@@ -48,9 +56,18 @@ rather than green.
 
 ## Vercel deployment
 
-The Vercel deployment is a remote Control Center surface. Dashboard HTTP views remain read-only, while `/api/mcp` exposes the separately authenticated Ops MCP; its only current write capability is the narrowly allowlisted single-issue Sentry resolve operation documented in [`MCP.md`](./MCP.md). Configure the project root as `apps/control-center` and enable Vercel Authentication for all deployments before adding credentials or performing the first deployment. The remote API deliberately does not register `POST /api/costs/sync`; cost collection remains an external operation. Fly operational signals use the Fly Machines HTTP API and require `FLY_OPS_TOKEN`; they do not depend on `flyctl` being installed in Vercel.
+The Vercel deployment is a remote Control Center operator surface. Configure the project root as `apps/control-center` and enable Vercel Authentication for all deployments before adding credentials or performing the first deployment.
 
-The remote server uses these environment variables as applicable to its read paths and bounded MCP remediation path:
+Dashboard HTTP views are generally read-only, with two narrowly bounded mutation surfaces:
+
+- `/api/mcp` exposes the separately authenticated Ops MCP. Its only current write capability is the narrowly allowlisted single-issue Sentry resolve operation documented in [`MCP.md`](./MCP.md).
+- `POST /api/podcast-pipeline/:episodeId/video/retry` invokes a service-role-only RPC that resets visual planning and localized video-render state only. It never rewrites scripts, translation, narration, classroom audio, or arbitrary database rows, and it rejects a retry while a live render lease exists. Vercel Authentication is therefore a load-bearing boundary for this operator action.
+
+The remote API deliberately does not register `POST /api/costs/sync`; cost collection remains an external operation.
+
+Fly operational signals use the Fly Machines HTTP API and require `FLY_OPS_TOKEN`; they do not depend on `flyctl` being installed in Vercel.
+
+The remote server uses these environment variables as applicable to its read paths and bounded remediation paths:
 
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`

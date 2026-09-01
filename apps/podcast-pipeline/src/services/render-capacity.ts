@@ -6,6 +6,7 @@ import {
 } from './fly-machines.js';
 import {
   getPipelineSupabase,
+  isMissingSupabaseRpc,
   type PipelineSupabaseClient,
 } from './supabase-client.js';
 import {
@@ -15,6 +16,7 @@ import {
   type TelegramChatId,
 } from './telegram.js';
 import { EPISODE_VIDEO_VISUAL_VERSION } from './video-jobs.js';
+import { VISUAL_FAILURE_NOTICE_RPC } from './video-visual-failure-notifier.js';
 
 /**
  * Keeps the on-demand `render` Fly process group alive exactly as long as there
@@ -23,8 +25,8 @@ import { EPISODE_VIDEO_VISUAL_VERSION } from './video-jobs.js';
  * thing that starts it again.
  *
  * The pending-work test below MIRRORS the WHERE clauses of
- * `claim_episode_video_v2` / `claim_episode_video_visual_v2`
- * (apps/podcast-pipeline/supabase/schema.sql). Loosening it here without
+ * `claim_episode_video_v2` / `claim_episode_video_visual_v2` in the current
+ * root Supabase migrations. Loosening it here without
  * loosening the claim RPCs makes the group wake, claim nothing, idle out and
  * wake again; tightening it below the claim RPCs strands jobs on a stopped
  * machine. Change both together.
@@ -40,10 +42,15 @@ export const RENDER_CAPACITY_MAX_API_FAILURES = 3;
 const MAX_JOB_ATTEMPTS = 3;
 
 const WAKEABLE_MACHINE_STATES = new Set(['stopped', 'suspended']);
-// 'failed' is carried so the unnotified-failure sweep can be detected; it is
-// never claimable on its own.
+// 'failed' is carried so the unnotified localized-render failure sweep can be
+// detected; it is never claimable on its own.
 const ACTIVE_JOB_STATUSES = ['queued', 'processing', 'failed'];
 
+// Keep this projection compatible with the pre-recovery schema. Supabase
+// migrations are applied manually after merge while Fly deploys main
+// automatically, so a new column here could disable every render wake during
+// that rollout window. Visual failure notices are discovered through an
+// optional RPC below instead.
 const VISUAL_WORK_FIELDS =
   'episode_id, status, visual_version, visual_hash, next_attempt_at, attempt_count, lease_expires_at, telegram_chat_id';
 const VIDEO_WORK_FIELDS =
@@ -68,10 +75,17 @@ export interface VideoWorkRow extends JobLifecycleColumns {
   failure_notified_at: string | null;
 }
 
+export interface VisualFailureNoticeWork {
+  episode_id: string;
+  telegram_chat_id: string | null;
+}
+
 export interface RenderWorkSnapshot {
   /** Active visual rows plus the visual row of every episode with active video work. */
   visuals: readonly VisualWorkRow[];
   videos: readonly VideoWorkRow[];
+  /** Optional until migration 20260901080500 is applied in production. */
+  visualFailureNotices?: readonly VisualFailureNoticeWork[];
   nowMs: number;
 }
 
@@ -124,6 +138,11 @@ export function evaluatePendingRenderWork(
     chatIds.push(visual.telegram_chat_id);
   }
 
+  for (const failure of snapshot.visualFailureNotices ?? []) {
+    reasons.push(`visual:unnotified-failure:${failure.episode_id}`);
+    chatIds.push(failure.telegram_chat_id);
+  }
+
   for (const video of snapshot.videos) {
     const reason = videoWorkReason(video, visualByEpisodeId, snapshot.nowMs);
     if (!reason) continue;
@@ -148,7 +167,7 @@ export function createRenderWorkProbe(
   return {
     async loadSnapshot(): Promise<RenderWorkSnapshot> {
       const supabase = client ?? getPipelineSupabase();
-      const [videos, visuals] = await Promise.all([
+      const [videos, visuals, visualFailureNotices] = await Promise.all([
         selectRows<VideoWorkRow>(
           supabase
             .from('episode_videos')
@@ -163,6 +182,7 @@ export function createRenderWorkProbe(
             .in('status', ACTIVE_JOB_STATUSES)
             .returns<VisualWorkRow[]>(),
         ),
+        loadOptionalVisualFailureNotices(supabase),
       ]);
 
       // A queued render job is only claimable once its episode's visual row is
@@ -191,6 +211,7 @@ export function createRenderWorkProbe(
       return {
         visuals: [...visuals, ...completedVisuals],
         videos,
+        visualFailureNotices,
         nowMs: Date.now(),
       };
     },
@@ -518,17 +539,40 @@ function toEpochMs(timestamp: string): number {
   return Number.isNaN(parsed) ? Number.POSITIVE_INFINITY : parsed;
 }
 
+async function loadOptionalVisualFailureNotices(
+  supabase: PipelineSupabaseClient,
+): Promise<VisualFailureNoticeWork[]> {
+  const { data, error } = await supabase.rpc(VISUAL_FAILURE_NOTICE_RPC, {
+    p_limit: 20,
+  });
+  if (!error) {
+    return (data ?? []) as VisualFailureNoticeWork[];
+  }
+  if (isMissingSupabaseRpc(error, VISUAL_FAILURE_NOTICE_RPC)) {
+    return [];
+  }
+  throw new Error(supabaseErrorMessage(error), { cause: error });
+}
+
 async function selectRows<T>(
   query: PromiseLike<{ data: T[] | null; error: unknown }>,
 ): Promise<T[]> {
   const { data, error } = await query;
   if (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : ((error as { message?: string }).message ??
-          'Supabase render work query failed');
-    throw new Error(message, { cause: error });
+    throw new Error(supabaseErrorMessage(error), { cause: error });
   }
   return data ?? [];
+}
+
+function supabaseErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (error && typeof error === 'object') {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string' && message) {
+      return message;
+    }
+  }
+  return 'Supabase render work query failed';
 }

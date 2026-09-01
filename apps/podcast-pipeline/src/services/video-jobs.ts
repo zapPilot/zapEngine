@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
 
+import { EPISODE_VIDEO_VISUAL_VERSION } from '@zapengine/types/shared';
+
 import type { LanguageClassroomLanguageCode } from '../types.js';
 import {
   getPipelineSupabase,
@@ -8,17 +10,10 @@ import {
 } from './supabase-client.js';
 import type { EpisodeVideoProgressUpdate } from './video-progress.js';
 
-// This is the queue compatibility fence for the whole video pipeline, not only
-// image selection. Bump it when a completed render must be regenerated under a
-// new output contract (v4: 720x1280 at 24fps; v5: LLM-written search intents
-// and the chunk-crossfade freeze fix; v6: cover + body + Zap Pilot outro,
-// BODY ONLY storyboard, intro extends first body; v7: per-scene fail-closed
-// entity-first LLM search intents, Brave image retrieval, and an
-// entity-anchored candidate gate; v8: episode-wide subject catalog, primary
-// lead fencing, contextual subject fallback, persisted editorial decisions,
-// and restrained presentation metadata).
-export const EPISODE_VIDEO_VISUAL_VERSION =
-  'podcast-image-visual-plan.v8' as const;
+// Re-exported so every existing pipeline importer keeps one import site; the
+// value itself is a cross-app contract owned by @zapengine/types/shared,
+// because Control Center has to stamp the same version when it requeues work.
+export { EPISODE_VIDEO_VISUAL_VERSION };
 
 export type EpisodeVideoJobStatus =
   | 'queued'

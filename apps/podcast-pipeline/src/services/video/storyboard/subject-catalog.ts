@@ -29,18 +29,38 @@ export const VISUAL_SELECTION_REASONS = [
 const subjectIdSchema = z.string().regex(/^subject-[a-z0-9]+(?:-[a-z0-9]+)*$/);
 const sceneIdSchema = z.string().regex(/^scene-\d{2}$/);
 const shortTextSchema = z.string().min(2).max(80);
+const SUBJECT_LIMITS = {
+  aliases: 6,
+  evidenceSceneIds: 64,
+  searchQueries: 3,
+  identityHints: 8,
+  negativeHints: 8,
+  officialDomains: 4,
+} as const;
 
 export const visualSubjectSchema = z
   .object({
     id: subjectIdSchema,
     canonicalName: shortTextSchema,
     type: z.enum(VISUAL_SUBJECT_TYPES),
-    aliases: z.array(shortTextSchema).max(6).default([]),
+    aliases: z.array(shortTextSchema).max(SUBJECT_LIMITS.aliases).default([]),
     storyRole: z.enum(VISUAL_SUBJECT_ROLES),
-    evidenceSceneIds: z.array(sceneIdSchema).min(1).max(64),
-    searchQueries: z.array(shortTextSchema).min(1).max(3),
-    identityHints: z.array(shortTextSchema).min(1).max(8),
-    negativeHints: z.array(shortTextSchema).max(8).default([]),
+    evidenceSceneIds: z
+      .array(sceneIdSchema)
+      .min(1)
+      .max(SUBJECT_LIMITS.evidenceSceneIds),
+    searchQueries: z
+      .array(shortTextSchema)
+      .min(1)
+      .max(SUBJECT_LIMITS.searchQueries),
+    identityHints: z
+      .array(shortTextSchema)
+      .min(1)
+      .max(SUBJECT_LIMITS.identityHints),
+    negativeHints: z
+      .array(shortTextSchema)
+      .max(SUBJECT_LIMITS.negativeHints)
+      .default([]),
     officialDomains: z
       .array(
         z
@@ -49,7 +69,7 @@ export const visualSubjectSchema = z
           .max(120)
           .regex(/^[a-z0-9.-]+\.[a-z]{2,}$/i),
       )
-      .max(4)
+      .max(SUBJECT_LIMITS.officialDomains)
       .default([]),
   })
   .strict();
@@ -116,11 +136,38 @@ export type VisualSceneSubjectAssignment = z.infer<
 export function parseVisualSubjectCatalog(
   input: unknown,
 ): VisualSubjectCatalog {
-  const parsed = visualSubjectCatalogSchema.parse(input);
+  const parsed = visualSubjectCatalogSchema.parse(
+    normalizeVisualSubjectCatalogInput(input),
+  );
   return visualSubjectCatalogSchema.parse({
     ...parsed,
     subjects: parsed.subjects.map(disambiguateSubjectIdentity),
   });
+}
+
+/**
+ * LLM JSON is not application state yet. Repair bounded, mechanically obvious
+ * shape drift before strict validation so one verbose completion cannot burn
+ * all three visual attempts for an otherwise valid episode.
+ *
+ * This intentionally does not invent identity content: malformed names, IDs,
+ * domains, missing hints, duplicate primary roles, and ungrounded evidence are
+ * still rejected by the strict schema / grounding pass.
+ */
+export function normalizeVisualSubjectCatalogInput(input: unknown): unknown {
+  if (!isRecord(input)) return input;
+  const primarySubjectId = input['primarySubjectId'];
+  const subjects = input['subjects'];
+  if (typeof primarySubjectId !== 'string' || !Array.isArray(subjects)) {
+    return input;
+  }
+
+  return {
+    ...input,
+    subjects: subjects.map((subject) =>
+      normalizeVisualSubjectInput(subject, primarySubjectId),
+    ),
+  };
 }
 
 export function visualSubjectById(
@@ -170,6 +217,72 @@ export function isAmbiguousVisualSubject(subject: VisualSubject): boolean {
   );
 }
 
+function normalizeVisualSubjectInput(
+  input: unknown,
+  primarySubjectId: string,
+): unknown {
+  if (!isRecord(input)) return input;
+  const id = input['id'];
+  const storyRole = normalizedStoryRole(
+    input['storyRole'],
+    id,
+    primarySubjectId,
+  );
+  return {
+    ...input,
+    storyRole,
+    aliases: capArray(input['aliases'], SUBJECT_LIMITS.aliases),
+    evidenceSceneIds: capArray(
+      input['evidenceSceneIds'],
+      SUBJECT_LIMITS.evidenceSceneIds,
+    ),
+    searchQueries: capArray(
+      input['searchQueries'],
+      SUBJECT_LIMITS.searchQueries,
+    ),
+    identityHints: capArray(
+      input['identityHints'],
+      SUBJECT_LIMITS.identityHints,
+    ),
+    negativeHints: capArray(
+      input['negativeHints'],
+      SUBJECT_LIMITS.negativeHints,
+    ),
+    officialDomains: capArray(
+      input['officialDomains'],
+      SUBJECT_LIMITS.officialDomains,
+    ),
+  };
+}
+
+function normalizedStoryRole(
+  value: unknown,
+  subjectId: unknown,
+  primarySubjectId: string,
+): VisualSubject['storyRole'] {
+  if (isVisualSubjectRole(value)) {
+    return value;
+  }
+  return subjectId === primarySubjectId ? 'primary' : 'supporting';
+}
+
+function capArray(value: unknown, limit: number): unknown {
+  return Array.isArray(value) ? value.slice(0, limit) : value;
+}
+
+function isVisualSubjectRole(
+  value: unknown,
+): value is VisualSubject['storyRole'] {
+  return (
+    typeof value === 'string' &&
+    (VISUAL_SUBJECT_ROLES as readonly string[]).includes(value)
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 function disambiguateSubjectIdentity(subject: VisualSubject): VisualSubject {
   if (!isAmbiguousVisualSubject(subject)) return subject;
 
@@ -200,7 +313,15 @@ function disambiguateSubjectIdentity(subject: VisualSubject): VisualSubject {
   return {
     ...subject,
     canonicalName: contextualName,
-    aliases: uniqueNames([originalName, ...subject.aliases]),
+    // Demoting the original name grows the array, so it has to be re-capped:
+    // `parseVisualSubjectCatalog` re-validates the disambiguated catalog against
+    // the same strict schema, and a subject that arrived at the bound would
+    // otherwise fail that second parse and burn a visual attempt. The original
+    // name leads because it is the term the image search still needs.
+    aliases: uniqueNames([originalName, ...subject.aliases]).slice(
+      0,
+      SUBJECT_LIMITS.aliases,
+    ),
   };
 }
 

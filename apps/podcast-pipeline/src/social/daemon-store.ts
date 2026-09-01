@@ -167,17 +167,46 @@ function unwrapCandidates(result: {
   return result.data ?? [];
 }
 
+const CANDIDATE_PAGE_SIZE = 1000;
+/**
+ * A uuid costs 39 bytes inside an `in.(...)` filter and supabase-js never falls
+ * back to POST for a select, so an unchunked list walks the request line into
+ * the gateway's header buffer at a couple of hundred episodes.
+ */
+const CANDIDATE_ID_CHUNK_SIZE = 100;
+const CANDIDATE_FIELDS = 'episode_id,ready_at,language_code,episode_created_at';
+
+/**
+ * `social_publish_candidates` grows monotonically -- it has no exclusion for
+ * episodes that already have a job or a post -- so this has to be paged.
+ * PostgREST truncates at its configured row cap without an error, and because
+ * the order is ascending, an unpaged read would eventually return only the
+ * oldest rows and silently stop discovering new episodes.
+ *
+ * Paging is keyed on `(ready_at, episode_id, language_code)` rather than
+ * `ready_at` alone: the view exposes no unique column, sibling languages of one
+ * episode routinely share a `ready_at`, and rows that tie would shift between
+ * pages.
+ */
 export async function listSocialPublishCandidates(
   readySince: string,
 ): Promise<SocialPublishCandidate[]> {
-  return unwrapCandidates(
-    await getPipelineSupabase()
-      .from('social_publish_candidates')
-      .select('episode_id,ready_at,language_code,episode_created_at')
-      .gte('ready_at', readySince)
-      .order('ready_at', { ascending: true })
-      .returns<SocialPublishCandidate[]>(),
-  );
+  const rows: SocialPublishCandidate[] = [];
+  for (let offset = 0; ; offset += CANDIDATE_PAGE_SIZE) {
+    const page = unwrapCandidates(
+      await getPipelineSupabase()
+        .from('social_publish_candidates')
+        .select(CANDIDATE_FIELDS)
+        .gte('ready_at', readySince)
+        .order('ready_at', { ascending: true })
+        .order('episode_id', { ascending: true })
+        .order('language_code', { ascending: true })
+        .range(offset, offset + CANDIDATE_PAGE_SIZE - 1)
+        .returns<SocialPublishCandidate[]>(),
+    );
+    rows.push(...page);
+    if (page.length < CANDIDATE_PAGE_SIZE) return rows;
+  }
 }
 
 // The anchor filter above is applied per lane, not per episode: a canonical
@@ -189,15 +218,22 @@ export async function listSocialPublishCandidates(
 export async function listSocialPublishCandidatesForEpisodes(
   episodeIds: readonly string[],
 ): Promise<SocialPublishCandidate[]> {
-  if (episodeIds.length === 0) return [];
-  return unwrapCandidates(
-    await getPipelineSupabase()
-      .from('social_publish_candidates')
-      .select('episode_id,ready_at,language_code,episode_created_at')
-      .in('episode_id', [...episodeIds])
-      .order('ready_at', { ascending: true })
-      .returns<SocialPublishCandidate[]>(),
-  );
+  const ids = [...new Set(episodeIds)];
+  const rows: SocialPublishCandidate[] = [];
+  for (let start = 0; start < ids.length; start += CANDIDATE_ID_CHUNK_SIZE) {
+    const chunk = ids.slice(start, start + CANDIDATE_ID_CHUNK_SIZE);
+    rows.push(
+      ...unwrapCandidates(
+        await getPipelineSupabase()
+          .from('social_publish_candidates')
+          .select(CANDIDATE_FIELDS)
+          .in('episode_id', chunk)
+          .order('ready_at', { ascending: true })
+          .returns<SocialPublishCandidate[]>(),
+      ),
+    );
+  }
+  return rows;
 }
 
 export async function listSocialEpisodeLocalizationTitles(
@@ -703,6 +739,7 @@ export async function releaseSocialPublishJobLease(input: {
   jobId: string;
   owner: string;
   scheduledAt: string;
+  attemptCount: number;
   now: Date;
 }): Promise<void> {
   await updateOwnedSocialPublishJob(input.jobId, input.owner, {
@@ -710,6 +747,45 @@ export async function releaseSocialPublishJobLease(input: {
     next_attempt_at: input.scheduledAt,
     lease_owner: null,
     lease_expires_at: null,
+    ...refundedAttempt(input.attemptCount),
+    updated_at: input.now.toISOString(),
+  });
+}
+
+/**
+ * `claim_social_publish_batch` claims an episode's whole cohort in one UPDATE,
+ * so it increments `attempt_count` on every due lane before anyone knows which
+ * lanes will actually be handed to a transport. A lane that never reached
+ * `publish()` must give its attempt back, or a platform that keeps failing
+ * walks its siblings to the `attempt_count < 8` claim ceiling and they become
+ * permanently unclaimable without ever having been tried.
+ *
+ * The caller passes the post-claim value it holds, and the write is already
+ * fenced on `lease_owner`, so this cannot refund an attempt for a lane some
+ * other owner has since claimed.
+ */
+function refundedAttempt(
+  attemptCount: number,
+): Pick<SocialPublishJobRow, 'attempt_count'> | Record<string, never> {
+  return attemptCount > 0 ? { attempt_count: attemptCount - 1 } : {};
+}
+
+/**
+ * A lane that sits after the failing one inside the SAME episode|language group
+ * is deliberately NOT released: a sibling platform may already be live from
+ * that batch call, and requeueing it risks a duplicate publish. It still never
+ * reached a transport, so it still has to get its attempt back -- otherwise the
+ * one lane that cannot be released is the one that silently exhausts.
+ */
+export async function refundSocialPublishJobAttempt(input: {
+  jobId: string;
+  owner: string;
+  attemptCount: number;
+  now: Date;
+}): Promise<void> {
+  if (input.attemptCount <= 0) return;
+  await updateOwnedSocialPublishJob(input.jobId, input.owner, {
+    ...refundedAttempt(input.attemptCount),
     updated_at: input.now.toISOString(),
   });
 }

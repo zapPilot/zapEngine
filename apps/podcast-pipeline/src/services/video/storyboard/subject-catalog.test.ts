@@ -11,7 +11,7 @@ function rawSubject(
     canonicalName: string;
     type: 'company' | 'standard';
     aliases: string[];
-    storyRole: 'primary' | 'secondary';
+    storyRole: string;
     evidenceSceneIds: string[];
     searchQueries: string[];
     identityHints: string[];
@@ -23,7 +23,7 @@ function rawSubject(
     canonicalName: 'Coinbase',
     type: 'company' as const,
     aliases: [],
-    storyRole: 'primary' as const,
+    storyRole: 'primary',
     evidenceSceneIds: ['scene-01'],
     searchQueries: ['Coinbase tokenized stocks'],
     identityHints: ['crypto exchange', 'Base'],
@@ -45,6 +45,46 @@ describe('visual subject catalog', () => {
       canonicalName: 'Coinbase',
       storyRole: 'primary',
     });
+  });
+
+  it('repairs bounded LLM shape drift before strict validation', () => {
+    const evidenceSceneIds = Array.from(
+      { length: 70 },
+      (_, index) => `scene-${String(index + 1).padStart(2, '0')}`,
+    );
+    const catalog = parseVisualSubjectCatalog({
+      primarySubjectId: 'subject-coinbase',
+      subjects: [
+        rawSubject({
+          storyRole: 'lead',
+          evidenceSceneIds,
+          searchQueries: [
+            'Coinbase tokenized stocks',
+            'Coinbase Base exchange',
+            'Coinbase crypto news',
+            'Coinbase Wall Street',
+          ],
+        }),
+        rawSubject({
+          id: 'subject-base',
+          canonicalName: 'Base',
+          storyRole: 'mentioned',
+          evidenceSceneIds: ['scene-02'],
+          searchQueries: ['Base Coinbase L2'],
+        }),
+      ],
+    });
+
+    expect(catalog.subjects[0]).toMatchObject({
+      storyRole: 'primary',
+      searchQueries: [
+        'Coinbase tokenized stocks',
+        'Coinbase Base exchange',
+        'Coinbase crypto news',
+      ],
+    });
+    expect(catalog.subjects[0]?.evidenceSceneIds).toHaveLength(64);
+    expect(catalog.subjects[1]?.storyRole).toBe('supporting');
   });
 
   it('promotes Alpaca Markets over the animal name collision', () => {
@@ -106,7 +146,45 @@ describe('visual subject catalog', () => {
     );
   });
 
-  it('rejects catalogs with more than one primary subject', () => {
+  it('disambiguates a subject whose aliases already sit at the bound', () => {
+    // Capping over-long drift lands exactly on the alias bound, so demoting the
+    // original name here used to overflow it and fail the second strict parse --
+    // turning the shape repair into the very lost attempt it exists to avoid.
+    const catalog = parseVisualSubjectCatalog({
+      primarySubjectId: 'subject-coinbase',
+      subjects: [
+        rawSubject(),
+        rawSubject({
+          id: 'subject-b20',
+          canonicalName: 'B20',
+          type: 'standard',
+          storyRole: 'secondary',
+          aliases: [
+            'Alpha',
+            'Bravo',
+            'Charlie',
+            'Delta',
+            'Echo',
+            'Foxtrot',
+            'Golf',
+            'Hotel',
+          ],
+          evidenceSceneIds: ['scene-11'],
+          searchQueries: ['B20 tokenized stocks'],
+          identityHints: ['Base', 'ERC-20'],
+        }),
+      ],
+    });
+
+    const b20 = catalog.subjects.find(
+      (subject) => subject.id === 'subject-b20',
+    );
+    expect(b20?.canonicalName).toBe('Base B20');
+    expect(b20?.aliases).toHaveLength(6);
+    expect(b20?.aliases[0]).toBe('B20');
+  });
+
+  it('rejects catalogs with more than one explicit primary subject', () => {
     expect(() =>
       parseVisualSubjectCatalog({
         primarySubjectId: 'subject-coinbase',

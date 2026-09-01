@@ -28,6 +28,7 @@ const mocks = vi.hoisted(() => ({
   listSocialPublishCandidatesForEpisodes: vi.fn().mockResolvedValue([]),
   listUnfinishedSocialPublishJobs: vi.fn().mockResolvedValue([]),
   reconcileSocialPublishJob: vi.fn(),
+  refundSocialPublishJobAttempt: vi.fn().mockResolvedValue(undefined),
   releaseSocialPublishJobLease: vi.fn().mockResolvedValue(undefined),
   insertSocialPostMetric: vi.fn(),
   listSocialPostIdentitiesByEpisodes: vi.fn().mockResolvedValue([]),
@@ -75,6 +76,7 @@ vi.mock('./daemon-store.js', () => ({
     mocks.listSocialPublishCandidatesForEpisodes,
   listUnfinishedSocialPublishJobs: mocks.listUnfinishedSocialPublishJobs,
   reconcileSocialPublishJob: mocks.reconcileSocialPublishJob,
+  refundSocialPublishJobAttempt: mocks.refundSocialPublishJobAttempt,
   releaseSocialPublishJobLease: mocks.releaseSocialPublishJobLease,
 }));
 vi.mock('./release-cohort-store.js', () => ({
@@ -171,6 +173,7 @@ beforeEach(() => {
   mocks.listSocialPostsByEpisode.mockResolvedValue([]);
   mocks.listLearningSocialPosts.mockResolvedValue([]);
   mocks.releaseSocialPublishJobLease.mockResolvedValue(undefined);
+  mocks.refundSocialPublishJobAttempt.mockResolvedValue(undefined);
   mocks.failSocialPublishJob.mockResolvedValue(undefined);
   mocks.ensureSocialDaemonStart.mockResolvedValue(FIRST_STARTED_AT);
   mocks.getAllowedTelegramUserIds.mockReturnValue(new Set(['111']));
@@ -253,6 +256,7 @@ describe('social daemon release-shape stages are fatal', () => {
       jobId: 'b1',
       owner: expect.any(String),
       scheduledAt: '2026-08-16T09:00:00.000Z',
+      attemptCount: 1,
       now: NOW,
     });
     // Episode A's own lanes stay untouched (not released back to queued):
@@ -265,6 +269,20 @@ describe('social daemon release-shape stages are fatal', () => {
       expect.objectContaining({ jobId: 'a2' }),
     );
     expect(mocks.releaseSocialPublishJobLease).toHaveBeenCalledTimes(1);
+    // ...but the cohort claim charged them an attempt they never spent, and a2
+    // is the lane that cannot be released, so it is the one that would silently
+    // walk to the claim ceiling. Its attempt is refunded in place.
+    expect(mocks.refundSocialPublishJobAttempt).toHaveBeenCalledWith({
+      jobId: 'a2',
+      owner: expect.any(String),
+      attemptCount: 1,
+      now: NOW,
+    });
+    expect(mocks.refundSocialPublishJobAttempt).toHaveBeenCalledTimes(1);
+    // a1 is the lane that actually failed, so its attempt stands.
+    expect(mocks.refundSocialPublishJobAttempt).not.toHaveBeenCalledWith(
+      expect.objectContaining({ jobId: 'a1' }),
+    );
 
     // Nothing after the publish stage ran this tick.
     expect(mocks.listLearningSocialPosts).not.toHaveBeenCalled();

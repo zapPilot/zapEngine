@@ -87,6 +87,24 @@ export async function publishSocialPlatforms(input: {
       throw fail('transport', normalized);
     }
 
+    // `social_posts` first, machine-local state second. Every duplicate guard a
+    // later tick consults before transport reads the persisted post -- the local
+    // file is one operator machine's cache, not evidence anyone else can see --
+    // so writing the local file first leaves a window where the post is live and
+    // nothing durable records it. That window has already produced a duplicate
+    // Rednote post for one episode.
+    if (input.persistPublished) {
+      try {
+        await input.persistPublished({ platform, result });
+      } catch (error) {
+        const normalized = toError(error);
+        log(
+          `[${platform}] ⚠ Published remotely, but telemetry recording failed: ${normalized.message}`,
+        );
+        throw fail('telemetry', normalized);
+      }
+    }
+
     try {
       await markPlatformPublished({
         episodeId: input.episodeId,
@@ -105,18 +123,6 @@ export async function publishSocialPlatforms(input: {
         `[${platform}] ⚠ Published remotely, but local duplicate state was not saved: ${normalized.message}`,
       );
       throw fail('state', normalized);
-    }
-
-    if (input.persistPublished) {
-      try {
-        await input.persistPublished({ platform, result });
-      } catch (error) {
-        const normalized = toError(error);
-        log(
-          `[${platform}] ⚠ Published remotely, but telemetry recording failed: ${normalized.message}`,
-        );
-        throw fail('telemetry', normalized);
-      }
     }
 
     log(`[${platform}] ✓ ${result.url ?? 'Published'}`);

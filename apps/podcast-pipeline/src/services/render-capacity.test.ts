@@ -748,6 +748,7 @@ function makeSupabase(
   rowsByCall: unknown[][],
   errorsByCall: unknown[] = [],
   nullDataCalls: number[] = [],
+  rpcResult: { data: unknown; error: unknown } = { data: [], error: null },
 ) {
   const calls: RecordedQuery[] = [];
   let index = 0;
@@ -773,7 +774,8 @@ function makeSupabase(
     }
     return query;
   });
-  return { supabase: { from } as never, calls };
+  const rpc = vi.fn(async () => rpcResult);
+  return { supabase: { from, rpc } as never, calls, rpc };
 }
 
 function expectedProbeFailureMessage(error: unknown): string {
@@ -836,6 +838,24 @@ describe('createRenderWorkProbe', () => {
     ).resolves.toMatchObject({
       videos: [],
       visuals: [],
+    });
+  });
+
+  it('keeps code-before-migration rollout compatible when the visual notice RPC is missing', async () => {
+    const { supabase } = makeSupabase([[], []], [], [], {
+      data: null,
+      error: {
+        code: 'PGRST202',
+        message: 'function missing from schema cache',
+      },
+    });
+
+    await expect(
+      createRenderWorkProbe(supabase).loadSnapshot(),
+    ).resolves.toMatchObject({
+      videos: [],
+      visuals: [],
+      visualFailureNotices: [],
     });
   });
 
