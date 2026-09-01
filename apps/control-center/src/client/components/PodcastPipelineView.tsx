@@ -30,7 +30,8 @@ export function PodcastPipelineView(props: {
   const recentlyCompleted = props.data.episodes
     .filter(({ currentPhase }) => currentPhase === 'done')
     .slice(0, 5);
-  const failed = active.filter(({ videoStatus }) => videoStatus === 'failed');
+  const failed = active.filter((episode) => hasFailure(episode));
+  const stuck = active.filter((episode) => hasStuckWork(episode));
 
   return (
     <div className="pipeline-view">
@@ -45,18 +46,8 @@ export function PodcastPipelineView(props: {
         </div>
         <div className="pipeline-summary">
           <Summary label="Active" value={active.length} />
-          <Summary label="Video failed" value={failed.length} tone="failed" />
-          <Summary
-            label="Processing"
-            value={
-              active.filter(
-                (episode) =>
-                  episode.translationStatus === 'processing' ||
-                  episode.ttsStatus === 'processing' ||
-                  episode.videoStatus === 'processing',
-              ).length
-            }
-          />
+          <Summary label="Failed" value={failed.length} tone="failed" />
+          <Summary label="Stuck" value={stuck.length} tone="failed" />
         </div>
       </section>
 
@@ -100,7 +91,9 @@ function PipelineEpisode(props: {
   onRestartVideo: (episodeId: string) => void;
 }) {
   const { episode } = props;
+  const ingestError = episode.ingest?.lastError;
   const visualError = episode.visual?.lastError;
+
   return (
     <article className="open-panel pipeline-episode">
       <header className="pipeline-episode-head">
@@ -110,7 +103,9 @@ function PipelineEpisode(props: {
           </span>
           <h3>{episode.title ?? shortId(episode.episodeId)}</h3>
           <small>
-            Added {relativeTime(episode.createdAt)} · {shortId(episode.episodeId)}
+            Added {relativeTime(episode.createdAt)} ·{' '}
+            {shortId(episode.episodeId)}
+            {episode.ingest ? ` · ingest ${statusLabel(episode.ingest.status)}` : ''}
           </small>
         </div>
         {episode.currentPhase !== 'done' ? (
@@ -142,11 +137,11 @@ function PipelineEpisode(props: {
         <PhaseCell label="Video" status={episode.videoStatus} />
       </div>
 
+      {ingestError && episode.ingest?.status !== 'completed' ? (
+        <PipelineError label="Ingest failure" message={ingestError} />
+      ) : null}
       {visualError ? (
-        <div className="pipeline-error" role="status">
-          <strong>Visual failure</strong>
-          <span>{compactError(visualError)}</span>
-        </div>
+        <PipelineError label="Visual failure" message={visualError} />
       ) : null}
 
       <details className="pipeline-details">
@@ -157,7 +152,10 @@ function PipelineEpisode(props: {
               ({ languageCode }) => languageCode === localization.languageCode,
             );
             return (
-              <div className="pipeline-language" key={localization.languageCode}>
+              <div
+                className="pipeline-language"
+                key={localization.languageCode}
+              >
                 <strong>{languageLabel(localization.languageCode)}</strong>
                 <span>
                   Script {localization.hasScript ? '✓' : '—'} · Audio{' '}
@@ -210,11 +208,7 @@ function StatusLabel(props: { status: PodcastPipelineStatus }) {
   );
 }
 
-function Summary(props: {
-  label: string;
-  value: number;
-  tone?: 'failed';
-}) {
+function Summary(props: { label: string; value: number; tone?: 'failed' }) {
   return (
     <div className="pipeline-summary-item">
       <span>{props.label}</span>
@@ -225,8 +219,19 @@ function Summary(props: {
   );
 }
 
+function PipelineError(props: { label: string; message: string }) {
+  return (
+    <div className="pipeline-error" role="status">
+      <strong>{props.label}</strong>
+      <span>{compactError(props.message)}</span>
+    </div>
+  );
+}
+
 function jobDetail(job: PodcastPipelineJobState | null): string | null {
-  if (!job) return null;
+  if (!job) {
+    return null;
+  }
   const parts = [
     job.stage,
     job.progressPercent !== null ? `${job.progressPercent}%` : null,
@@ -242,6 +247,8 @@ function statusLabel(status: PodcastPipelineStatus): string {
       return 'Done';
     case 'processing':
       return 'Processing';
+    case 'stuck':
+      return 'Stuck';
     case 'queued':
       return 'Queued';
     case 'failed':
@@ -264,17 +271,35 @@ function phaseLabel(phase: PodcastPipelineEpisode['currentPhase']): string {
   }
 }
 
+function hasFailure(episode: PodcastPipelineEpisode): boolean {
+  return (
+    episode.translationStatus === 'failed' ||
+    episode.ttsStatus === 'failed' ||
+    episode.videoStatus === 'failed'
+  );
+}
+
+function hasStuckWork(episode: PodcastPipelineEpisode): boolean {
+  return (
+    episode.translationStatus === 'stuck' ||
+    episode.ttsStatus === 'stuck' ||
+    episode.videoStatus === 'stuck'
+  );
+}
+
 function languageLabel(languageCode: 'zh-Hant' | 'ja' | 'en'): string {
-  return languageCode === 'zh-Hant'
-    ? '🇹🇼 zh-Hant'
-    : languageCode === 'ja'
-      ? '🇯🇵 ja'
-      : '🇺🇸 en';
+  if (languageCode === 'zh-Hant') {
+    return '🇹🇼 zh-Hant';
+  }
+  return languageCode === 'ja' ? '🇯🇵 ja' : '🇺🇸 en';
 }
 
 function compactError(error: string): string {
   const compact = error.replace(/\s+/gu, ' ').trim();
-  return compact.length > 280 ? `${compact.slice(0, 277)}…` : compact;
+  if (compact.length > 280) {
+    return `${compact.slice(0, 277)}…`;
+  }
+  return compact;
 }
 
 function shortId(value: string): string {
