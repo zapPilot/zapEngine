@@ -5,6 +5,7 @@ description: >-
   especially after another agent created the implementation. Checks out the PR
   head in the current isolated worktree and reviews the implementation against
   the PR description, repository invariants, and executable evidence.
+argument-hint: '[pr-number-or-url]'
 ---
 
 # Review an existing PR
@@ -22,6 +23,9 @@ narrow the review or explicitly ask for fixes.
 - Invoking this skill explicitly authorizes switching this current worktree to
   the target PR head branch. It does not authorize reset, rebase, force-push,
   history rewriting, or discarding user-owned changes.
+- If the current worktree is the primary checkout (first entry of
+  `git worktree list --porcelain`), stop and ask before switching; only linked
+  worktrees may be repointed by this skill.
 - If local changes would be overwritten by checkout, stop and report the exact
   conflict. Never hide them with `reset`, `clean`, or an implicit stash.
 - The PR body is a contract to verify, not proof that the implementation is
@@ -60,7 +64,15 @@ Then check out the PR in this worktree:
 gh pr checkout <pr>
 ```
 
-After checkout, verify that local `HEAD` equals the PR's `headRefOid` from
+If the head branch is already checked out in another worktree, retry with a
+distinct local branch name:
+
+```bash
+gh pr checkout <pr> --branch review-pr-<pr>
+```
+
+Tracking remains on the original PR branch, so fix-mode pushes still target the
+PR. After checkout, verify that local `HEAD` equals the PR's `headRefOid` from
 `gh pr view`. If it does not, fetch and diagnose the mismatch before reviewing;
 do not silently review stale code.
 
@@ -85,9 +97,11 @@ rather than changing the review target to match the prose.
 
 ## Inspect implementation truth
 
-Establish the exact changed-file set and diff from the PR's recorded base OID:
+Ensure the recorded base OID is present, then establish the exact changed-file
+set and diff from the PR's recorded base OID:
 
 ```bash
+git fetch origin <baseRefName>
 git diff --stat <baseRefOid>...HEAD
 git diff --name-status <baseRefOid>...HEAD
 git diff <baseRefOid>...HEAD
@@ -119,7 +133,8 @@ comments or speculative refactors.
 For each material finding, use the narrowest repository-native executable check
 that can prove or disprove it. Run focused tests first. Before final handoff, run
 one appropriate aggregate gate for the affected scope when practical, following
-root and scoped verification rules.
+root and scoped verification rules. In worktrees prefer scoped `turbo run`
+targets over full `pnpm verify`; rely on the PR's CI for aggregate coverage.
 
 Do not weaken tests, validation, typing, CI gates, or security boundaries to make
 an implementation satisfy its PR description.
