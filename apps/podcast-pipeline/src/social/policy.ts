@@ -17,8 +17,9 @@ export interface SocialLanguagePolicyEntry {
 const MULTILINGUAL_ACTIVE_SINCE = '2026-08-24T00:00:00.000Z';
 
 /**
- * The balanced language experiment starts at 09:00 JST on 2026-09-01. Existing
- * cohorts already scheduled before this instant keep their legacy lane shape.
+ * The balanced language experiment starts at 09:00 JST on 2026-09-01. Episodes
+ * created before this instant keep their legacy lane shape even if released
+ * later, so deploying the experiment never reshapes backlog.
  */
 export const SOCIAL_LANGUAGE_ROTATION_ACTIVE_SINCE =
   '2026-09-01T00:00:00.000Z';
@@ -28,6 +29,20 @@ export const SOCIAL_LANGUAGE_EXPERIMENT_KEYS = {
   threads: 'threads-language-v1',
   youtube: 'youtube-language-v1',
 } as const satisfies Record<'x' | 'threads' | 'youtube', string>;
+
+const ROTATING_LANGUAGES = ['en', 'ja', 'zh-Hant'] as const satisfies readonly SocialLanguageCode[];
+
+function rotatingLanguagePolicy(
+  experimentKey: string,
+): SocialLanguagePolicyEntry[] {
+  return ROTATING_LANGUAGES.map((language) => ({
+    language,
+    activeSince: SOCIAL_LANGUAGE_ROTATION_ACTIVE_SINCE,
+    experimentKey,
+    experimentVariant: language,
+    assignment: 'always',
+  }));
+}
 
 /**
  * Current candidate language surface. Rednote stays Traditional Chinese while
@@ -39,79 +54,10 @@ export const SOCIAL_LANGUAGE_POLICY = {
   rednote: [
     { language: 'zh-Hant', activeSince: MULTILINGUAL_ACTIVE_SINCE },
   ],
-  threads: [
-    {
-      language: 'en',
-      activeSince: SOCIAL_LANGUAGE_ROTATION_ACTIVE_SINCE,
-      experimentKey: SOCIAL_LANGUAGE_EXPERIMENT_KEYS.threads,
-      experimentVariant: 'en',
-      assignment: 'always',
-    },
-    {
-      language: 'ja',
-      activeSince: SOCIAL_LANGUAGE_ROTATION_ACTIVE_SINCE,
-      experimentKey: SOCIAL_LANGUAGE_EXPERIMENT_KEYS.threads,
-      experimentVariant: 'ja',
-      assignment: 'always',
-    },
-    {
-      language: 'zh-Hant',
-      activeSince: SOCIAL_LANGUAGE_ROTATION_ACTIVE_SINCE,
-      experimentKey: SOCIAL_LANGUAGE_EXPERIMENT_KEYS.threads,
-      experimentVariant: 'zh-Hant',
-      assignment: 'always',
-    },
-  ],
-  x: [
-    {
-      language: 'en',
-      activeSince: SOCIAL_LANGUAGE_ROTATION_ACTIVE_SINCE,
-      experimentKey: SOCIAL_LANGUAGE_EXPERIMENT_KEYS.x,
-      experimentVariant: 'en',
-      assignment: 'always',
-    },
-    {
-      language: 'ja',
-      activeSince: SOCIAL_LANGUAGE_ROTATION_ACTIVE_SINCE,
-      experimentKey: SOCIAL_LANGUAGE_EXPERIMENT_KEYS.x,
-      experimentVariant: 'ja',
-      assignment: 'always',
-    },
-    {
-      language: 'zh-Hant',
-      activeSince: SOCIAL_LANGUAGE_ROTATION_ACTIVE_SINCE,
-      experimentKey: SOCIAL_LANGUAGE_EXPERIMENT_KEYS.x,
-      experimentVariant: 'zh-Hant',
-      assignment: 'always',
-    },
-  ],
-  youtube: [
-    {
-      language: 'en',
-      activeSince: SOCIAL_LANGUAGE_ROTATION_ACTIVE_SINCE,
-      experimentKey: SOCIAL_LANGUAGE_EXPERIMENT_KEYS.youtube,
-      experimentVariant: 'en',
-      assignment: 'always',
-    },
-    {
-      language: 'ja',
-      activeSince: SOCIAL_LANGUAGE_ROTATION_ACTIVE_SINCE,
-      experimentKey: SOCIAL_LANGUAGE_EXPERIMENT_KEYS.youtube,
-      experimentVariant: 'ja',
-      assignment: 'always',
-    },
-    {
-      language: 'zh-Hant',
-      activeSince: SOCIAL_LANGUAGE_ROTATION_ACTIVE_SINCE,
-      experimentKey: SOCIAL_LANGUAGE_EXPERIMENT_KEYS.youtube,
-      experimentVariant: 'zh-Hant',
-      assignment: 'always',
-    },
-  ],
-} as const satisfies Record<
-  SocialPlatform,
-  readonly SocialLanguagePolicyEntry[]
->;
+  threads: rotatingLanguagePolicy(SOCIAL_LANGUAGE_EXPERIMENT_KEYS.threads),
+  x: rotatingLanguagePolicy(SOCIAL_LANGUAGE_EXPERIMENT_KEYS.x),
+  youtube: rotatingLanguagePolicy(SOCIAL_LANGUAGE_EXPERIMENT_KEYS.youtube),
+} satisfies Record<SocialPlatform, readonly SocialLanguagePolicyEntry[]>;
 
 /**
  * Kept only so an interrupted cohort scheduled before the v2 activation can
