@@ -21,14 +21,14 @@ function languageByPlatform(date: Date): Record<string, string> {
 describe('social language Latin square', () => {
   it('rotates A/B/C across the three article slots and shifts once per JST day', () => {
     const day1 = [
-      slot(1, 0, 30), // 09:30 JST
-      slot(1, 3), // 12:00 JST
-      slot(1, 7), // 16:00 JST
+      slot(2, 0, 30), // 09:30 JST
+      slot(2, 3), // 12:00 JST
+      slot(2, 7), // 16:00 JST
     ].map((date) => languageRotationProfileForSlot(date).profile);
-    const day2 = [slot(2, 0, 30), slot(2, 3), slot(2, 7)].map(
+    const day2 = [slot(3, 0, 30), slot(3, 3), slot(3, 7)].map(
       (date) => languageRotationProfileForSlot(date).profile,
     );
-    const day3 = [slot(3, 0, 30), slot(3, 3), slot(3, 7)].map(
+    const day3 = [slot(4, 0, 30), slot(4, 3), slot(4, 7)].map(
       (date) => languageRotationProfileForSlot(date).profile,
     );
 
@@ -38,7 +38,7 @@ describe('social language Latin square', () => {
   });
 
   it('covers zh-Hant, ja, and en on every article while Rednote stays zh-Hant', () => {
-    for (const date of [slot(1, 0, 30), slot(1, 3), slot(1, 7)]) {
+    for (const date of [slot(2, 0, 30), slot(2, 3), slot(2, 7)]) {
       const lanes = rotatingReleaseCohortLanes(date);
       expect(lanes).toHaveLength(4);
       expect(lanes.find((lane) => lane.platform === 'rednote')?.language).toBe(
@@ -51,7 +51,7 @@ describe('social language Latin square', () => {
   });
 
   it('gives each rotating platform every language exactly once per JST day', () => {
-    const allocations = [slot(1, 0, 30), slot(1, 3), slot(1, 7)].map(
+    const allocations = [slot(2, 0, 30), slot(2, 3), slot(2, 7)].map(
       languageByPlatform,
     );
     for (const platform of ['x', 'threads', 'youtube']) {
@@ -62,7 +62,7 @@ describe('social language Latin square', () => {
   });
 
   it('records platform-specific language experiment memberships', () => {
-    const lanes = rotatingReleaseCohortLanes(slot(1, 0, 30));
+    const lanes = rotatingReleaseCohortLanes(slot(2, 0, 30));
     expect(lanes).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -88,7 +88,7 @@ describe('social language Latin square', () => {
   });
 
   it('fails closed if a caller tries to allocate a non-release time', () => {
-    expect(() => languageRotationProfileForSlot(slot(1, 1))).toThrow(
+    expect(() => languageRotationProfileForSlot(slot(2, 1))).toThrow(
       /configured article slot/u,
     );
   });
