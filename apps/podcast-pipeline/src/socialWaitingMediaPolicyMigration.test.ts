@@ -24,11 +24,14 @@ describe('social language-v2 migration guards', () => {
   it('covers every language required by the rotating release cohort exactly once', () => {
     const readinessBlock = migration.slice(
       migration.indexOf('with required_language(language_code)'),
-      migration.indexOf(')\nselect', migration.indexOf('with required_language')),
+      migration.indexOf(
+        ')\nselect',
+        migration.indexOf('with required_language'),
+      ),
     );
-    const languages = [
-      ...readinessBlock.matchAll(/\('([^']+)'::text\)/gi),
-    ].map(([, language]) => language);
+    const languages = [...readinessBlock.matchAll(/\('([^']+)'::text\)/gi)].map(
+      ([, language]) => language,
+    );
 
     expect(new Set(languages)).toEqual(
       new Set(SOCIAL_REQUIRED_ROTATION_LANGUAGES),
