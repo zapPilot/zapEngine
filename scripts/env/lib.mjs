@@ -157,6 +157,14 @@ const SENSITIVE_NAME =
   /(?:_KEY|_SECRET|_TOKEN|_PASSWORD|_CREDENTIALS?|PRIVATE_KEY|_DSN|DATABASE_URL)$/u;
 const CREDENTIAL_VALUE =
   /^(?:eyJ|sk-|pk_|fly_|ghp_)[A-Za-z0-9_./+\-=]+$|^(?:[A-Fa-f0-9]{41,}|[A-Za-z0-9+/]{41,}={0,2})$/u;
+const PUBLIC_EVM_ADDRESS_LIST =
+  /^0x[A-Fa-f0-9]{40}(?:\s*,\s*0x[A-Fa-f0-9]{40})*$/u;
+
+function isCredentialLikeValue(value) {
+  return (
+    !PUBLIC_EVM_ADDRESS_LIST.test(value) && CREDENTIAL_VALUE.test(value)
+  );
+}
 
 export function auditSecretClassification(committedByEnvironment) {
   const errors = [];
@@ -195,7 +203,7 @@ export function auditSecretClassification(committedByEnvironment) {
         errors.push(
           `${environment}: ${name} is sensitive and cannot be committed`,
         );
-      } else if (value && CREDENTIAL_VALUE.test(value.trim())) {
+      } else if (value && isCredentialLikeValue(value.trim())) {
         errors.push(
           `${environment}: ${name} has a credential-like committed value`,
         );
