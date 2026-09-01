@@ -35,6 +35,22 @@ function completedRun(input: {
   };
 }
 
+function recentRun(input: {
+  name: string;
+  path: string;
+  event: string;
+  conclusion: string | null;
+  startedAt: string;
+}): Record<string, unknown> {
+  return {
+    ...completedRun(input),
+    name: input.name,
+    path: input.path,
+    event: input.event,
+    head_branch: 'main',
+  };
+}
+
 function runsResponse(runs: readonly unknown[]): Response {
   return new Response(JSON.stringify({ workflow_runs: runs }), { status: 200 });
 }
@@ -89,6 +105,7 @@ async function repoWith(names: readonly string[]): Promise<string> {
 function recordingFetch(
   respond: (file: string) => Response,
   scheduleEntries: readonly unknown[] = [githubEntry('env-drift')],
+  recentRuns: readonly unknown[] = [],
 ): {
   fetchImpl: typeof fetch;
   calls: Call[];
@@ -102,6 +119,9 @@ function recordingFetch(
         new Response(JSON.stringify(scheduleEntries), { status: 200 }),
       );
     }
+    if (url.includes('/actions/runs?')) {
+      return Promise.resolve(runsResponse(recentRuns));
+    }
     const file = url.split('/runs?')[0]?.split('/').at(-1) ?? '';
     return Promise.resolve(respond(file));
   };
@@ -113,15 +133,20 @@ async function collect(input: {
   repoRoot?: string;
   config?: ControlCenterConfig;
   respond?: (file: string) => Response;
+  recentRuns?: readonly unknown[];
+  registrySource?: 'local' | 'remote-main';
 }) {
   const { fetchImpl, calls } = recordingFetch(
     input.respond ?? everyWorkflowRuns(),
+    [githubEntry('env-drift')],
+    input.recentRuns,
   );
   const signals = await collectGithubSignals({
     config: input.config ?? CONFIGURED,
     now: NOW,
     fetchImpl,
     repoRoot: input.repoRoot,
+    registrySource: input.registrySource,
   });
   return { signals, calls };
 }
@@ -164,6 +189,7 @@ describe('collectGithubSignals', () => {
     expect(calls.map((call) => call.url)).toEqual([
       'https://api.github.com/repos/zapPilot/zapEngine/actions/workflows/backtest-refresh.yml/runs?per_page=5&event=schedule',
       'https://api.github.com/repos/zapPilot/zapEngine/actions/workflows/env-drift.yml/runs?per_page=5&event=schedule',
+      'https://api.github.com/repos/zapPilot/zapEngine/actions/runs?branch=main&per_page=50',
     ]);
     expect(calls[0]?.headers.get('Authorization')).toBe('Bearer ops-token');
     expect(calls[0]?.headers.get('Accept')).toBe('application/vnd.github+json');
@@ -332,8 +358,9 @@ describe('collectGithubSignals', () => {
     expect(signals[0]?.detail).toContain('lists no github-actions workflows');
   });
 
-  it('reads the schedule registry from GitHub when no repoRoot is passed', async () => {
+  it('reads the schedule registry from GitHub for the remote-main source', async () => {
     const { signals, calls } = await collect({
+      registrySource: 'remote-main',
       respond: everyWorkflowRuns(
         completedRun({ conclusion: 'success', startedAt: hoursAgo(4) }),
       ),
@@ -349,6 +376,69 @@ describe('collectGithubSignals', () => {
     expect(calls[1]?.url).toContain(
       'env-drift.yml/runs?per_page=5&event=schedule',
     );
+    expect(calls[2]?.url).toBe(
+      'https://api.github.com/repos/zapPilot/zapEngine/actions/runs?branch=main&per_page=50',
+    );
     expect(signals.every((signal) => signal.status === 'healthy')).toBe(true);
+  });
+
+  it('surfaces recent main-branch failures outside the cron registry', async () => {
+    const { signals } = await collect({
+      repoRoot: await repoWith(['env-drift']),
+      respond: everyWorkflowRuns(
+        completedRun({ conclusion: 'success', startedAt: hoursAgo(2) }),
+      ),
+      recentRuns: [
+        recentRun({
+          name: 'Environment apply',
+          path: '.github/workflows/env-apply.yml',
+          event: 'workflow_dispatch',
+          conclusion: 'failure',
+          startedAt: hoursAgo(1),
+        }),
+        recentRun({
+          name: 'Release mobile',
+          path: '.github/workflows/release-mobile.yml',
+          event: 'workflow_dispatch',
+          conclusion: 'success',
+          startedAt: hoursAgo(2),
+        }),
+      ],
+    });
+
+    expect(signals).toHaveLength(2);
+    expect(signals[1]).toMatchObject({
+      fingerprint:
+        'github-actions:recent-workflow-failure/env-apply.yml:workflow_dispatch',
+      status: 'degraded',
+      title: 'Environment apply recent failure',
+      evidence: {
+        workflow: 'env-apply.yml',
+        event: 'workflow_dispatch',
+        headBranch: 'main',
+        lastConclusion: 'failure',
+      },
+    });
+  });
+
+  it('drops recent failures older than the monitoring window', async () => {
+    const { signals } = await collect({
+      repoRoot: await repoWith(['env-drift']),
+      respond: everyWorkflowRuns(
+        completedRun({ conclusion: 'success', startedAt: hoursAgo(2) }),
+      ),
+      recentRuns: [
+        recentRun({
+          name: 'Environment apply',
+          path: '.github/workflows/env-apply.yml',
+          event: 'workflow_dispatch',
+          conclusion: 'failure',
+          startedAt: hoursAgo(25),
+        }),
+      ],
+    });
+
+    expect(signals).toHaveLength(1);
+    expect(signals[0]?.status).toBe('healthy');
   });
 });

@@ -15,6 +15,7 @@ case "${1:-}" in
     tsx scripts/contracts/export_zod_schemas.ts
     (cd apps/analytics-engine && uv run python ../../scripts/contracts/check_pydantic_parity.py)
     node scripts/check-social-release-contract.mjs
+    node --test scripts/deploy-vercel-main.test.mjs
     node scripts/check-vercel-deploy-policy.mjs
     ;;
   *) echo "usage: pnpm contracts <export|check>" >&2; exit 2 ;;
