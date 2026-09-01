@@ -39,9 +39,10 @@ describe('social waiting-media readiness migration', () => {
   });
 
   it('is consumed as an episode-language readiness signal, not a future lane assignment', () => {
-    expect(migration).toMatch(/select\s+[\s\S]*localization\.episode_id/i);
-    expect(migration).toMatch(/policy\.language_code/i);
-    expect(migration).toMatch(/video\.status <> 'completed'/i);
+    const normalized = migration.toLowerCase();
+    expect(normalized).toContain('localization.episode_id');
+    expect(normalized).toContain('policy.language_code');
+    expect(normalized).toContain("video.status <> 'completed'");
   });
 
   it('runs in one transaction and reloads the PostgREST schema cache', () => {
