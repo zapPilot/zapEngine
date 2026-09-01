@@ -102,10 +102,12 @@ describe('social language Latin square', () => {
   it('can reconstruct the original profile from any persisted rotating lane', () => {
     for (const profile of ['A', 'B', 'C'] as const) {
       const lanes = rotatingReleaseCohortLanesForProfile(profile);
-      for (const lane of lanes.filter((candidate) => candidate.platform !== 'rednote')) {
-        expect(languageRotationProfileForLane(lane.platform, lane.language)).toBe(
-          profile,
-        );
+      for (const lane of lanes.filter(
+        (candidate) => candidate.platform !== 'rednote',
+      )) {
+        expect(
+          languageRotationProfileForLane(lane.platform, lane.language),
+        ).toBe(profile);
       }
     }
   });
