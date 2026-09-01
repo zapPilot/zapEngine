@@ -36,6 +36,20 @@ export function deterministicVariant(
   ]!;
 }
 
+export async function getExperimentAssignment(input: {
+  experimentKey: string;
+  episodeId: string;
+}): Promise<SocialExperimentAssignment | null> {
+  const { data, error } = await getPipelineSupabase()
+    .from('social_experiment_assignments')
+    .select('experiment_key,episode_id,variant,assigned_at')
+    .eq('experiment_key', input.experimentKey)
+    .eq('episode_id', input.episodeId)
+    .maybeSingle<SocialExperimentAssignment>();
+  if (error) throwSupabaseError(error);
+  return data ?? null;
+}
+
 export async function getOrCreateExperimentAssignment(input: {
   experimentKey: string;
   episodeId: string;
