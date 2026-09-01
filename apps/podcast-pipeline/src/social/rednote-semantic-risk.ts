@@ -3,7 +3,10 @@ import { readFile } from 'node:fs/promises';
 import { z } from 'zod';
 
 import { errorMessage } from '../lib/errorMessage.js';
-import { getOpenRouterModelCandidates } from '../services/llm-model-fallback.js';
+import {
+  getOpenRouterModelCandidates,
+  supportsJsonResponseFormat,
+} from '../services/llm-model-fallback.js';
 import {
   createOpenRouterChatCompletion,
   getOpenRouterConfig,
@@ -113,7 +116,9 @@ export async function assertRednoteSemanticRisk(input: {
         config.openai,
         {
           model: config.model,
-          response_format: { type: 'json_object' },
+          ...(supportsJsonResponseFormat(config.model)
+            ? { response_format: { type: 'json_object' as const } }
+            : {}),
           max_tokens: JUDGE_MAX_TOKENS,
           messages: [
             { role: 'system', content: buildJudgeSystemPrompt(rules) },
