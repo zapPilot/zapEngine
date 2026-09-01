@@ -501,10 +501,6 @@ export const ENV_MANIFEST = {
   TRACK_RECORD_TOKENS_JSON: server(['track-record-tooling'], {
     documented: false,
   }),
-  TRACK_RECORD_PRICE_ORACLE_URL: server(['track-record-tooling'], {
-    documented: false,
-    sensitive: true,
-  }),
   TRACK_RECORD_PRICE_ORACLE_JSON: server(['track-record-tooling'], {
     documented: false,
     sensitive: true,
