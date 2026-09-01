@@ -1,4 +1,7 @@
-import { getOrCreateExperimentAssignment } from './experiments.js';
+import {
+  getExperimentAssignment,
+  getOrCreateExperimentAssignment,
+} from './experiments.js';
 import {
   isLanguageRotationActive,
   languageRotationProfileForSlot,
@@ -13,6 +16,8 @@ import {
   type SocialLanguagePolicyEntry,
 } from './policy.js';
 import type { SocialLanguageCode } from './types.js';
+
+const LEGACY_LANGUAGE_GENERATION_MARKER = 'x-language-v1';
 
 export interface ReleaseCohortLane {
   platform: SocialPlatform;
@@ -33,6 +38,10 @@ export async function resolveReleaseCohortLanes(input: {
   scheduledAt: Date;
 }): Promise<ReleaseCohortLane[]> {
   if (usesLanguageRotation(input.episodeCreatedAt, input.scheduledAt)) {
+    if (await hasLegacyLanguageGeneration(input.episodeId)) {
+      return resolveLegacyReleaseCohortLanes(input);
+    }
+
     const slotProfile = languageRotationProfileForSlot(
       input.scheduledAt,
     ).profile;
@@ -57,7 +66,8 @@ export async function resolveRequiredReleaseLanguages(input: {
   prospectiveScheduledAt: Date;
 }): Promise<SocialLanguageCode[]> {
   if (
-    usesLanguageRotation(input.episodeCreatedAt, input.prospectiveScheduledAt)
+    usesLanguageRotation(input.episodeCreatedAt, input.prospectiveScheduledAt) &&
+    !(await hasLegacyLanguageGeneration(input.episodeId))
   ) {
     return [...SOCIAL_REQUIRED_ROTATION_LANGUAGES];
   }
@@ -77,6 +87,15 @@ function usesLanguageRotation(
     Number.isFinite(episodeCreatedAtMs) &&
     episodeCreatedAtMs >= Date.parse(SOCIAL_LANGUAGE_ROTATION_ACTIVE_SINCE) &&
     isLanguageRotationActive(scheduledAt)
+  );
+}
+
+async function hasLegacyLanguageGeneration(episodeId: string): Promise<boolean> {
+  return Boolean(
+    await getExperimentAssignment({
+      experimentKey: LEGACY_LANGUAGE_GENERATION_MARKER,
+      episodeId,
+    }),
   );
 }
 
