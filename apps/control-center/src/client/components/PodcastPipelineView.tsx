@@ -92,7 +92,8 @@ function PipelineEpisode(props: {
 }) {
   const { episode } = props;
   const ingestError = episode.ingest?.lastError;
-  const visualError = episode.visual?.lastError;
+  const visualError =
+    episode.visual?.status === 'failed' ? episode.visual.lastError : null;
 
   return (
     <article className="open-panel pipeline-episode">
