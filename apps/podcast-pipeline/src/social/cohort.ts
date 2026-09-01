@@ -7,6 +7,7 @@ import {
 import type { SocialPlatform } from './platforms.js';
 import {
   LEGACY_SOCIAL_LANGUAGE_POLICY,
+  SOCIAL_LANGUAGE_ROTATION_ACTIVE_SINCE,
   type SocialLanguagePolicyEntry,
 } from './policy.js';
 import type { SocialLanguageCode } from './types.js';
@@ -20,15 +21,16 @@ export interface ReleaseCohortLane {
 
 /**
  * The single definition of "which lanes does this episode's release cohort
- * have". Cohorts scheduled under language-v2 use the slot-balanced Latin square;
- * an interrupted pre-v2 cohort keeps the exact historical policy it started on.
+ * have". Only episodes created after the v2 activation enter the slot-balanced
+ * Latin square; older backlog and already-scheduled cohorts keep the exact
+ * historical policy even when their release slot lands after activation.
  */
 export async function resolveReleaseCohortLanes(input: {
   episodeId: string;
   episodeCreatedAt: string;
   scheduledAt: Date;
 }): Promise<ReleaseCohortLane[]> {
-  if (isLanguageRotationActive(input.scheduledAt)) {
+  if (usesLanguageRotation(input.episodeCreatedAt, input.scheduledAt)) {
     return rotatingReleaseCohortLanes(input.scheduledAt);
   }
   return resolveLegacyReleaseCohortLanes(input);
@@ -44,7 +46,9 @@ export async function resolveRequiredReleaseLanguages(input: {
   episodeCreatedAt: string;
   prospectiveScheduledAt: Date;
 }): Promise<SocialLanguageCode[]> {
-  if (isLanguageRotationActive(input.prospectiveScheduledAt)) {
+  if (
+    usesLanguageRotation(input.episodeCreatedAt, input.prospectiveScheduledAt)
+  ) {
     return [...SOCIAL_REQUIRED_ROTATION_LANGUAGES];
   }
   const lanes = await resolveLegacyReleaseCohortLanes({
@@ -52,6 +56,18 @@ export async function resolveRequiredReleaseLanguages(input: {
     episodeCreatedAt: input.episodeCreatedAt,
   });
   return [...new Set(lanes.map((lane) => lane.language))];
+}
+
+function usesLanguageRotation(
+  episodeCreatedAt: string,
+  scheduledAt: Date,
+): boolean {
+  const episodeCreatedAtMs = Date.parse(episodeCreatedAt);
+  return (
+    Number.isFinite(episodeCreatedAtMs) &&
+    episodeCreatedAtMs >= Date.parse(SOCIAL_LANGUAGE_ROTATION_ACTIVE_SINCE) &&
+    isLanguageRotationActive(scheduledAt)
+  );
 }
 
 async function resolveLegacyReleaseCohortLanes(input: {
