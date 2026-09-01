@@ -44,7 +44,7 @@ export function ReliabilityView(props: {
 
       <details className="panel signal-evidence">
         <summary className="signal-evidence-summary">
-          <strong>Details</strong>
+          <strong>Signal evidence</strong>
           <span>
             {data
               ? `${integer(problemSignals.length)} issues · ${integer(data.signals.length)} signals`
