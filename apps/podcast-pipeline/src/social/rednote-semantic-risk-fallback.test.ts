@@ -43,7 +43,6 @@ function completion(content: string): object {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.stubEnv('LLM_FALLBACK_MODELS', FALLBACKS.join(','));
   llmMocks.getOpenRouterConfig.mockImplementation(
     (overrides?: { model?: string; thinkingModel?: string | null }) => ({
       openai: llmMocks.openai,
@@ -118,5 +117,11 @@ describe('Rednote semantic-risk model fallback', () => {
     expect(llmMocks.createOpenRouterChatCompletion).toHaveBeenCalledTimes(
       1 + FALLBACKS.length,
     );
+
+    const finalRequest = llmMocks.createOpenRouterChatCompletion.mock.calls.at(
+      -1,
+    )?.[1];
+    expect(finalRequest?.model).toBe(FALLBACKS.at(-1));
+    expect(finalRequest).not.toHaveProperty('response_format');
   });
 });
