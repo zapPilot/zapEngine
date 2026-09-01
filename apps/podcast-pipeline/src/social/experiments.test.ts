@@ -13,6 +13,7 @@ vi.mock('../services/supabase-client.js', () => ({
 
 import {
   deterministicVariant,
+  getExperimentAssignment,
   getOrCreateExperimentAssignment,
 } from './experiments.js';
 
@@ -32,6 +33,45 @@ describe('social experiment assignment', () => {
     const english = variants.filter((variant) => variant === 'en').length;
     expect(english / variants.length).toBeGreaterThan(0.48);
     expect(english / variants.length).toBeLessThan(0.52);
+  });
+
+  it('reads an existing assignment without creating a new one', async () => {
+    const persisted = {
+      experiment_key: 'x-language-v1',
+      episode_id: 'episode-1',
+      variant: 'ja',
+      assigned_at: '2026-08-24T00:00:00.000Z',
+    };
+    const maybeSingle = vi.fn().mockResolvedValue({
+      data: persisted,
+      error: null,
+    });
+    const secondEq = vi.fn(() => ({ maybeSingle }));
+    const firstEq = vi.fn(() => ({ eq: secondEq }));
+    const select = vi.fn(() => ({ eq: firstEq }));
+    supabaseMocks.from.mockReturnValueOnce({ select });
+
+    await expect(
+      getExperimentAssignment({
+        experimentKey: 'x-language-v1',
+        episodeId: 'episode-1',
+      }),
+    ).resolves.toEqual(persisted);
+  });
+
+  it('returns null when no durable assignment exists', async () => {
+    const maybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
+    const secondEq = vi.fn(() => ({ maybeSingle }));
+    const firstEq = vi.fn(() => ({ eq: secondEq }));
+    const select = vi.fn(() => ({ eq: firstEq }));
+    supabaseMocks.from.mockReturnValueOnce({ select });
+
+    await expect(
+      getExperimentAssignment({
+        experimentKey: 'x-language-v1',
+        episodeId: 'episode-2',
+      }),
+    ).resolves.toBeNull();
   });
 
   it('uses the persisted row as authority when it differs from the first hash', async () => {
