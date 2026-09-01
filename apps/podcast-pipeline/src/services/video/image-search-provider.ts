@@ -1,7 +1,16 @@
 import type { ImageCandidate } from '../../types.js';
-import { searchBraveImages } from './brave-image-search.js';
-import { searchPexelsImages } from './pexels-image-search.js';
-import { searchPixabayImages } from './pixabay-image-search.js';
+import {
+  BRAVE_MAX_RESULT_COUNT,
+  searchBraveImages,
+} from './brave-image-search.js';
+import {
+  PEXELS_MAX_RESULT_COUNT,
+  searchPexelsImages,
+} from './pexels-image-search.js';
+import {
+  PIXABAY_MAX_RESULT_COUNT,
+  searchPixabayImages,
+} from './pixabay-image-search.js';
 
 export interface ImageSearchOptions {
   count?: number;
@@ -10,6 +19,8 @@ export interface ImageSearchOptions {
 
 export interface ImageSearchProvider {
   origin: 'brave' | 'pexels' | 'pixabay';
+  /** Provider-side ceiling for one request. Planner-level limits may be lower. */
+  maxResults?: number;
   search(
     query: string,
     options?: ImageSearchOptions,
@@ -17,15 +28,15 @@ export interface ImageSearchProvider {
 }
 
 /**
- * Brave is the web index this service retrieves from, and it is not optional:
- * a scene that names a company, product or person needs the editorial photo of
- * that thing, which no stock library holds. A missing key therefore fails here
- * rather than silently shrinking the chain — the previous zero-config fallback
- * is exactly how an episode could ship on stock imagery without anyone noticing.
+ * Brave remains the editorial web index for named companies, products, people,
+ * and events, so its key is still required. The visual planner owns the quota
+ * policy: generic B-roll prefers the license-clean stock providers, named scenes
+ * spend Brave only within the episode budget, and stock can take over once that
+ * budget is exhausted.
  *
- * Pexels and Pixabay stay optional and key-gated. They only ever answer scenes
- * that name nothing, where a generic photographable subject is the honest query
- * and a license-clean source is worth more than a web result.
+ * Pexels and Pixabay stay optional and key-gated so deployments without those
+ * credentials still render via Brave plus image reuse, just with less stock
+ * coverage.
  */
 export function defaultImageSearchProviders(
   env: NodeJS.ProcessEnv = process.env,
@@ -39,6 +50,7 @@ export function defaultImageSearchProviders(
   const providers: ImageSearchProvider[] = [
     {
       origin: 'brave',
+      maxResults: BRAVE_MAX_RESULT_COUNT,
       search: (query, options = {}) =>
         searchBraveImages(query, braveApiKey, options),
     },
@@ -48,6 +60,7 @@ export function defaultImageSearchProviders(
   if (pexelsApiKey) {
     providers.push({
       origin: 'pexels',
+      maxResults: PEXELS_MAX_RESULT_COUNT,
       search: (query, options = {}) =>
         searchPexelsImages(query, pexelsApiKey, options),
     });
@@ -57,6 +70,7 @@ export function defaultImageSearchProviders(
   if (pixabayApiKey) {
     providers.push({
       origin: 'pixabay',
+      maxResults: PIXABAY_MAX_RESULT_COUNT,
       search: (query, options = {}) =>
         searchPixabayImages(query, pixabayApiKey, options),
     });

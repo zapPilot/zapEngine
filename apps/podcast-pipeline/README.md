@@ -96,17 +96,20 @@ Images are tried in this order per scene (`selectionMode: 'resilient'`, what
 production uses):
 
 1. `og:image`, article/figure images, lazy-load attributes, and the largest `srcset` candidate from the source article.
-2. Brave Image Search (`BRAVE_SEARCH_API_KEY`, strict SafeSearch). A news product wants the editorial photo of the event, which is on the open web and not in a stock library, so this is the web index the pipeline retrieves from and it is not optional — a missing key is a startup error, never a quiet fall-through to stock imagery. Only the publisher's own image URL is mirrored, never Brave's thumbnail CDN. Results are retained as `license: unknown`; that path does not claim usage rights.
-3. Pexels then Pixabay photo search (`orientation=square`, SafeSearch) when `PEXELS_API_KEY` / `PIXABAY_API_KEY` are set — license-clean sources with photographer attribution. They are only ever asked about scenes that name nothing: no stock library holds a photograph of a named company or product, so asking one for a named scene can only return a convincing picture of something else.
-4. A scene that names something is queried with its phrased intents first, then with each bare name. A scene that names nothing falls back to relaxed `... official event photo` variants instead.
-5. A non-consecutive reuse of an already validated image when no search can produce a new one, and only then a consecutive one.
+2. Generic B-roll scenes use only Pexels then Pixabay (`PEXELS_API_KEY` / `PIXABAY_API_KEY`) and never consume Brave quota. Named companies/products/people/events use Brave as the editorial web index, with a plan-level budget that reserves capacity for later named scenes before falling back to stock/reuse.
+3. Brave Image Search (`BRAVE_SEARCH_API_KEY`, strict SafeSearch) is capped at **4 actual API requests per visual plan**. Identical provider/query pairs are cached for the whole plan, and each real Brave request asks for up to 100 results so later scenes can reuse that result pool instead of paying for the same search again. Only the publisher's own image URL is mirrored, never Brave's thumbnail CDN. Results are retained as `license: unknown`; that path does not claim usage rights.
+4. After the Brave budget is exhausted, named scenes may use Pexels/Pixabay as deliberately looser topical B-roll. At that point the hard entity-name match is dropped for stock candidates; visual continuity and cost take priority over sentence-level identity precision.
+5. A scene that names something is queried with its phrased intents first, then with each bare name. A scene that names nothing falls back to relaxed `... official event photo` variants instead.
+6. A non-consecutive reuse of an already validated image when no search can produce a new one, and only then a consecutive one.
 
-**A candidate must mention what the scene names.** For a scene with entities,
+**A Brave candidate must mention what the scene names.** For a scene with entities,
 the candidate's title, page URL and image URL have to contain one of them —
-separators collapsed, so `coldcard-mk4-review` counts. This is the one hard
-relevance rule, and it is about identity rather than wording: sharing a word
-with the query is exactly how a thousand-yard-stare war portrait and an
-odd-and-even-numbers worksheet were once selected for a Bitcoin episode. When
+separators collapsed, so `coldcard-mk4-review` counts. This is the hard
+editorial-search relevance rule, and it is about identity rather than wording:
+sharing a word with the query is exactly how a thousand-yard-stare war portrait
+and an odd-and-even-numbers worksheet were once selected for a Bitcoin episode.
+Stock fallback after the episode Brave budget is intentionally exempt from this
+identity fence. When
 nothing survives it, the scene reuses an image already validated for this
 episode — a repeat, never an unrelated picture.
 

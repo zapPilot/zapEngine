@@ -7,12 +7,15 @@ const searchMocks = vi.hoisted(() => ({
 }));
 
 vi.mock('./brave-image-search.js', () => ({
+  BRAVE_MAX_RESULT_COUNT: 100,
   searchBraveImages: searchMocks.brave,
 }));
 vi.mock('./pexels-image-search.js', () => ({
+  PEXELS_MAX_RESULT_COUNT: 80,
   searchPexelsImages: searchMocks.pexels,
 }));
 vi.mock('./pixabay-image-search.js', () => ({
+  PIXABAY_MAX_RESULT_COUNT: 200,
   searchPixabayImages: searchMocks.pixabay,
 }));
 
@@ -30,10 +33,12 @@ describe('defaultImageSearchProviders', () => {
       PEXELS_API_KEY: 'pexels-key',
       PIXABAY_API_KEY: 'pixabay-key',
     });
-    expect(providers.map((provider) => provider.origin)).toEqual([
-      'brave',
-      'pexels',
-      'pixabay',
+    expect(
+      providers.map((provider) => [provider.origin, provider.maxResults]),
+    ).toEqual([
+      ['brave', 100],
+      ['pexels', 80],
+      ['pixabay', 200],
     ]);
   });
 
