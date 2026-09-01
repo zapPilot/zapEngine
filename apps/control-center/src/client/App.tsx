@@ -13,10 +13,12 @@ import type {
 } from '../shared/types.js';
 import { AppShell, type DashboardView } from './components/AppShell.js';
 import { EconomicsView } from './components/EconomicsView.js';
+import { GrowthDistributionBoard } from './components/GrowthDistributionBoard.js';
 import { GrowthView } from './components/GrowthView.js';
 import { HomeView } from './components/HomeView.js';
 import { PodcastPipelineView } from './components/PodcastPipelineView.js';
 import { ProductView } from './components/ProductView.js';
+import { ReliabilityTopology } from './components/ReliabilityTopology.js';
 import { ReliabilityView } from './components/ReliabilityView.js';
 
 const VIEW_META: Record<DashboardView, { subtitle: string; title: string }> = {
@@ -158,16 +160,17 @@ export function App() {
   const loadSocial = useCallback(
     (window: SocialPerformanceResponse['window'], force = false) =>
       run(async () => {
-        const [performance, growth] = await Promise.all([
+        const query = force ? '?force=1' : '';
+        const [performance, growth, socialOps] = await Promise.all([
           getJson<SocialPerformanceResponse>(
             `/api/social-performance?window=${encodeURIComponent(window)}`,
           ),
-          getJson<SocialGrowthResponse>(
-            `/api/social-growth${force ? '?force=1' : ''}`,
-          ),
+          getJson<SocialGrowthResponse>(`/api/social-growth${query}`),
+          getJson<OperationsSocialResponse>(`/api/operations/social${query}`),
         ]);
         setSocial(performance);
         setSocialGrowth(growth);
+        setOperationsSocial(socialOps);
       }),
     [run],
   );
@@ -215,7 +218,7 @@ export function App() {
     if (view === 'product' && !customers) {
       void loadCustomers();
     }
-    if (view === 'growth' && !socialGrowth) {
+    if (view === 'growth' && (!socialGrowth || !operationsSocial)) {
       void loadSocial(social?.window ?? 'latest');
     }
   }, [
@@ -284,7 +287,10 @@ export function App() {
         />
       ) : null}
       {view === 'reliability' ? (
-        <ReliabilityView data={operations} social={operationsSocial} />
+        <div className="view-stack">
+          <ReliabilityTopology data={operations} social={operationsSocial} />
+          <ReliabilityView data={operations} social={operationsSocial} />
+        </div>
       ) : null}
       {view === 'product' ? (
         <ProductView customers={customers} product={overview?.product} />
@@ -297,11 +303,17 @@ export function App() {
         />
       ) : null}
       {view === 'growth' ? (
-        <GrowthView
-          data={social}
-          growth={socialGrowth}
-          onWindowChange={loadSocial}
-        />
+        <div className="view-stack">
+          <GrowthDistributionBoard
+            performance={social}
+            social={operationsSocial}
+          />
+          <GrowthView
+            data={social}
+            growth={socialGrowth}
+            onWindowChange={loadSocial}
+          />
+        </div>
       ) : null}
     </AppShell>
   );
