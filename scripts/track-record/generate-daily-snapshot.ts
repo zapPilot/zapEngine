@@ -9,6 +9,7 @@ import type {
 } from '../../packages/types/src/strategy/index.js';
 import { DailySnapshotSchema } from '../../packages/types/src/strategy/index.js';
 import { NATIVE_TOKEN_ADDRESS } from '../../packages/types/src/shared/tokens.js';
+import { LiFiAdapter } from '../../packages/intent-engine/src/adapters/lifi.adapter.js';
 import { createSnapshotMessageHash } from '../../apps/landing-page/src/data/track-record-accessor';
 import {
   createPublicClient,
@@ -39,6 +40,7 @@ interface OraclePrice {
 interface PriceOracleResponse {
   prices: Record<string, OraclePrice | string | number>;
   benchmarks?: DailySnapshot['benchmarks'];
+  source?: string;
 }
 
 function parseArgs(): { out?: string } {
@@ -135,23 +137,25 @@ function parseTrackedTokens(
     decimals: 18,
     protocol: 'wallet',
     pricingKey: chainId === 1 ? 'ETH' : `native:${chainId}`,
-    pricingSource: 'price-oracle',
   }));
+}
+
+function priceKeys(token: TrackedToken): string[] {
+  const address = token.address ? getAddress(token.address) : null;
+  return [
+    token.pricingKey,
+    address?.toLowerCase(),
+    address ?? undefined,
+    token.asset,
+    token.address ? undefined : getAddress(NATIVE_TOKEN_ADDRESS),
+  ].filter((value): value is string => !!value);
 }
 
 function readPrice(
   prices: PriceOracleResponse['prices'],
   token: TrackedToken,
 ): number {
-  const candidates = [
-    token.pricingKey,
-    token.address?.toLowerCase(),
-    token.asset,
-    token.address ? getAddress(token.address) : undefined,
-    getAddress(NATIVE_TOKEN_ADDRESS),
-  ].filter((value): value is string => !!value);
-
-  for (const key of candidates) {
+  for (const key of priceKeys(token)) {
     const price = prices[key];
     if (typeof price === 'number') return price;
     if (typeof price === 'string') return Number(price);
@@ -163,19 +167,37 @@ function readPrice(
   );
 }
 
-async function fetchPriceOracle(): Promise<PriceOracleResponse> {
+async function fetchPriceOracle(
+  tokens: TrackedToken[],
+): Promise<PriceOracleResponse> {
   const inline = parseJsonEnv<PriceOracleResponse>(
     'TRACK_RECORD_PRICE_ORACLE_JSON',
   );
-  if (inline) return inline;
+  if (inline) {
+    return { ...inline, source: inline.source ?? 'configured-json' };
+  }
 
-  const url = requiredEnv('TRACK_RECORD_PRICE_ORACLE_URL');
-  const res = await fetch(url, {
-    headers: { Accept: 'application/json' },
-    signal: AbortSignal.timeout(15_000),
-  });
-  if (!res.ok) throw new Error(`Price oracle failed: HTTP ${res.status}`);
-  return (await res.json()) as PriceOracleResponse;
+  const lifi = new LiFiAdapter({ integrator: 'zap-pilot-track-record' });
+  const prices: PriceOracleResponse['prices'] = {};
+
+  await Promise.all(
+    tokens.map(async (token) => {
+      const tokenAddress = token.address ?? NATIVE_TOKEN_ADDRESS;
+      const info = await lifi.getTokenPrice(token.chainId, tokenAddress);
+      const priceUsd = Number(info.priceUSD);
+      if (!Number.isFinite(priceUsd) || priceUsd <= 0) {
+        throw new Error(
+          `LI.FI returned invalid USD price for ${token.asset} on chain ${token.chainId}: ${info.priceUSD}`,
+        );
+      }
+
+      for (const key of priceKeys(token)) {
+        prices[key] = priceUsd;
+      }
+    }),
+  );
+
+  return { prices, source: 'lifi' };
 }
 
 // Reuse one public client and transport for every tracked token on a chain.
@@ -306,6 +328,7 @@ async function buildPositions(
   walletAddresses: `0x${string}`[],
   rpcUrls: Map<number, string>,
   prices: PriceOracleResponse['prices'],
+  defaultPricingSource: string,
 ): Promise<Position[]> {
   const rawPositions = await Promise.all(
     tokens.map(async (token) => {
@@ -319,7 +342,7 @@ async function buildPositions(
         tokenAddress: token.address,
         amount,
         valueUsd: amountNumber * priceUsd,
-        pricingSource: token.pricingSource ?? 'price-oracle',
+        pricingSource: token.pricingSource ?? defaultPricingSource,
       };
     }),
   );
@@ -363,12 +386,13 @@ async function main(): Promise<void> {
     requiredEnv('TRACK_RECORD_WALLET_ADDRESSES'),
   ).map((address) => getAddress(address) as `0x${string}`);
   const tokens = parseTrackedTokens(chainIds, rpcUrls);
-  const oracle = await fetchPriceOracle();
+  const oracle = await fetchPriceOracle(tokens);
   const positions = await buildPositions(
     tokens,
     walletAddresses,
     rpcUrls,
     oracle.prices,
+    oracle.source ?? 'configured-price-oracle',
   );
   const navUsd = positions.reduce(
     (sum, position) => sum + Number(position.valueUsd),

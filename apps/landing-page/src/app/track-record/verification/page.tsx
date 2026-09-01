@@ -24,13 +24,12 @@ export default function VerificationPage() {
         <h3>Methodology</h3>
         <dl>
           <dt>Pricing time</dt>
+          <dd>Daily valuation when the UTC snapshot workflow runs.</dd>
+          <dt>Price source</dt>
           <dd>
-            Daily valuation at 00:00 UTC using Chainlink or equivalent oracle.
-          </dd>
-          <dt>Price oracle source</dt>
-          <dd>
-            Primary: Chainlink price feeds. Fallback: last known price, flagged
-            in snapshot.
+            Spot USD token prices from LI.FI, keyed by chain ID and token
+            address. Deterministic backfills/tests may supply an explicit price
+            override in the snapshot tooling.
           </dd>
           <dt>LP token valuation</dt>
           <dd>
@@ -50,13 +49,13 @@ export default function VerificationPage() {
           </dd>
           <dt>Cross-chain aggregation</dt>
           <dd>
-            All chain positions converted to USD using oracle prices, summed per
-            asset, then per pillar.
+            All chain positions converted to USD using their recorded pricing
+            source, summed per asset, then per pillar.
           </dd>
-          <dt>Stablecoin depeg handling</dt>
+          <dt>Stablecoin handling</dt>
           <dd>
-            Stablecoin positions valued at 1.0 USD unless oracle reports
-            deviation {'\u003e'}0.5%, in which case the oracle price is used.
+            Stablecoins use their live USD spot price instead of assuming a
+            fixed 1.0 USD peg.
           </dd>
         </dl>
       </section>
