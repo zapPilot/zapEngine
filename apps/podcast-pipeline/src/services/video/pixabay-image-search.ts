@@ -5,7 +5,7 @@ import { performJsonImageSearch } from './json-image-search.js';
 
 const PIXABAY_SEARCH_ENDPOINT = 'https://pixabay.com/api/';
 const DEFAULT_RESULT_COUNT = 60;
-const MAX_RESULT_COUNT = 200;
+export const PIXABAY_MAX_RESULT_COUNT = 200;
 // Pixabay caps queries at 100 characters and rejects longer ones outright.
 const MAX_QUERY_LENGTH = 100;
 // largeImageURL is scaled to at most 1280px on its longest side; fullHDURL
@@ -46,9 +46,13 @@ export function buildPixabaySearchUrl(
   const trimmedQuery = query.trim();
   if (!trimmedQuery) throw new Error('Pixabay query must not be empty');
   const count = options.count ?? DEFAULT_RESULT_COUNT;
-  if (!Number.isInteger(count) || count < 3 || count > MAX_RESULT_COUNT) {
+  if (
+    !Number.isInteger(count) ||
+    count < 3 ||
+    count > PIXABAY_MAX_RESULT_COUNT
+  ) {
     throw new Error(
-      `Pixabay count must be an integer between 3 and ${MAX_RESULT_COUNT}`,
+      `Pixabay count must be an integer between 3 and ${PIXABAY_MAX_RESULT_COUNT}`,
     );
   }
 

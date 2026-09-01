@@ -1,7 +1,16 @@
 import type { ImageCandidate } from '../../types.js';
-import { searchBraveImages } from './brave-image-search.js';
-import { searchPexelsImages } from './pexels-image-search.js';
-import { searchPixabayImages } from './pixabay-image-search.js';
+import {
+  BRAVE_MAX_RESULT_COUNT,
+  searchBraveImages,
+} from './brave-image-search.js';
+import {
+  PEXELS_MAX_RESULT_COUNT,
+  searchPexelsImages,
+} from './pexels-image-search.js';
+import {
+  PIXABAY_MAX_RESULT_COUNT,
+  searchPixabayImages,
+} from './pixabay-image-search.js';
 
 export interface ImageSearchOptions {
   count?: number;
@@ -10,6 +19,8 @@ export interface ImageSearchOptions {
 
 export interface ImageSearchProvider {
   origin: 'brave' | 'pexels' | 'pixabay';
+  /** Provider-side ceiling for one request. Planner-level limits may be lower. */
+  maxResults?: number;
   search(
     query: string,
     options?: ImageSearchOptions,
@@ -39,6 +50,7 @@ export function defaultImageSearchProviders(
   const providers: ImageSearchProvider[] = [
     {
       origin: 'brave',
+      maxResults: BRAVE_MAX_RESULT_COUNT,
       search: (query, options = {}) =>
         searchBraveImages(query, braveApiKey, options),
     },
@@ -48,6 +60,7 @@ export function defaultImageSearchProviders(
   if (pexelsApiKey) {
     providers.push({
       origin: 'pexels',
+      maxResults: PEXELS_MAX_RESULT_COUNT,
       search: (query, options = {}) =>
         searchPexelsImages(query, pexelsApiKey, options),
     });
@@ -57,6 +70,7 @@ export function defaultImageSearchProviders(
   if (pixabayApiKey) {
     providers.push({
       origin: 'pixabay',
+      maxResults: PIXABAY_MAX_RESULT_COUNT,
       search: (query, options = {}) =>
         searchPixabayImages(query, pixabayApiKey, options),
     });

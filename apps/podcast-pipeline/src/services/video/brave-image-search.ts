@@ -7,7 +7,7 @@ const BRAVE_IMAGES_SEARCH_ENDPOINT =
   'https://api.search.brave.com/res/v1/images/search';
 const DEFAULT_RESULT_COUNT = 35;
 // The endpoint's own ceiling; asking for more is a 422, not a truncation.
-const MAX_RESULT_COUNT = 100;
+export const BRAVE_MAX_RESULT_COUNT = 100;
 
 export interface BraveImagesSearchUrlOptions {
   count?: number;
@@ -45,9 +45,9 @@ export function buildBraveImagesSearchUrl(
   const trimmedQuery = query.trim();
   if (!trimmedQuery) throw new Error('Brave Images query must not be empty');
   const count = options.count ?? DEFAULT_RESULT_COUNT;
-  if (!Number.isInteger(count) || count < 1 || count > MAX_RESULT_COUNT) {
+  if (!Number.isInteger(count) || count < 1 || count > BRAVE_MAX_RESULT_COUNT) {
     throw new Error(
-      `Brave Images count must be an integer between 1 and ${MAX_RESULT_COUNT}`,
+      `Brave Images count must be an integer between 1 and ${BRAVE_MAX_RESULT_COUNT}`,
     );
   }
 

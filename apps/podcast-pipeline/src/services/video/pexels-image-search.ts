@@ -5,7 +5,7 @@ import { performJsonImageSearch } from './json-image-search.js';
 
 const PEXELS_SEARCH_ENDPOINT = 'https://api.pexels.com/v1/search';
 const DEFAULT_RESULT_COUNT = 40;
-const MAX_RESULT_COUNT = 80;
+export const PEXELS_MAX_RESULT_COUNT = 80;
 // large2x renditions are capped at 1880px wide — plenty for the 720-wide
 // media window while keeping downloads far below the acquisition size limits.
 const LARGE2X_MAX_WIDTH = 1_880;
@@ -44,9 +44,13 @@ export function buildPexelsSearchUrl(
   const trimmedQuery = query.trim();
   if (!trimmedQuery) throw new Error('Pexels query must not be empty');
   const count = options.count ?? DEFAULT_RESULT_COUNT;
-  if (!Number.isInteger(count) || count < 1 || count > MAX_RESULT_COUNT) {
+  if (
+    !Number.isInteger(count) ||
+    count < 1 ||
+    count > PEXELS_MAX_RESULT_COUNT
+  ) {
     throw new Error(
-      `Pexels count must be an integer between 1 and ${MAX_RESULT_COUNT}`,
+      `Pexels count must be an integer between 1 and ${PEXELS_MAX_RESULT_COUNT}`,
     );
   }
 

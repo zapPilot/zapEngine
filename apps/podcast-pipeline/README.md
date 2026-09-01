@@ -96,7 +96,7 @@ Images are tried in this order per scene (`selectionMode: 'resilient'`, what
 production uses):
 
 1. `og:image`, article/figure images, lazy-load attributes, and the largest `srcset` candidate from the source article.
-2. Generic B-roll scenes prefer Pexels then Pixabay (`PEXELS_API_KEY` / `PIXABAY_API_KEY`) before touching Brave. Named companies/products/people/events still try Brave first because that is the editorial web index.
+2. Generic B-roll scenes use only Pexels then Pixabay (`PEXELS_API_KEY` / `PIXABAY_API_KEY`) and never consume Brave quota. Named companies/products/people/events use Brave as the editorial web index, with a plan-level budget that reserves capacity for later named scenes before falling back to stock/reuse.
 3. Brave Image Search (`BRAVE_SEARCH_API_KEY`, strict SafeSearch) is capped at **4 actual API requests per visual plan**. Identical provider/query pairs are cached for the whole plan, and each real Brave request asks for up to 100 results so later scenes can reuse that result pool instead of paying for the same search again. Only the publisher's own image URL is mirrored, never Brave's thumbnail CDN. Results are retained as `license: unknown`; that path does not claim usage rights.
 4. After the Brave budget is exhausted, named scenes may use Pexels/Pixabay as deliberately looser topical B-roll. At that point the hard entity-name match is dropped for stock candidates; visual continuity and cost take priority over sentence-level identity precision.
 5. A scene that names something is queried with its phrased intents first, then with each bare name. A scene that names nothing falls back to relaxed `... official event photo` variants instead.
