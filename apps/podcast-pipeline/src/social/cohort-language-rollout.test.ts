@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
+  getExperimentAssignment: vi.fn(),
   getOrCreateExperimentAssignment: vi.fn(),
   assignments: new Map<string, string>(),
 }));
 
 vi.mock('./experiments.js', () => ({
+  getExperimentAssignment: mocks.getExperimentAssignment,
   getOrCreateExperimentAssignment: mocks.getOrCreateExperimentAssignment,
 }));
 
@@ -19,6 +21,25 @@ const EPISODE_ID = '123e4567-e89b-42d3-a456-426614174000';
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.assignments.clear();
+  mocks.getExperimentAssignment.mockImplementation(
+    async ({
+      experimentKey,
+      episodeId,
+    }: {
+      experimentKey: string;
+      episodeId: string;
+    }) => {
+      const variant = mocks.assignments.get(`${experimentKey}|${episodeId}`);
+      return variant
+        ? {
+            experiment_key: experimentKey,
+            episode_id: episodeId,
+            variant,
+            assigned_at: '2026-09-01T00:00:00.000Z',
+          }
+        : null;
+    },
+  );
   mocks.getOrCreateExperimentAssignment.mockImplementation(
     async ({
       experimentKey,
@@ -75,6 +96,28 @@ describe('social language experiment rollout', () => {
       }),
     ).resolves.toEqual(['zh-Hant', 'ja', 'en']);
     expect(mocks.getOrCreateExperimentAssignment).not.toHaveBeenCalled();
+  });
+
+  it('keeps a post-activation episode on legacy policy when v1 already owns the generation', async () => {
+    mocks.assignments.set(`x-language-v1|${EPISODE_ID}`, 'ja');
+
+    const lanes = await resolveReleaseCohortLanes({
+      episodeId: EPISODE_ID,
+      episodeCreatedAt: '2026-09-02T00:10:00.000Z',
+      scheduledAt: new Date('2026-09-02T03:00:00.000Z'),
+    });
+
+    expect(
+      lanes.map(({ platform, language }) => ({ platform, language })),
+    ).toEqual([
+      { platform: 'rednote', language: 'zh-Hant' },
+      { platform: 'threads', language: 'ja' },
+      { platform: 'x', language: 'ja' },
+      { platform: 'youtube', language: 'en' },
+    ]);
+    expect(mocks.getOrCreateExperimentAssignment).not.toHaveBeenCalledWith(
+      expect.objectContaining({ experimentKey: 'social-language-profile-v2' }),
+    );
   });
 
   it('persists the slot-derived v2 profile before enqueue and reuses it after rescheduling', async () => {
