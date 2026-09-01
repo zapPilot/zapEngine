@@ -2,6 +2,7 @@ export type PodcastPipelineStatus =
   | 'pending'
   | 'queued'
   | 'processing'
+  | 'stuck'
   | 'completed'
   | 'failed';
 
@@ -39,6 +40,7 @@ export interface PodcastPipelineEpisode {
   translationStatus: PodcastPipelineStatus;
   ttsStatus: PodcastPipelineStatus;
   videoStatus: PodcastPipelineStatus;
+  ingest: PodcastPipelineJobState | null;
   localizations: PodcastPipelineLocalization[];
   visual: PodcastPipelineJobState | null;
   renders: PodcastPipelineRenderState[];
