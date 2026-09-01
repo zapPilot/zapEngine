@@ -155,6 +155,7 @@ describe('planVisualAssets resilient selection', () => {
         {
           sceneId: 'scene-01',
           imageSearchIntent: ['Federal Reserve policy meeting photo'],
+          imageSearchEntities: ['Federal Reserve'],
         },
       ],
       workingDirectory: '/work/visual-assets',
@@ -177,6 +178,110 @@ describe('planVisualAssets resilient selection', () => {
       expect.any(Object),
     );
     expect(result.assets[0]?.sourcePageUrl).toBe(editorial.sourceUrl);
+  });
+
+  it('uses stock search before Brave for generic B-roll', async () => {
+    const stock = candidate('data-center', 'pexels');
+    const pexelsSearch = vi.fn().mockResolvedValue([stock]);
+    const braveSearch = vi
+      .fn()
+      .mockResolvedValue([candidate('generic-brave', 'brave')]);
+
+    const result = await planVisualAssets({
+      scenes: [{ sceneId: 'scene-01', imageSearchIntent: ['AI data center'] }],
+      workingDirectory: '/work/visual-assets',
+      selectionMode: 'resilient',
+      dependencies: {
+        acquireImage: vi.fn().mockResolvedValue(acquired('data-center')),
+        searchProviders: [
+          braveProvider(braveSearch),
+          { origin: 'pexels', search: pexelsSearch },
+        ],
+        fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
+      },
+    });
+
+    expect(pexelsSearch).toHaveBeenCalledOnce();
+    expect(braveSearch).not.toHaveBeenCalled();
+    expect(result.assets[0]?.provider).toBe('pexels');
+  });
+
+  it('caches identical provider queries across scenes and requests 100 candidates', async () => {
+    const results = [
+      candidate('market-a', 'brave'),
+      candidate('market-b', 'brave'),
+    ];
+    const braveSearch = vi.fn().mockResolvedValue(results);
+    const acquireImage = vi
+      .fn()
+      .mockResolvedValueOnce(acquired('market-a'))
+      .mockResolvedValueOnce(acquired('market-b'));
+
+    const result = await planVisualAssets({
+      scenes: [
+        { sceneId: 'scene-01', imageSearchIntent: ['crypto market'] },
+        { sceneId: 'scene-02', imageSearchIntent: ['  CRYPTO   MARKET  '] },
+      ],
+      workingDirectory: '/work/visual-assets',
+      selectionMode: 'resilient',
+      dependencies: {
+        acquireImage,
+        searchProviders: [braveProvider(braveSearch)],
+        fingerprintImage: vi
+          .fn()
+          .mockResolvedValueOnce('0000000000000000')
+          .mockResolvedValueOnce('ffffffffffffffff'),
+      },
+    });
+
+    expect(braveSearch).toHaveBeenCalledOnce();
+    expect(braveSearch).toHaveBeenCalledWith(
+      'crypto market',
+      expect.objectContaining({ count: 100 }),
+    );
+    expect(result.assets).toHaveLength(2);
+  });
+
+  it('caps Brave at four requests per visual plan and falls through to stock', async () => {
+    const braveSearch = vi.fn().mockResolvedValue([]);
+    const pexelsSearch = vi.fn(async (query: string) => [
+      candidate(query.replaceAll(' ', '-'), 'pexels'),
+    ]);
+
+    const result = await planVisualAssets({
+      scenes: Array.from({ length: 5 }, (_, index) => ({
+        sceneId: `scene-0${index + 1}`,
+        imageSearchIntent: [`Subject ${index + 1}`],
+        imageSearchEntities: [`Subject ${index + 1}`],
+      })),
+      workingDirectory: '/work/visual-assets',
+      selectionMode: 'resilient',
+      dependencies: {
+        acquireImage: vi.fn(async (url: string) =>
+          acquired(
+            new URL(url).pathname.split('/').at(-1)!.replace('.jpg', ''),
+          ),
+        ),
+        searchProviders: [
+          braveProvider(braveSearch),
+          { origin: 'pexels', search: pexelsSearch },
+        ],
+        fingerprintImage: vi
+          .fn()
+          .mockResolvedValueOnce('0000000000000000')
+          .mockResolvedValueOnce('1111111111111111')
+          .mockResolvedValueOnce('2222222222222222')
+          .mockResolvedValueOnce('3333333333333333')
+          .mockResolvedValueOnce('4444444444444444'),
+      },
+    });
+
+    expect(braveSearch).toHaveBeenCalledTimes(4);
+    expect(pexelsSearch).toHaveBeenCalledTimes(5);
+    expect(result.assets).toHaveLength(5);
+    expect(result.assets.every((asset) => asset.provider === 'pexels')).toBe(
+      true,
+    );
   });
 
   it('prefers a non-consecutive reusable image and records provider failures', async () => {

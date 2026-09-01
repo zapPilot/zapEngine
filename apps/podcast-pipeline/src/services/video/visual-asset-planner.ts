@@ -15,7 +15,8 @@ import {
   type ImageSearchProvider,
 } from './image-search-provider.js';
 
-const MAX_SEARCH_CANDIDATES_PER_SCENE = 35;
+const MAX_SEARCH_CANDIDATES_PER_SCENE = 100;
+const MAX_BRAVE_SEARCHES_PER_VISUAL_PLAN = 4;
 const PERCEPTUAL_HASH_DISTANCE_LIMIT = 6;
 
 export interface VisualAssetScene {
@@ -112,6 +113,8 @@ interface VisualAssetPlannerState {
   attemptedUrls: Set<string>;
   assets: PlannedVisualImage[];
   scenes: PlannedVisualScene[];
+  searchCache: Map<string, ImageCandidate[]>;
+  braveSearchCount: number;
 }
 
 interface SelectedVisualImage {
@@ -180,6 +183,8 @@ export async function planVisualAssets(
     attemptedUrls: new Set<string>(),
     assets: [],
     scenes: [],
+    searchCache: new Map(),
+    braveSearchCount: 0,
   };
 
   for (const [sceneIndex, scene] of input.scenes.entries()) {
@@ -355,6 +360,49 @@ async function acquireNextArticleImage(
   return null;
 }
 
+async function searchWithPlanBudget(
+  state: VisualAssetPlannerState,
+  searchProvider: ImageSearchProvider,
+  intent: string,
+  failures: Error[],
+): Promise<ImageCandidate[] | null> {
+  const providerIndex =
+    state.dependencies.searchProviders.indexOf(searchProvider);
+  const cacheKey = `${providerIndex}:${searchProvider.origin}:${normalizeSearchCacheKey(intent)}`;
+  const cached = state.searchCache.get(cacheKey);
+  if (cached) return cached;
+
+  if (
+    state.mode === 'resilient' &&
+    searchProvider.origin === 'brave' &&
+    state.braveSearchCount >= MAX_BRAVE_SEARCHES_PER_VISUAL_PLAN
+  ) {
+    return null;
+  }
+
+  if (searchProvider.origin === 'brave') state.braveSearchCount += 1;
+  const searched = await searchProvider
+    .search(intent, {
+      count: MAX_SEARCH_CANDIDATES_PER_SCENE,
+      ...(state.input.signal ? { signal: state.input.signal } : {}),
+    })
+    .catch((error: unknown): ImageCandidate[] => {
+      if (state.input.signal?.aborted) throw error;
+      failures.push(toError(error));
+      return [];
+    });
+  state.searchCache.set(cacheKey, searched);
+  return searched;
+}
+
+function rankingEntitiesForProvider(
+  mode: VisualSelectionMode,
+  provider: ImageSearchProvider['origin'],
+  entities: readonly string[],
+): readonly string[] {
+  return mode === 'resilient' && provider !== 'brave' ? [] : entities;
+}
+
 async function acquireSearchedImage(
   state: VisualAssetPlannerState,
   scene: VisualAssetScene,
@@ -381,25 +429,28 @@ async function acquireSearchedImage(
     for (const intent of intents) {
       state.input.signal?.throwIfAborted();
       const searchStartedAt = Date.now();
-      const searched = await searchProvider
-        .search(intent, {
-          count: MAX_SEARCH_CANDIDATES_PER_SCENE,
-          ...(state.input.signal ? { signal: state.input.signal } : {}),
-        })
-        .catch((error: unknown): ImageCandidate[] => {
-          if (state.input.signal?.aborted) throw error;
-          failures.push(toError(error));
-          return [];
-        });
+      const searched = await searchWithPlanBudget(
+        state,
+        searchProvider,
+        intent,
+        failures,
+      );
+      if (!searched) continue;
+
       const partitioned = partitionViableCandidates(searched, [
         searchProvider.origin,
       ]);
       const viable = partitioned.candidates;
+      const rankingEntities = rankingEntitiesForProvider(
+        state.mode,
+        searchProvider.origin,
+        entities,
+      );
       const candidates = rankSearchCandidates(
         viable,
         intent,
         state.assets,
-        entities,
+        rankingEntities,
       );
       funnel.searches += 1;
       funnel.returned += searched.length;
@@ -434,7 +485,11 @@ async function acquireSearchedImage(
             rejectedBefore,
             searchStartedAt,
             searchProvider.origin,
-            { returned: searched.length, viable: viable.length, entities },
+            {
+              returned: searched.length,
+              viable: viable.length,
+              entities: rankingEntities,
+            },
           );
           return { asset: acquired, failures, funnel };
         }
@@ -448,7 +503,11 @@ async function acquireSearchedImage(
         rejectedBefore,
         searchStartedAt,
         searchProvider.origin,
-        { returned: searched.length, viable: viable.length, entities },
+        {
+          returned: searched.length,
+          viable: viable.length,
+          entities: rankingEntities,
+        },
       );
     }
   }
@@ -460,20 +519,16 @@ function orderedSearchProviders(
   mode: VisualSelectionMode,
   scene: VisualAssetScene,
 ): ImageSearchProvider[] {
-  // A scene that names a company, product or person wants the editorial photo
-  // of that thing. No stock library holds it, so asking one can only return a
-  // plausible picture of something else.
+  const namedScene = (scene.imageSearchEntities?.length ?? 0) > 0;
   const usable =
-    (scene.imageSearchEntities?.length ?? 0) > 0
+    mode === 'strict' && namedScene
       ? providers.filter((provider) => provider.origin === 'brave')
       : providers;
   if (mode === 'strict') return [...usable];
 
-  const priority: Record<ImageSearchProvider['origin'], number> = {
-    brave: 0,
-    pexels: 1,
-    pixabay: 2,
-  };
+  const priority: Record<ImageSearchProvider['origin'], number> = namedScene
+    ? { brave: 0, pexels: 1, pixabay: 2 }
+    : { pexels: 0, pixabay: 1, brave: 2 };
   return usable
     .map((provider, index) => ({ provider, index }))
     .sort(
@@ -482,6 +537,10 @@ function orderedSearchProviders(
         left.index - right.index,
     )
     .map(({ provider }) => provider);
+}
+
+function normalizeSearchCacheKey(query: string): string {
+  return query.trim().replace(/\s+/gu, ' ').toLocaleLowerCase('en-US');
 }
 
 function searchIntentsForScene(
