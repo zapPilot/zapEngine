@@ -3,7 +3,7 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { SOCIAL_LANGUAGE_POLICY } from './social/policy.js';
+import { SOCIAL_REQUIRED_ROTATION_LANGUAGES } from './social/language-allocation.js';
 
 const repoRoot = path.resolve(process.cwd(), '../..');
 const migration = fs.readFileSync(
@@ -15,35 +15,33 @@ const migration = fs.readFileSync(
 );
 
 /**
- * `social_waiting_media` holds a second copy of the language policy that
- * `policy.ts` owns, because a view cannot import TypeScript. This test is the
- * only thing keeping the two honest: a lane retired in code but left in the
- * view keeps reporting media the pipeline is no longer waiting for.
+ * `social_waiting_media` exists before an article has a release slot, while the
+ * language-v2 lane shape is intentionally chosen from that future slot. The view
+ * therefore cannot mirror the final platform-language matrix anymore. Its only
+ * release-blocking responsibility is to surface every language whose completed
+ * video may be required by the cohort-wide readiness barrier.
  */
-describe('social waiting-media policy migration', () => {
-  const policyRows = Object.entries(SOCIAL_LANGUAGE_POLICY).flatMap(
-    ([platform, entries]) =>
-      entries.map((entry) => ({ platform, language: entry.language })),
-  );
-
-  it.each(policyRows)(
-    'lists the $platform/$language lane the code policy ships',
-    ({ platform, language }) => {
-      expect(migration).toMatch(
-        new RegExp(`'${platform}'[^\\n]*,\\s*'${language}'`, 'i'),
-      );
-    },
-  );
-
-  it('does not distribute YouTube in any language but English', () => {
+describe('social waiting-media readiness migration', () => {
+  it('covers every language required by the rotating release cohort', () => {
     const policyBlock = migration.slice(
       migration.indexOf('with policy('),
       migration.indexOf(')\nselect'),
     );
-    const youtubeLanguages = [
-      ...policyBlock.matchAll(/'youtube',\s*'([^']+)'/gi),
-    ].map(([, language]) => language);
-    expect(youtubeLanguages).toEqual(['en']);
+    const languages = new Set(
+      [...policyBlock.matchAll(/'[^']+',\s*'([^']+)'/gi)].map(
+        ([, language]) => language,
+      ),
+    );
+
+    for (const language of SOCIAL_REQUIRED_ROTATION_LANGUAGES) {
+      expect(languages.has(language)).toBe(true);
+    }
+  });
+
+  it('is consumed as an episode-language readiness signal, not a future lane assignment', () => {
+    expect(migration).toMatch(/select\s+[\s\S]*localization\.episode_id/i);
+    expect(migration).toMatch(/policy\.language_code/i);
+    expect(migration).toMatch(/video\.status <> 'completed'/i);
   });
 
   it('runs in one transaction and reloads the PostgREST schema cache', () => {
@@ -55,9 +53,6 @@ describe('social waiting-media policy migration', () => {
   });
 
   it('changes nothing but the view', () => {
-    // Retired strategy rows are deactivated by the next refresh, and no queued
-    // job is rewritten: completing a row that never published would put a post
-    // that does not exist into the success counts.
     expect(migration).not.toMatch(/update from_fed_to_chain\./i);
     expect(migration).not.toMatch(/create or replace function/i);
     expect(migration).not.toMatch(/\bdelete from\b/i);
