@@ -10,6 +10,9 @@ const JST_OFFSET_MS = 9 * 60 * 60_000;
 const DAY_MS = 24 * 60 * 60_000;
 const ROTATION_ANCHOR_JST_DAY = Date.UTC(2026, 8, 2);
 
+export const SOCIAL_LANGUAGE_PROFILE_ASSIGNMENT_KEY =
+  'social-language-profile-v2';
+
 export interface RotatingReleaseCohortLane {
   platform: SocialPlatform;
   language: SocialLanguageCode;
@@ -107,7 +110,7 @@ export function rotatingReleaseCohortLanes(
  * because its lane is identical in both generations.
  */
 export function rotatingReleaseCohortLanesForProfile(
-  profileName: SocialLanguageRotationProfile,
+  profileName: string,
 ): RotatingReleaseCohortLane[] {
   const profile = ROTATION_PROFILES.find(
     (candidate) => candidate.profile === profileName,
