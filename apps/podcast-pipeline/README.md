@@ -28,7 +28,7 @@ already knowing that language's localization id.
 
 Runtime keys are registered in root `config/env.manifest.mjs`. Non-secret values
 live in `config/env/dev.env` and `config/env/prod.env`; secrets live in Infisical.
-Required for full ingest: `OPENROUTER_API_KEY`, `R2_*`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_DB_SCHEMA=from_fed_to_chain`, `INGEST_ADMIN_TOKEN`, `FISH_AUDIO_API_KEY`, `FISH_AUDIO_REFERENCE_ID`, and `BRAVE_SEARCH_API_KEY` (the image index the video pipeline retrieves from; see [Vertical news video](#vertical-news-video-image-only-multilingual)). Fish Audio is the only TTS provider. Script generation and language-classroom generation use `LLM_MODEL` via OpenRouter. Title/script translation always uses OpenRouter's code-owned `openrouter/free` router; there is no secondary translation provider or paid fallback.
+Required for full ingest: `OPENROUTER_API_KEY`, `R2_*`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_DB_SCHEMA=from_fed_to_chain`, `INGEST_ADMIN_TOKEN`, `FISH_AUDIO_API_KEY`, `FISH_AUDIO_REFERENCE_ID`, and `BRAVE_SEARCH_API_KEY` (the paid editorial fallback for named visual subjects; see [Vertical news video](#vertical-news-video-image-only-multilingual)). `PEXELS_API_KEY` and `PIXABAY_API_KEY` are optional free-first stock sources. Fish Audio is the only TTS provider. Script generation and language-classroom generation use `LLM_MODEL` via OpenRouter. Title/script translation always uses OpenRouter's code-owned `openrouter/free` router; there is no secondary translation provider or paid fallback.
 
 Fish Audio configuration is code-owned in `src/services/tts/tts-config.ts` and applies to both main and classroom audio for all languages (`zh-Hant`, `ja`, `en`). There is no provider switch: a missing or blank `FISH_AUDIO_REFERENCE_ID` fails ingest instead of degrading to another voice. `FISH_AUDIO_ENGINE` overrides only the Fish Audio engine and defaults to `s2-pro`.
 
@@ -62,10 +62,11 @@ a scene about 「一千五百枚比特幣」 searched for
 `thousand five hundred Bitcoin holdings`. After the storyboard is built,
 `src/services/video/storyboard/search-intents.ts` sends the scenes to OpenRouter
 (`LLM_MODEL`) in batches with both the canonical and English sentences, and
-replaces each scene's intents with 1-3 concrete English subjects, named entities
-first: the company, product, organization, person, or place that scene is actually
-about, using only names written in that scene's own sentences. A generic
-photographable subject is the last resort, for a scene that names nothing.
+replaces each scene's intents with concrete subjects and named entities. The
+**publisher's original title (`episodes.source_title`) is the visual title SoT**:
+it seeds the episode-wide subject catalog and lead identity even when our
+localized/editorial title rewrites or drops a critical proper noun. The English
+localized title is only the fallback when the publisher title is unavailable.
 
 That pass is fail-closed, and the unit is the scene. Transport failures are
 retried once by the shared OpenRouter retry policy; after that, anything that
@@ -92,32 +93,23 @@ against its own sentences and stored as `imageSearchEntities`. That is what
 image search is held to below. A scene that names nothing has no entities, which
 is legitimate — some scenes really are about a general idea.
 
-Images are tried in this order per scene (`selectionMode: 'resilient'`, what
-production uses):
+Images are selected under the v9 rule **relevance first, free first, novelty last** (`selectionMode: 'resilient'`, what production uses):
 
-1. `og:image`, article/figure images, lazy-load attributes, and the largest `srcset` candidate from the source article.
-2. Generic B-roll scenes use only Pexels then Pixabay (`PEXELS_API_KEY` / `PIXABAY_API_KEY`) and never consume Brave quota. Named companies/products/people/events use Brave as the editorial web index, with a plan-level budget that reserves capacity for later named scenes before falling back to stock/reuse.
-3. Brave Image Search (`BRAVE_SEARCH_API_KEY`, strict SafeSearch) is capped at **4 actual API requests per visual plan**. Identical provider/query pairs are cached for the whole plan, and each real Brave request asks for up to 100 results so later scenes can reuse that result pool instead of paying for the same search again. Only the publisher's own image URL is mirrored, never Brave's thumbnail CDN. Results are retained as `license: unknown`; that path does not claim usage rights.
-4. After the Brave budget is exhausted, named scenes may use Pexels/Pixabay as deliberately looser topical B-roll. At that point the hard entity-name match is dropped for stock candidates; visual continuity and cost take priority over sentence-level identity precision.
-5. A scene that names something is queried with its phrased intents first, then with each bare name. A scene that names nothing falls back to relaxed `... official event photo` variants instead.
-6. A non-consecutive reuse of an already validated image when no search can produce a new one, and only then a consecutive one.
+1. The first named content scene is the cover/lead and is independently searched from the publisher-title subject; it does **not** consume the publisher article image. From the next content scene onward, viable `og:image`, article/figure images, lazy-load attributes, and largest `srcset` candidates are consumed from the source article before external search, so publisher imagery is actually used instead of being ignored.
+2. External search order is **Pexels -> Pixabay -> Brave**. A named company/product/person/place keeps the exact same hard entity gate on every provider. Free stock is a cheap relevance attempt, not permission to use a random photo.
+3. A named subject gets at most one descriptive query plus one bare-identity query per provider. Identical provider/query pairs are cached for the whole visual plan, so repeated scenes reuse the same result pool rather than paying for the same search again.
+4. Each named subject builds a pool of at most **three distinct selected assets**. After that, scenes rotate/reuse that on-topic pool instead of searching for endless visual novelty. A repeated Justin Sun photo is preferable to a fourth unrelated stock photo.
+5. Brave Image Search (`BRAVE_SEARCH_API_KEY`, strict SafeSearch) remains capped at **4 actual API requests per visual plan** and is reached only after free candidates fail relevance, quality, or acquisition. Each real Brave request asks for up to 100 results; only the publisher's original image URL is mirrored, never Brave's thumbnail CDN. Brave results remain `license: unknown`.
+6. Generic B-roll scenes have no identity gate and use Pexels/Pixabay only; they do not spend Brave quota. When generic search cannot produce a new image, a non-consecutive validated reuse is preferred, then a consecutive reuse.
+7. A named scene may reuse only an image already validated for the **same normalized subject pool**. If free providers, Brave, and that subject pool are all empty, the scene fails rather than borrowing an unrelated image from elsewhere in the episode.
 
-**A Brave candidate must mention what the scene names.** For a scene with entities,
-the candidate's title, page URL and image URL have to contain one of them —
-separators collapsed, so `coldcard-mk4-review` counts. This is the hard
-editorial-search relevance rule, and it is about identity rather than wording:
-sharing a word with the query is exactly how a thousand-yard-stare war portrait
-and an odd-and-even-numbers worksheet were once selected for a Bitcoin episode.
-Stock fallback after the episode Brave budget is intentionally exempt from this
-identity fence. When
-nothing survives it, the scene reuses an image already validated for this
-episode — a repeat, never an unrelated picture.
+**Every named-provider candidate must mention what the scene names.** The candidate's title/alt text, source-page URL or image URL has to contain one of the normalized entities — separators collapse, so `coldcard-mk4-review` counts. This identity fence applies equally to Pexels, Pixabay and Brave. Sharing a generic query word is not enough; that is the rule that prevents a Justin Sun search from accepting an arbitrary model, sunset, vegetable jar or other visually plausible but unrelated stock photo.
 
-`selectionMode: 'strict'` (tests and the storyboard smoke CLI) instead queries the
-providers in declaration order — Brave, Pexels, Pixabay — without the bare-name
-retry, and raises search failures rather than reusing an image.
+`selectionMode: 'strict'` (tests and the storyboard smoke CLI) remains the diagnostic path: named scenes use the editorial Brave provider and search failures raise rather than entering production reuse behavior.
 
-Candidates must pass HTTPS/SSRF, download timeout, format, size, pixel-dimension, animation, SHA-256, and perceptual-hash checks. A non-OK response or an unexpected body from any provider raises its typed error (`BraveImagesProviderError`, `PexelsImagesProviderError`, `PixabayImagesProviderError`), which fails the checkpoint outright under `strict` and degrades to the next provider (then to reuse) under `resilient`. An empty result set from these official APIs is trustworthy and is not an error. Either way the failure is reported in the `visual:search` log line, never swallowed.
+Candidates must pass HTTPS/SSRF, download timeout, format, size, pixel-dimension, animation, SHA-256, and perceptual-hash checks. A non-OK response or an unexpected body from any provider raises its typed error (`BraveImagesProviderError`, `PexelsImagesProviderError`, `PixabayImagesProviderError`), which fails the checkpoint outright under `strict` and degrades to the next provider under `resilient`. An empty result set from these official APIs is trustworthy and is not an error.
+
+Visual search decisions are also durable. Fresh v9 payloads store `provenance.searchTitleSource`, `articleImageCandidateCount`, `articleImageAssetCount`, and a bounded `searchTrace` containing each provider attempt's scene, actual query, normalized subject key, returned/accepted/entity-filtered/rejected counts. `visual:search` logs carry the same query/subject fields for live debugging, while Supabase remains enough to audit a completed episode later.
 
 Once the shared visual checkpoint completes, each of `zh-Hant`, `ja`, and `en` uses its own main HLS duration, sentence timing, subtitles, and audio to render a progressive MP4. All three encodes reuse the same visual checkpoint. Classroom HLS is an ingest-readiness check for the canonical localization only and is never used as video audio.
 
@@ -168,8 +160,9 @@ longest step of a render.
 Background video logs use the same short-run convention and expose only safe operational metadata:
 
 ```text
-[video-worker] visual:search run=abcd1234 episode=... language=shared scene=scene-01 progress=1/9 candidateCount=13
-[video-worker] visual:assets run=abcd1234 episode=... language=shared scene=scene-01 progress=1/9
+[video-worker] visual:search run=abcd1234 episode=... language=shared scene=scene-01 progress=1/9 provider=pexels searchIntent="Justin Sun crypto entrepreneur" subjectKey="justin sun" candidateCount=0 entityFilteredCount=80
+[video-worker] visual:search run=abcd1234 episode=... language=shared scene=scene-01 progress=1/9 provider=brave searchIntent="Justin Sun crypto entrepreneur" subjectKey="justin sun" candidateCount=12
+[video-worker] visual:assets run=abcd1234 episode=... language=shared scene=scene-01 progress=1/9 provider=brave
 [video-worker] video:alignment run=ef123456 episode=... language=ja phase=done elapsedMs=842
 [video-worker] video:render run=ef123456 episode=... language=ja phase=media scene=scene-01 progress=1/9
 [video-worker] video:render run=ef123456 episode=... language=ja phase=encoding percent=42
