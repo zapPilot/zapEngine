@@ -69,7 +69,7 @@ describe('domain-native control center visualizations', () => {
       />,
     );
 
-    expect(screen.getByText('Content distribution board')).toBeVisible();
+    expect(screen.getByText('Publishing now')).toBeVisible();
     expect(screen.getByText('Buy in fear')).toBeVisible();
     expect(screen.getByText('Threads')).toBeVisible();
     expect(screen.getByText('ja')).toBeVisible();
@@ -77,37 +77,58 @@ describe('domain-native control center visualizations', () => {
     expect(screen.getByText('1 blocked · 2 active')).toBeVisible();
   });
 
-  it('shows evidence topology without claiming unverified platform health', () => {
+  it('shows source activity as compact clickable events', () => {
     const data = operationsFixture({
       signals: [
         signalFixture({
-          source: 'fly',
-          domain: 'infra',
-          status: 'critical',
-          title: 'Render worker stopped',
-        }),
-        signalFixture({
-          fingerprint: 'github-actions:workflow/healthy',
+          fingerprint: 'github-actions:recent-failure/deploy.yml',
           source: 'github-actions',
           domain: 'jobs',
-          status: 'healthy',
-          title: 'Scheduled jobs healthy',
+          status: 'critical',
+          title: 'Deploy failed',
+          evidence: {
+            conclusion: 'failure',
+            event: 'push',
+            branch: 'main',
+          },
+          url: 'https://github.com/zapPilot/zapEngine/actions/runs/1',
+        }),
+        signalFixture({
+          fingerprint: 'sentry:issues/zap-pilot-native',
+          source: 'sentry',
+          domain: 'errors',
+          status: 'degraded',
+          title: '2 unresolved issues in zap-pilot-native',
+          evidence: {
+            eventCount: 11,
+            topIssue: 'useWalletProvider',
+          },
+          url: 'https://sentry.io/issues/1',
         }),
       ],
     });
 
     render(<ReliabilityTopology data={data} social={socialOps()} />);
 
+    expect(screen.getByText('2 need attention')).toBeVisible();
+    expect(screen.getByText('GitHub')).toBeVisible();
+    expect(screen.getByText('Deploy failed')).toBeVisible();
+    expect(screen.getByText('Sentry')).toBeVisible();
     expect(
-      screen.getByText('What is reporting trouble, and what it blocks'),
+      screen.getByText('2 unresolved issues in zap-pilot-native'),
     ).toBeVisible();
-    expect(screen.getByText('Fly.io')).toBeVisible();
-    expect(screen.getByText('Render worker stopped')).toBeVisible();
-    expect(screen.getByText('Rendered media')).toBeVisible();
-    expect(screen.getByText('4 lane(s) waiting')).toBeVisible();
-    expect(screen.getByText('Distribution targets')).toBeVisible();
+    expect(screen.getByRole('link', { name: /Deploy failed/ })).toHaveAttribute(
+      'href',
+      'https://github.com/zapPilot/zapEngine/actions/runs/1',
+    );
     expect(
-      screen.getByText('Outcome health is not verified by this read model'),
-    ).toBeVisible();
+      screen.getByRole('link', {
+        name: /2 unresolved issues in zap-pilot-native/,
+      }),
+    ).toHaveAttribute('href', 'https://sentry.io/issues/1');
+    expect(screen.getByText('Media')).toBeVisible();
+    expect(screen.getByText('4 waiting')).toBeVisible();
+    expect(screen.getByText('Platforms')).toBeVisible();
+    expect(screen.getByText('not verified')).toBeVisible();
   });
 });
