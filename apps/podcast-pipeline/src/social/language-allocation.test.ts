@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  languageRotationProfileForLane,
   languageRotationProfileForSlot,
   rotatingReleaseCohortLanes,
+  rotatingReleaseCohortLanesForProfile,
 } from './language-allocation.js';
 
 function slot(day: number, hourUtc: number, minute = 0): Date {
@@ -85,6 +87,27 @@ describe('social language Latin square', () => {
         }),
       ]),
     );
+  });
+
+  it('persists a rotating experiment marker before the generation-ambiguous Rednote lane', () => {
+    const lanes = rotatingReleaseCohortLanes(slot(2, 0, 30));
+    expect(lanes[0]).toMatchObject({
+      platform: 'x',
+      experimentKey: 'x-language-v2',
+      experimentVariant: 'en',
+    });
+    expect(lanes.at(-1)).toEqual({ platform: 'rednote', language: 'zh-Hant' });
+  });
+
+  it('can reconstruct the original profile from any persisted rotating lane', () => {
+    for (const profile of ['A', 'B', 'C'] as const) {
+      const lanes = rotatingReleaseCohortLanesForProfile(profile);
+      for (const lane of lanes.filter((candidate) => candidate.platform !== 'rednote')) {
+        expect(languageRotationProfileForLane(lane.platform, lane.language)).toBe(
+          profile,
+        );
+      }
+    }
   });
 
   it('fails closed if a caller tries to allocate a non-release time', () => {
