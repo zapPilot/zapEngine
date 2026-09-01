@@ -5,7 +5,7 @@ import type {
   OperationsSocialResponse,
   OperationsSource,
 } from '../../shared/types.js';
-import { integer, statusLabel } from '../format.js';
+import { integer, relativeTime, statusLabel } from '../format.js';
 import { StatusDot } from './Status.js';
 
 const STATUS_WEIGHT: Record<OperationalStatus, number> = {
@@ -20,61 +20,63 @@ export function ReliabilityTopology(props: {
   social: OperationsSocialResponse | null;
 }) {
   const sources = sourceNodes(props.data?.signals ?? []);
+  const attention = sources.filter(
+    (source) => source.status === 'critical' || source.status === 'degraded',
+  ).length;
 
   return (
-    <section className="domain-visualization reliability-topology">
-      <div className="domain-visualization-head">
-        <div>
-          <span className="domain-visualization-kicker">Operational topology</span>
-          <h2>What is reporting trouble, and what it blocks</h2>
-        </div>
-        <p>
-          Live evidence topology. Arrows mean “reports into this operating domain”,
-          not an inferred runtime call graph.
-        </p>
+    <section className="domain-visualization reliability-activity">
+      <div className="reliability-activity-head">
+        <span>Reliability</span>
+        <strong>{attention === 0 ? 'All clear' : `${integer(attention)} need attention`}</strong>
       </div>
 
-      <div className="topology-grid">
-        <div className="topology-column topology-sources">
-          <span className="topology-column-label">Evidence source</span>
-          {sources.map((source) => (
-            <article className={`topology-node ${source.status}`} key={source.source}>
-              <div>
+      <div className="source-activity-grid">
+        {sources.map((source) => (
+          <article
+            className={`source-activity-card ${source.status}`}
+            key={source.source}
+          >
+            <header>
+              <span>
                 <StatusDot status={source.status} />
                 <strong>{sourceLabel(source.source)}</strong>
-              </div>
-              <small>{source.summary}</small>
-            </article>
-          ))}
-          {sources.length === 0 ? (
-            <div className="domain-visualization-empty compact">
-              Waiting for operational signals.
+              </span>
+              <small>{statusLabel(source.status)}</small>
+            </header>
+            <div className="source-event-list">
+              {source.events.map((event) => (
+                <SourceEvent event={event} key={event.fingerprint} />
+              ))}
             </div>
-          ) : null}
-        </div>
-
-        <div className="topology-connectors" aria-hidden="true">
-          <span>→</span>
-        </div>
-
-        <div className="topology-column topology-domains">
-          <span className="topology-column-label">Operating domain</span>
-          {(props.data?.domains ?? []).map((domain) => (
-            <article className={`topology-domain ${domain.status}`} key={domain.domain}>
-              <div>
-                <strong>{domain.domain}</strong>
-                <span>{statusLabel(domain.status)}</span>
-              </div>
-              <small>
-                {integer(domain.signalCount)} signal{domain.signalCount === 1 ? '' : 's'}
-              </small>
-            </article>
-          ))}
-        </div>
+          </article>
+        ))}
+        {sources.length === 0 ? (
+          <div className="domain-visualization-empty compact">Waiting for signals.</div>
+        ) : null}
       </div>
 
       <SocialFlow social={props.social} />
     </section>
+  );
+}
+
+function SourceEvent({ event }: { event: OperationalSignal }) {
+  const content = (
+    <>
+      <time>{relativeTime(event.observedAt)}</time>
+      <strong>{event.title}</strong>
+      <small>{eventMeta(event)}</small>
+    </>
+  );
+
+  return event.url ? (
+    <a className="source-event" href={event.url} rel="noreferrer" target="_blank">
+      {content}
+      <span aria-hidden="true">↗</span>
+    </a>
+  ) : (
+    <div className="source-event">{content}</div>
   );
 }
 
@@ -92,28 +94,27 @@ function SocialFlow({ social }: { social: OperationsSocialResponse | null }) {
     (social.waitingMediaLanes ?? 0) >= 3 ? 'degraded' : 'healthy';
 
   return (
-    <div className="social-flow" aria-label="Social publishing flow">
-      <span className="topology-column-label">Social publishing flow</span>
+    <div className="social-flow compact-social-flow" aria-label="Social publishing flow">
       <div className={`social-flow-node ${mediaStatus}`}>
         <StatusDot status={mediaStatus} />
         <span>
-          <strong>Rendered media</strong>
-          <small>{integer(social.waitingMediaLanes)} lane(s) waiting</small>
+          <strong>Media</strong>
+          <small>{integer(social.waitingMediaLanes)} waiting</small>
         </span>
       </div>
       <b aria-hidden="true">→</b>
       <div className={`social-flow-node ${queueStatus}`}>
         <StatusDot status={queueStatus} />
         <span>
-          <strong>Publish queue</strong>
-          <small>{integer(social.jobs.length)} active · {integer(blocked)} blocked</small>
+          <strong>Queue</strong>
+          <small>{integer(blocked)} blocked</small>
         </span>
       </div>
       <b aria-hidden="true">→</b>
       <div className={`social-flow-node ${social.daemon.status}`}>
         <StatusDot status={social.daemon.status} />
         <span>
-          <strong>Social daemon</strong>
+          <strong>Daemon</strong>
           <small>{statusLabel(social.daemon.status)}</small>
         </span>
       </div>
@@ -121,8 +122,8 @@ function SocialFlow({ social }: { social: OperationsSocialResponse | null }) {
       <div className="social-flow-node unknown">
         <StatusDot status="unknown" />
         <span>
-          <strong>Distribution targets</strong>
-          <small>Outcome health is not verified by this read model</small>
+          <strong>Platforms</strong>
+          <small>not verified</small>
         </span>
       </div>
     </div>
@@ -132,7 +133,7 @@ function SocialFlow({ social }: { social: OperationsSocialResponse | null }) {
 interface SourceNode {
   source: OperationsSource;
   status: OperationalStatus;
-  summary: string;
+  events: OperationalSignal[];
 }
 
 function sourceNodes(signals: OperationalSignal[]): SourceNode[] {
@@ -144,16 +145,15 @@ function sourceNodes(signals: OperationalSignal[]): SourceNode[] {
   }
   return [...grouped.entries()]
     .map(([source, sourceSignals]) => {
-      const worst = [...sourceSignals].sort(
-        (left, right) => STATUS_WEIGHT[right.status] - STATUS_WEIGHT[left.status],
-      )[0]!;
+      const ordered = [...sourceSignals].sort(
+        (left, right) =>
+          STATUS_WEIGHT[right.status] - STATUS_WEIGHT[left.status] ||
+          Date.parse(right.observedAt) - Date.parse(left.observedAt),
+      );
       return {
         source,
-        status: worst.status,
-        summary:
-          worst.status === 'healthy'
-            ? `${integer(sourceSignals.length)} healthy signal${sourceSignals.length === 1 ? '' : 's'}`
-            : worst.title,
+        status: ordered[0]?.status ?? 'unknown',
+        events: ordered.slice(0, 2),
       };
     })
     .sort(
@@ -163,15 +163,49 @@ function sourceNodes(signals: OperationalSignal[]): SourceNode[] {
     );
 }
 
+function eventMeta(signal: OperationalSignal): string {
+  if (signal.source === 'github-actions') {
+    return compactEvidence(signal, ['conclusion', 'event', 'branch']);
+  }
+  if (signal.source === 'sentry') {
+    return compactEvidence(signal, ['eventCount', 'topIssue']);
+  }
+  if (signal.source === 'fly') {
+    return compactEvidence(signal, [
+      'startedMachines',
+      'stoppedMachines',
+      'machines',
+    ]);
+  }
+  if (signal.source === 'social-queue') {
+    return compactEvidence(signal, ['overdueJobs', 'waitingMediaLanes']);
+  }
+  return compactEvidence(signal, Object.keys(signal.evidence).slice(0, 2));
+}
+
+function compactEvidence(signal: OperationalSignal, keys: string[]): string {
+  const values = keys.flatMap((key) => {
+    const value = signal.evidence[key];
+    return value === null || value === undefined || value === ''
+      ? []
+      : [`${humanKey(key)} ${String(value)}`];
+  });
+  return values.length ? values.join(' · ') : (signal.detail ?? 'No extra detail');
+}
+
+function humanKey(key: string): string {
+  return key.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase();
+}
+
 function sourceLabel(source: OperationsSource): string {
   return {
-    'customer-economics': 'Customer data',
-    'product-health': 'Product health',
-    'cost-ledger': 'Cost ledger',
+    'customer-economics': 'Customers',
+    'product-health': 'Product',
+    'cost-ledger': 'Costs',
     'social-queue': 'Social queue',
     'social-daemon': 'Social daemon',
-    'github-actions': 'GitHub Actions',
-    fly: 'Fly.io',
+    'github-actions': 'GitHub',
+    fly: 'Fly',
     sentry: 'Sentry',
     posthog: 'PostHog',
   }[source];
