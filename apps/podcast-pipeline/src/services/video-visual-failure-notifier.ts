@@ -1,14 +1,14 @@
 import { toError } from '../lib/errorMessage.js';
 import {
-  buildTelegramVideoFailedMessage,
-  sendMessage,
-  type TelegramChatId,
-} from './telegram.js';
-import {
   getPipelineSupabase,
   type PipelineSupabaseClient,
   throwSupabaseError,
 } from './supabase-client.js';
+import {
+  buildTelegramVideoFailedMessage,
+  sendMessage,
+  type TelegramChatId,
+} from './telegram.js';
 
 const DEFAULT_SWEEP_INTERVAL_MS = 15_000;
 
@@ -28,12 +28,14 @@ export interface VideoVisualFailureNotifier {
   stop(): void;
 }
 
-export function createVideoVisualFailureNotifier(options: {
-  supabase?: PipelineSupabaseClient;
-  notify?: (chatId: TelegramChatId, text: string) => Promise<void>;
-  logger?: VisualFailureLogger;
-  intervalMs?: number;
-} = {}): VideoVisualFailureNotifier {
+export function createVideoVisualFailureNotifier(
+  options: {
+    supabase?: PipelineSupabaseClient;
+    notify?: (chatId: TelegramChatId, text: string) => Promise<void>;
+    logger?: VisualFailureLogger;
+    intervalMs?: number;
+  } = {},
+): VideoVisualFailureNotifier {
   const notify = options.notify ?? sendMessage;
   const logger = options.logger ?? console;
   const intervalMs = options.intervalMs ?? DEFAULT_SWEEP_INTERVAL_MS;
