@@ -31,7 +31,8 @@ beforeEach(() => {
     }) => {
       const key = `${experimentKey}|${episodeId}`;
       const existing = mocks.assignments.get(key);
-      const variant = existing ?? (experimentKey === 'x-language-v1' ? 'ja' : variants[0]);
+      const variant =
+        existing ?? (experimentKey === 'x-language-v1' ? 'ja' : variants[0]);
       mocks.assignments.set(key, variant);
       return {
         experiment_key: experimentKey,
