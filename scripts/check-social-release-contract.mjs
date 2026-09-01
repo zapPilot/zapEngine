@@ -16,6 +16,7 @@ const forbidMatch = (label, text, pattern) => {
 const agents = read('apps/podcast-pipeline/AGENTS.md');
 const socialAgents = read('apps/podcast-pipeline/src/social/AGENTS.md');
 const daemon = read('apps/podcast-pipeline/src/social/daemon.ts');
+const cohort = read('apps/podcast-pipeline/src/social/cohort.ts');
 const policy = read('apps/podcast-pipeline/src/social/policy.ts');
 const languageAllocation = read(
   'apps/podcast-pipeline/src/social/language-allocation.ts',
@@ -24,6 +25,9 @@ const readme = read('apps/podcast-pipeline/src/social/README.md');
 const recovery = read(
   'apps/podcast-pipeline/src/social/release-cohort-store.ts',
 );
+const languageRecoveryMigration = read(
+  'supabase/migrations/20260901031500_social_language_v2_recovery_guards.sql',
+);
 const claimMigration = read(
   'supabase/migrations/20260826120000_claim_social_publish_batch_episode_scope.sql',
 );
@@ -31,6 +35,10 @@ const contractTest =
   'apps/podcast-pipeline/src/social/daemon-release-cohort-contract.test.ts';
 const languageContractTest =
   'apps/podcast-pipeline/src/social/language-allocation.test.ts';
+const rolloutContractTest =
+  'apps/podcast-pipeline/src/social/cohort-language-rollout.test.ts';
+const waitingMediaContractTest =
+  'apps/podcast-pipeline/src/socialWaitingMediaPolicyMigration.test.ts';
 const recoveryTest =
   'apps/podcast-pipeline/src/social/release-cohort-store.test.ts';
 
@@ -48,6 +56,11 @@ requireMatch(
   'scoped AGENTS language coverage invariant',
   socialAgents,
   /Each article must cover all three languages/i,
+);
+requireMatch(
+  'scoped AGENTS durable profile invariant',
+  socialAgents,
+  /social-language-profile-v2/i,
 );
 requireMatch(
   'daemon episode-level lane resolver',
@@ -74,6 +87,26 @@ requireMatch(
   'language allocation platform experiment keys',
   policy,
   /x-language-v2[\s\S]*threads-language-v1[\s\S]*youtube-language-v1/,
+);
+requireMatch(
+  'durable v2 profile assignment',
+  cohort,
+  /SOCIAL_LANGUAGE_PROFILE_ASSIGNMENT_KEY/,
+);
+requireMatch(
+  'legacy generation marker read',
+  cohort,
+  /LEGACY_LANGUAGE_GENERATION_MARKER[\s\S]*getExperimentAssignment/,
+);
+requireMatch(
+  'database generation guard',
+  languageRecoveryMigration,
+  /guard_social_language_v2_generation/,
+);
+requireMatch(
+  'waiting-media pre-scheduling language readiness',
+  languageRecoveryMigration,
+  /cross join required_language/i,
 );
 requireMatch(
   'production queue reconciliation',
@@ -108,7 +141,13 @@ forbidMatch('policy', policy, /PLATFORM_PUBLISH_POLICY/);
 forbidMatch('README', readme, /\(episode, platform\) is the scheduling unit/i);
 forbidMatch('README', readme, /different platforms[^\n]*independent releases/i);
 
-for (const path of [contractTest, languageContractTest, recoveryTest]) {
+for (const path of [
+  contractTest,
+  languageContractTest,
+  rolloutContractTest,
+  waitingMediaContractTest,
+  recoveryTest,
+]) {
   if (!existsSync(resolve(root, path))) {
     failures.push(`${path}: required executable contract test is missing`);
   }
