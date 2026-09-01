@@ -15,6 +15,14 @@ does not silently drift it back to per-platform language/timing behavior.
 - Recovery preserves already-created lane identities. A missed-slot repair may
   move an unpublished cohort as a whole, but must not reshape languages to make
   experimental counts look balanced. A successful lane is never resent.
+- **V2 generation identity is durable state, not something to infer from the
+  current clock.** A new v2 enqueue persists a rotating, experiment-tagged lane
+  before the generation-ambiguous Rednote lane. The database generation guard
+  rejects v2 rotating-lane inserts when an episode already has durable publish
+  jobs but none carry a v2 language experiment key. Do not reorder Rednote to be
+  first, remove that guard, or re-derive a durable cohort from a later repaired
+  `scheduled_at`; all three changes can silently reshape a legacy/interrupted
+  cohort across the rollout boundary.
 
 ## Language experiment v2
 
@@ -52,7 +60,9 @@ lane allocation:
 Do not collapse these steps by deriving v2 readiness from a profile chosen before
 the slot exists. Media readiness must not bias which language/time cell gets
 sampled. `social_waiting_media` is an episode-language readiness signal, not a
-future platform-lane assignment table.
+future platform-lane assignment table. Once an episode has any durable publish
+job or social post, the waiting-media view stops representing it; durable release
+state owns recovery from that point onward.
 
 ## Experiment isolation and evaluation
 
@@ -66,7 +76,7 @@ future platform-lane assignment table.
 - Strategy learning may adapt copy guidance for an active platform-language lane
   but cannot alter lane allocation, readiness, or release timing.
 
-Any change to the coverage rule, rotation matrix, activation fence, or
-one-article/one-timestamp transaction boundary requires an explicit product
-decision plus updates to this file, `src/social/README.md`, and the executable
-contract tests.
+Any change to the coverage rule, rotation matrix, activation fence, durable v2
+generation marker/guard, or one-article/one-timestamp transaction boundary
+requires an explicit product decision plus updates to this file,
+`src/social/README.md`, and the executable contract tests.
