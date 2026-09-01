@@ -32,27 +32,27 @@ interface LocalizationRow {
   updated_at: string;
 }
 
-interface VisualRow {
-  episode_id: string;
+interface LifecycleRow {
   status: string;
-  progress_percent: number | null;
-  progress_stage: string | null;
   attempt_count: number;
   lease_expires_at: string | null;
   last_error: string | null;
   updated_at: string;
+  progress_percent?: number | null;
+  progress_stage?: string | null;
 }
 
-interface RenderRow {
+interface IngestRow extends LifecycleRow {
+  source_url: string;
+}
+
+interface VisualRow extends LifecycleRow {
+  episode_id: string;
+}
+
+interface RenderRow extends LifecycleRow {
   episode_localization_id: string;
   episode_id: string;
-  status: string;
-  progress_percent: number | null;
-  progress_stage: string | null;
-  attempt_count: number;
-  lease_expires_at: string | null;
-  last_error: string | null;
-  updated_at: string;
 }
 
 export function createPodcastPipelineService(input: {
@@ -77,12 +77,7 @@ export function createPodcastPipelineService(input: {
     async getPipeline(): Promise<PodcastPipelineResponse> {
       const generatedAt = new Date().toISOString();
       if (!client) {
-        return {
-          generatedAt,
-          status: 'unconfigured',
-          message: 'Supabase podcast pipeline is not connected',
-          episodes: [],
-        };
+        return unconfiguredPipeline(generatedAt);
       }
 
       try {
@@ -91,15 +86,25 @@ export function createPodcastPipelineService(input: {
           .select('id,source_title,source_url,created_at')
           .order('created_at', { ascending: false })
           .limit(EPISODE_LIMIT);
-        if (episodeError) throw episodeError;
+        if (episodeError) {
+          throw episodeError;
+        }
 
         const episodes = (episodeData ?? []) as EpisodeRow[];
         if (episodes.length === 0) {
-          return { generatedAt, status: 'ok', message: null, episodes: [] };
+          return emptyPipeline(generatedAt);
         }
+
         const episodeIds = episodes.map(({ id }) => id);
-        const [localizationsResult, visualsResult, rendersResult] =
+        const sourceUrls = [...new Set(episodes.map(({ source_url }) => source_url))];
+        const [ingestsResult, localizationsResult, visualsResult, rendersResult] =
           await Promise.all([
+            client
+              .from('podcast_ingest_jobs')
+              .select(
+                'source_url,status,attempt_count,lease_expires_at,last_error,updated_at',
+              )
+              .in('source_url', sourceUrls),
             client
               .from('episode_localizations')
               .select(
@@ -119,9 +124,16 @@ export function createPodcastPipelineService(input: {
               )
               .in('episode_id', episodeIds),
           ]);
-        if (localizationsResult.error) throw localizationsResult.error;
-        if (visualsResult.error) throw visualsResult.error;
-        if (rendersResult.error) throw rendersResult.error;
+
+        const queryError = [
+          ingestsResult.error,
+          localizationsResult.error,
+          visualsResult.error,
+          rendersResult.error,
+        ].find((error) => error != null);
+        if (queryError) {
+          throw queryError;
+        }
 
         return {
           generatedAt,
@@ -129,22 +141,15 @@ export function createPodcastPipelineService(input: {
           message: null,
           episodes: summarizePodcastPipeline(
             episodes,
+            (ingestsResult.data ?? []) as IngestRow[],
             (localizationsResult.data ?? []) as LocalizationRow[],
             (visualsResult.data ?? []) as VisualRow[],
             (rendersResult.data ?? []) as RenderRow[],
             new Date(),
           ),
         };
-      } catch (error) {
-        return {
-          generatedAt,
-          status: 'error',
-          message:
-            error instanceof Error
-              ? error.message
-              : 'Podcast pipeline state unavailable',
-          episodes: [],
-        };
+      } catch (cause) {
+        return failedPipeline(generatedAt, cause);
       }
     },
 
@@ -152,10 +157,13 @@ export function createPodcastPipelineService(input: {
       if (!client) {
         throw new Error('Supabase podcast pipeline is not connected');
       }
-      const { data, error } = await client.rpc('retry_episode_video_generation', {
-        p_episode_id: episodeId,
-      });
-      if (error) throw error;
+      const { data, error } = await client.rpc(
+        'retry_episode_video_generation',
+        { p_episode_id: episodeId },
+      );
+      if (error) {
+        throw error;
+      }
       if (data !== true) {
         throw new Error('Video retry changed no episode');
       }
@@ -165,17 +173,31 @@ export function createPodcastPipelineService(input: {
 
 export function summarizePodcastPipeline(
   episodes: EpisodeRow[],
+  ingestRows: IngestRow[],
   localizationRows: LocalizationRow[],
   visualRows: VisualRow[],
   renderRows: RenderRow[],
   now: Date,
 ): PodcastPipelineEpisode[] {
-  const localizationsByEpisode = groupBy(localizationRows, (row) => row.episode_id);
-  const visualByEpisode = new Map(visualRows.map((row) => [row.episode_id, row]));
+  const latestIngestBySourceUrl = latestRowBy(
+    ingestRows,
+    (row) => row.source_url,
+    (row) => row.updated_at,
+  );
+  const localizationsByEpisode = groupBy(
+    localizationRows,
+    (row) => row.episode_id,
+  );
+  const visualByEpisode = new Map(
+    visualRows.map((row) => [row.episode_id, row]),
+  );
   const rendersByEpisode = groupBy(renderRows, (row) => row.episode_id);
 
   return episodes.map((episode) => {
-    const localizationRowsForEpisode = localizationsByEpisode.get(episode.id) ?? [];
+    const ingestRow = latestIngestBySourceUrl.get(episode.source_url) ?? null;
+    const ingest = ingestRow ? jobState(ingestRow, now) : null;
+    const localizationRowsForEpisode =
+      localizationsByEpisode.get(episode.id) ?? [];
     const localizationByLanguage = new Map(
       localizationRowsForEpisode.flatMap((row) =>
         isLanguage(row.language_code)
@@ -187,10 +209,17 @@ export function summarizePodcastPipeline(
       const row = localizationByLanguage.get(languageCode);
       return row ? [localizationState(row, languageCode)] : [];
     });
-    const translationStatus = translationState(localizationByLanguage);
-    const ttsStatus = ttsState(localizationByLanguage, translationStatus);
+
+    const translationStatus = applyIngestStatus(
+      translationState(localizationByLanguage),
+      ingest,
+    );
+    const ttsStatus = applyIngestStatus(
+      ttsState(localizationByLanguage, translationStatus),
+      ingest,
+    );
     const visualRow = visualByEpisode.get(episode.id) ?? null;
-    const visual = visualRow ? jobState(visualRow) : null;
+    const visual = visualRow ? jobState(visualRow, now) : null;
     const renderByLocalizationId = new Map(
       (rendersByEpisode.get(episode.id) ?? []).map((row) => [
         row.episode_localization_id,
@@ -199,24 +228,24 @@ export function summarizePodcastPipeline(
     );
     const renders = LANGUAGES.flatMap((languageCode) => {
       const localization = localizationByLanguage.get(languageCode);
-      if (!localization) return [];
+      if (!localization) {
+        return [];
+      }
       const render = renderByLocalizationId.get(localization.id);
       return render
-        ? [renderState(render, languageCode)]
+        ? [renderState(render, languageCode, now)]
         : [emptyRenderState(localization.id, languageCode)];
     });
     const videoStatus = videoState(visual, renders, ttsStatus);
-    const currentPhase =
-      translationStatus !== 'completed'
-        ? 'translation'
-        : ttsStatus !== 'completed'
-          ? 'tts'
-          : videoStatus !== 'completed'
-            ? 'video'
-            : 'done';
+    const currentPhase = currentPhaseFor(
+      translationStatus,
+      ttsStatus,
+      videoStatus,
+    );
     const activeVideoLease = [visual, ...renders].some(
       (job) =>
-        job?.status === 'processing' && leaseIsActive(job.leaseExpiresAt, now),
+        job?.status === 'processing' &&
+        leaseIsActive(job.leaseExpiresAt, now),
     );
 
     return {
@@ -228,6 +257,7 @@ export function summarizePodcastPipeline(
       translationStatus,
       ttsStatus,
       videoStatus,
+      ingest,
       localizations,
       visual,
       renders,
@@ -257,11 +287,34 @@ function ttsState(
 ): PodcastPipelineStatus {
   const completed = LANGUAGES.every((language) => {
     const row = rows.get(language);
-    if (!row || row.status !== 'completed' || !row.hls_url.trim()) return false;
+    if (!row || row.status !== 'completed' || !row.hls_url.trim()) {
+      return false;
+    }
     return language !== 'zh-Hant' || Boolean(row.classroom_hls_url?.trim());
   });
-  if (completed) return 'completed';
+  if (completed) {
+    return 'completed';
+  }
   return translationStatus === 'completed' ? 'processing' : 'pending';
+}
+
+function applyIngestStatus(
+  base: PodcastPipelineStatus,
+  ingest: PodcastPipelineJobState | null,
+): PodcastPipelineStatus {
+  if (base === 'completed' || !ingest) {
+    return base;
+  }
+  if (ingest.status === 'failed' || ingest.status === 'stuck') {
+    return ingest.status;
+  }
+  if (base === 'pending' && ingest.status === 'queued') {
+    return 'queued';
+  }
+  if (base === 'pending' && ingest.status === 'processing') {
+    return 'processing';
+  }
+  return base;
 }
 
 function videoState(
@@ -269,9 +322,21 @@ function videoState(
   renders: PodcastPipelineRenderState[],
   ttsStatus: PodcastPipelineStatus,
 ): PodcastPipelineStatus {
-  if (ttsStatus !== 'completed') return 'pending';
-  if (visual?.status === 'failed') return 'failed';
-  if (renders.some(({ status }) => status === 'failed')) return 'failed';
+  if (ttsStatus !== 'completed') {
+    return 'pending';
+  }
+  if (
+    visual?.status === 'failed' ||
+    renders.some(({ status }) => status === 'failed')
+  ) {
+    return 'failed';
+  }
+  if (
+    visual?.status === 'stuck' ||
+    renders.some(({ status }) => status === 'stuck')
+  ) {
+    return 'stuck';
+  }
   if (
     renders.length === LANGUAGES.length &&
     renders.every(({ status }) => status === 'completed')
@@ -285,6 +350,20 @@ function videoState(
     return 'processing';
   }
   return visual || renders.length > 0 ? 'queued' : 'pending';
+}
+
+function currentPhaseFor(
+  translationStatus: PodcastPipelineStatus,
+  ttsStatus: PodcastPipelineStatus,
+  videoStatus: PodcastPipelineStatus,
+): PodcastPipelineEpisode['currentPhase'] {
+  if (translationStatus !== 'completed') {
+    return 'translation';
+  }
+  if (ttsStatus !== 'completed') {
+    return 'tts';
+  }
+  return videoStatus === 'completed' ? 'done' : 'video';
 }
 
 function localizationState(
@@ -302,11 +381,14 @@ function localizationState(
   };
 }
 
-function jobState(row: VisualRow): PodcastPipelineJobState {
+function jobState(
+  row: LifecycleRow,
+  now: Date,
+): PodcastPipelineJobState {
   return {
-    status: normalizeJobStatus(row.status),
-    progressPercent: row.progress_percent,
-    stage: row.progress_stage,
+    status: normalizeJobStatus(row.status, row.lease_expires_at, now),
+    progressPercent: row.progress_percent ?? null,
+    stage: row.progress_stage ?? null,
     attempts: row.attempt_count,
     lastError: row.last_error,
     leaseExpiresAt: row.lease_expires_at,
@@ -317,9 +399,10 @@ function jobState(row: VisualRow): PodcastPipelineJobState {
 function renderState(
   row: RenderRow,
   languageCode: LanguageCode,
+  now: Date,
 ): PodcastPipelineRenderState {
   return {
-    ...jobState(row),
+    ...jobState(row, now),
     localizationId: row.episode_localization_id,
     languageCode,
   };
@@ -342,14 +425,31 @@ function emptyRenderState(
   };
 }
 
-function normalizeJobStatus(status: string): PodcastPipelineStatus {
-  return ['queued', 'processing', 'completed', 'failed'].includes(status)
-    ? (status as PodcastPipelineStatus)
-    : 'pending';
+function normalizeJobStatus(
+  status: string,
+  leaseExpiresAt: string | null,
+  now: Date,
+): PodcastPipelineStatus {
+  if (
+    status === 'processing' &&
+    leaseExpiresAt !== null &&
+    !leaseIsActive(leaseExpiresAt, now)
+  ) {
+    return 'stuck';
+  }
+  if (status === 'queued' || status === 'processing') {
+    return status;
+  }
+  if (status === 'completed' || status === 'failed') {
+    return status;
+  }
+  return 'pending';
 }
 
 function leaseIsActive(value: string | null, now: Date): boolean {
-  if (!value) return false;
+  if (!value) {
+    return false;
+  }
   const timestamp = Date.parse(value);
   return Number.isFinite(timestamp) && timestamp > now.getTime();
 }
@@ -370,4 +470,44 @@ function groupBy<T, K>(
     grouped.set(key, existing);
   }
   return grouped;
+}
+
+function latestRowBy<T, K>(
+  rows: readonly T[],
+  keyOf: (row: T) => K,
+  timestampOf: (row: T) => string,
+): Map<K, T> {
+  const latest = new Map<K, T>();
+  for (const row of rows) {
+    const key = keyOf(row);
+    const current = latest.get(key);
+    if (!current || timestampOf(row) > timestampOf(current)) {
+      latest.set(key, row);
+    }
+  }
+  return latest;
+}
+
+function unconfiguredPipeline(generatedAt: string): PodcastPipelineResponse {
+  return {
+    generatedAt,
+    status: 'unconfigured',
+    message: 'Supabase podcast pipeline is not connected',
+    episodes: [],
+  };
+}
+
+function emptyPipeline(generatedAt: string): PodcastPipelineResponse {
+  return { generatedAt, status: 'ok', message: null, episodes: [] };
+}
+
+function failedPipeline(
+  generatedAt: string,
+  cause: unknown,
+): PodcastPipelineResponse {
+  const message =
+    cause instanceof Error
+      ? cause.message
+      : 'Podcast pipeline state unavailable';
+  return { generatedAt, status: 'error', message, episodes: [] };
 }
