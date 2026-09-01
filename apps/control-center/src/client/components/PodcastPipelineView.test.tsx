@@ -99,6 +99,27 @@ describe('PodcastPipelineView', () => {
     expect(onRestartVideo).toHaveBeenCalledWith(episodeId);
   });
 
+  it('does not surface a stale visual error while a retry is processing', () => {
+    renderPipeline({
+      data: pipelineResponse({
+        videoStatus: 'processing',
+        canRestartVideo: false,
+        visual: {
+          status: 'processing',
+          progressPercent: 15,
+          stage: 'subject-catalog',
+          attempts: 2,
+          lastError: 'previous attempt failed',
+          leaseExpiresAt: '2026-09-01T00:05:00.000Z',
+          updatedAt: '2026-09-01T00:01:00.000Z',
+        },
+      }),
+    });
+
+    expect(screen.queryByText('Visual failure')).not.toBeInTheDocument();
+    expect(screen.queryByText('previous attempt failed')).not.toBeInTheDocument();
+  });
+
   it('disables retry while the server read model says video cannot be restarted', () => {
     const { onRestartVideo } = renderPipeline({
       data: pipelineResponse({
