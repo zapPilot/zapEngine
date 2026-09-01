@@ -13,6 +13,7 @@ import { createAsyncCache } from '../cache.js';
 import { deriveCustomerSignals, loadCustomerEconomics } from '../customers.js';
 import { collectCostSignals } from './costs.js';
 import { collectFlySignals } from './fly.js';
+import { collectRecentGithubFailureSignals } from './github-recent.js';
 import { collectGithubSignals } from './github.js';
 import { inspectOperationalSignal } from './inspection/inspect.js';
 import { investigateOperationalSignal } from './investigation.js';
@@ -190,7 +191,14 @@ function defaultAdapters(
   return {
     product: () => collectProductSignals({ config, now: now() }),
     costs: () => collectCostSignals({ config, now: now() }),
-    github: () => collectGithubSignals({ config, now: now() }),
+    github: async () => {
+      const observedAt = now();
+      const [scheduled, recent] = await Promise.all([
+        collectGithubSignals({ config, now: observedAt }),
+        collectRecentGithubFailureSignals({ config, now: observedAt }),
+      ]);
+      return [...scheduled, ...recent];
+    },
     fly: () => collectFlySignals({ config, now: now() }),
     sentry: () => collectSentrySignals({ config, now: now() }),
     posthog: () => collectPosthogSignals({ config, now: now() }),
