@@ -4,15 +4,15 @@ import { z } from 'zod';
 
 import { errorMessage } from '../lib/errorMessage.js';
 import {
-  getOpenRouterModelCandidates,
-  supportsJsonResponseFormat,
-} from '../services/llm-model-fallback.js';
-import {
   createOpenRouterChatCompletion,
   getOpenRouterConfig,
   stripJsonFence,
   unwrapNestedJsonPayload,
 } from '../services/llm.js';
+import {
+  getOpenRouterModelCandidates,
+  supportsJsonResponseFormat,
+} from '../services/llm-model-fallback.js';
 import type { SocialEpisode } from './types.js';
 
 /**

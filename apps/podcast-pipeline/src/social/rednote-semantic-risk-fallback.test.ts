@@ -118,9 +118,8 @@ describe('Rednote semantic-risk model fallback', () => {
       1 + FALLBACKS.length,
     );
 
-    const finalRequest = llmMocks.createOpenRouterChatCompletion.mock.calls.at(
-      -1,
-    )?.[1];
+    const finalRequest =
+      llmMocks.createOpenRouterChatCompletion.mock.calls.at(-1)?.[1];
     expect(finalRequest?.model).toBe(FALLBACKS.at(-1));
     expect(finalRequest).not.toHaveProperty('response_format');
   });
