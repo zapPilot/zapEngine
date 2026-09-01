@@ -38,13 +38,13 @@ Start broad, then narrow:
 
 Classify each inspected issue before taking action:
 
-| State | Meaning | Action |
-| --- | --- | --- |
-| `unfixed` | Root cause is not fixed | Candidate for repair |
-| `fixed_pending_deploy` | Fix is merged but affected production runtime is still old | Keep open |
-| `deployed_observing` | Fixed version is deployed but observation window is incomplete | Keep open |
-| `resolvable` | Fix is deployed and production evidence satisfies the resolve gate | Resolve |
-| `defer` | Root cause, behavior, or safe fix is ambiguous | Leave unchanged and explain |
+| State                  | Meaning                                                            | Action                      |
+| ---------------------- | ------------------------------------------------------------------ | --------------------------- |
+| `unfixed`              | Root cause is not fixed                                            | Candidate for repair        |
+| `fixed_pending_deploy` | Fix is merged but affected production runtime is still old         | Keep open                   |
+| `deployed_observing`   | Fixed version is deployed but observation window is incomplete     | Keep open                   |
+| `resolvable`           | Fix is deployed and production evidence satisfies the resolve gate | Resolve                     |
+| `defer`                | Root cause, behavior, or safe fix is ambiguous                     | Leave unchanged and explain |
 
 ### Resolve gate
 
@@ -119,26 +119,39 @@ For the single selected incident:
 2. Make the smallest change that fixes the underlying behavior rather than
    silencing the error.
 3. Add or update a regression test that reproduces the failure where practical.
-4. Run the narrowest meaningful test, type-check, and lint/format checks for the
-   affected package or scope.
-5. Re-inspect the operational signal when fresh evidence is useful.
-6. Do not resolve the issue just because tests pass or the fix is merged. Move
-   it to `fixed_pending_deploy` or `deployed_observing` until the resolve gate is
-   satisfied.
+4. Run the narrowest repo-native checks: `pnpm turbo run test --filter=@zapengine/<pkg>`,
+   `pnpm turbo run type-check --filter=@zapengine/<pkg>`, `bash scripts/verify-jobs.sh format`
+   (widen to `type-check lint` for shared packages).
+5. Re-inspect with `force: true` only after deploy/release when fresh evidence is useful.
+6. Do not resolve just because tests pass or the fix is merged. Keep
+   `fixed_pending_deploy`/`deployed_observing` until the resolve gate passes.
 
 Follow root `AGENTS.md` for working-tree, history, PR, and preservation rules.
 
+## Verification
+
+Operational: `ops_status` → `ops_investigate <fingerprint>` →
+`ops_inspect_signal` (Sentry issueId) → `ops_resolve_sentry_issue` (one ID, see
+`apps/control-center/MCP.md:32-57`; launcher `scripts/ops-mcp.mjs` pins `prod`).
+
+Local post-fix: `pnpm turbo run test --filter=@zapengine/<pkg>`,
+`pnpm turbo run type-check --filter=@zapengine/<pkg>`,
+`bash scripts/verify-jobs.sh format repo contracts` / `type-check lint`.
+
+CI: `quick-gates` = `format repo contracts`; `code-quality` =
+`type-check lint deadcode dup` — keep green, never weaken gates.
+
 ## Rationalizations — STOP
 
-| Temptation | Required behavior |
-| --- | --- |
-| "It is merged, so it is fixed in production." | Verify the affected production runtime is on the fixed version. |
-| "There have been no events for 24 hours." | Count only time after the fixed version became active in production. |
-| "The fallback looks expected." | Keep it open unless repository and production evidence prove the event is no longer actionable. |
-| "Several issues look easy." | Fix at most one new incident in this run. |
-| "Downgrading or suppressing the event is enough." | Fix the underlying behavior; do not hide the signal. |
-| "The mobile fix is on main." | Wait for an actual distributed release, then observe it. |
-| "The provider is unknown, so there is nothing wrong." | Unknown is not healthy. |
+| Temptation                                            | Required behavior                                                                               |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| "It is merged, so it is fixed in production."         | Verify the affected production runtime is on the fixed version.                                 |
+| "There have been no events for 24 hours."             | Count only time after the fixed version became active in production.                            |
+| "The fallback looks expected."                        | Keep it open unless repository and production evidence prove the event is no longer actionable. |
+| "Several issues look easy."                           | Fix at most one new incident in this run.                                                       |
+| "Downgrading or suppressing the event is enough."     | Fix the underlying behavior; do not hide the signal.                                            |
+| "The mobile fix is on main."                          | Wait for an actual distributed release, then observe it.                                        |
+| "The provider is unknown, so there is nothing wrong." | Unknown is not healthy.                                                                         |
 
 ## Completion report
 
