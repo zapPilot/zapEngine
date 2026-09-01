@@ -86,7 +86,10 @@ async function sweepOnce(
       'reap_failed_episode_video_visual_notifications',
       { p_limit: 20 },
     );
-    if (error) throwSupabaseError(error);
+    if (error) {
+      if (isMissingVisualFailureNoticeRpc(error)) return;
+      throwSupabaseError(error);
+    }
     failures = Array.isArray(data)
       ? (data as VisualFailureNotificationRow[])
       : [];
@@ -134,4 +137,19 @@ async function sweepOnce(
       );
     }
   }
+}
+
+function isMissingVisualFailureNoticeRpc(error: unknown): boolean {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+  const record = error as { code?: unknown; message?: unknown };
+  if (record.code === 'PGRST202' || record.code === '42883') {
+    return true;
+  }
+  return (
+    typeof record.message === 'string' &&
+    record.message.includes('reap_failed_episode_video_visual_notifications') &&
+    record.message.includes('schema cache')
+  );
 }
