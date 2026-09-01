@@ -28,17 +28,17 @@ beforeEach(() => {
       experiment_key: experimentKey,
       episode_id: episodeId,
       variant: 'ja',
-      assigned_at: '2026-08-31T00:00:00.000Z',
+      assigned_at: '2026-09-01T00:00:00.000Z',
     }),
   );
 });
 
 describe('social language experiment rollout', () => {
   it('keeps an episode created before activation on the legacy lane shape even when scheduled later', async () => {
-    const scheduledAt = new Date('2026-09-02T03:00:00.000Z'); // 12:00 JST
+    const scheduledAt = new Date('2026-09-03T03:00:00.000Z'); // 12:00 JST
     const lanes = await resolveReleaseCohortLanes({
       episodeId: EPISODE_ID,
-      episodeCreatedAt: '2026-08-31T23:59:59.999Z',
+      episodeCreatedAt: '2026-09-01T23:59:59.999Z',
       scheduledAt,
     });
 
@@ -59,8 +59,8 @@ describe('social language experiment rollout', () => {
     await expect(
       resolveRequiredReleaseLanguages({
         episodeId: EPISODE_ID,
-        episodeCreatedAt: '2026-09-01T00:00:00.000Z',
-        prospectiveScheduledAt: new Date('2026-09-01T03:00:00.000Z'),
+        episodeCreatedAt: '2026-09-02T00:00:00.000Z',
+        prospectiveScheduledAt: new Date('2026-09-02T03:00:00.000Z'),
       }),
     ).resolves.toEqual(['zh-Hant', 'ja', 'en']);
     expect(mocks.getOrCreateExperimentAssignment).not.toHaveBeenCalled();
