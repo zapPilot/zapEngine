@@ -218,7 +218,7 @@ describe('refreshSocialStrategies', () => {
     expect(store.deactivateSocialStrategy).not.toHaveBeenCalled();
   });
 
-  it('retires an active lane the publish policy no longer ships', async () => {
+  it('keeps every X, Threads, and YouTube language arm active while retiring lanes outside the current policy', async () => {
     store.listLearningSocialPosts.mockResolvedValue([]);
     store.listLearningSocialMetrics.mockResolvedValue([]);
     store.getActiveSocialStrategies.mockResolvedValue([
@@ -233,10 +233,20 @@ describe('refreshSocialStrategies', () => {
         created_at: '2026-08-16T00:00:00.000Z',
       },
       {
-        id: 'threads-ja',
+        id: 'threads-en',
         platform: 'threads',
-        language_code: 'ja',
+        language_code: 'en',
         version: 2,
+        config: defaultSocialStrategy(),
+        based_on_samples: 9,
+        active: true,
+        created_at: '2026-08-16T00:00:00.000Z',
+      },
+      {
+        id: 'rednote-en',
+        platform: 'rednote',
+        language_code: 'en',
+        version: 1,
         config: defaultSocialStrategy(),
         based_on_samples: 9,
         active: true,
@@ -245,16 +255,13 @@ describe('refreshSocialStrategies', () => {
     ]);
     const log = vi.fn();
 
-    // Self-healing rather than a one-off cleanup: YouTube in Japanese stopped
-    // being a lane when the policy went English-only, and an active row for it
-    // would otherwise outlive the policy indefinitely.
     await refreshSocialStrategies({
-      now: new Date('2026-08-17T12:00:00.000Z'),
+      now: new Date('2026-09-01T12:00:00.000Z'),
       log,
     });
 
     expect(store.deactivateSocialStrategy).toHaveBeenCalledTimes(1);
-    expect(store.deactivateSocialStrategy).toHaveBeenCalledWith('youtube-ja');
+    expect(store.deactivateSocialStrategy).toHaveBeenCalledWith('rednote-en');
     expect(log).toHaveBeenCalledWith(
       expect.stringContaining('no longer in the publish policy'),
     );
