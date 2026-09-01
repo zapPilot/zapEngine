@@ -48,6 +48,7 @@ const mocks = vi.hoisted(() => ({
   captureDueAccountSnapshots: vi.fn().mockResolvedValue([]),
   capturePrePublishAccountSnapshots: vi.fn().mockResolvedValue([]),
   refreshSocialStrategies: vi.fn(),
+  getExperimentAssignment: vi.fn(),
   getOrCreateExperimentAssignment: vi.fn(),
 }));
 
@@ -103,6 +104,7 @@ vi.mock('./strategy.js', async (importOriginal) => ({
 }));
 vi.mock('./experiments.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./experiments.js')>()),
+  getExperimentAssignment: mocks.getExperimentAssignment,
   getOrCreateExperimentAssignment: mocks.getOrCreateExperimentAssignment,
 }));
 
@@ -146,6 +148,7 @@ beforeEach(() => {
   mocks.listUnfinishedSocialPublishJobs.mockResolvedValue([]);
   mocks.listSocialPostsByEpisode.mockResolvedValue([]);
   mocks.listSocialEpisodeLocalizationTitles.mockResolvedValue([]);
+  mocks.getExperimentAssignment.mockResolvedValue(null);
   mocks.getOrCreateExperimentAssignment.mockImplementation(
     ({
       experimentKey,
@@ -180,8 +183,6 @@ describe('NON-NEGOTIABLE episode release cohort contract', () => {
       experimentVariant: input.experimentVariant,
       scheduledAt: input.scheduledAt,
     }));
-    // At 10:00 JST the next slot is 12:00. Day 1 / slot 2 is profile B:
-    // X=ja, Threads=zh-Hant, YouTube=en; Rednote remains zh-Hant.
     expect(lanes).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ platform: 'rednote', language: 'zh-Hant' }),
@@ -249,8 +250,6 @@ describe('NON-NEGOTIABLE episode release cohort contract', () => {
       return [...times][0];
     };
 
-    // NOW is 10:00 JST, so 09-02 has only its 12:00 and 16:00 slots left; the
-    // third and fourth articles roll into the next JST day rather than sharing.
     expect(slotOf(ARTICLE_A)).toBe('2026-09-02T03:00:00.000Z');
     expect(slotOf(ARTICLE_B)).toBe('2026-09-02T07:00:00.000Z');
     expect(slotOf(ARTICLE_C)).toBe('2026-09-03T00:30:00.000Z');
@@ -327,12 +326,14 @@ describe('NON-NEGOTIABLE episode release cohort contract', () => {
     expect(log).toHaveBeenCalledWith(expect.stringContaining('“繁中標題”'));
   });
 
-  it('does not reshape a legacy durable cohort created after activation', async () => {
-    // Simulate old daemon that, before this deployment, enqueued a legacy cohort
-    // for an episode created after activation (2026-09-02T00:10:00Z). The durable
-    // rows are the legacy shape: Threads/ja + X/en + YouTube/en + Rednote/zh-Hant.
-    // New code must treat those rows as SoT and not add v2 lanes (e.g. Threads/zh-Hant / X/ja).
-    const legacyScheduledAt = '2026-09-02T03:00:00.000Z'; // 12:00 JST Day 1 Slot 2 = profile B for v2
+  it('does not reshape an ambiguous partial legacy cohort created after activation', async () => {
+    const legacyScheduledAt = '2026-09-02T03:00:00.000Z';
+    mocks.getExperimentAssignment.mockResolvedValue({
+      experiment_key: 'x-language-v1',
+      episode_id: ARTICLE_A,
+      variant: 'en',
+      assigned_at: CREATED_AT,
+    });
     mocks.listPendingSocialPublishSchedules.mockResolvedValue([
       {
         episode_id: ARTICLE_A,
@@ -341,24 +342,6 @@ describe('NON-NEGOTIABLE episode release cohort contract', () => {
         scheduled_at: legacyScheduledAt,
         completed_at: null,
         status: 'queued',
-      },
-      {
-        episode_id: ARTICLE_A,
-        platform: 'threads',
-        language_code: 'ja',
-        scheduled_at: legacyScheduledAt,
-        completed_at: null,
-        status: 'queued',
-      },
-      {
-        episode_id: ARTICLE_A,
-        platform: 'x',
-        language_code: 'en',
-        scheduled_at: legacyScheduledAt,
-        completed_at: null,
-        status: 'queued',
-        experiment_key: 'x-language-v1',
-        experiment_variant: 'en',
       },
       {
         episode_id: ARTICLE_A,
@@ -375,32 +358,23 @@ describe('NON-NEGOTIABLE episode release cohort contract', () => {
 
     await runSocialDaemonTick({ now: NOW, firstStartedAt: FIRST_STARTED_AT });
 
-    // Must not enqueue any v2 lane that was not in the durable cohort.
     const enqueued = mocks.enqueueSocialPublishJob.mock.calls.map(
       ([input]) => `${input.platform}|${input.languageCode}`,
     );
-    // Durable cohort lanes may be re-enqueued idempotently (ignoreDuplicates), but no v2-only lane should appear.
     expect(enqueued).not.toContain('threads|zh-Hant');
     expect(enqueued).not.toContain('x|ja');
-    // Legacy lanes are the only ones that may be retried.
-    expect(new Set(enqueued).size).toBeLessThanOrEqual(4);
-    if (enqueued.length > 0) {
-      for (const key of enqueued) {
-        expect([
-          'rednote|zh-Hant',
-          'threads|ja',
-          'x|en',
-          'youtube|en',
-        ]).toContain(key);
-      }
-    }
+    expect(enqueued).toEqual(
+      expect.arrayContaining([
+        'rednote|zh-Hant',
+        'threads|ja',
+        'x|en',
+        'youtube|en',
+      ]),
+    );
   });
 
   it('completes an interrupted v2 enqueue without reshaping', async () => {
-    // New daemon crashed after inserting the first 2 of 4 v2 lanes for profile B.
-    // Rotating lanes persist before Rednote so a partial enqueue has an
-    // unambiguous v2 generation marker.
-    const scheduledAt = '2026-09-02T03:00:00.000Z'; // profile B
+    const scheduledAt = '2026-09-02T03:00:00.000Z';
     mocks.listPendingSocialPublishSchedules.mockResolvedValue([
       {
         episode_id: ARTICLE_A,
@@ -432,7 +406,6 @@ describe('NON-NEGOTIABLE episode release cohort contract', () => {
     const enqueued = mocks.enqueueSocialPublishJob.mock.calls.map(
       ([input]) => `${input.platform}|${input.languageCode}`,
     );
-    // Missing v2 lanes should be filled without changing the persisted profile.
     expect(enqueued).toEqual(
       expect.arrayContaining(['youtube|en', 'rednote|zh-Hant']),
     );
