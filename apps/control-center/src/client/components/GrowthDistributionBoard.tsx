@@ -16,24 +16,16 @@ export function GrowthDistributionBoard(props: {
 
   return (
     <section className="domain-visualization distribution-board">
-      <div className="domain-visualization-head">
+      <div className="domain-visualization-head compact-domain-head">
         <div>
-          <span className="domain-visualization-kicker">Publication lifecycle</span>
-          <h2>Content distribution board</h2>
+          <span className="domain-visualization-kicker">Distribution</span>
+          <h2>Publishing now</h2>
         </div>
-        <p>
-          One article per row; every queued platform-language lane stays visible
-          until the daemon clears it.
-        </p>
       </div>
 
       {batches.length === 0 ? (
-        <div className="domain-visualization-empty">
-          <strong>No active distribution batch.</strong>
-          <span>
-            {props.social?.message ??
-              'The publish queue has no queued, processing, or failed lanes.'}
-          </span>
+        <div className="domain-visualization-empty compact">
+          {props.social?.message ?? 'No active publish batch.'}
         </div>
       ) : (
         <div className="distribution-batches">
@@ -45,7 +37,7 @@ export function GrowthDistributionBoard(props: {
                   {batch.title ? <small>{batch.episodeId}</small> : null}
                 </div>
                 <div className="distribution-batch-summary">
-                  <span>Target {relativeTime(batch.targetAt)}</span>
+                  <span>{relativeTime(batch.targetAt)}</span>
                   <strong>
                     {integer(batch.blocked)} blocked · {integer(batch.lanes.length)} active
                   </strong>
