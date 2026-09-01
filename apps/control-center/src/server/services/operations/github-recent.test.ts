@@ -7,7 +7,8 @@ const NOW = new Date('2026-09-01T06:00:00.000Z');
 const CONFIGURED = readControlCenterConfig({ OPS_GITHUB_TOKEN: 'ops-token' });
 
 function hoursAgo(hours: number): string {
-  return new Date(NOW.getTime() - hours * 60 * 60 * 1000).toISOString();
+  const elapsedMs = hours * 3_600_000;
+  return new Date(NOW.valueOf() - elapsedMs).toISOString();
 }
 
 function completedRun(input: {
@@ -160,7 +161,7 @@ describe('collectRecentGithubFailureSignals', () => {
   });
 
   it('lets a later scheduled success clear an older manual failure', async () => {
-    const { signals } = await collect([
+    const outcome = await collect([
       completedRun({
         id: 31,
         name: 'Track Record Snapshot',
@@ -170,16 +171,16 @@ describe('collectRecentGithubFailureSignals', () => {
         startedAt: hoursAgo(1),
       }),
       completedRun({
-        id: 30,
-        name: 'Track Record Snapshot',
-        path: '.github/workflows/track-record-snapshot.yml',
-        event: 'workflow_dispatch',
-        conclusion: 'failure',
         startedAt: hoursAgo(2),
+        conclusion: 'failure',
+        event: 'workflow_dispatch',
+        path: '.github/workflows/track-record-snapshot.yml',
+        name: 'Track Record Snapshot',
+        id: 30,
       }),
     ]);
 
-    expect(signals).toEqual([]);
+    expect(outcome.signals).toEqual([]);
   });
 
   it('escalates consecutive operational failures and includes main pushes', async () => {

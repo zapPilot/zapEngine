@@ -536,7 +536,15 @@ function orderedSearchProviders(
   let usable = [...providers];
   if (mode === 'strict' && namedScene) {
     usable = usable.filter((provider) => provider.origin === 'brave');
-  } else if (mode === 'resilient' && !namedScene) {
+  } else if (
+    mode === 'resilient' &&
+    !namedScene &&
+    usable.some((provider) => provider.origin !== 'brave')
+  ) {
+    // Generic B-roll should not spend Brave while a stock provider is
+    // available. Keep a Brave-only injected/default chain usable, though:
+    // filtering its only provider would turn a provider failure (or a valid
+    // fallback result) into the misleading "no usable image" path.
     usable = usable.filter((provider) => provider.origin !== 'brave');
   }
   if (mode === 'strict') return usable;

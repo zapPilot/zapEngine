@@ -6,6 +6,14 @@ import { z } from 'zod';
 
 import type { OperationalSignal } from '../../../shared/types.js';
 import type { ControlCenterConfig } from '../../config/env.js';
+import {
+  consecutiveCount,
+  GITHUB_HOUR_MS,
+  githubCompletedRunSchema,
+  githubRunEvidence,
+  githubRunsEnvelopeSchema,
+  githubRunTiming,
+} from './github-run.js';
 import { fetchJson, fetchText } from './http.js';
 import {
   buildSignal,
@@ -20,15 +28,6 @@ import { staleAfterMs } from './schedule-interval.js';
 const ORIGIN = { source: 'github-actions', domain: 'jobs' } as const;
 const REPO = 'zapPilot/zapEngine';
 const RUNS_PER_PAGE = 5;
-const RECENT_RUNS_PER_PAGE = 50;
-const HOUR_MS = 60 * 60 * 1000;
-const RECENT_FAILURE_WINDOW_MS = 24 * HOUR_MS;
-const IGNORED_RECENT_CONCLUSIONS = new Set([
-  'success',
-  'cancelled',
-  'skipped',
-  'neutral',
-]);
 
 /**
  * Only the fields this adapter reads. `.github/schedules.json` is the
@@ -53,26 +52,7 @@ const scheduleEntrySchema = z.object({
  * meaningful: `judge` orders runs by `Date`, and a `NaN` one would sort to
  * the end and quietly change which run counts as latest.
  */
-const isoTimestamp = z
-  .string()
-  .refine((value) => Number.isFinite(Date.parse(value)));
-
-const runSchema = z.object({
-  status: z.string(),
-  conclusion: z.string().nullish(),
-  created_at: isoTimestamp,
-  run_started_at: isoTimestamp.nullish(),
-  html_url: z.string().nullish(),
-});
-
-const runsEnvelopeSchema = z.object({ workflow_runs: z.array(z.unknown()) });
-
-const recentRunSchema = runSchema.extend({
-  name: z.string().min(1),
-  path: z.string().min(1).nullish(),
-  event: z.string().min(1),
-  head_branch: z.string().nullish(),
-});
+const runSchema = githubCompletedRunSchema;
 
 interface ScheduledWorkflow {
   /** The `schedules.json` name — what an operator calls the job. */
@@ -136,14 +116,11 @@ export async function collectGithubSignals(input: {
       token,
       fetchImpl,
     });
-    const [outcomes, recentOutcome] = await Promise.all([
-      Promise.all(
-        workflows.map((workflow) =>
-          inspectWorkflow({ workflow, token, fetchImpl, now: input.now }),
-        ),
+    const outcomes = await Promise.all(
+      workflows.map((workflow) =>
+        inspectWorkflow({ workflow, token, fetchImpl, now: input.now }),
       ),
-      inspectRecentMainRuns({ token, fetchImpl, now: input.now }),
-    ]);
+    );
 
     const errors = outcomes.flatMap((outcome) =>
       outcome.failed ? [outcome.error] : [],
@@ -162,7 +139,7 @@ export async function collectGithubSignals(input: {
           ]
         : outcomes.map((outcome) => outcome.signal);
 
-    return [...scheduledSignals, ...recentOutcome];
+    return scheduledSignals;
   });
 }
 
@@ -252,93 +229,6 @@ async function inspectWorkflow(input: {
   }
 }
 
-async function inspectRecentMainRuns(input: {
-  token: string;
-  fetchImpl: typeof fetch;
-  now: Date;
-}): Promise<OperationalSignal[]> {
-  try {
-    const envelope = await fetchJson({
-      label: 'GitHub recent workflow runs',
-      url:
-        `https://api.github.com/repos/${REPO}/actions/runs?` +
-        `branch=main&per_page=${RECENT_RUNS_PER_PAGE}`,
-      token: input.token,
-      schema: runsEnvelopeSchema,
-      fetchImpl: input.fetchImpl,
-      headers: {
-        Accept: 'application/vnd.github+json',
-        'X-GitHub-Api-Version': '2022-11-28',
-        'User-Agent': 'zapengine-control-center',
-      },
-    });
-
-    const newestByWorkflow = new Map<string, z.infer<typeof recentRunSchema>>();
-    for (const row of envelope.workflow_runs) {
-      const parsed = recentRunSchema.safeParse(row);
-      if (!parsed.success || parsed.data.status !== 'completed') {
-        continue;
-      }
-      const path = parsed.data.path ?? parsed.data.name;
-      const identity = `${path}:${parsed.data.event}`;
-      const current = newestByWorkflow.get(identity);
-      if (
-        !current ||
-        Date.parse(parsed.data.run_started_at ?? parsed.data.created_at) >
-          Date.parse(current.run_started_at ?? current.created_at)
-      ) {
-        newestByWorkflow.set(identity, parsed.data);
-      }
-    }
-
-    return [...newestByWorkflow.values()].flatMap((run) => {
-      const startedAt = new Date(run.run_started_at ?? run.created_at);
-      const ageMs = input.now.getTime() - startedAt.getTime();
-      const conclusion = run.conclusion ?? 'unknown';
-      if (
-        ageMs > RECENT_FAILURE_WINDOW_MS ||
-        IGNORED_RECENT_CONCLUSIONS.has(conclusion)
-      ) {
-        return [];
-      }
-      const workflow = basename(run.path ?? run.name);
-      return [
-        buildSignal({
-          ...ORIGIN,
-          kind: 'recent-workflow-failure',
-          key: `${workflow}:${run.event}`,
-          status: 'degraded',
-          title: `${run.name} recent ${conclusion}`,
-          detail:
-            `Latest completed main-branch run for this workflow ended ${conclusion} ` +
-            `${Math.round(ageMs / HOUR_MS)}h ago via ${run.event}.`,
-          evidence: {
-            workflow,
-            event: run.event,
-            headBranch: run.head_branch ?? null,
-            lastRunAt: startedAt.toISOString(),
-            lastConclusion: run.conclusion ?? null,
-          },
-          observedAt: input.now,
-          url: run.html_url ?? null,
-        }),
-      ];
-    });
-  } catch (error) {
-    return [
-      buildSignal({
-        ...ORIGIN,
-        kind: 'recent-workflow-failure-monitor',
-        key: 'main',
-        status: 'degraded',
-        title: 'Recent GitHub workflow failures unavailable',
-        detail: errorMessage(error),
-        observedAt: input.now,
-      }),
-    ];
-  }
-}
-
 async function fetchCompletedRuns(input: {
   workflow: ScheduledWorkflow;
   token: string;
@@ -357,7 +247,7 @@ async function fetchCompletedRuns(input: {
       `https://api.github.com/repos/${REPO}/actions/workflows/` +
       `${input.workflow.file}/runs?per_page=${RUNS_PER_PAGE}&event=schedule`,
     token: input.token,
-    schema: runsEnvelopeSchema,
+    schema: githubRunsEnvelopeSchema,
     fetchImpl: input.fetchImpl,
     headers: {
       Accept: 'application/vnd.github+json',
@@ -385,11 +275,7 @@ async function fetchCompletedRuns(input: {
 }
 
 function toCompletedRun(run: z.infer<typeof runSchema>): CompletedRun {
-  return {
-    conclusion: run.conclusion ?? null,
-    startedAt: new Date(run.run_started_at ?? run.created_at),
-    url: run.html_url ?? null,
-  };
+  return githubRunTiming(run);
 }
 
 function judge(
@@ -417,7 +303,7 @@ function judge(
   }
 
   const ageMs = now.getTime() - latest.startedAt.getTime();
-  const hoursAgo = Math.round(ageMs / HOUR_MS);
+  const hoursAgo = Math.round(ageMs / GITHUB_HOUR_MS);
   const streak = failureStreak(runs);
   const conclusion = latest.conclusion ?? 'without a conclusion';
   const common = {
@@ -426,9 +312,11 @@ function judge(
     key: workflow.file,
     evidence: {
       workflow: workflow.file,
-      failureStreak: streak,
-      lastRunAt: latest.startedAt.toISOString(),
-      lastConclusion: latest.conclusion,
+      ...githubRunEvidence({
+        failureStreak: streak,
+        startedAt: latest.startedAt,
+        conclusion: latest.conclusion,
+      }),
     },
     observedAt: now,
     url: latest.url,
@@ -469,7 +357,7 @@ function judge(
     detail:
       `Latest completed run succeeded, but it started ${hoursAgo}h ago and ` +
       `its schedule allows at most ${Math.round(
-        workflow.staleAfterMs / HOUR_MS,
+        workflow.staleAfterMs / GITHUB_HOUR_MS,
       )}h of silence.`,
   });
 }
@@ -481,12 +369,5 @@ function judge(
  * `skipped` a normal outcome.
  */
 function failureStreak(runs: readonly CompletedRun[]): number {
-  let streak = 0;
-  for (const run of runs) {
-    if (run.conclusion === 'success') {
-      break;
-    }
-    streak += 1;
-  }
-  return streak;
+  return consecutiveCount(runs, (run) => run.conclusion !== 'success');
 }

@@ -1,17 +1,16 @@
 import { basename } from 'node:path';
-
 import { z } from 'zod';
 
 import type { OperationalSignal } from '../../../shared/types.js';
 import type { ControlCenterConfig } from '../../config/env.js';
+import * as githubRun from './github-run.js';
 import { fetchJson } from './http.js';
 import { buildSignal, errorMessage } from './signal.js';
 
 const ORIGIN = { source: 'github-actions', domain: 'jobs' } as const;
 const REPO = 'zapPilot/zapEngine';
 const RUNS_PER_PAGE = 100;
-const HOUR_MS = 60 * 60 * 1000;
-const FAILURE_WINDOW_MS = 7 * 24 * HOUR_MS;
+const FAILURE_WINDOW_MS = 7 * 24 * githubRun.GITHUB_HOUR_MS;
 const FAILURE_CONCLUSIONS = new Set([
   'action_required',
   'failure',
@@ -27,24 +26,13 @@ const RECENT_OPERATIONAL_EVENTS = new Set([
   'workflow_run',
 ]);
 
-const isoTimestamp = z
-  .string()
-  .refine((value) => Number.isFinite(Date.parse(value)));
-
-const recentRunSchema = z.object({
+const recentRunSchema = githubRun.githubCompletedRunSchema.extend({
   id: z.number().int().positive(),
   name: z.string().min(1),
   path: z.string().min(1),
   event: z.string().min(1),
-  status: z.string(),
-  conclusion: z.string().nullish(),
   head_branch: z.string().nullish(),
-  created_at: isoTimestamp,
-  run_started_at: isoTimestamp.nullish(),
-  html_url: z.string().nullish(),
 });
-
-const runsEnvelopeSchema = z.object({ workflow_runs: z.array(z.unknown()) });
 
 type RecentRun = {
   id: number;
@@ -70,11 +58,15 @@ type RecentRun = {
  * latest runs are left to the scheduled collector. A later non-PR success of
  * the same workflow clears an older failure regardless of trigger.
  */
-export async function collectRecentGithubFailureSignals(input: {
+type RecentGithubFailureInput = {
   config: ControlCenterConfig;
   now: Date;
   fetchImpl?: typeof fetch;
-}): Promise<OperationalSignal[]> {
+};
+
+export async function collectRecentGithubFailureSignals(
+  input: RecentGithubFailureInput,
+): Promise<OperationalSignal[]> {
   const token = input.config.OPS_GITHUB_TOKEN;
   if (!token) {
     // github.ts owns the single unconfigured-token signal for this source.
@@ -88,7 +80,7 @@ export async function collectRecentGithubFailureSignals(input: {
         `https://api.github.com/repos/${REPO}/actions/runs?` +
         `branch=main&per_page=${RUNS_PER_PAGE}`,
       token,
-      schema: runsEnvelopeSchema,
+      schema: githubRun.githubRunsEnvelopeSchema,
       fetchImpl: input.fetchImpl ?? globalThis.fetch,
       headers: {
         Accept: 'application/vnd.github+json',
@@ -145,10 +137,8 @@ function toRecentRun(run: z.infer<typeof recentRunSchema>): RecentRun {
     name: run.name,
     path: run.path,
     event: run.event,
-    conclusion: run.conclusion ?? null,
     branch: run.head_branch ?? null,
-    startedAt: new Date(run.run_started_at ?? run.created_at),
-    url: run.html_url ?? null,
+    ...githubRun.githubRunTiming(run),
   };
 }
 
@@ -178,7 +168,9 @@ function buildRecentFailureSignal(
   const streak = failureStreak(runs);
   const hoursAgo = Math.max(
     0,
-    Math.round((now.getTime() - latest.startedAt.getTime()) / HOUR_MS),
+    Math.round(
+      (now.getTime() - latest.startedAt.getTime()) / githubRun.GITHUB_HOUR_MS,
+    ),
   );
   const alertingBlindSpot = workflow === 'cron-failure-alert.yml';
   const status = alertingBlindSpot || streak >= 2 ? 'critical' : 'degraded';
@@ -200,31 +192,26 @@ function buildRecentFailureSignal(
       (alertingBlindSpot
         ? ' The cron failure notifier itself is unavailable, so this is an alerting blind spot.'
         : ''),
+    observedAt: now,
+    url: latest.url,
     evidence: {
+      ...githubRun.githubRunEvidence({
+        conclusion: latest.conclusion,
+        startedAt: latest.startedAt,
+        failureStreak: streak,
+      }),
       workflow,
       workflowPath: latest.path,
       workflowName: latest.name,
       runId: latest.id,
       event: latest.event,
       branch: latest.branch,
-      failureStreak: streak,
-      lastRunAt: latest.startedAt.toISOString(),
-      lastConclusion: latest.conclusion,
     },
-    observedAt: now,
-    url: latest.url,
   });
 }
 
 function failureStreak(runs: readonly RecentRun[]): number {
-  let streak = 0;
-  for (const run of runs) {
-    if (!isFailure(run)) {
-      break;
-    }
-    streak += 1;
-  }
-  return streak;
+  return githubRun.consecutiveCount(runs, isFailure);
 }
 
 function isFailure(run: RecentRun): boolean {
