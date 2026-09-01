@@ -164,7 +164,7 @@ beforeEach(() => {
 });
 
 describe('NON-NEGOTIABLE episode release cohort contract', () => {
-  it('enqueues every active platform x language lane at exactly one timestamp', async () => {
+  it('enqueues the slot-balanced language profile at exactly one timestamp', async () => {
     const candidates = readyEpisode(ARTICLE_A);
     mocks.listSocialPublishCandidates.mockResolvedValue(candidates);
     mocks.listSocialPublishCandidatesForEpisodes.mockResolvedValue(candidates);
@@ -174,17 +174,39 @@ describe('NON-NEGOTIABLE episode release cohort contract', () => {
     const lanes = mocks.enqueueSocialPublishJob.mock.calls.map(([input]) => ({
       platform: input.platform,
       language: input.languageCode,
+      experimentKey: input.experimentKey,
+      experimentVariant: input.experimentVariant,
       scheduledAt: input.scheduledAt,
     }));
+    // At 10:00 JST the next slot is 12:00. Day 1 / slot 2 is profile B:
+    // X=ja, Threads=zh-Hant, YouTube=en; Rednote remains zh-Hant.
     expect(lanes).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ platform: 'rednote', language: 'zh-Hant' }),
-        expect.objectContaining({ platform: 'threads', language: 'ja' }),
-        expect.objectContaining({ platform: 'x', language: 'en' }),
-        expect.objectContaining({ platform: 'youtube', language: 'en' }),
+        expect.objectContaining({
+          platform: 'threads',
+          language: 'zh-Hant',
+          experimentKey: 'threads-language-v1',
+          experimentVariant: 'zh-Hant',
+        }),
+        expect.objectContaining({
+          platform: 'x',
+          language: 'ja',
+          experimentKey: 'x-language-v2',
+          experimentVariant: 'ja',
+        }),
+        expect.objectContaining({
+          platform: 'youtube',
+          language: 'en',
+          experimentKey: 'youtube-language-v1',
+          experimentVariant: 'en',
+        }),
       ]),
     );
     expect(lanes).toHaveLength(4);
+    expect(new Set(lanes.map((lane) => lane.language))).toEqual(
+      new Set(['zh-Hant', 'ja', 'en']),
+    );
     expect(new Set(lanes.map((lane) => lane.scheduledAt)).size).toBe(1);
   });
 
