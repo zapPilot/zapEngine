@@ -150,14 +150,16 @@ beforeEach(() => {
     ({
       experimentKey,
       episodeId,
+      variants,
     }: {
       experimentKey: string;
       episodeId: string;
+      variants?: readonly [string, ...string[]];
     }) =>
       Promise.resolve({
         experiment_key: experimentKey,
         episode_id: episodeId,
-        variant: 'en',
+        variant: variants?.[0] ?? 'en',
         assigned_at: CREATED_AT,
       }),
   );
@@ -395,16 +397,20 @@ describe('NON-NEGOTIABLE episode release cohort contract', () => {
   });
 
   it('completes an interrupted v2 enqueue without reshaping', async () => {
-    // New daemon crashed after inserting 2 of 4 v2 lanes for the same slot.
+    // New daemon crashed after inserting the first 2 of 4 v2 lanes for profile B.
+    // Rotating lanes persist before Rednote so a partial enqueue has an
+    // unambiguous v2 generation marker.
     const scheduledAt = '2026-09-02T03:00:00.000Z'; // profile B
     mocks.listPendingSocialPublishSchedules.mockResolvedValue([
       {
         episode_id: ARTICLE_A,
-        platform: 'rednote',
-        language_code: 'zh-Hant',
+        platform: 'x',
+        language_code: 'ja',
         scheduled_at: scheduledAt,
         completed_at: null,
         status: 'queued',
+        experiment_key: 'x-language-v2',
+        experiment_variant: 'ja',
       },
       {
         episode_id: ARTICLE_A,
@@ -426,8 +432,10 @@ describe('NON-NEGOTIABLE episode release cohort contract', () => {
     const enqueued = mocks.enqueueSocialPublishJob.mock.calls.map(
       ([input]) => `${input.platform}|${input.languageCode}`,
     );
-    // Missing v2 lanes should be filled (X/ja + YouTube/en) because existing is subset of intended.
-    expect(enqueued).toEqual(expect.arrayContaining(['x|ja', 'youtube|en']));
+    // Missing v2 lanes should be filled without changing the persisted profile.
+    expect(enqueued).toEqual(
+      expect.arrayContaining(['youtube|en', 'rednote|zh-Hant']),
+    );
     expect(enqueued).not.toContain('threads|ja');
     expect(enqueued).not.toContain('x|en');
   });
