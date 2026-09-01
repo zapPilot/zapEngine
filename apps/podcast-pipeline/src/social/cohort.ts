@@ -66,7 +66,10 @@ export async function resolveRequiredReleaseLanguages(input: {
   prospectiveScheduledAt: Date;
 }): Promise<SocialLanguageCode[]> {
   if (
-    usesLanguageRotation(input.episodeCreatedAt, input.prospectiveScheduledAt) &&
+    usesLanguageRotation(
+      input.episodeCreatedAt,
+      input.prospectiveScheduledAt,
+    ) &&
     !(await hasLegacyLanguageGeneration(input.episodeId))
   ) {
     return [...SOCIAL_REQUIRED_ROTATION_LANGUAGES];
@@ -90,7 +93,9 @@ function usesLanguageRotation(
   );
 }
 
-async function hasLegacyLanguageGeneration(episodeId: string): Promise<boolean> {
+async function hasLegacyLanguageGeneration(
+  episodeId: string,
+): Promise<boolean> {
   return Boolean(
     await getExperimentAssignment({
       experimentKey: LEGACY_LANGUAGE_GENERATION_MARKER,
