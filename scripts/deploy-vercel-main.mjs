@@ -1,13 +1,14 @@
+import { execFileSync } from 'node:child_process';
+
 import { ENV_DESTINATIONS } from '../config/env.destinations.mjs';
 
 const VERCEL_TARGETS = ['web', 'landing-page', 'control-center-vercel'];
 const GITHUB_REPO_ID = 1211979661;
 
 const token = process.env.VERCEL_TOKEN;
-const sha = process.env.VERCEL_GIT_SHA;
+const sha = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
 
 if (!token) throw new Error('VERCEL_TOKEN is required');
-if (!sha) throw new Error('VERCEL_GIT_SHA is required');
 
 for (const target of VERCEL_TARGETS) {
   const destination = ENV_DESTINATIONS[target];
