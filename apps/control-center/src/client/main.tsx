@@ -7,6 +7,7 @@ import { App } from './App.js';
 import './styles.css';
 import './progressive-disclosure.css';
 import './components/PodcastPipelineView.css';
+import './components/domain-visualizations.css';
 
 const root = document.getElementById('root');
 if (!root) {
