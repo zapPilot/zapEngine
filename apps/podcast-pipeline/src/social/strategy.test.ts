@@ -95,10 +95,15 @@ describe('social strategy', () => {
   it('lists exactly the lanes the publish policy still ships', () => {
     expect(policyStrategyLanes()).toEqual([
       { platform: 'rednote', languageCode: 'zh-Hant' },
+      { platform: 'threads', languageCode: 'en' },
       { platform: 'threads', languageCode: 'ja' },
+      { platform: 'threads', languageCode: 'zh-Hant' },
       { platform: 'x', languageCode: 'en' },
       { platform: 'x', languageCode: 'ja' },
+      { platform: 'x', languageCode: 'zh-Hant' },
       { platform: 'youtube', languageCode: 'en' },
+      { platform: 'youtube', languageCode: 'ja' },
+      { platform: 'youtube', languageCode: 'zh-Hant' },
     ]);
   });
 

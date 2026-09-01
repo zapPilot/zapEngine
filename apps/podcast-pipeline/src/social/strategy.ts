@@ -150,9 +150,9 @@ export function learnSocialStrategies(input: {
     .filter(isLearnableSample);
 
   // Only lanes the publish policy still ships. Learning a lane that was
-  // retired -- Threads in zh-Hant, YouTube in ja -- produces an active row
-  // nothing will ever publish under, which is how four stale strategies
-  // outlived the policy that created them.
+  // retired -- e.g. Rednote in en/ja -- produces an active row nothing will
+  // ever publish under, which is how stale strategies outlived the policy that
+  // created them.
   return policyStrategyLanes().flatMap(({ platform, languageCode }) => {
     const platformSamples = samples.filter(
       (sample) =>

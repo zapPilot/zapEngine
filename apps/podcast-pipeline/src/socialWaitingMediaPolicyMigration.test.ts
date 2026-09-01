@@ -28,9 +28,11 @@ describe('social waiting-media readiness migration', () => {
       migration.indexOf(')\nselect'),
     );
     const languages = new Set(
-      [...policyBlock.matchAll(/'[^']+',\s*'([^']+)'/gi)].map(
-        ([, language]) => language,
-      ),
+      [
+        ...policyBlock.matchAll(
+          /\(\s*'[^']+'(?:\s*::\s*\w+)?\s*,\s*'([^']+)'/gi,
+        ),
+      ].map(([, language]) => language),
     );
 
     for (const language of SOCIAL_REQUIRED_ROTATION_LANGUAGES) {
