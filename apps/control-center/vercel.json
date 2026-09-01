@@ -5,10 +5,7 @@
   "outputDirectory": "dist/client",
   "framework": null,
   "git": {
-    "deploymentEnabled": {
-      "*": false,
-      "main": true
-    }
+    "deploymentEnabled": false
   },
   "functions": {
     "api/index.ts": {

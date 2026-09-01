@@ -5,9 +5,6 @@
   "outputDirectory": "out",
   "framework": null,
   "git": {
-    "deploymentEnabled": {
-      "*": false,
-      "main": true
-    }
+    "deploymentEnabled": false
   }
 }

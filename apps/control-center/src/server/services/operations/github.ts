@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 
@@ -5,7 +6,7 @@ import { z } from 'zod';
 
 import type { OperationalSignal } from '../../../shared/types.js';
 import type { ControlCenterConfig } from '../../config/env.js';
-import { fetchJson } from './http.js';
+import { fetchJson, fetchText } from './http.js';
 import {
   buildSignal,
   collectOrFail,
@@ -19,7 +20,15 @@ import { staleAfterMs } from './schedule-interval.js';
 const ORIGIN = { source: 'github-actions', domain: 'jobs' } as const;
 const REPO = 'zapPilot/zapEngine';
 const RUNS_PER_PAGE = 5;
+const RECENT_RUNS_PER_PAGE = 50;
 const HOUR_MS = 60 * 60 * 1000;
+const RECENT_FAILURE_WINDOW_MS = 24 * HOUR_MS;
+const IGNORED_RECENT_CONCLUSIONS = new Set([
+  'success',
+  'cancelled',
+  'skipped',
+  'neutral',
+]);
 
 /**
  * Only the fields this adapter reads. `.github/schedules.json` is the
@@ -58,6 +67,13 @@ const runSchema = z.object({
 
 const runsEnvelopeSchema = z.object({ workflow_runs: z.array(z.unknown()) });
 
+const recentRunSchema = runSchema.extend({
+  name: z.string().min(1),
+  path: z.string().min(1).nullish(),
+  event: z.string().min(1),
+  head_branch: z.string().nullish(),
+});
+
 interface ScheduledWorkflow {
   /** The `schedules.json` name — what an operator calls the job. */
   name: string;
@@ -92,6 +108,7 @@ export async function collectGithubSignals(input: {
   now: Date;
   fetchImpl?: typeof fetch;
   repoRoot?: string;
+  registrySource?: 'local' | 'remote-main';
 }): Promise<OperationalSignal[]> {
   const token = input.config.OPS_GITHUB_TOKEN;
   if (!token) {
@@ -111,41 +128,78 @@ export async function collectGithubSignals(input: {
 
   const fetchImpl = input.fetchImpl ?? globalThis.fetch;
   return collectOrFail(ORIGIN, input.now, async () => {
-    const workflows = await readScheduledWorkflows(
-      input.repoRoot ?? findRepoRoot(import.meta.dirname),
-    );
-    const outcomes = await Promise.all(
-      workflows.map((workflow) =>
-        inspectWorkflow({ workflow, token, fetchImpl, now: input.now }),
+    const workflows = await readScheduledWorkflows({
+      repoRoot:
+        input.registrySource === 'remote-main'
+          ? undefined
+          : (input.repoRoot ?? findLocalRepoRoot()),
+      token,
+      fetchImpl,
+    });
+    const [outcomes, recentOutcome] = await Promise.all([
+      Promise.all(
+        workflows.map((workflow) =>
+          inspectWorkflow({ workflow, token, fetchImpl, now: input.now }),
+        ),
       ),
-    );
+      inspectRecentMainRuns({ token, fetchImpl, now: input.now }),
+    ]);
 
     const errors = outcomes.flatMap((outcome) =>
       outcome.failed ? [outcome.error] : [],
     );
-    if (errors.length === outcomes.length) {
-      return [
-        sourceFailure({
-          ...ORIGIN,
-          error: new Error(
-            `no run history readable for any of ${outcomes.length} ` +
-              `scheduled workflows: ${errorMessage(errors[0])}`,
-          ),
-          observedAt: input.now,
-        }),
-      ];
-    }
-    return outcomes.map((outcome) => outcome.signal);
+    const scheduledSignals =
+      errors.length === outcomes.length
+        ? [
+            sourceFailure({
+              ...ORIGIN,
+              error: new Error(
+                `no run history readable for any of ${outcomes.length} ` +
+                  `scheduled workflows: ${errorMessage(errors[0])}`,
+              ),
+              observedAt: input.now,
+            }),
+          ]
+        : outcomes.map((outcome) => outcome.signal);
+
+    return [...scheduledSignals, ...recentOutcome];
   });
 }
 
-async function readScheduledWorkflows(
-  repoRoot: string,
-): Promise<ScheduledWorkflow[]> {
-  const path = join(repoRoot, '.github', 'schedules.json');
-  const entries = z
-    .array(z.unknown())
-    .parse(JSON.parse(await readFile(path, 'utf8')) as unknown);
+function findLocalRepoRoot(): string | undefined {
+  try {
+    const root = findRepoRoot(import.meta.dirname);
+    return existsSync(join(root, '.github', 'schedules.json'))
+      ? root
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function readScheduledWorkflows(input: {
+  repoRoot?: string;
+  token: string;
+  fetchImpl: typeof fetch;
+}): Promise<ScheduledWorkflow[]> {
+  const source = input.repoRoot
+    ? join(input.repoRoot, '.github', 'schedules.json')
+    : '.github/schedules.json on main';
+  const raw = input.repoRoot
+    ? await readFile(source, 'utf8')
+    : await fetchText({
+        label: 'GitHub schedules registry',
+        url:
+          `https://api.github.com/repos/${REPO}/contents/.github/` +
+          'schedules.json?ref=main',
+        token: input.token,
+        fetchImpl: input.fetchImpl,
+        headers: {
+          Accept: 'application/vnd.github.raw+json',
+          'X-GitHub-Api-Version': '2022-11-28',
+        },
+      });
+  const entries = z.array(z.unknown()).parse(JSON.parse(raw) as unknown);
   const workflows = entries.flatMap((entry) => {
     const result = scheduleEntrySchema.safeParse(entry);
     return result.success && result.data.runtime === 'github-actions'
@@ -164,7 +218,7 @@ async function readScheduledWorkflows(
   if (workflows.length === 0) {
     // Not "nothing is wrong": the inventory that drives this adapter has lost
     // its GitHub entries, and reporting zero signals would read as green.
-    throw new Error(`${path} lists no github-actions workflows`);
+    throw new Error(`${source} lists no github-actions workflows`);
   }
   return workflows;
 }
@@ -195,6 +249,93 @@ async function inspectWorkflow(input: {
         observedAt: input.now,
       }),
     };
+  }
+}
+
+async function inspectRecentMainRuns(input: {
+  token: string;
+  fetchImpl: typeof fetch;
+  now: Date;
+}): Promise<OperationalSignal[]> {
+  try {
+    const envelope = await fetchJson({
+      label: 'GitHub recent workflow runs',
+      url:
+        `https://api.github.com/repos/${REPO}/actions/runs?` +
+        `branch=main&per_page=${RECENT_RUNS_PER_PAGE}`,
+      token: input.token,
+      schema: runsEnvelopeSchema,
+      fetchImpl: input.fetchImpl,
+      headers: {
+        Accept: 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+        'User-Agent': 'zapengine-control-center',
+      },
+    });
+
+    const newestByWorkflow = new Map<string, z.infer<typeof recentRunSchema>>();
+    for (const row of envelope.workflow_runs) {
+      const parsed = recentRunSchema.safeParse(row);
+      if (!parsed.success || parsed.data.status !== 'completed') {
+        continue;
+      }
+      const path = parsed.data.path ?? parsed.data.name;
+      const identity = `${path}:${parsed.data.event}`;
+      const current = newestByWorkflow.get(identity);
+      if (
+        !current ||
+        Date.parse(parsed.data.run_started_at ?? parsed.data.created_at) >
+          Date.parse(current.run_started_at ?? current.created_at)
+      ) {
+        newestByWorkflow.set(identity, parsed.data);
+      }
+    }
+
+    return [...newestByWorkflow.values()].flatMap((run) => {
+      const startedAt = new Date(run.run_started_at ?? run.created_at);
+      const ageMs = input.now.getTime() - startedAt.getTime();
+      const conclusion = run.conclusion ?? 'unknown';
+      if (
+        ageMs > RECENT_FAILURE_WINDOW_MS ||
+        IGNORED_RECENT_CONCLUSIONS.has(conclusion)
+      ) {
+        return [];
+      }
+      const workflow = basename(run.path ?? run.name);
+      return [
+        buildSignal({
+          ...ORIGIN,
+          kind: 'recent-workflow-failure',
+          key: `${workflow}:${run.event}`,
+          status: 'degraded',
+          title: `${run.name} recent ${conclusion}`,
+          detail:
+            `Latest completed main-branch run for this workflow ended ${conclusion} ` +
+            `${Math.round(ageMs / HOUR_MS)}h ago via ${run.event}.`,
+          evidence: {
+            workflow,
+            event: run.event,
+            headBranch: run.head_branch ?? null,
+            lastRunAt: startedAt.toISOString(),
+            lastConclusion: run.conclusion ?? null,
+          },
+          observedAt: input.now,
+          url: run.html_url ?? null,
+        }),
+      ];
+    });
+  } catch (error) {
+    return [
+      buildSignal({
+        ...ORIGIN,
+        kind: 'recent-workflow-failure-monitor',
+        key: 'main',
+        status: 'degraded',
+        title: 'Recent GitHub workflow failures unavailable',
+        detail: errorMessage(error),
+        observedAt: input.now,
+      }),
+    ];
   }
 }
 
