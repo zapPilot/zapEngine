@@ -18,32 +18,31 @@ import { GrowthView } from './components/GrowthView.js';
 import { HomeView } from './components/HomeView.js';
 import { PodcastPipelineView } from './components/PodcastPipelineView.js';
 import { ProductView } from './components/ProductView.js';
-import { ReliabilityTopology } from './components/ReliabilityTopology.js';
 import { ReliabilityView } from './components/ReliabilityView.js';
 
 const VIEW_META: Record<DashboardView, { subtitle: string; title: string }> = {
   home: {
-    subtitle: 'What needs a decision right now',
+    subtitle: 'What needs action',
     title: 'Home',
   },
   pipeline: {
-    subtitle: 'Where each article is, what failed, and what can be restarted',
+    subtitle: 'Article production',
     title: 'Pipeline',
   },
   growth: {
-    subtitle: 'What to publish next, and what the last posts actually did',
+    subtitle: 'Publishing and reach',
     title: 'Growth',
   },
   product: {
-    subtitle: 'Who we serve, and whether their data is still current',
+    subtitle: 'Customers and data',
     title: 'Product',
   },
   reliability: {
-    subtitle: 'Every source that can tell us something is wrong',
+    subtitle: 'Systems and incidents',
     title: 'Reliability',
   },
   economics: {
-    subtitle: 'What the company spends, and which provider spends it',
+    subtitle: 'Spend and unit cost',
     title: 'Economics',
   },
 };
@@ -287,10 +286,7 @@ export function App() {
         />
       ) : null}
       {view === 'reliability' ? (
-        <div className="view-stack">
-          <ReliabilityTopology data={operations} social={operationsSocial} />
-          <ReliabilityView data={operations} social={operationsSocial} />
-        </div>
+        <ReliabilityView data={operations} social={operationsSocial} />
       ) : null}
       {view === 'product' ? (
         <ProductView customers={customers} product={overview?.product} />
