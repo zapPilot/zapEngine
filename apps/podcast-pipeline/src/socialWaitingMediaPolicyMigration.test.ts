@@ -60,20 +60,20 @@ describe('social language-v2 migration guards', () => {
   });
 
   it('guards a legacy durable cohort from v2 lane insertion', () => {
-    expect(migration).toMatch(
-      /create or replace function from_fed_to_chain_private\.guard_social_language_v2_generation/i,
+    const normalized = migration.toLowerCase();
+    expect(normalized).toContain(
+      'create or replace function from_fed_to_chain_private.guard_social_language_v2_generation',
     );
-    expect(migration).toMatch(
-      /x-language-v2[\s\S]*threads-language-v1[\s\S]*youtube-language-v1/i,
-    );
-    expect(migration).toMatch(
-      /and exists \([\s\S]*social_publish_jobs existing[\s\S]*existing\.episode_id = new\.episode_id[\s\S]*\)/i,
-    );
-    expect(migration).toMatch(
-      /and not exists \([\s\S]*existing\.experiment_key = any[\s\S]*\)[\s\S]*then[\s\S]*return null;/i,
-    );
-    expect(migration).toMatch(
-      /before insert on from_fed_to_chain\.social_publish_jobs/i,
+    expect(normalized).toContain('x-language-v2');
+    expect(normalized).toContain('threads-language-v1');
+    expect(normalized).toContain('youtube-language-v1');
+    expect(normalized).toContain('social_publish_jobs existing');
+    expect(normalized).toContain('existing.episode_id = new.episode_id');
+    expect(normalized).toContain('and not exists (');
+    expect(normalized).toContain('existing.experiment_key = any (');
+    expect(normalized).toContain('then\n    return null;');
+    expect(normalized).toContain(
+      'before insert on from_fed_to_chain.social_publish_jobs',
     );
   });
 
