@@ -93,7 +93,9 @@ describe('ReliabilityTopology source ordering', () => {
 
     render(<ReliabilityTopology data={data} social={null} />);
 
-    expect(screen.getByText('overdue jobs 0 · waiting media lanes 0')).toBeVisible();
+    expect(
+      screen.getByText('overdue jobs 0 · waiting media lanes 0'),
+    ).toBeVisible();
     expect(screen.queryByText('No extra detail')).not.toBeInTheDocument();
   });
 });
