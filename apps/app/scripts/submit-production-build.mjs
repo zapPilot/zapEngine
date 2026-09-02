@@ -31,6 +31,29 @@ function assertSubmitConfigured(platform) {
   }
 }
 
+function assertBuildIsSubmittable(platform, buildId) {
+  const output = runEas(['build:view', buildId, '--json'], {
+    captureStdout: true,
+    addNonInteractive: false,
+  });
+  const build = JSON.parse(output);
+  const checks = [
+    ['id', build.id, buildId],
+    ['platform', String(build.platform ?? '').toLowerCase(), platform],
+    ['build profile', build.buildProfile, 'production'],
+    ['distribution', String(build.distribution ?? '').toLowerCase(), 'store'],
+    ['status', String(build.status ?? '').toLowerCase(), 'finished'],
+  ];
+  const failed = checks.find(([, actual, expected]) => actual !== expected);
+
+  if (failed) {
+    const [label, actual, expected] = failed;
+    throw new Error(
+      `EAS build ${buildId} has ${label} ${String(actual)}, expected ${String(expected)}.`,
+    );
+  }
+}
+
 function main() {
   const platform = process.argv[2];
   const buildId = process.argv[3];
@@ -48,6 +71,7 @@ function main() {
   }
 
   assertSubmitConfigured(platform);
+  assertBuildIsSubmittable(platform, buildId);
   console.log(`Submitting production ${platform} build ${buildId}.`);
   runEas([
     'submit',
