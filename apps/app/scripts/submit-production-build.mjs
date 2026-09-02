@@ -5,20 +5,29 @@ import { fileURLToPath } from 'node:url';
 import { runEas } from './eas.mjs';
 
 const PLATFORMS = ['android', 'ios'];
-const APP_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const APP_ROOT = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '..',
+);
 
 function readSubmitProfile(platform) {
-  const easJson = JSON.parse(readFileSync(path.join(APP_ROOT, 'eas.json'), 'utf8'));
+  const easJson = JSON.parse(
+    readFileSync(path.join(APP_ROOT, 'eas.json'), 'utf8'),
+  );
   return easJson.submit?.production?.[platform];
 }
 
 function assertSubmitConfigured(platform) {
   const profile = readSubmitProfile(platform);
+
   if (!profile) {
     throw new Error(`eas.json has no submit.production.${platform} profile.`);
   }
+
   if (platform === 'ios' && !/^\d+$/u.test(profile.ascAppId ?? '')) {
-    throw new Error('submit.production.ios.ascAppId must be a numeric App Store Connect Apple ID.');
+    throw new Error(
+      'submit.production.ios.ascAppId must be a numeric App Store Connect Apple ID.',
+    );
   }
 }
 
@@ -27,10 +36,15 @@ function main() {
   const buildId = process.argv[3];
 
   if (!PLATFORMS.includes(platform)) {
-    throw new Error(`Expected a platform argument (${PLATFORMS.join(' | ')}).`);
+    throw new Error(
+      `Expected a platform argument (${PLATFORMS.join(' | ')}).`,
+    );
   }
+
   if (!buildId) {
-    throw new Error('An exact EAS build ID is required; latest-build lookup is intentionally unsupported.');
+    throw new Error(
+      'An exact EAS build ID is required; latest-build lookup is intentionally unsupported.',
+    );
   }
 
   assertSubmitConfigured(platform);
