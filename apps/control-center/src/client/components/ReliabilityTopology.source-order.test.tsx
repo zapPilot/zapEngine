@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from '@testing-library/react';
-import '@testing-library/jest-dom/vitest';
 import { afterEach, describe, expect, it } from 'vitest';
+import '@testing-library/jest-dom/vitest';
+import { cleanup, render, screen } from '@testing-library/react';
 
+import { ReliabilityTopology } from './ReliabilityTopology.js';
 import {
   operationsFixture,
   signalFixture,
 } from '../__fixtures__/dashboard.js';
-import { ReliabilityTopology } from './ReliabilityTopology.js';
 
 afterEach(cleanup);
 
