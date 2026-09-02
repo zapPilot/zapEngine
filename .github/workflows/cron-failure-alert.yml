@@ -37,6 +37,15 @@ jobs:
           TOKEN: ${{ secrets.PIPELINE_TELEGRAM_BOT_TOKEN }}
           WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
         run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::error::Missing required repository secret PIPELINE_TELEGRAM_BOT_TOKEN"
+            exit 1
+          fi
+          if [ -z "$CHAT_ID" ]; then
+            echo "::error::Missing required repository secret TELEGRAM_ALERT_CHAT_ID"
+            exit 1
+          fi
+
           payload="$(jq -n \
             --arg chat_id "$CHAT_ID" \
             --arg workflow "$WORKFLOW_NAME" \
