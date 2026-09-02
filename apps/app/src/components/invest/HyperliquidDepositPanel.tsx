@@ -22,6 +22,7 @@ import { formatPlanGas } from '@/integration/planPreviewFormatters';
 import { useAccount } from '@/integration/useAccount';
 import { useDepositPlanPreview } from '@/integration/useDepositPlanPreview';
 import { useInvest } from '@/integration/useInvest';
+import { useInvestExecution } from '@/integration/useInvestExecution';
 import { useInvestableBalances } from '@/integration/useInvestableBalances';
 import { formatUsd } from '@/lib/format';
 
@@ -36,6 +37,7 @@ export function HyperliquidDepositPanel() {
   const router = useRouter();
   const account = useAccount();
   const invest = useInvest();
+  const { reset: resetReviewedExecution } = useInvestExecution();
   const wallet = useWalletProvider();
   const routingToReviewRef = useRef(false);
   const [amountInput, setAmountInput] = useState(
@@ -77,6 +79,10 @@ export function HyperliquidDepositPanel() {
       return;
     }
     if (capability !== 'ready' || !hasAmount || belowMinimum) return;
+
+    // A previous reviewed Base/Arbitrum execution is not valid evidence for
+    // this HLP destination, even if amount/token happen to match exactly.
+    resetReviewedExecution();
 
     // Set all draft dimensions first; each setter intentionally clears stale
     // frozen execution state. Freeze the exact USDC amount last.
