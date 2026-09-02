@@ -51,18 +51,20 @@ const HISTORY_WINDOW_DAYS = 35;
 export function createMetricSnapshotRepository(
   config: ControlCenterConfig,
 ): MetricSnapshotRepository | null {
-  if (!config.SUPABASE_URL || !config.SUPABASE_SERVICE_ROLE_KEY) {
+  const url = config.SUPABASE_URL;
+  const serviceRoleKey = config.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !serviceRoleKey) {
     return null;
   }
   const client = createServiceRoleClient(
-    config.SUPABASE_URL,
-    config.SUPABASE_SERVICE_ROLE_KEY,
+    url,
+    serviceRoleKey,
     config.SUPABASE_DB_SCHEMA,
   );
 
   return {
     async upsert(input) {
-      const { error } = await client.rpc('ops_upsert_metric_snapshot', {
+      const response = await client.rpc('ops_upsert_metric_snapshot', {
         p_metric_key: input.metricKey,
         p_snapshot_date: input.date,
         p_value: input.value,
@@ -70,8 +72,8 @@ export function createMetricSnapshotRepository(
         p_fetched_at: input.fetchedAt,
         p_updated_at: new Date().toISOString(),
       });
-      if (error) {
-        throw error;
+      if (response.error) {
+        throw response.error;
       }
     },
 

@@ -129,6 +129,30 @@ describe('HomeView', () => {
     expect(screen.getByText('Signal A')).toBeVisible();
   });
 
+  it('bounds the home reliability queue to the first three ranked actions', () => {
+    const priorities = ['A', 'B', 'C', 'D'].map((label, index) =>
+      priorityFixture({
+        score: 100 - index,
+        signal: signalFixture({
+          fingerprint: `signal-${label.toLowerCase()}`,
+          title: `Signal ${label}`,
+        }),
+      }),
+    );
+    renderHome({
+      operations: operationsFixture({ priorities }),
+      statements: fiveStatements(),
+    });
+
+    fireEvent.click(screen.getAllByText('Evidence')[0]!);
+
+    expect(screen.getByText('Signal A')).toBeVisible();
+    expect(screen.getByText('Signal B')).toBeVisible();
+    expect(screen.getByText('Signal C')).toBeVisible();
+    expect(screen.queryByText('Signal D')).toBeNull();
+    expect(document.querySelectorAll('.queue .queue-row')).toHaveLength(3);
+  });
+
   it('sends each statement to the view that owns its detail', () => {
     const { onNavigate } = renderHome({ statements: fiveStatements() });
     for (const toggle of screen.getAllByText('Evidence')) {
