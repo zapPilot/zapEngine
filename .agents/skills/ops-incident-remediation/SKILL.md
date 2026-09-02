@@ -38,13 +38,13 @@ Start broad, then narrow:
 
 Classify each inspected issue before taking action:
 
-| State                  | Meaning                                                            | Action                      |
-| ---------------------- | ------------------------------------------------------------------ | --------------------------- |
-| `unfixed`              | Root cause is not fixed                                            | Candidate for repair        |
-| `fixed_pending_deploy` | Fix is merged but affected production runtime is still old         | Keep open                   |
-| `deployed_observing`   | Fixed version is deployed but observation window is incomplete     | Keep open                   |
+| State                  | Meaning                                                            | Action                                       |
+| ---------------------- | ------------------------------------------------------------------ | -------------------------------------------- |
+| `unfixed`              | Root cause is not fixed                                            | Candidate for repair                         |
+| `fixed_pending_deploy` | Fix is merged but affected production runtime is still old         | Keep open                                    |
+| `deployed_observing`   | Fixed version is deployed but observation window is incomplete     | Keep open                                    |
 | `resolvable`           | Fix is deployed and production evidence satisfies the resolve gate | Resolve — only with explicit user delegation |
-| `defer`                | Root cause, behavior, or safe fix is ambiguous                     | Leave unchanged and explain |
+| `defer`                | Root cause, behavior, or safe fix is ambiguous                     | Leave unchanged and explain                  |
 
 ### Resolve gate
 
@@ -67,8 +67,8 @@ post-release zero-event window.
 Never resolve merely because an issue has been quiet for 24 hours when the fix
 has not yet reached production.
 
-Resolving also requires explicit user delegation (see
-`apps/control-center/MCP.md:37`): the user asked to close/resolve that issue
+Resolving also requires explicit user delegation (see "Recommended agent flow"
+in `apps/control-center/MCP.md`): the user asked to close/resolve that issue
 or explicitly delegated Sentry cleanup. Without delegation, treat `resolvable`
 as ready but do not call `ops_resolve_sentry_issue`; report it instead. Pure
 `inspect production health` never auto-resolves.
@@ -95,6 +95,11 @@ as an issue.
 After cleanup, rank remaining incidents by impact, confidence, simplicity, and
 blast radius. Repair exactly one new incident only when the root cause and safe
 change are both high confidence.
+
+Read the `remediation` block on the `ops_investigate` packet first. Any
+`remediation.blockers` entry means defer and report; `no-inspector` coverage
+forbids calling the incident production-verified; non-zero AUM in
+`remediation.exposure` or `customerImpact` is report-only.
 
 Good autonomous candidates include:
 
@@ -126,10 +131,7 @@ For the single selected incident:
 2. Make the smallest change that fixes the underlying behavior rather than
    silencing the error.
 3. Add or update a regression test that reproduces the failure where practical.
-4. Run the narrowest repo-native checks: `pnpm turbo run test --filter=@zapengine/<pkg>`,
-   `pnpm turbo run type-check --filter=@zapengine/<pkg>`,
-   `bash scripts/verify-jobs.sh format` (widen to
-   `bash scripts/verify-jobs.sh type-check lint` for shared packages).
+4. Run the narrowest repo-native checks listed under **Verification** below.
 5. Re-inspect with `force: true` only after deploy/release when fresh evidence is useful.
 6. Do not resolve just because tests pass or the fix is merged. Keep
    `fixed_pending_deploy`/`deployed_observing` until the resolve gate passes.
@@ -139,8 +141,8 @@ Follow root `AGENTS.md` for working-tree, history, PR, and preservation rules.
 ## Verification
 
 Operational: `ops_status` → `ops_investigate <fingerprint>` →
-`ops_inspect_signal` (Sentry issueId) → `ops_resolve_sentry_issue` (one ID, see
-`apps/control-center/MCP.md:32-57`; launcher `scripts/ops-mcp.mjs` pins `prod`).
+`ops_inspect_signal` (Sentry issueId) → `ops_resolve_sentry_issue` (one ID; see
+"Remediation facts" in `apps/control-center/MCP.md`, `scripts/ops-mcp.mjs` pins `prod`).
 
 Local post-fix: `pnpm turbo run test --filter=@zapengine/<pkg>`,
 `pnpm turbo run type-check --filter=@zapengine/<pkg>`,
@@ -152,16 +154,17 @@ CI: `quick-gates` = `format repo contracts`; `code-quality` =
 
 ## Rationalizations — STOP
 
-| Temptation                                            | Required behavior                                                                               |
-| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| "It is merged, so it is fixed in production."         | Verify the affected production runtime is on the fixed version.                                 |
-| "There have been no events for 24 hours."             | Count only time after the fixed version became active in production.                            |
-| "The fallback looks expected."                        | Keep it open unless repository and production evidence prove the event is no longer actionable. |
-| "Several issues look easy."                           | Fix at most one new incident in this run.                                                       |
-| "Downgrading or suppressing the event is enough."     | Fix the underlying behavior; do not hide the signal.                                            |
-| "The mobile fix is on main."                          | Wait for an actual distributed release, then observe it.                                        |
-| "The provider is unknown, so there is nothing wrong." | Unknown is not healthy.                                                                         |
-| "The resolve gate is met, so resolve everything."     | Also require explicit user delegation; otherwise report ready but unresolved.                |
+| Temptation                                             | Required behavior                                                                               |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| "It is merged, so it is fixed in production."          | Verify the affected production runtime is on the fixed version.                                 |
+| "There have been no events for 24 hours."              | Count only time after the fixed version became active in production.                            |
+| "The fallback looks expected."                         | Keep it open unless repository and production evidence prove the event is no longer actionable. |
+| "Several issues look easy."                            | Fix at most one new incident in this run.                                                       |
+| "Downgrading or suppressing the event is enough."      | Fix the underlying behavior; do not hide the signal.                                            |
+| "The mobile fix is on main."                           | Wait for an actual distributed release, then observe it.                                        |
+| "The provider is unknown, so there is nothing wrong."  | Unknown is not healthy.                                                                         |
+| "No evidence gaps came back, so evidence is complete." | `no-inspector` means nothing was gathered; only `inspected` is evidence.                        |
+| "The resolve gate is met, so resolve everything."      | Also require explicit user delegation; otherwise report ready but unresolved.                   |
 
 ## Completion report
 
