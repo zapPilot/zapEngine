@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 const appRoot = fileURLToPath(new URL('..', import.meta.url));
+const repoRoot = path.resolve(appRoot, '../..');
 const easScript = path.join(appRoot, 'scripts', 'eas.mjs');
 
 function readAppFile(...segments: string[]): string {
@@ -55,10 +56,6 @@ function readEasJson(): EasJson {
   return JSON.parse(readAppFile('eas.json')) as EasJson;
 }
 
-/**
- * Runs `scripts/eas.mjs` against a stub `pnpm` on PATH that echoes its argv, so
- * the wrapper's argument handling is observable without contacting EAS.
- */
 function runWrapperWithStubbedPnpm(
   args: string[],
   env: Record<string, string | undefined>,
@@ -81,7 +78,6 @@ function runWrapperWithStubbedPnpm(
 
 describe('EAS CLI version single source of truth', () => {
   it('routes every package script through the wrapper instead of pinning inline', () => {
-    // Nine hardcoded `eas-cli@<version>` strings used to drift independently.
     expect(readAppFile('package.json')).not.toContain('eas-cli@');
   });
 
@@ -122,8 +118,6 @@ describe('non-interactive behavior', () => {
 
 describe('store submission targets', () => {
   it('keeps Android submissions on the existing listing and testing track', () => {
-    // Promotion to open testing or production is a deliberate Play Console
-    // action; CI must never widen the audience on its own.
     expect(readEasJson().submit?.production?.android).toMatchObject({
       applicationId: 'com.fromfedtochain.app',
       track: 'alpha',
@@ -138,17 +132,51 @@ describe('store submission targets', () => {
     }
   });
 
-  it('refuses to submit without an explicit platform', () => {
-    // Reaching eas-cli with no platform would submit against whatever the
-    // profile happens to default to, so the wrapper rejects it first.
+  it('requires an exact build ID instead of resolving latest', () => {
     const submitScript = path.join(
       appRoot,
       'scripts',
-      'submit-latest-production.mjs',
+      'submit-production-build.mjs',
     );
 
     expect(() =>
-      execFileSync(process.execPath, [submitScript], { encoding: 'utf8' }),
+      execFileSync(process.execPath, [submitScript, 'ios'], { encoding: 'utf8' }),
     ).toThrowError();
+    expect(readAppFile('scripts', 'submit-production-build.mjs')).not.toContain(
+      'build:list',
+    );
+  });
+
+  it('captures the build ID from the same EAS build command', () => {
+    const buildScript = readAppFile('scripts', 'build-production.mjs');
+    expect(buildScript).toContain("'--json'");
+    expect(buildScript).toContain('GITHUB_OUTPUT');
+    expect(buildScript).toContain('build_id=');
+  });
+});
+
+describe('iOS release version safety', () => {
+  it('records the App Store Connect build floor used by CI preflight', () => {
+    const baseline = JSON.parse(readAppFile('release-baselines.json')) as {
+      ios?: { appVersion?: string; ascBuildNumberFloor?: number };
+    };
+
+    expect(baseline.ios).toMatchObject({
+      appVersion: '2.1.0',
+      ascBuildNumberFloor: 19,
+    });
+  });
+
+  it('splits build and submit jobs so a submit retry cannot rebuild', () => {
+    const workflow = readFileSync(
+      path.join(repoRoot, '.github', 'workflows', 'release-mobile.yml'),
+      'utf8',
+    );
+
+    expect(workflow).toContain('build-ios:');
+    expect(workflow).toContain('submit-ios:');
+    expect(workflow).toContain('needs: [gate, build-ios]');
+    expect(workflow).toContain('ios_build_id:');
+    expect(workflow).not.toContain('Submit the latest production build');
   });
 });
