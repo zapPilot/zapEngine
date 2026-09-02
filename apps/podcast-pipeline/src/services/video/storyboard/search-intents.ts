@@ -226,6 +226,9 @@ export async function enrichStoryboardSearchIntents(
         const subject = visualSubjectById(subjectCatalog, subjectId);
         return subject ? buildVisualSubjectSearchQueries(subject) : [];
       })
+      .filter((intent) =>
+        isGroundedSearchIntent(intent, evidence?.text ?? ''),
+      )
       .slice(0, MAX_SEARCH_INTENTS_PER_SCENE);
     if (catalogIntents.length === 0) {
       unenrichedSceneIds.push(scene.sceneId);
