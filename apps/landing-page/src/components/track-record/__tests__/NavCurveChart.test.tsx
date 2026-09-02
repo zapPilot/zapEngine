@@ -109,12 +109,22 @@ describe('NavCurveChart', () => {
     ).toBeInTheDocument();
   });
 
-  it('draws the series and labels the endpoint', () => {
-    const { container } = render(<NavCurveChart snapshots={SNAPSHOTS} />);
+  it('draws the series and labels the endpoint without a competing endpoint glyph', () => {
+    const { container } = render(
+      <NavCurveChart
+        snapshots={SNAPSHOTS}
+        events={[{ ...EVENTS[0]!, date: '2026-01-05' }]}
+      />,
+    );
 
     const series = container.querySelector('.chart-series.strategy');
     expect(series?.getAttribute('d')?.startsWith('M ')).toBe(true);
     expect(screen.getByText('140.00')).toBeInTheDocument();
+    expect(container.querySelector('.chart-event-marker')).not.toBeNull();
+    expect(container.querySelector('.chart-endpoint')).toBeNull();
+    expect(
+      screen.getByText('Indexed to 100 at the start of the displayed period.'),
+    ).toBeInTheDocument();
   });
 
   it('exposes one scrubber position per snapshot', () => {

@@ -2020,12 +2020,6 @@
   stroke-width: 1;
 }
 
-.shell-root .chart-endpoint {
-  fill: var(--bg);
-  stroke: var(--accent);
-  stroke-width: 2;
-}
-
 .shell-root .chart-x-labels text:last-child {
   text-anchor: end;
 }
