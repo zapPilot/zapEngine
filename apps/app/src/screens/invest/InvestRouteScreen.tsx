@@ -1,6 +1,6 @@
 import { extractErrorMessage } from '@zapengine/app-core/lib/errors';
 import { hlpStepFromPlan } from '@zapengine/app-core/lib/wallet/depositWizardMachine';
-import { getPerpUsdcBalance } from '@zapengine/app-core/services/hyperliquidService';
+import { getPerpUsdcBalance } from '@zapengine/app-core/services';
 import type { DepositPlan } from '@zapengine/types/api';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
