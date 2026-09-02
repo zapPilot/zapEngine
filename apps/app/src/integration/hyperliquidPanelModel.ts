@@ -14,11 +14,11 @@ export const HYPERLIQUID_HLP_SPLIT: ChainSplit = {
 };
 
 /**
- * The vault minimum is enforced on the bridge *output* ($5 of perp USDC), so
- * the input needs headroom for slippage and the relay fee. Below this the
- * backend rejects the plan with a 400 rather than returning a route.
+ * HLP requires at least 10 USDC on HyperCore. The planner separately enforces
+ * this against the quoted bridge output (`toAmountMin`), so an input at the
+ * floor is rejected if bridge fees/slippage would leave less than 10 USDC.
  */
-export const MIN_HYPERLIQUID_DEPOSIT_USD6 = 6_000_000n;
+export const MIN_HYPERLIQUID_DEPOSIT_USD6 = 10_000_000n;
 
 export function belowHlpMinimum(fromAmountUsd6: string): boolean {
   const amount = BigInt(fromAmountUsd6);
