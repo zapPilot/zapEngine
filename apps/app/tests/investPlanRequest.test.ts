@@ -64,6 +64,32 @@ describe('Invest deposit plan requests', () => {
     });
   });
 
+  it('pins HLP deposits to HyperCore while keeping Base as the source chain', () => {
+    const request = buildInvestDepositPlanRequest({
+      userAddress: USER_ADDRESS,
+      scope: 'base',
+      destination: 'hlp',
+      totalUsd6: '12000000',
+      baseFundingToken: DEFAULT_BASE_FUNDING_TOKEN,
+      arbitrumFundingToken: DEFAULT_ARBITRUM_FUNDING_TOKEN,
+      singleChainFundingDraft: {
+        scope: 'base',
+        chainId: 8453,
+        fromToken: DEFAULT_BASE_FUNDING_TOKEN.depositAddress,
+        fromAmount: '12000000',
+      },
+    });
+
+    expect(request).toEqual({
+      kind: 'invest',
+      userAddress: USER_ADDRESS,
+      sourceChainId: 8453,
+      fromToken: DEFAULT_BASE_FUNDING_TOKEN.depositAddress,
+      fromAmount: '12000000',
+      split: { '1337': 1 },
+    });
+  });
+
   it('preserves the selected Arbitrum token for the four-pool GMX basket', () => {
     const selectedToken = ARBITRUM_DEPOSIT_TOKENS[1];
     const request = buildInvestDepositPlanRequest({
@@ -122,11 +148,25 @@ describe('Invest deposit plan requests', () => {
     },
   );
 
-  it('partitions preview cache keys by scope, token, basket kind, and exact amount', () => {
+  it('partitions preview cache keys by scope, token, split, basket kind, and exact amount', () => {
     const baseRequest = buildInvestDepositPlanRequest({
       userAddress: USER_ADDRESS,
       scope: 'base',
       totalUsd6: '10000000',
+      baseFundingToken: DEFAULT_BASE_FUNDING_TOKEN,
+      arbitrumFundingToken: DEFAULT_ARBITRUM_FUNDING_TOKEN,
+      singleChainFundingDraft: {
+        scope: 'base',
+        chainId: 8453,
+        fromToken: DEFAULT_BASE_FUNDING_TOKEN.depositAddress,
+        fromAmount: '9999999',
+      },
+    });
+    const hlpRequest = buildInvestDepositPlanRequest({
+      userAddress: USER_ADDRESS,
+      scope: 'base',
+      destination: 'hlp',
+      totalUsd6: '9999999',
       baseFundingToken: DEFAULT_BASE_FUNDING_TOKEN,
       arbitrumFundingToken: DEFAULT_ARBITRUM_FUNDING_TOKEN,
       singleChainFundingDraft: {
@@ -151,6 +191,7 @@ describe('Invest deposit plan requests', () => {
     });
 
     const baseKey = buildInvestDepositPlanPreviewKey('base', baseRequest);
+    const hlpKey = buildInvestDepositPlanPreviewKey('base', hlpRequest);
     const arbitrumKey = buildInvestDepositPlanPreviewKey(
       'arbitrum',
       arbitrumRequest,
@@ -163,6 +204,7 @@ describe('Invest deposit plan requests', () => {
     );
     expect(arbitrumKey).toContain('10000000');
     expect(arbitrumKey).toContain('gmx-v2-basket');
+    expect(baseKey).not.toEqual(hlpKey);
     expect(baseKey).not.toEqual(arbitrumKey);
   });
 });
