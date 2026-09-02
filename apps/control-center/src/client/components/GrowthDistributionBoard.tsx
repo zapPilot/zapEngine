@@ -39,7 +39,8 @@ export function GrowthDistributionBoard(props: {
                 <div className="distribution-batch-summary">
                   <span>{relativeTime(batch.targetAt)}</span>
                   <strong>
-                    {integer(batch.blocked)} blocked · {integer(batch.lanes.length)} active
+                    {integer(batch.blocked)} blocked ·{' '}
+                    {integer(batch.lanes.length)} active
                   </strong>
                 </div>
               </header>
@@ -56,7 +57,9 @@ export function GrowthDistributionBoard(props: {
                     <div className="distribution-track" aria-hidden="true">
                       <span className="distribution-track-ready">Ready</span>
                       <i />
-                      <span className="distribution-track-scheduled">Scheduled</span>
+                      <span className="distribution-track-scheduled">
+                        Scheduled
+                      </span>
                       <i />
                       <span className="distribution-track-posted">Posted</span>
                     </div>
@@ -98,7 +101,10 @@ function buildBatches(
   social: OperationsSocialResponse | null,
 ): DistributionBatch[] {
   const titleByEpisode = new Map(
-    (performance?.episodes ?? []).map((episode) => [episode.episodeId, episode.title]),
+    (performance?.episodes ?? []).map((episode) => [
+      episode.episodeId,
+      episode.title,
+    ]),
   );
   const jobsByEpisode = new Map<string, OperationsSocialJob[]>();
   for (const job of social?.jobs ?? []) {
@@ -123,7 +129,9 @@ function buildBatches(
         lanes,
       };
     })
-    .sort((left, right) => Date.parse(left.targetAt) - Date.parse(right.targetAt));
+    .sort(
+      (left, right) => Date.parse(left.targetAt) - Date.parse(right.targetAt),
+    );
 }
 
 function jobLane(job: OperationsSocialJob): DistributionLane {
@@ -161,7 +169,8 @@ function jobLane(job: OperationsSocialJob): DistributionLane {
 
 function laneOrder(left: DistributionLane, right: DistributionLane): number {
   return (
-    PLATFORM_ORDER.indexOf(left.platform) - PLATFORM_ORDER.indexOf(right.platform) ||
+    PLATFORM_ORDER.indexOf(left.platform) -
+      PLATFORM_ORDER.indexOf(right.platform) ||
     (left.languageCode ?? '').localeCompare(right.languageCode ?? '')
   );
 }
