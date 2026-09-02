@@ -4,10 +4,7 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 
 import { ReliabilityTopology } from './ReliabilityTopology.js';
-import {
-  operationsFixture,
-  signalFixture,
-} from '../__fixtures__/dashboard.js';
+import { operationsFixture, signalFixture } from '../__fixtures__/dashboard.js';
 
 afterEach(cleanup);
 
@@ -44,8 +41,9 @@ describe('ReliabilityTopology source ordering', () => {
 
     render(<ReliabilityTopology data={data} social={null} />);
 
-    const labels = [...document.querySelectorAll('.source-activity-card header strong')]
-      .map((node) => node.textContent);
+    const labels = [
+      ...document.querySelectorAll('.source-activity-card header strong'),
+    ].map((node) => node.textContent);
     expect(labels).toEqual(['Sentry', 'Fly', 'GitHub', 'Product']);
     expect(screen.getByText('3 need attention')).toBeVisible();
   });
