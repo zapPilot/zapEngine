@@ -172,7 +172,8 @@ function sourceNodes(signals: OperationalSignal[]): SourceNode[] {
       const ordered = [...sourceSignals].sort(
         (left, right) =>
           STATUS_WEIGHT[right.status] - STATUS_WEIGHT[left.status] ||
-          observedAtWeight(right.observedAt) - observedAtWeight(left.observedAt),
+          observedAtWeight(right.observedAt) -
+            observedAtWeight(left.observedAt),
       );
       return {
         source,
