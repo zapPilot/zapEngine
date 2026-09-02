@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -9,6 +9,17 @@ import { describe, expect, it } from 'vitest';
 const appRoot = fileURLToPath(new URL('..', import.meta.url));
 const repoRoot = path.resolve(appRoot, '../..');
 const easScript = path.join(appRoot, 'scripts', 'eas.mjs');
+const buildScript = path.join(appRoot, 'scripts', 'build-production.mjs');
+const submitScript = path.join(
+  appRoot,
+  'scripts',
+  'submit-production-build.mjs',
+);
+const preflightScript = path.join(
+  appRoot,
+  'scripts',
+  'assert-ios-remote-version.mjs',
+);
 
 function readAppFile(...segments: string[]): string {
   return readFileSync(path.join(appRoot, ...segments), 'utf8');
@@ -56,6 +67,10 @@ function readEasJson(): EasJson {
   return JSON.parse(readAppFile('eas.json')) as EasJson;
 }
 
+/**
+ * Runs `scripts/eas.mjs` against a stub `pnpm` on PATH that echoes its argv, so
+ * the wrapper's argument handling is observable without contacting EAS.
+ */
 function runWrapperWithStubbedPnpm(
   args: string[],
   env: Record<string, string | undefined>,
@@ -76,8 +91,74 @@ function runWrapperWithStubbedPnpm(
   }).trim();
 }
 
+function runScriptWithEasStub(
+  scriptPath: string,
+  scriptArgs: string[],
+  extraEnv: Record<string, string | undefined>,
+): {
+  status: number | null;
+  stdout: string;
+  stderr: string;
+  calls: string;
+} {
+  const binDir = mkdtempSync(path.join(tmpdir(), 'eas-stub-bin-'));
+  const callsDir = mkdtempSync(path.join(tmpdir(), 'eas-calls-'));
+  const callsLog = path.join(callsDir, 'calls.log');
+  writeFileSync(callsLog, '', { encoding: 'utf8' });
+
+  // Stub pnpm: logs "$*" to EAS_CALLS_LOG and prints canned JSON based on $3
+  // which is the EAS subcommand after `dlx eas-cli@<version>`.
+  const pnpmScript = `#!/bin/sh
+echo "$*" >> "$EAS_CALLS_LOG"
+case "$3" in
+  build)
+    printf '%s' "$EAS_BUILD_JSON"
+    ;;
+  build:view)
+    printf '%s' "$EAS_BUILD_VIEW_JSON"
+    ;;
+  build:version:get)
+    printf '%s' "$EAS_BUILD_VERSION_JSON"
+    ;;
+  submit)
+    printf '%s' "$EAS_SUBMIT_JSON"
+    ;;
+  *)
+    printf '%s' "$EAS_DEFAULT_JSON"
+    ;;
+esac
+`;
+  writeFileSync(path.join(binDir, 'pnpm'), pnpmScript, { mode: 0o755 });
+
+  const result = spawnSync(process.execPath, [scriptPath, ...scriptArgs], {
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      CI: undefined,
+      EAS_CALLS_LOG: callsLog,
+      EAS_BUILD_JSON: '',
+      EAS_BUILD_VIEW_JSON: '',
+      EAS_BUILD_VERSION_JSON: '',
+      EAS_SUBMIT_JSON: '',
+      EAS_DEFAULT_JSON: '',
+      ...extraEnv,
+      PATH: `${binDir}:${process.env.PATH}`,
+    },
+  });
+
+  const calls = readFileSync(callsLog, 'utf8');
+
+  return {
+    status: result.status,
+    stdout: result.stdout ?? '',
+    stderr: result.stderr ?? '',
+    calls,
+  };
+}
+
 describe('EAS CLI version single source of truth', () => {
   it('routes every package script through the wrapper instead of pinning inline', () => {
+    // Nine hardcoded `eas-cli@<version>` strings used to drift independently.
     expect(readAppFile('package.json')).not.toContain('eas-cli@');
   });
 
@@ -124,6 +205,8 @@ describe('non-interactive behavior', () => {
 
 describe('store submission targets', () => {
   it('keeps Android submissions on the existing listing and testing track', () => {
+    // Promotion to open testing or production is a deliberate Play Console
+    // action; CI must never widen the audience on its own.
     expect(readEasJson().submit?.production?.android).toMatchObject({
       applicationId: 'com.fromfedtochain.app',
       track: 'alpha',
@@ -137,35 +220,233 @@ describe('store submission targets', () => {
       expect(ios.ascAppId).toMatch(/^\d+$/u);
     }
   });
+});
 
-  it('requires and validates an exact build ID instead of resolving latest', () => {
-    const submitScriptPath = path.join(
-      appRoot,
-      'scripts',
-      'submit-production-build.mjs',
-    );
-    const submitScript = readAppFile(
-      'scripts',
-      'submit-production-build.mjs',
+describe('build-production captures exact build ID', () => {
+  it('carries the exact build ID from the same EAS build invocation', () => {
+    const outDir = mkdtempSync(path.join(tmpdir(), 'eas-out-'));
+    const githubOutput = path.join(outDir, 'github_output');
+    writeFileSync(githubOutput, '', { encoding: 'utf8' });
+
+    const buildJson = JSON.stringify([
+      null,
+      { id: 'build-id-123', status: 'FINISHED', appBuildVersion: '42' },
+    ]);
+
+    const { status, stdout, calls } = runScriptWithEasStub(
+      buildScript,
+      ['android'],
+      {
+        CI: 'true',
+        EAS_BUILD_JSON: buildJson,
+        GITHUB_OUTPUT: githubOutput,
+      },
     );
 
-    expect(() =>
-      execFileSync(process.execPath, [submitScriptPath, 'ios'], {
-        encoding: 'utf8',
-      }),
-    ).toThrowError();
-    expect(submitScript).not.toContain('build:list');
-    expect(submitScript).toContain("'build:view'");
-    expect(submitScript).toContain("['build profile', build.buildProfile, 'production']");
-    expect(submitScript).toContain("'store'");
-    expect(submitScript).toContain("'finished'");
+    expect(status).toBe(0);
+    expect(stdout).toContain('Built production android build build-id-123');
+    expect(stdout).toContain('build version 42');
+    expect(readFileSync(githubOutput, 'utf8')).toBe('build_id=build-id-123\n');
+    expect(calls).toContain(
+      'build --platform android --profile production --json --non-interactive',
+    );
+    expect(calls).toContain('--json');
   });
 
-  it('captures the build ID from the same EAS build command', () => {
-    const buildScript = readAppFile('scripts', 'build-production.mjs');
-    expect(buildScript).toContain("'--json'");
-    expect(buildScript).toContain('GITHUB_OUTPUT');
-    expect(buildScript).toContain('build_id=');
+  it('fails when the build status is not FINISHED (CANCELED)', () => {
+    const outDir = mkdtempSync(path.join(tmpdir(), 'eas-out-'));
+    const githubOutput = path.join(outDir, 'github_output');
+    writeFileSync(githubOutput, '', { encoding: 'utf8' });
+
+    const buildJson = JSON.stringify([
+      { id: 'build-canceled', status: 'CANCELED', appBuildVersion: '43' },
+    ]);
+
+    const { status, stderr, calls } = runScriptWithEasStub(
+      buildScript,
+      ['ios'],
+      {
+        CI: 'true',
+        EAS_BUILD_JSON: buildJson,
+        GITHUB_OUTPUT: githubOutput,
+      },
+    );
+
+    expect(status).toBe(1);
+    expect(stderr).toContain('CANCELED');
+    expect(stderr).toContain('expected FINISHED');
+    expect(readFileSync(githubOutput, 'utf8')).toBe('');
+    expect(calls).toContain('build --platform ios');
+  });
+
+  it('fails when no build ID is returned', () => {
+    const outDir = mkdtempSync(path.join(tmpdir(), 'eas-out-'));
+    const githubOutput = path.join(outDir, 'github_output');
+    writeFileSync(githubOutput, '', { encoding: 'utf8' });
+
+    const buildJson = JSON.stringify([null, { status: 'FINISHED' }]);
+
+    const { status, stderr } = runScriptWithEasStub(buildScript, ['android'], {
+      CI: 'true',
+      EAS_BUILD_JSON: buildJson,
+      GITHUB_OUTPUT: githubOutput,
+    });
+
+    expect(status).toBe(1);
+    expect(stderr).toContain('without returning a production');
+  });
+
+  it('fails when EAS returns non-array JSON', () => {
+    const { status, stderr } = runScriptWithEasStub(buildScript, ['ios'], {
+      CI: 'true',
+      EAS_BUILD_JSON: JSON.stringify({ id: 'not-an-array' }),
+    });
+
+    expect(status).toBe(1);
+    expect(stderr).toContain('was not an array');
+  });
+});
+
+describe('submit-production-build validates exact build', () => {
+  it('requires an exact build ID', () => {
+    const { status, stderr, calls } = runScriptWithEasStub(
+      submitScript,
+      ['ios'],
+      { CI: 'true' },
+    );
+
+    expect(status).toBe(1);
+    expect(stderr).toContain('An exact EAS build ID is required');
+    expect(calls).toBe('');
+  });
+
+  it('rejects a build with non-store distribution and does not submit', () => {
+    const viewJson = JSON.stringify({
+      id: 'build-internal',
+      platform: 'ios',
+      buildProfile: 'production',
+      distribution: 'internal',
+      status: 'finished',
+    });
+
+    const { status, stderr, calls } = runScriptWithEasStub(
+      submitScript,
+      ['ios', 'build-internal'],
+      {
+        CI: 'true',
+        EAS_BUILD_VIEW_JSON: viewJson,
+      },
+    );
+
+    expect(status).toBe(1);
+    expect(stderr).toContain('distribution');
+    expect(stderr).toContain('internal');
+    expect(calls).toContain('build:view build-internal --json');
+    expect(calls).not.toContain('submit --platform');
+    expect(calls).not.toContain('build:list');
+  });
+
+  it('validates the build and submits with the exact ID without re-resolving latest', () => {
+    const viewJson = JSON.stringify({
+      id: 'build-id-999',
+      platform: 'ios',
+      buildProfile: 'production',
+      distribution: 'store',
+      status: 'finished',
+    });
+
+    const { status, stdout, calls } = runScriptWithEasStub(
+      submitScript,
+      ['ios', 'build-id-999'],
+      {
+        CI: 'true',
+        EAS_BUILD_VIEW_JSON: viewJson,
+      },
+    );
+
+    expect(status).toBe(0);
+    expect(stdout).toContain('Submitting production ios build build-id-999');
+
+    const lines = calls.trim().split('\n');
+    expect(lines[0]).toBe(
+      `dlx eas-cli@${easCliVersion()} build:view build-id-999 --json`,
+    );
+    // build:view is inherently non-interactive: even on CI it must not inject --non-interactive
+    expect(lines[0]).not.toContain('--non-interactive');
+    expect(lines[1]).toBe(
+      `dlx eas-cli@${easCliVersion()} submit --platform ios --profile production --id build-id-999 --non-interactive`,
+    );
+    expect(calls).not.toContain('build:list');
+  });
+
+  it('never calls build:list', () => {
+    const viewJson = JSON.stringify({
+      id: 'bid',
+      platform: 'android',
+      buildProfile: 'production',
+      distribution: 'store',
+      status: 'finished',
+    });
+
+    const { calls } = runScriptWithEasStub(submitScript, ['android', 'bid'], {
+      CI: 'true',
+      EAS_BUILD_VIEW_JSON: viewJson,
+    });
+
+    expect(calls).not.toContain('build:list');
+  });
+});
+
+describe('iOS remote version preflight', () => {
+  it('fails when EAS remote is below the App Store Connect floor', () => {
+    const versionJson = JSON.stringify({ buildNumber: '18' });
+
+    const { status, stderr } = runScriptWithEasStub(preflightScript, [], {
+      CI: 'true',
+      EAS_BUILD_VERSION_JSON: versionJson,
+    });
+
+    expect(status).toBe(1);
+    expect(stderr).toContain('below');
+    expect(stderr).toContain('floor 19');
+  });
+
+  it('passes when remote equals the floor', () => {
+    const versionJson = JSON.stringify({ buildNumber: '19' });
+
+    const { status, stdout } = runScriptWithEasStub(preflightScript, [], {
+      CI: 'true',
+      EAS_BUILD_VERSION_JSON: versionJson,
+    });
+
+    expect(status).toBe(0);
+    expect(stdout).toContain('preflight passed');
+    expect(stdout).toContain('19');
+  });
+
+  it('fails with a distinct message when remote is not initialized', () => {
+    const versionJson = JSON.stringify({});
+
+    const { status, stderr } = runScriptWithEasStub(preflightScript, [], {
+      CI: 'true',
+      EAS_BUILD_VERSION_JSON: versionJson,
+    });
+
+    expect(status).toBe(1);
+    expect(stderr).toContain('not initialized');
+    expect(stderr).toContain('ios:version:init');
+  });
+
+  it('passes when remote is above the floor', () => {
+    const versionJson = JSON.stringify({ buildNumber: '42' });
+
+    const { status, stdout } = runScriptWithEasStub(preflightScript, [], {
+      CI: 'true',
+      EAS_BUILD_VERSION_JSON: versionJson,
+    });
+
+    expect(status).toBe(0);
+    expect(stdout).toContain('42');
   });
 });
 

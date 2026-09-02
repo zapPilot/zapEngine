@@ -56,9 +56,10 @@ pnpm --filter @zapengine/app ios:archive
 pnpm turbo run test:ios:release-smoke --filter=@zapengine/app
 
 # iOS App Store release
-pnpm --filter @zapengine/app ios:version:check
-pnpm --filter @zapengine/app ios:release
+pnpm --filter @zapengine/app ios:release   # runs ios:version:check preflight, then EAS build
 pnpm --filter @zapengine/app ios:submit -- <EAS_BUILD_ID>
+# standalone diagnostic:
+pnpm --filter @zapengine/app ios:version:check
 
 # Android Google Play release
 pnpm --filter @zapengine/app android:release
@@ -122,11 +123,12 @@ therefore retain Pods from an older `package.json`, even when its own
 `Podfile.lock` and `Pods/Manifest.lock` still match. That can produce an IPA
 whose JavaScript imports a native module that the executable never linked.
 
-`ios:version:check` + `ios:release` + `ios:submit -- <EAS_BUILD_ID>` are the
-primary release path. The version check refuses to build while EAS remote
+`ios:release` (which runs `ios:version:check` as a preflight) + `ios:submit -- <EAS_BUILD_ID>` are the
+primary release path. The preflight refuses to build while EAS remote
 versioning is below the recorded App Store Connect floor; the clean-source EAS
 production profile then builds on Expo's macOS infrastructure, and submission
-uploads only the exact build ID produced by that release. Complete the one-time
+uploads only the exact build ID produced by that release. `ios:version:check`
+remains available as a standalone diagnostic. Complete the one-time
 credential and versioning setup in [docs/ios-release.md](./docs/ios-release.md)
 first — `credentialsSource: remote` has no local fallback.
 

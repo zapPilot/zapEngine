@@ -8,6 +8,19 @@ export const EAS_CLI_VERSION = '20.5.1';
 
 const NON_INTERACTIVE = '--non-interactive';
 
+export function runEasJson(args, opts = {}) {
+  const stdout = runEas(args, { ...opts, captureStdout: true });
+
+  try {
+    return JSON.parse(stdout);
+  } catch {
+    const tail = stdout.trim().slice(-500);
+    throw new Error(
+      `EAS command returned non-JSON output: ${tail || '<empty>'}`,
+    );
+  }
+}
+
 export function runEas(
   args,
   { captureStdout = false, addNonInteractive = true } = {},

@@ -36,7 +36,7 @@
     "ios:credentials": "node scripts/eas.mjs credentials --platform ios",
     "ios:version:init": "node scripts/eas.mjs build:version:set --platform ios",
     "ios:version:check": "node scripts/assert-ios-remote-version.mjs",
-    "ios:release": "node scripts/build-production.mjs ios",
+    "ios:release": "node scripts/assert-ios-remote-version.mjs && node scripts/build-production.mjs ios",
     "ios:submit": "node scripts/submit-production-build.mjs ios",
     "ios:bundle-check": "node scripts/assert-ios-bundle-clean.cjs",
     "build": "EXPO_NO_TELEMETRY=1 expo export --platform android --output-dir dist/android && EXPO_NO_TELEMETRY=1 expo export --platform ios --output-dir dist/ios && pnpm run ios:bundle-check",

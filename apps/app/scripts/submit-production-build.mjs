@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { runEas } from './eas.mjs';
+import { runEas, runEasJson } from './eas.mjs';
 
 const PLATFORMS = ['android', 'ios'];
 const APP_ROOT = path.resolve(
@@ -21,22 +21,29 @@ function assertSubmitConfigured(platform) {
   const profile = readSubmitProfile(platform);
 
   if (!profile) {
-    throw new Error(`eas.json has no submit.production.${platform} profile.`);
+    throw new Error(
+      `eas.json has no submit.production.${platform} profile. ` +
+        `See apps/app/docs/${platform}-release.md.`,
+    );
   }
 
+  // A non-interactive submission cannot resolve the App Store Connect app from
+  // the bundle identifier, so a missing ascAppId surfaces deep inside eas-cli
+  // rather than as the configuration error it is.
   if (platform === 'ios' && !/^\d+$/u.test(profile.ascAppId ?? '')) {
     throw new Error(
-      'submit.production.ios.ascAppId must be a numeric App Store Connect Apple ID.',
+      'submit.production.ios.ascAppId must be the numeric App Store Connect ' +
+        'Apple ID from App Store Connect > App Information > General ' +
+        'Information. Add it to apps/app/eas.json; see ' +
+        'apps/app/docs/ios-release.md.',
     );
   }
 }
 
 function assertBuildIsSubmittable(platform, buildId) {
-  const output = runEas(['build:view', buildId, '--json'], {
-    captureStdout: true,
+  const build = runEasJson(['build:view', buildId, '--json'], {
     addNonInteractive: false,
   });
-  const build = JSON.parse(output);
   const checks = [
     ['id', build.id, buildId],
     ['platform', String(build.platform ?? '').toLowerCase(), platform],
@@ -59,9 +66,7 @@ function main() {
   const buildId = process.argv[3];
 
   if (!PLATFORMS.includes(platform)) {
-    throw new Error(
-      `Expected a platform argument (${PLATFORMS.join(' | ')}).`,
-    );
+    throw new Error(`Expected a platform argument (${PLATFORMS.join(' | ')}).`);
   }
 
   if (!buildId) {

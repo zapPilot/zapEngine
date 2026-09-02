@@ -64,9 +64,10 @@ know about. App Store Connect had already reached build `19` for app version
 `2.1.0` when the deterministic EAS flow was introduced on 2026-09-02. That
 historical lower bound is recorded in `apps/app/release-baselines.json`.
 
-The production workflow runs `ios:version:check` before starting a new iOS build.
-If the EAS remote build number is below that floor, CI fails immediately instead
-of creating another binary that Apple will reject.
+`ios:release` runs `ios:version:check` as a preflight before starting a new iOS
+build. If the EAS remote build number is below that floor, it fails immediately
+instead of creating another binary that Apple will reject. `ios:version:check`
+remains available as a standalone diagnostic.
 
 EAS CLI does not expose a supported non-interactive flag for setting the remote
 build number, so initial alignment remains a deliberate one-time operation:
@@ -94,15 +95,17 @@ pnpm --filter @zapengine/app format:check
 pnpm turbo run deadcode dup:check --filter=@zapengine/app
 ```
 
-Check remote version safety and create the signed store build:
+Create the signed store build (runs the remote version preflight first):
 
 ```bash
-pnpm --filter @zapengine/app ios:version:check
 pnpm --filter @zapengine/app ios:release
 ```
 
 `ios:release` waits for EAS Build and captures the exact build ID returned by that
-same build command. Submission requires that ID explicitly:
+same build command. The ID is the last path segment of the `See logs:` URL
+printed when the build starts — visible in the job log even if the runner
+timeouts — and on the Expo dashboard at `expo.dev/accounts/<account>/projects/<project>/builds/<build-id>`.
+Submission requires that ID explicitly:
 
 ```bash
 pnpm --filter @zapengine/app ios:submit -- <EAS_BUILD_ID>

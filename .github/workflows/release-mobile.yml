@@ -103,13 +103,8 @@ jobs:
         with:
           uv: 'false'
 
-      - name: Verify EAS iOS build number is not behind App Store Connect
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: pnpm --filter @zapengine/app ios:version:check
-
       - id: build
-        name: Build iOS on EAS
+        name: Build iOS on EAS (includes version preflight)
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: pnpm --filter @zapengine/app ios:release

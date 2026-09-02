@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { runEas } from './eas.mjs';
+import { runEasJson } from './eas.mjs';
 
 const APP_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -22,22 +22,31 @@ function main() {
     );
   }
 
-  const output = runEas(
-    [
-      'build:version:get',
-      '--platform',
-      'ios',
-      '--profile',
-      'production',
-      '--json',
-      '--non-interactive',
-    ],
-    { captureStdout: true },
-  );
-  const remote = Number(JSON.parse(output).buildNumber);
+  const remotePayload = runEasJson([
+    'build:version:get',
+    '--platform',
+    'ios',
+    '--profile',
+    'production',
+    '--json',
+    '--non-interactive',
+  ]);
+  const rawBuildNumber = remotePayload.buildNumber;
+
+  if (rawBuildNumber == null || String(rawBuildNumber).trim() === '') {
+    throw new Error(
+      'EAS remote iOS build number is not initialized (buildNumber is missing). ' +
+        'Run ios:version:init once and set the remote value to at least ' +
+        `${floor} before retrying.`,
+    );
+  }
+
+  const remote = Number(rawBuildNumber);
 
   if (!Number.isSafeInteger(remote) || remote < 1) {
-    throw new Error('EAS did not return a valid remote iOS build number.');
+    throw new Error(
+      `EAS did not return a valid remote iOS build number: ${String(rawBuildNumber)}.`,
+    );
   }
 
   if (remote < floor) {

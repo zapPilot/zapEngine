@@ -1,19 +1,17 @@
 import { appendFileSync } from 'node:fs';
 
-import { runEas } from './eas.mjs';
+import { runEasJson } from './eas.mjs';
 
 const PLATFORMS = ['android', 'ios'];
 
 function resolveBuild(payload) {
-  if (Array.isArray(payload)) {
-    return payload.find((candidate) => candidate?.id);
+  // eas-cli 20.5.1 `eas build --json` prints `printJsonOnlyOutput(builds)`:
+  // always an array of BuildFragment|null.
+  if (!Array.isArray(payload)) {
+    throw new Error('EAS build output was not an array.');
   }
 
-  if (Array.isArray(payload?.builds)) {
-    return payload.builds.find((candidate) => candidate?.id);
-  }
-
-  return payload?.id ? payload : undefined;
+  return payload.find((candidate) => candidate?.id);
 }
 
 function main() {
@@ -27,23 +25,26 @@ function main() {
     );
   }
 
-  const output = runEas(
-    [
-      'build',
-      '--platform',
-      platform,
-      '--profile',
-      'production',
-      '--json',
-      '--non-interactive',
-    ],
-    { captureStdout: true },
-  );
-  const build = resolveBuild(JSON.parse(output));
+  const builds = runEasJson([
+    'build',
+    '--platform',
+    platform,
+    '--profile',
+    'production',
+    '--json',
+    '--non-interactive',
+  ]);
+  const build = resolveBuild(builds);
 
   if (!build?.id) {
     throw new Error(
       `EAS build completed without returning a production ${platform} build ID.`,
+    );
+  }
+
+  if (String(build.status ?? '').toLowerCase() !== 'finished') {
+    throw new Error(
+      `EAS build ${build.id} has status ${String(build.status)}, expected FINISHED.`,
     );
   }
 

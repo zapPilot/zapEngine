@@ -172,7 +172,11 @@ pnpm --filter @zapengine/app android:release
 ```
 
 `android:release` waits for the build to finish and prints the exact EAS build ID
-returned by the same build command. Submission requires that ID explicitly:
+returned by the same build command. The ID is the last path segment of the
+`See logs:` URL printed when the build starts — visible in the job log even if
+the runner timeouts — and on the Expo dashboard at
+`expo.dev/accounts/<account>/projects/<project>/builds/<build-id>`. Submission
+requires that ID explicitly:
 
 ```bash
 pnpm --filter @zapengine/app android:submit -- <EAS_BUILD_ID>
@@ -205,12 +209,12 @@ environment variables remain on EAS.
 
 Trigger it from the repository's **Actions** tab with these inputs:
 
-| Input              | Values / usage                                                      |
-| ------------------ | ------------------------------------------------------------------- |
-| `platform`         | `android`, `ios`, `both`                                            |
-| `mode`             | `build-and-submit`, `build-only`, `submit-only`                     |
-| `android_build_id` | Exact EAS Android build ID; required for Android `submit-only`      |
-| `ios_build_id`     | Exact EAS iOS build ID; required for iOS `submit-only`              |
+| Input              | Values / usage                                                 |
+| ------------------ | -------------------------------------------------------------- |
+| `platform`         | `android`, `ios`, `both`                                       |
+| `mode`             | `build-and-submit`, `build-only`, `submit-only`                |
+| `android_build_id` | Exact EAS Android build ID; required for Android `submit-only` |
+| `ios_build_id`     | Exact EAS iOS build ID; required for iOS `submit-only`         |
 
 Build and submit are separate jobs. Each build job writes the EAS build ID to a
 job output, and its submit job consumes that exact value. A failed submission can
@@ -231,8 +235,9 @@ Two workflow properties remain deliberate:
   version counters unpredictably.
 
 A runner timeout does not cancel the EAS build. If the cloud build eventually
-finishes, locate that build's exact EAS ID and use `submit-only` rather than
-starting another build.
+finishes, locate that build's exact EAS ID from the `See logs:` URL in the job
+log (its last path segment) or the Expo dashboard and use `submit-only` rather
+than starting another build.
 
 ## Testers
 
