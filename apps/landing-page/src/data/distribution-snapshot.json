@@ -1,18 +1,18 @@
 {
-  "asOf": "2026-09-01T05:08:58.83+00:00",
+  "asOf": "2026-09-02T07:04:40.813+00:00",
   "coverage": {
     "firstEpisodeAt": "2026-04-26T13:24:28.506345+00:00",
     "lastEpisodeAt": "2026-08-31T15:54:10.166665+00:00",
     "firstPostAt": "2026-08-12T07:13:20.207+00:00",
-    "lastPostAt": "2026-09-01T05:08:58.83+00:00"
+    "lastPostAt": "2026-09-02T07:04:40.813+00:00"
   },
   "funnel": {
     "articles": 301,
     "localizations": 827,
-    "videos": 192,
-    "posts": 182,
+    "videos": 198,
+    "posts": 194,
     "platforms": 4,
-    "reach": 11043
+    "reach": 11333
   },
   "languages": [
     {
@@ -20,24 +20,24 @@
       "localizations": 301,
       "mainAudio": 298,
       "classroomAudio": 246,
-      "posts": 133,
-      "reach": 9893
+      "posts": 136,
+      "reach": 10095
     },
     {
       "code": "ja",
       "localizations": 267,
       "mainAudio": 259,
       "classroomAudio": 25,
-      "posts": 28,
-      "reach": 685
+      "posts": 33,
+      "reach": 721
     },
     {
       "code": "en",
       "localizations": 259,
       "mainAudio": 253,
       "classroomAudio": 22,
-      "posts": 21,
-      "reach": 465
+      "posts": 25,
+      "reach": 517
     }
   ],
   "channels": [
@@ -56,14 +56,14 @@
     {
       "platform": "rednote",
       "language": "zh-Hant",
-      "posts": 29,
-      "postsWithMetrics": 29,
-      "reach": 2443,
-      "likes": 33,
+      "posts": 32,
+      "postsWithMetrics": 31,
+      "reach": 2645,
+      "likes": 36,
       "comments": 1,
-      "shares": 4,
+      "shares": 5,
       "firstPostAt": "2026-08-12T08:18:27.658+00:00",
-      "lastPostAt": "2026-09-01T05:07:52.175+00:00"
+      "lastPostAt": "2026-09-02T07:01:25.916+00:00"
     },
     {
       "platform": "threads",
@@ -80,21 +80,21 @@
     {
       "platform": "x",
       "language": "en",
-      "posts": 8,
-      "postsWithMetrics": 8,
-      "reach": 418,
+      "posts": 9,
+      "postsWithMetrics": 9,
+      "reach": 463,
       "likes": 1,
       "comments": 0,
       "shares": 0,
       "firstPostAt": "2026-08-26T03:04:36.595+00:00",
-      "lastPostAt": "2026-09-01T05:08:53.14+00:00"
+      "lastPostAt": "2026-09-02T03:15:26.732+00:00"
     },
     {
       "platform": "youtube",
       "language": "ja",
       "posts": 10,
       "postsWithMetrics": 10,
-      "reach": 298,
+      "reach": 299,
       "likes": 0,
       "comments": 0,
       "shares": 0,
@@ -104,26 +104,26 @@
     {
       "platform": "x",
       "language": "ja",
-      "posts": 5,
-      "postsWithMetrics": 5,
-      "reach": 251,
+      "posts": 7,
+      "postsWithMetrics": 6,
+      "reach": 263,
       "likes": 1,
       "comments": 0,
       "shares": 0,
       "firstPostAt": "2026-08-26T03:00:25.768+00:00",
-      "lastPostAt": "2026-08-28T00:35:22.891+00:00"
+      "lastPostAt": "2026-09-02T07:04:09.082+00:00"
     },
     {
       "platform": "threads",
       "language": "ja",
-      "posts": 13,
-      "postsWithMetrics": 13,
-      "reach": 136,
-      "likes": 0,
+      "posts": 16,
+      "postsWithMetrics": 15,
+      "reach": 159,
+      "likes": 1,
       "comments": 0,
       "shares": 0,
       "firstPostAt": "2026-08-26T03:01:21.296+00:00",
-      "lastPostAt": "2026-09-01T01:04:12.718+00:00"
+      "lastPostAt": "2026-09-02T07:03:51.699+00:00"
     },
     {
       "platform": "youtube",
@@ -140,23 +140,23 @@
     {
       "platform": "youtube",
       "language": "en",
-      "posts": 13,
-      "postsWithMetrics": 13,
-      "reach": 47,
+      "posts": 16,
+      "postsWithMetrics": 15,
+      "reach": 54,
       "likes": 0,
       "comments": 0,
       "shares": 0,
       "firstPostAt": "2026-08-26T00:32:40.916+00:00",
-      "lastPostAt": "2026-09-01T05:08:58.83+00:00"
+      "lastPostAt": "2026-09-02T07:04:40.813+00:00"
     }
   ],
   "reliability": {
-    "publishJobs": 210,
-    "publishJobsCompleted": 202,
+    "publishJobs": 218,
+    "publishJobsCompleted": 214,
     "publishJobsFailed": 0,
-    "metricSnapshots": 869,
-    "metricSnapshotsCollected": 860,
-    "strategyVersions": 45
+    "metricSnapshots": 928,
+    "metricSnapshotsCollected": 918,
+    "strategyVersions": 46
   },
   "example": {
     "title": "Coldcard被盗反思：源码可见不等于安全",
