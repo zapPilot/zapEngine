@@ -4,7 +4,10 @@ import { fileURLToPath } from 'node:url';
 
 import { runEas } from './eas.mjs';
 
-const APP_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const APP_ROOT = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '..',
+);
 
 function main() {
   const baselines = JSON.parse(
@@ -14,7 +17,9 @@ function main() {
   const appVersion = baselines.ios?.appVersion ?? 'unknown';
 
   if (!Number.isSafeInteger(floor) || floor < 1) {
-    throw new Error('release-baselines.json has no valid ios.ascBuildNumberFloor.');
+    throw new Error(
+      'release-baselines.json has no valid ios.ascBuildNumberFloor.',
+    );
   }
 
   const output = runEas(
