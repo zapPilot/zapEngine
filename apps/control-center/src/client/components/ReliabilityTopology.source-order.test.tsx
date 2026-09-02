@@ -53,4 +53,30 @@ describe('ReliabilityTopology source ordering', () => {
     expect(labels).toEqual(['Sentry', 'Fly', 'GitHub', 'PostHog', 'Product']);
     expect(screen.getByText('3 need attention')).toBeVisible();
   });
+
+  it('keeps healthy and unknown evidence visible while reporting all clear', () => {
+    const data = operationsFixture({
+      signals: [
+        signalFixture({
+          fingerprint: 'product-health:healthy-only',
+          source: 'product-health',
+          status: 'healthy',
+          title: 'Product healthy',
+        }),
+        signalFixture({
+          fingerprint: 'posthog:unknown-only',
+          source: 'posthog',
+          status: 'unknown',
+          title: 'PostHog unknown',
+        }),
+      ],
+    });
+
+    render(<ReliabilityTopology data={data} social={null} />);
+
+    expect(screen.getByText('All clear')).toBeVisible();
+    expect(screen.getByText('Product healthy')).toBeVisible();
+    expect(screen.getByText('PostHog unknown')).toBeVisible();
+    expect(screen.queryByText(/need attention/)).not.toBeInTheDocument();
+  });
 });
