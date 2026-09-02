@@ -1,235 +1,186 @@
-import type {
-  OperationalSignal,
-  OperationsDomain,
-} from '../../../shared/types.js';
+import type { OperationalSignal } from '../../../shared/types.js';
+import { evidenceNumber } from './evidence.js';
 import { parseOperationalFingerprint } from './inspection/fingerprint.js';
+import type {
+  EvidenceGap,
+  SignalInspectionStatus,
+} from './inspection/types.js';
 
 export const REMEDIATION_POLICY_VERSION = 'ops-autonomy-v1';
 
-export type RemediationAutonomy =
-  | 'observe'
-  | 'auto-pr'
-  | 'approval-required';
-export type RemediationRisk = 'low' | 'medium' | 'high';
+/** Whether the operational reading itself can be trusted. */
+export type RemediationObserver =
+  | 'ok'
+  | 'unknown'
+  | 'source-failure'
+  | 'not-active';
 
-export interface RemediationEvidenceGap {
-  source: string;
-  reason: string;
-}
+/** How much deep provider evidence actually backs this incident. */
+export type RemediationInspectionCoverage =
+  | 'inspected'
+  | 'no-inspector'
+  | 'unavailable'
+  | 'not-found';
 
-export interface RemediationAssessment {
+/**
+ * Server-known facts about whether an incident is safe to act on, and nothing
+ * else.
+ *
+ * The server deliberately does not grade autonomy. Whether a repair is safe
+ * depends on the *kind of change* it needs — a null guard and a schema
+ * migration can come from the same signal — and change kind is only knowable
+ * after an agent has diagnosed the root cause. `.agents/skills/
+ * ops-incident-remediation` owns that judgement; this type owns the facts it
+ * cannot see, plus the refusals the server can prove.
+ *
+ * `operationalPriorityScore` rides along so an agent can see impact next to
+ * safety. It is never an authorization input: the priority engine weights
+ * customers and infrastructure highest precisely because they cost the most
+ * when wrong, which is an argument for *less* autonomy, not more.
+ */
+export interface RemediationFacts {
   policyVersion: typeof REMEDIATION_POLICY_VERSION;
   operationalPriorityScore: number | null;
-  suitabilityScore: number;
-  autonomy: RemediationAutonomy;
-  risk: RemediationRisk;
-  evidenceReady: boolean;
+  observer: RemediationObserver;
+  inspectionCoverage: RemediationInspectionCoverage;
+  exposure: {
+    affectedUsers: number | null;
+    aumAtRiskUsd: number | null;
+  };
+  terminalState: boolean;
   directMutationAllowed: false;
-  reasons: string[];
+  /** Non-empty means the server can prove this is not safe to act on yet. */
   blockers: string[];
+  reasons: string[];
 }
 
-interface DomainPolicy {
-  scoreCap: number;
-  autonomy: Exclude<RemediationAutonomy, 'observe'>;
-  risk: RemediationRisk;
+const COVERAGE_BY_INSPECTION: Record<
+  SignalInspectionStatus,
+  RemediationInspectionCoverage
+> = {
+  ok: 'inspected',
+  unsupported: 'no-inspector',
+  unavailable: 'unavailable',
+  'not-found': 'not-found',
+};
+
+const OBSERVER_BLOCKER: Record<RemediationObserver, string | null> = {
+  ok: null,
+  unknown: 'operational state is unknown, and unknown is never healthy',
+  'source-failure':
+    'the observer failed, so the state of the observed system is unproven',
+  'not-active': 'the fingerprint is not active in the current snapshot',
+};
+
+interface CoverageNote {
   reason: string;
   blocker?: string;
 }
 
 /**
- * Operational priority answers "how much does this matter?". This table answers
- * the separate question "how much autonomy may an agent exercise while fixing
- * it?". High-impact signals deliberately receive *less* autonomy, not more.
- *
- * v1 never authorizes a provider/runtime mutation. The highest autonomous rail
- * is preparing a code PR; bounded executors can be added later behind their own
- * action-specific policy and verification gates.
+ * The gap-count check alone would read "no inspector exists" as "nothing is
+ * wrong": sources without an inspector return an empty gap list by
+ * construction. Coverage is therefore derived from the inspection status
+ * rather than from how many gaps came back.
  */
-const DOMAIN_POLICY: Record<OperationsDomain, DomainPolicy> = {
-  customers: {
-    scoreCap: 30,
-    autonomy: 'approval-required',
-    risk: 'high',
-    reason: 'customer-state changes have direct user impact',
-    blocker: 'customer-state remediation requires human approval',
+const COVERAGE_NOTE: Record<RemediationInspectionCoverage, CoverageNote> = {
+  inspected: {
+    reason: 'deep provider inspection completed for this signal',
   },
-  product: {
-    scoreCap: 60,
-    autonomy: 'auto-pr',
-    risk: 'medium',
-    reason: 'product fixes may be prepared as code changes but not auto-deployed',
+  'no-inspector': {
+    reason:
+      'no deep inspector exists for this source, so an empty gap list is not evidence; establish root cause from repository evidence and do not call the incident production-verified',
   },
-  costs: {
-    scoreCap: 35,
-    autonomy: 'approval-required',
-    risk: 'medium',
-    reason: 'cost and billing policy changes can alter spend',
-    blocker: 'cost-policy remediation requires human approval',
+  unavailable: {
+    reason: 'the provider read failed rather than returning clean evidence',
+    blocker: 'deep inspection was unavailable, so provider evidence is missing',
   },
-  social: {
-    scoreCap: 60,
-    autonomy: 'auto-pr',
-    risk: 'medium',
-    reason: 'social pipeline fixes may change externally visible publishing behavior',
-  },
-  jobs: {
-    scoreCap: 80,
-    autonomy: 'auto-pr',
-    risk: 'low',
-    reason: 'job failures are good candidates for bounded code fixes',
-  },
-  infra: {
-    scoreCap: 25,
-    autonomy: 'approval-required',
-    risk: 'high',
-    reason: 'runtime and infrastructure changes have broad blast radius',
-    blocker: 'runtime or infrastructure mutation requires human approval',
-  },
-  errors: {
-    scoreCap: 75,
-    autonomy: 'auto-pr',
-    risk: 'low',
-    reason: 'error fixes are good candidates for bounded regression-backed PRs',
-  },
-  analytics: {
-    scoreCap: 70,
-    autonomy: 'auto-pr',
-    risk: 'low',
-    reason: 'analytics fixes are isolated from product transaction semantics',
+  'not-found': {
+    reason: 'the provider was reachable but reported no matching entity',
+    blocker: 'the inspected entity no longer exists, so nothing is confirmed',
   },
 };
 
-const RISK_RANK: Record<RemediationRisk, number> = {
-  low: 0,
-  medium: 1,
-  high: 2,
-};
+export function buildRemediationFacts(input: {
+  signal: OperationalSignal | undefined;
+  operationalPriorityScore: number | null;
+  inspectionStatus: SignalInspectionStatus;
+  evidenceGaps: readonly EvidenceGap[];
+}): RemediationFacts {
+  const observer = observerState(input.signal);
+  const inspectionCoverage = COVERAGE_BY_INSPECTION[input.inspectionStatus];
+  const coverageNote = COVERAGE_NOTE[inspectionCoverage];
+  const affectedUsers = signalNumber(input.signal, 'affectedUsers');
+  const aumAtRiskUsd = signalNumber(input.signal, 'aumAtRiskUsd');
+  const terminalState = input.signal?.evidence['attemptsExhausted'] === true;
 
-export function assessRemediationSuitability(input: {
-  signal: OperationalSignal;
-  operationalPriorityScore?: number | null;
-  evidenceGaps?: readonly RemediationEvidenceGap[];
-}): RemediationAssessment {
-  const priorityScore = input.operationalPriorityScore ?? null;
-  const parsed = parseOperationalFingerprint(input.signal.fingerprint);
+  const blockers: string[] = [];
+  const reasons: string[] = [coverageNote.reason];
 
-  if (input.signal.status === 'healthy') {
-    return assessment({
-      operationalPriorityScore: priorityScore,
-      suitabilityScore: 0,
-      autonomy: 'observe',
-      risk: 'low',
-      evidenceReady: true,
-      reasons: ['healthy signals do not need remediation'],
-      blockers: [],
-    });
+  pushDefined(blockers, OBSERVER_BLOCKER[observer]);
+  pushDefined(blockers, coverageNote.blocker);
+
+  if (input.signal?.status === 'healthy') {
+    blockers.push('the signal is healthy, so there is nothing to remediate');
   }
 
-  if (input.signal.status === 'unknown') {
-    return assessment({
-      operationalPriorityScore: priorityScore,
-      suitabilityScore: 0,
-      autonomy: 'observe',
-      risk: 'medium',
-      evidenceReady: false,
-      reasons: ['unknown provider state is not evidence of a fixable incident'],
-      blockers: ['operational evidence is unknown'],
-    });
+  for (const gap of input.evidenceGaps) {
+    blockers.push(`${gap.source}: ${gap.reason}`);
   }
 
-  if (parsed?.kind === 'source-failure') {
-    return assessment({
-      operationalPriorityScore: priorityScore,
-      suitabilityScore: 0,
-      autonomy: 'observe',
-      risk: 'medium',
-      evidenceReady: false,
-      reasons: ['the observer failed, so the underlying system state is unproven'],
-      blockers: ['provider evidence is unavailable'],
-    });
-  }
-
-  const policy = DOMAIN_POLICY[input.signal.domain];
-  let suitabilityScore = policy.scoreCap;
-  let autonomy: RemediationAutonomy = policy.autonomy;
-  let risk = policy.risk;
-  let evidenceReady = true;
-  const reasons = [policy.reason];
-  const blockers = policy.blocker ? [policy.blocker] : [];
-
-  if (input.signal.status === 'critical') {
-    suitabilityScore = Math.max(0, suitabilityScore - 10);
-    reasons.push('critical impact reduces autonomous remediation headroom');
-  }
-
-  const affectedUsers = evidenceNumber(input.signal, 'affectedUsers');
-  if (affectedUsers !== null && affectedUsers > 0) {
-    suitabilityScore = Math.max(
-      0,
-      suitabilityScore - Math.min(25, Math.max(5, affectedUsers * 2)),
-    );
-    risk = higherRisk(risk, 'medium');
-    reasons.push(`${Math.round(affectedUsers)} affected users increase blast radius`);
-  }
-
-  const aumAtRiskUsd = evidenceNumber(input.signal, 'aumAtRiskUsd');
   if (aumAtRiskUsd !== null && aumAtRiskUsd > 0) {
-    suitabilityScore = Math.min(suitabilityScore, 15);
-    autonomy = 'approval-required';
-    risk = 'high';
-    reasons.push('financial exposure requires a human-controlled remediation rail');
-    blockers.push('AUM-at-risk incidents cannot be autonomously mutated');
+    blockers.push(
+      'AUM is at risk, so remediation stays on a human-controlled rail',
+    );
   }
 
-  if (input.signal.evidence['attemptsExhausted'] === true) {
-    suitabilityScore = Math.min(100, suitabilityScore + 5);
+  if (affectedUsers !== null && affectedUsers > 0) {
+    reasons.push(
+      `${Math.round(affectedUsers)} affected users increase blast radius`,
+    );
+  }
+
+  if (terminalState) {
     reasons.push('terminal retry state is deterministic remediation evidence');
   }
 
-  const evidenceGaps = input.evidenceGaps ?? [];
-  if (evidenceGaps.length > 0) {
-    evidenceReady = false;
-    suitabilityScore = Math.min(suitabilityScore, 10);
-    autonomy = 'observe';
-    risk = higherRisk(risk, 'medium');
-    blockers.push(
-      ...evidenceGaps.map((gap) => `${gap.source}: ${gap.reason}`),
-    );
-    reasons.push('unresolved evidence gaps block autonomous remediation');
-  }
-
-  return assessment({
-    operationalPriorityScore: priorityScore,
-    suitabilityScore,
-    autonomy,
-    risk,
-    evidenceReady,
-    reasons: unique(reasons),
-    blockers: unique(blockers),
-  });
-}
-
-function assessment(
-  input: Omit<RemediationAssessment, 'policyVersion' | 'directMutationAllowed'>,
-): RemediationAssessment {
   return {
     policyVersion: REMEDIATION_POLICY_VERSION,
+    operationalPriorityScore: input.operationalPriorityScore,
+    observer,
+    inspectionCoverage,
+    exposure: { affectedUsers, aumAtRiskUsd },
+    terminalState,
     directMutationAllowed: false,
-    ...input,
+    blockers: unique(blockers),
+    reasons: unique(reasons),
   };
 }
 
-function evidenceNumber(signal: OperationalSignal, key: string): number | null {
-  const value = signal.evidence[key];
-  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+function observerState(
+  signal: OperationalSignal | undefined,
+): RemediationObserver {
+  if (!signal) {
+    return 'not-active';
+  }
+  if (signal.status === 'unknown') {
+    return 'unknown';
+  }
+  const parsed = parseOperationalFingerprint(signal.fingerprint);
+  return parsed?.kind === 'source-failure' ? 'source-failure' : 'ok';
 }
 
-function higherRisk(
-  left: RemediationRisk,
-  right: RemediationRisk,
-): RemediationRisk {
-  return RISK_RANK[left] >= RISK_RANK[right] ? left : right;
+function signalNumber(
+  signal: OperationalSignal | undefined,
+  key: string,
+): number | null {
+  return signal ? evidenceNumber(signal, key) : null;
+}
+
+function pushDefined(target: string[], value: string | null | undefined): void {
+  if (value) {
+    target.push(value);
+  }
 }
 
 function unique(values: readonly string[]): string[] {

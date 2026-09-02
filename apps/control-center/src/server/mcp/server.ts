@@ -2,7 +2,6 @@ import { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 
 import { OPERATIONS_DOMAINS } from '../../shared/types.js';
-import { assessRemediationSuitability } from '../services/operations/autonomy.js';
 import { projectDomain, projectSignal } from './projections.js';
 import type { OpsMcpOperations } from './types.js';
 
@@ -38,7 +37,7 @@ export function createOpsMcpServer(operations: OpsMcpOperations): McpServer {
     { name: 'zap-pilot-ops', version: '0.5.0' },
     {
       instructions:
-        'Start with ops_status. For a priority incident, use ops_investigate next: it correlates bounded GitHub, Sentry, Fly, product/customer, and social evidence into one deterministic packet. Before proposing autonomous remediation, call ops_assess_remediation: operational priority is impact, not permission, and unresolved evidence gaps fail closed. Use ops_inspect_signal only for extra provider drill-down. Read tools never mutate providers. The sole remediation tool, ops_resolve_sentry_issue, may only resolve one explicit Sentry issue and should be used only when the user asks to close/resolve that issue or explicitly delegates Sentry cleanup.',
+        'Start with ops_status. For a priority incident, use ops_investigate next: it correlates bounded GitHub, Sentry, Fly, product/customer, and social evidence into one deterministic packet, and carries a read-only remediation facts block. Read remediation.blockers before proposing any fix: operational priority is impact, not permission, and missing or unproven evidence fails closed. Use ops_inspect_signal only for extra provider drill-down. Read tools never mutate providers. The sole remediation tool, ops_resolve_sentry_issue, may only resolve one explicit Sentry issue and should be used only when the user asks to close/resolve that issue or explicitly delegates Sentry cleanup.',
     },
   );
 
@@ -103,56 +102,12 @@ export function createOpsMcpServer(operations: OpsMcpOperations): McpServer {
     {
       title: 'Investigate operational incident',
       description:
-        'Build one deterministic incident packet from a stable signal fingerprint: primary evidence, related GitHub/Sentry/Fly evidence, operational topology, chronological timeline, customer/business impact where proven, and explicit evidence gaps. Use this after ops_status for normal incident triage.',
+        'Build one deterministic incident packet from a stable signal fingerprint: primary evidence, related GitHub/Sentry/Fly evidence, operational topology, chronological timeline, customer/business impact where proven, explicit evidence gaps, and a read-only remediation facts block (observer trust, inspection coverage, exposure, blockers). Use this after ops_status for normal incident triage, and read remediation.blockers before proposing a fix.',
       inputSchema: fingerprintForceSchema,
       annotations: READ_ONLY_ANNOTATIONS,
     },
     async ({ fingerprint, force }) =>
       result(await operations.investigate(fingerprint, force)),
-  );
-
-  server.registerTool(
-    'ops_assess_remediation',
-    {
-      title: 'Assess remediation autonomy',
-      description:
-        'Deterministically assess how much autonomy an agent may exercise for one active operational signal. This is separate from operational priority: high impact can reduce autonomy. The v1 policy can authorize observation or preparing a code PR only; it never authorizes a provider/runtime mutation. Any investigation evidence gap fails closed to observation.',
-      inputSchema: fingerprintForceSchema,
-      annotations: READ_ONLY_ANNOTATIONS,
-    },
-    async ({ fingerprint, force }) => {
-      const snapshot = await operations.getOperations(force);
-      const signal = snapshot.signals.find(
-        (candidate) => candidate.fingerprint === fingerprint,
-      );
-      const priorityScore =
-        snapshot.priorities.find(
-          (priority) => priority.signal.fingerprint === fingerprint,
-        )?.score ?? null;
-
-      if (!signal) {
-        return result({
-          generatedAt: snapshot.generatedAt,
-          fingerprint,
-          found: false,
-          priorityScore,
-          assessment: null,
-        });
-      }
-
-      const incident = await operations.investigate(fingerprint, force);
-      return result({
-        generatedAt: snapshot.generatedAt,
-        fingerprint,
-        found: true,
-        priorityScore,
-        assessment: assessRemediationSuitability({
-          signal,
-          operationalPriorityScore: priorityScore,
-          evidenceGaps: incident.evidenceGaps,
-        }),
-      });
-    },
   );
 
   server.registerTool(

@@ -6,6 +6,7 @@ import type {
   OperationsSocialResponse,
   OperationsSource,
 } from '../../../shared/types.js';
+import { buildRemediationFacts, type RemediationFacts } from './autonomy.js';
 import { parseOperationalFingerprint } from './inspection/fingerprint.js';
 import type {
   EvidenceGap,
@@ -58,6 +59,8 @@ export interface IncidentPacket {
     priorityCustomers: number | null;
     aumUsd: number | null;
   };
+  /** Read-only safety facts. See `autonomy.ts` for why it grades no autonomy. */
+  remediation: RemediationFacts;
   evidenceGaps: EvidenceGap[];
 }
 
@@ -167,6 +170,8 @@ export async function investigateOperationalSignal(input: {
         observedAt: input.snapshot.generatedAt,
       };
 
+  const evidenceGaps = uniqueGaps(gaps);
+
   return {
     incident,
     entities: uniqueEntities([
@@ -190,8 +195,28 @@ export async function investigateOperationalSignal(input: {
       customers,
       topology.service?.impact,
     ),
-    evidenceGaps: uniqueGaps(gaps),
+    remediation: buildRemediationFacts({
+      signal,
+      operationalPriorityScore: priorityScore(
+        input.snapshot,
+        input.fingerprint,
+      ),
+      inspectionStatus: primaryEvidence.status,
+      evidenceGaps,
+    }),
+    evidenceGaps,
   };
+}
+
+function priorityScore(
+  snapshot: OperationsResponse,
+  fingerprint: string,
+): number | null {
+  return (
+    snapshot.priorities.find(
+      (priority) => priority.signal.fingerprint === fingerprint,
+    )?.score ?? null
+  );
 }
 
 async function safeInspect(
