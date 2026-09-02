@@ -28,7 +28,11 @@ export function ReliabilityTopology(props: {
     <section className="domain-visualization reliability-activity">
       <div className="reliability-activity-head">
         <span>Reliability</span>
-        <strong>{attention === 0 ? 'All clear' : `${integer(attention)} need attention`}</strong>
+        <strong>
+          {attention === 0
+            ? 'All clear'
+            : `${integer(attention)} need attention`}
+        </strong>
       </div>
 
       <div className="source-activity-grid">
@@ -52,7 +56,9 @@ export function ReliabilityTopology(props: {
           </article>
         ))}
         {sources.length === 0 ? (
-          <div className="domain-visualization-empty compact">Waiting for signals.</div>
+          <div className="domain-visualization-empty compact">
+            Waiting for signals.
+          </div>
         ) : null}
       </div>
 
@@ -71,7 +77,12 @@ function SourceEvent({ event }: { event: OperationalSignal }) {
   );
 
   return event.url ? (
-    <a className="source-event" href={event.url} rel="noreferrer" target="_blank">
+    <a
+      className="source-event"
+      href={event.url}
+      rel="noreferrer"
+      target="_blank"
+    >
       {content}
       <span aria-hidden="true">↗</span>
     </a>
@@ -81,7 +92,9 @@ function SourceEvent({ event }: { event: OperationalSignal }) {
 }
 
 function SocialFlow({ social }: { social: OperationsSocialResponse | null }) {
-  if (!social) return null;
+  if (!social) {
+    return null;
+  }
   const blocked = social.jobs.filter(
     (job) => job.attemptsExhausted || job.overdueMinutes !== null,
   ).length;
@@ -94,38 +107,49 @@ function SocialFlow({ social }: { social: OperationsSocialResponse | null }) {
     (social.waitingMediaLanes ?? 0) >= 3 ? 'degraded' : 'healthy';
 
   return (
-    <div className="social-flow compact-social-flow" aria-label="Social publishing flow">
-      <div className={`social-flow-node ${mediaStatus}`}>
-        <StatusDot status={mediaStatus} />
-        <span>
-          <strong>Media</strong>
-          <small>{integer(social.waitingMediaLanes)} waiting</small>
-        </span>
-      </div>
+    <div
+      className="social-flow compact-social-flow"
+      aria-label="Social publishing flow"
+    >
+      <SocialFlowNode
+        status={mediaStatus}
+        label="Media"
+        detail={`${integer(social.waitingMediaLanes)} waiting`}
+      />
       <b aria-hidden="true">→</b>
-      <div className={`social-flow-node ${queueStatus}`}>
-        <StatusDot status={queueStatus} />
-        <span>
-          <strong>Queue</strong>
-          <small>{integer(blocked)} blocked</small>
-        </span>
-      </div>
+      <SocialFlowNode
+        status={queueStatus}
+        label="Queue"
+        detail={`${integer(blocked)} blocked`}
+      />
       <b aria-hidden="true">→</b>
-      <div className={`social-flow-node ${social.daemon.status}`}>
-        <StatusDot status={social.daemon.status} />
-        <span>
-          <strong>Daemon</strong>
-          <small>{statusLabel(social.daemon.status)}</small>
-        </span>
-      </div>
+      <SocialFlowNode
+        status={social.daemon.status}
+        label="Daemon"
+        detail={statusLabel(social.daemon.status)}
+      />
       <b aria-hidden="true">→</b>
-      <div className="social-flow-node unknown">
-        <StatusDot status="unknown" />
-        <span>
-          <strong>Platforms</strong>
-          <small>not verified</small>
-        </span>
-      </div>
+      <SocialFlowNode
+        status="unknown"
+        label="Platforms"
+        detail="not verified"
+      />
+    </div>
+  );
+}
+
+function SocialFlowNode(props: {
+  status: OperationalStatus;
+  label: string;
+  detail: string;
+}) {
+  return (
+    <div className={`social-flow-node ${props.status}`}>
+      <StatusDot status={props.status} />
+      <span>
+        <strong>{props.label}</strong>
+        <small>{props.detail}</small>
+      </span>
     </div>
   );
 }
@@ -190,7 +214,9 @@ function compactEvidence(signal: OperationalSignal, keys: string[]): string {
       ? []
       : [`${humanKey(key)} ${String(value)}`];
   });
-  return values.length ? values.join(' · ') : (signal.detail ?? 'No extra detail');
+  return values.length
+    ? values.join(' · ')
+    : (signal.detail ?? 'No extra detail');
 }
 
 function humanKey(key: string): string {
