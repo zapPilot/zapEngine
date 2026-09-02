@@ -31,7 +31,8 @@ read previous CID from track-record-meta.json
 → pin JSON to Pinata
 → update track-record-meta.json
 → verify the published chain
-→ commit the meta change, rebase it onto the latest branch tip, push fast-forward only (retried up to 3 times when the branch advances during the run)
+→ commit the meta change
+→ rebase onto the latest branch tip and push fast-forward only (3 attempts)
 ```
 
 ## Commands
