@@ -9,7 +9,7 @@ import { operationsFixture, signalFixture } from '../__fixtures__/dashboard.js';
 afterEach(cleanup);
 
 describe('ReliabilityTopology source ordering', () => {
-  it('orders source cards by worst status then display label', () => {
+  it('orders source cards by worst status while excluding unknown from attention', () => {
     const data = operationsFixture({
       signals: [
         signalFixture({
@@ -36,6 +36,12 @@ describe('ReliabilityTopology source ordering', () => {
           status: 'degraded',
           title: 'Fly degraded',
         }),
+        signalFixture({
+          fingerprint: 'posthog:unknown',
+          source: 'posthog',
+          status: 'unknown',
+          title: 'PostHog unknown',
+        }),
       ],
     });
 
@@ -44,7 +50,7 @@ describe('ReliabilityTopology source ordering', () => {
     const labels = [
       ...document.querySelectorAll('.source-activity-card header strong'),
     ].map((node) => node.textContent);
-    expect(labels).toEqual(['Sentry', 'Fly', 'GitHub', 'Product']);
+    expect(labels).toEqual(['Sentry', 'Fly', 'GitHub', 'PostHog', 'Product']);
     expect(screen.getByText('3 need attention')).toBeVisible();
   });
 });
