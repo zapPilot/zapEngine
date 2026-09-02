@@ -47,6 +47,7 @@ describe('createOverviewService', () => {
         currentMonthDaily: [],
         monthlyTotals: [],
         cashSpendUsd: null,
+        previousMonthByProvider: [],
       }),
       insertTransaction: vi.fn(),
       upsertManualSnapshot: vi.fn(),

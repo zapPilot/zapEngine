@@ -12,6 +12,7 @@ import { createOverviewService } from './services/overview.js';
 import { createPodcastCostService } from './services/podcast-costs.js';
 import { createPodcastPipelineService } from './services/podcast-pipeline.js';
 import { createSocialGrowthService } from './services/social-growth.js';
+import { createStatementsService } from './services/statements/index.js';
 
 const WINDOWS: SocialPerformanceResponse['window'][] = [
   'latest',
@@ -28,6 +29,7 @@ export function createControlCenterApp(input: {
   operations?: ReturnType<typeof createOperationsService>;
   socialGrowth?: ReturnType<typeof createSocialGrowthService>;
   podcastPipeline?: ReturnType<typeof createPodcastPipelineService>;
+  statements?: ReturnType<typeof createStatementsService>;
   serveClient?: boolean;
   /**
    * Local operator processes may explicitly refresh provider cost snapshots.
@@ -49,6 +51,16 @@ export function createControlCenterApp(input: {
     input.operations ?? createOperationsService({ config: input.config });
   const socialGrowth =
     input.socialGrowth ?? createSocialGrowthService({ config: input.config });
+  const statements =
+    input.statements ??
+    createStatementsService({
+      config: input.config,
+      service,
+      operations,
+      socialGrowth,
+      podcastPipeline,
+      podcastCosts,
+    });
 
   app.get('/api/overview', async (context) => {
     return context.json(await service.getOverview());
@@ -106,6 +118,10 @@ export function createControlCenterApp(input: {
 
   app.get('/api/podcast-pipeline', async (context) => {
     return context.json(await podcastPipeline.getPipeline());
+  });
+
+  app.get('/api/statements', async (context) => {
+    return context.json(await statements.getStatements(isForced(context)));
   });
 
   // The Vercel deployment is required to sit behind Vercel Authentication.

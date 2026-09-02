@@ -14,7 +14,13 @@
         "OPENROUTER_MANAGEMENT_KEY",
         "OPENROUTER_BASE_URL",
         "FLY_COST_MODE",
-        "FLY_API_TOKEN"
+        "FLY_API_TOKEN",
+        "OPS_GITHUB_TOKEN",
+        "FLY_OPS_TOKEN",
+        "SENTRY_OPS_AUTH_TOKEN",
+        "SENTRY_ORG_SLUG",
+        "POSTHOG_PERSONAL_API_KEY",
+        "POSTHOG_PROJECT_ID"
       ]
     }
   }

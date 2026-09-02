@@ -10,6 +10,7 @@ import type {
   CostHistoryResponse,
   CostProviderResult,
   CostTransactionKind,
+  ProviderMonthCost,
 } from '../../shared/types.js';
 import type { ControlCenterConfig } from '../config/env.js';
 import { createServiceRoleClient } from './supabase.js';
@@ -219,7 +220,21 @@ export function createCostRepository(
           Number(row.amount_usd),
         ),
       );
-      return { currentMonthDaily, monthlyTotals, cashSpendUsd };
+      const previousMonth = new Date(
+        Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1),
+      )
+        .toISOString()
+        .slice(0, 7);
+      const previousMonthByProvider = aggregateByProviderForMonth(
+        rows,
+        previousMonth,
+      );
+      return {
+        currentMonthDaily,
+        monthlyTotals,
+        cashSpendUsd,
+        previousMonthByProvider,
+      };
     },
 
     async insertTransaction(input) {
@@ -314,6 +329,38 @@ function aggregateMonthly(rows: SnapshotRow[]) {
   return [...totals.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([month, values]) => ({ month, accruedCostUsd: sumNumbers(values) }));
+}
+
+/**
+ * R2's "which provider is driving the change" needs a same-shape number for
+ * the prior month, not the monthly total `aggregateMonthly` already collapses
+ * providers out of — so this keeps the per-provider split for exactly one
+ * month instead of discarding it.
+ */
+function aggregateByProviderForMonth(
+  rows: SnapshotRow[],
+  month: string,
+): ProviderMonthCost[] {
+  const latestPerProvider = new Map<CostProvider, SnapshotRow>();
+  for (const row of rows) {
+    if (row.snapshot_date.slice(0, 7) !== month) {
+      continue;
+    }
+    const previous = latestPerProvider.get(row.provider);
+    if (!previous || previous.snapshot_date <= row.snapshot_date) {
+      latestPerProvider.set(row.provider, row);
+    }
+  }
+  return (Object.keys(PROVIDER_LABELS) as CostProvider[]).map((provider) => {
+    const row = latestPerProvider.get(provider);
+    return {
+      provider,
+      accruedCostUsd:
+        row?.accrued_cost_usd === null || row?.accrued_cost_usd === undefined
+          ? null
+          : Number(row.accrued_cost_usd),
+    };
+  });
 }
 
 function sumNumbers(values: number[]): number | null {

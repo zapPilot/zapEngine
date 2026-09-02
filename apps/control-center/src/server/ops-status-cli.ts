@@ -3,8 +3,14 @@ import type {
   OperationsDomainSummary,
   OperationsResponse,
 } from '../shared/types.js';
+import type { Statement, StatementSegment } from '../shared/statements.js';
 import { readControlCenterConfig } from './config/env.js';
 import { createOperationsService } from './services/operations/aggregate.js';
+import { createOverviewService } from './services/overview.js';
+import { createPodcastCostService } from './services/podcast-costs.js';
+import { createPodcastPipelineService } from './services/podcast-pipeline.js';
+import { createSocialGrowthService } from './services/social-growth.js';
+import { createStatementsService } from './services/statements/index.js';
 
 /**
  * The same read model the dashboard renders, without the dashboard.
@@ -16,12 +22,27 @@ import { createOperationsService } from './services/operations/aggregate.js';
  * shell pipeline without anyone parsing prose.
  */
 const json = process.argv.includes('--json');
-const snapshot = await createOperationsService({
-  config: readControlCenterConfig(),
-}).getOperations(process.argv.includes('--force'));
+const force = process.argv.includes('--force');
+const config = readControlCenterConfig();
+const operationsService = createOperationsService({ config });
+const statementsService = createStatementsService({
+  config,
+  service: createOverviewService({ config }),
+  operations: operationsService,
+  socialGrowth: createSocialGrowthService({ config }),
+  podcastPipeline: createPodcastPipelineService({ config }),
+  podcastCosts: createPodcastCostService({ config }),
+});
+
+const [snapshot, statements] = await Promise.all([
+  operationsService.getOperations(force),
+  statementsService.getStatements(force),
+]);
 
 process.stdout.write(
-  json ? `${JSON.stringify(snapshot, null, 2)}\n` : render(snapshot),
+  json
+    ? `${JSON.stringify({ ...snapshot, statements: statements.statements }, null, 2)}\n`
+    : `${render(snapshot)}${renderStatements(statements.statements)}`,
 );
 
 if (snapshot.status === 'critical') {
@@ -46,6 +67,31 @@ function render(response: OperationsResponse): string {
   lines.push(...response.priorities.map(priorityLines).flat());
   lines.push('');
   return lines.join('\n');
+}
+
+/**
+ * The exact sentences Home renders, in the exact order Home sorts them —
+ * this and the dashboard read the same `statements` module, so an operator
+ * on a laptop and a founder looking at the page never see different prose.
+ */
+function renderStatements(statements: readonly Statement[]): string {
+  const lines = ['Statements:', ''];
+  for (const statement of statements) {
+    lines.push(
+      `  ${mark(statement.status)} [${statement.domain}] ${renderSentence(statement.sentence)}`,
+    );
+    lines.push(
+      `       ${statement.value}  ${statement.delta}  ·  ${statement.kicker}`,
+    );
+  }
+  lines.push('');
+  return lines.join('\n');
+}
+
+function renderSentence(segments: readonly StatementSegment[]): string {
+  return segments
+    .map((segment) => ('text' in segment ? segment.text : segment.value))
+    .join('');
 }
 
 function domainLine(domain: OperationsDomainSummary): string {

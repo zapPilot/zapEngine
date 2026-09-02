@@ -28,6 +28,7 @@ function health(
     portfolioFresh7d: 40,
     top1PortfolioShare: 0.2,
     top3PortfolioShare: 0.5,
+    activePortfolios7d: 18,
     ...overrides,
   };
 }

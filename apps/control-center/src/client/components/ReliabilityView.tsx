@@ -1,3 +1,4 @@
+import type { StatementsResponse } from '../../shared/statements.js';
 import type {
   OperationalSignal,
   OperationsResponse,
@@ -16,21 +17,61 @@ import {
   Wallet,
 } from 'lucide-react';
 import { integer, relativeTime } from '../format.js';
+import { DomainStrip } from './DomainStrip.js';
 import { PriorityQueue } from './PriorityQueue.js';
 import { ReliabilityTopology } from './ReliabilityTopology.js';
+import { StatementHeader } from './StatementHeader.js';
 import { StatusPill } from './Status.js';
 
+/**
+ * L0 is the statement (R1) plus every domain as one strip — replaces the
+ * topology as the first thing read. Source activity, social flow and the
+ * raw signal audit all move to Evidence; nothing raw sits above it.
+ */
 export function ReliabilityView(props: {
   data: OperationsResponse | null;
   social: OperationsSocialResponse | null;
+  statements?: StatementsResponse | null;
 }) {
   const data = props.data;
+  const header = props.statements?.headers.find(
+    (h) => h.domain === 'reliability',
+  );
+  const topSignal =
+    data?.priorities.find((p) => p.signal.status === 'critical')?.signal ??
+    data?.priorities[0]?.signal ??
+    null;
   const problemSignals = (data?.signals ?? []).filter(
     (signal) => signal.status !== 'healthy',
   );
+
   return (
     <div className="view-stack">
-      <ReliabilityTopology data={data} social={props.social} />
+      {header ? (
+        <StatementHeader
+          action={
+            topSignal?.url ? (
+              <a
+                className="queue-source-link"
+                href={topSignal.url}
+                rel="noreferrer"
+                target="_blank"
+              >
+                Open {sourceLabel(topSignal.source)} source
+              </a>
+            ) : undefined
+          }
+          facts={header.facts}
+          sentence={header.sentence}
+          status={header.status}
+        />
+      ) : null}
+
+      {data ? (
+        <DomainStrip domains={data.domains} />
+      ) : (
+        <div className="empty-inline">Waiting for data.</div>
+      )}
 
       <section className="panel queue-panel reliability-action-panel">
         <div className="panel-head">
@@ -52,7 +93,12 @@ export function ReliabilityView(props: {
           </span>
         </summary>
         <div className="signal-evidence-body">
-          <SignalAudit signals={data?.signals ?? []} waiting={!data} />
+          <div className="disclosure-section">
+            <ReliabilityTopology data={data} social={props.social} />
+          </div>
+          <div className="disclosure-section">
+            <SignalAudit signals={data?.signals ?? []} waiting={!data} />
+          </div>
         </div>
       </details>
     </div>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import type { PodcastPipelineResponse } from '../shared/podcast-pipeline.js';
+import type { StatementsResponse } from '../shared/statements.js';
 import type {
   CostHistoryResponse,
   CustomerEconomicsResponse,
@@ -79,6 +80,7 @@ export function App() {
   const [customers, setCustomers] = useState<CustomerEconomicsResponse | null>(
     null,
   );
+  const [statements, setStatements] = useState<StatementsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -109,17 +111,20 @@ export function App() {
             throw new Error(body.error ?? `HTTP ${syncResponse.status}`);
           }
         }
-        const [next, history, snapshot, episodeCosts] = await Promise.all([
-          getJson<OverviewResponse>('/api/overview'),
-          getJson<CostHistoryResponse>('/api/costs/history'),
-          getJson<OperationsResponse>('/api/operations'),
-          getJson<PodcastCostResponse>('/api/costs/podcast'),
-        ]);
+        const [next, history, snapshot, episodeCosts, statementsNext] =
+          await Promise.all([
+            getJson<OverviewResponse>('/api/overview'),
+            getJson<CostHistoryResponse>('/api/costs/history'),
+            getJson<OperationsResponse>('/api/operations'),
+            getJson<PodcastCostResponse>('/api/costs/podcast'),
+            getJson<StatementsResponse>('/api/statements'),
+          ]);
         setOverview(next);
         setCostHistory(history);
         setPodcastCosts(episodeCosts);
         setSocial(next.social);
         setOperations(snapshot);
+        setStatements(statementsNext);
       }),
     [run],
   );
@@ -127,9 +132,12 @@ export function App() {
   const loadPipeline = useCallback(
     () =>
       run(async () => {
-        setPodcastPipeline(
-          await getJson<PodcastPipelineResponse>('/api/podcast-pipeline'),
-        );
+        const [pipeline, statementsNext] = await Promise.all([
+          getJson<PodcastPipelineResponse>('/api/podcast-pipeline'),
+          getJson<StatementsResponse>('/api/statements'),
+        ]);
+        setPodcastPipeline(pipeline);
+        setStatements(statementsNext);
       }),
     [run],
   );
@@ -160,16 +168,19 @@ export function App() {
     (window: SocialPerformanceResponse['window'], force = false) =>
       run(async () => {
         const query = force ? '?force=1' : '';
-        const [performance, growth, socialOps] = await Promise.all([
-          getJson<SocialPerformanceResponse>(
-            `/api/social-performance?window=${encodeURIComponent(window)}`,
-          ),
-          getJson<SocialGrowthResponse>(`/api/social-growth${query}`),
-          getJson<OperationsSocialResponse>(`/api/operations/social${query}`),
-        ]);
+        const [performance, growth, socialOps, statementsNext] =
+          await Promise.all([
+            getJson<SocialPerformanceResponse>(
+              `/api/social-performance?window=${encodeURIComponent(window)}`,
+            ),
+            getJson<SocialGrowthResponse>(`/api/social-growth${query}`),
+            getJson<OperationsSocialResponse>(`/api/operations/social${query}`),
+            getJson<StatementsResponse>(`/api/statements${query}`),
+          ]);
         setSocial(performance);
         setSocialGrowth(growth);
         setOperationsSocial(socialOps);
+        setStatements(statementsNext);
       }),
     [run],
   );
@@ -178,12 +189,14 @@ export function App() {
     (force = false) =>
       run(async () => {
         const query = force ? '?force=1' : '';
-        const [snapshot, socialOps] = await Promise.all([
+        const [snapshot, socialOps, statementsNext] = await Promise.all([
           getJson<OperationsResponse>(`/api/operations${query}`),
           getJson<OperationsSocialResponse>(`/api/operations/social${query}`),
+          getJson<StatementsResponse>(`/api/statements${query}`),
         ]);
         setOperations(snapshot);
         setOperationsSocial(socialOps);
+        setStatements(statementsNext);
       }),
     [run],
   );
@@ -191,11 +204,13 @@ export function App() {
   const loadCustomers = useCallback(
     (force = false) =>
       run(async () => {
-        setCustomers(
-          await getJson<CustomerEconomicsResponse>(
-            `/api/customers${force ? '?force=1' : ''}`,
-          ),
-        );
+        const query = force ? '?force=1' : '';
+        const [customersNext, statementsNext] = await Promise.all([
+          getJson<CustomerEconomicsResponse>(`/api/customers${query}`),
+          getJson<StatementsResponse>(`/api/statements${query}`),
+        ]);
+        setCustomers(customersNext);
+        setStatements(statementsNext);
       }),
     [run],
   );
@@ -262,8 +277,14 @@ export function App() {
           void loadHome(import.meta.env.DEV);
         }
       }}
-      subtitle={VIEW_META[view].subtitle}
-      title={VIEW_META[view].title}
+      subtitle={
+        view === 'home'
+          ? (statements?.headers.find(
+              (header) => header.domain === 'reliability',
+            )?.facts[0]?.note ?? VIEW_META.home.subtitle)
+          : VIEW_META[view].subtitle
+      }
+      title={view === 'home' ? homeDateTitle() : VIEW_META[view].title}
     >
       {error ? (
         <div className="error-state" role="alert">
@@ -276,6 +297,7 @@ export function App() {
           data={overview}
           onNavigate={setView}
           operations={operations}
+          statements={statements}
         />
       ) : null}
       {view === 'pipeline' ? (
@@ -283,19 +305,29 @@ export function App() {
           data={podcastPipeline}
           onRestartVideo={restartVideo}
           restartingEpisodeId={restartingEpisodeId}
+          statements={statements}
         />
       ) : null}
       {view === 'reliability' ? (
-        <ReliabilityView data={operations} social={operationsSocial} />
+        <ReliabilityView
+          data={operations}
+          social={operationsSocial}
+          statements={statements}
+        />
       ) : null}
       {view === 'product' ? (
-        <ProductView customers={customers} product={overview?.product} />
+        <ProductView
+          customers={customers}
+          product={overview?.product}
+          statements={statements}
+        />
       ) : null}
       {view === 'economics' ? (
         <EconomicsView
           data={overview}
           history={costHistory}
           podcastCosts={podcastCosts}
+          statements={statements}
         />
       ) : null}
       {view === 'growth' ? (
@@ -308,12 +340,22 @@ export function App() {
             data={social}
             growth={socialGrowth}
             onWindowChange={loadSocial}
+            statements={statements}
           />
         </div>
       ) : null}
     </AppShell>
   );
 }
+/** Home's H1 is the date, not a page name — "what changed today" over "what page is this". */
+function homeDateTitle(): string {
+  return new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  });
+}
+
 function generatedAt(input: {
   customers: CustomerEconomicsResponse | null;
   operations: OperationsResponse | null;

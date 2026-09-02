@@ -1,5 +1,7 @@
+import type { StatementsResponse } from '../../shared/statements.js';
 import type {
   SocialDecision,
+  SocialEpisodeSummary,
   SocialGrowthLane,
   SocialGrowthResponse,
   SocialPerformanceResponse,
@@ -7,6 +9,7 @@ import type {
 } from '../../shared/types.js';
 import { duration, integer, percent, relativeTime } from '../format.js';
 import { platformLabel } from '../platform.js';
+import { StatementHeader } from './StatementHeader.js';
 
 export function GrowthView(props: {
   data: SocialPerformanceResponse | null;
@@ -14,29 +17,47 @@ export function GrowthView(props: {
   onWindowChange: (
     window: SocialPerformanceResponse['window'],
   ) => Promise<void>;
+  statements?: StatementsResponse | null;
 }) {
   const data = props.data;
   const followerTotal = sumKnown(
     data?.accounts.map((account) => account.followers) ?? [],
   );
   const brief = buildPublishingBrief(data?.decisions ?? []);
+  const header = props.statements?.headers.find((h) => h.domain === 'growth');
+  const latestEpisode = data?.episodes[0] ?? null;
 
   return (
     <div className="social-layout social-layout-focused">
       <div className="social-main">
-        <section className="publishing-brief" aria-label="Next publishing plan">
-          <div className="brief-kicker">Next publishing plan</div>
-          <div className="brief-primary">
-            <span>Publish every platform together at</span>
-            <strong>{brief.time}</strong>
-            <small>{brief.timeBasis}</small>
-          </div>
-          <div className="brief-direction">
-            <span>What to write next</span>
-            <strong>{brief.topic}</strong>
-            <p>{brief.topicAdvice}</p>
-          </div>
-        </section>
+        {header ? (
+          <StatementHeader
+            facts={header.facts}
+            sentence={header.sentence}
+            status={header.status}
+          />
+        ) : null}
+
+        <div className="growth-plan-row">
+          <section
+            className="publishing-brief"
+            aria-label="Next publishing plan"
+          >
+            <div className="brief-kicker">Next publishing plan</div>
+            <div className="brief-primary">
+              <span>Publish every platform together at</span>
+              <strong>{brief.time}</strong>
+              <small>{brief.timeBasis}</small>
+            </div>
+            <div className="brief-direction">
+              <span>What to write next</span>
+              <strong>{brief.topic}</strong>
+              <p>{brief.topicAdvice}</p>
+            </div>
+          </section>
+
+          <LatestEpisodePanel episode={latestEpisode} />
+        </div>
 
         <section className="decision-section">
           <div className="section-head">
@@ -290,6 +311,43 @@ export function GrowthView(props: {
         </p>
       </aside>
     </div>
+  );
+}
+
+function LatestEpisodePanel(props: { episode: SocialEpisodeSummary | null }) {
+  const episode = props.episode;
+  const max = episode
+    ? Math.max(1, ...episode.platforms.map((platform) => platform.views ?? 0))
+    : 1;
+  return (
+    <section className="panel latest-episode-panel">
+      <div className="panel-head">
+        <h2>Latest episode · 24h</h2>
+        <small className="panel-note">
+          {episode?.title ?? 'Waiting for data'}
+        </small>
+      </div>
+      <div className="latest-episode-rows">
+        {episode?.platforms.map((platform) => (
+          <div className="latest-episode-row" key={platform.platform}>
+            <span>{platformLabel(platform.platform)}</span>
+            <span className="latest-episode-track">
+              <i style={{ width: `${((platform.views ?? 0) / max) * 100}%` }} />
+            </span>
+            <strong>{integer(platform.views)}</strong>
+            <span className="latest-episode-signal">
+              {platformSignal(platform)}
+            </span>
+          </div>
+        ))}
+        {episode && episode.platforms.length === 0 ? (
+          <div className="empty-inline">No per-platform metrics yet.</div>
+        ) : null}
+        {episode ? null : (
+          <div className="empty-inline">No episode metrics yet.</div>
+        )}
+      </div>
+    </section>
   );
 }
 

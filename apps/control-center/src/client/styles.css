@@ -400,6 +400,23 @@ select:focus-visible {
   vertical-align: middle;
 }
 
+/* Delta chips ----------------------------------------------------------- */
+
+/* Colour is a verdict a rule assigned, never the sign of the number: cost up
+   is a warning, followers up is a success, AUM is neutral either way. */
+.delta-chip {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-dim);
+}
+.delta-chip.good {
+  color: var(--success);
+}
+.delta-chip.bad {
+  color: var(--error);
+}
+
 /* Action queue -------------------------------------------------------------*/
 
 .queue {
@@ -1117,6 +1134,12 @@ select:focus-visible {
 .social-layout.social-layout-focused {
   grid-template-columns: minmax(0, 1fr) 220px;
 }
+.growth-plan-row {
+  display: grid;
+  align-items: start;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: var(--gap);
+}
 .publishing-brief {
   display: grid;
   grid-template-columns: minmax(250px, 0.85fr) minmax(300px, 1.4fr);
@@ -1124,6 +1147,46 @@ select:focus-visible {
   border-radius: var(--radius-control);
   background: var(--surface);
   overflow: hidden;
+}
+.latest-episode-rows {
+  display: grid;
+  gap: 2px;
+  padding: 4px var(--pad) 14px;
+}
+.latest-episode-row {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr) 54px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 7px 0;
+  border-top: 1px solid var(--line);
+  font-size: 12.5px;
+}
+.latest-episode-row:first-child {
+  border-top: 0;
+}
+.latest-episode-row > strong {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 500;
+  text-align: right;
+}
+.latest-episode-track {
+  display: block;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-elevated);
+}
+.latest-episode-track i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent-muted);
+}
+.latest-episode-signal {
+  color: var(--ink-dim);
+  font-family: var(--font-mono);
+  font-size: 10px;
 }
 .brief-kicker {
   grid-column: 1 / -1;
@@ -1780,7 +1843,9 @@ select:focus-visible {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
   .reliability-lower,
-  .economics-lower {
+  .economics-lower,
+  .product-upper,
+  .growth-plan-row {
     grid-template-columns: 1fr;
   }
 }
