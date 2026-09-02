@@ -56,12 +56,13 @@ pnpm --filter @zapengine/app ios:archive
 pnpm turbo run test:ios:release-smoke --filter=@zapengine/app
 
 # iOS App Store release
+pnpm --filter @zapengine/app ios:version:check
 pnpm --filter @zapengine/app ios:release
-pnpm --filter @zapengine/app ios:submit
+pnpm --filter @zapengine/app ios:submit -- <EAS_BUILD_ID>
 
 # Android Google Play release
 pnpm --filter @zapengine/app android:release
-pnpm --filter @zapengine/app android:submit
+pnpm --filter @zapengine/app android:submit -- <EAS_BUILD_ID>
 pnpm --filter @zapengine/app android:publish
 ```
 
@@ -100,14 +101,18 @@ exercise the same SPA fallback as Vercel. `check:web-native-leaks` parses web
 sourcemaps and fails if native-only packages are present as sources or imports.
 Use the Turbo command for workspace checks so upstream package builds are fresh.
 
-`android:release` creates a signed production AAB with EAS Build.
-`android:submit` submits the most recent build to the Google Play Closed testing
-`alpha` track, and `android:publish` builds and submits in one command. Complete
-the one-time credential and version setup in
-[docs/android-release.md](./docs/android-release.md) before the first EAS build.
+`android:release` creates a signed production AAB with EAS Build and reports the
+exact EAS build ID returned by that build. `android:submit` requires that exact
+ID and uploads it to the Google Play Closed testing `alpha` track; it never
+resolves a latest build. `android:publish` remains the EAS-managed one-command
+build-and-submit convenience path. Complete the one-time credential and version
+setup in [docs/android-release.md](./docs/android-release.md) before the first EAS
+build.
 
-`.github/workflows/release-mobile.yml` runs those same commands on GitHub Actions
-for either platform, triggered manually from the Actions tab. See
+`.github/workflows/release-mobile.yml` runs the release flow on GitHub Actions for
+either platform, triggered manually from the Actions tab. Build and submit are
+separate jobs, and the build ID is passed explicitly between them so a failed
+submit can be retried without creating another binary. See
 [docs/android-release.md](./docs/android-release.md#ci-release).
 
 ## iOS archive and TestFlight safety
@@ -117,12 +122,13 @@ therefore retain Pods from an older `package.json`, even when its own
 `Podfile.lock` and `Pods/Manifest.lock` still match. That can produce an IPA
 whose JavaScript imports a native module that the executable never linked.
 
-`ios:release` + `ios:submit` are the primary release path: the clean-source EAS
-production profile builds on Expo's macOS infrastructure, and the submit wrapper
-uploads that exact build to App Store Connect, which makes it available to
-TestFlight. Complete the one-time credential and versioning setup in
-[docs/ios-release.md](./docs/ios-release.md) first — `credentialsSource: remote`
-has no local fallback.
+`ios:version:check` + `ios:release` + `ios:submit -- <EAS_BUILD_ID>` are the
+primary release path. The version check refuses to build while EAS remote
+versioning is below the recorded App Store Connect floor; the clean-source EAS
+production profile then builds on Expo's macOS infrastructure, and submission
+uploads only the exact build ID produced by that release. Complete the one-time
+credential and versioning setup in [docs/ios-release.md](./docs/ios-release.md)
+first — `credentialsSource: remote` has no local fallback.
 
 `ios:archive` remains the supported local archiving path, and is what to reach
 for when EAS itself is the problem. It builds the workspace dependencies, applies
