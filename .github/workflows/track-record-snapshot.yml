@@ -71,19 +71,25 @@ jobs:
           git add apps/landing-page/public/track-record-meta.json
           git commit -m "Update daily track record snapshot"
 
+          # The branch keeps advancing while this job runs (PR merges, sibling
+          # crons), so replay the generated commit onto the current tip and push
+          # fast-forward only. --autostash: `pnpm build packages` can leave
+          # tracked design-token outputs modified, and rebase refuses a dirty
+          # tree even when already up to date.
+          branch="$GITHUB_REF_NAME"
           for attempt in 1 2 3; do
-            git fetch origin main
-            git rebase origin/main
-
-            if git push origin HEAD:main; then
+            git fetch origin "$branch"
+            if ! git rebase --autostash "origin/$branch"; then
+              echo "::error::Rebase onto origin/$branch failed (likely a concurrent change to track-record-meta.json); refusing to overwrite it."
+              exit 1
+            fi
+            if git push origin "HEAD:$branch"; then
               exit 0
             fi
-
             if [ "$attempt" -lt 3 ]; then
-              echo "Push raced with another main update; retrying ($attempt/3)..."
+              echo "Push rejected (attempt $attempt/3); refreshing $branch and retrying..."
               sleep 2
             fi
           done
-
-          echo "Failed to push track record meta after 3 attempts."
+          echo "::error::Failed to push track record meta after 3 attempts."
           exit 1

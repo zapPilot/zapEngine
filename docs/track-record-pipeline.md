@@ -31,7 +31,7 @@ read previous CID from track-record-meta.json
 → pin JSON to Pinata
 → update track-record-meta.json
 → verify the published chain
-→ commit and push the meta change
+→ commit the meta change, rebase it onto the latest branch tip, push fast-forward only (retried up to 3 times when the branch advances during the run)
 ```
 
 ## Commands
@@ -68,7 +68,7 @@ CID linkage, signature, signer, and performance calculations.
 
 ## Failure handling
 
-The workflow stops on command failure and does not commit a failed run. The scripts currently rely on request timeouts and normal command failure; they do **not** implement the previously documented three-attempt retry policy or a separate KV store.
+The workflow stops on command failure and does not commit a failed run. The only retry in the pipeline is the final push step: after committing the meta change it fetches the latest branch tip, rebases the generated commit onto it (`--autostash`), and pushes fast-forward only, retrying up to 3 times when the branch advances during the run. A concurrent change to `track-record-meta.json` that conflicts during rebase fails the job instead of being overwritten. The generate/publish/verify scripts themselves still rely on request timeouts and normal command failure and do **not** implement a three-attempt retry policy or a separate KV store.
 
 ## Not implemented here
 
