@@ -58,11 +58,11 @@
       "pnpm --filter @zapengine/alpha-etl exec eslint --fix",
       "pnpm --filter @zapengine/alpha-etl exec prettier --write"
     ],
-    "apps/control-center/**/*.{ts,tsx}": [
+    "apps/control-center/**/*.{mjs,ts,tsx}": [
       "pnpm --filter @zapengine/control-center exec eslint --fix",
       "pnpm --filter @zapengine/control-center exec prettier --write"
     ],
-    "apps/control-center/**/*.{js,jsx,json,md,mdx,css,scss,yml,yaml,mjs}": [
+    "apps/control-center/**/*.{js,jsx,json,md,mdx,css,scss,html,svg,yml,yaml}": [
       "pnpm --filter @zapengine/control-center exec prettier --write --ignore-unknown"
     ],
     "apps/desktop/{src,tests}/**/*.ts": [
