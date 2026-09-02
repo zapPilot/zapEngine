@@ -149,7 +149,7 @@ function StatementEvidence(props: {
       {header && header.facts.length > 0 ? (
         <div className="statement-header-facts">
           {header.facts.map((fact, index) => (
-            <div className="statement-header-fact" key={index}>
+            <div key={`${fact.kicker}-${index}`} className="statement-header-fact">
               <span>{fact.kicker}</span>
               <strong>{fact.value}</strong>
               <small>{fact.note}</small>
