@@ -5,12 +5,12 @@ import type {
 } from '../shared/types.js';
 import type { Statement, StatementSegment } from '../shared/statements.js';
 import { readControlCenterConfig } from './config/env.js';
+import { createStatementsService } from './services/statements/index.js';
 import { createOperationsService } from './services/operations/aggregate.js';
 import { createOverviewService } from './services/overview.js';
 import { createPodcastCostService } from './services/podcast-costs.js';
 import { createPodcastPipelineService } from './services/podcast-pipeline.js';
 import { createSocialGrowthService } from './services/social-growth.js';
-import { createStatementsService } from './services/statements/index.js';
 
 /**
  * The same read model the dashboard renders, without the dashboard.
