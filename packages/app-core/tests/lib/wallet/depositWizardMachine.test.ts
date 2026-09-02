@@ -21,7 +21,7 @@ const hlpStep: HyperliquidVaultDepositStep = {
   afterLegIndex: 1,
   amount: { source: 'bridge-output', legIndex: 1 },
   expectedUsd: '29000000',
-  minDepositUsd: '5000000',
+  minDepositUsd: '10000000',
   action: { type: 'vaultTransfer', vaultAddress: HLP, isDeposit: true },
   signing: {
     scheme: 'hyperliquid-l1-action',
@@ -277,7 +277,7 @@ describe('resolveHlpDepositUsd6', () => {
 
   it('throws before arrival and below the vault minimum', () => {
     expect(() => resolveHlpDepositUsd6(hlpStep, null)).toThrow('not known yet');
-    expect(() => resolveHlpDepositUsd6(hlpStep, 4_999_999n)).toThrow(
+    expect(() => resolveHlpDepositUsd6(hlpStep, 9_999_999n)).toThrow(
       'below the vault minimum',
     );
   });
