@@ -13,6 +13,7 @@ import type {
 } from '../shared/types.js';
 import { AppShell, type DashboardView } from './components/AppShell.js';
 import { EconomicsView } from './components/EconomicsView.js';
+import { GrowthDistributionBoard } from './components/GrowthDistributionBoard.js';
 import { GrowthView } from './components/GrowthView.js';
 import { HomeView } from './components/HomeView.js';
 import { PodcastPipelineView } from './components/PodcastPipelineView.js';
@@ -21,27 +22,27 @@ import { ReliabilityView } from './components/ReliabilityView.js';
 
 const VIEW_META: Record<DashboardView, { subtitle: string; title: string }> = {
   home: {
-    subtitle: 'What needs a decision right now',
+    subtitle: 'What needs action',
     title: 'Home',
   },
   pipeline: {
-    subtitle: 'Where each article is, what failed, and what can be restarted',
+    subtitle: 'Article production',
     title: 'Pipeline',
   },
   growth: {
-    subtitle: 'What to publish next, and what the last posts actually did',
+    subtitle: 'Publishing and reach',
     title: 'Growth',
   },
   product: {
-    subtitle: 'Who we serve, and whether their data is still current',
+    subtitle: 'Customers and data',
     title: 'Product',
   },
   reliability: {
-    subtitle: 'Every source that can tell us something is wrong',
+    subtitle: 'Systems and incidents',
     title: 'Reliability',
   },
   economics: {
-    subtitle: 'What the company spends, and which provider spends it',
+    subtitle: 'Spend and unit cost',
     title: 'Economics',
   },
 };
@@ -158,16 +159,17 @@ export function App() {
   const loadSocial = useCallback(
     (window: SocialPerformanceResponse['window'], force = false) =>
       run(async () => {
-        const [performance, growth] = await Promise.all([
+        const query = force ? '?force=1' : '';
+        const [performance, growth, socialOps] = await Promise.all([
           getJson<SocialPerformanceResponse>(
             `/api/social-performance?window=${encodeURIComponent(window)}`,
           ),
-          getJson<SocialGrowthResponse>(
-            `/api/social-growth${force ? '?force=1' : ''}`,
-          ),
+          getJson<SocialGrowthResponse>(`/api/social-growth${query}`),
+          getJson<OperationsSocialResponse>(`/api/operations/social${query}`),
         ]);
         setSocial(performance);
         setSocialGrowth(growth);
+        setOperationsSocial(socialOps);
       }),
     [run],
   );
@@ -215,7 +217,7 @@ export function App() {
     if (view === 'product' && !customers) {
       void loadCustomers();
     }
-    if (view === 'growth' && !socialGrowth) {
+    if (view === 'growth' && (!socialGrowth || !operationsSocial)) {
       void loadSocial(social?.window ?? 'latest');
     }
   }, [
@@ -297,11 +299,17 @@ export function App() {
         />
       ) : null}
       {view === 'growth' ? (
-        <GrowthView
-          data={social}
-          growth={socialGrowth}
-          onWindowChange={loadSocial}
-        />
+        <div className="view-stack">
+          <GrowthDistributionBoard
+            performance={social}
+            social={operationsSocial}
+          />
+          <GrowthView
+            data={social}
+            growth={socialGrowth}
+            onWindowChange={loadSocial}
+          />
+        </div>
       ) : null}
     </AppShell>
   );
