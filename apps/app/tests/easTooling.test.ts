@@ -320,6 +320,20 @@ describe('submit-production-build validates exact build', () => {
     expect(calls).toBe('');
   });
 
+  it('rejects a forwarded "--" rather than dropping the real build ID', () => {
+    // `pnpm <script> -- <id>` passes the literal `--` through, so this is the
+    // argv the workflow produced before the invocation was corrected.
+    const { status, stderr, calls } = runScriptWithEasStub(
+      submitScript,
+      ['ios', '--', 'real-build-id'],
+      { CI: 'true' },
+    );
+
+    expect(status).toBe(1);
+    expect(stderr).toContain('Expected an EAS build ID');
+    expect(calls).toBe('');
+  });
+
   it('rejects a build with non-store distribution and does not submit', () => {
     const viewJson = JSON.stringify({
       id: 'build-internal',
@@ -473,5 +487,18 @@ describe('iOS release version safety', () => {
     expect(workflow).toContain('needs: [gate, build-ios]');
     expect(workflow).toContain('ios_build_id:');
     expect(workflow).not.toContain('Submit the latest production build');
+  });
+
+  it('hands the build ID to the submit wrapper as a bare argument', () => {
+    // pnpm forwards a literal `--` to the script, so `<script> -- "$BUILD_ID"`
+    // would submit `--` and drop the ID that the build job just produced.
+    const workflow = readFileSync(
+      path.join(repoRoot, '.github', 'workflows', 'release-mobile.yml'),
+      'utf8',
+    );
+
+    expect(workflow).toContain('android:submit "$BUILD_ID"');
+    expect(workflow).toContain('ios:submit "$BUILD_ID"');
+    expect(workflow).not.toContain('submit -- "$BUILD_ID"');
   });
 });

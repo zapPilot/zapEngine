@@ -75,6 +75,17 @@ function main() {
     );
   }
 
+  // `pnpm <script> -- <id>` forwards the literal `--` to the script rather than
+  // consuming it, so that form arrives here as the build ID and silently drops
+  // the real one. Reject it up front instead of letting eas-cli resolve `--` to
+  // something unrelated.
+  if (buildId.startsWith('-')) {
+    throw new Error(
+      `Expected an EAS build ID, got "${buildId}". Pass the ID directly: ` +
+        `pnpm --filter @zapengine/app ${platform}:submit <build-id>.`,
+    );
+  }
+
   assertSubmitConfigured(platform);
   assertBuildIsSubmittable(platform, buildId);
   console.log(`Submitting production ${platform} build ${buildId}.`);

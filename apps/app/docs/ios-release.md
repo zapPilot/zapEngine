@@ -108,7 +108,7 @@ timeouts — and on the Expo dashboard at `expo.dev/accounts/<account>/projects/
 Submission requires that ID explicitly:
 
 ```bash
-pnpm --filter @zapengine/app ios:submit -- <EAS_BUILD_ID>
+pnpm --filter @zapengine/app ios:submit <EAS_BUILD_ID>
 ```
 
 There is intentionally no latest-build fallback. A release must submit the binary

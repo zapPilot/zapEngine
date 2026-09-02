@@ -179,7 +179,7 @@ the runner timeouts — and on the Expo dashboard at
 requires that ID explicitly:
 
 ```bash
-pnpm --filter @zapengine/app android:submit -- <EAS_BUILD_ID>
+pnpm --filter @zapengine/app android:submit <EAS_BUILD_ID>
 ```
 
 There is intentionally no latest-build lookup. This prevents a newer build from

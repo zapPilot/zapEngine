@@ -148,7 +148,7 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           BUILD_ID: ${{ steps.target.outputs.build_id }}
-        run: pnpm --filter @zapengine/app android:submit -- "$BUILD_ID"
+        run: pnpm --filter @zapengine/app android:submit "$BUILD_ID"
 
   submit-ios:
     needs: [gate, build-ios]
@@ -189,4 +189,4 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           BUILD_ID: ${{ steps.target.outputs.build_id }}
-        run: pnpm --filter @zapengine/app ios:submit -- "$BUILD_ID"
+        run: pnpm --filter @zapengine/app ios:submit "$BUILD_ID"
