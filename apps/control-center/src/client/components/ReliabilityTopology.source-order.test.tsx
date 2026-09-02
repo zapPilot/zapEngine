@@ -98,4 +98,21 @@ describe('ReliabilityTopology source ordering', () => {
     ).toBeVisible();
     expect(screen.queryByText('No extra detail')).not.toBeInTheDocument();
   });
+
+  it('falls back to diagnostic detail when structured evidence is missing', () => {
+    const detailOnly = signalFixture();
+    Object.assign(detailOnly, {
+      fingerprint: 'social-queue:detail-only',
+      source: 'social-queue',
+      title: 'Social queue delayed',
+      evidence: { overdueJobs: null, waitingMediaLanes: '' },
+      detail: 'Scheduler heartbeat is stale',
+    });
+    const data = operationsFixture({ signals: [detailOnly] });
+
+    render(<ReliabilityTopology data={data} social={null} />);
+
+    expect(screen.getByText('Scheduler heartbeat is stale')).toBeVisible();
+    expect(screen.queryByText('No extra detail')).not.toBeInTheDocument();
+  });
 });
