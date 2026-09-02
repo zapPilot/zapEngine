@@ -171,64 +171,68 @@ Create a signed production AAB on EAS:
 pnpm --filter @zapengine/app android:release
 ```
 
-Submit the latest finished **production store** build to the Closed testing
-`alpha` track:
+`android:release` waits for the build to finish and prints the exact EAS build ID
+returned by the same build command. Submission requires that ID explicitly:
 
 ```bash
-pnpm --filter @zapengine/app android:submit
+pnpm --filter @zapengine/app android:submit -- <EAS_BUILD_ID>
 ```
 
-The wrapper filters EAS builds by Android, `production`, `store`, and `finished`,
-then submits the exact build ID. Do not replace it with an unfiltered
-`eas submit --latest`: a newer preview APK could otherwise be selected and be
-fully shadowed by an existing production AAB in Google Play.
+There is intentionally no latest-build lookup. This prevents a newer build from
+another terminal, automation, or EAS dashboard session from being submitted by
+mistake.
 
-After the one-time setup is complete, build and submit the exact resulting build
-in one command:
+For a local one-command build plus EAS-managed auto-submit, this convenience
+command remains available:
 
 ```bash
 pnpm --filter @zapengine/app android:publish
 ```
 
-The default is intentionally a testing track. Promote a tested release to Open
-testing or Production from Play Console rather than making the repository command
-publish directly to all users.
+The default submission track remains Closed testing. Promote a tested release to
+Open testing or Production from Play Console rather than making the repository
+command publish directly to all users.
 
 ## CI release
 
-`.github/workflows/release-mobile.yml` runs the same commands on GitHub Actions.
-It drives Android and iOS from one workflow; the iOS-only prerequisites are in
+`.github/workflows/release-mobile.yml` drives Android and iOS from one manual
+workflow. The iOS-only prerequisites and build-number guard are documented in
 [ios-release.md](./ios-release.md).
 
-It needs one repository secret, `EXPO_TOKEN` — an Expo **robot** access token
-rather than a personal one, so revoking it does not lock anyone out of their own
-account. Nothing else moves to GitHub: the keystore, the Play service-account
-key, and the `production` environment variables all stay on EAS.
+It needs one repository secret, `EXPO_TOKEN` — an Expo **robot** access token.
+The keystore, Play service-account key, App Store Connect key, and production
+environment variables remain on EAS.
 
-Trigger it from the repository's **Actions** tab with two inputs:
+Trigger it from the repository's **Actions** tab with these inputs:
 
-| Input      | Values                                          |
-| ---------- | ----------------------------------------------- |
-| `platform` | `android`, `ios`, `both`                        |
-| `mode`     | `build-and-submit`, `build-only`, `submit-only` |
+| Input              | Values / usage                                                      |
+| ------------------ | ------------------------------------------------------------------- |
+| `platform`         | `android`, `ios`, `both`                                            |
+| `mode`             | `build-and-submit`, `build-only`, `submit-only`                     |
+| `android_build_id` | Exact EAS Android build ID; required for Android `submit-only`      |
+| `ios_build_id`     | Exact EAS iOS build ID; required for iOS `submit-only`              |
 
-`submit-only` is the mode that matters operationally: it maps to this document's
-guidance for a build that succeeded but whose submission did not. It resolves the
-latest finished production store build and submits that exact binary, so no new
-version code is consumed.
+Build and submit are separate jobs. Each build job writes the EAS build ID to a
+job output, and its submit job consumes that exact value. A failed submission can
+therefore be re-run without re-running the successful build job or consuming a
+new store version number.
 
-Two properties of the workflow are deliberate and worth knowing before changing
-it:
+`submit-only` is deliberately deterministic: it never asks EAS for "latest".
+Provide the exact build ID that should be retried. When `platform=both`, provide
+both IDs.
 
-- **Manual trigger only.** Remote auto-increment consumes a version code on
-  every build attempt, including failures, so a push-triggered release would burn
-  store version numbers on each merge.
-- **One global concurrency slot, never cancelled.** Concurrent releases would
-  each consume a version code, and both would race for the single "latest
-  finished production store build" that the submit wrapper resolves.
+Two workflow properties remain deliberate:
 
-A runner timeout does not cancel the build on EAS. When a build outlives its
-runner, rerun the workflow with `mode: submit-only` to ship the finished binary.
+- **Manual trigger only.** Remote auto-increment consumes a version code on every
+  build attempt, including failures, so a push-triggered release would burn store
+  version numbers on each merge.
+- **One global concurrency slot, never cancelled.** Exact IDs remove the submit
+  race, but concurrent production builds would still mutate the same remote
+  version counters unpredictably.
+
+A runner timeout does not cancel the EAS build. If the cloud build eventually
+finishes, locate that build's exact EAS ID and use `submit-only` rather than
+starting another build.
 
 ## Testers
 
@@ -278,9 +282,6 @@ does not rename the existing Play listing by itself.
   new app or silently replace the key.
 - **Version code already used:** check EAS remote version state and set it to the
   highest version currently present in Play Console, then rebuild.
-- **Shadowed APK:** do not submit an unfiltered latest build. Use
-  `android:submit` or `android:publish` so only the production store build is
-  selected.
 - **Runtime config missing:** add the required variable to the EAS `production`
   environment; the local `.env` is not uploaded.
 - **Publishing API disabled:** enable `androidpublisher.googleapis.com` in the
@@ -288,6 +289,5 @@ does not rename the existing Play listing by itself.
 - **Submit permission denied:** invite the service account under Play Console
   **Users and permissions**, select this app, and grant the release permissions
   listed above. Google Cloud project roles are not a substitute.
-- **Failed build consumed a version code:** this is expected with remote
-  auto-increment. Retry a successful binary with `android:submit`; do not rerun
-  `android:publish` merely to retry submission.
+- **Submission failed after a successful build:** retry only the submit job or
+  use `submit-only` with that exact EAS build ID. Do not rebuild just to retry.
