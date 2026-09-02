@@ -54,6 +54,42 @@ describe('ReliabilityTopology source ordering', () => {
     expect(screen.getByText('3 need attention')).toBeVisible();
   });
 
+  it('keeps malformed timestamps behind valid events at the same severity', () => {
+    const data = operationsFixture({
+      signals: [
+        signalFixture({
+          fingerprint: 'github-actions:invalid-time',
+          source: 'github-actions',
+          status: 'degraded',
+          observedAt: 'not-a-timestamp',
+          title: 'Malformed timestamp',
+        }),
+        signalFixture({
+          fingerprint: 'github-actions:older-valid',
+          source: 'github-actions',
+          status: 'degraded',
+          observedAt: '2026-09-01T00:00:00.000Z',
+          title: 'Older valid event',
+        }),
+        signalFixture({
+          fingerprint: 'github-actions:newer-valid',
+          source: 'github-actions',
+          status: 'degraded',
+          observedAt: '2026-09-02T00:00:00.000Z',
+          title: 'Newer valid event',
+        }),
+      ],
+    });
+
+    render(<ReliabilityTopology data={data} social={null} />);
+
+    const titles = [...document.querySelectorAll('.source-event strong')].map(
+      (node) => node.textContent,
+    );
+    expect(titles).toEqual(['Newer valid event', 'Older valid event']);
+    expect(screen.queryByText('Malformed timestamp')).not.toBeInTheDocument();
+  });
+
   it('keeps healthy and unknown evidence visible while reporting all clear', () => {
     const data = operationsFixture({
       signals: [
