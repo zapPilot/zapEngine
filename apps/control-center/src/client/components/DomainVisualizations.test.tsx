@@ -134,51 +134,64 @@ describe('domain-native control center visualizations', () => {
 
   it('distinguishes exhausted, overdue, and healthy queue severity', () => {
     const baseJob = socialOps().jobs[0]!;
-    const cases = [
+    const social = socialOps();
+    social.jobs = [
       {
+        ...baseJob,
         attemptsExhausted: true,
-        overdueMinutes: null as number | null,
-        expectedClass: 'critical',
-        blocked: '1 blocked',
+        overdueMinutes: null,
       },
-      {
-        attemptsExhausted: false,
-        overdueMinutes: 15 as number | null,
-        expectedClass: 'degraded',
-        blocked: '1 blocked',
-      },
-      {
-        attemptsExhausted: false,
-        overdueMinutes: null as number | null,
-        expectedClass: 'healthy',
-        blocked: '0 blocked',
-      },
-    ] as const;
+    ];
 
-    let rerender: ReturnType<typeof render>['rerender'] | null = null;
-    for (const [index, testCase] of cases.entries()) {
-      const social = socialOps();
-      social.jobs = [
-        {
-          ...baseJob,
-          attemptsExhausted: testCase.attemptsExhausted,
-          overdueMinutes: testCase.overdueMinutes,
-        },
-      ];
+    const { rerender } = render(
+      <ReliabilityTopology data={null} social={social} />,
+    );
 
-      if (index === 0) {
-        const result = render(
-          <ReliabilityTopology data={null} social={social} />,
-        );
-        rerender = result.rerender;
-      } else {
-        rerender!(<ReliabilityTopology data={null} social={social} />);
-      }
+    expect(screen.getByText('Queue').closest('.social-flow-node')).toHaveClass(
+      'critical',
+    );
+    expect(screen.getByText('1 blocked')).toBeVisible();
 
-      expect(
-        screen.getByText('Queue').closest('.social-flow-node'),
-      ).toHaveClass(testCase.expectedClass);
-      expect(screen.getByText(testCase.blocked)).toBeVisible();
-    }
+    rerender(
+      <ReliabilityTopology
+        data={null}
+        social={{
+          ...social,
+          jobs: [
+            {
+              ...baseJob,
+              attemptsExhausted: false,
+              overdueMinutes: 15,
+            },
+          ],
+        }}
+      />,
+    );
+
+    expect(screen.getByText('Queue').closest('.social-flow-node')).toHaveClass(
+      'degraded',
+    );
+    expect(screen.getByText('1 blocked')).toBeVisible();
+
+    rerender(
+      <ReliabilityTopology
+        data={null}
+        social={{
+          ...social,
+          jobs: [
+            {
+              ...baseJob,
+              attemptsExhausted: false,
+              overdueMinutes: null,
+            },
+          ],
+        }}
+      />,
+    );
+
+    expect(screen.getByText('Queue').closest('.social-flow-node')).toHaveClass(
+      'healthy',
+    );
+    expect(screen.getByText('0 blocked')).toBeVisible();
   });
 });
