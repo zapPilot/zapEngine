@@ -66,6 +66,10 @@ describe('client formatters', () => {
     expect(relativeTime('2026-08-26T12:00:00.000Z')).not.toContain('ago');
   });
 
+  it('keeps malformed timestamps visible as unknown', () => {
+    expect(relativeTime('not-a-timestamp')).toBe('Unknown');
+  });
+
   it('drops points the cost sync never recorded', () => {
     expect(
       filterKnownAccruedCost([
