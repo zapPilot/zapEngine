@@ -32,9 +32,39 @@ The remote deployment receives the same provider credentials through the Control
 
 1. Call `ops_status` first to get all eight domains, signals, and deterministic priorities.
 2. For a priority incident, call `ops_investigate` with the stable signal fingerprint. This is the normal bounded incident packet and may use `force: true` when an operator explicitly needs fresh provider reads.
-3. Call `ops_inspect_signal` only when extra provider-specific evidence is needed. For Sentry it returns the internal numeric issue IDs needed for remediation.
-4. Use `ops_domain`, `ops_signal`, `ops_customers`, `ops_social`, or the `ops_costs` compatibility alias for narrower reads.
-5. Use `ops_resolve_sentry_issue` only when the user explicitly asks to close/resolve that issue or explicitly delegates Sentry cleanup after the fix has been verified.
+3. Before proposing autonomous remediation, call `ops_assess_remediation`. Operational priority answers how much an incident matters; remediation suitability answers how much autonomy an agent may exercise. They are intentionally separate.
+4. Call `ops_inspect_signal` only when extra provider-specific evidence is needed. For Sentry it returns the internal numeric issue IDs needed for remediation.
+5. Use `ops_domain`, `ops_signal`, `ops_customers`, `ops_social`, or the `ops_costs` compatibility alias for narrower reads.
+6. Use `ops_resolve_sentry_issue` only when the user explicitly asks to close/resolve that issue or explicitly delegates Sentry cleanup after the fix has been verified.
+
+## Remediation autonomy
+
+`ops_assess_remediation` is read-only and deterministic. It combines the active signal, its operational priority score, and evidence gaps from the normal incident investigation path into a separate remediation assessment.
+
+The assessment returns:
+
+- `policyVersion` — the policy revision that produced the decision;
+- `operationalPriorityScore` — impact/urgency from the existing priority engine;
+- `suitabilityScore` — how suitable the incident is for bounded autonomous remediation;
+- `autonomy` — `observe`, `auto-pr`, or `approval-required`;
+- `risk` — `low`, `medium`, or `high`;
+- `evidenceReady` — whether the current investigation has enough evidence to consider autonomous work;
+- `directMutationAllowed` — always `false` in policy v1;
+- `reasons` and `blockers` — machine-readable explanations for the boundary.
+
+The v1 policy deliberately cannot authorize provider or runtime mutations. Its highest autonomous level is `auto-pr`, which means an agent may prepare a regression-backed code change for review; it does not mean merge, deploy, requeue, rerun, scale, mutate customer state, or change provider state.
+
+Safety rules are fail-closed:
+
+- `unknown` provider state is never remediation-ready;
+- an adapter/source failure is treated as missing evidence, not as proof that the observed system is broken;
+- any unresolved `ops_investigate` evidence gap reduces the assessment to `observe`;
+- customer, cost-policy, and infrastructure remediation remains approval-gated;
+- any signal carrying non-zero `aumAtRiskUsd` is high risk and approval-gated even when its operational priority is high.
+
+This separation is intentional: a priority score of 100 can correspond to a low autonomy score because higher impact increases blast radius.
+
+`ops_resolve_sentry_issue` remains a separate, explicit delegated mutation. A favorable remediation assessment does not bypass the Sentry resolve gate documented below or the production verification rules in the incident-remediation skill.
 
 `ops_resolve_sentry_issue` takes one numeric Sentry issue ID plus a required human-readable `reason`. The implementation always sends exactly `{ "status": "resolved" }` to that one issue. The caller cannot choose `ignored`, merge issues, assign ownership, make an issue public, delete it, or bulk-mutate issues through MCP.
 
@@ -53,8 +83,9 @@ From Claude Code or OpenCode at the repository root:
 1. Confirm `zap-pilot-ops` appears in `tools/list`.
 2. Call `ops_status` and confirm all eight domains are present.
 3. Confirm configured production providers do not all report `unknown` because of missing environment injection.
-4. Pick a real Sentry signal fingerprint and call `ops_inspect_signal`; confirm the issue evidence includes a numeric issue ID.
-5. With `SENTRY_OPS_WRITE_TOKEN` configured, resolve a disposable/test issue through `ops_resolve_sentry_issue` and confirm only that issue changes to `resolved`.
+4. Pick an active priority fingerprint and call `ops_assess_remediation`; confirm the response separates operational priority from autonomy and that `directMutationAllowed` is `false`.
+5. Pick a real Sentry signal fingerprint and call `ops_inspect_signal`; confirm the issue evidence includes a numeric issue ID.
+6. With `SENTRY_OPS_WRITE_TOKEN` configured, resolve a disposable/test issue through `ops_resolve_sentry_issue` and confirm only that issue changes to `resolved`.
 
 The repository tests lock both client discovery files to the canonical launcher and assert that the launcher explicitly selects the production environment.
 
@@ -62,4 +93,4 @@ The repository tests lock both client discovery files to the canonical launcher 
 
 Send MCP requests to `/api/mcp` with the bearer token from `OPS_MCP_TOKEN`. Missing configuration, missing authorization, and incorrect authorization all return the same `401 Unauthorized` response so the endpoint does not disclose whether a token is configured.
 
-The HTTP integration tests cover protocol initialization, tool discovery, `ops_status`, and the bounded Sentry resolve tool, including `structuredContent`.
+The HTTP integration tests cover protocol initialization, tool discovery, `ops_status`, `ops_assess_remediation`, and the bounded Sentry resolve tool, including `structuredContent`.
