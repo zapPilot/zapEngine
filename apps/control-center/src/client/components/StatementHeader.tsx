@@ -7,6 +7,23 @@ import type {
 import type { OperationalStatus } from '../../shared/types.js';
 import { renderSentence } from './statement-sentence.js';
 
+export function StatementFacts(props: { facts: StatementFact[] }) {
+  if (props.facts.length === 0) {
+    return null;
+  }
+  return (
+    <div className="statement-header-facts">
+      {props.facts.map((fact, index) => (
+        <div className="statement-header-fact" key={index}>
+          <span>{fact.kicker}</span>
+          <strong>{fact.value}</strong>
+          <small>{fact.note}</small>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /**
  * The page-top banner on Growth, Product, Reliability, Pipeline and
  * Economics: one bigger sentence (two or three rules' segments
@@ -27,17 +44,7 @@ export function StatementHeader(props: {
         </p>
         {props.action}
       </div>
-      {props.facts.length > 0 ? (
-        <div className="statement-header-facts">
-          {props.facts.map((fact, index) => (
-            <div className="statement-header-fact" key={index}>
-              <span>{fact.kicker}</span>
-              <strong>{fact.value}</strong>
-              <small>{fact.note}</small>
-            </div>
-          ))}
-        </div>
-      ) : null}
+      <StatementFacts facts={props.facts} />
     </section>
   );
 }

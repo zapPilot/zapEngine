@@ -11,6 +11,7 @@ import type { DashboardView } from './AppShell.js';
 import { MetricCell } from './MetricCell.js';
 import { PriorityQueue } from './PriorityQueue.js';
 import { Statement } from './Statement.js';
+import { StatementFacts } from './StatementHeader.js';
 import { renderSentence } from './statement-sentence.js';
 
 const FULL_VIEW: Record<StatementDomain, DashboardView> = {
@@ -146,17 +147,7 @@ function StatementEvidence(props: {
   );
   return (
     <div className="evidence-stack">
-      {header && header.facts.length > 0 ? (
-        <div className="statement-header-facts">
-          {header.facts.map((fact, index) => (
-            <div key={`${fact.kicker}-${index}`} className="statement-header-fact">
-              <span>{fact.kicker}</span>
-              <strong>{fact.value}</strong>
-              <small>{fact.note}</small>
-            </div>
-          ))}
-        </div>
-      ) : null}
+      {header ? <StatementFacts facts={header.facts} /> : null}
       {props.domain === 'reliability' ? (
         <PriorityQueue
           emptyMessage="Nothing above the action threshold."

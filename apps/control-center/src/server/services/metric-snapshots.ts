@@ -51,7 +51,8 @@ const HISTORY_WINDOW_DAYS = 35;
 export function createMetricSnapshotRepository(
   config: ControlCenterConfig,
 ): MetricSnapshotRepository | null {
-  const { SUPABASE_URL: url, SUPABASE_SERVICE_ROLE_KEY: serviceRoleKey } = config;
+  const url = config.SUPABASE_URL;
+  const serviceRoleKey = config.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !serviceRoleKey) {
     return null;
   }

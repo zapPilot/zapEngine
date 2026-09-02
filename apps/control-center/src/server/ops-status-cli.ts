@@ -6,8 +6,8 @@ import type {
 import type { Statement, StatementSegment } from '../shared/statements.js';
 import { readControlCenterConfig } from './config/env.js';
 import { createStatementsService } from './services/statements/index.js';
-import { createOperationsService } from './services/operations/aggregate.js';
 import { createOverviewService } from './services/overview.js';
+import { createOperationsService } from './services/operations/aggregate.js';
 import { createPodcastCostService } from './services/podcast-costs.js';
 import { createPodcastPipelineService } from './services/podcast-pipeline.js';
 import { createSocialGrowthService } from './services/social-growth.js';
