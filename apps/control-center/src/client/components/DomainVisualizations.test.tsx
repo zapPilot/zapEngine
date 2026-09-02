@@ -132,6 +132,58 @@ describe('domain-native control center visualizations', () => {
     expect(screen.getByText('not verified')).toBeVisible();
   });
 
+  it('ranks source events by severity then recency and keeps only the top two', () => {
+    const data = operationsFixture({
+      signals: [
+        signalFixture({
+          fingerprint: 'github-actions:healthy-newest',
+          source: 'github-actions',
+          domain: 'jobs',
+          status: 'healthy',
+          observedAt: '2026-08-28T11:59:00.000Z',
+          title: 'Healthy newest',
+        }),
+        signalFixture({
+          fingerprint: 'github-actions:critical-older',
+          source: 'github-actions',
+          domain: 'jobs',
+          status: 'critical',
+          observedAt: '2026-08-28T10:00:00.000Z',
+          title: 'Critical older',
+        }),
+        signalFixture({
+          fingerprint: 'github-actions:degraded-newer',
+          source: 'github-actions',
+          domain: 'jobs',
+          status: 'degraded',
+          observedAt: '2026-08-28T11:58:00.000Z',
+          title: 'Degraded newer',
+        }),
+        signalFixture({
+          fingerprint: 'github-actions:critical-newer',
+          source: 'github-actions',
+          domain: 'jobs',
+          status: 'critical',
+          observedAt: '2026-08-28T11:00:00.000Z',
+          title: 'Critical newer',
+        }),
+      ],
+    });
+
+    render(<ReliabilityTopology data={data} social={null} />);
+
+    const events = screen
+      .getByText('GitHub')
+      .closest('.source-activity-card')!
+      .querySelectorAll('.source-event strong');
+    expect([...events].map((event) => event.textContent)).toEqual([
+      'Critical newer',
+      'Critical older',
+    ]);
+    expect(screen.queryByText('Degraded newer')).toBeNull();
+    expect(screen.queryByText('Healthy newest')).toBeNull();
+  });
+
   it('distinguishes exhausted, overdue, and healthy queue severity', () => {
     const baseJob = socialOps().jobs[0]!;
     const cases = [
