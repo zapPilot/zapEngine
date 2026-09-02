@@ -43,5 +43,5 @@ export const HLP_VAULT_NAME = 'Hyperliquid HLP';
 /** Withdrawals unlock this many days after the most recent deposit. */
 export const HLP_LOCKUP_DAYS = 4;
 
-/** Hyperliquid vault minimum deposit: 5 USDC in 6-decimal base units. */
-export const HLP_MIN_DEPOSIT_USD = '5000000';
+/** Hyperliquid HLP minimum deposit: 10 USDC in 6-decimal base units. */
+export const HLP_MIN_DEPOSIT_USD = '10000000';
