@@ -16,7 +16,7 @@ on:
           - ios
           - both
       mode:
-        description: Build a new binary, submit the latest existing one, or both
+        description: Build a new binary, submit an exact existing build, or both
         required: true
         default: build-and-submit
         type: choice
@@ -24,20 +24,26 @@ on:
           - build-and-submit
           - build-only
           - submit-only
+      android_build_id:
+        description: Exact EAS Android build ID (required for submit-only when Android is selected)
+        required: false
+        type: string
+      ios_build_id:
+        description: Exact EAS iOS build ID (required for submit-only when iOS is selected)
+        required: false
+        type: string
 
 permissions:
   contents: read
 
-# A single global slot, never cancelled. Two concurrent releases would each burn
-# a version number, and both would race for "the latest finished production
-# store build" that the submit wrapper resolves.
+# Keep one global release slot because remote auto-increment is shared mutable
+# state. Exact build IDs remove the submission race, but concurrent builds would
+# still consume version numbers unpredictably.
 concurrency:
   group: release-mobile
   cancel-in-progress: false
 
 jobs:
-  # Local equivalent:
-  # `pnpm turbo run type-check lint test build --filter=@zapengine/app`
   gate:
     if: inputs.mode != 'submit-only'
     runs-on: ubuntu-latest
@@ -55,40 +61,17 @@ jobs:
       - name: Check formatting
         run: pnpm --filter @zapengine/app format:check
 
-  resolve:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    outputs:
-      platforms: ${{ steps.resolve.outputs.platforms }}
-    steps:
-      - id: resolve
-        env:
-          PLATFORM: ${{ inputs.platform }}
-        run: |
-          case "$PLATFORM" in
-            both) platforms='["android","ios"]' ;;
-            android | ios) platforms="[\"$PLATFORM\"]" ;;
-            *) echo "error: unsupported platform '$PLATFORM'" >&2; exit 1 ;;
-          esac
-          echo "platforms=$platforms" >> "$GITHUB_OUTPUT"
-
-  release:
-    needs: [gate, resolve]
-    # `gate` is skipped in submit-only mode, which `success()` would treat as a
-    # reason not to run.
+  build-android:
+    needs: gate
     if: |
       always()
-      && needs.resolve.result == 'success'
-      && contains(fromJSON('["success", "skipped"]'), needs.gate.result)
+      && inputs.mode != 'submit-only'
+      && contains(fromJSON('["android", "both"]'), inputs.platform)
+      && needs.gate.result == 'success'
     runs-on: ubuntu-latest
-    # EAS queue time is outside this workflow's control and the runner only polls
-    # while waiting. A timeout here does not cancel the build on EAS: rerun with
-    # `mode: submit-only` to ship a binary whose build outlived its runner.
     timeout-minutes: 120
-    strategy:
-      fail-fast: false
-      matrix:
-        platform: ${{ fromJSON(needs.resolve.outputs.platforms) }}
+    outputs:
+      build_id: ${{ steps.build.outputs.build_id }}
     steps:
       - uses: actions/checkout@v7
 
@@ -96,19 +79,119 @@ jobs:
         with:
           uv: 'false'
 
-      # No local package build: `eas build` uploads the project and runs
-      # `eas-build-post-install` on EAS, and app.config.ts imports no workspace
-      # package.
-      - name: Build on EAS
-        if: inputs.mode != 'submit-only'
+      - id: build
+        name: Build Android on EAS
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-          PLATFORM: ${{ matrix.platform }}
-        run: pnpm --filter @zapengine/app "$PLATFORM:release"
+        run: pnpm --filter @zapengine/app android:release
 
-      - name: Submit the latest production build
-        if: inputs.mode != 'build-only'
+  build-ios:
+    needs: gate
+    if: |
+      always()
+      && inputs.mode != 'submit-only'
+      && contains(fromJSON('["ios", "both"]'), inputs.platform)
+      && needs.gate.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    outputs:
+      build_id: ${{ steps.build.outputs.build_id }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup-workspace
+        with:
+          uv: 'false'
+
+      - name: Verify EAS iOS build number is not behind App Store Connect
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-          PLATFORM: ${{ matrix.platform }}
-        run: pnpm --filter @zapengine/app "$PLATFORM:submit"
+        run: pnpm --filter @zapengine/app ios:version:check
+
+      - id: build
+        name: Build iOS on EAS
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: pnpm --filter @zapengine/app ios:release
+
+  submit-android:
+    needs: [gate, build-android]
+    if: |
+      always()
+      && inputs.mode != 'build-only'
+      && contains(fromJSON('["android", "both"]'), inputs.platform)
+      && contains(fromJSON('["success", "skipped"]'), needs.gate.result)
+      && contains(fromJSON('["success", "skipped"]'), needs.build-android.result)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup-workspace
+        with:
+          uv: 'false'
+
+      - id: target
+        name: Resolve exact Android build ID
+        env:
+          MODE: ${{ inputs.mode }}
+          BUILT_ID: ${{ needs.build-android.outputs.build_id }}
+          INPUT_ID: ${{ inputs.android_build_id }}
+        run: |
+          if [[ "$MODE" == "submit-only" ]]; then
+            build_id="$INPUT_ID"
+          else
+            build_id="$BUILT_ID"
+          fi
+          if [[ -z "$build_id" ]]; then
+            echo "error: an exact Android EAS build ID is required" >&2
+            exit 1
+          fi
+          echo "build_id=$build_id" >> "$GITHUB_OUTPUT"
+
+      - name: Submit exact Android build
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          BUILD_ID: ${{ steps.target.outputs.build_id }}
+        run: pnpm --filter @zapengine/app android:submit -- "$BUILD_ID"
+
+  submit-ios:
+    needs: [gate, build-ios]
+    if: |
+      always()
+      && inputs.mode != 'build-only'
+      && contains(fromJSON('["ios", "both"]'), inputs.platform)
+      && contains(fromJSON('["success", "skipped"]'), needs.gate.result)
+      && contains(fromJSON('["success", "skipped"]'), needs.build-ios.result)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup-workspace
+        with:
+          uv: 'false'
+
+      - id: target
+        name: Resolve exact iOS build ID
+        env:
+          MODE: ${{ inputs.mode }}
+          BUILT_ID: ${{ needs.build-ios.outputs.build_id }}
+          INPUT_ID: ${{ inputs.ios_build_id }}
+        run: |
+          if [[ "$MODE" == "submit-only" ]]; then
+            build_id="$INPUT_ID"
+          else
+            build_id="$BUILT_ID"
+          fi
+          if [[ -z "$build_id" ]]; then
+            echo "error: an exact iOS EAS build ID is required" >&2
+            exit 1
+          fi
+          echo "build_id=$build_id" >> "$GITHUB_OUTPUT"
+
+      - name: Submit exact iOS build
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          BUILD_ID: ${{ steps.target.outputs.build_id }}
+        run: pnpm --filter @zapengine/app ios:submit -- "$BUILD_ID"
