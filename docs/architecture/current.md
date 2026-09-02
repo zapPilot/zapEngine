@@ -132,7 +132,7 @@ Historical portfolio semantics are documented in [snapshot architecture](../snap
 
 **Runtime:** Vercel deployment plus founder-local Vite UI / Hono API for operator workflows.
 
-**Owns:** the unified operational read model, customer service/economics views, persisted cost history, social-performance evidence, and the narrowly bounded remediation capabilities documented in [`apps/control-center/MCP.md`](../../apps/control-center/MCP.md). The detailed operational contracts live in [`apps/control-center/README.md`](../../apps/control-center/README.md); do not duplicate adapter thresholds or scoring rules here.
+**Owns:** the unified operational read model, customer service/economics views, persisted cost history, social-performance evidence, and narrowly bounded operator remediation capabilities. Detailed operational contracts, including non-MCP operator mutations, live in [`apps/control-center/README.md`](../../apps/control-center/README.md); MCP-specific tool and credential boundaries live in [`apps/control-center/MCP.md`](../../apps/control-center/MCP.md). Do not duplicate adapter thresholds or scoring rules here.
 
 **Does not own:** production application request traffic or production daemons.
 
