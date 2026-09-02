@@ -28,7 +28,7 @@ jobs:
       DATABASE_READ_ONLY: 'true'
       DATABASE_READ_ONLY_URL: ${{ secrets.DATABASE_READ_ONLY_URL }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: ./.github/actions/setup-workspace
 

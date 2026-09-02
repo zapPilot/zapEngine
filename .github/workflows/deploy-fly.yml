@@ -68,7 +68,7 @@ jobs:
       INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET: ${{ secrets.infisical_client_secret }}
       INFISICAL_PROJECT_ID: ${{ secrets.infisical_project_id }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup workspace
         uses: ./.github/actions/setup-workspace
