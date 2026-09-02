@@ -8,7 +8,7 @@ import { useRouter } from 'expo-router';
 import { Check, Circle, LoaderCircle, X } from 'lucide-react-native';
 import { useEffect, useRef, useState } from 'react';
 import { Text, View } from 'react-native';
-import type { Hash } from 'viem';
+import { formatUnits, type Hash } from 'viem';
 
 import { StepHeader } from '@/components/invest/StepHeader';
 import { WizardDoneCard } from '@/components/invest/WizardDoneCard';
@@ -131,34 +131,38 @@ export function HlpProgressScreen() {
   const baselineUsd6 = invest.hlpBaselineUsd6;
   const reviewedFailed = reviewedProgress?.phase === 'failed';
   const isDone = wizard.stage === 'done';
+  const canTrackExisting = Boolean(
+    exactPlan &&
+      hlpStep &&
+      sourceTxHash &&
+      baselineUsd6 &&
+      !reviewedFailed,
+  );
 
-  useEffect(() => {
-    if (
-      !exactPlan ||
-      !hlpStep ||
-      !sourceTxHash ||
-      !baselineUsd6 ||
-      reviewedFailed
-    ) {
-      return;
-    }
-    const key = `${reviewedSubmission?.callsId ?? 'reviewed'}:${sourceTxHash}:${baselineUsd6}`;
-    if (resumedKeyRef.current === key) return;
-    resumedKeyRef.current = key;
+  const trackExistingDeposit = async () => {
+    if (!exactPlan || !hlpStep || !sourceTxHash || !baselineUsd6) return;
     setFlowError(null);
-    void resumeReviewedPlan({
+    await resumeReviewedPlan({
       plan: exactPlan,
       baselineUsd6: BigInt(baselineUsd6),
       sourceTxHash: sourceTxHash as Hash,
-    }).catch((error: unknown) => {
+    });
+  };
+
+  useEffect(() => {
+    if (!canTrackExisting || !sourceTxHash || !baselineUsd6) return;
+    const key = `${reviewedSubmission?.callsId ?? 'reviewed'}:${sourceTxHash}:${baselineUsd6}`;
+    if (resumedKeyRef.current === key) return;
+    resumedKeyRef.current = key;
+    void trackExistingDeposit().catch((error: unknown) => {
       setFlowError(error instanceof Error ? error.message : String(error));
     });
+    // The exact reviewed plan is held in reviewedQueue; the stable key below
+    // deliberately prevents rerenders from restarting bridge polling.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     baselineUsd6,
-    exactPlan,
-    hlpStep,
-    resumeReviewedPlan,
-    reviewedFailed,
+    canTrackExisting,
     reviewedSubmission?.callsId,
     sourceTxHash,
   ]);
@@ -211,28 +215,51 @@ export function HlpProgressScreen() {
       ? 'done'
       : wizard.hlp.status === 'confirming'
         ? 'active'
-        : wizard.error?.stage === 'hyperliquidDeposit'
+        : wizard.error?.stage === 'hyperliquidDeposit' &&
+            wizard.hlp.status === 'arrived'
           ? 'failed'
           : 'waiting';
 
   const unsafeResumeReason = !reviewedSubmission
-    ? 'The reviewed source batch is missing. Return to the route and submit a fresh review.'
+    ? 'No reviewed source submission was found. No HLP action will be attempted.'
     : !baselineUsd6
-      ? 'The pre-bridge Hyperliquid balance snapshot is missing. For safety, Zap Pilot will not infer the deposit amount from the current balance.'
+      ? 'The pre-bridge Hyperliquid balance snapshot is missing. For safety, Zap Pilot will not infer the deposit amount from the current balance or submit another bridge.'
       : !exactPlan || !hlpStep
-        ? 'The submitted reviewed plan does not contain the expected HLP follow-up.'
-        : reviewedFailed
-          ? (reviewedProgress?.statusNote ?? 'The reviewed Base batch failed.')
-          : null;
+        ? 'The submitted reviewed plan does not contain the expected HLP follow-up. The source transaction will not be resubmitted.'
+        : !sourceTxHash
+          ? 'The wallet did not expose the source transaction hash, so Zap Pilot cannot safely track this bridge. The source transaction will not be resubmitted.'
+          : reviewedFailed
+            ? (reviewedProgress?.statusNote ??
+              'The reviewed Base batch reported a failure. Zap Pilot will not resubmit it automatically.')
+            : null;
   const visibleError = unsafeResumeReason ?? flowError ?? wizard.error?.message;
   const canRetryHlp =
     wizard.error?.stage === 'hyperliquidDeposit' &&
     wizard.hlp.status === 'arrived';
+  const canRetryTracking =
+    Boolean(wizard.error || flowError) && canTrackExisting && !canRetryHlp;
 
   const finish = () => {
     resetHlp();
     resetReviewedExecution();
     router.replace('/home');
+  };
+
+  const retryHlpSignature = () => {
+    setFlowError(null);
+    retry();
+    void runHlpDeposit().catch((error: unknown) => {
+      setFlowError(error instanceof Error ? error.message : String(error));
+    });
+  };
+
+  const retryTracking = () => {
+    resumedKeyRef.current = null;
+    autoDepositAttemptedRef.current = false;
+    setFlowError(null);
+    void trackExistingDeposit().catch((error: unknown) => {
+      setFlowError(error instanceof Error ? error.message : String(error));
+    });
   };
 
   if (isDone) {
@@ -290,7 +317,7 @@ export function HlpProgressScreen() {
             label="HyperCore USDC arrived"
             detail={
               wizard.hlp.arrivedUsd6 !== null
-                ? `${Number(wizard.hlp.arrivedUsd6) / 1_000_000} USDC received for this deposit.`
+                ? `${formatUnits(wizard.hlp.arrivedUsd6, 6)} USDC received for this deposit.`
                 : 'Waiting for the balance delta above the pre-bridge snapshot.'
             }
             state={arrivalState}
@@ -314,26 +341,10 @@ export function HlpProgressScreen() {
               body={visibleError}
               action={
                 canRetryHlp
-                  ? {
-                      label: 'Retry HLP signature',
-                      onPress: () => {
-                        setFlowError(null);
-                        retry();
-                        void runHlpDeposit().catch((error: unknown) => {
-                          setFlowError(
-                            error instanceof Error ? error.message : String(error),
-                          );
-                        });
-                      },
-                    }
-                  : {
-                      label: 'Create fresh review',
-                      onPress: () => {
-                        resetHlp();
-                        resetReviewedExecution();
-                        router.replace('/invest/route');
-                      },
-                    }
+                  ? { label: 'Retry HLP signature', onPress: retryHlpSignature }
+                  : canRetryTracking
+                    ? { label: 'Retry tracking', onPress: retryTracking }
+                    : { label: 'Return home', onPress: () => router.replace('/home') }
               }
             />
           </View>
