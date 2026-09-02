@@ -72,14 +72,18 @@ export function duration(value: number | null | undefined): string {
 }
 
 export function relativeTime(value: string): string {
-  const elapsed = Date.now() - Date.parse(value);
+  const parsed = Date.parse(value);
+  if (Number.isNaN(parsed)) {
+    return 'Unknown';
+  }
+  const elapsed = Date.now() - parsed;
   if (elapsed < 60_000) {
     return 'just now';
   }
   if (elapsed < 60 * 60_000) {
     return `${Math.floor(elapsed / 60_000)} min ago`;
   }
-  return new Date(value).toLocaleString();
+  return new Date(parsed).toLocaleString();
 }
 
 export function providerUsage(unit: 'usd' | 'units', value: number): string {
