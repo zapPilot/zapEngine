@@ -181,4 +181,33 @@ describe('domain-native control center visualizations', () => {
       expect(screen.getByText(testCase.blocked)).toBeVisible();
     }
   });
+
+  it('degrades media only when three or more lanes are waiting', () => {
+    const cases = [
+      { waitingMediaLanes: 2, expectedClass: 'healthy' },
+      { waitingMediaLanes: 3, expectedClass: 'degraded' },
+    ] as const;
+
+    let rerender: ReturnType<typeof render>['rerender'] | null = null;
+    for (const [index, testCase] of cases.entries()) {
+      const social = socialOps();
+      social.waitingMediaLanes = testCase.waitingMediaLanes;
+
+      if (index === 0) {
+        const result = render(
+          <ReliabilityTopology data={null} social={social} />,
+        );
+        rerender = result.rerender;
+      } else {
+        rerender!(<ReliabilityTopology data={null} social={social} />);
+      }
+
+      expect(
+        screen.getByText('Media').closest('.social-flow-node'),
+      ).toHaveClass(testCase.expectedClass);
+      expect(
+        screen.getByText(`${testCase.waitingMediaLanes} waiting`),
+      ).toBeVisible();
+    }
+  });
 });
