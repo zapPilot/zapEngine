@@ -105,6 +105,7 @@ describe('Ops MCP HTTP protocol', () => {
         'ops_signal',
         'ops_inspect_signal',
         'ops_investigate',
+        'ops_assess_remediation',
         'ops_customers',
         'ops_social',
         'ops_costs',
@@ -126,6 +127,27 @@ describe('Ops MCP HTTP protocol', () => {
     expect(operations.getOperations).toHaveBeenCalledWith(false);
   });
 
+  it('fails closed when remediation is assessed for a cleared signal', async () => {
+    const operations = fakeOperations();
+    const app = createAuthenticatedApp(operations);
+    const fingerprint = 'github-actions:workflow/cleared.yml';
+    const { response, payload } = await mcpRequest(
+      app,
+      toolCallRequest(4, 'ops_assess_remediation', { fingerprint }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(payload.result?.structuredContent).toEqual({
+      generatedAt: SNAPSHOT.generatedAt,
+      fingerprint,
+      found: false,
+      priorityScore: null,
+      assessment: null,
+    });
+    expect(operations.getOperations).toHaveBeenCalledWith(false);
+    expect(operations.investigate).not.toHaveBeenCalled();
+  });
+
   it('resolves one explicit Sentry issue through the bounded mutation tool', async () => {
     const operations = fakeOperations();
     const app = createAuthenticatedApp(operations);
@@ -135,7 +157,7 @@ describe('Ops MCP HTTP protocol', () => {
     };
     const { response, payload } = await mcpRequest(
       app,
-      toolCallRequest(4, 'ops_resolve_sentry_issue', arguments_),
+      toolCallRequest(5, 'ops_resolve_sentry_issue', arguments_),
     );
 
     expect(response.status).toBe(200);
@@ -153,7 +175,7 @@ describe('Ops MCP HTTP protocol', () => {
     });
     const app = createAuthenticatedApp();
 
-    const { response, payload } = await mcpRequest(app, initializeRequest(5));
+    const { response, payload } = await mcpRequest(app, initializeRequest(6));
 
     expect(response.status).toBe(500);
     expect(JSON.stringify(payload)).not.toContain(error.message);
