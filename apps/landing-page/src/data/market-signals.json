@@ -51,48 +51,6 @@
   },
   "snapshots": [
     {
-      "snapshot_date": "2025-08-31",
-      "values": {
-        "btc": {
-          "value": 108236.709896,
-          "indicators": {
-            "dma_200": {
-              "value": 101256.9707027,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "eth": {
-          "value": 4390.01913024,
-          "indicators": {
-            "dma_200": {
-              "value": 2679.39074957,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "eth_btc": {
-          "value": 0.04055943,
-          "indicators": {
-            "dma_200": {
-              "value": 0.02600016,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "fgi": {
-          "value": 40.0,
-          "indicators": {},
-          "tags": {
-            "regime": "f"
-          }
-        }
-      }
-    },
-    {
       "snapshot_date": "2025-09-01",
       "values": {
         "btc": {
@@ -22199,12 +22157,73 @@
           }
         }
       }
+    },
+    {
+      "snapshot_date": "2026-09-01",
+      "values": {
+        "btc": {
+          "value": 78228.0,
+          "indicators": {
+            "dma_200": {
+              "value": 69350.3511995,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "eth": {
+          "value": 2452.23,
+          "indicators": {
+            "dma_200": {
+              "value": 2020.70132809,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "spy": {
+          "value": 764.22,
+          "indicators": {
+            "dma_200": {
+              "value": 707.74074548,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "eth_btc": {
+          "value": 0.03134722,
+          "indicators": {
+            "dma_200": {
+              "value": 0.02908651,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "fgi": {
+          "value": 74.0,
+          "indicators": {},
+          "tags": {
+            "regime": "g"
+          }
+        },
+        "macro_fear_greed": {
+          "value": 46.23,
+          "indicators": {},
+          "tags": {
+            "label": "neutral",
+            "regime": "neutral",
+            "source": "cnn_fear_greed_unofficial"
+          }
+        }
+      }
     }
   ],
   "meta": {
     "primary_series": "btc",
     "days_requested": 366,
     "count": 365,
-    "timestamp": "2026-08-31T00:00:00Z"
+    "timestamp": "2026-09-01T00:00:00Z"
   }
 }
