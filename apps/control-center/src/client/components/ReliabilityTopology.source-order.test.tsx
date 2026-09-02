@@ -115,4 +115,20 @@ describe('ReliabilityTopology source ordering', () => {
     expect(screen.getByText('Scheduler heartbeat is stale')).toBeVisible();
     expect(screen.queryByText('No extra detail')).not.toBeInTheDocument();
   });
+
+  it('shows an explicit fallback when evidence and detail are both missing', () => {
+    const emptyMetadata = signalFixture();
+    Object.assign(emptyMetadata, {
+      fingerprint: 'social-queue:empty-metadata',
+      source: 'social-queue',
+      title: 'Social queue signal',
+      evidence: { overdueJobs: null, waitingMediaLanes: '' },
+      detail: undefined,
+    });
+    const data = operationsFixture({ signals: [emptyMetadata] });
+
+    render(<ReliabilityTopology data={data} social={null} />);
+
+    expect(screen.getByText('No extra detail')).toBeVisible();
+  });
 });
