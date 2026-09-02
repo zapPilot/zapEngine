@@ -18,9 +18,7 @@ describe('social title identity prompt contract', () => {
     const prompt = readPrompt('rednote.md');
 
     expect(prompt).toContain('Title identity is load-bearing.');
-    expect(prompt).toContain(
-      'keep that material entity in the Rednote title',
-    );
+    expect(prompt).toContain('keep that material entity in the Rednote title');
     expect(prompt).toContain(
       'do not turn a named subject such as Fomo or Vector into a generic label',
     );
