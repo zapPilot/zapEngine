@@ -155,31 +155,24 @@ describe('domain-native control center visualizations', () => {
       },
     ] as const;
 
-    let rerender: ReturnType<typeof render>['rerender'] | null = null;
-    for (const [index, testCase] of cases.entries()) {
-      const social = socialOps();
-      social.jobs = [
-        {
-          ...baseJob,
-          attemptsExhausted: testCase.attemptsExhausted,
-          overdueMinutes: testCase.overdueMinutes,
-        },
-      ];
-
-      if (index === 0) {
-        const result = render(
-          <ReliabilityTopology data={null} social={social} />,
-        );
-        rerender = result.rerender;
-      } else {
-        rerender!(<ReliabilityTopology data={null} social={social} />);
-      }
-
-      expect(
-        screen.getByText('Queue').closest('.social-flow-node'),
-      ).toHaveClass(testCase.expectedClass);
-      expect(screen.getByText(testCase.blocked)).toBeVisible();
-    }
+    assertTopologyNodeSeverity(
+      'Queue',
+      cases.map((testCase) => {
+        const social = socialOps();
+        social.jobs = [
+          {
+            ...baseJob,
+            attemptsExhausted: testCase.attemptsExhausted,
+            overdueMinutes: testCase.overdueMinutes,
+          },
+        ];
+        return {
+          social,
+          expectedClass: testCase.expectedClass,
+          expectedText: testCase.blocked,
+        };
+      }),
+    );
   });
 
   it('degrades media only when three or more lanes are waiting', () => {
@@ -188,26 +181,42 @@ describe('domain-native control center visualizations', () => {
       { waitingMediaLanes: 3, expectedClass: 'degraded' },
     ] as const;
 
-    let rerender: ReturnType<typeof render>['rerender'] | null = null;
-    for (const [index, testCase] of cases.entries()) {
-      const social = socialOps();
-      social.waitingMediaLanes = testCase.waitingMediaLanes;
+    assertTopologyNodeSeverity(
+      'Media',
+      cases.map((testCase) => {
+        const social = socialOps();
+        social.waitingMediaLanes = testCase.waitingMediaLanes;
+        return {
+          social,
+          expectedClass: testCase.expectedClass,
+          expectedText: `${testCase.waitingMediaLanes} waiting`,
+        };
+      }),
+    );
+  });
 
+  function assertTopologyNodeSeverity(
+    nodeLabel: string,
+    cases: Array<{
+      social: OperationsSocialResponse;
+      expectedClass: string;
+      expectedText: string;
+    }>,
+  ): void {
+    let rerender: ReturnType<typeof render>['rerender'] | null = null;
+    for (const [index, entry] of cases.entries()) {
       if (index === 0) {
         const result = render(
-          <ReliabilityTopology data={null} social={social} />,
+          <ReliabilityTopology data={null} social={entry.social} />,
         );
         rerender = result.rerender;
       } else {
-        rerender!(<ReliabilityTopology data={null} social={social} />);
+        rerender!(<ReliabilityTopology data={null} social={entry.social} />);
       }
-
       expect(
-        screen.getByText('Media').closest('.social-flow-node'),
-      ).toHaveClass(testCase.expectedClass);
-      expect(
-        screen.getByText(`${testCase.waitingMediaLanes} waiting`),
-      ).toBeVisible();
+        screen.getByText(nodeLabel).closest('.social-flow-node'),
+      ).toHaveClass(entry.expectedClass);
+      expect(screen.getByText(entry.expectedText)).toBeVisible();
     }
-  });
+  }
 });
