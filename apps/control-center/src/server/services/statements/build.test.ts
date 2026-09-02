@@ -23,17 +23,17 @@ function product(
   overrides: Partial<ProductHealthResponse> = {},
 ): ProductHealthResponse {
   return {
+    activePortfolios7d: 9,
     registeredUsers: 87,
     verifiedWallets: 54,
     portfolioUsers: 41,
+    observedPortfolioUsd: 179_612.34,
     wau: 12,
     mau: 31,
-    observedPortfolioUsd: 179_612.34,
     portfolioFresh24h: 20,
     portfolioFresh7d: 33,
     top1PortfolioShare: 0.42,
     top3PortfolioShare: 0.71,
-    activePortfolios7d: 9,
     ...overrides,
   };
 }
@@ -89,23 +89,23 @@ function socialPerformance(
   overrides: Partial<SocialPerformanceResponse> = {},
 ): SocialPerformanceResponse {
   return {
-    status: 'ok',
-    message: null,
-    window: 'latest',
     generatedAt: NOW.toISOString(),
+    status: 'ok',
+    window: 'latest',
+    message: null,
     accounts: [],
     decisions: [
       {
         platform: 'rednote',
-        evidenceSamples: 18,
         confidence: 'medium',
+        evidenceSamples: 18,
         preferredHookTypes: ['contrarian'],
-        preferredHashtags: [],
         avoidHashtags: [],
+        preferredHashtags: [],
         bestTopic: 'regime shifts',
         bestTopicSamples: 6,
-        bestTopicMedian24hViews: 410,
         platformMedian24hViews: 205,
+        bestTopicMedian24hViews: 410,
         bestTopicLiftVsPlatformMedian: 2,
         publishSlotsJst: 'Thursday 20:00 JST',
         topExample: null,
@@ -210,10 +210,10 @@ function podcastCosts(
   overrides: Partial<PodcastCostResponse> = {},
 ): PodcastCostResponse {
   return {
+    episodes: [],
     generatedAt: NOW.toISOString(),
     status: 'ok',
     message: null,
-    episodes: [],
     ...overrides,
   };
 }
