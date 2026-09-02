@@ -114,6 +114,12 @@ describe('non-interactive behavior', () => {
       }),
     ).toBe(`dlx eas-cli@${easCliVersion()} build:list --non-interactive`);
   });
+
+  it('lets inherently non-interactive commands disable flag injection', () => {
+    const source = readAppFile('scripts', 'eas.mjs');
+    expect(source).toContain('addNonInteractive = true');
+    expect(source).toContain('addNonInteractive &&');
+  });
 });
 
 describe('store submission targets', () => {
@@ -132,19 +138,27 @@ describe('store submission targets', () => {
     }
   });
 
-  it('requires an exact build ID instead of resolving latest', () => {
-    const submitScript = path.join(
+  it('requires and validates an exact build ID instead of resolving latest', () => {
+    const submitScriptPath = path.join(
       appRoot,
+      'scripts',
+      'submit-production-build.mjs',
+    );
+    const submitScript = readAppFile(
       'scripts',
       'submit-production-build.mjs',
     );
 
     expect(() =>
-      execFileSync(process.execPath, [submitScript, 'ios'], { encoding: 'utf8' }),
+      execFileSync(process.execPath, [submitScriptPath, 'ios'], {
+        encoding: 'utf8',
+      }),
     ).toThrowError();
-    expect(readAppFile('scripts', 'submit-production-build.mjs')).not.toContain(
-      'build:list',
-    );
+    expect(submitScript).not.toContain('build:list');
+    expect(submitScript).toContain("'build:view'");
+    expect(submitScript).toContain("['build profile', build.buildProfile, 'production']");
+    expect(submitScript).toContain("'store'");
+    expect(submitScript).toContain("'finished'");
   });
 
   it('captures the build ID from the same EAS build command', () => {
