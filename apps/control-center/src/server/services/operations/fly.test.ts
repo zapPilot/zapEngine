@@ -101,6 +101,7 @@ describe('collectFlySignals', () => {
       startedMachines: 1,
       stoppedMachines: 1,
       regions: 'iad,ord',
+      criticalSinceMinutes: null,
     });
   });
 

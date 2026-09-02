@@ -6,13 +6,18 @@ import type {
   PodcastPipelineResponse,
   PodcastPipelineStatus,
 } from '../../shared/podcast-pipeline.js';
+import type { StatementsResponse } from '../../shared/statements.js';
 import { relativeTime } from '../format.js';
+import { StatementHeader } from './StatementHeader.js';
 
 export function PodcastPipelineView(props: {
   data: PodcastPipelineResponse | null;
   restartingEpisodeId: string | null;
   onRestartVideo: (episodeId: string) => void;
+  statements?: StatementsResponse | null;
 }) {
+  const header = props.statements?.headers.find((h) => h.domain === 'pipeline');
+
   if (!props.data) {
     return <div className="empty-row">Loading podcast pipeline…</div>;
   }
@@ -35,6 +40,14 @@ export function PodcastPipelineView(props: {
 
   return (
     <div className="pipeline-view">
+      {header ? (
+        <StatementHeader
+          facts={header.facts}
+          sentence={header.sentence}
+          status={header.status}
+        />
+      ) : null}
+
       <section className="open-panel">
         <div className="section-heading">
           <div>

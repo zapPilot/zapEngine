@@ -32,6 +32,7 @@ const overview: OverviewResponse = {
     portfolioFresh7d: 5,
     top1PortfolioShare: 0.5,
     top3PortfolioShare: 0.8,
+    activePortfolios7d: 6,
   },
   providers: [],
   social: {
@@ -140,6 +141,7 @@ function createTestApp(
           currentMonthDaily: [],
           monthlyTotals: [],
           cashSpendUsd: null,
+          previousMonthByProvider: [],
         }),
       syncCosts:
         overrides.syncCosts ??
@@ -237,6 +239,24 @@ describe('control center API', () => {
     ).resolves.toMatchObject({ daemon: { owner: 'laptop' } });
     expect(getOperations).toHaveBeenCalledWith(false);
     expect(getSocial).toHaveBeenCalledWith(false);
+  });
+
+  it('serves the founder statements built from the same services every other route reads', async () => {
+    const getOperations = vi.fn().mockResolvedValue(operations);
+    const app = createTestApp({}, { getOperations });
+
+    const response = await app.request('/api/statements');
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      statements: Array<{ domain: string }>;
+      headers: Array<{ domain: string }>;
+    };
+    expect(body.statements).toHaveLength(5);
+    expect(new Set(body.statements.map((s) => s.domain))).toEqual(
+      new Set(['reliability', 'product', 'pipeline', 'spend', 'growth']),
+    );
+    expect(body.headers).toHaveLength(5);
+    expect(getOperations).toHaveBeenCalledWith(false);
   });
 
   it('passes ?force=1 through to the cache bypass', async () => {

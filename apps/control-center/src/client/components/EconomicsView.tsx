@@ -1,3 +1,4 @@
+import type { StatementsResponse } from '../../shared/statements.js';
 import type {
   CostHistoryResponse,
   OverviewResponse,
@@ -9,18 +10,30 @@ import { KpiGroup } from './KpiGroup.js';
 import { PodcastUnitEconomics } from './PodcastUnitEconomics.js';
 import { ProviderLedger, UsageSignals } from './ProviderLedger.js';
 import { RunwayChart } from './RunwayChart.js';
+import { StatementHeader } from './StatementHeader.js';
 
 export function EconomicsView({
   data,
   history,
   podcastCosts,
+  statements,
 }: {
   data: OverviewResponse | null;
   history: CostHistoryResponse | null;
   podcastCosts: PodcastCostResponse | null;
+  statements?: StatementsResponse | null;
 }) {
+  const header = statements?.headers.find((h) => h.domain === 'spend');
   return (
     <div className="view-stack">
+      {header ? (
+        <StatementHeader
+          facts={header.facts}
+          sentence={header.sentence}
+          status={header.status}
+        />
+      ) : null}
+
       <section aria-label="Operating cost" className="kpi-band kpi-band-three">
         <KpiGroup
           caption="Month-to-date operating cost"

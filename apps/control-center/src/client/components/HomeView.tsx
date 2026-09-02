@@ -1,214 +1,176 @@
 import type {
+  StatementDomain,
+  StatementsResponse,
+} from '../../shared/statements.js';
+import type {
   OperationsResponse,
   OverviewResponse,
-  SocialDecision,
 } from '../../shared/types.js';
-import { integer, percent, usd, usdWhole } from '../format.js';
-import { platformLabel } from '../platform.js';
+import { integer, usdWhole } from '../format.js';
 import type { DashboardView } from './AppShell.js';
-import { InfoRow } from './InfoRow.js';
-import { KpiGroup } from './KpiGroup.js';
+import { MetricCell } from './MetricCell.js';
 import { PriorityQueue } from './PriorityQueue.js';
-import { StatusBanner } from './Status.js';
+import { Statement } from './Statement.js';
+import { renderSentence } from './statement-sentence.js';
 
-const QUEUE_PREVIEW = 3;
+const FULL_VIEW: Record<StatementDomain, DashboardView> = {
+  reliability: 'reliability',
+  product: 'product',
+  pipeline: 'pipeline',
+  spend: 'economics',
+  growth: 'growth',
+};
+const VIEW_LABEL: Record<StatementDomain, string> = {
+  reliability: 'Reliability',
+  product: 'Product',
+  pipeline: 'Pipeline',
+  spend: 'Economics',
+  growth: 'Growth',
+};
 
 /**
- * The founder's first screen is deliberately sparse. It answers three things
- * before exposing evidence: is something wrong, what should happen first, and
- * are the business headlines moving. Qualifiers stay behind one disclosure;
- * full evidence still belongs to the domain views.
+ * The founder's first screen: one sentence states the conclusion, five
+ * statements sorted by priority prove it, and the north-star band shows
+ * value · reach · burn. Nothing here expands by default and nothing raw
+ * (no table, no fingerprint) sits at this level — see handoff.md §1 and §4.
  */
 export function HomeView(props: {
   data: OverviewResponse | null;
   onNavigate: (view: DashboardView) => void;
   operations: OperationsResponse | null;
+  statements: StatementsResponse | null;
 }) {
-  const { data, operations } = props;
+  const { data, operations, statements } = props;
   const product = data?.product;
-  const overflow = Math.max(
-    (operations?.priorities.length ?? 0) - QUEUE_PREVIEW,
-    0,
+  const verdict = statements?.headers.find(
+    (header) => header.domain === 'reliability',
+  );
+  const northStar = statements?.statements.find(
+    (statement) => statement.domain === 'product',
+  );
+  const audience = statements?.statements.find(
+    (statement) => statement.domain === 'growth',
+  );
+  const spend = statements?.statements.find(
+    (statement) => statement.domain === 'spend',
   );
 
   return (
     <div className="view-stack">
-      <StatusBanner compact data={operations} />
+      {verdict ? (
+        <p className={`home-verdict ${verdict.status}`}>
+          {renderSentence(verdict.sentence)}
+        </p>
+      ) : null}
 
-      <section className="panel queue-panel">
+      <section className="panel">
         <div className="panel-head">
-          <h2>Do this first</h2>
+          <h2>Read this first</h2>
           <small className="panel-note">
-            {operations
-              ? `${integer(operations.priorities.length)} ranked decisions`
-              : 'Waiting for operational signals'}
+            Sorted by priority score · 30-day trend on the right
           </small>
         </div>
-        <PriorityQueue
-          emptyMessage="All clear. Nothing is above the action threshold."
-          limit={QUEUE_PREVIEW}
-          priorities={operations?.priorities}
-        />
-        {overflow > 0 ? (
-          <div className="panel-foot">
-            <button
-              className="panel-link"
-              onClick={() => props.onNavigate('reliability')}
-              type="button"
-            >
-              {integer(overflow)} more in Reliability
-            </button>
-          </div>
-        ) : null}
+        {statements && statements.statements.length > 0 ? (
+          statements.statements.map((statement) => (
+            <Statement
+              deltaTone={statement.deltaTone}
+              delta={statement.delta}
+              evidence={
+                <StatementEvidence
+                  domain={statement.domain}
+                  onNavigate={props.onNavigate}
+                  operations={operations}
+                  statements={statements}
+                />
+              }
+              key={statement.domain}
+              kicker={statement.kicker}
+              sentence={statement.sentence}
+              series={statement.series}
+              status={statement.status}
+              value={statement.value}
+            />
+          ))
+        ) : (
+          <div className="empty-inline">Waiting for data.</div>
+        )}
       </section>
 
-      <section
-        aria-label="Business headlines"
-        className="kpi-band kpi-band-three"
-      >
-        <KpiGroup
-          caption="Observed portfolio value"
-          label="Product"
+      <section aria-label="How we are doing" className="kpi-band">
+        <MetricCell
+          caption="Users active 7d whose portfolio also refreshed in 7d"
+          delta={northStar?.delta ?? '—'}
+          deltaTone={northStar?.deltaTone ?? 'neutral'}
+          label="Active portfolios"
+          series={northStar?.series ?? []}
           tone="accent"
+          value={integer(product?.activePortfolios7d)}
+        />
+        <MetricCell
+          caption="Context, not a growth metric — tracks BTC and one customer"
+          delta="context"
+          deltaTone="neutral"
+          label="Observed AUM"
+          series={[]}
           value={usdWhole(product?.observedPortfolioUsd)}
         />
-        <KpiGroup
+        <MetricCell
           caption="Tracked social followers"
-          label="Growth"
+          delta={audience?.delta ?? '—'}
+          deltaTone={audience?.deltaTone ?? 'neutral'}
+          label="Audience"
+          series={audience?.series ?? []}
           value={integer(data?.socialReach)}
         />
-        <KpiGroup
-          caption="Projected month-end spend"
-          label="Spend"
-          tone="warning"
+        <MetricCell
+          caption="Projected month-end operating cost"
+          delta={spend?.delta ?? '—'}
+          deltaTone={spend?.deltaTone ?? 'neutral'}
+          label="Month-end spend"
+          series={spend?.series ?? []}
           value={usdWhole(data?.projectedCostUsd)}
         />
       </section>
-
-      <details className="panel home-disclosure">
-        <summary className="home-disclosure-summary">
-          <strong>More context</strong>
-          <span>Product, growth and spend qualifiers</span>
-        </summary>
-        <div className="home-context-grid">
-          <section className="home-context-section">
-            <h3>Product</h3>
-            <div className="info-list">
-              <InfoRow
-                label="Activity"
-                notes={[
-                  `${integer(product?.registeredUsers)} registered users`,
-                ]}
-                value={`${integer(product?.wau)} WAU · ${integer(product?.mau)} MAU`}
-              />
-              <InfoRow
-                label="Activation"
-                notes={[
-                  `Top 1 holds ${percent(product?.top1PortfolioShare)} of observed value`,
-                ]}
-                value={`${integer(product?.registeredUsers)} registered → ${integer(product?.verifiedWallets)} verified → ${integer(product?.portfolioUsers)} observed`}
-              />
-              <InfoRow
-                label="Portfolio freshness"
-                notes={[
-                  'Stale portfolios make every other product number older than it looks',
-                ]}
-                value={`${integer(product?.portfolioFresh24h)} fresh <24h · ${integer(product?.portfolioFresh7d)} fresh <7d`}
-              />
-            </div>
-            <div className="panel-foot">
-              <button
-                className="panel-link"
-                onClick={() => props.onNavigate('product')}
-                type="button"
-              >
-                Full Product view
-              </button>
-            </div>
-          </section>
-
-          <section className="home-context-section">
-            <h3>Growth</h3>
-            <div className="info-list">
-              <InfoRow
-                label="Coverage"
-                notes={[
-                  `${integer(data?.social.episodes[0]?.totalViews)} views on the latest episode`,
-                ]}
-                value={`${integer(data?.social.accounts.length)} telemetry channels`}
-              />
-              {(data?.social.decisions ?? []).slice(0, 2).map((decision) => (
-                <PublishRow decision={decision} key={decision.platform} />
-              ))}
-              {data && data.social.decisions.length === 0 ? (
-                <div className="empty-inline">No publishing evidence yet.</div>
-              ) : null}
-              {data ? null : (
-                <div className="empty-inline">Waiting for data.</div>
-              )}
-            </div>
-            <div className="panel-foot">
-              <button
-                className="panel-link"
-                onClick={() => props.onNavigate('growth')}
-                type="button"
-              >
-                Full Growth view
-              </button>
-            </div>
-          </section>
-
-          <section className="home-context-section">
-            <h3>Spend</h3>
-            <div className="info-list">
-              <InfoRow
-                label="Month to date"
-                notes={['Usage-equivalent operating cost']}
-                value={usd(data?.accruedCostUsd)}
-              />
-              <InfoRow
-                label="Cash spend"
-                notes={['Invoices, top-ups and subscriptions']}
-                value={usd(data?.cashInvoiceSpendUsd)}
-              />
-            </div>
-            <div className="panel-foot">
-              <button
-                className="panel-link"
-                onClick={() => props.onNavigate('economics')}
-                type="button"
-              >
-                Full Economics view
-              </button>
-            </div>
-          </section>
-        </div>
-      </details>
     </div>
   );
 }
 
-function PublishRow({ decision }: { decision: SocialDecision }) {
-  return (
-    <InfoRow
-      label={`${platformLabel(decision.platform)} · ${integer(decision.evidenceSamples)} 24h samples`}
-      notes={[publishEvidenceNote(decision)]}
-      value={
-        decision.bestTopic
-          ? `Prioritize ${decision.bestTopic}`
-          : 'Keep exploring topics'
-      }
-    />
+function StatementEvidence(props: {
+  domain: StatementDomain;
+  onNavigate: (view: DashboardView) => void;
+  operations: OperationsResponse | null;
+  statements: StatementsResponse;
+}) {
+  const header = props.statements.headers.find(
+    (h) => h.domain === props.domain,
   );
-}
-
-function publishEvidenceNote(decision: SocialDecision): string {
-  if (
-    decision.bestTopic &&
-    decision.bestTopicMedian24hViews !== null &&
-    decision.bestTopicLiftVsPlatformMedian !== null
-  ) {
-    return `${integer(decision.bestTopicMedian24hViews)} median views · ${decision.bestTopicLiftVsPlatformMedian.toLocaleString('en-US', { maximumFractionDigits: 2 })}× platform median · ${decision.confidence} sample coverage`;
-  }
-  return `Not enough qualified topic buckets yet · ${decision.confidence} sample coverage`;
+  return (
+    <div className="evidence-stack">
+      {header && header.facts.length > 0 ? (
+        <div className="statement-header-facts">
+          {header.facts.map((fact, index) => (
+            <div className="statement-header-fact" key={index}>
+              <span>{fact.kicker}</span>
+              <strong>{fact.value}</strong>
+              <small>{fact.note}</small>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {props.domain === 'reliability' ? (
+        <PriorityQueue
+          emptyMessage="Nothing above the action threshold."
+          limit={3}
+          priorities={props.operations?.priorities}
+        />
+      ) : null}
+      <button
+        className="panel-link"
+        onClick={() => props.onNavigate(FULL_VIEW[props.domain])}
+        type="button"
+      >
+        Full {VIEW_LABEL[props.domain]} view
+      </button>
+    </div>
+  );
 }

@@ -247,18 +247,25 @@ describe('decision-first domain views', () => {
     expect(screen.getByText('Estimated attribution')).toBeVisible();
   });
 
-  it('ranks service risk ahead of AUM and keeps accounting columns in detail', () => {
+  it('shows only the flagged account by default, ranked ahead of AUM once expanded', () => {
     render(<ProductView customers={customers()} product={productFixture()} />);
 
-    const rows = screen.getAllByRole('row');
+    // Only the priority account inactive 30d+ trips a rule; the healthy
+    // standard-tier account stays behind "Show all" until asked for.
+    let rows = screen.getAllByRole('row');
+    expect(rows).toHaveLength(2);
     expect(rows[1]).toHaveTextContent('risk@example.com');
-    expect(rows[2]).toHaveTextContent('standard@example.com');
     expect(screen.queryByRole('columnheader', { name: 'Revenue' })).toBeNull();
     expect(screen.queryByRole('columnheader', { name: /30d cost/ })).toBeNull();
 
     fireEvent.click(screen.getByText('risk@example.com'));
     expect(screen.getByText('Attributed cost (30d)')).toBeVisible();
     expect(screen.getByText('Refresh interval')).toBeVisible();
+
+    fireEvent.click(screen.getByRole('button', { name: /Show all/ }));
+    rows = screen.getAllByRole('row');
+    expect(rows[1]).toHaveTextContent('risk@example.com');
+    expect(rows[rows.length - 1]).toHaveTextContent('standard@example.com');
   });
 
   it('keeps raw reliability fingerprints out of the primary scan path', () => {

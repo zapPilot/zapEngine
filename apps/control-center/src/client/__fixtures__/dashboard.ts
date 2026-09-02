@@ -1,3 +1,8 @@
+import type {
+  Statement,
+  StatementHeaderData,
+  StatementsResponse,
+} from '../../shared/statements.js';
 import {
   type OperationalPriority,
   type OperationalSignal,
@@ -71,6 +76,7 @@ export function productFixture(
     portfolioFresh7d: 33,
     top1PortfolioShare: 0.42,
     top3PortfolioShare: 0.71,
+    activePortfolios7d: 9,
     ...overrides,
   };
 }
@@ -113,6 +119,58 @@ export function socialFixture(
         platforms: [],
       },
     ],
+    ...overrides,
+  };
+}
+
+export function statementFixture(
+  overrides: Partial<Statement> = {},
+): Statement {
+  return {
+    domain: 'reliability',
+    status: 'critical',
+    score: 178,
+    sentence: [
+      { text: '1 critical: ' },
+      { value: 'account-engine has no started Machine', tone: 'error' },
+      { text: ' (2h 14m).' },
+    ],
+    kicker: 'Reliability · operations · seen 2 min ago',
+    series: [6, 7, 7, 8, 8, 7, 6, 5],
+    value: '1 critical',
+    delta: '3 of 8 healthy',
+    deltaTone: 'bad',
+    evidenceRef: 'reliability-signals',
+    url: null,
+    ...overrides,
+  };
+}
+
+export function statementHeaderFixture(
+  overrides: Partial<StatementHeaderData> = {},
+): StatementHeaderData {
+  return {
+    domain: 'reliability',
+    status: 'critical',
+    sentence: statementFixture().sentence,
+    facts: [
+      {
+        kicker: 'Because · domains',
+        value: '1 critical',
+        note: '3 of 8 domains healthy',
+      },
+    ],
+    ...overrides,
+  };
+}
+
+export function statementsResponseFixture(
+  overrides: Partial<StatementsResponse> = {},
+): StatementsResponse {
+  return {
+    generatedAt: GENERATED_AT,
+    statements: [statementFixture()],
+    headers: [statementHeaderFixture()],
     ...overrides,
   };
 }

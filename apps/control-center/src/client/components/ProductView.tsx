@@ -1,5 +1,6 @@
 import { type ReactNode, useState } from 'react';
 
+import type { StatementsResponse } from '../../shared/statements.js';
 import type {
   CustomerEconomicsResponse,
   CustomerRecord,
@@ -13,96 +14,170 @@ import {
   relativeTime,
   usd,
 } from '../format.js';
+import { Funnel, type FunnelRow } from './Funnel.js';
 import { InfoRow } from './InfoRow.js';
-import { Metric } from './Metric.js';
+import { SegmentBar } from './SegmentBar.js';
+import { StatementHeader } from './StatementHeader.js';
+
+const INACTIVE_WINDOW_DAYS = 30;
+const STALE_WALLET_HOURS = 48;
 
 export function ProductView(props: {
   customers: CustomerEconomicsResponse | null;
   product: ProductHealthResponse | undefined;
+  statements?: StatementsResponse | null;
 }) {
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [showAll, setShowAll] = useState(false);
   const data = props.customers;
-  const summary = data?.summary;
   const product = props.product;
-  const users = sortUsersForDecision(data?.users ?? []);
+  const header = props.statements?.headers.find((h) => h.domain === 'product');
+  const allUsers = sortUsersForDecision(data?.users ?? []);
+  const flagged = allUsers.filter(tripsRule);
+  const visibleUsers = showAll ? allUsers : flagged;
+  const ratio = freshnessRatio(product);
+
+  const funnelRows: FunnelRow[] = [
+    {
+      label: 'Registered',
+      value: integer(product?.registeredUsers),
+      share: product?.registeredUsers ?? 0,
+    },
+    {
+      label: 'Verified',
+      value: integer(product?.verifiedWallets),
+      share: product?.verifiedWallets ?? 0,
+    },
+    {
+      label: 'Observed',
+      value: integer(product?.portfolioUsers),
+      share: product?.portfolioUsers ?? 0,
+    },
+    {
+      label: 'Active 7d',
+      value: integer(product?.wau),
+      share: product?.wau ?? 0,
+    },
+    {
+      label: 'Active + fresh',
+      value: integer(product?.activePortfolios7d),
+      share: product?.activePortfolios7d ?? 0,
+      star: true,
+    },
+  ];
+
+  const observed = product?.portfolioUsers ?? null;
+  const fresh24h = product?.portfolioFresh24h ?? null;
+  const fresh7d = product?.portfolioFresh7d ?? null;
+  const mid =
+    fresh7d !== null && fresh24h !== null
+      ? Math.max(0, fresh7d - fresh24h)
+      : null;
+  const older =
+    observed !== null && fresh7d !== null
+      ? Math.max(0, observed - fresh7d)
+      : null;
+
+  const top1 = product?.top1PortfolioShare ?? null;
+  const top3 = product?.top3PortfolioShare ?? null;
+  const next2 =
+    top1 !== null && top3 !== null ? Math.max(0, top3 - top1) : null;
+  const rest = top3 !== null ? Math.max(0, 1 - top3) : null;
 
   return (
     <div className="view-stack">
-      <section
-        aria-label="Service decisions"
-        className="metric-strip metric-strip-four"
-      >
-        <Metric
-          label="Priority service"
-          value={integer(summary?.priorityUsers)}
+      {header ? (
+        <StatementHeader
+          facts={header.facts}
+          sentence={header.sentence}
+          status={header.status}
         />
-        <Metric
-          label="Priority inactive 30d+"
-          tone="warning"
-          value={integer(summary?.inactiveButPriority)}
-        />
-        <Metric
-          label="Observed AUM"
-          tone="accent"
-          value={usd(summary?.aumUsd)}
-        />
-        <Metric
-          label="Portfolio fresh <24h"
-          tone={
-            freshnessRatio(product) !== null && freshnessRatio(product)! < 0.8
-              ? 'warning'
-              : undefined
-          }
-          value={percent(freshnessRatio(product))}
-        />
-      </section>
+      ) : null}
 
-      <section className="panel">
-        <div className="panel-head">
-          <h2>Product health</h2>
-          <small className="panel-note">
-            Coverage and freshness tell you whether the product numbers are safe
-            to act on
-          </small>
+      <div className="product-upper">
+        <section className="panel">
+          <div className="panel-head">
+            <h2>Funnel to the north star</h2>
+            <small className="panel-note">
+              Each step as a share of the one before
+            </small>
+          </div>
+          <Funnel rows={funnelRows} />
+        </section>
+
+        <div className="product-side">
+          <section className="panel product-segment-panel">
+            <div className="panel-head">
+              <h2>Portfolio freshness</h2>
+              <small className="panel-note">
+                {percent(ratio)} fresh &lt;24h
+              </small>
+            </div>
+            <div className="product-segment-body">
+              <SegmentBar
+                segments={[
+                  {
+                    label: `${integer(fresh24h)} fresh <24h`,
+                    share: safeRatio(fresh24h, observed),
+                    color: 'var(--success)',
+                  },
+                  {
+                    label: `${integer(mid)} <7d`,
+                    share: safeRatio(mid, observed),
+                    color: 'var(--accent-muted)',
+                  },
+                  {
+                    label: `${integer(older)} older`,
+                    share: safeRatio(older, observed),
+                    color: 'var(--error)',
+                  },
+                ]}
+              />
+            </div>
+          </section>
+          <section className="panel product-segment-panel">
+            <div className="panel-head">
+              <h2>Concentration of observed AUM</h2>
+              <small className="panel-note">
+                {usd(product?.observedPortfolioUsd)}
+              </small>
+            </div>
+            <div className="product-segment-body">
+              <SegmentBar
+                segments={[
+                  {
+                    label: `Top wallet ${percent(top1)}`,
+                    share: top1 ?? 0,
+                    color: 'var(--accent)',
+                  },
+                  {
+                    label: `Next two ${percent(next2)}`,
+                    share: next2 ?? 0,
+                    color: 'var(--accent-muted)',
+                  },
+                  {
+                    label: `Rest ${percent(rest)}`,
+                    share: rest ?? 0,
+                    color: 'var(--line-hi)',
+                  },
+                ]}
+              />
+              <p className="product-segment-note">
+                AUM moves with one customer and with BTC; treat it as context,
+                not a growth metric.
+              </p>
+            </div>
+          </section>
         </div>
-        <div className="info-list product-health-list">
-          <InfoRow
-            label="Activation"
-            notes={[
-              `${integer(product?.portfolioUsers)} users have an observed portfolio`,
-            ]}
-            value={`${integer(product?.registeredUsers)} registered → ${integer(product?.verifiedWallets)} verified → ${integer(product?.portfolioUsers)} observed`}
-          />
-          <InfoRow
-            label="Engagement"
-            notes={[
-              `${integer(summary?.activeLast7d)} customer accounts active in the last 7d`,
-            ]}
-            value={`${integer(product?.wau)} WAU / ${integer(product?.mau)} MAU`}
-          />
-          <InfoRow
-            label="Freshness"
-            notes={[
-              `${integer(product?.portfolioFresh7d)} observed portfolios are fresh within 7d`,
-            ]}
-            value={`${integer(product?.portfolioFresh24h)} fresh <24h · ${percent(freshnessRatio(product))} of observed users`}
-          />
-          <InfoRow
-            label="Concentration"
-            notes={[
-              `${usd(product?.observedPortfolioUsd)} observed across every tracked wallet`,
-            ]}
-            value={`Top 1 ${percent(product?.top1PortfolioShare)} · Top 3 ${percent(product?.top3PortfolioShare)}`}
-          />
-        </div>
-      </section>
+      </div>
 
       <section className="panel">
         <div className="panel-head">
           <h2>Accounts needing judgment</h2>
           <small className="panel-note">
-            Attention risks first, then AUM. Expand a row for plan, cost,
-            refresh policy, and wallet-level evidence.
+            {showAll
+              ? `All ${integer(allUsers.length)} accounts`
+              : `${integer(flagged.length)} of ${integer(allUsers.length)} accounts tripped a rule`}
           </small>
         </div>
         <div className="table-wrap">
@@ -111,13 +186,14 @@ export function ProductView(props: {
               <tr>
                 <th>User</th>
                 <th>Service</th>
+                <th>Why</th>
                 <th>Last active†</th>
                 <th>Portfolio freshness</th>
                 <th>AUM</th>
               </tr>
             </thead>
             <tbody>
-              {users.map((user) => (
+              {visibleUsers.map((user) => (
                 <CustomerRows
                   expanded={expanded === user.userId}
                   key={user.userId}
@@ -129,19 +205,59 @@ export function ProductView(props: {
               ))}
             </tbody>
           </table>
-          {data && data.users.length === 0 ? (
+          {data && visibleUsers.length === 0 ? (
             <div className="empty-inline">
-              {data.message ?? 'No customers returned.'}
+              {showAll
+                ? (data.message ?? 'No customers returned.')
+                : 'Nothing tripped a rule.'}
             </div>
           ) : null}
           {data ? null : <div className="empty-inline">Waiting for data.</div>}
         </div>
+        {data && allUsers.length > 0 ? (
+          <div className="panel-foot">
+            <button
+              className="panel-link"
+              onClick={() => setShowAll((value) => !value)}
+              type="button"
+            >
+              {showAll
+                ? 'Show only flagged accounts'
+                : `Show all ${integer(allUsers.length)} accounts`}
+            </button>
+          </div>
+        ) : null}
         <small className="table-footnote">
           † account-engine route activity (dashboard visits), debounced hourly.
           It is not whole-product usage. Cost is DeBank&apos;s account invoice
           allocated by request volume, not a measured per-user charge.
         </small>
       </section>
+
+      <details className="panel decision-disclosure">
+        <summary className="decision-disclosure-summary">
+          <strong>More detail</strong>
+          <span>Activation, engagement and concentration, spelled out</span>
+        </summary>
+        <div className="decision-disclosure-body">
+          <div className="disclosure-section info-list">
+            <InfoRow
+              label="Activation"
+              notes={[
+                `${integer(product?.portfolioUsers)} users have an observed portfolio`,
+              ]}
+              value={`${integer(product?.registeredUsers)} registered → ${integer(product?.verifiedWallets)} verified → ${integer(product?.portfolioUsers)} observed`}
+            />
+            <InfoRow
+              label="Engagement"
+              notes={[
+                `${integer(data?.summary.activeLast7d)} customer accounts active in the last 7d`,
+              ]}
+              value={`${integer(product?.wau)} WAU / ${integer(product?.mau)} MAU`}
+            />
+          </div>
+        </div>
+      </details>
     </div>
   );
 }
@@ -152,6 +268,7 @@ function CustomerRows(props: {
   user: CustomerRecord;
 }) {
   const { user } = props;
+  const reason = judgmentReason(user);
   return (
     <>
       <tr
@@ -172,13 +289,14 @@ function CustomerRows(props: {
           </span>
           {user.overrideTier ? <small> override</small> : null}
         </td>
+        <td className="cell-nowrap">{reason ?? '—'}</td>
         <td className="cell-nowrap">{daysAgo(user.inactiveDays)}</td>
         <td className={freshnessClass(user)}>{freshnessLabel(user)}</td>
         <td className="mono">{usd(user.aumUsd)}</td>
       </tr>
       {props.expanded ? (
         <tr className="customer-detail-row">
-          <td colSpan={5}>
+          <td colSpan={6}>
             <CustomerDetail user={user} />
           </td>
         </tr>
@@ -338,6 +456,13 @@ function freshnessRatio(
   return product.portfolioFresh24h / product.portfolioUsers;
 }
 
+function safeRatio(value: number | null, total: number | null): number {
+  if (value === null || total === null || total <= 0) {
+    return 0;
+  }
+  return value / total;
+}
+
 function freshnessLabel(user: CustomerRecord): string {
   if (user.neverRefreshedWallets > 0) {
     return `${integer(user.neverRefreshedWallets)} never refreshed`;
@@ -348,9 +473,35 @@ function freshnessLabel(user: CustomerRecord): string {
 
 function freshnessClass(user: CustomerRecord): string {
   return user.neverRefreshedWallets > 0 ||
-    (user.portfolioWorstStaleHours ?? 0) >= 48
+    (user.portfolioWorstStaleHours ?? 0) >= STALE_WALLET_HOURS
     ? 'cell-nowrap warning-text'
     : 'cell-nowrap';
+}
+
+/** The three conditions "Accounts needing judgment" filters on. */
+function tripsRule(user: CustomerRecord): boolean {
+  const priorityInactive =
+    user.effectiveTier === 'priority' &&
+    (user.inactiveDays === null || user.inactiveDays >= INACTIVE_WINDOW_DAYS);
+  const neverRefreshed = user.neverRefreshedWallets > 0;
+  const worstStale = (user.portfolioWorstStaleHours ?? 0) >= STALE_WALLET_HOURS;
+  return priorityInactive || neverRefreshed || worstStale;
+}
+
+function judgmentReason(user: CustomerRecord): string | null {
+  if (
+    user.effectiveTier === 'priority' &&
+    (user.inactiveDays === null || user.inactiveDays >= INACTIVE_WINDOW_DAYS)
+  ) {
+    return `Priority, inactive ${user.inactiveDays === null ? 'unknown' : `${integer(user.inactiveDays)}d`}`;
+  }
+  if (user.neverRefreshedWallets > 0) {
+    return `${integer(user.neverRefreshedWallets)} wallet${user.neverRefreshedWallets === 1 ? '' : 's'} never refreshed`;
+  }
+  if ((user.portfolioWorstStaleHours ?? 0) >= STALE_WALLET_HOURS) {
+    return `Worst wallet ${hoursAgo(user.portfolioWorstStaleHours)} old`;
+  }
+  return null;
 }
 
 function sortUsersForDecision(users: CustomerRecord[]): CustomerRecord[] {

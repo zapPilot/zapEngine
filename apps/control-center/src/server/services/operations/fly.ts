@@ -129,7 +129,7 @@ function appSignal(
     status: verdict.status,
     title: `${app} ${verdict.summary}`,
     detail: verdict.detail,
-    evidence: evidenceFor(machines, verdict.started),
+    evidence: evidenceFor(machines, verdict.started, now),
     observedAt: now,
     url: appUrl(app),
   });
@@ -156,7 +156,7 @@ function processGroupSignals(
       status: verdict.status,
       title: `${app} ${group} ${verdict.summary}`,
       detail: verdict.detail,
-      evidence: evidenceFor(rows, verdict.started),
+      evidence: evidenceFor(rows, verdict.started, now),
       observedAt: now,
       url: appUrl(app),
     });
@@ -223,7 +223,12 @@ function missingAppSignal(app: string, now: Date): OperationalSignal {
     title: `${app} is missing from Fly`,
     detail:
       'The Fly Machines API returned 404 for this expected app: it was deleted, renamed, or now lives in another organization.',
-    evidence: { startedMachines: 0, stoppedMachines: 0, regions: '' },
+    evidence: {
+      startedMachines: 0,
+      stoppedMachines: 0,
+      regions: '',
+      criticalSinceMinutes: null,
+    },
     observedAt: now,
     url: appUrl(app),
   });
@@ -232,6 +237,7 @@ function missingAppSignal(app: string, now: Date): OperationalSignal {
 function evidenceFor(
   machines: readonly FlyMachine[],
   started: number,
+  now: Date,
 ): OperationalSignal['evidence'] {
   const regions = machines.flatMap((machine) =>
     machine.region ? [machine.region] : [],
@@ -240,7 +246,31 @@ function evidenceFor(
     startedMachines: started,
     stoppedMachines: machines.length - started,
     regions: [...new Set(regions)].sort().join(','),
+    // How long ago the most recently stopped Machine actually stopped, read
+    // from Fly's own `updated_at` — not from anything this app persists.
+    // Only meaningful once nothing is started; R1's "elapsed" clause omits
+    // itself rather than inventing a duration when this is null.
+    criticalSinceMinutes:
+      started === 0 ? elapsedSinceStoppedMinutes(machines, now) : null,
   };
+}
+
+function elapsedSinceStoppedMinutes(
+  machines: readonly FlyMachine[],
+  now: Date,
+): number | null {
+  const stoppedTimestamps = machines
+    .filter((machine) => !isStarted(machine))
+    .map((machine) => (machine.updatedAt ? Date.parse(machine.updatedAt) : NaN))
+    .filter((timestamp) => Number.isFinite(timestamp));
+  if (stoppedTimestamps.length === 0) {
+    return null;
+  }
+  const mostRecentStopTransition = Math.max(...stoppedTimestamps);
+  return Math.max(
+    0,
+    Math.round((now.getTime() - mostRecentStopTransition) / 60_000),
+  );
 }
 
 function isStarted(machine: FlyMachine): boolean {

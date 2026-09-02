@@ -31,10 +31,17 @@ export interface MonthlyCostPoint {
   accruedCostUsd: number | null;
 }
 
+export interface ProviderMonthCost {
+  provider: CostProvider;
+  accruedCostUsd: number | null;
+}
+
 export interface CostHistoryResponse {
   currentMonthDaily: CostHistoryPoint[];
   monthlyTotals: MonthlyCostPoint[];
   cashSpendUsd: number | null;
+  /** Every provider's total for the calendar month before the current one. */
+  previousMonthByProvider: ProviderMonthCost[];
 }
 
 export interface PodcastCostBreakdown {
@@ -203,6 +210,12 @@ export interface ProductHealthResponse {
   portfolioFresh7d: number | null;
   top1PortfolioShare: number | null;
   top3PortfolioShare: number | null;
+  /**
+   * North star: users with account-engine activity in the last 7 days AND at
+   * least one wallet whose portfolio refreshed in the last 7 days. Grows only
+   * when the product is used *and* the pipeline that feeds it is working.
+   */
+  activePortfolios7d: number | null;
 }
 
 export interface OverviewResponse {

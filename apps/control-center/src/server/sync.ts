@@ -3,6 +3,7 @@ import {
   readControlCenterConfig,
 } from './config/env.js';
 import { syncCosts } from './services/cost-sync.js';
+import { syncMetricSnapshots } from './services/metric-snapshot-sync.js';
 
 const config = readControlCenterConfig();
 const credentials = checkCostSyncCredentials(config);
@@ -51,5 +52,27 @@ if (failed.length > 0) {
       .map((provider) => provider.provider)
       .join(', ')}`,
   );
+}
+
+// Same job, same schedule: every headline number on the redesigned dashboard
+// needs its own history, so this writes `ops.metric_snapshots` right after
+// the cost snapshots rather than adding a second cron.
+let metricSyncFailed = false;
+try {
+  const metricSummary = await syncMetricSnapshots({ config });
+  console.log(
+    `\n${metricSummary.persisted} metric snapshots persisted` +
+      (metricSummary.skipped.length
+        ? ` (skipped: ${metricSummary.skipped.join(', ')})`
+        : ''),
+  );
+} catch (error) {
+  metricSyncFailed = true;
+  console.error(
+    `metric snapshot sync failed: ${error instanceof Error ? error.message : String(error)}`,
+  );
+}
+
+if (failed.length > 0 || metricSyncFailed) {
   process.exit(1);
 }

@@ -16,7 +16,8 @@
 .home-disclosure-summary::-webkit-details-marker,
 .decision-disclosure-summary::-webkit-details-marker,
 .podcast-episode-summary::-webkit-details-marker,
-.signal-evidence-summary::-webkit-details-marker {
+.signal-evidence-summary::-webkit-details-marker,
+.statement-summary::-webkit-details-marker {
   display: none;
 }
 .queue-toggle {
@@ -288,6 +289,33 @@
   min-width: 720px;
 }
 
+/* Product -------------------------------------------------------------- */
+
+.product-upper {
+  display: grid;
+  align-items: start;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: var(--gap);
+}
+.product-side {
+  display: grid;
+  gap: var(--gap);
+}
+.product-segment-panel {
+  display: grid;
+}
+.product-segment-body {
+  display: grid;
+  gap: 10px;
+  padding: 0 var(--pad) 16px;
+}
+.product-segment-note {
+  margin: 0;
+  color: var(--ink-dim);
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
 /* Economics ---------------------------------------------------------------*/
 
 .cost-driver-list {
@@ -475,6 +503,302 @@
   font-size: 10.5px;
 }
 
+/* Statements -----------------------------------------------------------
+ * L0 Statement rows ("Read this first") and the page-top StatementHeader.
+ * Both read the same `--status` custom property the rest of the sheet
+ * already uses, so a new status colour never has to be invented here.
+ */
+
+/* Colour lives on the segment a rule fired on (`.seg-error` etc. from
+   `renderSentence`), never on the whole sentence — see handoff.md §1.4. */
+.home-verdict {
+  margin: 0 0 6px;
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 400;
+  line-height: 1.2;
+  max-width: 42ch;
+  text-wrap: pretty;
+}
+
+.statement-row {
+  border-top: 1px solid var(--line);
+}
+.statement-row:first-child {
+  border-top: 0;
+}
+.statement-summary {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr) 132px 118px 76px;
+  grid-template-areas: 'dot body spark figures toggle';
+  gap: 18px;
+  align-items: center;
+  padding: 16px var(--pad);
+  cursor: pointer;
+  list-style: none;
+}
+.statement-summary:hover {
+  background: var(--surface-elevated);
+}
+.statement-dot {
+  grid-area: dot;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--status);
+}
+.statement-body {
+  grid-area: body;
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+.statement-sentence {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+.statement-sentence .seg-error {
+  color: var(--error);
+  font-weight: 500;
+}
+.statement-sentence .seg-warning {
+  color: var(--warning);
+  font-weight: 500;
+}
+.statement-sentence .seg-success {
+  color: var(--success);
+  font-weight: 500;
+}
+.statement-sentence .seg-neutral {
+  font-weight: 500;
+}
+.statement-kicker {
+  color: var(--ink-faint);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.statement-sparkline {
+  grid-area: spark;
+  display: block;
+}
+.statement-figures {
+  grid-area: figures;
+  display: grid;
+  gap: 3px;
+  text-align: right;
+}
+.statement-figures > strong {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.statement-toggle {
+  grid-area: toggle;
+  color: var(--ink-faint);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-align: right;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.statement-toggle::after {
+  content: ' +';
+}
+.statement-row[open] .statement-toggle::after {
+  content: ' −';
+}
+.statement-evidence {
+  padding: 0 var(--pad) 18px 50px;
+}
+
+/* StatementHeader — the page-top banner on Growth, Product, Reliability,
+   Pipeline and Economics. */
+.statement-header {
+  display: grid;
+  gap: 16px;
+  padding: 22px 24px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--status);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+}
+.statement-header-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+}
+.statement-header-sentence {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 27px;
+  font-weight: 400;
+  line-height: 1.25;
+  max-width: 48ch;
+  text-wrap: pretty;
+}
+.statement-header-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.statement-header-fact {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+.statement-header-fact > span {
+  color: var(--ink-faint);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.statement-header-fact > strong {
+  font-size: 13.5px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.statement-header-fact > small {
+  color: var(--ink-dim);
+  font-size: 11.5px;
+  overflow-wrap: anywhere;
+}
+
+/* MetricCell — extends KpiGroup with its own 30-day sparkline; sits inside
+   the existing `.kpi-band` hairline grid. */
+.metric-cell {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  padding: 16px var(--pad) 18px;
+  background: var(--surface);
+}
+.metric-cell-label {
+  color: var(--ink-faint);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.metric-cell-value-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.metric-cell-value {
+  font-family: var(--font-display);
+  font-size: clamp(22px, 1.9vw, 30px);
+  font-weight: 400;
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+}
+.metric-cell-value.accent {
+  color: var(--accent);
+}
+.metric-cell-sparkline {
+  display: block;
+}
+.metric-cell-caption {
+  color: var(--ink-dim);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+/* Funnel — bars relative to the first row; the north-star row is accented. */
+.funnel {
+  display: grid;
+  padding: 2px var(--pad) 16px;
+}
+.funnel-row {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr) 40px 118px;
+  align-items: center;
+  gap: 14px;
+  padding: 9px 0;
+  border-top: 1px solid var(--line);
+}
+.funnel-row:first-child {
+  border-top: 0;
+}
+.funnel-label {
+  font-size: 13px;
+}
+.funnel-label.accent {
+  color: var(--accent);
+  font-weight: 500;
+}
+.funnel-track {
+  display: block;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--surface-elevated);
+}
+.funnel-track i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent-muted);
+}
+.funnel-track i.accent {
+  background: var(--accent);
+}
+.funnel-value {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.funnel-conv {
+  color: var(--ink-dim);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+/* SegmentBar — stacked share bar with a legend, used for freshness and AUM
+   concentration. */
+.segment-bar {
+  display: flex;
+  height: 10px;
+  border-radius: 3px;
+  overflow: hidden;
+  gap: 1px;
+}
+.segment-bar > i {
+  display: block;
+}
+.segment-bar-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  color: var(--ink-dim);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+.segment-bar-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.segment-bar-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
 @media (max-width: 1000px) {
   .home-context-grid {
     grid-template-columns: 1fr;
@@ -506,8 +830,12 @@
 }
 
 @media (max-width: 760px) {
-  .decision-metrics {
+  .decision-metrics,
+  .statement-header-facts {
     grid-template-columns: 1fr;
+  }
+  .statement-header-sentence {
+    font-size: 23px;
   }
   .podcast-list-head {
     display: none;
@@ -586,5 +914,32 @@
   .signal-audit-domain,
   .signal-audit-evidence {
     grid-column: 2;
+  }
+
+  /* Statement becomes a stacked card: dot+kicker, sentence, then a
+     sparkline+figures row, then the Evidence toggle. */
+  .statement-summary {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      'dot dot'
+      'body body'
+      'spark figures'
+      'toggle toggle';
+    gap: 10px;
+    padding: 14px 16px;
+  }
+  .statement-figures {
+    justify-self: end;
+  }
+  .statement-evidence {
+    padding-left: var(--pad);
+  }
+  .funnel-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+  .funnel-value,
+  .funnel-conv {
+    text-align: left;
   }
 }

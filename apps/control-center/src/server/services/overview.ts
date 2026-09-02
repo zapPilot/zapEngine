@@ -19,6 +19,7 @@ const EMPTY_HISTORY: CostHistoryResponse = {
   currentMonthDaily: [],
   monthlyTotals: [],
   cashSpendUsd: null,
+  previousMonthByProvider: [],
 };
 
 export function createOverviewService(input: {
