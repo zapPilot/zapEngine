@@ -158,16 +158,11 @@ export function NavCurveChart({
             d={geometry.pathForSeries(points, domainMin, domainMax)}
           />
 
-          <circle
-            className="chart-endpoint"
-            cx={geometry.xForPoint(points.length - 1, points.length)}
-            cy={geometry.yForValue(
-              points[points.length - 1]!.value,
-              domainMin,
-              domainMax,
-            )}
-            r="4"
-          />
+          {/*
+           * The end label already anchors the final value. A second endpoint
+           * circle collides with fixed-pixel trade glyphs when a rebalance
+           * lands near the right edge of a dense rolling chart.
+           */}
           <text
             className="chart-end-label"
             x={geometry.xForPoint(points.length - 1, points.length) - 8}
@@ -184,7 +179,9 @@ export function NavCurveChart({
         </svg>
       </ChartHoverLayer>
 
-      <figcaption>Indexed to 100 at strategy start.</figcaption>
+      <figcaption>
+        Indexed to 100 at the start of the displayed period.
+      </figcaption>
     </figure>
   );
 
