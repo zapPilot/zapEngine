@@ -1,0 +1,52 @@
+// @vitest-environment jsdom
+import { cleanup, render, screen } from '@testing-library/react';
+import '@testing-library/jest-dom/vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+
+import {
+  operationsFixture,
+  signalFixture,
+} from '../__fixtures__/dashboard.js';
+import { ReliabilityTopology } from './ReliabilityTopology.js';
+
+afterEach(cleanup);
+
+describe('ReliabilityTopology source ordering', () => {
+  it('orders source cards by worst status then display label', () => {
+    const data = operationsFixture({
+      signals: [
+        signalFixture({
+          fingerprint: 'product-health:healthy',
+          source: 'product-health',
+          status: 'healthy',
+          title: 'Product healthy',
+        }),
+        signalFixture({
+          fingerprint: 'github-actions:degraded',
+          source: 'github-actions',
+          status: 'degraded',
+          title: 'GitHub degraded',
+        }),
+        signalFixture({
+          fingerprint: 'sentry:critical',
+          source: 'sentry',
+          status: 'critical',
+          title: 'Sentry critical',
+        }),
+        signalFixture({
+          fingerprint: 'fly:degraded',
+          source: 'fly',
+          status: 'degraded',
+          title: 'Fly degraded',
+        }),
+      ],
+    });
+
+    render(<ReliabilityTopology data={data} social={null} />);
+
+    const labels = [...document.querySelectorAll('.source-activity-card header strong')]
+      .map((node) => node.textContent);
+    expect(labels).toEqual(['Sentry', 'Fly', 'GitHub', 'Product']);
+    expect(screen.getByText('3 need attention')).toBeVisible();
+  });
+});
