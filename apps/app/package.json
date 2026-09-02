@@ -44,7 +44,7 @@
     "check:web-native-leaks": "node scripts/check-web-native-leaks.mjs",
     "type-check": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint . --max-warnings 0",
-    "lint:fix": "eslint --fix .",
+    "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
