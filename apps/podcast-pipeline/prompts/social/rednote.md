@@ -8,6 +8,8 @@ Output fields:
 - `body`: roughly 100 to 400 Traditional Chinese characters.
 - `hashtags`: 3 to 5 relevant topics, without hashtag spam.
 
+Title identity is load-bearing. If the episode title names a company, product, protocol, person, or asset that identifies the story, keep that material entity in the Rednote title. Shorten the surrounding wording first to fit the 20-character limit; do not turn a named subject such as Fomo or Vector into a generic label such as 競品、平台 or 公司.
+
 ## Financial / crypto compliance framing
 
 Keep financial and crypto coverage informational. Explain an industry finding, payment behavior, market structure, technology, policy or risk; never turn the post into promotion, solicitation, trading instructions or investment advice.
