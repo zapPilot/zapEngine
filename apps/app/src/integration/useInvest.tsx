@@ -93,6 +93,7 @@ export function InvestProvider({ children }: { children: ReactNode }) {
   const setScope = useCallback(
     (value: InvestScope) => {
       setScopeState(value);
+      setDestinationState('strategy');
       clearFrozenExecution();
     },
     [clearFrozenExecution],
