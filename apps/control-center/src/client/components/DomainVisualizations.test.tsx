@@ -131,4 +131,67 @@ describe('domain-native control center visualizations', () => {
     expect(screen.getByText('Platforms')).toBeVisible();
     expect(screen.getByText('not verified')).toBeVisible();
   });
+
+  it('distinguishes exhausted, overdue, and healthy queue severity', () => {
+    const baseJob = socialOps().jobs[0]!;
+    const social = socialOps();
+    social.jobs = [
+      {
+        ...baseJob,
+        attemptsExhausted: true,
+        overdueMinutes: null,
+      },
+    ];
+
+    const { rerender } = render(
+      <ReliabilityTopology data={null} social={social} />,
+    );
+
+    expect(screen.getByText('Queue').closest('.social-flow-node')).toHaveClass(
+      'critical',
+    );
+    expect(screen.getByText('1 blocked')).toBeVisible();
+
+    rerender(
+      <ReliabilityTopology
+        data={null}
+        social={{
+          ...social,
+          jobs: [
+            {
+              ...baseJob,
+              attemptsExhausted: false,
+              overdueMinutes: 15,
+            },
+          ],
+        }}
+      />,
+    );
+
+    expect(screen.getByText('Queue').closest('.social-flow-node')).toHaveClass(
+      'degraded',
+    );
+    expect(screen.getByText('1 blocked')).toBeVisible();
+
+    rerender(
+      <ReliabilityTopology
+        data={null}
+        social={{
+          ...social,
+          jobs: [
+            {
+              ...baseJob,
+              attemptsExhausted: false,
+              overdueMinutes: null,
+            },
+          ],
+        }}
+      />,
+    );
+
+    expect(screen.getByText('Queue').closest('.social-flow-node')).toHaveClass(
+      'healthy',
+    );
+    expect(screen.getByText('0 blocked')).toBeVisible();
+  });
 });
