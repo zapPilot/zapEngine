@@ -44,6 +44,15 @@ export interface StartDepositWizardInput {
   split?: ChainSplit;
 }
 
+export interface ResumeReviewedDepositInput {
+  /** Exact plan already reviewed and submitted by the unified invest flow. */
+  plan: DepositPlan;
+  /** Perp USDC snapshot captured immediately before the reviewed batch. */
+  baselineUsd6: bigint;
+  /** Source transaction containing the reviewed bridge call. */
+  sourceTxHash: Hash;
+}
+
 const wizardLogger = logger.createContextLogger('DepositWizard');
 
 /**
@@ -110,7 +119,7 @@ export function useDepositWizard() {
       legIndex: number;
       sourceTxHash: Hash;
       signal: AbortSignal;
-    }) => {
+    }): Promise<boolean> => {
       const status: WizardLegStatus = 'bridgePending';
       dispatch({
         type: 'BRIDGE_UPDATE',
@@ -134,14 +143,16 @@ export function useDepositWizard() {
             ? { destinationTxHash: bridgeStatus.receiving.txHash }
             : {}),
         });
+        return true;
       } catch (error) {
-        if (isAbortError(error)) return;
+        if (isAbortError(error)) return false;
         wizardLogger.error('[deposit-wizard] bridge failed:', error);
         dispatch({
           type: 'BRIDGE_UPDATE',
           legIndex: params.legIndex,
           status: 'failed',
         });
+        return false;
       }
     },
     [],
@@ -253,6 +264,63 @@ export function useDepositWizard() {
     ],
   );
 
+  /**
+   * Continue a plan whose source EVM batch was already submitted through the
+   * unified Tenderly-reviewed route. This never re-executes source calls: it
+   * only tracks the existing bridge, waits for HyperCore credit, and unlocks
+   * the HLP vaultTransfer.
+   */
+  const resumeReviewedPlan = useCallback(
+    async ({
+      plan,
+      baselineUsd6,
+      sourceTxHash,
+    }: ResumeReviewedDepositInput): Promise<void> => {
+      const controller = renewAbort();
+      const userAddress = requireUserAddress(account?.address);
+      const hlpStep = hlpStepFromPlan(plan);
+      if (!hlpStep) {
+        throw new Error('Reviewed plan has no HLP follow-up');
+      }
+
+      dispatch({ type: 'RESET' });
+      actions.setLastPlan(plan);
+      dispatch({ type: 'PLAN_LOADED', plan, baselineUsd6 });
+      dispatch({ type: 'SOURCE_SUBMITTED' });
+      dispatch({ type: 'SOURCE_CONFIRMED', transactionHash: sourceTxHash });
+
+      const bridgeResults = await Promise.all(
+        plan.legs.map((leg, legIndex) =>
+          leg.kind === 'bridge'
+            ? watchBridgeLeg({
+                plan,
+                legIndex,
+                sourceTxHash,
+                signal: controller.signal,
+              })
+            : Promise.resolve(true),
+        ),
+      );
+      if (!bridgeResults.every(Boolean) || controller.signal.aborted) {
+        return;
+      }
+
+      await watchHlpArrival({
+        user: userAddress,
+        step: hlpStep,
+        baselineUsd6,
+        signal: controller.signal,
+      });
+    },
+    [
+      account?.address,
+      actions,
+      renewAbort,
+      watchBridgeLeg,
+      watchHlpArrival,
+    ],
+  );
+
   const runHlpDeposit = useCallback(async () => {
     const step = wizard.hlp.step;
     if (!step || wizard.hlp.status !== 'arrived') {
@@ -337,6 +405,7 @@ export function useDepositWizard() {
     ...state,
     wizard,
     start,
+    resumeReviewedPlan,
     runHlpDeposit,
     retry,
     reset,
