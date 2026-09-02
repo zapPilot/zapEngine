@@ -58,16 +58,16 @@ describe('ReliabilityTopology source ordering', () => {
     const data = operationsFixture({
       signals: [
         signalFixture({
-          fingerprint: 'product-health:healthy-only',
-          source: 'product-health',
           status: 'healthy',
           title: 'Product healthy',
+          source: 'product-health',
+          fingerprint: 'product-health:healthy-only',
         }),
         signalFixture({
+          title: 'PostHog unknown',
+          status: 'unknown',
           fingerprint: 'posthog:unknown-only',
           source: 'posthog',
-          status: 'unknown',
-          title: 'PostHog unknown',
         }),
       ],
     });
