@@ -34,6 +34,47 @@ const SNAPSHOT: OperationsResponse = {
   priorities: [],
   signals: [],
 };
+const INCIDENT_FINGERPRINT = 'github-actions:workflow/ci.yml';
+const INCIDENT = {
+  incident: {
+    fingerprint: INCIDENT_FINGERPRINT,
+    source: 'github-actions' as const,
+    status: 'degraded' as const,
+    title: 'CI failed',
+    detail: null,
+    observedAt: '2026-08-31T00:00:00.000Z',
+  },
+  entities: [],
+  timeline: [],
+  primaryEvidence: {
+    fingerprint: INCIDENT_FINGERPRINT,
+    source: 'github-actions' as const,
+    status: 'ok' as const,
+    inspectedAt: '2026-08-31T00:00:00.000Z',
+    summary: 'Workflow inspected.',
+    entities: [],
+    evidence: {},
+    gaps: [],
+  },
+  relatedEvidence: {},
+  customerImpact: {
+    affectedCustomers: null,
+    priorityCustomers: null,
+    aumUsd: null,
+  },
+  remediation: {
+    policyVersion: 'ops-autonomy-v1' as const,
+    operationalPriorityScore: 46,
+    observer: 'ok' as const,
+    inspectionCoverage: 'inspected' as const,
+    exposure: { affectedUsers: null, aumAtRiskUsd: null },
+    terminalState: false,
+    directMutationAllowed: false as const,
+    blockers: [],
+    reasons: ['deep provider inspection completed for this signal'],
+  },
+  evidenceGaps: [],
+};
 const RESOLUTION = {
   provider: 'sentry' as const,
   issueId: '12345',
@@ -53,7 +94,7 @@ function fakeOperations(): OpsMcpOperations {
     getSocial: vi.fn(),
     getCustomers: vi.fn(),
     inspectSignal: vi.fn(),
-    investigate: vi.fn(),
+    investigate: vi.fn().mockResolvedValue(INCIDENT),
     resolveSentryIssue: vi.fn().mockResolvedValue(RESOLUTION),
   };
 }
@@ -126,6 +167,23 @@ describe('Ops MCP HTTP protocol', () => {
     expect(operations.getOperations).toHaveBeenCalledWith(false);
   });
 
+  it('carries remediation facts on the investigation packet', async () => {
+    const operations = fakeOperations();
+    const app = createAuthenticatedApp(operations);
+    const arguments_ = { fingerprint: INCIDENT_FINGERPRINT };
+    const { response, payload } = await mcpRequest(
+      app,
+      toolCallRequest(4, 'ops_investigate', arguments_),
+    );
+
+    expect(response.status).toBe(200);
+    expect(payload.result?.structuredContent).toEqual(INCIDENT);
+    expect(operations.investigate).toHaveBeenCalledWith(
+      arguments_.fingerprint,
+      false,
+    );
+  });
+
   it('resolves one explicit Sentry issue through the bounded mutation tool', async () => {
     const operations = fakeOperations();
     const app = createAuthenticatedApp(operations);
@@ -135,7 +193,7 @@ describe('Ops MCP HTTP protocol', () => {
     };
     const { response, payload } = await mcpRequest(
       app,
-      toolCallRequest(4, 'ops_resolve_sentry_issue', arguments_),
+      toolCallRequest(5, 'ops_resolve_sentry_issue', arguments_),
     );
 
     expect(response.status).toBe(200);
@@ -153,7 +211,7 @@ describe('Ops MCP HTTP protocol', () => {
     });
     const app = createAuthenticatedApp();
 
-    const { response, payload } = await mcpRequest(app, initializeRequest(5));
+    const { response, payload } = await mcpRequest(app, initializeRequest(6));
 
     expect(response.status).toBe(500);
     expect(JSON.stringify(payload)).not.toContain(error.message);

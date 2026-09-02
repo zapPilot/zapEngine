@@ -4,6 +4,7 @@ import type {
   OperationalStatus,
   OperationsDomain,
 } from '../../../shared/types.js';
+import { evidenceNumber } from './evidence.js';
 
 /**
  * Deterministic triage. A human scanning eight domains and an agent reading
@@ -137,9 +138,4 @@ function collectBoosts(signal: OperationalSignal): Boost[] {
   }
 
   return boosts;
-}
-
-function evidenceNumber(signal: OperationalSignal, key: string): number | null {
-  const value = signal.evidence[key];
-  return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }

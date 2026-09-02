@@ -31,10 +31,43 @@ The remote deployment receives the same provider credentials through the Control
 ## Recommended agent flow
 
 1. Call `ops_status` first to get all eight domains, signals, and deterministic priorities.
-2. For a priority incident, call `ops_investigate` with the stable signal fingerprint. This is the normal bounded incident packet and may use `force: true` when an operator explicitly needs fresh provider reads.
+2. For a priority incident, call `ops_investigate` with the stable signal fingerprint. This is the normal bounded incident packet and may use `force: true` when an operator explicitly needs fresh provider reads. Read its `remediation` block before proposing any fix.
 3. Call `ops_inspect_signal` only when extra provider-specific evidence is needed. For Sentry it returns the internal numeric issue IDs needed for remediation.
 4. Use `ops_domain`, `ops_signal`, `ops_customers`, `ops_social`, or the `ops_costs` compatibility alias for narrower reads.
 5. Use `ops_resolve_sentry_issue` only when the user explicitly asks to close/resolve that issue or explicitly delegates Sentry cleanup after the fix has been verified.
+
+## Remediation facts
+
+`ops_investigate` carries a deterministic, read-only `remediation` block. Operational priority answers how much an incident matters; these facts answer whether it is safe to act on yet. They are intentionally separate: a priority score of 100 can sit next to a hard blocker, because the priority engine weights customers and infrastructure highest precisely where a wrong change costs the most.
+
+The block reports:
+
+- `policyVersion` — the policy revision that produced the facts;
+- `operationalPriorityScore` — impact/urgency from the existing priority engine, carried for comparison and never used as an authorization input;
+- `observer` — whether the reading itself can be trusted: `ok`, `unknown`, `source-failure`, or `not-active`;
+- `inspectionCoverage` — how much deep provider evidence backs the incident: `inspected`, `no-inspector`, `unavailable`, or `not-found`;
+- `exposure` — `affectedUsers` and `aumAtRiskUsd` where the signal proves them;
+- `terminalState` — whether retries are exhausted, which makes the failure deterministic;
+- `directMutationAllowed` — always `false`;
+- `blockers` — a non-empty list means the server can prove the incident is not safe to act on yet;
+- `reasons` — context that does not block, including the coverage caveat below.
+
+The server deliberately grades no autonomy level. Whether a repair is safe depends on the kind of change it needs, and one signal can require either a one-line guard or a schema migration. Change kind is only knowable after an agent has diagnosed the root cause, so `.agents/skills/ops-incident-remediation` owns that judgement while this block owns the facts a skill cannot see for itself.
+
+Fail-closed rules:
+
+- `unknown` operational state is never remediation-ready;
+- an adapter/source failure means the observer failed, which is not proof that the observed system is broken;
+- a fingerprint missing from the current snapshot is not an actionable incident;
+- an unavailable or not-found deep inspection is missing evidence, not clean evidence;
+- every unresolved evidence gap becomes a blocker;
+- any signal carrying non-zero `aumAtRiskUsd` stays on a human-controlled rail even when its operational priority is high.
+
+`exposure` reports only what the investigated signal itself proves. Customer impact correlated through service topology is reported separately in the packet's `customerImpact`, and an agent weighing a repair must read both: a job failure can carry no exposure of its own while the same packet shows stale priority portfolios behind it.
+
+`no-inspector` is a caveat rather than a blocker. Only `github-actions`, `sentry`, and `fly` have deep inspectors, so for every other source an empty gap list means nothing was gathered rather than that nothing is wrong. Such an incident may still be repaired from repository evidence, but it must never be described as production-verified.
+
+`ops_resolve_sentry_issue` remains a separate, explicit delegated mutation. Empty `blockers` does not bypass the Sentry resolve gate documented below or the production verification rules in the incident-remediation skill.
 
 `ops_resolve_sentry_issue` takes one numeric Sentry issue ID plus a required human-readable `reason`. The implementation always sends exactly `{ "status": "resolved" }` to that one issue. The caller cannot choose `ignored`, merge issues, assign ownership, make an issue public, delete it, or bulk-mutate issues through MCP.
 
@@ -53,8 +86,9 @@ From Claude Code or OpenCode at the repository root:
 1. Confirm `zap-pilot-ops` appears in `tools/list`.
 2. Call `ops_status` and confirm all eight domains are present.
 3. Confirm configured production providers do not all report `unknown` because of missing environment injection.
-4. Pick a real Sentry signal fingerprint and call `ops_inspect_signal`; confirm the issue evidence includes a numeric issue ID.
-5. With `SENTRY_OPS_WRITE_TOKEN` configured, resolve a disposable/test issue through `ops_resolve_sentry_issue` and confirm only that issue changes to `resolved`.
+4. Pick an active priority fingerprint and call `ops_investigate`; confirm the packet separates `operationalPriorityScore` from the rest of the `remediation` block and that `directMutationAllowed` is `false`.
+5. Pick a real Sentry signal fingerprint and call `ops_inspect_signal`; confirm the issue evidence includes a numeric issue ID.
+6. With `SENTRY_OPS_WRITE_TOKEN` configured, resolve a disposable/test issue through `ops_resolve_sentry_issue` and confirm only that issue changes to `resolved`.
 
 The repository tests lock both client discovery files to the canonical launcher and assert that the launcher explicitly selects the production environment.
 
@@ -62,4 +96,4 @@ The repository tests lock both client discovery files to the canonical launcher 
 
 Send MCP requests to `/api/mcp` with the bearer token from `OPS_MCP_TOKEN`. Missing configuration, missing authorization, and incorrect authorization all return the same `401 Unauthorized` response so the endpoint does not disclose whether a token is configured.
 
-The HTTP integration tests cover protocol initialization, tool discovery, `ops_status`, and the bounded Sentry resolve tool, including `structuredContent`.
+The HTTP integration tests cover protocol initialization, tool discovery, `ops_status`, `ops_investigate` including its remediation facts, and the bounded Sentry resolve tool, including `structuredContent`.

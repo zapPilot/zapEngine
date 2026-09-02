@@ -198,6 +198,14 @@ describe('investigateOperationalSignal', () => {
       source: 'sentry',
       reason: 'request timed out',
     });
+    expect(result.remediation).toMatchObject({
+      policyVersion: 'ops-autonomy-v1',
+      operationalPriorityScore: 100,
+      observer: 'ok',
+      inspectionCoverage: 'inspected',
+      directMutationAllowed: false,
+    });
+    expect(result.remediation.blockers).toContain('sentry: request timed out');
     expect(result.customerImpact).toEqual({
       affectedCustomers: 2,
       priorityCustomers: 3,
@@ -273,5 +281,41 @@ describe('investigateOperationalSignal', () => {
       priorityCustomers: null,
       aumUsd: null,
     });
+  });
+
+  it('does not let a source without a deep inspector read as verified', async () => {
+    const costSignal: OperationalSignal = {
+      fingerprint: 'cost-ledger:snapshot-age/ledger',
+      source: 'cost-ledger',
+      domain: 'costs',
+      status: 'degraded',
+      title: 'Cost ledger snapshot is stale',
+      detail: null,
+      evidence: {},
+      observedAt: '2026-08-30T12:00:00.000Z',
+      url: null,
+    };
+    const inspect = vi.fn(async (fingerprint: string) => ({
+      ...inspection(fingerprint, null),
+      status: 'unsupported' as const,
+      summary: 'Deep inspection is not implemented for cost-ledger.',
+    }));
+
+    const result = await investigateOperationalSignal({
+      fingerprint: costSignal.fingerprint,
+      snapshot: snapshot([costSignal]),
+      inspect,
+      loadCustomers: async () => CUSTOMERS,
+      loadSocial: async () => SOCIAL,
+    });
+
+    expect(result.evidenceGaps).toEqual([]);
+    expect(result.remediation.inspectionCoverage).toBe('no-inspector');
+    expect(result.remediation.blockers).toEqual([]);
+    expect(
+      result.remediation.reasons.some((reason) =>
+        reason.includes('no deep inspector exists'),
+      ),
+    ).toBe(true);
   });
 });
