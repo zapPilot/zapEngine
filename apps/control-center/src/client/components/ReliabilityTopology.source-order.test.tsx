@@ -80,6 +80,17 @@ describe('ReliabilityTopology source ordering', () => {
     expect(screen.queryByText(/need attention/)).not.toBeInTheDocument();
   });
 
+  it('shows the empty state without inventing source activity', () => {
+    const data = operationsFixture({ signals: [] });
+
+    render(<ReliabilityTopology data={data} social={null} />);
+
+    expect(screen.getByText('All clear')).toBeVisible();
+    expect(screen.getByText('Waiting for signals.')).toBeVisible();
+    expect(document.querySelector('.source-activity-card')).toBeNull();
+    expect(screen.queryByText(/need attention/)).not.toBeInTheDocument();
+  });
+
   it('preserves zero-valued source evidence instead of treating it as missing', () => {
     const zeroEvidence = signalFixture();
     Object.assign(zeroEvidence, {
