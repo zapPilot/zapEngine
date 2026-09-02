@@ -79,4 +79,21 @@ describe('ReliabilityTopology source ordering', () => {
     expect(screen.getByText('PostHog unknown')).toBeVisible();
     expect(screen.queryByText(/need attention/)).not.toBeInTheDocument();
   });
+
+  it('preserves zero-valued source evidence instead of treating it as missing', () => {
+    const zeroEvidence = signalFixture();
+    Object.assign(zeroEvidence, {
+      fingerprint: 'social-queue:zero-evidence',
+      source: 'social-queue',
+      status: 'healthy',
+      title: 'Social queue healthy',
+      evidence: { overdueJobs: 0, waitingMediaLanes: 0 },
+    });
+    const data = operationsFixture({ signals: [zeroEvidence] });
+
+    render(<ReliabilityTopology data={data} social={null} />);
+
+    expect(screen.getByText('overdue jobs 0 · waiting media lanes 0')).toBeVisible();
+    expect(screen.queryByText('No extra detail')).not.toBeInTheDocument();
+  });
 });
