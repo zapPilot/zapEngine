@@ -10,18 +10,25 @@ const PROMPT_PATH = resolve(
 );
 
 describe('script system prompt output contract', () => {
-  it('requires JSON with an editorial title and body-only narration', () => {
+  it('requires JSON with a minimally edited title and body-only narration', () => {
     const prompt = readFileSync(PROMPT_PATH, 'utf8');
 
     expect(prompt).toContain(
       '{"title":"編輯後標題","script":"一篇完整、可直接朗讀的 Podcast 正文"}',
     );
-    expect(prompt).toContain('將來源標題改寫成 15–35 個中文字的編輯標題');
-    expect(prompt).toContain('不得照抄來源標題');
     expect(prompt).toContain(
-      '不得捏造或篡改必要的專名與數字；只有對標題核心有資訊價值的實體才需要保留。',
+      '以來源標題為基礎做最小必要改寫：目標只是避免逐字照抄，不是重新選角度、重新摘要或創作新標題。',
     );
-    expect(prompt).toContain('不得新增原文沒有的結論');
+    expect(prompt).toContain(
+      '優先只改 1–2 個詞、語序或標點；來源標題若已清楚，保留原本句型與資訊結構。',
+    );
+    expect(prompt).toContain(
+      '必須保留故事主體與核心辨識詞：原標題中的人名、公司名、產品名、協議名、資產名、必要數字與核心 claim。',
+    );
+    expect(prompt).toContain(
+      '不得把 Fomo、Vector 這類具名實體抽象成「競品」「平台」「公司」等泛稱而失去辨識度。',
+    );
+    expect(prompt).toContain('不得捏造、篡改或新增原文沒有的結論');
     expect(prompt).toContain('禁止公關腔、誇大與 clickbait');
     expect(prompt).toContain(
       '只撰寫節目正文。不得加入節目迎賓詞、節目名稱、CTA、廣告詞或收尾導流；這些由 application code 統一加入。',
