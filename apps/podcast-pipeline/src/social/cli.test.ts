@@ -95,6 +95,7 @@ const episode: SocialEpisode = {
   videoDurationSeconds: 600,
   languageCode: 'zh-Hant',
   videoUrl: VIDEO_URL,
+  videoThumbnailUrl: 'https://cdn.example/thumbnail.jpg',
 };
 const copy: GeneratedSocialCopy = {
   topic: 'macro',
@@ -429,6 +430,7 @@ describe('runSocialCli publishing', () => {
       expect.objectContaining({
         platforms: ['x'],
         videoUrl: VIDEO_URL,
+        thumbnailUrl: 'https://cdn.example/thumbnail.jpg',
         videoPath: VIDEO.path,
         xVideoPath: X_VIDEO.path,
         copy,
@@ -516,6 +518,7 @@ describe('runSocialCli publishing', () => {
       expect.objectContaining({
         platforms: ['threads'],
         videoUrl: VIDEO_URL,
+        thumbnailUrl: 'https://cdn.example/thumbnail.jpg',
       }),
     );
     const input = mocks.createSocialPublishJobs.mock.calls[0]?.[0];

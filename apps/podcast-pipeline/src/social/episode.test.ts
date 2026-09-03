@@ -109,6 +109,7 @@ describe('buildSocialEpisode', () => {
       videoDurationSeconds: 173,
       languageCode: 'zh-Hant',
       videoUrl: 'https://cdn.example/video.mp4',
+      videoThumbnailUrl: 'https://cdn.example/thumbnail.jpg',
     });
     expect(result.episodeUrl).toBe(
       `https://podcast.example/base/e/${EPISODE_ID}?lang=zh-Hant`,
@@ -329,6 +330,7 @@ describe('getSocialEpisode', () => {
       videoDurationSeconds: 173,
       languageCode: 'zh-Hant',
       videoUrl: 'https://cdn.example/video.mp4',
+      videoThumbnailUrl: 'https://cdn.example/thumbnail.jpg',
     });
   });
 });

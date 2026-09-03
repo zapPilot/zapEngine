@@ -18,6 +18,8 @@ interface SocialPublishJobsInput {
   copy: GeneratedSocialCopy;
   episode: SocialComposeEpisode;
   videoUrl: string;
+  /** Canonical renderer poster (first scene + brand frame). */
+  thumbnailUrl?: string;
   videoPath?: string;
   xVideoPath?: string;
   /** Break-glass override for `social:publish`; the daemon always publishes public. */
@@ -94,6 +96,12 @@ function createYouTubeJob(input: SocialPublishJobsInput): SocialPublishJob {
   if (!videoPath) {
     throw new Error('YouTube publishing requires a prepared video.');
   }
+  const thumbnailUrl = input.thumbnailUrl?.trim();
+  if (!thumbnailUrl) {
+    throw new Error(
+      'YouTube publishing requires the canonical video thumbnail.',
+    );
+  }
   const { title, body } = composeSocialContent(platform, input);
   if (!title?.trim() || !body.trim()) {
     throw new Error(
@@ -108,6 +116,7 @@ function createYouTubeJob(input: SocialPublishJobsInput): SocialPublishJob {
         title,
         description: body,
         videoPath,
+        thumbnailUrl,
         languageCode: input.episode.languageCode ?? 'zh-Hant',
         privacyStatus: input.youtubePrivacyStatus ?? 'public',
       }),
