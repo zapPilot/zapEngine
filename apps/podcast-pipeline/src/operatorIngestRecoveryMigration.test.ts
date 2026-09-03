@@ -7,7 +7,7 @@ const repoRoot = path.resolve(process.cwd(), '../..');
 const migration = fs.readFileSync(
   path.join(
     repoRoot,
-    'supabase/migrations/20260903014000_operator_ingest_recovery.sql',
+    'supabase/migrations/20260903014509_operator_ingest_recovery.sql',
   ),
   'utf8',
 );
