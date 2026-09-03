@@ -18,12 +18,11 @@ const CHILDREN = {
   dashboard: {
     label: 'dashboard',
     command: 'pnpm',
-    // Routed through the root `ops:dashboard` script rather than the workspace
-    // dev script: that one goes through turbo with `--env-mode=loose`, which is
-    // what lets the Infisical-injected credentials reach the server. Turbo's
-    // default strict mode drops them before the child starts, and the dashboard
-    // then boots with every data source unauthenticated.
-    args: ['run', 'ops:dashboard'],
+    // `pnpm ops` is already running inside scripts/env/run.mjs, so call the raw
+    // Turbo entrypoint here instead of the public `ops:dashboard` wrapper. The
+    // raw command keeps `--env-mode=loose`, which preserves the credentials
+    // already injected by the parent without resolving Infisical a second time.
+    args: ['run', 'ops:dashboard:raw'],
   },
   social: {
     label: 'social',

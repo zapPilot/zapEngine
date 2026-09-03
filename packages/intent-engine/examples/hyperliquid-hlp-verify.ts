@@ -15,7 +15,7 @@
  * Optional env:
  *   LIFI_API_KEY    - elevated LI.FI rate limits
  *   VERIFY_EOA      - quote fromAddress (default 0x1111...1111)
- *   VERIFY_AMOUNTS  - comma-separated USDC base units (default 50000000,5000000)
+ *   VERIFY_AMOUNTS  - comma-separated USDC base units (default 50000000,10000000)
  */
 
 import { equalsAddress } from '@zapengine/types/shared';
@@ -32,7 +32,7 @@ import { SUPPORTED_CHAINS, USDC_ADDRESS } from '../src/registry/chains.js';
 
 const EOA =
   process.env.VERIFY_EOA ?? '0x1111111111111111111111111111111111111111';
-const AMOUNTS = (process.env.VERIFY_AMOUNTS ?? '50000000,5000000').split(',');
+const AMOUNTS = (process.env.VERIFY_AMOUNTS ?? '50000000,10000000').split(',');
 const BASE_USDC = USDC_ADDRESS[SUPPORTED_CHAINS.BASE]!;
 
 let failures = 0;

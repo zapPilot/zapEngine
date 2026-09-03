@@ -1,7 +1,24 @@
-import { humanizeSlug } from '@zapengine/types/shared';
+import type { CostProvider } from '@zapengine/cost-observability';
 
-import type { CostProviderResult } from '../../shared/types.js';
+import {
+  type CostProviderResult,
+  FLY_RUN_RATE_USAGE_KEY,
+} from '../../shared/types.js';
+import { costBasisLabel } from '../cost-basis.js';
 import { integer, providerUsage, usd } from '../format.js';
+
+/**
+ * The usage counter each provider leads with. Every collector names its own
+ * keys, so a shared guess ("monthly" or "monthly_units") silently blanked the
+ * column for anyone who did not happen to use those two — Supabase and Fly
+ * both read as "—" while reporting usage perfectly well.
+ */
+const PRIMARY_USAGE_KEY: Record<CostProvider, string> = {
+  debank: 'monthly_units',
+  fly: FLY_RUN_RATE_USAGE_KEY,
+  openrouter: 'monthly',
+  supabase: 'monthly_plan',
+};
 
 export function ProviderLedger(props: {
   providers: CostProviderResult[];
@@ -23,13 +40,13 @@ export function ProviderLedger(props: {
         <tbody>
           {props.providers.map((provider) => {
             const primaryUsage = provider.snapshot?.usage.find(
-              (item) => item.key === 'monthly' || item.key === 'monthly_units',
+              (item) => item.key === PRIMARY_USAGE_KEY[provider.provider],
             );
             return (
               <tr key={provider.provider}>
                 <td className="cell-title">{provider.label}</td>
                 <td className={`basis-${provider.costType}`}>
-                  {basisLabel(provider.costType)}
+                  {costBasisLabel(provider.costType, provider.snapshot?.source)}
                 </td>
                 <td className="mono">
                   {usd(provider.snapshot?.accruedCostUsd)}
@@ -40,12 +57,33 @@ export function ProviderLedger(props: {
                   </td>
                 ) : null}
                 <td className="mono">
-                  {primaryUsage
-                    ? providerUsage(primaryUsage.unit, primaryUsage.value)
-                    : '—'}
+                  {primaryUsage ? (
+                    <>
+                      {providerUsage(primaryUsage.unit, primaryUsage.value)}
+                      {/*
+                        A run-rate sits in a money column next to real spend, so
+                        it says so: it is what the fleet would cost at full load
+                        for a whole month, not an amount anyone will be billed.
+                      */}
+                      {primaryUsage.key === FLY_RUN_RATE_USAGE_KEY ? (
+                        <small className="usage-qualifier">run-rate</small>
+                      ) : null}
+                    </>
+                  ) : (
+                    '—'
+                  )}
                 </td>
                 <td className={`status-${provider.status}`}>
                   {statusLabel(provider.status)}
+                  {/*
+                    The one place an unpriced provider's remedy is spelled out.
+                    The KPI band only names what it excluded; the sentence that
+                    says how to close the gap lives here, beside the row it is
+                    about.
+                  */}
+                  {provider.message ? (
+                    <small className="provider-note">{provider.message}</small>
+                  ) : null}
                 </td>
               </tr>
             );
@@ -85,13 +123,6 @@ export function UsageSignals(props: { providers: CostProviderResult[] }) {
       ))}
     </div>
   );
-}
-
-function basisLabel(value: CostProviderResult['costType']): string {
-  if (value === 'list-price-equivalent') {
-    return 'List-price equivalent';
-  }
-  return humanizeSlug(value);
 }
 
 function statusLabel(value: CostProviderResult['status']): string {

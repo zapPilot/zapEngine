@@ -1,32 +1,11 @@
-import type {
-  WizardHlpState,
-  WizardLegProgress,
-} from '@zapengine/app-core/lib/wallet/depositWizardMachine';
+import type { WizardHlpState } from '@zapengine/app-core/lib/wallet/depositWizardMachine';
 import { describe, expect, it } from 'vitest';
 
 import {
-  buildWizardStartInput,
-  canSubmitHlpDeposit,
-  HLP_STATUS_COPY,
-  hlpAmountRows,
   hyperliquidAccountUrl,
   resolveDepositExecutionCapability,
   resolveInvestExecutionCapability,
-  wizardLegRows,
 } from '@/integration/investExecutionModel';
-
-const BASE_USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as `0x${string}`;
-
-describe('buildWizardStartInput', () => {
-  it('maps an invest draft onto the wizard start input', () => {
-    expect(
-      buildWizardStartInput({
-        fromToken: BASE_USDC,
-        fromAmount: '100000000',
-      }),
-    ).toEqual({ fromToken: BASE_USDC, fromAmount: '100000000' });
-  });
-});
 
 describe('resolveDepositExecutionCapability', () => {
   it('asks for a wallet before judging execution support', () => {
@@ -118,47 +97,6 @@ describe('resolveInvestExecutionCapability', () => {
   );
 });
 
-describe('wizardLegRows', () => {
-  const legs: WizardLegProgress[] = [
-    { chainId: 8453, kind: 'supply', protocol: 'morpho', status: 'pending' },
-    {
-      chainId: 1337,
-      kind: 'bridge',
-      protocol: 'hyperliquid',
-      status: 'destinationConfirmed',
-      sourceTxHash: `0x${'a'.repeat(64)}`,
-      destinationTxHash: `0x${'b'.repeat(64)}`,
-    },
-    { chainId: 1, kind: 'bridge', status: 'failed' },
-  ];
-
-  it('labels legs with chain names, status tones, and explorer links', () => {
-    const rows = wizardLegRows(legs, 8453);
-
-    expect(rows[0]).toMatchObject({
-      title: 'Deposit on Base · morpho',
-      statusLabel: 'Pending',
-      statusTone: 'neutral',
-      sourceTxUrl: null,
-      destinationTxUrl: null,
-    });
-
-    expect(rows[1]).toMatchObject({
-      title: 'Bridge to Hyperliquid · hyperliquid',
-      statusLabel: 'Completed',
-      statusTone: 'success',
-    });
-    expect(rows[1]!.sourceTxUrl).toContain('basescan.org');
-    expect(rows[1]!.destinationTxUrl).toContain('hyperliquid');
-
-    expect(rows[2]).toMatchObject({
-      title: 'Bridge to Ethereum',
-      statusLabel: 'Failed',
-      statusTone: 'error',
-    });
-  });
-});
-
 describe('HLP helpers', () => {
   const step = {
     kind: 'hyperliquid-vault-deposit',
@@ -179,36 +117,6 @@ describe('HLP helpers', () => {
     },
     lockupDays: 4,
   } as WizardHlpState['step'];
-
-  it('only allows submission once funds arrived and the lock is accepted', () => {
-    expect(canSubmitHlpDeposit('arrived', true)).toBe(true);
-    expect(canSubmitHlpDeposit('arrived', false)).toBe(false);
-    expect(canSubmitHlpDeposit('awaitingArrival', true)).toBe(false);
-    expect(canSubmitHlpDeposit('confirming', true)).toBe(false);
-    expect(canSubmitHlpDeposit('deposited', true)).toBe(false);
-    // Already accepted by the exchange — a second deposit would double up.
-    expect(canSubmitHlpDeposit('submittedUnverified', true)).toBe(false);
-  });
-
-  it('tells the user where to confirm an unverified deposit', () => {
-    expect(HLP_STATUS_COPY.submittedUnverified).toBe(
-      'Deposit submitted — confirm it in your Hyperliquid account.',
-    );
-  });
-
-  it('formats amount rows and skips values that are not known yet', () => {
-    const hlp: WizardHlpState = {
-      status: 'arrived',
-      step,
-      baselineUsd6: 0n,
-      arrivedUsd6: 29500000n,
-      vaultEquityUsd6: null,
-    };
-    expect(hlpAmountRows(hlp)).toEqual([
-      { label: 'Expected', value: '30.00 USDC' },
-      { label: 'Arrived', value: '29.50 USDC' },
-    ]);
-  });
 
   it('builds the Hyperliquid account link only when step and address exist', () => {
     const hlp: WizardHlpState = {

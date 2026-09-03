@@ -503,7 +503,7 @@ describe('composeDeposit', () => {
           fromAmount: '10000000',
           sourceChainId: 8453,
           userAddress: USER,
-          split: { 8453: 0.7, 1337: 0.3 }, // 3 USDC to HLP < 5 USDC minimum
+          split: { 8453: 0.7, 1337: 0.3 }, // 3 USDC to HLP < 10 USDC minimum
         },
         { adapter, publicClients: publicClients as never },
       ),

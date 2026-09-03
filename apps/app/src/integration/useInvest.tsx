@@ -10,7 +10,9 @@ import { useQuery } from '@tanstack/react-query';
 import { handleHTTPError } from '@zapengine/app-core/lib/http';
 import { getDepositReview } from '@zapengine/app-core/services';
 import {
+  HYPERCORE_CHAIN_ID,
   STRATEGY_DEPOSIT_ID,
+  type ChainSplit,
   type DepositReviewGroup,
   type PlanOrchestrationDepositReviewResponse,
   type PlanOrchestrationDepositPlan,
@@ -34,6 +36,8 @@ export type {
   SingleChainFundingDraft,
 } from '@/integration/investAmountModel';
 
+export type InvestDestination = 'strategy' | 'hlp';
+
 export interface InvestContextValue {
   /** USD amount the user is investing (entered in step 1). */
   amountUsd: number;
@@ -42,12 +46,17 @@ export interface InvestContextValue {
   totalUsd6: string;
   scope: InvestScope;
   setScope: (value: InvestScope) => void;
+  destination: InvestDestination;
+  setDestination: (value: InvestDestination) => void;
   baseFundingToken: DesktopDepositToken;
   setBaseFundingToken: (value: DesktopDepositToken) => void;
   arbitrumFundingToken: DesktopDepositToken;
   setArbitrumFundingToken: (value: DesktopDepositToken) => void;
   singleChainFundingDraft: SingleChainFundingDraft | null;
   setSingleChainFundingDraft: (value: SingleChainFundingDraft | null) => void;
+  /** Perp USDC snapshot taken immediately before a reviewed HLP bridge batch. */
+  hlpBaselineUsd6: string | null;
+  setHlpBaselineUsd6: (value: string | null) => void;
 }
 
 const InvestContext = createContext<InvestContextValue | null>(null);
@@ -60,6 +69,8 @@ const InvestContext = createContext<InvestContextValue | null>(null);
 export function InvestProvider({ children }: { children: ReactNode }) {
   const [amountInput, setAmountInputState] = useState('');
   const [scope, setScopeState] = useState<InvestScope>('both');
+  const [destination, setDestinationState] =
+    useState<InvestDestination>('strategy');
   const amountUsd = Number.parseFloat(amountInput.replace(/,/gu, '')) || 0;
   const [baseFundingToken, setBaseFundingTokenState] =
     useState<DesktopDepositToken>(DEFAULT_BASE_FUNDING_TOKEN);
@@ -67,23 +78,48 @@ export function InvestProvider({ children }: { children: ReactNode }) {
     useState<DesktopDepositToken>(DEFAULT_ARBITRUM_FUNDING_TOKEN);
   const [singleChainFundingDraft, setSingleChainFundingDraft] =
     useState<SingleChainFundingDraft | null>(null);
+  const [hlpBaselineUsd6, setHlpBaselineUsd6] = useState<string | null>(null);
 
-  const setAmountInput = useCallback((value: string) => {
-    setAmountInputState(value);
+  const clearFrozenExecution = useCallback(() => {
     setSingleChainFundingDraft(null);
+    setHlpBaselineUsd6(null);
   }, []);
-  const setScope = useCallback((value: InvestScope) => {
-    setScopeState(value);
-    setSingleChainFundingDraft(null);
-  }, []);
-  const setBaseFundingToken = useCallback((value: DesktopDepositToken) => {
-    setBaseFundingTokenState(value);
-    setSingleChainFundingDraft(null);
-  }, []);
-  const setArbitrumFundingToken = useCallback((value: DesktopDepositToken) => {
-    setArbitrumFundingTokenState(value);
-    setSingleChainFundingDraft(null);
-  }, []);
+  const setAmountInput = useCallback(
+    (value: string) => {
+      setAmountInputState(value);
+      clearFrozenExecution();
+    },
+    [clearFrozenExecution],
+  );
+  const setScope = useCallback(
+    (value: InvestScope) => {
+      setScopeState(value);
+      setDestinationState('strategy');
+      clearFrozenExecution();
+    },
+    [clearFrozenExecution],
+  );
+  const setDestination = useCallback(
+    (value: InvestDestination) => {
+      setDestinationState(value);
+      clearFrozenExecution();
+    },
+    [clearFrozenExecution],
+  );
+  const setBaseFundingToken = useCallback(
+    (value: DesktopDepositToken) => {
+      setBaseFundingTokenState(value);
+      clearFrozenExecution();
+    },
+    [clearFrozenExecution],
+  );
+  const setArbitrumFundingToken = useCallback(
+    (value: DesktopDepositToken) => {
+      setArbitrumFundingTokenState(value);
+      clearFrozenExecution();
+    },
+    [clearFrozenExecution],
+  );
 
   const value = useMemo<InvestContextValue>(
     () => ({
@@ -93,22 +129,29 @@ export function InvestProvider({ children }: { children: ReactNode }) {
       totalUsd6: amountInputToUsd6(amountInput),
       scope,
       setScope,
+      destination,
+      setDestination,
       baseFundingToken,
       setBaseFundingToken,
       arbitrumFundingToken,
       setArbitrumFundingToken,
       singleChainFundingDraft,
       setSingleChainFundingDraft,
+      hlpBaselineUsd6,
+      setHlpBaselineUsd6,
     }),
     [
       amountInput,
       amountUsd,
       arbitrumFundingToken,
       baseFundingToken,
+      destination,
+      hlpBaselineUsd6,
       scope,
       setAmountInput,
       setArbitrumFundingToken,
       setBaseFundingToken,
+      setDestination,
       setScope,
       singleChainFundingDraft,
     ],
@@ -134,6 +177,26 @@ interface InvestDepositPlanRequestParams {
   baseFundingToken: DesktopDepositToken;
   arbitrumFundingToken: DesktopDepositToken;
   singleChainFundingDraft: SingleChainFundingDraft | null;
+  destination?: InvestDestination;
+}
+
+/**
+ * The Base source batch is identical for every destination; only the split
+ * decides where the bridged USDC lands.
+ */
+function baseInvestRequest(
+  userAddress: `0x${string}`,
+  draft: Extract<SingleChainFundingDraft, { scope: 'base' }>,
+  split: ChainSplit,
+): PlanOrchestrationDepositRequest {
+  return {
+    kind: 'invest',
+    userAddress,
+    fromToken: draft.fromToken,
+    fromAmount: draft.fromAmount,
+    sourceChainId: draft.chainId,
+    split,
+  };
 }
 
 export function buildInvestDepositPlanRequest({
@@ -143,7 +206,20 @@ export function buildInvestDepositPlanRequest({
   baseFundingToken,
   arbitrumFundingToken,
   singleChainFundingDraft,
+  destination = 'strategy',
 }: InvestDepositPlanRequestParams): PlanOrchestrationDepositRequest | null {
+  if (destination === 'hlp') {
+    if (
+      scope !== 'base' ||
+      !singleChainFundingDraft ||
+      singleChainFundingDraft.scope !== 'base'
+    ) {
+      return null;
+    }
+    return baseInvestRequest(userAddress, singleChainFundingDraft, {
+      [String(HYPERCORE_CHAIN_ID)]: 1,
+    });
+  }
   if (scope === 'both') {
     return {
       kind: 'strategy',
@@ -166,14 +242,9 @@ export function buildInvestDepositPlanRequest({
     return null;
   }
   if (singleChainFundingDraft.scope === 'base') {
-    return {
-      kind: 'invest',
-      userAddress,
-      fromToken: singleChainFundingDraft.fromToken,
-      fromAmount: singleChainFundingDraft.fromAmount,
-      sourceChainId: singleChainFundingDraft.chainId,
-      split: { '8453': 1 },
-    };
+    return baseInvestRequest(userAddress, singleChainFundingDraft, {
+      '8453': 1,
+    });
   }
   return {
     kind: 'gmx-v2-basket',
@@ -204,6 +275,7 @@ export function buildInvestDepositPlanPreviewKey(
       request.sourceChainId,
       request.fromToken,
       request.fromAmount,
+      JSON.stringify(request.split ?? {}),
     ];
   }
   if (request.kind === 'gmx-v2-basket') {
@@ -262,6 +334,7 @@ export function useInvestDepositReview(): {
     amountUsd,
     totalUsd6,
     scope,
+    destination,
     baseFundingToken,
     arbitrumFundingToken,
     singleChainFundingDraft,
@@ -274,6 +347,7 @@ export function useInvestDepositReview(): {
         baseFundingToken,
         arbitrumFundingToken,
         singleChainFundingDraft,
+        destination,
       })
     : null;
   const enabled = Boolean(

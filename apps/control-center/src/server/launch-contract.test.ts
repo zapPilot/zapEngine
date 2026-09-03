@@ -24,6 +24,10 @@ function readRootScripts(): Record<string, string> {
   return manifest.scripts ?? {};
 }
 
+function readOpsLauncher(): string {
+  return readFileSync(resolve(repoRoot, 'scripts/ops.mjs'), 'utf8');
+}
+
 function readVercelConfig(): VercelConfig {
   return JSON.parse(
     readFileSync(resolve(repoRoot, 'apps/control-center/vercel.json'), 'utf8'),
@@ -31,12 +35,22 @@ function readVercelConfig(): VercelConfig {
 }
 
 describe('control-center launch contract', () => {
-  it('preserves server-side Infisical credentials through Turbo', () => {
-    const command = readRootScripts()['ops:dashboard'];
+  it('loads local secrets before direct dashboard startup', () => {
+    const scripts = readRootScripts();
+    const command = scripts['ops:dashboard'];
+    const rawCommand = scripts['ops:dashboard:raw'];
 
-    expect(command).toContain('turbo run dev');
-    expect(command).toContain('--filter=@zapengine/control-center');
-    expect(command).toContain('--env-mode=loose');
+    expect(command).toContain('node scripts/env/run.mjs');
+    expect(command).toContain('pnpm run ops:dashboard:raw');
+    expect(rawCommand).toContain('turbo run dev');
+    expect(rawCommand).toContain('--filter=@zapengine/control-center');
+    expect(rawCommand).toContain('--env-mode=loose');
+  });
+
+  it('reuses the injected env when the full ops stack starts the dashboard', () => {
+    expect(readOpsLauncher()).toContain(
+      "args: ['run', 'ops:dashboard:raw']",
+    );
   });
 
   it('routes every nested Vercel API path through the Hono entrypoint', () => {

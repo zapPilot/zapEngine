@@ -10,9 +10,12 @@ import {
   type FetchLike,
 } from '@zapengine/cost-observability';
 
-import type { CostProviderResult } from '../../shared/types.js';
+import type {
+  CostProviderResult,
+  ProviderMonthCost,
+} from '../../shared/types.js';
 import type { ControlCenterConfig } from '../config/env.js';
-import { fetchFlyRunRateSnapshot } from './fly.js';
+import { fetchFlyRunRateSnapshot, type FlyctlRunner } from './fly.js';
 
 interface CostSource {
   provider: CostProvider;
@@ -27,13 +30,24 @@ export interface CollectedCostProvider extends CostProviderResult {
   pricingRateId: string | null;
 }
 
+/**
+ * `priorMonthTotals` is what the metered providers need to survive the first
+ * days of a month: extrapolating a few hours of spend across thirty days turns
+ * pocket change into a scary headline, so the loaders anchor the unelapsed part
+ * of the month to what the provider actually cost last month. Only metered
+ * providers get it — Supabase is a flat commitment with nothing to project, and
+ * Fly's collector reports no cost at all.
+ */
 export async function collectCostProviders(input: {
   config: ControlCenterConfig;
   pricingRates: CostPricingRate[];
   fetch?: FetchLike;
   now?: Date;
+  priorMonthTotals?: ProviderMonthCost[] | null;
+  flyRun?: FlyctlRunner;
 }): Promise<CollectedCostProvider[]> {
   const now = input.now ?? new Date();
+  const priorMonthTotal = priorMonthLookup(input.priorMonthTotals);
   const openRouterKey =
     input.config.OPENROUTER_MANAGEMENT_KEY ?? input.config.OPENROUTER_API_KEY;
   const debankRate = resolvePricingRate(input.pricingRates, {
@@ -60,6 +74,7 @@ export async function collectCostProviders(input: {
           fetch: input.fetch,
           now,
           baseUrl: input.config.OPENROUTER_BASE_URL,
+          priorMonthTotalUsd: priorMonthTotal('openrouter'),
         }),
     },
     {
@@ -75,6 +90,7 @@ export async function collectCostProviders(input: {
           fetch: input.fetch,
           now,
           baseUrl: input.config.DEBANK_BASE_URL,
+          priorMonthTotalUsd: priorMonthTotal('debank'),
         }),
     },
     {
@@ -98,7 +114,7 @@ export async function collectCostProviders(input: {
           costType: 'estimated',
           configured: true,
           pricingRateId: null,
-          load: () => fetchFlyRunRateSnapshot({ now }),
+          load: () => fetchFlyRunRateSnapshot({ now, run: input.flyRun }),
         }
       : staticUnconfiguredSource('fly', 'Fly.io', 'estimated'),
   ];
@@ -147,6 +163,20 @@ async function loadSource(source: CostSource): Promise<CollectedCostProvider> {
       message: safeProviderError(error),
     };
   }
+}
+
+/**
+ * A missing provider and a provider whose prior month is unknown are the same
+ * answer — `null`, never `0`. Zero would tell a loader that last month really
+ * cost nothing and drag its projection to the floor.
+ */
+function priorMonthLookup(
+  totals: ProviderMonthCost[] | null | undefined,
+): (provider: CostProvider) => number | null {
+  const byProvider = new Map<CostProvider, number | null>(
+    (totals ?? []).map((entry) => [entry.provider, entry.accruedCostUsd]),
+  );
+  return (provider) => byProvider.get(provider) ?? null;
 }
 
 function staticUnconfiguredSource(

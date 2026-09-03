@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import type { DepositReviewGroup } from '@zapengine/types/api';
 
+import { ProgressTimelineRow } from '@/components/invest/ProgressTimelineRow';
 import { StepHeader } from '@/components/invest/StepHeader';
 import { WizardDoneCard } from '@/components/invest/WizardDoneCard';
 import { SimulationReviewBody } from '@/components/invest/simulation/SimulationReviewBody';
@@ -41,69 +42,13 @@ function StepIcon({ step }: { step: InvestExecutionWizardStep }) {
   );
 }
 
-function StepRow({
-  step,
-  isLast,
-}: {
-  step: InvestExecutionWizardStep;
-  isLast: boolean;
-}) {
-  const confirmed = step.status === 'confirmed';
-  const active = step.status !== 'locked';
-  return (
-    <View className="flex-row gap-3">
-      <View className="items-center">
-        <View
-          className="h-8 w-8 items-center justify-center rounded-full border"
-          style={{
-            borderColor: confirmed
-              ? '#d4c5a3'
-              : active
-                ? 'rgba(212,197,163,.45)'
-                : 'rgba(255,255,255,.08)',
-            backgroundColor: confirmed
-              ? '#d4c5a3'
-              : active
-                ? 'rgba(212,197,163,.09)'
-                : 'rgba(255,255,255,.02)',
-          }}
-        >
-          <StepIcon step={step} />
-        </View>
-        {!isLast ? (
-          <View
-            className="min-h-7 flex-1 w-px"
-            style={{
-              backgroundColor: confirmed
-                ? 'rgba(212,197,163,.45)'
-                : 'rgba(255,255,255,.07)',
-            }}
-          />
-        ) : null}
-      </View>
-      <View className="flex-1 pb-5 pt-1">
-        <Text
-          className="font-sans-semibold text-[13.5px]"
-          style={{ color: active ? '#f4f4f5' : '#71717a' }}
-        >
-          {step.label}
-        </Text>
-        <Text className="mt-1 text-[11px] leading-[16px] text-ink-dim">
-          {step.detail}
-        </Text>
-        {step.transactionHash ? (
-          <Text className="mt-1 font-mono text-[9px] text-accent">
-            {step.transactionHash.slice(0, 10)}… submitted
-          </Text>
-        ) : null}
-        {'callsId' in step && step.callsId ? (
-          <Text className="mt-1 font-mono text-[9px] text-accent">
-            Batch {step.callsId.slice(0, 10)}… submitted
-          </Text>
-        ) : null}
-      </View>
-    </View>
-  );
+function stepTone(
+  step: InvestExecutionWizardStep,
+): 'waiting' | 'active' | 'done' {
+  if (step.status === 'confirmed') return 'done';
+  // Only a locked step is dimmed; every other status, `failed` included,
+  // keeps the active rail colours.
+  return step.status === 'locked' ? 'waiting' : 'active';
 }
 
 function ctaLabel(
@@ -498,11 +443,25 @@ export function InvestProgressScreen() {
         {wizard.steps.length > 0 ? (
           <View className="mt-5 rounded-[18px] border border-line bg-[rgba(255,255,255,.02)] px-4 pt-4">
             {wizard.steps.map((step, index) => (
-              <StepRow
+              <ProgressTimelineRow
                 key={step.id}
-                step={step}
+                icon={<StepIcon step={step} />}
+                label={step.label}
+                detail={step.detail}
+                tone={stepTone(step)}
                 isLast={index === wizard.steps.length - 1}
-              />
+              >
+                {step.transactionHash ? (
+                  <Text className="mt-1 font-mono text-[9px] text-accent">
+                    {step.transactionHash.slice(0, 10)}… submitted
+                  </Text>
+                ) : null}
+                {'callsId' in step && step.callsId ? (
+                  <Text className="mt-1 font-mono text-[9px] text-accent">
+                    Batch {step.callsId.slice(0, 10)}… submitted
+                  </Text>
+                ) : null}
+              </ProgressTimelineRow>
             ))}
           </View>
         ) : null}

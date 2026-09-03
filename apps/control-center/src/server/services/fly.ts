@@ -1,10 +1,13 @@
 import type { CostSnapshot } from '@zapengine/cost-observability';
 
+import { FLY_RUN_RATE_USAGE_KEY } from '../../shared/types.js';
 import { runFlyctl } from './flyctl.js';
 
 const REFERENCE_SHARED_CPU_MONTHLY_USD = 2.02;
 const REFERENCE_PERFORMANCE_CPU_MONTHLY_USD = 32.19;
 const REFERENCE_EXTRA_RAM_GB_MONTHLY_USD = 5.2;
+
+export type FlyctlRunner = (args: string[]) => Promise<string>;
 
 interface FlyAppRow {
   Name?: string;
@@ -23,9 +26,32 @@ interface FlyMachineRow {
   };
 }
 
+/**
+ * A compute census, deliberately not a bill.
+ *
+ * Fly publishes no billing or usage API — `flyctl` only offers `dashboard`,
+ * which opens a browser — so nothing in this process can observe what Fly will
+ * invoice. What it can observe is the fleet: `apps list` plus `machine list`
+ * per app, priced at published list rates. That product is a saturation
+ * ceiling, and reporting it as a projection is how the dashboard came to claim
+ * $67.70 against a real bill near $14:
+ *
+ * - Fly bills per second, while this is an instantaneous census of Machines in
+ *   state `started` multiplied by a whole month.
+ * - The podcast render group is on-demand. A performance-2x that is up for the
+ *   few minutes one episode takes reads here as $64.38/month purely because it
+ *   happened to be alive when the collector ran.
+ * - Stopped Machines keep only their rootfs, billed at $0.15/GB/month, so a
+ *   fleet that is mostly idle costs a rounding error of what this sums.
+ *
+ * So both cost fields stay null and the sum is filed under
+ * `FLY_RUN_RATE_USAGE_KEY` as evidence about capacity. Fly reaches
+ * `projectedCostUsd` only through an operator reading the Fly dashboard and
+ * recording it with `ops:cost snapshot fly <usd>`.
+ */
 export async function fetchFlyRunRateSnapshot(input: {
   now: Date;
-  run?: (args: string[]) => Promise<string>;
+  run?: FlyctlRunner;
 }): Promise<CostSnapshot> {
   const run = input.run ?? runFlyctl;
   const apps = parseArray<FlyAppRow>(await run(['apps', 'list', '--json']));
@@ -55,6 +81,9 @@ export async function fetchFlyRunRateSnapshot(input: {
     }
     monthlyRunRateUsd += estimate;
   }
+  // A running fleet none of whose shapes can be priced would otherwise persist
+  // a $0 run-rate that reads exactly like an idle fleet, so fail loudly and let
+  // the sync report the provider as broken.
   if (started.length > 0 && unsupportedStarted === started.length) {
     throw new Error('Fly.io started Machines use unsupported resource shapes');
   }
@@ -67,14 +96,16 @@ export async function fetchFlyRunRateSnapshot(input: {
     periodStart: monthStart.toISOString(),
     periodEnd: input.now.toISOString(),
     accruedCostUsd: null,
-    projectedCostUsd: roundUsd(monthlyRunRateUsd),
+    projectedCostUsd: null,
     costType: 'estimated',
     source: 'api',
     usage: [
       {
-        key: 'monthly',
+        key: FLY_RUN_RATE_USAGE_KEY,
         unit: 'usd',
-        label: 'Current compute monthly run-rate',
+        label:
+          'Compute run-rate if every running Machine stayed up all month ' +
+          '(list price, not billed)',
         value: roundUsd(monthlyRunRateUsd),
       },
       {

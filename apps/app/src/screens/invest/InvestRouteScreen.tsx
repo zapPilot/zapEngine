@@ -1,5 +1,12 @@
+import { extractErrorMessage } from '@zapengine/app-core/lib/errors';
+import { hlpStepFromPlan } from '@zapengine/app-core/lib/wallet/depositWizardMachine';
+import { getPerpUsdcBalance } from '@zapengine/app-core/services';
+import type { DepositPlan } from '@zapengine/types/api';
+import { useState } from 'react';
 import { Text, View } from 'react-native';
+import type { Address } from 'viem';
 
+import { HlpPlanSummary } from '@/components/invest/HlpPlanSummary';
 import { MockBridgeNotice } from '@/components/invest/MockBridgeNotice';
 import { SimulationReviewBody } from '@/components/invest/simulation/SimulationReviewBody';
 import {
@@ -14,10 +21,15 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { Tap } from '@/components/ui/Tap';
-import { useInvest, useInvestDepositReview } from '@/integration/useInvest';
+import { startHlpSubmission } from '@/integration/hlpSubmissionModel';
 import type { DepositExecutionCapability } from '@/integration/investExecutionModel';
+import { useAccount } from '@/integration/useAccount';
+import { useInvest, useInvestDepositReview } from '@/integration/useInvest';
 import { useInvestExecution } from '@/integration/useInvestExecution';
-import { resolveRouteProtocols } from '@/integration/simulationPreviewModel';
+import {
+  isStrategyDepositPlan,
+  resolveRouteProtocols,
+} from '@/integration/simulationPreviewModel';
 import { useInvestRouteSubmit } from './useInvestRouteSubmit';
 
 const CAPABILITY_NOTICE = {
@@ -61,11 +73,24 @@ function capabilityNotice(
   return null;
 }
 
+function reviewedHlpStep(
+  plan: ReturnType<typeof useInvestDepositReview>['plan'],
+) {
+  if (!plan || isStrategyDepositPlan(plan)) return null;
+  return hlpStepFromPlan(plan as DepositPlan);
+}
+
 export function InvestRouteScreen() {
   const invest = useInvest();
+  const account = useAccount();
   const review = useInvestDepositReview();
   const { capability } = useInvestExecution();
+  const [hlpPreparing, setHlpPreparing] = useState(false);
+  const [hlpPreparationError, setHlpPreparationError] = useState<string | null>(
+    null,
+  );
   const isBoth = invest.scope === 'both';
+  const isHlp = invest.destination === 'hlp';
   const hasPlanForScope = isDepositPlanForScope(review.plan, invest.scope);
   const notice = capabilityNotice(
     capability,
@@ -77,22 +102,65 @@ export function InvestRouteScreen() {
     ctaLabel,
     ctaDisabled,
     reviewNow,
+    reviewExecutionLocked,
     submissionError,
     dismissSubmissionError,
-  } = useInvestRouteSubmit({ review, capability, hasPlanForScope });
+  } = useInvestRouteSubmit({
+    review,
+    capability,
+    hasPlanForScope,
+    successRoute: isHlp ? '/invest/hlp-progress' : '/invest/progress',
+  });
+
+  const handleRouteConfirm = async () => {
+    if (!isHlp || capability !== 'ready' || reviewExecutionLocked) {
+      await handleConfirm();
+      return;
+    }
+
+    const step = reviewedHlpStep(review.plan);
+    const userAddress = account.address as Address | undefined;
+    if (!step || !userAddress) {
+      setHlpPreparationError(
+        'The reviewed route is missing the HLP follow-up or wallet address.',
+      );
+      return;
+    }
+
+    setHlpPreparing(true);
+    setHlpPreparationError(null);
+    try {
+      await startHlpSubmission(
+        { user: userAddress, apiUrl: step.signing.apiUrl },
+        {
+          readWithdrawableUsd6: async (input) =>
+            (await getPerpUsdcBalance(input)).withdrawableUsd6,
+          setBaselineUsd6: invest.setHlpBaselineUsd6,
+          submitReviewedBatch: handleConfirm,
+        },
+      );
+    } catch (error: unknown) {
+      setHlpPreparationError(extractErrorMessage(error));
+    } finally {
+      setHlpPreparing(false);
+    }
+  };
 
   return (
     <ScreenScrollView>
-      <StepHeader title="Route" step="Step 2 of 2" />
+      <StepHeader
+        title="Route"
+        step={isHlp ? 'HLP · Step 2 of 2' : 'Step 2 of 2'}
+      />
       <StepProgress current={2} />
       <View className="px-5 pt-6">
         <Text className="font-serif text-[28px] leading-[32px] text-ink">
-          Preview route
+          {isHlp ? 'Review HLP route' : 'Preview route'}
         </Text>
 
         <View className="mt-5">
           <Text className="mb-2.5 font-mono-semibold text-[9px] uppercase tracking-[.8px] text-ink-faint">
-            Tenderly review · authoritative plan
+            Tenderly review · authoritative source batch
           </Text>
           {review.isLoading ? (
             <View className="gap-3">
@@ -180,13 +248,22 @@ export function InvestRouteScreen() {
           />
         ) : null}
 
+        {isHlp ? (
+          <View className="mt-4">
+            <NonCustodialCard
+              title="Two signatures, one guided flow"
+              body="The reviewed Base batch bridges USDC to Hyperliquid. After it arrives, your wallet signs a separate gasless Hyperliquid HLP vault action; Zap Pilot never signs it automatically."
+            />
+          </View>
+        ) : null}
+
         {notice ? (
           <View className="mt-4">
             <NonCustodialCard title={notice.title} body={notice.body} />
           </View>
         ) : null}
 
-        {submissionError ? (
+        {submissionError || hlpPreparationError ? (
           <View
             accessibilityRole="alert"
             className="mt-4 rounded-2xl border border-error/30 bg-error/10 p-3"
@@ -195,13 +272,14 @@ export function InvestRouteScreen() {
               Wallet submission did not start
             </Text>
             <Text className="mt-1 text-[10.5px] leading-4 text-error">
-              {submissionError}
+              {hlpPreparationError ?? submissionError}
             </Text>
             <Tap
               accessibilityRole="button"
               accessibilityLabel="Retry wallet submission"
               className="mt-2 self-start rounded-full border border-error/30 px-3 py-1.5"
               onPress={() => {
+                setHlpPreparationError(null);
                 dismissSubmissionError();
                 review.retry();
               }}
@@ -213,27 +291,41 @@ export function InvestRouteScreen() {
           </View>
         ) : null}
 
-        <StrategyPlanSummary
-          variant="confirm"
-          plan={review.plan}
-          amountUsd={review.amountUsd}
-          scope={invest.scope}
-          singleChainFundingDraft={invest.singleChainFundingDraft}
-          baseToken={invest.baseFundingToken}
-          arbitrumToken={invest.arbitrumFundingToken}
-        />
+        {isHlp ? (
+          <HlpPlanSummary
+            plan={review.plan}
+            amountUsd={review.amountUsd}
+            singleChainFundingDraft={invest.singleChainFundingDraft}
+          />
+        ) : (
+          <StrategyPlanSummary
+            variant="confirm"
+            plan={review.plan}
+            amountUsd={review.amountUsd}
+            scope={invest.scope}
+            singleChainFundingDraft={invest.singleChainFundingDraft}
+            baseToken={invest.baseFundingToken}
+            arbitrumToken={invest.arbitrumFundingToken}
+          />
+        )}
 
         <PrimaryButton
           className="mt-5"
-          disabled={ctaDisabled}
-          onPress={handleConfirm}
+          disabled={ctaDisabled || hlpPreparing}
+          onPress={() => void handleRouteConfirm()}
         >
-          {ctaLabel}
+          {hlpPreparing
+            ? 'Checking Hyperliquid…'
+            : isHlp && !reviewExecutionLocked
+              ? 'Confirm & deposit to HLP'
+              : ctaLabel}
         </PrimaryButton>
         <Text className="mt-3 text-center text-[10.5px] leading-[16px] text-ink-faint">
-          {isBoth
-            ? 'No custody and no automatic signatures. Confirm the reviewed Base batch first; Arbitrum follows after the checkpoint.'
-            : 'No custody and no automatic signatures. Confirm the reviewed wallet batch to send.'}
+          {isHlp
+            ? 'One guided flow, no custody: confirm the reviewed Base batch now; the HLP signature is requested only after your USDC reaches Hyperliquid.'
+            : isBoth
+              ? 'No custody and no automatic signatures. Confirm the reviewed Base batch first; Arbitrum follows after the checkpoint.'
+              : 'No custody and no automatic signatures. Confirm the reviewed wallet batch to send.'}
         </Text>
       </View>
     </ScreenScrollView>

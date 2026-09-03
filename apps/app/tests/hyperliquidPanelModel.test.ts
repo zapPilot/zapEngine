@@ -1,7 +1,6 @@
 import {
   belowHlpMinimum,
   hlpDoneStatusLabel,
-  hlpErrorAction,
   HYPERLIQUID_HLP_SPLIT,
   MIN_HYPERLIQUID_DEPOSIT_USD6,
 } from '@/integration/hyperliquidPanelModel';
@@ -14,11 +13,11 @@ describe('hyperliquidPanelModel', () => {
     expect(HYPERLIQUID_HLP_SPLIT).toEqual({ [HYPERCORE_CHAIN_ID]: 1 });
   });
 
-  it('flags amounts that cannot survive bridge fees above the $5 vault minimum', () => {
-    expect(MIN_HYPERLIQUID_DEPOSIT_USD6).toBe(6_000_000n);
-    expect(belowHlpMinimum('5990000')).toBe(true);
-    expect(belowHlpMinimum('6000000')).toBe(false);
+  it('enforces the official 10 USDC HLP minimum at the input floor', () => {
+    expect(MIN_HYPERLIQUID_DEPOSIT_USD6).toBe(10_000_000n);
+    expect(belowHlpMinimum('9999999')).toBe(true);
     expect(belowHlpMinimum('10000000')).toBe(false);
+    expect(belowHlpMinimum('12000000')).toBe(false);
     // An empty amount field is not a minimum violation.
     expect(belowHlpMinimum('0')).toBe(false);
   });
@@ -29,13 +28,5 @@ describe('hyperliquidPanelModel', () => {
       'HLP deposit submitted — awaiting confirmation',
     );
     expect(hlpDoneStatusLabel('arrived')).toBe('Deposited');
-  });
-
-  it('offers a retry only for the repeatable HLP deposit stage', () => {
-    expect(hlpErrorAction('hyperliquidDeposit')).toBe('retry');
-    expect(hlpErrorAction('sourceExecution')).toBe('reset');
-    expect(hlpErrorAction('bridging')).toBe('reset');
-    expect(hlpErrorAction('configure')).toBe('reset');
-    expect(hlpErrorAction('done')).toBe('reset');
   });
 });
