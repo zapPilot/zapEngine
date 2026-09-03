@@ -5,6 +5,7 @@ import type {
   PodcastPipelineJobState,
   PodcastPipelineResponse,
   PodcastPipelineStatus,
+  PodcastPipelineVisualDebug,
 } from '../../shared/podcast-pipeline.js';
 import type { StatementsResponse } from '../../shared/statements.js';
 import { relativeTime } from '../format.js';
@@ -159,6 +160,9 @@ function PipelineEpisode(props: {
       {visualError ? (
         <PipelineError label="Visual failure" message={visualError} />
       ) : null}
+      {episode.visualDebug ? (
+        <VisualSearchPlan debug={episode.visualDebug} />
+      ) : null}
 
       <details className="pipeline-details">
         <summary>Language and render details</summary>
@@ -199,6 +203,40 @@ function PipelineEpisode(props: {
         </div>
       </details>
     </article>
+  );
+}
+
+function VisualSearchPlan(props: { debug: PodcastPipelineVisualDebug }) {
+  const { debug } = props;
+  return (
+    <details className="pipeline-details">
+      <summary>Visual search plan</summary>
+      <div className="pipeline-language-grid">
+        <div className="pipeline-language">
+          <strong>Subjects</strong>
+          <span>
+            Primary: {debug.primarySubject ?? '—'}
+          </span>
+          <small>
+            {debug.subjects.length > 0
+              ? debug.subjects.map(({ name }) => name).join(' · ')
+              : 'No subject catalog recorded'}
+          </small>
+        </div>
+        {debug.plannedQueries.map((scene) => (
+          <div className="pipeline-language" key={scene.sceneId}>
+            <strong>{scene.sceneId}</strong>
+            <span>
+              {scene.selectionReason ?? 'search'}
+              {scene.subjectIds.length > 0
+                ? ` · ${scene.subjectIds.join(', ')}`
+                : ''}
+            </span>
+            <small>{scene.queries.join(' · ')}</small>
+          </div>
+        ))}
+      </div>
+    </details>
   );
 }
 
