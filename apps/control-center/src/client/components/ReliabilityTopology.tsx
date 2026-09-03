@@ -172,7 +172,8 @@ function sourceNodes(signals: OperationalSignal[]): SourceNode[] {
       const ordered = [...sourceSignals].sort(
         (left, right) =>
           STATUS_WEIGHT[right.status] - STATUS_WEIGHT[left.status] ||
-          Date.parse(right.observedAt) - Date.parse(left.observedAt),
+          observedAtWeight(right.observedAt) -
+            observedAtWeight(left.observedAt),
       );
       return {
         source,
@@ -185,6 +186,11 @@ function sourceNodes(signals: OperationalSignal[]): SourceNode[] {
         STATUS_WEIGHT[right.status] - STATUS_WEIGHT[left.status] ||
         sourceLabel(left.source).localeCompare(sourceLabel(right.source)),
     );
+}
+
+function observedAtWeight(observedAt: string): number {
+  const parsed = Date.parse(observedAt);
+  return Number.isNaN(parsed) ? Number.NEGATIVE_INFINITY : parsed;
 }
 
 function eventMeta(signal: OperationalSignal): string {
