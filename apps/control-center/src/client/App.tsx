@@ -48,12 +48,31 @@ const VIEW_META: Record<DashboardView, { subtitle: string; title: string }> = {
   },
 };
 
+type PodcastRetryPhase = 'ingest' | 'video';
+
 async function getJson<T>(url: string): Promise<T> {
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}`);
   }
   return (await response.json()) as T;
+}
+
+async function retryPodcastPhase(
+  episodeId: string,
+  phase: PodcastRetryPhase,
+): Promise<PodcastPipelineResponse> {
+  const response = await fetch(
+    `/api/podcast-pipeline/${encodeURIComponent(episodeId)}/${phase}/retry`,
+    { method: 'POST' },
+  );
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as {
+      error?: string;
+    } | null;
+    throw new Error(body?.error ?? `HTTP ${response.status}`);
+  }
+  return getJson<PodcastPipelineResponse>('/api/podcast-pipeline');
 }
 
 export function App() {
@@ -142,48 +161,24 @@ export function App() {
     [run],
   );
 
-  const restartIngest = useCallback(
-    (episodeId: string) => {
+  const restartEpisodePhase = useCallback(
+    (episodeId: string, phase: PodcastRetryPhase) => {
       setRestartingEpisodeId(episodeId);
       void run(async () => {
-        const response = await fetch(
-          `/api/podcast-pipeline/${encodeURIComponent(episodeId)}/ingest/retry`,
-          { method: 'POST' },
-        );
-        if (!response.ok) {
-          const body = (await response.json().catch(() => null)) as {
-            error?: string;
-          } | null;
-          throw new Error(body?.error ?? `HTTP ${response.status}`);
-        }
-        setPodcastPipeline(
-          await getJson<PodcastPipelineResponse>('/api/podcast-pipeline'),
-        );
+        setPodcastPipeline(await retryPodcastPhase(episodeId, phase));
       }).finally(() => setRestartingEpisodeId(null));
     },
     [run],
   );
 
+  const restartIngest = useCallback(
+    (episodeId: string) => restartEpisodePhase(episodeId, 'ingest'),
+    [restartEpisodePhase],
+  );
+
   const restartVideo = useCallback(
-    (episodeId: string) => {
-      setRestartingEpisodeId(episodeId);
-      void run(async () => {
-        const response = await fetch(
-          `/api/podcast-pipeline/${encodeURIComponent(episodeId)}/video/retry`,
-          { method: 'POST' },
-        );
-        if (!response.ok) {
-          const body = (await response.json().catch(() => null)) as {
-            error?: string;
-          } | null;
-          throw new Error(body?.error ?? `HTTP ${response.status}`);
-        }
-        setPodcastPipeline(
-          await getJson<PodcastPipelineResponse>('/api/podcast-pipeline'),
-        );
-      }).finally(() => setRestartingEpisodeId(null));
-    },
-    [run],
+    (episodeId: string) => restartEpisodePhase(episodeId, 'video'),
+    [restartEpisodePhase],
   );
 
   const loadSocial = useCallback(
