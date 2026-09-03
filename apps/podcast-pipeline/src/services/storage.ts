@@ -59,6 +59,16 @@ export interface EpisodeVisualUploadResult {
   r2Prefix: string;
 }
 
+export interface EpisodeVisualCheckpointImageInput {
+  episodeId: string;
+  visualVersion: string;
+  sourceHash: string;
+  assetId: string;
+  path: string;
+  contentType: VisualSourceImageUpload['contentType'];
+  signal?: AbortSignal;
+}
+
 const IMMUTABLE_CACHE_CONTROL = 'public, max-age=31536000, immutable';
 const VIDEO_MULTIPART_PART_SIZE = 8 * 1024 * 1024;
 const VIDEO_MULTIPART_QUEUE_SIZE = 2;
@@ -217,6 +227,25 @@ export async function uploadVideoArtifactsToR2(
     captionsAssUrl: `${base}/${captionsKey}`,
     r2Prefix: prefix,
   };
+}
+
+export async function uploadEpisodeVisualCheckpointImageToR2(
+  input: EpisodeVisualCheckpointImageInput,
+): Promise<string> {
+  input.signal?.throwIfAborted();
+  const episodeId = safeKeySegment(input.episodeId, 'episode id');
+  const visualVersion = safeKeySegment(
+    input.visualVersion,
+    'visual renderer version',
+  );
+  const sourceHash = safeKeySegment(input.sourceHash, 'visual source hash');
+  const assetId = safeKeySegment(input.assetId, 'visual asset id');
+  const extension = contentTypeExtension(input.contentType);
+  const key = `episodes/${episodeId}/visuals/${visualVersion}/checkpoints/${sourceHash}/images/${assetId}.${extension}`;
+  await putImmutableObjects(getR2Client(), getBucket(), input.signal, [
+    { Key: key, path: input.path, contentType: input.contentType },
+  ]);
+  return `${getPublicBase()}/${key}`;
 }
 
 export async function uploadEpisodeVisualAssetsToR2(

@@ -8,6 +8,7 @@ import { ZAP_PILOT_SITE_URL } from '../../brand/cta.js';
 import type { ImageCandidate } from '../../types.js';
 import { podcastBrandVisualKind } from '../podcast-packaging.js';
 import { type AcquiredRemoteImage, acquireRemoteImage } from './assets.js';
+import { createGeneratedSlideAsset } from './generated-slide.js';
 import { filterImageCandidates } from './image-candidates.js';
 import {
   defaultImageSearchProviders,
@@ -363,15 +364,21 @@ export async function selectCoverAssetForFirstScene(
 export async function planPodcastVisualAssets(
   input: PodcastVisualAssetPlanInput,
 ): Promise<VisualAssetPlan> {
-  const { subjectCatalog, sceneAssignments } = input;
+  const dependencies = {
+    ...input.dependencies,
+    generateSlide:
+      input.dependencies?.generateSlide ?? createGeneratedSlideAsset,
+  };
+  const prepared = { ...input, dependencies };
+  const { subjectCatalog, sceneAssignments } = prepared;
   if (subjectCatalog && sceneAssignments) {
     return planSubjectCatalogVisualAssets({
-      ...input,
+      ...prepared,
       subjectCatalog,
       sceneAssignments,
     });
   }
-  return planLegacyPodcastVisualAssets(input);
+  return planLegacyPodcastVisualAssets(prepared);
 }
 
 async function planSubjectCatalogVisualAssets(
@@ -430,10 +437,15 @@ async function planSubjectCatalogVisualAssets(
   const contentPlan = await planVisualAssets({
     scenes: subjectScenes,
     articleImages: input.articleImages,
+    ...(input.resumePlan
+      ? { resumePlan: resumePlanForScenes(input.resumePlan, subjectScenes) }
+      : {}),
     workingDirectory: join(input.workingDirectory, 'subjects'),
     selectionMode: input.selectionMode,
     signal: input.signal,
+    slideFallback: input.slideFallback,
     dependencies: input.dependencies,
+    onSelection: input.onSelection,
     onProgress: remappedProgressHandler(
       input.onProgress,
       originalSceneIndex,
@@ -514,6 +526,9 @@ async function planLegacyPodcastVisualAssets(
     const fallbackPlan = await planVisualAssets({
       ...input,
       scenes: contentScenes,
+      ...(input.resumePlan
+        ? { resumePlan: resumePlanForScenes(input.resumePlan, contentScenes) }
+        : {}),
       onProgress: remappedProgressHandler(
         input.onProgress,
         originalSceneIndex,
@@ -538,6 +553,9 @@ async function planLegacyPodcastVisualAssets(
     remainingPlan = await planVisualAssets({
       ...input,
       scenes: remainingScenes,
+      ...(input.resumePlan
+        ? { resumePlan: resumePlanForScenes(input.resumePlan, remainingScenes) }
+        : {}),
       articleImages: remainingArticleImages,
       workingDirectory: join(input.workingDirectory, 'remaining'),
       onProgress: remappedProgressHandler(
@@ -661,6 +679,19 @@ function remapProgress(
     ...progress,
     sceneIndex: index === undefined ? progress.sceneIndex : index + 1,
     sceneCount,
+  };
+}
+
+function resumePlanForScenes(
+  plan: VisualAssetPlan,
+  scenes: readonly { sceneId: string }[],
+): VisualAssetPlan {
+  const sceneIds = new Set(scenes.map((scene) => scene.sceneId));
+  const resumedScenes = plan.scenes.filter((scene) => sceneIds.has(scene.sceneId));
+  const assetIds = new Set(resumedScenes.map((scene) => scene.assetId));
+  return {
+    scenes: resumedScenes,
+    assets: plan.assets.filter((asset) => assetIds.has(asset.assetId)),
   };
 }
 

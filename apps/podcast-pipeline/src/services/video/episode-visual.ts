@@ -2,7 +2,12 @@ import { createHash } from 'node:crypto';
 
 import { z } from 'zod';
 
+import type { StoryboardDraft } from './storyboard/draft.js';
 import type { StoryboardGenerationResult } from './storyboard/orchestrator.js';
+import {
+  canonicalSentenceRangeText,
+  splitCanonicalSentences,
+} from './storyboard/sentences.js';
 import {
   type VisualSceneSubjectAssignment,
   visualSceneSubjectAssignmentSchema,
@@ -24,6 +29,26 @@ export const EPISODE_VISUAL_PAYLOAD_SCHEMA_VERSION =
 export const EPISODE_VISUAL_STORYBOARD_PROMPT_VERSION =
   'image-storyboard-v2' as const;
 
+const generatedSlideMetadataSchema = z
+  .object({
+    templateVersion: z.literal('concept-card-v1'),
+    kicker: z.string().min(1).max(24),
+    headline: z.string().min(1).max(42),
+    points: z.array(z.string().min(1).max(48)).min(2).max(3),
+    copySource: z.enum(['llm', 'deterministic']),
+    model: z.string().min(1).nullable(),
+    reason: z.enum([
+      'search-failure',
+      'candidate-exhaustion',
+      'reuse-dead-end',
+      'never-searched',
+    ]),
+    rejectionSummary: z.string().nullable(),
+    lead: z.boolean(),
+    costUsd: z.number().nonnegative().nullable(),
+  })
+  .strict();
+
 const visualAssetMetadataSchema = z
   .object({
     assetId: z.string().regex(/^image-\d{2}$/),
@@ -39,6 +64,7 @@ const visualAssetMetadataSchema = z
       'pixabay',
       'brave',
       'bing',
+      'generated-slide',
     ]),
     license: z.enum(['brand-generated', 'unknown', 'pexels', 'pixabay']),
     photographer: z.string().min(1).optional(),
@@ -53,10 +79,11 @@ const visualAssetMetadataSchema = z
     perceptualHash: z.string().regex(/^[a-f\d]{16}$/),
     width: z.number().int().positive(),
     height: z.number().int().positive(),
+    slide: generatedSlideMetadataSchema.optional(),
   })
   .strict();
 
-const visualSearchTraceEntrySchema = z
+export const visualSearchTraceEntrySchema = z
   .object({
     sceneId: z.string().regex(/^scene-\d{2}$/),
     provider: z.enum(['pexels', 'pixabay', 'brave']),
@@ -105,6 +132,22 @@ export const episodeVisualPayloadSchema = z
         articleImageCandidateCount: z.number().int().nonnegative().optional(),
         articleImageAssetCount: z.number().int().nonnegative().optional(),
         searchTrace: z.array(visualSearchTraceEntrySchema).max(256).optional(),
+        sceneSentences: z
+          .array(
+            z
+              .object({
+                sceneId: z.string().regex(/^scene-\d{2}$/),
+                text: z.string().min(1).max(400),
+              })
+              .strict(),
+          )
+          .max(64)
+          .optional(),
+        generatedSlideCount: z.number().int().nonnegative().optional(),
+        generatedSlideSceneIds: z
+          .array(z.string().regex(/^scene-\d{2}$/))
+          .max(64)
+          .optional(),
       })
       .strict(),
   })
@@ -127,6 +170,35 @@ export const episodeVisualPayloadSchema = z
           code: 'custom',
           message: `Scene ${scene.sceneId} references an unknown visual asset`,
           path: ['visualPlan', 'scenes', index, 'asset'],
+        });
+      }
+    }
+
+    const usageByUrl = new Map<string, number>();
+    for (const scene of payload.visualPlan.scenes) {
+      usageByUrl.set(scene.asset.url, (usageByUrl.get(scene.asset.url) ?? 0) + 1);
+    }
+    for (const [index, asset] of payload.assets.entries()) {
+      const generated = asset.provider === 'generated-slide';
+      if (generated !== Boolean(asset.slide)) {
+        context.addIssue({
+          code: 'custom',
+          message: 'Generated slide provider and metadata must appear together',
+          path: ['assets', index, 'slide'],
+        });
+      }
+      if (generated && asset.contentType !== 'image/png') {
+        context.addIssue({
+          code: 'custom',
+          message: 'Generated slide assets must be PNG',
+          path: ['assets', index, 'contentType'],
+        });
+      }
+      if (generated && (usageByUrl.get(asset.r2Url) ?? 0) !== 1) {
+        context.addIssue({
+          code: 'custom',
+          message: 'Generated slide assets must be scene-specific',
+          path: ['assets', index, 'r2Url'],
         });
       }
     }
@@ -174,6 +246,24 @@ export function parseEpisodeVisualPayload(
   input: unknown,
 ): EpisodeVisualPayload {
   return episodeVisualPayloadSchema.parse(input);
+}
+
+export function sceneSentencesForDraft(
+  script: string,
+  draft: StoryboardDraft,
+): { sceneId: string; text: string }[] {
+  const sentences = splitCanonicalSentences(script);
+  return draft.scenes.flatMap((scene) => {
+    const text = canonicalSentenceRangeText(
+      script,
+      sentences,
+      scene.startSentenceId,
+      scene.endSentenceId,
+    )?.trim();
+    return text
+      ? [{ sceneId: scene.sceneId, text: text.slice(0, 400) }]
+      : [];
+  });
 }
 
 export function hashEpisodeVisualSelection(input: {
@@ -231,6 +321,7 @@ export function buildEpisodeVisualPayload(input: {
   searchTitleSource?: 'publisher' | 'english-localization' | 'none';
   articleImageCandidateCount?: number;
   searchTrace?: readonly VisualSearchTraceEntry[];
+  sceneSentences?: readonly { sceneId: string; text: string }[];
 }): EpisodeVisualPayload {
   const assetById = new Map(
     input.assets.map((asset) => [asset.assetId, asset] as const),
@@ -257,7 +348,7 @@ export function buildEpisodeVisualPayload(input: {
           {
             id: sourceId,
             label:
-              asset.provider === 'brand'
+              asset.provider === 'brand' || asset.provider === 'generated-slide'
                 ? 'Zap Pilot'
                 : sourceLabel(asset.sourcePageUrl),
             url: asset.sourcePageUrl,
@@ -319,6 +410,7 @@ export function buildEpisodeVisualPayload(input: {
         perceptualHash: asset.perceptualHash,
         width: asset.width,
         height: asset.height,
+        ...(asset.slide ? { slide: asset.slide } : {}),
       };
     }),
     ...subjectContext,
@@ -336,6 +428,18 @@ export function buildEpisodeVisualPayload(input: {
         : {}),
       articleImageAssetCount,
       ...(input.searchTrace ? { searchTrace: [...input.searchTrace] } : {}),
+      ...(input.sceneSentences
+        ? { sceneSentences: [...input.sceneSentences] }
+        : {}),
+      generatedSlideCount: input.assets.filter(
+        (asset) => asset.provider === 'generated-slide',
+      ).length,
+      generatedSlideSceneIds: input.selectedScenes
+        .filter((scene) => {
+          const asset = assetById.get(scene.assetId);
+          return asset?.provider === 'generated-slide';
+        })
+        .map((scene) => scene.sceneId),
     },
   });
 }
@@ -344,7 +448,7 @@ function presentationForAsset(asset: PlannedVisualImage): {
   layout: 'fullBleed' | 'contain';
   motion: 'static' | 'pushIn' | 'pan';
 } {
-  if (asset.provider === 'brand')
+  if (asset.provider === 'brand' || asset.provider === 'generated-slide')
     return { layout: 'contain', motion: 'static' };
   const aspectRatio = asset.width / asset.height;
   // The portrait renderer's media window is ~1.125:1. Preserve the complete
@@ -372,6 +476,9 @@ const STOCK_PROVIDER_LABELS: Partial<
 
 function assetAttribution(asset: PlannedVisualImage): string {
   if (asset.provider === 'brand') return 'Zap Pilot';
+  if (asset.provider === 'generated-slide') {
+    return 'Zap Pilot · generated concept card';
+  }
   const providerLabel = STOCK_PROVIDER_LABELS[asset.provider];
   if (providerLabel) {
     return asset.photographer

@@ -1,21 +1,42 @@
 import { RotateCcw } from 'lucide-react';
+import { useState } from 'react';
 
 import type {
   PodcastPipelineEpisode,
   PodcastPipelineJobState,
   PodcastPipelineResponse,
+  PodcastPipelineRestartAction,
   PodcastPipelineStatus,
   PodcastPipelineVisualDebug,
 } from '../../shared/podcast-pipeline.js';
+import type {
+  PodcastVideoReviewInput,
+  PodcastVideoReviewResolveInput,
+  PodcastVisualDebugResponse,
+} from '../../shared/podcast-visual.js';
 import type { StatementsResponse } from '../../shared/statements.js';
 import { relativeTime } from '../format.js';
+import { PodcastVisualDebugPanel } from './PodcastVisualDebugPanel.js';
 import { StatementHeader } from './StatementHeader.js';
 
 export function PodcastPipelineView(props: {
   data: PodcastPipelineResponse | null;
   restartingEpisodeId: string | null;
-  onRestartIngest: (episodeId: string) => void;
-  onRestartVideo: (episodeId: string) => void;
+  onRestartStep: (
+    episodeId: string,
+    action: PodcastPipelineRestartAction,
+  ) => void;
+  onLoadVisualDebug: (episodeId: string) => Promise<PodcastVisualDebugResponse>;
+  onSubmitReview: (
+    episodeId: string,
+    review: PodcastVideoReviewInput,
+  ) => Promise<void>;
+  onResolveReview: (
+    episodeId: string,
+    reviewId: string,
+    input: PodcastVideoReviewResolveInput,
+  ) => Promise<void>;
+  visualDebugByEpisode: Record<string, PodcastVisualDebugResponse | undefined>;
   statements?: StatementsResponse | null;
 }) {
   const header = props.statements?.headers.find((h) => h.domain === 'pipeline');
@@ -34,9 +55,9 @@ export function PodcastPipelineView(props: {
   const active = props.data.episodes.filter(
     ({ currentPhase }) => currentPhase !== 'done',
   );
-  const recentlyCompleted = props.data.episodes
-    .filter(({ currentPhase }) => currentPhase === 'done')
-    .slice(0, 5);
+  const recentlyCompleted = props.data.episodes.filter(
+    ({ currentPhase }) => currentPhase === 'done',
+  );
   const failed = active.filter((episode) => hasFailure(episode));
   const stuck = active.filter((episode) => hasStuckWork(episode));
 
@@ -75,8 +96,11 @@ export function PodcastPipelineView(props: {
               episode={episode}
               isRestarting={props.restartingEpisodeId === episode.episodeId}
               key={episode.episodeId}
-              onRestartIngest={props.onRestartIngest}
-              onRestartVideo={props.onRestartVideo}
+              onLoadVisualDebug={props.onLoadVisualDebug}
+              onResolveReview={props.onResolveReview}
+              onRestartStep={props.onRestartStep}
+              onSubmitReview={props.onSubmitReview}
+              visualDebug={props.visualDebugByEpisode[episode.episodeId]}
             />
           ))
         )}
@@ -84,15 +108,18 @@ export function PodcastPipelineView(props: {
 
       {recentlyCompleted.length > 0 ? (
         <details className="open-panel pipeline-completed">
-          <summary>Recently completed ({recentlyCompleted.length})</summary>
+          <summary>Completed ({recentlyCompleted.length})</summary>
           <div className="pipeline-list pipeline-completed-list">
             {recentlyCompleted.map((episode) => (
               <PipelineEpisode
                 episode={episode}
                 isRestarting={false}
                 key={episode.episodeId}
-                onRestartIngest={props.onRestartIngest}
-                onRestartVideo={props.onRestartVideo}
+                onLoadVisualDebug={props.onLoadVisualDebug}
+                onResolveReview={props.onResolveReview}
+                onRestartStep={props.onRestartStep}
+                onSubmitReview={props.onSubmitReview}
+                visualDebug={props.visualDebugByEpisode[episode.episodeId]}
               />
             ))}
           </div>
@@ -105,10 +132,24 @@ export function PodcastPipelineView(props: {
 function PipelineEpisode(props: {
   episode: PodcastPipelineEpisode;
   isRestarting: boolean;
-  onRestartIngest: (episodeId: string) => void;
-  onRestartVideo: (episodeId: string) => void;
+  onRestartStep: (
+    episodeId: string,
+    action: PodcastPipelineRestartAction,
+  ) => void;
+  onLoadVisualDebug: (episodeId: string) => Promise<PodcastVisualDebugResponse>;
+  onSubmitReview: (
+    episodeId: string,
+    review: PodcastVideoReviewInput,
+  ) => Promise<void>;
+  onResolveReview: (
+    episodeId: string,
+    reviewId: string,
+    input: PodcastVideoReviewResolveInput,
+  ) => Promise<void>;
+  visualDebug: PodcastVisualDebugResponse | undefined;
 }) {
   const { episode } = props;
+  const [confirmReplan, setConfirmReplan] = useState(false);
   const ingestError = episode.ingest?.lastError;
   const visualError =
     episode.visual?.status === 'failed' ? episode.visual.lastError : null;
@@ -135,30 +176,51 @@ function PipelineEpisode(props: {
               : ''}
           </small>
         </div>
-        {episode.currentPhase !== 'done' ? (
-          <button
-            className="refresh-button pipeline-retry"
-            disabled={!canRestart || props.isRestarting}
-            onClick={() =>
-              isIngestPhase
-                ? props.onRestartIngest(episode.episodeId)
-                : props.onRestartVideo(episode.episodeId)
-            }
-            title={
-              canRestart
-                ? isIngestPhase
-                  ? 'Resume translation/TTS from durable checkpoints'
-                  : 'Restart only unfinished visual/video checkpoints'
-                : isIngestPhase
-                  ? 'Ingest retry is disabled while durable ingest work is active'
-                  : 'Video retry requires completed audio and no active render lease'
-            }
-            type="button"
-          >
-            <RotateCcw aria-hidden="true" />
-            {props.isRestarting ? 'Restarting…' : restartLabel}
-          </button>
-        ) : null}
+        <div className="pipeline-retry-actions">
+          {episode.currentPhase !== 'done' ? (
+            <RestartButton
+              disabled={!canRestart || props.isRestarting}
+              label={props.isRestarting ? 'Restarting…' : restartLabel}
+              onClick={() =>
+                props.onRestartStep(
+                  episode.episodeId,
+                  isIngestPhase
+                    ? { step: 'ingest' }
+                    : { step: 'video', forceReplan: false },
+                )
+              }
+              title={
+                canRestart
+                  ? isIngestPhase
+                    ? 'Resume translation/TTS from durable checkpoints'
+                    : 'Restart unfinished renders without discarding a current completed visual'
+                  : 'Retry requires completed prerequisites and no live lease'
+              }
+            />
+          ) : null}
+          {episode.canForceReplanVisual ? (
+            <RestartButton
+              disabled={props.isRestarting}
+              label={
+                confirmReplan
+                  ? 'Confirm re-plan (re-renders 3 videos)'
+                  : 'Re-plan visuals'
+              }
+              onClick={() => {
+                if (!confirmReplan) {
+                  setConfirmReplan(true);
+                  return;
+                }
+                setConfirmReplan(false);
+                props.onRestartStep(episode.episodeId, {
+                  step: 'video',
+                  forceReplan: true,
+                });
+              }}
+              title="Discard the visual checkpoint and generate a new visual plan"
+            />
+          ) : null}
+        </div>
       </header>
 
       <div className="pipeline-phase-grid">
@@ -175,12 +237,36 @@ function PipelineEpisode(props: {
       {ingestError && episode.ingest?.status !== 'completed' ? (
         <PipelineError label="Ingest failure" message={ingestError} />
       ) : null}
+      {episode.ingest && episode.ingest.failureHistory.length > 0 ? (
+        <details className="pipeline-details">
+          <summary>Recent ingest retry history</summary>
+          <div className="pipeline-language-grid">
+            {episode.ingest.failureHistory.slice(-5).reverse().map((entry) => (
+              <div className="pipeline-language" key={`${entry.at}-${entry.kind}`}>
+                <strong>{entry.kind.replace('_', ' ')}</strong>
+                <span>
+                  attempt {entry.attempt} · {relativeTime(entry.at)}
+                </span>
+                {entry.error ? <small>{compactError(entry.error)}</small> : null}
+              </div>
+            ))}
+          </div>
+        </details>
+      ) : null}
       {visualError ? (
         <PipelineError label="Visual failure" message={visualError} />
       ) : null}
       {episode.visualDebug ? (
         <VisualSearchPlan debug={episode.visualDebug} />
       ) : null}
+
+      <PodcastVisualDebugPanel
+        data={props.visualDebug}
+        episodeId={episode.episodeId}
+        onLoad={props.onLoadVisualDebug}
+        onResolveReview={props.onResolveReview}
+        onSubmitReview={props.onSubmitReview}
+      />
 
       <details className="pipeline-details">
         <summary>Language and render details</summary>
@@ -214,6 +300,19 @@ function PipelineEpisode(props: {
                   <small className="warning-text">
                     {compactError(render.lastError)}
                   </small>
+                ) : null}
+                {render?.canRestart ? (
+                  <RestartButton
+                    disabled={props.isRestarting}
+                    label="Retry render"
+                    onClick={() =>
+                      props.onRestartStep(episode.episodeId, {
+                        step: 'render',
+                        localizationId: render.localizationId,
+                      })
+                    }
+                    title={`Retry only the ${render.languageCode} render`}
+                  />
                 ) : null}
               </div>
             );
@@ -295,6 +394,26 @@ function VisualSearchPlan(props: { debug: PodcastPipelineVisualDebug }) {
   );
 }
 
+function RestartButton(props: {
+  disabled: boolean;
+  label: string;
+  onClick: () => void;
+  title: string;
+}) {
+  return (
+    <button
+      className="refresh-button pipeline-retry"
+      disabled={props.disabled}
+      onClick={props.onClick}
+      title={props.title}
+      type="button"
+    >
+      <RotateCcw aria-hidden="true" />
+      {props.label}
+    </button>
+  );
+}
+
 function PhaseCell(props: {
   label: string;
   status: PodcastPipelineStatus;
@@ -360,6 +479,10 @@ function statusLabel(status: PodcastPipelineStatus): string {
       return 'Stuck';
     case 'queued':
       return 'Queued';
+    case 'unscheduled':
+      return 'Not scheduled';
+    case 'stale':
+      return 'Stale version';
     case 'failed':
       return 'Failed';
     default:
@@ -392,7 +515,8 @@ function hasStuckWork(episode: PodcastPipelineEpisode): boolean {
   return (
     episode.translationStatus === 'stuck' ||
     episode.ttsStatus === 'stuck' ||
-    episode.videoStatus === 'stuck'
+    episode.videoStatus === 'stuck' ||
+    episode.videoStatus === 'stale'
   );
 }
 

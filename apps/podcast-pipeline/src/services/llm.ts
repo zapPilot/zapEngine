@@ -651,7 +651,8 @@ export function isRetryableOpenRouterError(error: unknown): boolean {
 
 type LLMCompletionOperation =
   | 'buildVisualSubjectCatalog'
-  | 'generateLanguageClassrooms';
+  | 'generateLanguageClassrooms'
+  | 'writeConceptCard';
 
 export async function createCompletionWithRetry(
   openai: OpenAI,

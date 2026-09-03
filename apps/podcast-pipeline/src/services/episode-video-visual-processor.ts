@@ -19,6 +19,7 @@ import {
   EPISODE_VISUAL_PAYLOAD_SCHEMA_VERSION,
   EPISODE_VISUAL_STORYBOARD_PROMPT_VERSION,
   hashEpisodeVisualSelection,
+  sceneSentencesForDraft,
   type VisualSearchTraceEntry,
 } from './video/episode-visual.js';
 import { planPodcastVisualAssets } from './video/podcast-visual-assets.js';
@@ -38,6 +39,11 @@ import type {
   VisualSceneSubjectAssignment,
   VisualSubjectCatalog,
 } from './video/storyboard/subject-catalog.js';
+import {
+  buildVisualFailureDiagnostics,
+  type VisualFailureStage,
+  VisualPlanningError,
+} from './video/visual-diagnostics.js';
 import type { VisualAssetProgress } from './video/visual-asset-planner.js';
 import {
   EPISODE_VIDEO_VISUAL_VERSION,
@@ -105,6 +111,8 @@ export function createEpisodeVideoVisualProcessor(
     const outputDirectory = await dependencies.makeTemporaryDirectory(
       join(tmpdir(), 'episode-video-visual-worker-'),
     );
+    let failureStage: VisualFailureStage = 'analyze-audio';
+    const failureSnapshot: Record<string, unknown> = {};
 
     try {
       context.reportProgress(visualStageProgress('analyzing-audio', 0));
@@ -139,6 +147,7 @@ export function createEpisodeVideoVisualProcessor(
         searchTitleSource = 'english-localization';
       }
       const editorialSentences = getPodcastEditorialSentences(source.script);
+      failureStage = 'storyboard';
       const generated = await dependencies.generateStoryboard({
         title: source.title,
         script: source.script,
@@ -162,6 +171,7 @@ export function createEpisodeVideoVisualProcessor(
         ),
         searchTitleSource,
       });
+      failureStage = 'branding';
       const brandedDraft = applyAndValidatePodcastBrandingToStoryboard(
         source.script,
         generated.draft,
@@ -192,6 +202,7 @@ export function createEpisodeVideoVisualProcessor(
         }
       }
 
+      failureStage = 'search-intents';
       const intents = await dependencies.enrichSearchIntents(
         {
           draft: brandedDraft,
@@ -204,6 +215,14 @@ export function createEpisodeVideoVisualProcessor(
       );
       const subjectCatalog = intents.subjectCatalog;
       const sceneAssignments = intents.sceneAssignments;
+      failureSnapshot['searchIntentModel'] = intents.model;
+      failureSnapshot['subjectCatalog'] = subjectCatalog;
+      failureSnapshot['sceneAssignments'] = sceneAssignments;
+      failureSnapshot['scenes'] = intents.draft.scenes.map((scene) => ({
+        sceneId: scene.sceneId,
+        imageSearchIntent: scene.imageSearchIntent,
+        imageSearchEntities: scene.imageSearchEntities,
+      }));
       const storyboard = {
         ...generated,
         draft: intents.draft,
@@ -244,6 +263,7 @@ export function createEpisodeVideoVisualProcessor(
         episode: source.episodeId,
         phase: 'start',
       });
+      failureStage = 'scrape-article';
       const article = await dependencies.scrape(source.sourceUrl, {
         signal: context.signal,
         timeoutMs: VISUAL_ARTICLE_SCRAPE_TIMEOUT_MS,
@@ -257,8 +277,17 @@ export function createEpisodeVideoVisualProcessor(
         elapsedMs: Date.now() - searchStartedAt,
       });
 
+      failureSnapshot['articleImageCandidateCount'] = articleImageCandidateCount;
+      const sceneSentences = sceneSentencesForDraft(
+        source.script,
+        storyboard.draft,
+      );
+      const sceneEvidence = new Map(
+        sceneSentences.map((scene) => [scene.sceneId, { text: scene.text }] as const),
+      );
       const searchTrace: VisualSearchTraceEntry[] = [];
       let assetPlan: Awaited<ReturnType<typeof planPodcastVisualAssets>>;
+      failureStage = 'plan-assets';
       try {
         assetPlan = await dependencies.planAssets({
           scenes: storyboard.draft.scenes,
@@ -266,6 +295,10 @@ export function createEpisodeVideoVisualProcessor(
           workingDirectory: join(outputDirectory, 'images'),
           selectionMode: 'resilient',
           signal: context.signal,
+          slideFallback: {
+            title: visualSearchTitle || source.title,
+            sceneEvidence,
+          },
           ...(subjectCatalog ? { subjectCatalog } : {}),
           ...(sceneAssignments.length > 0 ? { sceneAssignments } : {}),
           onProgress: (progress) => {
@@ -276,7 +309,18 @@ export function createEpisodeVideoVisualProcessor(
               progress,
             );
             appendSearchTrace(searchTrace, progress);
-            if (progress.phase === 'assets') {
+            failureSnapshot['searchTrace'] = searchTrace;
+            if (progress.phase === 'slide' && progress.assetId) {
+              logVisualProgress(dependencies.logger, 'visual:slide', {
+                run: context.runId,
+                episode: source.episodeId,
+                scene: progress.sceneId,
+                asset: progress.assetId,
+                rejectionSummary: progress.rejectionSummary ?? 'none',
+                lead: progress.sceneIndex === 1,
+              });
+            }
+            if (progress.phase === 'assets' || progress.phase === 'slide') {
               context.reportProgress(
                 visualStageProgress(
                   'selecting-images',
@@ -316,6 +360,7 @@ export function createEpisodeVideoVisualProcessor(
         subjectCatalog,
         sceneAssignments,
       });
+      failureStage = 'write-manifest';
       const manifestPath = join(outputDirectory, 'visual-manifest.json');
       const sourceManifest = createSourceVisualManifest({
         job,
@@ -333,6 +378,7 @@ export function createEpisodeVideoVisualProcessor(
       );
       context.signal.throwIfAborted();
 
+      failureStage = 'upload';
       context.reportProgress(visualStageProgress('uploading-visuals', 0));
       const uploadStartedAt = Date.now();
       const uploaded = await dependencies.upload({
@@ -355,6 +401,9 @@ export function createEpisodeVideoVisualProcessor(
         articleAssetCount: assetPlan.assets.filter(
           (asset) => asset.provider === 'article',
         ).length,
+        generatedSlideCount: assetPlan.assets.filter(
+          (asset) => asset.provider === 'generated-slide',
+        ).length,
         elapsedMs: Date.now() - uploadStartedAt,
       });
 
@@ -374,6 +423,7 @@ export function createEpisodeVideoVisualProcessor(
         searchTitleSource,
         articleImageCandidateCount,
         searchTrace,
+        sceneSentences,
       });
       return {
         visualPayload: payload,
@@ -382,6 +432,21 @@ export function createEpisodeVideoVisualProcessor(
         sourceHash: job.source_hash,
         r2Prefix: uploaded.r2Prefix,
       };
+    } catch (error) {
+      if (context.signal.aborted || error instanceof VisualPlanningError) {
+        throw error;
+      }
+      throw new VisualPlanningError(
+        error,
+        buildVisualFailureDiagnostics({
+          visualVersion: job.visual_version,
+          runId: context.runId,
+          attempt: job.attempt_count,
+          stage: failureStage,
+          error,
+          snapshot: failureSnapshot,
+        }),
+      );
     } finally {
       await dependencies.removeDirectory(outputDirectory, {
         recursive: true,
@@ -611,6 +676,7 @@ function createSourceVisualManifest(input: {
       perceptualHash: asset.perceptualHash,
       width: asset.width,
       height: asset.height,
+      ...(asset.slide ? { slide: asset.slide } : {}),
     })),
   };
 }

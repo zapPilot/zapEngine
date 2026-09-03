@@ -13,10 +13,14 @@ import {
 import { videoAssetPaths } from './runtime-assets.js';
 import {
   type BrandFrameContent,
+  CONCEPT_CARD_HEIGHT,
+  CONCEPT_CARD_WIDTH,
+  type ConceptCardContent,
   type OutroContent,
   PORTRAIT_TEMPLATE_HEIGHT,
   PORTRAIT_TEMPLATE_WIDTH,
   renderBrandFrameElement,
+  renderConceptCardElement,
   renderOutroElement,
   renderSlideElement,
 } from './templates.js';
@@ -32,7 +36,8 @@ export interface PortraitRasterOutput {
 export type SatoriStageInput =
   | { kind?: 'slide'; slide: Slide; asset: ResolvedSlideAsset }
   | { kind: 'frame'; frame: BrandFrameContent; output: PortraitRasterOutput }
-  | { kind: 'outro'; outro: OutroContent; output: PortraitRasterOutput };
+  | { kind: 'outro'; outro: OutroContent; output: PortraitRasterOutput }
+  | { kind: 'concept-card'; card: ConceptCardContent };
 
 function fontArrayBuffer(buffer: Buffer): ArrayBuffer {
   return Uint8Array.from(buffer).buffer;
@@ -115,6 +120,13 @@ async function stageElementAndSize(
       element: renderOutroElement(input.outro, logoDataUri),
       width: PORTRAIT_TEMPLATE_WIDTH,
       height: PORTRAIT_TEMPLATE_HEIGHT,
+    };
+  }
+  if (input.kind === 'concept-card') {
+    return {
+      element: renderConceptCardElement(input.card),
+      width: CONCEPT_CARD_WIDTH,
+      height: CONCEPT_CARD_HEIGHT,
     };
   }
   const asset = await materializeAssetDataUri(input.asset);

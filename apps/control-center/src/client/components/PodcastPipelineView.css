@@ -107,6 +107,14 @@
   color: var(--status-critical);
 }
 
+.pipeline-status-stale {
+  color: var(--status-degraded);
+}
+
+.pipeline-status-unscheduled {
+  color: var(--status-unknown);
+}
+
 .pipeline-status-processing {
   color: var(--accent);
 }
@@ -117,6 +125,13 @@
 
 .pipeline-status-pending {
   color: var(--status-unknown);
+}
+
+.pipeline-retry-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .pipeline-error {
@@ -175,17 +190,89 @@
   line-height: 1.4;
 }
 
+.podcast-visual-debug-body {
+  display: grid;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.podcast-visual-toolbar,
+.podcast-visual-chips,
+.podcast-review-editor {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.podcast-visual-toolbar input,
+.podcast-review-editor textarea,
+.podcast-review-editor select {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  padding: 8px 10px;
+}
+
+.podcast-review-editor textarea {
+  flex: 1 1 280px;
+  min-height: 72px;
+}
+
+.podcast-visual-scenes,
+.podcast-review-list {
+  display: grid;
+  gap: 10px;
+}
+
+.podcast-visual-scene {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.podcast-visual-thumb img,
+.pipeline-language img {
+  width: 100%;
+  max-height: 120px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+.podcast-visual-scene p,
+.podcast-visual-scene small {
+  margin: 4px 0;
+  line-height: 1.45;
+}
+
+.podcast-visual-debug pre {
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 @media (max-width: 920px) {
   .pipeline-phase-grid,
   .pipeline-language-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .podcast-visual-scene {
+    grid-template-columns: 84px minmax(0, 1fr);
   }
 }
 
 @media (max-width: 640px) {
   .pipeline-summary,
   .pipeline-phase-grid,
-  .pipeline-language-grid {
+  .pipeline-language-grid,
+  .podcast-visual-scene {
     grid-template-columns: 1fr;
   }
 

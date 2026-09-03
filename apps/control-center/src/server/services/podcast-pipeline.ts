@@ -2,6 +2,8 @@ import { EPISODE_VIDEO_VISUAL_VERSION } from '@zapengine/types/shared';
 
 import type {
   PodcastPipelineEpisode,
+  PodcastPipelineIngestFailure,
+  PodcastPipelineIngestState,
   PodcastPipelineJobState,
   PodcastPipelineLocalization,
   PodcastPipelineRenderState,
@@ -47,6 +49,7 @@ interface LifecycleRow {
 
 interface IngestRow extends LifecycleRow {
   source_url: string;
+  failure_history?: unknown;
 }
 
 interface LegacyIngestRunRow {
@@ -59,11 +62,13 @@ interface LegacyIngestRunRow {
 interface VisualRow extends LifecycleRow {
   episode_id: string;
   visual_payload: Record<string, unknown> | null;
+  visual_version?: string | null;
 }
 
 interface RenderRow extends LifecycleRow {
   episode_localization_id: string;
   episode_id: string;
+  visual_version?: string | null;
 }
 
 export function createPodcastPipelineService(input: {
@@ -129,13 +134,13 @@ export function createPodcastPipelineService(input: {
           client
             .from('episode_video_visuals')
             .select(
-              'episode_id,status,progress_percent,progress_stage,attempt_count,lease_expires_at,last_error,visual_payload,updated_at',
+              'episode_id,status,progress_percent,progress_stage,attempt_count,lease_expires_at,last_error,visual_payload,visual_version,updated_at',
             )
             .in('episode_id', episodeIds),
           client
             .from('episode_videos')
             .select(
-              'episode_localization_id,episode_id,status,progress_percent,progress_stage,attempt_count,lease_expires_at,last_error,updated_at',
+              'episode_localization_id,episode_id,status,progress_percent,progress_stage,attempt_count,lease_expires_at,last_error,visual_version,updated_at',
             )
             .in('episode_id', episodeIds),
           client
@@ -156,13 +161,32 @@ export function createPodcastPipelineService(input: {
           throw queryError;
         }
 
+        const ingestRows = (ingestsResult.data ?? []) as IngestRow[];
+        const historyResult = await client
+          .from('podcast_ingest_jobs')
+          .select('source_url,failure_history')
+          .in('source_url', sourceUrls);
+        if (historyResult.error && !isMissingColumnError(historyResult.error)) {
+          throw historyResult.error;
+        }
+        if (!historyResult.error) {
+          const historyBySource = new Map(
+            ((historyResult.data ?? []) as { source_url: string; failure_history: unknown }[]).map(
+              (row) => [row.source_url, row.failure_history] as const,
+            ),
+          );
+          for (const row of ingestRows) {
+            row.failure_history = historyBySource.get(row.source_url) ?? [];
+          }
+        }
+
         return {
           generatedAt,
           status: 'ok',
           message: null,
           episodes: summarizePodcastPipeline(
             episodes,
-            (ingestsResult.data ?? []) as IngestRow[],
+            ingestRows,
             (localizationsResult.data ?? []) as LocalizationRow[],
             (visualsResult.data ?? []) as VisualRow[],
             (rendersResult.data ?? []) as RenderRow[],
@@ -179,36 +203,52 @@ export function createPodcastPipelineService(input: {
       if (!client) {
         throw new Error('Supabase podcast pipeline is not connected');
       }
-      const { data, error } = await client.rpc('retry_episode_ingest', {
+      const { data, error } = await client.rpc('restart_podcast_ingest', {
         p_episode_id: episodeId,
+        p_language_code: 'zh-Hant',
       });
-      if (error) {
-        throw error;
-      }
-      if (data !== true) {
-        throw new Error('Ingest retry changed no episode');
-      }
+      if (error) throw error;
+      if (!data) throw new Error('Ingest retry changed no episode');
     },
 
-    async restartVideo(episodeId: string): Promise<void> {
+    async restartVideo(
+      episodeId: string,
+      options: { forceReplan?: boolean } = {},
+    ): Promise<void> {
       if (!client) {
         throw new Error('Supabase podcast pipeline is not connected');
       }
-      // Both claim RPCs fence on visual_version, so a requeue that does not
-      // stamp the version the deployed workers pass is never claimed again.
+      const parameters: Record<string, unknown> = {
+        p_episode_id: episodeId,
+        p_visual_version: EPISODE_VIDEO_VISUAL_VERSION,
+      };
+      // Omitting the new parameter on the ordinary retry keeps this call
+      // resolvable while code is deployed before the migration.
+      if (options.forceReplan === true) {
+        parameters['p_force_replan'] = true;
+      }
       const { data, error } = await client.rpc(
         'retry_episode_video_generation',
-        {
-          p_episode_id: episodeId,
-          p_visual_version: EPISODE_VIDEO_VISUAL_VERSION,
-        },
+        parameters,
       );
-      if (error) {
-        throw error;
+      if (error) throw error;
+      if (data !== true) throw new Error('Video retry changed no episode');
+    },
+
+    async restartRender(
+      episodeId: string,
+      localizationId: string,
+    ): Promise<void> {
+      if (!client) {
+        throw new Error('Supabase podcast pipeline is not connected');
       }
-      if (data !== true) {
-        throw new Error('Video retry changed no episode');
-      }
+      const { data, error } = await client.rpc('retry_episode_video_render', {
+        p_episode_id: episodeId,
+        p_episode_localization_id: localizationId,
+        p_visual_version: EPISODE_VIDEO_VISUAL_VERSION,
+      });
+      if (error) throw error;
+      if (data !== true) throw new Error('Render retry changed no episode');
     },
   };
 }
@@ -248,7 +288,7 @@ export function summarizePodcastPipeline(
     const ingestRow = latestIngestBySourceUrl.get(episode.source_url) ?? null;
     const legacyIngestRun = latestLegacyIngestByEpisode.get(episode.id) ?? null;
     const ingest = ingestRow
-      ? jobState(ingestRow, now)
+      ? ingestState(ingestRow, now)
       : legacyIngestRun
         ? legacyIngestState(legacyIngestRun, now)
         : null;
@@ -276,7 +316,7 @@ export function summarizePodcastPipeline(
         ? applyIngestStatus(ttsBaseStatus, ingest)
         : ttsBaseStatus;
     const visualRow = visualByEpisode.get(episode.id) ?? null;
-    const visual = visualRow ? jobState(visualRow, now) : null;
+    const visual = visualRow ? visualJobState(visualRow, now) : null;
     const renderByLocalizationId = new Map(
       (rendersByEpisode.get(episode.id) ?? []).map((row) => [
         row.episode_localization_id,
@@ -290,8 +330,8 @@ export function summarizePodcastPipeline(
       }
       const render = renderByLocalizationId.get(localization.id);
       return render
-        ? [renderState(render, languageCode, now)]
-        : [emptyRenderState(localization.id, languageCode)];
+        ? [renderState(render, languageCode, now, visual)]
+        : [emptyRenderState(localization.id, languageCode, visual)];
     });
     const videoStatus = videoState(visual, renders, ttsStatus);
     const currentPhase = currentPhaseFor(
@@ -320,22 +360,14 @@ export function summarizePodcastPipeline(
       visual,
       visualDebug: visualSearchDebug(visualRow?.visual_payload ?? null),
       renders,
-      canRestartIngest:
-        (currentPhase === 'translation' || currentPhase === 'tts') &&
-        !ingestIsActive,
-      // `renders` carries one entry per audio-complete language, and a language
-      // with no `episode_videos` row is synthesised as 'pending'. The retry RPC
-      // only updates existing rows, so those episodes -- legacy single-language
-      // renders, and partial enqueues -- can never be repaired by it. Offering
-      // the button there produces a 409 that claims the video is already
-      // completed while this same view shows it queued.
+      canRestartIngest: ttsStatus !== 'completed' && !ingestIsActive,
       canRestartVideo:
         ttsStatus === 'completed' &&
         visual !== null &&
         videoStatus !== 'completed' &&
-        !activeVideoLease &&
-        renders.length === LANGUAGES.length &&
-        renders.every(({ updatedAt }) => updatedAt !== null),
+        !activeVideoLease,
+      canForceReplanVisual:
+        ttsStatus === 'completed' && visual !== null && !activeVideoLease,
     };
   });
 }
@@ -548,6 +580,15 @@ function videoState(
     return 'stuck';
   }
   if (
+    visual?.status === 'stale' ||
+    renders.some(({ status }) => status === 'stale')
+  ) {
+    return 'stale';
+  }
+  if (renders.some(({ status }) => status === 'unscheduled')) {
+    return 'unscheduled';
+  }
+  if (
     renders.length === LANGUAGES.length &&
     renders.every(({ status }) => status === 'completed')
   ) {
@@ -592,10 +633,11 @@ function localizationState(
 }
 
 function jobState(row: LifecycleRow, now: Date): PodcastPipelineJobState {
+  const status = normalizeJobStatus(row.status, row.lease_expires_at, now);
   return {
-    status: normalizeJobStatus(row.status, row.lease_expires_at, now),
-    progressPercent: row.progress_percent ?? null,
-    stage: row.progress_stage ?? null,
+    status,
+    progressPercent: status === 'completed' ? null : (row.progress_percent ?? null),
+    stage: status === 'completed' ? null : (row.progress_stage ?? null),
     attempts: row.attempt_count,
     lastError: row.last_error,
     leaseExpiresAt: row.lease_expires_at,
@@ -603,10 +645,30 @@ function jobState(row: LifecycleRow, now: Date): PodcastPipelineJobState {
   };
 }
 
+function visualJobState(row: VisualRow, now: Date): PodcastPipelineJobState {
+  const base = jobState(row, now);
+  const status = normalizeVersionedJobStatus(
+    base.status,
+    row.visual_version,
+  );
+  return {
+    ...base,
+    status,
+    visualVersion: row.visual_version ?? null,
+  };
+}
+
+function ingestState(row: IngestRow, now: Date): PodcastPipelineIngestState {
+  return {
+    ...jobState(row, now),
+    failureHistory: parseIngestFailureHistory(row.failure_history),
+  };
+}
+
 function legacyIngestState(
   row: LegacyIngestRunRow,
   now: Date,
-): PodcastPipelineJobState {
+): PodcastPipelineIngestState {
   return {
     status: normalizeJobStatus(row.status, null, now),
     progressPercent: null,
@@ -615,6 +677,7 @@ function legacyIngestState(
     lastError: null,
     leaseExpiresAt: null,
     updatedAt: row.finished_at ?? row.created_at,
+    failureHistory: [],
   };
 }
 
@@ -622,28 +685,39 @@ function renderState(
   row: RenderRow,
   languageCode: LanguageCode,
   now: Date,
+  visual: PodcastPipelineJobState | null,
 ): PodcastPipelineRenderState {
+  const base = jobState(row, now);
+  const status = normalizeVersionedJobStatus(base.status, row.visual_version);
   return {
-    ...jobState(row, now),
+    ...base,
+    status,
+    visualVersion: row.visual_version ?? null,
     localizationId: row.episode_localization_id,
     languageCode,
+    canRestart: canRestartRender(status, base.leaseExpiresAt, visual, now),
   };
 }
 
 function emptyRenderState(
   localizationId: string,
   languageCode: LanguageCode,
+  visual: PodcastPipelineJobState | null,
 ): PodcastPipelineRenderState {
   return {
     localizationId,
     languageCode,
-    status: 'pending',
+    status: 'unscheduled',
     progressPercent: null,
     stage: null,
     attempts: 0,
     lastError: null,
     leaseExpiresAt: null,
     updatedAt: null,
+    visualVersion: null,
+    canRestart:
+      visual?.status === 'completed' &&
+      visual.visualVersion === EPISODE_VIDEO_VISUAL_VERSION,
   };
 }
 
@@ -666,6 +740,77 @@ function normalizeJobStatus(
     return status;
   }
   return 'pending';
+}
+
+function normalizeVersionedJobStatus(
+  status: PodcastPipelineStatus,
+  visualVersion: string | null | undefined,
+): PodcastPipelineStatus {
+  if (status === 'failed' || status === 'completed') return status;
+  if (
+    (status === 'queued' || status === 'stuck') &&
+    visualVersion &&
+    visualVersion !== EPISODE_VIDEO_VISUAL_VERSION
+  ) {
+    return 'stale';
+  }
+  return status;
+}
+
+function canRestartRender(
+  status: PodcastPipelineStatus,
+  leaseExpiresAt: string | null,
+  visual: PodcastPipelineJobState | null,
+  now: Date,
+): boolean {
+  if (
+    !visual ||
+    visual.status !== 'completed' ||
+    visual.visualVersion !== EPISODE_VIDEO_VISUAL_VERSION ||
+    status === 'completed'
+  ) {
+    return false;
+  }
+  return !leaseIsActive(leaseExpiresAt, now);
+}
+
+function parseIngestFailureHistory(
+  value: unknown,
+): PodcastPipelineIngestFailure[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return [];
+    const row = entry as Record<string, unknown>;
+    const kind = row['kind'];
+    const at = row['at'];
+    const attempt = row['attempt'];
+    if (
+      (kind !== 'failed' && kind !== 'lease_expired' && kind !== 'requeued') ||
+      typeof at !== 'string' ||
+      typeof attempt !== 'number' ||
+      !Number.isInteger(attempt)
+    ) {
+      return [];
+    }
+    return [
+      {
+        kind,
+        at,
+        attempt,
+        owner: typeof row['owner'] === 'string' ? row['owner'] : null,
+        error: typeof row['error'] === 'string' ? row['error'] : null,
+      },
+    ];
+  });
+}
+
+function isMissingColumnError(error: unknown): boolean {
+  return Boolean(
+    error &&
+      typeof error === 'object' &&
+      'code' in error &&
+      (error as { code?: unknown }).code === '42703',
+  );
 }
 
 function leaseIsActive(value: string | null, now: Date): boolean {

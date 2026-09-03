@@ -961,6 +961,127 @@ function OutroTemplate({
   );
 }
 
+export const CONCEPT_CARD_WIDTH = 2_880;
+export const CONCEPT_CARD_HEIGHT = 2_560;
+
+export interface ConceptCardContent {
+  kicker: string;
+  headline: string;
+  points: readonly string[];
+}
+
+export function renderConceptCardElement(
+  card: ConceptCardContent,
+): ReactElement {
+  return (
+    <div
+      style={{
+        width: CONCEPT_CARD_WIDTH,
+        height: CONCEPT_CARD_HEIGHT,
+        display: 'flex',
+        flexDirection: 'column',
+        position: 'relative',
+        overflow: 'hidden',
+        padding: '210px 220px',
+        backgroundColor: colors.bg,
+        color: colors.ink,
+        fontFamily: sans,
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          position: 'absolute',
+          width: 920,
+          height: 920,
+          right: -260,
+          top: -260,
+          border: `42px solid ${colors.accentSoft}`,
+          borderRadius: 460,
+        }}
+      />
+      <div
+        style={{
+          display: 'flex',
+          position: 'absolute',
+          left: 128,
+          top: 210,
+          width: 18,
+          height: 1_920,
+          backgroundColor: colors.accent,
+        }}
+      />
+      <Eyebrow>{card.kicker}</Eyebrow>
+      <div
+        style={{
+          display: 'flex',
+          maxWidth: 2_180,
+          marginTop: 74,
+          fontSize: 176,
+          fontWeight: 700,
+          lineHeight: 1.02,
+          letterSpacing: -5,
+        }}
+      >
+        {card.headline}
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 54,
+          marginTop: 130,
+        }}
+      >
+        {card.points.slice(0, 3).map((point, index) => (
+          <div
+            key={`${index}-${point}`}
+            style={{ display: 'flex', alignItems: 'center', gap: 46 }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                width: 96,
+                color: colors.accent,
+                fontFamily: mono,
+                fontSize: 48,
+                fontWeight: 700,
+              }}
+            >
+              {String(index + 1).padStart(2, '0')}
+            </div>
+            <div
+              style={{
+                display: 'flex',
+                maxWidth: 1_880,
+                fontSize: 72,
+                fontWeight: 700,
+                lineHeight: 1.14,
+              }}
+            >
+              {point}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          position: 'absolute',
+          left: 220,
+          bottom: 104,
+          color: colors.inkFaint,
+          fontFamily: mono,
+          fontSize: 34,
+          letterSpacing: 3,
+        }}
+      >
+        ZAP PILOT · GENERATED CONCEPT CARD
+      </div>
+    </div>
+  );
+}
+
 export function renderBrandFrameElement(
   frame: BrandFrameContent,
   logoDataUri: string,

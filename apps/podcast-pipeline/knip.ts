@@ -16,6 +16,8 @@ export default defineKnipConfig({
     'src/social/distribution-snapshot-cli.ts',
     'src/services/video/cli.ts',
     'src/services/video/r2-playback-canary.ts',
+    'src/services/video/review/cli.ts',
+    'src/services/video/slide-preview-cli.ts',
     'src/services/video/storyboard/smoke-cli.ts',
   ],
   ignoreDependencies: [

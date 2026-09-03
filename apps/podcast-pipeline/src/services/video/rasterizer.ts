@@ -9,7 +9,13 @@ import type { Slide } from './manifest.js';
 import type { RasterStage } from './raster-stage-entry.js';
 import type { PortraitRasterOutput, SatoriStageInput } from './satori-stage.js';
 import type { SharpCropStageInput } from './sharp-stage.js';
-import type { BrandFrameContent, OutroContent } from './templates.js';
+import type {
+  BrandFrameContent,
+  CONCEPT_CARD_HEIGHT,
+  CONCEPT_CARD_WIDTH,
+  ConceptCardContent,
+  OutroContent,
+} from './templates.js';
 
 type RunStage = (
   stage: RasterStage,
@@ -197,6 +203,25 @@ export function rasterizeOutro(
 ): Promise<void> {
   const input = { kind: 'outro' as const, outro, output };
   return rasterizePortraitCard(input, paths, options);
+}
+
+export async function rasterizeConceptCard(
+  card: ConceptCardContent,
+  paths: CardRasterPaths,
+  options: RasterizeOptions = {},
+): Promise<void> {
+  const stageInput = { kind: 'concept-card' as const, card };
+  const runStage = await renderSatoriMaster(stageInput, paths, options);
+  await writeStageInputFile(
+    paths.input,
+    {
+      imagePath: paths.master,
+      width: CONCEPT_CARD_WIDTH,
+      height: CONCEPT_CARD_HEIGHT,
+    },
+    [paths.output],
+  );
+  await runStage('sharp-scale', paths.input, paths.output, options.signal);
 }
 
 /* jscpd:ignore-end */

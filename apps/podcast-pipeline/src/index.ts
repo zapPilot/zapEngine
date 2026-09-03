@@ -69,12 +69,18 @@ import {
   getTelegramCallbackQuery,
   getTelegramMessage,
   isAllowedUser,
-  isTelegramHelpCommand,
+  parseTelegramCallbackData,
+  parseTelegramCommand,
   TELEGRAM_HELP_TEXT,
   TELEGRAM_NO_URL_TEXT,
-  TELEGRAM_RETRY_CALLBACK_DATA,
   verifySecret,
 } from './services/telegram.js';
+import {
+  handleTelegramRetryCommand,
+  handleTelegramRetryVideoCallback,
+  handleTelegramStatusCommand,
+  telegramCommandErrorText,
+} from './services/telegram-commands.js';
 import { createTelegramIngestQueue } from './services/telegram-ingest-queue.js';
 import {
   buildEpisodeVideoGenerationForLocalizations,
@@ -271,25 +277,37 @@ export function createApp(): Hono {
     const update = await c.req.json().catch(() => null);
     const callbackQuery = getTelegramCallbackQuery(update);
     if (callbackQuery) {
+      const action = parseTelegramCallbackData(callbackQuery.data);
       if (
         !isAllowedUser(callbackQuery.from?.id, getAllowedTelegramUserIds()) ||
-        callbackQuery.data !== TELEGRAM_RETRY_CALLBACK_DATA
+        !action
       ) {
         return emptyTelegramResponse(c);
       }
 
       const callbackId = callbackQuery.id;
-      const callbackText = callbackQuery.message?.text;
       const callbackChatId = callbackQuery.message?.chat?.id;
       if (
         typeof callbackId !== 'string' ||
-        typeof callbackText !== 'string' ||
         (typeof callbackChatId !== 'number' &&
           typeof callbackChatId !== 'string')
       ) {
         return emptyTelegramResponse(c);
       }
 
+      if (action.kind === 'retry-video') {
+        process.nextTick(() => {
+          void handleTelegramRetryVideoCallback(action.episodeId)
+            .then((text) => answerTelegramCallbackQuery(callbackId, text))
+            .catch((error) =>
+              answerTelegramCallbackQuery(callbackId, telegramCommandErrorText(error)),
+            );
+        });
+        return emptyTelegramResponse(c);
+      }
+
+      const callbackText = callbackQuery.message?.text;
+      if (typeof callbackText !== 'string') return emptyTelegramResponse(c);
       const retryUrl = extractFailureSourceUrl(callbackText);
       if (!retryUrl) {
         void answerTelegramCallbackQuery(callbackId, '找不到原始 URL');
@@ -328,8 +346,39 @@ export function createApp(): Hono {
     }
 
     const text = typeof message.text === 'string' ? message.text.trim() : '';
-    if (isTelegramHelpCommand(text)) {
-      telegramIngestQueue.scheduleMessage(chatId, TELEGRAM_HELP_TEXT);
+    const command = parseTelegramCommand(text);
+    if (command) {
+      if (command.name === 'start' || command.name === 'help' || command.name === 'unknown') {
+        telegramIngestQueue.scheduleMessage(chatId, TELEGRAM_HELP_TEXT);
+        return emptyTelegramResponse(c);
+      }
+      if (!command.argument) {
+        telegramIngestQueue.scheduleMessage(
+          chatId,
+          command.name === 'retry'
+            ? '用法：/retry <URL|episodeId>'
+            : '用法：/status <episodeId>',
+        );
+        return emptyTelegramResponse(c);
+      }
+      process.nextTick(() => {
+        const work =
+          command.name === 'retry'
+            ? handleTelegramRetryCommand({
+                chatId,
+                target: command.argument!,
+                queue: telegramIngestQueue,
+              })
+            : handleTelegramStatusCommand(command.argument!);
+        void work
+          .then((reply) => telegramIngestQueue.scheduleMessage(chatId, reply))
+          .catch((error) =>
+            telegramIngestQueue.scheduleMessage(
+              chatId,
+              telegramCommandErrorText(error),
+            ),
+          );
+      });
       return emptyTelegramResponse(c);
     }
 
