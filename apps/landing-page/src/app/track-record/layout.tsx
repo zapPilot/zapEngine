@@ -3,11 +3,9 @@
 import Link from 'next/link';
 import { useTrackRecord } from '@/hooks/useTrackRecord';
 import { TrackRecordNav } from '@/components/track-record/TrackRecordNav';
+import { TrackRecordSourceToggle } from '@/components/track-record/TrackRecordSourceToggle';
 import { BrandMark } from '@/components/BrandMark';
-import {
-  hasLiveTrackRecordData,
-  isDemoTrackRecordMeta,
-} from '@/data/mock-track-record';
+import { hasLiveTrackRecordData } from '@/data/mock-track-record';
 
 export default function TrackRecordLayout({
   children,
@@ -15,9 +13,8 @@ export default function TrackRecordLayout({
   children: React.ReactNode;
 }) {
   const state = useTrackRecord();
-
-  const isDemo = isDemoTrackRecordMeta(state.meta);
-  const hasLiveData = hasLiveTrackRecordData(state.meta);
+  const hasLiveData =
+    state.source === 'live' && hasLiveTrackRecordData(state.meta);
 
   return (
     // `.shell-root` activates the landing CSS scoped under it (landing.css
@@ -36,16 +33,30 @@ export default function TrackRecordLayout({
             <span>Track Record</span>
           </nav>
 
-          {isDemo ? (
-            <div className="pending-badge">Demo data</div>
-          ) : hasLiveData ? (
-            <div className="live-badge">
-              <span className="live-dot" aria-hidden />
-              Live
-            </div>
-          ) : (
-            <div className="pending-badge">Pending first snapshot</div>
-          )}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-end',
+              gap: 10,
+              marginLeft: 'auto',
+            }}
+          >
+            <TrackRecordSourceToggle
+              source={state.source}
+              onChange={state.setSource}
+            />
+            {state.source === 'backtest' ? (
+              <div className="pending-badge">Backtest</div>
+            ) : hasLiveData ? (
+              <div className="live-badge">
+                <span className="live-dot" aria-hidden />
+                Live
+              </div>
+            ) : (
+              <div className="pending-badge">Live unavailable</div>
+            )}
+          </div>
         </header>
 
         <TrackRecordNav />
