@@ -4,12 +4,6 @@
   "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
   "outputDirectory": "out",
   "framework": null,
-  "rewrites": [
-    {
-      "source": "/ipfs/:cid",
-      "destination": "https://dweb.link/ipfs/:cid"
-    }
-  ],
   "git": {
     "deploymentEnabled": false
   }
