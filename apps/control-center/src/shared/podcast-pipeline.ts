@@ -38,11 +38,22 @@ export interface PodcastPipelineVisualQuery {
   queries: string[];
 }
 
+export interface PodcastPipelineVisualSearchAttempt {
+  sceneId: string;
+  provider: 'pexels' | 'pixabay' | 'brave';
+  query: string;
+  returned: number;
+  accepted: number;
+  entityFiltered: number;
+  rejected: number;
+}
+
 export interface PodcastPipelineVisualDebug {
   phase: string | null;
   primarySubject: string | null;
   subjects: { id: string; name: string }[];
   plannedQueries: PodcastPipelineVisualQuery[];
+  actualSearches: PodcastPipelineVisualSearchAttempt[];
 }
 
 export interface PodcastPipelineEpisode {
