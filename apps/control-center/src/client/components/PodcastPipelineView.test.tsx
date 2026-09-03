@@ -62,6 +62,7 @@ function pipelineResponse(
           updatedAt: '2026-09-01T00:00:00.000Z',
         },
         renders: [],
+        canRestartIngest: false,
         canRestartVideo: true,
         ...overrides,
       },
@@ -75,15 +76,17 @@ function renderPipeline(input: {
   data?: PodcastPipelineResponse;
   restartingEpisodeId?: string | null;
 }) {
+  const onRestartIngest = vi.fn();
   const onRestartVideo = vi.fn();
   render(
     <PodcastPipelineView
       data={input.data ?? pipelineResponse()}
+      onRestartIngest={onRestartIngest}
       onRestartVideo={onRestartVideo}
       restartingEpisodeId={input.restartingEpisodeId ?? null}
     />,
   );
-  return { onRestartVideo };
+  return { onRestartIngest, onRestartVideo };
 }
 
 describe('PodcastPipelineView', () => {
@@ -97,6 +100,36 @@ describe('PodcastPipelineView', () => {
 
     fireEvent.click(button);
     expect(onRestartVideo).toHaveBeenCalledWith(episodeId);
+  });
+
+  it('invokes ingest recovery for a failed translation phase', () => {
+    const { onRestartIngest, onRestartVideo } = renderPipeline({
+      data: pipelineResponse({
+        currentPhase: 'translation',
+        translationStatus: 'failed',
+        ttsStatus: 'pending',
+        videoStatus: 'pending',
+        ingest: {
+          status: 'failed',
+          progressPercent: null,
+          stage: null,
+          attempts: 0,
+          lastError: null,
+          leaseExpiresAt: null,
+          updatedAt: '2026-08-28T10:02:15.000Z',
+        },
+        visual: null,
+        renders: [],
+        canRestartIngest: true,
+        canRestartVideo: false,
+      }),
+    });
+
+    const button = screen.getByRole('button', { name: 'Restart ingest' });
+    expect(button).toBeEnabled();
+    fireEvent.click(button);
+    expect(onRestartIngest).toHaveBeenCalledWith(episodeId);
+    expect(onRestartVideo).not.toHaveBeenCalled();
   });
 
   it('does not surface a stale visual error while a retry is processing', () => {
