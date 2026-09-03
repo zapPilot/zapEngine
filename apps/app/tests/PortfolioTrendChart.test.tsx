@@ -101,6 +101,11 @@ async function renderChart() {
             date: '2026-08-21',
             total_value_usd: 125,
             categories: [{ assets_usd: 150, debt_usd: 25 }],
+            attribution: [
+              { kind: 'market', label: 'ETH', valueUsd: 20 },
+              { kind: 'yield', label: 'Aave', valueUsd: 4 },
+              { kind: 'residual', label: 'Other / flows', valueUsd: 1 },
+            ],
           },
           { date: '2026-08-22', total_value_usd: 120 },
         ]}
@@ -114,15 +119,21 @@ async function renderChart() {
 }
 
 describe('PortfolioTrendChart interactions', () => {
-  it('shows the nearest point on hover and closes when the pointer leaves', async () => {
+  it('shows the nearest point with sorted attribution and closes when the pointer leaves', async () => {
     const chart = await renderChart();
     await act(async () =>
       chart?.dispatchEvent(pointerEvent('pointermove', 'mouse', 100)),
     );
 
     expect(container.textContent).toContain('Portfolio change: +$25.00');
+    expect(container.textContent).toContain('ETH price+$20.00');
+    expect(container.textContent).toContain('Aave yield+$4.00');
+    expect(container.textContent).toContain('Other / flows+$1.00');
     expect(container.textContent).toContain('Assets: $150.00');
     expect(container.textContent).toContain('Debt: $25.00');
+    expect(
+      container.querySelectorAll('[data-testid="portfolio-trend-attribution-row"]'),
+    ).toHaveLength(3);
 
     await act(async () =>
       chart?.dispatchEvent(pointerEvent('pointerout', 'mouse', 100)),
