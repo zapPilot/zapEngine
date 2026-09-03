@@ -9,7 +9,7 @@ Use one root `supabase/` workdir for Zap Engine's single shared Supabase project
 
 All legacy migration directories are frozen provenance, including analytics-engine migrations 026 and 027 once the root baseline exists. Their intended changes are represented by the baseline when already live or reborn as new root migrations when still pending.
 
-Production migration ownership moves to GitHub Actions. A pull request that changes root Supabase migrations must rebuild the local database from committed migrations. After the PR is merged, `.github/workflows/supabase-migrations.yml` waits for the corresponding `CI` run on `main` to succeed, then the protected `production` GitHub Environment runs `supabase db push --dry-run`, `supabase db push`, and `supabase migration list` against the shared production project.
+Production migration ownership moves to GitHub Actions. A pull request that changes root Supabase migrations must rebuild the local database from committed migrations. After merge, the `CI` workflow runs `supabase db push --dry-run`, `supabase db push`, a second dry-run, and `supabase migration list` against the shared production project after verification gates and before Fly application deployment. Every successful main run checks the complete pending set instead of inferring changes from the latest commit, so it recovers migrations left pending by an earlier failed or cancelled run.
 
 Developers and agents must not run `supabase db push` against production from a laptop, feature branch, or worktree. `supabase migration repair` is a break-glass reconciliation operation and is never automated in CI. A migration-history mismatch must fail the deploy so an operator can investigate whether production schema and repository history actually agree before repairing history manually.
 
@@ -18,11 +18,10 @@ Developers and agents must not run `supabase db push` against production from a 
 - Supabase CLI migration history starts with the production baseline. Legacy files remain available to explain ancestry but are not active migration inputs.
 - Schema drift already present in the baseline is treated as production fact. Unexplained drift is investigated without deleting it from the baseline.
 - `apps/podcast-pipeline/supabase/schema.sql` is frozen. When a fresh schema snapshot is needed, generate it with `supabase db dump` rather than editing that file as current truth.
-- Production migration credentials live in the protected `production` GitHub Environment as `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, and `SUPABASE_PROJECT_ID`; they are not committed or required in developer worktrees.
-- The `production` GitHub Environment must require manual approval before the deployment job can access production credentials.
-- Supabase production migration deploys are serialized with `cancel-in-progress: false`; a newer merge never cancels a migration already being applied.
+- Production migration credentials are exposed to the `production` GitHub Environment as `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, and `SUPABASE_PROJECT_ID`; they are not committed or required in developer worktrees.
+- Supabase production migration deploys are serialized with `cancel-in-progress: false` and `queue: max`; a newer merge neither cancels an active migration nor evicts an older waiter.
 - If `supabase db push --dry-run` or `supabase migration list` reports a history mismatch, CI fails. It does not infer that two differently-versioned migrations are equivalent and does not run `migration repair` automatically.
-- Direct multi-commit pushes to `main` are unsupported for schema changes. Production migrations are expected to arrive through a PR merge so the successful main CI head commit contains the complete schema change relative to its first parent.
+- Application deployment waits for the schema deploy, so code merged with a migration cannot roll out against the older schema.
 
 The workflow remains pinned to verified Supabase CLI v2.115.0 behavior.
 
