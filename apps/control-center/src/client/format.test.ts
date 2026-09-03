@@ -63,6 +63,10 @@ describe('client formatters', () => {
     vi.setSystemTime(new Date('2026-08-28T12:00:00.000Z'));
     expect(relativeTime('2026-08-28T11:59:30.000Z')).toBe('just now');
     expect(relativeTime('2026-08-28T11:20:00.000Z')).toBe('40 min ago');
+    expect(relativeTime('2026-08-28T11:01:00.000Z')).toBe('59 min ago');
+    expect(relativeTime('2026-08-28T11:00:00.000Z')).toBe(
+      new Date('2026-08-28T11:00:00.000Z').toLocaleString(),
+    );
     expect(relativeTime('2026-08-26T12:00:00.000Z')).not.toContain('ago');
   });
 
