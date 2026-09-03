@@ -347,6 +347,8 @@ export const ENV_MANIFEST = {
   LLM_MODEL: server(['podcast-pipeline'], {
     requiredFor: ['podcast-pipeline:base'],
   }),
+  LLM_FALLBACK_MODELS: server(['podcast-pipeline']),
+  TRANSLATION_FALLBACK_MODELS: server(['podcast-pipeline']),
   LLM_THINKING_MODEL: server(['podcast-pipeline']),
   YOUTUBE_CLIENT_ID: server(['podcast-pipeline'], { sensitive: true }),
   YOUTUBE_CLIENT_SECRET: server(['podcast-pipeline'], { sensitive: true }),
