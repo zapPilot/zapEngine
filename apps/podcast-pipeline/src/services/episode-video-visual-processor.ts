@@ -377,6 +377,13 @@ export function createEpisodeVideoVisualProcessor(
   };
 }
 
+interface VisualSearchDebugQuery {
+  sceneId: string;
+  subjectIds: string[];
+  selectionReason: string;
+  queries: string[];
+}
+
 function buildVisualSearchDebugPayload(input: {
   subjectCatalog: VisualSubjectCatalog | null;
   sceneAssignments: readonly VisualSceneSubjectAssignment[];
@@ -387,7 +394,7 @@ function buildVisualSearchDebugPayload(input: {
   const assignmentByScene = new Map(
     input.sceneAssignments.map((assignment) => [assignment.sceneId, assignment]),
   );
-  const plannedQueries = input.scenes.flatMap((scene) => {
+  const plannedQueries = input.scenes.flatMap<VisualSearchDebugQuery>((scene) => {
     if (podcastBrandVisualKind(scene.imageSearchIntent)) return [];
     const assignment = assignmentByScene.get(scene.sceneId);
     if (!input.subjectCatalog || !assignment) {
