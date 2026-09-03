@@ -382,15 +382,10 @@ function materializeVisualSubjectCatalog(
       // content scene is the episode cover/lead and already falls back to it.
       if (evidenceSceneIds.length === 0 && id !== primarySubjectId) return [];
 
-      let resolvedEvidenceSceneIds = evidenceSceneIds;
-      if (resolvedEvidenceSceneIds.length === 0) {
-        const firstScene = request.scenes[0];
-        resolvedEvidenceSceneIds = firstScene ? [firstScene.sceneId] : [];
-      }
       return [
         {
           ...subject,
-          evidenceSceneIds: resolvedEvidenceSceneIds,
+          evidenceSceneIds,
           searchQueries: deterministicSubjectSearchQueries(subject),
           officialDomains: [],
         },
@@ -416,18 +411,8 @@ function deterministicSubjectSearchQueries(
   const canonicalName = subject['canonicalName'];
   if (typeof canonicalName !== 'string' || !canonicalName.trim()) return [];
   const canonical = canonicalName.trim();
-  const identityHints = Array.isArray(subject['identityHints'])
-    ? subject['identityHints'].filter(
-        (hint): hint is string =>
-          typeof hint === 'string' && Boolean(hint.trim()),
-      )
-    : [];
-  const negativeHints = Array.isArray(subject['negativeHints'])
-    ? subject['negativeHints'].filter(
-        (hint): hint is string =>
-          typeof hint === 'string' && Boolean(hint.trim()),
-      )
-    : [];
+  const identityHints = compactStringArray(subject['identityHints']);
+  const negativeHints = compactStringArray(subject['negativeHints']);
   const compact = canonical.replace(/[^\p{L}\p{N}]/gu, '');
   const ambiguous =
     negativeHints.length > 0 ||
@@ -437,6 +422,15 @@ function deterministicSubjectSearchQueries(
   const descriptive =
     ambiguous && hint ? `${canonical} ${hint}`.slice(0, 80).trim() : canonical;
   return [...new Set([descriptive, canonical])];
+}
+
+function compactStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (typeof entry !== 'string') return [];
+    const trimmed = entry.trim();
+    return trimmed ? [trimmed] : [];
+  });
 }
 
 export function buildSubjectCatalogSystemPrompt(): string {

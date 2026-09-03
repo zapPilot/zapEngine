@@ -713,6 +713,49 @@ describe('OpenRouter search intent provider', () => {
     expect(operation).toBe('buildVisualSubjectCatalog');
   });
 
+  it('keeps a title-only primary as episode context without fabricating scene evidence', async () => {
+    mockCompletion(CATALOG_JSON);
+    const provider = createOpenRouterSearchIntentProvider();
+
+    const result = await enrichStoryboardSearchIntents(
+      {
+        draft: {
+          scenes: [
+            {
+              sceneId: 'scene-01',
+              startSentenceId: 's0001',
+              endSentenceId: 's0001',
+              imageSearchIntent: ['placeholder'],
+            },
+            {
+              sceneId: 'scene-02',
+              startSentenceId: 's0002',
+              endSentenceId: 's0002',
+              imageSearchIntent: ['placeholder'],
+            },
+          ],
+        },
+        title: 'Stablecoin market outlook',
+        script: 'Markets changed. Payment costs declined.',
+      },
+      { provider },
+    );
+
+    expect(result.subjectCatalog?.subjects[0]?.evidenceSceneIds).toEqual([]);
+    expect(result.sceneAssignments).toEqual([
+      {
+        sceneId: 'scene-01',
+        subjectIds: ['subject-stablecoin'],
+        selectionReason: 'episode-context',
+      },
+      {
+        sceneId: 'scene-02',
+        subjectIds: ['subject-stablecoin'],
+        selectionReason: 'episode-context',
+      },
+    ]);
+  });
+
   it('passes an abort signal through to the retrying OpenRouter request', async () => {
     mockCompletion(CATALOG_JSON);
     const controller = new AbortController();
