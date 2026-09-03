@@ -1,7 +1,9 @@
+import { randomBytes } from 'node:crypto';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import sharp from 'sharp';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -144,12 +146,12 @@ describe('YouTube publisher', () => {
     const videoPath = await fixtureVideo();
     const onLog = vi.fn();
     const requests: { url: string; init: RequestInit }[] = [];
-    const thumbnailBytes = Buffer.from('canonical-thumbnail');
+    const thumbnailBytes = await fixtureThumbnailPng();
     const fetchImpl = vi.fn<typeof fetch>(async (input, init = {}) => {
       const url = String(input);
       requests.push({ url, init });
       if (url === THUMBNAIL_URL) {
-        return new Response(thumbnailBytes, {
+        return new Response(new Uint8Array(thumbnailBytes), {
           status: 200,
           headers: { 'content-type': 'image/png' },
         });
@@ -192,9 +194,9 @@ describe('YouTube publisher', () => {
     expect(thumbnailUploadUrl.searchParams.get('videoId')).toBe('yt-thumbnail');
     expect(thumbnailUploadUrl.searchParams.get('uploadType')).toBe('media');
     expect(thumbnailRequest?.init.method).toBe('POST');
-    expect(new Headers(thumbnailRequest?.init.headers).get('content-type')).toBe(
-      'image/png',
-    );
+    expect(
+      new Headers(thumbnailRequest?.init.headers).get('content-type'),
+    ).toBe('image/png');
     expect(
       Buffer.from(thumbnailRequest?.init.body as Uint8Array).equals(
         thumbnailBytes,
@@ -206,13 +208,154 @@ describe('YouTube publisher', () => {
     expect(onLog).toHaveBeenCalledWith('[youtube] Setting canonical thumbnail');
   });
 
+  it('rejects corrupt canonical image bytes before uploading a video', async () => {
+    const videoPath = await fixtureVideo();
+    const fetchImpl = vi.fn<typeof fetch>(async (input) => {
+      if (String(input) === THUMBNAIL_URL) {
+        return new Response(new Uint8Array(Buffer.from('not-an-image')), {
+          status: 200,
+          headers: { 'content-type': 'image/png' },
+        });
+      }
+      throw new Error(`Unexpected request: ${String(input)}`);
+    });
+    const publisher = createYouTubePublisher({
+      fetchImpl: withChannelProbe(fetchImpl),
+    });
+
+    await expect(
+      publisher.publishYouTube({
+        title: '市場更新',
+        description: '今天的市場重點',
+        videoPath,
+        thumbnailUrl: THUMBNAIL_URL,
+        privacyStatus: 'public',
+      }),
+    ).rejects.toThrow(
+      /YOUTUBE_PUBLISH_FAILED[\s\S]+Step: prepare_thumbnail[\s\S]+not a decodable image/u,
+    );
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it('re-encodes a supported image delivered with an unsupported MIME type', async () => {
+    const videoPath = await fixtureVideo();
+    const requests: { url: string; init: RequestInit }[] = [];
+    const thumbnailBytes = await sharp({
+      create: {
+        width: 64,
+        height: 64,
+        channels: 3,
+        background: '#123456',
+      },
+    })
+      .webp()
+      .toBuffer();
+    const fetchImpl = vi.fn<typeof fetch>(async (input, init = {}) => {
+      const url = String(input);
+      requests.push({ url, init });
+      if (url === THUMBNAIL_URL) {
+        return new Response(new Uint8Array(thumbnailBytes), {
+          status: 200,
+          headers: { 'content-type': 'image/webp' },
+        });
+      }
+      if (url.includes('/upload/youtube/v3/videos')) {
+        return new Response(null, {
+          status: 200,
+          headers: { location: 'https://upload.example/webp-session' },
+        });
+      }
+      if (url === 'https://upload.example/webp-session') {
+        return new Response(JSON.stringify({ id: 'yt-webp' }), { status: 200 });
+      }
+      if (url.startsWith(THUMBNAIL_API_URL)) {
+        return new Response(JSON.stringify({ items: [] }), { status: 200 });
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    const publisher = createYouTubePublisher({
+      fetchImpl: withChannelProbe(fetchImpl),
+    });
+
+    await publisher.publishYouTube({
+      title: '市場更新',
+      description: '今天的市場重點',
+      videoPath,
+      thumbnailUrl: THUMBNAIL_URL,
+      privacyStatus: 'public',
+    });
+
+    const thumbnailRequest = requests[3];
+    expect(
+      new Headers(thumbnailRequest?.init.headers).get('content-type'),
+    ).toBe('image/jpeg');
+    const uploaded = Buffer.from(thumbnailRequest?.init.body as Uint8Array);
+    expect((await sharp(uploaded).metadata()).format).toBe('jpeg');
+  });
+
+  it('downsizes a noisy oversized poster to the bounded 720px JPEG fallback', async () => {
+    const videoPath = await fixtureVideo();
+    const requests: { url: string; init: RequestInit }[] = [];
+    const width = 1_600;
+    const height = 1_600;
+    const thumbnailBytes = await sharp(randomBytes(width * height * 3), {
+      raw: { width, height, channels: 3 },
+    })
+      .png({ compressionLevel: 0 })
+      .toBuffer();
+    expect(thumbnailBytes.length).toBeGreaterThan(2 * 1024 * 1024);
+    const fetchImpl = vi.fn<typeof fetch>(async (input, init = {}) => {
+      const url = String(input);
+      requests.push({ url, init });
+      if (url === THUMBNAIL_URL) {
+        return new Response(new Uint8Array(thumbnailBytes), {
+          status: 200,
+          headers: { 'content-type': 'image/png' },
+        });
+      }
+      if (url.includes('/upload/youtube/v3/videos')) {
+        return new Response(null, {
+          status: 200,
+          headers: { location: 'https://upload.example/large-session' },
+        });
+      }
+      if (url === 'https://upload.example/large-session') {
+        return new Response(JSON.stringify({ id: 'yt-large' }), {
+          status: 200,
+        });
+      }
+      if (url.startsWith(THUMBNAIL_API_URL)) {
+        return new Response(JSON.stringify({ items: [] }), { status: 200 });
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    const publisher = createYouTubePublisher({
+      fetchImpl: withChannelProbe(fetchImpl),
+    });
+
+    await publisher.publishYouTube({
+      title: '市場更新',
+      description: '今天的市場重點',
+      videoPath,
+      thumbnailUrl: THUMBNAIL_URL,
+      privacyStatus: 'public',
+    });
+
+    const thumbnailRequest = requests[3];
+    const uploaded = Buffer.from(thumbnailRequest?.init.body as Uint8Array);
+    expect(uploaded.length).toBeLessThanOrEqual(2 * 1024 * 1024);
+    const metadata = await sharp(uploaded).metadata();
+    expect(metadata.format).toBe('jpeg');
+    expect(metadata.width).toBe(720);
+  });
+
   it('keeps an already-published video successful when thumbnail setting fails', async () => {
     const videoPath = await fixtureVideo();
     const onLog = vi.fn();
     const fetchImpl = vi.fn<typeof fetch>(async (input) => {
       const url = String(input);
       if (url === THUMBNAIL_URL) {
-        return new Response(Buffer.from('canonical-thumbnail'), {
+        return new Response(new Uint8Array(await fixtureThumbnailPng()), {
           status: 200,
           headers: { 'content-type': 'image/png' },
         });
@@ -531,6 +674,19 @@ describe('YouTube channel guard', () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 });
+
+async function fixtureThumbnailPng(): Promise<Buffer> {
+  return sharp({
+    create: {
+      width: 64,
+      height: 64,
+      channels: 3,
+      background: '#123456',
+    },
+  })
+    .png()
+    .toBuffer();
+}
 
 async function fixtureVideo(): Promise<string> {
   const directory = await mkdtemp(join(tmpdir(), 'zap-youtube-'));

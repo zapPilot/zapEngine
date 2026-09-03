@@ -198,10 +198,14 @@ async function prepareYouTubeThumbnail(input: {
   if (raw.length === 0) {
     throw new Error('Canonical thumbnail download returned an empty body.');
   }
-  const contentType = normalizeContentType(response.headers.get('content-type'));
+  const contentType = normalizeContentType(
+    response.headers.get('content-type'),
+  );
+  const format = await validateYouTubeThumbnailImage(raw);
   if (
     raw.length <= YOUTUBE_THUMBNAIL_MAX_BYTES &&
-    YOUTUBE_THUMBNAIL_MIME_TYPES.has(contentType)
+    YOUTUBE_THUMBNAIL_MIME_TYPES.has(contentType) &&
+    matchesYouTubeThumbnailContentType(format, contentType)
   ) {
     return { body: raw, contentType };
   }
@@ -223,6 +227,37 @@ async function prepareYouTubeThumbnail(input: {
     );
   }
   return { body, contentType: 'image/jpeg' };
+}
+
+async function validateYouTubeThumbnailImage(raw: Buffer): Promise<string> {
+  try {
+    const metadata = await sharp(raw, { failOn: 'error' }).metadata();
+    // `metadata()` only reads image headers. `stats()` forces a full pixel decode
+    // so a truncated/corrupt payload cannot pass preparation and fail only after
+    // the YouTube video has already been created.
+    await sharp(raw, { failOn: 'error' }).stats();
+    if (!metadata.format) {
+      throw new Error('image format could not be identified');
+    }
+    return metadata.format;
+  } catch (error) {
+    throw new Error(
+      `Canonical thumbnail is not a decodable image: ${errorMessage(error)}`,
+    );
+  }
+}
+
+function matchesYouTubeThumbnailContentType(
+  format: string,
+  contentType: string,
+): boolean {
+  if (contentType === 'application/octet-stream') {
+    return format === 'jpeg' || format === 'png';
+  }
+  return (
+    (format === 'jpeg' && contentType === 'image/jpeg') ||
+    (format === 'png' && contentType === 'image/png')
+  );
 }
 
 function normalizeContentType(value: string | null): string {
