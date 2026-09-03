@@ -32,6 +32,13 @@ const pendingJapanese = {
   updated_at: '2026-08-28T09:58:14.000Z',
 };
 
+const historicalFailure = {
+  episode_id: episode.id,
+  status: 'failed',
+  finished_at: '2026-08-28T10:02:15.000Z',
+  created_at: '2026-08-28T10:02:15.000Z',
+};
+
 describe('legacy podcast ingest state', () => {
   it('uses the historical failed run instead of showing an orphan as processing forever', () => {
     const [summary] = summarizePodcastPipeline(
@@ -41,14 +48,7 @@ describe('legacy podcast ingest state', () => {
       [],
       [],
       NOW,
-      [
-        {
-          episode_id: episode.id,
-          status: 'failed',
-          finished_at: '2026-08-28T10:02:15.000Z',
-          created_at: '2026-08-28T10:02:15.000Z',
-        },
-      ],
+      [historicalFailure],
     );
 
     expect(summary).toMatchObject({
@@ -80,14 +80,7 @@ describe('legacy podcast ingest state', () => {
       [],
       [],
       NOW,
-      [
-        {
-          episode_id: episode.id,
-          status: 'failed',
-          finished_at: '2026-08-28T10:02:15.000Z',
-          created_at: '2026-08-28T10:02:15.000Z',
-        },
-      ],
+      [historicalFailure],
     );
 
     expect(summary).toMatchObject({
