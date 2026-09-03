@@ -1,4 +1,4 @@
-import OpenAI from 'openai';
+import OpenAI, { APIConnectionError, APIConnectionTimeoutError } from 'openai';
 import {
   afterEach,
   beforeEach,
@@ -25,7 +25,11 @@ vi.mock('node:fs', async () => {
   };
 });
 
-vi.mock('openai', () => ({
+// Only the client is faked. The real error classes stay exported so error
+// classification keeps seeing genuine SDK instances -- it matches them by type,
+// and a stub would make every `instanceof` check silently false.
+vi.mock('openai', async () => ({
+  ...(await vi.importActual<typeof import('openai')>('openai')),
   default: vi.fn().mockImplementation(function () {
     return {
       chat: {
@@ -55,6 +59,16 @@ const SCRIPT_TIMEOUT_MS = 600_000;
 
 function providerErrorWithStatus(status: number): Error {
   return Object.assign(new Error(`provider responded ${status}`), { status });
+}
+
+/**
+ * A DNS/TLS/socket failure exactly as the SDK throws it. Constructed, never
+ * hand-shaped: an `{ name: 'APIConnectionError' }` literal would pass a test
+ * that no real request can, because every SDK error class inherits the plain
+ * 'Error' name.
+ */
+function sdkConnectionError(): Error {
+  return new APIConnectionError({ message: 'Connection error.' });
 }
 
 function requestProviderRouting(
@@ -281,6 +295,51 @@ describe('generateScriptWithLLM request policy', () => {
       secondError,
     );
     expect(mockCreate).toHaveBeenCalledTimes(2);
+  });
+
+  it('re-routes an SDK connection failure exactly once', async () => {
+    const mockCreate = vi
+      .fn()
+      .mockRejectedValueOnce(sdkConnectionError())
+      .mockResolvedValueOnce(successfulCompletion());
+    mockOpenAIClient(mockCreate);
+
+    await expect(
+      generateScriptWithLLM('Title', 'Article'),
+    ).resolves.toMatchObject({ script: 'Generated script' });
+
+    expect(mockCreate).toHaveBeenCalledTimes(2);
+    expect(requestProviderRouting(mockCreate, 1)).toEqual({
+      require_parameters: true,
+    });
+    expect(ingestMocks.logIngestEvent).toHaveBeenCalledWith(
+      'llm:fallback',
+      expect.objectContaining({ operation: 'generateScript' }),
+    );
+  });
+
+  it('does not re-route an SDK request timeout', async () => {
+    const requestTimeout = new APIConnectionTimeoutError({
+      message: 'Request timed out.',
+    });
+    const attempts: LlmAttemptRecord[] = [];
+    const mockCreate = vi.fn().mockRejectedValue(requestTimeout);
+    mockOpenAIClient(mockCreate);
+
+    await expect(
+      generateScriptWithLLM('Title', 'Article', {
+        onAttempt: (record) => attempts.push(record),
+      }),
+    ).rejects.toBe(requestTimeout);
+
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    expect(attempts).toMatchObject([
+      { attempt: 1, status: 'failed', errorCategory: 'timeout' },
+    ]);
+    expect(ingestMocks.logIngestEvent).not.toHaveBeenCalledWith(
+      'llm:fallback',
+      expect.anything(),
+    );
   });
 
   it('does not re-route primitive or non-retryable provider failures', async () => {
@@ -524,6 +583,37 @@ describe('createCompletionWithRetry', () => {
     expect(ingestMocks.logIngestEvent).not.toHaveBeenCalledWith(
       'llm:retry',
       expect.anything(),
+    );
+  });
+
+  it('retries an SDK connection failure', async () => {
+    vi.useFakeTimers();
+    const mockCreate = vi
+      .fn()
+      .mockRejectedValueOnce(sdkConnectionError())
+      .mockResolvedValueOnce(successfulCompletion());
+    mockOpenAIClient(mockCreate);
+
+    const resultPromise = createCompletionWithRetry(
+      getOpenRouterConfig().openai,
+      params,
+      null,
+      'buildVisualSubjectCatalog',
+    );
+    const resultAssertion = expect(resultPromise).resolves.toMatchObject({
+      model: 'test/model',
+    });
+
+    await vi.runAllTimersAsync();
+    await resultAssertion;
+
+    expect(mockCreate).toHaveBeenCalledTimes(2);
+    expect(ingestMocks.logIngestEvent).toHaveBeenCalledWith(
+      'llm:retry',
+      expect.objectContaining({
+        operation: 'buildVisualSubjectCatalog',
+        attempt: 1,
+      }),
     );
   });
 });

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import OpenAI from 'openai';
+import OpenAI, { APIConnectionError, APIConnectionTimeoutError } from 'openai';
 
 import { getRequiredEnv } from '../lib/env.js';
 import { errorMessage } from '../lib/errorMessage.js';
@@ -629,6 +629,17 @@ export function completionMetadata(
  * single OpenRouter retry policy covers every caller of this client. Script
  * generation is deliberately not one of them: see
  * `classifyScriptCompletionError`.
+ *
+ * The SDK is identified by type, never by `error.name`: every one of its error
+ * classes inherits the plain 'Error' name, so a name test silently misses a
+ * DNS/TLS/socket failure and a request timeout -- and those two are exactly the
+ * ones that carry no numeric `status`, so nothing else here catches them
+ * either. `APIConnectionError` is their shared base, and narrow enough to
+ * exclude the one statusless sibling that must stay terminal: `APIUserAbortError`
+ * is a cancellation, and whoever cancelled does not want another request. The
+ * numeric-status branch still covers a non-SDK provider that only reports an
+ * HTTP status, and the name check covers the per-request deadline's own
+ * `TimeoutError`.
  */
 export function isRetryableOpenRouterError(error: unknown): boolean {
   if (!error || typeof error !== 'object') {
@@ -640,13 +651,9 @@ export function isRetryableOpenRouterError(error: unknown): boolean {
     return RETRYABLE_OPENROUTER_STATUS.has(status) || status >= 500;
   }
 
-  const name = (error as { name?: unknown }).name;
-  return (
-    name === 'APIConnectionError' ||
-    name === 'APIConnectionTimeoutError' ||
-    name === 'APITimeoutError' ||
-    name === 'TimeoutError'
-  );
+  if (error instanceof APIConnectionError) return true;
+
+  return (error as { name?: unknown }).name === 'TimeoutError';
 }
 
 type LLMCompletionOperation =
@@ -710,20 +717,21 @@ export type ScriptCompletionErrorCategory =
  * spends those minutes again -- which is exactly how one ingest burned 248
  * seconds before failing. `retry_safe` failures never reached a model at all,
  * so a single re-route is genuinely a different attempt rather than a replay.
+ *
+ * Both of those statusless cases are SDK types, so they are matched by type and
+ * never by `error.name`: every SDK error class inherits the plain 'Error' name,
+ * which made the whole split unreachable and left a network blip taking the
+ * `terminal` path it exists to avoid. `APIConnectionTimeoutError` is checked
+ * before its `APIConnectionError` base, and neither matches `APIUserAbortError`
+ * -- the one statusless sibling, and a cancellation rather than a blip.
  */
 export function classifyScriptCompletionError(
   error: unknown,
 ): ScriptCompletionErrorCategory {
   if (!error || typeof error !== 'object') return 'terminal';
 
-  const name = (error as { name?: unknown }).name;
-  if (
-    name === 'TimeoutError' ||
-    name === 'APITimeoutError' ||
-    name === 'APIConnectionTimeoutError'
-  ) {
-    return 'timeout';
-  }
+  if (error instanceof APIConnectionTimeoutError) return 'timeout';
+  if ((error as { name?: unknown }).name === 'TimeoutError') return 'timeout';
 
   const status = (error as { status?: unknown }).status;
   if (typeof status === 'number') {
@@ -732,7 +740,7 @@ export function classifyScriptCompletionError(
       : 'terminal';
   }
 
-  return name === 'APIConnectionError' ? 'retry_safe' : 'terminal';
+  return error instanceof APIConnectionError ? 'retry_safe' : 'terminal';
 }
 
 /**
