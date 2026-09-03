@@ -1,11 +1,11 @@
-// Each entry already carries the `/ipfs` path segment — a CID is appended
-// directly. `.env.example` documents the override vars in the same shape, so do
-// not strip the suffix here without migrating those values first.
+// Production uses the same-origin `/ipfs` path first. Vercel rewrites that
+// path to a public IPFS gateway, so browsers never make the cross-origin request
+// that previously failed CORS. The public values remain direct fallbacks for
+// local development and for deployments that do not apply vercel.json.
 export const IPFS_GATEWAYS = [
-  process.env['NEXT_PUBLIC_IPFS_GATEWAY'] ?? 'https://ipfs.io/ipfs',
-  process.env['NEXT_PUBLIC_IPFS_GATEWAY_FALLBACK'] ??
-    'https://cloudflare-ipfs.com/ipfs',
-  'https://dweb.link/ipfs',
+  '/ipfs',
+  process.env['NEXT_PUBLIC_IPFS_GATEWAY'] ?? 'https://dweb.link/ipfs',
+  process.env['NEXT_PUBLIC_IPFS_GATEWAY_FALLBACK'] ?? 'https://ipfs.io/ipfs',
 ] as const;
 
 export function ipfsGatewayUrl(gateway: string, cid: string): string {
