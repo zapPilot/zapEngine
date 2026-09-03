@@ -1,29 +1,7 @@
-import {
-  CHAIN_BRAND,
-  type ChainBrandKey,
-  chainBrandKeyForChainId,
-} from '@zapengine/brand-assets';
 import type { PreparedTransaction } from '@zapengine/types/api';
 import { formatEther } from 'viem';
 
 import { formatUsd } from '@/lib/format';
-
-interface ChainDisplay {
-  label: string;
-  /** Undefined for a chain with no registered mark; render text only. */
-  chainKey: ChainBrandKey | undefined;
-}
-
-export function chainDisplay(chainId: number | undefined): ChainDisplay {
-  const chainKey = chainId ? chainBrandKeyForChainId(chainId) : undefined;
-  if (chainKey) {
-    return { label: CHAIN_BRAND[chainKey].label, chainKey };
-  }
-  return {
-    label: chainId ? `Chain ${chainId}` : 'Unknown',
-    chainKey: undefined,
-  };
-}
 
 export function gmxExecutionFeeWei(
   calls: readonly PreparedTransaction[] | undefined,

@@ -214,7 +214,11 @@ export function InvestAmountScreen() {
   const account = useAccount();
   const invest = useInvest();
   const balances = useWalletAssets(account.address);
-  const [activeTab, setActiveTab] = useState<InvestAmountTab>(invest.scope);
+  // Returning to step 1 must land on the tab that owns the armed draft, not on
+  // the scope the HLP tab had to set to reach Base.
+  const [activeTab, setActiveTab] = useState<InvestAmountTab>(
+    invest.destination === 'hlp' ? 'hyperliquid' : invest.scope,
+  );
   const [singleChainTokenSelector, setSingleChainTokenSelector] = useState<
     'base' | 'arbitrum' | null
   >(null);
@@ -254,9 +258,14 @@ export function InvestAmountScreen() {
   const resolvedTotalUsd6 = amountInputToUsd6(resolvedAmountInput);
 
   useEffect(() => {
+    // Mirror of the single-chain token input only. The HLP and bridge tabs own
+    // their own amount state, so their empty token input must not be written
+    // back — `setAmountInput` clears the frozen draft they just handed to the
+    // review step while this screen is still mounted behind it.
+    if (activeTab === 'hyperliquid' || activeTab === 'bridge') return;
     if (isBoth || invest.amountInput === resolvedAmountInput) return;
     invest.setAmountInput(resolvedAmountInput);
-  }, [isBoth, invest, resolvedAmountInput]);
+  }, [activeTab, isBoth, invest, resolvedAmountInput]);
 
   const maxTotalUsd =
     invest.scope === 'base'
@@ -463,6 +472,9 @@ export function InvestAmountScreen() {
     if (tab !== 'bridge' && tab !== 'hyperliquid') {
       invest.setScope(tab);
     }
+    // The tab row is the only owner of the destination, so every tab states it
+    // outright: leaving the HLP tab has to disarm the HLP destination.
+    invest.setDestination(tab === 'hyperliquid' ? 'hlp' : 'strategy');
   }
 
   if (activeTab === 'hyperliquid') {

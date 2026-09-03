@@ -10,6 +10,8 @@ import { useAccount } from '@/integration/useAccount';
 import { useInvestDepositReview } from '@/integration/useInvest';
 import { useInvestExecution } from '@/integration/useInvestExecution';
 
+type InvestProgressRoute = '/invest/progress' | '/invest/hlp-progress';
+
 /**
  * Owns the Step 2 confirm flow for the unified deposit route: the review
  * expiry timer, per-group risk-acknowledgement state, gate derivations and the
@@ -20,10 +22,12 @@ export function useInvestRouteSubmit({
   review,
   capability,
   hasPlanForScope,
+  successRoute = '/invest/progress',
 }: {
   review: ReturnType<typeof useInvestDepositReview>;
   capability: DepositExecutionCapability;
   hasPlanForScope: boolean;
+  successRoute?: InvestProgressRoute;
 }) {
   const router = useRouter();
   const account = useAccount();
@@ -63,7 +67,7 @@ export function useInvestRouteSubmit({
 
   const handleConfirm = async () => {
     if (reviewExecutionLocked) {
-      router.replace('/invest/progress');
+      router.replace(successRoute);
       return;
     }
     if (capability === 'connect-wallet') {
@@ -116,7 +120,7 @@ export function useInvestRouteSubmit({
           : {}),
       });
       if (result.status === 'submitted') {
-        router.replace('/invest/progress');
+        router.replace(successRoute);
         return;
       }
       setSubmissionError(result.reason);

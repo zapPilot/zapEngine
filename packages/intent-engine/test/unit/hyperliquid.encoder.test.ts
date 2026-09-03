@@ -35,7 +35,7 @@ describe('buildHlpDepositFollowUp', () => {
       afterLegIndex: 1,
       amount: { source: 'bridge-output', legIndex: 1 },
       expectedUsd: '3000000',
-      minDepositUsd: '5000000',
+      minDepositUsd: '10000000',
       action: {
         type: 'vaultTransfer',
         vaultAddress: HLP_VAULTS.mainnet.toLowerCase(),

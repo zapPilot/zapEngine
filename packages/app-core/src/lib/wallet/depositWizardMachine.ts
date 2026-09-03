@@ -208,6 +208,13 @@ export function depositWizardReducer(
     }
 
     case 'BRIDGE_UPDATE': {
+      // Only the bridging stage owns leg progress. After a RESET the legs
+      // array is empty, and an empty array reads as "every bridge terminal",
+      // so a settled poll from a superseded run would flip the wizard to
+      // 'done' with nothing bridged and nothing deposited.
+      if (state.stage !== 'bridging') {
+        return state;
+      }
       const legs = withLegPatch(state.legs, event.legIndex, {
         status: event.status,
         ...(event.sourceTxHash ? { sourceTxHash: event.sourceTxHash } : {}),
@@ -219,14 +226,19 @@ export function depositWizardReducer(
     }
 
     case 'HL_ARRIVED':
-      return {
-        ...state,
-        hlp: {
-          ...state.hlp,
-          status: 'arrived',
-          arrivedUsd6: event.arrivedUsd6,
-        },
-      };
+      // Only an armed arrival watcher can produce this. A late resolve from a
+      // superseded or reset run must not stamp a foreign delta onto a fresh
+      // machine, where nothing downstream would ever clear it again.
+      return state.hlp.status === 'awaitingArrival'
+        ? {
+            ...state,
+            hlp: {
+              ...state.hlp,
+              status: 'arrived',
+              arrivedUsd6: event.arrivedUsd6,
+            },
+          }
+        : state;
 
     case 'HL_SUBMITTED':
       return { ...state, hlp: { ...state.hlp, status: 'confirming' } };
@@ -280,26 +292,50 @@ export function depositWizardReducer(
 }
 
 /**
- * Resolve the vaultTransfer amount for the HLP step: the actually-received
- * perp USDC for `bridge-output`, or the plan-fixed amount. Enforces the vault
- * minimum from the plan payload.
+ * Routed bridge quotes are validated against a 1% slippage ceiling, so a real
+ * HyperCore credit can exceed the quoted minimum only marginally. The extra
+ * headroom therefore never clips a legitimate arrival, while still excluding
+ * unrelated perp USDC.
  */
-export function resolveHlpDepositUsd6(
-  step: HyperliquidVaultDepositStep,
-  arrivedUsd6: bigint | null,
-): bigint {
-  const usd6 =
-    step.amount.source === 'bridge-output'
-      ? arrivedUsd6
-      : BigInt(step.amount.amount);
+const BRIDGE_OUTPUT_CEILING_BPS = 10_200n;
 
-  if (usd6 === null) {
-    throw new Error('HLP deposit amount is not known yet (funds not arrived)');
-  }
+function assertVaultMinimum(
+  step: HyperliquidVaultDepositStep,
+  usd6: bigint,
+): bigint {
   if (usd6 < BigInt(step.minDepositUsd)) {
     throw new Error(
       `HLP deposit of ${usd6} is below the vault minimum of ${step.minDepositUsd}`,
     );
   }
   return usd6;
+}
+
+/**
+ * Resolve the vaultTransfer amount for the HLP step: the actually-received
+ * perp USDC for `bridge-output`, or the plan-fixed amount. Enforces the vault
+ * minimum from the plan payload.
+ *
+ * A `bridge-output` amount is a withdrawable-balance delta measured against a
+ * pre-bridge snapshot, so it also captures any unrelated credit that landed
+ * in between. Capping it at what this bridge could have delivered keeps such
+ * a credit out of a position that locks for days.
+ */
+export function resolveHlpDepositUsd6(
+  step: HyperliquidVaultDepositStep,
+  arrivedUsd6: bigint | null,
+): bigint {
+  if (step.amount.source !== 'bridge-output') {
+    return assertVaultMinimum(step, BigInt(step.amount.amount));
+  }
+  if (arrivedUsd6 === null) {
+    throw new Error('HLP deposit amount is not known yet (funds not arrived)');
+  }
+
+  const ceilingUsd6 =
+    (BigInt(step.expectedUsd) * BRIDGE_OUTPUT_CEILING_BPS) / 10_000n;
+  return assertVaultMinimum(
+    step,
+    arrivedUsd6 > ceilingUsd6 ? ceilingUsd6 : arrivedUsd6,
+  );
 }
