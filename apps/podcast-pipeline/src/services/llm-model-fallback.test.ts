@@ -13,7 +13,9 @@ afterEach(() => {
 describe('LLM model fallback config', () => {
   it('parses ordered comma-separated models without duplicates', () => {
     expect(
-      parseOpenRouterModelList(' first/model, second/model, first/model, ,third/model '),
+      parseOpenRouterModelList(
+        ' first/model, second/model, first/model, ,third/model ',
+      ),
     ).toEqual(['first/model', 'second/model', 'third/model']);
   });
 
@@ -39,10 +41,7 @@ describe('LLM model fallback config', () => {
   });
 
   it('keeps translation paid fallbacks independently configurable', () => {
-    vi.stubEnv(
-      'TRANSLATION_FALLBACK_MODELS',
-      'paid/one,paid/two,paid/one',
-    );
+    vi.stubEnv('TRANSLATION_FALLBACK_MODELS', 'paid/one,paid/two,paid/one');
 
     expect(getTranslationFallbackModels()).toEqual(['paid/one', 'paid/two']);
   });
