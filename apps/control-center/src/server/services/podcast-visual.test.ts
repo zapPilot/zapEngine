@@ -243,6 +243,59 @@ function v9Payload(): Record<string, unknown> {
   };
 }
 
+/** The episode-wide Brave trace as `visualImageSearchSchema` stores it. Scene
+ * rows name a subject key; only the requests carry the label the panel shows. */
+function imageSearchTrace(): Record<string, unknown> {
+  return {
+    requestCount: 1,
+    budget: { primary: 5, targeted: 3, max: 8 },
+    budgetExhausted: false,
+    primarySubjects: [
+      {
+        subjectKey: 'a16z',
+        subjectLabel: 'a16z',
+        query: 'a16z venture capital firm',
+        sceneCount: 2,
+      },
+    ],
+    requests: [
+      {
+        kind: 'primary',
+        subjectKey: 'a16z',
+        subjectLabel: 'a16z',
+        query: 'a16z venture capital firm',
+        sceneId: null,
+        returned: 100,
+        viable: 41,
+        drops: [{ reason: 'decorative-asset', count: 38 }],
+        error: null,
+      },
+    ],
+    scenes: [
+      {
+        sceneId: 'scene-01',
+        subjectKey: 'a16z',
+        matchedSubjectKey: 'a16z',
+        selection: 'pool',
+        sourceQuery: 'a16z venture capital firm',
+        providerRank: 2,
+        fallbackReason: null,
+        rejections: [],
+      },
+      {
+        sceneId: 'scene-02',
+        subjectKey: 'justin sun',
+        matchedSubjectKey: 'justin sun',
+        selection: 'reuse',
+        sourceQuery: null,
+        providerRank: null,
+        fallbackReason: 'subject-not-searched',
+        rejections: [],
+      },
+    ],
+  };
+}
+
 function rpcFailingService(rpcError: { code: string; message: string }) {
   return service(
     client({}, vi.fn().mockResolvedValue({ data: null, error: rpcError })),
@@ -379,6 +432,49 @@ describe('summarizeVisualPlan', () => {
     expect(
       summarizeVisualPlan(payload as Record<string, unknown> | null),
     ).toEqual([]);
+  });
+  it('derives each scene selection from the episode image search and labels the matched subject', () => {
+    const payload = v9Payload();
+    const provenance = payload['provenance'] as Record<string, unknown>;
+    provenance['imageSearch'] = imageSearchTrace();
+
+    const scenes = summarizeVisualPlan(payload);
+
+    expect(scenes[0]?.selection).toEqual({
+      selection: 'pool',
+      matchedSubject: 'a16z',
+      sourceQuery: 'a16z venture capital firm',
+      providerRank: 2,
+      fallbackReason: null,
+    });
+    // No request was ever spent on that subject, so there is no label to join
+    // against and the key itself is the most truthful thing to show.
+    expect(scenes[1]?.selection).toEqual({
+      selection: 'reuse',
+      matchedSubject: 'justin sun',
+      sourceQuery: null,
+      providerRank: null,
+      fallbackReason: 'subject-not-searched',
+    });
+    expect(scenes[2]?.selection).toBeUndefined();
+  });
+
+  it('reads the image search from the top level of a still-running checkpoint', () => {
+    const scenes = summarizeVisualPlan({
+      visualPlan: { scenes: [{ sceneId: 'scene-01' }] },
+      imageSearch: imageSearchTrace(),
+    });
+
+    expect(scenes[0]?.selection).toMatchObject({
+      selection: 'pool',
+      matchedSubject: 'a16z',
+    });
+  });
+
+  it('leaves the selection absent on a payload written before the episode trace', () => {
+    const scenes = summarizeVisualPlan(v9Payload());
+
+    expect(scenes.every(({ selection }) => selection === undefined)).toBe(true);
   });
 });
 

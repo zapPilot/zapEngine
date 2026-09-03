@@ -10,26 +10,85 @@ import {
   acquireRemoteImage,
   type SupportedRemoteImageContentType,
 } from './assets.js';
-import { partitionImageCandidates } from './image-candidates.js';
+import {
+  canSearch,
+  createEpisodeImagePool,
+  deriveSearchSubjects,
+  type EpisodeImagePool,
+  hasSearched,
+  IMAGE_SEARCH_BUDGET,
+  markAttempted,
+  plannedPrimarySubjects,
+  type PoolEntry,
+  poolSkippedForBudget,
+  poolSubject,
+  poolSubjectKey,
+  rankEntriesForScene,
+  rankFallbackEntries,
+  type SearchSubject,
+  searchSubject,
+  subjectEntries,
+  subjectIsDirectlyAnchored,
+  subjectRequestError,
+  summarizePool,
+} from './episode-image-pool.js';
 import {
   defaultImageSearchProviders,
   type ImageSearchProvider,
 } from './image-search-provider.js';
+import {
+  appendImageSearchProgress,
+  countedRejections,
+  createImageSearchTrace,
+  formatImageSearchSummary,
+  type ImageSearchRequestKind,
+  type ImageSearchSummary,
+  imageSearchSummaryRecord,
+  type VisualImageSearch,
+  type VisualImageSearchRequest,
+  type VisualSceneFallbackReason,
+  type VisualSceneSelection,
+  type VisualSceneSelectionKind,
+} from './image-search-trace.js';
+import {
+  candidateHostname,
+  canonicalCandidateUrl,
+  viableCandidates,
+} from './search-candidate-ranking.js';
 
-const MAX_SEARCH_CANDIDATES_PER_SCENE = 100;
-const MAX_SEARCH_INTENTS_PER_PROVIDER = 2;
-const MAX_DISTINCT_SEARCHED_ASSETS_PER_SUBJECT = 3;
+/**
+ * How many photos of its own a subject may take from the pool. Scenes of the
+ * same subject take turns over them, so this is the point at which hunting for
+ * yet another distinct image stops being worth a download and rotation takes
+ * over. Only images that subject's own search returned count against it: a
+ * publisher image or one borrowed from another subject cost it no budget and
+ * must not push it into repeating a photo it has already shown.
+ */
+const MAX_DISTINCT_SEARCHED_ASSETS_PER_SUBJECT = 6;
 const PERCEPTUAL_HASH_DISTANCE_LIMIT = 6;
+/**
+ * The message string is the only channel out of the planner an alert reads, and
+ * `publicTelegramErrorMessage` forwards its first line truncated at 497
+ * characters. So every variable-length part of that line is capped, worst case
+ * included, or the pool counts at the end fall off and the operator is left
+ * with a starved scene and no numbers.
+ */
+const MAX_MESSAGE_REJECTION_CAUSES = 4;
+const MAX_MESSAGE_PROVIDER_FAILURES = 2;
+const MAX_MESSAGE_PROVIDER_FAILURE_LENGTH = 48;
 export const MAX_GENERATED_SLIDE_RATIO = 0.25;
 
 export interface VisualAssetScene {
   sceneId: string;
   imageSearchIntent: readonly string[];
   /** The proper nouns this scene names, validated verbatim against its own
-   * sentences upstream. Present means image search must return something about
-   * one of them; absent means the scene names nothing and any photographable
-   * subject will do. */
+   * sentences upstream. They earn a candidate a ranking bonus; they are not a
+   * filter, because a news photo of a subject rarely repeats its name. */
   imageSearchEntities?: readonly string[];
+  /** Whether the scene cites its subject itself or inherited it from the
+   * section/episode. Only a direct citation is worth a targeted request of its
+   * own. Absent means direct when the scene names entities, context otherwise. */
+  searchAnchor?: 'direct' | 'context';
 }
 
 export type VisualImageProvider =
@@ -42,6 +101,8 @@ export type VisualReuseKind = 'non-consecutive' | 'consecutive';
 export type VisualSceneExhaustedReason =
   | 'search-failure'
   | 'candidate-exhaustion'
+  // Legacy: kept so stored payloads still parse. A scene that can only reuse
+  // the preceding image now reuses it instead of failing the episode.
   | 'reuse-dead-end'
   | 'never-searched';
 
@@ -51,7 +112,7 @@ export class VisualSceneExhaustedError extends Error {
     readonly reason: VisualSceneExhaustedReason,
     message: string,
     readonly rejections: Record<string, number> = {},
-    readonly funnel: Record<string, number> = {},
+    readonly search: Record<string, number> = {},
     readonly providerFailures: string[] = [],
   ) {
     super(message);
@@ -104,25 +165,31 @@ export interface PlannedVisualScene {
 export interface VisualAssetPlan {
   assets: PlannedVisualImage[];
   scenes: PlannedVisualScene[];
+  /** Absent on a plan restored from a checkpoint, which predates the trace. */
+  imageSearch?: VisualImageSearch;
 }
 
 export interface VisualAssetProgress {
-  phase: 'search' | 'assets' | 'cover' | 'slide';
+  phase: 'search' | 'assets' | 'slide' | 'exhausted';
   sceneId: string;
   sceneIndex: number;
   sceneCount: number;
   candidateCount?: number;
   searchResultCount?: number;
-  entityFilteredCount?: number;
-  searchEntities?: string;
   searchIntent?: string;
   subjectKey?: string;
   rejectedCandidateCount?: number;
   rejectionSummary?: string;
-  provider?: VisualImageProvider | 'reuse' | 'cover';
+  provider?: VisualImageProvider | 'reuse';
   assetId?: string;
   sourceHostname?: string;
   reuseKind?: VisualReuseKind;
+  /** Present on `search` events only, so a caller that never sees the returned
+   * plan can still rebuild the trace of the attempt that failed. */
+  request?: VisualImageSearchRequest;
+  /** Present on every event that decides a scene, so each scene contributes
+   * exactly one entry to the trace. */
+  selection?: VisualSceneSelection;
   elapsedMs: number;
 }
 
@@ -170,15 +237,40 @@ export interface PlanVisualAssetsInput {
 
 interface VisualAssetPlannerState {
   input: PlanVisualAssetsInput;
-  mode: VisualSelectionMode;
   dependencies: VisualAssetPlannerDependencies;
   articleImages: ImageCandidate[];
   articleCursor: number;
   attemptedUrls: Set<string>;
   assets: PlannedVisualImage[];
   scenes: PlannedVisualScene[];
-  searchCache: Map<string, ImageCandidate[]>;
+  /** Keyed by `poolSubjectKey`, so scenes that name nothing take turns over
+   * their own images too instead of all landing on the same one. Every non-slide
+   * image a subject's scenes showed lands here, which is what reuse wants. */
   subjectAssetIds: Map<string, string[]>;
+  /** Only the images a subject's OWN searches returned, keyed by
+   * `poolSubjectKey`. That is what the rotation budget bounds, and
+   * `subjectAssetIds` cannot answer it: an article image or a photo borrowed
+   * from another subject's entries is filed there too, so measuring saturation
+   * from it declared a subject spent after a single image of its own. */
+  subjectSearchedCounts: Map<string, number>;
+  /** Pool draws keyed by the subject whose request paid for the entry, so a
+   * donor that has already lent images out ranks below a fresher one. */
+  poolDrawsBySubject: Map<string, number>;
+  /** Built lazily: an episode whose article images clothe every scene must
+   * cost nothing at Brave. */
+  pool: EpisodeImagePool | null;
+  trace: VisualImageSearch;
+  throwOnProviderFailure: boolean;
+  allowGeneratedSlides: boolean;
+}
+
+/** How a scene got its image, before the rejection counts are folded in. */
+interface SelectionOrigin {
+  selection: VisualSceneSelectionKind;
+  matchedSubjectKey: string | null;
+  sourceQuery: string | null;
+  providerRank: number | null;
+  fallbackReason: VisualSceneFallbackReason | null;
 }
 
 interface SelectedVisualImage {
@@ -186,26 +278,17 @@ interface SelectedVisualImage {
   provider: VisualAssetProgress['provider'];
   rejections: CandidateRejections;
   reuseKind?: VisualReuseKind;
+  origin: SelectionOrigin;
 }
 
-interface SearchedVisualImage {
-  asset: PlannedVisualImage | null;
-  failures: Error[];
-  funnel: SearchFunnel;
-}
-
-/**
- * `candidateCount` alone cannot say why a scene starved: an empty provider
- * response, the quality filters, and the entity anchor all leave zero. Only the
- * first is a supply problem, and only the last is fixable by rewording the
- * intent -- so a scene that dies here is undiagnosable without the split.
- */
-interface SearchFunnel {
-  searches: number;
-  returned: number;
-  viable: number;
-  entityFiltered: number;
-  viableDrops: Map<string, number>;
+/** One scene's walk down the ladder. The rejection counter is shared by every
+ * rung, so the error a starved scene throws names everything that was tried. */
+interface SceneLadder {
+  state: VisualAssetPlannerState;
+  scene: VisualAssetScene;
+  sceneIndex: number;
+  subjectKey: string;
+  rejections: CandidateRejections;
 }
 
 interface CandidateRejections {
@@ -237,9 +320,9 @@ export async function planVisualAssets(
     throw new Error('Visual asset planning requires at least one scene');
   }
 
+  const mode = input.selectionMode ?? 'strict';
   const state: VisualAssetPlannerState = {
     input,
-    mode: input.selectionMode ?? 'strict',
     dependencies: resolvePlannerDependencies(input.dependencies),
     articleImages: viableCandidates(input.articleImages ?? [], [
       'openGraph',
@@ -247,13 +330,25 @@ export async function planVisualAssets(
       'figure',
     ]),
     articleCursor: 0,
+    // Canonical, because that is the form every later comparison uses: seeding
+    // the raw URLs let a resumed scene re-download an image it already owns.
     attemptedUrls: new Set(
-      (input.resumePlan?.assets ?? []).map((asset) => asset.originalImageUrl),
+      (input.resumePlan?.assets ?? [])
+        .map((asset) => canonicalCandidateUrl(asset.originalImageUrl))
+        .filter((url): url is string => url !== null),
     ),
     assets: [...(input.resumePlan?.assets ?? [])],
     scenes: [...(input.resumePlan?.scenes ?? [])],
-    searchCache: new Map(),
     subjectAssetIds: new Map(),
+    subjectSearchedCounts: new Map(),
+    poolDrawsBySubject: new Map(),
+    pool: null,
+    trace: createImageSearchTrace(
+      IMAGE_SEARCH_BUDGET,
+      input.resumePlan?.scenes.length ?? 0,
+    ),
+    throwOnProviderFailure: mode === 'strict',
+    allowGeneratedSlides: mode === 'resilient',
   };
 
   for (const resumedScene of state.scenes) {
@@ -265,6 +360,13 @@ export async function planVisualAssets(
     );
     if (scene && asset && asset.provider !== 'generated-slide') {
       rememberSubjectAsset(state, scene, asset.assetId);
+      // A checkpoint records no ladder rung, so the provider is the only
+      // evidence left of where a resumed image came from. A searched photo
+      // spent this subject's rotation budget on the earlier attempt and still
+      // does; an article image never did.
+      if (asset.provider === 'brave') {
+        incrementCount(state.subjectSearchedCounts, poolSubjectKey(scene));
+      }
     }
   }
 
@@ -288,30 +390,68 @@ export async function planVisualAssets(
       sceneCount: input.scenes.length,
       asset: selected.asset,
     });
-    const sourceHostname = candidateHostname(selected.asset.sourcePageUrl);
-    input.onProgress?.({
-      phase: 'assets',
-      sceneId: scene.sceneId,
-      sceneIndex: sceneIndex + 1,
-      sceneCount: input.scenes.length,
-      provider: selected.provider,
-      assetId: selected.asset.assetId,
-      ...(sourceHostname ? { sourceHostname } : {}),
-      ...(selected.reuseKind ? { reuseKind: selected.reuseKind } : {}),
-      ...(visualSubjectKey(scene)
-        ? { subjectKey: visualSubjectKey(scene)! }
-        : {}),
-      ...(selected.rejections.total > 0
-        ? {
-            rejectedCandidateCount: selected.rejections.total,
-            rejectionSummary: summarizeCandidateRejections(selected.rejections),
-          }
-        : {}),
-      elapsedMs: Date.now() - startedAt,
-    });
+    reportSceneSelection(state, scene, sceneIndex, selected, startedAt);
   }
 
-  return { assets: state.assets, scenes: state.scenes };
+  state.trace.budgetExhausted = budgetExhausted(state);
+  return {
+    assets: state.assets,
+    scenes: state.scenes,
+    imageSearch: state.trace,
+  };
+}
+
+/**
+ * Exhausted budget is reported as a quality signal rather than a failure, so it
+ * has to be readable from the plan: either a search was actually refused, or
+ * the episode spent everything it was allowed.
+ */
+function budgetExhausted(state: VisualAssetPlannerState): boolean {
+  const pool = state.pool;
+  if (!pool) return false;
+  return (
+    poolSkippedForBudget(pool) > 0 ||
+    state.trace.requestCount >= IMAGE_SEARCH_BUDGET.max
+  );
+}
+
+function reportSceneSelection(
+  state: VisualAssetPlannerState,
+  scene: VisualAssetScene,
+  sceneIndex: number,
+  selected: SelectedVisualImage,
+  startedAt: number,
+): void {
+  const sourceHostname = candidateHostname(selected.asset.sourcePageUrl);
+  emitProgress(state, {
+    phase: 'assets',
+    sceneId: scene.sceneId,
+    sceneIndex: sceneIndex + 1,
+    sceneCount: state.input.scenes.length,
+    provider: selected.provider,
+    assetId: selected.asset.assetId,
+    subjectKey: poolSubjectKey(scene),
+    ...(sourceHostname ? { sourceHostname } : {}),
+    ...(selected.reuseKind ? { reuseKind: selected.reuseKind } : {}),
+    ...(selected.rejections.total > 0
+      ? {
+          rejectedCandidateCount: selected.rejections.total,
+          rejectionSummary: summarizeCandidateRejections(selected.rejections),
+        }
+      : {}),
+    selection: selectionRecord(scene, selected.origin, selected.rejections),
+    elapsedMs: Date.now() - startedAt,
+  });
+}
+
+/** The planner keeps its own trace through the same fold the processor uses, so
+ * a trace rebuilt from progress events cannot drift from the returned one. */
+function emitProgress(
+  state: VisualAssetPlannerState,
+  event: VisualAssetProgress,
+): void {
+  appendImageSearchProgress(state.trace, event);
+  state.input.onProgress?.(event);
 }
 
 async function selectSceneAsset(
@@ -319,15 +459,19 @@ async function selectSceneAsset(
   scene: VisualAssetScene,
   sceneIndex: number,
 ): Promise<SelectedVisualImage> {
+  const ladder: SceneLadder = {
+    state,
+    scene,
+    sceneIndex,
+    subjectKey: poolSubjectKey(scene),
+    rejections: createCandidateRejections(),
+  };
+
   let exhaustion: VisualSceneExhaustedError;
   try {
-    const selected = await selectImageForScene(state, scene, sceneIndex);
+    const selected = await selectImageForScene(ladder);
     if (selected) return selected;
-    exhaustion = new VisualSceneExhaustedError(
-      scene.sceneId,
-      'never-searched',
-      `Visual scene ${scene.sceneId} has no usable image`,
-    );
+    exhaustion = candidateExhaustionFailure(ladder);
   } catch (error) {
     if (
       state.input.signal?.aborted ||
@@ -338,66 +482,329 @@ async function selectSceneAsset(
     exhaustion = error;
   }
 
-  const generateSlide = state.dependencies.generateSlide;
-  if (
-    state.mode !== 'resilient' ||
-    !state.input.slideFallback ||
-    !generateSlide
-  ) {
-    throw exhaustion;
-  }
+  return generatedSlideOrThrow(ladder, exhaustion);
+}
 
-  const generatedCount = state.assets.filter(
-    (asset) => asset.provider === 'generated-slide',
-  ).length;
-  const cap = Math.max(
-    1,
-    Math.ceil(state.input.scenes.length * MAX_GENERATED_SLIDE_RATIO),
+/**
+ * The ladder, in the order a scene walks it. Every rung below the article image
+ * degrades quality rather than failing: an imperfect photo is worth more than a
+ * missing video, so the only way out of here without an asset is a broken plan.
+ */
+async function selectImageForScene(
+  ladder: SceneLadder,
+): Promise<SelectedVisualImage | null> {
+  const articleImage = await tryArticleImage(ladder);
+  if (articleImage) return articleImage;
+
+  const saturatedReuse = trySaturatedSubjectReuse(ladder);
+  if (saturatedReuse) return saturatedReuse;
+
+  const pool = await ensureEpisodePool(ladder);
+  return (
+    (await trySubjectPool(ladder, pool, 'pool')) ??
+    (await tryTargetedSearch(ladder, pool)) ??
+    (await tryPoolFallback(ladder, pool)) ??
+    tryEpisodeReuse(ladder)
   );
-  if (generatedCount >= cap) {
-    throw new VisualSceneExhaustedError(
-      exhaustion.sceneId,
-      exhaustion.reason,
-      `${exhaustion.message} [generatedSlides=${generatedCount}, cap=${cap}]`,
-      exhaustion.rejections,
-      exhaustion.funnel,
-      exhaustion.providerFailures,
-    );
-  }
+}
 
-  const assetId = nextAssetId(state.assets);
-  const asset = await generateSlide({
-    assetId,
-    scene,
-    title: state.input.slideFallback.title,
-    evidence:
-      state.input.slideFallback.sceneEvidence?.get(scene.sceneId) ?? null,
-    reason: exhaustion.reason,
-    rejectionSummary:
-      Object.keys(exhaustion.rejections).length > 0
-        ? Object.entries(exhaustion.rejections)
-            .map(([reason, count]) => `${reason}:${count}`)
-            .join(',')
-        : null,
-    lead: sceneIndex === 0,
-    workingDirectory: state.input.workingDirectory,
-    ...(state.input.signal ? { signal: state.input.signal } : {}),
+async function tryArticleImage(
+  ladder: SceneLadder,
+): Promise<SelectedVisualImage | null> {
+  const { state, scene, sceneIndex, rejections } = ladder;
+  // The publisher's own images are valuable source material, but the lead
+  // visual must be independently sourced from the original headline subject.
+  // Do not consume the first article image here; scene 2 can still use it.
+  const isLeadNamedScene =
+    sceneIndex === 0 && (scene.imageSearchEntities?.length ?? 0) > 0;
+  const asset = isLeadNamedScene
+    ? null
+    : await acquireNextArticleImage(state, scene, rejections);
+  if (!asset) return null;
+  return {
+    asset,
+    provider: 'article',
+    rejections,
+    origin: plainOrigin('article'),
+  };
+}
+
+function trySaturatedSubjectReuse(
+  ladder: SceneLadder,
+): SelectedVisualImage | null {
+  const searched =
+    ladder.state.subjectSearchedCounts.get(ladder.subjectKey) ?? 0;
+  if (searched < MAX_DISTINCT_SEARCHED_ASSETS_PER_SUBJECT) return null;
+  const reuse = reusableAsset(ladder.state, ladder.scene, {
+    sameSubjectOnly: true,
   });
-  state.assets.push(asset);
-  state.input.onProgress?.({
-    phase: 'slide',
+  return reuse ? reuseSelection(ladder, reuse, null) : null;
+}
+
+async function trySubjectPool(
+  ladder: SceneLadder,
+  pool: EpisodeImagePool,
+  selection: VisualSceneSelectionKind,
+): Promise<SelectedVisualImage | null> {
+  const entries = rankEntriesForScene(
+    subjectEntries(pool, ladder.subjectKey),
+    ladder.scene,
+    ladder.state.assets,
+  );
+  return acquireFromPool(ladder, pool, entries, {
+    selection,
+    fallbackReason: null,
+  });
+}
+
+/**
+ * One extra request for a scene that cites its subject itself and found the
+ * pool empty for it. A scene that only inherited its subject never spends one:
+ * it has no identity of its own to insist on.
+ */
+async function tryTargetedSearch(
+  ladder: SceneLadder,
+  pool: EpisodeImagePool,
+): Promise<SelectedVisualImage | null> {
+  const { scene, subjectKey } = ladder;
+  if (hasSearched(pool, subjectKey)) return null;
+  if (!subjectIsDirectlyAnchored(scene)) return null;
+  if (!canSearch(pool, 'targeted')) return null;
+  const subject = poolSubject(pool, subjectKey);
+  if (!subject) return null;
+  await runSubjectSearch(ladder, pool, subject, 'targeted', scene.sceneId);
+  return trySubjectPool(ladder, pool, 'targeted');
+}
+
+async function tryPoolFallback(
+  ladder: SceneLadder,
+  pool: EpisodeImagePool,
+): Promise<SelectedVisualImage | null> {
+  const { scene, subjectKey, rejections, state } = ladder;
+  const providerError = subjectRequestError(pool, subjectKey);
+  if (providerError !== null) {
+    recordSearchFailures(rejections, [new Error(providerError)]);
+  }
+  const entries = rankFallbackEntries(
+    pool,
+    scene,
+    state.assets,
+    state.poolDrawsBySubject,
+  );
+  return acquireFromPool(ladder, pool, entries, {
+    selection: 'pool-fallback',
+    fallbackReason: poolFallbackReason(pool, scene, subjectKey, providerError),
+  });
+}
+
+function tryEpisodeReuse(ladder: SceneLadder): SelectedVisualImage | null {
+  const reuse = reusableAsset(ladder.state, ladder.scene, {
+    sameSubjectOnly: false,
+  });
+  return reuse ? reuseSelection(ladder, reuse, 'pool-exhausted') : null;
+}
+
+/**
+ * Why this scene is looking outside its own subject. The four answers are
+ * different operational problems -- a broken key, a spent budget, a subject
+ * nobody paid for, and a subject whose photos are simply used up -- and only
+ * `imageSearch.scenes[].fallbackReason` tells them apart after the fact.
+ */
+function poolFallbackReason(
+  pool: EpisodeImagePool,
+  scene: VisualAssetScene,
+  subjectKey: string,
+  providerError: string | null,
+): VisualSceneFallbackReason {
+  if (providerError !== null) return 'provider-failure';
+  if (hasSearched(pool, subjectKey)) return 'subject-entries-exhausted';
+  return subjectIsDirectlyAnchored(scene) && !canSearch(pool, 'targeted')
+    ? 'budget-exhausted'
+    : 'subject-not-searched';
+}
+
+async function acquireFromPool(
+  ladder: SceneLadder,
+  pool: EpisodeImagePool,
+  entries: readonly PoolEntry[],
+  origin: {
+    selection: VisualSceneSelectionKind;
+    fallbackReason: VisualSceneFallbackReason | null;
+  },
+): Promise<SelectedVisualImage | null> {
+  const { state, scene, sceneIndex, rejections } = ladder;
+  for (const entry of entries) {
+    state.input.signal?.throwIfAborted();
+    if (sceneIndex === 0 && isPublisherArticleCandidate(state, entry.candidate))
+      continue;
+    // Claimed before the download rather than after it: thirty scenes walking
+    // a hundred shared entries would otherwise re-attempt every one of them and
+    // manufacture thousands of duplicate-url rejections.
+    markAttempted(pool, entry);
+    const asset = await tryAcquireUniqueImage({
+      candidate: entry.candidate,
+      provider: 'brave',
+      scene,
+      input: state.input,
+      dependencies: state.dependencies,
+      assets: state.assets,
+      attemptedUrls: state.attemptedUrls,
+      rejections,
+    });
+    if (!asset) continue;
+    incrementCount(state.poolDrawsBySubject, entry.requestSubjectKey);
+    // The rung, not `entry.requestSubjectKey`, is what makes an entry this
+    // subject's own: two subjects sharing a normalized query read entries
+    // stamped with whichever of them paid, and those are still their own.
+    if (origin.selection === 'pool' || origin.selection === 'targeted') {
+      incrementCount(state.subjectSearchedCounts, ladder.subjectKey);
+    }
+    return {
+      asset,
+      provider: asset.provider,
+      rejections,
+      origin: {
+        selection: origin.selection,
+        matchedSubjectKey: entry.requestSubjectKey,
+        sourceQuery: entry.requestQuery,
+        providerRank: entry.providerRank,
+        fallbackReason: origin.fallbackReason,
+      },
+    };
+  }
+  return null;
+}
+
+/**
+ * Builds the episode pool on the first scene that actually needs a searched
+ * image, and pays for the primary pass there. Subjects come from the scenes
+ * still to be planned, so a resumed job does not spend requests on the scenes
+ * its checkpoint already covers.
+ */
+async function ensureEpisodePool(
+  ladder: SceneLadder,
+): Promise<EpisodeImagePool> {
+  const { state } = ladder;
+  const existing = state.pool;
+  if (existing) return existing;
+
+  const subjects = deriveSearchSubjects(
+    unplannedScenes(state, ladder.sceneIndex),
+  );
+  const pool = createEpisodeImagePool(subjects);
+  state.pool = pool;
+  state.trace.primarySubjects = plannedPrimarySubjects(subjects);
+  for (const planned of state.trace.primarySubjects) {
+    const subject = poolSubject(pool, planned.subjectKey);
+    if (subject) await runSubjectSearch(ladder, pool, subject, 'primary', null);
+  }
+  return pool;
+}
+
+function unplannedScenes(
+  state: VisualAssetPlannerState,
+  sceneIndex: number,
+): VisualAssetScene[] {
+  const planned = new Set(state.scenes.map((scene) => scene.sceneId));
+  return state.input.scenes
+    .slice(sceneIndex)
+    .filter((scene) => !planned.has(scene.sceneId));
+}
+
+async function runSubjectSearch(
+  ladder: SceneLadder,
+  pool: EpisodeImagePool,
+  subject: SearchSubject,
+  kind: ImageSearchRequestKind,
+  sceneId: string | null,
+): Promise<void> {
+  const { state, scene, sceneIndex } = ladder;
+  const startedAt = Date.now();
+  const request = await searchOrFail(ladder, pool, subject, kind, sceneId);
+  if (!request) return;
+  emitProgress(state, {
+    phase: 'search',
     sceneId: scene.sceneId,
     sceneIndex: sceneIndex + 1,
     sceneCount: state.input.scenes.length,
-    provider: 'generated-slide',
-    assetId: asset.assetId,
-    rejectionSummary: asset.slide?.rejectionSummary ?? undefined,
-    elapsedMs: 0,
+    candidateCount: request.viable,
+    searchResultCount: request.returned,
+    searchIntent: request.query,
+    subjectKey: request.subjectKey,
+    provider: 'brave',
+    request,
+    elapsedMs: Date.now() - startedAt,
   });
+}
+
+async function searchOrFail(
+  ladder: SceneLadder,
+  pool: EpisodeImagePool,
+  subject: SearchSubject,
+  kind: ImageSearchRequestKind,
+  sceneId: string | null,
+): Promise<VisualImageSearchRequest | null> {
+  const { state } = ladder;
+  try {
+    return await searchSubject(pool, subject, kind, {
+      provider: state.dependencies.searchProviders[0] ?? null,
+      sceneId,
+      ...(state.input.signal ? { signal: state.input.signal } : {}),
+      attemptedUrls: state.attemptedUrls,
+      throwOnProviderFailure: state.throwOnProviderFailure,
+    });
+  } catch (error) {
+    // Only strict mode asked for a provider failure to be thrown, so only
+    // strict mode has one to convert into a scene-level diagnosis.
+    if (!state.throwOnProviderFailure) throw error;
+    if (isAbort(error, state.input.signal)) throw error;
+    throw visualSearchFailure(ladder, pool, [toError(error)]);
+  }
+}
+
+function isAbort(error: unknown, signal: AbortSignal | undefined): boolean {
+  if (signal?.aborted) return true;
+  return error instanceof Error && error.name === 'AbortError';
+}
+
+function selectionRecord(
+  scene: VisualAssetScene,
+  origin: SelectionOrigin,
+  rejections: CandidateRejections,
+): VisualSceneSelection {
   return {
-    asset,
-    provider: 'generated-slide',
-    rejections: createCandidateRejections(),
+    sceneId: scene.sceneId,
+    subjectKey: poolSubjectKey(scene),
+    matchedSubjectKey: origin.matchedSubjectKey,
+    selection: origin.selection,
+    sourceQuery: origin.sourceQuery,
+    providerRank: origin.providerRank,
+    fallbackReason: origin.fallbackReason,
+    rejections: countedRejections(candidateRejectionRecord(rejections)),
+  };
+}
+
+function plainOrigin(selection: VisualSceneSelectionKind): SelectionOrigin {
+  return {
+    selection,
+    matchedSubjectKey: null,
+    sourceQuery: null,
+    providerRank: null,
+    fallbackReason: null,
+  };
+}
+
+function reuseSelection(
+  ladder: SceneLadder,
+  reuse: { asset: PlannedVisualImage; reuseKind: VisualReuseKind },
+  fallbackReason: VisualSceneFallbackReason | null,
+): SelectedVisualImage {
+  return {
+    asset: reuse.asset,
+    provider: 'reuse',
+    reuseKind: reuse.reuseKind,
+    rejections: ladder.rejections,
+    origin: { ...plainOrigin('reuse'), fallbackReason },
   };
 }
 
@@ -409,235 +816,75 @@ function nextAssetId(assets: readonly PlannedVisualImage[]): string {
   return `image-${String(max + 1).padStart(2, '0')}`;
 }
 
-async function selectImageForScene(
-  state: VisualAssetPlannerState,
-  scene: VisualAssetScene,
-  sceneIndex: number,
-): Promise<SelectedVisualImage | null> {
-  const rejections = createCandidateRejections();
-  const isLeadNamedScene =
-    sceneIndex === 0 && (scene.imageSearchEntities?.length ?? 0) > 0;
-
-  // The publisher's own images are valuable source material, but the lead
-  // visual must be independently sourced from the original headline subject.
-  // Do not consume the first article image here; scene 2 can still use it.
-  const articleAsset = isLeadNamedScene
-    ? null
-    : await acquireNextArticleImage(state, scene, rejections);
-  if (articleAsset) {
-    return { asset: articleAsset, provider: 'article', rejections };
-  }
-
-  const subjectReuse = reusableSubjectAsset(state, scene);
-  const subjectKey = visualSubjectKey(scene);
-  if (
-    state.mode === 'resilient' &&
-    subjectReuse &&
-    subjectKey &&
-    (state.subjectAssetIds.get(subjectKey)?.length ?? 0) >=
-      MAX_DISTINCT_SEARCHED_ASSETS_PER_SUBJECT
-  ) {
-    return {
-      asset: subjectReuse.asset,
-      provider: 'reuse',
-      reuseKind: subjectReuse.reuseKind,
-      rejections,
-    };
-  }
-
-  const searched = await acquireSearchedImage(
-    state,
-    scene,
-    sceneIndex,
-    rejections,
-  );
-  if (searched.asset) {
-    return {
-      asset: searched.asset,
-      provider: searched.asset.provider,
-      rejections,
-    };
-  }
-
-  // Strict mode keeps provider failures loud so callers can diagnose a broken
-  // search integration. Production uses resilient mode and may reuse an
-  // existing image instead of dropping the entire video.
-  if (state.mode === 'strict' && searched.failures.length > 0) {
-    throw visualSearchFailure(
-      scene.sceneId,
-      searched.failures,
-      rejections,
-      searched.funnel,
-    );
-  }
-
-  if (subjectReuse) {
-    if (state.mode === 'resilient') {
-      recordSearchFailures(rejections, searched.failures);
-    }
-    return {
-      asset: subjectReuse.asset,
-      provider: 'reuse',
-      reuseKind: subjectReuse.reuseKind,
-      rejections,
-    };
-  }
-
-  // Named subjects are never allowed to fall through to an unrelated global
-  // asset. A repeated on-topic photo is acceptable; a random photo is not.
-  if (subjectKey) {
-    throwSearchExhaustion(scene.sceneId, searched, rejections);
-  }
-
-  return resolveUnanchoredFallback(state, scene, searched, rejections);
-}
-
-function throwSearchExhaustion(
-  sceneId: string,
-  searched: SearchedVisualImage,
-  rejections: CandidateRejections,
-): never {
-  if (searched.failures.length > 0) {
-    throw visualSearchFailure(
-      sceneId,
-      searched.failures,
-      rejections,
-      searched.funnel,
-    );
-  }
-  throw candidateExhaustionFailure(sceneId, rejections, searched.funnel);
-}
-
-function resolveUnanchoredFallback(
-  state: VisualAssetPlannerState,
-  scene: VisualAssetScene,
-  searched: SearchedVisualImage,
-  rejections: CandidateRejections,
-): SelectedVisualImage | null {
-  const previousAssetId = state.scenes.at(-1)?.assetId;
-  const previousAsset = previousAssetId
-    ? (state.assets.find(
-        (asset) =>
-          asset.assetId === previousAssetId &&
-          asset.provider !== 'generated-slide',
-      ) ?? null)
-    : null;
-
-  const nonConsecutiveReusable =
-    [...state.assets]
-      .reverse()
-      .find(
-        (asset) =>
-          asset.assetId !== previousAssetId &&
-          asset.provider !== 'generated-slide',
-      ) ?? null;
-
-  if (nonConsecutiveReusable) {
-    if (state.mode === 'resilient') {
-      recordSearchFailures(rejections, searched.failures);
-    }
-    return {
-      asset: nonConsecutiveReusable,
-      provider: 'reuse',
-      reuseKind: 'non-consecutive',
-      rejections,
-    };
-  }
-
-  if (state.mode === 'resilient' && previousAsset) {
-    recordSearchFailures(rejections, searched.failures);
-    return {
-      asset: previousAsset,
-      provider: 'reuse',
-      reuseKind: 'consecutive',
-      rejections,
-    };
-  }
-
-  if (searched.failures.length > 0) {
-    throw visualSearchFailure(
-      scene.sceneId,
-      searched.failures,
-      rejections,
-      searched.funnel,
-    );
-  }
-  if (rejections.total > 0) {
-    throw candidateExhaustionFailure(
-      scene.sceneId,
-      rejections,
-      searched.funnel,
-    );
-  }
-  if (previousAsset) {
-    throw new VisualSceneExhaustedError(
-      scene.sceneId,
-      'reuse-dead-end',
-      `Visual scene ${scene.sceneId} cannot reuse the immediately preceding image`,
-      candidateRejectionRecord(rejections),
-      searchFunnelRecord(searched.funnel),
-    );
-  }
-  // Searches ran and every candidate was removed before a single download, by
-  // the quality filters or the entity anchor. Reporting the funnel here is the
-  // whole point: the detail-less error in `planVisualAssets` is what made this
-  // case unreadable, and it stays only for a scene that was never searched.
-  if (searched.funnel.searches > 0) {
-    throw candidateExhaustionFailure(
-      scene.sceneId,
-      rejections,
-      searched.funnel,
-    );
-  }
-  return null;
-}
-
-function visualSubjectKey(scene: VisualAssetScene): string | null {
-  const entities = [
-    ...new Set(
-      (scene.imageSearchEntities ?? [])
-        .map((entity) => entityMatchText(entity))
-        .filter(Boolean),
-    ),
-  ].sort();
-  return entities.length > 0 ? entities.join('|') : null;
-}
-
 function rememberSubjectAsset(
   state: VisualAssetPlannerState,
   scene: VisualAssetScene,
   assetId: string,
 ): void {
-  const key = visualSubjectKey(scene);
-  if (!key) return;
+  const key = poolSubjectKey(scene);
   const assetIds = state.subjectAssetIds.get(key) ?? [];
   if (!assetIds.includes(assetId)) assetIds.push(assetId);
   state.subjectAssetIds.set(key, assetIds);
 }
 
-function reusableSubjectAsset(
+function incrementCount(counts: Map<string, number>, key: string): void {
+  counts.set(key, (counts.get(key) ?? 0) + 1);
+}
+
+/**
+ * Rotation, not novelty. The least-used image of this subject comes first, the
+ * immediately preceding scene's image is skipped while any alternative exists,
+ * and only a single remaining option can produce a consecutive repeat. Concept
+ * cards are excluded: repeating one is the one reuse worth nothing.
+ */
+function reusableAsset(
   state: VisualAssetPlannerState,
   scene: VisualAssetScene,
+  options: { sameSubjectOnly: boolean },
 ): { asset: PlannedVisualImage; reuseKind: VisualReuseKind } | null {
-  const key = visualSubjectKey(scene);
-  if (!key) return null;
-  const pool = state.subjectAssetIds.get(key) ?? [];
-  if (pool.length === 0) return null;
+  const candidates = reuseCandidates(state, scene, options.sameSubjectOnly);
+  if (candidates.length === 0) return null;
+
   const previousAssetId = state.scenes.at(-1)?.assetId;
   const useCount = new Map<string, number>();
   for (const selection of state.scenes) {
     useCount.set(selection.assetId, (useCount.get(selection.assetId) ?? 0) + 1);
   }
-  const sorted = [...pool].sort(
-    (left, right) => (useCount.get(left) ?? 0) - (useCount.get(right) ?? 0),
+  const sorted = [...candidates].sort(
+    (left, right) =>
+      (useCount.get(left.assetId) ?? 0) - (useCount.get(right.assetId) ?? 0),
   );
-  const assetId = sorted.find((id) => id !== previousAssetId) ?? sorted[0]!;
-  const asset = state.assets.find((candidate) => candidate.assetId === assetId);
-  if (!asset) return null;
+  const asset =
+    sorted.find((candidate) => candidate.assetId !== previousAssetId) ??
+    sorted[0]!;
   return {
     asset,
-    reuseKind: assetId === previousAssetId ? 'consecutive' : 'non-consecutive',
+    reuseKind:
+      asset.assetId === previousAssetId ? 'consecutive' : 'non-consecutive',
   };
+}
+
+function reuseCandidates(
+  state: VisualAssetPlannerState,
+  scene: VisualAssetScene,
+  sameSubjectOnly: boolean,
+): PlannedVisualImage[] {
+  const assetsById = new Map(
+    state.assets.map((asset) => [asset.assetId, asset] as const),
+  );
+  const candidates: PlannedVisualImage[] = [];
+  const seen = new Set<string>();
+  const consider = (asset: PlannedVisualImage | undefined): void => {
+    if (!asset || asset.provider === 'generated-slide') return;
+    if (seen.has(asset.assetId)) return;
+    seen.add(asset.assetId);
+    candidates.push(asset);
+  };
+
+  const ownAssetIds = state.subjectAssetIds.get(poolSubjectKey(scene)) ?? [];
+  for (const assetId of ownAssetIds) consider(assetsById.get(assetId));
+  if (!sameSubjectOnly) for (const asset of state.assets) consider(asset);
+  return candidates;
 }
 
 function recordSearchFailures(
@@ -675,163 +922,6 @@ async function acquireNextArticleImage(
   return null;
 }
 
-async function searchWithPlanBudget(
-  state: VisualAssetPlannerState,
-  searchProvider: ImageSearchProvider,
-  intent: string,
-  failures: Error[],
-): Promise<ImageCandidate[] | null> {
-  const providerIndex =
-    state.dependencies.searchProviders.indexOf(searchProvider);
-  const cacheKey = `${providerIndex}:${searchProvider.origin}:${normalizeSearchCacheKey(intent)}`;
-  const cached = state.searchCache.get(cacheKey);
-  if (cached) return cached;
-
-  const searched = await searchProvider
-    .search(intent, {
-      count: Math.min(
-        MAX_SEARCH_CANDIDATES_PER_SCENE,
-        searchProvider.maxResults ?? MAX_SEARCH_CANDIDATES_PER_SCENE,
-      ),
-      ...(state.input.signal ? { signal: state.input.signal } : {}),
-    })
-    .catch((error: unknown): ImageCandidate[] => {
-      if (state.input.signal?.aborted) throw error;
-      failures.push(toError(error));
-      return [];
-    });
-  state.searchCache.set(cacheKey, searched);
-  return searched;
-}
-
-async function acquireSearchedImage(
-  state: VisualAssetPlannerState,
-  scene: VisualAssetScene,
-  sceneIndex: number,
-  rejections: CandidateRejections,
-): Promise<SearchedVisualImage> {
-  const failures: Error[] = [];
-  const providers = orderedSearchProviders(
-    state.dependencies.searchProviders,
-    state.mode,
-    scene,
-  );
-  const intents = searchIntentsForScene(scene, state.mode);
-  const funnel: SearchFunnel = {
-    searches: 0,
-    returned: 0,
-    viable: 0,
-    entityFiltered: 0,
-    viableDrops: new Map<string, number>(),
-  };
-
-  for (const searchProvider of providers) {
-    const providerIntents = limitedIntentsForProvider(intents);
-    for (const intent of providerIntents) {
-      const acquired = await acquireFromSearchIntent(
-        state,
-        scene,
-        sceneIndex,
-        rejections,
-        failures,
-        funnel,
-        searchProvider,
-        intent,
-      );
-      if (acquired) return { asset: acquired, failures, funnel };
-    }
-  }
-  return { asset: null, failures, funnel };
-}
-
-async function acquireFromSearchIntent(
-  state: VisualAssetPlannerState,
-  scene: VisualAssetScene,
-  sceneIndex: number,
-  rejections: CandidateRejections,
-  failures: Error[],
-  funnel: SearchFunnel,
-  searchProvider: ImageSearchProvider,
-  intent: string,
-): Promise<PlannedVisualImage | null> {
-  state.input.signal?.throwIfAborted();
-  const searchStartedAt = Date.now();
-  const searched = await searchWithPlanBudget(
-    state,
-    searchProvider,
-    intent,
-    failures,
-  );
-  if (!searched) return null;
-
-  const partitioned = partitionViableCandidates(searched, [
-    searchProvider.origin,
-  ]);
-  const viable = partitioned.candidates;
-  const entities = scene.imageSearchEntities ?? [];
-  const candidates = rankSearchCandidates(
-    viable,
-    intent,
-    state.assets,
-    entities,
-  );
-  funnel.searches += 1;
-  funnel.returned += searched.length;
-  funnel.viable += viable.length;
-  funnel.entityFiltered += viable.length - candidates.length;
-  for (const [reason, count] of partitioned.drops) {
-    funnel.viableDrops.set(
-      reason,
-      (funnel.viableDrops.get(reason) ?? 0) + count,
-    );
-  }
-  const rejectedBefore = rejections.total;
-
-  for (const candidate of candidates) {
-    if (sceneIndex === 0 && isPublisherArticleCandidate(state, candidate)) {
-      continue;
-    }
-    const acquired = await tryAcquireUniqueImage({
-      candidate,
-      provider: searchProvider.origin,
-      scene,
-      input: state.input,
-      dependencies: state.dependencies,
-      assets: state.assets,
-      attemptedUrls: state.attemptedUrls,
-      rejections,
-    });
-    if (acquired) {
-      reportSearchProgress(
-        state,
-        scene,
-        sceneIndex,
-        candidates.length,
-        rejections,
-        rejectedBefore,
-        searchStartedAt,
-        searchProvider.origin,
-        intent,
-        { returned: searched.length, viable: viable.length, entities },
-      );
-      return acquired;
-    }
-  }
-  reportSearchProgress(
-    state,
-    scene,
-    sceneIndex,
-    candidates.length,
-    rejections,
-    rejectedBefore,
-    searchStartedAt,
-    searchProvider.origin,
-    intent,
-    { returned: searched.length, viable: viable.length, entities },
-  );
-  return null;
-}
-
 function isPublisherArticleCandidate(
   state: VisualAssetPlannerState,
   candidate: ImageCandidate,
@@ -852,194 +942,211 @@ function isPublisherArticleCandidate(
   }
 }
 
-function orderedSearchProviders(
-  providers: readonly ImageSearchProvider[],
-  mode: VisualSelectionMode,
-  scene: VisualAssetScene,
-): ImageSearchProvider[] {
-  const namedScene = (scene.imageSearchEntities?.length ?? 0) > 0;
-  if (mode === 'strict' && namedScene) {
-    return providers.filter((provider) => provider.origin === 'brave');
-  }
-  return [...providers];
-}
-
-function limitedIntentsForProvider(
-  intents: readonly string[],
-): readonly string[] {
-  return intents.slice(0, MAX_SEARCH_INTENTS_PER_PROVIDER);
-}
-
-function normalizeSearchCacheKey(query: string): string {
-  return query.trim().replace(/\s+/gu, ' ').toLocaleLowerCase('en-US');
-}
-
-function searchIntentsForScene(
-  scene: VisualAssetScene,
-  mode: VisualSelectionMode,
-): string[] {
-  const original = [
-    ...new Set(
-      scene.imageSearchIntent
-        .map((intent) => intent.trim())
-        .filter((intent) => intent.length > 0),
-    ),
-  ];
-  if (mode === 'strict') return original;
-
-  // Named subjects get one descriptive query plus one bare identity query.
-  // Additional phrasing mostly spends quota without increasing visual
-  // distinctness, while the provider result cache already supplies many photos
-  // for repeated scenes of the same subject.
-  const entities = [
-    ...new Set(
-      (scene.imageSearchEntities ?? [])
-        .map((entity) => entity.trim())
-        .filter((entity) => entity.length > 0),
-    ),
-  ];
-  if (entities.length > 0) {
-    const descriptive = original[0];
-    return [
-      ...new Set([...(descriptive ? [descriptive] : []), ...entities]),
-    ].slice(0, MAX_SEARCH_INTENTS_PER_PROVIDER);
+async function generatedSlideOrThrow(
+  ladder: SceneLadder,
+  exhaustion: VisualSceneExhaustedError,
+): Promise<SelectedVisualImage> {
+  const { state, scene, sceneIndex, rejections } = ladder;
+  const generateSlide = state.dependencies.generateSlide;
+  if (
+    !state.allowGeneratedSlides ||
+    !state.input.slideFallback ||
+    !generateSlide
+  ) {
+    throw reportSceneExhaustion(ladder, exhaustion);
   }
 
-  const relaxed = original
-    .map(relaxedSearchIntent)
-    .filter((intent): intent is string => intent !== null)
-    .filter((intent) => !original.includes(intent));
-  return [...original, ...new Set(relaxed)].slice(
-    0,
-    MAX_SEARCH_INTENTS_PER_PROVIDER,
+  const generatedCount = state.assets.filter(
+    (asset) => asset.provider === 'generated-slide',
+  ).length;
+  const cap = Math.max(
+    1,
+    Math.ceil(state.input.scenes.length * MAX_GENERATED_SLIDE_RATIO),
   );
-}
+  if (generatedCount >= cap) {
+    throw reportSceneExhaustion(
+      ladder,
+      new VisualSceneExhaustedError(
+        exhaustion.sceneId,
+        exhaustion.reason,
+        `${exhaustion.message} [generatedSlides=${generatedCount}, cap=${cap}]`,
+        exhaustion.rejections,
+        exhaustion.search,
+        exhaustion.providerFailures,
+      ),
+    );
+  }
 
-const RELAXED_SEARCH_NOISE_WORDS = new Set([
-  'developers',
-  'engineers',
-  'founders',
-  'people',
-  'team',
-  'teams',
-  'traders',
-]);
+  const asset = await generateSlide({
+    assetId: nextAssetId(state.assets),
+    scene,
+    title: state.input.slideFallback.title,
+    evidence:
+      state.input.slideFallback.sceneEvidence?.get(scene.sceneId) ?? null,
+    reason: exhaustion.reason,
+    rejectionSummary: formatRejectionRecord(exhaustion.rejections),
+    lead: sceneIndex === 0,
+    workingDirectory: state.input.workingDirectory,
+    ...(state.input.signal ? { signal: state.input.signal } : {}),
+  });
+  state.assets.push(asset);
 
-function relaxedSearchIntent(intent: string): string | null {
-  const topicTokens = normalizedSearchTokens(intent)
-    .filter((token) => !RELAXED_SEARCH_NOISE_WORDS.has(token))
-    .slice(0, 4);
-  if (topicTokens.length === 0) return null;
-  return `${topicTokens.join(' ')} official event photo`;
-}
-
-function reportSearchProgress(
-  state: VisualAssetPlannerState,
-  scene: VisualAssetScene,
-  sceneIndex: number,
-  candidateCount: number,
-  rejections: CandidateRejections,
-  rejectedBefore: number,
-  searchStartedAt: number,
-  provider: ImageSearchProvider['origin'],
-  intent: string,
-  search: { returned: number; viable: number; entities: readonly string[] },
-): void {
-  const rejectedCandidateCount = rejections.total - rejectedBefore;
-  const entityFilteredCount = search.viable - candidateCount;
-  state.input.onProgress?.({
-    phase: 'search',
+  const origin = plainOrigin('generated-slide');
+  emitProgress(state, {
+    phase: 'slide',
     sceneId: scene.sceneId,
     sceneIndex: sceneIndex + 1,
     sceneCount: state.input.scenes.length,
-    candidateCount,
-    searchResultCount: search.returned,
-    searchIntent: intent,
-    ...(visualSubjectKey(scene)
-      ? { subjectKey: visualSubjectKey(scene)! }
+    provider: 'generated-slide',
+    assetId: asset.assetId,
+    ...(asset.slide?.rejectionSummary
+      ? { rejectionSummary: asset.slide.rejectionSummary }
       : {}),
-    // Only meaningful when the anchor actually removed something: a scene that
-    // names nothing keeps every candidate, and a zero here would read as
-    // "the anchor was innocent" when it never ran.
-    ...(entityFilteredCount > 0
+    selection: selectionRecord(scene, origin, rejections),
+    elapsedMs: 0,
+  });
+  return { asset, provider: 'generated-slide', rejections, origin };
+}
+
+/** Records the terminal decision before the throw, so a scene that fails still
+ * contributes its entry to the trace the processor rebuilds. */
+function reportSceneExhaustion(
+  ladder: SceneLadder,
+  exhaustion: VisualSceneExhaustedError,
+): VisualSceneExhaustedError {
+  const { state, scene, sceneIndex, rejections } = ladder;
+  emitProgress(state, {
+    phase: 'exhausted',
+    sceneId: scene.sceneId,
+    sceneIndex: sceneIndex + 1,
+    sceneCount: state.input.scenes.length,
+    ...(rejections.total > 0
       ? {
-          entityFilteredCount,
-          searchEntities: search.entities.join('|'),
-        }
-      : {}),
-    ...(rejectedCandidateCount > 0
-      ? {
-          rejectedCandidateCount,
+          rejectedCandidateCount: rejections.total,
           rejectionSummary: summarizeCandidateRejections(rejections),
         }
       : {}),
-    provider,
-    elapsedMs: Date.now() - searchStartedAt,
+    selection: selectionRecord(scene, plainOrigin('exhausted'), rejections),
+    elapsedMs: 0,
   });
+  return exhaustion;
 }
 
 function visualSearchFailure(
-  sceneId: string,
-  failures: Error[],
-  rejections: CandidateRejections,
-  funnel: SearchFunnel,
-): Error {
+  ladder: SceneLadder,
+  pool: EpisodeImagePool | null,
+  failures: readonly Error[],
+): VisualSceneExhaustedError {
   const messages = [...new Set(failures.map((failure) => failure.message))];
-  const rejectionDetails = formatCandidateRejectionDetails(rejections);
+  const summary = imageSearchSummary(pool);
   return new VisualSceneExhaustedError(
-    sceneId,
+    ladder.scene.sceneId,
     'search-failure',
-    `Visual image search failed for scene ${sceneId}: ${messages.join('; ')}${rejectionDetails}${formatSearchFunnel(funnel)}`,
-    candidateRejectionRecord(rejections),
-    searchFunnelRecord(funnel),
+    `Visual image search failed for scene ${ladder.scene.sceneId}: ${messages.join('; ')}${formatCandidateRejectionDetails(ladder.rejections)} ${formatImageSearchSummary(summary)}`,
+    candidateRejectionRecord(ladder.rejections),
+    imageSearchSummaryRecord(summary),
     messages,
   );
 }
 
 function candidateExhaustionFailure(
-  sceneId: string,
-  rejections: CandidateRejections,
-  funnel: SearchFunnel,
-): Error {
+  ladder: SceneLadder,
+): VisualSceneExhaustedError {
+  const { state, scene, rejections } = ladder;
+  const summary = imageSearchSummary(state.pool);
+  const failures = poolProviderFailures(state.pool);
   return new VisualSceneExhaustedError(
-    sceneId,
-    'candidate-exhaustion',
-    `Visual scene ${sceneId} has no usable image${formatCandidateRejectionDetails(rejections)}${formatSearchFunnel(funnel)}`,
+    scene.sceneId,
+    exhaustionReason(state.pool, summary),
+    `Visual scene ${scene.sceneId} has no usable image${formatCandidateRejectionDetails(rejections)}${formatProviderFailureDetails(failures)} ${formatImageSearchSummary(summary)}`,
     candidateRejectionRecord(rejections),
-    searchFunnelRecord(funnel),
+    imageSearchSummaryRecord(summary),
+    failures,
   );
 }
 
-function candidateRejectionRecord(
-  rejections: CandidateRejections,
-): Record<string, number> {
-  return Object.fromEntries(rejections.causes);
+/** The distinct provider errors the episode's requests recorded. A starved
+ * scene in resilient mode never threw one of these itself -- the pool absorbed
+ * them so the episode could still render -- so this is where an expired key or
+ * a rate limit becomes visible to whoever reads the alert. */
+function poolProviderFailures(pool: EpisodeImagePool | null): string[] {
+  if (!pool) return [];
+  return [
+    ...new Set(
+      pool.requests
+        .map((request) => request.error)
+        .filter((error): error is string => error !== null),
+    ),
+  ];
 }
 
-function searchFunnelRecord(funnel: SearchFunnel): Record<string, number> {
-  return {
-    searches: funnel.searches,
-    returned: funnel.returned,
-    viable: funnel.viable,
-    entityFiltered: funnel.entityFiltered,
-  };
+function formatProviderFailureDetails(failures: readonly string[]): string {
+  if (failures.length === 0) return '';
+  const listed = failures
+    .slice(0, MAX_MESSAGE_PROVIDER_FAILURES)
+    .map((failure) =>
+      boundedSingleLine(failure, MAX_MESSAGE_PROVIDER_FAILURE_LENGTH),
+    );
+  const hidden = failures.length - listed.length;
+  const more = hidden > 0 ? `; +${hidden} more` : '';
+  return ` [searchErrors: ${listed.join('; ')}${more}]`;
+}
+
+/** Whitespace is collapsed before the cap because a provider that answers with
+ * a multi-line body would otherwise end the first line early and take every
+ * count after it with it. */
+function boundedSingleLine(value: string, limit: number): string {
+  const collapsed = value.replace(/\s+/gu, ' ').trim();
+  return collapsed.length > limit
+    ? `${collapsed.slice(0, limit - 3)}...`
+    : collapsed;
 }
 
 /**
- * The counts a starved scene is diagnosed from, in the order they narrow:
- * how many searches ran, what the providers returned, what survived the quality
- * filters, and how many of those the entity anchor then dropped. This is the
- * only place the anchor's effect is recorded -- `candidateCount` is measured
- * after it, so an anchor that removes everything is indistinguishable from a
- * provider that returned nothing.
+ * Three different stories end at an unusable scene, and the reason is what
+ * decides whether to look at the provider, the storyboard, or the images: no
+ * request was ever made, every request errored, or the episode had images and
+ * rejected all of them.
  */
-function formatSearchFunnel(funnel: SearchFunnel): string {
-  if (funnel.searches === 0) return '';
-  const drops = [...funnel.viableDrops.entries()]
-    .sort(([, left], [, right]) => right - left)
-    .map(([reason, count]) => `${reason}:${count}`)
-    .join(',');
-  return ` [searches=${funnel.searches}, returned=${funnel.returned}, viable=${funnel.viable}, entityFiltered=${funnel.entityFiltered}${drops ? `, viableDrops=${drops}` : ''}]`;
+function exhaustionReason(
+  pool: EpisodeImagePool | null,
+  summary: ImageSearchSummary,
+): VisualSceneExhaustedReason {
+  if (!pool || summary.requests === 0) return 'never-searched';
+  if (
+    summary.pool === 0 &&
+    pool.requests.length > 0 &&
+    pool.requests.every((request) => request.error !== null)
+  ) {
+    return 'search-failure';
+  }
+  return 'candidate-exhaustion';
+}
+
+/** The counts that explain a starved scene, taken from the pool the episode
+ * actually built. Spent requests rather than recorded ones: a request that
+ * threw before it could be recorded was still paid for. */
+function imageSearchSummary(pool: EpisodeImagePool | null): ImageSearchSummary {
+  if (!pool) {
+    return {
+      pool: 0,
+      attempted: 0,
+      requests: 0,
+      requestBudget: IMAGE_SEARCH_BUDGET.max,
+      returned: 0,
+      viable: 0,
+    };
+  }
+  const summary = summarizePool(pool);
+  return {
+    pool: summary.poolSize,
+    attempted: summary.attempted,
+    requests: pool.requestCounts.primary + pool.requestCounts.targeted,
+    requestBudget: IMAGE_SEARCH_BUDGET.max,
+    returned: summary.returned,
+    viable: summary.viable,
+    drops: summary.drops,
+  };
 }
 
 async function tryAcquireUniqueImage(input: {
@@ -1105,7 +1212,7 @@ async function tryAcquireUniqueImage(input: {
     acquired,
     input.candidate,
     input.provider,
-    input.assets.length,
+    nextAssetId(input.assets),
     perceptualHash,
   );
   input.assets.push(planned);
@@ -1121,14 +1228,22 @@ function recordCandidateRejection(
   cause: string,
 ): void {
   rejections.total += 1;
-  rejections.causes.set(cause, (rejections.causes.get(cause) ?? 0) + 1);
+  incrementCount(rejections.causes, cause);
 }
 
-function summarizeCandidateRejections(rejections: CandidateRejections): string {
-  return [...rejections.causes.entries()]
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([cause, count]) => `${cause}:${count}`)
-    .join(',');
+function summarizeCandidateRejections(
+  rejections: CandidateRejections,
+  limit = Number.POSITIVE_INFINITY,
+): string {
+  const causes = [...rejections.causes.entries()].sort(([left], [right]) =>
+    left.localeCompare(right),
+  );
+  const listed = causes.slice(0, limit);
+  const hidden = causes.length - listed.length;
+  return [
+    ...listed.map(([cause, count]) => `${cause}:${count}`),
+    ...(hidden > 0 ? [`+${hidden} more`] : []),
+  ].join(',');
 }
 
 function formatCandidateRejectionDetails(
@@ -1136,7 +1251,21 @@ function formatCandidateRejectionDetails(
 ): string {
   return rejections.total === 0
     ? ''
-    : ` after rejecting ${rejections.total} candidate(s) (${summarizeCandidateRejections(rejections)})`;
+    : ` after rejecting ${rejections.total} candidate(s) (${summarizeCandidateRejections(rejections, MAX_MESSAGE_REJECTION_CAUSES)})`;
+}
+
+function candidateRejectionRecord(
+  rejections: CandidateRejections,
+): Record<string, number> {
+  return Object.fromEntries(rejections.causes);
+}
+
+function formatRejectionRecord(
+  rejections: Record<string, number>,
+): string | null {
+  const entries = Object.entries(rejections);
+  if (entries.length === 0) return null;
+  return entries.map(([cause, count]) => `${cause}:${count}`).join(',');
 }
 
 function safeCandidateRejectionCause(error: unknown): string {
@@ -1174,11 +1303,11 @@ function toPlannedImage(
   acquired: AcquiredRemoteImage,
   candidate: ImageCandidate,
   provider: PlannedVisualImage['provider'],
-  assetIndex: number,
+  assetId: string,
   perceptualHash: string,
 ): PlannedVisualImage {
   return {
-    assetId: `image-${String(assetIndex + 1).padStart(2, '0')}`,
+    assetId,
     path: acquired.path,
     contentType: acquired.contentType,
     sha256: acquired.sha256,
@@ -1194,486 +1323,6 @@ function toPlannedImage(
       ? { photographerUrl: candidate.photographerUrl }
       : {}),
   };
-}
-
-function viableCandidates(
-  candidates: readonly ImageCandidate[],
-  allowedOrigins: readonly ImageCandidate['origin'][],
-): ImageCandidate[] {
-  return partitionViableCandidates(candidates, allowedOrigins).candidates;
-}
-
-/**
- * The same filtering, keeping the reason each candidate was dropped. Brave can
- * return 175 results for a scene that then starves, and every one of those
- * removals happens before a download, so `partitionImageCandidates`' own issue
- * codes plus the decorative rules are the only record of where they went.
- */
-function partitionViableCandidates(
-  candidates: readonly ImageCandidate[],
-  allowedOrigins: readonly ImageCandidate['origin'][],
-): { candidates: ImageCandidate[]; drops: Map<string, number> } {
-  const drops = new Map<string, number>();
-  const countDrop = (reason: string): void => {
-    drops.set(reason, (drops.get(reason) ?? 0) + 1);
-  };
-
-  const presentable = candidates.filter((candidate) => {
-    const reason = decorativeRejection(candidate);
-    if (reason) countDrop(reason);
-    return reason === null;
-  });
-  const { accepted, rejected } = partitionImageCandidates(presentable, {
-    allowedOrigins,
-    deduplicate: true,
-    maxCandidates: MAX_SEARCH_CANDIDATES_PER_SCENE,
-  });
-  for (const entry of rejected) {
-    countDrop(entry.issues[0]?.code ?? 'unknown');
-  }
-  return { candidates: accepted, drops };
-}
-
-const SEARCH_RANKING_NOISE_WORDS = new Set([
-  'adult',
-  'and',
-  'at',
-  'documentary',
-  'editorial',
-  'in',
-  'office',
-  'photo',
-  'photograph',
-  'real',
-  'the',
-  'using',
-  'with',
-  'working',
-  'world',
-]);
-
-const NON_EDUCATIONAL_PENALTY_TERMS = [
-  'children',
-  'classroom',
-  'kids',
-  'school',
-  'student',
-] as const;
-
-const HISTORICAL_PENALTY_TERMS = [
-  'archive',
-  'black-and-white',
-  'historical',
-  'history',
-  'vintage',
-] as const;
-
-const COVER_PENALTY_TERMS = [
-  'comparison',
-  'definition',
-  'explained',
-  'strategies',
-  'versus',
-] as const;
-
-const COVER_SOURCE_PENALTY_TERMS = [
-  'linkedin.com',
-  'medium.com',
-  'substack.com',
-  'substackcdn.com',
-  'youtube.com',
-] as const;
-
-const GENERIC_STOCK_PENALTY_TERMS = [
-  'business people',
-  'business team',
-  'collaborating in office',
-  'coworkers',
-  'futuristic interface',
-  'glowing screen',
-  'handshake',
-  'hologram',
-  'looking at laptop',
-  'people working in office',
-  'smiling team',
-  'team meeting',
-  'teamwork',
-] as const;
-
-const GENERIC_PODCAST_PENALTY_TERMS = [
-  'podcast',
-  'microphone',
-  'studio',
-  'headphones',
-  'generic finance',
-  'generic crypto coin collage',
-  'crypto coin collage',
-  'coin collage',
-] as const;
-
-const SYNTHETIC_IMAGE_TERMS = [
-  '3d illustration',
-  '3d render',
-  'ai generated',
-  'ai-generated',
-  'concept art',
-  'dall-e',
-  'dalle',
-  'digital art',
-  'generated by ai',
-  'generative artwork',
-  'midjourney',
-  'stable diffusion',
-  'synthetic image',
-] as const;
-
-const EDITORIAL_OR_OFFICIAL_SOURCE_TERMS = [
-  '.gov',
-  '.int',
-  'apnews.com',
-  'bbc.com',
-  'bloomberg.com',
-  'cnbc.com',
-  'coindesk.com',
-  'cointelegraph.com',
-  'ecb.europa.eu',
-  'ethereum.org',
-  'federalreserve.gov',
-  'ft.com',
-  'reuters.com',
-  'sec.gov',
-  'theblock.co',
-  'theguardian.com',
-  'whitehouse.gov',
-  'wsj.com',
-] as const;
-
-const STOCK_PREVIEW_TERMS = [
-  '123rf',
-  'adobestock',
-  'alamy',
-  'depositphotos',
-  'dreamstime',
-  'freepik',
-  'gettyimages',
-  'istockphoto',
-  'shutterstock',
-  'stock-photo',
-  'stock_photo',
-  'vecteezy',
-] as const;
-
-// These publishers primarily expose article-cover artwork with the headline
-// baked into the pixels. The renderer already burns locale subtitles, so a
-// search result from one of these sources would recreate the text-card layout
-// that the image-only pipeline is intended to remove.
-const TEXT_CARD_PUBLISHER_TERMS = [
-  'academy.kku.ac.th',
-  'alexablockchain.com',
-  'bitget.com',
-  'blockchain-council.org',
-  'blockchainreporter.net',
-  'blogger.googleusercontent.com',
-  'blogspot.com',
-  'ccn.com',
-  'chainaware.ai',
-  'chainport.io',
-  'collibra.com',
-  'corytech.com',
-  'dipprofit.com',
-  'emilyandblair.com',
-  'ideausher.com',
-  'klever.org',
-  'news.cgtn.com',
-  'resourcecenter.systemscouncil.ieee.org',
-  'solulab.com',
-  'slideteam.net',
-  'startupfactory.bg',
-  'technollogy.com',
-  'uniondevelopers.com',
-  'var-meta.com',
-] as const;
-
-function rankSearchCandidates(
-  candidates: readonly ImageCandidate[],
-  intent: string,
-  existingAssets: readonly PlannedVisualImage[],
-  entities: readonly string[],
-): ImageCandidate[] {
-  return candidates
-    .filter((candidate) => mentionsAnyEntity(candidate, entities))
-    .map((candidate, index) => ({
-      candidate,
-      index,
-      score: searchCandidateScore(candidate, intent, existingAssets),
-    }))
-    .sort((left, right) => right.score - left.score || left.index - right.index)
-    .map(({ candidate }) => candidate);
-}
-
-/**
- * The one hard relevance rule, and it is about identity rather than wording. A
- * scene that names Coldcard cannot be illustrated by a photo whose title, page
- * and URL never mention Coldcard, however many words the query happens to share
- * with it — sharing a word is precisely how a thousand-yard-stare war portrait
- * and an odd-and-even-numbers worksheet were selected for a Bitcoin episode.
- *
- * A scene that names nothing has no identity to check, and keeps every
- * candidate the quality filters already allow.
- */
-function mentionsAnyEntity(
-  candidate: ImageCandidate,
-  entities: readonly string[],
-): boolean {
-  if (entities.length === 0) return true;
-  const corpus = ` ${entityMatchText(normalizedSearchCandidateCorpus(candidate))}`;
-  return entities.some((entity) => {
-    const name = entityMatchText(entity);
-    return name.length > 0 && corpus.includes(` ${name}`);
-  });
-}
-
-/**
- * Collapses every separator to a single space so a name matches however the
- * page spells it — `coldcard-mk4-review`, `Coldcard_Mk4`, `Coldcard Mk4`. The
- * ranking corpus keeps its own punctuation, because the penalty term lists
- * matched against it contain hostnames.
- */
-function entityMatchText(value: string): string {
-  return value
-    .normalize('NFKC')
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, ' ')
-    .trim();
-}
-
-function candidateDimensionScore(candidate: ImageCandidate): number {
-  if (!candidate.width || !candidate.height) return 0;
-  let score = 0;
-  if (Math.max(candidate.width, candidate.height) >= 1920) score += 3;
-  const aspectRatio = candidate.width / candidate.height;
-  if (aspectRatio >= 0.9 && aspectRatio <= 1.6) score += 3;
-  else if (aspectRatio > 1.6 && aspectRatio <= 2.0) score += 1;
-  if (aspectRatio < 0.75) score -= 4;
-  return score;
-}
-
-function searchCandidateScore(
-  candidate: ImageCandidate,
-  intent: string,
-  existingAssets: readonly PlannedVisualImage[],
-): number {
-  const corpus = normalizedSearchCandidateCorpus(candidate);
-  const queryTokens = normalizedSearchTokens(intent);
-  let score = queryTokens.reduce(
-    (sum, token) => sum + (corpus.includes(token) ? tokenMatchScore(token) : 0),
-    0,
-  );
-
-  const extension = imageFileExtension(candidate.imageUrl);
-  if (extension === 'jpg' || extension === 'jpeg') score += 4;
-  else if (extension === 'webp') score += 2;
-  else if (extension === 'png') score -= 3;
-
-  score += candidateDimensionScore(candidate);
-
-  const normalizedIntent = intent.toLowerCase();
-  if (
-    !/(?:education|school|student|classroom|children|kids)/i.test(
-      normalizedIntent,
-    ) &&
-    includesAny(corpus, NON_EDUCATIONAL_PENALTY_TERMS)
-  ) {
-    score -= 30;
-  }
-  if (
-    !/(?:history|historical|archive|vintage)/i.test(normalizedIntent) &&
-    includesAny(corpus, HISTORICAL_PENALTY_TERMS)
-  ) {
-    score -= 20;
-  }
-  if (
-    includesAny(corpus, COVER_PENALTY_TERMS) ||
-    corpus.includes(' vs ') ||
-    corpus.includes(' vs. ')
-  ) {
-    score -= 12;
-  }
-  if (includesAny(corpus, COVER_SOURCE_PENALTY_TERMS)) score -= 12;
-  if (includesAny(corpus, GENERIC_STOCK_PENALTY_TERMS)) score -= 16;
-  if (
-    !/(?:podcast|microphone|studio|headphones)/i.test(normalizedIntent) &&
-    includesAny(corpus, GENERIC_PODCAST_PENALTY_TERMS)
-  ) {
-    score -= 30;
-  }
-
-  const sourceHostname = candidateHostname(candidate.sourceUrl);
-  if (sourceHostname) {
-    if (
-      candidate.origin === 'brave' &&
-      includesAny(sourceHostname, EDITORIAL_OR_OFFICIAL_SOURCE_TERMS)
-    ) {
-      score += 18;
-    }
-    const priorUses = existingAssets.filter(
-      (asset) => candidateHostname(asset.sourcePageUrl) === sourceHostname,
-    ).length;
-    score -= priorUses * 4;
-  }
-  return score;
-}
-
-function normalizedSearchCandidateCorpus(candidate: ImageCandidate): string {
-  const raw = `${candidate.altText ?? ''} ${candidate.imageUrl} ${candidate.sourceUrl}`;
-  let decoded = raw;
-  try {
-    decoded = decodeURIComponent(raw);
-  } catch {
-    // Some publisher URLs contain stray percent signs. The raw value still
-    // provides deterministic metadata for ranking.
-  }
-  return decoded.normalize('NFKC').toLowerCase();
-}
-
-function normalizedSearchTokens(intent: string): string[] {
-  return [
-    ...new Set(
-      (
-        intent
-          .normalize('NFKC')
-          .toLowerCase()
-          .match(/[\p{L}\p{N}]{2,}/gu) ?? []
-      ).filter((token) => !SEARCH_RANKING_NOISE_WORDS.has(token)),
-    ),
-  ];
-}
-
-function tokenMatchScore(token: string): number {
-  if (/\d/u.test(token)) return 8;
-  return token.length >= 7 ? 5 : 3;
-}
-
-function imageFileExtension(rawUrl: string): string | null {
-  try {
-    const filename = new URL(rawUrl).pathname.split('/').at(-1) ?? '';
-    return /\.([a-z\d]+)$/i.exec(filename)?.[1]?.toLowerCase() ?? null;
-  } catch {
-    return null;
-  }
-}
-
-function candidateHostname(rawUrl: string): string | null {
-  try {
-    return new URL(rawUrl).hostname.toLowerCase();
-  } catch {
-    return null;
-  }
-}
-
-function includesAny(value: string, terms: readonly string[]): boolean {
-  return terms.some((term) => value.includes(term));
-}
-
-/**
- * Returns which decorative rule removed the candidate, or null when it stays.
- * Naming the rule is the point: these run before any download, so a scene that
- * starves here leaves no rejection record of its own.
- */
-function decorativeRejection(candidate: ImageCandidate): string | null {
-  const value = normalizedSearchCandidateCorpus(candidate);
-  if (
-    /(?:^|[./_\-\s])(avatar|emoji|emoticon|favicon|icon|logo|profile|sprite|sticker|thumb|thumbnail|wechat|weibo)(?:[./_\-\s]|$)/i.test(
-      value,
-    )
-  ) {
-    return 'decorative-asset';
-  }
-  if (
-    isSearchCandidate(candidate) &&
-    includesAny(value, SYNTHETIC_IMAGE_TERMS)
-  ) {
-    return 'synthetic-image';
-  }
-  if (includesAny(value, STOCK_PREVIEW_TERMS)) return 'stock-preview';
-  if (includesAny(value, TEXT_CARD_PUBLISHER_TERMS))
-    return 'text-card-publisher';
-  if (
-    candidate.origin === 'brave' &&
-    looksLikeTextHeavySearchResult(candidate)
-  ) {
-    return 'text-heavy-result';
-  }
-  return null;
-}
-
-function isSearchCandidate(candidate: ImageCandidate): boolean {
-  return candidate.origin === 'brave';
-}
-
-function looksLikeTextHeavySearchResult(candidate: ImageCandidate): boolean {
-  const altText = candidate.altText?.toLowerCase() ?? '';
-  const urlMetadata =
-    `${candidate.imageUrl} ${candidate.sourceUrl}`.toLowerCase();
-  const textHeavyAlt =
-    /\b(infographic|diagram|chart|presentation|slides?|poster|tutorial|screenshot|template|wallpaper|quote|whitepaper|explainer)\b/i;
-  const instructionalAlt =
-    /\bhow\s+to\b/i.test(altText) ||
-    /\bwhat\s+is\b/i.test(altText) ||
-    /\bwhat\s+are\b/i.test(altText) ||
-    /\btypes?\s+of\b/i.test(altText) ||
-    /\bstep[- ]by[- ]step\b/i.test(altText) ||
-    /\bbeginners?\s+guide\b/i.test(altText) ||
-    /\bbeginner's\s+guide\b/i.test(altText) ||
-    /\btop\s+\d+\b/i.test(altText);
-  const textHeavyUrlTerms = [
-    'blog-creative',
-    'blog_creative',
-    'diagram',
-    'infographic',
-    'poster',
-    'powerpoint',
-    'presentation',
-    'quote',
-    'screenshot',
-    'slide',
-    'template',
-    'thumbnail-with-play',
-    'tutorial',
-    'types-of',
-    'types_of',
-    'use-case',
-    'use_case',
-  ] as const;
-  const textHeavySourceTerms = [
-    '.pdf',
-    '.ppt',
-    '.pptx',
-    '/quotes/',
-    'canva.com',
-    'quotefancy.com',
-    'scribd.com',
-    'slideshare.net',
-  ] as const;
-  const chineseTextCard =
-    /(?:資訊圖|圖表|簡報|投影片|海報|教學|懶人包|排行榜|排名|報告)/u;
-  return (
-    textHeavyAlt.test(altText) ||
-    instructionalAlt ||
-    chineseTextCard.test(altText) ||
-    includesAny(urlMetadata, textHeavyUrlTerms) ||
-    includesAny(urlMetadata, textHeavySourceTerms)
-  );
-}
-
-function canonicalCandidateUrl(rawUrl: string): string | null {
-  try {
-    const url = new URL(rawUrl);
-    url.hash = '';
-    return url.href;
-  } catch {
-    return null;
-  }
 }
 
 export async function fingerprintImage(path: string): Promise<string> {

@@ -14,6 +14,10 @@ export const sourceLicenseSchema = z.enum([
   'cc-by-sa-4.0',
   'official-public-domain',
   'all-rights-reserved',
+  // Retired stock licenses, read-only: payloads written before those providers
+  // were dropped are still parsed when their episode is re-rendered.
+  'pexels',
+  'pixabay',
   'unknown',
 ]);
 

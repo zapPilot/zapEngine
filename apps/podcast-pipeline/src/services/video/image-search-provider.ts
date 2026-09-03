@@ -20,8 +20,10 @@ export interface ImageSearchProvider {
 }
 
 /**
- * Brave is the only external image-search provider. Article images and subject
- * reuse remain separate planner inputs/fallbacks.
+ * Brave is the only external image-search provider. The free stock APIs that
+ * used to run ahead of it were retired because proper-noun searches routinely
+ * returned unrelated imagery (for example `Stripe` as literal stripes). Article
+ * images and subject reuse remain separate planner inputs/fallbacks.
  */
 export function defaultImageSearchProviders(
   env: NodeJS.ProcessEnv = process.env,

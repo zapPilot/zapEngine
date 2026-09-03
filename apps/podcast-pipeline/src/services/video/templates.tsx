@@ -955,7 +955,7 @@ function OutroTemplate({
           letterSpacing: 2,
         }}
       >
-        MEDIA&nbsp;·&nbsp;BRAVE
+        MEDIA&nbsp;·&nbsp;ORIGINAL&nbsp;PUBLISHERS
       </div>
     </div>
   );

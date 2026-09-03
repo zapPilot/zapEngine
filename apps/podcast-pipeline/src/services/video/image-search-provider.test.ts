@@ -1,12 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-const searchMocks = vi.hoisted(() => ({
-  brave: vi.fn(),
-}));
+const searchBraveImages = vi.hoisted(() => vi.fn());
 
 vi.mock('./brave-image-search.js', () => ({
   BRAVE_MAX_RESULT_COUNT: 100,
-  searchBraveImages: searchMocks.brave,
+  searchBraveImages,
 }));
 
 import { defaultImageSearchProviders } from './image-search-provider.js';
@@ -17,7 +15,7 @@ afterEach(() => {
 });
 
 describe('defaultImageSearchProviders', () => {
-  it('returns the configured Brave provider', () => {
+  it('exposes Brave as the only external provider', () => {
     const providers = defaultImageSearchProviders({
       BRAVE_SEARCH_API_KEY: 'brave-key',
     });
@@ -26,29 +24,38 @@ describe('defaultImageSearchProviders', () => {
     ).toEqual([['brave', 100]]);
   });
 
-  it('fails closed without a Brave key', () => {
+  it('fails closed without a Brave key instead of degrading to stock imagery', () => {
     expect(() => defaultImageSearchProviders({})).toThrow(
       'Missing required environment variable: BRAVE_SEARCH_API_KEY',
     );
     expect(() =>
       defaultImageSearchProviders({ BRAVE_SEARCH_API_KEY: '   ' }),
-    ).toThrow('BRAVE_SEARCH_API_KEY');
+    ).toThrow('Missing required environment variable: BRAVE_SEARCH_API_KEY');
   });
 
-  it('executes the Brave provider with default and explicit options', async () => {
-    searchMocks.brave.mockResolvedValue([]);
-    const [brave] = defaultImageSearchProviders({
+  it('passes the request count and abort signal through to Brave', async () => {
+    searchBraveImages.mockResolvedValue([]);
+    const [provider] = defaultImageSearchProviders({
       BRAVE_SEARCH_API_KEY: 'brave-key',
     });
     const controller = new AbortController();
 
-    await brave!.search('query');
-    await brave!.search('query', { count: 7, signal: controller.signal });
+    await provider!.search('query');
+    await provider!.search('query', {
+      count: 7,
+      signal: controller.signal,
+    });
 
-    expect(searchMocks.brave.mock.calls).toEqual([
-      ['query', 'brave-key', {}],
-      ['query', 'brave-key', { count: 7, signal: controller.signal }],
-    ]);
+    expect(searchBraveImages).toHaveBeenNthCalledWith(
+      1,
+      'query',
+      'brave-key',
+      {},
+    );
+    expect(searchBraveImages).toHaveBeenNthCalledWith(2, 'query', 'brave-key', {
+      count: 7,
+      signal: controller.signal,
+    });
   });
 
   it('uses process env by default', () => {

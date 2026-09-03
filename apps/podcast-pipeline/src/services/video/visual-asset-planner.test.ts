@@ -1,8 +1,9 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, type Mock, vi } from 'vitest';
 
 import type { ImageCandidate } from '../../types.js';
 import type { AcquiredRemoteImage } from './assets.js';
 import type { ImageSearchProvider } from './image-search-provider.js';
+import { mentionsAnyEntity } from './search-candidate-ranking.js';
 import {
   perceptualHashDistance,
   planVisualAssets,
@@ -14,6 +15,16 @@ function braveProviders(
   search: ImageSearchProvider['search'],
 ): ImageSearchProvider[] {
   return [{ origin: 'brave', search }];
+}
+
+/**
+ * Each subject is asked exactly once, so a fixture can no longer answer by call
+ * order: the query is the only thing that says which subject is being searched.
+ */
+function searchByQuery(
+  answers: Readonly<Record<string, ImageCandidate[]>>,
+): Mock<ImageSearchProvider['search']> {
+  return vi.fn(async (query: string) => answers[query] ?? []);
 }
 
 const scenes: VisualAssetScene[] = [
@@ -89,6 +100,52 @@ describe('planVisualAssets', () => {
       'article',
       'article',
     ]);
+  });
+
+  it('keeps the lead scene off the publisher image the pool also returned', async () => {
+    // The cover is independently sourced from the headline subject, so the
+    // article's own photograph must not reach scene-01 through Brave either.
+    const publisherPhoto = {
+      ...candidate('publisher-hero', 'brave'),
+      sourceUrl: 'https://publisher.example.test/story',
+      altText: 'Coldcard hardware wallet on a desk',
+    };
+    const independent = {
+      ...candidate('independent-hero', 'brave'),
+      altText: 'Coldcard air-gapped device',
+    };
+    const acquireImage = vi.fn().mockResolvedValue(acquired('independent'));
+
+    const result = await planVisualAssets({
+      scenes: [
+        {
+          sceneId: 'scene-01',
+          imageSearchIntent: ['Coldcard hardware wallet on a desk'],
+          imageSearchEntities: ['Coldcard'],
+        },
+      ],
+      articleImages: [
+        {
+          ...candidate('article-hero'),
+          sourceUrl: 'https://publisher.example.test/story',
+        },
+      ],
+      workingDirectory: '/work/visual-assets',
+      dependencies: {
+        acquireImage,
+        searchProviders: braveProviders(
+          searchByQuery({
+            'Coldcard hardware wallet on a desk': [publisherPhoto, independent],
+          }),
+        ),
+        fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
+      },
+    });
+
+    expect(acquireImage.mock.calls.map(([url]) => url)).toEqual([
+      independent.imageUrl,
+    ]);
+    expect(result.assets[0]?.originalImageUrl).toBe(independent.imageUrl);
   });
 
   it('continues after rejected article candidates and deduplicates canonical URLs', async () => {
@@ -268,10 +325,7 @@ describe('planVisualAssets', () => {
     const acquireImage = vi.fn(async (url: string) =>
       url === article.imageUrl ? acquired('article-a') : acquired('search-b'),
     );
-    const searchImages = vi
-      .fn()
-      .mockResolvedValueOnce([searched])
-      .mockResolvedValueOnce([]);
+    const searchImages = searchByQuery({ 'second subject': [searched] });
     const progress = vi.fn();
 
     const result = await planVisualAssets({
@@ -304,34 +358,35 @@ describe('planVisualAssets', () => {
     );
   });
 
-  it('continues to the next search intent after a zero-result query', async () => {
-    const searched = {
-      ...candidate('search-result', 'brave'),
-      altText: 'broader subject',
-    };
-    const searchImages = vi
-      .fn()
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([searched]);
+  it('does not buy a second request for a subject whose query returned nothing', async () => {
+    // A widened retry of the same subject is what the per-scene intent loop
+    // used to spend requests on. One query per subject is the budget model, so
+    // an empty answer degrades the scene to reuse instead of being re-asked.
+    const searchImages = searchByQuery({});
 
     const result = await planVisualAssets({
       scenes: [
+        scenes[0]!,
         {
-          sceneId: 'scene-01',
+          sceneId: 'scene-02',
           imageSearchIntent: ['too narrow', 'broader subject'],
         },
       ],
+      articleImages: [candidate('article-a')],
       workingDirectory: '/work/visual-assets',
       dependencies: {
-        acquireImage: vi.fn().mockResolvedValue(acquired('search-result')),
+        acquireImage: vi.fn().mockResolvedValue(acquired('article-a')),
         searchProviders: braveProviders(searchImages),
         fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
       },
     });
 
-    expect(searchImages).toHaveBeenCalledTimes(2);
+    expect(searchImages.mock.calls.map(([query]) => query)).toEqual([
+      'too narrow',
+    ]);
     expect(result.scenes).toEqual([
       { sceneId: 'scene-01', assetId: 'image-01' },
+      { sceneId: 'scene-02', assetId: 'image-01' },
     ]);
   });
 
@@ -413,44 +468,67 @@ describe('planVisualAssets', () => {
     expect(result.assets[0]?.originalImageUrl).toBe(related.imageUrl);
   });
 
-  it('rejects a candidate that never mentions the subject the scene names', async () => {
-    // The shape that shipped an Italian greyhound into a Bitcoin episode: a
-    // candidate that shares wording with the query and nothing else.
+  it('ranks a candidate that names the subject first and uses one that does not', async () => {
+    // The hard gate this replaced discarded every viable candidate an episode
+    // had before a single download, because a news photograph rarely repeats
+    // its subject's name in alt text. The unnamed candidate here outscores the
+    // named one on every other signal -- it echoes the whole query and is the
+    // larger image -- so the mention bonus is the only thing that can rank the
+    // named one first, and the second scene proves the other is still used.
     const unrelated = {
       ...candidate('italian-greyhound-colors', 'brave'),
-      altText: 'Italian greyhound colors and coat patterns',
+      altText: 'Hardware wallet on a desk, Italian greyhound in the background',
       width: 4000,
       height: 2250,
     };
-    const acquireImage = vi.fn();
+    const named = {
+      ...candidate('coldcard-signing-device', 'brave'),
+      altText: 'Coldcard air-gapped signing device',
+    };
+    const acquireImage = vi.fn(async (url: string) =>
+      acquired(new URL(url).pathname.split('/').at(-1)!.replace('.jpg', '')),
+    );
+    const subject = {
+      imageSearchIntent: ['Coldcard hardware wallet on a desk'],
+      imageSearchEntities: ['Coldcard'],
+    };
 
-    await expect(
-      planVisualAssets({
-        scenes: [
-          {
-            sceneId: 'scene-01',
-            imageSearchIntent: ['Coldcard hardware wallet on a desk'],
-            imageSearchEntities: ['Coldcard'],
-          },
-        ],
-        workingDirectory: '/work/visual-assets',
-        dependencies: {
-          acquireImage,
-          searchProviders: braveProviders(
-            vi.fn().mockResolvedValue([unrelated]),
-          ),
-          fingerprintImage: vi.fn(),
-        },
-      }),
-    ).rejects.toThrow('Visual scene scene-01 has no usable image');
-    expect(acquireImage).not.toHaveBeenCalled();
+    const result = await planVisualAssets({
+      scenes: [
+        { sceneId: 'scene-01', ...subject },
+        { sceneId: 'scene-02', ...subject },
+      ],
+      workingDirectory: '/work/visual-assets',
+      dependencies: {
+        acquireImage,
+        searchProviders: braveProviders(
+          searchByQuery({
+            'Coldcard hardware wallet on a desk': [unrelated, named],
+          }),
+        ),
+        fingerprintImage: vi
+          .fn()
+          .mockResolvedValueOnce('0000000000000000')
+          .mockResolvedValueOnce('ffffffffffffffff'),
+      },
+    });
+
+    expect(acquireImage.mock.calls.map(([url]) => url)).toEqual([
+      named.imageUrl,
+      unrelated.imageUrl,
+    ]);
+    expect(result.assets.map((asset) => asset.originalImageUrl)).toEqual([
+      named.imageUrl,
+      unrelated.imageUrl,
+    ]);
   });
 
   it('accepts a named subject however the page spells it', async () => {
-    // The name reaches the candidate only through a hyphenated URL slug.
     const related = {
       ...candidate('coldcard-mk4-review', 'brave'),
       altText: 'Hardware wallet on a desk',
+      photographer: 'Jane Doe',
+      photographerUrl: 'https://photos.example.test/@jane-doe',
     };
     const acquireImage = vi
       .fn()
@@ -472,7 +550,13 @@ describe('planVisualAssets', () => {
       },
     });
 
-    expect(result.assets[0]?.originalImageUrl).toBe(related.imageUrl);
+    expect(result.assets[0]).toMatchObject({
+      originalImageUrl: related.imageUrl,
+      provider: 'brave',
+      license: 'unknown',
+      photographer: 'Jane Doe',
+      photographerUrl: 'https://photos.example.test/@jane-doe',
+    });
   });
 
   it('keeps every candidate for a scene that names nothing', async () => {
@@ -497,82 +581,6 @@ describe('planVisualAssets', () => {
     });
 
     expect(result.assets[0]?.originalImageUrl).toBe(generic.imageUrl);
-  });
-
-  it('moves to the next provider when the first returns only an off-subject result', async () => {
-    const offSubject = vi.fn().mockResolvedValue([
-      {
-        ...candidate('generic-hardware-wallet', 'brave'),
-        altText: 'Generic hardware wallet on a desk',
-      },
-    ]);
-    const named = {
-      ...candidate('coldcard-device', 'brave'),
-      altText: 'Coldcard hardware wallet',
-    };
-    const onSubject = vi.fn().mockResolvedValue([named]);
-
-    const result = await planVisualAssets({
-      scenes: [
-        {
-          sceneId: 'scene-01',
-          imageSearchIntent: ['Coldcard hardware wallet on a desk'],
-          imageSearchEntities: ['Coldcard'],
-        },
-      ],
-      workingDirectory: '/work/visual-assets',
-      selectionMode: 'resilient',
-      dependencies: {
-        acquireImage: vi.fn().mockResolvedValue(acquired('coldcard-device')),
-        searchProviders: [
-          { origin: 'brave', search: offSubject },
-          { origin: 'brave', search: onSubject },
-        ],
-        fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
-      },
-    });
-
-    expect(offSubject).toHaveBeenCalled();
-    expect(onSubject).toHaveBeenCalled();
-    expect(result.assets[0]?.originalImageUrl).toBe(named.imageUrl);
-  });
-
-  it('retries an entity scene on the bare name before giving up on it', async () => {
-    const braveSearch = vi.fn(async (query: string) =>
-      query === 'Coldcard'
-        ? [
-            {
-              ...candidate('coldcard-device', 'brave'),
-              altText: 'Coldcard hardware wallet',
-            },
-          ]
-        : [],
-    );
-
-    const result = await planVisualAssets({
-      scenes: [
-        {
-          sceneId: 'scene-01',
-          imageSearchIntent: ['Coldcard air-gapped signing device close-up'],
-          imageSearchEntities: ['Coldcard'],
-        },
-      ],
-      workingDirectory: '/work/visual-assets',
-      selectionMode: 'resilient',
-      dependencies: {
-        acquireImage: vi.fn().mockResolvedValue(acquired('coldcard-device')),
-        searchProviders: braveProviders(braveSearch),
-        fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
-      },
-    });
-
-    // The generic `... official event photo` relaxation would widen the query
-    // away from the subject; the bare name stays on it.
-    expect(braveSearch.mock.calls.map(([query]) => query)).toEqual([
-      'Coldcard air-gapped signing device close-up',
-      'Coldcard',
-    ]);
-    expect(result.assets).toHaveLength(1);
   });
 
   it('rejects opaque CDN images whose source page is a slide provider', async () => {
@@ -611,7 +619,7 @@ describe('planVisualAssets', () => {
     );
   });
 
-  it('continues after candidate exhaustion and acquires from a later intent', async () => {
+  it('takes the next entry of the same result set after one fails to acquire', async () => {
     const rejected = {
       ...candidate('rejected', 'brave'),
       altText: 'first subject',
@@ -620,31 +628,25 @@ describe('planVisualAssets', () => {
       ...candidate('usable', 'brave'),
       altText: 'second subject',
     };
+    const searchImages = searchByQuery({
+      'first subject': [rejected, usable],
+    });
     const acquireImage = vi
       .fn()
       .mockRejectedValueOnce(new Error('image dimensions too small'))
       .mockResolvedValueOnce(acquired('usable'));
 
     const result = await planVisualAssets({
-      scenes: [
-        {
-          sceneId: 'scene-01',
-          imageSearchIntent: ['first subject', 'second subject'],
-        },
-      ],
+      scenes: scenes.slice(0, 1),
       workingDirectory: '/work/visual-assets',
       dependencies: {
         acquireImage,
-        searchProviders: braveProviders(
-          vi
-            .fn()
-            .mockResolvedValueOnce([rejected])
-            .mockResolvedValueOnce([usable]),
-        ),
+        searchProviders: braveProviders(searchImages),
         fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
       },
     });
 
+    expect(searchImages).toHaveBeenCalledOnce();
     expect(acquireImage).toHaveBeenCalledTimes(2);
     expect(result.assets[0]?.originalImageUrl).toBe(usable.imageUrl);
   });
@@ -679,21 +681,46 @@ describe('planVisualAssets', () => {
       .mockRejectedValueOnce(new Error('ECONNRESET network failure'))
       .mockRejectedValueOnce(new Error('corrupt image decode failed'))
       .mockResolvedValueOnce(null);
+    const progress: VisualAssetProgress[] = [];
 
-    await expect(
-      planVisualAssets({
-        scenes: [
-          { sceneId: 'scene-01', imageSearchIntent: ['target subject'] },
-        ],
-        workingDirectory: '/work/visual-assets',
-        dependencies: {
-          acquireImage,
-          searchProviders: braveProviders(vi.fn().mockResolvedValue(searched)),
-          fingerprintImage: vi.fn(),
-        },
-      }),
-    ).rejects.toThrow(
-      'animated-image:1,decode:1,dns:1,empty-acquisition:1,network:1,redirect:1,safety-policy:1,size-limit:1,timeout:1,unsupported-format:1',
+    const failure = await planVisualAssets({
+      scenes: [{ sceneId: 'scene-01', imageSearchIntent: ['target subject'] }],
+      workingDirectory: '/work/visual-assets',
+      onProgress: (event) => progress.push(event),
+      dependencies: {
+        acquireImage,
+        searchProviders: braveProviders(vi.fn().mockResolvedValue(searched)),
+        fingerprintImage: vi.fn(),
+      },
+    }).catch((error: unknown) => error);
+
+    const allCauses =
+      'animated-image:1,decode:1,dns:1,empty-acquisition:1,network:1,redirect:1,safety-policy:1,size-limit:1,timeout:1,unsupported-format:1';
+    expect(
+      progress.find((event) => event.phase === 'exhausted')?.rejectionSummary,
+    ).toBe(allCauses);
+    expect(failure).toMatchObject({
+      rejections: {
+        'animated-image': 1,
+        decode: 1,
+        dns: 1,
+        'empty-acquisition': 1,
+        network: 1,
+        redirect: 1,
+        'safety-policy': 1,
+        'size-limit': 1,
+        timeout: 1,
+        'unsupported-format': 1,
+      },
+    });
+    // The message is the Telegram-bound channel, so it lists as many causes as
+    // it can afford and says how many it dropped rather than pushing the pool
+    // counts off the end of the line.
+    expect((failure as Error).message).toContain(
+      'after rejecting 10 candidate(s) (animated-image:1,decode:1,dns:1,empty-acquisition:1,+6 more)',
+    );
+    expect((failure as Error).message).not.toMatch(
+      /ECONNRESET|ENOTFOUND|images\.test|25 MiB/u,
     );
   });
 
@@ -856,34 +883,6 @@ describe('planVisualAssets', () => {
     });
   });
 
-  it('handles an empty-token query and preserves provider order ties in resilient mode', async () => {
-    const firstBrave = vi.fn().mockResolvedValue([]);
-    const secondBrave = vi.fn().mockResolvedValue([
-      {
-        ...candidate('fallback-photo', 'brave'),
-        altText: 'fallback photograph',
-      },
-    ]);
-
-    const result = await planVisualAssets({
-      scenes: [{ sceneId: 'scene-01', imageSearchIntent: ['---'] }],
-      workingDirectory: '/work/visual-assets',
-      selectionMode: 'resilient',
-      dependencies: {
-        acquireImage: vi.fn().mockResolvedValue(acquired('fallback-photo')),
-        searchProviders: [
-          { origin: 'brave', search: firstBrave },
-          { origin: 'brave', search: secondBrave },
-        ],
-        fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
-      },
-    });
-
-    expect(firstBrave).toHaveBeenCalledOnce();
-    expect(secondBrave).toHaveBeenCalledOnce();
-    expect(result.assets).toHaveLength(1);
-  });
-
   it('propagates search cancellation instead of normalizing it as a provider failure', async () => {
     const controller = new AbortController();
     const leaseError = new Error('search lease lost');
@@ -908,7 +907,7 @@ describe('planVisualAssets', () => {
     ).rejects.toBe(leaseError);
   });
 
-  it('surfaces non-Error provider failures in resilient mode when nothing can be reused', async () => {
+  it('surfaces a non-Error provider failure', async () => {
     await expect(
       planVisualAssets({
         scenes: [
@@ -918,7 +917,6 @@ describe('planVisualAssets', () => {
           },
         ],
         workingDirectory: '/work/visual-assets',
-        selectionMode: 'resilient',
         dependencies: {
           acquireImage: vi.fn(),
           searchProviders: braveProviders(vi.fn().mockRejectedValue('offline')),
@@ -968,60 +966,19 @@ describe('planVisualAssets', () => {
       'Visual scene scene-01 has no usable image after rejecting 4 candidate(s) (dimensions-too-small:2,http-403:1,other:1)',
     );
     await expect(result).rejects.not.toThrow(/media\.example|token|secret/i);
+    // A scene that never got an asset reports what it rejected on the terminal
+    // `exhausted` event; no `assets` event is ever emitted for it.
     expect(progress).toHaveBeenCalledWith(
       expect.objectContaining({
-        phase: 'search',
-        candidateCount: 4,
+        phase: 'exhausted',
+        sceneId: 'scene-01',
         rejectedCandidateCount: 4,
         rejectionSummary: 'dimensions-too-small:2,http-403:1,other:1',
       }),
     );
   });
 
-  it('reports the entity anchor as the reason a scene starved', async () => {
-    // The anchor runs before any download, so this scene dies with zero
-    // rejections: without the funnel the error is indistinguishable from a
-    // provider that returned nothing, which is a different problem entirely.
-    const progress = vi.fn<(event: VisualAssetProgress) => void>();
-    const searched = [
-      candidate('brave-a', 'brave'),
-      candidate('brave-b', 'brave'),
-    ];
-
-    const result = planVisualAssets({
-      scenes: [
-        {
-          sceneId: 'scene-01',
-          imageSearchIntent: ['tokenized equities launch'],
-          imageSearchEntities: ['NVDAc'],
-        },
-      ],
-      workingDirectory: '/work/visual-assets',
-      onProgress: progress,
-      dependencies: {
-        acquireImage: vi.fn(),
-        searchProviders: braveProviders(vi.fn().mockResolvedValue(searched)),
-        fingerprintImage: vi.fn(),
-      },
-    });
-
-    await expect(result).rejects.toThrow(
-      'searches=1, returned=2, viable=2, entityFiltered=2',
-    );
-    expect(progress).toHaveBeenCalledWith(
-      expect.objectContaining({
-        phase: 'search',
-        candidateCount: 0,
-        searchResultCount: 2,
-        entityFilteredCount: 2,
-        searchEntities: 'NVDAc',
-      }),
-    );
-  });
-
   it('names the filter that removed the candidates a search did return', async () => {
-    // Brave answered this scene 175 times over and it still starved, so the
-    // count that matters is which pre-download filter emptied the list.
     const searched = [
       {
         ...candidate('logo', 'brave'),
@@ -1049,26 +1006,6 @@ describe('planVisualAssets', () => {
 
     await expect(result).rejects.toThrow(/viableDrops=[a-z-]+:\d+/u);
     await expect(result).rejects.toThrow('returned=3');
-  });
-
-  it('leaves the entity fields off a scene the anchor never filtered', async () => {
-    const progress = vi.fn<(event: VisualAssetProgress) => void>();
-
-    await planVisualAssets({
-      scenes: scenes.slice(0, 1),
-      articleImages: [candidate('article-a')],
-      workingDirectory: '/work/visual-assets',
-      onProgress: progress,
-      dependencies: {
-        acquireImage: vi.fn(async () => acquired('article-a')),
-        searchProviders: braveProviders(vi.fn()),
-        fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
-      },
-    });
-
-    expect(progress).not.toHaveBeenCalledWith(
-      expect.objectContaining({ entityFilteredCount: expect.anything() }),
-    );
   });
 
   it('propagates worker cancellation without converting it to a rejection', async () => {
@@ -1148,13 +1085,86 @@ describe('planVisualAssets', () => {
     );
   });
 
-  it('surfaces provider or markup failures when no usable path exists', async () => {
+  it('names the scene that paid for a rejected request and what it cost', async () => {
+    const failure = await planVisualAssets({
+      scenes: scenes.slice(0, 2),
+      articleImages: [candidate('article-a')],
+      workingDirectory: '/work/visual-assets',
+      dependencies: {
+        acquireImage: vi.fn().mockResolvedValue(acquired('article-a')),
+        searchProviders: braveProviders(
+          vi
+            .fn()
+            .mockRejectedValue(new Error('Brave Images search failed: 503')),
+        ),
+        fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
+      },
+    }).catch((error: unknown) => error);
+
+    expect(failure).toMatchObject({
+      name: 'VisualSceneExhaustedError',
+      sceneId: 'scene-02',
+      reason: 'search-failure',
+      providerFailures: ['Brave Images search failed: 503'],
+    });
+    // A request that threw before it could be recorded was still paid for, so
+    // the suffix has to show it as spent against the episode's eight.
+    expect((failure as Error).message).toContain(
+      '[pool=0, attempted=0, requests=1/8, returned=0, viable=0]',
+    );
+  });
+
+  it('does not throw when the request budget refuses a subject in strict mode', async () => {
+    // Nine subjects against five pool searches plus three targeted retries:
+    // the ninth is never asked at all. Even strict mode treats that as a
+    // quality signal -- it raises for a provider that answered badly, not for
+    // an episode that ran out of money.
+    const pooled = { ...candidate('pooled', 'brave'), altText: 'pool subject' };
+    const budgetScenes: VisualAssetScene[] = [
+      { sceneId: 'scene-01', imageSearchIntent: ['pool subject'] },
+      { sceneId: 'scene-02', imageSearchIntent: ['filler two'] },
+      { sceneId: 'scene-03', imageSearchIntent: ['filler three'] },
+      { sceneId: 'scene-04', imageSearchIntent: ['filler four'] },
+      { sceneId: 'scene-05', imageSearchIntent: ['filler five'] },
+      ...['Alpha', 'Bravo', 'Charlie', 'Delta'].map((entity, index) => ({
+        sceneId: `scene-0${index + 6}`,
+        imageSearchIntent: [`${entity} photo`],
+        imageSearchEntities: [entity],
+      })),
+    ];
+    const searchImages = searchByQuery({ 'pool subject': [pooled] });
+
+    const result = await planVisualAssets({
+      scenes: budgetScenes,
+      workingDirectory: '/work/visual-assets',
+      dependencies: {
+        acquireImage: vi.fn().mockResolvedValue(acquired('pooled')),
+        searchProviders: braveProviders(searchImages),
+        fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
+      },
+    });
+
+    expect(searchImages.mock.calls.map(([query]) => query)).toEqual([
+      'pool subject',
+      'filler two',
+      'filler three',
+      'filler four',
+      'filler five',
+      'Alpha photo',
+      'Bravo photo',
+      'Charlie photo',
+    ]);
+    expect(result.imageSearch?.requestCount).toBe(8);
+    expect(result.imageSearch?.budgetExhausted).toBe(true);
+    expect(result.scenes.map((scene) => scene.assetId)).toEqual(
+      Array.from({ length: budgetScenes.length }, () => 'image-01'),
+    );
+  });
+
+  it('surfaces one provider failure and never re-asks the failed query', async () => {
     const searchImages = vi
       .fn()
-      .mockRejectedValueOnce(new Error('Brave Images search failed: 503'))
-      .mockRejectedValueOnce(
-        new Error('Brave Images search returned no parseable image results'),
-      );
+      .mockRejectedValue(new Error('Brave Images search failed: 503'));
 
     await expect(
       planVisualAssets({
@@ -1172,90 +1182,87 @@ describe('planVisualAssets', () => {
         },
       }),
     ).rejects.toThrow(
-      'Visual image search failed for scene scene-01: Brave Images search failed: 503; Brave Images search returned no parseable image results',
+      'Visual image search failed for scene scene-01: Brave Images search failed: 503',
     );
-    expect(searchImages).toHaveBeenCalledTimes(2);
+    expect(searchImages).toHaveBeenCalledOnce();
   });
 
-  it('rejects a consecutive reuse when no second image can be acquired', async () => {
-    await expect(
-      planVisualAssets({
-        scenes: scenes.slice(0, 2),
-        articleImages: [candidate('article-a')],
-        workingDirectory: '/work/visual-assets',
-        dependencies: {
-          acquireImage: vi.fn().mockResolvedValue(acquired('article-a')),
-          searchProviders: braveProviders(vi.fn().mockResolvedValue([])),
-          fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
-        },
+  it('reuses the immediately preceding image when it is the only one there is', async () => {
+    // One repeated photo is a quality degradation; a failed episode is not.
+    const progress = vi.fn();
+
+    const result = await planVisualAssets({
+      scenes: scenes.slice(0, 2),
+      articleImages: [candidate('article-a')],
+      workingDirectory: '/work/visual-assets',
+      onProgress: progress,
+      dependencies: {
+        acquireImage: vi.fn().mockResolvedValue(acquired('article-a')),
+        searchProviders: braveProviders(searchByQuery({})),
+        fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
+      },
+    });
+
+    expect(result.scenes).toEqual([
+      { sceneId: 'scene-01', assetId: 'image-01' },
+      { sceneId: 'scene-02', assetId: 'image-01' },
+    ]);
+    expect(progress).toHaveBeenCalledWith(
+      expect.objectContaining({
+        phase: 'assets',
+        sceneId: 'scene-02',
+        provider: 'reuse',
+        reuseKind: 'consecutive',
       }),
-    ).rejects.toThrow(
-      'Visual scene scene-02 cannot reuse the immediately preceding image',
     );
   });
 
-  it('records photographer provenance and stops at the first usable provider', async () => {
-    const attributed: ImageCandidate = {
-      imageUrl: 'https://images.example.test/world-cup.jpeg',
-      sourceUrl: 'https://www.example.test/photo/world-cup-12345/',
-      origin: 'brave',
-      width: 1_600,
-      height: 1_200,
-      altText: 'stadium crowd',
-      photographer: 'Jane Doe',
-      photographerUrl: 'https://www.example.test/@jane-doe/',
+  it('resumes a checkpointed plan without renumbering or re-downloading it', async () => {
+    const resumedAsset = {
+      assetId: 'image-03',
+      path: '/work/image-03.image',
+      contentType: 'image/jpeg' as const,
+      sha256: 'resumed'.padEnd(64, 'a').slice(0, 64),
+      perceptualHash: '0000000000000000',
+      width: 1600,
+      height: 900,
+      originalImageUrl: 'https://images.example.test/resumed.jpg',
+      sourcePageUrl: 'https://publisher.example.test/resumed',
+      provider: 'brave' as const,
+      license: 'unknown' as const,
     };
-    const firstSearch = vi.fn().mockResolvedValue([attributed]);
-    const secondSearch = vi.fn();
+    const alreadyOwned = {
+      ...candidate('resumed', 'brave'),
+      altText: 'second subject',
+    };
+    const fresh = { ...candidate('fresh', 'brave'), altText: 'second subject' };
+    const acquireImage = vi.fn().mockResolvedValue(acquired('fresh'));
 
     const result = await planVisualAssets({
-      scenes: scenes.slice(0, 1),
+      scenes: scenes.slice(0, 2),
       workingDirectory: '/work/visual-assets',
+      resumePlan: {
+        assets: [resumedAsset],
+        scenes: [{ sceneId: 'scene-01', assetId: 'image-03' }],
+      },
       dependencies: {
-        acquireImage: vi.fn().mockResolvedValue(acquired('world-cup')),
-        searchProviders: [
-          { origin: 'brave', search: firstSearch },
-          { origin: 'brave', search: secondSearch },
-        ],
-        fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
+        acquireImage,
+        searchProviders: braveProviders(
+          searchByQuery({ 'second subject': [alreadyOwned, fresh] }),
+        ),
+        fingerprintImage: vi.fn().mockResolvedValue('ffffffffffffffff'),
       },
     });
 
-    expect(secondSearch).not.toHaveBeenCalled();
-    expect(result.assets[0]).toMatchObject({
-      provider: 'brave',
-      license: 'unknown',
-      photographer: 'Jane Doe',
-      photographerUrl: 'https://www.example.test/@jane-doe/',
-    });
-  });
-
-  it('falls through to the next provider when one errors', async () => {
-    const failingSearch = vi
-      .fn()
-      .mockRejectedValue(new Error('Brave Images search failed: 429'));
-    const braveCandidate = {
-      ...candidate('fallback', 'brave'),
-      altText: 'first subject',
-    };
-    const braveSearch = vi.fn().mockResolvedValue([braveCandidate]);
-
-    const result = await planVisualAssets({
-      scenes: scenes.slice(0, 1),
-      workingDirectory: '/work/visual-assets',
-      dependencies: {
-        acquireImage: vi.fn().mockResolvedValue(acquired('fallback')),
-        searchProviders: [
-          { origin: 'brave', search: failingSearch },
-          { origin: 'brave', search: braveSearch },
-        ],
-        fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
-      },
-    });
-
-    expect(failingSearch).toHaveBeenCalledOnce();
-    expect(result.assets[0]?.provider).toBe('brave');
-    expect(result.assets[0]?.license).toBe('unknown');
+    // A checkpoint that already holds `image-03` must mint `image-04`, and the
+    // image it already downloaded must be recognised rather than fetched again.
+    expect(acquireImage.mock.calls.map(([url]) => url)).toEqual([
+      fresh.imageUrl,
+    ]);
+    expect(result.scenes).toEqual([
+      { sceneId: 'scene-01', assetId: 'image-03' },
+      { sceneId: 'scene-02', assetId: 'image-04' },
+    ]);
   });
 
   it('fails explicitly instead of producing an asset-none or text fallback', async () => {
@@ -1271,6 +1278,28 @@ describe('planVisualAssets', () => {
         },
       }),
     ).rejects.toThrow('Visual scene scene-01 has no usable image');
+  });
+});
+
+describe('mentionsAnyEntity', () => {
+  it('requires both token boundaries so a short name cannot match a longer word', () => {
+    const suit = {
+      ...candidate('business-attire', 'brave'),
+      altText: 'man in a business suit walking',
+    };
+
+    // A left-only anchor handed this candidate the full mention bonus, and the
+    // demoted aliases that reach ranking are exactly the short names -- Sui,
+    // a16z -- that a prefix match cannot tell from an unrelated longer word.
+    expect(mentionsAnyEntity(suit, ['Sui'])).toBe(false);
+    expect(
+      mentionsAnyEntity(
+        { ...suit, altText: 'Sui validator hardware in a data centre' },
+        ['Sui'],
+      ),
+    ).toBe(true);
+    // A scene that names nothing has no identity to check.
+    expect(mentionsAnyEntity(suit, [])).toBe(true);
   });
 });
 

@@ -3,6 +3,10 @@ import { createHash } from 'node:crypto';
 
 import { z } from 'zod';
 
+import {
+  type VisualImageSearch,
+  visualImageSearchSchema,
+} from './image-search-trace.js';
 import type { StoryboardDraft } from './storyboard/draft.js';
 import type { StoryboardGenerationResult } from './storyboard/orchestrator.js';
 import {
@@ -57,10 +61,19 @@ const visualAssetMetadataSchema = z
     r2Url: z.string().url(),
     originalImageUrl: z.string().url(),
     sourcePageUrl: z.string().url(),
-    // `bing` is retired as a source but stays readable: payloads written before
-    // the Brave migration are still parsed when their episode is re-rendered.
-    provider: z.enum(['article', 'brand', 'brave', 'bing', 'generated-slide']),
-    license: z.enum(['brand-generated', 'unknown']),
+    // `bing`, `pexels` and `pixabay` are retired as sources but stay readable:
+    // payloads written before those providers were dropped are still parsed
+    // when their episode is re-rendered. Fresh payloads never write them.
+    provider: z.enum([
+      'article',
+      'brand',
+      'pexels',
+      'pixabay',
+      'brave',
+      'bing',
+      'generated-slide',
+    ]),
+    license: z.enum(['brand-generated', 'unknown', 'pexels', 'pixabay']),
     photographer: z.string().min(1).optional(),
     photographerUrl: z.string().url().optional(),
     contentType: z.enum([
@@ -74,10 +87,13 @@ const visualAssetMetadataSchema = z
   })
   .strict();
 
-export const visualSearchTraceEntrySchema = z
+/** Read-only shape of the per-provider trace that v9 payloads stored before
+ * `provenance.imageSearch` replaced it. `provider` is an open string because
+ * the providers it names are retired. */
+const visualSearchTraceEntrySchema = z
   .object({
     sceneId: z.string().regex(/^scene-\d{2}$/),
-    provider: z.literal('brave'),
+    provider: z.string().min(1).max(40),
     intent: z.string().min(1).max(200),
     subjectKey: z.string().min(1).max(320).nullable(),
     returned: z.number().int().nonnegative(),
@@ -86,10 +102,6 @@ export const visualSearchTraceEntrySchema = z
     rejected: z.number().int().nonnegative(),
   })
   .strict();
-
-export type VisualSearchTraceEntry = z.infer<
-  typeof visualSearchTraceEntrySchema
->;
 
 export const episodeVisualPayloadSchema = z
   .object({
@@ -116,13 +128,21 @@ export const episodeVisualPayloadSchema = z
         // Null means every scene kept its deterministic search intent, so a
         // payload can never imply a model that shaped nothing.
         searchIntentModel: z.string().min(1).nullable(),
+        // Absent on an episode whose scenes simply named nobody. Present only
+        // when the catalog answer itself degraded, which is otherwise
+        // indistinguishable in a completed payload. Optional keeps stored
+        // v1-v9 payloads parseable.
+        subjectCatalogFailure: z.string().min(1).max(400).optional(),
         // v9 audit fields are optional so stored v1-v8 payloads remain readable.
         searchTitleSource: z
           .enum(['publisher', 'english-localization', 'none'])
           .optional(),
         articleImageCandidateCount: z.number().int().nonnegative().optional(),
         articleImageAssetCount: z.number().int().nonnegative().optional(),
+        // Nothing writes `searchTrace` any more; it stays parseable for stored
+        // payloads, and `imageSearch` is what a fresh plan records instead.
         searchTrace: z.array(visualSearchTraceEntrySchema).max(256).optional(),
+        imageSearch: visualImageSearchSchema.optional(),
         sceneSentences: z
           .array(
             z
@@ -275,6 +295,7 @@ export function buildEpisodeVisualPayload(input: {
   manifestUrl: string;
   storyboard: StoryboardGenerationResult;
   searchIntentModel: string | null;
+  subjectCatalogFailure?: string;
   selectedScenes: readonly PlannedVisualScene[];
   assets: readonly PlannedVisualImage[];
   r2ImageUrls: Readonly<Record<string, string>>;
@@ -282,7 +303,7 @@ export function buildEpisodeVisualPayload(input: {
   sceneAssignments?: readonly VisualSceneSubjectAssignment[];
   searchTitleSource?: 'publisher' | 'english-localization' | 'none';
   articleImageCandidateCount?: number;
-  searchTrace?: readonly VisualSearchTraceEntry[];
+  imageSearch?: VisualImageSearch;
   sceneSentences?: readonly { sceneId: string; text: string }[];
 }): EpisodeVisualPayload {
   const assetById = new Map(
@@ -382,6 +403,9 @@ export function buildEpisodeVisualPayload(input: {
       storyboardPromptVersion: EPISODE_VISUAL_STORYBOARD_PROMPT_VERSION,
       usedFallback: input.storyboard.usedFallback,
       searchIntentModel: input.searchIntentModel,
+      ...(input.subjectCatalogFailure
+        ? { subjectCatalogFailure: input.subjectCatalogFailure }
+        : {}),
       ...(input.searchTitleSource
         ? { searchTitleSource: input.searchTitleSource }
         : {}),
@@ -389,7 +413,7 @@ export function buildEpisodeVisualPayload(input: {
         ? { articleImageCandidateCount: input.articleImageCandidateCount }
         : {}),
       articleImageAssetCount,
-      ...(input.searchTrace ? { searchTrace: [...input.searchTrace] } : {}),
+      ...(input.imageSearch ? { imageSearch: input.imageSearch } : {}),
       ...(input.sceneSentences
         ? { sceneSentences: [...input.sceneSentences] }
         : {}),

@@ -235,8 +235,8 @@ describe('renderSlideVideo', () => {
     const manifest = createManifest();
     const source = manifest.slides[0]!.sources[0]!;
     source.url = null;
-    source.license = 'cc-by-4.0';
-    source.licenseUrl = 'https://creativecommons.org/licenses/by/4.0/';
+    source.license = 'unknown';
+    source.licenseUrl = 'https://publisher.example.test/terms';
     await writeFile(manifestPath, JSON.stringify(manifest), 'utf8');
 
     const result = await renderSlideVideo({
@@ -261,7 +261,7 @@ describe('renderSlideVideo', () => {
     const sources = await readFile(result.sourcesPath, 'utf8');
     expect(sources).toContain(`- ${source.label}`);
     expect(sources).toContain(
-      'License: [cc-by-4.0](https://creativecommons.org/licenses/by/4.0/)',
+      'License: [unknown](https://publisher.example.test/terms)',
     );
   });
 

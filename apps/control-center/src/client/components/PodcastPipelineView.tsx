@@ -7,7 +7,11 @@ import type {
   PodcastPipelineResponse,
   PodcastPipelineRestartAction,
   PodcastPipelineStatus,
+  PodcastPipelineVisualBudget,
   PodcastPipelineVisualDebug,
+  PodcastPipelineVisualSceneSelection,
+  PodcastPipelineVisualSearchAttempt,
+  PodcastPipelineVisualSubjectSearch,
 } from '../../shared/podcast-pipeline.js';
 import type {
   PodcastVisualDebugResponse,
@@ -322,7 +326,10 @@ function VisualSearchPlan(props: { debug: PodcastPipelineVisualDebug }) {
     ...new Set(debug.actualSearches.map(({ query }) => query)),
   ];
   const plannedKeywords = [
-    ...new Set(debug.plannedQueries.flatMap(({ queries }) => queries)),
+    ...new Set([
+      ...debug.plannedSubjectSearches.map(({ query }) => query),
+      ...debug.plannedQueries.flatMap(({ queries }) => queries),
+    ]),
   ];
   const displayedKeywords =
     actualKeywords.length > 0 ? actualKeywords : plannedKeywords;
@@ -354,22 +361,72 @@ function VisualSearchPlan(props: { debug: PodcastPipelineVisualDebug }) {
               ? debug.subjects.map(({ name }) => name).join(' · ')
               : 'No subject catalog recorded'}
           </small>
+          {debug.subjectCatalogFailure ? (
+            <small className="warning-text">
+              catalog degraded: {compactError(debug.subjectCatalogFailure)}
+            </small>
+          ) : null}
         </div>
+        {debug.budget ? (
+          <div className="pipeline-language">
+            <strong>Request budget</strong>
+            <span>{budgetLine(debug.budget, debug.actualSearches)}</span>
+            {debug.budget.exhausted ? (
+              <small className="warning-text">
+                Scenes after the last request fell back to the episode pool
+              </small>
+            ) : null}
+          </div>
+        ) : null}
+        <SubjectSearchList
+          label="Subject searches spent"
+          searches={debug.primarySubjects}
+        />
+        <SubjectSearchList
+          label="Subject searches planned"
+          searches={debug.plannedSubjectSearches}
+        />
         {debug.actualSearches.map((search, index) => (
           <div
             className="pipeline-language"
-            key={`${search.sceneId}-${search.provider}-${index}`}
+            key={`request-${search.sceneId ?? search.subjectLabel ?? ''}-${index}`}
           >
-            <strong>
-              {search.sceneId} · {search.provider}
-            </strong>
+            <strong>{requestTitle(search)}</strong>
             <span>{search.query}</span>
             <small>
-              returned {search.returned} · accepted {search.accepted} · entity
-              filtered {search.entityFiltered} · rejected {search.rejected}
+              returned {search.returned} · viable {search.viable}
+              {search.drops.length > 0 ? ` · drops ${dropLine(search)}` : ''}
             </small>
+            {search.error ? (
+              <small className="warning-text">
+                {compactError(search.error)}
+              </small>
+            ) : null}
           </div>
         ))}
+        {debug.sceneSelections.map((scene) => (
+          <div className="pipeline-language" key={`selection-${scene.sceneId}`}>
+            <strong>
+              {scene.sceneId} · {scene.selection}
+            </strong>
+            <span>{selectionSourceLine(scene)}</span>
+            {scene.fallbackReason ? (
+              <small className="warning-text">
+                fallback: {scene.fallbackReason}
+              </small>
+            ) : null}
+          </div>
+        ))}
+        {debug.reuse.length > 0 ? (
+          <div className="pipeline-language">
+            <strong>Image reuse</strong>
+            {debug.reuse.map(({ assetId, useCount }) => (
+              <small key={assetId}>
+                {assetId} · {useCount} scenes
+              </small>
+            ))}
+          </div>
+        ) : null}
         {debug.plannedQueries.map((scene) => (
           <div className="pipeline-language" key={`planned-${scene.sceneId}`}>
             <strong>{scene.sceneId} · planned</strong>
@@ -385,6 +442,69 @@ function VisualSearchPlan(props: { debug: PodcastPipelineVisualDebug }) {
       </div>
     </details>
   );
+}
+
+function SubjectSearchList(props: {
+  label: string;
+  searches: PodcastPipelineVisualSubjectSearch[];
+}) {
+  if (props.searches.length === 0) {
+    return null;
+  }
+  return (
+    <div className="pipeline-language">
+      <strong>{props.label}</strong>
+      {props.searches.map(({ label, query }) => (
+        <small key={`${label}-${query}`}>
+          {label} · “{query}”
+        </small>
+      ))}
+    </div>
+  );
+}
+
+/** The episode's whole image supply is bounded by this line, so a repetitive or
+ * off-topic video is read here first: a starved budget and a bad search look
+ * identical in the finished video. */
+function budgetLine(
+  budget: PodcastPipelineVisualBudget,
+  searches: PodcastPipelineVisualSearchAttempt[],
+): string {
+  const spent = (kind: PodcastPipelineVisualSearchAttempt['kind']): number =>
+    searches.filter((search) => search.kind === kind).length;
+  const parts = [
+    `requests ${budget.requestCount}/${budget.max}`,
+    `primary ${spent('primary')}/${budget.primary}`,
+    `targeted ${spent('targeted')}/${budget.targeted}`,
+  ];
+  if (budget.exhausted) {
+    parts.push('exhausted');
+  }
+  return parts.join(' · ');
+}
+
+function requestTitle(search: PodcastPipelineVisualSearchAttempt): string {
+  return [
+    search.subjectLabel ?? search.sceneId ?? 'search',
+    search.kind ?? search.provider,
+  ].join(' · ');
+}
+
+function dropLine(search: PodcastPipelineVisualSearchAttempt): string {
+  return search.drops
+    .map(({ reason, count }) => `${reason} ${count}`)
+    .join(', ');
+}
+
+function selectionSourceLine(
+  scene: PodcastPipelineVisualSceneSelection,
+): string {
+  const rank = scene.providerRank !== null ? ` (#${scene.providerRank})` : '';
+  const parts = [
+    scene.matchedSubjectKey,
+    scene.sourceQuery ? `from “${scene.sourceQuery}”${rank}` : null,
+  ].filter((part): part is string => Boolean(part));
+  return parts.length > 0 ? parts.join(' · ') : 'no search result behind it';
 }
 
 function RestartButton(props: {
