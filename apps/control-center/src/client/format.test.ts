@@ -66,6 +66,13 @@ describe('client formatters', () => {
     expect(relativeTime('2026-08-26T12:00:00.000Z')).not.toContain('ago');
   });
 
+  it('keeps future timestamps from masquerading as just now', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-28T12:00:00.000Z'));
+    expect(relativeTime('2026-08-28T12:40:00.000Z')).toBe('in 40 min');
+    expect(relativeTime('2026-08-30T12:00:00.000Z')).not.toBe('just now');
+  });
+
   it('keeps malformed timestamps visible as unknown', () => {
     expect(relativeTime('not-a-timestamp')).toBe('Unknown');
   });
