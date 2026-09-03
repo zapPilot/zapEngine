@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  isGroundedSearchIntent,
   normalizeNumericToken,
   storyboardSceneCountRange,
   validateStoryboardDraft,
@@ -58,14 +57,6 @@ describe('numeric grounding', () => {
   it('normalizes currencies, separators, percentages, whitespace, and leading zeroes', () => {
     expect(normalizeNumericToken(' ¥ 001,200％ ')).toBe('1200');
     expect(normalizeNumericToken('0')).toBe('0');
-  });
-
-  it('accepts grounded numeric intents and rejects replacement/control characters and invented numbers', () => {
-    expect(isGroundedSearchIntent('Revenue $1,200 in 2025', script)).toBe(true);
-    expect(isGroundedSearchIntent('Revenue 9999', script)).toBe(false);
-    expect(isGroundedSearchIntent('bad\uFFFD intent', script)).toBe(false);
-    expect(isGroundedSearchIntent('bad\u0001 intent', script)).toBe(false);
-    expect(isGroundedSearchIntent('line\nfeed 2025', script)).toBe(true);
   });
 });
 

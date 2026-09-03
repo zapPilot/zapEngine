@@ -44,24 +44,24 @@ describe('OpenRouter search-intent provider', () => {
           finish_reason: 'stop',
           message: {
             content:
-              '{"scenes":[{"sceneId":"scene-01","imageSearchIntent":["Federal Reserve building Washington"],"entities":["Federal Reserve"]}]}',
+              '{"primarySubjectId":"subject-federal-reserve","subjects":[{"id":"subject-federal-reserve","canonicalName":"Federal Reserve","type":"regulator","aliases":["Fed"],"storyRole":"primary","evidenceSceneIds":["scene-01"],"searchQueries":["Federal Reserve building Washington"],"identityHints":["central bank"],"negativeHints":[],"officialDomains":[]}]}',
           },
         },
       ],
     });
 
     const provider = createOpenRouterSearchIntentProvider();
-    await provider.suggest(REQUEST);
+    await provider.catalog(REQUEST);
 
     expect(llmMocks.createCompletionWithRetry).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
         model: MODEL,
         response_format: { type: 'json_object' },
-        max_tokens: 2_048,
+        max_tokens: 3_072,
       }),
       null,
-      'suggestSearchIntents',
+      'buildVisualSubjectCatalog',
       { reasoning: { enabled: false } },
     );
   });
@@ -83,7 +83,7 @@ describe('OpenRouter search-intent provider', () => {
 
     const provider = createOpenRouterSearchIntentProvider();
 
-    await expect(provider.suggest(REQUEST)).rejects.toThrow(
+    await expect(provider.catalog(REQUEST)).rejects.toThrow(
       `Search intents returned empty content (provider=Wafer, model=${MODEL}, finishReason=length, reasoningChars=6)`,
     );
   });
