@@ -386,6 +386,7 @@ function visualSearchDebug(
   if (!payload) {
     return null;
   }
+  const provenance = record(payload['provenance']);
   const catalog = record(payload['subjectCatalog']);
   const subjects = records(catalog?.['subjects']).flatMap((subject) => {
     const id = subject['id'];
@@ -403,10 +404,10 @@ function visualSearchDebug(
 
   // One column carries two payload shapes over a job's life. While the job
   // runs, `saveEpisodeVideoVisualDebug` writes the transient
-  // `visual-search-debug-v1` checkpoint: top-level `plannedQueries` and
-  // `searchTrace`. Completion overwrites it with `episodeVisualPayloadSchema`,
-  // where the trace moved to `provenance.searchTrace` and the per-scene
-  // queries survive only as `visualPlan.scenes[].imageSearchIntent`.
+  // `visual-search-debug-v1` checkpoint: top-level `plannedQueries`,
+  // `plannedSubjectSearches` and `imageSearch`. Completion overwrites it with
+  // `episodeVisualPayloadSchema`, where the trace moved under `provenance` and
+  // the per-scene queries survive only as `visualPlan.scenes[].imageSearchIntent`.
   const debugQueries = parsePlannedQueries(payload['plannedQueries']);
   // The transient rows win: they also carry the subject ids and the assignment
   // reason, which the completed payload's scenes no longer hold.
@@ -414,13 +415,39 @@ function visualSearchDebug(
     debugQueries.length > 0
       ? debugQueries
       : parseSceneSearchIntents(record(payload['visualPlan'])?.['scenes']);
-  const actualSearches = parseActualSearches(
-    payload['searchTrace'] ?? record(payload['provenance'])?.['searchTrace'],
+  const imageSearch = record(
+    payload['imageSearch'] ?? provenance?.['imageSearch'],
+  );
+  const episodeRequests = parseImageSearchRequests(imageSearch?.['requests']);
+  // Pre-episode-pool payloads only ever recorded per-scene provider attempts.
+  const actualSearches =
+    episodeRequests.length > 0
+      ? episodeRequests
+      : parseActualSearches(
+          payload['searchTrace'] ?? provenance?.['searchTrace'],
+        );
+  const budget = parseSearchBudget(imageSearch);
+  const primarySubjects = parseSubjectSearches(
+    imageSearch?.['primarySubjects'],
+  );
+  const plannedSubjectSearches = parseSubjectSearches(
+    payload['plannedSubjectSearches'],
+  );
+  const sceneSelections = parseSceneSelections(imageSearch?.['scenes']);
+  const reuse = parseImageReuse(payload);
+  const subjectCatalogFailure = textOrNull(
+    payload['subjectCatalogFailure'] ?? provenance?.['subjectCatalogFailure'],
   );
   if (
     subjects.length === 0 &&
     plannedQueries.length === 0 &&
-    actualSearches.length === 0
+    actualSearches.length === 0 &&
+    primarySubjects.length === 0 &&
+    plannedSubjectSearches.length === 0 &&
+    sceneSelections.length === 0 &&
+    reuse.length === 0 &&
+    budget === null &&
+    subjectCatalogFailure === null
   ) {
     return null;
   }
@@ -429,8 +456,14 @@ function visualSearchDebug(
     phase: typeof payload['phase'] === 'string' ? payload['phase'] : null,
     primarySubject,
     subjects,
+    subjectCatalogFailure,
+    budget,
+    primarySubjects,
+    plannedSubjectSearches,
     plannedQueries,
     actualSearches,
+    sceneSelections,
+    reuse,
   };
 }
 
@@ -487,31 +520,163 @@ function isBrandVisualIntent(query: string): boolean {
   return query.startsWith('brand:');
 }
 
+/**
+ * Reads the episode-wide Brave requests. These deliberately do not go through
+ * `mapSceneRows`: a primary request builds the pool before any scene owns an
+ * image and therefore carries no `sceneId`, so scene-keyed parsing would drop
+ * every one of them.
+ */
+function parseImageSearchRequests(
+  value: unknown,
+): PodcastPipelineVisualDebug['actualSearches'] {
+  return records(value).flatMap((row) => {
+    const query = row['query'];
+    if (typeof query !== 'string') {
+      return [];
+    }
+    const kind = row['kind'];
+    return [
+      {
+        sceneId: typeof row['sceneId'] === 'string' ? row['sceneId'] : null,
+        provider: 'brave',
+        kind: kind === 'primary' || kind === 'targeted' ? kind : null,
+        subjectLabel: textOrNull(row['subjectLabel'] ?? row['subjectKey']),
+        query,
+        returned: numericCount(row['returned']),
+        viable: numericCount(row['viable']),
+        drops: records(row['drops']).flatMap((drop) => {
+          const reason = drop['reason'];
+          return typeof reason === 'string'
+            ? [{ reason, count: numericCount(drop['count']) }]
+            : [];
+        }),
+        error: textOrNull(row['error']),
+      },
+    ];
+  });
+}
+
+function parseSearchBudget(
+  imageSearch: Record<string, unknown> | null,
+): PodcastPipelineVisualDebug['budget'] {
+  if (!imageSearch) {
+    return null;
+  }
+  const budget = record(imageSearch['budget']);
+  return {
+    requestCount: numericCount(imageSearch['requestCount']),
+    max: numericCount(budget?.['max']),
+    primary: numericCount(budget?.['primary']),
+    targeted: numericCount(budget?.['targeted']),
+    exhausted: imageSearch['budgetExhausted'] === true,
+  };
+}
+
+function parseSubjectSearches(
+  value: unknown,
+): PodcastPipelineVisualDebug['primarySubjects'] {
+  return records(value).flatMap((row) => {
+    const query = row['query'];
+    const label = textOrNull(
+      row['subjectLabel'] ?? row['label'] ?? row['subjectKey'],
+    );
+    return typeof query === 'string' ? [{ label: label ?? query, query }] : [];
+  });
+}
+
+function parseSceneSelections(
+  value: unknown,
+): PodcastPipelineVisualDebug['sceneSelections'] {
+  return mapSceneRows(value, (row, sceneId) => {
+    const selection = row['selection'];
+    if (typeof selection !== 'string') {
+      return null;
+    }
+    return {
+      sceneId,
+      selection,
+      fallbackReason: textOrNull(row['fallbackReason']),
+      matchedSubjectKey: textOrNull(row['matchedSubjectKey']),
+      sourceQuery: textOrNull(row['sourceQuery']),
+      providerRank:
+        typeof row['providerRank'] === 'number' &&
+        Number.isFinite(row['providerRank'])
+          ? row['providerRank']
+          : null,
+    };
+  });
+}
+
+/**
+ * How many scenes share one image. Scenes take turns over the episode pool now,
+ * so a repeated asset is expected; the count is what says whether the pool was
+ * wide enough to be worth rotating.
+ */
+function parseImageReuse(
+  payload: Record<string, unknown>,
+): PodcastPipelineVisualDebug['reuse'] {
+  const assetIdByUrl = new Map<string, string>();
+  for (const asset of records(payload['assets'])) {
+    const url = asset['r2Url'];
+    const assetId = asset['assetId'];
+    if (typeof url === 'string' && typeof assetId === 'string') {
+      assetIdByUrl.set(url, assetId);
+    }
+  }
+  const useCounts = new Map<string, number>();
+  for (const scene of records(record(payload['visualPlan'])?.['scenes'])) {
+    const url = record(scene['asset'])?.['url'];
+    const assetId = typeof url === 'string' ? assetIdByUrl.get(url) : undefined;
+    if (assetId) {
+      useCounts.set(assetId, (useCounts.get(assetId) ?? 0) + 1);
+    }
+  }
+  return [...useCounts.entries()]
+    .filter(([, useCount]) => useCount > 1)
+    .map(([assetId, useCount]) => ({ assetId, useCount }))
+    .sort(
+      (left, right) =>
+        right.useCount - left.useCount ||
+        left.assetId.localeCompare(right.assetId),
+    );
+}
+
 function parseActualSearches(
   value: unknown,
 ): PodcastPipelineVisualDebug['actualSearches'] {
   return mapSceneRows(value, (row, sceneId) => {
     const provider = row['provider'];
     const query = row['intent'];
-    if (!isImageSearchProvider(provider) || typeof query !== 'string') {
+    if (typeof provider !== 'string' || typeof query !== 'string') {
       return null;
     }
     return {
       sceneId,
       provider,
+      kind: null,
+      subjectLabel: textOrNull(row['subjectKey']),
       query,
       returned: numericCount(row['returned']),
-      accepted: numericCount(row['accepted']),
-      entityFiltered: numericCount(row['entityFiltered']),
-      rejected: numericCount(row['rejected']),
+      viable: numericCount(row['accepted']),
+      drops: legacyDrops(row),
+      error: null,
     };
   });
 }
 
-function isImageSearchProvider(
-  value: unknown,
-): value is 'pexels' | 'pixabay' | 'brave' {
-  return value === 'pexels' || value === 'pixabay' || value === 'brave';
+/** The per-scene trace counted its two removal buckets in dedicated columns,
+ * before drops were recorded by reason. */
+function legacyDrops(
+  row: Record<string, unknown>,
+): PodcastPipelineVisualDebug['actualSearches'][number]['drops'] {
+  return [
+    { reason: 'entity-filtered', count: numericCount(row['entityFiltered']) },
+    { reason: 'rejected', count: numericCount(row['rejected']) },
+  ].filter(({ count }) => count > 0);
+}
+
+function textOrNull(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value : null;
 }
 
 function numericCount(value: unknown): number {

@@ -279,6 +279,8 @@ export function summarizeVisualPlan(
     traceByScene.set(sceneId, list);
   }
 
+  const selectionByScene = sceneSelectionsFrom(payload, provenance);
+
   const assets = records(payload['assets']);
   const assetByUrl = new Map(
     assets.flatMap((row) => {
@@ -298,6 +300,7 @@ export function summarizeVisualPlan(
     const asset = r2Url ? assetByUrl.get(r2Url) : undefined;
     const assetId = stringValue(asset?.['assetId']);
     const slide = record(asset?.['slide']);
+    const selection = selectionByScene.get(sceneId);
     return [
       {
         sceneId,
@@ -319,9 +322,57 @@ export function summarizeVisualPlan(
             }
           : null,
         trace: traceByScene.get(sceneId) ?? [],
+        ...(selection ? { selection } : {}),
       },
     ];
   });
+}
+
+/**
+ * The episode-wide Brave trace records each scene's outcome by subject key,
+ * while the panel reads subject labels, so the scene rows are joined against
+ * the requests that spent the budget.
+ */
+function sceneSelectionsFrom(
+  payload: Record<string, unknown>,
+  provenance: Record<string, unknown> | null,
+): Map<string, NonNullable<PodcastVisualSceneDebug['selection']>> {
+  const imageSearch = record(
+    payload['imageSearch'] ?? provenance?.['imageSearch'],
+  );
+  const labelBySubjectKey = new Map<string, string>();
+  for (const row of [
+    ...records(imageSearch?.['primarySubjects']),
+    ...records(imageSearch?.['requests']),
+  ]) {
+    const subjectKey = stringValue(row['subjectKey']);
+    const label = stringValue(row['subjectLabel']);
+    if (subjectKey && label) {
+      labelBySubjectKey.set(subjectKey, label);
+    }
+  }
+  const selections = new Map<
+    string,
+    NonNullable<PodcastVisualSceneDebug['selection']>
+  >();
+  for (const row of records(imageSearch?.['scenes'])) {
+    const sceneId = stringValue(row['sceneId']);
+    const selection = stringValue(row['selection']);
+    if (!sceneId || !selection) {
+      continue;
+    }
+    const matchedSubjectKey = stringValue(row['matchedSubjectKey']);
+    selections.set(sceneId, {
+      selection,
+      matchedSubject: matchedSubjectKey
+        ? (labelBySubjectKey.get(matchedSubjectKey) ?? matchedSubjectKey)
+        : null,
+      sourceQuery: stringValue(row['sourceQuery']),
+      providerRank: nullableNumber(row['providerRank']),
+      fallbackReason: stringValue(row['fallbackReason']),
+    });
+  }
+  return selections;
 }
 
 export function summarizeVisualFailure(

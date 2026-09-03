@@ -3,6 +3,10 @@ import { createHash } from 'node:crypto';
 
 import { z } from 'zod';
 
+import {
+  type VisualImageSearch,
+  visualImageSearchSchema,
+} from './image-search-trace.js';
 import type { StoryboardDraft } from './storyboard/draft.js';
 import type { StoryboardGenerationResult } from './storyboard/orchestrator.js';
 import {
@@ -57,8 +61,9 @@ const visualAssetMetadataSchema = z
     r2Url: z.string().url(),
     originalImageUrl: z.string().url(),
     sourcePageUrl: z.string().url(),
-    // `bing` is retired as a source but stays readable: payloads written before
-    // the Brave migration are still parsed when their episode is re-rendered.
+    // `bing`, `pexels` and `pixabay` are retired as sources but stay readable:
+    // payloads written before those providers were dropped are still parsed
+    // when their episode is re-rendered. Fresh payloads never write them.
     provider: z.enum([
       'article',
       'brand',
@@ -82,10 +87,13 @@ const visualAssetMetadataSchema = z
   })
   .strict();
 
-export const visualSearchTraceEntrySchema = z
+/** Read-only shape of the per-provider trace that v9 payloads stored before
+ * `provenance.imageSearch` replaced it. `provider` is an open string because
+ * the providers it names are retired. */
+const visualSearchTraceEntrySchema = z
   .object({
     sceneId: z.string().regex(/^scene-\d{2}$/),
-    provider: z.enum(['pexels', 'pixabay', 'brave']),
+    provider: z.string().min(1).max(40),
     intent: z.string().min(1).max(200),
     subjectKey: z.string().min(1).max(320).nullable(),
     returned: z.number().int().nonnegative(),
@@ -94,10 +102,6 @@ export const visualSearchTraceEntrySchema = z
     rejected: z.number().int().nonnegative(),
   })
   .strict();
-
-export type VisualSearchTraceEntry = z.infer<
-  typeof visualSearchTraceEntrySchema
->;
 
 export const episodeVisualPayloadSchema = z
   .object({
@@ -124,13 +128,21 @@ export const episodeVisualPayloadSchema = z
         // Null means every scene kept its deterministic search intent, so a
         // payload can never imply a model that shaped nothing.
         searchIntentModel: z.string().min(1).nullable(),
+        // Absent on an episode whose scenes simply named nobody. Present only
+        // when the catalog answer itself degraded, which is otherwise
+        // indistinguishable in a completed payload. Optional keeps stored
+        // v1-v9 payloads parseable.
+        subjectCatalogFailure: z.string().min(1).max(400).optional(),
         // v9 audit fields are optional so stored v1-v8 payloads remain readable.
         searchTitleSource: z
           .enum(['publisher', 'english-localization', 'none'])
           .optional(),
         articleImageCandidateCount: z.number().int().nonnegative().optional(),
         articleImageAssetCount: z.number().int().nonnegative().optional(),
+        // Nothing writes `searchTrace` any more; it stays parseable for stored
+        // payloads, and `imageSearch` is what a fresh plan records instead.
         searchTrace: z.array(visualSearchTraceEntrySchema).max(256).optional(),
+        imageSearch: visualImageSearchSchema.optional(),
         sceneSentences: z
           .array(
             z
@@ -283,6 +295,7 @@ export function buildEpisodeVisualPayload(input: {
   manifestUrl: string;
   storyboard: StoryboardGenerationResult;
   searchIntentModel: string | null;
+  subjectCatalogFailure?: string;
   selectedScenes: readonly PlannedVisualScene[];
   assets: readonly PlannedVisualImage[];
   r2ImageUrls: Readonly<Record<string, string>>;
@@ -290,7 +303,7 @@ export function buildEpisodeVisualPayload(input: {
   sceneAssignments?: readonly VisualSceneSubjectAssignment[];
   searchTitleSource?: 'publisher' | 'english-localization' | 'none';
   articleImageCandidateCount?: number;
-  searchTrace?: readonly VisualSearchTraceEntry[];
+  imageSearch?: VisualImageSearch;
   sceneSentences?: readonly { sceneId: string; text: string }[];
 }): EpisodeVisualPayload {
   const assetById = new Map(
@@ -324,7 +337,7 @@ export function buildEpisodeVisualPayload(input: {
             url: asset.sourcePageUrl,
             attribution: assetAttribution(asset),
             license: asset.license,
-            licenseUrl: STOCK_LICENSE_URLS[asset.license] ?? null,
+            licenseUrl: null,
           },
         ],
         asset: {
@@ -390,6 +403,9 @@ export function buildEpisodeVisualPayload(input: {
       storyboardPromptVersion: EPISODE_VISUAL_STORYBOARD_PROMPT_VERSION,
       usedFallback: input.storyboard.usedFallback,
       searchIntentModel: input.searchIntentModel,
+      ...(input.subjectCatalogFailure
+        ? { subjectCatalogFailure: input.subjectCatalogFailure }
+        : {}),
       ...(input.searchTitleSource
         ? { searchTitleSource: input.searchTitleSource }
         : {}),
@@ -397,7 +413,7 @@ export function buildEpisodeVisualPayload(input: {
         ? { articleImageCandidateCount: input.articleImageCandidateCount }
         : {}),
       articleImageAssetCount,
-      ...(input.searchTrace ? { searchTrace: [...input.searchTrace] } : {}),
+      ...(input.imageSearch ? { imageSearch: input.imageSearch } : {}),
       ...(input.sceneSentences
         ? { sceneSentences: [...input.sceneSentences] }
         : {}),
@@ -430,30 +446,10 @@ function presentationForAsset(asset: PlannedVisualImage): {
   return { layout: 'fullBleed', motion: 'pushIn' };
 }
 
-const STOCK_LICENSE_URLS: Partial<
-  Record<PlannedVisualImage['license'], string>
-> = {
-  pexels: 'https://www.pexels.com/license/',
-  pixabay: 'https://pixabay.com/service/license-summary/',
-};
-
-const STOCK_PROVIDER_LABELS: Partial<
-  Record<PlannedVisualImage['provider'], string>
-> = {
-  pexels: 'Pexels',
-  pixabay: 'Pixabay',
-};
-
 function assetAttribution(asset: PlannedVisualImage): string {
   if (asset.provider === 'brand') return 'Zap Pilot';
   if (asset.provider === 'generated-slide') {
     return 'Zap Pilot · generated concept card';
-  }
-  const providerLabel = STOCK_PROVIDER_LABELS[asset.provider];
-  if (providerLabel) {
-    return asset.photographer
-      ? `Photo by ${asset.photographer} · ${providerLabel}`
-      : `Photo · ${providerLabel}`;
   }
   return `Image source · ${sourceLabel(asset.sourcePageUrl)}`;
 }

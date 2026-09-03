@@ -39,6 +39,15 @@ export interface PodcastVisualSceneDebug {
     entityFiltered: number;
     rejected: number;
   }[];
+  /** How this scene ended up with its image, from `imageSearch.scenes[]`.
+   * Absent on payloads written before the episode-wide search trace existed. */
+  selection?: {
+    selection: string;
+    matchedSubject: string | null;
+    sourceQuery: string | null;
+    providerRank: number | null;
+    fallbackReason: string | null;
+  };
 }
 
 export interface PodcastVisualFailureDebug {

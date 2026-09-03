@@ -23,6 +23,10 @@ function candidate(
   };
 }
 
+function braveCandidate(id: string, altText: string): ImageCandidate {
+  return { ...candidate(id, 'brave'), altText };
+}
+
 function acquired(id: string): AcquiredRemoteImage {
   return {
     path: `/work/${id}.jpg`,
@@ -33,10 +37,38 @@ function acquired(id: string): AcquiredRemoteImage {
   };
 }
 
+/** One search per subject means the pool decides the download order, so a
+ * fixture keyed by call index would no longer describe anything. */
+function acquireByUrl(url: string): Promise<AcquiredRemoteImage> {
+  const filename = new URL(url).pathname.split('/').at(-1) ?? '';
+  return Promise.resolve(acquired(filename.replace('.jpg', '')));
+}
+
+const HASH_NIBBLES = '0123456789abcdef';
+
+/** A stable, far-apart perceptual hash per downloaded path. Two different
+ * nibbles differ in every one of the sixteen positions, so no pair of these
+ * falls inside the planner's duplicate-image distance. */
+function distinctFingerprints(): (path: string) => Promise<string> {
+  const assigned = new Map<string, string>();
+  return (path: string) => {
+    const existing = assigned.get(path);
+    if (existing !== undefined) return Promise.resolve(existing);
+    const hash = (HASH_NIBBLES[assigned.size] ?? 'f').repeat(16);
+    assigned.set(path, hash);
+    return Promise.resolve(hash);
+  };
+}
+
 function braveProvider(
   search: ImageSearchProvider['search'],
+  maxResults?: number,
 ): ImageSearchProvider {
-  return { origin: 'brave', search };
+  return {
+    origin: 'brave',
+    ...(maxResults === undefined ? {} : { maxResults }),
+    search,
+  };
 }
 
 const twoScenes: VisualAssetScene[] = [
@@ -78,64 +110,20 @@ describe('planVisualAssets resilient selection', () => {
     );
   });
 
-  it('tries a broader official-event query on stock before reusing a generic image', async () => {
-    const searched = {
-      ...candidate('ethereum-validator-conference', 'pexels'),
-      altText: 'Ethereum validator conference event',
-      sourceUrl: 'https://ethereum.org/community/events/',
-    };
-    const search = vi.fn(async (query: string) =>
-      query.includes('official event photo') ? [searched] : [],
+  it('drops a synthetic Brave result and prefers the editorial source over generic stock', async () => {
+    const synthetic = braveCandidate(
+      'federal-reserve-ai-art',
+      'AI-generated 3D render of a Federal Reserve policy meeting',
     );
-    const acquireImage = vi.fn(async (url: string) =>
-      url.includes('article-a')
-        ? acquired('article-a')
-        : acquired('ethereum-validator-conference'),
+    const genericStock = braveCandidate(
+      'federal-reserve-business-team',
+      'Federal Reserve business team meeting in office',
     );
-
-    const result = await planVisualAssets({
-      scenes: [
-        twoScenes[0]!,
-        {
-          sceneId: 'scene-02',
-          imageSearchIntent: [
-            'Ethereum validator economics developers office photo',
-          ],
-        },
-      ],
-      articleImages: [candidate('article-a')],
-      workingDirectory: '/work/visual-assets',
-      selectionMode: 'resilient',
-      dependencies: {
-        acquireImage,
-        searchProviders: [{ origin: 'pexels', search }],
-        fingerprintImage: vi
-          .fn()
-          .mockResolvedValueOnce('0000000000000000')
-          .mockResolvedValueOnce('ffffffffffffffff'),
-      },
-    });
-
-    expect(search).toHaveBeenCalledTimes(2);
-    expect(search.mock.calls[1]?.[0]).toContain('official event photo');
-    expect(result.scenes[1]).toEqual({
-      sceneId: 'scene-02',
-      assetId: 'image-02',
-    });
-  });
-
-  it('uses Brave directly for named scenes and selects the editorial candidate', async () => {
-    const synthetic = {
-      ...candidate('federal-reserve-ai-art', 'brave'),
-      altText: 'AI-generated 3D render of a Federal Reserve policy meeting',
-    };
-    const genericStock = {
-      ...candidate('federal-reserve-business-team', 'brave'),
-      altText: 'Federal Reserve business team meeting in office',
-    };
     const editorial = {
-      ...candidate('federal-reserve-chair', 'brave'),
-      altText: 'Federal Reserve chair speaking after a policy meeting',
+      ...braveCandidate(
+        'federal-reserve-chair',
+        'Federal Reserve chair speaking after a policy meeting',
+      ),
       sourceUrl:
         'https://www.reuters.com/world/us/federal-reserve-policy-meeting/',
     };
@@ -169,6 +157,7 @@ describe('planVisualAssets resilient selection', () => {
       editorial.imageUrl,
       expect.any(Object),
     );
+    expect(result.assets[0]?.provider).toBe('brave');
     expect(result.assets[0]?.sourcePageUrl).toBe(editorial.sourceUrl);
     expect(progress).toContainEqual(
       expect.objectContaining({
@@ -176,18 +165,26 @@ describe('planVisualAssets resilient selection', () => {
         provider: 'brave',
         searchIntent: 'Federal Reserve policy meeting photo',
         subjectKey: 'federal reserve',
+        searchResultCount: 3,
+        candidateCount: 2,
       }),
     );
+    expect(result.imageSearch?.requests[0]?.drops).toContainEqual({
+      reason: 'synthetic-image',
+      count: 1,
+    });
   });
 
   it('does not consume publisher article imagery as the lead named cover', async () => {
     const article = candidate('publisher-cover');
     article.sourceUrl = 'https://publisher.example.test/story';
-    const searched = {
-      ...candidate('justin-sun-interview', 'pexels'),
-      altText: 'Justin Sun interview portrait',
-    };
-    const search = vi.fn().mockResolvedValue([searched]);
+    const searched = braveCandidate(
+      'justin-sun-interview',
+      'Justin Sun interview portrait',
+    );
+    const braveSearch = vi.fn(async (query: string) =>
+      query.includes('Justin Sun') ? [searched] : [],
+    );
     const acquireImage = vi.fn(async (url: string) =>
       url.includes('publisher-cover')
         ? acquired('publisher-cover')
@@ -208,7 +205,7 @@ describe('planVisualAssets resilient selection', () => {
       selectionMode: 'resilient',
       dependencies: {
         acquireImage,
-        searchProviders: [{ origin: 'pexels', search }],
+        searchProviders: [braveProvider(braveSearch)],
         fingerprintImage: vi
           .fn()
           .mockResolvedValueOnce('0000000000000000')
@@ -216,80 +213,33 @@ describe('planVisualAssets resilient selection', () => {
       },
     });
 
-    expect(result.assets[0]?.provider).toBe('pexels');
+    expect(result.assets[0]?.provider).toBe('brave');
     expect(result.assets[1]?.provider).toBe('article');
     expect(result.scenes[0]?.assetId).toBe('image-01');
     expect(result.scenes[1]?.assetId).toBe('image-02');
   });
 
-  it('uses Brave for generic B-roll when it is the configured provider', async () => {
+  it('respects provider result ceilings when requesting a large candidate pool', async () => {
     const braveSearch = vi
       .fn()
-      .mockResolvedValue([candidate('generic-brave', 'brave')]);
-
-    const result = await planVisualAssets({
-      scenes: [{ sceneId: 'scene-01', imageSearchIntent: ['AI data center'] }],
-      workingDirectory: '/work/visual-assets',
-      selectionMode: 'resilient',
-      dependencies: {
-        acquireImage: vi.fn().mockResolvedValue(acquired('generic-brave')),
-        searchProviders: [braveProvider(braveSearch)],
-        fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
-      },
-    });
-
-    expect(braveSearch).toHaveBeenCalledOnce();
-    expect(result.assets[0]?.provider).toBe('brave');
-  });
-
-  it('tries the relaxed Brave query when the first generic B-roll query returns nothing', async () => {
-    const braveSearch = vi.fn(async (query: string) =>
-      query.includes('official event photo')
-        ? [candidate('generic-brave', 'brave')]
-        : [],
-    );
-
-    const result = await planVisualAssets({
-      scenes: [{ sceneId: 'scene-01', imageSearchIntent: ['AI data center'] }],
-      workingDirectory: '/work/visual-assets',
-      selectionMode: 'resilient',
-      dependencies: {
-        acquireImage: vi.fn().mockResolvedValue(acquired('generic-brave')),
-        searchProviders: [braveProvider(braveSearch)],
-        fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
-      },
-    });
-
-    expect(braveSearch.mock.calls.map(([query]) => query)).toEqual([
-      'AI data center',
-      'ai data center official event photo',
-    ]);
-    expect(result.assets[0]?.provider).toBe('brave');
-  });
-
-  it('respects provider result ceilings when requesting a large candidate pool', async () => {
-    const pexelsSearch = vi
-      .fn()
-      .mockResolvedValue([candidate('stock', 'pexels')]);
+      .mockResolvedValue([braveCandidate('crypto-desk', 'crypto market desk')]);
 
     const result = await planVisualAssets({
       scenes: [{ sceneId: 'scene-01', imageSearchIntent: ['crypto market'] }],
       workingDirectory: '/work/visual-assets',
       selectionMode: 'resilient',
       dependencies: {
-        acquireImage: vi.fn().mockResolvedValue(acquired('stock')),
-        searchProviders: [
-          { origin: 'pexels', maxResults: 80, search: pexelsSearch },
-        ],
+        acquireImage: vi.fn().mockResolvedValue(acquired('crypto-desk')),
+        searchProviders: [braveProvider(braveSearch, 80)],
         fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
       },
     });
 
-    expect(pexelsSearch).toHaveBeenCalledWith(
+    expect(braveSearch).toHaveBeenCalledWith(
       'crypto market',
       expect.objectContaining({ count: 80 }),
     );
-    expect(result.assets[0]?.provider).toBe('pexels');
+    expect(result.assets[0]?.provider).toBe('brave');
   });
 
   it('caches identical provider queries across scenes and requests 100 candidates', async () => {
@@ -336,18 +286,9 @@ describe('planVisualAssets resilient selection', () => {
     expect(result.assets).toHaveLength(2);
   });
 
-  it('reserves Brave quota for later named scenes when free stock has no entity match', async () => {
+  it('searches every primary subject exactly once, on its first intent', async () => {
     const braveSearch = vi.fn(async (query: string) => [
-      {
-        ...candidate(query.replaceAll(' ', '-'), 'brave'),
-        altText: query,
-      },
-    ]);
-    const pexelsSearch = vi.fn().mockResolvedValue([
-      {
-        ...candidate('generic-office', 'pexels'),
-        altText: 'generic office team',
-      },
+      braveCandidate(query.toLowerCase().replaceAll(' ', '-'), query),
     ]);
 
     const result = await planVisualAssets({
@@ -376,21 +317,9 @@ describe('planVisualAssets resilient selection', () => {
       workingDirectory: '/work/visual-assets',
       selectionMode: 'resilient',
       dependencies: {
-        acquireImage: vi.fn(async (url: string) =>
-          acquired(
-            new URL(url).pathname.split('/').at(-1)!.replace('.jpg', ''),
-          ),
-        ),
-        searchProviders: [
-          braveProvider(braveSearch),
-          { origin: 'pexels', search: pexelsSearch },
-        ],
-        fingerprintImage: vi
-          .fn()
-          .mockResolvedValueOnce('0000000000000000')
-          .mockResolvedValueOnce('1111111111111111')
-          .mockResolvedValueOnce('2222222222222222')
-          .mockResolvedValueOnce('3333333333333333'),
+        acquireImage: vi.fn(acquireByUrl),
+        searchProviders: [braveProvider(braveSearch)],
+        fingerprintImage: vi.fn(distinctFingerprints()),
       },
     });
 
@@ -400,22 +329,25 @@ describe('planVisualAssets resilient selection', () => {
       'Gamma one',
       'Delta one',
     ]);
+    expect(result.imageSearch?.requests.map((request) => request.kind)).toEqual(
+      ['primary', 'primary', 'primary', 'primary'],
+    );
     expect(result.assets).toHaveLength(4);
     expect(result.assets.every((asset) => asset.provider === 'brave')).toBe(
       true,
     );
   });
 
-  it('searches Brave for each distinct named scene after the stock-provider retirement', async () => {
+  it('caps an episode at five primary plus three targeted requests and still images every scene', async () => {
     const braveSearch = vi.fn(async (query: string) => [
-      {
-        ...candidate(`brave-${query.replaceAll(' ', '-')}`, 'brave'),
-        altText: query,
-      },
+      braveCandidate(
+        query.toLowerCase().replaceAll(' ', '-'),
+        `${query} portrait`,
+      ),
     ]);
 
     const result = await planVisualAssets({
-      scenes: Array.from({ length: 5 }, (_, index) => ({
+      scenes: Array.from({ length: 9 }, (_, index) => ({
         sceneId: `scene-0${index + 1}`,
         imageSearchIntent: [`Subject ${index + 1}`],
         imageSearchEntities: [`Subject ${index + 1}`],
@@ -423,52 +355,58 @@ describe('planVisualAssets resilient selection', () => {
       workingDirectory: '/work/visual-assets',
       selectionMode: 'resilient',
       dependencies: {
-        acquireImage: vi.fn(async (url: string) =>
-          acquired(
-            new URL(url).pathname.split('/').at(-1)!.replace('.jpg', ''),
-          ),
-        ),
+        acquireImage: vi.fn(acquireByUrl),
         searchProviders: [braveProvider(braveSearch)],
-        fingerprintImage: vi
-          .fn()
-          .mockResolvedValueOnce('0000000000000000')
-          .mockResolvedValueOnce('1111111111111111')
-          .mockResolvedValueOnce('2222222222222222')
-          .mockResolvedValueOnce('3333333333333333')
-          .mockResolvedValueOnce('4444444444444444'),
+        fingerprintImage: vi.fn(distinctFingerprints()),
       },
     });
 
-    expect(braveSearch).toHaveBeenCalledTimes(5);
-    expect(result.assets).toHaveLength(5);
-    expect(result.assets.every((asset) => asset.provider === 'brave')).toBe(
+    expect(braveSearch).toHaveBeenCalledTimes(8);
+    expect(result.imageSearch?.requests.map((request) => request.kind)).toEqual(
+      [
+        'primary',
+        'primary',
+        'primary',
+        'primary',
+        'primary',
+        'targeted',
+        'targeted',
+        'targeted',
+      ],
+    );
+    expect(result.imageSearch?.budget).toEqual({
+      primary: 5,
+      targeted: 3,
+      max: 8,
+    });
+    expect(result.imageSearch?.budgetExhausted).toBe(true);
+    expect(result.assets).toHaveLength(8);
+
+    const assetIds = new Set(result.assets.map((asset) => asset.assetId));
+    expect(result.scenes).toHaveLength(9);
+    expect(result.scenes.every((scene) => assetIds.has(scene.assetId))).toBe(
       true,
     );
+    expect(
+      result.imageSearch?.scenes.find((scene) => scene.sceneId === 'scene-09'),
+    ).toMatchObject({ selection: 'reuse', fallbackReason: 'pool-exhausted' });
   });
 
-  it('reuses a three-image subject pool instead of searching for endless visual novelty', async () => {
+  it('rotates a six-image subject pool instead of searching for endless visual novelty', async () => {
     const progress: VisualAssetProgress[] = [];
-    const pexelsSearch = vi.fn().mockResolvedValue([
-      {
-        ...candidate('justin-sun-a', 'pexels'),
-        altText: 'Justin Sun portrait A',
-      },
-      {
-        ...candidate('justin-sun-b', 'pexels'),
-        altText: 'Justin Sun portrait B',
-      },
-      {
-        ...candidate('justin-sun-c', 'pexels'),
-        altText: 'Justin Sun portrait C',
-      },
-      {
-        ...candidate('justin-sun-d', 'pexels'),
-        altText: 'Justin Sun portrait D',
-      },
-    ]);
+    const braveSearch = vi
+      .fn()
+      .mockResolvedValue(
+        ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((suffix) =>
+          braveCandidate(
+            `justin-sun-${suffix}`,
+            `Justin Sun portrait ${suffix.toUpperCase()}`,
+          ),
+        ),
+      );
 
     const result = await planVisualAssets({
-      scenes: Array.from({ length: 4 }, (_, index) => ({
+      scenes: Array.from({ length: 7 }, (_, index) => ({
         sceneId: `scene-0${index + 1}`,
         imageSearchIntent: ['Justin Sun crypto entrepreneur'],
         imageSearchEntities: ['Justin Sun'],
@@ -477,27 +415,19 @@ describe('planVisualAssets resilient selection', () => {
       selectionMode: 'resilient',
       onProgress: (event) => progress.push(event),
       dependencies: {
-        acquireImage: vi.fn(async (url: string) =>
-          acquired(
-            new URL(url).pathname.split('/').at(-1)!.replace('.jpg', ''),
-          ),
-        ),
-        searchProviders: [{ origin: 'pexels', search: pexelsSearch }],
-        fingerprintImage: vi
-          .fn()
-          .mockResolvedValueOnce('0000000000000000')
-          .mockResolvedValueOnce('1111111111111111')
-          .mockResolvedValueOnce('2222222222222222'),
+        acquireImage: vi.fn(acquireByUrl),
+        searchProviders: [braveProvider(braveSearch)],
+        fingerprintImage: vi.fn(distinctFingerprints()),
       },
     });
 
-    expect(pexelsSearch).toHaveBeenCalledOnce();
-    expect(result.assets).toHaveLength(3);
-    expect(result.scenes[3]?.assetId).toBe('image-01');
+    expect(braveSearch).toHaveBeenCalledOnce();
+    expect(result.assets).toHaveLength(6);
+    expect(result.scenes[6]?.assetId).toBe('image-01');
     expect(progress).toContainEqual(
       expect.objectContaining({
         phase: 'assets',
-        sceneId: 'scene-04',
+        sceneId: 'scene-07',
         provider: 'reuse',
         subjectKey: 'justin sun',
       }),
@@ -522,7 +452,7 @@ describe('planVisualAssets resilient selection', () => {
           .fn()
           .mockResolvedValueOnce(acquired('article-a'))
           .mockResolvedValueOnce(acquired('article-b')),
-        searchProviders: [{ origin: 'pexels', search }],
+        searchProviders: [braveProvider(search)],
         fingerprintImage: vi
           .fn()
           .mockResolvedValueOnce('0000000000000000')
@@ -550,8 +480,7 @@ describe('planVisualAssets resilient selection', () => {
     const progress: VisualAssetProgress[] = [];
     const search = vi
       .fn()
-      .mockRejectedValueOnce(new Error('Pexels search failed: 503'))
-      .mockResolvedValueOnce([]);
+      .mockRejectedValue(new Error('Brave Images search failed: 503'));
 
     const result = await planVisualAssets({
       scenes: twoScenes,
@@ -561,12 +490,16 @@ describe('planVisualAssets resilient selection', () => {
       onProgress: (event) => progress.push(event),
       dependencies: {
         acquireImage: vi.fn().mockResolvedValue(acquired('article-a')),
-        searchProviders: [{ origin: 'pexels', search }],
+        searchProviders: [braveProvider(search)],
         fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
       },
     });
 
+    expect(search).toHaveBeenCalledOnce();
     expect(result.scenes[1]?.assetId).toBe('image-01');
+    expect(result.imageSearch?.requests[0]?.error).toBe(
+      'Brave Images search failed: 503',
+    );
     expect(progress).toContainEqual(
       expect.objectContaining({
         phase: 'assets',
@@ -579,40 +512,46 @@ describe('planVisualAssets resilient selection', () => {
     );
   });
 
-  it('does not reuse an unrelated generic image when a named subject finds nothing', async () => {
-    const pexelsSearch = vi.fn(async (query: string) =>
+  it('lets a named subject that found nothing borrow an already-selected image', async () => {
+    const braveSearch = vi.fn(async (query: string) =>
       query.includes('stablecoin')
-        ? [
-            {
-              ...candidate('stablecoin-desk', 'pexels'),
-              altText: 'stablecoin trading desk',
-            },
-          ]
+        ? [braveCandidate('stablecoin-desk', 'stablecoin trading desk')]
         : [],
     );
-    const braveSearch = vi.fn().mockResolvedValue([]);
 
-    await expect(
-      planVisualAssets({
-        scenes: [
-          { sceneId: 'scene-01', imageSearchIntent: ['stablecoin desk'] },
-          {
-            sceneId: 'scene-02',
-            imageSearchIntent: ['Coldcard air-gapped signing device'],
-            imageSearchEntities: ['Coldcard'],
-          },
-        ],
-        workingDirectory: '/work/visual-assets',
-        selectionMode: 'resilient',
-        dependencies: {
-          acquireImage: vi.fn().mockResolvedValue(acquired('stablecoin-desk')),
-          searchProviders: [
-            braveProvider(braveSearch),
-            { origin: 'pexels', search: pexelsSearch },
-          ],
-          fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
+    const result = await planVisualAssets({
+      scenes: [
+        { sceneId: 'scene-01', imageSearchIntent: ['stablecoin desk'] },
+        {
+          sceneId: 'scene-02',
+          imageSearchIntent: ['Coldcard air-gapped signing device'],
+          imageSearchEntities: ['Coldcard'],
         },
-      }),
-    ).rejects.toThrow('Visual scene scene-02 has no usable image');
+      ],
+      workingDirectory: '/work/visual-assets',
+      selectionMode: 'resilient',
+      dependencies: {
+        acquireImage: vi.fn().mockResolvedValue(acquired('stablecoin-desk')),
+        searchProviders: [braveProvider(braveSearch)],
+        fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
+      },
+    });
+
+    expect(braveSearch.mock.calls.map(([query]) => query)).toEqual([
+      'stablecoin desk',
+      'Coldcard air-gapped signing device',
+    ]);
+    expect(result.assets).toHaveLength(1);
+    expect(result.scenes[1]).toEqual({
+      sceneId: 'scene-02',
+      assetId: 'image-01',
+    });
+    expect(
+      result.imageSearch?.scenes.find((scene) => scene.sceneId === 'scene-02'),
+    ).toMatchObject({
+      subjectKey: 'coldcard',
+      selection: 'reuse',
+      fallbackReason: 'pool-exhausted',
+    });
   });
 });

@@ -54,22 +54,67 @@ export interface PodcastPipelineVisualQuery {
   queries: string[];
 }
 
+/**
+ * One Brave request. `sceneId` is null for the episode-wide primary searches
+ * that build the candidate pool before any scene owns an image, so the panel
+ * lists requests by subject rather than by scene.
+ */
 export interface PodcastPipelineVisualSearchAttempt {
-  sceneId: string;
-  provider: 'pexels' | 'pixabay' | 'brave';
+  sceneId: string | null;
+  provider: string;
+  kind: 'primary' | 'targeted' | null;
+  subjectLabel: string | null;
   query: string;
   returned: number;
-  accepted: number;
-  entityFiltered: number;
-  rejected: number;
+  viable: number;
+  drops: { reason: string; count: number }[];
+  error: string | null;
+}
+
+/** What the episode spent against its per-episode Brave ceiling. A weak-looking
+ * video is as often budget-starved as mis-searched, so the counts lead. */
+export interface PodcastPipelineVisualBudget {
+  requestCount: number;
+  max: number;
+  primary: number;
+  targeted: number;
+  exhausted: boolean;
+}
+
+export interface PodcastPipelineVisualSubjectSearch {
+  label: string;
+  query: string;
+}
+
+export interface PodcastPipelineVisualSceneSelection {
+  sceneId: string;
+  selection: string;
+  fallbackReason: string | null;
+  matchedSubjectKey: string | null;
+  sourceQuery: string | null;
+  providerRank: number | null;
+}
+
+export interface PodcastPipelineVisualReuse {
+  assetId: string;
+  useCount: number;
 }
 
 export interface PodcastPipelineVisualDebug {
   phase: string | null;
   primarySubject: string | null;
   subjects: { id: string; name: string }[];
+  /** Why the catalog is empty. A bad model answer degrades to no catalog rather
+   * than failing the video, so an empty `subjects` otherwise reads the same as
+   * an episode whose scenes genuinely name nobody. */
+  subjectCatalogFailure: string | null;
+  budget: PodcastPipelineVisualBudget | null;
+  primarySubjects: PodcastPipelineVisualSubjectSearch[];
+  plannedSubjectSearches: PodcastPipelineVisualSubjectSearch[];
   plannedQueries: PodcastPipelineVisualQuery[];
   actualSearches: PodcastPipelineVisualSearchAttempt[];
+  sceneSelections: PodcastPipelineVisualSceneSelection[];
+  reuse: PodcastPipelineVisualReuse[];
 }
 
 export interface PodcastPipelineEpisode {

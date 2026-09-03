@@ -1,12 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-const searchMocks = vi.hoisted(() => ({
-  brave: vi.fn(),
-}));
+const searchBraveImages = vi.hoisted(() => vi.fn());
 
 vi.mock('./brave-image-search.js', () => ({
   BRAVE_MAX_RESULT_COUNT: 100,
-  searchBraveImages: searchMocks.brave,
+  searchBraveImages,
 }));
 
 import { defaultImageSearchProviders } from './image-search-provider.js';
@@ -17,58 +15,51 @@ afterEach(() => {
 });
 
 describe('defaultImageSearchProviders', () => {
-  it('returns Brave as the only configured external provider', () => {
+  it('exposes Brave as the only external provider', () => {
     const providers = defaultImageSearchProviders({
       BRAVE_SEARCH_API_KEY: 'brave-key',
-      PEXELS_API_KEY: 'retired-pexels-key',
-      PIXABAY_API_KEY: 'retired-pixabay-key',
     });
-
     expect(
       providers.map((provider) => [provider.origin, provider.maxResults]),
     ).toEqual([['brave', 100]]);
   });
 
-  it('fails closed without a Brave key', () => {
+  it('fails closed without a Brave key instead of degrading to stock imagery', () => {
     expect(() => defaultImageSearchProviders({})).toThrow(
       'Missing required environment variable: BRAVE_SEARCH_API_KEY',
     );
     expect(() =>
       defaultImageSearchProviders({ BRAVE_SEARCH_API_KEY: '   ' }),
-    ).toThrow('BRAVE_SEARCH_API_KEY');
+    ).toThrow('Missing required environment variable: BRAVE_SEARCH_API_KEY');
   });
 
-  it('executes Brave with default and explicit options', async () => {
-    searchMocks.brave.mockResolvedValue([]);
-    const providers = defaultImageSearchProviders({
+  it('passes the request count and abort signal through to Brave', async () => {
+    searchBraveImages.mockResolvedValue([]);
+    const [provider] = defaultImageSearchProviders({
       BRAVE_SEARCH_API_KEY: 'brave-key',
     });
-    const provider = providers[0]!;
     const controller = new AbortController();
 
-    await provider.search('query');
-    await provider.search('query', {
+    await provider!.search('query');
+    await provider!.search('query', {
       count: 7,
       signal: controller.signal,
     });
 
-    expect(searchMocks.brave).toHaveBeenNthCalledWith(
+    expect(searchBraveImages).toHaveBeenNthCalledWith(
       1,
       'query',
       'brave-key',
       {},
     );
-    expect(searchMocks.brave).toHaveBeenNthCalledWith(2, 'query', 'brave-key', {
+    expect(searchBraveImages).toHaveBeenNthCalledWith(2, 'query', 'brave-key', {
       count: 7,
       signal: controller.signal,
     });
   });
 
-  it('uses process env by default and ignores retired stock keys', () => {
+  it('uses process env by default', () => {
     vi.stubEnv('BRAVE_SEARCH_API_KEY', 'env-brave');
-    vi.stubEnv('PEXELS_API_KEY', 'env-pexels');
-    vi.stubEnv('PIXABAY_API_KEY', 'env-pixabay');
-
     expect(
       defaultImageSearchProviders().map((provider) => provider.origin),
     ).toEqual(['brave']);

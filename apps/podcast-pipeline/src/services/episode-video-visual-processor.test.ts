@@ -5,6 +5,7 @@ import {
   generateVisualStoryboard,
   VISUAL_ARTICLE_SCRAPE_TIMEOUT_MS,
 } from './episode-video-visual-processor.js';
+import { parseEpisodeVisualPayload } from './video/episode-visual.js';
 import type {
   VisualSceneSubjectAssignment,
   VisualSubjectCatalog,
@@ -539,6 +540,14 @@ describe('visual search debug checkpoints', () => {
           queries: ['Bank of Japan headquarters', 'Bank of Japan'],
         },
       ],
+      plannedSubjectSearches: [
+        {
+          subjectKey: 'bank of japan',
+          subjectLabel: 'Bank of Japan',
+          query: 'Bank of Japan headquarters',
+          sceneCount: 2,
+        },
+      ],
     });
   });
 
@@ -549,6 +558,7 @@ describe('visual search debug checkpoints', () => {
         enrichSearchIntents: enrichFromSubjectCatalog(),
         planAssets: vi.fn().mockImplementation(async (input) => {
           input.onProgress?.(searchProgress());
+          input.onProgress?.(selectionProgress());
           return assetPlan();
         }),
         persistDebug,
@@ -560,7 +570,7 @@ describe('visual search debug checkpoints', () => {
     expect(persistDebug).toHaveBeenCalledTimes(2);
     expect(persistDebug.mock.calls[1]?.[2]).toMatchObject({
       phase: 'searched',
-      searchTrace: [expectedTraceEntry()],
+      imageSearch: expectedImageSearch(),
     });
   });
 
@@ -571,6 +581,7 @@ describe('visual search debug checkpoints', () => {
         enrichSearchIntents: enrichFromSubjectCatalog(),
         planAssets: vi.fn().mockImplementation(async (input) => {
           input.onProgress?.(searchProgress());
+          input.onProgress?.(selectionProgress());
           throw new Error('Brave rejected the request');
         }),
         persistDebug,
@@ -583,8 +594,86 @@ describe('visual search debug checkpoints', () => {
     expect(persistDebug).toHaveBeenCalledTimes(2);
     expect(persistDebug.mock.calls[1]?.[2]).toMatchObject({
       phase: 'search-failed',
-      searchTrace: [expectedTraceEntry()],
+      imageSearch: expectedImageSearch(),
     });
+  });
+
+  it('leaves the planned checkpoint alone when nothing was searched or decided', async () => {
+    const persistDebug = vi.fn().mockResolvedValue(true);
+    const processor = createEpisodeVideoVisualProcessor(
+      checkpointDependencies({
+        enrichSearchIntents: enrichFromSubjectCatalog(),
+        planAssets: vi.fn().mockImplementation(async (input) => {
+          // A brand-only asset event carries neither a request nor a selection.
+          input.onProgress?.({
+            phase: 'assets',
+            sceneId: 'scene-01',
+            sceneIndex: 1,
+            sceneCount: 2,
+            provider: 'brand',
+            assetId: 'image-01',
+            elapsedMs: 4,
+          });
+          return assetPlan();
+        }),
+        persistDebug,
+      }),
+    );
+
+    await processor(job(), source(), context());
+
+    // Overwriting `planned` with an empty trace would cost the operator the
+    // only evidence the attempt had.
+    expect(persistDebug).toHaveBeenCalledTimes(1);
+    expect(persistDebug.mock.calls[0]?.[2]).toMatchObject({
+      phase: 'planned',
+    });
+  });
+
+  it('plans without a subject catalog and records why enrichment degraded', async () => {
+    const persistDebug = vi.fn().mockResolvedValue(true);
+    const planAssets = vi.fn().mockResolvedValue(assetPlan());
+    const logger = { info: vi.fn() };
+    const processor = createEpisodeVideoVisualProcessor(
+      checkpointDependencies({
+        enrichSearchIntents: degradedIntents(),
+        planAssets,
+        persistDebug,
+        logger,
+      }),
+    );
+
+    await processor(job(), source(), context());
+
+    // The episode is a quality degradation, not a failure: it still plans, off
+    // the deterministic intents, and says why it has no catalog.
+    expect(planAssets).toHaveBeenCalledTimes(1);
+    expect(planAssets.mock.calls[0]?.[0]).not.toHaveProperty('subjectCatalog');
+    expect(persistDebug.mock.calls[0]?.[2]).toMatchObject({
+      phase: 'planned',
+      subjectCatalog: null,
+      subjectCatalogFailure: 'subject catalog request failed: 503',
+      plannedQueries: [],
+      plannedSubjectSearches: [
+        {
+          subjectKey: 'intent:first subject',
+          subjectLabel: 'first subject',
+          query: 'first subject',
+          sceneCount: 1,
+        },
+        {
+          subjectKey: 'intent:second subject',
+          subjectLabel: 'second subject',
+          query: 'second subject',
+          sceneCount: 1,
+        },
+      ],
+    });
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'visual:intents run=run12345 episode=00000000-0000-4000-8000-000000000001 phase=degraded reason=subject catalog request failed: 503',
+      ),
+    );
   });
 
   it('fails the job when the checkpoint write no longer holds the lease', async () => {
@@ -603,6 +692,187 @@ describe('visual search debug checkpoints', () => {
     expect(planAssets).not.toHaveBeenCalled();
   });
 });
+
+describe('visual checkpoint resume', () => {
+  it('resumes the checkpointed scenes of an episode whose catalog degraded to none', async () => {
+    const generateStoryboard = vi.fn().mockResolvedValue(storyboard());
+    const enrichSearchIntents = keepDeterministicIntents();
+    const planAssets = vi.fn().mockResolvedValue(assetPlan());
+    const downloadCheckpointImage = vi.fn().mockResolvedValue(undefined);
+    const processor = createEpisodeVideoVisualProcessor(
+      checkpointDependencies({
+        generateStoryboard,
+        enrichSearchIntents,
+        planAssets,
+        downloadCheckpointImage,
+        persistDebug: vi.fn().mockResolvedValue(true),
+      }),
+    );
+
+    await processor(
+      { ...job(), checkpoint: resumableCheckpoint() },
+      source(),
+      context(),
+    );
+
+    // A catalog-less episode is a degradation, not a different planner: its
+    // checkpointed scenes cost the same Brave budget and R2 traffic to replan
+    // as any other episode's.
+    expect(generateStoryboard).not.toHaveBeenCalled();
+    expect(enrichSearchIntents).not.toHaveBeenCalled();
+    expect(downloadCheckpointImage).toHaveBeenCalledWith(
+      'https://cdn.example.test/checkpoints/image-01.jpg',
+      '/work/visual/images/checkpoint/image-01.jpg',
+      expect.any(AbortSignal),
+    );
+    expect(planAssets.mock.calls[0]?.[0].resumePlan).toEqual({
+      scenes: [{ sceneId: 'scene-01', assetId: 'image-01' }],
+      assets: [
+        expect.objectContaining({
+          assetId: 'image-01',
+          path: '/work/visual/images/checkpoint/image-01.jpg',
+        }),
+      ],
+    });
+  });
+
+  it('still reports why enrichment degraded after a retry', async () => {
+    const persistDebug = vi.fn().mockResolvedValue(true);
+    const processor = createEpisodeVideoVisualProcessor(
+      checkpointDependencies({
+        enrichSearchIntents: keepDeterministicIntents(),
+        planAssets: vi.fn().mockResolvedValue(assetPlan()),
+        downloadCheckpointImage: vi.fn().mockResolvedValue(undefined),
+        persistDebug,
+      }),
+    );
+
+    const result = await processor(
+      {
+        ...job(),
+        checkpoint: resumableCheckpoint({
+          subjectCatalogFailure: 'subject catalog request failed: 503',
+        }),
+      },
+      source(),
+      context(),
+    );
+
+    // Every attempt overwrites the whole transient debug row, so an attempt
+    // that reports no reason is worse than incomplete: it is misleading.
+    expect(persistDebug.mock.calls[0]?.[2]).toMatchObject({
+      phase: 'planned',
+      subjectCatalog: null,
+      subjectCatalogFailure: 'subject catalog request failed: 503',
+    });
+    expect(
+      parseEpisodeVisualPayload(result.visualPayload).provenance
+        .subjectCatalogFailure,
+    ).toBe('subject catalog request failed: 503');
+  });
+
+  it('carries the degradation reason into the checkpoint it writes, and nothing when nothing degraded', async () => {
+    const degradedContext = context();
+    const degradedProcessor = createEpisodeVideoVisualProcessor(
+      checkpointDependencies({
+        enrichSearchIntents: degradedIntents(),
+        planAssets: vi.fn().mockResolvedValue(assetPlan()),
+        persistDebug: vi.fn().mockResolvedValue(true),
+      }),
+    );
+
+    await degradedProcessor(job(), source(), degradedContext);
+
+    expect(
+      vi.mocked(degradedContext.saveCheckpoint).mock.calls[0]?.[0],
+    ).toMatchObject({
+      subjectCatalog: null,
+      subjectCatalogFailure: 'subject catalog request failed: 503',
+    });
+
+    const catalogContext = context();
+    const catalogProcessor = createEpisodeVideoVisualProcessor(
+      checkpointDependencies({
+        enrichSearchIntents: enrichFromSubjectCatalog(),
+        planAssets: vi.fn().mockResolvedValue(assetPlan()),
+        persistDebug: vi.fn().mockResolvedValue(true),
+      }),
+    );
+
+    await catalogProcessor(job(), source(), catalogContext);
+
+    expect(
+      vi.mocked(catalogContext.saveCheckpoint).mock.calls[0]?.[0],
+    ).not.toHaveProperty('subjectCatalogFailure');
+  });
+
+  it('names the resumed scenes in the trace it accumulates', async () => {
+    const processor = createEpisodeVideoVisualProcessor(
+      checkpointDependencies({
+        enrichSearchIntents: keepDeterministicIntents(),
+        planAssets: vi.fn().mockResolvedValue(assetPlan()),
+        downloadCheckpointImage: vi.fn().mockResolvedValue(undefined),
+        persistDebug: vi.fn().mockResolvedValue(true),
+      }),
+    );
+
+    const result = await processor(
+      { ...job(), checkpoint: resumableCheckpoint() },
+      source(),
+      context(),
+    );
+
+    // A resumed scene emits no progress event, so without this count an
+    // attempt that resumed everything reads as one that never searched.
+    expect(
+      parseEpisodeVisualPayload(result.visualPayload).provenance.imageSearch,
+    ).toMatchObject({ requestCount: 0, resumedSceneCount: 1 });
+  });
+});
+
+/**
+ * What a previous attempt of this same job left behind: one selected scene
+ * mirrored to R2, and no subject catalog.
+ */
+function resumableCheckpoint(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    schemaVersion: 'podcast-episode-visual-checkpoint.v1',
+    visualVersion: EPISODE_VIDEO_VISUAL_VERSION,
+    sourceHash: job().source_hash,
+    searchTitleSource: 'publisher',
+    storyboard: {
+      draft: storyboard().draft,
+      effectiveProvider: 'deterministic',
+      requestedProvider: 'deterministic',
+      model: 'deterministic-v1',
+      usedFallback: false,
+      attempts: [],
+      totalUsage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+    },
+    searchIntentModel: null,
+    subjectCatalog: null,
+    sceneAssignments: [],
+    scenes: [{ sceneId: 'scene-01', assetId: 'image-01' }],
+    assets: [
+      {
+        assetId: 'image-01',
+        r2Url: 'https://cdn.example.test/checkpoints/image-01.jpg',
+        contentType: 'image/jpeg',
+        sha256: 'a'.repeat(64),
+        perceptualHash: '0'.repeat(16),
+        width: 2400,
+        height: 1350,
+        originalImageUrl: 'https://images.example.test/a.jpg',
+        sourcePageUrl: 'https://publisher.example.test/a',
+        provider: 'article',
+        license: 'unknown',
+      },
+    ],
+    ...overrides,
+  };
+}
 
 /**
  * The dependencies a checkpoint test does not assert on. Each test overrides
@@ -689,6 +959,45 @@ function enrichFromSubjectCatalog() {
   }));
 }
 
+function degradedIntents() {
+  return vi.fn(async (request: { draft: unknown }) => ({
+    draft: request.draft as never,
+    model: null,
+    enrichedSceneCount: 0,
+    entityAnchoredSceneCount: 0,
+    subjectCatalog: null,
+    sceneAssignments: [],
+    degradedReason: 'subject catalog request failed: 503',
+  }));
+}
+
+function searchRequest() {
+  return {
+    kind: 'primary' as const,
+    subjectKey: 'bank of japan',
+    subjectLabel: 'Bank of Japan',
+    query: 'Bank of Japan headquarters',
+    sceneId: null,
+    returned: 40,
+    viable: 3,
+    drops: [{ reason: 'decorative', count: 37 }],
+    error: null,
+  };
+}
+
+function sceneSelection() {
+  return {
+    sceneId: 'scene-01',
+    subjectKey: 'bank of japan',
+    matchedSubjectKey: 'bank of japan',
+    selection: 'pool' as const,
+    sourceQuery: 'Bank of Japan headquarters',
+    providerRank: 3,
+    fallbackReason: null,
+    rejections: [{ cause: 'perceptual-duplicate', count: 1 }],
+  };
+}
+
 function searchProgress() {
   return {
     phase: 'search' as const,
@@ -700,22 +1009,39 @@ function searchProgress() {
     subjectKey: 'bank of japan',
     searchResultCount: 40,
     candidateCount: 3,
-    entityFilteredCount: 37,
-    rejectedCandidateCount: 1,
+    request: searchRequest(),
     elapsedMs: 12,
   };
 }
 
-function expectedTraceEntry() {
+function selectionProgress() {
   return {
+    phase: 'assets' as const,
     sceneId: 'scene-01',
-    provider: 'brave',
-    intent: 'Bank of Japan headquarters',
-    subjectKey: 'bank of japan',
-    returned: 40,
-    accepted: 3,
-    entityFiltered: 37,
-    rejected: 1,
+    sceneIndex: 1,
+    sceneCount: 2,
+    provider: 'brave' as const,
+    assetId: 'image-01',
+    rejectedCandidateCount: 1,
+    selection: sceneSelection(),
+    elapsedMs: 20,
+  };
+}
+
+/**
+ * What the processor rebuilds from progress events alone. `primarySubjects`
+ * stays empty because no event carries them, which is why the planned queries
+ * are checkpointed separately.
+ */
+function expectedImageSearch() {
+  return {
+    requestCount: 1,
+    budget: { primary: 5, targeted: 3, max: 8 },
+    budgetExhausted: false,
+    primarySubjects: [],
+    requests: [searchRequest()],
+    resumedSceneCount: 0,
+    scenes: [sceneSelection()],
   };
 }
 

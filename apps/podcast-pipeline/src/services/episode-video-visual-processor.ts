@@ -16,6 +16,12 @@ import {
   uploadEpisodeVisualAssetsToR2,
   uploadEpisodeVisualCheckpointImageToR2,
 } from './storage.js';
+import {
+  deriveSearchSubjects,
+  IMAGE_SEARCH_BUDGET,
+  plannedPrimarySubjects,
+  type PoolSubjectScene,
+} from './video/episode-image-pool.js';
 import { analyzeEpisodeAudio } from './video/episode-video.js';
 import {
   buildEpisodeVisualPayload,
@@ -23,8 +29,12 @@ import {
   EPISODE_VISUAL_STORYBOARD_PROMPT_VERSION,
   hashEpisodeVisualSelection,
   sceneSentencesForDraft,
-  type VisualSearchTraceEntry,
 } from './video/episode-visual.js';
+import {
+  appendImageSearchProgress,
+  createImageSearchTrace,
+  type VisualImageSearch,
+} from './video/image-search-trace.js';
 import { planPodcastVisualAssets } from './video/podcast-visual-assets.js';
 import {
   createDeterministicStoryboardProvider,
@@ -73,7 +83,6 @@ import { visualStageProgress } from './video-progress.js';
 import { saveEpisodeVideoVisualDebug } from './video-visual-debug.js';
 
 export const VISUAL_ARTICLE_SCRAPE_TIMEOUT_MS = 15_000;
-const MAX_PERSISTED_VISUAL_SEARCH_TRACE_ENTRIES = 256;
 const VISUAL_SEARCH_DEBUG_SCHEMA_VERSION = 'visual-search-debug-v1';
 
 export type ProcessEpisodeVideoVisualJob = (
@@ -233,11 +242,24 @@ export function createEpisodeVideoVisualProcessor(
           primarySubject: intents.subjectCatalog?.primarySubjectId,
           model: intents.model ?? 'deterministic',
         });
+        // A catalog-less episode still plans, off the deterministic intents, so
+        // the reason it degraded is the only thing that separates that from an
+        // episode whose scenes simply name nobody.
+        const subjectCatalogFailure = intents.degradedReason ?? null;
+        if (subjectCatalogFailure) {
+          logVisualProgress(dependencies.logger, 'visual:intents', {
+            run: context.runId,
+            episode: source.episodeId,
+            phase: 'degraded',
+            reason: subjectCatalogFailure,
+          });
+        }
         return {
           storyboard: { ...generated, draft: intents.draft },
           searchIntentModel: intents.model,
           subjectCatalog: intents.subjectCatalog,
           sceneAssignments: intents.sceneAssignments,
+          subjectCatalogFailure,
           resumePlan: null,
         };
       };
@@ -254,6 +276,7 @@ export function createEpisodeVideoVisualProcessor(
         searchIntentModel,
         subjectCatalog,
         sceneAssignments,
+        subjectCatalogFailure,
       } = prepared;
       failureSnapshot['searchIntentModel'] = searchIntentModel;
       failureSnapshot['subjectCatalog'] = subjectCatalog;
@@ -263,8 +286,8 @@ export function createEpisodeVideoVisualProcessor(
         imageSearchIntent: scene.imageSearchIntent,
         imageSearchEntities: scene.imageSearchEntities,
       }));
-      failureSnapshot['resumedScenes'] =
-        prepared.resumePlan?.scenes.length ?? 0;
+      const resumedSceneCount = prepared.resumePlan?.scenes.length ?? 0;
+      failureSnapshot['resumedScenes'] = resumedSceneCount;
 
       let checkpoint: VisualCheckpoint =
         resumed ??
@@ -273,6 +296,7 @@ export function createEpisodeVideoVisualProcessor(
           storyboard,
           searchIntentModel,
           subjectCatalog,
+          subjectCatalogFailure,
           sceneAssignments,
           searchTitleSource,
         });
@@ -293,6 +317,7 @@ export function createEpisodeVideoVisualProcessor(
         scenes: storyboard.draft.scenes,
         searchTitleSource,
         model: searchIntentModel,
+        subjectCatalogFailure,
       });
       if (job.lease_owner) {
         const persisted = await dependencies.persistDebug(
@@ -343,7 +368,14 @@ export function createEpisodeVideoVisualProcessor(
           ] as const;
         }),
       );
-      const searchTrace: VisualSearchTraceEntry[] = [];
+      const trace = createImageSearchTrace(
+        IMAGE_SEARCH_BUDGET,
+        resumedSceneCount,
+      );
+      // Held by reference: the trace keeps accumulating into the snapshot, so
+      // an attempt that dies before its first progress event still reports the
+      // empty trace rather than no field at all.
+      failureSnapshot['imageSearch'] = trace;
       let assetPlan: Awaited<ReturnType<typeof planPodcastVisualAssets>>;
       failureStage = 'plan-assets';
       try {
@@ -393,14 +425,14 @@ export function createEpisodeVideoVisualProcessor(
           ...(subjectCatalog ? { subjectCatalog } : {}),
           ...(sceneAssignments.length > 0 ? { sceneAssignments } : {}),
           onProgress: (progress) => {
+            appendImageSearchProgress(trace, progress);
             logPlannerProgress(
               dependencies.logger,
               context.runId,
               source.episodeId,
               progress,
+              trace,
             );
-            appendSearchTrace(searchTrace, progress);
-            failureSnapshot['searchTrace'] = searchTrace;
             if (progress.phase === 'slide' && progress.assetId) {
               logVisualProgress(dependencies.logger, 'visual:slide', {
                 run: context.runId,
@@ -411,6 +443,8 @@ export function createEpisodeVideoVisualProcessor(
                 lead: String(progress.sceneIndex === 1),
               });
             }
+            // Only a scene that actually got an image has advanced the bar; an
+            // exhausted scene is about to fail the attempt, not to progress it.
             if (progress.phase === 'assets' || progress.phase === 'slide') {
               context.reportProgress(
                 visualStageProgress(
@@ -428,7 +462,7 @@ export function createEpisodeVideoVisualProcessor(
           leaseOwner: job.lease_owner,
           debugPayload,
           phase: 'search-failed',
-          searchTrace,
+          imageSearch: trace,
         });
         throw cause;
       }
@@ -438,7 +472,7 @@ export function createEpisodeVideoVisualProcessor(
         leaseOwner: job.lease_owner,
         debugPayload,
         phase: 'searched',
-        searchTrace,
+        imageSearch: trace,
       });
 
       const visualHash = hashEpisodeVisualSelection({
@@ -513,7 +547,10 @@ export function createEpisodeVideoVisualProcessor(
         sceneAssignments,
         searchTitleSource,
         articleImageCandidateCount,
-        searchTrace,
+        // The planner's own trace is authoritative; the accumulated one only
+        // has to cover an attempt that threw before returning a plan.
+        imageSearch: assetPlan.imageSearch ?? trace,
+        ...(subjectCatalogFailure ? { subjectCatalogFailure } : {}),
         sceneSentences,
       });
       return {
@@ -557,9 +594,10 @@ interface VisualSearchDebugQuery {
 function buildVisualSearchDebugPayload(input: {
   subjectCatalog: VisualSubjectCatalog | null;
   sceneAssignments: readonly VisualSceneSubjectAssignment[];
-  scenes: readonly { sceneId: string; imageSearchIntent: readonly string[] }[];
+  scenes: readonly PoolSubjectScene[];
   searchTitleSource: 'publisher' | 'english-localization' | 'none';
   model: string | null;
+  subjectCatalogFailure: string | null;
 }): Record<string, unknown> {
   const assignmentByScene = new Map(
     input.sceneAssignments.map((assignment) => [
@@ -567,9 +605,11 @@ function buildVisualSearchDebugPayload(input: {
       assignment,
     ]),
   );
-  const plannedQueries = input.scenes.flatMap<VisualSearchDebugQuery>(
+  const contentScenes = input.scenes.filter(
+    (scene) => podcastBrandVisualKind(scene.imageSearchIntent) === null,
+  );
+  const plannedQueries = contentScenes.flatMap<VisualSearchDebugQuery>(
     (scene) => {
-      if (podcastBrandVisualKind(scene.imageSearchIntent)) return [];
       const assignment = assignmentByScene.get(scene.sceneId);
       if (!assignment) return [];
       // The planner already wrote each scene's queries onto the scene. Reading
@@ -590,9 +630,18 @@ function buildVisualSearchDebugPayload(input: {
     phase: 'planned',
     searchTitleSource: input.searchTitleSource,
     searchIntentModel: input.model,
+    ...(input.subjectCatalogFailure
+      ? { subjectCatalogFailure: input.subjectCatalogFailure }
+      : {}),
     subjectCatalog: input.subjectCatalog,
     sceneAssignments: input.sceneAssignments,
     plannedQueries,
+    // The requests the episode is about to pay for, written before the first
+    // one is sent: a budget-starved episode is only diagnosable against what
+    // it intended to spend.
+    plannedSubjectSearches: plannedPrimarySubjects(
+      deriveSearchSubjects(contentScenes),
+    ),
   };
 }
 
@@ -602,47 +651,29 @@ async function persistSearchTraceCheckpoint(input: {
   leaseOwner: string | null;
   debugPayload: Record<string, unknown>;
   phase: 'searched' | 'search-failed';
-  searchTrace: readonly VisualSearchTraceEntry[];
+  imageSearch: VisualImageSearch;
 }): Promise<void> {
-  if (!input.leaseOwner || input.searchTrace.length === 0) return;
+  if (!input.leaseOwner) return;
+  // An attempt that decided nothing and searched nothing would overwrite the
+  // `planned` checkpoint with strictly less evidence than it already holds.
+  if (
+    input.imageSearch.requests.length === 0 &&
+    input.imageSearch.scenes.length === 0
+  ) {
+    return;
+  }
   const persisted = await input.persistDebug(
     input.episodeId,
     input.leaseOwner,
     {
       ...input.debugPayload,
       phase: input.phase,
-      searchTrace: input.searchTrace,
+      imageSearch: input.imageSearch,
     },
   );
   if (!persisted) {
     throw new Error('Visual search debug checkpoint lost its job lease');
   }
-}
-
-function appendSearchTrace(
-  trace: VisualSearchTraceEntry[],
-  progress: VisualAssetProgress,
-): void {
-  if (
-    trace.length >= MAX_PERSISTED_VISUAL_SEARCH_TRACE_ENTRIES ||
-    progress.phase !== 'search' ||
-    !progress.searchIntent ||
-    (progress.provider !== 'pexels' &&
-      progress.provider !== 'pixabay' &&
-      progress.provider !== 'brave')
-  ) {
-    return;
-  }
-  trace.push({
-    sceneId: progress.sceneId,
-    provider: progress.provider,
-    intent: progress.searchIntent,
-    subjectKey: progress.subjectKey ?? null,
-    returned: progress.searchResultCount ?? 0,
-    accepted: progress.candidateCount ?? 0,
-    entityFiltered: progress.entityFilteredCount ?? 0,
-    rejected: progress.rejectedCandidateCount ?? 0,
-  });
 }
 
 export async function generateVisualStoryboard(input: {
@@ -777,39 +808,43 @@ function logPlannerProgress(
   runId: string,
   episodeId: string,
   progress: VisualAssetProgress,
+  trace: VisualImageSearch,
 ): void {
-  if (progress.phase === 'cover') {
-    logVisualProgress(logger, 'visual:cover', {
-      run: runId,
-      episode: episodeId,
-      candidates: String(progress.candidateCount ?? 0),
-      selected: progress.assetId ?? 'none',
-      fallback: String(
-        progress.candidateCount === 0 || progress.assetId === 'none',
-      ),
-      elapsedMs: progress.elapsedMs,
-    });
-    return;
-  }
+  const { request, selection } = progress;
   logVisualProgress(logger, `visual:${progress.phase}`, {
     run: runId,
     episode: episodeId,
     sceneId: progress.sceneId,
     progress: `${progress.sceneIndex}/${progress.sceneCount}`,
     provider: progress.provider,
+    requestKind: request?.kind,
+    // The spent-against-budget counter, because a starved scene reads the same
+    // as a mis-searched one until you know the episode ran out of requests.
+    requests: request ? `${trace.requestCount}/${trace.budget.max}` : undefined,
+    subjectKey: quotedField(
+      request?.subjectKey ?? selection?.subjectKey ?? progress.subjectKey,
+    ),
+    searchIntent: quotedField(request?.query ?? progress.searchIntent),
+    returned: request?.returned ?? progress.searchResultCount,
+    viable: request?.viable ?? progress.candidateCount,
+    searchError: request?.error ?? undefined,
+    selection: selection?.selection,
+    matchedSubjectKey: quotedField(selection?.matchedSubjectKey),
+    providerRank: selection?.providerRank ?? undefined,
+    fallbackReason: selection?.fallbackReason ?? undefined,
     assetId: progress.assetId,
     sourceHostname: progress.sourceHostname,
     reuseKind: progress.reuseKind,
-    candidateCount: progress.candidateCount,
-    searchResultCount: progress.searchResultCount,
-    entityFilteredCount: progress.entityFilteredCount,
-    searchEntities: progress.searchEntities,
-    searchIntent: progress.searchIntent,
-    subjectKey: progress.subjectKey,
     rejectedCandidateCount: progress.rejectedCandidateCount,
     rejectionSummary: progress.rejectionSummary,
     elapsedMs: progress.elapsedMs,
   });
+}
+
+/** Subject keys and queries carry spaces, so an unquoted value would merge into
+ * the next `key=value` pair of the same line. */
+function quotedField(value: string | null | undefined): string | undefined {
+  return value === null || value === undefined ? undefined : `"${value}"`;
 }
 
 function logVisualProgress(
@@ -830,6 +865,9 @@ interface PreparedStoryboard {
   searchIntentModel: string | null;
   subjectCatalog: VisualSubjectCatalog | null;
   sceneAssignments: VisualSceneSubjectAssignment[];
+  /** Why this episode has no subject catalog, when enrichment degraded rather
+   * than simply finding no named subject. */
+  subjectCatalogFailure: string | null;
   resumePlan: VisualAssetPlan | null;
 }
 
@@ -841,17 +879,14 @@ async function restorePreparedStoryboard(
     download: DownloadCheckpointImage;
   },
 ): Promise<PreparedStoryboard> {
-  // The legacy (no subject catalog) planner renumbers assets after a cover
-  // pass, which would desynchronize checkpointed asset ids; only the subject
-  // catalog path resumes selected scenes. Storyboard and intents resume in both.
-  const resumeScenes = checkpoint.subjectCatalog !== null;
   return {
     storyboard: restoreVisualStoryboard(checkpoint),
     searchIntentModel: checkpoint.searchIntentModel,
     subjectCatalog: checkpoint.subjectCatalog,
     sceneAssignments: [...checkpoint.sceneAssignments],
+    subjectCatalogFailure: checkpoint.subjectCatalogFailure ?? null,
     resumePlan:
-      resumeScenes && checkpoint.scenes.length > 0
+      checkpoint.scenes.length > 0
         ? await restoreVisualCheckpointPlan(checkpoint, options)
         : null,
   };

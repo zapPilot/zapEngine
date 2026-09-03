@@ -1,3 +1,8 @@
+import {
+  APIConnectionError,
+  APIConnectionTimeoutError,
+  APIError,
+} from 'openai';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -20,6 +25,7 @@ vi.mock('../../llm.js', () => ({
 import {
   MAX_SEARCH_ENTITIES_PER_SCENE,
   type StoryboardDraft,
+  storyboardDraftSchema,
 } from './draft.js';
 import { createDeterministicStoryboard } from './fallback.js';
 import {
@@ -360,6 +366,109 @@ describe('storyboard search intent enrichment', () => {
     ]);
   });
 
+  it('anchors a disambiguated subject on its contextual and its original name', async () => {
+    // Disambiguation rewrites `a16z` into `venture capital a16z` and demotes the
+    // original into `aliases[0]`. A candidate's own metadata carries the short
+    // name and never the contextual phrase, so keeping only the canonical name
+    // made the entity ranking bonus unreachable for exactly the subjects
+    // disambiguation exists for.
+    const provider = stubCatalogProvider([
+      catalogSubject({
+        id: 'subject-a16z',
+        canonicalName: 'a16z',
+        searchQueries: ['a16z partners'],
+        identityHints: ['venture capital'],
+      }),
+    ]);
+
+    const result = await enrichStoryboardSearchIntents(
+      {
+        draft: {
+          scenes: [
+            {
+              sceneId: 'scene-01',
+              startSentenceId: 's0001',
+              endSentenceId: 's0001',
+              imageSearchIntent: ['placeholder'],
+            },
+          ],
+        },
+        title: 'a16z AI writing guide',
+        script: 'a16z published an AI writing guide.',
+      },
+      { provider },
+    );
+
+    expect(result.subjectCatalog?.subjects[0]).toMatchObject({
+      canonicalName: 'venture capital a16z',
+      aliases: ['a16z'],
+    });
+    expect(result.draft.scenes[0]?.imageSearchEntities).toEqual([
+      'venture capital a16z',
+      'a16z',
+    ]);
+    expect(storyboardDraftSchema.parse(result.draft)).toEqual(result.draft);
+  });
+
+  it('keeps a four-subject scene at four entities and drops the demoted names', async () => {
+    const request = catalogEnrichmentRequest('Sui、a16z、Base 與 Aave');
+    const provider = stubCatalogProvider([
+      catalogSubject({
+        id: 'subject-sui',
+        canonicalName: 'Sui',
+        searchQueries: ['Sui validators'],
+        identityHints: ['blockchain'],
+        evidenceSceneIds: ['scene-01', 'scene-02'],
+      }),
+      catalogSubject({
+        id: 'subject-a16z',
+        canonicalName: 'a16z',
+        storyRole: 'secondary',
+        searchQueries: ['a16z partners'],
+        identityHints: ['venture capital'],
+        evidenceSceneIds: ['scene-02'],
+      }),
+      catalogSubject({
+        id: 'subject-base',
+        canonicalName: 'Base',
+        storyRole: 'secondary',
+        searchQueries: ['Base network launch'],
+        identityHints: ['layer 2 network'],
+        evidenceSceneIds: ['scene-02'],
+      }),
+      catalogSubject({
+        id: 'subject-aave',
+        canonicalName: 'Aave',
+        storyRole: 'secondary',
+        searchQueries: ['Aave lending pools'],
+        identityHints: ['lending protocol'],
+        evidenceSceneIds: ['scene-02'],
+      }),
+    ]);
+
+    const result = await enrichStoryboardSearchIntents(request, { provider });
+
+    expect(result.sceneAssignments[1]?.subjectIds).toHaveLength(
+      MAX_SEARCH_ENTITIES_PER_SCENE,
+    );
+    // Four subjects already fill the cap the persisted plan enforces, so the
+    // demoted originals are what yields and this scene is unchanged.
+    expect(result.draft.scenes[1]?.imageSearchEntities).toEqual([
+      'blockchain Sui',
+      'venture capital a16z',
+      'layer 2 network Base',
+      'lending protocol Aave',
+    ]);
+    // A scene inheriting two subjects has room for one demoted name.
+    expect(result.draft.scenes[2]?.imageSearchEntities).toEqual([
+      'blockchain Sui',
+      'venture capital a16z',
+      'Sui',
+      'a16z',
+    ]);
+    expect(storyboardDraftSchema.parse(result.draft)).toEqual(result.draft);
+  });
+
   it('passes catalog queries carrying an unwritten year straight to image search', async () => {
     // Catalog searchQueries are deliberately not numeric-grounded. The per-scene
     // gate this replaced could not tell a hallucinated year from a number inside
@@ -516,12 +625,14 @@ describe('visual subject catalog grounding', () => {
       'direct',
       ...request.draft.scenes.slice(1).map(() => 'section-context'),
     ]);
-    // Image search is held to the disambiguated canonical name, which is what
-    // the planner writes and what the identity gate then matches candidates on.
+    // Both names travel: the contextual one is what the planner searched Brave
+    // for, and the demoted original is the spelling a candidate's own metadata
+    // carries, which is what the ranking bonus is scored against.
     expect(
       result.draft.scenes.every(
         (scene) =>
-          scene.imageSearchEntities?.[0] === 'financial news network CNBC',
+          scene.imageSearchEntities?.join('|') ===
+          'financial news network CNBC|CNBC',
       ),
     ).toBe(true);
   });
@@ -550,7 +661,7 @@ describe('visual subject catalog grounding', () => {
     ]);
   });
 
-  it('still rejects a subject that the episode never names', async () => {
+  it('degrades an ungrounded subject to deterministic intents instead of failing the episode', async () => {
     const request = catalogEnrichmentRequest('財政部');
     const provider = stubCatalogProvider([
       catalogSubject({
@@ -561,23 +672,35 @@ describe('visual subject catalog grounding', () => {
       }),
     ]);
 
-    await expect(
-      enrichStoryboardSearchIntents(request, { provider }),
-    ).rejects.toThrow(
-      /Visual subject subject-imaginary \(ImaginaryCorp\) is not grounded/u,
-    );
+    const result = await enrichStoryboardSearchIntents(request, { provider });
+
+    expect(result).toEqual({
+      draft: request.draft,
+      model: MODEL,
+      enrichedSceneCount: 0,
+      entityAnchoredSceneCount: 0,
+      subjectCatalog: null,
+      sceneAssignments: [],
+      degradedReason: expect.stringMatching(
+        /Visual subject subject-imaginary \(ImaginaryCorp\) is not grounded/u,
+      ),
+    });
+    expect(result.draft).toBe(request.draft);
     expect(provider.catalog).toHaveBeenCalledTimes(1);
   });
 
-  it('rejects a catalog subject that cites an unknown evidence scene', async () => {
+  it('degrades a catalog subject that cites an unknown evidence scene', async () => {
     const request = catalogEnrichmentRequest('CNBC');
     const provider = stubCatalogProvider([
       catalogSubject({ evidenceSceneIds: ['scene-99'] }),
     ]);
 
-    await expect(
-      enrichStoryboardSearchIntents(request, { provider }),
-    ).rejects.toThrow(/cites unknown evidence scene scene-99/u);
+    const result = await enrichStoryboardSearchIntents(request, { provider });
+
+    expect(result.subjectCatalog).toBeNull();
+    expect(result.degradedReason).toMatch(
+      /cites unknown evidence scene scene-99/u,
+    );
     expect(provider.catalog).toHaveBeenCalledTimes(1);
   });
 
@@ -649,6 +772,173 @@ describe('visual subject catalog grounding', () => {
         'Coinbase',
       ]);
     }
+  });
+});
+
+describe('visual subject catalog degradation', () => {
+  /** A non-SDK rejection that carries nothing but an HTTP status, which is how a
+   * custom or internal catalog provider surfaces a gateway refusal. */
+  function statusError(status: number, message: string): Error {
+    return Object.assign(new Error(message), { status });
+  }
+
+  function namedError(name: string, message: string): Error {
+    const error = new Error(message);
+    error.name = name;
+    return error;
+  }
+
+  function failingProvider(error: Error) {
+    return {
+      model: MODEL,
+      catalog: vi.fn<SearchIntentProvider['catalog']>(async () => {
+        throw error;
+      }),
+    };
+  }
+
+  it('degrades a catalog that violates the subject schema', async () => {
+    const request = catalogEnrichmentRequest('CNBC');
+    const provider = {
+      model: MODEL,
+      catalog: vi.fn<SearchIntentProvider['catalog']>(() =>
+        Promise.resolve({ primarySubjectId: 'subject-cnbc', subjects: [] }),
+      ),
+    };
+
+    const result = await enrichStoryboardSearchIntents(request, { provider });
+
+    expect(result.subjectCatalog).toBeNull();
+    expect(result.sceneAssignments).toEqual([]);
+    expect(result.draft).toBe(request.draft);
+    expect(result.degradedReason).toContain('Visual subject catalog failed');
+    // A zod message is a multi-line issue dump, and this reason is stored in the
+    // visual debug payload, so it has to stay one bounded line.
+    expect(result.degradedReason).not.toMatch(/\n/u);
+    expect(result.degradedReason?.length).toBeLessThanOrEqual(200);
+  });
+
+  it('degrades a payload error that survived its own retry', async () => {
+    const request = catalogEnrichmentRequest('CNBC');
+    const provider = failingProvider(
+      namedError(
+        'SearchIntentPayloadError',
+        'Search intents returned malformed JSON (provider=x, model=y)',
+      ),
+    );
+
+    const result = await enrichStoryboardSearchIntents(request, { provider });
+
+    expect(result.subjectCatalog).toBeNull();
+    expect(result.degradedReason).toContain(
+      'Search intents returned malformed JSON',
+    );
+  });
+
+  it('fails the episode when a non-SDK provider reports an HTTP status', async () => {
+    const provider = failingProvider(statusError(502, 'Bad gateway'));
+
+    await expect(
+      enrichStoryboardSearchIntents(catalogEnrichmentRequest('CNBC'), {
+        provider,
+      }),
+    ).rejects.toMatchObject({ status: 502, message: 'Bad gateway' });
+  });
+
+  it('fails the episode when the SDK rejects the catalog request on auth', async () => {
+    const provider = failingProvider(
+      new APIError(401, undefined, 'Invalid API key', undefined),
+    );
+
+    await expect(
+      enrichStoryboardSearchIntents(catalogEnrichmentRequest('CNBC'), {
+        provider,
+      }),
+    ).rejects.toMatchObject({ status: 401, message: '401 Invalid API key' });
+  });
+
+  it('fails the episode when the SDK rejects the catalog request on a 5xx', async () => {
+    const provider = failingProvider(
+      new APIError(503, undefined, 'Service unavailable', undefined),
+    );
+
+    await expect(
+      enrichStoryboardSearchIntents(catalogEnrichmentRequest('CNBC'), {
+        provider,
+      }),
+    ).rejects.toMatchObject({ status: 503 });
+  });
+
+  it('fails the episode when the catalog request never reaches the provider', async () => {
+    const error = new APIConnectionError({ message: 'Connection error.' });
+    // Measured against the installed SDK, and the whole reason this is a type
+    // test: a transport failure carries no HTTP status and its `name` is the
+    // plain inherited 'Error', so neither of those can tell it apart from an
+    // unusable model answer that is allowed to degrade the episode.
+    expect(error.status).toBeUndefined();
+    expect(error.name).toBe('Error');
+
+    await expect(
+      enrichStoryboardSearchIntents(catalogEnrichmentRequest('CNBC'), {
+        provider: failingProvider(error),
+      }),
+    ).rejects.toThrow('Connection error.');
+  });
+
+  it('fails the episode when the SDK request deadline expires', async () => {
+    const error = new APIConnectionTimeoutError({
+      message: 'Request timed out.',
+    });
+    expect(error.status).toBeUndefined();
+    expect(error.name).toBe('Error');
+
+    await expect(
+      enrichStoryboardSearchIntents(catalogEnrichmentRequest('CNBC'), {
+        provider: failingProvider(error),
+      }),
+    ).rejects.toThrow('Request timed out.');
+  });
+
+  it('fails the episode when a non-SDK timeout rejects the catalog request', async () => {
+    const provider = failingProvider(
+      namedError('TimeoutError', 'The operation timed out.'),
+    );
+
+    await expect(
+      enrichStoryboardSearchIntents(catalogEnrichmentRequest('CNBC'), {
+        provider,
+      }),
+    ).rejects.toThrow('The operation timed out.');
+  });
+
+  it('fails the episode on an AbortError that arrives without an aborted signal', async () => {
+    const provider = failingProvider(
+      namedError('AbortError', 'This operation was aborted.'),
+    );
+
+    await expect(
+      enrichStoryboardSearchIntents(catalogEnrichmentRequest('CNBC'), {
+        provider,
+      }),
+    ).rejects.toThrow('This operation was aborted.');
+  });
+
+  it('never degrades an aborted render into a quality problem', async () => {
+    const controller = new AbortController();
+    const provider = {
+      model: MODEL,
+      catalog: vi.fn<SearchIntentProvider['catalog']>(async () => {
+        controller.abort();
+        throw new Error('request cancelled mid-flight');
+      }),
+    };
+
+    await expect(
+      enrichStoryboardSearchIntents(catalogEnrichmentRequest('CNBC'), {
+        provider,
+        signal: controller.signal,
+      }),
+    ).rejects.toThrow();
   });
 });
 

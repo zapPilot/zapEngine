@@ -122,22 +122,15 @@ describe('episode visual payload', () => {
     expect(payload.provenance.searchIntentModel).toBe('openrouter/free');
   });
 
-  it('materializes stock attribution and optional photographer metadata', () => {
-    const stockAssets: PlannedVisualImage[] = [
-      {
-        ...assets[0]!,
-        assetId: 'image-01',
-        provider: 'pexels',
-        license: 'pexels',
-        photographer: 'Ada Lens',
-        photographerUrl: 'https://www.pexels.com/@ada-lens',
-      },
+  it('credits a searched image to the page that published it', () => {
+    const searchedAssets: PlannedVisualImage[] = [
       {
         ...assets[1]!,
-        assetId: 'image-02',
-        provider: 'pixabay',
-        license: 'pixabay',
+        assetId: 'image-01',
+        photographer: 'Ada Lens',
+        photographerUrl: 'https://publisher.example.test/staff/ada-lens',
       },
+      { ...assets[1]!, assetId: 'image-02' },
     ];
     const selectedScenes = [
       { sceneId: 'scene-01', assetId: 'image-01' },
@@ -152,7 +145,7 @@ describe('episode visual payload', () => {
         canonicalLocalizationId: localizationId,
         scenes: storyboard.draft.scenes,
         selectedScenes,
-        assets: stockAssets,
+        assets: searchedAssets,
       }),
       episodeId,
       canonicalLocalizationId: localizationId,
@@ -160,24 +153,26 @@ describe('episode visual payload', () => {
       storyboard,
       searchIntentModel: null,
       selectedScenes,
-      assets: stockAssets,
+      assets: searchedAssets,
       r2ImageUrls: {
-        'image-01': 'https://cdn.example.test/image-01.jpg',
+        'image-01': 'https://cdn.example.test/image-01.webp',
         'image-02': 'https://cdn.example.test/image-02.webp',
       },
     });
 
     expect(payload.assets[0]).toMatchObject({
+      provider: 'brave',
+      license: 'unknown',
       photographer: 'Ada Lens',
-      photographerUrl: 'https://www.pexels.com/@ada-lens',
+      photographerUrl: 'https://publisher.example.test/staff/ada-lens',
     });
+    // No searched image carries a license we can link to, so the credit names
+    // the publisher's own page rather than implying a stock license.
     expect(payload.visualPlan.scenes[0]?.sources[0]).toMatchObject({
-      attribution: 'Photo by Ada Lens · Pexels',
-      licenseUrl: 'https://www.pexels.com/license/',
-    });
-    expect(payload.visualPlan.scenes[1]?.sources[0]).toMatchObject({
-      attribution: 'Photo · Pixabay',
-      licenseUrl: 'https://pixabay.com/service/license-summary/',
+      label: 'publisher.example.test',
+      attribution: 'Image source · publisher.example.test',
+      license: 'unknown',
+      licenseUrl: null,
     });
   });
 
