@@ -184,9 +184,7 @@ async function translateFields<K extends string>(
           });
           retryReason =
             error instanceof TranslationResponseError ? error.message : null;
-          providerRouting = rerouted
-            ? OPENROUTER_FALLBACK_ROUTING
-            : undefined;
+          providerRouting = rerouted ? OPENROUTER_FALLBACK_ROUTING : undefined;
           await sleep(TRANSLATION_RETRY_DELAY_MS);
           continue;
         }
@@ -217,7 +215,9 @@ async function translateFields<K extends string>(
     }
   }
 
-  throw lastError ?? new Error('Translation failed without an OpenRouter error');
+  throw (
+    lastError ?? new Error('Translation failed without an OpenRouter error')
+  );
 }
 
 function translationModelCandidates(): string[] {
