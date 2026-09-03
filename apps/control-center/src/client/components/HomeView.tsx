@@ -6,6 +6,7 @@ import type {
   OperationsResponse,
   OverviewResponse,
 } from '../../shared/types.js';
+import { excludedNote, excludedProviders } from '../cost-basis.js';
 import { integer, usdWhole } from '../format.js';
 import type { DashboardView } from './AppShell.js';
 import { MetricCell } from './MetricCell.js';
@@ -53,6 +54,15 @@ export function HomeView(props: {
   );
   const spend = statements?.statements.find(
     (statement) => statement.domain === 'spend',
+  );
+  /**
+   * The first spend number a founder sees, so it inherits every exclusion the
+   * projected total has and needs the same disclosure the Economics band
+   * carries. The compact form, not the collector's full message: this is the
+   * glance, and Economics is where the remedy is spelled out.
+   */
+  const spendExclusions = excludedNote(
+    excludedProviders(data?.providers ?? []),
   );
 
   return (
@@ -127,6 +137,7 @@ export function HomeView(props: {
           delta={spend?.delta ?? '—'}
           deltaTone={spend?.deltaTone ?? 'neutral'}
           label="Month-end spend"
+          secondary={spendExclusions}
           series={spend?.series ?? []}
           value={usdWhole(data?.projectedCostUsd)}
         />

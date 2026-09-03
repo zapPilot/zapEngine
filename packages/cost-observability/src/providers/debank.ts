@@ -20,6 +20,15 @@ export interface DeBankCostInput {
   fetch?: FetchLike;
   now?: Date;
   baseUrl?: string;
+  /**
+   * Previous calendar month's DeBank total, read from the caller's own
+   * persisted ledger. It damps the month-end projection over the first week,
+   * where extrapolating a single day of unit consumption is meaningless.
+   * Omitting it falls back to plain linear extrapolation. It cannot rescue an
+   * unknown `unitCostUsd`: without a unit price there is no accrued figure to
+   * project from, and both accrued and projected stay null.
+   */
+  priorMonthTotalUsd?: number | null;
 }
 
 export async function fetchDeBankCostSnapshot(
@@ -73,7 +82,9 @@ export async function fetchDeBankCostSnapshot(
     ],
     accruedCostUsd,
     projectedCostUsd:
-      accruedCostUsd === null ? null : projectMonthEnd(accruedCostUsd, now),
+      accruedCostUsd === null
+        ? null
+        : projectMonthEnd(accruedCostUsd, now, input.priorMonthTotalUsd),
     costType: 'list-price-equivalent',
     source: 'api',
     fetchedAt: now.toISOString(),

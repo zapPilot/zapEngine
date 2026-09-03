@@ -14,6 +14,23 @@ function createDeBankFetcher(
     );
 }
 
+function createOpenRouterFetcher(usageMonthly: number) {
+  return vi.fn().mockResolvedValue(
+    new Response(
+      JSON.stringify({
+        data: {
+          usage: usageMonthly,
+          usage_daily: usageMonthly,
+          usage_weekly: usageMonthly,
+          usage_monthly: usageMonthly,
+          limit: 100,
+          limit_remaining: null,
+        },
+      }),
+    ),
+  );
+}
+
 describe('cost providers', () => {
   it('normalizes OpenRouter monthly usage as actual cost', async () => {
     const fetcher = vi.fn().mockResolvedValue(
@@ -52,7 +69,26 @@ describe('cost providers', () => {
     );
   });
 
-  it('keeps DeBank USD cost unknown without an explicit unit price', async () => {
+  it('damps the OpenRouter projection with the prior month total', async () => {
+    const earlyMonth = new Date('2026-09-01T04:30:00.000Z');
+
+    const withoutPrior = await fetchOpenRouterCostSnapshot({
+      apiKey: 'test-key',
+      fetch: createOpenRouterFetcher(2),
+      now: earlyMonth,
+    });
+    const withPrior = await fetchOpenRouterCostSnapshot({
+      apiKey: 'test-key',
+      fetch: createOpenRouterFetcher(2),
+      now: earlyMonth,
+      priorMonthTotalUsd: 9.2,
+    });
+
+    expect(withoutPrior.projectedCostUsd).toBe(320);
+    expect(withPrior.projectedCostUsd).toBeCloseTo(19.13, 2);
+  });
+
+  it('keeps DeBank USD cost unknown without a unit price, prior month or not', async () => {
     const fetcher = createDeBankFetcher([
       { usage: 1_320, remains: 510_200, date: '2026-08-16' },
       { usage: 900, remains: 511_520, date: '2026-08-15' },
@@ -63,6 +99,7 @@ describe('cost providers', () => {
       apiKey: 'test-key',
       fetch: fetcher,
       now: new Date('2026-08-16T00:00:00.000Z'),
+      priorMonthTotalUsd: 12.5,
     });
 
     expect(snapshot).toMatchObject({
@@ -91,6 +128,28 @@ describe('cost providers', () => {
     });
 
     expect(snapshot.accruedCostUsd).toBe(2.881);
+  });
+
+  it('damps the DeBank projection with the prior month total', async () => {
+    const earlyMonth = new Date('2026-09-01T04:30:00.000Z');
+    const stats = [{ usage: 14_405, remains: 510_200, date: '2026-09-01' }];
+
+    const withoutPrior = await fetchDeBankCostSnapshot({
+      apiKey: 'test-key',
+      unitCostUsd: 200 / 1_000_000,
+      fetch: createDeBankFetcher(stats),
+      now: earlyMonth,
+    });
+    const withPrior = await fetchDeBankCostSnapshot({
+      apiKey: 'test-key',
+      unitCostUsd: 200 / 1_000_000,
+      fetch: createDeBankFetcher(stats),
+      now: earlyMonth,
+      priorMonthTotalUsd: 3,
+    });
+
+    expect(withoutPrior.projectedCostUsd).toBeCloseTo(460.96, 2);
+    expect(withPrior.projectedCostUsd).toBeCloseTo(17.96, 2);
   });
 
   it('keeps a fixed monthly plan constant for accrued and projected cost', () => {

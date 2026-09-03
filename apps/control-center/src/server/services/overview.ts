@@ -43,7 +43,7 @@ export function createOverviewService(input: {
     const [providers, history, product, social] = await Promise.all([
       repository
         ? repository
-            .loadLatestProviders()
+            .loadLatestProviders(fetchedAt)
             .catch((error) => repositoryErrorProviders(error))
         : Promise.resolve(unconfiguredProviders()),
       repository

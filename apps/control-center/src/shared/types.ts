@@ -21,9 +21,53 @@ export type CostTransactionKind =
   | 'invoice'
   | 'adjustment';
 
+/**
+ * The flyctl collector's headline number: what every currently-running Machine
+ * would cost if it stayed up for the whole month at list price. Fly bills per
+ * second and publishes no billing API, so this is a ceiling on compute, never
+ * an expected invoice — it lives in `usage` and must never be written to
+ * `accruedCostUsd` or `projectedCostUsd`.
+ */
+export const FLY_RUN_RATE_USAGE_KEY = 'compute_run_rate_monthly';
+
+/**
+ * Usage keys owned by the flyctl collector. A carried-forward manual snapshot
+ * strips them rather than re-stamping yesterday's Machine counts with today's
+ * `fetchedAt`, which would present stale fleet state as a current reading.
+ */
+export const FLY_COLLECTOR_USAGE_KEYS = [
+  FLY_RUN_RATE_USAGE_KEY,
+  'running_machines',
+  'stopped_machines',
+  'apps',
+  'unsupported_running_machines',
+] as const;
+
+/**
+ * One provider's contribution to a single day's accrued cost. The daily chart
+ * total collapses providers, so this keeps the split the tooltip needs —
+ * including rows whose cost is unknown (`accruedCostUsd: null`), because
+ * naming an excluded provider is the whole point of showing the basis.
+ */
+export interface CostHistoryProviderPoint {
+  provider: CostProvider;
+  label: string;
+  accruedCostUsd: number | null;
+  costType: CostType;
+  source: CostSnapshot['source'];
+  /**
+   * When an operator-recorded figure was read, carried per day rather than
+   * taken from the provider's current snapshot: a manual amount is a floor
+   * from the moment it was read, and dating an older day with the newest
+   * reading would claim knowledge that day never had.
+   */
+  periodEnd: string;
+}
+
 export interface CostHistoryPoint {
   date: string;
   accruedCostUsd: number | null;
+  providers: CostHistoryProviderPoint[];
 }
 
 export interface MonthlyCostPoint {

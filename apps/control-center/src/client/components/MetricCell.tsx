@@ -7,6 +7,11 @@ import { toneColor } from './statement-sentence.js';
  * `KpiGroup` plus the one thing every headline number now carries: its own
  * 30-day sparkline and Δ7d. Used in the Home band and the Growth platform
  * band.
+ *
+ * `secondary` is what a total that omits something says about the omission.
+ * It is the same disclosure `KpiGroup` renders, in the same class, because an
+ * exclusion has to read identically on the tile a founder glances at and on
+ * the page that explains it.
  */
 export function MetricCell(props: {
   label: string;
@@ -16,6 +21,7 @@ export function MetricCell(props: {
   deltaTone: DeltaTone;
   series: readonly number[];
   caption: string;
+  secondary?: string | null;
 }) {
   return (
     <div className="metric-cell">
@@ -36,6 +42,11 @@ export function MetricCell(props: {
         tone={toneColor(props.deltaTone)}
       />
       <span className="metric-cell-caption">{props.caption}</span>
+      {props.secondary ? (
+        <div className="kpi-secondary">
+          <span>{props.secondary}</span>
+        </div>
+      ) : null}
     </div>
   );
 }
