@@ -77,6 +77,11 @@ export function relativeTime(value: string): string {
     return 'Unknown';
   }
   const elapsed = Date.now() - parsed;
+  if (elapsed <= -60_000) {
+    return elapsed > -60 * 60_000
+      ? `in ${Math.ceil(-elapsed / 60_000)} min`
+      : new Date(parsed).toLocaleString();
+  }
   if (elapsed < 60_000) {
     return 'just now';
   }
