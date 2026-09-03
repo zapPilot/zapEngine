@@ -475,7 +475,7 @@ describe('createCompletionWithRetry', () => {
       getOpenRouterConfig().openai,
       params,
       null,
-      'suggestSearchIntents',
+      'buildVisualSubjectCatalog',
       { signal: controller.signal },
     );
     const resultAssertion = expect(resultPromise).resolves.toMatchObject({
@@ -491,7 +491,7 @@ describe('createCompletionWithRetry', () => {
     expect(ingestMocks.logIngestEvent).toHaveBeenCalledWith(
       'llm:retry',
       expect.objectContaining({
-        operation: 'suggestSearchIntents',
+        operation: 'buildVisualSubjectCatalog',
         attempt: 1,
         nextAttempt: 2,
       }),
@@ -514,7 +514,7 @@ describe('createCompletionWithRetry', () => {
         getOpenRouterConfig().openai,
         params,
         null,
-        'suggestSearchIntents',
+        'buildVisualSubjectCatalog',
         { signal: controller.signal },
       ),
     ).rejects.toBe(stageTimeout);
