@@ -162,7 +162,10 @@ describe('durable Telegram ingest queue', () => {
       telegram_chat_id: null,
     });
     const store = fakeStore({
-      claimNext: vi.fn().mockResolvedValueOnce(recovered).mockResolvedValue(null),
+      claimNext: vi
+        .fn()
+        .mockResolvedValueOnce(recovered)
+        .mockResolvedValue(null),
     });
     const queue = createTelegramIngestQueue({
       jobStore: store,
