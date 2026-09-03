@@ -29,16 +29,16 @@ five are where its evidence or narrow operator actions live.
 | **Reliability** | Which sources are telling us something is wrong?                       | `/api/operations`, `/api/operations/social`              |
 | **Economics**   | What does the company spend, and which provider spends it?             | `/api/overview`, `/api/costs/history`                    |
 
-Home opens on the ranked action queue rather than on a metric grid: the queue is
-the only part of the dashboard that says what to do, and it went unread while it
-lived one tab away. The KPI band sits below it, grouped by concern rather than
-spread across six equal tiles, and the provider ledger has exactly one home —
-Economics.
+Home opens on priority-sorted founder statements rather than on a metric grid.
+Each statement carries its conclusion and evidence; the Reliability statement can
+disclose the bounded action queue when operator action is warranted. The KPI band
+sits below the statements, grouped by concern rather than spread across six equal
+tiles, and the provider ledger has exactly one home — Economics.
 
-Because the queue is the first thing on the first screen, `/api/operations` is
+Because operational evidence is part of the first screen, `/api/operations` is
 part of the first paint. Its per-source caches absorb the repeat reads; the
 podcast pipeline, per-customer ledger, and publish queue stay lazy because none
-appears on Home.
+appears directly on Home.
 
 The Pipeline view derives its state directly from production sources of truth:
 `episode_localizations` for script/translation/TTS readiness,
@@ -91,7 +91,7 @@ defaults to a function duration below 15 seconds, configure a longer
 
 ## Operations snapshot
 
-`GET /api/operations` is one read model for "is anything wrong, and what should I do first", shared by Home's action queue, the Reliability view, and `pnpm ops --status` (`--json` for agents; exit code 1 when anything is `critical`).
+`GET /api/operations` is one read model for "is anything wrong, and what should I do first", shared by Home's statement evidence, the Reliability view, and `pnpm ops --status` (`--json` for agents; exit code 1 when anything is `critical`).
 
 Every source is an adapter that returns `OperationalSignal[]` and is contractually forbidden from throwing. Missing credentials produce `unknown`, never `healthy` — a provider nobody asked has not reported that it is fine — and a failed request produces a `degraded` source failure so a lost reading is visibly different from a healthy one.
 
