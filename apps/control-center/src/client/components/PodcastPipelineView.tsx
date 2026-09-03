@@ -208,24 +208,61 @@ function PipelineEpisode(props: {
 
 function VisualSearchPlan(props: { debug: PodcastPipelineVisualDebug }) {
   const { debug } = props;
+  const actualKeywords = [
+    ...new Set(debug.actualSearches.map(({ query }) => query)),
+  ];
+  const plannedKeywords = [
+    ...new Set(debug.plannedQueries.flatMap(({ queries }) => queries)),
+  ];
+  const displayedKeywords =
+    actualKeywords.length > 0 ? actualKeywords : plannedKeywords;
+  const keywordLabel =
+    actualKeywords.length > 0
+      ? 'Search keywords used'
+      : 'Search keywords planned';
+
   return (
     <details className="pipeline-details">
-      <summary>Visual search plan</summary>
+      <summary>Visual search debug</summary>
       <div className="pipeline-language-grid">
         <div className="pipeline-language">
-          <strong>Subjects</strong>
+          <strong>{keywordLabel}</strong>
           <span>
-            Primary: {debug.primarySubject ?? '—'}
+            {displayedKeywords.length > 0
+              ? displayedKeywords.join(' · ')
+              : 'No search keywords recorded'}
           </span>
+          {actualKeywords.length === 0 ? (
+            <small>No provider search trace recorded yet</small>
+          ) : null}
+        </div>
+        <div className="pipeline-language">
+          <strong>Subjects</strong>
+          <span>Primary: {debug.primarySubject ?? '—'}</span>
           <small>
             {debug.subjects.length > 0
               ? debug.subjects.map(({ name }) => name).join(' · ')
               : 'No subject catalog recorded'}
           </small>
         </div>
+        {debug.actualSearches.map((search, index) => (
+          <div
+            className="pipeline-language"
+            key={`${search.sceneId}-${search.provider}-${index}`}
+          >
+            <strong>
+              {search.sceneId} · {search.provider}
+            </strong>
+            <span>{search.query}</span>
+            <small>
+              returned {search.returned} · accepted {search.accepted} · entity
+              filtered {search.entityFiltered} · rejected {search.rejected}
+            </small>
+          </div>
+        ))}
         {debug.plannedQueries.map((scene) => (
-          <div className="pipeline-language" key={scene.sceneId}>
-            <strong>{scene.sceneId}</strong>
+          <div className="pipeline-language" key={`planned-${scene.sceneId}`}>
+            <strong>{scene.sceneId} · planned</strong>
             <span>
               {scene.selectionReason ?? 'search'}
               {scene.subjectIds.length > 0
