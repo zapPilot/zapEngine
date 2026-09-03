@@ -10,6 +10,7 @@ import type {
   PodcastPipelineVisualDebug,
 } from '../../shared/podcast-pipeline.js';
 import type { ControlCenterConfig } from '../config/env.js';
+import { record, records, stringArray } from './json.js';
 import { createServiceRoleClient } from './supabase.js';
 
 const EPISODE_LIMIT = 40;
@@ -293,15 +294,13 @@ export function summarizePodcastPipeline(
 function visualSearchDebug(
   payload: Record<string, unknown> | null,
 ): PodcastPipelineVisualDebug | null {
-  if (!payload) return null;
-  const catalog = asRecord(payload['subjectCatalog']);
-  const rawSubjects = Array.isArray(catalog?.['subjects'])
-    ? catalog['subjects']
-    : [];
-  const subjects = rawSubjects.flatMap((value) => {
-    const subject = asRecord(value);
-    const id = subject?.['id'];
-    const name = subject?.['canonicalName'];
+  if (!payload) {
+    return null;
+  }
+  const catalog = record(payload['subjectCatalog']);
+  const subjects = records(catalog?.['subjects']).flatMap((subject) => {
+    const id = subject['id'];
+    const name = subject['canonicalName'];
     return typeof id === 'string' && typeof name === 'string'
       ? [{ id, name }]
       : [];
@@ -313,15 +312,22 @@ function visualSearchDebug(
         primarySubjectId)
       : null;
 
+  // One column carries two payload shapes over a job's life. While the job
+  // runs, `saveEpisodeVideoVisualDebug` writes the transient
+  // `visual-search-debug-v1` checkpoint: top-level `plannedQueries` and
+  // `searchTrace`. Completion overwrites it with `episodeVisualPayloadSchema`,
+  // where the trace moved to `provenance.searchTrace` and the per-scene
+  // queries survive only as `visualPlan.scenes[].imageSearchIntent`.
   const debugQueries = parsePlannedQueries(payload['plannedQueries']);
-  const storyboard = asRecord(payload['storyboard']);
-  const completedQueries =
-    debugQueries.length > 0
-      ? []
-      : parseStoryboardQueries(storyboard?.['scenes']);
+  // The transient rows win: they also carry the subject ids and the assignment
+  // reason, which the completed payload's scenes no longer hold.
   const plannedQueries =
-    debugQueries.length > 0 ? debugQueries : completedQueries;
-  const actualSearches = parseActualSearches(payload['searchTrace']);
+    debugQueries.length > 0
+      ? debugQueries
+      : parseSceneSearchIntents(record(payload['visualPlan'])?.['scenes']);
+  const actualSearches = parseActualSearches(
+    payload['searchTrace'] ?? record(payload['provenance'])?.['searchTrace'],
+  );
   if (
     subjects.length === 0 &&
     plannedQueries.length === 0 &&
@@ -339,79 +345,68 @@ function visualSearchDebug(
   };
 }
 
-function parsePlannedQueries(
+function mapSceneRows<T>(
   value: unknown,
-): PodcastPipelineVisualDebug['plannedQueries'] {
-  if (!Array.isArray(value)) return [];
-  return value.flatMap((entry) => {
-    const row = asRecord(entry);
-    const sceneId = row?.['sceneId'];
-    if (typeof sceneId !== 'string') return [];
-    const subjectIds = stringArray(row['subjectIds']);
-    const queries = stringArray(row['queries']);
-    if (queries.length === 0) return [];
-    return [
-      {
-        sceneId,
-        subjectIds,
-        selectionReason:
-          typeof row['selectionReason'] === 'string'
-            ? row['selectionReason']
-            : null,
-        queries,
-      },
-    ];
+  mapRow: (row: Record<string, unknown>, sceneId: string) => T | null,
+): T[] {
+  return records(value).flatMap((row) => {
+    const sceneId = row['sceneId'];
+    if (typeof sceneId !== 'string') {
+      return [];
+    }
+    const mapped = mapRow(row, sceneId);
+    return mapped ? [mapped] : [];
   });
 }
 
-function parseStoryboardQueries(
+function parsePlannedQueries(
   value: unknown,
 ): PodcastPipelineVisualDebug['plannedQueries'] {
-  if (!Array.isArray(value)) return [];
-  return value.flatMap((entry) => {
-    const row = asRecord(entry);
-    const sceneId = row?.['sceneId'];
-    if (typeof sceneId !== 'string') return [];
+  return mapSceneRows(value, (row, sceneId) => {
+    const queries = stringArray(row['queries']);
+    if (queries.length === 0) {
+      return null;
+    }
+    const selectionReason = row['selectionReason'];
+    return {
+      sceneId,
+      subjectIds: stringArray(row['subjectIds']),
+      selectionReason:
+        typeof selectionReason === 'string' ? selectionReason : null,
+      queries,
+    };
+  });
+}
+
+function parseSceneSearchIntents(
+  value: unknown,
+): PodcastPipelineVisualDebug['plannedQueries'] {
+  return mapSceneRows(value, (row, sceneId) => {
     const queries = stringArray(row['imageSearchIntent']);
-    if (queries.length === 0) return [];
-    return [
-      {
-        sceneId,
-        subjectIds: [],
-        selectionReason: null,
-        queries,
-      },
-    ];
+    return queries.length === 0
+      ? null
+      : { sceneId, subjectIds: [], selectionReason: null, queries };
   });
 }
 
 function parseActualSearches(
   value: unknown,
 ): PodcastPipelineVisualDebug['actualSearches'] {
-  if (!Array.isArray(value)) return [];
-  return value.flatMap((entry) => {
-    const row = asRecord(entry);
-    const sceneId = row?.['sceneId'];
-    const provider = row?.['provider'];
-    const query = row?.['intent'];
-    if (
-      typeof sceneId !== 'string' ||
-      !isImageSearchProvider(provider) ||
-      typeof query !== 'string'
-    ) {
-      return [];
+  return mapSceneRows(value, (row, sceneId) => {
+    const provider = row['provider'];
+    const query = row['intent'];
+    if (!isImageSearchProvider(provider) || typeof query !== 'string') {
+      return null;
     }
-    return [
-      {
-        sceneId,
-        provider,
-        query,
-        returned: numericCount(row['returned']),
-        accepted: numericCount(row['accepted']),
-        entityFiltered: numericCount(row['entityFiltered']),
-        rejected: numericCount(row['rejected']),
-      },
-    ];
+    return {
+      sceneId,
+      provider,
+      query,
+      returned: numericCount(row['returned']),
+      accepted: numericCount(row['accepted']),
+      entityFiltered: numericCount(row['entityFiltered']),
+      rejected: numericCount(row['rejected']),
+    };
   });
 }
 
@@ -425,18 +420,6 @@ function numericCount(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value)
     ? Math.max(0, value)
     : 0;
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-}
-
-function stringArray(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === 'string')
-    : [];
 }
 
 function translationState(
