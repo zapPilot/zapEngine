@@ -59,7 +59,6 @@ const mocks = vi.hoisted(() => ({
   verifyCidChain: vi.fn(),
   verifyPerformanceMetrics: vi.fn(),
   verifySignature: vi.fn(),
-  isTrackRecordMockEnabled: vi.fn(),
 }));
 
 vi.mock('@/data/track-record-accessor', () => ({
@@ -73,7 +72,6 @@ vi.mock('@/data/track-record-accessor', () => ({
 }));
 
 vi.mock('@/data/mock-track-record', () => ({
-  isTrackRecordMockEnabled: mocks.isTrackRecordMockEnabled,
   mockMeta: fixtures.meta,
   mockSnapshotEntries: fixtures.entries,
 }));
@@ -85,8 +83,10 @@ const summary = {
   startNav: '100',
   endNav: '100',
   cumulativeReturn: '0.00%',
+  annualizedReturn: '0.00%',
   maxDrawdown: '0.00%',
   maxDrawdownDate: '2026-07-30',
+  volatility30d: '0.00%',
   bestDay: '0.00%',
   bestDayDate: '2026-07-30',
   worstDay: '0.00%',
@@ -96,13 +96,13 @@ const summary = {
   sortino: '—',
 };
 
-describe('useTrackRecord mock fallback', () => {
+describe('useTrackRecord default source', () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
     mocks.fetchMeta.mockResolvedValue({
       ...fixtures.meta,
-      latestSnapshotCid: null,
+      latestSnapshotCid: 'published-live-cid',
     });
     mocks.computePerformanceSummary.mockReturnValue(summary);
     mocks.verifyCidChain.mockReturnValue({
@@ -116,16 +116,16 @@ describe('useTrackRecord mock fallback', () => {
       signaturePresent: false,
       reason: 'not-required',
     });
-    mocks.isTrackRecordMockEnabled.mockReturnValue(true);
   });
 
-  it('serves reviewable mock data when no live snapshot is published', async () => {
+  it('defaults to backtest data without requesting live IPFS metadata', async () => {
     const { useTrackRecord } = await import('../useTrackRecord');
 
     const { result } = renderHook(() => useTrackRecord());
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current).toMatchObject({
+      source: 'backtest',
       meta: fixtures.meta,
       snapshotEntries: fixtures.entries,
       snapshots: [fixtures.snapshot],
@@ -140,6 +140,7 @@ describe('useTrackRecord mock fallback', () => {
         performanceValid: true,
       },
     });
+    expect(mocks.fetchMeta).not.toHaveBeenCalled();
     expect(mocks.fetchLatestSnapshot).not.toHaveBeenCalled();
     expect(mocks.fetchSnapshotHistoryEntries).not.toHaveBeenCalled();
     expect(mocks.verifySignature).toHaveBeenCalledWith(fixtures.snapshot, '');
