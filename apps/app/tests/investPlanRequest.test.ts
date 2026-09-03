@@ -90,6 +90,47 @@ describe('Invest deposit plan requests', () => {
     });
   });
 
+  it.each(['both', 'arbitrum'] as const)(
+    'refuses an HLP deposit whose scope is %s instead of Base',
+    (scope) => {
+      expect(
+        buildInvestDepositPlanRequest({
+          userAddress: USER_ADDRESS,
+          scope,
+          destination: 'hlp',
+          totalUsd6: '12000000',
+          baseFundingToken: DEFAULT_BASE_FUNDING_TOKEN,
+          arbitrumFundingToken: DEFAULT_ARBITRUM_FUNDING_TOKEN,
+          singleChainFundingDraft: {
+            scope: 'base',
+            chainId: 8453,
+            fromToken: DEFAULT_BASE_FUNDING_TOKEN.depositAddress,
+            fromAmount: '12000000',
+          },
+        }),
+      ).toBeNull();
+    },
+  );
+
+  it('refuses an HLP deposit funded from an Arbitrum draft', () => {
+    expect(
+      buildInvestDepositPlanRequest({
+        userAddress: USER_ADDRESS,
+        scope: 'base',
+        destination: 'hlp',
+        totalUsd6: '12000000',
+        baseFundingToken: DEFAULT_BASE_FUNDING_TOKEN,
+        arbitrumFundingToken: DEFAULT_ARBITRUM_FUNDING_TOKEN,
+        singleChainFundingDraft: {
+          scope: 'arbitrum',
+          chainId: 42161,
+          fromToken: DEFAULT_ARBITRUM_FUNDING_TOKEN.depositAddress,
+          fromAmount: '12000000',
+        },
+      }),
+    ).toBeNull();
+  });
+
   it('preserves the selected Arbitrum token for the four-pool GMX basket', () => {
     const selectedToken = ARBITRUM_DEPOSIT_TOKENS[1];
     const request = buildInvestDepositPlanRequest({

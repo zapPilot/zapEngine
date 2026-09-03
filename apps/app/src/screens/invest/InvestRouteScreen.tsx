@@ -21,6 +21,7 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { Tap } from '@/components/ui/Tap';
+import { startHlpSubmission } from '@/integration/hlpSubmissionModel';
 import type { DepositExecutionCapability } from '@/integration/investExecutionModel';
 import { useAccount } from '@/integration/useAccount';
 import { useInvest, useInvestDepositReview } from '@/integration/useInvest';
@@ -129,15 +130,15 @@ export function InvestRouteScreen() {
     setHlpPreparing(true);
     setHlpPreparationError(null);
     try {
-      // Capture this before the reviewed bridge is submitted. Progress uses
-      // the delta so pre-existing HyperCore USDC can never be deposited by
-      // mistake or mistaken for this bridge's arrival.
-      const balance = await getPerpUsdcBalance({
-        user: userAddress,
-        apiUrl: step.signing.apiUrl,
-      });
-      invest.setHlpBaselineUsd6(balance.withdrawableUsd6.toString());
-      await handleConfirm();
+      await startHlpSubmission(
+        { user: userAddress, apiUrl: step.signing.apiUrl },
+        {
+          readWithdrawableUsd6: async (input) =>
+            (await getPerpUsdcBalance(input)).withdrawableUsd6,
+          setBaselineUsd6: invest.setHlpBaselineUsd6,
+          submitReviewedBatch: handleConfirm,
+        },
+      );
     } catch (error: unknown) {
       setHlpPreparationError(extractErrorMessage(error));
     } finally {

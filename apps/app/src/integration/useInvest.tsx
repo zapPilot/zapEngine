@@ -12,6 +12,7 @@ import { getDepositReview } from '@zapengine/app-core/services';
 import {
   HYPERCORE_CHAIN_ID,
   STRATEGY_DEPOSIT_ID,
+  type ChainSplit,
   type DepositReviewGroup,
   type PlanOrchestrationDepositReviewResponse,
   type PlanOrchestrationDepositPlan,
@@ -179,6 +180,25 @@ interface InvestDepositPlanRequestParams {
   destination?: InvestDestination;
 }
 
+/**
+ * The Base source batch is identical for every destination; only the split
+ * decides where the bridged USDC lands.
+ */
+function baseInvestRequest(
+  userAddress: `0x${string}`,
+  draft: Extract<SingleChainFundingDraft, { scope: 'base' }>,
+  split: ChainSplit,
+): PlanOrchestrationDepositRequest {
+  return {
+    kind: 'invest',
+    userAddress,
+    fromToken: draft.fromToken,
+    fromAmount: draft.fromAmount,
+    sourceChainId: draft.chainId,
+    split,
+  };
+}
+
 export function buildInvestDepositPlanRequest({
   userAddress,
   scope,
@@ -196,14 +216,9 @@ export function buildInvestDepositPlanRequest({
     ) {
       return null;
     }
-    return {
-      kind: 'invest',
-      userAddress,
-      fromToken: singleChainFundingDraft.fromToken,
-      fromAmount: singleChainFundingDraft.fromAmount,
-      sourceChainId: singleChainFundingDraft.chainId,
-      split: { [String(HYPERCORE_CHAIN_ID)]: 1 },
-    };
+    return baseInvestRequest(userAddress, singleChainFundingDraft, {
+      [String(HYPERCORE_CHAIN_ID)]: 1,
+    });
   }
   if (scope === 'both') {
     return {
@@ -227,14 +242,9 @@ export function buildInvestDepositPlanRequest({
     return null;
   }
   if (singleChainFundingDraft.scope === 'base') {
-    return {
-      kind: 'invest',
-      userAddress,
-      fromToken: singleChainFundingDraft.fromToken,
-      fromAmount: singleChainFundingDraft.fromAmount,
-      sourceChainId: singleChainFundingDraft.chainId,
-      split: { '8453': 1 },
-    };
+    return baseInvestRequest(userAddress, singleChainFundingDraft, {
+      '8453': 1,
+    });
   }
   return {
     kind: 'gmx-v2-basket',

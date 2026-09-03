@@ -199,6 +199,7 @@ export function InvestExecutionProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const {
     scope,
+    destination,
     totalUsd6,
     baseFundingToken,
     arbitrumFundingToken,
@@ -242,6 +243,7 @@ export function InvestExecutionProvider({ children }: { children: ReactNode }) {
   const executionDraftKey = [
     walletAddress?.toLowerCase() ?? 'none',
     scope,
+    destination,
     totalUsd6,
     baseFundingToken.depositAddress,
     arbitrumFundingToken.depositAddress,
@@ -275,6 +277,10 @@ export function InvestExecutionProvider({ children }: { children: ReactNode }) {
 
   const startFromDraft = useCallback(async () => {
     if (!walletAddress || totalUsd6 === '0') return;
+    // The guided wizard carries no plan follow-ups, so it would submit the
+    // Base bridge and then strand the funds on HyperCore with nothing to sign
+    // the HLP vault action. HLP drafts execute through the reviewed route only.
+    if (destination === 'hlp') return;
     invalidatedDone.current = false;
     const userAddress = walletAddress as `0x${string}`;
     const request = buildInvestDepositPlanRequest({
@@ -284,6 +290,7 @@ export function InvestExecutionProvider({ children }: { children: ReactNode }) {
       baseFundingToken,
       arbitrumFundingToken,
       singleChainFundingDraft,
+      destination,
     });
     if (request === null) return;
 
@@ -302,6 +309,7 @@ export function InvestExecutionProvider({ children }: { children: ReactNode }) {
   }, [
     arbitrumFundingToken,
     baseFundingToken,
+    destination,
     scope,
     singleChainFundingDraft,
     startSingleChain,

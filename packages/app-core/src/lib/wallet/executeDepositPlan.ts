@@ -16,8 +16,6 @@ import {
   inspectDelegation,
 } from './eip7702Delegation';
 
-export type DepositExecutionTier = 'eip7702' | 'sequential';
-
 export type DepositPlanExecutionResult =
   | { kind: 'eip7702'; callsId: string; transactionHash?: Hash }
   | { kind: 'sequential'; hashes: Hash[] };

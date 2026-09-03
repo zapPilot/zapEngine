@@ -2,6 +2,7 @@ import { APIError } from '@core/lib/http';
 import {
   getPerpUsdcBalance,
   getVaultEquity,
+  HyperliquidVaultDepositError,
   submitVaultDeposit,
   usdStringToUsd6,
   waitForPerpUsdcArrival,
@@ -14,8 +15,37 @@ const HLP = '0xdfc24b077bc1425ad1dea75bcb6f8158e10df303';
 
 const sdkMocks = vi.hoisted(() => {
   const vaultTransfer = vi.fn();
+
+  // Mirrors the SDK's real error hierarchy: submitVaultDeposit classifies a
+  // failure by `instanceof sdk.TransportError`, so the prototype chain — not
+  // just the shape — has to match.
+  class HyperliquidError extends Error {
+    constructor(message?: string) {
+      super(message);
+      this.name = 'HyperliquidError';
+    }
+  }
+  class TransportError extends HyperliquidError {
+    constructor(message?: string) {
+      super(message);
+      this.name = 'TransportError';
+    }
+  }
+  class ApiRequestError extends HyperliquidError {
+    readonly response: unknown;
+
+    constructor(response: unknown, message?: string) {
+      super(message);
+      this.name = 'ApiRequestError';
+      this.response = response;
+    }
+  }
+
   return {
     vaultTransfer,
+    HyperliquidError,
+    TransportError,
+    ApiRequestError,
     // Constructor-called mocks need `function` implementations (`new` on an
     // arrow-implemented vi.fn() throws).
     HttpTransport: vi.fn(function HttpTransport() {
@@ -30,6 +60,9 @@ const sdkMocks = vi.hoisted(() => {
 vi.mock('@nktkas/hyperliquid', () => ({
   HttpTransport: sdkMocks.HttpTransport,
   ExchangeClient: sdkMocks.ExchangeClient,
+  HyperliquidError: sdkMocks.HyperliquidError,
+  TransportError: sdkMocks.TransportError,
+  ApiRequestError: sdkMocks.ApiRequestError,
 }));
 
 function jsonResponse(body: unknown, ok = true): Response {
@@ -351,9 +384,18 @@ describe('submitVaultDeposit', () => {
   });
 
   it('rejects non-positive and unsafe amounts before touching the SDK', async () => {
+    // Nothing is signed yet, so these stay plain Errors — never the
+    // classified submission error the retry logic reads.
     await expect(
       submitVaultDeposit({ walletClient, vaultAddress: HLP, usd6: 0n }),
     ).rejects.toThrow('must be positive');
+    const guardError: unknown = await submitVaultDeposit({
+      walletClient,
+      vaultAddress: HLP,
+      usd6: 0n,
+    }).catch((error: unknown) => error);
+    expect(guardError).toBeInstanceOf(Error);
+    expect(guardError).not.toBeInstanceOf(HyperliquidVaultDepositError);
     await expect(
       submitVaultDeposit({
         walletClient,
@@ -361,22 +403,61 @@ describe('submitVaultDeposit', () => {
         usd6: BigInt(Number.MAX_SAFE_INTEGER) + 1n,
       }),
     ).rejects.toThrow('safe integer range');
+    expect(sdkMocks.ExchangeClient).not.toHaveBeenCalled();
     expect(sdkMocks.vaultTransfer).not.toHaveBeenCalled();
   });
 
-  it('wraps SDK errors with the raw Hyperliquid message preserved', async () => {
-    sdkMocks.vaultTransfer.mockRejectedValueOnce(
-      new Error('User or API Wallet does not exist'),
-    );
-
-    await expect(
-      submitVaultDeposit({
+  /** Run one failing submission and hand back the classified error. */
+  async function captureSubmitFailure(
+    cause: unknown,
+  ): Promise<HyperliquidVaultDepositError> {
+    sdkMocks.vaultTransfer.mockRejectedValueOnce(cause);
+    try {
+      await submitVaultDeposit({
         walletClient,
         vaultAddress: HLP,
         usd6: 5_000_000n,
-      }),
-    ).rejects.toThrow(
-      'Hyperliquid vault deposit failed: User or API Wallet does not exist',
+      });
+    } catch (error) {
+      return error as HyperliquidVaultDepositError;
+    }
+    throw new Error('submitVaultDeposit unexpectedly resolved');
+  }
+
+  it('marks a transport failure ambiguous — the action may be accepted', async () => {
+    const cause = new sdkMocks.TransportError('Request timed out');
+    const error = await captureSubmitFailure(cause);
+
+    expect(error).toBeInstanceOf(HyperliquidVaultDepositError);
+    expect(error.ambiguous).toBe(true);
+    expect(error.message).toBe(
+      'Hyperliquid vault deposit failed: Request timed out',
     );
+    expect(error.cause).toBe(cause);
+  });
+
+  it('marks an explicit exchange rejection unambiguous', async () => {
+    const cause = new sdkMocks.ApiRequestError(
+      { status: 'err', response: 'Insufficient balance' },
+      'Insufficient balance',
+    );
+    const error = await captureSubmitFailure(cause);
+
+    expect(error.ambiguous).toBe(false);
+    expect(error.message).toBe(
+      'Hyperliquid vault deposit failed: Insufficient balance',
+    );
+    expect(error.cause).toBe(cause);
+  });
+
+  it('marks a wallet rejection unambiguous', async () => {
+    const cause = new Error('User rejected the request');
+    const error = await captureSubmitFailure(cause);
+
+    expect(error.ambiguous).toBe(false);
+    expect(error.message).toBe(
+      'Hyperliquid vault deposit failed: User rejected the request',
+    );
+    expect(error.cause).toBe(cause);
   });
 });

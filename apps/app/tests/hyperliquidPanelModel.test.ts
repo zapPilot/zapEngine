@@ -1,7 +1,6 @@
 import {
   belowHlpMinimum,
   hlpDoneStatusLabel,
-  hlpErrorAction,
   HYPERLIQUID_HLP_SPLIT,
   MIN_HYPERLIQUID_DEPOSIT_USD6,
 } from '@/integration/hyperliquidPanelModel';
@@ -29,13 +28,5 @@ describe('hyperliquidPanelModel', () => {
       'HLP deposit submitted — awaiting confirmation',
     );
     expect(hlpDoneStatusLabel('arrived')).toBe('Deposited');
-  });
-
-  it('offers a retry only for the repeatable HLP deposit stage', () => {
-    expect(hlpErrorAction('hyperliquidDeposit')).toBe('retry');
-    expect(hlpErrorAction('sourceExecution')).toBe('reset');
-    expect(hlpErrorAction('bridging')).toBe('reset');
-    expect(hlpErrorAction('configure')).toBe('reset');
-    expect(hlpErrorAction('done')).toBe('reset');
   });
 });

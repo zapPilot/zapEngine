@@ -252,6 +252,45 @@ describe('depositWizardReducer', () => {
     expect(state).toEqual(initialDepositWizardState);
   });
 
+  it('ignores HL_ARRIVED unless an arrival watcher is armed', () => {
+    // Nothing downstream clears a foreign delta, so a late resolve from a
+    // superseded run must not stamp one onto a fresh machine.
+    const afterReset = run([{ type: 'RESET' }], arrivedState());
+    expect(
+      run([{ type: 'HL_ARRIVED', arrivedUsd6: 42_000_000n }], afterReset),
+    ).toEqual(initialDepositWizardState);
+
+    // Nor may it overwrite the measurement of a submission already in flight.
+    const confirming = run([{ type: 'HL_SUBMITTED' }], arrivedState());
+    expect(
+      run([{ type: 'HL_ARRIVED', arrivedUsd6: 42_000_000n }], confirming),
+    ).toBe(confirming);
+  });
+
+  it('ignores BRIDGE_UPDATE outside the bridging stage', () => {
+    // A settled poll from a superseded run must not resurrect leg progress.
+    const afterReset = run([{ type: 'RESET' }], arrivedState());
+    expect(
+      run(
+        [
+          {
+            type: 'BRIDGE_UPDATE',
+            legIndex: 1,
+            status: 'destinationConfirmed',
+            destinationTxHash: '0xdest',
+          },
+        ],
+        afterReset,
+      ),
+    ).toEqual(initialDepositWizardState);
+
+    // Same guard once the wizard has already moved past bridging.
+    const arrived = arrivedState();
+    expect(
+      run([{ type: 'BRIDGE_UPDATE', legIndex: 1, status: 'failed' }], arrived),
+    ).toBe(arrived);
+  });
+
   it('resets out of the submitted-but-unverified terminal state', () => {
     const state = run(
       [{ type: 'HL_SUBMITTED' }, { type: 'HL_UNVERIFIED' }, { type: 'RESET' }],
@@ -280,5 +319,21 @@ describe('resolveHlpDepositUsd6', () => {
     expect(() => resolveHlpDepositUsd6(hlpStep, 9_999_999n)).toThrow(
       'below the vault minimum',
     );
+  });
+
+  it('caps a bridge-output amount at what the bridge could deliver', () => {
+    // An unrelated HyperCore credit landing between the pre-bridge snapshot
+    // and the signature must not be swept into the days-long lock.
+    expect(resolveHlpDepositUsd6(hlpStep, 41_000_000n)).toBe(29_580_000n);
+    // A real arrival inside the quote's slippage tolerance is untouched.
+    expect(resolveHlpDepositUsd6(hlpStep, 29_500_000n)).toBe(29_500_000n);
+    // The cap is expressed in the destination's units, so it cannot be
+    // confused with a source amount denominated in another token's decimals.
+    expect(
+      resolveHlpDepositUsd6(
+        { ...hlpStep, expectedUsd: '10000000' },
+        99n * 10n ** 6n,
+      ),
+    ).toBe(10_200_000n);
   });
 });

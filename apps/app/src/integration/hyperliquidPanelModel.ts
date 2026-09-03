@@ -1,8 +1,5 @@
 import { HYPERCORE_CHAIN_ID } from '@zapengine/app-core/config/chains/display';
-import type {
-  WizardHlpStatus,
-  WizardStage,
-} from '@zapengine/app-core/lib/wallet/depositWizardMachine';
+import type { WizardHlpStatus } from '@zapengine/app-core/lib/wallet/depositWizardMachine';
 import type { ChainSplit } from '@zapengine/types/api';
 
 /**
@@ -34,13 +31,4 @@ export function hlpDoneStatusLabel(status: WizardHlpStatus): string {
     return 'HLP deposit submitted — awaiting confirmation';
   }
   return 'Deposited';
-}
-
-/**
- * Only the HLP deposit itself is safely repeatable: the wizard rewinds it to
- * `arrived` on failure. Anything earlier already moved funds on Base, so the
- * user has to start over from setup.
- */
-export function hlpErrorAction(stage: WizardStage): 'retry' | 'reset' {
-  return stage === 'hyperliquidDeposit' ? 'retry' : 'reset';
 }

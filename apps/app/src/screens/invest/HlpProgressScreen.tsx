@@ -1,27 +1,37 @@
 import { useDepositWizard } from '@zapengine/app-core/hooks/useDepositWizard';
+import { extractErrorMessage } from '@zapengine/app-core/lib/errors';
 import { hlpStepFromPlan } from '@zapengine/app-core/lib/wallet/depositWizardMachine';
 import type {
   DepositPlan,
   PlanOrchestrationDepositPlan,
 } from '@zapengine/types/api';
 import { useRouter } from 'expo-router';
-import { Check, Circle, LoaderCircle, X } from 'lucide-react-native';
-import { useEffect, useRef, useState } from 'react';
-import { Text, View } from 'react-native';
-import { formatUnits, type Hash } from 'viem';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Linking, Text, View } from 'react-native';
+import { formatUnits } from 'viem';
 
+import { ProgressTimelineRow } from '@/components/invest/ProgressTimelineRow';
 import { StepHeader } from '@/components/invest/StepHeader';
 import { WizardDoneCard } from '@/components/invest/WizardDoneCard';
 import { InlineErrorCard } from '@/components/ui/InlineErrorCard';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
+import { Tap } from '@/components/ui/Tap';
+import {
+  hlpProgressRows,
+  hlpRetryMode,
+  resumeKey,
+  shouldAutoRunHlpDeposit,
+  unsafeResumeReason,
+  type HlpProgressInput,
+} from '@/integration/hlpProgressModel';
 import { hlpDoneStatusLabel } from '@/integration/hyperliquidPanelModel';
+import { hyperliquidAccountUrl } from '@/integration/investExecutionModel';
+import { isStrategyDepositPlan } from '@/integration/simulationPreviewModel';
+import { useAccount } from '@/integration/useAccount';
 import { useInvest } from '@/integration/useInvest';
 import { useInvestExecution } from '@/integration/useInvestExecution';
-import { isStrategyDepositPlan } from '@/integration/simulationPreviewModel';
 import { formatUsd } from '@/lib/format';
-
-type RowState = 'waiting' | 'active' | 'done' | 'failed';
 
 function asDepositPlan(
   plan: PlanOrchestrationDepositPlan | undefined,
@@ -30,83 +40,10 @@ function asDepositPlan(
   return plan;
 }
 
-function ProgressIcon({ state }: { state: RowState }) {
-  if (state === 'done') {
-    return <Check size={14} color="#0a0a0a" strokeWidth={2.5} />;
-  }
-  if (state === 'active') {
-    return <LoaderCircle size={14} color="#d4c5a3" />;
-  }
-  if (state === 'failed') {
-    return <X size={14} color="#ef7474" strokeWidth={2.5} />;
-  }
-  return <Circle size={8} color="#52525b" />;
-}
-
-function ProgressRow({
-  label,
-  detail,
-  state,
-  isLast = false,
-}: {
-  label: string;
-  detail: string;
-  state: RowState;
-  isLast?: boolean;
-}) {
-  const done = state === 'done';
-  const active = state === 'active';
-  return (
-    <View className="flex-row gap-3">
-      <View className="items-center">
-        <View
-          className="h-8 w-8 items-center justify-center rounded-full border"
-          style={{
-            borderColor: done
-              ? '#d4c5a3'
-              : active
-                ? 'rgba(212,197,163,.45)'
-                : state === 'failed'
-                  ? 'rgba(239,116,116,.45)'
-                  : 'rgba(255,255,255,.08)',
-            backgroundColor: done
-              ? '#d4c5a3'
-              : active
-                ? 'rgba(212,197,163,.09)'
-                : 'rgba(255,255,255,.02)',
-          }}
-        >
-          <ProgressIcon state={state} />
-        </View>
-        {!isLast ? (
-          <View
-            className="min-h-7 flex-1 w-px"
-            style={{
-              backgroundColor: done
-                ? 'rgba(212,197,163,.45)'
-                : 'rgba(255,255,255,.07)',
-            }}
-          />
-        ) : null}
-      </View>
-      <View className="flex-1 pb-5 pt-1">
-        <Text
-          className="font-sans-semibold text-[13.5px]"
-          style={{ color: state === 'waiting' ? '#71717a' : '#f4f4f5' }}
-        >
-          {label}
-        </Text>
-        <Text className="mt-1 text-[11px] leading-[16px] text-ink-dim">
-          {detail}
-        </Text>
-      </View>
-    </View>
-  );
-}
-
 export function HlpProgressScreen() {
   const router = useRouter();
   const invest = useInvest();
+  const account = useAccount();
   const {
     reviewedSubmission,
     reviewedProgress,
@@ -127,117 +64,102 @@ export function HlpProgressScreen() {
   const exactPlan = asDepositPlan(reviewedQueue[0]?.plan);
   const hlpStep = exactPlan ? hlpStepFromPlan(exactPlan) : null;
   const sourceTxHash =
-    reviewedProgress?.transactionHash ?? reviewedSubmission?.transactionHash;
+    reviewedProgress?.transactionHash ??
+    reviewedSubmission?.transactionHash ??
+    null;
   const baselineUsd6 = invest.hlpBaselineUsd6;
-  const reviewedFailed = reviewedProgress?.phase === 'failed';
-  const isDone = wizard.stage === 'done';
-  const canTrackExisting = Boolean(
-    exactPlan &&
-      hlpStep &&
-      sourceTxHash &&
-      baselineUsd6 &&
-      !reviewedFailed,
+  const bridgeConfirmed = wizard.legs.some(
+    (leg) => leg.kind === 'bridge' && leg.status === 'destinationConfirmed',
   );
 
-  const trackExistingDeposit = async () => {
-    if (!exactPlan || !hlpStep || !sourceTxHash || !baselineUsd6) return;
+  const model = useMemo<HlpProgressInput>(
+    () => ({
+      hasReviewedSubmission: reviewedSubmission !== null,
+      reviewedPhase: reviewedProgress?.phase ?? null,
+      reviewedStatusNote: reviewedProgress?.statusNote ?? null,
+      sourceTxHash,
+      baselineUsd6,
+      hasExactPlan: exactPlan !== null,
+      hasHlpStep: hlpStep !== null,
+      wizardStage: wizard.stage,
+      wizardErrorStage: wizard.error?.stage ?? null,
+      hlpStatus: wizard.hlp.status,
+      bridgeConfirmed,
+      flowError,
+    }),
+    [
+      baselineUsd6,
+      bridgeConfirmed,
+      exactPlan,
+      flowError,
+      hlpStep,
+      reviewedProgress?.phase,
+      reviewedProgress?.statusNote,
+      reviewedSubmission,
+      sourceTxHash,
+      wizard.error?.stage,
+      wizard.hlp.status,
+      wizard.stage,
+    ],
+  );
+
+  const rows = hlpProgressRows(model);
+  const currentResumeKey = resumeKey(
+    model,
+    reviewedSubmission?.callsId ?? null,
+  );
+  const visibleError =
+    unsafeResumeReason(model) ?? flowError ?? wizard.error?.message;
+  const retryMode = hlpRetryMode(model);
+  const awaitingSourceHash =
+    model.reviewedPhase === 'confirming' && sourceTxHash === null;
+  const accountUrl =
+    wizard.hlp.status === 'submittedUnverified'
+      ? hyperliquidAccountUrl(wizard.hlp, account.address)
+      : null;
+
+  const runGuarded = useCallback((run: () => Promise<void>) => {
     setFlowError(null);
+    void run().catch((error: unknown) => {
+      setFlowError(extractErrorMessage(error));
+    });
+  }, []);
+
+  const trackExistingDeposit = useCallback(async () => {
+    if (!exactPlan || !hlpStep || !sourceTxHash || !baselineUsd6) return;
     await resumeReviewedPlan({
       plan: exactPlan,
       baselineUsd6: BigInt(baselineUsd6),
-      sourceTxHash: sourceTxHash as Hash,
+      sourceTxHash,
     });
-  };
+  }, [baselineUsd6, exactPlan, hlpStep, resumeReviewedPlan, sourceTxHash]);
 
   useEffect(() => {
-    if (!canTrackExisting || !sourceTxHash || !baselineUsd6) return;
-    const key = `${reviewedSubmission?.callsId ?? 'reviewed'}:${sourceTxHash}:${baselineUsd6}`;
-    if (resumedKeyRef.current === key) return;
-    resumedKeyRef.current = key;
-    void trackExistingDeposit().catch((error: unknown) => {
-      setFlowError(error instanceof Error ? error.message : String(error));
-    });
-    // The exact reviewed plan is held in reviewedQueue; the stable key below
-    // deliberately prevents rerenders from restarting bridge polling.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    baselineUsd6,
-    canTrackExisting,
-    reviewedSubmission?.callsId,
-    sourceTxHash,
-  ]);
+    if (currentResumeKey === null) {
+      // The submission this run belonged to is gone (a wallet change clears
+      // it), so drop the run instead of letting it publish state for a plan
+      // the screen no longer holds.
+      if (resumedKeyRef.current !== null) {
+        resumedKeyRef.current = null;
+        autoDepositAttemptedRef.current = false;
+        resetHlp();
+      }
+      return;
+    }
+    if (resumedKeyRef.current === currentResumeKey) return;
+    resumedKeyRef.current = currentResumeKey;
+    runGuarded(trackExistingDeposit);
+  }, [currentResumeKey, resetHlp, runGuarded, trackExistingDeposit]);
 
   useEffect(() => {
-    if (
-      wizard.hlp.status !== 'arrived' ||
-      wizard.error ||
-      autoDepositAttemptedRef.current
-    ) {
+    if (!shouldAutoRunHlpDeposit(model, autoDepositAttemptedRef.current)) {
       return;
     }
     // This keeps the product interaction to one app CTA. Hyperliquid still
     // opens its own wallet typed-data confirmation; there is no auto-signing.
     autoDepositAttemptedRef.current = true;
-    void runHlpDeposit().catch((error: unknown) => {
-      setFlowError(error instanceof Error ? error.message : String(error));
-    });
-  }, [runHlpDeposit, wizard.error, wizard.hlp.status]);
-
-  const sourceState: RowState = reviewedFailed
-    ? 'failed'
-    : sourceTxHash
-      ? 'done'
-      : 'active';
-  const bridgeState: RowState =
-    wizard.legs.some(
-      (leg) => leg.kind === 'bridge' && leg.status === 'destinationConfirmed',
-    )
-      ? 'done'
-      : wizard.error?.stage === 'bridging'
-        ? 'failed'
-        : wizard.stage === 'bridging'
-          ? 'active'
-          : 'waiting';
-  const arrivalState: RowState =
-    wizard.hlp.status === 'arrived' ||
-    wizard.hlp.status === 'confirming' ||
-    wizard.hlp.status === 'submittedUnverified' ||
-    wizard.hlp.status === 'deposited'
-      ? 'done'
-      : wizard.error?.stage === 'hyperliquidDeposit'
-        ? 'failed'
-        : wizard.hlp.status === 'awaitingArrival'
-          ? 'active'
-          : 'waiting';
-  const vaultState: RowState =
-    wizard.hlp.status === 'deposited' ||
-    wizard.hlp.status === 'submittedUnverified'
-      ? 'done'
-      : wizard.hlp.status === 'confirming'
-        ? 'active'
-        : wizard.error?.stage === 'hyperliquidDeposit' &&
-            wizard.hlp.status === 'arrived'
-          ? 'failed'
-          : 'waiting';
-
-  const unsafeResumeReason = !reviewedSubmission
-    ? 'No reviewed source submission was found. No HLP action will be attempted.'
-    : !baselineUsd6
-      ? 'The pre-bridge Hyperliquid balance snapshot is missing. For safety, Zap Pilot will not infer the deposit amount from the current balance or submit another bridge.'
-      : !exactPlan || !hlpStep
-        ? 'The submitted reviewed plan does not contain the expected HLP follow-up. The source transaction will not be resubmitted.'
-        : !sourceTxHash
-          ? 'The wallet did not expose the source transaction hash, so Zap Pilot cannot safely track this bridge. The source transaction will not be resubmitted.'
-          : reviewedFailed
-            ? (reviewedProgress?.statusNote ??
-              'The reviewed Base batch reported a failure. Zap Pilot will not resubmit it automatically.')
-            : null;
-  const visibleError = unsafeResumeReason ?? flowError ?? wizard.error?.message;
-  const canRetryHlp =
-    wizard.error?.stage === 'hyperliquidDeposit' &&
-    wizard.hlp.status === 'arrived';
-  const canRetryTracking =
-    Boolean(wizard.error || flowError) && canTrackExisting && !canRetryHlp;
+    runGuarded(runHlpDeposit);
+  }, [model, runGuarded, runHlpDeposit]);
 
   const finish = () => {
     resetHlp();
@@ -246,23 +168,26 @@ export function HlpProgressScreen() {
   };
 
   const retryHlpSignature = () => {
-    setFlowError(null);
+    // Only an `arrived` deposit is repeatable: the wizard rewinds there when
+    // the submission provably never reached the exchange.
+    if (wizard.hlp.status !== 'arrived') return;
     retry();
-    void runHlpDeposit().catch((error: unknown) => {
-      setFlowError(error instanceof Error ? error.message : String(error));
-    });
+    runGuarded(runHlpDeposit);
   };
 
   const retryTracking = () => {
-    resumedKeyRef.current = null;
+    // Claim the key this attempt tracks; clearing it would let the next
+    // dependency change start a third concurrent run.
+    resumedKeyRef.current = currentResumeKey;
     autoDepositAttemptedRef.current = false;
-    setFlowError(null);
-    void trackExistingDeposit().catch((error: unknown) => {
-      setFlowError(error instanceof Error ? error.message : String(error));
-    });
+    runGuarded(trackExistingDeposit);
   };
 
-  if (isDone) {
+  const openHyperliquidAccount = () => {
+    if (accountUrl) void Linking.openURL(accountUrl);
+  };
+
+  if (wizard.stage === 'done') {
     return (
       <ScreenScrollView>
         <StepHeader title="HLP deposit" step="Done" />
@@ -272,9 +197,16 @@ export function HlpProgressScreen() {
           </Text>
           <Text className="mt-2 text-[12px] leading-[18px] text-ink-dim">
             The Base bridge was submitted once and the separate Hyperliquid
-            vault action was accepted. The vault withdrawal lock starts from
-            the latest deposit.
+            vault action was accepted. The vault withdrawal lock starts from the
+            latest deposit.
           </Text>
+          {accountUrl ? (
+            <Tap className="mt-4 self-start" onPress={openHyperliquidAccount}>
+              <Text className="text-[12px] text-accent underline">
+                View your Hyperliquid account
+              </Text>
+            </Tap>
+          ) : null}
           <WizardDoneCard
             amountLabel={formatUsd(invest.amountUsd)}
             statusLabel={hlpDoneStatusLabel(wizard.hlp.status)}
@@ -299,40 +231,47 @@ export function HlpProgressScreen() {
         </Text>
 
         <View className="mt-5 rounded-[18px] border border-line bg-[rgba(255,255,255,.02)] px-4 pt-4">
-          <ProgressRow
+          <ProgressTimelineRow
             label="Reviewed Base batch"
             detail={
               sourceTxHash
-                ? `${String(sourceTxHash).slice(0, 12)}… submitted`
+                ? `${sourceTxHash.slice(0, 12)}… submitted`
                 : 'Waiting for the wallet transaction hash.'
             }
-            state={sourceState}
+            tone={rows.source}
           />
-          <ProgressRow
+          <ProgressTimelineRow
             label="Bridge to Hyperliquid"
             detail="Track the existing LI.FI bridge; the source transaction is never resubmitted."
-            state={bridgeState}
+            tone={rows.bridge}
           />
-          <ProgressRow
+          <ProgressTimelineRow
             label="HyperCore USDC arrived"
             detail={
               wizard.hlp.arrivedUsd6 !== null
                 ? `${formatUnits(wizard.hlp.arrivedUsd6, 6)} USDC received for this deposit.`
                 : 'Waiting for the balance delta above the pre-bridge snapshot.'
             }
-            state={arrivalState}
+            tone={rows.arrival}
           />
-          <ProgressRow
+          <ProgressTimelineRow
             label="Deposit into official HLP vault"
             detail={
               wizard.hlp.status === 'confirming'
                 ? 'Hyperliquid vaultTransfer submitted; verifying vault equity.'
                 : 'A separate wallet signature is required only after the bridge arrives.'
             }
-            state={vaultState}
+            tone={rows.vault}
             isLast
           />
         </View>
+
+        {awaitingSourceHash ? (
+          <Text className="mt-4 text-center text-[11px] leading-4 text-ink-dim">
+            Waiting for your wallet to report the batch transaction hash.
+            Nothing is resubmitted while the batch confirms.
+          </Text>
+        ) : null}
 
         {visibleError ? (
           <View className="mt-5">
@@ -340,11 +279,14 @@ export function HlpProgressScreen() {
               title="HLP deposit needs attention"
               body={visibleError}
               action={
-                canRetryHlp
+                retryMode === 'hlp-signature'
                   ? { label: 'Retry HLP signature', onPress: retryHlpSignature }
-                  : canRetryTracking
+                  : retryMode === 'tracking'
                     ? { label: 'Retry tracking', onPress: retryTracking }
-                    : { label: 'Return home', onPress: () => router.replace('/home') }
+                    : {
+                        label: 'Return home',
+                        onPress: () => router.replace('/home'),
+                      }
               }
             />
           </View>

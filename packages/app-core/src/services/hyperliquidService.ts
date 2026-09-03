@@ -224,6 +224,54 @@ function loadSdk(): Promise<typeof import('@nktkas/hyperliquid')> {
 }
 
 /**
+ * A failed vault deposit whose `ambiguous` flag says whether the signed
+ * action may already have reached the exchange. Callers must never re-arm a
+ * retry for an ambiguous failure: the position could already exist and a
+ * second transfer locks another 4 days of funds.
+ */
+export class HyperliquidVaultDepositError extends Error {
+  readonly ambiguous: boolean;
+
+  constructor(
+    message: string,
+    options: { cause?: unknown; ambiguous: boolean },
+  ) {
+    super(message, {
+      ...(options.cause !== undefined ? { cause: options.cause } : {}),
+    });
+    this.name = 'HyperliquidVaultDepositError';
+    this.ambiguous = options.ambiguous;
+  }
+}
+
+/**
+ * A `TransportError` (HTTP failure, timeout, abort) is only raised after the
+ * signed action left the process, so the exchange may already have accepted
+ * it. Everything else — an explicit `ApiRequestError` answer, SDK validation,
+ * a wallet rejection — happens with nothing moved. When the SDK's error
+ * surface drifts and `TransportError` is gone, fail closed: wrongly re-arming
+ * the CTA can double a real deposit, while wrongly holding it only costs the
+ * user a manual check.
+ */
+function isAmbiguousSubmission(
+  sdk: typeof import('@nktkas/hyperliquid'),
+  error: unknown,
+): boolean {
+  try {
+    if (typeof sdk.TransportError !== 'function') {
+      return true;
+    }
+    return error instanceof sdk.TransportError;
+  } catch {
+    // Reading the class can itself throw on a wrapped or drifted module
+    // surface. Letting that escape would replace this classification with a
+    // plain error, which callers read as "definitely not accepted" — the one
+    // answer that can double a live deposit.
+    return true;
+  }
+}
+
+/**
  * Sign and submit a gasless HLP vault deposit. The SDK owns nonce, action
  * hash, and phantom-agent EIP-712 construction; the wallet only ever sees a
  * signTypedData request (no chain switch — the domain is fixed to 1337).
@@ -265,9 +313,9 @@ export async function submitVaultDeposit({
       usd: Number(usd6),
     });
   } catch (error) {
-    throw new Error(
+    throw new HyperliquidVaultDepositError(
       `Hyperliquid vault deposit failed: ${(error as Error).message}`,
-      { cause: error },
+      { cause: error, ambiguous: isAmbiguousSubmission(sdk, error) },
     );
   }
 }

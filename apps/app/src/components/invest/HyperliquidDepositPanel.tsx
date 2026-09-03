@@ -1,6 +1,6 @@
 import { useWalletProvider } from '@zapengine/app-core/providers/walletContext';
 import { useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
 
 import { CONNECT_WALLET_CTA } from '@/components/connect/connectCopy';
@@ -39,7 +39,6 @@ export function HyperliquidDepositPanel() {
   const invest = useInvest();
   const { reset: resetReviewedExecution } = useInvestExecution();
   const wallet = useWalletProvider();
-  const routingToReviewRef = useRef(false);
   const [amountInput, setAmountInput] = useState(
     invest.destination === 'hlp' ? invest.amountInput : '',
   );
@@ -60,18 +59,6 @@ export function HyperliquidDepositPanel() {
   });
   const belowMinimum = belowHlpMinimum(fromAmount);
   const hasAmount = amountUsd !== null && fromAmount !== '0';
-
-  useEffect(
-    () => () => {
-      // Switching from the HLP tab back to a normal scope must not leave the
-      // HLP destination armed. Navigation into the HLP review intentionally
-      // preserves it across the route transition.
-      if (!routingToReviewRef.current) {
-        invest.setDestination('strategy');
-      }
-    },
-    [invest.setDestination],
-  );
 
   const reviewDeposit = () => {
     if (capability === 'connect-wallet') {
@@ -96,7 +83,6 @@ export function HyperliquidDepositPanel() {
       fromToken: DEFAULT_BASE_FUNDING_TOKEN.depositAddress,
       fromAmount,
     });
-    routingToReviewRef.current = true;
     router.push('/invest/route');
   };
 
@@ -117,7 +103,9 @@ export function HyperliquidDepositPanel() {
             placeholder="0"
             placeholderTextColor="#52525b"
             value={amountInput}
-            onChangeText={(value) => setAmountInput(normalizeAmountInput(value))}
+            onChangeText={(value) =>
+              setAmountInput(normalizeAmountInput(value))
+            }
           />
           <Text className="font-sans-semibold text-[12px] text-ink-dim">
             USDC
