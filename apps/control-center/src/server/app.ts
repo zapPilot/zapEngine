@@ -168,7 +168,7 @@ export function createControlCenterApp(input: {
 
 async function handlePodcastRetry(context: Context, retry: PodcastRetry) {
   const episodeId = context.req.param('episodeId');
-  if (!UUID_PATTERN.test(episodeId)) {
+  if (!episodeId || !UUID_PATTERN.test(episodeId)) {
     return context.json({ error: 'Invalid episode id' }, 400);
   }
   try {
