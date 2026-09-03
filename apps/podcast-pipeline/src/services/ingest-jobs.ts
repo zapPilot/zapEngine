@@ -16,7 +16,7 @@ export interface PodcastIngestJobRow {
   id: string;
   source_url: string;
   language_code: LanguageClassroomLanguageCode;
-  telegram_chat_id: string;
+  telegram_chat_id: string | null;
   status: PodcastIngestJobStatus;
   attempt_count: number;
   lease_owner: string | null;
@@ -122,7 +122,10 @@ export function parsePodcastIngestJobRow(value: unknown): PodcastIngestJobRow {
     contractError(value, `unsupported language_code ${languageCode}`);
   }
 
-  const telegramChatId = requiredString(value, 'telegram_chat_id', value);
+  const telegramChatId =
+    value['telegram_chat_id'] === null
+      ? null
+      : requiredString(value, 'telegram_chat_id', value);
   const status = requiredString(value, 'status', value);
   if (!['queued', 'processing', 'completed', 'failed'].includes(status)) {
     contractError(value, `unsupported status ${status}`);

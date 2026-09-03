@@ -12,6 +12,7 @@ import {
   type OpenRouterChatCompletion,
   type OpenRouterProviderRouting,
 } from './llm.js';
+import { getTranslationFallbackModels } from './llm-model-fallback.js';
 import { splitCanonicalSentences } from './video/storyboard/sentences.js';
 
 export type SecondaryLanguageCode = Exclude<
@@ -38,6 +39,13 @@ export interface TranslateCanonicalScriptResult {
   title: string;
   script: string;
   cost: UsageCostLine[];
+}
+
+interface TranslationModelAttempt<K extends string> {
+  fields: Record<K, string> | null;
+  cost: UsageCostLine[];
+  error: unknown;
+  attempts: number;
 }
 
 /** A completed request whose response cannot be used as a translation. */
@@ -113,15 +121,16 @@ export async function translateChineseText(
 }
 
 /**
- * Translate named Traditional Chinese fields through OpenRouter's free-model
- * router. The model is intentionally code-owned: translation quality follows
- * the router's current free pool without a deploy-time model override.
+ * Translate named Traditional Chinese fields through OpenRouter's free router.
+ * A retryable free-router failure gets one bounded retry before the request
+ * advances through the paid models configured by TRANSLATION_FALLBACK_MODELS.
+ * Authentication/configuration failures still fail immediately because changing
+ * models cannot repair them.
  *
- * Empty source fields are preserved locally. A failure gets one bounded retry
- * and then fails closed; there is no secondary translation provider. A response
- * that arrived but is unusable carries its rejection reason into the retry —
- * at `temperature: 0` an identical re-prompt would reproduce the same bad
- * output, so the correction is what makes the second attempt worth paying for.
+ * Empty source fields are preserved locally. A response that arrived but is
+ * unusable carries its rejection reason into the retry — at `temperature: 0`
+ * an identical re-prompt would reproduce the same bad output, so the correction
+ * is what makes the second attempt worth paying for.
  */
 async function translateFields<K extends string>(
   fields: Record<K, string>,
@@ -133,42 +142,94 @@ async function translateFields<K extends string>(
   }
 
   const costs: UsageCostLine[] = [];
+  const models = translationModelCandidates();
+
+  for (const [modelIndex, model] of models.entries()) {
+    const attempt = await tryTranslationModel(
+      fields,
+      targetLanguageCode,
+      model,
+    );
+    costs.push(...attempt.cost);
+    if (attempt.fields) {
+      return { fields: attempt.fields, cost: costs };
+    }
+
+    const error =
+      attempt.error ??
+      new Error('Translation failed without an OpenRouter error');
+    const nextModel = models[modelIndex + 1];
+    if (shouldRetryTranslation(error) && nextModel) {
+      logIngestEvent('translate:model-fallback', {
+        targetLanguageCode,
+        model,
+        nextModel,
+        attempts: attempt.attempts,
+        spentUsd: sumUsageCostLines([...priorCost, ...costs]),
+        error: errorMessage(error),
+      });
+      continue;
+    }
+
+    logTranslationFailure(
+      targetLanguageCode,
+      model,
+      attempt.attempts,
+      priorCost,
+      costs,
+      error,
+    );
+    throw error as Error;
+  }
+
+  throw new Error('Translation failed without an OpenRouter model candidate');
+}
+
+async function tryTranslationModel<K extends string>(
+  fields: Record<K, string>,
+  targetLanguageCode: SecondaryLanguageCode,
+  model: string,
+): Promise<TranslationModelAttempt<K>> {
+  const costs: UsageCostLine[] = [];
   let retryReason: string | null = null;
   let providerRouting: OpenRouterProviderRouting | undefined;
 
-  for (let attempt = 1; ; attempt += 1) {
+  for (let attempt = 1; attempt <= TRANSLATION_MAX_ATTEMPTS; attempt += 1) {
     try {
       const result = await translateFieldsWithOpenRouter(
         fields,
         targetLanguageCode,
+        model,
         retryReason,
         providerRouting,
       );
-      return { fields: result.fields, cost: [...costs, ...result.cost] };
+      return {
+        fields: result.fields,
+        cost: [...costs, ...result.cost],
+        error: null,
+        attempts: attempt,
+      };
     } catch (error) {
       const attemptCost = translationAttemptCost(error);
       if (attemptCost) {
         costs.push(attemptCost);
       }
-
       if (
-        attempt >= TRANSLATION_MAX_ATTEMPTS ||
-        !shouldRetryTranslation(error)
+        !shouldRetryTranslation(error) ||
+        attempt === TRANSLATION_MAX_ATTEMPTS
       ) {
-        logIngestEvent('translate:failed', {
-          targetLanguageCode,
-          model: TRANSLATION_MODEL,
+        return {
+          fields: null,
+          cost: costs,
+          error,
           attempts: attempt,
-          spentUsd: sumUsageCostLines([...priorCost, ...costs]),
-          error: errorMessage(error),
-        });
-        throw error;
+        };
       }
 
       const rerouted = !(error instanceof TranslationResponseError);
       logIngestEvent('translate:retry', {
         targetLanguageCode,
-        model: TRANSLATION_MODEL,
+        model,
         attempt,
         nextAttempt: attempt + 1,
         delayMs: TRANSLATION_RETRY_DELAY_MS,
@@ -181,11 +242,42 @@ async function translateFields<K extends string>(
       await sleep(TRANSLATION_RETRY_DELAY_MS);
     }
   }
+
+  return {
+    fields: null,
+    cost: costs,
+    error: new Error('Translation attempts exhausted unexpectedly'),
+    attempts: TRANSLATION_MAX_ATTEMPTS,
+  };
+}
+
+function translationModelCandidates(): string[] {
+  return [TRANSLATION_MODEL, ...getTranslationFallbackModels()].filter(
+    (model, index, all) => Boolean(model) && all.indexOf(model) === index,
+  );
+}
+
+function logTranslationFailure(
+  targetLanguageCode: SecondaryLanguageCode,
+  model: string,
+  attempts: number,
+  priorCost: readonly UsageCostLine[],
+  costs: readonly UsageCostLine[],
+  error: unknown,
+): void {
+  logIngestEvent('translate:failed', {
+    targetLanguageCode,
+    model,
+    attempts,
+    spentUsd: sumUsageCostLines([...priorCost, ...costs]),
+    error: errorMessage(error),
+  });
 }
 
 async function translateFieldsWithOpenRouter<K extends string>(
   fields: Record<K, string>,
   targetLanguageCode: SecondaryLanguageCode,
+  translationModel: string,
   retryReason: string | null,
   providerRouting: OpenRouterProviderRouting | undefined,
 ): Promise<{ fields: Record<K, string>; cost: UsageCostLine[] }> {
@@ -194,6 +286,7 @@ async function translateFieldsWithOpenRouter<K extends string>(
     targetLanguageCode,
     JSON.stringify(fields),
     Object.fromEntries(keys.map((key) => [key, '...'])),
+    translationModel,
     retryReason,
     providerRouting,
   );
@@ -227,11 +320,12 @@ async function createTranslationCompletion(
   targetLanguageCode: SecondaryLanguageCode,
   inputJson: string,
   outputFormat: Record<string, string>,
+  translationModel: string,
   retryReason: string | null,
   providerRouting: OpenRouterProviderRouting | undefined,
 ): Promise<{ completion: OpenRouterChatCompletion; model: string }> {
   const { openai, model } = getOpenRouterConfig({
-    model: TRANSLATION_MODEL,
+    model: translationModel,
     thinkingModel: null,
   });
 

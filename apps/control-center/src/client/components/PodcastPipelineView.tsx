@@ -14,6 +14,7 @@ import { StatementHeader } from './StatementHeader.js';
 export function PodcastPipelineView(props: {
   data: PodcastPipelineResponse | null;
   restartingEpisodeId: string | null;
+  onRestartIngest: (episodeId: string) => void;
   onRestartVideo: (episodeId: string) => void;
   statements?: StatementsResponse | null;
 }) {
@@ -74,6 +75,7 @@ export function PodcastPipelineView(props: {
               episode={episode}
               isRestarting={props.restartingEpisodeId === episode.episodeId}
               key={episode.episodeId}
+              onRestartIngest={props.onRestartIngest}
               onRestartVideo={props.onRestartVideo}
             />
           ))
@@ -89,6 +91,7 @@ export function PodcastPipelineView(props: {
                 episode={episode}
                 isRestarting={false}
                 key={episode.episodeId}
+                onRestartIngest={props.onRestartIngest}
                 onRestartVideo={props.onRestartVideo}
               />
             ))}
@@ -102,12 +105,19 @@ export function PodcastPipelineView(props: {
 function PipelineEpisode(props: {
   episode: PodcastPipelineEpisode;
   isRestarting: boolean;
+  onRestartIngest: (episodeId: string) => void;
   onRestartVideo: (episodeId: string) => void;
 }) {
   const { episode } = props;
   const ingestError = episode.ingest?.lastError;
   const visualError =
     episode.visual?.status === 'failed' ? episode.visual.lastError : null;
+  const isIngestPhase =
+    episode.currentPhase === 'translation' || episode.currentPhase === 'tts';
+  const canRestart = isIngestPhase
+    ? episode.canRestartIngest
+    : episode.canRestartVideo;
+  const restartLabel = isIngestPhase ? 'Restart ingest' : 'Restart video';
 
   return (
     <article className="open-panel pipeline-episode">
@@ -128,17 +138,25 @@ function PipelineEpisode(props: {
         {episode.currentPhase !== 'done' ? (
           <button
             className="refresh-button pipeline-retry"
-            disabled={!episode.canRestartVideo || props.isRestarting}
-            onClick={() => props.onRestartVideo(episode.episodeId)}
+            disabled={!canRestart || props.isRestarting}
+            onClick={() =>
+              isIngestPhase
+                ? props.onRestartIngest(episode.episodeId)
+                : props.onRestartVideo(episode.episodeId)
+            }
             title={
-              episode.canRestartVideo
-                ? 'Restart only unfinished visual/video checkpoints'
-                : 'Video retry requires completed audio and no active render lease'
+              canRestart
+                ? isIngestPhase
+                  ? 'Resume translation/TTS from durable checkpoints'
+                  : 'Restart only unfinished visual/video checkpoints'
+                : isIngestPhase
+                  ? 'Ingest retry is disabled while durable ingest work is active'
+                  : 'Video retry requires completed audio and no active render lease'
             }
             type="button"
           >
             <RotateCcw aria-hidden="true" />
-            {props.isRestarting ? 'Restarting…' : 'Restart video'}
+            {props.isRestarting ? 'Restarting…' : restartLabel}
           </button>
         ) : null}
       </header>

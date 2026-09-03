@@ -1,17 +1,31 @@
-export const DEFAULT_LLM_FALLBACK_MODELS = [
-  'minimax/minimax-m3:free',
-  'z-ai/glm-5.3-flash',
-  'deepseek/deepseek-v4-flash',
-  'nvidia/nemotron-3-ultra-550b-a55b:free',
-] as const;
-
 const MODELS_WITHOUT_JSON_RESPONSE_FORMAT = new Set<string>([
   'nvidia/nemotron-3-ultra-550b-a55b:free',
 ]);
 
-/** Returns the configured primary model followed by the ordered fallback set. */
+export function parseOpenRouterModelList(value: string | undefined): string[] {
+  return (value ?? '')
+    .split(',')
+    .map((model) => model.trim())
+    .filter(
+      (model, index, all) => Boolean(model) && all.indexOf(model) === index,
+    );
+}
+
+export function getOpenRouterFallbackModels(
+  value: string | undefined = process.env['LLM_FALLBACK_MODELS'],
+): string[] {
+  return parseOpenRouterModelList(value);
+}
+
+export function getTranslationFallbackModels(
+  value: string | undefined = process.env['TRANSLATION_FALLBACK_MODELS'],
+): string[] {
+  return parseOpenRouterModelList(value);
+}
+
+/** Returns the configured primary model followed by the env-owned fallback set. */
 export function getOpenRouterModelCandidates(primaryModel: string): string[] {
-  return [primaryModel.trim(), ...DEFAULT_LLM_FALLBACK_MODELS].filter(
+  return [primaryModel.trim(), ...getOpenRouterFallbackModels()].filter(
     (model, index, all) => Boolean(model) && all.indexOf(model) === index,
   );
 }

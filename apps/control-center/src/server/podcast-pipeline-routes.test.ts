@@ -7,6 +7,7 @@ const EPISODE_ID = '826f4b87-6278-4275-bff5-535ba5ef438d';
 
 function createApp(pipeline: {
   getPipeline: ReturnType<typeof vi.fn>;
+  restartIngest: ReturnType<typeof vi.fn>;
   restartVideo: ReturnType<typeof vi.fn>;
 }) {
   return createControlCenterApp({
@@ -34,21 +35,26 @@ function createApp(pipeline: {
 function retryRequest(
   app: ReturnType<typeof createApp>,
   episodeId = EPISODE_ID,
+  stage: 'ingest' | 'video' = 'video',
 ) {
-  return app.request(`/api/podcast-pipeline/${episodeId}/video/retry`, {
+  return app.request(`/api/podcast-pipeline/${episodeId}/${stage}/retry`, {
     method: 'POST',
   });
 }
 
 function retryApp(rejection?: unknown) {
+  const restartIngest = vi.fn();
   const restartVideo = vi.fn();
   if (rejection === undefined) {
+    restartIngest.mockResolvedValue(undefined);
     restartVideo.mockResolvedValue(undefined);
   } else {
+    restartIngest.mockRejectedValue(rejection);
     restartVideo.mockRejectedValue(rejection);
   }
   return {
-    app: createApp({ getPipeline: vi.fn(), restartVideo }),
+    app: createApp({ getPipeline: vi.fn(), restartIngest, restartVideo }),
+    restartIngest,
     restartVideo,
   };
 }
@@ -61,7 +67,11 @@ describe('podcast pipeline routes', () => {
       message: null,
       episodes: [{ episodeId: 'episode-1', currentPhase: 'video' }],
     });
-    const app = createApp({ getPipeline, restartVideo: vi.fn() });
+    const app = createApp({
+      getPipeline,
+      restartIngest: vi.fn(),
+      restartVideo: vi.fn(),
+    });
 
     const response = await app.request('/api/podcast-pipeline');
 
@@ -73,7 +83,17 @@ describe('podcast pipeline routes', () => {
     expect(getPipeline).toHaveBeenCalledOnce();
   });
 
-  it('restarts only through the explicit episode video endpoint', async () => {
+  it('restarts ingest only through the explicit episode ingest endpoint', async () => {
+    const { app, restartIngest } = retryApp();
+
+    const response = await retryRequest(app, EPISODE_ID, 'ingest');
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true });
+    expect(restartIngest).toHaveBeenCalledWith(EPISODE_ID);
+  });
+
+  it('restarts video only through the explicit episode video endpoint', async () => {
     const { app, restartVideo } = retryApp();
 
     const response = await retryRequest(app);
@@ -95,6 +115,18 @@ describe('podcast pipeline routes', () => {
     expect(response.status).toBe(409);
     await expect(response.json()).resolves.toEqual({ error: message });
     expect(restartVideo).toHaveBeenCalledOnce();
+  });
+
+  it('maps an active ingest lease to a conflict', async () => {
+    const { app, restartIngest } = retryApp({
+      code: '55000',
+      message: 'Episode ingest is currently processing',
+    });
+
+    const response = await retryRequest(app, EPISODE_ID, 'ingest');
+
+    expect(response.status).toBe(409);
+    expect(restartIngest).toHaveBeenCalledOnce();
   });
 
   it('keeps message matching as a compatibility fallback', async () => {

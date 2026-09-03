@@ -20,14 +20,14 @@ The Vite UI listens on `127.0.0.1:4174`; its Hono API listens on `CONTROL_CENTER
 Six views, each answering one question. Home is a decision surface; the other
 five are where its evidence or narrow operator actions live.
 
-| View            | Question it answers                                                    | Reads / actions                                          |
-| --------------- | ---------------------------------------------------------------------- | -------------------------------------------------------- |
-| **Home**        | What needs a decision right now?                                       | `/api/overview`, `/api/costs/history`, `/api/operations` |
-| **Pipeline**    | Where is each article, what failed, and can video be restarted safely? | `/api/podcast-pipeline` + explicit video retry action    |
-| **Growth**      | What should we publish next, and what did the last posts do?           | `/api/social-performance`                                |
-| **Product**     | Who do we serve, and is their data still current?                      | `/api/customers` + product health from `/api/overview`   |
-| **Reliability** | Which sources are telling us something is wrong?                       | `/api/operations`, `/api/operations/social`              |
-| **Economics**   | What does the company spend, and which provider spends it?             | `/api/overview`, `/api/costs/history`                    |
+| View            | Question it answers                                                         | Reads / actions                                                  |
+| --------------- | --------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| **Home**        | What needs a decision right now?                                            | `/api/overview`, `/api/costs/history`, `/api/operations`         |
+| **Pipeline**    | Where is each article, what failed, and can its current phase be recovered? | `/api/podcast-pipeline` + explicit ingest/video recovery actions |
+| **Growth**      | What should we publish next, and what did the last posts do?                | `/api/social-performance`                                        |
+| **Product**     | Who do we serve, and is their data still current?                           | `/api/customers` + product health from `/api/overview`           |
+| **Reliability** | Which sources are telling us something is wrong?                            | `/api/operations`, `/api/operations/social`                      |
+| **Economics**   | What does the company spend, and which provider spends it?                  | `/api/overview`, `/api/costs/history`                            |
 
 Home opens on priority-sorted founder statements rather than on a metric grid.
 Each statement carries its conclusion and evidence; the Reliability statement can
@@ -42,10 +42,12 @@ appears directly on Home.
 
 The Pipeline view derives its state directly from production sources of truth:
 `episode_localizations` for script/translation/TTS readiness,
-`episode_video_visuals` for shared visual planning, and `episode_videos` for the
-three language renders. A terminal visual failure is shown as failed even when
-downstream render rows are still queued; the dashboard must never translate
-that state into a vague "still rendering" message.
+`podcast_ingest_jobs` for current durable ingest work, `ops_pipeline_runs` as the
+historical fallback for pre-durable ingest failures, `episode_video_visuals` for
+shared visual planning, and `episode_videos` for the three language renders. A
+terminal ingest or visual failure is shown as failed even when downstream rows
+are absent or queued; the dashboard must never translate that state into a vague
+"still processing" message.
 
 The interface uses a light, high-contrast operator palette. Shared
 `@zapengine/design-tokens` still provide typography, spacing, radii, and the
@@ -58,10 +60,11 @@ deliberately grey rather than green.
 
 The Vercel deployment is a remote Control Center operator surface. Configure the project root as `apps/control-center` and enable Vercel Authentication for all deployments before adding credentials or performing the first deployment.
 
-Dashboard HTTP views are generally read-only, with two narrowly bounded mutation surfaces:
+Dashboard HTTP views are generally read-only, with three narrowly bounded mutation surfaces:
 
 - `/api/mcp` exposes the separately authenticated Ops MCP. Its only current write capability is the narrowly allowlisted single-issue Sentry resolve operation documented in [`MCP.md`](./MCP.md).
-- `POST /api/podcast-pipeline/:episodeId/video/retry` invokes a service-role-only RPC that resets visual planning and localized video-render state only. It never rewrites scripts, translation, narration, classroom audio, or arbitrary database rows, and it rejects a retry while a live render lease exists. Vercel Authentication is therefore a load-bearing boundary for this operator action.
+- `POST /api/podcast-pipeline/:episodeId/ingest/retry` invokes a service-role-only resumable ingest RPC. It only requeues durable work, preserves completed localization checkpoints, rejects a retry while a live ingest lease exists, and creates no Telegram notification target for operator-only recovery jobs. A durable job that Telegram created keeps its chat id when it is requeued, so its original submitter is still notified; only a legacy episode with no durable job gets a silent operator job.
+- `POST /api/podcast-pipeline/:episodeId/video/retry` invokes a service-role-only RPC that resets visual planning and localized video-render state only. It never rewrites scripts, translation, narration, classroom audio, or arbitrary database rows, and it rejects a retry while a live render lease exists. Vercel Authentication is therefore a load-bearing boundary for these operator actions.
 
 The remote API deliberately does not register `POST /api/costs/sync`; cost collection remains an external operation.
 
