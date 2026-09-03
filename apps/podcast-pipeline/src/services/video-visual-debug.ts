@@ -1,7 +1,4 @@
-import {
-  getPipelineSupabase,
-  throwSupabaseError,
-} from './supabase-client.js';
+import { getPipelineSupabase, throwSupabaseError } from './supabase-client.js';
 
 /**
  * Persist an operator-only visual-search checkpoint before remote image search

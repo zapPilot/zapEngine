@@ -34,11 +34,9 @@ import {
 import type { StoryboardProvider } from './video/storyboard/provider.js';
 import { enrichStoryboardSearchIntents } from './video/storyboard/search-intents.js';
 import { splitCanonicalSentences } from './video/storyboard/sentences.js';
-import {
-  buildVisualSubjectSearchQueries,
-  type VisualSceneSubjectAssignment,
-  type VisualSubjectCatalog,
-  visualSubjectsForScene,
+import type {
+  VisualSceneSubjectAssignment,
+  VisualSubjectCatalog,
 } from './video/storyboard/subject-catalog.js';
 import type { VisualAssetProgress } from './video/visual-asset-planner.js';
 import {
@@ -49,8 +47,8 @@ import {
   hashEpisodeVideoVisualSource,
   type ProcessEpisodeVideoVisualJobContext,
 } from './video-jobs.js';
-import { saveEpisodeVideoVisualDebug } from './video-visual-debug.js';
 import { visualStageProgress } from './video-progress.js';
+import { saveEpisodeVideoVisualDebug } from './video-visual-debug.js';
 
 export const VISUAL_ARTICLE_SCRAPE_TIMEOUT_MS = 15_000;
 const MAX_PERSISTED_VISUAL_SEARCH_TRACE_ENTRIES = 256;
@@ -92,9 +90,7 @@ const defaultDependencies: EpisodeVideoVisualProcessorDependencies = {
   makeTemporaryDirectory: mkdtemp,
   writeManifest: writeFile,
   removeDirectory: rm,
-  // Unit callers of the factory stay isolated from Supabase. The production
-  // singleton at the bottom wires the durable checkpoint writer explicitly.
-  persistDebug: async () => true,
+  persistDebug: saveEpisodeVideoVisualDebug,
   logger: console,
 };
 
@@ -203,15 +199,11 @@ export function createEpisodeVideoVisualProcessor(
           ...(visualSearchTitle ? { searchTitle: visualSearchTitle } : {}),
           script: source.script,
           ...(englishBodyScript ? { searchScript: englishBodyScript } : {}),
-          durationMs: analysis.durationMs,
         },
         { signal: context.signal },
       );
-      // Narrow injected test providers created before v8 can still return the
-      // old enrichment shape at runtime. Treat those as the explicit legacy
-      // path; the production provider always supplies both v8 fields.
-      const subjectCatalog = intents.subjectCatalog ?? null;
-      const sceneAssignments = intents.sceneAssignments ?? [];
+      const subjectCatalog = intents.subjectCatalog;
+      const sceneAssignments = intents.sceneAssignments;
       const storyboard = {
         ...generated,
         draft: intents.draft,
@@ -402,7 +394,7 @@ export function createEpisodeVideoVisualProcessor(
 interface VisualSearchDebugQuery {
   sceneId: string;
   subjectIds: string[];
-  selectionReason: string;
+  selectionReason: VisualSceneSubjectAssignment['selectionReason'];
   queries: string[];
 }
 
@@ -414,33 +406,29 @@ function buildVisualSearchDebugPayload(input: {
   model: string | null;
 }): Record<string, unknown> {
   const assignmentByScene = new Map(
-    input.sceneAssignments.map((assignment) => [assignment.sceneId, assignment]),
+    input.sceneAssignments.map((assignment) => [
+      assignment.sceneId,
+      assignment,
+    ]),
   );
-  const plannedQueries = input.scenes.flatMap<VisualSearchDebugQuery>((scene) => {
-    if (podcastBrandVisualKind(scene.imageSearchIntent)) return [];
-    const assignment = assignmentByScene.get(scene.sceneId);
-    if (!input.subjectCatalog || !assignment) {
+  const plannedQueries = input.scenes.flatMap<VisualSearchDebugQuery>(
+    (scene) => {
+      if (podcastBrandVisualKind(scene.imageSearchIntent)) return [];
+      const assignment = assignmentByScene.get(scene.sceneId);
+      if (!assignment) return [];
+      // The planner already wrote each scene's queries onto the scene. Reading
+      // them back is what makes this checkpoint evidence of what image search
+      // was actually asked, rather than a third re-derivation that can drift.
       return [
         {
           sceneId: scene.sceneId,
-          subjectIds: [],
-          selectionReason: 'legacy',
+          subjectIds: assignment.subjectIds,
+          selectionReason: assignment.selectionReason,
           queries: [...scene.imageSearchIntent],
         },
       ];
-    }
-    const subjects = visualSubjectsForScene(input.subjectCatalog, assignment);
-    return [
-      {
-        sceneId: scene.sceneId,
-        subjectIds: assignment.subjectIds,
-        selectionReason: assignment.selectionReason,
-        queries: [
-          ...new Set(subjects.flatMap(buildVisualSubjectSearchQueries)),
-        ].slice(0, 3),
-      },
-    ];
-  });
+    },
+  );
   return {
     schemaVersion: VISUAL_SEARCH_DEBUG_SCHEMA_VERSION,
     phase: 'planned',
@@ -461,11 +449,15 @@ async function persistSearchTraceCheckpoint(input: {
   searchTrace: readonly VisualSearchTraceEntry[];
 }): Promise<void> {
   if (!input.leaseOwner || input.searchTrace.length === 0) return;
-  const persisted = await input.persistDebug(input.episodeId, input.leaseOwner, {
-    ...input.debugPayload,
-    phase: input.phase,
-    searchTrace: input.searchTrace,
-  });
+  const persisted = await input.persistDebug(
+    input.episodeId,
+    input.leaseOwner,
+    {
+      ...input.debugPayload,
+      phase: input.phase,
+      searchTrace: input.searchTrace,
+    },
+  );
   if (!persisted) {
     throw new Error('Visual search debug checkpoint lost its job lease');
   }
@@ -674,6 +666,4 @@ function logVisualProgress(
   logger.info(`[video-worker] ${event} ${details}`);
 }
 
-export const processEpisodeVideoVisualJob = createEpisodeVideoVisualProcessor({
-  persistDebug: saveEpisodeVideoVisualDebug,
-});
+export const processEpisodeVideoVisualJob = createEpisodeVideoVisualProcessor();
