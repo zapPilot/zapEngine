@@ -4,7 +4,7 @@ import { Card } from '@/components/ui/Card';
 import { SectionLabel } from '@/components/ui/SectionLabel';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
 import type { HomeIncomeView } from '@/integration/homeIncomeModel';
-import { formatUsd } from '@/lib/format';
+import { formatSignedUsd, formatUsd } from '@/lib/format';
 import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 
 interface HomeIncomeCardProps {
@@ -48,6 +48,42 @@ export function HomeIncomeCard({
             <Text className="mt-1.5 text-[11px] leading-[16px] text-ink-dim">
               {t('home.passiveIncomeBasis')}
             </Text>
+
+            {income.protocolRows.length > 0 ? (
+              <View className="mt-4 gap-2.5 border-t border-line pt-3">
+                {income.protocolRows.map((row) => (
+                  <View
+                    key={`${row.protocol}:${row.chain ?? ''}`}
+                    className="flex-row items-start justify-between gap-3"
+                  >
+                    <View className="min-w-0 flex-1">
+                      <Text
+                        numberOfLines={1}
+                        className="text-[12.5px] text-ink"
+                      >
+                        {row.protocol}
+                      </Text>
+                      {row.chain ? (
+                        <Text className="mt-0.5 font-mono text-[9.5px] text-ink-faint">
+                          {row.chain}
+                        </Text>
+                      ) : null}
+                    </View>
+                    <View className="items-end">
+                      <Text className="font-mono text-[12px] text-ink">
+                        {formatSignedUsd(row.monthlyNetUsd)} /mo
+                      </Text>
+                      {row.monthlyLendingCostUsd === null ? null : (
+                        <Text className="mt-0.5 font-mono text-[9.5px] text-ink-faint">
+                          Lending{' '}
+                          {formatSignedUsd(-Math.abs(row.monthlyLendingCostUsd))}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                ))}
+              </View>
+            ) : null}
           </>
         )}
       </Card>
