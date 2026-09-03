@@ -64,6 +64,12 @@ export interface SearchIntentProvider {
   /** Optional so pre-v8 injected providers keep the legacy per-scene path. */
   catalog?(request: SearchIntentCatalogRequest): Promise<unknown>;
   suggest(request: SearchIntentRequest): Promise<unknown>;
+  /**
+   * Production v8 extracts the episode-wide subject catalog once and then maps
+   * its evidenceSceneIds deterministically. Legacy injected providers can omit
+   * this and retain the old per-scene suggestion path.
+   */
+  subjectCatalogOnly?: boolean;
 }
 
 export interface SearchIntentEnrichment {
@@ -128,6 +134,10 @@ export async function enrichStoryboardSearchIntents(
         ...(options.signal ? { signal: options.signal } : {}),
       })
     : null;
+
+  if (subjectCatalog && provider.subjectCatalogOnly) {
+    return enrichFromSubjectCatalog(request.draft, scenes, subjectCatalog, provider.model);
+  }
 
   throwIfAborted(options.signal);
   const batchResults = await mapBatchesWithLimit(
@@ -272,6 +282,95 @@ export async function enrichStoryboardSearchIntents(
   };
 }
 
+function enrichFromSubjectCatalog(
+  draft: StoryboardDraft,
+  scenes: readonly SearchIntentScene[],
+  catalog: VisualSubjectCatalog,
+  model: string,
+): SearchIntentEnrichment {
+  const contentSceneIds = new Set(scenes.map((scene) => scene.sceneId));
+  const directByScene = new Map<string, string[]>();
+  for (const subject of catalog.subjects) {
+    for (const sceneId of subject.evidenceSceneIds) {
+      if (!contentSceneIds.has(sceneId)) continue;
+      const current = directByScene.get(sceneId) ?? [];
+      if (!current.includes(subject.id)) current.push(subject.id);
+      directByScene.set(sceneId, current);
+    }
+  }
+
+  const firstContentSceneId = scenes[0]?.sceneId;
+  let lastDirectSubjectIds: string[] = [];
+  const assignments: VisualSceneSubjectAssignment[] = [];
+  let entityAnchoredSceneCount = 0;
+
+  const enrichedScenes = draft.scenes.map((scene) => {
+    if (podcastBrandVisualKind(scene.imageSearchIntent)) return scene;
+    const directSubjectIds = (directByScene.get(scene.sceneId) ?? []).slice(
+      0,
+      MAX_SEARCH_ENTITIES_PER_SCENE,
+    );
+    let subjectIds: string[];
+    let selectionReason: VisualSceneSubjectAssignment['selectionReason'];
+
+    if (scene.sceneId === firstContentSceneId) {
+      subjectIds = [catalog.primarySubjectId];
+      selectionReason = directSubjectIds.includes(catalog.primarySubjectId)
+        ? 'direct'
+        : 'episode-context';
+    } else if (directSubjectIds.length > 0) {
+      subjectIds = directSubjectIds;
+      selectionReason = 'direct';
+    } else if (lastDirectSubjectIds.length > 0) {
+      subjectIds = lastDirectSubjectIds.slice(0, 2);
+      selectionReason = 'section-context';
+    } else {
+      subjectIds = [catalog.primarySubjectId];
+      selectionReason = 'episode-context';
+    }
+
+    if (directSubjectIds.length > 0) lastDirectSubjectIds = directSubjectIds;
+    assignments.push({ sceneId: scene.sceneId, subjectIds, selectionReason });
+
+    const subjects = subjectIds.flatMap((subjectId) => {
+      const subject = visualSubjectById(catalog, subjectId);
+      return subject ? [subject] : [];
+    });
+    const imageSearchIntent = [
+      ...new Set(subjects.flatMap(buildVisualSubjectSearchQueries)),
+    ].slice(0, MAX_SEARCH_INTENTS_PER_SCENE);
+    if (imageSearchIntent.length === 0) {
+      throw new Error(`Visual subjects produced no search query for ${scene.sceneId}`);
+    }
+    const imageSearchEntities = subjects.map((subject) => subject.canonicalName);
+    if (imageSearchEntities.length > 0) entityAnchoredSceneCount += 1;
+    return {
+      ...scene,
+      imageSearchIntent,
+      ...(imageSearchEntities.length > 0 ? { imageSearchEntities } : {}),
+    };
+  });
+
+  if (assignments.length !== contentSceneIds.size) {
+    throw new Error(
+      `Visual subject catalog assigned ${assignments.length} of ${contentSceneIds.size} content scenes`,
+    );
+  }
+
+  // The storyboard structure was already validated before enrichment. Production
+  // v8 only swaps its image-search metadata for catalog-derived identity data;
+  // numeric grounding is deliberately not re-applied because numbers embedded
+  // in proper names such as a16z, web3 or GPT-5 are identity, not factual claims.
+  return {
+    draft: { scenes: enrichedScenes },
+    model,
+    enrichedSceneCount: scenes.length,
+    entityAnchoredSceneCount,
+    subjectCatalog: catalog,
+    sceneAssignments: assignments,
+  };
+}
+
 async function buildSubjectCatalog(
   provider: SearchIntentProvider,
   request: SearchIntentCatalogRequest,
@@ -394,6 +493,7 @@ export function createOpenRouterSearchIntentProvider(): SearchIntentProvider {
   const { openai, model } = getOpenRouterConfig({ thinkingModel: null });
   return {
     model,
+    subjectCatalogOnly: true,
     catalog: (request) =>
       completeSearchIntentRequest({
         openai,
@@ -403,6 +503,8 @@ export function createOpenRouterSearchIntentProvider(): SearchIntentProvider {
         operation: 'buildVisualSubjectCatalog',
         signal: request.signal,
       }),
+    // Kept for legacy/injected provider compatibility. Production v8 never
+    // calls this because subjectCatalogOnly returns immediately after catalog.
     suggest: (request) =>
       completeSearchIntentRequest({
         openai,
@@ -455,13 +557,13 @@ export function buildSubjectCatalogSystemPrompt(): string {
     '- Pick exactly one primary subject: the actor or thing the headline/story is principally about, not a competitor that appears later.',
     '- canonicalName and aliases are identity labels. Do not merge competitors or similarly named things.',
     '- Copy canonicalName verbatim from the title or scenes. When both an English and a local-script name are present, use the English spelling for canonicalName and put the local-script spelling in aliases. Put descriptive industry, category, and role terms only in identityHints.',
-    '- searchQueries must be English news-photo queries and must contain the canonicalName or one alias plus concrete identity context.',
+    '- searchQueries are the final image-search queries. Keep them short, concrete, and identity-first; include the canonicalName or one alias plus only the context needed to disambiguate the subject.',
     '- identityHints are 2 to 6 short positive disambiguators such as industry, product, chain, role, or location. They must describe this identity, not a generic mood.',
     '- negativeHints are only known name-collision meanings to reject (for example animal, camera, engine); do not list ordinary competitors as negative hints.',
     '- officialDomains may be included only when a domain is explicitly present in the supplied evidence; otherwise return [].',
-    '- evidenceSceneIds must cite scenes where the subject is actually named.',
+    '- evidenceSceneIds must cite scenes where the subject is actually named. These IDs are the application\'s direct scene assignment; do not cite a scene merely because the subject would make a good illustration.',
     '- Use stable IDs shaped like subject-coinbase or subject-jesse-pollak.',
-    'Return valid JSON only: {"primarySubjectId":"subject-coinbase","subjects":[{"id":"subject-coinbase","canonicalName":"Coinbase","type":"company","aliases":[],"storyRole":"primary","evidenceSceneIds":["scene-01"],"searchQueries":["Coinbase tokenized stocks"],"identityHints":["crypto exchange","Base"],"negativeHints":[],"officialDomains":[]}]}',
+    'Return valid JSON only: {"primarySubjectId":"subject-coinbase","subjects":[{"id":"subject-coinbase","canonicalName":"Coinbase","type":"company","aliases":[],"storyRole":"primary","evidenceSceneIds":["scene-01"],"searchQueries":["Coinbase"],"identityHints":["crypto exchange","Base"],"negativeHints":[],"officialDomains":[]}]}',
   ].join('\n');
 }
 

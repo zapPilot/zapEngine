@@ -31,6 +31,31 @@ export interface PodcastPipelineRenderState extends PodcastPipelineJobState {
   localizationId: string;
 }
 
+export interface PodcastPipelineVisualQuery {
+  sceneId: string;
+  subjectIds: string[];
+  selectionReason: string | null;
+  queries: string[];
+}
+
+export interface PodcastPipelineVisualSearchAttempt {
+  sceneId: string;
+  provider: 'pexels' | 'pixabay' | 'brave';
+  query: string;
+  returned: number;
+  accepted: number;
+  entityFiltered: number;
+  rejected: number;
+}
+
+export interface PodcastPipelineVisualDebug {
+  phase: string | null;
+  primarySubject: string | null;
+  subjects: { id: string; name: string }[];
+  plannedQueries: PodcastPipelineVisualQuery[];
+  actualSearches: PodcastPipelineVisualSearchAttempt[];
+}
+
 export interface PodcastPipelineEpisode {
   episodeId: string;
   title: string | null;
@@ -43,6 +68,8 @@ export interface PodcastPipelineEpisode {
   ingest: PodcastPipelineJobState | null;
   localizations: PodcastPipelineLocalization[];
   visual: PodcastPipelineJobState | null;
+  /** Added by the visual-search debug rollout; optional for cached/older API fixtures. */
+  visualDebug?: PodcastPipelineVisualDebug | null;
   renders: PodcastPipelineRenderState[];
   canRestartVideo: boolean;
 }
