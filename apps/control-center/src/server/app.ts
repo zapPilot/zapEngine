@@ -125,9 +125,29 @@ export function createControlCenterApp(input: {
   });
 
   // The Vercel deployment is required to sit behind Vercel Authentication.
-  // Inside that authenticated operator surface this is intentionally the only
-  // podcast mutation exposed: one service-role-only RPC that resets video work,
-  // never translation/TTS or arbitrary database state.
+  // Inside that authenticated operator surface podcast mutations stay narrowly
+  // scoped to checkpoint recovery RPCs; neither route accepts arbitrary state.
+  app.post('/api/podcast-pipeline/:episodeId/ingest/retry', async (context) => {
+    const episodeId = context.req.param('episodeId');
+    if (!UUID_PATTERN.test(episodeId)) {
+      return context.json({ error: 'Invalid episode id' }, 400);
+    }
+    try {
+      await podcastPipeline.restartIngest(episodeId);
+      return context.json({ ok: true });
+    } catch (error) {
+      const message = errorMessage(error);
+      if (isPodcastRetryConflict(error, message)) {
+        return context.json({ error: message }, 409);
+      }
+      captureServerException(error, {
+        method: context.req.method,
+        route: routePath(context),
+      });
+      return context.json({ error: message }, 503);
+    }
+  });
+
   app.post('/api/podcast-pipeline/:episodeId/video/retry', async (context) => {
     const episodeId = context.req.param('episodeId');
     if (!UUID_PATTERN.test(episodeId)) {
@@ -208,5 +228,5 @@ function errorMessage(error: unknown): string {
       return message;
     }
   }
-  return 'Podcast video retry failed';
+  return 'Podcast retry failed';
 }
