@@ -58,6 +58,11 @@ describe('client formatters', () => {
     expect(hoursAgo(null)).toBe('never');
   });
 
+  it('carries rounded duration seconds into the next minute', () => {
+    expect(duration(59.6)).toBe('1:00');
+    expect(duration(119.6)).toBe('2:00');
+  });
+
   it('reads recent timestamps as elapsed time', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-08-28T12:00:00.000Z'));

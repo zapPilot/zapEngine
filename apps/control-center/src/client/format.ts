@@ -64,8 +64,9 @@ export function duration(value: number | null | undefined): string {
   if (value === null || value === undefined) {
     return '—';
   }
-  const minutes = Math.floor(value / 60);
-  const seconds = Math.round(value % 60);
+  const roundedSeconds = Math.round(value);
+  const minutes = Math.floor(roundedSeconds / 60);
+  const seconds = roundedSeconds % 60;
   return minutes > 0
     ? `${minutes}:${String(seconds).padStart(2, '0')}`
     : `${seconds}s`;
