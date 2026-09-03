@@ -60,38 +60,55 @@ a 64-scene episode resumable — but its search intents are a canned photographi
 subject glued to a word-by-word rendering of the head of the Chinese sentence, so
 a scene about 「一千五百枚比特幣」 searched for
 `thousand five hundred Bitcoin holdings`. After the storyboard is built,
-`src/services/video/storyboard/search-intents.ts` sends the scenes to OpenRouter
-(`LLM_MODEL`) in batches with both the canonical and English sentences, and
-replaces each scene's intents with concrete subjects and named entities. The
-**publisher's original title (`episodes.source_title`) is the visual title SoT**:
+`src/services/video/storyboard/search-intents.ts` makes exactly **one** OpenRouter
+call (`LLM_MODEL`) for the whole episode and gets back the visual subject catalog:
+the named real-world subjects the title and scenes actually mention, each with its
+aliases, its `identityHints`, and the `searchQueries` an image provider should be
+given for it. Assigning those subjects to scenes is the application's job, not the
+model's. Every subject cites the scenes that name it in `evidenceSceneIds`, and
+those citations are read deterministically: the first content scene anchors the
+episode's `primarySubjectId` because it is the cover/lead, a scene a subject cites
+gets that subject directly (`direct`), a scene no subject cites inherits the
+previous direct assignment as `section-context` so a run of scenes keeps
+illustrating one story,
+and anything still unassigned falls back to the primary subject as
+`episode-context`. A scene's `imageSearchIntent` is then the catalog's
+`searchQueries` for its assigned subjects, and its `imageSearchEntities` are those
+subjects' canonical names.
+
+The **publisher's original title (`episodes.source_title`) is the visual title SoT**:
 it seeds the episode-wide subject catalog and lead identity even when our
 localized/editorial title rewrites or drops a critical proper noun. The English
 localized title is only the fallback when the publisher title is unavailable.
 
-That pass is fail-closed, and the unit is the scene. Transport failures are
-retried once by the shared OpenRouter retry policy; after that, anything that
-leaves even one content scene without a usable phrase raises — an unset
-`OPENROUTER_API_KEY`, a batch that keeps erroring, a response that omits a scene
-or answers it with junk, a phrase claiming a number absent from its own
-sentences (the numeric grounding rule `validateStoryboardDraft` applies), a
-merged draft that no longer validates. Accepting the rest would put the
-transliterated phrase back into image search for the scenes that were left out:
-the same failure, only smaller and harder to see. The visual job is then retried
-by the queue and eventually ends `failed`. Recovery is resubmitting the episode
-URL, which resets the visual and render rows and reports the wiped message once
-as `previousError`.
+That call is fail-closed, and the unit is the **episode**. There is one request
+per episode, so there is no per-scene retry surface and no partial result to
+salvage. Transport failures are retried once by the shared OpenRouter retry
+policy; after that, anything that leaves the episode without a usable catalog
+raises — an unset `OPENROUTER_API_KEY`, a completion that will not parse, a
+catalog that fails strict schema validation, a subject whose canonical name and
+aliases the episode never actually names, or a subject citing an evidence scene
+that does not exist. The visual job is then retried by the queue and eventually
+ends `failed`. Recovery is resubmitting the episode URL, which resets the visual
+and render rows and reports the wiped message once as `previousError`.
 
-What the pass does tolerate is a badly _shaped_ answer: scenes are read by id,
-so a response may reorder, repeat, or invent them and still be used, as long as
-every requested scene is in it somewhere. `provenance.searchIntentModel` on a
-completed payload is therefore never `null`, and
-`visual:intents enriched=N/M brand=B entities=K model=...` reports how much of
-the episode was rewritten and how much of it image search can anchor on a name.
+Catalog `searchQueries` are deliberately **not** numeric-grounded. Numbers inside
+proper names — a16z, web3, GPT-5 — are identity, not factual claims, and the
+per-scene numeric gate this replaced could not tell the two apart: a phrase naming
+a16z was rejected because "16" is not a number written in the scene's sentences,
+and one hallucinated year such as 2024 failed every phrase for its scene and took
+the whole visual job down with it. `validateStoryboardDraft`'s numeric rule still
+governs the **storyboard** stage, where scene text is written against that scene's
+own sentences and an unwritten number really is an invention. Only the
+catalog-derived search queries are exempt from it.
 
-Each scene also comes back with the proper nouns it names, checked verbatim
-against its own sentences and stored as `imageSearchEntities`. That is what
-image search is held to below. A scene that names nothing has no entities, which
-is legitimate — some scenes really are about a general idea.
+`provenance.searchIntentModel` on a completed payload therefore names the model
+that built the catalog, and
+`visual:intents enriched=N/M brand=B entities=K subjects=S primarySubject=... model=...`
+reports how much of the episode the catalog covered and how much of it image
+search can anchor on a name. Because the assignment fallback bottoms out at the
+primary subject, `entities` normally equals the content scene count;
+`imageSearchEntities` is what the image-search identity gate below is held to.
 
 Images are selected under the v9 rule **relevance first, free first, novelty last** (`selectionMode: 'resilient'`, what production uses):
 
@@ -110,6 +127,8 @@ Images are selected under the v9 rule **relevance first, free first, novelty las
 Candidates must pass HTTPS/SSRF, download timeout, format, size, pixel-dimension, animation, SHA-256, and perceptual-hash checks. A non-OK response or an unexpected body from any provider raises its typed error (`BraveImagesProviderError`, `PexelsImagesProviderError`, `PixabayImagesProviderError`), which fails the checkpoint outright under `strict` and degrades to the next provider under `resilient`. An empty result set from these official APIs is trustworthy and is not an error.
 
 Visual search decisions are also durable. Fresh v9 payloads store `provenance.searchTitleSource`, `articleImageCandidateCount`, `articleImageAssetCount`, and a bounded `searchTrace` containing each provider attempt's scene, actual query, normalized subject key, returned/accepted/entity-filtered/rejected counts. `visual:search` logs carry the same query/subject fields for live debugging, while Supabase remains enough to audit a completed episode later.
+
+While a visual job is still `processing`, `visual_payload` additionally holds a transient operator-only checkpoint (`schemaVersion: visual-search-debug-v1`, written by `src/services/video-visual-debug.ts`). Its `phase` moves `planned` -> `searched` or `search-failed`, and it carries the subject catalog, the scene assignments with their selection reasons, the planned per-scene queries, and the `searchTrace` accumulated so far. That is what makes a _failed_ attempt debuggable at all, because a failure is exactly the case where no completed payload is ever written. It is an attempt-level diagnostic and not history. Completion overwrites it with the canonical completed payload, and resubmitting the episode URL (or the Control Center video retry) clears the column outright — but a queue retry does not: `fail_episode_video_visual` only puts the row back to `queued`, so the thing that replaces a failed attempt's checkpoint is the next attempt's own `planned` write. `apps/control-center`'s Pipeline view surfaces it as a "Visual search debug" section. That write is also the limitation: it happens only after the catalog call returns, so an episode that fails _inside_ that call — every fail-closed case above — shows either nothing at all or, on a later attempt, the previous attempt's checkpoint. Read it against the row's `attempt_count` and `updated_at`, which is the only thing that dates it.
 
 Once the shared visual checkpoint completes, each of `zh-Hant`, `ja`, and `en` uses its own main HLS duration, sentence timing, subtitles, and audio to render a progressive MP4. All three encodes reuse the same visual checkpoint. Classroom HLS is an ingest-readiness check for the canonical localization only and is never used as video audio.
 

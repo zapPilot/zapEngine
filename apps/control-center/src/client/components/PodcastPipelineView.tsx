@@ -5,6 +5,7 @@ import type {
   PodcastPipelineJobState,
   PodcastPipelineResponse,
   PodcastPipelineStatus,
+  PodcastPipelineVisualDebug,
 } from '../../shared/podcast-pipeline.js';
 import type { StatementsResponse } from '../../shared/statements.js';
 import { relativeTime } from '../format.js';
@@ -159,6 +160,9 @@ function PipelineEpisode(props: {
       {visualError ? (
         <PipelineError label="Visual failure" message={visualError} />
       ) : null}
+      {episode.visualDebug ? (
+        <VisualSearchPlan debug={episode.visualDebug} />
+      ) : null}
 
       <details className="pipeline-details">
         <summary>Language and render details</summary>
@@ -199,6 +203,77 @@ function PipelineEpisode(props: {
         </div>
       </details>
     </article>
+  );
+}
+
+function VisualSearchPlan(props: { debug: PodcastPipelineVisualDebug }) {
+  const { debug } = props;
+  const actualKeywords = [
+    ...new Set(debug.actualSearches.map(({ query }) => query)),
+  ];
+  const plannedKeywords = [
+    ...new Set(debug.plannedQueries.flatMap(({ queries }) => queries)),
+  ];
+  const displayedKeywords =
+    actualKeywords.length > 0 ? actualKeywords : plannedKeywords;
+  const keywordLabel =
+    actualKeywords.length > 0
+      ? 'Search keywords used'
+      : 'Search keywords planned';
+
+  return (
+    <details className="pipeline-details">
+      <summary>Visual search debug</summary>
+      <div className="pipeline-language-grid">
+        <div className="pipeline-language">
+          <strong>{keywordLabel}</strong>
+          <span>
+            {displayedKeywords.length > 0
+              ? displayedKeywords.join(' · ')
+              : 'No search keywords recorded'}
+          </span>
+          {actualKeywords.length === 0 ? (
+            <small>No provider search trace recorded yet</small>
+          ) : null}
+        </div>
+        <div className="pipeline-language">
+          <strong>Subjects</strong>
+          <span>Primary: {debug.primarySubject ?? '—'}</span>
+          <small>
+            {debug.subjects.length > 0
+              ? debug.subjects.map(({ name }) => name).join(' · ')
+              : 'No subject catalog recorded'}
+          </small>
+        </div>
+        {debug.actualSearches.map((search, index) => (
+          <div
+            className="pipeline-language"
+            key={`${search.sceneId}-${search.provider}-${index}`}
+          >
+            <strong>
+              {search.sceneId} · {search.provider}
+            </strong>
+            <span>{search.query}</span>
+            <small>
+              returned {search.returned} · accepted {search.accepted} · entity
+              filtered {search.entityFiltered} · rejected {search.rejected}
+            </small>
+          </div>
+        ))}
+        {debug.plannedQueries.map((scene) => (
+          <div className="pipeline-language" key={`planned-${scene.sceneId}`}>
+            <strong>{scene.sceneId} · planned</strong>
+            <span>
+              {scene.selectionReason ?? 'search'}
+              {scene.subjectIds.length > 0
+                ? ` · ${scene.subjectIds.join(', ')}`
+                : ''}
+            </span>
+            <small>{scene.queries.join(' · ')}</small>
+          </div>
+        ))}
+      </div>
+    </details>
   );
 }
 

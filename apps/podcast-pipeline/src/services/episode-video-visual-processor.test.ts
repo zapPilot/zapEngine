@@ -5,6 +5,10 @@ import {
   generateVisualStoryboard,
   VISUAL_ARTICLE_SCRAPE_TIMEOUT_MS,
 } from './episode-video-visual-processor.js';
+import type {
+  VisualSceneSubjectAssignment,
+  VisualSubjectCatalog,
+} from './video/storyboard/subject-catalog.js';
 import {
   EPISODE_VIDEO_VISUAL_VERSION,
   type EpisodeVideoVisualJobRow,
@@ -27,6 +31,8 @@ function keepDeterministicIntents() {
     model: null,
     enrichedSceneCount: 0,
     entityAnchoredSceneCount: 0,
+    subjectCatalog: null,
+    sceneAssignments: [],
   }));
 }
 
@@ -69,6 +75,7 @@ describe('createEpisodeVideoVisualProcessor', () => {
       makeTemporaryDirectory: vi.fn().mockResolvedValue('/work/visual'),
       writeManifest,
       removeDirectory,
+      persistDebug: vi.fn().mockResolvedValue(true),
       logger,
     });
 
@@ -204,6 +211,7 @@ describe('createEpisodeVideoVisualProcessor', () => {
       makeTemporaryDirectory: vi.fn().mockResolvedValue('/work/visual'),
       writeManifest: vi.fn().mockResolvedValue(undefined),
       removeDirectory: vi.fn().mockResolvedValue(undefined),
+      persistDebug: vi.fn().mockResolvedValue(true),
       logger: { info: vi.fn() },
     });
 
@@ -236,6 +244,8 @@ describe('createEpisodeVideoVisualProcessor', () => {
       model: 'openrouter/free',
       enrichedSceneCount: 2,
       entityAnchoredSceneCount: 2,
+      subjectCatalog: null,
+      sceneAssignments: [],
     }));
     const processor = createEpisodeVideoVisualProcessor({
       analyzeAudio: vi
@@ -260,6 +270,7 @@ describe('createEpisodeVideoVisualProcessor', () => {
       makeTemporaryDirectory: vi.fn().mockResolvedValue('/work/visual'),
       writeManifest: vi.fn().mockResolvedValue(undefined),
       removeDirectory: vi.fn().mockResolvedValue(undefined),
+      persistDebug: vi.fn().mockResolvedValue(true),
       logger,
     });
 
@@ -272,7 +283,6 @@ describe('createEpisodeVideoVisualProcessor', () => {
         searchTitle: source().sourceTitle,
         script: source().script,
         searchScript: source().englishScript,
-        durationMs: 90_000,
       },
       { signal: expect.any(AbortSignal) },
     );
@@ -346,6 +356,7 @@ describe('createEpisodeVideoVisualProcessor', () => {
       makeTemporaryDirectory: vi.fn().mockResolvedValue('/work/visual'),
       writeManifest: vi.fn().mockResolvedValue(undefined),
       removeDirectory: vi.fn().mockResolvedValue(undefined),
+      persistDebug: vi.fn().mockResolvedValue(true),
       logger: { info: vi.fn() },
     });
 
@@ -364,7 +375,6 @@ describe('createEpisodeVideoVisualProcessor', () => {
         draft: storyboard().draft,
         title: bareSource.title,
         script: bareSource.script,
-        durationMs: 90_000,
       },
       { signal: expect.any(AbortSignal) },
     );
@@ -469,6 +479,7 @@ describe('createEpisodeVideoVisualProcessor', () => {
       makeTemporaryDirectory: vi.fn().mockResolvedValue('/work/visual'),
       writeManifest: vi.fn().mockResolvedValue(undefined),
       removeDirectory,
+      persistDebug: vi.fn().mockResolvedValue(true),
     });
 
     await expect(processor(job(), source(), context())).rejects.toThrow(
@@ -477,6 +488,236 @@ describe('createEpisodeVideoVisualProcessor', () => {
     expect(removeDirectory).toHaveBeenCalled();
   });
 });
+
+describe('visual search debug checkpoints', () => {
+  it('checkpoints the planned queries before scraping or searching', async () => {
+    const order: string[] = [];
+    const persistDebug = vi.fn().mockImplementation(async () => {
+      order.push('persistDebug');
+      return true;
+    });
+    const scrape = vi.fn().mockImplementation(async () => {
+      order.push('scrape');
+      return { text: 'source text', images: [articleCandidate()] };
+    });
+    const planAssets = vi.fn().mockImplementation(async () => {
+      order.push('planAssets');
+      return assetPlan();
+    });
+    const processor = createEpisodeVideoVisualProcessor(
+      checkpointDependencies({
+        enrichSearchIntents: enrichFromSubjectCatalog(),
+        scrape,
+        planAssets,
+        persistDebug,
+      }),
+    );
+
+    await processor(job(), source(), context());
+
+    // A failure inside image search is the only case with no completed payload
+    // to read, so the checkpoint has to be durable before search starts.
+    expect(order).toEqual(['persistDebug', 'scrape', 'planAssets']);
+    expect(persistDebug).toHaveBeenCalledWith(episodeId, 'worker-1', {
+      schemaVersion: 'visual-search-debug-v1',
+      phase: 'planned',
+      searchTitleSource: 'publisher',
+      searchIntentModel: 'openrouter/free',
+      subjectCatalog: subjectCatalog(),
+      sceneAssignments: sceneAssignments(),
+      plannedQueries: [
+        {
+          sceneId: 'scene-01',
+          subjectIds: ['subject-bank-of-japan'],
+          selectionReason: 'direct',
+          queries: ['Bank of Japan headquarters', 'Bank of Japan'],
+        },
+        {
+          sceneId: 'scene-02',
+          subjectIds: ['subject-bank-of-japan'],
+          selectionReason: 'section-context',
+          queries: ['Bank of Japan headquarters', 'Bank of Japan'],
+        },
+      ],
+    });
+  });
+
+  it('checkpoints the accumulated search trace once search succeeds', async () => {
+    const persistDebug = vi.fn().mockResolvedValue(true);
+    const processor = createEpisodeVideoVisualProcessor(
+      checkpointDependencies({
+        enrichSearchIntents: enrichFromSubjectCatalog(),
+        planAssets: vi.fn().mockImplementation(async (input) => {
+          input.onProgress?.(searchProgress());
+          return assetPlan();
+        }),
+        persistDebug,
+      }),
+    );
+
+    await processor(job(), source(), context());
+
+    expect(persistDebug).toHaveBeenCalledTimes(2);
+    expect(persistDebug.mock.calls[1]?.[2]).toMatchObject({
+      phase: 'searched',
+      searchTrace: [expectedTraceEntry()],
+    });
+  });
+
+  it('checkpoints the trace it had and rethrows when search fails', async () => {
+    const persistDebug = vi.fn().mockResolvedValue(true);
+    const processor = createEpisodeVideoVisualProcessor(
+      checkpointDependencies({
+        enrichSearchIntents: enrichFromSubjectCatalog(),
+        planAssets: vi.fn().mockImplementation(async (input) => {
+          input.onProgress?.(searchProgress());
+          throw new Error('Brave rejected the request');
+        }),
+        persistDebug,
+      }),
+    );
+
+    await expect(processor(job(), source(), context())).rejects.toThrow(
+      'Brave rejected the request',
+    );
+    expect(persistDebug).toHaveBeenCalledTimes(2);
+    expect(persistDebug.mock.calls[1]?.[2]).toMatchObject({
+      phase: 'search-failed',
+      searchTrace: [expectedTraceEntry()],
+    });
+  });
+
+  it('fails the job when the checkpoint write no longer holds the lease', async () => {
+    const planAssets = vi.fn().mockResolvedValue(assetPlan());
+    const processor = createEpisodeVideoVisualProcessor(
+      checkpointDependencies({
+        enrichSearchIntents: enrichFromSubjectCatalog(),
+        planAssets,
+        persistDebug: vi.fn().mockResolvedValue(false),
+      }),
+    );
+
+    await expect(processor(job(), source(), context())).rejects.toThrow(
+      'Visual search debug checkpoint lost its job lease',
+    );
+    expect(planAssets).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The dependencies a checkpoint test does not assert on. Each test overrides
+ * only the collaborator whose interaction with the checkpoint it is pinning.
+ */
+function checkpointDependencies(
+  overrides: Parameters<typeof createEpisodeVideoVisualProcessor>[0] = {},
+): Parameters<typeof createEpisodeVideoVisualProcessor>[0] {
+  return {
+    analyzeAudio: vi
+      .fn()
+      .mockResolvedValue({ durationMs: 90_000, silences: [] }),
+    generateStoryboard: vi.fn().mockResolvedValue(storyboard()),
+    scrape: vi.fn().mockResolvedValue({
+      text: 'source text',
+      images: [articleCandidate()],
+    }),
+    planAssets: vi.fn().mockResolvedValue(assetPlan()),
+    upload: vi.fn().mockResolvedValue({
+      manifestUrl: 'https://cdn.example.test/manifest.json',
+      imageUrls: {
+        'image-01': 'https://cdn.example.test/visuals/image-01.jpg',
+        'image-02': 'https://cdn.example.test/visuals/image-02.webp',
+      },
+      r2Prefix: 'episodes/e/visuals/v/hash',
+    }),
+    makeTemporaryDirectory: vi.fn().mockResolvedValue('/work/visual'),
+    writeManifest: vi.fn().mockResolvedValue(undefined),
+    removeDirectory: vi.fn().mockResolvedValue(undefined),
+    logger: { info: vi.fn() },
+    ...overrides,
+  };
+}
+
+function subjectCatalog(): VisualSubjectCatalog {
+  return {
+    primarySubjectId: 'subject-bank-of-japan',
+    subjects: [
+      {
+        id: 'subject-bank-of-japan',
+        canonicalName: 'Bank of Japan',
+        type: 'regulator',
+        aliases: ['BOJ'],
+        storyRole: 'primary',
+        evidenceSceneIds: ['scene-01'],
+        searchQueries: ['Bank of Japan headquarters'],
+        identityHints: ['central bank', 'Tokyo'],
+        negativeHints: [],
+        officialDomains: [],
+      },
+    ],
+  };
+}
+
+function sceneAssignments(): VisualSceneSubjectAssignment[] {
+  return [
+    {
+      sceneId: 'scene-01',
+      subjectIds: ['subject-bank-of-japan'],
+      selectionReason: 'direct',
+    },
+    {
+      sceneId: 'scene-02',
+      subjectIds: ['subject-bank-of-japan'],
+      selectionReason: 'section-context',
+    },
+  ];
+}
+
+function enrichFromSubjectCatalog() {
+  return vi.fn(async () => ({
+    draft: {
+      scenes: storyboard().draft.scenes.map((scene) => ({
+        ...scene,
+        imageSearchIntent: ['Bank of Japan headquarters', 'Bank of Japan'],
+        imageSearchEntities: ['Bank of Japan'],
+      })),
+    },
+    model: 'openrouter/free',
+    enrichedSceneCount: 2,
+    entityAnchoredSceneCount: 2,
+    subjectCatalog: subjectCatalog(),
+    sceneAssignments: sceneAssignments(),
+  }));
+}
+
+function searchProgress() {
+  return {
+    phase: 'search' as const,
+    sceneId: 'scene-01',
+    sceneIndex: 1,
+    sceneCount: 2,
+    provider: 'brave' as const,
+    searchIntent: 'Bank of Japan headquarters',
+    subjectKey: 'bank of japan',
+    searchResultCount: 40,
+    candidateCount: 3,
+    entityFilteredCount: 37,
+    rejectedCandidateCount: 1,
+    elapsedMs: 12,
+  };
+}
+
+function expectedTraceEntry() {
+  return {
+    sceneId: 'scene-01',
+    provider: 'brave',
+    intent: 'Bank of Japan headquarters',
+    subjectKey: 'bank of japan',
+    returned: 40,
+    accepted: 3,
+    entityFiltered: 37,
+    rejected: 1,
+  };
+}
 
 function source(): EpisodeVideoVisualSource {
   return {

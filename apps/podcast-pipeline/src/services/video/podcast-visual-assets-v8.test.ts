@@ -110,7 +110,7 @@ describe('podcast visual assets v8 identity gate', () => {
           ),
         ];
       }
-      if (lowered.includes('alpaca markets')) {
+      if (lowered.includes('alpaca')) {
         return [
           braveCandidate(
             'alpacas',
@@ -124,7 +124,7 @@ describe('podcast visual assets v8 identity gate', () => {
           ),
         ];
       }
-      if (lowered.includes('base b20')) {
+      if (lowered.includes('b20')) {
         return [
           braveCandidate(
             'profoto-b20',
@@ -185,13 +185,17 @@ describe('podcast visual assets v8 identity gate', () => {
       'Alpaca Markets',
       'Base B20',
     ]);
-    expect(search.mock.calls.map(([query]) => query)).toEqual(
-      expect.arrayContaining([
-        expect.stringContaining('Coinbase'),
-        expect.stringContaining('Alpaca Markets'),
-        expect.stringContaining('Base B20'),
-      ]),
-    );
+    // The catalog's own `searchQueries` reach the provider verbatim, so a
+    // disambiguated subject is searched by the ambiguous name the episode
+    // actually wrote -- `B20 tokenized stocks`, not `Base B20 B20 tokenized
+    // stocks`. Identity is enforced one step later: the gate below still holds
+    // every candidate to the disambiguated canonical name, which is why the
+    // camera flash and the engine are rejected from this very result set.
+    expect(search.mock.calls.map(([query]) => query)).toEqual([
+      'Coinbase tokenized stocks',
+      'Alpaca custody broker',
+      'B20 tokenized stocks',
+    ]);
     expect(downloaded.some((url) => badUrls.has(url))).toBe(false);
     expect(plan.assets.map((asset) => asset.sourcePageUrl)).toEqual([
       'https://news.example.test/coinbase-tokenized-stocks',

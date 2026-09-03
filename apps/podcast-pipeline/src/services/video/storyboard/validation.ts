@@ -89,28 +89,6 @@ function addIssue(
   issues.push({ code, path, message });
 }
 
-/**
- * The per-intent form of the checks `validateStoryboardDraft` runs over a whole
- * scene. A generated intent that fails this is dropped on its own instead of
- * taking the rest of the storyboard down with it.
- */
-export function isGroundedSearchIntent(
-  intent: string,
-  evidence: string,
-): boolean {
-  if (
-    intent.includes('\uFFFD') ||
-    containsDisallowedControlCharacters(intent)
-  ) {
-    return false;
-  }
-  const normalizedEvidence = normalizeNumericToken(evidence);
-  return numericTokens(intent).every((token) => {
-    const normalized = normalizeNumericToken(token);
-    return !normalized || normalizedEvidence.includes(normalized);
-  });
-}
-
 export function validateStoryboardDraft(
   input: unknown,
   context: StoryboardValidationContext,

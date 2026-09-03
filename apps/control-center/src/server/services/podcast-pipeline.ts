@@ -7,8 +7,10 @@ import type {
   PodcastPipelineRenderState,
   PodcastPipelineResponse,
   PodcastPipelineStatus,
+  PodcastPipelineVisualDebug,
 } from '../../shared/podcast-pipeline.js';
 import type { ControlCenterConfig } from '../config/env.js';
+import { record, records, stringArray } from './json.js';
 import { createServiceRoleClient } from './supabase.js';
 
 const EPISODE_LIMIT = 40;
@@ -49,6 +51,7 @@ interface IngestRow extends LifecycleRow {
 
 interface VisualRow extends LifecycleRow {
   episode_id: string;
+  visual_payload: Record<string, unknown> | null;
 }
 
 interface RenderRow extends LifecycleRow {
@@ -118,7 +121,7 @@ export function createPodcastPipelineService(input: {
           client
             .from('episode_video_visuals')
             .select(
-              'episode_id,status,progress_percent,progress_stage,attempt_count,lease_expires_at,last_error,updated_at',
+              'episode_id,status,progress_percent,progress_stage,attempt_count,lease_expires_at,last_error,visual_payload,updated_at',
             )
             .in('episode_id', episodeIds),
           client
@@ -269,6 +272,7 @@ export function summarizePodcastPipeline(
       ingest,
       localizations,
       visual,
+      visualDebug: visualSearchDebug(visualRow?.visual_payload ?? null),
       renders,
       // `renders` carries one entry per audio-complete language, and a language
       // with no `episode_videos` row is synthesised as 'pending'. The retry RPC
@@ -285,6 +289,146 @@ export function summarizePodcastPipeline(
         renders.every(({ updatedAt }) => updatedAt !== null),
     };
   });
+}
+
+function visualSearchDebug(
+  payload: Record<string, unknown> | null,
+): PodcastPipelineVisualDebug | null {
+  if (!payload) {
+    return null;
+  }
+  const catalog = record(payload['subjectCatalog']);
+  const subjects = records(catalog?.['subjects']).flatMap((subject) => {
+    const id = subject['id'];
+    const name = subject['canonicalName'];
+    return typeof id === 'string' && typeof name === 'string'
+      ? [{ id, name }]
+      : [];
+  });
+  const primarySubjectId = catalog?.['primarySubjectId'];
+  const primarySubject =
+    typeof primarySubjectId === 'string'
+      ? (subjects.find(({ id }) => id === primarySubjectId)?.name ??
+        primarySubjectId)
+      : null;
+
+  // One column carries two payload shapes over a job's life. While the job
+  // runs, `saveEpisodeVideoVisualDebug` writes the transient
+  // `visual-search-debug-v1` checkpoint: top-level `plannedQueries` and
+  // `searchTrace`. Completion overwrites it with `episodeVisualPayloadSchema`,
+  // where the trace moved to `provenance.searchTrace` and the per-scene
+  // queries survive only as `visualPlan.scenes[].imageSearchIntent`.
+  const debugQueries = parsePlannedQueries(payload['plannedQueries']);
+  // The transient rows win: they also carry the subject ids and the assignment
+  // reason, which the completed payload's scenes no longer hold.
+  const plannedQueries =
+    debugQueries.length > 0
+      ? debugQueries
+      : parseSceneSearchIntents(record(payload['visualPlan'])?.['scenes']);
+  const actualSearches = parseActualSearches(
+    payload['searchTrace'] ?? record(payload['provenance'])?.['searchTrace'],
+  );
+  if (
+    subjects.length === 0 &&
+    plannedQueries.length === 0 &&
+    actualSearches.length === 0
+  ) {
+    return null;
+  }
+
+  return {
+    phase: typeof payload['phase'] === 'string' ? payload['phase'] : null,
+    primarySubject,
+    subjects,
+    plannedQueries,
+    actualSearches,
+  };
+}
+
+function mapSceneRows<T>(
+  value: unknown,
+  mapRow: (row: Record<string, unknown>, sceneId: string) => T | null,
+): T[] {
+  return records(value).flatMap((row) => {
+    const sceneId = row['sceneId'];
+    if (typeof sceneId !== 'string') {
+      return [];
+    }
+    const mapped = mapRow(row, sceneId);
+    return mapped ? [mapped] : [];
+  });
+}
+
+function parsePlannedQueries(
+  value: unknown,
+): PodcastPipelineVisualDebug['plannedQueries'] {
+  return mapSceneRows(value, (row, sceneId) => {
+    const queries = stringArray(row['queries']);
+    if (queries.length === 0) {
+      return null;
+    }
+    const selectionReason = row['selectionReason'];
+    return {
+      sceneId,
+      subjectIds: stringArray(row['subjectIds']),
+      selectionReason:
+        typeof selectionReason === 'string' ? selectionReason : null,
+      queries,
+    };
+  });
+}
+
+function parseSceneSearchIntents(
+  value: unknown,
+): PodcastPipelineVisualDebug['plannedQueries'] {
+  return mapSceneRows(value, (row, sceneId) => {
+    const queries = stringArray(row['imageSearchIntent']);
+    // A completed plan keeps every scene, including the intro/outro brand
+    // cards, whose intent is the `brand:` marker the renderer swaps for a
+    // bundled PNG. Image search never runs for those, so listing them as
+    // planned queries would invent a search on every packaged episode.
+    if (queries.length === 0 || queries.some(isBrandVisualIntent)) {
+      return null;
+    }
+    return { sceneId, subjectIds: [], selectionReason: null, queries };
+  });
+}
+
+function isBrandVisualIntent(query: string): boolean {
+  return query.startsWith('brand:');
+}
+
+function parseActualSearches(
+  value: unknown,
+): PodcastPipelineVisualDebug['actualSearches'] {
+  return mapSceneRows(value, (row, sceneId) => {
+    const provider = row['provider'];
+    const query = row['intent'];
+    if (!isImageSearchProvider(provider) || typeof query !== 'string') {
+      return null;
+    }
+    return {
+      sceneId,
+      provider,
+      query,
+      returned: numericCount(row['returned']),
+      accepted: numericCount(row['accepted']),
+      entityFiltered: numericCount(row['entityFiltered']),
+      rejected: numericCount(row['rejected']),
+    };
+  });
+}
+
+function isImageSearchProvider(
+  value: unknown,
+): value is 'pexels' | 'pixabay' | 'brave' {
+  return value === 'pexels' || value === 'pixabay' || value === 'brave';
+}
+
+function numericCount(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.max(0, value)
+    : 0;
 }
 
 function translationState(
