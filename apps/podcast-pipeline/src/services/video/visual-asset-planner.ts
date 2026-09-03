@@ -17,7 +17,6 @@ import {
 } from './image-search-provider.js';
 
 const MAX_SEARCH_CANDIDATES_PER_SCENE = 100;
-const MAX_BRAVE_SEARCHES_PER_VISUAL_PLAN = 4;
 const MAX_SEARCH_INTENTS_PER_PROVIDER = 2;
 const MAX_DISTINCT_SEARCHED_ASSETS_PER_SUBJECT = 3;
 const PERCEPTUAL_HASH_DISTANCE_LIMIT = 6;
@@ -181,7 +180,6 @@ interface VisualAssetPlannerState {
   assets: PlannedVisualImage[];
   scenes: PlannedVisualScene[];
   searchCache: Map<string, ImageCandidate[]>;
-  braveSearchCount: number;
   subjectAssetIds: Map<string, string[]>;
 }
 
@@ -257,7 +255,6 @@ export async function planVisualAssets(
     assets: [...(input.resumePlan?.assets ?? [])],
     scenes: [...(input.resumePlan?.scenes ?? [])],
     searchCache: new Map(),
-    braveSearchCount: 0,
     subjectAssetIds: new Map(),
   };
 
@@ -692,15 +689,6 @@ async function searchWithPlanBudget(
   const cached = state.searchCache.get(cacheKey);
   if (cached) return cached;
 
-  if (
-    state.mode === 'resilient' &&
-    searchProvider.origin === 'brave' &&
-    state.braveSearchCount >= MAX_BRAVE_SEARCHES_PER_VISUAL_PLAN
-  ) {
-    return null;
-  }
-
-  if (searchProvider.origin === 'brave') state.braveSearchCount += 1;
   const searched = await searchProvider
     .search(intent, {
       count: Math.min(
@@ -731,11 +719,6 @@ async function acquireSearchedImage(
     scene,
   );
   const intents = searchIntentsForScene(scene, state.mode);
-  const braveRequestAllowance = braveRequestAllowanceForScene(
-    state,
-    scene,
-    sceneIndex,
-  );
   const funnel: SearchFunnel = {
     searches: 0,
     returned: 0,
@@ -745,11 +728,7 @@ async function acquireSearchedImage(
   };
 
   for (const searchProvider of providers) {
-    const providerIntents = limitedIntentsForProvider(
-      searchProvider,
-      intents,
-      braveRequestAllowance,
-    );
+    const providerIntents = limitedIntentsForProvider(intents);
     for (const intent of providerIntents) {
       const acquired = await acquireFromSearchIntent(
         state,
@@ -881,83 +860,16 @@ function orderedSearchProviders(
   scene: VisualAssetScene,
 ): ImageSearchProvider[] {
   const namedScene = (scene.imageSearchEntities?.length ?? 0) > 0;
-  let usable = [...providers];
   if (mode === 'strict' && namedScene) {
-    usable = usable.filter((provider) => provider.origin === 'brave');
-  } else if (
-    mode === 'resilient' &&
-    !namedScene &&
-    usable.some((provider) => provider.origin !== 'brave')
-  ) {
-    // Generic B-roll should not spend Brave while a stock provider is
-    // available. Keep a Brave-only injected/default chain usable, though:
-    // filtering its only provider would turn a provider failure (or a valid
-    // fallback result) into the misleading "no usable image" path.
-    usable = usable.filter((provider) => provider.origin !== 'brave');
+    return providers.filter((provider) => provider.origin === 'brave');
   }
-  if (mode === 'strict') return usable;
-
-  // Production is free-first for every scene. Named subjects keep the same hard
-  // entity gate on stock results, so Pexels/Pixabay are cheap attempts rather
-  // than permission to accept unrelated B-roll; Brave is the escalation path.
-  const priority: Record<ImageSearchProvider['origin'], number> = {
-    pexels: 0,
-    pixabay: 1,
-    brave: 2,
-  };
-  return usable
-    .map((provider, index) => ({ provider, index }))
-    .sort(
-      (left, right) =>
-        priority[left.provider.origin] - priority[right.provider.origin] ||
-        left.index - right.index,
-    )
-    .map(({ provider }) => provider);
+  return [...providers];
 }
 
 function limitedIntentsForProvider(
-  provider: ImageSearchProvider,
   intents: readonly string[],
-  braveRequestAllowance: number,
 ): readonly string[] {
-  const allowance =
-    provider.origin === 'brave'
-      ? Math.min(braveRequestAllowance, MAX_SEARCH_INTENTS_PER_PROVIDER)
-      : MAX_SEARCH_INTENTS_PER_PROVIDER;
-  return intents.slice(0, allowance);
-}
-
-function braveRequestAllowanceForScene(
-  state: VisualAssetPlannerState,
-  scene: VisualAssetScene,
-  sceneIndex: number,
-): number {
-  if (
-    state.mode !== 'resilient' ||
-    (scene.imageSearchEntities?.length ?? 0) === 0
-  ) {
-    return Number.POSITIVE_INFINITY;
-  }
-
-  const remainingBudget = Math.max(
-    0,
-    MAX_BRAVE_SEARCHES_PER_VISUAL_PLAN - state.braveSearchCount,
-  );
-  if (remainingBudget === 0) return 0;
-
-  const futureNamedScenes = state.input.scenes
-    .slice(sceneIndex + 1)
-    .filter(
-      (futureScene) => (futureScene.imageSearchEntities?.length ?? 0) > 0,
-    ).length;
-  // Reserve one request for as many later named scenes as the remaining global
-  // quota can still cover. A scene may spend more only when doing so cannot
-  // starve a later named scene entirely.
-  const reservedForFuture = Math.min(
-    futureNamedScenes,
-    Math.max(0, remainingBudget - 1),
-  );
-  return remainingBudget - reservedForFuture;
+  return intents.slice(0, MAX_SEARCH_INTENTS_PER_PROVIDER);
 }
 
 function normalizeSearchCacheKey(query: string): string {
