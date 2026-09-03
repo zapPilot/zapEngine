@@ -9,8 +9,8 @@ import {
   createOpenRouterChatCompletion,
   getOpenRouterConfig,
   isRetryableOpenRouterError,
-  OPENROUTER_FALLBACK_ROUTING,
   type OpenRouterChatCompletion,
+  OPENROUTER_FALLBACK_ROUTING,
   type OpenRouterProviderRouting,
 } from './llm.js';
 import { splitCanonicalSentences } from './video/storyboard/sentences.js';
@@ -39,6 +39,13 @@ export interface TranslateCanonicalScriptResult {
   title: string;
   script: string;
   cost: UsageCostLine[];
+}
+
+interface TranslationModelAttempt<K extends string> {
+  fields: Record<K, string> | null;
+  cost: UsageCostLine[];
+  error: unknown;
+  attempts: number;
 }
 
 /** A completed request whose response cannot be used as a translation. */
@@ -136,88 +143,103 @@ async function translateFields<K extends string>(
 
   const costs: UsageCostLine[] = [];
   const models = translationModelCandidates();
-  let lastError: unknown;
 
   for (const [modelIndex, model] of models.entries()) {
-    let retryReason: string | null = null;
-    let providerRouting: OpenRouterProviderRouting | undefined;
+    const attempt = await tryTranslationModel(
+      fields,
+      targetLanguageCode,
+      model,
+    );
+    costs.push(...attempt.cost);
+    if (attempt.fields) {
+      return { fields: attempt.fields, cost: costs };
+    }
 
-    for (let attempt = 1; attempt <= TRANSLATION_MAX_ATTEMPTS; attempt += 1) {
-      try {
-        const result = await translateFieldsWithOpenRouter(
-          fields,
-          targetLanguageCode,
-          model,
-          retryReason,
-          providerRouting,
-        );
-        return { fields: result.fields, cost: [...costs, ...result.cost] };
-      } catch (error) {
-        lastError = error;
-        const attemptCost = translationAttemptCost(error);
-        if (attemptCost) {
-          costs.push(attemptCost);
-        }
+    const error =
+      attempt.error ?? new Error('Translation failed without an OpenRouter error');
+    const nextModel = models[modelIndex + 1];
+    if (shouldRetryTranslation(error) && nextModel) {
+      logIngestEvent('translate:model-fallback', {
+        targetLanguageCode,
+        model,
+        nextModel,
+        attempts: attempt.attempts,
+        spentUsd: sumUsageCostLines([...priorCost, ...costs]),
+        error: errorMessage(error),
+      });
+      continue;
+    }
 
-        if (!shouldRetryTranslation(error)) {
-          logTranslationFailure(
-            targetLanguageCode,
-            model,
-            attempt,
-            priorCost,
-            costs,
-            error,
-          );
-          throw error;
-        }
+    logTranslationFailure(
+      targetLanguageCode,
+      model,
+      attempt.attempts,
+      priorCost,
+      costs,
+      error,
+    );
+    throw error as Error;
+  }
 
-        if (attempt < TRANSLATION_MAX_ATTEMPTS) {
-          const rerouted = !(error instanceof TranslationResponseError);
-          logIngestEvent('translate:retry', {
-            targetLanguageCode,
-            model,
-            attempt,
-            nextAttempt: attempt + 1,
-            delayMs: TRANSLATION_RETRY_DELAY_MS,
-            rerouted,
-            error: errorMessage(error),
-          });
-          retryReason =
-            error instanceof TranslationResponseError ? error.message : null;
-          providerRouting = rerouted ? OPENROUTER_FALLBACK_ROUTING : undefined;
-          await sleep(TRANSLATION_RETRY_DELAY_MS);
-          continue;
-        }
+  throw new Error('Translation failed without an OpenRouter model candidate');
+}
 
-        const nextModel = models[modelIndex + 1];
-        if (nextModel) {
-          logIngestEvent('translate:model-fallback', {
-            targetLanguageCode,
-            model,
-            nextModel,
-            attempts: attempt,
-            spentUsd: sumUsageCostLines([...priorCost, ...costs]),
-            error: errorMessage(error),
-          });
-          break;
-        }
+async function tryTranslationModel<K extends string>(
+  fields: Record<K, string>,
+  targetLanguageCode: SecondaryLanguageCode,
+  model: string,
+): Promise<TranslationModelAttempt<K>> {
+  const costs: UsageCostLine[] = [];
+  let retryReason: string | null = null;
+  let providerRouting: OpenRouterProviderRouting | undefined;
 
-        logTranslationFailure(
-          targetLanguageCode,
-          model,
-          attempt,
-          priorCost,
-          costs,
-          error,
-        );
-        throw error;
+  for (let attempt = 1; attempt <= TRANSLATION_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      const result = await translateFieldsWithOpenRouter(
+        fields,
+        targetLanguageCode,
+        model,
+        retryReason,
+        providerRouting,
+      );
+      return {
+        fields: result.fields,
+        cost: [...costs, ...result.cost],
+        error: null,
+        attempts: attempt,
+      };
+    } catch (error) {
+      const attemptCost = translationAttemptCost(error);
+      if (attemptCost) {
+        costs.push(attemptCost);
       }
+      if (!shouldRetryTranslation(error) || attempt === TRANSLATION_MAX_ATTEMPTS) {
+        return { fields: null, cost: costs, error, attempts: attempt };
+      }
+
+      const rerouted = !(error instanceof TranslationResponseError);
+      logIngestEvent('translate:retry', {
+        targetLanguageCode,
+        model,
+        attempt,
+        nextAttempt: attempt + 1,
+        delayMs: TRANSLATION_RETRY_DELAY_MS,
+        rerouted,
+        error: errorMessage(error),
+      });
+      retryReason =
+        error instanceof TranslationResponseError ? error.message : null;
+      providerRouting = rerouted ? OPENROUTER_FALLBACK_ROUTING : undefined;
+      await sleep(TRANSLATION_RETRY_DELAY_MS);
     }
   }
 
-  throw (
-    lastError ?? new Error('Translation failed without an OpenRouter error')
-  );
+  return {
+    fields: null,
+    cost: costs,
+    error: new Error('Translation attempts exhausted unexpectedly'),
+    attempts: TRANSLATION_MAX_ATTEMPTS,
+  };
 }
 
 function translationModelCandidates(): string[] {
