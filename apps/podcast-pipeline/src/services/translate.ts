@@ -9,8 +9,8 @@ import {
   createOpenRouterChatCompletion,
   getOpenRouterConfig,
   isRetryableOpenRouterError,
-  type OpenRouterChatCompletion,
   OPENROUTER_FALLBACK_ROUTING,
+  type OpenRouterChatCompletion,
   type OpenRouterProviderRouting,
 } from './llm.js';
 import { splitCanonicalSentences } from './video/storyboard/sentences.js';
@@ -156,7 +156,8 @@ async function translateFields<K extends string>(
     }
 
     const error =
-      attempt.error ?? new Error('Translation failed without an OpenRouter error');
+      attempt.error ??
+      new Error('Translation failed without an OpenRouter error');
     const nextModel = models[modelIndex + 1];
     if (shouldRetryTranslation(error) && nextModel) {
       logIngestEvent('translate:model-fallback', {
@@ -214,7 +215,12 @@ async function tryTranslationModel<K extends string>(
         costs.push(attemptCost);
       }
       if (!shouldRetryTranslation(error) || attempt === TRANSLATION_MAX_ATTEMPTS) {
-        return { fields: null, cost: costs, error, attempts: attempt };
+        return {
+          fields: null,
+          cost: costs,
+          error,
+          attempts: attempt,
+        };
       }
 
       const rerouted = !(error instanceof TranslationResponseError);
