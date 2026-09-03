@@ -772,6 +772,49 @@ describe('visual subject catalog grounding', () => {
       'Put descriptive industry, category, and role terms only in identityHints.',
     );
   });
+
+  it('drops catalog queries whose numeric claim is not grounded in the scene', async () => {
+    const request = catalogEnrichmentRequest('Coinbase');
+    const provider = stubCatalogProvider(
+      catalogSubject({
+        id: 'subject-coinbase',
+        canonicalName: 'Coinbase',
+        searchQueries: ['Coinbase 2024 annual report', 'Coinbase headquarters'],
+        identityHints: ['crypto exchange'],
+      }),
+    );
+
+    const result = await enrichStoryboardSearchIntents(request, { provider });
+
+    // 2024 never appears in the scene sentences, so the query containing it
+    // must not reach the storyboard validation as an imageSearchIntent.
+    for (const scene of result.draft.scenes) {
+      expect(scene.imageSearchIntent.join(' ')).not.toMatch(/2024/u);
+    }
+    expect(result.draft.scenes[0]?.imageSearchIntent).toContain(
+      'Coinbase headquarters',
+    );
+  });
+
+  it('falls back to the canonical name when every catalog query is ungrounded', async () => {
+    const request = catalogEnrichmentRequest('Coinbase');
+    const provider = stubCatalogProvider(
+      catalogSubject({
+        id: 'subject-coinbase',
+        canonicalName: 'Coinbase',
+        searchQueries: ['Coinbase 2024 annual report'],
+        identityHints: ['crypto exchange'],
+      }),
+    );
+
+    const result = await enrichStoryboardSearchIntents(request, { provider });
+
+    // buildVisualSubjectSearchQueries always appends the bare canonical name,
+    // so filtering the ungrounded 2024 query still leaves a grounded fallback.
+    for (const scene of result.draft.scenes) {
+      expect(scene.imageSearchIntent).toEqual(['Coinbase']);
+    }
+  });
 });
 
 describe('OpenRouter search intent provider', () => {
