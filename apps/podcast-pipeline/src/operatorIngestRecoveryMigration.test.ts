@@ -38,7 +38,9 @@ describe('operator ingest recovery migration', () => {
     expect(migration).toMatch(
       /update from_fed_to_chain\.podcast_ingest_jobs[\s\S]+?status = 'queued'[\s\S]+?lease_owner = null[\s\S]+?last_error = null/i,
     );
-    expect(migration).not.toMatch(/update from_fed_to_chain\.episode_localizations/i);
+    expect(migration).not.toMatch(
+      /update from_fed_to_chain\.episode_localizations/i,
+    );
   });
 
   it('keeps the mutation service-role only', () => {
