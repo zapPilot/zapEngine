@@ -156,6 +156,37 @@ describe('durable Telegram ingest queue', () => {
     );
   });
 
+  it('runs an operator recovery job without sending Telegram notifications', async () => {
+    const recovered = row({
+      source_url: 'https://example.test/operator-recovery',
+      telegram_chat_id: null,
+    });
+    const store = fakeStore({
+      claimNext: vi.fn().mockResolvedValueOnce(recovered).mockResolvedValue(null),
+    });
+    const queue = createTelegramIngestQueue({
+      jobStore: store,
+      startRecoveryLoop: false,
+    });
+
+    await queue.recoverNow();
+
+    await vi.waitFor(() => expect(mocks.perform).toHaveBeenCalledTimes(1));
+    expect(mocks.send).not.toHaveBeenCalled();
+    const options = mocks.perform.mock.calls[0]?.[2] as
+      | { telegramChatId?: () => unknown }
+      | undefined;
+    expect(options?.telegramChatId?.()).toBeUndefined();
+    await vi.waitFor(() =>
+      expect(store.finish).toHaveBeenCalledWith(
+        recovered.id,
+        expect.any(String),
+        'completed',
+        undefined,
+      ),
+    );
+  });
+
   it('quarantines a poison recovered row before it can reach ingest', async () => {
     const poison = {
       ...row(),
