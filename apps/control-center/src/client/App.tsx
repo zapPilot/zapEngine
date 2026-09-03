@@ -142,6 +142,28 @@ export function App() {
     [run],
   );
 
+  const restartIngest = useCallback(
+    (episodeId: string) => {
+      setRestartingEpisodeId(episodeId);
+      void run(async () => {
+        const response = await fetch(
+          `/api/podcast-pipeline/${encodeURIComponent(episodeId)}/ingest/retry`,
+          { method: 'POST' },
+        );
+        if (!response.ok) {
+          const body = (await response.json().catch(() => null)) as {
+            error?: string;
+          } | null;
+          throw new Error(body?.error ?? `HTTP ${response.status}`);
+        }
+        setPodcastPipeline(
+          await getJson<PodcastPipelineResponse>('/api/podcast-pipeline'),
+        );
+      }).finally(() => setRestartingEpisodeId(null));
+    },
+    [run],
+  );
+
   const restartVideo = useCallback(
     (episodeId: string) => {
       setRestartingEpisodeId(episodeId);
@@ -303,6 +325,7 @@ export function App() {
       {view === 'pipeline' ? (
         <PodcastPipelineView
           data={podcastPipeline}
+          onRestartIngest={restartIngest}
           onRestartVideo={restartVideo}
           restartingEpisodeId={restartingEpisodeId}
           statements={statements}
