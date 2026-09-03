@@ -37,18 +37,21 @@ permissions:
   contents: read
 
 # Serialized instead of cancelled: a cancelled run would leave the fleet
-# half-applied. A queued run checks out the newer main, so last one wins. The
-# group is shared with the drift audit so a read never overlaps a write and
-# reports the drift the write is in the middle of fixing.
+# half-applied. GitHub's default concurrency queue keeps only one pending run,
+# so queue every waiter explicitly; the latest manifest still wins naturally as
+# each queued run checks out its own triggering SHA. The group is shared with
+# deploy-fly and the drift audit so reads never overlap writes.
 concurrency:
   group: env-rail
   cancel-in-progress: false
+  queue: max
 
 jobs:
   apply:
     concurrency:
       group: fly-rollout-${{ matrix.target }}
       cancel-in-progress: false
+      queue: max
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
