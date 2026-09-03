@@ -49,6 +49,13 @@ interface IngestRow extends LifecycleRow {
   source_url: string;
 }
 
+interface LegacyIngestRunRow {
+  episode_id: string | null;
+  status: string;
+  finished_at: string | null;
+  created_at: string;
+}
+
 interface VisualRow extends LifecycleRow {
   episode_id: string;
   visual_payload: Record<string, unknown> | null;
@@ -105,6 +112,7 @@ export function createPodcastPipelineService(input: {
           localizationsResult,
           visualsResult,
           rendersResult,
+          legacyIngestRunsResult,
         ] = await Promise.all([
           client
             .from('podcast_ingest_jobs')
@@ -130,6 +138,11 @@ export function createPodcastPipelineService(input: {
               'episode_localization_id,episode_id,status,progress_percent,progress_stage,attempt_count,lease_expires_at,last_error,updated_at',
             )
             .in('episode_id', episodeIds),
+          client
+            .from('ops_pipeline_runs')
+            .select('episode_id,status,finished_at,created_at')
+            .eq('pipeline', 'ingest')
+            .in('episode_id', episodeIds),
         ]);
 
         const queryError = [
@@ -137,6 +150,7 @@ export function createPodcastPipelineService(input: {
           localizationsResult.error,
           visualsResult.error,
           rendersResult.error,
+          legacyIngestRunsResult.error,
         ].find((error) => error !== null);
         if (queryError) {
           throw queryError;
@@ -153,10 +167,26 @@ export function createPodcastPipelineService(input: {
             (visualsResult.data ?? []) as VisualRow[],
             (rendersResult.data ?? []) as RenderRow[],
             new Date(),
+            (legacyIngestRunsResult.data ?? []) as LegacyIngestRunRow[],
           ),
         };
       } catch (cause) {
         return failedPipeline(generatedAt, cause);
+      }
+    },
+
+    async restartIngest(episodeId: string): Promise<void> {
+      if (!client) {
+        throw new Error('Supabase podcast pipeline is not connected');
+      }
+      const { data, error } = await client.rpc('retry_episode_ingest', {
+        p_episode_id: episodeId,
+      });
+      if (error) {
+        throw error;
+      }
+      if (data !== true) {
+        throw new Error('Ingest retry changed no episode');
       }
     },
 
@@ -190,11 +220,20 @@ export function summarizePodcastPipeline(
   visualRows: VisualRow[],
   renderRows: RenderRow[],
   now: Date,
+  legacyIngestRunRows: LegacyIngestRunRow[] = [],
 ): PodcastPipelineEpisode[] {
   const latestIngestBySourceUrl = latestRowBy(
     ingestRows,
     (row) => row.source_url,
     (row) => row.updated_at,
+  );
+  const latestLegacyIngestByEpisode = latestRowBy(
+    legacyIngestRunRows.filter(
+      (row): row is LegacyIngestRunRow & { episode_id: string } =>
+        Boolean(row.episode_id),
+    ),
+    (row) => row.episode_id,
+    (row) => row.finished_at ?? row.created_at,
   );
   const localizationsByEpisode = groupBy(
     localizationRows,
@@ -207,7 +246,12 @@ export function summarizePodcastPipeline(
 
   return episodes.map((episode) => {
     const ingestRow = latestIngestBySourceUrl.get(episode.source_url) ?? null;
-    const ingest = ingestRow ? jobState(ingestRow, now) : null;
+    const legacyIngestRun = latestLegacyIngestByEpisode.get(episode.id) ?? null;
+    const ingest = ingestRow
+      ? jobState(ingestRow, now)
+      : legacyIngestRun
+        ? legacyIngestState(legacyIngestRun, now)
+        : null;
     const localizationRowsForEpisode =
       localizationsByEpisode.get(episode.id) ?? [];
     const localizationByLanguage = new Map(
@@ -259,6 +303,8 @@ export function summarizePodcastPipeline(
       (job) =>
         job?.status === 'processing' && leaseIsActive(job.leaseExpiresAt, now),
     );
+    const ingestIsActive =
+      ingest?.status === 'queued' || ingest?.status === 'processing';
 
     return {
       episodeId: episode.id,
@@ -274,6 +320,9 @@ export function summarizePodcastPipeline(
       visual,
       visualDebug: visualSearchDebug(visualRow?.visual_payload ?? null),
       renders,
+      canRestartIngest:
+        (currentPhase === 'translation' || currentPhase === 'tts') &&
+        !ingestIsActive,
       // `renders` carries one entry per audio-complete language, and a language
       // with no `episode_videos` row is synthesised as 'pending'. The retry RPC
       // only updates existing rows, so those episodes -- legacy single-language
@@ -551,6 +600,21 @@ function jobState(row: LifecycleRow, now: Date): PodcastPipelineJobState {
     lastError: row.last_error,
     leaseExpiresAt: row.lease_expires_at,
     updatedAt: row.updated_at,
+  };
+}
+
+function legacyIngestState(
+  row: LegacyIngestRunRow,
+  now: Date,
+): PodcastPipelineJobState {
+  return {
+    status: normalizeJobStatus(row.status, null, now),
+    progressPercent: null,
+    stage: null,
+    attempts: 0,
+    lastError: null,
+    leaseExpiresAt: null,
+    updatedAt: row.finished_at ?? row.created_at,
   };
 }
 

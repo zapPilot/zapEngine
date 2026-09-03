@@ -48,9 +48,7 @@ describe('control-center launch contract', () => {
   });
 
   it('reuses the injected env when the full ops stack starts the dashboard', () => {
-    expect(readOpsLauncher()).toContain(
-      "args: ['run', 'ops:dashboard:raw']",
-    );
+    expect(readOpsLauncher()).toContain("args: ['run', 'ops:dashboard:raw']");
   });
 
   it('routes every nested Vercel API path through the Hono entrypoint', () => {

@@ -71,6 +71,7 @@ export interface PodcastPipelineEpisode {
   /** Added by the visual-search debug rollout; optional for cached/older API fixtures. */
   visualDebug?: PodcastPipelineVisualDebug | null;
   renders: PodcastPipelineRenderState[];
+  canRestartIngest: boolean;
   canRestartVideo: boolean;
 }
 

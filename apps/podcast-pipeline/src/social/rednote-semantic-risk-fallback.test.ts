@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const llmMocks = vi.hoisted(() => ({
   createOpenRouterChatCompletion: vi.fn(),
@@ -43,6 +43,7 @@ function completion(content: string): object {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.stubEnv('LLM_FALLBACK_MODELS', FALLBACKS.join(','));
   llmMocks.getOpenRouterConfig.mockImplementation(
     (overrides?: { model?: string; thinkingModel?: string | null }) => ({
       openai: llmMocks.openai,
@@ -51,6 +52,10 @@ beforeEach(() => {
       timeoutMs: 120_000,
     }),
   );
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
 
 describe('Rednote semantic-risk model fallback', () => {

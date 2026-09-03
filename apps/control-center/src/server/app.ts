@@ -23,6 +23,8 @@ const WINDOWS: SocialPerformanceResponse['window'][] = [
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+type PodcastRetry = (episodeId: string) => Promise<void>;
+
 export function createControlCenterApp(input: {
   config: ControlCenterConfig;
   service?: ReturnType<typeof createOverviewService>;
@@ -125,29 +127,19 @@ export function createControlCenterApp(input: {
   });
 
   // The Vercel deployment is required to sit behind Vercel Authentication.
-  // Inside that authenticated operator surface this is intentionally the only
-  // podcast mutation exposed: one service-role-only RPC that resets video work,
-  // never translation/TTS or arbitrary database state.
-  app.post('/api/podcast-pipeline/:episodeId/video/retry', async (context) => {
-    const episodeId = context.req.param('episodeId');
-    if (!UUID_PATTERN.test(episodeId)) {
-      return context.json({ error: 'Invalid episode id' }, 400);
-    }
-    try {
-      await podcastPipeline.restartVideo(episodeId);
-      return context.json({ ok: true });
-    } catch (error) {
-      const message = errorMessage(error);
-      if (isPodcastRetryConflict(error, message)) {
-        return context.json({ error: message }, 409);
-      }
-      captureServerException(error, {
-        method: context.req.method,
-        route: routePath(context),
-      });
-      return context.json({ error: message }, 503);
-    }
-  });
+  // Inside that authenticated operator surface podcast mutations stay narrowly
+  // scoped to checkpoint recovery RPCs; neither route accepts arbitrary state.
+  app.post('/api/podcast-pipeline/:episodeId/ingest/retry', (context) =>
+    handlePodcastRetry(context, (episodeId) =>
+      podcastPipeline.restartIngest(episodeId),
+    ),
+  );
+
+  app.post('/api/podcast-pipeline/:episodeId/video/retry', (context) =>
+    handlePodcastRetry(context, (episodeId) =>
+      podcastPipeline.restartVideo(episodeId),
+    ),
+  );
 
   registerOpsMcpHttp(app, {
     operations,
@@ -172,6 +164,27 @@ export function createControlCenterApp(input: {
     app.get('*', serveStatic({ path: './dist/client/index.html' }));
   }
   return app;
+}
+
+async function handlePodcastRetry(context: Context, retry: PodcastRetry) {
+  const episodeId = context.req.param('episodeId');
+  if (!episodeId || !UUID_PATTERN.test(episodeId)) {
+    return context.json({ error: 'Invalid episode id' }, 400);
+  }
+  try {
+    await retry(episodeId);
+    return context.json({ ok: true });
+  } catch (error) {
+    const message = errorMessage(error);
+    if (isPodcastRetryConflict(error, message)) {
+      return context.json({ error: message }, 409);
+    }
+    captureServerException(error, {
+      method: context.req.method,
+      route: routePath(context),
+    });
+    return context.json({ error: message }, 503);
+  }
 }
 
 /**
@@ -208,5 +221,5 @@ function errorMessage(error: unknown): string {
       return message;
     }
   }
-  return 'Podcast video retry failed';
+  return 'Podcast retry failed';
 }
