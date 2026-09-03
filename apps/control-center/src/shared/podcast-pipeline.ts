@@ -44,6 +44,7 @@ export interface PodcastPipelineEpisode {
   localizations: PodcastPipelineLocalization[];
   visual: PodcastPipelineJobState | null;
   renders: PodcastPipelineRenderState[];
+  canRestartIngest: boolean;
   canRestartVideo: boolean;
 }
 
