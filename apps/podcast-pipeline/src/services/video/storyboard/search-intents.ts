@@ -1,4 +1,4 @@
-import type OpenAI from 'openai';
+import OpenAI, { APIError } from 'openai';
 
 import { errorMessage } from '../../../lib/errorMessage.js';
 import { isRecord } from '../../../lib/typeGuards.js';
@@ -24,12 +24,14 @@ import {
   parseVisualSubjectCatalog,
   subjectNames,
   type VisualSceneSubjectAssignment,
+  type VisualSubject,
   visualSubjectById,
   type VisualSubjectCatalog,
 } from './subject-catalog.js';
 
 const SEARCH_INTENT_REASONING = { enabled: false } as const;
 const SEARCH_INTENT_PAYLOAD_MAX_ATTEMPTS = 2;
+const MAX_DEGRADED_REASON_CHARS = 200;
 const CJK_CHARACTER_CAPTURE_PATTERN =
   /([\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}])/gu;
 
@@ -57,6 +59,12 @@ export interface SearchIntentEnrichment {
   entityAnchoredSceneCount: number;
   subjectCatalog: VisualSubjectCatalog | null;
   sceneAssignments: VisualSceneSubjectAssignment[];
+  /**
+   * Set when the catalog LLM answered with something unusable. The episode then
+   * keeps the deterministic storyboard intents and renders anyway, so this is
+   * the only surviving evidence of why its images were never subject-anchored.
+   */
+  degradedReason?: string;
 }
 
 interface SearchIntentCompletionDiagnostics {
@@ -70,6 +78,20 @@ class SearchIntentPayloadError extends Error {
   constructor(message: string, options?: ErrorOptions) {
     super(message, options);
     this.name = 'SearchIntentPayloadError';
+  }
+}
+
+/**
+ * A catalog response that arrived and could not be used. Separating it from the
+ * causes that never reached a model is what lets the episode degrade: three
+ * fail_episode_video_visual attempts were being burned on one bad LLM answer,
+ * replaying the whole storyboard each time, for an episode whose deterministic
+ * intents would have rendered.
+ */
+class SearchIntentQualityError extends Error {
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = 'SearchIntentQualityError';
   }
 }
 
@@ -105,11 +127,25 @@ export async function enrichStoryboardSearchIntents(
   }
 
   const searchTitle = request.searchTitle?.trim() || request.title;
-  const subjectCatalog = await buildSubjectCatalog(provider, {
-    title: searchTitle,
-    scenes,
-    ...(options.signal ? { signal: options.signal } : {}),
-  });
+  let subjectCatalog: VisualSubjectCatalog;
+  try {
+    subjectCatalog = await buildSubjectCatalog(provider, {
+      title: searchTitle,
+      scenes,
+      ...(options.signal ? { signal: options.signal } : {}),
+    });
+  } catch (error) {
+    if (!(error instanceof SearchIntentQualityError)) throw error;
+    return {
+      draft: request.draft,
+      model: provider.model,
+      enrichedSceneCount: 0,
+      entityAnchoredSceneCount: 0,
+      subjectCatalog: null,
+      sceneAssignments: [],
+      degradedReason: degradedCatalogReason(error),
+    };
+  }
 
   return enrichFromSubjectCatalog(
     request.draft,
@@ -117,6 +153,36 @@ export async function enrichStoryboardSearchIntents(
     subjectCatalog,
     provider.model,
   );
+}
+
+function degradedCatalogReason(error: unknown): string {
+  const collapsed = errorMessage(error).replace(/\s+/gu, ' ').trim();
+  const reason = collapsed || 'visual subject catalog response was unusable';
+  return reason.length > MAX_DEGRADED_REASON_CHARS
+    ? `${reason.slice(0, MAX_DEGRADED_REASON_CHARS - 1)}…`
+    : reason;
+}
+
+/**
+ * Whether the catalog call failed before any model answered it. Such a cause
+ * leaves no response to degrade to, and an abort is the render being cancelled,
+ * so all of them still fail the episode.
+ *
+ * The SDK is identified by type, never by `error.name`: every one of its error
+ * classes inherits the plain 'Error' name, so a name test silently misses a
+ * DNS/TLS/socket failure and a request timeout — `APIConnectionError` and
+ * `APIConnectionTimeoutError` — and those are exactly the ones that also carry
+ * no numeric `status`. Reclassifying them as a bad model answer would degrade an
+ * episode to unanchored intents on a network blip. The numeric-status branch
+ * still covers a non-SDK provider that only reports an HTTP status, and the two
+ * name checks cover a DOMException abort and a non-SDK timeout.
+ */
+function isUpstreamCatalogError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  if (error instanceof APIError) return true;
+  if (typeof (error as { status?: unknown }).status === 'number') return true;
+  const name = (error as { name?: unknown }).name;
+  return name === 'AbortError' || name === 'TimeoutError';
 }
 
 function enrichFromSubjectCatalog(
@@ -176,9 +242,7 @@ function enrichFromSubjectCatalog(
     const imageSearchIntent = [
       ...new Set(subjects.flatMap(buildVisualSubjectSearchQueries)),
     ].slice(0, MAX_SEARCH_INTENTS_PER_SCENE);
-    const imageSearchEntities = subjects.map(
-      (subject) => subject.canonicalName,
-    );
+    const imageSearchEntities = sceneSearchEntities(subjects);
     if (imageSearchEntities.length > 0) entityAnchoredSceneCount += 1;
     return {
       ...scene,
@@ -201,6 +265,33 @@ function enrichFromSubjectCatalog(
   };
 }
 
+/**
+ * The names a scene's candidates are ranked against, for both the enriched draft
+ * and the plan-time rebuild. Disambiguation moves the episode's own spelling of
+ * an ambiguous subject into `aliases[0]` and puts a contextual phrase in
+ * `canonicalName` ('venture capital a16z'), but a Brave result's alt text or URL
+ * carries the short original — so scoring on the canonical name alone awarded a
+ * zero bonus to every candidate of exactly the subjects disambiguation runs on.
+ * Canonical names come first so the cap, which the persisted plan also enforces,
+ * takes the demoted originals away rather than a whole subject's identity.
+ */
+export function sceneSearchEntities(
+  subjects: readonly VisualSubject[],
+): string[] {
+  const seen = new Set<string>();
+  const entities: string[] = [];
+  for (const name of [
+    ...subjects.map((subject) => subject.canonicalName),
+    ...subjects.flatMap((subject) => subject.aliases.slice(0, 1)),
+  ]) {
+    const key = name.toLocaleLowerCase('en-US');
+    if (seen.has(key)) continue;
+    seen.add(key);
+    entities.push(name);
+  }
+  return entities.slice(0, MAX_SEARCH_ENTITIES_PER_SCENE);
+}
+
 async function buildSubjectCatalog(
   provider: SearchIntentProvider,
   request: SearchIntentCatalogRequest,
@@ -212,9 +303,11 @@ async function buildSubjectCatalog(
     return catalog;
   } catch (error) {
     throwIfAborted(request.signal);
-    throw new Error(`Visual subject catalog failed: ${errorMessage(error)}`, {
-      cause: error,
-    });
+    if (isUpstreamCatalogError(error)) throw error;
+    throw new SearchIntentQualityError(
+      `Visual subject catalog failed: ${errorMessage(error)}`,
+      { cause: error },
+    );
   }
 }
 

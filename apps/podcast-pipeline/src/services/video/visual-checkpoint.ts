@@ -43,15 +43,11 @@ const checkpointAssetSchema = z
     ...visualAssetIdentityFields,
     originalImageUrl: z.string().min(1),
     sourcePageUrl: z.string().min(1),
-    provider: z.enum([
-      'article',
-      'brand',
-      'generated-slide',
-      'pexels',
-      'pixabay',
-      'brave',
-    ]),
-    license: z.enum(['brand-generated', 'unknown', 'pexels', 'pixabay']),
+    // A checkpoint is one attempt's scratch space, not stored history: a row
+    // written by a retired provider fails this parse, returns null, and the job
+    // replans, so there is nothing here to keep readable.
+    provider: z.enum(['article', 'brand', 'generated-slide', 'brave']),
+    license: z.enum(['brand-generated', 'unknown']),
     photographer: z.string().min(1).optional(),
     photographerUrl: z.string().min(1).optional(),
     slide: generatedSlideMetadataSchema.optional(),
@@ -85,6 +81,11 @@ export const visualCheckpointSchema = z
       .strict(),
     searchIntentModel: z.string().min(1).nullable(),
     subjectCatalog: visualSubjectCatalogSchema.nullable(),
+    /** Why this attempt has no catalog, when enrichment degraded rather than
+     * simply finding no named subject. Optional so a checkpoint written before
+     * the field existed still parses and its job resumes instead of replanning;
+     * absent otherwise, because a retry that reports no reason is misleading. */
+    subjectCatalogFailure: z.string().min(1).optional(),
     sceneAssignments: z.array(visualSceneSubjectAssignmentSchema).max(64),
     scenes: z
       .array(
@@ -112,6 +113,7 @@ export function buildVisualCheckpoint(input: {
   storyboard: StoryboardGenerationResult;
   searchIntentModel: string | null;
   subjectCatalog: VisualCheckpoint['subjectCatalog'];
+  subjectCatalogFailure: string | null;
   sceneAssignments: VisualCheckpoint['sceneAssignments'];
   searchTitleSource: VisualCheckpoint['searchTitleSource'];
 }): VisualCheckpoint {
@@ -131,6 +133,9 @@ export function buildVisualCheckpoint(input: {
     },
     searchIntentModel: input.searchIntentModel,
     subjectCatalog: input.subjectCatalog,
+    ...(input.subjectCatalogFailure
+      ? { subjectCatalogFailure: input.subjectCatalogFailure }
+      : {}),
     sceneAssignments: [...input.sceneAssignments],
     scenes: [],
     assets: [],

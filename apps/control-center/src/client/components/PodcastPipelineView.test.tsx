@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type {
   PodcastPipelineResponse,
   PodcastPipelineVisualDebug,
+  PodcastPipelineVisualSearchAttempt,
 } from '../../shared/podcast-pipeline.js';
 import { PodcastPipelineView } from './PodcastPipelineView.js';
 /* jscpd:ignore-end */
@@ -81,6 +82,7 @@ function visualDebug(
     phase: 'planned',
     primarySubject: 'a16z',
     subjects: [{ id: 'subject-a16z', name: 'a16z' }],
+    subjectCatalogFailure: null,
     plannedQueries: [
       {
         sceneId: 'scene-01',
@@ -95,7 +97,29 @@ function visualDebug(
         queries: ['Andreessen Horowitz'],
       },
     ],
+    budget: null,
+    primarySubjects: [],
+    plannedSubjectSearches: [],
     actualSearches: [],
+    sceneSelections: [],
+    reuse: [],
+    ...overrides,
+  };
+}
+
+function braveRequest(
+  overrides: Partial<PodcastPipelineVisualSearchAttempt>,
+): PodcastPipelineVisualSearchAttempt {
+  return {
+    sceneId: null,
+    provider: 'brave',
+    kind: 'primary',
+    subjectLabel: 'a16z',
+    query: 'a16z venture capital firm',
+    returned: 100,
+    viable: 41,
+    drops: [],
+    error: null,
     ...overrides,
   };
 }
@@ -233,11 +257,16 @@ describe('PodcastPipelineView', () => {
             {
               sceneId: 'scene-01',
               provider: 'brave',
+              kind: null,
+              subjectLabel: null,
               query: 'a16z',
               returned: 20,
-              accepted: 4,
-              entityFiltered: 2,
-              rejected: 1,
+              viable: 4,
+              drops: [
+                { reason: 'entity-filtered', count: 2 },
+                { reason: 'rejected', count: 1 },
+              ],
+              error: null,
             },
           ],
         }),
@@ -253,5 +282,149 @@ describe('PodcastPipelineView', () => {
     expect(
       screen.queryByText('No provider search trace recorded yet'),
     ).not.toBeInTheDocument();
+  });
+  it('reports the episode request budget against its per-episode ceiling', () => {
+    renderPipeline({
+      data: pipelineResponse({
+        visualDebug: visualDebug({
+          phase: 'searched',
+          budget: {
+            requestCount: 6,
+            max: 8,
+            primary: 5,
+            targeted: 3,
+            exhausted: true,
+          },
+          actualSearches: [
+            ...Array.from({ length: 5 }, (_unused, index) =>
+              braveRequest({
+                kind: 'primary',
+                subjectLabel: `subject-${index}`,
+                query: `subject ${index}`,
+              }),
+            ),
+            braveRequest({
+              kind: 'targeted',
+              sceneId: 'scene-04',
+              subjectLabel: 'a16z',
+              query: 'a16z office',
+            }),
+          ],
+        }),
+      }),
+    });
+
+    expect(
+      screen.getByText('requests 6/8 · primary 5/5 · targeted 1/3 · exhausted'),
+    ).toBeInTheDocument();
+  });
+
+  it('lists a primary request by subject and shows its drops and provider error', () => {
+    renderPipeline({
+      data: pipelineResponse({
+        visualDebug: visualDebug({
+          phase: 'searched',
+          primarySubjects: [{ label: 'Justin Sun', query: 'Justin Sun' }],
+          actualSearches: [
+            braveRequest({
+              kind: 'primary',
+              subjectLabel: 'Justin Sun',
+              query: 'Justin Sun',
+              returned: 100,
+              viable: 41,
+              drops: [{ reason: 'decorative-asset', count: 38 }],
+              error: 'brave images request failed with 429',
+            }),
+          ],
+        }),
+      }),
+    });
+
+    expect(screen.getByText('Justin Sun · primary')).toBeInTheDocument();
+    expect(
+      screen.getByText('returned 100 · viable 41 · drops decorative-asset 38'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('brave images request failed with 429'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Justin Sun · “Justin Sun”')).toBeInTheDocument();
+  });
+
+  it('names the image a scene actually got and the rung it fell back to', () => {
+    renderPipeline({
+      data: pipelineResponse({
+        visualDebug: visualDebug({
+          phase: 'searched',
+          sceneSelections: [
+            {
+              sceneId: 'scene-02',
+              selection: 'pool-fallback',
+              fallbackReason: 'subject-not-searched',
+              matchedSubjectKey: 'a16z',
+              sourceQuery: 'a16z venture capital firm',
+              providerRank: 4,
+            },
+          ],
+          reuse: [{ assetId: 'image-01', useCount: 3 }],
+        }),
+      }),
+    });
+
+    expect(screen.getByText('scene-02 · pool-fallback')).toBeInTheDocument();
+    expect(
+      screen.getByText('a16z · from “a16z venture capital firm” (#4)'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('fallback: subject-not-searched'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('image-01 · 3 scenes')).toBeInTheDocument();
+  });
+
+  it('names the reason a degraded subject catalog is missing', () => {
+    renderPipeline({
+      data: pipelineResponse({
+        visualDebug: visualDebug({
+          primarySubject: null,
+          subjects: [],
+          subjectCatalogFailure:
+            'subject catalog answer named no known subject',
+        }),
+      }),
+    });
+
+    expect(screen.getByText('No subject catalog recorded')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'catalog degraded: subject catalog answer named no known subject',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('says nothing extra when no catalog failure was recorded', () => {
+    renderPipeline({
+      data: pipelineResponse({
+        visualDebug: visualDebug({ primarySubject: null, subjects: [] }),
+      }),
+    });
+
+    expect(screen.getByText('No subject catalog recorded')).toBeInTheDocument();
+    expect(screen.queryByText(/catalog degraded/u)).not.toBeInTheDocument();
+  });
+
+  it('shows the subject queries a planned checkpoint intended to spend', () => {
+    renderPipeline({
+      data: pipelineResponse({
+        visualDebug: visualDebug({
+          plannedSubjectSearches: [
+            { label: 'a16z', query: 'a16z venture capital firm' },
+          ],
+        }),
+      }),
+    });
+
+    expect(screen.getByText('Search keywords planned')).toBeInTheDocument();
+    expect(
+      screen.getByText('a16z · “a16z venture capital firm”'),
+    ).toBeInTheDocument();
   });
 });

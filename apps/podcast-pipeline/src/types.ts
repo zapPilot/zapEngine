@@ -7,13 +7,7 @@ import type {
   SocialTopic,
 } from './social/types.js';
 
-export type ImageCandidateOrigin =
-  | 'openGraph'
-  | 'article'
-  | 'figure'
-  | 'pexels'
-  | 'pixabay'
-  | 'brave';
+export type ImageCandidateOrigin = 'openGraph' | 'article' | 'figure' | 'brave';
 
 export interface ImageCandidate {
   imageUrl: string;

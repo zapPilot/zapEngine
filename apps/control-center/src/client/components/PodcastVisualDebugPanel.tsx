@@ -257,6 +257,9 @@ function SceneDebug(props: {
           {scene.asset?.license ?? 'no license'} ·{' '}
           {scene.selectionReason ?? 'no assignment'}
         </small>
+        {scene.selection ? (
+          <small>{sceneSelectionLine(scene.selection)}</small>
+        ) : null}
         {scene.asset?.slideHeadline ? <p>{scene.asset.slideHeadline}</p> : null}
         {scene.trace.map((trace, index) => (
           <small key={`${trace.provider}-${index}`}>
@@ -279,12 +282,30 @@ function SceneDebug(props: {
           imageSearchEntities: scene.imageSearchEntities,
           subjectIds: scene.subjectIds,
           selectionReason: scene.selectionReason,
+          selection: scene.selection,
         }}
         sceneId={scene.sceneId}
         visualHash={props.visualHash}
       />
     </article>
   );
+}
+
+/** Reads as the decision itself: what the scene got, whose search produced it,
+ * and — when the image is a degradation — which rung of the ladder it came off. */
+function sceneSelectionLine(
+  selection: NonNullable<PodcastVisualSceneDebug['selection']>,
+): string {
+  const rank =
+    selection.providerRank !== null ? ` (#${selection.providerRank})` : '';
+  return [
+    selection.selection,
+    selection.matchedSubject,
+    selection.sourceQuery ? `“${selection.sourceQuery}”${rank}` : null,
+    selection.fallbackReason ? `fallback: ${selection.fallbackReason}` : null,
+  ]
+    .filter((part): part is string => Boolean(part))
+    .join(' · ');
 }
 
 function ReviewEditor(props: {
