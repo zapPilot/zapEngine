@@ -7,6 +7,7 @@ import type {
   PodcastPipelineRenderState,
   PodcastPipelineResponse,
   PodcastPipelineStatus,
+  PodcastPipelineVisualDebug,
 } from '../../shared/podcast-pipeline.js';
 import type { ControlCenterConfig } from '../config/env.js';
 import { createServiceRoleClient } from './supabase.js';
@@ -49,6 +50,7 @@ interface IngestRow extends LifecycleRow {
 
 interface VisualRow extends LifecycleRow {
   episode_id: string;
+  visual_payload: Record<string, unknown> | null;
 }
 
 interface RenderRow extends LifecycleRow {
@@ -118,7 +120,7 @@ export function createPodcastPipelineService(input: {
           client
             .from('episode_video_visuals')
             .select(
-              'episode_id,status,progress_percent,progress_stage,attempt_count,lease_expires_at,last_error,updated_at',
+              'episode_id,status,progress_percent,progress_stage,attempt_count,lease_expires_at,last_error,visual_payload,updated_at',
             )
             .in('episode_id', episodeIds),
           client
@@ -269,6 +271,7 @@ export function summarizePodcastPipeline(
       ingest,
       localizations,
       visual,
+      visualDebug: visualSearchDebug(visualRow?.visual_payload ?? null),
       renders,
       // `renders` carries one entry per audio-complete language, and a language
       // with no `episode_videos` row is synthesised as 'pending'. The retry RPC
@@ -285,6 +288,105 @@ export function summarizePodcastPipeline(
         renders.every(({ updatedAt }) => updatedAt !== null),
     };
   });
+}
+
+function visualSearchDebug(
+  payload: Record<string, unknown> | null,
+): PodcastPipelineVisualDebug | null {
+  if (!payload) return null;
+  const catalog = asRecord(payload['subjectCatalog']);
+  const rawSubjects = Array.isArray(catalog?.['subjects'])
+    ? catalog['subjects']
+    : [];
+  const subjects = rawSubjects.flatMap((value) => {
+    const subject = asRecord(value);
+    const id = subject?.['id'];
+    const name = subject?.['canonicalName'];
+    return typeof id === 'string' && typeof name === 'string'
+      ? [{ id, name }]
+      : [];
+  });
+  const primarySubjectId = catalog?.['primarySubjectId'];
+  const primarySubject =
+    typeof primarySubjectId === 'string'
+      ? (subjects.find(({ id }) => id === primarySubjectId)?.name ??
+        primarySubjectId)
+      : null;
+
+  const debugQueries = parsePlannedQueries(payload['plannedQueries']);
+  const storyboard = asRecord(payload['storyboard']);
+  const completedQueries =
+    debugQueries.length > 0
+      ? []
+      : parseStoryboardQueries(storyboard?.['scenes']);
+  const plannedQueries =
+    debugQueries.length > 0 ? debugQueries : completedQueries;
+  if (subjects.length === 0 && plannedQueries.length === 0) return null;
+
+  return {
+    phase: typeof payload['phase'] === 'string' ? payload['phase'] : null,
+    primarySubject,
+    subjects,
+    plannedQueries,
+  };
+}
+
+function parsePlannedQueries(
+  value: unknown,
+): PodcastPipelineVisualDebug['plannedQueries'] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    const row = asRecord(entry);
+    const sceneId = row?.['sceneId'];
+    if (typeof sceneId !== 'string') return [];
+    const subjectIds = stringArray(row['subjectIds']);
+    const queries = stringArray(row['queries']);
+    if (queries.length === 0) return [];
+    return [
+      {
+        sceneId,
+        subjectIds,
+        selectionReason:
+          typeof row['selectionReason'] === 'string'
+            ? row['selectionReason']
+            : null,
+        queries,
+      },
+    ];
+  });
+}
+
+function parseStoryboardQueries(
+  value: unknown,
+): PodcastPipelineVisualDebug['plannedQueries'] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    const row = asRecord(entry);
+    const sceneId = row?.['sceneId'];
+    if (typeof sceneId !== 'string') return [];
+    const queries = stringArray(row['imageSearchIntent']);
+    if (queries.length === 0) return [];
+    return [
+      {
+        sceneId,
+        subjectIds: [],
+        selectionReason: null,
+        queries,
+      },
+    ];
+  });
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string')
+    : [];
 }
 
 function translationState(
