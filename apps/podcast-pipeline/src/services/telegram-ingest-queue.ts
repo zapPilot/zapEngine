@@ -157,7 +157,10 @@ export function createTelegramIngestQueue(
   ): Promise<void> {
     const heartbeat = startHeartbeat(inflight.durableJobId);
     if (inflight.latestChatId !== null) {
-      await sendTelegramNotification(inflight.latestChatId, TELEGRAM_START_TEXT);
+      await sendTelegramNotification(
+        inflight.latestChatId,
+        TELEGRAM_START_TEXT,
+      );
     }
 
     try {
