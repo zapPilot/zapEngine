@@ -108,6 +108,9 @@ export async function publishSocialBatch(input: {
     copy: snapshot.published,
     episode,
     videoUrl: episode.videoUrl,
+    ...(episode.videoThumbnailUrl
+      ? { thumbnailUrl: episode.videoThumbnailUrl }
+      : {}),
     ...(video ? { videoPath: video.path } : {}),
     ...(teaserVideo ? { xVideoPath: teaserVideo.path } : {}),
     ...(input.youtubePrivacyStatus
