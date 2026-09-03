@@ -258,7 +258,9 @@ async function loadLive(): Promise<StateUpdate> {
   return () => toLoadedState(loaded, verification);
 }
 
-async function loadTrackRecord(source: TrackRecordSource): Promise<StateUpdate> {
+async function loadTrackRecord(
+  source: TrackRecordSource,
+): Promise<StateUpdate> {
   try {
     return source === 'backtest' ? await loadBacktest() : await loadLive();
   } catch (err) {
@@ -289,9 +291,11 @@ export function useTrackRecord(): TrackRecordHookState {
 
       if (!cancelled) setState(initialState());
 
-      const request = (inflight[source] ??= loadTrackRecord(source).finally(() => {
-        inflight[source] = null;
-      }));
+      const request = (inflight[source] ??= loadTrackRecord(source).finally(
+        () => {
+          inflight[source] = null;
+        },
+      ));
       const update = await request;
 
       if (!cancelled) {

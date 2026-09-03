@@ -3,7 +3,10 @@
 import Link from 'next/link';
 import { useTrackRecord } from '@/hooks/useTrackRecord';
 import { TrackRecordNav } from '@/components/track-record/TrackRecordNav';
-import { TrackRecordSourceToggle } from '@/components/track-record/TrackRecordSourceToggle';
+import {
+  TrackRecordSourceControls,
+  TrackRecordSourceToggle,
+} from '@/components/track-record/TrackRecordSourceToggle';
 import { BrandMark } from '@/components/BrandMark';
 import { hasLiveTrackRecordData } from '@/data/mock-track-record';
 
@@ -33,15 +36,7 @@ export default function TrackRecordLayout({
             <span>Track Record</span>
           </nav>
 
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'flex-end',
-              gap: 10,
-              marginLeft: 'auto',
-            }}
-          >
+          <TrackRecordSourceControls>
             <TrackRecordSourceToggle
               source={state.source}
               onChange={state.setSource}
@@ -56,7 +51,7 @@ export default function TrackRecordLayout({
             ) : (
               <div className="pending-badge">Live unavailable</div>
             )}
-          </div>
+          </TrackRecordSourceControls>
         </header>
 
         <TrackRecordNav />

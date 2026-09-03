@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import type { DailySnapshot, TrackRecordMeta } from '@zapengine/types/strategy';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -276,5 +276,100 @@ describe('useTrackRecord live source', () => {
       expect(mocks.verifyPerformanceMetrics).toHaveBeenCalledTimes(1);
       expect(second.result.current.verification).toBe(verification);
     });
+  });
+});
+
+describe('useTrackRecord source switching', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+    mocks.computePerformanceSummary.mockReturnValue(emptySummary);
+    mocks.verifyCidChain.mockReturnValue({ valid: true, totalSnapshots: 1 });
+    mocks.verifyPerformanceMetrics.mockReturnValue({ valid: true, errors: [] });
+    mocks.verifySignature.mockResolvedValue({
+      valid: true,
+      signaturePresent: true,
+      reason: 'verified',
+    });
+    mocks.fetchMeta.mockResolvedValue(liveMeta);
+    mocks.fetchLatestSnapshot.mockResolvedValue(liveSnapshot);
+    mocks.fetchSnapshotHistoryEntries.mockResolvedValue([
+      { cid: 'cid-latest', snapshot: liveSnapshot },
+    ]);
+  });
+
+  async function importSwitchable() {
+    const [{ useTrackRecord }, { setTrackRecordSource }] = await Promise.all([
+      import('../useTrackRecord'),
+      import('@/data/track-record-source'),
+    ]);
+    return { useTrackRecord, setTrackRecordSource };
+  }
+
+  it('loads live only after the reader opts in, then restores backtest', async () => {
+    const { useTrackRecord, setTrackRecordSource } = await importSwitchable();
+
+    const { result } = renderHook(() => useTrackRecord());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.source).toBe('backtest');
+    expect(mocks.fetchMeta).not.toHaveBeenCalled();
+
+    act(() => setTrackRecordSource('live'));
+    await waitFor(() => expect(result.current.source).toBe('live'));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.snapshots).toEqual([liveSnapshot]);
+    expect(mocks.fetchMeta).toHaveBeenCalledTimes(1);
+
+    act(() => setTrackRecordSource('backtest'));
+    await waitFor(() => expect(result.current.source).toBe('backtest'));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    // Live rows must not survive the switch back — the default view would
+    // otherwise present published snapshots as backtest results.
+    expect(result.current.snapshots).toEqual([]);
+    expect(result.current.latestSnapshot).toBeNull();
+  });
+
+  it('discards an abandoned live load instead of overwriting backtest state', async () => {
+    let releaseMeta: (meta: TrackRecordMeta) => void = () => {};
+    mocks.fetchMeta.mockReturnValue(
+      new Promise<TrackRecordMeta>((resolve) => {
+        releaseMeta = resolve;
+      }),
+    );
+
+    const { useTrackRecord, setTrackRecordSource } = await importSwitchable();
+    const { result } = renderHook(() => useTrackRecord());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    act(() => setTrackRecordSource('live'));
+    await waitFor(() => expect(result.current.isLoading).toBe(true));
+
+    act(() => setTrackRecordSource('backtest'));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      releaseMeta(liveMeta);
+      await Promise.resolve();
+    });
+
+    expect(result.current.source).toBe('backtest');
+    expect(result.current.snapshots).toEqual([]);
+  });
+
+  it('keeps a live failure out of the backtest view', async () => {
+    mocks.fetchMeta.mockRejectedValue(new Error('gateway unavailable'));
+    const { useTrackRecord, setTrackRecordSource } = await importSwitchable();
+
+    const { result } = renderHook(() => useTrackRecord());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    act(() => setTrackRecordSource('live'));
+    await waitFor(() =>
+      expect(result.current.error).toBe('gateway unavailable'),
+    );
+
+    act(() => setTrackRecordSource('backtest'));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.error).toBeNull();
   });
 });

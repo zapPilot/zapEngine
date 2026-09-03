@@ -31,7 +31,8 @@ export default function TrackRecordPage() {
       {error && (
         <div className="track-record-error" role="alert">
           <p>
-            Failed to load {source === 'live' ? 'live ' : ''}track record: {error}
+            Failed to load {source === 'live' ? 'live ' : ''}track record:{' '}
+            {error}
           </p>
         </div>
       )}
@@ -39,8 +40,8 @@ export default function TrackRecordPage() {
       {source === 'backtest' && !isLoading && (
         <div className="pending-banner" role="status">
           <p>
-            <strong>Backtest mode</strong> — showing historical strategy results.
-            Switch to Live above to load published IPFS snapshots.
+            <strong>Backtest mode</strong> — showing historical strategy
+            results. Switch to Live above to load published IPFS snapshots.
           </p>
         </div>
       )}
@@ -48,8 +49,8 @@ export default function TrackRecordPage() {
       {source === 'live' && !hasLiveData && !isLoading && !error && (
         <div className="pending-banner" role="status">
           <p>
-            <strong>Live tracking unavailable</strong> — no published snapshot is
-            currently available.
+            <strong>Live tracking unavailable</strong> — no published snapshot
+            is currently available.
           </p>
         </div>
       )}
@@ -90,7 +91,8 @@ export default function TrackRecordPage() {
         <Section kicker="Backtest" title="Historical performance">
           <p className="no-live-notice">
             The chart below shows backtested performance from{' '}
-            {snapshots.length > 0 ? snapshots[0]!.date : BACKTEST_WINDOW.start} to{' '}
+            {snapshots.length > 0 ? snapshots[0]!.date : BACKTEST_WINDOW.start}{' '}
+            to{' '}
             {snapshots.length > 0
               ? snapshots[snapshots.length - 1]!.date
               : BACKTEST_WINDOW.end}
