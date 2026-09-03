@@ -129,6 +129,7 @@ describe('generateSocialCopy', () => {
           videoDurationSeconds: 180,
           languageCode: 'zh-Hant',
           videoUrl: 'https://example.com/video.mp4',
+          videoThumbnailUrl: 'https://example.com/thumbnail.jpg',
         },
       }),
     ).resolves.toMatchObject({
@@ -196,6 +197,7 @@ describe('generateSocialCopy', () => {
         videoDurationSeconds: 180,
         languageCode: 'zh-Hant',
         videoUrl: 'https://example.com/video.mp4',
+        videoThumbnailUrl: 'https://example.com/thumbnail.jpg',
       },
       strategyGuidance: '  Prefer a contrarian hook and #AI.  ',
     });
@@ -223,6 +225,7 @@ describe('generateSocialCopy', () => {
         videoDurationSeconds: 180,
         languageCode: 'zh-Hant',
         videoUrl: 'https://example.com/video.mp4',
+        videoThumbnailUrl: 'https://example.com/thumbnail.jpg',
       },
       strategyGuidance: 'Keep the grounded avoid guidance.',
       packagingByPlatform: {
@@ -268,6 +271,7 @@ describe('generateSocialCopy', () => {
         videoDurationSeconds: 180,
         languageCode: 'zh-Hant',
         videoUrl: 'https://example.com/video.mp4',
+        videoThumbnailUrl: 'https://example.com/thumbnail.jpg',
       },
       feedback: '  更有衝擊力  ',
     });
@@ -295,6 +299,7 @@ describe('generateSocialCopy', () => {
         videoDurationSeconds: 180,
         languageCode: 'zh-Hant',
         videoUrl: 'https://example.com/video.mp4',
+        videoThumbnailUrl: 'https://example.com/thumbnail.jpg',
       },
       feedback: '   ',
     });
@@ -335,6 +340,7 @@ describe('generateSocialCopy', () => {
           videoDurationSeconds: 180,
           languageCode: 'zh-Hant',
           videoUrl: 'https://example.com/video.mp4',
+          videoThumbnailUrl: 'https://example.com/thumbnail.jpg',
         },
       }),
     ).rejects.toThrow(/invalid social copy 3 times/u);
@@ -361,6 +367,7 @@ describe('generateSocialCopy', () => {
           videoDurationSeconds: 180,
           languageCode: 'zh-Hant',
           videoUrl: 'https://example.com/video.mp4',
+          videoThumbnailUrl: 'https://example.com/thumbnail.jpg',
         },
       }),
     ).resolves.toMatchObject({ copy: { x: { text: '恢復文案' } } });
@@ -393,6 +400,7 @@ describe('generateSocialCopy', () => {
           videoDurationSeconds: 180,
           languageCode: 'zh-Hant',
           videoUrl: 'https://example.com/video.mp4',
+          videoThumbnailUrl: 'https://example.com/thumbnail.jpg',
         },
       }),
     ).resolves.toMatchObject({ copy: { x: { text: '修正版文案' } } });
@@ -425,6 +433,7 @@ describe('generateSocialCopy', () => {
           videoDurationSeconds: 180,
           languageCode: 'zh-Hant',
           videoUrl: 'https://example.com/video.mp4',
+          videoThumbnailUrl: 'https://example.com/thumbnail.jpg',
         },
       }),
     ).resolves.toMatchObject({ copy: { x: { text: '修正版文案' } } });
@@ -461,6 +470,7 @@ describe('generateSocialCopy', () => {
           videoDurationSeconds: 180,
           languageCode: 'zh-Hant',
           videoUrl: 'https://example.com/video.mp4',
+          videoThumbnailUrl: 'https://example.com/thumbnail.jpg',
         },
       }),
     ).resolves.toMatchObject({ copy: { x: { text: '修正版文案' } } });
@@ -499,6 +509,7 @@ describe('generateSocialCopy', () => {
         videoDurationSeconds: 180,
         languageCode: 'en',
         videoUrl: 'https://example.com/video.mp4',
+        videoThumbnailUrl: 'https://example.com/thumbnail.jpg',
       },
     });
 

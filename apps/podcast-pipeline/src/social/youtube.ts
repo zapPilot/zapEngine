@@ -69,18 +69,15 @@ export function createYouTubePublisher(input?: {
         throw new SocialPublishError('youtube', 'verify_channel', error);
       }
 
-      let thumbnail: PreparedYouTubeThumbnail | null = null;
-      const thumbnailUrl = publishInput.thumbnailUrl?.trim();
-      if (thumbnailUrl) {
-        log('[youtube] Preparing canonical thumbnail');
-        try {
-          thumbnail = await prepareYouTubeThumbnail({
-            thumbnailUrl,
-            fetchImpl,
-          });
-        } catch (error) {
-          throw new SocialPublishError('youtube', 'prepare_thumbnail', error);
-        }
+      log('[youtube] Preparing canonical thumbnail');
+      let thumbnail: PreparedYouTubeThumbnail;
+      try {
+        thumbnail = await prepareYouTubeThumbnail({
+          thumbnailUrl: publishInput.thumbnailUrl.trim(),
+          fetchImpl,
+        });
+      } catch (error) {
+        throw new SocialPublishError('youtube', 'prepare_thumbnail', error);
       }
 
       let uploadUrl: string;
@@ -107,23 +104,22 @@ export function createYouTubePublisher(input?: {
         throw new SocialPublishError('youtube', 'upload_video', error);
       }
 
-      if (thumbnail) {
-        log('[youtube] Setting canonical thumbnail');
-        try {
-          await setYouTubeThumbnail({
-            videoId: video.id,
-            thumbnail,
-            accessToken: session.accessToken,
-            fetchImpl,
-          });
-        } catch (error) {
-          // The video already exists at this point. Failing the lane would make
-          // the release retry upload a duplicate video, so preserve the publish
-          // result and leave a loud repair signal instead.
-          log(
-            `[youtube] WARNING: video ${video.id} published but canonical thumbnail was not set: ${errorMessage(error)}`,
-          );
-        }
+      let warnings: string[] | undefined;
+      log('[youtube] Setting canonical thumbnail');
+      try {
+        await setYouTubeThumbnail({
+          videoId: video.id,
+          thumbnail,
+          accessToken: session.accessToken,
+          fetchImpl,
+        });
+      } catch (error) {
+        // The video already exists at this point. Failing the lane would make
+        // the release retry upload a duplicate video, so preserve the publish
+        // result and leave a loud repair signal instead.
+        const message = `video ${video.id} published but canonical thumbnail was not set: ${errorMessage(error)}`;
+        warnings = [message];
+        log(`[youtube] WARNING: ${message}`);
       }
 
       return {
@@ -131,6 +127,7 @@ export function createYouTubePublisher(input?: {
         postId: video.id,
         url: `https://www.youtube.com/watch?v=${video.id}`,
         publishedAt: now().toISOString(),
+        ...(warnings ? { warnings } : {}),
       } satisfies PublishResult;
     },
   };
@@ -231,11 +228,11 @@ async function prepareYouTubeThumbnail(input: {
 
 async function validateYouTubeThumbnailImage(raw: Buffer): Promise<string> {
   try {
-    const metadata = await sharp(raw, { failOn: 'error' }).metadata();
+    const metadata = await sharp(raw).metadata();
     // `metadata()` only reads image headers. `stats()` forces a full pixel decode
     // so a truncated/corrupt payload cannot pass preparation and fail only after
     // the YouTube video has already been created.
-    await sharp(raw, { failOn: 'error' }).stats();
+    await sharp(raw).stats();
     if (!metadata.format) {
       throw new Error('image format could not be identified');
     }

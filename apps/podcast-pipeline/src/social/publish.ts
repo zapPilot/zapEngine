@@ -17,6 +17,7 @@ export interface PublishPlatformOutcome {
   platform: SocialPlatform;
   status: 'published' | 'skipped';
   url?: string;
+  warnings?: string[];
 }
 
 /**
@@ -28,6 +29,7 @@ export interface PublishPlatformOutcome {
  * Lanes already published before the failure stay published; whichever lane
  * failed and everything after it in `jobs` never runs this tick.
  */
+// eslint-disable-next-line sonarjs/cognitive-complexity
 export async function publishSocialPlatforms(input: {
   episodeId: string;
   languageCode?: SocialLanguageCode;
@@ -125,11 +127,17 @@ export async function publishSocialPlatforms(input: {
       throw fail('state', normalized);
     }
 
+    if (result.warnings?.length) {
+      for (const warning of result.warnings) {
+        log(`[${platform}] ⚠ ${warning}`);
+      }
+    }
     log(`[${platform}] ✓ ${result.url ?? 'Published'}`);
     outcomes.push({
       platform,
       status: 'published',
       ...(result.url ? { url: result.url } : {}),
+      ...(result.warnings?.length ? { warnings: result.warnings } : {}),
     });
   }
 
