@@ -23,8 +23,6 @@ export const PODCAST_VIDEO_REVIEW_VERDICTS = [
   'acceptable',
   'bad',
 ] as const;
-export type PodcastVideoReviewVerdict =
-  (typeof PODCAST_VIDEO_REVIEW_VERDICTS)[number];
 
 export const PODCAST_VIDEO_REVIEW_ISSUES = [
   'wrong-subject',
@@ -38,13 +36,9 @@ export const PODCAST_VIDEO_REVIEW_ISSUES = [
   'audio',
   'other',
 ] as const;
-export type PodcastVideoReviewIssue =
-  (typeof PODCAST_VIDEO_REVIEW_ISSUES)[number];
 
 export const PODCAST_VIDEO_REVIEW_STATUSES = [
   'open',
   'triaged',
   'resolved',
 ] as const;
-export type PodcastVideoReviewStatus =
-  (typeof PODCAST_VIDEO_REVIEW_STATUSES)[number];

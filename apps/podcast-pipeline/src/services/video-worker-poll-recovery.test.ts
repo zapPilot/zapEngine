@@ -28,6 +28,8 @@ function makeVisualRepository(): VisualJobRepository {
       .mockResolvedValue(null),
     renewLease: vi.fn().mockResolvedValue(true),
     reportProgress: vi.fn().mockResolvedValue(true),
+    saveCheckpoint: vi.fn().mockResolvedValue(true),
+    recordFailureDiagnostics: vi.fn().mockResolvedValue(true),
     complete: vi.fn().mockResolvedValue(true),
     fail: vi.fn().mockResolvedValue(null),
     find: vi.fn().mockResolvedValue(null),

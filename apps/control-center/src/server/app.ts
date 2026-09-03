@@ -20,6 +20,7 @@ import { createOverviewService } from './services/overview.js';
 import { createPodcastCostService } from './services/podcast-costs.js';
 import { createPodcastPipelineService } from './services/podcast-pipeline.js';
 import { createPodcastVisualService } from './services/podcast-visual.js';
+import { isMissingRpcError } from './services/supabase.js';
 import { createSocialGrowthService } from './services/social-growth.js';
 import { createStatementsService } from './services/statements/index.js';
 
@@ -133,56 +134,37 @@ export function createControlCenterApp(input: {
   });
 
   app.get('/api/podcast-pipeline/:episodeId/visual', async (context) => {
-    const episodeId = context.req.param('episodeId');
-    if (!episodeId || !UUID_PATTERN.test(episodeId)) {
-      return context.json({ error: 'Invalid episode id' }, 400);
+    const episodeId = uuidParam(context, 'episodeId');
+    if (!episodeId) {
+      return invalidIdResponse(context, 'episode');
     }
     const response = await podcastVisual.getVisualDebug(episodeId);
     return context.json(response, response.status === 'not-found' ? 404 : 200);
   });
 
-  app.put('/api/podcast-pipeline/:episodeId/reviews', async (context) => {
-    const episodeId = context.req.param('episodeId');
-    if (!episodeId || !UUID_PATTERN.test(episodeId)) {
-      return context.json({ error: 'Invalid episode id' }, 400);
-    }
-    const body = await context.req.json().catch(() => null);
-    const parsed = parsePodcastReviewInput(body);
-    if (!parsed.ok) return context.json({ error: parsed.error }, 400);
-    try {
-      return context.json(await podcastVisual.upsertReview(episodeId, parsed.value));
-    } catch (error) {
-      const message = errorMessage(error);
-      if (isPodcastRetryConflict(error, message)) {
-        return context.json({ error: message }, 409);
-      }
-      if (isPodcastMigrationUnavailable(error)) {
-        return context.json({ error: 'Podcast review migration has not been applied yet' }, 503);
-      }
-      throw error;
-    }
-  });
+  // Review mutations write only the operator's own review rows through two
+  // named RPCs; they never touch pipeline job state.
+  app.put('/api/podcast-pipeline/:episodeId/reviews', (context) =>
+    handlePodcastReviewMutation(context, {
+      idParam: 'episodeId',
+      label: 'episode',
+      parse: parsePodcastReviewInput,
+      work: async (episodeId, review) =>
+        context.json(await podcastVisual.upsertReview(episodeId, review)),
+    }),
+  );
 
-  app.post('/api/podcast-pipeline/reviews/:reviewId/resolve', async (context) => {
-    const reviewId = context.req.param('reviewId');
-    if (!reviewId || !UUID_PATTERN.test(reviewId)) {
-      return context.json({ error: 'Invalid review id' }, 400);
-    }
-    const body = await context.req.json().catch(() => null);
-    const parsed = parsePodcastReviewResolution(body);
-    if (!parsed.ok) return context.json({ error: parsed.error }, 400);
-    try {
-      const changed = await podcastVisual.resolveReview(reviewId, parsed.value);
-      return changed
-        ? context.json({ ok: true })
-        : context.json({ error: 'Review not found' }, 404);
-    } catch (error) {
-      if (isPodcastMigrationUnavailable(error)) {
-        return context.json({ error: 'Podcast review migration has not been applied yet' }, 503);
-      }
-      throw error;
-    }
-  });
+  app.post('/api/podcast-pipeline/reviews/:reviewId/resolve', (context) =>
+    handlePodcastReviewMutation(context, {
+      idParam: 'reviewId',
+      label: 'review',
+      parse: parsePodcastReviewResolution,
+      work: async (reviewId, resolution) =>
+        (await podcastVisual.resolveReview(reviewId, resolution))
+          ? context.json({ ok: true })
+          : context.json({ error: 'Review not found' }, 404),
+    }),
+  );
 
   app.get('/api/statements', async (context) => {
     return context.json(await statements.getStatements(isForced(context)));
@@ -205,7 +187,9 @@ export function createControlCenterApp(input: {
           ? (body as { forceReplan?: unknown }).forceReplan
           : false;
       if (typeof forceReplan !== 'boolean') {
-        throw new HTTPException(400, { message: 'forceReplan must be boolean' });
+        throw new HTTPException(400, {
+          message: 'forceReplan must be boolean',
+        });
       }
       await podcastPipeline.restartVideo(episodeId, { forceReplan });
     }),
@@ -248,13 +232,56 @@ export function createControlCenterApp(input: {
   return app;
 }
 
+function uuidParam(context: Context, name: string): string | null {
+  const value = context.req.param(name);
+  return value && UUID_PATTERN.test(value) ? value : null;
+}
+
+function invalidIdResponse(context: Context, label: string) {
+  return context.json({ error: `Invalid ${label} id` }, 400);
+}
+
+type ParsedBody<T> = { ok: true; value: T } | { ok: false; error: string };
+
+async function handlePodcastReviewMutation<T>(
+  context: Context,
+  input: {
+    idParam: string;
+    label: string;
+    parse: (body: unknown) => ParsedBody<T>;
+    work: (id: string, value: T) => Promise<Response>;
+  },
+) {
+  const id = uuidParam(context, input.idParam);
+  if (!id) {
+    return invalidIdResponse(context, input.label);
+  }
+  const parsed = input.parse(await context.req.json().catch(() => null));
+  if (!parsed.ok) {
+    return context.json({ error: parsed.error }, 400);
+  }
+  try {
+    return await input.work(id, parsed.value);
+  } catch (error) {
+    const mapped = mapPodcastMutationError(
+      context,
+      error,
+      'Podcast review migration has not been applied yet',
+    );
+    if (mapped) {
+      return mapped;
+    }
+    throw error;
+  }
+}
+
 async function handlePodcastMutation(
   context: Context,
   work: (episodeId: string) => Promise<void>,
 ) {
-  const episodeId = context.req.param('episodeId');
-  if (!episodeId || !UUID_PATTERN.test(episodeId)) {
-    return context.json({ error: 'Invalid episode id' }, 400);
+  const episodeId = uuidParam(context, 'episodeId');
+  if (!episodeId) {
+    return invalidIdResponse(context, 'episode');
   }
   try {
     await work(episodeId);
@@ -263,29 +290,39 @@ async function handlePodcastMutation(
     if (error instanceof HTTPException && error.status < 500) {
       return error.getResponse();
     }
-    const message = errorMessage(error);
-    if (isPodcastRetryConflict(error, message)) {
-      return context.json({ error: message }, 409);
-    }
-    if (isPodcastMigrationUnavailable(error)) {
-      return context.json(
-        { error: 'Podcast pipeline database migration has not been applied yet' },
-        503,
-      );
+    const mapped = mapPodcastMutationError(
+      context,
+      error,
+      'Podcast pipeline database migration has not been applied yet',
+    );
+    if (mapped) {
+      return mapped;
     }
     captureServerException(error, {
       method: context.req.method,
       route: routePath(context),
     });
-    return context.json({ error: message }, 503);
+    return context.json({ error: errorMessage(error) }, 503);
   }
 }
 
-/**
- * `?force=1` bypasses the per-source cache. It exists for the refresh button
- * and for an operator who has just fixed something and wants to see it, not as
- * a default: a forced snapshot re-hits every provider at once.
- */
+/** Stable Postgres codes from the retry RPCs become 409; a missing RPC (code
+ * deployed before its migration) becomes an explicit 503. */
+function mapPodcastMutationError(
+  context: Context,
+  error: unknown,
+  migrationMessage: string,
+): Response | null {
+  const message = errorMessage(error);
+  if (isPodcastRetryConflict(error, message)) {
+    return context.json({ error: message }, 409);
+  }
+  if (isMissingRpcError(error)) {
+    return context.json({ error: migrationMessage }, 503);
+  }
+  return null;
+}
+
 function isForced(context: Context): boolean {
   return context.req.query('force') === '1';
 }
@@ -307,9 +344,7 @@ function isPodcastRetryConflict(error: unknown, message: string): boolean {
 
 function parsePodcastReviewInput(
   body: unknown,
-):
-  | { ok: true; value: PodcastVideoReviewInput }
-  | { ok: false; error: string } {
+): { ok: true; value: PodcastVideoReviewInput } | { ok: false; error: string } {
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
     return { ok: false, error: 'Review body must be an object' };
   }
@@ -397,14 +432,10 @@ function parsePodcastReviewResolution(
 }
 
 function optionalNullableString(value: unknown): string | null {
-  if (value === undefined || value === null) return null;
+  if (value === undefined || value === null) {
+    return null;
+  }
   return typeof value === 'string' ? value.trim() || null : null;
-}
-
-function isPodcastMigrationUnavailable(error: unknown): boolean {
-  if (!error || typeof error !== 'object' || !('code' in error)) return false;
-  const code = (error as { code?: unknown }).code;
-  return code === 'PGRST202' || code === '42883';
 }
 
 function errorMessage(error: unknown): string {

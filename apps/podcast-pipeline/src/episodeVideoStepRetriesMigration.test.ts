@@ -20,7 +20,9 @@ describe('episode video step retries migration', () => {
     expect(migration).toMatch(
       /retry_episode_video_generation\([\s\S]+?p_force_replan boolean default false/i,
     );
-    expect(migration).toMatch(/if not p_force_replan[\s\S]+?status = 'completed'/i);
+    expect(migration).toMatch(
+      /if not p_force_replan[\s\S]+?status = 'completed'/i,
+    );
     expect(migration).toMatch(/using errcode = '40001'/i);
   });
 
@@ -31,14 +33,20 @@ describe('episode video step retries migration', () => {
     expect(migration).toMatch(
       /create or replace function from_fed_to_chain\.retry_episode_video_render\([\s\S]+?for update nowait/i,
     );
-    expect(migration).toMatch(/Episode video render is currently processing[\s\S]+?55000/i);
+    expect(migration).toMatch(
+      /Episode video render is currently processing[\s\S]+?55000/i,
+    );
   });
 
   it('adds fenced checkpoint and failure-diagnostic storage', () => {
     expect(migration).toMatch(/add column if not exists checkpoint jsonb/i);
-    expect(migration).toMatch(/add column if not exists last_failure_diagnostics jsonb/i);
+    expect(migration).toMatch(
+      /add column if not exists last_failure_diagnostics jsonb/i,
+    );
     expect(migration).toMatch(/octet_length\(checkpoint::text\) <= 524288/i);
-    expect(migration).toMatch(/octet_length\(last_failure_diagnostics::text\) <= 262144/i);
+    expect(migration).toMatch(
+      /octet_length\(last_failure_diagnostics::text\) <= 262144/i,
+    );
     expect(migration).toMatch(
       /save_episode_video_visual_checkpoint[\s\S]+?status = 'processing'[\s\S]+?lease_owner = p_lease_owner[\s\S]+?lease_expires_at > now\(\)/i,
     );

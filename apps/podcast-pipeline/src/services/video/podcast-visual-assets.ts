@@ -687,7 +687,9 @@ function resumePlanForScenes(
   scenes: readonly { sceneId: string }[],
 ): VisualAssetPlan {
   const sceneIds = new Set(scenes.map((scene) => scene.sceneId));
-  const resumedScenes = plan.scenes.filter((scene) => sceneIds.has(scene.sceneId));
+  const resumedScenes = plan.scenes.filter((scene) =>
+    sceneIds.has(scene.sceneId),
+  );
   const assetIds = new Set(resumedScenes.map((scene) => scene.assetId));
   return {
     scenes: resumedScenes,

@@ -28,8 +28,12 @@ function productionSourceFiles(root: string): string[] {
     if (entry.isDirectory()) {
       return entry.name === '__fixtures__' ? [] : productionSourceFiles(path);
     }
-    if (!/\.(?:[cm]?[jt]sx?)$/.test(entry.name)) return [];
-    if (/\.(?:test|spec)\./.test(entry.name)) return [];
+    if (!/\.(?:[cm]?[jt]sx?)$/.test(entry.name)) {
+      return [];
+    }
+    if (/\.(?:test|spec)\./.test(entry.name)) {
+      return [];
+    }
     return [path];
   });
 }

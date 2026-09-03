@@ -1,3 +1,4 @@
+/* eslint-disable sonarjs/no-duplicate-string -- 'generated-slide' is a domain literal intentionally repeated in schema and runtime checks */
 import { createHash } from 'node:crypto';
 
 import { z } from 'zod';
@@ -23,13 +24,14 @@ import type {
   PlannedVisualImage,
   PlannedVisualScene,
 } from './visual-asset-planner.js';
+import { visualAssetIdentityFields } from './visual-asset-shared.js';
 
 export const EPISODE_VISUAL_PAYLOAD_SCHEMA_VERSION =
   'podcast-episode-visual.v1' as const;
 export const EPISODE_VISUAL_STORYBOARD_PROMPT_VERSION =
   'image-storyboard-v2' as const;
 
-const generatedSlideMetadataSchema = z
+export const generatedSlideMetadataSchema = z
   .object({
     templateVersion: z.literal('concept-card-v1'),
     kicker: z.string().min(1).max(24),
@@ -75,10 +77,7 @@ const visualAssetMetadataSchema = z
       'image/png',
       'image/webp',
     ]),
-    sha256: z.string().regex(/^[a-f\d]{64}$/),
-    perceptualHash: z.string().regex(/^[a-f\d]{16}$/),
-    width: z.number().int().positive(),
-    height: z.number().int().positive(),
+    ...visualAssetIdentityFields,
     slide: generatedSlideMetadataSchema.optional(),
   })
   .strict();
@@ -174,34 +173,7 @@ export const episodeVisualPayloadSchema = z
       }
     }
 
-    const usageByUrl = new Map<string, number>();
-    for (const scene of payload.visualPlan.scenes) {
-      usageByUrl.set(scene.asset.url, (usageByUrl.get(scene.asset.url) ?? 0) + 1);
-    }
-    for (const [index, asset] of payload.assets.entries()) {
-      const generated = asset.provider === 'generated-slide';
-      if (generated !== Boolean(asset.slide)) {
-        context.addIssue({
-          code: 'custom',
-          message: 'Generated slide provider and metadata must appear together',
-          path: ['assets', index, 'slide'],
-        });
-      }
-      if (generated && asset.contentType !== 'image/png') {
-        context.addIssue({
-          code: 'custom',
-          message: 'Generated slide assets must be PNG',
-          path: ['assets', index, 'contentType'],
-        });
-      }
-      if (generated && (usageByUrl.get(asset.r2Url) ?? 0) !== 1) {
-        context.addIssue({
-          code: 'custom',
-          message: 'Generated slide assets must be scene-specific',
-          path: ['assets', index, 'r2Url'],
-        });
-      }
-    }
+    addGeneratedSlideIssues(payload, context);
 
     if (payload.subjectCatalog || payload.sceneAssignments) {
       if (!payload.subjectCatalog || !payload.sceneAssignments) {
@@ -260,9 +232,7 @@ export function sceneSentencesForDraft(
       scene.startSentenceId,
       scene.endSentenceId,
     )?.trim();
-    return text
-      ? [{ sceneId: scene.sceneId, text: text.slice(0, 400) }]
-      : [];
+    return text ? [{ sceneId: scene.sceneId, text: text.slice(0, 400) }] : [];
   });
 }
 
@@ -493,5 +463,41 @@ function sourceLabel(sourceUrl: string): string {
     return new URL(sourceUrl).hostname;
   } catch {
     return 'image source';
+  }
+}
+
+type EpisodeVisualPayloadShape = z.infer<typeof episodeVisualPayloadSchema>;
+
+function addGeneratedSlideIssues(
+  payload: EpisodeVisualPayloadShape,
+  context: z.RefinementCtx,
+): void {
+  const usageByUrl = new Map<string, number>();
+  for (const scene of payload.visualPlan.scenes) {
+    usageByUrl.set(scene.asset.url, (usageByUrl.get(scene.asset.url) ?? 0) + 1);
+  }
+  for (const [index, asset] of payload.assets.entries()) {
+    const generated = asset.provider === 'generated-slide';
+    if (generated !== Boolean(asset.slide)) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Generated slide provider and metadata must appear together',
+        path: ['assets', index, 'slide'],
+      });
+    }
+    if (generated && asset.contentType !== 'image/png') {
+      context.addIssue({
+        code: 'custom',
+        message: 'Generated slide assets must be PNG',
+        path: ['assets', index, 'contentType'],
+      });
+    }
+    if (generated && (usageByUrl.get(asset.r2Url) ?? 0) !== 1) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Generated slide assets must be scene-specific',
+        path: ['assets', index, 'r2Url'],
+      });
+    }
   }
 }

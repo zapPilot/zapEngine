@@ -1,9 +1,12 @@
 import type { ReviewExportRow } from './review-store.js';
 
 export function reviewDigestMarkdown(rows: readonly ReviewExportRow[]): string {
-  if (rows.length === 0) return '# Podcast visual reviews\n\nNo matching reviews.\n';
+  if (rows.length === 0)
+    return '# Podcast visual reviews\n\nNo matching reviews.\n';
   const sections = rows.map((review) => {
-    const scope = [review.languageCode, review.sceneId].filter(Boolean).join(' / ') || 'episode';
+    const scope =
+      [review.languageCode, review.sceneId].filter(Boolean).join(' / ') ||
+      'episode';
     const issues = review.issueCategories.join(', ') || 'none';
     return [
       `## ${review.title ?? review.episodeId}`,

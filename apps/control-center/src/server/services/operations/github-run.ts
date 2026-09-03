@@ -59,7 +59,9 @@ export function consecutiveCount<T>(
 ): number {
   let count = 0;
   for (const run of runs) {
-    if (!matches(run)) break;
+    if (!matches(run)) {
+      break;
+    }
     count += 1;
   }
   return count;

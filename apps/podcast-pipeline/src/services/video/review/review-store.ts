@@ -1,10 +1,20 @@
 import type {
-  PodcastVideoReviewIssue,
-  PodcastVideoReviewStatus,
-  PodcastVideoReviewVerdict,
+  PODCAST_VIDEO_REVIEW_ISSUES,
+  PODCAST_VIDEO_REVIEW_STATUSES,
+  PODCAST_VIDEO_REVIEW_VERDICTS,
 } from '@zapengine/types/shared';
 
-import { getPipelineSupabase, throwSupabaseError } from '../../supabase-client.js';
+import {
+  getPipelineSupabase,
+  throwSupabaseError,
+} from '../../supabase-client.js';
+
+export type PodcastVideoReviewVerdict =
+  (typeof PODCAST_VIDEO_REVIEW_VERDICTS)[number];
+export type PodcastVideoReviewIssue =
+  (typeof PODCAST_VIDEO_REVIEW_ISSUES)[number];
+export type PodcastVideoReviewStatus =
+  (typeof PODCAST_VIDEO_REVIEW_STATUSES)[number];
 
 export interface ReviewExportRow {
   id: string;
@@ -41,9 +51,13 @@ export async function listReviewsForExport(input: {
   const { data, error } = await query;
   if (error) throwSupabaseError(error);
 
-  const rows = (data ?? []) as Array<Record<string, unknown>>;
+  const rows = (data ?? []) as Record<string, unknown>[];
   const episodeIds = [
-    ...new Set(rows.flatMap((row) => (typeof row['episode_id'] === 'string' ? [row['episode_id']] : []))),
+    ...new Set(
+      rows.flatMap((row) =>
+        typeof row['episode_id'] === 'string' ? [row['episode_id']] : [],
+      ),
+    ),
   ];
   const titleByEpisode = new Map<string, string | null>();
   if (episodeIds.length > 0) {
@@ -52,7 +66,10 @@ export async function listReviewsForExport(input: {
       .select('id,source_title')
       .in('id', episodeIds);
     if (episodes.error) throwSupabaseError(episodes.error);
-    for (const episode of (episodes.data ?? []) as { id: string; source_title: string | null }[]) {
+    for (const episode of (episodes.data ?? []) as {
+      id: string;
+      source_title: string | null;
+    }[]) {
       titleByEpisode.set(episode.id, episode.source_title);
     }
   }
@@ -60,30 +77,41 @@ export async function listReviewsForExport(input: {
   return rows.flatMap((row) => {
     const id = stringValue(row['id']);
     const episodeId = stringValue(row['episode_id']);
-    const verdict = stringValue(row['verdict']) as PodcastVideoReviewVerdict | null;
-    const status = stringValue(row['status']) as PodcastVideoReviewStatus | null;
+    const verdict = stringValue(
+      row['verdict'],
+    ) as PodcastVideoReviewVerdict | null;
+    const status = stringValue(
+      row['status'],
+    ) as PodcastVideoReviewStatus | null;
     if (!id || !episodeId || !verdict || !status) return [];
-    return [{
-      id,
-      episodeId,
-      title: titleByEpisode.get(episodeId) ?? null,
-      visualHash: nullableString(row['visual_hash']),
-      languageCode: nullableString(row['language_code']),
-      sceneId: nullableString(row['scene_id']),
-      reviewer: row['reviewer'] === 'agent' ? 'agent' : 'operator',
-      verdict,
-      issueCategories: Array.isArray(row['issue_categories'])
-        ? row['issue_categories'].filter((value): value is PodcastVideoReviewIssue => typeof value === 'string')
-        : [],
-      note: nullableString(row['note']),
-      pipelineContext:
-        row['pipeline_context'] && typeof row['pipeline_context'] === 'object' && !Array.isArray(row['pipeline_context'])
-          ? (row['pipeline_context'] as Record<string, unknown>)
-          : {},
-      status,
-      createdAt: stringValue(row['created_at']) ?? '',
-      updatedAt: stringValue(row['updated_at']) ?? '',
-    }];
+    return [
+      {
+        id,
+        episodeId,
+        title: titleByEpisode.get(episodeId) ?? null,
+        visualHash: nullableString(row['visual_hash']),
+        languageCode: nullableString(row['language_code']),
+        sceneId: nullableString(row['scene_id']),
+        reviewer: row['reviewer'] === 'agent' ? 'agent' : 'operator',
+        verdict,
+        issueCategories: Array.isArray(row['issue_categories'])
+          ? row['issue_categories'].filter(
+              (value): value is PodcastVideoReviewIssue =>
+                typeof value === 'string',
+            )
+          : [],
+        note: nullableString(row['note']),
+        pipelineContext:
+          row['pipeline_context'] &&
+          typeof row['pipeline_context'] === 'object' &&
+          !Array.isArray(row['pipeline_context'])
+            ? (row['pipeline_context'] as Record<string, unknown>)
+            : {},
+        status,
+        createdAt: stringValue(row['created_at']) ?? '',
+        updatedAt: stringValue(row['updated_at']) ?? '',
+      },
+    ];
   });
 }
 

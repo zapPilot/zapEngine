@@ -9,12 +9,12 @@ import type { Slide } from './manifest.js';
 import type { RasterStage } from './raster-stage-entry.js';
 import type { PortraitRasterOutput, SatoriStageInput } from './satori-stage.js';
 import type { SharpCropStageInput } from './sharp-stage.js';
-import type {
-  BrandFrameContent,
+import {
+  type BrandFrameContent,
   CONCEPT_CARD_HEIGHT,
   CONCEPT_CARD_WIDTH,
-  ConceptCardContent,
-  OutroContent,
+  type ConceptCardContent,
+  type OutroContent,
 } from './templates.js';
 
 type RunStage = (

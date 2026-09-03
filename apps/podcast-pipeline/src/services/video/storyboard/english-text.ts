@@ -9,10 +9,7 @@ export function normalizedEntityText(value: string): string {
     .trim();
 }
 
-export function containsEntityPhrase(
-  corpus: string,
-  entity: string,
-): boolean {
+export function containsEntityPhrase(corpus: string, entity: string): boolean {
   const normalizedCorpus = ` ${normalizedEntityText(corpus)} `;
   const normalizedEntity = normalizedEntityText(entity);
   return Boolean(

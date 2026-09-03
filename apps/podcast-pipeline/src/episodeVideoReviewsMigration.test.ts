@@ -10,7 +10,10 @@ import { describe, expect, it } from 'vitest';
 
 const repoRoot = path.resolve(process.cwd(), '../..');
 const migration = fs.readFileSync(
-  path.join(repoRoot, 'supabase/migrations/20260903090200_add_episode_video_reviews.sql'),
+  path.join(
+    repoRoot,
+    'supabase/migrations/20260903090200_add_episode_video_reviews.sql',
+  ),
   'utf8',
 );
 
@@ -28,14 +31,22 @@ describe('episode video reviews migration', () => {
   });
 
   it('uses an idempotent coalesced review scope', () => {
-    expect(migration).toMatch(/episode_video_reviews_scope_unique[\s\S]+?coalesce\(visual_hash, ''\)[\s\S]+?coalesce\(language_code, ''\)[\s\S]+?coalesce\(scene_id, ''\)[\s\S]+?reviewer/i);
-    expect(migration).toMatch(/on conflict \([\s\S]+?coalesce\(visual_hash, ''\)[\s\S]+?reviewer[\s\S]+?do update/i);
+    expect(migration).toMatch(
+      /episode_video_reviews_scope_unique[\s\S]+?coalesce\(visual_hash, ''\)[\s\S]+?coalesce\(language_code, ''\)[\s\S]+?coalesce\(scene_id, ''\)[\s\S]+?reviewer/i,
+    );
+    expect(migration).toMatch(
+      /on conflict \([\s\S]+?coalesce\(visual_hash, ''\)[\s\S]+?reviewer[\s\S]+?do update/i,
+    );
   });
 
   it('bounds review context and exposes only named service-role mutations', () => {
-    expect(migration).toMatch(/octet_length\(pipeline_context::text\) <= 8192/i);
+    expect(migration).toMatch(
+      /octet_length\(pipeline_context::text\) <= 8192/i,
+    );
     expect(migration).toMatch(/upsert_episode_video_review/i);
     expect(migration).toMatch(/resolve_episode_video_review/i);
-    expect(migration).toMatch(/revoke all on from_fed_to_chain\.episode_video_reviews from public, anon, authenticated/i);
+    expect(migration).toMatch(
+      /revoke all on from_fed_to_chain\.episode_video_reviews from public, anon, authenticated/i,
+    );
   });
 });

@@ -31,14 +31,15 @@ interface ConceptCardCopyProvider {
 }
 
 const WORD_PATTERN = /[A-Za-z0-9][A-Za-z0-9+&.'’/-]*/gu;
-const NUMBER_PATTERN = /(?<![A-Za-z])\d+(?:[.,]\d+)*(?:%|x|X)?(?![A-Za-z])/gu;
+const NUMBER_PATTERN = /(?<![A-Za-z])\d+(?:[.,]\d+)*[%xX]?(?![A-Za-z])/gu;
 
 export async function writeConceptCardCopy(
   request: ConceptCardCopyRequest,
   options: { provider?: ConceptCardCopyProvider } = {},
 ): Promise<ConceptCardCopy> {
   throwIfAborted(request.signal);
-  const provider = options.provider ?? createOpenRouterConceptCardCopyProvider();
+  const provider =
+    options.provider ?? createOpenRouterConceptCardCopyProvider();
   try {
     const result = await provider.complete(request);
     throwIfAborted(request.signal);
@@ -150,10 +151,12 @@ export function validateConceptCardCopy(
   const output = `${headline} ${points.join(' ')}`;
   if (!numbersAreGrounded(output, corpus)) return null;
   if (!entitiesAreGrounded(output, request)) return null;
-  if (request.lead && request.entities.length > 0) {
-    if (!request.entities.some((entity) => containsEntityPhrase(headline, entity))) {
-      return null;
-    }
+  if (
+    request.lead &&
+    request.entities.length > 0 &&
+    !request.entities.some((entity) => containsEntityPhrase(headline, entity))
+  ) {
+    return null;
   }
   return { kicker, headline, points };
 }
@@ -167,7 +170,10 @@ export function deterministicConceptCardCopy(
     request.title;
   const headline = compactWords(primary, 7, 42) || 'Key Point';
   const evidenceWords = words(request.evidence).filter(
-    (word) => !words(headline).some((headlineWord) => headlineWord.toLowerCase() === word.toLowerCase()),
+    (word) =>
+      !words(headline).some(
+        (headlineWord) => headlineWord.toLowerCase() === word.toLowerCase(),
+      ),
   );
   const firstPoint = compactWords(evidenceWords.slice(0, 7).join(' '), 7, 48);
   const secondPoint = compactWords(
@@ -178,7 +184,10 @@ export function deterministicConceptCardCopy(
   return {
     kicker: request.lead ? 'LEAD CONCEPT' : 'KEY CONCEPT',
     headline,
-    points: [firstPoint || 'Context at a glance', secondPoint || 'Visual summary'].slice(0, 2),
+    points: [
+      firstPoint || 'Context at a glance',
+      secondPoint || 'Visual summary',
+    ].slice(0, 2),
     source: 'deterministic',
     model: null,
     costUsd: null,
@@ -200,15 +209,22 @@ function words(value: string): string[] {
   return value.match(WORD_PATTERN) ?? [];
 }
 
-function compactWords(value: string, maxWords: number, maxChars: number): string {
+function compactWords(
+  value: string,
+  maxWords: number,
+  maxChars: number,
+): string {
   const selected = words(value).slice(0, maxWords);
-  while (selected.length > 0 && selected.join(' ').length > maxChars) selected.pop();
+  while (selected.length > 0 && selected.join(' ').length > maxChars)
+    selected.pop();
   return selected.join(' ');
 }
 
 function numbersAreGrounded(output: string, corpus: string): boolean {
   const grounded = new Set(corpus.match(NUMBER_PATTERN) ?? []);
-  return (output.match(NUMBER_PATTERN) ?? []).every((number) => grounded.has(number));
+  return (output.match(NUMBER_PATTERN) ?? []).every((number) =>
+    grounded.has(number),
+  );
 }
 
 function entitiesAreGrounded(

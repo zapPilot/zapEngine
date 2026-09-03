@@ -1,7 +1,8 @@
 import { copyFile, mkdir } from 'node:fs/promises';
-import { resolve, join } from 'node:path';
+import { join, resolve } from 'node:path';
 
 import { parseFlagArgs } from '../../lib/cli-args.js';
+import { runCli } from '../../lib/cli-runner.js';
 import { rasterizeConceptCard } from './rasterizer.js';
 
 export async function runSlidePreviewCli(
@@ -10,7 +11,9 @@ export async function runSlidePreviewCli(
   const parsed = parseFlagArgs(['preview', ...argv]);
   const headline = flag(parsed.flags['headline']) ?? 'Protocol Shift';
   const points = collectPoints(argv);
-  const outputDirectory = resolve(flag(parsed.flags['output']) ?? './tmp/slide');
+  const outputDirectory = resolve(
+    flag(parsed.flags['output']) ?? './tmp/slide',
+  );
   await mkdir(outputDirectory, { recursive: true });
   const paths = {
     input: join(outputDirectory, 'concept-card.json'),
@@ -52,10 +55,8 @@ function flag(value: string | boolean | undefined): string | null {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  runSlidePreviewCli()
-    .then((directory) => console.log(`Concept-card preview: ${directory}`))
-    .catch((error) => {
-      console.error(error instanceof Error ? error.message : error);
-      process.exitCode = 1;
-    });
+  runCli(async () => {
+    const directory = await runSlidePreviewCli();
+    console.log(`Concept-card preview: ${directory}`);
+  });
 }

@@ -20,14 +20,14 @@ The Vite UI listens on `127.0.0.1:4174`; its Hono API listens on `CONTROL_CENTER
 Six views, each answering one question. Home is a decision surface; the other
 five are where its evidence or narrow operator actions live.
 
-| View            | Question it answers                                                         | Reads / actions                                                  |
-| --------------- | --------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| **Home**        | What needs a decision right now?                                            | `/api/overview`, `/api/costs/history`, `/api/operations`         |
-| **Pipeline**    | Where is each article, what failed, and can its current phase be recovered? | `/api/podcast-pipeline` + explicit ingest/video recovery actions |
-| **Growth**      | What should we publish next, and what did the last posts do?                | `/api/social-performance`                                        |
-| **Product**     | Who do we serve, and is their data still current?                           | `/api/customers` + product health from `/api/overview`           |
-| **Reliability** | Which sources are telling us something is wrong?                            | `/api/operations`, `/api/operations/social`                      |
-| **Economics**   | What does the company spend, and which provider spends it?                  | `/api/overview`, `/api/costs/history`                            |
+| View            | Question it answers                                                         | Reads / actions                                                                                                     |
+| --------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| **Home**        | What needs a decision right now?                                            | `/api/overview`, `/api/costs/history`, `/api/operations`                                                            |
+| **Pipeline**    | Where is each article, what failed, and can its current phase be recovered? | `/api/podcast-pipeline`, lazy `/api/podcast-pipeline/:episodeId/visual`, per-step restart actions, operator reviews |
+| **Growth**      | What should we publish next, and what did the last posts do?                | `/api/social-performance`                                                                                           |
+| **Product**     | Who do we serve, and is their data still current?                           | `/api/customers` + product health from `/api/overview`                                                              |
+| **Reliability** | Which sources are telling us something is wrong?                            | `/api/operations`, `/api/operations/social`                                                                         |
+| **Economics**   | What does the company spend, and which provider spends it?                  | `/api/overview`, `/api/costs/history`                                                                               |
 
 Home opens on priority-sorted founder statements rather than on a metric grid.
 Each statement carries its conclusion and evidence; the Reliability statement can
@@ -47,7 +47,30 @@ historical fallback for pre-durable ingest failures, `episode_video_visuals` for
 shared visual planning, and `episode_videos` for the three language renders. A
 terminal ingest or visual failure is shown as failed even when downstream rows
 are absent or queued; the dashboard must never translate that state into a vague
-"still processing" message.
+"still processing" message. Two more states come straight from the rows: a
+language with no `episode_videos` row is **Not scheduled** (`unscheduled`, not
+queued — older episodes only ever rendered `zh-Hant`), and a queued or expired
+job whose `visual_version` differs from the deployed
+`EPISODE_VIDEO_VISUAL_VERSION` is **Stale version** (`stale`): no worker will
+ever claim it, so it counts as stuck for the pipeline statement and the
+restart button is what repairs it. Completed jobs hide their last progress
+stage, and `podcast_ingest_jobs.failure_history` is shown as the recent ingest
+retry history.
+
+Every episode card has a lazy **Visual plan, search trace and review** panel
+(`GET /api/podcast-pipeline/:episodeId/visual`). It reads the persisted
+`visual_payload` (per-scene image search intents, entities, subject assignment,
+selected asset with provider/license, the provider search trace, the
+zh-Hant sentence text, generated concept cards) and, for failed attempts,
+`last_failure_diagnostics` (stage, message, redacted planning snapshot). The
+parser is deliberately lenient: payload shapes from v1 through v9 render what
+they have and unknown shapes fall back to the raw JSON rather than a 500. The
+same panel is where the operator grades the episode or a single scene
+(verdict, issue categories, note); the review row stores a `pipelineContext`
+snapshot so the feedback stays interpretable after prompts change. Control
+Center never runs model inference on that feedback — a Claude Code session
+reads `episode_video_reviews` (see the podcast-pipeline README "Visual review
+loop") and marks reviews triaged; the operator marks them resolved here.
 
 The interface uses a light, high-contrast operator palette. Shared
 `@zapengine/design-tokens` still provide typography, spacing, radii, and the
@@ -60,11 +83,16 @@ deliberately grey rather than green.
 
 The Vercel deployment is a remote Control Center operator surface. Configure the project root as `apps/control-center` and enable Vercel Authentication for all deployments before adding credentials or performing the first deployment.
 
-Dashboard HTTP views are generally read-only, with three narrowly bounded mutation surfaces:
+Dashboard HTTP views are generally read-only, with three narrowly bounded classes of mutation:
 
 - `/api/mcp` exposes the separately authenticated Ops MCP. Its only current write capability is the narrowly allowlisted single-issue Sentry resolve operation documented in [`MCP.md`](./MCP.md).
-- `POST /api/podcast-pipeline/:episodeId/ingest/retry` invokes a service-role-only resumable ingest RPC. It only requeues durable work, preserves completed localization checkpoints, rejects a retry while a live ingest lease exists, and creates no Telegram notification target for operator-only recovery jobs. A durable job that Telegram created keeps its chat id when it is requeued, so its original submitter is still notified; only a legacy episode with no durable job gets a silent operator job.
-- `POST /api/podcast-pipeline/:episodeId/video/retry` invokes a service-role-only RPC that resets visual planning and localized video-render state only. It never rewrites scripts, translation, narration, classroom audio, or arbitrary database rows, and it rejects a retry while a live render lease exists. Vercel Authentication is therefore a load-bearing boundary for these operator actions.
+- Pipeline step restarts, each a named service-role-only RPC that touches only job rows and never scripts, translation, narration, classroom audio, or arbitrary tables, and each refusing while a live lease exists (mapped to `409`):
+  - `POST /api/podcast-pipeline/:episodeId/ingest/retry` → `restart_podcast_ingest`. Requeues the durable ingest job so the app process resumes from the last committed localization stage; refused once all three audio localizations are complete. The RPC recovers the Telegram chat id from any earlier ingest, visual, or render row of the episode, so the original submitter is still notified; only an episode with no such row gets a silent operator job.
+  - `POST /api/podcast-pipeline/:episodeId/video/retry` with `{ "forceReplan": boolean }` → `retry_episode_video_generation`. Materializes missing `ja`/`en` render rows, keeps a completed current-version visual and requeues only unfinished renders; `forceReplan: true` (the two-click **Re-plan visuals** button) discards the visual checkpoint and re-renders all three languages. The service omits `p_force_replan` on the ordinary retry so the call still resolves before the migration is applied.
+  - `POST /api/podcast-pipeline/:episodeId/renders/:localizationId/retry` → `retry_episode_video_render`. Requeues one language render against the completed current-version visual.
+- Operator reviews: `PUT /api/podcast-pipeline/:episodeId/reviews` → `upsert_episode_video_review` and `POST /api/podcast-pipeline/reviews/:reviewId/resolve` → `resolve_episode_video_review` write only the operator's review rows (`reviewer = 'operator'`); they cannot change pipeline state.
+
+Code deploys before the operator pushes the Supabase migrations, so every new route degrades explicitly: a missing RPC (`PGRST202` / `42883`) answers `503` with "migration has not been applied yet", and reads of not-yet-existing columns or tables (`42703`, `42P01`) are separate queries that fall back to empty values. Vercel Authentication is the load-bearing boundary for all of these operator actions.
 
 The remote API deliberately does not register `POST /api/costs/sync`; cost collection remains an external operation.
 

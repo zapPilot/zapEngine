@@ -73,6 +73,7 @@ vi.mock('@aws-sdk/lib-storage', () => ({
 import type { HlsFile } from './hls.js';
 import {
   uploadEpisodeVisualAssetsToR2,
+  uploadEpisodeVisualCheckpointImageToR2,
   uploadHlsToR2,
   uploadVideoArtifactsToR2,
 } from './storage.js';
@@ -635,5 +636,72 @@ describe('R2 cache headers', () => {
         CacheControl: 'public, max-age=31536000, immutable',
       });
     }
+  });
+});
+
+describe('uploadEpisodeVisualCheckpointImageToR2', () => {
+  const input = {
+    episodeId: '00000000-0000-4000-8000-000000000001',
+    visualVersion: 'image-slideshow-v1',
+    sourceHash: 'source-hash',
+    assetId: 'asset-01',
+    path: '/render/asset-01.image',
+    contentType: 'image/png' as const,
+  };
+  const key =
+    'episodes/00000000-0000-4000-8000-000000000001/visuals/image-slideshow-v1/checkpoints/source-hash/images/asset-01.png';
+
+  it('uploads one immutable image under the checkpoint prefix and returns its URL', async () => {
+    await expect(uploadEpisodeVisualCheckpointImageToR2(input)).resolves.toBe(
+      `https://cdn.example.com/${key}`,
+    );
+
+    expect(createReadStream).toHaveBeenCalledWith('/render/asset-01.image');
+    expect(PutObjectCommand).toHaveBeenCalledWith({
+      Bucket: 'test-bucket',
+      Key: key,
+      Body: vi.mocked(createReadStream).mock.results[0]?.value,
+      ContentType: 'image/png',
+      CacheControl: 'public, max-age=31536000, immutable',
+    });
+    expect(mockSend).toHaveBeenCalledTimes(1);
+  });
+
+  it('derives the extension from the content type', async () => {
+    await expect(
+      uploadEpisodeVisualCheckpointImageToR2({
+        ...input,
+        contentType: 'image/jpeg',
+      }),
+    ).resolves.toMatch(/\/images\/asset-01\.jpg$/u);
+  });
+
+  it('rejects unsafe key segments before uploading', async () => {
+    await expect(
+      uploadEpisodeVisualCheckpointImageToR2({ ...input, sourceHash: '../x' }),
+    ).rejects.toThrow('Invalid video artifact visual source hash');
+    await expect(
+      uploadEpisodeVisualCheckpointImageToR2({ ...input, assetId: 'a/b' }),
+    ).rejects.toThrow('Invalid video artifact visual asset id');
+    await expect(
+      uploadEpisodeVisualCheckpointImageToR2({ ...input, episodeId: '' }),
+    ).rejects.toThrow('Invalid video artifact episode id');
+    await expect(
+      uploadEpisodeVisualCheckpointImageToR2({
+        ...input,
+        visualVersion: '.v1',
+      }),
+    ).rejects.toThrow('Invalid video artifact visual renderer version');
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it('rejects immediately when the signal is already aborted', async () => {
+    await expect(
+      uploadEpisodeVisualCheckpointImageToR2({
+        ...input,
+        signal: AbortSignal.abort(new Error('cancelled')),
+      }),
+    ).rejects.toThrow('cancelled');
+    expect(mockSend).not.toHaveBeenCalled();
   });
 });

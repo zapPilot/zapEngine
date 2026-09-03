@@ -1,31 +1,21 @@
-import {
-  PODCAST_VIDEO_REVIEW_ISSUES,
-  type PodcastVideoReviewIssue,
-  type PodcastVideoReviewVerdict,
-} from '@zapengine/types/shared';
+import { PODCAST_VIDEO_REVIEW_ISSUES } from '@zapengine/types/shared';
 import { useMemo, useState } from 'react';
 
 import type {
   PodcastVideoReviewInput,
-  PodcastVideoReviewResolveInput,
+  PodcastVideoReviewIssue,
+  PodcastVideoReviewVerdict,
   PodcastVisualDebugResponse,
+  PodcastVisualReviewHandlers,
   PodcastVisualSceneDebug,
 } from '../../shared/podcast-visual.js';
 
-export function PodcastVisualDebugPanel(props: {
-  episodeId: string;
-  data: PodcastVisualDebugResponse | undefined;
-  onLoad: (episodeId: string) => Promise<PodcastVisualDebugResponse>;
-  onSubmitReview: (
-    episodeId: string,
-    review: PodcastVideoReviewInput,
-  ) => Promise<void>;
-  onResolveReview: (
-    episodeId: string,
-    reviewId: string,
-    input: PodcastVideoReviewResolveInput,
-  ) => Promise<void>;
-}) {
+export function PodcastVisualDebugPanel(
+  props: PodcastVisualReviewHandlers & {
+    episodeId: string;
+    data: PodcastVisualDebugResponse | undefined;
+  },
+) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState('');
@@ -34,8 +24,12 @@ export function PodcastVisualDebugPanel(props: {
   const scenes = useMemo(() => {
     const query = filter.trim().toLowerCase();
     return (props.data?.scenes ?? []).filter((scene) => {
-      if (slidesOnly && scene.asset?.provider !== 'generated-slide') return false;
-      if (!query) return true;
+      if (slidesOnly && scene.asset?.provider !== 'generated-slide') {
+        return false;
+      }
+      if (!query) {
+        return true;
+      }
       return [
         scene.sceneId,
         scene.sentenceText,
@@ -50,11 +44,13 @@ export function PodcastVisualDebugPanel(props: {
   }, [filter, props.data?.scenes, slidesOnly]);
 
   async function load(): Promise<void> {
-    if (props.data || loading) return;
+    if (props.data || loading) {
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
-      await props.onLoad(props.episodeId);
+      await props.onLoadVisualDebug(props.episodeId);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Visual debug failed');
     } finally {
@@ -66,14 +62,20 @@ export function PodcastVisualDebugPanel(props: {
     <details
       className="pipeline-details podcast-visual-debug"
       onToggle={(event) => {
-        if (event.currentTarget.open) void load();
+        if (event.currentTarget.open) {
+          void load();
+        }
       }}
     >
       <summary>Visual plan, search trace and review</summary>
-      {loading ? <div className="empty-row">Loading visual evidence…</div> : null}
+      {loading ? (
+        <div className="empty-row">Loading visual evidence…</div>
+      ) : null}
       {error ? <div className="pipeline-error">{error}</div> : null}
       {props.data?.status !== 'ok' && props.data ? (
-        <div className="empty-row">{props.data.message ?? 'Visual debug unavailable'}</div>
+        <div className="empty-row">
+          {props.data.message ?? 'Visual debug unavailable'}
+        </div>
       ) : null}
       {props.data?.status === 'ok' ? (
         <div className="podcast-visual-debug-body">
@@ -132,9 +134,12 @@ export function PodcastVisualDebugPanel(props: {
               {props.data.reviews.map((review) => (
                 <div className="pipeline-language" key={review.id}>
                   <strong>
-                    {review.sceneId ?? 'episode'} · {review.verdict} · {review.status}
+                    {review.sceneId ?? 'episode'} · {review.verdict} ·{' '}
+                    {review.status}
                   </strong>
-                  <span>{review.issueCategories.join(' · ') || 'no issue category'}</span>
+                  <span>
+                    {review.issueCategories.join(' · ') || 'no issue category'}
+                  </span>
                   {review.note ? <small>{review.note}</small> : null}
                   {review.status !== 'resolved' ? (
                     <button
@@ -164,7 +169,14 @@ function VisualFacts(props: { data: PodcastVisualDebugResponse }) {
   const { visual } = props.data;
   return (
     <div className="pipeline-language-grid">
-      <Fact label="Visual" value={visual ? `${visual.status} · ${visual.visualVersion ?? 'no version'}` : 'not scheduled'} />
+      <Fact
+        label="Visual"
+        value={
+          visual
+            ? `${visual.status} · ${visual.visualVersion ?? 'no version'}`
+            : 'not scheduled'
+        }
+      />
       <Fact label="Hash" value={visual?.visualHash ?? '—'} />
       <Fact label="Attempts" value={String(visual?.attempts ?? 0)} />
       {props.data.renders.map((render) => (
@@ -172,7 +184,11 @@ function VisualFacts(props: { data: PodcastVisualDebugResponse }) {
           <strong>{render.languageCode} render</strong>
           <span>{render.status}</span>
           {render.thumbnailUrl ? (
-            <img alt={`${render.languageCode} thumbnail`} loading="lazy" src={render.thumbnailUrl} />
+            <img
+              alt={`${render.languageCode} thumbnail`}
+              loading="lazy"
+              src={render.thumbnailUrl}
+            />
           ) : null}
           {render.mp4Url ? (
             <a href={render.mp4Url} rel="noreferrer" target="_blank">
@@ -215,7 +231,10 @@ function SceneDebug(props: {
       </div>
       <div>
         <strong>{scene.sceneId}</strong>
-        <p>{scene.sentenceText ?? 'Sentence text not persisted for this version.'}</p>
+        <p>
+          {scene.sentenceText ??
+            'Sentence text not persisted for this version.'}
+        </p>
         <small>
           {scene.imageSearchIntent.join(' · ') || 'No image search intent'}
         </small>
@@ -230,16 +249,21 @@ function SceneDebug(props: {
       <div>
         <strong>
           {scene.asset?.provider ?? 'none'}
-          {scene.asset?.provider === 'generated-slide' ? ' · generated-slide' : ''}
+          {scene.asset?.provider === 'generated-slide'
+            ? ' · generated-slide'
+            : ''}
         </strong>
         <small>
-          {scene.asset?.license ?? 'no license'} · {scene.selectionReason ?? 'no assignment'}
+          {scene.asset?.license ?? 'no license'} ·{' '}
+          {scene.selectionReason ?? 'no assignment'}
         </small>
         {scene.asset?.slideHeadline ? <p>{scene.asset.slideHeadline}</p> : null}
         {scene.trace.map((trace, index) => (
           <small key={`${trace.provider}-${index}`}>
-            {trace.provider} {trace.returned}→{trace.accepted} · filtered {trace.entityFiltered} · rejected {trace.rejected}
-            <br />{trace.query}
+            {trace.provider} {trace.returned}→{trace.accepted} · filtered{' '}
+            {trace.entityFiltered} · rejected {trace.rejected}
+            <br />
+            {trace.query}
           </small>
         ))}
       </div>
@@ -285,8 +309,12 @@ function ReviewEditor(props: {
   return (
     <div className="podcast-review-editor">
       <select
-        aria-label={props.sceneId ? `${props.sceneId} verdict` : 'Episode verdict'}
-        onChange={(event) => setVerdict(event.target.value as PodcastVideoReviewVerdict)}
+        aria-label={
+          props.sceneId ? `${props.sceneId} verdict` : 'Episode verdict'
+        }
+        onChange={(event) =>
+          setVerdict(event.target.value as PodcastVideoReviewVerdict)
+        }
         value={verdict}
       >
         <option value="good">good</option>
@@ -306,7 +334,9 @@ function ReviewEditor(props: {
         ))}
       </div>
       <textarea
-        aria-label={props.sceneId ? `${props.sceneId} review note` : 'Episode review note'}
+        aria-label={
+          props.sceneId ? `${props.sceneId} review note` : 'Episode review note'
+        }
         maxLength={2000}
         onChange={(event) => setNote(event.target.value)}
         placeholder="Operator note"

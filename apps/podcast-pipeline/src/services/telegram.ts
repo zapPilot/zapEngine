@@ -74,11 +74,16 @@ export function parseTelegramCallbackData(
   data: unknown,
 ): TelegramCallbackAction | null {
   if (data === TELEGRAM_RETRY_CALLBACK_DATA) return { kind: 'retry-ingest' };
-  if (typeof data !== 'string' || !data.startsWith(TELEGRAM_RETRY_VIDEO_CALLBACK_PREFIX)) {
+  if (
+    typeof data !== 'string' ||
+    !data.startsWith(TELEGRAM_RETRY_VIDEO_CALLBACK_PREFIX)
+  ) {
     return null;
   }
   const episodeId = data.slice(TELEGRAM_RETRY_VIDEO_CALLBACK_PREFIX.length);
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(episodeId)
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(
+    episodeId,
+  )
     ? { kind: 'retry-video', episodeId }
     : null;
 }

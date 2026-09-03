@@ -6,8 +6,8 @@ import sharp from 'sharp';
 
 import { rasterizeConceptCard } from './rasterizer.js';
 import {
-  writeConceptCardCopy,
   type ConceptCardCopy,
+  writeConceptCardCopy,
 } from './storyboard/slide-copy.js';
 import {
   fingerprintImage,
@@ -29,7 +29,8 @@ export async function createGeneratedSlideAsset(
   const fingerprint = dependencies.fingerprint ?? fingerprintImage;
   const copy = await writeCopy({
     title: request.title,
-    evidence: request.evidence?.searchText || request.evidence?.text || request.title,
+    evidence:
+      request.evidence?.searchText || request.evidence?.text || request.title,
     entities: request.scene.imageSearchEntities ?? [],
     intent: request.scene.imageSearchIntent,
     lead: request.lead,
@@ -65,7 +66,9 @@ export async function createGeneratedSlideAsset(
   const width = metadata.width ?? 0;
   const height = metadata.height ?? 0;
   if (!width || !height) {
-    throw new Error(`Generated concept card ${request.scene.sceneId} has no dimensions`);
+    throw new Error(
+      `Generated concept card ${request.scene.sceneId} has no dimensions`,
+    );
   }
   const sha256 = createHash('sha256').update(bytes).digest('hex');
   const perceptualHash = await fingerprint(paths.output);

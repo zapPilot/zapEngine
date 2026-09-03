@@ -1,3 +1,4 @@
+/* eslint-disable sonarjs/no-duplicate-string -- 'generated-slide' is a domain literal intentionally repeated in asset planning logic */
 import { rm } from 'node:fs/promises';
 
 import sharp from 'sharp';
@@ -144,7 +145,9 @@ interface VisualAssetPlannerDependencies {
   acquireImage: typeof acquireRemoteImage;
   searchProviders: readonly ImageSearchProvider[];
   fingerprintImage: typeof fingerprintImage;
-  generateSlide?: (request: GeneratedSlideRequest) => Promise<PlannedVisualImage>;
+  generateSlide?: (
+    request: GeneratedSlideRequest,
+  ) => Promise<PlannedVisualImage>;
 }
 
 export interface PlanVisualAssetsInput {
@@ -331,7 +334,10 @@ async function selectSceneAsset(
       `Visual scene ${scene.sceneId} has no usable image`,
     );
   } catch (error) {
-    if (state.input.signal?.aborted || !(error instanceof VisualSceneExhaustedError)) {
+    if (
+      state.input.signal?.aborted ||
+      !(error instanceof VisualSceneExhaustedError)
+    ) {
       throw error;
     }
     exhaustion = error;
@@ -527,7 +533,8 @@ function resolveUnanchoredFallback(
       .reverse()
       .find(
         (asset) =>
-          asset.assetId !== previousAssetId && asset.provider !== 'generated-slide',
+          asset.assetId !== previousAssetId &&
+          asset.provider !== 'generated-slide',
       ) ?? null;
 
   if (nonConsecutiveReusable) {

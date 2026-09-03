@@ -1,8 +1,18 @@
 import type {
-  PodcastVideoReviewIssue,
-  PodcastVideoReviewStatus,
-  PodcastVideoReviewVerdict,
+  PODCAST_VIDEO_REVIEW_ISSUES,
+  PODCAST_VIDEO_REVIEW_STATUSES,
+  PODCAST_VIDEO_REVIEW_VERDICTS,
 } from '@zapengine/types/shared';
+
+// `@zapengine/types/shared` exports the vocabulary tuples only; both apps
+// derive the unions locally so the shared package never carries type-only
+// exports that its dead-code gate cannot trace across workspaces.
+export type PodcastVideoReviewVerdict =
+  (typeof PODCAST_VIDEO_REVIEW_VERDICTS)[number];
+export type PodcastVideoReviewIssue =
+  (typeof PODCAST_VIDEO_REVIEW_ISSUES)[number];
+export type PodcastVideoReviewStatus =
+  (typeof PODCAST_VIDEO_REVIEW_STATUSES)[number];
 
 export interface PodcastVisualSceneDebug {
   sceneId: string;
@@ -94,4 +104,18 @@ export interface PodcastVisualDebugResponse {
   failure: PodcastVisualFailureDebug | null;
   reviews: PodcastVideoReview[];
   rawPlan: Record<string, unknown> | null;
+}
+
+/** Callbacks the pipeline view threads down to every episode card and panel. */
+export interface PodcastVisualReviewHandlers {
+  onLoadVisualDebug: (episodeId: string) => Promise<PodcastVisualDebugResponse>;
+  onSubmitReview: (
+    episodeId: string,
+    review: PodcastVideoReviewInput,
+  ) => Promise<void>;
+  onResolveReview: (
+    episodeId: string,
+    reviewId: string,
+    input: PodcastVideoReviewResolveInput,
+  ) => Promise<void>;
 }

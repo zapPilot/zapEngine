@@ -10,35 +10,31 @@ import type {
   PodcastPipelineVisualDebug,
 } from '../../shared/podcast-pipeline.js';
 import type {
-  PodcastVideoReviewInput,
-  PodcastVideoReviewResolveInput,
   PodcastVisualDebugResponse,
+  PodcastVisualReviewHandlers,
 } from '../../shared/podcast-visual.js';
 import type { StatementsResponse } from '../../shared/statements.js';
 import { relativeTime } from '../format.js';
 import { PodcastVisualDebugPanel } from './PodcastVisualDebugPanel.js';
 import { StatementHeader } from './StatementHeader.js';
 
-export function PodcastPipelineView(props: {
-  data: PodcastPipelineResponse | null;
-  restartingEpisodeId: string | null;
-  onRestartStep: (
-    episodeId: string,
-    action: PodcastPipelineRestartAction,
-  ) => void;
-  onLoadVisualDebug: (episodeId: string) => Promise<PodcastVisualDebugResponse>;
-  onSubmitReview: (
-    episodeId: string,
-    review: PodcastVideoReviewInput,
-  ) => Promise<void>;
-  onResolveReview: (
-    episodeId: string,
-    reviewId: string,
-    input: PodcastVideoReviewResolveInput,
-  ) => Promise<void>;
-  visualDebugByEpisode: Record<string, PodcastVisualDebugResponse | undefined>;
-  statements?: StatementsResponse | null;
-}) {
+type RestartStepHandler = (
+  episodeId: string,
+  action: PodcastPipelineRestartAction,
+) => void;
+
+export function PodcastPipelineView(
+  props: PodcastVisualReviewHandlers & {
+    data: PodcastPipelineResponse | null;
+    restartingEpisodeId: string | null;
+    onRestartStep: RestartStepHandler;
+    visualDebugByEpisode: Record<
+      string,
+      PodcastVisualDebugResponse | undefined
+    >;
+    statements?: StatementsResponse | null;
+  },
+) {
   const header = props.statements?.headers.find((h) => h.domain === 'pipeline');
 
   if (!props.data) {
@@ -129,25 +125,14 @@ export function PodcastPipelineView(props: {
   );
 }
 
-function PipelineEpisode(props: {
-  episode: PodcastPipelineEpisode;
-  isRestarting: boolean;
-  onRestartStep: (
-    episodeId: string,
-    action: PodcastPipelineRestartAction,
-  ) => void;
-  onLoadVisualDebug: (episodeId: string) => Promise<PodcastVisualDebugResponse>;
-  onSubmitReview: (
-    episodeId: string,
-    review: PodcastVideoReviewInput,
-  ) => Promise<void>;
-  onResolveReview: (
-    episodeId: string,
-    reviewId: string,
-    input: PodcastVideoReviewResolveInput,
-  ) => Promise<void>;
-  visualDebug: PodcastVisualDebugResponse | undefined;
-}) {
+function PipelineEpisode(
+  props: PodcastVisualReviewHandlers & {
+    episode: PodcastPipelineEpisode;
+    isRestarting: boolean;
+    onRestartStep: RestartStepHandler;
+    visualDebug: PodcastVisualDebugResponse | undefined;
+  },
+) {
   const { episode } = props;
   const [confirmReplan, setConfirmReplan] = useState(false);
   const ingestError = episode.ingest?.lastError;
@@ -241,15 +226,23 @@ function PipelineEpisode(props: {
         <details className="pipeline-details">
           <summary>Recent ingest retry history</summary>
           <div className="pipeline-language-grid">
-            {episode.ingest.failureHistory.slice(-5).reverse().map((entry) => (
-              <div className="pipeline-language" key={`${entry.at}-${entry.kind}`}>
-                <strong>{entry.kind.replace('_', ' ')}</strong>
-                <span>
-                  attempt {entry.attempt} · {relativeTime(entry.at)}
-                </span>
-                {entry.error ? <small>{compactError(entry.error)}</small> : null}
-              </div>
-            ))}
+            {episode.ingest.failureHistory
+              .slice(-5)
+              .reverse()
+              .map((entry) => (
+                <div
+                  className="pipeline-language"
+                  key={`${entry.at}-${entry.kind}`}
+                >
+                  <strong>{entry.kind.replace('_', ' ')}</strong>
+                  <span>
+                    attempt {entry.attempt} · {relativeTime(entry.at)}
+                  </span>
+                  {entry.error ? (
+                    <small>{compactError(entry.error)}</small>
+                  ) : null}
+                </div>
+              ))}
           </div>
         </details>
       ) : null}
@@ -263,7 +256,7 @@ function PipelineEpisode(props: {
       <PodcastVisualDebugPanel
         data={props.visualDebug}
         episodeId={episode.episodeId}
-        onLoad={props.onLoadVisualDebug}
+        onLoadVisualDebug={props.onLoadVisualDebug}
         onResolveReview={props.onResolveReview}
         onSubmitReview={props.onSubmitReview}
       />

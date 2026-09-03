@@ -64,7 +64,8 @@ function sanitizeSnapshot(
   value: Record<string, unknown>,
 ): Record<string, unknown> {
   const serialized = JSON.stringify(value, snapshotReplacer);
-  const clipped = serialized.length > 32_000 ? serialized.slice(0, 32_000) : serialized;
+  const clipped =
+    serialized.length > 32_000 ? serialized.slice(0, 32_000) : serialized;
   try {
     const parsed: unknown = JSON.parse(clipped);
     return parsed && typeof parsed === 'object' && !Array.isArray(parsed)

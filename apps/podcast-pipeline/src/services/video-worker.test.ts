@@ -12,6 +12,7 @@ vi.mock('./ops-ledger.js', async (importOriginal) => ({
 import { createDeferred } from '../__fixtures__/index-test.js';
 import { createHeavyWorkCoordinator } from './heavy-work.js';
 import type { EpisodeRenderMetrics, PipelineRunInput } from './ops-ledger.js';
+import { buildTelegramVideoRetryReplyMarkup } from './telegram.js';
 import {
   EPISODE_VIDEO_VISUAL_VERSION,
   type EpisodeVideoCompletion,
@@ -170,6 +171,8 @@ function makeVisualRepository(
     claim: vi.fn().mockResolvedValue(claimed),
     renewLease: vi.fn().mockResolvedValue(true),
     reportProgress: vi.fn().mockResolvedValue(true),
+    saveCheckpoint: vi.fn().mockResolvedValue(true),
+    recordFailureDiagnostics: vi.fn().mockResolvedValue(true),
     complete: vi.fn().mockResolvedValue(true),
     fail: vi.fn().mockResolvedValue(null),
     find: vi.fn().mockResolvedValue(claimed),
@@ -651,6 +654,7 @@ describe('createVideoWorker', () => {
     expect(notify).toHaveBeenCalledWith(
       'last-chat',
       expect.stringContaining('影片失敗，但音頻仍可使用'),
+      { replyMarkup: buildTelegramVideoRetryReplyMarkup('episode-1') },
     );
     expect(repository.markFailureNotified).toHaveBeenCalledWith(
       'localization-1',

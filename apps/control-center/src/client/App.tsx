@@ -235,7 +235,11 @@ export function App() {
   );
 
   const resolveReview = useCallback(
-    async (episodeId: string, reviewId: string, input: PodcastVideoReviewResolveInput) => {
+    async (
+      episodeId: string,
+      reviewId: string,
+      input: PodcastVideoReviewResolveInput,
+    ) => {
       await sendJson(
         `/api/podcast-pipeline/reviews/${encodeURIComponent(reviewId)}/resolve`,
         'POST',

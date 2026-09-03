@@ -1,53 +1,65 @@
-import { parseFlagArgs } from '../../../lib/cli-args.js';
+import { type ParsedFlagArgs, parseFlagArgs } from '../../../lib/cli-args.js';
+import { runCli } from '../../../lib/cli-runner.js';
 import { isEpisodeId } from '../../request-validation.js';
 import { reviewDigestJson, reviewDigestMarkdown } from './review-digest.js';
 import { listReviewsForExport, resolveReview } from './review-store.js';
 
-export async function runReviewCli(argv = process.argv.slice(2)): Promise<void> {
+const USAGE =
+  'Usage: review:export export [--status open|triaged|all] [--episode UUID] [--format md|json] [--limit N]\n' +
+  '       review:resolve resolve --id UUID --status triaged|resolved [--note TEXT]';
+
+export async function runReviewCli(
+  argv = process.argv.slice(2),
+  write: (text: string) => void = (text) => {
+    process.stdout.write(text);
+  },
+): Promise<void> {
   const parsed = parseFlagArgs(argv);
   if (parsed.command === 'export') {
-    const status = flagString(parsed.flags['status']) ?? 'open';
-    if (status !== 'open' && status !== 'triaged' && status !== 'all') {
-      throw new Error('--status must be open, triaged, or all');
-    }
-    const format = flagString(parsed.flags['format']) ?? 'md';
-    if (format !== 'md' && format !== 'json') {
-      throw new Error('--format must be md or json');
-    }
-    const episodeId = flagString(parsed.flags['episode']);
-    if (episodeId && !isEpisodeId(episodeId)) {
-      throw new Error('--episode must be a UUID');
-    }
-    const limit = parseLimit(flagString(parsed.flags['limit']));
-    const rows = await listReviewsForExport({
-      status,
-      ...(episodeId ? { episodeId } : {}),
-      limit,
-    });
-    process.stdout.write(
-      format === 'json' ? reviewDigestJson(rows) : reviewDigestMarkdown(rows),
-    );
+    write(await runExport(parsed));
     return;
   }
-
   if (parsed.command === 'resolve') {
-    const id = flagString(parsed.flags['id']);
-    const status = flagString(parsed.flags['status']);
-    const note = flagString(parsed.flags['note']);
-    if (!id || !isEpisodeId(id)) throw new Error('--id must be a review UUID');
-    if (status !== 'triaged' && status !== 'resolved') {
-      throw new Error('--status must be triaged or resolved');
-    }
-    const changed = await resolveReview({ id, status, note });
-    if (!changed) throw new Error(`Review ${id} was not found`);
-    process.stdout.write(`Review ${id} marked ${status}.\n`);
+    write(await runResolve(parsed));
     return;
   }
+  throw new Error(USAGE);
+}
 
-  throw new Error(
-    'Usage: review:export export [--status open|triaged|all] [--episode UUID] [--format md|json] [--limit N]\n' +
-      '       review:resolve resolve --id UUID --status triaged|resolved [--note TEXT]',
-  );
+async function runExport(parsed: ParsedFlagArgs): Promise<string> {
+  const status = flagString(parsed.flags['status']) ?? 'open';
+  if (status !== 'open' && status !== 'triaged' && status !== 'all') {
+    throw new Error('--status must be open, triaged, or all');
+  }
+  const format = flagString(parsed.flags['format']) ?? 'md';
+  if (format !== 'md' && format !== 'json') {
+    throw new Error('--format must be md or json');
+  }
+  const episodeId = flagString(parsed.flags['episode']);
+  if (episodeId && !isEpisodeId(episodeId)) {
+    throw new Error('--episode must be a UUID');
+  }
+  const rows = await listReviewsForExport({
+    status,
+    ...(episodeId ? { episodeId } : {}),
+    limit: parseLimit(flagString(parsed.flags['limit'])),
+  });
+  return format === 'json'
+    ? reviewDigestJson(rows)
+    : reviewDigestMarkdown(rows);
+}
+
+async function runResolve(parsed: ParsedFlagArgs): Promise<string> {
+  const id = flagString(parsed.flags['id']);
+  const status = flagString(parsed.flags['status']);
+  const note = flagString(parsed.flags['note']);
+  if (!id || !isEpisodeId(id)) throw new Error('--id must be a review UUID');
+  if (status !== 'triaged' && status !== 'resolved') {
+    throw new Error('--status must be triaged or resolved');
+  }
+  const changed = await resolveReview({ id, status, note });
+  if (!changed) throw new Error(`Review ${id} was not found`);
+  return `Review ${id} marked ${status}.\n`;
 }
 
 function flagString(value: string | boolean | undefined): string | null {
@@ -64,8 +76,5 @@ function parseLimit(value: string | null): number {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  runReviewCli().catch((error) => {
-    console.error(error instanceof Error ? error.message : error);
-    process.exitCode = 1;
-  });
+  runCli(() => runReviewCli());
 }

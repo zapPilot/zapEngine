@@ -13,7 +13,10 @@ import type {
 } from '../../shared/podcast-pipeline.js';
 import type { ControlCenterConfig } from '../config/env.js';
 import { record, records, stringArray } from './json.js';
-import { createServiceRoleClient } from './supabase.js';
+import {
+  createConfiguredServiceRoleClient,
+  isMissingColumnError,
+} from './supabase.js';
 
 const EPISODE_LIMIT = 40;
 const LANGUAGES = ['zh-Hant', 'ja', 'en'] as const;
@@ -74,17 +77,7 @@ interface RenderRow extends LifecycleRow {
 export function createPodcastPipelineService(input: {
   config: ControlCenterConfig;
 }) {
-  const configured = Boolean(
-    input.config.SUPABASE_URL && input.config.SUPABASE_SERVICE_ROLE_KEY,
-  );
-
-  const client = configured
-    ? createServiceRoleClient(
-        input.config.SUPABASE_URL!,
-        input.config.SUPABASE_SERVICE_ROLE_KEY!,
-        input.config.SUPABASE_DB_SCHEMA,
-      )
-    : null;
+  const client = createConfiguredServiceRoleClient(input.config);
 
   return {
     async getPipeline(): Promise<PodcastPipelineResponse> {
@@ -171,9 +164,12 @@ export function createPodcastPipelineService(input: {
         }
         if (!historyResult.error) {
           const historyBySource = new Map(
-            ((historyResult.data ?? []) as { source_url: string; failure_history: unknown }[]).map(
-              (row) => [row.source_url, row.failure_history] as const,
-            ),
+            (
+              (historyResult.data ?? []) as {
+                source_url: string;
+                failure_history: unknown;
+              }[]
+            ).map((row) => [row.source_url, row.failure_history] as const),
           );
           for (const row of ingestRows) {
             row.failure_history = historyBySource.get(row.source_url) ?? [];
@@ -207,8 +203,12 @@ export function createPodcastPipelineService(input: {
         p_episode_id: episodeId,
         p_language_code: 'zh-Hant',
       });
-      if (error) throw error;
-      if (!data) throw new Error('Ingest retry changed no episode');
+      if (error) {
+        throw error;
+      }
+      if (!data) {
+        throw new Error('Ingest retry changed no episode');
+      }
     },
 
     async restartVideo(
@@ -231,8 +231,12 @@ export function createPodcastPipelineService(input: {
         'retry_episode_video_generation',
         parameters,
       );
-      if (error) throw error;
-      if (data !== true) throw new Error('Video retry changed no episode');
+      if (error) {
+        throw error;
+      }
+      if (data !== true) {
+        throw new Error('Video retry changed no episode');
+      }
     },
 
     async restartRender(
@@ -247,8 +251,12 @@ export function createPodcastPipelineService(input: {
         p_episode_localization_id: localizationId,
         p_visual_version: EPISODE_VIDEO_VISUAL_VERSION,
       });
-      if (error) throw error;
-      if (data !== true) throw new Error('Render retry changed no episode');
+      if (error) {
+        throw error;
+      }
+      if (data !== true) {
+        throw new Error('Render retry changed no episode');
+      }
     },
   };
 }
@@ -636,7 +644,8 @@ function jobState(row: LifecycleRow, now: Date): PodcastPipelineJobState {
   const status = normalizeJobStatus(row.status, row.lease_expires_at, now);
   return {
     status,
-    progressPercent: status === 'completed' ? null : (row.progress_percent ?? null),
+    progressPercent:
+      status === 'completed' ? null : (row.progress_percent ?? null),
     stage: status === 'completed' ? null : (row.progress_stage ?? null),
     attempts: row.attempt_count,
     lastError: row.last_error,
@@ -645,17 +654,19 @@ function jobState(row: LifecycleRow, now: Date): PodcastPipelineJobState {
   };
 }
 
-function visualJobState(row: VisualRow, now: Date): PodcastPipelineJobState {
-  const base = jobState(row, now);
-  const status = normalizeVersionedJobStatus(
-    base.status,
-    row.visual_version,
-  );
+function versionedJobState(
+  base: PodcastPipelineJobState,
+  visualVersion: string | null | undefined,
+): PodcastPipelineJobState {
   return {
     ...base,
-    status,
-    visualVersion: row.visual_version ?? null,
+    status: normalizeVersionedJobStatus(base.status, visualVersion),
+    visualVersion: visualVersion ?? null,
   };
+}
+
+function visualJobState(row: VisualRow, now: Date): PodcastPipelineJobState {
+  return versionedJobState(jobState(row, now), row.visual_version);
 }
 
 function ingestState(row: IngestRow, now: Date): PodcastPipelineIngestState {
@@ -687,15 +698,17 @@ function renderState(
   now: Date,
   visual: PodcastPipelineJobState | null,
 ): PodcastPipelineRenderState {
-  const base = jobState(row, now);
-  const status = normalizeVersionedJobStatus(base.status, row.visual_version);
+  const versioned = versionedJobState(jobState(row, now), row.visual_version);
   return {
-    ...base,
-    status,
-    visualVersion: row.visual_version ?? null,
+    ...versioned,
     localizationId: row.episode_localization_id,
     languageCode,
-    canRestart: canRestartRender(status, base.leaseExpiresAt, visual, now),
+    canRestart: canRestartRender(
+      versioned.status,
+      versioned.leaseExpiresAt,
+      visual,
+      now,
+    ),
   };
 }
 
@@ -746,7 +759,9 @@ function normalizeVersionedJobStatus(
   status: PodcastPipelineStatus,
   visualVersion: string | null | undefined,
 ): PodcastPipelineStatus {
-  if (status === 'failed' || status === 'completed') return status;
+  if (status === 'failed' || status === 'completed') {
+    return status;
+  }
   if (
     (status === 'queued' || status === 'stuck') &&
     visualVersion &&
@@ -777,9 +792,13 @@ function canRestartRender(
 function parseIngestFailureHistory(
   value: unknown,
 ): PodcastPipelineIngestFailure[] {
-  if (!Array.isArray(value)) return [];
+  if (!Array.isArray(value)) {
+    return [];
+  }
   return value.flatMap((entry) => {
-    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return [];
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+      return [];
+    }
     const row = entry as Record<string, unknown>;
     const kind = row['kind'];
     const at = row['at'];
@@ -802,15 +821,6 @@ function parseIngestFailureHistory(
       },
     ];
   });
-}
-
-function isMissingColumnError(error: unknown): boolean {
-  return Boolean(
-    error &&
-      typeof error === 'object' &&
-      'code' in error &&
-      (error as { code?: unknown }).code === '42703',
-  );
 }
 
 function leaseIsActive(value: string | null, now: Date): boolean {

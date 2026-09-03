@@ -22,6 +22,7 @@ import {
   type TelegramChatId,
   type TelegramSendMessageOptions,
 } from './telegram.js';
+import { visualFailureDiagnosticsFor } from './video/visual-diagnostics.js';
 import {
   EPISODE_VIDEO_VISUAL_VERSION,
   type EpisodeVideoCompletion,
@@ -37,9 +38,6 @@ import {
   type VideoJobRepository,
   type VisualJobRepository,
 } from './video-jobs.js';
-import {
-  visualFailureDiagnosticsFor,
-} from './video/visual-diagnostics.js';
 import type { EpisodeVideoProgressUpdate } from './video-progress.js';
 
 export const VIDEO_WORKER_POLL_INTERVAL_MS = 15_000;
@@ -237,7 +235,9 @@ export function createVideoWorker(
         await notify(
           failure.telegramChatId,
           buildTelegramVideoFailedMessage(failure.episodeId, failure.lastError),
-          { replyMarkup: buildTelegramVideoRetryReplyMarkup(failure.episodeId) },
+          {
+            replyMarkup: buildTelegramVideoRetryReplyMarkup(failure.episodeId),
+          },
         );
       } catch (error) {
         // Leave the row unstamped so a later poll retries the notification.

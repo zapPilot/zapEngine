@@ -12,7 +12,10 @@ import {
   splitPodcastVisualSections,
 } from './podcast-packaging.js';
 import { scrapeArticle } from './scrape.js';
-import { uploadEpisodeVisualAssetsToR2 } from './storage.js';
+import {
+  uploadEpisodeVisualAssetsToR2,
+  uploadEpisodeVisualCheckpointImageToR2,
+} from './storage.js';
 import { analyzeEpisodeAudio } from './video/episode-video.js';
 import {
   buildEpisodeVisualPayload,
@@ -39,12 +42,25 @@ import type {
   VisualSceneSubjectAssignment,
   VisualSubjectCatalog,
 } from './video/storyboard/subject-catalog.js';
+import type {
+  VisualAssetPlan,
+  VisualAssetProgress,
+} from './video/visual-asset-planner.js';
+import {
+  appendVisualCheckpointScene,
+  buildVisualCheckpoint,
+  type DownloadCheckpointImage,
+  downloadVisualCheckpointImage,
+  parseVisualCheckpoint,
+  restoreVisualCheckpointPlan,
+  restoreVisualStoryboard,
+  type VisualCheckpoint,
+} from './video/visual-checkpoint.js';
 import {
   buildVisualFailureDiagnostics,
   type VisualFailureStage,
   VisualPlanningError,
 } from './video/visual-diagnostics.js';
-import type { VisualAssetProgress } from './video/visual-asset-planner.js';
 import {
   EPISODE_VIDEO_VISUAL_VERSION,
   type EpisodeVideoVisualCompletion,
@@ -79,6 +95,8 @@ interface EpisodeVideoVisualProcessorDependencies {
   scrape: typeof scrapeArticle;
   planAssets: typeof planPodcastVisualAssets;
   upload: typeof uploadEpisodeVisualAssetsToR2;
+  uploadCheckpointImage: typeof uploadEpisodeVisualCheckpointImageToR2;
+  downloadCheckpointImage: DownloadCheckpointImage;
   makeTemporaryDirectory: (prefix: string) => Promise<string>;
   writeManifest: typeof writeFile;
   removeDirectory: typeof rm;
@@ -93,6 +111,8 @@ const defaultDependencies: EpisodeVideoVisualProcessorDependencies = {
   scrape: scrapeArticle,
   planAssets: planPodcastVisualAssets,
   upload: uploadEpisodeVisualAssetsToR2,
+  uploadCheckpointImage: uploadEpisodeVisualCheckpointImageToR2,
+  downloadCheckpointImage: downloadVisualCheckpointImage,
   makeTemporaryDirectory: mkdtemp,
   writeManifest: writeFile,
   removeDirectory: rm,
@@ -114,21 +134,14 @@ export function createEpisodeVideoVisualProcessor(
     let failureStage: VisualFailureStage = 'analyze-audio';
     const failureSnapshot: Record<string, unknown> = {};
 
+    const identity = {
+      visualVersion: job.visual_version,
+      sourceHash: job.source_hash,
+    };
+    const resumed = parseVisualCheckpoint(job.checkpoint, identity);
+
     try {
-      context.reportProgress(visualStageProgress('analyzing-audio', 0));
-      const analysis = await dependencies.analyzeAudio(source.hlsUrl, {
-        signal: context.signal,
-      });
-      context.reportProgress(visualStageProgress('analyzing-audio'));
       const visualSections = splitPodcastVisualSections(source.script);
-      logVisualProgress(dependencies.logger, 'visual:sections', {
-        run: context.runId,
-        episode: source.episodeId,
-        intro: String(visualSections.intro ? 1 : 0),
-        body: String(visualSections.body.length),
-        outro: String(visualSections.outro ? 1 : 0),
-      });
-      const editorialScript = getPodcastEditorialScript(source.script);
       const englishBodyScript = getEnglishBodyScript(
         source.englishScript,
         visualSections.isPackaged,
@@ -146,104 +159,140 @@ export function createEpisodeVideoVisualProcessor(
       } else if (englishTitle) {
         searchTitleSource = 'english-localization';
       }
-      const editorialSentences = getPodcastEditorialSentences(source.script);
-      failureStage = 'storyboard';
-      const generated = await dependencies.generateStoryboard({
-        title: source.title,
-        script: source.script,
-        editorialScript,
-        editorialSentences,
-        isPackaged: visualSections.isPackaged,
-        ...(visualSearchTitle ? { searchTitle: visualSearchTitle } : {}),
-        searchScript: englishBodyScript,
-        durationMs: analysis.durationMs,
-        signal: context.signal,
-      });
-      logVisualProgress(dependencies.logger, 'visual:storyboard', {
-        run: context.runId,
-        episode: source.episodeId,
-        editorialSentences: String(visualSections.body.length),
-        packagingExcluded: String(
-          visualSections.isPackaged
-            ? splitCanonicalSentences(source.script).length -
-                visualSections.body.length
-            : 0,
-        ),
-        searchTitleSource,
-      });
-      failureStage = 'branding';
-      const brandedDraft = applyAndValidatePodcastBrandingToStoryboard(
-        source.script,
-        generated.draft,
-        analysis.durationMs,
-      );
-      const brandSceneCount = brandedDraft.scenes.filter(
-        (scene) => podcastBrandVisualKind(scene.imageSearchIntent) !== null,
-      ).length;
-      if (brandSceneCount === 0) {
-        logVisualProgress(dependencies.logger, 'visual:branding', {
+
+      const prepareStoryboard = async (): Promise<PreparedStoryboard> => {
+        context.reportProgress(visualStageProgress('analyzing-audio', 0));
+        const analysis = await dependencies.analyzeAudio(source.hlsUrl, {
+          signal: context.signal,
+        });
+        context.reportProgress(visualStageProgress('analyzing-audio'));
+        logVisualProgress(dependencies.logger, 'visual:sections', {
           run: context.runId,
           episode: source.episodeId,
-          status: 'skipped',
-          reason: 'unpackaged-script',
+          intro: String(visualSections.intro ? 1 : 0),
+          body: String(visualSections.body.length),
+          outro: String(visualSections.outro ? 1 : 0),
         });
-      } else {
-        const outroScene = brandedDraft.scenes.find(
-          (scene) =>
-            podcastBrandVisualKind(scene.imageSearchIntent) === 'outro',
-        );
-        if (outroScene) {
-          logVisualProgress(dependencies.logger, 'visual:branding', {
-            run: context.runId,
-            episode: source.episodeId,
-            kind: 'zap-pilot-outro',
-            sceneId: outroScene.sceneId,
-          });
-        }
-      }
-
-      failureStage = 'search-intents';
-      const intents = await dependencies.enrichSearchIntents(
-        {
-          draft: brandedDraft,
+        const editorialScript = getPodcastEditorialScript(source.script);
+        const editorialSentences = getPodcastEditorialSentences(source.script);
+        failureStage = 'storyboard';
+        const generated = await dependencies.generateStoryboard({
           title: source.title,
-          ...(visualSearchTitle ? { searchTitle: visualSearchTitle } : {}),
           script: source.script,
-          ...(englishBodyScript ? { searchScript: englishBodyScript } : {}),
-        },
-        { signal: context.signal },
-      );
-      const subjectCatalog = intents.subjectCatalog;
-      const sceneAssignments = intents.sceneAssignments;
-      failureSnapshot['searchIntentModel'] = intents.model;
+          editorialScript,
+          editorialSentences,
+          isPackaged: visualSections.isPackaged,
+          ...(visualSearchTitle ? { searchTitle: visualSearchTitle } : {}),
+          searchScript: englishBodyScript,
+          durationMs: analysis.durationMs,
+          signal: context.signal,
+        });
+        logVisualProgress(dependencies.logger, 'visual:storyboard', {
+          run: context.runId,
+          episode: source.episodeId,
+          editorialSentences: String(visualSections.body.length),
+          packagingExcluded: String(
+            visualSections.isPackaged
+              ? splitCanonicalSentences(source.script).length -
+                  visualSections.body.length
+              : 0,
+          ),
+          searchTitleSource,
+        });
+        failureStage = 'branding';
+        const brandedDraft = applyAndValidatePodcastBrandingToStoryboard(
+          source.script,
+          generated.draft,
+          analysis.durationMs,
+        );
+        logBranding(
+          dependencies.logger,
+          context.runId,
+          source.episodeId,
+          brandedDraft,
+        );
+
+        failureStage = 'search-intents';
+        const intents = await dependencies.enrichSearchIntents(
+          {
+            draft: brandedDraft,
+            title: source.title,
+            ...(visualSearchTitle ? { searchTitle: visualSearchTitle } : {}),
+            script: source.script,
+            ...(englishBodyScript ? { searchScript: englishBodyScript } : {}),
+          },
+          { signal: context.signal },
+        );
+        logVisualProgress(dependencies.logger, 'visual:intents', {
+          run: context.runId,
+          episode: source.episodeId,
+          enriched: `${intents.enrichedSceneCount}/${intents.draft.scenes.length}`,
+          brand: countBrandScenes(brandedDraft),
+          entities: intents.entityAnchoredSceneCount,
+          subjects: intents.subjectCatalog?.subjects.length,
+          primarySubject: intents.subjectCatalog?.primarySubjectId,
+          model: intents.model ?? 'deterministic',
+        });
+        return {
+          storyboard: { ...generated, draft: intents.draft },
+          searchIntentModel: intents.model,
+          subjectCatalog: intents.subjectCatalog,
+          sceneAssignments: intents.sceneAssignments,
+          resumePlan: null,
+        };
+      };
+
+      const prepared = resumed
+        ? await restorePreparedStoryboard(resumed, {
+            workingDirectory: join(outputDirectory, 'images'),
+            signal: context.signal,
+            download: dependencies.downloadCheckpointImage,
+          })
+        : await prepareStoryboard();
+      const {
+        storyboard,
+        searchIntentModel,
+        subjectCatalog,
+        sceneAssignments,
+      } = prepared;
+      failureSnapshot['searchIntentModel'] = searchIntentModel;
       failureSnapshot['subjectCatalog'] = subjectCatalog;
       failureSnapshot['sceneAssignments'] = sceneAssignments;
-      failureSnapshot['scenes'] = intents.draft.scenes.map((scene) => ({
+      failureSnapshot['scenes'] = storyboard.draft.scenes.map((scene) => ({
         sceneId: scene.sceneId,
         imageSearchIntent: scene.imageSearchIntent,
         imageSearchEntities: scene.imageSearchEntities,
       }));
-      const storyboard = {
-        ...generated,
-        draft: intents.draft,
-      };
-      logVisualProgress(dependencies.logger, 'visual:intents', {
-        run: context.runId,
-        episode: source.episodeId,
-        enriched: `${intents.enrichedSceneCount}/${intents.draft.scenes.length}`,
-        brand: brandSceneCount,
-        entities: intents.entityAnchoredSceneCount,
-        subjects: subjectCatalog?.subjects.length,
-        primarySubject: subjectCatalog?.primarySubjectId,
-        model: intents.model ?? 'deterministic',
-      });
+      failureSnapshot['resumedScenes'] =
+        prepared.resumePlan?.scenes.length ?? 0;
+
+      let checkpoint: VisualCheckpoint =
+        resumed ??
+        buildVisualCheckpoint({
+          identity,
+          storyboard,
+          searchIntentModel,
+          subjectCatalog,
+          sceneAssignments,
+          searchTitleSource,
+        });
+      if (resumed) {
+        logVisualProgress(dependencies.logger, 'visual:checkpoint', {
+          run: context.runId,
+          episode: source.episodeId,
+          phase: 'resumed',
+          resumedScenes: `${resumed.scenes.length}/${storyboard.draft.scenes.length}`,
+        });
+      } else {
+        await saveCheckpointOrThrow(context, checkpoint);
+      }
 
       const debugPayload = buildVisualSearchDebugPayload({
         subjectCatalog,
         sceneAssignments,
         scenes: storyboard.draft.scenes,
         searchTitleSource,
-        model: intents.model,
+        model: searchIntentModel,
       });
       if (job.lease_owner) {
         const persisted = await dependencies.persistDebug(
@@ -277,13 +326,22 @@ export function createEpisodeVideoVisualProcessor(
         elapsedMs: Date.now() - searchStartedAt,
       });
 
-      failureSnapshot['articleImageCandidateCount'] = articleImageCandidateCount;
+      failureSnapshot['articleImageCandidateCount'] =
+        articleImageCandidateCount;
       const sceneSentences = sceneSentencesForDraft(
         source.script,
         storyboard.draft,
       );
       const sceneEvidence = new Map(
-        sceneSentences.map((scene) => [scene.sceneId, { text: scene.text }] as const),
+        sceneSentences.map((scene) => {
+          const searchText = storyboard.draft.scenes
+            .find((candidate) => candidate.sceneId === scene.sceneId)
+            ?.imageSearchIntent.join(' ');
+          return [
+            scene.sceneId,
+            { text: scene.text, ...(searchText ? { searchText } : {}) },
+          ] as const;
+        }),
       );
       const searchTrace: VisualSearchTraceEntry[] = [];
       let assetPlan: Awaited<ReturnType<typeof planPodcastVisualAssets>>;
@@ -295,6 +353,39 @@ export function createEpisodeVideoVisualProcessor(
           workingDirectory: join(outputDirectory, 'images'),
           selectionMode: 'resilient',
           signal: context.signal,
+          ...(prepared.resumePlan ? { resumePlan: prepared.resumePlan } : {}),
+          onSelection: async (selection) => {
+            // Best effort: a lost R2 write only costs the resume of this scene.
+            // A lost lease must stop the job, exactly like the debug checkpoint.
+            let r2Url: string;
+            try {
+              r2Url = await dependencies.uploadCheckpointImage({
+                episodeId: source.episodeId,
+                visualVersion: job.visual_version,
+                sourceHash: job.source_hash,
+                assetId: selection.asset.assetId,
+                path: selection.asset.path,
+                contentType: selection.asset.contentType,
+                signal: context.signal,
+              });
+            } catch (error) {
+              if (context.signal.aborted) throw error;
+              logVisualProgress(dependencies.logger, 'visual:checkpoint', {
+                run: context.runId,
+                episode: source.episodeId,
+                phase: 'image-upload-skipped',
+                scene: selection.sceneId,
+                error: error instanceof Error ? error.message : String(error),
+              });
+              return;
+            }
+            checkpoint = appendVisualCheckpointScene(checkpoint, {
+              sceneId: selection.sceneId,
+              asset: selection.asset,
+              r2Url,
+            });
+            await saveCheckpointOrThrow(context, checkpoint);
+          },
           slideFallback: {
             title: visualSearchTitle || source.title,
             sceneEvidence,
@@ -317,7 +408,7 @@ export function createEpisodeVideoVisualProcessor(
                 scene: progress.sceneId,
                 asset: progress.assetId,
                 rejectionSummary: progress.rejectionSummary ?? 'none',
-                lead: progress.sceneIndex === 1,
+                lead: String(progress.sceneIndex === 1),
               });
             }
             if (progress.phase === 'assets' || progress.phase === 'slide') {
@@ -414,7 +505,7 @@ export function createEpisodeVideoVisualProcessor(
         canonicalLocalizationId: source.canonicalLocalizationId,
         manifestUrl: uploaded.manifestUrl,
         storyboard,
-        searchIntentModel: intents.model,
+        searchIntentModel,
         selectedScenes: assetPlan.scenes,
         assets: assetPlan.assets,
         r2ImageUrls: uploaded.imageUrls,
@@ -733,3 +824,85 @@ function logVisualProgress(
 }
 
 export const processEpisodeVideoVisualJob = createEpisodeVideoVisualProcessor();
+
+interface PreparedStoryboard {
+  storyboard: StoryboardGenerationResult;
+  searchIntentModel: string | null;
+  subjectCatalog: VisualSubjectCatalog | null;
+  sceneAssignments: VisualSceneSubjectAssignment[];
+  resumePlan: VisualAssetPlan | null;
+}
+
+async function restorePreparedStoryboard(
+  checkpoint: VisualCheckpoint,
+  options: {
+    workingDirectory: string;
+    signal: AbortSignal;
+    download: DownloadCheckpointImage;
+  },
+): Promise<PreparedStoryboard> {
+  // The legacy (no subject catalog) planner renumbers assets after a cover
+  // pass, which would desynchronize checkpointed asset ids; only the subject
+  // catalog path resumes selected scenes. Storyboard and intents resume in both.
+  const resumeScenes = checkpoint.subjectCatalog !== null;
+  return {
+    storyboard: restoreVisualStoryboard(checkpoint),
+    searchIntentModel: checkpoint.searchIntentModel,
+    subjectCatalog: checkpoint.subjectCatalog,
+    sceneAssignments: [...checkpoint.sceneAssignments],
+    resumePlan:
+      resumeScenes && checkpoint.scenes.length > 0
+        ? await restoreVisualCheckpointPlan(checkpoint, options)
+        : null,
+  };
+}
+
+async function saveCheckpointOrThrow(
+  context: ProcessEpisodeVideoVisualJobContext,
+  checkpoint: VisualCheckpoint,
+): Promise<void> {
+  if (!(await context.saveCheckpoint(checkpoint))) {
+    throw new Error('Visual checkpoint lost its job lease');
+  }
+}
+
+function countBrandScenes(draft: {
+  scenes: readonly { imageSearchIntent: readonly string[] }[];
+}): number {
+  return draft.scenes.filter(
+    (scene) => podcastBrandVisualKind(scene.imageSearchIntent) !== null,
+  ).length;
+}
+
+function logBranding(
+  logger: Pick<Console, 'info'>,
+  runId: string,
+  episodeId: string,
+  draft: {
+    scenes: readonly {
+      sceneId: string;
+      imageSearchIntent: readonly string[];
+    }[];
+  },
+): void {
+  if (countBrandScenes(draft) === 0) {
+    logVisualProgress(logger, 'visual:branding', {
+      run: runId,
+      episode: episodeId,
+      status: 'skipped',
+      reason: 'unpackaged-script',
+    });
+    return;
+  }
+  const outroScene = draft.scenes.find(
+    (scene) => podcastBrandVisualKind(scene.imageSearchIntent) === 'outro',
+  );
+  if (outroScene) {
+    logVisualProgress(logger, 'visual:branding', {
+      run: runId,
+      episode: episodeId,
+      kind: 'zap-pilot-outro',
+      sceneId: outroScene.sceneId,
+    });
+  }
+}

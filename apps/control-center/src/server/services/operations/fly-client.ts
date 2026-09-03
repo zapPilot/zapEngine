@@ -141,7 +141,9 @@ function toMachine(machine: z.infer<typeof machineSchema>): FlyMachine {
     events: (machine.events ?? [])
       .flatMap((row) => {
         const parsed = eventSchema.safeParse(row);
-        if (!parsed.success) return [];
+        if (!parsed.success) {
+          return [];
+        }
         const timestamp = parsed.data.timestamp;
         return [
           {

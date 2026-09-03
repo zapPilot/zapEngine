@@ -71,17 +71,18 @@ import {
   isAllowedUser,
   parseTelegramCallbackData,
   parseTelegramCommand,
-  TELEGRAM_HELP_TEXT,
   TELEGRAM_NO_URL_TEXT,
+  type TelegramChatId,
   verifySecret,
 } from './services/telegram.js';
 import {
-  handleTelegramRetryCommand,
-  handleTelegramRetryVideoCallback,
-  handleTelegramStatusCommand,
-  telegramCommandErrorText,
+  dispatchTelegramCommand,
+  scheduleTelegramRetryVideoCallback,
 } from './services/telegram-commands.js';
-import { createTelegramIngestQueue } from './services/telegram-ingest-queue.js';
+import {
+  createTelegramIngestQueue,
+  type TelegramIngestQueue,
+} from './services/telegram-ingest-queue.js';
 import {
   buildEpisodeVideoGenerationForLocalizations,
   loadEpisodeVideoGeneration,
@@ -296,38 +297,18 @@ export function createApp(): Hono {
       }
 
       if (action.kind === 'retry-video') {
-        process.nextTick(() => {
-          void handleTelegramRetryVideoCallback(action.episodeId)
-            .then((text) => answerTelegramCallbackQuery(callbackId, text))
-            .catch((error) =>
-              answerTelegramCallbackQuery(callbackId, telegramCommandErrorText(error)),
-            );
-        });
+        scheduleTelegramRetryVideoCallback(callbackId, action.episodeId);
         return emptyTelegramResponse(c);
       }
 
-      const callbackText = callbackQuery.message?.text;
-      if (typeof callbackText !== 'string') return emptyTelegramResponse(c);
-      const retryUrl = extractFailureSourceUrl(callbackText);
-      if (!retryUrl) {
-        void answerTelegramCallbackQuery(callbackId, '找不到原始 URL');
-        return emptyTelegramResponse(c);
-      }
-
-      let parsedRetryUrl: string;
-      try {
-        parsedRetryUrl = parseInputUrl(retryUrl);
-      } catch {
-        void answerTelegramCallbackQuery(callbackId, '原始 URL 無效');
-        return emptyTelegramResponse(c);
-      }
-
-      telegramIngestQueue.enqueue(
-        callbackChatId,
-        parsedRetryUrl,
-        DEFAULT_LANGUAGE_CODE,
+      void answerTelegramCallbackQuery(
+        callbackId,
+        retryIngestFromCallback(
+          callbackQuery.message?.text,
+          callbackChatId,
+          telegramIngestQueue,
+        ),
       );
-      void answerTelegramCallbackQuery(callbackId, '已重新排程');
       return emptyTelegramResponse(c);
     }
 
@@ -348,37 +329,7 @@ export function createApp(): Hono {
     const text = typeof message.text === 'string' ? message.text.trim() : '';
     const command = parseTelegramCommand(text);
     if (command) {
-      if (command.name === 'start' || command.name === 'help' || command.name === 'unknown') {
-        telegramIngestQueue.scheduleMessage(chatId, TELEGRAM_HELP_TEXT);
-        return emptyTelegramResponse(c);
-      }
-      if (!command.argument) {
-        telegramIngestQueue.scheduleMessage(
-          chatId,
-          command.name === 'retry'
-            ? '用法：/retry <URL|episodeId>'
-            : '用法：/status <episodeId>',
-        );
-        return emptyTelegramResponse(c);
-      }
-      process.nextTick(() => {
-        const work =
-          command.name === 'retry'
-            ? handleTelegramRetryCommand({
-                chatId,
-                target: command.argument!,
-                queue: telegramIngestQueue,
-              })
-            : handleTelegramStatusCommand(command.argument!);
-        void work
-          .then((reply) => telegramIngestQueue.scheduleMessage(chatId, reply))
-          .catch((error) =>
-            telegramIngestQueue.scheduleMessage(
-              chatId,
-              telegramCommandErrorText(error),
-            ),
-          );
-      });
+      dispatchTelegramCommand({ command, chatId, queue: telegramIngestQueue });
       return emptyTelegramResponse(c);
     }
 
@@ -699,3 +650,24 @@ if (process.env['NODE_ENV'] !== 'test') {
 }
 
 export default app;
+
+/** Ingest retry button: the source URL lives in the failure message text. */
+function retryIngestFromCallback(
+  messageText: unknown,
+  chatId: TelegramChatId,
+  queue: TelegramIngestQueue,
+): string {
+  const retryUrl =
+    typeof messageText === 'string'
+      ? extractFailureSourceUrl(messageText)
+      : null;
+  if (!retryUrl) return '找不到原始 URL';
+  let parsedRetryUrl: string;
+  try {
+    parsedRetryUrl = parseInputUrl(retryUrl);
+  } catch {
+    return '原始 URL 無效';
+  }
+  queue.enqueue(chatId, parsedRetryUrl, DEFAULT_LANGUAGE_CODE);
+  return '已重新排程';
+}

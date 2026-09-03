@@ -625,7 +625,10 @@ export function classifyVideoRetryError(
   }
   if (code === '22023') {
     if (message.includes('already completed')) return 'completed';
-    if (message.includes('no video visual job') || message.includes('does not exist')) {
+    if (
+      message.includes('no video visual job') ||
+      message.includes('does not exist')
+    ) {
       return 'missing';
     }
     return 'prerequisites';

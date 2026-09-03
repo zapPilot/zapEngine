@@ -8,8 +8,13 @@ import {
   isMissingSupabaseRpc,
   throwSupabaseError,
 } from './supabase-client.js';
+import {
+  answerTelegramCallbackQuery,
+  TELEGRAM_HELP_TEXT,
+  type TelegramChatId,
+  type TelegramCommand,
+} from './telegram.js';
 import type { TelegramIngestQueue } from './telegram-ingest-queue.js';
-import type { TelegramChatId } from './telegram.js';
 import { retryEpisodeVideoGeneration } from './video-jobs.js';
 
 const PRIMARY_LANGUAGES = ['zh-Hant', 'ja', 'en'] as const;
@@ -36,13 +41,8 @@ interface VisualStatusRow {
   visual_version: string | null;
 }
 
-interface RenderStatusRow {
+interface RenderStatusRow extends VisualStatusRow {
   episode_localization_id: string;
-  status: string;
-  progress_stage: string | null;
-  progress_percent: number | null;
-  last_error: string | null;
-  visual_version: string | null;
 }
 
 export async function resolveTelegramEpisodeTarget(
@@ -73,9 +73,7 @@ export async function resolveTelegramEpisodeTarget(
     .order('created_at', { ascending: false })
     .limit(1);
   if (error) throwSupabaseError(error);
-  const row = Array.isArray(data)
-    ? (data[0] as { id: string; source_url: string } | undefined)
-    : undefined;
+  const row = Array.isArray(data) ? data[0] : undefined;
   return row ? { episodeId: row.id, sourceUrl: row.source_url } : null;
 }
 
@@ -182,7 +180,9 @@ export async function handleTelegramStatusCommand(
       const localization = localizations.find(
         (row) => row.language_code === language,
       );
-      const audio = localization ? audioReadyForLocalization(localization) : false;
+      const audio = localization
+        ? audioReadyForLocalization(localization)
+        : false;
       const render = renderByLanguage.get(language);
       return `${language}: script ${localization?.script?.trim() ? '✓' : '—'} · audio ${audio ? '✓' : '—'} · render ${render ? formatJobStatus(render.status, render.progress_stage, render.progress_percent, render.last_error) : 'not scheduled'}`;
     }),
@@ -200,7 +200,7 @@ async function loadLocalizationStatuses(
     .eq('episode_id', episodeId)
     .in('language_code', [...PRIMARY_LANGUAGES]);
   if (error) throwSupabaseError(error);
-  return (data ?? []) as LocalizationStatusRow[];
+  return data ?? [];
 }
 
 function audioReady(rows: readonly LocalizationStatusRow[]): boolean {
@@ -250,3 +250,77 @@ export function telegramCommandErrorText(error: unknown): string {
 }
 
 export type { LanguageClassroomLanguageCode };
+
+/**
+ * Webhook helpers. Both keep the fast-ack contract: the handler returns before
+ * any Supabase work runs, and every reply goes through the queue's scheduler
+ * (or the callback answer) so a failure never reaches Telegram as a 500.
+ */
+export function scheduleTelegramRetryVideoCallback(
+  callbackId: string,
+  episodeId: string,
+  answer: (
+    callbackId: string,
+    text: string,
+  ) => Promise<unknown> = answerTelegramCallbackQuery,
+): void {
+  process.nextTick(() => {
+    void (async () => {
+      let text: string;
+      try {
+        text = await handleTelegramRetryVideoCallback(episodeId);
+      } catch (error) {
+        text = telegramCommandErrorText(error);
+      }
+      try {
+        await answer(callbackId, text);
+      } catch {
+        // The callback answer is best effort; the retry itself already ran.
+      }
+    })();
+  });
+}
+
+export function dispatchTelegramCommand(input: {
+  command: TelegramCommand;
+  chatId: TelegramChatId;
+  queue: TelegramIngestQueue;
+}): void {
+  const { command, chatId, queue } = input;
+  if (
+    command.name === 'start' ||
+    command.name === 'help' ||
+    command.name === 'unknown'
+  ) {
+    queue.scheduleMessage(chatId, TELEGRAM_HELP_TEXT);
+    return;
+  }
+  const argument = command.argument;
+  if (!argument) {
+    queue.scheduleMessage(
+      chatId,
+      command.name === 'retry'
+        ? '用法：/retry <URL|episodeId>'
+        : '用法：/status <episodeId>',
+    );
+    return;
+  }
+  process.nextTick(() => {
+    void (async () => {
+      let reply: string;
+      try {
+        reply =
+          command.name === 'retry'
+            ? await handleTelegramRetryCommand({
+                chatId,
+                target: argument,
+                queue,
+              })
+            : await handleTelegramStatusCommand(argument);
+      } catch (error) {
+        reply = telegramCommandErrorText(error);
+      }
+      queue.scheduleMessage(chatId, reply);
+    })();
+  });
+}
