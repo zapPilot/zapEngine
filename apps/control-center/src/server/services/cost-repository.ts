@@ -2,32 +2,23 @@ import type {
   CostPricingRate,
   CostProvider,
   CostSnapshot,
-  CostType,
-  CostUsageItem,
 } from '@zapengine/cost-observability';
 
 import type {
   CostHistoryResponse,
   CostProviderResult,
   CostTransactionKind,
-  ProviderMonthCost,
 } from '../../shared/types.js';
 import type { ControlCenterConfig } from '../config/env.js';
+import {
+  aggregateByProviderForMonth,
+  aggregateDaily,
+  aggregateMonthly,
+  sumNumbers,
+  toProviderResults,
+  type SnapshotRow,
+} from './cost-history-aggregate.js';
 import { createServiceRoleClient } from './supabase.js';
-
-interface SnapshotRow {
-  provider: CostProvider;
-  snapshot_date: string;
-  period_start: string;
-  period_end: string;
-  accrued_cost_usd: number | string | null;
-  projected_cost_usd: number | string | null;
-  cost_type: CostType;
-  source: CostSnapshot['source'];
-  usage: CostUsageItem[];
-  pricing_rate_id: string | null;
-  fetched_at: string;
-}
 
 interface RateRow {
   id: string;
@@ -44,20 +35,18 @@ interface TransactionRow {
   charged_at: string;
 }
 
-const PROVIDER_LABELS: Record<CostProvider, string> = {
-  debank: 'DeBank',
-  openrouter: 'OpenRouter',
-  supabase: 'Supabase',
-  fly: 'Fly.io',
-};
-
 export interface CostRepository {
   loadPricingRates(): Promise<CostPricingRate[]>;
   upsertSnapshot(
     snapshot: CostSnapshot,
     pricingRateId: string | null,
   ): Promise<void>;
-  loadLatestProviders(): Promise<CostProviderResult[]>;
+  /**
+   * The provider cards for the month `now` falls in. A provider whose newest
+   * row predates that month is reported as having no current figure, so a
+   * caller cannot sum last month's bill into this month's headline.
+   */
+  loadLatestProviders(now: Date): Promise<CostProviderResult[]>;
   loadHistory(now: Date): Promise<CostHistoryResponse>;
   insertTransaction(input: {
     provider: CostProvider;
@@ -128,53 +117,21 @@ export function createCostRepository(
       }
     },
 
-    async loadLatestProviders() {
+    async loadLatestProviders(now) {
       const { data, error } = await client
         .from('ops_cost_snapshots')
         .select(
           'provider,snapshot_date,period_start,period_end,accrued_cost_usd,projected_cost_usd,cost_type,source,usage,pricing_rate_id,fetched_at',
         )
+        // Descending is load-bearing: `toProviderResults` keeps the first row
+        // it meets per provider, so the newest has to arrive first.
         .order('snapshot_date', { ascending: false })
         .order('fetched_at', { ascending: false })
         .limit(100);
       if (error) {
         throw error;
       }
-      const latest = new Map<CostProvider, SnapshotRow>();
-      for (const row of (data ?? []) as SnapshotRow[]) {
-        if (!latest.has(row.provider)) {
-          latest.set(row.provider, row);
-        }
-      }
-      return (Object.keys(PROVIDER_LABELS) as CostProvider[]).map(
-        (provider) => {
-          const row = latest.get(provider);
-          if (!row) {
-            return {
-              provider,
-              label: PROVIDER_LABELS[provider],
-              status: 'unconfigured' as const,
-              costType:
-                provider === 'supabase'
-                  ? ('fixed' as const)
-                  : ('estimated' as const),
-              snapshot: null,
-              message:
-                provider === 'fly'
-                  ? 'Needs current estimate'
-                  : 'No snapshot yet',
-            };
-          }
-          return {
-            provider,
-            label: PROVIDER_LABELS[provider],
-            status: 'ok' as const,
-            costType: row.cost_type,
-            snapshot: rowToSnapshot(row),
-            message: null,
-          };
-        },
-      );
+      return toProviderResults((data ?? []) as SnapshotRow[], now);
     },
 
     async loadHistory(now) {
@@ -195,6 +152,8 @@ export function createCostRepository(
           )
           .gte('snapshot_date', yearStart.toISOString().slice(0, 10))
           .lt('snapshot_date', nextMonth.toISOString().slice(0, 10))
+          // Ascending is load-bearing: `aggregateDaily` reports dates in the
+          // order it first meets them, so the chart's last point is today's.
           .order('snapshot_date', { ascending: true }),
         client
           .from('ops_cost_transactions')
@@ -272,97 +231,4 @@ export function createCostRepository(
       );
     },
   };
-}
-
-function rowToSnapshot(row: SnapshotRow): CostSnapshot {
-  return {
-    provider: row.provider,
-    periodStart: row.period_start,
-    periodEnd: row.period_end,
-    accruedCostUsd:
-      row.accrued_cost_usd === null ? null : Number(row.accrued_cost_usd),
-    projectedCostUsd:
-      row.projected_cost_usd === null ? null : Number(row.projected_cost_usd),
-    costType: row.cost_type,
-    source: row.source,
-    usage: row.usage,
-    fetchedAt: row.fetched_at,
-  };
-}
-
-function aggregateDaily(rows: SnapshotRow[]) {
-  const byDate = new Map<string, number[]>();
-  for (const row of rows) {
-    if (row.accrued_cost_usd === null) {
-      continue;
-    }
-    const values = byDate.get(row.snapshot_date) ?? [];
-    values.push(Number(row.accrued_cost_usd));
-    byDate.set(row.snapshot_date, values);
-  }
-  return [...byDate.entries()].map(([date, values]) => ({
-    date,
-    accruedCostUsd: sumNumbers(values),
-  }));
-}
-
-function aggregateMonthly(rows: SnapshotRow[]) {
-  const latest = new Map<string, SnapshotRow>();
-  for (const row of rows) {
-    const month = row.snapshot_date.slice(0, 7);
-    const key = `${month}:${row.provider}`;
-    const previous = latest.get(key);
-    if (!previous || previous.snapshot_date <= row.snapshot_date) {
-      latest.set(key, row);
-    }
-  }
-  const totals = new Map<string, number[]>();
-  for (const [key, row] of latest) {
-    if (row.accrued_cost_usd === null) {
-      continue;
-    }
-    const month = key.slice(0, 7);
-    const values = totals.get(month) ?? [];
-    values.push(Number(row.accrued_cost_usd));
-    totals.set(month, values);
-  }
-  return [...totals.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([month, values]) => ({ month, accruedCostUsd: sumNumbers(values) }));
-}
-
-/**
- * R2's "which provider is driving the change" needs a same-shape number for
- * the prior month, not the monthly total `aggregateMonthly` already collapses
- * providers out of — so this keeps the per-provider split for exactly one
- * month instead of discarding it.
- */
-function aggregateByProviderForMonth(
-  rows: SnapshotRow[],
-  month: string,
-): ProviderMonthCost[] {
-  const latestPerProvider = new Map<CostProvider, SnapshotRow>();
-  for (const row of rows) {
-    if (row.snapshot_date.slice(0, 7) !== month) {
-      continue;
-    }
-    const previous = latestPerProvider.get(row.provider);
-    if (!previous || previous.snapshot_date <= row.snapshot_date) {
-      latestPerProvider.set(row.provider, row);
-    }
-  }
-  return (Object.keys(PROVIDER_LABELS) as CostProvider[]).map((provider) => {
-    const row = latestPerProvider.get(provider);
-    return {
-      provider,
-      accruedCostUsd:
-        row?.accrued_cost_usd === null || row?.accrued_cost_usd === undefined
-          ? null
-          : Number(row.accrued_cost_usd),
-    };
-  });
-}
-
-function sumNumbers(values: number[]): number | null {
-  return values.length ? values.reduce((sum, value) => sum + value, 0) : null;
 }

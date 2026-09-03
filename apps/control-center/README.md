@@ -47,12 +47,12 @@ three language renders. A terminal visual failure is shown as failed even when
 downstream render rows are still queued; the dashboard must never translate
 that state into a vague "still rendering" message.
 
-The interface is a single dark surface built on `@zapengine/design-tokens`.
-There is no light variant: the tokens are authored dark-first and the product
-has no light expression to match. Colours in `src/client/styles.css` are aliases
-of those tokens — `healthy` is `--success`, `degraded` is `--warning`,
-`critical` is `--error`, and `unknown` is `--ink-faint`, deliberately grey
-rather than green.
+The interface uses a light, high-contrast operator palette. Shared
+`@zapengine/design-tokens` still provide typography, spacing, radii, and the
+base semantic names, while `src/client/styles.css` overrides Control Center's
+colour aliases for legibility. `healthy` is `--success`, `degraded` is
+`--warning`, `critical` is `--error`, and `unknown` is `--ink-faint`,
+deliberately grey rather than green.
 
 ## Vercel deployment
 
@@ -114,6 +114,8 @@ All eight domains appear in every response even when nothing reported on them: a
 
 Ranking is deterministic (`services/operations/prioritize.ts`) rather than model-generated, so the dashboard and an agent agree on what matters: a status base, a domain weight, and capped boosts for evidence like overdue minutes, failure streaks, affected users, and AUM at risk. The threshold is set so an `unknown` signal can never reach the action list — an unconfigured integration is a setup task, not an incident.
 
+**Control Center must not call an LLM inference API.** Reliability summaries, priorities, statements, and recommended decisions are rule-based and must remain reproducible without paid model inference. OpenRouter credentials in this app are cost-observability credentials only: they may read provider usage/cost metadata, but they must never be used for chat/completions, Responses API, or other generation endpoints. `src/server/ai-boundary.test.ts` enforces this boundary at the dependency and production-source level.
+
 Every source has its own cache TTL, from 30s for the publish queue to 15 minutes for PostHog. `?force=1` bypasses them, which is what **Refresh** uses on Reliability and Product.
 
 ### Provider credentials
@@ -150,7 +152,7 @@ Service-tier controls in the detail panel are disabled and marked `WIP`: there i
 Cost collection is deliberately separate from dashboard reads:
 
 ```text
-vendor APIs / fixed pricing / Fly run-rate or manual estimate
+vendor APIs / fixed pricing / operator-recorded billed figures
                     ↓
                 pnpm ops:sync
                     ↓
@@ -158,6 +160,8 @@ vendor APIs / fixed pricing / Fly run-rate or manual estimate
                     ↓
               Control Center
 ```
+
+Only a figure we expect to pay enters a snapshot as cost. Usage evidence — request counts, unit balances, the Fly compute run-rate — travels in the same snapshot's `usage` array, where it can inform a decision without ever being read back as a bill.
 
 `GET /api/overview` and `GET /api/costs/history` read persisted cost snapshots directly on every request, so an external `pnpm ops:sync` is visible immediately rather than waiting for an in-process cache TTL. Social aggregation alone keeps the short in-memory cache. On a local development build **Refresh** calls `POST /api/costs/sync` first and then reloads the ledger; a production build only rereads snapshots, and the remote deployment does not register the route at all.
 
@@ -171,10 +175,20 @@ Control Center reads this ledger through `GET /api/costs/podcast` and presents e
 
 ## Provider semantics
 
-- OpenRouter: `usage_monthly` from `GET /api/v1/key`, stored as `actual` usage cost. `OPENROUTER_MANAGEMENT_KEY` takes precedence over the completion key.
-- DeBank: balance and daily units from `GET /v1/account/units`. The list price is resolved from versioned `ops.cost_rates`; the initial rate is `$200 / 1,000,000 units = $0.0002 / unit`. There is no env price override.
-- Supabase: the versioned `pro_plan` rate currently seeds `$25/month`. It is a `fixed` committed monthly cost, so accrued and projected are both `$25` rather than a time-linear estimate.
-- Fly.io: defaults to manual invoice estimates. Set `FLY_COST_MODE=flyctl` for the local founder dashboard to inspect the authenticated official Fly CLI and persist a current compute monthly run-rate. The estimate intentionally excludes historical runtime, stopped-Machine rootfs, bandwidth, dedicated IPs, certificates, reservations, and other invoice adjustments, so actual cash spend still belongs in `cost_transactions`.
+- OpenRouter: `usage_monthly` from `GET /api/v1/key`, stored as `actual` usage cost. `OPENROUTER_MANAGEMENT_KEY` takes precedence over the completion key. For the first seven days of a month its month-end projection blends the current month's pace with the previous month's daily rate, weighted further toward the current month each day and identical to plain linear extrapolation from day seven onward. A month that has barely started is a weak sample: extrapolating the 9.5 hours of traffic on the 1st turned a real `$0.13` month-to-date into a `$9.67` projection, while last month's rate is a serviceable prior until the current one has enough days to speak for itself.
+- DeBank: balance and daily units from `GET /v1/account/units`. The list price is resolved from versioned `ops.cost_rates`; the initial rate is `$200 / 1,000,000 units = $0.0002 / unit`. There is no env price override. Its projection uses the same early-month blend, for the same reason.
+- Supabase: the versioned `pro_plan` rate currently seeds `$25/month`. It is a `fixed` committed monthly cost, so accrued and projected are both `$25` rather than a time-linear estimate. In the UI, accrued therefore means fixed monthly commitments plus variable usage accrued so far; it is not a day-by-day prorated cash charge.
+- Fly.io: month-end spend comes only from an operator reading the billed month-to-date figure off the Fly dashboard and recording it with `pnpm ops:cost snapshot fly <usd>`. Fly publishes no billing or usage API — `flyctl` can only open the dashboard in a browser — so there is nothing to collect. `FLY_COST_MODE=flyctl` therefore gathers evidence rather than cost: it persists a compute run-rate under the `compute_run_rate_monthly` usage key alongside the Machine census, and leaves accrued and projected empty. That run-rate is what every Machine currently in state `started` would cost at list price if it ran for the whole month, which is a saturation ceiling and not a forecast — Fly bills per second, the collector only ever sees one instant, the podcast render group is on-demand and up for minutes at a time, and a stopped Machine pays only rootfs at `$0.15/GB/month`. One performance-2x that happened to be rendering at 04:30 UTC was accordingly priced at a full month (`2 × $32.19`) and produced a `$67.70` projection against a real bill of about `$14`. The run-rate is equally blind to historical runtime, bandwidth, dedicated IPs, certificates, reservations, and other invoice adjustments, so actual cash spend still belongs in `cost_transactions`.
+
+The recorded Fly figure is a month-to-date reading, not a month-end one: it is the billed amount for the month so far, and it is stored as both accrued and projected. Fly's contribution to "Projected month-end" is therefore a floor as of the moment the operator read it, not a forecast, and it understates the month the earlier in the month it was read. Extrapolating it the way OpenRouter and DeBank are extrapolated was rejected deliberately: inflating a real `$14` read on the 2nd into a `~$210` month-end would recreate the exact failure this change removed, pointed the other way. An honest floor that is visibly a floor beats a confident number that is wrong.
+
+The previous-month figure that damps those early-month projections is an approximation, and is only ever used as one. `previousMonthByProvider` is the last snapshot of the previous month — that month's spend as of its final sync at 04:30 UTC on its last day, not a true month total — so it reads slightly low, and a provider that only started reporting mid-month contributes a low prior for the first seven days of the next one. That is accepted because the number is a damping weight rather than an accounting figure: its whole job is to stop a four-hour sample from speaking for thirty days, and from day seven it carries no weight at all.
+
+`projectedCostUsd` carries one meaning for every provider: what we expect to actually pay for this month. A theoretical ceiling is not that, so a provider with nothing recordable is left out of the headline numbers rather than filled in with a plausible one. The Economics view's Accrued and Projected tiles name the providers they had to exclude, and a Fly row holding only a run-rate reports its basis as `Estimated · run-rate` with the number under usage, so it is visible both that Fly is missing from the total and why.
+
+Home's **Month-end spend** tile names the same exclusions, so the two surfaces that carry a headline total cannot disagree about what that total covers. A provider whose newest snapshot belongs to an earlier month is reported as stale rather than counted: a figure recorded for last month is evidence about last month, and carrying it silently into this month's total would restate a stale number as a current one.
+
+The daily cost chart discloses the same detail per point: the date, the day's total, each provider's contribution with its accounting basis, and the providers excluded from that total, with the projected end point broken down the same way. A single summed line cannot say which provider moved, nor whether a day is missing a provider entirely.
 
 Usage/economic cost and cash accounting are separate invariants:
 
@@ -193,7 +207,8 @@ Sync all automatic providers and persist today's snapshots:
 pnpm ops:sync
 ```
 
-Enable the Fly compute run-rate collector (requires `flyctl auth login` on the machine running the collector):
+Collect the Fly compute run-rate and Machine census as usage evidence (requires
+`flyctl auth login` on the machine running the collector):
 
 ```bash
 FLY_COST_MODE=flyctl pnpm turbo run ops:sync --filter=@zapengine/control-center --env-mode=loose
@@ -201,14 +216,50 @@ FLY_COST_MODE=flyctl pnpm turbo run ops:sync --filter=@zapengine/control-center 
 
 The daily GitHub Actions workflow sets `FLY_COST_MODE=flyctl` and uses the
 official Fly CLI setup action. Local manual runs use the explicit command above.
+A `flyctl` failure is reported as a provider error and fails the run even when an
+already-recorded Fly figure is carried forward, so a collector that has quietly
+stopped working cannot sit behind a green scheduled job.
 
-Record a manual Fly current-month estimate instead:
+Record the billed month-to-date figure shown on the Fly dashboard. It is the
+only value permitted to act as Fly's accrued and projected spend:
 
 ```bash
 pnpm ops:cost snapshot fly 18.43
 ```
 
-Record a real invoice / charge separately:
+The figure keeps the "as of" moment it was recorded at, and a later sync
+refreshes the run-rate beneath it without touching the amount. It is scoped to
+its own month and never carried into the next one, so on the 1st Fly has no cost
+until someone records a new figure. Because the amount is a month-to-date
+reading rather than a forecast, recording it again later in the month is what
+makes the projection accurate: a figure read on the 28th is nearly the whole
+month, one read on the 2nd is barely a floor.
+
+Two wrinkles when recording after the day's sync has already run:
+
+- The CLI replaces that day's snapshot row, which clears the
+  `compute_run_rate_monthly` usage until the next sync merges the two back
+  together. The recorded amount is the load-bearing part and survives; the
+  run-rate returns on its own.
+- The `usage_run_rate_usd` metric series drops by roughly `$67` on the first
+  sync after this change, because Fly's run-rate is no longer reported as cost.
+  The spend statement's 7-day delta will therefore show a large apparent saving
+  for a week. That is the correction landing, not money saved.
+
+Fly rows written by the old collector are still in `ops.cost_snapshots` with
+`projected_cost_usd = 67.70` and `source = 'api'`, and nothing rewrites them. In
+`flyctl` mode the next daily sync writes a fresh run-rate-only row and the
+dashboard moves on by itself, but the old rows stay in the monthly history. No
+migration ships with this change; neutralising them is optional, affects stored
+history only, and is one statement. The `source` filter is the load-bearing part
+of it: operator-recorded rows are written as `manual` and must survive.
+
+```sql
+update ops.cost_snapshots set projected_cost_usd = null where provider = 'fly' and source = 'api';
+```
+
+Record a real invoice / charge separately. `cost_transactions` answers what was
+actually paid, not what the month is expected to cost:
 
 ```bash
 pnpm ops:cost transaction fly invoice 21.07 "August invoice"

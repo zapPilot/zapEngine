@@ -39,7 +39,7 @@ export async function collectCostSignals(input: {
   }
 
   return collectOrFail(ORIGIN, input.now, async () => {
-    const providers = await repository.loadLatestProviders();
+    const providers = await repository.loadLatestProviders(input.now);
     return [
       ...providers.map((result) =>
         buildSignal({

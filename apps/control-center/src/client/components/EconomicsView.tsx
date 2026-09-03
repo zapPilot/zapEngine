@@ -4,6 +4,7 @@ import type {
   OverviewResponse,
   PodcastCostResponse,
 } from '../../shared/types.js';
+import { exclusionNotes } from '../cost-basis.js';
 import { usd } from '../format.js';
 import { CostHistoryChart } from './CostHistoryChart.js';
 import { KpiGroup } from './KpiGroup.js';
@@ -24,6 +25,13 @@ export function EconomicsView({
   statements?: StatementsResponse | null;
 }) {
   const header = statements?.headers.find((h) => h.domain === 'spend');
+  const providers = data?.providers ?? [];
+  /**
+   * A headline total that silently drops a provider is the same class of error
+   * as the full-month saturation ceiling it replaced — both print a number
+   * that is not the bill. So both cost KPIs name what they leave out.
+   */
+  const exclusions = exclusionNotes(providers);
   return (
     <div className="view-stack">
       {header ? (
@@ -36,14 +44,16 @@ export function EconomicsView({
 
       <section aria-label="Operating cost" className="kpi-band kpi-band-three">
         <KpiGroup
-          caption="Month-to-date operating cost"
+          caption="Fixed monthly commitments + usage accrued to date"
           label="Accrued"
+          secondary={exclusions}
           tone="accent"
           value={usd(data?.accruedCostUsd)}
         />
         <KpiGroup
           caption="Projected month-end"
           label="Projected"
+          secondary={exclusions}
           tone="warning"
           value={usd(data?.projectedCostUsd)}
         />
@@ -57,9 +67,10 @@ export function EconomicsView({
       <RunwayChart
         history={history?.currentMonthDaily ?? []}
         projected={data?.projectedCostUsd}
+        providers={providers}
       />
 
-      <ProviderCostDrivers providers={data?.providers ?? []} />
+      <ProviderCostDrivers providers={providers} />
 
       <PodcastUnitEconomics data={podcastCosts} />
 
@@ -82,14 +93,14 @@ export function EconomicsView({
                 One row per provider the cost sync knows how to read
               </small>
             </div>
-            <ProviderLedger detailed providers={data?.providers ?? []} />
+            <ProviderLedger detailed providers={providers} />
           </section>
 
           <section className="disclosure-section">
             <div className="panel-head">
               <h2>Provider details</h2>
             </div>
-            <UsageSignals providers={data?.providers ?? []} />
+            <UsageSignals providers={providers} />
           </section>
 
           <section className="disclosure-section">
@@ -103,6 +114,13 @@ export function EconomicsView({
             <div className="definition-list">
               <Definition term="Actual">
                 Provider-reported usage cost.
+              </Definition>
+              <Definition term="Estimated">
+                A billed amount an operator read off the provider dashboard and
+                recorded, because that provider publishes no billing API. The
+                flyctl compute run-rate under provider details is a different
+                number — every currently-running Machine priced at a full month
+                of list price — and it never enters accrued or projected.
               </Definition>
               <Definition term="Fixed">
                 Committed recurring monthly cost.

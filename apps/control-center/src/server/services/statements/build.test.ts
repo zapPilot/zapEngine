@@ -1,14 +1,19 @@
+import type { CostSnapshot } from '@zapengine/cost-observability';
 import { describe, expect, it } from 'vitest';
 
 import {
+  FLY_RUN_RATE_USAGE_KEY,
   OPERATIONS_DOMAINS,
   type CostHistoryResponse,
+  type CostProviderResult,
   type CustomerEconomicsResponse,
+  type MonthlyCostPoint,
   type OperationsResponse,
   type OperationsSocialResponse,
   type OverviewResponse,
   type PodcastCostResponse,
   type ProductHealthResponse,
+  type ProviderMonthCost,
   type SocialGrowthResponse,
   type SocialPerformanceResponse,
 } from '../../../shared/types.js';
@@ -72,6 +77,67 @@ function overview(overrides: Partial<OverviewResponse> = {}): OverviewResponse {
     ...overrides,
   };
 }
+
+/**
+ * The two shapes a Fly row can take: the flyctl estimate, unpriced with its
+ * run-rate parked in `usage`, and an operator-recorded billed figure. R2 must
+ * refuse to call either one the month's spend driver — the first has no
+ * projection to compare at all, and the second is a partial month that would
+ * always read as a collapse against a whole prior one.
+ */
+function flyProvider(snapshot: {
+  accruedCostUsd: number | null;
+  projectedCostUsd: number | null;
+  source: CostSnapshot['source'];
+  usage?: CostSnapshot['usage'];
+}): CostProviderResult {
+  return {
+    provider: 'fly',
+    label: 'Fly.io',
+    status: 'ok',
+    costType: 'estimated',
+    snapshot: {
+      provider: 'fly',
+      periodStart: '2026-09-01T00:00:00.000Z',
+      periodEnd: NOW.toISOString(),
+      accruedCostUsd: snapshot.accruedCostUsd,
+      projectedCostUsd: snapshot.projectedCostUsd,
+      costType: 'estimated',
+      source: snapshot.source,
+      usage: snapshot.usage ?? [],
+      fetchedAt: NOW.toISOString(),
+    },
+    message: null,
+  };
+}
+
+/** The flyctl estimate: nothing priced, the run-rate parked in `usage`. */
+const FLY_RUN_RATE_ONLY: CostProviderResult = flyProvider({
+  accruedCostUsd: null,
+  projectedCostUsd: null,
+  source: 'api',
+  usage: [
+    {
+      key: FLY_RUN_RATE_USAGE_KEY,
+      label: 'Compute run-rate (list price, whole month)',
+      unit: 'usd',
+      value: 67.7,
+    },
+  ],
+});
+
+/** An operator-recorded billed figure: month-to-date, not a projection. */
+const FLY_MANUAL_FIGURE: CostProviderResult = flyProvider({
+  accruedCostUsd: 14.02,
+  projectedCostUsd: 14.02,
+  source: 'manual',
+});
+
+/** August, with Fly's last full month sitting at the flyctl ceiling. */
+const PREVIOUS_MONTH_WITH_FLY: ProviderMonthCost[] = [
+  { provider: 'openrouter', accruedCostUsd: 11.2 },
+  { provider: 'fly', accruedCostUsd: 64.38 },
+];
 
 function costHistory(
   overrides: Partial<CostHistoryResponse> = {},
@@ -282,6 +348,43 @@ function inputs(overrides: Partial<StatementInputs> = {}): StatementInputs {
   };
 }
 
+/** R2's sentence, flattened the way a reader sees it. */
+/**
+ * R2 with one extra provider on top of the default roster. Every case below
+ * turns on the same three levers — what the month projects to, which provider
+ * joins it, and what the prior month is measured against — so stating them as
+ * arguments keeps each test about the accounting question it asks.
+ */
+function spendOver(input: {
+  extraProvider: CostProviderResult;
+  projectedCostUsd: number;
+  monthlyTotals?: MonthlyCostPoint[];
+  previousMonthByProvider?: ProviderMonthCost[];
+}): ReturnType<typeof buildStatements> {
+  return buildStatements(
+    inputs({
+      overview: overview({
+        projectedCostUsd: input.projectedCostUsd,
+        providers: [...overview().providers, input.extraProvider],
+      }),
+      costHistory: costHistory({
+        ...(input.monthlyTotals ? { monthlyTotals: input.monthlyTotals } : {}),
+        previousMonthByProvider:
+          input.previousMonthByProvider ?? PREVIOUS_MONTH_WITH_FLY,
+      }),
+    }),
+  );
+}
+
+function spendSentence(result: ReturnType<typeof buildStatements>): string {
+  const spend = result.statements.find(
+    (statement) => statement.domain === 'spend',
+  )!;
+  return spend.sentence
+    .map((segment) => ('text' in segment ? segment.text : segment.value))
+    .join('');
+}
+
 describe('buildStatements', () => {
   it('produces exactly five statements, one per narrative domain, sorted by score', () => {
     const result = buildStatements(inputs());
@@ -361,6 +464,49 @@ describe('buildStatements', () => {
     expect(sentence).toBe('1 critical: Unhandled error spike.');
   });
 
+  it('R1: keeps unconfigured domains explicitly separate from failures', () => {
+    const signal = {
+      fingerprint: 'github-actions:track-record-snapshot/streak',
+      source: 'github-actions' as const,
+      domain: 'jobs' as const,
+      status: 'critical' as const,
+      title: 'track-record-snapshot failed 5 runs in a row',
+      detail: null,
+      evidence: { failureStreak: 5 },
+      observedAt: NOW.toISOString(),
+      url: null,
+    };
+    const unknown = new Set(['analytics', 'errors', 'infra']);
+    const domains = OPERATIONS_DOMAINS.map((domain) => ({
+      domain,
+      status: unknown.has(domain)
+        ? ('unknown' as const)
+        : domain === 'jobs'
+          ? ('critical' as const)
+          : ('healthy' as const),
+      signalCount: 1,
+    }));
+    const result = buildStatements(
+      inputs({
+        operations: operations({
+          domains,
+          priorities: [{ signal, score: 86, reasons: [] }],
+          signals: [signal],
+        }),
+      }),
+    );
+    const reliability = result.statements.find(
+      (statement) => statement.domain === 'reliability',
+    )!;
+    const sentence = reliability.sentence
+      .map((segment) => ('text' in segment ? segment.text : segment.value))
+      .join('');
+
+    expect(sentence).toBe(
+      '1 critical: track-record-snapshot failed 5 runs in a row. 3 unconfigured, not failing.',
+    );
+  });
+
   it('R2: names the driver provider and paces to the projected total', () => {
     const result = buildStatements(inputs());
     const spend = result.statements.find((s) => s.domain === 'spend')!;
@@ -369,6 +515,72 @@ describe('buildStatements', () => {
       .join('');
     expect(sentence).toContain('$60.80');
     expect(sentence).toContain('OpenRouter is the driver');
+  });
+
+  it('R2: never names a run-rate-only Fly row as the driver', () => {
+    const result = spendOver({
+      extraProvider: FLY_RUN_RATE_ONLY,
+      projectedCostUsd: 17.4,
+    });
+
+    const sentence = spendSentence(result);
+    expect(sentence).toContain('$17.40');
+    expect(sentence).toContain('OpenRouter is the driver');
+    expect(sentence).not.toContain('Fly.io');
+  });
+
+  it('R2: never names an operator-recorded Fly figure as the driver', () => {
+    const result = spendOver({
+      extraProvider: FLY_MANUAL_FIGURE,
+      projectedCostUsd: 31.42,
+    });
+
+    // Fly's -$50.36 is a month-to-date figure minus a whole prior month, not
+    // a fall in spend, so OpenRouter's +$6.20 is the only honest driver.
+    const sentence = spendSentence(result);
+    expect(sentence).toContain('OpenRouter is the driver');
+    expect(sentence).not.toContain('Fly.io is the driver');
+  });
+
+  it('R2: reads a provider going unpriced as an omission, never as a fall', () => {
+    const result = spendOver({
+      extraProvider: FLY_RUN_RATE_ONLY,
+      monthlyTotals: [{ month: '2026-08', accruedCostUsd: 75.58 }],
+      projectedCostUsd: 17.4,
+    });
+
+    // August's $75.58 is OpenRouter's $11.20 plus Fly's $64.38; September's
+    // $17.40 is OpenRouter alone. Against the whole ledger that is -77%, a
+    // saving nobody made — the honest baseline is the $11.20 belonging to the
+    // one provider still reporting, and against that spend rose.
+    const spend = result.statements.find((s) => s.domain === 'spend')!;
+    const sentence = spendSentence(result);
+    expect(sentence).toContain('+55% vs August');
+    expect(sentence).not.toContain('-77%');
+    expect(spend.delta).toBe('+55% · MoM');
+    expect(spend.deltaTone).toBe('bad');
+    expect(spend.status).toBe('degraded');
+  });
+
+  it('R2: states no month-over-month figure when a priced provider has no prior month', () => {
+    const result = spendOver({
+      extraProvider: FLY_MANUAL_FIGURE,
+      monthlyTotals: [{ month: '2026-08', accruedCostUsd: 11.2 }],
+      previousMonthByProvider: [
+        { provider: 'openrouter', accruedCostUsd: 11.2 },
+      ],
+      projectedCostUsd: 31.42,
+    });
+
+    // August's ledger total exists but covers OpenRouter alone, while
+    // September's $31.42 also carries Fly's operator-recorded figure. No
+    // baseline covers the same providers, so the rule owes the reader silence
+    // rather than a percentage measured across two different sets.
+    const spend = result.statements.find((s) => s.domain === 'spend')!;
+    const sentence = spendSentence(result);
+    expect(sentence).toContain('September is pacing to $31.42.');
+    expect(sentence).not.toContain('vs August');
+    expect(spend.deltaTone).toBe('neutral');
   });
 
   it('R6: reports the north star value with a "collecting" delta before history exists', () => {

@@ -11,8 +11,10 @@ import {
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  costProvidersFixture,
   operationsFixture,
   overviewFixture,
+  pricedCostProvidersFixture,
   priorityFixture,
   signalFixture,
   statementFixture,
@@ -112,6 +114,30 @@ describe('HomeView', () => {
     expect(within(band).getByText('Audience')).toBeVisible();
     expect(within(band).getByText('Month-end spend')).toBeVisible();
     expect(within(band).getByText('$179,612')).toBeVisible();
+  });
+
+  it('says on the spend tile what the projected total leaves out', () => {
+    renderHome({
+      data: overviewFixture({ providers: costProvidersFixture() }),
+      statements: fiveStatements(),
+    });
+    const tile = screen
+      .getByText('Month-end spend')
+      .closest('.metric-cell') as HTMLElement;
+
+    expect(
+      within(tile).getByText('Excluded: Fly.io (run-rate only)'),
+    ).toBeInTheDocument();
+  });
+
+  it('says nothing on the spend tile when every provider is priced', () => {
+    renderHome({
+      data: overviewFixture({ providers: pricedCostProvidersFixture() }),
+      statements: fiveStatements(),
+    });
+    const band = screen.getByRole('region', { name: 'How we are doing' });
+
+    expect(within(band).queryByText(/Excluded/)).toBeNull();
   });
 
   it("embeds the reliability queue inside that statement's evidence", () => {

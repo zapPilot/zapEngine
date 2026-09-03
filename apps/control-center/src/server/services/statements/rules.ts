@@ -167,14 +167,36 @@ export function ruleR2(input: StatementInputs): RuleFinding {
   const previousMonthDate = new Date(
     Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1),
   );
-  const previousMonthKey = previousMonthDate.toISOString().slice(0, 7);
   const previousMonthName = previousMonthDate.toLocaleString('en-US', {
     month: 'long',
     timeZone: 'UTC',
   });
+  // Compare like with like. `projectedCostUsd` sums only the providers that
+  // reported an amount, so measuring it against last month's whole ledger
+  // reads a provider going dark — Fly, whenever no operator figure was
+  // recorded — as a saving: last month's Fly spend sits in the baseline while
+  // this month's is absent from the total. The baseline is therefore rebuilt
+  // from exactly the providers behind today's total, and when one of them has
+  // no prior-month figure to stand on the two sides cannot be made to cover
+  // the same providers, so the rule states no percentage rather than one
+  // measured across mismatched sets.
+  const pricedProviders = overview.providers.filter(
+    (provider) => typeof provider.snapshot?.projectedCostUsd === 'number',
+  );
+  const previousByProvider = new Map(
+    costHistory.previousMonthByProvider.map((entry) => [
+      entry.provider,
+      entry.accruedCostUsd,
+    ]),
+  );
+  const previousForPriced = pricedProviders.map(
+    (provider) => previousByProvider.get(provider.provider) ?? null,
+  );
   const lastMonthTotal =
-    costHistory.monthlyTotals.find((m) => m.month === previousMonthKey)
-      ?.accruedCostUsd ?? null;
+    previousForPriced.length > 0 &&
+    previousForPriced.every((value) => value !== null)
+      ? sumKnown(previousForPriced)
+      : null;
   const projected = overview.projectedCostUsd;
   const pct =
     projected !== null && lastMonthTotal !== null && lastMonthTotal > 0
@@ -182,7 +204,13 @@ export function ruleR2(input: StatementInputs): RuleFinding {
       : null;
   const flat = pct !== null && Math.abs(pct) < 0.05;
 
+  // An operator-recorded figure is billed month-to-date spend, not a
+  // projection, so subtracting a whole prior month from a partial one would
+  // name that provider the driver of a collapse it never had — every month,
+  // on the 2nd. It still counts toward the projected total; only this
+  // "who moved" comparison drops it.
   const providerDeltas = overview.providers
+    .filter((provider) => provider.snapshot?.source !== 'manual')
     .map((provider) => {
       const current = provider.snapshot?.projectedCostUsd ?? null;
       const previous =
@@ -242,17 +270,16 @@ export function ruleR2(input: StatementInputs): RuleFinding {
   finding.series = series.series;
   finding.value = money(projected);
   finding.delta = pct === null ? series.delta : `${signedPercent(pct)} · MoM`;
-  finding.deltaTone = flat
-    ? 'neutral'
-    : pct !== null && pct > 0
-      ? 'bad'
-      : 'good';
+  // Without a comparable baseline the caption falls back to the sparkline's
+  // own Δ7d, which no month-over-month tone can honestly colour.
+  finding.deltaTone =
+    pct === null || flat ? 'neutral' : pct > 0 ? 'bad' : 'good';
   finding.fact = {
     kicker: 'Because · spend',
     value: money(projected),
     note:
       pct === null
-        ? `no ${previousMonthName} total yet`
+        ? `no comparable ${previousMonthName} baseline`
         : `${signedPercent(pct)} vs ${previousMonthName}${driver ? ` · ${driver.label} driving` : ''}`,
   };
   return finding;

@@ -19,6 +19,15 @@ export interface OpenRouterCostInput {
   fetch?: FetchLike;
   now?: Date;
   baseUrl?: string;
+  /**
+   * Previous calendar month's OpenRouter total, read from the caller's own
+   * persisted ledger. It damps the month-end projection over the first week,
+   * where extrapolating a few hours of usage is meaningless. OpenRouter's own
+   * `usage_weekly` cannot serve as that prior: it is calendar-week-to-date and
+   * resets every Monday, not a rolling seven days. Omitting it falls back to
+   * plain linear extrapolation.
+   */
+  priorMonthTotalUsd?: number | null;
 }
 
 export async function fetchOpenRouterCostSnapshot(
@@ -65,7 +74,11 @@ export async function fetchOpenRouterCostSnapshot(
           ]),
     ],
     accruedCostUsd: data.usage_monthly,
-    projectedCostUsd: projectMonthEnd(data.usage_monthly, now),
+    projectedCostUsd: projectMonthEnd(
+      data.usage_monthly,
+      now,
+      input.priorMonthTotalUsd,
+    ),
     costType: 'actual',
     source: 'api',
     fetchedAt: now.toISOString(),
