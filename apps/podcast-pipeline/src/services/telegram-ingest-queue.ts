@@ -40,7 +40,7 @@ const INGEST_HEARTBEAT_MS = 30_000;
 const INGEST_RECOVERY_MS = 30_000;
 
 interface InflightTelegramIngest {
-  latestChatId: TelegramChatId;
+  latestChatId: TelegramChatId | null;
   promise: Promise<void>;
   durableJobId?: string;
 }
@@ -156,13 +156,15 @@ export function createTelegramIngestQueue(
     languageCode: LanguageClassroomLanguageCode,
   ): Promise<void> {
     const heartbeat = startHeartbeat(inflight.durableJobId);
-    await sendTelegramNotification(inflight.latestChatId, TELEGRAM_START_TEXT);
+    if (inflight.latestChatId !== null) {
+      await sendTelegramNotification(inflight.latestChatId, TELEGRAM_START_TEXT);
+    }
 
     try {
       const { ingest: result, videoJob } =
         await performMultilingualIngestAndEnqueueVideo(url, languageCode, {
           trigger: 'telegram',
-          telegramChatId: () => inflight.latestChatId,
+          telegramChatId: () => inflight.latestChatId ?? undefined,
         });
       invalidateEpisodeSearchCache();
       let videoLifecycle: EpisodeVideoLifecycle = 'queued';
@@ -172,19 +174,21 @@ export function createTelegramIngestQueue(
         videoLifecycle = 'completed';
       }
       await finishDurableJob(inflight.durableJobId, 'completed');
-      await sendTelegramNotification(
-        inflight.latestChatId,
-        buildTelegramAudioReadyMessage(
-          buildIngestSummaryFromResult(result),
-          result.episode.id,
-          videoLifecycle,
-        ),
-      );
+      if (inflight.latestChatId !== null) {
+        await sendTelegramNotification(
+          inflight.latestChatId,
+          buildTelegramAudioReadyMessage(
+            buildIngestSummaryFromResult(result),
+            result.episode.id,
+            videoLifecycle,
+          ),
+        );
+      }
     } catch (error) {
       capturePipelineException(error, {
         component: 'ingest',
         tags: {
-          entrypoint: 'telegram',
+          entrypoint: inflight.latestChatId === null ? 'operator' : 'telegram',
           step: failedStepName(error),
           language: languageCode,
         },
@@ -196,11 +200,13 @@ export function createTelegramIngestQueue(
       });
       await finishDurableJob(inflight.durableJobId, 'failed', error);
       await flushSentry();
-      await sendTelegramNotification(
-        inflight.latestChatId,
-        buildTelegramFailureMessage(error, url),
-        { replyMarkup: TELEGRAM_RETRY_REPLY_MARKUP },
-      );
+      if (inflight.latestChatId !== null) {
+        await sendTelegramNotification(
+          inflight.latestChatId,
+          buildTelegramFailureMessage(error, url),
+          { replyMarkup: TELEGRAM_RETRY_REPLY_MARKUP },
+        );
+      }
     } finally {
       if (heartbeat) clearInterval(heartbeat);
     }
@@ -233,7 +239,7 @@ export function createTelegramIngestQueue(
   }
 
   function startLocalJob(
-    chatId: TelegramChatId,
+    chatId: TelegramChatId | null,
     url: string,
     languageCode: LanguageClassroomLanguageCode,
     durableJobId?: string,
@@ -241,8 +247,10 @@ export function createTelegramIngestQueue(
     const key = queueKey(url, languageCode);
     const existing = inflightIngests.get(key);
     if (existing) {
-      existing.latestChatId = chatId;
-      scheduleMessage(chatId, TELEGRAM_INFLIGHT_TEXT);
+      if (chatId !== null) {
+        existing.latestChatId = chatId;
+        scheduleMessage(chatId, TELEGRAM_INFLIGHT_TEXT);
+      }
       return;
     }
 
@@ -284,7 +292,7 @@ export function createTelegramIngestQueue(
         return;
       }
       startLocalJob(
-        claimed.telegram_chat_id,
+        claimed.telegram_chat_id ?? chatId,
         claimed.source_url,
         claimed.language_code,
         claimed.id,
@@ -359,7 +367,9 @@ export function createTelegramIngestQueue(
     const key = queueKey(recovered.source_url, recovered.language_code);
     const existing = inflightIngests.get(key);
     if (existing) {
-      existing.latestChatId = recovered.telegram_chat_id;
+      if (recovered.telegram_chat_id !== null) {
+        existing.latestChatId = recovered.telegram_chat_id;
+      }
       return;
     }
     startLocalJob(
