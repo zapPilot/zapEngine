@@ -2,6 +2,9 @@ import { once } from 'node:events';
 import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 
+import sharp from 'sharp';
+
+import { errorMessage } from '../lib/errorMessage.js';
 import {
   isPlainRecord as isRecord,
   nonemptyString,
@@ -19,12 +22,25 @@ import {
 
 const RESUMABLE_UPLOAD_URL =
   'https://www.googleapis.com/upload/youtube/v3/videos';
+const THUMBNAIL_UPLOAD_URL =
+  'https://www.googleapis.com/upload/youtube/v3/thumbnails/set';
 const ANALYTICS_REPORTS_URL =
   'https://youtubeanalytics.googleapis.com/v2/reports';
 const REQUEST_TIMEOUT_MS = 30_000;
+const YOUTUBE_THUMBNAIL_MAX_BYTES = 2 * 1024 * 1024;
+const YOUTUBE_THUMBNAIL_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'application/octet-stream',
+]);
 
 interface YouTubeVideoResponse {
   id: string;
+}
+
+interface PreparedYouTubeThumbnail {
+  body: Buffer;
+  contentType: string;
 }
 
 export function createYouTubePublisher(input?: {
@@ -53,6 +69,20 @@ export function createYouTubePublisher(input?: {
         throw new SocialPublishError('youtube', 'verify_channel', error);
       }
 
+      let thumbnail: PreparedYouTubeThumbnail | null = null;
+      const thumbnailUrl = publishInput.thumbnailUrl?.trim();
+      if (thumbnailUrl) {
+        log('[youtube] Preparing canonical thumbnail');
+        try {
+          thumbnail = await prepareYouTubeThumbnail({
+            thumbnailUrl,
+            fetchImpl,
+          });
+        } catch (error) {
+          throw new SocialPublishError('youtube', 'prepare_thumbnail', error);
+        }
+      }
+
       let uploadUrl: string;
       try {
         uploadUrl = await createUploadSession({
@@ -75,6 +105,25 @@ export function createYouTubePublisher(input?: {
         });
       } catch (error) {
         throw new SocialPublishError('youtube', 'upload_video', error);
+      }
+
+      if (thumbnail) {
+        log('[youtube] Setting canonical thumbnail');
+        try {
+          await setYouTubeThumbnail({
+            videoId: video.id,
+            thumbnail,
+            accessToken: session.accessToken,
+            fetchImpl,
+          });
+        } catch (error) {
+          // The video already exists at this point. Failing the lane would make
+          // the release retry upload a duplicate video, so preserve the publish
+          // result and leave a loud repair signal instead.
+          log(
+            `[youtube] WARNING: video ${video.id} published but canonical thumbnail was not set: ${errorMessage(error)}`,
+          );
+        }
       }
 
       return {
@@ -130,6 +179,79 @@ function readExpectedChannelId(env: NodeJS.ProcessEnv): string {
     );
   }
   return channelId;
+}
+
+async function prepareYouTubeThumbnail(input: {
+  thumbnailUrl: string;
+  fetchImpl: typeof fetch;
+}): Promise<PreparedYouTubeThumbnail> {
+  const response = await input.fetchImpl(input.thumbnailUrl, {
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
+  if (!response.ok) {
+    throw new Error(
+      `Canonical thumbnail download failed with HTTP ${response.status}.`,
+    );
+  }
+
+  const raw = Buffer.from(await response.arrayBuffer());
+  if (raw.length === 0) {
+    throw new Error('Canonical thumbnail download returned an empty body.');
+  }
+  const contentType = normalizeContentType(response.headers.get('content-type'));
+  if (
+    raw.length <= YOUTUBE_THUMBNAIL_MAX_BYTES &&
+    YOUTUBE_THUMBNAIL_MIME_TYPES.has(contentType)
+  ) {
+    return { body: raw, contentType };
+  }
+
+  let body = await sharp(raw)
+    .rotate()
+    .jpeg({ quality: 88, chromaSubsampling: '4:4:4' })
+    .toBuffer();
+  if (body.length > YOUTUBE_THUMBNAIL_MAX_BYTES) {
+    body = await sharp(raw)
+      .rotate()
+      .resize({ width: 720, withoutEnlargement: true })
+      .jpeg({ quality: 82 })
+      .toBuffer();
+  }
+  if (body.length > YOUTUBE_THUMBNAIL_MAX_BYTES) {
+    throw new Error(
+      `Canonical thumbnail remains ${body.length} bytes after compression; YouTube allows at most ${YOUTUBE_THUMBNAIL_MAX_BYTES} bytes.`,
+    );
+  }
+  return { body, contentType: 'image/jpeg' };
+}
+
+function normalizeContentType(value: string | null): string {
+  const contentType = value?.split(';', 1)[0]?.trim().toLowerCase();
+  return contentType || 'application/octet-stream';
+}
+
+async function setYouTubeThumbnail(input: {
+  videoId: string;
+  thumbnail: PreparedYouTubeThumbnail;
+  accessToken: string;
+  fetchImpl: typeof fetch;
+}): Promise<void> {
+  const url = new URL(THUMBNAIL_UPLOAD_URL);
+  url.searchParams.set('videoId', input.videoId);
+  url.searchParams.set('uploadType', 'media');
+  const response = await input.fetchImpl(url, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${input.accessToken}`,
+      'content-type': input.thumbnail.contentType,
+      'content-length': String(input.thumbnail.body.length),
+    },
+    body: input.thumbnail.body as unknown as BodyInit,
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
+  if (!response.ok) {
+    throw new Error(await describeYouTubeError(response));
+  }
 }
 
 async function createUploadSession(input: {
