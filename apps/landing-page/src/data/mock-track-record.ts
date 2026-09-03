@@ -1,16 +1,15 @@
 /**
- * Placeholder track-record data for the /track-record page.
+ * The backtest dataset behind /track-record's default view.
  *
- * No live IPFS snapshot has been published yet (public/track-record-meta.json
- * has an empty latestSnapshotCid), so the whole page renders empty. This module
- * seeds every tab with a demo dataset built from the real committed backtest
- * curve (equity-curve.json) so the UI can be reviewed end-to-end.
+ * Built from the real committed backtest curve (equity-curve.json), but the
+ * snapshots, CIDs and wallet address are synthesised — nothing here was ever
+ * published to IPFS. `useTrackRecord` serves it for the 'backtest' source and
+ * never mixes it with the live path.
  *
- * Self-retiring: useTrackRecord only falls back to this when the real meta has
- * no latestSnapshotCid. The moment a real snapshot is published, the live path
- * takes over and this data is never read. The demo is surfaced honestly via the
- * "Demo data" badge (see track-record layout) — fabricated returns must not read
- * as live. Set NEXT_PUBLIC_TRACK_RECORD_MOCK=0 to force it off.
+ * Because it is fabricated, every affordance a reader could mistake for a real
+ * result — the Live badge, on-chain wallet links, the verification tab's
+ * gateway links — must be gated on `hasLiveTrackRecordData` AND the selected
+ * source, not merely on a CID being present.
  *
  * Values are computed with the exact formulas track-record-accessor's
  * verifyPerformanceMetrics uses, so on-page verification passes cleanly.
@@ -264,11 +263,6 @@ export const mockMeta = {
     ? `${mockLatestSnapshot.date}T00:00:00.000Z`
     : '',
 } as const;
-
-/** Enabled by default; opt out with NEXT_PUBLIC_TRACK_RECORD_MOCK=0. */
-export function isTrackRecordMockEnabled(): boolean {
-  return process.env['NEXT_PUBLIC_TRACK_RECORD_MOCK'] !== '0';
-}
 
 /**
  * Demo mode, recognised by the sentinel CID above.

@@ -27,8 +27,7 @@
     "ENABLE_DEV_LOGGING",
     "IPFS_GATEWAY",
     "IPFS_GATEWAY_FALLBACK",
-    "GA_ID",
-    "TRACK_RECORD_MOCK"
+    "GA_ID"
   ],
   "futureFlags": {
     "longerSignatureKey": true
