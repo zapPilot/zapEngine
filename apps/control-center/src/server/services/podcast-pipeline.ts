@@ -243,8 +243,7 @@ export function summarizePodcastPipeline(
 
   return episodes.map((episode) => {
     const ingestRow = latestIngestBySourceUrl.get(episode.source_url) ?? null;
-    const legacyIngestRun =
-      latestLegacyIngestByEpisode.get(episode.id) ?? null;
+    const legacyIngestRun = latestLegacyIngestByEpisode.get(episode.id) ?? null;
     const ingest = ingestRow
       ? jobState(ingestRow, now)
       : legacyIngestRun
