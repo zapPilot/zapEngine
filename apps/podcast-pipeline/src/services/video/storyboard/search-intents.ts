@@ -334,12 +334,15 @@ function materializeVisualSubjectCatalog(
   input: unknown,
   request: SearchIntentCatalogRequest,
 ): unknown {
-  if (!isRecord(input)) return input;
-  const primarySubjectId = input['primarySubjectId'];
-  const subjects = input['subjects'];
-  if (typeof primarySubjectId !== 'string' || !Array.isArray(subjects)) {
+  if (
+    !isRecord(input) ||
+    typeof input['primarySubjectId'] !== 'string' ||
+    !Array.isArray(input['subjects'])
+  ) {
     return input;
   }
+  const primarySubjectId = input['primarySubjectId'];
+  const subjects: unknown[] = input['subjects'];
 
   const wholeEpisodeEvidence = normalizedEntityText(
     `${request.title}\n${request.scenes
@@ -379,12 +382,11 @@ function materializeVisualSubjectCatalog(
       // content scene is the episode cover/lead and already falls back to it.
       if (evidenceSceneIds.length === 0 && id !== primarySubjectId) return [];
 
-      const resolvedEvidenceSceneIds =
-        evidenceSceneIds.length > 0
-          ? evidenceSceneIds
-          : request.scenes[0]
-            ? [request.scenes[0].sceneId]
-            : [];
+      let resolvedEvidenceSceneIds = evidenceSceneIds;
+      if (resolvedEvidenceSceneIds.length === 0) {
+        const firstScene = request.scenes[0];
+        resolvedEvidenceSceneIds = firstScene ? [firstScene.sceneId] : [];
+      }
       return [
         {
           ...subject,
@@ -416,12 +418,14 @@ function deterministicSubjectSearchQueries(
   const canonical = canonicalName.trim();
   const identityHints = Array.isArray(subject['identityHints'])
     ? subject['identityHints'].filter(
-        (hint): hint is string => typeof hint === 'string' && Boolean(hint.trim()),
+        (hint): hint is string =>
+          typeof hint === 'string' && Boolean(hint.trim()),
       )
     : [];
   const negativeHints = Array.isArray(subject['negativeHints'])
     ? subject['negativeHints'].filter(
-        (hint): hint is string => typeof hint === 'string' && Boolean(hint.trim()),
+        (hint): hint is string =>
+          typeof hint === 'string' && Boolean(hint.trim()),
       )
     : [];
   const compact = canonical.replace(/[^\p{L}\p{N}]/gu, '');
