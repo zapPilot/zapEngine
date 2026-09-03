@@ -321,13 +321,21 @@ function visualSearchDebug(
       : parseStoryboardQueries(storyboard?.['scenes']);
   const plannedQueries =
     debugQueries.length > 0 ? debugQueries : completedQueries;
-  if (subjects.length === 0 && plannedQueries.length === 0) return null;
+  const actualSearches = parseActualSearches(payload['searchTrace']);
+  if (
+    subjects.length === 0 &&
+    plannedQueries.length === 0 &&
+    actualSearches.length === 0
+  ) {
+    return null;
+  }
 
   return {
     phase: typeof payload['phase'] === 'string' ? payload['phase'] : null,
     primarySubject,
     subjects,
     plannedQueries,
+    actualSearches,
   };
 }
 
@@ -375,6 +383,48 @@ function parseStoryboardQueries(
       },
     ];
   });
+}
+
+function parseActualSearches(
+  value: unknown,
+): PodcastPipelineVisualDebug['actualSearches'] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    const row = asRecord(entry);
+    const sceneId = row?.['sceneId'];
+    const provider = row?.['provider'];
+    const query = row?.['intent'];
+    if (
+      typeof sceneId !== 'string' ||
+      !isImageSearchProvider(provider) ||
+      typeof query !== 'string'
+    ) {
+      return [];
+    }
+    return [
+      {
+        sceneId,
+        provider,
+        query,
+        returned: numericCount(row['returned']),
+        accepted: numericCount(row['accepted']),
+        entityFiltered: numericCount(row['entityFiltered']),
+        rejected: numericCount(row['rejected']),
+      },
+    ];
+  });
+}
+
+function isImageSearchProvider(
+  value: unknown,
+): value is 'pexels' | 'pixabay' | 'brave' {
+  return value === 'pexels' || value === 'pixabay' || value === 'brave';
+}
+
+function numericCount(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.max(0, value)
+    : 0;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
