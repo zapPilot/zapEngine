@@ -57,7 +57,8 @@ export interface PodcastPipelineEpisode {
   ingest: PodcastPipelineJobState | null;
   localizations: PodcastPipelineLocalization[];
   visual: PodcastPipelineJobState | null;
-  visualDebug: PodcastPipelineVisualDebug | null;
+  /** Added by the visual-search debug rollout; optional for cached/older API fixtures. */
+  visualDebug?: PodcastPipelineVisualDebug | null;
   renders: PodcastPipelineRenderState[];
   canRestartVideo: boolean;
 }
