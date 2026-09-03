@@ -34,9 +34,11 @@ import {
 import type { StoryboardProvider } from './video/storyboard/provider.js';
 import { enrichStoryboardSearchIntents } from './video/storyboard/search-intents.js';
 import { splitCanonicalSentences } from './video/storyboard/sentences.js';
-import type {
-  VisualSceneSubjectAssignment,
-  VisualSubjectCatalog,
+import {
+  buildVisualSubjectSearchQueries,
+  type VisualSceneSubjectAssignment,
+  type VisualSubjectCatalog,
+  visualSubjectsForScene,
 } from './video/storyboard/subject-catalog.js';
 import type { VisualAssetProgress } from './video/visual-asset-planner.js';
 import {
@@ -47,16 +49,24 @@ import {
   hashEpisodeVideoVisualSource,
   type ProcessEpisodeVideoVisualJobContext,
 } from './video-jobs.js';
+import { saveEpisodeVideoVisualDebug } from './video-visual-debug.js';
 import { visualStageProgress } from './video-progress.js';
 
 export const VISUAL_ARTICLE_SCRAPE_TIMEOUT_MS = 15_000;
 const MAX_PERSISTED_VISUAL_SEARCH_TRACE_ENTRIES = 256;
+const VISUAL_SEARCH_DEBUG_SCHEMA_VERSION = 'visual-search-debug-v1';
 
 export type ProcessEpisodeVideoVisualJob = (
   job: EpisodeVideoVisualJobRow,
   source: EpisodeVideoVisualSource,
   context: ProcessEpisodeVideoVisualJobContext,
 ) => Promise<EpisodeVideoVisualCompletion>;
+
+type PersistVisualDebug = (
+  episodeId: string,
+  leaseOwner: string,
+  payload: Record<string, unknown>,
+) => Promise<boolean>;
 
 interface EpisodeVideoVisualProcessorDependencies {
   analyzeAudio: typeof analyzeEpisodeAudio;
@@ -68,6 +78,7 @@ interface EpisodeVideoVisualProcessorDependencies {
   makeTemporaryDirectory: (prefix: string) => Promise<string>;
   writeManifest: typeof writeFile;
   removeDirectory: typeof rm;
+  persistDebug: PersistVisualDebug;
   logger: Pick<Console, 'info'>;
 }
 
@@ -81,6 +92,9 @@ const defaultDependencies: EpisodeVideoVisualProcessorDependencies = {
   makeTemporaryDirectory: mkdtemp,
   writeManifest: writeFile,
   removeDirectory: rm,
+  // Unit callers of the factory stay isolated from Supabase. The production
+  // singleton at the bottom wires the durable checkpoint writer explicitly.
+  persistDebug: async () => true,
   logger: console,
 };
 
@@ -213,6 +227,24 @@ export function createEpisodeVideoVisualProcessor(
         model: intents.model ?? 'deterministic',
       });
 
+      const debugPayload = buildVisualSearchDebugPayload({
+        subjectCatalog,
+        sceneAssignments,
+        scenes: storyboard.draft.scenes,
+        searchTitleSource,
+        model: intents.model,
+      });
+      if (job.lease_owner) {
+        const persisted = await dependencies.persistDebug(
+          source.episodeId,
+          job.lease_owner,
+          debugPayload,
+        );
+        if (!persisted) {
+          throw new Error('Visual search debug checkpoint lost its job lease');
+        }
+      }
+
       context.reportProgress(visualStageProgress('planning-scenes'));
       const searchStartedAt = Date.now();
       logVisualProgress(dependencies.logger, 'visual:search', {
@@ -342,6 +374,52 @@ export function createEpisodeVideoVisualProcessor(
         force: true,
       });
     }
+  };
+}
+
+function buildVisualSearchDebugPayload(input: {
+  subjectCatalog: VisualSubjectCatalog | null;
+  sceneAssignments: readonly VisualSceneSubjectAssignment[];
+  scenes: readonly { sceneId: string; imageSearchIntent: readonly string[] }[];
+  searchTitleSource: 'publisher' | 'english-localization' | 'none';
+  model: string | null;
+}): Record<string, unknown> {
+  const assignmentByScene = new Map(
+    input.sceneAssignments.map((assignment) => [assignment.sceneId, assignment]),
+  );
+  const plannedQueries = input.scenes.flatMap((scene) => {
+    if (podcastBrandVisualKind(scene.imageSearchIntent)) return [];
+    const assignment = assignmentByScene.get(scene.sceneId);
+    if (!input.subjectCatalog || !assignment) {
+      return [
+        {
+          sceneId: scene.sceneId,
+          subjectIds: [],
+          selectionReason: 'legacy',
+          queries: [...scene.imageSearchIntent],
+        },
+      ];
+    }
+    const subjects = visualSubjectsForScene(input.subjectCatalog, assignment);
+    return [
+      {
+        sceneId: scene.sceneId,
+        subjectIds: assignment.subjectIds,
+        selectionReason: assignment.selectionReason,
+        queries: [
+          ...new Set(subjects.flatMap(buildVisualSubjectSearchQueries)),
+        ].slice(0, 3),
+      },
+    ];
+  });
+  return {
+    schemaVersion: VISUAL_SEARCH_DEBUG_SCHEMA_VERSION,
+    phase: 'planned',
+    searchTitleSource: input.searchTitleSource,
+    searchIntentModel: input.model,
+    subjectCatalog: input.subjectCatalog,
+    sceneAssignments: input.sceneAssignments,
+    plannedQueries,
   };
 }
 
@@ -548,4 +626,6 @@ function logVisualProgress(
   logger.info(`[video-worker] ${event} ${details}`);
 }
 
-export const processEpisodeVideoVisualJob = createEpisodeVideoVisualProcessor();
+export const processEpisodeVideoVisualJob = createEpisodeVideoVisualProcessor({
+  persistDebug: saveEpisodeVideoVisualDebug,
+});
