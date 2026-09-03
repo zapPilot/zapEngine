@@ -3,6 +3,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import sharp from 'sharp';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -39,6 +40,12 @@ describe('YouTube upload stream lifecycle', () => {
     directory = await mkdtemp(join(tmpdir(), 'zap-youtube-stream-'));
     const videoPath = join(directory, 'episode.mp4');
     await writeFile(videoPath, Buffer.from('fake-mp4'));
+    const thumbnailBytes = await sharp({
+      create: { width: 16, height: 16, channels: 3, background: '#123456' },
+    })
+      .png()
+      .toBuffer();
+    const thumbnailUrl = 'https://cdn.example.com/canonical-thumbnail.png';
 
     let uploadBody: ReadStream | undefined;
     let requestCount = 0;
@@ -48,6 +55,19 @@ describe('YouTube upload stream lifecycle', () => {
         url.startsWith('https://youtubeanalytics.googleapis.com/v2/reports')
       ) {
         return new Response(JSON.stringify({ rows: [[0]] }), { status: 200 });
+      }
+      if (url === thumbnailUrl) {
+        return new Response(new Uint8Array(thumbnailBytes), {
+          status: 200,
+          headers: { 'content-type': 'image/png' },
+        });
+      }
+      if (
+        url.startsWith(
+          'https://www.googleapis.com/upload/youtube/v3/thumbnails/set',
+        )
+      ) {
+        return new Response(JSON.stringify({ items: [] }), { status: 200 });
       }
       requestCount += 1;
       if (requestCount === 1) {
@@ -66,6 +86,7 @@ describe('YouTube upload stream lifecycle', () => {
         title: '市場更新',
         description: '今天的市場重點',
         videoPath,
+        thumbnailUrl,
         privacyStatus: 'public',
       }),
     ).resolves.toMatchObject({ postId: 'yt-stream' });

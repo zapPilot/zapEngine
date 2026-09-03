@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import { Search, X } from 'lucide-react-native';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
-import { Text, TextInput, View } from 'react-native';
+import { RefreshControl, Text, TextInput, View } from 'react-native';
 
 import {
   PodcastLanguageDropdown,
@@ -214,6 +214,18 @@ export function PodcastScreen() {
   const searchPending =
     searchActive && debouncedSearchQuery.trim() !== normalisedSearchQuery;
   const searchResults = searchQueryResult.data ?? EMPTY_SEARCH_RESULTS;
+  const refreshing =
+    feedQuery.isRefetching ||
+    catalogQuery.isRefetching ||
+    (searchActive && searchQueryResult.isRefetching);
+
+  const refreshPodcastData = async () => {
+    await Promise.all([
+      feedQuery.refetch(),
+      catalogQuery.refetch(),
+      searchActive ? searchQueryResult.refetch() : Promise.resolve(),
+    ]);
+  };
 
   const mergedEpisodes = useMemo(
     () =>
@@ -464,7 +476,20 @@ export function PodcastScreen() {
 
   return (
     <View className="flex-1 bg-bg">
-      <ScreenScrollView bottomPadding={player.nowPlaying === null ? 24 : 108}>
+      <ScreenScrollView
+        bottomPadding={player.nowPlaying === null ? 24 : 108}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              void refreshPodcastData();
+            }}
+            tintColor="#d4c5a3"
+            colors={['#d4c5a3']}
+            progressBackgroundColor="#18181b"
+          />
+        }
+      >
         <ScreenHeader
           title={t('podcast.title')}
           left={

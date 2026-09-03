@@ -71,6 +71,7 @@ describe('generateSocialCopy when the Rednote judge is unavailable', () => {
           videoDurationSeconds: 180,
           languageCode: 'zh-Hant',
           videoUrl: 'https://example.com/video.mp4',
+          videoThumbnailUrl: 'https://example.com/thumbnail.jpg',
         },
       }),
     ).rejects.toMatchObject({ reason: 'unavailable' });

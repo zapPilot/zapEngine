@@ -36,6 +36,7 @@ import { createSocialPublishJobs } from './publishers.js';
 import type { GeneratedSocialCopy, SocialEpisode } from './types.js';
 
 const VIDEO_URL = 'https://media.example.com/episode-1.mp4';
+const THUMBNAIL_URL = 'https://media.example.com/episode-1-thumbnail.png';
 const VIDEO_PATH = '/fixtures/episode-1.mp4';
 const X_VIDEO_PATH = '/fixtures/episode-1-x.mp4';
 const PUBLISHED = {
@@ -158,12 +159,13 @@ describe('createSocialPublishJobs', () => {
     expect(mocks.createPlaywrightXPublisher).not.toHaveBeenCalled();
   });
 
-  it('builds YouTube with the prepared full video and metadata', async () => {
+  it('builds YouTube with the prepared full video, canonical thumbnail, and metadata', async () => {
     const [job] = await createSocialPublishJobs({
       platforms: ['youtube'],
       copy,
       episode,
       videoUrl: VIDEO_URL,
+      thumbnailUrl: THUMBNAIL_URL,
       videoPath: VIDEO_PATH,
     });
 
@@ -172,6 +174,7 @@ describe('createSocialPublishJobs', () => {
       title: '市場更新',
       description: '完整說明\n\n更多市場洞察與工具：https://www.zap-pilot.org',
       videoPath: VIDEO_PATH,
+      thumbnailUrl: THUMBNAIL_URL,
       languageCode: 'zh-Hant',
       privacyStatus: 'public',
     });
@@ -183,6 +186,7 @@ describe('createSocialPublishJobs', () => {
       copy,
       episode,
       videoUrl: VIDEO_URL,
+      thumbnailUrl: THUMBNAIL_URL,
       videoPath: VIDEO_PATH,
       youtubePrivacyStatus: 'unlisted',
     });
@@ -193,15 +197,28 @@ describe('createSocialPublishJobs', () => {
     );
   });
 
-  it('rejects YouTube before publishing when video or episode metadata is missing', async () => {
+  it('rejects YouTube before publishing when video, thumbnail, or episode metadata is missing', async () => {
     await expect(
       createSocialPublishJobs({
         platforms: ['youtube'],
         copy,
         episode,
         videoUrl: VIDEO_URL,
+        thumbnailUrl: THUMBNAIL_URL,
       }),
     ).rejects.toThrow('YouTube publishing requires a prepared video.');
+
+    await expect(
+      createSocialPublishJobs({
+        platforms: ['youtube'],
+        copy,
+        episode,
+        videoUrl: VIDEO_URL,
+        videoPath: VIDEO_PATH,
+      }),
+    ).rejects.toThrow(
+      'YouTube publishing requires the canonical video thumbnail.',
+    );
 
     for (const blank of [
       {
@@ -216,6 +233,7 @@ describe('createSocialPublishJobs', () => {
           copy: blank.copy,
           episode: blank.episode,
           videoUrl: VIDEO_URL,
+          thumbnailUrl: THUMBNAIL_URL,
           videoPath: VIDEO_PATH,
         }),
       ).rejects.toThrow(

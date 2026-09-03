@@ -80,6 +80,8 @@ export interface SocialEpisode {
   episodeUrl: string;
   videoDurationSeconds: number;
   videoUrl: string;
+  /** Canonical renderer poster (first scene + brand frame), reused by YouTube. */
+  videoThumbnailUrl: string;
 }
 
 export interface GeneratedSocialCopy {
@@ -136,6 +138,8 @@ export type YouTubePrivacyStatus = (typeof YOUTUBE_PRIVACY_STATUSES)[number];
 
 export interface YouTubePublishInput extends YouTubeMetadata {
   videoPath: string;
+  /** Canonical renderer poster URL. */
+  thumbnailUrl: string;
   languageCode?: SocialLanguageCode;
   privacyStatus: YouTubePrivacyStatus;
 }
@@ -160,6 +164,8 @@ export interface PublishResult {
    * would otherwise store the composed (never-sent) draft as if it published.
    */
   body?: string;
+  /** Non-fatal warnings that did not fail the publish (e.g. YouTube thumbnail). */
+  warnings?: string[];
 }
 
 export interface XPublisher {

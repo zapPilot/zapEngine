@@ -2,6 +2,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import sharp from 'sharp';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -53,11 +54,25 @@ describe('YouTube upload stream failure cleanup', () => {
       },
     ];
 
+    const thumbnailBytes = await sharp({
+      create: { width: 16, height: 16, channels: 3, background: '#123456' },
+    })
+      .png()
+      .toBuffer();
+    const thumbnailUrl = 'https://cdn.example.com/canonical-thumbnail.png';
+
     for (const testCase of cases) {
       const videoPath = await fixtureVideo();
       let uploadBody: { destroyed: boolean } | undefined;
       let requestCount = 0;
-      const fetchImpl = vi.fn<typeof fetch>(async (_input, init = {}) => {
+      const fetchImpl = vi.fn<typeof fetch>(async (input, init = {}) => {
+        const url = String(input);
+        if (url === thumbnailUrl) {
+          return new Response(new Uint8Array(thumbnailBytes), {
+            status: 200,
+            headers: { 'content-type': 'image/png' },
+          });
+        }
         requestCount += 1;
         if (requestCount === 1) {
           return new Response(JSON.stringify({ rows: [[0]] }), { status: 200 });
@@ -69,7 +84,7 @@ describe('YouTube upload stream failure cleanup', () => {
           });
         }
         uploadBody = init.body as unknown as { destroyed: boolean };
-        return testCase.response;
+        return testCase.response.clone();
       });
       const publisher = createYouTubePublisher({ fetchImpl });
 
@@ -78,6 +93,7 @@ describe('YouTube upload stream failure cleanup', () => {
           title: '市場更新',
           description: '今天的市場重點',
           videoPath,
+          thumbnailUrl,
           privacyStatus: 'public',
         }),
       ).rejects.toThrow(testCase.error);

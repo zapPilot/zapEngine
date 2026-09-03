@@ -47,6 +47,35 @@ describe('visual subject catalog', () => {
     });
   });
 
+  it('allows a title-grounded primary subject without fabricated scene evidence', () => {
+    const catalog = parseVisualSubjectCatalog({
+      primarySubjectId: 'subject-coinbase',
+      subjects: [rawSubject({ evidenceSceneIds: [] })],
+    });
+
+    expect(catalog.subjects[0]?.evidenceSceneIds).toEqual([]);
+  });
+
+  it('still requires scene evidence for every non-primary subject', () => {
+    expect(() =>
+      parseVisualSubjectCatalog({
+        primarySubjectId: 'subject-coinbase',
+        subjects: [
+          rawSubject(),
+          rawSubject({
+            id: 'subject-binance',
+            canonicalName: 'Binance',
+            storyRole: 'secondary',
+            evidenceSceneIds: [],
+            searchQueries: ['Binance'],
+          }),
+        ],
+      }),
+    ).toThrow(
+      'Only the title-grounded primary subject may omit scene evidence',
+    );
+  });
+
   it('repairs bounded LLM shape drift before strict validation', () => {
     const evidenceSceneIds = Array.from(
       { length: 70 },

@@ -100,6 +100,7 @@ export function buildSocialEpisode(input: {
     episodeUrl: buildEpisodeShareUrl(input.episode.id),
     videoDurationSeconds,
     videoUrl,
+    videoThumbnailUrl: thumbnailUrl,
   };
 }
 

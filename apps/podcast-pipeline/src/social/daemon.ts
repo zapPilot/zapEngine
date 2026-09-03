@@ -891,6 +891,25 @@ async function publishLanguageBatch(
       : {}),
     onLog: log,
   });
+  for (const outcome of outcomes) {
+    if (!outcome.warnings?.length) continue;
+    for (const warning of outcome.warnings) {
+      log(
+        `⚠️ [social-daemon] ${laneLabel(outcome.platform, jobLanguage(firstJob))} · ${warning} · episode ${firstJob.episode_id}`,
+      );
+      try {
+        const [chatId] = getAllowedTelegramUserIds();
+        if (chatId) {
+          await sendTelegramNotification(
+            chatId,
+            `⚠️ [social-daemon] ${laneLabel(outcome.platform, jobLanguage(firstJob))} · ${warning} · episode ${firstJob.episode_id}`,
+          );
+        }
+      } catch {
+        // Telegram delivery must never fail the publish.
+      }
+    }
+  }
   for (const job of jobs) {
     await finalizePublishOutcome(
       job,
