@@ -76,16 +76,6 @@ describe('episode visual v9 provenance', () => {
       searchTrace: [
         {
           sceneId: 'scene-01',
-          provider: 'pexels',
-          intent: 'Justin Sun crypto entrepreneur',
-          subjectKey: 'justin sun',
-          returned: 80,
-          accepted: 0,
-          entityFiltered: 80,
-          rejected: 0,
-        },
-        {
-          sceneId: 'scene-01',
           provider: 'brave',
           intent: 'Justin Sun crypto entrepreneur',
           subjectKey: 'justin sun',
@@ -103,11 +93,6 @@ describe('episode visual v9 provenance', () => {
       articleImageCandidateCount: 2,
       articleImageAssetCount: 0,
       searchTrace: [
-        expect.objectContaining({
-          provider: 'pexels',
-          entityFiltered: 80,
-          accepted: 0,
-        }),
         expect.objectContaining({
           provider: 'brave',
           accepted: 9,

@@ -445,8 +445,6 @@ export const ENV_MANIFEST = {
     sensitive: true,
     requiredFor: ['podcast-pipeline:base'],
   }),
-  PEXELS_API_KEY: server(['podcast-pipeline'], { sensitive: true }),
-  PIXABAY_API_KEY: server(['podcast-pipeline'], { sensitive: true }),
   SUPABASE_DB_SCHEMA: server(['podcast-pipeline', 'control-center']),
 
   ZAP_ELECTRON_DEV_URL: host(['desktop']),

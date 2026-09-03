@@ -508,10 +508,8 @@ function parseActualSearches(
   });
 }
 
-function isImageSearchProvider(
-  value: unknown,
-): value is 'pexels' | 'pixabay' | 'brave' {
-  return value === 'pexels' || value === 'pixabay' || value === 'brave';
+function isImageSearchProvider(value: unknown): value is 'brave' {
+  return value === 'brave';
 }
 
 function numericCount(value: unknown): number {

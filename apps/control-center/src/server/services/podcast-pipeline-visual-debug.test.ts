@@ -27,17 +27,17 @@ const completedVisualPayload = {
         imageSearchEntities: ['a16z'],
         sources: [
           {
-            id: 'source-pexels-01',
-            label: 'Pexels',
-            url: 'https://www.pexels.com/photo/1',
-            attribution: 'Photo via Pexels',
-            license: 'pexels',
-            licenseUrl: 'https://www.pexels.com/license/',
+            id: 'source-brave-01',
+            label: 'example.com',
+            url: 'https://example.com/photo/1',
+            attribution: 'Image source · example.com',
+            license: 'unknown',
+            licenseUrl: null,
           },
         ],
         asset: {
           kind: 'remoteImage',
-          sourceId: 'source-pexels-01',
+          sourceId: 'source-brave-01',
           url: 'https://cdn.example.com/visual/image-01.jpg',
           sha256: 'b'.repeat(64),
           layout: 'fullBleed',
@@ -78,10 +78,10 @@ const completedVisualPayload = {
     {
       assetId: 'image-01',
       r2Url: 'https://cdn.example.com/visual/image-01.jpg',
-      originalImageUrl: 'https://images.pexels.com/photos/1.jpg',
-      sourcePageUrl: 'https://www.pexels.com/photo/1',
-      provider: 'pexels',
-      license: 'pexels',
+      originalImageUrl: 'https://images.example.com/photos/1.jpg',
+      sourcePageUrl: 'https://example.com/photo/1',
+      provider: 'brave',
+      license: 'unknown',
       contentType: 'image/jpeg',
       sha256: 'b'.repeat(64),
       perceptualHash: 'c'.repeat(16),
@@ -138,7 +138,7 @@ const completedVisualPayload = {
     searchTrace: [
       {
         sceneId: 'scene-01',
-        provider: 'pexels',
+        provider: 'brave',
         intent: 'a16z AI writing',
         subjectKey: 'subject-a16z',
         returned: 12,
@@ -330,7 +330,7 @@ describe('podcast pipeline visual diagnostics', () => {
         searchTrace: [
           {
             sceneId: 'scene-01',
-            provider: 'pixabay',
+            provider: 'brave',
             intent: 'a16z AI writing',
             subjectKey: 'subject-a16z',
             returned: 8,
@@ -347,7 +347,7 @@ describe('podcast pipeline visual diagnostics', () => {
     expect(debug?.actualSearches).toEqual([
       {
         sceneId: 'scene-01',
-        provider: 'pixabay',
+        provider: 'brave',
         query: 'a16z AI writing',
         returned: 8,
         accepted: 0,

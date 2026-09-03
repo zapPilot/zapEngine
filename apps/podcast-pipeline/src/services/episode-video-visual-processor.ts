@@ -627,9 +627,7 @@ function appendSearchTrace(
     trace.length >= MAX_PERSISTED_VISUAL_SEARCH_TRACE_ENTRIES ||
     progress.phase !== 'search' ||
     !progress.searchIntent ||
-    (progress.provider !== 'pexels' &&
-      progress.provider !== 'pixabay' &&
-      progress.provider !== 'brave')
+    progress.provider !== 'brave'
   ) {
     return;
   }

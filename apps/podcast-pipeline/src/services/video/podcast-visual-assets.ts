@@ -117,8 +117,6 @@ function coverCandidateScore(
   let score = 0;
   if (candidate.origin === 'article') score += 10;
   else if (candidate.origin === 'brave') score += 8;
-  else if (candidate.origin === 'pexels') score += 5;
-  else if (candidate.origin === 'pixabay') score += 3;
 
   score += coverDimensionScore(candidate);
 
@@ -231,9 +229,6 @@ async function tryAcquireCoverCandidate(
     return null;
   }
 
-  let coverLicense: PlannedVisualImage['license'] = 'unknown';
-  if (provider === 'pexels') coverLicense = 'pexels';
-  else if (provider === 'pixabay') coverLicense = 'pixabay';
   const planned: PlannedVisualImage = {
     assetId: `image-01`,
     path: acquired.path,
@@ -245,7 +240,7 @@ async function tryAcquireCoverCandidate(
     originalImageUrl: candidate.imageUrl,
     sourcePageUrl: candidate.sourceUrl,
     provider: provider as PlannedVisualImage['provider'],
-    license: coverLicense,
+    license: 'unknown',
     ...(candidate.photographer ? { photographer: candidate.photographer } : {}),
     ...(candidate.photographerUrl
       ? { photographerUrl: candidate.photographerUrl }
@@ -294,11 +289,7 @@ export async function selectCoverAssetForFirstScene(
   }
 
   if (collected.length < MAX_CANDIDATES) {
-    const providers = [...dependencies.searchProviders].sort((a, b) => {
-      const prio: Record<string, number> = { brave: 0, pexels: 1, pixabay: 2 };
-      return (prio[a.origin] ?? 99) - (prio[b.origin] ?? 99);
-    });
-    for (const provider of providers) {
+    for (const provider of dependencies.searchProviders) {
       for (const intent of input.scene.imageSearchIntent) {
         if (collected.length >= MAX_CANDIDATES) break;
         signal?.throwIfAborted();

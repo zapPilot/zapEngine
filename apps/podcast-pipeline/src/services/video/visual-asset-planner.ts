@@ -63,8 +63,6 @@ const PROVIDER_LICENSES = {
   article: 'unknown',
   brand: 'brand-generated',
   brave: 'unknown',
-  pexels: 'pexels',
-  pixabay: 'pixabay',
   'generated-slide': 'brand-generated',
 } as const satisfies Record<VisualImageProvider, string>;
 
@@ -1610,11 +1608,7 @@ function decorativeRejection(candidate: ImageCandidate): string | null {
 }
 
 function isSearchCandidate(candidate: ImageCandidate): boolean {
-  return (
-    candidate.origin === 'brave' ||
-    candidate.origin === 'pexels' ||
-    candidate.origin === 'pixabay'
-  );
+  return candidate.origin === 'brave';
 }
 
 function looksLikeTextHeavySearchResult(candidate: ImageCandidate): boolean {

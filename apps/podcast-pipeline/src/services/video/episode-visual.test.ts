@@ -122,21 +122,21 @@ describe('episode visual payload', () => {
     expect(payload.provenance.searchIntentModel).toBe('openrouter/free');
   });
 
-  it('materializes stock attribution and optional photographer metadata', () => {
-    const stockAssets: PlannedVisualImage[] = [
+  it('materializes search attribution and optional photographer metadata', () => {
+    const searchAssets: PlannedVisualImage[] = [
       {
         ...assets[0]!,
         assetId: 'image-01',
-        provider: 'pexels',
-        license: 'pexels',
+        provider: 'brave',
+        license: 'unknown',
         photographer: 'Ada Lens',
-        photographerUrl: 'https://www.pexels.com/@ada-lens',
+        photographerUrl: 'https://example.com/ada-lens',
       },
       {
         ...assets[1]!,
         assetId: 'image-02',
-        provider: 'pixabay',
-        license: 'pixabay',
+        provider: 'brave',
+        license: 'unknown',
       },
     ];
     const selectedScenes = [
@@ -152,7 +152,7 @@ describe('episode visual payload', () => {
         canonicalLocalizationId: localizationId,
         scenes: storyboard.draft.scenes,
         selectedScenes,
-        assets: stockAssets,
+        assets: searchAssets,
       }),
       episodeId,
       canonicalLocalizationId: localizationId,
@@ -160,7 +160,7 @@ describe('episode visual payload', () => {
       storyboard,
       searchIntentModel: null,
       selectedScenes,
-      assets: stockAssets,
+      assets: searchAssets,
       r2ImageUrls: {
         'image-01': 'https://cdn.example.test/image-01.jpg',
         'image-02': 'https://cdn.example.test/image-02.webp',
@@ -169,15 +169,15 @@ describe('episode visual payload', () => {
 
     expect(payload.assets[0]).toMatchObject({
       photographer: 'Ada Lens',
-      photographerUrl: 'https://www.pexels.com/@ada-lens',
+      photographerUrl: 'https://example.com/ada-lens',
     });
     expect(payload.visualPlan.scenes[0]?.sources[0]).toMatchObject({
-      attribution: 'Photo by Ada Lens · Pexels',
-      licenseUrl: 'https://www.pexels.com/license/',
+      attribution: 'Image source · publisher.example.test',
+      licenseUrl: null,
     });
     expect(payload.visualPlan.scenes[1]?.sources[0]).toMatchObject({
-      attribution: 'Photo · Pixabay',
-      licenseUrl: 'https://pixabay.com/service/license-summary/',
+      attribution: 'Image source · publisher.example.test',
+      licenseUrl: null,
     });
   });
 

@@ -59,16 +59,8 @@ const visualAssetMetadataSchema = z
     sourcePageUrl: z.string().url(),
     // `bing` is retired as a source but stays readable: payloads written before
     // the Brave migration are still parsed when their episode is re-rendered.
-    provider: z.enum([
-      'article',
-      'brand',
-      'pexels',
-      'pixabay',
-      'brave',
-      'bing',
-      'generated-slide',
-    ]),
-    license: z.enum(['brand-generated', 'unknown', 'pexels', 'pixabay']),
+    provider: z.enum(['article', 'brand', 'brave', 'bing', 'generated-slide']),
+    license: z.enum(['brand-generated', 'unknown']),
     photographer: z.string().min(1).optional(),
     photographerUrl: z.string().url().optional(),
     contentType: z.enum([
@@ -85,7 +77,7 @@ const visualAssetMetadataSchema = z
 export const visualSearchTraceEntrySchema = z
   .object({
     sceneId: z.string().regex(/^scene-\d{2}$/),
-    provider: z.enum(['pexels', 'pixabay', 'brave']),
+    provider: z.literal('brave'),
     intent: z.string().min(1).max(200),
     subjectKey: z.string().min(1).max(320).nullable(),
     returned: z.number().int().nonnegative(),
@@ -324,7 +316,7 @@ export function buildEpisodeVisualPayload(input: {
             url: asset.sourcePageUrl,
             attribution: assetAttribution(asset),
             license: asset.license,
-            licenseUrl: STOCK_LICENSE_URLS[asset.license] ?? null,
+            licenseUrl: null,
           },
         ],
         asset: {
@@ -430,30 +422,10 @@ function presentationForAsset(asset: PlannedVisualImage): {
   return { layout: 'fullBleed', motion: 'pushIn' };
 }
 
-const STOCK_LICENSE_URLS: Partial<
-  Record<PlannedVisualImage['license'], string>
-> = {
-  pexels: 'https://www.pexels.com/license/',
-  pixabay: 'https://pixabay.com/service/license-summary/',
-};
-
-const STOCK_PROVIDER_LABELS: Partial<
-  Record<PlannedVisualImage['provider'], string>
-> = {
-  pexels: 'Pexels',
-  pixabay: 'Pixabay',
-};
-
 function assetAttribution(asset: PlannedVisualImage): string {
   if (asset.provider === 'brand') return 'Zap Pilot';
   if (asset.provider === 'generated-slide') {
     return 'Zap Pilot · generated concept card';
-  }
-  const providerLabel = STOCK_PROVIDER_LABELS[asset.provider];
-  if (providerLabel) {
-    return asset.photographer
-      ? `Photo by ${asset.photographer} · ${providerLabel}`
-      : `Photo · ${providerLabel}`;
   }
   return `Image source · ${sourceLabel(asset.sourcePageUrl)}`;
 }

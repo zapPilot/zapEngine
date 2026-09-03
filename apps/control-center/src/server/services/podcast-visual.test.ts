@@ -221,7 +221,7 @@ function v9Payload(): Record<string, unknown> {
       searchTrace: [
         {
           sceneId: 'scene-01',
-          provider: 'pexels',
+          provider: 'brave',
           intent: 'a16z AI writing',
           returned: 20,
           accepted: 0,
@@ -277,7 +277,7 @@ describe('summarizeVisualPlan', () => {
       },
       trace: [
         {
-          provider: 'pexels',
+          provider: 'brave',
           query: 'a16z AI writing',
           returned: 20,
           accepted: 0,
@@ -316,9 +316,7 @@ describe('summarizeVisualPlan', () => {
       visualPlan: {
         scenes: [{ sceneId: 'scene-01', imageSearchIntent: ['a16z'] }],
       },
-      searchTrace: [
-        { sceneId: 'scene-01', provider: 'pixabay', intent: 'a16z' },
-      ],
+      searchTrace: [{ sceneId: 'scene-01', provider: 'brave', intent: 'a16z' }],
       provenance: {
         sceneAssignments: [{ sceneId: 'scene-01', subjectIds: ['s1'] }],
       },
@@ -335,7 +333,7 @@ describe('summarizeVisualPlan', () => {
         asset: null,
         trace: [
           {
-            provider: 'pixabay',
+            provider: 'brave',
             query: 'a16z',
             returned: 0,
             accepted: 0,

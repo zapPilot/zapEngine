@@ -955,7 +955,7 @@ function OutroTemplate({
           letterSpacing: 2,
         }}
       >
-        MEDIA&nbsp;·&nbsp;PEXELS&nbsp;·&nbsp;PIXABAY
+        MEDIA&nbsp;·&nbsp;BRAVE
       </div>
     </div>
   );

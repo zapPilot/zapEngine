@@ -5,7 +5,7 @@ import type { ImageCandidate } from '../../types.js';
 export const JSON_IMAGE_SEARCH_TIMEOUT_MS = 15_000;
 
 // Shared request/parse/error contract for every JSON image-search API this
-// service calls (Brave, Pexels, Pixabay): non-OK responses and malformed bodies
+// service calls (Brave): non-OK responses and malformed bodies
 // become the provider's typed error, aborts pass through untouched, and
 // anything else is wrapped so the planner can attribute the failure to the
 // provider.

@@ -56,7 +56,7 @@ export interface PodcastPipelineVisualQuery {
 
 export interface PodcastPipelineVisualSearchAttempt {
   sceneId: string;
-  provider: 'pexels' | 'pixabay' | 'brave';
+  provider: 'brave';
   query: string;
   returned: number;
   accepted: number;

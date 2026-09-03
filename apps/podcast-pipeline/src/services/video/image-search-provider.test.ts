@@ -17,18 +17,16 @@ afterEach(() => {
 });
 
 describe('defaultImageSearchProviders', () => {
-  it('returns Brave alone and does not revive a retired stock provider from its key', () => {
+  it('returns the configured Brave provider', () => {
     const providers = defaultImageSearchProviders({
       BRAVE_SEARCH_API_KEY: 'brave-key',
-      PEXELS_API_KEY: 'pexels-key',
-      PIXABAY_API_KEY: 'pixabay-key',
     });
     expect(
       providers.map((provider) => [provider.origin, provider.maxResults]),
     ).toEqual([['brave', 100]]);
   });
 
-  it('fails closed without a Brave key instead of degrading to stock imagery', () => {
+  it('fails closed without a Brave key', () => {
     expect(() => defaultImageSearchProviders({})).toThrow(
       'Missing required environment variable: BRAVE_SEARCH_API_KEY',
     );
