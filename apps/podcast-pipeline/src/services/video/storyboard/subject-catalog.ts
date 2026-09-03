@@ -195,9 +195,15 @@ export function buildVisualSubjectSearchQueries(
   subject: VisualSubject,
 ): string[] {
   const canonical = subject.canonicalName.toLocaleLowerCase('en-US');
+  // Disambiguation demotes the original short name into `aliases`, so a query
+  // already carrying that name names the subject and must not be prefixed with
+  // the contextual canonical name on top of it.
+  const names = subjectNames(subject).map((name) =>
+    name.toLocaleLowerCase('en-US'),
+  );
   const queries = subject.searchQueries.map((query) => {
     const lowered = query.toLocaleLowerCase('en-US');
-    if (lowered.includes(canonical)) return query;
+    if (names.some((name) => lowered.includes(name))) return query;
     return `${subject.canonicalName} ${query}`.slice(0, 80).trim();
   });
   if (
