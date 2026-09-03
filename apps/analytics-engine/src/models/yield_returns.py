@@ -33,7 +33,7 @@ class PeriodInfo(BaseModel):
 
 
 class TokenYieldBreakdown(BaseModel):
-    """Yield attribution for a single token within a protocol snapshot."""
+    """Yield and market attribution for a single token snapshot delta."""
 
     symbol: str = Field(..., description="Token symbol or identifier")
     amount_change: float = Field(
@@ -45,8 +45,15 @@ class TokenYieldBreakdown(BaseModel):
     yield_return_usd: float = Field(
         ...,
         description=(
-            "Yield Return contribution in USD for this token "
+            "Amount-change contribution in USD for this token "
             "(amount_change × current_price)"
+        ),
+    )
+    market_return_usd: float = Field(
+        default=0.0,
+        description=(
+            "Price-change contribution in USD for the prior token balance "
+            "(previous_amount × (current_price - previous_price))"
         ),
     )
 
