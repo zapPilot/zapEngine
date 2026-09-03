@@ -20,14 +20,14 @@ The Vite UI listens on `127.0.0.1:4174`; its Hono API listens on `CONTROL_CENTER
 Six views, each answering one question. Home is a decision surface; the other
 five are where its evidence or narrow operator actions live.
 
-| View            | Question it answers                                                        | Reads / actions                                                  |
-| --------------- | -------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| **Home**        | What needs a decision right now?                                           | `/api/overview`, `/api/costs/history`, `/api/operations`         |
+| View            | Question it answers                                                         | Reads / actions                                                  |
+| --------------- | --------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| **Home**        | What needs a decision right now?                                            | `/api/overview`, `/api/costs/history`, `/api/operations`         |
 | **Pipeline**    | Where is each article, what failed, and can its current phase be recovered? | `/api/podcast-pipeline` + explicit ingest/video recovery actions |
-| **Growth**      | What should we publish next, and what did the last posts do?               | `/api/social-performance`                                        |
-| **Product**     | Who do we serve, and is their data still current?                          | `/api/customers` + product health from `/api/overview`           |
-| **Reliability** | Which sources are telling us something is wrong?                           | `/api/operations`, `/api/operations/social`                      |
-| **Economics**   | What does the company spend, and which provider spends it?                 | `/api/overview`, `/api/costs/history`                            |
+| **Growth**      | What should we publish next, and what did the last posts do?                | `/api/social-performance`                                        |
+| **Product**     | Who do we serve, and is their data still current?                           | `/api/customers` + product health from `/api/overview`           |
+| **Reliability** | Which sources are telling us something is wrong?                            | `/api/operations`, `/api/operations/social`                      |
+| **Economics**   | What does the company spend, and which provider spends it?                  | `/api/overview`, `/api/costs/history`                            |
 
 Home opens on priority-sorted founder statements rather than on a metric grid.
 Each statement carries its conclusion and evidence; the Reliability statement can
