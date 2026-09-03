@@ -2,21 +2,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const searchMocks = vi.hoisted(() => ({
   brave: vi.fn(),
-  pexels: vi.fn(),
-  pixabay: vi.fn(),
 }));
 
 vi.mock('./brave-image-search.js', () => ({
   BRAVE_MAX_RESULT_COUNT: 100,
   searchBraveImages: searchMocks.brave,
-}));
-vi.mock('./pexels-image-search.js', () => ({
-  PEXELS_MAX_RESULT_COUNT: 80,
-  searchPexelsImages: searchMocks.pexels,
-}));
-vi.mock('./pixabay-image-search.js', () => ({
-  PIXABAY_MAX_RESULT_COUNT: 200,
-  searchPixabayImages: searchMocks.pixabay,
 }));
 
 import { defaultImageSearchProviders } from './image-search-provider.js';
@@ -27,7 +17,7 @@ afterEach(() => {
 });
 
 describe('defaultImageSearchProviders', () => {
-  it('runs Brave first and the license-clean stock APIs behind it', () => {
+  it('returns Brave alone and does not revive a retired stock provider from its key', () => {
     const providers = defaultImageSearchProviders({
       BRAVE_SEARCH_API_KEY: 'brave-key',
       PEXELS_API_KEY: 'pexels-key',
@@ -35,11 +25,7 @@ describe('defaultImageSearchProviders', () => {
     });
     expect(
       providers.map((provider) => [provider.origin, provider.maxResults]),
-    ).toEqual([
-      ['brave', 100],
-      ['pexels', 80],
-      ['pixabay', 200],
-    ]);
+    ).toEqual([['brave', 100]]);
   });
 
   it('fails closed without a Brave key instead of degrading to stock imagery', () => {
@@ -51,51 +37,26 @@ describe('defaultImageSearchProviders', () => {
     ).toThrow('BRAVE_SEARCH_API_KEY');
   });
 
-  it('executes every configured provider with default and explicit options', async () => {
+  it('executes the Brave provider with default and explicit options', async () => {
     searchMocks.brave.mockResolvedValue([]);
-    searchMocks.pexels.mockResolvedValue([]);
-    searchMocks.pixabay.mockResolvedValue([]);
-    const providers = defaultImageSearchProviders({
+    const [brave] = defaultImageSearchProviders({
       BRAVE_SEARCH_API_KEY: 'brave-key',
-      PEXELS_API_KEY: 'pexels-key',
-      PIXABAY_API_KEY: 'pixabay-key',
     });
     const controller = new AbortController();
 
-    await providers[0]!.search('query');
-    await providers[1]!.search('query', {
-      count: 7,
-      signal: controller.signal,
-    });
-    await providers[2]!.search('query');
+    await brave!.search('query');
+    await brave!.search('query', { count: 7, signal: controller.signal });
 
-    expect(searchMocks.brave).toHaveBeenCalledWith('query', 'brave-key', {});
-    expect(searchMocks.pexels).toHaveBeenCalledWith('query', 'pexels-key', {
-      count: 7,
-      signal: controller.signal,
-    });
-    expect(searchMocks.pixabay).toHaveBeenCalledWith(
-      'query',
-      'pixabay-key',
-      {},
-    );
+    expect(searchMocks.brave.mock.calls).toEqual([
+      ['query', 'brave-key', {}],
+      ['query', 'brave-key', { count: 7, signal: controller.signal }],
+    ]);
   });
 
   it('uses process env by default', () => {
     vi.stubEnv('BRAVE_SEARCH_API_KEY', 'env-brave');
-    vi.stubEnv('PEXELS_API_KEY', 'env-pexels');
-    vi.stubEnv('PIXABAY_API_KEY', 'env-pixabay');
     expect(
       defaultImageSearchProviders().map((provider) => provider.origin),
-    ).toEqual(['brave', 'pexels', 'pixabay']);
-  });
-
-  it('treats blank stock keys as unconfigured', () => {
-    const providers = defaultImageSearchProviders({
-      BRAVE_SEARCH_API_KEY: 'brave-key',
-      PEXELS_API_KEY: '   ',
-      PIXABAY_API_KEY: '',
-    });
-    expect(providers.map((provider) => provider.origin)).toEqual(['brave']);
+    ).toEqual(['brave']);
   });
 });

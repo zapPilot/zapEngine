@@ -64,8 +64,12 @@ vi.mock('node:fs', async () => {
   };
 });
 
-vi.mock('openai', () => {
+// Only the client is faked. The real error classes stay exported so error
+// classification keeps seeing genuine SDK instances -- it matches them by type,
+// and a stub would make every `instanceof` check silently false.
+vi.mock('openai', async () => {
   return {
+    ...(await vi.importActual<typeof import('openai')>('openai')),
     default: vi.fn().mockImplementation(function () {
       return {
         chat: {

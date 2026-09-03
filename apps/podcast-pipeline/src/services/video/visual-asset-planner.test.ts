@@ -499,18 +499,18 @@ describe('planVisualAssets', () => {
     expect(result.assets[0]?.originalImageUrl).toBe(generic.imageUrl);
   });
 
-  it('tries free stock for an entity scene but rejects unrelated results', async () => {
-    const braveCandidate = {
-      ...candidate('coldcard-device', 'brave'),
-      altText: 'Coldcard hardware wallet',
-    };
-    const braveSearch = vi.fn().mockResolvedValue([braveCandidate]);
-    const pexelsSearch = vi.fn().mockResolvedValue([
+  it('moves to the next provider when the first returns only an off-subject result', async () => {
+    const offSubject = vi.fn().mockResolvedValue([
       {
-        ...candidate('generic-hardware-wallet', 'pexels'),
+        ...candidate('generic-hardware-wallet', 'brave'),
         altText: 'Generic hardware wallet on a desk',
       },
     ]);
+    const named = {
+      ...candidate('coldcard-device', 'brave'),
+      altText: 'Coldcard hardware wallet',
+    };
+    const onSubject = vi.fn().mockResolvedValue([named]);
 
     const result = await planVisualAssets({
       scenes: [
@@ -525,16 +525,16 @@ describe('planVisualAssets', () => {
       dependencies: {
         acquireImage: vi.fn().mockResolvedValue(acquired('coldcard-device')),
         searchProviders: [
-          { origin: 'brave', search: braveSearch },
-          { origin: 'pexels', search: pexelsSearch },
+          { origin: 'brave', search: offSubject },
+          { origin: 'brave', search: onSubject },
         ],
         fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
       },
     });
 
-    expect(pexelsSearch).toHaveBeenCalled();
-    expect(braveSearch).toHaveBeenCalled();
-    expect(result.assets[0]?.originalImageUrl).toBe(braveCandidate.imageUrl);
+    expect(offSubject).toHaveBeenCalled();
+    expect(onSubject).toHaveBeenCalled();
+    expect(result.assets[0]?.originalImageUrl).toBe(named.imageUrl);
   });
 
   it('retries an entity scene on the bare name before giving up on it', async () => {
@@ -1194,20 +1194,19 @@ describe('planVisualAssets', () => {
     );
   });
 
-  it('prefers license-clean providers and records photographer provenance', async () => {
-    const pexelsCandidate: ImageCandidate = {
-      imageUrl: 'https://images.pexels.example.test/world-cup.jpeg',
-      sourceUrl: 'https://www.pexels.com/photo/world-cup-12345/',
-      origin: 'pexels',
+  it('records photographer provenance and stops at the first usable provider', async () => {
+    const attributed: ImageCandidate = {
+      imageUrl: 'https://images.example.test/world-cup.jpeg',
+      sourceUrl: 'https://www.example.test/photo/world-cup-12345/',
+      origin: 'brave',
       width: 1_600,
       height: 1_200,
       altText: 'stadium crowd',
       photographer: 'Jane Doe',
-      photographerUrl: 'https://www.pexels.com/@jane-doe/',
+      photographerUrl: 'https://www.example.test/@jane-doe/',
     };
-    const pexelsSearch = vi.fn().mockResolvedValue([pexelsCandidate]);
-    const pixabaySearch = vi.fn();
-    const braveSearch = vi.fn();
+    const firstSearch = vi.fn().mockResolvedValue([attributed]);
+    const secondSearch = vi.fn();
 
     const result = await planVisualAssets({
       scenes: scenes.slice(0, 1),
@@ -1215,28 +1214,26 @@ describe('planVisualAssets', () => {
       dependencies: {
         acquireImage: vi.fn().mockResolvedValue(acquired('world-cup')),
         searchProviders: [
-          { origin: 'pexels', search: pexelsSearch },
-          { origin: 'pixabay', search: pixabaySearch },
-          { origin: 'brave', search: braveSearch },
+          { origin: 'brave', search: firstSearch },
+          { origin: 'brave', search: secondSearch },
         ],
         fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
       },
     });
 
-    expect(pixabaySearch).not.toHaveBeenCalled();
-    expect(braveSearch).not.toHaveBeenCalled();
+    expect(secondSearch).not.toHaveBeenCalled();
     expect(result.assets[0]).toMatchObject({
-      provider: 'pexels',
-      license: 'pexels',
+      provider: 'brave',
+      license: 'unknown',
       photographer: 'Jane Doe',
-      photographerUrl: 'https://www.pexels.com/@jane-doe/',
+      photographerUrl: 'https://www.example.test/@jane-doe/',
     });
   });
 
-  it('falls through to the next provider when a clean provider errors', async () => {
-    const pexelsSearch = vi
+  it('falls through to the next provider when one errors', async () => {
+    const failingSearch = vi
       .fn()
-      .mockRejectedValue(new Error('Pexels search failed: 429'));
+      .mockRejectedValue(new Error('Brave Images search failed: 429'));
     const braveCandidate = {
       ...candidate('fallback', 'brave'),
       altText: 'first subject',
@@ -1249,14 +1246,14 @@ describe('planVisualAssets', () => {
       dependencies: {
         acquireImage: vi.fn().mockResolvedValue(acquired('fallback')),
         searchProviders: [
-          { origin: 'pexels', search: pexelsSearch },
+          { origin: 'brave', search: failingSearch },
           { origin: 'brave', search: braveSearch },
         ],
         fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
       },
     });
 
-    expect(pexelsSearch).toHaveBeenCalledOnce();
+    expect(failingSearch).toHaveBeenCalledOnce();
     expect(result.assets[0]?.provider).toBe('brave');
     expect(result.assets[0]?.license).toBe('unknown');
   });
