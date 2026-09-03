@@ -63,7 +63,7 @@ The Vercel deployment is a remote Control Center operator surface. Configure the
 Dashboard HTTP views are generally read-only, with three narrowly bounded mutation surfaces:
 
 - `/api/mcp` exposes the separately authenticated Ops MCP. Its only current write capability is the narrowly allowlisted single-issue Sentry resolve operation documented in [`MCP.md`](./MCP.md).
-- `POST /api/podcast-pipeline/:episodeId/ingest/retry` invokes a service-role-only resumable ingest RPC. It only requeues durable work, preserves completed localization checkpoints, rejects a retry while a live ingest lease exists, and creates no Telegram notification target for operator-only recovery jobs.
+- `POST /api/podcast-pipeline/:episodeId/ingest/retry` invokes a service-role-only resumable ingest RPC. It only requeues durable work, preserves completed localization checkpoints, rejects a retry while a live ingest lease exists, and creates no Telegram notification target for operator-only recovery jobs. A durable job that Telegram created keeps its chat id when it is requeued, so its original submitter is still notified; only a legacy episode with no durable job gets a silent operator job.
 - `POST /api/podcast-pipeline/:episodeId/video/retry` invokes a service-role-only RPC that resets visual planning and localized video-render state only. It never rewrites scripts, translation, narration, classroom audio, or arbitrary database rows, and it rejects a retry while a live render lease exists. Vercel Authentication is therefore a load-bearing boundary for these operator actions.
 
 The remote API deliberately does not register `POST /api/costs/sync`; cost collection remains an external operation.
