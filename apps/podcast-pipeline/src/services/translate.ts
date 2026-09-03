@@ -4,7 +4,6 @@ import { isPlainRecord as isRecord } from '../lib/typeGuards.js';
 import type { LanguageClassroomLanguageCode } from '../types.js';
 import { sumUsageCostLines, type UsageCostLine } from './cost.js';
 import { logIngestEvent } from './ingest/step.js';
-import { getTranslationFallbackModels } from './llm-model-fallback.js';
 import {
   createOpenRouterChatCompletion,
   getOpenRouterConfig,
@@ -13,6 +12,7 @@ import {
   type OpenRouterChatCompletion,
   type OpenRouterProviderRouting,
 } from './llm.js';
+import { getTranslationFallbackModels } from './llm-model-fallback.js';
 import { splitCanonicalSentences } from './video/storyboard/sentences.js';
 
 export type SecondaryLanguageCode = Exclude<
@@ -214,7 +214,10 @@ async function tryTranslationModel<K extends string>(
       if (attemptCost) {
         costs.push(attemptCost);
       }
-      if (!shouldRetryTranslation(error) || attempt === TRANSLATION_MAX_ATTEMPTS) {
+      if (
+        !shouldRetryTranslation(error) ||
+        attempt === TRANSLATION_MAX_ATTEMPTS
+      ) {
         return {
           fields: null,
           cost: costs,
