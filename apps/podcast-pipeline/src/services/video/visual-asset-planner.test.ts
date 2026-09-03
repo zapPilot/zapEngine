@@ -524,7 +524,6 @@ describe('planVisualAssets', () => {
   });
 
   it('accepts a named subject however the page spells it', async () => {
-    // The name reaches the candidate only through a hyphenated URL slug.
     const related = {
       ...candidate('coldcard-mk4-review', 'brave'),
       altText: 'Hardware wallet on a desk',
@@ -980,8 +979,6 @@ describe('planVisualAssets', () => {
   });
 
   it('names the filter that removed the candidates a search did return', async () => {
-    // Brave answered this scene 175 times over and it still starved, so the
-    // count that matters is which pre-download filter emptied the list.
     const searched = [
       {
         ...candidate('logo', 'brave'),
