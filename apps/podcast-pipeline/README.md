@@ -168,7 +168,7 @@ Two pricing bases:
 
 Writes go through `from_fed_to_chain.ops_record_pipeline_run`, reads through the `from_fed_to_chain.ops_pipeline_runs` / `ops_pipeline_stage_runs` views. `ops` itself stays invisible to PostgREST — same bridge pattern as the `ops_cost_*` objects in migration 035.
 
-**A ledger write can never fail the pipeline.** `recordPipelineRun` swallows every error into one `[ops-ledger]` line plus a Sentry `warning`. Warning, not silence: a ledger that quietly never writes looks exactly like a pipeline that never ran.
+**A ledger write can never fail the pipeline.** `recordPipelineRun` swallows its own errors into one `[ops-ledger]` line plus a Sentry `warning`. Warning, not silence: a ledger that never writes has to be visible, but a render that finished is finished whether or not its cost was recorded.
 
 **Fly render cost is an estimate, not an invoice.** The seeded rate is derived from this repository's own reference figure (`apps/control-center/src/server/services/fly.ts`): 2 vCPU x `$32.19` per performance vCPU-month / 730 h / 3600 s = `$0.00002450` per second, with no extra RAM charge because `performance-2x` includes 4 GB. Reconcile it against the first real Fly invoice, and correct it by **adding a version** — close the old row's `effective_to` and insert a new one — never by editing the row in place, or historical rows silently reprice.
 
