@@ -17,6 +17,9 @@ vi.mock('./youtube-auth.js', () => ({
 import { createYouTubePublisher } from './youtube.js';
 
 const ANALYTICS_URL = 'https://youtubeanalytics.googleapis.com/v2/reports';
+const THUMBNAIL_API_URL =
+  'https://www.googleapis.com/upload/youtube/v3/thumbnails/set';
+const THUMBNAIL_URL = 'https://cdn.example.com/canonical-thumbnail.png';
 const CHANNEL_ID = 'UC-zap-nomad';
 const directories: string[] = [];
 
@@ -135,6 +138,149 @@ describe('YouTube publisher', () => {
       selfDeclaredMadeForKids: false,
     });
     expect(requests[1]?.url).toBe('https://upload.example/session-1');
+  });
+
+  it('sets the canonical renderer poster as the uploaded video thumbnail', async () => {
+    const videoPath = await fixtureVideo();
+    const onLog = vi.fn();
+    const requests: { url: string; init: RequestInit }[] = [];
+    const thumbnailBytes = Buffer.from('canonical-thumbnail');
+    const fetchImpl = vi.fn<typeof fetch>(async (input, init = {}) => {
+      const url = String(input);
+      requests.push({ url, init });
+      if (url === THUMBNAIL_URL) {
+        return new Response(thumbnailBytes, {
+          status: 200,
+          headers: { 'content-type': 'image/png' },
+        });
+      }
+      if (url.includes('/upload/youtube/v3/videos')) {
+        return new Response(null, {
+          status: 200,
+          headers: { location: 'https://upload.example/thumbnail-session' },
+        });
+      }
+      if (url === 'https://upload.example/thumbnail-session') {
+        return new Response(JSON.stringify({ id: 'yt-thumbnail' }), {
+          status: 200,
+        });
+      }
+      if (url.startsWith(THUMBNAIL_API_URL)) {
+        return new Response(JSON.stringify({ items: [] }), { status: 200 });
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    const publisher = createYouTubePublisher({
+      fetchImpl: withChannelProbe(fetchImpl),
+      onLog,
+      now: () => new Date('2026-08-16T00:00:00.000Z'),
+    });
+
+    const result = await publisher.publishYouTube({
+      title: '市場更新',
+      description: '今天的市場重點',
+      videoPath,
+      thumbnailUrl: THUMBNAIL_URL,
+      privacyStatus: 'public',
+    });
+
+    expect(result.postId).toBe('yt-thumbnail');
+    expect(requests[0]?.url).toBe(THUMBNAIL_URL);
+    const thumbnailRequest = requests[3];
+    expect(thumbnailRequest?.url).toContain(THUMBNAIL_API_URL);
+    const thumbnailUploadUrl = new URL(thumbnailRequest?.url ?? '');
+    expect(thumbnailUploadUrl.searchParams.get('videoId')).toBe('yt-thumbnail');
+    expect(thumbnailUploadUrl.searchParams.get('uploadType')).toBe('media');
+    expect(thumbnailRequest?.init.method).toBe('POST');
+    expect(new Headers(thumbnailRequest?.init.headers).get('content-type')).toBe(
+      'image/png',
+    );
+    expect(
+      Buffer.from(thumbnailRequest?.init.body as Uint8Array).equals(
+        thumbnailBytes,
+      ),
+    ).toBe(true);
+    expect(onLog).toHaveBeenCalledWith(
+      '[youtube] Preparing canonical thumbnail',
+    );
+    expect(onLog).toHaveBeenCalledWith('[youtube] Setting canonical thumbnail');
+  });
+
+  it('keeps an already-published video successful when thumbnail setting fails', async () => {
+    const videoPath = await fixtureVideo();
+    const onLog = vi.fn();
+    const fetchImpl = vi.fn<typeof fetch>(async (input) => {
+      const url = String(input);
+      if (url === THUMBNAIL_URL) {
+        return new Response(Buffer.from('canonical-thumbnail'), {
+          status: 200,
+          headers: { 'content-type': 'image/png' },
+        });
+      }
+      if (url.includes('/upload/youtube/v3/videos')) {
+        return new Response(null, {
+          status: 200,
+          headers: { location: 'https://upload.example/warning-session' },
+        });
+      }
+      if (url === 'https://upload.example/warning-session') {
+        return new Response(JSON.stringify({ id: 'yt-warning' }), {
+          status: 200,
+        });
+      }
+      if (url.startsWith(THUMBNAIL_API_URL)) {
+        return new Response(
+          JSON.stringify({ error: { message: 'thumbnail forbidden' } }),
+          { status: 403, headers: { 'content-type': 'application/json' } },
+        );
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    const publisher = createYouTubePublisher({
+      fetchImpl: withChannelProbe(fetchImpl),
+      onLog,
+    });
+
+    const result = await publisher.publishYouTube({
+      title: '市場更新',
+      description: '今天的市場重點',
+      videoPath,
+      thumbnailUrl: THUMBNAIL_URL,
+      privacyStatus: 'public',
+    });
+
+    expect(result.postId).toBe('yt-warning');
+    expect(onLog).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'WARNING: video yt-warning published but canonical thumbnail was not set',
+      ),
+    );
+  });
+
+  it('names thumbnail preparation failures before uploading a video', async () => {
+    const videoPath = await fixtureVideo();
+    const fetchImpl = vi.fn<typeof fetch>(async (input) => {
+      if (String(input) === THUMBNAIL_URL) {
+        return new Response(null, { status: 404 });
+      }
+      throw new Error(`Unexpected request: ${String(input)}`);
+    });
+    const publisher = createYouTubePublisher({
+      fetchImpl: withChannelProbe(fetchImpl),
+    });
+
+    await expect(
+      publisher.publishYouTube({
+        title: '市場更新',
+        description: '今天的市場重點',
+        videoPath,
+        thumbnailUrl: THUMBNAIL_URL,
+        privacyStatus: 'public',
+      }),
+    ).rejects.toThrow(
+      /YOUTUBE_PUBLISH_FAILED[\s\S]+Step: prepare_thumbnail[\s\S]+HTTP 404/u,
+    );
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
   it('names upload-session failures for recovery', async () => {
