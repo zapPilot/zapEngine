@@ -31,6 +31,20 @@ export interface PodcastPipelineRenderState extends PodcastPipelineJobState {
   localizationId: string;
 }
 
+export interface PodcastPipelineVisualQuery {
+  sceneId: string;
+  subjectIds: string[];
+  selectionReason: string | null;
+  queries: string[];
+}
+
+export interface PodcastPipelineVisualDebug {
+  phase: string | null;
+  primarySubject: string | null;
+  subjects: { id: string; name: string }[];
+  plannedQueries: PodcastPipelineVisualQuery[];
+}
+
 export interface PodcastPipelineEpisode {
   episodeId: string;
   title: string | null;
@@ -43,6 +57,7 @@ export interface PodcastPipelineEpisode {
   ingest: PodcastPipelineJobState | null;
   localizations: PodcastPipelineLocalization[];
   visual: PodcastPipelineJobState | null;
+  visualDebug: PodcastPipelineVisualDebug | null;
   renders: PodcastPipelineRenderState[];
   canRestartVideo: boolean;
 }
