@@ -740,6 +740,7 @@ describe('OpenRouter search intent provider', () => {
   });
 
   it('rejects empty and malformed completions after one payload retry', async () => {
+    vi.clearAllMocks();
     mockCompletion('   ');
     const provider = createOpenRouterSearchIntentProvider();
     const request = {
