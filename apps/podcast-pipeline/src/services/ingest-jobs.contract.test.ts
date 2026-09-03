@@ -53,6 +53,15 @@ describe('podcast ingest job RPC contract', () => {
     });
   });
 
+  it('accepts a null Telegram chat id for an operator recovery job', () => {
+    expect(
+      parsePodcastIngestJobRpcResult([validRow({ telegram_chat_id: null })]),
+    ).toMatchObject({
+      telegram_chat_id: null,
+      status: 'processing',
+    });
+  });
+
   it.each([false, 0, ''])(
     'rejects a malformed non-null RPC payload %j',
     (payload) => {
