@@ -414,8 +414,6 @@ describe('planVisualAssets', () => {
   });
 
   it('rejects a candidate that never mentions the subject the scene names', async () => {
-    // The shape that shipped an Italian greyhound into a Bitcoin episode: a
-    // candidate that shares wording with the query and nothing else.
     const unrelated = {
       ...candidate('italian-greyhound-colors', 'brave'),
       altText: 'Italian greyhound colors and coat patterns',
@@ -447,7 +445,6 @@ describe('planVisualAssets', () => {
   });
 
   it('accepts a named subject however the page spells it', async () => {
-    // The name reaches the candidate only through a hyphenated URL slug.
     const related = {
       ...candidate('coldcard-mk4-review', 'brave'),
       altText: 'Hardware wallet on a desk',
@@ -499,7 +496,7 @@ describe('planVisualAssets', () => {
     expect(result.assets[0]?.originalImageUrl).toBe(generic.imageUrl);
   });
 
-  it('tries free stock for an entity scene but rejects unrelated results', async () => {
+  it('stops after Brave finds a relevant entity result', async () => {
     const braveCandidate = {
       ...candidate('coldcard-device', 'brave'),
       altText: 'Coldcard hardware wallet',
@@ -532,8 +529,8 @@ describe('planVisualAssets', () => {
       },
     });
 
-    expect(pexelsSearch).toHaveBeenCalled();
-    expect(braveSearch).toHaveBeenCalled();
+    expect(braveSearch).toHaveBeenCalledOnce();
+    expect(pexelsSearch).not.toHaveBeenCalled();
     expect(result.assets[0]?.originalImageUrl).toBe(braveCandidate.imageUrl);
   });
 
@@ -566,8 +563,6 @@ describe('planVisualAssets', () => {
       },
     });
 
-    // The generic `... official event photo` relaxation would widen the query
-    // away from the subject; the bare name stays on it.
     expect(braveSearch.mock.calls.map(([query]) => query)).toEqual([
       'Coldcard air-gapped signing device close-up',
       'Coldcard',
@@ -979,9 +974,6 @@ describe('planVisualAssets', () => {
   });
 
   it('reports the entity anchor as the reason a scene starved', async () => {
-    // The anchor runs before any download, so this scene dies with zero
-    // rejections: without the funnel the error is indistinguishable from a
-    // provider that returned nothing, which is a different problem entirely.
     const progress = vi.fn<(event: VisualAssetProgress) => void>();
     const searched = [
       candidate('brave-a', 'brave'),
@@ -1020,8 +1012,6 @@ describe('planVisualAssets', () => {
   });
 
   it('names the filter that removed the candidates a search did return', async () => {
-    // Brave answered this scene 175 times over and it still starved, so the
-    // count that matters is which pre-download filter emptied the list.
     const searched = [
       {
         ...candidate('logo', 'brave'),
