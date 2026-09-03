@@ -205,7 +205,7 @@ class YieldReturnService(BaseAnalyticsService):
         current_amounts: dict[str, dict[str, float]],
         previous_amounts: dict[str, dict[str, float]],
     ) -> list[TokenYieldBreakdown]:
-        """Generate token-level Yield Return breakdown."""
+        """Generate token-level amount and price attribution."""
         breakdown: list[TokenYieldBreakdown] = []
         all_symbols = sorted(set(current_amounts.keys()) | set(previous_amounts.keys()))
 
@@ -215,14 +215,17 @@ class YieldReturnService(BaseAnalyticsService):
             current_amount = float(current.get("amount", 0.0))
             current_price = float(current.get("price", previous.get("price", 0.0)))
             previous_amount = float(previous.get("amount", 0.0))
+            previous_price = float(previous.get("price", current_price))
             amount_diff = current_amount - previous_amount
             yield_return_usd = amount_diff * current_price
+            market_return_usd = previous_amount * (current_price - previous_price)
             breakdown.append(
                 TokenYieldBreakdown(
                     symbol=symbol,
                     amount_change=amount_diff,
                     current_price=current_price,
                     yield_return_usd=yield_return_usd,
+                    market_return_usd=market_return_usd,
                 )
             )
 
