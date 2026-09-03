@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { PipelineSupabaseClient } from './supabase-client.js';
+import { buildTelegramVideoRetryReplyMarkup } from './telegram.js';
 import { createVideoVisualFailureNotifier } from './video-visual-failure-notifier.js';
 
 function makeSupabase(
@@ -47,6 +48,7 @@ describe('video visual failure notifier', () => {
     expect(notify).toHaveBeenCalledWith(
       'chat-1',
       expect.stringContaining('原因：subject catalog exhausted retries'),
+      { replyMarkup: buildTelegramVideoRetryReplyMarkup('episode-1') },
     );
     expect(supabase.rpc).toHaveBeenNthCalledWith(
       2,

@@ -612,14 +612,22 @@ export function ruleR10(input: StatementInputs): RuleFinding {
       (job): job is NonNullable<typeof job> => Boolean(job),
     );
     return jobs.some(
-      (job) => job.status === 'stuck' || job.status === 'failed',
+      (job) =>
+        job.status === 'stuck' ||
+        job.status === 'stale' ||
+        job.status === 'failed',
     );
   });
   const worst = stuckOrFailed[0];
   const worstJob = worst
     ? [worst.ingest, worst.visual, ...worst.renders]
         .filter((job): job is NonNullable<typeof job> => Boolean(job))
-        .find((job) => job.status === 'stuck' || job.status === 'failed')
+        .find(
+          (job) =>
+            job.status === 'stuck' ||
+            job.status === 'stale' ||
+            job.status === 'failed',
+        )
     : null;
   const worstElapsedMs = worstJob?.updatedAt
     ? input.now.getTime() - Date.parse(worstJob.updatedAt)

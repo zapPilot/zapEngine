@@ -1,3 +1,4 @@
+/* eslint-disable sonarjs/no-duplicate-string -- 'generated-slide' is a domain literal intentionally repeated in asset planning logic */
 import { rm } from 'node:fs/promises';
 
 import sharp from 'sharp';
@@ -20,6 +21,7 @@ const MAX_BRAVE_SEARCHES_PER_VISUAL_PLAN = 4;
 const MAX_SEARCH_INTENTS_PER_PROVIDER = 2;
 const MAX_DISTINCT_SEARCHED_ASSETS_PER_SUBJECT = 3;
 const PERCEPTUAL_HASH_DISTANCE_LIMIT = 6;
+export const MAX_GENERATED_SLIDE_RATIO = 0.25;
 
 export interface VisualAssetScene {
   sceneId: string;
@@ -34,9 +36,29 @@ export interface VisualAssetScene {
 export type VisualImageProvider =
   | 'article'
   | 'brand'
+  | 'generated-slide'
   | ImageSearchProvider['origin'];
 export type VisualSelectionMode = 'strict' | 'resilient';
 export type VisualReuseKind = 'non-consecutive' | 'consecutive';
+export type VisualSceneExhaustedReason =
+  | 'search-failure'
+  | 'candidate-exhaustion'
+  | 'reuse-dead-end'
+  | 'never-searched';
+
+export class VisualSceneExhaustedError extends Error {
+  constructor(
+    readonly sceneId: string,
+    readonly reason: VisualSceneExhaustedReason,
+    message: string,
+    readonly rejections: Record<string, number> = {},
+    readonly funnel: Record<string, number> = {},
+    readonly providerFailures: string[] = [],
+  ) {
+    super(message);
+    this.name = 'VisualSceneExhaustedError';
+  }
+}
 
 const PROVIDER_LICENSES = {
   article: 'unknown',
@@ -44,7 +66,21 @@ const PROVIDER_LICENSES = {
   brave: 'unknown',
   pexels: 'pexels',
   pixabay: 'pixabay',
+  'generated-slide': 'brand-generated',
 } as const satisfies Record<VisualImageProvider, string>;
+
+export interface GeneratedSlideMetadata {
+  templateVersion: 'concept-card-v1';
+  kicker: string;
+  headline: string;
+  points: string[];
+  copySource: 'llm' | 'deterministic';
+  model: string | null;
+  reason: VisualSceneExhaustedReason;
+  rejectionSummary: string | null;
+  lead: boolean;
+  costUsd: number | null;
+}
 
 export interface PlannedVisualImage {
   assetId: string;
@@ -60,6 +96,7 @@ export interface PlannedVisualImage {
   license: (typeof PROVIDER_LICENSES)[VisualImageProvider];
   photographer?: string;
   photographerUrl?: string;
+  slide?: GeneratedSlideMetadata;
 }
 
 export interface PlannedVisualScene {
@@ -73,7 +110,7 @@ export interface VisualAssetPlan {
 }
 
 export interface VisualAssetProgress {
-  phase: 'search' | 'assets' | 'cover';
+  phase: 'search' | 'assets' | 'cover' | 'slide';
   sceneId: string;
   sceneIndex: number;
   sceneCount: number;
@@ -92,19 +129,45 @@ export interface VisualAssetProgress {
   elapsedMs: number;
 }
 
+export interface GeneratedSlideRequest {
+  assetId: string;
+  scene: VisualAssetScene;
+  title: string;
+  evidence: { text: string; searchText?: string } | null;
+  reason: VisualSceneExhaustedReason;
+  rejectionSummary: string | null;
+  lead: boolean;
+  workingDirectory: string;
+  signal?: AbortSignal;
+}
+
 interface VisualAssetPlannerDependencies {
   acquireImage: typeof acquireRemoteImage;
   searchProviders: readonly ImageSearchProvider[];
   fingerprintImage: typeof fingerprintImage;
+  generateSlide?: (
+    request: GeneratedSlideRequest,
+  ) => Promise<PlannedVisualImage>;
 }
 
 export interface PlanVisualAssetsInput {
   scenes: readonly VisualAssetScene[];
   articleImages?: readonly ImageCandidate[];
   workingDirectory: string;
+  resumePlan?: VisualAssetPlan;
   selectionMode?: VisualSelectionMode;
   signal?: AbortSignal;
   onProgress?: (event: VisualAssetProgress) => void;
+  onSelection?: (event: {
+    sceneId: string;
+    sceneIndex: number;
+    sceneCount: number;
+    asset: PlannedVisualImage;
+  }) => Promise<void>;
+  slideFallback?: {
+    title: string;
+    sceneEvidence?: ReadonlyMap<string, { text: string; searchText?: string }>;
+  };
   dependencies?: Partial<VisualAssetPlannerDependencies>;
 }
 
@@ -160,6 +223,9 @@ function resolvePlannerDependencies(
   return {
     acquireImage: overrides?.acquireImage ?? acquireRemoteImage,
     fingerprintImage: overrides?.fingerprintImage ?? fingerprintImage,
+    ...(overrides?.generateSlide
+      ? { generateSlide: overrides.generateSlide }
+      : {}),
     // Resolved per invocation so API-key env changes take effect without a
     // module reload, and only when the caller brought no chain of its own —
     // the default one fails closed on a missing Brave key.
@@ -185,28 +251,48 @@ export async function planVisualAssets(
       'figure',
     ]),
     articleCursor: 0,
-    attemptedUrls: new Set<string>(),
-    assets: [],
-    scenes: [],
+    attemptedUrls: new Set(
+      (input.resumePlan?.assets ?? []).map((asset) => asset.originalImageUrl),
+    ),
+    assets: [...(input.resumePlan?.assets ?? [])],
+    scenes: [...(input.resumePlan?.scenes ?? [])],
     searchCache: new Map(),
     braveSearchCount: 0,
     subjectAssetIds: new Map(),
   };
 
+  for (const resumedScene of state.scenes) {
+    const scene = input.scenes.find(
+      (candidate) => candidate.sceneId === resumedScene.sceneId,
+    );
+    const asset = state.assets.find(
+      (candidate) => candidate.assetId === resumedScene.assetId,
+    );
+    if (scene && asset && asset.provider !== 'generated-slide') {
+      rememberSubjectAsset(state, scene, asset.assetId);
+    }
+  }
+
+  const resumedSceneIds = new Set(state.scenes.map((scene) => scene.sceneId));
   for (const [sceneIndex, scene] of input.scenes.entries()) {
     input.signal?.throwIfAborted();
+    if (resumedSceneIds.has(scene.sceneId)) continue;
     const startedAt = Date.now();
-    const selected = await selectImageForScene(state, scene, sceneIndex);
-
-    if (!selected) {
-      throw new Error(`Visual scene ${scene.sceneId} has no usable image`);
-    }
+    const selected = await selectSceneAsset(state, scene, sceneIndex);
 
     state.scenes.push({
       sceneId: scene.sceneId,
       assetId: selected.asset.assetId,
     });
-    rememberSubjectAsset(state, scene, selected.asset.assetId);
+    if (selected.asset.provider !== 'generated-slide') {
+      rememberSubjectAsset(state, scene, selected.asset.assetId);
+    }
+    await input.onSelection?.({
+      sceneId: scene.sceneId,
+      sceneIndex: sceneIndex + 1,
+      sceneCount: input.scenes.length,
+      asset: selected.asset,
+    });
     const sourceHostname = candidateHostname(selected.asset.sourcePageUrl);
     input.onProgress?.({
       phase: 'assets',
@@ -231,6 +317,101 @@ export async function planVisualAssets(
   }
 
   return { assets: state.assets, scenes: state.scenes };
+}
+
+async function selectSceneAsset(
+  state: VisualAssetPlannerState,
+  scene: VisualAssetScene,
+  sceneIndex: number,
+): Promise<SelectedVisualImage> {
+  let exhaustion: VisualSceneExhaustedError;
+  try {
+    const selected = await selectImageForScene(state, scene, sceneIndex);
+    if (selected) return selected;
+    exhaustion = new VisualSceneExhaustedError(
+      scene.sceneId,
+      'never-searched',
+      `Visual scene ${scene.sceneId} has no usable image`,
+    );
+  } catch (error) {
+    if (
+      state.input.signal?.aborted ||
+      !(error instanceof VisualSceneExhaustedError)
+    ) {
+      throw error;
+    }
+    exhaustion = error;
+  }
+
+  const generateSlide = state.dependencies.generateSlide;
+  if (
+    state.mode !== 'resilient' ||
+    !state.input.slideFallback ||
+    !generateSlide
+  ) {
+    throw exhaustion;
+  }
+
+  const generatedCount = state.assets.filter(
+    (asset) => asset.provider === 'generated-slide',
+  ).length;
+  const cap = Math.max(
+    1,
+    Math.ceil(state.input.scenes.length * MAX_GENERATED_SLIDE_RATIO),
+  );
+  if (generatedCount >= cap) {
+    throw new VisualSceneExhaustedError(
+      exhaustion.sceneId,
+      exhaustion.reason,
+      `${exhaustion.message} [generatedSlides=${generatedCount}, cap=${cap}]`,
+      exhaustion.rejections,
+      exhaustion.funnel,
+      exhaustion.providerFailures,
+    );
+  }
+
+  const assetId = nextAssetId(state.assets);
+  const asset = await generateSlide({
+    assetId,
+    scene,
+    title: state.input.slideFallback.title,
+    evidence:
+      state.input.slideFallback.sceneEvidence?.get(scene.sceneId) ?? null,
+    reason: exhaustion.reason,
+    rejectionSummary:
+      Object.keys(exhaustion.rejections).length > 0
+        ? Object.entries(exhaustion.rejections)
+            .map(([reason, count]) => `${reason}:${count}`)
+            .join(',')
+        : null,
+    lead: sceneIndex === 0,
+    workingDirectory: state.input.workingDirectory,
+    ...(state.input.signal ? { signal: state.input.signal } : {}),
+  });
+  state.assets.push(asset);
+  state.input.onProgress?.({
+    phase: 'slide',
+    sceneId: scene.sceneId,
+    sceneIndex: sceneIndex + 1,
+    sceneCount: state.input.scenes.length,
+    provider: 'generated-slide',
+    assetId: asset.assetId,
+    rejectionSummary: asset.slide?.rejectionSummary ?? undefined,
+    elapsedMs: 0,
+  });
+  return {
+    asset,
+    provider: 'generated-slide',
+    rejections: createCandidateRejections(),
+  };
+}
+
+function nextAssetId(assets: readonly PlannedVisualImage[]): string {
+  const max = assets.reduce((current, asset) => {
+    const match = /^image-(\d+)$/u.exec(asset.assetId);
+    return match ? Math.max(current, Number.parseInt(match[1]!, 10)) : current;
+  }, 0);
+  return `image-${String(max + 1).padStart(2, '0')}`;
 }
 
 async function selectImageForScene(
@@ -340,13 +521,21 @@ function resolveUnanchoredFallback(
 ): SelectedVisualImage | null {
   const previousAssetId = state.scenes.at(-1)?.assetId;
   const previousAsset = previousAssetId
-    ? (state.assets.find((asset) => asset.assetId === previousAssetId) ?? null)
+    ? (state.assets.find(
+        (asset) =>
+          asset.assetId === previousAssetId &&
+          asset.provider !== 'generated-slide',
+      ) ?? null)
     : null;
 
   const nonConsecutiveReusable =
     [...state.assets]
       .reverse()
-      .find((asset) => asset.assetId !== previousAssetId) ?? null;
+      .find(
+        (asset) =>
+          asset.assetId !== previousAssetId &&
+          asset.provider !== 'generated-slide',
+      ) ?? null;
 
   if (nonConsecutiveReusable) {
     if (state.mode === 'resilient') {
@@ -386,8 +575,12 @@ function resolveUnanchoredFallback(
     );
   }
   if (previousAsset) {
-    throw new Error(
+    throw new VisualSceneExhaustedError(
+      scene.sceneId,
+      'reuse-dead-end',
       `Visual scene ${scene.sceneId} cannot reuse the immediately preceding image`,
+      candidateRejectionRecord(rejections),
+      searchFunnelRecord(searched.funnel),
     );
   }
   // Searches ran and every candidate was removed before a single download, by
@@ -883,9 +1076,13 @@ function visualSearchFailure(
 ): Error {
   const messages = [...new Set(failures.map((failure) => failure.message))];
   const rejectionDetails = formatCandidateRejectionDetails(rejections);
-  return new Error(
+  return new VisualSceneExhaustedError(
+    sceneId,
+    'search-failure',
     `Visual image search failed for scene ${sceneId}: ${messages.join('; ')}${rejectionDetails}${formatSearchFunnel(funnel)}`,
-    { cause: new AggregateError(failures, 'Image search provider failures') },
+    candidateRejectionRecord(rejections),
+    searchFunnelRecord(funnel),
+    messages,
   );
 }
 
@@ -894,9 +1091,28 @@ function candidateExhaustionFailure(
   rejections: CandidateRejections,
   funnel: SearchFunnel,
 ): Error {
-  return new Error(
+  return new VisualSceneExhaustedError(
+    sceneId,
+    'candidate-exhaustion',
     `Visual scene ${sceneId} has no usable image${formatCandidateRejectionDetails(rejections)}${formatSearchFunnel(funnel)}`,
+    candidateRejectionRecord(rejections),
+    searchFunnelRecord(funnel),
   );
+}
+
+function candidateRejectionRecord(
+  rejections: CandidateRejections,
+): Record<string, number> {
+  return Object.fromEntries(rejections.causes);
+}
+
+function searchFunnelRecord(funnel: SearchFunnel): Record<string, number> {
+  return {
+    searches: funnel.searches,
+    returned: funnel.returned,
+    viable: funnel.viable,
+    entityFiltered: funnel.entityFiltered,
+  };
 }
 
 /**

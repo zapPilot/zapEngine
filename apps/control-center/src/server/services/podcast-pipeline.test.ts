@@ -1,3 +1,4 @@
+import { EPISODE_VIDEO_VISUAL_VERSION } from '@zapengine/types/shared';
 import { describe, expect, it } from 'vitest';
 
 import { summarizePodcastPipeline } from './podcast-pipeline.js';
@@ -148,24 +149,31 @@ describe('podcast pipeline summary', () => {
     });
   });
 
-  it('disables restart when a language has no render row for the RPC to update', () => {
+  it('reports languages without a render row as not scheduled and lets the RPC materialize them', () => {
     // Legacy single-language episodes and partial enqueues leave fewer than
-    // three `episode_videos` rows. The retry RPC only updates existing rows and
-    // reads a missing one as completed, so it answers 409 "already completed"
-    // for an episode this same view reports as queued.
+    // three `episode_videos` rows. Since retry_episode_video_generation inserts
+    // the missing rows, the operator can repair them with one restart.
     const summary = summarize({
-      visuals: [visual({ status: 'completed' })],
+      visuals: [
+        visual({
+          status: 'completed',
+          visual_version: EPISODE_VIDEO_VISUAL_VERSION,
+        }),
+      ],
       renders: queuedRenders().slice(0, 1),
     });
 
     expect(summary).toMatchObject({
-      videoStatus: 'queued',
-      canRestartVideo: false,
+      videoStatus: 'unscheduled',
+      canRestartVideo: true,
     });
     expect(summary?.renders).toHaveLength(3);
     expect(
-      summary?.renders.filter(({ updatedAt }) => updatedAt === null),
+      summary?.renders.filter(({ status }) => status === 'unscheduled'),
     ).toHaveLength(2);
+    expect(
+      summary?.renders.filter(({ canRestart }) => canRestart),
+    ).toHaveLength(3);
   });
 
   it('keeps an article in TTS until all three languages have renderable audio', () => {

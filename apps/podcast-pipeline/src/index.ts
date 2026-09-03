@@ -69,13 +69,20 @@ import {
   getTelegramCallbackQuery,
   getTelegramMessage,
   isAllowedUser,
-  isTelegramHelpCommand,
-  TELEGRAM_HELP_TEXT,
+  parseTelegramCallbackData,
+  parseTelegramCommand,
   TELEGRAM_NO_URL_TEXT,
-  TELEGRAM_RETRY_CALLBACK_DATA,
+  type TelegramChatId,
   verifySecret,
 } from './services/telegram.js';
-import { createTelegramIngestQueue } from './services/telegram-ingest-queue.js';
+import {
+  dispatchTelegramCommand,
+  scheduleTelegramRetryVideoCallback,
+} from './services/telegram-commands.js';
+import {
+  createTelegramIngestQueue,
+  type TelegramIngestQueue,
+} from './services/telegram-ingest-queue.js';
 import {
   buildEpisodeVideoGenerationForLocalizations,
   loadEpisodeVideoGeneration,
@@ -271,45 +278,37 @@ export function createApp(): Hono {
     const update = await c.req.json().catch(() => null);
     const callbackQuery = getTelegramCallbackQuery(update);
     if (callbackQuery) {
+      const action = parseTelegramCallbackData(callbackQuery.data);
       if (
         !isAllowedUser(callbackQuery.from?.id, getAllowedTelegramUserIds()) ||
-        callbackQuery.data !== TELEGRAM_RETRY_CALLBACK_DATA
+        !action
       ) {
         return emptyTelegramResponse(c);
       }
 
       const callbackId = callbackQuery.id;
-      const callbackText = callbackQuery.message?.text;
       const callbackChatId = callbackQuery.message?.chat?.id;
       if (
         typeof callbackId !== 'string' ||
-        typeof callbackText !== 'string' ||
         (typeof callbackChatId !== 'number' &&
           typeof callbackChatId !== 'string')
       ) {
         return emptyTelegramResponse(c);
       }
 
-      const retryUrl = extractFailureSourceUrl(callbackText);
-      if (!retryUrl) {
-        void answerTelegramCallbackQuery(callbackId, '找不到原始 URL');
+      if (action.kind === 'retry-video') {
+        scheduleTelegramRetryVideoCallback(callbackId, action.episodeId);
         return emptyTelegramResponse(c);
       }
 
-      let parsedRetryUrl: string;
-      try {
-        parsedRetryUrl = parseInputUrl(retryUrl);
-      } catch {
-        void answerTelegramCallbackQuery(callbackId, '原始 URL 無效');
-        return emptyTelegramResponse(c);
-      }
-
-      telegramIngestQueue.enqueue(
-        callbackChatId,
-        parsedRetryUrl,
-        DEFAULT_LANGUAGE_CODE,
+      void answerTelegramCallbackQuery(
+        callbackId,
+        retryIngestFromCallback(
+          callbackQuery.message?.text,
+          callbackChatId,
+          telegramIngestQueue,
+        ),
       );
-      void answerTelegramCallbackQuery(callbackId, '已重新排程');
       return emptyTelegramResponse(c);
     }
 
@@ -328,8 +327,9 @@ export function createApp(): Hono {
     }
 
     const text = typeof message.text === 'string' ? message.text.trim() : '';
-    if (isTelegramHelpCommand(text)) {
-      telegramIngestQueue.scheduleMessage(chatId, TELEGRAM_HELP_TEXT);
+    const command = parseTelegramCommand(text);
+    if (command) {
+      dispatchTelegramCommand({ command, chatId, queue: telegramIngestQueue });
       return emptyTelegramResponse(c);
     }
 
@@ -650,3 +650,24 @@ if (process.env['NODE_ENV'] !== 'test') {
 }
 
 export default app;
+
+/** Ingest retry button: the source URL lives in the failure message text. */
+function retryIngestFromCallback(
+  messageText: unknown,
+  chatId: TelegramChatId,
+  queue: TelegramIngestQueue,
+): string {
+  const retryUrl =
+    typeof messageText === 'string'
+      ? extractFailureSourceUrl(messageText)
+      : null;
+  if (!retryUrl) return '找不到原始 URL';
+  let parsedRetryUrl: string;
+  try {
+    parsedRetryUrl = parseInputUrl(retryUrl);
+  } catch {
+    return '原始 URL 無效';
+  }
+  queue.enqueue(chatId, parsedRetryUrl, DEFAULT_LANGUAGE_CODE);
+  return '已重新排程';
+}

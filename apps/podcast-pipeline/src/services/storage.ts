@@ -59,6 +59,16 @@ export interface EpisodeVisualUploadResult {
   r2Prefix: string;
 }
 
+export interface EpisodeVisualCheckpointImageInput {
+  episodeId: string;
+  visualVersion: string;
+  sourceHash: string;
+  assetId: string;
+  path: string;
+  contentType: VisualSourceImageUpload['contentType'];
+  signal?: AbortSignal;
+}
+
 const IMMUTABLE_CACHE_CONTROL = 'public, max-age=31536000, immutable';
 const VIDEO_MULTIPART_PART_SIZE = 8 * 1024 * 1024;
 const VIDEO_MULTIPART_QUEUE_SIZE = 2;
@@ -219,17 +229,26 @@ export async function uploadVideoArtifactsToR2(
   };
 }
 
+export async function uploadEpisodeVisualCheckpointImageToR2(
+  input: EpisodeVisualCheckpointImageInput,
+): Promise<string> {
+  input.signal?.throwIfAborted();
+  const sourceHash = safeKeySegment(input.sourceHash, 'visual source hash');
+  const assetId = safeKeySegment(input.assetId, 'visual asset id');
+  const extension = contentTypeExtension(input.contentType);
+  const key = `${visualKeyPrefix(input)}/checkpoints/${sourceHash}/images/${assetId}.${extension}`;
+  await putImmutableObjects(getR2Client(), getBucket(), input.signal, [
+    { Key: key, path: input.path, contentType: input.contentType },
+  ]);
+  return `${getPublicBase()}/${key}`;
+}
+
 export async function uploadEpisodeVisualAssetsToR2(
   input: EpisodeVisualUploadInput,
 ): Promise<EpisodeVisualUploadResult> {
   input.signal?.throwIfAborted();
-  const episodeId = safeKeySegment(input.episodeId, 'episode id');
-  const visualVersion = safeKeySegment(
-    input.visualVersion,
-    'visual renderer version',
-  );
   const visualHash = safeKeySegment(input.visualHash, 'visual hash');
-  const prefix = `episodes/${episodeId}/visuals/${visualVersion}/${visualHash}`;
+  const prefix = `${visualKeyPrefix(input)}/${visualHash}`;
   const r2 = getR2Client();
   const Bucket = getBucket();
   const manifestKey = `${prefix}/visual-manifest.json`;
@@ -271,6 +290,18 @@ export async function uploadEpisodeVisualAssetsToR2(
     ),
     r2Prefix: prefix,
   };
+}
+
+function visualKeyPrefix(input: {
+  episodeId: string;
+  visualVersion: string;
+}): string {
+  const episodeId = safeKeySegment(input.episodeId, 'episode id');
+  const visualVersion = safeKeySegment(
+    input.visualVersion,
+    'visual renderer version',
+  );
+  return `episodes/${episodeId}/visuals/${visualVersion}`;
 }
 
 function buildVideoArtifactPrefix(input: VideoArtifactUploadInput): string {

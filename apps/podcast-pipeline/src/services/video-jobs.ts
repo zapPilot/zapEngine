@@ -5,6 +5,7 @@ import { EPISODE_VIDEO_VISUAL_VERSION } from '@zapengine/types/shared';
 import type { LanguageClassroomLanguageCode } from '../types.js';
 import {
   getPipelineSupabase,
+  isMissingSupabaseRpc,
   type PipelineSupabaseClient,
   throwSupabaseError,
 } from './supabase-client.js';
@@ -38,6 +39,8 @@ export interface EpisodeVideoVisualJobRow {
   lease_owner: string | null;
   lease_expires_at: string | null;
   last_error: string | null;
+  checkpoint?: Record<string, unknown> | null;
+  last_failure_diagnostics?: Record<string, unknown> | null;
   started_at: string | null;
   completed_at: string | null;
   created_at: string;
@@ -94,6 +97,7 @@ export interface EpisodeVideoVisualSource {
 export interface ProcessEpisodeVideoVisualJobContext {
   signal: AbortSignal;
   runId: string;
+  saveCheckpoint(checkpoint: Record<string, unknown>): Promise<boolean>;
   /**
    * Records progress for the client's progress bar. Synchronous and
    * fire-and-forget: the worker coalesces reports and flushes the latest one on
@@ -152,6 +156,14 @@ export interface EpisodeVideoCompletion {
   durationSeconds: number;
 }
 
+export type EpisodeVideoRetryOutcome =
+  | 'queued'
+  | 'processing'
+  | 'missing'
+  | 'completed'
+  | 'prerequisites'
+  | 'unavailable';
+
 export interface EpisodeVideoFailureNotification {
   episodeLocalizationId: string;
   telegramChatId: string;
@@ -177,6 +189,16 @@ export interface VisualJobRepository {
     episodeId: string,
     leaseOwner: string,
     update: EpisodeVideoProgressUpdate,
+  ): Promise<boolean>;
+  saveCheckpoint(
+    episodeId: string,
+    leaseOwner: string,
+    checkpoint: Record<string, unknown>,
+  ): Promise<boolean>;
+  recordFailureDiagnostics(
+    episodeId: string,
+    leaseOwner: string,
+    diagnostics: Record<string, unknown>,
   ): Promise<boolean>;
   complete(
     episodeId: string,
@@ -314,6 +336,34 @@ export function createVideoVisualJobRepository(
         p_percent: update.percent,
         p_stage: update.stage,
       });
+    },
+
+    saveCheckpoint(
+      episodeId: string,
+      leaseOwner: string,
+      checkpoint: Record<string, unknown>,
+    ): Promise<boolean> {
+      return callBooleanRpc(supabase, 'save_episode_video_visual_checkpoint', {
+        p_episode_id: episodeId,
+        p_lease_owner: leaseOwner,
+        p_checkpoint: checkpoint,
+      });
+    },
+
+    recordFailureDiagnostics(
+      episodeId: string,
+      leaseOwner: string,
+      diagnostics: Record<string, unknown>,
+    ): Promise<boolean> {
+      return callBooleanRpc(
+        supabase,
+        'record_episode_video_visual_failure_diagnostics',
+        {
+          p_episode_id: episodeId,
+          p_lease_owner: leaseOwner,
+          p_diagnostics: diagnostics,
+        },
+      );
     },
 
     complete(
@@ -541,6 +591,49 @@ export function findEpisodeVideoVisualJob(
   episodeId: string,
 ): Promise<EpisodeVideoVisualJobRow | null> {
   return getVideoVisualJobRepository().find(episodeId);
+}
+
+export async function retryEpisodeVideoGeneration(
+  episodeId: string,
+): Promise<EpisodeVideoRetryOutcome> {
+  const rpcName = 'retry_episode_video_generation';
+  const { data, error } = await getPipelineSupabase().rpc(rpcName, {
+    p_episode_id: episodeId,
+    p_visual_version: EPISODE_VIDEO_VISUAL_VERSION,
+  });
+  if (!error) return data === true ? 'queued' : 'missing';
+  const outcome = classifyVideoRetryError(error);
+  if (outcome) return outcome;
+  throwSupabaseError(error);
+}
+
+export function classifyVideoRetryError(
+  error: unknown,
+): Exclude<EpisodeVideoRetryOutcome, 'queued'> | null {
+  if (isMissingSupabaseRpc(error, 'retry_episode_video_generation')) {
+    return 'unavailable';
+  }
+  if (!error || typeof error !== 'object') return null;
+  const row = error as { code?: unknown; message?: unknown };
+  const code = typeof row.code === 'string' ? row.code : '';
+  const message = typeof row.message === 'string' ? row.message : '';
+  if (code === '55000' || message.includes('currently processing')) {
+    return 'processing';
+  }
+  if (code === '23514' || message.includes('requires completed')) {
+    return 'prerequisites';
+  }
+  if (code === '22023') {
+    if (message.includes('already completed')) return 'completed';
+    if (
+      message.includes('no video visual job') ||
+      message.includes('does not exist')
+    ) {
+      return 'missing';
+    }
+    return 'prerequisites';
+  }
+  return null;
 }
 
 export function findEpisodeVideoJob(

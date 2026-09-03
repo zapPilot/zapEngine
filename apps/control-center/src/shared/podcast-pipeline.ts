@@ -1,8 +1,10 @@
 export type PodcastPipelineStatus =
   | 'pending'
+  | 'unscheduled'
   | 'queued'
   | 'processing'
   | 'stuck'
+  | 'stale'
   | 'completed'
   | 'failed';
 
@@ -16,6 +18,14 @@ export interface PodcastPipelineLocalization {
   updatedAt: string;
 }
 
+export interface PodcastPipelineIngestFailure {
+  kind: 'failed' | 'lease_expired' | 'requeued';
+  at: string;
+  attempt: number;
+  owner: string | null;
+  error: string | null;
+}
+
 export interface PodcastPipelineJobState {
   status: PodcastPipelineStatus;
   progressPercent: number | null;
@@ -24,11 +34,17 @@ export interface PodcastPipelineJobState {
   lastError: string | null;
   leaseExpiresAt: string | null;
   updatedAt: string | null;
+  visualVersion?: string | null;
+}
+
+export interface PodcastPipelineIngestState extends PodcastPipelineJobState {
+  failureHistory: PodcastPipelineIngestFailure[];
 }
 
 export interface PodcastPipelineRenderState extends PodcastPipelineJobState {
   languageCode: 'zh-Hant' | 'ja' | 'en';
   localizationId: string;
+  canRestart: boolean;
 }
 
 export interface PodcastPipelineVisualQuery {
@@ -65,7 +81,7 @@ export interface PodcastPipelineEpisode {
   translationStatus: PodcastPipelineStatus;
   ttsStatus: PodcastPipelineStatus;
   videoStatus: PodcastPipelineStatus;
-  ingest: PodcastPipelineJobState | null;
+  ingest: PodcastPipelineIngestState | null;
   localizations: PodcastPipelineLocalization[];
   visual: PodcastPipelineJobState | null;
   /** Added by the visual-search debug rollout; optional for cached/older API fixtures. */
@@ -73,7 +89,13 @@ export interface PodcastPipelineEpisode {
   renders: PodcastPipelineRenderState[];
   canRestartIngest: boolean;
   canRestartVideo: boolean;
+  canForceReplanVisual: boolean;
 }
+
+export type PodcastPipelineRestartAction =
+  | { step: 'ingest' }
+  | { step: 'video'; forceReplan: boolean }
+  | { step: 'render'; localizationId: string };
 
 export interface PodcastPipelineResponse {
   generatedAt: string;

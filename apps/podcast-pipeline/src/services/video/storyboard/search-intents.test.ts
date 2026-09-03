@@ -614,8 +614,9 @@ describe('visual subject catalog grounding', () => {
 
     const result = await enrichStoryboardSearchIntents(request, { provider });
 
-    // Explicit custom-provider catalog queries remain a supported internal/test
-    // path and are deliberately not numeric-grounded.
+    // Catalog searchQueries are deliberately not numeric-grounded. Numbers
+    // inside proper names are identity, so the 2024 query must reach image
+    // search verbatim.
     for (const scene of result.draft.scenes) {
       expect(scene.imageSearchIntent.join(' ')).toMatch(/2024/u);
     }
@@ -640,6 +641,8 @@ describe('visual subject catalog grounding', () => {
 
     const result = await enrichStoryboardSearchIntents(request, { provider });
 
+    // Catalog queries are passed verbatim, so an ungrounded year is preserved
+    // and the canonical name is still appended as an additional query.
     for (const scene of result.draft.scenes) {
       expect(scene.imageSearchIntent).toEqual([
         'Coinbase 2024 annual report',

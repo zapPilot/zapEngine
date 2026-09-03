@@ -67,6 +67,7 @@ function pipelineResponse(
         renders: [],
         canRestartIngest: false,
         canRestartVideo: true,
+        canForceReplanVisual: false,
         ...overrides,
       },
     ],
@@ -105,22 +106,24 @@ function renderPipeline(input: {
   data?: PodcastPipelineResponse;
   restartingEpisodeId?: string | null;
 }) {
-  const onRestartIngest = vi.fn();
-  const onRestartVideo = vi.fn();
+  const onRestartStep = vi.fn();
   render(
     <PodcastPipelineView
       data={input.data ?? pipelineResponse()}
-      onRestartIngest={onRestartIngest}
-      onRestartVideo={onRestartVideo}
+      onLoadVisualDebug={vi.fn()}
+      onResolveReview={vi.fn()}
+      onRestartStep={onRestartStep}
+      onSubmitReview={vi.fn()}
       restartingEpisodeId={input.restartingEpisodeId ?? null}
+      visualDebugByEpisode={{}}
     />,
   );
-  return { onRestartIngest, onRestartVideo };
+  return { onRestartStep };
 }
 
 describe('PodcastPipelineView', () => {
   it('surfaces the blocking visual failure and invokes the narrow video retry action', () => {
-    const { onRestartVideo } = renderPipeline({});
+    const { onRestartStep } = renderPipeline({});
 
     expect(screen.getByText('Visual failure')).toBeVisible();
     expect(screen.getByText('subject catalog exhausted retries')).toBeVisible();
@@ -128,11 +131,14 @@ describe('PodcastPipelineView', () => {
     expect(button).toBeEnabled();
 
     fireEvent.click(button);
-    expect(onRestartVideo).toHaveBeenCalledWith(episodeId);
+    expect(onRestartStep).toHaveBeenCalledWith(episodeId, {
+      step: 'video',
+      forceReplan: false,
+    });
   });
 
   it('invokes ingest recovery for a failed translation phase', () => {
-    const { onRestartIngest, onRestartVideo } = renderPipeline({
+    const { onRestartStep } = renderPipeline({
       data: pipelineResponse({
         currentPhase: 'translation',
         translationStatus: 'failed',
@@ -146,6 +152,7 @@ describe('PodcastPipelineView', () => {
           lastError: null,
           leaseExpiresAt: null,
           updatedAt: '2026-08-28T10:02:15.000Z',
+          failureHistory: [],
         },
         visual: null,
         renders: [],
@@ -157,8 +164,8 @@ describe('PodcastPipelineView', () => {
     const button = screen.getByRole('button', { name: 'Restart ingest' });
     expect(button).toBeEnabled();
     fireEvent.click(button);
-    expect(onRestartIngest).toHaveBeenCalledWith(episodeId);
-    expect(onRestartVideo).not.toHaveBeenCalled();
+    expect(onRestartStep).toHaveBeenCalledTimes(1);
+    expect(onRestartStep).toHaveBeenCalledWith(episodeId, { step: 'ingest' });
   });
 
   it('does not surface a stale visual error while a retry is processing', () => {
@@ -185,7 +192,7 @@ describe('PodcastPipelineView', () => {
   });
 
   it('disables retry while the server read model says video cannot be restarted', () => {
-    const { onRestartVideo } = renderPipeline({
+    const { onRestartStep } = renderPipeline({
       data: pipelineResponse({
         videoStatus: 'processing',
         canRestartVideo: false,
@@ -195,7 +202,7 @@ describe('PodcastPipelineView', () => {
     const button = screen.getByRole('button', { name: 'Restart video' });
     expect(button).toBeDisabled();
     fireEvent.click(button);
-    expect(onRestartVideo).not.toHaveBeenCalled();
+    expect(onRestartStep).not.toHaveBeenCalled();
   });
 
   it('shows a restarting state and prevents duplicate operator clicks', () => {

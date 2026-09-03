@@ -7,8 +7,10 @@ import {
 } from './supabase-client.js';
 import {
   buildTelegramVideoFailedMessage,
+  buildTelegramVideoRetryReplyMarkup,
   sendMessage,
   type TelegramChatId,
+  type TelegramSendMessageOptions,
 } from './telegram.js';
 
 const DEFAULT_SWEEP_INTERVAL_MS = 15_000;
@@ -40,7 +42,11 @@ export interface VideoVisualFailureNotifier {
 export function createVideoVisualFailureNotifier(
   options: {
     supabase?: PipelineSupabaseClient;
-    notify?: (chatId: TelegramChatId, text: string) => Promise<void>;
+    notify?: (
+      chatId: TelegramChatId,
+      text: string,
+      options?: TelegramSendMessageOptions,
+    ) => Promise<void>;
     logger?: VisualFailureLogger;
     intervalMs?: number;
   } = {},
@@ -84,7 +90,11 @@ export function createVideoVisualFailureNotifier(
 
 async function sweepOnce(
   injectedSupabase: PipelineSupabaseClient | undefined,
-  notify: (chatId: TelegramChatId, text: string) => Promise<void>,
+  notify: (
+    chatId: TelegramChatId,
+    text: string,
+    options?: TelegramSendMessageOptions,
+  ) => Promise<void>,
   logger: VisualFailureLogger,
 ): Promise<void> {
   let failures: VisualFailureNotificationRow[];
@@ -115,6 +125,7 @@ async function sweepOnce(
       await notify(
         failure.telegram_chat_id,
         buildTelegramVideoFailedMessage(failure.episode_id, failure.last_error),
+        { replyMarkup: buildTelegramVideoRetryReplyMarkup(failure.episode_id) },
       );
     } catch (error) {
       // Do not stamp the row. A later sweep retries the delivery.

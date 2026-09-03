@@ -766,6 +766,7 @@ function context(): ProcessEpisodeVideoVisualJobContext {
     signal: new AbortController().signal,
     runId: 'run12345',
     reportProgress: vi.fn(),
+    saveCheckpoint: vi.fn().mockResolvedValue(true),
   };
 }
 

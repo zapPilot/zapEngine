@@ -52,7 +52,7 @@ Scene alignment for `ja` and `en` is selected independently with `VIDEO_ALIGNMEN
 
 ## Vertical news video (image-only, multilingual)
 
-After all three audio localizations complete, ingest idempotently enqueues one episode-scoped visual job and a render job for each `zh-Hant`, `ja`, and `en` localization. The shared visual job is reused by all three encodes; enabling the two additional language renders increases render wall-clock work and video storage accordingly. The visual job creates a shared, image-only storyboard, starts packaged episodes with the bundled Zap Podcast intro card, mirrors selected images to R2, and records truthful source-page/original-image provenance (license + photographer for stock providers). Content scenes never store a generated text-card fallback.
+After all three audio localizations complete, ingest idempotently enqueues one episode-scoped visual job and a render job for each `zh-Hant`, `ja`, and `en` localization. The shared visual job is reused by all three encodes; enabling the two additional language renders increases render wall-clock work and video storage accordingly. The visual job creates a shared, image-only storyboard, starts packaged episodes with the bundled Zap Podcast intro card, mirrors selected images to R2, and records truthful source-page/original-image provenance (license + photographer for stock providers). Content scenes never store a photo-replacement text card scraped from a publisher or a caption-duplicating slide; in `resilient` mode, once every v9 gate below is exhausted for a scene, the planner generates a bounded English **concept card** instead of failing the whole episode (see [Concept-card fallback](#concept-card-fallback)).
 
 The deterministic storyboard owns scene split and timing, while the episode-wide LLM call now owns only the semantic step that actually needs a model: extracting the named real-world subjects the title and scenes mention. `src/services/video/storyboard/search-intents.ts` makes exactly **one logical catalog request** (`LLM_MODEL`) for the whole episode and asks only for compact identity fields: stable subject ID, canonical name, type, aliases, story role, `identityHints`, and optional collision `negativeHints`. The model does **not** produce `evidenceSceneIds`, final `searchQueries`, or domains.
 
@@ -83,11 +83,37 @@ Images are selected under the v9 rule **relevance first, free first, novelty las
 4. Each named subject builds a pool of at most **three distinct selected assets**. After that, scenes rotate/reuse that on-topic pool instead of searching for endless visual novelty. A repeated Justin Sun photo is preferable to a fourth unrelated stock photo.
 5. Brave Image Search (`BRAVE_SEARCH_API_KEY`, strict SafeSearch) remains capped at **4 actual API requests per visual plan** and is reached only after free candidates fail relevance, quality, or acquisition. Each real Brave request asks for up to 100 results; only the publisher's original image URL is mirrored, never Brave's thumbnail CDN. Brave results remain `license: unknown`.
 6. Generic B-roll scenes have no identity gate and use Pexels/Pixabay only; they do not spend Brave quota. When generic search cannot produce a new image, a non-consecutive validated reuse is preferred, then a consecutive reuse.
-7. A named scene may reuse only an image already validated for the **same normalized subject pool**. If free providers, Brave, and that subject pool are all empty, the scene fails rather than borrowing an unrelated image from elsewhere in the episode.
+7. A named scene may reuse only an image already validated for the **same normalized subject pool**. If free providers, Brave, and that subject pool are all empty, the scene never borrows an unrelated image from elsewhere in the episode.
+8. Only after rules 1–7 are exhausted (search failure, candidate exhaustion, a reuse dead end, or a generic scene that never found anything) does `resilient` mode generate a concept card for that scene. Generated cards are scene-specific: they never enter a subject pool, are never a reuse candidate, and never count as the "immediately preceding image". At most `ceil(0.25 × content scenes)` cards per episode (minimum one); the next exhausted scene rethrows the original error suffixed with `[generatedSlides=N, cap=M]` because that many holes means intents or search are broken, not that the episode lacks photos.
 
 **Every named-provider candidate must mention what the scene names.** The candidate's title/alt text, source-page URL or image URL has to contain one of the normalized entities — separators collapse, so `coldcard-mk4-review` counts. This identity fence applies equally to Pexels, Pixabay and Brave. Sharing a generic query word is not enough; that is the rule that prevents a Justin Sun search from accepting an arbitrary model, sunset, vegetable jar or other visually plausible but unrelated stock photo.
 
-`selectionMode: 'strict'` (tests and the storyboard smoke CLI) remains the diagnostic path: named scenes use the editorial Brave provider and search failures raise rather than entering production reuse behavior.
+`selectionMode: 'strict'` (tests and the storyboard smoke CLI) remains the diagnostic path: named scenes use the editorial Brave provider and search failures raise rather than entering production reuse or concept-card behavior.
+
+### Concept-card fallback
+
+**Product decision (2026-09): a scene with no acceptable photo becomes a concept card, not a failed episode.** Prod visual failures were dominated by deterministic `has no usable image` / `cannot reuse the immediately preceding image` errors on a single scene, each retried three times at full storyboard + catalog + intents + search cost. The card is deliberately not a text card: an English kicker, a 2–7 word headline (≤ 42 chars) and 2–3 short points (≤ 8 words / 48 chars each) in the brand palette, with no paragraph and never the scene's narration sentence (captions already speak it).
+
+- Copy comes from one OpenRouter call (`LLM_MODEL`, JSON, temperature 0.2, 400 tokens, reasoning off, operation `writeConceptCard`) in `src/services/video/storyboard/slide-copy.ts`. `validateConceptCardCopy` rejects non-English text, ungrounded numbers, capitalized entities absent from the scene evidence/entities/title, wrong lengths, and a lead card that does not name the primary subject. **Any failure falls back to deterministic copy** (entity → intent → title → `Key Point`); the slide path itself never fails closed.
+- The PNG is rendered by the existing satori → resvg → sharp stack (`renderConceptCardElement` in `templates.tsx`, `rasterizeConceptCard`) at 2880×2560 — the media window × the motion supersample, the same size as `intro.png` — and presented with `layout: 'contain'`, `motion: 'static'`, so the renderer, ffmpeg graph, manifest and R2 mirroring need no changes.
+- The asset is stored as `provider: 'generated-slide'`, `license: 'brand-generated'` with `asset.slide` metadata (`templateVersion`, kicker/headline/points, `copySource` llm|deterministic, model, `reason`, `rejectionSummary`, `lead`, `costUsd`), and the payload carries `provenance.generatedSlideCount` / `generatedSlideSceneIds`. The lead scene (`scene-01`) is allowed to become a card as a last resort — the thumbnail then becomes that card — and is flagged `lead=true` in `visual:slide` logs and metadata for review priority.
+- `EPISODE_VIDEO_VISUAL_VERSION` stays at v9: the change is additive and only turns plans that used to fail into completed plans. Turning it off is a code change (`MAX_GENERATED_SLIDE_RATIO = 0` in `visual-asset-planner.ts`), deliberately not an env flag. Preview the template locally with `pnpm --filter @zapengine/podcast-pipeline video:slide:preview --headline "…" --point "…" --point "…" --output ./tmp/slide`.
+
+### Visual checkpoint, failure diagnostics and step retries
+
+The visual job used to be one indivisible unit: a failure on the 40th scene replayed the storyboard, subject catalog, intents and every earlier search on the next attempt. `src/services/video/visual-checkpoint.ts` now writes an intra-job checkpoint (`episode_video_visuals.checkpoint`, ≤ 512 KB, lease-fenced through `save_episode_video_visual_checkpoint`): the storyboard + catalog + assignments as soon as intents succeed, then every selected scene image is mirrored to `episodes/<id>/visuals/<version>/checkpoints/<sourceHash>/images/` and appended as it is chosen. A retry of the same `visual_version` and `source_hash` restores the storyboard, downloads the checkpointed images and plans only the remaining scenes (`visual:checkpoint phase=resumed resumedScenes=N/M`). A re-plan (`p_force_replan`), a version bump or a script change clears it (trigger `trg_clear_stale_episode_video_visual_checkpoint`), and completion clears it. Only the subject-catalog planner path resumes selected scenes; the legacy planner renumbers assets after its cover pass, so it reuses the storyboard only.
+
+When a visual attempt fails, the worker first writes `episode_video_visuals.last_failure_diagnostics` (`podcast-episode-visual-failure.v1`: stage, message, attempt, and a redacted snapshot with the intent model, subject catalog, scene assignments, per-scene intents/entities and the search trace) through `record_episode_video_visual_failure_diagnostics`, then calls `fail_episode_video_visual` as before. Retry and enqueue leave the diagnostics in place; only a successful completion clears them, so Control Center can still show why the previous attempt died while the next one runs. Until the migration is applied the write is a single `visual diagnostics migration not applied yet` log line and the job still fails normally.
+
+Operators restart individual steps instead of resubmitting URLs:
+
+| Step       | RPC                                                                                     | Effect                                                                                                                                                                                                                                                                                                                                          |
+| ---------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Ingest     | `restart_podcast_ingest(p_episode_id, p_language_code)`                                 | Requeues the durable ingest job; the app process resumes from the last committed `episode_localizations.status`. Refuses once all three audio localizations are complete (`22023`) or while a live lease exists (`55000`). Recovers the Telegram chat id from any earlier ingest/visual/render row so the original submitter is still notified. |
+| Video      | `retry_episode_video_generation(p_episode_id, p_visual_version, p_force_replan)`        | Materializes missing `ja`/`en` render rows for old episodes, keeps a completed current-version visual and requeues unfinished renders, or (`p_force_replan`, version mismatch) requeues the visual too. Never touches a live lease.                                                                                                             |
+| One render | `retry_episode_video_render(p_episode_id, p_episode_localization_id, p_visual_version)` | Requeues a single language render against the completed current-version visual checkpoint.                                                                                                                                                                                                                                                      |
+
+`podcast_ingest_jobs.failure_history` (last 20 `failed` / `lease_expired` / `requeued` entries, written by a trigger) records why a job was claimed several times even after `last_error` was cleared by success.
 
 Candidates must pass HTTPS/SSRF, download timeout, format, size, pixel-dimension, animation, SHA-256, and perceptual-hash checks. A non-OK response or an unexpected body from any provider raises its typed error (`BraveImagesProviderError`, `PexelsImagesProviderError`, `PixabayImagesProviderError`), which fails the checkpoint outright under `strict` and degrades to the next provider under `resilient`. An empty result set from these official APIs is trustworthy and is not an error.
 
@@ -224,7 +250,39 @@ curl -X POST "https://api.telegram.org/bot$PIPELINE_TELEGRAM_BOT_TOKEN/setWebhoo
 curl "https://api.telegram.org/bot$PIPELINE_TELEGRAM_BOT_TOKEN/getWebhookInfo"
 ```
 
+Besides pasting a URL, the bot understands `/retry <URL|episodeId>` (audio incomplete → requeues ingest from its last committed stage; audio complete → `retry_episode_video_generation`, keeping a completed current-version visual) and `/status <episodeId>` (per-language script/audio/render state, visual stage and percent, first line of the last error, and a `STALE VERSION` marker when a queued visual is fenced out by the deployed `EPISODE_VIDEO_VISUAL_VERSION`). Video failure notifications carry a `🔄 Retry video` inline button (`callback_data: retry_video:<episodeId>`) next to the existing ingest `🔄 Retry`. Commands and callbacks run behind the same fast-ack pattern and reply through the ingest queue's message scheduler; before the step-retry migrations are applied they answer `資料庫尚未升級`.
+
 The webhook returns a fast 200 ack, then runs ingest in the background. Fly keeps one `app` machine running so the webhook is always reachable; deploys or restarts can still interrupt ingest, so the next submission of the same URL resumes from the latest Supabase-committed stage.
+
+## Visual review loop
+
+Operators grade finished (or failed) videos in Control Center's Pipeline view; the review rows live in `from_fed_to_chain.episode_video_reviews` (scope `episode_id` + optional `visual_hash` / `language_code` / `scene_id`, `reviewer` operator|agent, `verdict` good|acceptable|bad, `issue_categories` from `PODCAST_VIDEO_REVIEW_ISSUES` in `@zapengine/types/shared`, free-text `note`, and an ≤ 8 KB `pipeline_context` snapshot of the visual version/hash, intents, entities, asset and selection reason so the feedback stays interpretable after prompts change). Re-grading the same scope reopens the row (`upsert_episode_video_review`); `resolve_episode_video_review` moves it to `triaged` or `resolved`. Control Center never calls an LLM, so the "AI iterates on feedback" half of the loop is a Claude Code session reading the table:
+
+```bash
+# Markdown digest of open reviews joined with episode titles and pipeline context
+node scripts/env/run.mjs --environment prod -- pnpm --filter @zapengine/podcast-pipeline review:export --status open
+# JSON for one episode
+node scripts/env/run.mjs --environment prod -- pnpm --filter @zapengine/podcast-pipeline review:export --episode <uuid> --format json
+# After a fix ships: mark the review triaged (operator sets resolved after re-rendering and checking the result)
+node scripts/env/run.mjs --environment prod -- pnpm --filter @zapengine/podcast-pipeline review:resolve --id <review uuid> --status triaged --note "fixed in <commit>"
+```
+
+Read-only SQL for the same investigation (Supabase MCP `execute_sql`, never writes):
+
+```sql
+select r.created_at, r.scene_id, r.verdict, r.issue_categories, r.note, r.pipeline_context,
+       s->'imageSearchIntent' as intents, s->'imageSearchEntities' as entities
+from from_fed_to_chain.episode_video_reviews r
+join from_fed_to_chain.episode_video_visuals v on v.episode_id = r.episode_id
+left join lateral jsonb_array_elements(v.visual_payload->'visualPlan'->'scenes') s
+  on s->>'sceneId' = r.scene_id
+where r.status = 'open' order by r.created_at desc;
+
+select episode_id, status, attempt_count, last_failure_diagnostics->>'stage' as stage,
+       last_failure_diagnostics->>'message' as message
+from from_fed_to_chain.episode_video_visuals
+where last_failure_diagnostics is not null order by updated_at desc;
+```
 
 ## Deployment
 

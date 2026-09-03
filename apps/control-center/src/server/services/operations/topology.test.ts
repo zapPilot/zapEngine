@@ -37,7 +37,9 @@ describe('operational topology', () => {
     };
 
     for (const service of SERVICE_TOPOLOGY) {
-      if (!service.flyApp) continue;
+      if (!service.flyApp) {
+        continue;
+      }
       const directory = directories[service.workspace];
       expect(directory).toBeTruthy();
       const toml = readFileSync(

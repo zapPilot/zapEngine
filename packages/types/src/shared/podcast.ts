@@ -17,3 +17,28 @@
 // pass; Control Center passes it when restarting an episode's video.
 export const EPISODE_VIDEO_VISUAL_VERSION =
   'podcast-image-visual-plan.v9' as const;
+
+export const PODCAST_VIDEO_REVIEW_VERDICTS = [
+  'good',
+  'acceptable',
+  'bad',
+] as const;
+
+export const PODCAST_VIDEO_REVIEW_ISSUES = [
+  'wrong-subject',
+  'irrelevant-stock',
+  'text-heavy',
+  'low-quality',
+  'repeated-image',
+  'abstract-no-image',
+  'caption-timing',
+  'thumbnail',
+  'audio',
+  'other',
+] as const;
+
+export const PODCAST_VIDEO_REVIEW_STATUSES = [
+  'open',
+  'triaged',
+  'resolved',
+] as const;

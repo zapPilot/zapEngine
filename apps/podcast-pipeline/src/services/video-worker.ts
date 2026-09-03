@@ -13,12 +13,16 @@ import {
   renderStageRun,
   videoRenderRunBase,
 } from './ops-ledger.js';
+import { isMissingSupabaseRpc } from './supabase-client.js';
 import {
   buildTelegramVideoCompletedMessage,
   buildTelegramVideoFailedMessage,
+  buildTelegramVideoRetryReplyMarkup,
   sendMessage,
   type TelegramChatId,
+  type TelegramSendMessageOptions,
 } from './telegram.js';
+import { visualFailureDiagnosticsFor } from './video/visual-diagnostics.js';
 import {
   EPISODE_VIDEO_VISUAL_VERSION,
   type EpisodeVideoCompletion,
@@ -109,7 +113,11 @@ export interface CreateVideoWorkerOptions {
   repository?: VideoJobRepository;
   visualRepository?: VisualJobRepository;
   coordinator?: HeavyWorkCoordinator;
-  notify?: (chatId: TelegramChatId, text: string) => Promise<void>;
+  notify?: (
+    chatId: TelegramChatId,
+    text: string,
+    options?: TelegramSendMessageOptions,
+  ) => Promise<void>;
   leaseOwner?: string;
   pollIntervalMs?: number;
   heartbeatIntervalMs?: number;
@@ -227,6 +235,9 @@ export function createVideoWorker(
         await notify(
           failure.telegramChatId,
           buildTelegramVideoFailedMessage(failure.episodeId, failure.lastError),
+          {
+            replyMarkup: buildTelegramVideoRetryReplyMarkup(failure.episodeId),
+          },
         );
       } catch (error) {
         // Leave the row unstamped so a later poll retries the notification.
@@ -287,6 +298,12 @@ export function createVideoWorker(
         signal: jobController.signal,
         runId,
         reportProgress: progress.set,
+        saveCheckpoint: (checkpoint) =>
+          visualRepository.saveCheckpoint(
+            job.episode_id,
+            leaseOwner,
+            checkpoint,
+          ),
       });
       jobController.signal.throwIfAborted();
       const completed = await visualRepository.complete(
@@ -302,6 +319,34 @@ export function createVideoWorker(
       );
       return 'completed';
     } catch (error) {
+      const diagnostics = jobController.signal.aborted
+        ? null
+        : visualFailureDiagnosticsFor(error);
+      if (diagnostics) {
+        await visualRepository
+          .recordFailureDiagnostics(
+            job.episode_id,
+            leaseOwner,
+            diagnostics as unknown as Record<string, unknown>,
+          )
+          .catch((diagnosticsError) => {
+            if (
+              isMissingSupabaseRpc(
+                diagnosticsError,
+                'record_episode_video_visual_failure_diagnostics',
+              )
+            ) {
+              logger.info(
+                '[video-worker] visual diagnostics migration not applied yet',
+              );
+              return;
+            }
+            logger.error(
+              '[video-worker] failed to persist visual failure diagnostics',
+              toError(diagnosticsError),
+            );
+          });
+      }
       const failedJob = await visualRepository
         .fail(job.episode_id, leaseOwner, videoJobErrorMessage(error))
         .catch((failError) => {
@@ -833,7 +878,11 @@ class VideoLeaseLostError extends Error {
 }
 
 async function safelyNotify(
-  notify: (chatId: TelegramChatId, text: string) => Promise<void>,
+  notify: (
+    chatId: TelegramChatId,
+    text: string,
+    options?: TelegramSendMessageOptions,
+  ) => Promise<void>,
   chatId: TelegramChatId,
   message: string,
   logger: VideoWorkerLogger,

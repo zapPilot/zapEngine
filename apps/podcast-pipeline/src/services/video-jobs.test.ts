@@ -1,12 +1,21 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const pipelineSupabase = vi.hoisted(() => ({ rpc: vi.fn() }));
+
+vi.mock('./supabase-client.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./supabase-client.js')>()),
+  getPipelineSupabase: () => pipelineSupabase,
+}));
 
 import {
+  classifyVideoRetryError,
   createVideoJobRepository,
   createVideoVisualJobRepository,
   EPISODE_VIDEO_VISUAL_VERSION,
   type EpisodeVideoJobRow,
   type EpisodeVideoVisualJobRow,
   hashEpisodeVideoVisualSource,
+  retryEpisodeVideoGeneration,
 } from './video-jobs.js';
 
 function jobRow(
@@ -738,6 +747,138 @@ describe('hashEpisodeVideoVisualSource', () => {
     );
     expect(original).not.toBe(
       hashEpisodeVideoVisualSource('Canonical script', 'Changed English'),
+    );
+  });
+});
+
+describe('visual repository checkpoint and diagnostics RPCs', () => {
+  it('forwards lease-fenced checkpoint and diagnostics payloads', async () => {
+    const supabase = makeSupabase();
+    supabase.rpc
+      .mockResolvedValueOnce({ data: true, error: null })
+      .mockResolvedValueOnce({ data: false, error: null });
+    const repository = createVideoVisualJobRepository(supabase as never);
+
+    await expect(
+      repository.saveCheckpoint('episode-1', 'visual-worker', {
+        scenes: ['scene-1'],
+      }),
+    ).resolves.toBe(true);
+    await expect(
+      repository.recordFailureDiagnostics('episode-1', 'visual-worker', {
+        stage: 'plan-assets',
+      }),
+    ).resolves.toBe(false);
+
+    expect(supabase.rpc).toHaveBeenNthCalledWith(
+      1,
+      'save_episode_video_visual_checkpoint',
+      {
+        p_episode_id: 'episode-1',
+        p_lease_owner: 'visual-worker',
+        p_checkpoint: { scenes: ['scene-1'] },
+      },
+    );
+    expect(supabase.rpc).toHaveBeenNthCalledWith(
+      2,
+      'record_episode_video_visual_failure_diagnostics',
+      {
+        p_episode_id: 'episode-1',
+        p_lease_owner: 'visual-worker',
+        p_diagnostics: { stage: 'plan-assets' },
+      },
+    );
+  });
+});
+
+describe('classifyVideoRetryError', () => {
+  it.each([
+    [{ code: '55000' }, 'processing'],
+    [{ message: 'episode is currently processing' }, 'processing'],
+    [{ code: '23514' }, 'prerequisites'],
+    [{ message: 'retry requires completed audio' }, 'prerequisites'],
+    [{ code: '22023', message: 'video already completed' }, 'completed'],
+    [{ code: '22023', message: 'no video visual job' }, 'missing'],
+    [{ code: '22023', message: 'episode does not exist' }, 'missing'],
+    [{ code: '22023', message: 'something else' }, 'prerequisites'],
+    [{ code: 'PGRST202', message: 'missing' }, 'unavailable'],
+    [{ code: '42883' }, 'unavailable'],
+    [
+      {
+        message:
+          'Could not find the function retry_episode_video_generation in the schema cache',
+      },
+      'unavailable',
+    ],
+  ])('classifies %j as %s', (error, outcome) => {
+    expect(classifyVideoRetryError(error)).toBe(outcome);
+  });
+
+  it('returns null for unknown errors and non-objects', () => {
+    expect(
+      classifyVideoRetryError({ code: 'P0001', message: 'other' }),
+    ).toBeNull();
+    expect(classifyVideoRetryError({ code: 55000, message: 7 })).toBeNull();
+    expect(classifyVideoRetryError(null)).toBeNull();
+    expect(classifyVideoRetryError('55000')).toBeNull();
+    expect(classifyVideoRetryError(undefined)).toBeNull();
+  });
+});
+
+describe('retryEpisodeVideoGeneration', () => {
+  beforeEach(() => {
+    pipelineSupabase.rpc.mockReset();
+  });
+
+  it('calls the retry RPC with the current visual version', async () => {
+    pipelineSupabase.rpc.mockResolvedValueOnce({ data: true, error: null });
+    await expect(retryEpisodeVideoGeneration('episode-1')).resolves.toBe(
+      'queued',
+    );
+    expect(pipelineSupabase.rpc).toHaveBeenCalledWith(
+      'retry_episode_video_generation',
+      {
+        p_episode_id: 'episode-1',
+        p_visual_version: EPISODE_VIDEO_VISUAL_VERSION,
+      },
+    );
+  });
+
+  it('reports missing when the RPC touches no row', async () => {
+    pipelineSupabase.rpc.mockResolvedValueOnce({ data: false, error: null });
+    await expect(retryEpisodeVideoGeneration('episode-1')).resolves.toBe(
+      'missing',
+    );
+    pipelineSupabase.rpc.mockResolvedValueOnce({ data: null, error: null });
+    await expect(retryEpisodeVideoGeneration('episode-1')).resolves.toBe(
+      'missing',
+    );
+  });
+
+  it('maps classified RPC errors to outcomes', async () => {
+    pipelineSupabase.rpc.mockResolvedValueOnce({
+      data: null,
+      error: { code: '55000', message: 'currently processing' },
+    });
+    await expect(retryEpisodeVideoGeneration('episode-1')).resolves.toBe(
+      'processing',
+    );
+    pipelineSupabase.rpc.mockResolvedValueOnce({
+      data: null,
+      error: { code: 'PGRST202', message: 'not found' },
+    });
+    await expect(retryEpisodeVideoGeneration('episode-1')).resolves.toBe(
+      'unavailable',
+    );
+  });
+
+  it('throws unclassified RPC errors', async () => {
+    pipelineSupabase.rpc.mockResolvedValueOnce({
+      data: null,
+      error: { code: 'P0001', message: 'unexpected failure' },
+    });
+    await expect(retryEpisodeVideoGeneration('episode-1')).rejects.toThrow(
+      '[P0001] unexpected failure',
     );
   });
 });

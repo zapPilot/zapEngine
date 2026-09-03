@@ -8,14 +8,18 @@ import {
   buildTelegramRenderFleetWarningMessage,
   buildTelegramVideoCompletedMessage,
   buildTelegramVideoFailedMessage,
+  buildTelegramVideoRetryReplyMarkup,
   extractFailureSourceUrl,
   extractUrlFromMessage,
   getTelegramCallbackQuery,
   getTelegramMessage,
   isAllowedUser,
   isTelegramHelpCommand,
+  parseTelegramCallbackData,
+  parseTelegramCommand,
   sendMessage,
   sendTelegramNotification,
+  TELEGRAM_RETRY_VIDEO_CALLBACK_PREFIX,
   verifySecret,
 } from './telegram.js';
 
@@ -428,5 +432,104 @@ describe('buildTelegramFailureMessage', () => {
 
     expect(result).toBe(`❌ 失敗 ${'x'.repeat(497)}...`);
     expect(result.length).toBe('❌ 失敗 '.length + 500);
+  });
+});
+
+describe('buildTelegramVideoRetryReplyMarkup', () => {
+  it('embeds the episode id in callback data that fits the Telegram limit', () => {
+    const episodeId = '00000000-0000-4000-8000-000000000001';
+    const markup = buildTelegramVideoRetryReplyMarkup(episodeId);
+    const button = markup.inline_keyboard[0]?.[0];
+
+    expect(button?.text).toBe('🔄 Retry video');
+    expect(button?.callback_data).toBe(
+      `${TELEGRAM_RETRY_VIDEO_CALLBACK_PREFIX}${episodeId}`,
+    );
+    expect(Buffer.byteLength(button?.callback_data ?? '', 'utf8')).toBeLessThan(
+      64,
+    );
+  });
+});
+
+describe('parseTelegramCallbackData', () => {
+  it('recognises the ingest retry button', () => {
+    expect(parseTelegramCallbackData('retry_ingest')).toEqual({
+      kind: 'retry-ingest',
+    });
+  });
+
+  it('recognises a video retry with a valid UUID', () => {
+    expect(
+      parseTelegramCallbackData(
+        'retry_video:00000000-0000-4000-8000-000000000001',
+      ),
+    ).toEqual({
+      kind: 'retry-video',
+      episodeId: '00000000-0000-4000-8000-000000000001',
+    });
+  });
+
+  it('rejects a video retry with an invalid id, unknown data and non-strings', () => {
+    expect(parseTelegramCallbackData('retry_video:not-a-uuid')).toBeNull();
+    expect(parseTelegramCallbackData('retry_video:')).toBeNull();
+    expect(parseTelegramCallbackData('something_else')).toBeNull();
+    expect(parseTelegramCallbackData(42)).toBeNull();
+    expect(parseTelegramCallbackData(undefined)).toBeNull();
+  });
+});
+
+describe('parseTelegramCommand', () => {
+  it('returns null for text that is not a command', () => {
+    expect(parseTelegramCommand('https://example.com/article')).toBeNull();
+    expect(parseTelegramCommand('   ')).toBeNull();
+  });
+
+  it('parses start and help, ignoring arguments and bot suffixes', () => {
+    expect(parseTelegramCommand('/start')).toEqual({
+      name: 'start',
+      argument: null,
+    });
+    expect(parseTelegramCommand('  /help@PodcastBot please')).toEqual({
+      name: 'help',
+      argument: null,
+    });
+    expect(parseTelegramCommand('/HELP')).toEqual({
+      name: 'help',
+      argument: null,
+    });
+  });
+
+  it('parses retry and status with an optional argument', () => {
+    expect(parseTelegramCommand('/retry')).toEqual({
+      name: 'retry',
+      argument: null,
+    });
+    expect(
+      parseTelegramCommand('/retry@PodcastBot  https://example.com/a  extra'),
+    ).toEqual({
+      name: 'retry',
+      argument: 'https://example.com/a extra',
+    });
+    expect(
+      parseTelegramCommand('/status 00000000-0000-4000-8000-000000000001'),
+    ).toEqual({
+      name: 'status',
+      argument: '00000000-0000-4000-8000-000000000001',
+    });
+    expect(parseTelegramCommand('/status   ')).toEqual({
+      name: 'status',
+      argument: null,
+    });
+  });
+
+  it('marks unrecognised commands as unknown', () => {
+    expect(parseTelegramCommand('/dance now')).toEqual({
+      name: 'unknown',
+      argument: null,
+    });
+    expect(parseTelegramCommand('/')).toEqual({
+      name: 'unknown',
+      argument: null,
+    });
   });
 });

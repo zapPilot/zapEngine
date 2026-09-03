@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { buildTelegramVideoRetryReplyMarkup } from './telegram.js';
 import type { VideoJobRepository, VisualJobRepository } from './video-jobs.js';
 import { createVideoWorker } from './video-worker.js';
 
@@ -35,6 +36,8 @@ function makeVisualRepository(): VisualJobRepository {
     claim: vi.fn().mockResolvedValue(null),
     renewLease: vi.fn().mockResolvedValue(true),
     reportProgress: vi.fn().mockResolvedValue(true),
+    saveCheckpoint: vi.fn().mockResolvedValue(true),
+    recordFailureDiagnostics: vi.fn().mockResolvedValue(true),
     complete: vi.fn().mockResolvedValue(true),
     fail: vi.fn().mockResolvedValue(null),
     find: vi.fn().mockResolvedValue(null),
@@ -62,6 +65,7 @@ describe('video worker failure notification retry', () => {
     expect(notify).toHaveBeenCalledWith(
       'chat-1',
       expect.stringContaining('原因：render failed'),
+      { replyMarkup: buildTelegramVideoRetryReplyMarkup('episode-1') },
     );
     expect(repository.markFailureNotified).toHaveBeenCalledTimes(1);
     expect(logger.error).toHaveBeenCalledWith(
