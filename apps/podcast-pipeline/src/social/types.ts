@@ -80,6 +80,8 @@ export interface SocialEpisode {
   episodeUrl: string;
   videoDurationSeconds: number;
   videoUrl: string;
+  /** Canonical renderer poster (first scene + brand frame), reused by YouTube. */
+  videoThumbnailUrl?: string;
 }
 
 export interface GeneratedSocialCopy {
@@ -136,6 +138,8 @@ export type YouTubePrivacyStatus = (typeof YOUTUBE_PRIVACY_STATUSES)[number];
 
 export interface YouTubePublishInput extends YouTubeMetadata {
   videoPath: string;
+  /** Canonical renderer poster URL. Social release jobs always provide it. */
+  thumbnailUrl?: string;
   languageCode?: SocialLanguageCode;
   privacyStatus: YouTubePrivacyStatus;
 }
