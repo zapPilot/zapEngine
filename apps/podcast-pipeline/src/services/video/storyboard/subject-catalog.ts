@@ -47,7 +47,6 @@ export const visualSubjectSchema = z
     storyRole: z.enum(VISUAL_SUBJECT_ROLES),
     evidenceSceneIds: z
       .array(sceneIdSchema)
-      .min(1)
       .max(SUBJECT_LIMITS.evidenceSceneIds),
     searchQueries: z
       .array(shortTextSchema)
@@ -116,6 +115,19 @@ export const visualSubjectCatalogSchema = z
         message: 'primarySubjectId must point at the primary story subject',
         path: ['primarySubjectId'],
       });
+    }
+    for (const [index, subject] of catalog.subjects.entries()) {
+      if (
+        subject.id !== catalog.primarySubjectId &&
+        subject.evidenceSceneIds.length === 0
+      ) {
+        context.addIssue({
+          code: 'custom',
+          message:
+            'Only the title-grounded primary subject may omit scene evidence',
+          path: ['subjects', index, 'evidenceSceneIds'],
+        });
+      }
     }
   });
 

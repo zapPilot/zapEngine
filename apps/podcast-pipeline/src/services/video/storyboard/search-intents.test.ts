@@ -581,7 +581,7 @@ describe('visual subject catalog grounding', () => {
     expect(provider.catalog).toHaveBeenCalledTimes(1);
   });
 
-  it('requires exact evidence names and keeps descriptions in identity hints', () => {
+  it('requires exact evidence names and leaves scene/query construction to the application', () => {
     const prompt = buildSubjectCatalogSystemPrompt();
 
     expect(prompt).toContain(
@@ -593,13 +593,11 @@ describe('visual subject catalog grounding', () => {
     expect(prompt).toContain(
       'Put descriptive industry, category, and role terms only in identityHints.',
     );
-    // The application feeds these queries straight to the image provider and
-    // reads the citations itself, so both have to be stated as final answers.
     expect(prompt).toContain(
-      'searchQueries are the final image-search queries.',
+      'Do not output scene IDs, image-search queries, or domains.',
     );
     expect(prompt).toContain(
-      "These IDs are the application's direct scene assignment",
+      'application derives scene evidence and final search queries deterministically',
     );
   });
 
@@ -616,9 +614,8 @@ describe('visual subject catalog grounding', () => {
 
     const result = await enrichStoryboardSearchIntents(request, { provider });
 
-    // Catalog searchQueries are deliberately not numeric-grounded. Numbers
-    // inside proper names are identity, so the 2024 query must reach image
-    // search verbatim.
+    // Explicit custom-provider catalog queries remain a supported internal/test
+    // path and are deliberately not numeric-grounded.
     for (const scene of result.draft.scenes) {
       expect(scene.imageSearchIntent.join(' ')).toMatch(/2024/u);
     }
@@ -643,8 +640,6 @@ describe('visual subject catalog grounding', () => {
 
     const result = await enrichStoryboardSearchIntents(request, { provider });
 
-    // Catalog queries are passed verbatim, so an ungrounded year is preserved
-    // and the canonical name is still appended as an additional query.
     for (const scene of result.draft.scenes) {
       expect(scene.imageSearchIntent).toEqual([
         'Coinbase 2024 annual report',
@@ -656,7 +651,7 @@ describe('visual subject catalog grounding', () => {
 
 describe('OpenRouter search intent provider', () => {
   const CATALOG_JSON =
-    '{"primarySubjectId":"subject-coinbase","subjects":[{"id":"subject-coinbase","canonicalName":"Coinbase","type":"company","aliases":[],"storyRole":"primary","evidenceSceneIds":["scene-01"],"searchQueries":["Coinbase"],"identityHints":["crypto exchange"],"negativeHints":[],"officialDomains":[]}]}';
+    '{"primarySubjectId":"subject-stablecoin","subjects":[{"id":"subject-stablecoin","canonicalName":"stablecoin","type":"asset","aliases":[],"storyRole":"primary","identityHints":["digital payments"],"negativeHints":[]}]}';
 
   function mockCompletion(content: string): void {
     llmMocks.getOpenRouterConfig.mockReturnValue({
@@ -666,20 +661,42 @@ describe('OpenRouter search intent provider', () => {
       timeoutMs: 120_000,
     });
     llmMocks.createCompletionWithRetry.mockResolvedValue({
-      choices: [{ message: { content } }],
+      choices: [{ message: { content }, finish_reason: 'stop' }],
     });
   }
 
-  it('asks for a JSON catalog and returns the parsed payload', async () => {
+  it('asks for a compact JSON catalog and materializes deterministic search metadata', async () => {
     mockCompletion(CATALOG_JSON);
     const provider = createOpenRouterSearchIntentProvider();
 
     await expect(
       provider.catalog({
         title: SEARCH_TITLE,
-        scenes: [{ sceneId: 'scene-01', text: '第一段。', searchText: 'One.' }],
+        scenes: [
+          {
+            sceneId: 'scene-01',
+            text: '第一段。',
+            searchText: 'Stablecoin payments are changing.',
+          },
+        ],
       }),
-    ).resolves.toEqual(JSON.parse(CATALOG_JSON));
+    ).resolves.toEqual({
+      primarySubjectId: 'subject-stablecoin',
+      subjects: [
+        {
+          id: 'subject-stablecoin',
+          canonicalName: 'stablecoin',
+          type: 'asset',
+          aliases: [],
+          storyRole: 'primary',
+          identityHints: ['digital payments'],
+          negativeHints: [],
+          evidenceSceneIds: ['scene-01'],
+          searchQueries: ['stablecoin'],
+          officialDomains: [],
+        },
+      ],
+    });
 
     expect(provider.model).toBe('openrouter/free');
     const [, params, , operation] =
@@ -691,11 +708,52 @@ describe('OpenRouter search intent provider', () => {
       ];
     expect(params['response_format']).toEqual({ type: 'json_object' });
     expect(params['model']).toBe('openrouter/free');
-    expect(params['max_tokens']).toBe(3_072);
+    expect(params).not.toHaveProperty('max_tokens');
     expect(JSON.stringify(params['messages'])).toContain('englishSentences');
-    // Transport failures are retried by the shared OpenRouter policy rather
-    // than being swallowed one episode at a time.
     expect(operation).toBe('buildVisualSubjectCatalog');
+  });
+
+  it('keeps a title-only primary as episode context without fabricating scene evidence', async () => {
+    mockCompletion(CATALOG_JSON);
+    const provider = createOpenRouterSearchIntentProvider();
+
+    const result = await enrichStoryboardSearchIntents(
+      {
+        draft: {
+          scenes: [
+            {
+              sceneId: 'scene-01',
+              startSentenceId: 's0001',
+              endSentenceId: 's0001',
+              imageSearchIntent: ['placeholder'],
+            },
+            {
+              sceneId: 'scene-02',
+              startSentenceId: 's0002',
+              endSentenceId: 's0002',
+              imageSearchIntent: ['placeholder'],
+            },
+          ],
+        },
+        title: 'Stablecoin market outlook',
+        script: 'Markets changed. Payment costs declined.',
+      },
+      { provider },
+    );
+
+    expect(result.subjectCatalog?.subjects[0]?.evidenceSceneIds).toEqual([]);
+    expect(result.sceneAssignments).toEqual([
+      {
+        sceneId: 'scene-01',
+        subjectIds: ['subject-stablecoin'],
+        selectionReason: 'episode-context',
+      },
+      {
+        sceneId: 'scene-02',
+        subjectIds: ['subject-stablecoin'],
+        selectionReason: 'episode-context',
+      },
+    ]);
   });
 
   it('passes an abort signal through to the retrying OpenRouter request', async () => {
@@ -705,7 +763,13 @@ describe('OpenRouter search intent provider', () => {
 
     await provider.catalog({
       title: SEARCH_TITLE,
-      scenes: [{ sceneId: 'scene-01', text: '第一段。' }],
+      scenes: [
+        {
+          sceneId: 'scene-01',
+          text: '第一段。',
+          searchText: 'Stablecoin payments are changing.',
+        },
+      ],
       signal: controller.signal,
     });
 
@@ -718,7 +782,8 @@ describe('OpenRouter search intent provider', () => {
     );
   });
 
-  it('rejects empty and malformed completions', async () => {
+  it('rejects empty and malformed completions after one payload retry', async () => {
+    vi.clearAllMocks();
     mockCompletion('   ');
     const provider = createOpenRouterSearchIntentProvider();
     const request = {
@@ -729,17 +794,13 @@ describe('OpenRouter search intent provider', () => {
     await expect(provider.catalog(request)).rejects.toThrow(
       'Search intents returned empty content',
     );
+    expect(llmMocks.createCompletionWithRetry).toHaveBeenCalledTimes(2);
 
-    llmMocks.createCompletionWithRetry.mockResolvedValueOnce({
-      choices: [{ message: { content: null } }],
-    });
-    await expect(
-      createOpenRouterSearchIntentProvider().catalog(request),
-    ).rejects.toThrow('Search intents returned empty content');
-
+    vi.clearAllMocks();
     mockCompletion('not json');
     await expect(
       createOpenRouterSearchIntentProvider().catalog(request),
     ).rejects.toThrow('Search intents returned malformed JSON');
+    expect(llmMocks.createCompletionWithRetry).toHaveBeenCalledTimes(2);
   });
 });

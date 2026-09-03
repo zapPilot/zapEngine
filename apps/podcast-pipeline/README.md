@@ -54,53 +54,18 @@ Scene alignment for `ja` and `en` is selected independently with `VIDEO_ALIGNMEN
 
 After all three audio localizations complete, ingest idempotently enqueues one episode-scoped visual job and a render job for each `zh-Hant`, `ja`, and `en` localization. The shared visual job is reused by all three encodes; enabling the two additional language renders increases render wall-clock work and video storage accordingly. The visual job creates a shared, image-only storyboard, starts packaged episodes with the bundled Zap Podcast intro card, mirrors selected images to R2, and records truthful source-page/original-image provenance (license + photographer for stock providers). Content scenes never store a generated text-card fallback.
 
-What each scene searches for is written by an LLM, not by a keyword table. The
-deterministic storyboard still owns the scene split and timing — it is what makes
-a 64-scene episode resumable — but its search intents are a canned photographic
-subject glued to a word-by-word rendering of the head of the Chinese sentence, so
-a scene about 「一千五百枚比特幣」 searched for
-`thousand five hundred Bitcoin holdings`. After the storyboard is built,
-`src/services/video/storyboard/search-intents.ts` makes exactly **one** OpenRouter
-call (`LLM_MODEL`) for the whole episode and gets back the visual subject catalog:
-the named real-world subjects the title and scenes actually mention, each with its
-aliases, its `identityHints`, and the `searchQueries` an image provider should be
-given for it. Assigning those subjects to scenes is the application's job, not the
-model's. Every subject cites the scenes that name it in `evidenceSceneIds`, and
-those citations are read deterministically: the first content scene anchors the
-episode's `primarySubjectId` because it is the cover/lead, a scene a subject cites
-gets that subject directly (`direct`), a scene no subject cites inherits the
-previous direct assignment as `section-context` so a run of scenes keeps
-illustrating one story,
-and anything still unassigned falls back to the primary subject as
-`episode-context`. A scene's `imageSearchIntent` is then the catalog's
-`searchQueries` for its assigned subjects, and its `imageSearchEntities` are those
-subjects' canonical names.
+The deterministic storyboard owns scene split and timing, while the episode-wide LLM call now owns only the semantic step that actually needs a model: extracting the named real-world subjects the title and scenes mention. `src/services/video/storyboard/search-intents.ts` makes exactly **one logical catalog request** (`LLM_MODEL`) for the whole episode and asks only for compact identity fields: stable subject ID, canonical name, type, aliases, story role, `identityHints`, and optional collision `negativeHints`. The model does **not** produce `evidenceSceneIds`, final `searchQueries`, or domains.
+
+The application materializes those fields after the response. It exact-matches each subject's canonical name and aliases against normalized scene text / English evidence to populate `evidenceSceneIds`, then builds identity-first search queries in code: a bare canonical name for normal identities, or one short `identityHint` plus the canonical name when the name is ambiguous (for example a16z or a collision-prone short name). A primary subject grounded only by the publisher title stays in the catalog with an empty evidence list; its lead assignment is `episode-context`, never a fabricated direct citation. The first content scene still anchors the episode's `primarySubjectId` because it is the cover/lead; a scene that names a subject gets it directly (`direct`), a scene with no direct subject inherits the previous direct assignment as `section-context`, and anything still unassigned falls back to the primary subject as `episode-context`. `imageSearchIntent` and `imageSearchEntities` therefore keep the same downstream shape, but their scene/query metadata is application-owned rather than model-authored.
 
 The **publisher's original title (`episodes.source_title`) is the visual title SoT**:
 it seeds the episode-wide subject catalog and lead identity even when our
 localized/editorial title rewrites or drops a critical proper noun. The English
 localized title is only the fallback when the publisher title is unavailable.
 
-That call is fail-closed, and the unit is the **episode**. There is one request
-per episode, so there is no per-scene retry surface and no partial result to
-salvage. Transport failures are retried once by the shared OpenRouter retry
-policy; after that, anything that leaves the episode without a usable catalog
-raises — an unset `OPENROUTER_API_KEY`, a completion that will not parse, a
-catalog that fails strict schema validation, a subject whose canonical name and
-aliases the episode never actually names, or a subject citing an evidence scene
-that does not exist. The visual job is then retried by the queue and eventually
-ends `failed`. Recovery is resubmitting the episode URL, which resets the visual
-and render rows and reports the wiped message once as `previousError`.
+That call is fail-closed, and the unit is the **episode**. Transport failures are retried once by the shared OpenRouter retry policy. Separately, a response that arrives but is empty, explicitly truncated (`finish_reason=length`), malformed JSON, or otherwise unusable at the compact-payload layer is retried once before the episode fails. Subject-catalog requests keep `response_format: json_object` and `reasoning: { enabled: false }`, but deliberately send **no `max_tokens` ceiling**; output cost is not the governing constraint for this compact identity payload, and the previous 3072-token ceiling could cut a valid JSON string mid-value on long episodes. Final parse failures include provider, model, finish reason, reasoning-character count, and output-character count so a truncation/provider issue is distinguishable from an ordinary schema violation.
 
-Catalog `searchQueries` are deliberately **not** numeric-grounded. Numbers inside
-proper names — a16z, web3, GPT-5 — are identity, not factual claims, and the
-per-scene numeric gate this replaced could not tell the two apart: a phrase naming
-a16z was rejected because "16" is not a number written in the scene's sentences,
-and one hallucinated year such as 2024 failed every phrase for its scene and took
-the whole visual job down with it. `validateStoryboardDraft`'s numeric rule still
-governs the **storyboard** stage, where scene text is written against that scene's
-own sentences and an unwritten number really is an invention. Only the
-catalog-derived search queries are exempt from it.
+Production search queries are application-generated and are not numeric-grounded again. Numbers inside proper names — a16z, web3, GPT-5 — are identity, not factual claims, and the old per-scene numeric gate could not tell the two apart. Because the production LLM no longer writes `searchQueries`, it also cannot inject an unrelated year such as 2024 into the final query string. `validateStoryboardDraft`'s numeric rule still governs the **storyboard** stage, where scene text is written against that scene's own sentences and an unwritten number really is an invention. Custom/internal providers that return a fully materialized catalog remain supported for tests and tooling.
 
 `provenance.searchIntentModel` on a completed payload therefore names the model
 that built the catalog, and
