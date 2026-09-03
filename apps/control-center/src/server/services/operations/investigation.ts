@@ -175,15 +175,20 @@ export async function investigateOperationalSignal(input: {
         observedAt: input.snapshot.generatedAt,
       };
 
-  const evidenceGaps = uniqueGaps(gaps);
+  const evidenceGaps = uniqueBy(gaps, (gap) => `${gap.source}:${gap.reason}`);
 
   return {
     incident,
-    entities: uniqueEntities([
-      ...topology.entities,
-      ...primaryEvidence.entities,
-      ...relatedResults.flatMap(([, inspection]) => inspection?.entities ?? []),
-    ]),
+    entities: uniqueBy(
+      [
+        ...topology.entities,
+        ...primaryEvidence.entities,
+        ...relatedResults.flatMap(
+          ([, inspection]) => inspection?.entities ?? [],
+        ),
+      ],
+      (entity) => `${entity.type}:${entity.id}`,
+    ),
     timeline: buildTimeline(
       signal ? [signal, ...relatedSignals] : relatedSignals,
       [
@@ -489,24 +494,10 @@ function text(value: unknown): string | null {
   return null;
 }
 
-function uniqueEntities(
-  entities: readonly OperationalEntityRef[],
-): OperationalEntityRef[] {
+function uniqueBy<T>(items: readonly T[], keyOf: (item: T) => string): T[] {
   const seen = new Set<string>();
-  return entities.filter((entity) => {
-    const key = `${entity.type}:${entity.id}`;
-    if (seen.has(key)) {
-      return false;
-    }
-    seen.add(key);
-    return true;
-  });
-}
-
-function uniqueGaps(gaps: readonly EvidenceGap[]): EvidenceGap[] {
-  const seen = new Set<string>();
-  return gaps.filter((gap) => {
-    const key = `${gap.source}:${gap.reason}`;
+  return items.filter((item) => {
+    const key = keyOf(item);
     if (seen.has(key)) {
       return false;
     }

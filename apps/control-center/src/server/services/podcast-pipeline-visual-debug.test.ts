@@ -45,6 +45,33 @@ const completedVisualPayload = {
           motion: 'pushIn',
         },
       },
+      // Every packaged episode's plan ends with the Zap Pilot outro card, which
+      // is a bundled PNG rather than anything image search was asked for.
+      {
+        sceneId: 'scene-02',
+        startSentenceId: 's0005',
+        endSentenceId: 's0005',
+        imageSearchIntent: ['brand:zap-pilot-outro'],
+        sources: [
+          {
+            id: 'source-brand-outro',
+            label: 'Zap Pilot',
+            url: null,
+            attribution: 'Zap Pilot',
+            license: 'brand-generated',
+            licenseUrl: null,
+          },
+        ],
+        asset: {
+          kind: 'remoteImage',
+          sourceId: 'source-brand-outro',
+          url: 'https://cdn.example.com/visual/image-02.png',
+          sha256: 'd'.repeat(64),
+          layout: 'contain',
+          position: 'center',
+          motion: 'static',
+        },
+      },
     ],
   },
   assets: [
@@ -60,6 +87,19 @@ const completedVisualPayload = {
       perceptualHash: 'c'.repeat(16),
       width: 1920,
       height: 1080,
+    },
+    {
+      assetId: 'image-02',
+      r2Url: 'https://cdn.example.com/visual/image-02.png',
+      originalImageUrl: 'https://cdn.example.com/visual/image-02.png',
+      sourcePageUrl: 'https://zap-pilot.org',
+      provider: 'brand',
+      license: 'brand-generated',
+      contentType: 'image/png',
+      sha256: 'd'.repeat(64),
+      perceptualHash: 'e'.repeat(16),
+      width: 720,
+      height: 1280,
     },
   ],
   subjectCatalog: {
@@ -256,6 +296,9 @@ describe('podcast pipeline visual diagnostics', () => {
     expect(debug?.actualSearches).toEqual(
       completedVisualPayload.provenance.searchTrace.map(searchRowFor),
     );
+    // scene-02 is the brand outro: it is in the plan but image search never ran
+    // for it, so reporting it as a planned query would invent a search on every
+    // packaged episode.
     expect(debug?.plannedQueries).toEqual([
       {
         sceneId: 'scene-01',

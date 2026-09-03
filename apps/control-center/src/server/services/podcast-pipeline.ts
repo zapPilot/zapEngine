@@ -383,10 +383,19 @@ function parseSceneSearchIntents(
 ): PodcastPipelineVisualDebug['plannedQueries'] {
   return mapSceneRows(value, (row, sceneId) => {
     const queries = stringArray(row['imageSearchIntent']);
-    return queries.length === 0
-      ? null
-      : { sceneId, subjectIds: [], selectionReason: null, queries };
+    // A completed plan keeps every scene, including the intro/outro brand
+    // cards, whose intent is the `brand:` marker the renderer swaps for a
+    // bundled PNG. Image search never runs for those, so listing them as
+    // planned queries would invent a search on every packaged episode.
+    if (queries.length === 0 || queries.some(isBrandVisualIntent)) {
+      return null;
+    }
+    return { sceneId, subjectIds: [], selectionReason: null, queries };
   });
+}
+
+function isBrandVisualIntent(query: string): boolean {
+  return query.startsWith('brand:');
 }
 
 function parseActualSearches(

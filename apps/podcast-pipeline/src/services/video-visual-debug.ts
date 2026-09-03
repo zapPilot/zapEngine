@@ -2,11 +2,15 @@ import { getPipelineSupabase, throwSupabaseError } from './supabase-client.js';
 
 /**
  * Persist an operator-only visual-search checkpoint before remote image search
- * begins. The final completion RPC overwrites visual_payload with the canonical
- * completed payload; enqueue/retry already clears visual_payload. Keeping this
- * transient payload in the existing column makes failed attempts debuggable
- * without adding another lifecycle column or changing the completed-visual
- * contract.
+ * begins. Keeping this transient payload in the existing column makes failed
+ * attempts debuggable without adding another lifecycle column or changing the
+ * completed-visual contract: completion overwrites it with the canonical
+ * completed payload, and resubmitting the episode URL clears it outright.
+ *
+ * A queue retry does not clear it, so what replaces a failed attempt's
+ * checkpoint is the next attempt's own `planned` write. An attempt that fails
+ * before reaching that write leaves the previous attempt's checkpoint in
+ * place.
  */
 export async function saveEpisodeVideoVisualDebug(
   episodeId: string,
