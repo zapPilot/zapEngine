@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { runEas } from './eas.mjs';
+import { runEas, runEasJson } from './eas.mjs';
 
 const PLATFORMS = ['android', 'ios'];
 const APP_ROOT = path.resolve(
@@ -14,7 +14,6 @@ function readSubmitProfile(platform) {
   const easJson = JSON.parse(
     readFileSync(path.join(APP_ROOT, 'eas.json'), 'utf8'),
   );
-
   return easJson.submit?.production?.[platform];
 }
 
@@ -41,55 +40,55 @@ function assertSubmitConfigured(platform) {
   }
 }
 
+function assertBuildIsSubmittable(platform, buildId) {
+  const build = runEasJson(['build:view', buildId, '--json'], {
+    addNonInteractive: false,
+  });
+  const checks = [
+    ['id', build.id, buildId],
+    ['platform', String(build.platform ?? '').toLowerCase(), platform],
+    ['build profile', build.buildProfile, 'production'],
+    ['distribution', String(build.distribution ?? '').toLowerCase(), 'store'],
+    ['status', String(build.status ?? '').toLowerCase(), 'finished'],
+  ];
+  const failed = checks.find(([, actual, expected]) => actual !== expected);
+
+  if (failed) {
+    const [label, actual, expected] = failed;
+    throw new Error(
+      `EAS build ${buildId} has ${label} ${String(actual)}, expected ${String(expected)}.`,
+    );
+  }
+}
+
 function main() {
   const platform = process.argv[2];
+  const buildId = process.argv[3];
 
   if (!PLATFORMS.includes(platform)) {
+    throw new Error(`Expected a platform argument (${PLATFORMS.join(' | ')}).`);
+  }
+
+  if (!buildId) {
     throw new Error(
-      `Expected a platform argument (${PLATFORMS.join(' | ')}), got ${
-        platform ?? 'nothing'
-      }.`,
+      'An exact EAS build ID is required; latest-build lookup is intentionally unsupported.',
+    );
+  }
+
+  // `pnpm <script> -- <id>` forwards the literal `--` to the script rather than
+  // consuming it, so that form arrives here as the build ID and silently drops
+  // the real one. Reject it up front instead of letting eas-cli resolve `--` to
+  // something unrelated.
+  if (buildId.startsWith('-')) {
+    throw new Error(
+      `Expected an EAS build ID, got "${buildId}". Pass the ID directly: ` +
+        `pnpm --filter @zapengine/app ${platform}:submit <build-id>.`,
     );
   }
 
   assertSubmitConfigured(platform);
-
-  // Filtering to production/store/finished is deliberate: an unfiltered
-  // `eas submit --latest` could pick a newer internal-distribution build, which
-  // the store would then fully shadow behind the existing production binary.
-  const output = runEas(
-    [
-      'build:list',
-      '--platform',
-      platform,
-      '--build-profile',
-      'production',
-      '--distribution',
-      'store',
-      '--status',
-      'finished',
-      '--limit',
-      '1',
-      '--json',
-      '--non-interactive',
-    ],
-    { captureStdout: true },
-  );
-
-  const builds = JSON.parse(output);
-  const build = Array.isArray(builds) ? builds[0] : undefined;
-
-  if (!build?.id) {
-    throw new Error(
-      `No finished production ${platform} store build was found.`,
-    );
-  }
-
-  const buildVersion = build.appBuildVersion ?? 'unknown';
-  console.log(
-    `Submitting production ${platform} build ${build.id} (build version ${buildVersion}).`,
-  );
-
+  assertBuildIsSubmittable(platform, buildId);
+  console.log(`Submitting production ${platform} build ${buildId}.`);
   runEas([
     'submit',
     '--platform',
@@ -97,7 +96,7 @@ function main() {
     '--profile',
     'production',
     '--id',
-    build.id,
+    buildId,
     '--non-interactive',
   ]);
 }

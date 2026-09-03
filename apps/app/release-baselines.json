@@ -1,0 +1,8 @@
+{
+  "ios": {
+    "appVersion": "2.1.0",
+    "ascBuildNumberFloor": 19,
+    "observedAt": "2026-09-02",
+    "note": "Highest App Store Connect build observed before EAS remote versioning becomes the sole release path."
+  }
+}
