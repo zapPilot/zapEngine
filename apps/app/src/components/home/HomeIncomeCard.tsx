@@ -71,7 +71,7 @@ export function HomeIncomeCard({
                     </View>
                     <View className="items-end">
                       <Text className="font-mono text-[12px] text-ink">
-                        {formatSignedUsd(row.monthlyNetUsd)} /mo
+                        {formatSignedUsd(row.monthlyNetUsd)}
                       </Text>
                       {row.monthlyLendingCostUsd === null ? null : (
                         <Text className="mt-0.5 font-mono text-[9.5px] text-ink-faint">
