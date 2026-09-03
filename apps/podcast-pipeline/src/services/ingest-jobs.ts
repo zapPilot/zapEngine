@@ -122,7 +122,10 @@ export function parsePodcastIngestJobRow(value: unknown): PodcastIngestJobRow {
     contractError(value, `unsupported language_code ${languageCode}`);
   }
 
-  const telegramChatId = nullableString(value, 'telegram_chat_id', value);
+  const telegramChatId =
+    value['telegram_chat_id'] === null
+      ? null
+      : requiredString(value, 'telegram_chat_id', value);
   const status = requiredString(value, 'status', value);
   if (!['queued', 'processing', 'completed', 'failed'].includes(status)) {
     contractError(value, `unsupported status ${status}`);
