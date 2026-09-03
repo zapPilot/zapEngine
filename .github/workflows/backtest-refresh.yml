@@ -88,19 +88,11 @@ jobs:
         run: pnpm turbo run test --filter=@zapengine/landing-page
 
       - name: Commit refreshed backtest artifacts
-        run: |
-          files=(
+        uses: ./.github/actions/commit-generated-artifacts
+        with:
+          paths: |
             apps/analytics-engine/tests/fixtures/strategy_performance_snapshot_500d.json
             apps/landing-page/src/data/strategy-snapshot.json
             apps/landing-page/src/data/equity-curve.json
             apps/landing-page/src/data/market-signals.json
-          )
-          if git diff --quiet -- "${files[@]}"; then
-            echo "No backtest artifact changes to commit."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add "${files[@]}"
-          git commit -m "Refresh rolling backtest snapshot to $REFERENCE_DATE"
-          git push
+          message: Refresh rolling backtest snapshot to ${{ env.REFERENCE_DATE }}

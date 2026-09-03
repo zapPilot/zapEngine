@@ -90,15 +90,12 @@ jobs:
       - name: Validate the refreshed artifact against the landing-page test suite
         run: pnpm turbo run test --filter=@zapengine/landing-page
 
-      - name: Commit the refreshed distribution snapshot
+      - name: Record the snapshot timestamp
         run: |
-          if git diff --quiet -- "$ARTIFACT"; then
-            echo "No distribution snapshot changes to commit."
-            exit 0
-          fi
-          as_of="$(node -e "const s=require('./$ARTIFACT'); process.stdout.write(s.asOf)")"
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add "$ARTIFACT"
-          git commit -m "Refresh distribution snapshot to $as_of"
-          git push
+          echo "AS_OF=$(node -e "const s=require('./$ARTIFACT'); process.stdout.write(s.asOf)")" >> "$GITHUB_ENV"
+
+      - name: Commit the refreshed distribution snapshot
+        uses: ./.github/actions/commit-generated-artifacts
+        with:
+          paths: ${{ env.ARTIFACT }}
+          message: Refresh distribution snapshot to ${{ env.AS_OF }}

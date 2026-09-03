@@ -1,0 +1,65 @@
+name: Commit generated artifacts
+description: >-
+  Commit the given paths and deliver them to the branch this run checked out.
+  Every push attempt replays the generated commit onto the current tip, so a
+  branch that advances mid-run cannot make the push stale.
+
+inputs:
+  paths:
+    description: Paths to stage, one per line.
+    required: true
+  message:
+    description: Commit message.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        PATHS: ${{ inputs.paths }}
+        MESSAGE: ${{ inputs.message }}
+      run: |
+        paths=()
+        while IFS= read -r path; do
+          [ -n "${path// /}" ] || continue
+          paths+=("$path")
+        done <<< "$PATHS"
+
+        if [ "${#paths[@]}" -eq 0 ]; then
+          echo "::error::No paths were given to commit."
+          exit 1
+        fi
+
+        if git diff --quiet -- "${paths[@]}"; then
+          echo "No changes to commit in: ${paths[*]}"
+          exit 0
+        fi
+
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add -- "${paths[@]}"
+        git commit -m "$MESSAGE"
+
+        # These jobs run for minutes while PR merges and the sibling snapshot
+        # crons keep advancing the branch, so replay the generated commit onto
+        # the current tip and push fast-forward only. --autostash: the
+        # generators can leave tracked build outputs modified, and rebase
+        # refuses a dirty tree even when it has nothing to replay.
+        branch="$GITHUB_REF_NAME"
+        for attempt in 1 2 3; do
+          git fetch origin "$branch"
+          if ! git rebase --autostash "origin/$branch"; then
+            echo "::error::Rebase onto origin/$branch failed (likely a concurrent change to the same artifact); refusing to overwrite it."
+            exit 1
+          fi
+          if git push origin "HEAD:$branch"; then
+            exit 0
+          fi
+          if [ "$attempt" -lt 3 ]; then
+            echo "Push rejected (attempt $attempt/3); refreshing $branch and retrying..."
+            sleep 2
+          fi
+        done
+        echo "::error::Failed to push after 3 attempts."
+        exit 1
