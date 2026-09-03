@@ -118,6 +118,37 @@ describe('visual subject catalog', () => {
     );
   });
 
+  it('searches a16z by its own name instead of doubling the category hint onto it', () => {
+    // The disambiguated canonical name is `venture capital a16z`, which the bare
+    // `a16z` query does not contain -- prefixing it sent `venture capital a16z
+    // a16z` to image search and matched nothing on any provider.
+    const catalog = parseVisualSubjectCatalog({
+      primarySubjectId: 'subject-coinbase',
+      subjects: [
+        rawSubject(),
+        rawSubject({
+          id: 'subject-a16z',
+          canonicalName: 'a16z',
+          aliases: ['Andreessen Horowitz'],
+          storyRole: 'secondary',
+          evidenceSceneIds: ['scene-04'],
+          searchQueries: ['a16z'],
+          identityHints: ['venture capital'],
+        }),
+      ],
+    });
+
+    const a16z = catalog.subjects.find(
+      (subject) => subject.id === 'subject-a16z',
+    );
+    expect(a16z?.canonicalName).toBe('venture capital a16z');
+    expect(a16z?.aliases).toEqual(['a16z', 'Andreessen Horowitz']);
+    expect(buildVisualSubjectSearchQueries(a16z!)).toEqual([
+      'a16z',
+      'venture capital a16z',
+    ]);
+  });
+
   it('adds Base context to B20 so camera flashes and Honda engines cannot satisfy the identity phrase', () => {
     const catalog = parseVisualSubjectCatalog({
       primarySubjectId: 'subject-coinbase',

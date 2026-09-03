@@ -5,7 +5,10 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { PodcastPipelineResponse } from '../../shared/podcast-pipeline.js';
+import type {
+  PodcastPipelineResponse,
+  PodcastPipelineVisualDebug,
+} from '../../shared/podcast-pipeline.js';
 import { PodcastPipelineView } from './PodcastPipelineView.js';
 /* jscpd:ignore-end */
 
@@ -66,6 +69,32 @@ function pipelineResponse(
         ...overrides,
       },
     ],
+  };
+}
+
+function visualDebug(
+  overrides: Partial<PodcastPipelineVisualDebug>,
+): PodcastPipelineVisualDebug {
+  return {
+    phase: 'planned',
+    primarySubject: 'a16z',
+    subjects: [{ id: 'subject-a16z', name: 'a16z' }],
+    plannedQueries: [
+      {
+        sceneId: 'scene-01',
+        subjectIds: ['subject-a16z'],
+        selectionReason: 'direct',
+        queries: ['a16z'],
+      },
+      {
+        sceneId: 'scene-02',
+        subjectIds: ['subject-a16z'],
+        selectionReason: 'episode-context',
+        queries: ['Andreessen Horowitz'],
+      },
+    ],
+    actualSearches: [],
+    ...overrides,
   };
 }
 
@@ -141,5 +170,48 @@ describe('PodcastPipelineView', () => {
 
     const button = screen.getByRole('button', { name: 'Restarting…' });
     expect(button).toBeDisabled();
+  });
+
+  it('labels keywords as planned and flags the missing trace before any provider call', () => {
+    renderPipeline({
+      data: pipelineResponse({ visualDebug: visualDebug({}) }),
+    });
+
+    expect(screen.getByText('Search keywords planned')).toBeInTheDocument();
+    expect(screen.getByText('a16z · Andreessen Horowitz')).toBeInTheDocument();
+    expect(
+      screen.getByText('No provider search trace recorded yet'),
+    ).toBeInTheDocument();
+  });
+
+  it('labels keywords as used and shows only what the provider was actually asked', () => {
+    renderPipeline({
+      data: pipelineResponse({
+        visualDebug: visualDebug({
+          phase: 'searched',
+          actualSearches: [
+            {
+              sceneId: 'scene-01',
+              provider: 'brave',
+              query: 'a16z',
+              returned: 20,
+              accepted: 4,
+              entityFiltered: 2,
+              rejected: 1,
+            },
+          ],
+        }),
+      }),
+    });
+
+    const keywords = screen.getByText('Search keywords used').parentElement;
+    expect(keywords).toHaveTextContent('a16z');
+    expect(keywords).not.toHaveTextContent('Andreessen Horowitz');
+    expect(
+      screen.queryByText('Search keywords planned'),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('No provider search trace recorded yet'),
+    ).not.toBeInTheDocument();
   });
 });

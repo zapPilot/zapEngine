@@ -6,6 +6,7 @@ import type {
   OperationsSocialResponse,
   OperationsSource,
 } from '../../../shared/types.js';
+import { record, records } from '../json.js';
 import { buildRemediationFacts, type RemediationFacts } from './autonomy.js';
 import { parseOperationalFingerprint } from './inspection/fingerprint.js';
 import type {
@@ -94,12 +95,16 @@ export async function investigateOperationalSignal(input: {
 
   const relatedEvidence: IncidentPacket['relatedEvidence'] = {};
   for (const [provider, inspection] of relatedResults) {
-    if (inspection) relatedEvidence[provider] = inspection;
+    if (inspection) {
+      relatedEvidence[provider] = inspection;
+    }
   }
 
   const gaps: EvidenceGap[] = [...primaryEvidence.gaps];
   for (const [, inspection] of relatedResults) {
-    if (inspection) gaps.push(...inspection.gaps);
+    if (inspection) {
+      gaps.push(...inspection.gaps);
+    }
   }
 
   let customers: CustomerEconomicsResponse | null = null;
@@ -170,15 +175,20 @@ export async function investigateOperationalSignal(input: {
         observedAt: input.snapshot.generatedAt,
       };
 
-  const evidenceGaps = uniqueGaps(gaps);
+  const evidenceGaps = uniqueBy(gaps, (gap) => `${gap.source}:${gap.reason}`);
 
   return {
     incident,
-    entities: uniqueEntities([
-      ...topology.entities,
-      ...primaryEvidence.entities,
-      ...relatedResults.flatMap(([, inspection]) => inspection?.entities ?? []),
-    ]),
+    entities: uniqueBy(
+      [
+        ...topology.entities,
+        ...primaryEvidence.entities,
+        ...relatedResults.flatMap(
+          ([, inspection]) => inspection?.entities ?? [],
+        ),
+      ],
+      (entity) => `${entity.type}:${entity.id}`,
+    ),
     timeline: buildTimeline(
       signal ? [signal, ...relatedSignals] : relatedSignals,
       [
@@ -332,7 +342,9 @@ function buildTimeline(
     .sort((left, right) => left.at.localeCompare(right.at))
     .filter((event) => {
       const key = `${event.at}|${event.source}|${event.type}|${event.summary}`;
-      if (seen.has(key)) return false;
+      if (seen.has(key)) {
+        return false;
+      }
       seen.add(key);
       return true;
     })
@@ -342,10 +354,18 @@ function buildTimeline(
 function timelineFromInspection(
   inspection: SignalInspection,
 ): IncidentTimelineEvent[] {
-  if (!inspection.source) return [];
-  if (inspection.source === 'github-actions') return githubTimeline(inspection);
-  if (inspection.source === 'sentry') return sentryTimeline(inspection);
-  if (inspection.source === 'fly') return flyTimeline(inspection);
+  if (!inspection.source) {
+    return [];
+  }
+  if (inspection.source === 'github-actions') {
+    return githubTimeline(inspection);
+  }
+  if (inspection.source === 'sentry') {
+    return sentryTimeline(inspection);
+  }
+  if (inspection.source === 'fly') {
+    return flyTimeline(inspection);
+  }
   return [];
 }
 
@@ -458,48 +478,29 @@ function pushTimestamp(
   type: string,
   summary: string,
 ): void {
-  if (typeof value !== 'string' || Number.isNaN(Date.parse(value))) return;
+  if (typeof value !== 'string' || Number.isNaN(Date.parse(value))) {
+    return;
+  }
   target.push({ at: value, source, type, summary });
 }
 
-function record(value: unknown): Record<string, unknown> | null {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-}
-
-function records(value: unknown): Record<string, unknown>[] {
-  return Array.isArray(value)
-    ? value.flatMap((entry) => {
-        const parsed = record(entry);
-        return parsed ? [parsed] : [];
-      })
-    : [];
-}
-
 function text(value: unknown): string | null {
-  if (typeof value === 'string') return value;
-  if (typeof value === 'number') return String(value);
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (typeof value === 'number') {
+    return String(value);
+  }
   return null;
 }
 
-function uniqueEntities(
-  entities: readonly OperationalEntityRef[],
-): OperationalEntityRef[] {
+function uniqueBy<T>(items: readonly T[], keyOf: (item: T) => string): T[] {
   const seen = new Set<string>();
-  return entities.filter((entity) => {
-    const key = `${entity.type}:${entity.id}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
-
-function uniqueGaps(gaps: readonly EvidenceGap[]): EvidenceGap[] {
-  const seen = new Set<string>();
-  return gaps.filter((gap) => {
-    const key = `${gap.source}:${gap.reason}`;
-    if (seen.has(key)) return false;
+  return items.filter((item) => {
+    const key = keyOf(item);
+    if (seen.has(key)) {
+      return false;
+    }
     seen.add(key);
     return true;
   });

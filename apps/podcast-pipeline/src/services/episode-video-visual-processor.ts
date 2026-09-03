@@ -48,15 +48,23 @@ import {
   type ProcessEpisodeVideoVisualJobContext,
 } from './video-jobs.js';
 import { visualStageProgress } from './video-progress.js';
+import { saveEpisodeVideoVisualDebug } from './video-visual-debug.js';
 
 export const VISUAL_ARTICLE_SCRAPE_TIMEOUT_MS = 15_000;
 const MAX_PERSISTED_VISUAL_SEARCH_TRACE_ENTRIES = 256;
+const VISUAL_SEARCH_DEBUG_SCHEMA_VERSION = 'visual-search-debug-v1';
 
 export type ProcessEpisodeVideoVisualJob = (
   job: EpisodeVideoVisualJobRow,
   source: EpisodeVideoVisualSource,
   context: ProcessEpisodeVideoVisualJobContext,
 ) => Promise<EpisodeVideoVisualCompletion>;
+
+type PersistVisualDebug = (
+  episodeId: string,
+  leaseOwner: string,
+  payload: Record<string, unknown>,
+) => Promise<boolean>;
 
 interface EpisodeVideoVisualProcessorDependencies {
   analyzeAudio: typeof analyzeEpisodeAudio;
@@ -68,6 +76,7 @@ interface EpisodeVideoVisualProcessorDependencies {
   makeTemporaryDirectory: (prefix: string) => Promise<string>;
   writeManifest: typeof writeFile;
   removeDirectory: typeof rm;
+  persistDebug: PersistVisualDebug;
   logger: Pick<Console, 'info'>;
 }
 
@@ -81,6 +90,7 @@ const defaultDependencies: EpisodeVideoVisualProcessorDependencies = {
   makeTemporaryDirectory: mkdtemp,
   writeManifest: writeFile,
   removeDirectory: rm,
+  persistDebug: saveEpisodeVideoVisualDebug,
   logger: console,
 };
 
@@ -189,15 +199,11 @@ export function createEpisodeVideoVisualProcessor(
           ...(visualSearchTitle ? { searchTitle: visualSearchTitle } : {}),
           script: source.script,
           ...(englishBodyScript ? { searchScript: englishBodyScript } : {}),
-          durationMs: analysis.durationMs,
         },
         { signal: context.signal },
       );
-      // Narrow injected test providers created before v8 can still return the
-      // old enrichment shape at runtime. Treat those as the explicit legacy
-      // path; the production provider always supplies both v8 fields.
-      const subjectCatalog = intents.subjectCatalog ?? null;
-      const sceneAssignments = intents.sceneAssignments ?? [];
+      const subjectCatalog = intents.subjectCatalog;
+      const sceneAssignments = intents.sceneAssignments;
       const storyboard = {
         ...generated,
         draft: intents.draft,
@@ -212,6 +218,24 @@ export function createEpisodeVideoVisualProcessor(
         primarySubject: subjectCatalog?.primarySubjectId,
         model: intents.model ?? 'deterministic',
       });
+
+      const debugPayload = buildVisualSearchDebugPayload({
+        subjectCatalog,
+        sceneAssignments,
+        scenes: storyboard.draft.scenes,
+        searchTitleSource,
+        model: intents.model,
+      });
+      if (job.lease_owner) {
+        const persisted = await dependencies.persistDebug(
+          source.episodeId,
+          job.lease_owner,
+          debugPayload,
+        );
+        if (!persisted) {
+          throw new Error('Visual search debug checkpoint lost its job lease');
+        }
+      }
 
       context.reportProgress(visualStageProgress('planning-scenes'));
       const searchStartedAt = Date.now();
@@ -234,32 +258,54 @@ export function createEpisodeVideoVisualProcessor(
       });
 
       const searchTrace: VisualSearchTraceEntry[] = [];
-      const assetPlan = await dependencies.planAssets({
-        scenes: storyboard.draft.scenes,
-        articleImages: article.images ?? [],
-        workingDirectory: join(outputDirectory, 'images'),
-        selectionMode: 'resilient',
-        signal: context.signal,
-        ...(subjectCatalog ? { subjectCatalog } : {}),
-        ...(sceneAssignments.length > 0 ? { sceneAssignments } : {}),
-        onProgress: (progress) => {
-          logPlannerProgress(
-            dependencies.logger,
-            context.runId,
-            source.episodeId,
-            progress,
-          );
-          appendSearchTrace(searchTrace, progress);
-          if (progress.phase === 'assets') {
-            context.reportProgress(
-              visualStageProgress(
-                'selecting-images',
-                progress.sceneIndex / progress.sceneCount,
-              ),
+      let assetPlan: Awaited<ReturnType<typeof planPodcastVisualAssets>>;
+      try {
+        assetPlan = await dependencies.planAssets({
+          scenes: storyboard.draft.scenes,
+          articleImages: article.images ?? [],
+          workingDirectory: join(outputDirectory, 'images'),
+          selectionMode: 'resilient',
+          signal: context.signal,
+          ...(subjectCatalog ? { subjectCatalog } : {}),
+          ...(sceneAssignments.length > 0 ? { sceneAssignments } : {}),
+          onProgress: (progress) => {
+            logPlannerProgress(
+              dependencies.logger,
+              context.runId,
+              source.episodeId,
+              progress,
             );
-          }
-        },
+            appendSearchTrace(searchTrace, progress);
+            if (progress.phase === 'assets') {
+              context.reportProgress(
+                visualStageProgress(
+                  'selecting-images',
+                  progress.sceneIndex / progress.sceneCount,
+                ),
+              );
+            }
+          },
+        });
+      } catch (cause) {
+        await persistSearchTraceCheckpoint({
+          persistDebug: dependencies.persistDebug,
+          episodeId: source.episodeId,
+          leaseOwner: job.lease_owner,
+          debugPayload,
+          phase: 'search-failed',
+          searchTrace,
+        });
+        throw cause;
+      }
+      await persistSearchTraceCheckpoint({
+        persistDebug: dependencies.persistDebug,
+        episodeId: source.episodeId,
+        leaseOwner: job.lease_owner,
+        debugPayload,
+        phase: 'searched',
+        searchTrace,
       });
+
       const visualHash = hashEpisodeVisualSelection({
         visualVersion: job.visual_version,
         episodeId: source.episodeId,
@@ -343,6 +389,78 @@ export function createEpisodeVideoVisualProcessor(
       });
     }
   };
+}
+
+interface VisualSearchDebugQuery {
+  sceneId: string;
+  subjectIds: string[];
+  selectionReason: VisualSceneSubjectAssignment['selectionReason'];
+  queries: string[];
+}
+
+function buildVisualSearchDebugPayload(input: {
+  subjectCatalog: VisualSubjectCatalog | null;
+  sceneAssignments: readonly VisualSceneSubjectAssignment[];
+  scenes: readonly { sceneId: string; imageSearchIntent: readonly string[] }[];
+  searchTitleSource: 'publisher' | 'english-localization' | 'none';
+  model: string | null;
+}): Record<string, unknown> {
+  const assignmentByScene = new Map(
+    input.sceneAssignments.map((assignment) => [
+      assignment.sceneId,
+      assignment,
+    ]),
+  );
+  const plannedQueries = input.scenes.flatMap<VisualSearchDebugQuery>(
+    (scene) => {
+      if (podcastBrandVisualKind(scene.imageSearchIntent)) return [];
+      const assignment = assignmentByScene.get(scene.sceneId);
+      if (!assignment) return [];
+      // The planner already wrote each scene's queries onto the scene. Reading
+      // them back is what makes this checkpoint evidence of what image search
+      // was actually asked, rather than a third re-derivation that can drift.
+      return [
+        {
+          sceneId: scene.sceneId,
+          subjectIds: assignment.subjectIds,
+          selectionReason: assignment.selectionReason,
+          queries: [...scene.imageSearchIntent],
+        },
+      ];
+    },
+  );
+  return {
+    schemaVersion: VISUAL_SEARCH_DEBUG_SCHEMA_VERSION,
+    phase: 'planned',
+    searchTitleSource: input.searchTitleSource,
+    searchIntentModel: input.model,
+    subjectCatalog: input.subjectCatalog,
+    sceneAssignments: input.sceneAssignments,
+    plannedQueries,
+  };
+}
+
+async function persistSearchTraceCheckpoint(input: {
+  persistDebug: PersistVisualDebug;
+  episodeId: string;
+  leaseOwner: string | null;
+  debugPayload: Record<string, unknown>;
+  phase: 'searched' | 'search-failed';
+  searchTrace: readonly VisualSearchTraceEntry[];
+}): Promise<void> {
+  if (!input.leaseOwner || input.searchTrace.length === 0) return;
+  const persisted = await input.persistDebug(
+    input.episodeId,
+    input.leaseOwner,
+    {
+      ...input.debugPayload,
+      phase: input.phase,
+      searchTrace: input.searchTrace,
+    },
+  );
+  if (!persisted) {
+    throw new Error('Visual search debug checkpoint lost its job lease');
+  }
 }
 
 function appendSearchTrace(
