@@ -24,8 +24,17 @@ interface PortfolioTrendChartProps {
   gradientId?: string;
 }
 
-const TOOLTIP_WIDTH = 184;
+const TOOLTIP_WIDTH = 220;
 const MARKER_RADIUS = 4;
+const MAX_ATTRIBUTION_ROWS = 6;
+
+function attributionLabel(
+  contributor: NonNullable<DailyValuePoint['attribution']>[number],
+): string {
+  if (contributor.kind === 'market') return `${contributor.label} price`;
+  if (contributor.kind === 'yield') return `${contributor.label} yield`;
+  return contributor.label;
+}
 
 export function PortfolioTrendChart({
   trendPoints,
@@ -102,6 +111,7 @@ export function PortfolioTrendChart({
   const categoryTotals = selectedPoint
     ? snapshotCategoryTotals(selectedPoint)
     : {};
+  const attribution = selectedPoint?.attribution?.slice(0, MAX_ATTRIBUTION_ROWS) ?? [];
   const dateLabel = formatSnapshotDate(selectedPoint?.date, languageCode);
 
   return (
@@ -146,14 +156,37 @@ export function PortfolioTrendChart({
                 {t('portfolio.tooltip.change')}: {formatSignedUsd(change.usd)}
               </Text>
             ) : null}
+
+            {attribution.length > 0 ? (
+              <View className="mt-2 gap-1 border-t border-line pt-1.5">
+                {attribution.map((contributor) => (
+                  <View
+                    key={`${contributor.kind}:${contributor.label}`}
+                    testID="portfolio-trend-attribution-row"
+                    className="flex-row items-center justify-between gap-2"
+                  >
+                    <Text
+                      numberOfLines={1}
+                      className="min-w-0 flex-1 font-mono text-[9.5px] text-ink-dim"
+                    >
+                      {attributionLabel(contributor)}
+                    </Text>
+                    <Text className="font-mono text-[9.5px] text-ink">
+                      {formatSignedUsd(contributor.valueUsd)}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+
             {categoryTotals.assetsUsd === undefined ? null : (
-              <Text className="mt-0.5 font-mono text-[10px] text-ink-dim">
+              <Text className="mt-1.5 font-mono text-[9px] text-ink-faint">
                 {t('portfolio.tooltip.assets')}:{' '}
                 {formatUsd(categoryTotals.assetsUsd)}
               </Text>
             )}
             {categoryTotals.debtUsd === undefined ? null : (
-              <Text className="mt-0.5 font-mono text-[10px] text-ink-dim">
+              <Text className="mt-0.5 font-mono text-[9px] text-ink-faint">
                 {t('portfolio.tooltip.debt')}:{' '}
                 {formatUsd(categoryTotals.debtUsd)}
               </Text>
