@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { fetchBraveCostSnapshot } from './brave.js';
 import { fetchDeBankCostSnapshot } from './debank.js';
 import { createFixedMonthlyCostSnapshot } from './fixed.js';
 import { fetchOpenRouterCostSnapshot } from './openrouter.js';
@@ -86,6 +87,64 @@ describe('cost providers', () => {
 
     expect(withoutPrior.projectedCostUsd).toBe(320);
     expect(withPrior.projectedCostUsd).toBeCloseTo(19.13, 2);
+  });
+
+  it('derives Brave monthly usage and gross cost from rate-limit headers', async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ results: [] }), {
+        headers: {
+          'x-ratelimit-limit': '50, 15000',
+          'x-ratelimit-policy': '50;w=1, 15000;w=2592000',
+          'x-ratelimit-remaining': '49, 14000',
+          'x-ratelimit-reset': '1, 1234567',
+        },
+      }),
+    );
+
+    const snapshot = await fetchBraveCostSnapshot({
+      apiKey: 'brave-key',
+      unitCostUsd: 5 / 1_000,
+      fetch: fetcher,
+      now: new Date('2026-09-16T00:00:00.000Z'),
+    });
+
+    expect(snapshot).toMatchObject({
+      provider: 'brave',
+      accruedCostUsd: 5,
+      costType: 'list-price-equivalent',
+      periodStart: '2026-09-01T00:00:00.000Z',
+    });
+    expect(snapshot.usage).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: 'monthly_requests', value: 1_000 }),
+        expect.objectContaining({ key: 'remaining_requests', value: 14_000 }),
+        expect.objectContaining({ key: 'monthly_request_limit', value: 15_000 }),
+        expect.objectContaining({ key: 'quota_reset_seconds', value: 1_234_567 }),
+        expect.objectContaining({ key: 'gross_search_cost_usd', value: 5 }),
+        expect.objectContaining({ key: 'monthly_free_credit_usd', value: 5 }),
+        expect.objectContaining({ key: 'estimated_billed_usd', value: 0 }),
+      ]),
+    );
+    expect(fetcher).toHaveBeenCalledWith(
+      expect.objectContaining({
+        href: expect.stringContaining('count=1'),
+      }),
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'x-subscription-token': 'brave-key',
+        }),
+      }),
+    );
+  });
+
+  it('fails Brave collection instead of guessing when quota headers are absent', async () => {
+    await expect(
+      fetchBraveCostSnapshot({
+        apiKey: 'brave-key',
+        unitCostUsd: 5 / 1_000,
+        fetch: vi.fn().mockResolvedValue(new Response('{}')),
+      }),
+    ).rejects.toThrow('Brave Search quota headers missing');
   });
 
   it('keeps DeBank USD cost unknown without a unit price, prior month or not', async () => {
