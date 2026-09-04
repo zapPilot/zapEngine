@@ -121,7 +121,7 @@ describe('episode visual v9 provenance', () => {
   it('persists the search title source, article-image counts, and image-search trace', () => {
     const payload = buildPayload({ imageSearch });
 
-    expect(payload.visualVersion).toBe('podcast-image-visual-plan.v9');
+    expect(payload.visualVersion).toBe(EPISODE_VIDEO_VISUAL_VERSION);
     expect(payload.provenance).toMatchObject({
       searchTitleSource: 'publisher',
       articleImageCandidateCount: 2,

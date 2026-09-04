@@ -66,6 +66,7 @@ const dailyYieldTokenSchema = z.object({
   amount_change: z.number(),
   current_price: z.number(),
   yield_return_usd: z.number(),
+  market_return_usd: z.number().default(0),
 });
 
 const dailyYieldReturnSchema = z.object({

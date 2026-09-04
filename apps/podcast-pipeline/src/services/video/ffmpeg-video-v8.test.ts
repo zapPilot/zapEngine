@@ -69,23 +69,32 @@ describe('v8 editorial image presentation', () => {
       'pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=0x101014',
     );
     expect(filter).toContain("zoompan=z='1'");
+    expect(filter).not.toContain('scale=1882:1058');
     expect(filter).not.toContain('1.15');
     expect(filter).not.toContain('0.1800');
   });
 
-  it('holds first, moves only in the middle, and caps a four-second push-in at 1.6%', () => {
+  it('ignores fullBleed push-in metadata and uses contain plus a safe 2% drift', () => {
     const filter = buildStaticSlideFilter(
       manifestWithPresentation({ layout: 'fullBleed', motion: 'pushIn' }),
       '/render/captions.ass',
       '/render/fonts',
     );
 
-    expect(filter).toContain('force_original_aspect_ratio=increase');
-    expect(filter).toContain('crop=1920:1080');
-    expect(filter).toContain("z='1+0.0160*");
-    expect(filter).toContain('max(0\\,min((on/119-0.30)/0.50\\,1))');
-    expect(filter).not.toContain('*(1-');
-    expect(filter).not.toContain('1.15');
-    expect(filter).not.toContain('0.1800');
+    expect(filter).toContain('force_original_aspect_ratio=decrease');
+    expect(filter).toContain(
+      'pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=0x101014',
+    );
+    expect(filter).toContain("zoompan=z='1'");
+    expect(filter).toContain('scale=1882:1058:flags=lanczos+accurate_rnd');
+    expect(filter).toContain(
+      'pad=1958:1102:(ow-iw)/2:(oh-ih)/2:color=0x101014',
+    );
+    expect(filter).toContain("crop=1920:1080:x='38*(1-");
+    expect(filter).toContain('min(n/127\\,1)');
+    expect(filter).not.toContain('force_original_aspect_ratio=increase');
+    expect(filter).not.toContain("z='1+");
+    expect(filter).not.toContain("z='1.04'");
+    expect(filter).not.toContain("z='1.15'");
   });
 });

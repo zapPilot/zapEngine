@@ -54,31 +54,56 @@ function summary(
 }
 
 describe('buildHomeIncomeView', () => {
-  it('excludes strategy protocols from passive income', () => {
+  it('excludes strategy protocols and exposes passive protocols sorted by value desc', () => {
     const result = buildHomeIncomeView(
       summary([
-        { protocol: 'Morpho', averageDaily: 2 },
+        { protocol: 'Moonwell', chain: 'base', averageDaily: 0.5 },
+        { protocol: 'Morpho', chain: 'ethereum', averageDaily: 2 },
         { protocol: 'GMX V2', averageDaily: 3 },
+        { protocol: 'Aave', chain: 'arbitrum', averageDaily: -0.25 },
         { protocol: 'hyperliquid', averageDaily: -1 },
       ]),
     );
 
     expect(result.status).toBe('ready');
-    expect(result.passiveMonthlyUsd).toBeCloseTo(60.8);
-    expect(result).not.toHaveProperty('strategyRows');
+    expect(result.passiveMonthlyUsd).toBeCloseTo(68.4);
+    expect(result.protocolRows).toEqual([
+      expect.objectContaining({
+        protocol: 'Morpho',
+        chain: 'ethereum',
+        monthlyNetUsd: 60.8,
+      }),
+      expect.objectContaining({
+        protocol: 'Moonwell',
+        chain: 'base',
+        monthlyNetUsd: 15.2,
+      }),
+      expect.objectContaining({
+        protocol: 'Aave',
+        chain: 'arbitrum',
+        monthlyNetUsd: -7.6,
+      }),
+    ]);
   });
 
-  it('marks fewer than seven observed days as insufficient', () => {
+  it('marks fewer than seven observed days as insufficient while retaining tracked protocols', () => {
     const result = buildHomeIncomeView(
       summary([{ protocol: 'Morpho', averageDaily: 2 }], MIN_OBSERVED_DAYS - 1),
     );
     expect(result.status).toBe('insufficient');
+    expect(result.protocolRows).toHaveLength(1);
   });
 
   it('returns empty for no breakdown or a missing window', () => {
-    expect(buildHomeIncomeView(summary([])).status).toBe('empty');
+    expect(buildHomeIncomeView(summary([]))).toEqual(
+      expect.objectContaining({ status: 'empty', protocolRows: [] }),
+    );
     expect(buildHomeIncomeView(summary([], 30, '7d'))).toEqual(
-      expect.objectContaining({ status: 'empty', observedDays: 0 }),
+      expect.objectContaining({
+        status: 'empty',
+        observedDays: 0,
+        protocolRows: [],
+      }),
     );
   });
 });
