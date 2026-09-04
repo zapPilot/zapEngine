@@ -254,6 +254,20 @@ describe('vertical news FFmpeg composition', () => {
     expect(filter).not.toContain('[0:v]fps=24,scale=');
   });
 
+  it('keeps assets without explicit motion on the legacy presentation path', () => {
+    const filter = soleChunkFilter(createVerticalManifest());
+
+    // These slides carry no `motion`, which marks a stored legacy payload. It
+    // stays on crop-to-fill preparation and the historical crossfade, and must
+    // not pick up the editorial drift that re-crops the window.
+    expect(filter).toContain('force_original_aspect_ratio=increase');
+    expect(filter).toContain('xfade=transition=fade:');
+    expect(filter).not.toContain('smoothleft');
+    expect(filter).not.toContain('smoothright');
+    expect(filter).not.toContain('scale=706:627');
+    expect(filter).not.toContain("crop=720:640:x='");
+  });
+
   it('layers the brand frame, outro, and captions over the chunk videos', () => {
     const filter = finalCompositionFilter(createVerticalManifest());
 

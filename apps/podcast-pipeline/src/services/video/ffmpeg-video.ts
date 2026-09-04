@@ -120,7 +120,6 @@ export async function runProcess(
       }
       stdout += chunk;
     });
-    child.stderr?.setEncoding('utf8');
     child.stderr?.on('data', (chunk: string) => {
       if (streamStdio) {
         process.stderr.write(chunk);
@@ -400,6 +399,19 @@ function editorialKenBurnsFilter(
   return `zoompan=z='1':x='0':y='0':d=${durationFrames + holdFrames}:s=${width}x${height}:fps=${fps}`;
 }
 
+type EditorialMotion = Extract<
+  SlideVideoManifest['slides'][number]['asset'],
+  { kind: 'remoteImage' }
+>['motion'];
+
+// A missing `motion` marks a stored legacy payload. Every filter stage has to
+// agree on that split, so they all read it here instead of re-deriving it.
+function editorialMotionOf(
+  slide: SlideVideoManifest['slides'][number],
+): EditorialMotion {
+  return slide.asset.kind === 'remoteImage' ? slide.asset.motion : undefined;
+}
+
 function editorialDriftFilter(
   slide: SlideVideoManifest['slides'][number],
   index: number,
@@ -409,7 +421,8 @@ function editorialDriftFilter(
   height: number,
   holdFrames: number,
 ): string | null {
-  if (slide.asset.kind !== 'remoteImage' || slide.asset.motion === 'static') {
+  const motion = editorialMotionOf(slide);
+  if (motion === undefined || motion === 'static') {
     return null;
   }
   const durationFrames = Math.max(
@@ -452,9 +465,8 @@ function kenBurnsFilter(
   height: number,
   holdFrames: number,
 ): string {
-  const hasExplicitV8Motion =
-    slide.asset.kind === 'remoteImage' && slide.asset.motion !== undefined;
-  return hasExplicitV8Motion
+  const hasExplicitEditorialMotion = editorialMotionOf(slide) !== undefined;
+  return hasExplicitEditorialMotion
     ? editorialKenBurnsFilter(
         slide,
         index,
@@ -478,8 +490,7 @@ function imagePreparationFilter(
   const flags = 'lanczos+accurate_rnd';
   const layout =
     slide.asset.kind === 'remoteImage' ? slide.asset.layout : 'fullBleed';
-  const hasExplicitEditorialMotion =
-    slide.asset.kind === 'remoteImage' && slide.asset.motion !== undefined;
+  const hasExplicitEditorialMotion = editorialMotionOf(slide) !== undefined;
   if (hasExplicitEditorialMotion || layout === 'contain') {
     return `scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=decrease:flags=${flags}:in_range=pc:out_range=tv:out_color_matrix=bt709,pad=${targetWidth}:${targetHeight}:(ow-iw)/2:(oh-ih)/2:color=0x101014`;
   }
@@ -540,6 +551,16 @@ function sceneChain(
   return { filters, priorLabel };
 }
 
+// Editorial scenes wipe in alternating directions; legacy payloads keep the
+// historical crossfade so their look does not change retroactively.
+function transitionForSlide(
+  slide: SlideVideoManifest['slides'][number],
+  slideIndex: number,
+): string {
+  if (editorialMotionOf(slide) === undefined) return 'fade';
+  return slideIndex % 2 === 0 ? 'smoothright' : 'smoothleft';
+}
+
 function appendXfadeChain(
   filters: string[],
   slides: SlideVideoManifest['slides'],
@@ -553,13 +574,7 @@ function appendXfadeChain(
     const nextStartFrame = Math.round((slide.startMs * fps) / 1_000);
     const transitionOffset = (nextStartFrame - transitionFrames) / fps;
     const outputLabel = `x${slideIndex}`;
-    const explicitEditorialMotion =
-      slide.asset.kind === 'remoteImage' && slide.asset.motion !== undefined;
-    const transition = explicitEditorialMotion
-      ? slideIndex % 2 === 0
-        ? 'smoothright'
-        : 'smoothleft'
-      : 'fade';
+    const transition = transitionForSlide(slide, slideIndex);
     filters.push(
       `[${priorLabel}][s${slideIndex}]xfade=transition=${transition}:duration=${transitionMs / 1_000}:offset=${transitionOffset.toFixed(6)}[${outputLabel}]`,
     );
