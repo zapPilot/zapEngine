@@ -188,6 +188,11 @@ function isUpstreamCatalogError(error: unknown): boolean {
   return name === 'AbortError' || name === 'TimeoutError';
 }
 
+function visualAnchorRank(subject: VisualSubject): number {
+  if (subject.type === 'person') return 0;
+  return subject.type === 'object' ? 2 : 1;
+}
+
 function enrichFromSubjectCatalog(
   draft: StoryboardDraft,
   scenes: readonly SearchIntentScene[],
@@ -197,14 +202,14 @@ function enrichFromSubjectCatalog(
   const contentSceneIds = new Set(scenes.map((scene) => scene.sceneId));
   const directByScene = new Map<string, string[]>();
   // A scene's first subject is the query Brave is asked, and the entity cap
-  // trims from the back, so a person the scene names must come before the
-  // company it also names: "Andy Jassy" finds his photo, "Amazon" finds a
-  // warehouse. Stable sort keeps the catalog's own order among equals.
-  const personFirstSubjects = [...catalog.subjects].sort(
-    (left, right) =>
-      Number(right.type === 'person') - Number(left.type === 'person'),
+  // trims from the back, so the most identifying anchor a scene names must come
+  // first: "Andy Jassy" finds his photo, "Amazon" finds a warehouse, and a
+  // common-noun "GPU" finds stock art. Stable sort keeps the catalog's own
+  // order among equals.
+  const rankedSubjects = [...catalog.subjects].sort(
+    (left, right) => visualAnchorRank(left) - visualAnchorRank(right),
   );
-  for (const subject of personFirstSubjects) {
+  for (const subject of rankedSubjects) {
     for (const sceneId of subject.evidenceSceneIds) {
       if (!contentSceneIds.has(sceneId)) continue;
       const current = directByScene.get(sceneId) ?? [];
@@ -642,7 +647,11 @@ function deterministicSubjectSearchQueries(
   const identityHints = compactStringArray(subject['identityHints']);
   const negativeHints = compactStringArray(subject['negativeHints']);
   const compact = canonical.replace(/[^\p{L}\p{N}]/gu, '');
+  // A common-noun object anchor is always ambiguous: "data center" or "robot"
+  // on its own returns the generic stock art the catalog exists to avoid, so
+  // its identity hint has to carry the story context into the query.
   const ambiguous =
+    subject['type'] === 'object' ||
     negativeHints.length > 0 ||
     compact.length <= 4 ||
     /^[a-z]+\d+$/i.test(compact);
@@ -667,7 +676,7 @@ export function buildSubjectCatalogSystemPrompt(): string {
     '- Prefer concrete named entities that the supplied title or scenes explicitly mention: people; companies or organizations; products, models, protocols or tools; government agencies, regulators or institutions; brands; named places; and named assets.',
     '- Recognizable named places remain valid visual anchors even when the prose uses them metonymically. Wall Street, the White House, 中南海, and Silicon Valley are useful because image search returns a distinctive real place rather than generic stock art.',
     '- Also include an unnamed concrete physical subject or setting when it is materially central to the story or scene, not merely mentioned. Examples include a GPU, data center, server rack, semiconductor fab, robot, mining rig, vehicle, or other photographable object. Use type "object" for these common-noun physical anchors.',
-    '- NEVER create a subject from a generic or abstract concept merely because it appears in the text. In visual-anchor terms, NEVER create an anchor from a broad abstract category merely because it appears in the text. Forbidden examples: AI, artificial intelligence, technology, tech giants, startups, founders, office, investors, markets, innovation, governance, engineers, business, finance, debt, bonds, CapEx, cloud, crypto, blockchain, infrastructure, or similar concepts with no single recognizable physical subject.',
+    '- NEVER create an anchor from a broad abstract category or generic concept merely because it appears in the text. Forbidden examples: AI, artificial intelligence, technology, tech giants, startups, founders, office, investors, markets, innovation, governance, engineers, business, finance, debt, bonds, CapEx, cloud, crypto, blockchain, infrastructure, or similar concepts with no single recognizable physical subject.',
     '- When a broad word such as "AI" appears, resolve it to the concrete entity named in that context when one is present; otherwise prefer a concrete physical subject that the passage is actually about (Anthropic -> Anthropic / Claude; OpenAI -> OpenAI / ChatGPT / GPT / Codex; 輝達 -> NVIDIA; an article specifically about GPU demand may use GPU as an object anchor). If the passage provides no concrete visual anchor, emit no subject for that concept.',
     '- If a scene names a person, that person is a subject and is usually the strongest anchor because their photo is specific. When several valid anchors appear, keep the ones most relevant to what the scene is actually about rather than every noun in the sentence.',
     '- Pick exactly one primary subject: the named entity or concrete physical subject the headline/story is principally about, not a competitor or incidental object that appears later. It must be a concrete visual anchor, never a category word with no recognizable referent.',

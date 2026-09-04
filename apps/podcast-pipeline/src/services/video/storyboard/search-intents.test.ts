@@ -714,7 +714,7 @@ describe('visual subject catalog grounding', () => {
       'use the English spelling for canonicalName and put the local-script spelling in aliases',
     );
     expect(prompt).toContain(
-      'Put descriptive industry, category, and role terms only in identityHints.',
+      'Put descriptive industry, category, role, and physical-context terms only in identityHints.',
     );
     expect(prompt).toContain(
       'Do not output scene IDs, image-search queries, or domains.',
@@ -1175,11 +1175,114 @@ describe('named-entity-first scene assignment', () => {
     ]);
   });
 
+  it('orders a common-noun object anchor behind the named entity a scene also names', async () => {
+    const request = catalogEnrichmentRequest('NVIDIA data center');
+    const allSceneIds = request.draft.scenes.map((scene) => scene.sceneId);
+    const provider = {
+      model: MODEL,
+      catalog: vi.fn<SearchIntentProvider['catalog']>(() =>
+        Promise.resolve({
+          primarySubjectId: 'subject-nvidia',
+          // The catalog lists the object first; ranking, not catalog order,
+          // decides which anchor a scene sends to Brave.
+          subjects: [
+            {
+              id: 'subject-data-center',
+              canonicalName: 'data center',
+              type: 'object' as const,
+              aliases: [],
+              storyRole: 'supporting' as const,
+              evidenceSceneIds: allSceneIds,
+              searchQueries: ['data center'],
+              identityHints: ['AI compute facility'],
+              negativeHints: [],
+              officialDomains: [],
+            },
+            {
+              id: 'subject-nvidia',
+              canonicalName: 'NVIDIA',
+              type: 'company' as const,
+              aliases: [],
+              storyRole: 'primary' as const,
+              evidenceSceneIds: allSceneIds,
+              searchQueries: ['NVIDIA'],
+              identityHints: ['GPU maker'],
+              negativeHints: [],
+              officialDomains: [],
+            },
+          ],
+          droppedSubjects: [],
+        }),
+      ),
+    };
+
+    const result = await enrichStoryboardSearchIntents(request, { provider });
+
+    expect(result.degradedReason).toBeUndefined();
+    expect(result.sceneAssignments.length).toBeGreaterThan(1);
+    for (const assignment of result.sceneAssignments.slice(1)) {
+      expect(assignment).toMatchObject({
+        subjectIds: ['subject-nvidia', 'subject-data-center'],
+      });
+    }
+    expect(result.draft.scenes[1]?.imageSearchIntent[0]).toBe('NVIDIA');
+  });
+});
+
+describe('object anchor search queries', () => {
+  it('carries the identity hint into a common-noun object query', async () => {
+    llmMocks.createCompletionWithRetry.mockResolvedValue({
+      model: MODEL,
+      provider: 'Wafer',
+      choices: [
+        {
+          finish_reason: 'stop',
+          message: {
+            content: JSON.stringify({
+              primarySubjectId: 'subject-data-center',
+              subjects: [
+                {
+                  id: 'subject-data-center',
+                  canonicalName: 'data center',
+                  type: 'object',
+                  aliases: [],
+                  storyRole: 'primary',
+                  identityHints: ['AI compute facility'],
+                  negativeHints: [],
+                },
+              ],
+            }),
+          },
+        },
+      ],
+    });
+
+    const catalog = (await createOpenRouterSearchIntentProvider().catalog({
+      title: 'The data center build-out',
+      scenes: [
+        {
+          sceneId: 'scene-01',
+          text: 'A new data center opened this week.',
+          searchText: 'A new data center opened this week.',
+        },
+      ],
+    })) as { subjects: { searchQueries: string[] }[] };
+
+    // A bare "data center" query returns exactly the generic stock art the
+    // anchor catalog exists to avoid, so the hint has to reach the query.
+    expect(catalog.subjects[0]?.searchQueries).toEqual([
+      'data center AI compute facility',
+      'data center',
+    ]);
+  });
+});
+
+describe('subject catalog prompt contract', () => {
   it('tells the model that category words are never subjects and to resolve AI to the named entity', () => {
     const prompt = buildSubjectCatalogSystemPrompt();
 
     expect(prompt).toContain(
-      'NEVER create a subject from a generic or abstract concept',
+      'NEVER create an anchor from a broad abstract category or generic concept',
     );
     expect(prompt).toContain(
       'resolve it to the concrete entity named in that context',

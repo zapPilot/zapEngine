@@ -202,6 +202,7 @@ const GENERIC_VISUAL_SUBJECT_TERMS = new Set(
     'market',
     'markets',
     'stock market',
+    'innovation',
     'engineers',
     'business',
     'finance',
@@ -225,6 +226,7 @@ const GENERIC_VISUAL_SUBJECT_TERMS = new Set(
     'blockchain',
     'defi',
     'web3',
+    'governance',
     'government',
     'regulators',
     'central banks',
@@ -329,7 +331,10 @@ export function buildVisualSubjectSearchQueries(
 
 export function isAmbiguousVisualSubject(subject: VisualSubject): boolean {
   const compact = subject.canonicalName.replace(/[^\p{L}\p{N}]/gu, '');
+  // An object anchor is a common noun, so its bare name never identifies the
+  // story's instance of it; the identity hint has to become part of the name.
   return (
+    subject.type === 'object' ||
     subject.negativeHints.length > 0 ||
     compact.length <= 4 ||
     /^[a-z]+\d+$/i.test(compact)

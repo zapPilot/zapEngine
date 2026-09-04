@@ -16,6 +16,7 @@ describe('visual anchor policy', () => {
       'markets',
       'finance',
       'innovation',
+      'governance',
       'blockchain',
     ]) {
       expect(isGenericVisualSubjectName(abstract)).toBe(true);
@@ -66,9 +67,13 @@ describe('visual anchor policy', () => {
 
     expect(prompt).toContain('visual anchor catalog');
     expect(prompt).toContain('materially central to the story or scene');
-    expect(prompt).toContain('Wall Street, the White House, 中南海, and Silicon Valley');
+    expect(prompt).toContain(
+      'Wall Street, the White House, 中南海, and Silicon Valley',
+    );
     expect(prompt).toContain('GPU, data center, server rack');
-    expect(prompt).toContain('NEVER create an anchor from a broad abstract category');
+    expect(prompt).toContain(
+      'NEVER create an anchor from a broad abstract category',
+    );
     expect(prompt).toContain('Use type "object"');
   });
 });
