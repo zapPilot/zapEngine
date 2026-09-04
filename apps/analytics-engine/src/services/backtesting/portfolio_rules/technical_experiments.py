@@ -7,13 +7,14 @@ canonical default rule set.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING
 
-from src.services.backtesting.decision import RuleGroup
+from src.services.backtesting.decision import AllocationIntent, RuleGroup
 from src.services.backtesting.portfolio_rules.base import (
     DcaBuyRuleBase,
     DcaSellRuleBase,
+    PortfolioRuleConfig,
     PortfolioSnapshot,
     add_split_proceeds,
     normalize_symbol,
@@ -33,8 +34,74 @@ def _above_dma_symbols(snapshot: PortfolioSnapshot) -> list[str]:
     ]
 
 
+def _technical_signals_for_symbols(
+    snapshot: PortfolioSnapshot,
+    symbols: list[str],
+) -> dict[str, dict[str, float | bool | None]]:
+    payload: dict[str, dict[str, float | bool | None]] = {}
+    for symbol in symbols:
+        normalized = normalize_symbol(symbol)
+        technical = snapshot.assets[normalized].technical
+        payload[normalized] = {
+            "rsi_14": technical.rsi_14,
+            "rsi_slope_5d": technical.rsi_slope_5d,
+            "realized_volatility_20d": technical.realized_volatility_20d,
+            "momentum_30d": technical.momentum_30d,
+            "momentum_90d": technical.momentum_90d,
+            "bearish_rsi_divergence": technical.bearish_rsi_divergence,
+            "bullish_rsi_divergence": technical.bullish_rsi_divergence,
+        }
+    return payload
+
+
+def _with_technical_diagnostics(
+    intent: AllocationIntent,
+    *,
+    snapshot: PortfolioSnapshot,
+    symbols: list[str],
+) -> AllocationIntent:
+    diagnostics = dict(intent.diagnostics or {})
+    diagnostics["technical_signals"] = _technical_signals_for_symbols(
+        snapshot,
+        symbols,
+    )
+    return replace(intent, diagnostics=diagnostics)
+
+
+class _TechnicalSellRuleBase(DcaSellRuleBase):
+    def build_intent(
+        self,
+        snapshot: PortfolioSnapshot,
+        *,
+        config: PortfolioRuleConfig,
+    ) -> AllocationIntent:
+        matching_symbols = self._matching_symbols(snapshot)
+        intent = super().build_intent(snapshot, config=config)
+        return _with_technical_diagnostics(
+            intent,
+            snapshot=snapshot,
+            symbols=matching_symbols,
+        )
+
+
+class _TechnicalBuyRuleBase(DcaBuyRuleBase):
+    def build_intent(
+        self,
+        snapshot: PortfolioSnapshot,
+        *,
+        config: PortfolioRuleConfig,
+    ) -> AllocationIntent:
+        matching_symbols = self._matching_symbols(snapshot)
+        intent = super().build_intent(snapshot, config=config)
+        return _with_technical_diagnostics(
+            intent,
+            snapshot=snapshot,
+            symbols=matching_symbols,
+        )
+
+
 @dataclass(frozen=True)
-class RsiBearishDivergenceDcaSellRule(DcaSellRuleBase):
+class RsiBearishDivergenceDcaSellRule(_TechnicalSellRuleBase):
     name: str = "rsi_bearish_divergence_dca_sell"
     priority: int = 31
     cooldown_days: int = 7
@@ -61,7 +128,7 @@ class RsiBearishDivergenceDcaSellRule(DcaSellRuleBase):
 
 
 @dataclass(frozen=True)
-class RsiOverboughtDcaSellRule(DcaSellRuleBase):
+class RsiOverboughtDcaSellRule(_TechnicalSellRuleBase):
     name: str = "rsi_overbought_dca_sell"
     priority: int = 32
     cooldown_days: int = 7
@@ -94,7 +161,7 @@ class RsiOverboughtDcaSellRule(DcaSellRuleBase):
 
 
 @dataclass(frozen=True)
-class MomentumBreakdownDcaSellRule(DcaSellRuleBase):
+class MomentumBreakdownDcaSellRule(_TechnicalSellRuleBase):
     name: str = "momentum_breakdown_dca_sell"
     priority: int = 33
     cooldown_days: int = 7
@@ -127,7 +194,7 @@ class MomentumBreakdownDcaSellRule(DcaSellRuleBase):
 
 
 @dataclass(frozen=True)
-class VolatilitySpikeDcaSellRule(DcaSellRuleBase):
+class VolatilitySpikeDcaSellRule(_TechnicalSellRuleBase):
     name: str = "volatility_spike_dca_sell"
     priority: int = 34
     cooldown_days: int = 7
@@ -163,7 +230,7 @@ class VolatilitySpikeDcaSellRule(DcaSellRuleBase):
 
 
 @dataclass(frozen=True)
-class RsiBullishDivergenceDcaBuyRule(DcaBuyRuleBase):
+class RsiBullishDivergenceDcaBuyRule(_TechnicalBuyRuleBase):
     name: str = "rsi_bullish_divergence_dca_buy"
     priority: int = 35
     cooldown_days: int = 7
@@ -186,7 +253,7 @@ class RsiBullishDivergenceDcaBuyRule(DcaBuyRuleBase):
 
 
 @dataclass(frozen=True)
-class RsiOversoldRecoveryDcaBuyRule(DcaBuyRuleBase):
+class RsiOversoldRecoveryDcaBuyRule(_TechnicalBuyRuleBase):
     name: str = "rsi_oversold_recovery_dca_buy"
     priority: int = 36
     cooldown_days: int = 7
