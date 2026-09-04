@@ -7,13 +7,17 @@ import {
   throwSupabaseError,
 } from './supabase-client.js';
 
-export const VIDEO_COMPLETION_MARK_RPC = 'mark_episode_video_completion_notified';
+export const VIDEO_COMPLETION_MARK_RPC =
+  'mark_episode_video_completion_notified';
 
 const HEADLINES: Record<LanguageClassroomLanguageCode, string> = {
   'zh-Hant': '🎬 🇹🇼 繁中影片完成',
   ja: '🎬 🇯🇵 日文影片完成',
   en: '🎬 🇺🇸 英文影片完成',
 };
+
+const EPISODE_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 
 export interface VideoCompletionDelivery {
   episodeId: string;
@@ -24,7 +28,9 @@ interface DeliveryLogger {
   error(message: string, details?: unknown): void;
 }
 
-export function parseVideoCompletionDelivery(text: string): VideoCompletionDelivery | null {
+export function parseVideoCompletionDelivery(
+  text: string,
+): VideoCompletionDelivery | null {
   const [headline, rawUrl, ...extra] = text.trim().split(/\r?\n/u);
   if (!headline || !rawUrl || extra.length > 0) return null;
 
@@ -36,14 +42,19 @@ export function parseVideoCompletionDelivery(text: string): VideoCompletionDeliv
   }
 
   const languageCode = url.searchParams.get('lang');
-  if (languageCode !== 'zh-Hant' && languageCode !== 'ja' && languageCode !== 'en') {
+  if (
+    languageCode !== 'zh-Hant' &&
+    languageCode !== 'ja' &&
+    languageCode !== 'en'
+  ) {
     return null;
   }
   if (headline !== HEADLINES[languageCode]) return null;
 
-  const match = /\/e\/([0-9a-f-]+)$/iu.exec(url.pathname);
-  if (!match?.[1]) return null;
-  return { episodeId: match[1], languageCode };
+  const match = /\/e\/([^/]+)$/u.exec(url.pathname);
+  const episodeId = match?.[1] ? decodeURIComponent(match[1]) : '';
+  if (!EPISODE_ID_PATTERN.test(episodeId)) return null;
+  return { episodeId, languageCode };
 }
 
 export async function recordVideoCompletionDelivery(
