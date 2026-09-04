@@ -44,6 +44,8 @@ export function createVideoCompletionNotifier(
   const notify = options.notify ?? sendMessage;
   const logger = options.logger ?? console;
   const intervalMs = options.intervalMs ?? DEFAULT_SWEEP_INTERVAL_MS;
+
+  /* jscpd:ignore-start -- completion and visual-failure notifiers intentionally share the same small single-flight timer lifecycle; their RPC and delivery semantics differ */
   let timer: NodeJS.Timeout | null = null;
   let activeSweep: Promise<void> | null = null;
   let stopped = false;
@@ -76,6 +78,7 @@ export function createVideoCompletionNotifier(
       }
     },
   };
+  /* jscpd:ignore-end */
 }
 
 async function sweepOnce(
@@ -106,7 +109,11 @@ async function sweepOnce(
 
   for (const completion of completions) {
     const languageCode = parseLanguageCode(completion.language_code);
-    if (!completion.episode_id || !completion.telegram_chat_id || !languageCode) {
+    if (
+      !completion.episode_id ||
+      !completion.telegram_chat_id ||
+      !languageCode
+    ) {
       continue;
     }
     try {
