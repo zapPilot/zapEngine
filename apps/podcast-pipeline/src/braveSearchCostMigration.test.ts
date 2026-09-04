@@ -16,7 +16,9 @@ describe('Brave Search cost migration', () => {
   it('allows Brave in rate cards and daily cost snapshots', () => {
     expect(migration).toMatch(/cost_rates_provider_check[\s\S]*'brave'/i);
     expect(migration).toMatch(/cost_snapshots_provider_check[\s\S]*'brave'/i);
-    expect(migration).toMatch(/cost_transactions_provider_check[\s\S]*'brave'/i);
+    expect(migration).toMatch(
+      /cost_transactions_provider_check[\s\S]*'brave'/i,
+    );
   });
 
   it('seeds the Search request list price', () => {

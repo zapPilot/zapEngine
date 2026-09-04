@@ -150,7 +150,9 @@ export function toProviderResults(
 }
 
 function defaultCostType(provider: CostProvider): CostType {
-  if (provider === 'supabase') return 'fixed';
+  if (provider === 'supabase') {
+    return 'fixed';
+  }
   if (provider === 'debank' || provider === 'brave') {
     return 'list-price-equivalent';
   }

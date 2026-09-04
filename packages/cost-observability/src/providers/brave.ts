@@ -1,9 +1,11 @@
 import { currentUtcPeriod, projectMonthEnd } from '../time.js';
 import type { CostSnapshot, FetchLike } from '../types.js';
+import { normalizeNonNegative, roundUsageUsd } from './numbers.js';
 
 const BRAVE_IMAGES_SEARCH_ENDPOINT =
   'https://api.search.brave.com/res/v1/images/search';
 const DEFAULT_MONTHLY_FREE_CREDIT_USD = 5;
+const MINIMUM_LONG_QUOTA_WINDOW_SECONDS = 86_400;
 
 export interface BraveCostInput {
   apiKey: string;
@@ -150,15 +152,18 @@ function readMonthlyQuota(headers: Headers): BraveMonthlyQuota {
     const match = /(?:^|;)w=(\d+)(?:;|$)/.exec(policy);
     return match ? Number(match[1]) : null;
   });
-  let index = windows.reduce(
+  const index = windows.reduce<number>(
     (best, window, current) =>
       window !== null && (best === -1 || window > (windows[best] ?? -1))
         ? current
         : best,
     -1,
   );
-  if (index === -1) {
-    index = Math.min(limits.length, remaining.length) - 1;
+  if (
+    index === -1 ||
+    (windows[index] ?? 0) < MINIMUM_LONG_QUOTA_WINDOW_SECONDS
+  ) {
+    throw new Error('Brave Search long-term quota window is not measurable');
   }
 
   const limit = limits[index];
@@ -185,16 +190,8 @@ function readMonthlyQuota(headers: Headers): BraveMonthlyQuota {
 function parseNumbers(value: string | null): number[] {
   return (value ?? '')
     .split(',')
-    .map((part) => Number(part.trim()))
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map(Number)
     .filter((value) => Number.isFinite(value));
-}
-
-function normalizeNonNegative(value: number | undefined): number | null {
-  return value !== undefined && Number.isFinite(value) && value >= 0
-    ? value
-    : null;
-}
-
-function roundUsageUsd(value: number): number {
-  return Math.round(value * 1_000_000) / 1_000_000;
 }

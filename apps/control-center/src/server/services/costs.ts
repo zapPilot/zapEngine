@@ -152,8 +152,9 @@ async function loadSource(source: CostSource): Promise<CollectedCostProvider> {
       costType: source.costType,
       snapshot: null,
       pricingRateId: source.pricingRateId,
-      message:
-        meteredRateMissing(source) ? 'Usage available; pricing rate missing' : 'Not connected',
+      message: meteredRateMissing(source)
+        ? 'Usage available; pricing rate missing'
+        : 'Not connected',
     };
   }
 

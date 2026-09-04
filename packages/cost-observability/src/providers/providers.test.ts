@@ -118,8 +118,14 @@ describe('cost providers', () => {
       expect.arrayContaining([
         expect.objectContaining({ key: 'monthly_requests', value: 1_000 }),
         expect.objectContaining({ key: 'remaining_requests', value: 14_000 }),
-        expect.objectContaining({ key: 'monthly_request_limit', value: 15_000 }),
-        expect.objectContaining({ key: 'quota_reset_seconds', value: 1_234_567 }),
+        expect.objectContaining({
+          key: 'monthly_request_limit',
+          value: 15_000,
+        }),
+        expect.objectContaining({
+          key: 'quota_reset_seconds',
+          value: 1_234_567,
+        }),
         expect.objectContaining({ key: 'gross_search_cost_usd', value: 5 }),
         expect.objectContaining({ key: 'monthly_free_credit_usd', value: 5 }),
         expect.objectContaining({ key: 'estimated_billed_usd', value: 0 }),
@@ -145,6 +151,27 @@ describe('cost providers', () => {
         fetch: vi.fn().mockResolvedValue(new Response('{}')),
       }),
     ).rejects.toThrow('Brave Search quota headers missing');
+  });
+
+  it('rejects a Brave response that only exposes a short rate-limit window', async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response('{}', {
+        headers: {
+          'x-ratelimit-limit': '1',
+          'x-ratelimit-policy': '1;w=1',
+          'x-ratelimit-remaining': '0',
+          'x-ratelimit-reset': '1',
+        },
+      }),
+    );
+
+    await expect(
+      fetchBraveCostSnapshot({
+        apiKey: 'brave-key',
+        unitCostUsd: 5 / 1_000,
+        fetch: fetcher,
+      }),
+    ).rejects.toThrow('Brave Search long-term quota window is not measurable');
   });
 
   it('keeps DeBank USD cost unknown without a unit price, prior month or not', async () => {
