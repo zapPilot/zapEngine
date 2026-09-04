@@ -146,12 +146,12 @@ function renderPipeline(input: {
 }
 
 describe('PodcastPipelineView', () => {
-  it('surfaces the blocking visual failure and invokes the narrow video retry action', () => {
+  it('surfaces the blocking visual failure and resumes video from durable checkpoints', () => {
     const { onRestartStep } = renderPipeline({});
 
     expect(screen.getByText('Visual failure')).toBeVisible();
     expect(screen.getByText('subject catalog exhausted retries')).toBeVisible();
-    const button = screen.getByRole('button', { name: 'Restart video' });
+    const button = screen.getByRole('button', { name: 'Resume video' });
     expect(button).toBeEnabled();
 
     fireEvent.click(button);
@@ -215,7 +215,7 @@ describe('PodcastPipelineView', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('disables retry while the server read model says video cannot be restarted', () => {
+  it('disables resume while the server read model says video cannot be restarted', () => {
     const { onRestartStep } = renderPipeline({
       data: pipelineResponse({
         videoStatus: 'processing',
@@ -223,17 +223,40 @@ describe('PodcastPipelineView', () => {
       }),
     });
 
-    const button = screen.getByRole('button', { name: 'Restart video' });
+    const button = screen.getByRole('button', { name: 'Resume video' });
     expect(button).toBeDisabled();
     fireEvent.click(button);
     expect(onRestartStep).not.toHaveBeenCalled();
   });
 
-  it('shows a restarting state and prevents duplicate operator clicks', () => {
+  it('shows a resuming state and prevents duplicate operator clicks', () => {
     renderPipeline({ restartingEpisodeId: episodeId });
 
-    const button = screen.getByRole('button', { name: 'Restarting…' });
+    const button = screen.getByRole('button', { name: 'Resuming…' });
     expect(button).toBeDisabled();
+  });
+
+  it('keeps destructive visual re-planning behind advanced recovery and requires confirmation', () => {
+    const { onRestartStep } = renderPipeline({
+      data: pipelineResponse({ canForceReplanVisual: true }),
+    });
+
+    const advanced = screen.getByText('Advanced recovery').closest('details');
+    expect(advanced).not.toHaveAttribute('open');
+    expect(screen.getByRole('button', { name: 'Resume video' })).toBeEnabled();
+
+    fireEvent.click(screen.getByText('Advanced recovery'));
+    fireEvent.click(screen.getByRole('button', { name: 'Re-plan visuals' }));
+    expect(onRestartStep).not.toHaveBeenCalled();
+
+    const confirm = screen.getByRole('button', {
+      name: 'Confirm re-plan (re-renders 3 videos)',
+    });
+    fireEvent.click(confirm);
+    expect(onRestartStep).toHaveBeenCalledWith(episodeId, {
+      step: 'video',
+      forceReplan: true,
+    });
   });
 
   it('labels keywords as planned and flags the missing trace before any provider call', () => {
