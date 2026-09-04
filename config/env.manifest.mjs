@@ -438,7 +438,7 @@ export const ENV_MANIFEST = {
   }),
   VIDEO_FFMPEG_PATH: host(['podcast-pipeline']),
   VIDEO_FFPROBE_PATH: host(['podcast-pipeline']),
-  BRAVE_SEARCH_API_KEY: server(['podcast-pipeline'], {
+  BRAVE_SEARCH_API_KEY: server(['podcast-pipeline', 'control-center'], {
     sensitive: true,
     requiredFor: ['podcast-pipeline:base'],
   }),
