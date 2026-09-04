@@ -40,19 +40,20 @@ kill_timeout = '30s'
 # timeout and Fly pulled the only instance out of the proxy pool
 # ([PR01] no known healthy instances found for route tcp/443).
 #
-# `app` is always on: it takes the Telegram webhook, which times out easily.
-# `render` is on demand — it has no service, so Fly Proxy cannot auto-stop it;
-# instead the worker exits 0 on an idle queue and `app` starts it again through
-# the Machines API (src/services/render-capacity.ts). That is the group's only
-# mode, so PIPELINE_FLY_API_TOKEN is the single setting it needs: it lives in
-# Infisical prod and reaches Fly through the Environment apply workflow, which
-# runs on a merge to main and on demand after a rotation
+# `app` is always on: it takes the Telegram webhook and owns the lightweight
+# durable completion-notification retry loop. `render` is on demand — it has no
+# service, so Fly Proxy cannot auto-stop it; instead the worker exits 0 on an idle
+# queue and `app` starts it again through the Machines API
+# (src/services/render-capacity.ts). That is the group's only mode, so
+# PIPELINE_FLY_API_TOKEN is the single setting it needs: it lives in Infisical
+# prod and reaches Fly through the Environment apply workflow, which runs on a
+# merge to main and on demand after a rotation
 # (`gh workflow run env-apply.yml -f target=podcast-pipeline`). An `app` that
 # boots on Fly without it fails outright — there is deliberately no second mode
 # to fall back to, because a fallback nobody notices is what stopped renders for
 # two days.
 [processes]
-  app = 'node dist/index.js'
+  app = 'node --import ./dist/services/video-completion-notifier-autostart.js dist/index.js'
   render = 'node dist/worker.js'
 
 # The whole on-demand scheme rests on this: exit 0 must leave the machine
