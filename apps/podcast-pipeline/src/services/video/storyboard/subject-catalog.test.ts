@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildVisualSubjectSearchQueries,
+  isGenericVisualSubjectName,
   parseVisualSubjectCatalog,
 } from './subject-catalog.js';
 
@@ -260,5 +261,31 @@ describe('visual subject catalog', () => {
         ],
       }),
     ).toThrow('exactly one primary subject');
+  });
+});
+
+describe('generic visual subject names', () => {
+  it('recognises category words in either script and ignores case and width', () => {
+    for (const name of [
+      'AI',
+      'ai',
+      'Ａｉ',
+      'data  center',
+      'Wall Street',
+      '華爾街',
+      '科技巨头',
+    ]) {
+      expect(isGenericVisualSubjectName(name)).toBe(true);
+    }
+    for (const name of [
+      'NVIDIA',
+      'Andy Jassy',
+      'OpenAI',
+      'Claude',
+      'Bitcoin',
+      'Pentagon',
+    ]) {
+      expect(isGenericVisualSubjectName(name)).toBe(false);
+    }
   });
 });
