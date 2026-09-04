@@ -46,9 +46,11 @@ before update of status on from_fed_to_chain.episode_videos
 for each row
 execute function from_fed_to_chain.reset_episode_video_completion_notification();
 
--- Read without stamping. The caller sends Telegram first, then acknowledges the
--- exact episode/language only after Telegram returned success. A failed send or
--- process crash therefore leaves the row visible to the next sweep (at-least-once).
+-- Read without stamping. The render worker still owns the immediate completion
+-- message. The one-minute grace period keeps this durable sweeper out of that
+-- success path; it only takes over when the immediate send never produced an
+-- acknowledgement. A failed send or process crash therefore stays visible to a
+-- later sweep without routinely creating duplicate Telegram messages.
 create or replace function from_fed_to_chain.reap_completed_episode_video_notifications(
   p_limit integer default 20
 )
@@ -73,6 +75,7 @@ as $$
   where video.status = 'completed'
     and video.telegram_chat_id is not null
     and video.completion_notified_at is null
+    and video.completed_at <= now() - interval '1 minute'
     and localization.language_code in ('zh-Hant', 'ja', 'en')
   order by video.completed_at nulls last, video.episode_localization_id
   limit greatest(coalesce(p_limit, 20), 1);
