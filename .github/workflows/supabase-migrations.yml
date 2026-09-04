@@ -1,0 +1,34 @@
+name: Supabase migrations
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'supabase/migrations/**'
+      - 'supabase/config.toml'
+      - '.github/workflows/supabase-migrations.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate-local:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.115.0
+
+      - name: Start local Supabase database
+        run: supabase db start
+
+      - name: Rebuild from committed migrations
+        run: supabase db reset --local --no-seed
+
+      - name: Stop local Supabase
+        if: always()
+        run: supabase stop --no-backup

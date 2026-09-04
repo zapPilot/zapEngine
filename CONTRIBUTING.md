@@ -104,23 +104,21 @@ The root `supabase/` directory is the only active Supabase CLI workdir for the s
 supabase migration new <description>
 ```
 
-Edit the generated `supabase/migrations/<timestamp>_<description>.sql`, open a PR, and merge it before applying it. The operator then runs locally:
+Edit the generated `supabase/migrations/<timestamp>_<description>.sql` and open a PR. Do not apply production migrations from a laptop, feature branch, or worktree. The PR workflow rebuilds a local Supabase database from committed migrations. On `main`, the `CI` workflow runs an idempotent production migration deploy after its verification gates and before any Fly app deployment. Every successful main run checks the complete pending set, so a migration missed by an earlier failed or cancelled run is applied by the next successful run.
 
-```bash
-supabase db push --dry-run
-supabase db push
-supabase migration list
-```
+The production job uses the `production` GitHub Environment, reviews the exact pending set with `supabase db push --dry-run`, applies it with `supabase db push`, and proves a second dry-run is empty before reporting `supabase migration list`. Production deploys are serialized and queued without cancelling older runs. Configure `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, and `SUPABASE_PROJECT_ID` as Environment or repository secrets.
 
-Review the dry-run migration list before every push. Push exactly one migration at a time, and confirm that `LOCAL` and `REMOTE` match afterward. If the CLI is unavailable when authoring the file, use the UTC filename format `$(date -u +%Y%m%d%H%M%S)_<description>.sql`.
+A migration-history mismatch is a deployment failure, not something CI repairs automatically. Never add `supabase migration repair` to an automated path. `migration repair` is break-glass only: first prove from the migration SQL, Git history, and production schema that a history row is wrong; then repair the specific version manually and rerun the normal dry-run/push/list sequence from the authoritative `main` revision.
+
+If the CLI is unavailable when authoring the file, use the UTC filename format `$(date -u +%Y%m%d%H%M%S)_<description>.sql`.
 
 A migration that adds a function to `public` must end it with `revoke execute on function <sig> from public;` and grant EXECUTE explicitly to the roles that call it. PostgreSQL merges its built-in `EXECUTE TO PUBLIC` default in at creation time, so `anon` inherits every new function through PUBLIC and no `alter default privileges` setting can suppress it — see `supabase/migrations/20260827132739_lock_down_public_anon_access.sql` for why, and for the pattern to copy.
 
 Migration SQL must use schema-qualified object names. Do not use `CREATE INDEX CONCURRENTLY` or `DROP INDEX CONCURRENTLY`: each migration and its history row run in one implicit transaction. Express `pg_cron` changes through `cron.schedule`, `cron.alter_job`, or `cron.unschedule` calls inside a migration. A destructive migration requires its own PR and must never share a push with another migration.
 
-Do not change the schema through the Supabase Dashboard SQL Editor or MCP `apply_migration` / `execute_sql`, except for a documented emergency. Do not add migrations under `apps/*/migrations/` or `apps/podcast-pipeline/supabase/migrations/`, run `supabase init` anywhere in this repository, or modify a migration that has already been pushed.
+Do not change the schema through the Supabase Dashboard SQL Editor or MCP `apply_migration` / `execute_sql`, except for a documented emergency. Do not add migrations under `apps/*/migrations/` or `apps/podcast-pipeline/supabase/migrations/`, run `supabase init` anywhere in this repository, modify a migration that has already been pushed, or run `supabase db push` against production from a worktree.
 
-After any emergency out-of-band schema change, reconcile it immediately with `supabase db pull <description>` and commit the resulting new migration. Database credentials belong in the operator's keychain or temporary shell environment, never in committed env files.
+After any emergency out-of-band schema change, reconcile it immediately with `supabase db pull <description>` and commit the resulting new migration. Database credentials belong in the protected GitHub Environment or a temporary break-glass operator shell, never in committed env files.
 
 ## Adding an app or package
 
