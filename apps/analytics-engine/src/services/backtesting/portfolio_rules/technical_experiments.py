@@ -2,7 +2,9 @@
 
 These rules intentionally live in the existing portfolio-rule universe so they
 can be enabled through `enabled_rules` for attribution without changing the
-canonical default rule set.
+canonical default rule set. Their priorities stay below the existing default
+rules in precedence (numerically above them), so default + experiment runs keep
+canonical decisions first and use technical rules as an additive fallback layer.
 """
 
 from __future__ import annotations
@@ -48,8 +50,16 @@ def _technical_signals_for_symbols(
             "realized_volatility_20d": technical.realized_volatility_20d,
             "momentum_30d": technical.momentum_30d,
             "momentum_90d": technical.momentum_90d,
+            "macd_12_26": technical.macd_12_26,
+            "macd_signal_9": technical.macd_signal_9,
+            "macd_histogram": technical.macd_histogram,
+            "bollinger_zscore_20": technical.bollinger_zscore_20,
             "bearish_rsi_divergence": technical.bearish_rsi_divergence,
             "bullish_rsi_divergence": technical.bullish_rsi_divergence,
+            "macd_bearish_cross": technical.macd_bearish_cross,
+            "macd_bullish_cross": technical.macd_bullish_cross,
+            "breakout_20d": technical.breakout_20d,
+            "breakdown_20d": technical.breakdown_20d,
         }
     return payload
 
@@ -103,7 +113,7 @@ class _TechnicalBuyRuleBase(DcaBuyRuleBase):
 @dataclass(frozen=True)
 class RsiBearishDivergenceDcaSellRule(_TechnicalSellRuleBase):
     name: str = "rsi_bearish_divergence_dca_sell"
-    priority: int = 31
+    priority: int = 60
     cooldown_days: int = 7
     rule_group: RuleGroup = "dma_fgi"
     description: str = (
@@ -130,7 +140,7 @@ class RsiBearishDivergenceDcaSellRule(_TechnicalSellRuleBase):
 @dataclass(frozen=True)
 class RsiOverboughtDcaSellRule(_TechnicalSellRuleBase):
     name: str = "rsi_overbought_dca_sell"
-    priority: int = 32
+    priority: int = 61
     cooldown_days: int = 7
     rule_group: RuleGroup = "dma_fgi"
     description: str = (
@@ -163,7 +173,7 @@ class RsiOverboughtDcaSellRule(_TechnicalSellRuleBase):
 @dataclass(frozen=True)
 class MomentumBreakdownDcaSellRule(_TechnicalSellRuleBase):
     name: str = "momentum_breakdown_dca_sell"
-    priority: int = 33
+    priority: int = 62
     cooldown_days: int = 7
     rule_group: RuleGroup = "dma_fgi"
     description: str = (
@@ -196,7 +206,7 @@ class MomentumBreakdownDcaSellRule(_TechnicalSellRuleBase):
 @dataclass(frozen=True)
 class VolatilitySpikeDcaSellRule(_TechnicalSellRuleBase):
     name: str = "volatility_spike_dca_sell"
-    priority: int = 34
+    priority: int = 63
     cooldown_days: int = 7
     rule_group: RuleGroup = "dma_fgi"
     description: str = (
@@ -232,7 +242,7 @@ class VolatilitySpikeDcaSellRule(_TechnicalSellRuleBase):
 @dataclass(frozen=True)
 class RsiBullishDivergenceDcaBuyRule(_TechnicalBuyRuleBase):
     name: str = "rsi_bullish_divergence_dca_buy"
-    priority: int = 35
+    priority: int = 64
     cooldown_days: int = 7
     rule_group: RuleGroup = "dma_fgi"
     description: str = (
@@ -255,7 +265,7 @@ class RsiBullishDivergenceDcaBuyRule(_TechnicalBuyRuleBase):
 @dataclass(frozen=True)
 class RsiOversoldRecoveryDcaBuyRule(_TechnicalBuyRuleBase):
     name: str = "rsi_oversold_recovery_dca_buy"
-    priority: int = 36
+    priority: int = 65
     cooldown_days: int = 7
     rule_group: RuleGroup = "dma_fgi"
     description: str = (
@@ -282,6 +292,142 @@ class RsiOversoldRecoveryDcaBuyRule(_TechnicalBuyRuleBase):
         return matches
 
 
+@dataclass(frozen=True)
+class MacdBearishCrossDcaSellRule(_TechnicalSellRuleBase):
+    name: str = "macd_bearish_cross_dca_sell"
+    priority: int = 66
+    cooldown_days: int = 7
+    rule_group: RuleGroup = "dma_fgi"
+    description: str = "Research-only trim on a bearish MACD histogram zero cross."
+    allocation_name: str = "portfolio_macd_bearish_cross_dca_sell"
+    reason: str = "portfolio_macd_bearish_cross_dca_sell"
+    sell_step: float = 0.05
+    sizing: SizingStrategy = field(default_factory=FlatSizing)
+    spy_share: float = 0.5
+
+    def _matching_symbols(self, snapshot: PortfolioSnapshot) -> list[str]:
+        return [
+            symbol
+            for symbol in _above_dma_symbols(snapshot)
+            if snapshot.assets[symbol].technical.macd_bearish_cross
+        ]
+
+    def proceeds_handler(self, target: dict[str, float], sold: float) -> None:
+        add_split_proceeds(target, sold, spy_share=self.spy_share)
+
+
+@dataclass(frozen=True)
+class MacdBullishCrossDcaBuyRule(_TechnicalBuyRuleBase):
+    name: str = "macd_bullish_cross_dca_buy"
+    priority: int = 67
+    cooldown_days: int = 7
+    rule_group: RuleGroup = "dma_fgi"
+    description: str = "Research-only buy on a bullish MACD histogram zero cross."
+    allocation_name: str = "portfolio_macd_bullish_cross_dca_buy"
+    reason: str = "portfolio_macd_bullish_cross_dca_buy"
+    buy_step: float = 0.05
+    sizing: SizingStrategy = field(default_factory=FlatSizing)
+
+    def _matching_symbols(self, snapshot: PortfolioSnapshot) -> list[str]:
+        return [
+            symbol
+            for symbol in _above_dma_symbols(snapshot)
+            if snapshot.assets[symbol].technical.macd_bullish_cross
+        ]
+
+
+@dataclass(frozen=True)
+class BollingerUpperBandDcaSellRule(_TechnicalSellRuleBase):
+    name: str = "bollinger_upper_band_dca_sell"
+    priority: int = 68
+    cooldown_days: int = 7
+    rule_group: RuleGroup = "dma_fgi"
+    description: str = "Research-only trim when the 20-day Bollinger z-score reaches +2."
+    allocation_name: str = "portfolio_bollinger_upper_band_dca_sell"
+    reason: str = "portfolio_bollinger_upper_band_dca_sell"
+    sell_step: float = 0.05
+    sizing: SizingStrategy = field(default_factory=FlatSizing)
+    zscore_threshold: float = 2.0
+    spy_share: float = 0.5
+
+    def _matching_symbols(self, snapshot: PortfolioSnapshot) -> list[str]:
+        matches: list[str] = []
+        for symbol in _above_dma_symbols(snapshot):
+            zscore = snapshot.assets[symbol].technical.bollinger_zscore_20
+            if zscore is not None and zscore >= self.zscore_threshold:
+                matches.append(symbol)
+        return matches
+
+    def proceeds_handler(self, target: dict[str, float], sold: float) -> None:
+        add_split_proceeds(target, sold, spy_share=self.spy_share)
+
+
+@dataclass(frozen=True)
+class BollingerLowerBandDcaBuyRule(_TechnicalBuyRuleBase):
+    name: str = "bollinger_lower_band_dca_buy"
+    priority: int = 69
+    cooldown_days: int = 7
+    rule_group: RuleGroup = "dma_fgi"
+    description: str = "Research-only buy when the 20-day Bollinger z-score reaches -2."
+    allocation_name: str = "portfolio_bollinger_lower_band_dca_buy"
+    reason: str = "portfolio_bollinger_lower_band_dca_buy"
+    buy_step: float = 0.05
+    sizing: SizingStrategy = field(default_factory=FlatSizing)
+    zscore_threshold: float = -2.0
+
+    def _matching_symbols(self, snapshot: PortfolioSnapshot) -> list[str]:
+        matches: list[str] = []
+        for symbol in _above_dma_symbols(snapshot):
+            zscore = snapshot.assets[symbol].technical.bollinger_zscore_20
+            if zscore is not None and zscore <= self.zscore_threshold:
+                matches.append(symbol)
+        return matches
+
+
+@dataclass(frozen=True)
+class Breakout20dDcaBuyRule(_TechnicalBuyRuleBase):
+    name: str = "breakout_20d_dca_buy"
+    priority: int = 70
+    cooldown_days: int = 7
+    rule_group: RuleGroup = "dma_fgi"
+    description: str = "Research-only buy when price closes above the prior 20-day high."
+    allocation_name: str = "portfolio_breakout_20d_dca_buy"
+    reason: str = "portfolio_breakout_20d_dca_buy"
+    buy_step: float = 0.05
+    sizing: SizingStrategy = field(default_factory=FlatSizing)
+
+    def _matching_symbols(self, snapshot: PortfolioSnapshot) -> list[str]:
+        return [
+            symbol
+            for symbol in _above_dma_symbols(snapshot)
+            if snapshot.assets[symbol].technical.breakout_20d
+        ]
+
+
+@dataclass(frozen=True)
+class Breakdown20dDcaSellRule(_TechnicalSellRuleBase):
+    name: str = "breakdown_20d_dca_sell"
+    priority: int = 71
+    cooldown_days: int = 7
+    rule_group: RuleGroup = "dma_fgi"
+    description: str = "Research-only trim when price closes below the prior 20-day low."
+    allocation_name: str = "portfolio_breakdown_20d_dca_sell"
+    reason: str = "portfolio_breakdown_20d_dca_sell"
+    sell_step: float = 0.05
+    sizing: SizingStrategy = field(default_factory=FlatSizing)
+    spy_share: float = 0.5
+
+    def _matching_symbols(self, snapshot: PortfolioSnapshot) -> list[str]:
+        return [
+            symbol
+            for symbol in _above_dma_symbols(snapshot)
+            if snapshot.assets[symbol].technical.breakdown_20d
+        ]
+
+    def proceeds_handler(self, target: dict[str, float], sold: float) -> None:
+        add_split_proceeds(target, sold, spy_share=self.spy_share)
+
+
 TECHNICAL_EXPERIMENT_RULES = (
     RsiBearishDivergenceDcaSellRule(),
     RsiOverboughtDcaSellRule(),
@@ -289,6 +435,12 @@ TECHNICAL_EXPERIMENT_RULES = (
     VolatilitySpikeDcaSellRule(),
     RsiBullishDivergenceDcaBuyRule(),
     RsiOversoldRecoveryDcaBuyRule(),
+    MacdBearishCrossDcaSellRule(),
+    MacdBullishCrossDcaBuyRule(),
+    BollingerUpperBandDcaSellRule(),
+    BollingerLowerBandDcaBuyRule(),
+    Breakout20dDcaBuyRule(),
+    Breakdown20dDcaSellRule(),
 )
 
 TECHNICAL_EXPERIMENT_RULE_NAMES = frozenset(
@@ -297,6 +449,12 @@ TECHNICAL_EXPERIMENT_RULE_NAMES = frozenset(
 
 
 __all__ = [
+    "BollingerLowerBandDcaBuyRule",
+    "BollingerUpperBandDcaSellRule",
+    "Breakdown20dDcaSellRule",
+    "Breakout20dDcaBuyRule",
+    "MacdBearishCrossDcaSellRule",
+    "MacdBullishCrossDcaBuyRule",
     "MomentumBreakdownDcaSellRule",
     "RsiBearishDivergenceDcaSellRule",
     "RsiBullishDivergenceDcaBuyRule",
