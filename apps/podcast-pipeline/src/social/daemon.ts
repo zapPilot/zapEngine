@@ -756,7 +756,13 @@ async function publishDueJobs(
       );
     } catch (error) {
       await releaseUntouchedLeases(groups.slice(index + 1).flat(), now, log);
-      await refundUntriedLanesInFailedGroup(pendingJobs, error, now, log);
+      // Generic failures happen before publishSocialPlatforms has started
+      // transport (copy/video/packaging/job preparation). No lane in this
+      // language batch could be live, so hand the whole claimed group back
+      // immediately instead of waiting for the 60-minute lease to expire.
+      await (error instanceof SocialReleaseFailureError
+        ? refundUntriedLanesInFailedGroup(pendingJobs, error, now, log)
+        : releaseUntouchedLeases(pendingJobs, now, log));
       throw error;
     }
   }
