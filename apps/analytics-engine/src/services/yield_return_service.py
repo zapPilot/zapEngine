@@ -218,7 +218,15 @@ class YieldReturnService(BaseAnalyticsService):
             previous_price = float(previous.get("price", current_price))
             amount_diff = current_amount - previous_amount
             yield_return_usd = amount_diff * current_price
-            market_return_usd = previous_amount * (current_price - previous_price)
+            # Upstream stores a missing DeBank price as 0.0, which is
+            # indistinguishable from a worthless token. Attributing a price
+            # effect against an unpriced side would invent a market move worth
+            # the whole position, so leave it for the caller's residual.
+            market_return_usd = (
+                previous_amount * (current_price - previous_price)
+                if current_price > 0.0 and previous_price > 0.0
+                else 0.0
+            )
             breakdown.append(
                 TokenYieldBreakdown(
                     symbol=symbol,

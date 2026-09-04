@@ -9,9 +9,12 @@ export const MIN_OBSERVED_DAYS = 7;
 export interface HomeProtocolIncomeRow {
   protocol: string;
   chain?: string;
+  /**
+   * Net monthly estimate. The summary endpoint reports net protocol yield only,
+   * so borrow interest cannot be split out, and deposits or withdrawals move
+   * this number too. Do not present it as pure yield.
+   */
   monthlyNetUsd: number;
-  monthlyLendingCostUsd: number | null;
-  observedDays: number;
 }
 
 export interface HomeIncomeView {
@@ -44,18 +47,15 @@ export function buildHomeIncomeView(
 
   const protocolRows = window.protocol_breakdown
     .filter((item) => classifyIncomeProtocol(item.protocol) === 'passive')
-    .map((item): HomeProtocolIncomeRow => ({
-      protocol: item.protocol,
-      ...(item.chain ? { chain: item.chain } : {}),
-      monthlyNetUsd: estimateMonthlyIncomeUsd(
-        item.window.average_daily_yield_usd,
-      ),
-      // The summary endpoint currently reports net protocol yield. Keep the
-      // lending-cost slot explicit rather than pretending negative yield is
-      // always borrow interest; deposits/withdrawals can also change balances.
-      monthlyLendingCostUsd: null,
-      observedDays: item.window.data_points,
-    }))
+    .map(
+      (item): HomeProtocolIncomeRow => ({
+        protocol: item.protocol,
+        ...(item.chain ? { chain: item.chain } : {}),
+        monthlyNetUsd: estimateMonthlyIncomeUsd(
+          item.window.average_daily_yield_usd,
+        ),
+      }),
+    )
     .sort((a, b) => b.monthlyNetUsd - a.monthlyNetUsd);
 
   const passiveMonthlyUsd = protocolRows.reduce(

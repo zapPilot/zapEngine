@@ -1,8 +1,11 @@
+import { useQuery } from '@tanstack/react-query';
 import { calculateAllocation } from '@zapengine/app-core/adapters';
 import { usePortfolioDashboard } from '@zapengine/app-core/hooks/analytics';
-import { useLandingPageData } from '@zapengine/app-core/hooks/queries';
+import {
+  queryKeys,
+  useLandingPageData,
+} from '@zapengine/app-core/hooks/queries';
 import { getDailyYieldReturns } from '@zapengine/app-core/services';
-import { useQuery } from '@tanstack/react-query';
 
 import { DEMO, type MetricTone } from '@/data/demo';
 import {
@@ -153,8 +156,11 @@ export function usePortfolioData(
     userId ?? undefined,
     { trend_days: days, drawdown_days: days, rolling_days: days },
   );
+  // Same endpoint and cache slice as every other daily-yield reader, so a
+  // post-ETL `dailyYield.byUser` invalidation also refreshes attribution.
+  // `null` is the bundle-aggregation wallet filter.
   const attributionQuery = useQuery({
-    queryKey: ['portfolio-attribution', userId, days],
+    queryKey: queryKeys.dailyYield.list(userId ?? undefined, days, null),
     queryFn: () => {
       if (!userId) throw new Error('User ID is required');
       return getDailyYieldReturns(userId, days);

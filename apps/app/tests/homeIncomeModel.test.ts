@@ -72,7 +72,6 @@ describe('buildHomeIncomeView', () => {
         protocol: 'Morpho',
         chain: 'ethereum',
         monthlyNetUsd: 60.8,
-        monthlyLendingCostUsd: null,
       }),
       expect.objectContaining({
         protocol: 'Moonwell',

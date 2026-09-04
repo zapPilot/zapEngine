@@ -11,6 +11,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { PortfolioTrendChart } from '@/components/charts/PortfolioTrendChart';
+import type { DailyValuePoint } from '@/integration/portfolioMetrics';
 
 interface MockViewProps extends HTMLAttributes<HTMLDivElement> {
   children?: ReactNode;
@@ -47,19 +48,20 @@ vi.mock('@/components/charts/Sparkline', () => ({
   Sparkline: () => <div data-testid="sparkline" />,
 }));
 
-vi.mock('@/providers/ContentLanguageProvider', () => ({
-  useContentLanguage: () => ({
-    languageCode: 'en',
-    t: (key: string) =>
-      ({
-        'portfolio.tooltip.date': 'Date',
-        'portfolio.tooltip.netWorth': 'Net worth',
-        'portfolio.tooltip.change': 'Portfolio change',
-        'portfolio.tooltip.assets': 'Assets',
-        'portfolio.tooltip.debt': 'Debt',
-      })[key] ?? key,
-  }),
-}));
+// Drives the real English dictionary rather than a parallel fake one, so a
+// missing key or a dropped `{name}` placeholder fails here.
+vi.mock('@/providers/ContentLanguageProvider', async () => {
+  const { en } = await import('@/i18n/translations');
+  return {
+    useContentLanguage: () => ({
+      languageCode: 'en',
+      t: (key: keyof typeof en, params?: Record<string, string | number>) =>
+        en[key].replace(/\{([^}]+)\}/g, (match, name: string) =>
+          params?.[name] === undefined ? match : String(params[name]),
+        ),
+    }),
+  };
+});
 
 let container: HTMLDivElement;
 let root: Root;
@@ -91,7 +93,17 @@ function pointerEvent(
   return event;
 }
 
-async function renderChart() {
+const DEFAULT_ATTRIBUTION: NonNullable<DailyValuePoint['attribution']> = [
+  { kind: 'market', label: 'ETH', valueUsd: 20 },
+  { kind: 'amount', label: 'Aave', valueUsd: 4 },
+  { kind: 'residual', valueUsd: 1 },
+];
+
+async function renderChart(
+  attribution: NonNullable<
+    DailyValuePoint['attribution']
+  > = DEFAULT_ATTRIBUTION,
+) {
   await act(async () => {
     root.render(
       <PortfolioTrendChart
@@ -101,11 +113,7 @@ async function renderChart() {
             date: '2026-08-21',
             total_value_usd: 125,
             categories: [{ assets_usd: 150, debt_usd: 25 }],
-            attribution: [
-              { kind: 'market', label: 'ETH', valueUsd: 20 },
-              { kind: 'yield', label: 'Aave', valueUsd: 4 },
-              { kind: 'residual', label: 'Other / flows', valueUsd: 1 },
-            ],
+            attribution,
           },
           { date: '2026-08-22', total_value_usd: 120 },
         ]}
@@ -127,12 +135,15 @@ describe('PortfolioTrendChart interactions', () => {
 
     expect(container.textContent).toContain('Portfolio change: +$25.00');
     expect(container.textContent).toContain('ETH price+$20.00');
-    expect(container.textContent).toContain('Aave yield+$4.00');
+    expect(container.textContent).toContain('Aave balance+$4.00');
     expect(container.textContent).toContain('Other / flows+$1.00');
+    expect(container.textContent).not.toContain('yield');
     expect(container.textContent).toContain('Assets: $150.00');
     expect(container.textContent).toContain('Debt: $25.00');
     expect(
-      container.querySelectorAll('[data-testid="portfolio-trend-attribution-row"]'),
+      container.querySelectorAll(
+        '[data-testid="portfolio-trend-attribution-row"]',
+      ),
     ).toHaveLength(3);
 
     await act(async () =>
@@ -141,6 +152,27 @@ describe('PortfolioTrendChart interactions', () => {
     expect(
       container.querySelector('[data-testid="portfolio-trend-tooltip"]'),
     ).toBeNull();
+  });
+
+  it('says how many attribution rows it dropped instead of truncating silently', async () => {
+    const chart = await renderChart([
+      ...Array.from({ length: 7 }, (_unused, index) => ({
+        kind: 'market' as const,
+        label: `TOKEN${index}`,
+        valueUsd: 10 - index,
+      })),
+      { kind: 'residual' as const, valueUsd: 1 },
+    ]);
+    await act(async () =>
+      chart?.dispatchEvent(pointerEvent('pointermove', 'mouse', 100)),
+    );
+
+    expect(
+      container.querySelectorAll(
+        '[data-testid="portfolio-trend-attribution-row"]',
+      ),
+    ).toHaveLength(6);
+    expect(container.textContent).toContain('+2 more');
   });
 
   it('tracks a pressed touch drag, closes on release, and clamps the marker', async () => {
