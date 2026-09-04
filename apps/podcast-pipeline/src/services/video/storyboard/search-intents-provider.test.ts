@@ -267,7 +267,7 @@ describe('named-entity-first subject materialization', () => {
     expect(llmMocks.createCompletionWithRetry).toHaveBeenCalledTimes(1);
   });
 
-  it('drops generic category subjects, unknown types, and strips generic aliases', async () => {
+  it('drops generic, ungrounded, and unknown-type subjects and strips generic aliases', async () => {
     mockCatalog({
       primarySubjectId: 'subject-nvidia',
       subjects: [
@@ -315,7 +315,7 @@ describe('named-entity-first subject materialization', () => {
       expect.objectContaining({ id: 'subject-ai', reason: 'generic-term' }),
       expect.objectContaining({
         id: 'subject-wall-street',
-        reason: 'generic-term',
+        reason: 'title-only-no-scene-evidence',
       }),
       expect.objectContaining({ id: 'subject-capex', reason: 'type-other' }),
       expect.objectContaining({ id: 'subject-apollo', reason: 'invalid-type' }),

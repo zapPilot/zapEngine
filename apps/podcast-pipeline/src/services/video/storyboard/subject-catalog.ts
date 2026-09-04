@@ -10,6 +10,7 @@ export const VISUAL_SUBJECT_TYPES = [
   'asset',
   'standard',
   'organization',
+  'object',
   'other',
 ] as const;
 
@@ -168,10 +169,11 @@ export type VisualSubjectDrop = z.infer<typeof visualSubjectDropSchema>;
 export type VisualSubjectCatalog = z.infer<typeof visualSubjectCatalogSchema>;
 
 /**
- * Category words that can never be a visual subject. A search for any of these
- * returns interchangeable stock imagery (a server room, people at desks), which
- * is exactly what the named-entity catalog exists to prevent. The model is told
- * the same rule; this is the code-owned backstop for when it ignores it.
+ * Abstract/category phrases that should never become visual anchors. Concrete
+ * common nouns are intentionally not denied here: a GPU, data center, server
+ * rack, factory, or robot can be a useful image-search anchor when it is the
+ * actual subject of a story. The model decides that salience; this set only
+ * blocks phrases whose search results are inherently generic or symbolic.
  */
 const GENERIC_VISUAL_SUBJECT_TERMS = new Set(
   [
@@ -200,12 +202,7 @@ const GENERIC_VISUAL_SUBJECT_TERMS = new Set(
     'market',
     'markets',
     'stock market',
-    'wall street',
-    'silicon valley',
-    'data center',
-    'data centers',
-    'datacenter',
-    'datacenters',
+    'innovation',
     'engineers',
     'business',
     'finance',
@@ -214,9 +211,6 @@ const GENERIC_VISUAL_SUBJECT_TERMS = new Set(
     'hyperscalers',
     'neocloud',
     'neoclouds',
-    'gpu',
-    'gpus',
-    'servers',
     'capex',
     'capital expenditure',
     'debt',
@@ -232,15 +226,12 @@ const GENERIC_VISUAL_SUBJECT_TERMS = new Set(
     'blockchain',
     'defi',
     'web3',
+    'governance',
     'government',
     'regulators',
     'central banks',
-    '華爾街',
-    '华尔街',
     '科技巨頭',
     '科技巨头',
-    '資料中心',
-    '数据中心',
     '人工智慧',
     '人工智能',
     '加密貨幣',
@@ -340,7 +331,10 @@ export function buildVisualSubjectSearchQueries(
 
 export function isAmbiguousVisualSubject(subject: VisualSubject): boolean {
   const compact = subject.canonicalName.replace(/[^\p{L}\p{N}]/gu, '');
+  // An object anchor is a common noun, so its bare name never identifies the
+  // story's instance of it; the identity hint has to become part of the name.
   return (
+    subject.type === 'object' ||
     subject.negativeHints.length > 0 ||
     compact.length <= 4 ||
     /^[a-z]+\d+$/i.test(compact)
