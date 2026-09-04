@@ -120,6 +120,7 @@ export async function runProcess(
       }
       stdout += chunk;
     });
+    child.stderr?.setEncoding('utf8');
     child.stderr?.on('data', (chunk: string) => {
       if (streamStdio) {
         process.stderr.write(chunk);
@@ -304,10 +305,8 @@ export const VERTICAL_MEDIA_CHUNK_SIZE = 8 as const;
 const LEGACY_KEN_BURNS_ZOOM_RATE_PER_SECOND = 0.014;
 const LEGACY_KEN_BURNS_MAX_EXTRA_ZOOM = 0.18;
 const LEGACY_KEN_BURNS_PAN_ZOOM = 1.15;
-const EDITORIAL_ZOOM_RATE_PER_SECOND = 0.004;
-const EDITORIAL_MAX_EXTRA_ZOOM = 0.05;
-const EDITORIAL_PAN_ZOOM = 1.04;
 const KEN_BURNS_HOLD_SAFETY_FRAMES = 2;
+const EDITORIAL_DRIFT_INSET = 0.98;
 
 export type KenBurnsPan =
   | 'zoomIn'
@@ -384,8 +383,8 @@ function legacyKenBurnsFilter(
 
 function editorialKenBurnsFilter(
   slide: SlideVideoManifest['slides'][number],
-  index: number,
-  seed: number,
+  _index: number,
+  _seed: number,
   fps: number,
   width: number,
   height: number,
@@ -395,60 +394,53 @@ function editorialKenBurnsFilter(
     2,
     Math.round(((slide.endMs - slide.startMs) * fps) / 1_000),
   );
-  const finalFrame = durationFrames - 1;
-  const progress = `max(0\\,min((on/${finalFrame}-0.30)/0.50\\,1))`;
+  // Fresh editorial payloads never zoom. `zoompan` remains only as the bounded
+  // still-frame generator used by this encode path; z=1 preserves the complete
+  // image that the contain stage handed us.
+  return `zoompan=z='1':x='0':y='0':d=${durationFrames + holdFrames}:s=${width}x${height}:fps=${fps}`;
+}
+
+function editorialDriftFilter(
+  slide: SlideVideoManifest['slides'][number],
+  index: number,
+  seed: number,
+  fps: number,
+  width: number,
+  height: number,
+  holdFrames: number,
+): string | null {
+  if (slide.asset.kind !== 'remoteImage' || slide.asset.motion === 'static') {
+    return null;
+  }
+  const durationFrames = Math.max(
+    2,
+    Math.round(((slide.endMs - slide.startMs) * fps) / 1_000),
+  );
+  const outputFrames = durationFrames + holdFrames;
+  const finalFrame = Math.max(1, outputFrames - 1);
+  const progress = `min(n/${finalFrame}\\,1)`;
   const eased = `pow(${progress}\\,2)*(3-2*${progress})`;
-  const extraZoom = Math.min(
-    (EDITORIAL_ZOOM_RATE_PER_SECOND * (slide.endMs - slide.startMs)) / 1_000,
-    EDITORIAL_MAX_EXTRA_ZOOM,
-  ).toFixed(4);
-  const position =
-    slide.asset.kind === 'remoteImage' ? slide.asset.position : 'center';
-  const requested =
-    slide.asset.kind === 'remoteImage' ? slide.asset.motion : 'pushIn';
+  const innerWidth = Math.max(2, Math.round(width * EDITORIAL_DRIFT_INSET));
+  const innerHeight = Math.max(2, Math.round(height * EDITORIAL_DRIFT_INSET));
+  const canvasWidth = width + (width - innerWidth);
+  const canvasHeight = height + (height - innerHeight);
+  const travelX = canvasWidth - width;
+  const travelY = canvasHeight - height;
+  const centerX = (travelX / 2).toFixed(3);
+  const centerY = (travelY / 2).toFixed(3);
+  const varied = kenBurnsPanForScene(index, seed);
 
-  let motion:
-    | 'static'
-    | 'zoomIn'
-    | 'leftToRight'
-    | 'rightToLeft'
-    | 'topToBottom';
-  if (requested === 'static') motion = 'static';
-  else if (requested === 'pushIn') motion = 'zoomIn';
-  else {
-    const varied = kenBurnsPanForScene(index, seed);
-    if (
-      varied === 'leftToRight' ||
-      varied === 'rightToLeft' ||
-      varied === 'topToBottom'
-    ) {
-      motion = varied;
-    } else {
-      motion = index % 2 === 0 ? 'leftToRight' : 'rightToLeft';
-    }
-  }
-  if (motion === 'topToBottom' && position !== 'center') motion = 'zoomIn';
-  const isPan =
-    motion === 'leftToRight' ||
-    motion === 'rightToLeft' ||
-    motion === 'topToBottom';
-
-  let zoom = motion === 'static' ? '1' : `1+${extraZoom}*${eased}`;
-  if (isPan) zoom = String(EDITORIAL_PAN_ZOOM);
-
-  let x = '(iw-iw/zoom)/2';
-  let y = '(ih-ih/zoom)/2';
-  if (position === 'top') y = '0';
-  if (position === 'bottom') y = 'ih-ih/zoom';
-  if (motion === 'leftToRight') {
-    x = `(iw-iw/zoom)*${eased}`;
-  } else if (motion === 'rightToLeft') {
-    x = `(iw-iw/zoom)*(1-${eased})`;
-  } else if (motion === 'topToBottom') {
-    y = `(ih-ih/zoom)*${eased}`;
+  let x = centerX;
+  let y = centerY;
+  if (varied === 'rightToLeft' || varied === 'zoomOut') {
+    x = `${travelX}*(1-${eased})`;
+  } else if (varied === 'topToBottom') {
+    y = `${travelY}*${eased}`;
+  } else {
+    x = `${travelX}*${eased}`;
   }
 
-  return `zoompan=z='${zoom}':x='${x}':y='${y}':d=${durationFrames + holdFrames}:s=${width}x${height}:fps=${fps}`;
+  return `scale=${innerWidth}:${innerHeight}:flags=lanczos+accurate_rnd,pad=${canvasWidth}:${canvasHeight}:(ow-iw)/2:(oh-ih)/2:color=0x101014,crop=${width}:${height}:x='${x}':y='${y}'`;
 }
 
 function kenBurnsFilter(
@@ -486,7 +478,9 @@ function imagePreparationFilter(
   const flags = 'lanczos+accurate_rnd';
   const layout =
     slide.asset.kind === 'remoteImage' ? slide.asset.layout : 'fullBleed';
-  if (layout === 'contain') {
+  const hasExplicitEditorialMotion =
+    slide.asset.kind === 'remoteImage' && slide.asset.motion !== undefined;
+  if (hasExplicitEditorialMotion || layout === 'contain') {
     return `scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=decrease:flags=${flags}:in_range=pc:out_range=tv:out_color_matrix=bt709,pad=${targetWidth}:${targetHeight}:(ow-iw)/2:(oh-ih)/2:color=0x101014`;
   }
   return `scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=increase:flags=${flags}:in_range=pc:out_range=tv:out_color_matrix=bt709,crop=${targetWidth}:${targetHeight}`;
@@ -504,10 +498,19 @@ function slideSceneFilters(
 ): string[] {
   const holdFrames =
     Math.round((transitionMs * fps) / 1_000) + KEN_BURNS_HOLD_SAFETY_FRAMES;
-  return slides.map(
-    (slide, index) =>
-      `[${index}:v]${imagePreparationFilter(slide, width, height, supersample)},${kenBurnsFilter(slide, index + indexOffset, seed, fps, width, height, holdFrames)},setsar=1,format=yuv444p,settb=expr=1/${fps},setpts=N[s${index}]`,
-  );
+  return slides.map((slide, index) => {
+    const absoluteIndex = index + indexOffset;
+    const drift = editorialDriftFilter(
+      slide,
+      absoluteIndex,
+      seed,
+      fps,
+      width,
+      height,
+      holdFrames,
+    );
+    return `[${index}:v]${imagePreparationFilter(slide, width, height, supersample)},${kenBurnsFilter(slide, absoluteIndex, seed, fps, width, height, holdFrames)}${drift ? `,${drift}` : ''},setsar=1,format=yuv444p,settb=expr=1/${fps},setpts=N[s${index}]`;
+  });
 }
 
 function sceneChain(
@@ -550,8 +553,15 @@ function appendXfadeChain(
     const nextStartFrame = Math.round((slide.startMs * fps) / 1_000);
     const transitionOffset = (nextStartFrame - transitionFrames) / fps;
     const outputLabel = `x${slideIndex}`;
+    const explicitEditorialMotion =
+      slide.asset.kind === 'remoteImage' && slide.asset.motion !== undefined;
+    const transition = explicitEditorialMotion
+      ? slideIndex % 2 === 0
+        ? 'smoothright'
+        : 'smoothleft'
+      : 'fade';
     filters.push(
-      `[${priorLabel}][s${slideIndex}]xfade=transition=fade:duration=${transitionMs / 1_000}:offset=${transitionOffset.toFixed(6)}[${outputLabel}]`,
+      `[${priorLabel}][s${slideIndex}]xfade=transition=${transition}:duration=${transitionMs / 1_000}:offset=${transitionOffset.toFixed(6)}[${outputLabel}]`,
     );
     priorLabel = outputLabel;
   });
