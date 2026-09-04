@@ -1097,3 +1097,96 @@ describe('OpenRouter search intent provider', () => {
     expect(llmMocks.createCompletionWithRetry).toHaveBeenCalledTimes(2);
   });
 });
+
+describe('named-entity-first scene assignment', () => {
+  it('orders the person a scene names ahead of the company it also names', async () => {
+    const request = catalogEnrichmentRequest('Amazon CEO Andy Jassy');
+    const allSceneIds = request.draft.scenes.map((scene) => scene.sceneId);
+    const provider = {
+      model: MODEL,
+      catalog: vi.fn<SearchIntentProvider['catalog']>(() =>
+        Promise.resolve({
+          primarySubjectId: 'subject-amazon',
+          subjects: [
+            {
+              id: 'subject-amazon',
+              canonicalName: 'Amazon',
+              type: 'company' as const,
+              aliases: [],
+              storyRole: 'primary' as const,
+              evidenceSceneIds: allSceneIds,
+              searchQueries: ['Amazon'],
+              identityHints: ['cloud retailer'],
+              negativeHints: [],
+              officialDomains: [],
+            },
+            {
+              id: 'subject-andy-jassy',
+              canonicalName: 'Andy Jassy',
+              type: 'person' as const,
+              aliases: [],
+              storyRole: 'supporting' as const,
+              evidenceSceneIds: allSceneIds,
+              searchQueries: ['Andy Jassy'],
+              identityHints: ['Amazon CEO'],
+              negativeHints: [],
+              officialDomains: [],
+            },
+          ],
+          droppedSubjects: [
+            {
+              id: 'subject-ai',
+              names: ['AI'],
+              type: 'product',
+              reason: 'generic-term' as const,
+            },
+          ],
+        }),
+      ),
+    };
+
+    const result = await enrichStoryboardSearchIntents(request, { provider });
+
+    // The lead scene is still anchored on the primary subject.
+    expect(result.sceneAssignments[0]).toMatchObject({
+      subjectIds: ['subject-amazon'],
+    });
+    // Every other scene that names both puts the person first, so the pool's
+    // query for those scenes is "Andy Jassy" rather than "Amazon".
+    for (const assignment of result.sceneAssignments.slice(1)) {
+      expect(assignment).toMatchObject({
+        subjectIds: ['subject-andy-jassy', 'subject-amazon'],
+        selectionReason: 'direct',
+      });
+    }
+    expect(result.draft.scenes[1]?.imageSearchIntent[0]).toBe('Andy Jassy');
+    expect(result.draft.scenes[1]?.imageSearchEntities).toEqual([
+      'Andy Jassy',
+      'Amazon',
+    ]);
+    // The recorded drops travel with the catalog into the persisted payload.
+    expect(result.subjectCatalog?.droppedSubjects).toEqual([
+      {
+        id: 'subject-ai',
+        names: ['AI'],
+        type: 'product',
+        reason: 'generic-term',
+      },
+    ]);
+  });
+
+  it('tells the model that category words are never subjects and to resolve AI to the named entity', () => {
+    const prompt = buildSubjectCatalogSystemPrompt();
+
+    expect(prompt).toContain(
+      'NEVER create a subject from a generic or abstract concept',
+    );
+    expect(prompt).toContain(
+      'resolve it to the concrete entity named in that context',
+    );
+    expect(prompt).toContain(
+      'If a scene names a person, that person is a subject',
+    );
+    expect(prompt).toContain('never a category word');
+  });
+});

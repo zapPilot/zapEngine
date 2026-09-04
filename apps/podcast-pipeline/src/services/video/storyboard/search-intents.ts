@@ -21,12 +21,15 @@ import {
 } from './sentences.js';
 import {
   buildVisualSubjectSearchQueries,
+  isGenericVisualSubjectName,
   parseVisualSubjectCatalog,
   subjectNames,
+  VISUAL_SUBJECT_TYPES,
   type VisualSceneSubjectAssignment,
   type VisualSubject,
   visualSubjectById,
   type VisualSubjectCatalog,
+  type VisualSubjectDrop,
 } from './subject-catalog.js';
 
 const SEARCH_INTENT_REASONING = { enabled: false } as const;
@@ -193,7 +196,15 @@ function enrichFromSubjectCatalog(
 ): SearchIntentEnrichment {
   const contentSceneIds = new Set(scenes.map((scene) => scene.sceneId));
   const directByScene = new Map<string, string[]>();
-  for (const subject of catalog.subjects) {
+  // A scene's first subject is the query Brave is asked, and the entity cap
+  // trims from the back, so a person the scene names must come before the
+  // company it also names: "Andy Jassy" finds his photo, "Amazon" finds a
+  // warehouse. Stable sort keeps the catalog's own order among equals.
+  const personFirstSubjects = [...catalog.subjects].sort(
+    (left, right) =>
+      Number(right.type === 'person') - Number(left.type === 'person'),
+  );
+  for (const subject of personFirstSubjects) {
     for (const sceneId of subject.evidenceSceneIds) {
       if (!contentSceneIds.has(sceneId)) continue;
       const current = directByScene.get(sceneId) ?? [];
@@ -423,6 +434,22 @@ async function completeSearchIntentRequest(input: {
   });
 }
 
+interface CompactSubjectEvidence {
+  requestedPrimaryId: string;
+  wholeEpisodeEvidence: string;
+  scenes: { sceneId: string; text: string }[];
+}
+
+type CompactSubjectVerdict =
+  | { kept: Record<string, unknown> }
+  | { drop: VisualSubjectDrop };
+
+/**
+ * The unit of failure is the subject, never the catalog. One hallucinated
+ * "subject-macron" used to throw the whole catalog away and send 64 scenes to
+ * "AI engineers monitoring data center servers photo"; now it is dropped and
+ * recorded while every grounded named entity still anchors its scenes.
+ */
 function materializeVisualSubjectCatalog(
   input: unknown,
   request: SearchIntentCatalogRequest,
@@ -434,57 +461,165 @@ function materializeVisualSubjectCatalog(
   ) {
     return input;
   }
-  const primarySubjectId = input['primarySubjectId'];
-  const subjects: unknown[] = input['subjects'];
+  const requestedPrimaryId = input['primarySubjectId'];
+  const evidence: CompactSubjectEvidence = {
+    requestedPrimaryId,
+    wholeEpisodeEvidence: normalizedEntityText(
+      `${request.title}\n${request.scenes
+        .map((scene) => `${scene.text}\n${scene.searchText ?? ''}`)
+        .join('\n')}`,
+    ),
+    scenes: request.scenes.map((scene) => ({
+      sceneId: scene.sceneId,
+      text: normalizedEntityText(`${scene.text}\n${scene.searchText ?? ''}`),
+    })),
+  };
 
-  const wholeEpisodeEvidence = normalizedEntityText(
-    `${request.title}\n${request.scenes
-      .map((scene) => `${scene.text}\n${scene.searchText ?? ''}`)
-      .join('\n')}`,
-  );
+  const dropped: VisualSubjectDrop[] = [];
+  const kept: Record<string, unknown>[] = [];
+  const passthrough: unknown[] = [];
+  for (const subject of input['subjects'] as unknown[]) {
+    if (!isRecord(subject)) {
+      passthrough.push(subject);
+      continue;
+    }
+    const verdict = judgeCompactSubject(subject, evidence);
+    if ('drop' in verdict) dropped.push(verdict.drop);
+    else kept.push(verdict.kept);
+  }
 
+  if (kept.length === 0 && passthrough.length === 0) {
+    throw new SearchIntentPayloadError(
+      `Visual subject catalog kept no grounded named subject (dropped ${dropped
+        .map((entry) => `${entry.id}=${entry.reason}`)
+        .join(', ')})`,
+    );
+  }
+
+  const primarySubjectId = repairedPrimarySubjectId(kept, requestedPrimaryId);
   return {
     ...input,
-    subjects: subjects.flatMap((subject) => {
-      if (!isRecord(subject)) return [subject];
-      const id = subject['id'];
-      const names = rawSubjectNames(subject);
-      const grounded = names.some((name) =>
-        containsEntityPhrase(wholeEpisodeEvidence, normalizedEntityText(name)),
-      );
-      if (!grounded) {
-        throw new SearchIntentPayloadError(
-          `Visual subject ${typeof id === 'string' ? id : 'unknown'} is not grounded in the episode`,
-        );
-      }
-
-      const evidenceSceneIds = request.scenes
-        .filter((scene) => {
-          const sceneEvidence = normalizedEntityText(
-            `${scene.text}\n${scene.searchText ?? ''}`,
-          );
-          return names.some((name) =>
-            containsEntityPhrase(sceneEvidence, normalizedEntityText(name)),
-          );
-        })
-        .map((scene) => scene.sceneId);
-
-      // A secondary subject that exists only in the title cannot directly anchor
-      // any scene, so keep the final catalog focused on identities the renderer
-      // can actually assign. The primary title subject remains because the first
-      // content scene is the episode cover/lead and already falls back to it.
-      if (evidenceSceneIds.length === 0 && id !== primarySubjectId) return [];
-
-      return [
-        {
-          ...subject,
-          evidenceSceneIds,
-          searchQueries: deterministicSubjectSearchQueries(subject),
-          officialDomains: [],
-        },
-      ];
-    }),
+    primarySubjectId,
+    subjects: [
+      ...kept.map((subject) => withStoryRole(subject, primarySubjectId)),
+      ...passthrough,
+    ],
+    ...(dropped.length > 0 ? { droppedSubjects: dropped } : {}),
   };
+}
+
+function judgeCompactSubject(
+  subject: Record<string, unknown>,
+  evidence: CompactSubjectEvidence,
+): CompactSubjectVerdict {
+  const id = typeof subject['id'] === 'string' ? subject['id'] : 'unknown';
+  const type =
+    typeof subject['type'] === 'string' ? subject['type'] : 'unknown';
+  const names = rawSubjectNames(subject);
+  const canonicalName = names[0]?.trim() ?? '';
+
+  const identityDrop = identityDropReason(canonicalName, type);
+  if (identityDrop) return dropVerdict(id, names, type, identityDrop);
+
+  // A generic alias ("AI" on NVIDIA) would let the category word ground and
+  // rank the subject; the identity keeps only its real names.
+  const aliases = names
+    .slice(1)
+    .filter((alias) => !isGenericVisualSubjectName(alias));
+  const groundedNames = [canonicalName, ...aliases];
+  const grounded = groundedNames.some((name) =>
+    containsEntityPhrase(
+      evidence.wholeEpisodeEvidence,
+      normalizedEntityText(name),
+    ),
+  );
+  if (!grounded) return dropVerdict(id, names, type, 'not-grounded');
+
+  const evidenceSceneIds = evidence.scenes
+    .filter((scene) =>
+      groundedNames.some((name) =>
+        containsEntityPhrase(scene.text, normalizedEntityText(name)),
+      ),
+    )
+    .map((scene) => scene.sceneId);
+
+  // A secondary subject that exists only in the title cannot directly anchor
+  // any scene, so keep the final catalog focused on identities the renderer
+  // can actually assign. The primary title subject remains because the first
+  // content scene is the episode cover/lead and already falls back to it.
+  if (evidenceSceneIds.length === 0 && id !== evidence.requestedPrimaryId) {
+    return dropVerdict(id, names, type, 'title-only-no-scene-evidence');
+  }
+
+  return {
+    kept: {
+      ...subject,
+      aliases,
+      evidenceSceneIds,
+      searchQueries: deterministicSubjectSearchQueries(subject),
+      officialDomains: [],
+    },
+  };
+}
+
+function identityDropReason(
+  canonicalName: string,
+  type: string,
+): VisualSubjectDrop['reason'] | null {
+  if (!canonicalName) return 'missing-canonical-name';
+  if (!(VISUAL_SUBJECT_TYPES as readonly string[]).includes(type)) {
+    return 'invalid-type';
+  }
+  if (type === 'other') return 'type-other';
+  if (isGenericVisualSubjectName(canonicalName)) return 'generic-term';
+  return null;
+}
+
+function dropVerdict(
+  id: string,
+  names: string[],
+  type: string,
+  reason: VisualSubjectDrop['reason'],
+): CompactSubjectVerdict {
+  return { drop: { id, names: names.slice(0, 7), type, reason } };
+}
+
+/**
+ * The model's primary may have been the subject that was dropped. The lead
+ * scene still needs an anchor, so the surviving subject with the most scene
+ * evidence takes the role rather than failing the catalog on the schema rule
+ * that exactly one primary exists.
+ */
+function repairedPrimarySubjectId(
+  kept: readonly Record<string, unknown>[],
+  requestedPrimaryId: string,
+): string {
+  if (kept.some((subject) => subject['id'] === requestedPrimaryId)) {
+    return requestedPrimaryId;
+  }
+  const promoted = [...kept].sort(
+    (left, right) => evidenceCount(right) - evidenceCount(left),
+  )[0];
+  const promotedId = promoted?.['id'];
+  return typeof promotedId === 'string' ? promotedId : requestedPrimaryId;
+}
+
+function withStoryRole(
+  subject: Record<string, unknown>,
+  primarySubjectId: string,
+): Record<string, unknown> {
+  if (subject['id'] === primarySubjectId) {
+    return { ...subject, storyRole: 'primary' };
+  }
+  if (subject['storyRole'] === 'primary') {
+    return { ...subject, storyRole: 'secondary' };
+  }
+  return subject;
+}
+
+function evidenceCount(subject: Record<string, unknown>): number {
+  const evidence = subject['evidenceSceneIds'];
+  return Array.isArray(evidence) ? evidence.length : 0;
 }
 
 function rawSubjectNames(subject: Record<string, unknown>): string[] {
@@ -528,16 +663,19 @@ function compactStringArray(value: unknown): string[] {
 
 export function buildSubjectCatalogSystemPrompt(): string {
   return [
-    'Build a compact visual subject catalog for this entire news episode.',
-    '- Include only named real-world subjects that the supplied title or scenes actually mention: companies, people, products, protocols, places, regulators, assets, standards, or organizations.',
-    '- Pick exactly one primary subject: the actor or thing the headline/story is principally about, not a competitor that appears later.',
+    'Build a compact visual subject catalog for this entire news episode. The catalog drives image search for a news video, so every subject must be something a photo or logo can show.',
+    '- Extract ONLY concrete, visually identifiable named entities that the supplied title or scenes explicitly mention: named people; named companies or organizations; named brands; named products, models, protocols or tools; specific government agencies, regulators or institutions; named places or assets.',
+    '- NEVER create a subject from a generic or abstract concept. Forbidden as subjects: AI, artificial intelligence, technology, tech giants, startups, founders, office, investors, markets, Wall Street as a mood, innovation, governance, data centers, GPUs, servers, engineers, business, finance, debt, bonds, CapEx, cloud, crypto, blockchain, infrastructure, or any similar category word.',
+    '- When a broad word such as "AI" appears, resolve it to the concrete entity named in that context (Anthropic -> Anthropic / Claude; OpenAI -> OpenAI / ChatGPT / GPT / Codex; 輝達 -> NVIDIA). If no concrete entity is named for it, emit no subject for it at all.',
+    '- If a scene names a person, that person is a subject (their photo is the best image). If it names a company, organization, product or institution, that exact entity is a subject. When several concrete entities appear, keep the ones most relevant to the story.',
+    '- Pick exactly one primary subject: the concrete named actor the headline/story is principally about, not a competitor that appears later. It must be a named entity, never a category word, and it may come from the scenes when the title names nobody.',
     '- canonicalName and aliases are identity labels. Do not merge competitors or similarly named things.',
-    '- Copy canonicalName verbatim from the title or scenes. When both an English and a local-script name are present, use the English spelling for canonicalName and put the local-script spelling in aliases. Put descriptive industry, category, and role terms only in identityHints.',
+    '- Copy canonicalName verbatim from the title or scenes. When both an English and a local-script name are present, use the English spelling for canonicalName and put the local-script spelling in aliases (example: canonicalName "NVIDIA", aliases ["輝達"]). Put descriptive industry, category, and role terms only in identityHints.',
     '- identityHints are 2 to 6 short positive disambiguators such as industry, product, chain, role, or location. They must describe this identity, not a generic mood.',
     '- negativeHints are only known name-collision meanings to reject (for example animal, camera, engine); do not list ordinary competitors as negative hints.',
     '- Do not output scene IDs, image-search queries, or domains. The application derives scene evidence and final search queries deterministically from the subject identity.',
-    '- Use stable IDs shaped like subject-coinbase or subject-jesse-pollak.',
-    'Return valid JSON only: {"primarySubjectId":"subject-coinbase","subjects":[{"id":"subject-coinbase","canonicalName":"Coinbase","type":"company","aliases":[],"storyRole":"primary","identityHints":["crypto exchange","Base"],"negativeHints":[]}]}',
+    '- Use stable IDs shaped like subject-nvidia or subject-andy-jassy.',
+    'Return valid JSON only: {"primarySubjectId":"subject-nvidia","subjects":[{"id":"subject-nvidia","canonicalName":"NVIDIA","type":"company","aliases":["輝達"],"storyRole":"primary","identityHints":["GPU maker","AI chips"],"negativeHints":[]},{"id":"subject-andy-jassy","canonicalName":"Andy Jassy","type":"person","aliases":[],"storyRole":"supporting","identityHints":["Amazon CEO"],"negativeHints":[]}]}',
   ].join('\n');
 }
 

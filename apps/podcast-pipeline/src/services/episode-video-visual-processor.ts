@@ -242,6 +242,17 @@ export function createEpisodeVideoVisualProcessor(
           primarySubject: intents.subjectCatalog?.primarySubjectId,
           model: intents.model ?? 'deterministic',
         });
+        for (const droppedSubject of intents.subjectCatalog?.droppedSubjects ??
+          []) {
+          logVisualProgress(dependencies.logger, 'visual:intents', {
+            run: context.runId,
+            episode: source.episodeId,
+            phase: 'dropped-subject',
+            subject: droppedSubject.id,
+            reason: droppedSubject.reason,
+            names: JSON.stringify(droppedSubject.names.join(' / ')),
+          });
+        }
         // A catalog-less episode still plans, off the deterministic intents, so
         // the reason it degraded is the only thing that separates that from an
         // episode whose scenes simply name nobody.
