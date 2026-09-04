@@ -70,7 +70,7 @@ describe('runSharpScaleStage', () => {
 });
 
 describe('runSharpCropStage', () => {
-  it('cover-crops a landscape image into the requested window', async () => {
+  it('contains a landscape image and dark-pads the requested portrait window', async () => {
     const directory = await createTestDirectory();
     const imagePath = join(directory, 'source.png');
     const cropInputPath = join(directory, 'crop.json');
@@ -101,9 +101,19 @@ describe('runSharpCropStage', () => {
     const metadata = await sharp(outputPath).metadata();
     expect(metadata.width).toBe(108);
     expect(metadata.height).toBe(96);
+    const { data, info } = await sharp(outputPath)
+      .removeAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    const pixel = (x: number, y: number): number[] => {
+      const offset = (y * info.width + x) * info.channels;
+      return Array.from(data.subarray(offset, offset + info.channels));
+    };
+    expect(pixel(0, 0)).toEqual([16, 16, 20]);
+    expect(pixel(54, 48)).toEqual([200, 40, 40]);
   });
 
-  it('falls back to center for an unknown crop position from persisted input', async () => {
+  it('ignores an unknown persisted focal position without losing the image', async () => {
     const directory = await createTestDirectory();
     const imagePath = join(directory, 'source.png');
     const cropInputPath = join(directory, 'crop-unknown-position.json');
