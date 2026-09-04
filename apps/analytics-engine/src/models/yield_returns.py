@@ -191,6 +191,14 @@ class ProtocolYieldBreakdown(BaseModel):
     chain: str | None = Field(
         None, description="Blockchain network for the protocol position"
     )
+    token_symbols: list[str] = Field(
+        default_factory=list,
+        description="Token symbols observed for this protocol position in the window",
+    )
+    position_types: list[str] = Field(
+        default_factory=list,
+        description="Portfolio position archetypes observed for this protocol in the window",
+    )
     window: ProtocolYieldWindow = Field(
         ..., description="Protocol yield metrics across the requested window"
     )
