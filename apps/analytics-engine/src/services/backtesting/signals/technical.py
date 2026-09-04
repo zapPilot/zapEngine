@@ -16,15 +16,23 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True, slots=True)
 class TechnicalSignalSnapshot:
-    """Small, typed research surface for reusable technical signals."""
+    """Small, typed research surface for reusable close-price signals."""
 
     rsi_14: float | None = None
     rsi_slope_5d: float | None = None
     realized_volatility_20d: float | None = None
     momentum_30d: float | None = None
     momentum_90d: float | None = None
+    macd_12_26: float | None = None
+    macd_signal_9: float | None = None
+    macd_histogram: float | None = None
+    bollinger_zscore_20: float | None = None
     bearish_rsi_divergence: bool = False
     bullish_rsi_divergence: bool = False
+    macd_bearish_cross: bool = False
+    macd_bullish_cross: bool = False
+    breakout_20d: bool = False
+    breakdown_20d: bool = False
 
 
 def build_technical_signal_snapshot(
@@ -37,20 +45,34 @@ def build_technical_signal_snapshot(
         return TechnicalSignalSnapshot()
 
     rsi_values = _rsi_series(prices, period=14)
-    rsi_14 = rsi_values[-1]
-    rsi_slope_5d = _rsi_slope(rsi_values, lag=5)
     bearish_divergence, bullish_divergence = detect_rsi_divergence(
         prices,
         rsi_values,
     )
+    (
+        macd_value,
+        macd_signal,
+        macd_histogram,
+        macd_bearish_cross,
+        macd_bullish_cross,
+    ) = _macd_snapshot(prices)
+    breakout_20d, breakdown_20d = _channel_breaks(prices, window=20)
     return TechnicalSignalSnapshot(
-        rsi_14=rsi_14,
-        rsi_slope_5d=rsi_slope_5d,
+        rsi_14=rsi_values[-1],
+        rsi_slope_5d=_rsi_slope(rsi_values, lag=5),
         realized_volatility_20d=_realized_volatility(prices, window=20),
         momentum_30d=_momentum(prices, lookback=30),
         momentum_90d=_momentum(prices, lookback=90),
+        macd_12_26=macd_value,
+        macd_signal_9=macd_signal,
+        macd_histogram=macd_histogram,
+        bollinger_zscore_20=_bollinger_zscore(prices, window=20),
         bearish_rsi_divergence=bearish_divergence,
         bullish_rsi_divergence=bullish_divergence,
+        macd_bearish_cross=macd_bearish_cross,
+        macd_bullish_cross=macd_bullish_cross,
+        breakout_20d=breakout_20d,
+        breakdown_20d=breakdown_20d,
     )
 
 
@@ -198,6 +220,63 @@ def _realized_volatility(
     if len(log_returns) < 2:
         return None
     return statistics.pstdev(log_returns) * math.sqrt(365.0)
+
+
+def _ema_series(values: Sequence[float], *, period: int) -> list[float]:
+    if not values:
+        return []
+    resolved_period = max(1, int(period))
+    alpha = 2.0 / (resolved_period + 1.0)
+    ema_values = [float(values[0])]
+    for value in values[1:]:
+        ema_values.append(alpha * float(value) + (1.0 - alpha) * ema_values[-1])
+    return ema_values
+
+
+def _macd_snapshot(
+    prices: Sequence[float],
+) -> tuple[float | None, float | None, float | None, bool, bool]:
+    # Require enough observed closes for the conventional 26-period slow EMA
+    # and 9-period signal line before exposing MACD as research state.
+    if len(prices) < 35:
+        return None, None, None, False, False
+    fast = _ema_series(prices, period=12)
+    slow = _ema_series(prices, period=26)
+    macd_series = [fast[index] - slow[index] for index in range(len(prices))]
+    signal_series = _ema_series(macd_series, period=9)
+    histogram = [
+        macd_series[index] - signal_series[index] for index in range(len(prices))
+    ]
+    current_histogram = histogram[-1]
+    previous_histogram = histogram[-2]
+    return (
+        macd_series[-1],
+        signal_series[-1],
+        current_histogram,
+        previous_histogram >= 0.0 and current_histogram < 0.0,
+        previous_histogram <= 0.0 and current_histogram > 0.0,
+    )
+
+
+def _bollinger_zscore(prices: Sequence[float], *, window: int) -> float | None:
+    resolved_window = max(2, int(window))
+    if len(prices) < resolved_window:
+        return None
+    trailing = [float(value) for value in prices[-resolved_window:]]
+    mean = statistics.fmean(trailing)
+    deviation = statistics.pstdev(trailing)
+    if deviation <= 0.0:
+        return 0.0
+    return (trailing[-1] - mean) / deviation
+
+
+def _channel_breaks(prices: Sequence[float], *, window: int) -> tuple[bool, bool]:
+    resolved_window = max(2, int(window))
+    if len(prices) <= resolved_window:
+        return False, False
+    previous_window = [float(value) for value in prices[-(resolved_window + 1) : -1]]
+    current = float(prices[-1])
+    return current > max(previous_window), current < min(previous_window)
 
 
 __all__ = [
