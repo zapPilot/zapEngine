@@ -42,6 +42,7 @@ export interface SnapshotRow {
 export const PROVIDER_LABELS: Record<CostProvider, string> = {
   debank: 'DeBank',
   openrouter: 'OpenRouter',
+  brave: 'Brave Search',
   supabase: 'Supabase',
   fly: 'Fly.io',
 };
@@ -56,7 +57,7 @@ export const PROVIDER_LABELS: Record<CostProvider, string> = {
 export const FLY_RUN_RATE_ONLY_MESSAGE =
   'Run-rate only — no billed figure recorded this month. Record the Fly dashboard total with: pnpm ops:cost snapshot fly <usd>';
 
-const DEBANK_UNPRICED_MESSAGE = 'Usage synced; USD cost unknown';
+const METERED_UNPRICED_MESSAGE = 'Usage synced; USD cost unknown';
 
 /**
  * Why a persisted row carries no accrued cost.
@@ -73,7 +74,9 @@ export function describeSnapshot(row: SnapshotRow): string | null {
   if (row.provider === 'fly' && row.source === 'api') {
     return FLY_RUN_RATE_ONLY_MESSAGE;
   }
-  return row.provider === 'debank' ? DEBANK_UNPRICED_MESSAGE : null;
+  return row.provider === 'debank' || row.provider === 'brave'
+    ? METERED_UNPRICED_MESSAGE
+    : null;
 }
 
 export function rowToSnapshot(row: SnapshotRow): CostSnapshot {
@@ -123,7 +126,7 @@ export function toProviderResults(
     if (!row) {
       return noCurrentFigure({
         provider,
-        costType: provider === 'supabase' ? 'fixed' : 'estimated',
+        costType: defaultCostType(provider),
         message:
           provider === 'fly' ? 'Needs current estimate' : 'No snapshot yet',
       });
@@ -144,6 +147,14 @@ export function toProviderResults(
       message: describeSnapshot(row),
     };
   });
+}
+
+function defaultCostType(provider: CostProvider): CostType {
+  if (provider === 'supabase') return 'fixed';
+  if (provider === 'debank' || provider === 'brave') {
+    return 'list-price-equivalent';
+  }
+  return 'estimated';
 }
 
 /**
