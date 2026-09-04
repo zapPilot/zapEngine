@@ -8,7 +8,9 @@
 // lead fencing, contextual subject fallback, persisted editorial decisions,
 // and restrained presentation metadata; v9: publisher-title lead identity,
 // publisher-image body reuse, free-first entity-gated search, bounded subject
-// image pools, and Brave as the relevance escalation path).
+// image pools, and Brave as the relevance escalation path; v10: portrait
+// images are always shown whole with dark padding, zero editorial zoom, safe
+// drift, and short directional transitions).
 //
 // It lives here rather than in the pipeline because it is a cross-app contract:
 // both claim RPCs fence on it, so any surface that requeues video work has to
@@ -16,7 +18,7 @@
 // claim. `@zapengine/podcast-pipeline` re-exports this as the value its workers
 // pass; Control Center passes it when restarting an episode's video.
 export const EPISODE_VIDEO_VISUAL_VERSION =
-  'podcast-image-visual-plan.v9' as const;
+  'podcast-image-visual-plan.v10' as const;
 
 export const PODCAST_VIDEO_REVIEW_VERDICTS = [
   'good',
