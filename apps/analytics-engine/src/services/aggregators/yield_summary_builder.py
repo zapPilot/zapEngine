@@ -34,6 +34,15 @@ _FILTERS: dict[str, type[OutlierFilterStrategy]] = {
 }
 
 
+def _delta_date(delta: dict[str, Any]) -> date:
+    raw_date = delta["snapshot_at"]
+    return (
+        raw_date.date()
+        if isinstance(raw_date, datetime)
+        else date.fromisoformat(str(raw_date)[:10])
+    )
+
+
 def build_yield_summary(
     user_id: str,
     deltas: list[dict[str, Any]],
@@ -57,6 +66,7 @@ def build_yield_summary(
             window: _build_window(
                 user_id,
                 series,
+                deltas,
                 anchor,
                 WINDOW_DAYS[window],
                 outlier_strategy,
@@ -73,20 +83,46 @@ def _group_deltas(
         lambda: defaultdict(float)
     )
     for delta in deltas:
-        raw_date = delta["snapshot_at"]
-        parsed_date = (
-            raw_date.date()
-            if isinstance(raw_date, datetime)
-            else date.fromisoformat(str(raw_date)[:10])
-        )
+        parsed_date = _delta_date(delta)
         key = (str(delta["protocol_name"]), str(delta.get("chain") or ""))
         grouped[key][parsed_date] += float(delta["token_yield_usd"])
     return {key: dict(values) for key, values in grouped.items()}
 
 
+def _collect_protocol_metadata(
+    deltas: list[dict[str, Any]],
+    protocol: str,
+    chain: str,
+    start: date,
+    anchor: date,
+) -> tuple[list[str], list[str]]:
+    token_symbols: set[str] = set()
+    position_types: set[str] = set()
+
+    for delta in deltas:
+        if str(delta.get("protocol_name") or "") != protocol:
+            continue
+        if str(delta.get("chain") or "") != chain:
+            continue
+        parsed_date = _delta_date(delta)
+        if not start <= parsed_date <= anchor:
+            continue
+
+        current_amounts = delta.get("current_amounts")
+        if isinstance(current_amounts, dict):
+            token_symbols.update(str(symbol) for symbol in current_amounts if symbol)
+
+        position_type = delta.get("name_item")
+        if position_type:
+            position_types.add(str(position_type))
+
+    return sorted(token_symbols), sorted(position_types)
+
+
 def _build_window(
     user_id: str,
     series: dict[tuple[str, str], dict[date, float]],
+    deltas: list[dict[str, Any]],
     anchor: date,
     days: int,
     outlier_strategy: str,
@@ -122,10 +158,19 @@ def _build_window(
 
         values = list(kept.values())
         latest_day = max(window_series)
+        token_symbols, position_types = _collect_protocol_metadata(
+            deltas,
+            protocol,
+            chain,
+            start,
+            anchor,
+        )
         breakdown.append(
             ProtocolYieldBreakdown(
                 protocol=protocol,
                 chain=chain or None,
+                token_symbols=token_symbols,
+                position_types=position_types,
                 window=ProtocolYieldWindow(
                     total_yield_usd=sum(values),
                     average_daily_yield_usd=mean(values) if values else 0.0,
