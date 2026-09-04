@@ -32,6 +32,7 @@ describe('checkCostSyncCredentials', () => {
     SUPABASE_SERVICE_ROLE_KEY: 'service-role-key',
     DEBANK_API_KEY: 'debank-key',
     OPENROUTER_MANAGEMENT_KEY: 'management-key',
+    BRAVE_SEARCH_API_KEY: 'brave-key',
   };
 
   it('reports every credential present in manual Fly mode', () => {
@@ -56,6 +57,7 @@ describe('checkCostSyncCredentials', () => {
       'SUPABASE_SERVICE_ROLE_KEY',
       'DEBANK_API_KEY',
       'OPENROUTER_MANAGEMENT_KEY',
+      'BRAVE_SEARCH_API_KEY',
     ]);
   });
 
