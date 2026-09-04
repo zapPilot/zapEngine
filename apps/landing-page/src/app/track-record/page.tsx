@@ -13,26 +13,44 @@ const BACKTEST_WINDOW = equityCurve.window;
 
 export default function TrackRecordPage() {
   const state = useTrackRecord();
-  const { meta, latestSnapshot, summary, snapshots, events, isLoading, error } =
-    state;
+  const {
+    meta,
+    latestSnapshot,
+    summary,
+    snapshots,
+    events,
+    isLoading,
+    error,
+    source,
+  } = state;
 
-  // Demo data is not live data: the sentinel CID must not unlock the live
-  // chart or the on-chain wallet links.
-  const hasLiveData = hasLiveTrackRecordData(meta);
+  const hasLiveData = source === 'live' && hasLiveTrackRecordData(meta);
 
   return (
     <div className="track-record-page">
       {error && (
         <div className="track-record-error" role="alert">
-          <p>Failed to load track record: {error}</p>
+          <p>
+            Failed to load {source === 'live' ? 'live ' : ''}track record:{' '}
+            {error}
+          </p>
         </div>
       )}
 
-      {!hasLiveData && !isLoading && (
+      {source === 'backtest' && !isLoading && (
         <div className="pending-banner" role="status">
           <p>
-            <strong>Live tracking pending</strong> — first snapshot not yet
-            committed. Showing backtest performance below.
+            <strong>Backtest mode</strong> — showing historical strategy
+            results. Switch to Live above to load published IPFS snapshots.
+          </p>
+        </div>
+      )}
+
+      {source === 'live' && !hasLiveData && !isLoading && !error && (
+        <div className="pending-banner" role="status">
+          <p>
+            <strong>Live tracking unavailable</strong> — no published snapshot
+            is currently available.
           </p>
         </div>
       )}
@@ -69,11 +87,10 @@ export default function TrackRecordPage() {
 
       {hasLiveData && <NavCurveChart snapshots={snapshots} events={events} />}
 
-      {!hasLiveData && (
+      {source === 'backtest' && (
         <Section kicker="Backtest" title="Historical performance">
           <p className="no-live-notice">
-            No live snapshots yet. The chart below shows backtested performance
-            from{' '}
+            The chart below shows backtested performance from{' '}
             {snapshots.length > 0 ? snapshots[0]!.date : BACKTEST_WINDOW.start}{' '}
             to{' '}
             {snapshots.length > 0
@@ -118,8 +135,9 @@ export default function TrackRecordPage() {
           </ul>
         ) : (
           <p className="no-data-note">
-            Live wallet addresses will appear here once the first snapshot is
-            committed.
+            {source === 'backtest'
+              ? 'Wallet addresses are only shown in Live mode.'
+              : 'Live wallet addresses are unavailable.'}
           </p>
         )}
       </section>

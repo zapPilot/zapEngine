@@ -1,7 +1,7 @@
 'use client';
 
 import * as Sentry from '@sentry/nextjs';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { DailySnapshot, TrackRecordMeta } from '@zapengine/types/strategy';
 import type { PerformanceSummary } from '@/data/track-record-accessor';
 import {
@@ -17,16 +17,17 @@ import type {
   SignatureVerification,
   SnapshotHistoryEntry,
 } from '@/data/track-record-accessor';
-import {
-  isTrackRecordMockEnabled,
-  mockMeta,
-  mockSnapshotEntries,
-} from '@/data/mock-track-record';
+import { mockMeta, mockSnapshotEntries } from '@/data/mock-track-record';
 import type { StrategyEvent } from '@/data/track-record-events';
 import {
   demoStrategyEvents,
   deriveEventsFromSnapshots,
 } from '@/data/track-record-events';
+import {
+  setTrackRecordSource,
+  useTrackRecordSource,
+} from '@/data/track-record-source';
+import type { TrackRecordSource } from '@/data/track-record-source';
 import { DEFAULT_HISTORY_LIMIT } from '@/config/track-record';
 
 export interface TrackRecordState {
@@ -35,7 +36,7 @@ export interface TrackRecordState {
   snapshots: DailySnapshot[];
   latestSnapshot: DailySnapshot | null;
   summary: PerformanceSummary;
-  /** Trade markers for the NAV chart; source follows the demo/live split. */
+  /** Trade markers for the NAV chart; source follows the backtest/live split. */
   events: StrategyEvent[];
   positions: DailySnapshot['positions'];
   verification: {
@@ -51,7 +52,13 @@ export interface TrackRecordState {
   error: string | null;
 }
 
+export interface TrackRecordHookState extends TrackRecordState {
+  source: TrackRecordSource;
+  setSource: (source: TrackRecordSource) => void;
+}
+
 const moduleCache: {
+  source: TrackRecordSource | null;
   meta: TrackRecordMeta | null;
   snapshots: DailySnapshot[] | null;
   snapshotEntries: SnapshotHistoryEntry[] | null;
@@ -60,6 +67,7 @@ const moduleCache: {
   events: StrategyEvent[] | null;
   verification: TrackRecordState['verification'] | null;
 } = {
+  source: null,
   meta: null,
   snapshots: null,
   snapshotEntries: null,
@@ -72,10 +80,13 @@ const moduleCache: {
 type StateUpdate = (previous: TrackRecordState) => TrackRecordState;
 
 /**
- * Cold loads walk the whole CID chain and recover a secp256k1 signature, so
- * consumers mounting together share one load instead of each running their own.
+ * Cold live loads walk the whole CID chain and recover a secp256k1 signature,
+ * so consumers mounting together share one load instead of each running their own.
  */
-let inflight: Promise<StateUpdate> | null = null;
+const inflight: Record<TrackRecordSource, Promise<StateUpdate> | null> = {
+  backtest: null,
+  live: null,
+};
 
 interface LoadedTrackRecord {
   meta: TrackRecordMeta;
@@ -84,6 +95,29 @@ interface LoadedTrackRecord {
   latestSnapshot: DailySnapshot | null;
   summary: PerformanceSummary;
   events: StrategyEvent[];
+}
+
+function initialState(): TrackRecordState {
+  return {
+    meta: null,
+    snapshotEntries: [],
+    snapshots: [],
+    latestSnapshot: null,
+    summary: computePerformanceSummary([]),
+    events: [],
+    positions: [],
+    verification: {
+      chainValid: true,
+      chainBrokenAt: undefined,
+      totalSnapshots: 0,
+      signatureValid: true,
+      signature: null,
+      performanceValid: true,
+      performanceErrors: [],
+    },
+    isLoading: true,
+    error: null,
+  };
 }
 
 async function buildVerification({
@@ -123,9 +157,11 @@ function toLoadedState(
 }
 
 function cacheLoaded(
+  source: TrackRecordSource,
   loaded: LoadedTrackRecord,
   verification: TrackRecordState['verification'],
 ): void {
+  moduleCache.source = source;
   moduleCache.meta = loaded.meta;
   moduleCache.snapshotEntries = loaded.snapshotEntries;
   moduleCache.snapshots = loaded.snapshots;
@@ -136,9 +172,10 @@ function cacheLoaded(
 }
 
 /** The cached verification is reused: nothing it derives from can change. */
-function cachedState(): TrackRecordState | null {
+function cachedState(source: TrackRecordSource): TrackRecordState | null {
   const cache = moduleCache;
   if (
+    cache.source !== source ||
     !cache.meta ||
     !cache.snapshotEntries ||
     !cache.snapshots ||
@@ -162,74 +199,73 @@ function cachedState(): TrackRecordState | null {
   );
 }
 
-async function loadTrackRecord(): Promise<StateUpdate> {
-  try {
-    const meta = await fetchMeta();
+async function loadBacktest(): Promise<StateUpdate> {
+  const snapshotEntries = mockSnapshotEntries;
+  const snapshots = snapshotEntries.map((entry) => entry.snapshot);
+  const latestSnapshot = snapshots[snapshots.length - 1] ?? null;
+  const summary = computePerformanceSummary(snapshots);
+  const events = demoStrategyEvents();
+  const loaded: LoadedTrackRecord = {
+    meta: mockMeta,
+    snapshotEntries,
+    snapshots,
+    latestSnapshot,
+    summary,
+    events,
+  };
+  const verification = await buildVerification(loaded);
 
-    if (!meta.latestSnapshotCid) {
-      // No live snapshot published yet. Fall back to demo data so the whole
-      // UI is reviewable; self-retires once a real CID lands. See
-      // src/data/mock-track-record.ts.
-      if (isTrackRecordMockEnabled()) {
-        const snapshotEntries = mockSnapshotEntries;
-        const snapshots = snapshotEntries.map((entry) => entry.snapshot);
-        const latestSnapshot = snapshots[snapshots.length - 1] ?? null;
-        const summary = computePerformanceSummary(snapshots);
-        // The demo curve is a real backtest, so its markers come from that
-        // same run rather than being re-derived from the synthesised
-        // snapshots.
-        const events = demoStrategyEvents();
-        const loaded: LoadedTrackRecord = {
-          meta: mockMeta,
-          snapshotEntries,
-          snapshots,
-          latestSnapshot,
-          summary,
-          events,
-        };
-        const verification = await buildVerification(loaded);
+  cacheLoaded('backtest', loaded, verification);
+  return () => toLoadedState(loaded, verification);
+}
 
-        cacheLoaded(loaded, verification);
+async function loadLive(): Promise<StateUpdate> {
+  const meta = await fetchMeta();
 
-        return () => toLoadedState(loaded, verification);
-      }
-
-      moduleCache.meta = meta;
-      return (previous) => ({
-        ...previous,
-        meta,
-        isLoading: false,
-        error: null,
-      });
-    }
-
-    const latestSnapshot = await fetchLatestSnapshot(meta);
-    const snapshotEntries = await fetchSnapshotHistoryEntries(
-      meta.latestSnapshotCid,
-      DEFAULT_HISTORY_LIMIT,
-    );
-    const snapshots = snapshotEntries.map((entry) => entry.snapshot);
-    const summary = computePerformanceSummary(snapshots);
-    const events = deriveEventsFromSnapshots(snapshots);
+  if (!meta.latestSnapshotCid) {
     const loaded: LoadedTrackRecord = {
       meta,
-      snapshotEntries,
-      snapshots,
-      latestSnapshot,
-      summary,
-      events,
+      snapshotEntries: [],
+      snapshots: [],
+      latestSnapshot: null,
+      summary: computePerformanceSummary([]),
+      events: [],
     };
     const verification = await buildVerification(loaded);
-
-    cacheLoaded(loaded, verification);
-
+    cacheLoaded('live', loaded, verification);
     return () => toLoadedState(loaded, verification);
+  }
+
+  const latestSnapshot = await fetchLatestSnapshot(meta);
+  const snapshotEntries = await fetchSnapshotHistoryEntries(
+    meta.latestSnapshotCid,
+    DEFAULT_HISTORY_LIMIT,
+  );
+  const snapshots = snapshotEntries.map((entry) => entry.snapshot);
+  const summary = computePerformanceSummary(snapshots);
+  const events = deriveEventsFromSnapshots(snapshots);
+  const loaded: LoadedTrackRecord = {
+    meta,
+    snapshotEntries,
+    snapshots,
+    latestSnapshot,
+    summary,
+    events,
+  };
+  const verification = await buildVerification(loaded);
+
+  cacheLoaded('live', loaded, verification);
+  return () => toLoadedState(loaded, verification);
+}
+
+async function loadTrackRecord(
+  source: TrackRecordSource,
+): Promise<StateUpdate> {
+  try {
+    return source === 'backtest' ? await loadBacktest() : await loadLive();
   } catch (err) {
-    // Terminal boundary for the whole meta -> IPFS -> history -> compute ->
-    // signature chain: nothing here retries, so any failure collapses straight
-    // to the empty state the UI renders from `error`. Report it once per load
-    // rather than per consumer — `inflight` above already dedupes concurrent
-    // mounts onto one `loadTrackRecord()` call.
+    // Terminal boundary for the selected source. Live failures must stay scoped
+    // to Live mode so the default backtest remains usable.
     Sentry.captureException(err, { tags: { component: 'track-record' } });
     return (previous) => ({
       ...previous,
@@ -239,56 +275,44 @@ async function loadTrackRecord(): Promise<StateUpdate> {
   }
 }
 
-export function useTrackRecord() {
-  const [state, setState] = useState<TrackRecordState>({
-    meta: null,
-    snapshotEntries: [],
-    snapshots: [],
-    latestSnapshot: null,
-    summary: computePerformanceSummary([]),
-    events: [],
-    positions: [],
-    verification: {
-      chainValid: true,
-      chainBrokenAt: undefined,
-      totalSnapshots: 0,
-      signatureValid: true,
-      signature: null,
-      performanceValid: true,
-      performanceErrors: [],
-    },
-    isLoading: true,
-    error: null,
-  });
-
-  const mountedRef = useRef(true);
+export function useTrackRecord(): TrackRecordHookState {
+  const source = useTrackRecordSource();
+  const [state, setState] = useState<TrackRecordState>(() => initialState());
 
   useEffect(() => {
-    mountedRef.current = true;
+    let cancelled = false;
 
     async function load() {
-      const cached = cachedState();
+      const cached = cachedState(source);
       if (cached) {
-        setState(cached);
+        if (!cancelled) setState(cached);
         return;
       }
 
-      const request = (inflight ??= loadTrackRecord().finally(() => {
-        inflight = null;
-      }));
+      if (!cancelled) setState(initialState());
+
+      const request = (inflight[source] ??= loadTrackRecord(source).finally(
+        () => {
+          inflight[source] = null;
+        },
+      ));
       const update = await request;
 
-      if (mountedRef.current) {
+      if (!cancelled) {
         setState(update);
       }
     }
 
-    load();
+    void load();
 
     return () => {
-      mountedRef.current = false;
+      cancelled = true;
     };
-  }, []);
+  }, [source]);
 
-  return state;
+  return {
+    ...state,
+    source,
+    setSource: setTrackRecordSource,
+  };
 }

@@ -18,6 +18,16 @@ export default function VerificationPage() {
         Pilot official EOA.
       </p>
 
+      {state.source === 'backtest' && (
+        <div className="pending-banner" role="status">
+          <p>
+            <strong>Backtest mode</strong> — the checks below describe the
+            committed backtest dataset, not a published on-chain snapshot.
+            Switch to Live above for an independently verifiable record.
+          </p>
+        </div>
+      )}
+
       <VerificationPanel state={state} />
 
       <section className="verification-methodology">
