@@ -265,19 +265,24 @@ describe('visual subject catalog', () => {
 });
 
 describe('generic visual subject names', () => {
-  it('recognises category words in either script and ignores case and width', () => {
+  it('blocks abstract categories but not concrete or recognizable visual anchors', () => {
     for (const name of [
       'AI',
       'ai',
       'Ａｉ',
-      'data  center',
-      'Wall Street',
-      '華爾街',
+      'technology',
+      'markets',
       '科技巨头',
     ]) {
       expect(isGenericVisualSubjectName(name)).toBe(true);
     }
     for (const name of [
+      'data  center',
+      'GPU',
+      'servers',
+      'Wall Street',
+      '華爾街',
+      'Silicon Valley',
       'NVIDIA',
       'Andy Jassy',
       'OpenAI',
