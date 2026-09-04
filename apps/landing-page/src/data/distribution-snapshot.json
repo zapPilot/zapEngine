@@ -1,18 +1,18 @@
 {
-  "asOf": "2026-09-03T03:03:29.004+00:00",
+  "asOf": "2026-09-04T01:34:17.862+00:00",
   "coverage": {
     "firstEpisodeAt": "2026-04-26T13:24:28.506345+00:00",
     "lastEpisodeAt": "2026-09-02T14:20:53.061294+00:00",
     "firstPostAt": "2026-08-12T07:13:20.207+00:00",
-    "lastPostAt": "2026-09-03T03:03:29.004+00:00"
+    "lastPostAt": "2026-09-04T01:34:17.862+00:00"
   },
   "funnel": {
     "articles": 303,
-    "localizations": 837,
-    "videos": 191,
-    "posts": 198,
+    "localizations": 838,
+    "videos": 200,
+    "posts": 202,
     "platforms": 4,
-    "reach": 11754
+    "reach": 12064
   },
   "languages": [
     {
@@ -20,24 +20,24 @@
       "localizations": 303,
       "mainAudio": 300,
       "classroomAudio": 248,
-      "posts": 137,
-      "reach": 10296
+      "posts": 138,
+      "reach": 10440
     },
     {
       "code": "ja",
       "localizations": 269,
-      "mainAudio": 265,
+      "mainAudio": 266,
       "classroomAudio": 25,
-      "posts": 34,
-      "reach": 859
+      "posts": 35,
+      "reach": 893
     },
     {
       "code": "en",
-      "localizations": 265,
-      "mainAudio": 256,
+      "localizations": 266,
+      "mainAudio": 260,
       "classroomAudio": 22,
-      "posts": 27,
-      "reach": 599
+      "posts": 29,
+      "reach": 731
     }
   ],
   "channels": [
@@ -56,14 +56,14 @@
     {
       "platform": "rednote",
       "language": "zh-Hant",
-      "posts": 33,
-      "postsWithMetrics": 33,
-      "reach": 2846,
+      "posts": 34,
+      "postsWithMetrics": 34,
+      "reach": 2990,
       "likes": 41,
       "comments": 1,
       "shares": 6,
       "firstPostAt": "2026-08-12T08:18:27.658+00:00",
-      "lastPostAt": "2026-09-03T03:01:20.24+00:00"
+      "lastPostAt": "2026-09-04T00:35:26.098+00:00"
     },
     {
       "platform": "threads",
@@ -80,21 +80,21 @@
     {
       "platform": "x",
       "language": "en",
-      "posts": 10,
-      "postsWithMetrics": 10,
-      "reach": 505,
+      "posts": 11,
+      "postsWithMetrics": 11,
+      "reach": 621,
       "likes": 1,
       "comments": 0,
       "shares": 0,
       "firstPostAt": "2026-08-26T03:04:36.595+00:00",
-      "lastPostAt": "2026-09-03T03:03:21.99+00:00"
+      "lastPostAt": "2026-09-04T01:33:42.438+00:00"
     },
     {
       "platform": "x",
       "language": "ja",
       "posts": 7,
       "postsWithMetrics": 7,
-      "reach": 363,
+      "reach": 386,
       "likes": 2,
       "comments": 0,
       "shares": 0,
@@ -116,14 +116,26 @@
     {
       "platform": "threads",
       "language": "ja",
-      "posts": 17,
-      "postsWithMetrics": 17,
-      "reach": 192,
+      "posts": 18,
+      "postsWithMetrics": 18,
+      "reach": 203,
       "likes": 0,
       "comments": 0,
       "shares": 0,
       "firstPostAt": "2026-08-26T03:01:21.296+00:00",
-      "lastPostAt": "2026-09-03T03:02:44.427+00:00"
+      "lastPostAt": "2026-09-04T00:37:17.15+00:00"
+    },
+    {
+      "platform": "youtube",
+      "language": "en",
+      "posts": 18,
+      "postsWithMetrics": 18,
+      "reach": 110,
+      "likes": 0,
+      "comments": 0,
+      "shares": 0,
+      "firstPostAt": "2026-08-26T00:32:40.916+00:00",
+      "lastPostAt": "2026-09-04T01:34:17.862+00:00"
     },
     {
       "platform": "youtube",
@@ -136,65 +148,53 @@
       "shares": 0,
       "firstPostAt": "2026-08-18T04:14:33.778+00:00",
       "lastPostAt": "2026-08-25T00:40:15.813+00:00"
-    },
-    {
-      "platform": "youtube",
-      "language": "en",
-      "posts": 17,
-      "postsWithMetrics": 17,
-      "reach": 94,
-      "likes": 0,
-      "comments": 0,
-      "shares": 0,
-      "firstPostAt": "2026-08-26T00:32:40.916+00:00",
-      "lastPostAt": "2026-09-03T03:03:29.004+00:00"
     }
   ],
   "reliability": {
-    "publishJobs": 218,
-    "publishJobsCompleted": 218,
+    "publishJobs": 222,
+    "publishJobsCompleted": 222,
     "publishJobsFailed": 0,
-    "metricSnapshots": 1007,
-    "metricSnapshotsCollected": 993,
+    "metricSnapshots": 1095,
+    "metricSnapshotsCollected": 1081,
     "strategyVersions": 47
   },
   "example": {
-    "title": "Coldcard被盗反思：源码可见不等于安全",
-    "sourceUrl": "https://www.panewslab.com/zh/articles/01a02d70-3c32-73d8-8cf6-450e11e90a55",
-    "createdAt": "2026-08-26T22:47:22.566573+00:00",
+    "title": "《GTA 6》泄露背后：黑客发币“割韭菜”，把黑产玩成了Web3营销？",
+    "sourceUrl": "https://www.panewslab.com/zh/articles/01a0322c-ac58-7281-b185-27179bb3351e",
+    "createdAt": "2026-08-26T22:55:47.257437+00:00",
     "localizations": 3,
     "videos": 3,
     "posts": 5,
     "channels": [
       {
-        "platform": "rednote",
-        "language": "zh-Hant",
-        "postUrl": "https://www.xiaohongshu.com/explore/6a90d734000000000403531f",
-        "publishedAt": "2026-08-28T00:32:52.977+00:00"
+        "platform": "threads",
+        "language": "ja",
+        "postUrl": null,
+        "publishedAt": "2026-08-28T03:44:48.481+00:00"
+      },
+      {
+        "platform": "youtube",
+        "language": "ja",
+        "postUrl": "https://www.youtube.com/watch?v=HfLjh8CqW38",
+        "publishedAt": "2026-08-28T03:45:02.983+00:00"
       },
       {
         "platform": "youtube",
         "language": "en",
-        "postUrl": "https://www.youtube.com/watch?v=AUdanKLP6b4",
-        "publishedAt": "2026-08-28T00:33:23.596+00:00"
-      },
-      {
-        "platform": "threads",
-        "language": "ja",
-        "postUrl": null,
-        "publishedAt": "2026-08-28T00:34:58.068+00:00"
-      },
-      {
-        "platform": "youtube",
-        "language": "ja",
-        "postUrl": "https://www.youtube.com/watch?v=b6nX0PBGXfs",
-        "publishedAt": "2026-08-28T00:35:04.717+00:00"
+        "postUrl": "https://www.youtube.com/watch?v=xXo-KoH6fSY",
+        "publishedAt": "2026-08-28T03:46:09.418+00:00"
       },
       {
         "platform": "x",
-        "language": "ja",
-        "postUrl": "https://x.com/i/web/status/2093135313657032766",
-        "publishedAt": "2026-08-28T00:35:22.891+00:00"
+        "language": "en",
+        "postUrl": "https://x.com/i/web/status/2093183418054086770",
+        "publishedAt": "2026-08-28T03:46:31.284+00:00"
+      },
+      {
+        "platform": "rednote",
+        "language": "zh-Hant",
+        "postUrl": "https://www.xiaohongshu.com/explore/6a9104f000000000120124f9",
+        "publishedAt": "2026-08-28T03:48:00.936+00:00"
       }
     ]
   }
