@@ -8,7 +8,7 @@ from src.services.backtesting.signals.technical import (
 )
 
 
-def test_build_technical_signal_snapshot_computes_rsi_momentum_and_volatility() -> None:
+def test_build_technical_signal_snapshot_computes_close_price_indicators() -> None:
     prices = [100.0 + index for index in range(100)]
 
     snapshot = build_technical_signal_snapshot(prices)
@@ -19,6 +19,22 @@ def test_build_technical_signal_snapshot_computes_rsi_momentum_and_volatility() 
     assert snapshot.momentum_90d == pytest.approx(prices[-1] / prices[-91] - 1.0)
     assert snapshot.realized_volatility_20d is not None
     assert snapshot.realized_volatility_20d >= 0.0
+    assert snapshot.macd_12_26 is not None
+    assert snapshot.macd_signal_9 is not None
+    assert snapshot.macd_histogram is not None
+    assert snapshot.bollinger_zscore_20 is not None
+    assert snapshot.bollinger_zscore_20 > 0.0
+    assert snapshot.breakout_20d is True
+    assert snapshot.breakdown_20d is False
+
+
+def test_build_technical_signal_snapshot_detects_20d_breakdown() -> None:
+    prices = [200.0 - index for index in range(40)]
+
+    snapshot = build_technical_signal_snapshot(prices)
+
+    assert snapshot.breakout_20d is False
+    assert snapshot.breakdown_20d is True
 
 
 def test_build_technical_signal_snapshot_handles_insufficient_history() -> None:
@@ -29,8 +45,16 @@ def test_build_technical_signal_snapshot_handles_insufficient_history() -> None:
     assert snapshot.realized_volatility_20d is None
     assert snapshot.momentum_30d is None
     assert snapshot.momentum_90d is None
+    assert snapshot.macd_12_26 is None
+    assert snapshot.macd_signal_9 is None
+    assert snapshot.macd_histogram is None
+    assert snapshot.bollinger_zscore_20 is None
     assert snapshot.bearish_rsi_divergence is False
     assert snapshot.bullish_rsi_divergence is False
+    assert snapshot.macd_bearish_cross is False
+    assert snapshot.macd_bullish_cross is False
+    assert snapshot.breakout_20d is False
+    assert snapshot.breakdown_20d is False
 
 
 def test_detect_rsi_divergence_detects_bearish_trailing_window_proxy() -> None:
