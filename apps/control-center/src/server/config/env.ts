@@ -18,6 +18,7 @@ const schema = z.object({
   OPENROUTER_BASE_URL: optionalString,
   DEBANK_API_KEY: optionalString,
   DEBANK_BASE_URL: optionalString,
+  BRAVE_SEARCH_API_KEY: optionalString,
   FLY_COST_MODE: z.enum(['manual', 'flyctl']).default('manual'),
   SUPABASE_URL: optionalString,
   SUPABASE_SERVICE_ROLE_KEY: optionalString,
@@ -80,6 +81,10 @@ export function checkCostSyncCredentials(
       present: Boolean(
         config.OPENROUTER_MANAGEMENT_KEY ?? config.OPENROUTER_API_KEY,
       ),
+    },
+    {
+      name: 'BRAVE_SEARCH_API_KEY',
+      present: Boolean(config.BRAVE_SEARCH_API_KEY),
     },
   ];
 
