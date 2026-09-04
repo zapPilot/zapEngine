@@ -12,6 +12,12 @@ from src.services.backtesting.portfolio_rules.base import (
     PortfolioSnapshot,
 )
 from src.services.backtesting.portfolio_rules.technical_experiments import (
+    BollingerLowerBandDcaBuyRule,
+    BollingerUpperBandDcaSellRule,
+    Breakdown20dDcaSellRule,
+    Breakout20dDcaBuyRule,
+    MacdBearishCrossDcaSellRule,
+    MacdBullishCrossDcaBuyRule,
     MomentumBreakdownDcaSellRule,
     RsiBearishDivergenceDcaSellRule,
     RsiBullishDivergenceDcaBuyRule,
@@ -47,6 +53,10 @@ def test_rsi_bearish_divergence_sell_matches_and_traces_inputs() -> None:
         momentum_30d=0.04,
         momentum_90d=0.20,
         realized_volatility_20d=0.60,
+        macd_12_26=1200.0,
+        macd_signal_9=1250.0,
+        macd_histogram=-50.0,
+        bollinger_zscore_20=1.2,
         bearish_rsi_divergence=True,
     )
     market = _snapshot_with_btc_technical(technical)
@@ -55,16 +65,24 @@ def test_rsi_bearish_divergence_sell_matches_and_traces_inputs() -> None:
     assert rule.matches(market, config=_CONFIG)
     intent = rule.build_intent(market, config=_CONFIG)
     assert intent.diagnostics is not None
-    assert intent.diagnostics["technical_signals"] == {
-        "BTC": {
-            "rsi_14": 68.0,
-            "rsi_slope_5d": -5.0,
-            "realized_volatility_20d": 0.60,
-            "momentum_30d": 0.04,
-            "momentum_90d": 0.20,
-            "bearish_rsi_divergence": True,
-            "bullish_rsi_divergence": False,
-        }
+    traced = intent.diagnostics["technical_signals"]
+    assert isinstance(traced, dict)
+    assert traced["BTC"] == {
+        "rsi_14": 68.0,
+        "rsi_slope_5d": -5.0,
+        "realized_volatility_20d": 0.60,
+        "momentum_30d": 0.04,
+        "momentum_90d": 0.20,
+        "macd_12_26": 1200.0,
+        "macd_signal_9": 1250.0,
+        "macd_histogram": -50.0,
+        "bollinger_zscore_20": 1.2,
+        "bearish_rsi_divergence": True,
+        "bullish_rsi_divergence": False,
+        "macd_bearish_cross": False,
+        "macd_bullish_cross": False,
+        "breakout_20d": False,
+        "breakdown_20d": False,
     }
 
 
@@ -116,3 +134,39 @@ def test_rsi_oversold_recovery_buy_requires_positive_rsi_slope() -> None:
     rule = RsiOversoldRecoveryDcaBuyRule()
     assert rule.matches(matching, config=_CONFIG)
     assert not rule.matches(falling, config=_CONFIG)
+
+
+def test_macd_cross_rules_match_directional_crosses() -> None:
+    bearish = _snapshot_with_btc_technical(
+        TechnicalSignalSnapshot(macd_bearish_cross=True)
+    )
+    bullish = _snapshot_with_btc_technical(
+        TechnicalSignalSnapshot(macd_bullish_cross=True)
+    )
+
+    assert MacdBearishCrossDcaSellRule().matches(bearish, config=_CONFIG)
+    assert MacdBullishCrossDcaBuyRule().matches(bullish, config=_CONFIG)
+
+
+def test_bollinger_rules_match_two_sigma_extremes() -> None:
+    upper = _snapshot_with_btc_technical(
+        TechnicalSignalSnapshot(bollinger_zscore_20=2.1)
+    )
+    lower = _snapshot_with_btc_technical(
+        TechnicalSignalSnapshot(bollinger_zscore_20=-2.1)
+    )
+
+    assert BollingerUpperBandDcaSellRule().matches(upper, config=_CONFIG)
+    assert BollingerLowerBandDcaBuyRule().matches(lower, config=_CONFIG)
+
+
+def test_channel_break_rules_match_20d_extremes() -> None:
+    breakout = _snapshot_with_btc_technical(
+        TechnicalSignalSnapshot(breakout_20d=True)
+    )
+    breakdown = _snapshot_with_btc_technical(
+        TechnicalSignalSnapshot(breakdown_20d=True)
+    )
+
+    assert Breakout20dDcaBuyRule().matches(breakout, config=_CONFIG)
+    assert Breakdown20dDcaSellRule().matches(breakdown, config=_CONFIG)
