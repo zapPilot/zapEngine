@@ -5,25 +5,42 @@ import {
 import type { YieldReturnsSummaryResponse } from '@zapengine/app-core/services';
 
 export const MIN_OBSERVED_DAYS = 7;
+export const MIN_DISPLAY_MONTHLY_USD = 0.005;
 
 export interface HomeProtocolIncomeRow {
   protocol: string;
   chain?: string;
   /**
    * Net monthly estimate. The summary endpoint reports net protocol yield only,
-   * so borrow interest cannot be split out, and deposits or withdrawals move
-   * this number too. Do not present it as pure yield.
+   * so a negative number is a protocol cost / negative yield, not necessarily
+   * pure borrow interest.
    */
   monthlyNetUsd: number;
+  tokenSymbols: string[];
+  positionTypes: string[];
 }
 
 export interface HomeIncomeView {
   status: 'ready' | 'insufficient' | 'empty';
   passiveMonthlyUsd: number;
+  incomeMonthlyUsd: number;
+  costMonthlyUsd: number;
   medianDailyUsd: number;
   windowDays: number;
   observedDays: number;
   protocolRows: HomeProtocolIncomeRow[];
+}
+
+function sortProtocolRows(
+  a: HomeProtocolIncomeRow,
+  b: HomeProtocolIncomeRow,
+): number {
+  const aPositive = a.monthlyNetUsd > 0;
+  const bPositive = b.monthlyNetUsd > 0;
+
+  if (aPositive !== bPositive) return aPositive ? -1 : 1;
+  if (aPositive) return b.monthlyNetUsd - a.monthlyNetUsd;
+  return a.monthlyNetUsd - b.monthlyNetUsd;
 }
 
 export function buildHomeIncomeView(
@@ -36,6 +53,8 @@ export function buildHomeIncomeView(
   const emptyResult: HomeIncomeView = {
     status: 'empty',
     passiveMonthlyUsd: 0,
+    incomeMonthlyUsd: 0,
+    costMonthlyUsd: 0,
     medianDailyUsd: window?.median_daily_yield_usd ?? 0,
     windowDays,
     observedDays,
@@ -54,19 +73,31 @@ export function buildHomeIncomeView(
         monthlyNetUsd: estimateMonthlyIncomeUsd(
           item.window.average_daily_yield_usd,
         ),
+        tokenSymbols: item.token_symbols ?? [],
+        positionTypes: item.position_types ?? [],
       }),
     )
-    .sort((a, b) => b.monthlyNetUsd - a.monthlyNetUsd);
+    .filter((row) => Math.abs(row.monthlyNetUsd) >= MIN_DISPLAY_MONTHLY_USD)
+    .sort(sortProtocolRows);
 
-  const passiveMonthlyUsd = protocolRows.reduce(
-    (total, row) => total + row.monthlyNetUsd,
+  const incomeMonthlyUsd = protocolRows.reduce(
+    (total, row) =>
+      row.monthlyNetUsd > 0 ? total + row.monthlyNetUsd : total,
     0,
   );
+  const costMonthlyUsd = protocolRows.reduce(
+    (total, row) =>
+      row.monthlyNetUsd < 0 ? total + row.monthlyNetUsd : total,
+    0,
+  );
+  const passiveMonthlyUsd = incomeMonthlyUsd + costMonthlyUsd;
 
   return {
     ...emptyResult,
     status: observedDays < MIN_OBSERVED_DAYS ? 'insufficient' : 'ready',
     passiveMonthlyUsd,
+    incomeMonthlyUsd,
+    costMonthlyUsd,
     protocolRows,
   };
 }
