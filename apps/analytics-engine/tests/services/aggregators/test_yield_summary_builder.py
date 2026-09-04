@@ -10,13 +10,21 @@ from src.services.aggregators.yield_summary_builder import build_yield_summary
 
 
 def _delta(
-    day: date, value: float, protocol: str = "Morpho", chain: str = "ethereum"
+    day: date,
+    value: float,
+    protocol: str = "Morpho",
+    chain: str = "ethereum",
+    *,
+    current_amounts: dict[str, object] | None = None,
+    name_item: str | None = None,
 ) -> dict[str, object]:
     return {
         "snapshot_at": day.isoformat(),
         "protocol_name": protocol,
         "chain": chain,
         "token_yield_usd": value,
+        "current_amounts": current_amounts or {},
+        "name_item": name_item,
     }
 
 
@@ -91,3 +99,27 @@ def test_protocols_are_filtered_independently() -> None:
     assert window.statistics.outliers_removed == 1
     assert morpho.window.data_points == 10
     assert morpho.window.total_yield_usd == pytest.approx(55)
+
+
+def test_protocol_breakdown_carries_window_position_metadata() -> None:
+    end = date(2026, 8, 20)
+    deltas = [
+        _delta(
+            end - timedelta(days=1),
+            1,
+            current_amounts={"USDC": {"amount": 100}, "WETH": {"amount": 0.1}},
+            name_item="Lending",
+        ),
+        _delta(
+            end,
+            2,
+            current_amounts={"USDC": {"amount": 101}},
+            name_item="Lending",
+        ),
+    ]
+
+    window = build_yield_summary("user", deltas, ("7d",), "none").windows["7d"]
+    row = window.protocol_breakdown[0]
+
+    assert row.token_symbols == ["USDC", "WETH"]
+    assert row.position_types == ["Lending"]
