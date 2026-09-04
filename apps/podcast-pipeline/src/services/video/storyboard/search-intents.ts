@@ -448,7 +448,7 @@ type CompactSubjectVerdict =
  * The unit of failure is the subject, never the catalog. One hallucinated
  * "subject-macron" used to throw the whole catalog away and send 64 scenes to
  * "AI engineers monitoring data center servers photo"; now it is dropped and
- * recorded while every grounded named entity still anchors its scenes.
+ * recorded while every grounded visual anchor still anchors its scenes.
  */
 function materializeVisualSubjectCatalog(
   input: unknown,
@@ -490,7 +490,7 @@ function materializeVisualSubjectCatalog(
 
   if (kept.length === 0 && passthrough.length === 0) {
     throw new SearchIntentPayloadError(
-      `Visual subject catalog kept no grounded named subject (dropped ${dropped
+      `Visual subject catalog kept no grounded visual anchor (dropped ${dropped
         .map((entry) => `${entry.id}=${entry.reason}`)
         .join(', ')})`,
     );
@@ -663,19 +663,22 @@ function compactStringArray(value: unknown): string[] {
 
 export function buildSubjectCatalogSystemPrompt(): string {
   return [
-    'Build a compact visual subject catalog for this entire news episode. The catalog drives image search for a news video, so every subject must be something a photo or logo can show.',
-    '- Extract ONLY concrete, visually identifiable named entities that the supplied title or scenes explicitly mention: named people; named companies or organizations; named brands; named products, models, protocols or tools; specific government agencies, regulators or institutions; named places or assets.',
-    '- NEVER create a subject from a generic or abstract concept. Forbidden as subjects: AI, artificial intelligence, technology, tech giants, startups, founders, office, investors, markets, Wall Street as a mood, innovation, governance, data centers, GPUs, servers, engineers, business, finance, debt, bonds, CapEx, cloud, crypto, blockchain, infrastructure, or any similar category word.',
-    '- When a broad word such as "AI" appears, resolve it to the concrete entity named in that context (Anthropic -> Anthropic / Claude; OpenAI -> OpenAI / ChatGPT / GPT / Codex; 輝達 -> NVIDIA). If no concrete entity is named for it, emit no subject for it at all.',
-    '- If a scene names a person, that person is a subject (their photo is the best image). If it names a company, organization, product or institution, that exact entity is a subject. When several concrete entities appear, keep the ones most relevant to the story.',
-    '- Pick exactly one primary subject: the concrete named actor the headline/story is principally about, not a competitor that appears later. It must be a named entity, never a category word, and it may come from the scenes when the title names nobody.',
+    'Build a compact visual anchor catalog for this entire news episode. The catalog drives image search for a news video, so every anchor must point to something that can produce recognizable, story-relevant photographs or logos.',
+    '- Prefer concrete named entities that the supplied title or scenes explicitly mention: people; companies or organizations; products, models, protocols or tools; government agencies, regulators or institutions; brands; named places; and named assets.',
+    '- Recognizable named places remain valid visual anchors even when the prose uses them metonymically. Wall Street, the White House, 中南海, and Silicon Valley are useful because image search returns a distinctive real place rather than generic stock art.',
+    '- Also include an unnamed concrete physical subject or setting when it is materially central to the story or scene, not merely mentioned. Examples include a GPU, data center, server rack, semiconductor fab, robot, mining rig, vehicle, or other photographable object. Use type "object" for these common-noun physical anchors.',
+    '- NEVER create an anchor from a broad abstract category merely because it appears in the text. Forbidden examples: AI, artificial intelligence, technology, tech giants, startups, founders, office, investors, markets, innovation, governance, engineers, business, finance, debt, bonds, CapEx, cloud, crypto, blockchain, infrastructure, or similar concepts with no single recognizable physical subject.',
+    '- When a broad word such as "AI" appears, prefer the concrete entity or physical subject named in that context (Anthropic -> Anthropic / Claude; OpenAI -> OpenAI / ChatGPT / GPT / Codex; 輝達 -> NVIDIA; an article specifically about GPU demand may use GPU as an object anchor). If the passage provides no concrete visual anchor, emit no subject for that concept.',
+    '- If a scene names a person, that person is usually the strongest anchor because their photo is specific. When several valid anchors appear, keep the ones most relevant to what the scene is actually about rather than every noun in the sentence.',
+    '- Pick exactly one primary subject: the named entity or concrete physical subject the headline/story is principally about, not a competitor or incidental object that appears later.',
+    '- Use only these type values: company, person, product, protocol, place, regulator, asset, standard, organization, object. Map a brand to company/product/organization as appropriate, and a government institution to regulator/organization/place as appropriate.',
     '- canonicalName and aliases are identity labels. Do not merge competitors or similarly named things.',
-    '- Copy canonicalName verbatim from the title or scenes. When both an English and a local-script name are present, use the English spelling for canonicalName and put the local-script spelling in aliases (example: canonicalName "NVIDIA", aliases ["輝達"]). Put descriptive industry, category, and role terms only in identityHints.',
-    '- identityHints are 2 to 6 short positive disambiguators such as industry, product, chain, role, or location. They must describe this identity, not a generic mood.',
+    '- Copy canonicalName verbatim from the title or scenes. When both an English and a local-script name are present, use the English spelling for canonicalName and put the local-script spelling in aliases (example: canonicalName "NVIDIA", aliases ["輝達"]). Put descriptive industry, category, role, and physical-context terms only in identityHints.',
+    '- identityHints are 2 to 6 short positive disambiguators such as industry, product, chain, role, location, or physical context. They must help image search identify this anchor, not describe a generic mood.',
     '- negativeHints are only known name-collision meanings to reject (for example animal, camera, engine); do not list ordinary competitors as negative hints.',
-    '- Do not output scene IDs, image-search queries, or domains. The application derives scene evidence and final search queries deterministically from the subject identity.',
-    '- Use stable IDs shaped like subject-nvidia or subject-andy-jassy.',
-    'Return valid JSON only: {"primarySubjectId":"subject-nvidia","subjects":[{"id":"subject-nvidia","canonicalName":"NVIDIA","type":"company","aliases":["輝達"],"storyRole":"primary","identityHints":["GPU maker","AI chips"],"negativeHints":[]},{"id":"subject-andy-jassy","canonicalName":"Andy Jassy","type":"person","aliases":[],"storyRole":"supporting","identityHints":["Amazon CEO"],"negativeHints":[]}]}',
+    '- Do not output scene IDs, image-search queries, or domains. The application derives scene evidence and final search queries deterministically from the anchor identity.',
+    '- Use stable IDs shaped like subject-nvidia, subject-andy-jassy, or subject-gpu.',
+    'Return valid JSON only: {"primarySubjectId":"subject-nvidia","subjects":[{"id":"subject-nvidia","canonicalName":"NVIDIA","type":"company","aliases":["輝達"],"storyRole":"primary","identityHints":["GPU maker","AI chips"],"negativeHints":[]},{"id":"subject-andy-jassy","canonicalName":"Andy Jassy","type":"person","aliases":[],"storyRole":"supporting","identityHints":["Amazon CEO"],"negativeHints":[]},{"id":"subject-gpu","canonicalName":"GPU","type":"object","aliases":[],"storyRole":"supporting","identityHints":["AI accelerator hardware"],"negativeHints":[]}]}',
   ].join('\n');
 }
 
