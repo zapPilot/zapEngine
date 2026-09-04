@@ -17,6 +17,7 @@ const PRIMARY_USAGE_KEY: Record<CostProvider, string> = {
   debank: 'monthly_units',
   fly: FLY_RUN_RATE_USAGE_KEY,
   openrouter: 'monthly',
+  brave: 'monthly_requests',
   supabase: 'monthly_plan',
 };
 
