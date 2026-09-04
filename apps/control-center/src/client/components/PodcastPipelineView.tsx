@@ -147,7 +147,8 @@ function PipelineEpisode(
   const canRestart = isIngestPhase
     ? episode.canRestartIngest
     : episode.canRestartVideo;
-  const restartLabel = isIngestPhase ? 'Restart ingest' : 'Restart video';
+  const restartLabel = isIngestPhase ? 'Restart ingest' : 'Resume video';
+  const restartInProgressLabel = isIngestPhase ? 'Restarting…' : 'Resuming…';
 
   return (
     <article className="open-panel pipeline-episode">
@@ -169,7 +170,7 @@ function PipelineEpisode(
           {episode.currentPhase !== 'done' ? (
             <RestartButton
               disabled={!canRestart || props.isRestarting}
-              label={props.isRestarting ? 'Restarting…' : restartLabel}
+              label={props.isRestarting ? restartInProgressLabel : restartLabel}
               onClick={() =>
                 props.onRestartStep(
                   episode.episodeId,
@@ -182,31 +183,9 @@ function PipelineEpisode(
                 canRestart
                   ? isIngestPhase
                     ? 'Resume translation/TTS from durable checkpoints'
-                    : 'Restart unfinished renders without discarding a current completed visual'
+                    : 'Resume visual planning or unfinished renders from durable checkpoints'
                   : 'Retry requires completed prerequisites and no live lease'
               }
-            />
-          ) : null}
-          {episode.canForceReplanVisual ? (
-            <RestartButton
-              disabled={props.isRestarting}
-              label={
-                confirmReplan
-                  ? 'Confirm re-plan (re-renders 3 videos)'
-                  : 'Re-plan visuals'
-              }
-              onClick={() => {
-                if (!confirmReplan) {
-                  setConfirmReplan(true);
-                  return;
-                }
-                setConfirmReplan(false);
-                props.onRestartStep(episode.episodeId, {
-                  step: 'video',
-                  forceReplan: true,
-                });
-              }}
-              title="Discard the visual checkpoint and generate a new visual plan"
             />
           ) : null}
         </div>
@@ -264,6 +243,34 @@ function PipelineEpisode(
         onResolveReview={props.onResolveReview}
         onSubmitReview={props.onSubmitReview}
       />
+
+      {episode.canForceReplanVisual ? (
+        <details className="pipeline-details">
+          <summary>Advanced recovery</summary>
+          <div className="pipeline-retry-actions">
+            <RestartButton
+              disabled={props.isRestarting}
+              label={
+                confirmReplan
+                  ? 'Confirm re-plan (re-renders 3 videos)'
+                  : 'Re-plan visuals'
+              }
+              onClick={() => {
+                if (!confirmReplan) {
+                  setConfirmReplan(true);
+                  return;
+                }
+                setConfirmReplan(false);
+                props.onRestartStep(episode.episodeId, {
+                  step: 'video',
+                  forceReplan: true,
+                });
+              }}
+              title="Discard the visual checkpoint and generate a new visual plan"
+            />
+          </div>
+        </details>
+      ) : null}
 
       <details className="pipeline-details">
         <summary>Language and render details</summary>
