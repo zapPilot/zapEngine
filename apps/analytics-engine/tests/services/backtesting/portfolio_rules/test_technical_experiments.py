@@ -7,7 +7,10 @@ from src.services.backtesting.portfolio_rules import (
     RULE_NAMES,
     TECHNICAL_EXPERIMENT_RULE_NAMES,
 )
-from src.services.backtesting.portfolio_rules.base import PortfolioRuleConfig
+from src.services.backtesting.portfolio_rules.base import (
+    PortfolioRuleConfig,
+    PortfolioSnapshot,
+)
 from src.services.backtesting.portfolio_rules.technical_experiments import (
     MomentumBreakdownDcaSellRule,
     RsiBearishDivergenceDcaSellRule,
@@ -24,7 +27,7 @@ _CONFIG = PortfolioRuleConfig()
 
 def _snapshot_with_btc_technical(
     technical: TechnicalSignalSnapshot,
-):
+) -> PortfolioSnapshot:
     btc_state = replace(state(symbol="BTC"), technical=technical)
     return snapshot(
         assets={"BTC": btc_state},
@@ -37,12 +40,32 @@ def test_technical_experiments_are_known_but_not_default_rules() -> None:
     assert TECHNICAL_EXPERIMENT_RULE_NAMES.isdisjoint(DEFAULT_PORTFOLIO_RULE_NAMES)
 
 
-def test_rsi_bearish_divergence_sell_matches() -> None:
-    market = _snapshot_with_btc_technical(
-        TechnicalSignalSnapshot(bearish_rsi_divergence=True)
+def test_rsi_bearish_divergence_sell_matches_and_traces_inputs() -> None:
+    technical = TechnicalSignalSnapshot(
+        rsi_14=68.0,
+        rsi_slope_5d=-5.0,
+        momentum_30d=0.04,
+        momentum_90d=0.20,
+        realized_volatility_20d=0.60,
+        bearish_rsi_divergence=True,
     )
+    market = _snapshot_with_btc_technical(technical)
+    rule = RsiBearishDivergenceDcaSellRule()
 
-    assert RsiBearishDivergenceDcaSellRule().matches(market, config=_CONFIG)
+    assert rule.matches(market, config=_CONFIG)
+    intent = rule.build_intent(market, config=_CONFIG)
+    assert intent.diagnostics is not None
+    assert intent.diagnostics["technical_signals"] == {
+        "BTC": {
+            "rsi_14": 68.0,
+            "rsi_slope_5d": -5.0,
+            "realized_volatility_20d": 0.60,
+            "momentum_30d": 0.04,
+            "momentum_90d": 0.20,
+            "bearish_rsi_divergence": True,
+            "bullish_rsi_divergence": False,
+        }
+    }
 
 
 def test_rsi_overbought_sell_requires_falling_rsi() -> None:
