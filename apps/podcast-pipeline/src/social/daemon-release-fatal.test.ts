@@ -289,6 +289,46 @@ describe('social daemon release-shape stages are fatal', () => {
     expect(mocks.captureDueAccountSnapshots).not.toHaveBeenCalled();
   });
 
+  it('releases the whole current language batch when preparation fails before transport', async () => {
+    const xJob = job({
+      id: 'x-en',
+      episode_id: EPISODE_A,
+      platform: 'x',
+      language_code: 'en',
+    });
+    const youtubeJob = job({
+      id: 'youtube-en',
+      episode_id: EPISODE_A,
+      platform: 'youtube',
+      language_code: 'en',
+    });
+    mocks.claimSocialPublishBatch.mockResolvedValue([xJob, youtubeJob]);
+    mocks.publishSocialBatch.mockRejectedValue(
+      new Error('OpenRouter_request_timed_out_after_120000ms'),
+    );
+
+    await expect(
+      runSocialDaemonTick({ now: NOW, firstStartedAt: FIRST_STARTED_AT }),
+    ).rejects.toThrow('OpenRouter_request_timed_out_after_120000ms');
+
+    expect(mocks.releaseSocialPublishJobLease).toHaveBeenCalledWith({
+      jobId: 'x-en',
+      owner: expect.any(String),
+      scheduledAt: NOW.toISOString(),
+      attemptCount: 1,
+      now: NOW,
+    });
+    expect(mocks.releaseSocialPublishJobLease).toHaveBeenCalledWith({
+      jobId: 'youtube-en',
+      owner: expect.any(String),
+      scheduledAt: NOW.toISOString(),
+      attemptCount: 1,
+      now: NOW,
+    });
+    expect(mocks.releaseSocialPublishJobLease).toHaveBeenCalledTimes(2);
+    expect(mocks.refundSocialPublishJobAttempt).not.toHaveBeenCalled();
+  });
+
   it('does not let a failed lease release mask the original fatal error', async () => {
     const jobA1 = job({ id: 'a1', episode_id: EPISODE_A, platform: 'x' });
     const jobB1 = job({
