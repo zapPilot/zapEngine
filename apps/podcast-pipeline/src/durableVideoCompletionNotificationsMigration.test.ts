@@ -38,10 +38,14 @@ describe('durable video completion notification migration', () => {
     expect(normalized).toContain('new.completion_notified_at := null');
   });
 
-  it('exposes service-role-only reap and acknowledgement RPCs', () => {
+  it('gives the immediate sender time to acknowledge before retrying', () => {
     expect(normalized).toContain(
-      'reap_completed_episode_video_notifications',
+      "video.completed_at <= now() - interval '1 minute'",
     );
+  });
+
+  it('exposes service-role-only reap and acknowledgement RPCs', () => {
+    expect(normalized).toContain('reap_completed_episode_video_notifications');
     expect(normalized).toContain('mark_episode_video_completion_notified');
     expect(normalized).toMatch(
       /revoke execute on function from_fed_to_chain\.reap_completed_episode_video_notifications\(integer\)[\s\S]*from public, anon, authenticated;[\s\S]*grant execute[\s\S]*to service_role;/i,
