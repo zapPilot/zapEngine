@@ -5,6 +5,7 @@ import { errorMessage } from '../lib/errorMessage.js';
 import { isRecord } from '../lib/typeGuards.js';
 import { capturePipelineException } from '../observability/sentry.js';
 import type { LanguageClassroomLanguageCode } from '../types.js';
+import { recordVideoCompletionDelivery } from './video-completion-delivery.js';
 
 export type TelegramChatId = number | string;
 
@@ -240,6 +241,8 @@ export async function sendMessage(
   if (!response.ok) {
     throw await telegramApiError('sendMessage', response);
   }
+
+  await recordVideoCompletionDelivery(text);
 }
 
 export function verifySecret(
