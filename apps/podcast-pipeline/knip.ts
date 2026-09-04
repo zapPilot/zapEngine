@@ -2,13 +2,14 @@ import { defineKnipConfig } from '@zapengine/knip-config/base';
 
 export default defineKnipConfig({
   project: ['src/**/*.{ts,tsx}'],
-  // Everything reached only by being executed, never by being imported: two Fly
-  // process-group commands (index/worker) and the package.json CLI scripts.
-  // Declaring them explicitly means reachability stops depending on whether a
-  // co-located test happens to exist.
+  // Everything reached only by being executed, never by being imported: Fly
+  // process-group/preload commands (index/worker/completion notifier) and the
+  // package.json CLI scripts. Declaring them explicitly means reachability stops
+  // depending on whether a co-located test happens to exist.
   entry: [
     'src/index.ts',
     'src/worker.ts',
+    'src/services/video-completion-notifier-autostart.ts',
     'src/observability/sentry-smoke.ts',
     'src/social/cli.ts',
     'src/social/login.ts',
