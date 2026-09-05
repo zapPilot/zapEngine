@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 from datetime import datetime
-from typing import Any
+from typing import Any, Protocol
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -27,9 +27,19 @@ from src.models.yield_returns import (
 from src.services.aggregators.yield_return_aggregator import YieldReturnAggregator
 from src.services.aggregators.yield_summary_builder import build_yield_summary
 from src.services.analytics.analytics_context import PortfolioAnalyticsContext
+from src.services.eth_staking_income import (
+    EthStakingExposure,
+    aggregate_benchmark_lst_exposure,
+    with_eth_staking_income,
+)
+from src.services.lido_staking_apr_provider import LidoStakingAprProvider
 from src.services.shared.base_analytics_service import BaseAnalyticsService
 from src.services.shared.query_names import QUERY_NAMES
 from src.services.shared.query_service import QueryService
+
+
+class StakingAprProvider(Protocol):
+    async def get_benchmark_apr(self) -> float | None: ...
 
 
 class YieldReturnService(BaseAnalyticsService):
@@ -40,9 +50,11 @@ class YieldReturnService(BaseAnalyticsService):
         db: Session,
         query_service: QueryService,
         context: PortfolioAnalyticsContext,
+        staking_apr_provider: StakingAprProvider | None = None,
     ) -> None:
         super().__init__(db, query_service, context)
         self._logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+        self._staking_apr_provider = staking_apr_provider or LidoStakingAprProvider()
 
     async def get_daily_yield_returns(
         self,
@@ -111,7 +123,7 @@ class YieldReturnService(BaseAnalyticsService):
         min_threshold: float = 0.0,
         wallet_address: str | None = None,
     ) -> MultiWindowYieldSummaryResponse:
-        """Return outlier-filtered yield summaries for multiple windows."""
+        """Return observed protocol carry plus current synthetic ETH staking carry."""
         wallet_key, ttl_hours = self._wallet_cache_config(wallet_address)
         cache_key = self._cache_key(
             "yield_summary",
@@ -122,7 +134,7 @@ class YieldReturnService(BaseAnalyticsService):
             f"threshold:{self._normalize_float(min_threshold)}",
         )
 
-        async def compute() -> MultiWindowYieldSummaryResponse:
+        async def compute_observed() -> MultiWindowYieldSummaryResponse:
             _start, _end, deltas = await self._fetch_yield_deltas(
                 user_id,
                 max(int(window.removesuffix("d")) for window in windows) + 1,
@@ -131,7 +143,70 @@ class YieldReturnService(BaseAnalyticsService):
             )
             return build_yield_summary(str(user_id), deltas, windows, outlier_strategy)
 
-        return await self._with_async_cache(cache_key, compute, ttl_hours=ttl_hours)
+        observed_summary = await self._with_async_cache(
+            cache_key, compute_observed, ttl_hours=ttl_hours
+        )
+        return await self._with_current_eth_staking_income(
+            observed_summary,
+            user_id=user_id,
+            wallet_address=wallet_address,
+            wallet_key=wallet_key,
+            ttl_hours=ttl_hours,
+        )
+
+    async def _with_current_eth_staking_income(
+        self,
+        observed_summary: MultiWindowYieldSummaryResponse,
+        *,
+        user_id: UUID,
+        wallet_address: str | None,
+        wallet_key: str,
+        ttl_hours: int,
+    ) -> MultiWindowYieldSummaryResponse:
+        """Append ETH staking run-rate without allowing it to break observed yield."""
+        exposure_cache_key = self._cache_key(
+            "eth_lst_exposure", user_id, wallet_key
+        )
+
+        def compute_exposure() -> EthStakingExposure:
+            rows = self._execute_query(
+                QUERY_NAMES.ETH_LST_LATEST_EXPOSURE,
+                {
+                    "user_id": str(user_id),
+                    "wallet_address": wallet_address,
+                },
+            )
+            return aggregate_benchmark_lst_exposure(rows)
+
+        try:
+            exposure = self._with_cache(
+                exposure_cache_key,
+                compute_exposure,
+                ttl_hours=ttl_hours,
+            )
+            if exposure.total_usd <= 0.0:
+                return observed_summary
+
+            benchmark_apr = await self._staking_apr_provider.get_benchmark_apr()
+            if benchmark_apr is None:
+                self._logger.info(
+                    "Skipping ETH staking income for user %s: no valid Lido APR",
+                    user_id,
+                )
+                return observed_summary
+
+            return with_eth_staking_income(
+                observed_summary,
+                exposure,
+                benchmark_apr,
+            )
+        except Exception as error:
+            self._logger.warning(
+                "ETH staking income attribution unavailable for user %s: %s",
+                user_id,
+                error,
+            )
+            return observed_summary
 
     async def _fetch_yield_deltas(
         self,
