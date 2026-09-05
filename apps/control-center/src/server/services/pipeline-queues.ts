@@ -1,3 +1,5 @@
+import { EPISODE_VIDEO_VISUAL_VERSION } from '@zapengine/types/shared';
+
 import type {
   PipelinePublishedLink,
   PipelineQueueHistoryEvent,
@@ -50,6 +52,7 @@ interface IngestRow {
 interface VisualRow {
   episode_id: string;
   status: string;
+  visual_version: string | null;
   progress_percent: number | null;
   progress_stage: string | null;
   attempt_count: number;
@@ -127,17 +130,19 @@ export function createPipelineQueuesService(input: {
             client
               .from('episode_video_visuals')
               .select(
-                'episode_id,status,progress_percent,progress_stage,attempt_count,next_attempt_at,lease_owner,lease_expires_at,last_error,started_at,completed_at,created_at,updated_at',
+                'episode_id,status,visual_version,progress_percent,progress_stage,attempt_count,next_attempt_at,lease_owner,lease_expires_at,last_error,started_at,completed_at,created_at,updated_at',
               )
               .in('status', ACTIVE_STATUSES)
+              .order('next_attempt_at', { ascending: true })
               .order('created_at', { ascending: true })
               .limit(READ_LIMIT),
             client
               .from('episode_videos')
               .select(
-                'episode_localization_id,episode_id,status,progress_percent,progress_stage,attempt_count,next_attempt_at,lease_owner,lease_expires_at,last_error,started_at,completed_at,thumbnail_url,created_at,updated_at',
+                'episode_localization_id,episode_id,status,visual_version,progress_percent,progress_stage,attempt_count,next_attempt_at,lease_owner,lease_expires_at,last_error,started_at,completed_at,thumbnail_url,created_at,updated_at',
               )
               .in('status', ACTIVE_STATUSES)
+              .order('next_attempt_at', { ascending: true })
               .order('created_at', { ascending: true })
               .limit(READ_LIMIT),
             client
@@ -318,11 +323,13 @@ export function buildPipelineQueues(input: {
         kind: 'visual',
         episode,
         status: row.status,
+        visualVersion: row.visual_version,
         attemptCount: row.attempt_count,
         leaseOwner: row.lease_owner,
         leaseExpiresAt: row.lease_expires_at,
         lastError: row.last_error,
         queuedAt: row.created_at,
+        nextAttemptAt: row.next_attempt_at,
         startedAt: row.started_at,
         completedAt: row.completed_at,
         updatedAt: row.updated_at,
@@ -345,11 +352,13 @@ export function buildPipelineQueues(input: {
         episode,
         languageCode: localization?.language_code,
         status: row.status,
+        visualVersion: row.visual_version,
         attemptCount: row.attempt_count,
         leaseOwner: row.lease_owner,
         leaseExpiresAt: row.lease_expires_at,
         lastError: row.last_error,
         queuedAt: row.created_at,
+        nextAttemptAt: row.next_attempt_at,
         startedAt: row.started_at,
         completedAt: row.completed_at,
         updatedAt: row.updated_at,
@@ -401,11 +410,13 @@ function pipelineItem(input: {
   episode: EpisodeRow;
   languageCode?: string;
   status: string;
+  visualVersion?: string | null;
   attemptCount: number;
   leaseOwner: string | null;
   leaseExpiresAt: string | null;
   lastError: string | null;
   queuedAt: string;
+  nextAttemptAt?: string;
   startedAt?: string | null;
   completedAt?: string | null;
   updatedAt: string;
@@ -420,8 +431,15 @@ function pipelineItem(input: {
     input.leaseExpiresAt,
     input.now,
   );
-  const state =
-    input.status === 'processing' && activeLease
+  const staleVersion = Boolean(
+    !activeLease &&
+      (input.status === 'queued' || input.status === 'processing') &&
+      input.visualVersion &&
+      input.visualVersion !== EPISODE_VIDEO_VISUAL_VERSION,
+  );
+  const state = staleVersion
+    ? 'blocked'
+    : input.status === 'processing' && activeLease
       ? 'processing'
       : input.status === 'failed'
         ? 'failed'
@@ -452,12 +470,13 @@ function pipelineItem(input: {
     ...(input.languageCode ? { languageCode: input.languageCode } : {}),
     state,
     queuedAt: input.queuedAt,
+    ...(input.nextAttemptAt ? { nextAttemptAt: input.nextAttemptAt } : {}),
     ...(input.startedAt ? { startedAt: input.startedAt } : {}),
     updatedAt: input.updatedAt,
     ...(activeLease && input.leaseOwner
       ? { workerId: input.leaseOwner }
       : {}),
-    currentStep: input.currentStep,
+    currentStep: staleVersion ? 'Stale visual version' : input.currentStep,
     ...(input.progressPercent !== null && input.progressPercent !== undefined
       ? { progressPercent: input.progressPercent }
       : {}),
@@ -608,7 +627,12 @@ function lane(
       ),
     queued: items
       .filter((item) => item.state === 'queued' || item.state === 'retrying')
-      .sort((a, b) => time(a.queuedAt) - time(b.queuedAt)),
+      .sort(
+        (a, b) =>
+          time(a.nextAttemptAt ?? a.queuedAt) -
+            time(b.nextAttemptAt ?? b.queuedAt) ||
+          time(a.queuedAt) - time(b.queuedAt),
+      ),
     attention: items
       .filter((item) => item.state === 'failed' || item.state === 'blocked')
       .sort((a, b) => time(a.updatedAt) - time(b.updatedAt)),
