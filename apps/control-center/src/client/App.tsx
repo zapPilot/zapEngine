@@ -25,6 +25,7 @@ import { EconomicsView } from './components/EconomicsView.js';
 import { GrowthDistributionBoard } from './components/GrowthDistributionBoard.js';
 import { GrowthView } from './components/GrowthView.js';
 import { HomeView } from './components/HomeView.js';
+import { PipelineQueuesBoard } from './components/PipelineQueuesBoard.js';
 import { PodcastPipelineView } from './components/PodcastPipelineView.js';
 import { ProductView } from './components/ProductView.js';
 import { ReliabilityView } from './components/ReliabilityView.js';
@@ -35,7 +36,7 @@ const VIEW_META: Record<DashboardView, { subtitle: string; title: string }> = {
     title: 'Home',
   },
   pipeline: {
-    subtitle: 'Article production',
+    subtitle: 'Runtime queues',
     title: 'Pipeline',
   },
   growth: {
@@ -387,16 +388,22 @@ export function App() {
         />
       ) : null}
       {view === 'pipeline' ? (
-        <PodcastPipelineView
-          data={podcastPipeline}
-          onLoadVisualDebug={loadVisualDebug}
-          onResolveReview={resolveReview}
-          onRestartStep={restartStep}
-          onSubmitReview={submitReview}
-          restartingEpisodeId={restartingEpisodeId}
-          statements={statements}
-          visualDebugByEpisode={visualDebugByEpisode}
-        />
+        <div className="view-stack">
+          <PipelineQueuesBoard />
+          <details className="open-panel">
+            <summary>Episode diagnostics & recovery</summary>
+            <PodcastPipelineView
+              data={podcastPipeline}
+              onLoadVisualDebug={loadVisualDebug}
+              onResolveReview={resolveReview}
+              onRestartStep={restartStep}
+              onSubmitReview={submitReview}
+              restartingEpisodeId={restartingEpisodeId}
+              statements={statements}
+              visualDebugByEpisode={visualDebugByEpisode}
+            />
+          </details>
+        </div>
       ) : null}
       {view === 'reliability' ? (
         <ReliabilityView
