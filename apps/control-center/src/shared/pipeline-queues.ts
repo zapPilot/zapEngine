@@ -29,6 +29,7 @@ export interface PipelineQueueItem {
   languageCode?: string;
   state: PipelineQueueState;
   queuedAt?: string;
+  nextAttemptAt?: string;
   startedAt?: string;
   updatedAt?: string;
   workerId?: string;
