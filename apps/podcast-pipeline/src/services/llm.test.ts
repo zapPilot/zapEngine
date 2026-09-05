@@ -312,6 +312,30 @@ describe('createOpenRouterChatCompletion', () => {
 
     expect(vi.getTimerCount()).toBe(0);
   });
+
+  it('throws a clear error instead of crashing when OpenRouter omits the choices array', async () => {
+    // A malformed relay response with no `choices` field at all -- this used
+    // to crash with "Cannot read properties of undefined" deep inside the
+    // logging that follows every completion (Sentry PODCAST-PIPELINE-M).
+    const mockCreate = vi.fn().mockResolvedValue({
+      model: 'test/model',
+      provider: 'Cloudflare',
+    });
+    const openai = createMockOpenAI(mockCreate) as OpenAI;
+
+    await expect(
+      createOpenRouterChatCompletion(
+        openai,
+        {
+          model: 'test/model',
+          messages: [{ role: 'user', content: 'translate this' }],
+        },
+        null,
+      ),
+    ).rejects.toThrow(
+      'OpenRouter returned no choices array for model test/model (provider=Cloudflare)',
+    );
+  });
 });
 
 describe('buildUserMessage', () => {
