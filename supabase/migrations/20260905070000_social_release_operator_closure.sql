@@ -44,6 +44,14 @@ as $$
 declare
   skipped_count integer;
 begin
+  -- Serialize against the daemon claim/update path. Without this lock a queued
+  -- lane could be claimed after the live-lease check and before the close
+  -- update, producing a post after the operator thought the release was closed.
+  perform job.id
+  from from_fed_to_chain.social_publish_jobs job
+  where job.episode_id = p_episode_id
+  for update;
+
   if exists (
     select 1
     from from_fed_to_chain.social_publish_jobs job
@@ -82,7 +90,7 @@ begin
       status in ('queued', 'failed')
       or (
         status = 'processing'
-        and (lease_expires_at is null or lease_expires_at <= p_now)
+        and lease_expires_at <= p_now
       )
     );
 
