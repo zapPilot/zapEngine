@@ -20,9 +20,16 @@ import { getPipelineSupabase, throwSupabaseError } from './supabase-client.js';
  * that test a resize would keep pricing renders at the old rate with nothing
  * going red — the ledger would stay green while quietly reporting the wrong
  * number, which is the failure this whole feature exists to end.
+ *
+ * A resize is therefore a three-part change: the fly.toml block, these two
+ * constants, and a migration inserting the new metric key into `ops.cost_rates`
+ * (`flyRenderRateMigration.test.ts` pins the key to this constant). The old
+ * key's row stays open rather than being closed off — it prices a different
+ * shape, so nothing collides, and closing it would strand any render still
+ * running the previous release with no rate to resolve against.
  */
-export const RENDER_MACHINE_SHAPE = 'performance-2x-2gb';
-export const RENDER_PRICING_METRIC_KEY = 'machine_second_performance_2x_2gb';
+export const RENDER_MACHINE_SHAPE = 'performance-1x-2gb';
+export const RENDER_PRICING_METRIC_KEY = 'machine_second_performance_1x_2gb';
 
 /**
  * A billable stage of one pipeline run. The ingest groups are exactly

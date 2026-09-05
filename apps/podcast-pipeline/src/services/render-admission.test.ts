@@ -10,6 +10,7 @@ import {
   RENDER_ADMISSION_MIN_FREE_BYTES,
   RENDER_MAX_CONCURRENT_JOBS,
   RENDER_MAX_CONCURRENT_VISUAL_JOBS,
+  renderJobCapacity,
 } from './render-admission.js';
 
 // Trimmed to the fields the parser has to distinguish. MemAvailable is here on
@@ -23,12 +24,30 @@ const MEMINFO = [
   '',
 ].join('\n');
 
+describe('renderJobCapacity', () => {
+  // A second job on a single-core machine does not render in parallel — it
+  // queues for a core that does not exist while still holding ~0.75 GiB, which
+  // is what OOM-kills the 2 GB performance-1x render shape.
+  it('gives a single-vCPU machine exactly one slot', () => {
+    expect(renderJobCapacity(1)).toBe(1);
+  });
+
+  it('opens the second slot on a two-vCPU machine', () => {
+    expect(renderJobCapacity(2)).toBe(2);
+  });
+
+  it('never exceeds the cap however many cores the host reports', () => {
+    expect(renderJobCapacity(8)).toBe(RENDER_MAX_CONCURRENT_JOBS);
+  });
+});
+
 describe('evaluateRenderAdmission', () => {
   it('admits the first job whatever memory reports', () => {
     expect(
       evaluateRenderAdmission({
         inFlight: 0,
         inFlightVisuals: 0,
+        capacity: RENDER_MAX_CONCURRENT_JOBS,
         freeBytes: null,
       }),
     ).toEqual({ admit: true, claimVisual: true });
@@ -39,6 +58,7 @@ describe('evaluateRenderAdmission', () => {
       evaluateRenderAdmission({
         inFlight: 1,
         inFlightVisuals: 0,
+        capacity: RENDER_MAX_CONCURRENT_JOBS,
         freeBytes: RENDER_ADMISSION_MIN_FREE_BYTES,
       }),
     ).toEqual({ admit: true, claimVisual: true });
@@ -49,7 +69,12 @@ describe('evaluateRenderAdmission', () => {
     ['MemFree cannot be read at all', null],
   ])('holds the second job when %s', (_reason, freeBytes) => {
     expect(
-      evaluateRenderAdmission({ inFlight: 1, inFlightVisuals: 0, freeBytes }),
+      evaluateRenderAdmission({
+        inFlight: 1,
+        inFlightVisuals: 0,
+        capacity: RENDER_MAX_CONCURRENT_JOBS,
+        freeBytes,
+      }),
     ).toEqual({ admit: false, reason: 'low-memory' });
   });
 
@@ -58,6 +83,20 @@ describe('evaluateRenderAdmission', () => {
       evaluateRenderAdmission({
         inFlight: RENDER_MAX_CONCURRENT_JOBS,
         inFlightVisuals: 0,
+        capacity: RENDER_MAX_CONCURRENT_JOBS,
+        freeBytes: RENDER_ADMISSION_MIN_FREE_BYTES * 4,
+      }),
+    ).toEqual({ admit: false, reason: 'at-capacity' });
+  });
+
+  // The current render shape. Memory is irrelevant here: the core count alone
+  // closes the machine to a second job.
+  it('holds a single-slot machine at capacity however much memory is free', () => {
+    expect(
+      evaluateRenderAdmission({
+        inFlight: 1,
+        inFlightVisuals: 0,
+        capacity: renderJobCapacity(1),
         freeBytes: RENDER_ADMISSION_MIN_FREE_BYTES * 4,
       }),
     ).toEqual({ admit: false, reason: 'at-capacity' });
@@ -68,6 +107,7 @@ describe('evaluateRenderAdmission', () => {
       evaluateRenderAdmission({
         inFlight: 1,
         inFlightVisuals: RENDER_MAX_CONCURRENT_VISUAL_JOBS,
+        capacity: RENDER_MAX_CONCURRENT_JOBS,
         freeBytes: RENDER_ADMISSION_MIN_FREE_BYTES,
       }),
     ).toEqual({ admit: true, claimVisual: false });

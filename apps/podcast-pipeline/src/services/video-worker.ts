@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { hostname } from 'node:os';
+import { availableParallelism, hostname } from 'node:os';
 
 import { errorMessage, toError } from '../lib/errorMessage.js';
 import { capturePipelineException } from '../observability/sentry.js';
@@ -16,8 +16,8 @@ import {
 import {
   evaluateRenderAdmission,
   readProcMemFreeBytes,
-  RENDER_MAX_CONCURRENT_JOBS,
   type RenderAdmission,
+  renderJobCapacity,
 } from './render-admission.js';
 import { isMissingSupabaseRpc } from './supabase-client.js';
 import {
@@ -105,6 +105,14 @@ export type VideoWorkerPollResult =
 export interface EpisodeVideoWorker {
   start(): void;
   runOnce(): Promise<VideoWorkerPollResult>;
+  /**
+   * Stops claiming new work and resolves once nothing is in flight. Unlike
+   * {@link EpisodeVideoWorker.stop} it never aborts a render — the job it is
+   * waiting on keeps its lease and finishes normally. That is what lets the
+   * uptime guard in src/worker.ts end a run without throwing away an hour of
+   * x264. Idempotent, and safe to call with nothing running.
+   */
+  drain(): Promise<void>;
   stop(reason?: unknown): Promise<void>;
 }
 
@@ -135,6 +143,12 @@ export interface CreateVideoWorkerOptions {
    * `MemFree` (see render-admission.ts).
    */
   readFreeMemoryBytes?: () => Promise<number | null>;
+  /**
+   * The machine's vCPU count, which decides how many jobs may run at once
+   * ({@link renderJobCapacity}). Injected so tests can drive both the
+   * single-slot render shape and a two-vCPU machine without one.
+   */
+  cpuCount?: number;
   logger?: VideoWorkerLogger;
   /**
    * Called after each *scheduled* poll (not a direct `runOnce`). The on-demand
@@ -167,6 +181,8 @@ export function createVideoWorker(
     VIDEO_WORKER_LEASE_RENEW_RETRY_INTERVAL_MS;
   const readFreeMemoryBytes =
     options.readFreeMemoryBytes ?? readProcMemFreeBytes;
+  const cpuCount = options.cpuCount ?? availableParallelism();
+  const jobCapacity = renderJobCapacity(cpuCount);
   const logger = options.logger ?? console;
   const shutdownController = new AbortController();
   let pollTimer: NodeJS.Timeout | null = null;
@@ -186,6 +202,25 @@ export function createVideoWorker(
   let stopped = false;
   let consecutivePollFailures = 0;
   let admissionHeld = false;
+  let draining = false;
+  const drainWaiters: (() => void)[] = [];
+
+  /**
+   * Resolves any pending {@link EpisodeVideoWorker.drain} once the machine is
+   * genuinely quiet. An open claim phase counts as busy: a claim RPC already in
+   * flight may still return a job, and abandoning that job would leave its row
+   * leased with nobody rendering it.
+   */
+  const settleDrain = (): void => {
+    if (!draining || drainWaiters.length === 0) return;
+    if (activeJobs.size > 0 || claimPhase !== null) return;
+    for (const resolve of drainWaiters.splice(0)) resolve();
+  };
+
+  const releaseActiveJob = (entry: ActiveJob): void => {
+    activeJobs.delete(entry);
+    settleDrain();
+  };
 
   /**
    * Adds a job to the in-flight set and refreshes what every job that shares
@@ -216,11 +251,16 @@ export function createVideoWorker(
   const admitAnotherJob = async (): Promise<RenderAdmission> => {
     const inFlight = activeJobs.size;
     // The first job is admitted unconditionally, exactly as before slots
-    // existed, so an idle machine never pays for a /proc read.
-    const freeBytes = inFlight === 0 ? null : await readFreeMemoryBytes();
+    // existed, so an idle machine never pays for a /proc read. A single-slot
+    // machine never pays for one at all: it is already at capacity.
+    const freeBytes =
+      inFlight === 0 || inFlight >= jobCapacity
+        ? null
+        : await readFreeMemoryBytes();
     const admission = evaluateRenderAdmission({
       inFlight,
       inFlightVisuals: countActiveVisuals(),
+      capacity: jobCapacity,
       freeBytes,
     });
     // Log the edges of a hold, not every poll inside one: at a 15s interval a
@@ -276,15 +316,20 @@ export function createVideoWorker(
 
   const executePoll = async (): Promise<VideoWorkerPollResult> => {
     if (stopped || shutdownController.signal.aborted) return 'stopped';
+    // Draining reports busy rather than empty: 'empty' exits the process
+    // (src/worker.ts), and the whole point of a drain is to let the render
+    // still in flight finish first.
+    if (draining) return 'busy';
     // This read and the write below it are one synchronous block, so two polls
     // can never both decide they own the claim phase.
-    if (claimPhase !== null || activeJobs.size >= RENDER_MAX_CONCURRENT_JOBS) {
+    if (claimPhase !== null || activeJobs.size >= jobCapacity) {
       return 'busy';
     }
     const claimToken = Symbol('video-worker-claim');
     claimPhase = claimToken;
     const endClaimPhase = (): void => {
       if (claimPhase === claimToken) claimPhase = null;
+      settleDrain();
     };
 
     /**
@@ -357,7 +402,11 @@ export function createVideoWorker(
       try {
         await notify(
           failure.telegramChatId,
-          buildTelegramVideoFailedMessage(failure.episodeId, failure.lastError),
+          buildTelegramVideoFailedMessage(
+            failure.episodeId,
+            failure.lastError,
+            failure.languageCode,
+          ),
           {
             replyMarkup: buildTelegramVideoRetryReplyMarkup(failure.episodeId),
           },
@@ -501,7 +550,7 @@ export function createVideoWorker(
       stopHeartbeat();
       stopProgressFlush();
       releaseShutdownRelay();
-      activeJobs.delete(activeJob);
+      releaseActiveJob(activeJob);
     }
   };
 
@@ -664,7 +713,7 @@ export function createVideoWorker(
       stopHeartbeat();
       stopProgressFlush();
       releaseShutdownRelay();
-      activeJobs.delete(activeJob);
+      releaseActiveJob(activeJob);
       await recordRenderCost({
         job,
         source,
@@ -683,12 +732,21 @@ export function createVideoWorker(
       if (started || stopped) return;
       started = true;
       logger.info(
-        `[video-worker] started lease_owner=${leaseOwner} visual_version=${EPISODE_VIDEO_VISUAL_VERSION}`,
+        `[video-worker] started lease_owner=${leaseOwner} visual_version=${EPISODE_VIDEO_VISUAL_VERSION} job_capacity=${jobCapacity} cpus=${cpuCount}`,
       );
       schedulePoll(0);
     },
 
     runOnce,
+
+    async drain(): Promise<void> {
+      draining = true;
+      if (activeJobs.size === 0 && claimPhase === null) return;
+      await new Promise<void>((resolve) => {
+        drainWaiters.push(resolve);
+        settleDrain();
+      });
+    },
 
     async stop(
       reason = new Error('Video worker shutting down'),

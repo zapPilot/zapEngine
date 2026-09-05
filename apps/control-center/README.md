@@ -53,7 +53,12 @@ queued — older episodes only ever rendered `zh-Hant`), and a queued or expired
 job whose `visual_version` differs from the deployed
 `EPISODE_VIDEO_VISUAL_VERSION` is **Stale version** (`stale`): no worker will
 ever claim it, so it counts as stuck for the pipeline statement and the
-restart button is what repairs it. Completed jobs hide their last progress
+restart button is what repairs it. A third derived state closes an episode for
+good: an `episode_video_visuals` row carrying `abandoned_at` is **Abandoned**
+(`abandoned`), which files the episode under Completed, shows the operator's
+recorded reason, and removes every restart affordance — the underlying rows keep
+whatever state they died in, so this says nobody should restart them rather than
+that the work succeeded. Completed jobs hide their last progress
 stage, and `podcast_ingest_jobs.failure_history` is shown as the recent ingest
 retry history.
 
@@ -88,8 +93,8 @@ Dashboard HTTP views are generally read-only, with three narrowly bounded classe
 - `/api/mcp` exposes the separately authenticated Ops MCP. Its only current write capability is the narrowly allowlisted single-issue Sentry resolve operation documented in [`MCP.md`](./MCP.md).
 - Pipeline step restarts, each a named service-role-only RPC that touches only job rows and never scripts, translation, narration, classroom audio, or arbitrary tables, and each refusing while a live lease exists (mapped to `409`):
   - `POST /api/podcast-pipeline/:episodeId/ingest/retry` → `restart_podcast_ingest`. Requeues the durable ingest job so the app process resumes from the last committed localization stage; refused once all three audio localizations are complete. The RPC recovers the Telegram chat id from any earlier ingest, visual, or render row of the episode, so the original submitter is still notified; only an episode with no such row gets a silent operator job.
-  - `POST /api/podcast-pipeline/:episodeId/video/retry` with `{ "forceReplan": boolean }` → `retry_episode_video_generation`. Materializes missing `ja`/`en` render rows, keeps a completed current-version visual and requeues only unfinished renders; `forceReplan: true` (the two-click **Re-plan visuals** button) discards the visual checkpoint and re-renders all three languages. The service omits `p_force_replan` on the ordinary retry so the call still resolves before the migration is applied.
-  - `POST /api/podcast-pipeline/:episodeId/renders/:localizationId/retry` → `retry_episode_video_render`. Requeues one language render against the completed current-version visual.
+  - `POST /api/podcast-pipeline/:episodeId/video/retry` with `{ "forceReplan": boolean }` → `retry_episode_video_generation`. Materializes missing `ja`/`en` render rows, keeps a completed current-version visual and requeues only unfinished renders; `forceReplan: true` (the two-click **Re-plan visuals** button) discards the visual checkpoint and re-renders all three languages. The service omits `p_force_replan` on the ordinary retry so the call still resolves before the migration is applied. An abandoned episode is refused with `22023` (mapped to `409`), before the release fence is consulted, so the answer names the closure rather than a version mismatch.
+  - `POST /api/podcast-pipeline/:episodeId/renders/:localizationId/retry` → `retry_episode_video_render`. Requeues one language render against the completed current-version visual; also refused with `22023` on an abandoned episode.
 - Operator reviews: `PUT /api/podcast-pipeline/:episodeId/reviews` → `upsert_episode_video_review` and `POST /api/podcast-pipeline/reviews/:reviewId/resolve` → `resolve_episode_video_review` write only the operator's review rows (`reviewer = 'operator'`); they cannot change pipeline state.
 
 Code deploys before the operator pushes the Supabase migrations, so every new route degrades explicitly: a missing RPC (`PGRST202` / `42883`) answers `503` with "migration has not been applied yet", and reads of not-yet-existing columns or tables (`42703`, `42P01`) are separate queries that fall back to empty values. Vercel Authentication is the load-bearing boundary for all of these operator actions.

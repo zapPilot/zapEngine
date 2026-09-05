@@ -89,7 +89,7 @@ create index if not exists idx_pipeline_stage_runs_run
 -- cost is a rate card rather than a reported amount. The seed is derived from
 -- the repository's own reference rate (apps/control-center/src/server/services/
 -- fly.ts): $32.19 per performance vCPU-month. performance-2x is 2 vCPU and
--- includes 2 GB per vCPU, so a 2 GB machine carries no extra RAM charge.
+-- includes 2 GB per vCPU, so a 4 GB machine carried no extra RAM charge.
 --   2 x 32.19 = $64.38 / month / 730 h / 3600 s = $0.00002450 / second
 -- Reconcile against the first real Fly invoice. A correction is a new version:
 -- close this row's effective_to and insert another, never edit in place.
@@ -104,11 +104,11 @@ insert into ops.cost_rates (
 values
   (
     'fly',
-    'machine_second_performance_2x_2gb',
+    'machine_second_performance_2x_4gb',
     'second',
     0.00002450,
     '2026-08-01T00:00:00Z',
-    '2 vCPU x $32.19 per performance vCPU-month / 730 h / 3600 s; performance-2x includes 2 GB at no extra RAM charge'
+    '2 vCPU x $32.19 per performance vCPU-month / 730 h / 3600 s; performance-2x includes 4 GB at no extra RAM charge'
   )
 on conflict (provider, metric_key, effective_from) do nothing;
 

@@ -236,6 +236,7 @@ function startableConcurrentRenders() {
     repository,
     processJob,
     notify: vi.fn().mockResolvedValue(undefined),
+    cpuCount: 2,
     readFreeMemoryBytes: vi
       .fn()
       .mockResolvedValue(RENDER_ADMISSION_MIN_FREE_BYTES),
@@ -628,6 +629,7 @@ describe('createVideoWorker', () => {
       repository,
       processJob: vi.fn().mockReturnValue(render.promise),
       notify: vi.fn().mockResolvedValue(undefined),
+      cpuCount: 2,
       readFreeMemoryBytes: vi.fn().mockResolvedValue(freeBytes),
       logger,
       leaseOwner: 'worker-1',
@@ -678,6 +680,142 @@ describe('createVideoWorker', () => {
     await Promise.all([first, second]);
   });
 
+  // The performance-1x render shape. A second job would queue for a core that
+  // does not exist while still holding its own ~0.75 GiB, which is what
+  // OOM-kills a 2 GB machine.
+  it('runs strictly one job at a time on a single-vCPU machine', async () => {
+    const repository = makeRepository();
+    vi.mocked(repository.claim)
+      .mockResolvedValueOnce(job())
+      .mockResolvedValue(null);
+    const render = createDeferred<EpisodeVideoCompletion>();
+    const readFreeMemoryBytes = vi
+      .fn()
+      .mockResolvedValue(Number.MAX_SAFE_INTEGER);
+    const processJob: ProcessEpisodeVideoJob = vi.fn(
+      (_job, _source, context) => {
+        context.reportRenderMetrics(renderMetrics);
+        return render.promise;
+      },
+    );
+    const worker = createVideoWorker({
+      repository,
+      processJob,
+      notify: vi.fn().mockResolvedValue(undefined),
+      cpuCount: 1,
+      readFreeMemoryBytes,
+      leaseOwner: 'worker-1',
+    });
+
+    const first = worker.runOnce();
+    await vi.waitFor(() => expect(repository.loadSource).toHaveBeenCalled());
+    await expect(worker.runOnce()).resolves.toBe('busy');
+    expect(repository.claim).toHaveBeenCalledTimes(1);
+    // Capacity alone closed the slot, so the guard never paid for a /proc read.
+    expect(readFreeMemoryBytes).not.toHaveBeenCalled();
+
+    render.resolve(completion);
+    await expect(first).resolves.toBe('completed');
+    expect(
+      (ledger.recordPipelineRun.mock.calls[0]?.[0] as PipelineRunInput)
+        .stages[0]?.usage?.['concurrentJobs'],
+    ).toBe(1);
+  });
+
+  it('drain() resolves immediately when nothing is in flight', async () => {
+    const worker = createVideoWorker({
+      repository: makeRepository(null),
+      processJob: vi.fn(),
+      leaseOwner: 'worker-1',
+    });
+
+    await expect(worker.drain()).resolves.toBeUndefined();
+    await worker.stop();
+  });
+
+  it('drain() stops claiming and waits for the render in flight to finish', async () => {
+    const repository = makeRepository();
+    vi.mocked(repository.claim)
+      .mockResolvedValueOnce(job())
+      .mockResolvedValue(null);
+    const render = createDeferred<EpisodeVideoCompletion>();
+    const aborted = vi.fn();
+    const processJob: ProcessEpisodeVideoJob = vi.fn(
+      (_job, _source, context) => {
+        context.signal.addEventListener('abort', aborted, { once: true });
+        return render.promise;
+      },
+    );
+    const worker = createVideoWorker({
+      repository,
+      processJob,
+      notify: vi.fn().mockResolvedValue(undefined),
+      cpuCount: 2,
+      readFreeMemoryBytes: vi
+        .fn()
+        .mockResolvedValue(RENDER_ADMISSION_MIN_FREE_BYTES),
+      leaseOwner: 'worker-1',
+    });
+
+    const first = worker.runOnce();
+    await vi.waitFor(() => expect(processJob).toHaveBeenCalledTimes(1));
+
+    let settled = false;
+    const draining = (async () => {
+      await worker.drain();
+      settled = true;
+    })();
+    // The second slot is open and memory is fine, but a draining worker must
+    // not take on work it would then have to wait for.
+    await expect(worker.runOnce()).resolves.toBe('busy');
+    expect(repository.claim).toHaveBeenCalledTimes(1);
+    expect(settled).toBe(false);
+    // Unlike stop(), a drain never abandons the render it is waiting on.
+    expect(aborted).not.toHaveBeenCalled();
+
+    render.resolve(completion);
+    await expect(first).resolves.toBe('completed');
+    await draining;
+    expect(settled).toBe(true);
+    expect(aborted).not.toHaveBeenCalled();
+  });
+
+  // A claim RPC already in flight can still return a job. Resolving the drain
+  // on the empty in-flight set would leave that row leased with nobody
+  // rendering it.
+  it('drain() waits for a claim already in flight, then for the job it returns', async () => {
+    const repository = makeRepository();
+    const claim = createDeferred<EpisodeVideoJobRow | null>();
+    vi.mocked(repository.claim).mockReturnValue(claim.promise);
+    const render = createDeferred<EpisodeVideoCompletion>();
+    const worker = createVideoWorker({
+      repository,
+      processJob: vi.fn().mockReturnValue(render.promise),
+      notify: vi.fn().mockResolvedValue(undefined),
+      leaseOwner: 'worker-1',
+    });
+
+    const first = worker.runOnce();
+    await vi.waitFor(() => expect(repository.claim).toHaveBeenCalled());
+
+    let settled = false;
+    const draining = (async () => {
+      await worker.drain();
+      settled = true;
+    })();
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    claim.resolve(job());
+    await vi.waitFor(() => expect(repository.loadSource).toHaveBeenCalled());
+    expect(settled).toBe(false);
+
+    render.resolve(completion);
+    await expect(first).resolves.toBe('completed');
+    await draining;
+    expect(settled).toBe(true);
+  });
+
   it('aborts every job in flight when the worker stops', async () => {
     const repository = makeRepository();
     vi.mocked(repository.claim)
@@ -702,6 +840,7 @@ describe('createVideoWorker', () => {
       repository,
       processJob,
       notify: vi.fn().mockResolvedValue(undefined),
+      cpuCount: 2,
       readFreeMemoryBytes: vi
         .fn()
         .mockResolvedValue(RENDER_ADMISSION_MIN_FREE_BYTES),
@@ -730,6 +869,7 @@ describe('createVideoWorker', () => {
       repository,
       processJob: vi.fn().mockReturnValue(render.promise),
       notify: vi.fn().mockResolvedValue(undefined),
+      cpuCount: 2,
       readFreeMemoryBytes: vi
         .fn()
         .mockResolvedValue(RENDER_ADMISSION_MIN_FREE_BYTES),
@@ -756,6 +896,7 @@ describe('createVideoWorker', () => {
       visualRepository,
       processJob: vi.fn(),
       processVisualJob: vi.fn().mockReturnValue(planning.promise),
+      cpuCount: 2,
       readFreeMemoryBytes: vi
         .fn()
         .mockResolvedValue(RENDER_ADMISSION_MIN_FREE_BYTES),
@@ -831,6 +972,7 @@ describe('createVideoWorker', () => {
           episodeLocalizationId: 'localization-1',
           telegramChatId: 'last-chat',
           episodeId: 'episode-1',
+          languageCode: 'zh-Hant',
           lastError: 'render failed',
         },
       ]);
@@ -868,6 +1010,7 @@ describe('createVideoWorker', () => {
         episodeLocalizationId: 'localization-1',
         telegramChatId: 'last-chat',
         episodeId: 'episode-1',
+        languageCode: 'zh-Hant',
         lastError: 'render failed',
       },
     ]);
@@ -1021,7 +1164,9 @@ describe('createVideoWorker', () => {
     await worker.stop();
   });
 
-  it('start() announces the lease owner and supported visual version', async () => {
+  // job_capacity is the cheapest proof in `fly logs` that a resized machine is
+  // running the number of jobs it can actually afford.
+  it('start() announces the lease owner, visual version and slot count', async () => {
     vi.useFakeTimers();
     const repository = makeRepository(null);
     const logger = { info: vi.fn(), error: vi.fn() };
@@ -1030,12 +1175,13 @@ describe('createVideoWorker', () => {
       processJob: vi.fn(),
       logger,
       leaseOwner: 'host-1:42:uuid',
+      cpuCount: 1,
       pollIntervalMs: 15_000,
     });
 
     worker.start();
     expect(logger.info).toHaveBeenCalledWith(
-      `[video-worker] started lease_owner=host-1:42:uuid visual_version=${EPISODE_VIDEO_VISUAL_VERSION}`,
+      `[video-worker] started lease_owner=host-1:42:uuid visual_version=${EPISODE_VIDEO_VISUAL_VERSION} job_capacity=1 cpus=1`,
     );
     await worker.stop();
   });
@@ -1066,6 +1212,7 @@ describe('createVideoWorker', () => {
       repository,
       processJob: vi.fn().mockReturnValue(render.promise),
       notify: vi.fn().mockResolvedValue(undefined),
+      cpuCount: 2,
       readFreeMemoryBytes: vi
         .fn()
         .mockResolvedValue(RENDER_ADMISSION_MIN_FREE_BYTES),
@@ -1270,6 +1417,7 @@ describe('createVideoWorker', () => {
           episodeLocalizationId: 'localization-1',
           telegramChatId: 'last-chat',
           episodeId: 'episode-1',
+          languageCode: 'zh-Hant',
           lastError: 'render failed',
         },
       ]);
@@ -1600,12 +1748,12 @@ describe('render cost ledger', () => {
       attempt: 1,
       elapsedMs: 480_000,
       pricing: {
-        metricKey: 'machine_second_performance_2x_2gb',
+        metricKey: 'machine_second_performance_1x_2gb',
         quantity: 480,
       },
     });
     expect(run.stages[0]?.usage).toMatchObject({
-      machine: 'performance-2x-2gb',
+      machine: 'performance-1x-2gb',
       cgroupPeakObservedMb: 3_012.1,
     });
     expect(run.stages[0]?.usage?.['jobWallMs']).toEqual(expect.any(Number));

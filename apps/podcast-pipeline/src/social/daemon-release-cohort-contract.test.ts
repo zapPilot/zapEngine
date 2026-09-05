@@ -133,6 +133,42 @@ function readyEpisode(episodeId: string) {
   );
 }
 
+function claimedLane(
+  episodeId: string,
+  platform: string,
+  language_code: 'zh-Hant' | 'ja' | 'en',
+  id: string,
+) {
+  return {
+    id,
+    episode_id: episodeId,
+    platform,
+    language_code,
+    experiment_key: null,
+    experiment_variant: null,
+    status: 'processing' as const,
+    scheduled_at: '2026-09-02T01:00:00.000Z',
+    next_attempt_at: '2026-09-02T01:00:00.000Z',
+    strategy_version_id: null,
+    social_post_id: null,
+    attempt_count: 1,
+    lease_owner: 'owner',
+    lease_expires_at: '2026-09-02T02:00:00.000Z',
+    last_error: null,
+    completed_at: null,
+    created_at: CREATED_AT,
+    updated_at: CREATED_AT,
+  };
+}
+
+function claimedCohort(episodeId: string) {
+  return [
+    claimedLane(episodeId, 'rednote', 'zh-Hant', `${episodeId}-rednote`),
+    claimedLane(episodeId, 'x', 'ja', `${episodeId}-x`),
+    claimedLane(episodeId, 'youtube', 'en', `${episodeId}-youtube`),
+  ];
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.alignPendingSocialReleaseCohorts.mockResolvedValue({
@@ -287,6 +323,107 @@ describe('NON-NEGOTIABLE episode release cohort contract', () => {
     expect(log).toHaveBeenCalledWith(
       expect.stringContaining('partial release holds the queue'),
     );
+  });
+
+  it('holds the whole article when a claimed lane lost its video before transport', async () => {
+    mocks.claimReleaseCohortJobs.mockResolvedValue(claimedCohort(ARTICLE_A));
+    // A force re-plan between enqueue and this tick requeued the ja render, so
+    // its completed video is gone from the readiness view.
+    mocks.listSocialPublishCandidatesForEpisodes.mockResolvedValue([
+      candidate(ARTICLE_A, 'zh-Hant'),
+      candidate(ARTICLE_A, 'en'),
+    ]);
+    const log = vi.fn();
+
+    await runSocialDaemonTick({
+      now: NOW,
+      firstStartedAt: FIRST_STARTED_AT,
+      log,
+    });
+
+    expect(mocks.publishSocialBatch).not.toHaveBeenCalled();
+    expect(mocks.failSocialPublishJob).toHaveBeenCalledTimes(3);
+    for (const [input] of mocks.failSocialPublishJob.mock.calls) {
+      expect(input.error).toContain('Release held');
+      expect(input.error).toContain('ja');
+    }
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('release held'));
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('ja'));
+  });
+
+  it('requires every durable lane language, not only the lanes claimed this tick', async () => {
+    // Only the zh-Hant lane is due, but the episode's durable cohort also owns
+    // a ja lane whose video is missing: publishing zh-Hant now would ship a
+    // permanently partial article.
+    mocks.claimReleaseCohortJobs.mockResolvedValue([
+      claimedLane(ARTICLE_A, 'rednote', 'zh-Hant', 'job-zh'),
+    ]);
+    mocks.listPendingSocialPublishSchedules.mockResolvedValue([
+      {
+        episode_id: ARTICLE_A,
+        platform: 'rednote',
+        language_code: 'zh-Hant',
+        scheduled_at: '2026-09-02T01:00:00.000Z',
+        completed_at: null,
+        status: 'processing',
+      },
+      {
+        episode_id: ARTICLE_A,
+        platform: 'x',
+        language_code: 'ja',
+        scheduled_at: '2026-09-02T01:00:00.000Z',
+        completed_at: null,
+        status: 'queued',
+      },
+    ]);
+    mocks.listSocialPublishCandidatesForEpisodes.mockResolvedValue([
+      candidate(ARTICLE_A, 'zh-Hant'),
+    ]);
+
+    await runSocialDaemonTick({ now: NOW, firstStartedAt: FIRST_STARTED_AT });
+
+    expect(mocks.publishSocialBatch).not.toHaveBeenCalled();
+    expect(mocks.failSocialPublishJob).toHaveBeenCalledWith(
+      expect.objectContaining({ jobId: 'job-zh' }),
+    );
+  });
+
+  it('holds only the episode that lost media and still publishes the others', async () => {
+    mocks.claimReleaseCohortJobs.mockResolvedValue([
+      ...claimedCohort(ARTICLE_A),
+      claimedLane(ARTICLE_B, 'rednote', 'zh-Hant', 'b-rednote'),
+    ]);
+    mocks.listSocialPublishCandidatesForEpisodes.mockResolvedValue([
+      candidate(ARTICLE_A, 'zh-Hant'),
+      candidate(ARTICLE_A, 'en'),
+      candidate(ARTICLE_B, 'zh-Hant'),
+    ]);
+    // No social_posts row exists until transport actually runs, so
+    // reconciliation cannot mistake an unpublished lane for a published one.
+    let transportRan = false;
+    mocks.publishSocialBatch.mockImplementation(async () => {
+      transportRan = true;
+      return [
+        { platform: 'rednote', status: 'published', url: 'https://xhs/1' },
+      ];
+    });
+    mocks.listSocialPostsByEpisode.mockImplementation(async () =>
+      transportRan ? [{ id: 'post-b', post_url: 'https://xhs/1' }] : [],
+    );
+
+    await runSocialDaemonTick({ now: NOW, firstStartedAt: FIRST_STARTED_AT });
+
+    expect(mocks.publishSocialBatch).toHaveBeenCalledOnce();
+    expect(mocks.publishSocialBatch).toHaveBeenCalledWith(
+      expect.objectContaining({ episodeId: ARTICLE_B }),
+    );
+    expect(mocks.completeSocialPublishJob).toHaveBeenCalledWith(
+      expect.objectContaining({ jobId: 'b-rednote' }),
+    );
+    expect(mocks.failSocialPublishJob).toHaveBeenCalledTimes(3);
+    for (const [input] of mocks.failSocialPublishJob.mock.calls) {
+      expect(input.jobId).toContain(ARTICLE_A);
+    }
   });
 
   it('repairs the durable queue before discovering any new article', async () => {

@@ -1,20 +1,34 @@
 import { readFile } from 'node:fs/promises';
 
 /**
- * How many jobs one render Machine runs at once.
+ * The most jobs any render Machine may run at once — a ceiling, not the live
+ * capacity, which {@link renderJobCapacity} derives from the vCPU count.
  *
- * Two, because `performance-2x` has two vCPUs and a 720p encode saturates
- * roughly one of them — production sampling put both cores at 75-90% for the
- * whole encode of a single render. A third job would queue for CPU it cannot
- * get while still holding its own memory, so this constant must never exceed
- * the machine's vCPU count.
+ * Two, because everything below it is built for exactly one extra job:
+ * {@link RENDER_ADMISSION_MIN_FREE_BYTES} budgets one render's worth of
+ * anonymous memory, the visual cap is one, and `render-capacity.ts` wakes a
+ * single Machine on the assumption that it fills its own second slot.
  *
- * What the second slot buys is not a faster encode. It is the ~90 s per render
- * (narration download, alignment, upload) plus the poll gap between jobs, when
- * the dedicated CPU previously did no encoding at all. Setting this back to 1
- * restores the strictly serial behaviour.
+ * What that second slot buys is not a faster encode — one 720p encode already
+ * saturates a core. It is the ~90 s per render (narration download, alignment,
+ * upload) plus the poll gap between jobs, when the dedicated CPU would
+ * otherwise do no encoding at all.
  */
 export const RENDER_MAX_CONCURRENT_JOBS = 2;
+
+/**
+ * How many jobs this machine may actually run, given its vCPU count.
+ *
+ * A job past the core count does not render in parallel: it queues for CPU it
+ * cannot get while still holding ~0.75 GiB of its own anonymous memory. On the
+ * current `performance-1x` render shape that is the difference between fitting
+ * in 2 GB and being OOM-killed — production sampling put two concurrent renders
+ * at 2608 MB against a solo peak of 1908 MB. So the cap tracks the hardware
+ * rather than the fly.toml shape, and a resize needs no change here.
+ */
+export function renderJobCapacity(cpuCount: number): number {
+  return Math.min(RENDER_MAX_CONCURRENT_JOBS, cpuCount);
+}
 
 /**
  * Visual planning stays serial even when a render runs beside it.
@@ -48,6 +62,8 @@ export type RenderAdmission =
 export interface RenderAdmissionInput {
   inFlight: number;
   inFlightVisuals: number;
+  /** This machine's slot count; see {@link renderJobCapacity}. */
+  capacity: number;
   /** `null` when the host exposes no `MemFree`; see {@link readProcMemFreeBytes}. */
   freeBytes: number | null;
 }
@@ -55,7 +71,7 @@ export interface RenderAdmissionInput {
 export function evaluateRenderAdmission(
   input: RenderAdmissionInput,
 ): RenderAdmission {
-  if (input.inFlight >= RENDER_MAX_CONCURRENT_JOBS) {
+  if (input.inFlight >= input.capacity) {
     return { admit: false, reason: 'at-capacity' };
   }
   // An unreadable MemFree fails closed to the behaviour that predates slots:

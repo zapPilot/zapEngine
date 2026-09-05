@@ -3,6 +3,19 @@
   gap: var(--gap);
 }
 
+.pipeline-filter {
+  margin-top: 18px;
+}
+
+.pipeline-filter input {
+  width: min(100%, 520px);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  padding: 9px 11px;
+}
+
 .pipeline-summary {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -178,7 +191,8 @@
   color: var(--status-degraded);
 }
 
-.pipeline-status-unscheduled {
+.pipeline-status-unscheduled,
+.pipeline-status-abandoned {
   color: var(--status-unknown);
 }
 
@@ -191,6 +205,11 @@
 }
 
 .pipeline-status-pending {
+  color: var(--status-unknown);
+}
+
+.pipeline-abandoned-reason {
+  display: block;
   color: var(--status-unknown);
 }
 

@@ -174,6 +174,25 @@ Rednote lane never releases early while another language is still missing.
 Pre-v2 episodes retain their historical required-language set so an old backlog
 item is not made newly incomplete by deploying the experiment.
 
+### Publish-time re-check
+
+Enqueue-time readiness is a snapshot, not a lock. A force re-plan between enqueue
+and publish requeues a render and removes the completed video underneath an
+already claimed cohort; publishing then ships the languages that survived and
+dies fatally on the one that did not, which is a permanently partial article.
+
+So `holdCohortsMissingMedia()` re-reads `social_publish_candidates` after the
+cohort is claimed and before any transport runs, over every durable lane language
+of the episode rather than only the lanes claimed this tick. If any is missing,
+that episode's claimed lanes are failed with `Release held: <languages> video is
+not completed` and the episode is dropped from the tick; every other episode
+still publishes normally.
+
+Failing rather than releasing the leases is deliberate. Media disappearing after
+enqueue is exceptional state that has to be visible in `last_error` and the queue
+summary, and spending an attempt is what keeps the partial-cohort fence bounded:
+after `MAX_PUBLISH_ATTEMPTS` the lane is dead and stops holding the queue.
+
 `resolveRequiredReleaseLanguages()` owns the readiness set and
 `resolveReleaseCohortLanes()` owns the final slot-derived lane shape. Discovery
 must use both rather than reconstructing language policy from platform timing.

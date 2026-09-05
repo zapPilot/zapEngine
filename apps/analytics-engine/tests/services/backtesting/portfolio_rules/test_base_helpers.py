@@ -16,6 +16,7 @@ from src.services.backtesting.portfolio_rules.base import (
     FgiRegime,
     PortfolioRuleConfig,
     PortfolioSnapshot,
+    _DcaRuleBase,
     add_split_proceeds,
     add_stable,
     allocation_key_for_symbol,
@@ -315,3 +316,5 @@ def test_dca_rule_base_abstract_hooks_raise_when_not_implemented() -> None:
         DcaSellRuleBase()._matching_symbols(snapshot())
     with pytest.raises(NotImplementedError):
         DcaSellRuleBase().proceeds_handler({}, 0.10)
+    with pytest.raises(NotImplementedError):
+        _DcaRuleBase().build_intent(snapshot(), config=PortfolioRuleConfig())

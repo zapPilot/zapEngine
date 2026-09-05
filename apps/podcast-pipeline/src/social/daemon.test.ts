@@ -231,7 +231,15 @@ beforeEach(() => {
   mocks.listPastDueSocialPublishJobs.mockResolvedValue([]);
   mocks.rescheduleSocialPublishJob.mockResolvedValue(true);
   mocks.listSocialPublishCandidates.mockResolvedValue([]);
-  mocks.listSocialPublishCandidatesForEpisodes.mockResolvedValue([]);
+  // Publishing now re-checks media for every claimed cohort, so the default is
+  // the normal production state -- every episode asked about is fully ready.
+  // Tests that exercise the hold override this.
+  mocks.listSocialPublishCandidatesForEpisodes.mockImplementation(
+    async (episodeIds: readonly string[]) =>
+      episodeIds.flatMap((episodeId) =>
+        fullCohortCandidates(episodeId, EPISODE_CREATED_AT),
+      ),
+  );
   mocks.getActiveSocialStrategies.mockResolvedValue([]);
   mocks.getSocialQueueSnapshot.mockResolvedValue({
     pendingCount: 0,
