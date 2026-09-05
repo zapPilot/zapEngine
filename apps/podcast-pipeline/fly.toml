@@ -20,7 +20,7 @@ kill_timeout = '30s'
 # Bluegreen is forbidden for this app. Fly clones every existing Machine into
 # the green release, including stopped orphans, and a failed or cancelled deploy
 # does not clean those clones up. It also starts every green render Machine,
-# burning performance-2x capacity while the worker's 90-second idle exit races
+# burning dedicated-CPU capacity while the worker's 90-second idle exit races
 # the deploy. Rolling updates the existing app and render Machines in place, so
 # the fleet cannot multiply. Its short Telegram webhook gap is absorbed by
 # Telegram retries and the durable ingest job/lease recovery path.
@@ -90,27 +90,38 @@ kill_timeout = '30s'
   processes = ['app']
 
 # Video rendering needs a dedicated CPU. A shared vCPU has a baseline of 1/16 of
-# a core, and once the burst balance is spent x264 collapses. New renders use
-# 720x1280 at 24fps, but performance CPU remains until production telemetry
-# proves a smaller shape is cheaper per completed video.
+# a core, and once the burst balance is spent x264 collapses — a shared shape is
+# also no cheaper per CPU-second here, because this group is billed by the
+# second and stops itself when the queue empties.
 #
-# The renderer used to keep every supersampled scene image alive in one giant
-# xfade graph; a production 54-scene render drove ffmpeg to ~3.6 GiB RSS and was
-# OOM-killed on this 4 GB Machine. Portrait renders now encode at most eight
-# supersampled scenes at a time, then compose those 720x640 chunk videos in a
-# small final pass. `video:render-metrics` samples cgroup memory every 250 ms and
-# reports `cgroupPeakObservedMb`, so 4 GB stays in place until production data
-# proves a smaller memory or CPU shape is safe and cheaper per completed video.
+# One vCPU is the shape the ops ledger settled on. Thirty days of production
+# rows put a solo render at 0.92 machine-seconds per second of finished video
+# spread over roughly 1.6 cores, so a single vCPU should take 1.3-1.6x longer
+# per render at half the hourly rate: the cost per finished video is a wash, and
+# what actually changes is the ceiling. A machine stuck awake now burns ~$32 a
+# month instead of ~$64. The slowdown fits inside `renderTimeoutMsFor` without
+# touching it — the tightest of those 30 days of renders finished at 2.5x its
+# own timeout, p05 at 2.96x.
 #
-# This Machine now carries two jobs at once (src/services/render-admission.ts).
-# One 720p encode already saturates roughly one of the two vCPUs, so the second
-# slot does not make an encode faster — it fills the ~90 s per render spent on
-# narration download, alignment and upload, when the dedicated CPU was idle.
-# Sampling a solo render put anonymous memory near 1.0 GiB with a further
-# ~0.9 GiB of reclaimable page cache on top; the worker therefore admits the
-# second job on `MemFree`, never on `MemAvailable`, whose estimate reads
-# 50-78 MiB on these VMs while GiB are genuinely free.
+# 2 GB is not a choice: Fly bills every performance vCPU with 2 GB attached, so
+# this is the smallest performance shape that exists. It fits because portrait
+# renders are bounded-memory. The renderer used to keep every supersampled scene
+# image alive in one giant xfade graph, which drove ffmpeg to ~3.6 GiB RSS and
+# was OOM-killed; it now encodes at most VERTICAL_MEDIA_CHUNK_SIZE (8)
+# supersampled scenes at a time (src/services/video/ffmpeg-video.ts) and
+# composes those 720x640 chunks in a small final pass. Against that, solo
+# renders peaked at 1366 MB (p50) / 1841 MB (p95) / 1908 MB (max) of cgroup
+# memory, and roughly 0.9 GB of that is reclaimable page cache — anonymous
+# memory sat near 1.0 GiB. `video:render-metrics` keeps sampling it every 250 ms
+# as `cgroupPeakObservedMb`. If renders start failing with ffmpeg killed, halve
+# that chunk size before buying RAM back.
+#
+# One vCPU also means one job at a time. `renderJobCapacity()` derives the cap
+# from `os.availableParallelism()` (src/services/render-admission.ts), so the
+# second slot — and the `MemFree` reading that admits it — only ever opens on a
+# 2-vCPU shape. Two concurrent renders peaked at 2608 MB, which does not fit
+# here.
 [[vm]]
-  size = 'performance-2x'
+  size = 'performance-1x'
   memory = '2gb'
   processes = ['render']

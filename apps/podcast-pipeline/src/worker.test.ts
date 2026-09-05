@@ -8,6 +8,7 @@ vi.mock('./services/episode-video-visual-processor.js', () => ({
   processEpisodeVideoVisualJob: vi.fn(),
 }));
 
+import { createDeferred } from './__fixtures__/index-test.js';
 import type { VideoWorkerPollResult } from './services/video-worker.js';
 import {
   preflightVideoWorkerRuntime,
@@ -17,6 +18,7 @@ import {
 } from './worker.js';
 
 const IDLE_SHUTDOWN_MS = 60_000;
+const MAX_UPTIME_MS = 600_000;
 
 const openHandles: VideoWorkerProcessHandle[] = [];
 
@@ -24,6 +26,7 @@ function makeHarness(overrides: Partial<VideoWorkerProcessOptions> = {}) {
   const videoWorker = {
     start: vi.fn(),
     runOnce: vi.fn(),
+    drain: vi.fn().mockResolvedValue(undefined),
     stop: vi.fn().mockResolvedValue(undefined),
   };
   const visualFailureNotifier = {
@@ -180,6 +183,80 @@ describe('startVideoWorkerProcess', () => {
 
     expect(videoWorker.stop).toHaveBeenCalledTimes(1);
     expect(exit).toHaveBeenCalledTimes(1);
+  });
+
+  // The idle exit cannot cover a poll that keeps throwing: it never reaches
+  // onPollResult, so 'empty' never arrives and a dedicated CPU burns until
+  // somebody notices.
+  it('hands the queue back once the boot has run past the uptime ceiling', async () => {
+    vi.useFakeTimers();
+    const { exit, videoWorker, logger } = makeHarness({
+      maxUptimeMs: MAX_UPTIME_MS,
+    });
+
+    await vi.advanceTimersByTimeAsync(MAX_UPTIME_MS - 1_000);
+    expect(exit).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(2_000);
+
+    expect(videoWorker.drain).toHaveBeenCalledOnce();
+    expect(videoWorker.stop).toHaveBeenCalledOnce();
+    expect(exit).toHaveBeenCalledWith(0);
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('uptime:shutdown uptimeMs='),
+    );
+  });
+
+  it('waits for the drain before exiting on the uptime ceiling', async () => {
+    vi.useFakeTimers();
+    const drained = createDeferred<void>();
+    const { exit, videoWorker } = makeHarness({ maxUptimeMs: MAX_UPTIME_MS });
+    videoWorker.drain.mockReturnValue(drained.promise);
+
+    await vi.advanceTimersByTimeAsync(MAX_UPTIME_MS + 1_000);
+    // The render is still going. Exiting here is exactly what the drain exists
+    // to prevent — the process would abort it on the way out.
+    expect(videoWorker.drain).toHaveBeenCalledOnce();
+    expect(videoWorker.stop).not.toHaveBeenCalled();
+    expect(exit).not.toHaveBeenCalled();
+
+    drained.resolve();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(videoWorker.stop).toHaveBeenCalledOnce();
+    expect(exit).toHaveBeenCalledExactlyOnceWith(0);
+  });
+
+  it('exits once even if empty polls keep landing after the uptime ceiling', async () => {
+    vi.useFakeTimers();
+    const { exit, videoWorker, poll } = makeHarness({
+      idleShutdownMs: IDLE_SHUTDOWN_MS,
+      maxUptimeMs: MAX_UPTIME_MS,
+    });
+
+    await vi.advanceTimersByTimeAsync(MAX_UPTIME_MS + 1_000);
+    poll('empty');
+    await vi.advanceTimersByTimeAsync(IDLE_SHUTDOWN_MS * 2);
+    poll('empty');
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(videoWorker.stop).toHaveBeenCalledTimes(1);
+    expect(exit).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not fire the uptime guard after an ordinary shutdown', async () => {
+    vi.useFakeTimers();
+    const { handle, exit, videoWorker } = makeHarness({
+      maxUptimeMs: MAX_UPTIME_MS,
+    });
+
+    await handle.shutdown('SIGTERM');
+    videoWorker.stop.mockClear();
+    await vi.advanceTimersByTimeAsync(MAX_UPTIME_MS * 2);
+
+    expect(videoWorker.drain).not.toHaveBeenCalled();
+    expect(videoWorker.stop).not.toHaveBeenCalled();
+    expect(exit).not.toHaveBeenCalled();
   });
 });
 

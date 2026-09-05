@@ -88,6 +88,7 @@ describe('bootstrap', () => {
     const providedWorker = {
       start: vi.fn(),
       runOnce: vi.fn(),
+      drain: vi.fn().mockResolvedValue(undefined),
       stop: vi.fn().mockResolvedValue(undefined),
     };
     const processJob = vi.fn().mockResolvedValue({});
@@ -130,6 +131,7 @@ describe('bootstrap', () => {
       videoWorker: {
         start: vi.fn(),
         runOnce: vi.fn(),
+        drain: vi.fn().mockResolvedValue(undefined),
         stop,
       },
     });
@@ -331,6 +333,7 @@ describe('bootstrap', () => {
     const videoWorker = {
       start: vi.fn(),
       runOnce: vi.fn(),
+      drain: vi.fn().mockResolvedValue(undefined),
       stop: vi.fn(async () => {
         order.push('videoWorker:stop');
       }),
