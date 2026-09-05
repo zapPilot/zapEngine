@@ -174,6 +174,25 @@ Rednote lane never releases early while another language is still missing.
 Pre-v2 episodes retain their historical required-language set so an old backlog
 item is not made newly incomplete by deploying the experiment.
 
+### Publish-time re-check
+
+Enqueue-time readiness is a snapshot, not a lock. A force re-plan between enqueue
+and publish requeues a render and removes the completed video underneath an
+already claimed cohort; publishing then ships the languages that survived and
+dies fatally on the one that did not, which is a permanently partial article.
+
+So `holdCohortsMissingMedia()` re-reads `social_publish_candidates` after the
+cohort is claimed and before any transport runs, over every durable lane language
+of the episode rather than only the lanes claimed this tick. If any is missing,
+that episode's claimed lanes are failed with `Release held: <languages> video is
+not completed` and the episode is dropped from the tick; every other episode
+still publishes normally.
+
+Failing rather than releasing the leases is deliberate. Media disappearing after
+enqueue is exceptional state that has to be visible in `last_error` and the queue
+summary, and spending an attempt is what keeps the partial-cohort fence bounded:
+after `MAX_PUBLISH_ATTEMPTS` the lane is dead and stops holding the queue.
+
 `resolveRequiredReleaseLanguages()` owns the readiness set and
 `resolveReleaseCohortLanes()` owns the final slot-derived lane shape. Discovery
 must use both rather than reconstructing language policy from platform timing.
@@ -386,3 +405,29 @@ pnpm --filter @zapengine/podcast-pipeline social:publish '<episode>' --platform 
 Verify the platform itself and the resulting `social_posts` record before using
 `--force`; `--force` intentionally bypasses local duplicate protection and can
 create a second live post.
+
+### Restarting after an interrupted publish
+
+After acquiring the machine-wide lock, the daemon expires outstanding publish
+leases whose owner is on this host and whose PID no longer exists. The first
+tick can reclaim these lanes without waiting for the original 60-minute lease.
+Rows remain `processing`, retaining their article schedule, attempt count and
+retry backoff; normal reconciliation and the pre-transport existing-post check
+still protect persisted platform posts from being sent again. Live PIDs, unknown
+process state and owners on other hosts are never reclaimed early. Queue timing
+includes processing lease expiry and prints `leased until` for waiting lanes.
+
+When an exact episode/platform/language has a successful historical entry in
+`~/.zap-pilot/social-publisher.json` but no `social_posts` row, the claimed job is
+completed under its lease using the original publication timestamp. It retains
+a null `social_post_id`: unavailable historical copy and analytics are not
+reconstructed from freshly generated text. This recovery happens before copy
+generation or transport, and is retried safely after a lost completion lease.
+A newly reported publish still requires its durable `social_posts` record.
+
+On startup, the daemon prints the latest 100 completed local-only lanes in a
+separate `history` section, grouped by article so a lane is never listed under a
+neighbouring article's title, with original publication times and matching local
+links. These are historical records, not scheduled reposts; missing links and
+telemetry are labelled explicitly. History display failures are nonfatal and
+never prevent the publishing loop from starting.

@@ -6,7 +6,8 @@ export type PodcastPipelineStatus =
   | 'stuck'
   | 'stale'
   | 'completed'
-  | 'failed';
+  | 'failed'
+  | 'abandoned';
 
 export type PodcastPipelinePhase = 'translation' | 'tts' | 'video' | 'done';
 
@@ -55,6 +56,22 @@ export interface PodcastPipelineVisualQuery {
 }
 
 /**
+ * One result the provider returned, in the order it returned it. Counts alone
+ * could say a request returned 100 and kept 13; only the results themselves say
+ * what the other 87 were, which is the first question a wrong image raises.
+ */
+export interface PodcastPipelineVisualSearchCandidate {
+  imageUrl: string;
+  sourceUrl: string;
+  altText: string | null;
+  providerRank: number;
+  dropReason: string | null;
+  /** The scene that ended up with this exact result, joined through the scene
+   * selection's own query and provider rank. Null for every other candidate. */
+  selectedBySceneId: string | null;
+}
+
+/**
  * One Brave request. `sceneId` is null for the episode-wide primary searches
  * that build the candidate pool before any scene owns an image, so the panel
  * lists requests by subject rather than by scene.
@@ -68,6 +85,9 @@ export interface PodcastPipelineVisualSearchAttempt {
   returned: number;
   viable: number;
   drops: { reason: string; count: number }[];
+  /** Empty for a request recorded before candidates were traced, and for a
+   * request that failed before the provider answered. */
+  candidates: PodcastPipelineVisualSearchCandidate[];
   error: string | null;
 }
 
@@ -129,12 +149,15 @@ export interface PodcastPipelineEpisode {
   ingest: PodcastPipelineIngestState | null;
   localizations: PodcastPipelineLocalization[];
   visual: PodcastPipelineJobState | null;
-  /** Added by the visual-search debug rollout; optional for cached/older API fixtures. */
-  visualDebug?: PodcastPipelineVisualDebug | null;
   renders: PodcastPipelineRenderState[];
   canRestartIngest: boolean;
   canRestartVideo: boolean;
-  canForceReplanVisual: boolean;
+  /**
+   * Set once an operator closes an episode's video work for good. It is
+   * derived, not a lifecycle status: the underlying rows keep whatever state
+   * they died in, and this only says nobody should restart them.
+   */
+  abandoned?: { at: string; reason: string } | null;
 }
 
 export type PodcastPipelineRestartAction =

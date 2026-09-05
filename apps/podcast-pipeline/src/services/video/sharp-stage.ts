@@ -93,12 +93,6 @@ export interface SharpCropStageInput {
   position: 'center' | 'top' | 'bottom';
 }
 
-const cropPositions = {
-  center: 'centre',
-  top: 'top',
-  bottom: 'bottom',
-} as const;
-
 export async function runSharpCropStage(
   inputPath: string,
   outputPath: string,
@@ -107,13 +101,26 @@ export async function runSharpCropStage(
     inputPath,
     'Sharp crop stage',
   );
-  await resizeImageToPng({
-    ...input,
-    outputPath,
-    position: cropPositions[input.position] ?? 'centre',
-    pngOptions: {
+  configureSharp();
+  // Portrait news media must remain completely visible. The old `cover` path
+  // cropped wide photos before FFmpeg ever saw them, so later motion could not
+  // recover faces, logos, screenshots, or text near the edges. Keep the legacy
+  // stage name for stored job compatibility, but its portrait contract is now
+  // contain + dark padding; focal `position` is intentionally ignored.
+  await sharp(input.imagePath, {
+    failOn: 'error',
+    animated: false,
+  })
+    .rotate()
+    .resize(input.width, input.height, {
+      fit: 'contain',
+      position: 'centre',
+      background: '#101014',
+      kernel: sharp.kernel.lanczos3,
+    })
+    .png({
       compressionLevel: 1,
       adaptiveFiltering: false,
-    },
-  });
+    })
+    .toFile(outputPath);
 }

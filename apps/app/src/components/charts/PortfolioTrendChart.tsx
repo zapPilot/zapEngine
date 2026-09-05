@@ -7,10 +7,13 @@ import {
 } from 'react-native';
 
 import { Sparkline } from '@/components/charts/Sparkline';
+import type { TranslationKey, TranslationParams } from '@/i18n/translations';
 import {
+  attributionContributorKey,
   calculateAdjacentSnapshotChange,
   type DailyValuePoint,
   nearestTrendPointIndex,
+  type PortfolioAttributionContributor,
   snapshotCategoryTotals,
   trendPointX,
 } from '@/integration/portfolioMetrics';
@@ -24,8 +27,26 @@ interface PortfolioTrendChartProps {
   gradientId?: string;
 }
 
-const TOOLTIP_WIDTH = 184;
+const TOOLTIP_WIDTH = 220;
 const MARKER_RADIUS = 4;
+const MAX_ATTRIBUTION_ROWS = 6;
+
+const ATTRIBUTION_LABEL_KEY: Record<'market' | 'amount', TranslationKey> = {
+  market: 'portfolio.tooltip.attribution.price',
+  amount: 'portfolio.tooltip.attribution.balance',
+};
+
+function attributionLabel(
+  contributor: PortfolioAttributionContributor,
+  t: (key: TranslationKey, params?: TranslationParams) => string,
+): string {
+  if (contributor.kind === 'residual') {
+    return t('portfolio.tooltip.attribution.other');
+  }
+  return t(ATTRIBUTION_LABEL_KEY[contributor.kind], {
+    name: contributor.label,
+  });
+}
 
 export function PortfolioTrendChart({
   trendPoints,
@@ -102,6 +123,9 @@ export function PortfolioTrendChart({
   const categoryTotals = selectedPoint
     ? snapshotCategoryTotals(selectedPoint)
     : {};
+  const allAttribution = selectedPoint?.attribution ?? [];
+  const attribution = allAttribution.slice(0, MAX_ATTRIBUTION_ROWS);
+  const hiddenAttributionCount = allAttribution.length - attribution.length;
   const dateLabel = formatSnapshotDate(selectedPoint?.date, languageCode);
 
   return (
@@ -146,14 +170,44 @@ export function PortfolioTrendChart({
                 {t('portfolio.tooltip.change')}: {formatSignedUsd(change.usd)}
               </Text>
             ) : null}
+
+            {attribution.length > 0 ? (
+              <View className="mt-2 gap-1 border-t border-line pt-1.5">
+                {attribution.map((contributor) => (
+                  <View
+                    key={attributionContributorKey(contributor)}
+                    testID="portfolio-trend-attribution-row"
+                    className="flex-row items-center justify-between gap-2"
+                  >
+                    <Text
+                      numberOfLines={1}
+                      className="min-w-0 flex-1 font-mono text-[9.5px] text-ink-dim"
+                    >
+                      {attributionLabel(contributor, t)}
+                    </Text>
+                    <Text className="font-mono text-[9.5px] text-ink">
+                      {formatSignedUsd(contributor.valueUsd)}
+                    </Text>
+                  </View>
+                ))}
+                {hiddenAttributionCount > 0 ? (
+                  <Text className="font-mono text-[9px] text-ink-faint">
+                    {t('portfolio.tooltip.attribution.more', {
+                      count: hiddenAttributionCount,
+                    })}
+                  </Text>
+                ) : null}
+              </View>
+            ) : null}
+
             {categoryTotals.assetsUsd === undefined ? null : (
-              <Text className="mt-0.5 font-mono text-[10px] text-ink-dim">
+              <Text className="mt-1.5 font-mono text-[9px] text-ink-faint">
                 {t('portfolio.tooltip.assets')}:{' '}
                 {formatUsd(categoryTotals.assetsUsd)}
               </Text>
             )}
             {categoryTotals.debtUsd === undefined ? null : (
-              <Text className="mt-0.5 font-mono text-[10px] text-ink-dim">
+              <Text className="mt-0.5 font-mono text-[9px] text-ink-faint">
                 {t('portfolio.tooltip.debt')}:{' '}
                 {formatUsd(categoryTotals.debtUsd)}
               </Text>

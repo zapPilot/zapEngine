@@ -93,6 +93,22 @@ function summarize(
   )[0];
 }
 
+function summarizeCompletedVisual(
+  visualOverrides: Record<string, unknown> = {},
+  renders: RenderRow[] = queuedRenders(),
+) {
+  return summarize({
+    visuals: [
+      visual({
+        status: 'completed',
+        visual_version: EPISODE_VIDEO_VISUAL_VERSION,
+        ...visualOverrides,
+      }),
+    ],
+    renders,
+  });
+}
+
 describe('podcast pipeline summary', () => {
   it('shows a terminal visual failure instead of pretending queued renders are still progressing', () => {
     const summary = summarize({
@@ -153,15 +169,7 @@ describe('podcast pipeline summary', () => {
     // Legacy single-language episodes and partial enqueues leave fewer than
     // three `episode_videos` rows. Since retry_episode_video_generation inserts
     // the missing rows, the operator can repair them with one restart.
-    const summary = summarize({
-      visuals: [
-        visual({
-          status: 'completed',
-          visual_version: EPISODE_VIDEO_VISUAL_VERSION,
-        }),
-      ],
-      renders: queuedRenders().slice(0, 1),
-    });
+    const summary = summarizeCompletedVisual({}, queuedRenders().slice(0, 1));
 
     expect(summary).toMatchObject({
       videoStatus: 'unscheduled',
@@ -211,6 +219,56 @@ describe('podcast pipeline summary', () => {
         lastError: 'translation provider failed',
       },
     });
+  });
+
+  it('closes an abandoned episode instead of offering any restart', () => {
+    const summary = summarize({
+      visuals: [
+        visual({
+          status: 'failed',
+          attempt_count: 3,
+          last_error:
+            'Scene alignment requires at least one localized sentence',
+          abandoned_at: '2026-09-05T10:00:00.000Z',
+          abandoned_reason: 'ja render cannot align; closed by operator',
+        }),
+      ],
+      renders: queuedRenders(),
+    });
+
+    expect(summary).toMatchObject({
+      currentPhase: 'done',
+      videoStatus: 'abandoned',
+      canRestartVideo: false,
+      abandoned: {
+        at: '2026-09-05T10:00:00.000Z',
+        reason: 'ja render cannot align; closed by operator',
+      },
+    });
+    expect(summary?.renders.every(({ canRestart }) => !canRestart)).toBe(true);
+  });
+
+  it('names an abandoned episode with no recorded reason rather than showing a blank', () => {
+    const summary = summarizeCompletedVisual({
+      abandoned_at: '2026-09-05T10:00:00.000Z',
+      abandoned_reason: '   ',
+    });
+
+    expect(summary?.abandoned?.reason).toBe('No reason recorded');
+  });
+
+  it('behaves exactly as before when the abandon columns are absent', () => {
+    // Control Center can deploy ahead of the migration, in which case the
+    // per-episode abandon read is skipped and the rows carry neither column.
+    const summary = summarizeCompletedVisual();
+
+    expect(summary).toMatchObject({
+      currentPhase: 'video',
+      videoStatus: 'queued',
+      canRestartVideo: true,
+      abandoned: null,
+    });
+    expect(summary?.renders.every(({ canRestart }) => canRestart)).toBe(true);
   });
 
   it('marks an expired ingest lease as stuck instead of indefinitely processing', () => {

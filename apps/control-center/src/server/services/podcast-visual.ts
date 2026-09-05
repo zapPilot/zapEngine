@@ -11,6 +11,7 @@ import type {
 } from '../../shared/podcast-visual.js';
 import type { ControlCenterConfig } from '../config/env.js';
 import { record, records, stringArray } from './json.js';
+import { visualSearchDebug } from './podcast-visual-search-debug.js';
 import {
   createConfiguredServiceRoleClient,
   isMissingColumnError,
@@ -48,46 +49,31 @@ export function createPodcastVisualService(input: {
         return unavailable('unconfigured', 'Supabase is not connected');
       }
       try {
-        const [
-          episodeResult,
-          visualBaseResult,
-          localizationsResult,
-          rendersResult,
-          reviewsResult,
-        ] = await Promise.all([
-          client
-            .from('episodes')
-            .select('id,source_title,source_url')
-            .eq('id', episodeId)
-            .maybeSingle<{
-              id: string;
-              source_title: string | null;
-              source_url: string;
-            }>(),
-          client
-            .from('episode_video_visuals')
-            .select(
-              'episode_id,status,visual_version,visual_hash,attempt_count,last_error,visual_payload',
-            )
-            .eq('episode_id', episodeId)
-            .maybeSingle<Record<string, unknown>>(),
-          client
-            .from('episode_localizations')
-            .select('id,language_code')
-            .eq('episode_id', episodeId),
-          client
-            .from('episode_videos')
-            .select(
-              'episode_localization_id,status,mp4_url,thumbnail_url,duration_seconds',
-            )
-            .eq('episode_id', episodeId),
-          client
-            .from('episode_video_reviews')
-            .select('*')
-            .eq('episode_id', episodeId)
-            .order('created_at', { ascending: false })
-            .limit(500),
-        ]);
+        const [episodeResult, visualBaseResult, reviewsResult] =
+          await Promise.all([
+            client
+              .from('episodes')
+              .select('id,source_title,source_url')
+              .eq('id', episodeId)
+              .maybeSingle<{
+                id: string;
+                source_title: string | null;
+                source_url: string;
+              }>(),
+            client
+              .from('episode_video_visuals')
+              .select(
+                'episode_id,status,visual_version,visual_hash,attempt_count,last_error,visual_payload',
+              )
+              .eq('episode_id', episodeId)
+              .maybeSingle<Record<string, unknown>>(),
+            client
+              .from('episode_video_reviews')
+              .select('*')
+              .eq('episode_id', episodeId)
+              .order('created_at', { ascending: false })
+              .limit(500),
+          ]);
         if (episodeResult.error) {
           throw episodeResult.error;
         }
@@ -96,12 +82,6 @@ export function createPodcastVisualService(input: {
         }
         if (visualBaseResult.error) {
           throw visualBaseResult.error;
-        }
-        if (localizationsResult.error) {
-          throw localizationsResult.error;
-        }
-        if (rendersResult.error) {
-          throw rendersResult.error;
         }
         if (reviewsResult.error && !isMissingReviewTable(reviewsResult.error)) {
           throw reviewsResult.error;
@@ -126,30 +106,6 @@ export function createPodcastVisualService(input: {
 
         const visualRow = visualBaseResult.data;
         const payload = record(visualRow?.['visual_payload']) ?? null;
-        const localizationById = new Map(
-          (
-            (localizationsResult.data ?? []) as {
-              id: string;
-              language_code: string;
-            }[]
-          ).map((row) => [row.id, row.language_code] as const),
-        );
-        const renders = (
-          (rendersResult.data ?? []) as {
-            episode_localization_id: string;
-            status: string;
-            mp4_url: string | null;
-            thumbnail_url: string | null;
-            duration_seconds: number | null;
-          }[]
-        ).map((row) => ({
-          languageCode:
-            localizationById.get(row.episode_localization_id) ?? 'unknown',
-          status: row.status,
-          mp4Url: row.mp4_url,
-          thumbnailUrl: row.thumbnail_url,
-          durationSeconds: row.duration_seconds,
-        }));
 
         return {
           status: 'ok',
@@ -168,8 +124,8 @@ export function createPodcastVisualService(input: {
                 lastError: stringValue(visualRow['last_error']),
               }
             : null,
-          renders,
           scenes: summarizeVisualPlan(payload),
+          search: visualSearchDebug(payload),
           failure: summarizeVisualFailure(diagnostics),
           reviews: reviewsResult.error
             ? []
@@ -422,8 +378,8 @@ function unavailable(
     message,
     episode: null,
     visual: null,
-    renders: [],
     scenes: [],
+    search: null,
     failure: null,
     reviews: [],
     rawPlan: null,

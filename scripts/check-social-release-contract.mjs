@@ -78,6 +78,14 @@ requireMatch(
   daemon,
   /listPartiallyPublishedCohorts/,
 );
+// The enqueue barrier only proves media existed when the cohort was queued. A
+// re-plan afterwards can delete a completed render underneath a claimed cohort,
+// so transport is gated on a second readiness read as well.
+requireMatch(
+  'daemon publish-time media re-check',
+  daemon,
+  /holdCohortsMissingMedia/,
+);
 requireMatch(
   'language allocation balanced profiles',
   languageAllocation,

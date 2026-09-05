@@ -9,10 +9,13 @@ import type {
   PodcastPipelineRenderState,
   PodcastPipelineResponse,
   PodcastPipelineStatus,
-  PodcastPipelineVisualDebug,
 } from '../../shared/podcast-pipeline.js';
 import type { ControlCenterConfig } from '../config/env.js';
-import { record, records, stringArray } from './json.js';
+import {
+  canRestartRender,
+  leaseIsActive,
+  visualIsRenderable,
+} from './podcast-retry-eligibility.js';
 import {
   createConfiguredServiceRoleClient,
   isMissingColumnError,
@@ -66,6 +69,8 @@ interface VisualRow extends LifecycleRow {
   episode_id: string;
   visual_payload: Record<string, unknown> | null;
   visual_version?: string | null;
+  abandoned_at?: string | null;
+  abandoned_reason?: string | null;
 }
 
 interface RenderRow extends LifecycleRow {
@@ -176,6 +181,33 @@ export function createPodcastPipelineService(input: {
           }
         }
 
+        // Read in its own request so the page keeps rendering between the
+        // Control Center deploy and the migration that adds these columns.
+        const abandonResult = await client
+          .from('episode_video_visuals')
+          .select('episode_id,abandoned_at,abandoned_reason')
+          .in('episode_id', episodeIds);
+        if (abandonResult.error && !isMissingColumnError(abandonResult.error)) {
+          throw abandonResult.error;
+        }
+        const visualRows = (visualsResult.data ?? []) as VisualRow[];
+        if (!abandonResult.error) {
+          const abandonByEpisode = new Map(
+            (
+              (abandonResult.data ?? []) as {
+                episode_id: string;
+                abandoned_at: string | null;
+                abandoned_reason: string | null;
+              }[]
+            ).map((row) => [row.episode_id, row] as const),
+          );
+          for (const row of visualRows) {
+            const abandon = abandonByEpisode.get(row.episode_id);
+            row.abandoned_at = abandon?.abandoned_at ?? null;
+            row.abandoned_reason = abandon?.abandoned_reason ?? null;
+          }
+        }
+
         return {
           generatedAt,
           status: 'ok',
@@ -184,7 +216,7 @@ export function createPodcastPipelineService(input: {
             episodes,
             ingestRows,
             (localizationsResult.data ?? []) as LocalizationRow[],
-            (visualsResult.data ?? []) as VisualRow[],
+            visualRows,
             (rendersResult.data ?? []) as RenderRow[],
             new Date(),
             (legacyIngestRunsResult.data ?? []) as LegacyIngestRunRow[],
@@ -331,17 +363,21 @@ export function summarizePodcastPipeline(
         row,
       ]),
     );
+    const abandoned = abandonState(visualRow);
     const renders = LANGUAGES.flatMap((languageCode) => {
       const localization = localizationByLanguage.get(languageCode);
       if (!localization) {
         return [];
       }
       const render = renderByLocalizationId.get(localization.id);
-      return render
-        ? [renderState(render, languageCode, now, visual)]
-        : [emptyRenderState(localization.id, languageCode, visual)];
+      const state = render
+        ? renderState(render, languageCode, now, visual)
+        : emptyRenderState(localization.id, languageCode, visual);
+      return [abandoned ? { ...state, canRestart: false } : state];
     });
-    const videoStatus = videoState(visual, renders, ttsStatus);
+    const videoStatus = abandoned
+      ? ('abandoned' as const)
+      : videoState(visual, renders, ttsStatus);
     const currentPhase = currentPhaseFor(
       translationStatus,
       ttsStatus,
@@ -366,323 +402,27 @@ export function summarizePodcastPipeline(
       ingest,
       localizations,
       visual,
-      visualDebug: visualSearchDebug(visualRow?.visual_payload ?? null),
       renders,
       canRestartIngest: ttsStatus !== 'completed' && !ingestIsActive,
       canRestartVideo:
+        !abandoned &&
         ttsStatus === 'completed' &&
         visual !== null &&
         videoStatus !== 'completed' &&
         !activeVideoLease,
-      canForceReplanVisual:
-        ttsStatus === 'completed' && visual !== null && !activeVideoLease,
+      abandoned,
     };
   });
 }
 
-function visualSearchDebug(
-  payload: Record<string, unknown> | null,
-): PodcastPipelineVisualDebug | null {
-  if (!payload) {
+function abandonState(
+  row: VisualRow | null,
+): { at: string; reason: string } | null {
+  const at = row?.abandoned_at;
+  if (!at) {
     return null;
   }
-  const provenance = record(payload['provenance']);
-  const catalog = record(payload['subjectCatalog']);
-  const subjects = records(catalog?.['subjects']).flatMap((subject) => {
-    const id = subject['id'];
-    const name = subject['canonicalName'];
-    return typeof id === 'string' && typeof name === 'string'
-      ? [{ id, name }]
-      : [];
-  });
-  const primarySubjectId = catalog?.['primarySubjectId'];
-  const primarySubject =
-    typeof primarySubjectId === 'string'
-      ? (subjects.find(({ id }) => id === primarySubjectId)?.name ??
-        primarySubjectId)
-      : null;
-
-  // One column carries two payload shapes over a job's life. While the job
-  // runs, `saveEpisodeVideoVisualDebug` writes the transient
-  // `visual-search-debug-v1` checkpoint: top-level `plannedQueries`,
-  // `plannedSubjectSearches` and `imageSearch`. Completion overwrites it with
-  // `episodeVisualPayloadSchema`, where the trace moved under `provenance` and
-  // the per-scene queries survive only as `visualPlan.scenes[].imageSearchIntent`.
-  const debugQueries = parsePlannedQueries(payload['plannedQueries']);
-  // The transient rows win: they also carry the subject ids and the assignment
-  // reason, which the completed payload's scenes no longer hold.
-  const plannedQueries =
-    debugQueries.length > 0
-      ? debugQueries
-      : parseSceneSearchIntents(record(payload['visualPlan'])?.['scenes']);
-  const imageSearch = record(
-    payload['imageSearch'] ?? provenance?.['imageSearch'],
-  );
-  const episodeRequests = parseImageSearchRequests(imageSearch?.['requests']);
-  // Pre-episode-pool payloads only ever recorded per-scene provider attempts.
-  const actualSearches =
-    episodeRequests.length > 0
-      ? episodeRequests
-      : parseActualSearches(
-          payload['searchTrace'] ?? provenance?.['searchTrace'],
-        );
-  const budget = parseSearchBudget(imageSearch);
-  const primarySubjects = parseSubjectSearches(
-    imageSearch?.['primarySubjects'],
-  );
-  const plannedSubjectSearches = parseSubjectSearches(
-    payload['plannedSubjectSearches'],
-  );
-  const sceneSelections = parseSceneSelections(imageSearch?.['scenes']);
-  const reuse = parseImageReuse(payload);
-  const subjectCatalogFailure = textOrNull(
-    payload['subjectCatalogFailure'] ?? provenance?.['subjectCatalogFailure'],
-  );
-  if (
-    subjects.length === 0 &&
-    plannedQueries.length === 0 &&
-    actualSearches.length === 0 &&
-    primarySubjects.length === 0 &&
-    plannedSubjectSearches.length === 0 &&
-    sceneSelections.length === 0 &&
-    reuse.length === 0 &&
-    budget === null &&
-    subjectCatalogFailure === null
-  ) {
-    return null;
-  }
-
-  return {
-    phase: typeof payload['phase'] === 'string' ? payload['phase'] : null,
-    primarySubject,
-    subjects,
-    subjectCatalogFailure,
-    budget,
-    primarySubjects,
-    plannedSubjectSearches,
-    plannedQueries,
-    actualSearches,
-    sceneSelections,
-    reuse,
-  };
-}
-
-function mapSceneRows<T>(
-  value: unknown,
-  mapRow: (row: Record<string, unknown>, sceneId: string) => T | null,
-): T[] {
-  return records(value).flatMap((row) => {
-    const sceneId = row['sceneId'];
-    if (typeof sceneId !== 'string') {
-      return [];
-    }
-    const mapped = mapRow(row, sceneId);
-    return mapped ? [mapped] : [];
-  });
-}
-
-function parsePlannedQueries(
-  value: unknown,
-): PodcastPipelineVisualDebug['plannedQueries'] {
-  return mapSceneRows(value, (row, sceneId) => {
-    const queries = stringArray(row['queries']);
-    if (queries.length === 0) {
-      return null;
-    }
-    const selectionReason = row['selectionReason'];
-    return {
-      sceneId,
-      subjectIds: stringArray(row['subjectIds']),
-      selectionReason:
-        typeof selectionReason === 'string' ? selectionReason : null,
-      queries,
-    };
-  });
-}
-
-function parseSceneSearchIntents(
-  value: unknown,
-): PodcastPipelineVisualDebug['plannedQueries'] {
-  return mapSceneRows(value, (row, sceneId) => {
-    const queries = stringArray(row['imageSearchIntent']);
-    // A completed plan keeps every scene, including the intro/outro brand
-    // cards, whose intent is the `brand:` marker the renderer swaps for a
-    // bundled PNG. Image search never runs for those, so listing them as
-    // planned queries would invent a search on every packaged episode.
-    if (queries.length === 0 || queries.some(isBrandVisualIntent)) {
-      return null;
-    }
-    return { sceneId, subjectIds: [], selectionReason: null, queries };
-  });
-}
-
-function isBrandVisualIntent(query: string): boolean {
-  return query.startsWith('brand:');
-}
-
-/**
- * Reads the episode-wide Brave requests. These deliberately do not go through
- * `mapSceneRows`: a primary request builds the pool before any scene owns an
- * image and therefore carries no `sceneId`, so scene-keyed parsing would drop
- * every one of them.
- */
-function parseImageSearchRequests(
-  value: unknown,
-): PodcastPipelineVisualDebug['actualSearches'] {
-  return records(value).flatMap((row) => {
-    const query = row['query'];
-    if (typeof query !== 'string') {
-      return [];
-    }
-    const kind = row['kind'];
-    return [
-      {
-        sceneId: typeof row['sceneId'] === 'string' ? row['sceneId'] : null,
-        provider: 'brave',
-        kind: kind === 'primary' || kind === 'targeted' ? kind : null,
-        subjectLabel: textOrNull(row['subjectLabel'] ?? row['subjectKey']),
-        query,
-        returned: numericCount(row['returned']),
-        viable: numericCount(row['viable']),
-        drops: records(row['drops']).flatMap((drop) => {
-          const reason = drop['reason'];
-          return typeof reason === 'string'
-            ? [{ reason, count: numericCount(drop['count']) }]
-            : [];
-        }),
-        error: textOrNull(row['error']),
-      },
-    ];
-  });
-}
-
-function parseSearchBudget(
-  imageSearch: Record<string, unknown> | null,
-): PodcastPipelineVisualDebug['budget'] {
-  if (!imageSearch) {
-    return null;
-  }
-  const budget = record(imageSearch['budget']);
-  return {
-    requestCount: numericCount(imageSearch['requestCount']),
-    max: numericCount(budget?.['max']),
-    primary: numericCount(budget?.['primary']),
-    targeted: numericCount(budget?.['targeted']),
-    exhausted: imageSearch['budgetExhausted'] === true,
-  };
-}
-
-function parseSubjectSearches(
-  value: unknown,
-): PodcastPipelineVisualDebug['primarySubjects'] {
-  return records(value).flatMap((row) => {
-    const query = row['query'];
-    const label = textOrNull(
-      row['subjectLabel'] ?? row['label'] ?? row['subjectKey'],
-    );
-    return typeof query === 'string' ? [{ label: label ?? query, query }] : [];
-  });
-}
-
-function parseSceneSelections(
-  value: unknown,
-): PodcastPipelineVisualDebug['sceneSelections'] {
-  return mapSceneRows(value, (row, sceneId) => {
-    const selection = row['selection'];
-    if (typeof selection !== 'string') {
-      return null;
-    }
-    return {
-      sceneId,
-      selection,
-      fallbackReason: textOrNull(row['fallbackReason']),
-      matchedSubjectKey: textOrNull(row['matchedSubjectKey']),
-      sourceQuery: textOrNull(row['sourceQuery']),
-      providerRank:
-        typeof row['providerRank'] === 'number' &&
-        Number.isFinite(row['providerRank'])
-          ? row['providerRank']
-          : null,
-    };
-  });
-}
-
-/**
- * How many scenes share one image. Scenes take turns over the episode pool now,
- * so a repeated asset is expected; the count is what says whether the pool was
- * wide enough to be worth rotating.
- */
-function parseImageReuse(
-  payload: Record<string, unknown>,
-): PodcastPipelineVisualDebug['reuse'] {
-  const assetIdByUrl = new Map<string, string>();
-  for (const asset of records(payload['assets'])) {
-    const url = asset['r2Url'];
-    const assetId = asset['assetId'];
-    if (typeof url === 'string' && typeof assetId === 'string') {
-      assetIdByUrl.set(url, assetId);
-    }
-  }
-  const useCounts = new Map<string, number>();
-  for (const scene of records(record(payload['visualPlan'])?.['scenes'])) {
-    const url = record(scene['asset'])?.['url'];
-    const assetId = typeof url === 'string' ? assetIdByUrl.get(url) : undefined;
-    if (assetId) {
-      useCounts.set(assetId, (useCounts.get(assetId) ?? 0) + 1);
-    }
-  }
-  return [...useCounts.entries()]
-    .filter(([, useCount]) => useCount > 1)
-    .map(([assetId, useCount]) => ({ assetId, useCount }))
-    .sort(
-      (left, right) =>
-        right.useCount - left.useCount ||
-        left.assetId.localeCompare(right.assetId),
-    );
-}
-
-function parseActualSearches(
-  value: unknown,
-): PodcastPipelineVisualDebug['actualSearches'] {
-  return mapSceneRows(value, (row, sceneId) => {
-    const provider = row['provider'];
-    const query = row['intent'];
-    if (typeof provider !== 'string' || typeof query !== 'string') {
-      return null;
-    }
-    return {
-      sceneId,
-      provider,
-      kind: null,
-      subjectLabel: textOrNull(row['subjectKey']),
-      query,
-      returned: numericCount(row['returned']),
-      viable: numericCount(row['accepted']),
-      drops: legacyDrops(row),
-      error: null,
-    };
-  });
-}
-
-/** The per-scene trace counted its two removal buckets in dedicated columns,
- * before drops were recorded by reason. */
-function legacyDrops(
-  row: Record<string, unknown>,
-): PodcastPipelineVisualDebug['actualSearches'][number]['drops'] {
-  return [
-    { reason: 'entity-filtered', count: numericCount(row['entityFiltered']) },
-    { reason: 'rejected', count: numericCount(row['rejected']) },
-  ].filter(({ count }) => count > 0);
-}
-
-function textOrNull(value: unknown): string | null {
-  return typeof value === 'string' && value.trim() ? value : null;
-}
-
-function numericCount(value: unknown): number {
-  return typeof value === 'number' && Number.isFinite(value)
-    ? Math.max(0, value)
-    : 0;
+  return { at, reason: row?.abandoned_reason?.trim() || 'No reason recorded' };
 }
 
 function translationState(
@@ -787,7 +527,9 @@ function currentPhaseFor(
   if (ttsStatus !== 'completed') {
     return 'tts';
   }
-  return videoStatus === 'completed' ? 'done' : 'video';
+  return videoStatus === 'completed' || videoStatus === 'abandoned'
+    ? 'done'
+    : 'video';
 }
 
 function localizationState(
@@ -868,12 +610,13 @@ function renderState(
     ...versioned,
     localizationId: row.episode_localization_id,
     languageCode,
-    canRestart: canRestartRender(
-      versioned.status,
-      versioned.leaseExpiresAt,
-      visual,
+    canRestart: canRestartRender({
+      renderStatus: versioned.status,
+      renderLeaseExpiresAt: versioned.leaseExpiresAt,
+      visualStatus: visual?.status,
+      visualVersion: visual?.visualVersion,
       now,
-    ),
+    }),
   };
 }
 
@@ -893,9 +636,7 @@ function emptyRenderState(
     leaseExpiresAt: null,
     updatedAt: null,
     visualVersion: null,
-    canRestart:
-      visual?.status === 'completed' &&
-      visual.visualVersion === EPISODE_VIDEO_VISUAL_VERSION,
+    canRestart: visualIsRenderable(visual?.status, visual?.visualVersion),
   };
 }
 
@@ -937,23 +678,6 @@ function normalizeVersionedJobStatus(
   return status;
 }
 
-function canRestartRender(
-  status: PodcastPipelineStatus,
-  leaseExpiresAt: string | null,
-  visual: PodcastPipelineJobState | null,
-  now: Date,
-): boolean {
-  if (
-    !visual ||
-    visual.status !== 'completed' ||
-    visual.visualVersion !== EPISODE_VIDEO_VISUAL_VERSION ||
-    status === 'completed'
-  ) {
-    return false;
-  }
-  return !leaseIsActive(leaseExpiresAt, now);
-}
-
 function parseIngestFailureHistory(
   value: unknown,
 ): PodcastPipelineIngestFailure[] {
@@ -986,14 +710,6 @@ function parseIngestFailureHistory(
       },
     ];
   });
-}
-
-function leaseIsActive(value: string | null, now: Date): boolean {
-  if (!value) {
-    return false;
-  }
-  const timestamp = Date.parse(value);
-  return Number.isFinite(timestamp) && timestamp > now.getTime();
 }
 
 function isLanguage(value: string): value is LanguageCode {

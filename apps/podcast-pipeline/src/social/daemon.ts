@@ -5,6 +5,7 @@ import { hostname } from 'node:os';
 import { getAllowedTelegramUserIds } from '../lib/env.js';
 import { errorMessage } from '../lib/errorMessage.js';
 import { sleep as defaultSleep } from '../lib/sleep.js';
+import { isTransientNetworkError } from '../lib/transient-network-error.js';
 import {
   capturePipelineException,
   flushSentry,
@@ -31,6 +32,7 @@ import {
   resolveRequiredReleaseLanguages,
 } from './cohort.js';
 import { recordSocialDaemonTick } from './daemon-heartbeat.js';
+import { recoverOrphanedSocialLeases } from './daemon-lease-recovery.js';
 import {
   acquireSocialDaemonLock,
   SocialDaemonAlreadyRunningError,
@@ -64,6 +66,8 @@ import {
 } from './daemon-store.js';
 import { buildSocialExperimentReports } from './experiment-report.js';
 import { isMainModule } from './is-main-module.js';
+import { reportLocalPublicationHistory } from './local-publish-history.js';
+import { reconcileLocalPublishedJob } from './local-publish-recovery.js';
 import { laneLabel, languageFlag, platformIcon } from './log-format.js';
 import {
   createMetricCollectors,
@@ -98,6 +102,9 @@ import {
 } from './strategy.js';
 
 const POLL_INTERVAL_MS = 60_000;
+// A transient Supabase disconnection typically costs ~78s of socket time plus
+// 60s poll; 5 ticks ≈ 10 minutes of tolerance before escalating to fatal.
+const TRANSIENT_NETWORK_RETRY_LIMIT = 5;
 const METRIC_LOOKBACK_DAYS = 8;
 const STRATEGY_REFRESH_INTERVAL_MS = 6 * 60 * 60_000;
 const OWNER = `${hostname()}:${process.pid}`;
@@ -134,6 +141,7 @@ export async function runSocialDaemon(
   const log = dependencies.log ?? console.log;
   const recordTick = dependencies.recordTick ?? recordSocialDaemonTick;
   let lastStrategyRefresh = 0;
+  let consecutiveTransientFailures = 0;
 
   const firstStartedAt = await ensureSocialDaemonStart(now());
   log(
@@ -167,6 +175,18 @@ export async function runSocialDaemon(
         owner: OWNER,
         error,
       });
+      if (
+        !(error instanceof SocialReleaseFailureError) &&
+        isTransientNetworkError(error) &&
+        consecutiveTransientFailures < TRANSIENT_NETWORK_RETRY_LIMIT
+      ) {
+        consecutiveTransientFailures += 1;
+        log(
+          `⚠️ [social-daemon] transient network failure · retry ${consecutiveTransientFailures}/${TRANSIENT_NETWORK_RETRY_LIMIT} · next check in 60s · ${errorMessage(error).split('\n')[0]}`,
+        );
+        await sleep(POLL_INTERVAL_MS);
+        continue;
+      }
       throw error;
     }
     if (
@@ -184,6 +204,12 @@ export async function runSocialDaemon(
       );
     });
     await recordTick({ phase: 'success', now: now(), owner: OWNER });
+    if (consecutiveTransientFailures > 0) {
+      log(
+        `✅ [social-daemon] network recovered after ${consecutiveTransientFailures} failed tick(s)`,
+      );
+      consecutiveTransientFailures = 0;
+    }
     log('');
     log(
       `✅ [social-daemon] check complete · next check in ${POLL_INTERVAL_MS / 1_000}s.`,
@@ -199,6 +225,15 @@ export async function runSocialDaemon(
  * actually published, or leave the queue mis-scheduled. Those propagate and
  * stop the whole process. Metrics, snapshots, strategy and reports are purely
  * observational and stay isolated.
+ *
+ * One exception is handled by the main loop: socket/DNS-layer transient
+ * network failures (`isTransientNetworkError`) that are not a
+ * `SocialReleaseFailureError` are retried for up to
+ * `TRANSIENT_NETWORK_RETRY_LIMIT` consecutive ticks, because `reconcile` on
+ * the next tick is already the correct recovery path for a Supabase blip that
+ * happened before any transport started. `SocialReleaseFailureError` and all
+ * other errors remain fatal, and this retry does not turn the daemon into a
+ * watch runner — it is a bounded delay before the existing fatal path.
  */
 export async function runSocialDaemonTick(input: {
   now: Date;
@@ -744,7 +779,12 @@ async function publishDueJobs(
     }
   }
 
-  const groups = [...pendingByEpisodeLanguage.values()];
+  const groups = await holdCohortsMissingMedia(
+    pendingByEpisodeLanguage,
+    now,
+    titleByEpisodeLanguage,
+    log,
+  );
   for (const [index, pendingJobs] of groups.entries()) {
     try {
       await publishLanguageBatch(
@@ -766,6 +806,104 @@ async function publishDueJobs(
       throw error;
     }
   }
+}
+
+/**
+ * The enqueue barrier already proved every required lane's media existed, but
+ * nothing freezes it afterwards: a force re-plan between enqueue and this tick
+ * requeues a render and removes the completed video underneath an already
+ * claimed cohort. Publishing then ships the languages that survived and dies
+ * fatally on the one that did not, which is exactly the permanently partial
+ * article the cohort contract forbids. So readiness is re-checked here, against
+ * the same `social_publish_candidates` definition discovery uses, and a missing
+ * language holds that whole episode while every other episode still publishes.
+ *
+ * The hold fails the lanes rather than releasing their leases: media vanishing
+ * after enqueue is exceptional state that has to be visible in `last_error` and
+ * the queue summary, and spending an attempt is what keeps the partial-cohort
+ * fence bounded instead of holding the queue forever.
+ */
+async function holdCohortsMissingMedia(
+  pendingByEpisodeLanguage: ReadonlyMap<string, SocialPublishJobRow[]>,
+  now: Date,
+  titleByEpisodeLanguage: ReadonlyMap<string, string | null>,
+  log: (message: string) => void,
+): Promise<SocialPublishJobRow[][]> {
+  const groups = [...pendingByEpisodeLanguage.values()];
+  const episodeIds = [...new Set(groups.flat().map((job) => job.episode_id))];
+  if (episodeIds.length === 0) return groups;
+
+  const [schedules, candidates] = await Promise.all([
+    listPendingSocialPublishSchedules(),
+    listSocialPublishCandidatesForEpisodes(episodeIds),
+  ]);
+
+  // Every durable lane of the episode has to be publishable, not just the lanes
+  // this tick happened to claim: shipping two of three languages now and
+  // failing the third later is still a partial article.
+  const scopedEpisodes = new Set(episodeIds);
+  const requiredByEpisode = new Map<string, Set<string>>();
+  const requireLanguage = (episodeId: string, language: string) => {
+    const languages = requiredByEpisode.get(episodeId) ?? new Set<string>();
+    languages.add(language);
+    requiredByEpisode.set(episodeId, languages);
+  };
+  for (const schedule of schedules) {
+    if (!scopedEpisodes.has(schedule.episode_id)) continue;
+    requireLanguage(schedule.episode_id, schedule.language_code);
+  }
+  for (const job of groups.flat()) {
+    requireLanguage(job.episode_id, jobLanguage(job));
+  }
+
+  const readyByEpisode = new Map<string, Set<string>>();
+  for (const candidate of candidates) {
+    const languages =
+      readyByEpisode.get(candidate.episode_id) ?? new Set<string>();
+    languages.add(candidate.language_code);
+    readyByEpisode.set(candidate.episode_id, languages);
+  }
+
+  const heldEpisodes = new Map<string, string[]>();
+  for (const episodeId of episodeIds) {
+    const missing = missingLanguages(
+      requiredByEpisode.get(episodeId) ?? new Set<string>(),
+      readyByEpisode.get(episodeId) ?? new Set<string>(),
+    );
+    if (missing.length > 0) heldEpisodes.set(episodeId, missing);
+  }
+  if (heldEpisodes.size === 0) return groups;
+
+  for (const [episodeId, missing] of heldEpisodes) {
+    const held = missing
+      .map((language) => `${languageFlag(language)} ${language}`)
+      .join(' · ');
+    log(
+      `⏸️ [social-daemon] ${episodeLabel(episodeTitle(titleByEpisodeLanguage, episodeId, 'zh-Hant'), episodeId)} · release held · missing ${held}`,
+    );
+    for (const job of groups.flat()) {
+      if (job.episode_id !== episodeId) continue;
+      try {
+        await failSocialPublishJob({
+          jobId: job.id,
+          owner: OWNER,
+          now,
+          attemptCount: job.attempt_count,
+          error: `Release held: ${missing.join(', ')} video is not completed`,
+        });
+      } catch (persistenceError) {
+        // The lease still expires on its own, so a failed hold write must not
+        // take the daemon down over media that is already missing.
+        log(
+          `❌ [social-daemon] ${laneLabel(job.platform, jobLanguage(job))} · failed to persist release hold · job=${job.id} · ${errorMessage(persistenceError)}`,
+        );
+      }
+    }
+  }
+
+  return groups.filter((pendingJobs) =>
+    pendingJobs.every((job) => !heldEpisodes.has(job.episode_id)),
+  );
 }
 
 async function releaseUntouchedLeases(
@@ -839,7 +977,7 @@ async function reconcileClaimedJob(
     job.platform,
     jobLanguage(job),
   );
-  if (!post) return false;
+  if (!post) return reconcileLocalPublishedJob(job, OWNER, log);
   await completeSocialPublishJob({
     jobId: job.id,
     owner: OWNER,
@@ -954,6 +1092,12 @@ async function finalizePublishOutcome(
     job.platform,
     jobLanguage(job),
   );
+  if (
+    !post &&
+    outcome.status === 'skipped' &&
+    (await reconcileLocalPublishedJob(job, OWNER, log))
+  )
+    return;
   if (!post) {
     throw persistFailure(
       `${job.platform} publish completed but no social_posts row was recorded.`,
@@ -1271,14 +1415,23 @@ function logQueueSnapshot(
       ]),
     );
   const nextLanes = Object.values(lanes).filter(
-    (item) => item.status === 'failed' || item.attemptsExhausted,
+    (item) =>
+      item.status === 'failed' ||
+      item.status === 'processing' ||
+      item.attemptsExhausted,
   );
   if (snapshot.episodeQueue.length > 0 && nextLanes.length > 0) log('');
   for (const item of nextLanes) {
     const title = item.title ? ` “${truncateTitle(item.title)}”` : '';
-    const timing = item.attemptsExhausted
-      ? `blocked (${item.attemptCount} attempts exhausted; ${item.status})`
-      : `${formatJst(item.nextAt)} (${formatRelative(item.nextAt, now)}; ${item.status})`;
+    let timing = `${formatJst(item.nextAt)} (${formatRelative(item.nextAt, now)}; ${item.status})`;
+    if (item.attemptsExhausted) {
+      timing = `blocked (${item.attemptCount} attempts exhausted; ${item.status})`;
+    } else if (
+      item.leaseExpiresAt &&
+      Date.parse(item.leaseExpiresAt) > now.getTime()
+    ) {
+      timing = `leased until ${formatJst(item.leaseExpiresAt)}`;
+    }
     log(
       `⚠️ [social-daemon] ${laneLabel(item.platform, item.languageCode)}${item.experiment ? ` [${item.experiment}]` : ''} ·${title} · ${timing}`,
     );
@@ -1376,6 +1529,8 @@ if (isMainModule(import.meta.url)) {
     throw error;
   }
   try {
+    await recoverOrphanedSocialLeases();
+    await reportLocalPublicationHistory();
     await runSocialDaemon();
   } catch (error) {
     console.error(buildFatalReport(error));

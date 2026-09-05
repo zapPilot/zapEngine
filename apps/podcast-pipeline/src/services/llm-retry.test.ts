@@ -105,36 +105,73 @@ function successfulCompletion(): unknown {
   };
 }
 
-function successfulClassroomCompletion(): unknown {
+function validClassroomContent(): string {
+  return JSON.stringify({
+    lessons: [
+      {
+        targetLanguageCode: 'ja',
+        oneLiner: '市場流動性が再び焦点に',
+        keywords: [{ term: '流動性', meaning: '資金進出的難易度' }],
+        script: '流動性とは、資産を素早く現金化できる度合いのことです。',
+      },
+      {
+        targetLanguageCode: 'en',
+        oneLiner: 'Market liquidity is back in focus',
+        keywords: [{ term: 'liquidity', meaning: '資金進出的難易度' }],
+        script: 'Liquidity is how easily an asset can be converted to cash.',
+      },
+    ],
+  });
+}
+
+function classroomCompletion(
+  content: string,
+  finishReason: string | null = null,
+): unknown {
   return {
     choices: [
       {
-        message: {
-          content: JSON.stringify({
-            lessons: [
-              {
-                targetLanguageCode: 'ja',
-                oneLiner: '市場流動性が再び焦点に',
-                keywords: [{ term: '流動性', meaning: '資金進出的難易度' }],
-                script:
-                  '流動性とは、資産を素早く現金化できる度合いのことです。',
-              },
-              {
-                targetLanguageCode: 'en',
-                oneLiner: 'Market liquidity is back in focus',
-                keywords: [{ term: 'liquidity', meaning: '資金進出的難易度' }],
-                script:
-                  'Liquidity is how easily an asset can be converted to cash.',
-              },
-            ],
-          }),
-        },
+        message: { content },
+        ...(finishReason === null ? {} : { finish_reason: finishReason }),
       },
     ],
     provider: 'test-provider',
     model: 'test/model',
     usage: { cost: 0.02 },
   };
+}
+
+function successfulClassroomCompletion(): unknown {
+  return classroomCompletion(validClassroomContent());
+}
+
+/** A body a provider really returns: valid until an unescaped quote inside a
+ * narration script. `padding` grows it past the length at which V8 reports the
+ * offending character as a position rather than inlining the whole document. */
+function malformedClassroomContent(padding: number): string {
+  return `{"lessons":[{"script":"${'流動性の話。'.repeat(padding)}"引號"}]}`;
+}
+
+function classroomLessonsContent(
+  lessons: { target: string; script: string }[],
+): string {
+  return JSON.stringify({
+    lessons: lessons.map(({ target, script }) => ({
+      targetLanguageCode: target,
+      oneLiner: `oneLiner ${target}`,
+      keywords: [{ term: `term-${target}`, meaning: '資金進出的難易度' }],
+      script,
+    })),
+  });
+}
+
+function requestUserMessage(mockCreate: Mock, callIndex: number): string {
+  const request = mockCreate.mock.calls[callIndex]?.[0] as
+    | { messages?: { role: string; content: string }[] }
+    | undefined;
+  return (
+    request?.messages?.find((message) => message.role === 'user')?.content ?? ''
+  );
 }
 
 function timeoutUntilAborted(signal: AbortSignal): Promise<never> {
@@ -468,6 +505,209 @@ describe('generateLanguageClassroomsWithLLM retries', () => {
         attempt: 1,
         nextAttempt: 2,
         error: 'OpenRouter request timed out after 25ms',
+      }),
+    );
+  });
+
+  // The incident this loop exists for: HTTP 200, tens of thousands of
+  // characters, and a syntax error thousands of characters in. Nothing below
+  // this layer ever saw it, so an unescaped quote inside one narration script
+  // failed the whole multilingual ingest.
+  it('re-prompts a malformed payload on a different endpoint and succeeds', async () => {
+    const mockCreate = vi
+      .fn()
+      .mockResolvedValueOnce(classroomCompletion(malformedClassroomContent(1)))
+      .mockResolvedValueOnce(successfulClassroomCompletion());
+    mockOpenAIClient(mockCreate);
+
+    const result = await generateLanguageClassroomsWithLLM(classroomInput);
+
+    expect(result.lessons).toHaveLength(2);
+    // Both attempts were billed, so both belong on the ledger.
+    expect(result.costUsd).toBe(0.04);
+    expect(mockCreate).toHaveBeenCalledTimes(2);
+    expect(requestProviderRouting(mockCreate, 0)).toEqual({
+      sort: 'throughput',
+      require_parameters: true,
+    });
+    expect(requestProviderRouting(mockCreate, 1)).toEqual({
+      require_parameters: true,
+    });
+    expect(ingestMocks.logIngestEvent).toHaveBeenCalledWith(
+      'llm:retry',
+      expect.objectContaining({
+        operation: 'generateLanguageClassrooms',
+        layer: 'payload',
+        reason: 'invalid_json',
+        attempt: 1,
+        nextAttempt: 2,
+        rerouted: true,
+      }),
+    );
+  });
+
+  // The re-prompt adds the rejection reason; it must not replace the grounding
+  // block, or the retry would regenerate the lesson from the title alone.
+  it('keeps the article and script grounding in the corrective re-prompt', async () => {
+    const mockCreate = vi
+      .fn()
+      .mockResolvedValueOnce(classroomCompletion(malformedClassroomContent(1)))
+      .mockResolvedValueOnce(successfulClassroomCompletion());
+    mockOpenAIClient(mockCreate);
+
+    await generateLanguageClassroomsWithLLM(classroomInput);
+
+    expect(requestUserMessage(mockCreate, 0)).not.toContain('修正要求');
+    const retryMessage = requestUserMessage(mockCreate, 1);
+    expect(retryMessage).toContain('修正要求');
+    expect(retryMessage).toContain('標題：市場流動性與升息');
+    expect(retryMessage).toContain('文章內容：');
+    expect(retryMessage).toContain(classroomInput.articleText);
+    expect(retryMessage).toContain('Podcast 講稿：');
+    expect(retryMessage).toContain(classroomInput.script);
+  });
+
+  // Removing `max_tokens` moved truncation from "the ceiling cut it" to "the
+  // provider stopped", and `finish_reason` is the only thing that says so.
+  it('retries a truncated payload and reports the finish reason', async () => {
+    const mockCreate = vi
+      .fn()
+      .mockResolvedValue(classroomCompletion('{"lessons":[{"scr', 'length'));
+    mockOpenAIClient(mockCreate);
+
+    await expect(
+      generateLanguageClassroomsWithLLM(classroomInput),
+    ).rejects.toThrow(/was truncated .*finishReason=length/u);
+
+    expect(mockCreate).toHaveBeenCalledTimes(3);
+  });
+
+  // Three identical failures still have to name the endpoint that served them
+  // and quote what broke, or the next incident starts from nothing again.
+  it('gives up after three malformed payloads, carrying provider diagnostics', async () => {
+    const mockCreate = vi
+      .fn()
+      .mockResolvedValue(classroomCompletion(malformedClassroomContent(30)));
+    mockOpenAIClient(mockCreate);
+
+    const failure = await generateLanguageClassroomsWithLLM(
+      classroomInput,
+    ).then(
+      () => null,
+      (error: unknown) => error as Error,
+    );
+
+    expect(failure?.message).toContain('provider=test-provider');
+    expect(failure?.message).toContain('finishReason=unknown');
+    expect(failure?.message).toContain('outputChars=');
+    expect(failure?.message).toContain('near: ');
+    expect(failure?.message).toContain('引號');
+    expect(mockCreate).toHaveBeenCalledTimes(3);
+  });
+
+  // The second production failure, hours after the first: valid JSON, one
+  // requested language simply absent. It used to be accepted here, persisted,
+  // and then rejected two layers up by assertLanguageClassroomsReady -- past
+  // the point where anything could still ask the model again.
+  it('re-prompts when a requested target is missing and succeeds', async () => {
+    const mockCreate = vi
+      .fn()
+      .mockResolvedValueOnce(
+        classroomCompletion(
+          classroomLessonsContent([
+            { target: 'ja', script: '流動性の話です。' },
+          ]),
+        ),
+      )
+      .mockResolvedValueOnce(successfulClassroomCompletion());
+    mockOpenAIClient(mockCreate);
+
+    const result = await generateLanguageClassroomsWithLLM(classroomInput);
+
+    expect(result.lessons.map((lesson) => lesson.targetLanguageCode)).toEqual([
+      'ja',
+      'en',
+    ]);
+    expect(mockCreate).toHaveBeenCalledTimes(2);
+    // The re-prompt has to name the language that was missing.
+    expect(requestUserMessage(mockCreate, 1)).toContain('missing targets: en');
+    expect(ingestMocks.logIngestEvent).toHaveBeenCalledWith(
+      'llm:retry',
+      expect.objectContaining({
+        layer: 'payload',
+        reason: 'incomplete_targets',
+      }),
+    );
+  });
+
+  // "Missing" has two causes that look identical from the outside: the model
+  // never wrote the lesson, or this parser dropped it for a blank script,
+  // blank oneLiner, or no usable keyword. They need different fixes.
+  it('reports whether the model omitted a target or the parser dropped it', async () => {
+    const mockCreate = vi.fn().mockResolvedValue(
+      classroomCompletion(
+        classroomLessonsContent([
+          { target: 'ja', script: '流動性の話です。' },
+          { target: 'en', script: '   ' },
+        ]),
+      ),
+    );
+    mockOpenAIClient(mockCreate);
+
+    const failure = await generateLanguageClassroomsWithLLM(
+      classroomInput,
+    ).then(
+      () => null,
+      (error: unknown) => error as Error,
+    );
+
+    expect(failure?.message).toContain('missing targets: en');
+    expect(failure?.message).toContain('requested=ja|en');
+    expect(failure?.message).toContain('returned=ja|en');
+    expect(failure?.message).toContain('accepted=ja');
+    expect(mockCreate).toHaveBeenCalledTimes(3);
+  });
+
+  // The inner transport retry replays on the same endpoint. When that endpoint
+  // is the degenerate one, the escape is the outer attempt dropping the
+  // deterministic throughput sort.
+  it('re-routes after the inner transport retry is exhausted', async () => {
+    vi.useFakeTimers();
+    const mockCreate: Mock = vi.fn(
+      (_request: unknown, options?: { signal?: AbortSignal }) => {
+        const signal = options?.signal;
+        if (!signal) {
+          throw new Error('Expected an OpenRouter request signal');
+        }
+        return mockCreate.mock.calls.length <= 2
+          ? timeoutUntilAborted(signal)
+          : Promise.resolve(successfulClassroomCompletion());
+      },
+    );
+    mockOpenAIClient(mockCreate);
+
+    const resultPromise = generateLanguageClassroomsWithLLM(classroomInput);
+    const resultAssertion = expect(resultPromise).resolves.toMatchObject({
+      provider: 'test-provider',
+    });
+    await vi.runAllTimersAsync();
+    await resultAssertion;
+
+    expect(mockCreate).toHaveBeenCalledTimes(3);
+    expect(requestProviderRouting(mockCreate, 1)).toEqual({
+      sort: 'throughput',
+      require_parameters: true,
+    });
+    expect(requestProviderRouting(mockCreate, 2)).toEqual({
+      require_parameters: true,
+    });
+    expect(ingestMocks.logIngestEvent).toHaveBeenCalledWith(
+      'llm:retry',
+      expect.objectContaining({
+        operation: 'generateLanguageClassrooms',
+        layer: 'transport',
+        attempt: 1,
+        nextAttempt: 2,
       }),
     );
   });

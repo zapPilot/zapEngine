@@ -7,9 +7,18 @@ import {
 
 const useLandingPageDataMock = vi.hoisted(() => vi.fn());
 const usePortfolioDashboardMock = vi.hoisted(() => vi.fn());
+const useQueryMock = vi.hoisted(() => vi.fn());
 vi.mock('@zapengine/app-core/hooks/analytics', () => ({
   usePortfolioDashboard: usePortfolioDashboardMock,
 }));
+
+// These tests call the hook as a plain function, so the one real React Query
+// observer it owns has to be stubbed. Partial, because the app-core queries
+// module below loads for real and needs the rest of the package.
+vi.mock('@tanstack/react-query', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@tanstack/react-query')>();
+  return { ...actual, useQuery: useQueryMock };
+});
 
 vi.mock('@zapengine/app-core/hooks/queries', async (importOriginal) => {
   const actual =
@@ -32,11 +41,13 @@ function mockSettledSources() {
     isLoading: false,
     isError: false,
   });
+  useQueryMock.mockReturnValue({ data: undefined });
 }
 
 beforeEach(() => {
   useLandingPageDataMock.mockReset();
   usePortfolioDashboardMock.mockReset();
+  useQueryMock.mockReset();
   mockSettledSources();
 });
 
@@ -256,5 +267,77 @@ describe('usePortfolioData', () => {
     expect(result.data?.metrics.map((metric) => metric.label)).not.toContain(
       'Realized yield',
     );
+  });
+
+  it('reads attribution from the shared daily-yield cache slice and attaches it', () => {
+    usePortfolioDashboardMock.mockReturnValue({
+      dashboard: {
+        trends: {
+          daily_values: [
+            { date: '2026-06-28', total_value_usd: 1000 },
+            { date: '2026-06-29', total_value_usd: 1050 },
+          ],
+        },
+      },
+      isLoading: false,
+      isError: false,
+    });
+    useQueryMock.mockReturnValue({
+      data: {
+        user_id: 'user-123',
+        period: {
+          start_date: '2026-06-28',
+          end_date: '2026-06-29',
+          days: 2,
+        },
+        daily_returns: [
+          {
+            date: '2026-06-29',
+            protocol_name: 'Aave',
+            chain: 'ethereum',
+            position_type: 'Lending',
+            yield_return_usd: 30,
+            tokens: [],
+          },
+        ],
+      },
+    });
+
+    const result = usePortfolioData('user-123', '1W');
+
+    // The canonical key, so a post-ETL `dailyYield.byUser` invalidation reaches
+    // this observer instead of leaving it on a private cache island.
+    expect(useQueryMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        queryKey: ['dailyYield', 'user-123', 7, null],
+      }),
+    );
+    expect(result.data?.trendPoints.at(-1)?.attribution).toEqual([
+      { kind: 'amount', label: 'Aave', valueUsd: 30 },
+      { kind: 'residual', valueUsd: 20 },
+    ]);
+  });
+
+  it('leaves the trend unattributed while the attribution query has no data', () => {
+    usePortfolioDashboardMock.mockReturnValue({
+      dashboard: {
+        trends: {
+          daily_values: [
+            { date: '2026-06-28', total_value_usd: 1000 },
+            { date: '2026-06-29', total_value_usd: 11_000 },
+          ],
+        },
+      },
+      isLoading: false,
+      isError: false,
+    });
+
+    const result = usePortfolioData('user-123', '1W');
+
+    expect(
+      result.data?.trendPoints.every(
+        (point) => point.attribution === undefined,
+      ),
+    ).toBe(true);
   });
 });

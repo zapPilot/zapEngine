@@ -2,7 +2,11 @@ import { createHash } from 'node:crypto';
 
 import { EPISODE_VIDEO_VISUAL_VERSION } from '@zapengine/types/shared';
 
-import type { LanguageClassroomLanguageCode } from '../types.js';
+import {
+  DEFAULT_LANGUAGE_CODE,
+  LANGUAGE_CLASSROOM_LANGUAGE_CODES,
+  type LanguageClassroomLanguageCode,
+} from '../types.js';
 import {
   getPipelineSupabase,
   isMissingSupabaseRpc,
@@ -161,6 +165,7 @@ export type EpisodeVideoRetryOutcome =
   | 'processing'
   | 'missing'
   | 'completed'
+  | 'abandoned'
   | 'prerequisites'
   | 'unavailable';
 
@@ -168,6 +173,7 @@ export interface EpisodeVideoFailureNotification {
   episodeLocalizationId: string;
   telegramChatId: string;
   episodeId: string;
+  languageCode: LanguageClassroomLanguageCode;
   lastError: string | null;
 }
 
@@ -250,6 +256,36 @@ export interface VideoJobRepository {
     limit?: number,
   ): Promise<EpisodeVideoFailureNotification[]>;
   markFailureNotified(episodeLocalizationId: string): Promise<boolean>;
+}
+
+async function loadFailureNotificationLanguages(
+  supabase: PipelineSupabaseClient,
+  rows: readonly EpisodeVideoFailureNotificationRow[],
+): Promise<Map<string, LanguageClassroomLanguageCode>> {
+  const ids = [...new Set(rows.map((row) => row.episode_localization_id))];
+  if (ids.length === 0) return new Map();
+  const { data, error } = await supabase
+    .from('episode_localizations')
+    .select('id,language_code')
+    .in('id', ids);
+  // A failed lookup must not swallow the notification itself; the message then
+  // falls back to the canonical language exactly as it did before.
+  if (error || !Array.isArray(data)) return new Map();
+  return new Map(
+    (data as { id: string; language_code: string }[]).flatMap((row) =>
+      isLanguageClassroomLanguageCode(row.language_code)
+        ? [[row.id, row.language_code] as const]
+        : [],
+    ),
+  );
+}
+
+function isLanguageClassroomLanguageCode(
+  value: string,
+): value is LanguageClassroomLanguageCode {
+  return (LANGUAGE_CLASSROOM_LANGUAGE_CODES as readonly string[]).includes(
+    value,
+  );
 }
 
 let defaultRepository: VideoJobRepository | null = null;
@@ -540,13 +576,23 @@ export function createVideoJobRepository(
       );
       if (error) throwSupabaseError(error);
       if (!Array.isArray(data)) return [];
-      return (data as EpisodeVideoFailureNotificationRow[]).flatMap((row) => {
+      const rows = data as EpisodeVideoFailureNotificationRow[];
+      // The reap RPC does not return the failed lane's language, so it is read
+      // back here rather than by widening a deployed RPC signature.
+      const languageByLocalizationId = await loadFailureNotificationLanguages(
+        supabase,
+        rows,
+      );
+      return rows.flatMap((row) => {
         if (!row.telegram_chat_id || !row.episode_id) return [];
         return [
           {
             episodeLocalizationId: row.episode_localization_id,
             telegramChatId: row.telegram_chat_id,
             episodeId: row.episode_id,
+            languageCode:
+              languageByLocalizationId.get(row.episode_localization_id) ??
+              DEFAULT_LANGUAGE_CODE,
             lastError: row.last_error,
           },
         ];
@@ -624,6 +670,7 @@ export function classifyVideoRetryError(
     return 'prerequisites';
   }
   if (code === '22023') {
+    if (message.includes('abandoned')) return 'abandoned';
     if (message.includes('already completed')) return 'completed';
     if (
       message.includes('no video visual job') ||

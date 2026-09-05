@@ -89,6 +89,9 @@ export interface VisualAssetScene {
    * section/episode. Only a direct citation is worth a targeted request of its
    * own. Absent means direct when the scene names entities, context otherwise. */
   searchAnchor?: 'direct' | 'context';
+  /** The catalog `type` of the scene's leading anchor, carried through to the
+   * pool so the decorative filter can keep a company's mark. */
+  subjectType?: string;
 }
 
 export type VisualImageProvider =

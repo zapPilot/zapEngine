@@ -231,7 +231,15 @@ beforeEach(() => {
   mocks.listPastDueSocialPublishJobs.mockResolvedValue([]);
   mocks.rescheduleSocialPublishJob.mockResolvedValue(true);
   mocks.listSocialPublishCandidates.mockResolvedValue([]);
-  mocks.listSocialPublishCandidatesForEpisodes.mockResolvedValue([]);
+  // Publishing now re-checks media for every claimed cohort, so the default is
+  // the normal production state -- every episode asked about is fully ready.
+  // Tests that exercise the hold override this.
+  mocks.listSocialPublishCandidatesForEpisodes.mockImplementation(
+    async (episodeIds: readonly string[]) =>
+      episodeIds.flatMap((episodeId) =>
+        fullCohortCandidates(episodeId, EPISODE_CREATED_AT),
+      ),
+  );
   mocks.getActiveSocialStrategies.mockResolvedValue([]);
   mocks.getSocialQueueSnapshot.mockResolvedValue({
     pendingCount: 0,
@@ -740,6 +748,43 @@ describe('social daemon', () => {
     expect(log.mock.calls.map(([line]) => String(line))).not.toEqual(
       expect.arrayContaining([expect.stringContaining('next 𝕏 x')]),
     );
+  });
+
+  it('reports a live processing lease without claiming it is due now', async () => {
+    const leaseExpiresAt = new Date(
+      NOW.getTime() + 60 * 60 * 1000,
+    ).toISOString();
+    mocks.getSocialQueueSnapshot.mockResolvedValue({
+      pendingCount: 1,
+      episodeQueue: [],
+      nextByPlatform: {},
+      nextByLane: {
+        'x|zh-Hant': {
+          episodeId: EPISODE_ID,
+          platform: 'x',
+          languageCode: 'zh-Hant',
+          status: 'processing',
+          title: null,
+          nextAt: leaseExpiresAt,
+          leaseExpiresAt,
+          attemptCount: 1,
+          attemptsExhausted: false,
+          experiment: null,
+        },
+      },
+    });
+    const log = vi.fn();
+    await expect(
+      runSocialDaemon({
+        now: () => NOW,
+        sleep: vi.fn().mockRejectedValue(new Error('stop-loop')),
+        log,
+        recordTick: vi.fn(),
+      }),
+    ).rejects.toThrow('stop-loop');
+    const output = log.mock.calls.map(([line]) => String(line)).join('\n');
+    expect(output).toContain('leased until');
+    expect(output).not.toContain('due now');
   });
 
   it('logs missing video artifacts by article and language rather than channel', async () => {

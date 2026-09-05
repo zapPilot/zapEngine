@@ -3,8 +3,6 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { RENDER_PRICING_METRIC_KEY } from './services/ops-ledger.js';
-
 const repoRoot = path.resolve(process.cwd(), '../..');
 const migration = fs.readFileSync(
   path.join(
@@ -107,9 +105,12 @@ describe('ops pipeline telemetry migration', () => {
     );
   });
 
-  it('seeds the Fly render rate the worker prices against', () => {
+  // The shape this seeded has since been retired, but the row still prices
+  // every render recorded while it ran, so this migration keeps stating exactly
+  // what production applied. The rate the worker prices against today lives in
+  // its own migration; see flyRenderRateMigration.test.ts.
+  it('seeds the Fly render rate of the performance-2x era', () => {
     expect(migration).toMatch(/'fly',\s*'machine_second_performance_2x_4gb',/i);
-    expect(migration).toContain(RENDER_PRICING_METRIC_KEY);
     expect(migration).toMatch(/'second',\s*0\.00002450,/);
     expect(migration).toMatch(
       /on conflict \(provider, metric_key, effective_from\) do nothing;/i,

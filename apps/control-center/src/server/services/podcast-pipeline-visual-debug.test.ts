@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { PodcastPipelineVisualDebug } from '../../shared/podcast-pipeline.js';
-import { summarizePodcastPipeline } from './podcast-pipeline.js';
+import { visualSearchDebug } from './podcast-visual-search-debug.js';
 
 // The completed shape mirrors `episodeVisualPayloadSchema`
 // (apps/podcast-pipeline/src/services/video/episode-visual.ts) and
@@ -179,6 +179,7 @@ function searchRowFor(
       { reason: 'entity-filtered', count: trace.entityFiltered },
       { reason: 'rejected', count: trace.rejected },
     ].filter(({ count }) => count > 0),
+    candidates: [],
     error: null,
   };
 }
@@ -218,6 +219,29 @@ const episodeImageSearch = {
         { reason: 'decorative-asset', count: 38 },
         { reason: 'text-card-publisher', count: 21 },
       ],
+      candidates: [
+        {
+          imageUrl: 'https://images.example.com/a16z-office.jpg',
+          sourceUrl: 'https://www.reuters.com/a16z',
+          altText: 'a16z headquarters',
+          providerRank: 0,
+          dropReason: null,
+        },
+        {
+          imageUrl: 'https://images.example.com/a16z-logo.png',
+          sourceUrl: 'https://a16z.com/brand',
+          altText: null,
+          providerRank: 1,
+          dropReason: 'decorative-asset',
+        },
+        {
+          imageUrl: 'https://images.example.com/a16z-partners.jpg',
+          sourceUrl: 'https://www.ft.com/a16z',
+          altText: 'a16z partners',
+          providerRank: 4,
+          dropReason: null,
+        },
+      ],
       error: null,
     },
     {
@@ -229,6 +253,7 @@ const episodeImageSearch = {
       returned: 0,
       viable: 0,
       drops: [],
+      candidates: [],
       error: 'brave images request failed with 429',
     },
     {
@@ -240,6 +265,7 @@ const episodeImageSearch = {
       returned: 40,
       viable: 12,
       drops: [],
+      candidates: [],
       error: null,
     },
   ],
@@ -279,103 +305,30 @@ const episodeImageSearch = {
 
 function visualDebugFor(
   visualPayload: Record<string, unknown>,
-  status: string,
 ): PodcastPipelineVisualDebug | null {
-  const [episode] = summarizePodcastPipeline(
-    [
-      {
-        id: 'episode-1',
-        source_title: 'a16z AI writing guide',
-        source_url: 'https://example.com/a16z',
-        created_at: '2026-09-03T00:00:00.000Z',
-      },
-    ] as never,
-    [],
-    [],
-    [
-      {
-        episode_id: 'episode-1',
-        status,
-        progress_percent: 100,
-        progress_stage: status,
-        attempt_count: 1,
-        lease_expires_at: null,
-        last_error: null,
-        updated_at: '2026-09-03T00:20:00.000Z',
-        visual_payload: visualPayload,
-      },
-    ] as never,
-    [],
-    new Date('2026-09-03T01:00:00.000Z'),
-  );
-  return episode?.visualDebug ?? null;
+  return visualSearchDebug(visualPayload);
 }
 
 describe('podcast pipeline visual diagnostics', () => {
   it('surfaces subjects and planned queries from a failed visual checkpoint', () => {
-    const now = new Date('2026-09-03T01:00:00.000Z');
-    const episodes = [
-      {
-        id: 'episode-1',
-        source_title: 'a16z AI writing guide',
-        source_url: 'https://example.com/a16z',
-        created_at: '2026-09-03T00:00:00.000Z',
+    const debug = visualDebugFor({
+      schemaVersion: 'visual-search-debug-v1',
+      phase: 'planned',
+      subjectCatalog: {
+        primarySubjectId: 'subject-a16z',
+        subjects: [{ id: 'subject-a16z', canonicalName: 'a16z' }],
       },
-    ];
-    const localizations = ['zh-Hant', 'ja', 'en'].map(
-      (language_code, index) => ({
-        id: `loc-${index}`,
-        episode_id: 'episode-1',
-        language_code,
-        status: 'completed',
-        script: 'ready',
-        hls_url: 'https://example.com/audio.m3u8',
-        classroom_hls_url:
-          language_code === 'zh-Hant'
-            ? 'https://example.com/classroom.m3u8'
-            : null,
-        updated_at: '2026-09-03T00:10:00.000Z',
-      }),
-    );
-    const visuals = [
-      {
-        episode_id: 'episode-1',
-        status: 'failed',
-        progress_percent: 35,
-        progress_stage: 'planning-scenes',
-        attempt_count: 3,
-        lease_expires_at: null,
-        last_error: 'image provider failed',
-        updated_at: '2026-09-03T00:20:00.000Z',
-        visual_payload: {
-          schemaVersion: 'visual-search-debug-v1',
-          phase: 'planned',
-          subjectCatalog: {
-            primarySubjectId: 'subject-a16z',
-            subjects: [{ id: 'subject-a16z', canonicalName: 'a16z' }],
-          },
-          plannedQueries: [
-            {
-              sceneId: 'scene-01',
-              subjectIds: ['subject-a16z'],
-              selectionReason: 'direct',
-              queries: ['a16z'],
-            },
-          ],
+      plannedQueries: [
+        {
+          sceneId: 'scene-01',
+          subjectIds: ['subject-a16z'],
+          selectionReason: 'direct',
+          queries: ['a16z'],
         },
-      },
-    ];
+      ],
+    });
 
-    const [episode] = summarizePodcastPipeline(
-      episodes as never,
-      [],
-      localizations as never,
-      visuals as never,
-      [],
-      now,
-    );
-
-    expect(episode?.visualDebug).toEqual({
+    expect(debug).toEqual({
       phase: 'planned',
       primarySubject: 'a16z',
       subjects: [{ id: 'subject-a16z', name: 'a16z' }],
@@ -398,7 +351,7 @@ describe('podcast pipeline visual diagnostics', () => {
   });
 
   it('reads a completed payload from provenance.searchTrace and visualPlan.scenes', () => {
-    const debug = visualDebugFor(completedVisualPayload, 'completed');
+    const debug = visualDebugFor(completedVisualPayload);
 
     expect(debug?.actualSearches).toEqual(
       completedVisualPayload.provenance.searchTrace.map(searchRowFor),
@@ -418,37 +371,34 @@ describe('podcast pipeline visual diagnostics', () => {
   });
 
   it('reads a transient search checkpoint from its top-level searchTrace', () => {
-    const debug = visualDebugFor(
-      {
-        schemaVersion: 'visual-search-debug-v1',
-        phase: 'search-failed',
-        searchTitleSource: 'publisher',
-        searchIntentModel: null,
-        subjectCatalog: completedVisualPayload.subjectCatalog,
-        sceneAssignments: completedVisualPayload.sceneAssignments,
-        plannedQueries: [
-          {
-            sceneId: 'scene-01',
-            subjectIds: ['subject-a16z'],
-            selectionReason: 'direct',
-            queries: ['a16z AI writing'],
-          },
-        ],
-        searchTrace: [
-          {
-            sceneId: 'scene-01',
-            provider: 'pixabay',
-            intent: 'a16z AI writing',
-            subjectKey: 'subject-a16z',
-            returned: 8,
-            accepted: 0,
-            entityFiltered: 8,
-            rejected: 0,
-          },
-        ],
-      },
-      'processing',
-    );
+    const debug = visualDebugFor({
+      schemaVersion: 'visual-search-debug-v1',
+      phase: 'search-failed',
+      searchTitleSource: 'publisher',
+      searchIntentModel: null,
+      subjectCatalog: completedVisualPayload.subjectCatalog,
+      sceneAssignments: completedVisualPayload.sceneAssignments,
+      plannedQueries: [
+        {
+          sceneId: 'scene-01',
+          subjectIds: ['subject-a16z'],
+          selectionReason: 'direct',
+          queries: ['a16z AI writing'],
+        },
+      ],
+      searchTrace: [
+        {
+          sceneId: 'scene-01',
+          provider: 'pixabay',
+          intent: 'a16z AI writing',
+          subjectKey: 'subject-a16z',
+          returned: 8,
+          accepted: 0,
+          entityFiltered: 8,
+          rejected: 0,
+        },
+      ],
+    });
 
     expect(debug?.phase).toBe('search-failed');
     expect(debug?.actualSearches).toEqual([
@@ -461,6 +411,7 @@ describe('podcast pipeline visual diagnostics', () => {
         returned: 8,
         viable: 0,
         drops: [{ reason: 'entity-filtered', count: 8 }],
+        candidates: [],
         error: null,
       },
     ]);
@@ -474,16 +425,13 @@ describe('podcast pipeline visual diagnostics', () => {
     ]);
   });
   it('lists every episode-wide Brave request, including the ones no scene owns', () => {
-    const debug = visualDebugFor(
-      {
-        ...completedVisualPayload,
-        provenance: {
-          ...completedVisualPayload.provenance,
-          imageSearch: episodeImageSearch,
-        },
+    const debug = visualDebugFor({
+      ...completedVisualPayload,
+      provenance: {
+        ...completedVisualPayload.provenance,
+        imageSearch: episodeImageSearch,
       },
-      'completed',
-    );
+    });
 
     // A primary request builds the pool before any scene owns an image, so
     // scene-keyed parsing would have dropped two of these three rows.
@@ -500,6 +448,34 @@ describe('podcast pipeline visual diagnostics', () => {
           { reason: 'decorative-asset', count: 38 },
           { reason: 'text-card-publisher', count: 21 },
         ],
+        // A scene names the image it got by query and provider rank only, so
+        // the join back to the thumbnail happens here or nowhere.
+        candidates: [
+          {
+            imageUrl: 'https://images.example.com/a16z-office.jpg',
+            sourceUrl: 'https://www.reuters.com/a16z',
+            altText: 'a16z headquarters',
+            providerRank: 0,
+            dropReason: null,
+            selectedBySceneId: 'scene-01',
+          },
+          {
+            imageUrl: 'https://images.example.com/a16z-logo.png',
+            sourceUrl: 'https://a16z.com/brand',
+            altText: null,
+            providerRank: 1,
+            dropReason: 'decorative-asset',
+            selectedBySceneId: null,
+          },
+          {
+            imageUrl: 'https://images.example.com/a16z-partners.jpg',
+            sourceUrl: 'https://www.ft.com/a16z',
+            altText: 'a16z partners',
+            providerRank: 4,
+            dropReason: null,
+            selectedBySceneId: 'scene-02',
+          },
+        ],
         error: null,
       },
       {
@@ -511,6 +487,7 @@ describe('podcast pipeline visual diagnostics', () => {
         returned: 0,
         viable: 0,
         drops: [],
+        candidates: [],
         error: 'brave images request failed with 429',
       },
       {
@@ -522,16 +499,33 @@ describe('podcast pipeline visual diagnostics', () => {
         returned: 40,
         viable: 12,
         drops: [],
+        candidates: [],
         error: null,
       },
     ]);
   });
 
+  it('leaves candidates empty for a payload written before they were traced', () => {
+    const debug = visualDebugFor({
+      imageSearch: {
+        ...episodeImageSearch,
+        requests: episodeImageSearch.requests.map((request) =>
+          Object.fromEntries(
+            Object.entries(request).filter(([key]) => key !== 'candidates'),
+          ),
+        ),
+      },
+    });
+
+    expect(debug?.actualSearches.map(({ candidates }) => candidates)).toEqual([
+      [],
+      [],
+      [],
+    ]);
+  });
+
   it('reports the request budget and the query spent on each primary subject', () => {
-    const debug = visualDebugFor(
-      { imageSearch: episodeImageSearch },
-      'processing',
-    );
+    const debug = visualDebugFor({ imageSearch: episodeImageSearch });
 
     expect(debug?.budget).toEqual({
       requestCount: 3,
@@ -547,25 +541,19 @@ describe('podcast pipeline visual diagnostics', () => {
   });
 
   it('marks the budget exhausted so a starved episode is not read as a bad search', () => {
-    const debug = visualDebugFor(
-      {
-        imageSearch: {
-          ...episodeImageSearch,
-          requestCount: 8,
-          budgetExhausted: true,
-        },
+    const debug = visualDebugFor({
+      imageSearch: {
+        ...episodeImageSearch,
+        requestCount: 8,
+        budgetExhausted: true,
       },
-      'processing',
-    );
+    });
 
     expect(debug?.budget).toMatchObject({ requestCount: 8, exhausted: true });
   });
 
   it('records each scene selection with the subject it borrowed and why', () => {
-    const debug = visualDebugFor(
-      { imageSearch: episodeImageSearch },
-      'processing',
-    );
+    const debug = visualDebugFor({ imageSearch: episodeImageSearch });
 
     expect(debug?.sceneSelections).toEqual([
       {
@@ -596,10 +584,7 @@ describe('podcast pipeline visual diagnostics', () => {
   });
 
   it('builds a panel from a payload whose only diagnostic is the image search', () => {
-    const debug = visualDebugFor(
-      { imageSearch: episodeImageSearch },
-      'processing',
-    );
+    const debug = visualDebugFor({ imageSearch: episodeImageSearch });
 
     expect(debug).not.toBeNull();
     expect(debug?.subjects).toEqual([]);
@@ -607,13 +592,10 @@ describe('podcast pipeline visual diagnostics', () => {
   });
 
   it('prefers the episode-wide requests over a legacy per-scene trace', () => {
-    const debug = visualDebugFor(
-      {
-        imageSearch: episodeImageSearch,
-        searchTrace: completedVisualPayload.provenance.searchTrace,
-      },
-      'processing',
-    );
+    const debug = visualDebugFor({
+      imageSearch: episodeImageSearch,
+      searchTrace: completedVisualPayload.provenance.searchTrace,
+    });
 
     expect(debug?.actualSearches.map(({ query }) => query)).toEqual([
       'a16z venture capital firm',
@@ -623,21 +605,18 @@ describe('podcast pipeline visual diagnostics', () => {
   });
 
   it('surfaces the planner queries a checkpoint intended to spend', () => {
-    const debug = visualDebugFor(
-      {
-        schemaVersion: 'visual-search-debug-v1',
-        phase: 'planned',
-        plannedSubjectSearches: [
-          {
-            subjectKey: 'a16z',
-            subjectLabel: 'a16z',
-            query: 'a16z venture capital firm',
-            sceneCount: 2,
-          },
-        ],
-      },
-      'processing',
-    );
+    const debug = visualDebugFor({
+      schemaVersion: 'visual-search-debug-v1',
+      phase: 'planned',
+      plannedSubjectSearches: [
+        {
+          subjectKey: 'a16z',
+          subjectLabel: 'a16z',
+          query: 'a16z venture capital firm',
+          sceneCount: 2,
+        },
+      ],
+    });
 
     expect(debug?.plannedSubjectSearches).toEqual([
       { label: 'a16z', query: 'a16z venture capital firm' },
@@ -645,14 +624,11 @@ describe('podcast pipeline visual diagnostics', () => {
   });
 
   it('surfaces why a degraded subject catalog is missing, from either payload shape', () => {
-    const checkpoint = visualDebugFor(
-      {
-        schemaVersion: 'visual-search-debug-v1',
-        phase: 'subject-catalog-degraded',
-        subjectCatalogFailure: 'subject catalog answer named no known subject',
-      },
-      'processing',
-    );
+    const checkpoint = visualDebugFor({
+      schemaVersion: 'visual-search-debug-v1',
+      phase: 'subject-catalog-degraded',
+      subjectCatalogFailure: 'subject catalog answer named no known subject',
+    });
 
     // The reason alone has to build a panel: a degraded catalog leaves nothing
     // else in the payload to render, and that is exactly the case an operator
@@ -663,17 +639,14 @@ describe('podcast pipeline visual diagnostics', () => {
       'subject catalog answer named no known subject',
     );
 
-    const completed = visualDebugFor(
-      {
-        ...completedVisualPayload,
-        subjectCatalog: null,
-        provenance: {
-          ...completedVisualPayload.provenance,
-          subjectCatalogFailure: 'subject catalog response failed validation',
-        },
+    const completed = visualDebugFor({
+      ...completedVisualPayload,
+      subjectCatalog: null,
+      provenance: {
+        ...completedVisualPayload.provenance,
+        subjectCatalogFailure: 'subject catalog response failed validation',
       },
-      'completed',
-    );
+    });
 
     expect(completed?.subjectCatalogFailure).toBe(
       'subject catalog response failed validation',
@@ -681,38 +654,35 @@ describe('podcast pipeline visual diagnostics', () => {
   });
 
   it('leaves the failure reason null when no payload recorded one', () => {
-    const debug = visualDebugFor(completedVisualPayload, 'completed');
+    const debug = visualDebugFor(completedVisualPayload);
 
     expect(debug?.subjectCatalogFailure).toBeNull();
   });
 
   it('counts how many scenes share one mirrored image', () => {
-    const debug = visualDebugFor(
-      {
-        imageSearch: episodeImageSearch,
-        assets: [
-          { assetId: 'image-01', r2Url: 'https://cdn.example.com/one.jpg' },
-          { assetId: 'image-02', r2Url: 'https://cdn.example.com/two.jpg' },
+    const debug = visualDebugFor({
+      imageSearch: episodeImageSearch,
+      assets: [
+        { assetId: 'image-01', r2Url: 'https://cdn.example.com/one.jpg' },
+        { assetId: 'image-02', r2Url: 'https://cdn.example.com/two.jpg' },
+      ],
+      visualPlan: {
+        scenes: [
+          {
+            sceneId: 'scene-01',
+            asset: { url: 'https://cdn.example.com/one.jpg' },
+          },
+          {
+            sceneId: 'scene-02',
+            asset: { url: 'https://cdn.example.com/one.jpg' },
+          },
+          {
+            sceneId: 'scene-03',
+            asset: { url: 'https://cdn.example.com/two.jpg' },
+          },
         ],
-        visualPlan: {
-          scenes: [
-            {
-              sceneId: 'scene-01',
-              asset: { url: 'https://cdn.example.com/one.jpg' },
-            },
-            {
-              sceneId: 'scene-02',
-              asset: { url: 'https://cdn.example.com/one.jpg' },
-            },
-            {
-              sceneId: 'scene-03',
-              asset: { url: 'https://cdn.example.com/two.jpg' },
-            },
-          ],
-        },
       },
-      'processing',
-    );
+    });
 
     expect(debug?.reuse).toEqual([{ assetId: 'image-01', useCount: 2 }]);
   });

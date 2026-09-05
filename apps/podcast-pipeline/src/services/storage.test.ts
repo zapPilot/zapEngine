@@ -439,6 +439,7 @@ describe('R2 upload retries', () => {
   });
 
   it.each([
+    ['500', 500],
     ['503', 503],
     ['429', 429],
     ['408', 408],
@@ -449,6 +450,24 @@ describe('R2 upload retries', () => {
 
     await expect(upload()).resolves.toBeDefined();
     expect(mockSend).toHaveBeenCalledTimes(2);
+  });
+
+  // The failure this budget exists for: R2 answers a transient blip with a bare
+  // HTTP 500, and three attempts covered ~2s of it -- one segment of the third
+  // language threw away a 612-second run whose other two languages were done.
+  it('survives an R2 5xx blip that outlasts the old three-attempt budget', async () => {
+    const internalError = transportError(
+      'We encountered an internal error. Please try again.',
+      { $metadata: { httpStatusCode: 500 } },
+    );
+    mockSend
+      .mockRejectedValueOnce(internalError)
+      .mockRejectedValueOnce(internalError)
+      .mockRejectedValueOnce(internalError)
+      .mockRejectedValueOnce(internalError);
+
+    await expect(upload()).resolves.toBeDefined();
+    expect(mockSend).toHaveBeenCalledTimes(5);
   });
 
   it.each([
@@ -484,7 +503,7 @@ describe('R2 upload retries', () => {
     expect(mockSend).toHaveBeenCalledTimes(2);
   });
 
-  it('gives up after three attempts and preserves the original error', async () => {
+  it('gives up after seven attempts and preserves the original error', async () => {
     const error = transportError('write EPIPE', {
       code: 'EPIPE',
       $metadata: { httpStatusCode: 500, requestId: 'req-1' },
@@ -492,10 +511,10 @@ describe('R2 upload retries', () => {
     mockSend.mockRejectedValue(error);
 
     await expect(upload()).rejects.toBe(error);
-    expect(mockSend).toHaveBeenCalledTimes(3);
+    expect(mockSend).toHaveBeenCalledTimes(7);
   });
 
-  it('backs off exponentially with jitter and logs each retry', async () => {
+  it('backs off exponentially with jitter, caps the tail, and logs each retry', async () => {
     mockSend.mockRejectedValue(
       transportError('write EPIPE', { code: 'EPIPE' }),
     );
@@ -503,20 +522,28 @@ describe('R2 upload retries', () => {
     await expect(upload()).rejects.toThrow('write EPIPE');
 
     const delays = mockSleep.mock.calls.map(([ms]) => ms as number);
-    expect(delays).toHaveLength(2);
-    expect(delays[0]).toBeGreaterThanOrEqual(500);
-    expect(delays[0]).toBeLessThanOrEqual(750);
-    expect(delays[1]).toBeGreaterThanOrEqual(1000);
-    expect(delays[1]).toBeLessThanOrEqual(1500);
+    // Doubling from 500ms to the 8s ceiling; the last one would be 16s uncapped,
+    // and an uncapped seventh would outlast fly.toml's `kill_timeout = '30s'`.
+    const bases = [500, 1_000, 2_000, 4_000, 8_000, 8_000];
+    expect(delays).toHaveLength(bases.length);
+    for (const [index, base] of bases.entries()) {
+      expect(delays[index]).toBeGreaterThanOrEqual(base);
+      expect(delays[index]).toBeLessThanOrEqual(base * 1.5);
+    }
+    // 23.5-35.3s of tolerated R2 failure, against ~1.5-2.25s before.
+    expect(delays.reduce((total, ms) => total + ms, 0)).toBeGreaterThanOrEqual(
+      23_500,
+    );
 
-    expect(mockLogPipelineEvent).toHaveBeenCalledTimes(2);
+    expect(mockLogPipelineEvent).toHaveBeenCalledTimes(6);
     expect(mockLogPipelineEvent).toHaveBeenLastCalledWith(
       '[r2]',
       'put:retry',
       expect.objectContaining({
         key: 'episodes/test-id/localizations/zh-Hant/main/playlist.m3u8',
-        attempt: 2,
-        nextAttempt: 3,
+        attempt: 6,
+        nextAttempt: 7,
+        maxAttempts: 7,
         error: 'write EPIPE',
       }),
     );

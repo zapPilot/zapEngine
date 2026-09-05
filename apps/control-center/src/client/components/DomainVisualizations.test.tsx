@@ -74,7 +74,7 @@ describe('domain-native control center visualizations', () => {
     expect(screen.getByText('Threads')).toBeVisible();
     expect(screen.getByText('ja')).toBeVisible();
     expect(screen.getByText('Retries exhausted')).toBeVisible();
-    expect(screen.getByText('1 blocked · 2 active')).toBeVisible();
+    expect(screen.getByText('0 published · 2 remaining')).toBeVisible();
   });
 
   it('shows source activity as compact clickable events', () => {
