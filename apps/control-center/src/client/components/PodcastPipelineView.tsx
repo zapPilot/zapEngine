@@ -1,5 +1,4 @@
 import { RotateCcw } from 'lucide-react';
-import { useState } from 'react';
 
 import type {
   PodcastPipelineEpisode,
@@ -152,8 +151,7 @@ function PipelineEpisode(
   const canRestart = isIngestPhase
     ? episode.canRestartIngest
     : episode.canRestartVideo;
-  const restartLabel = isIngestPhase ? 'Restart ingest' : 'Resume video';
-  const restartInProgressLabel = isIngestPhase ? 'Restarting…' : 'Resuming…';
+  const restartLabel = isIngestPhase ? 'Restart ingest' : 'Restart video';
 
   return (
     <article className="open-panel pipeline-episode">
@@ -181,7 +179,7 @@ function PipelineEpisode(
           {episode.currentPhase !== 'done' ? (
             <RestartButton
               disabled={!canRestart || props.isRestarting}
-              label={props.isRestarting ? restartInProgressLabel : restartLabel}
+              label={props.isRestarting ? 'Restarting…' : restartLabel}
               onClick={() =>
                 props.onRestartStep(
                   episode.episodeId,
@@ -269,60 +267,7 @@ function PipelineEpisode(
         onSubmitReview={props.onSubmitReview}
         pipelineDebug={episode.visualDebug}
       />
-
-      {episode.canForceReplanVisual ? (
-        <AdvancedRecovery
-          disabled={props.isRestarting}
-          onForceReplan={() =>
-            props.onRestartStep(episode.episodeId, {
-              step: 'video',
-              forceReplan: true,
-            })
-          }
-        />
-      ) : null}
     </article>
-  );
-}
-
-function AdvancedRecovery(props: {
-  disabled: boolean;
-  onForceReplan: () => void;
-}) {
-  const [confirmReplan, setConfirmReplan] = useState(false);
-
-  return (
-    <details
-      className="pipeline-details"
-      onToggle={(event) => {
-        // Collapsing must disarm the confirmation, otherwise a re-opened
-        // disclosure offers a one-click destructive re-plan.
-        if (!event.currentTarget.open) {
-          setConfirmReplan(false);
-        }
-      }}
-    >
-      <summary>Advanced recovery</summary>
-      <div className="pipeline-retry-actions">
-        <RestartButton
-          disabled={props.disabled}
-          label={
-            confirmReplan
-              ? 'Confirm re-plan (re-renders 3 videos)'
-              : 'Re-plan visuals'
-          }
-          onClick={() => {
-            if (!confirmReplan) {
-              setConfirmReplan(true);
-              return;
-            }
-            setConfirmReplan(false);
-            props.onForceReplan();
-          }}
-          title="Discard the visual checkpoint and generate a new visual plan"
-        />
-      </div>
-    </details>
   );
 }
 
