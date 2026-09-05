@@ -110,7 +110,12 @@ class ScriptPayloadValidationError extends Error {
 class LanguageClassroomPayloadError extends Error {
   constructor(
     message: string,
-    readonly reason: 'invalid_json' | 'truncated' | 'not_object' | 'no_lessons',
+    readonly reason:
+      | 'invalid_json'
+      | 'truncated'
+      | 'not_object'
+      | 'no_lessons'
+      | 'incomplete_targets',
     options?: ErrorOptions,
   ) {
     super(message, options);
@@ -1035,7 +1040,7 @@ export function buildLanguageClassroomUserMessage(
   return [
     grounding,
     '',
-    `修正要求：上一次的回應被拒絕（${retryReason}）。請只回傳一個可被 JSON.parse 解析的 JSON 物件，欄位與先前要求完全相同；所有字串值內的雙引號必須寫成 \\"，不可含未跳脫的引號、換行或 Markdown。`,
+    `修正要求：上一次的回應被拒絕（${retryReason}）。請重新產生完整結果並遵守：(1) 只回傳一個可被 JSON.parse 解析的 JSON 物件，不要 Markdown；(2) 所有字串值內的雙引號必須寫成 \\"，不可含未跳脫的引號或換行；(3) lessons 必須包含上面「目標語言」列出的每一個 targetLanguageCode，每一筆都要有非空的 oneLiner、keywords 與 script。`,
   ].join('\n');
 }
 
@@ -1250,14 +1255,48 @@ function parseLanguageClassroomLessons(
       (lesson): lesson is LanguageClassroomLessonDraft => lesson !== undefined,
     );
 
+  // `requested` is exactly the set the caller must get back: both call sites in
+  // audio-stage pass the targets they are still missing, and both hard-fail
+  // afterwards if one is absent. Comparing returned against accepted is what
+  // separates a model that omitted a language from a lesson this parser dropped
+  // for a blank script, blank oneLiner, or no usable keyword -- indistinguishable
+  // in the failure that made this check necessary.
+  const targetSummary =
+    ` (requested=${targetLanguageCodes.join('|')}` +
+    `, returned=${joinTargets(rawLessonTargets(rawLessons))}` +
+    `, accepted=${joinTargets(ordered.map((lesson) => lesson.targetLanguageCode))})`;
+
   if (ordered.length === 0) {
     throw new LanguageClassroomPayloadError(
-      `Language classroom response did not contain any valid lessons${diagnostics}`,
+      `Language classroom response did not contain any valid lessons${diagnostics}${targetSummary}`,
       'no_lessons',
     );
   }
 
+  const missingTargets = targetLanguageCodes.filter(
+    (targetLanguageCode) => !byTargetLanguage.has(targetLanguageCode),
+  );
+  if (missingTargets.length > 0) {
+    throw new LanguageClassroomPayloadError(
+      `Language classroom response is missing targets: ${missingTargets.join(', ')}${diagnostics}${targetSummary}`,
+      'incomplete_targets',
+    );
+  }
+
   return ordered;
+}
+
+function rawLessonTargets(rawLessons: unknown[]): string[] {
+  return rawLessons.map((raw) => {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return '?';
+    const value = raw as Record<string, unknown>;
+    const target = value['targetLanguageCode'] ?? value['target_language_code'];
+    return typeof target === 'string' && target.trim() ? target.trim() : '?';
+  });
+}
+
+function joinTargets(targets: string[]): string {
+  return targets.length > 0 ? targets.join('|') : 'none';
 }
 
 /**

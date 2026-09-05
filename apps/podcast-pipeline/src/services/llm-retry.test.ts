@@ -152,6 +152,19 @@ function malformedClassroomContent(padding: number): string {
   return `{"lessons":[{"script":"${'流動性の話。'.repeat(padding)}"引號"}]}`;
 }
 
+function classroomLessonsContent(
+  lessons: { target: string; script: string }[],
+): string {
+  return JSON.stringify({
+    lessons: lessons.map(({ target, script }) => ({
+      targetLanguageCode: target,
+      oneLiner: `oneLiner ${target}`,
+      keywords: [{ term: `term-${target}`, meaning: '資金進出的難易度' }],
+      script,
+    })),
+  });
+}
+
 function requestUserMessage(mockCreate: Mock, callIndex: number): string {
   const request = mockCreate.mock.calls[callIndex]?.[0] as
     | { messages?: { role: string; content: string }[] }
@@ -589,6 +602,69 @@ describe('generateLanguageClassroomsWithLLM retries', () => {
     expect(failure?.message).toContain('outputChars=');
     expect(failure?.message).toContain('near: ');
     expect(failure?.message).toContain('引號');
+    expect(mockCreate).toHaveBeenCalledTimes(3);
+  });
+
+  // The second production failure, hours after the first: valid JSON, one
+  // requested language simply absent. It used to be accepted here, persisted,
+  // and then rejected two layers up by assertLanguageClassroomsReady -- past
+  // the point where anything could still ask the model again.
+  it('re-prompts when a requested target is missing and succeeds', async () => {
+    const mockCreate = vi
+      .fn()
+      .mockResolvedValueOnce(
+        classroomCompletion(
+          classroomLessonsContent([
+            { target: 'ja', script: '流動性の話です。' },
+          ]),
+        ),
+      )
+      .mockResolvedValueOnce(successfulClassroomCompletion());
+    mockOpenAIClient(mockCreate);
+
+    const result = await generateLanguageClassroomsWithLLM(classroomInput);
+
+    expect(result.lessons.map((lesson) => lesson.targetLanguageCode)).toEqual([
+      'ja',
+      'en',
+    ]);
+    expect(mockCreate).toHaveBeenCalledTimes(2);
+    // The re-prompt has to name the language that was missing.
+    expect(requestUserMessage(mockCreate, 1)).toContain('missing targets: en');
+    expect(ingestMocks.logIngestEvent).toHaveBeenCalledWith(
+      'llm:retry',
+      expect.objectContaining({
+        layer: 'payload',
+        reason: 'incomplete_targets',
+      }),
+    );
+  });
+
+  // "Missing" has two causes that look identical from the outside: the model
+  // never wrote the lesson, or this parser dropped it for a blank script,
+  // blank oneLiner, or no usable keyword. They need different fixes.
+  it('reports whether the model omitted a target or the parser dropped it', async () => {
+    const mockCreate = vi.fn().mockResolvedValue(
+      classroomCompletion(
+        classroomLessonsContent([
+          { target: 'ja', script: '流動性の話です。' },
+          { target: 'en', script: '   ' },
+        ]),
+      ),
+    );
+    mockOpenAIClient(mockCreate);
+
+    const failure = await generateLanguageClassroomsWithLLM(
+      classroomInput,
+    ).then(
+      () => null,
+      (error: unknown) => error as Error,
+    );
+
+    expect(failure?.message).toContain('missing targets: en');
+    expect(failure?.message).toContain('requested=ja|en');
+    expect(failure?.message).toContain('returned=ja|en');
+    expect(failure?.message).toContain('accepted=ja');
     expect(mockCreate).toHaveBeenCalledTimes(3);
   });
 

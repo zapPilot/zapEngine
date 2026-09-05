@@ -1099,7 +1099,7 @@ describe('generateLanguageClassroomsWithLLM', () => {
       articleText: '這篇文章解釋市場流動性與資金進出。',
       script: '大家好，今天談市場流動性。',
       sourceLanguageCode: 'zh-Hant',
-      targetLanguageCodes: ['ja', 'en'],
+      targetLanguageCodes: ['ja'],
     });
 
     const callArgs = mockCreate.mock.calls[0]![0] as {
