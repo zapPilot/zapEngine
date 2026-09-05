@@ -251,14 +251,18 @@ function SocialCard({ item }: { item: SocialQueueItem }) {
         <StateBadge state={item.state} />
       </div>
       <code>{item.episodeId}</code>
-      <div className="social-schedule">{formatDateTime(item.scheduledAt)}</div>
+      <div className="social-schedule">
+        {item.contentType} · {formatDateTime(item.scheduledAt)}
+      </div>
       <div className="social-platforms">
         {item.platforms.map((lane) => (
           <div
             className="social-platform-row"
             key={`${lane.platform}:${lane.languageCode}`}
           >
-            <span>{PLATFORM_LABELS[lane.platform]}</span>
+            <span>
+              {PLATFORM_LABELS[lane.platform]} · {lane.languageCode}
+            </span>
             <span className={`social-status social-status-${lane.status}`}>
               {lane.status}
             </span>
