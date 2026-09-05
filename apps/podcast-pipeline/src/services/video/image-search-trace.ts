@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import type { ImageCandidate } from '../../types.js';
+
 /**
  * Why an episode ended up with the images it has. Every Brave request and every
  * scene decision is recorded, including the decisions that degraded quality
@@ -14,6 +16,13 @@ const MAX_TRACE_PRIMARY_SUBJECTS = 8;
 const MAX_TRACE_DROP_ENTRIES = 16;
 const MAX_TRACE_REJECTION_ENTRIES = 32;
 const MAX_FORMATTED_DROP_CAUSES = 4;
+/** Counts alone cannot answer "what did Brave actually return?" once the
+ * request is over, so the head of each response is kept verbatim -- including
+ * the entries the pre-download filter removed, which are otherwise the only
+ * part of a search that leaves no trace at all. */
+const MAX_TRACE_CANDIDATES = 12;
+const MAX_TRACE_CANDIDATE_URL = 600;
+const MAX_TRACE_CANDIDATE_ALT_TEXT = 200;
 
 export const IMAGE_SEARCH_REQUEST_KINDS = ['primary', 'targeted'] as const;
 
@@ -50,6 +59,19 @@ const countedReasonSchema = z
   })
   .strict();
 
+/** One result as the provider ordered it, with the rule that removed it when
+ * it did not survive. `providerRank` is Brave's own index, so a selected asset
+ * can be found again by the rank its scene recorded. */
+const visualImageSearchCandidateSchema = z
+  .object({
+    imageUrl: z.string().url().max(MAX_TRACE_CANDIDATE_URL),
+    sourceUrl: z.string().url().max(MAX_TRACE_CANDIDATE_URL),
+    altText: z.string().min(1).max(MAX_TRACE_CANDIDATE_ALT_TEXT).nullable(),
+    providerRank: z.number().int().nonnegative(),
+    dropReason: z.string().min(1).max(80).nullable(),
+  })
+  .strict();
+
 const visualImageSearchRequestSchema = z
   .object({
     kind: z.enum(IMAGE_SEARCH_REQUEST_KINDS),
@@ -65,6 +87,15 @@ const visualImageSearchRequestSchema = z
     returned: z.number().int().nonnegative(),
     viable: z.number().int().nonnegative(),
     drops: z.array(countedReasonSchema).max(MAX_TRACE_DROP_ENTRIES),
+    // Defaulted rather than required so a payload stored before candidates
+    // existed still parses: `episode-video-processor` re-parses the stored
+    // manifest on every render, and a required field would break the renders of
+    // every episode already completed. The inferred output type keeps it
+    // required, so nothing that writes a request may omit it.
+    candidates: z
+      .array(visualImageSearchCandidateSchema)
+      .max(MAX_TRACE_CANDIDATES)
+      .default([]),
     error: z.string().min(1).max(300).nullable(),
   })
   .strict();
@@ -223,6 +254,37 @@ function formatDropCauses(drops?: ReadonlyMap<string, number>): string | null {
     .slice(0, MAX_FORMATTED_DROP_CAUSES)
     .map(([cause, count]) => `${cause}:${count}`)
     .join(',');
+}
+
+/**
+ * The head of one provider response, in the order the provider returned it.
+ * A candidate whose URLs do not fit the trace bounds is skipped rather than
+ * truncated: a cut URL is neither loadable nor comparable, and a payload that
+ * fails its own schema costs the whole attempt.
+ */
+export function tracedCandidates(
+  results: readonly ImageCandidate[],
+  dropReasons: ReadonlyMap<string, string>,
+): VisualImageSearchRequest['candidates'] {
+  return results.slice(0, MAX_TRACE_CANDIDATES).flatMap((candidate, index) => {
+    if (
+      candidate.imageUrl.length > MAX_TRACE_CANDIDATE_URL ||
+      candidate.sourceUrl.length > MAX_TRACE_CANDIDATE_URL
+    ) {
+      return [];
+    }
+    const altText =
+      candidate.altText?.slice(0, MAX_TRACE_CANDIDATE_ALT_TEXT).trim() ?? '';
+    return [
+      {
+        imageUrl: candidate.imageUrl,
+        sourceUrl: candidate.sourceUrl,
+        altText: altText || null,
+        providerRank: index,
+        dropReason: dropReasons.get(candidate.imageUrl) ?? null,
+      },
+    ];
+  });
 }
 
 export function countedDrops(

@@ -19,7 +19,6 @@ vi.mock('./supabase.js', async (importOriginal) => {
 });
 
 const EPISODE_ID = '826f4b87-6278-4275-bff5-535ba5ef438d';
-const LOCALIZATION_ID = '00000000-0000-4000-8000-000000000001';
 const IMAGE_URL = 'https://cdn.example.com/visual/image-01.jpg';
 const SLIDE_URL = 'https://cdn.example.com/visual/slide-02.png';
 
@@ -133,23 +132,6 @@ function happyTables(
         },
       }),
     ],
-    episode_localizations: ok([{ id: LOCALIZATION_ID, language_code: 'ja' }]),
-    episode_videos: ok([
-      {
-        episode_localization_id: LOCALIZATION_ID,
-        status: 'completed',
-        mp4_url: 'https://cdn.example.com/ja.mp4',
-        thumbnail_url: 'https://cdn.example.com/ja.jpg',
-        duration_seconds: 61,
-      },
-      {
-        episode_localization_id: 'unknown-localization',
-        status: 'queued',
-        mp4_url: null,
-        thumbnail_url: null,
-        duration_seconds: null,
-      },
-    ]),
     episode_video_reviews: ok([reviewRow]),
     ...overrides,
   };
@@ -626,22 +608,6 @@ describe('createPodcastVisualService', () => {
       attempts: 2,
       lastError: null,
     });
-    expect(response.renders).toEqual([
-      {
-        languageCode: 'ja',
-        status: 'completed',
-        mp4Url: 'https://cdn.example.com/ja.mp4',
-        thumbnailUrl: 'https://cdn.example.com/ja.jpg',
-        durationSeconds: 61,
-      },
-      {
-        languageCode: 'unknown',
-        status: 'queued',
-        mp4Url: null,
-        thumbnailUrl: null,
-        durationSeconds: null,
-      },
-    ]);
     expect(response.scenes.map(({ sceneId }) => sceneId)).toEqual([
       'scene-01',
       'scene-02',

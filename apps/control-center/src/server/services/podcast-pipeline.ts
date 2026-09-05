@@ -418,7 +418,11 @@ function visualSearchDebug(
   const imageSearch = record(
     payload['imageSearch'] ?? provenance?.['imageSearch'],
   );
-  const episodeRequests = parseImageSearchRequests(imageSearch?.['requests']);
+  const sceneSelections = parseSceneSelections(imageSearch?.['scenes']);
+  const episodeRequests = parseImageSearchRequests(
+    imageSearch?.['requests'],
+    sceneSelections,
+  );
   // Pre-episode-pool payloads only ever recorded per-scene provider attempts.
   const actualSearches =
     episodeRequests.length > 0
@@ -433,7 +437,6 @@ function visualSearchDebug(
   const plannedSubjectSearches = parseSubjectSearches(
     payload['plannedSubjectSearches'],
   );
-  const sceneSelections = parseSceneSelections(imageSearch?.['scenes']);
   const reuse = parseImageReuse(payload);
   const subjectCatalogFailure = textOrNull(
     payload['subjectCatalogFailure'] ?? provenance?.['subjectCatalogFailure'],
@@ -528,7 +531,9 @@ function isBrandVisualIntent(query: string): boolean {
  */
 function parseImageSearchRequests(
   value: unknown,
+  sceneSelections: PodcastPipelineVisualDebug['sceneSelections'],
 ): PodcastPipelineVisualDebug['actualSearches'] {
+  const selectedScenes = selectedSceneByQueryRank(sceneSelections);
   return records(value).flatMap((row) => {
     const query = row['query'];
     if (typeof query !== 'string') {
@@ -550,7 +555,64 @@ function parseImageSearchRequests(
             ? [{ reason, count: numericCount(drop['count']) }]
             : [];
         }),
+        candidates: parseSearchCandidates(
+          row['candidates'],
+          query,
+          selectedScenes,
+        ),
         error: textOrNull(row['error']),
+      },
+    ];
+  });
+}
+
+/**
+ * A scene records the query and provider rank its image came off, never the URL,
+ * so the only way to point at the winning thumbnail in a request's candidate
+ * list is to rebuild that pair. Two scenes can share one candidate through
+ * reuse; the first one recorded owns the mark.
+ */
+function selectedSceneByQueryRank(
+  sceneSelections: PodcastPipelineVisualDebug['sceneSelections'],
+): Map<string, string> {
+  const selected = new Map<string, string>();
+  for (const scene of sceneSelections) {
+    if (scene.sourceQuery === null || scene.providerRank === null) {
+      continue;
+    }
+    const key = queryRankKey(scene.sourceQuery, scene.providerRank);
+    if (!selected.has(key)) {
+      selected.set(key, scene.sceneId);
+    }
+  }
+  return selected;
+}
+
+function queryRankKey(query: string, providerRank: number): string {
+  return `${query.trim().toLocaleLowerCase('en-US')}#${providerRank}`;
+}
+
+function parseSearchCandidates(
+  value: unknown,
+  query: string,
+  selectedScenes: ReadonlyMap<string, string>,
+): PodcastPipelineVisualDebug['actualSearches'][number]['candidates'] {
+  return records(value).flatMap((row) => {
+    const imageUrl = textOrNull(row['imageUrl']);
+    const sourceUrl = textOrNull(row['sourceUrl']);
+    if (!imageUrl || !sourceUrl) {
+      return [];
+    }
+    const providerRank = numericCount(row['providerRank']);
+    return [
+      {
+        imageUrl,
+        sourceUrl,
+        altText: textOrNull(row['altText']),
+        providerRank,
+        dropReason: textOrNull(row['dropReason']),
+        selectedBySceneId:
+          selectedScenes.get(queryRankKey(query, providerRank)) ?? null,
       },
     ];
   });
@@ -659,6 +721,7 @@ function parseActualSearches(
       returned: numericCount(row['returned']),
       viable: numericCount(row['accepted']),
       drops: legacyDrops(row),
+      candidates: [],
       error: null,
     };
   });

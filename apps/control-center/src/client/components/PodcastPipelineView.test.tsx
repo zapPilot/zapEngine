@@ -2,14 +2,22 @@
 /* jscpd:ignore-start -- standard testing-library/vitest boilerplate */
 import '@testing-library/jest-dom/vitest';
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type {
+  PodcastPipelineRenderState,
   PodcastPipelineResponse,
   PodcastPipelineVisualDebug,
   PodcastPipelineVisualSearchAttempt,
 } from '../../shared/podcast-pipeline.js';
+import type { PodcastVisualDebugResponse } from '../../shared/podcast-visual.js';
 import { PodcastPipelineView } from './PodcastPipelineView.js';
 /* jscpd:ignore-end */
 
@@ -52,7 +60,7 @@ function pipelineResponse(
             languageCode: 'en',
             status: 'completed',
             hasScript: true,
-            hasAudio: true,
+            hasAudio: false,
             updatedAt: '2026-09-01T00:00:00.000Z',
           },
         ],
@@ -72,6 +80,25 @@ function pipelineResponse(
         ...overrides,
       },
     ],
+  };
+}
+
+function renderState(
+  overrides: Partial<PodcastPipelineRenderState> & {
+    languageCode: PodcastPipelineRenderState['languageCode'];
+  },
+): PodcastPipelineRenderState {
+  return {
+    status: 'processing',
+    progressPercent: 62,
+    stage: 'encoding',
+    attempts: 1,
+    lastError: null,
+    leaseExpiresAt: null,
+    updatedAt: '2026-09-01T00:00:00.000Z',
+    localizationId: `loc-${overrides.languageCode}`,
+    canRestart: false,
+    ...overrides,
   };
 }
 
@@ -119,7 +146,34 @@ function braveRequest(
     returned: 100,
     viable: 41,
     drops: [],
+    candidates: [],
     error: null,
+    ...overrides,
+  };
+}
+
+function lazyVisualDebug(
+  overrides: Partial<PodcastVisualDebugResponse> = {},
+): PodcastVisualDebugResponse {
+  return {
+    status: 'ok',
+    message: null,
+    episode: {
+      id: episodeId,
+      title: 'Pipeline recovery test',
+      sourceUrl: 'https://example.com/article',
+    },
+    visual: {
+      status: 'completed',
+      visualVersion: 'visual-v10',
+      visualHash: 'f'.repeat(64),
+      attempts: 1,
+      lastError: null,
+    },
+    scenes: [],
+    failure: null,
+    reviews: [],
+    rawPlan: null,
     ...overrides,
   };
 }
@@ -129,6 +183,7 @@ afterEach(cleanup);
 function renderPipeline(input: {
   data?: PodcastPipelineResponse;
   restartingEpisodeId?: string | null;
+  visualDebugByEpisode?: Record<string, PodcastVisualDebugResponse>;
 }) {
   const onRestartStep = vi.fn();
   render(
@@ -139,10 +194,23 @@ function renderPipeline(input: {
       onRestartStep={onRestartStep}
       onSubmitReview={vi.fn()}
       restartingEpisodeId={input.restartingEpisodeId ?? null}
-      visualDebugByEpisode={{}}
+      visualDebugByEpisode={input.visualDebugByEpisode ?? {}}
     />,
   );
   return { onRestartStep };
+}
+
+function phaseCell(label: string): HTMLElement {
+  // The current phase chip carries the same word as the grid cell, so the cell
+  // has to be picked by where the label sits rather than by the label alone.
+  const cell = screen
+    .getAllByText(label)
+    .map((node) => node.parentElement)
+    .find((parent) => parent?.classList.contains('pipeline-phase-cell'));
+  if (!cell) {
+    throw new Error(`No phase cell for ${label}`);
+  }
+  return cell;
 }
 
 describe('PodcastPipelineView', () => {
@@ -236,53 +304,111 @@ describe('PodcastPipelineView', () => {
     expect(button).toBeDisabled();
   });
 
-  it('labels keywords as planned and flags the missing trace before any provider call', () => {
+  it('shows the whole episode id and copies it on click', () => {
+    renderPipeline({});
+
+    const id = screen.getByRole('button', { name: 'Copy episode id' });
+    // Eight characters was enough to recognize the card and useless for every
+    // retry command, log filter and SQL query written next to it.
+    expect(id).toHaveTextContent(episodeId);
+
+    fireEvent.click(id);
+    expect(id).toHaveTextContent('Copied');
+  });
+
+  it('puts each language inside the phase it belongs to instead of a separate section', () => {
+    const { onRestartStep } = renderPipeline({
+      data: pipelineResponse({
+        renders: [
+          renderState({ languageCode: 'zh-Hant' }),
+          renderState({
+            languageCode: 'ja',
+            status: 'failed',
+            lastError: 'ffmpeg exited 1',
+            canRestart: true,
+          }),
+          renderState({ languageCode: 'en', status: 'queued' }),
+        ],
+      }),
+    });
+
+    expect(
+      screen.queryByText('Language and render details'),
+    ).not.toBeInTheDocument();
+
+    const video = phaseCell('Video');
+    expect(within(video).getByText('🇹🇼 zh-Hant')).toBeInTheDocument();
+    expect(within(video).getByText('🇯🇵 ja')).toBeInTheDocument();
+    expect(within(video).getByText('🇺🇸 en')).toBeInTheDocument();
+    expect(within(video).getByText('ffmpeg exited 1')).toBeInTheDocument();
+
+    // Only the failed language offers a retry, and it retries just that render.
+    const retries = within(video).getAllByRole('button', {
+      name: 'Retry render',
+    });
+    expect(retries).toHaveLength(1);
+    fireEvent.click(retries[0] as HTMLElement);
+    expect(onRestartStep).toHaveBeenCalledWith(episodeId, {
+      step: 'render',
+      localizationId: 'loc-ja',
+    });
+  });
+
+  it('reads script and audio readiness per language from their own phases', () => {
+    renderPipeline({});
+
+    const tts = phaseCell('TTS');
+    expect(within(tts).getAllByText('Done')).toHaveLength(3);
+    expect(within(tts).getAllByText('Pending')).toHaveLength(1);
+  });
+
+  it('collapses the visual evidence into a single debug section', () => {
     renderPipeline({
       data: pipelineResponse({ visualDebug: visualDebug({}) }),
     });
 
-    expect(screen.getByText('Search keywords planned')).toBeInTheDocument();
-    expect(screen.getByText('a16z · Andreessen Horowitz')).toBeInTheDocument();
+    expect(screen.queryByText('Visual search debug')).not.toBeInTheDocument();
     expect(
-      screen.getByText('No provider search trace recorded yet'),
+      screen.queryByText('Visual plan, search trace and review'),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText(/^Visual debug/u)).toBeInTheDocument();
+  });
+
+  it('flags the missing trace and lists what the attempt intended to search', () => {
+    renderPipeline({
+      data: pipelineResponse({ visualDebug: visualDebug({}) }),
+    });
+
+    const planned = screen
+      .getByText('Planned searches')
+      .closest('.podcast-visual-searches') as HTMLElement;
+    expect(
+      within(planned).getByText('No provider search trace recorded yet'),
+    ).toBeInTheDocument();
+    expect(within(planned).getByText('a16z')).toBeInTheDocument();
+    expect(
+      within(planned).getByText('Andreessen Horowitz'),
     ).toBeInTheDocument();
   });
 
-  it('labels keywords as used and shows only what the provider was actually asked', () => {
+  it('drops the planned list once real requests exist', () => {
     renderPipeline({
       data: pipelineResponse({
         visualDebug: visualDebug({
           phase: 'searched',
-          actualSearches: [
-            {
-              sceneId: 'scene-01',
-              provider: 'brave',
-              kind: null,
-              subjectLabel: null,
-              query: 'a16z',
-              returned: 20,
-              viable: 4,
-              drops: [
-                { reason: 'entity-filtered', count: 2 },
-                { reason: 'rejected', count: 1 },
-              ],
-              error: null,
-            },
-          ],
+          actualSearches: [braveRequest({ query: 'a16z' })],
         }),
       }),
     });
 
-    const keywords = screen.getByText('Search keywords used').parentElement;
-    expect(keywords).toHaveTextContent('a16z');
-    expect(keywords).not.toHaveTextContent('Andreessen Horowitz');
-    expect(
-      screen.queryByText('Search keywords planned'),
-    ).not.toBeInTheDocument();
+    expect(screen.getByText('Searches')).toBeInTheDocument();
+    expect(screen.queryByText('Planned searches')).not.toBeInTheDocument();
     expect(
       screen.queryByText('No provider search trace recorded yet'),
     ).not.toBeInTheDocument();
+    expect(screen.queryByText('Andreessen Horowitz')).not.toBeInTheDocument();
   });
+
   it('reports the episode request budget against its per-episode ceiling', () => {
     renderPipeline({
       data: pipelineResponse({
@@ -317,6 +443,9 @@ describe('PodcastPipelineView', () => {
     expect(
       screen.getByText('requests 6/8 · primary 5/5 · targeted 1/3 · exhausted'),
     ).toBeInTheDocument();
+    expect(screen.getByText(/^Visual debug/u)).toHaveTextContent(
+      'requests 6/8',
+    );
   });
 
   it('lists a primary request by subject and shows its drops and provider error', () => {
@@ -324,7 +453,6 @@ describe('PodcastPipelineView', () => {
       data: pipelineResponse({
         visualDebug: visualDebug({
           phase: 'searched',
-          primarySubjects: [{ label: 'Justin Sun', query: 'Justin Sun' }],
           actualSearches: [
             braveRequest({
               kind: 'primary',
@@ -347,37 +475,120 @@ describe('PodcastPipelineView', () => {
     expect(
       screen.getByText('brave images request failed with 429'),
     ).toBeInTheDocument();
-    expect(screen.getByText('Justin Sun · “Justin Sun”')).toBeInTheDocument();
   });
 
-  it('names the image a scene actually got and the rung it fell back to', () => {
+  it('shows what came back, which result was dropped, and which scene took one', () => {
     renderPipeline({
       data: pipelineResponse({
         visualDebug: visualDebug({
           phase: 'searched',
-          sceneSelections: [
-            {
-              sceneId: 'scene-02',
-              selection: 'pool-fallback',
-              fallbackReason: 'subject-not-searched',
-              matchedSubjectKey: 'a16z',
-              sourceQuery: 'a16z venture capital firm',
-              providerRank: 4,
-            },
+          actualSearches: [
+            braveRequest({
+              query: 'Tether',
+              candidates: [
+                {
+                  imageUrl: 'https://images.example.com/tether-logo.png',
+                  sourceUrl: 'https://tether.to/brand',
+                  altText: 'Tether logo',
+                  providerRank: 0,
+                  dropReason: 'decorative-asset',
+                  selectedBySceneId: null,
+                },
+                {
+                  imageUrl: 'https://images.example.com/tethering.jpg',
+                  sourceUrl: 'https://www.howto.example/tethering',
+                  altText: 'Tethering your phone',
+                  providerRank: 28,
+                  dropReason: null,
+                  selectedBySceneId: 'scene-01',
+                },
+              ],
+            }),
           ],
-          reuse: [{ assetId: 'image-01', useCount: 3 }],
         }),
       }),
     });
 
-    expect(screen.getByText('scene-02 · pool-fallback')).toBeInTheDocument();
+    const dropped = screen
+      .getByAltText('Tether logo')
+      .closest('.podcast-visual-candidate');
+    expect(dropped).toHaveClass('dropped');
     expect(
-      screen.getByText('a16z · from “a16z venture capital firm” (#4)'),
+      within(dropped as HTMLElement).getByText('decorative-asset'),
+    ).toBeInTheDocument();
+
+    const selected = screen
+      .getByAltText('Tethering your phone')
+      .closest('.podcast-visual-candidate');
+    expect(selected).toHaveClass('selected');
+    expect(
+      within(selected as HTMLElement).getByText('scene-01'),
     ).toBeInTheDocument();
     expect(
-      screen.getByText('fallback: subject-not-searched'),
+      within(selected as HTMLElement).getByText('#28 · www.howto.example'),
     ).toBeInTheDocument();
-    expect(screen.getByText('image-01 · 3 scenes')).toBeInTheDocument();
+  });
+
+  it('says candidates were never recorded rather than showing an empty strip', () => {
+    renderPipeline({
+      data: pipelineResponse({
+        visualDebug: visualDebug({
+          phase: 'searched',
+          actualSearches: [braveRequest({ candidates: [] })],
+        }),
+      }),
+    });
+
+    expect(
+      screen.getByText(
+        'Candidates not recorded for this attempt — re-plan to capture',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('puts the caption, the query and the selection on the scene that got the image', () => {
+    renderPipeline({
+      data: pipelineResponse({ visualDebug: visualDebug({}) }),
+      visualDebugByEpisode: {
+        [episodeId]: lazyVisualDebug({
+          scenes: [
+            {
+              sceneId: 'scene-01',
+              sentenceText: '穩定幣發行商 Tether 又鑄造了十億美元。',
+              imageSearchIntent: ['Tether'],
+              imageSearchEntities: ['Tether'],
+              subjectIds: ['subject-tether'],
+              selectionReason: 'direct',
+              asset: {
+                assetId: 'image-01',
+                url: 'https://cdn.example.com/image-01.jpg',
+                provider: 'brave',
+                license: 'unknown',
+                sourcePageUrl: 'https://www.howto.example/tethering',
+                width: 1920,
+                height: 1080,
+                slideHeadline: null,
+              },
+              trace: [],
+              selection: {
+                selection: 'pool',
+                matchedSubject: 'Tether',
+                sourceQuery: 'Tether',
+                providerRank: 28,
+                fallbackReason: null,
+              },
+            },
+          ],
+        }),
+      },
+    });
+
+    expect(
+      screen.getByText('穩定幣發行商 Tether 又鑄造了十億美元。'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('pool · Tether · “Tether” (#28)', { exact: false }),
+    ).toBeInTheDocument();
   });
 
   it('names the reason a degraded subject catalog is missing', () => {
@@ -422,7 +633,7 @@ describe('PodcastPipelineView', () => {
       }),
     });
 
-    expect(screen.getByText('Search keywords planned')).toBeInTheDocument();
+    expect(screen.getByText('Planned searches')).toBeInTheDocument();
     expect(
       screen.getByText('a16z · “a16z venture capital firm”'),
     ).toBeInTheDocument();
