@@ -138,6 +138,26 @@ describe('buildHomeIncomeView', () => {
     );
   });
 
+  it('shows staking-only income even without observed protocol delta days', () => {
+    const result = buildHomeIncomeView(
+      summary(
+        [
+          {
+            protocol: 'ETH Staking',
+            averageDaily: 2,
+            tokenSymbols: ['wstETH'],
+          },
+        ],
+        0,
+      ),
+    );
+
+    expect(result.status).toBe('ready');
+    expect(result.observedDays).toBe(0);
+    expect(result.passiveMonthlyUsd).toBeCloseTo(60.8);
+    expect(result.protocolRows).toHaveLength(1);
+  });
+
   it('drops values that would render as zero cents', () => {
     const result = buildHomeIncomeView(
       summary([
