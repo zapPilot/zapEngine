@@ -66,6 +66,7 @@ import {
 } from './daemon-store.js';
 import { buildSocialExperimentReports } from './experiment-report.js';
 import { isMainModule } from './is-main-module.js';
+import { reportLocalPublicationHistory } from './local-publish-history.js';
 import { reconcileLocalPublishedJob } from './local-publish-recovery.js';
 import { laneLabel, languageFlag, platformIcon } from './log-format.js';
 import {
@@ -1426,6 +1427,7 @@ if (isMainModule(import.meta.url)) {
   }
   try {
     await recoverOrphanedSocialLeases();
+    await reportLocalPublicationHistory();
     await runSocialDaemon();
   } catch (error) {
     console.error(buildFatalReport(error));

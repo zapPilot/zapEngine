@@ -405,3 +405,10 @@ a null `social_post_id`: unavailable historical copy and analytics are not
 reconstructed from freshly generated text. This recovery happens before copy
 generation or transport, and is retried safely after a lost completion lease.
 A newly reported publish still requires its durable `social_posts` record.
+
+On startup, the daemon prints the latest 100 completed local-only lanes in a
+separate `history` section, grouped by article so a lane is never listed under a
+neighbouring article's title, with original publication times and matching local
+links. These are historical records, not scheduled reposts; missing links and
+telemetry are labelled explicitly. History display failures are nonfatal and
+never prevent the publishing loop from starting.
