@@ -144,6 +144,7 @@ function makeSupabase() {
   const query = {
     select: vi.fn(() => query),
     eq: vi.fn(() => query),
+    in: vi.fn((): unknown => query),
     maybeSingle: vi.fn(),
   };
   return {
@@ -532,12 +533,53 @@ describe('createVideoJobRepository', () => {
       ],
       error: null,
     });
+    // The reap RPC does not carry language, so the failed lane's language is
+    // read back here; a ja failure used to be reported as zh-Hant.
+    supabase.query.in.mockReturnValueOnce(
+      Promise.resolve({
+        data: [
+          { id: 'loc-1', language_code: 'ja' },
+          { id: 'loc-2', language_code: 'en' },
+        ],
+        error: null,
+      }),
+    );
     await expect(repository.reapFailedNotifications()).resolves.toEqual([
       {
         episodeLocalizationId: 'loc-1',
         telegramChatId: 'chat-1',
         episodeId: 'episode-1',
+        languageCode: 'ja',
         lastError: 'filming failed',
+      },
+    ]);
+    expect(supabase.from).toHaveBeenLastCalledWith('episode_localizations');
+
+    // A failed or unrecognized language lookup must not lose the notification.
+    supabase.rpc.mockResolvedValueOnce({
+      data: [
+        {
+          episode_localization_id: 'loc-3',
+          telegram_chat_id: 'chat-3',
+          episode_id: 'episode-3',
+          last_error: null,
+        },
+      ],
+      error: null,
+    });
+    supabase.query.in.mockReturnValueOnce(
+      Promise.resolve({
+        data: null,
+        error: { message: 'localization lookup down' },
+      }),
+    );
+    await expect(repository.reapFailedNotifications()).resolves.toEqual([
+      {
+        episodeLocalizationId: 'loc-3',
+        telegramChatId: 'chat-3',
+        episodeId: 'episode-3',
+        languageCode: 'zh-Hant',
+        lastError: null,
       },
     ]);
 
@@ -797,6 +839,14 @@ describe('classifyVideoRetryError', () => {
     [{ message: 'episode is currently processing' }, 'processing'],
     [{ code: '23514' }, 'prerequisites'],
     [{ message: 'retry requires completed audio' }, 'prerequisites'],
+    [
+      {
+        code: '22023',
+        message:
+          'Episode video generation was abandoned by an operator; restart blocked',
+      },
+      'abandoned',
+    ],
     [{ code: '22023', message: 'video already completed' }, 'completed'],
     [{ code: '22023', message: 'no video visual job' }, 'missing'],
     [{ code: '22023', message: 'episode does not exist' }, 'missing'],

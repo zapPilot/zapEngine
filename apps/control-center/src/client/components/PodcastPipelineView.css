@@ -191,7 +191,8 @@
   color: var(--status-degraded);
 }
 
-.pipeline-status-unscheduled {
+.pipeline-status-unscheduled,
+.pipeline-status-abandoned {
   color: var(--status-unknown);
 }
 
@@ -204,6 +205,11 @@
 }
 
 .pipeline-status-pending {
+  color: var(--status-unknown);
+}
+
+.pipeline-abandoned-reason {
+  display: block;
   color: var(--status-unknown);
 }
 

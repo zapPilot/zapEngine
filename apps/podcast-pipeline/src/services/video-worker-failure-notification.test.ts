@@ -8,6 +8,7 @@ const failedNotification = {
   episodeLocalizationId: 'localization-1',
   telegramChatId: 'chat-1',
   episodeId: 'episode-1',
+  languageCode: 'zh-Hant' as const,
   lastError: 'render failed',
 };
 

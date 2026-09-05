@@ -66,6 +66,8 @@ interface VisualRow extends LifecycleRow {
   episode_id: string;
   visual_payload: Record<string, unknown> | null;
   visual_version?: string | null;
+  abandoned_at?: string | null;
+  abandoned_reason?: string | null;
 }
 
 interface RenderRow extends LifecycleRow {
@@ -176,6 +178,33 @@ export function createPodcastPipelineService(input: {
           }
         }
 
+        // Read in its own request so the page keeps rendering between the
+        // Control Center deploy and the migration that adds these columns.
+        const abandonResult = await client
+          .from('episode_video_visuals')
+          .select('episode_id,abandoned_at,abandoned_reason')
+          .in('episode_id', episodeIds);
+        if (abandonResult.error && !isMissingColumnError(abandonResult.error)) {
+          throw abandonResult.error;
+        }
+        const visualRows = (visualsResult.data ?? []) as VisualRow[];
+        if (!abandonResult.error) {
+          const abandonByEpisode = new Map(
+            (
+              (abandonResult.data ?? []) as {
+                episode_id: string;
+                abandoned_at: string | null;
+                abandoned_reason: string | null;
+              }[]
+            ).map((row) => [row.episode_id, row] as const),
+          );
+          for (const row of visualRows) {
+            const abandon = abandonByEpisode.get(row.episode_id);
+            row.abandoned_at = abandon?.abandoned_at ?? null;
+            row.abandoned_reason = abandon?.abandoned_reason ?? null;
+          }
+        }
+
         return {
           generatedAt,
           status: 'ok',
@@ -184,7 +213,7 @@ export function createPodcastPipelineService(input: {
             episodes,
             ingestRows,
             (localizationsResult.data ?? []) as LocalizationRow[],
-            (visualsResult.data ?? []) as VisualRow[],
+            visualRows,
             (rendersResult.data ?? []) as RenderRow[],
             new Date(),
             (legacyIngestRunsResult.data ?? []) as LegacyIngestRunRow[],
@@ -331,17 +360,21 @@ export function summarizePodcastPipeline(
         row,
       ]),
     );
+    const abandoned = abandonState(visualRow);
     const renders = LANGUAGES.flatMap((languageCode) => {
       const localization = localizationByLanguage.get(languageCode);
       if (!localization) {
         return [];
       }
       const render = renderByLocalizationId.get(localization.id);
-      return render
-        ? [renderState(render, languageCode, now, visual)]
-        : [emptyRenderState(localization.id, languageCode, visual)];
+      const state = render
+        ? renderState(render, languageCode, now, visual)
+        : emptyRenderState(localization.id, languageCode, visual);
+      return [abandoned ? { ...state, canRestart: false } : state];
     });
-    const videoStatus = videoState(visual, renders, ttsStatus);
+    const videoStatus = abandoned
+      ? ('abandoned' as const)
+      : videoState(visual, renders, ttsStatus);
     const currentPhase = currentPhaseFor(
       translationStatus,
       ttsStatus,
@@ -370,14 +403,29 @@ export function summarizePodcastPipeline(
       renders,
       canRestartIngest: ttsStatus !== 'completed' && !ingestIsActive,
       canRestartVideo:
+        !abandoned &&
         ttsStatus === 'completed' &&
         visual !== null &&
         videoStatus !== 'completed' &&
         !activeVideoLease,
       canForceReplanVisual:
-        ttsStatus === 'completed' && visual !== null && !activeVideoLease,
+        !abandoned &&
+        ttsStatus === 'completed' &&
+        visual !== null &&
+        !activeVideoLease,
+      abandoned,
     };
   });
+}
+
+function abandonState(
+  row: VisualRow | null,
+): { at: string; reason: string } | null {
+  const at = row?.abandoned_at;
+  if (!at) {
+    return null;
+  }
+  return { at, reason: row?.abandoned_reason?.trim() || 'No reason recorded' };
 }
 
 function visualSearchDebug(
@@ -850,7 +898,9 @@ function currentPhaseFor(
   if (ttsStatus !== 'completed') {
     return 'tts';
   }
-  return videoStatus === 'completed' ? 'done' : 'video';
+  return videoStatus === 'completed' || videoStatus === 'abandoned'
+    ? 'done'
+    : 'video';
 }
 
 function localizationState(

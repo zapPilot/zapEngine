@@ -6,7 +6,8 @@ export type PodcastPipelineStatus =
   | 'stuck'
   | 'stale'
   | 'completed'
-  | 'failed';
+  | 'failed'
+  | 'abandoned';
 
 export type PodcastPipelinePhase = 'translation' | 'tts' | 'video' | 'done';
 
@@ -154,6 +155,12 @@ export interface PodcastPipelineEpisode {
   canRestartIngest: boolean;
   canRestartVideo: boolean;
   canForceReplanVisual: boolean;
+  /**
+   * Set once an operator closes an episode's video work for good. It is
+   * derived, not a lifecycle status: the underlying rows keep whatever state
+   * they died in, and this only says nobody should restart them.
+   */
+  abandoned?: { at: string; reason: string } | null;
 }
 
 export type PodcastPipelineRestartAction =

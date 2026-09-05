@@ -169,7 +169,19 @@ beforeEach(() => {
   mocks.claimSocialPublishBatch.mockResolvedValue([]);
   mocks.listUnfinishedSocialPublishJobs.mockResolvedValue([]);
   mocks.listSocialPublishCandidates.mockResolvedValue([]);
-  mocks.listSocialPublishCandidatesForEpisodes.mockResolvedValue([]);
+  // Publishing re-checks media for every claimed cohort; the default is the
+  // normal production state, where every claimed episode is fully ready.
+  mocks.listSocialPublishCandidatesForEpisodes.mockImplementation(
+    async (episodeIds: readonly string[]) =>
+      episodeIds.flatMap((episodeId) =>
+        (['zh-Hant', 'ja', 'en'] as const).map((language_code) => ({
+          episode_id: episodeId,
+          ready_at: '2026-08-16T09:00:00.000Z',
+          language_code,
+          episode_created_at: '2026-08-24T00:00:00.000Z',
+        })),
+      ),
+  );
   mocks.listSocialPostsByEpisode.mockResolvedValue([]);
   mocks.listLearningSocialPosts.mockResolvedValue([]);
   mocks.releaseSocialPublishJobLease.mockResolvedValue(undefined);
