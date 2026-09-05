@@ -779,7 +779,12 @@ async function publishDueJobs(
     }
   }
 
-  const groups = [...pendingByEpisodeLanguage.values()];
+  const groups = await holdCohortsMissingMedia(
+    pendingByEpisodeLanguage,
+    now,
+    titleByEpisodeLanguage,
+    log,
+  );
   for (const [index, pendingJobs] of groups.entries()) {
     try {
       await publishLanguageBatch(
@@ -801,6 +806,104 @@ async function publishDueJobs(
       throw error;
     }
   }
+}
+
+/**
+ * The enqueue barrier already proved every required lane's media existed, but
+ * nothing freezes it afterwards: a force re-plan between enqueue and this tick
+ * requeues a render and removes the completed video underneath an already
+ * claimed cohort. Publishing then ships the languages that survived and dies
+ * fatally on the one that did not, which is exactly the permanently partial
+ * article the cohort contract forbids. So readiness is re-checked here, against
+ * the same `social_publish_candidates` definition discovery uses, and a missing
+ * language holds that whole episode while every other episode still publishes.
+ *
+ * The hold fails the lanes rather than releasing their leases: media vanishing
+ * after enqueue is exceptional state that has to be visible in `last_error` and
+ * the queue summary, and spending an attempt is what keeps the partial-cohort
+ * fence bounded instead of holding the queue forever.
+ */
+async function holdCohortsMissingMedia(
+  pendingByEpisodeLanguage: ReadonlyMap<string, SocialPublishJobRow[]>,
+  now: Date,
+  titleByEpisodeLanguage: ReadonlyMap<string, string | null>,
+  log: (message: string) => void,
+): Promise<SocialPublishJobRow[][]> {
+  const groups = [...pendingByEpisodeLanguage.values()];
+  const episodeIds = [...new Set(groups.flat().map((job) => job.episode_id))];
+  if (episodeIds.length === 0) return groups;
+
+  const [schedules, candidates] = await Promise.all([
+    listPendingSocialPublishSchedules(),
+    listSocialPublishCandidatesForEpisodes(episodeIds),
+  ]);
+
+  // Every durable lane of the episode has to be publishable, not just the lanes
+  // this tick happened to claim: shipping two of three languages now and
+  // failing the third later is still a partial article.
+  const scopedEpisodes = new Set(episodeIds);
+  const requiredByEpisode = new Map<string, Set<string>>();
+  const requireLanguage = (episodeId: string, language: string) => {
+    const languages = requiredByEpisode.get(episodeId) ?? new Set<string>();
+    languages.add(language);
+    requiredByEpisode.set(episodeId, languages);
+  };
+  for (const schedule of schedules) {
+    if (!scopedEpisodes.has(schedule.episode_id)) continue;
+    requireLanguage(schedule.episode_id, schedule.language_code);
+  }
+  for (const job of groups.flat()) {
+    requireLanguage(job.episode_id, jobLanguage(job));
+  }
+
+  const readyByEpisode = new Map<string, Set<string>>();
+  for (const candidate of candidates) {
+    const languages =
+      readyByEpisode.get(candidate.episode_id) ?? new Set<string>();
+    languages.add(candidate.language_code);
+    readyByEpisode.set(candidate.episode_id, languages);
+  }
+
+  const heldEpisodes = new Map<string, string[]>();
+  for (const episodeId of episodeIds) {
+    const missing = missingLanguages(
+      requiredByEpisode.get(episodeId) ?? new Set<string>(),
+      readyByEpisode.get(episodeId) ?? new Set<string>(),
+    );
+    if (missing.length > 0) heldEpisodes.set(episodeId, missing);
+  }
+  if (heldEpisodes.size === 0) return groups;
+
+  for (const [episodeId, missing] of heldEpisodes) {
+    const held = missing
+      .map((language) => `${languageFlag(language)} ${language}`)
+      .join(' · ');
+    log(
+      `⏸️ [social-daemon] ${episodeLabel(episodeTitle(titleByEpisodeLanguage, episodeId, 'zh-Hant'), episodeId)} · release held · missing ${held}`,
+    );
+    for (const job of groups.flat()) {
+      if (job.episode_id !== episodeId) continue;
+      try {
+        await failSocialPublishJob({
+          jobId: job.id,
+          owner: OWNER,
+          now,
+          attemptCount: job.attempt_count,
+          error: `Release held: ${missing.join(', ')} video is not completed`,
+        });
+      } catch (persistenceError) {
+        // The lease still expires on its own, so a failed hold write must not
+        // take the daemon down over media that is already missing.
+        log(
+          `❌ [social-daemon] ${laneLabel(job.platform, jobLanguage(job))} · failed to persist release hold · job=${job.id} · ${errorMessage(persistenceError)}`,
+        );
+      }
+    }
+  }
+
+  return groups.filter((pendingJobs) =>
+    pendingJobs.every((job) => !heldEpisodes.has(job.episode_id)),
+  );
 }
 
 async function releaseUntouchedLeases(

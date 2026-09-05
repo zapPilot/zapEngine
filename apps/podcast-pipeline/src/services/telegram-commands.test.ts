@@ -243,6 +243,7 @@ describe('handleTelegramRetryCommand', () => {
     ['processing', '這集影片目前仍在處理中，沒有清除 live lease。'],
     ['completed', '這集三語影片已完成。'],
     ['missing', '這集還沒有 visual job；請重新貼原始 URL 建立影片工作。'],
+    ['abandoned', '這集影片已由操作者結案，不再重排；要重開請清除結案標記。'],
     ['prerequisites', '影片重試的三語音頻前置條件尚未完成。'],
     ['unavailable', '資料庫尚未升級到影片重試 migration。'],
   ])('maps the %s video retry outcome', async (outcome, text) => {
@@ -270,6 +271,7 @@ describe('handleTelegramRetryVideoCallback', () => {
     ['completed', '影片已完成'],
     ['unavailable', '資料庫尚未升級'],
     ['missing', '找不到 visual job'],
+    ['abandoned', '影片已結案，不再重排'],
     ['prerequisites', '音頻前置條件未完成'],
   ])('maps the %s outcome', async (outcome, text) => {
     videoJobs.retryEpisodeVideoGeneration.mockResolvedValueOnce(outcome);

@@ -151,15 +151,20 @@ export function buildTelegramVideoCompletedMessage(
 export function buildTelegramVideoFailedMessage(
   episodeId: string,
   lastError?: string | null,
+  languageCode: LanguageClassroomLanguageCode = 'zh-Hant',
 ): string {
+  // Renders fail per language, so the notice names which one and links to that
+  // language. Reporting every failure as zh-Hant sent operators to a healthy
+  // page and hid which lane actually broke.
+  //
   // episode_videos.last_error is already carried through the reap RPC, so the
   // notice can name the reason instead of sending the submitter back to the
   // service logs.
   const reason = lastError?.trim();
   return [
-    '⚠️ 影片失敗，但音頻仍可使用',
+    `⚠️ ${VIDEO_LANGUAGE_LABELS[languageCode]}影片失敗，但音頻仍可使用`,
     ...(reason ? [`原因：${publicTelegramErrorMessage(reason)}`] : []),
-    buildEpisodeShareUrl(episodeId),
+    buildEpisodeShareUrl(episodeId, languageCode),
   ].join('\n');
 }
 

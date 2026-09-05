@@ -158,9 +158,14 @@ function PipelineEpisode(
       <header className="pipeline-episode-head">
         <div>
           <span className="pipeline-phase-label">
-            {phaseLabel(episode.currentPhase)}
+            {episode.abandoned ? 'Abandoned' : phaseLabel(episode.currentPhase)}
           </span>
           <h3>{episode.title ?? episode.episodeId}</h3>
+          {episode.abandoned ? (
+            <small className="pipeline-abandoned-reason">
+              {episode.abandoned.reason}
+            </small>
+          ) : null}
           {/* The full UUID, because every retry command, Supabase query and
               Fly log filter an operator writes next needs the whole value. */}
           <div className="pipeline-episode-meta">
@@ -452,6 +457,8 @@ function statusLabel(status: PodcastPipelineStatus): string {
       return 'Stale version';
     case 'failed':
       return 'Failed';
+    case 'abandoned':
+      return 'Abandoned';
     default:
       return 'Pending';
   }
