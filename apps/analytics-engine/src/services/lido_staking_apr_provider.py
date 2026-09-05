@@ -21,7 +21,9 @@ LIDO_STAKING_APR_URL = "https://eth-api.lido.fi/v1/protocol/steth/apr/sma"
 _FRESH_CACHE_TTL = timedelta(hours=6)
 _STALE_CACHE_TTL = timedelta(days=30)
 _FRESH_CACHE_KEY = analytics_cache.build_key("LidoStakingApr", "7d-sma", "fresh")
-_STALE_CACHE_KEY = analytics_cache.build_key("LidoStakingApr", "7d-sma", "last-success")
+_STALE_CACHE_KEY = analytics_cache.build_key(
+    "LidoStakingApr", "7d-sma", "last-success"
+)
 
 
 class LidoStakingAprProvider:
@@ -33,7 +35,7 @@ class LidoStakingAprProvider:
     async def get_benchmark_apr(self) -> float | None:
         """Return APR as a decimal fraction, or ``None`` if no valid value exists."""
         fresh = analytics_cache.get(_FRESH_CACHE_KEY)
-        if isinstance(fresh, (int, float)):
+        if isinstance(fresh, int | float):
             return float(fresh)
 
         try:
@@ -41,7 +43,7 @@ class LidoStakingAprProvider:
         except Exception as error:  # The income endpoint must degrade gracefully.
             logger.warning("Lido staking APR fetch failed: %s", error)
             stale = analytics_cache.get(_STALE_CACHE_KEY)
-            return float(stale) if isinstance(stale, (int, float)) else None
+            return float(stale) if isinstance(stale, int | float) else None
 
         analytics_cache.set(_FRESH_CACHE_KEY, normalized_apr, _FRESH_CACHE_TTL)
         analytics_cache.set(_STALE_CACHE_KEY, normalized_apr, _STALE_CACHE_TTL)
@@ -59,7 +61,7 @@ class LidoStakingAprProvider:
     @staticmethod
     def _parse_apr(payload: dict[str, Any]) -> float:
         raw_apr = payload.get("data", {}).get("smaApr")
-        if isinstance(raw_apr, bool) or not isinstance(raw_apr, (int, float)):
+        if isinstance(raw_apr, bool) or not isinstance(raw_apr, int | float):
             raise ValueError("Lido response is missing numeric data.smaApr")
 
         percent_apr = float(raw_apr)
