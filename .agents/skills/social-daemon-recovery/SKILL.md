@@ -19,6 +19,7 @@ Start from these files instead of reconstructing the state machine from memory:
 - `apps/podcast-pipeline/src/social/daemon-reconcile-retry-race.test.ts`
 - `apps/podcast-pipeline/src/social/daemon-release-cohort-contract.test.ts`
 - `apps/podcast-pipeline/src/social/README.md`
+- `apps/control-center/README.md` for the bounded operator-close exception
 
 ## Core principle
 
@@ -30,15 +31,18 @@ CAS/lease write loses the race, the next tick must still re-check persisted
 `social_posts` before any platform transport runs.
 
 **A partially published episode is exceptional recovery state, never normal
-steady state. Finish its remaining lanes before a fresh episode can claim or
-publish.** The release contract is episode-wide even though the durable post
-identity remains `(episode, platform, language)` for duplicate protection.
+steady state. The daemon finishes its remaining lanes before fresh work unless an
+operator explicitly closes that historical release.** The bounded Control Center
+closure preserves existing `social_posts`, marks only unfinished jobs `skipped`,
+and prevents the closed episode from being rediscovered. The release contract is
+episode-wide even though the durable post identity remains
+`(episode, platform, language)` for duplicate protection.
 
 ## Recovery invariants
 
 1. Run unfinished-job reconciliation and release-cohort alignment before any new discovery or publish claim.
 2. Post and job identity is `(episode, platform, language)`. When an existing post with that exact identity is found, repair/complete the job; evidence for one language must never complete or suppress a sibling-language job, and the daemon must never call platform transport for the matching job.
-3. A partial episode (some completed lanes plus unfinished siblings) restricts claims to that `episode_id`. If its remaining lane is still serving retry backoff, publish nothing else that tick.
+3. A partial episode (some completed lanes plus unfinished siblings) restricts claims to that `episode_id` while it remains open. If its remaining lane is still serving retry backoff, publish nothing else that tick. An explicit operator closure is the only supported terminal exception; it must preserve published evidence and skip only unfinished lanes.
 4. A completely unpublished staggered legacy cohort is repaired as one unit: all movable lanes receive one article-level `scheduled_at`. A truly missed cohort moves together to the next article slot; never mark unpublished lanes completed merely because the slot passed.
 5. A failed reconciliation lookup must not disable duplicate protection in the publish stage: a claimed job still checks `social_posts` before publishing.
 6. `reconcileSocialPublishJob()` returning `false` is a CAS miss, not permission to repost. Reclaim may retry persistence only after re-checking post identity.
@@ -58,9 +62,10 @@ At minimum, assert the affected case proves all of these:
 
 - reconciliation/alignment happens before discovery and retry claim;
 - existing post identity prevents `publishSocialBatch`;
-- partial recovery cannot start a fresh episode;
+- an open partial recovery cannot start a fresh episode;
+- explicit closure cannot rewrite or fabricate published evidence;
 - CAS miss / lease loss can survive into another tick without duplicate publish;
-- the latest durable job state can still converge to completed.
+- the latest durable job state can still converge to completed or, only through the operator-close path, skipped.
 
 If a new daemon-store API replaces a mocked export, search every full-module
 `vi.mock('./daemon-store.js', ...)` factory and update all siblings in the same
