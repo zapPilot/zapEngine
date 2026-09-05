@@ -30,6 +30,7 @@ idle_tokens AS (
         t.symbol,
         t.amount,
         t.price,
+        'idle'::text AS exposure_type,
         'idle'::text AS source_kind,
         LOWER(t.user_wallet_address) AS source_id
     FROM analytics.daily_wallet_tokens t
@@ -50,6 +51,7 @@ supplied_tokens AS (
         COALESCE(token->>'optimized_symbol', token->>'symbol') AS symbol,
         NULLIF(token->>'amount', '')::double precision AS amount,
         NULLIF(token->>'price', '')::double precision AS price,
+        'supply'::text AS exposure_type,
         'position'::text AS source_kind,
         p.id::text AS source_id
     FROM analytics.daily_portfolio_positions p
@@ -60,8 +62,8 @@ supplied_tokens AS (
         COALESCE(p.detail->'supply_token_list', '[]'::jsonb)
     ) AS supplied(token)
 )
-SELECT chain, token_address, symbol, amount, price, source_kind, source_id
+SELECT chain, token_address, symbol, amount, price, exposure_type, source_kind, source_id
 FROM idle_tokens
 UNION ALL
-SELECT chain, token_address, symbol, amount, price, source_kind, source_id
+SELECT chain, token_address, symbol, amount, price, exposure_type, source_kind, source_id
 FROM supplied_tokens;
