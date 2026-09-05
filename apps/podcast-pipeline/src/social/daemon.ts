@@ -32,6 +32,7 @@ import {
   resolveRequiredReleaseLanguages,
 } from './cohort.js';
 import { recordSocialDaemonTick } from './daemon-heartbeat.js';
+import { recoverOrphanedSocialLeases } from './daemon-lease-recovery.js';
 import {
   acquireSocialDaemonLock,
   SocialDaemonAlreadyRunningError,
@@ -65,6 +66,7 @@ import {
 } from './daemon-store.js';
 import { buildSocialExperimentReports } from './experiment-report.js';
 import { isMainModule } from './is-main-module.js';
+import { reconcileLocalPublishedJob } from './local-publish-recovery.js';
 import { laneLabel, languageFlag, platformIcon } from './log-format.js';
 import {
   createMetricCollectors,
@@ -871,7 +873,7 @@ async function reconcileClaimedJob(
     job.platform,
     jobLanguage(job),
   );
-  if (!post) return false;
+  if (!post) return reconcileLocalPublishedJob(job, OWNER, log);
   await completeSocialPublishJob({
     jobId: job.id,
     owner: OWNER,
@@ -986,6 +988,12 @@ async function finalizePublishOutcome(
     job.platform,
     jobLanguage(job),
   );
+  if (
+    !post &&
+    outcome.status === 'skipped' &&
+    (await reconcileLocalPublishedJob(job, OWNER, log))
+  )
+    return;
   if (!post) {
     throw persistFailure(
       `${job.platform} publish completed but no social_posts row was recorded.`,
@@ -1303,14 +1311,23 @@ function logQueueSnapshot(
       ]),
     );
   const nextLanes = Object.values(lanes).filter(
-    (item) => item.status === 'failed' || item.attemptsExhausted,
+    (item) =>
+      item.status === 'failed' ||
+      item.status === 'processing' ||
+      item.attemptsExhausted,
   );
   if (snapshot.episodeQueue.length > 0 && nextLanes.length > 0) log('');
   for (const item of nextLanes) {
     const title = item.title ? ` “${truncateTitle(item.title)}”` : '';
-    const timing = item.attemptsExhausted
-      ? `blocked (${item.attemptCount} attempts exhausted; ${item.status})`
-      : `${formatJst(item.nextAt)} (${formatRelative(item.nextAt, now)}; ${item.status})`;
+    let timing = `${formatJst(item.nextAt)} (${formatRelative(item.nextAt, now)}; ${item.status})`;
+    if (item.attemptsExhausted) {
+      timing = `blocked (${item.attemptCount} attempts exhausted; ${item.status})`;
+    } else if (
+      item.leaseExpiresAt &&
+      Date.parse(item.leaseExpiresAt) > now.getTime()
+    ) {
+      timing = `leased until ${formatJst(item.leaseExpiresAt)}`;
+    }
     log(
       `⚠️ [social-daemon] ${laneLabel(item.platform, item.languageCode)}${item.experiment ? ` [${item.experiment}]` : ''} ·${title} · ${timing}`,
     );
@@ -1408,6 +1425,7 @@ if (isMainModule(import.meta.url)) {
     throw error;
   }
   try {
+    await recoverOrphanedSocialLeases();
     await runSocialDaemon();
   } catch (error) {
     console.error(buildFatalReport(error));

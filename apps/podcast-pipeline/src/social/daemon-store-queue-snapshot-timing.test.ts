@@ -426,3 +426,24 @@ describe('getSocialQueueSnapshot claim-gate reporting', () => {
     expect(snapshot.nextByPlatform.threads?.attemptsExhausted).toBe(false);
   });
 });
+
+it('includes the processing lease in both article and lane timing', async () => {
+  createQueueSnapshotFixture(
+    [
+      {
+        episode_id: 'episode-processing',
+        platform: 'x',
+        status: 'processing',
+        scheduled_at: '2026-09-05T00:30:00.000Z',
+        next_attempt_at: '2026-09-05T00:30:00.000Z',
+        lease_expires_at: '2026-09-05T01:30:47.000Z',
+      },
+    ],
+    defaultLocalizations,
+  );
+  const snapshot = await getSocialQueueSnapshot();
+  expect(snapshot.episodeQueue[0]?.nextAt).toBe('2026-09-05T01:30:47.000Z');
+  expect(snapshot.nextByLane['x|zh-Hant']?.nextAt).toBe(
+    '2026-09-05T01:30:47.000Z',
+  );
+});

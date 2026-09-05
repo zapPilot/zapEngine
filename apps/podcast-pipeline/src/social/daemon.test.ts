@@ -742,6 +742,43 @@ describe('social daemon', () => {
     );
   });
 
+  it('reports a live processing lease without claiming it is due now', async () => {
+    const leaseExpiresAt = new Date(
+      NOW.getTime() + 60 * 60 * 1000,
+    ).toISOString();
+    mocks.getSocialQueueSnapshot.mockResolvedValue({
+      pendingCount: 1,
+      episodeQueue: [],
+      nextByPlatform: {},
+      nextByLane: {
+        'x|zh-Hant': {
+          episodeId: EPISODE_ID,
+          platform: 'x',
+          languageCode: 'zh-Hant',
+          status: 'processing',
+          title: null,
+          nextAt: leaseExpiresAt,
+          leaseExpiresAt,
+          attemptCount: 1,
+          attemptsExhausted: false,
+          experiment: null,
+        },
+      },
+    });
+    const log = vi.fn();
+    await expect(
+      runSocialDaemon({
+        now: () => NOW,
+        sleep: vi.fn().mockRejectedValue(new Error('stop-loop')),
+        log,
+        recordTick: vi.fn(),
+      }),
+    ).rejects.toThrow('stop-loop');
+    const output = log.mock.calls.map(([line]) => String(line)).join('\n');
+    expect(output).toContain('leased until');
+    expect(output).not.toContain('due now');
+  });
+
   it('logs missing video artifacts by article and language rather than channel', async () => {
     mocks.getSocialQueueSnapshot.mockResolvedValue({
       pendingCount: 0,
