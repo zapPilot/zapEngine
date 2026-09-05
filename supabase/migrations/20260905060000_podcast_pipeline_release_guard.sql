@@ -4,18 +4,21 @@ set local lock_timeout = '5s';
 set local statement_timeout = '30s';
 
 -- Control Center can deploy ahead of the Fly podcast worker. A restart must not
--- stamp the repository's newest visual_version until the actually running app
--- release has proven it can claim that version. The always-on app refreshes
--- this singleton heartbeat every 30 seconds; retries require a fresh heartbeat
--- and an exact version match.
+-- stamp the repository's newest visual_version until the actually running fleet
+-- has proven it can claim that version. The always-on app refreshes this
+-- singleton heartbeat every 30 seconds only while a render Machine is on the
+-- same image; retries require a fresh heartbeat and an exact version match.
 create table if not exists ops.podcast_pipeline_release_state (
   singleton boolean primary key default true check (singleton),
   visual_version text not null check (nullif(btrim(visual_version), '') is not null),
   heartbeat_at timestamptz not null default now()
 );
 
+-- The runtime writes through the narrowly exposed marker RPC and retry guards
+-- read as their SECURITY DEFINER owner. No Data API role needs direct table
+-- privileges, including service_role.
 revoke all on table ops.podcast_pipeline_release_state
-  from public, anon, authenticated;
+  from public, anon, authenticated, service_role;
 
 create or replace function from_fed_to_chain.mark_podcast_pipeline_release(
   p_visual_version text
@@ -79,7 +82,7 @@ begin
     raise exception using
       errcode = '55000',
       message = 'Podcast pipeline release heartbeat is missing or stale; video restart blocked',
-      hint = 'Wait for the current from-fed-to-chain-api Fly app release to become healthy before retrying.';
+      hint = 'Wait for the current from-fed-to-chain-api Fly app and render release to become compatible before retrying.';
   end if;
 
   if v_deployed_version <> btrim(p_visual_version) then
@@ -90,7 +93,7 @@ begin
         v_deployed_version,
         btrim(p_visual_version)
       ),
-      hint = 'Wait for the podcast-pipeline Fly deploy that carries the requested visual version.';
+      hint = 'Wait for the podcast-pipeline Fly deploy that carries the requested visual version on both app and render Machines.';
   end if;
 end;
 $$;
