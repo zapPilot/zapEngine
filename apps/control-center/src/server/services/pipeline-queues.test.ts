@@ -1,3 +1,4 @@
+import { EPISODE_VIDEO_VISUAL_VERSION } from '@zapengine/types/shared';
 import { describe, expect, it } from 'vitest';
 
 import type { SocialPlatformQueueState } from '../../shared/pipeline-queues.js';
@@ -43,6 +44,28 @@ function baseInput(): QueueBuildInput {
         language_code: 'zh-Hant',
         script: 'script',
         hls_url: 'https://cdn.example/a.m3u8',
+        classroom_hls_url: 'https://cdn.example/a-classroom.m3u8',
+        status: 'completed',
+        updated_at: '2026-09-05T04:00:00.000Z',
+      },
+      {
+        id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+        episode_id: EPISODE_A,
+        language_code: 'ja',
+        script: 'script',
+        hls_url: 'https://cdn.example/a-ja.m3u8',
+        classroom_hls_url: null,
+        status: 'completed',
+        updated_at: '2026-09-05T04:00:00.000Z',
+      },
+      {
+        id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+        episode_id: EPISODE_A,
+        language_code: 'en',
+        script: 'script',
+        hls_url: 'https://cdn.example/a-en.m3u8',
+        classroom_hls_url: null,
+        status: 'completed',
         updated_at: '2026-09-05T04:00:00.000Z',
       },
       {
@@ -51,15 +74,94 @@ function baseInput(): QueueBuildInput {
         language_code: 'en',
         script: 'script',
         hls_url: 'https://cdn.example/b.m3u8',
+        classroom_hls_url: null,
+        status: 'completed',
         updated_at: '2026-09-05T04:00:00.000Z',
       },
     ],
+    visualStates: [],
     ingests: [],
     visuals: [],
     renders: [],
     socialJobs: [],
     socialPosts: [],
     publishedToday: 0,
+  };
+}
+
+type QueueRenderRow = QueueBuildInput['renders'][number];
+type QueueVisualRow = QueueBuildInput['visuals'][number];
+type QueueVisualStateRow = QueueBuildInput['visualStates'][number];
+type QueueIngestRow = QueueBuildInput['ingests'][number];
+
+function renderRow(overrides: Partial<QueueRenderRow> = {}): QueueRenderRow {
+  return {
+    episode_localization_id: LOCALIZATION_A,
+    episode_id: EPISODE_A,
+    status: 'failed',
+    visual_version: EPISODE_VIDEO_VISUAL_VERSION,
+    progress_percent: null,
+    progress_stage: 'Rendering',
+    attempt_count: 3,
+    next_attempt_at: '2026-09-05T04:00:00.000Z',
+    lease_owner: null,
+    lease_expires_at: null,
+    last_error: 'Raster resvg stage failed',
+    started_at: '2026-09-05T04:10:00.000Z',
+    completed_at: null,
+    thumbnail_url: null,
+    created_at: '2026-09-05T04:00:00.000Z',
+    updated_at: '2026-09-05T04:30:00.000Z',
+    ...overrides,
+  };
+}
+
+function visualRow(overrides: Partial<QueueVisualRow> = {}): QueueVisualRow {
+  return {
+    episode_id: EPISODE_A,
+    status: 'failed',
+    visual_version: EPISODE_VIDEO_VISUAL_VERSION,
+    progress_percent: null,
+    progress_stage: 'planning-scenes',
+    attempt_count: 3,
+    next_attempt_at: '2026-09-05T04:00:00.000Z',
+    lease_owner: null,
+    lease_expires_at: null,
+    last_error: 'Visual planning failed',
+    started_at: null,
+    completed_at: null,
+    created_at: '2026-09-05T04:00:00.000Z',
+    updated_at: '2026-09-05T04:30:00.000Z',
+    ...overrides,
+  };
+}
+
+function visualState(
+  overrides: Partial<QueueVisualStateRow> = {},
+): QueueVisualStateRow {
+  return {
+    episode_id: EPISODE_A,
+    status: 'completed',
+    visual_version: EPISODE_VIDEO_VISUAL_VERSION,
+    abandoned_at: null,
+    abandoned_reason: null,
+    ...overrides,
+  };
+}
+
+function ingestRow(overrides: Partial<QueueIngestRow> = {}): QueueIngestRow {
+  return {
+    id: 'ingest-1',
+    source_url: 'https://example.com/a',
+    language_code: 'zh-Hant',
+    status: 'failed',
+    attempt_count: 2,
+    lease_owner: null,
+    lease_expires_at: null,
+    last_error: 'TTS provider timeout',
+    created_at: '2026-09-05T04:00:00.000Z',
+    updated_at: '2026-09-05T04:30:00.000Z',
+    ...overrides,
   };
 }
 
@@ -427,5 +529,155 @@ describe('pipeline runtime queue read model', () => {
       EPISODE_A,
       EPISODE_B,
     ]);
+  });
+});
+
+describe('abandoned video work', () => {
+  it('moves an abandoned episode out of attention and counts it separately', () => {
+    const input = baseInput();
+    input.renders = [renderRow(), renderRow({ episode_id: EPISODE_A })];
+    input.visualStates = [
+      visualState({
+        abandoned_at: '2026-09-04T00:00:00.000Z',
+        abandoned_reason: 'Legacy zh-Hant-only render',
+      }),
+    ];
+
+    const queues = buildPipelineQueues(input);
+
+    expect(queues.render.attention).toHaveLength(0);
+    expect(queues.render.abandoned).toHaveLength(2);
+    expect(queues.render.abandoned?.[0]).toMatchObject({
+      abandoned: { reason: 'Legacy zh-Hant-only render' },
+      actions: {
+        disabledReason: 'Closed by an operator: Legacy zh-Hant-only render',
+      },
+    });
+    expect(queues.render.abandoned?.[0]?.actions.restart).toBeUndefined();
+    expect(queues.summary.abandoned).toBe(2);
+    expect(queues.summary.blockedOrFailed).toBe(0);
+  });
+
+  it('keeps a stale-version visual of an abandoned episode out of the blocked lane', () => {
+    const input = baseInput();
+    input.visuals = [
+      visualRow({ status: 'queued', visual_version: 'legacy-version' }),
+    ];
+    input.visualStates = [
+      visualState({
+        visual_version: 'legacy-version',
+        abandoned_at: '2026-09-04T00:00:00.000Z',
+        abandoned_reason: 'Unfinishable backlog',
+      }),
+    ];
+
+    const queues = buildPipelineQueues(input);
+
+    expect(queues.render.attention).toHaveLength(0);
+    expect(queues.render.abandoned?.[0]).toMatchObject({
+      state: 'blocked',
+      currentStep: 'Stale visual version',
+    });
+  });
+
+  it('treats a visual row without an abandoned marker as ordinary work', () => {
+    const input = baseInput();
+    input.renders = [renderRow()];
+    input.visualStates = [visualState()];
+
+    const queues = buildPipelineQueues(input);
+
+    expect(queues.render.abandoned).toHaveLength(0);
+    expect(queues.render.attention).toHaveLength(1);
+    expect(queues.summary.abandoned).toBe(0);
+  });
+});
+
+describe('queue item restart actions', () => {
+  it('offers a per-language render retry when the visual checkpoint is current', () => {
+    const input = baseInput();
+    input.renders = [renderRow()];
+    input.visualStates = [visualState()];
+
+    const queues = buildPipelineQueues(input);
+
+    expect(queues.render.attention[0]?.actions.restart).toEqual({
+      step: 'render',
+      localizationId: LOCALIZATION_A,
+    });
+  });
+
+  it('falls back to restarting the whole video when the visual is stale', () => {
+    const input = baseInput();
+    input.renders = [renderRow()];
+    input.visualStates = [visualState({ visual_version: 'legacy-version' })];
+
+    const queues = buildPipelineQueues(input);
+
+    expect(queues.render.attention[0]?.actions.restart).toEqual({
+      step: 'video',
+      forceReplan: false,
+    });
+  });
+
+  it('restarts video work for a failed visual plan', () => {
+    const input = baseInput();
+    input.visuals = [visualRow()];
+    input.visualStates = [visualState({ status: 'failed' })];
+
+    const queues = buildPipelineQueues(input);
+
+    expect(queues.render.attention[0]?.actions.restart).toEqual({
+      step: 'video',
+      forceReplan: false,
+    });
+  });
+
+  it('refuses a restart while a worker holds the lease', () => {
+    const input = baseInput();
+    input.renders = [
+      renderRow({
+        status: 'processing',
+        lease_owner: 'render-machine-a',
+        lease_expires_at: '2026-09-05T06:30:00.000Z',
+      }),
+    ];
+    input.visualStates = [visualState()];
+
+    const queues = buildPipelineQueues(input);
+
+    expect(queues.render.processing[0]?.actions).toEqual({
+      disabledReason: 'A worker holds this job right now.',
+    });
+  });
+
+  it('refuses video work while the three audio prerequisites are incomplete', () => {
+    const input = baseInput();
+    input.visuals = [visualRow({ episode_id: EPISODE_B })];
+    input.visualStates = [visualState({ episode_id: EPISODE_B })];
+
+    const queues = buildPipelineQueues(input);
+
+    expect(queues.render.attention[0]?.actions).toEqual({
+      disabledReason:
+        'Video work needs completed zh-Hant, ja and en audio before it can restart.',
+    });
+  });
+
+  it('restarts a failed ingest and explains an ingest with no episode row', () => {
+    const input = baseInput();
+    input.ingests = [
+      ingestRow(),
+      ingestRow({ id: 'ingest-2', source_url: 'https://example.com/unknown' }),
+    ];
+
+    const queues = buildPipelineQueues(input);
+    const [known, unknown] = queues.api.attention;
+
+    expect(known?.actions.restart).toEqual({ step: 'ingest' });
+    expect(unknown?.actions).toEqual({
+      disabledReason:
+        'This ingest never produced an episode row; re-submit the source URL to retry it.',
+    });
   });
 });

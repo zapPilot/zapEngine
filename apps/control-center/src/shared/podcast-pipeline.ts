@@ -149,12 +149,9 @@ export interface PodcastPipelineEpisode {
   ingest: PodcastPipelineIngestState | null;
   localizations: PodcastPipelineLocalization[];
   visual: PodcastPipelineJobState | null;
-  /** Added by the visual-search debug rollout; optional for cached/older API fixtures. */
-  visualDebug?: PodcastPipelineVisualDebug | null;
   renders: PodcastPipelineRenderState[];
   canRestartIngest: boolean;
   canRestartVideo: boolean;
-  canForceReplanVisual: boolean;
   /**
    * Set once an operator closes an episode's video work for good. It is
    * derived, not a lifecycle status: the underlying rows keep whatever state

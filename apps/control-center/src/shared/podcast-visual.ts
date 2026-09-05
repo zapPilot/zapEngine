@@ -4,6 +4,8 @@ import type {
   PODCAST_VIDEO_REVIEW_VERDICTS,
 } from '@zapengine/types/shared';
 
+import type { PodcastPipelineVisualDebug } from './podcast-pipeline.js';
+
 // `@zapengine/types/shared` exports the vocabulary tuples only; both apps
 // derive the unions locally so the shared package never carries type-only
 // exports that its dead-code gate cannot trace across workspaces.
@@ -103,6 +105,12 @@ export interface PodcastVisualDebugResponse {
     lastError: string | null;
   } | null;
   scenes: PodcastVisualSceneDebug[];
+  /**
+   * The searches behind the scenes above — requests, their candidates and drop
+   * reasons, the per-episode Brave budget. Carried here so the drawer can answer
+   * "why is this image wrong?" from one request.
+   */
+  search: PodcastPipelineVisualDebug | null;
   failure: PodcastVisualFailureDebug | null;
   reviews: PodcastVideoReview[];
   rawPlan: Record<string, unknown> | null;

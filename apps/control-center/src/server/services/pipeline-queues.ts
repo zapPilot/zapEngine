@@ -4,6 +4,7 @@ import type {
   PipelinePublishedLink,
   PipelineQueueHistoryEvent,
   PipelineQueueItem,
+  PipelineQueueItemActions,
   PipelineQueueLane,
   PipelineQueuesResponse,
   SocialPlatform,
@@ -13,6 +14,10 @@ import type {
   SocialQueueState,
 } from '../../shared/pipeline-queues.js';
 import type { ControlCenterConfig } from '../config/env.js';
+import {
+  leaseIsActive,
+  visualIsRenderable,
+} from './podcast-retry-eligibility.js';
 import { createConfiguredServiceRoleClient } from './supabase.js';
 
 const ACTIVE_STATUSES = ['queued', 'processing', 'failed'] as const;
@@ -33,7 +38,23 @@ interface LocalizationRow {
   language_code: string;
   script: string | null;
   hls_url: string;
+  classroom_hls_url: string | null;
+  status: string;
   updated_at: string;
+}
+
+/**
+ * Every visual row for the episodes on the board, at any status — the active
+ * read only carries queued/processing/failed, but a render's retry eligibility
+ * and an episode's abandonment both hang off a visual that is usually
+ * `completed`.
+ */
+interface VisualStateRow {
+  episode_id: string;
+  status: string;
+  visual_version: string | null;
+  abandoned_at: string | null;
+  abandoned_reason: string | null;
 }
 
 interface IngestRow {
@@ -120,6 +141,9 @@ interface WorkItemInput {
   thumbnailUrl?: string | null;
   now: Date;
   posts: SocialPostRow[];
+  localizationId?: string;
+  visualState?: VisualStateRow | undefined;
+  videoPrereqsReady?: boolean;
 }
 
 export function createPipelineQueuesService(input: {
@@ -195,27 +219,35 @@ export function createPipelineQueuesService(input: {
         const episodes = await readEpisodes(client, episodeIds, sourceUrls);
         const resolvedEpisodeIds = episodes.map((row) => row.id);
 
-        const [localizations, socialPosts, publishedToday] = await Promise.all([
-          readRowsByEpisode<LocalizationRow>(
-            client,
-            'episode_localizations',
-            'id,episode_id,language_code,script,hls_url,updated_at',
-            resolvedEpisodeIds,
-          ),
-          readRowsByEpisode<SocialPostRow>(
-            client,
-            'social_posts',
-            'id,episode_id,platform,language_code,post_url,published_at',
-            resolvedEpisodeIds,
-          ),
-          readPublishedToday(client, current),
-        ]);
+        const [localizations, visualStates, socialPosts, publishedToday] =
+          await Promise.all([
+            readRowsByEpisode<LocalizationRow>(
+              client,
+              'episode_localizations',
+              'id,episode_id,language_code,script,hls_url,classroom_hls_url,status,updated_at',
+              resolvedEpisodeIds,
+            ),
+            readRowsByEpisode<VisualStateRow>(
+              client,
+              'episode_video_visuals',
+              'episode_id,status,visual_version,abandoned_at,abandoned_reason',
+              resolvedEpisodeIds,
+            ),
+            readRowsByEpisode<SocialPostRow>(
+              client,
+              'social_posts',
+              'id,episode_id,platform,language_code,post_url,published_at',
+              resolvedEpisodeIds,
+            ),
+            readPublishedToday(client, current),
+          ]);
 
         return buildPipelineQueues({
           generatedAt,
           now: current,
           episodes,
           localizations,
+          visualStates,
           ingests,
           visuals,
           renders,
@@ -239,6 +271,7 @@ export function buildPipelineQueues(input: {
   now: Date;
   episodes: EpisodeRow[];
   localizations: LocalizationRow[];
+  visualStates: VisualStateRow[];
   ingests: IngestRow[];
   visuals: VideoWorkRow[];
   renders: RenderRow[];
@@ -258,6 +291,15 @@ export function buildPipelineQueues(input: {
     (row) => row.episode_id,
   );
   const postsByEpisode = groupBy(input.socialPosts, (row) => row.episode_id);
+  const visualStateByEpisode = new Map(
+    input.visualStates.map((row) => [row.episode_id, row]),
+  );
+  const videoPrereqsByEpisode = new Map(
+    input.episodes.map((episode) => [
+      episode.id,
+      videoPrerequisitesReady(localizationsByEpisode.get(episode.id) ?? []),
+    ]),
+  );
 
   const apiItems = input.ingests.map((row) => {
     const episode = episodeBySource.get(row.source_url);
@@ -297,6 +339,8 @@ export function buildPipelineQueues(input: {
         currentStep: row.progress_stage ?? 'Visual planning',
         now: input.now,
         posts: postsByEpisode.get(episode.id) ?? [],
+        visualState: visualStateByEpisode.get(episode.id),
+        videoPrereqsReady: videoPrereqsByEpisode.get(episode.id) ?? false,
       }),
     ];
   });
@@ -318,12 +362,25 @@ export function buildPipelineQueues(input: {
         thumbnailUrl: row.thumbnail_url,
         now: input.now,
         posts: postsByEpisode.get(episode.id) ?? [],
+        localizationId: row.episode_localization_id,
+        visualState: visualStateByEpisode.get(episode.id),
+        videoPrereqsReady: videoPrereqsByEpisode.get(episode.id) ?? false,
       }),
     ];
   });
 
+  // Abandoned video work is not queue work: it stays visible under its own
+  // heading so a UUID search still finds it, but it never competes for
+  // attention with jobs somebody can actually unblock.
+  const videoItems = [...visualItems, ...renderItems];
+  const abandonedItems = videoItems
+    .filter((item) => item.abandoned)
+    .sort((a, b) => time(b.updatedAt) - time(a.updatedAt));
   const api = lane(apiItems);
-  const render = lane([...visualItems, ...renderItems]);
+  const render = {
+    ...lane(videoItems.filter((item) => !item.abandoned)),
+    abandoned: abandonedItems,
+  };
   const social = socialLane(
     socialQueueItems(
       input.socialJobs,
@@ -349,6 +406,7 @@ export function buildPipelineQueues(input: {
         render.attention.length +
         social.attention.length,
       publishedToday: input.publishedToday,
+      abandoned: abandonedItems.length,
     },
     api,
     render,
@@ -366,6 +424,9 @@ function videoWorkItem(input: {
   thumbnailUrl?: string | null;
   now: Date;
   posts: SocialPostRow[];
+  localizationId?: string;
+  visualState?: VisualStateRow | undefined;
+  videoPrereqsReady: boolean;
 }): PipelineQueueItem {
   const { row, episode } = input;
   return workItem({
@@ -390,15 +451,15 @@ function videoWorkItem(input: {
     thumbnailUrl: input.thumbnailUrl,
     now: input.now,
     posts: input.posts,
+    ...(input.localizationId ? { localizationId: input.localizationId } : {}),
+    visualState: input.visualState,
+    videoPrereqsReady: input.videoPrereqsReady,
   });
 }
 
 function workItem(input: WorkItemInput): PipelineQueueItem {
-  const activeLease = leaseIsActive(
-    input.leaseOwner,
-    input.leaseExpiresAt,
-    input.now,
-  );
+  const activeLease =
+    Boolean(input.leaseOwner) && leaseIsActive(input.leaseExpiresAt, input.now);
   const staleVersion = Boolean(
     !activeLease &&
     (input.status === 'queued' || input.status === 'processing') &&
@@ -412,6 +473,7 @@ function workItem(input: WorkItemInput): PipelineQueueItem {
     staleVersion,
   );
   const history = workHistory(input);
+  const abandoned = abandonState(input.visualState);
 
   return {
     key: input.key,
@@ -435,7 +497,104 @@ function workItem(input: WorkItemInput): PipelineQueueItem {
     ...(input.thumbnailUrl ? { thumbnailUrl: input.thumbnailUrl } : {}),
     history,
     publishedLinks: publishedLinks(input.posts),
+    actions: workActions({ input, state, activeLease, abandoned }),
+    ...(abandoned ? { abandoned } : {}),
   };
+}
+
+function abandonState(
+  row: VisualStateRow | undefined,
+): { at: string; reason: string } | null {
+  if (!row?.abandoned_at) {
+    return null;
+  }
+  return {
+    at: row.abandoned_at,
+    reason: row.abandoned_reason?.trim() || 'No reason recorded',
+  };
+}
+
+/**
+ * Every restart the control center can offer goes through one of three RPCs,
+ * each of which refuses the same conditions we check here. Offering a button the
+ * RPC would reject only produces a 409, so a refusal is reported as text instead.
+ */
+function workActions(context: {
+  input: WorkItemInput;
+  state: PipelineQueueItem['state'];
+  activeLease: boolean;
+  abandoned: { at: string; reason: string } | null;
+}): PipelineQueueItemActions {
+  const { input, state, activeLease, abandoned } = context;
+
+  if (!input.episodeId) {
+    return {
+      disabledReason:
+        'This ingest never produced an episode row; re-submit the source URL to retry it.',
+    };
+  }
+  if (abandoned) {
+    return {
+      disabledReason: `Closed by an operator: ${abandoned.reason}`,
+    };
+  }
+  if (activeLease) {
+    return { disabledReason: 'A worker holds this job right now.' };
+  }
+  if (state === 'queued') {
+    return { disabledReason: 'Waiting for a worker; nothing to retry yet.' };
+  }
+
+  if (input.kind === 'ingest') {
+    return { restart: { step: 'ingest' } };
+  }
+
+  // A render can only be requeued on its own when the shared visual checkpoint
+  // is completed and current; otherwise the whole episode video has to be
+  // restarted, which re-plans the visual first.
+  if (
+    input.kind === 'render' &&
+    input.localizationId &&
+    visualIsRenderable(
+      input.visualState?.status,
+      input.visualState?.visual_version,
+    )
+  ) {
+    return {
+      restart: { step: 'render', localizationId: input.localizationId },
+    };
+  }
+  if (input.videoPrereqsReady === false) {
+    return {
+      disabledReason:
+        'Video work needs completed zh-Hant, ja and en audio before it can restart.',
+    };
+  }
+  return { restart: { step: 'video', forceReplan: false } };
+}
+
+/**
+ * Mirrors the language check inside `retry_episode_video_generation`; without it
+ * the button would 409 on episodes whose audio never finished.
+ */
+function videoPrerequisitesReady(localizations: LocalizationRow[]): boolean {
+  const ready = new Set(
+    localizations
+      .filter((row) => {
+        if (row.status !== 'completed') {
+          return false;
+        }
+        if (!row.script?.trim() || !row.hls_url?.trim()) {
+          return false;
+        }
+        return (
+          row.language_code !== 'zh-Hant' ||
+          Boolean(row.classroom_hls_url?.trim())
+        );
+      })
+      .map((row) => row.language_code),
+  );
+  return ['zh-Hant', 'ja', 'en'].every((language) => ready.has(language));
 }
 
 function deriveWorkState(
@@ -533,11 +692,8 @@ function socialPlatforms(
         return [];
       }
       const post = postByLane.get(laneKey(job.platform, job.language_code));
-      const activeLease = leaseIsActive(
-        job.lease_owner,
-        job.lease_expires_at,
-        now,
-      );
+      const activeLease =
+        Boolean(job.lease_owner) && leaseIsActive(job.lease_expires_at, now);
       return [
         {
           platform: job.platform,
@@ -597,7 +753,7 @@ function socialPlatformStatus(
     return 'skipped';
   }
   if (job.status === 'processing') {
-    return leaseIsActive(job.lease_owner, job.lease_expires_at, now)
+    return Boolean(job.lease_owner) && leaseIsActive(job.lease_expires_at, now)
       ? 'publishing'
       : 'queued';
   }
@@ -759,7 +915,7 @@ async function readEpisodes(
 
 async function readRowsByEpisode<T>(
   client: NonNullable<ReturnType<typeof createConfiguredServiceRoleClient>>,
-  table: 'episode_localizations' | 'social_posts',
+  table: 'episode_localizations' | 'social_posts' | 'episode_video_visuals',
   columns: string,
   episodeIds: string[],
 ): Promise<T[]> {
@@ -815,6 +971,7 @@ function unavailable(
       processing: 0,
       blockedOrFailed: 0,
       publishedToday: 0,
+      abandoned: 0,
     },
     api: emptyLane(),
     render: emptyLane(),
@@ -824,16 +981,6 @@ function unavailable(
 
 function emptyLane<T>(): PipelineQueueLane<T> {
   return { processing: [], queued: [], attention: [] };
-}
-
-function leaseIsActive(
-  owner: string | null,
-  expiresAt: string | null,
-  now: Date,
-): boolean {
-  return Boolean(
-    owner && expiresAt && new Date(expiresAt).getTime() > now.getTime(),
-  );
 }
 
 function startOfJstDay(now: Date): string {

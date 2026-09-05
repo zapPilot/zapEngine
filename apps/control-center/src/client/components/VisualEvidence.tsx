@@ -1,5 +1,8 @@
-import { PODCAST_VIDEO_REVIEW_ISSUES } from '@zapengine/types/shared';
-import { useMemo, useState } from 'react';
+import {
+  EPISODE_VIDEO_VISUAL_VERSION,
+  PODCAST_VIDEO_REVIEW_ISSUES,
+} from '@zapengine/types/shared';
+import { useEffect, useMemo, useState } from 'react';
 
 import type {
   PodcastPipelineVisualBudget,
@@ -27,11 +30,15 @@ import { CopyableId } from './CopyableId.js';
  * there a photo of a charging cable on the Tether scene?" meant reading counts
  * in one panel and captions in another and joining them by hand.
  */
-export function PodcastVisualDebugPanel(
+export function VisualEvidence(
   props: PodcastVisualReviewHandlers & {
     episodeId: string;
     data: PodcastVisualDebugResponse | undefined;
     pipelineDebug: PodcastPipelineVisualDebug | null | undefined;
+    /** Supplied only when the queue side of the job also permits a re-plan —
+     * no live lease, not abandoned. The visual payload decides the rest. */
+    onForceReplan?: (() => void) | undefined;
+    forceReplanBusy?: boolean;
   },
 ) {
   const [loading, setLoading] = useState(false);
@@ -67,33 +74,37 @@ export function PodcastVisualDebugPanel(
     [props.data?.reviews],
   );
 
-  async function load(): Promise<void> {
-    if (props.data || loading) {
-      return;
+  // The panel only mounts when its tab is opened, so the fetch belongs to the
+  // mount rather than to a disclosure toggle. `hasData` keeps a poll-driven
+  // re-render from re-requesting evidence that is already cached in App.
+  const { episodeId, data, onLoadVisualDebug } = props;
+  const hasData = Boolean(data);
+  useEffect(() => {
+    let cancelled = false;
+    if (!hasData) {
+      setLoading(true);
+      setError(null);
+      onLoadVisualDebug(episodeId)
+        .catch((cause: unknown) => {
+          if (!cancelled) {
+            setError(
+              cause instanceof Error ? cause.message : 'Visual debug failed',
+            );
+          }
+        })
+        // Not guarded by `cancelled`: the effect re-runs the moment the payload
+        // lands, and skipping this there would leave the spinner up for good.
+        .finally(() => setLoading(false));
     }
-    setLoading(true);
-    setError(null);
-    try {
-      await props.onLoadVisualDebug(props.episodeId);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Visual debug failed');
-    } finally {
-      setLoading(false);
-    }
-  }
+    return () => {
+      cancelled = true;
+    };
+  }, [episodeId, hasData, onLoadVisualDebug]);
 
   const visualHash = props.data?.visual?.visualHash ?? null;
 
   return (
-    <details
-      className="pipeline-details podcast-visual-debug"
-      onToggle={(event) => {
-        if (event.currentTarget.open) {
-          void load();
-        }
-      }}
-    >
-      <summary>{summaryLine(props.data, pipelineDebug)}</summary>
+    <div className="podcast-visual-debug">
       {loading ? (
         <div className="empty-row">Loading visual evidence…</div>
       ) : null}
@@ -162,26 +173,67 @@ export function PodcastVisualDebugPanel(
             </div>
           </>
         ) : null}
+        {props.onForceReplan ? (
+          <ForceReplan
+            busy={props.forceReplanBusy ?? false}
+            onConfirm={props.onForceReplan}
+            visual={props.data?.visual ?? null}
+          />
+        ) : null}
       </div>
-    </details>
+    </div>
   );
 }
 
-/** What the section is worth opening for, before it is opened: how many scenes
- * are explained inside and how much of the Brave budget the episode spent. */
-function summaryLine(
-  data: PodcastVisualDebugResponse | undefined,
-  debug: PodcastPipelineVisualDebug | null | undefined,
-): string {
-  const sceneCount = data?.scenes.length ?? debug?.sceneSelections.length ?? 0;
-  const parts = ['Visual debug'];
-  if (sceneCount > 0) {
-    parts.push(`${sceneCount} scenes`);
+/**
+ * The remedy that belongs after the evidence, not beside the ordinary retry: it
+ * throws away a plan that completed successfully and pays for a fresh round of
+ * image searches and three re-renders. It only appears once the plan on screen
+ * is current — a stale or failed plan is already re-planned by a plain restart.
+ */
+function ForceReplan(props: {
+  busy: boolean;
+  onConfirm: () => void;
+  visual: PodcastVisualDebugResponse['visual'];
+}) {
+  const [armed, setArmed] = useState(false);
+  const { visual } = props;
+  if (
+    visual?.status !== 'completed' ||
+    visual.visualVersion !== EPISODE_VIDEO_VISUAL_VERSION
+  ) {
+    return null;
   }
-  if (debug?.budget) {
-    parts.push(`requests ${debug.budget.requestCount}/${debug.budget.max}`);
-  }
-  return parts.join(' · ');
+  return (
+    <section className="podcast-visual-replan">
+      <div>
+        <strong>Re-plan visuals</strong>
+        <small>
+          Discards this completed plan and re-renders zh-Hant, ja and en with
+          fresh image searches.
+        </small>
+      </div>
+      <button
+        className="refresh-button"
+        disabled={props.busy}
+        onClick={() => {
+          if (armed) {
+            props.onConfirm();
+            setArmed(false);
+            return;
+          }
+          setArmed(true);
+        }}
+        type="button"
+      >
+        {props.busy
+          ? 'Re-planning…'
+          : armed
+            ? 'Confirm re-plan (re-renders 3 videos)'
+            : 'Re-plan visuals'}
+      </button>
+    </section>
+  );
 }
 
 function VisualDebugHeader(
@@ -586,6 +638,12 @@ function ReviewList(
             {review.issueCategories.join(' · ') || 'no issue category'}
           </span>
           {review.note ? <small>{review.note}</small> : null}
+          {review.resolutionNote ? (
+            <small className="podcast-review-resolution">
+              {review.resolvedBy ? `${review.resolvedBy}: ` : ''}
+              {review.resolutionNote}
+            </small>
+          ) : null}
           {review.status !== 'resolved' ? (
             <button
               className="refresh-button"

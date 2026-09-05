@@ -1,3 +1,5 @@
+import type { PodcastPipelineRestartAction } from './podcast-pipeline.js';
+
 export type PipelineQueueState =
   | 'processing'
   | 'queued'
@@ -21,6 +23,18 @@ export interface PipelinePublishedLink {
   url: string | null;
 }
 
+/**
+ * What an operator may do to this exact job, decided server-side. The episode
+ * read model only covers the 40 most recent episodes, so a client-side join
+ * would leave the oldest stuck jobs — the ones most in need of a retry — with no
+ * button at all.
+ */
+export interface PipelineQueueItemActions {
+  restart?: PodcastPipelineRestartAction;
+  /** Why no restart is offered. Rendered next to the absent button. */
+  disabledReason?: string;
+}
+
 export interface PipelineQueueItem {
   key: string;
   kind: PipelineQueueKind;
@@ -41,6 +55,13 @@ export interface PipelineQueueItem {
   thumbnailUrl?: string;
   history: PipelineQueueHistoryEvent[];
   publishedLinks: PipelinePublishedLink[];
+  actions: PipelineQueueItemActions;
+  /**
+   * Set once an operator closed this episode's video work for good. The row
+   * keeps whatever state it died in; this only says nobody should restart it,
+   * which is why such items leave the attention lane entirely.
+   */
+  abandoned?: { at: string; reason: string };
 }
 
 export type SocialPlatform = 'x' | 'threads' | 'rednote' | 'youtube';
@@ -89,6 +110,8 @@ export interface PipelineQueueLane<T> {
   processing: T[];
   queued: T[];
   attention: T[];
+  /** Only the render lane carries this; abandonment is a video-pipeline marker. */
+  abandoned?: T[];
 }
 
 export interface PipelineQueueSummary {
@@ -96,6 +119,7 @@ export interface PipelineQueueSummary {
   processing: number;
   blockedOrFailed: number;
   publishedToday: number;
+  abandoned: number;
 }
 
 export interface PipelineQueuesResponse {

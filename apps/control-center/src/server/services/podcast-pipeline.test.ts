@@ -240,7 +240,6 @@ describe('podcast pipeline summary', () => {
       currentPhase: 'done',
       videoStatus: 'abandoned',
       canRestartVideo: false,
-      canForceReplanVisual: false,
       abandoned: {
         at: '2026-09-05T10:00:00.000Z',
         reason: 'ja render cannot align; closed by operator',
@@ -267,7 +266,6 @@ describe('podcast pipeline summary', () => {
       currentPhase: 'video',
       videoStatus: 'queued',
       canRestartVideo: true,
-      canForceReplanVisual: true,
       abandoned: null,
     });
     expect(summary?.renders.every(({ canRestart }) => canRestart)).toBe(true);

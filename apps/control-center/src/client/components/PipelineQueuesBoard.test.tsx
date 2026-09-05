@@ -10,10 +10,14 @@ import {
 } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { PipelineQueuesResponse } from '../../shared/pipeline-queues.js';
+import type {
+  PipelineQueueItem,
+  PipelineQueuesResponse,
+} from '../../shared/pipeline-queues.js';
 import { itemMatches, PipelineQueuesBoard } from './PipelineQueuesBoard.js';
 
 const EPISODE_ID = '11111111-1111-4111-8111-111111111111';
+const LOCALIZATION_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const POST_URL = 'https://x.com/zap/status/123';
 const TIMER_HANDLE = 1 as unknown as ReturnType<typeof window.setInterval>;
 
@@ -36,6 +40,7 @@ function queueResponse(
       processing: publishing ? 1 : 0,
       blockedOrFailed: 0,
       publishedToday: 1,
+      abandoned: 0,
     },
     api: { processing: [], queued: [], attention: [] },
     render: { processing: [], queued: [], attention: [] },
@@ -167,6 +172,41 @@ function response(payload: PipelineQueuesResponse): Response {
   } as Response;
 }
 
+function workItem(
+  overrides: Partial<PipelineQueueItem> = {},
+): PipelineQueueItem {
+  return {
+    key: `render:${EPISODE_ID}`,
+    kind: 'render',
+    episodeId: EPISODE_ID,
+    title: 'Why We Build',
+    languageCode: 'ja',
+    state: 'failed',
+    queuedAt: '2026-09-05T04:00:00.000Z',
+    updatedAt: '2026-09-05T04:30:00.000Z',
+    currentStep: 'Rendering',
+    retryCount: 2,
+    lastError: 'Raster resvg stage failed (signal SIGKILL)',
+    history: [],
+    publishedLinks: [],
+    actions: { restart: { step: 'render', localizationId: LOCALIZATION_ID } },
+    ...overrides,
+  };
+}
+
+function boardProps(
+  overrides: Partial<Parameters<typeof PipelineQueuesBoard>[0]> = {},
+) {
+  return {
+    onLoadVisualDebug: vi.fn().mockResolvedValue(undefined),
+    onResolveReview: vi.fn().mockResolvedValue(undefined),
+    onRestartStep: vi.fn().mockResolvedValue(undefined),
+    onSubmitReview: vi.fn().mockResolvedValue(undefined),
+    visualDebugByEpisode: {},
+    ...overrides,
+  } as Parameters<typeof PipelineQueuesBoard>[0];
+}
+
 describe('PipelineQueuesBoard', () => {
   it('matches title, full UUID, and partial UUID searches', () => {
     expect(itemMatches('Why We Build', EPISODE_ID, 'we build')).toBe(true);
@@ -184,7 +224,7 @@ describe('PipelineQueuesBoard', () => {
     );
     vi.spyOn(window, 'setInterval').mockImplementation(() => TIMER_HANDLE);
 
-    render(<PipelineQueuesBoard />);
+    render(<PipelineQueuesBoard {...boardProps()} />);
 
     const card = await screen.findByRole('button', { name: /Why We Build/i });
     fireEvent.click(card);
@@ -220,7 +260,7 @@ describe('PipelineQueuesBoard', () => {
       return TIMER_HANDLE;
     });
 
-    render(<PipelineQueuesBoard />);
+    render(<PipelineQueuesBoard {...boardProps()} />);
     const button = await screen.findByRole('button', { name: /Why We Build/i });
     expect(poll).not.toBeNull();
     fireEvent.click(button);
@@ -240,5 +280,75 @@ describe('PipelineQueuesBoard', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(within(drawer).getByText(EPISODE_ID)).toBeInTheDocument();
     expect(drawer).toBeInTheDocument();
+  });
+
+  it('keeps abandoned render jobs out of the lanes and behind a disclosure', async () => {
+    const payload = queueResponse();
+    payload.summary.abandoned = 2;
+    payload.render = {
+      processing: [],
+      queued: [],
+      attention: [],
+      abandoned: [
+        workItem({
+          key: 'render:abandoned-1',
+          abandoned: {
+            at: '2026-09-04T00:00:00.000Z',
+            reason: 'Legacy zh-Hant-only render',
+          },
+          actions: {
+            disabledReason: 'Closed by an operator: Legacy zh-Hant-only render',
+          },
+        }),
+        workItem({
+          key: 'render:abandoned-2',
+          title: 'Another closed episode',
+        }),
+      ],
+    };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(payload)));
+    vi.spyOn(window, 'setInterval').mockImplementation(() => TIMER_HANDLE);
+
+    render(<PipelineQueuesBoard {...boardProps()} />);
+
+    expect(
+      await screen.findByText(/2 abandoned jobs hidden/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('ATTENTION')).not.toBeInTheDocument();
+    const disclosure = screen.getByText('Abandoned (2)');
+    expect(disclosure).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /Another closed episode/i }),
+    ).toBeInTheDocument();
+  });
+
+  it('shows a compact error on a failed card so identical failures read at a glance', async () => {
+    const payload = queueResponse();
+    payload.render = {
+      processing: [],
+      queued: [],
+      attention: [workItem()],
+    };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(payload)));
+    vi.spyOn(window, 'setInterval').mockImplementation(() => TIMER_HANDLE);
+
+    render(<PipelineQueuesBoard {...boardProps()} />);
+
+    expect(
+      await screen.findByText(/Raster resvg stage failed/),
+    ).toBeInTheDocument();
+  });
+
+  it('does not mention abandoned work when there is none', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(response(queueResponse())),
+    );
+    vi.spyOn(window, 'setInterval').mockImplementation(() => TIMER_HANDLE);
+
+    render(<PipelineQueuesBoard {...boardProps()} />);
+
+    await screen.findByRole('button', { name: /Why We Build/i });
+    expect(screen.queryByText(/abandoned/i)).not.toBeInTheDocument();
   });
 });

@@ -1,66 +1,64 @@
-import { ExternalLink, Search, X as CloseIcon } from 'lucide-react';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Clapperboard, Images, Languages, Search } from 'lucide-react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
 
 import type {
-  PipelinePublishedLink,
   PipelineQueueItem,
   PipelineQueueLane,
   PipelineQueuesResponse,
-  SocialPlatform,
   SocialQueueItem,
 } from '../../shared/pipeline-queues.js';
+import type { PodcastPipelineRestartAction } from '../../shared/podcast-pipeline.js';
+import type {
+  PodcastVisualDebugResponse,
+  PodcastVisualReviewHandlers,
+} from '../../shared/podcast-visual.js';
+import { compactError } from '../format.js';
 import './PipelineQueuesBoard.css';
+import {
+  PLATFORM_LABELS,
+  QueueDrawer,
+  formatDateTime,
+  type SelectedQueueEntry,
+} from './QueueDrawer.js';
 
 const POLL_MS = 7_000;
-const PLATFORM_LABELS: Record<SocialPlatform, string> = {
-  x: 'X',
-  threads: 'Threads',
-  rednote: 'Rednote',
-  youtube: 'YouTube',
-};
 
-type Selected =
-  | { kind: 'api' | 'render'; item: PipelineQueueItem }
-  | { kind: 'social'; item: SocialQueueItem };
-
-export function PipelineQueuesBoard() {
-  const [data, setData] = useState<PipelineQueuesResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
+export function PipelineQueuesBoard(
+  props: PodcastVisualReviewHandlers & {
+    visualDebugByEpisode: Record<
+      string,
+      PodcastVisualDebugResponse | undefined
+    >;
+    onRestartStep: (
+      episodeId: string,
+      action: PodcastPipelineRestartAction,
+    ) => Promise<void>;
+  },
+) {
+  const { data, error, reload } = usePipelineQueues();
   const [query, setQuery] = useState('');
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      try {
-        const response = await fetch('/api/pipeline/queues');
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
-        }
-        const payload = (await response.json()) as PipelineQueuesResponse;
-        if (!cancelled) {
-          setData(payload);
-          setError(payload.status === 'error' ? payload.message : null);
-        }
-      } catch (cause) {
-        if (!cancelled) {
-          setError(
-            cause instanceof Error ? cause.message : 'Queue refresh failed',
-          );
-        }
-      }
-    };
-    void load();
-    const timer = window.setInterval(() => void load(), POLL_MS);
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, []);
 
   const selected = useMemo(
     () => (data && selectedKey ? findSelected(data, selectedKey) : null),
     [data, selectedKey],
+  );
+
+  // A retry only looks like it worked once the card has moved lane, so the
+  // board refetches immediately instead of waiting out the poll interval.
+  const { onRestartStep } = props;
+  const restartStep = useCallback(
+    async (episodeId: string, action: PodcastPipelineRestartAction) => {
+      await onRestartStep(episodeId, action);
+      await reload();
+    },
+    [onRestartStep, reload],
   );
 
   if (!data) {
@@ -72,6 +70,8 @@ export function PipelineQueuesBoard() {
       </section>
     );
   }
+
+  const render = filterLane(data.render, query);
 
   return (
     <section className="queue-board" aria-label="Runtime pipeline queues">
@@ -98,6 +98,13 @@ export function PipelineQueuesBoard() {
         <Metric label="Blocked / failed" value={data.summary.blockedOrFailed} />
         <Metric label="Published today" value={data.summary.publishedToday} />
       </div>
+      {data.summary.abandoned > 0 ? (
+        <p className="queue-abandoned-note">
+          {data.summary.abandoned} abandoned job
+          {data.summary.abandoned === 1 ? '' : 's'} hidden from the render
+          lanes.
+        </p>
+      ) : null}
 
       {error ? (
         <div className="queue-inline-error">Last refresh: {error}</div>
@@ -116,14 +123,19 @@ export function PipelineQueuesBoard() {
         />
         <QueueColumn
           description="Fly render machines"
-          lane={filterLane(data.render, query)}
+          lane={render}
           onSelect={setSelectedKey}
           renderItem={(item) => <WorkCard item={item} />}
           title="Render queue"
-        />
+        >
+          <AbandonedSection
+            items={render.abandoned ?? []}
+            onSelect={setSelectedKey}
+          />
+        </QueueColumn>
         <QueueColumn
           description="social:daemon"
-          lane={filterSocialLane(data.social, query)}
+          lane={filterLane(data.social, query)}
           onSelect={setSelectedKey}
           renderItem={(item) => <SocialCard item={item} />}
           title="Social publishing"
@@ -131,10 +143,53 @@ export function PipelineQueuesBoard() {
       </div>
 
       {selected ? (
-        <QueueDrawer onClose={() => setSelectedKey(null)} selected={selected} />
+        <QueueDrawer
+          onClose={() => setSelectedKey(null)}
+          onLoadVisualDebug={props.onLoadVisualDebug}
+          onResolveReview={props.onResolveReview}
+          onRestartStep={restartStep}
+          onSubmitReview={props.onSubmitReview}
+          selected={selected}
+          visualDebug={
+            selected.item.episodeId
+              ? props.visualDebugByEpisode[selected.item.episodeId]
+              : undefined
+          }
+        />
       ) : null}
     </section>
   );
+}
+
+function usePipelineQueues(): {
+  data: PipelineQueuesResponse | null;
+  error: string | null;
+  reload: () => Promise<void>;
+} {
+  const [data, setData] = useState<PipelineQueuesResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      const response = await fetch('/api/pipeline/queues');
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      const payload = (await response.json()) as PipelineQueuesResponse;
+      setData(payload);
+      setError(payload.status === 'error' ? payload.message : null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Queue refresh failed');
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+    const timer = window.setInterval(() => void load(), POLL_MS);
+    return () => window.clearInterval(timer);
+  }, [load]);
+
+  return { data, error, reload: load };
 }
 
 function Metric(props: { label: string; value: number }) {
@@ -152,6 +207,7 @@ function QueueColumn<T extends { key: string }>(props: {
   lane: PipelineQueueLane<T>;
   onSelect: (key: string) => void;
   renderItem: (item: T) => ReactNode;
+  children?: ReactNode;
 }) {
   return (
     <section className="queue-column">
@@ -179,7 +235,37 @@ function QueueColumn<T extends { key: string }>(props: {
           renderItem={props.renderItem}
         />
       ) : null}
+      {props.children}
     </section>
+  );
+}
+
+/**
+ * Closed episodes still hold failed rows in the durable queue. Hiding them
+ * outright would make the board disagree with the database; leaving them in
+ * ATTENTION buried the handful of jobs an operator can still rescue.
+ */
+function AbandonedSection(props: {
+  items: PipelineQueueItem[];
+  onSelect: (key: string) => void;
+}) {
+  if (props.items.length === 0) {
+    return null;
+  }
+  return (
+    <details className="queue-abandoned">
+      <summary>Abandoned ({props.items.length})</summary>
+      {props.items.map((item) => (
+        <button
+          className="queue-card-button"
+          key={item.key}
+          onClick={() => props.onSelect(item.key)}
+          type="button"
+        >
+          <WorkCard item={item} />
+        </button>
+      ))}
+    </details>
   );
 }
 
@@ -213,25 +299,63 @@ function QueueSection<T extends { key: string }>(props: {
   );
 }
 
-function WorkCard({ item }: { item: PipelineQueueItem }) {
+function CardHeader(props: {
+  title: string;
+  episodeId: string | undefined;
+  badge: ReactNode;
+}) {
   return (
-    <article className="queue-card">
-      {item.thumbnailUrl ? (
-        <img alt="" className="queue-thumb" src={item.thumbnailUrl} />
-      ) : null}
+    <>
       <div className="queue-card-title-row">
-        <strong>{item.title}</strong>
-        {item.languageCode ? <span>{item.languageCode}</span> : null}
+        <strong>{props.title}</strong>
+        {props.badge}
       </div>
-      <code>{item.episodeId}</code>
+      <code>{props.episodeId ?? 'no episode row'}</code>
+    </>
+  );
+}
+
+function WorkCard({ item }: { item: PipelineQueueItem }) {
+  const KindIcon = KIND_ICONS[item.kind];
+  return (
+    <article className={`queue-card queue-card-${item.state}`}>
+      {item.thumbnailUrl ? (
+        <img
+          alt=""
+          className="queue-thumb"
+          loading="lazy"
+          src={item.thumbnailUrl}
+        />
+      ) : null}
+      <CardHeader
+        badge={item.languageCode ? <span>{item.languageCode}</span> : null}
+        episodeId={item.episodeId}
+        title={item.title}
+      />
       <div className="queue-card-step">
-        <strong>{item.currentStep ?? kindLabel(item.kind)}</strong>
+        <strong>
+          <KindIcon aria-hidden="true" size={13} />
+          {item.currentStep ?? kindLabel(item.kind)}
+        </strong>
         <StateBadge state={item.state} />
       </div>
       {typeof item.progressPercent === 'number' ? (
-        <div className="queue-progress" aria-label={`${item.progressPercent}%`}>
-          <span style={{ width: `${clampPercent(item.progressPercent)}%` }} />
+        <div className="queue-progress-row">
+          <div
+            className="queue-progress"
+            aria-label={`${item.progressPercent}%`}
+          >
+            <span style={{ width: `${clampPercent(item.progressPercent)}%` }} />
+          </div>
+          <small>{clampPercent(item.progressPercent)}%</small>
         </div>
+      ) : null}
+      {/* Without this line the operator has to open every failed card to learn
+          whether thirty of them died of the same thing. */}
+      {item.lastError ? (
+        <small className="queue-card-error">
+          {compactError(item.lastError)}
+        </small>
       ) : null}
       <div className="queue-card-meta">
         {item.workerId ? <span>worker · {item.workerId}</span> : null}
@@ -249,208 +373,55 @@ function WorkCard({ item }: { item: PipelineQueueItem }) {
 
 function SocialCard({ item }: { item: SocialQueueItem }) {
   return (
-    <article className="queue-card social-queue-card">
-      <div className="queue-card-title-row">
-        <strong>{item.title}</strong>
-        <StateBadge state={item.state} />
-      </div>
-      <code>{item.episodeId}</code>
+    <article
+      className={`queue-card social-queue-card queue-card-${item.state}`}
+    >
+      <CardHeader
+        badge={<StateBadge state={item.state} />}
+        episodeId={item.episodeId}
+        title={item.title}
+      />
       <div className="social-schedule">
         {item.contentType} · {formatDateTime(item.scheduledAt)}
       </div>
       <div className="social-platforms">
         {item.platforms.map((lane) => (
-          <div
-            className="social-platform-row"
+          <span
+            className={`social-chip social-status-${lane.status}`}
             key={`${lane.platform}:${lane.languageCode}`}
+            title={`${PLATFORM_LABELS[lane.platform]} · ${lane.languageCode} · ${lane.status}`}
           >
-            <span>
-              {PLATFORM_LABELS[lane.platform]} · {lane.languageCode}
-            </span>
-            <span className={`social-status social-status-${lane.status}`}>
-              {lane.status}
-            </span>
-          </div>
+            {PLATFORM_LABELS[lane.platform]}
+            <small>{lane.languageCode}</small>
+          </span>
         ))}
       </div>
     </article>
   );
 }
 
+const KIND_ICONS: Record<PipelineQueueItem['kind'], typeof Languages> = {
+  ingest: Languages,
+  visual: Images,
+  render: Clapperboard,
+};
+
 function StateBadge({ state }: { state: string }) {
   return <span className={`queue-state queue-state-${state}`}>{state}</span>;
-}
-
-function QueueDrawer(props: { selected: Selected; onClose: () => void }) {
-  const { item } = props.selected;
-  const isSocial = props.selected.kind === 'social';
-  return (
-    <aside className="queue-drawer" aria-label="Episode queue details">
-      <header className="queue-drawer-head">
-        <div>
-          <span>{props.selected.kind.toUpperCase()} QUEUE</span>
-          <h3>{item.title}</h3>
-          <code>{item.episodeId}</code>
-        </div>
-        <button
-          aria-label="Close details"
-          onClick={props.onClose}
-          type="button"
-        >
-          <CloseIcon size={18} />
-        </button>
-      </header>
-
-      <DrawerSection title="Current state">
-        {isSocial ? (
-          <SocialCurrentState item={item as SocialQueueItem} />
-        ) : (
-          <WorkCurrentState item={item as PipelineQueueItem} />
-        )}
-      </DrawerSection>
-
-      <DrawerSection title="Queue history">
-        {item.history.length === 0 ? (
-          <span className="drawer-muted">No reliable persisted history.</span>
-        ) : (
-          <ol className="queue-history">
-            {item.history.map((event, index) => (
-              <li key={`${event.at}:${event.label}:${index}`}>
-                <time>{formatDateTime(event.at)}</time>
-                <strong>{event.label}</strong>
-                {event.detail && !event.detail.startsWith('http') ? (
-                  <span>{event.detail}</span>
-                ) : null}
-              </li>
-            ))}
-          </ol>
-        )}
-      </DrawerSection>
-
-      {!isSocial && (item as PipelineQueueItem).lastError ? (
-        <DrawerSection title="Last error">
-          <pre className="queue-error-detail">
-            {(item as PipelineQueueItem).lastError}
-          </pre>
-        </DrawerSection>
-      ) : null}
-
-      <DrawerSection title="Published social posts">
-        <PublishedLinks links={item.publishedLinks} />
-      </DrawerSection>
-    </aside>
-  );
-}
-
-function WorkCurrentState({ item }: { item: PipelineQueueItem }) {
-  return (
-    <dl className="queue-detail-list">
-      <div>
-        <dt>State</dt>
-        <dd>
-          <StateBadge state={item.state} />
-        </dd>
-      </div>
-      <div>
-        <dt>Step</dt>
-        <dd>{item.currentStep ?? kindLabel(item.kind)}</dd>
-      </div>
-      {item.languageCode ? (
-        <div>
-          <dt>Language</dt>
-          <dd>{item.languageCode}</dd>
-        </div>
-      ) : null}
-      {item.workerId ? (
-        <div>
-          <dt>Worker</dt>
-          <dd>{item.workerId}</dd>
-        </div>
-      ) : null}
-      {typeof item.progressPercent === 'number' ? (
-        <div>
-          <dt>Progress</dt>
-          <dd>{item.progressPercent}%</dd>
-        </div>
-      ) : null}
-      <div>
-        <dt>Retries</dt>
-        <dd>{item.retryCount}</dd>
-      </div>
-    </dl>
-  );
-}
-
-function SocialCurrentState({ item }: { item: SocialQueueItem }) {
-  return (
-    <div className="drawer-social-lanes">
-      {item.platforms.map((lane) => (
-        <div key={`${lane.platform}:${lane.languageCode}`}>
-          <div>
-            <strong>{PLATFORM_LABELS[lane.platform]}</strong>
-            <span>{lane.languageCode}</span>
-            <span className={`social-status social-status-${lane.status}`}>
-              {lane.status}
-            </span>
-          </div>
-          {lane.workerId ? <small>worker · {lane.workerId}</small> : null}
-          {lane.error ? (
-            <small className="queue-lane-error">{lane.error}</small>
-          ) : null}
-          {lane.url ? (
-            <a href={lane.url} rel="noreferrer" target="_blank">
-              Open post <ExternalLink size={13} />
-            </a>
-          ) : lane.status === 'published' ? (
-            <small>Published · link unavailable</small>
-          ) : null}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function PublishedLinks({ links }: { links: PipelinePublishedLink[] }) {
-  if (links.length === 0) {
-    return <span className="drawer-muted">No published posts yet.</span>;
-  }
-  return (
-    <div className="published-links">
-      {links.map((link) => (
-        <div key={`${link.platform}:${link.languageCode}:${link.publishedAt}`}>
-          <div>
-            <strong>{PLATFORM_LABELS[link.platform]}</strong>
-            <span>{link.languageCode}</span>
-          </div>
-          {link.url ? (
-            <a href={link.url} rel="noreferrer" target="_blank">
-              {link.url} <ExternalLink size={13} />
-            </a>
-          ) : (
-            <span>Published · link unavailable</span>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function DrawerSection(props: { title: string; children: ReactNode }) {
-  return (
-    <section className="queue-drawer-section">
-      <h4>{props.title}</h4>
-      {props.children}
-    </section>
-  );
 }
 
 function findSelected(
   data: PipelineQueuesResponse,
   key: string,
-): Selected | null {
+): SelectedQueueEntry | null {
   for (const kind of ['api', 'render'] as const) {
-    for (const bucket of ['processing', 'queued', 'attention'] as const) {
-      const item = data[kind][bucket].find(
+    for (const bucket of [
+      'processing',
+      'queued',
+      'attention',
+      'abandoned',
+    ] as const) {
+      const item = data[kind][bucket]?.find(
         (candidate) => candidate.key === key,
       );
       if (item) {
@@ -476,10 +447,9 @@ function filterLane<T extends { title: string; episodeId?: string }>(
     processing: lane.processing.filter(matches),
     queued: lane.queued.filter(matches),
     attention: lane.attention.filter(matches),
+    ...(lane.abandoned ? { abandoned: lane.abandoned.filter(matches) } : {}),
   };
 }
-
-const filterSocialLane = filterLane;
 
 export function itemMatches(
   title: string,
@@ -523,14 +493,4 @@ function durationSince(value: string): string {
     return `${minutes}m ${seconds % 60}s`;
   }
   return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
-}
-
-function formatDateTime(value: string): string {
-  return new Date(value).toLocaleString('en-GB', {
-    month: 'short',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  });
 }
