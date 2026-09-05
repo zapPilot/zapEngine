@@ -20,6 +20,10 @@ from src.services.backtesting.portfolio_rules.fgi_downshift_dca_sell import (
     FgiDownshiftDcaSellRule,
 )
 from src.services.backtesting.portfolio_rules.spy_latch import SpyLatchRule
+from src.services.backtesting.portfolio_rules.technical_experiments import (
+    TECHNICAL_EXPERIMENT_RULE_NAMES,
+    TECHNICAL_EXPERIMENT_RULES,
+)
 
 _UNSORTED_DEFAULT_PORTFOLIO_RULES: tuple[PortfolioRule, ...] = (
     CrossDownExitRule(),
@@ -29,7 +33,10 @@ _UNSORTED_DEFAULT_PORTFOLIO_RULES: tuple[PortfolioRule, ...] = (
     DmaOverextensionDcaSellRule(),
     FgiDownshiftDcaSellRule(),
 )
-_NON_DEFAULT_PORTFOLIO_RULES: tuple[PortfolioRule, ...] = (SpyLatchRule(),)
+_NON_DEFAULT_PORTFOLIO_RULES: tuple[PortfolioRule, ...] = (
+    SpyLatchRule(),
+    *TECHNICAL_EXPERIMENT_RULES,
+)
 
 DEFAULT_PORTFOLIO_RULES: tuple[PortfolioRule, ...] = tuple(
     sorted(_UNSORTED_DEFAULT_PORTFOLIO_RULES, key=lambda rule: rule.priority)
@@ -68,4 +75,5 @@ __all__ = [
     "RULE_NAMES",
     "RULE_PRIORITIES",
     "SpyLatchRule",
+    "TECHNICAL_EXPERIMENT_RULE_NAMES",
 ]
