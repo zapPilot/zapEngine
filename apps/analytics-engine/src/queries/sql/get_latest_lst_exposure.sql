@@ -42,6 +42,7 @@ latest_position_day AS (
     SELECT LOWER(p.wallet) AS wallet, MAX(p.snapshot_date) AS snapshot_date
     FROM analytics.daily_portfolio_positions p
     JOIN user_wallets uw ON LOWER(p.wallet) = uw.wallet
+    WHERE p.source = 'debank'
     GROUP BY LOWER(p.wallet)
 ),
 supplied_tokens AS (
@@ -61,6 +62,7 @@ supplied_tokens AS (
     CROSS JOIN LATERAL jsonb_array_elements(
         COALESCE(p.detail->'supply_token_list', '[]'::jsonb)
     ) AS supplied(token)
+    WHERE p.source = 'debank'
 )
 SELECT chain, token_address, symbol, amount, price, exposure_type, source_kind, source_id
 FROM idle_tokens
