@@ -56,6 +56,10 @@ export function buildBraveImagesSearchUrl(
   url.searchParams.set('count', String(count));
   url.searchParams.set('safesearch', 'strict');
   url.searchParams.set('search_lang', 'en');
+  // Search intents contain names, brands, and other exact proper nouns. Brave's
+  // default spellcheck may rewrite an unfamiliar-but-correct term (for example
+  // "Blonskr" -> "Blonsky") and silently search for the wrong subject.
+  url.searchParams.set('spellcheck', 'false');
   return url.href;
 }
 
