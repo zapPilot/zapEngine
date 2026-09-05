@@ -1,9 +1,12 @@
 import { EPISODE_VIDEO_VISUAL_VERSION } from '@zapengine/types/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { FlyMachinesConfig } from '../lib/env.js';
+import type { FlyMachinesClient } from './fly-machines.js';
 import type { PipelineSupabaseClient } from './supabase-client.js';
 import {
   markPodcastPipelineRelease,
+  podcastReleaseCanRender,
   startPodcastReleaseHeartbeat,
 } from './podcast-release-heartbeat.js';
 
@@ -11,6 +14,30 @@ function clientWithRpc(
   rpc: ReturnType<typeof vi.fn>,
 ): PipelineSupabaseClient {
   return { rpc } as unknown as PipelineSupabaseClient;
+}
+
+function machinesWithList(
+  listMachines: ReturnType<typeof vi.fn>,
+): FlyMachinesClient {
+  return {
+    listMachines,
+    startMachine: vi.fn(),
+  } as unknown as FlyMachinesClient;
+}
+
+const flyConfig: FlyMachinesConfig = {
+  appName: 'from-fed-to-chain-api',
+  token: 'fly-token',
+  currentImageRef: 'registry.fly.io/from-fed-to-chain-api:deployment-v10',
+};
+
+function renderMachine(image: string) {
+  return {
+    id: 'render-1',
+    state: 'stopped',
+    processGroup: 'render',
+    image,
+  };
 }
 
 afterEach(() => {
@@ -28,42 +55,77 @@ describe('podcast release heartbeat', () => {
     });
   });
 
-  it('fails startup when the initial release marker cannot be written', async () => {
-    const rpc = vi.fn().mockResolvedValue({
-      data: null,
-      error: { code: 'PGRST202', message: 'missing release marker RPC' },
-    });
+  it('does not authorize retries while the render Machine is still on the previous image', async () => {
+    const listMachines = vi.fn().mockResolvedValue([
+      renderMachine('registry.fly.io/from-fed-to-chain-api:deployment-v9'),
+    ]);
 
     await expect(
-      startPodcastReleaseHeartbeat({ client: clientWithRpc(rpc) }),
-    ).rejects.toThrow('missing release marker RPC');
+      podcastReleaseCanRender({
+        flyConfig,
+        machines: machinesWithList(listMachines),
+      }),
+    ).resolves.toBe(false);
   });
 
-  it('refreshes the marker and keeps later heartbeat failures non-fatal', async () => {
+  it('starts publishing only after the render Machine reaches the app image', async () => {
     vi.useFakeTimers();
-    const rpc = vi
+    const rpc = vi.fn().mockResolvedValue({ data: null, error: null });
+    const listMachines = vi
       .fn()
-      .mockResolvedValueOnce({ data: null, error: null })
-      .mockResolvedValueOnce({ data: null, error: null })
-      .mockResolvedValueOnce({
-        data: null,
-        error: { code: 'XX000', message: 'temporary write failure' },
-      });
+      .mockResolvedValueOnce([
+        renderMachine('registry.fly.io/from-fed-to-chain-api:deployment-v9'),
+      ])
+      .mockResolvedValue([
+        renderMachine(
+          'registry.fly.io/from-fed-to-chain-api:deployment-v10@sha256:render',
+        ),
+      ]);
     const logger = { info: vi.fn(), error: vi.fn() };
 
     const stop = await startPodcastReleaseHeartbeat({
       client: clientWithRpc(rpc),
+      flyConfig,
+      machines: machinesWithList(listMachines),
       intervalMs: 1_000,
       logger,
     });
 
-    await vi.advanceTimersByTimeAsync(2_000);
+    expect(rpc).not.toHaveBeenCalled();
 
-    expect(rpc).toHaveBeenCalledTimes(3);
-    expect(logger.error).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(logger.info).toHaveBeenCalledWith(
+      `[podcast-release] active visual_version=${EPISODE_VIDEO_VISUAL_VERSION}`,
+    );
 
     stop();
-    await vi.advanceTimersByTimeAsync(2_000);
-    expect(rpc).toHaveBeenCalledTimes(3);
+  });
+
+  it('keeps heartbeat failures non-fatal so stale state blocks retries instead of taking down HTTP', async () => {
+    vi.useFakeTimers();
+    const rpc = vi
+      .fn()
+      .mockResolvedValueOnce({
+        data: null,
+        error: { code: 'XX000', message: 'temporary write failure' },
+      })
+      .mockResolvedValue({ data: null, error: null });
+    const logger = { info: vi.fn(), error: vi.fn() };
+
+    const stop = await startPodcastReleaseHeartbeat({
+      client: clientWithRpc(rpc),
+      flyConfig: null,
+      intervalMs: 1_000,
+      logger,
+    });
+
+    expect(logger.error).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(rpc).toHaveBeenCalledTimes(2);
+    expect(logger.info).toHaveBeenCalledTimes(1);
+
+    stop();
   });
 });
