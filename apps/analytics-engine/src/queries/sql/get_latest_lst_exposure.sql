@@ -32,7 +32,8 @@ idle_tokens AS (
         t.price,
         'idle'::text AS exposure_type,
         'idle'::text AS source_kind,
-        LOWER(t.user_wallet_address) AS source_id
+        LOWER(t.user_wallet_address) AS source_id,
+        NULL::text AS position_type
     FROM analytics.daily_wallet_tokens t
     JOIN latest_idle_day latest
       ON LOWER(t.user_wallet_address) = latest.wallet
@@ -54,7 +55,8 @@ supplied_tokens AS (
         NULLIF(token->>'price', '')::double precision AS price,
         'supply'::text AS exposure_type,
         'position'::text AS source_kind,
-        p.id::text AS source_id
+        p.id::text AS source_id,
+        p.name_item AS position_type
     FROM analytics.daily_portfolio_positions p
     JOIN latest_position_day latest
       ON LOWER(p.wallet) = latest.wallet
@@ -64,8 +66,26 @@ supplied_tokens AS (
     ) AS supplied(token)
     WHERE p.source = 'debank'
 )
-SELECT chain, token_address, symbol, amount, price, exposure_type, source_kind, source_id
+SELECT
+    chain,
+    token_address,
+    symbol,
+    amount,
+    price,
+    exposure_type,
+    source_kind,
+    source_id,
+    position_type
 FROM idle_tokens
 UNION ALL
-SELECT chain, token_address, symbol, amount, price, exposure_type, source_kind, source_id
+SELECT
+    chain,
+    token_address,
+    symbol,
+    amount,
+    price,
+    exposure_type,
+    source_kind,
+    source_id,
+    position_type
 FROM supplied_tokens;
