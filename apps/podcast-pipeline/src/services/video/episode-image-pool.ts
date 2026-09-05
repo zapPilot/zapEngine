@@ -5,6 +5,7 @@ import {
   countedDrops,
   type ImageSearchBudget,
   type ImageSearchRequestKind,
+  tracedCandidates,
   type VisualImageSearchRequest,
   type VisualPrimarySubject,
 } from './image-search-trace.js';
@@ -52,6 +53,17 @@ export const IMAGE_SEARCH_BUDGET: ImageSearchBudget = {
 
 const BRAVE_ORIGINS: readonly ImageCandidate['origin'][] = ['brave'];
 
+/** Anchors whose most recognizable picture is a mark rather than a photograph.
+ * The decorative filter drops anything spelling `logo`, which for these types
+ * removes the very result the query was sent for -- 64 of Tether's 100 results
+ * in one episode. Every other decorative word still applies. */
+const LOGO_BEARING_SUBJECT_TYPES: ReadonlySet<string> = new Set([
+  'company',
+  'organization',
+  'product',
+  'protocol',
+]);
+
 /** The scene fields the pool reads. Declaring them here rather than importing
  * the planner's scene type is what keeps the planner free to import the pool. */
 export interface PoolSubjectScene {
@@ -59,6 +71,9 @@ export interface PoolSubjectScene {
   imageSearchIntent: readonly string[];
   imageSearchEntities?: readonly string[];
   searchAnchor?: 'direct' | 'context';
+  /** The catalog `type` of the scene's leading anchor. Only the decorative
+   * filter reads it, to tell a company mark apart from a stray icon. */
+  subjectType?: string;
 }
 
 export interface SearchSubject {
@@ -67,6 +82,7 @@ export interface SearchSubject {
   query: string;
   sceneIds: string[];
   directlyAnchored: boolean;
+  subjectType: string | null;
 }
 
 export interface PoolEntry {
@@ -108,7 +124,7 @@ export interface SearchSubjectOptions {
 
 type RequestOutcome = Pick<
   VisualImageSearchRequest,
-  'returned' | 'viable' | 'drops' | 'error'
+  'returned' | 'viable' | 'drops' | 'candidates' | 'error'
 >;
 
 export function poolSubjectKey(scene: PoolSubjectScene): string {
@@ -253,6 +269,7 @@ export async function searchSubject(
       returned: 0,
       viable: 0,
       drops: [],
+      candidates: [],
       error: searched.error,
     });
   }
@@ -260,6 +277,9 @@ export async function searchSubject(
   const partitioned = partitionViableCandidates(
     searched.results,
     BRAVE_ORIGINS,
+    {
+      allowLogo: subjectAllowsLogo(subject),
+    },
   );
   insertPoolEntries(pool, {
     subject,
@@ -272,8 +292,16 @@ export async function searchSubject(
     returned: searched.results.length,
     viable: partitioned.candidates.length,
     drops: countedDrops(partitioned.drops),
+    candidates: tracedCandidates(searched.results, partitioned.dropReasons),
     error: null,
   });
+}
+
+function subjectAllowsLogo(subject: SearchSubject): boolean {
+  return (
+    subject.subjectType !== null &&
+    LOGO_BEARING_SUBJECT_TYPES.has(subject.subjectType)
+  );
 }
 
 export function hasSearched(
@@ -392,6 +420,7 @@ function groupScenesBySubject(
       query,
       sceneIds: [scene.sceneId],
       directlyAnchored: subjectIsDirectlyAnchored(scene),
+      subjectType: scene.subjectType ?? null,
     });
   }
   return groups;

@@ -9,6 +9,9 @@ export default defineKnipConfig({
   entry: [
     'src/index.ts',
     'src/worker.ts',
+    // Preloaded by the app process (`node --import ./dist/release-heartbeat.js`
+    // in fly.toml), so nothing ever imports it.
+    'src/release-heartbeat.ts',
     'src/observability/sentry-smoke.ts',
     'src/social/cli.ts',
     'src/social/login.ts',

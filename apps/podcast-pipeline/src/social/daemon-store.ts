@@ -65,6 +65,7 @@ export interface SocialQueueItem {
   nextAt: string;
   attemptCount: number;
   attemptsExhausted: boolean;
+  leaseExpiresAt?: string;
 }
 
 export interface SocialQueueLaneItem extends SocialQueueItem {
@@ -423,7 +424,7 @@ export async function getSocialQueueSnapshot(
   const { data, error } = await supabase
     .from('social_publish_jobs')
     .select(
-      'episode_id,platform,language_code,experiment_key,experiment_variant,status,scheduled_at,next_attempt_at,attempt_count',
+      'episode_id,platform,language_code,experiment_key,experiment_variant,status,scheduled_at,next_attempt_at,attempt_count,lease_expires_at',
     )
     .in('status', ['queued', 'failed', 'processing'])
     .returns<
@@ -438,6 +439,7 @@ export async function getSocialQueueSnapshot(
         | 'scheduled_at'
         | 'next_attempt_at'
         | 'attempt_count'
+        | 'lease_expires_at'
       >[]
     >();
   if (error) throwSupabaseError(error);
@@ -508,6 +510,9 @@ export async function getSocialQueueSnapshot(
       title:
         titleByEpisodeLanguage.get(`${job.episode_id}|${languageCode}`) ?? null,
       nextAt: jobNextAt(job),
+      ...(job.status === 'processing' && job.lease_expires_at
+        ? { leaseExpiresAt: job.lease_expires_at }
+        : {}),
       attemptCount: job.attempt_count,
       attemptsExhausted: job.attempt_count >= MAX_PUBLISH_ATTEMPTS,
     };
@@ -587,11 +592,20 @@ async function listWaitingSocialVideos(): Promise<SocialWaitingVideoItem[]> {
 // `next_attempt_at` sat further out render as `due now` every tick while the
 // claim kept skipping it.
 function jobNextAt(
-  job: Pick<SocialPublishJobRow, 'scheduled_at' | 'next_attempt_at'>,
+  job: Pick<
+    SocialPublishJobRow,
+    'scheduled_at' | 'next_attempt_at' | 'status' | 'lease_expires_at'
+  >,
 ): string {
-  return Date.parse(job.next_attempt_at) > Date.parse(job.scheduled_at)
-    ? job.next_attempt_at
-    : job.scheduled_at;
+  const nextAt =
+    Date.parse(job.next_attempt_at) > Date.parse(job.scheduled_at)
+      ? job.next_attempt_at
+      : job.scheduled_at;
+  return job.status === 'processing' &&
+    job.lease_expires_at &&
+    Date.parse(job.lease_expires_at) > Date.parse(nextAt)
+    ? job.lease_expires_at
+    : nextAt;
 }
 
 export interface UnfinishedSocialPublishJob {

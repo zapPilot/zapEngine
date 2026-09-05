@@ -5,6 +5,7 @@ import { hostname } from 'node:os';
 import { getAllowedTelegramUserIds } from '../lib/env.js';
 import { errorMessage } from '../lib/errorMessage.js';
 import { sleep as defaultSleep } from '../lib/sleep.js';
+import { isTransientNetworkError } from '../lib/transient-network-error.js';
 import {
   capturePipelineException,
   flushSentry,
@@ -31,6 +32,7 @@ import {
   resolveRequiredReleaseLanguages,
 } from './cohort.js';
 import { recordSocialDaemonTick } from './daemon-heartbeat.js';
+import { recoverOrphanedSocialLeases } from './daemon-lease-recovery.js';
 import {
   acquireSocialDaemonLock,
   SocialDaemonAlreadyRunningError,
@@ -64,6 +66,8 @@ import {
 } from './daemon-store.js';
 import { buildSocialExperimentReports } from './experiment-report.js';
 import { isMainModule } from './is-main-module.js';
+import { reportLocalPublicationHistory } from './local-publish-history.js';
+import { reconcileLocalPublishedJob } from './local-publish-recovery.js';
 import { laneLabel, languageFlag, platformIcon } from './log-format.js';
 import {
   createMetricCollectors,
@@ -98,6 +102,9 @@ import {
 } from './strategy.js';
 
 const POLL_INTERVAL_MS = 60_000;
+// A transient Supabase disconnection typically costs ~78s of socket time plus
+// 60s poll; 5 ticks ≈ 10 minutes of tolerance before escalating to fatal.
+const TRANSIENT_NETWORK_RETRY_LIMIT = 5;
 const METRIC_LOOKBACK_DAYS = 8;
 const STRATEGY_REFRESH_INTERVAL_MS = 6 * 60 * 60_000;
 const OWNER = `${hostname()}:${process.pid}`;
@@ -134,6 +141,7 @@ export async function runSocialDaemon(
   const log = dependencies.log ?? console.log;
   const recordTick = dependencies.recordTick ?? recordSocialDaemonTick;
   let lastStrategyRefresh = 0;
+  let consecutiveTransientFailures = 0;
 
   const firstStartedAt = await ensureSocialDaemonStart(now());
   log(
@@ -167,6 +175,18 @@ export async function runSocialDaemon(
         owner: OWNER,
         error,
       });
+      if (
+        !(error instanceof SocialReleaseFailureError) &&
+        isTransientNetworkError(error) &&
+        consecutiveTransientFailures < TRANSIENT_NETWORK_RETRY_LIMIT
+      ) {
+        consecutiveTransientFailures += 1;
+        log(
+          `⚠️ [social-daemon] transient network failure · retry ${consecutiveTransientFailures}/${TRANSIENT_NETWORK_RETRY_LIMIT} · next check in 60s · ${errorMessage(error).split('\n')[0]}`,
+        );
+        await sleep(POLL_INTERVAL_MS);
+        continue;
+      }
       throw error;
     }
     if (
@@ -184,6 +204,12 @@ export async function runSocialDaemon(
       );
     });
     await recordTick({ phase: 'success', now: now(), owner: OWNER });
+    if (consecutiveTransientFailures > 0) {
+      log(
+        `✅ [social-daemon] network recovered after ${consecutiveTransientFailures} failed tick(s)`,
+      );
+      consecutiveTransientFailures = 0;
+    }
     log('');
     log(
       `✅ [social-daemon] check complete · next check in ${POLL_INTERVAL_MS / 1_000}s.`,
@@ -199,6 +225,15 @@ export async function runSocialDaemon(
  * actually published, or leave the queue mis-scheduled. Those propagate and
  * stop the whole process. Metrics, snapshots, strategy and reports are purely
  * observational and stay isolated.
+ *
+ * One exception is handled by the main loop: socket/DNS-layer transient
+ * network failures (`isTransientNetworkError`) that are not a
+ * `SocialReleaseFailureError` are retried for up to
+ * `TRANSIENT_NETWORK_RETRY_LIMIT` consecutive ticks, because `reconcile` on
+ * the next tick is already the correct recovery path for a Supabase blip that
+ * happened before any transport started. `SocialReleaseFailureError` and all
+ * other errors remain fatal, and this retry does not turn the daemon into a
+ * watch runner — it is a bounded delay before the existing fatal path.
  */
 export async function runSocialDaemonTick(input: {
   now: Date;
@@ -839,7 +874,7 @@ async function reconcileClaimedJob(
     job.platform,
     jobLanguage(job),
   );
-  if (!post) return false;
+  if (!post) return reconcileLocalPublishedJob(job, OWNER, log);
   await completeSocialPublishJob({
     jobId: job.id,
     owner: OWNER,
@@ -954,6 +989,12 @@ async function finalizePublishOutcome(
     job.platform,
     jobLanguage(job),
   );
+  if (
+    !post &&
+    outcome.status === 'skipped' &&
+    (await reconcileLocalPublishedJob(job, OWNER, log))
+  )
+    return;
   if (!post) {
     throw persistFailure(
       `${job.platform} publish completed but no social_posts row was recorded.`,
@@ -1271,14 +1312,23 @@ function logQueueSnapshot(
       ]),
     );
   const nextLanes = Object.values(lanes).filter(
-    (item) => item.status === 'failed' || item.attemptsExhausted,
+    (item) =>
+      item.status === 'failed' ||
+      item.status === 'processing' ||
+      item.attemptsExhausted,
   );
   if (snapshot.episodeQueue.length > 0 && nextLanes.length > 0) log('');
   for (const item of nextLanes) {
     const title = item.title ? ` “${truncateTitle(item.title)}”` : '';
-    const timing = item.attemptsExhausted
-      ? `blocked (${item.attemptCount} attempts exhausted; ${item.status})`
-      : `${formatJst(item.nextAt)} (${formatRelative(item.nextAt, now)}; ${item.status})`;
+    let timing = `${formatJst(item.nextAt)} (${formatRelative(item.nextAt, now)}; ${item.status})`;
+    if (item.attemptsExhausted) {
+      timing = `blocked (${item.attemptCount} attempts exhausted; ${item.status})`;
+    } else if (
+      item.leaseExpiresAt &&
+      Date.parse(item.leaseExpiresAt) > now.getTime()
+    ) {
+      timing = `leased until ${formatJst(item.leaseExpiresAt)}`;
+    }
     log(
       `⚠️ [social-daemon] ${laneLabel(item.platform, item.languageCode)}${item.experiment ? ` [${item.experiment}]` : ''} ·${title} · ${timing}`,
     );
@@ -1376,6 +1426,8 @@ if (isMainModule(import.meta.url)) {
     throw error;
   }
   try {
+    await recoverOrphanedSocialLeases();
+    await reportLocalPublicationHistory();
     await runSocialDaemon();
   } catch (error) {
     console.error(buildFatalReport(error));

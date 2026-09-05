@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
+  readPublishState: vi.fn().mockResolvedValue({}),
   listPastDueSocialPublishJobs: vi.fn().mockResolvedValue([]),
   rescheduleSocialPublishJob: vi.fn().mockResolvedValue(true),
   claimSocialPublishBatch: vi.fn(),
@@ -85,6 +86,11 @@ vi.mock('./strategy.js', async (importOriginal) => ({
   refreshSocialStrategies: mocks.refreshSocialStrategies,
 }));
 
+vi.mock('./state.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./state.js')>()),
+  readPublishState: mocks.readPublishState,
+}));
+
 import { runSocialDaemonTick } from './daemon.js';
 import { SocialReleaseFailureError } from './publish-error.js';
 
@@ -113,6 +119,7 @@ function publishJob(attemptCount = 3) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.readPublishState.mockReset().mockResolvedValue({});
   mocks.listPastDueSocialPublishJobs.mockResolvedValue([]);
   mocks.rescheduleSocialPublishJob.mockResolvedValue(true);
   mocks.listSocialPublishCandidates.mockResolvedValue([]);
@@ -314,5 +321,74 @@ describe('social daemon publish persistence failures', () => {
       completedAt: recoveryNow,
     });
     expect(mocks.publishSocialBatch).not.toHaveBeenCalled();
+  });
+});
+
+describe('historical local publication recovery', () => {
+  it('completes all four local-only lanes without generating copy or calling transport, even after lease loss', async () => {
+    const publishedAt = '2026-08-11T00:00:00.000Z';
+    const platforms = ['x', 'youtube', 'rednote', 'threads'];
+    mocks.readPublishState.mockResolvedValue({
+      [EPISODE_ID]: {
+        zh: Object.fromEntries(
+          platforms.map((platform) => [
+            platform,
+            { published: true, publishedAt },
+          ]),
+        ),
+      },
+    });
+    mocks.listSocialPostsByEpisode.mockResolvedValue([]);
+    mocks.claimSocialPublishBatch.mockResolvedValue(
+      platforms.map((platform) => ({
+        ...publishJob(),
+        id: platform,
+        platform,
+        language_code: 'zh-Hant',
+      })),
+    );
+    mocks.completeSocialPublishJob.mockRejectedValueOnce(
+      new Error('lease lost'),
+    );
+    for (let tick = 0; tick < 2; tick++) {
+      await runSocialDaemonTick({
+        now: NOW,
+        firstStartedAt: '2026-08-18T00:00:00.000Z',
+        log: vi.fn(),
+      });
+    }
+    for (const platform of platforms)
+      expect(mocks.completeSocialPublishJob).toHaveBeenCalledWith({
+        jobId: platform,
+        owner: expect.any(String),
+        completedAt: new Date(publishedAt),
+        socialPostId: null,
+      });
+    expect(mocks.publishSocialBatch).not.toHaveBeenCalled();
+    expect(mocks.completeSocialPublishJob).toHaveBeenCalledTimes(8);
+  });
+
+  it('does not use a Chinese local post to complete a Japanese job', async () => {
+    mocks.readPublishState.mockResolvedValue({
+      [EPISODE_ID]: {
+        zh: { x: { published: true, publishedAt: NOW.toISOString() } },
+      },
+    });
+    mocks.claimSocialPublishBatch.mockResolvedValue([
+      { ...publishJob(), language_code: 'ja' },
+    ]);
+    mocks.listSocialPostsByEpisode.mockResolvedValue([]);
+    mocks.publishSocialBatch.mockResolvedValue([
+      { platform: 'x', status: 'published' },
+    ]);
+    await expect(
+      runSocialDaemonTick({
+        now: NOW,
+        firstStartedAt: '2026-08-18T00:00:00.000Z',
+        log: vi.fn(),
+      }),
+    ).rejects.toThrow('no social_posts row');
+    expect(mocks.publishSocialBatch).toHaveBeenCalled();
+    expect(mocks.completeSocialPublishJob).not.toHaveBeenCalled();
   });
 });

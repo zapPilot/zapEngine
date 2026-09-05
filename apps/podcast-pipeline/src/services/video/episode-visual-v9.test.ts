@@ -71,6 +71,22 @@ describe('episode visual v9 provenance', () => {
         returned: 50,
         viable: 9,
         drops: [{ reason: 'decorative-asset', count: 41 }],
+        candidates: [
+          {
+            imageUrl: 'https://images.example.test/justin-sun.jpg',
+            sourceUrl: 'https://www.reuters.com/example/justin-sun',
+            altText: 'Justin Sun at a press conference',
+            providerRank: 0,
+            dropReason: null,
+          },
+          {
+            imageUrl: 'https://images.example.test/tron-logo.png',
+            sourceUrl: 'https://tron.network/press',
+            altText: null,
+            providerRank: 1,
+            dropReason: 'decorative-asset',
+          },
+        ],
         error: null,
       },
     ],
@@ -121,7 +137,7 @@ describe('episode visual v9 provenance', () => {
   it('persists the search title source, article-image counts, and image-search trace', () => {
     const payload = buildPayload({ imageSearch });
 
-    expect(payload.visualVersion).toBe('podcast-image-visual-plan.v9');
+    expect(payload.visualVersion).toBe(EPISODE_VIDEO_VISUAL_VERSION);
     expect(payload.provenance).toMatchObject({
       searchTitleSource: 'publisher',
       articleImageCandidateCount: 2,

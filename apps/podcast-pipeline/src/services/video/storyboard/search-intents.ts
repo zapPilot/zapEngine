@@ -644,20 +644,15 @@ function deterministicSubjectSearchQueries(
   const canonicalName = subject['canonicalName'];
   if (typeof canonicalName !== 'string' || !canonicalName.trim()) return [];
   const canonical = canonicalName.trim();
-  const identityHints = compactStringArray(subject['identityHints']);
-  const negativeHints = compactStringArray(subject['negativeHints']);
-  const compact = canonical.replace(/[^\p{L}\p{N}]/gu, '');
-  // A common-noun object anchor is always ambiguous: "data center" or "robot"
-  // on its own returns the generic stock art the catalog exists to avoid, so
-  // its identity hint has to carry the story context into the query.
-  const ambiguous =
-    subject['type'] === 'object' ||
-    negativeHints.length > 0 ||
-    compact.length <= 4 ||
-    /^[a-z]+\d+$/i.test(compact);
-  const hint = identityHints[0]?.trim();
-  const descriptive =
-    ambiguous && hint ? `${canonical} ${hint}`.slice(0, 80).trim() : canonical;
+  // The hint always leads the query, whatever the name looks like. Gating it on
+  // an "ambiguous" shape -- object anchors, collision hints, short names --
+  // asked Brave for a bare `Tether`, which returned photographs of tethering
+  // cables: a name being long and unique says nothing about whether it collides
+  // with an ordinary English word. The bare name stays as the second query.
+  const hint = compactStringArray(subject['identityHints'])[0]?.trim();
+  const descriptive = hint
+    ? `${canonical} ${hint}`.slice(0, 80).trim()
+    : canonical;
   return [...new Set([descriptive, canonical])];
 }
 
@@ -683,7 +678,7 @@ export function buildSubjectCatalogSystemPrompt(): string {
     '- Use only these type values: company, person, product, protocol, place, regulator, asset, standard, organization, object. Map a brand to company/product/organization as appropriate, and a government institution to regulator/organization/place as appropriate.',
     '- canonicalName and aliases are identity labels. Do not merge competitors or similarly named things.',
     '- Copy canonicalName verbatim from the title or scenes. When both an English and a local-script name are present, use the English spelling for canonicalName and put the local-script spelling in aliases (example: canonicalName "NVIDIA", aliases ["輝達"]). Put descriptive industry, category, role, and physical-context terms only in identityHints.',
-    '- identityHints are 2 to 6 short positive disambiguators such as industry, product, chain, role, location, or physical context. They must help image search identify this anchor, not describe a generic mood.',
+    '- identityHints are 2 to 6 short positive disambiguators such as industry, product, chain, role, location, or physical context. The first one is appended to the name to form the image-search query for every anchor, so it must help image search identify this anchor, not describe a generic mood.',
     '- negativeHints are only known name-collision meanings to reject (for example animal, camera, engine); do not list ordinary competitors as negative hints.',
     '- Do not output scene IDs, image-search queries, or domains. The application derives scene evidence and final search queries deterministically from the anchor identity.',
     '- Use stable IDs shaped like subject-nvidia, subject-andy-jassy, or subject-gpu.',

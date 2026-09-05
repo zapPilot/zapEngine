@@ -153,6 +153,9 @@ function subjectAnchoredScene(
     // targeted request of its own; an inherited subject has no such claim.
     searchAnchor:
       assignment.selectionReason === 'direct' ? 'direct' : 'context',
+    // Anchors are already ordered by identifying power, so the first subject is
+    // the one Brave is asked about and the one the decorative filter judges.
+    ...(subjects[0] ? { subjectType: subjects[0].type } : {}),
   };
 }
 
