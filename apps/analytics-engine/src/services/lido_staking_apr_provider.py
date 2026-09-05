@@ -21,9 +21,7 @@ LIDO_STAKING_APR_URL = "https://eth-api.lido.fi/v1/protocol/steth/apr/sma"
 _FRESH_CACHE_TTL = timedelta(hours=6)
 _STALE_CACHE_TTL = timedelta(days=30)
 _FRESH_CACHE_KEY = analytics_cache.build_key("LidoStakingApr", "7d-sma", "fresh")
-_STALE_CACHE_KEY = analytics_cache.build_key(
-    "LidoStakingApr", "7d-sma", "last-success"
-)
+_STALE_CACHE_KEY = analytics_cache.build_key("LidoStakingApr", "7d-sma", "last-success")
 
 
 class LidoStakingAprProvider:
