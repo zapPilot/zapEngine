@@ -13,7 +13,9 @@ const EPISODE_C = '33333333-3333-4333-8333-333333333333';
 const LOCALIZATION_A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const LOCALIZATION_B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 
-function baseInput() {
+type QueueBuildInput = Parameters<typeof buildPipelineQueues>[0];
+
+function baseInput(): QueueBuildInput {
   return {
     generatedAt: NOW.toISOString(),
     now: NOW,
