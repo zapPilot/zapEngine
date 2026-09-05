@@ -21,8 +21,8 @@ import { getPipelineSupabase, throwSupabaseError } from './supabase-client.js';
  * going red — the ledger would stay green while quietly reporting the wrong
  * number, which is the failure this whole feature exists to end.
  */
-export const RENDER_MACHINE_SHAPE = 'performance-2x-4gb';
-export const RENDER_PRICING_METRIC_KEY = 'machine_second_performance_2x_4gb';
+export const RENDER_MACHINE_SHAPE = 'performance-2x-2gb';
+export const RENDER_PRICING_METRIC_KEY = 'machine_second_performance_2x_2gb';
 
 /**
  * A billable stage of one pipeline run. The ingest groups are exactly

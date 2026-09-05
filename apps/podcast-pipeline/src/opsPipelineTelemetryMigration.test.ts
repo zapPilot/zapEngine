@@ -108,7 +108,7 @@ describe('ops pipeline telemetry migration', () => {
   });
 
   it('seeds the Fly render rate the worker prices against', () => {
-    expect(migration).toMatch(/'fly',\s*'machine_second_performance_2x_4gb',/i);
+    expect(migration).toMatch(/'fly',\s*'machine_second_performance_2x_2gb',/i);
     expect(migration).toContain(RENDER_PRICING_METRIC_KEY);
     expect(migration).toMatch(/'second',\s*0\.00002450,/);
     expect(migration).toMatch(
