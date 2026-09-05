@@ -17,9 +17,11 @@ import { registerOpsMcpHttp } from './mcp/http.js';
 import { captureServerException } from './observability/sentry.js';
 import { createOperationsService } from './services/operations/aggregate.js';
 import { createOverviewService } from './services/overview.js';
+import { createPipelineQueuesService } from './services/pipeline-queues.js';
 import { createPodcastCostService } from './services/podcast-costs.js';
 import { createPodcastPipelineService } from './services/podcast-pipeline.js';
 import { createPodcastVisualService } from './services/podcast-visual.js';
+import { createSocialReleaseCleanupService } from './services/social-release-cleanup.js';
 import { isMissingRpcError } from './services/supabase.js';
 import { createSocialGrowthService } from './services/social-growth.js';
 import { createStatementsService } from './services/statements/index.js';
@@ -55,6 +57,7 @@ export function createControlCenterApp(input: {
   const podcastPipeline =
     input.podcastPipeline ??
     createPodcastPipelineService({ config: input.config });
+  const pipelineQueues = createPipelineQueuesService({ config: input.config });
   const podcastVisual =
     input.podcastVisual ?? createPodcastVisualService({ config: input.config });
   // Injected separately from the overview service on purpose: the two share no
@@ -64,6 +67,9 @@ export function createControlCenterApp(input: {
     input.operations ?? createOperationsService({ config: input.config });
   const socialGrowth =
     input.socialGrowth ?? createSocialGrowthService({ config: input.config });
+  const socialReleaseCleanup = createSocialReleaseCleanupService({
+    config: input.config,
+  });
   const statements =
     input.statements ??
     createStatementsService({
@@ -125,6 +131,37 @@ export function createControlCenterApp(input: {
   app.get('/api/operations/social', async (context) => {
     return context.json(await operations.getSocial(isForced(context)));
   });
+  app.get('/api/operations/social/release-evidence', async (context) => {
+    return context.json(await socialReleaseCleanup.getEvidence());
+  });
+  app.post('/api/operations/social/:episodeId/complete', async (context) => {
+    const episodeIdOrResponse = episodeIdOrErrorResponse(context);
+    if (typeof episodeIdOrResponse !== 'string') {
+      return episodeIdOrResponse;
+    }
+    const episodeId = episodeIdOrResponse;
+    try {
+      return context.json(await socialReleaseCleanup.closeRelease(episodeId));
+    } catch (error) {
+      const message = errorMessage(error);
+      if (isPodcastRetryConflict(error, message)) {
+        return context.json({ error: message }, 409);
+      }
+      if (isMissingRpcError(error)) {
+        return context.json(
+          {
+            error: 'Social release cleanup migration has not been applied yet',
+          },
+          503,
+        );
+      }
+      captureServerException(error, {
+        method: context.req.method,
+        route: routePath(context),
+      });
+      return context.json({ error: message }, 503);
+    }
+  });
   app.get('/api/customers', async (context) => {
     return context.json(await operations.getCustomers(isForced(context)));
   });
@@ -132,12 +169,18 @@ export function createControlCenterApp(input: {
   app.get('/api/podcast-pipeline', async (context) => {
     return context.json(await podcastPipeline.getPipeline());
   });
+  app.get('/api/pipeline/queues', async (context) => {
+    return context.json(await pipelineQueues.getQueues());
+  });
 
+  // jscpd:ignore-start -- episodeId validation is duplicated across independent route handlers; merging would obscure route boundaries and is not worth a shared abstraction for 5 lines
   app.get('/api/podcast-pipeline/:episodeId/visual', async (context) => {
-    const episodeId = uuidParam(context, 'episodeId');
-    if (!episodeId) {
-      return invalidIdResponse(context, 'episode');
+    const episodeIdOrResponse = episodeIdOrErrorResponse(context);
+    if (typeof episodeIdOrResponse !== 'string') {
+      return episodeIdOrResponse;
     }
+    const episodeId = episodeIdOrResponse;
+    // jscpd:ignore-end
     const response = await podcastVisual.getVisualDebug(episodeId);
     return context.json(response, response.status === 'not-found' ? 404 : 200);
   });
@@ -241,6 +284,14 @@ function invalidIdResponse(context: Context, label: string) {
   return context.json({ error: `Invalid ${label} id` }, 400);
 }
 
+function episodeIdOrErrorResponse(context: Context): string | Response {
+  const episodeId = uuidParam(context, 'episodeId');
+  if (!episodeId) {
+    return invalidIdResponse(context, 'episode');
+  }
+  return episodeId;
+}
+
 type ParsedBody<T> = { ok: true; value: T } | { ok: false; error: string };
 
 async function handlePodcastReviewMutation<T>(
@@ -279,10 +330,11 @@ async function handlePodcastMutation(
   context: Context,
   work: (episodeId: string) => Promise<void>,
 ) {
-  const episodeId = uuidParam(context, 'episodeId');
-  if (!episodeId) {
-    return invalidIdResponse(context, 'episode');
+  const episodeIdOrResponse = episodeIdOrErrorResponse(context);
+  if (typeof episodeIdOrResponse !== 'string') {
+    return episodeIdOrResponse;
   }
+  const episodeId = episodeIdOrResponse;
   try {
     await work(episodeId);
     return context.json({ ok: true });

@@ -40,7 +40,19 @@ part of the first paint. Its per-source caches absorb the repeat reads; the
 podcast pipeline, per-customer ledger, and publish queue stay lazy because none
 appears directly on Home.
 
-The Pipeline view derives its state directly from production sources of truth:
+The Pipeline view is one queue board — API → Render → Social publishing — and
+every operator action lives in the drawer a card opens. `GET /api/pipeline/queues`
+decides per job whether a restart is offered, because the episode read model only
+covers the 40 most recent episodes and the jobs most in need of a retry are older
+than that; a job the RPCs would refuse carries a `disabledReason` instead of a
+button. Video work an operator has closed leaves the lanes entirely and is
+counted separately, so a wall of abandoned rows cannot bury the handful of jobs
+that are still rescuable. The drawer's **Scenes** tab is the visual evidence for
+one episode — every image search, the candidates it returned and why each was
+dropped, and for each scene the image, its caption and the query that won it —
+with a per-scene review editor writing to `episode_video_reviews`.
+
+The view derives its state directly from production sources of truth:
 `episode_localizations` for script/translation/TTS readiness,
 `podcast_ingest_jobs` for current durable ingest work, `ops_pipeline_runs` as the
 historical fallback for pre-durable ingest failures, `episode_video_visuals` for
@@ -93,7 +105,7 @@ Dashboard HTTP views are generally read-only, with three narrowly bounded classe
 - `/api/mcp` exposes the separately authenticated Ops MCP. Its only current write capability is the narrowly allowlisted single-issue Sentry resolve operation documented in [`MCP.md`](./MCP.md).
 - Pipeline step restarts, each a named service-role-only RPC that touches only job rows and never scripts, translation, narration, classroom audio, or arbitrary tables, and each refusing while a live lease exists (mapped to `409`):
   - `POST /api/podcast-pipeline/:episodeId/ingest/retry` → `restart_podcast_ingest`. Requeues the durable ingest job so the app process resumes from the last committed localization stage; refused once all three audio localizations are complete. The RPC recovers the Telegram chat id from any earlier ingest, visual, or render row of the episode, so the original submitter is still notified; only an episode with no such row gets a silent operator job.
-  - `POST /api/podcast-pipeline/:episodeId/video/retry` with `{ "forceReplan": boolean }` → `retry_episode_video_generation`. Materializes missing `ja`/`en` render rows, keeps a completed current-version visual and requeues only unfinished renders; `forceReplan: true` (the two-click **Re-plan visuals** button) discards the visual checkpoint and re-renders all three languages. The service omits `p_force_replan` on the ordinary retry so the call still resolves before the migration is applied. An abandoned episode is refused with `22023` (mapped to `409`), before the release fence is consulted, so the answer names the closure rather than a version mismatch.
+  - `POST /api/podcast-pipeline/:episodeId/video/retry` with `{ "forceReplan": boolean }` → `retry_episode_video_generation`. Materializes missing `ja`/`en` render rows, keeps a completed current-version visual and requeues only unfinished renders; `forceReplan: true` (the two-click **Re-plan visuals** button at the foot of the drawer's Scenes tab) discards the visual checkpoint and re-renders all three languages. That button appears only once the plan on screen is completed at the current visual version, which is the only case an ordinary restart cannot already fix — a stale or failed checkpoint is re-planned by the plain retry. The service omits `p_force_replan` on the ordinary retry so the call still resolves before the migration is applied. An abandoned episode is refused with `22023` (mapped to `409`), before the release fence is consulted, so the answer names the closure rather than a version mismatch.
   - `POST /api/podcast-pipeline/:episodeId/renders/:localizationId/retry` → `retry_episode_video_render`. Requeues one language render against the completed current-version visual; also refused with `22023` on an abandoned episode.
 - Operator reviews: `PUT /api/podcast-pipeline/:episodeId/reviews` → `upsert_episode_video_review` and `POST /api/podcast-pipeline/reviews/:reviewId/resolve` → `resolve_episode_video_review` write only the operator's review rows (`reviewer = 'operator'`); they cannot change pipeline state.
 

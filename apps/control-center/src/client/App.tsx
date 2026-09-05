@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 
-import type {
-  PodcastPipelineResponse,
-  PodcastPipelineRestartAction,
-} from '../shared/podcast-pipeline.js';
+import type { PodcastPipelineRestartAction } from '../shared/podcast-pipeline.js';
 import type {
   PodcastVideoReviewInput,
   PodcastVideoReviewResolveInput,
@@ -25,9 +22,10 @@ import { EconomicsView } from './components/EconomicsView.js';
 import { GrowthDistributionBoard } from './components/GrowthDistributionBoard.js';
 import { GrowthView } from './components/GrowthView.js';
 import { HomeView } from './components/HomeView.js';
-import { PodcastPipelineView } from './components/PodcastPipelineView.js';
+import { PipelineQueuesBoard } from './components/PipelineQueuesBoard.js';
 import { ProductView } from './components/ProductView.js';
 import { ReliabilityView } from './components/ReliabilityView.js';
+import { StatementHeader } from './components/StatementHeader.js';
 
 const VIEW_META: Record<DashboardView, { subtitle: string; title: string }> = {
   home: {
@@ -35,7 +33,7 @@ const VIEW_META: Record<DashboardView, { subtitle: string; title: string }> = {
     title: 'Home',
   },
   pipeline: {
-    subtitle: 'Article production',
+    subtitle: 'Runtime queues',
     title: 'Pipeline',
   },
   growth: {
@@ -86,7 +84,7 @@ async function sendJson<T>(
 async function retryPodcastStep(
   episodeId: string,
   action: PodcastPipelineRestartAction,
-): Promise<PodcastPipelineResponse> {
+): Promise<void> {
   const encodedEpisodeId = encodeURIComponent(episodeId);
   const url =
     action.step === 'render'
@@ -107,7 +105,6 @@ async function retryPodcastStep(
     } | null;
     throw new Error(body?.error ?? `HTTP ${response.status}`);
   }
-  return getJson<PodcastPipelineResponse>('/api/podcast-pipeline');
 }
 
 export function App() {
@@ -117,11 +114,6 @@ export function App() {
     null,
   );
   const [podcastCosts, setPodcastCosts] = useState<PodcastCostResponse | null>(
-    null,
-  );
-  const [podcastPipeline, setPodcastPipeline] =
-    useState<PodcastPipelineResponse | null>(null);
-  const [restartingEpisodeId, setRestartingEpisodeId] = useState<string | null>(
     null,
   );
   const [visualDebugByEpisode, setVisualDebugByEpisode] = useState<
@@ -186,32 +178,29 @@ export function App() {
     [run],
   );
 
+  // The board polls the queue endpoint itself; the view only needs the
+  // statement sentence that heads it.
   const loadPipeline = useCallback(
     () =>
       run(async () => {
-        const [pipeline, statementsNext] = await Promise.all([
-          getJson<PodcastPipelineResponse>('/api/podcast-pipeline'),
-          getJson<StatementsResponse>('/api/statements'),
-        ]);
-        setPodcastPipeline(pipeline);
-        setStatements(statementsNext);
+        setStatements(await getJson<StatementsResponse>('/api/statements'));
       }),
     [run],
   );
 
+  // Rethrows so the drawer can put the RPC's own refusal — a live lease, an
+  // abandoned episode, a missing migration — next to the button that caused it
+  // rather than in the page-level banner.
   const restartStep = useCallback(
-    (episodeId: string, action: PodcastPipelineRestartAction) => {
-      setRestartingEpisodeId(episodeId);
-      void run(async () => {
-        setPodcastPipeline(await retryPodcastStep(episodeId, action));
-        setVisualDebugByEpisode((current) => {
-          const next = { ...current };
-          delete next[episodeId];
-          return next;
-        });
-      }).finally(() => setRestartingEpisodeId(null));
+    async (episodeId: string, action: PodcastPipelineRestartAction) => {
+      await retryPodcastStep(episodeId, action);
+      setVisualDebugByEpisode((current) => {
+        const next = { ...current };
+        delete next[episodeId];
+        return next;
+      });
     },
-    [run],
+    [],
   );
 
   const loadVisualDebug = useCallback(async (episodeId: string) => {
@@ -309,7 +298,7 @@ export function App() {
   // them lazy so Home remains a fast decision surface rather than preloading
   // every operational dataset on first paint.
   useEffect(() => {
-    if (view === 'pipeline' && !podcastPipeline) {
+    if (view === 'pipeline' && !statements) {
       void loadPipeline();
     }
     if (view === 'reliability' && !operationsSocial) {
@@ -328,7 +317,6 @@ export function App() {
     loadReliability,
     loadSocial,
     operationsSocial,
-    podcastPipeline,
     social,
     socialGrowth,
     view,
@@ -344,7 +332,7 @@ export function App() {
         social,
         operations,
         customers,
-        podcastPipeline,
+        statements,
       })}
       loading={loading}
       onNavigate={setView}
@@ -387,16 +375,16 @@ export function App() {
         />
       ) : null}
       {view === 'pipeline' ? (
-        <PodcastPipelineView
-          data={podcastPipeline}
-          onLoadVisualDebug={loadVisualDebug}
-          onResolveReview={resolveReview}
-          onRestartStep={restartStep}
-          onSubmitReview={submitReview}
-          restartingEpisodeId={restartingEpisodeId}
-          statements={statements}
-          visualDebugByEpisode={visualDebugByEpisode}
-        />
+        <div className="view-stack">
+          <PipelineStatement statements={statements} />
+          <PipelineQueuesBoard
+            onLoadVisualDebug={loadVisualDebug}
+            onResolveReview={resolveReview}
+            onRestartStep={restartStep}
+            onSubmitReview={submitReview}
+            visualDebugByEpisode={visualDebugByEpisode}
+          />
+        </div>
       ) : null}
       {view === 'reliability' ? (
         <ReliabilityView
@@ -446,16 +434,35 @@ function homeDateTitle(): string {
   });
 }
 
+/** The one-sentence read on production health that used to head the retired
+ * episode panel. It is the only part of that view the queue board does not
+ * already say better. */
+function PipelineStatement(props: { statements: StatementsResponse | null }) {
+  const header = props.statements?.headers.find(
+    (entry) => entry.domain === 'pipeline',
+  );
+  if (!header) {
+    return null;
+  }
+  return (
+    <StatementHeader
+      facts={header.facts}
+      sentence={header.sentence}
+      status={header.status}
+    />
+  );
+}
+
 function generatedAt(input: {
   customers: CustomerEconomicsResponse | null;
   operations: OperationsResponse | null;
   overview: OverviewResponse | null;
-  podcastPipeline: PodcastPipelineResponse | null;
+  statements: StatementsResponse | null;
   social: SocialPerformanceResponse | null;
   view: DashboardView;
 }): string | undefined {
   if (input.view === 'pipeline') {
-    return input.podcastPipeline?.generatedAt;
+    return input.statements?.generatedAt;
   }
   if (input.view === 'growth') {
     return input.social?.generatedAt;
@@ -468,3 +475,4 @@ function generatedAt(input: {
   }
   return input.overview?.generatedAt;
 }
+// trigger ci

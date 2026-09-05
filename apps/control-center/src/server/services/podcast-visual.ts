@@ -11,6 +11,7 @@ import type {
 } from '../../shared/podcast-visual.js';
 import type { ControlCenterConfig } from '../config/env.js';
 import { record, records, stringArray } from './json.js';
+import { visualSearchDebug } from './podcast-visual-search-debug.js';
 import {
   createConfiguredServiceRoleClient,
   isMissingColumnError,
@@ -124,6 +125,7 @@ export function createPodcastVisualService(input: {
               }
             : null,
           scenes: summarizeVisualPlan(payload),
+          search: visualSearchDebug(payload),
           failure: summarizeVisualFailure(diagnostics),
           reviews: reviewsResult.error
             ? []
@@ -377,6 +379,7 @@ function unavailable(
     episode: null,
     visual: null,
     scenes: [],
+    search: null,
     failure: null,
     reviews: [],
     rawPlan: null,
