@@ -15,7 +15,6 @@ import { createConfiguredServiceRoleClient } from './supabase.js';
 
 const ACTIVE_STATUSES = ['queued', 'processing', 'failed'] as const;
 const READ_LIMIT = 200;
-const SOCIAL_MAX_ATTEMPTS = 8;
 
 type MaybeError<T> = { data: T | null; error: unknown };
 
@@ -105,7 +104,13 @@ export function createPipelineQueuesService(input: {
   return {
     async getQueues(): Promise<PipelineQueuesResponse> {
       const generatedAt = now().toISOString();
-      if (!client) return unavailable(generatedAt, 'unconfigured', 'Supabase pipeline queue is not connected');
+      if (!client) {
+        return unavailable(
+          generatedAt,
+          'unconfigured',
+          'Supabase pipeline queue is not connected',
+        );
+      }
 
       try {
         const current = now();
@@ -142,7 +147,12 @@ export function createPipelineQueuesService(input: {
               .order('scheduled_at', { ascending: true })
               .limit(READ_LIMIT),
           ]);
-        throwFirstError(ingestResult, visualResult, renderResult, activeSocialResult);
+        throwFirstError(
+          ingestResult,
+          visualResult,
+          renderResult,
+          activeSocialResult,
+        );
 
         const ingestRows = (ingestResult.data ?? []) as IngestRow[];
         const visualRows = (visualResult.data ?? []) as VisualRow[];
@@ -162,7 +172,9 @@ export function createPipelineQueuesService(input: {
                   'id,episode_id,platform,language_code,status,scheduled_at,next_attempt_at,attempt_count,lease_owner,lease_expires_at,last_error,completed_at,created_at,updated_at',
                 )
                 .in('episode_id', activeSocialEpisodeIds)
-                .order('scheduled_at', { ascending: true })) as MaybeError<SocialJobRow[]>);
+                .order('scheduled_at', { ascending: true })) as MaybeError<
+                SocialJobRow[]
+              >);
         throwFirstError(socialJobsResult);
         const socialJobRows = socialJobsResult.data ?? [];
 
@@ -201,20 +213,28 @@ export function createPipelineQueuesService(input: {
               ? Promise.resolve({ data: [], error: null })
               : client
                   .from('episode_localizations')
-                  .select('id,episode_id,language_code,script,hls_url,updated_at')
+                  .select(
+                    'id,episode_id,language_code,script,hls_url,updated_at',
+                  )
                   .in('episode_id', episodeIds),
             episodeIds.length === 0
               ? Promise.resolve({ data: [], error: null })
               : client
                   .from('social_posts')
-                  .select('id,episode_id,platform,language_code,post_url,published_at')
+                  .select(
+                    'id,episode_id,platform,language_code,post_url,published_at',
+                  )
                   .in('episode_id', episodeIds),
             client
               .from('social_posts')
               .select('id', { count: 'exact', head: true })
               .gte('published_at', startOfJstDay(current)),
           ]);
-        throwFirstError(localizationsResult, postsResult, publishedTodayResult);
+        throwFirstError(
+          localizationsResult,
+          postsResult,
+          publishedTodayResult,
+        );
 
         return buildPipelineQueues({
           generatedAt,
@@ -280,7 +300,9 @@ export function buildPipelineQueues(input: {
         lastError: row.last_error,
         queuedAt: row.created_at,
         updatedAt: row.updated_at,
-        currentStep: ingestStep(localizationsByEpisode.get(episode.id) ?? []),
+        currentStep: ingestStep(
+          localizationsByEpisode.get(episode.id) ?? [],
+        ),
         now: input.now,
         posts: postsByEpisode.get(episode.id) ?? [],
       }),
@@ -355,11 +377,16 @@ export function buildPipelineQueues(input: {
     status: 'ok',
     message: null,
     summary: {
-      queueDepth: api.queued.length + render.queued.length + social.queued.length,
+      queueDepth:
+        api.queued.length + render.queued.length + social.queued.length,
       processing:
-        api.processing.length + render.processing.length + social.processing.length,
+        api.processing.length +
+        render.processing.length +
+        social.processing.length,
       blockedOrFailed:
-        api.attention.length + render.attention.length + social.attention.length,
+        api.attention.length +
+        render.attention.length +
+        social.attention.length,
       publishedToday: input.publishedToday,
     },
     api,
@@ -404,10 +431,18 @@ function pipelineItem(input: {
   const history: PipelineQueueHistoryEvent[] = [
     { at: input.queuedAt, label: 'Added to queue' },
   ];
-  if (input.startedAt) history.push({ at: input.startedAt, label: 'Worker started' });
-  if (input.completedAt) history.push({ at: input.completedAt, label: 'Completed' });
+  if (input.startedAt) {
+    history.push({ at: input.startedAt, label: 'Worker started' });
+  }
+  if (input.completedAt) {
+    history.push({ at: input.completedAt, label: 'Completed' });
+  }
   if (input.status === 'failed' && input.lastError) {
-    history.push({ at: input.updatedAt, label: 'Failed', detail: input.lastError });
+    history.push({
+      at: input.updatedAt,
+      label: 'Failed',
+      detail: input.lastError,
+    });
   }
   return {
     key: input.key,
@@ -419,7 +454,9 @@ function pipelineItem(input: {
     queuedAt: input.queuedAt,
     ...(input.startedAt ? { startedAt: input.startedAt } : {}),
     updatedAt: input.updatedAt,
-    ...(activeLease && input.leaseOwner ? { workerId: input.leaseOwner } : {}),
+    ...(activeLease && input.leaseOwner
+      ? { workerId: input.leaseOwner }
+      : {}),
     currentStep: input.currentStep,
     ...(input.progressPercent !== null && input.progressPercent !== undefined
       ? { progressPercent: input.progressPercent }
@@ -447,14 +484,23 @@ function socialQueueItems(
     if (!episode) continue;
     const episodePosts = postsByEpisode.get(episodeId) ?? [];
     const postByLane = new Map(
-      episodePosts.map((post) => [laneKey(post.platform, post.language_code), post]),
+      episodePosts.map((post) => [
+        laneKey(post.platform, post.language_code),
+        post,
+      ]),
     );
     const platforms = episodeJobs
       .map((job): SocialPlatformQueueState | null => {
         if (!isPlatform(job.platform)) return null;
-        const post = postByLane.get(laneKey(job.platform, job.language_code));
+        const post = postByLane.get(
+          laneKey(job.platform, job.language_code),
+        );
         const status = socialPlatformStatus(job, post, now);
-        const activeLease = leaseIsActive(job.lease_owner, job.lease_expires_at, now);
+        const activeLease = leaseIsActive(
+          job.lease_owner,
+          job.lease_expires_at,
+          now,
+        );
         return {
           platform: job.platform,
           languageCode: job.language_code,
@@ -463,7 +509,9 @@ function socialQueueItems(
           nextAttemptAt: job.next_attempt_at,
           ...(post ? { publishedAt: post.published_at } : {}),
           ...(post?.post_url ? { url: post.post_url } : {}),
-          ...(activeLease && job.lease_owner ? { workerId: job.lease_owner } : {}),
+          ...(activeLease && job.lease_owner
+            ? { workerId: job.lease_owner }
+            : {}),
           ...(job.last_error ? { error: job.last_error } : {}),
           retryCount: Math.max(0, job.attempt_count - 1),
         };
@@ -498,9 +546,7 @@ function socialQueueItems(
       episodeId,
       title: episode.source_title ?? episodeId,
       contentType: 'video',
-      scheduledAt: episodeJobs
-        .map((job) => job.scheduled_at)
-        .sort()[0]!,
+      scheduledAt: episodeJobs.map((job) => job.scheduled_at).sort()[0]!,
       state: deriveSocialState(platforms),
       platforms,
       history: history.sort(byEventTime),
@@ -532,7 +578,9 @@ function socialPlatformStatus(
   return 'failed';
 }
 
-function deriveSocialState(platforms: SocialPlatformQueueState[]): SocialQueueState {
+export function deriveSocialState(
+  platforms: SocialPlatformQueueState[],
+): SocialQueueState {
   const statuses = platforms.map((row) => row.status);
   if (statuses.some((status) => status === 'publishing')) return 'publishing';
   const published = statuses.filter((status) => status === 'published').length;
@@ -547,11 +595,17 @@ function deriveSocialState(platforms: SocialPlatformQueueState[]): SocialQueueSt
   return 'queued';
 }
 
-function lane(items: PipelineQueueItem[]): PipelineQueueLane<PipelineQueueItem> {
+function lane(
+  items: PipelineQueueItem[],
+): PipelineQueueLane<PipelineQueueItem> {
   return {
     processing: items
       .filter((item) => item.state === 'processing')
-      .sort((a, b) => time(a.startedAt ?? a.updatedAt) - time(b.startedAt ?? b.updatedAt)),
+      .sort(
+        (a, b) =>
+          time(a.startedAt ?? a.updatedAt) -
+          time(b.startedAt ?? b.updatedAt),
+      ),
     queued: items
       .filter((item) => item.state === 'queued' || item.state === 'retrying')
       .sort((a, b) => time(a.queuedAt) - time(b.queuedAt)),
@@ -561,7 +615,9 @@ function lane(items: PipelineQueueItem[]): PipelineQueueLane<PipelineQueueItem> 
   };
 }
 
-function socialLane(items: SocialQueueItem[]): PipelineQueueLane<SocialQueueItem> {
+function socialLane(
+  items: SocialQueueItem[],
+): PipelineQueueLane<SocialQueueItem> {
   return {
     processing: items.filter((item) => item.state === 'publishing'),
     queued: items.filter(
@@ -572,7 +628,10 @@ function socialLane(items: SocialQueueItem[]): PipelineQueueLane<SocialQueueItem
 }
 
 function ingestStep(localizations: LocalizationRow[]): string {
-  if (localizations.length === 0 || localizations.some((row) => !row.script)) {
+  if (
+    localizations.length === 0 ||
+    localizations.some((row) => !row.script)
+  ) {
     return 'Translate';
   }
   if (localizations.some((row) => !row.hls_url)) return 'TTS';
@@ -606,14 +665,23 @@ function unavailable(
     generatedAt,
     status,
     message,
-    summary: { queueDepth: 0, processing: 0, blockedOrFailed: 0, publishedToday: 0 },
+    summary: {
+      queueDepth: 0,
+      processing: 0,
+      blockedOrFailed: 0,
+      publishedToday: 0,
+    },
     api: empty,
     render: empty,
     social: empty,
   };
 }
 
-function leaseIsActive(owner: string | null, expiresAt: string | null, now: Date): boolean {
+function leaseIsActive(
+  owner: string | null,
+  expiresAt: string | null,
+  now: Date,
+): boolean {
   return Boolean(
     owner && expiresAt && new Date(expiresAt).getTime() > now.getTime(),
   );
@@ -628,11 +696,18 @@ function startOfJstDay(now: Date): string {
   }).formatToParts(now);
   const part = (type: Intl.DateTimeFormatPartTypes) =>
     parts.find((entry) => entry.type === type)?.value ?? '';
-  return new Date(`${part('year')}-${part('month')}-${part('day')}T00:00:00+09:00`).toISOString();
+  return new Date(
+    `${part('year')}-${part('month')}-${part('day')}T00:00:00+09:00`,
+  ).toISOString();
 }
 
 function isPlatform(value: string): value is SocialPlatform {
-  return value === 'x' || value === 'threads' || value === 'rednote' || value === 'youtube';
+  return (
+    value === 'x' ||
+    value === 'threads' ||
+    value === 'rednote' ||
+    value === 'youtube'
+  );
 }
 
 function platformOrder(platform: SocialPlatform): number {
@@ -647,7 +722,10 @@ function time(value: string | undefined): number {
   return value ? new Date(value).getTime() : Number.MAX_SAFE_INTEGER;
 }
 
-function byEventTime(a: PipelineQueueHistoryEvent, b: PipelineQueueHistoryEvent): number {
+function byEventTime(
+  a: PipelineQueueHistoryEvent,
+  b: PipelineQueueHistoryEvent,
+): number {
   return time(a.at) - time(b.at);
 }
 
