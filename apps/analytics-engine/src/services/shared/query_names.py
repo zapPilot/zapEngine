@@ -18,6 +18,7 @@ class QueryNames:
     PORTFOLIO_CATEGORY_TREND_BY_USER_ID: str = "get_portfolio_category_trend_by_user_id"
 
     PORTFOLIO_YIELD_SNAPSHOTS: str = "portfolio_snapshots_for_yield_returns"
+    ETH_LST_LATEST_EXPOSURE: str = "get_latest_lst_exposure"
 
     # Token Price Queries
     TOKEN_PRICE_HISTORY: str = "get_token_price_history"
