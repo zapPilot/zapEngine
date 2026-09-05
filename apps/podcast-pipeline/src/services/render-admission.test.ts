@@ -90,6 +90,14 @@ describe('readProcMemFreeBytes', () => {
     await expect(readProcMemFreeBytes()).resolves.toBeNull();
   });
 
+  it('returns null rather than Infinity on an absurd MemFree value', async () => {
+    fs.readFile.mockResolvedValue(`MemFree: ${'9'.repeat(400)} kB\n`);
+
+    // Infinity would read as unlimited headroom and hold the second slot open
+    // for good, which is the dangerous direction for this guard to fail in.
+    await expect(readProcMemFreeBytes()).resolves.toBeNull();
+  });
+
   it('returns null on a host without /proc', async () => {
     fs.readFile.mockRejectedValue(new Error('ENOENT'));
 
