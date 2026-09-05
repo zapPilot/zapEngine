@@ -13,6 +13,7 @@ import { itemMatches, PipelineQueuesBoard } from './PipelineQueuesBoard.js';
 
 const EPISODE_ID = '11111111-1111-4111-8111-111111111111';
 const POST_URL = 'https://x.com/zap/status/123';
+const TIMER_HANDLE = 1 as unknown as ReturnType<typeof window.setInterval>;
 
 afterEach(() => {
   cleanup();
@@ -20,7 +21,9 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function queueResponse(status: 'queued' | 'publishing' = 'queued'): PipelineQueuesResponse {
+function queueResponse(
+  status: 'queued' | 'publishing' = 'queued',
+): PipelineQueuesResponse {
   const publishing = status === 'publishing';
   return {
     generatedAt: '2026-09-05T06:00:00.000Z',
@@ -172,7 +175,7 @@ describe('PipelineQueuesBoard', () => {
 
   it('opens the selected episode drawer with stored links and lane errors', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(queueResponse())));
-    vi.spyOn(window, 'setInterval').mockImplementation(() => 1);
+    vi.spyOn(window, 'setInterval').mockImplementation(() => TIMER_HANDLE);
 
     render(<PipelineQueuesBoard />);
 
@@ -184,7 +187,9 @@ describe('PipelineQueuesBoard', () => {
     });
     expect(within(drawer).getByText(EPISODE_ID)).toBeInTheDocument();
     expect(within(drawer).getByText('upload rejected')).toBeInTheDocument();
-    const link = within(drawer).getByRole('link', { name: new RegExp(POST_URL) });
+    const link = within(drawer).getByRole('link', {
+      name: new RegExp(POST_URL),
+    });
     expect(link).toHaveAttribute('href', POST_URL);
     expect(link).toHaveAttribute('target', '_blank');
   });
@@ -199,7 +204,7 @@ describe('PipelineQueuesBoard', () => {
     let poll: (() => void) | null = null;
     vi.spyOn(window, 'setInterval').mockImplementation((callback) => {
       poll = callback as () => void;
-      return 1;
+      return TIMER_HANDLE;
     });
 
     render(<PipelineQueuesBoard />);
