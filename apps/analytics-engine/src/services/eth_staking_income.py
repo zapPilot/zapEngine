@@ -15,6 +15,7 @@ from src.models.yield_returns import (
 
 ETH_STAKING_PROTOCOL_NAME = "ETH Staking"
 _ELIGIBLE_EXPOSURE_TYPES = {"idle", "supply"}
+_EXCLUDED_POSITION_TYPES = {"Liquidity Pool", "Farming"}
 
 
 @dataclass(frozen=True)
@@ -27,16 +28,18 @@ def aggregate_benchmark_lst_exposure(rows: list[dict[str, Any]]) -> EthStakingEx
     """Aggregate only exact registered ``benchmark-rate`` LST representations.
 
     The SQL reader intentionally emits only idle wallet balances and supply/collateral
-    token lists. The explicit side check is a second guard so a future query expansion
-    cannot accidentally turn borrowed LSTs into positive staking exposure. Within one
-    canonical source row we keep a single economic exposure per chain/address so
-    repeated JSON representations cannot double count it.
+    token lists. Explicit side and position-type guards prevent borrowed LSTs or LP
+    constituents from becoming positive staking exposure. Within one canonical source
+    row we keep a single economic exposure per chain/address so repeated JSON
+    representations cannot double count it.
     """
     exposure_by_identity: dict[tuple[str, str, str, str], float] = {}
     symbols: set[str] = set()
 
     for row in rows:
         if str(row.get("exposure_type") or "") not in _ELIGIBLE_EXPOSURE_TYPES:
+            continue
+        if str(row.get("position_type") or "") in _EXCLUDED_POSITION_TYPES:
             continue
 
         chain = normalize_lst_chain(str(row.get("chain") or ""))
