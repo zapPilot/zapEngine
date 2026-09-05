@@ -34,7 +34,9 @@ export function PipelineQueuesBoard() {
     const load = async () => {
       try {
         const response = await fetch('/api/pipeline/queues');
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
         const payload = (await response.json()) as PipelineQueuesResponse;
         if (!cancelled) {
           setData(payload);
@@ -42,7 +44,9 @@ export function PipelineQueuesBoard() {
         }
       } catch (cause) {
         if (!cancelled) {
-          setError(cause instanceof Error ? cause.message : 'Queue refresh failed');
+          setError(
+            cause instanceof Error ? cause.message : 'Queue refresh failed',
+          );
         }
       }
     };
@@ -288,7 +292,11 @@ function QueueDrawer(props: { selected: Selected; onClose: () => void }) {
           <h3>{item.title}</h3>
           <code>{item.episodeId}</code>
         </div>
-        <button aria-label="Close details" onClick={props.onClose} type="button">
+        <button
+          aria-label="Close details"
+          onClick={props.onClose}
+          type="button"
+        >
           <CloseIcon size={18} />
         </button>
       </header>
@@ -445,24 +453,25 @@ function findSelected(
       const item = data[kind][bucket].find(
         (candidate) => candidate.key === key,
       );
-      if (item) return { kind, item };
+      if (item) {
+        return { kind, item };
+      }
     }
   }
   for (const bucket of ['processing', 'queued', 'attention'] as const) {
-    const item = data.social[bucket].find(
-      (candidate) => candidate.key === key,
-    );
-    if (item) return { kind: 'social', item };
+    const item = data.social[bucket].find((candidate) => candidate.key === key);
+    if (item) {
+      return { kind: 'social', item };
+    }
   }
   return null;
 }
 
-function filterLane(
-  lane: PipelineQueueLane<PipelineQueueItem>,
+function filterLane<T extends { title: string; episodeId?: string }>(
+  lane: PipelineQueueLane<T>,
   query: string,
-): PipelineQueueLane<PipelineQueueItem> {
-  const matches = (item: PipelineQueueItem) =>
-    itemMatches(item.title, item.episodeId, query);
+): PipelineQueueLane<T> {
+  const matches = (item: T) => itemMatches(item.title, item.episodeId, query);
   return {
     processing: lane.processing.filter(matches),
     queued: lane.queued.filter(matches),
@@ -470,35 +479,30 @@ function filterLane(
   };
 }
 
-function filterSocialLane(
-  lane: PipelineQueueLane<SocialQueueItem>,
-  query: string,
-): PipelineQueueLane<SocialQueueItem> {
-  const matches = (item: SocialQueueItem) =>
-    itemMatches(item.title, item.episodeId, query);
-  return {
-    processing: lane.processing.filter(matches),
-    queued: lane.queued.filter(matches),
-    attention: lane.attention.filter(matches),
-  };
-}
+const filterSocialLane = filterLane;
 
 export function itemMatches(
   title: string,
-  episodeId: string,
+  episodeId: string | undefined,
   rawQuery: string,
 ): boolean {
   const query = rawQuery.trim().toLocaleLowerCase();
-  if (!query) return true;
-  return (
-    title.toLocaleLowerCase().includes(query) ||
-    episodeId.toLocaleLowerCase().includes(query)
-  );
+  if (!query) {
+    return true;
+  }
+  if (title.toLocaleLowerCase().includes(query)) {
+    return true;
+  }
+  return Boolean(episodeId?.toLocaleLowerCase().includes(query));
 }
 
 function kindLabel(kind: PipelineQueueItem['kind']): string {
-  if (kind === 'ingest') return 'Ingest';
-  if (kind === 'visual') return 'Visual planning';
+  if (kind === 'ingest') {
+    return 'Ingest';
+  }
+  if (kind === 'visual') {
+    return 'Visual planning';
+  }
   return 'Rendering';
 }
 
@@ -511,9 +515,13 @@ function durationSince(value: string): string {
     0,
     Math.floor((Date.now() - new Date(value).getTime()) / 1000),
   );
-  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 60) {
+    return `${seconds}s`;
+  }
   const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ${seconds % 60}s`;
+  if (minutes < 60) {
+    return `${minutes}m ${seconds % 60}s`;
+  }
   return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
 }
 

@@ -162,7 +162,9 @@
   border-radius: 11px;
   background: #fff;
   padding: 11px;
-  transition: border-color 120ms ease, box-shadow 120ms ease;
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease;
 }
 
 .queue-thumb {
@@ -417,7 +419,11 @@
   background: #fff8f6;
   padding: 10px;
   color: #89352e;
-  font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  font:
+    11px/1.5 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
 }
 
 .drawer-social-lanes,

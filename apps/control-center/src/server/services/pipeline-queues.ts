@@ -152,24 +152,16 @@ export function createPipelineQueuesService(input: {
               .in('status', ACTIVE_STATUSES)
               .order('created_at', { ascending: true })
               .limit(READ_LIMIT),
-            client
-              .from('episode_video_visuals')
-              .select(
-                'episode_id,status,visual_version,progress_percent,progress_stage,attempt_count,next_attempt_at,lease_owner,lease_expires_at,last_error,started_at,completed_at,created_at,updated_at',
-              )
-              .in('status', ACTIVE_STATUSES)
-              .order('next_attempt_at', { ascending: true })
-              .order('created_at', { ascending: true })
-              .limit(READ_LIMIT),
-            client
-              .from('episode_videos')
-              .select(
-                'episode_localization_id,episode_id,status,visual_version,progress_percent,progress_stage,attempt_count,next_attempt_at,lease_owner,lease_expires_at,last_error,started_at,completed_at,thumbnail_url,created_at,updated_at',
-              )
-              .in('status', ACTIVE_STATUSES)
-              .order('next_attempt_at', { ascending: true })
-              .order('created_at', { ascending: true })
-              .limit(READ_LIMIT),
+            queryActiveWork(
+              client,
+              'episode_video_visuals',
+              'episode_id,status,visual_version,progress_percent,progress_stage,attempt_count,next_attempt_at,lease_owner,lease_expires_at,last_error,started_at,completed_at,created_at,updated_at',
+            ),
+            queryActiveWork(
+              client,
+              'episode_videos',
+              'episode_localization_id,episode_id,status,visual_version,progress_percent,progress_stage,attempt_count,next_attempt_at,lease_owner,lease_expires_at,last_error,started_at,completed_at,thumbnail_url,created_at,updated_at',
+            ),
             client
               .from('social_publish_jobs')
               .select('episode_id')
@@ -192,10 +184,7 @@ export function createPipelineQueuesService(input: {
             (row) => row.episode_id,
           ),
         );
-        const socialJobs = await readSocialJobs(
-          client,
-          activeSocialEpisodeIds,
-        );
+        const socialJobs = await readSocialJobs(client, activeSocialEpisodeIds);
 
         const episodeIds = unique([
           ...visuals.map((row) => row.episode_id),
@@ -412,9 +401,9 @@ function workItem(input: WorkItemInput): PipelineQueueItem {
   );
   const staleVersion = Boolean(
     !activeLease &&
-      (input.status === 'queued' || input.status === 'processing') &&
-      input.visualVersion &&
-      input.visualVersion !== EPISODE_VIDEO_VISUAL_VERSION,
+    (input.status === 'queued' || input.status === 'processing') &&
+    input.visualVersion &&
+    input.visualVersion !== EPISODE_VIDEO_VISUAL_VERSION,
   );
   const state = deriveWorkState(
     input.status,
@@ -436,9 +425,7 @@ function workItem(input: WorkItemInput): PipelineQueueItem {
     ...(input.nextAttemptAt ? { nextAttemptAt: input.nextAttemptAt } : {}),
     ...(input.startedAt ? { startedAt: input.startedAt } : {}),
     updatedAt: input.updatedAt,
-    ...(activeLease && input.leaseOwner
-      ? { workerId: input.leaseOwner }
-      : {}),
+    ...(activeLease && input.leaseOwner ? { workerId: input.leaseOwner } : {}),
     currentStep: staleVersion ? 'Stale visual version' : input.currentStep,
     ...(input.progressPercent !== null && input.progressPercent !== undefined
       ? { progressPercent: input.progressPercent }
@@ -662,8 +649,7 @@ function lane(
       .filter((item) => item.state === 'processing')
       .sort(
         (a, b) =>
-          time(a.startedAt ?? a.updatedAt) -
-          time(b.startedAt ?? b.updatedAt),
+          time(a.startedAt ?? a.updatedAt) - time(b.startedAt ?? b.updatedAt),
       ),
     queued: items
       .filter((item) => item.state === 'queued' || item.state === 'retrying')
@@ -674,7 +660,10 @@ function lane(
   };
 }
 
-function compareWaitingItems(a: PipelineQueueItem, b: PipelineQueueItem): number {
+function compareWaitingItems(
+  a: PipelineQueueItem,
+  b: PipelineQueueItem,
+): number {
   const availableOrder =
     time(a.nextAttemptAt ?? a.queuedAt) - time(b.nextAttemptAt ?? b.queuedAt);
   return availableOrder || time(a.queuedAt) - time(b.queuedAt);
@@ -795,6 +784,21 @@ async function readPublishedToday(
     .gte('published_at', startOfJstDay(now));
   throwFirstError(result);
   return result.count ?? 0;
+}
+
+function queryActiveWork(
+  client: NonNullable<ReturnType<typeof createConfiguredServiceRoleClient>>,
+  table: string,
+  columns: string,
+) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (client as any)
+    .from(table)
+    .select(columns)
+    .in('status', ACTIVE_STATUSES)
+    .order('next_attempt_at', { ascending: true })
+    .order('created_at', { ascending: true })
+    .limit(READ_LIMIT);
 }
 
 function unavailable(

@@ -1,0 +1,15 @@
+{
+  "format": ["typescript", "tsx"],
+  "ignore": [
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/__tests__/**",
+    "**/coverage/**",
+    "**/dist/**",
+    "**/node_modules/**"
+  ],
+  "ignorePattern": [
+    "import\\s.*from\\s.*",
+    "import\\s*\\{[\\s\\S]*?\\}\\s*from\\s*['\"][^'\"]+['\"]"
+  ]
+}

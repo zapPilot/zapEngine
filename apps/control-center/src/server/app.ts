@@ -135,10 +135,11 @@ export function createControlCenterApp(input: {
     return context.json(await socialReleaseCleanup.getEvidence());
   });
   app.post('/api/operations/social/:episodeId/complete', async (context) => {
-    const episodeId = uuidParam(context, 'episodeId');
-    if (!episodeId) {
-      return invalidIdResponse(context, 'episode');
+    const episodeIdOrResponse = episodeIdOrErrorResponse(context);
+    if (typeof episodeIdOrResponse !== 'string') {
+      return episodeIdOrResponse;
     }
+    const episodeId = episodeIdOrResponse;
     try {
       return context.json(await socialReleaseCleanup.closeRelease(episodeId));
     } catch (error) {
@@ -148,7 +149,9 @@ export function createControlCenterApp(input: {
       }
       if (isMissingRpcError(error)) {
         return context.json(
-          { error: 'Social release cleanup migration has not been applied yet' },
+          {
+            error: 'Social release cleanup migration has not been applied yet',
+          },
           503,
         );
       }
@@ -171,10 +174,11 @@ export function createControlCenterApp(input: {
   });
 
   app.get('/api/podcast-pipeline/:episodeId/visual', async (context) => {
-    const episodeId = uuidParam(context, 'episodeId');
-    if (!episodeId) {
-      return invalidIdResponse(context, 'episode');
+    const episodeIdOrResponse = episodeIdOrErrorResponse(context);
+    if (typeof episodeIdOrResponse !== 'string') {
+      return episodeIdOrResponse;
     }
+    const episodeId = episodeIdOrResponse;
     const response = await podcastVisual.getVisualDebug(episodeId);
     return context.json(response, response.status === 'not-found' ? 404 : 200);
   });
@@ -278,6 +282,14 @@ function invalidIdResponse(context: Context, label: string) {
   return context.json({ error: `Invalid ${label} id` }, 400);
 }
 
+function episodeIdOrErrorResponse(context: Context): string | Response {
+  const episodeId = uuidParam(context, 'episodeId');
+  if (!episodeId) {
+    return invalidIdResponse(context, 'episode');
+  }
+  return episodeId;
+}
+
 type ParsedBody<T> = { ok: true; value: T } | { ok: false; error: string };
 
 async function handlePodcastReviewMutation<T>(
@@ -316,10 +328,11 @@ async function handlePodcastMutation(
   context: Context,
   work: (episodeId: string) => Promise<void>,
 ) {
-  const episodeId = uuidParam(context, 'episodeId');
-  if (!episodeId) {
-    return invalidIdResponse(context, 'episode');
+  const episodeIdOrResponse = episodeIdOrErrorResponse(context);
+  if (typeof episodeIdOrResponse !== 'string') {
+    return episodeIdOrResponse;
   }
+  const episodeId = episodeIdOrResponse;
   try {
     await work(episodeId);
     return context.json({ ok: true });

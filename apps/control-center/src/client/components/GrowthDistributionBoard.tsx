@@ -33,15 +33,21 @@ export function GrowthDistributionBoard(props: {
   const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (typeof fetch !== 'function') return;
+    if (typeof fetch !== 'function') {
+      return;
+    }
     let cancelled = false;
     void fetch('/api/operations/social/release-evidence')
       .then(async (response) => {
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
         return (await response.json()) as ReleaseEvidenceResponse;
       })
       .then((response) => {
-        if (!cancelled) setEvidence(response.posts ?? []);
+        if (!cancelled) {
+          setEvidence(response.posts ?? []);
+        }
       })
       .catch(() => {
         // Evidence is additive. Losing it must not blank the operational queue.
@@ -51,9 +57,11 @@ export function GrowthDistributionBoard(props: {
     };
   }, [props.social?.generatedAt]);
 
-  const batches = buildBatches(props.performance, props.social, evidence).filter(
-    (batch) => !closedEpisodeIds.includes(batch.episodeId),
-  );
+  const batches = buildBatches(
+    props.performance,
+    props.social,
+    evidence,
+  ).filter((batch) => !closedEpisodeIds.includes(batch.episodeId));
 
   async function markComplete(episodeId: string) {
     if (
@@ -80,7 +88,9 @@ export function GrowthDistributionBoard(props: {
       setClosedEpisodeIds((current) => [...current, episodeId]);
     } catch (error) {
       setActionError(
-        error instanceof Error ? error.message : 'Could not close social release',
+        error instanceof Error
+          ? error.message
+          : 'Could not close social release',
       );
     } finally {
       setClosingEpisodeId(null);
@@ -216,7 +226,9 @@ function buildBatches(
   }
   const postsByEpisode = new Map<string, ReleaseEvidencePost[]>();
   for (const post of evidence) {
-    if (!jobsByEpisode.has(post.episodeId)) continue;
+    if (!jobsByEpisode.has(post.episodeId)) {
+      continue;
+    }
     const posts = postsByEpisode.get(post.episodeId) ?? [];
     posts.push(post);
     postsByEpisode.set(post.episodeId, posts);
@@ -253,10 +265,13 @@ function buildBatches(
 function latestPostByLane(posts: ReleaseEvidencePost[]): ReleaseEvidencePost[] {
   const latest = new Map<string, ReleaseEvidencePost>();
   for (const post of [...posts].sort(
-    (left, right) => Date.parse(right.publishedAt) - Date.parse(left.publishedAt),
+    (left, right) =>
+      Date.parse(right.publishedAt) - Date.parse(left.publishedAt),
   )) {
     const key = laneKey(post);
-    if (!latest.has(key)) latest.set(key, post);
+    if (!latest.has(key)) {
+      latest.set(key, post);
+    }
   }
   return [...latest.values()];
 }

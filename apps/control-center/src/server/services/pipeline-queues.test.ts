@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { SocialPlatformQueueState } from '../../shared/pipeline-queues.js';
-import {
-  buildPipelineQueues,
-  deriveSocialState,
-} from './pipeline-queues.js';
+import { buildPipelineQueues, deriveSocialState } from './pipeline-queues.js';
 
 const NOW = new Date('2026-09-05T06:00:00.000Z');
 const EPISODE_A = '11111111-1111-4111-8111-111111111111';
@@ -363,7 +360,9 @@ describe('pipeline runtime queue read model', () => {
     const social = queues.social.queued[0]!;
 
     expect(social.state).toBe('partial');
-    expect(social.platforms.map((lane) => [lane.platform, lane.status])).toEqual([
+    expect(
+      social.platforms.map((lane) => [lane.platform, lane.status]),
+    ).toEqual([
       ['x', 'published'],
       ['threads', 'published'],
       ['rednote', 'queued'],

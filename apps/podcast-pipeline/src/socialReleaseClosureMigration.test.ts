@@ -34,13 +34,16 @@ describe('social release operator closure migration', () => {
   it('keeps already-published rows and skips only unfinished jobs', () => {
     expect(normalized).toContain("status in ('queued', 'failed')");
     expect(normalized).toContain("status = 'skipped'");
-    expect(normalized).not.toContain('delete from from_fed_to_chain.social_posts');
+    expect(normalized).not.toContain(
+      'delete from from_fed_to_chain.social_posts',
+    );
   });
 
   it('prevents discovery and waiting-media from resurrecting a closed episode', () => {
     expect(
-      normalized.match(/from from_fed_to_chain\.social_release_closures closure/g)
-        ?.length ?? 0,
+      normalized.match(
+        /from from_fed_to_chain\.social_release_closures closure/g,
+      )?.length ?? 0,
     ).toBeGreaterThanOrEqual(3);
     expect(normalized).toContain('social_publish_jobs_closed_release_guard');
     expect(normalized).toContain(

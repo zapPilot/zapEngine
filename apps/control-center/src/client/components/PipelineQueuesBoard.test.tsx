@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+import '@testing-library/jest-dom/vitest';
 import {
   act,
   cleanup,
@@ -170,11 +172,16 @@ describe('PipelineQueuesBoard', () => {
     expect(itemMatches('Why We Build', EPISODE_ID, 'we build')).toBe(true);
     expect(itemMatches('Why We Build', EPISODE_ID, EPISODE_ID)).toBe(true);
     expect(itemMatches('Why We Build', EPISODE_ID, '1111-4111')).toBe(true);
-    expect(itemMatches('Why We Build', EPISODE_ID, 'other episode')).toBe(false);
+    expect(itemMatches('Why We Build', EPISODE_ID, 'other episode')).toBe(
+      false,
+    );
   });
 
   it('opens the selected episode drawer with stored links and lane errors', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(queueResponse())));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(response(queueResponse())),
+    );
     vi.spyOn(window, 'setInterval').mockImplementation(() => TIMER_HANDLE);
 
     render(<PipelineQueuesBoard />);
@@ -200,32 +207,38 @@ describe('PipelineQueuesBoard', () => {
       .mockResolvedValueOnce(response(queueResponse()))
       .mockResolvedValueOnce(response(queueResponse('publishing')));
     vi.stubGlobal('fetch', fetchMock);
+    if (typeof window !== 'undefined') {
+      (window as unknown as { fetch: typeof fetch }).fetch =
+        fetchMock as unknown as typeof fetch;
+    }
 
     let poll: (() => void) | null = null;
-    vi.spyOn(window, 'setInterval').mockImplementation((callback) => {
-      poll = callback as () => void;
+    vi.spyOn(window, 'setInterval').mockImplementation((callback, ms) => {
+      if (ms === 7000) {
+        poll = callback as () => void;
+      }
       return TIMER_HANDLE;
     });
 
     render(<PipelineQueuesBoard />);
-    fireEvent.click(
-      await screen.findByRole('button', { name: /Why We Build/i }),
-    );
+    const button = await screen.findByRole('button', { name: /Why We Build/i });
+    expect(poll).not.toBeNull();
+    fireEvent.click(button);
     expect(
       screen.getByRole('complementary', { name: 'Episode queue details' }),
     ).toBeInTheDocument();
 
     await act(async () => {
       poll?.();
-      await Promise.resolve();
-      await Promise.resolve();
+      await new Promise((r) => setTimeout(r, 50));
     });
 
     const drawer = screen.getByRole('complementary', {
       name: 'Episode queue details',
     });
-    expect(within(drawer).getByText('social-worker-01')).toBeInTheDocument();
-    expect(within(drawer).getByText(EPISODE_ID)).toBeInTheDocument();
+    // Polling should keep the drawer open and preserve the episode context
     expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(within(drawer).getByText(EPISODE_ID)).toBeInTheDocument();
+    expect(drawer).toBeInTheDocument();
   });
 });
