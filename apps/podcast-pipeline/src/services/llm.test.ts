@@ -903,6 +903,7 @@ ${scriptPayload('「软件市场进入新阶段」', '生成講稿')}
         timeoutMs: 600_000,
         provider: 'Cloudflare',
         costUsd: 0.00001,
+        finishReason: 'unknown',
         outputChars: generatedPayload.length,
       },
     );
@@ -1080,10 +1081,10 @@ describe('generateLanguageClassroomsWithLLM', () => {
   });
 
   // The classroom call is the heaviest generation in the pipeline: one response
-  // carries a full narration script per target language. Left unbounded it hit
-  // the request deadline instead of returning, so these three constraints are
-  // load-bearing, not decoration.
-  it('bounds the request with JSON mode, an output ceiling and reasoning off', async () => {
+  // carries a full narration script per target language. JSON mode and reasoning
+  // off are load-bearing; an output ceiling is deliberately absent, because it
+  // cuts a JSON body mid-string and turns a verbose answer into an unusable one.
+  it('bounds the request with JSON mode and reasoning off, and sends no output ceiling', async () => {
     const mockCreate = vi.fn().mockResolvedValue({
       choices: [{ message: { content: validLanguageClassroomPayload() } }],
       provider: 'Cloudflare',
@@ -1109,7 +1110,7 @@ describe('generateLanguageClassroomsWithLLM', () => {
       usage?: object;
     };
     expect(callArgs.response_format).toEqual({ type: 'json_object' });
-    expect(callArgs.max_tokens).toBe(8000);
+    expect(callArgs).not.toHaveProperty('max_tokens');
     expect(callArgs.reasoning).toEqual({ enabled: false });
     expect(callArgs.provider).toEqual({
       sort: 'throughput',

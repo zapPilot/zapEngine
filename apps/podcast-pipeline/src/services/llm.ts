@@ -57,16 +57,16 @@ const DEFAULT_PROMPT_PATH = join(
 );
 const LLM_COMPLETION_MAX_ATTEMPTS = 2;
 const LLM_COMPLETION_RETRY_DELAY_MS = 2_000;
-/**
- * One response carries a lesson per target language, each with a 1.5-3 minute
- * narration script, so the real output sits around 3-4k tokens. The cap is what
- * makes a degenerate provider truncate instead of generating until the request
- * deadline: several endpoints for the configured model advertise a completion
- * limit in the hundreds of thousands of tokens.
- */
-const LANGUAGE_CLASSROOM_MAX_TOKENS = 8_000;
 /** Selecting concepts and writing narration, not a reasoning task. */
 const LANGUAGE_CLASSROOM_REASONING: OpenRouterReasoning = { enabled: false };
+/**
+ * There is deliberately no `max_tokens` on this call any more. A ceiling cannot
+ * tell a runaway provider from a verbose one: it cuts the body wherever the
+ * budget runs out, which for a JSON response means mid-string, turning a
+ * recoverable answer into an unparseable one. A runaway is already bounded by
+ * the request deadline, and a bad body is now bounded by these attempts.
+ */
+const LANGUAGE_CLASSROOM_MAX_ATTEMPTS = 3;
 const SCRIPT_PAYLOAD_MAX_ATTEMPTS = 2;
 /**
  * The one workload the shared ceiling is wrong for. The script prompt forbids
@@ -98,6 +98,23 @@ class ScriptPayloadValidationError extends Error {
   ) {
     super(message, options);
     this.name = 'ScriptPayloadValidationError';
+  }
+}
+
+/**
+ * A classroom response that arrived over a healthy connection and is still
+ * unusable. Separate from the transport policy in `createCompletionWithRetry`
+ * on purpose: this failure happens after HTTP 200, so nothing below it ever
+ * sees the error, and re-prompting is the only thing that can fix it.
+ */
+class LanguageClassroomPayloadError extends Error {
+  constructor(
+    message: string,
+    readonly reason: 'invalid_json' | 'truncated' | 'not_object' | 'no_lessons',
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
+    this.name = 'LanguageClassroomPayloadError';
   }
 }
 
@@ -566,6 +583,7 @@ export async function createOpenRouterChatCompletion(
       timeoutMs,
       provider: metadata.provider,
       costUsd: metadata.costUsd,
+      finishReason: completionFinishReason(completion),
       outputChars: completionOutputCharacterCount(completion),
     },
     requestOptions.logContext,
@@ -584,6 +602,15 @@ function userInputCharacterCount(
         : total,
     0,
   );
+}
+
+/**
+ * The one field that separates a body the provider stopped writing from a body
+ * it finished writing badly. Nothing logged it before, so the incident that
+ * motivated the classroom retry loop could not be classified from its logs.
+ */
+function completionFinishReason(completion: OpenRouterChatCompletion): string {
+  return completion.choices[0]?.finish_reason ?? 'unknown';
 }
 
 function completionOutputCharacterCount(
@@ -986,8 +1013,9 @@ export async function generateScriptWithLLM(
 
 export function buildLanguageClassroomUserMessage(
   input: LanguageClassroomInput,
+  retryReason: string | null = null,
 ): string {
-  return [
+  const grounding = [
     `主語言：${input.sourceLanguageCode}`,
     `目標語言：${input.targetLanguageCodes.join(', ')}`,
     `標題：${input.title}`,
@@ -998,45 +1026,123 @@ export function buildLanguageClassroomUserMessage(
     'Podcast 講稿：',
     input.script,
   ].join('\n');
+
+  if (retryReason === null) return grounding;
+
+  // Appended, never substituted. The block above is the grounding contract that
+  // the strict suite and scripts/check-classroom-contract.mjs guard, and a retry
+  // that dropped the article and script would quietly regenerate from the title.
+  return [
+    grounding,
+    '',
+    `修正要求：上一次的回應被拒絕（${retryReason}）。請只回傳一個可被 JSON.parse 解析的 JSON 物件，欄位與先前要求完全相同；所有字串值內的雙引號必須寫成 \\"，不可含未跳脫的引號、換行或 Markdown。`,
+  ].join('\n');
 }
 
 export async function generateLanguageClassroomsWithLLM(
   input: LanguageClassroomInput,
 ): Promise<LanguageClassroomResult> {
   const { openai, model, thinkingModel } = getOpenRouterConfig();
-  const completion = await createCompletionWithRetry(
-    openai,
-    {
-      model,
-      // parseLanguageClassroomLessons parses this as JSON either way; asking
-      // for JSON mode is what stops the model prefacing it with prose.
-      response_format: { type: 'json_object' },
-      messages: [
+  let costUsd = 0;
+  let retryReason: string | null = null;
+
+  for (
+    let attempt = 1;
+    attempt <= LANGUAGE_CLASSROOM_MAX_ATTEMPTS;
+    attempt += 1
+  ) {
+    // Every retry re-routes, which is where this diverges from translation: a
+    // translation retry keeps its route because the model wrote a bad field,
+    // while the failure here was an endpoint returning 37k characters for a
+    // request whose real answer is a tenth of that. The throughput sort is
+    // deterministic, so keeping it would hand the retry back to that endpoint.
+    const rerouted = attempt > 1;
+    let completion: OpenRouterChatCompletion;
+    try {
+      completion = await createCompletionWithRetry(
+        openai,
         {
-          role: 'system',
-          content: languageClassroomSystemPrompt(input.sourceLanguageCode),
+          model,
+          // parseLanguageClassroomLessons parses this as JSON either way; asking
+          // for JSON mode is what stops the model prefacing it with prose.
+          response_format: { type: 'json_object' },
+          messages: [
+            {
+              role: 'system',
+              content: languageClassroomSystemPrompt(input.sourceLanguageCode),
+            },
+            {
+              role: 'user',
+              content: buildLanguageClassroomUserMessage(input, retryReason),
+            },
+          ],
+          temperature: 0.4,
         },
-        { role: 'user', content: buildLanguageClassroomUserMessage(input) },
-      ],
-      temperature: 0.4,
-      max_tokens: LANGUAGE_CLASSROOM_MAX_TOKENS,
-    },
-    thinkingModel,
-    'generateLanguageClassrooms',
-    { reasoning: LANGUAGE_CLASSROOM_REASONING },
-  );
+        thinkingModel,
+        'generateLanguageClassrooms',
+        {
+          reasoning: LANGUAGE_CLASSROOM_REASONING,
+          ...(rerouted ? { providerRouting: OPENROUTER_FALLBACK_ROUTING } : {}),
+        },
+      );
+    } catch (error) {
+      // The inner loop already spent its transport retry on the same endpoint,
+      // so a retryable error reaching here means that endpoint is the problem.
+      if (
+        attempt === LANGUAGE_CLASSROOM_MAX_ATTEMPTS ||
+        !isRetryableOpenRouterError(error)
+      ) {
+        throw error;
+      }
+      logLanguageClassroomRetry('transport', attempt, error);
+      continue;
+    }
 
-  const content = completion.choices[0]?.message?.content || '';
-  const lessons = parseLanguageClassroomLessons(
-    content,
-    input.sourceLanguageCode,
-    input.targetLanguageCodes,
-  );
+    const metadata = completionMetadata(completion, model, thinkingModel);
+    // A rejected response was still billed; the ledger has to carry what the
+    // retries cost, not just what the accepted answer cost.
+    costUsd += metadata.costUsd;
+    try {
+      const lessons = parseLanguageClassroomLessons(
+        completion,
+        input.sourceLanguageCode,
+        input.targetLanguageCodes,
+      );
+      return { lessons, ...metadata, costUsd };
+    } catch (error) {
+      if (
+        attempt === LANGUAGE_CLASSROOM_MAX_ATTEMPTS ||
+        !(error instanceof LanguageClassroomPayloadError)
+      ) {
+        throw error;
+      }
+      logLanguageClassroomRetry('payload', attempt, error);
+      retryReason = error.message;
+    }
+  }
 
-  return {
-    lessons,
-    ...completionMetadata(completion, model, thinkingModel),
-  };
+  throw new Error('OpenRouter language classroom retry loop exhausted');
+}
+
+function logLanguageClassroomRetry(
+  layer: 'transport' | 'payload',
+  attempt: number,
+  error: unknown,
+): void {
+  logIngestEvent('llm:retry', {
+    operation: 'generateLanguageClassrooms',
+    layer,
+    attempt,
+    nextAttempt: attempt + 1,
+    rerouted: true,
+    // The groupable key. `error` carries the provider diagnostics and the
+    // excerpt, which are useful once you are already reading one line and
+    // useless for counting how a week of rejections split.
+    ...(error instanceof LanguageClassroomPayloadError
+      ? { reason: error.reason }
+      : {}),
+    error: errorMessage(error),
+  });
 }
 
 function languageClassroomSystemPrompt(sourceLanguageCode: string): string {
@@ -1078,12 +1184,45 @@ function languageClassroomSystemPrompt(sourceLanguageCode: string): string {
 - script 內容必須根據文章與講稿，涵蓋這堂課選出的每一個 keyword 概念，不能只根據標題或 oneLiner 隨意發揮。`;
 }
 
+/**
+ * Takes the whole completion rather than its content because the two failures
+ * that look identical in the content alone -- a provider that stopped writing
+ * and a provider that wrote an unescaped quote -- are told apart only by
+ * `finish_reason`, and the provider that did it is only on the envelope.
+ */
 function parseLanguageClassroomLessons(
-  content: string,
+  completion: OpenRouterChatCompletion,
   sourceLanguageCode: string,
   targetLanguageCodes: LanguageClassroomLanguageCode[],
 ): LanguageClassroomLessonDraft[] {
-  const payload = parseJsonObject(content, 'Language classroom response');
+  const content = completion.choices[0]?.message?.content || '';
+  const finishReason = completionFinishReason(completion);
+  const diagnostics = ` (provider=${completion.provider || 'unknown'}, model=${completion.model || 'unknown'}, finishReason=${finishReason}, outputChars=${content.length})`;
+
+  if (finishReason === 'length') {
+    throw new LanguageClassroomPayloadError(
+      `Language classroom response was truncated${diagnostics}`,
+      'truncated',
+    );
+  }
+
+  let payload: Record<string, unknown>;
+  try {
+    payload = parseJsonObject(content, 'Language classroom response');
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      throw new LanguageClassroomPayloadError(
+        `${errorMessage(error)}${diagnostics}${jsonErrorExcerpt(content, error)}`,
+        'invalid_json',
+        { cause: error },
+      );
+    }
+    throw new LanguageClassroomPayloadError(
+      `${errorMessage(error)}${diagnostics}`,
+      'not_object',
+      { cause: error },
+    );
+  }
   const rawLessons = Array.isArray(payload['lessons'])
     ? payload['lessons']
     : [];
@@ -1112,12 +1251,30 @@ function parseLanguageClassroomLessons(
     );
 
   if (ordered.length === 0) {
-    throw new Error(
-      'Language classroom response did not contain any valid lessons',
+    throw new LanguageClassroomPayloadError(
+      `Language classroom response did not contain any valid lessons${diagnostics}`,
+      'no_lessons',
     );
   }
 
   return ordered;
+}
+
+/**
+ * The incident this exists for reported a syntax error at character 9,112 of a
+ * 37,164-character body and nothing else: enough to know the response was not
+ * truncated, not enough to know what broke it. Quoting the neighbourhood of the
+ * offending character is what distinguishes an unescaped quote inside a
+ * narration script from a provider splicing prose into the object.
+ */
+function jsonErrorExcerpt(content: string, error: SyntaxError): string {
+  const position = Number(/at position (\d+)/u.exec(error.message)?.[1]);
+  const start = Number.isFinite(position) ? Math.max(0, position - 120) : 0;
+  const excerpt = content
+    .slice(start, start + 240)
+    .replace(/\s+/gu, ' ')
+    .trim();
+  return excerpt ? ` near: ${excerpt}` : '';
 }
 
 function parseJsonObject(
