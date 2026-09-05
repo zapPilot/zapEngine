@@ -972,6 +972,7 @@ describe('createVideoWorker', () => {
           episodeLocalizationId: 'localization-1',
           telegramChatId: 'last-chat',
           episodeId: 'episode-1',
+          languageCode: 'zh-Hant',
           lastError: 'render failed',
         },
       ]);
@@ -1009,6 +1010,7 @@ describe('createVideoWorker', () => {
         episodeLocalizationId: 'localization-1',
         telegramChatId: 'last-chat',
         episodeId: 'episode-1',
+        languageCode: 'zh-Hant',
         lastError: 'render failed',
       },
     ]);
@@ -1415,6 +1417,7 @@ describe('createVideoWorker', () => {
           episodeLocalizationId: 'localization-1',
           telegramChatId: 'last-chat',
           episodeId: 'episode-1',
+          languageCode: 'zh-Hant',
           lastError: 'render failed',
         },
       ]);

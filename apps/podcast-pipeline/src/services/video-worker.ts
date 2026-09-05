@@ -402,7 +402,11 @@ export function createVideoWorker(
       try {
         await notify(
           failure.telegramChatId,
-          buildTelegramVideoFailedMessage(failure.episodeId, failure.lastError),
+          buildTelegramVideoFailedMessage(
+            failure.episodeId,
+            failure.lastError,
+            failure.languageCode,
+          ),
           {
             replyMarkup: buildTelegramVideoRetryReplyMarkup(failure.episodeId),
           },

@@ -101,6 +101,8 @@ export async function handleTelegramRetryCommand(input: {
       return '這集三語影片已完成。';
     case 'missing':
       return '這集還沒有 visual job；請重新貼原始 URL 建立影片工作。';
+    case 'abandoned':
+      return '這集影片已由操作者結案，不再重排；要重開請清除結案標記。';
     case 'prerequisites':
       return '影片重試的三語音頻前置條件尚未完成。';
     case 'unavailable':
@@ -123,6 +125,8 @@ export async function handleTelegramRetryVideoCallback(
       return '資料庫尚未升級';
     case 'missing':
       return '找不到 visual job';
+    case 'abandoned':
+      return '影片已結案，不再重排';
     case 'prerequisites':
       return '音頻前置條件未完成';
   }

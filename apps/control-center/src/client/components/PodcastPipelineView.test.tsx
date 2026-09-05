@@ -229,6 +229,38 @@ describe('PodcastPipelineView', () => {
     });
   });
 
+  it('files an abandoned episode under Completed with its reason and no restart', () => {
+    renderPipeline({
+      data: pipelineResponse({
+        currentPhase: 'done',
+        videoStatus: 'abandoned',
+        canRestartVideo: false,
+        canForceReplanVisual: false,
+        visual: null,
+        renders: [],
+        abandoned: {
+          at: '2026-09-05T10:00:00.000Z',
+          reason: 'Legacy zh-Hant-only render; closed by operator',
+        },
+      }),
+    });
+
+    // jsdom does not hide a collapsed <details>, so the assertion is about
+    // which list the episode is in, not about visibility.
+    const completed = screen.getByText('Completed (1)').closest('details');
+    expect(completed).not.toBeNull();
+    const panel = within(completed as HTMLElement);
+    expect(panel.getByText('Pipeline recovery test')).toBeInTheDocument();
+    // The phase chip and the video status cell both read Abandoned.
+    expect(panel.getAllByText('Abandoned')).toHaveLength(2);
+    expect(
+      panel.getByText('Legacy zh-Hant-only render; closed by operator'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Restart video' }),
+    ).not.toBeInTheDocument();
+  });
+
   it('invokes ingest recovery for a failed translation phase', () => {
     const { onRestartStep } = renderPipeline({
       data: pipelineResponse({
