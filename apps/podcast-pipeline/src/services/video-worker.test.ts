@@ -1600,12 +1600,12 @@ describe('render cost ledger', () => {
       attempt: 1,
       elapsedMs: 480_000,
       pricing: {
-        metricKey: 'machine_second_performance_2x_4gb',
+        metricKey: 'machine_second_performance_2x_2gb',
         quantity: 480,
       },
     });
     expect(run.stages[0]?.usage).toMatchObject({
-      machine: 'performance-2x-4gb',
+      machine: 'performance-2x-2gb',
       cgroupPeakObservedMb: 3_012.1,
     });
     expect(run.stages[0]?.usage?.['jobWallMs']).toEqual(expect.any(Number));

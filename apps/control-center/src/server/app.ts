@@ -173,12 +173,14 @@ export function createControlCenterApp(input: {
     return context.json(await pipelineQueues.getQueues());
   });
 
+  // jscpd:ignore-start -- episodeId validation is duplicated across independent route handlers; merging would obscure route boundaries and is not worth a shared abstraction for 5 lines
   app.get('/api/podcast-pipeline/:episodeId/visual', async (context) => {
     const episodeIdOrResponse = episodeIdOrErrorResponse(context);
     if (typeof episodeIdOrResponse !== 'string') {
       return episodeIdOrResponse;
     }
     const episodeId = episodeIdOrResponse;
+    // jscpd:ignore-end
     const response = await podcastVisual.getVisualDebug(episodeId);
     return context.json(response, response.status === 'not-found' ? 404 : 200);
   });
