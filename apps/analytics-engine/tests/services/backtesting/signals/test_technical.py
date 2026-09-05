@@ -1,11 +1,22 @@
 from __future__ import annotations
 
+import math
+
 import pytest
 
 from src.services.backtesting.signals.technical import (
+    TECHNICAL_LOOKBACK_BARS,
+    TechnicalSignalSnapshot,
     build_technical_signal_snapshot,
     detect_rsi_divergence,
 )
+
+
+def _wave(count: int, *, base: float, amplitude: float) -> list[float]:
+    return [
+        base + amplitude * math.sin(index / 7.0) + index * 0.05
+        for index in range(count)
+    ]
 
 
 def test_build_technical_signal_snapshot_computes_close_price_indicators() -> None:
@@ -83,3 +94,44 @@ def test_detect_rsi_divergence_detects_bullish_trailing_window_proxy() -> None:
 
     assert bearish is False
     assert bullish is True
+
+
+def test_build_technical_signal_snapshot_rejects_unusable_prices() -> None:
+    empty = TechnicalSignalSnapshot()
+    usable = _wave(60, base=100.0, amplitude=6.0)
+
+    assert build_technical_signal_snapshot([*usable, "102.0"]) == empty
+    assert build_technical_signal_snapshot([*usable, 0.0]) == empty
+    assert build_technical_signal_snapshot([*usable, -5.0]) == empty
+    assert build_technical_signal_snapshot([*usable, math.nan]) == empty
+    assert build_technical_signal_snapshot(usable) != empty
+
+
+def test_snapshot_depends_only_on_the_trailing_lookback_window() -> None:
+    trailing = _wave(TECHNICAL_LOOKBACK_BARS, base=100.0, amplitude=8.0)
+    short_run = [*_wave(40, base=300.0, amplitude=2.0), *trailing]
+    long_run = [*_wave(400, base=20.0, amplitude=5.0), *trailing]
+
+    snapshot = build_technical_signal_snapshot(short_run)
+
+    assert snapshot == build_technical_signal_snapshot(long_run)
+    assert snapshot.rsi_14 is not None
+    assert snapshot.momentum_90d is not None
+    assert snapshot.macd_12_26 is not None
+
+
+def test_macd_cross_flags_fire_once_per_trend_turn() -> None:
+    rising = [100.0 + index for index in range(60)]
+    falling = [*rising, *[rising[-1] - index * 2.0 for index in range(1, 41)]]
+    recovering = [*falling, *[falling[-1] + index * 2.0 for index in range(1, 61)]]
+
+    snapshots = [
+        build_technical_signal_snapshot(recovering[:length])
+        for length in range(35, len(recovering) + 1)
+    ]
+    bearish_turns = [index for index, s in enumerate(snapshots) if s.macd_bearish_cross]
+    bullish_turns = [index for index, s in enumerate(snapshots) if s.macd_bullish_cross]
+
+    assert len(bearish_turns) == 1
+    assert len(bullish_turns) == 1
+    assert bearish_turns[0] < bullish_turns[0]

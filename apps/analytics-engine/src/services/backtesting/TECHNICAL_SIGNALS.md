@@ -25,6 +25,11 @@ Technical experiment priorities are numerically higher than the current default
 rules, so a `default + experiment` run keeps canonical decisions first and lets
 technical rules act as a lower-precedence additive layer.
 
+`GET /api/v3/strategy/configs` lists these rules alongside every other
+addressable rule name, each with `default_enabled: false` — the same treatment
+`spy_latch` already gets. Being listed is what makes a rule addressable through
+`enabled_rules`; it does not enable it.
+
 Do not update the performance snapshot merely because these signals exist. A
 future promotion into the default set is an intentional strategy behavior change
 and must follow `ITERATION_PLAYBOOK.md`.
@@ -47,6 +52,14 @@ so these calculations use information available as of the decision date.
 RSI divergence intentionally uses two trailing, already-observed windows rather
 than a centered local-pivot detector. A centered pivot needs future bars to
 confirm the peak/trough and would introduce look-ahead bias.
+
+Indicators read a fixed 260-bar trailing window (`TECHNICAL_LOOKBACK_BARS`), not
+the entire run. The longest lookback here is 90 bars, and the recursive
+indicators (Wilder RSI, MACD EMAs) converge to far below their decision
+thresholds within that window, so a given calendar day's values do not depend on
+when the backtest happened to start. The window also bounds the per-day cost
+instead of letting it grow with the run length, and keeps a single unusable
+close from blanking every later day.
 
 Long-lookback values remain `None` until enough history has accumulated. This PR
 does not expand the canonical 14-day strategy warmup merely to prime research
@@ -88,23 +101,18 @@ traces; do not promote a signal based on ROI alone.
 
 ## Local validation
 
-Run the focused behavioral suite first:
+The focused behavioral suite for these signals and rules:
 
 ```bash
 pnpm --filter @zapengine/analytics-engine exec uv run pytest \
   tests/services/backtesting/signals/test_technical.py \
+  tests/services/backtesting/signals/test_flat_minimum.py \
   tests/services/backtesting/portfolio_rules/test_technical_experiments.py
 ```
 
-Then run the normal backtesting gate:
-
-```bash
-pnpm --filter @zapengine/analytics-engine exec uv run pytest \
-  tests/test_validation_events.py \
-  tests/services/backtesting
-
-pnpm --filter @zapengine/analytics-engine test:strategy-snapshot:fast
-```
-
-The expected result for this PR is default snapshot parity. Performance movement
-should occur only when a technical experiment rule is explicitly enabled.
+Run the repository-wide backtesting gate and the pinned production-window
+snapshot from [COMMANDS.md](./COMMANDS.md); follow
+[ITERATION_PLAYBOOK.md](./ITERATION_PLAYBOOK.md) before promoting an experiment
+into the default set. While these rules stay non-default the expected result is
+snapshot parity — performance should move only when a technical rule is
+explicitly enabled.

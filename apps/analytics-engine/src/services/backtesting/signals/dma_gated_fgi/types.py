@@ -63,9 +63,7 @@ class DmaMarketState:
     macro_fear_greed_value: float | None = None
     macro_fear_greed_regime: str | None = None
     macro_fear_greed_regime_source: RegimeSource | None = None
-    technical: TechnicalSignalSnapshot = field(
-        default_factory=TechnicalSignalSnapshot
-    )
+    technical: TechnicalSignalSnapshot = field(default_factory=TechnicalSignalSnapshot)
 
     @property
     def price_above_dma(self) -> bool:
