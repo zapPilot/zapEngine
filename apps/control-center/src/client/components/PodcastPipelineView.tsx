@@ -138,7 +138,6 @@ function PipelineEpisode(
   },
 ) {
   const { episode } = props;
-  const [confirmReplan, setConfirmReplan] = useState(false);
   const ingestError = episode.ingest?.lastError;
   const visualError =
     episode.visual?.status === 'failed' ? episode.visual.lastError : null;
@@ -245,31 +244,15 @@ function PipelineEpisode(
       />
 
       {episode.canForceReplanVisual ? (
-        <details className="pipeline-details">
-          <summary>Advanced recovery</summary>
-          <div className="pipeline-retry-actions">
-            <RestartButton
-              disabled={props.isRestarting}
-              label={
-                confirmReplan
-                  ? 'Confirm re-plan (re-renders 3 videos)'
-                  : 'Re-plan visuals'
-              }
-              onClick={() => {
-                if (!confirmReplan) {
-                  setConfirmReplan(true);
-                  return;
-                }
-                setConfirmReplan(false);
-                props.onRestartStep(episode.episodeId, {
-                  step: 'video',
-                  forceReplan: true,
-                });
-              }}
-              title="Discard the visual checkpoint and generate a new visual plan"
-            />
-          </div>
-        </details>
+        <AdvancedRecovery
+          disabled={props.isRestarting}
+          onForceReplan={() =>
+            props.onRestartStep(episode.episodeId, {
+              step: 'video',
+              forceReplan: true,
+            })
+          }
+        />
       ) : null}
 
       <details className="pipeline-details">
@@ -324,6 +307,47 @@ function PipelineEpisode(
         </div>
       </details>
     </article>
+  );
+}
+
+function AdvancedRecovery(props: {
+  disabled: boolean;
+  onForceReplan: () => void;
+}) {
+  const [confirmReplan, setConfirmReplan] = useState(false);
+
+  return (
+    <details
+      className="pipeline-details"
+      onToggle={(event) => {
+        // Collapsing must disarm the confirmation, otherwise a re-opened
+        // disclosure offers a one-click destructive re-plan.
+        if (!event.currentTarget.open) {
+          setConfirmReplan(false);
+        }
+      }}
+    >
+      <summary>Advanced recovery</summary>
+      <div className="pipeline-retry-actions">
+        <RestartButton
+          disabled={props.disabled}
+          label={
+            confirmReplan
+              ? 'Confirm re-plan (re-renders 3 videos)'
+              : 'Re-plan visuals'
+          }
+          onClick={() => {
+            if (!confirmReplan) {
+              setConfirmReplan(true);
+              return;
+            }
+            setConfirmReplan(false);
+            props.onForceReplan();
+          }}
+          title="Discard the visual checkpoint and generate a new visual plan"
+        />
+      </div>
+    </details>
   );
 }
 

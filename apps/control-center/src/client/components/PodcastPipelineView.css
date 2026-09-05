@@ -165,6 +165,11 @@
   font-size: 12px;
 }
 
+.pipeline-details .pipeline-retry-actions {
+  justify-content: flex-start;
+  margin-top: 12px;
+}
+
 .pipeline-language-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

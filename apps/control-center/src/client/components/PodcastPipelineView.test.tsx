@@ -2,7 +2,13 @@
 /* jscpd:ignore-start -- standard testing-library/vitest boilerplate */
 import '@testing-library/jest-dom/vitest';
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type {
@@ -131,18 +137,53 @@ function renderPipeline(input: {
   restartingEpisodeId?: string | null;
 }) {
   const onRestartStep = vi.fn();
-  render(
+  const view = (data: PodcastPipelineResponse) => (
     <PodcastPipelineView
-      data={input.data ?? pipelineResponse()}
+      data={data}
       onLoadVisualDebug={vi.fn()}
       onResolveReview={vi.fn()}
       onRestartStep={onRestartStep}
       onSubmitReview={vi.fn()}
       restartingEpisodeId={input.restartingEpisodeId ?? null}
       visualDebugByEpisode={{}}
-    />,
+    />
   );
-  return { onRestartStep };
+  const { rerender } = render(view(input.data ?? pipelineResponse()));
+  return {
+    onRestartStep,
+    rerender: (data: PodcastPipelineResponse) => rerender(view(data)),
+  };
+}
+
+// jsdom ships neither <summary> activation behaviour nor the closed-<details>
+// display rule, so the disclosure has to be driven through `open` directly and
+// its toggle event, queued as a macrotask, has to be flushed.
+async function setAdvancedRecoveryOpen(open: boolean) {
+  const details = screen.getByText('Advanced recovery').closest('details');
+  if (!(details instanceof HTMLDetailsElement)) {
+    throw new Error('Advanced recovery disclosure is not rendered');
+  }
+  await act(async () => {
+    details.open = open;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+}
+
+function renderReplanCapablePipeline() {
+  return renderPipeline({
+    data: pipelineResponse({ canForceReplanVisual: true }),
+  });
+}
+
+async function armReplanConfirmation() {
+  await setAdvancedRecoveryOpen(true);
+  fireEvent.click(screen.getByRole('button', { name: 'Re-plan visuals' }));
+}
+
+function expectReplanDisarmed() {
+  expect(
+    screen.getByRole('button', { name: 'Re-plan visuals' }),
+  ).toBeInTheDocument();
 }
 
 describe('PodcastPipelineView', () => {
@@ -236,27 +277,48 @@ describe('PodcastPipelineView', () => {
     expect(button).toBeDisabled();
   });
 
-  it('keeps destructive visual re-planning behind advanced recovery and requires confirmation', () => {
-    const { onRestartStep } = renderPipeline({
-      data: pipelineResponse({ canForceReplanVisual: true }),
-    });
+  it('keeps destructive visual re-planning behind advanced recovery and requires confirmation', async () => {
+    const { onRestartStep } = renderReplanCapablePipeline();
 
     const advanced = screen.getByText('Advanced recovery').closest('details');
     expect(advanced).not.toHaveAttribute('open');
     expect(screen.getByRole('button', { name: 'Resume video' })).toBeEnabled();
 
-    fireEvent.click(screen.getByText('Advanced recovery'));
-    fireEvent.click(screen.getByRole('button', { name: 'Re-plan visuals' }));
+    await armReplanConfirmation();
     expect(onRestartStep).not.toHaveBeenCalled();
 
-    const confirm = screen.getByRole('button', {
-      name: 'Confirm re-plan (re-renders 3 videos)',
-    });
-    fireEvent.click(confirm);
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Confirm re-plan (re-renders 3 videos)',
+      }),
+    );
     expect(onRestartStep).toHaveBeenCalledWith(episodeId, {
       step: 'video',
       forceReplan: true,
     });
+  });
+
+  it('disarms the re-plan confirmation when advanced recovery is collapsed', async () => {
+    const { onRestartStep } = renderReplanCapablePipeline();
+
+    await armReplanConfirmation();
+    await setAdvancedRecoveryOpen(false);
+    await setAdvancedRecoveryOpen(true);
+
+    expectReplanDisarmed();
+    expect(onRestartStep).not.toHaveBeenCalled();
+  });
+
+  it('drops the armed re-plan when the read model stops allowing it', async () => {
+    const { onRestartStep, rerender } = renderReplanCapablePipeline();
+
+    await armReplanConfirmation();
+    rerender(pipelineResponse({ canForceReplanVisual: false }));
+    expect(screen.queryByText('Advanced recovery')).not.toBeInTheDocument();
+
+    rerender(pipelineResponse({ canForceReplanVisual: true }));
+    expectReplanDisarmed();
+    expect(onRestartStep).not.toHaveBeenCalled();
   });
 
   it('labels keywords as planned and flags the missing trace before any provider call', () => {
