@@ -112,5 +112,5 @@ kill_timeout = '30s'
 # 50-78 MiB on these VMs while GiB are genuinely free.
 [[vm]]
   size = 'performance-2x'
-  memory = '4gb'
+  memory = '2gb'
   processes = ['render']
