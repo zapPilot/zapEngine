@@ -123,6 +123,23 @@ class LanguageClassroomPayloadError extends Error {
   }
 }
 
+/**
+ * A misbehaving OpenRouter endpoint can answer HTTP 200 with `choices`
+ * missing entirely (observed on relay-shaped truncation and malformed
+ * provider responses), rather than the empty array a well-formed "no
+ * candidate" response would carry. Every reader downstream indexes
+ * `choices[0]` or reduces over `choices`, which throws a bare
+ * `Cannot read properties of undefined` deep in a caller's stack instead of a
+ * message that names what actually failed. Guarded once here, at the door
+ * every caller shares, rather than at each of their `choices[0]` reads.
+ */
+class OpenRouterEmptyChoicesError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'OpenRouterEmptyChoicesError';
+  }
+}
+
 function resolvePromptPath(): string {
   const envPath = process.env['SCRIPT_PROMPT_PATH'];
   if (!envPath) return DEFAULT_PROMPT_PATH;
@@ -553,6 +570,7 @@ export async function createOpenRouterChatCompletion(
       signal: deadline.signal,
       timeout: timeoutMs,
     });
+    assertOpenRouterCompletionChoices(completion, params.model);
   } catch (error) {
     const abortReason = deadline.signal.reason;
     const failure =
@@ -606,6 +624,23 @@ function userInputCharacterCount(
         ? total + messageContentCharacterCount(message.content)
         : total,
     0,
+  );
+}
+
+/**
+ * Guards only the shape every reader below assumes -- `choices` is an array
+ * it can index or reduce over. A well-formed "no candidate" response already
+ * carries an empty array, which every reader already handles via `?.`/`??`
+ * fallbacks; this only catches `choices` being missing, `null`, or otherwise
+ * not an array at all, which is what actually crashes them.
+ */
+function assertOpenRouterCompletionChoices(
+  completion: OpenRouterChatCompletion,
+  model: string,
+): void {
+  if (Array.isArray(completion.choices)) return;
+  throw new OpenRouterEmptyChoicesError(
+    `OpenRouter returned no choices array for model ${model} (provider=${completion.provider || 'unknown'})`,
   );
 }
 
