@@ -11,6 +11,7 @@ import pytest
 
 from src.config.eth_lst_registry import ETH_LST_ASSETS
 from src.core.cache_service import analytics_cache
+from src.services import lido_staking_apr_provider as lido_module
 from src.services.aggregators.yield_summary_builder import build_yield_summary
 from src.services.analytics.analytics_context import PortfolioAnalyticsContext
 from src.services.eth_staking_income import (
@@ -18,7 +19,6 @@ from src.services.eth_staking_income import (
     aggregate_benchmark_lst_exposure,
     with_eth_staking_income,
 )
-from src.services import lido_staking_apr_provider as lido_module
 from src.services.lido_staking_apr_provider import LidoStakingAprProvider
 from src.services.yield_return_service import YieldReturnService
 
@@ -41,6 +41,7 @@ def _exposure_row(
     source_kind: str = "position",
     source_id: str = "position-1",
     token_address: str | None = None,
+    position_type: str | None = "Lending",
 ) -> dict[str, Any]:
     return {
         "chain": chain,
@@ -51,6 +52,7 @@ def _exposure_row(
         "exposure_type": exposure_type,
         "source_kind": source_kind,
         "source_id": source_id,
+        "position_type": position_type,
     }
 
 
@@ -73,6 +75,7 @@ def test_idle_lst_holdings_contribute_staking_exposure():
                 exposure_type="idle",
                 source_kind="idle",
                 source_id="wallet-1",
+                position_type=None,
             ),
             _exposure_row(
                 "cbETH",
@@ -81,6 +84,7 @@ def test_idle_lst_holdings_contribute_staking_exposure():
                 exposure_type="idle",
                 source_kind="idle",
                 source_id="wallet-1",
+                position_type=None,
             ),
         ]
     )
@@ -106,6 +110,21 @@ def test_borrowed_lst_is_not_positive_staking_exposure():
                 amount=2.0,
                 price=3_000.0,
                 exposure_type="borrow",
+            )
+        ]
+    )
+
+    assert exposure.total_usd == 0.0
+
+
+def test_liquidity_pool_constituent_is_not_direct_lst_exposure():
+    exposure = aggregate_benchmark_lst_exposure(
+        [
+            _exposure_row(
+                "wstETH",
+                amount=2.0,
+                price=3_000.0,
+                position_type="Liquidity Pool",
             )
         ]
     )
@@ -155,9 +174,27 @@ def test_multiple_lst_positions_aggregate_into_one_eth_staking_row_and_keep_morp
     )
     exposure = aggregate_benchmark_lst_exposure(
         [
-            _exposure_row("wstETH", amount=2.0, price=3_000.0, source_id="morpho-1"),
-            _exposure_row("cbETH", amount=1.0, price=2_900.0, source_id="aave-1"),
-            _exposure_row("wstETH", amount=1.0, price=3_000.0, source_id="wallet-1", exposure_type="idle", source_kind="idle"),
+            _exposure_row(
+                "wstETH",
+                amount=2.0,
+                price=3_000.0,
+                source_id="morpho-1",
+            ),
+            _exposure_row(
+                "cbETH",
+                amount=1.0,
+                price=2_900.0,
+                source_id="aave-1",
+            ),
+            _exposure_row(
+                "wstETH",
+                amount=1.0,
+                price=3_000.0,
+                source_id="wallet-1",
+                exposure_type="idle",
+                source_kind="idle",
+                position_type=None,
+            ),
         ]
     )
 
@@ -175,9 +212,29 @@ def test_multiple_lst_positions_aggregate_into_one_eth_staking_row_and_keep_morp
 
 
 def test_lido_apr_percentage_is_normalized_explicitly():
-    assert LidoStakingAprProvider._parse_apr({"data": {"smaApr": 2.5}}) == pytest.approx(
-        0.025
-    )
+    assert LidoStakingAprProvider._parse_apr(
+        {"data": {"smaApr": 2.5}}
+    ) == pytest.approx(0.025)
+
+
+@pytest.mark.parametrize("raw_apr", [True, "2.5", None, -1, 101])
+def test_lido_rejects_invalid_apr_values(raw_apr):
+    with pytest.raises(ValueError):
+        LidoStakingAprProvider._parse_apr({"data": {"smaApr": raw_apr}})
+
+
+@pytest.mark.asyncio
+async def test_lido_success_caches_fresh_and_last_success(monkeypatch):
+    analytics_cache.delete(lido_module._FRESH_CACHE_KEY)
+    analytics_cache.delete(lido_module._STALE_CACHE_KEY)
+    provider = LidoStakingAprProvider()
+    fetch = AsyncMock(return_value=0.023)
+    monkeypatch.setattr(provider, "_fetch_live_apr", fetch)
+
+    assert await provider.get_benchmark_apr() == pytest.approx(0.023)
+    assert await provider.get_benchmark_apr() == pytest.approx(0.023)
+    assert fetch.await_count == 1
+    assert analytics_cache.get(lido_module._STALE_CACHE_KEY) == pytest.approx(0.023)
 
 
 @pytest.mark.asyncio
@@ -240,7 +297,11 @@ class _QueryServiceStub:
         return self.exposure_rows
 
 
-def _morpho_snapshot(user_id: UUID, snapshot_at: datetime, debt: float) -> dict[str, Any]:
+def _morpho_snapshot(
+    user_id: UUID,
+    snapshot_at: datetime,
+    debt: float,
+) -> dict[str, Any]:
     borrow = [{"optimized_symbol": "USDT", "amount": debt, "price": 1.0}]
     supply = [{"optimized_symbol": "wstETH", "amount": 2.0, "price": 3_000.0}]
     return {
@@ -258,9 +319,47 @@ def _morpho_snapshot(user_id: UUID, snapshot_at: datetime, debt: float) -> dict[
     }
 
 
+class _StaticAprProvider:
+    async def get_benchmark_apr(self) -> float | None:
+        return 0.025
+
+
 class _FailingAprProvider:
     async def get_benchmark_apr(self) -> float | None:
         raise RuntimeError("Lido unavailable")
+
+
+@pytest.mark.asyncio
+async def test_yield_summary_keeps_morpho_cost_and_adds_staking_source(db_session):
+    user_id = uuid4()
+    day0 = datetime(2026, 9, 4, tzinfo=UTC)
+    query_service = _QueryServiceStub(
+        [
+            _morpho_snapshot(user_id, day0, debt=100.0),
+            _morpho_snapshot(user_id, day0 + timedelta(days=1), debt=101.0),
+        ],
+        [_exposure_row("wstETH", amount=2.0, price=3_000.0)],
+    )
+    service = YieldReturnService(
+        db_session,
+        query_service,  # type: ignore[arg-type]
+        PortfolioAnalyticsContext(),
+        staking_apr_provider=_StaticAprProvider(),
+    )
+
+    response = await service.get_yield_summary(
+        user_id,
+        windows=("30d",),
+        outlier_strategy="none",
+    )
+
+    rows = response.windows["30d"].protocol_breakdown
+    staking = next(row for row in rows if row.protocol == ETH_STAKING_PROTOCOL_NAME)
+    morpho = next(row for row in rows if row.protocol == "Morpho")
+    assert staking.window.average_daily_yield_usd == pytest.approx(
+        (6_000.0 * 0.025) / 365.0
+    )
+    assert morpho.window.average_daily_yield_usd == pytest.approx(-1.0)
 
 
 @pytest.mark.asyncio
