@@ -12,6 +12,7 @@ vi.mock('./ops-ledger.js', async (importOriginal) => ({
 import { createDeferred } from '../__fixtures__/index-test.js';
 import { createHeavyWorkCoordinator } from './heavy-work.js';
 import type { EpisodeRenderMetrics, PipelineRunInput } from './ops-ledger.js';
+import { RENDER_ADMISSION_MIN_FREE_BYTES } from './render-admission.js';
 import { buildTelegramVideoRetryReplyMarkup } from './telegram.js';
 import {
   EPISODE_VIDEO_VISUAL_VERSION,
@@ -67,6 +68,21 @@ const completion: EpisodeVideoCompletion = {
   captionsAssUrl: 'https://cdn.example.com/captions.ass',
   r2Prefix: 'episodes/episode-1/video',
   durationSeconds: 90,
+};
+
+const renderMetrics: EpisodeRenderMetrics = {
+  status: 'completed',
+  wallMs: 480_000,
+  durationMs: 900_000,
+  narrationDownloadMs: 4_200,
+  mediaMs: 120_000,
+  chunkEncodeMs: 240_000,
+  finalEncodeMs: 90_000,
+  downscaleMs: 12_000,
+  realtimeFactor: 1.875,
+  nodeRssMb: 310.4,
+  cgroupCurrentMb: 1_204.8,
+  cgroupPeakObservedMb: 3_012.1,
 };
 
 const visualCompletion: EpisodeVideoVisualCompletion = {
@@ -194,6 +210,49 @@ function createVideoWorker(options: TestVideoWorkerOptions) {
     processVisualJob: vi.fn(),
     ...options,
   });
+}
+
+/**
+ * Two claimable renders, two deferred processors, and a MemFree reading that
+ * clears the admission floor — the setup every concurrency test needs, so a
+ * change to how a slot is opened lands in one place.
+ */
+function startableConcurrentRenders() {
+  const repository = makeRepository();
+  vi.mocked(repository.claim)
+    .mockResolvedValueOnce(job())
+    .mockResolvedValueOnce(job({ episode_localization_id: 'localization-2' }))
+    .mockResolvedValue(null);
+  const renders = [
+    createDeferred<EpisodeVideoCompletion>(),
+    createDeferred<EpisodeVideoCompletion>(),
+  ];
+  let started = 0;
+  const processJob: ProcessEpisodeVideoJob = vi.fn((_job, _source, context) => {
+    context.reportRenderMetrics(renderMetrics);
+    return renders[started++]!.promise;
+  });
+  const worker = createVideoWorker({
+    repository,
+    processJob,
+    notify: vi.fn().mockResolvedValue(undefined),
+    readFreeMemoryBytes: vi
+      .fn()
+      .mockResolvedValue(RENDER_ADMISSION_MIN_FREE_BYTES),
+    leaseOwner: 'worker-1',
+  });
+
+  const fillBothSlots = async (): Promise<
+    [Promise<string>, Promise<string>]
+  > => {
+    const first = worker.runOnce();
+    await vi.waitFor(() => expect(processJob).toHaveBeenCalledTimes(1));
+    const second = worker.runOnce();
+    await vi.waitFor(() => expect(processJob).toHaveBeenCalledTimes(2));
+    return [first, second];
+  };
+
+  return { repository, renders, processJob, worker, fillBothSlots };
 }
 
 describe('createVideoWorker', () => {
@@ -558,13 +617,19 @@ describe('createVideoWorker', () => {
     await runningIngest;
   });
 
-  it('keeps concurrency at one', async () => {
+  it.each<[string, number | null]>([
+    ['MemFree cannot be read', null],
+    ['free memory is short', RENDER_ADMISSION_MIN_FREE_BYTES - 1],
+  ])('keeps concurrency at one when %s', async (_reason, freeBytes) => {
     const repository = makeRepository();
     const render = createDeferred<EpisodeVideoCompletion>();
+    const logger = { info: vi.fn(), error: vi.fn() };
     const worker = createVideoWorker({
       repository,
       processJob: vi.fn().mockReturnValue(render.promise),
       notify: vi.fn().mockResolvedValue(undefined),
+      readFreeMemoryBytes: vi.fn().mockResolvedValue(freeBytes),
+      logger,
       leaseOwner: 'worker-1',
     });
 
@@ -572,7 +637,142 @@ describe('createVideoWorker', () => {
     await vi.waitFor(() => expect(repository.loadSource).toHaveBeenCalled());
     await expect(worker.runOnce()).resolves.toBe('busy');
     expect(repository.claim).toHaveBeenCalledTimes(1);
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('admission:hold'),
+    );
     render.resolve(completion);
+    await expect(first).resolves.toBe('completed');
+  });
+
+  it('runs a second job while the first is still rendering', async () => {
+    const { repository, renders, fillBothSlots } = startableConcurrentRenders();
+
+    const [first, second] = await fillBothSlots();
+    renders[0]!.resolve(completion);
+    renders[1]!.resolve(completion);
+
+    await expect(first).resolves.toBe('completed');
+    await expect(second).resolves.toBe('completed');
+    expect(repository.claim).toHaveBeenCalledTimes(2);
+    // Both renders sampled the machine's memory while sharing it, so neither
+    // row may be read as a solo-render data point when resizing the group.
+    expect(
+      ledger.recordPipelineRun.mock.calls.map(
+        (call) =>
+          (call[0] as PipelineRunInput).stages[0]?.usage?.['concurrentJobs'],
+      ),
+    ).toEqual([2, 2]);
+  });
+
+  it('refuses a third job once both slots are full', async () => {
+    const { repository, renders, fillBothSlots, worker } =
+      startableConcurrentRenders();
+
+    const [first, second] = await fillBothSlots();
+    await expect(worker.runOnce()).resolves.toBe('busy');
+    // A third encode would only queue for a vCPU that does not exist.
+    expect(repository.claim).toHaveBeenCalledTimes(2);
+
+    renders[0]!.resolve(completion);
+    renders[1]!.resolve(completion);
+    await Promise.all([first, second]);
+  });
+
+  it('aborts every job in flight when the worker stops', async () => {
+    const repository = makeRepository();
+    vi.mocked(repository.claim)
+      .mockResolvedValueOnce(job())
+      .mockResolvedValueOnce(job({ episode_localization_id: 'localization-2' }))
+      .mockResolvedValue(null);
+    const aborted: string[] = [];
+    const processJob: ProcessEpisodeVideoJob = vi.fn(
+      (claimed, _source, context) =>
+        new Promise<EpisodeVideoCompletion>((_resolve, reject) => {
+          context.signal.addEventListener(
+            'abort',
+            () => {
+              aborted.push(claimed.episode_localization_id);
+              reject(new Error('aborted'));
+            },
+            { once: true },
+          );
+        }),
+    );
+    const worker = createVideoWorker({
+      repository,
+      processJob,
+      notify: vi.fn().mockResolvedValue(undefined),
+      readFreeMemoryBytes: vi
+        .fn()
+        .mockResolvedValue(RENDER_ADMISSION_MIN_FREE_BYTES),
+      leaseOwner: 'worker-1',
+    });
+
+    const first = worker.runOnce();
+    await vi.waitFor(() => expect(processJob).toHaveBeenCalledTimes(1));
+    const second = worker.runOnce();
+    await vi.waitFor(() => expect(processJob).toHaveBeenCalledTimes(2));
+
+    await worker.stop();
+    // A slot left running past stop() holds its DB lease until Fly SIGKILLs it.
+    expect(aborted).toEqual(['localization-1', 'localization-2']);
+    await expect(first).resolves.toBe('failed');
+    await expect(second).resolves.toBe('failed');
+  });
+
+  it('reports busy, never empty, while another job still holds a slot', async () => {
+    const repository = makeRepository();
+    vi.mocked(repository.claim)
+      .mockResolvedValueOnce(job())
+      .mockResolvedValue(null);
+    const render = createDeferred<EpisodeVideoCompletion>();
+    const worker = createVideoWorker({
+      repository,
+      processJob: vi.fn().mockReturnValue(render.promise),
+      notify: vi.fn().mockResolvedValue(undefined),
+      readFreeMemoryBytes: vi
+        .fn()
+        .mockResolvedValue(RENDER_ADMISSION_MIN_FREE_BYTES),
+      leaseOwner: 'worker-1',
+    });
+
+    const first = worker.runOnce();
+    await vi.waitFor(() => expect(repository.loadSource).toHaveBeenCalled());
+    // 'empty' is what makes src/worker.ts exit the process, which would kill
+    // the render still holding the other slot.
+    await expect(worker.runOnce()).resolves.toBe('busy');
+
+    render.resolve(completion);
+    await expect(first).resolves.toBe('completed');
+    await expect(worker.runOnce()).resolves.toBe('empty');
+  });
+
+  it('claims no second visual job while one is already planning', async () => {
+    const repository = makeRepository(null);
+    const visualRepository = makeVisualRepository(visualJob());
+    const planning = createDeferred<EpisodeVideoVisualCompletion>();
+    const worker = createVideoWorker({
+      repository,
+      visualRepository,
+      processJob: vi.fn(),
+      processVisualJob: vi.fn().mockReturnValue(planning.promise),
+      readFreeMemoryBytes: vi
+        .fn()
+        .mockResolvedValue(RENDER_ADMISSION_MIN_FREE_BYTES),
+      leaseOwner: 'worker-1',
+    });
+
+    const first = worker.runOnce();
+    await vi.waitFor(() =>
+      expect(visualRepository.claim).toHaveBeenCalledTimes(1),
+    );
+    // The slot is open, but Brave's image quota is not: the poll falls straight
+    // through to the render queue instead.
+    await expect(worker.runOnce()).resolves.toBe('busy');
+    expect(visualRepository.claim).toHaveBeenCalledTimes(1);
+    expect(repository.claim).toHaveBeenCalledTimes(1);
+
+    planning.resolve(visualCompletion);
     await expect(first).resolves.toBe('completed');
   });
 
@@ -857,19 +1057,29 @@ describe('createVideoWorker', () => {
     expect(repository.claim).not.toHaveBeenCalled();
   });
 
-  it('returns busy when a poll is already in flight', async () => {
+  it('returns busy while another poll is inside the claim phase', async () => {
     const repository = makeRepository();
+    const claim = createDeferred<EpisodeVideoJobRow | null>();
+    vi.mocked(repository.claim).mockReturnValue(claim.promise);
     const render = createDeferred<EpisodeVideoCompletion>();
     const worker = createVideoWorker({
       repository,
       processJob: vi.fn().mockReturnValue(render.promise),
       notify: vi.fn().mockResolvedValue(undefined),
+      readFreeMemoryBytes: vi
+        .fn()
+        .mockResolvedValue(RENDER_ADMISSION_MIN_FREE_BYTES),
       leaseOwner: 'worker-1',
     });
 
     const first = worker.runOnce();
-    await vi.waitFor(() => expect(repository.loadSource).toHaveBeenCalled());
+    await vi.waitFor(() => expect(repository.claim).toHaveBeenCalled());
+    // The claim RPC has not answered yet, so the slot count is still zero: only
+    // the claim-phase lock stops a second poll claiming beside it.
     await expect(worker.runOnce()).resolves.toBe('busy');
+    expect(repository.claim).toHaveBeenCalledTimes(1);
+
+    claim.resolve(job());
     render.resolve(completion);
     await expect(first).resolves.toBe('completed');
   });
@@ -1347,21 +1557,6 @@ describe('createVideoWorker', () => {
 });
 
 describe('render cost ledger', () => {
-  const metrics: EpisodeRenderMetrics = {
-    status: 'completed',
-    wallMs: 480_000,
-    durationMs: 900_000,
-    narrationDownloadMs: 4_200,
-    mediaMs: 120_000,
-    chunkEncodeMs: 240_000,
-    finalEncodeMs: 90_000,
-    downscaleMs: 12_000,
-    realtimeFactor: 1.875,
-    nodeRssMb: 310.4,
-    cgroupCurrentMb: 1_204.8,
-    cgroupPeakObservedMb: 3_012.1,
-  };
-
   beforeEach(() => {
     vi.useRealTimers();
     ledger.recordPipelineRun.mockReset();
@@ -1377,7 +1572,7 @@ describe('render cost ledger', () => {
     const worker = createVideoWorker({
       repository: makeRepository(),
       processJob: vi.fn(async (_job, _source, context) => {
-        context.reportRenderMetrics(metrics);
+        context.reportRenderMetrics(renderMetrics);
         return completion;
       }),
       notify: vi.fn().mockResolvedValue(undefined),
@@ -1426,7 +1621,7 @@ describe('render cost ledger', () => {
     const worker = createVideoWorker({
       repository,
       processJob: vi.fn(async (_job, _source, context) => {
-        context.reportRenderMetrics({ ...metrics, status: 'failed' });
+        context.reportRenderMetrics({ ...renderMetrics, status: 'failed' });
         throw new Error('ffmpeg exited 1');
       }),
       notify: vi.fn().mockResolvedValue(undefined),
