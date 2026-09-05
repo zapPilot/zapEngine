@@ -1,5 +1,4 @@
 import { RotateCcw } from 'lucide-react';
-import { useState } from 'react';
 
 import type {
   PodcastPipelineEpisode,
@@ -144,7 +143,6 @@ function PipelineEpisode(
   },
 ) {
   const { episode } = props;
-  const [confirmReplan, setConfirmReplan] = useState(false);
   const ingestError = episode.ingest?.lastError;
   const visualError =
     episode.visual?.status === 'failed' ? episode.visual.lastError : null;
@@ -194,31 +192,9 @@ function PipelineEpisode(
                 canRestart
                   ? isIngestPhase
                     ? 'Resume translation/TTS from durable checkpoints'
-                    : 'Restart unfinished renders without discarding a current completed visual'
+                    : 'Resume visual planning or unfinished renders from durable checkpoints'
                   : 'Retry requires completed prerequisites and no live lease'
               }
-            />
-          ) : null}
-          {episode.canForceReplanVisual ? (
-            <RestartButton
-              disabled={props.isRestarting}
-              label={
-                confirmReplan
-                  ? 'Confirm re-plan (re-renders 3 videos)'
-                  : 'Re-plan visuals'
-              }
-              onClick={() => {
-                if (!confirmReplan) {
-                  setConfirmReplan(true);
-                  return;
-                }
-                setConfirmReplan(false);
-                props.onRestartStep(episode.episodeId, {
-                  step: 'video',
-                  forceReplan: true,
-                });
-              }}
-              title="Discard the visual checkpoint and generate a new visual plan"
             />
           ) : null}
         </div>

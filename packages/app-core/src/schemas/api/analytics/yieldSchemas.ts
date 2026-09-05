@@ -17,6 +17,8 @@ export const protocolYieldTodaySchema = z.object({
 export const protocolYieldBreakdownSchema = z.object({
   protocol: z.string(),
   chain: z.string().nullable().optional(),
+  token_symbols: z.array(z.string()).optional(),
+  position_types: z.array(z.string()).optional(),
   window: protocolYieldWindowSchema,
   today: protocolYieldTodaySchema.nullable().optional(),
 });
