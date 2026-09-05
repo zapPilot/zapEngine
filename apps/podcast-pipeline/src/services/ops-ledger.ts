@@ -292,6 +292,13 @@ export interface RenderStageRunInput {
   attempt: number;
   /** Claim to release, not just the encode — see `usage.jobWallMs` below. */
   jobWallMs: number;
+  /**
+   * Most jobs that shared the render Machine with this one at any point,
+   * including itself. `cgroupPeakObservedMb` samples the whole machine, so a
+   * row written at 2 has no sizing meaning on its own — see the p95 query in
+   * README.
+   */
+  concurrentJobs: number;
 }
 
 /**
@@ -322,6 +329,7 @@ export function renderStageRun(
     usage: {
       machine: RENDER_MACHINE_SHAPE,
       jobWallMs: input.jobWallMs,
+      concurrentJobs: input.concurrentJobs,
       durationMs: metrics.durationMs,
       narrationDownloadMs: metrics.narrationDownloadMs,
       realtimeFactor: metrics.realtimeFactor,

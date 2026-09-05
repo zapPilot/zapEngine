@@ -201,12 +201,13 @@ Writes go through `from_fed_to_chain.ops_record_pipeline_run`, reads through the
 
 **Fly render cost is an estimate, not an invoice.** The seeded rate is derived from this repository's own reference figure (`apps/control-center/src/server/services/fly.ts`): 2 vCPU x `$32.19` per performance vCPU-month / 730 h / 3600 s = `$0.00002450` per second, with no extra RAM charge because `performance-2x` includes 4 GB. Reconcile it against the first real Fly invoice, and correct it by **adding a version** — close the old row's `effective_to` and insert a new one — never by editing the row in place, or historical rows silently reprice.
 
-Three gaps are deliberate, and worth knowing before trusting a total:
+These gaps are deliberate, and worth knowing before trusting a total:
 
 - `estimated_cost_usd` on a `video_render` row prices the **encode window only**, because that is the number `fly.toml`'s "until production telemetry proves a smaller shape is cheaper" note has to be settled against. Narration download, alignment and upload hold the same dedicated CPU; the wider span is recorded as `usage.jobWallMs`. Boot time, stopped-machine rootfs and bandwidth are in neither.
 - Ingest stage rows other than `script` carry no timing. `UsageCostLine` has none to give, and adding it would mean changing every ingest stage signature. Per-language elapsed time for those is still only in the `localization:done elapsedMs=` log line; the run row has the whole-run wall clock. `script` is the exception: one row per upstream request, carrying `started_at`/`finished_at`/`elapsed_ms`, the deadline and route it used, token counts, and — on a failed attempt — its failure category and message. A failed attempt is recorded as `unpriced` rather than as a zero cost, which would read as a free success.
 - A language that fails before its episode row exists — a scrape failure, say — is still not recorded, because there is nothing to attach it to. Once the episode exists, the failing language pushes its own entry, so its partial spend and its script attempts survive the throw, and the run row can name the episode it died on.
 - Shared visual (storyboard) jobs are not recorded at all yet, though they also run on the render machine.
+- Two jobs share one render machine, so summing `estimated_cost_usd` over overlapping rows counts the same wall-clock second twice. `usage.concurrentJobs` on each row is the peak number of jobs that shared the machine with it, which is what makes that visible — and what a memory-sizing query has to filter on, because `cgroupPeakObservedMb` samples the whole machine rather than one render.
 
 `RENDER_MACHINE_SHAPE` in `src/services/ops-ledger.ts` names the machine renders are priced against. Fly exposes no runtime signal for it, so `ops-ledger.test.ts` parses `fly.toml` and fails if the two drift — resizing the `render` group means changing the constant and adding a new rate version in the same change.
 
@@ -217,8 +218,11 @@ select stage, language_code, sum(estimated_cost_usd), count(*)
 from from_fed_to_chain.ops_pipeline_stage_runs
 group by stage, language_code order by 3 desc;
 
+-- Solo renders only: a row written while two jobs shared the machine measured
+-- both of them, so it cannot size one.
 select percentile_cont(0.95) within group (order by (usage->>'cgroupPeakObservedMb')::numeric)
-from from_fed_to_chain.ops_pipeline_stage_runs where stage = 'video_render';
+from from_fed_to_chain.ops_pipeline_stage_runs
+where stage = 'video_render' and (usage->>'concurrentJobs')::int = 1;
 ```
 
 ## Telegram Bot Setup
@@ -300,6 +304,8 @@ Two process groups, because video rendering and the HTTP service cannot share a 
 
 A shared vCPU has a baseline of 1/16 of a core, and once its burst balance is spent x264 collapses — a co-located render was measured at `speed=0.00434x` while starving `/health` past its 5 s timeout, which took the only instance out of the proxy pool. The `render` group therefore keeps dedicated CPUs. New 720p renders log wall time, realtime factor, Node RSS, current cgroup memory, and the highest cgroup memory observed by a 250 ms sampler during the render as `video:render-metrics`. The sampled field is `cgroupPeakObservedMb`; it deliberately replaces the unreliable post-mortem `memory.peak` reading that returned zero after an ffmpeg OOM. The group stays at 4 GB until production samples show enough headroom to resize safely.
 
+The worker runs up to `RENDER_MAX_CONCURRENT_JOBS` (2) jobs on that machine at once, of which at most one may be a visual-planning job — `video/brave-image-search.ts` treats a 429 as terminal, so doubling the image-search rate would silently cost image quality. Two is the vCPU count, and one encode already saturates roughly one core: the second slot exists to overlap the ~90 s per render of narration download, alignment and upload with another render's encode, not to make an encode faster. A second job is admitted only while `/proc/meminfo` still reports `RENDER_ADMISSION_MIN_FREE_BYTES` (1.25 GiB) of `MemFree` — `MemAvailable` reads 50-78 MiB on these VMs and is unusable — and a host that exposes neither keeps concurrency at one, which is what local development and the test suite get. See `src/services/render-admission.ts`; setting the constant back to 1 restores strictly serial rendering.
+
 The `render` group has no service and no health check; `[video-worker] alive` every five minutes is the liveness signal in `fly logs`. If a render machine dies, the 10-minute DB lease expires and the job is reclaimed on the next poll.
 
 ### On-demand render machines
@@ -307,7 +313,7 @@ The `render` group has no service and no health check; `[video-worker] alive` ev
 Having no service also means Fly Proxy cannot auto-stop the `render` group, and a dedicated-CPU machine idling 24/7 is where nearly all of this app's hosting cost went. So the two groups split the job between them:
 
 - The worker exits `0` after 90 seconds of an empty queue. Under `[[restart]] policy = 'on-failure'` (fly.toml) that leaves the machine `stopped` — billed for storage only. It no longer keeps a performance CPU running through the five-minute retry backoff; the always-on app reconciler starts it again when `next_attempt_at` becomes claimable.
-- The always-on `app` process polls every 30 s for work the render group could actually claim and starts a stopped machine through the Machines API (`http://_api.internal:4280`, never leaving the private network). See `src/services/render-capacity.ts`.
+- The always-on `app` process polls every 30 s for work the render group could actually claim and starts a stopped machine through the Machines API (`http://_api.internal:4280`, never leaving the private network). See `src/services/render-capacity.ts`. It still wakes exactly one machine: the worker fills its own second slot, so a second machine would only add cost.
 
 Provision the API token once, at the 20-year maximum, then store it in Infisical prod and let the env rail put it on Fly:
 

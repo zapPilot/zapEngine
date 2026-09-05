@@ -13,6 +13,12 @@ import {
   renderStageRun,
   videoRenderRunBase,
 } from './ops-ledger.js';
+import {
+  evaluateRenderAdmission,
+  readProcMemFreeBytes,
+  RENDER_MAX_CONCURRENT_JOBS,
+  type RenderAdmission,
+} from './render-admission.js';
 import { isMissingSupabaseRpc } from './supabase-client.js';
 import {
   buildTelegramVideoCompletedMessage,
@@ -123,6 +129,12 @@ export interface CreateVideoWorkerOptions {
   heartbeatIntervalMs?: number;
   progressFlushIntervalMs?: number;
   leaseRenewRetryIntervalMs?: number;
+  /**
+   * How the worker decides whether the machine can carry a second job. Injected
+   * so tests can drive admission without a Linux `/proc`; production reads
+   * `MemFree` (see render-admission.ts).
+   */
+  readFreeMemoryBytes?: () => Promise<number | null>;
   logger?: VideoWorkerLogger;
   /**
    * Called after each *scheduled* poll (not a direct `runOnce`). The on-demand
@@ -153,14 +165,82 @@ export function createVideoWorker(
   const leaseRenewRetryIntervalMs =
     options.leaseRenewRetryIntervalMs ??
     VIDEO_WORKER_LEASE_RENEW_RETRY_INTERVAL_MS;
+  const readFreeMemoryBytes =
+    options.readFreeMemoryBytes ?? readProcMemFreeBytes;
   const logger = options.logger ?? console;
   const shutdownController = new AbortController();
   let pollTimer: NodeJS.Timeout | null = null;
-  let activePoll: Promise<VideoWorkerPollResult> | null = null;
-  let activeJobController: AbortController | null = null;
+  const activePolls = new Set<Promise<VideoWorkerPollResult>>();
+  const activeJobs = new Set<ActiveJob>();
+  /**
+   * Serializes the reap sweep and the claim RPCs across concurrent polls. The
+   * sweep is idempotent per row but not per process — two in flight would send
+   * the same Telegram failure twice — and the admission decision is only sound
+   * while no other poll can claim between reading `activeJobs` and registering
+   * what it claimed. Held as a token rather than a boolean so a poll that
+   * releases it minutes later, when its render finally settles, cannot clear
+   * another poll's claim phase.
+   */
+  let claimPhase: symbol | null = null;
   let started = false;
   let stopped = false;
   let consecutivePollFailures = 0;
+  let admissionHeld = false;
+
+  /**
+   * Adds a job to the in-flight set and refreshes what every job that shares
+   * the machine with it has seen. `cgroupPeakObservedMb` is a whole-machine
+   * reading, so overlapping renders inflate each other's sample; the ledger
+   * carries this peak so the sizing query can filter back down to solo renders.
+   */
+  const registerActiveJob = (
+    controller: AbortController,
+    kind: ActiveJob['kind'],
+  ): ActiveJob => {
+    const entry: ActiveJob = { controller, kind, concurrentPeak: 0 };
+    activeJobs.add(entry);
+    for (const active of activeJobs) {
+      active.concurrentPeak = Math.max(active.concurrentPeak, activeJobs.size);
+    }
+    return entry;
+  };
+
+  const countActiveVisuals = (): number => {
+    let visuals = 0;
+    for (const active of activeJobs) {
+      if (active.kind === 'visual') visuals += 1;
+    }
+    return visuals;
+  };
+
+  const admitAnotherJob = async (): Promise<RenderAdmission> => {
+    const inFlight = activeJobs.size;
+    // The first job is admitted unconditionally, exactly as before slots
+    // existed, so an idle machine never pays for a /proc read.
+    const freeBytes = inFlight === 0 ? null : await readFreeMemoryBytes();
+    const admission = evaluateRenderAdmission({
+      inFlight,
+      inFlightVisuals: countActiveVisuals(),
+      freeBytes,
+    });
+    // Log the edges of a hold, not every poll inside one: at a 15s interval a
+    // long render would otherwise emit forty identical lines. Not a Sentry
+    // event — declining a second slot is the guard working, not a failure.
+    const holding = !admission.admit && admission.reason === 'low-memory';
+    if (holding !== admissionHeld) {
+      admissionHeld = holding;
+      if (holding) {
+        logger.info(
+          `[video-worker] admission:hold free=${
+            freeBytes === null
+              ? 'unknown'
+              : `${Math.round(freeBytes / 1_048_576)}MiB`
+          } inFlight=${inFlight}`,
+        );
+      }
+    }
+    return admission;
+  };
 
   const schedulePoll = (delayMs: number): void => {
     if (!started || stopped || pollTimer) return;
@@ -196,26 +276,69 @@ export function createVideoWorker(
 
   const executePoll = async (): Promise<VideoWorkerPollResult> => {
     if (stopped || shutdownController.signal.aborted) return 'stopped';
+    // This read and the write below it are one synchronous block, so two polls
+    // can never both decide they own the claim phase.
+    if (claimPhase !== null || activeJobs.size >= RENDER_MAX_CONCURRENT_JOBS) {
+      return 'busy';
+    }
+    const claimToken = Symbol('video-worker-claim');
+    claimPhase = claimToken;
+    const endClaimPhase = (): void => {
+      if (claimPhase === claimToken) claimPhase = null;
+    };
 
-    // Notify terminal failures first. A job can reach 'failed' without a live
-    // worker context — a source that never loaded, or crash recovery reaping an
-    // expired lease inside claim_episode_video — so a single idempotent sweep is
-    // the only place that reliably reaches the submitter.
-    await reapFailedNotifications();
-    if (stopped || shutdownController.signal.aborted) return 'stopped';
+    /**
+     * Hands the claim phase to the next poll as soon as the job is registered
+     * rather than when it finishes. `start` runs synchronously up to its first
+     * await — long enough to put the job in `activeJobs` — so the next poll can
+     * never read a slot count that is one job behind.
+     */
+    const startClaimedJob = <T>(start: () => Promise<T>): Promise<T> => {
+      const running = start();
+      endClaimPhase();
+      // A claim proves the queue was not empty, so re-arm the poll now instead
+      // of after this job settles. This is the whole point: the next claim
+      // overlaps this render's download, alignment and upload phases, which
+      // hold a dedicated CPU without using it.
+      schedulePoll(pollIntervalMs);
+      return running;
+    };
 
-    const attempt = await coordinator.tryRunVideo(async () => {
-      shutdownController.signal.throwIfAborted();
-      const visualJob = await visualRepository.claim(leaseOwner);
-      if (visualJob) return processClaimedVisualJob(visualJob);
+    try {
+      const admission = await admitAnotherJob();
+      if (!admission.admit) return 'busy';
 
-      shutdownController.signal.throwIfAborted();
-      const job = await repository.claim(leaseOwner);
-      if (!job) return 'empty' as const;
-      return processClaimedJob(job);
-    });
-    if (!attempt.acquired) return 'heavy-work-busy';
-    return attempt.value;
+      // Notify terminal failures first. A job can reach 'failed' without a live
+      // worker context — a source that never loaded, or crash recovery reaping an
+      // expired lease inside claim_episode_video — so a single idempotent sweep is
+      // the only place that reliably reaches the submitter.
+      await reapFailedNotifications();
+      if (stopped || shutdownController.signal.aborted) return 'stopped';
+
+      const attempt = await coordinator.tryRunVideo(async () => {
+        shutdownController.signal.throwIfAborted();
+        const visualJob = admission.claimVisual
+          ? await visualRepository.claim(leaseOwner)
+          : null;
+        if (visualJob) {
+          return startClaimedJob(() => processClaimedVisualJob(visualJob));
+        }
+
+        shutdownController.signal.throwIfAborted();
+        const job = await repository.claim(leaseOwner);
+        if (!job) {
+          // Only a genuinely idle machine may report 'empty': src/worker.ts
+          // exits the process on it, which would kill a render still holding
+          // the other slot.
+          return activeJobs.size > 0 ? ('busy' as const) : ('empty' as const);
+        }
+        return startClaimedJob(() => processClaimedJob(job));
+      });
+      if (!attempt.acquired) return 'heavy-work-busy';
+      return attempt.value;
+    } finally {
+      endClaimPhase();
+    }
   };
 
   const reapFailedNotifications = async (): Promise<void> => {
@@ -266,7 +389,7 @@ export function createVideoWorker(
     const { controller: jobController, releaseShutdownRelay } =
       createJobController(shutdownController.signal);
     const runId = createVideoJobRunId();
-    activeJobController = jobController;
+    const activeJob = registerActiveJob(jobController, 'visual');
     const stopHeartbeat = startLeaseHeartbeat({
       repository: visualRepository,
       jobId: job.episode_id,
@@ -378,21 +501,29 @@ export function createVideoWorker(
       stopHeartbeat();
       stopProgressFlush();
       releaseShutdownRelay();
-      if (activeJobController === jobController) activeJobController = null;
+      activeJobs.delete(activeJob);
     }
   };
 
   const runOnce = async (): Promise<VideoWorkerPollResult> => {
     if (stopped) return 'stopped';
-    if (activePoll) return 'busy';
 
     const poll = executePoll();
-    activePoll = poll;
+    activePolls.add(poll);
     try {
       return await poll;
     } finally {
-      if (activePoll === poll) activePoll = null;
+      activePolls.delete(poll);
     }
+  };
+
+  /**
+   * allSettled rather than all: a poll that rejects is already reported to
+   * whoever called runOnce, and stop() must not turn that into its own
+   * rejection. No new poll can join after `stopped`, so one snapshot is enough.
+   */
+  const settleActivePolls = async (): Promise<void> => {
+    await Promise.allSettled([...activePolls]);
   };
 
   const processClaimedJob = async (
@@ -401,7 +532,7 @@ export function createVideoWorker(
     const { controller: jobController, releaseShutdownRelay } =
       createJobController(shutdownController.signal);
     const runId = createVideoJobRunId();
-    activeJobController = jobController;
+    const activeJob = registerActiveJob(jobController, 'render');
     const stopHeartbeat = startLeaseHeartbeat({
       repository,
       jobId: job.episode_localization_id,
@@ -472,7 +603,7 @@ export function createVideoWorker(
         );
       }
       logger.info(
-        `[video-worker] video:render:done run=${runId} episode=${source.episodeId} language=${source.languageCode} localization=${job.episode_localization_id}`,
+        `[video-worker] video:render:done run=${runId} episode=${source.episodeId} language=${source.languageCode} localization=${job.episode_localization_id} concurrentJobsPeak=${activeJob.concurrentPeak}`,
       );
 
       const latestJob = await repository
@@ -533,7 +664,7 @@ export function createVideoWorker(
       stopHeartbeat();
       stopProgressFlush();
       releaseShutdownRelay();
-      if (activeJobController === jobController) activeJobController = null;
+      activeJobs.delete(activeJob);
       await recordRenderCost({
         job,
         source,
@@ -541,6 +672,7 @@ export function createVideoWorker(
         status: outcome,
         startedAt: jobStartedAt,
         reported: renderMetrics.take(),
+        concurrentJobs: activeJob.concurrentPeak,
       });
     }
   };
@@ -562,7 +694,7 @@ export function createVideoWorker(
       reason = new Error('Video worker shutting down'),
     ): Promise<void> {
       if (stopped) {
-        if (activePoll) await activePoll;
+        await settleActivePolls();
         return;
       }
       stopped = true;
@@ -572,11 +704,22 @@ export function createVideoWorker(
         pollTimer = null;
       }
       shutdownController.abort(reason);
-      activeJobController?.abort(reason);
-      if (activePoll) await activePoll;
+      for (const active of activeJobs) active.controller.abort(reason);
+      await settleActivePolls();
       logger.info('[video-worker] stopped');
     },
   };
+}
+
+/**
+ * One entry per job the worker is running right now. `kind` is what keeps the
+ * visual cap separate from the overall slot cap; `concurrentPeak` is what the
+ * ledger needs to tell a solo render's memory sample from a shared one.
+ */
+interface ActiveJob {
+  controller: AbortController;
+  kind: 'render' | 'visual';
+  concurrentPeak: number;
 }
 
 function createVideoWorkerLeaseOwner(): string {
@@ -701,6 +844,7 @@ async function recordRenderCost(input: {
   status: 'completed' | 'failed';
   startedAt: Date;
   reported: ReportedRenderMetrics | null;
+  concurrentJobs: number;
 }): Promise<void> {
   const { job, source, reported } = input;
   const base = videoRenderRunBase({
@@ -724,6 +868,7 @@ async function recordRenderCost(input: {
               languageCode: source.languageCode,
               attempt: job.attempt_count,
               jobWallMs: base.finishedAt.getTime() - input.startedAt.getTime(),
+              concurrentJobs: input.concurrentJobs,
             }),
           ],
   });

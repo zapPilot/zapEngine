@@ -41,6 +41,11 @@ kill_timeout = '30s'
 # ([PR01] no known healthy instances found for route tcp/443).
 #
 # `app` is always on: it takes the Telegram webhook, which times out easily.
+# Before HTTP starts it preloads a Supabase heartbeat that declares the exact
+# visual_version this release can claim. Control Center video retries fail
+# closed when that heartbeat is stale or mismatched, so a newer dashboard can
+# never enqueue work for a Fly release that has not deployed yet.
+#
 # `render` is on demand — it has no service, so Fly Proxy cannot auto-stop it;
 # instead the worker exits 0 on an idle queue and `app` starts it again through
 # the Machines API (src/services/render-capacity.ts). That is the group's only
@@ -52,7 +57,7 @@ kill_timeout = '30s'
 # to fall back to, because a fallback nobody notices is what stopped renders for
 # two days.
 [processes]
-  app = 'node dist/index.js'
+  app = 'node --import ./dist/release-heartbeat.js dist/index.js'
   render = 'node dist/worker.js'
 
 # The whole on-demand scheme rests on this: exit 0 must leave the machine
@@ -96,6 +101,15 @@ kill_timeout = '30s'
 # small final pass. `video:render-metrics` samples cgroup memory every 250 ms and
 # reports `cgroupPeakObservedMb`, so 4 GB stays in place until production data
 # proves a smaller memory or CPU shape is safe and cheaper per completed video.
+#
+# This Machine now carries two jobs at once (src/services/render-admission.ts).
+# One 720p encode already saturates roughly one of the two vCPUs, so the second
+# slot does not make an encode faster — it fills the ~90 s per render spent on
+# narration download, alignment and upload, when the dedicated CPU was idle.
+# Sampling a solo render put anonymous memory near 1.0 GiB with a further
+# ~0.9 GiB of reclaimable page cache on top; the worker therefore admits the
+# second job on `MemFree`, never on `MemAvailable`, whose estimate reads
+# 50-78 MiB on these VMs while GiB are genuinely free.
 [[vm]]
   size = 'performance-2x'
   memory = '4gb'
