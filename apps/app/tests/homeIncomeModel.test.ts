@@ -1,3 +1,4 @@
+import { AVG_DAYS_PER_MONTH } from '@zapengine/app-core/lib/analytics';
 import type { YieldReturnsSummaryResponse } from '@zapengine/app-core/services';
 import { describe, expect, it } from 'vitest';
 
@@ -112,7 +113,10 @@ describe('buildHomeIncomeView', () => {
       summary([
         { protocol: 'Morpho', averageDaily: 0.0001 },
         { protocol: 'Aave', averageDaily: -0.0001 },
-        { protocol: 'Moonwell', averageDaily: MIN_DISPLAY_MONTHLY_USD / 30.4 },
+        {
+          protocol: 'Moonwell',
+          averageDaily: MIN_DISPLAY_MONTHLY_USD / AVG_DAYS_PER_MONTH,
+        },
       ]),
     );
 

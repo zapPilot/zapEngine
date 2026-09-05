@@ -81,13 +81,11 @@ export function buildHomeIncomeView(
     .sort(sortProtocolRows);
 
   const incomeMonthlyUsd = protocolRows.reduce(
-    (total, row) =>
-      row.monthlyNetUsd > 0 ? total + row.monthlyNetUsd : total,
+    (total, row) => (row.monthlyNetUsd > 0 ? total + row.monthlyNetUsd : total),
     0,
   );
   const costMonthlyUsd = protocolRows.reduce(
-    (total, row) =>
-      row.monthlyNetUsd < 0 ? total + row.monthlyNetUsd : total,
+    (total, row) => (row.monthlyNetUsd < 0 ? total + row.monthlyNetUsd : total),
     0,
   );
   const passiveMonthlyUsd = incomeMonthlyUsd + costMonthlyUsd;

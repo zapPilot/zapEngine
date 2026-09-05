@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from statistics import mean, median, pstdev
 from typing import Any
@@ -66,7 +67,6 @@ def build_yield_summary(
             window: _build_window(
                 user_id,
                 series,
-                deltas,
                 anchor,
                 WINDOW_DAYS[window],
                 outlier_strategy,
@@ -76,53 +76,52 @@ def build_yield_summary(
     )
 
 
+@dataclass
+class _DayBucket:
+    """One protocol/chain pair's observations for a single day."""
+
+    value: float = 0.0
+    token_symbols: set[str] = field(default_factory=set)
+    position_types: set[str] = field(default_factory=set)
+
+
 def _group_deltas(
     deltas: list[dict[str, Any]],
-) -> dict[tuple[str, str], dict[date, float]]:
-    grouped: dict[tuple[str, str], dict[date, float]] = defaultdict(
-        lambda: defaultdict(float)
+) -> dict[tuple[str, str], dict[date, _DayBucket]]:
+    grouped: dict[tuple[str, str], dict[date, _DayBucket]] = defaultdict(
+        lambda: defaultdict(_DayBucket)
     )
     for delta in deltas:
-        parsed_date = _delta_date(delta)
         key = (str(delta["protocol_name"]), str(delta.get("chain") or ""))
-        grouped[key][parsed_date] += float(delta["token_yield_usd"])
-    return {key: dict(values) for key, values in grouped.items()}
-
-
-def _collect_protocol_metadata(
-    deltas: list[dict[str, Any]],
-    protocol: str,
-    chain: str,
-    start: date,
-    anchor: date,
-) -> tuple[list[str], list[str]]:
-    token_symbols: set[str] = set()
-    position_types: set[str] = set()
-
-    for delta in deltas:
-        if str(delta.get("protocol_name") or "") != protocol:
-            continue
-        if str(delta.get("chain") or "") != chain:
-            continue
-        parsed_date = _delta_date(delta)
-        if not start <= parsed_date <= anchor:
-            continue
+        bucket = grouped[key][_delta_date(delta)]
+        bucket.value += float(delta["token_yield_usd"])
 
         current_amounts = delta.get("current_amounts")
         if isinstance(current_amounts, dict):
-            token_symbols.update(str(symbol) for symbol in current_amounts if symbol)
+            bucket.token_symbols.update(
+                str(symbol) for symbol in current_amounts if symbol
+            )
 
         position_type = delta.get("name_item")
         if position_type:
-            position_types.add(str(position_type))
+            bucket.position_types.add(str(position_type))
+    return {key: dict(values) for key, values in grouped.items()}
 
+
+def _window_metadata(
+    window_series: dict[date, _DayBucket],
+) -> tuple[list[str], list[str]]:
+    token_symbols: set[str] = set()
+    position_types: set[str] = set()
+    for bucket in window_series.values():
+        token_symbols |= bucket.token_symbols
+        position_types |= bucket.position_types
     return sorted(token_symbols), sorted(position_types)
 
 
 def _build_window(
     user_id: str,
-    series: dict[tuple[str, str], dict[date, float]],
-    deltas: list[dict[str, Any]],
+    series: dict[tuple[str, str], dict[date, _DayBucket]],
     anchor: date,
     days: int,
     outlier_strategy: str,
@@ -136,20 +135,22 @@ def _build_window(
 
     for (protocol, chain), full_series in sorted(series.items()):
         window_series = {
-            day: value
-            for day, value in sorted(full_series.items())
+            day: bucket
+            for day, bucket in sorted(full_series.items())
             if start <= day <= anchor
         }
         if not window_series:
             continue
 
         raw_dates.update(window_series)
-        serializable = {day.isoformat(): value for day, value in window_series.items()}
+        serializable = {
+            day.isoformat(): bucket.value for day, bucket in window_series.items()
+        }
         _filtered_values, outliers = filter_strategy.filter(serializable)
         outlier_dates = {date.fromisoformat(item.date) for item in outliers}
         kept = {
-            day: value
-            for day, value in window_series.items()
+            day: bucket.value
+            for day, bucket in window_series.items()
             if day not in outlier_dates
         }
         for day, value in kept.items():
@@ -158,13 +159,7 @@ def _build_window(
 
         values = list(kept.values())
         latest_day = max(window_series)
-        token_symbols, position_types = _collect_protocol_metadata(
-            deltas,
-            protocol,
-            chain,
-            start,
-            anchor,
-        )
+        token_symbols, position_types = _window_metadata(window_series)
         breakdown.append(
             ProtocolYieldBreakdown(
                 protocol=protocol,
@@ -180,7 +175,7 @@ def _build_window(
                 ),
                 today=ProtocolYieldToday(
                     date=latest_day.isoformat(),
-                    yield_usd=window_series[latest_day],
+                    yield_usd=window_series[latest_day].value,
                 ),
             )
         )

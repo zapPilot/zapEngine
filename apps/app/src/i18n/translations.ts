@@ -139,6 +139,8 @@ export const en = {
   'home.passiveIncomePerMonth': 'Passive income {amount} /month',
   'home.passiveIncomeBasis':
     'Est. monthly, from the last 30 days of protocol yield',
+  'home.passiveIncomeGrossA11y': 'Income {amount} per month',
+  'home.passiveCostGrossA11y': 'Protocol cost {amount} per month',
   'home.incomeInsufficient':
     'At least 7 days of observations are needed for a monthly estimate.',
   'home.incomeEmpty': 'No protocol yield history is available yet.',
@@ -384,6 +386,8 @@ export const zhHant = {
   'home.passiveIncomeTitle': '協議收入',
   'home.passiveIncomePerMonth': '被動收入 {amount} /月',
   'home.passiveIncomeBasis': '依最近 30 天協議收益估算的月收入',
+  'home.passiveIncomeGrossA11y': '收入 {amount} /月',
+  'home.passiveCostGrossA11y': '協議成本 {amount} /月',
   'home.incomeInsufficient': '至少需要 7 天觀測資料，才能估算月收入。',
   'home.incomeEmpty': '目前還沒有協議收益紀錄。',
   'home.walletAssets': '錢包資產',
@@ -624,6 +628,8 @@ export const ja = {
   'home.passiveIncomeTitle': 'プロトコル収益',
   'home.passiveIncomePerMonth': 'パッシブ収入 {amount} /月',
   'home.passiveIncomeBasis': '直近30日間のプロトコル収益に基づく月間推定',
+  'home.passiveIncomeGrossA11y': '収入 {amount} /月',
+  'home.passiveCostGrossA11y': 'プロトコル費用 {amount} /月',
   'home.incomeInsufficient': '月間推定には7日以上の観測データが必要です。',
   'home.incomeEmpty': 'プロトコル収益の履歴はまだありません。',
   'home.walletAssets': 'ウォレット資産',

@@ -123,3 +123,31 @@ def test_protocol_breakdown_carries_window_position_metadata() -> None:
 
     assert row.token_symbols == ["USDC", "WETH"]
     assert row.position_types == ["Lending"]
+
+
+def test_position_metadata_is_scoped_to_each_window() -> None:
+    end = date(2026, 8, 20)
+    deltas = [
+        _delta(
+            end - timedelta(days=20),
+            1,
+            current_amounts={"DAI": {"amount": 50}},
+            name_item="Staked",
+        ),
+        _delta(
+            end,
+            2,
+            current_amounts={"USDC": {"amount": 101}},
+            name_item="Lending",
+        ),
+    ]
+
+    summary = build_yield_summary("user", deltas, ("7d", "30d"), "none")
+
+    recent = summary.windows["7d"].protocol_breakdown[0]
+    assert recent.token_symbols == ["USDC"]
+    assert recent.position_types == ["Lending"]
+
+    full = summary.windows["30d"].protocol_breakdown[0]
+    assert full.token_symbols == ["DAI", "USDC"]
+    assert full.position_types == ["Lending", "Staked"]
