@@ -164,9 +164,7 @@ class YieldReturnService(BaseAnalyticsService):
         ttl_hours: int,
     ) -> MultiWindowYieldSummaryResponse:
         """Append ETH staking run-rate without allowing it to break observed yield."""
-        exposure_cache_key = self._cache_key(
-            "eth_lst_exposure", user_id, wallet_key
-        )
+        exposure_cache_key = self._cache_key("eth_lst_exposure", user_id, wallet_key)
 
         def compute_exposure() -> EthStakingExposure:
             rows = self._execute_query(
