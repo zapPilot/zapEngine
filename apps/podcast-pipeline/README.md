@@ -156,6 +156,20 @@ write is logged and never fails a render. Encode progress comes from ffmpeg's ow
 `-progress pipe:1` output clock, so the bar keeps moving through the single
 longest step of a render.
 
+## R2 uploads
+
+Every HLS segment, playlist, mirrored image and video sidecar is uploaded with a `PutObject` whose `Body` is a `createReadStream`, and **the retry for those lives in `src/services/storage.ts`, not in the AWS SDK.** `@smithy/core`'s retry middleware bails on any request with a `Readable` body before it consults its own retry strategy, so the SDK's `maxAttempts` is irrelevant here — a single `EPIPE` on one of an episode's ~100 segments used to fail the whole step with zero attempts. `putObject` therefore loops itself, opening a **fresh** stream per attempt because a consumed one cannot be replayed.
+
+Read that warning line carefully when debugging: `An error was encountered in a non-retryable streaming request.` is printed by `@smithy/core` for **every** error on a stream body, before any retry decision, and says nothing about whether the local loop ran. The discriminator is `[r2] put:retry`, which carries `key`, `attempt`, `nextAttempt`, `maxAttempts`, `delayMs` and the error.
+
+Seven attempts, backing off 500 ms → 1 s → 2 s → 4 s → 8 s → 8 s with up to 50 % jitter (an 8 s ceiling; uncapped doubling would reach 32 s, longer than `kill_timeout = '30s'`, and a deploy would SIGINT the process inside a sleep the retry never woke from). That tolerates **23.5–35.3 s** of R2 failure. It used to be three attempts and ~2 s, which is what let a bare HTTP 500 on `seg22.ts` throw away a 612-second multilingual run whose other two languages were already completed. Jitter is not decoration: uploads run four-wide, so under a 5xx blip all four in-flight objects fail within milliseconds of each other and would otherwise resynchronize on every retry.
+
+Retryable: the transport codes (`ECONNREFUSED`, `ECONNRESET`, `EAI_AGAIN`, `EPIPE`, `ERR_STREAM_PREMATURE_CLOSE`, `ETIMEDOUT`), the SDK's `RequestTimeout` / `RequestTimeTooSkewed` / `TimeoutError`, a bare `socket hang up` message (Node reports an abandoned keep-alive connection with no machine-readable code), `408`, `429`, and **any 5xx**. Terminal: anything saying the request itself was wrong — credentials, bucket, signature — plus an `AbortError`, and the caller's `AbortSignal` is checked before the attempt ceiling so a bigger budget cannot weaken cancellation. The verdict may sit anywhere in the `cause` chain, which is walked to depth 5.
+
+A bigger budget is affordable because the cost is bounded, not multiplied. `mapWithConcurrency` stops pulling new work at the first rejection and only lets already-started calls settle, so during an R2 outage at most `R2_PUT_CONCURRENCY` (4) objects burn a budget, concurrently: the worst case is roughly **one budget of wall clock per upload step**, not one per object. Past ~30 s you are in a real R2 incident rather than a blip, and the answer is the resumability the pipeline already has — the next submission re-PUTs the same deterministic keys. **Do not answer a longer outage by lowering `R2_PUT_CONCURRENCY`**: a server-side 500 is not caused by four in-flight PUTs, and halving it doubles upload wall clock for every episode's several hundred objects.
+
+Re-PUTting is always safe: keys are deterministic and carry no content hash, `hls_url` is not persisted until the upload step returns (so a partially written prefix can never be observed as a completed localization), and the HLS prefix deliberately sets no `CacheControl` so a resumed ingest is not pinned to the previous audio by the CDN.
+
 ## Ingest Progress Logs
 
 `POST /ingest` remains synchronous and returns its normal JSON only after all three localizations (`zh-Hant`, `ja`, then `en`) finish. Watch the pipeline process logs while a curl request is running. Every line carries a short `run` ID; long-running steps emit `step:waiting` every 15 seconds, and completion or failure includes `elapsedMs`.
