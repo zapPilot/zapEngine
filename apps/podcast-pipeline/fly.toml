@@ -40,11 +40,12 @@ kill_timeout = '30s'
 # timeout and Fly pulled the only instance out of the proxy pool
 # ([PR01] no known healthy instances found for route tcp/443).
 #
-# `app` is always on: it takes the Telegram webhook, which times out easily.
-# Before HTTP starts it preloads a Supabase heartbeat that declares the exact
-# visual_version this release can claim. Control Center video retries fail
-# closed when that heartbeat is stale or mismatched, so a newer dashboard can
-# never enqueue work for a Fly release that has not deployed yet.
+# `app` is always on: it takes the Telegram webhook and owns the lightweight
+# durable completion-notification retry loop. Before HTTP starts it also preloads
+# a Supabase heartbeat that declares the exact visual_version this release can
+# claim. Control Center video retries fail closed when that heartbeat is stale or
+# mismatched, so a newer dashboard can never enqueue work for a Fly release that
+# has not deployed yet.
 #
 # `render` is on demand — it has no service, so Fly Proxy cannot auto-stop it;
 # instead the worker exits 0 on an idle queue and `app` starts it again through
@@ -57,7 +58,7 @@ kill_timeout = '30s'
 # to fall back to, because a fallback nobody notices is what stopped renders for
 # two days.
 [processes]
-  app = 'node --import ./dist/release-heartbeat.js dist/index.js'
+  app = 'node --import ./dist/release-heartbeat.js --import ./dist/services/video-completion-notifier-autostart.js dist/index.js'
   render = 'node dist/worker.js'
 
 # The whole on-demand scheme rests on this: exit 0 must leave the machine
