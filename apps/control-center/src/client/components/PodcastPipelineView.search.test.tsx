@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+/* jscpd:ignore-start -- standard testing-library/vitest boilerplate */
 import '@testing-library/jest-dom/vitest';
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
@@ -6,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { PodcastPipelineResponse } from '../../shared/podcast-pipeline.js';
 import { PodcastPipelineView } from './PodcastPipelineView.js';
+/* jscpd:ignore-end */
 
 const activeId = '11111111-1111-4111-8111-111111111111';
 const completedId = '67613f01-4532-454b-85fc-4f2a6f06f49b';
@@ -72,12 +74,17 @@ describe('PodcastPipelineView episode lookup', () => {
   it('finds a completed episode by full UUID even when its title changed', () => {
     renderPipeline();
 
-    fireEvent.change(screen.getByRole('searchbox', { name: 'Search pipeline episodes' }), {
-      target: { value: completedId },
-    });
+    fireEvent.change(
+      screen.getByRole('searchbox', { name: 'Search pipeline episodes' }),
+      {
+        target: { value: completedId },
+      },
+    );
 
     expect(screen.getByText('Another rewritten title')).toBeVisible();
     expect(screen.getByText(completedId)).toBeVisible();
-    expect(screen.queryByText('Editable title that may change')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('Editable title that may change'),
+    ).not.toBeInTheDocument();
   });
 });

@@ -106,7 +106,9 @@ export function PodcastPipelineView(
       <section className="pipeline-list" aria-label="Podcast production status">
         {active.length === 0 ? (
           <div className="empty-row">
-            {query ? 'No matching active podcast work.' : 'No active podcast production work.'}
+            {query
+              ? 'No matching active podcast work.'
+              : 'No active podcast production work.'}
           </div>
         ) : (
           active.map((episode) => (
@@ -125,7 +127,10 @@ export function PodcastPipelineView(
       </section>
 
       {recentlyCompleted.length > 0 ? (
-        <details className="open-panel pipeline-completed" open={Boolean(query)}>
+        <details
+          className="open-panel pipeline-completed"
+          open={Boolean(query)}
+        >
           <summary>Completed ({recentlyCompleted.length})</summary>
           <div className="pipeline-list pipeline-completed-list">
             {recentlyCompleted.map((episode) => (
