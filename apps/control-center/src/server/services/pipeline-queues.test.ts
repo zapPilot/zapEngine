@@ -127,15 +127,16 @@ describe('pipeline runtime queue read model', () => {
     expect(queues.api.queued[0]).not.toHaveProperty('workerId');
   });
 
-  it('uses the real render lease and orders waiting work by queue time', () => {
+  it('uses the real render lease and mirrors next_attempt_at queue ordering', () => {
     const input = baseInput();
     input.renders = [
       {
         episode_localization_id: LOCALIZATION_A,
         episode_id: EPISODE_A,
         status: 'processing',
+        visual_version: null,
         progress_percent: 73,
-        progress_stage: 'Encoding',
+        progress_stage: 'encoding',
         attempt_count: 1,
         next_attempt_at: '2026-09-05T04:00:00.000Z',
         lease_owner: 'render-machine-a',
@@ -151,6 +152,7 @@ describe('pipeline runtime queue read model', () => {
         episode_localization_id: LOCALIZATION_B,
         episode_id: EPISODE_B,
         status: 'queued',
+        visual_version: null,
         progress_percent: null,
         progress_stage: null,
         attempt_count: 0,
@@ -169,10 +171,11 @@ describe('pipeline runtime queue read model', () => {
       {
         episode_id: EPISODE_C,
         status: 'queued',
+        visual_version: null,
         progress_percent: null,
         progress_stage: null,
         attempt_count: 0,
-        next_attempt_at: '2026-09-05T04:10:00.000Z',
+        next_attempt_at: '2026-09-05T04:30:00.000Z',
         lease_owner: null,
         lease_expires_at: null,
         last_error: null,
@@ -189,15 +192,46 @@ describe('pipeline runtime queue read model', () => {
       episodeId: EPISODE_A,
       state: 'processing',
       workerId: 'render-machine-a',
-      currentStep: 'Encoding',
+      currentStep: 'encoding',
       progressPercent: 73,
     });
     expect(queues.render.queued.map((item) => item.episodeId)).toEqual([
-      EPISODE_C,
       EPISODE_B,
+      EPISODE_C,
     ]);
-    expect(queues.render.queued[0]?.kind).toBe('visual');
-    expect(queues.render.queued[1]?.kind).toBe('render');
+    expect(queues.render.queued[0]?.kind).toBe('render');
+    expect(queues.render.queued[1]?.kind).toBe('visual');
+  });
+
+  it('marks an unleased stale visual version as blocked instead of queued', () => {
+    const input = baseInput();
+    input.visuals = [
+      {
+        episode_id: EPISODE_A,
+        status: 'queued',
+        visual_version: 'legacy-version',
+        progress_percent: null,
+        progress_stage: null,
+        attempt_count: 0,
+        next_attempt_at: '2026-09-05T04:00:00.000Z',
+        lease_owner: null,
+        lease_expires_at: null,
+        last_error: null,
+        started_at: null,
+        completed_at: null,
+        created_at: '2026-09-05T04:00:00.000Z',
+        updated_at: '2026-09-05T04:00:00.000Z',
+      },
+    ];
+
+    const queues = buildPipelineQueues(input);
+
+    expect(queues.render.queued).toHaveLength(0);
+    expect(queues.render.attention[0]).toMatchObject({
+      episodeId: EPISODE_A,
+      state: 'blocked',
+      currentStep: 'Stale visual version',
+    });
   });
 
   it('derives social aggregate state without turning partial releases into failures', () => {
