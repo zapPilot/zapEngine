@@ -17,6 +17,7 @@ import { registerOpsMcpHttp } from './mcp/http.js';
 import { captureServerException } from './observability/sentry.js';
 import { createOperationsService } from './services/operations/aggregate.js';
 import { createOverviewService } from './services/overview.js';
+import { createPipelineQueuesService } from './services/pipeline-queues.js';
 import { createPodcastCostService } from './services/podcast-costs.js';
 import { createPodcastPipelineService } from './services/podcast-pipeline.js';
 import { createPodcastVisualService } from './services/podcast-visual.js';
@@ -56,6 +57,7 @@ export function createControlCenterApp(input: {
   const podcastPipeline =
     input.podcastPipeline ??
     createPodcastPipelineService({ config: input.config });
+  const pipelineQueues = createPipelineQueuesService({ config: input.config });
   const podcastVisual =
     input.podcastVisual ?? createPodcastVisualService({ config: input.config });
   // Injected separately from the overview service on purpose: the two share no
@@ -163,6 +165,9 @@ export function createControlCenterApp(input: {
 
   app.get('/api/podcast-pipeline', async (context) => {
     return context.json(await podcastPipeline.getPipeline());
+  });
+  app.get('/api/pipeline/queues', async (context) => {
+    return context.json(await pipelineQueues.getQueues());
   });
 
   app.get('/api/podcast-pipeline/:episodeId/visual', async (context) => {
