@@ -3,7 +3,6 @@
 import '@testing-library/jest-dom/vitest';
 
 import {
-  act,
   cleanup,
   fireEvent,
   render,
@@ -187,53 +186,18 @@ function renderPipeline(input: {
   visualDebugByEpisode?: Record<string, PodcastVisualDebugResponse>;
 }) {
   const onRestartStep = vi.fn();
-  const view = (data: PodcastPipelineResponse) => (
+  render(
     <PodcastPipelineView
-      data={data}
+      data={input.data ?? pipelineResponse()}
       onLoadVisualDebug={vi.fn()}
       onResolveReview={vi.fn()}
       onRestartStep={onRestartStep}
       onSubmitReview={vi.fn()}
       restartingEpisodeId={input.restartingEpisodeId ?? null}
       visualDebugByEpisode={input.visualDebugByEpisode ?? {}}
-    />
+    />,
   );
-  const { rerender } = render(view(input.data ?? pipelineResponse()));
-  return {
-    onRestartStep,
-    rerender: (data: PodcastPipelineResponse) => rerender(view(data)),
-  };
-}
-
-// jsdom ships neither <summary> activation behaviour nor the closed-<details>
-// display rule, so the disclosure has to be driven through `open` directly and
-// its toggle event, queued as a macrotask, has to be flushed.
-async function setAdvancedRecoveryOpen(open: boolean) {
-  const details = screen.getByText('Advanced recovery').closest('details');
-  if (!(details instanceof HTMLDetailsElement)) {
-    throw new Error('Advanced recovery disclosure is not rendered');
-  }
-  await act(async () => {
-    details.open = open;
-    await new Promise((resolve) => setTimeout(resolve, 0));
-  });
-}
-
-function renderReplanCapablePipeline() {
-  return renderPipeline({
-    data: pipelineResponse({ canForceReplanVisual: true }),
-  });
-}
-
-async function armReplanConfirmation() {
-  await setAdvancedRecoveryOpen(true);
-  fireEvent.click(screen.getByRole('button', { name: 'Re-plan visuals' }));
-}
-
-function expectReplanDisarmed() {
-  expect(
-    screen.getByRole('button', { name: 'Re-plan visuals' }),
-  ).toBeInTheDocument();
+  return { onRestartStep };
 }
 
 function phaseCell(label: string): HTMLElement {
@@ -250,12 +214,12 @@ function phaseCell(label: string): HTMLElement {
 }
 
 describe('PodcastPipelineView', () => {
-  it('surfaces the blocking visual failure and resumes video from durable checkpoints', () => {
+  it('surfaces the blocking visual failure and invokes the narrow video retry action', () => {
     const { onRestartStep } = renderPipeline({});
 
     expect(screen.getByText('Visual failure')).toBeVisible();
     expect(screen.getByText('subject catalog exhausted retries')).toBeVisible();
-    const button = screen.getByRole('button', { name: 'Resume video' });
+    const button = screen.getByRole('button', { name: 'Restart video' });
     expect(button).toBeEnabled();
 
     fireEvent.click(button);
@@ -319,7 +283,7 @@ describe('PodcastPipelineView', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('disables resume while the server read model says video cannot be restarted', () => {
+  it('disables retry while the server read model says video cannot be restarted', () => {
     const { onRestartStep } = renderPipeline({
       data: pipelineResponse({
         videoStatus: 'processing',
@@ -327,61 +291,17 @@ describe('PodcastPipelineView', () => {
       }),
     });
 
-    const button = screen.getByRole('button', { name: 'Resume video' });
+    const button = screen.getByRole('button', { name: 'Restart video' });
     expect(button).toBeDisabled();
     fireEvent.click(button);
     expect(onRestartStep).not.toHaveBeenCalled();
   });
 
-  it('shows a resuming state and prevents duplicate operator clicks', () => {
+  it('shows a restarting state and prevents duplicate operator clicks', () => {
     renderPipeline({ restartingEpisodeId: episodeId });
 
-    const button = screen.getByRole('button', { name: 'Resuming…' });
+    const button = screen.getByRole('button', { name: 'Restarting…' });
     expect(button).toBeDisabled();
-  });
-
-  it('keeps destructive visual re-planning behind advanced recovery and requires confirmation', async () => {
-    const { onRestartStep } = renderReplanCapablePipeline();
-
-    const advanced = screen.getByText('Advanced recovery').closest('details');
-    expect(advanced).not.toHaveAttribute('open');
-    expect(screen.getByRole('button', { name: 'Resume video' })).toBeEnabled();
-
-    await armReplanConfirmation();
-    expect(onRestartStep).not.toHaveBeenCalled();
-
-    fireEvent.click(
-      screen.getByRole('button', {
-        name: 'Confirm re-plan (re-renders 3 videos)',
-      }),
-    );
-    expect(onRestartStep).toHaveBeenCalledWith(episodeId, {
-      step: 'video',
-      forceReplan: true,
-    });
-  });
-
-  it('disarms the re-plan confirmation when advanced recovery is collapsed', async () => {
-    const { onRestartStep } = renderReplanCapablePipeline();
-
-    await armReplanConfirmation();
-    await setAdvancedRecoveryOpen(false);
-    await setAdvancedRecoveryOpen(true);
-
-    expectReplanDisarmed();
-    expect(onRestartStep).not.toHaveBeenCalled();
-  });
-
-  it('drops the armed re-plan when the read model stops allowing it', async () => {
-    const { onRestartStep, rerender } = renderReplanCapablePipeline();
-
-    await armReplanConfirmation();
-    rerender(pipelineResponse({ canForceReplanVisual: false }));
-    expect(screen.queryByText('Advanced recovery')).not.toBeInTheDocument();
-
-    rerender(pipelineResponse({ canForceReplanVisual: true }));
-    expectReplanDisarmed();
-    expect(onRestartStep).not.toHaveBeenCalled();
   });
 
   it('shows the whole episode id and copies it on click', () => {

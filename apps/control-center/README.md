@@ -53,7 +53,7 @@ queued — older episodes only ever rendered `zh-Hant`), and a queued or expired
 job whose `visual_version` differs from the deployed
 `EPISODE_VIDEO_VISUAL_VERSION` is **Stale version** (`stale`): no worker will
 ever claim it, so it counts as stuck for the pipeline statement and the
-**Resume video** button is what repairs it. Completed jobs hide their last progress
+restart button is what repairs it. Completed jobs hide their last progress
 stage, and `podcast_ingest_jobs.failure_history` is shown as the recent ingest
 retry history.
 
@@ -88,7 +88,7 @@ Dashboard HTTP views are generally read-only, with three narrowly bounded classe
 - `/api/mcp` exposes the separately authenticated Ops MCP. Its only current write capability is the narrowly allowlisted single-issue Sentry resolve operation documented in [`MCP.md`](./MCP.md).
 - Pipeline step restarts, each a named service-role-only RPC that touches only job rows and never scripts, translation, narration, classroom audio, or arbitrary tables, and each refusing while a live lease exists (mapped to `409`):
   - `POST /api/podcast-pipeline/:episodeId/ingest/retry` → `restart_podcast_ingest`. Requeues the durable ingest job so the app process resumes from the last committed localization stage; refused once all three audio localizations are complete. The RPC recovers the Telegram chat id from any earlier ingest, visual, or render row of the episode, so the original submitter is still notified; only an episode with no such row gets a silent operator job.
-  - `POST /api/podcast-pipeline/:episodeId/video/retry` with `{ "forceReplan": boolean }` → `retry_episode_video_generation`. Materializes missing `ja`/`en` render rows, keeps a completed current-version visual and requeues only unfinished renders; `forceReplan: true` (the two-click **Re-plan visuals** button inside the closed-by-default **Advanced recovery** disclosure) discards the visual checkpoint and re-renders all three languages. The service omits `p_force_replan` on the ordinary retry so the call still resolves before the migration is applied.
+  - `POST /api/podcast-pipeline/:episodeId/video/retry` with `{ "forceReplan": boolean }` → `retry_episode_video_generation`. Materializes missing `ja`/`en` render rows, keeps a completed current-version visual and requeues only unfinished renders; `forceReplan: true` (the two-click **Re-plan visuals** button) discards the visual checkpoint and re-renders all three languages. The service omits `p_force_replan` on the ordinary retry so the call still resolves before the migration is applied.
   - `POST /api/podcast-pipeline/:episodeId/renders/:localizationId/retry` → `retry_episode_video_render`. Requeues one language render against the completed current-version visual.
 - Operator reviews: `PUT /api/podcast-pipeline/:episodeId/reviews` → `upsert_episode_video_review` and `POST /api/podcast-pipeline/reviews/:reviewId/resolve` → `resolve_episode_video_review` write only the operator's review rows (`reviewer = 'operator'`); they cannot change pipeline state.
 
