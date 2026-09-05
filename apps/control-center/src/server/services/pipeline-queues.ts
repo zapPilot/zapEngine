@@ -49,7 +49,7 @@ interface IngestRow {
   updated_at: string;
 }
 
-interface VisualRow {
+interface VideoWorkRow {
   episode_id: string;
   status: string;
   visual_version: string | null;
@@ -66,7 +66,7 @@ interface VisualRow {
   updated_at: string;
 }
 
-interface RenderRow extends VisualRow {
+interface RenderRow extends VideoWorkRow {
   episode_localization_id: string;
   thumbnail_url: string | null;
 }
@@ -95,6 +95,31 @@ interface SocialPostRow {
   language_code: string;
   post_url: string | null;
   published_at: string;
+}
+
+interface WorkItemInput {
+  key: string;
+  kind: PipelineQueueItem['kind'];
+  title: string;
+  episodeId?: string;
+  sourceUrl?: string;
+  languageCode?: string;
+  status: string;
+  visualVersion?: string | null;
+  attemptCount: number;
+  leaseOwner: string | null;
+  leaseExpiresAt: string | null;
+  lastError: string | null;
+  queuedAt: string;
+  nextAttemptAt?: string;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  updatedAt: string;
+  currentStep: string;
+  progressPercent?: number | null;
+  thumbnailUrl?: string | null;
+  now: Date;
+  posts: SocialPostRow[];
 }
 
 export function createPipelineQueuesService(input: {
@@ -159,99 +184,55 @@ export function createPipelineQueuesService(input: {
           activeSocialResult,
         );
 
-        const ingestRows = (ingestResult.data ?? []) as IngestRow[];
-        const visualRows = (visualResult.data ?? []) as VisualRow[];
-        const renderRows = (renderResult.data ?? []) as RenderRow[];
+        const ingests = (ingestResult.data ?? []) as IngestRow[];
+        const visuals = (visualResult.data ?? []) as VideoWorkRow[];
+        const renders = (renderResult.data ?? []) as RenderRow[];
         const activeSocialEpisodeIds = unique(
           ((activeSocialResult.data ?? []) as { episode_id: string }[]).map(
             (row) => row.episode_id,
           ),
         );
-
-        const socialJobsResult: MaybeError<SocialJobRow[]> =
-          activeSocialEpisodeIds.length === 0
-            ? { data: [], error: null }
-            : ((await client
-                .from('social_publish_jobs')
-                .select(
-                  'id,episode_id,platform,language_code,status,scheduled_at,next_attempt_at,attempt_count,lease_owner,lease_expires_at,last_error,completed_at,created_at,updated_at',
-                )
-                .in('episode_id', activeSocialEpisodeIds)
-                .order('scheduled_at', { ascending: true })) as MaybeError<
-                SocialJobRow[]
-              >);
-        throwFirstError(socialJobsResult);
-        const socialJobRows = socialJobsResult.data ?? [];
-
-        const directEpisodeIds = unique([
-          ...visualRows.map((row) => row.episode_id),
-          ...renderRows.map((row) => row.episode_id),
-          ...socialJobRows.map((row) => row.episode_id),
-        ]);
-        const sourceUrls = unique(ingestRows.map((row) => row.source_url));
-
-        const [episodesByIdResult, episodesBySourceResult] = await Promise.all([
-          directEpisodeIds.length === 0
-            ? Promise.resolve({ data: [], error: null })
-            : client
-                .from('episodes')
-                .select('id,source_title,source_url,created_at')
-                .in('id', directEpisodeIds),
-          sourceUrls.length === 0
-            ? Promise.resolve({ data: [], error: null })
-            : client
-                .from('episodes')
-                .select('id,source_title,source_url,created_at')
-                .in('source_url', sourceUrls),
-        ]);
-        throwFirstError(episodesByIdResult, episodesBySourceResult);
-
-        const episodes = dedupeEpisodes([
-          ...((episodesByIdResult.data ?? []) as EpisodeRow[]),
-          ...((episodesBySourceResult.data ?? []) as EpisodeRow[]),
-        ]);
-        const episodeIds = episodes.map((row) => row.id);
-
-        const [localizationsResult, postsResult, publishedTodayResult] =
-          await Promise.all([
-            episodeIds.length === 0
-              ? Promise.resolve({ data: [], error: null })
-              : client
-                  .from('episode_localizations')
-                  .select(
-                    'id,episode_id,language_code,script,hls_url,updated_at',
-                  )
-                  .in('episode_id', episodeIds),
-            episodeIds.length === 0
-              ? Promise.resolve({ data: [], error: null })
-              : client
-                  .from('social_posts')
-                  .select(
-                    'id,episode_id,platform,language_code,post_url,published_at',
-                  )
-                  .in('episode_id', episodeIds),
-            client
-              .from('social_posts')
-              .select('id', { count: 'exact', head: true })
-              .gte('published_at', startOfJstDay(current)),
-          ]);
-        throwFirstError(
-          localizationsResult,
-          postsResult,
-          publishedTodayResult,
+        const socialJobs = await readSocialJobs(
+          client,
+          activeSocialEpisodeIds,
         );
+
+        const episodeIds = unique([
+          ...visuals.map((row) => row.episode_id),
+          ...renders.map((row) => row.episode_id),
+          ...socialJobs.map((row) => row.episode_id),
+        ]);
+        const sourceUrls = unique(ingests.map((row) => row.source_url));
+        const episodes = await readEpisodes(client, episodeIds, sourceUrls);
+        const resolvedEpisodeIds = episodes.map((row) => row.id);
+
+        const [localizations, socialPosts, publishedToday] = await Promise.all([
+          readRowsByEpisode<LocalizationRow>(
+            client,
+            'episode_localizations',
+            'id,episode_id,language_code,script,hls_url,updated_at',
+            resolvedEpisodeIds,
+          ),
+          readRowsByEpisode<SocialPostRow>(
+            client,
+            'social_posts',
+            'id,episode_id,platform,language_code,post_url,published_at',
+            resolvedEpisodeIds,
+          ),
+          readPublishedToday(client, current),
+        ]);
 
         return buildPipelineQueues({
           generatedAt,
           now: current,
           episodes,
-          localizations: (localizationsResult.data ?? []) as LocalizationRow[],
-          ingests: ingestRows,
-          visuals: visualRows,
-          renders: renderRows,
-          socialJobs: socialJobRows,
-          socialPosts: (postsResult.data ?? []) as SocialPostRow[],
-          publishedToday: publishedTodayResult.count ?? 0,
+          localizations,
+          ingests,
+          visuals,
+          renders,
+          socialJobs,
+          socialPosts,
+          publishedToday,
         });
       } catch (cause) {
         return unavailable(
@@ -270,7 +251,7 @@ export function buildPipelineQueues(input: {
   episodes: EpisodeRow[];
   localizations: LocalizationRow[];
   ingests: IngestRow[];
-  visuals: VisualRow[];
+  visuals: VideoWorkRow[];
   renders: RenderRow[];
   socialJobs: SocialJobRow[];
   socialPosts: SocialPostRow[];
@@ -289,52 +270,42 @@ export function buildPipelineQueues(input: {
   );
   const postsByEpisode = groupBy(input.socialPosts, (row) => row.episode_id);
 
-  const apiItems = input.ingests.flatMap((row) => {
+  const apiItems = input.ingests.map((row) => {
     const episode = episodeBySource.get(row.source_url);
-    if (!episode) return [];
-    return [
-      pipelineItem({
-        key: `ingest:${row.id}`,
-        kind: 'ingest',
-        episode,
-        languageCode: row.language_code,
-        status: row.status,
-        attemptCount: row.attempt_count,
-        leaseOwner: row.lease_owner,
-        leaseExpiresAt: row.lease_expires_at,
-        lastError: row.last_error,
-        queuedAt: row.created_at,
-        updatedAt: row.updated_at,
-        currentStep: ingestStep(
-          localizationsByEpisode.get(episode.id) ?? [],
-        ),
-        now: input.now,
-        posts: postsByEpisode.get(episode.id) ?? [],
-      }),
-    ];
+    const episodeId = episode?.id;
+    return workItem({
+      key: `ingest:${row.id}`,
+      kind: 'ingest',
+      title: episode?.source_title ?? row.source_url,
+      ...(episodeId ? { episodeId } : {}),
+      sourceUrl: row.source_url,
+      languageCode: row.language_code,
+      status: row.status,
+      attemptCount: row.attempt_count,
+      leaseOwner: row.lease_owner,
+      leaseExpiresAt: row.lease_expires_at,
+      lastError: row.last_error,
+      queuedAt: row.created_at,
+      updatedAt: row.updated_at,
+      currentStep: episodeId
+        ? ingestStep(localizationsByEpisode.get(episodeId) ?? [])
+        : 'Ingest',
+      now: input.now,
+      posts: episodeId ? (postsByEpisode.get(episodeId) ?? []) : [],
+    });
   });
 
   const visualItems = input.visuals.flatMap((row) => {
     const episode = episodeById.get(row.episode_id);
-    if (!episode) return [];
+    if (!episode) {
+      return [];
+    }
     return [
-      pipelineItem({
-        key: `visual:${row.episode_id}`,
-        kind: 'visual',
+      videoWorkItem({
+        row,
         episode,
-        status: row.status,
-        visualVersion: row.visual_version,
-        attemptCount: row.attempt_count,
-        leaseOwner: row.lease_owner,
-        leaseExpiresAt: row.lease_expires_at,
-        lastError: row.last_error,
-        queuedAt: row.created_at,
-        nextAttemptAt: row.next_attempt_at,
-        startedAt: row.started_at,
-        completedAt: row.completed_at,
-        updatedAt: row.updated_at,
+        kind: 'visual',
         currentStep: row.progress_stage ?? 'Visual planning',
-        progressPercent: row.progress_percent,
         now: input.now,
         posts: postsByEpisode.get(episode.id) ?? [],
       }),
@@ -343,27 +314,18 @@ export function buildPipelineQueues(input: {
 
   const renderItems = input.renders.flatMap((row) => {
     const episode = episodeById.get(row.episode_id);
+    if (!episode) {
+      return [];
+    }
     const localization = localizationById.get(row.episode_localization_id);
-    if (!episode) return [];
     return [
-      pipelineItem({
-        key: `render:${row.episode_localization_id}`,
-        kind: 'render',
+      videoWorkItem({
+        row,
         episode,
+        kind: 'render',
+        key: `render:${row.episode_localization_id}`,
         languageCode: localization?.language_code,
-        status: row.status,
-        visualVersion: row.visual_version,
-        attemptCount: row.attempt_count,
-        leaseOwner: row.lease_owner,
-        leaseExpiresAt: row.lease_expires_at,
-        lastError: row.last_error,
-        queuedAt: row.created_at,
-        nextAttemptAt: row.next_attempt_at,
-        startedAt: row.started_at,
-        completedAt: row.completed_at,
-        updatedAt: row.updated_at,
         currentStep: row.progress_stage ?? 'Rendering',
-        progressPercent: row.progress_percent,
         thumbnailUrl: row.thumbnail_url,
         now: input.now,
         posts: postsByEpisode.get(episode.id) ?? [],
@@ -371,16 +333,17 @@ export function buildPipelineQueues(input: {
     ];
   });
 
-  const socialItems = socialQueueItems(
-    input.socialJobs,
-    input.socialPosts,
-    episodeById,
-    input.now,
-  );
-
   const api = lane(apiItems);
   const render = lane([...visualItems, ...renderItems]);
-  const social = socialLane(socialItems);
+  const social = socialLane(
+    socialQueueItems(
+      input.socialJobs,
+      input.socialPosts,
+      episodeById,
+      input.now,
+    ),
+  );
+
   return {
     generatedAt: input.generatedAt,
     status: 'ok',
@@ -404,28 +367,44 @@ export function buildPipelineQueues(input: {
   };
 }
 
-function pipelineItem(input: {
-  key: string;
-  kind: PipelineQueueItem['kind'];
+function videoWorkItem(input: {
+  row: VideoWorkRow;
   episode: EpisodeRow;
+  kind: 'visual' | 'render';
+  key?: string;
   languageCode?: string;
-  status: string;
-  visualVersion?: string | null;
-  attemptCount: number;
-  leaseOwner: string | null;
-  leaseExpiresAt: string | null;
-  lastError: string | null;
-  queuedAt: string;
-  nextAttemptAt?: string;
-  startedAt?: string | null;
-  completedAt?: string | null;
-  updatedAt: string;
   currentStep: string;
-  progressPercent?: number | null;
   thumbnailUrl?: string | null;
   now: Date;
   posts: SocialPostRow[];
 }): PipelineQueueItem {
+  const { row, episode } = input;
+  return workItem({
+    key: input.key ?? `visual:${episode.id}`,
+    kind: input.kind,
+    title: episode.source_title ?? episode.id,
+    episodeId: episode.id,
+    ...(input.languageCode ? { languageCode: input.languageCode } : {}),
+    status: row.status,
+    visualVersion: row.visual_version,
+    attemptCount: row.attempt_count,
+    leaseOwner: row.lease_owner,
+    leaseExpiresAt: row.lease_expires_at,
+    lastError: row.last_error,
+    queuedAt: row.created_at,
+    nextAttemptAt: row.next_attempt_at,
+    startedAt: row.started_at,
+    completedAt: row.completed_at,
+    updatedAt: row.updated_at,
+    currentStep: input.currentStep,
+    progressPercent: row.progress_percent,
+    thumbnailUrl: input.thumbnailUrl,
+    now: input.now,
+    posts: input.posts,
+  });
+}
+
+function workItem(input: WorkItemInput): PipelineQueueItem {
   const activeLease = leaseIsActive(
     input.leaseOwner,
     input.leaseExpiresAt,
@@ -437,36 +416,20 @@ function pipelineItem(input: {
       input.visualVersion &&
       input.visualVersion !== EPISODE_VIDEO_VISUAL_VERSION,
   );
-  const state = staleVersion
-    ? 'blocked'
-    : input.status === 'processing' && activeLease
-      ? 'processing'
-      : input.status === 'failed'
-        ? 'failed'
-        : input.status === 'processing' || input.attemptCount > 0
-          ? 'retrying'
-          : 'queued';
-  const history: PipelineQueueHistoryEvent[] = [
-    { at: input.queuedAt, label: 'Added to queue' },
-  ];
-  if (input.startedAt) {
-    history.push({ at: input.startedAt, label: 'Worker started' });
-  }
-  if (input.completedAt) {
-    history.push({ at: input.completedAt, label: 'Completed' });
-  }
-  if (input.status === 'failed' && input.lastError) {
-    history.push({
-      at: input.updatedAt,
-      label: 'Failed',
-      detail: input.lastError,
-    });
-  }
+  const state = deriveWorkState(
+    input.status,
+    input.attemptCount,
+    activeLease,
+    staleVersion,
+  );
+  const history = workHistory(input);
+
   return {
     key: input.key,
     kind: input.kind,
-    episodeId: input.episode.id,
-    title: input.episode.source_title ?? input.episode.id,
+    ...(input.episodeId ? { episodeId: input.episodeId } : {}),
+    ...(input.sourceUrl ? { sourceUrl: input.sourceUrl } : {}),
+    title: input.title,
     ...(input.languageCode ? { languageCode: input.languageCode } : {}),
     state,
     queuedAt: input.queuedAt,
@@ -483,9 +446,50 @@ function pipelineItem(input: {
     retryCount: Math.max(0, input.attemptCount - 1),
     ...(input.lastError ? { lastError: input.lastError } : {}),
     ...(input.thumbnailUrl ? { thumbnailUrl: input.thumbnailUrl } : {}),
-    history: history.sort(byEventTime),
+    history,
     publishedLinks: publishedLinks(input.posts),
   };
+}
+
+function deriveWorkState(
+  status: string,
+  attemptCount: number,
+  activeLease: boolean,
+  staleVersion: boolean,
+): PipelineQueueItem['state'] {
+  if (staleVersion) {
+    return 'blocked';
+  }
+  if (status === 'processing' && activeLease) {
+    return 'processing';
+  }
+  if (status === 'failed') {
+    return 'failed';
+  }
+  if (status === 'processing' || attemptCount > 0) {
+    return 'retrying';
+  }
+  return 'queued';
+}
+
+function workHistory(input: WorkItemInput): PipelineQueueHistoryEvent[] {
+  const history: PipelineQueueHistoryEvent[] = [
+    { at: input.queuedAt, label: 'Added to queue' },
+  ];
+  if (input.startedAt) {
+    history.push({ at: input.startedAt, label: 'Worker started' });
+  }
+  if (input.completedAt) {
+    history.push({ at: input.completedAt, label: 'Completed' });
+  }
+  if (input.status === 'failed' && input.lastError) {
+    history.push({
+      at: input.updatedAt,
+      label: 'Failed',
+      detail: input.lastError,
+    });
+  }
+  return history.sort(byEventTime);
 }
 
 function socialQueueItems(
@@ -500,7 +504,9 @@ function socialQueueItems(
 
   for (const [episodeId, episodeJobs] of jobsByEpisode) {
     const episode = episodeById.get(episodeId);
-    if (!episode) continue;
+    if (!episode) {
+      continue;
+    }
     const episodePosts = postsByEpisode.get(episodeId) ?? [];
     const postByLane = new Map(
       episodePosts.map((post) => [
@@ -508,22 +514,48 @@ function socialQueueItems(
         post,
       ]),
     );
-    const platforms = episodeJobs
-      .map((job): SocialPlatformQueueState | null => {
-        if (!isPlatform(job.platform)) return null;
-        const post = postByLane.get(
-          laneKey(job.platform, job.language_code),
-        );
-        const status = socialPlatformStatus(job, post, now);
-        const activeLease = leaseIsActive(
-          job.lease_owner,
-          job.lease_expires_at,
-          now,
-        );
-        return {
+    const platforms = socialPlatforms(episodeJobs, postByLane, now);
+    if (platforms.length === 0) {
+      continue;
+    }
+
+    items.push({
+      key: `social:${episodeId}`,
+      episodeId,
+      title: episode.source_title ?? episodeId,
+      contentType: 'video',
+      scheduledAt: earliestScheduledAt(episodeJobs),
+      state: deriveSocialState(platforms),
+      platforms,
+      history: socialHistory(episodeJobs, episodePosts),
+      publishedLinks: publishedLinks(episodePosts),
+    });
+  }
+
+  return items.sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt));
+}
+
+function socialPlatforms(
+  jobs: SocialJobRow[],
+  postByLane: Map<string, SocialPostRow>,
+  now: Date,
+): SocialPlatformQueueState[] {
+  return jobs
+    .flatMap((job): SocialPlatformQueueState[] => {
+      if (!isPlatform(job.platform)) {
+        return [];
+      }
+      const post = postByLane.get(laneKey(job.platform, job.language_code));
+      const activeLease = leaseIsActive(
+        job.lease_owner,
+        job.lease_expires_at,
+        now,
+      );
+      return [
+        {
           platform: job.platform,
           languageCode: job.language_code,
-          status,
+          status: socialPlatformStatus(job, post, now),
           scheduledAt: job.scheduled_at,
           nextAttemptAt: job.next_attempt_at,
           ...(post ? { publishedAt: post.published_at } : {}),
@@ -533,46 +565,37 @@ function socialQueueItems(
             : {}),
           ...(job.last_error ? { error: job.last_error } : {}),
           retryCount: Math.max(0, job.attempt_count - 1),
-        };
-      })
-      .filter((row): row is SocialPlatformQueueState => row !== null)
-      .sort((a, b) => platformOrder(a.platform) - platformOrder(b.platform));
-    if (platforms.length === 0) continue;
+        },
+      ];
+    })
+    .sort((a, b) => platformOrder(a.platform) - platformOrder(b.platform));
+}
 
-    const history: PipelineQueueHistoryEvent[] = episodeJobs.map((job) => ({
-      at: job.created_at,
-      label: `${job.platform} added to social queue`,
-    }));
-    for (const post of episodePosts) {
-      history.push({
-        at: post.published_at,
-        label: `${post.platform} published`,
-        ...(post.post_url ? { detail: post.post_url } : {}),
-      });
-    }
-    for (const job of episodeJobs) {
-      if (job.status === 'failed' && job.last_error) {
-        history.push({
-          at: job.updated_at,
-          label: `${job.platform} failed`,
-          detail: job.last_error,
-        });
-      }
-    }
-
-    items.push({
-      key: `social:${episodeId}`,
-      episodeId,
-      title: episode.source_title ?? episodeId,
-      contentType: 'video',
-      scheduledAt: episodeJobs.map((job) => job.scheduled_at).sort()[0]!,
-      state: deriveSocialState(platforms),
-      platforms,
-      history: history.sort(byEventTime),
-      publishedLinks: publishedLinks(episodePosts),
+function socialHistory(
+  jobs: SocialJobRow[],
+  posts: SocialPostRow[],
+): PipelineQueueHistoryEvent[] {
+  const history: PipelineQueueHistoryEvent[] = jobs.map((job) => ({
+    at: job.created_at,
+    label: `${job.platform} added to social queue`,
+  }));
+  for (const post of posts) {
+    history.push({
+      at: post.published_at,
+      label: `${post.platform} published`,
+      ...(post.post_url ? { detail: post.post_url } : {}),
     });
   }
-  return items.sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt));
+  for (const job of jobs) {
+    if (job.status === 'failed' && job.last_error) {
+      history.push({
+        at: job.updated_at,
+        label: `${job.platform} failed`,
+        detail: job.last_error,
+      });
+    }
+  }
+  return history.sort(byEventTime);
 }
 
 function socialPlatformStatus(
@@ -580,20 +603,27 @@ function socialPlatformStatus(
   post: SocialPostRow | undefined,
   now: Date,
 ): SocialPublishStatus {
-  if (post) return 'published';
-  if (job.status === 'skipped') return 'skipped';
+  if (post) {
+    return 'published';
+  }
+  if (job.status === 'skipped') {
+    return 'skipped';
+  }
   if (job.status === 'processing') {
     return leaseIsActive(job.lease_owner, job.lease_expires_at, now)
       ? 'publishing'
       : 'queued';
   }
-  if (job.status === 'failed') return 'failed';
+  if (job.status === 'failed') {
+    return 'failed';
+  }
   if (job.status === 'queued') {
     return new Date(job.scheduled_at).getTime() > now.getTime()
       ? 'scheduled'
       : 'queued';
   }
-  // A completed row without social_posts evidence is not proof of publication.
+  // A completed durable-queue row without social_posts evidence is not proof
+  // that a public post exists.
   return 'failed';
 }
 
@@ -601,16 +631,26 @@ export function deriveSocialState(
   platforms: SocialPlatformQueueState[],
 ): SocialQueueState {
   const statuses = platforms.map((row) => row.status);
-  if (statuses.some((status) => status === 'publishing')) return 'publishing';
+  if (statuses.some((status) => status === 'publishing')) {
+    return 'publishing';
+  }
   const published = statuses.filter((status) => status === 'published').length;
   const failed = statuses.filter((status) => status === 'failed').length;
   const unfinished = statuses.filter(
     (status) => status === 'queued' || status === 'scheduled',
   ).length;
-  if (published === statuses.length) return 'published';
-  if (published > 0 && (failed > 0 || unfinished > 0)) return 'partial';
-  if (failed > 0 && failed === statuses.length) return 'failed';
-  if (failed > 0) return 'partial';
+  if (published === statuses.length) {
+    return 'published';
+  }
+  if (published > 0 && (failed > 0 || unfinished > 0)) {
+    return 'partial';
+  }
+  if (failed > 0 && failed === statuses.length) {
+    return 'failed';
+  }
+  if (failed > 0) {
+    return 'partial';
+  }
   return 'queued';
 }
 
@@ -627,16 +667,17 @@ function lane(
       ),
     queued: items
       .filter((item) => item.state === 'queued' || item.state === 'retrying')
-      .sort(
-        (a, b) =>
-          time(a.nextAttemptAt ?? a.queuedAt) -
-            time(b.nextAttemptAt ?? b.queuedAt) ||
-          time(a.queuedAt) - time(b.queuedAt),
-      ),
+      .sort(compareWaitingItems),
     attention: items
       .filter((item) => item.state === 'failed' || item.state === 'blocked')
       .sort((a, b) => time(a.updatedAt) - time(b.updatedAt)),
   };
+}
+
+function compareWaitingItems(a: PipelineQueueItem, b: PipelineQueueItem): number {
+  const availableOrder =
+    time(a.nextAttemptAt ?? a.queuedAt) - time(b.nextAttemptAt ?? b.queuedAt);
+  return availableOrder || time(a.queuedAt) - time(b.queuedAt);
 }
 
 function socialLane(
@@ -652,31 +693,108 @@ function socialLane(
 }
 
 function ingestStep(localizations: LocalizationRow[]): string {
-  if (
-    localizations.length === 0 ||
-    localizations.some((row) => !row.script)
-  ) {
+  if (localizations.length === 0) {
+    return 'Ingest';
+  }
+  if (localizations.some((row) => !row.script)) {
     return 'Translate';
   }
-  if (localizations.some((row) => !row.hls_url)) return 'TTS';
+  if (localizations.some((row) => !row.hls_url)) {
+    return 'TTS';
+  }
   return 'Finalization';
 }
 
 function publishedLinks(posts: SocialPostRow[]): PipelinePublishedLink[] {
   return posts
-    .flatMap((post): PipelinePublishedLink[] =>
-      isPlatform(post.platform)
-        ? [
-            {
-              platform: post.platform,
-              languageCode: post.language_code,
-              publishedAt: post.published_at,
-              url: post.post_url,
-            },
-          ]
-        : [],
-    )
+    .flatMap((post): PipelinePublishedLink[] => {
+      if (!isPlatform(post.platform)) {
+        return [];
+      }
+      return [
+        {
+          platform: post.platform,
+          languageCode: post.language_code,
+          publishedAt: post.published_at,
+          url: post.post_url,
+        },
+      ];
+    })
     .sort((a, b) => a.publishedAt.localeCompare(b.publishedAt));
+}
+
+async function readSocialJobs(
+  client: NonNullable<ReturnType<typeof createConfiguredServiceRoleClient>>,
+  episodeIds: string[],
+): Promise<SocialJobRow[]> {
+  if (episodeIds.length === 0) {
+    return [];
+  }
+  const result = (await client
+    .from('social_publish_jobs')
+    .select(
+      'id,episode_id,platform,language_code,status,scheduled_at,next_attempt_at,attempt_count,lease_owner,lease_expires_at,last_error,completed_at,created_at,updated_at',
+    )
+    .in('episode_id', episodeIds)
+    .order('scheduled_at', { ascending: true })) as MaybeError<SocialJobRow[]>;
+  throwFirstError(result);
+  return result.data ?? [];
+}
+
+async function readEpisodes(
+  client: NonNullable<ReturnType<typeof createConfiguredServiceRoleClient>>,
+  episodeIds: string[],
+  sourceUrls: string[],
+): Promise<EpisodeRow[]> {
+  const empty = { data: [], error: null };
+  const [byId, bySource] = await Promise.all([
+    episodeIds.length === 0
+      ? Promise.resolve(empty)
+      : client
+          .from('episodes')
+          .select('id,source_title,source_url,created_at')
+          .in('id', episodeIds),
+    sourceUrls.length === 0
+      ? Promise.resolve(empty)
+      : client
+          .from('episodes')
+          .select('id,source_title,source_url,created_at')
+          .in('source_url', sourceUrls),
+  ]);
+  throwFirstError(byId, bySource);
+  return dedupeEpisodes([
+    ...((byId.data ?? []) as EpisodeRow[]),
+    ...((bySource.data ?? []) as EpisodeRow[]),
+  ]);
+}
+
+async function readRowsByEpisode<T>(
+  client: NonNullable<ReturnType<typeof createConfiguredServiceRoleClient>>,
+  table: 'episode_localizations' | 'social_posts',
+  columns: string,
+  episodeIds: string[],
+): Promise<T[]> {
+  if (episodeIds.length === 0) {
+    return [];
+  }
+  const result = (await client
+    .from(table)
+    .select(columns)
+    .in('episode_id', episodeIds)) as MaybeError<T[]>;
+  throwFirstError(result);
+  return result.data ?? [];
+}
+
+async function readPublishedToday(
+  client: NonNullable<ReturnType<typeof createConfiguredServiceRoleClient>>,
+  now: Date,
+): Promise<number> {
+  const result = await client
+    .from('social_posts')
+    .select('id', { count: 'exact', head: true })
+    .gte('published_at', startOfJstDay(now));
+  throwFirstError(result);
+  return result.count ?? 0;
 }
 
 function unavailable(
@@ -684,7 +802,6 @@ function unavailable(
   status: 'unconfigured' | 'error',
   message: string,
 ): PipelineQueuesResponse {
-  const empty = { processing: [], queued: [], attention: [] };
   return {
     generatedAt,
     status,
@@ -695,10 +812,14 @@ function unavailable(
       blockedOrFailed: 0,
       publishedToday: 0,
     },
-    api: empty,
-    render: empty,
-    social: empty,
+    api: emptyLane(),
+    render: emptyLane(),
+    social: emptyLane(),
   };
+}
+
+function emptyLane<T>(): PipelineQueueLane<T> {
+  return { processing: [], queued: [], attention: [] };
 }
 
 function leaseIsActive(
@@ -742,6 +863,10 @@ function laneKey(platform: string, languageCode: string): string {
   return `${platform}:${languageCode}`;
 }
 
+function earliestScheduledAt(rows: SocialJobRow[]): string {
+  return rows.map((row) => row.scheduled_at).sort()[0]!;
+}
+
 function time(value: string | undefined): number {
   return value ? new Date(value).getTime() : Number.MAX_SAFE_INTEGER;
 }
@@ -774,5 +899,7 @@ function groupBy<T>(rows: T[], key: (row: T) => string): Map<string, T[]> {
 
 function throwFirstError(...results: Array<{ error: unknown }>): void {
   const failure = results.find((result) => result.error);
-  if (failure?.error) throw failure.error;
+  if (failure?.error) {
+    throw failure.error;
+  }
 }
