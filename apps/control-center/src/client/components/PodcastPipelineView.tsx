@@ -1,4 +1,5 @@
 import { RotateCcw } from 'lucide-react';
+import { useState } from 'react';
 
 import type {
   PodcastPipelineEpisode,
@@ -44,6 +45,7 @@ export function PodcastPipelineView(
     statements?: StatementsResponse | null;
   },
 ) {
+  const [filter, setFilter] = useState('');
   const header = props.statements?.headers.find((h) => h.domain === 'pipeline');
 
   if (!props.data) {
@@ -57,10 +59,16 @@ export function PodcastPipelineView(
     );
   }
 
-  const active = props.data.episodes.filter(
-    ({ currentPhase }) => currentPhase !== 'done',
-  );
-  const recentlyCompleted = props.data.episodes.filter(
+  const query = filter.trim().toLowerCase();
+  const episodes = query
+    ? props.data.episodes.filter((episode) =>
+        [episode.episodeId, episode.title]
+          .filter((value): value is string => Boolean(value))
+          .some((value) => value.toLowerCase().includes(query)),
+      )
+    : props.data.episodes;
+  const active = episodes.filter(({ currentPhase }) => currentPhase !== 'done');
+  const recentlyCompleted = episodes.filter(
     ({ currentPhase }) => currentPhase === 'done',
   );
   const failed = active.filter((episode) => hasFailure(episode));
@@ -85,6 +93,15 @@ export function PodcastPipelineView(
             </span>
           </div>
         </div>
+        <div className="pipeline-filter">
+          <input
+            aria-label="Search pipeline episodes"
+            onChange={(event) => setFilter(event.target.value)}
+            placeholder="Search title or episode UUID"
+            type="search"
+            value={filter}
+          />
+        </div>
         <div className="pipeline-summary">
           <Summary label="Active" value={active.length} />
           <Summary label="Failed" value={failed.length} tone="failed" />
@@ -94,7 +111,11 @@ export function PodcastPipelineView(
 
       <section className="pipeline-list" aria-label="Podcast production status">
         {active.length === 0 ? (
-          <div className="empty-row">No active podcast production work.</div>
+          <div className="empty-row">
+            {query
+              ? 'No matching active podcast work.'
+              : 'No active podcast production work.'}
+          </div>
         ) : (
           active.map((episode) => (
             <PipelineEpisode
@@ -112,7 +133,10 @@ export function PodcastPipelineView(
       </section>
 
       {recentlyCompleted.length > 0 ? (
-        <details className="open-panel pipeline-completed">
+        <details
+          className="open-panel pipeline-completed"
+          open={Boolean(query)}
+        >
           <summary>Completed ({recentlyCompleted.length})</summary>
           <div className="pipeline-list pipeline-completed-list">
             {recentlyCompleted.map((episode) => (
@@ -129,6 +153,9 @@ export function PodcastPipelineView(
             ))}
           </div>
         </details>
+      ) : null}
+      {query && episodes.length === 0 ? (
+        <div className="empty-row">No episode matches that title or UUID.</div>
       ) : null}
     </div>
   );

@@ -104,11 +104,11 @@ insert into ops.cost_rates (
 values
   (
     'fly',
-    'machine_second_performance_2x_4gb',
+    'machine_second_performance_2x_2gb',
     'second',
     0.00002450,
     '2026-08-01T00:00:00Z',
-    '2 vCPU x $32.19 per performance vCPU-month / 730 h / 3600 s; performance-2x includes 4 GB at no extra RAM charge'
+    '2 vCPU x $32.19 per performance vCPU-month / 730 h / 3600 s; performance-2x includes 2 GB'
   )
 on conflict (provider, metric_key, effective_from) do nothing;
 
