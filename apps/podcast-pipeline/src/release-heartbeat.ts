@@ -1,5 +1,6 @@
 import { startPodcastReleaseHeartbeat } from './services/podcast-release-heartbeat.js';
 
-// Top-level await is deliberate: Fly must not mark the app healthy until the
-// release capability is visible to the retry guard in Supabase.
+// Preload before the API so the compatibility observer begins with the app
+// process itself. A rollout may still wait for the render Machine to reach the
+// same image; until then no heartbeat is published and retries fail closed.
 await startPodcastReleaseHeartbeat();
