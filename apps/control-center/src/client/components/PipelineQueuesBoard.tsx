@@ -1,5 +1,5 @@
 import { ExternalLink, Search, X as CloseIcon } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import type {
   PipelinePublishedLink,
@@ -62,7 +62,9 @@ export function PipelineQueuesBoard() {
   if (!data) {
     return (
       <section className="queue-board queue-board-loading">
-        {error ? `Pipeline queues unavailable: ${error}` : 'Loading runtime queues…'}
+        {error
+          ? `Pipeline queues unavailable: ${error}`
+          : 'Loading runtime queues…'}
       </section>
     );
   }
@@ -93,7 +95,9 @@ export function PipelineQueuesBoard() {
         <Metric label="Published today" value={data.summary.publishedToday} />
       </div>
 
-      {error ? <div className="queue-inline-error">Last refresh: {error}</div> : null}
+      {error ? (
+        <div className="queue-inline-error">Last refresh: {error}</div>
+      ) : null}
       {data.status === 'unconfigured' ? (
         <div className="queue-inline-error">{data.message}</div>
       ) : null}
@@ -143,7 +147,7 @@ function QueueColumn<T extends { key: string }>(props: {
   description: string;
   lane: PipelineQueueLane<T>;
   onSelect: (key: string) => void;
-  renderItem: (item: T) => React.ReactNode;
+  renderItem: (item: T) => ReactNode;
 }) {
   return (
     <section className="queue-column">
@@ -179,7 +183,7 @@ function QueueSection<T extends { key: string }>(props: {
   label: string;
   items: T[];
   onSelect: (key: string) => void;
-  renderItem: (item: T) => React.ReactNode;
+  renderItem: (item: T) => ReactNode;
 }) {
   return (
     <div className="queue-section">
@@ -227,7 +231,9 @@ function WorkCard({ item }: { item: PipelineQueueItem }) {
       ) : null}
       <div className="queue-card-meta">
         {item.workerId ? <span>worker · {item.workerId}</span> : null}
-        {item.startedAt ? <span>{durationSince(item.startedAt)} elapsed</span> : null}
+        {item.startedAt ? (
+          <span>{durationSince(item.startedAt)} elapsed</span>
+        ) : null}
         {!item.startedAt && item.queuedAt ? (
           <span>{durationSince(item.queuedAt)} waiting</span>
         ) : null}
@@ -248,7 +254,10 @@ function SocialCard({ item }: { item: SocialQueueItem }) {
       <div className="social-schedule">{formatDateTime(item.scheduledAt)}</div>
       <div className="social-platforms">
         {item.platforms.map((lane) => (
-          <div className="social-platform-row" key={`${lane.platform}:${lane.languageCode}`}>
+          <div
+            className="social-platform-row"
+            key={`${lane.platform}:${lane.languageCode}`}
+          >
             <span>{PLATFORM_LABELS[lane.platform]}</span>
             <span className={`social-status social-status-${lane.status}`}>
               {lane.status}
@@ -308,7 +317,9 @@ function QueueDrawer(props: { selected: Selected; onClose: () => void }) {
 
       {!isSocial && (item as PipelineQueueItem).lastError ? (
         <DrawerSection title="Last error">
-          <pre className="queue-error-detail">{(item as PipelineQueueItem).lastError}</pre>
+          <pre className="queue-error-detail">
+            {(item as PipelineQueueItem).lastError}
+          </pre>
         </DrawerSection>
       ) : null}
 
@@ -322,12 +333,38 @@ function QueueDrawer(props: { selected: Selected; onClose: () => void }) {
 function WorkCurrentState({ item }: { item: PipelineQueueItem }) {
   return (
     <dl className="queue-detail-list">
-      <div><dt>State</dt><dd><StateBadge state={item.state} /></dd></div>
-      <div><dt>Step</dt><dd>{item.currentStep ?? kindLabel(item.kind)}</dd></div>
-      {item.languageCode ? <div><dt>Language</dt><dd>{item.languageCode}</dd></div> : null}
-      {item.workerId ? <div><dt>Worker</dt><dd>{item.workerId}</dd></div> : null}
-      {typeof item.progressPercent === 'number' ? <div><dt>Progress</dt><dd>{item.progressPercent}%</dd></div> : null}
-      <div><dt>Retries</dt><dd>{item.retryCount}</dd></div>
+      <div>
+        <dt>State</dt>
+        <dd>
+          <StateBadge state={item.state} />
+        </dd>
+      </div>
+      <div>
+        <dt>Step</dt>
+        <dd>{item.currentStep ?? kindLabel(item.kind)}</dd>
+      </div>
+      {item.languageCode ? (
+        <div>
+          <dt>Language</dt>
+          <dd>{item.languageCode}</dd>
+        </div>
+      ) : null}
+      {item.workerId ? (
+        <div>
+          <dt>Worker</dt>
+          <dd>{item.workerId}</dd>
+        </div>
+      ) : null}
+      {typeof item.progressPercent === 'number' ? (
+        <div>
+          <dt>Progress</dt>
+          <dd>{item.progressPercent}%</dd>
+        </div>
+      ) : null}
+      <div>
+        <dt>Retries</dt>
+        <dd>{item.retryCount}</dd>
+      </div>
     </dl>
   );
 }
@@ -340,10 +377,14 @@ function SocialCurrentState({ item }: { item: SocialQueueItem }) {
           <div>
             <strong>{PLATFORM_LABELS[lane.platform]}</strong>
             <span>{lane.languageCode}</span>
-            <span className={`social-status social-status-${lane.status}`}>{lane.status}</span>
+            <span className={`social-status social-status-${lane.status}`}>
+              {lane.status}
+            </span>
           </div>
           {lane.workerId ? <small>worker · {lane.workerId}</small> : null}
-          {lane.error ? <small className="queue-lane-error">{lane.error}</small> : null}
+          {lane.error ? (
+            <small className="queue-lane-error">{lane.error}</small>
+          ) : null}
           {lane.url ? (
             <a href={lane.url} rel="noreferrer" target="_blank">
               Open post <ExternalLink size={13} />
@@ -358,7 +399,9 @@ function SocialCurrentState({ item }: { item: SocialQueueItem }) {
 }
 
 function PublishedLinks({ links }: { links: PipelinePublishedLink[] }) {
-  if (links.length === 0) return <span className="drawer-muted">No published posts yet.</span>;
+  if (links.length === 0) {
+    return <span className="drawer-muted">No published posts yet.</span>;
+  }
   return (
     <div className="published-links">
       {links.map((link) => (
@@ -380,7 +423,7 @@ function PublishedLinks({ links }: { links: PipelinePublishedLink[] }) {
   );
 }
 
-function DrawerSection(props: { title: string; children: React.ReactNode }) {
+function DrawerSection(props: { title: string; children: ReactNode }) {
   return (
     <section className="queue-drawer-section">
       <h4>{props.title}</h4>
@@ -389,15 +432,22 @@ function DrawerSection(props: { title: string; children: React.ReactNode }) {
   );
 }
 
-function findSelected(data: PipelineQueuesResponse, key: string): Selected | null {
+function findSelected(
+  data: PipelineQueuesResponse,
+  key: string,
+): Selected | null {
   for (const kind of ['api', 'render'] as const) {
     for (const bucket of ['processing', 'queued', 'attention'] as const) {
-      const item = data[kind][bucket].find((candidate) => candidate.key === key);
+      const item = data[kind][bucket].find(
+        (candidate) => candidate.key === key,
+      );
       if (item) return { kind, item };
     }
   }
   for (const bucket of ['processing', 'queued', 'attention'] as const) {
-    const item = data.social[bucket].find((candidate) => candidate.key === key);
+    const item = data.social[bucket].find(
+      (candidate) => candidate.key === key,
+    );
     if (item) return { kind: 'social', item };
   }
   return null;
@@ -407,7 +457,8 @@ function filterLane(
   lane: PipelineQueueLane<PipelineQueueItem>,
   query: string,
 ): PipelineQueueLane<PipelineQueueItem> {
-  const matches = (item: PipelineQueueItem) => itemMatches(item.title, item.episodeId, query);
+  const matches = (item: PipelineQueueItem) =>
+    itemMatches(item.title, item.episodeId, query);
   return {
     processing: lane.processing.filter(matches),
     queued: lane.queued.filter(matches),
@@ -419,7 +470,8 @@ function filterSocialLane(
   lane: PipelineQueueLane<SocialQueueItem>,
   query: string,
 ): PipelineQueueLane<SocialQueueItem> {
-  const matches = (item: SocialQueueItem) => itemMatches(item.title, item.episodeId, query);
+  const matches = (item: SocialQueueItem) =>
+    itemMatches(item.title, item.episodeId, query);
   return {
     processing: lane.processing.filter(matches),
     queued: lane.queued.filter(matches),
@@ -427,10 +479,17 @@ function filterSocialLane(
   };
 }
 
-export function itemMatches(title: string, episodeId: string, rawQuery: string): boolean {
+export function itemMatches(
+  title: string,
+  episodeId: string,
+  rawQuery: string,
+): boolean {
   const query = rawQuery.trim().toLocaleLowerCase();
   if (!query) return true;
-  return title.toLocaleLowerCase().includes(query) || episodeId.toLocaleLowerCase().includes(query);
+  return (
+    title.toLocaleLowerCase().includes(query) ||
+    episodeId.toLocaleLowerCase().includes(query)
+  );
 }
 
 function kindLabel(kind: PipelineQueueItem['kind']): string {
@@ -444,7 +503,10 @@ function clampPercent(value: number): number {
 }
 
 function durationSince(value: string): string {
-  const seconds = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 1000));
+  const seconds = Math.max(
+    0,
+    Math.floor((Date.now() - new Date(value).getTime()) / 1000),
+  );
   if (seconds < 60) return `${seconds}s`;
   const minutes = Math.floor(seconds / 60);
   if (minutes < 60) return `${minutes}m ${seconds % 60}s`;
