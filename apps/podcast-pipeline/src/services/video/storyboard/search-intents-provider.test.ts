@@ -90,7 +90,7 @@ describe('OpenRouter search-intent provider', () => {
           expect.objectContaining({
             canonicalName: 'Federal Reserve',
             evidenceSceneIds: ['scene-01'],
-            searchQueries: ['Federal Reserve'],
+            searchQueries: ['Federal Reserve central bank', 'Federal Reserve'],
             officialDomains: [],
           }),
         ],
@@ -252,7 +252,7 @@ describe('named-entity-first subject materialization', () => {
           id: 'subject-nvidia',
           storyRole: 'primary',
           evidenceSceneIds: ['scene-02', 'scene-03'],
-          searchQueries: ['NVIDIA'],
+          searchQueries: ['NVIDIA identity hint', 'NVIDIA'],
         }),
       ],
       droppedSubjects: [

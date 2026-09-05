@@ -985,7 +985,7 @@ describe('OpenRouter search intent provider', () => {
           identityHints: ['digital payments'],
           negativeHints: [],
           evidenceSceneIds: ['scene-01'],
-          searchQueries: ['stablecoin'],
+          searchQueries: ['stablecoin digital payments', 'stablecoin'],
           officialDomains: [],
         },
       ],
@@ -1273,6 +1273,53 @@ describe('object anchor search queries', () => {
     expect(catalog.subjects[0]?.searchQueries).toEqual([
       'data center AI compute facility',
       'data center',
+    ]);
+  });
+
+  it('carries the identity hint into a long unambiguous company name too', async () => {
+    llmMocks.createCompletionWithRetry.mockResolvedValue({
+      model: MODEL,
+      provider: 'Wafer',
+      choices: [
+        {
+          finish_reason: 'stop',
+          message: {
+            content: JSON.stringify({
+              primarySubjectId: 'subject-tether',
+              subjects: [
+                {
+                  id: 'subject-tether',
+                  canonicalName: 'Tether',
+                  type: 'company',
+                  aliases: [],
+                  storyRole: 'primary',
+                  identityHints: ['stablecoin issuer'],
+                  negativeHints: [],
+                },
+              ],
+            }),
+          },
+        },
+      ],
+    });
+
+    const catalog = (await createOpenRouterSearchIntentProvider().catalog({
+      title: 'Tether keeps minting',
+      scenes: [
+        {
+          sceneId: 'scene-01',
+          text: 'Tether keeps minting.',
+          searchText: 'Tether keeps minting.',
+        },
+      ],
+    })) as { subjects: { searchQueries: string[] }[] };
+
+    // "Tether" is six characters, a real company, and carries no collision
+    // hint, so every ambiguity rule called it safe -- and the bare query it
+    // earned returned photographs of phone tethering cables.
+    expect(catalog.subjects[0]?.searchQueries).toEqual([
+      'Tether stablecoin issuer',
+      'Tether',
     ]);
   });
 });

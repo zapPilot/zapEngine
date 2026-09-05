@@ -179,6 +179,30 @@ describe('visual subject catalog', () => {
     ]);
   });
 
+  it('does not prefix a hint-led query that already names the subject', () => {
+    // Every subject's query now leads with its identity hint, so the query
+    // arriving here already contains the canonical name. Prefixing it again
+    // would send "Tether Tether stablecoin issuer" to image search.
+    const catalog = parseVisualSubjectCatalog({
+      primarySubjectId: 'subject-tether',
+      subjects: [
+        rawSubject({
+          id: 'subject-tether',
+          canonicalName: 'Tether',
+          searchQueries: ['Tether stablecoin issuer', 'Tether'],
+          identityHints: ['stablecoin issuer'],
+        }),
+      ],
+    });
+
+    const tether = catalog.subjects[0];
+    expect(tether?.canonicalName).toBe('Tether');
+    expect(buildVisualSubjectSearchQueries(tether!)).toEqual([
+      'Tether stablecoin issuer',
+      'Tether',
+    ]);
+  });
+
   it('adds Base context to B20 so camera flashes and Honda engines cannot satisfy the identity phrase', () => {
     const catalog = parseVisualSubjectCatalog({
       primarySubjectId: 'subject-coinbase',

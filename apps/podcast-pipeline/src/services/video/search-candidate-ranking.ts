@@ -12,11 +12,29 @@ export interface RankedAgainstAsset {
   sourcePageUrl: string;
 }
 
+/** A subject whose visual identity IS a mark -- a company, its products, a
+ * protocol, an organization -- is the one case where the decorative `logo` rule
+ * removes exactly what the search was for. Every other decorative word still
+ * drops the candidate. */
+export interface ViableCandidateOptions {
+  allowLogo?: boolean;
+}
+
 export function viableCandidates(
   candidates: readonly ImageCandidate[],
   allowedOrigins: readonly ImageCandidate['origin'][],
+  options: ViableCandidateOptions = {},
 ): ImageCandidate[] {
-  return partitionViableCandidates(candidates, allowedOrigins).candidates;
+  return partitionViableCandidates(candidates, allowedOrigins, options)
+    .candidates;
+}
+
+export interface PartitionedViableCandidates {
+  candidates: ImageCandidate[];
+  drops: Map<string, number>;
+  /** The rule that removed each dropped candidate, keyed by its image URL, so a
+   * trace can name the removal next to the image instead of only counting it. */
+  dropReasons: Map<string, string>;
 }
 
 /**
@@ -28,15 +46,20 @@ export function viableCandidates(
 export function partitionViableCandidates(
   candidates: readonly ImageCandidate[],
   allowedOrigins: readonly ImageCandidate['origin'][],
-): { candidates: ImageCandidate[]; drops: Map<string, number> } {
+  options: ViableCandidateOptions = {},
+): PartitionedViableCandidates {
   const drops = new Map<string, number>();
-  const countDrop = (reason: string): void => {
+  const dropReasons = new Map<string, string>();
+  const countDrop = (candidate: ImageCandidate, reason: string): void => {
     drops.set(reason, (drops.get(reason) ?? 0) + 1);
+    if (!dropReasons.has(candidate.imageUrl)) {
+      dropReasons.set(candidate.imageUrl, reason);
+    }
   };
 
   const presentable = candidates.filter((candidate) => {
-    const reason = decorativeRejection(candidate);
-    if (reason) countDrop(reason);
+    const reason = decorativeRejection(candidate, options);
+    if (reason) countDrop(candidate, reason);
     return reason === null;
   });
   const { accepted, rejected } = partitionImageCandidates(presentable, {
@@ -45,9 +68,9 @@ export function partitionViableCandidates(
     maxCandidates: MAX_SEARCH_CANDIDATES_PER_REQUEST,
   });
   for (const entry of rejected) {
-    countDrop(entry.issues[0]?.code ?? 'unknown');
+    countDrop(entry.candidate, entry.issues[0]?.code ?? 'unknown');
   }
-  return { candidates: accepted, drops };
+  return { candidates: accepted, drops, dropReasons };
 }
 
 const SEARCH_RANKING_NOISE_WORDS = new Set([
@@ -253,8 +276,12 @@ export function searchCandidateScore(
 ): number {
   const corpus = normalizedSearchCandidateCorpus(candidate);
   const queryTokens = normalizedSearchTokens(intent);
+  // Token boundaries, not substrings: "tether" scored a full match against
+  // `7-Reasons-Why-Tethering-Your-Phone.jpg` and carried a photo of a charging
+  // cable to the top of a stablecoin episode.
   let score = queryTokens.reduce(
-    (sum, token) => sum + (corpus.includes(token) ? tokenMatchScore(token) : 0),
+    (sum, token) =>
+      sum + (containsEntityPhrase(corpus, token) ? tokenMatchScore(token) : 0),
     0,
   );
 
@@ -363,18 +390,49 @@ function includesAny(value: string, terms: readonly string[]): boolean {
   return terms.some((term) => value.includes(term));
 }
 
+const DECORATIVE_ASSET_TERMS = [
+  'avatar',
+  'emoji',
+  'emoticon',
+  'favicon',
+  'icon',
+  'logo',
+  'profile',
+  'sprite',
+  'sticker',
+  'thumb',
+  'thumbnail',
+  'wechat',
+  'weibo',
+] as const;
+
+function decorativeAssetRule(allowLogo: boolean): RegExp {
+  const terms = DECORATIVE_ASSET_TERMS.filter(
+    (term) => !allowLogo || term !== 'logo',
+  );
+  return new RegExp(
+    String.raw`(?:^|[./_\-\s])(${terms.join('|')})(?:[./_\-\s]|$)`,
+    'i',
+  );
+}
+
+const DECORATIVE_ASSET_RULE = decorativeAssetRule(false);
+const DECORATIVE_ASSET_RULE_ALLOWING_LOGO = decorativeAssetRule(true);
+
 /**
  * Returns which decorative rule removed the candidate, or null when it stays.
  * Naming the rule is the point: these run before any download, so a scene that
  * starves here leaves no rejection record of its own.
  */
-export function decorativeRejection(candidate: ImageCandidate): string | null {
+export function decorativeRejection(
+  candidate: ImageCandidate,
+  options: ViableCandidateOptions = {},
+): string | null {
   const value = normalizedSearchCandidateCorpus(candidate);
-  if (
-    /(?:^|[./_\-\s])(avatar|emoji|emoticon|favicon|icon|logo|profile|sprite|sticker|thumb|thumbnail|wechat|weibo)(?:[./_\-\s]|$)/i.test(
-      value,
-    )
-  ) {
+  const decorative = options.allowLogo
+    ? DECORATIVE_ASSET_RULE_ALLOWING_LOGO
+    : DECORATIVE_ASSET_RULE;
+  if (decorative.test(value)) {
     return 'decorative-asset';
   }
   if (
