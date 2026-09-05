@@ -24,7 +24,8 @@ export interface PipelinePublishedLink {
 export interface PipelineQueueItem {
   key: string;
   kind: PipelineQueueKind;
-  episodeId: string;
+  episodeId?: string;
+  sourceUrl?: string;
   title: string;
   languageCode?: string;
   state: PipelineQueueState;
