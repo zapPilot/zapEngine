@@ -25,7 +25,9 @@ describe('podcast pipeline release guard migration', () => {
   });
 
   it('fails closed on stale or mismatched capability', () => {
-    expect(normalized).toContain("heartbeat_at < now() - interval '90 seconds'");
+    expect(normalized).toContain(
+      "heartbeat_at < now() - interval '90 seconds'",
+    );
     expect(normalized).toContain(
       'podcast pipeline release heartbeat is missing or stale; video restart blocked',
     );
@@ -48,7 +50,11 @@ describe('podcast pipeline release guard migration', () => {
 
   it('reloads the PostgREST schema after replacing the RPCs', () => {
     expect(normalized).toContain("notify pgrst, 'reload schema';");
-    expect(normalized).toContain('grant execute on function from_fed_to_chain.retry_episode_video_generation');
-    expect(normalized).toContain('grant execute on function from_fed_to_chain.retry_episode_video_render');
+    expect(normalized).toContain(
+      'grant execute on function from_fed_to_chain.retry_episode_video_generation',
+    );
+    expect(normalized).toContain(
+      'grant execute on function from_fed_to_chain.retry_episode_video_render',
+    );
   });
 });

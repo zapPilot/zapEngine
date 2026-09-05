@@ -1,9 +1,6 @@
 import { EPISODE_VIDEO_VISUAL_VERSION } from '@zapengine/types/shared';
 
-import {
-  readFlyMachinesConfig,
-  type FlyMachinesConfig,
-} from '../lib/env.js';
+import { type FlyMachinesConfig, readFlyMachinesConfig } from '../lib/env.js';
 import {
   createFlyMachinesClient,
   flyImageRefsMatch,
@@ -11,8 +8,8 @@ import {
 } from './fly-machines.js';
 import {
   getPipelineSupabase,
-  throwSupabaseError,
   type PipelineSupabaseClient,
+  throwSupabaseError,
 } from './supabase-client.js';
 
 export const PODCAST_RELEASE_HEARTBEAT_INTERVAL_MS = 30_000;
@@ -105,9 +102,13 @@ export async function startPodcastReleaseHeartbeat(
   }
 
   const timer = setInterval(() => {
-    void beat().catch((error: unknown) => {
-      logger.error('[podcast-release] heartbeat failed', error);
-    });
+    void (async () => {
+      try {
+        await beat();
+      } catch (error: unknown) {
+        logger.error('[podcast-release] heartbeat failed', error);
+      }
+    })();
   }, intervalMs);
   timer.unref();
 

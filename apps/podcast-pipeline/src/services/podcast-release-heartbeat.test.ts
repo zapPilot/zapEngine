@@ -3,16 +3,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { FlyMachinesConfig } from '../lib/env.js';
 import type { FlyMachinesClient } from './fly-machines.js';
-import type { PipelineSupabaseClient } from './supabase-client.js';
 import {
   markPodcastPipelineRelease,
   podcastReleaseCanRender,
   startPodcastReleaseHeartbeat,
 } from './podcast-release-heartbeat.js';
+import type { PipelineSupabaseClient } from './supabase-client.js';
 
-function clientWithRpc(
-  rpc: ReturnType<typeof vi.fn>,
-): PipelineSupabaseClient {
+function clientWithRpc(rpc: ReturnType<typeof vi.fn>): PipelineSupabaseClient {
   return { rpc } as unknown as PipelineSupabaseClient;
 }
 
@@ -56,9 +54,11 @@ describe('podcast release heartbeat', () => {
   });
 
   it('does not authorize retries while the render Machine is still on the previous image', async () => {
-    const listMachines = vi.fn().mockResolvedValue([
-      renderMachine('registry.fly.io/from-fed-to-chain-api:deployment-v9'),
-    ]);
+    const listMachines = vi
+      .fn()
+      .mockResolvedValue([
+        renderMachine('registry.fly.io/from-fed-to-chain-api:deployment-v9'),
+      ]);
 
     await expect(
       podcastReleaseCanRender({
