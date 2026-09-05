@@ -8,6 +8,7 @@ export interface QueueJobFixture {
   scheduled_at: string;
   next_attempt_at: string;
   attempt_count?: number;
+  lease_expires_at?: string | null;
 }
 
 export interface LocalizationFixture {

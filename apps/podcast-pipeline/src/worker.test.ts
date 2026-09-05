@@ -143,22 +143,28 @@ describe('startVideoWorkerProcess', () => {
     );
   });
 
-  it('restarts the idle window whenever a poll finds work', async () => {
-    vi.useFakeTimers();
-    const { exit, poll } = makeHarness({
-      idleShutdownMs: IDLE_SHUTDOWN_MS,
-    });
+  // 'busy' is what a poll reports when the other render slot is still
+  // occupied. Treating it as idle would exit the process out from under that
+  // render.
+  it.each<VideoWorkerPollResult>(['completed', 'busy'])(
+    'restarts the idle window when a poll reports %s',
+    async (working) => {
+      vi.useFakeTimers();
+      const { exit, poll } = makeHarness({
+        idleShutdownMs: IDLE_SHUTDOWN_MS,
+      });
 
-    poll('empty');
-    await vi.advanceTimersByTimeAsync(IDLE_SHUTDOWN_MS * 2);
-    poll('completed');
-    poll('empty');
-    await vi.advanceTimersByTimeAsync(IDLE_SHUTDOWN_MS - 1_000);
-    poll('empty');
-    await vi.advanceTimersByTimeAsync(0);
+      poll('empty');
+      await vi.advanceTimersByTimeAsync(IDLE_SHUTDOWN_MS * 2);
+      poll(working);
+      poll('empty');
+      await vi.advanceTimersByTimeAsync(IDLE_SHUTDOWN_MS - 1_000);
+      poll('empty');
+      await vi.advanceTimersByTimeAsync(0);
 
-    expect(exit).not.toHaveBeenCalled();
-  });
+      expect(exit).not.toHaveBeenCalled();
+    },
+  );
 
   it('shuts down only once even if further empty polls land', async () => {
     vi.useFakeTimers();

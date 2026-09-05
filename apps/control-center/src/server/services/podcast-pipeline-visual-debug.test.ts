@@ -179,6 +179,7 @@ function searchRowFor(
       { reason: 'entity-filtered', count: trace.entityFiltered },
       { reason: 'rejected', count: trace.rejected },
     ].filter(({ count }) => count > 0),
+    candidates: [],
     error: null,
   };
 }
@@ -218,6 +219,29 @@ const episodeImageSearch = {
         { reason: 'decorative-asset', count: 38 },
         { reason: 'text-card-publisher', count: 21 },
       ],
+      candidates: [
+        {
+          imageUrl: 'https://images.example.com/a16z-office.jpg',
+          sourceUrl: 'https://www.reuters.com/a16z',
+          altText: 'a16z headquarters',
+          providerRank: 0,
+          dropReason: null,
+        },
+        {
+          imageUrl: 'https://images.example.com/a16z-logo.png',
+          sourceUrl: 'https://a16z.com/brand',
+          altText: null,
+          providerRank: 1,
+          dropReason: 'decorative-asset',
+        },
+        {
+          imageUrl: 'https://images.example.com/a16z-partners.jpg',
+          sourceUrl: 'https://www.ft.com/a16z',
+          altText: 'a16z partners',
+          providerRank: 4,
+          dropReason: null,
+        },
+      ],
       error: null,
     },
     {
@@ -229,6 +253,7 @@ const episodeImageSearch = {
       returned: 0,
       viable: 0,
       drops: [],
+      candidates: [],
       error: 'brave images request failed with 429',
     },
     {
@@ -240,6 +265,7 @@ const episodeImageSearch = {
       returned: 40,
       viable: 12,
       drops: [],
+      candidates: [],
       error: null,
     },
   ],
@@ -461,6 +487,7 @@ describe('podcast pipeline visual diagnostics', () => {
         returned: 8,
         viable: 0,
         drops: [{ reason: 'entity-filtered', count: 8 }],
+        candidates: [],
         error: null,
       },
     ]);
@@ -500,6 +527,34 @@ describe('podcast pipeline visual diagnostics', () => {
           { reason: 'decorative-asset', count: 38 },
           { reason: 'text-card-publisher', count: 21 },
         ],
+        // A scene names the image it got by query and provider rank only, so
+        // the join back to the thumbnail happens here or nowhere.
+        candidates: [
+          {
+            imageUrl: 'https://images.example.com/a16z-office.jpg',
+            sourceUrl: 'https://www.reuters.com/a16z',
+            altText: 'a16z headquarters',
+            providerRank: 0,
+            dropReason: null,
+            selectedBySceneId: 'scene-01',
+          },
+          {
+            imageUrl: 'https://images.example.com/a16z-logo.png',
+            sourceUrl: 'https://a16z.com/brand',
+            altText: null,
+            providerRank: 1,
+            dropReason: 'decorative-asset',
+            selectedBySceneId: null,
+          },
+          {
+            imageUrl: 'https://images.example.com/a16z-partners.jpg',
+            sourceUrl: 'https://www.ft.com/a16z',
+            altText: 'a16z partners',
+            providerRank: 4,
+            dropReason: null,
+            selectedBySceneId: 'scene-02',
+          },
+        ],
         error: null,
       },
       {
@@ -511,6 +566,7 @@ describe('podcast pipeline visual diagnostics', () => {
         returned: 0,
         viable: 0,
         drops: [],
+        candidates: [],
         error: 'brave images request failed with 429',
       },
       {
@@ -522,8 +578,31 @@ describe('podcast pipeline visual diagnostics', () => {
         returned: 40,
         viable: 12,
         drops: [],
+        candidates: [],
         error: null,
       },
+    ]);
+  });
+
+  it('leaves candidates empty for a payload written before they were traced', () => {
+    const debug = visualDebugFor(
+      {
+        imageSearch: {
+          ...episodeImageSearch,
+          requests: episodeImageSearch.requests.map((request) =>
+            Object.fromEntries(
+              Object.entries(request).filter(([key]) => key !== 'candidates'),
+            ),
+          ),
+        },
+      },
+      'processing',
+    );
+
+    expect(debug?.actualSearches.map(({ candidates }) => candidates)).toEqual([
+      [],
+      [],
+      [],
     ]);
   });
 

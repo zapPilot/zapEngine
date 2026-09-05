@@ -384,9 +384,11 @@ export function createRenderCapacityReconciler(
       return 'wake-suppressed';
     }
 
-    // One machine is enough — heavyWorkCoordinator runs a single job at a time,
-    // so waking more would only add cost. Two `app` machines racing to start the
-    // same one is harmless: a repeated start does not boot it twice.
+    // One machine is enough. The worker runs at most
+    // RENDER_MAX_CONCURRENT_JOBS jobs (src/services/render-admission.ts), and
+    // it claims the second itself the moment it has the memory for it, so
+    // waking a second machine would only add cost. Two `app` machines racing to
+    // start the same one is harmless: a repeated start does not boot it twice.
     const target =
       currentMachines.find((machine) =>
         WAKEABLE_MACHINE_STATES.has(machine.state),

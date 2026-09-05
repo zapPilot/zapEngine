@@ -665,6 +665,94 @@ describe('planVisualAssets episode image pool', () => {
     ]);
   });
 
+  it('records the head of each Brave response, including what it filtered out', async () => {
+    const intent = 'Kestrel Dynamics factory floor';
+    const keeper = braveResult(
+      'kestrel-factory',
+      'Kestrel Dynamics factory floor',
+    );
+    const decorative = braveResult('kestrel-icon', 'Kestrel Dynamics icon');
+
+    const result = await planVisualAssets({
+      scenes: [
+        {
+          sceneId: 'scene-01',
+          imageSearchIntent: [intent],
+          imageSearchEntities: ['Kestrel Dynamics'],
+          searchAnchor: 'direct',
+        },
+      ],
+      workingDirectory: WORKING_DIRECTORY,
+      selectionMode: 'resilient',
+      dependencies: {
+        acquireImage: vi.fn(acquireByUrl),
+        searchProviders: braveProviders(
+          searchByQuery({ [intent]: [keeper, decorative] }),
+        ),
+        fingerprintImage: vi.fn(distinctFingerprints()),
+      },
+    });
+
+    // Counts alone say 2 returned, 1 viable, and cannot say which one survived
+    // or what the other one was -- the only two questions a wrong image raises.
+    expect(result.imageSearch?.requests[0]?.candidates).toEqual([
+      {
+        imageUrl: keeper.imageUrl,
+        sourceUrl: keeper.sourceUrl,
+        altText: 'Kestrel Dynamics factory floor',
+        providerRank: 0,
+        dropReason: null,
+      },
+      {
+        imageUrl: decorative.imageUrl,
+        sourceUrl: decorative.sourceUrl,
+        altText: 'Kestrel Dynamics icon',
+        providerRank: 1,
+        dropReason: 'decorative-asset',
+      },
+    ]);
+    // The scene names its image by the rank the candidate list is keyed on.
+    expect(result.imageSearch?.scenes[0]?.providerRank).toBe(0);
+  });
+
+  it('keeps a company mark that the decorative filter drops for any other anchor', async () => {
+    const intent = 'Tether stablecoin issuer';
+    const mark = braveResult('tether-logo', 'Tether logo');
+    const plan = (subjectType: string | undefined) =>
+      planVisualAssets({
+        scenes: [
+          {
+            sceneId: 'scene-01',
+            imageSearchIntent: [intent],
+            imageSearchEntities: ['Tether'],
+            searchAnchor: 'direct',
+            ...(subjectType ? { subjectType } : {}),
+          },
+        ],
+        workingDirectory: WORKING_DIRECTORY,
+        selectionMode: 'resilient',
+        slideFallback: { title: 'Tether keeps minting' },
+        dependencies: {
+          acquireImage: vi.fn(acquireByUrl),
+          searchProviders: braveProviders(searchByQuery({ [intent]: [mark] })),
+          fingerprintImage: vi.fn(distinctFingerprints()),
+          generateSlide: vi.fn((request: GeneratedSlideRequest) =>
+            Promise.resolve(conceptCard(request)),
+          ),
+        },
+      });
+
+    const withoutType = await plan(undefined);
+    expect(withoutType.imageSearch?.requests[0]?.viable).toBe(0);
+    expect(withoutType.imageSearch?.scenes[0]?.selection).toBe(
+      'generated-slide',
+    );
+
+    const asCompany = await plan('company');
+    expect(asCompany.imageSearch?.requests[0]?.viable).toBe(1);
+    expect(asCompany.imageSearch?.scenes[0]?.selection).toBe('pool');
+  });
+
   it('traces every request and every scene decision it emits', async () => {
     const namedIntent = 'Kestrel Dynamics factory floor';
     const genericIntent = 'industrial supply chain';

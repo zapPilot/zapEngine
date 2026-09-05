@@ -7,18 +7,14 @@ import type {
   PodcastPipelineResponse,
   PodcastPipelineRestartAction,
   PodcastPipelineStatus,
-  PodcastPipelineVisualBudget,
-  PodcastPipelineVisualDebug,
-  PodcastPipelineVisualSceneSelection,
-  PodcastPipelineVisualSearchAttempt,
-  PodcastPipelineVisualSubjectSearch,
 } from '../../shared/podcast-pipeline.js';
 import type {
   PodcastVisualDebugResponse,
   PodcastVisualReviewHandlers,
 } from '../../shared/podcast-visual.js';
 import type { StatementsResponse } from '../../shared/statements.js';
-import { relativeTime } from '../format.js';
+import { compactError, relativeTime } from '../format.js';
+import { CopyableId } from './CopyableId.js';
 import { PodcastVisualDebugPanel } from './PodcastVisualDebugPanel.js';
 import { StatementHeader } from './StatementHeader.js';
 
@@ -26,6 +22,16 @@ type RestartStepHandler = (
   episodeId: string,
   action: PodcastPipelineRestartAction,
 ) => void;
+
+/** One language's progress through a phase, as the phase grid draws it. */
+interface PhaseLanguageRow {
+  languageCode: 'zh-Hant' | 'ja' | 'en';
+  status: PodcastPipelineStatus;
+  progressPercent: number | null;
+  stage: string | null;
+  lastError: string | null;
+  onRetry?: () => void;
+}
 
 export function PodcastPipelineView(
   props: PodcastVisualReviewHandlers & {
@@ -156,14 +162,20 @@ function PipelineEpisode(
           <span className="pipeline-phase-label">
             {phaseLabel(episode.currentPhase)}
           </span>
-          <h3>{episode.title ?? shortId(episode.episodeId)}</h3>
-          <small>
-            Added {relativeTime(episode.createdAt)} ·{' '}
-            {shortId(episode.episodeId)}
-            {episode.ingest
-              ? ` · ingest ${statusLabel(episode.ingest.status)}`
-              : ''}
-          </small>
+          <h3>{episode.title ?? episode.episodeId}</h3>
+          {/* The full UUID, because every retry command, Supabase query and
+              Fly log filter an operator writes next needs the whole value. */}
+          <div className="pipeline-episode-meta">
+            <CopyableId
+              className="pipeline-episode-id"
+              label="episode id"
+              value={episode.episodeId}
+            />
+            <small>Added {relativeTime(episode.createdAt)}</small>
+            {episode.ingest ? (
+              <small>ingest {statusLabel(episode.ingest.status)}</small>
+            ) : null}
+          </div>
         </div>
         <div className="pipeline-retry-actions">
           {episode.currentPhase !== 'done' ? (
@@ -190,15 +202,32 @@ function PipelineEpisode(
         </div>
       </header>
 
+      {/* Per-language progress lives in the phase it belongs to. The images are
+          shared by all three renders, so a language only ever differs in its
+          script, its audio and its encode — and those are exactly the three
+          cells that now carry the language rows. */}
       <div className="pipeline-phase-grid">
-        <PhaseCell label="Translation" status={episode.translationStatus} />
-        <PhaseCell label="TTS" status={episode.ttsStatus} />
+        <PhaseCell
+          label="Translation"
+          languages={scriptLanguages(episode)}
+          status={episode.translationStatus}
+        />
+        <PhaseCell
+          label="TTS"
+          languages={audioLanguages(episode)}
+          status={episode.ttsStatus}
+        />
         <PhaseCell
           detail={jobDetail(episode.visual)}
           label="Visual"
+          progressPercent={episode.visual?.progressPercent ?? null}
           status={episode.visual?.status ?? 'pending'}
         />
-        <PhaseCell label="Video" status={episode.videoStatus} />
+        <PhaseCell
+          label="Video"
+          languages={renderLanguages(props)}
+          status={episode.videoStatus}
+        />
       </div>
 
       {ingestError && episode.ingest?.status !== 'completed' ? (
@@ -231,9 +260,6 @@ function PipelineEpisode(
       {visualError ? (
         <PipelineError label="Visual failure" message={visualError} />
       ) : null}
-      {episode.visualDebug ? (
-        <VisualSearchPlan debug={episode.visualDebug} />
-      ) : null}
 
       <PodcastVisualDebugPanel
         data={props.visualDebug}
@@ -241,6 +267,7 @@ function PipelineEpisode(
         onLoadVisualDebug={props.onLoadVisualDebug}
         onResolveReview={props.onResolveReview}
         onSubmitReview={props.onSubmitReview}
+        pipelineDebug={episode.visualDebug}
       />
 
       {episode.canForceReplanVisual ? (
@@ -254,58 +281,6 @@ function PipelineEpisode(
           }
         />
       ) : null}
-
-      <details className="pipeline-details">
-        <summary>Language and render details</summary>
-        <div className="pipeline-language-grid">
-          {episode.localizations.map((localization) => {
-            const render = episode.renders.find(
-              ({ languageCode }) => languageCode === localization.languageCode,
-            );
-            return (
-              <div
-                className="pipeline-language"
-                key={localization.languageCode}
-              >
-                <strong>{languageLabel(localization.languageCode)}</strong>
-                <span>
-                  Script {localization.hasScript ? '✓' : '—'} · Audio{' '}
-                  {localization.hasAudio ? '✓' : '—'}
-                </span>
-                <span>
-                  Render <StatusLabel status={render?.status ?? 'pending'} />
-                </span>
-                {render?.stage ? (
-                  <small>
-                    {render.stage}
-                    {render.progressPercent !== null
-                      ? ` · ${render.progressPercent}%`
-                      : ''}
-                  </small>
-                ) : null}
-                {render?.lastError ? (
-                  <small className="warning-text">
-                    {compactError(render.lastError)}
-                  </small>
-                ) : null}
-                {render?.canRestart ? (
-                  <RestartButton
-                    disabled={props.isRestarting}
-                    label="Retry render"
-                    onClick={() =>
-                      props.onRestartStep(episode.episodeId, {
-                        step: 'render',
-                        localizationId: render.localizationId,
-                      })
-                    }
-                    title={`Retry only the ${render.languageCode} render`}
-                  />
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
-      </details>
     </article>
   );
 }
@@ -351,191 +326,47 @@ function AdvancedRecovery(props: {
   );
 }
 
-function VisualSearchPlan(props: { debug: PodcastPipelineVisualDebug }) {
-  const { debug } = props;
-  const actualKeywords = [
-    ...new Set(debug.actualSearches.map(({ query }) => query)),
-  ];
-  const plannedKeywords = [
-    ...new Set([
-      ...debug.plannedSubjectSearches.map(({ query }) => query),
-      ...debug.plannedQueries.flatMap(({ queries }) => queries),
-    ]),
-  ];
-  const displayedKeywords =
-    actualKeywords.length > 0 ? actualKeywords : plannedKeywords;
-  const keywordLabel =
-    actualKeywords.length > 0
-      ? 'Search keywords used'
-      : 'Search keywords planned';
-
-  return (
-    <details className="pipeline-details">
-      <summary>Visual search debug</summary>
-      <div className="pipeline-language-grid">
-        <div className="pipeline-language">
-          <strong>{keywordLabel}</strong>
-          <span>
-            {displayedKeywords.length > 0
-              ? displayedKeywords.join(' · ')
-              : 'No search keywords recorded'}
-          </span>
-          {actualKeywords.length === 0 ? (
-            <small>No provider search trace recorded yet</small>
-          ) : null}
-        </div>
-        <div className="pipeline-language">
-          <strong>Subjects</strong>
-          <span>Primary: {debug.primarySubject ?? '—'}</span>
-          <small>
-            {debug.subjects.length > 0
-              ? debug.subjects.map(({ name }) => name).join(' · ')
-              : 'No subject catalog recorded'}
-          </small>
-          {debug.subjectCatalogFailure ? (
-            <small className="warning-text">
-              catalog degraded: {compactError(debug.subjectCatalogFailure)}
-            </small>
-          ) : null}
-        </div>
-        {debug.budget ? (
-          <div className="pipeline-language">
-            <strong>Request budget</strong>
-            <span>{budgetLine(debug.budget, debug.actualSearches)}</span>
-            {debug.budget.exhausted ? (
-              <small className="warning-text">
-                Scenes after the last request fell back to the episode pool
-              </small>
-            ) : null}
-          </div>
-        ) : null}
-        <SubjectSearchList
-          label="Subject searches spent"
-          searches={debug.primarySubjects}
-        />
-        <SubjectSearchList
-          label="Subject searches planned"
-          searches={debug.plannedSubjectSearches}
-        />
-        {debug.actualSearches.map((search, index) => (
-          <div
-            className="pipeline-language"
-            key={`request-${search.sceneId ?? search.subjectLabel ?? ''}-${index}`}
-          >
-            <strong>{requestTitle(search)}</strong>
-            <span>{search.query}</span>
-            <small>
-              returned {search.returned} · viable {search.viable}
-              {search.drops.length > 0 ? ` · drops ${dropLine(search)}` : ''}
-            </small>
-            {search.error ? (
-              <small className="warning-text">
-                {compactError(search.error)}
-              </small>
-            ) : null}
-          </div>
-        ))}
-        {debug.sceneSelections.map((scene) => (
-          <div className="pipeline-language" key={`selection-${scene.sceneId}`}>
-            <strong>
-              {scene.sceneId} · {scene.selection}
-            </strong>
-            <span>{selectionSourceLine(scene)}</span>
-            {scene.fallbackReason ? (
-              <small className="warning-text">
-                fallback: {scene.fallbackReason}
-              </small>
-            ) : null}
-          </div>
-        ))}
-        {debug.reuse.length > 0 ? (
-          <div className="pipeline-language">
-            <strong>Image reuse</strong>
-            {debug.reuse.map(({ assetId, useCount }) => (
-              <small key={assetId}>
-                {assetId} · {useCount} scenes
-              </small>
-            ))}
-          </div>
-        ) : null}
-        {debug.plannedQueries.map((scene) => (
-          <div className="pipeline-language" key={`planned-${scene.sceneId}`}>
-            <strong>{scene.sceneId} · planned</strong>
-            <span>
-              {scene.selectionReason ?? 'search'}
-              {scene.subjectIds.length > 0
-                ? ` · ${scene.subjectIds.join(', ')}`
-                : ''}
-            </span>
-            <small>{scene.queries.join(' · ')}</small>
-          </div>
-        ))}
-      </div>
-    </details>
-  );
+function scriptLanguages(episode: PodcastPipelineEpisode): PhaseLanguageRow[] {
+  return episode.localizations.map((localization) => ({
+    languageCode: localization.languageCode,
+    status: localization.hasScript ? 'completed' : 'pending',
+    progressPercent: localization.hasScript ? 100 : null,
+    stage: null,
+    lastError: null,
+  }));
 }
 
-function SubjectSearchList(props: {
-  label: string;
-  searches: PodcastPipelineVisualSubjectSearch[];
-}) {
-  if (props.searches.length === 0) {
-    return null;
-  }
-  return (
-    <div className="pipeline-language">
-      <strong>{props.label}</strong>
-      {props.searches.map(({ label, query }) => (
-        <small key={`${label}-${query}`}>
-          {label} · “{query}”
-        </small>
-      ))}
-    </div>
-  );
+function audioLanguages(episode: PodcastPipelineEpisode): PhaseLanguageRow[] {
+  return episode.localizations.map((localization) => ({
+    languageCode: localization.languageCode,
+    status: localization.hasAudio ? 'completed' : 'pending',
+    progressPercent: localization.hasAudio ? 100 : null,
+    stage: null,
+    lastError: null,
+  }));
 }
 
-/** The episode's whole image supply is bounded by this line, so a repetitive or
- * off-topic video is read here first: a starved budget and a bad search look
- * identical in the finished video. */
-function budgetLine(
-  budget: PodcastPipelineVisualBudget,
-  searches: PodcastPipelineVisualSearchAttempt[],
-): string {
-  const spent = (kind: PodcastPipelineVisualSearchAttempt['kind']): number =>
-    searches.filter((search) => search.kind === kind).length;
-  const parts = [
-    `requests ${budget.requestCount}/${budget.max}`,
-    `primary ${spent('primary')}/${budget.primary}`,
-    `targeted ${spent('targeted')}/${budget.targeted}`,
-  ];
-  if (budget.exhausted) {
-    parts.push('exhausted');
-  }
-  return parts.join(' · ');
-}
-
-function requestTitle(search: PodcastPipelineVisualSearchAttempt): string {
-  return [
-    search.subjectLabel ?? search.sceneId ?? 'search',
-    search.kind ?? search.provider,
-  ].join(' · ');
-}
-
-function dropLine(search: PodcastPipelineVisualSearchAttempt): string {
-  return search.drops
-    .map(({ reason, count }) => `${reason} ${count}`)
-    .join(', ');
-}
-
-function selectionSourceLine(
-  scene: PodcastPipelineVisualSceneSelection,
-): string {
-  const rank = scene.providerRank !== null ? ` (#${scene.providerRank})` : '';
-  const parts = [
-    scene.matchedSubjectKey,
-    scene.sourceQuery ? `from “${scene.sourceQuery}”${rank}` : null,
-  ].filter((part): part is string => Boolean(part));
-  return parts.length > 0 ? parts.join(' · ') : 'no search result behind it';
+function renderLanguages(props: {
+  episode: PodcastPipelineEpisode;
+  isRestarting: boolean;
+  onRestartStep: RestartStepHandler;
+}): PhaseLanguageRow[] {
+  return props.episode.renders.map((render) => ({
+    languageCode: render.languageCode,
+    status: render.status,
+    progressPercent: render.progressPercent,
+    stage: render.stage,
+    lastError: render.lastError,
+    ...(render.canRestart && !props.isRestarting
+      ? {
+          onRetry: () =>
+            props.onRestartStep(props.episode.episodeId, {
+              step: 'render',
+              localizationId: render.localizationId,
+            }),
+        }
+      : {}),
+  }));
 }
 
 function RestartButton(props: {
@@ -562,12 +393,59 @@ function PhaseCell(props: {
   label: string;
   status: PodcastPipelineStatus;
   detail?: string | null;
+  progressPercent?: number | null;
+  languages?: PhaseLanguageRow[];
 }) {
   return (
     <div className="pipeline-phase-cell">
       <span>{props.label}</span>
       <StatusLabel status={props.status} />
       {props.detail ? <small>{props.detail}</small> : null}
+      {props.progressPercent !== null && props.progressPercent !== undefined ? (
+        <ProgressBar percent={props.progressPercent} status={props.status} />
+      ) : null}
+      {props.languages?.map((language) => (
+        <div className="pipeline-phase-lang" key={language.languageCode}>
+          <span>{languageLabel(language.languageCode)}</span>
+          <ProgressBar
+            percent={language.progressPercent}
+            status={language.status}
+          />
+          <StatusLabel status={language.status} />
+          {language.stage ? <small>{language.stage}</small> : null}
+          {language.lastError ? (
+            <small className="warning-text">
+              {compactError(language.lastError)}
+            </small>
+          ) : null}
+          {language.onRetry ? (
+            <button
+              className="refresh-button pipeline-retry"
+              onClick={language.onRetry}
+              title={`Retry only the ${language.languageCode} render`}
+              type="button"
+            >
+              <RotateCcw aria-hidden="true" />
+              Retry render
+            </button>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ProgressBar(props: {
+  percent: number | null;
+  status: PodcastPipelineStatus;
+}) {
+  // A finished job stops reporting progress, so an absent percentage on a
+  // completed row is a full bar rather than an empty one.
+  const percent = props.percent ?? (props.status === 'completed' ? 100 : 0);
+  const width = Math.max(0, Math.min(100, percent));
+  return (
+    <div className={`pipeline-progress pipeline-progress-${props.status}`}>
+      <span style={{ width: `${width}%` }} />
     </div>
   );
 }
@@ -669,16 +547,4 @@ function languageLabel(languageCode: 'zh-Hant' | 'ja' | 'en'): string {
     return '🇹🇼 zh-Hant';
   }
   return languageCode === 'ja' ? '🇯🇵 ja' : '🇺🇸 en';
-}
-
-function compactError(error: string): string {
-  const compact = error.replace(/\s+/gu, ' ').trim();
-  if (compact.length > 280) {
-    return `${compact.slice(0, 277)}…`;
-  }
-  return compact;
-}
-
-function shortId(value: string): string {
-  return value.slice(0, 8);
 }

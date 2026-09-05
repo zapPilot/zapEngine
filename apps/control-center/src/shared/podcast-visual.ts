@@ -102,13 +102,6 @@ export interface PodcastVisualDebugResponse {
     attempts: number;
     lastError: string | null;
   } | null;
-  renders: {
-    languageCode: string;
-    status: string;
-    mp4Url: string | null;
-    thumbnailUrl: string | null;
-    durationSeconds: number | null;
-  }[];
   scenes: PodcastVisualSceneDebug[];
   failure: PodcastVisualFailureDebug | null;
   reviews: PodcastVideoReview[];
