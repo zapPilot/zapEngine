@@ -6,6 +6,7 @@ import type { YieldReturnsSummaryResponse } from '@zapengine/app-core/services';
 
 export const MIN_OBSERVED_DAYS = 7;
 export const MIN_DISPLAY_MONTHLY_USD = 0.005;
+const ETH_STAKING_PROTOCOL = 'ETH Staking';
 
 export interface HomeProtocolIncomeRow {
   protocol: string;
@@ -50,6 +51,10 @@ export function buildHomeIncomeView(
   const window = summary?.windows[windowKey];
   const windowDays = Number.parseInt(windowKey, 10) || 30;
   const observedDays = window?.statistics.total_days ?? 0;
+  const hasStakingEstimate =
+    window?.protocol_breakdown.some(
+      (item) => item.protocol === ETH_STAKING_PROTOCOL,
+    ) ?? false;
   const emptyResult: HomeIncomeView = {
     status: 'empty',
     passiveMonthlyUsd: 0,
@@ -60,7 +65,11 @@ export function buildHomeIncomeView(
     observedDays,
     protocolRows: [],
   };
-  if (!window || observedDays === 0 || window.protocol_breakdown.length === 0) {
+  if (
+    !window ||
+    window.protocol_breakdown.length === 0 ||
+    (observedDays === 0 && !hasStakingEstimate)
+  ) {
     return emptyResult;
   }
 
@@ -89,10 +98,14 @@ export function buildHomeIncomeView(
     0,
   );
   const passiveMonthlyUsd = incomeMonthlyUsd + costMonthlyUsd;
+  const stakingOnlyEstimate = observedDays === 0 && hasStakingEstimate;
 
   return {
     ...emptyResult,
-    status: observedDays < MIN_OBSERVED_DAYS ? 'insufficient' : 'ready',
+    status:
+      stakingOnlyEstimate || observedDays >= MIN_OBSERVED_DAYS
+        ? 'ready'
+        : 'insufficient',
     passiveMonthlyUsd,
     incomeMonthlyUsd,
     costMonthlyUsd,

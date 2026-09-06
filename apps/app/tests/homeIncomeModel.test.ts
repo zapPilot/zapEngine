@@ -108,6 +108,56 @@ describe('buildHomeIncomeView', () => {
     ]);
   });
 
+  it('includes synthetic ETH staking income in passive headline totals', () => {
+    const result = buildHomeIncomeView(
+      summary([
+        {
+          protocol: 'ETH Staking',
+          averageDaily: 2,
+          tokenSymbols: ['wstETH', 'cbETH'],
+        },
+        {
+          protocol: 'Morpho',
+          chain: 'ethereum',
+          averageDaily: -1,
+          tokenSymbols: ['USDT'],
+          positionTypes: ['Lending'],
+        },
+      ]),
+    );
+
+    expect(result.incomeMonthlyUsd).toBeCloseTo(60.8);
+    expect(result.costMonthlyUsd).toBeCloseTo(-30.4);
+    expect(result.passiveMonthlyUsd).toBeCloseTo(30.4);
+    expect(result.protocolRows[0]).toEqual(
+      expect.objectContaining({
+        protocol: 'ETH Staking',
+        monthlyNetUsd: 60.8,
+        tokenSymbols: ['wstETH', 'cbETH'],
+      }),
+    );
+  });
+
+  it('shows staking-only income even without observed protocol delta days', () => {
+    const result = buildHomeIncomeView(
+      summary(
+        [
+          {
+            protocol: 'ETH Staking',
+            averageDaily: 2,
+            tokenSymbols: ['wstETH'],
+          },
+        ],
+        0,
+      ),
+    );
+
+    expect(result.status).toBe('ready');
+    expect(result.observedDays).toBe(0);
+    expect(result.passiveMonthlyUsd).toBeCloseTo(60.8);
+    expect(result.protocolRows).toHaveLength(1);
+  });
+
   it('drops values that would render as zero cents', () => {
     const result = buildHomeIncomeView(
       summary([

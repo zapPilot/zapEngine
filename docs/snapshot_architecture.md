@@ -26,6 +26,12 @@ The public compatibility views retain their existing names:
 Readers use these views. Alpha ETL is the only application writer for the two
 daily base tables.
 
+A reader that needs the provider slice reads
+`analytics.daily_portfolio_positions` directly, because the compatibility view
+omits `source` and cannot anchor a query to the latest DeBank day.
+`src/queries/sql/get_latest_lst_exposure.sql` in analytics-engine is the
+current example.
+
 ## Scheduling and idempotency
 
 There are no snapshot triggers, dirty queues, cache tables, or database cron.
