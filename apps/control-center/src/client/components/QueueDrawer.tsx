@@ -1,4 +1,4 @@
-import { ExternalLink, X as CloseIcon, RotateCcw } from 'lucide-react';
+import { ExternalLink, RotateCcw, X as CloseIcon } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 
 import type {
@@ -16,9 +16,11 @@ import { compactError, relativeTime } from '../format.js';
 import { CopyableId } from './CopyableId.js';
 import './QueueDrawer.css';
 import { VisualEvidence } from './VisualEvidence.js';
+import type { EpisodeRenderQueueItem } from './episode-queue.js';
 
 export type SelectedQueueEntry =
-  | { kind: 'api' | 'render'; item: PipelineQueueItem }
+  | { kind: 'api'; item: PipelineQueueItem }
+  | { kind: 'render'; item: EpisodeRenderQueueItem }
   | { kind: 'social'; item: SocialQueueItem };
 
 export const PLATFORM_LABELS: Record<SocialPlatform, string> = {
@@ -43,6 +45,7 @@ export function QueueDrawer(
 ) {
   const { item } = props.selected;
   const isSocial = props.selected.kind === 'social';
+  const isRenderEpisode = props.selected.kind === 'render';
   const [tab, setTab] = useState<DrawerTab>('overview');
   const [restartError, setRestartError] = useState<string | null>(null);
   const [restarting, setRestarting] = useState(false);
@@ -122,7 +125,7 @@ export function QueueDrawer(
 
       {tab === 'overview' ? (
         <>
-          {isSocial ? null : (
+          {!isSocial && !isRenderEpisode ? (
             <DrawerSection title="Recovery">
               <RecoveryActions
                 busy={restarting}
@@ -131,15 +134,24 @@ export function QueueDrawer(
                 onRestart={runRestart}
               />
             </DrawerSection>
-          )}
-          <DrawerSection title="Current state">
+          ) : null}
+          <DrawerSection title={isRenderEpisode ? 'Video jobs' : 'Current state'}>
             {isSocial ? (
               <SocialCurrentState item={item as SocialQueueItem} />
+            ) : isRenderEpisode ? (
+              <EpisodeVideoJobs
+                busy={restarting}
+                error={restartError}
+                item={item as EpisodeRenderQueueItem}
+                onRestart={runRestart}
+              />
             ) : (
               <WorkCurrentState item={item as PipelineQueueItem} />
             )}
           </DrawerSection>
-          {!isSocial && (item as PipelineQueueItem).lastError ? (
+          {!isSocial &&
+          !isRenderEpisode &&
+          (item as PipelineQueueItem).lastError ? (
             <DrawerSection title="Last error">
               <pre className="queue-error-detail">
                 {(item as PipelineQueueItem).lastError}
@@ -211,9 +223,15 @@ function canForceReplan(selected: SelectedQueueEntry): boolean {
     return false;
   }
   // A social item's episode has already rendered, so its video work is idle by
-  // definition; a work item has to say so itself.
+  // definition; an API work item has to say so itself. An aggregated render
+  // episode is idle only when every durable child job is idle.
   if (selected.kind === 'social') {
     return true;
+  }
+  if (selected.kind === 'render') {
+    return selected.item.jobs.every(
+      (job) => !job.abandoned && job.state !== 'processing',
+    );
   }
   const item = selected.item;
   return !item.abandoned && item.state !== 'processing';
@@ -283,6 +301,67 @@ export function restartHint(action: PodcastPipelineRestartAction): string {
     return 'Requeues this language against the existing visual plan.';
   }
   return 'Re-plans the visual if needed, then requeues the unfinished renders.';
+}
+
+function EpisodeVideoJobs(props: {
+  item: EpisodeRenderQueueItem;
+  busy: boolean;
+  error: string | null;
+  onRestart: (action: PodcastPipelineRestartAction) => void;
+}) {
+  return (
+    <div className="drawer-video-jobs">
+      {props.item.jobs.map((job) => (
+        <div className="drawer-video-job" key={job.key}>
+          <div className="drawer-video-job-head">
+            <div>
+              <strong>{jobLabel(job)}</strong>
+              <small>{job.currentStep ?? job.kind}</small>
+            </div>
+            <span className={`queue-state queue-state-${job.state}`}>
+              {job.state}
+            </span>
+          </div>
+          <div className="drawer-video-job-meta">
+            {job.workerId ? <span>worker · {job.workerId}</span> : null}
+            {typeof job.progressPercent === 'number' ? (
+              <span>{job.progressPercent}%</span>
+            ) : null}
+            {job.retryCount > 0 ? <span>retry {job.retryCount}</span> : null}
+            {job.abandoned ? (
+              <span>
+                abandoned {relativeTime(job.abandoned.at)} · {job.abandoned.reason}
+              </span>
+            ) : null}
+          </div>
+          {job.lastError ? (
+            <pre className="queue-error-detail">{job.lastError}</pre>
+          ) : null}
+          <RecoveryActions
+            busy={props.busy}
+            error={null}
+            item={job}
+            onRestart={props.onRestart}
+          />
+        </div>
+      ))}
+      {props.error ? (
+        <small className="queue-recovery-error">
+          {compactError(props.error)}
+        </small>
+      ) : null}
+    </div>
+  );
+}
+
+function jobLabel(item: PipelineQueueItem): string {
+  if (item.kind === 'visual') {
+    return 'Visual';
+  }
+  if (item.kind === 'render') {
+    return `Render · ${item.languageCode ?? 'unknown'}`;
+  }
+  return item.currentStep ?? 'Ingest';
 }
 
 function WorkCurrentState({ item }: { item: PipelineQueueItem }) {
