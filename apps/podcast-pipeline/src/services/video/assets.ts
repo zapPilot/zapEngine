@@ -602,6 +602,21 @@ async function inspectDownloadedImage(
       `${layout} image short edge is ${shortEdge}px; ${requiredShortEdge}px is required`,
     );
   }
+
+  // `metadata()` only proves the image header is readable. A truncated PNG can
+  // report valid dimensions and fail later when the planner fingerprints it.
+  // Force one tiny raster output here so libvips/libpng consumes the complete
+  // source before acquisition is declared successful, without retaining a
+  // full-size decoded frame in memory.
+  await sharp(outputPath, {
+    failOn: 'error',
+    limitInputPixels: MAX_REMOTE_IMAGE_PIXELS,
+    animated: false,
+  })
+    .resize(1, 1, { fit: 'fill' })
+    .raw()
+    .toBuffer();
+
   return { width: metadata.width, height: metadata.height };
 }
 
