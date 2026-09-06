@@ -117,6 +117,12 @@
   gap: 6px;
 }
 
+.queue-abandon {
+  border-color: color-mix(in srgb, var(--error) 45%, var(--line));
+  background: color-mix(in srgb, var(--error) 6%, var(--surface));
+  color: var(--error);
+}
+
 .queue-recovery-hint,
 .queue-recovery-blocked,
 .queue-recovery-error {
