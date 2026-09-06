@@ -30,7 +30,10 @@ describe('assertGeneratedScriptQuality', () => {
 
   it('does not apply the source-ratio floor to short articles', () => {
     expect(() =>
-      assertGeneratedScriptQuality('簡短但有實質內容的講稿。', '短文章內容'.repeat(50)),
+      assertGeneratedScriptQuality(
+        '簡短但有實質內容的講稿。',
+        '短文章內容'.repeat(50),
+      ),
     ).not.toThrow();
   });
 });
