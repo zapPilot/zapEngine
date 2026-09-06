@@ -5,6 +5,7 @@ import type {
   PipelineQueueLane,
   PipelineQueueState,
 } from '../../shared/pipeline-queues.js';
+import './episode-queue.css';
 
 export interface EpisodeRenderQueueItem {
   key: string;
@@ -73,6 +74,7 @@ function toEpisodeItem(jobs: PipelineQueueItem[]): EpisodeRenderQueueItem {
   const errors = sortedJobs
     .filter((item) => item.lastError)
     .sort((a, b) => stateRank(b.state) - stateRank(a.state));
+  const thumbnailUrl = renders.find((item) => item.thumbnailUrl)?.thumbnailUrl;
 
   return {
     key: episodeId ? `episode:${episodeId}` : `episode:${first.key}`,
@@ -85,11 +87,7 @@ function toEpisodeItem(jobs: PipelineQueueItem[]): EpisodeRenderQueueItem {
     ...optionalDate('queuedAt', earliest(sortedJobs.map((item) => item.queuedAt))),
     ...optionalDate('updatedAt', latest(sortedJobs.map((item) => item.updatedAt))),
     ...(errors[0]?.lastError ? { lastError: errors[0].lastError } : {}),
-    ...(renders.find((item) => item.thumbnailUrl)?.thumbnailUrl
-      ? {
-          thumbnailUrl: renders.find((item) => item.thumbnailUrl)!.thumbnailUrl,
-        }
-      : {}),
+    ...(thumbnailUrl ? { thumbnailUrl } : {}),
     history: uniqueHistory(sortedJobs.flatMap((item) => item.history)),
     publishedLinks: uniqueLinks(
       sortedJobs.flatMap((item) => item.publishedLinks),
