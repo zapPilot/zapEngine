@@ -51,7 +51,10 @@ const config: ExpoConfig = {
     // changed on an existing record. Android preserves the same lineage under
     // `com.fromfedtochain.app`.
     bundleIdentifier: 'com.example.fromFedToChainApp',
-    supportsTablet: false,
+    // The previous shipped version on this listing (Flutter 2.0.4, build 204)
+    // was Universal. Apple rejects an update that drops a device family the
+    // listing already supports (ITMS-90101), so this must stay true.
+    supportsTablet: true,
     icon: './assets/brand/icon.png',
     config: {
       usesNonExemptEncryption: false,
