@@ -52,10 +52,11 @@ export function createPodcastAbandonService(input: {
         return;
       }
 
-      throw {
-        code: '22023',
-        message: 'Episode has no video visual job to abandon',
-      };
+      const missing = Object.assign(
+        new Error('Episode has no video visual job to abandon'),
+        { code: '22023' },
+      );
+      throw missing;
     },
   };
 }
