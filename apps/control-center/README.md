@@ -20,14 +20,14 @@ The Vite UI listens on `127.0.0.1:4174`; its Hono API listens on `CONTROL_CENTER
 Six views, each answering one question. Home is a decision surface; the other
 five are where its evidence or narrow operator actions live.
 
-| View            | Question it answers                                                         | Reads / actions                                                                                                     |
-| --------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| **Home**        | What needs a decision right now?                                            | `/api/overview`, `/api/costs/history`, `/api/operations`                                                            |
-| **Pipeline**    | Where is each article, what failed, and can its current phase be recovered? | `/api/podcast-pipeline`, lazy `/api/podcast-pipeline/:episodeId/visual`, per-step restart actions, operator reviews |
-| **Growth**      | What should we publish next, and what did the last posts do?                | `/api/social-performance`                                                                                           |
-| **Product**     | Who do we serve, and is their data still current?                           | `/api/customers` + product health from `/api/overview`                                                              |
-| **Reliability** | Which sources are telling us something is wrong?                            | `/api/operations`, `/api/operations/social`                                                                         |
-| **Economics**   | What does the company spend, and which provider spends it?                  | `/api/overview`, `/api/costs/history`                                                                               |
+| View            | Question it answers                                                         | Reads / actions                                                                                                                          |
+| --------------- | --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| **Home**        | What needs a decision right now?                                            | `/api/overview`, `/api/costs/history`, `/api/operations`                                                                                 |
+| **Pipeline**    | Where is each article, what failed, and can its current phase be recovered? | `/api/podcast-pipeline`, lazy `/api/podcast-pipeline/:episodeId/visual`, per-step restart actions, abandon failed/blocked video work, reviews |
+| **Growth**      | What should we publish next, and what did the last posts do?                | `/api/social-performance`                                                                                                                |
+| **Product**     | Who do we serve, and is their data still current?                           | `/api/customers` + product health from `/api/overview`                                                                                   |
+| **Reliability** | Which sources are telling us something is wrong?                            | `/api/operations`, `/api/operations/social`                                                                                              |
+| **Economics**   | What does the company spend, and which provider spends it?                  | `/api/overview`, `/api/costs/history`                                                                                                    |
 
 Home opens on priority-sorted founder statements rather than on a metric grid.
 Each statement carries its conclusion and evidence; the Reliability statement can
@@ -47,8 +47,12 @@ covers the 40 most recent episodes and the jobs most in need of a retry are olde
 than that; a job the RPCs would refuse carries a `disabledReason` instead of a
 button. Video work an operator has closed leaves the lanes entirely and is
 counted separately, so a wall of abandoned rows cannot bury the handful of jobs
-that are still rescuable. The drawer's **Scenes** tab is the visual evidence for
-one episode — every image search, the candidates it returned and why each was
+that are still rescuable. The Recovery section offers **Abandon episode** only
+for failed or blocked Render-lane work; after confirmation it records the sticky
+abandon marker for the episode, preserves the failed rows and history, and
+immediately refetches the board so every language lane for that episode leaves
+ATTENTION together. The drawer's **Scenes** tab is the visual evidence for one
+episode — every image search, the candidates it returned and why each was
 dropped, and for each scene the image, its caption and the query that won it —
 with a per-scene review editor writing to `episode_video_reviews`.
 
@@ -100,16 +104,17 @@ deliberately grey rather than green.
 
 The Vercel deployment is a remote Control Center operator surface. Configure the project root as `apps/control-center` and enable Vercel Authentication for all deployments before adding credentials or performing the first deployment.
 
-Dashboard HTTP views are generally read-only, with three narrowly bounded classes of mutation:
+Dashboard HTTP views are generally read-only, with four narrowly bounded classes of mutation:
 
 - `/api/mcp` exposes the separately authenticated Ops MCP. Its only current write capability is the narrowly allowlisted single-issue Sentry resolve operation documented in [`MCP.md`](./MCP.md).
 - Pipeline step restarts, each a named service-role-only RPC that touches only job rows and never scripts, translation, narration, classroom audio, or arbitrary tables, and each refusing while a live lease exists (mapped to `409`):
   - `POST /api/podcast-pipeline/:episodeId/ingest/retry` → `restart_podcast_ingest`. Requeues the durable ingest job so the app process resumes from the last committed localization stage; refused once all three audio localizations are complete. The RPC recovers the Telegram chat id from any earlier ingest, visual, or render row of the episode, so the original submitter is still notified; only an episode with no such row gets a silent operator job.
   - `POST /api/podcast-pipeline/:episodeId/video/retry` with `{ "forceReplan": boolean }` → `retry_episode_video_generation`. Materializes missing `ja`/`en` render rows, keeps a completed current-version visual and requeues only unfinished renders; `forceReplan: true` (the two-click **Re-plan visuals** button at the foot of the drawer's Scenes tab) discards the visual checkpoint and re-renders all three languages. That button appears only once the plan on screen is completed at the current visual version, which is the only case an ordinary restart cannot already fix — a stale or failed checkpoint is re-planned by the plain retry. The service omits `p_force_replan` on the ordinary retry so the call still resolves before the migration is applied. An abandoned episode is refused with `22023` (mapped to `409`), before the release fence is consulted, so the answer names the closure rather than a version mismatch.
   - `POST /api/podcast-pipeline/:episodeId/renders/:localizationId/retry` → `retry_episode_video_render`. Requeues one language render against the completed current-version visual; also refused with `22023` on an abandoned episode.
+- Pipeline abandonment: `POST /api/podcast-pipeline/:episodeId/abandon` writes only `episode_video_visuals.abandoned_at` and `abandoned_reason` through the server-side service-role client. The UI offers it only for failed or blocked Render-lane work and confirms before writing. It does not rewrite failed rows as completed or delete history; the existing retry RPC guards make the decision sticky. Repeated requests are idempotent, while an episode with no visual row returns `409`.
 - Operator reviews: `PUT /api/podcast-pipeline/:episodeId/reviews` → `upsert_episode_video_review` and `POST /api/podcast-pipeline/reviews/:reviewId/resolve` → `resolve_episode_video_review` write only the operator's review rows (`reviewer = 'operator'`); they cannot change pipeline state.
 
-Code deploys before the operator pushes the Supabase migrations, so every new route degrades explicitly: a missing RPC (`PGRST202` / `42883`) answers `503` with "migration has not been applied yet", and reads of not-yet-existing columns or tables (`42703`, `42P01`) are separate queries that fall back to empty values. Vercel Authentication is the load-bearing boundary for all of these operator actions.
+Code deploys before the operator pushes the Supabase migrations, so every new route degrades explicitly: a missing RPC (`PGRST202` / `42883`) answers `503` with "migration has not been applied yet", the abandon route maps a missing `abandoned_at` / `abandoned_reason` column (`42703`) to its own explicit `503`, and reads of not-yet-existing columns or tables (`42703`, `42P01`) are separate queries that fall back to empty values. Vercel Authentication is the load-bearing boundary for all of these operator actions.
 
 The remote API deliberately does not register `POST /api/costs/sync`; cost collection remains an external operation.
 
