@@ -1196,9 +1196,18 @@ async function tryAcquireUniqueImage(input: {
     return null;
   }
 
-  const perceptualHash = await input.dependencies.fingerprintImage(
-    acquired.path,
-  );
+  let perceptualHash: string;
+  try {
+    perceptualHash = await input.dependencies.fingerprintImage(acquired.path);
+  } catch (error) {
+    if (input.input.signal?.aborted) throw error;
+    await rm(acquired.path, { force: true }).catch(() => {});
+    recordCandidateRejection(
+      input.rejections,
+      safeCandidateRejectionCause(error),
+    );
+    return null;
+  }
   const duplicate = input.assets.some(
     (asset) =>
       asset.sha256 === acquired.sha256 ||
@@ -1298,7 +1307,8 @@ function safeCandidateRejectionCause(error: unknown): string {
   if (/ECONN|socket|network|fetch failed|certificate|\bTLS\b/i.test(message)) {
     return 'network';
   }
-  if (/decode|corrupt|invalid image|sharp/i.test(message)) return 'decode';
+  if (/decode|corrupt|invalid image|sharp|libpng|vipspng/i.test(message))
+    return 'decode';
   return 'other';
 }
 

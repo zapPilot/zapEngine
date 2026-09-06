@@ -1279,6 +1279,52 @@ describe('planVisualAssets', () => {
       }),
     ).rejects.toThrow('Visual scene scene-01 has no usable image');
   });
+
+  it('recovers from a corrupted image that fails perceptual hashing (vipspng libpng read error)', async () => {
+    const corrupted = {
+      ...candidate('corrupted', 'brave'),
+      altText: 'target subject',
+    };
+    const usable = {
+      ...candidate('usable', 'brave'),
+      altText: 'target subject',
+    };
+    const search = vi.fn().mockResolvedValue([corrupted, usable]);
+    const acquireImage = vi
+      .fn()
+      .mockResolvedValueOnce(acquired('corrupted'))
+      .mockResolvedValueOnce(acquired('usable'));
+    const fingerprintImage = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('vipspng: libpng read error'))
+      .mockResolvedValueOnce('0000000000000000');
+    const progress: VisualAssetProgress[] = [];
+
+    const result = await planVisualAssets({
+      scenes: [{ sceneId: 'scene-01', imageSearchIntent: ['target subject'] }],
+      workingDirectory: '/work/visual-assets',
+      onProgress: (event) => progress.push(event),
+      dependencies: {
+        acquireImage,
+        searchProviders: braveProviders(search),
+        fingerprintImage,
+      },
+    });
+
+    expect(acquireImage).toHaveBeenCalledTimes(2);
+    expect(fingerprintImage).toHaveBeenCalledTimes(2);
+    expect(result.assets).toHaveLength(1);
+    expect(result.assets[0]?.originalImageUrl).toBe(usable.imageUrl);
+    expect(progress).toContainEqual(
+      expect.objectContaining({
+        phase: 'assets',
+        sceneId: 'scene-01',
+        provider: 'brave',
+        rejectedCandidateCount: 1,
+        rejectionSummary: 'decode:1',
+      }),
+    );
+  });
 });
 
 describe('mentionsAnyEntity', () => {
