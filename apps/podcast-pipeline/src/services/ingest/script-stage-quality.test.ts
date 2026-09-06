@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { assertGeneratedScriptQuality } from './script-stage.js';
 
 describe('assertGeneratedScriptQuality', () => {
-  it.each(['...', '…', '......', '---', '。！？']) (
+  it.each(['...', '…', '......', '---', '。！？'])(
     'rejects placeholder-only script content: %j',
     (script) => {
       expect(() => assertGeneratedScriptQuality(script, '短文章內容')).toThrow(
