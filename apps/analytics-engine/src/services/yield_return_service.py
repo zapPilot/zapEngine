@@ -13,6 +13,7 @@ from datetime import datetime
 from typing import Any, Protocol
 from uuid import UUID
 
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from src.core.filter_utils import normalize_filter
@@ -27,12 +28,11 @@ from src.models.yield_returns import (
 from src.services.aggregators.yield_return_aggregator import YieldReturnAggregator
 from src.services.aggregators.yield_summary_builder import build_yield_summary
 from src.services.analytics.analytics_context import PortfolioAnalyticsContext
-from src.services.eth_staking_income import (
+from src.services.analytics.eth_staking_income import (
     EthStakingExposure,
     aggregate_benchmark_lst_exposure,
     with_eth_staking_income,
 )
-from src.services.lido_staking_apr_provider import LidoStakingAprProvider
 from src.services.shared.base_analytics_service import BaseAnalyticsService
 from src.services.shared.query_names import QUERY_NAMES
 from src.services.shared.query_service import QueryService
@@ -50,11 +50,11 @@ class YieldReturnService(BaseAnalyticsService):
         db: Session,
         query_service: QueryService,
         context: PortfolioAnalyticsContext,
-        staking_apr_provider: StakingAprProvider | None = None,
+        staking_apr_provider: StakingAprProvider,
     ) -> None:
         super().__init__(db, query_service, context)
         self._logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
-        self._staking_apr_provider = staking_apr_provider or LidoStakingAprProvider()
+        self._staking_apr_provider = staking_apr_provider
 
     async def get_daily_yield_returns(
         self,
@@ -198,8 +198,8 @@ class YieldReturnService(BaseAnalyticsService):
                 exposure,
                 benchmark_apr,
             )
-        except Exception as error:
-            self._logger.warning(
+        except (SQLAlchemyError, RuntimeError) as error:
+            self._logger.exception(
                 "ETH staking income attribution unavailable for user %s: %s",
                 user_id,
                 error,

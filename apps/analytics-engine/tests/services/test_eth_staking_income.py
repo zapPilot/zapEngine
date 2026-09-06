@@ -8,18 +8,19 @@ from unittest.mock import AsyncMock
 from uuid import UUID, uuid4
 
 import pytest
+from sqlalchemy.exc import SQLAlchemyError
 
 from src.config.eth_lst_registry import ETH_LST_ASSETS
 from src.core.cache_service import analytics_cache
-from src.services import lido_staking_apr_provider as lido_module
 from src.services.aggregators.yield_summary_builder import build_yield_summary
 from src.services.analytics.analytics_context import PortfolioAnalyticsContext
-from src.services.eth_staking_income import (
+from src.services.analytics.eth_staking_income import (
     ETH_STAKING_PROTOCOL_NAME,
     aggregate_benchmark_lst_exposure,
     with_eth_staking_income,
 )
-from src.services.lido_staking_apr_provider import LidoStakingAprProvider
+from src.services.market import lido_staking_apr_provider as lido_module
+from src.services.market.lido_staking_apr_provider import LidoStakingAprProvider
 from src.services.yield_return_service import YieldReturnService
 
 
@@ -297,6 +298,11 @@ class _QueryServiceStub:
         return self.exposure_rows
 
 
+class _FailingExposureQueryServiceStub(_QueryServiceStub):
+    def execute_query(self, db, query_name: str, params=None) -> list[dict[str, Any]]:
+        raise SQLAlchemyError("exposure query failed")
+
+
 def _morpho_snapshot(
     user_id: UUID,
     snapshot_at: datetime,
@@ -378,6 +384,37 @@ async def test_yield_summary_survives_apr_failure_and_preserves_morpho_cost(db_s
         query_service,  # type: ignore[arg-type]
         PortfolioAnalyticsContext(),
         staking_apr_provider=_FailingAprProvider(),
+    )
+
+    response = await service.get_yield_summary(
+        user_id,
+        windows=("30d",),
+        outlier_strategy="none",
+    )
+
+    rows = response.windows["30d"].protocol_breakdown
+    assert all(row.protocol != ETH_STAKING_PROTOCOL_NAME for row in rows)
+    morpho = next(row for row in rows if row.protocol == "Morpho")
+    assert morpho.window.average_daily_yield_usd == pytest.approx(-1.0)
+
+
+@pytest.mark.asyncio
+async def test_yield_summary_degrades_when_exposure_query_fails(db_session):
+    """A failed exposure read leaves observed carry intact and adds no staking row."""
+    user_id = uuid4()
+    day0 = datetime(2026, 9, 4, tzinfo=UTC)
+    query_service = _FailingExposureQueryServiceStub(
+        [
+            _morpho_snapshot(user_id, day0, debt=100.0),
+            _morpho_snapshot(user_id, day0 + timedelta(days=1), debt=101.0),
+        ],
+        [_exposure_row("wstETH", amount=2.0, price=3_000.0)],
+    )
+    service = YieldReturnService(
+        db_session,
+        query_service,  # type: ignore[arg-type]
+        PortfolioAnalyticsContext(),
+        staking_apr_provider=_StaticAprProvider(),
     )
 
     response = await service.get_yield_summary(
