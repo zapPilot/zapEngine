@@ -1,4 +1,9 @@
-import { ExternalLink, RotateCcw, X as CloseIcon } from 'lucide-react';
+import {
+  ArchiveX,
+  ExternalLink,
+  RotateCcw,
+  X as CloseIcon,
+} from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 
 import type {
@@ -20,7 +25,7 @@ import type { EpisodeRenderQueueItem } from './episode-queue.js';
 
 export type SelectedQueueEntry =
   | { kind: 'api'; item: PipelineQueueItem }
-  | { kind: 'render'; item: EpisodeRenderQueueItem }
+  | { kind: 'render'; item: EpisodeRenderQueueItem | PipelineQueueItem }
   | { kind: 'social'; item: SocialQueueItem };
 
 export const PLATFORM_LABELS: Record<SocialPlatform, string> = {
@@ -32,6 +37,12 @@ export const PLATFORM_LABELS: Record<SocialPlatform, string> = {
 
 type DrawerTab = 'overview' | 'scenes' | 'history';
 
+function isAggregatedRender(
+  item: PipelineQueueItem | EpisodeRenderQueueItem,
+): item is EpisodeRenderQueueItem {
+  return typeof (item as EpisodeRenderQueueItem).jobs !== 'undefined';
+}
+
 export function QueueDrawer(
   props: PodcastVisualReviewHandlers & {
     selected: SelectedQueueEntry;
@@ -40,15 +51,21 @@ export function QueueDrawer(
       episodeId: string,
       action: PodcastPipelineRestartAction,
     ) => Promise<void>;
+    onAbandonEpisode: (episodeId: string) => Promise<void>;
     onClose: () => void;
   },
 ) {
   const { item } = props.selected;
   const isSocial = props.selected.kind === 'social';
   const isRenderEpisode = props.selected.kind === 'render';
+  const aggregated =
+    isRenderEpisode &&
+    isAggregatedRender(item as PipelineQueueItem | EpisodeRenderQueueItem);
   const [tab, setTab] = useState<DrawerTab>('overview');
   const [restartError, setRestartError] = useState<string | null>(null);
   const [restarting, setRestarting] = useState(false);
+  const [abandonError, setAbandonError] = useState<string | null>(null);
+  const [abandoning, setAbandoning] = useState(false);
 
   const { onClose } = props;
   useEffect(() => {
@@ -67,6 +84,7 @@ export function QueueDrawer(
   useEffect(() => {
     setTab('overview');
     setRestartError(null);
+    setAbandonError(null);
   }, [selectionKey]);
 
   const episodeId = item.episodeId;
@@ -82,6 +100,31 @@ export function QueueDrawer(
       setRestartError(cause instanceof Error ? cause.message : 'Retry failed');
     } finally {
       setRestarting(false);
+    }
+  };
+
+  const runAbandon = async () => {
+    if (!episodeId || !canAbandon(props.selected)) {
+      return;
+    }
+    const confirmed = window.confirm(
+      'Abandon this episode video job? It will leave the active render lanes, keep its failure history, and block retries.',
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setAbandoning(true);
+    setAbandonError(null);
+    try {
+      await props.onAbandonEpisode(episodeId);
+      props.onClose();
+    } catch (cause) {
+      setAbandonError(
+        cause instanceof Error ? cause.message : 'Abandon failed',
+      );
+    } finally {
+      setAbandoning(false);
     }
   };
 
@@ -125,20 +168,68 @@ export function QueueDrawer(
 
       {tab === 'overview' ? (
         <>
-          {!isSocial && !isRenderEpisode ? (
+          {!isSocial ? (
             <DrawerSection title="Recovery">
-              <RecoveryActions
-                busy={restarting}
-                error={restartError}
-                item={item as PipelineQueueItem}
-                onRestart={runRestart}
-              />
+              {aggregated ? (
+                <div className="queue-recovery">
+                  {canAbandon(props.selected) ? (
+                    <button
+                      className="refresh-button queue-retry queue-abandon"
+                      disabled={restarting || abandoning}
+                      onClick={() => void runAbandon()}
+                      type="button"
+                    >
+                      <ArchiveX aria-hidden="true" size={15} />
+                      {abandoning ? 'Abandoning…' : 'Abandon episode'}
+                    </button>
+                  ) : null}
+                  {canAbandon(props.selected) ? (
+                    <small className="queue-recovery-hint">
+                      Removes this episode from active render lanes and blocks
+                      retries; failure history is preserved.
+                    </small>
+                  ) : null}
+                  {restartError ? (
+                    <small className="queue-recovery-error">
+                      {compactError(restartError)}
+                    </small>
+                  ) : null}
+                  {abandonError ? (
+                    <small className="queue-recovery-error">
+                      {compactError(abandonError)}
+                    </small>
+                  ) : null}
+                  {!canAbandon(props.selected) &&
+                  (item as EpisodeRenderQueueItem).jobs?.every(
+                    (j) => j.actions.disabledReason,
+                  ) ? (
+                    <small className="queue-recovery-blocked">
+                      {
+                        (item as EpisodeRenderQueueItem).jobs.find(
+                          (j) => j.actions.disabledReason,
+                        )?.actions.disabledReason
+                      }
+                    </small>
+                  ) : null}
+                </div>
+              ) : (
+                <RecoveryActions
+                  abandonBusy={abandoning}
+                  abandonError={abandonError}
+                  busy={restarting}
+                  canAbandon={canAbandon(props.selected)}
+                  error={restartError}
+                  item={item as PipelineQueueItem}
+                  onAbandon={() => void runAbandon()}
+                  onRestart={runRestart}
+                />
+              )}
             </DrawerSection>
           ) : null}
-          <DrawerSection title={isRenderEpisode ? 'Video jobs' : 'Current state'}>
+          <DrawerSection title={aggregated ? 'Video jobs' : 'Current state'}>
             {isSocial ? (
               <SocialCurrentState item={item as SocialQueueItem} />
-            ) : isRenderEpisode ? (
+            ) : aggregated ? (
               <EpisodeVideoJobs
                 busy={restarting}
                 error={restartError}
@@ -149,9 +240,7 @@ export function QueueDrawer(
               <WorkCurrentState item={item as PipelineQueueItem} />
             )}
           </DrawerSection>
-          {!isSocial &&
-          !isRenderEpisode &&
-          (item as PipelineQueueItem).lastError ? (
+          {!isSocial && !aggregated && (item as PipelineQueueItem).lastError ? (
             <DrawerSection title="Last error">
               <pre className="queue-error-detail">
                 {(item as PipelineQueueItem).lastError}
@@ -228,20 +317,51 @@ function canForceReplan(selected: SelectedQueueEntry): boolean {
   if (selected.kind === 'social') {
     return true;
   }
-  if (selected.kind === 'render') {
-    return selected.item.jobs.every(
+  if (
+    selected.kind === 'render' &&
+    isAggregatedRender(
+      selected.item as PipelineQueueItem | EpisodeRenderQueueItem,
+    )
+  ) {
+    const episodeItem = selected.item as EpisodeRenderQueueItem;
+    return episodeItem.jobs.every(
       (job) => !job.abandoned && job.state !== 'processing',
     );
   }
-  const item = selected.item;
+  const item = selected.item as PipelineQueueItem;
   return !item.abandoned && item.state !== 'processing';
+}
+
+export function canAbandon(selected: SelectedQueueEntry): boolean {
+  if (selected.kind !== 'render' || !selected.item.episodeId) {
+    return false;
+  }
+  if (
+    isAggregatedRender(
+      selected.item as PipelineQueueItem | EpisodeRenderQueueItem,
+    )
+  ) {
+    const episodeItem = selected.item as EpisodeRenderQueueItem;
+    return (
+      episodeItem.jobs.every((job) => !job.abandoned) &&
+      (episodeItem.state === 'blocked' || episodeItem.state === 'failed')
+    );
+  }
+  const item = selected.item as PipelineQueueItem;
+  return (
+    !item.abandoned && (item.state === 'blocked' || item.state === 'failed')
+  );
 }
 
 function RecoveryActions(props: {
   item: PipelineQueueItem;
   busy: boolean;
+  abandonBusy: boolean;
+  canAbandon: boolean;
   error: string | null;
+  abandonError: string | null;
   onRestart: (action: PodcastPipelineRestartAction) => void;
+  onAbandon: () => void;
 }) {
   const { actions } = props.item;
   return (
@@ -249,7 +369,7 @@ function RecoveryActions(props: {
       {actions.restart ? (
         <button
           className="refresh-button queue-retry"
-          disabled={props.busy}
+          disabled={props.busy || props.abandonBusy}
           onClick={() =>
             props.onRestart(actions.restart as PodcastPipelineRestartAction)
           }
@@ -266,6 +386,23 @@ function RecoveryActions(props: {
           {restartHint(actions.restart)}
         </small>
       ) : null}
+      {props.canAbandon ? (
+        <button
+          className="refresh-button queue-retry queue-abandon"
+          disabled={props.busy || props.abandonBusy}
+          onClick={props.onAbandon}
+          type="button"
+        >
+          <ArchiveX aria-hidden="true" size={15} />
+          {props.abandonBusy ? 'Abandoning…' : 'Abandon episode'}
+        </button>
+      ) : null}
+      {props.canAbandon ? (
+        <small className="queue-recovery-hint">
+          Removes this episode from active render lanes and blocks retries;
+          failure history is preserved.
+        </small>
+      ) : null}
       {actions.disabledReason ? (
         <small className="queue-recovery-blocked">
           {actions.disabledReason}
@@ -274,6 +411,11 @@ function RecoveryActions(props: {
       {props.error ? (
         <small className="queue-recovery-error">
           {compactError(props.error)}
+        </small>
+      ) : null}
+      {props.abandonError ? (
+        <small className="queue-recovery-error">
+          {compactError(props.abandonError)}
         </small>
       ) : null}
     </div>
@@ -330,7 +472,8 @@ function EpisodeVideoJobs(props: {
             {job.retryCount > 0 ? <span>retry {job.retryCount}</span> : null}
             {job.abandoned ? (
               <span>
-                abandoned {relativeTime(job.abandoned.at)} · {job.abandoned.reason}
+                abandoned {relativeTime(job.abandoned.at)} ·{' '}
+                {job.abandoned.reason}
               </span>
             ) : null}
           </div>
@@ -338,9 +481,13 @@ function EpisodeVideoJobs(props: {
             <pre className="queue-error-detail">{job.lastError}</pre>
           ) : null}
           <RecoveryActions
+            abandonBusy={false}
+            abandonError={null}
             busy={props.busy}
+            canAbandon={false}
             error={null}
             item={job}
+            onAbandon={() => {}}
             onRestart={props.onRestart}
           />
         </div>

@@ -234,7 +234,9 @@ describe('PipelineQueuesBoard', () => {
           currentStep: 'Visual planning',
           retryCount: 0,
           lastError: undefined,
-          actions: { disabledReason: 'Waiting for a worker; nothing to retry yet.' },
+          actions: {
+            disabledReason: 'Waiting for a worker; nothing to retry yet.',
+          },
         }),
         workItem({
           key: 'render:zh-hant',
@@ -242,7 +244,9 @@ describe('PipelineQueuesBoard', () => {
           state: 'queued',
           retryCount: 0,
           lastError: undefined,
-          actions: { disabledReason: 'Waiting for a worker; nothing to retry yet.' },
+          actions: {
+            disabledReason: 'Waiting for a worker; nothing to retry yet.',
+          },
         }),
         workItem({
           key: 'render:en',
@@ -250,7 +254,9 @@ describe('PipelineQueuesBoard', () => {
           state: 'queued',
           retryCount: 0,
           lastError: undefined,
-          actions: { disabledReason: 'Waiting for a worker; nothing to retry yet.' },
+          actions: {
+            disabledReason: 'Waiting for a worker; nothing to retry yet.',
+          },
         }),
       ],
       attention: [workItem({ key: 'render:ja' })],

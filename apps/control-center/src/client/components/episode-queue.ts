@@ -47,7 +47,9 @@ export function aggregateRenderLane(
   };
 }
 
-function groupEpisodeWork(items: PipelineQueueItem[]): EpisodeRenderQueueItem[] {
+function groupEpisodeWork(
+  items: PipelineQueueItem[],
+): EpisodeRenderQueueItem[] {
   const groups = new Map<string, PipelineQueueItem[]>();
 
   for (const item of items) {
@@ -84,8 +86,14 @@ function toEpisodeItem(jobs: PipelineQueueItem[]): EpisodeRenderQueueItem {
     jobs: sortedJobs,
     ...(visual ? { visual } : {}),
     renders,
-    ...optionalDate('queuedAt', earliest(sortedJobs.map((item) => item.queuedAt))),
-    ...optionalDate('updatedAt', latest(sortedJobs.map((item) => item.updatedAt))),
+    ...optionalDate(
+      'queuedAt',
+      earliest(sortedJobs.map((item) => item.queuedAt)),
+    ),
+    ...optionalDate(
+      'updatedAt',
+      latest(sortedJobs.map((item) => item.updatedAt)),
+    ),
     ...(errors[0]?.lastError ? { lastError: errors[0].lastError } : {}),
     ...(thumbnailUrl ? { thumbnailUrl } : {}),
     history: uniqueHistory(sortedJobs.flatMap((item) => item.history)),
@@ -96,9 +104,8 @@ function toEpisodeItem(jobs: PipelineQueueItem[]): EpisodeRenderQueueItem {
 }
 
 function aggregateState(items: PipelineQueueItem[]): PipelineQueueState {
-  return [...items].sort(
-    (a, b) => stateRank(b.state) - stateRank(a.state),
-  )[0]!.state;
+  return [...items].sort((a, b) => stateRank(b.state) - stateRank(a.state))[0]!
+    .state;
 }
 
 function stateRank(state: PipelineQueueState): number {
