@@ -344,6 +344,7 @@ function CardHeader(props: {
   );
 }
 
+// jscpd:ignore-start -- WorkCard and EpisodeWorkCard share queue-card shell and meta layout; duplication is intentional for distinct single vs aggregated data shapes
 function WorkCard({ item }: { item: PipelineQueueItem }) {
   const KindIcon = KIND_ICONS[item.kind];
   return (
@@ -397,7 +398,9 @@ function WorkCard({ item }: { item: PipelineQueueItem }) {
     </article>
   );
 }
+// jscpd:ignore-end
 
+// jscpd:ignore-start -- WorkCard and EpisodeWorkCard share queue-card shell and meta layout; duplication is intentional for distinct single vs aggregated data shapes
 function EpisodeWorkCard({ item }: { item: EpisodeRenderQueueItem }) {
   const processing = item.jobs.find(
     (job) => job.state === 'processing' && job.startedAt,
@@ -452,6 +455,7 @@ function EpisodeWorkCard({ item }: { item: EpisodeRenderQueueItem }) {
     </article>
   );
 }
+// jscpd:ignore-end
 
 function EpisodeJobRow(props: {
   item: PipelineQueueItem;

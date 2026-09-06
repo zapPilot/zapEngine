@@ -160,6 +160,7 @@ function optionalDate<K extends 'queuedAt' | 'updatedAt'>(
   return value ? ({ [key]: value } as Partial<Record<K, string>>) : {};
 }
 
+// jscpd:ignore-start -- episode-queue dedup helpers mirror investigation uniqueBy; small Set-filter boilerplate is intentional and not worth a shared import across client/server
 function uniqueHistory(
   events: PipelineQueueHistoryEvent[],
 ): PipelineQueueHistoryEvent[] {
@@ -187,6 +188,7 @@ function uniqueLinks(links: PipelinePublishedLink[]): PipelinePublishedLink[] {
     return true;
   });
 }
+// jscpd:ignore-end
 
 function time(value: string | undefined): number {
   return value ? new Date(value).getTime() : Number.POSITIVE_INFINITY;
