@@ -1,8 +1,8 @@
 {
   "ios": {
-    "appVersion": "2.1.0",
+    "appVersion": "3.0.0",
     "ascBuildNumberFloor": 204,
     "observedAt": "2026-09-06",
-    "note": "Highest App Store Connect build on the shipped listing (ASC app 6749248542): the final Flutter release 2.0.4 (204). The Expo app continues that lineage, so the next production build is 205."
+    "note": "Highest build ever uploaded to the shipped listing (ASC app 6749248542): 204, from the Flutter app. The store's released version string is 2.03, which Apple reads as major 2 minor 3, so the Expo app releases as 3.0.0 to outrank it. The next production build is 205."
   }
 }

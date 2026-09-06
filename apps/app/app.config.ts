@@ -40,7 +40,7 @@ const config: ExpoConfig = {
   slug: 'zap-pilot-mobile-v2',
   owner: 'davidtnfsh',
   scheme: appScheme,
-  version: '2.1.0',
+  version: '3.0.0',
   orientation: 'portrait',
   userInterfaceStyle: 'automatic',
   icon: './assets/brand/icon.png',

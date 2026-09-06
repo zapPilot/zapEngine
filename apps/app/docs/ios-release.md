@@ -11,7 +11,7 @@ rather than creating a new record. This mirrors Android, which kept
 | iOS bundle identifier      | `com.example.fromFedToChainApp` |
 | App Store Connect app ID   | `6749248542`                    |
 | Apple Team ID              | `LP8CA4MT6U`                    |
-| User-facing version        | `2.1.0`                         |
+| User-facing version        | `3.0.0`                         |
 | Build number source        | EAS remote, auto-incremented    |
 | Default submission outcome | App Store Connect → TestFlight  |
 
@@ -36,6 +36,19 @@ deliberate action in App Store Connect.
 
 EAS auto-increments only the internal `buildNumber`. For a user-visible release,
 update `version` in `apps/app/app.config.ts` before building.
+
+## Version numbering
+
+Apple compares a version string as dot-separated integers, so `2.03` is major 2,
+minor 3 — not `2.0.3`. The Flutter app released `2.03`, so every `2.0.x` and
+`2.1.x` string is a _downgrade_ and App Store Connect refuses it. That is why the
+Expo app releases as `3.0.0`: it clears the shipped version under any reading,
+and it is honest about a full rewrite plus rebrand.
+
+`version` is shared with Android, where it is only the display `versionName` and
+carries no ordering constraint — Google Play orders by `versionCode`.
+
+Do not "correct" this back down to a 2.x string.
 
 ## App Review notes
 

@@ -7,7 +7,7 @@ new listing.
 | --------------------------------- | ------------------------------- |
 | App / launcher name               | `Zap Pilot`                     |
 | Android package                   | `com.fromfedtochain.app`        |
-| User-facing version               | `2.1.0`                         |
+| User-facing version               | `3.0.0`                         |
 | Repo's last Flutter `versionCode` | `204`                           |
 | First Expo production build       | `205` if Play still ends at 204 |
 | Default submission track          | Closed testing, `alpha` track   |
