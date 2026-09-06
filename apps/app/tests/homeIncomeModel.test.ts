@@ -4,8 +4,10 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildHomeIncomeView,
+  type HomeProtocolIncomeRow,
   MIN_DISPLAY_MONTHLY_USD,
   MIN_OBSERVED_DAYS,
+  partitionIncomeRowsByCoverage,
 } from '@/integration/homeIncomeModel';
 
 function summary(
@@ -193,5 +195,97 @@ describe('buildHomeIncomeView', () => {
         protocolRows: [],
       }),
     );
+  });
+});
+
+describe('partitionIncomeRowsByCoverage', () => {
+  const incomeRow = (
+    protocol: string,
+    monthlyNetUsd: number,
+  ): HomeProtocolIncomeRow => ({
+    protocol,
+    monthlyNetUsd,
+    tokenSymbols: [],
+    positionTypes: [],
+  });
+
+  it('keeps the rows that carry most of each side and rolls up the rest', () => {
+    const partition = partitionIncomeRowsByCoverage([
+      incomeRow('Morpho', 100),
+      incomeRow('Frax', 40),
+      incomeRow('Pendle', 5),
+      incomeRow('Curve', 3),
+      incomeRow('Yearn', 2),
+      incomeRow('Aave', -20),
+      incomeRow('Spark', -4),
+    ]);
+
+    expect(partition.visible.map((row) => row.protocol)).toEqual([
+      'Morpho',
+      'Frax',
+      'Aave',
+    ]);
+    expect(partition.other.map((row) => row.protocol)).toEqual([
+      'Pendle',
+      'Curve',
+      'Yearn',
+      'Spark',
+    ]);
+    expect(partition.otherIncomeUsd).toBe(10);
+    expect(partition.otherCostUsd).toBe(-4);
+  });
+
+  it('covers income and cost separately so a big income side cannot hide costs', () => {
+    const partition = partitionIncomeRowsByCoverage([
+      incomeRow('Morpho', 1_000),
+      incomeRow('Aave', -6),
+      incomeRow('Spark', -3),
+      incomeRow('Compound', -1),
+      incomeRow('Silo', -0.5),
+    ]);
+
+    // The costs are dust next to the income side, yet the two largest still
+    // earn their rows.
+    expect(partition.visible.map((row) => row.protocol)).toEqual([
+      'Morpho',
+      'Aave',
+      'Spark',
+    ]);
+    expect(partition.other.map((row) => row.protocol)).toEqual([
+      'Compound',
+      'Silo',
+    ]);
+  });
+
+  it('always keeps at least one row per side', () => {
+    const partition = partitionIncomeRowsByCoverage(
+      [incomeRow('Morpho', 100), incomeRow('Aave', -1)],
+      0,
+    );
+
+    expect(partition.visible.map((row) => row.protocol)).toEqual([
+      'Morpho',
+      'Aave',
+    ]);
+  });
+
+  it('leaves a lone tail row visible rather than behind a disclosure', () => {
+    const partition = partitionIncomeRowsByCoverage([
+      incomeRow('Morpho', 100),
+      incomeRow('Frax', 40),
+      incomeRow('Pendle', 5),
+    ]);
+
+    expect(partition.other).toEqual([]);
+    expect(partition.visible).toHaveLength(3);
+  });
+
+  it('handles an empty list', () => {
+    expect(partitionIncomeRowsByCoverage([])).toEqual({
+      visible: [],
+      other: [],
+      otherIncomeUsd: 0,
+      otherCostUsd: 0,
+    });
   });
 });

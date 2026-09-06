@@ -1,17 +1,16 @@
-import { useQuery } from '@tanstack/react-query';
 import { calculateAllocation } from '@zapengine/app-core/adapters';
 import { usePortfolioDashboard } from '@zapengine/app-core/hooks/analytics';
 import {
-  queryKeys,
+  useDailyYieldReturns,
   useLandingPageData,
 } from '@zapengine/app-core/hooks/queries';
-import { getDailyYieldReturns } from '@zapengine/app-core/services';
 
 import { DEMO, type MetricTone } from '@/data/demo';
 import {
   attachDailyAttribution,
   calculateAdjacentSnapshotChange,
   calculateWindowValueChangePct,
+  DAILY_ATTRIBUTION_WINDOW_DAYS,
   type DailyValuePoint,
   toTrendPoints,
 } from '@/integration/portfolioMetrics';
@@ -156,20 +155,13 @@ export function usePortfolioData(
     userId ?? undefined,
     { trend_days: days, drawdown_days: days, rolling_days: days },
   );
-  // Same endpoint and cache slice as every other daily-yield reader, so a
-  // post-ETL `dailyYield.byUser` invalidation also refreshes attribution.
-  // `null` is the bundle-aggregation wallet filter.
-  const attributionQuery = useQuery({
-    queryKey: queryKeys.dailyYield.list(userId ?? undefined, days, null),
-    queryFn: () => {
-      if (!userId) throw new Error('User ID is required');
-      return getDailyYieldReturns(userId, days);
-    },
-    enabled: !!userId,
-    staleTime: 5 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-    retry: 2,
-  });
+  // Always the full year, unlike the range-scoped dashboard: Home reads the
+  // same slice, and the backend's outlier fence needs one series to judge
+  // against rather than a different one per range.
+  const attributionQuery = useDailyYieldReturns(
+    userId ?? undefined,
+    DAILY_ATTRIBUTION_WINDOW_DAYS,
+  );
 
   // userId still resolving, or the query hasn't produced a dashboard yet.
   if (!userId && options.isResolvingUser) {

@@ -1,4 +1,12 @@
-import { ArrowDownRight, ArrowUpRight } from 'lucide-react-native';
+import { tokens } from '@zapengine/design-tokens/tokens';
+import {
+  ArrowDownRight,
+  ArrowUpRight,
+  ChevronDown,
+  ChevronRight,
+  Layers,
+} from 'lucide-react-native';
+import { useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { ProtocolIcon } from '@/components/token/ProtocolIcon';
@@ -6,9 +14,12 @@ import { TokenIcon } from '@/components/token/TokenIcon';
 import { Card } from '@/components/ui/Card';
 import { SectionLabel } from '@/components/ui/SectionLabel';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
-import type {
-  HomeIncomeView,
-  HomeProtocolIncomeRow,
+import { Tap } from '@/components/ui/Tap';
+import {
+  type HomeIncomePartition,
+  type HomeIncomeView,
+  type HomeProtocolIncomeRow,
+  partitionIncomeRowsByCoverage,
 } from '@/integration/homeIncomeModel';
 import { formatSignedUsd, formatUsd } from '@/lib/format';
 import { useContentLanguage } from '@/providers/ContentLanguageProvider';
@@ -109,6 +120,64 @@ function IncomeRow({ row }: { row: HomeProtocolIncomeRow }) {
   );
 }
 
+function OtherIncomeRow({ partition }: { partition: HomeIncomePartition }) {
+  const { t } = useContentLanguage();
+  const [expanded, setExpanded] = useState(false);
+  const Chevron = expanded ? ChevronDown : ChevronRight;
+  const subtitle = [
+    partition.otherIncomeUsd !== 0
+      ? t('home.incomeOtherIncome', {
+          amount: formatSignedUsd(partition.otherIncomeUsd),
+        })
+      : null,
+    partition.otherCostUsd !== 0
+      ? t('home.incomeOtherCost', {
+          amount: formatSignedUsd(partition.otherCostUsd),
+        })
+      : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  return (
+    <>
+      <Tap
+        accessibilityRole="button"
+        accessibilityState={{ expanded }}
+        accessibilityLabel={t('home.incomeOtherA11y', {
+          count: partition.other.length,
+        })}
+        onPress={() => setExpanded((current) => !current)}
+        className="flex-row items-center gap-3 py-2"
+      >
+        <View className="h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-line">
+          <Layers size={16} strokeWidth={2} color={tokens.color['ink-faint']} />
+        </View>
+        <View className="min-w-0 flex-1">
+          <Text className="text-[13px] text-ink">{t('home.incomeOther')}</Text>
+          {subtitle ? (
+            <Text
+              numberOfLines={1}
+              className="mt-0.5 font-mono text-[9.5px] text-ink-faint"
+            >
+              {subtitle}
+            </Text>
+          ) : null}
+        </View>
+        <Chevron size={14} strokeWidth={2} color={tokens.color['ink-faint']} />
+      </Tap>
+      {expanded
+        ? partition.other.map((row) => (
+            <IncomeRow
+              key={`${row.protocol}:${row.chain ?? ''}:other`}
+              row={row}
+            />
+          ))
+        : null}
+    </>
+  );
+}
+
 export function HomeIncomeCard({
   income,
   isLoading,
@@ -117,11 +186,14 @@ export function HomeIncomeCard({
   const { t } = useContentLanguage();
   if (isError) return null;
 
-  const incomeRows = income.protocolRows.filter((row) => row.monthlyNetUsd > 0);
-  const costRows = income.protocolRows.filter((row) => row.monthlyNetUsd < 0);
+  const partition = partitionIncomeRowsByCoverage(income.protocolRows);
+  const incomeRows = partition.visible.filter((row) => row.monthlyNetUsd > 0);
+  const costRows = partition.visible.filter((row) => row.monthlyNetUsd < 0);
   // The gross pair only earns its space when it explains a headline that nets
   // two sides against each other.
-  const showGrossSplit = incomeRows.length > 0 && costRows.length > 0;
+  const showGrossSplit =
+    income.protocolRows.some((row) => row.monthlyNetUsd > 0) &&
+    income.protocolRows.some((row) => row.monthlyNetUsd < 0);
 
   return (
     <View>
@@ -188,13 +260,18 @@ export function HomeIncomeCard({
                     row={row}
                   />
                 ))}
-                {showGrossSplit ? <View className="my-1 h-px bg-line" /> : null}
+                {incomeRows.length > 0 && costRows.length > 0 ? (
+                  <View className="my-1 h-px bg-line" />
+                ) : null}
                 {costRows.map((row) => (
                   <IncomeRow
                     key={`${row.protocol}:${row.chain ?? ''}:cost`}
                     row={row}
                   />
                 ))}
+                {partition.other.length > 0 ? (
+                  <OtherIncomeRow partition={partition} />
+                ) : null}
               </View>
             ) : null}
           </>

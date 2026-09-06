@@ -8,6 +8,50 @@ import type { AllocationCategoryKey } from '@zapengine/app-core/lib/domain/alloc
 
 import type { DailyValuePoint } from '@/integration/portfolioMetrics';
 
+const DEMO_MARKET_ETH_SHARE = 0.6;
+const DEMO_MARKET_BTC_SHARE = 0.15;
+const DEMO_PROTOCOL_DAILY_USD = 4.2;
+
+/**
+ * Give the demo chart the same attribution shape live data carries, so the
+ * disconnected preview shows the breakdown instead of an empty tooltip. The
+ * pieces are derived from each day's own change, so they always add up.
+ */
+function buildDemoTrendPoints(values: number[]): DailyValuePoint[] {
+  return values.map((total_value_usd, index): DailyValuePoint => {
+    const point: DailyValuePoint = {
+      date: `2026-08-${String(index + 8).padStart(2, '0')}`,
+      total_value_usd,
+      categories: [{ assets_usd: total_value_usd + 1_200, debt_usd: 1_200 }],
+    };
+    const previous = values[index - 1];
+    if (previous === undefined) return point;
+
+    const change = total_value_usd - previous;
+    const market = change * (DEMO_MARKET_ETH_SHARE + DEMO_MARKET_BTC_SHARE);
+    return {
+      ...point,
+      attribution: [
+        {
+          kind: 'market',
+          label: 'ETH',
+          valueUsd: change * DEMO_MARKET_ETH_SHARE,
+        },
+        {
+          kind: 'market',
+          label: 'BTC',
+          valueUsd: change * DEMO_MARKET_BTC_SHARE,
+        },
+        { kind: 'protocol', label: 'Aave', valueUsd: DEMO_PROTOCOL_DAILY_USD },
+        {
+          kind: 'residual',
+          valueUsd: change - market - DEMO_PROTOCOL_DAILY_USD,
+        },
+      ],
+    };
+  });
+}
+
 export type ChainKey = 'ethereum' | 'arbitrum' | 'base';
 
 export interface DemoAsset {
@@ -156,14 +200,10 @@ export const DEMO: DemoData = {
     sparkline: [42, 44, 38, 41, 33, 36, 27, 31, 23, 27, 17, 22, 13, 11, 9].map(
       (y) => 54 - y,
     ),
-    trendPoints: [
+    trendPoints: buildDemoTrendPoints([
       22_100, 22_250, 21_980, 22_330, 22_020, 22_460, 22_180, 22_760, 22_540,
       23_050, 22_830, 23_620, 23_950, 24_203.2, 24_815.6,
-    ].map((total_value_usd, index) => ({
-      date: `2026-08-${String(index + 8).padStart(2, '0')}`,
-      total_value_usd,
-      categories: [{ assets_usd: total_value_usd + 1_200, debt_usd: 1_200 }],
-    })),
+    ]),
     assets: [
       {
         symbol: 'USDC',

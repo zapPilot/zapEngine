@@ -18,6 +18,7 @@ import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { PortfolioTrendChart } from '@/components/charts/PortfolioTrendChart';
+import { HomeAttributionBreakdown } from '@/components/home/HomeAttributionBreakdown';
 import {
   AccountUnavailableOverlay,
   DemoBlurCover,
@@ -499,6 +500,7 @@ export function HomeScreen() {
                     : range}
                 </Text>
               </View>
+              <HomeAttributionBreakdown summary={home.attribution} />
             </Tap>
           )}
         </View>

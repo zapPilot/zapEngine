@@ -18,12 +18,23 @@ from sqlalchemy.orm import Session
 
 from src.core.filter_utils import normalize_filter
 from src.models.yield_returns import (
+    DailyWalletReturn,
     DailyYieldReturn,
     MultiWindowYieldSummaryResponse,
     PeriodInfo,
-    TokenYieldBreakdown,
     YieldReturnsResponse,
     YieldReturnSummary,
+)
+from src.services.aggregators.delta_outliers import (
+    OutlierKey,
+    flag_outlier_deltas,
+    outlier_key,
+)
+from src.services.aggregators.token_attribution import build_token_breakdown
+from src.services.aggregators.wallet_attribution_aggregator import (
+    aggregate_wallet_snapshots,
+    build_wallet_returns,
+    calculate_wallet_deltas,
 )
 from src.services.aggregators.yield_return_aggregator import YieldReturnAggregator
 from src.services.aggregators.yield_summary_builder import build_yield_summary
@@ -44,6 +55,10 @@ class StakingAprProvider(Protocol):
 
 class YieldReturnService(BaseAnalyticsService):
     """Service responsible for Yield Return computations."""
+
+    # v2 adds wallet_returns and the per-delta outlier flag; a v1 entry cached
+    # for its full 12 hours would otherwise serve the old shape after deploy.
+    CACHE_VERSION = "v2"
 
     def __init__(
         self,
@@ -90,12 +105,24 @@ class YieldReturnService(BaseAnalyticsService):
             start_date, end_date, filtered = await self._fetch_yield_deltas(
                 user_id, days, wallet_address, min_threshold
             )
-            daily_returns = self._build_daily_returns(filtered, protocols, chains)
+            # Fenced over the whole requested window before any protocol/chain
+            # filter, so narrowing the response never moves another series'
+            # deposit threshold.
+            outlier_keys = flag_outlier_deltas(filtered)
+            daily_returns = self._build_daily_returns(
+                filtered, protocols, chains, outlier_keys
+            )
+            wallet_returns = await self._fetch_wallet_returns(
+                user_id, wallet_address, start_date, end_date
+            )
 
             self._logger.info(
-                "Calculated %d daily returns from %d filtered deltas",
+                "Calculated %d daily returns from %d filtered deltas "
+                "(%d flagged) plus %d wallet days",
                 len(daily_returns),
                 len(filtered),
+                len(outlier_keys),
+                len(wallet_returns),
             )
 
             period_info = PeriodInfo(
@@ -109,6 +136,7 @@ class YieldReturnService(BaseAnalyticsService):
                 user_id=str(user_id),
                 period=period_info,
                 daily_returns=daily_returns,
+                wallet_returns=wallet_returns,
                 summary=summary,
             )
 
@@ -232,6 +260,31 @@ class YieldReturnService(BaseAnalyticsService):
         )
         return start_date, end_date, filtered
 
+    async def _fetch_wallet_returns(
+        self,
+        user_id: UUID,
+        wallet_address: str | None,
+        start_date: datetime,
+        end_date: datetime,
+    ) -> list[DailyWalletReturn]:
+        """Attribute idle wallet balances over the position window.
+
+        A failure here is not swallowed: without wallet coverage every wallet
+        price move would silently reappear as an unexplained residual, which is
+        worse than the frontend hiding the breakdown entirely.
+        """
+        rows = await self.query_service.fetch_time_range_query(
+            db=self.db,
+            query_name=QUERY_NAMES.WALLET_TOKEN_ATTRIBUTION_SNAPSHOTS,
+            user_id=user_id,
+            start_date=start_date,
+            end_date=end_date,
+            wallet_address=wallet_address,
+        )
+        self._logger.info("Fetched %d wallet token rows from database", len(rows))
+        deltas = calculate_wallet_deltas(aggregate_wallet_snapshots(rows))
+        return build_wallet_returns(deltas)
+
     @staticmethod
     def _normalize_float(value: float) -> str:
         return f"{value:.6f}"
@@ -241,6 +294,7 @@ class YieldReturnService(BaseAnalyticsService):
         deltas: list[dict[str, Any]],
         protocols: list[str] | None,
         chains: list[str] | None,
+        outlier_keys: set[OutlierKey],
     ) -> list[DailyYieldReturn]:
         """Convert delta rows into Pydantic models with optional filtering."""
         if not deltas:
@@ -256,7 +310,7 @@ class YieldReturnService(BaseAnalyticsService):
             if allowed_chains and delta["chain"] not in allowed_chains:
                 continue
 
-            tokens = self._build_token_breakdown(
+            tokens = build_token_breakdown(
                 delta["current_amounts"], delta["previous_amounts"]
             )
             daily_returns.append(
@@ -267,50 +321,12 @@ class YieldReturnService(BaseAnalyticsService):
                     position_type=delta.get("name_item"),
                     yield_return_usd=delta["token_yield_usd"],
                     tokens=tokens,
+                    outlier=outlier_key(delta) in outlier_keys,
                 )
             )
 
         daily_returns.sort(key=lambda item: (item.date, item.protocol_name, item.chain))
         return daily_returns
-
-    @staticmethod
-    def _build_token_breakdown(
-        current_amounts: dict[str, dict[str, float]],
-        previous_amounts: dict[str, dict[str, float]],
-    ) -> list[TokenYieldBreakdown]:
-        """Generate token-level amount and price attribution."""
-        breakdown: list[TokenYieldBreakdown] = []
-        all_symbols = sorted(set(current_amounts.keys()) | set(previous_amounts.keys()))
-
-        for symbol in all_symbols:
-            current = current_amounts.get(symbol, {})
-            previous = previous_amounts.get(symbol, {})
-            current_amount = float(current.get("amount", 0.0))
-            current_price = float(current.get("price", previous.get("price", 0.0)))
-            previous_amount = float(previous.get("amount", 0.0))
-            previous_price = float(previous.get("price", current_price))
-            amount_diff = current_amount - previous_amount
-            yield_return_usd = amount_diff * current_price
-            # Upstream stores a missing DeBank price as 0.0, which is
-            # indistinguishable from a worthless token. Attributing a price
-            # effect against an unpriced side would invent a market move worth
-            # the whole position, so leave it for the caller's residual.
-            market_return_usd = (
-                previous_amount * (current_price - previous_price)
-                if current_price > 0.0 and previous_price > 0.0
-                else 0.0
-            )
-            breakdown.append(
-                TokenYieldBreakdown(
-                    symbol=symbol,
-                    amount_change=amount_diff,
-                    current_price=current_price,
-                    yield_return_usd=yield_return_usd,
-                    market_return_usd=market_return_usd,
-                )
-            )
-
-        return breakdown
 
     @staticmethod
     def _build_summary(daily_returns: list[DailyYieldReturn]) -> YieldReturnSummary:

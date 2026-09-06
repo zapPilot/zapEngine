@@ -4,18 +4,29 @@ import { isFiniteNumber } from '@zapengine/types/shared';
 /**
  * One proven or unproven piece of a day's portfolio move.
  *
- * `market` is a price move on a balance already held. `amount` is a change in
- * the held balance itself, which is NOT necessarily yield: a deposit or
- * withdrawal moves the same number and the endpoint cannot tell them apart, so
- * UI copy for it must stay neutral. `residual` is everything left unproven and
- * therefore carries no label of its own.
+ * `market` is a price move on a balance already held — for DeFi positions and
+ * idle wallet tokens alike, merged by symbol. `protocol` is a balance change the
+ * backend's per-position IQR fence judged to be routine carry. `flow` is a
+ * balance change it flagged as a deposit/withdrawal spike, plus every wallet
+ * balance change, which is a transfer by definition. `residual` is what stays
+ * unproven and therefore carries no label of its own.
+ *
+ * Known limit: wstETH accrues through its price, so it lands in `market`
+ * (correct), while an idle stETH rebase moves the balance and lands in `flow`
+ * (an overstated transfer).
  *
  * `label` names the priced token or the protocol position as the API reported
  * it, never UI copy.
  */
 export type PortfolioAttributionContributor =
-  | { kind: 'market' | 'amount'; label: string; valueUsd: number }
+  | { kind: 'market' | 'protocol' | 'flow'; label: string; valueUsd: number }
   | { kind: 'residual'; valueUsd: number };
+
+/**
+ * Home and Portfolio both read one year so they share a single cache slice, and
+ * so the outlier fence sees the same series on either screen.
+ */
+export const DAILY_ATTRIBUTION_WINDOW_DAYS = 365;
 
 /** Stable identity for de-duplication and for React list keys. */
 export function attributionContributorKey(
@@ -177,10 +188,11 @@ function addContributor(
 /**
  * Attach conservative change attribution to chart snapshots.
  *
- * The daily yield endpoint can prove two pieces for tracked DeFi token
- * positions: the price effect on the balance already held, and the change in
- * the balance itself. Everything else stays a residual so wallet holdings,
- * borrowing changes, and unsupported protocols are never silently relabeled.
+ * The daily yield endpoint proves three pieces: the price effect on balances
+ * already held (DeFi positions and idle wallet tokens), balance changes on
+ * tracked positions that its outlier fence judged routine, and balance changes
+ * it judged to be funding. Everything else stays a residual so borrowing
+ * changes and unsupported protocols are never silently relabeled.
  *
  * A day with no proven contributor gets no attribution at all: the residual
  * would then be the entire move, which looks like an explanation while
@@ -195,23 +207,52 @@ export function attachDailyAttribution(
     Map<string, PortfolioAttributionContributor>
   >();
 
-  for (const entry of yieldData?.daily_returns ?? []) {
-    const key = dateKey(entry.date);
-    if (!key) continue;
+  const bucketFor = (date: string | undefined) => {
+    const key = dateKey(date);
+    if (!key) return null;
     const bucket = byDate.get(key) ?? new Map();
     byDate.set(key, bucket);
+    return bucket;
+  };
 
-    addContributor(bucket, {
-      kind: 'amount',
-      label: entry.protocol_name,
-      valueUsd: entry.yield_return_usd,
-    });
-
-    for (const token of entry.tokens) {
+  const addMarketEffects = (
+    bucket: Map<string, PortfolioAttributionContributor>,
+    tokens: readonly { symbol: string; market_return_usd: number }[],
+  ) => {
+    for (const token of tokens) {
       addContributor(bucket, {
         kind: 'market',
         label: token.symbol,
         valueUsd: token.market_return_usd,
+      });
+    }
+  };
+
+  for (const entry of yieldData?.daily_returns ?? []) {
+    const bucket = bucketFor(entry.date);
+    if (!bucket) continue;
+
+    addContributor(bucket, {
+      // A flagged day is a deposit or withdrawal, not carry the user earned.
+      kind: entry.outlier ? 'flow' : 'protocol',
+      label: entry.protocol_name,
+      valueUsd: entry.yield_return_usd,
+    });
+
+    addMarketEffects(bucket, entry.tokens);
+  }
+
+  for (const entry of yieldData?.wallet_returns ?? []) {
+    const bucket = bucketFor(entry.date);
+    if (!bucket) continue;
+
+    addMarketEffects(bucket, entry.tokens);
+    for (const token of entry.tokens) {
+      // A wallet balance only moves by a transfer, so this side is never carry.
+      addContributor(bucket, {
+        kind: 'flow',
+        label: token.symbol,
+        valueUsd: token.yield_return_usd,
       });
     }
   }

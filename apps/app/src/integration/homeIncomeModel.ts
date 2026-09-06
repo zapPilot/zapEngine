@@ -112,3 +112,81 @@ export function buildHomeIncomeView(
     protocolRows,
   };
 }
+
+/** Share of each side's magnitude the visible rows must cover before the tail
+ *  is rolled up. The long tail is mostly dust that pushes the real drivers off
+ *  the first screen. */
+export const INCOME_COVERAGE_TARGET = 0.8;
+
+export interface HomeIncomePartition {
+  visible: HomeProtocolIncomeRow[];
+  other: HomeProtocolIncomeRow[];
+  otherIncomeUsd: number;
+  otherCostUsd: number;
+}
+
+function takeCoverage(
+  rows: readonly HomeProtocolIncomeRow[],
+  coverage: number,
+): { visible: HomeProtocolIncomeRow[]; other: HomeProtocolIncomeRow[] } {
+  const target =
+    rows.reduce((total, row) => total + Math.abs(row.monthlyNetUsd), 0) *
+    coverage;
+  const visible: HomeProtocolIncomeRow[] = [];
+  const other: HomeProtocolIncomeRow[] = [];
+  let running = 0;
+
+  for (const row of rows) {
+    if (visible.length > 0 && running >= target) {
+      other.push(row);
+      continue;
+    }
+    visible.push(row);
+    running += Math.abs(row.monthlyNetUsd);
+  }
+
+  return { visible, other };
+}
+
+/**
+ * Split the already-sorted rows into the few that carry most of each side and
+ * the tail behind a single "Other" row. Income and cost are covered separately
+ * so a large income side cannot hide every cost.
+ */
+export function partitionIncomeRowsByCoverage(
+  rows: readonly HomeProtocolIncomeRow[],
+  coverage = INCOME_COVERAGE_TARGET,
+): HomeIncomePartition {
+  const income = takeCoverage(
+    rows.filter((row) => row.monthlyNetUsd > 0),
+    coverage,
+  );
+  const cost = takeCoverage(
+    rows.filter((row) => row.monthlyNetUsd < 0),
+    coverage,
+  );
+  const other = [...income.other, ...cost.other];
+
+  // Hiding a single row behind a tap tells the reader less than the row did.
+  if (other.length < 2) {
+    return {
+      visible: [...rows],
+      other: [],
+      otherIncomeUsd: 0,
+      otherCostUsd: 0,
+    };
+  }
+
+  return {
+    visible: [...income.visible, ...cost.visible],
+    other,
+    otherIncomeUsd: income.other.reduce(
+      (total, row) => total + row.monthlyNetUsd,
+      0,
+    ),
+    otherCostUsd: cost.other.reduce(
+      (total, row) => total + row.monthlyNetUsd,
+      0,
+    ),
+  };
+}
