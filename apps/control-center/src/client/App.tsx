@@ -17,6 +17,7 @@ import type {
   SocialPerformanceResponse,
   SocialGrowthResponse,
 } from '../shared/types.js';
+import { getJson, sendJson } from './api.js';
 import { AppShell, type DashboardView } from './components/AppShell.js';
 import { EconomicsView } from './components/EconomicsView.js';
 import { GrowthDistributionBoard } from './components/GrowthDistributionBoard.js';
@@ -54,33 +55,6 @@ const VIEW_META: Record<DashboardView, { subtitle: string; title: string }> = {
   },
 };
 
-async function getJson<T>(url: string): Promise<T> {
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`);
-  }
-  return (await response.json()) as T;
-}
-
-async function sendJson<T>(
-  url: string,
-  method: 'POST' | 'PUT',
-  body: unknown,
-): Promise<T> {
-  const response = await fetch(url, {
-    method,
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  const payload = (await response.json().catch(() => null)) as
-    | (T & { error?: string })
-    | null;
-  if (!response.ok) {
-    throw new Error(payload?.error ?? `HTTP ${response.status}`);
-  }
-  return payload as T;
-}
-
 async function retryPodcastStep(
   episodeId: string,
   action: PodcastPipelineRestartAction,
@@ -90,21 +64,11 @@ async function retryPodcastStep(
     action.step === 'render'
       ? `/api/podcast-pipeline/${encodedEpisodeId}/renders/${encodeURIComponent(action.localizationId)}/retry`
       : `/api/podcast-pipeline/${encodedEpisodeId}/${action.step}/retry`;
-  const response = await fetch(url, {
-    method: 'POST',
-    ...(action.step === 'video'
-      ? {
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ forceReplan: action.forceReplan }),
-        }
-      : {}),
-  });
-  if (!response.ok) {
-    const body = (await response.json().catch(() => null)) as {
-      error?: string;
-    } | null;
-    throw new Error(body?.error ?? `HTTP ${response.status}`);
-  }
+  await sendJson(
+    url,
+    'POST',
+    action.step === 'video' ? { forceReplan: action.forceReplan } : undefined,
+  );
 }
 
 export function App() {
@@ -152,13 +116,7 @@ export function App() {
     (sync = false) =>
       run(async () => {
         if (sync) {
-          const syncResponse = await fetch('/api/costs/sync', {
-            method: 'POST',
-          });
-          if (!syncResponse.ok) {
-            const body = (await syncResponse.json()) as { error?: string };
-            throw new Error(body.error ?? `HTTP ${syncResponse.status}`);
-          }
+          await sendJson('/api/costs/sync', 'POST');
         }
         const [next, history, snapshot, episodeCosts, statementsNext] =
           await Promise.all([

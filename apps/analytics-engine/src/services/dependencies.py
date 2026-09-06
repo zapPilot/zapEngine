@@ -25,6 +25,7 @@ from src.services.analytics.drawdown_analysis_service import DrawdownAnalysisSer
 from src.services.analytics.risk_metrics_service import RiskMetricsService
 from src.services.analytics.rolling_analytics_service import RollingAnalyticsService
 from src.services.analytics.trend_analysis_service import TrendAnalysisService
+from src.services.market.lido_staking_apr_provider import LidoStakingAprProvider
 from src.services.market.macro_fear_greed_service import (
     MacroFearGreedDatabaseService,
 )
@@ -166,13 +167,19 @@ def get_rolling_analytics_service(
     return RollingAnalyticsService(db, query_service, context)
 
 
+def get_staking_apr_provider() -> LidoStakingAprProvider:
+    """Create LidoStakingAprProvider instance."""
+    return LidoStakingAprProvider()
+
+
 def get_yield_return_service(
     db: Session = Depends(get_db),
     query_service: QueryService = Depends(get_query_service),
     context: PortfolioAnalyticsContext = Depends(get_analytics_context),
+    staking_apr_provider: LidoStakingAprProvider = Depends(get_staking_apr_provider),
 ) -> YieldReturnService:
     """Create YieldReturnService instance with explicit wiring."""
-    return YieldReturnService(db, query_service, context)
+    return YieldReturnService(db, query_service, context, staking_apr_provider)
 
 
 def get_pool_performance_aggregator() -> PoolPerformanceAggregator:

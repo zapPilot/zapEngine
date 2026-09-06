@@ -29,6 +29,8 @@ export const ENV_DESTINATIONS = {
     target: 'control-center',
     include: [
       'FLY_OPS_TOKEN',
+      'OPS_AUTH_PASSWORD',
+      'OPS_AUTH_USERNAME',
       'OPS_GITHUB_TOKEN',
       'OPS_MCP_TOKEN',
       'POSTHOG_PERSONAL_API_KEY',

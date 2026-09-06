@@ -5,6 +5,7 @@ import type {
   OperationsSocialResponse,
   SocialPerformanceResponse,
 } from '../../shared/types.js';
+import { getJson, sendJson } from '../api.js';
 import { integer, relativeTime } from '../format.js';
 import { platformLabel } from '../platform.js';
 
@@ -37,13 +38,9 @@ export function GrowthDistributionBoard(props: {
       return;
     }
     let cancelled = false;
-    void fetch('/api/operations/social/release-evidence')
-      .then(async (response) => {
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
-        }
-        return (await response.json()) as ReleaseEvidenceResponse;
-      })
+    void getJson<ReleaseEvidenceResponse>(
+      '/api/operations/social/release-evidence',
+    )
       .then((response) => {
         if (!cancelled) {
           setEvidence(response.posts ?? []);
@@ -75,16 +72,10 @@ export function GrowthDistributionBoard(props: {
     setClosingEpisodeId(episodeId);
     setActionError(null);
     try {
-      const response = await fetch(
+      await sendJson(
         `/api/operations/social/${encodeURIComponent(episodeId)}/complete`,
-        { method: 'POST' },
+        'POST',
       );
-      const body = (await response.json().catch(() => null)) as {
-        error?: string;
-      } | null;
-      if (!response.ok) {
-        throw new Error(body?.error ?? `HTTP ${response.status}`);
-      }
       setClosedEpisodeIds((current) => [...current, episodeId]);
     } catch (error) {
       setActionError(

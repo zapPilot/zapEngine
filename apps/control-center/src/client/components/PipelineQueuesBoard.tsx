@@ -18,6 +18,7 @@ import type {
   PodcastVisualDebugResponse,
   PodcastVisualReviewHandlers,
 } from '../../shared/podcast-visual.js';
+import { getJson } from '../api.js';
 import { compactError } from '../format.js';
 import './PipelineQueuesBoard.css';
 import {
@@ -26,6 +27,10 @@ import {
   formatDateTime,
   type SelectedQueueEntry,
 } from './QueueDrawer.js';
+import {
+  aggregateRenderLane,
+  type EpisodeRenderQueueItem,
+} from './episode-queue.js';
 
 const POLL_MS = 7_000;
 
@@ -45,10 +50,12 @@ export function PipelineQueuesBoard(
   const [query, setQuery] = useState('');
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
-  const selected = useMemo(
-    () => (data && selectedKey ? findSelected(data, selectedKey) : null),
-    [data, selectedKey],
-  );
+  const selected = useMemo(() => {
+    if (!data || !selectedKey) {
+      return null;
+    }
+    return findSelected(data, aggregateRenderLane(data.render), selectedKey);
+  }, [data, selectedKey]);
 
   // A retry only looks like it worked once the card has moved lane, so the
   // board refetches immediately instead of waiting out the poll interval.
@@ -88,7 +95,11 @@ export function PipelineQueuesBoard(
     );
   }
 
-  const render = filterLane(data.render, query);
+  // Durable video work is intentionally fine-grained (one visual checkpoint
+  // plus one render job per localization). The operator surface is not: a
+  // person is tracking an episode, so collapse those execution units before
+  // deciding which lane/card should represent it.
+  const render = filterLane(aggregateRenderLane(data.render), query);
 
   return (
     <section className="queue-board" aria-label="Runtime pipeline queues">
@@ -142,12 +153,13 @@ export function PipelineQueuesBoard(
           description="Fly render machines"
           lane={render}
           onSelect={setSelectedKey}
-          renderItem={(item) => <WorkCard item={item} />}
+          renderItem={(item) => <EpisodeWorkCard item={item} />}
           title="Render queue"
         >
           <AbandonedSection
             items={render.abandoned ?? []}
             onSelect={setSelectedKey}
+            renderItem={(item) => <EpisodeWorkCard item={item} />}
           />
         </QueueColumn>
         <QueueColumn
@@ -189,11 +201,9 @@ function usePipelineQueues(): {
 
   const load = useCallback(async () => {
     try {
-      const response = await fetch('/api/pipeline/queues');
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-      const payload = (await response.json()) as PipelineQueuesResponse;
+      const payload = await getJson<PipelineQueuesResponse>(
+        '/api/pipeline/queues',
+      );
       setData(payload);
       setError(payload.status === 'error' ? payload.message : null);
     } catch (cause) {
@@ -263,9 +273,10 @@ function QueueColumn<T extends { key: string }>(props: {
  * outright would make the board disagree with the database; leaving them in
  * ATTENTION buried the handful of jobs an operator can still rescue.
  */
-function AbandonedSection(props: {
-  items: PipelineQueueItem[];
+function AbandonedSection<T extends { key: string }>(props: {
+  items: T[];
   onSelect: (key: string) => void;
+  renderItem: (item: T) => ReactNode;
 }) {
   if (props.items.length === 0) {
     return null;
@@ -280,7 +291,7 @@ function AbandonedSection(props: {
           onClick={() => props.onSelect(item.key)}
           type="button"
         >
-          <WorkCard item={item} />
+          {props.renderItem(item)}
         </button>
       ))}
     </details>
@@ -368,8 +379,6 @@ function WorkCard({ item }: { item: PipelineQueueItem }) {
           <small>{clampPercent(item.progressPercent)}%</small>
         </div>
       ) : null}
-      {/* Without this line the operator has to open every failed card to learn
-          whether thirty of them died of the same thing. */}
       {item.lastError ? (
         <small className="queue-card-error">
           {compactError(item.lastError)}
@@ -386,6 +395,77 @@ function WorkCard({ item }: { item: PipelineQueueItem }) {
         {item.retryCount > 0 ? <span>retry {item.retryCount}</span> : null}
       </div>
     </article>
+  );
+}
+
+function EpisodeWorkCard({ item }: { item: EpisodeRenderQueueItem }) {
+  const processing = item.jobs.find(
+    (job) => job.state === 'processing' && job.startedAt,
+  );
+  return (
+    <article className={`queue-card queue-card-${item.state}`}>
+      {item.thumbnailUrl ? (
+        <img
+          alt=""
+          className="queue-thumb"
+          loading="lazy"
+          src={item.thumbnailUrl}
+        />
+      ) : null}
+      <CardHeader
+        badge={<StateBadge state={item.state} />}
+        episodeId={item.episodeId}
+        title={item.title}
+      />
+      <div className="queue-episode-jobs">
+        {item.visual ? (
+          <EpisodeJobRow
+            icon={<Images aria-hidden="true" size={13} />}
+            item={item.visual}
+            label={item.visual.currentStep ?? 'Visual planning'}
+          />
+        ) : null}
+        {item.renders.map((render) => (
+          <EpisodeJobRow
+            icon={<Clapperboard aria-hidden="true" size={13} />}
+            item={render}
+            key={render.key}
+            label={`Render · ${render.languageCode ?? 'unknown'}`}
+          />
+        ))}
+      </div>
+      {item.lastError ? (
+        <small className="queue-card-error">
+          {compactError(item.lastError)}
+        </small>
+      ) : null}
+      <div className="queue-card-meta">
+        <span>
+          {item.jobs.length} job{item.jobs.length === 1 ? '' : 's'}
+        </span>
+        {processing?.startedAt ? (
+          <span>{durationSince(processing.startedAt)} elapsed</span>
+        ) : item.queuedAt ? (
+          <span>{durationSince(item.queuedAt)} waiting</span>
+        ) : null}
+      </div>
+    </article>
+  );
+}
+
+function EpisodeJobRow(props: {
+  item: PipelineQueueItem;
+  label: string;
+  icon: ReactNode;
+}) {
+  return (
+    <div className="queue-episode-job-row">
+      <strong>
+        {props.icon}
+        {props.label}
+      </strong>
+      <StateBadge state={props.item.state} />
+    </div>
   );
 }
 
@@ -430,21 +510,24 @@ function StateBadge({ state }: { state: string }) {
 
 function findSelected(
   data: PipelineQueuesResponse,
+  render: PipelineQueueLane<EpisodeRenderQueueItem>,
   key: string,
 ): SelectedQueueEntry | null {
-  for (const kind of ['api', 'render'] as const) {
-    for (const bucket of [
-      'processing',
-      'queued',
-      'attention',
-      'abandoned',
-    ] as const) {
-      const item = data[kind][bucket]?.find(
-        (candidate) => candidate.key === key,
-      );
-      if (item) {
-        return { kind, item };
-      }
+  for (const bucket of ['processing', 'queued', 'attention'] as const) {
+    const item = data.api[bucket].find((candidate) => candidate.key === key);
+    if (item) {
+      return { kind: 'api', item };
+    }
+  }
+  for (const bucket of [
+    'processing',
+    'queued',
+    'attention',
+    'abandoned',
+  ] as const) {
+    const item = render[bucket]?.find((candidate) => candidate.key === key);
+    if (item) {
+      return { kind: 'render', item };
     }
   }
   for (const bucket of ['processing', 'queued', 'attention'] as const) {

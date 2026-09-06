@@ -42,7 +42,6 @@ function createApp(
       investigate: vi.fn(),
     } as never,
     socialGrowth: { getSocialGrowth: vi.fn() } as never,
-    serveClient: false,
   });
 }
 

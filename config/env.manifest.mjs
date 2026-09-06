@@ -406,6 +406,11 @@ export const ENV_MANIFEST = {
   OPS_GITHUB_TOKEN: server(['control-center'], { sensitive: true }),
   FLY_OPS_TOKEN: server(['control-center'], { sensitive: true }),
   OPS_MCP_TOKEN: server(['control-center'], { sensitive: true }),
+  // The remote dashboard's own credentials. Deliberately without `requiredFor`:
+  // a local dashboard exposes nothing and runs unauthenticated, so a missing
+  // value is only fatal at the Vercel entry point, which refuses to boot.
+  OPS_AUTH_USERNAME: server(['control-center'], { sensitive: true }),
+  OPS_AUTH_PASSWORD: server(['control-center'], { sensitive: true }),
   SENTRY_OPS_AUTH_TOKEN: server(['control-center'], { sensitive: true }),
   SENTRY_OPS_WRITE_TOKEN: server(['control-center'], { sensitive: true }),
   SENTRY_ORG_SLUG: server(['control-center']),

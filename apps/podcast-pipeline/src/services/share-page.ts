@@ -32,7 +32,8 @@ const IOS_APP_STORE_URL =
 const IOS_APP_ID = extractIosAppId(IOS_APP_STORE_URL);
 const SHARE_BASE_URL = 'https://from-fed-to-chain-api.fly.dev';
 const APP_CUSTOM_SCHEME = 'zappilotv2';
-// Keep this in sync with the final iOS bundle ID before App Store submission.
+// Matches apps/app/app.config.ts: the iOS build ships under the App Store
+// listing the Flutter app created. Keep the two in sync.
 const APPLE_APP_ID = 'LP8CA4MT6U.com.example.fromFedToChainApp';
 const DEFAULT_SHARE_IMAGE_URL =
   'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/03/5b/2f/035b2fde-5258-a71b-86af-e5a7c3b9987d/AppIcon-0-0-1x_U007emarketing-0-8-0-0-85-220.png/512x512bb.jpg';

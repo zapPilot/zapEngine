@@ -41,6 +41,21 @@ class StubQueryService:
         }
         return self.rows
 
+    def execute_query(
+        self,
+        db,
+        query_name: str,
+        params: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
+        return []
+
+
+class NullAprProvider:
+    """Staking APR provider stub for tests that assert observed carry only."""
+
+    async def get_benchmark_apr(self) -> float | None:
+        return None
+
 
 def _build_snapshot(
     user_id: UUID,
@@ -110,6 +125,7 @@ async def test_get_daily_yield_returns_builds_summary(db_session):
         db_session,
         StubQueryService(rows),
         PortfolioAnalyticsContext(),
+        NullAprProvider(),
     )
 
     response = await service.get_daily_yield_returns(user_id=user_id, days=5)
@@ -141,6 +157,7 @@ async def test_get_daily_yield_returns_applies_threshold_and_filters(db_session)
         db_session,
         StubQueryService(rows),
         PortfolioAnalyticsContext(),
+        NullAprProvider(),
     )
 
     response = await service.get_daily_yield_returns(
@@ -185,6 +202,7 @@ async def test_get_daily_yield_returns_protocol_filter_no_match(db_session):
         db_session,
         StubQueryService(rows),
         PortfolioAnalyticsContext(),
+        NullAprProvider(),
     )
 
     response = await service.get_daily_yield_returns(
@@ -217,6 +235,7 @@ async def test_get_daily_yield_returns_chain_filter_no_match(db_session):
         db_session,
         StubQueryService(rows),
         PortfolioAnalyticsContext(),
+        NullAprProvider(),
     )
 
     response = await service.get_daily_yield_returns(
@@ -245,6 +264,7 @@ async def test_get_daily_yield_returns_both_filters_no_match(db_session):
         db_session,
         StubQueryService(rows),
         PortfolioAnalyticsContext(),
+        NullAprProvider(),
     )
 
     # Protocol matches but chain doesn't
@@ -267,6 +287,7 @@ async def test_get_daily_yield_returns_empty_database_result(db_session):
         db_session,
         StubQueryService([]),  # Empty result
         PortfolioAnalyticsContext(),
+        NullAprProvider(),
     )
 
     response = await service.get_daily_yield_returns(user_id=user_id, days=30)
@@ -309,7 +330,9 @@ async def test_get_yield_summary_supports_token_and_usd_balance_deltas(db_sessio
         },
     ]
     query_service = StubQueryService(rows)
-    service = YieldReturnService(db_session, query_service, PortfolioAnalyticsContext())
+    service = YieldReturnService(
+        db_session, query_service, PortfolioAnalyticsContext(), NullAprProvider()
+    )
 
     response = await service.get_yield_summary(user_id, windows=("30d",))
 
@@ -326,7 +349,7 @@ async def test_get_yield_summary_supports_token_and_usd_balance_deltas(db_sessio
 @pytest.mark.asyncio
 async def test_get_yield_summary_empty_portfolio(db_session):
     service = YieldReturnService(
-        db_session, StubQueryService([]), PortfolioAnalyticsContext()
+        db_session, StubQueryService([]), PortfolioAnalyticsContext(), NullAprProvider()
     )
 
     response = await service.get_yield_summary(uuid4(), windows=("7d", "90d"))

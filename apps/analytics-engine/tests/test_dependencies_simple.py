@@ -9,9 +9,11 @@ from src.services.dependencies import (
     get_risk_metrics_service,
     get_roi_calculator,
     get_rolling_analytics_service,
+    get_staking_apr_provider,
     get_trend_analysis_service,
     get_yield_return_service,
 )
+from src.services.market.lido_staking_apr_provider import LidoStakingAprProvider
 
 
 def test_get_analytics_context_returns_instance():
@@ -81,13 +83,20 @@ def test_get_rolling_analytics_service_returns_instance():
 
 def test_get_yield_return_service_returns_instance():
     """Verify get_yield_return_service creates service instance."""
+    provider = get_staking_apr_provider()
     service = get_yield_return_service(
         db=Mock(),
         query_service=Mock(),
         context=get_analytics_context(),
+        staking_apr_provider=provider,
     )
     assert service is not None
     assert hasattr(service, "get_daily_yield_returns")
+
+
+def test_get_staking_apr_provider_returns_lido_provider():
+    """The yield service must receive the concrete Lido benchmark provider."""
+    assert isinstance(get_staking_apr_provider(), LidoStakingAprProvider)
 
 
 def test_get_query_service_matches_module_singleton():

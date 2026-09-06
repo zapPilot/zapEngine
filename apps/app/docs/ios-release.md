@@ -1,20 +1,32 @@
 # iOS App Store release
 
-The Expo app updates the existing App Store Connect application rather than
-creating a new record. The listing already exists because earlier builds were
-uploaded manually from Xcode.
+The Expo app updates the App Store listing the retired Flutter app shipped,
+rather than creating a new record. This mirrors Android, which kept
+`com.fromfedtochain.app` for the same reason
+([android-release.md](./android-release.md)).
 
-| Setting                    | Value                          |
-| -------------------------- | ------------------------------ |
-| App / launcher name        | `Zap Pilot`                    |
-| iOS bundle identifier      | `com.zapengine.zappilot.dev`   |
-| User-facing version        | `2.1.0`                        |
-| Build number source        | EAS remote, auto-incremented   |
-| Default submission outcome | App Store Connect → TestFlight |
+| Setting                    | Value                           |
+| -------------------------- | ------------------------------- |
+| App / launcher name        | `Zap Pilot`                     |
+| iOS bundle identifier      | `com.example.fromFedToChainApp` |
+| App Store Connect app ID   | `6749248542`                    |
+| Apple Team ID              | `LP8CA4MT6U`                    |
+| User-facing version        | `3.0.0`                         |
+| Build number source        | EAS remote, auto-incremented    |
+| Default submission outcome | App Store Connect → TestFlight  |
+
+The `com.example.` prefix is a Flutter scaffold default that reached the App
+Store in 2.0.4. App Store Connect cannot change an existing record's bundle
+identifier, so this value is permanent for as long as the listing is.
 
 Do not change the bundle identifier. App Store Connect treats a different
-identifier as a different app, and the existing listing, TestFlight testers, and
-Privy mobile client registration are all bound to this one.
+identifier as a different app, and the shipped listing, its installed base,
+TestFlight testers, the served `apple-app-site-association`
+(`apps/podcast-pipeline/src/services/share-page.ts`), and the Privy mobile
+client registration are all bound to this one. A second record was created once,
+under `com.zapengine.zappilot.dev` (ASC app `6788190113`); Apple rejected it as a
+new app under Guideline 4.2.2, and it never shipped. Publishing as an update to
+an already-approved listing is the supported path.
 
 ## What automation covers, and where it stops
 
@@ -24,6 +36,41 @@ deliberate action in App Store Connect.
 
 EAS auto-increments only the internal `buildNumber`. For a user-visible release,
 update `version` in `apps/app/app.config.ts` before building.
+
+## Version numbering
+
+Apple compares a version string as dot-separated integers, so `2.03` is major 2,
+minor 3 — not `2.0.3`. The Flutter app released `2.03`, so every `2.0.x` and
+`2.1.x` string is a _downgrade_ and App Store Connect refuses it. That is why the
+Expo app releases as `3.0.0`: it clears the shipped version under any reading,
+and it is honest about a full rewrite plus rebrand.
+
+`version` is shared with Android, where it is only the display `versionName` and
+carries no ordering constraint — Google Play orders by `versionCode`.
+
+Do not "correct" this back down to a 2.x string.
+
+## App Review notes
+
+App Store Connect holds the listing copy; this is the source of truth for the
+**App Review Information → Notes** field, because it is the part reviewers read
+that depends on facts about this repository.
+
+> This update continues the existing From Fed to Chain podcast experience with an
+> updated design and branding.
+>
+> All podcasts and editorial content available in the app are original
+> first-party content produced by us. The app does not aggregate podcasts,
+> articles, or media from third-party websites. Every episode is scripted,
+> produced, and published by our own team through our own backend.
+
+The second paragraph exists because a separate, never-shipped app record was
+rejected under Guideline 4.2.2 as an internet content aggregator. The content is
+first-party; the notes say so plainly.
+
+Do not describe wallet, swap, or rebalance functionality here. Those surfaces are
+kept out of the iOS build and its bundle (Guideline 3.1.5(b)(i)), enforced by
+`scripts/assert-ios-bundle-clean.cjs`.
 
 ## One-time EAS setup
 
@@ -50,7 +97,7 @@ Keep the `.p8` outside the repository.
 
 In the same `ios:credentials` session, let EAS generate a **Distribution
 Certificate** and an **App Store** provisioning profile for
-`com.zapengine.zappilot.dev`. The production profile uses remote credentials.
+`com.example.fromFedToChainApp`. The production profile uses remote credentials.
 
 ### 3. Record the App Store Connect app ID
 
@@ -60,9 +107,10 @@ A non-interactive submission needs the numeric App Store Connect Apple ID in
 ### 4. Initialize remote iOS versioning
 
 Earlier Xcode uploads consumed build numbers that EAS remote versioning did not
-know about. App Store Connect had already reached build `19` for app version
-`2.1.0` when the deterministic EAS flow was introduced on 2026-09-02. That
-historical lower bound is recorded in `apps/app/release-baselines.json`.
+know about, and the listing carries the Flutter app's history on top of that.
+App Store Connect has reached build `204` on this record, from the final Flutter
+release `2.0.4 (204)`. That historical lower bound is recorded in
+`apps/app/release-baselines.json`.
 
 `ios:release` runs `ios:version:check` as a preflight before starting a new iOS
 build. If the EAS remote build number is below that floor, it fails immediately
@@ -77,8 +125,8 @@ pnpm --filter @zapengine/app ios:version:init
 ```
 
 Set the remote value to the highest build already present in App Store Connect.
-For the 2026-09-02 recovery that value is `19`; the next production build will
-auto-increment to `20`.
+For this listing that value is `204`; the next production build will
+auto-increment to `205`, matching how Android numbered its first Expo build.
 
 After EAS becomes the only iOS release path, the baseline does not need to change
 for ordinary releases. If an out-of-band Xcode upload later jumps ahead of EAS,

@@ -38,6 +38,11 @@ const schema = z.object({
   // Remote MCP is independently gated from the dashboard. Provider credentials
   // stay server-side; clients only receive the normalized read model.
   OPS_MCP_TOKEN: optionalString,
+  // Optional here, mandatory at the remote entry point. Parsing them loosely
+  // keeps a local dashboard -- which has no exposed surface to guard -- running
+  // without credentials; `requireControlCenterAuth` is what refuses to boot.
+  OPS_AUTH_USERNAME: optionalString,
+  OPS_AUTH_PASSWORD: optionalString,
 });
 
 export type ControlCenterConfig = z.infer<typeof schema>;
