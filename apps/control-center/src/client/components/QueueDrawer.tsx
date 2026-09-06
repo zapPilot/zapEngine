@@ -356,7 +356,7 @@ function EpisodeVideoJobs(props: {
 
 function jobLabel(item: PipelineQueueItem): string {
   if (item.kind === 'visual') {
-    return 'Visual planning';
+    return 'Visual';
   }
   if (item.kind === 'render') {
     return `Render · ${item.languageCode ?? 'unknown'}`;
