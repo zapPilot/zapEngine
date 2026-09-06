@@ -68,7 +68,7 @@ native identifiers before testing or releasing:
 
 ```text
 Allowed Android app identifier: com.fromfedtochain.app
-Allowed iOS app identifier:     com.zapengine.zappilot.dev
+Allowed iOS app identifier:     com.example.fromFedToChainApp
 Allowed URL scheme:             zappilotv2
 ```
 

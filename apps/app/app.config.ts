@@ -45,7 +45,12 @@ const config: ExpoConfig = {
   userInterfaceStyle: 'automatic',
   icon: './assets/brand/icon.png',
   ios: {
-    bundleIdentifier: 'com.zapengine.zappilot.dev',
+    // Bound to the shipped App Store listing (ASC app 6749248542), which the
+    // retired Flutter app created and Apple has already approved. The
+    // `com.example.` prefix is that app's permanent identifier and cannot be
+    // changed on an existing record. Android preserves the same lineage under
+    // `com.fromfedtochain.app`.
+    bundleIdentifier: 'com.example.fromFedToChainApp',
     supportsTablet: false,
     icon: './assets/brand/icon.png',
     config: {

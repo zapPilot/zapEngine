@@ -11,15 +11,24 @@ function pluginName(plugin: unknown): unknown {
   return Array.isArray(plugin) ? plugin[0] : plugin;
 }
 
-describe('Android store identity', () => {
-  it('preserves the existing Google Play application while using the Zap Pilot name', () => {
+describe('store identity', () => {
+  // Both stores continue the retired Flutter app's listings rather than opening
+  // new records: Google Play under com.fromfedtochain.app, App Store under
+  // com.example.fromFedToChainApp (ASC app 6749248542). Only the user-facing
+  // name changed.
+  it('preserves the existing store applications while using the Zap Pilot name', () => {
     expect(appConfig.name).toBe('Zap Pilot');
     expect(appConfig.android?.package).toBe('com.fromfedtochain.app');
+    expect(appConfig.ios?.bundleIdentifier).toBe(
+      'com.example.fromFedToChainApp',
+    );
   });
 
   it('keeps the native identifiers registered with the Privy mobile client', () => {
     expect(appConfig.android?.package).toBe('com.fromfedtochain.app');
-    expect(appConfig.ios?.bundleIdentifier).toBe('com.zapengine.zappilot.dev');
+    expect(appConfig.ios?.bundleIdentifier).toBe(
+      'com.example.fromFedToChainApp',
+    );
     expect(appConfig.scheme).toBe('zappilotv2');
   });
 
