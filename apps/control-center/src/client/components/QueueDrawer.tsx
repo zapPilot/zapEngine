@@ -51,7 +51,7 @@ export function QueueDrawer(
       episodeId: string,
       action: PodcastPipelineRestartAction,
     ) => Promise<void>;
-    onAbandonEpisode: (episodeId: string) => Promise<void>;
+    onAbandonEpisode?: (episodeId: string) => Promise<void>;
     onClose: () => void;
   },
 ) {
@@ -104,7 +104,7 @@ export function QueueDrawer(
   };
 
   const runAbandon = async () => {
-    if (!episodeId || !canAbandon(props.selected)) {
+    if (!episodeId || !canAbandon(props.selected) || !props.onAbandonEpisode) {
       return;
     }
     const confirmed = window.confirm(
@@ -172,7 +172,7 @@ export function QueueDrawer(
             <DrawerSection title="Recovery">
               {aggregated ? (
                 <div className="queue-recovery">
-                  {canAbandon(props.selected) ? (
+                  {canAbandon(props.selected) && props.onAbandonEpisode ? (
                     <button
                       className="refresh-button queue-retry queue-abandon"
                       disabled={restarting || abandoning}
@@ -183,7 +183,7 @@ export function QueueDrawer(
                       {abandoning ? 'Abandoning…' : 'Abandon episode'}
                     </button>
                   ) : null}
-                  {canAbandon(props.selected) ? (
+                  {canAbandon(props.selected) && props.onAbandonEpisode ? (
                     <small className="queue-recovery-hint">
                       Removes this episode from active render lanes and blocks
                       retries; failure history is preserved.
@@ -217,7 +217,9 @@ export function QueueDrawer(
                   abandonBusy={abandoning}
                   abandonError={abandonError}
                   busy={restarting}
-                  canAbandon={canAbandon(props.selected)}
+                  canAbandon={
+                    canAbandon(props.selected) && !!props.onAbandonEpisode
+                  }
                   error={restartError}
                   item={item as PipelineQueueItem}
                   onAbandon={() => void runAbandon()}
