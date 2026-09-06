@@ -38,7 +38,8 @@ export function registerPodcastAbandonRoute(
       if (isMissingColumnError(error)) {
         return context.json(
           {
-            error: 'Podcast pipeline abandonment migration has not been applied yet',
+            error:
+              'Podcast pipeline abandonment migration has not been applied yet',
           },
           503,
         );
