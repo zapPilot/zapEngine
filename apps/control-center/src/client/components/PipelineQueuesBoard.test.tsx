@@ -17,6 +17,7 @@ import type {
 import { itemMatches, PipelineQueuesBoard } from './PipelineQueuesBoard.js';
 
 const EPISODE_ID = '11111111-1111-4111-8111-111111111111';
+const SECOND_EPISODE_ID = '22222222-2222-4222-8222-222222222222';
 const LOCALIZATION_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const POST_URL = 'https://x.com/zap/status/123';
 const TIMER_HANDLE = 1 as unknown as ReturnType<typeof window.setInterval>;
@@ -219,6 +220,75 @@ describe('PipelineQueuesBoard', () => {
     );
   });
 
+  it('aggregates visual and localized render jobs into one episode card', async () => {
+    const payload = queueResponse();
+    payload.social = { processing: [], queued: [], attention: [] };
+    payload.render = {
+      processing: [],
+      queued: [
+        workItem({
+          key: `visual:${EPISODE_ID}`,
+          kind: 'visual',
+          languageCode: undefined,
+          state: 'queued',
+          currentStep: 'Visual planning',
+          retryCount: 0,
+          lastError: undefined,
+          actions: { disabledReason: 'Waiting for a worker; nothing to retry yet.' },
+        }),
+        workItem({
+          key: 'render:zh-hant',
+          languageCode: 'zh-Hant',
+          state: 'queued',
+          retryCount: 0,
+          lastError: undefined,
+          actions: { disabledReason: 'Waiting for a worker; nothing to retry yet.' },
+        }),
+        workItem({
+          key: 'render:en',
+          languageCode: 'en',
+          state: 'queued',
+          retryCount: 0,
+          lastError: undefined,
+          actions: { disabledReason: 'Waiting for a worker; nothing to retry yet.' },
+        }),
+      ],
+      attention: [workItem({ key: 'render:ja' })],
+    };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(payload)));
+    vi.spyOn(window, 'setInterval').mockImplementation(() => TIMER_HANDLE);
+
+    render(<PipelineQueuesBoard {...boardProps()} />);
+
+    const renderHeading = await screen.findByRole('heading', {
+      name: 'Render queue',
+    });
+    const renderColumn = renderHeading.closest('section');
+    expect(renderColumn).not.toBeNull();
+    const cards = within(renderColumn!).getAllByRole('button', {
+      name: /Why We Build/i,
+    });
+    expect(cards).toHaveLength(1);
+    const card = cards[0]!;
+    expect(within(card).getByText('Visual planning')).toBeInTheDocument();
+    expect(within(card).getByText('Render · zh-Hant')).toBeInTheDocument();
+    expect(within(card).getByText('Render · ja')).toBeInTheDocument();
+    expect(within(card).getByText('Render · en')).toBeInTheDocument();
+    expect(within(renderColumn!).getByText('ATTENTION')).toBeInTheDocument();
+
+    fireEvent.click(card);
+    const drawer = screen.getByRole('complementary', {
+      name: 'Episode queue details',
+    });
+    expect(within(drawer).getByText('Visual planning')).toBeInTheDocument();
+    expect(within(drawer).getByText('Render · zh-Hant')).toBeInTheDocument();
+    expect(within(drawer).getByText('Render · ja')).toBeInTheDocument();
+    expect(within(drawer).getByText('Render · en')).toBeInTheDocument();
+    expect(
+      within(drawer).getByRole('button', { name: 'Retry ja render' }),
+    ).toBeInTheDocument();
+  });
+
   it('opens the selected episode drawer with stored links and lane errors', async () => {
     vi.stubGlobal(
       'fetch',
@@ -304,6 +374,7 @@ describe('PipelineQueuesBoard', () => {
         }),
         workItem({
           key: 'render:abandoned-2',
+          episodeId: SECOND_EPISODE_ID,
           title: 'Another closed episode',
         }),
       ],
