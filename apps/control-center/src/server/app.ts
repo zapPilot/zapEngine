@@ -56,6 +56,15 @@ export function createControlCenterApp(input: {
   allowCostSync?: boolean;
 }) {
   const app = new Hono();
+  // One mis-served cacheable HTML answer is enough to strand a dashboard: the
+  // browser applies heuristic freshness to it and stops asking the server for
+  // hours, so no later server fix can reach it. Registered ahead of the auth
+  // guard below, because Hono composes middleware in registration order and a
+  // guard that short-circuits would otherwise skip everything after it.
+  app.use('/api/*', async (context, next) => {
+    await next();
+    context.header('cache-control', 'no-store');
+  });
   if (input.auth) {
     // Hono runs middleware in registration order, so this has to precede every
     // route. `basicAuth` mutates the options object it receives, hence a fresh

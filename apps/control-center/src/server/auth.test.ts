@@ -62,6 +62,16 @@ describe('remote dashboard authentication', () => {
     expect(response.status).toBe(401);
   });
 
+  // The guard short-circuits without running anything registered after it, so
+  // the no-store middleware only covers this 401 while it stays registered
+  // first. This asserts that ordering, not just the header.
+  it('forbids caching the anonymous rejection', async () => {
+    const response = await createGuardedApp().request('/api/overview');
+
+    expect(response.status).toBe(401);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+  });
+
   it('refuses the wrong password', async () => {
     const response = await createGuardedApp().request('/api/overview', {
       headers: {

@@ -306,4 +306,19 @@ describe('API surface boundary', () => {
     expect(response.status).toBe(200);
     expect(response.headers.get('content-type')).toContain('application/json');
   });
+
+  // A cacheable answer on an API path is what lets a single bad response
+  // outlive its own fix: the browser gives it heuristic freshness and stops
+  // asking the server for hours.
+  it('forbids caching a matched API response', async () => {
+    const response = await createTestApp().request('/api/overview');
+
+    expect(response.headers.get('cache-control')).toBe('no-store');
+  });
+
+  it('forbids caching the catch-all 404', async () => {
+    const response = await createTestApp().request('/api/does-not-exist');
+
+    expect(response.headers.get('cache-control')).toBe('no-store');
+  });
 });
