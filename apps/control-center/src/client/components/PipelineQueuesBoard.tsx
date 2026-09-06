@@ -61,6 +61,23 @@ export function PipelineQueuesBoard(
     [onRestartStep, reload],
   );
 
+  const abandonEpisode = useCallback(
+    async (episodeId: string) => {
+      const response = await fetch(
+        `/api/podcast-pipeline/${encodeURIComponent(episodeId)}/abandon`,
+        { method: 'POST' },
+      );
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        throw new Error(body?.error ?? `HTTP ${response.status}`);
+      }
+      await reload();
+    },
+    [reload],
+  );
+
   if (!data) {
     return (
       <section className="queue-board queue-board-loading">
@@ -144,6 +161,7 @@ export function PipelineQueuesBoard(
 
       {selected ? (
         <QueueDrawer
+          onAbandonEpisode={abandonEpisode}
           onClose={() => setSelectedKey(null)}
           onLoadVisualDebug={props.onLoadVisualDebug}
           onResolveReview={props.onResolveReview}
