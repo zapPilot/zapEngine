@@ -36,6 +36,7 @@ describe('acquireRemoteImage full decode validation', () => {
               status: 200,
               headers: { 'content-type': 'image/png' },
             }),
+          // eslint-disable-next-line sonarjs/no-hardcoded-ip -- test stub for DNS resolution
           resolveHost: async () => ['8.8.8.8'],
         }),
       ).rejects.toThrow(/libpng read error|pngload/iu);

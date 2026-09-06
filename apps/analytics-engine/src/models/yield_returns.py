@@ -67,10 +67,23 @@ class TokenYieldBreakdown(BaseModel):
     )
 
 
-class DailyYieldReturn(BaseModel):
-    """Day-level yield return entry suitable for charting."""
+class _DailyReturnBase(BaseModel):
+    """Shared date field and validation for daily return entries."""
 
     date: str = Field(..., description="Calendar date (YYYY-MM-DD) of the snapshot")
+
+    @field_validator("date", mode="before")
+    @classmethod
+    def validate_iso8601_format_field(cls, v: str | None) -> str:
+        """Validate ISO8601 date string format (YYYY-MM-DD)."""
+        if v is None:
+            raise ValueError("date is required")
+        return validate_iso8601_format(v, "date")
+
+
+class DailyYieldReturn(_DailyReturnBase):
+    """Day-level yield return entry suitable for charting."""
+
     protocol_name: str = Field(..., description="Protocol that generated the yield")
     chain: str = Field(..., description="Blockchain network for the protocol position")
     position_type: str | None = Field(
@@ -91,31 +104,14 @@ class DailyYieldReturn(BaseModel):
         ),
     )
 
-    @field_validator("date", mode="before")
-    @classmethod
-    def validate_iso8601_format_field(cls, v: str | None) -> str:
-        """Validate ISO8601 date string format (YYYY-MM-DD)."""
-        if v is None:
-            raise ValueError("date is required")
-        return validate_iso8601_format(v, "date")
 
-
-class DailyWalletReturn(BaseModel):
+class DailyWalletReturn(_DailyReturnBase):
     """Day-level attribution for idle wallet token balances."""
 
-    date: str = Field(..., description="Calendar date (YYYY-MM-DD) of the snapshot")
     tokens: list[TokenYieldBreakdown] = Field(
         default_factory=list,
         description="Per-symbol price effect and balance change for wallet holdings",
     )
-
-    @field_validator("date", mode="before")
-    @classmethod
-    def validate_iso8601_format_field(cls, v: str | None) -> str:
-        """Validate ISO8601 date string format (YYYY-MM-DD)."""
-        if v is None:
-            raise ValueError("date is required")
-        return validate_iso8601_format(v, "date")
 
 
 class YieldReturnSummary(BaseModel):
