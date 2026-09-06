@@ -7,7 +7,7 @@ new listing.
 | --------------------------------- | ------------------------------- |
 | App / launcher name               | `Zap Pilot`                     |
 | Android package                   | `com.fromfedtochain.app`        |
-| User-facing version               | `2.1.0`                         |
+| User-facing version               | `3.0.0`                         |
 | Repo's last Flutter `versionCode` | `204`                           |
 | First Expo production build       | `205` if Play still ends at 204 |
 | Default submission track          | Closed testing, `alpha` track   |
@@ -68,7 +68,7 @@ native identifiers before testing or releasing:
 
 ```text
 Allowed Android app identifier: com.fromfedtochain.app
-Allowed iOS app identifier:     com.zapengine.zappilot.dev
+Allowed iOS app identifier:     com.example.fromFedToChainApp
 Allowed URL scheme:             zappilotv2
 ```
 
