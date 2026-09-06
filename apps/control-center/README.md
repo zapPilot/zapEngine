@@ -98,7 +98,11 @@ deliberately grey rather than green.
 
 ## Vercel deployment
 
-The Vercel deployment is a remote Control Center operator surface. Configure the project root as `apps/control-center` and enable Vercel Authentication for all deployments before adding credentials or performing the first deployment.
+The Vercel deployment is a remote Control Center operator surface. Configure the project root as `apps/control-center`, and set `OPS_AUTH_USERNAME` and `OPS_AUTH_PASSWORD` before adding any other credential or performing the first deployment.
+
+Those two are the deployment's only authentication. Vercel Authentication is not available as a boundary here: on the Hobby tier, Standard Protection covers deployment URLs but not a production custom domain, so `ops.zap-pilot.org` answered every read and every pipeline mutation anonymously until the Basic guard landed. `api/index.ts` therefore refuses to boot without both values rather than serving the surface unauthenticated.
+
+The guard covers `/api/*` only. `outputDirectory` is served straight from Vercel's CDN and never reaches Hono, so the dashboard shell itself stays publicly loadable — it holds no operational values, and every request it makes answers `401` until the operator signs in. Because browsers raise their native credential prompt for navigations rather than reliably for `fetch`, the first sign-in is done by opening an API path such as `/api/overview` directly; the shell says so when it sees a `401`.
 
 Dashboard HTTP views are generally read-only, with three narrowly bounded classes of mutation:
 
@@ -109,7 +113,7 @@ Dashboard HTTP views are generally read-only, with three narrowly bounded classe
   - `POST /api/podcast-pipeline/:episodeId/renders/:localizationId/retry` → `retry_episode_video_render`. Requeues one language render against the completed current-version visual; also refused with `22023` on an abandoned episode.
 - Operator reviews: `PUT /api/podcast-pipeline/:episodeId/reviews` → `upsert_episode_video_review` and `POST /api/podcast-pipeline/reviews/:reviewId/resolve` → `resolve_episode_video_review` write only the operator's review rows (`reviewer = 'operator'`); they cannot change pipeline state.
 
-Code deploys before the operator pushes the Supabase migrations, so every new route degrades explicitly: a missing RPC (`PGRST202` / `42883`) answers `503` with "migration has not been applied yet", and reads of not-yet-existing columns or tables (`42703`, `42P01`) are separate queries that fall back to empty values. Vercel Authentication is the load-bearing boundary for all of these operator actions.
+Code deploys before the operator pushes the Supabase migrations, so every new route degrades explicitly: a missing RPC (`PGRST202` / `42883`) answers `503` with "migration has not been applied yet", and reads of not-yet-existing columns or tables (`42703`, `42P01`) are separate queries that fall back to empty values. The Basic guard described above is the load-bearing boundary for all of these operator actions; `/api/mcp` sits outside it because one `Authorization` header cannot carry Basic and Bearer at once, and it verifies its own bearer token instead.
 
 The remote API deliberately does not register `POST /api/costs/sync`; cost collection remains an external operation.
 
@@ -129,6 +133,7 @@ The remote server uses these environment variables as applicable to its read pat
 - `POSTHOG_PROJECT_ID`
 - `SENTRY_CONTROL_CENTER_DSN`
 - `OPS_MCP_TOKEN` (remote MCP client authentication only)
+- `OPS_AUTH_USERNAME` and `OPS_AUTH_PASSWORD` (mandatory; the deployment refuses to boot without them)
 
 Do not deploy `DEBANK_*` or `OPENROUTER_*` credentials; they are used only by
 cost synchronization. Set `ENABLE_EXPERIMENTAL_COREPACK=1` so Vercel honors the repository's

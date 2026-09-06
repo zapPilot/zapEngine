@@ -158,7 +158,6 @@ function createTestApp(
         growthOverrides.getSocialGrowth ??
         vi.fn().mockResolvedValue(socialGrowth),
     },
-    serveClient: false,
     allowCostSync: options.allowCostSync,
   });
 }
@@ -277,5 +276,34 @@ describe('control center API', () => {
 
     await app.request('/api/customers?force=yes');
     expect(getCustomers).toHaveBeenCalledWith(false);
+  });
+});
+
+describe('API surface boundary', () => {
+  it('answers an unmatched API path with JSON rather than an HTML shell', async () => {
+    const response = await createTestApp().request('/api/does-not-exist');
+
+    expect(response.status).toBe(404);
+    expect(response.headers.get('content-type')).toContain('application/json');
+    await expect(response.json()).resolves.toEqual({ error: 'Not Found' });
+  });
+
+  it('answers an unmatched API path the same way for a mutation', async () => {
+    const response = await createTestApp().request('/api/does-not-exist', {
+      method: 'POST',
+    });
+
+    expect(response.status).toBe(404);
+    expect(response.headers.get('content-type')).toContain('application/json');
+  });
+
+  // The catch-all above is registered after every real route. Hono composes
+  // matching handlers into a chain, so this asserts the registered routes still
+  // win it.
+  it('keeps registered routes ahead of the catch-all', async () => {
+    const response = await createTestApp().request('/api/overview');
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toContain('application/json');
   });
 });

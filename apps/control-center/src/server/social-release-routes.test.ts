@@ -43,7 +43,6 @@ function app() {
       investigate: vi.fn(),
     } as never,
     socialGrowth: { getSocialGrowth: vi.fn() } as never,
-    serveClient: false,
   });
 }
 

@@ -165,11 +165,13 @@ function queueResponse(
   };
 }
 
+// A real Response rather than a cast: the board's fetch helper reads
+// `content-type` to reject a non-JSON body, which a hand-rolled stub without
+// headers cannot exercise.
 function response(payload: PipelineQueuesResponse): Response {
-  return {
-    ok: true,
-    json: async () => payload,
-  } as Response;
+  return new Response(JSON.stringify(payload), {
+    headers: { 'content-type': 'application/json' },
+  });
 }
 
 function workItem(

@@ -18,6 +18,7 @@ import type {
   PodcastVisualDebugResponse,
   PodcastVisualReviewHandlers,
 } from '../../shared/podcast-visual.js';
+import { getJson } from '../api.js';
 import { compactError } from '../format.js';
 import './PipelineQueuesBoard.css';
 import {
@@ -171,11 +172,9 @@ function usePipelineQueues(): {
 
   const load = useCallback(async () => {
     try {
-      const response = await fetch('/api/pipeline/queues');
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-      const payload = (await response.json()) as PipelineQueuesResponse;
+      const payload = await getJson<PipelineQueuesResponse>(
+        '/api/pipeline/queues',
+      );
       setData(payload);
       setError(payload.status === 'error' ? payload.message : null);
     } catch (cause) {

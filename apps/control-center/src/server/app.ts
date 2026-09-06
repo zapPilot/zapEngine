@@ -1,9 +1,9 @@
-import { serveStatic } from '@hono/node-server/serve-static';
 import {
   PODCAST_VIDEO_REVIEW_ISSUES,
   PODCAST_VIDEO_REVIEW_VERDICTS,
 } from '@zapengine/types/shared';
 import { type Context, Hono } from 'hono';
+import { basicAuth } from 'hono/basic-auth';
 import { HTTPException } from 'hono/http-exception';
 import { routePath } from 'hono/route';
 
@@ -43,7 +43,12 @@ export function createControlCenterApp(input: {
   podcastPipeline?: ReturnType<typeof createPodcastPipelineService>;
   podcastVisual?: ReturnType<typeof createPodcastVisualService>;
   statements?: ReturnType<typeof createStatementsService>;
-  serveClient?: boolean;
+  /**
+   * Present only where the deployment itself is the trust boundary. Vercel's
+   * Hobby-tier Standard Protection does not reach a production custom domain,
+   * so the remote operator surface authenticates here instead.
+   */
+  auth?: { username: string; password: string };
   /**
    * Local operator processes may explicitly refresh provider cost snapshots.
    * Remote dashboards stay read-only for cost collection by omitting this route.
@@ -51,6 +56,22 @@ export function createControlCenterApp(input: {
   allowCostSync?: boolean;
 }) {
   const app = new Hono();
+  if (input.auth) {
+    // Hono runs middleware in registration order, so this has to precede every
+    // route. `basicAuth` mutates the options object it receives, hence a fresh
+    // literal rather than `input.auth` itself.
+    const guard = basicAuth({
+      username: input.auth.username,
+      password: input.auth.password,
+      realm: 'Zap Pilot Control Center',
+    });
+    // A request carries one Authorization header, and Basic and Bearer cannot
+    // share it. `/api/mcp` verifies its own bearer token in constant time, so
+    // it stays outside this guard rather than becoming unreachable.
+    app.use('*', (context, next) =>
+      context.req.path === '/api/mcp' ? next() : guard(context, next),
+    );
+  }
   const service =
     input.service ?? createOverviewService({ config: input.config });
   const podcastCosts = createPodcastCostService({ config: input.config });
@@ -213,7 +234,8 @@ export function createControlCenterApp(input: {
     return context.json(await statements.getStatements(isForced(context)));
   });
 
-  // The Vercel deployment is required to sit behind Vercel Authentication.
+  // The Vercel deployment authenticates through the Basic guard mounted at the
+  // top of this factory.
   // Inside that authenticated operator surface podcast mutations stay narrowly
   // scoped to checkpoint recovery RPCs; neither route accepts arbitrary state.
   app.post('/api/podcast-pipeline/:episodeId/ingest/retry', (context) =>
@@ -255,6 +277,11 @@ export function createControlCenterApp(input: {
     token: input.config.OPS_MCP_TOKEN,
   });
 
+  // Without this an unmatched API path answers with Hono's text/plain 404 and
+  // every caller's `response.json()` throws on it. Registered after the real
+  // routes so their handlers win the chain.
+  app.all('/api/*', (context) => context.json({ error: 'Not Found' }, 404));
+
   app.onError((error, context) => {
     const status = error instanceof HTTPException ? error.status : 500;
     if (status >= 500) {
@@ -268,10 +295,6 @@ export function createControlCenterApp(input: {
       : context.text('Internal Server Error', 500);
   });
 
-  if (input.serveClient !== false) {
-    app.use('/*', serveStatic({ root: './dist/client' }));
-    app.get('*', serveStatic({ path: './dist/client/index.html' }));
-  }
   return app;
 }
 
