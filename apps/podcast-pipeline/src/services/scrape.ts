@@ -308,6 +308,27 @@ export function extractArticleImageCandidates(
   return deduplicateImageCandidates(candidates);
 }
 
+function isPanewsArticleUrl(value: string): boolean {
+  const parsed = new URL(value);
+  const hostname = parsed.hostname.toLowerCase();
+  const isPanewsHost =
+    hostname === 'panews.io' ||
+    hostname.endsWith('.panews.io') ||
+    hostname === 'panewslab.com' ||
+    hostname.endsWith('.panewslab.com');
+
+  return isPanewsHost && /(?:^|\/)articles(?:\/|$)/.test(parsed.pathname);
+}
+
+function assertPanewsArticleDocument(document: Document, url: string): void {
+  if (!isPanewsArticleUrl(url) || document.querySelector('article')) return;
+
+  // PANews serves deleted article routes as HTTP 200 with its generic
+  // recommendations page. Readability can parse that shell as article text,
+  // so require the real article container before any content extraction.
+  throw new Error('PANews article is unavailable');
+}
+
 export async function scrapeArticle(
   url: string,
   options: ScrapeArticleOptions = {},
@@ -331,6 +352,7 @@ export async function scrapeArticle(
   });
 
   try {
+    assertPanewsArticleDocument(dom.window.document, url);
     const images = extractArticleImageCandidates(dom.window.document, url);
     const article = new Readability(dom.window.document).parse();
     const title =
