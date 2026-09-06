@@ -2,22 +2,29 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
 
 from src.services.analytics.analytics_context import PortfolioAnalyticsContext
+from src.services.shared.query_names import QUERY_NAMES
 from src.services.yield_return_service import YieldReturnService
 
 
 class StubQueryService:
-    """Minimal stub implementing the async fetch API."""
+    """Minimal stub implementing the async fetch API, dispatching by query name."""
 
-    def __init__(self, rows: list[dict[str, Any]]):
+    def __init__(
+        self,
+        rows: list[dict[str, Any]],
+        wallet_rows: list[dict[str, Any]] | None = None,
+    ):
         self.rows = rows
+        self.wallet_rows = wallet_rows or []
         self.last_call: dict[str, Any] | None = None
+        self.calls: dict[str, dict[str, Any]] = {}
 
     async def fetch_time_range_query(
         self,
@@ -31,7 +38,7 @@ class StubQueryService:
         wallet_address: str | None = None,
         extra_params=None,
     ) -> list[dict[str, Any]]:
-        self.last_call = {
+        call = {
             "db": db,
             "query_name": query_name,
             "user_id": user_id,
@@ -39,6 +46,12 @@ class StubQueryService:
             "end_date": end_date,
             "wallet_address": wallet_address,
         }
+        self.calls[query_name] = call
+        if query_name == QUERY_NAMES.WALLET_TOKEN_ATTRIBUTION_SNAPSHOTS:
+            return self.wallet_rows
+        # last_call stays on the position query so window assertions keep their
+        # original meaning now that a second query shares this stub.
+        self.last_call = call
         return self.rows
 
     def execute_query(
@@ -356,3 +369,98 @@ async def test_get_yield_summary_empty_portfolio(db_session):
 
     assert response.windows["7d"].statistics.total_days == 0
     assert response.windows["90d"].protocol_breakdown == []
+
+
+def _wallet_row(day: str, symbol: str, amount: float, price: float) -> dict[str, Any]:
+    return {
+        "wallet": "0xaaa",
+        "chain": "eth",
+        "token_address": f"0x{symbol.lower()}",
+        "symbol": symbol,
+        "amount": amount,
+        "price": price,
+        "snapshot_date": date.fromisoformat(day),
+    }
+
+
+@pytest.mark.asyncio
+async def test_daily_returns_flag_the_funding_spike_but_not_the_carry(db_session):
+    """Only the deposit-shaped day is marked, so the rest can count as returns."""
+    user_id = uuid4()
+    day0 = datetime(2026, 3, 1, tzinfo=UTC)
+    # Routine carry, then a day that quadruples the position.
+    amounts = [100.0, 101.0, 102.1, 103.0, 104.0, 105.1, 106.0, 500.0]
+    rows = [
+        _build_snapshot(
+            user_id, "Aave", day0 + timedelta(days=index), supply_amount=amount
+        )
+        for index, amount in enumerate(amounts)
+    ]
+
+    service = YieldReturnService(
+        db_session,
+        StubQueryService(rows),
+        PortfolioAnalyticsContext(),
+        NullAprProvider(),
+    )
+
+    response = await service.get_daily_yield_returns(user_id=user_id, days=30)
+
+    flagged = {entry.date for entry in response.daily_returns if entry.outlier}
+    assert flagged == {"2026-03-08"}
+    assert all(entry.outlier is False for entry in response.daily_returns[:-1])
+
+
+@pytest.mark.asyncio
+async def test_wallet_returns_cover_idle_holdings_over_the_same_window(db_session):
+    """Idle wallet tokens are attributed alongside the DeFi positions."""
+    user_id = uuid4()
+    day0 = datetime(2026, 3, 1, tzinfo=UTC)
+    rows = [
+        _build_snapshot(user_id, "Aave", day0, supply_amount=100),
+        _build_snapshot(user_id, "Aave", day0 + timedelta(days=1), supply_amount=101),
+    ]
+    wallet_rows = [
+        _wallet_row("2026-03-01", "ETH", 2.0, 3_000.0),
+        _wallet_row("2026-03-02", "ETH", 2.0, 3_100.0),
+    ]
+    query_service = StubQueryService(rows, wallet_rows)
+
+    service = YieldReturnService(
+        db_session, query_service, PortfolioAnalyticsContext(), NullAprProvider()
+    )
+
+    response = await service.get_daily_yield_returns(user_id=user_id, days=30)
+
+    [wallet_day] = response.wallet_returns
+    assert wallet_day.date == "2026-03-02"
+    [token] = wallet_day.tokens
+    assert token.symbol == "ETH"
+    assert token.market_return_usd == pytest.approx(200.0)
+
+    wallet_call = query_service.calls[QUERY_NAMES.WALLET_TOKEN_ATTRIBUTION_SNAPSHOTS]
+    position_call = query_service.calls[QUERY_NAMES.PORTFOLIO_YIELD_SNAPSHOTS]
+    assert wallet_call["start_date"] == position_call["start_date"]
+    assert wallet_call["end_date"] == position_call["end_date"]
+
+
+@pytest.mark.asyncio
+async def test_wallet_returns_are_empty_without_wallet_rows(db_session):
+    """No idle-token history simply means no wallet attribution."""
+    user_id = uuid4()
+    day0 = datetime(2026, 3, 1, tzinfo=UTC)
+    rows = [
+        _build_snapshot(user_id, "Aave", day0, supply_amount=100),
+        _build_snapshot(user_id, "Aave", day0 + timedelta(days=1), supply_amount=101),
+    ]
+
+    service = YieldReturnService(
+        db_session,
+        StubQueryService(rows),
+        PortfolioAnalyticsContext(),
+        NullAprProvider(),
+    )
+
+    response = await service.get_daily_yield_returns(user_id=user_id, days=30)
+
+    assert response.wallet_returns == []

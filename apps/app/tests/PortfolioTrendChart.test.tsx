@@ -95,8 +95,9 @@ function pointerEvent(
 
 const DEFAULT_ATTRIBUTION: NonNullable<DailyValuePoint['attribution']> = [
   { kind: 'market', label: 'ETH', valueUsd: 20 },
-  { kind: 'amount', label: 'Aave', valueUsd: 4 },
-  { kind: 'residual', valueUsd: 1 },
+  { kind: 'protocol', label: 'Aave', valueUsd: 4 },
+  { kind: 'flow', label: 'USDC', valueUsd: 2 },
+  { kind: 'residual', valueUsd: -1 },
 ];
 
 async function renderChart(
@@ -133,18 +134,20 @@ describe('PortfolioTrendChart interactions', () => {
       chart?.dispatchEvent(pointerEvent('pointermove', 'mouse', 100)),
     );
 
-    expect(container.textContent).toContain('Portfolio change: +$25.00');
+    expect(container.textContent).toContain('Net change: +$25.00');
     expect(container.textContent).toContain('ETH price+$20.00');
-    expect(container.textContent).toContain('Aave balance+$4.00');
-    expect(container.textContent).toContain('Other / flows+$1.00');
-    expect(container.textContent).not.toContain('yield');
+    // A balance change the backend did not flag is presented as a return; a
+    // flagged one and every wallet transfer stay neutral "flow" copy.
+    expect(container.textContent).toContain('Aave returns+$4.00');
+    expect(container.textContent).toContain('USDC flow+$2.00');
+    expect(container.textContent).toContain('Other−$1.00');
     expect(container.textContent).toContain('Assets: $150.00');
     expect(container.textContent).toContain('Debt: $25.00');
     expect(
       container.querySelectorAll(
         '[data-testid="portfolio-trend-attribution-row"]',
       ),
-    ).toHaveLength(3);
+    ).toHaveLength(4);
 
     await act(async () =>
       chart?.dispatchEvent(pointerEvent('pointerout', 'mouse', 100)),
@@ -184,7 +187,7 @@ describe('PortfolioTrendChart interactions', () => {
       '[data-testid="portfolio-trend-marker"]',
     );
     expect((marker?.style as CSSProperties).left).toBe('0px');
-    expect(container.textContent).not.toContain('Portfolio change:');
+    expect(container.textContent).not.toContain('Net change:');
 
     await act(async () =>
       chart?.dispatchEvent(pointerEvent('pointermove', 'touch', 500)),

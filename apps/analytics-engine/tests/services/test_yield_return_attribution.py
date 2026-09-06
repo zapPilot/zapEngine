@@ -1,10 +1,10 @@
 import pytest
 
-from src.services.yield_return_service import YieldReturnService
+from src.services.aggregators.token_attribution import build_token_breakdown
 
 
 def test_token_breakdown_separates_price_and_amount_effects() -> None:
-    breakdown = YieldReturnService._build_token_breakdown(
+    breakdown = build_token_breakdown(
         current_amounts={"ETH": {"amount": 2.1, "price": 2_400.0}},
         previous_amounts={"ETH": {"amount": 2.0, "price": 2_300.0}},
     )
@@ -23,7 +23,7 @@ def test_token_breakdown_separates_price_and_amount_effects() -> None:
 
 
 def test_removed_token_uses_previous_price_without_inventing_market_move() -> None:
-    [token] = YieldReturnService._build_token_breakdown(
+    [token] = build_token_breakdown(
         current_amounts={},
         previous_amounts={"USDC": {"amount": 100.0, "price": 1.0}},
     )
@@ -42,7 +42,7 @@ def test_unpriced_side_reports_no_market_effect(
     current_price: float, previous_price: float
 ) -> None:
     """A zero price means "unknown", so it must not fabricate a market move."""
-    [token] = YieldReturnService._build_token_breakdown(
+    [token] = build_token_breakdown(
         current_amounts={"WETH": {"amount": 5.0, "price": current_price}},
         previous_amounts={"WETH": {"amount": 5.0, "price": previous_price}},
     )

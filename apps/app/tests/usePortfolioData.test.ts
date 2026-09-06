@@ -7,19 +7,13 @@ import {
 
 const useLandingPageDataMock = vi.hoisted(() => vi.fn());
 const usePortfolioDashboardMock = vi.hoisted(() => vi.fn());
-const useQueryMock = vi.hoisted(() => vi.fn());
+const useDailyYieldReturnsMock = vi.hoisted(() => vi.fn());
 vi.mock('@zapengine/app-core/hooks/analytics', () => ({
   usePortfolioDashboard: usePortfolioDashboardMock,
 }));
 
-// These tests call the hook as a plain function, so the one real React Query
-// observer it owns has to be stubbed. Partial, because the app-core queries
-// module below loads for real and needs the rest of the package.
-vi.mock('@tanstack/react-query', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@tanstack/react-query')>();
-  return { ...actual, useQuery: useQueryMock };
-});
-
+// These tests call the hook as a plain function, so its React Query observers
+// have to be stubbed. Partial, because the rest of the package loads for real.
 vi.mock('@zapengine/app-core/hooks/queries', async (importOriginal) => {
   const actual =
     await importOriginal<typeof import('@zapengine/app-core/hooks/queries')>();
@@ -27,6 +21,7 @@ vi.mock('@zapengine/app-core/hooks/queries', async (importOriginal) => {
   return {
     ...actual,
     useLandingPageData: useLandingPageDataMock,
+    useDailyYieldReturns: useDailyYieldReturnsMock,
   };
 });
 
@@ -41,13 +36,13 @@ function mockSettledSources() {
     isLoading: false,
     isError: false,
   });
-  useQueryMock.mockReturnValue({ data: undefined });
+  useDailyYieldReturnsMock.mockReturnValue({ data: undefined });
 }
 
 beforeEach(() => {
   useLandingPageDataMock.mockReset();
   usePortfolioDashboardMock.mockReset();
-  useQueryMock.mockReset();
+  useDailyYieldReturnsMock.mockReset();
   mockSettledSources();
 });
 
@@ -282,7 +277,7 @@ describe('usePortfolioData', () => {
       isLoading: false,
       isError: false,
     });
-    useQueryMock.mockReturnValue({
+    useDailyYieldReturnsMock.mockReturnValue({
       data: {
         user_id: 'user-123',
         period: {
@@ -305,15 +300,11 @@ describe('usePortfolioData', () => {
 
     const result = usePortfolioData('user-123', '1W');
 
-    // The canonical key, so a post-ETL `dailyYield.byUser` invalidation reaches
-    // this observer instead of leaving it on a private cache island.
-    expect(useQueryMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        queryKey: ['dailyYield', 'user-123', 7, null],
-      }),
-    );
+    // Always the full year regardless of the selected range, so Portfolio and
+    // Home share one cache slice and one outlier fence.
+    expect(useDailyYieldReturnsMock).toHaveBeenCalledWith('user-123', 365);
     expect(result.data?.trendPoints.at(-1)?.attribution).toEqual([
-      { kind: 'amount', label: 'Aave', valueUsd: 30 },
+      { kind: 'protocol', label: 'Aave', valueUsd: 30 },
       { kind: 'residual', valueUsd: 20 },
     ]);
   });

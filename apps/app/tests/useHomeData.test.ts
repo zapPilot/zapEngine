@@ -12,6 +12,7 @@ import {
 const usePortfolioDashboardMock = vi.hoisted(() => vi.fn());
 const usePortfolioDataProgressiveMock = vi.hoisted(() => vi.fn());
 const useStrategySuggestionMock = vi.hoisted(() => vi.fn());
+const useDailyYieldReturnsMock = vi.hoisted(() => vi.fn());
 
 vi.mock('react', () => ({
   useMemo: <T>(factory: () => T): T => factory(),
@@ -27,6 +28,13 @@ vi.mock(
     usePortfolioDataProgressive: usePortfolioDataProgressiveMock,
   }),
 );
+
+// Fully replaced rather than partially: `react` is stubbed down to useMemo
+// above, so loading the real query package here would be loading it against a
+// React that barely exists.
+vi.mock('@zapengine/app-core/hooks/queries', () => ({
+  useDailyYieldReturns: useDailyYieldReturnsMock,
+}));
 
 vi.mock('@/integration/useStrategySuggestion', () => ({
   useStrategySuggestion: useStrategySuggestionMock,
@@ -47,12 +55,14 @@ function mockSettledSources() {
     isLoading: false,
     isError: false,
   });
+  useDailyYieldReturnsMock.mockReturnValue({ data: undefined });
 }
 
 beforeEach(() => {
   usePortfolioDashboardMock.mockReset();
   usePortfolioDataProgressiveMock.mockReset();
   useStrategySuggestionMock.mockReset();
+  useDailyYieldReturnsMock.mockReset();
   mockSettledSources();
 });
 
@@ -286,5 +296,113 @@ describe('useHomeData', () => {
       expect.objectContaining({ total_value_usd: 1000 }),
       expect.objectContaining({ total_value_usd: 1234 }),
     ]);
+  });
+});
+
+describe('Home change attribution', () => {
+  const dailyReturn = (
+    date: string,
+    protocolUsd: number,
+    marketUsd: number,
+  ) => ({
+    date,
+    protocol_name: 'Aave',
+    chain: 'ethereum',
+    yield_return_usd: protocolUsd,
+    outlier: false,
+    tokens: [
+      {
+        symbol: 'ETH',
+        amount_change: 0,
+        current_price: 2_400,
+        yield_return_usd: 0,
+        market_return_usd: marketUsd,
+      },
+    ],
+  });
+
+  function mockLiveSeries(daily_returns: ReturnType<typeof dailyReturn>[]) {
+    usePortfolioDataProgressiveMock.mockReturnValue({
+      unifiedData: { lastUpdated: '2026-08-22T00:00:00.000Z' },
+      sections: {
+        balance: { data: { balance: 130 }, isLoading: false, error: null },
+      },
+    });
+    usePortfolioDashboardMock.mockReturnValue({
+      dashboard: {
+        trends: {
+          daily_values: [
+            { date: '2026-07-01', total_value_usd: 100 },
+            { date: '2026-08-15', total_value_usd: 120 },
+            { date: '2026-08-22', total_value_usd: 130 },
+          ],
+        },
+      },
+      isLoading: false,
+      isError: false,
+    });
+    useDailyYieldReturnsMock.mockReturnValue({
+      data: { user_id: 'user-123', daily_returns, wallet_returns: [] },
+    });
+  }
+
+  it('requests one year so Home and Portfolio share a cache slice', () => {
+    useHomeData('user-123', '1D');
+
+    expect(useDailyYieldReturnsMock).toHaveBeenCalledWith('user-123', 365);
+  });
+
+  it('attributes before slicing, so a range keeps its first point explained', () => {
+    mockLiveSeries([dailyReturn('2026-08-15', 5, 12)]);
+
+    const result = useHomeData('user-123', '1W');
+
+    // 2026-08-15 opens the 1W window but its change is measured against
+    // 2026-07-01, which only exists in the unsliced series.
+    expect(result.data.home.trendPoints[0]?.attribution).toEqual([
+      { kind: 'market', label: 'ETH', valueUsd: 12 },
+      { kind: 'protocol', label: 'Aave', valueUsd: 5 },
+      { kind: 'residual', valueUsd: 3 },
+    ]);
+  });
+
+  it('keeps the breakdown reconciled with the headline change', () => {
+    mockLiveSeries([
+      dailyReturn('2026-08-15', 4, 12),
+      dailyReturn('2026-08-22', 1, 6),
+    ]);
+
+    const { attribution } = useHomeData('user-123', '1W').data.home;
+
+    expect(attribution).not.toBeNull();
+    const summary = attribution!;
+    expect(summary.netChangeUsd).toBe(10);
+    expect(
+      summary.marketUsd +
+        summary.protocolUsd +
+        summary.flowUsd +
+        summary.otherUsd,
+    ).toBeCloseTo(summary.netChangeUsd);
+    expect(summary.gainsUsd + summary.lossesUsd).toBeCloseTo(
+      summary.marketUsd + summary.protocolUsd,
+    );
+    expect(summary.attributedDays).toBe(1);
+    expect(summary.totalDays).toBe(1);
+  });
+
+  it('hides the breakdown when the endpoint explained nothing', () => {
+    mockLiveSeries([]);
+
+    const { attribution } = useHomeData('user-123', '1W').data.home;
+
+    expect(attribution?.attributedDays).toBe(0);
+  });
+
+  it('gives the demo preview a breakdown too', () => {
+    const { attribution } = useHomeData(null, '1Y').data.home;
+
+    expect(attribution).not.toBeNull();
+    expect(attribution!.attributedDays).toBe(attribution!.totalDays);
+    expect(attribution!.protocolUsd).toBeGreaterThan(0);
   });
 });

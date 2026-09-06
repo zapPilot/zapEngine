@@ -1,5 +1,6 @@
 import { usePortfolioDashboard } from '@zapengine/app-core/hooks/analytics/usePortfolioDashboard';
 import { usePortfolioDataProgressive } from '@zapengine/app-core/hooks/queries/analytics/usePortfolioDataProgressive';
+import { useDailyYieldReturns } from '@zapengine/app-core/hooks/queries';
 import {
   buildTradeActions,
   formatRegimeLabel,
@@ -10,11 +11,17 @@ import { useMemo } from 'react';
 
 import { DEMO } from '@/data/demo';
 import {
+  attachDailyAttribution,
   calculateAdjacentSnapshotChange,
+  DAILY_ATTRIBUTION_WINDOW_DAYS,
   type DailyValuePoint,
   sortedDailyValues,
   toTrendPoints,
 } from '@/integration/portfolioMetrics';
+import {
+  type RangeAttributionSummary,
+  summarizeRangeAttribution,
+} from '@/integration/rangeAttribution';
 import { useStrategySuggestion } from '@/integration/useStrategySuggestion';
 
 export const HOME_RANGE_OPTIONS = ['1D', '1W', '1M', '3M', '1Y'] as const;
@@ -28,6 +35,8 @@ export interface HomeViewData {
   rangeChangePct: number | null;
   rangeChangeUsd: number | null;
   trendPoints: DailyValuePoint[];
+  /** Null until enough of the range's days can be explained. */
+  attribution: RangeAttributionSummary | null;
 }
 
 export interface HomeStrategyStatusView {
@@ -178,6 +187,12 @@ export function useHomeData(
     getHomeDashboardWindowParams(),
   );
   const suggestion = useStrategySuggestion(analyticsSubjectId);
+  // Deliberately outside isLoading/isError: the chart renders as soon as the
+  // dashboard lands, and the breakdown appears underneath when it can.
+  const attribution = useDailyYieldReturns(
+    analyticsSubjectId ?? undefined,
+    DAILY_ATTRIBUTION_WINDOW_DAYS,
+  );
 
   const balanceSection = progressive.sections?.balance;
   const hasPortfolioSnapshot = Boolean(progressive.unifiedData?.lastUpdated);
@@ -203,9 +218,11 @@ export function useHomeData(
 
   const dailyValues =
     dashboard.dashboard?.trends?.daily_values ?? EMPTY_DAILY_VALUES;
+  // Attribution is attached before the range slice so a short range still has
+  // the previous day's difference on its first point.
   const allTrendPoints = useMemo(
-    () => toTrendPoints(dailyValues),
-    [dailyValues],
+    () => attachDailyAttribution(toTrendPoints(dailyValues), attribution.data),
+    [attribution.data, dailyValues],
   );
   const selectedTrendPoints = useMemo(
     () =>
@@ -226,6 +243,7 @@ export function useHomeData(
         rangeChangePct: rangeChange?.pct ?? null,
         rangeChangeUsd: rangeChange?.usd ?? null,
         trendPoints: selectedTrendPoints,
+        attribution: summarizeRangeAttribution(selectedTrendPoints),
       },
       strategyStatus: isDemo
         ? DEMO_STRATEGY_STATUS

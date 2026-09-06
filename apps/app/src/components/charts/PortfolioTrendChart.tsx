@@ -31,9 +31,13 @@ const TOOLTIP_WIDTH = 220;
 const MARKER_RADIUS = 4;
 const MAX_ATTRIBUTION_ROWS = 6;
 
-const ATTRIBUTION_LABEL_KEY: Record<'market' | 'amount', TranslationKey> = {
+const ATTRIBUTION_LABEL_KEY: Record<
+  'market' | 'protocol' | 'flow',
+  TranslationKey
+> = {
   market: 'portfolio.tooltip.attribution.price',
-  amount: 'portfolio.tooltip.attribution.balance',
+  protocol: 'portfolio.tooltip.attribution.protocol',
+  flow: 'portfolio.tooltip.attribution.flow',
 };
 
 function attributionLabel(
@@ -167,7 +171,8 @@ export function PortfolioTrendChart({
             </Text>
             {change ? (
               <Text className="mt-0.5 font-mono text-[10px] text-ink-dim">
-                {t('portfolio.tooltip.change')}: {formatSignedUsd(change.usd)}
+                {t('portfolio.tooltip.netChange')}:{' '}
+                {formatSignedUsd(change.usd)}
               </Text>
             ) : null}
 

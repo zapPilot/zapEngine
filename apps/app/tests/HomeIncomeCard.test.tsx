@@ -13,6 +13,34 @@ import type {
 vi.mock('lucide-react-native', () => ({
   ArrowDownRight: () => <span data-icon="arrow-down" />,
   ArrowUpRight: () => <span data-icon="arrow-up" />,
+  ChevronDown: () => <span data-icon="chevron-down" />,
+  ChevronRight: () => <span data-icon="chevron-right" />,
+  Layers: () => <span data-icon="layers" />,
+}));
+vi.mock('@zapengine/design-tokens/tokens', () => ({
+  tokens: { color: { 'ink-faint': '#8a8a8a' } },
+}));
+vi.mock('@/components/ui/Tap', () => ({
+  Tap: ({
+    accessibilityLabel,
+    accessibilityState,
+    children,
+    onPress,
+  }: {
+    accessibilityLabel?: string;
+    accessibilityState?: { expanded?: boolean };
+    children?: ReactNode;
+    onPress?: () => void;
+  }) => (
+    <button
+      aria-expanded={accessibilityState?.expanded}
+      aria-label={accessibilityLabel}
+      onClick={onPress}
+      type="button"
+    >
+      {children}
+    </button>
+  ),
 }));
 vi.mock('react-native', () => ({
   Text: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
@@ -187,5 +215,76 @@ describe('HomeIncomeCard', () => {
     expect(
       container.querySelector<HTMLElement>('div.relative.h-11')?.style.width,
     ).toBe('36px');
+  });
+});
+
+describe('HomeIncomeCard long tail', () => {
+  const longTail = view([
+    row({ protocol: 'Morpho', monthlyNetUsd: 100 }),
+    row({ protocol: 'Frax', monthlyNetUsd: 40 }),
+    row({ protocol: 'Pendle', monthlyNetUsd: 5 }),
+    row({ protocol: 'Curve', monthlyNetUsd: 3 }),
+    row({ protocol: 'Yearn', monthlyNetUsd: 2 }),
+    row({ protocol: 'Aave', monthlyNetUsd: -20 }),
+    row({ protocol: 'Spark', monthlyNetUsd: -4 }),
+  ]);
+
+  function otherButton(): HTMLButtonElement | null {
+    return container.querySelector<HTMLButtonElement>('button[aria-expanded]');
+  }
+
+  it('rolls the tail into one collapsed row that names both sides', async () => {
+    await render(longTail);
+
+    expect(labels()).toEqual([
+      'home.passiveIncomeGrossA11y|$150.00',
+      'home.passiveCostGrossA11y|$24.00',
+      'Morpho, +$100.00',
+      'Frax, +$40.00',
+      'Aave, −$20.00',
+      'home.incomeOtherA11y|4',
+    ]);
+    expect(otherButton()?.getAttribute('aria-expanded')).toBe('false');
+    expect(container.textContent).toContain(
+      'home.incomeOtherIncome|+$10.00 · home.incomeOtherCost|−$4.00',
+    );
+  });
+
+  it('reveals the rolled-up protocols when the row is opened', async () => {
+    await render(longTail);
+    await act(async () => {
+      otherButton()?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(otherButton()?.getAttribute('aria-expanded')).toBe('true');
+    expect(labels()).toEqual([
+      'home.passiveIncomeGrossA11y|$150.00',
+      'home.passiveCostGrossA11y|$24.00',
+      'Morpho, +$100.00',
+      'Frax, +$40.00',
+      'Aave, −$20.00',
+      'home.incomeOtherA11y|4',
+      'Pendle, +$5.00',
+      'Curve, +$3.00',
+      'Yearn, +$2.00',
+      'Spark, −$4.00',
+    ]);
+  });
+
+  it('keeps a single tail row visible instead of hiding it behind a tap', async () => {
+    await render(
+      view([
+        row({ protocol: 'Morpho', monthlyNetUsd: 100 }),
+        row({ protocol: 'Frax', monthlyNetUsd: 40 }),
+        row({ protocol: 'Pendle', monthlyNetUsd: 5 }),
+      ]),
+    );
+
+    expect(otherButton()).toBeNull();
+    expect(labels()).toEqual([
+      'Morpho, +$100.00',
+      'Frax, +$40.00',
+      'Pendle, +$5.00',
+    ]);
   });
 });

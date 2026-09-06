@@ -25,6 +25,7 @@ const yieldData: DailyYieldReturnsResponse = {
       chain: 'ethereum',
       position_type: 'Lending',
       yield_return_usd: 24,
+      outlier: false,
       tokens: [
         {
           symbol: 'ETH',
@@ -41,6 +42,7 @@ const yieldData: DailyYieldReturnsResponse = {
       chain: 'base',
       position_type: 'Lending',
       yield_return_usd: 1,
+      outlier: false,
       tokens: [
         {
           symbol: 'USDC',
@@ -52,10 +54,11 @@ const yieldData: DailyYieldReturnsResponse = {
       ],
     },
   ],
+  wallet_returns: [],
 };
 
 describe('attachDailyAttribution', () => {
-  it('aggregates market and balance contributions and reconciles the residual', () => {
+  it('aggregates market and protocol contributions and reconciles the residual', () => {
     const points = attachDailyAttribution(
       [
         { date: '2026-08-20', total_value_usd: 1_000 },
@@ -65,10 +68,10 @@ describe('attachDailyAttribution', () => {
     );
 
     expect(points[1]?.attribution).toEqual([
-      { kind: 'amount', label: 'Aave', valueUsd: 24 },
+      { kind: 'protocol', label: 'Aave', valueUsd: 24 },
       { kind: 'market', label: 'ETH', valueUsd: 20 },
       { kind: 'residual', valueUsd: 5 },
-      { kind: 'amount', label: 'Morpho', valueUsd: 1 },
+      { kind: 'protocol', label: 'Morpho', valueUsd: 1 },
     ]);
     expect(
       points[1]?.attribution?.reduce((sum, item) => sum + item.valueUsd, 0),
@@ -115,5 +118,81 @@ describe('attachDailyAttribution', () => {
     expect(
       attributionContributorKey({ kind: 'market', label: 'ETH', valueUsd: 1 }),
     ).toBe('market:ETH');
+  });
+});
+
+describe('attachDailyAttribution — outlier and wallet coverage', () => {
+  const points = [
+    { date: '2026-08-20', total_value_usd: 1_000 },
+    { date: '2026-08-21', total_value_usd: 1_050 },
+  ];
+
+  it('labels a flagged balance change as a flow, not a protocol return', () => {
+    const [, day] = attachDailyAttribution(points, {
+      ...yieldData,
+      daily_returns: [
+        { ...yieldData.daily_returns[0]!, outlier: true, tokens: [] },
+      ],
+    });
+
+    expect(day?.attribution).toContainEqual({
+      kind: 'flow',
+      label: 'Aave',
+      valueUsd: 24,
+    });
+  });
+
+  it('merges a wallet price move into the same symbol as the DeFi one', () => {
+    const [, day] = attachDailyAttribution(points, {
+      ...yieldData,
+      daily_returns: [yieldData.daily_returns[0]!],
+      wallet_returns: [
+        {
+          date: '2026-08-21',
+          tokens: [
+            {
+              symbol: 'ETH',
+              amount_change: 0,
+              current_price: 2_400,
+              yield_return_usd: 0,
+              market_return_usd: 6,
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(day?.attribution).toContainEqual({
+      kind: 'market',
+      label: 'ETH',
+      valueUsd: 26,
+    });
+  });
+
+  it('treats a wallet balance change as a flow', () => {
+    const [, day] = attachDailyAttribution(points, {
+      ...yieldData,
+      daily_returns: [],
+      wallet_returns: [
+        {
+          date: '2026-08-21',
+          tokens: [
+            {
+              symbol: 'USDC',
+              amount_change: 40,
+              current_price: 1,
+              yield_return_usd: 40,
+              market_return_usd: 0,
+            },
+          ],
+        },
+      ],
+    });
+
+    // Wallet-only days used to fail quiet; now they explain themselves.
+    expect(day?.attribution).toEqual([
+      { kind: 'flow', label: 'USDC', valueUsd: 40 },
+      { kind: 'residual', valueUsd: 10 },
+    ]);
   });
 });
