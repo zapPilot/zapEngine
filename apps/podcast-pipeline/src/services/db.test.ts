@@ -4,7 +4,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   classroomRow,
   episodeRow,
-  feedRow,
   listRow,
   localizationRow,
 } from '../__fixtures__/index-test.js';
@@ -21,7 +20,6 @@ import {
   insertEpisodeLocalization,
   insertSocialPost,
   insertSocialPostMetric,
-  listEpisodeFeedPaged,
   listEpisodeLocalizationsByEpisodeId,
   listEpisodesPaged,
   listEpisodeVideoSummariesByLocalizationIds,
@@ -704,35 +702,6 @@ describe('listEpisodesPaged', () => {
     await listEpisodesPaged(20, null, 'zh-Hant');
 
     expect(state.query!.select).toHaveBeenCalledWith('*');
-  });
-});
-
-describe('listEpisodeFeedPaged', () => {
-  it('selects only feed columns, never script or classroom JSONB', async () => {
-    state.query!.returns.mockResolvedValue({ data: [], error: null });
-
-    await listEpisodeFeedPaged(20, null, 'zh-Hant');
-
-    expect(mockFrom).toHaveBeenCalledWith('episodes_with_stats');
-    expect(state.query!.select).toHaveBeenCalledWith(
-      'id,episode_id,localization_id,title,language_code,hls_url,classroom_hls_url,llm_model,llm_thinking_model,llm_provider,status,created_at',
-    );
-    expect(state.query!.eq).toHaveBeenCalledWith('language_code', 'zh-Hant');
-  });
-
-  it('pages feed rows with the same cursor contract as the full listing', async () => {
-    const rows = [
-      feedRow({ id: '00000000-0000-4000-8000-000000000001' }),
-      feedRow({ id: '00000000-0000-4000-8000-000000000002' }),
-    ];
-    state.query!.returns.mockResolvedValue({ data: rows, error: null });
-
-    const result = await listEpisodeFeedPaged(1, null);
-
-    expect(result.rows).toEqual([rows[0]]);
-    expect(result.nextCursor).toBe(
-      encodeCursor({ t: rows[0]!.created_at, i: rows[0]!.id }),
-    );
   });
 });
 

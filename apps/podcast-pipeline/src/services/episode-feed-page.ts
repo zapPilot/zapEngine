@@ -46,23 +46,12 @@ export interface HydratedEpisodeFeedPage {
 
 /**
  * Loads the public feed and all list-only enrichment in one PostgREST RPC.
- *
- * Returning null is deliberately narrow: it only means the migration has not
- * reached the database yet, so a rolling deploy can keep serving through the
- * legacy multi-request path until the operator runs `supabase db push`.
- * Runtime/query failures still throw instead of silently regressing latency.
  */
 export async function listHydratedEpisodeFeedPage(
   limit: number,
   cursor: Cursor | null,
   languageCode: string,
-): Promise<HydratedEpisodeFeedPage | null> {
-  // index.test deliberately mocks the existing db-service seam rather than
-  // provisioning Supabase. This mapper has focused tests that run with a mocked
-  // client under NODE_ENV=production, while the Hono contract suite keeps
-  // exercising the rollout fallback.
-  if (process.env['NODE_ENV'] === 'test') return null;
-
+): Promise<HydratedEpisodeFeedPage> {
   const lim = Math.min(Math.max(limit | 0, 1), MAX_LIMIT);
   const { data, error } = await getSupabase().rpc(EPISODE_FEED_RPC, {
     p_limit: lim + 1,
@@ -72,7 +61,6 @@ export async function listHydratedEpisodeFeedPage(
   });
 
   if (error) {
-    if (isMissingFeedRpcError(error)) return null;
     throwSupabaseError(error);
   }
 
@@ -194,9 +182,3 @@ function isPublicStatus(
   );
 }
 // jscpd:ignore-end
-
-function isMissingFeedRpcError(error: unknown): boolean {
-  if (!error || typeof error !== 'object' || Array.isArray(error)) return false;
-  const code = (error as Record<string, unknown>)['code'];
-  return code === 'PGRST202' || code === '42883';
-}

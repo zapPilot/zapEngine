@@ -376,12 +376,6 @@ export function decodeCursor(raw: string): Cursor {
   return obj;
 }
 
-// Everything the feed responds with, and nothing TOASTed: script and
-// language_classrooms_jsonb stay out so the view query never detoasts them,
-// and like_count stays out so Postgres can eliminate the likes aggregate join.
-const EPISODE_FEED_COLUMNS =
-  'id,episode_id,localization_id,title,language_code,hls_url,classroom_hls_url,llm_model,llm_thinking_model,llm_provider,status,created_at';
-
 export async function listEpisodesPaged(
   limit: number,
   cursor: Cursor | null,
@@ -389,19 +383,6 @@ export async function listEpisodesPaged(
 ): Promise<{ rows: EpisodeListRow[]; nextCursor: string | null }> {
   return pageEpisodesWithStats<EpisodeListRow>(
     '*',
-    limit,
-    cursor,
-    languageCode,
-  );
-}
-
-export async function listEpisodeFeedPaged(
-  limit: number,
-  cursor: Cursor | null,
-  languageCode?: string,
-): Promise<{ rows: EpisodeFeedRow[]; nextCursor: string | null }> {
-  return pageEpisodesWithStats<EpisodeFeedRow>(
-    EPISODE_FEED_COLUMNS,
     limit,
     cursor,
     languageCode,

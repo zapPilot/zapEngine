@@ -26,14 +26,12 @@ import {
   findEpisodeById,
   findEpisodeListRowByLocalizationId,
   findEpisodeLocalizationByEpisodeId,
-  listEpisodeFeedPaged,
   listEpisodeLocalizationsByEpisodeId,
   listEpisodeVideoSummariesByLocalizationIds,
   listLanguageClassroomAudioByLocalizationIds,
   listLanguageClassroomsByLocalizationId,
   listPublishedEpisodeCatalog,
   toClassroomAudioTracks,
-  toEpisodeFeedResponse,
   toEpisodeResponse,
   toEpisodeResponseFromLocalization,
 } from './services/db.js';
@@ -376,37 +374,8 @@ export function createApp(): Hono {
       cursor,
       languageCode,
     );
-    if (hydratedPage) {
-      c.header('Server-Timing', episodeFeedServerTiming(startedAt));
-      return c.json(hydratedPage);
-    }
-
-    // Deployment-order safety only: until the migration has been pushed, serve
-    // the old path. The optimized loader throws real runtime/query failures, so
-    // this cannot silently become a permanent catch-all fallback.
-    const { rows, nextCursor } = await listEpisodeFeedPaged(
-      limit,
-      cursor,
-      languageCode,
-    );
-    const localizationIds = rows.map((row) => row.localization_id);
-    const [videoSummaries, classroomAudio] = await Promise.all([
-      listEpisodeVideoSummariesByLocalizationIds(localizationIds),
-      listLanguageClassroomAudioByLocalizationIds(localizationIds),
-    ]);
     c.header('Server-Timing', episodeFeedServerTiming(startedAt));
-    return c.json({
-      items: rows.map((row) => {
-        const summary = videoSummaries.get(row.localization_id);
-        return toEpisodeFeedResponse(
-          row,
-          summary?.video ?? null,
-          summary?.videoGeneration ?? null,
-          classroomAudio.get(row.localization_id) ?? [],
-        );
-      }),
-      nextCursor,
-    });
+    return c.json(hydratedPage);
   });
 
   app.get('/episodes/search', async (c) => {
