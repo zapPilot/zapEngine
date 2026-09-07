@@ -11,12 +11,28 @@ import {
 
 import { usePodcastPlayer as usePodcastPlayerModel } from '@/integration/podcastPlayer';
 import type { PodcastEpisode } from '@/integration/podcastFeed';
-import type { PodcastPlayer } from '@/integration/podcastPlayerTypes';
+import type {
+  PodcastPlayer,
+  PodcastPlayerStatus,
+} from '@/integration/podcastPlayerTypes';
 import { trackEvent } from '@/observability/analytics';
 import { useAuthenticatedAction } from '@/providers/AuthenticatedActionProvider';
 import { useVideoPlaybackCoordinator } from '@/providers/VideoPlaybackCoordinatorProvider';
 
-const PodcastPlayerContext = createContext<PodcastPlayer | null>(null);
+interface PodcastPlayerClock {
+  currentTime: number;
+  duration: number;
+}
+
+// Split so a clock-only subscriber (the now-playing bar) can re-render at
+// playback tick rate without forcing every other `usePodcastPlayerStatus()`
+// consumer through the same cascade.
+const PodcastPlayerStatusContext = createContext<PodcastPlayerStatus | null>(
+  null,
+);
+const PodcastPlayerClockContext = createContext<PodcastPlayerClock | null>(
+  null,
+);
 
 export function PodcastPlayerProvider({
   children,
@@ -105,40 +121,112 @@ export function PodcastPlayerProvider({
     pauseActiveVideo();
     return rawSkipToNextEpisode();
   }, [pauseActiveVideo, rawSkipToNextEpisode]);
-  const gatedPlayer = useMemo(
+  const {
+    nowPlaying,
+    speed,
+    sections,
+    currentSection,
+    currentSectionLanguage,
+    queue,
+    queueIndex,
+    hasPreviousEpisode,
+    hasNextEpisode,
+    pause,
+    seek,
+    seekRelative,
+    skipToSection,
+    setSpeed,
+  } = player;
+
+  const statusValue = useMemo<PodcastPlayerStatus>(
     () => ({
-      ...player,
+      nowPlaying,
+      isPlaying,
+      speed,
+      sections,
+      currentSection,
+      currentSectionLanguage,
+      queue,
+      queueIndex,
+      hasPreviousEpisode,
+      hasNextEpisode,
+      pause,
       toggle,
       playFromQueue,
       playFromQueueAt,
       playSectionFromQueue,
+      seek,
+      seekRelative,
       skipToPreviousEpisode,
       skipToNextEpisode,
+      skipToSection,
+      setSpeed,
     }),
     [
-      player,
+      nowPlaying,
+      isPlaying,
+      speed,
+      sections,
+      currentSection,
+      currentSectionLanguage,
+      queue,
+      queueIndex,
+      hasPreviousEpisode,
+      hasNextEpisode,
+      pause,
+      toggle,
       playFromQueue,
       playFromQueueAt,
       playSectionFromQueue,
-      skipToNextEpisode,
+      seek,
+      seekRelative,
       skipToPreviousEpisode,
-      toggle,
+      skipToNextEpisode,
+      skipToSection,
+      setSpeed,
     ],
   );
 
+  const clockValue = useMemo<PodcastPlayerClock>(
+    () => ({ currentTime: player.currentTime, duration: player.duration }),
+    [player.currentTime, player.duration],
+  );
+
   return (
-    <PodcastPlayerContext.Provider value={gatedPlayer}>
-      {children}
-    </PodcastPlayerContext.Provider>
+    <PodcastPlayerStatusContext.Provider value={statusValue}>
+      <PodcastPlayerClockContext.Provider value={clockValue}>
+        {children}
+      </PodcastPlayerClockContext.Provider>
+    </PodcastPlayerStatusContext.Provider>
   );
 }
 
-export function usePodcastPlayer(): PodcastPlayer {
-  const player = useContext(PodcastPlayerContext);
-  if (player === null) {
+export function usePodcastPlayerStatus(): PodcastPlayerStatus {
+  const status = useContext(PodcastPlayerStatusContext);
+  if (status === null) {
     throw new Error(
-      'usePodcastPlayer must be used within PodcastPlayerProvider',
+      'usePodcastPlayerStatus must be used within PodcastPlayerProvider',
     );
   }
-  return player;
+  return status;
+}
+
+function usePodcastPlayerClock(): PodcastPlayerClock {
+  const clock = useContext(PodcastPlayerClockContext);
+  if (clock === null) {
+    throw new Error(
+      'usePodcastPlayerClock must be used within PodcastPlayerProvider',
+    );
+  }
+  return clock;
+}
+
+/** Merges the status and clock contexts back into the full player shape. */
+export function usePodcastPlayer(): PodcastPlayer {
+  const status = usePodcastPlayerStatus();
+  const clock = usePodcastPlayerClock();
+  return useMemo<PodcastPlayer>(
+    () => ({ ...status, ...clock }),
+    [status, clock],
+  );
 }

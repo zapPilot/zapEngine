@@ -44,7 +44,10 @@ import {
 import { cn } from '@/lib/cn';
 import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 import { useEpisodeProgress } from '@/providers/PodcastProgressProvider';
-import { usePodcastPlayer } from '@/providers/PodcastPlayerProvider';
+import {
+  usePodcastPlayer,
+  usePodcastPlayerStatus,
+} from '@/providers/PodcastPlayerProvider';
 
 const EMPTY_SEARCH_RESULTS: readonly PodcastEpisodeSearchResult[] = [];
 const EMPTY_COMPLETION_BY_LANGUAGE: PodcastCompletionByLanguage = {};
@@ -188,9 +191,21 @@ function EmptyStateCard({
   );
 }
 
+// The only clock (currentTime/duration) subscriber on this screen: isolating
+// it in its own component keeps PodcastScreen off the playback tick, so the
+// episode list below does not re-render twice a second.
+function NowPlayingBarConnected({
+  onOpen,
+}: {
+  onOpen: (episode: PodcastEpisode) => void;
+}) {
+  const player = usePodcastPlayer();
+  return <NowPlayingBar player={player} onOpen={onOpen} />;
+}
+
 export function PodcastScreen() {
   const router = useRouter();
-  const player = usePodcastPlayer();
+  const player = usePodcastPlayerStatus();
   const { languageCode, t } = useContentLanguage();
   const {
     progress,
@@ -539,7 +554,7 @@ export function PodcastScreen() {
         {renderEpisodeContent()}
       </ScreenScrollView>
 
-      <NowPlayingBar player={player} onOpen={openEpisode} />
+      <NowPlayingBarConnected onOpen={openEpisode} />
     </View>
   );
 }
