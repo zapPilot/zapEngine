@@ -89,7 +89,6 @@ export interface SocialQueueEpisode {
 export interface SocialQueueSnapshot {
   pendingCount: number;
   episodeQueue: SocialQueueEpisode[];
-  nextByPlatform: Partial<Record<SocialPlatform, SocialQueueItem>>;
   nextByLane: Record<string, SocialQueueLaneItem>;
   waitingVideos: SocialWaitingVideoItem[];
 }
@@ -294,21 +293,6 @@ export async function enqueueSocialPublishJob(
   );
 }
 
-export async function latestPendingSocialPublishSchedule(): Promise<
-  string | null
-> {
-  const data = await maybeOne<{ scheduled_at: string }>(
-    getPipelineSupabase()
-      .from('social_publish_jobs')
-      .select('scheduled_at')
-      .in('status', ['queued', 'failed', 'processing'])
-      .order('scheduled_at', { ascending: false })
-      .limit(1)
-      .maybeSingle<{ scheduled_at: string }>(),
-  );
-  return data?.scheduled_at ?? null;
-}
-
 /**
  * Observational preflight only: this does not claim or mutate a lane. A slightly
  * wider predicate than the cohort publish preflight is intentional; an extra
@@ -357,67 +341,6 @@ export async function listPendingSocialPublishSchedules(): Promise<
   );
 }
 
-export interface PastDueSocialPublishJob {
-  id: string;
-  episode_id: string;
-  platform: SocialPlatform;
-  language_code: PrimaryLanguageCode | null;
-  status: 'queued' | 'failed';
-  scheduled_at: string;
-}
-
-/**
- * Lanes whose slot has already passed. `processing` is excluded on purpose: a
- * lease owner may be mid-publish, and only the claim RPC may take an expired
- * lease back.
- */
-export async function listPastDueSocialPublishJobs(
-  cutoff: Date,
-): Promise<PastDueSocialPublishJob[]> {
-  return many<PastDueSocialPublishJob>(
-    getPipelineSupabase()
-      .from('social_publish_jobs')
-      .select('id,episode_id,platform,language_code,status,scheduled_at')
-      .in('status', ['queued', 'failed'])
-      .lt('scheduled_at', cutoff.toISOString())
-      .order('scheduled_at', { ascending: true })
-      .returns<PastDueSocialPublishJob[]>(),
-  );
-}
-
-/**
- * Moves one lane to a later slot. Nothing is ever dropped or brought forward:
- * a missed slot is a slot the account did not spend, and publishing a backlog
- * the moment it is noticed is exactly the burst the daily caps exist to stop.
- *
- * `next_attempt_at` follows `scheduled_at` because the claim RPC fences on
- * both, and a retry backoff left behind the new slot would make the lane
- * unclaimable at a time it is supposed to be due. The status fence is what
- * makes this safe beside a live claim: a claimed row is `processing` and no
- * longer matches.
- */
-export async function rescheduleSocialPublishJob(input: {
-  jobId: string;
-  status: 'queued' | 'failed';
-  scheduledAt: Date;
-  now: Date;
-}): Promise<boolean> {
-  const scheduledAt = input.scheduledAt.toISOString();
-  return affectedSocialPublishJobRow(
-    getPipelineSupabase()
-      .from('social_publish_jobs')
-      .update({
-        scheduled_at: scheduledAt,
-        next_attempt_at: scheduledAt,
-        updated_at: input.now.toISOString(),
-      })
-      .eq('id', input.jobId)
-      .eq('status', input.status)
-      .select('id')
-      .maybeSingle<{ id: string }>(),
-  );
-}
-
 type SocialQueueJobRow = Pick<
   SocialPublishJobRow,
   | 'episode_id'
@@ -449,15 +372,7 @@ export async function getSocialQueueSnapshot(
     ? await listWaitingSocialVideos()
     : [];
   if (jobs.length === 0) {
-    return withQueueLanes(
-      {
-        pendingCount: 0,
-        episodeQueue: [],
-        nextByPlatform: {},
-      },
-      {},
-      waitingVideos,
-    );
+    return { pendingCount: 0, episodeQueue: [], nextByLane: {}, waitingVideos };
   }
 
   const episodeIds = [...new Set(jobs.map((job) => job.episode_id))];
@@ -468,7 +383,6 @@ export async function getSocialQueueSnapshot(
       row.title,
     ]),
   );
-  const nextByPlatform: Partial<Record<SocialPlatform, SocialQueueItem>> = {};
   const nextByLane: Record<string, SocialQueueLaneItem> = {};
   const sortedJobs = [...jobs].sort(
     (left, right) => Date.parse(jobNextAt(left)) - Date.parse(jobNextAt(right)),
@@ -488,19 +402,16 @@ export async function getSocialQueueSnapshot(
     const languageCode = job.language_code ?? 'zh-Hant';
     if (!queuedEpisodes.has(job.episode_id)) {
       queuedEpisodes.add(job.episode_id);
-      const episode = {
+      const lanes = lanesByEpisode.get(job.episode_id) ?? [];
+      episodeQueue.push({
         episodeId: job.episode_id,
         title:
           titleByEpisodeLanguage.get(`${job.episode_id}|${languageCode}`) ??
           null,
         nextAt: jobNextAt(job),
-      } as SocialQueueEpisode;
-      const lanes = lanesByEpisode.get(job.episode_id) ?? [];
-      Object.defineProperties(episode, {
-        laneCount: { value: lanes.length || 1, enumerable: false },
-        lanes: { value: lanes, enumerable: false },
+        laneCount: lanes.length || 1,
+        lanes,
       });
-      episodeQueue.push(episode);
     }
     const item: SocialQueueItem = {
       episodeId: job.episode_id,
@@ -516,7 +427,6 @@ export async function getSocialQueueSnapshot(
       attemptCount: job.attempt_count,
       attemptsExhausted: job.attempt_count >= MAX_PUBLISH_ATTEMPTS,
     };
-    nextByPlatform[job.platform] ??= item;
     nextByLane[`${job.platform}|${languageCode}`] ??= {
       ...item,
       experiment:
@@ -526,25 +436,7 @@ export async function getSocialQueueSnapshot(
     };
   }
 
-  return withQueueLanes(
-    { pendingCount: jobs.length, episodeQueue, nextByPlatform },
-    nextByLane,
-    waitingVideos,
-  );
-}
-
-// Keep the historical enumerable snapshot shape stable for existing log and
-// monitoring consumers while exposing the multilingual lane index directly.
-function withQueueLanes(
-  snapshot: Omit<SocialQueueSnapshot, 'nextByLane' | 'waitingVideos'>,
-  nextByLane: SocialQueueSnapshot['nextByLane'],
-  waitingVideos: SocialWaitingVideoItem[],
-): SocialQueueSnapshot {
-  Object.defineProperties(snapshot, {
-    nextByLane: { value: nextByLane, enumerable: false },
-    waitingVideos: { value: waitingVideos, enumerable: false },
-  });
-  return snapshot as SocialQueueSnapshot;
+  return { pendingCount: jobs.length, episodeQueue, nextByLane, waitingVideos };
 }
 
 async function listWaitingSocialVideos(): Promise<SocialWaitingVideoItem[]> {
@@ -630,18 +522,6 @@ export async function listUnfinishedSocialPublishJobs(): Promise<
       .select('id,episode_id,platform,language_code,status')
       .in('status', ['queued', 'failed'])
       .returns<UnfinishedSocialPublishJob[]>(),
-  );
-}
-
-export async function claimSocialPublishBatch(input: {
-  owner: string;
-  now: Date;
-}): Promise<SocialPublishJobRow[]> {
-  return many<SocialPublishJobRow>(
-    getPipelineSupabase().rpc('claim_social_publish_batch', {
-      p_owner: input.owner,
-      p_now: input.now.toISOString(),
-    }),
   );
 }
 

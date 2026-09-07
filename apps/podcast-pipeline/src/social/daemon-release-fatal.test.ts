@@ -6,8 +6,6 @@ const mocks = vi.hoisted(() => ({
     rescheduledEpisodes: 0,
     recoveryEpisodes: [],
   }),
-  listPastDueSocialPublishJobs: vi.fn().mockResolvedValue([]),
-  rescheduleSocialPublishJob: vi.fn().mockResolvedValue(true),
   claimSocialPublishBatch: vi.fn().mockResolvedValue([]),
   completeSocialPublishJob: vi.fn(),
   enqueueSocialPublishJob: vi.fn().mockResolvedValue(true),
@@ -17,7 +15,8 @@ const mocks = vi.hoisted(() => ({
   getSocialQueueSnapshot: vi.fn().mockResolvedValue({
     pendingCount: 0,
     episodeQueue: [],
-    nextByPlatform: {},
+    nextByLane: {},
+    waitingVideos: [],
   }),
   listPendingSocialPublishSchedules: vi.fn().mockResolvedValue([]),
   listDueSocialPublishPlatforms: vi.fn().mockResolvedValue([]),
@@ -55,8 +54,6 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('./daemon-store.js', () => ({
-  listPastDueSocialPublishJobs: mocks.listPastDueSocialPublishJobs,
-  rescheduleSocialPublishJob: mocks.rescheduleSocialPublishJob,
   claimSocialPublishBatch: mocks.claimSocialPublishBatch,
   completeSocialPublishJob: mocks.completeSocialPublishJob,
   enqueueSocialPublishJob: mocks.enqueueSocialPublishJob,
@@ -64,7 +61,6 @@ vi.mock('./daemon-store.js', () => ({
   failSocialPublishJob: mocks.failSocialPublishJob,
   getActiveSocialStrategies: mocks.getActiveSocialStrategies,
   getSocialQueueSnapshot: mocks.getSocialQueueSnapshot,
-  latestPendingSocialPublishSchedule: vi.fn().mockResolvedValue(null),
   listPendingSocialPublishSchedules: mocks.listPendingSocialPublishSchedules,
   listDueSocialPublishPlatforms: mocks.listDueSocialPublishPlatforms,
   listLearningSocialPosts: mocks.listLearningSocialPosts,
@@ -164,8 +160,6 @@ beforeEach(() => {
     rescheduledEpisodes: 0,
     recoveryEpisodes: [],
   });
-  mocks.listPastDueSocialPublishJobs.mockResolvedValue([]);
-  mocks.rescheduleSocialPublishJob.mockResolvedValue(true);
   mocks.claimSocialPublishBatch.mockResolvedValue([]);
   mocks.listUnfinishedSocialPublishJobs.mockResolvedValue([]);
   mocks.listSocialPublishCandidates.mockResolvedValue([]);

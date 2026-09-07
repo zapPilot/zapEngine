@@ -16,7 +16,6 @@ const mocks = vi.hoisted(() => ({
   getSocialQueueSnapshot: vi.fn().mockResolvedValue({
     pendingCount: 0,
     episodeQueue: [],
-    nextByPlatform: {},
   }),
   listPendingSocialPublishSchedules: vi.fn().mockResolvedValue([]),
   listDueSocialPublishPlatforms: vi.fn().mockResolvedValue([]),

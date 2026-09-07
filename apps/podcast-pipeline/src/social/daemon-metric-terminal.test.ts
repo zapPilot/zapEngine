@@ -18,8 +18,6 @@ const mocks = vi.hoisted(() => ({
   reconcileSocialPublishJob: vi.fn(),
   listSocialPublishCandidates: vi.fn(),
   listSocialPublishCandidatesForEpisodes: vi.fn(),
-  listPastDueSocialPublishJobs: vi.fn().mockResolvedValue([]),
-  rescheduleSocialPublishJob: vi.fn().mockResolvedValue(true),
   getActiveSocialStrategies: vi.fn(),
   claimSocialPublishJob: vi.fn(),
   listPendingSocialPublishSchedules: vi.fn().mockResolvedValue([]),
@@ -31,12 +29,6 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('./daemon-store.js', () => ({
-  claimSocialPublishBatch: async (...args: unknown[]) => {
-    const job = await mocks.claimSocialPublishJob(...args);
-    return job ? [job] : [];
-  },
-  listPastDueSocialPublishJobs: mocks.listPastDueSocialPublishJobs,
-  rescheduleSocialPublishJob: mocks.rescheduleSocialPublishJob,
   completeSocialPublishJob: vi.fn(),
   enqueueSocialPublishJob: vi.fn(),
   ensureSocialDaemonStart: vi
@@ -45,7 +37,6 @@ vi.mock('./daemon-store.js', () => ({
   failSocialPublishJob: vi.fn(),
   getActiveSocialStrategies: mocks.getActiveSocialStrategies,
   getSocialQueueSnapshot: mocks.getSocialQueueSnapshot,
-  latestPendingSocialPublishSchedule: vi.fn().mockResolvedValue(null),
   listPendingSocialPublishSchedules: mocks.listPendingSocialPublishSchedules,
   listDueSocialPublishPlatforms: mocks.listDueSocialPublishPlatforms,
   listLearningSocialPosts: mocks.listLearningSocialPosts,
@@ -150,15 +141,14 @@ const NOW_7D = new Date('2026-08-20T10:00:00.000Z');
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.listPastDueSocialPublishJobs.mockResolvedValue([]);
-  mocks.rescheduleSocialPublishJob.mockResolvedValue(true);
   mocks.listSocialPublishCandidates.mockResolvedValue([]);
   mocks.listSocialPublishCandidatesForEpisodes.mockResolvedValue([]);
   mocks.getActiveSocialStrategies.mockResolvedValue([]);
   mocks.getSocialQueueSnapshot.mockResolvedValue({
     pendingCount: 0,
     episodeQueue: [],
-    nextByPlatform: {},
+    nextByLane: {},
+    waitingVideos: [],
   });
   mocks.listUnfinishedSocialPublishJobs.mockResolvedValue([]);
   mocks.listSocialPostIdentitiesByEpisodes.mockResolvedValue([]);

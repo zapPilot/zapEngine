@@ -1375,7 +1375,7 @@ function logQueueSnapshot(
   now: Date,
   log: (message: string) => void,
 ): void {
-  const waitingVideos = snapshot.waitingVideos ?? [];
+  const waitingVideos = snapshot.waitingVideos;
   if (snapshot.pendingCount === 0 && waitingVideos.length === 0) {
     log('📥 [social-daemon] queue · 0 jobs · 0 articles');
     return;
@@ -1393,28 +1393,16 @@ function logQueueSnapshot(
   );
   snapshot.episodeQueue.forEach((episode, index) => {
     const title = episode.title ?? `episode #${shortId(episode.episodeId)}`;
-    const laneCount = episode.laneCount ?? episode.lanes?.length ?? 1;
+    const laneCount = episode.laneCount;
     log(
       `📥 [social-daemon]   ${index + 1}. “${title}” · ${formatJst(episode.nextAt)} (${formatRelative(episode.nextAt, now)})`,
     );
-    const lanes = formatQueueEpisodeLanes(episode.lanes ?? []);
+    const lanes = formatQueueEpisodeLanes(episode.lanes);
     log(
       `📥 [social-daemon]      ↳ ${laneCount} lane${laneCount === 1 ? '' : 's'}${lanes ? ` · ${lanes}` : ''}`,
     );
   });
-  const lanes =
-    snapshot.nextByLane ??
-    Object.fromEntries(
-      Object.entries(snapshot.nextByPlatform).map(([platform, item]) => [
-        `${platform}|${item?.languageCode ?? 'zh-Hant'}`,
-        {
-          ...item,
-          languageCode: item?.languageCode ?? 'zh-Hant',
-          experiment: null,
-        },
-      ]),
-    );
-  const nextLanes = Object.values(lanes).filter(
+  const nextLanes = Object.values(snapshot.nextByLane).filter(
     (item) =>
       item.status === 'failed' ||
       item.status === 'processing' ||

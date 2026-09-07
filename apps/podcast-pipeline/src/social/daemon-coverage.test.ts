@@ -2,8 +2,6 @@ import { describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   claimSocialPublishJob: vi.fn().mockResolvedValue(null),
-  listPastDueSocialPublishJobs: vi.fn().mockResolvedValue([]),
-  rescheduleSocialPublishJob: vi.fn().mockResolvedValue(true),
   completeSocialPublishJob: vi.fn(),
   enqueueSocialPublishJob: vi.fn().mockResolvedValue(true),
   ensureSocialDaemonStart: vi
@@ -13,7 +11,6 @@ const mocks = vi.hoisted(() => ({
   getActiveSocialStrategies: vi.fn().mockResolvedValue([]),
   getSocialQueueSnapshot: vi.fn(),
   getSocialStrategyById: vi.fn().mockResolvedValue(null),
-  latestScheduledSocialJobs: vi.fn().mockResolvedValue({}),
   listPendingSocialPublishSchedules: vi.fn().mockResolvedValue([]),
   listDueSocialPublishPlatforms: vi.fn().mockResolvedValue([]),
   listLearningSocialPosts: vi.fn().mockResolvedValue([]),
@@ -39,12 +36,6 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('./daemon-store.js', () => ({
-  claimSocialPublishBatch: async (...args: unknown[]) => {
-    const job = await mocks.claimSocialPublishJob(...args);
-    return job ? [job] : [];
-  },
-  listPastDueSocialPublishJobs: mocks.listPastDueSocialPublishJobs,
-  rescheduleSocialPublishJob: mocks.rescheduleSocialPublishJob,
   completeSocialPublishJob: mocks.completeSocialPublishJob,
   enqueueSocialPublishJob: mocks.enqueueSocialPublishJob,
   ensureSocialDaemonStart: mocks.ensureSocialDaemonStart,
@@ -52,14 +43,6 @@ vi.mock('./daemon-store.js', () => ({
   getActiveSocialStrategies: mocks.getActiveSocialStrategies,
   getSocialQueueSnapshot: mocks.getSocialQueueSnapshot,
   getSocialStrategyById: mocks.getSocialStrategyById,
-  latestPendingSocialPublishSchedule: async () => {
-    const schedules = (await mocks.latestScheduledSocialJobs()) as Record<
-      string,
-      string
-    >;
-    const values = Object.values(schedules).sort();
-    return values.at(-1) ?? null;
-  },
   listPendingSocialPublishSchedules: mocks.listPendingSocialPublishSchedules,
   listDueSocialPublishPlatforms: mocks.listDueSocialPublishPlatforms,
   listLearningSocialPosts: mocks.listLearningSocialPosts,
@@ -123,8 +106,8 @@ describe('social daemon queue summary coverage', () => {
           lanes: [{ platform: 'x', languageCode: 'en' }],
         },
       ],
-      nextByPlatform: {
-        x: {
+      nextByLane: {
+        'x|en': {
           episodeId: 'episode-x',
           platform: 'x',
           languageCode: 'en',
@@ -134,8 +117,10 @@ describe('social daemon queue summary coverage', () => {
           status: 'failed',
           attemptCount: 2,
           attemptsExhausted: false,
+          experiment: null,
         },
       },
+      waitingVideos: [],
     });
     const log = vi.fn();
 
