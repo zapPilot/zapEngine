@@ -17,17 +17,11 @@ import { useAccount } from '@/integration/useAccount';
 import { useActivityData } from '@/integration/useActivityData';
 import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 
-const GROUP_LABEL_KEY = {
-  Today: 'activity.group.today',
-  'This week': 'activity.group.week',
-  Earlier: 'activity.group.earlier',
+const ACTIVITY_GROUP_KEY = {
+  today: 'activity.group.today',
+  week: 'activity.group.week',
+  earlier: 'activity.group.earlier',
 } as const;
-
-function isKnownGroupLabel(
-  label: string,
-): label is keyof typeof GROUP_LABEL_KEY {
-  return label in GROUP_LABEL_KEY;
-}
 
 function ActivitySkeleton() {
   return (
@@ -114,11 +108,9 @@ export function ActivityScreen() {
             />
             {filteredGroups.length > 0 ? (
               filteredGroups.map((group) => (
-                <View key={group.label} className="mb-4">
+                <View key={group.bucket} className="mb-4">
                   <Text className="mb-1.5 font-mono text-[9.5px] uppercase tracking-[0.9px] text-ink-faint">
-                    {isKnownGroupLabel(group.label)
-                      ? t(GROUP_LABEL_KEY[group.label])
-                      : group.label}
+                    {t(ACTIVITY_GROUP_KEY[group.bucket])}
                   </Text>
                   {group.events.map((event) => (
                     <ActivityRow

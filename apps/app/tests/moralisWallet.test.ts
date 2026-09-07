@@ -355,7 +355,7 @@ describe('Moralis desktop wallet mapping', () => {
 
     expect(groups).toEqual([
       {
-        label: 'Today',
+        bucket: 'today',
         events: [
           expect.objectContaining({
             id: 'base-0xnewer',
@@ -373,7 +373,7 @@ describe('Moralis desktop wallet mapping', () => {
         ],
       },
       {
-        label: 'This week',
+        bucket: 'week',
         events: [
           expect.objectContaining({
             id: 'arbitrum-0xolder',

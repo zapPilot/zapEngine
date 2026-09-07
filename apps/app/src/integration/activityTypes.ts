@@ -90,8 +90,12 @@ export interface ActivityEvent {
   steps?: ActivityStep[];
 }
 
+export const ACTIVITY_BUCKETS = ['today', 'week', 'earlier'] as const;
+
+export type ActivityBucket = (typeof ACTIVITY_BUCKETS)[number];
+
 export interface ActivityGroup {
-  label: string;
+  bucket: ActivityBucket;
   events: ActivityEvent[];
 }
 

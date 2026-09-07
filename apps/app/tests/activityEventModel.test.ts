@@ -1070,7 +1070,7 @@ describe('activityEventMatchesFilter', () => {
 describe('filterActivityGroups', () => {
   const groups: ActivityGroup[] = [
     {
-      label: 'Today',
+      bucket: 'today',
       events: [
         mappedEvent({
           hash: '0xstable',
@@ -1081,7 +1081,7 @@ describe('filterActivityGroups', () => {
       ],
     },
     {
-      label: 'Earlier',
+      bucket: 'earlier',
       events: [
         mappedEvent({
           hash: '0xbtc',
@@ -1105,7 +1105,7 @@ describe('filterActivityGroups', () => {
     const result = filterActivityGroups(groups, 'btc');
 
     expect(result).toHaveLength(1);
-    expect(result[0]?.label).toBe('Earlier');
+    expect(result[0]?.bucket).toBe('earlier');
     expect(result[0]?.events.map((event) => event.id)).toEqual([
       'arbitrum-0xbtc',
     ]);

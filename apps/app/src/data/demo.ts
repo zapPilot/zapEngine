@@ -206,7 +206,7 @@ export const DEMO: DemoData = {
   ],
   activity: [
     {
-      label: 'Today',
+      bucket: 'today',
       events: [
         {
           id: 'demo-rebalance-burst',
@@ -251,7 +251,7 @@ export const DEMO: DemoData = {
       ],
     },
     {
-      label: 'This week',
+      bucket: 'week',
       events: [
         {
           id: 'demo-failed-send',
@@ -276,7 +276,7 @@ export const DEMO: DemoData = {
       ],
     },
     {
-      label: 'Earlier',
+      bucket: 'earlier',
       events: [
         {
           id: 'demo-withdraw',
