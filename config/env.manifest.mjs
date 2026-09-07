@@ -345,7 +345,6 @@ export const ENV_MANIFEST = {
     requiredFor: ['podcast-pipeline:base'],
   }),
   LLM_FALLBACK_MODELS: server(['podcast-pipeline']),
-  TRANSLATION_FALLBACK_MODELS: server(['podcast-pipeline']),
   LLM_THINKING_MODEL: server(['podcast-pipeline']),
   YOUTUBE_CLIENT_ID: server(['podcast-pipeline'], { sensitive: true }),
   YOUTUBE_CLIENT_SECRET: server(['podcast-pipeline'], { sensitive: true }),
@@ -431,12 +430,6 @@ export const ENV_MANIFEST = {
     requiredFor: ['podcast-pipeline:base'],
   }),
   FLY_APP_NAME: host(['podcast-pipeline']),
-  NVIDIA_API_KEY: server(['podcast-pipeline'], { sensitive: true }),
-  NVIDIA_BASE_URL: server(['podcast-pipeline']),
-  VIDEO_ALIGNMENT_PROVIDER: server(['podcast-pipeline']),
-  VIDEO_ALIGNMENT_MODEL: server(['podcast-pipeline'], {
-    requiredFor: ['podcast-pipeline:base'],
-  }),
   VIDEO_FFMPEG_PATH: host(['podcast-pipeline']),
   VIDEO_FFPROBE_PATH: host(['podcast-pipeline']),
   BRAVE_SEARCH_API_KEY: server(['podcast-pipeline', 'control-center'], {
