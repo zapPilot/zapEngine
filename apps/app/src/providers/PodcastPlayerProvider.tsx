@@ -138,7 +138,11 @@ export function PodcastPlayerProvider({
     setSpeed,
   } = player;
 
-  const statusValue = useMemo<PodcastPlayerStatus>(
+  // Split into a data half and an actions half, combined below — same shape
+  // as this file's own status/clock split, and it keeps each half's
+  // shorthand-property list well short of the other's, rather than one
+  // 21-field list whose body necessarily repeats itself in its own deps array.
+  const dataValue = useMemo(
     () => ({
       nowPlaying,
       isPlaying,
@@ -150,6 +154,22 @@ export function PodcastPlayerProvider({
       queueIndex,
       hasPreviousEpisode,
       hasNextEpisode,
+    }),
+    [
+      nowPlaying,
+      isPlaying,
+      speed,
+      sections,
+      currentSection,
+      currentSectionLanguage,
+      queue,
+      queueIndex,
+      hasPreviousEpisode,
+      hasNextEpisode,
+    ],
+  );
+  const actionsValue = useMemo(
+    () => ({
       pause,
       toggle,
       playFromQueue,
@@ -163,16 +183,6 @@ export function PodcastPlayerProvider({
       setSpeed,
     }),
     [
-      nowPlaying,
-      isPlaying,
-      speed,
-      sections,
-      currentSection,
-      currentSectionLanguage,
-      queue,
-      queueIndex,
-      hasPreviousEpisode,
-      hasNextEpisode,
       pause,
       toggle,
       playFromQueue,
@@ -185,6 +195,10 @@ export function PodcastPlayerProvider({
       skipToSection,
       setSpeed,
     ],
+  );
+  const statusValue = useMemo<PodcastPlayerStatus>(
+    () => ({ ...dataValue, ...actionsValue }),
+    [dataValue, actionsValue],
   );
 
   const clockValue = useMemo<PodcastPlayerClock>(
