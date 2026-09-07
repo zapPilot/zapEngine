@@ -14,7 +14,10 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from src.api.error_handling import generic_exception_handler
+from src.api.error_handling import (
+    generic_exception_handler,
+    sentry_http_exception_handler,
+)
 from src.api.routers import (
     backtesting,
     borrowing,
@@ -80,6 +83,7 @@ app = FastAPI(
 )
 
 app.add_exception_handler(Exception, generic_exception_handler)
+app.add_exception_handler(HTTPException, sentry_http_exception_handler)
 
 
 def create_service_error_handler(
