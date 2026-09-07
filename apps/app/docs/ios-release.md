@@ -15,9 +15,10 @@ rather than creating a new record. This mirrors Android, which kept
 | Build number source        | EAS remote, auto-incremented    |
 | Default submission outcome | App Store Connect → TestFlight  |
 
-The `com.example.` prefix is a Flutter scaffold default that reached the App
-Store in 2.0.4. App Store Connect cannot change an existing record's bundle
-identifier, so this value is permanent for as long as the listing is.
+The `com.example.` prefix comes from the retired Flutter app lineage and is the
+bundle identifier of the shipped App Store listing. App Store Connect cannot
+change an existing record's bundle identifier, so this value is permanent for
+as long as the listing is.
 
 Do not change the bundle identifier. App Store Connect treats a different
 identifier as a different app, and the shipped listing, its installed base,
@@ -108,9 +109,10 @@ A non-interactive submission needs the numeric App Store Connect Apple ID in
 
 Earlier Xcode uploads consumed build numbers that EAS remote versioning did not
 know about, and the listing carries the Flutter app's history on top of that.
-App Store Connect has reached build `204` on this record, from the final Flutter
-release `2.0.4 (204)`. That historical lower bound is recorded in
-`apps/app/release-baselines.json`.
+App Store Connect has reached build `204` on this record from Flutter build
+`2.0.4 (204)`. That uploaded build-number floor is recorded in
+`apps/app/release-baselines.json`; it is distinct from the listing's shipped
+version `2.03`.
 
 `ios:release` runs `ios:version:check` as a preflight before starting a new iOS
 build. If the EAS remote build number is below that floor, it fails immediately
