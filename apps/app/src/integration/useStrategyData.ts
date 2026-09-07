@@ -3,12 +3,11 @@ import { useSentimentData } from '@zapengine/app-core/hooks/queries/market/useSe
 
 import { DEMO } from '@/data/demo';
 import {
-  allocationFromTarget,
+  compositionRows,
   currentModeLabelFor,
   demoTextOrDash,
   liveNumberOrDemo,
   liveTextOrDemo,
-  pillarsFromTarget,
   regimeDisplayFromRegime,
 } from '@/integration/strategyPresentation';
 import { useDefaultStrategyBacktest } from '@/integration/useDefaultStrategyBacktest';
@@ -114,12 +113,13 @@ export function useStrategyData(
     ? toCompositionTargetFromSuggestion(suggestion.data)
     : null;
   const hasTargetAllocation = target !== null;
-  const pillars = pillarsFromTarget(target, demoStrategy.pillars, isDemo);
-  const allocation = allocationFromTarget(
-    target,
-    demoBacktest.allocation,
-    isDemo,
-  );
+  const pillars = compositionRows(target, demoStrategy.pillars, isDemo, {
+    valueKey: 'weight',
+  });
+  const allocation = compositionRows(target, demoBacktest.allocation, isDemo, {
+    valueKey: 'pct',
+    round: true,
+  });
   const backtestMetrics = defaultBacktest.data
     ? defaultBacktest.data.metrics
     : isDemo

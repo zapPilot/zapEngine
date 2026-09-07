@@ -4,6 +4,8 @@
  * when no clean source exists.
  */
 
+import { tokens } from '@zapengine/design-tokens/tokens';
+
 import type {
   ActivityCategoryFlow,
   ActivityFilter,
@@ -149,9 +151,9 @@ export const DEMO: DemoData = {
     quote: 'Buy in fear. Defend in greed.',
     marketModeLabel: 'Market mode · Cautious — defensive tilt',
     pillars: [
-      { label: 'Equities', weight: 5, color: 'var(--spy)' },
-      { label: 'Crypto', weight: 3, color: 'var(--btc)' },
-      { label: 'Stables', weight: 4, color: 'var(--usd)' },
+      { label: 'Equities', weight: 5, color: tokens.color.pillar.spy },
+      { label: 'Crypto', weight: 3, color: tokens.color.pillar.btc },
+      { label: 'Stables', weight: 4, color: tokens.color.pillar.usd },
     ],
     backtest: {
       returnLabel: '+147.2%',
@@ -169,9 +171,9 @@ export const DEMO: DemoData = {
       ],
       currentModeLabel: 'Cautious · defensive tilt',
       allocation: [
-        { label: 'Equities', pct: 40, color: 'var(--spy)' },
-        { label: 'Crypto', pct: 25, color: 'var(--btc)' },
-        { label: 'Stables', pct: 35, color: 'var(--usd)' },
+        { label: 'Equities', pct: 40, color: tokens.color.pillar.spy },
+        { label: 'Crypto', pct: 25, color: tokens.color.pillar.btc },
+        { label: 'Stables', pct: 35, color: tokens.color.pillar.usd },
       ],
       sentiment: 34,
     },
@@ -189,10 +191,10 @@ export const DEMO: DemoData = {
       { label: 'Max drawdown', value: '−6.1%', tone: 'negative' },
     ],
     allocation: [
-      { label: 'Stables', pct: 35, color: 'var(--usd)' },
-      { label: 'ETH', pct: 24, color: 'var(--spy)' },
-      { label: 'BTC', pct: 20, color: 'var(--btc)' },
-      { label: 'DeFi yield', pct: 21, color: 'var(--accent)' },
+      { label: 'Stables', pct: 35, color: tokens.color.pillar.usd },
+      { label: 'ETH', pct: 24, color: tokens.color.pillar.spy },
+      { label: 'BTC', pct: 20, color: tokens.color.pillar.btc },
+      { label: 'DeFi yield', pct: 21, color: tokens.color.accent },
     ],
     lastRebalancedLabel:
       'Auto-managed by Zap Strategy · last rebalanced 2 days ago',

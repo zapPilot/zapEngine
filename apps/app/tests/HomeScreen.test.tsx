@@ -2,7 +2,6 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { DEMO } from '@/data/demo';
 import {
   accountFixtures,
   ariaLabels,
@@ -38,6 +37,11 @@ import {
 // hoisted above this file's own imports, so it cannot close over the binding
 // above. See the harness header for why nothing there imports HomeScreen.
 const harness = () => import('./support/homeScreenHarness');
+
+// `@/data/demo` pulls in `@zapengine/design-tokens/tokens` (mocked below), so
+// it is deferred the same way: a static import here would run the mocked
+// factory — which closes over `harness` — before that binding initializes.
+const demoData = () => import('@/data/demo');
 
 vi.mock(
   'react-native',
@@ -180,6 +184,7 @@ describe('HomeScreen — demo visitor', () => {
   });
 
   it('keeps all three actions, the demo badge and the demo strategy card', async () => {
+    const { DEMO } = await demoData();
     const { container } = await renderHomeScreen({
       account: accountFixtures.demo(),
     });
@@ -209,6 +214,7 @@ describe('HomeScreen — demo visitor', () => {
   });
 
   it('feeds the sparkline all fifteen demo trend points', async () => {
+    const { DEMO } = await demoData();
     await renderHomeScreen({ account: accountFixtures.demo() });
 
     expect(DEMO.home.trendPoints).toHaveLength(15);

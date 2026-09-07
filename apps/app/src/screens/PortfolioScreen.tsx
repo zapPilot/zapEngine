@@ -25,7 +25,6 @@ import {
   type PortfolioViewData,
   usePortfolioData,
 } from '@/integration/usePortfolioData';
-import { resolveColor } from '@/lib/colors';
 import { formatSignedPct, formatSignedUsd } from '@/lib/format';
 import { formatSnapshotDate, isSnapshotToday } from '@/lib/portfolioDates';
 import { useContentLanguage } from '@/providers/ContentLanguageProvider';
@@ -188,7 +187,7 @@ export function PortfolioScreen() {
                 <View className="flex-row items-center gap-2">
                   <View
                     className="h-[9px] w-[9px] rounded-full"
-                    style={{ backgroundColor: resolveColor(item.color) }}
+                    style={{ backgroundColor: item.color }}
                   />
                   <Text className="text-[13px] text-ink-dim">{item.label}</Text>
                 </View>

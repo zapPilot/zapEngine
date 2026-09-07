@@ -1,7 +1,6 @@
 import { View } from 'react-native';
 
 import { cn } from '@/lib/cn';
-import { resolveColor } from '@/lib/colors';
 
 export interface AllocationSegment {
   color: string;
@@ -31,7 +30,7 @@ export function AllocationBar({
           key={index}
           style={{
             flex: segment.value,
-            backgroundColor: resolveColor(segment.color),
+            backgroundColor: segment.color,
           }}
         />
       ))}
