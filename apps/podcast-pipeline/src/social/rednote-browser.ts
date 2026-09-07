@@ -1,9 +1,10 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-import { chromium, type Page } from 'playwright-core';
+import type { Page } from 'playwright-core';
 
 import { sleep } from '../lib/sleep.js';
+import { launchPersistentChrome } from './browser.js';
 
 // Publishing needs a local file on a file input, which the OpenCLI Chrome
 // bridge cannot do: `DOM.setFileInputFiles` comes back as CDP "Not allowed"
@@ -40,15 +41,15 @@ const FORCE_OPEN_SHADOW_ROOTS = `
   })();
 `;
 
+// jscpd:ignore-start — every platform's page wrapper takes the same
+// (run, options) shape and forwards it to the shared launcher; each still
+// owns its own navigation/init lifecycle below.
 export async function withRednotePublishPage<T>(
   run: (page: Page) => Promise<T>,
   options: { headless?: boolean } = {},
 ): Promise<T> {
-  const context = await chromium.launchPersistentContext(PROFILE_DIRECTORY, {
-    channel: 'chrome',
-    headless: options.headless ?? false,
-    viewport: { width: 1440, height: 900 },
-  });
+  const context = await launchPersistentChrome(PROFILE_DIRECTORY, options);
+  // jscpd:ignore-end
   await context.addInitScript({ content: FORCE_OPEN_SHADOW_ROOTS });
 
   try {

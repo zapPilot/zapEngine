@@ -1,14 +1,10 @@
-import {
-  type APIRequestContext,
-  type BrowserContext,
-  chromium,
-  type Page,
-} from 'playwright-core';
+import type { APIRequestContext, BrowserContext, Page } from 'playwright-core';
 
 import { toError } from '../lib/errorMessage.js';
 import { isPlainRecord as isRecord } from '../lib/typeGuards.js';
 import { convertTextToZhCN } from '../services/opencc.js';
 import type { SocialPostMetricDetails, SocialPostRow } from '../types.js';
+import { launchPersistentChrome } from './browser.js';
 import type {
   CollectedSocialMetrics,
   MetricCollectionResult,
@@ -1078,10 +1074,8 @@ export function createMetricsBrowserSession(): MetricsBrowserSession {
   async function contextFor(profileDirectory: string): Promise<BrowserContext> {
     let context = contexts.get(profileDirectory);
     if (!context) {
-      context = await chromium.launchPersistentContext(profileDirectory, {
-        channel: 'chrome',
+      context = await launchPersistentChrome(profileDirectory, {
         headless: true,
-        viewport: { width: 1440, height: 900 },
       });
       contexts.set(profileDirectory, context);
     }

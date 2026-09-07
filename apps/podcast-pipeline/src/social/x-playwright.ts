@@ -1,13 +1,13 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-import {
-  chromium,
-  type Locator,
-  type Page,
-  type Response as PlaywrightResponse,
+import type {
+  Locator,
+  Page,
+  Response as PlaywrightResponse,
 } from 'playwright-core';
 
+import { launchPersistentChrome } from './browser.js';
 import { publishStep } from './publish-error.js';
 import type { PublishResult, XPublisher, XPublishInput } from './types.js';
 import {
@@ -65,16 +65,15 @@ export async function runXLogin(
   });
 }
 
-// jscpd:ignore-start — each platform intentionally owns its profile/navigation lifecycle
+// jscpd:ignore-start — every platform's page wrapper takes the same
+// (run, options) shape and forwards it to the shared launcher; each still
+// owns its own navigation/init lifecycle below.
 async function withXComposePage<T>(
   run: (page: Page) => Promise<T>,
   options: { headless?: boolean } = {},
 ): Promise<T> {
-  const context = await chromium.launchPersistentContext(PROFILE_DIRECTORY, {
-    channel: 'chrome',
-    headless: options.headless ?? false,
-    viewport: { width: 1440, height: 900 },
-  });
+  const context = await launchPersistentChrome(PROFILE_DIRECTORY, options);
+  // jscpd:ignore-end
   try {
     const page = context.pages()[0] ?? (await context.newPage());
     await page.goto(COMPOSE_URL, { waitUntil: 'domcontentloaded' });
@@ -83,7 +82,6 @@ async function withXComposePage<T>(
     await context.close();
   }
 }
-// jscpd:ignore-end
 
 async function publish(
   page: Page,
