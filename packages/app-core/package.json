@@ -142,6 +142,10 @@
       "types": "./dist/lib/env/runtimeEnv.d.ts",
       "import": "./dist/lib/env/runtimeEnv.js"
     },
+    "./lib/observability/errorReporter": {
+      "types": "./dist/lib/observability/errorReporter.d.ts",
+      "import": "./dist/lib/observability/errorReporter.js"
+    },
     "./lib/state/accountBootstrap": {
       "types": "./dist/lib/state/accountBootstrap.d.ts",
       "import": "./dist/lib/state/accountBootstrap.js"

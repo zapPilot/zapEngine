@@ -6,6 +6,8 @@
  */
 
 import { httpUtils } from '@core/lib/http';
+import { reportHandledError } from '@core/lib/observability/errorReporter';
+import { findDailySuggestionSchemaIssues } from '@core/schemas/api/strategySchemas';
 import type {
   BacktestDefaults,
   DailySuggestionResponse,
@@ -79,7 +81,25 @@ export async function getDailySuggestion(
   const endpoint = `/api/v3/strategy/daily-suggestion/${userId}${query ? `?${query}` : ''}`;
   // Suggestion composition aggregates the whole bundle — same cold-cache
   // budget as the per-user analytics endpoints.
-  return httpUtils.analyticsEngine.get<DailySuggestionResponse>(endpoint, {
-    timeout: 60_000,
-  });
+  const response = await httpUtils.analyticsEngine.get<DailySuggestionResponse>(
+    endpoint,
+    { timeout: 60_000 },
+  );
+
+  // Observe-only, deliberately: the schema has never run against live traffic
+  // and is stricter than the backend, so rejecting here could blank the
+  // strategy card for a payload the backend considers valid. Only the mismatch
+  // shape travels — the payload is the user's financial position.
+  const schemaIssues = findDailySuggestionSchemaIssues(response);
+  if (schemaIssues.length > 0) {
+    reportHandledError(
+      new Error('daily suggestion response does not match the wire schema'),
+      {
+        scope: 'strategyService.getDailySuggestion',
+        extra: { issues: schemaIssues },
+      },
+    );
+  }
+
+  return response;
 }
