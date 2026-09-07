@@ -1,76 +1,76 @@
 {
-  "asOf": "2026-09-06T05:20:08.225782+00:00",
+  "asOf": "2026-09-07T07:05:25.403+00:00",
   "coverage": {
     "firstEpisodeAt": "2026-04-26T13:24:28.506345+00:00",
-    "lastEpisodeAt": "2026-09-06T05:20:08.225782+00:00",
+    "lastEpisodeAt": "2026-09-07T06:40:18.705003+00:00",
     "firstPostAt": "2026-08-12T07:13:20.207+00:00",
-    "lastPostAt": "2026-09-06T03:25:24.012+00:00"
+    "lastPostAt": "2026-09-07T07:05:25.403+00:00"
   },
   "funnel": {
-    "articles": 316,
-    "localizations": 877,
-    "videos": 272,
-    "posts": 205,
+    "articles": 322,
+    "localizations": 894,
+    "videos": 285,
+    "posts": 217,
     "platforms": 4,
-    "reach": 12326
+    "reach": 12635
   },
   "languages": [
     {
       "code": "zh-Hant",
-      "localizations": 316,
-      "mainAudio": 313,
-      "classroomAudio": 261,
-      "posts": 134,
-      "reach": 10584
+      "localizations": 322,
+      "mainAudio": 319,
+      "classroomAudio": 267,
+      "posts": 138,
+      "reach": 10762
     },
     {
       "code": "ja",
-      "localizations": 282,
-      "mainAudio": 279,
+      "localizations": 288,
+      "mainAudio": 284,
       "classroomAudio": 25,
-      "posts": 38,
-      "reach": 925
+      "posts": 41,
+      "reach": 970
     },
     {
       "code": "en",
-      "localizations": 279,
-      "mainAudio": 272,
+      "localizations": 284,
+      "mainAudio": 276,
       "classroomAudio": 22,
-      "posts": 33,
-      "reach": 817
+      "posts": 38,
+      "reach": 903
     }
   ],
   "channels": [
     {
       "platform": "x",
       "language": "zh-Hant",
-      "posts": 33,
+      "posts": 34,
       "postsWithMetrics": 33,
-      "reach": 6288,
-      "likes": 13,
+      "reach": 6312,
+      "likes": 14,
       "comments": 2,
       "shares": 0,
       "firstPostAt": "2026-08-12T07:13:20.207+00:00",
-      "lastPostAt": "2026-09-06T00:35:53.611+00:00"
+      "lastPostAt": "2026-09-07T07:02:52.331+00:00"
     },
     {
       "platform": "rednote",
       "language": "zh-Hant",
-      "posts": 37,
-      "postsWithMetrics": 37,
-      "reach": 3378,
-      "likes": 45,
+      "posts": 40,
+      "postsWithMetrics": 39,
+      "reach": 3528,
+      "likes": 46,
       "comments": 1,
       "shares": 7,
       "firstPostAt": "2026-08-12T08:18:27.658+00:00",
-      "lastPostAt": "2026-09-06T03:17:42.809+00:00"
+      "lastPostAt": "2026-09-07T07:03:11.474+00:00"
     },
     {
       "platform": "threads",
       "language": "zh-Hant",
       "posts": 32,
       "postsWithMetrics": 32,
-      "reach": 856,
+      "reach": 860,
       "likes": 3,
       "comments": 0,
       "shares": 0,
@@ -80,21 +80,21 @@
     {
       "platform": "x",
       "language": "en",
-      "posts": 12,
-      "postsWithMetrics": 12,
-      "reach": 686,
-      "likes": 1,
+      "posts": 14,
+      "postsWithMetrics": 14,
+      "reach": 760,
+      "likes": 2,
       "comments": 0,
       "shares": 0,
       "firstPostAt": "2026-08-26T03:04:36.595+00:00",
-      "lastPostAt": "2026-09-05T03:33:25.66+00:00"
+      "lastPostAt": "2026-09-07T03:03:53.364+00:00"
     },
     {
       "platform": "x",
       "language": "ja",
       "posts": 8,
       "postsWithMetrics": 8,
-      "reach": 407,
+      "reach": 426,
       "likes": 2,
       "comments": 0,
       "shares": 0,
@@ -104,38 +104,38 @@
     {
       "platform": "youtube",
       "language": "ja",
-      "posts": 11,
+      "posts": 12,
       "postsWithMetrics": 11,
-      "reach": 304,
+      "reach": 315,
       "likes": 0,
       "comments": 0,
       "shares": 0,
       "firstPostAt": "2026-08-26T03:01:30.374+00:00",
-      "lastPostAt": "2026-09-06T00:38:31.29+00:00"
+      "lastPostAt": "2026-09-07T07:05:25.403+00:00"
     },
     {
       "platform": "threads",
       "language": "ja",
-      "posts": 19,
-      "postsWithMetrics": 19,
-      "reach": 214,
+      "posts": 21,
+      "postsWithMetrics": 21,
+      "reach": 229,
       "likes": 0,
       "comments": 0,
       "shares": 0,
       "firstPostAt": "2026-08-26T03:01:21.296+00:00",
-      "lastPostAt": "2026-09-05T03:35:04.906+00:00"
+      "lastPostAt": "2026-09-07T03:02:14.455+00:00"
     },
     {
       "platform": "youtube",
       "language": "en",
-      "posts": 20,
-      "postsWithMetrics": 20,
-      "reach": 119,
+      "posts": 22,
+      "postsWithMetrics": 22,
+      "reach": 131,
       "likes": 0,
       "comments": 0,
       "shares": 0,
       "firstPostAt": "2026-08-26T00:32:40.916+00:00",
-      "lastPostAt": "2026-09-06T03:16:53.155+00:00"
+      "lastPostAt": "2026-09-07T03:03:37.017+00:00"
     },
     {
       "platform": "youtube",
@@ -152,22 +152,22 @@
     {
       "platform": "threads",
       "language": "en",
-      "posts": 1,
+      "posts": 2,
       "postsWithMetrics": 1,
       "reach": 12,
       "likes": 0,
       "comments": 0,
       "shares": 0,
       "firstPostAt": "2026-09-06T00:37:56.533+00:00",
-      "lastPostAt": "2026-09-06T00:37:56.533+00:00"
+      "lastPostAt": "2026-09-07T07:04:40.737+00:00"
     }
   ],
   "reliability": {
-    "publishJobs": 298,
-    "publishJobsCompleted": 226,
+    "publishJobs": 310,
+    "publishJobsCompleted": 238,
     "publishJobsFailed": 0,
-    "metricSnapshots": 1158,
-    "metricSnapshotsCollected": 1144,
+    "metricSnapshots": 1254,
+    "metricSnapshotsCollected": 1238,
     "strategyVersions": 48
   },
   "example": {
