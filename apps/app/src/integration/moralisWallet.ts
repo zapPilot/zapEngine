@@ -20,7 +20,7 @@ import {
   type ActivityGroup,
   type ActivityWalletRef,
   type DemoAsset,
-} from '@/data/demo';
+} from '@/integration/activityTypes';
 import {
   mapMoralisEvent,
   summarizeCategoryFlows,

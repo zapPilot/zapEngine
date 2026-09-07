@@ -17,7 +17,7 @@ import type {
   StrategyPreset,
 } from '@zapengine/app-core/types/strategy';
 
-import { type MetricTone } from '@/data/demo';
+import { type MetricTone } from '@/integration/activityTypes';
 import { formatOr, formatPct, formatSignedPct, formatUsd } from '@/lib/format';
 
 const DCA_CLASSIC_STRATEGY_ID = 'dca_classic';

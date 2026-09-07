@@ -4,11 +4,11 @@ import type {
 } from '@zapengine/app-core/services';
 import { describe, expect, it } from 'vitest';
 
-import {
-  ACTIVITY_FILTERS,
-  type ActivityCategoryDelta,
-  type ActivityGroup,
-} from '@/data/demo';
+import { ACTIVITY_FILTERS } from '@/data/demo';
+import type {
+  ActivityCategoryDelta,
+  ActivityGroup,
+} from '@/integration/activityTypes';
 import {
   activityEventMatchesFilter,
   classifyKind,

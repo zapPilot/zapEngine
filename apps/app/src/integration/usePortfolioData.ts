@@ -6,7 +6,8 @@ import {
 } from '@zapengine/app-core/hooks/queries';
 import { useMemo } from 'react';
 
-import { DEMO, type MetricTone } from '@/data/demo';
+import { DEMO } from '@/data/demo';
+import type { MetricTone } from '@/integration/activityTypes';
 import {
   attachDailyAttribution,
   calculateAdjacentSnapshotChange,

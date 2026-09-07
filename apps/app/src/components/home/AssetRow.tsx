@@ -4,7 +4,7 @@ import { Text, View } from 'react-native';
 import { ChainIconStack } from '@/components/token/ChainIconStack';
 import { TokenIcon } from '@/components/token/TokenIcon';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
-import type { DemoAsset } from '@/data/demo';
+import type { DemoAsset } from '@/integration/activityTypes';
 import { formatUsd } from '@/lib/format';
 
 // Wallet assets change far less often than the ETL/account state around them,

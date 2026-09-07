@@ -4,7 +4,7 @@ import { Text, View } from 'react-native';
 import { AllocationBar } from '@/components/charts/AllocationBar';
 import { Card } from '@/components/ui/Card';
 import { SectionLabel } from '@/components/ui/SectionLabel';
-import type { ActivityCategoryFlow } from '@/data/demo';
+import type { ActivityCategoryFlow } from '@/integration/activityTypes';
 import { cn } from '@/lib/cn';
 import { formatSignedUsd } from '@/lib/format';
 

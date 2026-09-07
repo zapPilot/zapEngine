@@ -14,7 +14,7 @@ import { TokenIcon } from '@/components/token/TokenIcon';
 import { Card } from '@/components/ui/Card';
 import { Pill } from '@/components/ui/Pill';
 import { Tap } from '@/components/ui/Tap';
-import type { ActivityEvent } from '@/data/demo';
+import type { ActivityEvent } from '@/integration/activityTypes';
 import { cn } from '@/lib/cn';
 
 function relativeTimeLabel(value: string): string {
