@@ -15,9 +15,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Pack source
-        run: tar --exclude=.git -czf branch-source.tgz .
+        run: tar --exclude=.git -czf /tmp/branch-source.tgz .
       - uses: actions/upload-artifact@v4
         with:
           name: assistant-branch-source
-          path: branch-source.tgz
+          path: /tmp/branch-source.tgz
           retention-days: 1
