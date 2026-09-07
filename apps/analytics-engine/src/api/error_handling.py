@@ -1,8 +1,9 @@
 import logging
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
-from fastapi import Request
+from fastapi import HTTPException, Request, Response
+from fastapi.exception_handlers import http_exception_handler as fastapi_http_exception_handler
 from fastapi.responses import JSONResponse
 
 from src.core.sentry import capture_server_exception
@@ -36,6 +37,26 @@ def create_error_response(
         status_code=status_code,
         content=content,
     )
+
+
+async def sentry_http_exception_handler(
+    request: Request,
+    exc: Exception,
+) -> Response:
+    """Capture router-translated server errors before returning HTTP responses.
+
+    FastAPI treats ``HTTPException`` as a handled response, so an internal
+    exception converted by a router with ``raise HTTPException(...) from error``
+    never reaches ``generic_exception_handler``. Preserve the normal FastAPI
+    response while reporting only caused 5xx errors. Direct HTTP errors such as
+    health-check 503s have no cause and expected caller 4xx responses stay quiet.
+    """
+    http_error = cast(HTTPException, exc)
+    cause = http_error.__cause__
+    if http_error.status_code >= 500 and isinstance(cause, Exception):
+        capture_server_exception(cause, request)
+
+    return await fastapi_http_exception_handler(request, http_error)
 
 
 async def generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
