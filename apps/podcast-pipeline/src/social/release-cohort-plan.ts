@@ -1,7 +1,6 @@
+import { JST_OFFSET_MS } from './jst.js';
 import { SOCIAL_RELEASE_SLOTS } from './policy.js';
 import { nextReleaseSlot, occupiesReleaseBudget } from './slot-policy.js';
-
-const JST_OFFSET_MS = 9 * 60 * 60_000;
 
 export type ReleaseScheduleStatus =
   | 'queued'

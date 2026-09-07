@@ -64,7 +64,7 @@ export interface RecoveredPublishedPost {
   videoDurationSec: number | null;
 }
 
-const EMPTY_COUNTS: SocialMetricCounts = {
+export const EMPTY_COUNTS: SocialMetricCounts = {
   views: null,
   impressions: null,
   likes: null,

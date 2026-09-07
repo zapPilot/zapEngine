@@ -84,6 +84,16 @@ vi.mock('./metric-collectors.js', () => ({
       .mockResolvedValue({ status: 'collected', metrics: { views: 10 } }),
   })),
   createMetricsBrowserSession: mocks.createMetricsBrowserSession,
+  EMPTY_COUNTS: {
+    views: null,
+    impressions: null,
+    likes: null,
+    comments: null,
+    shares: null,
+    saves: null,
+    profileVisits: null,
+    followersGained: null,
+  },
 }));
 
 vi.mock('./account-snapshots.js', () => ({

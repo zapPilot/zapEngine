@@ -66,12 +66,20 @@ import {
   type SocialStrategyVersionRow,
 } from './daemon-store.js';
 import { buildSocialExperimentReports } from './experiment-report.js';
+import { JST_OFFSET_MS } from './jst.js';
 import { reportLocalPublicationHistory } from './local-publish-history.js';
 import { reconcileLocalPublishedJob } from './local-publish-recovery.js';
-import { laneLabel, languageFlag, platformIcon } from './log-format.js';
+import {
+  laneLabel,
+  languageFlag,
+  languageLabel,
+  platformIcon,
+  platformLabel,
+} from './log-format.js';
 import {
   createMetricCollectors,
   createMetricsBrowserSession,
+  EMPTY_COUNTS,
 } from './metric-collectors.js';
 import { buildSocialPostMetric, collectPostMetrics } from './metrics.js';
 import { activePackagingExperiment } from './packaging-experiments.js';
@@ -442,6 +450,17 @@ function missingLanguages(
   return [...required].filter((language) => !ready.has(language));
 }
 
+function logCohortNotReady(
+  log: (message: string) => void,
+  title: string | null,
+  episodeId: string,
+  missing: readonly string[],
+): void {
+  log(
+    `⏳ [social-daemon] ${episodeLabel(title, episodeId)} · cohort not release-ready · ${missing.map((language) => languageLabel(language)).join(' · ')}`,
+  );
+}
+
 async function enqueueExistingCohort(input: {
   episodeId: string;
   firstCandidate: SocialPublishCandidate;
@@ -467,9 +486,7 @@ async function enqueueExistingCohort(input: {
   );
   const missing = missingLanguages(requiredLanguages, readyLanguages);
   if (missing.length > 0) {
-    input.log(
-      `⏳ [social-daemon] ${episodeLabel(input.title, input.episodeId)} · cohort not release-ready · ${missing.map((language) => `${languageFlag(language)} ${language}`).join(' · ')}`,
-    );
+    logCohortNotReady(input.log, input.title, input.episodeId, missing);
     return;
   }
   const readyAt = readyAtForLanguages(
@@ -505,9 +522,7 @@ async function enqueueExistingCohort(input: {
     readyLanguages,
   );
   if (finalMissing.length > 0) {
-    input.log(
-      `⏳ [social-daemon] ${episodeLabel(input.title, input.episodeId)} · cohort not release-ready · ${finalMissing.map((language) => `${languageFlag(language)} ${language}`).join(' · ')}`,
-    );
+    logCohortNotReady(input.log, input.title, input.episodeId, finalMissing);
     return;
   }
 
@@ -545,9 +560,7 @@ async function enqueueNewCohort(input: {
   );
   const missing = missingLanguages(requiredLanguages, readyLanguages);
   if (missing.length > 0) {
-    input.log(
-      `⏳ [social-daemon] ${episodeLabel(input.title, input.episodeId)} · cohort not release-ready · ${missing.map((language) => `${languageFlag(language)} ${language}`).join(' · ')}`,
-    );
+    logCohortNotReady(input.log, input.title, input.episodeId, missing);
     return;
   }
 
@@ -580,9 +593,7 @@ async function enqueueNewCohort(input: {
     readyLanguages,
   );
   if (finalMissing.length > 0) {
-    input.log(
-      `⏳ [social-daemon] ${episodeLabel(input.title, input.episodeId)} · cohort not release-ready · ${finalMissing.map((language) => `${languageFlag(language)} ${language}`).join(' · ')}`,
-    );
+    logCohortNotReady(input.log, input.title, input.episodeId, finalMissing);
     return;
   }
 
@@ -705,11 +716,11 @@ async function persistPublishFailure(input: {
     });
   } catch (persistenceError) {
     input.log(
-      `❌ [social-daemon] ${platformIcon(input.platform)} ${input.platform} · failed to persist publish failure · episode ${input.episodeId} · ${errorMessage(persistenceError)}`,
+      `❌ [social-daemon] ${platformLabel(input.platform)} · failed to persist publish failure · episode ${input.episodeId} · ${errorMessage(persistenceError)}`,
     );
   }
   input.log(
-    `❌ [social-daemon] ${platformIcon(input.platform)} ${input.platform} · ${episodeLabel(input.title ?? null, input.episodeId)} · publish failed · episode=${input.episodeId} · job=${input.jobId} · ${input.message}`,
+    `❌ [social-daemon] ${platformLabel(input.platform)} · ${episodeLabel(input.title ?? null, input.episodeId)} · publish failed · episode=${input.episodeId} · job=${input.jobId} · ${input.message}`,
   );
 }
 
@@ -1210,7 +1221,7 @@ export async function collectDueMetricWindows(
     onRednoteReviewStatus: async ({ post, reviewStatus }) => {
       await updateSocialPostReviewStatus({ id: post.id, reviewStatus });
       log(
-        `⚠️ [social-daemon] ${platformIcon(post.platform)} ${post.platform} · ${episodeLabel(episodeTitle(titleByEpisodeLanguage, post.episode_id, post.language_code ?? 'zh-Hant'), post.episode_id)} · review → ${reviewStatus}`,
+        `⚠️ [social-daemon] ${platformLabel(post.platform)} · ${episodeLabel(episodeTitle(titleByEpisodeLanguage, post.episode_id, post.language_code ?? 'zh-Hant'), post.episode_id)} · review → ${reviewStatus}`,
       );
     },
   });
@@ -1234,21 +1245,11 @@ export async function collectDueMetricWindows(
           continue;
         }
         if (result.status === 'unavailable') {
-          const emptyCounts = {
-            views: null,
-            impressions: null,
-            likes: null,
-            comments: null,
-            shares: null,
-            saves: null,
-            profileVisits: null,
-            followersGained: null,
-          } as const;
           await insertSocialPostMetric(
             buildSocialPostMetric({
               post,
               capturedAt: now,
-              counts: emptyCounts,
+              counts: EMPTY_COUNTS,
               details: {
                 platformMetrics: { unavailableReason: result.reason },
               },
@@ -1259,7 +1260,7 @@ export async function collectDueMetricWindows(
           completed.add(`${post.id}:${window.label}`);
           unavailable += 1;
           log(
-            `⚠️ [social-daemon] ${platformIcon(post.platform)} ${post.platform} · ${episodeLabel(episodeTitle(titleByEpisodeLanguage, post.episode_id, post.language_code ?? 'zh-Hant'), post.episode_id)} · ${window.label} metrics unavailable · ${result.reason}`,
+            `⚠️ [social-daemon] ${platformLabel(post.platform)} · ${episodeLabel(episodeTitle(titleByEpisodeLanguage, post.episode_id, post.language_code ?? 'zh-Hant'), post.episode_id)} · ${window.label} metrics unavailable · ${result.reason}`,
           );
           continue;
         }
@@ -1282,7 +1283,7 @@ export async function collectDueMetricWindows(
         );
       } catch (error) {
         log(
-          `❌ [social-daemon] ${platformIcon(post.platform)} ${post.platform} · ${episodeLabel(episodeTitle(titleByEpisodeLanguage, post.episode_id, post.language_code ?? 'zh-Hant'), post.episode_id)} · ${window.label} metrics failed · post=${post.id} · ${errorMessage(error)}`,
+          `❌ [social-daemon] ${platformLabel(post.platform)} · ${episodeLabel(episodeTitle(titleByEpisodeLanguage, post.episode_id, post.language_code ?? 'zh-Hant'), post.episode_id)} · ${window.label} metrics failed · post=${post.id} · ${errorMessage(error)}`,
         );
       }
     }
@@ -1383,7 +1384,7 @@ function logQueueSnapshot(
 
   for (const item of waitingVideos) {
     log(
-      `⏳ [social-daemon] ${episodeLabel(item.title, item.episodeId)} · waiting video · ${item.languageCodes.map((language) => `${languageFlag(language)} ${language}`).join(' · ')}`,
+      `⏳ [social-daemon] ${episodeLabel(item.title, item.episodeId)} · waiting video · ${item.languageCodes.map((language) => languageLabel(language)).join(' · ')}`,
     );
   }
   if (waitingVideos.length > 0) log('');
@@ -1458,7 +1459,7 @@ function padTwoDigits(number: number): string {
 function formatJst(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  const jst = new Date(date.getTime() + 9 * 60 * 60_000);
+  const jst = new Date(date.getTime() + JST_OFFSET_MS);
   return `${padTwoDigits(jst.getUTCMonth() + 1)}/${padTwoDigits(jst.getUTCDate())} ${padTwoDigits(jst.getUTCHours())}:${padTwoDigits(jst.getUTCMinutes())} JST`;
 }
 
