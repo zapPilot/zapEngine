@@ -2,13 +2,13 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 
-import { errorMessage } from '../lib/errorMessage.js';
+import { runCli } from '../lib/cli-runner.js';
+import { isMainModule } from '../lib/is-main-module.js';
 import {
   assertPublishableDistributionSnapshot,
   buildDistributionSnapshot,
 } from './distribution-snapshot.js';
 import { loadDistributionSnapshotSource } from './distribution-snapshot-source.js';
-import { isMainModule } from './is-main-module.js';
 
 /**
  * Regenerates the committed distribution snapshot that `/distribution` renders.
@@ -99,13 +99,6 @@ async function writeArtifact(path: string, contents: string): Promise<void> {
   await writeFile(path, contents, 'utf8');
 }
 
-// jscpd:ignore-start — CLI direct-invocation check, same pattern as social/cli.ts
 if (isMainModule(import.meta.url)) {
-  try {
-    await runDistributionSnapshotCli(process.argv.slice(2));
-  } catch (error: unknown) {
-    console.error(errorMessage(error));
-    process.exitCode = 1;
-  }
+  runCli(() => runDistributionSnapshotCli(process.argv.slice(2)));
 }
-// jscpd:ignore-end

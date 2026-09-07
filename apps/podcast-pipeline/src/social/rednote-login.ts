@@ -1,7 +1,5 @@
-import { resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
-
-import { errorMessage } from '../lib/errorMessage.js';
+import { runCli } from '../lib/cli-runner.js';
+import { isMainModule } from '../lib/is-main-module.js';
 import {
   isPublisherReady,
   PROFILE_DIRECTORY,
@@ -37,16 +35,6 @@ export async function runRednoteLogin(
   });
 }
 
-// jscpd:ignore-start — CLI direct-invocation check, same pattern as social/cli.ts
-const invokedPath = process.argv[1]
-  ? pathToFileURL(resolve(process.argv[1])).href
-  : null;
-if (invokedPath === import.meta.url) {
-  try {
-    await runRednoteLogin();
-  } catch (error: unknown) {
-    console.error(errorMessage(error));
-    process.exitCode = 1;
-  }
+if (isMainModule(import.meta.url)) {
+  runCli(() => runRednoteLogin());
 }
-// jscpd:ignore-end

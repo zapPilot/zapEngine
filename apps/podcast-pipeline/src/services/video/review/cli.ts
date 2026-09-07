@@ -1,5 +1,6 @@
 import { type ParsedFlagArgs, parseFlagArgs } from '../../../lib/cli-args.js';
 import { runCli } from '../../../lib/cli-runner.js';
+import { isMainModule } from '../../../lib/is-main-module.js';
 import { isEpisodeId } from '../../request-validation.js';
 import { reviewDigestJson, reviewDigestMarkdown } from './review-digest.js';
 import { listReviewsForExport, resolveReview } from './review-store.js';
@@ -75,6 +76,6 @@ function parseLimit(value: string | null): number {
   return parsed;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isMainModule(import.meta.url)) {
   runCli(() => runReviewCli());
 }

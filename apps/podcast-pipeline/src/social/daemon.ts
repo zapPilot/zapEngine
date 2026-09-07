@@ -4,6 +4,7 @@ import { hostname } from 'node:os';
 
 import { getAllowedTelegramUserIds } from '../lib/env.js';
 import { errorMessage } from '../lib/errorMessage.js';
+import { isMainModule } from '../lib/is-main-module.js';
 import { sleep as defaultSleep } from '../lib/sleep.js';
 import { isTransientNetworkError } from '../lib/transient-network-error.js';
 import {
@@ -65,7 +66,6 @@ import {
   type SocialStrategyVersionRow,
 } from './daemon-store.js';
 import { buildSocialExperimentReports } from './experiment-report.js';
-import { isMainModule } from './is-main-module.js';
 import { reportLocalPublicationHistory } from './local-publish-history.js';
 import { reconcileLocalPublishedJob } from './local-publish-recovery.js';
 import { laneLabel, languageFlag, platformIcon } from './log-format.js';

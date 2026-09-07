@@ -1,6 +1,8 @@
 import { resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
 
+import { assertOnlyKnownFlags, parseFlagArgs } from '../../lib/cli-args.js';
+import { runCli } from '../../lib/cli-runner.js';
+import { isMainModule } from '../../lib/is-main-module.js';
 import {
   describeRenderedVideo,
   outputDirectoryLabel,
@@ -13,38 +15,34 @@ export interface VideoCliOptions {
   audioSource?: string;
 }
 
-// jscpd:ignore-start — parallel CLI arg parser to smoke-cli.ts; same --flag value pattern
-export function parseVideoCliArgs(argv: string[]): VideoCliOptions {
-  const values = new Map<string, string>();
-  for (let index = 0; index < argv.length; index += 2) {
-    const flag = argv[index];
-    const value = argv[index + 1];
-    if (!flag?.startsWith('--') || !value || value.startsWith('--')) {
-      throw new Error(
-        'Usage: video:render --manifest <file> --output <directory> [--audio <file-or-url>]',
-      );
-    }
-    if (!['--manifest', '--output', '--audio'].includes(flag)) {
-      throw new Error(`Unknown option: ${flag}`);
-    }
-    values.set(flag, value);
-  }
-  // jscpd:ignore-end
+const USAGE =
+  'Usage: video:render --manifest <file> --output <directory> [--audio <file-or-url>]';
 
-  const manifestPath = values.get('--manifest');
-  const outputDirectory = values.get('--output');
-  if (!manifestPath || !outputDirectory) {
+export function parseVideoCliArgs(argv: string[]): VideoCliOptions {
+  const parsed = parseFlagArgs(['video:render', ...argv]);
+  assertOnlyKnownFlags(parsed, ['manifest', 'output', 'audio'], USAGE);
+
+  const manifestFlag = parsed.flags['manifest'];
+  const outputFlag = parsed.flags['output'];
+  const audioFlag = parsed.flags['audio'];
+  if (
+    typeof manifestFlag === 'boolean' ||
+    typeof outputFlag === 'boolean' ||
+    typeof audioFlag === 'boolean'
+  ) {
+    throw new Error(USAGE);
+  }
+  if (!manifestFlag || !outputFlag) {
     throw new Error('Both --manifest and --output are required');
   }
-  const audioSource = values.get('--audio');
   return {
-    manifestPath: resolve(manifestPath),
-    outputDirectory: resolve(outputDirectory),
-    ...(audioSource
+    manifestPath: resolve(manifestFlag),
+    outputDirectory: resolve(outputFlag),
+    ...(audioFlag
       ? {
-          audioSource: /^https?:\/\//.test(audioSource)
-            ? audioSource
-            : resolve(audioSource),
+          audioSource: /^https?:\/\//.test(audioFlag)
+            ? audioFlag
+            : resolve(audioFlag),
         }
       : {}),
   };
@@ -60,16 +58,6 @@ export async function runVideoCli(argv: string[]): Promise<void> {
   console.log(describeRenderedVideo(result));
 }
 
-// jscpd:ignore-start — CLI direct-invocation check, same pattern as smoke-cli.ts
-const invokedPath = process.argv[1]
-  ? pathToFileURL(resolve(process.argv[1])).href
-  : null;
-if (invokedPath === import.meta.url) {
-  try {
-    await runVideoCli(process.argv.slice(2));
-  } catch (error: unknown) {
-    console.error(error);
-    process.exitCode = 1;
-  }
+if (isMainModule(import.meta.url)) {
+  runCli(() => runVideoCli(process.argv.slice(2)));
 }
-// jscpd:ignore-end

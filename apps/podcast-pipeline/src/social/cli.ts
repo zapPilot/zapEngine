@@ -6,6 +6,7 @@ import { createInterface } from 'node:readline/promises';
 import { parseArgs } from 'node:util';
 
 import { errorMessage } from '../lib/errorMessage.js';
+import { isMainModule } from '../lib/is-main-module.js';
 import {
   parsePlatformOption,
   parseYouTubePrivacyOption,
@@ -14,7 +15,6 @@ import {
 import { composeSocialContent } from './compose.js';
 import { generateSocialCopy, parseGeneratedSocialCopy } from './copy.js';
 import { getSocialEpisode, requireSocialEpisodeVideoUrl } from './episode.js';
-import { isMainModule } from './is-main-module.js';
 import {
   type PackagingAssignment,
   resolvePackagingAssignments,
