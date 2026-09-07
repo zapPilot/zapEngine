@@ -43,6 +43,7 @@ export interface UsePortfolioDataResult {
 }
 
 export type PortfolioRange = '1W' | '1M' | '3M' | '1Y' | 'ALL';
+export const DEFAULT_PORTFOLIO_RANGE: PortfolioRange = '1M';
 
 export interface UsePortfolioDataOptions {
   isResolvingUser?: boolean;
@@ -158,12 +159,14 @@ export function usePortfolioData(
     userId ?? undefined,
     { trend_days: days, drawdown_days: days, rolling_days: days },
   );
-  // Always the full year, unlike the range-scoped dashboard: Home reads the
-  // same slice, and the backend's outlier fence needs one series to judge
-  // against rather than a different one per range.
+  // Short ranges retain at least 30 days for the attribution outlier fence;
+  // 3M uses its full 90 days. The expensive 365-day path is disabled until it
+  // can run safely on the current analytics-engine machine size.
+  const attributionDays =
+    range === '3M' ? 90 : DAILY_ATTRIBUTION_WINDOW_DAYS;
   const attributionQuery = useDailyYieldReturns(
-    userId ?? undefined,
-    DAILY_ATTRIBUTION_WINDOW_DAYS,
+    range === '1Y' || range === 'ALL' ? undefined : userId ?? undefined,
+    attributionDays,
   );
 
   // Above every guard below: a hook after an early return is a conditional
@@ -205,14 +208,11 @@ export function usePortfolioData(
         ? landing.total_net_usd
         : null;
 
-  // Selected-range value change: earliest vs latest total_value_usd.
-  const firstValue = firstDay?.total_value_usd;
-  const lastValue = lastDay?.total_value_usd;
   const trend =
-    typeof firstValue === 'number' &&
-    typeof lastValue === 'number' &&
-    firstValue > 0
-      ? { first: firstValue, last: lastValue }
+    typeof firstDay?.total_value_usd === 'number' &&
+    typeof lastDay?.total_value_usd === 'number' &&
+    firstDay.total_value_usd > 0
+      ? { first: firstDay.total_value_usd, last: lastDay.total_value_usd }
       : null;
   const valueChangeUsd = trend ? trend.last - trend.first : null;
   const valueChangePct = trend
@@ -221,7 +221,6 @@ export function usePortfolioData(
 
   const latestSnapshotChange = calculateAdjacentSnapshotChange(trendPoints);
 
-  // --- Metrics: real where analytics gives a clean source, unavailable otherwise. ---
   const sharpeSeries =
     dashboard?.rolling_analytics?.sharpe?.rolling_sharpe_data ?? [];
   const lastSharpe = sharpeSeries.at(-1)?.rolling_sharpe_ratio;
@@ -235,7 +234,6 @@ export function usePortfolioData(
 
   const valueChangeMetric = pctMetric('Value change', valueChangePct);
 
-  // max_drawdown_pct is reported as a negative value upstream.
   const maxDrawdownMetric = numberMetric(
     'Max drawdown',
     maxDrawdownPct,
