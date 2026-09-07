@@ -18,6 +18,7 @@ import {
   calculateAdjacentSnapshotChange,
   DAILY_ATTRIBUTION_WINDOW_DAYS,
   type DailyValuePoint,
+  netPortfolioValueFrom,
   sortedDailyValues,
   toTrendPoints,
 } from '@/integration/portfolioMetrics';
@@ -274,14 +275,7 @@ export function useHomeData(
   // While the subject is still resolving, stay in the live (skeleton) state
   // instead of flashing demo data.
   const isDemo = analyticsSubjectId === null && !isResolvingSubject;
-  // `net_portfolio_value` is nullable on the wire and a null there is a missing
-  // number, not a zero balance.
-  const liveBalance =
-    typeof landingData?.net_portfolio_value === 'number'
-      ? landingData.net_portfolio_value
-      : typeof landingData?.total_net_usd === 'number'
-        ? landingData.total_net_usd
-        : null;
+  const liveBalance = netPortfolioValueFrom(landingData);
   const totalBalance = isDemo
     ? DEMO.home.totalBalance
     : hasPortfolioSnapshot

@@ -13,6 +13,7 @@ import {
   calculateWindowValueChangePct,
   DAILY_ATTRIBUTION_WINDOW_DAYS,
   type DailyValuePoint,
+  netPortfolioValueFrom,
   toTrendPoints,
 } from '@/integration/portfolioMetrics';
 import { formatPct, formatSignedPct } from '@/lib/format';
@@ -198,12 +199,7 @@ export function usePortfolioData(
   const lastDay = trendPoints.at(-1);
 
   // Position value = authoritative landing BFF balance.
-  const positionValue =
-    typeof landing?.net_portfolio_value === 'number'
-      ? landing.net_portfolio_value
-      : typeof landing?.total_net_usd === 'number'
-        ? landing.total_net_usd
-        : null;
+  const positionValue = netPortfolioValueFrom(landing);
 
   // Selected-range value change: earliest vs latest total_value_usd.
   const firstValue = firstDay?.total_value_usd;
