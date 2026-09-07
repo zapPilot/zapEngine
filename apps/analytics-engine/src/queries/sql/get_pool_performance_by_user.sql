@@ -20,23 +20,33 @@
 --   - Trusts ETL data - no merging of distinct positions
 
 WITH user_wallets AS (
-    SELECT LOWER(wallet) AS wallet
+    -- DISTINCT so a wallet registered twice (e.g. checksummed and lower-cased)
+    -- cannot pair each of its positions with two anchor rows and double its value.
+    SELECT DISTINCT LOWER(wallet) AS wallet
     FROM user_crypto_wallets
     WHERE user_id = :user_id
 ),
 wallet_latest_snapshots AS (
     SELECT
-        dps.wallet,
+        uw.wallet,
         CASE
-            -- If snapshot_date provided, use that specific calendar day
+            -- A bound date is the answer on its own: reading history to derive a
+            -- date the caller already supplied is what made this query scan years
+            -- of rows per wallet.
             WHEN CAST(:snapshot_date AS TEXT) IS NOT NULL THEN
                 CAST(:snapshot_date AS DATE)
-            -- Otherwise, use overall latest daily snapshot
-            ELSE MAX(dps.snapshot_date)
+            -- Otherwise take each wallet's own latest day, so a stale wallet in a
+            -- bundle keeps reporting its last known positions. One backwards probe
+            -- on (wallet, snapshot_date) rather than a MAX over the whole history.
+            ELSE (
+                SELECT dps.snapshot_date
+                FROM daily_portfolio_snapshots dps
+                WHERE dps.wallet = uw.wallet
+                ORDER BY dps.snapshot_date DESC
+                LIMIT 1
+            )
         END AS latest_snapshot_date
-    FROM daily_portfolio_snapshots dps
-    INNER JOIN user_wallets uw ON dps.wallet = uw.wallet
-    GROUP BY dps.wallet
+    FROM user_wallets uw
 ),
 latest_snapshots AS (
     SELECT

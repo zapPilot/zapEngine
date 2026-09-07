@@ -4,6 +4,12 @@ The staking-income aggregator trusts this query to emit only idle wallet balance
 and DeBank supply/collateral token lists, anchored to each wallet's latest day.
 Borrow, reward, and asset token lists must never reach the aggregator as positive
 exposure, so the SQL boundary is asserted here rather than only in the Python layer.
+
+The fixture wallets carry EIP-55 casing while the seeded analytics rows are
+lower-cased, mirroring how the two sides really differ: ``user_crypto_wallets``
+stores whatever the user registered, whereas ``alpha-etl`` lower-cases every
+address it writes (``portfolioWriter.ts``, ``balanceWriter.ts``). Without that
+asymmetry the tests would pass no matter which side normalises.
 """
 
 import json
@@ -29,11 +35,11 @@ def user_id():
 def wallets(db_session, user_id):
     """Two wallets for the test user, plus one wallet owned by a different user."""
     owned = [
-        "0x1111111111111111111111111111111111111111",
-        "0x2222222222222222222222222222222222222222",
+        "0xAbC1111111111111111111111111111111111111",
+        "0xdEf2222222222222222222222222222222222222",
     ]
     other_user_id = uuid4()
-    other_wallet = "0x3333333333333333333333333333333333333333"
+    other_wallet = "0xFfF3333333333333333333333333333333333333"
 
     for uid in (user_id, other_user_id):
         db_session.execute(
@@ -72,7 +78,8 @@ def _insert_idle_token(
                     :amount, :price, :snapshot_date)
         """),
         {
-            "wallet": wallet,
+            # alpha-etl lower-cases every address it writes; seed it the same way.
+            "wallet": wallet.lower(),
             "token_address": token_address,
             "chain": chain,
             "symbol": symbol,
@@ -107,7 +114,7 @@ def _insert_position(
         """),
         {
             "id": position_id,
-            "wallet": wallet,
+            "wallet": wallet.lower(),
             "snapshot_at": datetime.combine(
                 snapshot_date, datetime.min.time(), tzinfo=UTC
             ),
@@ -261,3 +268,43 @@ def test_non_lst_tokens_still_reach_the_registry_filter(
     rows = _run(query_service, db_session, user_id)
 
     assert [row["token_address"] for row in rows] == [USDC]
+
+
+def test_checksummed_registration_matches_lower_cased_analytics_rows(
+    query_service, db_session, user_id, wallets
+):
+    """Case normalisation is only needed on the ``user_crypto_wallets`` side.
+
+    Guards the LOWER() asymmetry the query relies on: registration keeps EIP-55
+    casing, so that side must be folded, while the analytics tables are already
+    lower-cased by the ETL and folding them again would only cost the index.
+    """
+    wallet = wallets["owned"][0]
+    assert wallet != wallet.lower(), "fixture must carry mixed-case hex"
+
+    day = date(2026, 9, 4)
+    _insert_idle_token(db_session, wallet, WSTETH, "wstETH", 2.0, 3000.0, day)
+    _insert_position(
+        db_session,
+        wallet,
+        {"supply_token_list": [_token(STETH, "stETH", 1.0, 3000.0)]},
+        day,
+    )
+
+    stored = (
+        db_session.execute(
+            text("""
+            SELECT user_wallet_address FROM analytics.daily_wallet_tokens
+            UNION ALL
+            SELECT wallet FROM analytics.daily_portfolio_positions
+        """)
+        )
+        .scalars()
+        .all()
+    )
+    assert stored == [wallet.lower(), wallet.lower()]
+
+    rows = _run(query_service, db_session, user_id)
+
+    assert sorted(row["exposure_type"] for row in rows) == ["idle", "supply"]
+    assert {row["chain"] for row in rows} == {"eth"}

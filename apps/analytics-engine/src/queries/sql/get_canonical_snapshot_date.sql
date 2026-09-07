@@ -18,13 +18,17 @@
 --
 -- Logic:
 --   1. Get user's wallet addresses (optionally filtered by wallet_address)
---   2. Find dates where snapshots exist for those wallets
---   3. Return the most recent date with ANY snapshot data
+--   2. Find the newest date any of those wallets has data for
+--   3. Roll that single date up into coverage and freshness figures
 --
 -- Performance:
---   - Uses the indexed daily_portfolio_snapshots compatibility view
---   - Index on (wallet, snapshot_date) provides fast lookups
---   - Typical latency: 5-15ms
+--   daily_portfolio_snapshots is a plain view over analytics.daily_portfolio_positions,
+--   so only the base table's indexes exist. The stored snapshot_date column is used
+--   rather than a computed (snapshot_at AT TIME ZONE 'UTC')::date, because a btree on
+--   (wallet, snapshot_date) cannot order or bound a computed expression -- deriving the
+--   day made this read every historical row for every wallet in the bundle. The two
+--   agree by construction: alpha-etl writes snapshot_date as the UTC calendar day of
+--   snapshot_at (apps/alpha-etl/src/modules/wallet/portfolioWriter.ts).
 --
 -- Usage:
 --   All services should call this FIRST to get the canonical snapshot_date
@@ -32,39 +36,37 @@
 -- ============================================================================
 
 WITH user_wallets AS (
-  -- Get user's wallet addresses (optionally filtered)
+  -- Registration keeps whatever casing the user typed; the ETL lower-cases every
+  -- address it writes, so only this side needs folding.
   SELECT DISTINCT LOWER(wallet) AS wallet
   FROM user_crypto_wallets
   WHERE user_id = :user_id
     AND (CAST(:wallet_address AS TEXT) IS NULL
          OR lower(wallet) = lower(CAST(:wallet_address AS TEXT)))
 ),
-latest_snapshots AS (
-  -- Get latest snapshot per wallet per date
-  SELECT
-    dps.wallet,
-    (dps.snapshot_at AT TIME ZONE 'UTC')::date AS snapshot_date,
-    MAX(dps.snapshot_at) AS latest_snapshot_at
-  FROM daily_portfolio_snapshots dps
-  JOIN user_wallets uw ON dps.wallet = uw.wallet
-  GROUP BY dps.wallet, (dps.snapshot_at AT TIME ZONE 'UTC')::date
-),
-date_rollup AS (
-  -- Roll up snapshot coverage by date
-  SELECT
-    snapshot_date,
-    COUNT(DISTINCT wallet) AS wallet_count,
-    MAX(latest_snapshot_at) AS max_snapshot_at
-  FROM latest_snapshots
-  GROUP BY snapshot_date
+canonical_day AS (
+  -- Only the newest day can win, so probe the index backwards once per wallet
+  -- instead of grouping the wallet's entire history.
+  SELECT MAX(latest.snapshot_date) AS snapshot_date
+  FROM user_wallets uw
+  CROSS JOIN LATERAL (
+    SELECT dps.snapshot_date
+    FROM daily_portfolio_snapshots dps
+    WHERE dps.wallet = uw.wallet
+    ORDER BY dps.snapshot_date DESC
+    LIMIT 1
+  ) latest
 )
 SELECT
-  snapshot_date,
-  wallet_count,
-  max_snapshot_at
-FROM date_rollup
-ORDER BY snapshot_date DESC
-LIMIT 1;
+  cd.snapshot_date,
+  COUNT(DISTINCT dps.wallet) AS wallet_count,
+  MAX(dps.snapshot_at) AS max_snapshot_at
+FROM canonical_day cd
+CROSS JOIN user_wallets uw
+JOIN daily_portfolio_snapshots dps
+  ON dps.wallet = uw.wallet
+ AND dps.snapshot_date = cd.snapshot_date
+GROUP BY cd.snapshot_date;
 
 -- ============================================================================
 -- USAGE NOTES
