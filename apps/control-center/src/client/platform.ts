@@ -13,6 +13,21 @@ export function platformLabel(platform: string): string {
   }
 }
 
+export function platformEmoji(platform: string): string {
+  switch (platform) {
+    case 'x':
+      return '𝕏';
+    case 'rednote':
+      return '📕';
+    case 'youtube':
+      return '▶️';
+    case 'threads':
+      return '🧵';
+    default:
+      return '•';
+  }
+}
+
 export function platformIconPath(platform: string): string | null {
   switch (platform) {
     case 'x':
