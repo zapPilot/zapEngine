@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { memo, useMemo, useRef, useState } from 'react';
 import {
   Text,
   View,
@@ -52,7 +52,7 @@ function attributionLabel(
   });
 }
 
-export function PortfolioTrendChart({
+export const PortfolioTrendChart = memo(function PortfolioTrendChart({
   trendPoints,
   height = 158,
   gradientId,
@@ -61,11 +61,23 @@ export function PortfolioTrendChart({
   const [width, setWidth] = useState(0);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const touchActiveRef = useRef(false);
-  const values = trendPoints.flatMap((point) =>
-    typeof point.total_value_usd === 'number' &&
-    Number.isFinite(point.total_value_usd)
-      ? [point.total_value_usd]
-      : [],
+  // `Sparkline` is memoized on this array's identity, and every pointer move
+  // re-renders this component, so a fresh flatMap here would redraw the whole
+  // path on each tooltip step. Both hooks stay above the guard below: a hook
+  // after an early return is a conditional call.
+  const values = useMemo(
+    () =>
+      trendPoints.flatMap((point) =>
+        typeof point.total_value_usd === 'number' &&
+        Number.isFinite(point.total_value_usd)
+          ? [point.total_value_usd]
+          : [],
+      ),
+    [trendPoints],
+  );
+  const bounds = useMemo(
+    () => ({ min: Math.min(...values), max: Math.max(...values) }),
+    [values],
   );
 
   if (values.length < 2) return null;
@@ -106,8 +118,7 @@ export function PortfolioTrendChart({
       markerCenter - MARKER_RADIUS,
     ),
   );
-  const min = Math.min(...values);
-  const max = Math.max(...values);
+  const { min, max } = bounds;
   const range = max - min || 1;
   const markerTop =
     typeof selectedValue === 'number'
@@ -222,4 +233,4 @@ export function PortfolioTrendChart({
       ) : null}
     </View>
   );
-}
+});

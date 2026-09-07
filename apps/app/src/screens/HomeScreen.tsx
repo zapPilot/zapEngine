@@ -14,7 +14,7 @@ import {
   Zap,
 } from 'lucide-react-native';
 import type { ReactNode } from 'react';
-import { useEffect, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { PortfolioTrendChart } from '@/components/charts/PortfolioTrendChart';
@@ -85,7 +85,16 @@ function getPortfolioImportCopy(status: EtlJobPollingState['status']) {
   return PORTFOLIO_IMPORT_COPY.preparing;
 }
 
-function AssetRow({ asset, divider }: { asset: DemoAsset; divider: boolean }) {
+// Wallet assets change far less often than the ETL/account state around them,
+// and `asset` comes straight out of the query cache, so the identity check
+// actually holds here.
+const AssetRow = memo(function AssetRow({
+  asset,
+  divider,
+}: {
+  asset: DemoAsset;
+  divider: boolean;
+}) {
   const usdLabel =
     typeof asset.usdValue === 'number' ? formatUsd(asset.usdValue) : '-';
 
@@ -120,7 +129,7 @@ function AssetRow({ asset, divider }: { asset: DemoAsset; divider: boolean }) {
       </Text>
     </View>
   );
-}
+});
 
 function AssetListSkeleton() {
   return (

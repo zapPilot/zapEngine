@@ -6,7 +6,7 @@ import {
   ChevronRight,
   Layers,
 } from 'lucide-react-native';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { ProtocolIcon } from '@/components/token/ProtocolIcon';
@@ -184,16 +184,23 @@ export function HomeIncomeCard({
   isError,
 }: HomeIncomeCardProps) {
   const { t } = useContentLanguage();
-  if (isError) return null;
+  // One pass over the rows, and above the `isError` guard: a hook placed after
+  // an early return is a conditional call.
+  const { partition, incomeRows, costRows, showGrossSplit } = useMemo(() => {
+    const grouped = partitionIncomeRowsByCoverage(income.protocolRows);
+    return {
+      partition: grouped,
+      incomeRows: grouped.visible.filter((row) => row.monthlyNetUsd > 0),
+      costRows: grouped.visible.filter((row) => row.monthlyNetUsd < 0),
+      // The gross pair only earns its space when it explains a headline that
+      // nets two sides against each other.
+      showGrossSplit:
+        income.protocolRows.some((row) => row.monthlyNetUsd > 0) &&
+        income.protocolRows.some((row) => row.monthlyNetUsd < 0),
+    };
+  }, [income.protocolRows]);
 
-  const partition = partitionIncomeRowsByCoverage(income.protocolRows);
-  const incomeRows = partition.visible.filter((row) => row.monthlyNetUsd > 0);
-  const costRows = partition.visible.filter((row) => row.monthlyNetUsd < 0);
-  // The gross pair only earns its space when it explains a headline that nets
-  // two sides against each other.
-  const showGrossSplit =
-    income.protocolRows.some((row) => row.monthlyNetUsd > 0) &&
-    income.protocolRows.some((row) => row.monthlyNetUsd < 0);
+  if (isError) return null;
 
   return (
     <View>

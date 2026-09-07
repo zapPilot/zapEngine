@@ -4,6 +4,7 @@ import {
   useDailyYieldReturns,
   useLandingPageData,
 } from '@zapengine/app-core/hooks/queries';
+import { useMemo } from 'react';
 
 import { DEMO, type MetricTone } from '@/data/demo';
 import {
@@ -48,6 +49,8 @@ export interface UsePortfolioDataOptions {
 }
 
 const DEMO_PORTFOLIO = DEMO.portfolio;
+/** Stable identity so a dashboard without trends does not break the memo below. */
+const EMPTY_DAILY_VALUES: readonly DailyValuePoint[] = [];
 
 export function portfolioDaysForRange(range: PortfolioRange): number {
   if (range === '1W') return 7;
@@ -163,6 +166,16 @@ export function usePortfolioData(
     DAILY_ATTRIBUTION_WINDOW_DAYS,
   );
 
+  // Above every guard below: a hook after an early return is a conditional
+  // call. `PortfolioTrendChart` is memoized on this array, so rebuilding it per
+  // render would re-draw the chart on any unrelated re-render of the screen.
+  const snapshots = dashboard?.trends?.daily_values ?? EMPTY_DAILY_VALUES;
+  const trendPoints = useMemo(
+    () =>
+      attachDailyAttribution(toTrendPoints(snapshots), attributionQuery.data),
+    [attributionQuery.data, snapshots],
+  );
+
   // userId still resolving, or the query hasn't produced a dashboard yet.
   if (!userId && options.isResolvingUser) {
     return { data: null, isLoading: true, isError: false };
@@ -181,10 +194,6 @@ export function usePortfolioData(
   }
 
   const landing = landingQuery.data;
-  const trendPoints = attachDailyAttribution(
-    toTrendPoints(dashboard?.trends?.daily_values ?? []),
-    attributionQuery.data,
-  );
   const firstDay = trendPoints[0];
   const lastDay = trendPoints.at(-1);
 

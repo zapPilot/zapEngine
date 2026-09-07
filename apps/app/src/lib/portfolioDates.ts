@@ -6,6 +6,30 @@ const DATE_LOCALES: Readonly<Record<ContentLanguageCode, string>> = {
   ja: 'ja-JP',
 };
 
+const SNAPSHOT_DATE_OPTIONS: Intl.DateTimeFormatOptions = {
+  year: 'numeric',
+  month: 'short',
+  day: 'numeric',
+  timeZone: 'UTC',
+};
+
+/**
+ * One formatter per locale. Constructing an `Intl.DateTimeFormat` costs far
+ * more than formatting with one, and the trend tooltip re-labels its snapshot
+ * on every pointer move. The locale is the whole key because the option set
+ * above is a constant.
+ */
+const snapshotFormatters = new Map<string, Intl.DateTimeFormat>();
+
+function snapshotFormatter(locale: string): Intl.DateTimeFormat {
+  const cached = snapshotFormatters.get(locale);
+  if (cached) return cached;
+
+  const formatter = new Intl.DateTimeFormat(locale, SNAPSHOT_DATE_OPTIONS);
+  snapshotFormatters.set(locale, formatter);
+  return formatter;
+}
+
 function parsedDate(value: string | null | undefined): Date | null {
   if (!value) return null;
   const date = new Date(value);
@@ -31,10 +55,5 @@ export function formatSnapshotDate(
 ): string | null {
   const date = parsedDate(value);
   if (date === null) return null;
-  return new Intl.DateTimeFormat(DATE_LOCALES[languageCode], {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    timeZone: 'UTC',
-  }).format(date);
+  return snapshotFormatter(DATE_LOCALES[languageCode]).format(date);
 }

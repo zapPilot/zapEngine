@@ -600,6 +600,13 @@ export const sparklineProbe: {
 /** How many times each stubbed lucide glyph rendered in the current mount. */
 export const iconRenderCounts: Record<string, number> = {};
 
+/**
+ * Same idea for `TokenIcon`, which is the only render-recording stub inside an
+ * `AssetRow`. In the live preset nothing else renders one, so this counter
+ * tracks the asset rows and nothing else.
+ */
+export const tokenIconRenderCounts: Record<string, number> = {};
+
 export const routerProbe = {
   push: vi.fn(),
   replace: vi.fn(),
@@ -698,6 +705,14 @@ function lucideStubs(): Record<string, () => ReactNode> {
     stubs[name] = icon(name);
   }
   return stubs;
+}
+
+function TokenIconStub(props: { symbol: string }) {
+  useEffect(() => {
+    tokenIconRenderCounts[props.symbol] =
+      (tokenIconRenderCounts[props.symbol] ?? 0) + 1;
+  });
+  return <span data-token-icon={props.symbol} />;
 }
 
 function SparklineStub(props: SparklineProbeProps) {
@@ -818,11 +833,7 @@ export const homeScreenMocks = {
       <button aria-label="Share portfolio" type="button" />
     ),
   },
-  tokenIcon: {
-    TokenIcon: (props: { symbol: string }) => (
-      <span data-token-icon={props.symbol} />
-    ),
-  },
+  tokenIcon: { TokenIcon: TokenIconStub },
   chainIconStack: {
     ChainIconStack: (props: { chains: readonly string[] }) => (
       <span data-chain-icons={props.chains.join(',')} />
@@ -936,13 +947,18 @@ export async function cleanupHomeScreen(): Promise<void> {
   activeContainer?.remove();
 }
 
+function clearCounts(counts: Record<string, number>): void {
+  for (const key of Object.keys(counts)) {
+    delete counts[key];
+  }
+}
+
 export function resetHomeScreenMocks(): void {
   Object.assign(homeScreenState, defaultState());
   sparklineProbe.renderCount = 0;
   sparklineProbe.lastProps = null;
-  for (const key of Object.keys(iconRenderCounts)) {
-    delete iconRenderCounts[key];
-  }
+  clearCounts(iconRenderCounts);
+  clearCounts(tokenIconRenderCounts);
   routerProbe.push.mockClear();
   routerProbe.replace.mockClear();
   routerProbe.back.mockClear();

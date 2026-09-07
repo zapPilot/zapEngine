@@ -30,6 +30,37 @@ const DEFAULT_NUMBER_FORMAT_OPTIONS: NumberFormatOptions = {
   minimumFractionDigits: 0,
 };
 
+/**
+ * One `Intl.NumberFormat` per distinct set of formatter parameters.
+ *
+ * The key carries the currency and both fraction-digit bounds, not just the
+ * locale: `formatUsd(value, decimals)` passes min = max = decimals and callers
+ * vary it (the Home attribution rows ask for 0, the income card for the
+ * default 2), so a locale-only key would render one component's amounts with
+ * the other's precision.
+ */
+const currencyFormatters = new Map<string, Intl.NumberFormat>();
+
+function currencyFormatter(
+  locale: string | undefined,
+  currency: string | undefined,
+  minimumFractionDigits: number,
+  maximumFractionDigits: number,
+): Intl.NumberFormat {
+  const key = `${locale}|${currency}|${minimumFractionDigits}|${maximumFractionDigits}`;
+  const cached = currencyFormatters.get(key);
+  if (cached) return cached;
+
+  const formatter = new Intl.NumberFormat(locale, {
+    style: 'currency',
+    currency,
+    minimumFractionDigits,
+    maximumFractionDigits,
+  });
+  currencyFormatters.set(key, formatter);
+  return formatter;
+}
+
 function formatSmartCurrency(
   amount: number,
   threshold: number,
@@ -92,12 +123,12 @@ export function formatCurrency(
     );
   }
 
-  return new Intl.NumberFormat(options.locale, {
-    style: 'currency',
-    currency: options.currency,
-    minimumFractionDigits: minDigits,
-    maximumFractionDigits: maxDigits,
-  }).format(amount);
+  return currencyFormatter(
+    options.locale,
+    options.currency,
+    minDigits,
+    maxDigits,
+  ).format(amount);
 }
 
 /**

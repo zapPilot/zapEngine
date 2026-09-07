@@ -44,8 +44,16 @@ vi.mock('react-native', () => ({
   },
 }));
 
+// Every `data` array the chart has handed the sparkline, newest last. Their
+// identities are what `React.memo(Sparkline)` compares, so the array is
+// recorded rather than its contents.
+const sparklineData = vi.hoisted(() => [] as number[][]);
+
 vi.mock('@/components/charts/Sparkline', () => ({
-  Sparkline: () => <div data-testid="sparkline" />,
+  Sparkline: (props: { data: number[] }) => {
+    sparklineData.push(props.data);
+    return <div data-testid="sparkline" />;
+  },
 }));
 
 // Drives the real English dictionary rather than a parallel fake one, so a
@@ -73,6 +81,7 @@ beforeEach(() => {
   container = document.createElement('div');
   document.body.append(container);
   root = createRoot(container);
+  sparklineData.length = 0;
 });
 
 afterEach(async () => {
@@ -155,6 +164,21 @@ describe('PortfolioTrendChart interactions', () => {
     expect(
       container.querySelector('[data-testid="portfolio-trend-tooltip"]'),
     ).toBeNull();
+  });
+
+  it('keeps one series identity across a tooltip interaction', async () => {
+    const chart = await renderChart();
+    const initial = sparklineData.at(-1);
+    expect(initial).toEqual([100, 125, 120]);
+
+    await act(async () =>
+      chart?.dispatchEvent(pointerEvent('pointermove', 'mouse', 100)),
+    );
+
+    // Selecting a point re-renders the chart. A freshly allocated series here
+    // would make the memoized sparkline redraw its whole path per pointer step.
+    expect(sparklineData.length).toBeGreaterThan(1);
+    expect(sparklineData.at(-1)).toBe(initial);
   });
 
   it('says how many attribution rows it dropped instead of truncating silently', async () => {

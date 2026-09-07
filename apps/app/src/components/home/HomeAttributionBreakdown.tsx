@@ -7,6 +7,7 @@ import {
   TrendingUp,
   type LucideIcon,
 } from 'lucide-react-native';
+import { memo } from 'react';
 import { Text, View } from 'react-native';
 
 import type { TranslationKey } from '@/i18n/translations';
@@ -63,7 +64,7 @@ function BreakdownRow({
  * Where the headline change came from. Hidden rather than guessed at when too
  * few of the range's days can be explained.
  */
-export function HomeAttributionBreakdown({
+export const HomeAttributionBreakdown = memo(function HomeAttributionBreakdown({
   summary,
 }: HomeAttributionBreakdownProps) {
   const { t } = useContentLanguage();
@@ -140,4 +141,4 @@ export function HomeAttributionBreakdown({
       </Text>
     </View>
   );
-}
+});

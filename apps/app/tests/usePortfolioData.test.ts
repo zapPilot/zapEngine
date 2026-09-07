@@ -1,8 +1,13 @@
+// @vitest-environment jsdom
+
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   portfolioDaysForRange,
   usePortfolioData,
+  type UsePortfolioDataResult,
 } from '../src/integration/usePortfolioData';
 
 const useLandingPageDataMock = vi.hoisted(() => vi.fn());
@@ -39,7 +44,38 @@ function mockSettledSources() {
   useDailyYieldReturnsMock.mockReturnValue({ data: undefined });
 }
 
+/**
+ * `usePortfolioData` memoizes its trend series, so it has to run inside a real
+ * render rather than as a plain function call. One throwaway mount per case
+ * keeps them as independent as the direct calls were.
+ */
+function renderPortfolioData(
+  ...args: Parameters<typeof usePortfolioData>
+): UsePortfolioDataResult {
+  const container = document.createElement('div');
+  const root = createRoot(container);
+  const results: UsePortfolioDataResult[] = [];
+  function Probe() {
+    results.push(usePortfolioData(...args));
+    return null;
+  }
+
+  act(() => {
+    root.render(createElement(Probe));
+  });
+  act(() => {
+    root.unmount();
+  });
+
+  const result = results.at(-1);
+  if (!result) throw new Error('usePortfolioData never rendered');
+  return result;
+}
+
 beforeEach(() => {
+  (
+    globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }
+  ).IS_REACT_ACT_ENVIRONMENT = true;
   useLandingPageDataMock.mockReset();
   usePortfolioDashboardMock.mockReset();
   useDailyYieldReturnsMock.mockReset();
@@ -58,7 +94,7 @@ describe('Portfolio data range mapping', () => {
 
 describe('usePortfolioData', () => {
   it('keeps the portfolio empty while the user id is still resolving', () => {
-    const result = usePortfolioData(null, '1Y', { isResolvingUser: true });
+    const result = renderPortfolioData(null, '1Y', { isResolvingUser: true });
 
     expect(result).toEqual({ data: null, isLoading: true, isError: false });
     expect(useLandingPageDataMock).toHaveBeenCalledWith(null, false, true);
@@ -70,7 +106,7 @@ describe('usePortfolioData', () => {
   });
 
   it('settles to unavailable portfolio values when no user id is available', () => {
-    const result = usePortfolioData(null, '1Y');
+    const result = renderPortfolioData(null, '1Y');
 
     expect(result).toMatchObject({ isLoading: false, isError: false });
     expect(result.data).toMatchObject({
@@ -94,7 +130,7 @@ describe('usePortfolioData', () => {
   });
 
   it('passes the selected range window only to the dashboard query', () => {
-    const result = usePortfolioData('user-123', '1W');
+    const result = renderPortfolioData('user-123', '1W');
 
     expect(result).toMatchObject({ isLoading: false, isError: false });
     expect(usePortfolioDashboardMock).toHaveBeenCalledWith('user-123', {
@@ -105,7 +141,7 @@ describe('usePortfolioData', () => {
   });
 
   it('surfaces connected live misses as unavailable values instead of demo-like data', () => {
-    const result = usePortfolioData('user-123', '1Y');
+    const result = renderPortfolioData('user-123', '1Y');
 
     expect(result).toMatchObject({ isLoading: false, isError: false });
     expect(result.data).toMatchObject({
@@ -169,7 +205,7 @@ describe('usePortfolioData', () => {
       isError: false,
     });
 
-    const result = usePortfolioData('user-123', '1Y');
+    const result = renderPortfolioData('user-123', '1Y');
 
     expect(result.data).toMatchObject({
       valueChangePct: 25,
@@ -234,7 +270,7 @@ describe('usePortfolioData', () => {
       isLoading: false,
       isError: false,
     });
-    const result = usePortfolioData('user-123', '1Y');
+    const result = renderPortfolioData('user-123', '1Y');
 
     expect(result).toMatchObject({ isLoading: false, isError: true });
     expect(result.data).toMatchObject({
@@ -298,7 +334,7 @@ describe('usePortfolioData', () => {
       },
     });
 
-    const result = usePortfolioData('user-123', '1W');
+    const result = renderPortfolioData('user-123', '1W');
 
     // Always the full year regardless of the selected range, so Portfolio and
     // Home share one cache slice and one outlier fence.
@@ -323,7 +359,7 @@ describe('usePortfolioData', () => {
       isError: false,
     });
 
-    const result = usePortfolioData('user-123', '1W');
+    const result = renderPortfolioData('user-123', '1W');
 
     expect(
       result.data?.trendPoints.every(
