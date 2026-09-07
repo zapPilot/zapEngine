@@ -1,0 +1,23 @@
+name: Assistant export branch source
+
+on:
+  push:
+    branches:
+      - refactor/unify-llm-model-fallbacks
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Pack source
+        run: tar --exclude=.git -czf branch-source.tgz .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: assistant-branch-source
+          path: branch-source.tgz
+          retention-days: 1
