@@ -13,17 +13,11 @@ vi.mock('./llm.js', async (importOriginal) => ({
 import { translateChineseText } from './translate.js';
 
 afterEach(() => {
-  vi.unstubAllEnvs();
   vi.useRealTimers();
   vi.clearAllMocks();
 });
 
-it('falls back from the free router to the configured paid model after retry exhaustion', async () => {
-  vi.useFakeTimers();
-  vi.stubEnv(
-    'TRANSLATION_FALLBACK_MODELS',
-    'deepseek/deepseek-v4-flash-0731,z-ai/glm-5.3-flash',
-  );
+it('keeps openrouter/free as the translation primary while the shared client owns model fallback', async () => {
   mocks.getOpenRouterConfig.mockImplementation(
     ({ model }: { model: string }) => ({
       openai: {},
@@ -31,41 +25,39 @@ it('falls back from the free router to the configured paid model after retry exh
       thinkingModel: null,
     }),
   );
-  mocks.createOpenRouterChatCompletion
-    .mockRejectedValueOnce({ status: 503 })
-    .mockRejectedValueOnce({ status: 503 })
-    .mockResolvedValueOnce({
-      choices: [
-        { message: { content: JSON.stringify({ text: 'Paid translation' }) } },
-      ],
-      provider: 'OpenRouter',
-      model: 'deepseek/deepseek-v4-flash-0731',
-      usage: { cost: 0.0002 },
-    });
+  mocks.createOpenRouterChatCompletion.mockResolvedValueOnce({
+    choices: [
+      { message: { content: JSON.stringify({ text: 'Fallback translation' }) } },
+    ],
+    provider: 'OpenRouter',
+    // The low-level shared fallback may return a different model than the
+    // requested primary; translation must report that actual model and must not
+    // maintain its own model list.
+    model: 'deepseek/deepseek-v4-flash',
+    usage: { cost: 0.0002 },
+  });
 
-  const promise = translateChineseText('測試', 'en');
-  await vi.advanceTimersByTimeAsync(500);
-
-  await expect(promise).resolves.toEqual({
-    text: 'Paid translation',
+  await expect(translateChineseText('測試', 'en')).resolves.toEqual({
+    text: 'Fallback translation',
     cost: [
       expect.objectContaining({
-        model: 'deepseek/deepseek-v4-flash-0731',
+        model: 'deepseek/deepseek-v4-flash',
         costUsd: 0.0002,
       }),
     ],
   });
-  expect(
-    mocks.getOpenRouterConfig.mock.calls.map(([options]) => options.model),
-  ).toEqual([
-    'openrouter/free',
-    'openrouter/free',
-    'deepseek/deepseek-v4-flash-0731',
-  ]);
+  expect(mocks.getOpenRouterConfig).toHaveBeenCalledTimes(1);
+  expect(mocks.getOpenRouterConfig).toHaveBeenCalledWith({
+    model: 'openrouter/free',
+    thinkingModel: null,
+  });
+  expect(mocks.createOpenRouterChatCompletion).toHaveBeenCalledTimes(1);
+  expect(mocks.createOpenRouterChatCompletion.mock.calls[0]?.[1]).toMatchObject({
+    model: 'openrouter/free',
+  });
 });
 
-it('does not hide non-retryable authentication failures behind model fallback', async () => {
-  vi.stubEnv('TRANSLATION_FALLBACK_MODELS', 'paid/model');
+it('does not hide non-retryable authentication failures behind payload retries', async () => {
   mocks.getOpenRouterConfig.mockImplementation(
     ({ model }: { model: string }) => ({
       openai: {},
