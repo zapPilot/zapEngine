@@ -20,7 +20,6 @@ describe('videoAssetPaths', () => {
       videoAssetPaths.jetBrainsMonoSemibold,
       videoAssetPaths.logo,
       videoAssetPaths.podcastIntro,
-      videoAssetPaths.usStatesMap,
     ];
 
     expect(isAbsolute(videoAssetPaths.root)).toBe(true);

@@ -2,8 +2,6 @@ import { readFile } from 'node:fs/promises';
 
 import sharp from 'sharp';
 
-import { LANDSCAPE_OUTPUT_HEIGHT, LANDSCAPE_OUTPUT_WIDTH } from './manifest.js';
-
 function configureSharp(): void {
   sharp.cache(false);
   sharp.concurrency(1);
@@ -14,7 +12,6 @@ async function resizeImageToPng(input: {
   outputPath: string;
   width: number;
   height: number;
-  position?: string;
   pngOptions?: {
     compressionLevel: number;
     adaptiveFiltering: boolean;
@@ -25,11 +22,9 @@ async function resizeImageToPng(input: {
     failOn: 'error',
     animated: false,
   });
-  if (input.position) image.rotate();
   await image
     .resize(input.width, input.height, {
-      fit: input.position ? 'cover' : 'fill',
-      ...(input.position ? { position: input.position } : {}),
+      fit: 'fill',
       kernel: sharp.kernel.lanczos3,
     })
     .png(
@@ -50,20 +45,6 @@ async function readResizeInput<T extends SharpScaleStageInput>(
     throw new Error(`${label} input is missing imagePath or size`);
   }
   return input;
-}
-
-// The plain sharp stage serves only legacy landscape slide rasters; portrait
-// cards go through runSharpScaleStage below.
-export function runSharpStage(
-  inputPath: string,
-  outputPath: string,
-): Promise<void> {
-  return resizeImageToPng({
-    imagePath: inputPath,
-    outputPath,
-    width: LANDSCAPE_OUTPUT_WIDTH,
-    height: LANDSCAPE_OUTPUT_HEIGHT,
-  });
 }
 
 export interface SharpScaleStageInput {
@@ -104,9 +85,10 @@ export async function runSharpCropStage(
   configureSharp();
   // Portrait news media must remain completely visible. The old `cover` path
   // cropped wide photos before FFmpeg ever saw them, so later motion could not
-  // recover faces, logos, screenshots, or text near the edges. Keep the legacy
-  // stage name for stored job compatibility, but its portrait contract is now
-  // contain + dark padding; focal `position` is intentionally ignored.
+  // recover faces, logos, screenshots, or text near the edges. Keep the
+  // `sharp-crop` stage name for compatibility with existing job dispatch, but
+  // its portrait contract is now contain + dark padding; focal `position` is
+  // intentionally ignored.
   await sharp(input.imagePath, {
     failOn: 'error',
     animated: false,

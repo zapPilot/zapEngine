@@ -4,8 +4,6 @@ import { dirname, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { abortError, throwIfAborted } from './abort.js';
-import type { ResolvedSlideAsset } from './assets.js';
-import type { Slide } from './manifest.js';
 import type { RasterStage } from './raster-stage-entry.js';
 import type { PortraitRasterOutput, SatoriStageInput } from './satori-stage.js';
 import type { SharpCropStageInput } from './sharp-stage.js';
@@ -141,37 +139,14 @@ async function renderSatoriMaster(
   return runStage;
 }
 
-async function runRasterStages(
-  stageInput: SatoriStageInput,
-  paths: CardRasterPaths,
-  options: RasterizeOptions,
-  finalStage: RasterStage,
-): Promise<void> {
-  const runStage = await renderSatoriMaster(stageInput, paths, options);
-  await runStage(finalStage, paths.master, paths.output, options.signal);
-}
-
-export async function rasterizeSlide(
-  slide: Slide,
-  asset: ResolvedSlideAsset,
-  paths: CardRasterPaths,
-  runStageOrOptions: RunStage | RasterizeOptions = {},
-): Promise<void> {
-  const options: RasterizeOptions =
-    typeof runStageOrOptions === 'function'
-      ? { runStage: runStageOrOptions }
-      : runStageOrOptions;
-  await runRasterStages({ slide, asset }, paths, options, 'sharp');
-}
-
 async function rasterizePortraitCard(
   stageInput: Extract<SatoriStageInput, { kind: 'frame' | 'outro' }>,
   paths: CardRasterPaths,
   options: RasterizeOptions,
 ): Promise<void> {
   const runStage = await renderSatoriMaster(stageInput, paths, options);
-  // The fixed 2160x3840 design master is resized explicitly so stored v3 and
-  // new v4 manifests can retain their own output contracts.
+  // The fixed 2160x3840 design master is resized explicitly to the v4
+  // manifest's output contract.
   await writeStageInputFile(
     paths.input,
     {

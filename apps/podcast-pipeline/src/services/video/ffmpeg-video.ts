@@ -5,7 +5,7 @@ import { rm } from 'node:fs/promises';
 import { path as bundledFfmpegPath } from '@ffmpeg-installer/ffmpeg';
 
 import { abortError, throwIfAborted } from './abort.js';
-import type { SlideVideoManifest, VerticalVideoManifest } from './manifest.js';
+import type { VerticalVideoManifest } from './manifest.js';
 
 export interface VideoProcessResult {
   stdout: string;
@@ -26,12 +26,6 @@ interface SlideVideoRenderOptionsBase {
   outputPath: string;
   signal?: AbortSignal;
   onEncodeProgress?: (fraction: number) => void;
-}
-
-export interface StaticSlideVideoOptions extends SlideVideoRenderOptionsBase {
-  manifest: SlideVideoManifest;
-  slidePaths: string[];
-  filterScriptPath: string;
 }
 
 export interface VerticalSlideVideoOptions extends SlideVideoRenderOptionsBase {
@@ -334,7 +328,7 @@ export function kenBurnsPanForScene(index: number, seed = 0): KenBurnsPan {
 }
 
 function legacyKenBurnsFilter(
-  slide: SlideVideoManifest['slides'][number],
+  slide: VerticalVideoManifest['slides'][number],
   index: number,
   seed: number,
   fps: number,
@@ -355,8 +349,7 @@ function legacyKenBurnsFilter(
     LEGACY_KEN_BURNS_MAX_EXTRA_ZOOM,
   ).toFixed(4);
 
-  const position =
-    slide.asset.kind === 'remoteImage' ? slide.asset.position : 'center';
+  const position = slide.asset.position;
   let motion = kenBurnsPanForScene(index, seed);
   if (motion === 'topToBottom' && position !== 'center') motion = 'zoomIn';
   const isPan = motion !== 'zoomIn' && motion !== 'zoomOut';
@@ -381,7 +374,7 @@ function legacyKenBurnsFilter(
 }
 
 function editorialKenBurnsFilter(
-  slide: SlideVideoManifest['slides'][number],
+  slide: VerticalVideoManifest['slides'][number],
   _index: number,
   _seed: number,
   fps: number,
@@ -400,20 +393,20 @@ function editorialKenBurnsFilter(
 }
 
 type EditorialMotion = Extract<
-  SlideVideoManifest['slides'][number]['asset'],
+  VerticalVideoManifest['slides'][number]['asset'],
   { kind: 'remoteImage' }
 >['motion'];
 
 // A missing `motion` marks a stored legacy payload. Every filter stage has to
 // agree on that split, so they all read it here instead of re-deriving it.
 function editorialMotionOf(
-  slide: SlideVideoManifest['slides'][number],
+  slide: VerticalVideoManifest['slides'][number],
 ): EditorialMotion {
   return slide.asset.kind === 'remoteImage' ? slide.asset.motion : undefined;
 }
 
 function editorialDriftFilter(
-  slide: SlideVideoManifest['slides'][number],
+  slide: VerticalVideoManifest['slides'][number],
   index: number,
   seed: number,
   fps: number,
@@ -457,7 +450,7 @@ function editorialDriftFilter(
 }
 
 function kenBurnsFilter(
-  slide: SlideVideoManifest['slides'][number],
+  slide: VerticalVideoManifest['slides'][number],
   index: number,
   seed: number,
   fps: number,
@@ -480,7 +473,7 @@ function kenBurnsFilter(
 }
 
 function imagePreparationFilter(
-  slide: SlideVideoManifest['slides'][number],
+  slide: VerticalVideoManifest['slides'][number],
   width: number,
   height: number,
   supersample: number,
@@ -488,8 +481,7 @@ function imagePreparationFilter(
   const targetWidth = width * supersample;
   const targetHeight = height * supersample;
   const flags = 'lanczos+accurate_rnd';
-  const layout =
-    slide.asset.kind === 'remoteImage' ? slide.asset.layout : 'fullBleed';
+  const layout = slide.asset.layout;
   const hasExplicitEditorialMotion = editorialMotionOf(slide) !== undefined;
   if (hasExplicitEditorialMotion || layout === 'contain') {
     return `scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=decrease:flags=${flags}:in_range=pc:out_range=tv:out_color_matrix=bt709,pad=${targetWidth}:${targetHeight}:(ow-iw)/2:(oh-ih)/2:color=0x101014`;
@@ -498,7 +490,7 @@ function imagePreparationFilter(
 }
 
 function slideSceneFilters(
-  slides: SlideVideoManifest['slides'],
+  slides: VerticalVideoManifest['slides'],
   seed: number,
   fps: number,
   width: number,
@@ -525,7 +517,7 @@ function slideSceneFilters(
 }
 
 function sceneChain(
-  manifest: Pick<SlideVideoManifest, 'slides' | 'clip' | 'episode'>,
+  manifest: Pick<VerticalVideoManifest, 'slides' | 'clip' | 'episode'>,
   width: number,
   height: number,
   supersample: number,
@@ -554,7 +546,7 @@ function sceneChain(
 // Editorial scenes wipe in alternating directions; legacy payloads keep the
 // historical crossfade so their look does not change retroactively.
 function transitionForSlide(
-  slide: SlideVideoManifest['slides'][number],
+  slide: VerticalVideoManifest['slides'][number],
   slideIndex: number,
 ): string {
   if (editorialMotionOf(slide) === undefined) return 'fade';
@@ -563,7 +555,7 @@ function transitionForSlide(
 
 function appendXfadeChain(
   filters: string[],
-  slides: SlideVideoManifest['slides'],
+  slides: VerticalVideoManifest['slides'],
   fps: number,
   transitionMs: number,
 ): string {
@@ -581,31 +573,6 @@ function appendXfadeChain(
     priorLabel = outputLabel;
   });
   return priorLabel;
-}
-
-export function buildStaticSlideFilter(
-  manifest: SlideVideoManifest,
-  subtitlePath: string,
-  fontsDirectory: string,
-): string {
-  const fps = manifest.clip.fps;
-  const totalFrames = Math.round((manifest.clip.durationMs * fps) / 1_000);
-  const { filters, priorLabel } = sceneChain(
-    manifest,
-    manifest.clip.width,
-    manifest.clip.height,
-    1,
-  );
-
-  filters.push(
-    `[${priorLabel}]fps=${fps},trim=end_frame=${totalFrames},settb=expr=1/${fps},setpts=N,ass=filename='${escapeFilterPath(subtitlePath)}':fontsdir='${escapeFilterPath(fontsDirectory)}',format=yuv420p[vout]`,
-  );
-  const audioInputIndex = manifest.slides.length;
-  const audioSamples = Math.round((manifest.clip.durationMs / 1_000) * 48_000);
-  filters.push(
-    `[${audioInputIndex}:a]aresample=sample_rate=48000:async=1:first_pts=0,atrim=end_sample=${audioSamples},asetpts=N/SR/TB[aout]`,
-  );
-  return filters.join(';\n');
 }
 
 export interface VerticalMediaChunk {
@@ -835,38 +802,6 @@ function videoCodecArgs(fps: number, crf: string): string[] {
   ];
 }
 
-function encoderOutputArgs(input: {
-  fps: number;
-  totalFrames: number;
-  durationSeconds: number;
-  filterScriptPath: string;
-  outputPath: string;
-}): string[] {
-  return [
-    '-filter_complex_script',
-    input.filterScriptPath,
-    '-map',
-    '[vout]',
-    '-map',
-    '[aout]',
-    '-frames:v',
-    String(input.totalFrames),
-    '-t',
-    String(input.durationSeconds),
-    '-shortest',
-    ...videoCodecArgs(input.fps, X264_CRF),
-    '-c:a',
-    'aac',
-    '-b:a',
-    '128k',
-    '-ar',
-    '48000',
-    '-movflags',
-    '+faststart',
-    input.outputPath,
-  ];
-}
-
 function streamedRenderPrefix(): string[] {
   return [
     '-y',
@@ -877,41 +812,6 @@ function streamedRenderPrefix(): string[] {
     '-progress',
     'pipe:1',
   ];
-}
-
-function renderArgs(input: {
-  fps: number;
-  durationMs: number;
-  imagePaths: readonly string[];
-  audioInputArgs: readonly string[];
-  filterScriptPath: string;
-  outputPath: string;
-}): string[] {
-  return [
-    ...streamedRenderPrefix(),
-    ...stillImageInputs(input.imagePaths),
-    ...input.audioInputArgs,
-    ...encoderOutputArgs({
-      fps: input.fps,
-      totalFrames: Math.round((input.durationMs * input.fps) / 1_000),
-      durationSeconds: input.durationMs / 1_000,
-      filterScriptPath: input.filterScriptPath,
-      outputPath: input.outputPath,
-    }),
-  ];
-}
-
-export function buildStaticSlideFfmpegArgs(
-  options: StaticSlideVideoOptions,
-): string[] {
-  return renderArgs({
-    fps: options.manifest.clip.fps,
-    durationMs: options.manifest.clip.durationMs,
-    imagePaths: options.slidePaths,
-    audioInputArgs: ['-i', options.audioSource],
-    filterScriptPath: options.filterScriptPath,
-    outputPath: options.outputPath,
-  });
 }
 
 export function buildVerticalMediaChunkFfmpegArgs(
@@ -1021,45 +921,6 @@ async function runRenderPass(
           signal,
         )
       : undefined,
-  );
-}
-
-async function renderWithFfmpeg(
-  args: string[],
-  signal: AbortSignal | undefined,
-  ffmpegPath: string,
-  processRunner: VideoProcessRunner,
-  encode?: {
-    totalDurationMs: number;
-    onFraction: (fraction: number) => void;
-  },
-): Promise<void> {
-  await assertVideoFfmpegCapabilities(ffmpegPath, processRunner, signal);
-  await runRenderPass(args, signal, ffmpegPath, processRunner, encode);
-}
-
-function encodeProgressOptions(
-  options: StaticSlideVideoOptions | VerticalSlideVideoOptions,
-):
-  | { totalDurationMs: number; onFraction: (fraction: number) => void }
-  | undefined {
-  const onFraction = options.onEncodeProgress;
-  if (!onFraction) return undefined;
-  return { totalDurationMs: options.manifest.clip.durationMs, onFraction };
-}
-
-export async function renderStaticSlideVideo(
-  options: StaticSlideVideoOptions,
-  ffmpegPath = resolveVideoFfmpegPath(),
-  processRunner: VideoProcessRunner = runProcess,
-): Promise<void> {
-  throwIfAborted(options.signal);
-  await renderWithFfmpeg(
-    buildStaticSlideFfmpegArgs(options),
-    options.signal,
-    ffmpegPath,
-    processRunner,
-    encodeProgressOptions(options),
   );
 }
 

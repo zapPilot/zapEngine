@@ -1,14 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { LookupAddress } from 'node:dns';
 import { lookup } from 'node:dns/promises';
-import {
-  mkdir,
-  mkdtemp,
-  open,
-  readFile,
-  rm,
-  writeFile,
-} from 'node:fs/promises';
+import { mkdir, mkdtemp, open, readFile, rm } from 'node:fs/promises';
 import type { IncomingMessage } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import { isIP } from 'node:net';
@@ -25,7 +18,6 @@ import {
   throwIfAborted,
 } from './abort.js';
 import type { Slide, SlideSource } from './manifest.js';
-import { videoAssetPaths } from './runtime-assets.js';
 
 const MAX_REMOTE_IMAGE_BYTES = 25 * 1024 * 1024;
 const MAX_REMOTE_IMAGE_PIXELS = 64 * 1024 * 1024;
@@ -108,65 +100,12 @@ export interface AcquireRemoteImageOptions extends ResolveSlideAssetOptions {
 }
 
 function findAssetSource(slide: Slide): SlideSource | null {
-  if (slide.asset.kind === 'none') return null;
   const sourceId = slide.asset.sourceId;
   return slide.sources.find((source) => source.id === sourceId) ?? null;
 }
 
 function toDataUri(contentType: string, buffer: Uint8Array): string {
   return `data:${contentType};base64,${Buffer.from(buffer).toString('base64')}`;
-}
-
-function injectMapTheme(svg: string, highlightRegionIds: string[]): string {
-  const highlightedSelector = highlightRegionIds
-    .map((regionId) => `.${regionId}`)
-    .join(',');
-  const theme = `
-.state { fill: #18181b; }
-.borders { stroke: #0a0a0a; stroke-width: 2; }
-.separator1 { stroke: #52525b; stroke-width: 2; }
-${highlightedSelector} { fill: #d4c5a3; }
-`;
-
-  if (!svg.includes('</style>')) {
-    throw new Error('Bundled US map is missing its style element');
-  }
-  return svg.replace('</style>', `${theme}</style>`);
-}
-
-async function resolveBundledMap(slide: Slide): Promise<ResolvedSlideAsset> {
-  if (slide.asset.kind !== 'bundledMap') {
-    throw new Error('Expected a bundled map asset');
-  }
-
-  const source = findAssetSource(slide);
-  if (!source) {
-    return { kind: 'fallback', reason: 'Map attribution is missing', source };
-  }
-
-  try {
-    const originalSvg = await readFile(videoAssetPaths.usStatesMap, 'utf8');
-    const themedSvg = injectMapTheme(
-      originalSvg,
-      slide.asset.highlightRegionIds,
-    );
-    return {
-      kind: 'image',
-      dataUri: toDataUri('image/svg+xml', Buffer.from(themedSvg)),
-      contentType: 'image/svg+xml',
-      layout: 'framed',
-      position: 'center',
-      width: 959,
-      height: 593,
-      source,
-    };
-  } catch (error) {
-    return {
-      kind: 'fallback',
-      reason: `Bundled map unavailable: ${errorMessage(error)}`,
-      source,
-    };
-  }
 }
 
 function isPrivateOrReservedIpv4(address: string): boolean {
@@ -732,34 +671,5 @@ export async function resolveSlideAsset(
         }
       : fetchImageOrOptions;
   throwIfAborted(options.signal);
-  if (slide.asset.kind === 'none') {
-    return {
-      kind: 'fallback',
-      reason: 'Source-first editorial card; no photograph used',
-      source: slide.sources[0] ?? null,
-    };
-  }
-  if (slide.asset.kind === 'bundledMap') {
-    const resolved = await resolveBundledMap(slide);
-    if (
-      resolved.kind === 'image' &&
-      options.workingDirectory &&
-      resolved.dataUri
-    ) {
-      const comma = resolved.dataUri.indexOf(',');
-      const outputPath = join(options.workingDirectory, `${slide.id}.svg`);
-      await mkdir(options.workingDirectory, { recursive: true });
-      await writeFile(
-        outputPath,
-        Buffer.from(resolved.dataUri.slice(comma + 1), 'base64'),
-      );
-      return {
-        ...resolved,
-        dataUri: undefined,
-        filePath: outputPath,
-      };
-    }
-    return resolved;
-  }
   return resolveRemoteImage(slide, options);
 }
