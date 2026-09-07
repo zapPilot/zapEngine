@@ -297,7 +297,11 @@ class StrategyDailySuggestionService:
             resolved_config.primary_asset
         )
         if latest_price is None:
-            raise ValueError(f"Missing latest {resolved_config.primary_asset} price")
+            raise MarketDataUnavailableError(
+                f"Missing latest {resolved_config.primary_asset} price",
+                missing_assets=[resolved_config.primary_asset],
+                oldest_data_date=None,
+            )
         current_date = date.fromisoformat(latest_price.date[:10])
         current_price = float(latest_price.price_usd)
         latest_sentiment = self.sentiment_service.get_current_sentiment_sync()
@@ -440,8 +444,6 @@ class StrategyDailySuggestionService:
         ]
         max_lag = max((sf.lag_days for sf in stale_infos), default=0)
         effective_date = current_date - timedelta(days=max_lag)
-        # missing_dates: dates strictly after effective_date through requested_date
-        # (the dates we couldn't satisfy, forward-filled through to effective_date).
         missing_dates = [
             effective_date + timedelta(days=i) for i in range(1, max_lag + 1)
         ]
