@@ -1,4 +1,5 @@
 import { toError } from '../lib/errorMessage.js';
+import { createPollingSweeper } from '../lib/polling-sweeper.js';
 import {
   flyImageRefsMatch,
   type FlyMachinesClient,
@@ -228,10 +229,8 @@ export function createRenderCapacityReconciler(
     options.pollIntervalMs ?? RENDER_CAPACITY_POLL_INTERVAL_MS;
   const logger = options.logger ?? console;
 
-  let timer: NodeJS.Timeout | null = null;
   let started = false;
   let stopped = false;
-  let running = false;
   let lastFingerprint: string | null = null;
   let repeatedWakes = 0;
   let suppressionNotified = false;
@@ -404,17 +403,15 @@ export function createRenderCapacityReconciler(
     return 'started';
   };
 
-  const tick = async (): Promise<void> => {
-    if (running || stopped) return;
-    running = true;
-    try {
+  const sweeper = createPollingSweeper({
+    intervalMs: pollIntervalMs,
+    run: async () => {
       await runOnce();
-    } catch (error) {
+    },
+    onError: (error) => {
       logger.error('[render-capacity] poll failed', toError(error));
-    } finally {
-      running = false;
-    }
-  };
+    },
+  });
 
   return {
     start(): void {
@@ -423,9 +420,7 @@ export function createRenderCapacityReconciler(
       logger.info(
         `[render-capacity] watching render work every ${pollIntervalMs}ms`,
       );
-      void tick();
-      timer = setInterval(() => void tick(), pollIntervalMs);
-      timer.unref();
+      sweeper.start();
     },
 
     runOnce,
@@ -433,10 +428,7 @@ export function createRenderCapacityReconciler(
     stop(): void {
       stopped = true;
       started = false;
-      if (timer) {
-        clearInterval(timer);
-        timer = null;
-      }
+      sweeper.stop();
     },
   };
 }
