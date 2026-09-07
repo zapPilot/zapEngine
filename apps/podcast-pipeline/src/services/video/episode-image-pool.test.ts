@@ -10,7 +10,11 @@ import {
 } from './episode-image-pool.js';
 import type { ImageSearchProvider } from './image-search-provider.js';
 
-function braveResult(id: string, altText: string, sourceUrl?: string): ImageCandidate {
+function braveResult(
+  id: string,
+  altText: string,
+  sourceUrl?: string,
+): ImageCandidate {
   return {
     imageUrl: `https://images.example.test/${id}.jpg`,
     sourceUrl: sourceUrl ?? `https://publisher.example.test/${id}`,
@@ -83,7 +87,10 @@ describe('episode image pool subject collision guard', () => {
       search: vi.fn().mockImplementation((query: string) => {
         if (query === tether!.query) {
           return Promise.resolve([
-            braveResult('tether-generic', 'Stablecoin reserves and Bitcoin mining'),
+            braveResult(
+              'tether-generic',
+              'Stablecoin reserves and Bitcoin mining',
+            ),
           ]);
         }
         return Promise.resolve([
