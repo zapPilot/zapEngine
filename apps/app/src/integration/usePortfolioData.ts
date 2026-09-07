@@ -16,7 +16,7 @@ import {
   netPortfolioValueFrom,
   toTrendPoints,
 } from '@/integration/portfolioMetrics';
-import { formatPct, formatSignedPct } from '@/lib/format';
+import { formatOr, formatPct, formatSignedPct } from '@/lib/format';
 
 interface Metric {
   label: string;
@@ -107,9 +107,7 @@ function numberMetric(
         ? tone(value)
         : 'neutral'
       : tone;
-  return typeof value === 'number'
-    ? { label, value: format(value), tone: resolvedTone }
-    : unavailableMetric(label, resolvedTone);
+  return { label, value: formatOr(value, format), tone: resolvedTone };
 }
 
 function pctMetric(label: string, pct: number | null): Metric {

@@ -20,6 +20,8 @@ import type {
 } from '@zapengine/types/api';
 import { equalsAddress } from '@zapengine/types/shared';
 
+import { formatOr } from '@/lib/format';
+
 const PREVIEW_EXPIRY_MARGIN_MS = 10_000;
 
 export type SimulationVerdictTone = 'success' | 'error' | 'neutral';
@@ -278,7 +280,7 @@ export function confirmRiskHash(
 export function formatAddressOrUnknown(
   address: string | null | undefined,
 ): string {
-  return formatWalletAddress(address) || 'Unknown';
+  return formatOr(address, formatWalletAddress, 'Unknown');
 }
 
 /**
@@ -293,12 +295,17 @@ export function compactTokenAmount(
 }
 
 export function formatInteger(value: string | number | null): string {
-  if (value === null) return 'Unavailable';
-  try {
-    return BigInt(value).toLocaleString('en-US');
-  } catch {
-    return String(value);
-  }
+  return formatOr(
+    value,
+    (v) => {
+      try {
+        return BigInt(v).toLocaleString('en-US');
+      } catch {
+        return String(v);
+      }
+    },
+    'Unavailable',
+  );
 }
 
 /**
