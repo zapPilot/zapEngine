@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 import { getRequiredEnv } from '../lib/env.js';
+import { readNullableString } from '../lib/string.js';
 import { isRecord } from '../lib/typeGuards.js';
 
 export type PipelineSupabaseClient = SupabaseClient<any, any, any>;
@@ -46,19 +47,15 @@ function formatSupabaseError(error: unknown): string {
     return String(error);
   }
 
-  const code = readOptionalString(error['code']);
+  const code = readNullableString(error['code']);
   const message =
-    readOptionalString(error['message']) ?? 'Supabase request failed';
-  const details = readOptionalString(error['details']);
-  const hint = readOptionalString(error['hint']);
+    readNullableString(error['message']) ?? 'Supabase request failed';
+  const details = readNullableString(error['details']);
+  const hint = readNullableString(error['hint']);
   const parts = [code ? `[${code}] ${message}` : message];
 
   if (details) parts.push(`Details: ${details}`);
   if (hint) parts.push(`Hint: ${hint}`);
 
   return parts.join(' ');
-}
-
-function readOptionalString(value: unknown): string | null {
-  return typeof value === 'string' && value.length > 0 ? value : null;
 }

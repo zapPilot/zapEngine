@@ -1,5 +1,7 @@
 import * as Sentry from '@sentry/node';
 
+import { nonemptyString } from '../lib/typeGuards.js';
+
 export interface SentryEnv {
   APP_COMMIT_SHA?: string;
   NODE_ENV?: string;
@@ -29,20 +31,16 @@ export interface PipelineExceptionOptions {
   level?: 'error' | 'warning';
 }
 
-function trimToUndefined(value?: string): string | undefined {
-  return value?.trim() || undefined;
-}
-
 export function initSentry(rawEnv: SentryEnv = process.env) {
-  const dsn = trimToUndefined(rawEnv.SENTRY_PODCAST_PIPELINE_DSN);
+  const dsn = nonemptyString(rawEnv.SENTRY_PODCAST_PIPELINE_DSN);
   if (!dsn) {
     return false;
   }
 
   Sentry.init({
     dsn,
-    environment: trimToUndefined(rawEnv.NODE_ENV),
-    release: trimToUndefined(rawEnv.APP_COMMIT_SHA),
+    environment: nonemptyString(rawEnv.NODE_ENV),
+    release: nonemptyString(rawEnv.APP_COMMIT_SHA),
     sendDefaultPii: false,
     skipOpenTelemetrySetup: true,
   });
