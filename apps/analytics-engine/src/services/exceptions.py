@@ -3,8 +3,9 @@
 `MarketDataUnavailableError` extends the project-wide `ServiceError` base so it
 participates in the standard error taxonomy (`error_code`, `is_transient`,
 `context`) used by the rest of the analytics engine. The route layer maps it
-to HTTP 503 — semantically distinct from caller validation errors and from
-unexpected internal failures.
+to HTTP 503 — semantically distinct from a `ValueError` (HTTP 400, caller
+error) and a `DataNotFoundError` (HTTP 404, resource doesn't exist): this
+error means the data pipeline is *behind* and clients should retry.
 """
 
 from __future__ import annotations
@@ -13,10 +14,6 @@ from datetime import date
 from typing import Any
 
 from src.core.exceptions import ServiceError
-
-
-class InvalidDailySuggestionRequestError(ValueError):
-    """Caller-supplied daily-suggestion config is unknown or unsupported."""
 
 
 class MarketDataUnavailableError(ServiceError):
