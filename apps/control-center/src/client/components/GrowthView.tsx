@@ -8,11 +8,7 @@ import type {
   SocialPlatformPerformance,
 } from '../../shared/types.js';
 import { duration, integer, percent, relativeTime } from '../format.js';
-import {
-  platformEmoji,
-  platformIconPath,
-  platformLabel,
-} from '../platform.js';
+import { platformEmoji, platformIconPath, platformLabel } from '../platform.js';
 import { StatementHeader } from './StatementHeader.js';
 
 export const CURRENT_RELEASE_SLOTS_JST = ['09:30', '12:00', '16:00'] as const;
