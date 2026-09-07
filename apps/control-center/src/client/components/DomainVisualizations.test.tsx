@@ -4,10 +4,7 @@ import '@testing-library/jest-dom/vitest';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import type { OperationsSocialResponse } from '../../shared/types.js';
-import {
-  operationsFixture,
-  signalFixture,
-} from '../__fixtures__/dashboard.js';
+import { operationsFixture, signalFixture } from '../__fixtures__/dashboard.js';
 import { ReliabilityTopology } from './ReliabilityTopology.js';
 
 afterEach(cleanup);
