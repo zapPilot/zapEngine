@@ -1,6 +1,6 @@
 import { composeSocialContent, type SocialComposeEpisode } from './compose.js';
 import { assertRednoteCopySafe } from './lexicon/index.js';
-import { platformVideoMode } from './platforms.js';
+import { platformLabel, platformVideoMode } from './platforms.js';
 import { createPlaywrightRednotePublisher } from './rednote-playwright.js';
 import { createThreadsPublisher } from './threads.js';
 import { prepareThreadsVideoUrl } from './threads-video.js';
@@ -27,9 +27,9 @@ interface SocialPublishJobsInput {
   onLog?: (message: string) => void;
 }
 
-export async function createSocialPublishJobs(
+export function createSocialPublishJobs(
   input: SocialPublishJobsInput,
-): Promise<SocialPublishJob[]> {
+): SocialPublishJob[] {
   return input.platforms.map((platform) => createPlatformJob(platform, input));
 }
 
@@ -53,12 +53,7 @@ function createPlatformJob(
 
 function createXJob(input: SocialPublishJobsInput): SocialPublishJob {
   const platform = 'x';
-  const videoPath = selectVideoPath(platform, input);
-  if (!videoPath) {
-    throw new Error(
-      `X publishing requires a prepared ${platformVideoMode(platform)} video.`,
-    );
-  }
+  const videoPath = requireVideoPath(platform, input);
   const { body } = composeSocialContent(platform, input);
   const publisher = createPlaywrightXPublisher({ onLog: input.onLog });
   return {
@@ -92,10 +87,7 @@ function createThreadsJob(input: SocialPublishJobsInput): SocialPublishJob {
 
 function createYouTubeJob(input: SocialPublishJobsInput): SocialPublishJob {
   const platform = 'youtube';
-  const videoPath = selectVideoPath(platform, input);
-  if (!videoPath) {
-    throw new Error('YouTube publishing requires a prepared video.');
-  }
+  const videoPath = requireVideoPath(platform, input);
   const thumbnailUrl = input.thumbnailUrl?.trim();
   if (!thumbnailUrl) {
     throw new Error(
@@ -125,10 +117,7 @@ function createYouTubeJob(input: SocialPublishJobsInput): SocialPublishJob {
 
 function createRednoteJob(input: SocialPublishJobsInput): SocialPublishJob {
   const platform = 'rednote';
-  const videoPath = selectVideoPath(platform, input);
-  if (!videoPath) {
-    throw new Error('Rednote publishing requires a prepared video.');
-  }
+  const videoPath = requireVideoPath(platform, input);
   const { title, hashtags } = composeSocialContent(platform, input);
   if (!title) {
     throw new Error('Rednote publishing requires a generated title.');
@@ -152,6 +141,20 @@ function selectVideoPath(
   return platformVideoMode(platform) === 'teaser'
     ? input.xVideoPath
     : input.videoPath;
+}
+
+function requireVideoPath(
+  platform: SocialPlatform,
+  input: Pick<SocialPublishJobsInput, 'videoPath' | 'xVideoPath'>,
+): string {
+  const videoPath = selectVideoPath(platform, input);
+  if (videoPath) return videoPath;
+  const label = platformLabel(platform);
+  throw new Error(
+    platform === 'x'
+      ? `${label} publishing requires a prepared ${platformVideoMode(platform)} video.`
+      : `${label} publishing requires a prepared video.`,
+  );
 }
 
 function assertNever(value: never): never {

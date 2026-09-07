@@ -103,7 +103,7 @@ export async function publishSocialBatch(input: {
     );
   }
 
-  const jobs = await createSocialPublishJobs({
+  const jobs = createSocialPublishJobs({
     platforms,
     copy: snapshot.published,
     episode,

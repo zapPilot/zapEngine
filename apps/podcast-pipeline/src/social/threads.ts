@@ -1,7 +1,7 @@
 import { errorMessage, toError } from '../lib/errorMessage.js';
 import { sleep as defaultSleep } from '../lib/sleep.js';
 import { isPlainRecord as isRecord } from '../lib/typeGuards.js';
-import { SocialPublishError } from './publish-error.js';
+import { publishStep, SocialPublishError } from './publish-error.js';
 import {
   describeThreadsApiError,
   nonemptyString,
@@ -97,16 +97,17 @@ async function publishThreads(
     prepareVideoUrl: PrepareVideoUrl;
   },
 ): Promise<PublishResult> {
+  const step = publishStep('threads');
   const canonicalVideoUrl = requirePublicVideoUrl(input.videoUrl);
   context.log('[threads] Preparing platform-safe teaser video');
   const videoUrl = requirePublicVideoUrl(
-    await threadsStep('prepare_video', () =>
+    await step('prepare_video', () =>
       context.prepareVideoUrl(canonicalVideoUrl),
     ),
   );
 
   context.log('[threads] Creating native video container');
-  const created = await threadsStep('create_video', () =>
+  const created = await step('create_video', () =>
     requestThreadsApi(
       'POST',
       '/me/threads',
@@ -121,12 +122,10 @@ async function publishThreads(
   const creationId = requireId(created, 'video container');
 
   context.log('[threads] Waiting for video processing');
-  await threadsStep('wait_video', () =>
-    waitForVideoContainer(creationId, context),
-  );
+  await step('wait_video', () => waitForVideoContainer(creationId, context));
 
   context.log('[threads] Publishing native video');
-  const published = await threadsStep('publish', () =>
+  const published = await step('publish', () =>
     requestThreadsApi(
       'POST',
       '/me/threads_publish',
@@ -261,15 +260,4 @@ function withLoginGuidance(error: unknown): Error {
     `${detail}\nRun \`pnpm social:login\` to reconnect Threads.`,
     { cause: error },
   );
-}
-
-async function threadsStep<T>(
-  name: string,
-  operation: () => Promise<T>,
-): Promise<T> {
-  try {
-    return await operation();
-  } catch (error) {
-    throw new SocialPublishError('threads', name, error);
-  }
 }

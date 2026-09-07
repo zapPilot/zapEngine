@@ -8,7 +8,7 @@ import {
   type Response as PlaywrightResponse,
 } from 'playwright-core';
 
-import { SocialPublishError } from './publish-error.js';
+import { publishStep } from './publish-error.js';
 import type { PublishResult, XPublisher, XPublishInput } from './types.js';
 import {
   extractCreatedTweetId,
@@ -90,7 +90,8 @@ async function publish(
   input: XPublishInput,
   log: (message: string) => void,
 ): Promise<PublishResult> {
-  await xStep('check_login', async () => {
+  const step = publishStep('x');
+  await step('check_login', async () => {
     try {
       await waitForComposer(page, READY_TIMEOUT_MS);
     } catch (error) {
@@ -102,16 +103,16 @@ async function publish(
   });
 
   log('[x] Filling copy and uploading teaser video');
-  await xStep('fill_copy', () =>
+  await step('fill_copy', () =>
     page.locator(COMPOSER_SELECTOR).first().fill(input.text.trim()),
   );
-  await xStep('upload_video', () =>
+  await step('upload_video', () =>
     page.locator(FILE_INPUT_SELECTOR).first().setInputFiles(input.videoPath),
   );
-  await xStep('wait_upload_complete', () => waitForUploadReady(page));
+  await step('wait_upload_complete', () => waitForUploadReady(page));
 
   log('[x] Publishing native video');
-  const response = await xStep('publish', async () => {
+  const response = await step('publish', async () => {
     const button = await findActionablePostButton(page);
     if (!button) throw new Error('X post button is disabled or not visible.');
     const responsePromise = page.waitForResponse(
@@ -123,7 +124,7 @@ async function publish(
     await button.click();
     return responsePromise;
   });
-  const identity = await xStep('confirm_success', () =>
+  const identity = await step('confirm_success', () =>
     publishedTweetIdentity(response),
   );
 
@@ -210,14 +211,6 @@ async function publishedTweetIdentity(
     url: `https://x.com/i/web/status/${postId}`,
     postId,
   };
-}
-
-async function xStep<T>(step: string, operation: () => Promise<T>): Promise<T> {
-  try {
-    return await operation();
-  } catch (error) {
-    throw new SocialPublishError('x', step, error);
-  }
 }
 
 export { COMPOSE_URL, PROFILE_DIRECTORY };
