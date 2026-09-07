@@ -1,0 +1,55 @@
+--- zapEngine-original/.agents/skills/podcast-translation-testing/SKILL.md	2026-09-07 07:36:57.000000000 +0000
++++ zapEngine-branch/.agents/skills/podcast-translation-testing/SKILL.md	2026-09-07 07:42:17.630881489 +0000
+@@ -2,10 +2,9 @@
+ name: podcast-translation-testing
+ description: >-
+   Use when changing or testing apps/podcast-pipeline translation behavior.
+-  Translation is OpenRouter-only: the code-owned openrouter/free router runs
+-  first, then the paid models in TRANSLATION_FALLBACK_MODELS; each model gets
+-  one bounded retry, auth/config errors fail immediately, and the run fails
+-  closed after the last candidate.
++  Translation is OpenRouter-only: the code-owned openrouter/free model is the
++  primary, transport failures use the shared LLM_FALLBACK_MODELS chain, and
++  payload validation remains owned by translation.
+ ---
+ 
+ # Podcast translation testing
+@@ -14,7 +13,7 @@
+ 
+ **Treat provider success as unusable until every required translated field is present, non-empty for non-empty source input, and free of model chatter.**
+ 
+-The podcast pipeline translates only through OpenRouter. `openrouter/free` is always the first model; `TRANSLATION_FALLBACK_MODELS` (a non-secret, comma-separated list in `config/env/{dev,prod}.env`) names the paid OpenRouter models tried after it, in order. There is no Google Translate fallback or other secondary provider. A syntactically successful provider response can still be semantically unusable, so response validation remains an application responsibility.
++The podcast pipeline translates only through OpenRouter. `openrouter/free` is always the translation primary. The shared, non-secret `LLM_FALLBACK_MODELS` list in `config/env/{dev,prod}.env` is the only model fallback list for translation and every other OpenRouter workload. There is no `TRANSLATION_FALLBACK_MODELS`, Google Translate fallback, or other secondary provider. A syntactically successful provider response can still be semantically unusable, so response validation remains an application responsibility.
+ 
+ For classroom generation, dual-HLS resume, and playback integrity, use
+ [podcast-audio-section-integrity](../podcast-audio-section-integrity/SKILL.md).
+@@ -24,15 +23,16 @@
+ - `apps/podcast-pipeline/src/services/translate.ts`
+   - `translateCanonicalScript({ title, script, targetLanguageCode })`
+   - `translateChineseText(text, targetLanguageCode)`
+-  - model order: code-owned `openrouter/free`, then `getTranslationFallbackModels()` from `llm-model-fallback.ts` (env `TRANSLATION_FALLBACK_MODELS`, trimmed and deduplicated)
++  - primary model: code-owned `openrouter/free`
++  - transport model order: `openrouter/free`, then `getOpenRouterModelCandidates()` appends `LLM_FALLBACK_MODELS` in reviewed order with duplicates removed
+   - canonical scripts over 2,000 characters: split by paragraph, then sentence boundary, then hard cap; translated sequentially and rejoined with blank lines
+-  - transport failures: judged by `isRetryableOpenRouterError` from `llm.ts` â€” one shared OpenRouter retry policy, not a second copy
+-  - transport retry drops deterministic throughput sorting via `OPENROUTER_FALLBACK_ROUTING`; response-validation retry keeps the normal route and adds correction context
+-  - per model (`tryTranslationModel`): `TRANSLATION_MAX_ATTEMPTS = 2`; a retryable transport failure or `TranslationResponseError` still present after the second attempt advances to the next candidate and logs `translate:model-fallback`; a non-retryable error (auth/config) is thrown immediately without touching the paid models
+-  - response failures (`TranslationResponseError`): retried once on the same model with the rejection reason appended to the user message; the next model starts without that correction context
+-  - retries, model switches, and the final failure log `translate:retry` / `translate:model-fallback` / `translate:failed`, the latter carrying the spend already committed across every model tried
+-  - empty source fields: preserved locally without a provider call
+-- `apps/podcast-pipeline/src/services/translate.test.ts` is the focused regression suite; `translate-paid-fallback.test.ts` covers free â†’ paid escalation and the 401 fast-fail, and `llm-model-fallback.test.ts` covers env list parsing.
++  - transport failures are handled by `createOpenRouterChatCompletion()` in `llm.ts`: timeout, connection failure, 408/409/429, or 5xx advances through the shared model chain; auth/config/client failures remain terminal
++  - translation keeps `TRANSLATION_MAX_ATTEMPTS = 2` around the shared request. `TranslationResponseError` retries with correction context; a retryable transport error can only reach this layer after the shared model chain has already been exhausted
++  - a transport retry uses `OPENROUTER_FALLBACK_ROUTING`; a response-validation retry keeps the normal route and adds the rejection reason
++  - empty source fields are preserved locally without a provider call
++  - the final failure log carries the spend already committed by completed attempts
++- `apps/podcast-pipeline/src/services/llm-shared-model-fallback.test.ts` owns the shared transport/model-chain regression coverage.
++- `apps/podcast-pipeline/src/services/translate.test.ts` and `translate-paid-fallback.test.ts` own translation-specific response and `openrouter/free` primary coverage.
+ 
+ ## High-value cases to cover first
+ 
+@@ -40,22 +40,21 @@
+ 2. OpenRouter returns an empty translated value for a non-empty source field.
+ 3. OpenRouter returns explanatory/model-chatter text instead of a pure translation.
+ 4. OpenRouter returns malformed or non-object JSON.
+-5. Transient 429/5xx/timeout failures retry once on the current model, then fall through to the next model in `TRANSLATIOON_FALLBACK_MODELM€ëh¢V«‚éžžÛkºwµç_¢·b²™Z
