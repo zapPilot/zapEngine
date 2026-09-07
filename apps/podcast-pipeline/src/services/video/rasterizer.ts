@@ -4,6 +4,7 @@ import { dirname, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { abortError, throwIfAborted } from '../../lib/abort.js';
+import { killOnAbort, settleOnce } from '../../lib/spawn-process.js';
 import type { RasterStage } from './raster-stage-entry.js';
 import type { PortraitRasterOutput, SatoriStageInput } from './satori-stage.js';
 import type { SharpCropStageInput } from './sharp-stage.js';
@@ -27,6 +28,10 @@ interface RasterizeOptions {
   signal?: AbortSignal;
 }
 
+const noop = (): void => {
+  // reassigned synchronously below, before any event can fire
+};
+
 function stageEntryPath(): string {
   const extension = extname(fileURLToPath(import.meta.url));
   return fileURLToPath(
@@ -47,35 +52,25 @@ export async function runRasterStage(
       [...process.execArgv, stageEntryPath(), stage, inputPath, outputPath],
       { stdio: 'inherit' },
     );
-    let settled = false;
-    let forceKillTimer: NodeJS.Timeout | undefined;
-    const cleanup = () => {
-      abortSignal?.removeEventListener('abort', onAbort);
-      if (forceKillTimer) clearTimeout(forceKillTimer);
-    };
-    const settleResolve = () => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      resolve();
-    };
-    const settleReject = (error: Error) => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      reject(error);
-    };
-    const onAbort = () => {
-      if (typeof child.kill !== 'function') {
+    let removeAbortListener = noop;
+    const { settleResolve, settleReject } = settleOnce<void>(
+      resolve,
+      reject,
+      () => removeAbortListener(),
+    );
+    if (typeof child.kill === 'function') {
+      removeAbortListener = killOnAbort(child, abortSignal);
+    } else {
+      // Test doubles for this stage's child sometimes stub only the
+      // EventEmitter surface — an abort can't be enforced without `kill`, so
+      // reject immediately instead of leaving the promise to hang.
+      const onAbort = () =>
         settleReject(abortError(abortSignal, `Raster ${stage} stage aborted`));
-        return;
-      }
-      child.kill('SIGTERM');
-      forceKillTimer = setTimeout(() => child.kill('SIGKILL'), 2_000);
-      forceKillTimer.unref?.();
-    };
-    abortSignal?.addEventListener('abort', onAbort, { once: true });
-    if (abortSignal?.aborted) onAbort();
+      abortSignal?.addEventListener('abort', onAbort, { once: true });
+      if (abortSignal?.aborted) onAbort();
+      removeAbortListener = () =>
+        abortSignal?.removeEventListener('abort', onAbort);
+    }
 
     child.once('error', (error) =>
       settleReject(
@@ -85,7 +80,6 @@ export async function runRasterStage(
       ),
     );
     child.once('exit', (code, exitSignal) => {
-      if (settled) return;
       if (abortSignal?.aborted) {
         settleReject(abortError(abortSignal, `Raster ${stage} stage aborted`));
         return;

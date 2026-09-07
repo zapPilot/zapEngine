@@ -6,6 +6,7 @@ import { path as bundledFfmpegPath } from '@ffmpeg-installer/ffmpeg';
 
 import { abortError, throwIfAborted } from '../../lib/abort.js';
 import { escapeFilterPath } from '../../lib/ffmpeg-filter-path.js';
+import { killOnAbort, settleOnce } from '../../lib/spawn-process.js';
 import type { VerticalVideoManifest } from './manifest.js';
 
 export interface VideoProcessResult {
@@ -72,36 +73,14 @@ export async function runProcess(
     const child = spawn(executable, args, {
       stdio: ['ignore', 'pipe', 'pipe'],
     });
-    // jscpd:ignore-start — shared child-process lifecycle pattern; same design in rasterizer.ts
-    let settled = false;
-    let forceKillTimer: NodeJS.Timeout | undefined;
     let stdout = '';
     let stderr = '';
     let stdoutResidual = '';
-    const cleanup = () => {
-      abortSignal?.removeEventListener('abort', onAbort);
-      if (forceKillTimer) clearTimeout(forceKillTimer);
-    };
-    const settleResolve = (value: VideoProcessResult) => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      resolve(value);
-    };
-    const settleReject = (error: Error) => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      reject(error);
-    };
-    const onAbort = () => {
-      child.kill('SIGTERM');
-      forceKillTimer = setTimeout(() => child.kill('SIGKILL'), 2_000);
-      forceKillTimer.unref?.();
-    };
-    abortSignal?.addEventListener('abort', onAbort, { once: true });
-    if (abortSignal?.aborted) onAbort();
-    // jscpd:ignore-end
+    const { settleResolve, settleReject } = settleOnce<VideoProcessResult>(
+      resolve,
+      reject,
+      killOnAbort(child, abortSignal),
+    );
 
     child.stdout?.setEncoding('utf8');
     child.stderr?.setEncoding('utf8');
