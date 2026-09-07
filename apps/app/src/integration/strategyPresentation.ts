@@ -41,7 +41,7 @@ export function demoTextOrDash(
   return isDemo ? demoValue : fallback;
 }
 
-export function marketModeLabelFor(
+function marketModeLabelFor(
   regimeLabel: string,
   demoLabel: string,
   isDemo: boolean,

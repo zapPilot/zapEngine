@@ -20,7 +20,7 @@ import type {
 } from '@zapengine/types/api';
 import { equalsAddress } from '@zapengine/types/shared';
 
-export const PREVIEW_EXPIRY_MARGIN_MS = 10_000;
+const PREVIEW_EXPIRY_MARGIN_MS = 10_000;
 
 export type SimulationVerdictTone = 'success' | 'error' | 'neutral';
 

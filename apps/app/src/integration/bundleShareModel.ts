@@ -15,7 +15,7 @@
 export const DEFAULT_APP_WEB_ORIGIN = 'https://v2.zap-pilot.org';
 
 /** Routes that render a portfolio and may carry the shareable `?userId=`. */
-export const BUNDLE_SHARE_PATHS = ['/home', '/portfolio'] as const;
+const BUNDLE_SHARE_PATHS = ['/home', '/portfolio'] as const;
 
 export function isBundleSharePath(pathname: string): boolean {
   const normalized =

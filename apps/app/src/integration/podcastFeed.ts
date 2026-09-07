@@ -136,7 +136,7 @@ const SEARCH_PAGE_SIZE = 20;
 const PODCAST_VIDEO_POLL_INTERVAL_MS = 20_000;
 /** Matches the worker's own 10s progress flush, so no tick is wasted. */
 const PODCAST_VIDEO_ACTIVE_POLL_INTERVAL_MS = 10_000;
-export const MIN_PODCAST_SEARCH_QUERY_LENGTH = 2;
+const MIN_PODCAST_SEARCH_QUERY_LENGTH = 2;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -181,7 +181,7 @@ function readArray(record: Record<string, unknown>, keys: string[]): unknown[] {
   return [];
 }
 
-export function parsePodcastEpisodeVideo(
+function parsePodcastEpisodeVideo(
   rawVideo: unknown,
 ): PodcastEpisodeVideo | null {
   if (!isRecord(rawVideo)) return null;
@@ -227,7 +227,7 @@ function readVideoGenerationStage(
   return known ?? null;
 }
 
-export function parsePodcastEpisodeVideoGeneration(
+function parsePodcastEpisodeVideoGeneration(
   rawVideoGeneration: unknown,
 ): PodcastEpisodeVideoGeneration | null {
   if (!isRecord(rawVideoGeneration)) return null;

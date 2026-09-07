@@ -3,7 +3,7 @@ import { Linking, Text } from 'react-native';
 
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 
-export const ZAP_PILOT_WEB_URL = 'https://v2.zap-pilot.org';
+const ZAP_PILOT_WEB_URL = 'https://v2.zap-pilot.org';
 
 export function OpenZapPilotWebButton({ className }: { className?: string }) {
   return (
