@@ -18,7 +18,9 @@ jobs:
       - uses: ./.github/actions/setup-workspace
       - name: Apply cleanup and format
         run: |
-          git apply -p1 .github/assistant-cleanup.patch
+          for patch in .github/assistant-cleanup/*.patch; do
+            git apply -p1 "$patch"
+          done
           pnpm exec prettier --write \
             .agents/skills/podcast-translation-testing/SKILL.md \
             apps/podcast-pipeline/README.md \
@@ -40,7 +42,8 @@ jobs:
             apps/podcast-pipeline/src/services/video-jobs.test.ts \
             apps/podcast-pipeline/src/services/video-worker.test.ts \
             config/env.manifest.mjs
-          rm .github/assistant-cleanup.patch
+          rm -rf .github/assistant-cleanup
+          rm -f .github/assistant-cleanup.patch
           rm .github/workflows/assistant-export-branch.yml
       - name: Commit finalized cleanup
         run: |
