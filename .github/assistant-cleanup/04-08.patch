@@ -1,0 +1,225 @@
+--- zapEngine-original/apps/podcast-pipeline/src/services/episode-video-visual-processor.test.ts	2026-09-07 07:36:57.000000000 +0000
++++ zapEngine-branch/apps/podcast-pipeline/src/services/episode-video-visual-processor.test.ts	2026-09-07 07:42:17.630260525 +0000
+@@ -409,7 +409,7 @@
+     expect(scrape).not.toHaveBeenCalled();
+   });
+ 
+-  it('generateVisualStoryboard supports explicit and default deterministic providers', async () => {
++  it('generateVisualStoryboard supports an explicit provider and otherwise stays deterministic', async () => {
+     const explicitProvider = {
+       name: 'explicit',
+       model: 'explicit-model',
+@@ -434,31 +434,14 @@
+       expect.objectContaining({ signal: controller.signal }),
+     );
+ 
+-    const previous = process.env['VIDEO_STORYBOARD_PROVIDER'];
+-    try {
+-      delete process.env['VIDEO_STORYBOARD_PROVIDER'];
+-      const deterministic = await generateVisualStoryboard({
+-        title: 'Title',
+-        script: '第一句。第二句。',
+-        searchTitle: ' English title ',
+-        searchScript: 'First sentence. Second sentence.',
+-        durationMs: 20_000,
+-      });
+-      expect(deterministic.effectiveProvider).toBe('deterministic');
+-
+-      process.env['VIDEO_STORYBOARD_PROVIDER'] = 'unsupported';
+-      await expect(
+-        generateVisualStoryboard({
+-          title: 'Title',
+-          script: '第一句。第二句。',
+-          durationMs: 20_000,
+-        }),
+-      ).rejects.toThrow('Unsupported VIDEO_STORYBOARD_PROVIDER: unsupported');
+-    } finally {
+-      if (previous === undefined)
+-        delete process.env['VIDEO_STORYBOARD_PROVIDER'];
+-      else process.env['VIDEO_STORYBOARD_PROVIDER'] = previous;
+-    }
++    const deterministic = await generateVisualStoryboard({
++      title: 'Title',
++      script: '第一句。第二句。',
++      searchTitle: ' English title ',
++      searchScript: 'First sentence. Second sentence.',
++      durationMs: 20_000,
++    });
++    expect(deterministic.effectiveProvider).toBe('deterministic');
+   });
+ 
+   it('cleans up its temporary images after an R2 upload failure', async () => {
+--- zapEngine-original/apps/podcast-pipeline/src/services/video/episode-video.test.ts	2026-09-07 07:36:57.000000000 +0000
++++ zapEngine-branch/apps/podcast-pipeline/src/services/video/episode-video.test.ts	2026-09-07 07:42:17.630417146 +0000
+@@ -86,8 +86,8 @@
+       script: localizedScript,
+       canonicalScript,
+       visualPlan: visualPlan(2),
+-      storyboardProvider: 'nvidia',
+-      storyboardModel: 'test-model',
++      storyboardProvider: 'deterministic',
++      storyboardModel: 'deterministic-v1',
+       hlsUrl:
+         'https://cdn.example.com/episodes/e/localizations/en/main/playlist.m3u8',
+       durationMs: 24_000,
+@@ -126,33 +126,6 @@
+     expect(result.manifest.captions).toHaveLength(2);
+   });
+ 
+-  it('takes the configured-provider path when no alignment provider is injected', async () => {
+-    const previous = process.env['VIDEO_ALIGNMENT_PROVIDER'];
+-    process.env['VIDEO_ALIGNMENT_PROVIDER'] = 'unsupported-for-test';
+-    try {
+-      await expect(
+-        createEpisodeVideoManifest({
+-          episodeId: '9ee737b4-c3d3-4f88-9837-ccc7fc20704e',
+-          localizationId: '56b21422-1a38-4917-957e-b23223c0396c',
+-          languageCode: 'en',
+-          title: 'English episode',
+-          script: 'First sentence. Second sentence.',
+-          canonicalScript: '第一段。第二段。',
+-          visualPlan: visualPlan(2),
+-          storyboardProvider: 'deterministic',
+-          storyboardModel: null,
+-          hlsUrl:
+-            'https://cdn.example.com/episodes/e/localizations/en/main/playlist.m3u8',
+-          durationMs: 24_000,
+-        }),
+-      ).rejects.toThrow('Unsupported VIDEO_ALIGNMENT_PROVIDER');
+-    } finally {
+-      if (previous === undefined)
+-        delete process.env['VIDEO_ALIGNMENT_PROVIDER'];
+-      else process.env['VIDEO_ALIGNMENT_PROVIDER'] = previous;
+-    }
+-  });
+-
+   it('uses proportional timing when semantic alignment is invalid', async () => {
+     const alignmentProvider = {
+       align: vi.fn().mockResolvedValue({
+--- zapEngine-original/apps/podcast-pipeline/src/services/video/storyboard/storyboard.test.ts	2026-09-07 07:36:57.000000000 +0000
++++ zapEngine-branch/apps/podcast-pipeline/src/services/video/storyboard/storyboard.test.ts	2026-09-07 07:42:17.630109669 +0000
+@@ -1,4 +1,3 @@
+-import OpenAI from 'openai';
+ import { describe, expect, it, vi } from 'vitest';
+ 
+ import type { CanonicalAudioTiming } from '../audio-analysis.js';
+@@ -13,11 +12,6 @@
+   materializeLocaleVideoManifest,
+   TRUSTED_RENDERER_VERSION,
+ } from './materialize.js';
+-import {
+-  buildNvidiaStoryboardSystemPrompt,
+-  buildNvidiaStoryboardUserPrompt,
+-  createNvidiaStoryboardProvider,
+-} from './nvidia.js';
+ import { generateStoryboard } from './orchestrator.js';
+ import type {
+   StoryboardProvider,
+@@ -441,67 +435,6 @@
+   });
+ });
+ 
+-describe('NVIDIA storyboard provider', () => {
+-  it('requests only scene anchors and image-search intents', async () => {
+-    const draft = fallbackDraft();
+-    const create = vi.fn().mockResolvedValue({
+-      model: 'nvidia/test-model',
+-      choices: [{ message: { content: JSON.stringify(draft) } }],
+-      usage: {
+-        prompt_tokens: 100,
+-        completion_tokens: 50,
+-        total_tokens: 150,
+-      },
+-    });
+-    const client = {
+-      chat: { completions: { create } },
+-    } as unknown as OpenAI;
+-    const provider = createNvidiaStoryboardProvider({
+-      model: 'nvidia/test-model',
+-      client,
+-    });
+-    const sentences = splitCanonicalSentences(script);
+-
+-    await expect(
+-      provider.generate({
+-        title: '市場流動性觀察',
+-        script,
+-        durationMs: 90_000,
+-        sentences,
+-      }),
+-    ).resolves.toMatchObject({
+-      draft,
+-      usage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+-    });
+-    expect(create.mock.calls[0]?.[0]).toMatchObject({
+-      model: 'nvidia/test-model',
+-      temperature: 0.2,
+-      max_tokens: 2_000,
+-      response_format: { type: 'json_object' },
+-    });
+-    const systemPrompt = buildNvidiaStoryboardSystemPrompt();
+-    expect(systemPrompt).toMatch(/^\/no_think/);
+-    expect(systemPrompt).toContain('sceneId');
+-    expect(systemPrompt).toContain('imageSearchIntent');
+-    expect(systemPrompt).toContain('不得寫旁白');
+-    expect(
+-      buildNvidiaStoryboardUserPrompt(
+-        {
+-          title: '市場流動性觀察',
+-          script,
+-          durationMs: 90_000,
+-          sentences,
+-        },
+-        {
+-          repairIssues: [
+-            { code: 'test', path: ['scenes', 1], message: '修正範圍' },
+-          ],
+-        },
+-      ),
+-    ).toContain('修正範圍');
+-  });
+-});
+-
+ describe('shared visual plan and locale manifest materialization', () => {
+   it('rejects broken source references, unstable ids, sentence gaps, and reversed ranges', () => {
+     const validScene = {
+--- zapEngine-original/apps/podcast-pipeline/src/services/video-jobs.test.ts	2026-09-07 07:36:57.000000000 +0000
++++ zapEngine-branch/apps/podcast-pipeline/src/services/video-jobs.test.ts	2026-09-07 07:42:17.630603262 +0000
+@@ -186,7 +186,7 @@
+         manifest: { schemaVersion: 'v1' },
+         manifestHash: 'manifest-hash',
+         rendererVersion: 'renderer-v1',
+-        storyboardProvider: 'nvidia',
++        storyboardProvider: 'deterministic',
+         storyboardModel: 'model',
+         storyboardPromptVersion: 'prompt-v1',
+         scriptHash: 'script-hash',
+--- zapEngine-original/apps/podcast-pipeline/src/services/video-worker.test.ts	2026-09-07 07:36:57.000000000 +0000
++++ zapEngine-branch/apps/podcast-pipeline/src/services/video-worker.test.ts	2026-09-07 07:42:17.630782800 +0000
+@@ -274,7 +274,7 @@
+           manifest: { schemaVersion: 'v1' },
+           manifestHash: 'manifest-hash',
+           rendererVersion: 'renderer-v1',
+-          storyboardProvider: 'nvidia',
++          storyboardProvider: 'deterministic',
+           storyboardModel: 'model',
+           storyboardPromptVersion: 'prompt-v1',
+           scriptHash: 'script-hash',
+@@ -1244,7 +1244,7 @@
+           manifest: { schemaVersion: 'v1' },
+           manifestHash: 'manifest-hash',
+           rendererVersion: 'renderer-v1',
+-          storyboardProvider: 'nvidia',
++          storyboardProvider: 'deterministic',
+           storyboardModel: 'model',
+           storyboardPromptVersion: 'prompt-v1',
+           scriptHash: 'script-hash',
+@@ -1326,7 +1326,7 @@
+           manifest: { schemaVersion: 'v1' },
+           manifestHash: 'manifest-hash',
+           rendererVersion: 'renderer-v1',
+-          storyboardProvider: 'nvidia',
++          storyboardProvider: 'deterministic',
+           storyboardModel: 'model',
+           storyboardPromptVersion: 'prompt-v1',
+           scriptHash: 'script-hash',
