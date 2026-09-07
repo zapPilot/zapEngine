@@ -13,9 +13,8 @@ import type { PodcastPlayer } from '@/integration/podcastPlayerTypes';
 import type { PendingPodcastPlaybackHandoff } from '@/integration/podcastPlayerShared';
 import {
   clampPodcastPlaybackSeconds,
+  createPodcastPlayerSnapshot,
   finiteSeconds,
-  hasNextPodcastEpisode,
-  hasPreviousPodcastEpisode,
   isSamePodcastEpisode,
 } from '@/integration/podcastPlayerShared';
 import type {
@@ -460,26 +459,21 @@ export function usePodcastPlayer(): PodcastPlayer {
     audioRef.current?.pause();
   }, [cancelPendingHandoff]);
 
-  return useMemo(
-    () => ({
+  return useMemo(() => {
+    // This pure helper only stores callbacks; it cannot invoke a ref-reading
+    // playback action while React is rendering.
+    // eslint-disable-next-line react-hooks/refs
+    return createPodcastPlayerSnapshot({
       nowPlaying,
       isPlaying,
-      currentTime: finiteSeconds(currentTime),
-      duration: finiteSeconds(duration),
+      currentTime,
+      duration,
       speed,
       sections,
       currentSection,
       currentSectionLanguage,
       queue: queueState.queue,
       queueIndex: queueState.queueIndex,
-      hasPreviousEpisode: hasPreviousPodcastEpisode(
-        queueState.queue,
-        queueState.queueIndex,
-      ),
-      hasNextEpisode: hasNextPodcastEpisode(
-        queueState.queue,
-        queueState.queueIndex,
-      ),
       pause,
       toggle: queueState.toggle,
       playFromQueue: queueState.playFromQueue,
@@ -491,23 +485,22 @@ export function usePodcastPlayer(): PodcastPlayer {
       skipToNextEpisode: queueState.skipToNextEpisode,
       skipToSection,
       setSpeed,
-    }),
-    [
-      currentTime,
-      duration,
-      isPlaying,
-      queueState,
-      nowPlaying,
-      pause,
-      seek,
-      seekRelative,
-      setSpeed,
-      speed,
-      sections,
-      currentSection,
-      currentSectionLanguage,
-      skipToSection,
-    ],
-  );
+    });
+  }, [
+    currentTime,
+    duration,
+    isPlaying,
+    queueState,
+    nowPlaying,
+    pause,
+    seek,
+    seekRelative,
+    setSpeed,
+    speed,
+    sections,
+    currentSection,
+    currentSectionLanguage,
+    skipToSection,
+  ]);
   // jscpd:ignore-end
 }
