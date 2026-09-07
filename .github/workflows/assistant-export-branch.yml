@@ -1,23 +1,51 @@
-name: Assistant export branch source
+name: Assistant finalize LLM cleanup
 
 on:
   push:
     branches:
       - refactor/unify-llm-model-fallbacks
-  workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  export:
+  finalize:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - name: Pack source
-        run: tar --exclude=.git -czf /tmp/branch-source.tgz .
-      - uses: actions/upload-artifact@v4
         with:
-          name: assistant-branch-source
-          path: /tmp/branch-source.tgz
-          retention-days: 1
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-workspace
+      - name: Apply cleanup and format
+        run: |
+          git apply -p1 .github/assistant-cleanup.patch
+          pnpm exec prettier --write \
+            .agents/skills/podcast-translation-testing/SKILL.md \
+            apps/podcast-pipeline/README.md \
+            apps/podcast-pipeline/src/services/llm-model-fallback.ts \
+            apps/podcast-pipeline/src/services/llm-model-fallback.test.ts \
+            apps/podcast-pipeline/src/services/llm-shared-model-fallback.test.ts \
+            apps/podcast-pipeline/src/services/llm.ts \
+            apps/podcast-pipeline/src/services/translate.ts \
+            apps/podcast-pipeline/src/services/translate-paid-fallback.test.ts \
+            apps/podcast-pipeline/src/social/rednote-semantic-risk.ts \
+            apps/podcast-pipeline/src/social/rednote-semantic-risk-fallback.test.ts \
+            apps/podcast-pipeline/src/services/episode-video-visual-processor.ts \
+            apps/podcast-pipeline/src/services/episode-video-visual-processor.test.ts \
+            apps/podcast-pipeline/src/services/video/scene-alignment.ts \
+            apps/podcast-pipeline/src/services/video/scene-alignment.test.ts \
+            apps/podcast-pipeline/src/services/video/episode-video.test.ts \
+            apps/podcast-pipeline/src/services/video/storyboard/smoke-cli.ts \
+            apps/podcast-pipeline/src/services/video/storyboard/storyboard.test.ts \
+            apps/podcast-pipeline/src/services/video-jobs.test.ts \
+            apps/podcast-pipeline/src/services/video-worker.test.ts \
+            config/env.manifest.mjs
+          rm .github/assistant-cleanup.patch
+          rm .github/workflows/assistant-export-branch.yml
+      - name: Commit finalized cleanup
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "refactor(podcast): finish unified LLM cleanup"
+          git push origin HEAD:${GITHUB_REF_NAME}
