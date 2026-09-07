@@ -10,7 +10,10 @@ import {
   PODCAST_SPEED_PREFERENCES_STORAGE_KEY,
   type PodcastSpeedPreferences,
 } from '@/integration/podcastSections';
-import type { KeyValueStorage } from '@/storage/keyValueStorage';
+import {
+  createSerializedWriter,
+  type KeyValueStorage,
+} from '@/storage/keyValueStorage';
 
 export type PodcastKeyValueStorage = KeyValueStorage;
 
@@ -85,16 +88,7 @@ export function parseStoredPodcastProgress(
 export function createPodcastStorage(
   storage: PodcastKeyValueStorage,
 ): PodcastStorage {
-  let writeQueue = Promise.resolve();
-
-  const enqueueWrite = (key: string, value: string): Promise<void> => {
-    const write = writeQueue.then(
-      () => storage.setItem(key, value),
-      () => storage.setItem(key, value),
-    );
-    writeQueue = write.catch(() => undefined);
-    return writeQueue;
-  };
+  const writer = createSerializedWriter(storage);
 
   return {
     async loadPodcastProgress() {
@@ -107,7 +101,7 @@ export function createPodcastStorage(
       }
     },
     savePodcastProgress(progress) {
-      return enqueueWrite(
+      return writer.write(
         PODCAST_PROGRESS_STORAGE_KEY,
         JSON.stringify(progress),
       );
@@ -126,7 +120,7 @@ export function createPodcastStorage(
       }
     },
     savePodcastSpeedPreferences(preferences) {
-      return enqueueWrite(
+      return writer.write(
         PODCAST_SPEED_PREFERENCES_STORAGE_KEY,
         JSON.stringify(preferences),
       );
@@ -136,7 +130,7 @@ export function createPodcastStorage(
         // A screen can remount while its previous selection is still queued
         // behind another podcast write. Wait for writes already enqueued before
         // this read so the new mount cannot rehydrate a stale direction.
-        await writeQueue;
+        await writer.flush();
         return parseStoredPodcastSortDirection(
           await storage.getItem(PODCAST_SORT_DIRECTION_STORAGE_KEY),
         );
@@ -145,7 +139,7 @@ export function createPodcastStorage(
       }
     },
     savePodcastSortDirection(direction) {
-      return enqueueWrite(PODCAST_SORT_DIRECTION_STORAGE_KEY, direction);
+      return writer.write(PODCAST_SORT_DIRECTION_STORAGE_KEY, direction);
     },
   };
 }
