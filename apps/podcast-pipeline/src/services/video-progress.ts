@@ -1,3 +1,7 @@
+import type {
+  EpisodeVideoGenerationPublicStatus,
+  EpisodeVideoResponse,
+} from '../types.js';
 import type { EpisodeVideoJobStatus } from './video-jobs.js';
 
 /**
@@ -8,6 +12,52 @@ import type { EpisodeVideoJobStatus } from './video-jobs.js';
  * public number through it. Splitting the weights across writer and reader is
  * how the bar silently starts disagreeing with the pipeline.
  */
+
+/**
+ * Whitelist of statuses the API is allowed to expose. `db.ts`, `episode-feed-page.ts`
+ * and `video-status.ts` each read this raw DB column from a different projection
+ * (a plain PostgREST row, an RPC row, or a typed job row), so the guard takes the
+ * loosest of those shapes; a status outside the set means a schema value the
+ * client does not know about yet, and the row is dropped rather than leaked.
+ */
+export function isEpisodeVideoGenerationPublicStatus(
+  status: string | null,
+): status is EpisodeVideoGenerationPublicStatus {
+  return (
+    status === 'queued' ||
+    status === 'processing' ||
+    status === 'completed' ||
+    status === 'failed'
+  );
+}
+
+/**
+ * A completed job/row is only a playable video once every asset field is
+ * actually populated — a `completed` status can still be missing its URL or
+ * duration if the write that should have set them failed partway. Shared by
+ * every place that turns a DB row into the public `EpisodeVideoResponse`.
+ */
+export function completedVideoResponseFrom(row: {
+  status: string;
+  url: string | null | undefined;
+  thumbnailUrl: string | null | undefined;
+  durationSeconds: number | null | undefined;
+}): EpisodeVideoResponse | null {
+  if (row.status !== 'completed') return null;
+  const url = row.url?.trim();
+  const thumbnailUrl = row.thumbnailUrl?.trim();
+  const durationSeconds = row.durationSeconds;
+  if (
+    !url ||
+    !thumbnailUrl ||
+    typeof durationSeconds !== 'number' ||
+    !Number.isFinite(durationSeconds) ||
+    durationSeconds <= 0
+  ) {
+    return null;
+  }
+  return { url, thumbnailUrl, durationSeconds };
+}
 
 /** Stages the visual job can persist. Mirrored by a CHECK in migration 023. */
 export const VISUAL_JOB_PROGRESS_STAGES = [

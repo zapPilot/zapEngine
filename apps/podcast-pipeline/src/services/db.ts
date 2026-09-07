@@ -15,7 +15,6 @@ import type {
   EpisodeResponse,
   EpisodeRow,
   EpisodeStatus,
-  EpisodeVideoGenerationPublicStatus,
   EpisodeVideoGenerationSummary,
   EpisodeVideoResponse,
   LanguageClassroomLesson,
@@ -35,8 +34,10 @@ import {
   throwSupabaseError,
 } from './supabase-client.js';
 import {
+  completedVideoResponseFrom,
   composeEpisodeVideoProgress,
   type EpisodeVideoProgressJobState,
+  isEpisodeVideoGenerationPublicStatus,
 } from './video-progress.js';
 
 interface EpisodeVideoStatusProjection {
@@ -462,21 +463,12 @@ export async function listEpisodeVideoSummariesByLocalizationIds(
       continue;
     }
 
-    const url = row.mp4_url?.trim();
-    const thumbnailUrl = row.thumbnail_url?.trim();
-    const video =
-      row.status === 'completed' &&
-      url &&
-      thumbnailUrl &&
-      typeof row.duration_seconds === 'number' &&
-      Number.isFinite(row.duration_seconds) &&
-      row.duration_seconds > 0
-        ? {
-            url,
-            thumbnailUrl,
-            durationSeconds: row.duration_seconds,
-          }
-        : null;
+    const video = completedVideoResponseFrom({
+      status: row.status,
+      url: row.mp4_url,
+      thumbnailUrl: row.thumbnail_url,
+      durationSeconds: row.duration_seconds,
+    });
 
     const progress = composeEpisodeVideoProgress({
       render: {
@@ -544,17 +536,6 @@ async function loadVisualProgressForQueuedRows(
   }
 
   return visuals;
-}
-
-function isEpisodeVideoGenerationPublicStatus(
-  status: string,
-): status is EpisodeVideoGenerationPublicStatus {
-  return (
-    status === 'queued' ||
-    status === 'processing' ||
-    status === 'completed' ||
-    status === 'failed'
-  );
 }
 
 export async function insertEpisode(episode: NewEpisode): Promise<EpisodeRow> {

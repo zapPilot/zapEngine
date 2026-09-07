@@ -3,7 +3,6 @@ import type {
   EpisodeClassroomTrackResponse,
   EpisodeFeedResponse,
   EpisodeFeedRow,
-  EpisodeVideoGenerationPublicStatus,
   EpisodeVideoGenerationSummary,
   EpisodeVideoResponse,
 } from '../types.js';
@@ -18,8 +17,10 @@ import {
   throwSupabaseError,
 } from './supabase-client.js';
 import {
+  completedVideoResponseFrom,
   composeEpisodeVideoProgress,
   type EpisodeVideoProgressJobState,
+  isEpisodeVideoGenerationPublicStatus,
 } from './video-progress.js';
 
 const EPISODE_FEED_RPC = 'list_episode_feed_page_v1';
@@ -113,43 +114,29 @@ function toEpisodeFeedRow(row: EpisodeFeedRpcRow): EpisodeFeedRow {
   };
 }
 
-// jscpd:ignore-start -- this is the RPC projection of the same public video
-// contract mapped in db.ts. Keeping the status/asset validation identical is a
-// compatibility requirement; the progress math itself remains centralized in
-// composeEpisodeVideoProgress rather than being copied into SQL.
 function toVideoSummary(row: EpisodeFeedRpcRow): {
   video: EpisodeVideoResponse | null;
   videoGeneration: EpisodeVideoGenerationSummary;
 } | null {
-  if (!isPublicStatus(row.video_status)) return null;
+  if (!isEpisodeVideoGenerationPublicStatus(row.video_status)) return null;
 
   const videoStatus = row.video_status;
-  const videoUrl = row.video_mp4_url?.trim();
-  const thumbnailUrl = row.video_thumbnail_url?.trim();
-  const video =
-    videoStatus === 'completed' &&
-    videoUrl &&
-    thumbnailUrl &&
-    typeof row.video_duration_seconds === 'number' &&
-    Number.isFinite(row.video_duration_seconds) &&
-    row.video_duration_seconds > 0
+  const video = completedVideoResponseFrom({
+    status: videoStatus,
+    url: row.video_mp4_url,
+    thumbnailUrl: row.video_thumbnail_url,
+    durationSeconds: row.video_duration_seconds,
+  });
+
+  const visual: EpisodeVideoProgressJobState | null =
+    isEpisodeVideoGenerationPublicStatus(row.visual_status)
       ? {
-          url: videoUrl,
-          thumbnailUrl,
-          durationSeconds: row.video_duration_seconds,
+          status: row.visual_status,
+          progressPercent: row.visual_progress_percent,
+          progressStage: row.visual_progress_stage,
+          updatedAt: row.visual_updated_at,
         }
       : null;
-
-  const visual: EpisodeVideoProgressJobState | null = isPublicStatus(
-    row.visual_status,
-  )
-    ? {
-        status: row.visual_status,
-        progressPercent: row.visual_progress_percent,
-        progressStage: row.visual_progress_stage,
-        updatedAt: row.visual_updated_at,
-      }
-    : null;
   const progress = composeEpisodeVideoProgress({
     render: {
       status: videoStatus,
@@ -170,15 +157,3 @@ function toVideoSummary(row: EpisodeFeedRpcRow): {
     },
   };
 }
-
-function isPublicStatus(
-  status: string | null,
-): status is EpisodeVideoGenerationPublicStatus {
-  return (
-    status === 'queued' ||
-    status === 'processing' ||
-    status === 'completed' ||
-    status === 'failed'
-  );
-}
-// jscpd:ignore-end
