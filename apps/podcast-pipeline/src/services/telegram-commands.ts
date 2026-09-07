@@ -4,6 +4,7 @@ import { errorMessage } from '../lib/errorMessage.js';
 import type { LanguageClassroomLanguageCode } from '../types.js';
 import { isEpisodeId, parseInputUrl } from './request-validation.js';
 import { getPipelineSupabase, throwSupabaseError } from './supabase-client.js';
+import { many, maybeOne } from './supabase-rows.js';
 import {
   answerTelegramCallbackQuery,
   TELEGRAM_HELP_TEXT,
@@ -47,12 +48,13 @@ export async function resolveTelegramEpisodeTarget(
   const input = value.trim();
   const supabase = getPipelineSupabase();
   if (isEpisodeId(input)) {
-    const { data, error } = await supabase
-      .from('episodes')
-      .select('id,source_url')
-      .eq('id', input)
-      .maybeSingle<{ id: string; source_url: string }>();
-    if (error) throwSupabaseError(error);
+    const data = await maybeOne<{ id: string; source_url: string }>(
+      supabase
+        .from('episodes')
+        .select('id,source_url')
+        .eq('id', input)
+        .maybeSingle<{ id: string; source_url: string }>(),
+    );
     return data ? { episodeId: data.id, sourceUrl: data.source_url } : null;
   }
 
@@ -62,14 +64,15 @@ export async function resolveTelegramEpisodeTarget(
   } catch {
     return null;
   }
-  const { data, error } = await supabase
-    .from('episodes')
-    .select('id,source_url')
-    .eq('source_url', sourceUrl)
-    .order('created_at', { ascending: false })
-    .limit(1);
-  if (error) throwSupabaseError(error);
-  const row = Array.isArray(data) ? data[0] : undefined;
+  const rows = await many<{ id: string; source_url: string }>(
+    supabase
+      .from('episodes')
+      .select('id,source_url')
+      .eq('source_url', sourceUrl)
+      .order('created_at', { ascending: false })
+      .limit(1),
+  );
+  const row = rows[0];
   return row ? { episodeId: row.id, sourceUrl: row.source_url } : null;
 }
 
@@ -190,13 +193,13 @@ export async function handleTelegramStatusCommand(
 async function loadLocalizationStatuses(
   episodeId: string,
 ): Promise<LocalizationStatusRow[]> {
-  const { data, error } = await getPipelineSupabase()
-    .from('episode_localizations')
-    .select('id,language_code,status,script,hls_url,classroom_hls_url')
-    .eq('episode_id', episodeId)
-    .in('language_code', [...PRIMARY_LANGUAGES]);
-  if (error) throwSupabaseError(error);
-  return data ?? [];
+  return many<LocalizationStatusRow>(
+    getPipelineSupabase()
+      .from('episode_localizations')
+      .select('id,language_code,status,script,hls_url,classroom_hls_url')
+      .eq('episode_id', episodeId)
+      .in('language_code', [...PRIMARY_LANGUAGES]),
+  );
 }
 
 function audioReady(rows: readonly LocalizationStatusRow[]): boolean {

@@ -12,6 +12,7 @@ import {
   type PipelineSupabaseClient,
   throwSupabaseError,
 } from './supabase-client.js';
+import { maybeOne } from './supabase-rows.js';
 import type { EpisodeVideoProgressUpdate } from './video-progress.js';
 
 // Re-exported so every existing pipeline importer keeps one import site; the
@@ -424,14 +425,14 @@ export function createVideoVisualJobRepository(
       );
     },
 
-    async find(episodeId: string): Promise<EpisodeVideoVisualJobRow | null> {
-      const { data, error } = await supabase
-        .from('episode_video_visuals')
-        .select('*')
-        .eq('episode_id', episodeId)
-        .maybeSingle<EpisodeVideoVisualJobRow>();
-      if (error) throwSupabaseError(error);
-      return data;
+    find(episodeId: string): Promise<EpisodeVideoVisualJobRow | null> {
+      return maybeOne<EpisodeVideoVisualJobRow>(
+        supabase
+          .from('episode_video_visuals')
+          .select('*')
+          .eq('episode_id', episodeId)
+          .maybeSingle<EpisodeVideoVisualJobRow>(),
+      );
     },
 
     loadSource(episodeId: string): Promise<EpisodeVideoVisualSource> {
@@ -541,16 +542,14 @@ export function createVideoJobRepository(
       });
     },
 
-    async find(
-      episodeLocalizationId: string,
-    ): Promise<EpisodeVideoJobRow | null> {
-      const { data, error } = await supabase
-        .from('episode_videos')
-        .select('*')
-        .eq('episode_localization_id', episodeLocalizationId)
-        .maybeSingle<EpisodeVideoJobRow>();
-      if (error) throwSupabaseError(error);
-      return data;
+    find(episodeLocalizationId: string): Promise<EpisodeVideoJobRow | null> {
+      return maybeOne<EpisodeVideoJobRow>(
+        supabase
+          .from('episode_videos')
+          .select('*')
+          .eq('episode_localization_id', episodeLocalizationId)
+          .maybeSingle<EpisodeVideoJobRow>(),
+      );
     },
 
     loadSource(episodeLocalizationId: string): Promise<EpisodeVideoSource> {
@@ -560,11 +559,11 @@ export function createVideoJobRepository(
     async reapFailedNotifications(
       limit = 20,
     ): Promise<EpisodeVideoFailureNotification[]> {
-      const { data, error } = await supabase.rpc(
-        'reap_failed_episode_video_notifications',
-        { p_limit: limit },
+      const data = await maybeOne<unknown>(
+        supabase.rpc('reap_failed_episode_video_notifications', {
+          p_limit: limit,
+        }),
       );
-      if (error) throwSupabaseError(error);
       if (!Array.isArray(data)) return [];
       const rows = data as EpisodeVideoFailureNotificationRow[];
       // The reap RPC does not return the failed lane's language, so it is read
@@ -765,10 +764,11 @@ async function loadLocalization(
   supabase: PipelineSupabaseClient,
   episodeLocalizationId: string,
 ): Promise<EpisodeVideoSourceLocalizationRow> {
-  const { data, error } = await localizationBaseQuery(supabase)
-    .eq('id', episodeLocalizationId)
-    .maybeSingle<EpisodeVideoSourceLocalizationRow>();
-  if (error) throwSupabaseError(error);
+  const data = await maybeOne<EpisodeVideoSourceLocalizationRow>(
+    localizationBaseQuery(supabase)
+      .eq('id', episodeLocalizationId)
+      .maybeSingle<EpisodeVideoSourceLocalizationRow>(),
+  );
   if (!data) throw new Error('Video job localization not found');
   return data;
 }
@@ -779,11 +779,12 @@ async function loadLocalizationByLanguage(
   languageCode: string,
   label: string,
 ): Promise<EpisodeVideoSourceLocalizationRow> {
-  const { data, error } = await localizationBaseQuery(supabase)
-    .eq('episode_id', episodeId)
-    .eq('language_code', languageCode)
-    .maybeSingle<EpisodeVideoSourceLocalizationRow>();
-  if (error) throwSupabaseError(error);
+  const data = await maybeOne<EpisodeVideoSourceLocalizationRow>(
+    localizationBaseQuery(supabase)
+      .eq('episode_id', episodeId)
+      .eq('language_code', languageCode)
+      .maybeSingle<EpisodeVideoSourceLocalizationRow>(),
+  );
   if (!data) throw new Error(`${label} video localization not found`);
   assertRenderableLocalization(data);
   return data;
@@ -793,12 +794,13 @@ async function loadEpisode(
   supabase: PipelineSupabaseClient,
   episodeId: string,
 ): Promise<EpisodeVideoSourceEpisodeRow> {
-  const { data, error } = await supabase
-    .from('episodes')
-    .select('id, source_url, source_title')
-    .eq('id', episodeId)
-    .maybeSingle<EpisodeVideoSourceEpisodeRow>();
-  if (error) throwSupabaseError(error);
+  const data = await maybeOne<EpisodeVideoSourceEpisodeRow>(
+    supabase
+      .from('episodes')
+      .select('id, source_url, source_title')
+      .eq('id', episodeId)
+      .maybeSingle<EpisodeVideoSourceEpisodeRow>(),
+  );
   if (!data) throw new Error('Video job episode not found');
   return data;
 }
@@ -807,14 +809,15 @@ async function loadCompletedVisual(
   supabase: PipelineSupabaseClient,
   episodeId: string,
 ): Promise<CompletedEpisodeVideoVisualRow> {
-  const { data, error } = await supabase
-    .from('episode_video_visuals')
-    .select(
-      'episode_id, status, visual_payload, visual_hash, visual_version, source_hash, r2_prefix',
-    )
-    .eq('episode_id', episodeId)
-    .maybeSingle<CompletedEpisodeVideoVisualRow>();
-  if (error) throwSupabaseError(error);
+  const data = await maybeOne<CompletedEpisodeVideoVisualRow>(
+    supabase
+      .from('episode_video_visuals')
+      .select(
+        'episode_id, status, visual_payload, visual_hash, visual_version, source_hash, r2_prefix',
+      )
+      .eq('episode_id', episodeId)
+      .maybeSingle<CompletedEpisodeVideoVisualRow>(),
+  );
   if (
     data?.status !== 'completed' ||
     !data.visual_payload ||
@@ -854,8 +857,7 @@ async function callRowRpc<T>(
   name: string,
   parameters: Record<string, unknown>,
 ): Promise<T | null> {
-  const { data, error } = await supabase.rpc(name, parameters);
-  if (error) throwSupabaseError(error);
+  const data = await maybeOne<unknown>(supabase.rpc(name, parameters));
   if (!Array.isArray(data)) return null;
   return (data[0] as T | undefined) ?? null;
 }
@@ -865,7 +867,6 @@ async function callBooleanRpc(
   name: string,
   parameters: Record<string, unknown>,
 ): Promise<boolean> {
-  const { data, error } = await supabase.rpc(name, parameters);
-  if (error) throwSupabaseError(error);
+  const data = await maybeOne<unknown>(supabase.rpc(name, parameters));
   return data === true;
 }

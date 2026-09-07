@@ -10,6 +10,7 @@ import {
   type PipelineSupabaseClient,
   throwSupabaseError,
 } from './supabase-client.js';
+import { many } from './supabase-rows.js';
 import {
   buildTelegramRenderFleetWarningMessage,
   buildTelegramRenderWakeFailedMessage,
@@ -168,14 +169,14 @@ export function createRenderWorkProbe(
     async loadSnapshot(): Promise<RenderWorkSnapshot> {
       const supabase = client ?? getPipelineSupabase();
       const [videos, visuals, visualFailureNotices] = await Promise.all([
-        selectRows<VideoWorkRow>(
+        many<VideoWorkRow>(
           supabase
             .from('episode_videos')
             .select(VIDEO_WORK_FIELDS)
             .in('status', ACTIVE_JOB_STATUSES)
             .returns<VideoWorkRow[]>(),
         ),
-        selectRows<VisualWorkRow>(
+        many<VisualWorkRow>(
           supabase
             .from('episode_video_visuals')
             .select(VISUAL_WORK_FIELDS)
@@ -200,7 +201,7 @@ export function createRenderWorkProbe(
       const completedVisuals =
         missingEpisodeIds.length === 0
           ? []
-          : await selectRows<VisualWorkRow>(
+          : await many<VisualWorkRow>(
               supabase
                 .from('episode_video_visuals')
                 .select(VISUAL_WORK_FIELDS)
@@ -542,14 +543,4 @@ async function loadOptionalVisualFailureNotices(
     throwSupabaseError(error);
   }
   return (data ?? []) as VisualFailureNoticeWork[];
-}
-
-async function selectRows<T>(
-  query: PromiseLike<{ data: T[] | null; error: unknown }>,
-): Promise<T[]> {
-  const { data, error } = await query;
-  if (error) {
-    throwSupabaseError(error);
-  }
-  return data ?? [];
 }
