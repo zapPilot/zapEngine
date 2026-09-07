@@ -12,7 +12,6 @@ import {
 import {
   formatPodcastClock,
   formatPodcastEpisodeDate,
-  languageBadgeFor,
 } from '@/components/podcast/episodeFormatters';
 import {
   estimateTranscriptTiming,
@@ -22,6 +21,7 @@ import { Card } from '@/components/ui/Card';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { Tap } from '@/components/ui/Tap';
+import { contentLanguageBadge } from '@/config/contentLanguages';
 import {
   resolveActiveMediaClock,
   type EpisodeMediaClock,
@@ -147,7 +147,7 @@ function LanguageClassroomSection({
             <View className="flex-row items-start gap-3">
               <View className="rounded-full border border-[rgba(212,197,163,.3)] bg-[rgba(212,197,163,.12)] px-3 py-1">
                 <Text className="font-mono text-[10px] font-bold text-accent">
-                  {languageBadgeFor(lesson.targetLanguageCode)}
+                  {contentLanguageBadge(lesson.targetLanguageCode)}
                 </Text>
               </View>
               <Text className="min-w-0 flex-1 font-sans-semibold text-[13px] leading-[19px] text-ink">

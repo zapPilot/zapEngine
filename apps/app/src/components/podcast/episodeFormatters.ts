@@ -1,5 +1,5 @@
 import {
-  CONTENT_LANGUAGE_OPTIONS,
+  contentLanguageBadge,
   type ContentLanguageCode,
 } from '@/config/contentLanguages';
 import type { TranslationKey } from '@/i18n/translations';
@@ -26,13 +26,6 @@ export function formatPodcastClock(totalSeconds: number): string {
   return `${minutes}:${String(rest).padStart(2, '0')}`;
 }
 
-export function languageBadgeFor(languageCode: string): string {
-  return (
-    CONTENT_LANGUAGE_OPTIONS.find((option) => option.code === languageCode)
-      ?.badge ?? languageCode.slice(0, 2).toUpperCase()
-  );
-}
-
 /** Human-readable label for a classroom section's target language (e.g. a chip or pill). */
 export function classroomLanguageLabel(
   languageCode: string,
@@ -40,7 +33,7 @@ export function classroomLanguageLabel(
 ): string {
   if (languageCode === 'ja') return t('language.japanese');
   if (languageCode === 'en') return t('language.english');
-  return languageBadgeFor(languageCode);
+  return contentLanguageBadge(languageCode);
 }
 
 const PODCAST_PLAYBACK_SPEEDS = [0.8, 1, 1.25, 1.5, 2] as const;

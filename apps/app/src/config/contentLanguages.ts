@@ -30,3 +30,11 @@ export function isContentLanguageCode(
 ): value is ContentLanguageCode {
   return CONTENT_LANGUAGE_OPTIONS.some((option) => option.code === value);
 }
+
+/** Compact badge for a language code (e.g. a chip or pill), falling back to its first two letters. */
+export function contentLanguageBadge(languageCode: string): string {
+  return (
+    CONTENT_LANGUAGE_OPTIONS.find((option) => option.code === languageCode)
+      ?.badge ?? languageCode.slice(0, 2).toUpperCase()
+  );
+}
