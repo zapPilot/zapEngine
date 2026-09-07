@@ -188,16 +188,18 @@ def get_daily_suggestion(
         logger.warning("Market data unavailable for user %s: %s", user_id, error)
         raise market_data_unavailable_http_exception(error) from error
     except ValueError as error:
-        # A ValueError is only a caller error when it is caused by an explicit
-        # config selection. Internal strategy/data/serialization ValueErrors
-        # must surface as 500 so backend observability can see the failure.
+        # Unknown config ids are caller errors even when the service test seam
+        # raises them without the original query param. Unsupported presets are
+        # caller errors only when the caller explicitly selected one. Everything
+        # else is an internal strategy/data/serialization failure and must be 500.
         detail = str(error)
-        is_config_request_error = config_id is not None and (
-            detail.startswith("Unknown config_id ")
-            or "does not support /daily-suggestion" in detail
+        is_config_request_error = detail.startswith("Unknown config_id ") or (
+            config_id is not None and "does not support /daily-suggestion" in detail
         )
         if is_config_request_error:
-            logger.warning("Invalid daily suggestion config for user %s: %s", user_id, error)
+            logger.warning(
+                "Invalid daily suggestion config for user %s: %s", user_id, error
+            )
             raise HTTPException(status_code=400, detail=detail) from error
         logger.exception("Internal daily suggestion ValueError for user %s", user_id)
         raise HTTPException(
