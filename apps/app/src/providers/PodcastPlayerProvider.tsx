@@ -10,6 +10,7 @@ import {
 } from 'react';
 
 import { usePodcastPlayer as usePodcastPlayerModel } from '@/integration/podcastPlayer';
+import type { PodcastEpisode } from '@/integration/podcastFeed';
 import type { PodcastPlayer } from '@/integration/podcastPlayerTypes';
 import { trackEvent } from '@/observability/analytics';
 import { useAuthenticatedAction } from '@/providers/AuthenticatedActionProvider';
@@ -55,32 +56,24 @@ export function PodcastPlayerProvider({
     });
   }, [currentLocalizationId, episodeId, isPlaying, languageCode]);
 
-  // jscpd:ignore-start — playback actions share the same auth+gating pattern
-  const toggle = useCallback<PodcastPlayer['toggle']>(
-    (episode) =>
+  const startAudio = useCallback(
+    (episode: PodcastEpisode, run: () => void) =>
       authAction.run(() => {
         const startsAudio =
           currentLocalizationId !== episode.localizationId || !isPlaying;
         if (startsAudio) pauseActiveVideo();
-        rawToggle(episode);
+        run();
       }),
-    [authAction, currentLocalizationId, isPlaying, pauseActiveVideo, rawToggle],
+    [authAction, currentLocalizationId, isPlaying, pauseActiveVideo],
+  );
+  const toggle = useCallback<PodcastPlayer['toggle']>(
+    (episode) => startAudio(episode, () => rawToggle(episode)),
+    [rawToggle, startAudio],
   );
   const playFromQueue = useCallback<PodcastPlayer['playFromQueue']>(
     (episodes, episode) =>
-      authAction.run(() => {
-        const startsAudio =
-          currentLocalizationId !== episode.localizationId || !isPlaying;
-        if (startsAudio) pauseActiveVideo();
-        rawPlayFromQueue(episodes, episode);
-      }),
-    [
-      authAction,
-      currentLocalizationId,
-      isPlaying,
-      pauseActiveVideo,
-      rawPlayFromQueue,
-    ],
+      startAudio(episode, () => rawPlayFromQueue(episodes, episode)),
+    [rawPlayFromQueue, startAudio],
   );
   const playFromQueueAt = useCallback<PodcastPlayer['playFromQueueAt']>(
     (episodes, episode, seconds, shouldPlay = true) =>
@@ -100,7 +93,6 @@ export function PodcastPlayerProvider({
       }),
     [authAction, pauseActiveVideo, rawPlaySectionFromQueue],
   );
-  // jscpd:ignore-end
   const skipToPreviousEpisode = useCallback<
     PodcastPlayer['skipToPreviousEpisode']
   >(() => {
