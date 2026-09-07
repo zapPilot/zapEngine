@@ -26,6 +26,7 @@ import {
 } from '@/integration/depositTokens';
 import {
   amountInputToUsd6,
+  amountUsdFromInput,
   type InvestScope,
   type SingleChainFundingDraft,
 } from '@/integration/investAmountModel';
@@ -61,6 +62,17 @@ export interface InvestContextValue {
 
 const InvestContext = createContext<InvestContextValue | null>(null);
 
+// Wraps a plain state setter so any further edit to the draft drops the
+// frozen single-chain amount/baseline computed for the previous input.
+function withFreezeClear<T>(
+  setter: (value: T) => void,
+  clearFrozenExecution: () => void,
+  value: T,
+): void {
+  setter(value);
+  clearFrozenExecution();
+}
+
 /**
  * Holds the invest-flow draft (the USD amount) so the amount, route, and
  * confirm steps share one source of truth. Wrapped around the three
@@ -71,7 +83,7 @@ export function InvestProvider({ children }: { children: ReactNode }) {
   const [scope, setScopeState] = useState<InvestScope>('both');
   const [destination, setDestinationState] =
     useState<InvestDestination>('strategy');
-  const amountUsd = Number.parseFloat(amountInput.replace(/,/gu, '')) || 0;
+  const amountUsd = amountUsdFromInput(amountInput) ?? 0;
   const [baseFundingToken, setBaseFundingTokenState] =
     useState<DesktopDepositToken>(DEFAULT_BASE_FUNDING_TOKEN);
   const [arbitrumFundingToken, setArbitrumFundingTokenState] =
@@ -85,10 +97,8 @@ export function InvestProvider({ children }: { children: ReactNode }) {
     setHlpBaselineUsd6(null);
   }, []);
   const setAmountInput = useCallback(
-    (value: string) => {
-      setAmountInputState(value);
-      clearFrozenExecution();
-    },
+    (value: string) =>
+      withFreezeClear(setAmountInputState, clearFrozenExecution, value),
     [clearFrozenExecution],
   );
   const setScope = useCallback(
@@ -100,24 +110,22 @@ export function InvestProvider({ children }: { children: ReactNode }) {
     [clearFrozenExecution],
   );
   const setDestination = useCallback(
-    (value: InvestDestination) => {
-      setDestinationState(value);
-      clearFrozenExecution();
-    },
+    (value: InvestDestination) =>
+      withFreezeClear(setDestinationState, clearFrozenExecution, value),
     [clearFrozenExecution],
   );
   const setBaseFundingToken = useCallback(
-    (value: DesktopDepositToken) => {
-      setBaseFundingTokenState(value);
-      clearFrozenExecution();
-    },
+    (value: DesktopDepositToken) =>
+      withFreezeClear(setBaseFundingTokenState, clearFrozenExecution, value),
     [clearFrozenExecution],
   );
   const setArbitrumFundingToken = useCallback(
-    (value: DesktopDepositToken) => {
-      setArbitrumFundingTokenState(value);
-      clearFrozenExecution();
-    },
+    (value: DesktopDepositToken) =>
+      withFreezeClear(
+        setArbitrumFundingTokenState,
+        clearFrozenExecution,
+        value,
+      ),
     [clearFrozenExecution],
   );
 
