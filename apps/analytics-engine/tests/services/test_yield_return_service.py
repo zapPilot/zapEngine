@@ -14,7 +14,7 @@ from src.services.yield_return_service import YieldReturnService
 
 
 class StubQueryService:
-    """Minimal stub implementing the async fetch API, dispatching by query name."""
+    """Minimal stub implementing the sync fetch API, dispatching by query name."""
 
     def __init__(
         self,
@@ -26,7 +26,7 @@ class StubQueryService:
         self.last_call: dict[str, Any] | None = None
         self.calls: dict[str, dict[str, Any]] = {}
 
-    async def fetch_time_range_query(
+    def fetch_time_range_query(
         self,
         db,
         query_name: str,

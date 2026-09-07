@@ -101,8 +101,7 @@ class TestEnhancedQueryService:
         assert len(QueryService._query_cache) == 0
         assert QueryService._cache_initialized is False
 
-    @pytest.mark.asyncio
-    async def test_fetch_time_range_query_builds_params(self):
+    def test_fetch_time_range_query_builds_params(self):
         """fetch_time_range_query forwards normalized params to execute_query."""
         service = QueryService()
         user_id = UUID("5fc63d4e-4e07-47d8-840b-ccd3420d553f")
@@ -112,7 +111,7 @@ class TestEnhancedQueryService:
         with patch.object(
             service, "execute_query", return_value=[{"rows": 1}]
         ) as mock_execute:
-            result = await service.fetch_time_range_query(
+            result = service.fetch_time_range_query(
                 db="session",
                 query_name="get_portfolio_daily_yield",
                 user_id=user_id,
@@ -136,14 +135,13 @@ class TestEnhancedQueryService:
         )
         assert result == [{"rows": 1}]
 
-    @pytest.mark.asyncio
-    async def test_fetch_time_range_query_optional_params(self):
+    def test_fetch_time_range_query_optional_params(self):
         """Optional args should be excluded when not provided."""
         service = QueryService()
         start_date = datetime(2025, 11, 1, 12, 0, tzinfo=UTC)
 
         with patch.object(service, "execute_query", return_value=[]) as mock_execute:
-            result = await service.fetch_time_range_query(
+            result = service.fetch_time_range_query(
                 db="session",
                 query_name="get_portfolio_daily_yield",
                 user_id="user-123",
@@ -161,15 +159,14 @@ class TestEnhancedQueryService:
         )
         assert result == []
 
-    @pytest.mark.asyncio
-    async def test_fetch_time_range_query_coerces_date_params(self):
+    def test_fetch_time_range_query_coerces_date_params(self):
         """Date inputs should be coerced to midnight datetimes."""
         service = QueryService()
         start_date = date(2025, 11, 1)
         end_date = date(2025, 11, 8)
 
         with patch.object(service, "execute_query", return_value=[]) as mock_execute:
-            result = await service.fetch_time_range_query(
+            result = service.fetch_time_range_query(
                 db="session",
                 query_name="get_portfolio_daily_yield",
                 user_id="user-123",

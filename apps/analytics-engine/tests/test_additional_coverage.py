@@ -68,7 +68,9 @@ def test_cache_service_evicts_expired_entries(caplog: pytest.LogCaptureFixture) 
     with cache._lock:  # pylint: disable=protected-access
         cache._cache["key"].expires_at = datetime.now(UTC) - timedelta(seconds=1)  # type: ignore[index]
 
-    caplog.set_level(logging.DEBUG)
+    # The application logger carries an explicit INFO level, so DEBUG has to be
+    # asked for by name rather than inherited from the root logger.
+    caplog.set_level(logging.DEBUG, logger="src")
     cache._evict_expired()  # pylint: disable=protected-access
 
     stats = cache.get_stats()

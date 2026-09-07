@@ -195,7 +195,7 @@ class QueryService:
         """Execute a SQL query and return all results."""
         return self._execute(db, query_name, params or {}, single=False)
 
-    async def fetch_time_range_query(
+    def fetch_time_range_query(
         self,
         db: Session,
         query_name: str,
@@ -208,6 +208,9 @@ class QueryService:
         extra_params: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         """Execute a query constrained to a date range.
+
+        Blocking: ``db`` is a synchronous SQLAlchemy Session, so callers running
+        under an event loop must dispatch this through ``run_in_threadpool``.
 
         Args:
             db: Active database session.

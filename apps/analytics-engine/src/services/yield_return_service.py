@@ -15,6 +15,7 @@ from uuid import UUID
 
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 from src.core.filter_utils import normalize_filter
 from src.models.yield_returns import (
@@ -54,7 +55,15 @@ class StakingAprProvider(Protocol):
 
 
 class YieldReturnService(BaseAnalyticsService):
-    """Service responsible for Yield Return computations."""
+    """Service responsible for Yield Return computations.
+
+    Every database call here runs through ``run_in_threadpool``: the routes are
+    ``async def``, so a synchronous ``Session.execute`` would otherwise hold the
+    event loop for the full 3-77s of a yield query and stall every other
+    response, ``/healthz`` included. The offloaded calls stay strictly
+    sequential because ``self.db`` is a single Session shared by this request;
+    two threads must never touch it at once.
+    """
 
     # v2 adds wallet_returns and the per-delta outlier flag; a v1 entry cached
     # for its full 12 hours would otherwise serve the old shape after deploy.
@@ -205,7 +214,8 @@ class YieldReturnService(BaseAnalyticsService):
             return aggregate_benchmark_lst_exposure(rows)
 
         try:
-            exposure = self._with_cache(
+            exposure = await run_in_threadpool(
+                self._with_cache,
                 exposure_cache_key,
                 compute_exposure,
                 ttl_hours=ttl_hours,
@@ -243,7 +253,8 @@ class YieldReturnService(BaseAnalyticsService):
     ) -> tuple[datetime, datetime, list[dict[str, Any]]]:
         """Fetch snapshots and calculate significant token/USD balance deltas."""
         start_date, end_date = self.context.calculate_date_range(days)
-        rows = await self.query_service.fetch_time_range_query(
+        rows = await run_in_threadpool(
+            self.query_service.fetch_time_range_query,
             db=self.db,
             query_name=QUERY_NAMES.PORTFOLIO_YIELD_SNAPSHOTS,
             user_id=user_id,
@@ -273,7 +284,8 @@ class YieldReturnService(BaseAnalyticsService):
         price move would silently reappear as an unexplained residual, which is
         worse than the frontend hiding the breakdown entirely.
         """
-        rows = await self.query_service.fetch_time_range_query(
+        rows = await run_in_threadpool(
+            self.query_service.fetch_time_range_query,
             db=self.db,
             query_name=QUERY_NAMES.WALLET_TOKEN_ATTRIBUTION_SNAPSHOTS,
             user_id=user_id,

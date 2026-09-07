@@ -5,11 +5,12 @@ Quant Engine - Analytics backend for portfolio management and DeFi data aggregat
 
 import logging
 import os
+import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from typing import cast
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -22,6 +23,7 @@ from src.api.routers import (
     v2_portfolio,
     v3_strategy,
 )
+from src.core.cache_service import analytics_cache
 from src.core.config import settings
 from src.core.database import db_manager
 from src.core.database import health_check as db_health_check
@@ -31,7 +33,11 @@ from src.core.exceptions import (
     DataNotFoundError,
     ServiceError,
 )
+from src.core.logging_config import configure_logging, log_request_completion
 from src.core.sentry import capture_server_exception, init_sentry
+
+# Ahead of init_sentry so the Sentry startup line below is not itself discarded.
+configure_logging()
 
 logger = logging.getLogger(__name__)
 
@@ -179,6 +185,45 @@ async def data_integrity_error_handler(
 app.add_exception_handler(DataIntegrityError, data_integrity_error_handler)
 
 
+@app.middleware("http")
+async def record_request_timing(
+    request: Request,
+    call_next: Callable[[Request], Awaitable[Response]],
+) -> Response:
+    """Time every request so a slow handler leaves a trace behind it."""
+    started_at = time.perf_counter()
+    # An exception escaping here is turned into a 500 by ServerErrorMiddleware,
+    # which sits outside this middleware, so record it as one.
+    status_code = 500
+    try:
+        response = await call_next(request)
+        status_code = response.status_code
+        return response
+    finally:
+        log_request_completion(
+            method=request.method,
+            route=_route_template(request),
+            status_code=status_code,
+            duration_ms=(time.perf_counter() - started_at) * 1000,
+            user_id=_request_user_id(request),
+        )
+
+
+def _route_template(request: Request) -> str:
+    """Prefer the route pattern so per-user paths do not explode log cardinality."""
+    route_path = getattr(request.scope.get("route"), "path", None)
+    return route_path if isinstance(route_path, str) else request.url.path
+
+
+def _request_user_id(request: Request) -> str | None:
+    """Return the portfolio owner this request addressed, when the route has one."""
+    path_params = request.scope.get("path_params")
+    if not isinstance(path_params, dict):
+        return None
+    user_id = path_params.get("user_id")
+    return str(user_id) if user_id is not None else None
+
+
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -238,6 +283,7 @@ async def health_check() -> dict[str, object]:
         health_status["status"] = "unhealthy"
 
     checks["database"] = db_status
+    health_status["cache"] = analytics_cache.get_stats()
 
     if health_status["status"] == "unhealthy":
         raise HTTPException(status_code=503, detail=health_status)

@@ -280,7 +280,7 @@ class _QueryServiceStub:
         self.observed_rows = observed_rows
         self.exposure_rows = exposure_rows
 
-    async def fetch_time_range_query(
+    def fetch_time_range_query(
         self,
         db,
         query_name: str,
