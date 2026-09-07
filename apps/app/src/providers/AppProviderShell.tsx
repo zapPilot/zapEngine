@@ -78,6 +78,18 @@ function ConfigNoticeScreen({ target }: { target: string }): ReactElement {
   );
 }
 
+function ProviderChrome({ children }: { children: ReactNode }): ReactElement {
+  return (
+    <Sentry.ErrorBoundary
+      fallback={({ resetError }) => (
+        <CrashFallbackScreen resetError={resetError} />
+      )}
+    >
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    </Sentry.ErrorBoundary>
+  );
+}
+
 export function AppProviderShell(
   props: AppProviderShellProps,
 ): ReactElement | null {
@@ -124,46 +136,26 @@ export function AppProviderShell(
 
     if (!privy) {
       return (
-        <Sentry.ErrorBoundary
-          fallback={({ resetError }) => (
-            <CrashFallbackScreen resetError={resetError} />
-          )}
-        >
-          <QueryClientProvider client={queryClient}>
-            <ToastProvider>
-              <View className="flex-1 bg-bg" nativeID={runtimeConfig.runtime}>
-                <StatusBar style="light" />
-                <ConfigNoticeScreen target={props.missingConfigTarget} />
-              </View>
-            </ToastProvider>
-          </QueryClientProvider>
-        </Sentry.ErrorBoundary>
+        <ProviderChrome>
+          <ToastProvider>
+            <View className="flex-1 bg-bg" nativeID={runtimeConfig.runtime}>
+              <StatusBar style="light" />
+              <ConfigNoticeScreen target={props.missingConfigTarget} />
+            </View>
+          </ToastProvider>
+        </ProviderChrome>
       );
     }
 
     return (
-      <Sentry.ErrorBoundary
-        fallback={({ resetError }) => (
-          <CrashFallbackScreen resetError={resetError} />
-        )}
-      >
-        <QueryClientProvider client={queryClient}>
-          {props.renderWalletProviders(appContent, privy)}
-        </QueryClientProvider>
-      </Sentry.ErrorBoundary>
+      <ProviderChrome>
+        {props.renderWalletProviders(appContent, privy)}
+      </ProviderChrome>
     );
   }
 
   return (
-    <Sentry.ErrorBoundary
-      fallback={({ resetError }) => (
-        <CrashFallbackScreen resetError={resetError} />
-      )}
-    >
-      <QueryClientProvider client={queryClient}>
-        {props.renderWalletProviders(appContent)}
-      </QueryClientProvider>
-    </Sentry.ErrorBoundary>
+    <ProviderChrome>{props.renderWalletProviders(appContent)}</ProviderChrome>
   );
 }
 
