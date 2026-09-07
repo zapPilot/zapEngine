@@ -616,16 +616,12 @@ function getRetryDelayMs(response: Response | null, attempt: number): number {
     }
   }
 
-  const envDelay = process.env['FISH_AUDIO_RETRY_DELAY_MS']?.trim();
-  const baseDelay = envDelay
-    ? Number.parseInt(envDelay, 10)
-    : DEFAULT_RETRY_DELAY_MS;
-  const safeBaseDelay =
-    Number.isFinite(baseDelay) && baseDelay >= 0
-      ? baseDelay
-      : DEFAULT_RETRY_DELAY_MS;
-
-  return safeBaseDelay * attempt;
+  return (
+    getIntEnv('FISH_AUDIO_RETRY_DELAY_MS', {
+      default: DEFAULT_RETRY_DELAY_MS,
+      min: 0,
+    }) * attempt
+  );
 }
 
 export function buildFishAudioCostLine(
