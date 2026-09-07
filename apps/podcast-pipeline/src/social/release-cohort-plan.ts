@@ -29,7 +29,6 @@ export interface ReleaseScheduleUpdate {
 
 export interface ReleaseCohortPlan {
   updates: ReleaseScheduleUpdate[];
-  recoveryEpisodes: string[];
 }
 
 function earliestSchedule(rows: readonly ReleaseScheduleRow[]): Date {
@@ -134,7 +133,6 @@ export function planPendingSocialReleaseCohorts(
   }
 
   const updates: ReleaseScheduleUpdate[] = [];
-  const recoveryEpisodes: string[] = [];
   const unpublished: {
     episodeId: string;
     rows: ReleaseScheduleRow[];
@@ -146,7 +144,6 @@ export function planPendingSocialReleaseCohorts(
     const hasPending = group.some((row) => row.status !== 'completed');
     if (!hasPending) continue;
 
-    if (hasCompleted) recoveryEpisodes.push(episodeId);
     if (group.some((row) => row.status === 'processing')) continue;
 
     if (hasCompleted) {
@@ -191,5 +188,5 @@ export function planPendingSocialReleaseCohorts(
     updates.push(...pendingUpdates(cohort.rows, scheduledAt, 'reschedule'));
   }
 
-  return { updates, recoveryEpisodes };
+  return { updates };
 }

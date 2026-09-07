@@ -20,7 +20,6 @@ interface ReleaseQueueRow extends ReleaseScheduleRow {
 export interface ReleaseCohortAlignmentResult {
   alignedLanes: number;
   rescheduledEpisodes: number;
-  recoveryEpisodes: string[];
 }
 
 const RELEASE_QUEUE_PAGE_SIZE = 1000;
@@ -94,7 +93,6 @@ export async function alignPendingSocialReleaseCohorts(
   return {
     alignedLanes,
     rescheduledEpisodes: rescheduledEpisodes.size,
-    recoveryEpisodes: plan.recoveryEpisodes,
   };
 }
 

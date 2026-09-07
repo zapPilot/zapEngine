@@ -4,7 +4,6 @@ const mocks = vi.hoisted(() => ({
   alignPendingSocialReleaseCohorts: vi.fn().mockResolvedValue({
     alignedLanes: 0,
     rescheduledEpisodes: 0,
-    recoveryEpisodes: [],
   }),
   claimSocialPublishBatch: vi.fn().mockResolvedValue([]),
   completeSocialPublishJob: vi.fn(),
@@ -158,7 +157,6 @@ beforeEach(() => {
   mocks.alignPendingSocialReleaseCohorts.mockResolvedValue({
     alignedLanes: 0,
     rescheduledEpisodes: 0,
-    recoveryEpisodes: [],
   });
   mocks.claimSocialPublishBatch.mockResolvedValue([]);
   mocks.listUnfinishedSocialPublishJobs.mockResolvedValue([]);

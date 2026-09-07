@@ -56,7 +56,6 @@ vi.mock('./release-cohort-store.js', () => ({
   alignPendingSocialReleaseCohorts: vi.fn().mockResolvedValue({
     alignedLanes: 0,
     rescheduledEpisodes: 0,
-    recoveryEpisodes: [],
   }),
   listPartiallyPublishedCohorts: vi.fn().mockResolvedValue([]),
   claimReleaseCohortJobs: async (...args: unknown[]) => {

@@ -5,7 +5,6 @@ const mocks = vi.hoisted(() => ({
   alignPendingSocialReleaseCohorts: vi.fn().mockResolvedValue({
     alignedLanes: 0,
     rescheduledEpisodes: 0,
-    recoveryEpisodes: [],
   }),
   listPartiallyPublishedCohorts: vi.fn().mockResolvedValue([]),
   completeSocialPublishJob: vi.fn(),
@@ -207,7 +206,6 @@ beforeEach(() => {
   mocks.alignPendingSocialReleaseCohorts.mockReset().mockResolvedValue({
     alignedLanes: 0,
     rescheduledEpisodes: 0,
-    recoveryEpisodes: [],
   });
   mocks.listPartiallyPublishedCohorts.mockReset().mockResolvedValue([]);
   vi.clearAllMocks();
@@ -291,7 +289,6 @@ describe('social daemon', () => {
     mocks.alignPendingSocialReleaseCohorts.mockResolvedValue({
       alignedLanes: 3,
       rescheduledEpisodes: 1,
-      recoveryEpisodes: [],
     });
     const log = vi.fn();
 
