@@ -1,15 +1,6 @@
-import { randomBytes } from 'node:crypto';
-import {
-  chmod,
-  mkdir,
-  readFile,
-  rename,
-  unlink,
-  writeFile,
-} from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 
 import { toError } from '../lib/errorMessage.js';
 import {
@@ -17,10 +8,17 @@ import {
   nonemptyString,
 } from '../lib/typeGuards.js';
 import {
+  applyAuthorizationParams,
+  type AuthorizationUrlInput,
   createSecureState,
+  type OAuthLoopbackAuthOptions,
   openUrlInBrowser,
   respond,
 } from './oauth-loopback.js';
+import {
+  readJsonSessionFile,
+  writeJsonSessionFileAtomically,
+} from './session-file.js';
 
 const AUTHORIZE_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -63,15 +61,7 @@ export type YouTubeAuthorizationCodeWaiter = (
   input: YouTubeAuthorizationCallbackInput,
 ) => Promise<{ code: string; redirectUri: string }>;
 
-export interface YouTubeAuthOptions {
-  callbackTimeoutMs?: number;
-  createState?: () => string;
-  env?: NodeJS.ProcessEnv;
-  fetchImpl?: typeof fetch;
-  additionalScopes?: readonly string[];
-  now?: () => number;
-  openBrowser?: (url: string) => Promise<void>;
-  sessionPath?: string;
+export interface YouTubeAuthOptions extends OAuthLoopbackAuthOptions {
   waitForAuthorizationCode?: YouTubeAuthorizationCodeWaiter;
 }
 
@@ -86,23 +76,18 @@ class YouTubeOAuthError extends Error {
   }
 }
 
-export function buildYouTubeAuthorizationUrl(input: {
-  clientId: string;
-  redirectUri: string;
-  state: string;
-  scopes?: readonly string[];
-}): string {
+export function buildYouTubeAuthorizationUrl(
+  input: AuthorizationUrlInput & { clientId: string },
+): string {
   const url = new URL(AUTHORIZE_URL);
-  url.searchParams.set('client_id', input.clientId);
-  url.searchParams.set('redirect_uri', input.redirectUri);
-  url.searchParams.set('response_type', 'code');
-  url.searchParams.set(
-    'scope',
-    (input.scopes ?? [YOUTUBE_UPLOAD_SCOPE]).join(' '),
-  );
+  applyAuthorizationParams(url, {
+    clientId: input.clientId,
+    redirectUri: input.redirectUri,
+    state: input.state,
+    scope: (input.scopes ?? [YOUTUBE_UPLOAD_SCOPE]).join(' '),
+  });
   url.searchParams.set('access_type', 'offline');
   url.searchParams.set('prompt', 'consent');
-  url.searchParams.set('state', input.state);
   return url.href;
 }
 
@@ -110,23 +95,7 @@ export async function readYouTubeSession(input?: {
   sessionPath?: string;
 }): Promise<YouTubeSession | null> {
   const path = input?.sessionPath ?? DEFAULT_YOUTUBE_SESSION_PATH;
-  const raw = await readFile(path, 'utf8').catch(
-    (error: NodeJS.ErrnoException) => {
-      if (error.code === 'ENOENT') return null;
-      throw error;
-    },
-  );
-  if (raw === null) return null;
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw) as unknown;
-  } catch {
-    throw new YouTubeSessionInvalidError(
-      `Invalid YouTube session at ${path}. Run \`pnpm social:login\` to replace it.`,
-    );
-  }
-  return parseStoredSession(parsed, path);
+  return readJsonSessionFile(path, invalidStoredSession, parseStoredSession);
 }
 
 export async function writeYouTubeSession(
@@ -134,24 +103,7 @@ export async function writeYouTubeSession(
   input?: { sessionPath?: string },
 ): Promise<void> {
   const path = input?.sessionPath ?? DEFAULT_YOUTUBE_SESSION_PATH;
-  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
-
-  const suffix = randomBytes(8).toString('hex');
-  const temporaryPath = `${path}.tmp-${process.pid}-${suffix}`;
-  try {
-    await writeFile(temporaryPath, `${JSON.stringify(session, null, 2)}\n`, {
-      encoding: 'utf8',
-      flag: 'wx',
-      mode: 0o600,
-    });
-    await chmod(temporaryPath, 0o600);
-    await rename(temporaryPath, path);
-    await chmod(path, 0o600);
-  } finally {
-    await unlink(temporaryPath).catch((error: NodeJS.ErrnoException) => {
-      if (error.code !== 'ENOENT') throw error;
-    });
-  }
+  await writeJsonSessionFileAtomically(path, session);
 }
 
 export async function assertYouTubeSessionReady(
@@ -423,7 +375,7 @@ function readOAuthConfig(env: NodeJS.ProcessEnv): YouTubeOAuthConfig {
 }
 
 function parseStoredSession(value: unknown, path: string): YouTubeSession {
-  if (!isRecord(value)) throw invalidStoredSession(path);
+  if (!isRecord(value)) return invalidStoredSession(path);
   const version = value['version'];
   const accessToken = nonemptyString(value['accessToken']);
   const refreshToken = nonemptyString(value['refreshToken']);
@@ -436,14 +388,14 @@ function parseStoredSession(value: unknown, path: string): YouTubeSession {
     !positiveNumber(expiresAt) ||
     !scope
   ) {
-    throw invalidStoredSession(path);
+    return invalidStoredSession(path);
   }
   assertUploadScope(scope);
   return { version: 1, accessToken, refreshToken, expiresAt, scope };
 }
 
-function invalidStoredSession(path: string): YouTubeSessionInvalidError {
-  return new YouTubeSessionInvalidError(
+function invalidStoredSession(path: string): never {
+  throw new YouTubeSessionInvalidError(
     `Invalid YouTube session at ${path}. Run \`pnpm social:login\` to replace it.`,
   );
 }
