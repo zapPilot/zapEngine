@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ChevronLeft, Share2 } from 'lucide-react-native';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Share, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -209,7 +209,14 @@ function EpisodeTranscript({
     audioDurationSeconds: player.duration,
   });
   const activeDuration = activeClock?.durationSeconds ?? 0;
-  const segments = estimateTranscriptTiming(episode.script, activeDuration);
+  const segments = useMemo(
+    () =>
+      estimateTranscriptTiming(
+        episode.script,
+        activeClock?.durationSeconds ?? 0,
+      ),
+    [episode.script, activeClock?.durationSeconds],
+  );
   const currentIndex =
     activeClock !== null && activeDuration > 0
       ? currentTranscriptIndex(segments, activeClock.currentTimeSeconds)
