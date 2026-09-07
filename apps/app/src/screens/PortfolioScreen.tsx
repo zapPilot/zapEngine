@@ -21,6 +21,7 @@ import { Tap } from '@/components/ui/Tap';
 import { DEMO } from '@/data/demo';
 import { useAccount } from '@/integration/useAccount';
 import {
+  DEFAULT_PORTFOLIO_RANGE,
   type PortfolioRange,
   type PortfolioViewData,
   usePortfolioData,
@@ -53,7 +54,7 @@ const METRIC_TRANSLATION_KEYS: Readonly<Record<string, TranslationKey>> = {
 };
 
 export function PortfolioScreen() {
-  const [range, setRange] = useState<PortfolioRange>('1Y');
+  const [range, setRange] = useState<PortfolioRange>(DEFAULT_PORTFOLIO_RANGE);
   const { languageCode, t } = useContentLanguage();
   const account = useAccount();
   const result = usePortfolioData(account.viewingUserId, range, {
