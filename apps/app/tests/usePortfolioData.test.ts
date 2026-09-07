@@ -5,6 +5,7 @@ import { createRoot } from 'react-dom/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  DEFAULT_PORTFOLIO_RANGE,
   portfolioDaysForRange,
   usePortfolioData,
   type UsePortfolioDataResult,
@@ -83,7 +84,8 @@ beforeEach(() => {
 });
 
 describe('Portfolio data range mapping', () => {
-  it('maps portfolio tabs to dashboard windows', () => {
+  it('defaults Portfolio to one month and maps tabs to dashboard windows', () => {
+    expect(DEFAULT_PORTFOLIO_RANGE).toBe('1M');
     expect(portfolioDaysForRange('1W')).toBe(7);
     expect(portfolioDaysForRange('1M')).toBe(30);
     expect(portfolioDaysForRange('3M')).toBe(90);
@@ -300,7 +302,7 @@ describe('usePortfolioData', () => {
     );
   });
 
-  it('reads attribution from the shared daily-yield cache slice and attaches it', () => {
+  it('reads short-range attribution without requesting a full year', () => {
     usePortfolioDashboardMock.mockReturnValue({
       dashboard: {
         trends: {
@@ -336,13 +338,25 @@ describe('usePortfolioData', () => {
 
     const result = renderPortfolioData('user-123', '1W');
 
-    // Always the full year regardless of the selected range, so Portfolio and
-    // Home share one cache slice and one outlier fence.
-    expect(useDailyYieldReturnsMock).toHaveBeenCalledWith('user-123', 365);
+    expect(useDailyYieldReturnsMock).toHaveBeenCalledWith('user-123', 30);
     expect(result.data?.trendPoints.at(-1)?.attribution).toEqual([
       { kind: 'protocol', label: 'Aave', valueUsd: 30 },
       { kind: 'residual', valueUsd: 20 },
     ]);
+  });
+
+  it('uses the selected 3M window for attribution', () => {
+    renderPortfolioData('user-123', '3M');
+
+    expect(useDailyYieldReturnsMock).toHaveBeenCalledWith('user-123', 90);
+  });
+
+  it('keeps 1Y and ALL attribution disabled while leaving their charts available', () => {
+    renderPortfolioData('user-123', '1Y');
+    expect(useDailyYieldReturnsMock).toHaveBeenLastCalledWith(undefined, 30);
+
+    renderPortfolioData('user-123', 'ALL');
+    expect(useDailyYieldReturnsMock).toHaveBeenLastCalledWith(undefined, 30);
   });
 
   it('leaves the trend unattributed while the attribution query has no data', () => {
