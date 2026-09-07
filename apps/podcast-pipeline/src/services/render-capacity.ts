@@ -7,6 +7,7 @@ import {
 import {
   getPipelineSupabase,
   type PipelineSupabaseClient,
+  throwSupabaseError,
 } from './supabase-client.js';
 import {
   buildTelegramRenderFleetWarningMessage,
@@ -546,7 +547,7 @@ async function loadOptionalVisualFailureNotices(
     p_limit: 20,
   });
   if (error) {
-    throw new Error(supabaseErrorMessage(error), { cause: error });
+    throwSupabaseError(error);
   }
   return (data ?? []) as VisualFailureNoticeWork[];
 }
@@ -556,20 +557,7 @@ async function selectRows<T>(
 ): Promise<T[]> {
   const { data, error } = await query;
   if (error) {
-    throw new Error(supabaseErrorMessage(error), { cause: error });
+    throwSupabaseError(error);
   }
   return data ?? [];
-}
-
-function supabaseErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-  if (error && typeof error === 'object') {
-    const message = (error as { message?: unknown }).message;
-    if (typeof message === 'string' && message) {
-      return message;
-    }
-  }
-  return 'Supabase render work query failed';
 }

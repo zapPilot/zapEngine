@@ -788,7 +788,7 @@ function expectedProbeFailureMessage(error: unknown): string {
   if (error instanceof Error) return 'database offline';
   if (error && typeof error === 'object' && 'message' in error)
     return 'structured failure';
-  return 'Supabase render work query failed';
+  return 'Supabase request failed';
 }
 
 describe('createRenderWorkProbe', () => {
