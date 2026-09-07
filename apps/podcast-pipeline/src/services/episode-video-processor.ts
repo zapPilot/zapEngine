@@ -2,9 +2,10 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { combineAbortSignalWithTimeout } from '../lib/abort.js';
+import { runWithDeadline } from '../lib/deadline.js';
 import type { EpisodeRenderMetrics } from './ops-ledger.js';
 import { uploadVideoArtifactsToR2 } from './storage.js';
-import { combineAbortSignalWithTimeout } from './video/abort.js';
 import { downloadNarrationAudio } from './video/audio-analysis.js';
 import {
   analyzeEpisodeAudio,
@@ -99,20 +100,19 @@ export function createEpisodeVideoProcessor(
     try {
       context.reportProgress(renderStageProgress('analyzing-audio', 0));
       const narrationDownloadStartedAt = Date.now();
-      const downloadDeadline = combineAbortSignalWithTimeout(
-        context.signal,
-        NARRATION_DOWNLOAD_TIMEOUT_MS,
-        'Narration download exceeded 5m',
-      );
       let narrationDownloadMs: number;
       try {
-        downloadDeadline.signal.throwIfAborted();
-        await dependencies.downloadNarration(source.hlsUrl, narrationPath, {
-          signal: downloadDeadline.signal,
-        });
+        await runWithDeadline(
+          (signal) =>
+            dependencies.downloadNarration(source.hlsUrl, narrationPath, {
+              signal,
+            }),
+          context.signal,
+          NARRATION_DOWNLOAD_TIMEOUT_MS,
+          'Narration download',
+        );
       } finally {
         narrationDownloadMs = Date.now() - narrationDownloadStartedAt;
-        downloadDeadline.dispose();
       }
 
       const analysis = await dependencies.analyzeAudio(narrationPath, {

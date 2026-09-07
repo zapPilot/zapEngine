@@ -1,7 +1,4 @@
-import {
-  abortError,
-  combineAbortSignalWithTimeout,
-} from '../services/video/abort.js';
+import { abortError, combineAbortSignalWithTimeout } from './abort.js';
 
 export async function runWithDeadline<T>(
   operation: (signal: AbortSignal) => Promise<T>,

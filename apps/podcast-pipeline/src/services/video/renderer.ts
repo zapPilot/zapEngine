@@ -5,7 +5,7 @@ import { basename, join } from 'node:path';
 
 import sharp from 'sharp';
 
-import { throwIfAborted } from './abort.js';
+import { throwIfAborted } from '../../lib/abort.js';
 import { type ResolvedSlideAsset, resolveSlideAsset } from './assets.js';
 import {
   MEDIA_MOTION_SUPERSAMPLE,

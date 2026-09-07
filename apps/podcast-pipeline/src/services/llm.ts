@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 import OpenAI, { APIConnectionError, APIConnectionTimeoutError } from 'openai';
 
+import { combineAbortSignalWithTimeout } from '../lib/abort.js';
 import { getRequiredEnv } from '../lib/env.js';
 import { errorMessage } from '../lib/errorMessage.js';
 import { normalizeLanguageClassroomLessonDraft } from '../lib/languageClassroom.js';
@@ -18,7 +19,6 @@ import {
   logPipelineEvent,
 } from './ingest/step.js';
 import { convertTextToZhTW } from './opencc.js';
-import { combineAbortSignalWithTimeout } from './video/abort.js';
 
 export interface ScriptResult {
   title: string | null;

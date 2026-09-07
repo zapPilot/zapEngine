@@ -3,7 +3,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { abortError, throwIfAborted } from './abort.js';
+import { abortError, throwIfAborted } from '../../lib/abort.js';
 import type { RasterStage } from './raster-stage-entry.js';
 import type { PortraitRasterOutput, SatoriStageInput } from './satori-stage.js';
 import type { SharpCropStageInput } from './sharp-stage.js';

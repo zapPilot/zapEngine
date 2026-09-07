@@ -1,11 +1,11 @@
 import type OpenAI from 'openai';
 
+import { throwIfAborted } from '../../../lib/abort.js';
 import {
   completionMetadata,
   createCompletionWithRetry,
   getOpenRouterConfig,
 } from '../../llm.js';
-import { throwIfAborted } from '../abort.js';
 import { containsEntityPhrase, isEnglishOnly } from './english-text.js';
 
 export interface ConceptCardCopy {

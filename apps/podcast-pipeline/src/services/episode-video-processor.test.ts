@@ -518,7 +518,7 @@ describe('createEpisodeVideoProcessor', () => {
 
       await vi.advanceTimersByTimeAsync(300_000);
       await expect(settled).resolves.toMatchObject({
-        message: 'Narration download exceeded 5m',
+        message: 'Narration download timed out after 300000ms',
       });
       expect(analyzeAudio).not.toHaveBeenCalled();
       expect(removeDirectory).toHaveBeenCalledWith('/work', {

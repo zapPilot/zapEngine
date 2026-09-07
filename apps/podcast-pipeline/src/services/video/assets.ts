@@ -11,12 +11,9 @@ import { Readable } from 'node:stream';
 
 import sharp from 'sharp';
 
+import { abortError, throwIfAborted } from '../../lib/abort.js';
+import { runWithDeadline } from '../../lib/deadline.js';
 import { errorMessage } from '../../lib/errorMessage.js';
-import {
-  abortError,
-  combineAbortSignalWithTimeout,
-  throwIfAborted,
-} from './abort.js';
 import type { Slide, SlideSource } from './manifest.js';
 
 const MAX_REMOTE_IMAGE_BYTES = 25 * 1024 * 1024;
@@ -448,53 +445,44 @@ async function downloadRemoteImage(
   contentType: SupportedRemoteImageContentType;
   sha256: string;
 }> {
-  const timeout = combineAbortSignalWithTimeout(
+  return runWithDeadline(
+    async (signal) => {
+      const response = await fetchWithSafeRedirects(url, {
+        fetchImage: options.fetchImage ?? pinnedFetchImage,
+        resolveHost: options.resolveHost ?? defaultResolveHost,
+        signal,
+      });
+      if (!response.ok) {
+        throw new Error(`Image request failed with HTTP ${response.status}`);
+      }
+
+      const contentType = response.headers
+        .get('content-type')
+        ?.split(';', 1)[0]
+        ?.trim()
+        .toLowerCase();
+      if (
+        !contentType ||
+        !ALLOWED_IMAGE_CONTENT_TYPES.has(contentType as never)
+      ) {
+        throw new Error(
+          'Remote asset is not an image or uses an unsupported raster format',
+        );
+      }
+
+      const streamed = await streamResponseToFile(response, outputPath, signal);
+      return {
+        contentType:
+          contentType === 'image/jpg'
+            ? 'image/jpeg'
+            : (contentType as SupportedRemoteImageContentType),
+        sha256: streamed.sha256,
+      };
+    },
     options.signal,
     options.timeoutMs ?? DEFAULT_DOWNLOAD_TIMEOUT_MS,
-    'Image download timed out',
+    'Image download',
   );
-  try {
-    const response = await fetchWithSafeRedirects(url, {
-      fetchImage: options.fetchImage ?? pinnedFetchImage,
-      resolveHost: options.resolveHost ?? defaultResolveHost,
-      signal: timeout.signal,
-    });
-    if (!response.ok) {
-      throw new Error(`Image request failed with HTTP ${response.status}`);
-    }
-
-    const contentType = response.headers
-      .get('content-type')
-      ?.split(';', 1)[0]
-      ?.trim()
-      .toLowerCase();
-    if (
-      !contentType ||
-      !ALLOWED_IMAGE_CONTENT_TYPES.has(contentType as never)
-    ) {
-      throw new Error(
-        'Remote asset is not an image or uses an unsupported raster format',
-      );
-    }
-
-    const streamed = await streamResponseToFile(
-      response,
-      outputPath,
-      timeout.signal,
-    );
-    return {
-      contentType:
-        contentType === 'image/jpg'
-          ? 'image/jpeg'
-          : (contentType as SupportedRemoteImageContentType),
-      sha256: streamed.sha256,
-    };
-  } catch (error) {
-    if (timeout.signal.aborted) throw abortError(timeout.signal);
-    throw error;
-  } finally {
-    timeout.dispose();
-  }
 }
 
 async function inspectDownloadedImage(

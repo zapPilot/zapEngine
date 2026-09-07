@@ -4,8 +4,8 @@ import { rm } from 'node:fs/promises';
 
 import { path as bundledFfmpegPath } from '@ffmpeg-installer/ffmpeg';
 
+import { abortError, throwIfAborted } from '../../lib/abort.js';
 import { escapeFilterPath } from '../../lib/ffmpeg-filter-path.js';
-import { abortError, throwIfAborted } from './abort.js';
 import type { VerticalVideoManifest } from './manifest.js';
 
 export interface VideoProcessResult {

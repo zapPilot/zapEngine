@@ -1,10 +1,10 @@
 import OpenAI from 'openai';
 
+import { throwIfAborted } from '../../lib/abort.js';
 import { getRequiredEnv } from '../../lib/env.js';
 import { isPlainRecord as isRecord } from '../../lib/typeGuards.js';
 import type { LanguageClassroomLanguageCode } from '../../types.js';
 import { createOpenRouterChatCompletion, getOpenRouterConfig } from '../llm.js';
-import { throwIfAborted } from './abort.js';
 import {
   canonicalSentenceRangeText,
   formatSentencesForPrompt,
