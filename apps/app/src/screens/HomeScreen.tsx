@@ -54,7 +54,11 @@ import {
 import { formatSignedPct, formatSignedUsd, formatUsd } from '@/lib/format';
 import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 
-type PortfolioImportCopyKey = 'failed' | 'completed' | 'preparing';
+type PortfolioImportCopyKey =
+  | 'failed'
+  | 'completed'
+  | 'preparing'
+  | 'needsVerification';
 
 const PORTFOLIO_IMPORT_COPY = {
   failed: {
@@ -72,12 +76,21 @@ const PORTFOLIO_IMPORT_COPY = {
     bodyKey: 'home.etlPreparingBody',
     retryable: false,
   },
+  needsVerification: {
+    titleKey: 'home.etlNeedsVerificationTitle',
+    bodyKey: 'home.etlNeedsVerificationBody',
+    retryable: false,
+  },
 } as const satisfies Record<
   PortfolioImportCopyKey,
   { titleKey: TranslationKey; bodyKey: TranslationKey; retryable: boolean }
 >;
 
-function getPortfolioImportCopy(status: EtlJobPollingState['status']) {
+function getPortfolioImportCopy(
+  status: EtlJobPollingState['status'],
+  needsVerification: boolean,
+) {
+  if (needsVerification) return PORTFOLIO_IMPORT_COPY.needsVerification;
   if (status === 'failed') return PORTFOLIO_IMPORT_COPY.failed;
   if (status === 'completed') return PORTFOLIO_IMPORT_COPY.completed;
   return PORTFOLIO_IMPORT_COPY.preparing;
@@ -136,9 +149,12 @@ export function HomeScreen() {
     !isDemo &&
     !showBalanceSkeleton &&
     snapshotAvailability === 'unavailable';
-  const portfolioImportCopy = getPortfolioImportCopy(etlState.status);
   const portfolioNeedsVerification = etlState.errorMessage?.includes(
     'ownership has not been verified',
+  );
+  const portfolioImportCopy = getPortfolioImportCopy(
+    etlState.status,
+    portfolioNeedsVerification ?? false,
   );
   const retryPortfolioImport = () => {
     if (account.userId && account.address) {
@@ -181,23 +197,13 @@ export function HomeScreen() {
           {showPortfolioImportState ? (
             <View className="mt-3">
               <PortfolioImportState
-                title={
-                  portfolioNeedsVerification
-                    ? 'Verify this wallet first'
-                    : t(portfolioImportCopy.titleKey)
-                }
-                body={
-                  portfolioNeedsVerification
-                    ? 'Go to Wallets, switch to this wallet, and verify ownership before importing its portfolio.'
-                    : t(portfolioImportCopy.bodyKey)
-                }
+                title={t(portfolioImportCopy.titleKey)}
+                body={t(portfolioImportCopy.bodyKey)}
                 retryLabel={
-                  portfolioImportCopy.retryable && !portfolioNeedsVerification
-                    ? t('common.retry')
-                    : undefined
+                  portfolioImportCopy.retryable ? t('common.retry') : undefined
                 }
                 onRetry={
-                  portfolioImportCopy.retryable && !portfolioNeedsVerification
+                  portfolioImportCopy.retryable
                     ? retryPortfolioImport
                     : undefined
                 }

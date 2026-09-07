@@ -217,11 +217,15 @@ function EpisodeVideoProgressAccessory({
   percent,
   stageLabel,
 }: EpisodeVideoProgressView) {
+  const { t } = useContentLanguage();
   return (
     // A definite width: it gives ProgressBar's `w-full` track something to
     // measure inside the panel's `items-center` column, which has none.
     <View className="w-[240px]">
-      <ProgressBar value={percent} accessibilityLabel="Generating video" />
+      <ProgressBar
+        value={percent}
+        accessibilityLabel={t('podcast.generatingVideo')}
+      />
       <View className="mt-2 flex-row items-center justify-between">
         <Text className="font-sans-medium text-[12px] text-ink-dim">
           {stageLabel ?? 'Video is rendering'}
@@ -241,6 +245,7 @@ function EpisodeVideoStatusPanel({
   progress: EpisodeVideoProgressView | null;
   onPlay: () => void;
 }) {
+  const { t } = useContentLanguage();
   const previousStateRef = useRef(state);
 
   useEffect(() => {
@@ -258,7 +263,7 @@ function EpisodeVideoStatusPanel({
     case 'generating':
       return (
         <UnavailableMediaPanel
-          label="Video"
+          label={t('podcast.video')}
           message="Video is being generated"
           detail="This page updates automatically while the video renders."
           liveRegion="polite"
@@ -268,7 +273,7 @@ function EpisodeVideoStatusPanel({
             // reported progress.
             progress === null ? (
               <ActivityIndicator
-                accessibilityLabel="Generating video"
+                accessibilityLabel={t('podcast.generatingVideo')}
                 color="#f5f1e8"
               />
             ) : (
@@ -297,8 +302,8 @@ function EpisodeVideoStatusPanel({
     case 'ready':
       return (
         <UnavailableMediaPanel
-          label="Video"
-          message="Video is ready"
+          label={t('podcast.video')}
+          message={t('podcast.videoReady')}
           liveRegion="polite"
           action={{ label: 'Play video', onPress: onPlay }}
         />
@@ -306,8 +311,8 @@ function EpisodeVideoStatusPanel({
     case 'unavailable':
       return (
         <UnavailableMediaPanel
-          label="Video"
-          message="Video isn’t available yet"
+          label={t('podcast.video')}
+          message={t('podcast.videoUnavailable')}
         />
       );
   }
@@ -324,6 +329,7 @@ function AudioPlaybackControls({
   section: PodcastSectionKind;
   sectionLanguage: string | null;
 }) {
+  const { t } = useContentLanguage();
   const isCurrentEpisode =
     player.nowPlaying?.localizationId === episode.localizationId;
   const isCurrent =
@@ -414,7 +420,9 @@ function AudioPlaybackControls({
       <View className="mt-5 items-end">
         <Tap
           accessibilityRole="button"
-          accessibilityLabel="Change playback speed"
+          accessibilityLabel={t('podcast.playbackSpeed', {
+            speed: player.speed,
+          })}
           onPress={() =>
             player.setSpeed(nextPodcastPlaybackSpeed(player.speed))
           }
@@ -684,10 +692,10 @@ export function EpisodeMediaPlayer({
       videoTabHint = 'Video is being generated';
       break;
     case 'failed':
-      videoTabHint = 'Video generation failed';
+      videoTabHint = t('podcast.videoFailed');
       break;
     case 'unavailable':
-      videoTabHint = 'Video isn’t available yet';
+      videoTabHint = t('podcast.videoUnavailable');
       break;
   }
 
@@ -735,7 +743,7 @@ export function EpisodeMediaPlayer({
       return (
         <UnavailableMediaPanel
           label="Classroom"
-          message="Classroom isn’t available for this episode"
+          message={t('podcast.noClassroom')}
         />
       );
     }
@@ -817,13 +825,13 @@ export function EpisodeMediaPlayer({
               hint={
                 availability.classroom
                   ? 'Use the language classroom audio player'
-                  : 'Classroom isn’t available for this episode'
+                  : t('podcast.noClassroom')
               }
               onPress={() => selectAudioTab('classroom')}
             />
             <EpisodeMediaTabButton
               active={activeTab === 'video'}
-              label="Video"
+              label={t('podcast.video')}
               hint={videoTabHint}
               busy={videoPanelState === 'generating'}
               onPress={showVideo}
