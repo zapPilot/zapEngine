@@ -449,7 +449,7 @@ describe('scene alignment', () => {
     delete process.env['NVIDIA_API_KEY'];
     try {
       expect(() => createNvidiaSceneAlignmentProvider()).toThrow(
-        'NVIDIA_API_KEY not set',
+        'Missing required environment variable: NVIDIA_API_KEY',
       );
       expect(() =>
         createNvidiaSceneAlignmentProvider({

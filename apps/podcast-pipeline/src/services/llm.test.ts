@@ -505,7 +505,7 @@ describe('generateScriptWithLLM', () => {
   it('throws error when OPENROUTER_API_KEY is not set', async () => {
     vi.stubEnv('OPENROUTER_API_KEY', '');
     await expect(generateScriptWithLLM('Title', 'Text')).rejects.toThrow(
-      'OPENROUTER_API_KEY not set',
+      'Missing required environment variable: OPENROUTER_API_KEY',
     );
   });
 

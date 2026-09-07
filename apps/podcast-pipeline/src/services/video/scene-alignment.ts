@@ -370,14 +370,6 @@ interface NvidiaSceneAlignmentProviderOptions {
   client?: OpenAI;
 }
 
-function requiredNvidiaApiKey(): string {
-  const configured = process.env['NVIDIA_API_KEY'];
-  if (typeof configured !== 'string' || configured.trim().length === 0) {
-    throw new Error('NVIDIA_API_KEY not set');
-  }
-  return configured.trim();
-}
-
 export function createNvidiaSceneAlignmentProvider(
   options: NvidiaSceneAlignmentProviderOptions = {},
 ): SceneAlignmentProvider {
@@ -385,7 +377,7 @@ export function createNvidiaSceneAlignmentProvider(
   const client =
     options.client ??
     new OpenAI({
-      apiKey: options.apiKey ?? requiredNvidiaApiKey(),
+      apiKey: options.apiKey ?? getRequiredEnv('NVIDIA_API_KEY').trim(),
       baseURL:
         options.baseURL ??
         process.env['NVIDIA_BASE_URL']?.trim() ??
