@@ -27,7 +27,9 @@ it('keeps openrouter/free as the translation primary while the shared client own
   );
   mocks.createOpenRouterChatCompletion.mockResolvedValueOnce({
     choices: [
-      { message: { content: JSON.stringify({ text: 'Fallback translation' }) } },
+      {
+        message: { content: JSON.stringify({ text: 'Fallback translation' }) },
+      },
     ],
     provider: 'OpenRouter',
     // The low-level shared fallback may return a different model than the
@@ -52,9 +54,11 @@ it('keeps openrouter/free as the translation primary while the shared client own
     thinkingModel: null,
   });
   expect(mocks.createOpenRouterChatCompletion).toHaveBeenCalledTimes(1);
-  expect(mocks.createOpenRouterChatCompletion.mock.calls[0]?.[1]).toMatchObject({
-    model: 'openrouter/free',
-  });
+  expect(mocks.createOpenRouterChatCompletion.mock.calls[0]?.[1]).toMatchObject(
+    {
+      model: 'openrouter/free',
+    },
+  );
 });
 
 it('does not hide non-retryable authentication failures behind payload retries', async () => {

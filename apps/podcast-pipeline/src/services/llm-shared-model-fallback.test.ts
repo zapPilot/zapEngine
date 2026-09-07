@@ -24,7 +24,12 @@ function completion(model: string) {
         logprobs: null,
       },
     ],
-    usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2, cost: 0.01 },
+    usage: {
+      prompt_tokens: 1,
+      completion_tokens: 1,
+      total_tokens: 2,
+      cost: 0.01,
+    },
     provider: 'fixture-provider',
   };
 }

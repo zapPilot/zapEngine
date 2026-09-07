@@ -409,7 +409,7 @@ describe('createEpisodeVideoVisualProcessor', () => {
     expect(scrape).not.toHaveBeenCalled();
   });
 
-  it('generateVisualStoryboard supports explicit and default deterministic providers', async () => {
+  it('generateVisualStoryboard supports an explicit provider and otherwise stays deterministic', async () => {
     const explicitProvider = {
       name: 'explicit',
       model: 'explicit-model',

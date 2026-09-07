@@ -150,7 +150,8 @@ async function translateFields<K extends string>(
   }
 
   const error =
-    attempt.error ?? new Error('Translation failed without an OpenRouter error');
+    attempt.error ??
+    new Error('Translation failed without an OpenRouter error');
   logTranslationFailure(
     targetLanguageCode,
     TRANSLATION_MODEL,
