@@ -45,10 +45,9 @@ export const SECOND_ADDRESS = '0xb17c000000000000000000000000000000000c71';
 /**
  * Portfolio balance in the *landing* shape (`{ data, isLoading, error }`).
  *
- * The screen currently reads it through `usePortfolioDataProgressive`, whose
- * nested `{ unifiedData, sections }` shape is derived from this by
- * `toProgressiveResult` below. When `useHomeData` moves to `useLandingPageData`
- * only that derivation changes — specs keep describing fixtures in this shape.
+ * `toLandingQueryResult` below turns it into the raw `useLandingPageData`
+ * response the screen reads. Specs describe fixtures in this shape and stay out
+ * of the wire field names.
  */
 export interface LandingFixture {
   data: { balance: number | null; lastUpdated: string | null } | null;
@@ -226,8 +225,17 @@ export const landingFixtures = {
   loading(): LandingFixture {
     return { data: null, isLoading: true, error: null };
   },
+  /** Transport/server failure — data may well exist, we just could not read it. */
   failed(): LandingFixture {
     return { data: null, isLoading: false, error: new Error('balance failed') };
+  },
+  /** The analytics subject is genuinely unknown, as on a first login. */
+  notFound(): LandingFixture {
+    return {
+      data: null,
+      isLoading: false,
+      error: Object.assign(new Error('USER_NOT_FOUND'), { status: 404 }),
+    };
   },
 };
 
@@ -377,6 +385,12 @@ export const suggestionFixtures = {
   },
   none(): SuggestionFixture {
     return { data: null, isLoading: false, isError: false };
+  },
+  loading(): SuggestionFixture {
+    return { data: null, isLoading: true, isError: false };
+  },
+  failed(): SuggestionFixture {
+    return { data: null, isLoading: false, isError: true };
   },
 };
 
@@ -706,19 +720,18 @@ function normalizeWalletAddressList(input: unknown): string[] {
   return [...seen];
 }
 
-/** Reshapes the landing fixture into what `usePortfolioDataProgressive` returns. */
-function toProgressiveResult(landing: LandingFixture) {
+/** Reshapes the landing fixture into what `useLandingPageData` returns. */
+function toLandingQueryResult(landing: LandingFixture) {
   return {
-    unifiedData: landing.data
-      ? { lastUpdated: landing.data.lastUpdated }
-      : null,
-    sections: {
-      balance: {
-        data: landing.data ? { balance: landing.data.balance } : null,
-        isLoading: landing.isLoading,
-        error: landing.error,
-      },
-    },
+    data: landing.data
+      ? {
+          net_portfolio_value: landing.data.balance,
+          last_updated: landing.data.lastUpdated,
+        }
+      : undefined,
+    isLoading: landing.isLoading,
+    isError: landing.error !== null,
+    error: landing.error,
   };
 }
 
@@ -856,13 +869,10 @@ export const homeScreenMocks = {
   portfolioDashboard: {
     usePortfolioDashboard: () => homeScreenState.dashboard,
   },
-  portfolioDataProgressive: {
-    usePortfolioDataProgressive: () =>
-      toProgressiveResult(homeScreenState.landing),
-  },
   // Total replacement: this package's real entry pulls the whole query stack in.
   appCoreQueries: {
     useDailyYieldReturns: () => homeScreenState.yieldReturns,
+    useLandingPageData: () => toLandingQueryResult(homeScreenState.landing),
   },
   strategySuggestion: {
     useStrategySuggestion: () => homeScreenState.suggestion,

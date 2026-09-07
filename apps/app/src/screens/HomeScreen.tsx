@@ -359,7 +359,7 @@ export function HomeScreen() {
     startPolling: startEtlPolling,
     triggerEtl,
   } = useEtlJobPolling();
-  const { data, isLoading, snapshotAvailability } = useHomeData(
+  const { data, balance, trend, strategy, snapshotAvailability } = useHomeData(
     account.viewingUserId,
     range,
     {
@@ -392,7 +392,8 @@ export function HomeScreen() {
 
   const isDemo = account.isDemo;
   const { home, strategyStatus } = data;
-  const showBalanceSkeleton = !isDemo && isLoading && !etlState.isInProgress;
+  const showBalanceSkeleton =
+    !isDemo && balance.isLoading && !etlState.isInProgress;
   const showPortfolioImportState =
     account.isOwnBundle &&
     !isDemo &&
@@ -515,7 +516,7 @@ export function HomeScreen() {
             />
           </View>
           <View className="mt-3 h-[88px] justify-center">
-            {showPortfolioImportState ? null : showBalanceSkeleton ? (
+            {showPortfolioImportState ? null : trend.isLoading ? (
               <SkeletonBlock className="h-[70px] w-full rounded-2xl" />
             ) : (
               <PortfolioTrendChart
@@ -586,7 +587,7 @@ export function HomeScreen() {
       <View className="mt-6 px-5">
         <StrategyStatusCard
           status={strategyStatus}
-          loading={!isDemo && isLoading}
+          loading={!isDemo && strategy.isLoading}
           onPress={() => router.push(STRATEGY_DECISION_FOCUS_HREF)}
         />
       </View>

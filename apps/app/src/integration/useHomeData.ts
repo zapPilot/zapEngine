@@ -1,6 +1,9 @@
 import { usePortfolioDashboard } from '@zapengine/app-core/hooks/analytics/usePortfolioDashboard';
-import { usePortfolioDataProgressive } from '@zapengine/app-core/hooks/queries/analytics/usePortfolioDataProgressive';
-import { useDailyYieldReturns } from '@zapengine/app-core/hooks/queries';
+import {
+  useDailyYieldReturns,
+  useLandingPageData,
+} from '@zapengine/app-core/hooks/queries';
+import { isNotFoundError } from '@zapengine/app-core/lib/errors';
 import {
   buildTradeActions,
   formatRegimeLabel,
@@ -28,6 +31,15 @@ export const HOME_RANGE_OPTIONS = ['1D', '1W', '1M', '3M', '1Y'] as const;
 export type HomeRange = (typeof HOME_RANGE_OPTIONS)[number];
 export const DEFAULT_HOME_RANGE: HomeRange = '1Y';
 const HOME_DASHBOARD_WINDOW_DAYS = 365;
+// Home reads `trends.daily_values` and nothing else. Asking for the other
+// metrics costs four extra backend service calls per request, and every
+// numeric window param is serialized whether or not its metric was requested,
+// so they are dropped rather than left at a default.
+// A stable identity keeps the react-query key from being rebuilt each render.
+const HOME_DASHBOARD_WINDOW_PARAMS = Object.freeze({
+  trend_days: HOME_DASHBOARD_WINDOW_DAYS,
+  metrics: ['trend'],
+});
 const EMPTY_DAILY_VALUES: readonly DailyValuePoint[] = [];
 
 export interface HomeViewData {
@@ -56,12 +68,32 @@ export interface HomeData {
   strategyStatus: HomeStrategyStatusView | null;
 }
 
-export type HomeSnapshotAvailability = 'demo' | 'available' | 'unavailable';
+/**
+ * `unavailable` means the account genuinely has no portfolio yet, which is what
+ * drives the import copy and ETL polling. A broken landing query is `failed`
+ * instead, so a network blip is never presented as an empty portfolio.
+ */
+export type HomeSnapshotAvailability =
+  | 'demo'
+  | 'available'
+  | 'unavailable'
+  | 'failed';
+
+export interface HomeSectionState {
+  isLoading: boolean;
+  isError: boolean;
+}
 
 export interface UseHomeDataResult {
   data: HomeData;
   isLoading: boolean;
   isError: boolean;
+  /** Landing query: the net-worth headline. */
+  balance: HomeSectionState;
+  /** Dashboard query: the trend chart. */
+  trend: HomeSectionState;
+  /** Daily suggestion: the strategy card. */
+  strategy: HomeSectionState;
   snapshotAvailability: HomeSnapshotAvailability;
 }
 
@@ -74,11 +106,7 @@ export interface UseHomeDataResult {
  *   are UUID-typed; a wallet address must never be passed here.
  */
 export function getHomeDashboardWindowParams() {
-  return {
-    trend_days: HOME_DASHBOARD_WINDOW_DAYS,
-    drawdown_days: HOME_DASHBOARD_WINDOW_DAYS,
-    rolling_days: HOME_DASHBOARD_WINDOW_DAYS,
-  };
+  return HOME_DASHBOARD_WINDOW_PARAMS;
 }
 
 function rangeWindowDays(range: HomeRange): number | null {
@@ -169,6 +197,30 @@ const DEMO_STRATEGY_STATUS: HomeStrategyStatusView = {
   reason: DEMO.strategy.quote,
 };
 
+/**
+ * Stale data still counts as available: an error on top of a snapshot must not
+ * demote Home to the import flow. Only a landing failure that is neither a
+ * not-found nor an in-flight import is `failed`, because the import copy and
+ * the ETL poller both key off `unavailable`.
+ */
+function snapshotAvailability(input: {
+  isDemo: boolean;
+  hasPortfolioSnapshot: boolean;
+  isEtlInProgress: boolean;
+  landingError: unknown;
+}): HomeSnapshotAvailability {
+  if (input.isDemo) return 'demo';
+  if (input.hasPortfolioSnapshot) return 'available';
+  if (
+    input.isEtlInProgress ||
+    input.landingError === null ||
+    isNotFoundError(input.landingError)
+  ) {
+    return 'unavailable';
+  }
+  return 'failed';
+}
+
 export function useHomeData(
   subjectUserId: string | null,
   range: HomeRange,
@@ -178,9 +230,10 @@ export function useHomeData(
   } = {},
 ): UseHomeDataResult {
   const analyticsSubjectId = subjectUserId?.trim() || null;
-  const progressive = usePortfolioDataProgressive(
+  const landing = useLandingPageData(
     analyticsSubjectId,
     Boolean(options.isEtlInProgress),
+    true,
   );
   const dashboard = usePortfolioDashboard(
     analyticsSubjectId ?? undefined,
@@ -194,26 +247,45 @@ export function useHomeData(
     DAILY_ATTRIBUTION_WINDOW_DAYS,
   );
 
-  const balanceSection = progressive.sections?.balance;
-  const hasPortfolioSnapshot = Boolean(progressive.unifiedData?.lastUpdated);
+  const landingData = landing.data;
+  const landingError = landing.error ?? null;
+  const hasPortfolioSnapshot = Boolean(landingData?.last_updated);
   const isResolvingSubject =
     Boolean(options.isResolvingSubject) && analyticsSubjectId === null;
 
-  const isLoading =
-    isResolvingSubject ||
-    Boolean(balanceSection?.isLoading) ||
-    dashboard.isLoading ||
-    suggestion.isLoading;
-  const isError =
-    Boolean(balanceSection?.error) || dashboard.isError || suggestion.isError;
+  // Per section rather than aggregated: the slowest of the three must not hold
+  // the other two in a skeleton.
+  const balance: HomeSectionState = {
+    isLoading: isResolvingSubject || landing.isLoading,
+    isError: landing.isError,
+  };
+  const trend: HomeSectionState = {
+    isLoading: isResolvingSubject || dashboard.isLoading,
+    isError: dashboard.isError,
+  };
+  const strategy: HomeSectionState = {
+    isLoading: isResolvingSubject || suggestion.isLoading,
+    isError: suggestion.isError,
+  };
+
+  const isLoading = balance.isLoading || trend.isLoading || strategy.isLoading;
+  const isError = balance.isError || trend.isError || strategy.isError;
 
   // While the subject is still resolving, stay in the live (skeleton) state
   // instead of flashing demo data.
   const isDemo = analyticsSubjectId === null && !isResolvingSubject;
+  // `net_portfolio_value` is nullable on the wire and a null there is a missing
+  // number, not a zero balance.
+  const liveBalance =
+    typeof landingData?.net_portfolio_value === 'number'
+      ? landingData.net_portfolio_value
+      : typeof landingData?.total_net_usd === 'number'
+        ? landingData.total_net_usd
+        : null;
   const totalBalance = isDemo
     ? DEMO.home.totalBalance
     : hasPortfolioSnapshot
-      ? (balanceSection?.data?.balance ?? null)
+      ? liveBalance
       : null;
 
   const dailyValues =
@@ -236,6 +308,19 @@ export function useHomeData(
     [allTrendPoints, isDemo, range],
   );
   const rangeChange = calculateHomeRangeChange(selectedTrendPoints);
+  const rangeAttribution = useMemo(
+    () => summarizeRangeAttribution(selectedTrendPoints),
+    [selectedTrendPoints],
+  );
+  const strategyStatus = useMemo(
+    () =>
+      isDemo
+        ? DEMO_STRATEGY_STATUS
+        : suggestion.data
+          ? strategyStatusFromSuggestion(suggestion.data)
+          : null,
+    [isDemo, suggestion.data],
+  );
   return {
     data: {
       home: {
@@ -243,20 +328,20 @@ export function useHomeData(
         rangeChangePct: rangeChange?.pct ?? null,
         rangeChangeUsd: rangeChange?.usd ?? null,
         trendPoints: selectedTrendPoints,
-        attribution: summarizeRangeAttribution(selectedTrendPoints),
+        attribution: rangeAttribution,
       },
-      strategyStatus: isDemo
-        ? DEMO_STRATEGY_STATUS
-        : suggestion.data
-          ? strategyStatusFromSuggestion(suggestion.data)
-          : null,
+      strategyStatus,
     },
     isLoading,
     isError,
-    snapshotAvailability: isDemo
-      ? 'demo'
-      : hasPortfolioSnapshot
-        ? 'available'
-        : 'unavailable',
+    balance,
+    trend,
+    strategy,
+    snapshotAvailability: snapshotAvailability({
+      isDemo,
+      hasPortfolioSnapshot,
+      isEtlInProgress: Boolean(options.isEtlInProgress),
+      landingError,
+    }),
   };
 }

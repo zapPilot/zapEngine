@@ -112,10 +112,6 @@ vi.mock(
   async () => (await harness()).homeScreenMocks.portfolioDashboard,
 );
 vi.mock(
-  '@zapengine/app-core/hooks/queries/analytics/usePortfolioDataProgressive',
-  async () => (await harness()).homeScreenMocks.portfolioDataProgressive,
-);
-vi.mock(
   '@zapengine/app-core/hooks/queries',
   async () => (await harness()).homeScreenMocks.appCoreQueries,
 );
@@ -275,6 +271,53 @@ describe('HomeScreen — live loaded', () => {
     expect(
       buttonByLabel(container, 'Rebalance — action required'),
     ).toBeDefined();
+  });
+});
+
+describe('HomeScreen — per-section loading', () => {
+  it('shows the balance as soon as landing lands, chart and strategy still pending', async () => {
+    const { container } = await renderHomeScreen({
+      ...liveOverrides(),
+      dashboard: dashboardFixtures.loading(),
+      suggestion: suggestionFixtures.loading(),
+    });
+
+    // The slowest of the three no longer holds the headline in a skeleton.
+    expect(container.textContent).toContain('$12,345.67');
+    expect(
+      container.querySelector('[data-testid="portfolio-trend-chart"]'),
+    ).toBeNull();
+    expect(container.textContent).toContain('Strategy');
+    expect(container.textContent).not.toContain('Rebalance recommended');
+    expect(skeletonCount(container)).toBeGreaterThan(0);
+  });
+
+  it('keeps the balance and the strategy card when only the dashboard fails', async () => {
+    const { container } = await renderHomeScreen({
+      ...liveOverrides(),
+      dashboard: dashboardFixtures.failed(),
+    });
+
+    expect(container.textContent).toContain('$12,345.67');
+    expect(container.textContent).toContain('Rebalance recommended');
+    // Nothing to plot and nothing left to wait for: the chart area is empty.
+    expect(
+      container.querySelector('[data-testid="portfolio-trend-chart"]'),
+    ).toBeNull();
+    expect(skeletonCount(container)).toBe(0);
+  });
+
+  it('drops only the strategy section when the suggestion fails', async () => {
+    const { container } = await renderHomeScreen({
+      ...liveOverrides(),
+      suggestion: suggestionFixtures.failed(),
+    });
+
+    expect(container.textContent).toContain('$12,345.67');
+    expect(
+      container.querySelector('[data-testid="portfolio-trend-chart"]'),
+    ).not.toBeNull();
+    expect(container.textContent).not.toContain('Strategy');
   });
 });
 
@@ -439,7 +482,7 @@ describe('HomeScreen — portfolio import', () => {
     ).toBeNull();
   });
 
-  it('never surfaces an upstream error of its own', async () => {
+  it('never explains an upstream failure in its own words', async () => {
     const { container } = await renderHomeScreen({
       account: accountFixtures.ownBundle({ etlJobId: null }),
       landing: landingFixtures.failed(),
@@ -449,12 +492,45 @@ describe('HomeScreen — portfolio import', () => {
       income: incomeFixtures.failed(),
     });
 
-    // `useHomeData().isError` is never read by the screen: a failed balance or
-    // trend query lands in the same "no history" state as an empty one.
-    expect(container.textContent).toContain('No portfolio history found');
     expect(container.textContent).not.toContain('balance failed');
     // A failed income query hides the card outright rather than explaining.
     expect(container.textContent).not.toContain('Protocol income');
+  });
+
+  it('reads a failed landing query as an unknown balance, not a missing portfolio', async () => {
+    const etl = etlFixtures.idle();
+    const { container } = await renderHomeScreen({
+      account: accountFixtures.ownBundle(),
+      landing: landingFixtures.failed(),
+      dashboard: dashboardFixtures.loaded(),
+      suggestion: suggestionFixtures.none(),
+      etl,
+    });
+
+    expect(container.textContent).not.toContain('Preparing your portfolio');
+    expect(container.textContent).not.toContain('No portfolio history found');
+    // The headline falls back to a dash, and the chart keeps rendering the
+    // trend the dashboard did return.
+    expect(ariaLabels(container)).toContain('Net worth, -, View portfolio');
+    expect(
+      container.querySelector('[data-testid="portfolio-trend-chart"]'),
+    ).not.toBeNull();
+    // A network failure is not evidence that the portfolio needs importing.
+    expect(etl.startPolling).not.toHaveBeenCalled();
+  });
+
+  it('still treats an unknown analytics subject as a portfolio to import', async () => {
+    const etl = etlFixtures.idle();
+    const { container } = await renderHomeScreen({
+      account: accountFixtures.ownBundle(),
+      landing: landingFixtures.notFound(),
+      dashboard: dashboardFixtures.loaded(),
+      suggestion: suggestionFixtures.none(),
+      etl,
+    });
+
+    expect(container.textContent).toContain('Preparing your portfolio');
+    expect(etl.startPolling).toHaveBeenCalledWith(ETL_JOB_ID, OWN_USER_ID);
   });
 });
 

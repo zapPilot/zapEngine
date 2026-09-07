@@ -1,6 +1,8 @@
+import { queryKeys } from '@zapengine/app-core/lib/state/queryClient';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DEMO } from '../src/data/demo';
+import { portfolioDaysForRange } from '../src/integration/usePortfolioData';
 import {
   calculateHomeRangeChange,
   DEFAULT_HOME_RANGE,
@@ -10,7 +12,7 @@ import {
 } from '../src/integration/useHomeData';
 
 const usePortfolioDashboardMock = vi.hoisted(() => vi.fn());
-const usePortfolioDataProgressiveMock = vi.hoisted(() => vi.fn());
+const useLandingPageDataMock = vi.hoisted(() => vi.fn());
 const useStrategySuggestionMock = vi.hoisted(() => vi.fn());
 const useDailyYieldReturnsMock = vi.hoisted(() => vi.fn());
 
@@ -22,29 +24,40 @@ vi.mock('@zapengine/app-core/hooks/analytics/usePortfolioDashboard', () => ({
   usePortfolioDashboard: usePortfolioDashboardMock,
 }));
 
-vi.mock(
-  '@zapengine/app-core/hooks/queries/analytics/usePortfolioDataProgressive',
-  () => ({
-    usePortfolioDataProgressive: usePortfolioDataProgressiveMock,
-  }),
-);
-
 // Fully replaced rather than partially: `react` is stubbed down to useMemo
 // above, so loading the real query package here would be loading it against a
 // React that barely exists.
 vi.mock('@zapengine/app-core/hooks/queries', () => ({
   useDailyYieldReturns: useDailyYieldReturnsMock,
+  useLandingPageData: useLandingPageDataMock,
 }));
 
 vi.mock('@/integration/useStrategySuggestion', () => ({
   useStrategySuggestion: useStrategySuggestionMock,
 }));
 
+/** The raw `useLandingPageData` result shape, with only what Home reads set. */
+function landingResult(
+  overrides: {
+    data?: {
+      net_portfolio_value?: number | null;
+      total_net_usd?: number;
+      last_updated?: string | null;
+    };
+    isLoading?: boolean;
+    error?: unknown;
+  } = {},
+) {
+  return {
+    data: overrides.data,
+    isLoading: overrides.isLoading ?? false,
+    isError: overrides.error !== undefined,
+    error: overrides.error ?? null,
+  };
+}
+
 function mockSettledSources() {
-  usePortfolioDataProgressiveMock.mockReturnValue({
-    unifiedData: null,
-    sections: {},
-  });
+  useLandingPageDataMock.mockReturnValue(landingResult());
   usePortfolioDashboardMock.mockReturnValue({
     dashboard: null,
     isLoading: false,
@@ -60,7 +73,7 @@ function mockSettledSources() {
 
 beforeEach(() => {
   usePortfolioDashboardMock.mockReset();
-  usePortfolioDataProgressiveMock.mockReset();
+  useLandingPageDataMock.mockReset();
   useStrategySuggestionMock.mockReset();
   useDailyYieldReturnsMock.mockReset();
   mockSettledSources();
@@ -70,7 +83,7 @@ describe('Home data analytics subject', () => {
   it('does not have a wallet-address parameter that can leak into analytics paths', () => {
     useHomeData(null, '1Y');
 
-    expect(usePortfolioDataProgressiveMock).toHaveBeenCalledWith(null, false);
+    expect(useLandingPageDataMock).toHaveBeenCalledWith(null, false, true);
     expect(usePortfolioDashboardMock).toHaveBeenCalledWith(
       undefined,
       getHomeDashboardWindowParams(),
@@ -80,9 +93,10 @@ describe('Home data analytics subject', () => {
   it('passes a bundle-view subject id through verbatim', () => {
     useHomeData('5fc63d4e-4e07-47d8-840b-ccd3420d553f', '1Y');
 
-    expect(usePortfolioDataProgressiveMock).toHaveBeenCalledWith(
+    expect(useLandingPageDataMock).toHaveBeenCalledWith(
       '5fc63d4e-4e07-47d8-840b-ccd3420d553f',
       false,
+      true,
     );
   });
 });
@@ -99,9 +113,21 @@ describe('Home data historical dashboard window', () => {
     expect(DEFAULT_HOME_RANGE).toBe('1Y');
     expect(getHomeDashboardWindowParams()).toEqual({
       trend_days: 365,
-      drawdown_days: 365,
-      rolling_days: 365,
+      metrics: ['trend'],
     });
+  });
+
+  it('asks the dashboard for the trend alone', () => {
+    // Home reads `trends.daily_values` only. Drawdown and rolling windows cost
+    // four more backend service calls per request and nothing renders them.
+    const params: Record<string, unknown> = getHomeDashboardWindowParams();
+    expect(params.drawdown_days).toBeUndefined();
+    expect(params.rolling_days).toBeUndefined();
+  });
+
+  it('hands react-query one stable window object', () => {
+    // A fresh literal per render would rebuild the query key every time.
+    expect(getHomeDashboardWindowParams()).toBe(getHomeDashboardWindowParams());
   });
 
   it('slices the 365-day dashboard series locally for shorter ranges', () => {
@@ -129,6 +155,24 @@ describe('Home data historical dashboard window', () => {
       pct: (10 / 210) * 100,
     });
   });
+
+  it('no longer shares a dashboard cache entry with Portfolio at 1Y', () => {
+    const portfolioDays = portfolioDaysForRange('1Y');
+    // What `usePortfolioData` sends for the same user at 1Y.
+    const portfolioKey = queryKeys.portfolioDashboard.detail('user-123', {
+      trend_days: portfolioDays,
+      drawdown_days: portfolioDays,
+      rolling_days: portfolioDays,
+    });
+    const homeKey = queryKeys.portfolioDashboard.detail(
+      'user-123',
+      getHomeDashboardWindowParams(),
+    );
+
+    // Accepted cost of the narrower request: Home -> Portfolio now pays for one
+    // extra dashboard fetch instead of reusing the shared entry.
+    expect(homeKey).not.toEqual(portfolioKey);
+  });
 });
 
 describe('useHomeData', () => {
@@ -140,7 +184,7 @@ describe('useHomeData', () => {
     expect(result).toMatchObject({ isLoading: true, isError: false });
     expect(result.data.home.totalBalance).toBeNull();
     expect(result.data.strategyStatus).toBeNull();
-    expect(usePortfolioDataProgressiveMock).toHaveBeenCalledWith(null, false);
+    expect(useLandingPageDataMock).toHaveBeenCalledWith(null, false, true);
   });
 
   it('keeps disconnected users on demo data without surfacing a live error', () => {
@@ -151,17 +195,12 @@ describe('useHomeData', () => {
     expect(result.data.strategyStatus).toMatchObject({ status: 'no_action' });
     expect(usePortfolioDashboardMock).toHaveBeenCalledWith(undefined, {
       trend_days: 365,
-      drawdown_days: 365,
-      rolling_days: 365,
+      metrics: ['trend'],
     });
   });
 
   it('surfaces connected live misses without falling back to demo balances', () => {
-    usePortfolioDataProgressiveMock.mockReturnValue({
-      sections: {
-        balance: { data: null, isLoading: false, error: null },
-      },
-    });
+    useLandingPageDataMock.mockReturnValue(landingResult());
 
     const result = useHomeData('user-123', '1M');
 
@@ -175,22 +214,14 @@ describe('useHomeData', () => {
     expect(result.data.strategyStatus).toBeNull();
     expect(usePortfolioDashboardMock).toHaveBeenCalledWith('user-123', {
       trend_days: 365,
-      drawdown_days: 365,
-      rolling_days: 365,
+      metrics: ['trend'],
     });
   });
 
   it('treats a missing snapshot as unavailable instead of a zero balance', () => {
-    usePortfolioDataProgressiveMock.mockReturnValue({
-      unifiedData: { lastUpdated: null },
-      sections: {
-        balance: {
-          data: { balance: 0 },
-          isLoading: false,
-          error: null,
-        },
-      },
-    });
+    useLandingPageDataMock.mockReturnValue(
+      landingResult({ data: { net_portfolio_value: 0, last_updated: null } }),
+    );
 
     const result = useHomeData('user-123', '1Y');
 
@@ -199,16 +230,14 @@ describe('useHomeData', () => {
   });
 
   it('preserves a legitimate zero balance when a snapshot timestamp exists', () => {
-    usePortfolioDataProgressiveMock.mockReturnValue({
-      unifiedData: { lastUpdated: '2026-08-02T00:00:00.000Z' },
-      sections: {
-        balance: {
-          data: { balance: 0 },
-          isLoading: false,
-          error: null,
+    useLandingPageDataMock.mockReturnValue(
+      landingResult({
+        data: {
+          net_portfolio_value: 0,
+          last_updated: '2026-08-02T00:00:00.000Z',
         },
-      },
-    });
+      }),
+    );
 
     const result = useHomeData('user-123', '1Y');
 
@@ -219,23 +248,18 @@ describe('useHomeData', () => {
   it('forwards the active ETL state to the landing query', () => {
     useHomeData('user-123', '1Y', { isEtlInProgress: true });
 
-    expect(usePortfolioDataProgressiveMock).toHaveBeenCalledWith(
-      'user-123',
-      true,
-    );
+    expect(useLandingPageDataMock).toHaveBeenCalledWith('user-123', true, true);
   });
 
   it('keeps chart and performance semantics aligned to the selected range', () => {
-    usePortfolioDataProgressiveMock.mockReturnValue({
-      unifiedData: { lastUpdated: '2026-08-22T00:00:00.000Z' },
-      sections: {
-        balance: {
-          data: { balance: 130 },
-          isLoading: false,
-          error: null,
+    useLandingPageDataMock.mockReturnValue(
+      landingResult({
+        data: {
+          net_portfolio_value: 130,
+          last_updated: '2026-08-22T00:00:00.000Z',
         },
-      },
-    });
+      }),
+    );
     usePortfolioDashboardMock.mockReturnValue({
       dashboard: {
         trends: {
@@ -261,16 +285,15 @@ describe('useHomeData', () => {
   });
 
   it('reports upstream errors while preserving partial live portfolio data', () => {
-    usePortfolioDataProgressiveMock.mockReturnValue({
-      unifiedData: { lastUpdated: '2026-08-02T00:00:00.000Z' },
-      sections: {
-        balance: {
-          data: { balance: 1234 },
-          isLoading: false,
-          error: new Error('balance failed'),
+    useLandingPageDataMock.mockReturnValue(
+      landingResult({
+        data: {
+          net_portfolio_value: 1234,
+          last_updated: '2026-08-02T00:00:00.000Z',
         },
-      },
-    });
+        error: new Error('balance failed'),
+      }),
+    );
     usePortfolioDashboardMock.mockReturnValue({
       dashboard: {
         trends: {
@@ -287,6 +310,8 @@ describe('useHomeData', () => {
     const result = useHomeData('user-123', '1Y');
 
     expect(result).toMatchObject({ isLoading: false, isError: true });
+    // A snapshot already in hand outranks the error it arrived with.
+    expect(result.snapshotAvailability).toBe('available');
     expect(result.data.home).toMatchObject({
       totalBalance: 1234,
       rangeChangeUsd: 234,
@@ -296,6 +321,127 @@ describe('useHomeData', () => {
       expect.objectContaining({ total_value_usd: 1000 }),
       expect.objectContaining({ total_value_usd: 1234 }),
     ]);
+  });
+});
+
+describe('Home section states', () => {
+  const snapshot = {
+    net_portfolio_value: 130,
+    last_updated: '2026-08-22T00:00:00.000Z',
+  };
+
+  it('lets the balance land while the chart and the strategy card wait', () => {
+    useLandingPageDataMock.mockReturnValue(landingResult({ data: snapshot }));
+    usePortfolioDashboardMock.mockReturnValue({
+      dashboard: null,
+      isLoading: true,
+      isError: false,
+    });
+    useStrategySuggestionMock.mockReturnValue({
+      data: null,
+      isLoading: true,
+      isError: false,
+    });
+
+    const result = useHomeData('user-123', '1Y');
+
+    expect(result.balance).toEqual({ isLoading: false, isError: false });
+    expect(result.trend).toEqual({ isLoading: true, isError: false });
+    expect(result.strategy).toEqual({ isLoading: true, isError: false });
+    // The aggregate still reports the slowest section, as it always has.
+    expect(result.isLoading).toBe(true);
+    expect(result.data.home.totalBalance).toBe(130);
+  });
+
+  it('attributes each failure to the section that owns it', () => {
+    useLandingPageDataMock.mockReturnValue(
+      landingResult({ error: new Error('landing down') }),
+    );
+    usePortfolioDashboardMock.mockReturnValue({
+      dashboard: null,
+      isLoading: false,
+      isError: true,
+    });
+
+    const result = useHomeData('user-123', '1Y');
+
+    expect(result.balance.isError).toBe(true);
+    expect(result.trend.isError).toBe(true);
+    expect(result.strategy.isError).toBe(false);
+    expect(result.isError).toBe(true);
+  });
+
+  it('holds every section while the analytics subject resolves', () => {
+    const result = useHomeData(null, '1Y', { isResolvingSubject: true });
+
+    expect(result.balance.isLoading).toBe(true);
+    expect(result.trend.isLoading).toBe(true);
+    expect(result.strategy.isLoading).toBe(true);
+  });
+
+  it('reads the balance straight off the landing response', () => {
+    useLandingPageDataMock.mockReturnValue(
+      landingResult({
+        data: { net_portfolio_value: 130, last_updated: snapshot.last_updated },
+      }),
+    );
+
+    expect(useHomeData('user-123', '1Y').data.home.totalBalance).toBe(130);
+  });
+
+  it('falls back to total_net_usd when net_portfolio_value is null', () => {
+    // A null there is a missing number: reading it as zero would show a
+    // funded portfolio as empty.
+    useLandingPageDataMock.mockReturnValue(
+      landingResult({
+        data: {
+          net_portfolio_value: null,
+          total_net_usd: 4_200,
+          last_updated: snapshot.last_updated,
+        },
+      }),
+    );
+
+    expect(useHomeData('user-123', '1Y').data.home.totalBalance).toBe(4_200);
+  });
+});
+
+describe('Home snapshot classification', () => {
+  it('classifies a landing transport failure as failed, not an empty portfolio', () => {
+    useLandingPageDataMock.mockReturnValue(
+      landingResult({ error: new Error('Network request failed') }),
+    );
+
+    const result = useHomeData('user-123', '1Y');
+
+    // `unavailable` drives the import copy and ETL polling; a network blip is
+    // not evidence that the portfolio is missing.
+    expect(result.snapshotAvailability).toBe('failed');
+    expect(result.data.home.totalBalance).toBeNull();
+  });
+
+  it.each([
+    ['a 404 status', Object.assign(new Error('missing'), { status: 404 })],
+    ['a USER_NOT_FOUND message', new Error('USER_NOT_FOUND')],
+  ])(
+    'keeps an unknown subject reported by %s on the import path',
+    (_, error) => {
+      useLandingPageDataMock.mockReturnValue(landingResult({ error }));
+
+      expect(useHomeData('user-123', '1Y').snapshotAvailability).toBe(
+        'unavailable',
+      );
+    },
+  );
+
+  it('keeps an in-flight import on the import path despite a landing error', () => {
+    useLandingPageDataMock.mockReturnValue(
+      landingResult({ error: new Error('Network request failed') }),
+    );
+
+    const result = useHomeData('user-123', '1Y', { isEtlInProgress: true });
+
+    expect(result.snapshotAvailability).toBe('unavailable');
   });
 });
 
@@ -322,12 +468,14 @@ describe('Home change attribution', () => {
   });
 
   function mockLiveSeries(daily_returns: ReturnType<typeof dailyReturn>[]) {
-    usePortfolioDataProgressiveMock.mockReturnValue({
-      unifiedData: { lastUpdated: '2026-08-22T00:00:00.000Z' },
-      sections: {
-        balance: { data: { balance: 130 }, isLoading: false, error: null },
-      },
-    });
+    useLandingPageDataMock.mockReturnValue(
+      landingResult({
+        data: {
+          net_portfolio_value: 130,
+          last_updated: '2026-08-22T00:00:00.000Z',
+        },
+      }),
+    );
     usePortfolioDashboardMock.mockReturnValue({
       dashboard: {
         trends: {
