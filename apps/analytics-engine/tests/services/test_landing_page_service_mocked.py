@@ -17,6 +17,7 @@ from src.models.portfolio_snapshot import (
     WalletTrendOverride,
 )
 from src.services.portfolio.landing_page_service import LandingPageService
+from src.services.portfolio.roi_calculator import ROICalculator
 from src.services.shared.value_objects import WalletAggregate
 
 
@@ -232,6 +233,82 @@ class TestGetLandingPageData:
             landing_page_service.get_landing_page_data(user_id)
 
 
+class TestDegradedResponsesAreNotCached:
+    """A component failure must not be frozen into the 12-hour landing cache."""
+
+    @staticmethod
+    def _populated_snapshot() -> MagicMock:
+        snapshot = MagicMock(spec=PortfolioSnapshot)
+        snapshot.wallet_addresses = []
+        snapshot.wallet_override = None
+        snapshot.to_portfolio_summary.return_value = {
+            "total_value_usd": 0.0,
+            "total_assets": 0.0,
+            "total_debt": 0.0,
+            "net_portfolio_value": 0.0,
+            "wallet_count": 0,
+            "wallet_token_count": 0,
+            "wallet_assets": {
+                "btc": 0.0,
+                "eth": 0.0,
+                "stablecoins": 0.0,
+                "others": 0.0,
+            },
+        }
+        return snapshot
+
+    def test_pool_failure_degrades_without_caching(
+        self, landing_page_service, mock_snapshot_service, mock_pool_service
+    ):
+        mock_snapshot_service.get_portfolio_snapshot.return_value = (
+            self._populated_snapshot()
+        )
+        mock_pool_service.get_pool_performance.side_effect = RuntimeError("pool down")
+        user_id = uuid4()
+
+        first = landing_page_service.get_landing_page_data(user_id)
+        landing_page_service.get_landing_page_data(user_id)
+
+        assert isinstance(first, PortfolioResponse)
+        assert first.pool_details == []
+        # Recomputed rather than served from cache: the degraded payload was
+        # never stored.
+        assert mock_snapshot_service.get_portfolio_snapshot.call_count == 2
+
+    def test_roi_failure_degrades_without_caching(
+        self, landing_page_service, mock_snapshot_service, mock_pool_service
+    ):
+        mock_snapshot_service.get_portfolio_snapshot.return_value = (
+            self._populated_snapshot()
+        )
+        mock_pool_service.get_pool_performance.return_value = []
+        landing_page_service.roi_calculator = ROICalculator(MagicMock())
+        landing_page_service.roi_calculator.query_service.execute_query.side_effect = (
+            RuntimeError("roi query failed")
+        )
+        user_id = uuid4()
+
+        first = landing_page_service.get_landing_page_data(user_id)
+        landing_page_service.get_landing_page_data(user_id)
+
+        assert first.portfolio_roi.recommended_roi == 0.0
+        assert mock_snapshot_service.get_portfolio_snapshot.call_count == 2
+
+    def test_healthy_response_is_cached(
+        self, landing_page_service, mock_snapshot_service, mock_pool_service
+    ):
+        mock_snapshot_service.get_portfolio_snapshot.return_value = (
+            self._populated_snapshot()
+        )
+        mock_pool_service.get_pool_performance.return_value = []
+        user_id = uuid4()
+
+        landing_page_service.get_landing_page_data(user_id)
+        landing_page_service.get_landing_page_data(user_id)
+
+        assert mock_snapshot_service.get_portfolio_snapshot.call_count == 1
+
+
 class TestFetchWalletSummary:
     """Tests for _fetch_wallet_summary logic."""
 
@@ -288,19 +365,31 @@ class TestCrossServiceConsistency:
         )
 
 
-class TestCacheDisabledEarlyReturn:
-    """Cover line 365: cache disabled returns None."""
+class TestCacheDisabled:
+    """The global kill switch must reach the landing page."""
 
-    def test_get_cached_landing_response_returns_none_when_cache_disabled(
-        self, landing_page_service, monkeypatch
+    def test_disabled_cache_recomputes_every_call(
+        self, landing_page_service, mock_snapshot_service, monkeypatch
     ):
         monkeypatch.setattr(
             "src.services.portfolio.landing_page_service.settings.analytics_cache_enabled",
             False,
         )
-        result = landing_page_service._get_cached_landing_response(
-            cache_key="test_key",
-            user_id=uuid4(),
-            start_time=0.0,
-        )
-        assert result is None
+        mock_snapshot_service.get_portfolio_snapshot.return_value = None
+        user_id = uuid4()
+
+        landing_page_service.get_landing_page_data(user_id)
+        landing_page_service.get_landing_page_data(user_id)
+
+        assert mock_snapshot_service.get_portfolio_snapshot.call_count == 2
+
+    def test_enabled_cache_serves_second_call(
+        self, landing_page_service, mock_snapshot_service
+    ):
+        mock_snapshot_service.get_portfolio_snapshot.return_value = None
+        user_id = uuid4()
+
+        landing_page_service.get_landing_page_data(user_id)
+        landing_page_service.get_landing_page_data(user_id)
+
+        assert mock_snapshot_service.get_portfolio_snapshot.call_count == 1

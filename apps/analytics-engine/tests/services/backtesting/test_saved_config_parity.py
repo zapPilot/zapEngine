@@ -193,7 +193,9 @@ def test_daily_suggestion_matches_compare_output_for_same_saved_config() -> None
                 for price_row in prices
             }
         ),
-        canonical_snapshot_service=SimpleNamespace(),
+        canonical_snapshot_service=SimpleNamespace(
+            get_snapshot_date=lambda _user_id: date(2024, 1, 1)
+        ),
         strategy_config_store=SimpleNamespace(
             resolve_config=lambda _config_id: saved_config
         ),
@@ -276,7 +278,9 @@ def test_mock_family_matches_compare_output_with_injected_catalog() -> None:
                 for price_row in prices
             ],
         ),
-        canonical_snapshot_service=SimpleNamespace(),
+        canonical_snapshot_service=SimpleNamespace(
+            get_snapshot_date=lambda _user_id: date(2024, 1, 1)
+        ),
         strategy_config_store=SimpleNamespace(
             resolve_config=lambda _config_id: saved_config
         ),

@@ -8,6 +8,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import TYPE_CHECKING, Any, cast
 from uuid import UUID
 
+from src.core.cache_service import analytics_cache, build_service_cache_key
 from src.models.backtesting import (
     Allocation,
     AssetAllocation,
@@ -23,6 +24,7 @@ from src.models.strategy import (
     DailySuggestionStrategyContextState,
     DailySuggestionTargetState,
 )
+from src.models.strategy_config import SavedStrategyConfig
 from src.services.backtesting.asset_allocation_serialization import (
     serialize_asset_allocation,
 )
@@ -113,6 +115,12 @@ class _DailySuggestionMarketData:
 
 
 class StrategyDailySuggestionService:
+    # Bump to invalidate cached suggestions after a logic change.
+    CACHE_VERSION = "v1"
+    # There is no server-side ETL completion signal, so freshness rests on the
+    # canonical snapshot date in the key plus this short window.
+    CACHE_TTL = timedelta(minutes=10)
+
     landing_page_service: LandingPageService
     regime_tracking_service: RegimeTrackingService
     sentiment_service: SentimentDatabaseService
@@ -173,6 +181,41 @@ class StrategyDailySuggestionService:
             )
         lookback_days = regime_history_days or DEFAULT_REGIME_HISTORY_DAYS
 
+        cache_key = build_service_cache_key(
+            self.__class__.__name__,
+            self.CACHE_VERSION,
+            str(user_id),
+            # Key on the resolved id: the backend default arrives both as None
+            # and under its own id, and both must share one entry.
+            saved_config.config_id,
+            lookback_days,
+            self._snapshot_anchor(user_id),
+        )
+        return analytics_cache.get_or_compute(
+            cache_key,
+            lambda: self._compute_daily_suggestion(
+                user_id=user_id,
+                saved_config=saved_config,
+                resolved_config=resolved_config,
+                lookback_days=lookback_days,
+            ),
+            ttl=self.CACHE_TTL,
+        )
+
+    def _snapshot_anchor(self, user_id: UUID) -> str:
+        """Pin the cache entry to the canonical snapshot it was computed from."""
+        if self.canonical_snapshot_service is None:
+            return "no-snapshot-anchor"
+        return str(self.canonical_snapshot_service.get_snapshot_date(user_id))
+
+    def _compute_daily_suggestion(
+        self,
+        *,
+        user_id: UUID,
+        saved_config: SavedStrategyConfig,
+        resolved_config: ResolvedSavedStrategyConfig,
+        lookback_days: int,
+    ) -> DailySuggestionResponse:
         portfolio_data = self._load_portfolio_data(
             user_id, resolved_config=resolved_config
         )

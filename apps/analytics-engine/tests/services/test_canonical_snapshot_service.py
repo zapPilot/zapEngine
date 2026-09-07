@@ -5,16 +5,20 @@ Validates canonical snapshot date selection, date range calculations,
 and snapshot consistency validation logic.
 """
 
+import time
 from datetime import date, timedelta
-from unittest.mock import patch
 from uuid import UUID, uuid4
 
 import pytest
 
+from src.core.cache_service import analytics_cache
 from src.services.portfolio.canonical_snapshot_service import (
     CanonicalSnapshotService,
     SnapshotInfo,
 )
+
+# One millisecond expressed in the hours unit the TTL constant uses.
+MILLISECOND_IN_HOURS = 1 / 3_600_000
 
 
 @pytest.fixture
@@ -32,13 +36,11 @@ def canonical_service(mock_db, mock_query_service):
 class TestGetSnapshotDate:
     """Test CanonicalSnapshotService.get_snapshot_date()."""
 
-    @patch("src.services.portfolio.canonical_snapshot_service.analytics_cache")
     def test_returns_latest_snapshot_date(
-        self, mock_cache, canonical_service, mock_query_service, mock_db, user_id
+        self, canonical_service, mock_query_service, mock_db, user_id
     ):
         """Verify get_snapshot_date returns the latest available snapshot date."""
         # Arrange
-        mock_cache.get.return_value = None  # Cache miss
         expected_date = date(2025, 1, 1)
         mock_query_service.execute_query_one.return_value = {
             "snapshot_date": expected_date,
@@ -58,13 +60,11 @@ class TestGetSnapshotDate:
         assert call_args[0][2]["user_id"] == str(user_id)
         assert call_args[0][2]["wallet_address"] is None
 
-    @patch("src.services.portfolio.canonical_snapshot_service.analytics_cache")
     def test_filters_by_wallet_address(
-        self, mock_cache, canonical_service, mock_query_service, mock_db, user_id
+        self, canonical_service, mock_query_service, mock_db, user_id
     ):
         """Verify wallet_address parameter filters results correctly."""
         # Arrange
-        mock_cache.get.return_value = None  # Cache miss
         wallet_address = "0x1234567890abcdef"
         expected_date = date(2025, 1, 2)
         mock_query_service.execute_query_one.return_value = {
@@ -81,13 +81,11 @@ class TestGetSnapshotDate:
         call_args = mock_query_service.execute_query_one.call_args
         assert call_args[0][2]["wallet_address"] == wallet_address
 
-    @patch("src.services.portfolio.canonical_snapshot_service.analytics_cache")
     def test_returns_none_when_no_data(
-        self, mock_cache, canonical_service, mock_query_service, user_id
+        self, canonical_service, mock_query_service, user_id
     ):
         """Verify graceful handling when no snapshot data exists."""
         # Arrange
-        mock_cache.get.return_value = None  # Cache miss
         mock_query_service.execute_query_one.return_value = None
 
         # Act
@@ -96,13 +94,11 @@ class TestGetSnapshotDate:
         # Assert
         assert result is None
 
-    @patch("src.services.portfolio.canonical_snapshot_service.analytics_cache")
     def test_returns_none_when_snapshot_date_missing_in_result(
-        self, mock_cache, canonical_service, mock_query_service, user_id
+        self, canonical_service, mock_query_service, user_id
     ):
         """Verify error handling when query returns result without snapshot_date."""
         # Arrange
-        mock_cache.get.return_value = None  # Cache miss
         mock_query_service.execute_query_one.return_value = {
             "wallet_count": 3,
             "max_snapshot_at": "2025-01-01T23:59:59Z",
@@ -114,31 +110,30 @@ class TestGetSnapshotDate:
         # Assert
         assert result is None
 
-    @patch("src.services.portfolio.canonical_snapshot_service.analytics_cache")
-    def test_uses_cache_when_available(
-        self, mock_cache, canonical_service, mock_query_service, user_id
+    def test_second_call_is_served_from_cache(
+        self, canonical_service, mock_query_service, user_id
     ):
-        """Verify cache is checked first and query is skipped on cache hit."""
+        """Verify a repeat lookup reuses the cached snapshot instead of querying."""
         # Arrange
         cached_date = date(2025, 1, 3)
-        mock_cache.get.return_value = SnapshotInfo(
-            snapshot_date=cached_date, wallet_count=1, last_updated=None
-        )
+        mock_query_service.execute_query_one.return_value = {
+            "snapshot_date": cached_date,
+            "wallet_count": 1,
+        }
 
         # Act
-        result = canonical_service.get_snapshot_date(user_id)
+        first = canonical_service.get_snapshot_date(user_id)
+        second = canonical_service.get_snapshot_date(user_id)
 
         # Assert
-        assert result == cached_date
-        mock_query_service.execute_query_one.assert_not_called()
+        assert first == second == cached_date
+        assert mock_query_service.execute_query_one.call_count == 1
 
-    @patch("src.services.portfolio.canonical_snapshot_service.analytics_cache")
     def test_caches_result_after_query(
-        self, mock_cache, canonical_service, mock_query_service, user_id
+        self, canonical_service, mock_query_service, user_id
     ):
-        """Verify query result is cached with correct TTL."""
+        """Verify the queried snapshot metadata lands on the shared cache."""
         # Arrange
-        mock_cache.get.return_value = None  # Cache miss
         snapshot_date = date(2025, 1, 4)
         mock_query_service.execute_query_one.return_value = {
             "snapshot_date": snapshot_date,
@@ -149,71 +144,71 @@ class TestGetSnapshotDate:
         canonical_service.get_snapshot_date(user_id)
 
         # Assert
-        # Assert
-        mock_cache.set.assert_called_once()
-        call_args = mock_cache.set.call_args
-        cached_value = call_args[0][1]
+        cached_value = analytics_cache.get(
+            analytics_cache.build_key("canonical_snapshot_info", str(user_id), "bundle")
+        )
         assert isinstance(cached_value, SnapshotInfo)
         assert cached_value.snapshot_date == snapshot_date
         assert cached_value.wallet_count == 2
-        assert call_args.kwargs["ttl"] == timedelta(hours=5 / 60)  # 5 minutes
 
-    @patch("src.services.portfolio.canonical_snapshot_service.analytics_cache")
-    def test_caches_none_when_no_data(
-        self, mock_cache, canonical_service, mock_query_service, user_id
+    def test_caches_absence_of_data(
+        self, canonical_service, mock_query_service, user_id
     ):
-        """Verify None is cached to avoid repeated queries for non-existent data."""
+        """Verify a user with no snapshot rows is not re-queried on every call."""
         # Arrange
-        mock_cache.get.return_value = None  # Cache miss
         mock_query_service.execute_query_one.return_value = None
 
         # Act
-        canonical_service.get_snapshot_date(user_id)
+        first = canonical_service.get_snapshot_date(user_id)
+        second = canonical_service.get_snapshot_date(user_id)
 
         # Assert
-        mock_cache.set.assert_called_once()
-        call_args = mock_cache.set.call_args
-        assert call_args[0][1] is None
+        assert first is None
+        assert second is None
+        assert mock_query_service.execute_query_one.call_count == 1
 
-    @patch("src.services.portfolio.canonical_snapshot_service.analytics_cache")
     def test_cache_key_includes_wallet_address(
-        self, mock_cache, canonical_service, mock_query_service, user_id
+        self, canonical_service, mock_query_service, user_id
     ):
         """Verify cache key differentiates bundle vs wallet-specific queries."""
         # Arrange
-        mock_cache.get.return_value = None
         mock_query_service.execute_query_one.return_value = {
             "snapshot_date": date(2025, 1, 1),
             "wallet_count": 1,
         }
 
-        # Act - bundle query
+        # Act
         canonical_service.get_snapshot_date(user_id, wallet_address=None)
-        bundle_cache_key = mock_cache.build_key.call_args[0]
+        canonical_service.get_snapshot_date(user_id, wallet_address="0xabc")
 
-        # Reset mock
-        mock_cache.reset_mock()
-
-        # Act - wallet-specific query
-        wallet = "0xabc"
-        canonical_service.get_snapshot_date(user_id, wallet_address=wallet)
-        wallet_cache_key = mock_cache.build_key.call_args[0]
-
-        # Assert - cache keys should differ
-        assert bundle_cache_key != wallet_cache_key
-        assert bundle_cache_key[0] == "canonical_snapshot_info"
+        # Assert - separate keys mean the wallet query is not served the bundle entry
+        assert mock_query_service.execute_query_one.call_count == 2
+        assert (
+            analytics_cache.get(
+                analytics_cache.build_key(
+                    "canonical_snapshot_info", str(user_id), "bundle"
+                )
+            )
+            is not None
+        )
+        assert (
+            analytics_cache.get(
+                analytics_cache.build_key(
+                    "canonical_snapshot_info", str(user_id), "0xabc"
+                )
+            )
+            is not None
+        )
 
 
 class TestGetSnapshotDateRange:
     """Test CanonicalSnapshotService.get_snapshot_date_range()."""
 
-    @patch("src.services.portfolio.canonical_snapshot_service.analytics_cache")
     def test_calculates_date_range_correctly(
-        self, mock_cache, canonical_service, mock_query_service, user_id
+        self, canonical_service, mock_query_service, user_id
     ):
         """Verify date range calculation: (end - days, end + 1 day)."""
         # Arrange
-        mock_cache.get.return_value = None  # Cache miss
         latest_date = date(2025, 1, 10)
         mock_query_service.execute_query_one.return_value = {
             "snapshot_date": latest_date
@@ -231,26 +226,22 @@ class TestGetSnapshotDateRange:
         assert start_date == end_date - timedelta(days=30)
         assert (end_date - start_date).days == 30
 
-    @patch("src.services.portfolio.canonical_snapshot_service.analytics_cache")
     def test_raises_error_when_no_snapshot_data(
-        self, mock_cache, canonical_service, mock_query_service, user_id
+        self, canonical_service, mock_query_service, user_id
     ):
         """Verify ValueError is raised when no snapshot data exists."""
         # Arrange
-        mock_cache.get.return_value = None  # Cache miss
         mock_query_service.execute_query_one.return_value = None
 
         # Act & Assert
         with pytest.raises(ValueError, match="No snapshot data exists"):
             canonical_service.get_snapshot_date_range(user_id, days=30)
 
-    @patch("src.services.portfolio.canonical_snapshot_service.analytics_cache")
     def test_passes_wallet_address_to_get_snapshot_date(
-        self, mock_cache, canonical_service, mock_query_service, user_id
+        self, canonical_service, mock_query_service, user_id
     ):
         """Verify wallet_address parameter is passed to underlying get_snapshot_date call."""
         # Arrange
-        mock_cache.get.return_value = None  # Cache miss
         wallet = "0xdef456"
         latest_date = date(2025, 1, 15)
         mock_query_service.execute_query_one.return_value = {
@@ -266,13 +257,11 @@ class TestGetSnapshotDateRange:
         call_args = mock_query_service.execute_query_one.call_args
         assert call_args[0][2]["wallet_address"] == wallet
 
-    @patch("src.services.portfolio.canonical_snapshot_service.analytics_cache")
     def test_handles_various_day_ranges(
-        self, mock_cache, canonical_service, mock_query_service, user_id
+        self, canonical_service, mock_query_service, user_id
     ):
         """Verify correct calculation for different day ranges."""
         # Arrange
-        mock_cache.get.return_value = None  # Cache miss
         latest_date = date(2025, 1, 20)
         mock_query_service.execute_query_one.return_value = {
             "snapshot_date": latest_date
@@ -402,31 +391,33 @@ class TestValidateSnapshotConsistency:
 class TestCachingBehavior:
     """Test caching behavior across CanonicalSnapshotService methods."""
 
-    @patch("src.services.portfolio.canonical_snapshot_service.analytics_cache")
-    def test_cache_ttl_is_5_minutes(
-        self, mock_cache, canonical_service, mock_query_service, user_id
+    def test_cache_ttl_is_5_minutes(self):
+        """Verify the recency window stays at 5 minutes."""
+        assert CanonicalSnapshotService.SNAPSHOT_DATE_CACHE_TTL_HOURS == 5 / 60
+
+    def test_cached_snapshot_expires_on_its_ttl(
+        self, canonical_service, mock_query_service, user_id, monkeypatch
     ):
-        """Verify cache TTL is 5 minutes for recency."""
-        # Arrange
-        mock_cache.get.return_value = None  # Cache miss
+        """Verify the configured TTL really expires the entry, not just gets passed."""
+        # Arrange - shrink the recency window to 1ms so expiry is observable
+        monkeypatch.setattr(
+            canonical_service, "SNAPSHOT_DATE_CACHE_TTL_HOURS", MILLISECOND_IN_HOURS
+        )
         mock_query_service.execute_query_one.return_value = {
             "snapshot_date": date(2025, 1, 11)
         }
 
         # Act
         canonical_service.get_snapshot_date(user_id)
+        time.sleep(0.05)
+        canonical_service.get_snapshot_date(user_id)
 
         # Assert
-        call_args = mock_cache.set.call_args
-        assert call_args.kwargs["ttl"] == timedelta(hours=5 / 60)  # 5 minutes in hours
+        assert mock_query_service.execute_query_one.call_count == 2
 
-    @patch("src.services.portfolio.canonical_snapshot_service.analytics_cache")
-    def test_cache_key_format(
-        self, mock_cache, canonical_service, mock_query_service, user_id
-    ):
+    def test_cache_key_format(self, canonical_service, mock_query_service, user_id):
         """Verify cache key follows expected format."""
         # Arrange
-        mock_cache.get.return_value = None
         mock_query_service.execute_query_one.return_value = {
             "snapshot_date": date(2025, 1, 1),
             "wallet_count": 1,
@@ -435,20 +426,16 @@ class TestCachingBehavior:
         # Act
         canonical_service.get_snapshot_date(user_id, wallet_address=None)
 
-        # Assert
-        mock_cache.build_key.assert_called_once()
-        call_args = mock_cache.build_key.call_args[0]
-        assert call_args[0] == "canonical_snapshot_info"
-        assert call_args[1] == str(user_id)
-        assert call_args[2] == "bundle"  # wallet_address=None → "bundle"
+        # Assert - wallet_address=None → "bundle"
+        expected_key = f"canonical_snapshot_info:{user_id}:bundle"
+        assert analytics_cache.get(expected_key) is not None
 
 
 class TestEdgeCases:
     """Test edge cases and boundary conditions."""
 
-    @patch("src.services.portfolio.canonical_snapshot_service.analytics_cache")
     def test_handles_zero_wallet_count(
-        self, mock_cache, canonical_service, mock_query_service, user_id
+        self, canonical_service, mock_query_service, user_id
     ):
         """Verify handling of zero wallet count in validation."""
         # Arrange
@@ -467,13 +454,11 @@ class TestEdgeCases:
         assert result["is_complete"] is True
         assert result["wallet_count"] == 0
 
-    @patch("src.services.portfolio.canonical_snapshot_service.analytics_cache")
     def test_handles_single_day_range(
-        self, mock_cache, canonical_service, mock_query_service, user_id
+        self, canonical_service, mock_query_service, user_id
     ):
         """Verify date range calculation for single day (days=1)."""
         # Arrange
-        mock_cache.get.return_value = None
         latest_date = date(2025, 1, 13)
         mock_query_service.execute_query_one.return_value = {
             "snapshot_date": latest_date

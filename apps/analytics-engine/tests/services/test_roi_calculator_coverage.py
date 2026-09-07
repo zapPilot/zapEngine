@@ -60,16 +60,37 @@ def test_compute_portfolio_roi_cache_hit(calculator):
     calculator.query_service.execute_query.assert_not_called()
 
 
-def test_compute_roi_internal_exception_handling(calculator, mock_query_service):
-    """Test exception handling in _compute_roi_internal."""
-    # Force exception
+def test_compute_roi_internal_propagates_query_failure(calculator, mock_query_service):
+    """A failed ROI query must surface, not masquerade as a real zero result."""
     mock_query_service.execute_query.side_effect = Exception("DB Error")
     mock_db = MagicMock()
 
-    result = calculator._compute_roi_internal(mock_db, uuid4())
+    with pytest.raises(Exception, match="DB Error"):
+        calculator._compute_roi_internal(mock_db, uuid4())
 
-    # Should return empty result
-    # Should return empty result structure (not empty dict)
+
+def test_compute_portfolio_roi_does_not_cache_failures(calculator, mock_query_service):
+    """A failure must leave the cache empty so the next call retries."""
+    user_id = uuid4()
+    mock_db = MagicMock()
+    mock_query_service.execute_query.side_effect = Exception("DB Error")
+
+    with pytest.raises(Exception, match="DB Error"):
+        calculator.compute_portfolio_roi(mock_db, user_id)
+
+    mock_query_service.execute_query.side_effect = None
+    mock_query_service.execute_query.return_value = [
+        {"date": date(2023, 1, 1), "category_value_usd": 1000},
+    ]
+    result = calculator.compute_portfolio_roi(mock_db, user_id)
+
+    assert result["windows"]
+
+
+def test_empty_result_returns_zeroed_windows(calculator):
+    """The public degradation payload stays available to callers."""
+    result = calculator.empty_result()
+
     assert result["recommended_roi"] == 0.0
     assert result["estimated_yearly_pnl"] == 0.0
     assert len(result["windows"]) > 0

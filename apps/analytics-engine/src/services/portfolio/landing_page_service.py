@@ -6,9 +6,9 @@ import logging
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, timedelta
-from typing import Any, TypeVar, cast
+from typing import Any, TypeVar
 from uuid import UUID
 
 from pydantic import ValidationError as PydanticValidationError
@@ -60,15 +60,15 @@ class _LandingComponents:
     borrowing_summary: Any
 
 
-@dataclass(frozen=True)
-class _PreparedLandingContext:
-    """Prepared snapshot context for landing-page assembly."""
+@dataclass
+class _LandingDegradation:
+    """Landing components that fell back to placeholder data."""
 
-    cache_key: str
-    snapshot_date: date
-    wallet_addresses: list[str]
-    wallet_override: WalletTrendOverride | None
-    portfolio_summary: dict[str, Any]
+    components: list[str] = field(default_factory=list)
+
+    @property
+    def is_degraded(self) -> bool:
+        return bool(self.components)
 
 
 class LandingPageService(CacheKeyMixin):
@@ -148,26 +148,79 @@ class LandingPageService(CacheKeyMixin):
         - asyncio.to_thread() adds overhead without performance benefit
         - Connection pooling (QueuePool) makes sequential queries fast enough
 
-        Caching enabled with centralized TTL (12 hours for daily ETL pattern).
+        Snapshot fetch, component fetch and payload build run inside one cached
+        computation, so concurrent requests for the same user collapse into a
+        single pass instead of each replaying the whole query set.
         """
         start_time = time.time()
-        prepared = self._prepare_landing_context(
-            user_id=user_id,
-            start_time=start_time,
-        )
-        if not isinstance(prepared, _PreparedLandingContext):
-            return prepared
-        try:
-            response = self._assemble_landing_response(
-                user_id=user_id,
-                cache_key=prepared.cache_key,
-                wallet_addresses=prepared.wallet_addresses,
-                wallet_override=prepared.wallet_override,
-                snapshot_date=prepared.snapshot_date,
-                portfolio_summary=prepared.portfolio_summary,
+        snapshot_date, snapshot_info = self._resolve_canonical_snapshot(user_id)
+        if snapshot_date is None:
+            logger.warning(
+                "No snapshot data exists for user %s - returning empty response",
+                user_id,
             )
-            self._log_landing_perf_summary(start_time=start_time)
-            return response
+            return self.response_builder.build_empty_response(user_id)
+
+        degradation = _LandingDegradation()
+        response = analytics_cache.get_or_compute(
+            self._cache_key(user_id, snapshot_date),
+            lambda: self._compute_landing_response(
+                user_id=user_id,
+                snapshot_date=snapshot_date,
+                snapshot_info=snapshot_info,
+                degradation=degradation,
+            ),
+            ttl=timedelta(hours=settings.analytics_cache_default_ttl_hours),
+            # One failed component must not hide a user's positions for 12 hours.
+            should_cache=lambda _response: not degradation.is_degraded,
+        )
+        self._log_landing_perf_summary(start_time=start_time)
+        return response
+
+    def _compute_landing_response(
+        self,
+        *,
+        user_id: UUID,
+        snapshot_date: date,
+        snapshot_info: SnapshotInfo | None,
+        degradation: _LandingDegradation,
+    ) -> PortfolioResponse:
+        """Build the landing payload from scratch for one canonical snapshot."""
+        snapshot = self._fetch_landing_snapshot(
+            user_id=user_id,
+            snapshot_date=snapshot_date,
+        )
+        if snapshot is None:
+            logger.info("Empty portfolio snapshot for user %s", user_id)
+            return self.response_builder.build_empty_response(user_id)
+
+        wallet_addresses, portfolio_summary, wallet_override = (
+            self._build_snapshot_context(
+                snapshot=snapshot,
+                snapshot_date=snapshot_date,
+                snapshot_info=snapshot_info,
+            )
+        )
+        try:
+            components = self._fetch_landing_components(
+                user_id,
+                wallet_addresses=wallet_addresses,
+                wallet_override=wallet_override,
+                snapshot_date=snapshot_date,
+                portfolio_summary=portfolio_summary,
+                degradation=degradation,
+            )
+            with _timed("build_portfolio_response"):
+                return self.response_builder.build_portfolio_response(
+                    portfolio_summary,
+                    components.wallet_summary,
+                    components.roi_data,
+                    pool_details=components.pool_details,
+                    positions_count=components.positions_count,
+                    protocols_count=components.protocols_count,
+                    chains_count=components.chains_count,
+                    borrowing_summary=components.borrowing_summary,
+                )
         except PydanticValidationError as exc:
             logger.error("Portfolio validation failed for user %s: %s", user_id, exc)
             raise ValidationError(
@@ -182,81 +235,6 @@ class LandingPageService(CacheKeyMixin):
                 f"Business logic validation failed for user {user_id}: {str(exc)}",
                 context={"user_id": str(user_id)},
             ) from exc
-
-    def _prepare_landing_context(
-        self,
-        *,
-        user_id: UUID,
-        start_time: float,
-    ) -> _PreparedLandingContext | PortfolioResponse:
-        snapshot_date, snapshot_info = self._resolve_canonical_snapshot(user_id)
-        if snapshot_date is None:
-            logger.warning(
-                "No snapshot data exists for user %s - returning empty response",
-                user_id,
-            )
-            return self.response_builder.build_empty_response(user_id)
-        cache_key = self._cache_key(user_id, snapshot_date)
-        cached_result = self._get_cached_landing_response(
-            cache_key=cache_key,
-            user_id=user_id,
-            start_time=start_time,
-        )
-        if cached_result is not None:
-            return cached_result
-        snapshot = self._fetch_landing_snapshot(
-            user_id=user_id,
-            snapshot_date=snapshot_date,
-        )
-        if snapshot is None:
-            return self._build_empty_snapshot_response(
-                cache_key=cache_key,
-                user_id=user_id,
-                start_time=start_time,
-            )
-        wallet_addresses, portfolio_summary, wallet_override = (
-            self._build_snapshot_context(
-                snapshot=snapshot,
-                snapshot_date=snapshot_date,
-                snapshot_info=snapshot_info,
-            )
-        )
-        return _PreparedLandingContext(
-            cache_key=cache_key,
-            snapshot_date=snapshot_date,
-            wallet_addresses=wallet_addresses,
-            wallet_override=wallet_override,
-            portfolio_summary=portfolio_summary,
-        )
-
-    def _assemble_landing_response(
-        self,
-        *,
-        user_id: UUID,
-        cache_key: str,
-        wallet_addresses: list[str],
-        wallet_override: Any,
-        snapshot_date: date,
-        portfolio_summary: dict[str, Any],
-    ) -> PortfolioResponse:
-        components = self._fetch_landing_components(
-            user_id,
-            wallet_addresses=wallet_addresses,
-            wallet_override=wallet_override,
-            snapshot_date=snapshot_date,
-            portfolio_summary=portfolio_summary,
-        )
-        return self._build_and_cache_landing_response(
-            cache_key=cache_key,
-            portfolio_summary=portfolio_summary,
-            wallet_summary=components.wallet_summary,
-            roi_data=components.roi_data,
-            pool_details=components.pool_details,
-            positions_count=components.positions_count,
-            protocols_count=components.protocols_count,
-            chains_count=components.chains_count,
-            borrowing_summary=components.borrowing_summary,
-        )
 
     def _fetch_landing_snapshot(
         self,
@@ -298,52 +276,6 @@ class LandingPageService(CacheKeyMixin):
             return snapshot_info.snapshot_date, snapshot_info
         return None, None
 
-    def _get_cached_landing_response(
-        self,
-        *,
-        cache_key: str,
-        user_id: UUID,
-        start_time: float,
-    ) -> PortfolioResponse | None:
-        """Return cached landing response when available."""
-        if not settings.analytics_cache_enabled:
-            return None
-
-        cached_result = cast(
-            PortfolioResponse | None,
-            analytics_cache.get(cache_key),
-        )
-        if cached_result is None:
-            return None
-
-        logger.info(
-            "PERF: Returning cached landing page data for user %s (total: %.2fms)",
-            user_id,
-            (time.time() - start_time) * 1000,
-        )
-        return cached_result
-
-    def _build_empty_snapshot_response(
-        self,
-        *,
-        cache_key: str,
-        user_id: UUID,
-        start_time: float,
-    ) -> PortfolioResponse:
-        """Build and cache empty response for users without snapshot payload."""
-        empty_response = self.response_builder.build_empty_response(user_id)
-        if settings.analytics_cache_enabled:
-            analytics_cache.set(
-                cache_key,
-                empty_response,
-                ttl=timedelta(hours=settings.analytics_cache_default_ttl_hours),
-            )
-        logger.info(
-            "PERF: Empty response (total: %.2fms)",
-            (time.time() - start_time) * 1000,
-        )
-        return empty_response
-
     def _fetch_landing_components(
         self,
         user_id: UUID,
@@ -352,6 +284,7 @@ class LandingPageService(CacheKeyMixin):
         wallet_override: WalletTrendOverride | None,
         snapshot_date: date,
         portfolio_summary: dict[str, Any],
+        degradation: _LandingDegradation,
     ) -> _LandingComponents:
         """Fetch wallet/ROI/pool/borrowing components with timing capture."""
         with _timed("_fetch_wallet_summary"):
@@ -375,13 +308,13 @@ class LandingPageService(CacheKeyMixin):
         )
 
         with _timed("compute_portfolio_roi"):
-            roi_data = self.roi_calculator.compute_portfolio_roi(
-                self.db, user_id, current_snapshot_date=snapshot_date
+            roi_data = self._fetch_roi_data(
+                user_id, snapshot_date=snapshot_date, degradation=degradation
             )
 
         with _timed("_fetch_pool_details and counting"):
             pool_details = self._fetch_pool_details(
-                user_id, snapshot_date=snapshot_date
+                user_id, snapshot_date=snapshot_date, degradation=degradation
             )
             positions_count = len(pool_details)
             protocols_count = len(
@@ -406,40 +339,6 @@ class LandingPageService(CacheKeyMixin):
             chains_count=chains_count,
             borrowing_summary=borrowing_summary,
         )
-
-    def _build_and_cache_landing_response(
-        self,
-        *,
-        cache_key: str,
-        portfolio_summary: dict[str, Any],
-        wallet_summary: WalletAggregate,
-        roi_data: PortfolioROIComputed,
-        pool_details: list[dict[str, Any]],
-        positions_count: int,
-        protocols_count: int,
-        chains_count: int,
-        borrowing_summary: Any,
-    ) -> PortfolioResponse:
-        """Build final landing response and cache it when enabled."""
-        with _timed("build_portfolio_response"):
-            result = self.response_builder.build_portfolio_response(
-                portfolio_summary,
-                wallet_summary,
-                roi_data,
-                pool_details=pool_details,
-                positions_count=positions_count,
-                protocols_count=protocols_count,
-                chains_count=chains_count,
-                borrowing_summary=borrowing_summary,
-            )
-
-        if settings.analytics_cache_enabled:
-            analytics_cache.set(
-                cache_key,
-                result,
-                ttl=timedelta(hours=settings.analytics_cache_default_ttl_hours),
-            )
-        return result
 
     def _log_landing_perf_summary(
         self,
@@ -555,18 +454,46 @@ class LandingPageService(CacheKeyMixin):
                 },
             )
 
+    def _fetch_roi_data(
+        self,
+        user_id: UUID,
+        *,
+        snapshot_date: date,
+        degradation: _LandingDegradation,
+    ) -> PortfolioROIComputed:
+        """Compute ROI, degrading to zeros when the calculation fails."""
+        try:
+            return self.roi_calculator.compute_portfolio_roi(
+                self.db, user_id, current_snapshot_date=snapshot_date
+            )
+        except Exception as exc:
+            logger.error(
+                "Failed to compute ROI for user %s: %s.",
+                user_id,
+                exc,
+                exc_info=True,
+            )
+            degradation.components.append("roi")
+            return self.roi_calculator.empty_result()
+
     def _fetch_pool_details(
-        self, user_id: UUID, snapshot_date: date | None = None
+        self,
+        user_id: UUID,
+        *,
+        snapshot_date: date | None = None,
+        degradation: _LandingDegradation,
     ) -> list[dict[str, Any]]:
         """
         Fetch pool performance details for the landing page.
 
-        Returns ALL pools without filtering. Graceful degradation on error.
+        Returns ALL pools without filtering. On failure the caller is told the
+        payload is degraded so the empty list is not cached as if it were real.
 
         Args:
             user_id: User identifier
             snapshot_date: Optional date to filter pools to specific snapshot date.
                           If None, uses 24-hour rolling window (backward compatible).
+            degradation: Collector marking this payload as incomplete on error
 
         Returns:
             List of pool performance dictionaries (empty list on error)
@@ -587,4 +514,5 @@ class LandingPageService(CacheKeyMixin):
                 exc,
                 exc_info=True,
             )
-            return []  # Graceful degradation for landing page
+            degradation.components.append("pool_details")
+            return []

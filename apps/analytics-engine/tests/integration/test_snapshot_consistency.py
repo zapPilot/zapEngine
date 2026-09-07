@@ -66,9 +66,8 @@ def canonical_service(mock_db, mock_query_service):
 class TestLandingPageSnapshotConsistency:
     """Test that landing page components use consistent snapshot dates."""
 
-    @patch("src.services.portfolio.landing_page_service.analytics_cache")
     def test_landing_totals_match_pool_details_snapshot_date(
-        self, mock_cache, user_id, snapshot_date
+        self, user_id, snapshot_date
     ):
         """
         Verify that landing page totals and pool_details use the same snapshot_date.
@@ -80,8 +79,6 @@ class TestLandingPageSnapshotConsistency:
         4. ROI calculator receives the same canonical date
         """
         # Arrange
-        mock_cache.get.return_value = None  # Cache miss
-
         mock_canonical_service = MagicMock()
         mock_canonical_service.get_snapshot_info.return_value = SnapshotInfo(
             snapshot_date=snapshot_date,
@@ -123,18 +120,13 @@ class TestLandingPageSnapshotConsistency:
         # Since portfolio snapshot was None, other services shouldn't be called
         # But if there was data, they would all receive the same snapshot_date
 
-    @patch("src.services.portfolio.landing_page_service.analytics_cache")
-    def test_landing_all_services_use_canonical_date(
-        self, mock_cache, user_id, snapshot_date
-    ):
+    def test_landing_all_services_use_canonical_date(self, user_id, snapshot_date):
         """
         Verify all landing page services receive the canonical snapshot date.
 
         This is a more comprehensive test that verifies the full flow.
         """
         # Arrange
-        mock_cache.get.return_value = None  # Cache miss
-
         mock_canonical_service = MagicMock()
         mock_canonical_service.get_snapshot_info.return_value = SnapshotInfo(
             snapshot_date=snapshot_date,
@@ -290,10 +282,7 @@ class TestDashboardWalletFilterConsistency:
 class TestConditionalRouting:
     """Test that conditional routing between MV and runtime queries works correctly."""
 
-    @patch("src.services.shared.base_analytics_service.analytics_cache")
-    def test_bundle_request_uses_mv_query(
-        self, mock_cache, user_id, mock_db, mock_query_service
-    ):
+    def test_bundle_request_uses_mv_query(self, user_id, mock_db, mock_query_service):
         """
         Verify that bundle queries (wallet_address=None) use MV query.
 
@@ -303,7 +292,6 @@ class TestConditionalRouting:
         from src.services.analytics.trend_analysis_service import TrendAnalysisService
 
         # Arrange
-        mock_cache.get.return_value = None  # Cache miss
         mock_query_service.execute_query.return_value = []  # Empty result
 
         context = get_analytics_context()
@@ -329,9 +317,8 @@ class TestConditionalRouting:
         # Should use MV query for bundle requests
         assert query_name == "get_portfolio_category_trend_from_mv"
 
-    @patch("src.services.shared.base_analytics_service.analytics_cache")
     def test_wallet_specific_uses_runtime_query(
-        self, mock_cache, user_id, wallet_address, mock_db, mock_query_service
+        self, user_id, wallet_address, mock_db, mock_query_service
     ):
         """
         Verify that wallet-specific queries use runtime query for accurate filtering.
@@ -342,7 +329,6 @@ class TestConditionalRouting:
         from src.services.analytics.trend_analysis_service import TrendAnalysisService
 
         # Arrange
-        mock_cache.get.return_value = None  # Cache miss
         mock_query_service.execute_query.return_value = []  # Empty result
 
         context = get_analytics_context()
@@ -372,9 +358,8 @@ class TestConditionalRouting:
 class TestCanonicalSnapshotConsistency:
     """Test that CanonicalSnapshotService returns consistent dates."""
 
-    @patch("src.services.portfolio.canonical_snapshot_service.analytics_cache")
     def test_canonical_snapshot_date_consistency(
-        self, mock_cache, canonical_service, user_id, snapshot_date, mock_query_service
+        self, canonical_service, user_id, snapshot_date, mock_query_service
     ):
         """
         Verify that multiple calls to get_snapshot_date return the same date.
@@ -382,7 +367,6 @@ class TestCanonicalSnapshotConsistency:
         This tests caching behavior and ensures consistency within a session.
         """
         # Arrange
-        mock_cache.get.return_value = None  # First call - cache miss
         mock_query_service.execute_query_one.return_value = {
             "snapshot_date": snapshot_date,
             "wallet_count": 3,
@@ -390,9 +374,6 @@ class TestCanonicalSnapshotConsistency:
 
         # Act
         result1 = canonical_service.get_snapshot_date(user_id)
-
-        # Simulate cache hit on second call
-        mock_cache.get.return_value = snapshot_date
         result2 = canonical_service.get_snapshot_date(user_id)
 
         # Assert
@@ -400,9 +381,8 @@ class TestCanonicalSnapshotConsistency:
         # Query executed only once (second call used cache)
         assert mock_query_service.execute_query_one.call_count == 1
 
-    @patch("src.services.portfolio.canonical_snapshot_service.analytics_cache")
     def test_canonical_snapshot_different_wallets_different_dates(
-        self, mock_cache, canonical_service, user_id, mock_query_service
+        self, canonical_service, user_id, mock_query_service
     ):
         """
         Verify that bundle and wallet-specific requests are cached separately.
@@ -410,7 +390,6 @@ class TestCanonicalSnapshotConsistency:
         Cache keys should differentiate between bundle (all wallets with data) and wallet-specific queries.
         """
         # Arrange
-        mock_cache.get.return_value = None  # Cache miss
         bundle_date = date(2025, 1, 1)
         wallet_date = date(2024, 12, 31)
 
@@ -1314,9 +1293,8 @@ class TestDashboardTotalsComposition:
 class TestCrossServiceDateAlignment:
     """Test that all services align on snapshot dates for the same request."""
 
-    @patch("src.services.shared.base_analytics_service.analytics_cache")
     def test_risk_metrics_use_consistent_snapshot_range(
-        self, mock_cache, user_id, mock_db, mock_query_service
+        self, user_id, mock_db, mock_query_service, monkeypatch
     ):
         """
         Verify risk metrics calculations use consistent snapshot date ranges.
@@ -1324,11 +1302,12 @@ class TestCrossServiceDateAlignment:
         All risk calculations (volatility, Sharpe, drawdown) should use
         the same date range derived from the canonical snapshot.
         """
+        from src.core.config import settings
         from src.services.analytics.analytics_context import get_analytics_context
         from src.services.analytics.risk_metrics_service import RiskMetricsService
 
-        # Arrange
-        mock_cache.get.return_value = None  # Cache miss
+        # Arrange - caching off so every metric issues its own query to inspect
+        monkeypatch.setattr(settings, "analytics_cache_enabled", False)
         mock_query_service.execute_query.return_value = []  # Empty result
 
         context = get_analytics_context()

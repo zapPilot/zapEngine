@@ -6,25 +6,24 @@ serialization (_json_safe), and query caching utilities. Targets 95%+ coverage
 for base analytics infrastructure used by all analytics services.
 """
 
-from datetime import date, datetime, timedelta
+import threading
+import time
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
 
+from src.core.cache_service import analytics_cache
+from src.core.config import settings
 from src.services.shared.base_analytics_service import BaseAnalyticsService
 
+# One millisecond expressed in the hours unit ``_with_cache`` takes.
+MILLISECOND_IN_HOURS = 1 / 3_600_000
+
 # ==================== FIXTURES ====================
-
-
-@pytest.fixture
-def mock_cache():
-    """Mock CacheService with configurable get/set behavior."""
-    cache = MagicMock()
-    cache.get.return_value = None  # Default: cache miss
-    return cache
 
 
 @pytest.fixture
@@ -46,113 +45,101 @@ def sample_query_rows() -> list[dict[str, Any]]:
 # ==================== _with_cache() TESTS ====================
 
 
-@patch("src.services.shared.base_analytics_service.analytics_cache")
-@patch("src.services.shared.base_analytics_service.settings")
-def test_with_cache_hit(
-    mock_settings, mock_cache, analytics_service: BaseAnalyticsService
+def test_with_cache_hit(analytics_service: BaseAnalyticsService):
+    """Verify a second call is served from cache without re-running the fetcher."""
+    calls: list[int] = []
+
+    def fetcher() -> dict[str, str]:
+        calls.append(1)
+        return {"data": "computed"}
+
+    first = analytics_service._with_cache("test_key", fetcher)
+    second = analytics_service._with_cache("test_key", fetcher)
+
+    assert first == second == {"data": "computed"}
+    assert len(calls) == 1
+
+
+def test_with_cache_miss_stores_result(analytics_service: BaseAnalyticsService):
+    """Verify a miss runs the fetcher and leaves the value on the shared cache."""
+    result = analytics_service._with_cache("test_key", lambda: {"data": "computed"})
+
+    assert result == {"data": "computed"}
+    assert analytics_cache.get("test_key") == {"data": "computed"}
+
+
+def test_with_cache_exception_fallback(analytics_service: BaseAnalyticsService):
+    """Verify a failing cache read still returns freshly computed data."""
+
+    def broken_get(key: str) -> Any:
+        raise RuntimeError("Cache error")
+
+    with patch.object(analytics_cache, "get", broken_get):
+        result = analytics_service._with_cache("test_key", lambda: {"data": "computed"})
+
+    assert result == {"data": "computed"}
+
+
+def test_with_cache_ttl_override_expires_entry(analytics_service: BaseAnalyticsService):
+    """Verify ttl_hours actually shortens the stored entry's lifetime."""
+    calls: list[int] = []
+
+    def fetcher() -> dict[str, str]:
+        calls.append(1)
+        return {"data": "computed"}
+
+    analytics_service._with_cache("test_key", fetcher, ttl_hours=MILLISECOND_IN_HOURS)
+    time.sleep(0.05)
+    analytics_service._with_cache("test_key", fetcher, ttl_hours=MILLISECOND_IN_HOURS)
+
+    assert len(calls) == 2
+
+
+def test_with_cache_default_ttl_outlives_short_override(
+    analytics_service: BaseAnalyticsService,
 ):
-    """Verify cache hit returns cached value without calling fetcher."""
-    mock_settings.analytics_cache_enabled = True
-    cached_value = {"data": "from_cache"}
-    mock_cache.get.return_value = cached_value
+    """Verify the default TTL keeps an entry a 1ms override would have dropped."""
+    calls: list[int] = []
 
-    fetcher_called = False
-
-    def fetcher():
-        nonlocal fetcher_called
-        fetcher_called = True
-        return {"data": "from_fetcher"}
-
-    result = analytics_service._with_cache("test_key", fetcher)
-
-    assert result == cached_value
-    assert not fetcher_called  # Fetcher should not be called on cache hit
-    mock_cache.get.assert_called_once_with("test_key")
-
-
-@patch("src.services.shared.base_analytics_service.analytics_cache")
-@patch("src.services.shared.base_analytics_service.settings")
-def test_with_cache_miss(
-    mock_settings, mock_cache, analytics_service: BaseAnalyticsService
-):
-    """Verify cache miss calls fetcher and stores result."""
-    mock_settings.analytics_cache_enabled = True
-    mock_settings.analytics_cache_default_ttl_hours = 12
-    mock_cache.get.return_value = None  # Cache miss
-    fetcher_result = {"data": "from_fetcher"}
-
-    def fetcher():
-        return fetcher_result
-
-    result = analytics_service._with_cache("test_key", fetcher)
-
-    assert result == fetcher_result
-    mock_cache.get.assert_called_once_with("test_key")
-    mock_cache.set.assert_called_once()
-
-
-@patch("src.services.shared.base_analytics_service.analytics_cache")
-@patch("src.services.shared.base_analytics_service.settings")
-def test_with_cache_exception_fallback(
-    mock_settings, mock_cache, analytics_service: BaseAnalyticsService
-):
-    """Verify cache.get() exception falls back to fetcher."""
-    mock_settings.analytics_cache_enabled = True
-    mock_settings.analytics_cache_default_ttl_hours = 12
-    mock_cache.get.side_effect = Exception("Cache error")
-    fetcher_result = {"data": "from_fetcher"}
-
-    def fetcher():
-        return fetcher_result
-
-    result = analytics_service._with_cache("test_key", fetcher)
-
-    assert result == fetcher_result
-    mock_cache.get.assert_called_once()
-
-
-@patch("src.services.shared.base_analytics_service.analytics_cache")
-@patch("src.services.shared.base_analytics_service.settings")
-def test_with_cache_ttl_override(
-    mock_settings, mock_cache, analytics_service: BaseAnalyticsService
-):
-    """Verify custom ttl_hours is passed to cache.set()."""
-    mock_settings.analytics_cache_enabled = True
-    mock_cache.get.return_value = None  # Cache miss
-    fetcher_result = {"data": "test"}
-
-    def fetcher():
-        return fetcher_result
-
-    analytics_service._with_cache("test_key", fetcher, ttl_hours=6)
-
-    # Verify set was called with custom TTL (6 hours = timedelta(hours=6))
-    mock_cache.set.assert_called_once()
-    call_args = mock_cache.set.call_args
-    assert call_args[0][0] == "test_key"  # First positional arg: key
-    assert call_args[0][2] == timedelta(hours=6)  # Third positional arg: ttl
-
-
-@patch("src.services.shared.base_analytics_service.analytics_cache")
-@patch("src.services.shared.base_analytics_service.settings")
-def test_with_cache_default_ttl(
-    mock_settings, mock_cache, analytics_service: BaseAnalyticsService
-):
-    """Verify default 12-hour TTL when ttl_hours not specified."""
-    mock_settings.analytics_cache_enabled = True
-    mock_settings.analytics_cache_default_ttl_hours = 12
-    mock_cache.get.return_value = None
-    fetcher_result = {"data": "test"}
-
-    def fetcher():
-        return fetcher_result
+    def fetcher() -> dict[str, str]:
+        calls.append(1)
+        return {"data": "computed"}
 
     analytics_service._with_cache("test_key", fetcher)
+    time.sleep(0.05)
+    analytics_service._with_cache("test_key", fetcher)
 
-    # Verify set was called with default TTL (12 hours)
-    mock_cache.set.assert_called_once()
-    call_args = mock_cache.set.call_args
-    assert call_args[0][2] == timedelta(hours=12)
+    assert len(calls) == 1
+    assert settings.analytics_cache_default_ttl_hours == 12
+
+
+def test_with_cache_collapses_concurrent_fetchers(
+    analytics_service: BaseAnalyticsService,
+):
+    """Verify concurrent callers for one key share a single fetcher run."""
+    thread_count = 6
+    barrier = threading.Barrier(thread_count)
+    calls: list[int] = []
+    results: list[Any] = []
+
+    def fetcher() -> dict[str, str]:
+        calls.append(1)
+        time.sleep(0.2)
+        return {"data": "computed"}
+
+    def worker() -> None:
+        barrier.wait(timeout=10)
+        results.append(analytics_service._with_cache("test_key", fetcher))
+
+    threads = [threading.Thread(target=worker) for _ in range(thread_count)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=10)
+
+    assert not any(thread.is_alive() for thread in threads)
+    assert len(calls) == 1
+    assert results == [{"data": "computed"}] * thread_count
 
 
 # ==================== _with_async_cache() TESTS ====================
@@ -206,8 +193,9 @@ async def test_async_cache_miss_calls_awaitable(
 
 
 @pytest.mark.asyncio
+@patch("src.services.shared.base_analytics_service.analytics_cache")
 async def test_async_cache_exception_handling(
-    analytics_service: BaseAnalyticsService, mock_cache
+    mock_cache, analytics_service: BaseAnalyticsService
 ):
     """Verify async cache exception falls back to fetcher."""
     mock_cache.get.side_effect = Exception("Cache error")
@@ -292,12 +280,10 @@ def test_json_safe_nested_dict():
 
 def test_cached_query_with_conversion(
     analytics_service: BaseAnalyticsService,
-    mock_cache,
     mock_query_service,
     sample_query_rows,
 ):
     """Verify cached query execution with row conversion."""
-    mock_cache.get.return_value = None  # Cache miss
     mock_query_service.execute_query.return_value = sample_query_rows
 
     def params_factory(start_date: datetime, end_date: datetime) -> dict[str, Any]:
@@ -320,19 +306,12 @@ def test_cached_query_with_conversion(
     assert isinstance(result[0]["value"], float)  # Decimal converted to float
 
 
-@patch("src.services.shared.base_analytics_service.analytics_cache")
-@patch("src.services.shared.base_analytics_service.settings")
 def test_cached_query_uses_params_factory(
-    mock_settings,
-    mock_cache,
     analytics_service: BaseAnalyticsService,
     mock_query_service,
     sample_query_rows,
 ):
     """Verify params_factory is called with correct date range."""
-    mock_settings.analytics_cache_enabled = True
-    mock_settings.analytics_cache_default_ttl_hours = 12
-    mock_cache.get.return_value = None
     mock_query_service.execute_query.return_value = sample_query_rows
 
     params_received: dict[str, Any] | None = None

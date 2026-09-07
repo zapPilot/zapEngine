@@ -20,15 +20,44 @@ serving stale data. This reduces database load by 95%+ while maintaining data ac
 import copy
 import logging
 from collections import OrderedDict
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
-from threading import RLock
-from typing import Any, Generic, TypeVar
+from threading import Event, Lock, RLock, get_ident
+from typing import Any, Generic, TypeVar, cast
 
 from src.core.config import settings
 
 T = TypeVar("T")
 
 logger = logging.getLogger(__name__)
+
+# A waiter blocked longer than this assumes the leader is wedged and computes
+# for itself, so one stuck thread can never pin the whole process.
+SINGLE_FLIGHT_WAIT_SECONDS = 60.0
+
+
+class _CachedNone:
+    """Marker stored in place of a deliberately cached ``None``.
+
+    ``get`` returns ``None`` for both a miss and a cached ``None``; storing this
+    marker instead is what lets ``cache_none=True`` report a genuine hit.
+    """
+
+    def __deepcopy__(self, _memo: dict[int, Any]) -> "_CachedNone":
+        return self
+
+
+_CACHED_NONE = _CachedNone()
+
+
+class _InFlight:
+    """One in-progress computation that other threads can wait on."""
+
+    def __init__(self, owner_thread_id: int) -> None:
+        self.owner_thread_id = owner_thread_id
+        self.done = Event()
+        self.result: Any = None
+        self.error: BaseException | None = None
 
 
 class CacheEntry(Generic[T]):
@@ -63,6 +92,9 @@ class CacheService:
         """
         self._cache: OrderedDict[str, CacheEntry[Any]] = OrderedDict()
         self._lock = RLock()
+        # Guards only the in-flight registry mutation; never held across compute().
+        self._in_flight_lock = Lock()
+        self._in_flight: dict[str, _InFlight] = {}
         self._default_ttl = default_ttl
         self._max_entries = max_entries
 
@@ -148,7 +180,7 @@ class CacheService:
             value: Value to cache (will be deep copied)
             ttl: Time-to-live (uses default if None)
         """
-        ttl = ttl or self._default_ttl
+        ttl = self._default_ttl if ttl is None else ttl
         expires_at = datetime.now(UTC) + ttl
 
         with self._lock:
@@ -179,6 +211,153 @@ class CacheService:
                     "expires_at": expires_at.isoformat(),
                 },
             )
+
+    def get_or_compute(
+        self,
+        key: str,
+        compute: Callable[[], T],
+        ttl: timedelta | None = None,
+        *,
+        cache_none: bool = False,
+        should_cache: Callable[[T], bool] | None = None,
+        wait_timeout: float = SINGLE_FLIGHT_WAIT_SECONDS,
+    ) -> T:
+        """Return the cached value for ``key``, computing it at most once.
+
+        Concurrent callers for the same key collapse onto one computation: the
+        first caller leads, the rest block on an event and receive its result.
+
+        ``compute`` runs outside every cache lock. Holding the process-wide
+        cache lock across a blocking database call would stall every other cache
+        consumer in the process, which is a worse failure than the stampede this
+        method exists to stop.
+
+        Args:
+            key: Cache key
+            compute: Callable producing the value on a miss
+            ttl: Time-to-live for the stored value (cache default if None)
+            cache_none: Store ``None`` results so they count as hits
+            should_cache: Gate deciding whether the computed value is stored
+            wait_timeout: Seconds a follower waits before computing for itself
+        """
+        if not settings.analytics_cache_enabled:
+            return compute()
+
+        hit, value = self._cached_value(key)
+        if hit:
+            return cast(T, value)
+
+        record, is_leader = self._claim_in_flight(key)
+        if record is None:
+            # This thread already leads the key; waiting would deadlock it
+            # against itself, so it computes directly instead.
+            return compute()
+        if is_leader:
+            return self._compute_as_leader(
+                key,
+                record,
+                compute,
+                ttl,
+                cache_none=cache_none,
+                should_cache=should_cache,
+            )
+        return self._await_leader(record, compute, wait_timeout=wait_timeout)
+
+    def _cached_value(self, key: str) -> tuple[bool, Any]:
+        """Look up ``key`` and report whether it was a hit, unwrapping ``None``."""
+        try:
+            cached = self.get(key)
+        except Exception:
+            logger.exception(
+                "Cache get failed; falling back to fresh computation",
+                extra={"key": key},
+            )
+            return False, None
+
+        if cached is _CACHED_NONE:
+            return True, None
+        return cached is not None, cached
+
+    def _claim_in_flight(self, key: str) -> tuple[_InFlight | None, bool]:
+        """Register as leader, or return the record to wait on.
+
+        Returns ``(None, False)`` when the calling thread already leads the key.
+        """
+        thread_id = get_ident()
+        with self._in_flight_lock:
+            existing = self._in_flight.get(key)
+            if existing is None:
+                record = _InFlight(thread_id)
+                self._in_flight[key] = record
+                return record, True
+            if existing.owner_thread_id == thread_id:
+                return None, False
+            return existing, False
+
+    def _compute_as_leader(
+        self,
+        key: str,
+        record: _InFlight,
+        compute: Callable[[], T],
+        ttl: timedelta | None,
+        *,
+        cache_none: bool,
+        should_cache: Callable[[T], bool] | None,
+    ) -> T:
+        try:
+            result = compute()
+        except BaseException as exc:
+            record.error = exc
+            raise
+        else:
+            record.result = result
+            if should_cache is None or should_cache(result):
+                self._store_computed(key, result, ttl, cache_none=cache_none)
+            return result
+        finally:
+            self._release_in_flight(key, record)
+
+    def _store_computed(
+        self,
+        key: str,
+        value: Any,
+        ttl: timedelta | None,
+        *,
+        cache_none: bool,
+    ) -> None:
+        if value is None and not cache_none:
+            return
+        try:
+            self.set(key, _CACHED_NONE if value is None else value, ttl)
+        except Exception:
+            logger.exception(
+                "Cache set failed; returning fresh result",
+                extra={"key": key},
+            )
+
+    def _release_in_flight(self, key: str, record: _InFlight) -> None:
+        with self._in_flight_lock:
+            if self._in_flight.get(key) is record:
+                del self._in_flight[key]
+        record.done.set()
+
+    def _await_leader(
+        self,
+        record: _InFlight,
+        compute: Callable[[], T],
+        *,
+        wait_timeout: float,
+    ) -> T:
+        if not record.done.wait(timeout=wait_timeout):
+            logger.warning(
+                "Single-flight wait timed out; computing independently",
+                extra={"wait_timeout_seconds": wait_timeout},
+            )
+            return compute()
+        if record.error is not None:
+            raise record.error
+        # Followers get their own copy so one request cannot mutate another's.
+        return cast(T, copy.deepcopy(record.result))
 
     def delete(self, key: str) -> bool:
         """

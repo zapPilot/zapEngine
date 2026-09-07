@@ -188,75 +188,27 @@ class BaseAnalyticsService(CacheKeyMixin):
         payload.update(fields)
         return payload
 
-    def _perform_cache_operation(
-        self,
-        cache_key: str,
-        ttl_hours: int | None = None,
-    ) -> tuple[CacheT | None, timedelta | None]:
-        """
-        Perform cache retrieval and compute TTL for storage.
-
-        Shared by both sync and async cache methods to eliminate duplication.
-
-        Args:
-            cache_key: Unique cache key for lookup
-            ttl_hours: Optional TTL in hours (uses default 12 hours if None)
-
-        Returns:
-            Tuple of (cached_value, ttl_for_storage)
-            - cached_value is None on cache miss or error
-            - ttl_for_storage is None on cache hit (not needed), timedelta on miss
-        """
-        cached: CacheT | None = None
-        try:
-            cached = cast(CacheT | None, analytics_cache.get(cache_key))
-        except Exception:
-            logger.exception(
-                "Cache get failed; falling back to fresh computation",
-                extra={"cache_key": cache_key},
-            )
-
-        # Only calculate TTL if cache miss (optimization: avoid unnecessary computation)
-        ttl = None
-        if cached is None:
-            ttl = (
-                timedelta(hours=ttl_hours)
-                if ttl_hours is not None
-                else timedelta(hours=settings.analytics_cache_default_ttl_hours)
-            )
-
-        return cached, ttl
-
-    def _store_in_cache(self, cache_key: str, result: CacheT, ttl: timedelta) -> None:
-        """
-        Store result in cache with error handling.
-
-        Shared by both sync and async cache methods to eliminate duplication.
-
-        Args:
-            cache_key: Unique cache key for storage
-            result: Computed result to store
-            ttl: Time-to-live for the cached value
-        """
-        try:
-            analytics_cache.set(cache_key, result, ttl)
-        except Exception:
-            logger.exception(
-                "Cache set failed; returning fresh result",
-                extra={"cache_key": cache_key},
-            )
+    @staticmethod
+    def _cache_ttl(ttl_hours: float | None) -> timedelta:
+        """Resolve a TTL override, falling back to the configured default."""
+        hours = (
+            ttl_hours
+            if ttl_hours is not None
+            else settings.analytics_cache_default_ttl_hours
+        )
+        return timedelta(hours=hours)
 
     def _with_cache(
         self,
         cache_key: str,
         fetcher: Callable[[], CacheT],
-        ttl_hours: int | None = None,
+        ttl_hours: float | None = None,
     ) -> CacheT:
         """
-        Execute operation with caching support.
+        Execute operation with caching and single-flight de-duplication.
 
-        Checks cache first, executes fetcher on miss, stores result.
-        Respects global cache enablement setting.
+        Concurrent callers for the same key share one ``fetcher`` run; the
+        global cache kill switch is honoured inside ``get_or_compute``.
 
         Args:
             cache_key: Unique cache key (use ``_cache_key`` for namespaced keys)
@@ -272,17 +224,9 @@ class BaseAnalyticsService(CacheKeyMixin):
             >>> cache_key = self._cache_key("trends", user_id, days)
             >>> return self._with_cache(cache_key, compute_trends)
         """
-        if not settings.analytics_cache_enabled:
-            return fetcher()
-
-        cached, ttl = self._perform_cache_operation(cache_key, ttl_hours)
-        if cached is not None:
-            return cached
-
-        result = fetcher()
-        self._store_in_cache(cache_key, result, ttl)  # type: ignore[arg-type]
-
-        return result
+        return analytics_cache.get_or_compute(
+            cache_key, fetcher, self._cache_ttl(ttl_hours)
+        )
 
     async def _with_async_cache(
         self,
@@ -290,18 +234,33 @@ class BaseAnalyticsService(CacheKeyMixin):
         fetcher: Callable[[], Awaitable[CacheT]],
         ttl_hours: int | None = None,
     ) -> CacheT:
-        """Async variant of ``_with_cache`` for coroutine-based fetchers."""
+        """Async variant of ``_with_cache`` for coroutine-based fetchers.
 
+        Single-flight collapsing is thread-based and cannot span awaits, so this
+        path keeps the plain look-up / compute / store sequence.
+        """
         if not settings.analytics_cache_enabled:
             return await fetcher()
 
-        cached, ttl = self._perform_cache_operation(cache_key, ttl_hours)
+        try:
+            cached = cast(CacheT | None, analytics_cache.get(cache_key))
+        except Exception:
+            logger.exception(
+                "Cache get failed; falling back to fresh computation",
+                extra={"cache_key": cache_key},
+            )
+            cached = None
         if cached is not None:
             return cached
 
         result = await fetcher()
-        self._store_in_cache(cache_key, result, ttl)  # type: ignore[arg-type]
-
+        try:
+            analytics_cache.set(cache_key, result, self._cache_ttl(ttl_hours))
+        except Exception:
+            logger.exception(
+                "Cache set failed; returning fresh result",
+                extra={"cache_key": cache_key},
+            )
         return result
 
     def _cached_query_with_row_conversion(

@@ -73,7 +73,9 @@ def _service() -> tuple[StrategyDailySuggestionService, dict[str, object]]:
         "macro_fear_greed_service": SimpleNamespace(
             get_daily_macro_fear_greed=_macro_fear_greed_history
         ),
-        "canonical_snapshot_service": SimpleNamespace(),
+        "canonical_snapshot_service": SimpleNamespace(
+            get_snapshot_date=lambda _user_id: date(2024, 1, 1)
+        ),
         "strategy_config_store": SimpleNamespace(
             resolve_config=lambda config_id: resolve_seed_strategy_config(config_id)
         ),
@@ -916,3 +918,101 @@ def test_build_price_map_without_eth_price() -> None:
     )
     assert result == {"btc": 50_000.0}
     assert "eth" not in result
+
+
+def _wire_happy_path(mocks: dict[str, object], monkeypatch: pytest.MonkeyPatch) -> None:
+    """Wire the collaborators one successful daily suggestion needs."""
+    monkeypatch.setattr(
+        "src.services.backtesting.strategies.rule_based_portfolio."
+        "RuleBasedPortfolioStrategy.get_daily_recommendation",
+        lambda self, input_data: StrategyAction(
+            snapshot=_sell_snapshot(signal=_default_signal())
+        ),
+    )
+    mocks["token_price_service"].get_latest_price = lambda _symbol: SimpleNamespace(
+        date="2025-01-10", price_usd=100_000.0
+    )
+    mocks["token_price_service"].get_price_history = lambda **kwargs: [
+        SimpleNamespace(date="2025-01-10", price_usd=3_000.0)
+        if kwargs.get("token_symbol") == "ETH"
+        else SimpleNamespace(date="2025-01-10", price_usd=100_000.0)
+    ]
+    mocks["token_price_service"].get_dma_history = lambda **kwargs: {
+        date(2025, 1, 10): 2_900.0 if kwargs.get("token_symbol") == "ETH" else 95_000.0
+    }
+    mocks["token_price_service"].get_pair_ratio_dma_history = lambda **_: {
+        date(2025, 1, 10): {"ratio": 0.03, "dma_200": 0.028, "is_above_dma": True}
+    }
+    mocks["sentiment_service"].get_current_sentiment_sync = lambda: SimpleNamespace(
+        status="Greed", value=72
+    )
+    mocks["sentiment_service"].get_daily_sentiment_aggregates = lambda **_: []
+
+
+def _counting_landing_page(mocks: dict[str, object]) -> list[UUID]:
+    """Record every landing-page fetch the suggestion pipeline performs."""
+    calls: list[UUID] = []
+    portfolio = mock_portfolio(btc=2_500.0, stable=7_500.0)
+
+    def get_landing_page_data(user_id: UUID) -> object:
+        calls.append(user_id)
+        return portfolio
+
+    mocks["landing_page_service"].get_landing_page_data = get_landing_page_data
+    return calls
+
+
+def test_get_daily_suggestion_is_cached_per_user(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service, mocks = _service()
+    _wire_happy_path(mocks, monkeypatch)
+    calls = _counting_landing_page(mocks)
+
+    first = service.get_daily_suggestion(UUID(int=11))
+    second = service.get_daily_suggestion(UUID(int=11))
+
+    assert first == second
+    assert len(calls) == 1
+
+    service.get_daily_suggestion(UUID(int=12))
+
+    assert len(calls) == 2
+
+
+def test_get_daily_suggestion_default_preset_shares_one_cache_entry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The default preset arrives as None and as its own id; both are one entry."""
+    service, mocks = _service()
+    _wire_happy_path(mocks, monkeypatch)
+    calls = _counting_landing_page(mocks)
+
+    service.get_daily_suggestion(UUID(int=13))
+    service.get_daily_suggestion(
+        UUID(int=13), config_id="dma_fgi_portfolio_rules_default"
+    )
+
+    assert len(calls) == 1
+
+
+def test_get_daily_suggestion_ignores_drift_threshold_in_the_cache_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """drift_threshold is discarded by the service, so it must not split entries."""
+    service, mocks = _service()
+    _wire_happy_path(mocks, monkeypatch)
+    calls = _counting_landing_page(mocks)
+
+    service.get_daily_suggestion(UUID(int=14), drift_threshold=0.01)
+    service.get_daily_suggestion(UUID(int=14), drift_threshold=0.99)
+
+    assert len(calls) == 1
+
+
+def test_snapshot_anchor_without_canonical_service() -> None:
+    """A missing snapshot service degrades the key, it does not crash the call."""
+    service, _ = _service()
+    service.canonical_snapshot_service = None
+
+    assert service._snapshot_anchor(UUID(int=15)) == "no-snapshot-anchor"

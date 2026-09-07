@@ -12,7 +12,7 @@ from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from functools import lru_cache
-from typing import Any, cast
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -90,24 +90,12 @@ class ROICalculator:
 
         cache_key = analytics_cache.build_key(*key_parts)
 
-        # Check cache first
-        cached = analytics_cache.get(cache_key)
-        if cached is not None:
-            # Cache store is untyped; cast to the expected ROI payload when present.
-            cached = cast(PortfolioROIComputed, cached)
-            logger.debug("ROI cache hit for user %s", user_id)
-            return cached
-
-        # Cache miss - compute fresh
-        logger.debug("ROI cache miss for user %s", user_id)
-        result = self._compute_roi_internal(
-            db, user_id, current_snapshot_date=current_snapshot_date
+        return analytics_cache.get_or_compute(
+            cache_key,
+            lambda: self._compute_roi_internal(
+                db, user_id, current_snapshot_date=current_snapshot_date
+            ),
         )
-
-        # Store in cache (12-hour TTL)
-        analytics_cache.set(cache_key, result)
-
-        return result
 
     def _compute_roi_internal(
         self,
@@ -118,6 +106,9 @@ class ROICalculator:
     ) -> PortfolioROIComputed:
         """Internal method to compute ROI (separated for caching).
 
+        Query failures propagate: the caller owns the degradation decision, so a
+        zeroed placeholder is never mistaken for a real result worth caching.
+
         Args:
             db: Database session
             user_id: User identifier
@@ -125,43 +116,35 @@ class ROICalculator:
                                   If provided, uses this date + 1 day as end_dt (exclusive upper bound).
                                   If None, uses current datetime (legacy).
         """
-        try:
-            if current_snapshot_date is not None:
-                # Add 1 day for exclusive upper bound (SQL queries use < end_date)
-                end_dt = datetime.combine(
-                    current_snapshot_date + timedelta(days=1),
-                    datetime.min.time(),
-                    tzinfo=UTC,
-                )
-                logger.debug(
-                    "Computing ROI relative to snapshot_date=%s (end_dt=%s)",
-                    current_snapshot_date,
-                    end_dt,
-                )
-            else:
-                # LEGACY: Use current datetime
-                end_dt = datetime.now(UTC)
-
-            lookback = max(ROI_PERIODS.values(), default=0) + 1
-            start_dt = end_dt - timedelta(days=lookback)
-
-            rows = self._fetch_portfolio_snapshots(db, user_id, start_dt, end_dt)
-            daily_totals = self._aggregate_daily_totals(rows)
-            if not daily_totals:
-                return self._empty_result()
-
-            windows = self._calculate_windows(daily_totals)
-            if not windows:
-                return self._empty_result()  # pragma: no cover
-
-            return self._build_result(windows)
-        except Exception as exc:  # pragma: no cover - defensive fallback
-            logger.error(
-                "Failed to compute ROI for user %s: %s. Falling back to zeros.",
-                user_id,
-                exc,
+        if current_snapshot_date is not None:
+            # Add 1 day for exclusive upper bound (SQL queries use < end_date)
+            end_dt = datetime.combine(
+                current_snapshot_date + timedelta(days=1),
+                datetime.min.time(),
+                tzinfo=UTC,
             )
-            return self._empty_result()
+            logger.debug(
+                "Computing ROI relative to snapshot_date=%s (end_dt=%s)",
+                current_snapshot_date,
+                end_dt,
+            )
+        else:
+            # LEGACY: Use current datetime
+            end_dt = datetime.now(UTC)
+
+        lookback = max(ROI_PERIODS.values(), default=0) + 1
+        start_dt = end_dt - timedelta(days=lookback)
+
+        rows = self._fetch_portfolio_snapshots(db, user_id, start_dt, end_dt)
+        daily_totals = self._aggregate_daily_totals(rows)
+        if not daily_totals:
+            return self.empty_result()
+
+        windows = self._calculate_windows(daily_totals)
+        if not windows:
+            return self.empty_result()  # pragma: no cover
+
+        return self._build_result(windows)
 
     def _fetch_portfolio_snapshots(
         self,
@@ -427,7 +410,8 @@ class ROICalculator:
     def _empty_roi_window() -> ROIWindowData:
         return {"value": 0.0, "data_points": 0, "start_balance": 0.0, "days_spanned": 0}
 
-    def _empty_result(self) -> PortfolioROIComputed:
+    def empty_result(self) -> PortfolioROIComputed:
+        """Zeroed ROI payload used when no data exists or a caller degrades."""
         return self._build_result({})
 
     @staticmethod
