@@ -15,7 +15,6 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from src.core.config import Environment, settings
 from src.core.utils import coerce_date_to_datetime, row_to_dict
 
 
@@ -286,7 +285,7 @@ class QueryService:
         Preserves logging and error messages expected by tests.
         """
         try:
-            query_string = self._resolve_query_string(query_name)
+            query_string = self.get_query(query_name)
             self._log_query_start(query_name, params, single=single)
             result = db.execute(text(query_string), params)
 
@@ -307,18 +306,6 @@ class QueryService:
             )
             self.logger.error(msg)
             raise RuntimeError(msg) from e
-
-    def _resolve_query_string(self, query_name: str) -> str:
-        """Resolve the final query string, including environment-specific overrides."""
-        query_string = self.get_query(query_name)
-        if (
-            query_name == "get_portfolio_category_trend_from_mv"
-            and settings.environment != Environment.PRODUCTION
-        ):
-            return self.queries.get(
-                "get_portfolio_category_trend_by_user_id", query_string
-            )
-        return query_string
 
     def _log_query_start(
         self, query_name: str, params: dict[str, Any], *, single: bool

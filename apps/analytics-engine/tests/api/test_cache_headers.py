@@ -47,8 +47,8 @@ def test_get_cache_control_value_production_mode(mock_settings):
 
     result = get_cache_control_value()
 
-    assert result == "public, max-age=300, stale-while-revalidate=600"
-    assert "public" in result
+    assert result == "private, max-age=300, stale-while-revalidate=600"
+    assert "private" in result
     assert "max-age=300" in result
     assert "stale-while-revalidate=600" in result
 
@@ -142,9 +142,9 @@ def test_cache_control_value_format_consistency(mock_settings):
 
     result = get_cache_control_value()
 
-    # Verify format: "public, max-age=X, stale-while-revalidate=Y"
+    # Verify format: "private, max-age=X, stale-while-revalidate=Y"
     parts = [part.strip() for part in result.split(",")]
     assert len(parts) == 3
-    assert parts[0] == "public"
+    assert parts[0] == "private"
     assert parts[1].startswith("max-age=")
     assert parts[2].startswith("stale-while-revalidate=")

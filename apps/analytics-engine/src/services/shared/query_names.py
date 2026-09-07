@@ -11,9 +11,10 @@ from dataclasses import dataclass
 class QueryNames:
     """Canonical SQL query identifiers loaded by ``QueryService``."""
 
-    # Category trend queries with conditional routing:
-    # - MV: Fast path for bundle queries (all wallets) - 5-15ms
-    # - BY_USER_ID: Accurate path for wallet-specific queries - 150-250ms
+    # Category trend routing lives in TrendAnalysisService._fetch_category_trend_payload
+    # and is keyed on wallet_address alone, never on the runtime environment:
+    # - MV: pre-aggregated bundle rows (no wallet filter) - ~10ms in production
+    # - BY_USER_ID: runtime 5-CTE query needed to filter one wallet - seconds
     PORTFOLIO_CATEGORY_TREND_MV: str = "get_portfolio_category_trend_from_mv"
     PORTFOLIO_CATEGORY_TREND_BY_USER_ID: str = "get_portfolio_category_trend_by_user_id"
 

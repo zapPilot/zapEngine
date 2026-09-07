@@ -36,6 +36,7 @@ RUN chown -R appuser:appuser /home/appuser/app /opt/venv
 USER appuser
 
 ENV PATH="/opt/venv/bin:$PATH" \
+    NODE_ENV=production \
     APP_COMMIT_SHA=$COMMIT_SHA \
     APP_BUILD_TIME=$BUILD_TIME
 
