@@ -3,12 +3,7 @@ import {
   type ContentLanguageCode,
 } from '@/config/contentLanguages';
 import type { TranslationKey } from '@/i18n/translations';
-
-const INTL_LOCALES: Readonly<Record<ContentLanguageCode, string>> = {
-  en: 'en-US',
-  'zh-Hant': 'zh-TW',
-  ja: 'ja-JP',
-};
+import { CONTENT_LANGUAGE_LOCALES, cachedDateFormatter } from '@/lib/intlDates';
 
 export function formatPodcastEpisodeDate(
   createdAt: string,
@@ -17,7 +12,7 @@ export function formatPodcastEpisodeDate(
 ): string {
   const parsed = new Date(createdAt);
   if (Number.isNaN(parsed.getTime())) return '';
-  return new Intl.DateTimeFormat(INTL_LOCALES[locale], {
+  return cachedDateFormatter(CONTENT_LANGUAGE_LOCALES[locale], {
     month: variant === 'long' ? 'long' : 'short',
     day: 'numeric',
     ...(variant === 'long' ? { year: 'numeric' as const } : {}),
