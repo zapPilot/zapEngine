@@ -35,6 +35,7 @@ import {
   createImageSearchTrace,
   type VisualImageSearch,
 } from './video/image-search-trace.js';
+import { logVideoWorkerEvent } from './video/log.js';
 import { planPodcastVisualAssets } from './video/podcast-visual-assets.js';
 import { createDeterministicStoryboardProvider } from './video/storyboard/fallback.js';
 import {
@@ -842,16 +843,16 @@ function quotedField(value: string | null | undefined): string | undefined {
   return value === null || value === undefined ? undefined : `"${value}"`;
 }
 
+/* jscpd:ignore-start -- thin wrapper repeats logVideoWorkerEvent's parameter
+ * types; every call site here needs the shared `language: 'shared'` field. */
 function logVisualProgress(
   logger: Pick<Console, 'info'>,
   event: string,
   fields: Record<string, string | number | undefined>,
 ): void {
-  const details = Object.entries({ ...fields, language: 'shared' })
-    .flatMap(([key, value]) => (value === undefined ? [] : [`${key}=${value}`]))
-    .join(' ');
-  logger.info(`[video-worker] ${event} ${details}`);
+  logVideoWorkerEvent(logger, event, { ...fields, language: 'shared' });
 }
+/* jscpd:ignore-end */
 
 export const processEpisodeVideoVisualJob = createEpisodeVideoVisualProcessor();
 

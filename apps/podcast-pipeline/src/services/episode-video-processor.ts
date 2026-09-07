@@ -11,6 +11,7 @@ import {
   createEpisodeVideoManifest,
 } from './video/episode-video.js';
 import { parseEpisodeVisualPayload } from './video/episode-visual.js';
+import { logVideoWorkerEvent } from './video/log.js';
 import {
   type RenderProgressEvent,
   renderSlideVideo,
@@ -119,7 +120,7 @@ export function createEpisodeVideoProcessor(
       });
       context.reportProgress(renderStageProgress('analyzing-audio'));
       const alignmentStartedAt = Date.now();
-      logLocaleVideoEvent(dependencies.logger, 'video:alignment', {
+      logVideoWorkerEvent(dependencies.logger, 'video:alignment', {
         run: context.runId,
         episode: source.episodeId,
         language: source.languageCode,
@@ -140,7 +141,7 @@ export function createEpisodeVideoProcessor(
         silences: analysis.silences,
         signal: context.signal,
       });
-      logLocaleVideoEvent(dependencies.logger, 'video:alignment', {
+      logVideoWorkerEvent(dependencies.logger, 'video:alignment', {
         run: context.runId,
         episode: source.episodeId,
         language: source.languageCode,
@@ -301,7 +302,7 @@ function logRenderProgress(
   languageCode: string,
   event: RenderProgressEvent,
 ): void {
-  logLocaleVideoEvent(logger, 'video:render', {
+  logVideoWorkerEvent(logger, 'video:render', {
     run: runId,
     episode: episodeId,
     language: languageCode,
@@ -314,17 +315,6 @@ function logRenderProgress(
       ? {}
       : { percent: Math.round(event.encodeFraction * 100) }),
   });
-}
-
-function logLocaleVideoEvent(
-  logger: Pick<Console, 'info'>,
-  event: string,
-  fields: Record<string, string | number | undefined>,
-): void {
-  const details = Object.entries(fields)
-    .flatMap(([key, value]) => (value === undefined ? [] : [`${key}=${value}`]))
-    .join(' ');
-  logger.info(`[video-worker] ${event} ${details}`);
 }
 
 async function readCgroupCurrentBytes(): Promise<number | null> {
@@ -410,7 +400,7 @@ function logRenderMetrics(
   metrics: EpisodeRenderMetrics,
 ): void {
   const { realtimeFactor, ...reported } = metrics;
-  logLocaleVideoEvent(logger, 'video:render-metrics', {
+  logVideoWorkerEvent(logger, 'video:render-metrics', {
     ...identity,
     ...reported,
     realtime: realtimeFactor.toFixed(3),
