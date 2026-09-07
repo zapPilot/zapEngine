@@ -6,28 +6,27 @@ import {
   ArrowDown,
   ArrowRight,
   ArrowUp,
-  Check,
   RefreshCw,
   Scale,
-  TriangleAlert,
   Wallet,
-  Zap,
 } from 'lucide-react-native';
-import type { ReactNode } from 'react';
-import { memo, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { PortfolioTrendChart } from '@/components/charts/PortfolioTrendChart';
-import { HomeAttributionBreakdown } from '@/components/home/HomeAttributionBreakdown';
+import { AssetListSkeleton, AssetRow } from '@/components/home/AssetRow';
 import {
   AccountUnavailableOverlay,
   DemoBlurCover,
   DemoConnectOverlay,
 } from '@/components/home/DemoConnectOverlay';
+import { HomeActionButton } from '@/components/home/HomeActionButton';
+import { HomeAttributionBreakdown } from '@/components/home/HomeAttributionBreakdown';
 import { HomeIncomeCard } from '@/components/home/HomeIncomeCard';
+import { PartialWalletWarning } from '@/components/home/PartialWalletWarning';
+import { PortfolioImportState } from '@/components/home/PortfolioImportState';
+import { StrategyStatusCard } from '@/components/home/StrategyStatusCard';
 import { SharePortfolioButton } from '@/components/share/SharePortfolioButton';
-import { ChainIconStack } from '@/components/token/ChainIconStack';
-import { TokenIcon } from '@/components/token/TokenIcon';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { Card } from '@/components/ui/Card';
 import { DisplayUsdValue } from '@/components/ui/DisplayUsdValue';
@@ -37,14 +36,13 @@ import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { SectionLabel } from '@/components/ui/SectionLabel';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { Tap } from '@/components/ui/Tap';
-import { DEMO, type DemoAsset } from '@/data/demo';
+import { DEMO } from '@/data/demo';
 import type { TranslationKey } from '@/i18n/translations';
 import { useAccount } from '@/integration/useAccount';
 import {
   DEFAULT_HOME_RANGE,
   HOME_RANGE_OPTIONS,
   type HomeRange,
-  type HomeStrategyStatusView,
   useHomeData,
 } from '@/integration/useHomeData';
 import { useHomeIncome } from '@/integration/useHomeIncome';
@@ -83,279 +81,6 @@ function getPortfolioImportCopy(status: EtlJobPollingState['status']) {
   if (status === 'failed') return PORTFOLIO_IMPORT_COPY.failed;
   if (status === 'completed') return PORTFOLIO_IMPORT_COPY.completed;
   return PORTFOLIO_IMPORT_COPY.preparing;
-}
-
-// Wallet assets change far less often than the ETL/account state around them,
-// and `asset` comes straight out of the query cache, so the identity check
-// actually holds here.
-const AssetRow = memo(function AssetRow({
-  asset,
-  divider,
-}: {
-  asset: DemoAsset;
-  divider: boolean;
-}) {
-  const usdLabel =
-    typeof asset.usdValue === 'number' ? formatUsd(asset.usdValue) : '-';
-
-  return (
-    <View
-      accessible
-      accessibilityLabel={`${asset.symbol}, ${asset.name}, ${asset.amountLabel}, ${usdLabel}`}
-      className="flex-row items-center gap-[13px] px-1 py-[11px]"
-      style={
-        divider
-          ? { borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,.05)' }
-          : null
-      }
-    >
-      <TokenIcon symbol={asset.symbol} alt={asset.symbol} />
-      <View className="min-w-0 flex-1">
-        <View className="flex-row items-baseline gap-[7px]">
-          <Text className="font-sans-semibold text-[14.5px] text-ink">
-            {asset.symbol}
-          </Text>
-          <Text className="text-[12px] text-ink-faint">{asset.name}</Text>
-        </View>
-        <View className="mt-[7px] flex-row items-center gap-1.5">
-          <ChainIconStack chains={asset.chains} />
-          <Text className="text-[12px] text-ink-dim" numberOfLines={1}>
-            {asset.amountLabel}
-          </Text>
-        </View>
-      </View>
-      <Text className="font-mono-semibold text-[13.5px] text-ink">
-        {usdLabel}
-      </Text>
-    </View>
-  );
-});
-
-function AssetListSkeleton() {
-  return (
-    <View>
-      {[0, 1, 2].map((item) => (
-        <View
-          key={item}
-          className="flex-row items-center gap-[13px] px-1 py-[11px]"
-        >
-          <SkeletonBlock className="h-9 w-9 rounded-full" />
-          <View className="flex-1">
-            <SkeletonBlock className="h-4 w-28" />
-            <SkeletonBlock className="mt-[7px] h-4 w-36 rounded-full" />
-          </View>
-          <SkeletonBlock className="h-4 w-16" />
-        </View>
-      ))}
-    </View>
-  );
-}
-
-function PartialWalletWarning({ onRetry }: { onRetry: () => void }) {
-  const { t } = useContentLanguage();
-
-  return (
-    <View className="mb-2 flex-row items-center gap-2 rounded-xl bg-[rgba(239,146,146,.07)] px-3 py-2.5">
-      <Text className="min-w-0 flex-1 text-[11px] leading-[16px] text-[#ef9292]">
-        {t('home.assetsPartialBody')}
-      </Text>
-      <Tap
-        accessibilityLabel={t('home.assetsRetryA11y')}
-        accessibilityRole="button"
-        className="min-h-9 justify-center px-1"
-        hitSlop={8}
-        onPress={onRetry}
-      >
-        <Text className="font-sans-semibold text-[10.5px] text-accent">
-          {t('common.retry')}
-        </Text>
-      </Tap>
-    </View>
-  );
-}
-
-function PortfolioImportState({
-  title,
-  body,
-  retryLabel,
-  onRetry,
-}: {
-  title: string;
-  body: string;
-  retryLabel?: string | undefined;
-  onRetry?: (() => void) | undefined;
-}) {
-  return (
-    <View className="items-center justify-center rounded-2xl border border-line bg-[rgba(255,255,255,.025)] px-5 py-5">
-      <Text className="text-center font-sans-semibold text-[14px] text-ink">
-        {title}
-      </Text>
-      <Text className="mt-1.5 max-w-[310px] text-center text-[11.5px] leading-[17px] text-ink-dim">
-        {body}
-      </Text>
-      {retryLabel && onRetry ? (
-        <Tap
-          accessibilityLabel={retryLabel}
-          accessibilityRole="button"
-          className="mt-3 flex-row items-center gap-1.5 rounded-full border border-[rgba(212,197,163,.22)] bg-[rgba(212,197,163,.07)] px-3 py-1.5"
-          onPress={onRetry}
-        >
-          <RefreshCw size={12} strokeWidth={2} color={tokens.color.accent} />
-          <Text className="font-sans-semibold text-[11px] text-accent">
-            {retryLabel}
-          </Text>
-        </Tap>
-      ) : null}
-    </View>
-  );
-}
-
-function ActionButton({
-  icon,
-  label,
-  onPress,
-  primary = false,
-  accessibilityLabel,
-  showIndicator = false,
-}: {
-  icon: ReactNode;
-  label: string;
-  onPress: () => void;
-  primary?: boolean;
-  accessibilityLabel?: string | undefined;
-  showIndicator?: boolean;
-}) {
-  return (
-    <Tap
-      accessibilityLabel={accessibilityLabel}
-      accessibilityRole="button"
-      className={`flex-1 flex-row items-center justify-center gap-2 rounded-[15px] border py-3 ${
-        primary
-          ? 'border-[rgba(212,197,163,.28)] bg-[rgba(212,197,163,.12)]'
-          : 'border-line bg-[rgba(255,255,255,.035)]'
-      }`}
-      onPress={onPress}
-    >
-      {icon}
-      <Text
-        numberOfLines={1}
-        className={`font-sans-semibold text-[12.5px] ${primary ? 'text-accent' : 'text-ink'}`}
-      >
-        {label}
-      </Text>
-      <View
-        accessible={false}
-        className="absolute right-2 h-1.5 w-1.5 rounded-full bg-accent"
-        style={{ opacity: showIndicator ? 1 : 0 }}
-      />
-    </Tap>
-  );
-}
-
-function StrategyStatusCard({
-  status,
-  loading,
-  onPress,
-}: {
-  status: HomeStrategyStatusView | null;
-  loading: boolean;
-  onPress: () => void;
-}) {
-  const { t } = useContentLanguage();
-
-  if (loading && !status) {
-    return (
-      <View>
-        <SectionLabel>{t('home.strategyStatusTitle')}</SectionLabel>
-        <Card className="mt-3 p-4">
-          <SkeletonBlock className="h-5 w-48" />
-          <SkeletonBlock className="mt-3 h-4 w-64" />
-          <SkeletonBlock className="mt-2 h-4 w-40" />
-        </Card>
-      </View>
-    );
-  }
-
-  if (!status) return null;
-
-  const isActionRequired = status.status === 'action_required';
-  const isBlocked = status.status === 'blocked';
-  const title = isActionRequired
-    ? t('home.rebalanceRecommended')
-    : isBlocked
-      ? t('home.strategyBlocked')
-      : t('home.portfolioOnTarget');
-  const icon = isActionRequired ? (
-    <Zap size={16} strokeWidth={2} color={tokens.color.accent} />
-  ) : isBlocked ? (
-    <TriangleAlert size={16} strokeWidth={2} color={tokens.color.error} />
-  ) : (
-    <Check size={16} strokeWidth={2} color={tokens.color.success} />
-  );
-
-  return (
-    <View>
-      <SectionLabel>{t('home.strategyStatusTitle')}</SectionLabel>
-      <Tap accessibilityRole="button" onPress={onPress} className="mt-3">
-        <Card className="p-4" style={{ borderColor: 'rgba(212,197,163,.2)' }}>
-          <View className="flex-row items-center gap-2">
-            {icon}
-            <Text className="flex-1 font-sans-semibold text-[15px] text-ink">
-              {title}
-            </Text>
-            <ArrowRight
-              size={16}
-              strokeWidth={1.8}
-              color={tokens.color['ink-faint']}
-            />
-          </View>
-
-          <View className="mt-3 flex-row items-center gap-2">
-            <Text className="font-mono text-[10px] uppercase tracking-[0.7px] text-ink-faint">
-              {status.regimeLabel}
-            </Text>
-            {typeof status.fearGreed === 'number' ? (
-              <>
-                <Text className="text-[10px] text-ink-faint">·</Text>
-                <Text className="font-mono text-[10px] text-ink-dim">
-                  FGI {Math.round(status.fearGreed)}
-                </Text>
-              </>
-            ) : null}
-          </View>
-
-          {status.primaryAction ? (
-            <View className="mt-2.5">
-              <Text className="text-[12.5px] leading-[18px] text-ink-dim">
-                {status.primaryAction.description}
-                {' · '}
-                <Text className="font-mono-semibold text-ink">
-                  {formatUsd(status.primaryAction.amountUsd)}
-                </Text>
-              </Text>
-              {status.additionalActionCount > 0 ? (
-                <Text className="mt-1 text-[10.5px] text-ink-faint">
-                  {t('home.moreStrategyActions', {
-                    count: status.additionalActionCount,
-                  })}
-                </Text>
-              ) : null}
-            </View>
-          ) : status.reason ? (
-            <Text className="mt-2.5 text-[12px] leading-[18px] text-ink-dim">
-              {status.reason}
-            </Text>
-          ) : null}
-
-          <Text className="mt-3 font-sans-semibold text-[11px] text-accent">
-            {isActionRequired
-              ? t('home.viewRecommendation')
-              : t('home.viewStrategy')}
-          </Text>
-        </Card>
-      </Tap>
-    </View>
-  );
 }
 
 export function HomeScreen() {
@@ -554,7 +279,7 @@ export function HomeScreen() {
 
       {account.isOwnBundle ? (
         <View className="mt-5 flex-row gap-3 px-5">
-          <ActionButton
+          <HomeActionButton
             primary={!isStrategyActionRequired}
             label={t('home.invest')}
             onPress={() => router.push('/invest/amount')}
@@ -566,7 +291,7 @@ export function HomeScreen() {
               />
             }
           />
-          <ActionButton
+          <HomeActionButton
             accessibilityLabel={
               isStrategyActionRequired
                 ? t('home.rebalanceActionRequiredA11y')
@@ -580,7 +305,7 @@ export function HomeScreen() {
               <Scale size={17} color={tokens.color.accent} strokeWidth={1.8} />
             }
           />
-          <ActionButton
+          <HomeActionButton
             label={t('home.send')}
             onPress={() => router.push('/send')}
             icon={
