@@ -4,6 +4,7 @@ import { rm } from 'node:fs/promises';
 
 import { path as bundledFfmpegPath } from '@ffmpeg-installer/ffmpeg';
 
+import { escapeFilterPath } from '../../lib/ffmpeg-filter-path.js';
 import { abortError, throwIfAborted } from './abort.js';
 import type { VerticalVideoManifest } from './manifest.js';
 
@@ -285,13 +286,6 @@ export async function assertVideoFfmpegCapabilities(
   }
 }
 
-function escapeFilterPath(path: string): string {
-  return path
-    .replaceAll('\\', '\\\\')
-    .replaceAll(':', '\\:')
-    .replaceAll("'", "\\'");
-}
-
 export const MEDIA_MOTION_SUPERSAMPLE = 4 as const;
 export const VERTICAL_MEDIA_CHUNK_SIZE = 8 as const;
 
@@ -324,6 +318,13 @@ export function kenBurnsPanForScene(index: number, seed = 0): KenBurnsPan {
   );
 }
 
+function slideDurationFrames(
+  slide: VerticalVideoManifest['slides'][number],
+  fps: number,
+): number {
+  return Math.max(2, Math.round(((slide.endMs - slide.startMs) * fps) / 1_000));
+}
+
 function stillFrameFilter(
   slide: VerticalVideoManifest['slides'][number],
   fps: number,
@@ -331,10 +332,7 @@ function stillFrameFilter(
   height: number,
   holdFrames: number,
 ): string {
-  const durationFrames = Math.max(
-    2,
-    Math.round(((slide.endMs - slide.startMs) * fps) / 1_000),
-  );
+  const durationFrames = slideDurationFrames(slide, fps);
   // Fresh editorial payloads never zoom. `zoompan` remains only as the bounded
   // still-frame generator used by this encode path; z=1 preserves the complete
   // image that the contain stage handed us.
@@ -353,10 +351,7 @@ function editorialDriftFilter(
   if (slide.asset.motion === 'static') {
     return null;
   }
-  const durationFrames = Math.max(
-    2,
-    Math.round(((slide.endMs - slide.startMs) * fps) / 1_000),
-  );
+  const durationFrames = slideDurationFrames(slide, fps);
   const outputFrames = durationFrames + holdFrames;
   const finalFrame = Math.max(1, outputFrames - 1);
   const progress = `min(n/${finalFrame}\\,1)`;

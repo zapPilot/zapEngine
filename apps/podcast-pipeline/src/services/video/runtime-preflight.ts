@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 import sharp from 'sharp';
 
+import { escapeFilterPath } from '../../lib/ffmpeg-filter-path.js';
 import {
   assertVideoFfmpegCapabilities,
   resolveVideoFfmpegPath,
@@ -139,13 +140,6 @@ export async function assertVideoRenderRuntime(
   } finally {
     await dependencies.removeDirectory(outputDirectory);
   }
-}
-
-function escapeFilterPath(path: string): string {
-  return path
-    .replaceAll('\\', '\\\\')
-    .replaceAll(':', '\\:')
-    .replaceAll("'", "\\'");
 }
 
 function isDirectExecution(): boolean {
