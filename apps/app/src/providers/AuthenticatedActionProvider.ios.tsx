@@ -1,9 +1,6 @@
-import { type ReactElement, type ReactNode, useCallback, useMemo } from 'react';
+import { type ReactElement, type ReactNode } from 'react';
 
-interface AuthenticatedActionContextValue {
-  run(action: () => void): void;
-  cancel(): void;
-}
+import { type AuthenticatedActionContextValue } from '@/integration/authenticatedActionModel';
 
 // iOS never has a connected embedded wallet (nativePrivyPlatform.ios.ts forces
 // createOnLogin: 'off'), so gating actions on account.isConnected would queue
@@ -16,10 +13,13 @@ export function AuthenticatedActionProvider({
   return <>{children}</>;
 }
 
-export function useAuthenticatedAction(): AuthenticatedActionContextValue {
-  const run = useCallback((action: () => void) => {
+const PASSTHROUGH_ACTION: AuthenticatedActionContextValue = {
+  run(action) {
     action();
-  }, []);
-  const cancel = useCallback(() => {}, []);
-  return useMemo(() => ({ run, cancel }), [run, cancel]);
+  },
+  cancel() {},
+};
+
+export function useAuthenticatedAction(): AuthenticatedActionContextValue {
+  return PASSTHROUGH_ACTION;
 }

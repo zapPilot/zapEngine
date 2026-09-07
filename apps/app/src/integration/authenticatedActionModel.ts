@@ -4,6 +4,11 @@ export interface AuthenticatedActionModel {
   cancel(): void;
 }
 
+export interface AuthenticatedActionContextValue {
+  run(action: () => void): void;
+  cancel(): void;
+}
+
 /** Stores one ephemeral continuation while the shared login flow is open. */
 export function createAuthenticatedActionModel(): AuthenticatedActionModel {
   let pendingAction: (() => void) | null = null;
