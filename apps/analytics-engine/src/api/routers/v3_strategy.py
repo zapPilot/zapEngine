@@ -5,10 +5,9 @@ from __future__ import annotations
 import logging
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from src.api.routers._errors import market_data_unavailable_http_exception
-from src.core.sentry import capture_server_exception
 from src.models.strategy import DailySuggestionResponse
 from src.models.strategy_config import (
     CreateSavedStrategyConfigRequest,
@@ -178,7 +177,6 @@ def set_default_saved_strategy_config(
 def get_daily_suggestion(
     user_id: UUID,
     service: StrategyDailySuggestionServiceDep,
-    request: Request,
     config_id: str | None = Query(
         default=None,
         description="Saved strategy preset id. If omitted, the backend default preset is used.",
@@ -188,7 +186,6 @@ def get_daily_suggestion(
         return service.get_daily_suggestion(user_id=user_id, config_id=config_id)
     except MarketDataUnavailableError as error:
         logger.warning("Market data unavailable for user %s: %s", user_id, error)
-        capture_server_exception(error, request)
         raise market_data_unavailable_http_exception(error) from error
     except ValueError as error:
         # Unknown config ids are caller errors even when the service test seam
@@ -205,14 +202,12 @@ def get_daily_suggestion(
             )
             raise HTTPException(status_code=400, detail=detail) from error
         logger.exception("Internal daily suggestion ValueError for user %s", user_id)
-        capture_server_exception(error, request)
         raise HTTPException(
             status_code=500,
             detail="Failed to generate daily suggestion",
         ) from error
     except Exception as error:
         logger.exception("Error getting daily suggestion for user %s", user_id)
-        capture_server_exception(error, request)
         raise HTTPException(
             status_code=500,
             detail="Failed to generate daily suggestion",
