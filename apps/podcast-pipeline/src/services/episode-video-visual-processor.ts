@@ -36,11 +36,7 @@ import {
   type VisualImageSearch,
 } from './video/image-search-trace.js';
 import { planPodcastVisualAssets } from './video/podcast-visual-assets.js';
-import {
-  createDeterministicStoryboardProvider,
-  type DeterministicStoryboardSearchContext,
-} from './video/storyboard/fallback.js';
-import { createNvidiaStoryboardProvider } from './video/storyboard/nvidia.js';
+import { createDeterministicStoryboardProvider } from './video/storyboard/fallback.js';
 import {
   generateStoryboard,
   type StoryboardGenerationResult,
@@ -724,24 +720,12 @@ export async function generateVisualStoryboard(input: {
     ...(isPackaged ? { isPackaged } : {}),
     provider:
       input.provider ??
-      configuredStoryboardProvider({
+      createDeterministicStoryboardProvider({
         ...(input.searchTitle ? { searchTitle: input.searchTitle } : {}),
         ...(englishBody ? { searchScript: englishBody } : {}),
       }),
     ...(input.signal ? { signal: input.signal } : {}),
   });
-}
-
-function configuredStoryboardProvider(
-  searchContext: Partial<DeterministicStoryboardSearchContext>,
-): StoryboardProvider {
-  const providerName =
-    process.env['VIDEO_STORYBOARD_PROVIDER']?.trim() ?? 'deterministic';
-  if (providerName === 'nvidia') return createNvidiaStoryboardProvider();
-  if (providerName === 'deterministic') {
-    return createDeterministicStoryboardProvider(searchContext);
-  }
-  throw new Error(`Unsupported VIDEO_STORYBOARD_PROVIDER: ${providerName}`);
 }
 
 function assertCurrentVisualJob(

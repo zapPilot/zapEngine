@@ -3,7 +3,6 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { createDeterministicStoryboardProvider } from './fallback.js';
-import { createNvidiaStoryboardProvider } from './nvidia.js';
 import { generateStoryboard } from './orchestrator.js';
 import type { StoryboardProvider } from './provider.js';
 import { splitCanonicalSentences } from './sentences.js';
@@ -13,11 +12,10 @@ export interface StoryboardSmokeCliOptions {
   title: string;
   durationMs: number;
   outputDirectory: string;
-  provider: 'nvidia' | 'deterministic';
 }
 
 const USAGE =
-  'Usage: video:storyboard:smoke --script <canonical-script.txt> --title <title> --duration-ms <milliseconds> --output <directory> [--provider <nvidia|deterministic>]';
+  'Usage: video:storyboard:smoke --script <canonical-script.txt> --title <title> --duration-ms <milliseconds> --output <directory>';
 
 export function parseStoryboardSmokeCliArgs(
   argv: string[],
@@ -29,15 +27,7 @@ export function parseStoryboardSmokeCliArgs(
     if (!flag?.startsWith('--') || !value || value.startsWith('--')) {
       throw new Error(USAGE);
     }
-    if (
-      ![
-        '--script',
-        '--title',
-        '--duration-ms',
-        '--output',
-        '--provider',
-      ].includes(flag)
-    ) {
+    if (!['--script', '--title', '--duration-ms', '--output'].includes(flag)) {
       throw new Error(`Unknown option: ${flag}`);
     }
     values.set(flag, value);
@@ -55,30 +45,12 @@ export function parseStoryboardSmokeCliArgs(
     throw new Error('--duration-ms must be a positive integer');
   }
 
-  const configuredProvider =
-    values.get('--provider') ??
-    process.env['VIDEO_STORYBOARD_PROVIDER']?.trim() ??
-    'nvidia';
-  if (
-    configuredProvider !== 'nvidia' &&
-    configuredProvider !== 'deterministic'
-  ) {
-    throw new Error(`Unsupported storyboard provider: ${configuredProvider}`);
-  }
-
   return {
     scriptPath: resolve(scriptPath),
     title,
     durationMs,
     outputDirectory: resolve(outputDirectory),
-    provider: configuredProvider,
   };
-}
-
-function createProvider(name: StoryboardSmokeCliOptions['provider']) {
-  return name === 'nvidia'
-    ? createNvidiaStoryboardProvider()
-    : createDeterministicStoryboardProvider();
 }
 
 function estimatedTokens(value: string): number {
@@ -91,7 +63,7 @@ export async function runStoryboardSmokeCli(
 ): Promise<void> {
   const options = parseStoryboardSmokeCliArgs(argv);
   const script = await readFile(options.scriptPath, 'utf8');
-  const provider = providerOverride ?? createProvider(options.provider);
+  const provider = providerOverride ?? createDeterministicStoryboardProvider();
   const result = await generateStoryboard({
     title: options.title,
     script,
