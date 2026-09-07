@@ -85,6 +85,7 @@ function remoteImageSlide(options: {
       sha256: options.imageHash,
       layout: options.layout ?? 'contain',
       position: 'center',
+      motion: 'static',
     },
   };
 }

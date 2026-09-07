@@ -295,9 +295,6 @@ function escapeFilterPath(path: string): string {
 export const MEDIA_MOTION_SUPERSAMPLE = 4 as const;
 export const VERTICAL_MEDIA_CHUNK_SIZE = 8 as const;
 
-const LEGACY_KEN_BURNS_ZOOM_RATE_PER_SECOND = 0.014;
-const LEGACY_KEN_BURNS_MAX_EXTRA_ZOOM = 0.18;
-const LEGACY_KEN_BURNS_PAN_ZOOM = 1.15;
 const KEN_BURNS_HOLD_SAFETY_FRAMES = 2;
 const EDITORIAL_DRIFT_INSET = 0.98;
 
@@ -327,56 +324,8 @@ export function kenBurnsPanForScene(index: number, seed = 0): KenBurnsPan {
   );
 }
 
-function legacyKenBurnsFilter(
+function stillFrameFilter(
   slide: VerticalVideoManifest['slides'][number],
-  index: number,
-  seed: number,
-  fps: number,
-  width: number,
-  height: number,
-  holdFrames: number,
-): string {
-  const durationFrames = Math.max(
-    2,
-    Math.round(((slide.endMs - slide.startMs) * fps) / 1_000),
-  );
-  const finalFrame = durationFrames - 1;
-  const progress = `min(on/${finalFrame}\\,1)`;
-  const eased = `pow(${progress}\\,2)*(3-2*${progress})`;
-  const extraZoom = Math.min(
-    (LEGACY_KEN_BURNS_ZOOM_RATE_PER_SECOND * (slide.endMs - slide.startMs)) /
-      1_000,
-    LEGACY_KEN_BURNS_MAX_EXTRA_ZOOM,
-  ).toFixed(4);
-
-  const position = slide.asset.position;
-  let motion = kenBurnsPanForScene(index, seed);
-  if (motion === 'topToBottom' && position !== 'center') motion = 'zoomIn';
-  const isPan = motion !== 'zoomIn' && motion !== 'zoomOut';
-
-  let zoom = `1+${extraZoom}*${eased}`;
-  if (motion === 'zoomOut') zoom = `1+${extraZoom}*(1-${eased})`;
-  if (isPan) zoom = String(LEGACY_KEN_BURNS_PAN_ZOOM);
-
-  let x = '(iw-iw/zoom)/2';
-  let y = '(ih-ih/zoom)/2';
-  if (position === 'top') y = '0';
-  if (position === 'bottom') y = 'ih-ih/zoom';
-  if (motion === 'leftToRight') {
-    x = `(iw-iw/zoom)*${eased}`;
-  } else if (motion === 'rightToLeft') {
-    x = `(iw-iw/zoom)*(1-${eased})`;
-  } else if (motion === 'topToBottom') {
-    y = `(ih-ih/zoom)*${eased}`;
-  }
-
-  return `zoompan=z='${zoom}':x='${x}':y='${y}':d=${durationFrames + holdFrames}:s=${width}x${height}:fps=${fps}`;
-}
-
-function editorialKenBurnsFilter(
-  slide: VerticalVideoManifest['slides'][number],
-  _index: number,
-  _seed: number,
   fps: number,
   width: number,
   height: number,
@@ -392,19 +341,6 @@ function editorialKenBurnsFilter(
   return `zoompan=z='1':x='0':y='0':d=${durationFrames + holdFrames}:s=${width}x${height}:fps=${fps}`;
 }
 
-type EditorialMotion = Extract<
-  VerticalVideoManifest['slides'][number]['asset'],
-  { kind: 'remoteImage' }
->['motion'];
-
-// A missing `motion` marks a stored legacy payload. Every filter stage has to
-// agree on that split, so they all read it here instead of re-deriving it.
-function editorialMotionOf(
-  slide: VerticalVideoManifest['slides'][number],
-): EditorialMotion {
-  return slide.asset.kind === 'remoteImage' ? slide.asset.motion : undefined;
-}
-
 function editorialDriftFilter(
   slide: VerticalVideoManifest['slides'][number],
   index: number,
@@ -414,8 +350,7 @@ function editorialDriftFilter(
   height: number,
   holdFrames: number,
 ): string | null {
-  const motion = editorialMotionOf(slide);
-  if (motion === undefined || motion === 'static') {
+  if (slide.asset.motion === 'static') {
     return null;
   }
   const durationFrames = Math.max(
@@ -449,31 +384,7 @@ function editorialDriftFilter(
   return `scale=${innerWidth}:${innerHeight}:flags=lanczos+accurate_rnd,pad=${canvasWidth}:${canvasHeight}:(ow-iw)/2:(oh-ih)/2:color=0x101014,crop=${width}:${height}:x='${x}':y='${y}'`;
 }
 
-function kenBurnsFilter(
-  slide: VerticalVideoManifest['slides'][number],
-  index: number,
-  seed: number,
-  fps: number,
-  width: number,
-  height: number,
-  holdFrames: number,
-): string {
-  const hasExplicitEditorialMotion = editorialMotionOf(slide) !== undefined;
-  return hasExplicitEditorialMotion
-    ? editorialKenBurnsFilter(
-        slide,
-        index,
-        seed,
-        fps,
-        width,
-        height,
-        holdFrames,
-      )
-    : legacyKenBurnsFilter(slide, index, seed, fps, width, height, holdFrames);
-}
-
 function imagePreparationFilter(
-  slide: VerticalVideoManifest['slides'][number],
   width: number,
   height: number,
   supersample: number,
@@ -481,12 +392,7 @@ function imagePreparationFilter(
   const targetWidth = width * supersample;
   const targetHeight = height * supersample;
   const flags = 'lanczos+accurate_rnd';
-  const layout = slide.asset.layout;
-  const hasExplicitEditorialMotion = editorialMotionOf(slide) !== undefined;
-  if (hasExplicitEditorialMotion || layout === 'contain') {
-    return `scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=decrease:flags=${flags}:in_range=pc:out_range=tv:out_color_matrix=bt709,pad=${targetWidth}:${targetHeight}:(ow-iw)/2:(oh-ih)/2:color=0x101014`;
-  }
-  return `scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=increase:flags=${flags}:in_range=pc:out_range=tv:out_color_matrix=bt709,crop=${targetWidth}:${targetHeight}`;
+  return `scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=decrease:flags=${flags}:in_range=pc:out_range=tv:out_color_matrix=bt709,pad=${targetWidth}:${targetHeight}:(ow-iw)/2:(oh-ih)/2:color=0x101014`;
 }
 
 function slideSceneFilters(
@@ -512,7 +418,7 @@ function slideSceneFilters(
       height,
       holdFrames,
     );
-    return `[${index}:v]${imagePreparationFilter(slide, width, height, supersample)},${kenBurnsFilter(slide, absoluteIndex, seed, fps, width, height, holdFrames)}${drift ? `,${drift}` : ''},setsar=1,format=yuv444p,settb=expr=1/${fps},setpts=N[s${index}]`;
+    return `[${index}:v]${imagePreparationFilter(width, height, supersample)},${stillFrameFilter(slide, fps, width, height, holdFrames)}${drift ? `,${drift}` : ''},setsar=1,format=yuv444p,settb=expr=1/${fps},setpts=N[s${index}]`;
   });
 }
 
@@ -543,13 +449,8 @@ function sceneChain(
   return { filters, priorLabel };
 }
 
-// Editorial scenes wipe in alternating directions; legacy payloads keep the
-// historical crossfade so their look does not change retroactively.
-function transitionForSlide(
-  slide: VerticalVideoManifest['slides'][number],
-  slideIndex: number,
-): string {
-  if (editorialMotionOf(slide) === undefined) return 'fade';
+// Editorial scenes wipe in alternating directions.
+function transitionForSlide(slideIndex: number): string {
   return slideIndex % 2 === 0 ? 'smoothright' : 'smoothleft';
 }
 
@@ -566,7 +467,7 @@ function appendXfadeChain(
     const nextStartFrame = Math.round((slide.startMs * fps) / 1_000);
     const transitionOffset = (nextStartFrame - transitionFrames) / fps;
     const outputLabel = `x${slideIndex}`;
-    const transition = transitionForSlide(slide, slideIndex);
+    const transition = transitionForSlide(slideIndex);
     filters.push(
       `[${priorLabel}][s${slideIndex}]xfade=transition=${transition}:duration=${transitionMs / 1_000}:offset=${transitionOffset.toFixed(6)}[${outputLabel}]`,
     );

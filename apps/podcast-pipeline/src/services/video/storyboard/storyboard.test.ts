@@ -74,6 +74,7 @@ function sceneAsset(sceneId: string) {
     sha256: 'a'.repeat(64),
     layout: 'fullBleed' as const,
     position: 'center' as const,
+    motion: 'static' as const,
   };
 }
 

@@ -876,6 +876,7 @@ function visualManifest(): Record<string, unknown> {
             sha256: 'b'.repeat(64),
             layout: 'fullBleed',
             position: 'center',
+            motion: 'static',
           },
         },
       ],

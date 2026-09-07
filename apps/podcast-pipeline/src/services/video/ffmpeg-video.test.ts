@@ -81,6 +81,7 @@ function testSlide(index: number, startMs: number, endMs: number) {
       sha256: 'a'.repeat(64),
       layout: 'fullBleed' as const,
       position: 'center' as const,
+      motion: 'static' as const,
     },
   };
 }
@@ -217,10 +218,12 @@ describe('vertical news FFmpeg composition', () => {
     expect(filter).toContain('scale=2880:2560:');
     expect(filter).not.toContain('scale=720:640');
     expect(filter).toContain('s=720x640');
+    // Scenes wipe in alternating directions rather than crossfading.
     expect(filter).toContain(
-      'xfade=transition=fade:duration=0.208:offset=3.791667[x1]',
+      'xfade=transition=smoothleft:duration=0.208:offset=3.791667[x1]',
     );
-    // One zoompan per scene, and nothing else in the graph pans or zooms.
+    // One zoompan per scene, and nothing else in the graph pans or zooms:
+    // these slides are `motion: 'static'`, so no editorial drift is added.
     expect(filter.match(/zoompan=/g)).toHaveLength(3);
     // Each still is decoded once. zoompan emits the scene's nominal frames,
     // transition tail, and two safety frames from that single input frame.
@@ -229,20 +232,10 @@ describe('vertical news FFmpeg composition', () => {
     expect(filter).toContain(':d=127:');
     expect(filter).not.toContain(':d=1:');
     expect(filter).not.toContain('[0:v]fps=24,scale=');
-  });
-
-  it('keeps assets without explicit motion on the legacy presentation path', () => {
-    const filter = soleChunkFilter(createVerticalManifest());
-
-    // These slides carry no `motion`, which marks a stored legacy payload. It
-    // stays on crop-to-fill preparation and the historical crossfade, and must
-    // not pick up the editorial drift that re-crops the window.
-    expect(filter).toContain('force_original_aspect_ratio=increase');
-    expect(filter).toContain('xfade=transition=fade:');
-    expect(filter).not.toContain('smoothleft');
-    expect(filter).not.toContain('smoothright');
-    expect(filter).not.toContain('scale=706:627');
-    expect(filter).not.toContain("crop=720:640:x='");
+    // Every scene is prepared identically: contained and padded to the full
+    // supersampled canvas, never cropped to fill.
+    expect(filter).toContain('force_original_aspect_ratio=decrease');
+    expect(filter).not.toContain('force_original_aspect_ratio=increase');
   });
 
   it('layers the brand frame, outro, and captions over the chunk videos', () => {
@@ -645,38 +638,6 @@ describe('Ken Burns motion', () => {
       expect(seed).toBeGreaterThanOrEqual(0);
       expect(seed).toBeLessThan(5);
     }
-  });
-
-  it('falls back to an eased zoom when a pinned crop lands on the vertical pan', () => {
-    const manifest = createVerticalManifest();
-    // Seed 3 puts the rightToLeft pan on scene 0 and topToBottom on scene 1.
-    const [first, second] = manifest.slides;
-    if (!first || !second) throw new Error('Vertical manifest needs 3 slides');
-    first.asset.position = 'bottom';
-    second.asset.position = 'top';
-
-    const filter = soleChunkFilter(manifest);
-
-    // Scene 0 pans horizontally with its bottom edge pinned.
-    expect(filter).toContain(
-      "x='(iw-iw/zoom)*(1-pow(min(on/95\\,1)\\,2)*(3-2*min(on/95\\,1)))':y='ih-ih/zoom'",
-    );
-    // Scene 1 cannot pan vertically while pinned to the top, so it zooms in.
-    expect(filter).toContain(
-      "z='1+0.0840*pow(min(on/143\\,1)\\,2)*(3-2*min(on/143\\,1))':x='(iw-iw/zoom)/2':y='0'",
-    );
-  });
-
-  it('caps the zoom travel on long scenes', () => {
-    const manifest = createVerticalManifest();
-    const lastSlide = manifest.slides[2];
-    if (!lastSlide) throw new Error('Vertical manifest needs 3 slides');
-    // A 20s scene at 0.014/s would reach 0.28 without the cap.
-    lastSlide.endMs = 30_000;
-
-    const filter = soleChunkFilter(manifest);
-
-    expect(filter).toContain("z='1+0.1800*");
   });
 });
 

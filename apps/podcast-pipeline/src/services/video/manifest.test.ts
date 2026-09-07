@@ -82,6 +82,7 @@ function createVerticalManifest(): VerticalVideoManifest {
           sha256: 'a'.repeat(64),
           layout: 'fullBleed',
           position: 'center',
+          motion: 'static',
         },
       };
     }),
