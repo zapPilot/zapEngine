@@ -1,5 +1,6 @@
 import { toError } from '../lib/errorMessage.js';
 import type { LanguageClassroomLanguageCode } from '../types.js';
+import { isLanguageClassroomLanguageCode } from './podcast/classroom-language.js';
 import {
   getPipelineSupabase,
   type PipelineSupabaseClient,
@@ -130,5 +131,7 @@ async function sweepOnce(
 function parseLanguageCode(
   value: string | null,
 ): LanguageClassroomLanguageCode | null {
-  return value === 'zh-Hant' || value === 'ja' || value === 'en' ? value : null;
+  return value !== null && isLanguageClassroomLanguageCode(value)
+    ? value
+    : null;
 }

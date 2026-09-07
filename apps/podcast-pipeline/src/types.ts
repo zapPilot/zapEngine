@@ -37,14 +37,19 @@ export const SUPPORTED_PRIMARY_LANGUAGE_CODES = [
 ] as const;
 export type PrimaryLanguageCode =
   (typeof SUPPORTED_PRIMARY_LANGUAGE_CODES)[number];
-export const LANGUAGE_CLASSROOM_LANGUAGE_CODES = [
-  DEFAULT_LANGUAGE_CODE,
-  'ja',
-  'en',
-] as const;
+/**
+ * Distinct name from `SUPPORTED_PRIMARY_LANGUAGE_CODES` on purpose even though
+ * the two are identical today: a planned follow-up swaps that constant's
+ * definition for a re-export from `@zapengine/types/shared` without touching
+ * this one, so every classroom-language call site keeps its own alias to
+ * depend on.
+ * @alias
+ */
+export const LANGUAGE_CLASSROOM_LANGUAGE_CODES =
+  SUPPORTED_PRIMARY_LANGUAGE_CODES;
 
-export type LanguageClassroomLanguageCode =
-  (typeof LANGUAGE_CLASSROOM_LANGUAGE_CODES)[number];
+// eslint-disable-next-line sonarjs/redundant-type-aliases -- see the @alias note above
+export type LanguageClassroomLanguageCode = PrimaryLanguageCode;
 
 export type EpisodeStatus =
   | 'pending'

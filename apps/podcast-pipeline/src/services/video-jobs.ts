@@ -4,9 +4,9 @@ import { EPISODE_VIDEO_VISUAL_VERSION } from '@zapengine/types/shared';
 
 import {
   DEFAULT_LANGUAGE_CODE,
-  LANGUAGE_CLASSROOM_LANGUAGE_CODES,
   type LanguageClassroomLanguageCode,
 } from '../types.js';
+import { isLanguageClassroomLanguageCode } from './podcast/classroom-language.js';
 import {
   getPipelineSupabase,
   type PipelineSupabaseClient,
@@ -275,14 +275,6 @@ async function loadFailureNotificationLanguages(
         ? [[row.id, row.language_code] as const]
         : [],
     ),
-  );
-}
-
-function isLanguageClassroomLanguageCode(
-  value: string,
-): value is LanguageClassroomLanguageCode {
-  return (LANGUAGE_CLASSROOM_LANGUAGE_CODES as readonly string[]).includes(
-    value,
   );
 }
 
