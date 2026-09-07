@@ -6,7 +6,6 @@ import {
 } from './fly-machines.js';
 import {
   getPipelineSupabase,
-  isMissingSupabaseRpc,
   type PipelineSupabaseClient,
 } from './supabase-client.js';
 import {
@@ -84,8 +83,7 @@ export interface RenderWorkSnapshot {
   /** Active visual rows plus the visual row of every episode with active video work. */
   visuals: readonly VisualWorkRow[];
   videos: readonly VideoWorkRow[];
-  /** Optional until migration 20260901080500 is applied in production. */
-  visualFailureNotices?: readonly VisualFailureNoticeWork[];
+  visualFailureNotices: readonly VisualFailureNoticeWork[];
   nowMs: number;
 }
 
@@ -138,7 +136,7 @@ export function evaluatePendingRenderWork(
     chatIds.push(visual.telegram_chat_id);
   }
 
-  for (const failure of snapshot.visualFailureNotices ?? []) {
+  for (const failure of snapshot.visualFailureNotices) {
     reasons.push(`visual:unnotified-failure:${failure.episode_id}`);
     chatIds.push(failure.telegram_chat_id);
   }
@@ -547,13 +545,10 @@ async function loadOptionalVisualFailureNotices(
   const { data, error } = await supabase.rpc(VISUAL_FAILURE_NOTICE_RPC, {
     p_limit: 20,
   });
-  if (!error) {
-    return (data ?? []) as VisualFailureNoticeWork[];
+  if (error) {
+    throw new Error(supabaseErrorMessage(error), { cause: error });
   }
-  if (isMissingSupabaseRpc(error, VISUAL_FAILURE_NOTICE_RPC)) {
-    return [];
-  }
-  throw new Error(supabaseErrorMessage(error), { cause: error });
+  return (data ?? []) as VisualFailureNoticeWork[];
 }
 
 async function selectRows<T>(

@@ -1,7 +1,6 @@
 import { toError } from '../lib/errorMessage.js';
 import {
   getPipelineSupabase,
-  isMissingSupabaseRpc,
   type PipelineSupabaseClient,
   throwSupabaseError,
 } from './supabase-client.js';
@@ -107,7 +106,6 @@ async function sweepOnce(
       p_limit: 20,
     });
     if (error) {
-      if (isMissingSupabaseRpc(error, VISUAL_FAILURE_NOTICE_RPC)) return;
       throwSupabaseError(error);
     }
     failures = Array.isArray(data)

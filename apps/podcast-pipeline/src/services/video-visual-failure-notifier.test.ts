@@ -57,31 +57,6 @@ describe('video visual failure notifier', () => {
     );
   });
 
-  it.each(['PGRST202', '42883'])(
-    'treats missing notification RPC code %s as no work during rollout',
-    async (code) => {
-      const supabase = makeSupabase({
-        reapError: {
-          code,
-          message: 'notification RPC is not installed yet',
-        },
-      });
-      const notify = vi.fn().mockResolvedValue(undefined);
-      const logger = { error: vi.fn() };
-      const notifier = createVideoVisualFailureNotifier({
-        supabase: supabase as unknown as PipelineSupabaseClient,
-        notify,
-        logger,
-      });
-
-      await notifier.sweep();
-
-      expect(supabase.rpc).toHaveBeenCalledTimes(1);
-      expect(notify).not.toHaveBeenCalled();
-      expect(logger.error).not.toHaveBeenCalled();
-    },
-  );
-
   it('does not stamp when Telegram delivery fails', async () => {
     const supabase = makeSupabase();
     const notify = vi.fn().mockRejectedValue(new Error('telegram unavailable'));

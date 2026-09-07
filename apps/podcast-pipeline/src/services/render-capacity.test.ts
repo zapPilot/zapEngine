@@ -60,7 +60,13 @@ function videoRow(overrides: Partial<VideoWorkRow> = {}): VideoWorkRow {
 }
 
 function snapshot(partial: Partial<RenderWorkSnapshot>): RenderWorkSnapshot {
-  return { visuals: [], videos: [], nowMs: NOW, ...partial };
+  return {
+    visuals: [],
+    videos: [],
+    visualFailureNotices: [],
+    nowMs: NOW,
+    ...partial,
+  };
 }
 
 describe('evaluatePendingRenderWork', () => {
@@ -838,24 +844,6 @@ describe('createRenderWorkProbe', () => {
     ).resolves.toMatchObject({
       videos: [],
       visuals: [],
-    });
-  });
-
-  it('keeps code-before-migration rollout compatible when the visual notice RPC is missing', async () => {
-    const { supabase } = makeSupabase([[], []], [], [], {
-      data: null,
-      error: {
-        code: 'PGRST202',
-        message: 'function missing from schema cache',
-      },
-    });
-
-    await expect(
-      createRenderWorkProbe(supabase).loadSnapshot(),
-    ).resolves.toMatchObject({
-      videos: [],
-      visuals: [],
-      visualFailureNotices: [],
     });
   });
 

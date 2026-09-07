@@ -2,7 +2,6 @@ import { toError } from '../lib/errorMessage.js';
 import type { LanguageClassroomLanguageCode } from '../types.js';
 import {
   getPipelineSupabase,
-  isMissingSupabaseRpc,
   type PipelineSupabaseClient,
   throwSupabaseError,
 } from './supabase-client.js';
@@ -71,7 +70,6 @@ export async function recordVideoCompletionDelivery(
       p_language_code: delivery.languageCode,
     });
     if (error) {
-      if (isMissingSupabaseRpc(error, VIDEO_COMPLETION_MARK_RPC)) return;
       throwSupabaseError(error);
     }
   } catch (error) {

@@ -2,7 +2,6 @@ import { toError } from '../lib/errorMessage.js';
 import type { LanguageClassroomLanguageCode } from '../types.js';
 import {
   getPipelineSupabase,
-  isMissingSupabaseRpc,
   type PipelineSupabaseClient,
   throwSupabaseError,
 } from './supabase-client.js';
@@ -92,7 +91,6 @@ async function sweepOnce(
       p_limit: 20,
     });
     if (error) {
-      if (isMissingSupabaseRpc(error, VIDEO_COMPLETION_NOTICE_RPC)) return;
       throwSupabaseError(error);
     }
     completions = Array.isArray(data)

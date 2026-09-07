@@ -9,7 +9,6 @@ import {
 } from '../types.js';
 import {
   getPipelineSupabase,
-  isMissingSupabaseRpc,
   type PipelineSupabaseClient,
   throwSupabaseError,
 } from './supabase-client.js';
@@ -166,8 +165,7 @@ export type EpisodeVideoRetryOutcome =
   | 'missing'
   | 'completed'
   | 'abandoned'
-  | 'prerequisites'
-  | 'unavailable';
+  | 'prerequisites';
 
 export interface EpisodeVideoFailureNotification {
   episodeLocalizationId: string;
@@ -656,9 +654,6 @@ export async function retryEpisodeVideoGeneration(
 export function classifyVideoRetryError(
   error: unknown,
 ): Exclude<EpisodeVideoRetryOutcome, 'queued'> | null {
-  if (isMissingSupabaseRpc(error, 'retry_episode_video_generation')) {
-    return 'unavailable';
-  }
   if (!error || typeof error !== 'object') return null;
   const row = error as { code?: unknown; message?: unknown };
   const code = typeof row.code === 'string' ? row.code : '';

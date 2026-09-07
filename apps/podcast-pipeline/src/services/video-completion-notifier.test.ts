@@ -67,26 +67,4 @@ describe('video completion notifier', () => {
       expect.any(Error),
     );
   });
-
-  it('degrades quietly before the migration is available', async () => {
-    const rpc = vi.fn().mockResolvedValue({
-      data: null,
-      error: {
-        code: 'PGRST202',
-        message: `Could not find the function ${VIDEO_COMPLETION_NOTICE_RPC} in the schema cache`,
-      },
-    });
-    const notify = vi.fn();
-    const logger = { error: vi.fn() };
-    const notifier = createVideoCompletionNotifier({
-      supabase: { rpc } as unknown as PipelineSupabaseClient,
-      notify,
-      logger,
-    });
-
-    await notifier.sweep();
-
-    expect(notify).not.toHaveBeenCalled();
-    expect(logger.error).not.toHaveBeenCalled();
-  });
 });

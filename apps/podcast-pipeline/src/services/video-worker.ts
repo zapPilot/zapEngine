@@ -19,7 +19,6 @@ import {
   type RenderAdmission,
   renderJobCapacity,
 } from './render-admission.js';
-import { isMissingSupabaseRpc } from './supabase-client.js';
 import {
   buildTelegramVideoCompletedMessage,
   buildTelegramVideoFailedMessage,
@@ -502,17 +501,6 @@ export function createVideoWorker(
             diagnostics as unknown as Record<string, unknown>,
           )
           .catch((diagnosticsError) => {
-            if (
-              isMissingSupabaseRpc(
-                diagnosticsError,
-                'record_episode_video_visual_failure_diagnostics',
-              )
-            ) {
-              logger.info(
-                '[video-worker] visual diagnostics migration not applied yet',
-              );
-              return;
-            }
             logger.error(
               '[video-worker] failed to persist visual failure diagnostics',
               toError(diagnosticsError),

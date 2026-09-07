@@ -3,11 +3,7 @@ import { EPISODE_VIDEO_VISUAL_VERSION } from '@zapengine/types/shared';
 import { errorMessage } from '../lib/errorMessage.js';
 import type { LanguageClassroomLanguageCode } from '../types.js';
 import { isEpisodeId, parseInputUrl } from './request-validation.js';
-import {
-  getPipelineSupabase,
-  isMissingSupabaseRpc,
-  throwSupabaseError,
-} from './supabase-client.js';
+import { getPipelineSupabase, throwSupabaseError } from './supabase-client.js';
 import {
   answerTelegramCallbackQuery,
   TELEGRAM_HELP_TEXT,
@@ -105,8 +101,6 @@ export async function handleTelegramRetryCommand(input: {
       return '這集影片已由操作者結案，不再重排；要重開請清除結案標記。';
     case 'prerequisites':
       return '影片重試的三語音頻前置條件尚未完成。';
-    case 'unavailable':
-      return '資料庫尚未升級到影片重試 migration。';
   }
 }
 
@@ -121,8 +115,6 @@ export async function handleTelegramRetryVideoCallback(
       return '影片仍在處理中';
     case 'completed':
       return '影片已完成';
-    case 'unavailable':
-      return '資料庫尚未升級';
     case 'missing':
       return '找不到 visual job';
     case 'abandoned':
@@ -241,15 +233,7 @@ function formatJobStatus(
     .join(' ');
 }
 
-export function isTelegramRetryMigrationMissing(error: unknown): boolean {
-  return (
-    isMissingSupabaseRpc(error, 'restart_podcast_ingest') ||
-    isMissingSupabaseRpc(error, 'retry_episode_video_generation')
-  );
-}
-
 export function telegramCommandErrorText(error: unknown): string {
-  if (isTelegramRetryMigrationMissing(error)) return '資料庫尚未升級。';
   return `操作失敗：${errorMessage(error).split(/\r?\n/u, 1)[0]?.slice(0, 160) ?? 'Unknown error'}`;
 }
 
