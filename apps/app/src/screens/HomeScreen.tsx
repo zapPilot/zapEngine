@@ -368,9 +368,12 @@ export function HomeScreen() {
     },
   );
   const homeIncome = useHomeIncome(account.viewingUserId);
-  const walletAssets = useWalletAssets(
+  // One normalization feeds both the balance query and the wallet count, so
+  // the footer can never disagree with the bundle the query actually fetched.
+  const ownWalletAddresses = normalizeWalletAddressList(
     account.isOwnBundle ? account.walletAddresses : [],
   );
+  const walletAssets = useWalletAssets(ownWalletAddresses);
 
   useEffect(() => {
     if (
@@ -411,9 +414,7 @@ export function HomeScreen() {
   const connect = () => void account.connect().catch(() => undefined);
   const retryWalletAssets = () => void walletAssets.refetch();
   const displayedAssets = isDemo ? DEMO.home.assets : walletAssets.assets;
-  const walletCount = normalizeWalletAddressList(
-    account.isOwnBundle ? account.walletAddresses : [],
-  ).length;
+  const walletCount = ownWalletAddresses.length;
   const walletAssetsTotal = isDemo
     ? displayedAssets.reduce((total, asset) => total + (asset.usdValue ?? 0), 0)
     : walletAssets.totalUsdValue;

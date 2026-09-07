@@ -20,7 +20,11 @@ const mocks = vi.hoisted(() => ({
     error: null as string | null,
     loading: false,
     refetch: vi.fn(),
-    userInfo: null as { userId: string; bundleWallets: string[] } | null,
+    userInfo: null as {
+      userId: string;
+      bundleWallets: string[];
+      additionalWallets?: { wallet_address: string; label: string | null }[];
+    } | null,
   },
 }));
 
@@ -50,23 +54,34 @@ function AccountCapture({
 async function renderAccount() {
   const container = document.createElement('div');
   document.body.appendChild(container);
+  const results: ReturnType<typeof useAccount>[] = [];
+  // A fresh callback identity on every pass forces a real re-render, which is
+  // what the field-identity assertions below need to observe.
+  const element = () =>
+    createElement(AccountCapture, {
+      onAccount: (value) => {
+        results.push(value);
+      },
+    });
   let root: Root | undefined;
-  let account: ReturnType<typeof useAccount> | undefined;
   await act(async () => {
     root = createRoot(container);
-    root.render(
-      createElement(AccountCapture, {
-        onAccount: (value) => {
-          account = value;
-        },
-      }),
-    );
+    root.render(element());
   });
-  if (!account || !root) throw new Error('Account hook did not render');
+  if (results.length === 0 || !root) {
+    throw new Error('Account hook did not render');
+  }
   return {
+    results,
     get account() {
-      if (!account) throw new Error('Account hook did not render');
-      return account;
+      const latest = results.at(-1);
+      if (!latest) throw new Error('Account hook did not render');
+      return latest;
+    },
+    rerender: async () => {
+      await act(async () => {
+        root?.render(element());
+      });
     },
     unmount: async () => {
       await act(async () => {
@@ -159,6 +174,41 @@ describe('useAccount', () => {
     expect(rendered.account.viewingUserId).toBe(mocks.urlUserId);
     expect(rendered.account.isUserResolutionFailed).toBe(false);
     expect(rendered.account.isDemo).toBe(false);
+    await rendered.unmount();
+  });
+
+  it('hands out one identity for the empty bundle across renders', async () => {
+    const rendered = await renderAccount();
+
+    await rendered.rerender();
+
+    const [first, second] = rendered.results;
+    expect(rendered.results).toHaveLength(2);
+    expect(second?.walletAddresses).toBe(first?.walletAddresses);
+    expect(second?.walletEntries).toBe(first?.walletEntries);
+    expect(second?.walletAddresses).toEqual([]);
+    await rendered.unmount();
+  });
+
+  it('keeps bundle and label identities stable while the user record does not change', async () => {
+    mocks.wallet.isConnected = true;
+    mocks.wallet.account = { address: '0xabc' };
+    mocks.user.userInfo = {
+      userId: 'user-1',
+      bundleWallets: ['0xabc', '0xdef'],
+      additionalWallets: [{ wallet_address: '0xdef', label: 'Cold storage' }],
+    };
+    const rendered = await renderAccount();
+
+    await rendered.rerender();
+
+    const [first, second] = rendered.results;
+    expect(second?.walletAddresses).toBe(first?.walletAddresses);
+    expect(second?.walletEntries).toBe(first?.walletEntries);
+    expect(second?.walletEntries).toEqual([
+      { address: '0xdef', label: 'Cold storage' },
+    ]);
+    expect(second?.viewingUserId).toBe('user-1');
     await rendered.unmount();
   });
 });
