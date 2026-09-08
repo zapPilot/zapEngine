@@ -26,15 +26,18 @@ import { normalizedEntityText } from './storyboard/english-text.js';
  * images before a download, and a named scene that could only reuse its own
  * subject's assets failed the whole episode when that subject had none. Here a
  * subject's relevance is guaranteed by Brave having answered its query, entity
- * mention is a ranking bonus rather than a filter, and running out of budget or
- * of candidates degrades the images instead of throwing.
+ * mention is a ranking bonus rather than a required match, and running out of
+ * budget or candidates degrades the images instead of throwing. The one hard
+ * contradiction we reject is a candidate that explicitly names a different
+ * known subject from this episode while naming none of the current subject's
+ * entities.
  */
 export const MAX_PRIMARY_SUBJECT_SEARCHES = 5;
 export const MAX_TARGETED_SUBJECT_SEARCHES = 3;
 export const MAX_BRAVE_REQUESTS_PER_EPISODE = 8;
 
 /** Naming what the scene names is worth more than any quality signal, but it
- * can no longer remove a candidate that Brave returned for that subject. */
+ * does not require every candidate to repeat the requested subject. */
 export const ENTITY_MENTION_BONUS = 40;
 /** Brave's own ordering is a weak tiebreaker, not a competitor to the score. */
 export const PROVIDER_RANK_PENALTY = 0.25;
@@ -330,8 +333,10 @@ export function subjectEntries(
 ): PoolEntry[] {
   const queryKey = pool.subjectQueryKeys.get(subjectKey);
   if (queryKey === undefined) return [];
-  return untriedEntries(pool).filter((entry) =>
-    entry.queryKeys.includes(queryKey),
+  return untriedEntries(pool).filter(
+    (entry) =>
+      entry.queryKeys.includes(queryKey) &&
+      !candidateExplicitlyNamesAnotherSubject(pool, entry, subjectKey),
   );
 }
 
@@ -356,8 +361,12 @@ export function rankFallbackEntries(
   existingAssets: readonly RankedAgainstAsset[],
   poolDrawsBySubject: ReadonlyMap<string, number>,
 ): PoolEntry[] {
+  const subjectKey = poolSubjectKey(scene);
   return sortedByScore(
-    untriedEntries(pool),
+    untriedEntries(pool).filter(
+      (entry) =>
+        !candidateExplicitlyNamesAnotherSubject(pool, entry, subjectKey),
+    ),
     (entry) =>
       sceneEntryScore(entry, scene, existingAssets) -
       SUBJECT_REUSE_PENALTY *
@@ -549,6 +558,39 @@ function sceneEntryScore(
     mentionBonus -
     entry.providerRank * PROVIDER_RANK_PENALTY
   );
+}
+
+/**
+ * This is deliberately not an identity-match gate. A candidate that names no
+ * catalog subject is still usable because editorial images commonly have weak
+ * metadata. We only have enough evidence to reject when the candidate itself
+ * explicitly points at a different known subject in this episode.
+ */
+function candidateExplicitlyNamesAnotherSubject(
+  pool: EpisodeImagePool,
+  entry: PoolEntry,
+  subjectKey: string,
+): boolean {
+  const currentEntities = subjectEntitiesFromKey(subjectKey);
+  if (currentEntities.length === 0) return false;
+  if (mentionsAnyEntity(entry.candidate, currentEntities)) return false;
+
+  for (const otherSubjectKey of pool.subjects.keys()) {
+    if (otherSubjectKey === subjectKey) continue;
+    const otherEntities = subjectEntitiesFromKey(otherSubjectKey);
+    if (
+      otherEntities.length > 0 &&
+      mentionsAnyEntity(entry.candidate, otherEntities)
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function subjectEntitiesFromKey(subjectKey: string): string[] {
+  if (subjectKey.startsWith('intent:')) return [];
+  return subjectKey.split('|').filter(Boolean);
 }
 
 function sortedByScore(
