@@ -43,17 +43,15 @@ function operations(status = 'healthy') {
 
 describe('product acquisition projection', () => {
   it('reads typed acquisition metrics from the healthy PostHog signal', () => {
-    const result = productAcquisitionFromOperations(
-      operations() as never,
-    );
+    const result = productAcquisitionFromOperations(operations() as never);
 
     expect(result).toEqual(EVIDENCE);
   });
 
   it('does not treat degraded analytics as product truth', () => {
-    expect(productAcquisitionFromOperations(operations('degraded') as never)).toBe(
-      null,
-    );
+    expect(
+      productAcquisitionFromOperations(operations('degraded') as never),
+    ).toBe(null);
   });
 });
 
@@ -68,12 +66,12 @@ describe('ruleProductDemand', () => {
       .join('');
 
     expect(sentence).toBe(
-      '109 landing visitors in 30d; 1 showed CTA intent (0.9%). 6 reached the app; 5 wallet connects were observed overall, not attributed to that CTA.',
+      '109 landing visitors in 30d; 1 showed waitlist CTA intent (0.9%). 6 app visitors overall; 5 wallet connects were observed overall, not attributed to the waitlist.',
     );
     expect(finding.fact).toEqual({
       kicker: 'Because · product demand',
       value: '109 landing visitors · 30d',
-      note: '1 CTA intent (0.9%) · 6 app visitors · 5 wallet connects overall · 7 landing dead-click users · 7d',
+      note: 'Waitlist telemetry unavailable · 1 waitlist CTA intent (0.9%) · 6 app visitors · 5 wallet connects overall · 7 landing dead-click users · 7d',
     });
     expect(finding.status).toBe('healthy');
   });
@@ -86,4 +84,35 @@ describe('ruleProductDemand', () => {
     expect(finding.segments).toEqual([]);
     expect(finding.fact).toBeNull();
   });
+  it.each(['healthy', 'degraded'])(
+    'shows persisted demand with %s PostHog',
+    (status) => {
+      const finding = ruleProductDemand({
+        operations: operations(status),
+        socialGrowth: {
+          waitlist: {
+            status: 'ok',
+            message: null,
+            total: 42,
+            signups7d: 5,
+            signups30d: 12,
+            attributedSocial7d: 3,
+            directOrUnknown7d: 2,
+            conversions: [],
+          },
+        },
+      } as unknown as StatementInputs);
+      const sentence = finding.segments
+        .map((s) => ('value' in s ? s.value : s.text))
+        .join('');
+      expect(sentence).toContain(
+        '42 total waitlist signups; 12 new in 30d, 5 in 7d (3 social-attributed; 2 direct / unknown).',
+      );
+      expect(sentence.includes('109 landing visitors')).toBe(
+        status === 'healthy',
+      );
+      expect(finding.status).toBe('healthy');
+      expect(finding.fact?.value).toBe('42 total waitlist signups');
+    },
+  );
 });

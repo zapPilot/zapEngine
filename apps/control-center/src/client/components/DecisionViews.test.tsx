@@ -21,6 +21,11 @@ import {
   signalFixture,
   socialFixture,
 } from '../__fixtures__/dashboard.js';
+import { unavailableWaitlist } from '../../shared/waitlist-growth.js';
+import type { StatementsResponse } from '../../shared/statements.js';
+import { ruleProductDemand } from '../../server/services/statements/product-demand.js';
+import type { StatementInputs } from '../../server/services/statements/types.js';
+import { HomeView } from './HomeView.js';
 import { GrowthView } from './GrowthView.js';
 import { PodcastUnitEconomics } from './PodcastUnitEconomics.js';
 import { ProductView } from './ProductView.js';
@@ -145,6 +150,7 @@ function customers(): CustomerEconomicsResponse {
 
 function growth(): SocialGrowthResponse {
   return {
+    waitlist: unavailableWaitlist('Not collected'),
     generatedAt: NOW,
     status: 'ok',
     message: null,
@@ -296,4 +302,81 @@ describe('decision-first domain views', () => {
     fireEvent.click(screen.getByText('Signal evidence'));
     expect(screen.getByText('github-actions:workflow/healthy')).toBeVisible();
   });
+});
+
+it('renders persisted waitlist evidence on all three acquisition surfaces', () => {
+  const socialGrowth = growth();
+  socialGrowth.waitlist = {
+    status: 'ok',
+    message: null,
+    total: 42,
+    signups7d: 5,
+    signups30d: 12,
+    attributedSocial7d: 3,
+    directOrUnknown7d: 2,
+    conversions: [],
+  };
+  const finding = ruleProductDemand({
+    operations: operationsFixture(),
+    socialGrowth,
+  } as StatementInputs);
+  const statements: StatementsResponse = {
+    generatedAt: NOW,
+    headers: [
+      {
+        domain: 'product',
+        status: finding.status,
+        sentence: finding.segments,
+        facts: [finding.fact!],
+      },
+    ],
+    statements: [
+      {
+        domain: 'product',
+        status: finding.status,
+        score: 0,
+        sentence: finding.segments,
+        kicker: 'Product',
+        series: [],
+        value: '',
+        delta: '',
+        deltaTone: 'neutral',
+        evidenceRef: 'product',
+        url: null,
+      },
+    ],
+  };
+  const home = render(
+    <HomeView
+      data={null}
+      operations={operationsFixture()}
+      statements={statements}
+      onNavigate={() => {}}
+    />,
+  );
+  expect(
+    screen.getAllByText('42 total waitlist signups').length,
+  ).toBeGreaterThan(0);
+  home.unmount();
+  const product = render(
+    <ProductView
+      customers={customers()}
+      product={productFixture()}
+      statements={statements}
+    />,
+  );
+  expect(
+    screen.getAllByText('42 total waitlist signups').length,
+  ).toBeGreaterThan(0);
+  product.unmount();
+  render(
+    <GrowthView
+      data={socialFixture()}
+      growth={socialGrowth}
+      onWindowChange={async () => {}}
+    />,
+  );
+  expect(screen.getByText('42 signups')).toBeVisible();
+  expect(screen.getByText('Signups / 24h views')).toBeVisible();
+  expect(screen.getByText(/compares different time windows/)).toBeVisible();
 });

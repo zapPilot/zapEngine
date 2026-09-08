@@ -17,7 +17,10 @@ import {
   findSensitiveTerms,
 } from './lexicon/index.js';
 import type { PackagingAssignment } from './packaging-experiments.js';
-import type { SocialPlatform } from './platforms.js';
+import {
+  type SocialPlatform,
+  THREADS_TOTAL_MAX_CHARACTERS,
+} from './platforms.js';
 import {
   assertRednoteSemanticRisk,
   readRednoteRiskRules,
@@ -32,7 +35,6 @@ import {
 } from './types.js';
 
 const X_TOTAL_MAX_WEIGHTED_LENGTH = 280;
-const THREADS_TOTAL_MAX_CHARACTERS = 500;
 export const YOUTUBE_TITLE_MAX_CHARACTERS = 100;
 const X_URL_WEIGHT = 23;
 const URL_PATTERN = /https?:\/\/[^\s]+/giu;

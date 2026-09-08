@@ -1,5 +1,3 @@
-import type { SocialGrowthResponse } from './types.js';
-
 export interface SocialWaitlistConversion {
   socialPublishJobId: string;
   episodeId: string;
@@ -11,17 +9,37 @@ export interface SocialWaitlistConversion {
   signupRate: number | null;
 }
 
-export interface SocialWaitlistSummary {
-  status: 'ok' | 'unavailable';
-  message: string | null;
-  /** Exact table count when Supabase can provide one. */
-  total: number | null;
-  signups7d: number;
-  attributedSocial7d: number;
-  directOrUnknown7d: number;
-  conversions: SocialWaitlistConversion[];
-}
+export type SocialWaitlistSummary =
+  | {
+      status: 'ok';
+      message: string | null;
+      total: number;
+      signups7d: number;
+      signups30d: number;
+      attributedSocial7d: number;
+      directOrUnknown7d: number;
+      conversions: SocialWaitlistConversion[];
+    }
+  | {
+      status: 'unavailable';
+      message: string;
+      total: null;
+      signups7d: null;
+      signups30d: null;
+      attributedSocial7d: null;
+      directOrUnknown7d: null;
+      conversions: [];
+    };
 
-export type SocialGrowthWithWaitlistResponse = SocialGrowthResponse & {
-  waitlist: SocialWaitlistSummary;
-};
+export function unavailableWaitlist(message: string): SocialWaitlistSummary {
+  return {
+    status: 'unavailable',
+    message,
+    total: null,
+    signups7d: null,
+    signups30d: null,
+    attributedSocial7d: null,
+    directOrUnknown7d: null,
+    conversions: [],
+  };
+}

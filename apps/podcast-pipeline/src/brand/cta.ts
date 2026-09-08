@@ -35,18 +35,6 @@ const YOUTUBE_DESCRIPTION_CTA_PREFIX_BY_LANGUAGE: Record<
   en: 'More market insights and tools: ',
 };
 
-// YouTube descriptions have no character pressure, so they close with a full
-// sentence instead of the short suffix above. Both strings live here so the
-// destination can never drift between surfaces.
-export const YOUTUBE_DESCRIPTION_CTA_BY_LANGUAGE: Record<
-  LanguageClassroomLanguageCode,
-  string
-> = {
-  'zh-Hant': `更多市場洞察與工具：${ZAP_PILOT_SITE_URL}`,
-  ja: `市場インサイトとツールをもっと：${ZAP_PILOT_SITE_URL}`,
-  en: `More market insights and tools: ${ZAP_PILOT_SITE_URL}`,
-};
-
 const VIDEO_CTA_TITLES: Record<LanguageClassroomLanguageCode, string> = {
   'zh-Hant': '更多市場洞察與工具',
   ja: '市場インサイトとツールをもっと',
@@ -69,7 +57,7 @@ export function socialLandingUrl(input: {
 export function appendBrandCta(
   text: string,
   languageCode: LanguageClassroomLanguageCode = 'zh-Hant',
-  destinationUrl = ZAP_PILOT_SITE_URL,
+  destinationUrl: string = ZAP_PILOT_SITE_URL,
 ): string {
   const body = text.trim();
   const cta = `${SOCIAL_BRAND_CTA_PREFIX_BY_LANGUAGE[languageCode]} ${destinationUrl}`;
@@ -78,7 +66,7 @@ export function appendBrandCta(
 
 export function youtubeDescriptionCtaFor(
   languageCode: LanguageClassroomLanguageCode,
-  destinationUrl = ZAP_PILOT_SITE_URL,
+  destinationUrl: string = ZAP_PILOT_SITE_URL,
 ): string {
   return `${YOUTUBE_DESCRIPTION_CTA_PREFIX_BY_LANGUAGE[languageCode]}${destinationUrl}`;
 }

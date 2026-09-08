@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AppCtaLink } from '@/components/landing-v2/AppCtaLink';
@@ -55,7 +55,11 @@ describe('AppCtaLink', () => {
     fireEvent.change(screen.getByPlaceholderText('you@example.com'), {
       target: { value: 'person@example.com' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Join waitlist' }));
+    fireEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', {
+        name: 'Join waitlist',
+      }),
+    );
 
     expect(await screen.findByText('You’re on the list ✓')).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith(
@@ -66,5 +70,73 @@ describe('AppCtaLink', () => {
       }),
     );
     expect(trackWaitlistSubmitted).toHaveBeenCalledWith('hero', true);
+  });
+  it('preserves first touch across visits and retries a failed signup', async () => {
+    window.history.replaceState({}, '', '/?utm_source=x&utm_medium=social');
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce({ ok: false } as Response)
+      .mockResolvedValueOnce({ ok: true } as Response);
+    const first = render(
+      <AppCtaLink className="cta" location="hero">
+        Join waitlist
+      </AppCtaLink>,
+    );
+    first.unmount();
+    window.history.replaceState(
+      {},
+      '',
+      '/?utm_source=youtube&utm_medium=social',
+    );
+    render(
+      <AppCtaLink className="cta" location="hero">
+        Join waitlist
+      </AppCtaLink>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Join waitlist' }));
+    fireEvent.change(screen.getByPlaceholderText('you@example.com'), {
+      target: { value: 'retry@example.com' },
+    });
+    const submit = within(screen.getByRole('dialog')).getByRole('button', {
+      name: 'Join waitlist',
+    });
+    fireEvent.click(submit);
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Please try again',
+    );
+    expect(trackWaitlistSubmitted).not.toHaveBeenCalled();
+    fireEvent.click(submit);
+    expect(await screen.findByText('You’re on the list ✓')).toBeInTheDocument();
+    expect(
+      JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body)),
+    ).toMatchObject({ utmSource: 'x' });
+  });
+  it('portals the modal outside transformed ancestors and restores keyboard focus', () => {
+    render(
+      <div style={{ transform: 'translateZ(0)' }}>
+        <AppCtaLink className="cta" location="hero">
+          Join waitlist
+        </AppCtaLink>
+      </div>,
+    );
+    const trigger = screen.getByRole('button', { name: 'Join waitlist' });
+    trigger.focus();
+    fireEvent.click(trigger);
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.parentElement?.parentElement).toBe(document.body);
+    const close = within(dialog).getByRole('button', {
+      name: 'Close waitlist',
+    });
+    const submit = within(dialog).getByRole('button', {
+      name: 'Join waitlist',
+    });
+    close.focus();
+    fireEvent.keyDown(close, { key: 'Tab', shiftKey: true });
+    expect(submit).toHaveFocus();
+    fireEvent.keyDown(submit, { key: 'Tab' });
+    expect(close).toHaveFocus();
+    fireEvent.keyDown(close, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(trigger).toHaveFocus();
   });
 });

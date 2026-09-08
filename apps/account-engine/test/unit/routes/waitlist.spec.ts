@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { DatabaseService } from '../database/database.service';
-import { createWaitlistRoutes } from './waitlist';
+import { getErrorStatus } from '../../../src/common/http';
+import type { DatabaseService } from '../../../src/database/database.service';
+import { createWaitlistRoutes } from '../../../src/routes/waitlist';
 
 function databaseFixture(jobId: string | null = 'job-123') {
   const upsert = vi.fn().mockResolvedValue({ error: null });
@@ -121,5 +122,78 @@ describe('waitlist routes', () => {
 
     expect(response.status).toBe(400);
     expect(fixture.upsert).not.toHaveBeenCalled();
+  });
+  it('returns success for duplicates while retaining first-touch insert options', async () => {
+    const fixture = databaseFixture();
+    const app = createWaitlistRoutes(fixture.databaseService);
+    for (const email of ['dup@example.com', ' DUP@EXAMPLE.COM ']) {
+      expect(
+        (await app.request(signupRequest({ email }, '203.0.113.5'))).status,
+      ).toBe(201);
+    }
+    expect(fixture.upsert).toHaveBeenCalledTimes(2);
+    for (const [values, options] of fixture.upsert.mock.calls) {
+      expect(values.email).toBe('dup@example.com');
+      expect(options).toEqual({ onConflict: 'email', ignoreDuplicates: true });
+    }
+  });
+
+  it('ignores a client-supplied canonical job id', async () => {
+    const fixture = databaseFixture(null);
+    const response = await createWaitlistRoutes(
+      fixture.databaseService,
+    ).request(
+      signupRequest(
+        {
+          email: 'unresolved@example.com',
+          social_publish_job_id: 'forged-job',
+          utmSource: 'youtube',
+          utmMedium: 'social',
+          utmCampaign: '72f1ee5b-3f57-4e32-b7ad-fe57666985d6',
+          utmContent: 'en',
+        },
+        '203.0.113.6',
+      ),
+    );
+    expect(response.status).toBe(201);
+    expect(fixture.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ social_publish_job_id: null }),
+      expect.any(Object),
+    );
+  });
+
+  it('limits repeated requests and allows retry after the window', async () => {
+    vi.useFakeTimers();
+    try {
+      const fixture = databaseFixture();
+      const app = createWaitlistRoutes(fixture.databaseService);
+      app.onError(
+        (error) =>
+          new Response(error.message, { status: getErrorStatus(error) }),
+      );
+      const request = () =>
+        app.request(
+          signupRequest({ email: 'limited@example.com' }, '203.0.113.7'),
+        );
+      for (let i = 0; i < 10; i++) expect((await request()).status).toBe(201);
+      expect((await request()).status).toBe(429);
+      vi.advanceTimersByTime(10 * 60 * 1000);
+      expect((await request()).status).toBe(201);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not report success when persistence fails', async () => {
+    const fixture = databaseFixture();
+    fixture.upsert.mockResolvedValueOnce({
+      error: { message: 'database unavailable' },
+    });
+    const app = createWaitlistRoutes(fixture.databaseService);
+    app.onError(() => new Response('Unavailable', { status: 500 }));
+    const response = await app.request(
+      signupRequest({ email: 'failed@example.com' }, '203.0.113.8'),
+    );
+    expect(response.status).toBe(500);
   });
 });

@@ -29,8 +29,8 @@ SELECT
   uniq(person_id) AS unique_users_30d,
   uniqIf(person_id, timestamp >= now() - INTERVAL 7 DAY AND event = '$pageview' AND properties.surface = 'landing') AS landing_visitors_7d,
   uniqIf(person_id, event = '$pageview' AND properties.surface = 'landing') AS landing_visitors_30d,
-  uniqIf(person_id, timestamp >= now() - INTERVAL 7 DAY AND event = 'cta_clicked') AS cta_users_7d,
-  uniqIf(person_id, event = 'cta_clicked') AS cta_users_30d,
+  uniqIf(person_id, timestamp >= now() - INTERVAL 7 DAY AND event = 'waitlist_cta_clicked' AND properties.surface = 'landing') AS cta_users_7d,
+  uniqIf(person_id, event = 'waitlist_cta_clicked' AND properties.surface = 'landing') AS cta_users_30d,
   uniqIf(person_id, timestamp >= now() - INTERVAL 7 DAY AND event = '$pageview' AND properties.surface = 'app') AS app_visitors_7d,
   uniqIf(person_id, event = '$pageview' AND properties.surface = 'app') AS app_visitors_30d,
   uniqIf(person_id, timestamp >= now() - INTERVAL 7 DAY AND event = 'wallet_connected') AS wallet_connected_users_7d,
@@ -43,7 +43,14 @@ WHERE timestamp >= now() - INTERVAL 30 DAY
 const envelopeSchema = z.object({ results: z.array(z.unknown()) });
 
 /** HogQL aggregate columns can arrive as JSON numbers or numeric strings. */
-const rowSchema = z.array(z.coerce.number()).length(11);
+const rowSchema = z
+  .array(
+    z
+      .union([z.number(), z.string().regex(/^\d+$/)])
+      .transform(Number)
+      .pipe(z.number().int().nonnegative()),
+  )
+  .length(11);
 
 interface AudienceReading {
   uniqueUsers7d: number;

@@ -106,19 +106,12 @@ describe('LandingPage', () => {
   });
 
   describe('interactive elements', () => {
-    it('should render CTA links', () => {
+    it('renders waitlist buttons without public app links', () => {
       render(<LandingPage />);
-
-      const ctaLinks = screen.getAllByRole('link');
-      const hasLaunchApp = ctaLinks.some((link) =>
-        link.textContent?.includes('Launch App'),
-      );
-      const hasOpenApp = ctaLinks.some((link) =>
-        link.textContent?.includes('Open the app'),
-      );
-
-      expect(hasLaunchApp).toBe(true);
-      expect(hasOpenApp).toBe(true);
+      expect(
+        screen.getAllByRole('button', { name: 'Join waitlist' }),
+      ).toHaveLength(3);
+      expect(document.querySelector('a[href*="v2.zap-pilot.org"]')).toBeNull();
     });
   });
 });

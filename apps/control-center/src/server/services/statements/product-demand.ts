@@ -21,43 +21,62 @@ export function ruleProductDemand(input: StatementInputs): RuleFinding {
     value: null,
   };
   const acquisition = productAcquisitionFromOperations(input.operations);
+  const waitlist = input.socialGrowth?.waitlist;
   const landing = acquisition?.landingVisitors30d ?? null;
-  if (landing === null) {
+  if (landing === null && waitlist?.status !== 'ok') {
     return finding;
   }
 
   const cta = acquisition?.ctaUsers30d ?? null;
   const app = acquisition?.appVisitors30d ?? null;
   const wallet = acquisition?.walletConnectedUsers30d ?? null;
-  const conversion = landing > 0 && cta !== null ? cta / landing : null;
+  const conversion =
+    landing !== null && landing > 0 && cta !== null ? cta / landing : null;
 
-  finding.segments.push(
-    { value: `${count(landing)} landing visitors`, tone: 'neutral' },
-    { text: ' in 30d' },
-  );
+  if (landing !== null) {
+    finding.segments.push(
+      { value: `${count(landing)} landing visitors`, tone: 'neutral' },
+      { text: ' in 30d' },
+    );
+  }
   if (cta !== null) {
     finding.segments.push(
       { text: '; ' },
       {
-        value: `${count(cta)} showed CTA intent${conversion === null ? '' : ` (${percent(conversion)})`}`,
-        tone: cta === 0 && landing > 0 ? 'warning' : 'neutral',
+        value: `${count(cta)} showed waitlist CTA intent${conversion === null ? '' : ` (${percent(conversion)})`}`,
+        tone:
+          cta === 0 && landing !== null && landing > 0 ? 'warning' : 'neutral',
       },
     );
   }
-  finding.segments.push({ text: '.' });
+  if (finding.segments.length) {
+    finding.segments.push({ text: '.' });
+  }
+  if (waitlist?.status === 'ok') {
+    finding.segments.push(
+      { text: finding.segments.length ? ' ' : '' },
+      {
+        value: `${count(waitlist.total)} total waitlist signups`,
+        tone: 'neutral',
+      },
+      {
+        text: `; ${count(waitlist.signups30d)} new in 30d, ${count(waitlist.signups7d)} in 7d (${count(waitlist.attributedSocial7d)} social-attributed; ${count(waitlist.directOrUnknown7d)} direct / unknown).`,
+      },
+    );
+  }
 
   if (app !== null || wallet !== null) {
     finding.segments.push({ text: ' ' });
     if (app !== null) {
       finding.segments.push(
-        { value: `${count(app)} reached the app`, tone: 'neutral' },
-        { text: wallet === null ? '.' : '; ' },
+        { value: `${count(app)} app visitors overall`, tone: 'neutral' },
+        { text: wallet === null ? ', not attributed to the waitlist.' : '; ' },
       );
     }
     if (wallet !== null) {
       finding.segments.push(
         { value: `${count(wallet)} wallet connects`, tone: 'neutral' },
-        { text: ' were observed overall, not attributed to that CTA.' },
+        { text: ' were observed overall, not attributed to the waitlist.' },
       );
     }
   }
@@ -65,14 +84,22 @@ export function ruleProductDemand(input: StatementInputs): RuleFinding {
   const deadClicks = acquisition?.landingDeadClickUsers7d ?? null;
   finding.fact = {
     kicker: 'Because · product demand',
-    value: `${count(landing)} landing visitors · 30d`,
+    value:
+      waitlist?.status === 'ok'
+        ? `${count(waitlist.total)} total waitlist signups`
+        : `${count(landing!)} landing visitors · 30d`,
     note: [
+      waitlist?.status === 'ok'
+        ? `${count(waitlist.signups30d)} new signups · 30d · ${count(waitlist.signups7d)} new · 7d · ${count(waitlist.attributedSocial7d)} social · ${count(waitlist.directOrUnknown7d)} direct / unknown`
+        : 'Waitlist telemetry unavailable',
       cta === null
         ? null
-        : `${count(cta)} CTA intent${conversion === null ? '' : ` (${percent(conversion)})`}`,
+        : `${count(cta)} waitlist CTA intent${conversion === null ? '' : ` (${percent(conversion)})`}`,
       app === null ? null : `${count(app)} app visitors`,
       wallet === null ? null : `${count(wallet)} wallet connects overall`,
-      deadClicks === null ? null : `${count(deadClicks)} landing dead-click users · 7d`,
+      deadClicks === null
+        ? null
+        : `${count(deadClicks)} landing dead-click users · 7d`,
     ]
       .filter((part): part is string => Boolean(part))
       .join(' · '),

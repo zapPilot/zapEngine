@@ -49,13 +49,13 @@ describe('landing analytics events', () => {
 
     trackCtaClicked('navbar');
 
-    expect(window.gtag).toHaveBeenCalledWith('event', 'cta_clicked', {
+    expect(window.gtag).toHaveBeenCalledWith('event', 'waitlist_cta_clicked', {
       location: 'navbar',
-      target: 'app',
+      target: 'waitlist',
     });
-    expect(posthogMocks.capture).toHaveBeenCalledWith('cta_clicked', {
+    expect(posthogMocks.capture).toHaveBeenCalledWith('waitlist_cta_clicked', {
       location: 'navbar',
-      target: 'app',
+      target: 'waitlist',
     });
   });
 
@@ -67,5 +67,13 @@ describe('landing analytics events', () => {
 
     expect(window.gtag).toHaveBeenCalledTimes(1);
     expect(posthogMocks.capture).not.toHaveBeenCalled();
+  });
+  it('reports submission telemetry without email or identity', async () => {
+    const { trackWaitlistSubmitted } = await importEvents();
+    trackWaitlistSubmitted('hero', true);
+    expect(posthogMocks.capture).toHaveBeenCalledWith('waitlist_submitted', {
+      location: 'hero',
+      social_attributed: true,
+    });
   });
 });

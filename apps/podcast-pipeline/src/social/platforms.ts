@@ -1,6 +1,8 @@
 import { appendBrandCta } from '../brand/cta.js';
 import type { PrimaryLanguageCode } from '../types.js';
 
+export const THREADS_TOTAL_MAX_CHARACTERS = 500;
+
 export type SocialVideoMode = 'teaser' | 'full';
 export type SocialCtaMode = 'brand' | 'none';
 
@@ -68,9 +70,17 @@ export function applyPlatformCta(
   languageCode: PrimaryLanguageCode = 'zh-Hant',
   destinationUrl?: string,
 ): string {
-  return SOCIAL_PLATFORM_CONFIG[platform].ctaMode === 'brand'
-    ? appendBrandCta(body, languageCode, destinationUrl)
-    : body.trim();
+  if (SOCIAL_PLATFORM_CONFIG[platform].ctaMode !== 'brand') return body.trim();
+  if (platform === 'threads') {
+    const suffix = appendBrandCta('', languageCode, destinationUrl);
+    const available =
+      THREADS_TOTAL_MAX_CHARACTERS - Array.from(suffix).length - 2;
+    if (available < 0)
+      throw new Error('Threads CTA exceeds the post length limit');
+    // Reserve the actual attributed URL before trimming, so transport and stored copy agree.
+    body = Array.from(body.trim()).slice(0, available).join('').trimEnd();
+  }
+  return appendBrandCta(body, languageCode, destinationUrl);
 }
 
 export function requiresLocalVideo(

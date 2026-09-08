@@ -1,9 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 
-import type {
-  SocialGrowthWithWaitlistResponse,
-  SocialWaitlistSummary,
-} from '../../shared/waitlist-growth.js';
+import { loadWaitlistGrowth } from './waitlist-growth.js';
+import { unavailableWaitlist } from '../../shared/waitlist-growth.js';
 import type {
   SocialExperimentArm,
   SocialExperimentStatus,
@@ -37,20 +35,6 @@ interface GrowthPost extends AttributionPost {
   content_features: unknown;
 }
 
-interface WaitlistSignupRow {
-  id: string;
-  created_at: string;
-  social_publish_job_id: string | null;
-}
-
-interface WaitlistPublishJobRow {
-  id: string;
-  episode_id: string;
-  platform: string;
-  language_code: string | null;
-  social_post_id: string | null;
-}
-
 type ClientFactory = typeof createClient;
 
 export function createSocialGrowthService(input: {
@@ -76,7 +60,7 @@ export async function loadSocialGrowth(input: {
   config: ControlCenterConfig;
   now: Date;
   createSupabaseClient?: ClientFactory;
-}): Promise<SocialGrowthWithWaitlistResponse> {
+}): Promise<SocialGrowthResponse> {
   const generatedAt = input.now.toISOString();
   const empty = (status: 'unconfigured' | 'error', message: string) =>
     ({
@@ -87,14 +71,15 @@ export async function loadSocialGrowth(input: {
       experiments: [],
       attribution: [],
       waitlist: unavailableWaitlist(message),
-    }) satisfies SocialGrowthWithWaitlistResponse;
+    }) satisfies SocialGrowthResponse;
   const { SUPABASE_URL: url, SUPABASE_SERVICE_ROLE_KEY: key } = input.config;
   if (!url || !key) {
     return empty('unconfigured', 'Supabase is not connected');
   }
 
+  const create = input.createSupabaseClient ?? createClient;
+  const waitlist = loadWaitlistGrowth({ create, url, key, now: input.now });
   try {
-    const create = input.createSupabaseClient ?? createClient;
     const client = create(url, key, {
       db: { schema: input.config.SUPABASE_DB_SCHEMA },
       auth: { autoRefreshToken: false, persistSession: false },
@@ -168,14 +153,6 @@ export async function loadSocialGrowth(input: {
       observations,
     });
     const exact = exactYoutubeFollowersByPost(posts, standardized);
-    const waitlist = await loadWaitlistGrowth({
-      create,
-      url,
-      key,
-      pipelineClient: client,
-      standardized,
-      now: input.now,
-    });
     return {
       status: 'ok',
       message: null,
@@ -195,147 +172,17 @@ export async function loadSocialGrowth(input: {
         exact,
       }),
       attribution: recentIntervals(attribution),
-      waitlist,
+      waitlist: await waitlist,
     };
   } catch (error) {
-    return empty(
-      'error',
-      error instanceof Error ? error.message : 'Social growth query failed',
-    );
-  }
-}
-
-async function loadWaitlistGrowth(input: {
-  create: ClientFactory;
-  url: string;
-  key: string;
-  pipelineClient: ReturnType<ClientFactory>;
-  standardized: AttributionObservation[];
-  now: Date;
-}): Promise<SocialWaitlistSummary> {
-  try {
-    const publicClient = input.create(input.url, input.key, {
-      db: { schema: 'public' },
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
-    const signupsResult = await publicClient
-      .from('waitlist_signups')
-      .select('id,created_at,social_publish_job_id', { count: 'exact' })
-      .order('created_at', { ascending: false })
-      .limit(2_000);
-    if (signupsResult.error) throw signupsResult.error;
-
-    const signups = (signupsResult.data ?? []) as WaitlistSignupRow[];
-    const jobIds = [
-      ...new Set(
-        signups.flatMap((row) =>
-          row.social_publish_job_id ? [row.social_publish_job_id] : [],
-        ),
+    return {
+      ...empty(
+        'error',
+        error instanceof Error ? error.message : 'Social growth query failed',
       ),
-    ];
-    let jobs: WaitlistPublishJobRow[] = [];
-    if (jobIds.length > 0) {
-      const jobsResult = await input.pipelineClient
-        .from('social_publish_jobs')
-        .select('id,episode_id,platform,language_code,social_post_id')
-        .in('id', jobIds)
-        .limit(2_000);
-      if (jobsResult.error) throw jobsResult.error;
-      jobs = (jobsResult.data ?? []) as WaitlistPublishJobRow[];
-    }
-
-    return buildWaitlistSummary({
-      signups,
-      jobs,
-      standardized: input.standardized,
-      total: signupsResult.count ?? signups.length,
-      now: input.now,
-    });
-  } catch (error) {
-    return unavailableWaitlist(
-      error instanceof Error ? error.message : 'Waitlist telemetry unavailable',
-    );
+      waitlist: await waitlist,
+    };
   }
-}
-
-function buildWaitlistSummary(input: {
-  signups: WaitlistSignupRow[];
-  jobs: WaitlistPublishJobRow[];
-  standardized: AttributionObservation[];
-  total: number;
-  now: Date;
-}): SocialWaitlistSummary {
-  const jobsById = new Map(input.jobs.map((job) => [job.id, job]));
-  const sevenDaysAgo = input.now.getTime() - 7 * DAY_MS;
-  const recent = input.signups.filter(
-    (row) => Date.parse(row.created_at) >= sevenDaysAgo,
-  );
-  const attributedRecent = recent.filter(
-    (row) =>
-      row.social_publish_job_id !== null &&
-      jobsById.has(row.social_publish_job_id),
-  );
-  const attributed = input.signups.filter(
-    (row): row is WaitlistSignupRow & { social_publish_job_id: string } =>
-      row.social_publish_job_id !== null &&
-      jobsById.has(row.social_publish_job_id),
-  );
-
-  const conversions = [
-    ...groupBy(attributed, (row) => row.social_publish_job_id).entries(),
-  ]
-    .flatMap(([jobId, rows]) => {
-      const job = jobsById.get(jobId);
-      if (!job) return [];
-      const metric = job.social_post_id
-        ? input.standardized.find(
-            (row) =>
-              row.social_post_id === job.social_post_id &&
-              row.measurement_window === '24h',
-          )
-        : undefined;
-      const views24h = metric?.views ?? null;
-      return [
-        {
-          socialPublishJobId: job.id,
-          episodeId: job.episode_id,
-          platform: job.platform,
-          languageCode: job.language_code ?? 'zh-Hant',
-          socialPostId: job.social_post_id,
-          signups: rows.length,
-          views24h,
-          signupRate: views24h && views24h > 0 ? rows.length / views24h : null,
-        },
-      ];
-    })
-    .sort(
-      (left, right) =>
-        right.signups - left.signups ||
-        left.episodeId.localeCompare(right.episodeId) ||
-        left.platform.localeCompare(right.platform),
-    );
-
-  return {
-    status: 'ok',
-    message: null,
-    total: input.total,
-    signups7d: recent.length,
-    attributedSocial7d: attributedRecent.length,
-    directOrUnknown7d: recent.length - attributedRecent.length,
-    conversions,
-  };
-}
-
-function unavailableWaitlist(message: string): SocialWaitlistSummary {
-  return {
-    status: 'unavailable',
-    message,
-    total: null,
-    signups7d: 0,
-    attributedSocial7d: 0,
-    directOrUnknown7d: 0,
-    conversions: [],
-  };
 }
 
 function buildPlatforms(input: {

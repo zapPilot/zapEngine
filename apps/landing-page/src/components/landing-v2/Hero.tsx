@@ -28,7 +28,11 @@ export function Hero() {
             </span>
           ))}
         </div>
-        <div className="zp-hero-ctas" id="waitlist" aria-label="Primary actions">
+        <div
+          className="zp-hero-ctas"
+          id="waitlist"
+          aria-label="Primary actions"
+        >
           <AppCtaLink className="zp-btn zp-btn-primary" location="hero">
             Join waitlist <span aria-hidden>→</span>
           </AppCtaLink>

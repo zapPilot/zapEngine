@@ -1,7 +1,9 @@
 'use client';
 
 import type { FormEvent, ReactNode } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+
+import { createPortal } from 'react-dom';
 
 import { LINKS } from '@/config/links';
 import {
@@ -32,6 +34,8 @@ export function AppCtaLink({
   className: string;
   children: ReactNode;
 }) {
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLElement>(null);
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [joined, setJoined] = useState(false);
@@ -40,6 +44,17 @@ export function AppCtaLink({
   useEffect(() => {
     captureWaitlistFirstTouch();
   }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const previousFocus = triggerRef.current;
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = overflow;
+      if (previousFocus instanceof HTMLElement) previousFocus.focus();
+    };
+  }, [open]);
 
   const openWaitlist = () => {
     captureWaitlistFirstTouch();
@@ -90,90 +105,119 @@ export function AppCtaLink({
   return (
     <>
       <button
-        className={`${className} ${styles.trigger}`}
+        ref={triggerRef}
+        className={`${className} ${styles['trigger']}`}
         type="button"
         onClick={openWaitlist}
       >
         {children}
       </button>
-      {open ? (
-        <div
-          className={styles.backdrop}
-          role="presentation"
-          onMouseDown={(event) => {
-            if (event.currentTarget === event.target) closeWaitlist();
-          }}
-        >
-          <section
-            aria-labelledby={`waitlist-title-${location}`}
-            aria-modal="true"
-            className={styles.dialog}
-            role="dialog"
-          >
-            <div className={styles.head}>
-              <h2 id={`waitlist-title-${location}`}>Join the waitlist</h2>
-              <button
-                aria-label="Close waitlist"
-                className={styles.close}
-                type="button"
-                onClick={closeWaitlist}
+      {open
+        ? createPortal(
+            <div
+              className={styles['backdrop']}
+              role="presentation"
+              onMouseDown={(event) => {
+                if (event.currentTarget === event.target) closeWaitlist();
+              }}
+            >
+              <section
+                ref={dialogRef}
+                onKeyDown={(event) => {
+                  if (event.key === 'Escape') closeWaitlist();
+                  if (event.key !== 'Tab') return;
+                  const controls =
+                    dialogRef.current?.querySelectorAll<HTMLElement>(
+                      'button:not(:disabled), input:not([tabindex="-1"]):not(:disabled)',
+                    );
+                  const first = controls?.[0];
+                  const last = controls?.[controls.length - 1];
+                  if (event.shiftKey && document.activeElement === first) {
+                    event.preventDefault();
+                    last?.focus();
+                  } else if (
+                    !event.shiftKey &&
+                    document.activeElement === last
+                  ) {
+                    event.preventDefault();
+                    first?.focus();
+                  }
+                }}
+                aria-labelledby={`waitlist-title-${location}`}
+                aria-modal="true"
+                className={styles['dialog']}
+                role="dialog"
               >
-                ×
-              </button>
-            </div>
-            {joined ? (
-              <div className={styles.success}>
-                <strong>You’re on the list ✓</strong>
-                <p>We’ll let you know when the new Zap Pilot app is ready.</p>
-              </div>
-            ) : (
-              <>
-                <p className={styles.copy}>
-                  Zap Pilot is getting ready. Leave your email and we’ll send
-                  one launch update when the new app is ready.
-                </p>
-                <form className={styles.form} onSubmit={submit}>
-                  <label>
-                    <span className={styles.honeypot}>Email</span>
-                    <input
-                      autoComplete="email"
-                      autoFocus
-                      className={styles.email}
-                      maxLength={320}
-                      name="email"
-                      placeholder="you@example.com"
-                      required
-                      type="email"
-                    />
-                  </label>
-                  <label className={styles.honeypot} aria-hidden="true">
-                    Company
-                    <input
-                      autoComplete="off"
-                      name="company"
-                      tabIndex={-1}
-                      type="text"
-                    />
-                  </label>
+                <div className={styles['head']}>
+                  <h2 id={`waitlist-title-${location}`}>Join the waitlist</h2>
                   <button
-                    className={styles.submit}
-                    disabled={submitting}
-                    type="submit"
+                    aria-label="Close waitlist"
+                    className={styles['close']}
+                    type="button"
+                    onClick={closeWaitlist}
                   >
-                    {submitting ? 'Joining…' : 'Join waitlist'}
+                    ×
                   </button>
-                  <p className={styles.note}>No spam. Just launch updates.</p>
-                  {error ? (
-                    <p className={styles.error} role="alert">
-                      {error}
+                </div>
+                {joined ? (
+                  <div className={styles['success']}>
+                    <strong>You’re on the list ✓</strong>
+                    <p>
+                      We’ll let you know when the new Zap Pilot app is ready.
                     </p>
-                  ) : null}
-                </form>
-              </>
-            )}
-          </section>
-        </div>
-      ) : null}
+                  </div>
+                ) : (
+                  <>
+                    <p className={styles['copy']}>
+                      Zap Pilot is getting ready. Leave your email and we’ll
+                      send one launch update when the new app is ready.
+                    </p>
+                    <form className={styles['form']} onSubmit={submit}>
+                      <label>
+                        <span className={styles['honeypot']}>Email</span>
+                        <input
+                          autoComplete="email"
+                          autoFocus
+                          className={styles['email']}
+                          maxLength={320}
+                          name="email"
+                          placeholder="you@example.com"
+                          required
+                          type="email"
+                        />
+                      </label>
+                      <label className={styles['honeypot']} aria-hidden="true">
+                        Company
+                        <input
+                          autoComplete="off"
+                          name="company"
+                          tabIndex={-1}
+                          type="text"
+                        />
+                      </label>
+                      <button
+                        className={styles['submit']}
+                        disabled={submitting}
+                        type="submit"
+                      >
+                        {submitting ? 'Joining…' : 'Join waitlist'}
+                      </button>
+                      <p className={styles['note']}>
+                        No spam. Just launch updates.
+                      </p>
+                      {error ? (
+                        <p className={styles['error']} role="alert">
+                          {error}
+                        </p>
+                      ) : null}
+                    </form>
+                  </>
+                )}
+              </section>
+            </div>,
+            document.body,
+          )
+        : null}
     </>
   );
 }

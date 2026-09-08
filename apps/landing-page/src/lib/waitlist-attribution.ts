@@ -54,7 +54,9 @@ function readStoredAttribution(): WaitlistAttribution | null {
       ...(text(parsed.utmCampaign)
         ? { utmCampaign: text(parsed.utmCampaign) }
         : {}),
-      ...(text(parsed.utmContent) ? { utmContent: text(parsed.utmContent) } : {}),
+      ...(text(parsed.utmContent)
+        ? { utmContent: text(parsed.utmContent) }
+        : {}),
     };
   } catch {
     return null;

@@ -1,3 +1,4 @@
+import { unavailableWaitlist } from '../../../shared/waitlist-growth.js';
 import type { CostSnapshot } from '@zapengine/cost-observability';
 import { describe, expect, it } from 'vitest';
 
@@ -208,6 +209,7 @@ function socialGrowth(
       },
     ],
     experiments: [],
+    waitlist: unavailableWaitlist('Not collected'),
     attribution: [],
     ...overrides,
   };
@@ -655,4 +657,34 @@ describe('buildStatements', () => {
     const facts = header.facts.map((f) => `${f.value} ${f.note}`).join(' | ');
     expect(facts).toContain('1 priority account inactive 30d+');
   });
+});
+
+it('includes persisted waitlist demand in both Home statements and Product headers', () => {
+  const result = buildStatements(
+    inputs({
+      socialGrowth: socialGrowth({
+        waitlist: {
+          status: 'ok',
+          message: null,
+          total: 42,
+          signups7d: 5,
+          signups30d: 12,
+          attributedSocial7d: 3,
+          directOrUnknown7d: 2,
+          conversions: [],
+        },
+      }),
+    }),
+  );
+  for (const item of [
+    result.statements.find((s) => s.domain === 'product'),
+    result.headers.find((s) => s.domain === 'product'),
+  ]) {
+    const text = item?.sentence
+      .map((s) => ('text' in s ? s.text : s.value))
+      .join('');
+    expect(text).toContain('42 total waitlist signups');
+    expect(text).toContain('12 new in 30d');
+    expect(text).toContain('3 social-attributed');
+  }
 });

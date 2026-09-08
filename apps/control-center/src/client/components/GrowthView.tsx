@@ -1,5 +1,4 @@
 import type { StatementsResponse } from '../../shared/statements.js';
-import type { SocialGrowthWithWaitlistResponse } from '../../shared/waitlist-growth.js';
 import type {
   SocialDecision,
   SocialEpisodeSummary,
@@ -23,7 +22,7 @@ export function GrowthView(props: {
   statements?: StatementsResponse | null;
 }) {
   const data = props.data;
-  const growth = props.growth as SocialGrowthWithWaitlistResponse | null;
+  const growth = props.growth;
   const waitlist = growth?.waitlist ?? null;
   const followerTotal = sumKnown(
     data?.accounts.map((account) => account.followers) ?? [],
@@ -88,10 +87,11 @@ export function GrowthView(props: {
         <section className="growth-section growth-summary-section">
           <div className="section-heading">
             <h2>Waitlist conversion</h2>
-            <span className="decision-note">
-              Which published content turns reach into prospective users
-            </span>
           </div>
+          <p className="decision-note">
+            Cumulative attributed signups / 24h views compares different time
+            windows; it is not an ordered funnel conversion.
+          </p>
           {waitlist?.status === 'ok' ? (
             <>
               <div className="audience-grid">
@@ -124,6 +124,9 @@ export function GrowthView(props: {
                   </div>
                 </article>
               </div>
+              {waitlist.message ? (
+                <p className="empty-inline">{waitlist.message}</p>
+              ) : null}
               <div className="table-wrap">
                 <table className="data-table episode-table">
                   <thead>
@@ -132,8 +135,8 @@ export function GrowthView(props: {
                       <th>Platform</th>
                       <th>Language</th>
                       <th>24h views</th>
-                      <th>Waitlist</th>
-                      <th>Conversion</th>
+                      <th>Cumulative signups</th>
+                      <th>Signups / 24h views</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -148,7 +151,9 @@ export function GrowthView(props: {
                         <td>{languageCodeLabel(conversion.languageCode)}</td>
                         <td className="mono">{integer(conversion.views24h)}</td>
                         <td className="mono">{integer(conversion.signups)}</td>
-                        <td className="mono">{percent(conversion.signupRate)}</td>
+                        <td className="mono">
+                          {percent(conversion.signupRate)}
+                        </td>
                       </tr>
                     ))}
                     {waitlist.conversions.length === 0 ? (

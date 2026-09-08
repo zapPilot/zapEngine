@@ -51,14 +51,19 @@ describe('collectPosthogSignals', () => {
 
     const init = fetchImpl.mock.calls[0]?.[1];
     expect(fetchImpl.mock.calls[0]?.[0]).toBe(QUERY_URL);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
     expect(init?.method).toBe('POST');
     expect(init?.headers).toEqual({
       Authorization: 'Bearer phx-key',
       'Content-Type': 'application/json',
     });
     const body = JSON.parse(String(init?.body));
+    expect(body.query.query).not.toContain("event = 'cta_clicked'");
+    expect(body.query.query).not.toContain('waitlist_submitted');
     expect(body).toMatchObject({ query: { kind: 'HogQLQuery' } });
-    expect(body.query.query).toContain("event = 'cta_clicked'");
+    expect(body.query.query).toContain(
+      "event = 'waitlist_cta_clicked' AND properties.surface = 'landing'",
+    );
     expect(body.query.query).toContain("properties.surface = 'landing'");
     expect(body.query.query).toContain("event = 'wallet_connected'");
     expect(signals).toEqual([
@@ -94,4 +99,14 @@ describe('collectPosthogSignals', () => {
     expect(signals[0]?.fingerprint).toBe('posthog:source-failure/adapter');
     expect(signals[0]?.status).toBe('degraded');
   });
+  it.each([null, '', -1, 1.2, true])(
+    'rejects invalid aggregate %s rather than reporting zero',
+    async (invalid) => {
+      const row: unknown[] = [...ROW];
+      row[2] = invalid;
+      expect(
+        (await collect(fetchReturning({ results: [row] })))[0]?.status,
+      ).toBe('degraded');
+    },
+  );
 });

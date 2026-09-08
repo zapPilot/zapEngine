@@ -18,9 +18,9 @@ export interface ProductAcquisitionMetrics {
 /**
  * Product acquisition is already collected with the operations snapshot. Keep
  * this projection pure so Product/Home can consume the same PostHog read
- * without issuing a second provider query. The eventual waitlist source of
- * truth can extend this model without teaching statement rules about signal
- * fingerprints or arbitrary evidence keys.
+ * without issuing a second provider query. Persisted waitlist counts arrive
+ * independently through the cached social-growth response; analytics events
+ * never substitute for those database records.
  */
 export function productAcquisitionFromOperations(
   operations: OperationsResponse,
@@ -45,10 +45,7 @@ export function productAcquisitionFromOperations(
     appVisitors7d: evidenceNumber(signal, 'appVisitors7d'),
     appVisitors30d: evidenceNumber(signal, 'appVisitors30d'),
     walletConnectedUsers7d: evidenceNumber(signal, 'walletConnectedUsers7d'),
-    walletConnectedUsers30d: evidenceNumber(
-      signal,
-      'walletConnectedUsers30d',
-    ),
+    walletConnectedUsers30d: evidenceNumber(signal, 'walletConnectedUsers30d'),
     landingDeadClickUsers7d: evidenceNumber(signal, 'landingDeadClickUsers7d'),
   };
 }

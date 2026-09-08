@@ -55,7 +55,10 @@ const optionalText = (max: number) =>
     .transform((value) => value || undefined);
 
 export const waitlistSignupSchema = z.object({
-  email: zEmail('Please enter a valid email address')
+  email: z
+    .string()
+    .trim()
+    .pipe(zEmail('Please enter a valid email address'))
     .refine((value) => value.length <= 320, 'Email address is too long')
     .transform((value) => value.trim().toLowerCase()),
   ctaLocation: optionalText(64),
@@ -83,7 +86,8 @@ export function createWaitlistRoutes(databaseService: DatabaseService) {
       return jsonResponse(c, { status: 'joined' as const }, HttpStatus.OK);
     }
 
-    const client = databaseService.getClient() as unknown as WaitlistDatabaseClient;
+    const client =
+      databaseService.getClient() as unknown as WaitlistDatabaseClient;
     const socialPublishJobId = await resolveSocialPublishJob(client, signup);
     const { error } = await client.from('waitlist_signups').upsert(
       {
