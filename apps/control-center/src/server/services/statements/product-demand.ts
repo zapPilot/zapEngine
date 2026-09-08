@@ -7,7 +7,19 @@ import type { RuleFinding, StatementInputs } from './types.js';
  * inventing a conversion target we have not productized yet.
  */
 export function ruleProductDemand(input: StatementInputs): RuleFinding {
-  const finding = emptyFinding();
+  // Keep this finding local: unlike the numbered product-health rules it has no
+  // metric-series row of its own yet, so sharing their constructor would imply
+  // a stronger lifecycle relationship than actually exists.
+  const finding: RuleFinding = {
+    id: 'PRODUCT_DEMAND',
+    segments: [],
+    series: [],
+    fact: null,
+    status: 'healthy',
+    deltaTone: 'neutral',
+    delta: null,
+    value: null,
+  };
   const acquisition = productAcquisitionFromOperations(input.operations);
   const landing = acquisition?.landingVisitors30d ?? null;
   if (landing === null) {
@@ -66,19 +78,6 @@ export function ruleProductDemand(input: StatementInputs): RuleFinding {
       .join(' · '),
   };
   return finding;
-}
-
-function emptyFinding(): RuleFinding {
-  return {
-    id: 'PRODUCT_DEMAND',
-    status: 'healthy',
-    segments: [],
-    fact: null,
-    series: [],
-    value: null,
-    delta: null,
-    deltaTone: 'neutral',
-  };
 }
 
 function count(value: number): string {
