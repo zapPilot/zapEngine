@@ -37,10 +37,12 @@ export class DatabaseService {
    * Get the Supabase client instance.
    *
    * There is exactly one client, and it holds the service-role key. account-engine
-   * is the only writer to these tables and every caller reaches it through an
-   * authenticated HTTP route, so authorization is enforced in the route layer —
-   * not by Postgres roles. No anon/`authenticated` path exists: those roles have
-   * no grants on `public` (see `supabase/migrations/*_lock_down_public_anon_access.sql`).
+   * is the only writer to these tables, so authorization is enforced in the route
+   * layer — not by Postgres roles. Privy/API-key authentication is the default;
+   * the bounded public `/waitlist` route is the explicit exception documented in
+   * `apps/account-engine/AGENTS.md`. No browser ever receives this client or its
+   * credential. The `anon`/`authenticated` database roles have no grants on
+   * `public` (see `supabase/migrations/*_lock_down_public_anon_access.sql`).
    */
   getClient(): SupabaseClient<Database> {
     return this.supabaseClient;
