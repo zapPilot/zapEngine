@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import { Search, X } from 'lucide-react-native';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
-import { Text, TextInput, View } from 'react-native';
+import { RefreshControl, Text, TextInput, View } from 'react-native';
 
 import {
   PodcastLanguageDropdown,
@@ -44,7 +44,10 @@ import {
 import { cn } from '@/lib/cn';
 import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 import { useEpisodeProgress } from '@/providers/PodcastProgressProvider';
-import { usePodcastPlayer } from '@/providers/PodcastPlayerProvider';
+import {
+  usePodcastPlayer,
+  usePodcastPlayerStatus,
+} from '@/providers/PodcastPlayerProvider';
 
 const EMPTY_SEARCH_RESULTS: readonly PodcastEpisodeSearchResult[] = [];
 const EMPTY_COMPLETION_BY_LANGUAGE: PodcastCompletionByLanguage = {};
@@ -188,9 +191,21 @@ function EmptyStateCard({
   );
 }
 
+// The only clock (currentTime/duration) subscriber on this screen: isolating
+// it in its own component keeps PodcastScreen off the playback tick, so the
+// episode list below does not re-render twice a second.
+function NowPlayingBarConnected({
+  onOpen,
+}: {
+  onOpen: (episode: PodcastEpisode) => void;
+}) {
+  const player = usePodcastPlayer();
+  return <NowPlayingBar player={player} onOpen={onOpen} />;
+}
+
 export function PodcastScreen() {
   const router = useRouter();
-  const player = usePodcastPlayer();
+  const player = usePodcastPlayerStatus();
   const { languageCode, t } = useContentLanguage();
   const {
     progress,
@@ -214,6 +229,18 @@ export function PodcastScreen() {
   const searchPending =
     searchActive && debouncedSearchQuery.trim() !== normalisedSearchQuery;
   const searchResults = searchQueryResult.data ?? EMPTY_SEARCH_RESULTS;
+  const refreshing =
+    feedQuery.isRefetching ||
+    catalogQuery.isRefetching ||
+    (searchActive && searchQueryResult.isRefetching);
+
+  const refreshPodcastData = async () => {
+    await Promise.all([
+      feedQuery.refetch(),
+      catalogQuery.refetch(),
+      searchActive ? searchQueryResult.refetch() : Promise.resolve(),
+    ]);
+  };
 
   const mergedEpisodes = useMemo(
     () =>
@@ -464,7 +491,20 @@ export function PodcastScreen() {
 
   return (
     <View className="flex-1 bg-bg">
-      <ScreenScrollView bottomPadding={player.nowPlaying === null ? 24 : 108}>
+      <ScreenScrollView
+        bottomPadding={player.nowPlaying === null ? 24 : 108}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              void refreshPodcastData();
+            }}
+            tintColor="#d4c5a3"
+            colors={['#d4c5a3']}
+            progressBackgroundColor="#18181b"
+          />
+        }
+      >
         <ScreenHeader
           title={t('podcast.title')}
           left={
@@ -514,7 +554,7 @@ export function PodcastScreen() {
         {renderEpisodeContent()}
       </ScreenScrollView>
 
-      <NowPlayingBar player={player} onOpen={openEpisode} />
+      <NowPlayingBarConnected onOpen={openEpisode} />
     </View>
   );
 }

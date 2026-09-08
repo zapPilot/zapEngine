@@ -36,6 +36,8 @@ interface ErrorWithStatus {
   status?: number;
 }
 
+const NOT_FOUND_MESSAGES = ['USER_NOT_FOUND', '404'] as const;
+
 /**
  * Check if error is a client error (4xx status code)
  *
@@ -45,6 +47,26 @@ interface ErrorWithStatus {
 export function isClientError(error: unknown): boolean {
   const status = getErrorStatus(error);
   return typeof status === 'number' && status >= 400 && status < 500;
+}
+
+/**
+ * Missing subject rather than broken pipe: callers can present "nothing here
+ * yet" instead of a failure.
+ *
+ * The two accepted signals mirror the retry suppression in
+ * `useLandingPageData`, so a query that stopped retrying is also the one
+ * classified as not-found here.
+ *
+ * @param error - Error object to check
+ * @returns True if the error reports a missing resource
+ */
+export function isNotFoundError(error: unknown): boolean {
+  if (getErrorStatus(error) === 404) {
+    return true;
+  }
+
+  const message = extractErrorMessage(error, '');
+  return NOT_FOUND_MESSAGES.some((candidate) => message.includes(candidate));
 }
 
 /**

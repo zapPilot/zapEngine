@@ -43,11 +43,13 @@ on:
 # it. Keep that transient Fly state mutually exclusive with env-apply and the
 # fleet-wide drift audit; otherwise env:status can observe legitimate `Staged`
 # entries between those two steps and fail a healthy merge. Do not cancel a
-# holder: interrupting after the stage step is exactly the state this rail is
-# meant to prevent readers from observing.
+# holder or a waiter: interrupting after the stage step is exactly the state
+# this rail is meant to prevent readers from observing, and GitHub's default
+# single pending slot silently replaces older waiters.
 concurrency:
   group: env-rail
   cancel-in-progress: false
+  queue: max
 
 jobs:
   deploy:
@@ -56,6 +58,7 @@ jobs:
     concurrency:
       group: fly-rollout-${{ inputs.app }}
       cancel-in-progress: false
+      queue: max
     env:
       # `setup-env-tooling` fails unless all six credentials are present, so the
       # two this workflow never reads are still supplied. FLY_API_TOKEN here is

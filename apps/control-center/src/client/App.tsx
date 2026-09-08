@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 
-import type { PodcastPipelineResponse } from '../shared/podcast-pipeline.js';
+import type { PodcastPipelineRestartAction } from '../shared/podcast-pipeline.js';
+import type {
+  PodcastVideoReviewInput,
+  PodcastVideoReviewResolveInput,
+  PodcastVisualDebugResponse,
+} from '../shared/podcast-visual.js';
 import type { StatementsResponse } from '../shared/statements.js';
 import type {
   CostHistoryResponse,
@@ -12,14 +17,15 @@ import type {
   SocialPerformanceResponse,
   SocialGrowthResponse,
 } from '../shared/types.js';
+import { getJson, sendJson } from './api.js';
 import { AppShell, type DashboardView } from './components/AppShell.js';
 import { EconomicsView } from './components/EconomicsView.js';
-import { GrowthDistributionBoard } from './components/GrowthDistributionBoard.js';
 import { GrowthView } from './components/GrowthView.js';
 import { HomeView } from './components/HomeView.js';
-import { PodcastPipelineView } from './components/PodcastPipelineView.js';
+import { PipelineQueuesBoard } from './components/PipelineQueuesBoard.js';
 import { ProductView } from './components/ProductView.js';
 import { ReliabilityView } from './components/ReliabilityView.js';
+import { StatementHeader } from './components/StatementHeader.js';
 
 const VIEW_META: Record<DashboardView, { subtitle: string; title: string }> = {
   home: {
@@ -27,7 +33,7 @@ const VIEW_META: Record<DashboardView, { subtitle: string; title: string }> = {
     title: 'Home',
   },
   pipeline: {
-    subtitle: 'Article production',
+    subtitle: 'Runtime queues',
     title: 'Pipeline',
   },
   growth: {
@@ -48,31 +54,20 @@ const VIEW_META: Record<DashboardView, { subtitle: string; title: string }> = {
   },
 };
 
-type PodcastRetryPhase = 'ingest' | 'video';
-
-async function getJson<T>(url: string): Promise<T> {
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`);
-  }
-  return (await response.json()) as T;
-}
-
-async function retryPodcastPhase(
+async function retryPodcastStep(
   episodeId: string,
-  phase: PodcastRetryPhase,
-): Promise<PodcastPipelineResponse> {
-  const response = await fetch(
-    `/api/podcast-pipeline/${encodeURIComponent(episodeId)}/${phase}/retry`,
-    { method: 'POST' },
+  action: PodcastPipelineRestartAction,
+): Promise<void> {
+  const encodedEpisodeId = encodeURIComponent(episodeId);
+  const url =
+    action.step === 'render'
+      ? `/api/podcast-pipeline/${encodedEpisodeId}/renders/${encodeURIComponent(action.localizationId)}/retry`
+      : `/api/podcast-pipeline/${encodedEpisodeId}/${action.step}/retry`;
+  await sendJson(
+    url,
+    'POST',
+    action.step === 'video' ? { forceReplan: action.forceReplan } : undefined,
   );
-  if (!response.ok) {
-    const body = (await response.json().catch(() => null)) as {
-      error?: string;
-    } | null;
-    throw new Error(body?.error ?? `HTTP ${response.status}`);
-  }
-  return getJson<PodcastPipelineResponse>('/api/podcast-pipeline');
 }
 
 export function App() {
@@ -84,11 +79,9 @@ export function App() {
   const [podcastCosts, setPodcastCosts] = useState<PodcastCostResponse | null>(
     null,
   );
-  const [podcastPipeline, setPodcastPipeline] =
-    useState<PodcastPipelineResponse | null>(null);
-  const [restartingEpisodeId, setRestartingEpisodeId] = useState<string | null>(
-    null,
-  );
+  const [visualDebugByEpisode, setVisualDebugByEpisode] = useState<
+    Record<string, PodcastVisualDebugResponse | undefined>
+  >({});
   const [social, setSocial] = useState<SocialPerformanceResponse | null>(null);
   const [socialGrowth, setSocialGrowth] = useState<SocialGrowthResponse | null>(
     null,
@@ -122,13 +115,7 @@ export function App() {
     (sync = false) =>
       run(async () => {
         if (sync) {
-          const syncResponse = await fetch('/api/costs/sync', {
-            method: 'POST',
-          });
-          if (!syncResponse.ok) {
-            const body = (await syncResponse.json()) as { error?: string };
-            throw new Error(body.error ?? `HTTP ${syncResponse.status}`);
-          }
+          await sendJson('/api/costs/sync', 'POST');
         }
         const [next, history, snapshot, episodeCosts, statementsNext] =
           await Promise.all([
@@ -148,37 +135,65 @@ export function App() {
     [run],
   );
 
+  // The board polls the queue endpoint itself; the view only needs the
+  // statement sentence that heads it.
   const loadPipeline = useCallback(
     () =>
       run(async () => {
-        const [pipeline, statementsNext] = await Promise.all([
-          getJson<PodcastPipelineResponse>('/api/podcast-pipeline'),
-          getJson<StatementsResponse>('/api/statements'),
-        ]);
-        setPodcastPipeline(pipeline);
-        setStatements(statementsNext);
+        setStatements(await getJson<StatementsResponse>('/api/statements'));
       }),
     [run],
   );
 
-  const restartEpisodePhase = useCallback(
-    (episodeId: string, phase: PodcastRetryPhase) => {
-      setRestartingEpisodeId(episodeId);
-      void run(async () => {
-        setPodcastPipeline(await retryPodcastPhase(episodeId, phase));
-      }).finally(() => setRestartingEpisodeId(null));
+  // Rethrows so the drawer can put the RPC's own refusal — a live lease, an
+  // abandoned episode, a missing migration — next to the button that caused it
+  // rather than in the page-level banner.
+  const restartStep = useCallback(
+    async (episodeId: string, action: PodcastPipelineRestartAction) => {
+      await retryPodcastStep(episodeId, action);
+      setVisualDebugByEpisode((current) => {
+        const next = { ...current };
+        delete next[episodeId];
+        return next;
+      });
     },
-    [run],
+    [],
   );
 
-  const restartIngest = useCallback(
-    (episodeId: string) => restartEpisodePhase(episodeId, 'ingest'),
-    [restartEpisodePhase],
+  const loadVisualDebug = useCallback(async (episodeId: string) => {
+    const debug = await getJson<PodcastVisualDebugResponse>(
+      `/api/podcast-pipeline/${encodeURIComponent(episodeId)}/visual`,
+    );
+    setVisualDebugByEpisode((current) => ({ ...current, [episodeId]: debug }));
+    return debug;
+  }, []);
+
+  const submitReview = useCallback(
+    async (episodeId: string, review: PodcastVideoReviewInput) => {
+      await sendJson(
+        `/api/podcast-pipeline/${encodeURIComponent(episodeId)}/reviews`,
+        'PUT',
+        review,
+      );
+      await loadVisualDebug(episodeId);
+    },
+    [loadVisualDebug],
   );
 
-  const restartVideo = useCallback(
-    (episodeId: string) => restartEpisodePhase(episodeId, 'video'),
-    [restartEpisodePhase],
+  const resolveReview = useCallback(
+    async (
+      episodeId: string,
+      reviewId: string,
+      input: PodcastVideoReviewResolveInput,
+    ) => {
+      await sendJson(
+        `/api/podcast-pipeline/reviews/${encodeURIComponent(reviewId)}/resolve`,
+        'POST',
+        input,
+      );
+      await loadVisualDebug(episodeId);
+    },
+    [loadVisualDebug],
   );
 
   const loadSocial = useCallback(
@@ -240,7 +255,7 @@ export function App() {
   // them lazy so Home remains a fast decision surface rather than preloading
   // every operational dataset on first paint.
   useEffect(() => {
-    if (view === 'pipeline' && !podcastPipeline) {
+    if (view === 'pipeline' && !statements) {
       void loadPipeline();
     }
     if (view === 'reliability' && !operationsSocial) {
@@ -259,7 +274,6 @@ export function App() {
     loadReliability,
     loadSocial,
     operationsSocial,
-    podcastPipeline,
     social,
     socialGrowth,
     view,
@@ -275,7 +289,7 @@ export function App() {
         social,
         operations,
         customers,
-        podcastPipeline,
+        statements,
       })}
       loading={loading}
       onNavigate={setView}
@@ -318,13 +332,16 @@ export function App() {
         />
       ) : null}
       {view === 'pipeline' ? (
-        <PodcastPipelineView
-          data={podcastPipeline}
-          onRestartIngest={restartIngest}
-          onRestartVideo={restartVideo}
-          restartingEpisodeId={restartingEpisodeId}
-          statements={statements}
-        />
+        <div className="view-stack">
+          <PipelineStatement statements={statements} />
+          <PipelineQueuesBoard
+            onLoadVisualDebug={loadVisualDebug}
+            onResolveReview={resolveReview}
+            onRestartStep={restartStep}
+            onSubmitReview={submitReview}
+            visualDebugByEpisode={visualDebugByEpisode}
+          />
+        </div>
       ) : null}
       {view === 'reliability' ? (
         <ReliabilityView
@@ -349,18 +366,12 @@ export function App() {
         />
       ) : null}
       {view === 'growth' ? (
-        <div className="view-stack">
-          <GrowthDistributionBoard
-            performance={social}
-            social={operationsSocial}
-          />
-          <GrowthView
-            data={social}
-            growth={socialGrowth}
-            onWindowChange={loadSocial}
-            statements={statements}
-          />
-        </div>
+        <GrowthView
+          data={social}
+          growth={socialGrowth}
+          onWindowChange={loadSocial}
+          statements={statements}
+        />
       ) : null}
     </AppShell>
   );
@@ -374,16 +385,35 @@ function homeDateTitle(): string {
   });
 }
 
+/** The one-sentence read on production health that used to head the retired
+ * episode panel. It is the only part of that view the queue board does not
+ * already say better. */
+function PipelineStatement(props: { statements: StatementsResponse | null }) {
+  const header = props.statements?.headers.find(
+    (entry) => entry.domain === 'pipeline',
+  );
+  if (!header) {
+    return null;
+  }
+  return (
+    <StatementHeader
+      facts={header.facts}
+      sentence={header.sentence}
+      status={header.status}
+    />
+  );
+}
+
 function generatedAt(input: {
   customers: CustomerEconomicsResponse | null;
   operations: OperationsResponse | null;
   overview: OverviewResponse | null;
-  podcastPipeline: PodcastPipelineResponse | null;
+  statements: StatementsResponse | null;
   social: SocialPerformanceResponse | null;
   view: DashboardView;
 }): string | undefined {
   if (input.view === 'pipeline') {
-    return input.podcastPipeline?.generatedAt;
+    return input.statements?.generatedAt;
   }
   if (input.view === 'growth') {
     return input.social?.generatedAt;
@@ -396,3 +426,4 @@ function generatedAt(input: {
   }
   return input.overview?.generatedAt;
 }
+// trigger ci

@@ -1,8 +1,18 @@
+/* eslint-disable sonarjs/no-duplicate-string -- 'generated-slide' is a domain literal intentionally repeated in schema and runtime checks */
 import { createHash } from 'node:crypto';
 
 import { z } from 'zod';
 
+import {
+  type VisualImageSearch,
+  visualImageSearchSchema,
+} from './image-search-trace.js';
+import type { StoryboardDraft } from './storyboard/draft.js';
 import type { StoryboardGenerationResult } from './storyboard/orchestrator.js';
+import {
+  canonicalSentenceRangeText,
+  splitCanonicalSentences,
+} from './storyboard/sentences.js';
 import {
   type VisualSceneSubjectAssignment,
   visualSceneSubjectAssignmentSchema,
@@ -18,11 +28,32 @@ import type {
   PlannedVisualImage,
   PlannedVisualScene,
 } from './visual-asset-planner.js';
+import { visualAssetIdentityFields } from './visual-asset-shared.js';
 
 export const EPISODE_VISUAL_PAYLOAD_SCHEMA_VERSION =
   'podcast-episode-visual.v1' as const;
 export const EPISODE_VISUAL_STORYBOARD_PROMPT_VERSION =
   'image-storyboard-v2' as const;
+
+export const generatedSlideMetadataSchema = z
+  .object({
+    templateVersion: z.literal('concept-card-v1'),
+    kicker: z.string().min(1).max(24),
+    headline: z.string().min(1).max(42),
+    points: z.array(z.string().min(1).max(48)).min(2).max(3),
+    copySource: z.enum(['llm', 'deterministic']),
+    model: z.string().min(1).nullable(),
+    reason: z.enum([
+      'search-failure',
+      'candidate-exhaustion',
+      'reuse-dead-end',
+      'never-searched',
+    ]),
+    rejectionSummary: z.string().nullable(),
+    lead: z.boolean(),
+    costUsd: z.number().nonnegative().nullable(),
+  })
+  .strict();
 
 const visualAssetMetadataSchema = z
   .object({
@@ -30,8 +61,9 @@ const visualAssetMetadataSchema = z
     r2Url: z.string().url(),
     originalImageUrl: z.string().url(),
     sourcePageUrl: z.string().url(),
-    // `bing` is retired as a source but stays readable: payloads written before
-    // the Brave migration are still parsed when their episode is re-rendered.
+    // `bing`, `pexels` and `pixabay` are retired as sources but stay readable:
+    // payloads written before those providers were dropped are still parsed
+    // when their episode is re-rendered. Fresh payloads never write them.
     provider: z.enum([
       'article',
       'brand',
@@ -39,6 +71,7 @@ const visualAssetMetadataSchema = z
       'pixabay',
       'brave',
       'bing',
+      'generated-slide',
     ]),
     license: z.enum(['brand-generated', 'unknown', 'pexels', 'pixabay']),
     photographer: z.string().min(1).optional(),
@@ -49,17 +82,18 @@ const visualAssetMetadataSchema = z
       'image/png',
       'image/webp',
     ]),
-    sha256: z.string().regex(/^[a-f\d]{64}$/),
-    perceptualHash: z.string().regex(/^[a-f\d]{16}$/),
-    width: z.number().int().positive(),
-    height: z.number().int().positive(),
+    ...visualAssetIdentityFields,
+    slide: generatedSlideMetadataSchema.optional(),
   })
   .strict();
 
+/** Read-only shape of the per-provider trace that v9 payloads stored before
+ * `provenance.imageSearch` replaced it. `provider` is an open string because
+ * the providers it names are retired. */
 const visualSearchTraceEntrySchema = z
   .object({
     sceneId: z.string().regex(/^scene-\d{2}$/),
-    provider: z.enum(['pexels', 'pixabay', 'brave']),
+    provider: z.string().min(1).max(40),
     intent: z.string().min(1).max(200),
     subjectKey: z.string().min(1).max(320).nullable(),
     returned: z.number().int().nonnegative(),
@@ -68,10 +102,6 @@ const visualSearchTraceEntrySchema = z
     rejected: z.number().int().nonnegative(),
   })
   .strict();
-
-export type VisualSearchTraceEntry = z.infer<
-  typeof visualSearchTraceEntrySchema
->;
 
 export const episodeVisualPayloadSchema = z
   .object({
@@ -98,13 +128,37 @@ export const episodeVisualPayloadSchema = z
         // Null means every scene kept its deterministic search intent, so a
         // payload can never imply a model that shaped nothing.
         searchIntentModel: z.string().min(1).nullable(),
+        // Absent on an episode whose scenes simply named nobody. Present only
+        // when the catalog answer itself degraded, which is otherwise
+        // indistinguishable in a completed payload. Optional keeps stored
+        // v1-v9 payloads parseable.
+        subjectCatalogFailure: z.string().min(1).max(400).optional(),
         // v9 audit fields are optional so stored v1-v8 payloads remain readable.
         searchTitleSource: z
           .enum(['publisher', 'english-localization', 'none'])
           .optional(),
         articleImageCandidateCount: z.number().int().nonnegative().optional(),
         articleImageAssetCount: z.number().int().nonnegative().optional(),
+        // Nothing writes `searchTrace` any more; it stays parseable for stored
+        // payloads, and `imageSearch` is what a fresh plan records instead.
         searchTrace: z.array(visualSearchTraceEntrySchema).max(256).optional(),
+        imageSearch: visualImageSearchSchema.optional(),
+        sceneSentences: z
+          .array(
+            z
+              .object({
+                sceneId: z.string().regex(/^scene-\d{2}$/),
+                text: z.string().min(1).max(400),
+              })
+              .strict(),
+          )
+          .max(64)
+          .optional(),
+        generatedSlideCount: z.number().int().nonnegative().optional(),
+        generatedSlideSceneIds: z
+          .array(z.string().regex(/^scene-\d{2}$/))
+          .max(64)
+          .optional(),
       })
       .strict(),
   })
@@ -130,6 +184,8 @@ export const episodeVisualPayloadSchema = z
         });
       }
     }
+
+    addGeneratedSlideIssues(payload, context);
 
     if (payload.subjectCatalog || payload.sceneAssignments) {
       if (!payload.subjectCatalog || !payload.sceneAssignments) {
@@ -174,6 +230,22 @@ export function parseEpisodeVisualPayload(
   input: unknown,
 ): EpisodeVisualPayload {
   return episodeVisualPayloadSchema.parse(input);
+}
+
+export function sceneSentencesForDraft(
+  script: string,
+  draft: StoryboardDraft,
+): { sceneId: string; text: string }[] {
+  const sentences = splitCanonicalSentences(script);
+  return draft.scenes.flatMap((scene) => {
+    const text = canonicalSentenceRangeText(
+      script,
+      sentences,
+      scene.startSentenceId,
+      scene.endSentenceId,
+    )?.trim();
+    return text ? [{ sceneId: scene.sceneId, text: text.slice(0, 400) }] : [];
+  });
 }
 
 export function hashEpisodeVisualSelection(input: {
@@ -223,6 +295,7 @@ export function buildEpisodeVisualPayload(input: {
   manifestUrl: string;
   storyboard: StoryboardGenerationResult;
   searchIntentModel: string | null;
+  subjectCatalogFailure?: string;
   selectedScenes: readonly PlannedVisualScene[];
   assets: readonly PlannedVisualImage[];
   r2ImageUrls: Readonly<Record<string, string>>;
@@ -230,7 +303,8 @@ export function buildEpisodeVisualPayload(input: {
   sceneAssignments?: readonly VisualSceneSubjectAssignment[];
   searchTitleSource?: 'publisher' | 'english-localization' | 'none';
   articleImageCandidateCount?: number;
-  searchTrace?: readonly VisualSearchTraceEntry[];
+  imageSearch?: VisualImageSearch;
+  sceneSentences?: readonly { sceneId: string; text: string }[];
 }): EpisodeVisualPayload {
   const assetById = new Map(
     input.assets.map((asset) => [asset.assetId, asset] as const),
@@ -257,13 +331,13 @@ export function buildEpisodeVisualPayload(input: {
           {
             id: sourceId,
             label:
-              asset.provider === 'brand'
+              asset.provider === 'brand' || asset.provider === 'generated-slide'
                 ? 'Zap Pilot'
                 : sourceLabel(asset.sourcePageUrl),
             url: asset.sourcePageUrl,
             attribution: assetAttribution(asset),
             license: asset.license,
-            licenseUrl: STOCK_LICENSE_URLS[asset.license] ?? null,
+            licenseUrl: null,
           },
         ],
         asset: {
@@ -319,6 +393,7 @@ export function buildEpisodeVisualPayload(input: {
         perceptualHash: asset.perceptualHash,
         width: asset.width,
         height: asset.height,
+        ...(asset.slide ? { slide: asset.slide } : {}),
       };
     }),
     ...subjectContext,
@@ -328,6 +403,9 @@ export function buildEpisodeVisualPayload(input: {
       storyboardPromptVersion: EPISODE_VISUAL_STORYBOARD_PROMPT_VERSION,
       usedFallback: input.storyboard.usedFallback,
       searchIntentModel: input.searchIntentModel,
+      ...(input.subjectCatalogFailure
+        ? { subjectCatalogFailure: input.subjectCatalogFailure }
+        : {}),
       ...(input.searchTitleSource
         ? { searchTitleSource: input.searchTitleSource }
         : {}),
@@ -335,7 +413,19 @@ export function buildEpisodeVisualPayload(input: {
         ? { articleImageCandidateCount: input.articleImageCandidateCount }
         : {}),
       articleImageAssetCount,
-      ...(input.searchTrace ? { searchTrace: [...input.searchTrace] } : {}),
+      ...(input.imageSearch ? { imageSearch: input.imageSearch } : {}),
+      ...(input.sceneSentences
+        ? { sceneSentences: [...input.sceneSentences] }
+        : {}),
+      generatedSlideCount: input.assets.filter(
+        (asset) => asset.provider === 'generated-slide',
+      ).length,
+      generatedSlideSceneIds: input.selectedScenes
+        .filter((scene) => {
+          const asset = assetById.get(scene.assetId);
+          return asset?.provider === 'generated-slide';
+        })
+        .map((scene) => scene.sceneId),
     },
   });
 }
@@ -344,7 +434,7 @@ function presentationForAsset(asset: PlannedVisualImage): {
   layout: 'fullBleed' | 'contain';
   motion: 'static' | 'pushIn' | 'pan';
 } {
-  if (asset.provider === 'brand')
+  if (asset.provider === 'brand' || asset.provider === 'generated-slide')
     return { layout: 'contain', motion: 'static' };
   const aspectRatio = asset.width / asset.height;
   // The portrait renderer's media window is ~1.125:1. Preserve the complete
@@ -356,27 +446,10 @@ function presentationForAsset(asset: PlannedVisualImage): {
   return { layout: 'fullBleed', motion: 'pushIn' };
 }
 
-const STOCK_LICENSE_URLS: Partial<
-  Record<PlannedVisualImage['license'], string>
-> = {
-  pexels: 'https://www.pexels.com/license/',
-  pixabay: 'https://pixabay.com/service/license-summary/',
-};
-
-const STOCK_PROVIDER_LABELS: Partial<
-  Record<PlannedVisualImage['provider'], string>
-> = {
-  pexels: 'Pexels',
-  pixabay: 'Pixabay',
-};
-
 function assetAttribution(asset: PlannedVisualImage): string {
   if (asset.provider === 'brand') return 'Zap Pilot';
-  const providerLabel = STOCK_PROVIDER_LABELS[asset.provider];
-  if (providerLabel) {
-    return asset.photographer
-      ? `Photo by ${asset.photographer} · ${providerLabel}`
-      : `Photo · ${providerLabel}`;
+  if (asset.provider === 'generated-slide') {
+    return 'Zap Pilot · generated concept card';
   }
   return `Image source · ${sourceLabel(asset.sourcePageUrl)}`;
 }
@@ -386,5 +459,41 @@ function sourceLabel(sourceUrl: string): string {
     return new URL(sourceUrl).hostname;
   } catch {
     return 'image source';
+  }
+}
+
+type EpisodeVisualPayloadShape = z.infer<typeof episodeVisualPayloadSchema>;
+
+function addGeneratedSlideIssues(
+  payload: EpisodeVisualPayloadShape,
+  context: z.RefinementCtx,
+): void {
+  const usageByUrl = new Map<string, number>();
+  for (const scene of payload.visualPlan.scenes) {
+    usageByUrl.set(scene.asset.url, (usageByUrl.get(scene.asset.url) ?? 0) + 1);
+  }
+  for (const [index, asset] of payload.assets.entries()) {
+    const generated = asset.provider === 'generated-slide';
+    if (generated !== Boolean(asset.slide)) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Generated slide provider and metadata must appear together',
+        path: ['assets', index, 'slide'],
+      });
+    }
+    if (generated && asset.contentType !== 'image/png') {
+      context.addIssue({
+        code: 'custom',
+        message: 'Generated slide assets must be PNG',
+        path: ['assets', index, 'contentType'],
+      });
+    }
+    if (generated && (usageByUrl.get(asset.r2Url) ?? 0) !== 1) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Generated slide assets must be scene-specific',
+        path: ['assets', index, 'r2Url'],
+      });
+    }
   }
 }

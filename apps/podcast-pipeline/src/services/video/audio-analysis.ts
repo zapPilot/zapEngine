@@ -1,6 +1,6 @@
 import { dirname, join } from 'node:path';
 
-import { throwIfAborted } from './abort.js';
+import { throwIfAborted } from '../../lib/abort.js';
 import {
   resolveVideoFfmpegPath,
   runProcess,

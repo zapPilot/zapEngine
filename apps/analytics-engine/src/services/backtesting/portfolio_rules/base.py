@@ -145,6 +145,15 @@ def symbols_for_snapshot(snapshot: PortfolioSnapshot) -> list[str]:
     return [symbol for symbol in PORTFOLIO_RULE_SYMBOLS if symbol in present]
 
 
+def above_dma_symbols(snapshot: PortfolioSnapshot) -> list[str]:
+    """Snapshot symbols currently trading above their own long-term trend."""
+    return [
+        symbol
+        for symbol in symbols_for_snapshot(snapshot)
+        if snapshot.assets[symbol].zone == "above"
+    ]
+
+
 def current_target(snapshot: PortfolioSnapshot) -> dict[str, float]:
     return target_from_current_allocation(snapshot.current_asset_allocation)
 
@@ -444,8 +453,36 @@ class _DcaRuleBase:
         del config
         return bool(self._matching_symbols(snapshot))
 
+    def build_intent(
+        self,
+        snapshot: PortfolioSnapshot,
+        *,
+        config: PortfolioRuleConfig,
+    ) -> AllocationIntent:
+        return self._decorate_intent(
+            self._build_base_intent(snapshot, config=config),
+            snapshot,
+        )
+
     def _matching_symbols(self, snapshot: PortfolioSnapshot) -> list[str]:
         raise NotImplementedError
+
+    def _build_base_intent(
+        self,
+        snapshot: PortfolioSnapshot,
+        *,
+        config: PortfolioRuleConfig,
+    ) -> AllocationIntent:
+        raise NotImplementedError
+
+    def _decorate_intent(
+        self,
+        intent: AllocationIntent,
+        snapshot: PortfolioSnapshot,
+    ) -> AllocationIntent:
+        """Single seam for rules that attach extra diagnostics to their intent."""
+        del snapshot
+        return intent
 
 
 class DcaSellRuleBase(_DcaRuleBase):
@@ -455,7 +492,7 @@ class DcaSellRuleBase(_DcaRuleBase):
     sell_step: float
     sizing: SizingStrategy
 
-    def build_intent(
+    def _build_base_intent(
         self,
         snapshot: PortfolioSnapshot,
         *,
@@ -484,7 +521,7 @@ class DcaBuyRuleBase(_DcaRuleBase):
     rule_group: RuleGroup
     sizing: SizingStrategy
 
-    def build_intent(
+    def _build_base_intent(
         self,
         snapshot: PortfolioSnapshot,
         *,
@@ -520,6 +557,7 @@ __all__ = [
     "PortfolioRule",
     "PortfolioRuleConfig",
     "PortfolioSnapshot",
+    "above_dma_symbols",
     "add_split_proceeds",
     "add_stable",
     "allocation_key_for_symbol",

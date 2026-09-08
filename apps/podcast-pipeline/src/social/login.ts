@@ -1,7 +1,6 @@
-import { resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
-
+import { runCli } from '../lib/cli-runner.js';
 import { errorMessage } from '../lib/errorMessage.js';
+import { isMainModule } from '../lib/is-main-module.js';
 import { isRednoteSessionReady, runRednoteLogin } from './rednote-login.js';
 import {
   ensureThreadsSession,
@@ -82,16 +81,6 @@ export async function runSocialLogin(
   log('All social platforms are ready.');
 }
 
-// jscpd:ignore-start — CLI direct-invocation check, same pattern as social/cli.ts
-const invokedPath = process.argv[1]
-  ? pathToFileURL(resolve(process.argv[1])).href
-  : null;
-if (invokedPath === import.meta.url) {
-  try {
-    await runSocialLogin();
-  } catch (error: unknown) {
-    console.error(errorMessage(error));
-    process.exitCode = 1;
-  }
+if (isMainModule(import.meta.url)) {
+  runCli(() => runSocialLogin());
 }
-// jscpd:ignore-end

@@ -15,6 +15,15 @@ from pydantic import BaseModel, Field, ValidationInfo, field_validator
 from src.models.validation_utils import validate_iso8601_format
 
 
+def _ensure_chronological(dates: list[str], field_name: str) -> None:
+    """Raise when ISO dates are not ascending, naming the offending field."""
+    parsed = [datetime.fromisoformat(value) for value in dates]
+    if parsed != sorted(parsed):
+        raise ValueError(
+            f"{field_name} must be in chronological order (ascending by date)"
+        )
+
+
 class PeriodInfo(BaseModel):
     """Standardized period metadata for analytics responses."""
 
@@ -33,7 +42,7 @@ class PeriodInfo(BaseModel):
 
 
 class TokenYieldBreakdown(BaseModel):
-    """Yield attribution for a single token within a protocol snapshot."""
+    """Yield and market attribution for a single token snapshot delta."""
 
     symbol: str = Field(..., description="Token symbol or identifier")
     amount_change: float = Field(
@@ -45,16 +54,36 @@ class TokenYieldBreakdown(BaseModel):
     yield_return_usd: float = Field(
         ...,
         description=(
-            "Yield Return contribution in USD for this token "
+            "Amount-change contribution in USD for this token "
             "(amount_change × current_price)"
+        ),
+    )
+    market_return_usd: float = Field(
+        default=0.0,
+        description=(
+            "Price-change contribution in USD for the prior token balance "
+            "(previous_amount × (current_price - previous_price))"
         ),
     )
 
 
-class DailyYieldReturn(BaseModel):
-    """Day-level yield return entry suitable for charting."""
+class _DailyReturnBase(BaseModel):
+    """Shared date field and validation for daily return entries."""
 
     date: str = Field(..., description="Calendar date (YYYY-MM-DD) of the snapshot")
+
+    @field_validator("date", mode="before")
+    @classmethod
+    def validate_iso8601_format_field(cls, v: str | None) -> str:
+        """Validate ISO8601 date string format (YYYY-MM-DD)."""
+        if v is None:
+            raise ValueError("date is required")
+        return validate_iso8601_format(v, "date")
+
+
+class DailyYieldReturn(_DailyReturnBase):
+    """Day-level yield return entry suitable for charting."""
+
     protocol_name: str = Field(..., description="Protocol that generated the yield")
     chain: str = Field(..., description="Blockchain network for the protocol position")
     position_type: str | None = Field(
@@ -66,14 +95,23 @@ class DailyYieldReturn(BaseModel):
     tokens: list[TokenYieldBreakdown] = Field(
         default_factory=list, description="Breakdown of contributing tokens"
     )
+    outlier: bool = Field(
+        default=False,
+        description=(
+            "Balance change flagged as a deposit/withdrawal spike by the IQR "
+            "fence over this protocol position's own day series. Unflagged "
+            "changes are the ones treated as protocol returns."
+        ),
+    )
 
-    @field_validator("date", mode="before")
-    @classmethod
-    def validate_iso8601_format_field(cls, v: str | None) -> str:
-        """Validate ISO8601 date string format (YYYY-MM-DD)."""
-        if v is None:
-            raise ValueError("date is required")
-        return validate_iso8601_format(v, "date")
+
+class DailyWalletReturn(_DailyReturnBase):
+    """Day-level attribution for idle wallet token balances."""
+
+    tokens: list[TokenYieldBreakdown] = Field(
+        default_factory=list,
+        description="Per-symbol price effect and balance change for wallet holdings",
+    )
 
 
 class YieldReturnSummary(BaseModel):
@@ -109,6 +147,13 @@ class YieldReturnsResponse(BaseModel):
     daily_returns: list[DailyYieldReturn] = Field(
         default_factory=list, description="Chronological sequence of daily returns"
     )
+    wallet_returns: list[DailyWalletReturn] = Field(
+        default_factory=list,
+        description=(
+            "Chronological price/balance attribution for idle wallet tokens, "
+            "which the DeFi position snapshots do not cover"
+        ),
+    )
     summary: YieldReturnSummary
 
     @field_validator("daily_returns")
@@ -117,14 +162,16 @@ class YieldReturnsResponse(BaseModel):
         cls, v: list[DailyYieldReturn]
     ) -> list[DailyYieldReturn]:
         """Ensure daily_returns are in chronological order (ascending by date)."""
-        if len(v) <= 1:
-            return v
+        _ensure_chronological([ret.date for ret in v], "daily_returns")
+        return v
 
-        dates = [datetime.fromisoformat(ret.date) for ret in v]
-        if dates != sorted(dates):
-            raise ValueError(
-                "daily_returns must be in chronological order (ascending by date)"
-            )
+    @field_validator("wallet_returns")
+    @classmethod
+    def validate_wallet_returns_ordered(
+        cls, v: list[DailyWalletReturn]
+    ) -> list[DailyWalletReturn]:
+        """Ensure wallet_returns are in chronological order (ascending by date)."""
+        _ensure_chronological([ret.date for ret in v], "wallet_returns")
         return v
 
 
@@ -183,6 +230,14 @@ class ProtocolYieldBreakdown(BaseModel):
     protocol: str = Field(..., description="Protocol name")
     chain: str | None = Field(
         None, description="Blockchain network for the protocol position"
+    )
+    token_symbols: list[str] = Field(
+        default_factory=list,
+        description="Token symbols observed for this protocol position in the window",
+    )
+    position_types: list[str] = Field(
+        default_factory=list,
+        description="Portfolio position archetypes observed for this protocol in the window",
     )
     window: ProtocolYieldWindow = Field(
         ..., description="Protocol yield metrics across the requested window"

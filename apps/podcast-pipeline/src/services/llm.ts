@@ -2,8 +2,9 @@ import { readFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import OpenAI from 'openai';
+import OpenAI, { APIConnectionError, APIConnectionTimeoutError } from 'openai';
 
+import { combineAbortSignalWithTimeout } from '../lib/abort.js';
 import { getRequiredEnv } from '../lib/env.js';
 import { errorMessage } from '../lib/errorMessage.js';
 import { normalizeLanguageClassroomLessonDraft } from '../lib/languageClassroom.js';
@@ -17,8 +18,8 @@ import {
   logIngestEvent,
   logPipelineEvent,
 } from './ingest/step.js';
+import { getOpenRouterModelCandidates } from './llm-model-fallback.js';
 import { convertTextToZhTW } from './opencc.js';
-import { combineAbortSignalWithTimeout } from './video/abort.js';
 
 export interface ScriptResult {
   title: string | null;
@@ -57,23 +58,25 @@ const DEFAULT_PROMPT_PATH = join(
 );
 const LLM_COMPLETION_MAX_ATTEMPTS = 2;
 const LLM_COMPLETION_RETRY_DELAY_MS = 2_000;
-/**
- * One response carries a lesson per target language, each with a 1.5-3 minute
- * narration script, so the real output sits around 3-4k tokens. The cap is what
- * makes a degenerate provider truncate instead of generating until the request
- * deadline: several endpoints for the configured model advertise a completion
- * limit in the hundreds of thousands of tokens.
- */
-const LANGUAGE_CLASSROOM_MAX_TOKENS = 8_000;
 /** Selecting concepts and writing narration, not a reasoning task. */
 const LANGUAGE_CLASSROOM_REASONING: OpenRouterReasoning = { enabled: false };
+/**
+ * There is deliberately no `max_tokens` on this call any more. A ceiling cannot
+ * tell a runaway provider from a verbose one: it cuts the body wherever the
+ * budget runs out, which for a JSON response means mid-string, turning a
+ * recoverable answer into an unparseable one. A runaway is already bounded by
+ * the request deadline, and a bad body is now bounded by these attempts.
+ */
+const LANGUAGE_CLASSROOM_MAX_ATTEMPTS = 3;
 const SCRIPT_PAYLOAD_MAX_ATTEMPTS = 2;
 /**
  * The one workload the shared ceiling is wrong for. The script prompt forbids
  * summarizing, permits an output longer than its input, and sets no token cap,
  * so a 13k-character article legitimately generates for minutes -- the 120s
- * default killed those runs while the model was still working correctly. Every
- * other workload keeps the shared deadline.
+ * default killed those runs while the model was still working correctly. A
+ * retryable non-timeout failure still advances the shared chain with this same
+ * long-form deadline per candidate; a timeout itself stays terminal rather than
+ * spending another ten minutes per remaining candidate.
  */
 const SCRIPT_OPENROUTER_TIMEOUT_MS = 600_000;
 const RETRYABLE_OPENROUTER_STATUS = new Set([408, 409, 429]);
@@ -98,6 +101,45 @@ class ScriptPayloadValidationError extends Error {
   ) {
     super(message, options);
     this.name = 'ScriptPayloadValidationError';
+  }
+}
+
+/**
+ * A classroom response that arrived over a healthy connection and is still
+ * unusable. Separate from the transport policy in `createCompletionWithRetry`
+ * on purpose: this failure happens after HTTP 200, so nothing below it ever
+ * sees the error, and re-prompting is the only thing that can fix it.
+ */
+class LanguageClassroomPayloadError extends Error {
+  constructor(
+    message: string,
+    readonly reason:
+      | 'invalid_json'
+      | 'truncated'
+      | 'not_object'
+      | 'no_lessons'
+      | 'incomplete_targets',
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
+    this.name = 'LanguageClassroomPayloadError';
+  }
+}
+
+/**
+ * A misbehaving OpenRouter endpoint can answer HTTP 200 with `choices`
+ * missing entirely (observed on relay-shaped truncation and malformed
+ * provider responses), rather than the empty array a well-formed "no
+ * candidate" response would carry. Every reader downstream indexes
+ * `choices[0]` or reduces over `choices`, which throws a bare
+ * `Cannot read properties of undefined` deep in a caller's stack instead of a
+ * message that names what actually failed. Guarded once here, at the door
+ * every caller shares, rather than at each of their `choices[0]` reads.
+ */
+class OpenRouterEmptyChoicesError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'OpenRouterEmptyChoicesError';
   }
 }
 
@@ -350,10 +392,7 @@ export function getOpenRouterConfig(overrides?: {
   model?: string;
   thinkingModel?: string | null;
 }): OpenRouterConfig {
-  const apiKey = process.env['OPENROUTER_API_KEY'];
-  if (!apiKey) {
-    throw new Error('OPENROUTER_API_KEY not set');
-  }
+  const apiKey = getRequiredEnv('OPENROUTER_API_KEY');
 
   const baseURL =
     process.env['OPENROUTER_BASE_URL'] || 'https://openrouter.ai/api/v1';
@@ -363,7 +402,10 @@ export function getOpenRouterConfig(overrides?: {
       ? overrides.thinkingModel
       : process.env['LLM_THINKING_MODEL'] || null;
   const timeoutMs = getOpenRouterTimeoutMs();
-  const clientKey = JSON.stringify([apiKey, baseURL, model, timeoutMs]);
+  // The model is request-scoped, not client-scoped: the shared fallback chain
+  // reuses one client across candidates, so keying on it only minted a redundant
+  // instance per primary.
+  const clientKey = JSON.stringify([apiKey, baseURL, timeoutMs]);
   let openai = openRouterClientCache.get(clientKey);
   if (!openai) {
     openai = new OpenAI({
@@ -406,11 +448,9 @@ const OPENROUTER_PROVIDER_ROUTING: OpenRouterProviderRouting = {
 };
 
 /**
- * Dropping `sort` is the whole point of the script fallback: the throughput
- * sort is deterministic, so re-sending an identical request would be handed
- * straight back to the endpoint that just refused it. Without it OpenRouter
- * load-balances the retry itself, while `require_parameters` still keeps
- * `response_format` honoured.
+ * Dropping `sort` lets a task-level retry choose a different endpoint for the
+ * same model. Model failover itself is separate and always comes from
+ * `LLM_FALLBACK_MODELS` inside createOpenRouterChatCompletion.
  */
 export const OPENROUTER_FALLBACK_ROUTING: OpenRouterProviderRouting = {
   require_parameters: true,
@@ -447,6 +487,28 @@ function routingLabel(routing: OpenRouterProviderRouting): string {
   return routing.sort ?? 'default';
 }
 
+/**
+ * One JSON-mode params shape for every OpenRouter workload that expects a JSON
+ * object. `model` stays a parameter (not config) so callers keep owning which
+ * primary they run on; the shared transport in
+ * `createOpenRouterChatCompletion` still advances through `LLM_FALLBACK_MODELS`.
+ */
+export function buildJsonModeChatParams(
+  model: string,
+  messages: OpenAI.Chat.ChatCompletionMessageParam[],
+  extra?: Pick<
+    OpenAI.Chat.ChatCompletionCreateParamsNonStreaming,
+    'max_tokens' | 'temperature'
+  >,
+): OpenAI.Chat.ChatCompletionCreateParamsNonStreaming {
+  return {
+    model,
+    response_format: { type: 'json_object' },
+    ...extra,
+    messages,
+  };
+}
+
 function reasoningLabel(reasoning: OpenRouterReasoning | undefined): string {
   if (!reasoning) return 'provider-default';
   if (reasoning.enabled === false) return 'disabled';
@@ -462,7 +524,14 @@ export interface OpenRouterRequestOptions {
   reasoning?: OpenRouterReasoning;
   /** Overrides the shared deadline for a workload whose output is long-form. */
   timeoutMs?: number;
-  /** Overrides endpoint selection; used by the script fallback. */
+  /**
+   * Script generation opts out: its deadline is already ten minutes, so a
+   * timeout means a model worked that long and replaying the prompt on the next
+   * candidate just spends those minutes again. Every other workload keeps the
+   * default and advances timeouts through the shared chain.
+   */
+  fallbackOnTimeout?: boolean;
+  /** Overrides endpoint selection for task-level retries. */
   providerRouting?: OpenRouterProviderRouting;
   logContext?: {
     prefix: string;
@@ -485,11 +554,66 @@ function logOpenRouterEvent(
   logIngestEvent(event, details);
 }
 
+/**
+ * One transport policy for every OpenRouter workload. The caller supplies the
+ * workload's primary model (`LLM_MODEL` for normal work, `openrouter/free` for
+ * translation). A timeout, connection failure, 408/409/429, or 5xx advances to
+ * the next model in `LLM_FALLBACK_MODELS`, except when the caller opted out of
+ * timeout failover (`fallbackOnTimeout: false`, script generation). Payload /
+ * semantic validation remains the caller's responsibility and never changes
+ * models by itself.
+ */
 export async function createOpenRouterChatCompletion(
   openai: OpenAI,
   params: OpenAI.Chat.ChatCompletionCreateParamsNonStreaming,
   thinkingModel: string | null,
   requestOptions: OpenRouterRequestOptions = {},
+): Promise<OpenRouterChatCompletion> {
+  const models = getOpenRouterModelCandidates(params.model);
+  let lastError: unknown;
+
+  for (const [modelIndex, model] of models.entries()) {
+    try {
+      return await createOpenRouterChatCompletionOnce(
+        openai,
+        { ...params, model },
+        thinkingModel,
+        requestOptions,
+      );
+    } catch (error) {
+      lastError = error;
+      const nextModel = models[modelIndex + 1];
+      const timeoutTerminal =
+        requestOptions.fallbackOnTimeout === false && isTimeoutError(error);
+      const shouldFallback =
+        Boolean(nextModel) &&
+        !timeoutTerminal &&
+        !requestOptions.signal?.aborted &&
+        isRetryableOpenRouterError(error);
+      if (!shouldFallback || !nextModel) throw error;
+
+      logOpenRouterEvent(
+        'llm:model-fallback',
+        {
+          model,
+          nextModel,
+          error: errorMessage(error),
+        },
+        requestOptions.logContext,
+      );
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error('OpenRouter model fallback chain exhausted');
+}
+
+async function createOpenRouterChatCompletionOnce(
+  openai: OpenAI,
+  params: OpenAI.Chat.ChatCompletionCreateParamsNonStreaming,
+  thinkingModel: string | null,
+  requestOptions: OpenRouterRequestOptions,
 ): Promise<OpenRouterChatCompletion> {
   const inputChars = userInputCharacterCount(params.messages);
   const timeoutMs = requestOptions.timeoutMs ?? getOpenRouterTimeoutMs();
@@ -531,6 +655,7 @@ export async function createOpenRouterChatCompletion(
       signal: deadline.signal,
       timeout: timeoutMs,
     });
+    assertOpenRouterCompletionChoices(completion, params.model);
   } catch (error) {
     const abortReason = deadline.signal.reason;
     const failure =
@@ -556,6 +681,10 @@ export async function createOpenRouterChatCompletion(
   } finally {
     deadline.dispose();
   }
+
+  if (!completion.model) {
+    completion = { ...completion, model: params.model };
+  }
   const metadata = completionMetadata(completion, params.model, thinkingModel);
   logOpenRouterEvent(
     'llm:response',
@@ -566,6 +695,7 @@ export async function createOpenRouterChatCompletion(
       timeoutMs,
       provider: metadata.provider,
       costUsd: metadata.costUsd,
+      finishReason: completionFinishReason(completion),
       outputChars: completionOutputCharacterCount(completion),
     },
     requestOptions.logContext,
@@ -584,6 +714,32 @@ function userInputCharacterCount(
         : total,
     0,
   );
+}
+
+/**
+ * Guards only the shape every reader below assumes -- `choices` is an array
+ * it can index or reduce over. A well-formed "no candidate" response already
+ * carries an empty array, which every reader already handles via `?.`/`??`
+ * fallbacks; this only catches `choices` being missing, `null`, or otherwise
+ * not an array at all, which is what actually crashes them.
+ */
+function assertOpenRouterCompletionChoices(
+  completion: OpenRouterChatCompletion,
+  model: string,
+): void {
+  if (Array.isArray(completion.choices)) return;
+  throw new OpenRouterEmptyChoicesError(
+    `OpenRouter returned no choices array for model ${model} (provider=${completion.provider || 'unknown'})`,
+  );
+}
+
+/**
+ * The one field that separates a body the provider stopped writing from a body
+ * it finished writing badly. Nothing logged it before, so the incident that
+ * motivated the classroom retry loop could not be classified from its logs.
+ */
+function completionFinishReason(completion: OpenRouterChatCompletion): string {
+  return completion.choices[0]?.finish_reason ?? 'unknown';
 }
 
 function completionOutputCharacterCount(
@@ -625,10 +781,19 @@ export function completionMetadata(
 }
 
 /**
- * Transport-level failures worth one more attempt. Shared with translation so a
- * single OpenRouter retry policy covers every caller of this client. Script
- * generation is deliberately not one of them: see
- * `classifyScriptCompletionError`.
+ * Both shapes a request deadline takes: the SDK's own timeout and the
+ * per-request deadline's `TimeoutError` (see `combineAbortSignalWithTimeout`).
+ */
+function isTimeoutError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  if (error instanceof APIConnectionTimeoutError) return true;
+  return (error as { name?: unknown }).name === 'TimeoutError';
+}
+
+/**
+ * Transport-level failures are the only failures that advance the shared model
+ * chain. Payload/semantic errors stay with the caller so retries can carry a
+ * correction prompt rather than silently changing model behavior.
  */
 export function isRetryableOpenRouterError(error: unknown): boolean {
   if (!error || typeof error !== 'object') {
@@ -640,18 +805,15 @@ export function isRetryableOpenRouterError(error: unknown): boolean {
     return RETRYABLE_OPENROUTER_STATUS.has(status) || status >= 500;
   }
 
-  const name = (error as { name?: unknown }).name;
-  return (
-    name === 'APIConnectionError' ||
-    name === 'APIConnectionTimeoutError' ||
-    name === 'APITimeoutError' ||
-    name === 'TimeoutError'
-  );
+  if (error instanceof APIConnectionError) return true;
+
+  return (error as { name?: unknown }).name === 'TimeoutError';
 }
 
 type LLMCompletionOperation =
   | 'buildVisualSubjectCatalog'
-  | 'generateLanguageClassrooms';
+  | 'generateLanguageClassrooms'
+  | 'writeConceptCard';
 
 export async function createCompletionWithRetry(
   openai: OpenAI,
@@ -669,9 +831,9 @@ export async function createCompletionWithRetry(
         requestOptions,
       );
     } catch (error) {
-      // A caller whose own signal is already aborted gains nothing from another
-      // attempt. The per-request deadline aborts an internal signal instead, so
-      // its `TimeoutError` still gets its retry.
+      // The shared call already advances through every configured model. This
+      // outer retry preserves the task's historical endpoint-reroute budget if
+      // the whole model chain still failed.
       const shouldRetry =
         attempt < LLM_COMPLETION_MAX_ATTEMPTS &&
         !requestOptions.signal?.aborted &&
@@ -701,28 +863,19 @@ export type ScriptCompletionErrorCategory =
   | 'terminal';
 
 /**
- * Script generation gets its own classification because the shared retry policy
- * is wrong for it in both directions.
- *
- * `timeout` is terminal: the deadline is already ten minutes, so a request that
- * hit it had a model working on it, and replaying an identical prompt just
- * spends those minutes again -- which is exactly how one ingest burned 248
- * seconds before failing. `retry_safe` failures never reached a model at all,
- * so a single re-route is genuinely a different attempt rather than a replay.
+ * Classifies a failure from the shared call. A timeout is terminal both inside
+ * the chain (script generation passes `fallbackOnTimeout: false`, so the first
+ * candidate timing out throws immediately) and here, so script generation never
+ * replays the wait -- neither model-by-model nor as an endpoint reroute.
+ * Retry-safe gateway failures may still get the historical endpoint reroute
+ * once.
  */
 export function classifyScriptCompletionError(
   error: unknown,
 ): ScriptCompletionErrorCategory {
   if (!error || typeof error !== 'object') return 'terminal';
 
-  const name = (error as { name?: unknown }).name;
-  if (
-    name === 'TimeoutError' ||
-    name === 'APITimeoutError' ||
-    name === 'APIConnectionTimeoutError'
-  ) {
-    return 'timeout';
-  }
+  if (isTimeoutError(error)) return 'timeout';
 
   const status = (error as { status?: unknown }).status;
   if (typeof status === 'number') {
@@ -731,7 +884,7 @@ export function classifyScriptCompletionError(
       : 'terminal';
   }
 
-  return name === 'APIConnectionError' ? 'retry_safe' : 'terminal';
+  return error instanceof APIConnectionError ? 'retry_safe' : 'terminal';
 }
 
 /**
@@ -802,6 +955,10 @@ async function runScriptAttempt(
       input.thinkingModel,
       {
         timeoutMs: SCRIPT_OPENROUTER_TIMEOUT_MS,
+        // The ten-minute deadline is already terminal: a timeout means a model
+        // worked that long, and each further candidate would spend those
+        // minutes again instead of failing fast.
+        fallbackOnTimeout: false,
         providerRouting: input.routing,
       },
     );
@@ -977,8 +1134,9 @@ export async function generateScriptWithLLM(
 
 export function buildLanguageClassroomUserMessage(
   input: LanguageClassroomInput,
+  retryReason: string | null = null,
 ): string {
-  return [
+  const grounding = [
     `主語言：${input.sourceLanguageCode}`,
     `目標語言：${input.targetLanguageCodes.join(', ')}`,
     `標題：${input.title}`,
@@ -989,45 +1147,105 @@ export function buildLanguageClassroomUserMessage(
     'Podcast 講稿：',
     input.script,
   ].join('\n');
+
+  if (retryReason === null) return grounding;
+
+  // Appended, never substituted. The block above is the grounding contract that
+  // the strict suite and scripts/check-classroom-contract.mjs guard, and a retry
+  // that dropped the article and script would quietly regenerate from the title.
+  return [
+    grounding,
+    '',
+    `修正要求：上一次的回應被拒絕（${retryReason}）。請重新產生完整結果並遵守：(1) 只回傳一個可被 JSON.parse 解析的 JSON 物件，不要 Markdown；(2) 所有字串值內的雙引號必須寫成 \\"，不可含未跳脫的引號或換行；(3) lessons 必須包含上面「目標語言」列出的每一個 targetLanguageCode，每一筆都要有非空的 oneLiner、keywords 與 script。`,
+  ].join('\n');
 }
 
 export async function generateLanguageClassroomsWithLLM(
   input: LanguageClassroomInput,
 ): Promise<LanguageClassroomResult> {
   const { openai, model, thinkingModel } = getOpenRouterConfig();
-  const completion = await createCompletionWithRetry(
-    openai,
-    {
-      model,
-      // parseLanguageClassroomLessons parses this as JSON either way; asking
-      // for JSON mode is what stops the model prefacing it with prose.
-      response_format: { type: 'json_object' },
-      messages: [
-        {
-          role: 'system',
-          content: languageClassroomSystemPrompt(input.sourceLanguageCode),
-        },
-        { role: 'user', content: buildLanguageClassroomUserMessage(input) },
-      ],
-      temperature: 0.4,
-      max_tokens: LANGUAGE_CLASSROOM_MAX_TOKENS,
-    },
-    thinkingModel,
-    'generateLanguageClassrooms',
-    { reasoning: LANGUAGE_CLASSROOM_REASONING },
-  );
+  let costUsd = 0;
+  let retryReason: string | null = null;
 
-  const content = completion.choices[0]?.message?.content || '';
-  const lessons = parseLanguageClassroomLessons(
-    content,
-    input.sourceLanguageCode,
-    input.targetLanguageCodes,
-  );
+  for (
+    let attempt = 1;
+    attempt <= LANGUAGE_CLASSROOM_MAX_ATTEMPTS;
+    attempt += 1
+  ) {
+    // Transport/model failover lives entirely in createOpenRouterChatCompletion
+    // (LLM_MODEL -> shared LLM_FALLBACK_MODELS): a transport error reaching this
+    // layer means every candidate already failed, so it throws immediately
+    // instead of replaying the chain. Only unusable payloads are re-prompted,
+    // with correction context and rerouted endpoints.
+    const rerouted = attempt > 1;
+    const completion = await createOpenRouterChatCompletion(
+      openai,
+      {
+        model,
+        // parseLanguageClassroomLessons parses this as JSON either way; asking
+        // for JSON mode is what stops the model prefacing it with prose.
+        response_format: { type: 'json_object' },
+        messages: [
+          {
+            role: 'system',
+            content: languageClassroomSystemPrompt(input.sourceLanguageCode),
+          },
+          {
+            role: 'user',
+            content: buildLanguageClassroomUserMessage(input, retryReason),
+          },
+        ],
+        temperature: 0.4,
+      },
+      thinkingModel,
+      {
+        reasoning: LANGUAGE_CLASSROOM_REASONING,
+        ...(rerouted ? { providerRouting: OPENROUTER_FALLBACK_ROUTING } : {}),
+      },
+    );
 
-  return {
-    lessons,
-    ...completionMetadata(completion, model, thinkingModel),
-  };
+    const metadata = completionMetadata(completion, model, thinkingModel);
+    // A rejected response was still billed; the ledger has to carry what the
+    // retries cost, not just what the accepted answer cost.
+    costUsd += metadata.costUsd;
+    try {
+      const lessons = parseLanguageClassroomLessons(
+        completion,
+        input.sourceLanguageCode,
+        input.targetLanguageCodes,
+      );
+      return { lessons, ...metadata, costUsd };
+    } catch (error) {
+      if (
+        attempt === LANGUAGE_CLASSROOM_MAX_ATTEMPTS ||
+        !(error instanceof LanguageClassroomPayloadError)
+      ) {
+        throw error;
+      }
+      logLanguageClassroomRetry('payload', attempt, error);
+      retryReason = error.message;
+    }
+  }
+
+  throw new Error('OpenRouter language classroom retry loop exhausted');
+}
+
+function logLanguageClassroomRetry(
+  layer: 'transport' | 'payload',
+  attempt: number,
+  error: unknown,
+): void {
+  logIngestEvent('llm:retry', {
+    operation: 'generateLanguageClassrooms',
+    layer,
+    attempt,
+    nextAttempt: attempt + 1,
+    rerouted: true,
+    ...(error instanceof LanguageClassroomPayloadError
+      ? { reason: error.reason }
+      : {}),
+    error: errorMessage(error),
+  });
 }
 
 function languageClassroomSystemPrompt(sourceLanguageCode: string): string {
@@ -1069,12 +1287,45 @@ function languageClassroomSystemPrompt(sourceLanguageCode: string): string {
 - script 內容必須根據文章與講稿，涵蓋這堂課選出的每一個 keyword 概念，不能只根據標題或 oneLiner 隨意發揮。`;
 }
 
+/**
+ * Takes the whole completion rather than its content because the two failures
+ * that look identical in the content alone -- a provider that stopped writing
+ * and a provider that wrote an unescaped quote -- are told apart only by
+ * `finish_reason`, and the provider that did it is only on the envelope.
+ */
 function parseLanguageClassroomLessons(
-  content: string,
+  completion: OpenRouterChatCompletion,
   sourceLanguageCode: string,
   targetLanguageCodes: LanguageClassroomLanguageCode[],
 ): LanguageClassroomLessonDraft[] {
-  const payload = parseJsonObject(content, 'Language classroom response');
+  const content = completion.choices[0]?.message?.content || '';
+  const finishReason = completionFinishReason(completion);
+  const diagnostics = ` (provider=${completion.provider || 'unknown'}, model=${completion.model || 'unknown'}, finishReason=${finishReason}, outputChars=${content.length})`;
+
+  if (finishReason === 'length') {
+    throw new LanguageClassroomPayloadError(
+      `Language classroom response was truncated${diagnostics}`,
+      'truncated',
+    );
+  }
+
+  let payload: Record<string, unknown>;
+  try {
+    payload = parseJsonObject(content, 'Language classroom response');
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      throw new LanguageClassroomPayloadError(
+        `${errorMessage(error)}${diagnostics}${jsonErrorExcerpt(content, error)}`,
+        'invalid_json',
+        { cause: error },
+      );
+    }
+    throw new LanguageClassroomPayloadError(
+      `${errorMessage(error)}${diagnostics}`,
+      'not_object',
+      { cause: error },
+    );
+  }
   const rawLessons = Array.isArray(payload['lessons'])
     ? payload['lessons']
     : [];
@@ -1102,13 +1353,65 @@ function parseLanguageClassroomLessons(
       (lesson): lesson is LanguageClassroomLessonDraft => lesson !== undefined,
     );
 
+  // `requested` is exactly the set the caller must get back: both call sites in
+  // audio-stage pass the targets they are still missing, and both hard-fail
+  // afterwards if one is absent. Comparing returned against accepted is what
+  // separates a model that omitted a language from a lesson this parser dropped
+  // for a blank script, blank oneLiner, or no usable keyword -- indistinguishable
+  // in the failure that made this check necessary.
+  const targetSummary =
+    ` (requested=${targetLanguageCodes.join('|')}` +
+    `, returned=${joinTargets(rawLessonTargets(rawLessons))}` +
+    `, accepted=${joinTargets(ordered.map((lesson) => lesson.targetLanguageCode))})`;
+
   if (ordered.length === 0) {
-    throw new Error(
-      'Language classroom response did not contain any valid lessons',
+    throw new LanguageClassroomPayloadError(
+      `Language classroom response did not contain any valid lessons${diagnostics}${targetSummary}`,
+      'no_lessons',
+    );
+  }
+
+  const missingTargets = targetLanguageCodes.filter(
+    (targetLanguageCode) => !byTargetLanguage.has(targetLanguageCode),
+  );
+  if (missingTargets.length > 0) {
+    throw new LanguageClassroomPayloadError(
+      `Language classroom response is missing targets: ${missingTargets.join(', ')}${diagnostics}${targetSummary}`,
+      'incomplete_targets',
     );
   }
 
   return ordered;
+}
+
+function rawLessonTargets(rawLessons: unknown[]): string[] {
+  return rawLessons.map((raw) => {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return '?';
+    const value = raw as Record<string, unknown>;
+    const target = value['targetLanguageCode'] ?? value['target_language_code'];
+    return typeof target === 'string' && target.trim() ? target.trim() : '?';
+  });
+}
+
+function joinTargets(targets: string[]): string {
+  return targets.length > 0 ? targets.join('|') : 'none';
+}
+
+/**
+ * The incident this exists for reported a syntax error at character 9,112 of a
+ * 37,164-character body and nothing else: enough to know the response was not
+ * truncated, not enough to know what broke it. Quoting the neighbourhood of the
+ * offending character is what distinguishes an unescaped quote inside a
+ * narration script from a provider splicing prose into the object.
+ */
+function jsonErrorExcerpt(content: string, error: SyntaxError): string {
+  const position = Number(/at position (\d+)/u.exec(error.message)?.[1]);
+  const start = Number.isFinite(position) ? Math.max(0, position - 120) : 0;
+  const excerpt = content
+    .slice(start, start + 240)
+    .replace(/\s+/gu, ' ')
+    .trim();
+  return excerpt ? ` near: ${excerpt}` : '';
 }
 
 function parseJsonObject(

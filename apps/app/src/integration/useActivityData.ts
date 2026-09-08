@@ -1,6 +1,9 @@
 import { useUserWallets } from '@zapengine/app-core/hooks/queries/wallet/useUserWallets';
 
-import type { ActivityCategoryFlow, ActivityGroup } from '@/data/demo';
+import type {
+  ActivityCategoryFlow,
+  ActivityGroup,
+} from '@/integration/activityTypes';
 import {
   selectActivityAddressInput,
   selectVisitedBundleUserId,

@@ -327,6 +327,7 @@ describe('renderStageRun', () => {
       languageCode: 'ja',
       attempt: 2,
       jobWallMs: 512_000,
+      concurrentJobs: 1,
     });
 
     expect(stage.stage).toBe('video_render');
@@ -345,6 +346,7 @@ describe('renderStageRun', () => {
     expect(stage.usage).toEqual({
       machine: RENDER_MACHINE_SHAPE,
       jobWallMs: 512_000,
+      concurrentJobs: 1,
       durationMs: 900_000,
       narrationDownloadMs: 4_200,
       realtimeFactor: 1.875,
@@ -374,10 +376,14 @@ describe('renderStageRun', () => {
       languageCode: 'en',
       attempt: 3,
       jobWallMs: 70_000,
+      concurrentJobs: 2,
     });
 
     expect(stage.status).toBe('failed');
     expect(stage.pricing?.quantity).toBe(61);
+    // A render that shared the machine is still priced and still says so, so a
+    // memory sample from the failed path cannot be mistaken for a solo one.
+    expect(stage.usage).toMatchObject({ concurrentJobs: 2 });
     expect(stage.usage).not.toHaveProperty('mediaMs');
     expect(stage.usage).not.toHaveProperty('cgroupPeakObservedMb');
   });
@@ -442,6 +448,7 @@ describe('recordPipelineRun', () => {
           languageCode: 'ja',
           attempt: 1,
           jobWallMs: 512_000,
+          concurrentJobs: 1,
         }),
       ]),
     );

@@ -13,6 +13,7 @@
         "OPENROUTER_API_KEY",
         "OPENROUTER_MANAGEMENT_KEY",
         "OPENROUTER_BASE_URL",
+        "BRAVE_SEARCH_API_KEY",
         "FLY_COST_MODE",
         "FLY_API_TOKEN",
         "OPS_GITHUB_TOKEN",

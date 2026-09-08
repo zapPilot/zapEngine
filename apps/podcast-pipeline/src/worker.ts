@@ -45,11 +45,28 @@ const LIVENESS_INTERVAL_MS = 300_000;
  */
 const IDLE_SHUTDOWN_MS = 90_000;
 
+/**
+ * The longest a single boot may last before the machine hands the queue back.
+ *
+ * A normal batch is far shorter than this, so nothing trips it while the worker
+ * is healthy. It exists for the case the idle exit cannot cover: a poll that
+ * keeps throwing never reaches `onPollResult`, so the idle tracker never sees
+ * `'empty'` and a dedicated CPU burns until somebody notices. Three hours caps
+ * that at roughly a dollar.
+ *
+ * It stops claiming rather than aborting, so the worst case is 3 h plus one
+ * render's timeout (90 min at the ceiling), and no render is ever thrown away
+ * to meet the deadline. The `app` reconciler starts the machine again within
+ * 30 s if work is still claimable, so the cost of a false trip is one boot.
+ */
+const MAX_UPTIME_MS = 10_800_000;
+
 export interface VideoWorkerProcessOptions {
   createWorker?: (options: CreateVideoWorkerOptions) => EpisodeVideoWorker;
   createVisualFailureNotifier?: () => VideoVisualFailureNotifier;
   livenessIntervalMs?: number;
   idleShutdownMs?: number;
+  maxUptimeMs?: number;
   exit?: (code: number) => void;
   logger?: Pick<Console, 'info'>;
 }
@@ -100,22 +117,33 @@ export function startVideoWorkerProcess(
   const logger = options.logger ?? console;
   const exit = options.exit ?? ((code: number) => process.exit(code));
   const idleShutdownMs = options.idleShutdownMs ?? IDLE_SHUTDOWN_MS;
+  const maxUptimeMs = options.maxUptimeMs ?? MAX_UPTIME_MS;
   const visualFailureNotifier = (
     options.createVisualFailureNotifier ??
     (() => createVideoVisualFailureNotifier())
   )();
 
   let liveness: NodeJS.Timeout | null = null;
+  let uptimeGuard: NodeJS.Timeout | null = null;
   let videoWorker: EpisodeVideoWorker | null = null;
   let firstIdleAt: number | null = null;
   let stopping = false;
 
   const { shutdown } = installProcessShutdown(async (reason) => {
     if (liveness) clearInterval(liveness);
+    if (uptimeGuard) clearTimeout(uptimeGuard);
     visualFailureNotifier.stop();
     await videoWorker?.stop(new Error(`Video worker stopping: ${reason}`));
     await flushSentry();
   });
+
+  // Exiting 0 leaves the machine `stopped` under this group's on-failure
+  // restart policy (fly.toml). The always-on API process starts it again as
+  // soon as claimable work exists (src/services/render-capacity.ts).
+  const shutdownAndExit = async (reason: string): Promise<void> => {
+    await shutdown(reason);
+    exit(0);
+  };
 
   // Runs right after a poll confirmed the queue was empty, so it can never
   // interrupt a render in flight.
@@ -132,13 +160,7 @@ export function startVideoWorkerProcess(
 
     stopping = true;
     logger.info(`[video-worker] idle:shutdown idleMs=${idleMs}`);
-    // Exiting 0 leaves the machine `stopped` under this group's on-failure
-    // restart policy (fly.toml). The always-on API process starts it again as
-    // soon as claimable work exists (src/services/render-capacity.ts).
-    void (async () => {
-      await shutdown('idle queue');
-      exit(0);
-    })();
+    void shutdownAndExit('idle queue');
   };
 
   videoWorker = (options.createWorker ?? createVideoWorker)({
@@ -148,8 +170,25 @@ export function startVideoWorkerProcess(
   });
 
   logger.info(
-    `[video-worker] on-demand: exits after ${idleShutdownMs}ms of an empty queue`,
+    `[video-worker] on-demand: exits after ${idleShutdownMs}ms of an empty queue, or ${maxUptimeMs}ms of uptime`,
   );
+
+  const bootedAt = Date.now();
+  // Draining first is the whole difference between this and a shutdown: it
+  // stops new claims and waits, where shutdown()'s teardown aborts whatever is
+  // rendering. Reversing these two lines throws away the render this guard
+  // exists to protect.
+  uptimeGuard = setTimeout(() => {
+    if (stopping) return;
+    stopping = true;
+    logger.info(
+      `[video-worker] uptime:shutdown uptimeMs=${Date.now() - bootedAt}`,
+    );
+    void (async () => {
+      await videoWorker?.drain();
+      await shutdownAndExit('max uptime');
+    })();
+  }, maxUptimeMs);
 
   // Visual planning is a shared prerequisite for all language renders. Its
   // terminal failure does not create a failed episode_videos row, so the

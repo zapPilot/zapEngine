@@ -1,3 +1,5 @@
+export { fetchBraveCostSnapshot } from './providers/brave.js';
+export type { BraveCostInput } from './providers/brave.js';
 export { fetchDeBankCostSnapshot } from './providers/debank.js';
 export type { DeBankCostInput } from './providers/debank.js';
 export { createFixedMonthlyCostSnapshot } from './providers/fixed.js';

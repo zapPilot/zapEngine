@@ -43,7 +43,6 @@ describe('createEpisodeVideoProcessor', () => {
       subtitlePath: '/work/captions.ass',
       sourcesPath: '/work/sources.md',
       manifestHash,
-      slideMasterPaths: [],
       slideOutputPaths: ['/work/slides/slide-01.png'],
       mediaMs: 1_100,
       chunkEncodeMs: 2_200,
@@ -85,7 +84,6 @@ describe('createEpisodeVideoProcessor', () => {
         subtitlePath: '/work/captions.ass',
         sourcesPath: '/work/sources.md',
         manifestHash: 'manifest-hash',
-        slideMasterPaths: [],
         slideOutputPaths: ['/work/slides/slide-01.png'],
         mediaMs: 1_100,
         chunkEncodeMs: 2_200,
@@ -407,7 +405,6 @@ describe('createEpisodeVideoProcessor', () => {
         subtitlePath: '/work/captions.ass',
         sourcesPath: '/work/sources.md',
         manifestHash: 'rendered-hash-differs',
-        slideMasterPaths: [],
         slideOutputPaths: [],
         mediaMs: 1_100,
         chunkEncodeMs: 2_200,
@@ -521,7 +518,7 @@ describe('createEpisodeVideoProcessor', () => {
 
       await vi.advanceTimersByTimeAsync(300_000);
       await expect(settled).resolves.toMatchObject({
-        message: 'Narration download exceeded 5m',
+        message: 'Narration download timed out after 300000ms',
       });
       expect(analyzeAudio).not.toHaveBeenCalled();
       expect(removeDirectory).toHaveBeenCalledWith('/work', {
@@ -745,7 +742,6 @@ describe('createEpisodeVideoProcessor', () => {
         subtitlePath: '/work/captions.ass',
         sourcesPath: '/work/sources.md',
         manifestHash: 'hash',
-        slideMasterPaths: [],
         slideOutputPaths: [],
         mediaMs: 1_100,
         chunkEncodeMs: 2_200,
@@ -880,6 +876,7 @@ function visualManifest(): Record<string, unknown> {
             sha256: 'b'.repeat(64),
             layout: 'fullBleed',
             position: 'center',
+            motion: 'static',
           },
         },
       ],

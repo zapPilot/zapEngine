@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import type { DailySnapshot, TrackRecordMeta } from '@zapengine/types/strategy';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -10,7 +10,6 @@ const mocks = vi.hoisted(() => ({
   verifyCidChain: vi.fn(),
   verifyPerformanceMetrics: vi.fn(),
   verifySignature: vi.fn(),
-  isTrackRecordMockEnabled: vi.fn(),
   captureException: vi.fn(),
 }));
 
@@ -29,7 +28,6 @@ vi.mock('@sentry/nextjs', () => ({
 }));
 
 vi.mock('@/data/mock-track-record', () => ({
-  isTrackRecordMockEnabled: mocks.isTrackRecordMockEnabled,
   mockMeta: {},
   mockSnapshotEntries: [],
 }));
@@ -41,8 +39,10 @@ const emptySummary = {
   startNav: '0',
   endNav: '0',
   cumulativeReturn: '0.00%',
+  annualizedReturn: '0.00%',
   maxDrawdown: '0.00%',
   maxDrawdownDate: '',
+  volatility30d: '0.00%',
   bestDay: '0.00%',
   bestDayDate: '',
   worstDay: '0.00%',
@@ -105,7 +105,16 @@ const liveSnapshot: DailySnapshot = {
   benchmarks: [],
 };
 
-describe('useTrackRecord', () => {
+async function importLiveHook() {
+  const [{ useTrackRecord }, { setTrackRecordSource }] = await Promise.all([
+    import('../useTrackRecord'),
+    import('@/data/track-record-source'),
+  ]);
+  setTrackRecordSource('live');
+  return useTrackRecord;
+}
+
+describe('useTrackRecord live source', () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
@@ -124,17 +133,17 @@ describe('useTrackRecord', () => {
       signaturePresent: true,
       reason: 'verified',
     });
-    mocks.isTrackRecordMockEnabled.mockReturnValue(false);
   });
 
   it('finishes cleanly when metadata has no published snapshot', async () => {
     mocks.fetchMeta.mockResolvedValue(metaWithoutSnapshot);
-    const { useTrackRecord } = await import('../useTrackRecord');
+    const useTrackRecord = await importLiveHook();
 
     const { result } = renderHook(() => useTrackRecord());
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current).toMatchObject({
+      source: 'live',
       meta: metaWithoutSnapshot,
       latestSnapshot: null,
       snapshots: [],
@@ -152,12 +161,13 @@ describe('useTrackRecord', () => {
     mocks.fetchLatestSnapshot.mockResolvedValue(liveSnapshot);
     mocks.fetchSnapshotHistoryEntries.mockResolvedValue(entries);
     mocks.computePerformanceSummary.mockReturnValue(summary);
-    const { useTrackRecord } = await import('../useTrackRecord');
+    const useTrackRecord = await importLiveHook();
 
     const { result, unmount } = renderHook(() => useTrackRecord());
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current).toMatchObject({
+      source: 'live',
       meta: liveMeta,
       snapshotEntries: entries,
       snapshots: [liveSnapshot],
@@ -196,12 +206,13 @@ describe('useTrackRecord', () => {
     'exposes metadata load failures without stale data',
     async (failure, message) => {
       mocks.fetchMeta.mockRejectedValue(failure);
-      const { useTrackRecord } = await import('../useTrackRecord');
+      const useTrackRecord = await importLiveHook();
 
       const { result } = renderHook(() => useTrackRecord());
 
       await waitFor(() => expect(result.current.isLoading).toBe(false));
       expect(result.current).toMatchObject({
+        source: 'live',
         meta: null,
         snapshots: [],
         latestSnapshot: null,
@@ -215,7 +226,7 @@ describe('useTrackRecord', () => {
 
   it('reports the load failure once even when several consumers mount together', async () => {
     mocks.fetchMeta.mockRejectedValue(new Error('metadata unavailable'));
-    const { useTrackRecord } = await import('../useTrackRecord');
+    const useTrackRecord = await importLiveHook();
 
     const first = renderHook(() => useTrackRecord());
     const second = renderHook(() => useTrackRecord());
@@ -236,7 +247,7 @@ describe('useTrackRecord', () => {
     });
 
     it('shares one cold load across consumers mounted together', async () => {
-      const { useTrackRecord } = await import('../useTrackRecord');
+      const useTrackRecord = await importLiveHook();
 
       const first = renderHook(() => useTrackRecord());
       const second = renderHook(() => useTrackRecord());
@@ -250,7 +261,7 @@ describe('useTrackRecord', () => {
     });
 
     it('reuses the cached verification instead of re-verifying', async () => {
-      const { useTrackRecord } = await import('../useTrackRecord');
+      const useTrackRecord = await importLiveHook();
 
       const first = renderHook(() => useTrackRecord());
       await waitFor(() => expect(first.result.current.isLoading).toBe(false));
@@ -265,5 +276,100 @@ describe('useTrackRecord', () => {
       expect(mocks.verifyPerformanceMetrics).toHaveBeenCalledTimes(1);
       expect(second.result.current.verification).toBe(verification);
     });
+  });
+});
+
+describe('useTrackRecord source switching', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+    mocks.computePerformanceSummary.mockReturnValue(emptySummary);
+    mocks.verifyCidChain.mockReturnValue({ valid: true, totalSnapshots: 1 });
+    mocks.verifyPerformanceMetrics.mockReturnValue({ valid: true, errors: [] });
+    mocks.verifySignature.mockResolvedValue({
+      valid: true,
+      signaturePresent: true,
+      reason: 'verified',
+    });
+    mocks.fetchMeta.mockResolvedValue(liveMeta);
+    mocks.fetchLatestSnapshot.mockResolvedValue(liveSnapshot);
+    mocks.fetchSnapshotHistoryEntries.mockResolvedValue([
+      { cid: 'cid-latest', snapshot: liveSnapshot },
+    ]);
+  });
+
+  async function importSwitchable() {
+    const [{ useTrackRecord }, { setTrackRecordSource }] = await Promise.all([
+      import('../useTrackRecord'),
+      import('@/data/track-record-source'),
+    ]);
+    return { useTrackRecord, setTrackRecordSource };
+  }
+
+  it('loads live only after the reader opts in, then restores backtest', async () => {
+    const { useTrackRecord, setTrackRecordSource } = await importSwitchable();
+
+    const { result } = renderHook(() => useTrackRecord());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.source).toBe('backtest');
+    expect(mocks.fetchMeta).not.toHaveBeenCalled();
+
+    act(() => setTrackRecordSource('live'));
+    await waitFor(() => expect(result.current.source).toBe('live'));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.snapshots).toEqual([liveSnapshot]);
+    expect(mocks.fetchMeta).toHaveBeenCalledTimes(1);
+
+    act(() => setTrackRecordSource('backtest'));
+    await waitFor(() => expect(result.current.source).toBe('backtest'));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    // Live rows must not survive the switch back — the default view would
+    // otherwise present published snapshots as backtest results.
+    expect(result.current.snapshots).toEqual([]);
+    expect(result.current.latestSnapshot).toBeNull();
+  });
+
+  it('discards an abandoned live load instead of overwriting backtest state', async () => {
+    let releaseMeta: (meta: TrackRecordMeta) => void = () => {};
+    mocks.fetchMeta.mockReturnValue(
+      new Promise<TrackRecordMeta>((resolve) => {
+        releaseMeta = resolve;
+      }),
+    );
+
+    const { useTrackRecord, setTrackRecordSource } = await importSwitchable();
+    const { result } = renderHook(() => useTrackRecord());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    act(() => setTrackRecordSource('live'));
+    await waitFor(() => expect(result.current.isLoading).toBe(true));
+
+    act(() => setTrackRecordSource('backtest'));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      releaseMeta(liveMeta);
+      await Promise.resolve();
+    });
+
+    expect(result.current.source).toBe('backtest');
+    expect(result.current.snapshots).toEqual([]);
+  });
+
+  it('keeps a live failure out of the backtest view', async () => {
+    mocks.fetchMeta.mockRejectedValue(new Error('gateway unavailable'));
+    const { useTrackRecord, setTrackRecordSource } = await importSwitchable();
+
+    const { result } = renderHook(() => useTrackRecord());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    act(() => setTrackRecordSource('live'));
+    await waitFor(() =>
+      expect(result.current.error).toBe('gateway unavailable'),
+    );
+
+    act(() => setTrackRecordSource('backtest'));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.error).toBeNull();
   });
 });

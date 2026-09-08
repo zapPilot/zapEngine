@@ -145,7 +145,9 @@ describe('native podcast sort-direction adapter', () => {
   it('loads and saves sort direction through AsyncStorage', async () => {
     nativeStorageMock.getItem.mockResolvedValue('oldest');
     nativeStorageMock.setItem.mockResolvedValue(undefined);
-    const storage = await import('@/storage/podcastStorage.native');
+    const { default: appKeyValueStorage } =
+      await import('@/storage/appKeyValueStorage.native');
+    const storage = createPodcastStorage(appKeyValueStorage);
 
     await expect(storage.loadPodcastSortDirection()).resolves.toBe('oldest');
     await storage.savePodcastSortDirection('newest');

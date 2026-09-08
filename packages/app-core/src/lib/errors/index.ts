@@ -23,7 +23,11 @@ export {
 // ============================================================================
 
 // Error helper functions (classification and message extraction)
-export { extractErrorMessage, isClientError } from './errorHelpers';
+export {
+  extractErrorMessage,
+  isClientError,
+  isNotFoundError,
+} from './errorHelpers';
 
 // Error handling utilities
 export type { ServiceResult } from './errorHandling';

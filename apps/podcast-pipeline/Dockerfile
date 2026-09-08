@@ -31,6 +31,7 @@ RUN pnpm --filter @zapengine/design-tokens build \
  && cp -R apps/podcast-pipeline/assets /out/assets \
  && cp -R apps/podcast-pipeline/prompts /out/prompts \
  && test -f /out/dist/index.js \
+ && test -f /out/dist/release-heartbeat.js \
  && test -f /out/dist/worker.js
 
 FROM node:24-alpine AS runner

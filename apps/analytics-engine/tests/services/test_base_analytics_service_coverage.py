@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from src.core.cache_service import analytics_cache
 from src.services.shared.base_analytics_service import BaseAnalyticsService
 
 
@@ -22,13 +23,14 @@ def test_execute_query_one(service, mock_query_service):
     )
 
 
-@patch("src.services.shared.base_analytics_service.analytics_cache")
-def test_store_in_cache_exception(mock_cache, service):
-    """Test exception during cache set is logged and suppressed."""
-    mock_cache.set.side_effect = Exception("Cache set failed")
-    # This shouldn't raise
-    service._store_in_cache("key", "value", timedelta(hours=1))
-    mock_cache.set.assert_called_once()
+def test_with_cache_tolerates_store_failure(service):
+    """A failing cache write must not lose the freshly computed value."""
+
+    def broken_set(key, value, ttl=None):
+        raise Exception("Cache set failed")
+
+    with patch.object(analytics_cache, "set", broken_set):
+        assert service._with_cache("key", lambda: "value") == "value"
 
 
 @patch("src.services.shared.base_analytics_service.settings")
@@ -43,6 +45,19 @@ async def test_with_async_cache_disabled(mock_settings, service):
 
     assert result == "data"
     mock_fetcher.assert_awaited_once()
+
+
+@patch("src.services.shared.base_analytics_service.analytics_cache")
+@pytest.mark.asyncio
+async def test_with_async_cache_tolerates_store_failure(mock_cache, service):
+    """A failing cache write must not lose the awaited result."""
+    mock_cache.get.return_value = None
+    mock_cache.set.side_effect = Exception("Cache set failed")
+
+    result = await service._with_async_cache("key", AsyncMock(return_value="data"))
+
+    assert result == "data"
+    mock_cache.set.assert_called_once()
 
 
 def test_json_safe_timedelta(service):

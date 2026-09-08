@@ -4,18 +4,59 @@
  * when no clean source exists.
  */
 
-import type { AllocationCategoryKey } from '@zapengine/app-core/lib/domain/allocationCategories';
+import { tokens } from '@zapengine/design-tokens/tokens';
 
+import type {
+  ActivityCategoryFlow,
+  ActivityFilter,
+  ActivityGroup,
+  DemoAsset,
+  MetricTone,
+} from '@/integration/activityTypes';
 import type { DailyValuePoint } from '@/integration/portfolioMetrics';
 
-export type ChainKey = 'ethereum' | 'arbitrum' | 'base';
+const DEMO_MARKET_ETH_SHARE = 0.6;
+const DEMO_MARKET_BTC_SHARE = 0.15;
+const DEMO_PROTOCOL_DAILY_USD = 4.2;
 
-export interface DemoAsset {
-  symbol: string;
-  name: string;
-  usdValue: number | null;
-  amountLabel: string;
-  chains: ChainKey[];
+/**
+ * Give the demo chart the same attribution shape live data carries, so the
+ * disconnected preview shows the breakdown instead of an empty tooltip. The
+ * pieces are derived from each day's own change, so they always add up.
+ */
+function buildDemoTrendPoints(values: number[]): DailyValuePoint[] {
+  return values.map((total_value_usd, index): DailyValuePoint => {
+    const point: DailyValuePoint = {
+      date: `2026-08-${String(index + 8).padStart(2, '0')}`,
+      total_value_usd,
+      categories: [{ assets_usd: total_value_usd + 1_200, debt_usd: 1_200 }],
+    };
+    const previous = values[index - 1];
+    if (previous === undefined) return point;
+
+    const change = total_value_usd - previous;
+    const market = change * (DEMO_MARKET_ETH_SHARE + DEMO_MARKET_BTC_SHARE);
+    return {
+      ...point,
+      attribution: [
+        {
+          kind: 'market',
+          label: 'ETH',
+          valueUsd: change * DEMO_MARKET_ETH_SHARE,
+        },
+        {
+          kind: 'market',
+          label: 'BTC',
+          valueUsd: change * DEMO_MARKET_BTC_SHARE,
+        },
+        { kind: 'protocol', label: 'Aave', valueUsd: DEMO_PROTOCOL_DAILY_USD },
+        {
+          kind: 'residual',
+          valueUsd: change - market - DEMO_PROTOCOL_DAILY_USD,
+        },
+      ],
+    };
+  });
 }
 
 export interface DemoData {
@@ -63,85 +104,6 @@ export interface DemoData {
   activity: ActivityGroup[];
 }
 
-export type MetricTone = 'neutral' | 'positive' | 'negative' | 'accent';
-
-export type ActivityKind =
-  | 'invest'
-  | 'rebalance'
-  | 'yield'
-  | 'deposit'
-  | 'withdraw'
-  | 'internal-transfer'
-  | 'contract-interaction'
-  | 'strategy-update';
-
-export type ActivityStatus = 'Completed' | 'Settled' | 'Applied' | 'Failed';
-
-export interface ActivityStep {
-  label: string;
-  done: boolean;
-}
-
-/** Net movement of one allocation category inside an activity event. */
-export interface ActivityCategoryDelta {
-  category: AllocationCategoryKey;
-  /** Net USD when the indexer priced the transfers; token-only otherwise. */
-  usdNet: number | null;
-  /** Pre-composed token-denominated label, e.g. `+5.25 USDC · −0.002 WBTC`. */
-  label: string;
-}
-
-/** Per-category net flow across the loaded feed, for the summary card. */
-export interface ActivityCategoryFlow extends ActivityCategoryDelta {
-  /** Share (0..1) of feed events touching this category. */
-  share: number;
-}
-
-export interface ActivityWalletRef {
-  address: string;
-  label: string;
-}
-
-export interface ActivityEvent {
-  id: string;
-  kind: ActivityKind;
-  title: string;
-  amountLabel?: string;
-  amountTone?: MetricTone;
-  status: ActivityStatus;
-  meta: string;
-  time: string;
-  /** Wallet in the managed bundle that produced this activity perspective. */
-  wallet?: ActivityWalletRef;
-  /** Portfolio-internal transfer attribution when both endpoints are bundle wallets. */
-  walletTransfer?: {
-    from: ActivityWalletRef;
-    to: ActivityWalletRef;
-  };
-  /** Explicit presentation flows for events whose portfolio net delta is zero. */
-  flowLabels?: string[];
-  /** Dominant allocation category — drives the row's category accent. */
-  category?: AllocationCategoryKey;
-  categoryDeltas?: ActivityCategoryDelta[];
-  chain?: ChainKey;
-  /** Transaction hash when the event maps to exactly one on-chain transaction. */
-  txHash?: string;
-  /** Moralis-decoded method label when available. */
-  methodLabel?: string;
-  /** Counterparty protocol/entity label. Known protocols resolve to brand marks. */
-  protocol?: string;
-  /** Native-chain transaction fee, preformatted for the activity card footer. */
-  gasFeeLabel?: string;
-  /** Primary token, retained for filtering/semantic summaries. */
-  tokenSymbol?: string;
-  steps?: ActivityStep[];
-}
-
-export interface ActivityGroup {
-  label: string;
-  events: ActivityEvent[];
-}
-
 export const DEMO: DemoData = {
   account: {
     label: 'Main Wallet',
@@ -156,14 +118,10 @@ export const DEMO: DemoData = {
     sparkline: [42, 44, 38, 41, 33, 36, 27, 31, 23, 27, 17, 22, 13, 11, 9].map(
       (y) => 54 - y,
     ),
-    trendPoints: [
+    trendPoints: buildDemoTrendPoints([
       22_100, 22_250, 21_980, 22_330, 22_020, 22_460, 22_180, 22_760, 22_540,
       23_050, 22_830, 23_620, 23_950, 24_203.2, 24_815.6,
-    ].map((total_value_usd, index) => ({
-      date: `2026-08-${String(index + 8).padStart(2, '0')}`,
-      total_value_usd,
-      categories: [{ assets_usd: total_value_usd + 1_200, debt_usd: 1_200 }],
-    })),
+    ]),
     assets: [
       {
         symbol: 'USDC',
@@ -193,9 +151,9 @@ export const DEMO: DemoData = {
     quote: 'Buy in fear. Defend in greed.',
     marketModeLabel: 'Market mode · Cautious — defensive tilt',
     pillars: [
-      { label: 'Equities', weight: 5, color: 'var(--spy)' },
-      { label: 'Crypto', weight: 3, color: 'var(--btc)' },
-      { label: 'Stables', weight: 4, color: 'var(--usd)' },
+      { label: 'Equities', weight: 5, color: tokens.color.pillar.spy },
+      { label: 'Crypto', weight: 3, color: tokens.color.pillar.btc },
+      { label: 'Stables', weight: 4, color: tokens.color.pillar.usd },
     ],
     backtest: {
       returnLabel: '+147.2%',
@@ -213,9 +171,9 @@ export const DEMO: DemoData = {
       ],
       currentModeLabel: 'Cautious · defensive tilt',
       allocation: [
-        { label: 'Equities', pct: 40, color: 'var(--spy)' },
-        { label: 'Crypto', pct: 25, color: 'var(--btc)' },
-        { label: 'Stables', pct: 35, color: 'var(--usd)' },
+        { label: 'Equities', pct: 40, color: tokens.color.pillar.spy },
+        { label: 'Crypto', pct: 25, color: tokens.color.pillar.btc },
+        { label: 'Stables', pct: 35, color: tokens.color.pillar.usd },
       ],
       sentiment: 34,
     },
@@ -233,10 +191,10 @@ export const DEMO: DemoData = {
       { label: 'Max drawdown', value: '−6.1%', tone: 'negative' },
     ],
     allocation: [
-      { label: 'Stables', pct: 35, color: 'var(--usd)' },
-      { label: 'ETH', pct: 24, color: 'var(--spy)' },
-      { label: 'BTC', pct: 20, color: 'var(--btc)' },
-      { label: 'DeFi yield', pct: 21, color: 'var(--accent)' },
+      { label: 'Stables', pct: 35, color: tokens.color.pillar.usd },
+      { label: 'ETH', pct: 24, color: tokens.color.pillar.spy },
+      { label: 'BTC', pct: 20, color: tokens.color.pillar.btc },
+      { label: 'DeFi yield', pct: 21, color: tokens.color.accent },
     ],
     lastRebalancedLabel:
       'Auto-managed by Zap Strategy · last rebalanced 2 days ago',
@@ -248,7 +206,7 @@ export const DEMO: DemoData = {
   ],
   activity: [
     {
-      label: 'Today',
+      bucket: 'today',
       events: [
         {
           id: 'demo-rebalance-burst',
@@ -293,7 +251,7 @@ export const DEMO: DemoData = {
       ],
     },
     {
-      label: 'This week',
+      bucket: 'week',
       events: [
         {
           id: 'demo-failed-send',
@@ -318,7 +276,7 @@ export const DEMO: DemoData = {
       ],
     },
     {
-      label: 'Earlier',
+      bucket: 'earlier',
       events: [
         {
           id: 'demo-withdraw',
@@ -344,8 +302,6 @@ export const DEMO: DemoData = {
     },
   ],
 };
-
-export type ActivityFilter = 'All' | AllocationCategoryKey;
 
 export const ACTIVITY_FILTERS = [
   'All',

@@ -3,19 +3,15 @@ import { focusManager, QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
 import { type ReactElement, type ReactNode, useEffect, useRef } from 'react';
-import {
-  AppState,
-  type AppStateStatus,
-  Platform,
-  Text,
-  View,
-} from 'react-native';
+import { AppState, type AppStateStatus, Platform, View } from 'react-native';
 import * as Sentry from '@sentry/react-native';
 
 import { ConnectSheetHost } from '@/components/connect/ConnectSheetHost';
 import { PodcastProgressTracker } from '@/components/podcast/PodcastProgressTracker';
-import { PrimaryButton } from '@/components/ui/PrimaryButton';
-import { ZapLogo } from '@/components/ui/ZapLogo';
+import {
+  CrashFallbackScreen,
+  IconNoticeScreen,
+} from '@/components/ui/CrashFallbackScreen';
 import { getExpoMobileRuntimeConfig } from '@/config/expoRuntimeConfig';
 import type { MobileRuntimeConfig } from '@/config/mobileRuntimeConfig';
 import { APP_FONTS } from '@/lib/fonts';
@@ -73,31 +69,6 @@ function useReactQueryNativeAppFocus(): void {
   }, []);
 }
 
-function IconNoticeScreen({
-  title,
-  body,
-  children,
-}: {
-  title: string;
-  body: string;
-  children?: ReactNode;
-}): ReactElement {
-  return (
-    <View className="flex-1 items-center justify-center bg-bg px-6">
-      <View className="mb-5 h-14 w-14 items-center justify-center rounded-2xl border border-line bg-surface">
-        <ZapLogo size={24} />
-      </View>
-      <Text className="text-center font-sans-semibold text-[20px] text-ink">
-        {title}
-      </Text>
-      <Text className="mt-3 text-center font-sans text-[13px] leading-5 text-ink-dim">
-        {body}
-      </Text>
-      {children}
-    </View>
-  );
-}
-
 function ConfigNoticeScreen({ target }: { target: string }): ReactElement {
   return (
     <IconNoticeScreen
@@ -107,20 +78,15 @@ function ConfigNoticeScreen({ target }: { target: string }): ReactElement {
   );
 }
 
-function CrashFallbackScreen({
-  resetError,
-}: {
-  resetError: () => void;
-}): ReactElement {
+function ProviderChrome({ children }: { children: ReactNode }): ReactElement {
   return (
-    <IconNoticeScreen
-      title="Something went wrong"
-      body="The app hit an unexpected error. Try again, or restart the app if it keeps happening."
+    <Sentry.ErrorBoundary
+      fallback={({ resetError }) => (
+        <CrashFallbackScreen resetError={resetError} />
+      )}
     >
-      <PrimaryButton className="mt-6" onPress={resetError}>
-        Try again
-      </PrimaryButton>
-    </IconNoticeScreen>
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    </Sentry.ErrorBoundary>
   );
 }
 
@@ -170,46 +136,26 @@ export function AppProviderShell(
 
     if (!privy) {
       return (
-        <Sentry.ErrorBoundary
-          fallback={({ resetError }) => (
-            <CrashFallbackScreen resetError={resetError} />
-          )}
-        >
-          <QueryClientProvider client={queryClient}>
-            <ToastProvider>
-              <View className="flex-1 bg-bg" nativeID={runtimeConfig.runtime}>
-                <StatusBar style="light" />
-                <ConfigNoticeScreen target={props.missingConfigTarget} />
-              </View>
-            </ToastProvider>
-          </QueryClientProvider>
-        </Sentry.ErrorBoundary>
+        <ProviderChrome>
+          <ToastProvider>
+            <View className="flex-1 bg-bg" nativeID={runtimeConfig.runtime}>
+              <StatusBar style="light" />
+              <ConfigNoticeScreen target={props.missingConfigTarget} />
+            </View>
+          </ToastProvider>
+        </ProviderChrome>
       );
     }
 
     return (
-      <Sentry.ErrorBoundary
-        fallback={({ resetError }) => (
-          <CrashFallbackScreen resetError={resetError} />
-        )}
-      >
-        <QueryClientProvider client={queryClient}>
-          {props.renderWalletProviders(appContent, privy)}
-        </QueryClientProvider>
-      </Sentry.ErrorBoundary>
+      <ProviderChrome>
+        {props.renderWalletProviders(appContent, privy)}
+      </ProviderChrome>
     );
   }
 
   return (
-    <Sentry.ErrorBoundary
-      fallback={({ resetError }) => (
-        <CrashFallbackScreen resetError={resetError} />
-      )}
-    >
-      <QueryClientProvider client={queryClient}>
-        {props.renderWalletProviders(appContent)}
-      </QueryClientProvider>
-    </Sentry.ErrorBoundary>
+    <ProviderChrome>{props.renderWalletProviders(appContent)}</ProviderChrome>
   );
 }
 

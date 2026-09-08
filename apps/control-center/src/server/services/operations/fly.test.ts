@@ -57,7 +57,9 @@ function fleet(
   const machines = { ...HEALTHY_MACHINES, ...input.machines };
   return {
     async listMachines(app) {
-      if (input.error) throw input.error;
+      if (input.error) {
+        throw input.error;
+      }
       if (input.missingApps?.includes(app)) {
         throw new FlyOpsHttpError(`missing ${app}`, 404);
       }
@@ -75,7 +77,9 @@ function find(
   fingerprint: string,
 ): OperationalSignal {
   const found = signals.find((signal) => signal.fingerprint === fingerprint);
-  if (!found) throw new Error(`no signal fingerprinted ${fingerprint}`);
+  if (!found) {
+    throw new Error(`no signal fingerprinted ${fingerprint}`);
+  }
   return found;
 }
 

@@ -1,19 +1,14 @@
-import OpenAI from 'openai';
+import type OpenAI from 'openai';
 
-import { getRequiredEnv } from '../../lib/env.js';
+import { throwIfAborted } from '../../lib/abort.js';
 import { isPlainRecord as isRecord } from '../../lib/typeGuards.js';
 import type { LanguageClassroomLanguageCode } from '../../types.js';
 import { createOpenRouterChatCompletion, getOpenRouterConfig } from '../llm.js';
-import { throwIfAborted } from './abort.js';
 import {
   canonicalSentenceRangeText,
   formatSentencesForPrompt,
   splitCanonicalSentences,
 } from './storyboard/sentences.js';
-
-const DEFAULT_VIDEO_ALIGNMENT_PROVIDER = 'openrouter';
-const DEFAULT_NVIDIA_BASE_URL = 'https://integrate.api.nvidia.com/v1';
-const NVIDIA_ALIGNMENT_TIMEOUT_MS = 120_000;
 
 export interface VisualSceneAnchor {
   sceneId: string;
@@ -268,30 +263,20 @@ function compactSceneAlignment(
   return result;
 }
 
+/** Scene alignment is now always an OpenRouter workload using LLM_MODEL. */
 export function configuredSceneAlignmentProvider(): SceneAlignmentProvider {
-  const providerName =
-    process.env['VIDEO_ALIGNMENT_PROVIDER']?.trim().toLowerCase() ||
-    DEFAULT_VIDEO_ALIGNMENT_PROVIDER;
-  if (providerName === 'openrouter') {
-    return createOpenRouterSceneAlignmentProvider();
-  }
-  if (providerName === 'nvidia') return createNvidiaSceneAlignmentProvider();
-  throw new Error(`Unsupported VIDEO_ALIGNMENT_PROVIDER: ${providerName}`);
+  return createOpenRouterSceneAlignmentProvider();
 }
 
-function sceneAlignmentMessages(
-  request: {
-    canonicalScenes: readonly { sceneId: string; text: string }[];
-    localizedSentences: string;
-    languageCode: LanguageClassroomLanguageCode;
-  },
-  options: { noThink?: boolean } = {},
-): OpenAI.Chat.ChatCompletionMessageParam[] {
+function sceneAlignmentMessages(request: {
+  canonicalScenes: readonly { sceneId: string; text: string }[];
+  localizedSentences: string;
+  languageCode: LanguageClassroomLanguageCode;
+}): OpenAI.Chat.ChatCompletionMessageParam[] {
   return [
     {
       role: 'system',
       content: [
-        ...(options.noThink ? ['/no_think'] : []),
         'You align a translated podcast script to an ordered visual storyboard.',
         'Do not translate, rewrite, summarize, omit, or add any text.',
         'Choose one ending localized sentence ID for every scene, in the given scene order.',
@@ -311,17 +296,13 @@ function sceneAlignmentMessages(
   ];
 }
 
-function parseSceneAlignmentContent(
-  content: string,
-  options: { allowWrappedJson?: boolean } = {},
-): unknown {
+function parseSceneAlignmentContent(content: string): unknown {
   const trimmed = content.trim();
   if (!trimmed || trimmed.startsWith('```')) {
     throw new Error('Scene alignment returned invalid JSON content');
   }
-  const json = options.allowWrappedJson ? extractJsonObject(trimmed) : trimmed;
   try {
-    return JSON.parse(json) as unknown;
+    return JSON.parse(trimmed) as unknown;
   } catch (error) {
     throw new Error('Scene alignment returned malformed JSON', {
       cause: error,
@@ -329,27 +310,14 @@ function parseSceneAlignmentContent(
   }
 }
 
-function extractJsonObject(content: string): string {
-  const firstBrace = content.indexOf('{');
-  const lastBrace = content.lastIndexOf('}');
-  if (firstBrace < 0 || lastBrace < firstBrace) {
-    throw new Error('Scene alignment returned invalid JSON content');
-  }
-  return content.slice(firstBrace, lastBrace + 1);
-}
-
 export function createOpenRouterSceneAlignmentProvider(): SceneAlignmentProvider {
   return {
     async align(request) {
-      const model = getRequiredEnv('VIDEO_ALIGNMENT_MODEL').trim();
-      const { openai, model: resolvedModel } = getOpenRouterConfig({
-        model,
-        thinkingModel: null,
-      });
+      const { openai, model } = getOpenRouterConfig({ thinkingModel: null });
       const completion = await createOpenRouterChatCompletion(
         openai,
         {
-          model: resolvedModel,
+          model,
           messages: sceneAlignmentMessages(request),
           response_format: { type: 'json_object' },
           temperature: 0,
@@ -359,56 +327,6 @@ export function createOpenRouterSceneAlignmentProvider(): SceneAlignmentProvider
         request.signal ? { signal: request.signal } : undefined,
       );
       return parseSceneAlignmentContent(completionContent(completion));
-    },
-  };
-}
-
-interface NvidiaSceneAlignmentProviderOptions {
-  apiKey?: string;
-  baseURL?: string;
-  model?: string;
-  client?: OpenAI;
-}
-
-function requiredNvidiaApiKey(): string {
-  const configured = process.env['NVIDIA_API_KEY'];
-  if (typeof configured !== 'string' || configured.trim().length === 0) {
-    throw new Error('NVIDIA_API_KEY not set');
-  }
-  return configured.trim();
-}
-
-export function createNvidiaSceneAlignmentProvider(
-  options: NvidiaSceneAlignmentProviderOptions = {},
-): SceneAlignmentProvider {
-  const model = options.model ?? getRequiredEnv('VIDEO_ALIGNMENT_MODEL').trim();
-  const client =
-    options.client ??
-    new OpenAI({
-      apiKey: options.apiKey ?? requiredNvidiaApiKey(),
-      baseURL:
-        options.baseURL ??
-        process.env['NVIDIA_BASE_URL']?.trim() ??
-        DEFAULT_NVIDIA_BASE_URL,
-      timeout: NVIDIA_ALIGNMENT_TIMEOUT_MS,
-      maxRetries: 0,
-    });
-
-  return {
-    async align(request) {
-      const completion = await client.chat.completions.create(
-        {
-          model,
-          messages: sceneAlignmentMessages(request, { noThink: true }),
-          response_format: { type: 'json_object' },
-          temperature: 0,
-          max_tokens: 2_048,
-        },
-        request.signal ? { signal: request.signal } : undefined,
-      );
-      return parseSceneAlignmentContent(completionContent(completion), {
-        allowWrappedJson: true,
-      });
     },
   };
 }

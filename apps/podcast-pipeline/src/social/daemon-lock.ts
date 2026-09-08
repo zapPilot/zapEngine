@@ -59,13 +59,15 @@ function readLockFile(lockPath: string): LockFileState {
     : { kind: 'garbage' };
 }
 
-function isProcessAliveDefault(pid: number): boolean {
+export function isProcessAliveDefault(pid: number): boolean {
   try {
     process.kill(pid, 0);
     return true;
   } catch (error) {
     // EPERM means the pid is live but owned by another user.
-    return (error as NodeJS.ErrnoException).code === 'EPERM';
+    if ((error as NodeJS.ErrnoException).code === 'EPERM') return true;
+    if ((error as NodeJS.ErrnoException).code === 'ESRCH') return false;
+    throw error;
   }
 }
 

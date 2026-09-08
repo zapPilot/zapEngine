@@ -7,6 +7,12 @@ import { useQuery } from '@tanstack/react-query';
 import { getRuntimeEnv } from '@zapengine/app-core/lib/env/runtimeEnv';
 import { createQueryConfig } from '@zapengine/app-core/hooks/queries/queryDefaults';
 import { queryKeys } from '@zapengine/app-core/lib/state/queryClient';
+import {
+  PODCAST_VIDEO_PROGRESS_STAGES,
+  type PodcastLanguageClassroomKeyword,
+  type PodcastLanguageClassroomLesson,
+  type PodcastVideoProgressStage,
+} from '@zapengine/types/shared';
 
 import {
   CONTENT_LANGUAGE_OPTIONS,
@@ -14,6 +20,8 @@ import {
   type ContentLanguageCode,
 } from '@/config/contentLanguages';
 import { useContentLanguage } from '@/providers/ContentLanguageProvider';
+
+export type { PodcastLanguageClassroomKeyword, PodcastLanguageClassroomLesson };
 
 export interface PodcastClassroomTrack {
   languageCode: string;
@@ -27,20 +35,6 @@ export interface PodcastAudioTrack {
   classroomHlsUrl: string | null;
   /** Per-language classroom tracks. Empty for episodes still on the combined-only track. */
   classrooms: PodcastClassroomTrack[];
-}
-
-export interface PodcastLanguageClassroomKeyword {
-  term: string;
-  reading: string | null;
-  meaning: string;
-  note: string | null;
-}
-
-export interface PodcastLanguageClassroomLesson {
-  sourceLanguageCode: string;
-  targetLanguageCode: string;
-  oneLiner: string;
-  keywords: PodcastLanguageClassroomKeyword[];
 }
 
 export interface PodcastEpisodeVideo {
@@ -64,20 +58,9 @@ export type PodcastVideoGenerationStatus =
  * during which this localization's own render row is still `queued` — which is
  * why the UI keys off this field rather than off `status`.
  */
-export const PODCAST_VIDEO_GENERATION_STAGES = [
-  'analyzing-audio',
-  'planning-scenes',
-  'selecting-images',
-  'uploading-visuals',
-  'waiting-for-renderer',
-  'aligning-script',
-  'preparing-media',
-  'encoding',
-  'uploading-video',
-] as const;
+export const PODCAST_VIDEO_GENERATION_STAGES = PODCAST_VIDEO_PROGRESS_STAGES;
 
-export type PodcastVideoGenerationStage =
-  (typeof PODCAST_VIDEO_GENERATION_STAGES)[number];
+export type PodcastVideoGenerationStage = PodcastVideoProgressStage;
 
 export interface PodcastEpisodeVideoGeneration {
   status: PodcastVideoGenerationStatus;
@@ -136,7 +119,7 @@ const SEARCH_PAGE_SIZE = 20;
 const PODCAST_VIDEO_POLL_INTERVAL_MS = 20_000;
 /** Matches the worker's own 10s progress flush, so no tick is wasted. */
 const PODCAST_VIDEO_ACTIVE_POLL_INTERVAL_MS = 10_000;
-export const MIN_PODCAST_SEARCH_QUERY_LENGTH = 2;
+const MIN_PODCAST_SEARCH_QUERY_LENGTH = 2;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -181,7 +164,7 @@ function readArray(record: Record<string, unknown>, keys: string[]): unknown[] {
   return [];
 }
 
-export function parsePodcastEpisodeVideo(
+function parsePodcastEpisodeVideo(
   rawVideo: unknown,
 ): PodcastEpisodeVideo | null {
   if (!isRecord(rawVideo)) return null;
@@ -227,7 +210,7 @@ function readVideoGenerationStage(
   return known ?? null;
 }
 
-export function parsePodcastEpisodeVideoGeneration(
+function parsePodcastEpisodeVideoGeneration(
   rawVideoGeneration: unknown,
 ): PodcastEpisodeVideoGeneration | null {
   if (!isRecord(rawVideoGeneration)) return null;

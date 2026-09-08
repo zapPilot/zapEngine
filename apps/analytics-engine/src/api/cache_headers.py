@@ -10,8 +10,10 @@ def get_cache_control_value() -> str:
     if settings.is_development or settings.debug:
         return "no-store"
 
+    # private: responses carry per-user financial data, so no shared cache
+    # (Fly proxy, CDN, corporate intermediary) may store them.
     return (
-        f"public, max-age={settings.http_cache_max_age_seconds}, "
+        f"private, max-age={settings.http_cache_max_age_seconds}, "
         f"stale-while-revalidate={settings.http_cache_stale_while_revalidate_seconds}"
     )
 

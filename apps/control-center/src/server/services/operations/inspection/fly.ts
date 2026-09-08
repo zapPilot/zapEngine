@@ -133,7 +133,9 @@ function parseTarget(kind: string, key: string) {
     return { app: key, processGroup: null as string | null };
   }
   const boundary = key.lastIndexOf('/');
-  if (boundary <= 0 || boundary === key.length - 1) return null;
+  if (boundary <= 0 || boundary === key.length - 1) {
+    return null;
+  }
   return {
     app: key.slice(0, boundary),
     processGroup: key.slice(boundary + 1),

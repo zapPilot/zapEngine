@@ -52,6 +52,48 @@ interface ScrapedArticleState {
   needsScrape: boolean;
 }
 
+const LONG_SOURCE_MIN_CHARS = 2_500;
+const MIN_LONG_SCRIPT_CHARS = 300;
+const MIN_SCRIPT_TO_SOURCE_RATIO = 0.1;
+
+function nonWhitespaceCharacterCount(value: string): number {
+  return [...value.replace(/\s/gu, '')].length;
+}
+
+/**
+ * Reject only catastrophic generations here. Editorial quality belongs in the
+ * prompt, but a response containing no letters/numbers, or a long article that
+ * collapses to a tiny fraction of its source, must never advance to TTS.
+ *
+ * The ratio is intentionally lenient: the script prompt asks for full coverage
+ * and explicitly forbids summarization, while 10% still leaves plenty of room
+ * for wording differences without mistaking a legitimate short article for a
+ * failure.
+ */
+export function assertGeneratedScriptQuality(
+  script: string,
+  sourceText: string,
+): void {
+  const body = script.trim();
+  if (!/[\p{L}\p{N}]/u.test(body)) {
+    throw new Error('LLM returned placeholder-only script content');
+  }
+
+  const sourceChars = nonWhitespaceCharacterCount(sourceText);
+  if (sourceChars < LONG_SOURCE_MIN_CHARS) return;
+
+  const scriptChars = nonWhitespaceCharacterCount(body);
+  const minimumScriptChars = Math.max(
+    MIN_LONG_SCRIPT_CHARS,
+    Math.floor(sourceChars * MIN_SCRIPT_TO_SOURCE_RATIO),
+  );
+  if (scriptChars >= minimumScriptChars) return;
+
+  throw new Error(
+    `LLM returned implausibly short script content (${scriptChars} chars for ${sourceChars}-char source; minimum ${minimumScriptChars})`,
+  );
+}
+
 export async function findEpisodeAndLocalization(
   url: string,
   languageCode: LanguageClassroomLanguageCode,
@@ -226,17 +268,23 @@ async function ensureLocalizationScript(input: {
     );
   } else if (needsGeneratedScript(localization)) {
     const attempts = input.telemetry?.attempts;
-    const generated = await step('generateScript', () =>
-      generateScriptWithLLM(input.article.title, input.article.text, {
-        ...(attempts
-          ? {
-              onAttempt: (record) => {
-                attempts.push(record);
-              },
-            }
-          : {}),
-      }),
-    );
+    const generated = await step('generateScript', async () => {
+      const result = await generateScriptWithLLM(
+        input.article.title,
+        input.article.text,
+        {
+          ...(attempts
+            ? {
+                onAttempt: (record) => {
+                  attempts.push(record);
+                },
+              }
+            : {}),
+        },
+      );
+      assertGeneratedScriptQuality(result.script, input.article.text);
+      return result;
+    });
     input.costBreakdown.push(
       buildLlmCostLine('LLM script', {
         provider: generated.provider,

@@ -150,7 +150,9 @@ function relatedFlyFingerprint(
   source: string,
   key: string,
 ): string | null {
-  if (!service.flyApp) return null;
+  if (!service.flyApp) {
+    return null;
+  }
   if (source === 'fly') {
     return null;
   }

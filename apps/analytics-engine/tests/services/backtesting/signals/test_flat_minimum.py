@@ -153,6 +153,41 @@ def test_signal_component_passes_asset_specific_price_history(
     }
 
 
+def test_signal_component_derives_per_asset_technical_state() -> None:
+    component = FlatMinimumSignalComponent()
+    portfolio = Portfolio.from_asset_allocation(
+        10_000.0,
+        {"btc": 0.30, "eth": 0.10, "spy": 0.30, "stable": 0.30},
+        {"btc": 100.0, "eth": 100.0, "spy": 100.0},
+    )
+    context = _context(
+        context_date=date(2025, 1, 2),
+        portfolio=portfolio,
+        ratio=0.07,
+        ratio_dma=0.06,
+        price_history_map={
+            "btc": [100.0 + index for index in range(60)],
+            "eth": [100.0 - index * 0.5 for index in range(60)],
+            "spy": [100.0 + (index % 7) for index in range(60)],
+        },
+    )
+
+    state = component.observe(context)
+
+    assert state.btc_dma_state is not None
+    assert state.eth_dma_state is not None
+    assert state.spy_dma_state is not None
+    rsi_by_asset = {
+        "BTC": state.btc_dma_state.technical.rsi_14,
+        "ETH": state.eth_dma_state.technical.rsi_14,
+        "SPY": state.spy_dma_state.technical.rsi_14,
+    }
+    assert all(value is not None for value in rsi_by_asset.values())
+    assert len(set(rsi_by_asset.values())) == 3
+    assert state.btc_dma_state.technical.breakout_20d is True
+    assert state.eth_dma_state.technical.breakdown_20d is True
+
+
 def test_signal_component_declares_ratio_price_features() -> None:
     requirements = FlatMinimumSignalComponent().market_data_requirements
 

@@ -1,8 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  listPastDueSocialPublishJobs: vi.fn().mockResolvedValue([]),
-  rescheduleSocialPublishJob: vi.fn().mockResolvedValue(true),
+  readPublishState: vi.fn().mockResolvedValue({}),
   claimSocialPublishBatch: vi.fn(),
   completeSocialPublishJob: vi.fn(),
   enqueueSocialPublishJob: vi.fn(),
@@ -11,7 +10,6 @@ const mocks = vi.hoisted(() => ({
   getActiveSocialStrategies: vi.fn(),
   getSocialQueueSnapshot: vi.fn(),
   getSocialStrategyById: vi.fn(),
-  latestPendingSocialPublishSchedule: vi.fn(),
   listPendingSocialPublishSchedules: vi.fn(),
   listDueSocialPublishPlatforms: vi.fn().mockResolvedValue([]),
   listLearningSocialPosts: vi.fn(),
@@ -32,9 +30,6 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('./daemon-store.js', () => ({
-  listPastDueSocialPublishJobs: mocks.listPastDueSocialPublishJobs,
-  rescheduleSocialPublishJob: mocks.rescheduleSocialPublishJob,
-  claimSocialPublishBatch: mocks.claimSocialPublishBatch,
   completeSocialPublishJob: mocks.completeSocialPublishJob,
   enqueueSocialPublishJob: mocks.enqueueSocialPublishJob,
   ensureSocialDaemonStart: mocks.ensureSocialDaemonStart,
@@ -42,7 +37,6 @@ vi.mock('./daemon-store.js', () => ({
   getActiveSocialStrategies: mocks.getActiveSocialStrategies,
   getSocialQueueSnapshot: mocks.getSocialQueueSnapshot,
   getSocialStrategyById: mocks.getSocialStrategyById,
-  latestPendingSocialPublishSchedule: mocks.latestPendingSocialPublishSchedule,
   listPendingSocialPublishSchedules: mocks.listPendingSocialPublishSchedules,
   listDueSocialPublishPlatforms: mocks.listDueSocialPublishPlatforms,
   listLearningSocialPosts: mocks.listLearningSocialPosts,
@@ -61,7 +55,6 @@ vi.mock('./release-cohort-store.js', () => ({
   alignPendingSocialReleaseCohorts: vi.fn().mockResolvedValue({
     alignedLanes: 0,
     rescheduledEpisodes: 0,
-    recoveryEpisodes: [],
   }),
   listPartiallyPublishedCohorts: vi.fn().mockResolvedValue([]),
   claimReleaseCohortJobs: mocks.claimSocialPublishBatch,
@@ -83,6 +76,11 @@ vi.mock('./metric-collectors.js', () => ({
 vi.mock('./strategy.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./strategy.js')>()),
   refreshSocialStrategies: mocks.refreshSocialStrategies,
+}));
+
+vi.mock('./state.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./state.js')>()),
+  readPublishState: mocks.readPublishState,
 }));
 
 import { runSocialDaemonTick } from './daemon.js';
@@ -113,11 +111,22 @@ function publishJob(attemptCount = 3) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.listPastDueSocialPublishJobs.mockResolvedValue([]);
-  mocks.rescheduleSocialPublishJob.mockResolvedValue(true);
+  mocks.readPublishState.mockReset().mockResolvedValue({});
   mocks.listSocialPublishCandidates.mockResolvedValue([]);
+  // Publishing re-checks media for every claimed cohort; the default is the
+  // normal production state, where every claimed episode is fully ready.
+  mocks.listSocialPublishCandidatesForEpisodes.mockImplementation(
+    async (episodeIds: readonly string[]) =>
+      episodeIds.flatMap((episodeId) =>
+        (['zh-Hant', 'ja', 'en'] as const).map((language_code) => ({
+          episode_id: episodeId,
+          ready_at: '2026-08-16T09:00:00.000Z',
+          language_code,
+          episode_created_at: '2026-08-24T00:00:00.000Z',
+        })),
+      ),
+  );
   mocks.getActiveSocialStrategies.mockResolvedValue([]);
-  mocks.latestPendingSocialPublishSchedule.mockResolvedValue(null);
   mocks.listPendingSocialPublishSchedules.mockResolvedValue([]);
   mocks.listLearningSocialPosts.mockResolvedValue([]);
   mocks.listLearningSocialMetrics.mockResolvedValue([]);
@@ -314,5 +323,74 @@ describe('social daemon publish persistence failures', () => {
       completedAt: recoveryNow,
     });
     expect(mocks.publishSocialBatch).not.toHaveBeenCalled();
+  });
+});
+
+describe('historical local publication recovery', () => {
+  it('completes all four local-only lanes without generating copy or calling transport, even after lease loss', async () => {
+    const publishedAt = '2026-08-11T00:00:00.000Z';
+    const platforms = ['x', 'youtube', 'rednote', 'threads'];
+    mocks.readPublishState.mockResolvedValue({
+      [EPISODE_ID]: {
+        zh: Object.fromEntries(
+          platforms.map((platform) => [
+            platform,
+            { published: true, publishedAt },
+          ]),
+        ),
+      },
+    });
+    mocks.listSocialPostsByEpisode.mockResolvedValue([]);
+    mocks.claimSocialPublishBatch.mockResolvedValue(
+      platforms.map((platform) => ({
+        ...publishJob(),
+        id: platform,
+        platform,
+        language_code: 'zh-Hant',
+      })),
+    );
+    mocks.completeSocialPublishJob.mockRejectedValueOnce(
+      new Error('lease lost'),
+    );
+    for (let tick = 0; tick < 2; tick++) {
+      await runSocialDaemonTick({
+        now: NOW,
+        firstStartedAt: '2026-08-18T00:00:00.000Z',
+        log: vi.fn(),
+      });
+    }
+    for (const platform of platforms)
+      expect(mocks.completeSocialPublishJob).toHaveBeenCalledWith({
+        jobId: platform,
+        owner: expect.any(String),
+        completedAt: new Date(publishedAt),
+        socialPostId: null,
+      });
+    expect(mocks.publishSocialBatch).not.toHaveBeenCalled();
+    expect(mocks.completeSocialPublishJob).toHaveBeenCalledTimes(8);
+  });
+
+  it('does not use a Chinese local post to complete a Japanese job', async () => {
+    mocks.readPublishState.mockResolvedValue({
+      [EPISODE_ID]: {
+        zh: { x: { published: true, publishedAt: NOW.toISOString() } },
+      },
+    });
+    mocks.claimSocialPublishBatch.mockResolvedValue([
+      { ...publishJob(), language_code: 'ja' },
+    ]);
+    mocks.listSocialPostsByEpisode.mockResolvedValue([]);
+    mocks.publishSocialBatch.mockResolvedValue([
+      { platform: 'x', status: 'published' },
+    ]);
+    await expect(
+      runSocialDaemonTick({
+        now: NOW,
+        firstStartedAt: '2026-08-18T00:00:00.000Z',
+        log: vi.fn(),
+      }),
+    ).rejects.toThrow('no social_posts row');
+    expect(mocks.publishSocialBatch).toHaveBeenCalled();
+    expect(mocks.completeSocialPublishJob).not.toHaveBeenCalled();
   });
 });

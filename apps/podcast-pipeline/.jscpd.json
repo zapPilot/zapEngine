@@ -2,7 +2,6 @@
   "ignore": [
     "**/*.test.ts",
     "**/__fixtures__/**",
-    "**/social/threads-auth.ts",
     "dist/**",
     "node_modules/**",
     "coverage/**"

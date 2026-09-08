@@ -12,17 +12,15 @@ import {
   transformToDrawdownChart,
   transformToPerformanceChart,
 } from '@core/lib/analytics/transformers';
-import { queryKeys } from '@core/lib/state/queryClient';
-import { getDailyYieldReturns } from '@core/services';
 import type {
   AnalyticsData,
   AnalyticsTimePeriod,
   WalletFilter,
 } from '@core/types/analytics';
-import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef } from 'react';
 
 import { usePortfolioDashboard } from '../../analytics/usePortfolioDashboard';
+import { useDailyYieldReturns } from './useDailyYieldReturns';
 
 /**
  * Hook return type
@@ -110,24 +108,11 @@ export function useAnalyticsData(
   // TERTIARY QUERY: Monthly PnL (conditional on dashboard success)
   // ============================================================================
 
-  const monthlyPnLQuery = useQuery({
-    // Wallet filter is part of the cache key
-    queryKey: queryKeys.dailyYield.list(userId, timePeriod.days, walletFilter),
-    queryFn: () => {
-      if (!userId) {
-        throw new Error('User ID is required');
-      }
-      return getDailyYieldReturns(
-        userId,
-        timePeriod.days,
-        walletFilter ?? undefined,
-      ); // Pass wallet filter to API, convert null to undefined
-    },
-    enabled: !!userId,
-    staleTime: 5 * 60 * 1000, // 5 minutes (matches yield summary cache)
-    gcTime: 10 * 60 * 1000, // 10 minutes
-    retry: 2,
-  });
+  const monthlyPnLQuery = useDailyYieldReturns(
+    userId,
+    timePeriod.days,
+    walletFilter,
+  );
 
   // ============================================================================
   // DATA TRANSFORMATION (Memoized)

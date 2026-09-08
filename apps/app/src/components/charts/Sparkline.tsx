@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { memo, useId, useMemo, useState } from 'react';
 import { View, type LayoutChangeEvent } from 'react-native';
 import Svg, { Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 
@@ -15,10 +15,30 @@ interface SparklineProps {
  * baseline to dataMin so the trend uses the full height — matching the POC's
  * minimal, axis-less look.
  */
-export function Sparkline({ data, height = 54, gradientId }: SparklineProps) {
+export const Sparkline = memo(function Sparkline({
+  data,
+  height = 54,
+  gradientId,
+}: SparklineProps) {
   const autoId = `zp-spark-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
   const id = gradientId ?? autoId;
   const [width, setWidth] = useState(0);
+  // Above the guard on purpose: a hook after an early return is a conditional
+  // call. The short-series case is filtered out below instead.
+  const { line, area } = useMemo(() => {
+    const min = Math.min(...data);
+    const max = Math.max(...data);
+    const range = max - min || 1;
+    // 4px top margin (as on desktop) so the 2px stroke never clips.
+    const top = 4;
+    const points = data.map((value, index) => {
+      const x = (index / (data.length - 1)) * width;
+      const y = top + (1 - (value - min) / range) * (height - top);
+      return `${x},${y}`;
+    });
+    const path = `M${points.join(' L')}`;
+    return { line: path, area: `${path} L${width},${height} L0,${height} Z` };
+  }, [data, height, width]);
 
   if (data.length < 2) {
     return null;
@@ -27,19 +47,6 @@ export function Sparkline({ data, height = 54, gradientId }: SparklineProps) {
   const onLayout = (event: LayoutChangeEvent) => {
     setWidth(event.nativeEvent.layout.width);
   };
-
-  const min = Math.min(...data);
-  const max = Math.max(...data);
-  const range = max - min || 1;
-  // 4px top margin (as on desktop) so the 2px stroke never clips.
-  const top = 4;
-  const points = data.map((value, index) => {
-    const x = (index / (data.length - 1)) * width;
-    const y = top + (1 - (value - min) / range) * (height - top);
-    return `${x},${y}`;
-  });
-  const line = `M${points.join(' L')}`;
-  const area = `${line} L${width},${height} L0,${height} Z`;
 
   return (
     <View className="w-full" style={{ height }} onLayout={onLayout}>
@@ -64,4 +71,4 @@ export function Sparkline({ data, height = 54, gradientId }: SparklineProps) {
       ) : null}
     </View>
   );
-}
+});

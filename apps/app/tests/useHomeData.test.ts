@@ -1,6 +1,8 @@
+import { queryKeys } from '@zapengine/app-core/lib/state/queryClient';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DEMO } from '../src/data/demo';
+import { portfolioDaysForRange } from '../src/integration/usePortfolioData';
 import {
   calculateHomeRangeChange,
   DEFAULT_HOME_RANGE,
@@ -10,8 +12,9 @@ import {
 } from '../src/integration/useHomeData';
 
 const usePortfolioDashboardMock = vi.hoisted(() => vi.fn());
-const usePortfolioDataProgressiveMock = vi.hoisted(() => vi.fn());
+const useLandingPageDataMock = vi.hoisted(() => vi.fn());
 const useStrategySuggestionMock = vi.hoisted(() => vi.fn());
+const useDailyYieldReturnsMock = vi.hoisted(() => vi.fn());
 
 vi.mock('react', () => ({
   useMemo: <T>(factory: () => T): T => factory(),
@@ -21,22 +24,40 @@ vi.mock('@zapengine/app-core/hooks/analytics/usePortfolioDashboard', () => ({
   usePortfolioDashboard: usePortfolioDashboardMock,
 }));
 
-vi.mock(
-  '@zapengine/app-core/hooks/queries/analytics/usePortfolioDataProgressive',
-  () => ({
-    usePortfolioDataProgressive: usePortfolioDataProgressiveMock,
-  }),
-);
+// Fully replaced rather than partially: `react` is stubbed down to useMemo
+// above, so loading the real query package here would be loading it against a
+// React that barely exists.
+vi.mock('@zapengine/app-core/hooks/queries', () => ({
+  useDailyYieldReturns: useDailyYieldReturnsMock,
+  useLandingPageData: useLandingPageDataMock,
+}));
 
 vi.mock('@/integration/useStrategySuggestion', () => ({
   useStrategySuggestion: useStrategySuggestionMock,
 }));
 
+/** The raw `useLandingPageData` result shape, with only what Home reads set. */
+function landingResult(
+  overrides: {
+    data?: {
+      net_portfolio_value?: number | null;
+      total_net_usd?: number;
+      last_updated?: string | null;
+    };
+    isLoading?: boolean;
+    error?: unknown;
+  } = {},
+) {
+  return {
+    data: overrides.data,
+    isLoading: overrides.isLoading ?? false,
+    isError: overrides.error !== undefined,
+    error: overrides.error ?? null,
+  };
+}
+
 function mockSettledSources() {
-  usePortfolioDataProgressiveMock.mockReturnValue({
-    unifiedData: null,
-    sections: {},
-  });
+  useLandingPageDataMock.mockReturnValue(landingResult());
   usePortfolioDashboardMock.mockReturnValue({
     dashboard: null,
     isLoading: false,
@@ -47,12 +68,14 @@ function mockSettledSources() {
     isLoading: false,
     isError: false,
   });
+  useDailyYieldReturnsMock.mockReturnValue({ data: undefined });
 }
 
 beforeEach(() => {
   usePortfolioDashboardMock.mockReset();
-  usePortfolioDataProgressiveMock.mockReset();
+  useLandingPageDataMock.mockReset();
   useStrategySuggestionMock.mockReset();
+  useDailyYieldReturnsMock.mockReset();
   mockSettledSources();
 });
 
@@ -60,24 +83,25 @@ describe('Home data analytics subject', () => {
   it('does not have a wallet-address parameter that can leak into analytics paths', () => {
     useHomeData(null, '1Y');
 
-    expect(usePortfolioDataProgressiveMock).toHaveBeenCalledWith(null, false);
+    expect(useLandingPageDataMock).toHaveBeenCalledWith(null, false, true);
     expect(usePortfolioDashboardMock).toHaveBeenCalledWith(
       undefined,
-      getHomeDashboardWindowParams(),
+      getHomeDashboardWindowParams('1Y'),
     );
   });
 
   it('passes a bundle-view subject id through verbatim', () => {
     useHomeData('5fc63d4e-4e07-47d8-840b-ccd3420d553f', '1Y');
 
-    expect(usePortfolioDataProgressiveMock).toHaveBeenCalledWith(
+    expect(useLandingPageDataMock).toHaveBeenCalledWith(
       '5fc63d4e-4e07-47d8-840b-ccd3420d553f',
       false,
+      true,
     );
   });
 });
 
-describe('Home data historical dashboard window', () => {
+describe('Home data range-scoped dashboard window', () => {
   const dailyValues = [
     { date: '2026-05-20T00:00:00', total_value_usd: 100 },
     { date: '2026-06-22T00:00:00', total_value_usd: 200 },
@@ -85,16 +109,37 @@ describe('Home data historical dashboard window', () => {
     { date: '2026-06-29T00:00:00', total_value_usd: 220 },
   ];
 
-  it('defaults the Home chart to a historical one-year view', () => {
-    expect(DEFAULT_HOME_RANGE).toBe('1Y');
+  it('defaults the Home chart to a one-month view', () => {
+    expect(DEFAULT_HOME_RANGE).toBe('1M');
     expect(getHomeDashboardWindowParams()).toEqual({
-      trend_days: 365,
-      drawdown_days: 365,
-      rolling_days: 365,
+      trend_days: 30,
+      metrics: ['trend'],
     });
   });
 
-  it('slices the 365-day dashboard series locally for shorter ranges', () => {
+  it('maps every Home tab to its own backend trend window', () => {
+    expect(getHomeDashboardWindowParams('1D').trend_days).toBe(2);
+    expect(getHomeDashboardWindowParams('1W').trend_days).toBe(7);
+    expect(getHomeDashboardWindowParams('1M').trend_days).toBe(30);
+    expect(getHomeDashboardWindowParams('3M').trend_days).toBe(90);
+    expect(getHomeDashboardWindowParams('1Y').trend_days).toBe(365);
+  });
+
+  it('asks the dashboard for the trend alone', () => {
+    // Home reads `trends.daily_values` only. Drawdown and rolling windows cost
+    // four more backend service calls per request and nothing renders them.
+    const params: Record<string, unknown> = getHomeDashboardWindowParams();
+    expect(params.drawdown_days).toBeUndefined();
+    expect(params.rolling_days).toBeUndefined();
+  });
+
+  it('hands react-query one stable window object per range', () => {
+    expect(getHomeDashboardWindowParams('1M')).toBe(
+      getHomeDashboardWindowParams('1M'),
+    );
+  });
+
+  it('slices dashboard series locally for the selected range', () => {
     expect(sliceHomeDailyValuesForRange(dailyValues, '1W')).toEqual([
       dailyValues[1],
       dailyValues[2],
@@ -119,6 +164,21 @@ describe('Home data historical dashboard window', () => {
       pct: (10 / 210) * 100,
     });
   });
+
+  it('keeps the Home trend-only cache entry distinct from Portfolio', () => {
+    const portfolioDays = portfolioDaysForRange('1M');
+    const portfolioKey = queryKeys.portfolioDashboard.detail('user-123', {
+      trend_days: portfolioDays,
+      drawdown_days: portfolioDays,
+      rolling_days: portfolioDays,
+    });
+    const homeKey = queryKeys.portfolioDashboard.detail(
+      'user-123',
+      getHomeDashboardWindowParams('1M'),
+    );
+
+    expect(homeKey).not.toEqual(portfolioKey);
+  });
 });
 
 describe('useHomeData', () => {
@@ -130,7 +190,7 @@ describe('useHomeData', () => {
     expect(result).toMatchObject({ isLoading: true, isError: false });
     expect(result.data.home.totalBalance).toBeNull();
     expect(result.data.strategyStatus).toBeNull();
-    expect(usePortfolioDataProgressiveMock).toHaveBeenCalledWith(null, false);
+    expect(useLandingPageDataMock).toHaveBeenCalledWith(null, false, true);
   });
 
   it('keeps disconnected users on demo data without surfacing a live error', () => {
@@ -140,18 +200,13 @@ describe('useHomeData', () => {
     expect(result.data.home.totalBalance).toBe(DEMO.home.totalBalance);
     expect(result.data.strategyStatus).toMatchObject({ status: 'no_action' });
     expect(usePortfolioDashboardMock).toHaveBeenCalledWith(undefined, {
-      trend_days: 365,
-      drawdown_days: 365,
-      rolling_days: 365,
+      trend_days: 7,
+      metrics: ['trend'],
     });
   });
 
   it('surfaces connected live misses without falling back to demo balances', () => {
-    usePortfolioDataProgressiveMock.mockReturnValue({
-      sections: {
-        balance: { data: null, isLoading: false, error: null },
-      },
-    });
+    useLandingPageDataMock.mockReturnValue(landingResult());
 
     const result = useHomeData('user-123', '1M');
 
@@ -164,23 +219,15 @@ describe('useHomeData', () => {
     });
     expect(result.data.strategyStatus).toBeNull();
     expect(usePortfolioDashboardMock).toHaveBeenCalledWith('user-123', {
-      trend_days: 365,
-      drawdown_days: 365,
-      rolling_days: 365,
+      trend_days: 30,
+      metrics: ['trend'],
     });
   });
 
   it('treats a missing snapshot as unavailable instead of a zero balance', () => {
-    usePortfolioDataProgressiveMock.mockReturnValue({
-      unifiedData: { lastUpdated: null },
-      sections: {
-        balance: {
-          data: { balance: 0 },
-          isLoading: false,
-          error: null,
-        },
-      },
-    });
+    useLandingPageDataMock.mockReturnValue(
+      landingResult({ data: { net_portfolio_value: 0, last_updated: null } }),
+    );
 
     const result = useHomeData('user-123', '1Y');
 
@@ -189,16 +236,14 @@ describe('useHomeData', () => {
   });
 
   it('preserves a legitimate zero balance when a snapshot timestamp exists', () => {
-    usePortfolioDataProgressiveMock.mockReturnValue({
-      unifiedData: { lastUpdated: '2026-08-02T00:00:00.000Z' },
-      sections: {
-        balance: {
-          data: { balance: 0 },
-          isLoading: false,
-          error: null,
+    useLandingPageDataMock.mockReturnValue(
+      landingResult({
+        data: {
+          net_portfolio_value: 0,
+          last_updated: '2026-08-02T00:00:00.000Z',
         },
-      },
-    });
+      }),
+    );
 
     const result = useHomeData('user-123', '1Y');
 
@@ -209,23 +254,18 @@ describe('useHomeData', () => {
   it('forwards the active ETL state to the landing query', () => {
     useHomeData('user-123', '1Y', { isEtlInProgress: true });
 
-    expect(usePortfolioDataProgressiveMock).toHaveBeenCalledWith(
-      'user-123',
-      true,
-    );
+    expect(useLandingPageDataMock).toHaveBeenCalledWith('user-123', true, true);
   });
 
   it('keeps chart and performance semantics aligned to the selected range', () => {
-    usePortfolioDataProgressiveMock.mockReturnValue({
-      unifiedData: { lastUpdated: '2026-08-22T00:00:00.000Z' },
-      sections: {
-        balance: {
-          data: { balance: 130 },
-          isLoading: false,
-          error: null,
+    useLandingPageDataMock.mockReturnValue(
+      landingResult({
+        data: {
+          net_portfolio_value: 130,
+          last_updated: '2026-08-22T00:00:00.000Z',
         },
-      },
-    });
+      }),
+    );
     usePortfolioDashboardMock.mockReturnValue({
       dashboard: {
         trends: {
@@ -251,16 +291,15 @@ describe('useHomeData', () => {
   });
 
   it('reports upstream errors while preserving partial live portfolio data', () => {
-    usePortfolioDataProgressiveMock.mockReturnValue({
-      unifiedData: { lastUpdated: '2026-08-02T00:00:00.000Z' },
-      sections: {
-        balance: {
-          data: { balance: 1234 },
-          isLoading: false,
-          error: new Error('balance failed'),
+    useLandingPageDataMock.mockReturnValue(
+      landingResult({
+        data: {
+          net_portfolio_value: 1234,
+          last_updated: '2026-08-02T00:00:00.000Z',
         },
-      },
-    });
+        error: new Error('balance failed'),
+      }),
+    );
     usePortfolioDashboardMock.mockReturnValue({
       dashboard: {
         trends: {
@@ -277,6 +316,7 @@ describe('useHomeData', () => {
     const result = useHomeData('user-123', '1Y');
 
     expect(result).toMatchObject({ isLoading: false, isError: true });
+    expect(result.snapshotAvailability).toBe('available');
     expect(result.data.home).toMatchObject({
       totalBalance: 1234,
       rangeChangeUsd: 234,
@@ -286,5 +326,245 @@ describe('useHomeData', () => {
       expect.objectContaining({ total_value_usd: 1000 }),
       expect.objectContaining({ total_value_usd: 1234 }),
     ]);
+  });
+});
+
+describe('Home section states', () => {
+  const snapshot = {
+    net_portfolio_value: 130,
+    last_updated: '2026-08-22T00:00:00.000Z',
+  };
+
+  it('lets the balance land while the chart and the strategy card wait', () => {
+    useLandingPageDataMock.mockReturnValue(landingResult({ data: snapshot }));
+    usePortfolioDashboardMock.mockReturnValue({
+      dashboard: null,
+      isLoading: true,
+      isError: false,
+    });
+    useStrategySuggestionMock.mockReturnValue({
+      data: null,
+      isLoading: true,
+      isError: false,
+    });
+
+    const result = useHomeData('user-123', '1Y');
+
+    expect(result.balance).toEqual({ isLoading: false, isError: false });
+    expect(result.trend).toEqual({ isLoading: true, isError: false });
+    expect(result.strategy).toEqual({ isLoading: true, isError: false });
+    expect(result.isLoading).toBe(true);
+    expect(result.data.home.totalBalance).toBe(130);
+  });
+
+  it('attributes each failure to the section that owns it', () => {
+    useLandingPageDataMock.mockReturnValue(
+      landingResult({ error: new Error('landing down') }),
+    );
+    usePortfolioDashboardMock.mockReturnValue({
+      dashboard: null,
+      isLoading: false,
+      isError: true,
+    });
+
+    const result = useHomeData('user-123', '1Y');
+
+    expect(result.balance.isError).toBe(true);
+    expect(result.trend.isError).toBe(true);
+    expect(result.strategy.isError).toBe(false);
+    expect(result.isError).toBe(true);
+  });
+
+  it('holds every section while the analytics subject resolves', () => {
+    const result = useHomeData(null, '1Y', { isResolvingSubject: true });
+
+    expect(result.balance.isLoading).toBe(true);
+    expect(result.trend.isLoading).toBe(true);
+    expect(result.strategy.isLoading).toBe(true);
+  });
+
+  it('reads the balance straight off the landing response', () => {
+    useLandingPageDataMock.mockReturnValue(
+      landingResult({
+        data: { net_portfolio_value: 130, last_updated: snapshot.last_updated },
+      }),
+    );
+
+    expect(useHomeData('user-123', '1Y').data.home.totalBalance).toBe(130);
+  });
+
+  it('falls back to total_net_usd when net_portfolio_value is null', () => {
+    useLandingPageDataMock.mockReturnValue(
+      landingResult({
+        data: {
+          net_portfolio_value: null,
+          total_net_usd: 4_200,
+          last_updated: snapshot.last_updated,
+        },
+      }),
+    );
+
+    expect(useHomeData('user-123', '1Y').data.home.totalBalance).toBe(4_200);
+  });
+});
+
+describe('Home snapshot classification', () => {
+  it('classifies a landing transport failure as failed, not an empty portfolio', () => {
+    useLandingPageDataMock.mockReturnValue(
+      landingResult({ error: new Error('Network request failed') }),
+    );
+
+    const result = useHomeData('user-123', '1Y');
+
+    expect(result.snapshotAvailability).toBe('failed');
+    expect(result.data.home.totalBalance).toBeNull();
+  });
+
+  it.each([
+    ['a 404 status', Object.assign(new Error('missing'), { status: 404 })],
+    ['a USER_NOT_FOUND message', new Error('USER_NOT_FOUND')],
+  ])(
+    'keeps an unknown subject reported by %s on the import path',
+    (_, error) => {
+      useLandingPageDataMock.mockReturnValue(landingResult({ error }));
+
+      expect(useHomeData('user-123', '1Y').snapshotAvailability).toBe(
+        'unavailable',
+      );
+    },
+  );
+
+  it('keeps an in-flight import on the import path despite a landing error', () => {
+    useLandingPageDataMock.mockReturnValue(
+      landingResult({ error: new Error('Network request failed') }),
+    );
+
+    const result = useHomeData('user-123', '1Y', { isEtlInProgress: true });
+
+    expect(result.snapshotAvailability).toBe('unavailable');
+  });
+});
+
+describe('Home change attribution', () => {
+  const dailyReturn = (
+    date: string,
+    protocolUsd: number,
+    marketUsd: number,
+  ) => ({
+    date,
+    protocol_name: 'Aave',
+    chain: 'ethereum',
+    yield_return_usd: protocolUsd,
+    outlier: false,
+    tokens: [
+      {
+        symbol: 'ETH',
+        amount_change: 0,
+        current_price: 2_400,
+        yield_return_usd: 0,
+        market_return_usd: marketUsd,
+      },
+    ],
+  });
+
+  function mockLiveSeries(daily_returns: ReturnType<typeof dailyReturn>[]) {
+    useLandingPageDataMock.mockReturnValue(
+      landingResult({
+        data: {
+          net_portfolio_value: 130,
+          last_updated: '2026-08-22T00:00:00.000Z',
+        },
+      }),
+    );
+    usePortfolioDashboardMock.mockReturnValue({
+      dashboard: {
+        trends: {
+          daily_values: [
+            { date: '2026-07-01', total_value_usd: 100 },
+            { date: '2026-08-15', total_value_usd: 120 },
+            { date: '2026-08-22', total_value_usd: 130 },
+          ],
+        },
+      },
+      isLoading: false,
+      isError: false,
+    });
+    useDailyYieldReturnsMock.mockReturnValue({
+      data: { user_id: 'user-123', daily_returns, wallet_returns: [] },
+    });
+  }
+
+  it('keeps a 30-day attribution floor for short ranges', () => {
+    useHomeData('user-123', '1D');
+
+    expect(useDailyYieldReturnsMock).toHaveBeenCalledWith('user-123', 30);
+  });
+
+  it('uses the selected 3M window for attribution', () => {
+    useHomeData('user-123', '3M');
+
+    expect(useDailyYieldReturnsMock).toHaveBeenCalledWith('user-123', 90);
+  });
+
+  it('disables one-year attribution while keeping the one-year chart available', () => {
+    useHomeData('user-123', '1Y');
+
+    expect(usePortfolioDashboardMock).toHaveBeenCalledWith('user-123', {
+      trend_days: 365,
+      metrics: ['trend'],
+    });
+    expect(useDailyYieldReturnsMock).toHaveBeenCalledWith(undefined, 30);
+  });
+
+  it('attributes before slicing, so a range keeps its first point explained', () => {
+    mockLiveSeries([dailyReturn('2026-08-15', 5, 12)]);
+
+    const result = useHomeData('user-123', '1W');
+
+    expect(result.data.home.trendPoints[0]?.attribution).toEqual([
+      { kind: 'market', label: 'ETH', valueUsd: 12 },
+      { kind: 'protocol', label: 'Aave', valueUsd: 5 },
+      { kind: 'residual', valueUsd: 3 },
+    ]);
+  });
+
+  it('keeps the breakdown reconciled with the headline change', () => {
+    mockLiveSeries([
+      dailyReturn('2026-08-15', 4, 12),
+      dailyReturn('2026-08-22', 1, 6),
+    ]);
+
+    const { attribution } = useHomeData('user-123', '1W').data.home;
+
+    expect(attribution).not.toBeNull();
+    const summary = attribution!;
+    expect(summary.netChangeUsd).toBe(10);
+    expect(
+      summary.marketUsd +
+        summary.protocolUsd +
+        summary.flowUsd +
+        summary.otherUsd,
+    ).toBeCloseTo(summary.netChangeUsd);
+    expect(summary.gainsUsd + summary.lossesUsd).toBeCloseTo(
+      summary.marketUsd + summary.protocolUsd,
+    );
+    expect(summary.attributedDays).toBe(1);
+    expect(summary.totalDays).toBe(1);
+  });
+
+  it('hides the breakdown when the endpoint explained nothing', () => {
+    mockLiveSeries([]);
+
+    const { attribution } = useHomeData('user-123', '1W').data.home;
+
+    expect(attribution?.attributedDays).toBe(0);
+  });
+
+  it('gives the demo preview a breakdown too', () => {
+    const { attribution } = useHomeData(null, '1Y').data.home;
+
+    expect(attribution).not.toBeNull();
+    expect(attribution!.attributedDays).toBe(attribution!.totalDays);
+    expect(attribution!.protocolUsd).toBeGreaterThan(0);
   });
 });

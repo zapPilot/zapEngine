@@ -1,14 +1,14 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-import {
-  chromium,
-  type Locator,
-  type Page,
-  type Response as PlaywrightResponse,
+import type {
+  Locator,
+  Page,
+  Response as PlaywrightResponse,
 } from 'playwright-core';
 
-import { SocialPublishError } from './publish-error.js';
+import { launchPersistentChrome } from './browser.js';
+import { publishStep } from './publish-error.js';
 import type { PublishResult, XPublisher, XPublishInput } from './types.js';
 import {
   extractCreatedTweetId,
@@ -65,16 +65,15 @@ export async function runXLogin(
   });
 }
 
-// jscpd:ignore-start — each platform intentionally owns its profile/navigation lifecycle
+// jscpd:ignore-start — every platform's page wrapper takes the same
+// (run, options) shape and forwards it to the shared launcher; each still
+// owns its own navigation/init lifecycle below.
 async function withXComposePage<T>(
   run: (page: Page) => Promise<T>,
   options: { headless?: boolean } = {},
 ): Promise<T> {
-  const context = await chromium.launchPersistentContext(PROFILE_DIRECTORY, {
-    channel: 'chrome',
-    headless: options.headless ?? false,
-    viewport: { width: 1440, height: 900 },
-  });
+  const context = await launchPersistentChrome(PROFILE_DIRECTORY, options);
+  // jscpd:ignore-end
   try {
     const page = context.pages()[0] ?? (await context.newPage());
     await page.goto(COMPOSE_URL, { waitUntil: 'domcontentloaded' });
@@ -83,14 +82,14 @@ async function withXComposePage<T>(
     await context.close();
   }
 }
-// jscpd:ignore-end
 
 async function publish(
   page: Page,
   input: XPublishInput,
   log: (message: string) => void,
 ): Promise<PublishResult> {
-  await xStep('check_login', async () => {
+  const step = publishStep('x');
+  await step('check_login', async () => {
     try {
       await waitForComposer(page, READY_TIMEOUT_MS);
     } catch (error) {
@@ -102,16 +101,16 @@ async function publish(
   });
 
   log('[x] Filling copy and uploading teaser video');
-  await xStep('fill_copy', () =>
+  await step('fill_copy', () =>
     page.locator(COMPOSER_SELECTOR).first().fill(input.text.trim()),
   );
-  await xStep('upload_video', () =>
+  await step('upload_video', () =>
     page.locator(FILE_INPUT_SELECTOR).first().setInputFiles(input.videoPath),
   );
-  await xStep('wait_upload_complete', () => waitForUploadReady(page));
+  await step('wait_upload_complete', () => waitForUploadReady(page));
 
   log('[x] Publishing native video');
-  const response = await xStep('publish', async () => {
+  const response = await step('publish', async () => {
     const button = await findActionablePostButton(page);
     if (!button) throw new Error('X post button is disabled or not visible.');
     const responsePromise = page.waitForResponse(
@@ -123,7 +122,7 @@ async function publish(
     await button.click();
     return responsePromise;
   });
-  const identity = await xStep('confirm_success', () =>
+  const identity = await step('confirm_success', () =>
     publishedTweetIdentity(response),
   );
 
@@ -210,14 +209,6 @@ async function publishedTweetIdentity(
     url: `https://x.com/i/web/status/${postId}`,
     postId,
   };
-}
-
-async function xStep<T>(step: string, operation: () => Promise<T>): Promise<T> {
-  try {
-    return await operation();
-  } catch (error) {
-    throw new SocialPublishError('x', step, error);
-  }
 }
 
 export { COMPOSE_URL, PROFILE_DIRECTORY };

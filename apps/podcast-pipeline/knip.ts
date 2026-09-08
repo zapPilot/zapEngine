@@ -2,21 +2,17 @@ import { defineKnipConfig } from '@zapengine/knip-config/base';
 
 export default defineKnipConfig({
   project: ['src/**/*.{ts,tsx}'],
-  // Everything reached only by being executed, never by being imported: two Fly
-  // process-group commands (index/worker) and the package.json CLI scripts.
-  // Declaring them explicitly means reachability stops depending on whether a
-  // co-located test happens to exist.
+  // Fly process-group/preload commands only: reached by `node --import`
+  // rather than by an import or a package.json script, so knip's own
+  // reachability tracing has nothing to follow them from. Every other
+  // Fly entry point and CLI is already a package.json script and needs no
+  // explicit listing here.
   entry: [
-    'src/index.ts',
-    'src/worker.ts',
-    'src/observability/sentry-smoke.ts',
-    'src/social/cli.ts',
-    'src/social/login.ts',
-    'src/social/metrics.ts',
-    'src/social/distribution-snapshot-cli.ts',
-    'src/services/video/cli.ts',
-    'src/services/video/r2-playback-canary.ts',
-    'src/services/video/storyboard/smoke-cli.ts',
+    // Preloaded by the app process (`node --import ./dist/release-heartbeat.js`
+    // in fly.toml), so nothing ever imports it.
+    'src/release-heartbeat.ts',
+    // Also preloaded by the app process to run durable completion retries.
+    'src/services/video-completion-notifier-autostart.ts',
   ],
   ignoreDependencies: [
     // Pre-existing: loaded via CSS @import; knip only resolves JS imports

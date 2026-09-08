@@ -8,8 +8,10 @@ import type {
   SocialPlatformPerformance,
 } from '../../shared/types.js';
 import { duration, integer, percent, relativeTime } from '../format.js';
-import { platformLabel } from '../platform.js';
+import { PlatformIdentity } from '../platform.js';
 import { StatementHeader } from './StatementHeader.js';
+
+export const CURRENT_RELEASE_SLOTS_JST = ['09:30', '12:00', '16:00'] as const;
 
 export function GrowthView(props: {
   data: SocialPerformanceResponse | null;
@@ -45,9 +47,12 @@ export function GrowthView(props: {
           >
             <div className="brief-kicker">Next publishing plan</div>
             <div className="brief-primary">
-              <span>Publish every platform together at</span>
-              <strong>{brief.time}</strong>
-              <small>{brief.timeBasis}</small>
+              <span>Publish every platform together</span>
+              <strong>{CURRENT_RELEASE_SLOTS_JST.join(' · ')} JST</strong>
+              <small>
+                3 article slots per day · one article uses one shared slot
+                across every active platform
+              </small>
             </div>
             <div className="brief-direction">
               <span>What to write next</span>
@@ -88,7 +93,9 @@ export function GrowthView(props: {
             {(props.growth?.platforms ?? []).map((platform) => (
               <article className="audience-card" key={platform.platform}>
                 <div>
-                  <strong>{platformLabel(platform.platform)}</strong>
+                  <strong>
+                    <PlatformIdentity platform={platform.platform} />
+                  </strong>
                   <span>{integer(platform.followersNow)} followers</span>
                   <small>{bestLaneEfficiency(platform.lanes)}</small>
                 </div>
@@ -185,7 +192,9 @@ export function GrowthView(props: {
                   >
                     <div className="episode-heading">
                       <div>
-                        <strong>{platformLabel(interval.platform)}</strong>
+                        <strong>
+                          <PlatformIdentity platform={interval.platform} />
+                        </strong>
                         <small>
                           {interval.startAt} → {interval.endAt}
                         </small>
@@ -253,10 +262,14 @@ export function GrowthView(props: {
                                     rel="noreferrer"
                                     target="_blank"
                                   >
-                                    {platformLabel(platform.platform)}
+                                    <PlatformIdentity
+                                      platform={platform.platform}
+                                    />
                                   </a>
                                 ) : (
-                                  platformLabel(platform.platform)
+                                  <PlatformIdentity
+                                    platform={platform.platform}
+                                  />
                                 )}
                               </td>
                               <td className="mono">
@@ -296,7 +309,9 @@ export function GrowthView(props: {
         </div>
         {(data?.accounts ?? []).map((account) => (
           <div className="follower-entry" key={account.platform}>
-            <span>{platformLabel(account.platform)}</span>
+            <span>
+              <PlatformIdentity platform={account.platform} />
+            </span>
             <strong className="mono">{integer(account.followers)}</strong>
             <small>Updated {relativeTime(account.capturedAt)}</small>
           </div>
@@ -330,7 +345,9 @@ function LatestEpisodePanel(props: { episode: SocialEpisodeSummary | null }) {
       <div className="latest-episode-rows">
         {episode?.platforms.map((platform) => (
           <div className="latest-episode-row" key={platform.platform}>
-            <span>{platformLabel(platform.platform)}</span>
+            <span>
+              <PlatformIdentity platform={platform.platform} />
+            </span>
             <span className="latest-episode-track">
               <i style={{ width: `${((platform.views ?? 0) / max) * 100}%` }} />
             </span>
@@ -359,7 +376,9 @@ function PlatformPlaybook(props: {
   return (
     <article className="playbook-card">
       <header>
-        <strong>{platformLabel(decision.platform)}</strong>
+        <strong>
+          <PlatformIdentity platform={decision.platform} />
+        </strong>
         <span className={`confidence-${decision.confidence}`}>
           {decision.evidenceSamples} samples
         </span>
@@ -371,7 +390,7 @@ function PlatformPlaybook(props: {
         </strong>
         <small>
           {lane
-            ? `${lane.languageCode} · ${decimal(lane.followersPer1kReach)} / 1k ${lane.basis} follower conversion · ${lane.postCount7d} posts`
+            ? `${languageCodeLabel(lane.languageCode)} · ${decimal(lane.followersPer1kReach)} / 1k ${lane.basis} follower conversion · ${lane.postCount7d} posts`
             : 'Not enough language evidence yet'}
         </small>
       </div>
@@ -401,28 +420,9 @@ function PlatformPlaybook(props: {
 }
 
 function buildPublishingBrief(decisions: SocialDecision[]): {
-  time: string;
-  timeBasis: string;
   topic: string;
   topicAdvice: string;
 } {
-  const slots = new Map<string, { platforms: number; weight: number }>();
-  for (const decision of decisions) {
-    const times = decision.publishSlotsJst?.match(/\d{1,2}:\d{2}/g) ?? [];
-    for (const time of new Set(times)) {
-      const current = slots.get(time) ?? { platforms: 0, weight: 0 };
-      current.platforms += 1;
-      current.weight += decision.evidenceSamples;
-      slots.set(time, current);
-    }
-  }
-  const bestTime = [...slots.entries()].sort(
-    (left, right) =>
-      right[1].platforms - left[1].platforms ||
-      right[1].weight - left[1].weight ||
-      left[0].localeCompare(right[0]),
-  )[0];
-
   const topics = new Map<string, number>();
   for (const decision of decisions) {
     if (decision.bestTopic) {
@@ -438,10 +438,6 @@ function buildPublishingBrief(decisions: SocialDecision[]): {
   )[0];
 
   return {
-    time: bestTime ? `${bestTime[0]} JST` : 'Use the next regular slot',
-    timeBasis: bestTime
-      ? `The strongest shared slot across ${bestTime[1].platforms} platform${bestTime[1].platforms === 1 ? '' : 's'}`
-      : 'No cross-platform timing winner yet',
     topic: bestTopic ? topicLabel(bestTopic[0]) : 'Keep the next topic broad',
     topicAdvice: bestTopic
       ? `The clearest repeatable signal is ${topicLabel(bestTopic[0]).toLowerCase()}. Lead with one concrete consequence, then explain why the consensus view misses it.`
@@ -476,7 +472,7 @@ function bestLaneEfficiency(lanes: SocialGrowthLane[]): string {
       (left, right) => right.followersPer1kReach - left.followersPer1kReach,
     )[0];
   return best
-    ? `${best.languageCode} · ${decimal(best.followersPer1kReach)} / 1k (${best.basis})`
+    ? `${languageCodeLabel(best.languageCode)} · ${decimal(best.followersPer1kReach)} / 1k (${best.basis})`
     : 'No language conversion signal yet';
 }
 
@@ -543,12 +539,22 @@ function topicLabel(topic: string): string {
 
 function languageLabel(code: string): string {
   const labels: Record<string, string> = {
-    en: 'English',
-    ja: 'Japanese',
-    'zh-Hant': 'Traditional Chinese',
-    'zh-Hans': 'Simplified Chinese',
+    en: '🇺🇸 English',
+    ja: '🇯🇵 Japanese',
+    'zh-Hant': '🇹🇼 Traditional Chinese',
+    'zh-Hans': '🇨🇳 Simplified Chinese',
   };
   return labels[code] ?? code;
+}
+
+function languageCodeLabel(code: string): string {
+  const flags: Record<string, string> = {
+    en: '🇺🇸',
+    ja: '🇯🇵',
+    'zh-Hant': '🇹🇼',
+    'zh-Hans': '🇨🇳',
+  };
+  return `${flags[code] ?? '🌐'} ${code}`;
 }
 
 function sumKnown(values: Array<number | null>): number | null {

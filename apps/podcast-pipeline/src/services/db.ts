@@ -15,7 +15,6 @@ import type {
   EpisodeResponse,
   EpisodeRow,
   EpisodeStatus,
-  EpisodeVideoGenerationPublicStatus,
   EpisodeVideoGenerationSummary,
   EpisodeVideoResponse,
   LanguageClassroomLesson,
@@ -30,13 +29,13 @@ import type {
   SocialPostMetricRow,
   SocialPostRow,
 } from '../types.js';
+import { getPipelineSupabase as getSupabase } from './supabase-client.js';
+import { expectNoError, many, maybeOne } from './supabase-rows.js';
 import {
-  getPipelineSupabase as getSupabase,
-  throwSupabaseError,
-} from './supabase-client.js';
-import {
+  completedVideoResponseFrom,
   composeEpisodeVideoProgress,
   type EpisodeVideoProgressJobState,
+  isEpisodeVideoGenerationPublicStatus,
 } from './video-progress.js';
 
 interface EpisodeVideoStatusProjection {
@@ -97,6 +96,11 @@ const LOCALIZATION_UPDATE_COLUMNS: Record<
   ttsVoiceName: 'tts_voice_name',
 };
 
+/* jscpd:ignore-start -- toEpisodeResponse, toEpisodeResponseFromLocalization,
+ * and toEpisodeResponseWithClassrooms intentionally repeat the same
+ * video/videoGeneration/classroomAudioTracks default-parameter tail; each
+ * builds a different response shape from a different row type, so sharing it
+ * would just move the repetition into every call site's argument list. */
 export function toEpisodeResponse(
   row: EpisodeListRow,
   languageClassrooms?: LanguageClassroomRow[] | LanguageClassroomLesson[],
@@ -190,6 +194,7 @@ export function toEpisodeResponseWithClassrooms(
     languageClassrooms: languageClassrooms.map(toLanguageClassroomLesson),
   };
 }
+/* jscpd:ignore-end */
 
 export function toLanguageClassroomLesson(
   row: LanguageClassroomRow | LanguageClassroomLesson,
@@ -221,49 +226,37 @@ export function toClassroomAudioTracks(
 export async function findEpisodeBySourceUrl(
   url: string,
 ): Promise<EpisodeRow | null> {
-  const { data, error } = await getSupabase()
-    .from('episodes')
-    .select('*')
-    .eq('source_url', url)
-    .maybeSingle<EpisodeRow>();
-
-  if (error) {
-    throwSupabaseError(error);
-  }
-
-  return data;
+  return maybeOne<EpisodeRow>(
+    getSupabase()
+      .from('episodes')
+      .select('*')
+      .eq('source_url', url)
+      .maybeSingle<EpisodeRow>(),
+  );
 }
 
 export async function findEpisodeById(id: string): Promise<EpisodeRow | null> {
-  const { data, error } = await getSupabase()
-    .from('episodes')
-    .select('*')
-    .eq('id', id)
-    .maybeSingle<EpisodeRow>();
-
-  if (error) {
-    throwSupabaseError(error);
-  }
-
-  return data;
+  return maybeOne<EpisodeRow>(
+    getSupabase()
+      .from('episodes')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle<EpisodeRow>(),
+  );
 }
 
 export async function findEpisodeLocalizationByEpisodeId(
   episodeId: string,
   languageCode: string,
 ): Promise<EpisodeLocalizationRow | null> {
-  const { data, error } = await getSupabase()
-    .from('episode_localizations')
-    .select('*')
-    .eq('episode_id', episodeId)
-    .eq('language_code', languageCode)
-    .maybeSingle<EpisodeLocalizationRow>();
-
-  if (error) {
-    throwSupabaseError(error);
-  }
-
-  return data;
+  return maybeOne<EpisodeLocalizationRow>(
+    getSupabase()
+      .from('episode_localizations')
+      .select('*')
+      .eq('episode_id', episodeId)
+      .eq('language_code', languageCode)
+      .maybeSingle<EpisodeLocalizationRow>(),
+  );
 }
 
 export async function listEpisodeLocalizationsByEpisodeId(
@@ -273,34 +266,26 @@ export async function listEpisodeLocalizationsByEpisodeId(
   const uniqueLanguageCodes = [...new Set(languageCodes.filter(Boolean))];
   if (uniqueLanguageCodes.length === 0) return [];
 
-  const { data, error } = await getSupabase()
-    .from('episode_localizations')
-    .select('*')
-    .eq('episode_id', episodeId)
-    .in('language_code', uniqueLanguageCodes)
-    .returns<EpisodeLocalizationRow[]>();
-
-  if (error) {
-    throwSupabaseError(error);
-  }
-
-  return data ?? [];
+  return many<EpisodeLocalizationRow>(
+    getSupabase()
+      .from('episode_localizations')
+      .select('*')
+      .eq('episode_id', episodeId)
+      .in('language_code', uniqueLanguageCodes)
+      .returns<EpisodeLocalizationRow[]>(),
+  );
 }
 
 export async function findEpisodeListRowByLocalizationId(
   episodeLocalizationId: string,
 ): Promise<EpisodeListRow | null> {
-  const { data, error } = await getSupabase()
-    .from('episodes_with_stats')
-    .select('*')
-    .eq('localization_id', episodeLocalizationId)
-    .maybeSingle<EpisodeListRow>();
-
-  if (error) {
-    throwSupabaseError(error);
-  }
-
-  return data;
+  return maybeOne<EpisodeListRow>(
+    getSupabase()
+      .from('episodes_with_stats')
+      .select('*')
+      .eq('localization_id', episodeLocalizationId)
+      .maybeSingle<EpisodeListRow>(),
+  );
 }
 
 interface PublishedEpisodeCatalogRow {
@@ -330,10 +315,9 @@ export async function listPublishedEpisodeCatalog(): Promise<PublishedEpisodeCat
       query = query.gt('localization_id', lastLocalizationId);
     }
 
-    const { data, error } = await query.returns<PublishedEpisodeCatalogRow[]>();
-    if (error) throwSupabaseError(error);
-
-    const rows = data ?? [];
+    const rows = await many<PublishedEpisodeCatalogRow>(
+      query.returns<PublishedEpisodeCatalogRow[]>(),
+    );
     for (const row of rows) {
       switch (row.language_code) {
         case 'zh-Hant':
@@ -376,12 +360,6 @@ export function decodeCursor(raw: string): Cursor {
   return obj;
 }
 
-// Everything the feed responds with, and nothing TOASTed: script and
-// language_classrooms_jsonb stay out so the view query never detoasts them,
-// and like_count stays out so Postgres can eliminate the likes aggregate join.
-const EPISODE_FEED_COLUMNS =
-  'id,episode_id,localization_id,title,language_code,hls_url,classroom_hls_url,llm_model,llm_thinking_model,llm_provider,status,created_at';
-
 export async function listEpisodesPaged(
   limit: number,
   cursor: Cursor | null,
@@ -389,19 +367,6 @@ export async function listEpisodesPaged(
 ): Promise<{ rows: EpisodeListRow[]; nextCursor: string | null }> {
   return pageEpisodesWithStats<EpisodeListRow>(
     '*',
-    limit,
-    cursor,
-    languageCode,
-  );
-}
-
-export async function listEpisodeFeedPaged(
-  limit: number,
-  cursor: Cursor | null,
-  languageCode?: string,
-): Promise<{ rows: EpisodeFeedRow[]; nextCursor: string | null }> {
-  return pageEpisodesWithStats<EpisodeFeedRow>(
-    EPISODE_FEED_COLUMNS,
     limit,
     cursor,
     languageCode,
@@ -435,10 +400,7 @@ async function pageEpisodesWithStats<
     );
   }
 
-  const { data, error } = await q.returns<Row[]>();
-  if (error) throwSupabaseError(error);
-
-  const all = data ?? [];
+  const all = await many<Row>(q.returns<Row[]>());
   const hasMore = all.length > lim;
   const rows = hasMore ? all.slice(0, lim) : all;
   const last = hasMore ? rows[rows.length - 1] : null;
@@ -461,19 +423,15 @@ export async function listEpisodeVideoSummariesByLocalizationIds(
   const uniqueIds = [...new Set(episodeLocalizationIds.filter(Boolean))];
   if (uniqueIds.length === 0) return summaries;
 
-  const { data, error } = await getSupabase()
-    .from('episode_videos')
-    .select(
-      'episode_localization_id, episode_id, status, progress_percent, progress_stage, updated_at, mp4_url, thumbnail_url, duration_seconds',
-    )
-    .in('episode_localization_id', uniqueIds)
-    .returns<EpisodeVideoStatusProjection[]>();
-
-  if (error) {
-    throwSupabaseError(error);
-  }
-
-  const rows = data ?? [];
+  const rows = await many<EpisodeVideoStatusProjection>(
+    getSupabase()
+      .from('episode_videos')
+      .select(
+        'episode_localization_id, episode_id, status, progress_percent, progress_stage, updated_at, mp4_url, thumbnail_url, duration_seconds',
+      )
+      .in('episode_localization_id', uniqueIds)
+      .returns<EpisodeVideoStatusProjection[]>(),
+  );
   const visuals = await loadVisualProgressForQueuedRows(rows);
 
   for (const row of rows) {
@@ -481,21 +439,12 @@ export async function listEpisodeVideoSummariesByLocalizationIds(
       continue;
     }
 
-    const url = row.mp4_url?.trim();
-    const thumbnailUrl = row.thumbnail_url?.trim();
-    const video =
-      row.status === 'completed' &&
-      url &&
-      thumbnailUrl &&
-      typeof row.duration_seconds === 'number' &&
-      Number.isFinite(row.duration_seconds) &&
-      row.duration_seconds > 0
-        ? {
-            url,
-            thumbnailUrl,
-            durationSeconds: row.duration_seconds,
-          }
-        : null;
+    const video = completedVideoResponseFrom({
+      status: row.status,
+      url: row.mp4_url,
+      thumbnailUrl: row.thumbnail_url,
+      durationSeconds: row.duration_seconds,
+    });
 
     const progress = composeEpisodeVideoProgress({
       render: {
@@ -542,17 +491,17 @@ async function loadVisualProgressForQueuedRows(
   ].filter(Boolean);
   if (episodeIds.length === 0) return visuals;
 
-  const { data, error } = await getSupabase()
-    .from('episode_video_visuals')
-    .select('episode_id, status, progress_percent, progress_stage, updated_at')
-    .in('episode_id', episodeIds)
-    .returns<EpisodeVideoVisualStatusProjection[]>();
+  const visualRows = await many<EpisodeVideoVisualStatusProjection>(
+    getSupabase()
+      .from('episode_video_visuals')
+      .select(
+        'episode_id, status, progress_percent, progress_stage, updated_at',
+      )
+      .in('episode_id', episodeIds)
+      .returns<EpisodeVideoVisualStatusProjection[]>(),
+  );
 
-  if (error) {
-    throwSupabaseError(error);
-  }
-
-  for (const row of data ?? []) {
+  for (const row of visualRows) {
     if (!isEpisodeVideoGenerationPublicStatus(row.status)) continue;
     visuals.set(row.episode_id, {
       status: row.status,
@@ -565,33 +514,20 @@ async function loadVisualProgressForQueuedRows(
   return visuals;
 }
 
-function isEpisodeVideoGenerationPublicStatus(
-  status: string,
-): status is EpisodeVideoGenerationPublicStatus {
-  return (
-    status === 'queued' ||
-    status === 'processing' ||
-    status === 'completed' ||
-    status === 'failed'
-  );
-}
-
 export async function insertEpisode(episode: NewEpisode): Promise<EpisodeRow> {
-  const { data, error } = await getSupabase()
-    .from('episodes')
-    .insert({
-      id: episode.id,
-      source_url: episode.sourceUrl,
-      source_title: episode.sourceTitle,
-    })
-    .select('*')
-    .single<EpisodeRow>();
-
-  if (error) {
-    throwSupabaseError(error);
-  }
-
-  return data;
+  const row = await maybeOne<EpisodeRow>(
+    getSupabase()
+      .from('episodes')
+      .insert({
+        id: episode.id,
+        source_url: episode.sourceUrl,
+        source_title: episode.sourceTitle,
+      })
+      .select('*')
+      .single<EpisodeRow>(),
+  );
+  if (!row) throw new Error('Failed to insert episode');
+  return row;
 }
 
 export function toSocialPostInsertPayload(
@@ -622,17 +558,15 @@ export function toSocialPostInsertPayload(
 export async function insertSocialPost(
   post: NewSocialPost,
 ): Promise<SocialPostRow> {
-  const { data, error } = await getSupabase()
-    .from('social_posts')
-    .insert(toSocialPostInsertPayload(post))
-    .select('*')
-    .single<SocialPostRow>();
-
-  if (error) {
-    throwSupabaseError(error);
-  }
-
-  return data;
+  const row = await maybeOne<SocialPostRow>(
+    getSupabase()
+      .from('social_posts')
+      .insert(toSocialPostInsertPayload(post))
+      .select('*')
+      .single<SocialPostRow>(),
+  );
+  if (!row) throw new Error('Failed to insert social post');
+  return row;
 }
 
 type SocialPostsQuery = ReturnType<
@@ -642,17 +576,11 @@ type SocialPostsQuery = ReturnType<
 async function listSocialPosts(
   applyFilter: (query: SocialPostsQuery) => SocialPostsQuery,
 ): Promise<SocialPostRow[]> {
-  const { data, error } = await applyFilter(
-    getSupabase().from('social_posts').select('*'),
-  )
-    .order('published_at', { ascending: false })
-    .returns<SocialPostRow[]>();
-
-  if (error) {
-    throwSupabaseError(error);
-  }
-
-  return data ?? [];
+  return many<SocialPostRow>(
+    applyFilter(getSupabase().from('social_posts').select('*'))
+      .order('published_at', { ascending: false })
+      .returns<SocialPostRow[]>(),
+  );
 }
 
 export async function listSocialPostsByEpisode(
@@ -687,18 +615,14 @@ export async function listSocialPostIdentitiesByEpisodes(
 ): Promise<SocialPostIdentity[]> {
   if (episodeIds.length === 0) return [];
 
-  const { data, error } = await getSupabase()
-    .from('social_posts')
-    .select('id,episode_id,platform,language_code')
-    .in('episode_id', [...episodeIds])
-    .order('published_at', { ascending: false })
-    .returns<SocialPostIdentity[]>();
-
-  if (error) {
-    throwSupabaseError(error);
-  }
-
-  return data ?? [];
+  return many<SocialPostIdentity>(
+    getSupabase()
+      .from('social_posts')
+      .select('id,episode_id,platform,language_code')
+      .in('episode_id', [...episodeIds])
+      .order('published_at', { ascending: false })
+      .returns<SocialPostIdentity[]>(),
+  );
 }
 
 export async function listRecentSocialPosts(
@@ -712,51 +636,43 @@ export async function updateSocialPostIdentity(input: {
   platformPostId: string;
   postUrl?: string | null;
 }): Promise<void> {
-  const { error } = await getSupabase()
-    .from('social_posts')
-    .update({
-      platform_post_id: input.platformPostId,
-      ...(input.postUrl !== undefined ? { post_url: input.postUrl } : {}),
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', input.id);
-
-  if (error) {
-    throwSupabaseError(error);
-  }
+  await expectNoError(
+    getSupabase()
+      .from('social_posts')
+      .update({
+        platform_post_id: input.platformPostId,
+        ...(input.postUrl !== undefined ? { post_url: input.postUrl } : {}),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', input.id),
+  );
 }
 
 export async function updateSocialPostReviewStatus(input: {
   id: string;
   reviewStatus: SocialReviewStatus;
 }): Promise<void> {
-  const { error } = await getSupabase()
-    .from('social_posts')
-    .update({
-      review_status: input.reviewStatus,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', input.id);
-
-  if (error) {
-    throwSupabaseError(error);
-  }
+  await expectNoError(
+    getSupabase()
+      .from('social_posts')
+      .update({
+        review_status: input.reviewStatus,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', input.id),
+  );
 }
 
 export async function getSocialPostById(
   id: string,
 ): Promise<SocialPostRow | null> {
-  const { data, error } = await getSupabase()
-    .from('social_posts')
-    .select('*')
-    .eq('id', id)
-    .maybeSingle<SocialPostRow>();
-
-  if (error) {
-    throwSupabaseError(error);
-  }
-
-  return data;
+  return maybeOne<SocialPostRow>(
+    getSupabase()
+      .from('social_posts')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle<SocialPostRow>(),
+  );
 }
 
 export function toSocialPostMetricInsertPayload(
@@ -793,67 +709,57 @@ export function toSocialPostMetricInsertPayload(
 export async function listSocialPostMetrics(
   capturedSince: string,
 ): Promise<SocialPostMetricRow[]> {
-  const { data, error } = await getSupabase()
-    .from('social_post_metrics')
-    .select('*')
-    .gte('captured_at', capturedSince)
-    .order('captured_at', { ascending: false })
-    .returns<SocialPostMetricRow[]>();
-
-  if (error) {
-    throwSupabaseError(error);
-  }
-
-  return data ?? [];
+  return many<SocialPostMetricRow>(
+    getSupabase()
+      .from('social_post_metrics')
+      .select('*')
+      .gte('captured_at', capturedSince)
+      .order('captured_at', { ascending: false })
+      .returns<SocialPostMetricRow[]>(),
+  );
 }
 
 export async function insertSocialPostMetric(
   metric: NewSocialPostMetric,
 ): Promise<SocialPostMetricRow> {
-  const { data, error } = await getSupabase()
-    .from('social_post_metrics')
-    .insert(toSocialPostMetricInsertPayload(metric))
-    .select('*')
-    .single<SocialPostMetricRow>();
-
-  if (error) {
-    throwSupabaseError(error);
-  }
-
-  return data;
+  const row = await maybeOne<SocialPostMetricRow>(
+    getSupabase()
+      .from('social_post_metrics')
+      .insert(toSocialPostMetricInsertPayload(metric))
+      .select('*')
+      .single<SocialPostMetricRow>(),
+  );
+  if (!row) throw new Error('Failed to insert social post metric');
+  return row;
 }
 
 export async function insertEpisodeLocalization(
   localization: NewEpisodeLocalization,
 ): Promise<EpisodeLocalizationRow> {
-  const { data, error } = await getSupabase()
-    .from('episode_localizations')
-    .insert(toLocalizationPayload(localization))
-    .select('*')
-    .single<EpisodeLocalizationRow>();
-
-  if (error) {
-    throwSupabaseError(error);
-  }
-
-  return data;
+  const row = await maybeOne<EpisodeLocalizationRow>(
+    getSupabase()
+      .from('episode_localizations')
+      .insert(toLocalizationPayload(localization))
+      .select('*')
+      .single<EpisodeLocalizationRow>(),
+  );
+  if (!row) throw new Error('Failed to insert episode localization');
+  return row;
 }
 
 export async function listLanguageClassroomsByLocalizationId(
   episodeLocalizationId: string,
 ): Promise<LanguageClassroomRow[]> {
-  const { data, error } = await getSupabase()
-    .from('language_classrooms')
-    .select('*')
-    .eq('episode_localization_id', episodeLocalizationId)
-    .order('target_language_code', { ascending: true })
-    .returns<LanguageClassroomRow[]>();
+  const rows = await many<LanguageClassroomRow>(
+    getSupabase()
+      .from('language_classrooms')
+      .select('*')
+      .eq('episode_localization_id', episodeLocalizationId)
+      .order('target_language_code', { ascending: true })
+      .returns<LanguageClassroomRow[]>(),
+  );
 
-  if (error) {
-    throwSupabaseError(error);
-  }
-
-  return normalizeLanguageClassroomRows(data);
+  return normalizeLanguageClassroomRows(rows);
 }
 
 export async function upsertLanguageClassrooms(
@@ -875,19 +781,17 @@ export async function upsertLanguageClassrooms(
     updated_at: now,
   }));
 
-  const { data, error } = await getSupabase()
-    .from('language_classrooms')
-    .upsert(payload, {
-      onConflict: 'episode_localization_id,target_language_code',
-    })
-    .select('*')
-    .returns<LanguageClassroomRow[]>();
+  const rows = await many<LanguageClassroomRow>(
+    getSupabase()
+      .from('language_classrooms')
+      .upsert(payload, {
+        onConflict: 'episode_localization_id,target_language_code',
+      })
+      .select('*')
+      .returns<LanguageClassroomRow[]>(),
+  );
 
-  if (error) {
-    throwSupabaseError(error);
-  }
-
-  return normalizeLanguageClassroomRows(data);
+  return normalizeLanguageClassroomRows(rows);
 }
 
 /** Checkpoints one target language's synthesized audio without touching lesson content. */
@@ -896,28 +800,26 @@ export async function updateLanguageClassroomAudio(
   targetLanguageCode: string,
   updates: { hlsUrl: string; r2Prefix: string },
 ): Promise<LanguageClassroomRow> {
-  const { data, error } = await getSupabase()
-    .from('language_classrooms')
-    .update({
-      hls_url: updates.hlsUrl,
-      r2_prefix: updates.r2Prefix,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('episode_localization_id', episodeLocalizationId)
-    .eq('target_language_code', targetLanguageCode)
-    .select('*')
-    .maybeSingle<LanguageClassroomRow>();
-
-  if (error) {
-    throwSupabaseError(error);
-  }
-  if (!data) {
+  const row = await maybeOne<LanguageClassroomRow>(
+    getSupabase()
+      .from('language_classrooms')
+      .update({
+        hls_url: updates.hlsUrl,
+        r2_prefix: updates.r2Prefix,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('episode_localization_id', episodeLocalizationId)
+      .eq('target_language_code', targetLanguageCode)
+      .select('*')
+      .maybeSingle<LanguageClassroomRow>(),
+  );
+  if (!row) {
     throw new Error(
       `Failed to persist language classroom audio for ${targetLanguageCode}`,
     );
   }
 
-  return normalizeLanguageClassroomRow(data);
+  return normalizeLanguageClassroomRow(row);
 }
 
 /** Lightweight batched lookup of per-language classroom audio, for feed/search/detail responses. */
@@ -928,24 +830,26 @@ export async function listLanguageClassroomAudioByLocalizationIds(
   const uniqueIds = [...new Set(episodeLocalizationIds.filter(Boolean))];
   if (uniqueIds.length === 0) return map;
 
-  const { data, error } = await getSupabase()
-    .from('language_classrooms')
-    .select('episode_localization_id, target_language_code, hls_url')
-    .in('episode_localization_id', uniqueIds)
-    .order('target_language_code', { ascending: true })
-    .returns<
-      {
-        episode_localization_id: string;
-        target_language_code: string;
-        hls_url: string | null;
-      }[]
-    >();
+  const rows = await many<{
+    episode_localization_id: string;
+    target_language_code: string;
+    hls_url: string | null;
+  }>(
+    getSupabase()
+      .from('language_classrooms')
+      .select('episode_localization_id, target_language_code, hls_url')
+      .in('episode_localization_id', uniqueIds)
+      .order('target_language_code', { ascending: true })
+      .returns<
+        {
+          episode_localization_id: string;
+          target_language_code: string;
+          hls_url: string | null;
+        }[]
+      >(),
+  );
 
-  if (error) {
-    throwSupabaseError(error);
-  }
-
-  for (const row of data ?? []) {
+  for (const row of rows) {
     const track = normalizeClassroomAudioTrack(row);
     if (track === null) continue;
     const tracks = map.get(row.episode_localization_id) ?? [];
@@ -960,18 +864,14 @@ async function updateLocalizationFields(
   id: string,
   fields: Record<string, unknown>,
 ): Promise<EpisodeLocalizationRow | null> {
-  const { data, error } = await getSupabase()
-    .from('episode_localizations')
-    .update({ ...fields, updated_at: new Date().toISOString() })
-    .eq('id', id)
-    .select('*')
-    .maybeSingle<EpisodeLocalizationRow>();
-
-  if (error) {
-    throwSupabaseError(error);
-  }
-
-  return data;
+  return maybeOne<EpisodeLocalizationRow>(
+    getSupabase()
+      .from('episode_localizations')
+      .update({ ...fields, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select('*')
+      .maybeSingle<EpisodeLocalizationRow>(),
+  );
 }
 
 export async function updateEpisodeLocalizationArticleContent(

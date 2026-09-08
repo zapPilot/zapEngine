@@ -9,49 +9,16 @@ const mocks = vi.hoisted(() => ({
   onCapturedError: vi.fn(),
 }));
 
-// A minimal stand-in for @sentry/react-native's `ErrorBoundary` (itself
-// re-exported from @sentry/react): catches render errors from its subtree,
-// records that one was captured, and renders `fallback` instead of crashing.
-// `react` is imported dynamically here rather than referencing this file's
-// top-level import — vi.mock factories are hoisted above imports, and
-// referencing an outer import binding from inside one hits a TDZ error.
+// The stand-in is reached through `await import(...)` rather than a top-level
+// import: vi.mock factories are hoisted above imports, so an outer import
+// binding referenced from inside one hits a TDZ error.
 vi.mock('@sentry/react-native', async () => {
-  const { Component } = await import('react');
+  const { createSentryErrorBoundaryStandIn } =
+    await import('./support/sentryErrorBoundaryStandIn');
 
-  class ErrorBoundary extends Component<
-    {
-      children?: ReactNode;
-      fallback?: (props: {
-        error: unknown;
-        resetError: () => void;
-      }) => ReactNode;
-    },
-    { error: unknown }
-  > {
-    state: { error: unknown } = { error: null };
-
-    static getDerivedStateFromError(error: unknown) {
-      return { error };
-    }
-
-    override componentDidCatch(error: unknown) {
-      mocks.onCapturedError(error);
-    }
-
-    resetError = () => this.setState({ error: null });
-
-    override render() {
-      if (this.state.error) {
-        return this.props.fallback?.({
-          error: this.state.error,
-          resetError: this.resetError,
-        });
-      }
-      return this.props.children;
-    }
-  }
-
-  return { ErrorBoundary };
+  return {
+    ErrorBoundary: createSentryErrorBoundaryStandIn(mocks.onCapturedError),
+  };
 });
 
 vi.mock('expo-font', () => ({ useFonts: () => [true] }));

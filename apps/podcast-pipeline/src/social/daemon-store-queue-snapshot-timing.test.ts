@@ -61,7 +61,8 @@ describe('getSocialQueueSnapshot processing timing', () => {
     await expect(getSocialQueueSnapshot()).resolves.toEqual({
       pendingCount: 0,
       episodeQueue: [],
-      nextByPlatform: {},
+      nextByLane: {},
+      waitingVideos: [],
     });
     expect(fixture.client.from).toHaveBeenCalledTimes(1);
     expect(fixture.client.from).toHaveBeenCalledWith('social_publish_jobs');
@@ -73,7 +74,8 @@ describe('getSocialQueueSnapshot processing timing', () => {
     await expect(getSocialQueueSnapshot()).resolves.toEqual({
       pendingCount: 0,
       episodeQueue: [],
-      nextByPlatform: {},
+      nextByLane: {},
+      waitingVideos: [],
     });
     expect(fixture.client.from).toHaveBeenCalledTimes(1);
     expect(fixture.client.from).toHaveBeenCalledWith('social_publish_jobs');
@@ -89,15 +91,19 @@ describe('getSocialQueueSnapshot processing timing', () => {
           episodeId: 'episode-failed',
           title: 'Failed episode',
           nextAt: '2026-08-21T11:00:00.000Z',
+          laneCount: 1,
+          lanes: [{ platform: 'threads', languageCode: 'zh-Hant' }],
         },
         {
           episodeId: 'episode-processing',
           title: 'Processing episode',
           nextAt: '2026-08-21T12:00:00.000Z',
+          laneCount: 1,
+          lanes: [{ platform: 'x', languageCode: 'zh-Hant' }],
         },
       ],
-      nextByPlatform: {
-        threads: {
+      nextByLane: {
+        'threads|zh-Hant': {
           episodeId: 'episode-failed',
           languageCode: 'zh-Hant',
           platform: 'threads',
@@ -106,8 +112,9 @@ describe('getSocialQueueSnapshot processing timing', () => {
           nextAt: '2026-08-21T11:00:00.000Z',
           attemptCount: 0,
           attemptsExhausted: false,
+          experiment: null,
         },
-        x: {
+        'x|zh-Hant': {
           episodeId: 'episode-processing',
           languageCode: 'zh-Hant',
           platform: 'x',
@@ -116,8 +123,10 @@ describe('getSocialQueueSnapshot processing timing', () => {
           nextAt: '2026-08-21T12:00:00.000Z',
           attemptCount: 0,
           attemptsExhausted: false,
+          experiment: null,
         },
       },
+      waitingVideos: [],
     });
 
     expect(jobStatusFilter).toHaveBeenCalledWith('status', [
@@ -155,14 +164,18 @@ describe('getSocialQueueSnapshot processing timing', () => {
         episodeId: 'episode-failed',
         title: 'Failed episode',
         nextAt: '2026-08-21T11:00:00.000Z',
+        laneCount: 1,
+        lanes: [{ platform: 'x', languageCode: 'zh-Hant' }],
       },
       {
         episodeId: 'episode-processing',
         title: 'Processing episode',
         nextAt: '2026-08-21T12:00:00.000Z',
+        laneCount: 1,
+        lanes: [{ platform: 'x', languageCode: 'zh-Hant' }],
       },
     ]);
-    expect(snapshot.nextByPlatform.x).toEqual({
+    expect(snapshot.nextByLane['x|zh-Hant']).toEqual({
       episodeId: 'episode-failed',
       languageCode: 'zh-Hant',
       platform: 'x',
@@ -171,6 +184,7 @@ describe('getSocialQueueSnapshot processing timing', () => {
       nextAt: '2026-08-21T11:00:00.000Z',
       attemptCount: 0,
       attemptsExhausted: false,
+      experiment: null,
     });
   });
 
@@ -213,19 +227,25 @@ describe('getSocialQueueSnapshot processing timing', () => {
         episodeId: 'episode-failed',
         title: 'Failed episode',
         nextAt: '2026-08-21T10:00:00.000Z',
+        laneCount: 1,
+        lanes: [{ platform: 'x', languageCode: 'zh-Hant' }],
       },
       {
         episodeId: 'episode-queued',
         title: 'Queued episode',
         nextAt: '2026-08-21T12:00:00.000Z',
+        laneCount: 1,
+        lanes: [{ platform: 'x', languageCode: 'zh-Hant' }],
       },
       {
         episodeId: 'episode-processing',
         title: 'Processing episode',
         nextAt: '2026-08-21T13:00:00.000Z',
+        laneCount: 1,
+        lanes: [{ platform: 'x', languageCode: 'zh-Hant' }],
       },
     ]);
-    expect(snapshot.nextByPlatform.x).toEqual({
+    expect(snapshot.nextByLane['x|zh-Hant']).toEqual({
       episodeId: 'episode-failed',
       languageCode: 'zh-Hant',
       platform: 'x',
@@ -234,6 +254,7 @@ describe('getSocialQueueSnapshot processing timing', () => {
       nextAt: '2026-08-21T10:00:00.000Z',
       attemptCount: 0,
       attemptsExhausted: false,
+      experiment: null,
     });
   });
 
@@ -276,15 +297,22 @@ describe('getSocialQueueSnapshot processing timing', () => {
         episodeId: 'episode-other',
         title: 'Other episode',
         nextAt: '2026-08-21T09:00:00.000Z',
+        laneCount: 1,
+        lanes: [{ platform: 'threads', languageCode: 'zh-Hant' }],
       },
       {
         episodeId: 'episode-shared',
         title: 'Shared episode',
         nextAt: '2026-08-21T10:00:00.000Z',
+        laneCount: 2,
+        lanes: [
+          { platform: 'threads', languageCode: 'zh-Hant' },
+          { platform: 'x', languageCode: 'zh-Hant' },
+        ],
       },
     ]);
-    expect(snapshot.nextByPlatform).toEqual({
-      threads: {
+    expect(snapshot.nextByLane).toEqual({
+      'threads|zh-Hant': {
         episodeId: 'episode-other',
         languageCode: 'zh-Hant',
         platform: 'threads',
@@ -293,8 +321,9 @@ describe('getSocialQueueSnapshot processing timing', () => {
         nextAt: '2026-08-21T09:00:00.000Z',
         attemptCount: 0,
         attemptsExhausted: false,
+        experiment: null,
       },
-      x: {
+      'x|zh-Hant': {
         episodeId: 'episode-shared',
         languageCode: 'zh-Hant',
         platform: 'x',
@@ -303,6 +332,7 @@ describe('getSocialQueueSnapshot processing timing', () => {
         nextAt: '2026-08-21T10:00:00.000Z',
         attemptCount: 0,
         attemptsExhausted: false,
+        experiment: null,
       },
     });
   });
@@ -317,15 +347,19 @@ describe('getSocialQueueSnapshot processing timing', () => {
           episodeId: 'episode-failed',
           title: null,
           nextAt: '2026-08-21T11:00:00.000Z',
+          laneCount: 1,
+          lanes: [{ platform: 'threads', languageCode: 'zh-Hant' }],
         },
         {
           episodeId: 'episode-processing',
           title: null,
           nextAt: '2026-08-21T12:00:00.000Z',
+          laneCount: 1,
+          lanes: [{ platform: 'x', languageCode: 'zh-Hant' }],
         },
       ],
-      nextByPlatform: {
-        threads: {
+      nextByLane: {
+        'threads|zh-Hant': {
           episodeId: 'episode-failed',
           languageCode: 'zh-Hant',
           platform: 'threads',
@@ -334,8 +368,9 @@ describe('getSocialQueueSnapshot processing timing', () => {
           nextAt: '2026-08-21T11:00:00.000Z',
           attemptCount: 0,
           attemptsExhausted: false,
+          experiment: null,
         },
-        x: {
+        'x|zh-Hant': {
           episodeId: 'episode-processing',
           languageCode: 'zh-Hant',
           platform: 'x',
@@ -344,8 +379,10 @@ describe('getSocialQueueSnapshot processing timing', () => {
           nextAt: '2026-08-21T12:00:00.000Z',
           attemptCount: 0,
           attemptsExhausted: false,
+          experiment: null,
         },
       },
+      waitingVideos: [],
     });
   });
 });
@@ -374,7 +411,9 @@ describe('getSocialQueueSnapshot claim-gate reporting', () => {
 
     const snapshot = await getSocialQueueSnapshot();
 
-    expect(snapshot.nextByPlatform.x?.nextAt).toBe('2026-08-22T00:30:00.000Z');
+    expect(snapshot.nextByLane['x|zh-Hant']?.nextAt).toBe(
+      '2026-08-22T00:30:00.000Z',
+    );
     expect(snapshot.episodeQueue[0]?.nextAt).toBe('2026-08-22T00:30:00.000Z');
   });
 
@@ -394,7 +433,9 @@ describe('getSocialQueueSnapshot claim-gate reporting', () => {
 
     const snapshot = await getSocialQueueSnapshot();
 
-    expect(snapshot.nextByPlatform.x?.nextAt).toBe('2026-08-22T00:30:00.000Z');
+    expect(snapshot.nextByLane['x|zh-Hant']?.nextAt).toBe(
+      '2026-08-22T00:30:00.000Z',
+    );
   });
 
   it('flags a lane that has burned every claim attempt', async () => {
@@ -422,7 +463,30 @@ describe('getSocialQueueSnapshot claim-gate reporting', () => {
 
     const snapshot = await getSocialQueueSnapshot();
 
-    expect(snapshot.nextByPlatform.x?.attemptsExhausted).toBe(true);
-    expect(snapshot.nextByPlatform.threads?.attemptsExhausted).toBe(false);
+    expect(snapshot.nextByLane['x|zh-Hant']?.attemptsExhausted).toBe(true);
+    expect(snapshot.nextByLane['threads|zh-Hant']?.attemptsExhausted).toBe(
+      false,
+    );
   });
+});
+
+it('includes the processing lease in both article and lane timing', async () => {
+  createQueueSnapshotFixture(
+    [
+      {
+        episode_id: 'episode-processing',
+        platform: 'x',
+        status: 'processing',
+        scheduled_at: '2026-09-05T00:30:00.000Z',
+        next_attempt_at: '2026-09-05T00:30:00.000Z',
+        lease_expires_at: '2026-09-05T01:30:47.000Z',
+      },
+    ],
+    defaultLocalizations,
+  );
+  const snapshot = await getSocialQueueSnapshot();
+  expect(snapshot.episodeQueue[0]?.nextAt).toBe('2026-09-05T01:30:47.000Z');
+  expect(snapshot.nextByLane['x|zh-Hant']?.nextAt).toBe(
+    '2026-09-05T01:30:47.000Z',
+  );
 });

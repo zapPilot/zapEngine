@@ -186,6 +186,7 @@ describe('aggregateByProviderForMonth', () => {
     ).toEqual([
       { provider: 'debank', accruedCostUsd: null },
       { provider: 'openrouter', accruedCostUsd: 0 },
+      { provider: 'brave', accruedCostUsd: null },
       { provider: 'supabase', accruedCostUsd: null },
       { provider: 'fly', accruedCostUsd: null },
     ]);
@@ -220,6 +221,11 @@ describe('toProviderResults', () => {
         accrued_cost_usd: null,
         cost_type: 'list-price-equivalent',
       }),
+      row({
+        provider: 'brave',
+        accrued_cost_usd: null,
+        cost_type: 'list-price-equivalent',
+      }),
     ]);
 
     expect(card('fly')).toMatchObject({
@@ -228,6 +234,10 @@ describe('toProviderResults', () => {
     });
     expect(card('fly')?.snapshot?.accruedCostUsd).toBeNull();
     expect(card('debank')).toMatchObject({
+      status: 'ok',
+      message: 'Usage synced; USD cost unknown',
+    });
+    expect(card('brave')).toMatchObject({
       status: 'ok',
       message: 'Usage synced; USD cost unknown',
     });
@@ -262,6 +272,11 @@ describe('toProviderResults', () => {
       status: 'unconfigured',
       message: 'No snapshot yet',
     });
+    expect(card('brave')).toMatchObject({
+      status: 'unconfigured',
+      costType: 'list-price-equivalent',
+      message: 'No snapshot yet',
+    });
   });
 
   it('keeps the first row met per provider, so the query must be newest-first', () => {
@@ -281,6 +296,9 @@ describe('describeSnapshot', () => {
     ).toBe(FLY_RUN_RATE_ONLY_MESSAGE);
     expect(
       describeSnapshot(row({ provider: 'debank', accrued_cost_usd: null })),
+    ).toBe('Usage synced; USD cost unknown');
+    expect(
+      describeSnapshot(row({ provider: 'brave', accrued_cost_usd: null })),
     ).toBe('Usage synced; USD cost unknown');
     expect(
       describeSnapshot(

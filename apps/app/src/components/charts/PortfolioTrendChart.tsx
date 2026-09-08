@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { memo, useMemo, useRef, useState } from 'react';
 import {
   Text,
   View,
@@ -7,10 +7,13 @@ import {
 } from 'react-native';
 
 import { Sparkline } from '@/components/charts/Sparkline';
+import type { TranslationKey, TranslationParams } from '@/i18n/translations';
 import {
+  attributionContributorKey,
   calculateAdjacentSnapshotChange,
   type DailyValuePoint,
   nearestTrendPointIndex,
+  type PortfolioAttributionContributor,
   snapshotCategoryTotals,
   trendPointX,
 } from '@/integration/portfolioMetrics';
@@ -24,10 +27,32 @@ interface PortfolioTrendChartProps {
   gradientId?: string;
 }
 
-const TOOLTIP_WIDTH = 184;
+const TOOLTIP_WIDTH = 220;
 const MARKER_RADIUS = 4;
+const MAX_ATTRIBUTION_ROWS = 6;
 
-export function PortfolioTrendChart({
+const ATTRIBUTION_LABEL_KEY: Record<
+  'market' | 'protocol' | 'flow',
+  TranslationKey
+> = {
+  market: 'portfolio.tooltip.attribution.price',
+  protocol: 'portfolio.tooltip.attribution.protocol',
+  flow: 'portfolio.tooltip.attribution.flow',
+};
+
+function attributionLabel(
+  contributor: PortfolioAttributionContributor,
+  t: (key: TranslationKey, params?: TranslationParams) => string,
+): string {
+  if (contributor.kind === 'residual') {
+    return t('portfolio.tooltip.attribution.other');
+  }
+  return t(ATTRIBUTION_LABEL_KEY[contributor.kind], {
+    name: contributor.label,
+  });
+}
+
+export const PortfolioTrendChart = memo(function PortfolioTrendChart({
   trendPoints,
   height = 158,
   gradientId,
@@ -36,11 +61,23 @@ export function PortfolioTrendChart({
   const [width, setWidth] = useState(0);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const touchActiveRef = useRef(false);
-  const values = trendPoints.flatMap((point) =>
-    typeof point.total_value_usd === 'number' &&
-    Number.isFinite(point.total_value_usd)
-      ? [point.total_value_usd]
-      : [],
+  // `Sparkline` is memoized on this array's identity, and every pointer move
+  // re-renders this component, so a fresh flatMap here would redraw the whole
+  // path on each tooltip step. Both hooks stay above the guard below: a hook
+  // after an early return is a conditional call.
+  const values = useMemo(
+    () =>
+      trendPoints.flatMap((point) =>
+        typeof point.total_value_usd === 'number' &&
+        Number.isFinite(point.total_value_usd)
+          ? [point.total_value_usd]
+          : [],
+      ),
+    [trendPoints],
+  );
+  const bounds = useMemo(
+    () => ({ min: Math.min(...values), max: Math.max(...values) }),
+    [values],
   );
 
   if (values.length < 2) return null;
@@ -81,8 +118,7 @@ export function PortfolioTrendChart({
       markerCenter - MARKER_RADIUS,
     ),
   );
-  const min = Math.min(...values);
-  const max = Math.max(...values);
+  const { min, max } = bounds;
   const range = max - min || 1;
   const markerTop =
     typeof selectedValue === 'number'
@@ -102,6 +138,9 @@ export function PortfolioTrendChart({
   const categoryTotals = selectedPoint
     ? snapshotCategoryTotals(selectedPoint)
     : {};
+  const allAttribution = selectedPoint?.attribution ?? [];
+  const attribution = allAttribution.slice(0, MAX_ATTRIBUTION_ROWS);
+  const hiddenAttributionCount = allAttribution.length - attribution.length;
   const dateLabel = formatSnapshotDate(selectedPoint?.date, languageCode);
 
   return (
@@ -143,17 +182,48 @@ export function PortfolioTrendChart({
             </Text>
             {change ? (
               <Text className="mt-0.5 font-mono text-[10px] text-ink-dim">
-                {t('portfolio.tooltip.change')}: {formatSignedUsd(change.usd)}
+                {t('portfolio.tooltip.netChange')}:{' '}
+                {formatSignedUsd(change.usd)}
               </Text>
             ) : null}
+
+            {attribution.length > 0 ? (
+              <View className="mt-2 gap-1 border-t border-line pt-1.5">
+                {attribution.map((contributor) => (
+                  <View
+                    key={attributionContributorKey(contributor)}
+                    testID="portfolio-trend-attribution-row"
+                    className="flex-row items-center justify-between gap-2"
+                  >
+                    <Text
+                      numberOfLines={1}
+                      className="min-w-0 flex-1 font-mono text-[9.5px] text-ink-dim"
+                    >
+                      {attributionLabel(contributor, t)}
+                    </Text>
+                    <Text className="font-mono text-[9.5px] text-ink">
+                      {formatSignedUsd(contributor.valueUsd)}
+                    </Text>
+                  </View>
+                ))}
+                {hiddenAttributionCount > 0 ? (
+                  <Text className="font-mono text-[9px] text-ink-faint">
+                    {t('portfolio.tooltip.attribution.more', {
+                      count: hiddenAttributionCount,
+                    })}
+                  </Text>
+                ) : null}
+              </View>
+            ) : null}
+
             {categoryTotals.assetsUsd === undefined ? null : (
-              <Text className="mt-0.5 font-mono text-[10px] text-ink-dim">
+              <Text className="mt-1.5 font-mono text-[9px] text-ink-faint">
                 {t('portfolio.tooltip.assets')}:{' '}
                 {formatUsd(categoryTotals.assetsUsd)}
               </Text>
             )}
             {categoryTotals.debtUsd === undefined ? null : (
-              <Text className="mt-0.5 font-mono text-[10px] text-ink-dim">
+              <Text className="mt-0.5 font-mono text-[9px] text-ink-faint">
                 {t('portfolio.tooltip.debt')}:{' '}
                 {formatUsd(categoryTotals.debtUsd)}
               </Text>
@@ -163,4 +233,4 @@ export function PortfolioTrendChart({
       ) : null}
     </View>
   );
-}
+});

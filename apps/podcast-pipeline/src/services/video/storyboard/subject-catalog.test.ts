@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildVisualSubjectSearchQueries,
+  isGenericVisualSubjectName,
   parseVisualSubjectCatalog,
 } from './subject-catalog.js';
 
@@ -45,6 +46,35 @@ describe('visual subject catalog', () => {
       canonicalName: 'Coinbase',
       storyRole: 'primary',
     });
+  });
+
+  it('allows a title-grounded primary subject without fabricated scene evidence', () => {
+    const catalog = parseVisualSubjectCatalog({
+      primarySubjectId: 'subject-coinbase',
+      subjects: [rawSubject({ evidenceSceneIds: [] })],
+    });
+
+    expect(catalog.subjects[0]?.evidenceSceneIds).toEqual([]);
+  });
+
+  it('still requires scene evidence for every non-primary subject', () => {
+    expect(() =>
+      parseVisualSubjectCatalog({
+        primarySubjectId: 'subject-coinbase',
+        subjects: [
+          rawSubject(),
+          rawSubject({
+            id: 'subject-binance',
+            canonicalName: 'Binance',
+            storyRole: 'secondary',
+            evidenceSceneIds: [],
+            searchQueries: ['Binance'],
+          }),
+        ],
+      }),
+    ).toThrow(
+      'Only the title-grounded primary subject may omit scene evidence',
+    );
   });
 
   it('repairs bounded LLM shape drift before strict validation', () => {
@@ -149,6 +179,30 @@ describe('visual subject catalog', () => {
     ]);
   });
 
+  it('does not prefix a hint-led query that already names the subject', () => {
+    // Every subject's query now leads with its identity hint, so the query
+    // arriving here already contains the canonical name. Prefixing it again
+    // would send "Tether Tether stablecoin issuer" to image search.
+    const catalog = parseVisualSubjectCatalog({
+      primarySubjectId: 'subject-tether',
+      subjects: [
+        rawSubject({
+          id: 'subject-tether',
+          canonicalName: 'Tether',
+          searchQueries: ['Tether stablecoin issuer', 'Tether'],
+          identityHints: ['stablecoin issuer'],
+        }),
+      ],
+    });
+
+    const tether = catalog.subjects[0];
+    expect(tether?.canonicalName).toBe('Tether');
+    expect(buildVisualSubjectSearchQueries(tether!)).toEqual([
+      'Tether stablecoin issuer',
+      'Tether',
+    ]);
+  });
+
   it('adds Base context to B20 so camera flashes and Honda engines cannot satisfy the identity phrase', () => {
     const catalog = parseVisualSubjectCatalog({
       primarySubjectId: 'subject-coinbase',
@@ -231,5 +285,36 @@ describe('visual subject catalog', () => {
         ],
       }),
     ).toThrow('exactly one primary subject');
+  });
+});
+
+describe('generic visual subject names', () => {
+  it('blocks abstract categories but not concrete or recognizable visual anchors', () => {
+    for (const name of [
+      'AI',
+      'ai',
+      'Ａｉ',
+      'technology',
+      'markets',
+      '科技巨头',
+    ]) {
+      expect(isGenericVisualSubjectName(name)).toBe(true);
+    }
+    for (const name of [
+      'data  center',
+      'GPU',
+      'servers',
+      'Wall Street',
+      '華爾街',
+      'Silicon Valley',
+      'NVIDIA',
+      'Andy Jassy',
+      'OpenAI',
+      'Claude',
+      'Bitcoin',
+      'Pentagon',
+    ]) {
+      expect(isGenericVisualSubjectName(name)).toBe(false);
+    }
   });
 });

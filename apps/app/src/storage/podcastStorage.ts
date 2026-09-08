@@ -1,8 +1,13 @@
-export {
+import appKeyValueStorage from '@/storage/appKeyValueStorage';
+import { createPodcastStorage } from '@/storage/podcastStorageCore';
+
+const podcastStorage = createPodcastStorage(appKeyValueStorage);
+
+export const {
   loadPodcastProgress,
-  loadPodcastSortDirection,
-  loadPodcastSpeedPreferences,
   savePodcastProgress,
-  savePodcastSortDirection,
+  loadPodcastSpeedPreferences,
   savePodcastSpeedPreferences,
-} from '@/storage/podcastStorage.web';
+  loadPodcastSortDirection,
+  savePodcastSortDirection,
+} = podcastStorage;

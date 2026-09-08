@@ -1,5 +1,6 @@
-import type OpenAI from 'openai';
+import OpenAI, { APIError } from 'openai';
 
+import { throwIfAborted } from '../../../lib/abort.js';
 import { errorMessage } from '../../../lib/errorMessage.js';
 import { isRecord } from '../../../lib/typeGuards.js';
 import { createCompletionWithRetry, getOpenRouterConfig } from '../../llm.js';
@@ -7,7 +8,6 @@ import {
   podcastBrandVisualKind,
   splitPodcastVisualSections,
 } from '../../podcast-packaging.js';
-import { throwIfAborted } from '../abort.js';
 import {
   MAX_SEARCH_ENTITIES_PER_SCENE,
   MAX_SEARCH_INTENTS_PER_SCENE,
@@ -21,15 +21,20 @@ import {
 } from './sentences.js';
 import {
   buildVisualSubjectSearchQueries,
+  isGenericVisualSubjectName,
   parseVisualSubjectCatalog,
   subjectNames,
+  VISUAL_SUBJECT_TYPES,
   type VisualSceneSubjectAssignment,
+  type VisualSubject,
   visualSubjectById,
   type VisualSubjectCatalog,
+  type VisualSubjectDrop,
 } from './subject-catalog.js';
 
-const SUBJECT_CATALOG_MAX_OUTPUT_TOKENS = 3_072;
 const SEARCH_INTENT_REASONING = { enabled: false } as const;
+const SEARCH_INTENT_PAYLOAD_MAX_ATTEMPTS = 2;
+const MAX_DEGRADED_REASON_CHARS = 200;
 const CJK_CHARACTER_CAPTURE_PATTERN =
   /([\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}])/gu;
 
@@ -57,6 +62,12 @@ export interface SearchIntentEnrichment {
   entityAnchoredSceneCount: number;
   subjectCatalog: VisualSubjectCatalog | null;
   sceneAssignments: VisualSceneSubjectAssignment[];
+  /**
+   * Set when the catalog LLM answered with something unusable. The episode then
+   * keeps the deterministic storyboard intents and renders anyway, so this is
+   * the only surviving evidence of why its images were never subject-anchored.
+   */
+  degradedReason?: string;
 }
 
 interface SearchIntentCompletionDiagnostics {
@@ -64,6 +75,27 @@ interface SearchIntentCompletionDiagnostics {
   model: string;
   finishReason: string;
   reasoningChars: number;
+}
+
+class SearchIntentPayloadError extends Error {
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = 'SearchIntentPayloadError';
+  }
+}
+
+/**
+ * A catalog response that arrived and could not be used. Separating it from the
+ * causes that never reached a model is what lets the episode degrade: three
+ * fail_episode_video_visual attempts were being burned on one bad LLM answer,
+ * replaying the whole storyboard each time, for an episode whose deterministic
+ * intents would have rendered.
+ */
+class SearchIntentQualityError extends Error {
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = 'SearchIntentQualityError';
+  }
 }
 
 export async function enrichStoryboardSearchIntents(
@@ -98,11 +130,25 @@ export async function enrichStoryboardSearchIntents(
   }
 
   const searchTitle = request.searchTitle?.trim() || request.title;
-  const subjectCatalog = await buildSubjectCatalog(provider, {
-    title: searchTitle,
-    scenes,
-    ...(options.signal ? { signal: options.signal } : {}),
-  });
+  let subjectCatalog: VisualSubjectCatalog;
+  try {
+    subjectCatalog = await buildSubjectCatalog(provider, {
+      title: searchTitle,
+      scenes,
+      ...(options.signal ? { signal: options.signal } : {}),
+    });
+  } catch (error) {
+    if (!(error instanceof SearchIntentQualityError)) throw error;
+    return {
+      draft: request.draft,
+      model: provider.model,
+      enrichedSceneCount: 0,
+      entityAnchoredSceneCount: 0,
+      subjectCatalog: null,
+      sceneAssignments: [],
+      degradedReason: degradedCatalogReason(error),
+    };
+  }
 
   return enrichFromSubjectCatalog(
     request.draft,
@@ -110,6 +156,41 @@ export async function enrichStoryboardSearchIntents(
     subjectCatalog,
     provider.model,
   );
+}
+
+function degradedCatalogReason(error: unknown): string {
+  const collapsed = errorMessage(error).replace(/\s+/gu, ' ').trim();
+  const reason = collapsed || 'visual subject catalog response was unusable';
+  return reason.length > MAX_DEGRADED_REASON_CHARS
+    ? `${reason.slice(0, MAX_DEGRADED_REASON_CHARS - 1)}…`
+    : reason;
+}
+
+/**
+ * Whether the catalog call failed before any model answered it. Such a cause
+ * leaves no response to degrade to, and an abort is the render being cancelled,
+ * so all of them still fail the episode.
+ *
+ * The SDK is identified by type, never by `error.name`: every one of its error
+ * classes inherits the plain 'Error' name, so a name test silently misses a
+ * DNS/TLS/socket failure and a request timeout — `APIConnectionError` and
+ * `APIConnectionTimeoutError` — and those are exactly the ones that also carry
+ * no numeric `status`. Reclassifying them as a bad model answer would degrade an
+ * episode to unanchored intents on a network blip. The numeric-status branch
+ * still covers a non-SDK provider that only reports an HTTP status, and the two
+ * name checks cover a DOMException abort and a non-SDK timeout.
+ */
+function isUpstreamCatalogError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  if (error instanceof APIError) return true;
+  if (typeof (error as { status?: unknown }).status === 'number') return true;
+  const name = (error as { name?: unknown }).name;
+  return name === 'AbortError' || name === 'TimeoutError';
+}
+
+function visualAnchorRank(subject: VisualSubject): number {
+  if (subject.type === 'person') return 0;
+  return subject.type === 'object' ? 2 : 1;
 }
 
 function enrichFromSubjectCatalog(
@@ -120,7 +201,15 @@ function enrichFromSubjectCatalog(
 ): SearchIntentEnrichment {
   const contentSceneIds = new Set(scenes.map((scene) => scene.sceneId));
   const directByScene = new Map<string, string[]>();
-  for (const subject of catalog.subjects) {
+  // A scene's first subject is the query Brave is asked, and the entity cap
+  // trims from the back, so the most identifying anchor a scene names must come
+  // first: "Andy Jassy" finds his photo, "Amazon" finds a warehouse, and a
+  // common-noun "GPU" finds stock art. Stable sort keeps the catalog's own
+  // order among equals.
+  const rankedSubjects = [...catalog.subjects].sort(
+    (left, right) => visualAnchorRank(left) - visualAnchorRank(right),
+  );
+  for (const subject of rankedSubjects) {
     for (const sceneId of subject.evidenceSceneIds) {
       if (!contentSceneIds.has(sceneId)) continue;
       const current = directByScene.get(sceneId) ?? [];
@@ -169,9 +258,7 @@ function enrichFromSubjectCatalog(
     const imageSearchIntent = [
       ...new Set(subjects.flatMap(buildVisualSubjectSearchQueries)),
     ].slice(0, MAX_SEARCH_INTENTS_PER_SCENE);
-    const imageSearchEntities = subjects.map(
-      (subject) => subject.canonicalName,
-    );
+    const imageSearchEntities = sceneSearchEntities(subjects);
     if (imageSearchEntities.length > 0) entityAnchoredSceneCount += 1;
     return {
       ...scene,
@@ -194,6 +281,33 @@ function enrichFromSubjectCatalog(
   };
 }
 
+/**
+ * The names a scene's candidates are ranked against, for both the enriched draft
+ * and the plan-time rebuild. Disambiguation moves the episode's own spelling of
+ * an ambiguous subject into `aliases[0]` and puts a contextual phrase in
+ * `canonicalName` ('venture capital a16z'), but a Brave result's alt text or URL
+ * carries the short original — so scoring on the canonical name alone awarded a
+ * zero bonus to every candidate of exactly the subjects disambiguation runs on.
+ * Canonical names come first so the cap, which the persisted plan also enforces,
+ * takes the demoted originals away rather than a whole subject's identity.
+ */
+export function sceneSearchEntities(
+  subjects: readonly VisualSubject[],
+): string[] {
+  const seen = new Set<string>();
+  const entities: string[] = [];
+  for (const name of [
+    ...subjects.map((subject) => subject.canonicalName),
+    ...subjects.flatMap((subject) => subject.aliases.slice(0, 1)),
+  ]) {
+    const key = name.toLocaleLowerCase('en-US');
+    if (seen.has(key)) continue;
+    seen.add(key);
+    entities.push(name);
+  }
+  return entities.slice(0, MAX_SEARCH_ENTITIES_PER_SCENE);
+}
+
 async function buildSubjectCatalog(
   provider: SearchIntentProvider,
   request: SearchIntentCatalogRequest,
@@ -205,9 +319,11 @@ async function buildSubjectCatalog(
     return catalog;
   } catch (error) {
     throwIfAborted(request.signal);
-    throw new Error(`Visual subject catalog failed: ${errorMessage(error)}`, {
-      cause: error,
-    });
+    if (isUpstreamCatalogError(error)) throw error;
+    throw new SearchIntentQualityError(
+      `Visual subject catalog failed: ${errorMessage(error)}`,
+      { cause: error },
+    );
   }
 }
 
@@ -262,15 +378,33 @@ export function createOpenRouterSearchIntentProvider(): SearchIntentProvider {
   const { openai, model } = getOpenRouterConfig({ thinkingModel: null });
   return {
     model,
-    catalog: (request) =>
-      completeSearchIntentRequest({
-        openai,
-        model,
-        messages: subjectCatalogMessages(request),
-        maxTokens: SUBJECT_CATALOG_MAX_OUTPUT_TOKENS,
-        operation: 'buildVisualSubjectCatalog',
-        signal: request.signal,
-      }),
+    catalog: async (request) => {
+      for (
+        let attempt = 1;
+        attempt <= SEARCH_INTENT_PAYLOAD_MAX_ATTEMPTS;
+        attempt += 1
+      ) {
+        try {
+          const raw = await completeSearchIntentRequest({
+            openai,
+            model,
+            messages: subjectCatalogMessages(request),
+            operation: 'buildVisualSubjectCatalog',
+            signal: request.signal,
+          });
+          return materializeVisualSubjectCatalog(raw, request);
+        } catch (error) {
+          throwIfAborted(request.signal);
+          if (
+            !(error instanceof SearchIntentPayloadError) ||
+            attempt === SEARCH_INTENT_PAYLOAD_MAX_ATTEMPTS
+          ) {
+            throw error;
+          }
+        }
+      }
+      throw new Error('Search intent payload retry loop exhausted');
+    },
   };
 }
 
@@ -278,7 +412,6 @@ async function completeSearchIntentRequest(input: {
   openai: OpenAI;
   model: string;
   messages: OpenAI.Chat.ChatCompletionMessageParam[];
-  maxTokens: number;
   operation: 'buildVisualSubjectCatalog';
   signal?: AbortSignal;
 }): Promise<unknown> {
@@ -289,7 +422,6 @@ async function completeSearchIntentRequest(input: {
       messages: input.messages,
       response_format: { type: 'json_object' },
       temperature: 0.1,
-      max_tokens: input.maxTokens,
     },
     null,
     input.operation,
@@ -307,20 +439,250 @@ async function completeSearchIntentRequest(input: {
   });
 }
 
+interface CompactSubjectEvidence {
+  requestedPrimaryId: string;
+  wholeEpisodeEvidence: string;
+  scenes: { sceneId: string; text: string }[];
+}
+
+type CompactSubjectVerdict =
+  | { kept: Record<string, unknown> }
+  | { drop: VisualSubjectDrop };
+
+/**
+ * The unit of failure is the subject, never the catalog. One hallucinated
+ * "subject-macron" used to throw the whole catalog away and send 64 scenes to
+ * "AI engineers monitoring data center servers photo"; now it is dropped and
+ * recorded while every grounded visual anchor still anchors its scenes.
+ */
+function materializeVisualSubjectCatalog(
+  input: unknown,
+  request: SearchIntentCatalogRequest,
+): unknown {
+  if (
+    !isRecord(input) ||
+    typeof input['primarySubjectId'] !== 'string' ||
+    !Array.isArray(input['subjects'])
+  ) {
+    return input;
+  }
+  const requestedPrimaryId = input['primarySubjectId'];
+  const evidence: CompactSubjectEvidence = {
+    requestedPrimaryId,
+    wholeEpisodeEvidence: normalizedEntityText(
+      `${request.title}\n${request.scenes
+        .map((scene) => `${scene.text}\n${scene.searchText ?? ''}`)
+        .join('\n')}`,
+    ),
+    scenes: request.scenes.map((scene) => ({
+      sceneId: scene.sceneId,
+      text: normalizedEntityText(`${scene.text}\n${scene.searchText ?? ''}`),
+    })),
+  };
+
+  const dropped: VisualSubjectDrop[] = [];
+  const kept: Record<string, unknown>[] = [];
+  const passthrough: unknown[] = [];
+  for (const subject of input['subjects'] as unknown[]) {
+    if (!isRecord(subject)) {
+      passthrough.push(subject);
+      continue;
+    }
+    const verdict = judgeCompactSubject(subject, evidence);
+    if ('drop' in verdict) dropped.push(verdict.drop);
+    else kept.push(verdict.kept);
+  }
+
+  if (kept.length === 0 && passthrough.length === 0) {
+    throw new SearchIntentPayloadError(
+      `Visual subject catalog kept no grounded named subject (dropped ${dropped
+        .map((entry) => `${entry.id}=${entry.reason}`)
+        .join(', ')})`,
+    );
+  }
+
+  const primarySubjectId = repairedPrimarySubjectId(kept, requestedPrimaryId);
+  return {
+    ...input,
+    primarySubjectId,
+    subjects: [
+      ...kept.map((subject) => withStoryRole(subject, primarySubjectId)),
+      ...passthrough,
+    ],
+    ...(dropped.length > 0 ? { droppedSubjects: dropped } : {}),
+  };
+}
+
+function judgeCompactSubject(
+  subject: Record<string, unknown>,
+  evidence: CompactSubjectEvidence,
+): CompactSubjectVerdict {
+  const id = typeof subject['id'] === 'string' ? subject['id'] : 'unknown';
+  const type =
+    typeof subject['type'] === 'string' ? subject['type'] : 'unknown';
+  const names = rawSubjectNames(subject);
+  const canonicalName = names[0]?.trim() ?? '';
+
+  const identityDrop = identityDropReason(canonicalName, type);
+  if (identityDrop) return dropVerdict(id, names, type, identityDrop);
+
+  // A generic alias ("AI" on NVIDIA) would let the category word ground and
+  // rank the subject; the identity keeps only its real names.
+  const aliases = names
+    .slice(1)
+    .filter((alias) => !isGenericVisualSubjectName(alias));
+  const groundedNames = [canonicalName, ...aliases];
+  const grounded = groundedNames.some((name) =>
+    containsEntityPhrase(
+      evidence.wholeEpisodeEvidence,
+      normalizedEntityText(name),
+    ),
+  );
+  if (!grounded) return dropVerdict(id, names, type, 'not-grounded');
+
+  const evidenceSceneIds = evidence.scenes
+    .filter((scene) =>
+      groundedNames.some((name) =>
+        containsEntityPhrase(scene.text, normalizedEntityText(name)),
+      ),
+    )
+    .map((scene) => scene.sceneId);
+
+  // A secondary subject that exists only in the title cannot directly anchor
+  // any scene, so keep the final catalog focused on identities the renderer
+  // can actually assign. The primary title subject remains because the first
+  // content scene is the episode cover/lead and already falls back to it.
+  if (evidenceSceneIds.length === 0 && id !== evidence.requestedPrimaryId) {
+    return dropVerdict(id, names, type, 'title-only-no-scene-evidence');
+  }
+
+  return {
+    kept: {
+      ...subject,
+      aliases,
+      evidenceSceneIds,
+      searchQueries: deterministicSubjectSearchQueries(subject),
+      officialDomains: [],
+    },
+  };
+}
+
+function identityDropReason(
+  canonicalName: string,
+  type: string,
+): VisualSubjectDrop['reason'] | null {
+  if (!canonicalName) return 'missing-canonical-name';
+  if (!(VISUAL_SUBJECT_TYPES as readonly string[]).includes(type)) {
+    return 'invalid-type';
+  }
+  if (type === 'other') return 'type-other';
+  if (isGenericVisualSubjectName(canonicalName)) return 'generic-term';
+  return null;
+}
+
+function dropVerdict(
+  id: string,
+  names: string[],
+  type: string,
+  reason: VisualSubjectDrop['reason'],
+): CompactSubjectVerdict {
+  return { drop: { id, names: names.slice(0, 7), type, reason } };
+}
+
+/**
+ * The model's primary may have been the subject that was dropped. The lead
+ * scene still needs an anchor, so the surviving subject with the most scene
+ * evidence takes the role rather than failing the catalog on the schema rule
+ * that exactly one primary exists.
+ */
+function repairedPrimarySubjectId(
+  kept: readonly Record<string, unknown>[],
+  requestedPrimaryId: string,
+): string {
+  if (kept.some((subject) => subject['id'] === requestedPrimaryId)) {
+    return requestedPrimaryId;
+  }
+  const promoted = [...kept].sort(
+    (left, right) => evidenceCount(right) - evidenceCount(left),
+  )[0];
+  const promotedId = promoted?.['id'];
+  return typeof promotedId === 'string' ? promotedId : requestedPrimaryId;
+}
+
+function withStoryRole(
+  subject: Record<string, unknown>,
+  primarySubjectId: string,
+): Record<string, unknown> {
+  if (subject['id'] === primarySubjectId) {
+    return { ...subject, storyRole: 'primary' };
+  }
+  if (subject['storyRole'] === 'primary') {
+    return { ...subject, storyRole: 'secondary' };
+  }
+  return subject;
+}
+
+function evidenceCount(subject: Record<string, unknown>): number {
+  const evidence = subject['evidenceSceneIds'];
+  return Array.isArray(evidence) ? evidence.length : 0;
+}
+
+function rawSubjectNames(subject: Record<string, unknown>): string[] {
+  const canonicalName = subject['canonicalName'];
+  const aliases = subject['aliases'];
+  return [
+    ...(typeof canonicalName === 'string' ? [canonicalName] : []),
+    ...(Array.isArray(aliases)
+      ? aliases.filter((alias): alias is string => typeof alias === 'string')
+      : []),
+  ];
+}
+
+function deterministicSubjectSearchQueries(
+  subject: Record<string, unknown>,
+): string[] {
+  const canonicalName = subject['canonicalName'];
+  if (typeof canonicalName !== 'string' || !canonicalName.trim()) return [];
+  const canonical = canonicalName.trim();
+  // The hint always leads the query, whatever the name looks like. Gating it on
+  // an "ambiguous" shape -- object anchors, collision hints, short names --
+  // asked Brave for a bare `Tether`, which returned photographs of tethering
+  // cables: a name being long and unique says nothing about whether it collides
+  // with an ordinary English word. The bare name stays as the second query.
+  const hint = compactStringArray(subject['identityHints'])[0]?.trim();
+  const descriptive = hint
+    ? `${canonical} ${hint}`.slice(0, 80).trim()
+    : canonical;
+  return [...new Set([descriptive, canonical])];
+}
+
+function compactStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (typeof entry !== 'string') return [];
+    const trimmed = entry.trim();
+    return trimmed ? [trimmed] : [];
+  });
+}
+
 export function buildSubjectCatalogSystemPrompt(): string {
   return [
-    'Build the visual subject catalog for this entire news episode.',
-    '- Include only named real-world subjects that the supplied title or scenes actually mention: companies, people, products, protocols, places, regulators, assets, standards, or organizations.',
-    '- Pick exactly one primary subject: the actor or thing the headline/story is principally about, not a competitor that appears later.',
+    'Build a compact visual anchor catalog for this entire news episode. The catalog drives image search for a news video, so every anchor must point to something that can produce recognizable, story-relevant photographs or logos.',
+    '- Prefer concrete named entities that the supplied title or scenes explicitly mention: people; companies or organizations; products, models, protocols or tools; government agencies, regulators or institutions; brands; named places; and named assets.',
+    '- Recognizable named places remain valid visual anchors even when the prose uses them metonymically. Wall Street, the White House, 中南海, and Silicon Valley are useful because image search returns a distinctive real place rather than generic stock art.',
+    '- Also include an unnamed concrete physical subject or setting when it is materially central to the story or scene, not merely mentioned. Examples include a GPU, data center, server rack, semiconductor fab, robot, mining rig, vehicle, or other photographable object. Use type "object" for these common-noun physical anchors.',
+    '- NEVER create an anchor from a broad abstract category or generic concept merely because it appears in the text. Forbidden examples: AI, artificial intelligence, technology, tech giants, startups, founders, office, investors, markets, innovation, governance, engineers, business, finance, debt, bonds, CapEx, cloud, crypto, blockchain, infrastructure, or similar concepts with no single recognizable physical subject.',
+    '- When a broad word such as "AI" appears, resolve it to the concrete entity named in that context when one is present; otherwise prefer a concrete physical subject that the passage is actually about (Anthropic -> Anthropic / Claude; OpenAI -> OpenAI / ChatGPT / GPT / Codex; 輝達 -> NVIDIA; an article specifically about GPU demand may use GPU as an object anchor). If the passage provides no concrete visual anchor, emit no subject for that concept.',
+    '- If a scene names a person, that person is a subject and is usually the strongest anchor because their photo is specific. When several valid anchors appear, keep the ones most relevant to what the scene is actually about rather than every noun in the sentence.',
+    '- Pick exactly one primary subject: the named entity or concrete physical subject the headline/story is principally about, not a competitor or incidental object that appears later. It must be a concrete visual anchor, never a category word with no recognizable referent.',
+    '- Use only these type values: company, person, product, protocol, place, regulator, asset, standard, organization, object. Map a brand to company/product/organization as appropriate, and a government institution to regulator/organization/place as appropriate.',
     '- canonicalName and aliases are identity labels. Do not merge competitors or similarly named things.',
-    '- Copy canonicalName verbatim from the title or scenes. When both an English and a local-script name are present, use the English spelling for canonicalName and put the local-script spelling in aliases. Put descriptive industry, category, and role terms only in identityHints.',
-    '- searchQueries are the final image-search queries. Keep them short, concrete, and identity-first; include the canonicalName or one alias plus only the context needed to disambiguate the subject.',
-    '- identityHints are 2 to 6 short positive disambiguators such as industry, product, chain, role, or location. They must describe this identity, not a generic mood.',
+    '- Copy canonicalName verbatim from the title or scenes. When both an English and a local-script name are present, use the English spelling for canonicalName and put the local-script spelling in aliases (example: canonicalName "NVIDIA", aliases ["輝達"]). Put descriptive industry, category, role, and physical-context terms only in identityHints.',
+    '- identityHints are 2 to 6 short positive disambiguators such as industry, product, chain, role, location, or physical context. The first one is appended to the name to form the image-search query for every anchor, so it must help image search identify this anchor, not describe a generic mood.',
     '- negativeHints are only known name-collision meanings to reject (for example animal, camera, engine); do not list ordinary competitors as negative hints.',
-    '- officialDomains may be included only when a domain is explicitly present in the supplied evidence; otherwise return [].',
-    "- evidenceSceneIds must cite scenes where the subject is actually named. These IDs are the application's direct scene assignment; do not cite a scene merely because the subject would make a good illustration.",
-    '- Use stable IDs shaped like subject-coinbase or subject-jesse-pollak.',
-    'Return valid JSON only: {"primarySubjectId":"subject-coinbase","subjects":[{"id":"subject-coinbase","canonicalName":"Coinbase","type":"company","aliases":[],"storyRole":"primary","evidenceSceneIds":["scene-01"],"searchQueries":["Coinbase"],"identityHints":["crypto exchange","Base"],"negativeHints":[],"officialDomains":[]}]}',
+    '- Do not output scene IDs, image-search queries, or domains. The application derives scene evidence and final search queries deterministically from the anchor identity.',
+    '- Use stable IDs shaped like subject-nvidia, subject-andy-jassy, or subject-gpu.',
+    'Return valid JSON only: {"primarySubjectId":"subject-nvidia","subjects":[{"id":"subject-nvidia","canonicalName":"NVIDIA","type":"company","aliases":["輝達"],"storyRole":"primary","identityHints":["GPU maker","AI chips"],"negativeHints":[]},{"id":"subject-andy-jassy","canonicalName":"Andy Jassy","type":"person","aliases":[],"storyRole":"supporting","identityHints":["Amazon CEO"],"negativeHints":[]},{"id":"subject-gpu","canonicalName":"GPU","type":"object","aliases":[],"storyRole":"supporting","identityHints":["AI accelerator hardware"],"negativeHints":[]}]}',
   ].join('\n');
 }
 
@@ -359,16 +721,26 @@ function parseSearchIntentContent(
   diagnostics?: SearchIntentCompletionDiagnostics,
 ): unknown {
   const trimmed = content.trim();
+  const suffix = diagnostics
+    ? ` (provider=${diagnostics.provider}, model=${diagnostics.model}, finishReason=${diagnostics.finishReason}, reasoningChars=${diagnostics.reasoningChars}, outputChars=${content.length})`
+    : '';
   if (!trimmed) {
-    const suffix = diagnostics
-      ? ` (provider=${diagnostics.provider}, model=${diagnostics.model}, finishReason=${diagnostics.finishReason}, reasoningChars=${diagnostics.reasoningChars})`
-      : '';
-    throw new Error(`Search intents returned empty content${suffix}`);
+    throw new SearchIntentPayloadError(
+      `Search intents returned empty content${suffix}`,
+    );
+  }
+  if (diagnostics?.finishReason === 'length') {
+    throw new SearchIntentPayloadError(
+      `Search intents response was truncated${suffix}`,
+    );
   }
   try {
     return JSON.parse(trimmed) as unknown;
   } catch (error) {
-    throw new Error('Search intents returned malformed JSON', { cause: error });
+    throw new SearchIntentPayloadError(
+      `Search intents returned malformed JSON${suffix}`,
+      { cause: error },
+    );
   }
 }
 

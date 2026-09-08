@@ -1,24 +1,23 @@
-import { randomBytes } from 'node:crypto';
-import {
-  chmod,
-  mkdir,
-  readFile,
-  rename,
-  unlink,
-  writeFile,
-} from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { createServer as createHttpsServer } from 'node:https';
 import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 
 import { toError } from '../lib/errorMessage.js';
 import { isPlainRecord as isRecord } from '../lib/typeGuards.js';
 import {
+  applyAuthorizationParams,
+  type AuthorizationUrlInput,
   createSecureState,
   type OAuthCallbackResponse,
+  type OAuthLoopbackAuthOptions,
   openUrlInBrowser,
   respond,
 } from './oauth-loopback.js';
+import {
+  readJsonSessionFile,
+  writeJsonSessionFileAtomically,
+} from './session-file.js';
 import {
   describeThreadsApiError,
   nonemptyString,
@@ -78,16 +77,8 @@ export type ThreadsAuthorizationCodeWaiter = (
   input: ThreadsAuthorizationCallbackInput,
 ) => Promise<string>;
 
-export interface ThreadsAuthOptions {
+export interface ThreadsAuthOptions extends OAuthLoopbackAuthOptions {
   apiBaseUrl?: string;
-  callbackTimeoutMs?: number;
-  createState?: () => string;
-  env?: NodeJS.ProcessEnv;
-  fetchImpl?: typeof fetch;
-  additionalScopes?: readonly string[];
-  now?: () => number;
-  openBrowser?: (url: string) => Promise<void>;
-  sessionPath?: string;
   waitForAuthorizationCode?: ThreadsAuthorizationCodeWaiter;
 }
 
@@ -129,18 +120,16 @@ class ThreadsApiError extends Error {
   }
 }
 
-export function buildThreadsAuthorizationUrl(input: {
-  appId: string;
-  redirectUri: string;
-  state: string;
-  scopes?: readonly string[];
-}): string {
+export function buildThreadsAuthorizationUrl(
+  input: AuthorizationUrlInput & { appId: string },
+): string {
   const url = new URL(AUTHORIZE_URL);
-  url.searchParams.set('client_id', input.appId);
-  url.searchParams.set('redirect_uri', input.redirectUri);
-  url.searchParams.set('scope', (input.scopes ?? REQUIRED_SCOPES).join(','));
-  url.searchParams.set('response_type', 'code');
-  url.searchParams.set('state', input.state);
+  applyAuthorizationParams(url, {
+    clientId: input.appId,
+    redirectUri: input.redirectUri,
+    state: input.state,
+    scope: (input.scopes ?? REQUIRED_SCOPES).join(','),
+  });
   return url.href;
 }
 
@@ -148,23 +137,7 @@ export async function readThreadsSession(input?: {
   sessionPath?: string;
 }): Promise<ThreadsSession | null> {
   const path = input?.sessionPath ?? DEFAULT_THREADS_SESSION_PATH;
-  const raw = await readFile(path, 'utf8').catch(
-    (error: NodeJS.ErrnoException) => {
-      if (error.code === 'ENOENT') return null;
-      throw error;
-    },
-  );
-  if (raw === null) return null;
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw) as unknown;
-  } catch {
-    throw new ThreadsSessionInvalidError(
-      `Invalid Threads session at ${path}. Run \`pnpm social:login\` to replace it.`,
-    );
-  }
-  return parseStoredSession(parsed, path);
+  return readJsonSessionFile(path, invalidStoredSession, parseStoredSession);
 }
 
 export async function writeThreadsSession(
@@ -172,25 +145,7 @@ export async function writeThreadsSession(
   input?: { sessionPath?: string },
 ): Promise<void> {
   const path = input?.sessionPath ?? DEFAULT_THREADS_SESSION_PATH;
-  const directory = dirname(path);
-  await mkdir(directory, { recursive: true, mode: 0o700 });
-
-  const suffix = randomBytes(8).toString('hex');
-  const temporaryPath = `${path}.tmp-${process.pid}-${suffix}`;
-  try {
-    await writeFile(temporaryPath, `${JSON.stringify(session, null, 2)}\n`, {
-      encoding: 'utf8',
-      flag: 'wx',
-      mode: 0o600,
-    });
-    await chmod(temporaryPath, 0o600);
-    await rename(temporaryPath, path);
-    await chmod(path, 0o600);
-  } finally {
-    await unlink(temporaryPath).catch((error: NodeJS.ErrnoException) => {
-      if (error.code !== 'ENOENT') throw error;
-    });
-  }
+  await writeJsonSessionFileAtomically(path, session);
 }
 
 export async function getThreadsProfile(input: {

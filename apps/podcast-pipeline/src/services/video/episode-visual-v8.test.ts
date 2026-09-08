@@ -43,7 +43,7 @@ const catalog: VisualSubjectCatalog = {
       type: 'company',
       aliases: [],
       storyRole: 'primary',
-      evidenceSceneIds: ['scene-01'],
+      evidenceSceneIds: [],
       searchQueries: ['Coinbase tokenized stocks'],
       identityHints: ['crypto exchange', 'Base'],
       negativeHints: [],
@@ -56,7 +56,7 @@ const assignments: VisualSceneSubjectAssignment[] = [
   {
     sceneId: 'scene-01',
     subjectIds: ['subject-coinbase'],
-    selectionReason: 'direct',
+    selectionReason: 'episode-context',
   },
 ];
 
@@ -105,6 +105,7 @@ describe('episode visual v8 context', () => {
     });
 
     expect(payload.subjectCatalog?.primarySubjectId).toBe('subject-coinbase');
+    expect(payload.subjectCatalog?.subjects[0]?.evidenceSceneIds).toEqual([]);
     expect(payload.sceneAssignments).toEqual(assignments);
     expect(payload.visualPlan.scenes[0]?.asset).toMatchObject({
       layout: 'contain',
@@ -123,14 +124,14 @@ describe('episode visual v8 context', () => {
       assets: [wideAsset],
       subjectCatalog: catalog,
     };
-    const direct = hashEpisodeVisualSelection({
+    const contextual = hashEpisodeVisualSelection({
       ...base,
       sceneAssignments: assignments,
     });
-    const contextual = hashEpisodeVisualSelection({
+    const direct = hashEpisodeVisualSelection({
       ...base,
       sceneAssignments: [
-        { ...assignments[0]!, selectionReason: 'episode-context' as const },
+        { ...assignments[0]!, selectionReason: 'direct' as const },
       ],
     });
 

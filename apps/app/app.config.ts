@@ -40,13 +40,21 @@ const config: ExpoConfig = {
   slug: 'zap-pilot-mobile-v2',
   owner: 'davidtnfsh',
   scheme: appScheme,
-  version: '2.1.0',
+  version: '3.0.0',
   orientation: 'portrait',
   userInterfaceStyle: 'automatic',
   icon: './assets/brand/icon.png',
   ios: {
-    bundleIdentifier: 'com.zapengine.zappilot.dev',
-    supportsTablet: false,
+    // Bound to the shipped App Store listing (ASC app 6749248542), which the
+    // retired Flutter app created and Apple has already approved. The
+    // `com.example.` prefix is that app's permanent identifier and cannot be
+    // changed on an existing record. Android preserves the same lineage under
+    // `com.fromfedtochain.app`.
+    bundleIdentifier: 'com.example.fromFedToChainApp',
+    // The previous shipped version on this listing (Flutter 2.0.4, build 204)
+    // was Universal. Apple rejects an update that drops a device family the
+    // listing already supports (ITMS-90101), so this must stay true.
+    supportsTablet: true,
     icon: './assets/brand/icon.png',
     config: {
       usesNonExemptEncryption: false,

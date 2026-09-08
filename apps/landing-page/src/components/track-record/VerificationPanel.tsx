@@ -1,9 +1,10 @@
 import { CheckCircle, XCircle, AlertCircle } from 'lucide-react';
-import type { TrackRecordState } from '@/hooks/useTrackRecord';
+import type { TrackRecordHookState } from '@/hooks/useTrackRecord';
 import { IPFS_GATEWAYS, ipfsGatewayUrl } from '@/config/track-record';
+import { hasLiveTrackRecordData } from '@/data/mock-track-record';
 
 interface VerificationPanelProps {
-  state: TrackRecordState;
+  state: TrackRecordHookState;
   className?: string;
 }
 
@@ -11,7 +12,7 @@ export function VerificationPanel({
   state,
   className,
 }: VerificationPanelProps) {
-  const { meta, snapshotEntries, verification, latestSnapshot } = state;
+  const { meta, snapshotEntries, verification, latestSnapshot, source } = state;
 
   if (state.isLoading) {
     return (
@@ -21,7 +22,9 @@ export function VerificationPanel({
     );
   }
 
-  const hasLiveData = !!meta?.latestSnapshotCid;
+  // The backtest dataset carries a sentinel CID, so a bare `latestSnapshotCid`
+  // check would offer fabricated snapshots as independently verifiable ones.
+  const hasLiveData = source === 'live' && hasLiveTrackRecordData(meta);
 
   return (
     <div className={`verification-panel ${className ?? ''}`}>
@@ -142,7 +145,11 @@ export function VerificationPanel({
           ) : (
             <div className="verification-item">
               <AlertCircle aria-hidden />
-              <span>No live snapshot yet</span>
+              <span>
+                {source === 'backtest'
+                  ? 'Backtest mode — switch to Live for a published snapshot'
+                  : 'No live snapshot yet'}
+              </span>
             </div>
           )}
         </div>

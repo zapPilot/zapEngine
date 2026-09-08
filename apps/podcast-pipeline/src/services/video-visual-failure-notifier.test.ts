@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { PipelineSupabaseClient } from './supabase-client.js';
+import { buildTelegramVideoRetryReplyMarkup } from './telegram.js';
 import { createVideoVisualFailureNotifier } from './video-visual-failure-notifier.js';
 
 function makeSupabase(
@@ -47,6 +48,7 @@ describe('video visual failure notifier', () => {
     expect(notify).toHaveBeenCalledWith(
       'chat-1',
       expect.stringContaining('原因：subject catalog exhausted retries'),
+      { replyMarkup: buildTelegramVideoRetryReplyMarkup('episode-1') },
     );
     expect(supabase.rpc).toHaveBeenNthCalledWith(
       2,
@@ -54,31 +56,6 @@ describe('video visual failure notifier', () => {
       { p_episode_id: 'episode-1' },
     );
   });
-
-  it.each(['PGRST202', '42883'])(
-    'treats missing notification RPC code %s as no work during rollout',
-    async (code) => {
-      const supabase = makeSupabase({
-        reapError: {
-          code,
-          message: 'notification RPC is not installed yet',
-        },
-      });
-      const notify = vi.fn().mockResolvedValue(undefined);
-      const logger = { error: vi.fn() };
-      const notifier = createVideoVisualFailureNotifier({
-        supabase: supabase as unknown as PipelineSupabaseClient,
-        notify,
-        logger,
-      });
-
-      await notifier.sweep();
-
-      expect(supabase.rpc).toHaveBeenCalledTimes(1);
-      expect(notify).not.toHaveBeenCalled();
-      expect(logger.error).not.toHaveBeenCalled();
-    },
-  );
 
   it('does not stamp when Telegram delivery fails', async () => {
     const supabase = makeSupabase();

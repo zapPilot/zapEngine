@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { SOCIAL_BRAND_CTA_BY_LANGUAGE } from '../brand/cta.js';
 import { errorMessage } from '../lib/errorMessage.js';
 import {
+  buildJsonModeChatParams,
   createOpenRouterChatCompletion,
   getOpenRouterConfig,
   stripJsonFence,
@@ -84,6 +85,24 @@ function xTextMaxWeightedLength(languageCode: SocialLanguageCode): number {
   );
 }
 
+export function trimTweetTextToWeightedLength(
+  value: string,
+  maximum: number,
+): string {
+  const trimmed = value.trim();
+  if (weightedTweetLength(trimmed) <= maximum) return trimmed;
+
+  let length = 0;
+  const output: string[] = [];
+  for (const character of Array.from(trimmed)) {
+    const characterLength = weightedCharacterLength(character);
+    if (length + characterLength > maximum) break;
+    output.push(character);
+    length += characterLength;
+  }
+  return output.join('').trimEnd();
+}
+
 export function latinLetterRatio(value: string): number {
   const visible = value.replace(/\s/gu, '');
   if (visible.length === 0) return 0;
@@ -112,24 +131,18 @@ function addAccentedLatinIssue(value: string, context: z.RefinementCtx): void {
 }
 
 function xTextSchema(languageCode: SocialLanguageCode): z.ZodType<string> {
-  return languageLine(languageCode).superRefine((text, context) => {
-    if (SINGLE_URL_PATTERN.test(text)) {
-      context.addIssue({
-        code: 'custom',
-        message:
-          'X text must not contain a URL; the fixed Zap Pilot CTA is appended automatically.',
-      });
-    }
-
-    const weightedLength = weightedTweetLength(text);
-    const maximum = xTextMaxWeightedLength(languageCode);
-    if (weightedLength <= maximum) return;
-
-    context.addIssue({
-      code: 'custom',
-      message: `X text is ${weightedLength} weighted units; the maximum is ${maximum}. The fixed CTA must still fit X's ${X_TOTAL_MAX_WEIGHTED_LENGTH}-unit limit.`,
-    });
-  });
+  const maximum = xTextMaxWeightedLength(languageCode);
+  return languageLine(languageCode)
+    .superRefine((text, context) => {
+      if (SINGLE_URL_PATTERN.test(text)) {
+        context.addIssue({
+          code: 'custom',
+          message:
+            'X text must not contain a URL; the fixed Zap Pilot CTA is appended automatically.',
+        });
+      }
+    })
+    .transform((text) => trimTweetTextToWeightedLength(text, maximum));
 }
 
 function threadsTextSchema(
@@ -410,36 +423,32 @@ export async function generateSocialCopy(input: {
     try {
       const completion = await createOpenRouterChatCompletion(
         config.openai,
-        {
-          model: config.model,
-          response_format: { type: 'json_object' },
-          messages: [
-            {
-              role: 'system',
-              content: buildSystemPrompt(
-                commonRules,
-                xRules,
-                threadsRules,
-                `${rednoteRules}\n\n${rednoteRiskRules}`,
-                youtubeRules,
-                languageRules,
-                languageCode,
-                blocks,
-              ),
-            },
-            {
-              role: 'user',
-              content: buildEpisodePrompt(
-                input.episode,
-                input.feedback,
-                retryReason,
-                input.strategyGuidance,
-                input.strategyGuidanceByPlatform,
-                input.packagingByPlatform,
-              ),
-            },
-          ],
-        },
+        buildJsonModeChatParams(config.model, [
+          {
+            role: 'system',
+            content: buildSystemPrompt(
+              commonRules,
+              xRules,
+              threadsRules,
+              `${rednoteRules}\n\n${rednoteRiskRules}`,
+              youtubeRules,
+              languageRules,
+              languageCode,
+              blocks,
+            ),
+          },
+          {
+            role: 'user',
+            content: buildEpisodePrompt(
+              input.episode,
+              input.feedback,
+              retryReason,
+              input.strategyGuidance,
+              input.strategyGuidanceByPlatform,
+              input.packagingByPlatform,
+            ),
+          },
+        ]),
         config.thinkingModel,
         {
           logContext: {

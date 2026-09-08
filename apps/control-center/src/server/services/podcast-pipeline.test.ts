@@ -1,3 +1,4 @@
+import { EPISODE_VIDEO_VISUAL_VERSION } from '@zapengine/types/shared';
 import { describe, expect, it } from 'vitest';
 
 import { summarizePodcastPipeline } from './podcast-pipeline.js';
@@ -92,6 +93,22 @@ function summarize(
   )[0];
 }
 
+function summarizeCompletedVisual(
+  visualOverrides: Record<string, unknown> = {},
+  renders: RenderRow[] = queuedRenders(),
+) {
+  return summarize({
+    visuals: [
+      visual({
+        status: 'completed',
+        visual_version: EPISODE_VIDEO_VISUAL_VERSION,
+        ...visualOverrides,
+      }),
+    ],
+    renders,
+  });
+}
+
 describe('podcast pipeline summary', () => {
   it('shows a terminal visual failure instead of pretending queued renders are still progressing', () => {
     const summary = summarize({
@@ -148,24 +165,23 @@ describe('podcast pipeline summary', () => {
     });
   });
 
-  it('disables restart when a language has no render row for the RPC to update', () => {
+  it('reports languages without a render row as not scheduled and lets the RPC materialize them', () => {
     // Legacy single-language episodes and partial enqueues leave fewer than
-    // three `episode_videos` rows. The retry RPC only updates existing rows and
-    // reads a missing one as completed, so it answers 409 "already completed"
-    // for an episode this same view reports as queued.
-    const summary = summarize({
-      visuals: [visual({ status: 'completed' })],
-      renders: queuedRenders().slice(0, 1),
-    });
+    // three `episode_videos` rows. Since retry_episode_video_generation inserts
+    // the missing rows, the operator can repair them with one restart.
+    const summary = summarizeCompletedVisual({}, queuedRenders().slice(0, 1));
 
     expect(summary).toMatchObject({
-      videoStatus: 'queued',
-      canRestartVideo: false,
+      videoStatus: 'unscheduled',
+      canRestartVideo: true,
     });
     expect(summary?.renders).toHaveLength(3);
     expect(
-      summary?.renders.filter(({ updatedAt }) => updatedAt === null),
+      summary?.renders.filter(({ status }) => status === 'unscheduled'),
     ).toHaveLength(2);
+    expect(
+      summary?.renders.filter(({ canRestart }) => canRestart),
+    ).toHaveLength(3);
   });
 
   it('keeps an article in TTS until all three languages have renderable audio', () => {
@@ -203,6 +219,56 @@ describe('podcast pipeline summary', () => {
         lastError: 'translation provider failed',
       },
     });
+  });
+
+  it('closes an abandoned episode instead of offering any restart', () => {
+    const summary = summarize({
+      visuals: [
+        visual({
+          status: 'failed',
+          attempt_count: 3,
+          last_error:
+            'Scene alignment requires at least one localized sentence',
+          abandoned_at: '2026-09-05T10:00:00.000Z',
+          abandoned_reason: 'ja render cannot align; closed by operator',
+        }),
+      ],
+      renders: queuedRenders(),
+    });
+
+    expect(summary).toMatchObject({
+      currentPhase: 'done',
+      videoStatus: 'abandoned',
+      canRestartVideo: false,
+      abandoned: {
+        at: '2026-09-05T10:00:00.000Z',
+        reason: 'ja render cannot align; closed by operator',
+      },
+    });
+    expect(summary?.renders.every(({ canRestart }) => !canRestart)).toBe(true);
+  });
+
+  it('names an abandoned episode with no recorded reason rather than showing a blank', () => {
+    const summary = summarizeCompletedVisual({
+      abandoned_at: '2026-09-05T10:00:00.000Z',
+      abandoned_reason: '   ',
+    });
+
+    expect(summary?.abandoned?.reason).toBe('No reason recorded');
+  });
+
+  it('behaves exactly as before when the abandon columns are absent', () => {
+    // Control Center can deploy ahead of the migration, in which case the
+    // per-episode abandon read is skipped and the rows carry neither column.
+    const summary = summarizeCompletedVisual();
+
+    expect(summary).toMatchObject({
+      currentPhase: 'video',
+      videoStatus: 'queued',
+      canRestartVideo: true,
+      abandoned: null,
+    });
+    expect(summary?.renders.every(({ canRestart }) => canRestart)).toBe(true);
   });
 
   it('marks an expired ingest lease as stuck instead of indefinitely processing', () => {

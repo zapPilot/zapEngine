@@ -10,10 +10,7 @@ import {
   PODCAST_OUTRO_VISUAL_INTENT,
 } from '../podcast-packaging.js';
 import type { AcquiredRemoteImage } from './assets.js';
-import {
-  planPodcastVisualAssets,
-  selectCoverAssetForFirstScene,
-} from './podcast-visual-assets.js';
+import { planPodcastVisualAssets } from './podcast-visual-assets.js';
 
 const directories: string[] = [];
 
@@ -57,14 +54,19 @@ describe('planPodcastVisualAssets', () => {
     });
     await Promise.all(plan.assets.map((asset) => stat(asset.path)));
     expect(progress).toEqual([{ phase: 'assets', sceneId: 'scene-01' }]);
+    expect(plan.imageSearch).toBeUndefined();
   });
 
-  it('keeps body scenes on the normal planner and reports progress in scene order', async () => {
+  it('plans a body scene from the publisher article and reports progress in scene order', async () => {
     const directory = await temporaryDirectory();
     const acquireImage = vi.fn().mockResolvedValue(acquired('article-body'));
     const fingerprintImage = vi.fn().mockResolvedValue('0000000000000000');
-    const progress: { phase: string; sceneId: string; sceneIndex: number }[] =
-      [];
+    const progress: {
+      phase: string;
+      sceneId: string;
+      sceneIndex: number;
+      provider?: string;
+    }[] = [];
 
     const plan = await planPodcastVisualAssets({
       scenes: [
@@ -90,6 +92,7 @@ describe('planPodcastVisualAssets', () => {
           phase: event.phase,
           sceneId: event.sceneId,
           sceneIndex: event.sceneIndex,
+          ...(event.provider ? { provider: event.provider } : {}),
         }),
     });
 
@@ -98,155 +101,23 @@ describe('planPodcastVisualAssets', () => {
       { sceneId: 'scene-01', assetId: 'image-98' },
       { sceneId: 'scene-02', assetId: 'image-01' },
     ]);
-    // scene-01 is brand (assets), scene-02 is cover (cover phase)
-    expect(progress).toEqual(
-      expect.arrayContaining([
-        { phase: 'assets', sceneId: 'scene-01', sceneIndex: 1 },
-        expect.objectContaining({
-          phase: 'cover',
-          sceneId: 'scene-02',
-          sceneIndex: 2,
-        }),
-      ]),
-    );
-    expect(progress.filter((event) => event.phase === 'cover')).toHaveLength(1);
-  });
-});
-
-describe('selectCoverAssetForFirstScene', () => {
-  it('chooses ranked winner when 2 valid candidates (deterministic cover scoring)', async () => {
-    const directory = await temporaryDirectory();
-    const acquireImage = vi
-      .fn()
-      .mockResolvedValueOnce(
-        acquiredWithDimensions('cover-a', 1600, 900, '0000000000000001'),
-      )
-      .mockResolvedValueOnce(
-        acquiredWithDimensions('cover-b', 2400, 1350, 'ffffffffffffffff'),
-      );
-    const fingerprintImage = vi
-      .fn()
-      .mockResolvedValueOnce('0000000000000001')
-      .mockResolvedValueOnce('ffffffffffffffff');
-
-    const result = await selectCoverAssetForFirstScene({
-      scene: {
-        sceneId: 'scene-01',
-        imageSearchIntent: ['Federal Reserve balance sheet'],
-      },
-      articleImages: [
-        candidateWithDimensions('cover-a', 1600, 900),
-        candidateWithDimensions('cover-b', 2400, 1350),
-      ],
-      workingDirectory: join(directory, 'cover'),
-      dependencies: { acquireImage, searchProviders: [], fingerprintImage },
-    });
-
-    expect(result).not.toBeNull();
-    expect(result?.candidateCount).toBe(2);
-    expect(result?.ranked).toBe(true);
-    // Larger dimensions + higher provider priority should win (cover-b is larger)
-    expect(result?.asset.originalImageUrl).toContain('cover-b');
-    expect(acquireImage).toHaveBeenCalledTimes(2);
-  });
-
-  it('succeeds with single valid candidate', async () => {
-    const directory = await temporaryDirectory();
-    const acquireImage = vi.fn().mockResolvedValue(acquired('single-cover'));
-    const fingerprintImage = vi.fn().mockResolvedValue('0000000000000000');
-
-    const result = await selectCoverAssetForFirstScene({
-      scene: { sceneId: 'scene-01', imageSearchIntent: ['market'] },
-      articleImages: [candidate('single-cover')],
-      workingDirectory: join(directory, 'cover'),
-      dependencies: { acquireImage, searchProviders: [], fingerprintImage },
-    });
-
-    expect(result).not.toBeNull();
-    expect(result?.candidateCount).toBe(1);
-    expect(result?.ranked).toBe(false);
-    expect(result?.asset.originalImageUrl).toContain('single-cover');
-  });
-
-  it('returns null when no valid candidate (search failure)', async () => {
-    const directory = await temporaryDirectory();
-    const acquireImage = vi.fn().mockResolvedValue(null);
-    const searchProviders = [
+    expect(progress).toEqual([
       {
-        origin: 'brave' as const,
-        search: vi.fn().mockRejectedValue(new Error('Brave unavailable')),
+        phase: 'assets',
+        sceneId: 'scene-01',
+        sceneIndex: 1,
+        provider: 'brand',
       },
-    ];
-
-    const result = await selectCoverAssetForFirstScene({
-      scene: { sceneId: 'scene-01', imageSearchIntent: ['market'] },
-      articleImages: [],
-      workingDirectory: join(directory, 'cover'),
-      dependencies: {
-        acquireImage,
-        searchProviders,
-        fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
+      {
+        phase: 'assets',
+        sceneId: 'scene-02',
+        sceneIndex: 2,
+        provider: 'article',
       },
-    });
-
-    expect(result).toBeNull();
-  });
-});
-
-describe('planPodcastVisualAssets cover fallback', () => {
-  it('falls back to resilient planner when cover selector fails and still succeeds', async () => {
-    const directory = await temporaryDirectory();
-    // Cover selector tries 2 article candidates and both fail, then fallback planner uses same article images and succeeds
-    const acquireImage = vi
-      .fn()
-      .mockRejectedValueOnce(new Error('cover download failed'))
-      .mockRejectedValueOnce(new Error('cover download failed 2'))
-      .mockResolvedValueOnce(acquired('fallback-body'))
-      .mockResolvedValueOnce(acquired('second-body'));
-    const fingerprintImage = vi
-      .fn()
-      .mockResolvedValueOnce('0000000000000000')
-      .mockResolvedValueOnce('1111111111111111');
-    const progress: {
-      phase: string;
-      candidateCount?: number;
-      assetId?: string;
-    }[] = [];
-
-    const plan = await planPodcastVisualAssets({
-      scenes: [
-        {
-          sceneId: 'scene-01',
-          imageSearchIntent: ['Federal Reserve balance sheet'],
-        },
-        { sceneId: 'scene-02', imageSearchIntent: ['market'] },
-      ],
-      articleImages: [candidate('fallback-body'), candidate('second-body')],
-      workingDirectory: join(directory, 'images'),
-      selectionMode: 'resilient',
-      dependencies: {
-        acquireImage,
-        searchProviders: [],
-        fingerprintImage,
-      },
-      onProgress: (event) =>
-        progress.push({
-          phase: event.phase,
-          candidateCount: event.candidateCount,
-          assetId: event.assetId,
-        }),
-    });
-
-    // Even though cover selector failed (candidateCount 0), resilient planner should still produce a plan
-    expect(plan.scenes).toHaveLength(2);
-    expect(plan.assets.length).toBeGreaterThanOrEqual(1);
-    // Cover fallback should have been logged
-    const coverProgress = progress.find((e) => e.phase === 'cover');
-    expect(coverProgress).toBeDefined();
-    expect(coverProgress?.candidateCount).toBe(0);
+    ]);
   });
 
-  it('plans Zap Pilot outro brand asset without search', async () => {
+  it('plans the Zap Pilot outro brand asset without search', async () => {
     const directory = await temporaryDirectory();
     const plan = await planPodcastVisualAssets({
       scenes: [
@@ -275,6 +146,63 @@ describe('planPodcastVisualAssets cover fallback', () => {
       license: 'brand-generated',
     });
   });
+
+  // The subject-catalog step can come back empty, and an episode without
+  // disambiguated subjects still has to render.
+  it('searches the storyboard intents when no subject catalog was resolved', async () => {
+    const directory = await temporaryDirectory();
+    const search = vi.fn(
+      async (query: string): Promise<ImageCandidate[]> => [
+        braveCandidate(
+          query.startsWith('Federal') ? 'fed-building' : 'treasury-desk',
+          query,
+        ),
+      ],
+    );
+    const acquireImage = vi.fn(
+      async (url: string): Promise<AcquiredRemoteImage> =>
+        acquired(new URL(url).pathname.replace(/^\/|\.jpg$/g, '')),
+    );
+    const fingerprintImage = vi
+      .fn()
+      .mockResolvedValueOnce('0000000000000000')
+      .mockResolvedValueOnce('ffffffffffffffff');
+
+    const plan = await planPodcastVisualAssets({
+      scenes: [
+        {
+          sceneId: 'scene-01',
+          imageSearchIntent: ['Federal Reserve balance sheet'],
+        },
+        { sceneId: 'scene-02', imageSearchIntent: ['Treasury bond auction'] },
+      ],
+      articleImages: [],
+      workingDirectory: join(directory, 'images'),
+      selectionMode: 'resilient',
+      dependencies: {
+        acquireImage,
+        fingerprintImage,
+        searchProviders: [{ origin: 'brave', search }],
+      },
+    });
+
+    expect(search.mock.calls.map(([query]) => query)).toEqual([
+      'Federal Reserve balance sheet',
+      'Treasury bond auction',
+    ]);
+    expect(plan.scenes).toEqual([
+      { sceneId: 'scene-01', assetId: 'image-01' },
+      { sceneId: 'scene-02', assetId: 'image-02' },
+    ]);
+    expect(plan.imageSearch?.requests.map((request) => request.kind)).toEqual([
+      'primary',
+      'primary',
+    ]);
+    expect(plan.imageSearch?.scenes.map((scene) => scene.selection)).toEqual([
+      'pool',
+      'pool',
+    ]);
+  });
 });
 
 async function temporaryDirectory(): Promise<string> {
@@ -293,17 +221,14 @@ function candidate(id: string): ImageCandidate {
   };
 }
 
-function candidateWithDimensions(
-  id: string,
-  width: number,
-  height: number,
-): ImageCandidate {
+function braveCandidate(id: string, altText: string): ImageCandidate {
   return {
     imageUrl: `https://images.example.test/${id}.jpg`,
-    sourceUrl: `https://publisher.example.test/${id}`,
-    origin: 'article',
-    width,
-    height,
+    sourceUrl: `https://news.example.test/${id}`,
+    altText,
+    origin: 'brave',
+    width: 1600,
+    height: 900,
   };
 }
 
@@ -314,20 +239,5 @@ function acquired(id: string): AcquiredRemoteImage {
     sha256: id.padEnd(64, 'a').slice(0, 64),
     width: 1600,
     height: 900,
-  };
-}
-
-function acquiredWithDimensions(
-  id: string,
-  width: number,
-  height: number,
-  hashSuffix = 'a',
-): AcquiredRemoteImage {
-  return {
-    path: `/work/${id}.image`,
-    contentType: 'image/jpeg',
-    sha256: (id + hashSuffix).padEnd(64, hashSuffix).slice(0, 64),
-    width,
-    height,
   };
 }

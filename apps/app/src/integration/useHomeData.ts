@@ -1,5 +1,9 @@
 import { usePortfolioDashboard } from '@zapengine/app-core/hooks/analytics/usePortfolioDashboard';
-import { usePortfolioDataProgressive } from '@zapengine/app-core/hooks/queries/analytics/usePortfolioDataProgressive';
+import {
+  useDailyYieldReturns,
+  useLandingPageData,
+} from '@zapengine/app-core/hooks/queries';
+import { isNotFoundError } from '@zapengine/app-core/lib/errors';
 import {
   buildTradeActions,
   formatRegimeLabel,
@@ -10,17 +14,33 @@ import { useMemo } from 'react';
 
 import { DEMO } from '@/data/demo';
 import {
+  attachDailyAttribution,
   calculateAdjacentSnapshotChange,
+  DAILY_ATTRIBUTION_WINDOW_DAYS,
   type DailyValuePoint,
+  netPortfolioValueFrom,
   sortedDailyValues,
   toTrendPoints,
 } from '@/integration/portfolioMetrics';
+import {
+  type RangeAttributionSummary,
+  summarizeRangeAttribution,
+} from '@/integration/rangeAttribution';
 import { useStrategySuggestion } from '@/integration/useStrategySuggestion';
 
 export const HOME_RANGE_OPTIONS = ['1D', '1W', '1M', '3M', '1Y'] as const;
 export type HomeRange = (typeof HOME_RANGE_OPTIONS)[number];
-export const DEFAULT_HOME_RANGE: HomeRange = '1Y';
-const HOME_DASHBOARD_WINDOW_DAYS = 365;
+export const DEFAULT_HOME_RANGE: HomeRange = '1M';
+
+// Home only needs `trends.daily_values`. Keep one stable params object per
+// selected range so opening the screen does not eagerly materialize a full year.
+const HOME_DASHBOARD_WINDOW_PARAMS = {
+  '1D': Object.freeze({ trend_days: 2, metrics: ['trend'] }),
+  '1W': Object.freeze({ trend_days: 7, metrics: ['trend'] }),
+  '1M': Object.freeze({ trend_days: 30, metrics: ['trend'] }),
+  '3M': Object.freeze({ trend_days: 90, metrics: ['trend'] }),
+  '1Y': Object.freeze({ trend_days: 365, metrics: ['trend'] }),
+} as const;
 const EMPTY_DAILY_VALUES: readonly DailyValuePoint[] = [];
 
 export interface HomeViewData {
@@ -28,6 +48,8 @@ export interface HomeViewData {
   rangeChangePct: number | null;
   rangeChangeUsd: number | null;
   trendPoints: DailyValuePoint[];
+  /** Null until enough of the range's days can be explained. */
+  attribution: RangeAttributionSummary | null;
 }
 
 export interface HomeStrategyStatusView {
@@ -47,12 +69,32 @@ export interface HomeData {
   strategyStatus: HomeStrategyStatusView | null;
 }
 
-export type HomeSnapshotAvailability = 'demo' | 'available' | 'unavailable';
+/**
+ * `unavailable` means the account genuinely has no portfolio yet, which is what
+ * drives the import copy and ETL polling. A broken landing query is `failed`
+ * instead, so a network blip is never presented as an empty portfolio.
+ */
+export type HomeSnapshotAvailability =
+  | 'demo'
+  | 'available'
+  | 'unavailable'
+  | 'failed';
+
+export interface HomeSectionState {
+  isLoading: boolean;
+  isError: boolean;
+}
 
 export interface UseHomeDataResult {
   data: HomeData;
   isLoading: boolean;
   isError: boolean;
+  /** Landing query: the net-worth headline. */
+  balance: HomeSectionState;
+  /** Dashboard query: the trend chart. */
+  trend: HomeSectionState;
+  /** Daily suggestion: the strategy card. */
+  strategy: HomeSectionState;
   snapshotAvailability: HomeSnapshotAvailability;
 }
 
@@ -64,12 +106,10 @@ export interface UseHomeDataResult {
  *   the viewer's own id or a `?userId=` bundle-view id. Analytics v2 paths
  *   are UUID-typed; a wallet address must never be passed here.
  */
-export function getHomeDashboardWindowParams() {
-  return {
-    trend_days: HOME_DASHBOARD_WINDOW_DAYS,
-    drawdown_days: HOME_DASHBOARD_WINDOW_DAYS,
-    rolling_days: HOME_DASHBOARD_WINDOW_DAYS,
-  };
+export function getHomeDashboardWindowParams(
+  range: HomeRange = DEFAULT_HOME_RANGE,
+) {
+  return HOME_DASHBOARD_WINDOW_PARAMS[range];
 }
 
 function rangeWindowDays(range: HomeRange): number | null {
@@ -160,6 +200,30 @@ const DEMO_STRATEGY_STATUS: HomeStrategyStatusView = {
   reason: DEMO.strategy.quote,
 };
 
+/**
+ * Stale data still counts as available: an error on top of a snapshot must not
+ * demote Home to the import flow. Only a landing failure that is neither a
+ * not-found nor an in-flight import is `failed`, because the import copy and
+ * the ETL poller both key off `unavailable`.
+ */
+function snapshotAvailability(input: {
+  isDemo: boolean;
+  hasPortfolioSnapshot: boolean;
+  isEtlInProgress: boolean;
+  landingError: unknown;
+}): HomeSnapshotAvailability {
+  if (input.isDemo) return 'demo';
+  if (input.hasPortfolioSnapshot) return 'available';
+  if (
+    input.isEtlInProgress ||
+    input.landingError === null ||
+    isNotFoundError(input.landingError)
+  ) {
+    return 'unavailable';
+  }
+  return 'failed';
+}
+
 export function useHomeData(
   subjectUserId: string | null,
   range: HomeRange,
@@ -169,43 +233,67 @@ export function useHomeData(
   } = {},
 ): UseHomeDataResult {
   const analyticsSubjectId = subjectUserId?.trim() || null;
-  const progressive = usePortfolioDataProgressive(
+  const landing = useLandingPageData(
     analyticsSubjectId,
     Boolean(options.isEtlInProgress),
+    true,
   );
   const dashboard = usePortfolioDashboard(
     analyticsSubjectId ?? undefined,
-    getHomeDashboardWindowParams(),
+    getHomeDashboardWindowParams(range),
   );
   const suggestion = useStrategySuggestion(analyticsSubjectId);
+  // Yield attribution needs enough samples for its outlier fence, so short
+  // ranges keep a 30-day floor and 3M uses 90 days. One-year attribution is
+  // disabled until the 365-day backend path is safe on the small Fly VM.
+  const attributionWindowDays =
+    range === '3M' ? 90 : DAILY_ATTRIBUTION_WINDOW_DAYS;
+  const attribution = useDailyYieldReturns(
+    range === '1Y' ? undefined : (analyticsSubjectId ?? undefined),
+    attributionWindowDays,
+  );
 
-  const balanceSection = progressive.sections?.balance;
-  const hasPortfolioSnapshot = Boolean(progressive.unifiedData?.lastUpdated);
+  const landingData = landing.data;
+  const landingError = landing.error ?? null;
+  const hasPortfolioSnapshot = Boolean(landingData?.last_updated);
   const isResolvingSubject =
     Boolean(options.isResolvingSubject) && analyticsSubjectId === null;
 
-  const isLoading =
-    isResolvingSubject ||
-    Boolean(balanceSection?.isLoading) ||
-    dashboard.isLoading ||
-    suggestion.isLoading;
-  const isError =
-    Boolean(balanceSection?.error) || dashboard.isError || suggestion.isError;
+  // Per section rather than aggregated: the slowest of the three must not hold
+  // the other two in a skeleton.
+  const balance: HomeSectionState = {
+    isLoading: isResolvingSubject || landing.isLoading,
+    isError: landing.isError,
+  };
+  const trend: HomeSectionState = {
+    isLoading: isResolvingSubject || dashboard.isLoading,
+    isError: dashboard.isError,
+  };
+  const strategy: HomeSectionState = {
+    isLoading: isResolvingSubject || suggestion.isLoading,
+    isError: suggestion.isError,
+  };
+
+  const isLoading = balance.isLoading || trend.isLoading || strategy.isLoading;
+  const isError = balance.isError || trend.isError || strategy.isError;
 
   // While the subject is still resolving, stay in the live (skeleton) state
   // instead of flashing demo data.
   const isDemo = analyticsSubjectId === null && !isResolvingSubject;
+  const liveBalance = netPortfolioValueFrom(landingData);
   const totalBalance = isDemo
     ? DEMO.home.totalBalance
     : hasPortfolioSnapshot
-      ? (balanceSection?.data?.balance ?? null)
+      ? liveBalance
       : null;
 
   const dailyValues =
     dashboard.dashboard?.trends?.daily_values ?? EMPTY_DAILY_VALUES;
+  // Attribution is attached before the range slice so a short range still has
+  // the previous day's difference on its first point.
   const allTrendPoints = useMemo(
-    () => toTrendPoints(dailyValues),
-    [dailyValues],
+    () => attachDailyAttribution(toTrendPoints(dailyValues), attribution.data),
+    [attribution.data, dailyValues],
   );
   const selectedTrendPoints = useMemo(
     () =>
@@ -219,6 +307,19 @@ export function useHomeData(
     [allTrendPoints, isDemo, range],
   );
   const rangeChange = calculateHomeRangeChange(selectedTrendPoints);
+  const rangeAttribution = useMemo(
+    () => summarizeRangeAttribution(selectedTrendPoints),
+    [selectedTrendPoints],
+  );
+  const strategyStatus = useMemo(
+    () =>
+      isDemo
+        ? DEMO_STRATEGY_STATUS
+        : suggestion.data
+          ? strategyStatusFromSuggestion(suggestion.data)
+          : null,
+    [isDemo, suggestion.data],
+  );
   return {
     data: {
       home: {
@@ -226,19 +327,20 @@ export function useHomeData(
         rangeChangePct: rangeChange?.pct ?? null,
         rangeChangeUsd: rangeChange?.usd ?? null,
         trendPoints: selectedTrendPoints,
+        attribution: rangeAttribution,
       },
-      strategyStatus: isDemo
-        ? DEMO_STRATEGY_STATUS
-        : suggestion.data
-          ? strategyStatusFromSuggestion(suggestion.data)
-          : null,
+      strategyStatus,
     },
     isLoading,
     isError,
-    snapshotAvailability: isDemo
-      ? 'demo'
-      : hasPortfolioSnapshot
-        ? 'available'
-        : 'unavailable',
+    balance,
+    trend,
+    strategy,
+    snapshotAvailability: snapshotAvailability({
+      isDemo,
+      hasPortfolioSnapshot,
+      isEtlInProgress: Boolean(options.isEtlInProgress),
+      landingError,
+    }),
   };
 }

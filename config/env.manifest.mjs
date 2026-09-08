@@ -146,9 +146,6 @@ export const ENV_MANIFEST = {
     { next: 'NEXT_PUBLIC_SENTRY_DSN' },
     { sensitive: true },
   ),
-  TRACK_RECORD_MOCK: client(['landing-page'], {
-    next: 'NEXT_PUBLIC_TRACK_RECORD_MOCK',
-  }),
 
   NODE_ENV: host(['all']),
   APP_COMMIT_SHA: host([
@@ -348,7 +345,6 @@ export const ENV_MANIFEST = {
     requiredFor: ['podcast-pipeline:base'],
   }),
   LLM_FALLBACK_MODELS: server(['podcast-pipeline']),
-  TRANSLATION_FALLBACK_MODELS: server(['podcast-pipeline']),
   LLM_THINKING_MODEL: server(['podcast-pipeline']),
   YOUTUBE_CLIENT_ID: server(['podcast-pipeline'], { sensitive: true }),
   YOUTUBE_CLIENT_SECRET: server(['podcast-pipeline'], { sensitive: true }),
@@ -409,6 +405,11 @@ export const ENV_MANIFEST = {
   OPS_GITHUB_TOKEN: server(['control-center'], { sensitive: true }),
   FLY_OPS_TOKEN: server(['control-center'], { sensitive: true }),
   OPS_MCP_TOKEN: server(['control-center'], { sensitive: true }),
+  // The remote dashboard's own credentials. Deliberately without `requiredFor`:
+  // a local dashboard exposes nothing and runs unauthenticated, so a missing
+  // value is only fatal at the Vercel entry point, which refuses to boot.
+  OPS_AUTH_USERNAME: server(['control-center'], { sensitive: true }),
+  OPS_AUTH_PASSWORD: server(['control-center'], { sensitive: true }),
   SENTRY_OPS_AUTH_TOKEN: server(['control-center'], { sensitive: true }),
   SENTRY_OPS_WRITE_TOKEN: server(['control-center'], { sensitive: true }),
   SENTRY_ORG_SLUG: server(['control-center']),
@@ -429,24 +430,12 @@ export const ENV_MANIFEST = {
     requiredFor: ['podcast-pipeline:base'],
   }),
   FLY_APP_NAME: host(['podcast-pipeline']),
-  VIDEO_STORYBOARD_PROVIDER: server(['podcast-pipeline']),
-  NVIDIA_API_KEY: server(['podcast-pipeline'], { sensitive: true }),
-  NVIDIA_BASE_URL: server(['podcast-pipeline']),
-  NVIDIA_STORYBOARD_MODEL: server(['podcast-pipeline'], {
-    requiredFor: ['podcast-pipeline:base'],
-  }),
-  VIDEO_ALIGNMENT_PROVIDER: server(['podcast-pipeline']),
-  VIDEO_ALIGNMENT_MODEL: server(['podcast-pipeline'], {
-    requiredFor: ['podcast-pipeline:base'],
-  }),
   VIDEO_FFMPEG_PATH: host(['podcast-pipeline']),
   VIDEO_FFPROBE_PATH: host(['podcast-pipeline']),
-  BRAVE_SEARCH_API_KEY: server(['podcast-pipeline'], {
+  BRAVE_SEARCH_API_KEY: server(['podcast-pipeline', 'control-center'], {
     sensitive: true,
     requiredFor: ['podcast-pipeline:base'],
   }),
-  PEXELS_API_KEY: server(['podcast-pipeline'], { sensitive: true }),
-  PIXABAY_API_KEY: server(['podcast-pipeline'], { sensitive: true }),
   SUPABASE_DB_SCHEMA: server(['podcast-pipeline', 'control-center']),
 
   ZAP_ELECTRON_DEV_URL: host(['desktop']),
@@ -571,7 +560,6 @@ export const LEGACY_ENV_NAMES = {
   NEXT_PUBLIC_IPFS_GATEWAY: 'IPFS_GATEWAY',
   NEXT_PUBLIC_IPFS_GATEWAY_FALLBACK: 'IPFS_GATEWAY_FALLBACK',
   NEXT_PUBLIC_GA_ID: 'GA_ID',
-  NEXT_PUBLIC_TRACK_RECORD_MOCK: 'TRACK_RECORD_MOCK',
   EXPO_PUBLIC_PRIVY_APP_ID: 'PRIVY_MOBILE_APP_ID',
   EXPO_PUBLIC_PRIVY_CLIENT_ID: 'PRIVY_MOBILE_CLIENT_ID',
   EXPO_PUBLIC_ACCOUNT_API_URL: 'ACCOUNT_API_URL',

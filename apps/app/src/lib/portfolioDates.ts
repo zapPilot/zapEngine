@@ -1,9 +1,11 @@
 import type { ContentLanguageCode } from '@/config/contentLanguages';
+import { CONTENT_LANGUAGE_LOCALES, cachedDateFormatter } from '@/lib/intlDates';
 
-const DATE_LOCALES: Readonly<Record<ContentLanguageCode, string>> = {
-  en: 'en-US',
-  'zh-Hant': 'zh-TW',
-  ja: 'ja-JP',
+const SNAPSHOT_DATE_OPTIONS: Intl.DateTimeFormatOptions = {
+  year: 'numeric',
+  month: 'short',
+  day: 'numeric',
+  timeZone: 'UTC',
 };
 
 function parsedDate(value: string | null | undefined): Date | null {
@@ -31,10 +33,8 @@ export function formatSnapshotDate(
 ): string | null {
   const date = parsedDate(value);
   if (date === null) return null;
-  return new Intl.DateTimeFormat(DATE_LOCALES[languageCode], {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    timeZone: 'UTC',
-  }).format(date);
+  return cachedDateFormatter(
+    CONTENT_LANGUAGE_LOCALES[languageCode],
+    SNAPSHOT_DATE_OPTIONS,
+  ).format(date);
 }

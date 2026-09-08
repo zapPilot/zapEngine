@@ -42,4 +42,5 @@ export const PROTOCOL_ICON_SRC: Record<ProtocolBrandKey, ImageSourcePropType> =
     ondo: require('@zapengine/brand-assets/assets/protocols/ondo.png'),
     aave: require('@zapengine/brand-assets/assets/protocols/aave.png'),
     lido: require('@zapengine/brand-assets/assets/protocols/lido.png'),
+    'eth-staking': require('@zapengine/brand-assets/assets/chains/ethereum.png'),
   };

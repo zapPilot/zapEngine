@@ -22,7 +22,6 @@ export const videoAssetPaths = {
   zapPilotOutro: fileURLToPath(
     new URL('brand/zap-pilot-outro.png', videoAssetsUrl),
   ),
-  usStatesMap: fileURLToPath(new URL('maps/us-states-cc0.svg', videoAssetsUrl)),
   musicDirectory: fileURLToPath(new URL('music/', videoAssetsUrl)),
 } as const;
 

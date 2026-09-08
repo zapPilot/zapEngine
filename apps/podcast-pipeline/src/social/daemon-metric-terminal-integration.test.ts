@@ -1,8 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  listPastDueSocialPublishJobs: vi.fn().mockResolvedValue([]),
-  rescheduleSocialPublishJob: vi.fn().mockResolvedValue(true),
   captureDueAccountSnapshots: vi.fn(),
   claimSocialPublishBatch: vi.fn(),
   closeMetricsBrowserSession: vi.fn(),
@@ -18,9 +16,6 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('./daemon-store.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./daemon-store.js')>()),
-  listPastDueSocialPublishJobs: mocks.listPastDueSocialPublishJobs,
-  rescheduleSocialPublishJob: mocks.rescheduleSocialPublishJob,
-  claimSocialPublishBatch: mocks.claimSocialPublishBatch,
   listLearningSocialPosts: mocks.listLearningSocialPosts,
   listMetricWindowsForPosts: mocks.listMetricWindowsForPosts,
   listPendingSocialPublishSchedules: mocks.listPendingSocialPublishSchedules,
@@ -34,7 +29,6 @@ vi.mock('./release-cohort-store.js', () => ({
   alignPendingSocialReleaseCohorts: vi.fn().mockResolvedValue({
     alignedLanes: 0,
     rescheduledEpisodes: 0,
-    recoveryEpisodes: [],
   }),
   listPartiallyPublishedCohorts: vi.fn().mockResolvedValue([]),
   claimReleaseCohortJobs: mocks.claimSocialPublishBatch,
@@ -99,8 +93,6 @@ function post(): SocialPostRow {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.listPastDueSocialPublishJobs.mockResolvedValue([]);
-  mocks.rescheduleSocialPublishJob.mockResolvedValue(true);
   mocks.captureDueAccountSnapshots.mockResolvedValue([]);
   mocks.claimSocialPublishBatch.mockResolvedValue([]);
   mocks.closeMetricsBrowserSession.mockResolvedValue(undefined);

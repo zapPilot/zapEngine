@@ -11,20 +11,32 @@ function pluginName(plugin: unknown): unknown {
   return Array.isArray(plugin) ? plugin[0] : plugin;
 }
 
-describe('Android store identity', () => {
-  it('preserves the existing Google Play application while using the Zap Pilot name', () => {
+describe('store identity', () => {
+  // Both stores continue the retired Flutter app's listings rather than opening
+  // new records: Google Play under com.fromfedtochain.app, App Store under
+  // com.example.fromFedToChainApp (ASC app 6749248542). Only the user-facing
+  // name changed.
+  it('preserves the existing store applications while using the Zap Pilot name', () => {
     expect(appConfig.name).toBe('Zap Pilot');
     expect(appConfig.android?.package).toBe('com.fromfedtochain.app');
+    expect(appConfig.ios?.bundleIdentifier).toBe(
+      'com.example.fromFedToChainApp',
+    );
   });
 
   it('keeps the native identifiers registered with the Privy mobile client', () => {
     expect(appConfig.android?.package).toBe('com.fromfedtochain.app');
-    expect(appConfig.ios?.bundleIdentifier).toBe('com.zapengine.zappilot.dev');
+    expect(appConfig.ios?.bundleIdentifier).toBe(
+      'com.example.fromFedToChainApp',
+    );
     expect(appConfig.scheme).toBe('zappilotv2');
   });
 
-  it('uses the next user-facing version after the final Flutter release', () => {
-    expect(appConfig.version).toBe('2.1.0');
+  // The shipped listing is on 2.03, which Apple reads as major 2, minor 3.
+  // Anything on the 2.1.x line would be a downgrade, so the rewrite takes the
+  // major bump it had earned anyway.
+  it('outranks the version the Flutter app left on the App Store', () => {
+    expect(appConfig.version).toBe('3.0.0');
     expect(appConfig.android?.versionCode).toBeUndefined();
   });
 

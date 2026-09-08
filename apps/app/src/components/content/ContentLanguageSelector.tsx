@@ -5,6 +5,7 @@ import { Modal, Pressable, Text, View } from 'react-native';
 import { Tap } from '@/components/ui/Tap';
 import {
   CONTENT_LANGUAGE_OPTIONS,
+  contentLanguageBadge,
   type ContentLanguageCode,
 } from '@/config/contentLanguages';
 import type { PodcastCompletionSummary } from '@/integration/podcastProgress';
@@ -19,13 +20,6 @@ interface ContentLanguageOptionRowsProps {
   onSelect?: () => void;
   onLanguageSelected?: ((code: ContentLanguageCode) => void) | undefined;
   completionByLanguage?: PodcastCompletionByLanguage | undefined;
-}
-
-export function getContentLanguageBadge(languageCode: string): string {
-  return (
-    CONTENT_LANGUAGE_OPTIONS.find((option) => option.code === languageCode)
-      ?.badge ?? languageCode.slice(0, 2).toUpperCase()
-  );
 }
 
 export function ContentLanguageOptionRows({
@@ -191,7 +185,7 @@ export function PodcastLanguageDropdown({
           )}
         >
           <Text className="font-mono text-[12px] font-bold text-accent">
-            {getContentLanguageBadge(languageCode)}
+            {contentLanguageBadge(languageCode)}
           </Text>
           {showsCompletion ? (
             <>

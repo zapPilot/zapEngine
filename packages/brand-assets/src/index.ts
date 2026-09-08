@@ -28,7 +28,8 @@ export type ProtocolBrandKey =
   | 'hyperliquid'
   | 'ondo'
   | 'aave'
-  | 'lido';
+  | 'lido'
+  | 'eth-staking';
 
 export interface ChainBrand {
   /** Human-readable chain name, safe for an accessibility label. */
@@ -81,6 +82,7 @@ export const PROTOCOL_BRAND: Record<ProtocolBrandKey, ProtocolBrand> = {
   ondo: { label: 'Ondo', color: '#f4f4f5' },
   aave: { label: 'Aave', color: '#9896ff' },
   lido: { label: 'Lido', color: '#00a3ff' },
+  'eth-staking': { label: 'ETH Staking', color: '#627eea' },
 };
 
 const CHAIN_BRAND_KEY_BY_CHAIN_ID = new Map<number, ChainBrandKey>(

@@ -1,5 +1,6 @@
 import {
   createFixedMonthlyCostSnapshot,
+  fetchBraveCostSnapshot,
   fetchDeBankCostSnapshot,
   fetchOpenRouterCostSnapshot,
   resolvePricingRate,
@@ -55,6 +56,11 @@ export async function collectCostProviders(input: {
     metricKey: 'api_unit',
     at: now,
   });
+  const braveRate = resolvePricingRate(input.pricingRates, {
+    provider: 'brave',
+    metricKey: 'search_request',
+    at: now,
+  });
   const supabaseRate = resolvePricingRate(input.pricingRates, {
     provider: 'supabase',
     metricKey: 'pro_plan',
@@ -91,6 +97,21 @@ export async function collectCostProviders(input: {
           now,
           baseUrl: input.config.DEBANK_BASE_URL,
           priorMonthTotalUsd: priorMonthTotal('debank'),
+        }),
+    },
+    {
+      provider: 'brave',
+      label: 'Brave Search',
+      costType: 'list-price-equivalent',
+      configured: Boolean(input.config.BRAVE_SEARCH_API_KEY),
+      pricingRateId: braveRate?.id ?? null,
+      load: () =>
+        fetchBraveCostSnapshot({
+          apiKey: input.config.BRAVE_SEARCH_API_KEY!,
+          unitCostUsd: braveRate?.priceUsd,
+          fetch: input.fetch,
+          now,
+          priorMonthTotalUsd: priorMonthTotal('brave'),
         }),
     },
     {
@@ -131,10 +152,9 @@ async function loadSource(source: CostSource): Promise<CollectedCostProvider> {
       costType: source.costType,
       snapshot: null,
       pricingRateId: source.pricingRateId,
-      message:
-        source.provider === 'debank' && source.pricingRateId === null
-          ? 'Usage available; pricing rate missing'
-          : 'Not connected',
+      message: meteredRateMissing(source)
+        ? 'Usage available; pricing rate missing'
+        : 'Not connected',
     };
   }
 
@@ -148,7 +168,7 @@ async function loadSource(source: CostSource): Promise<CollectedCostProvider> {
       snapshot,
       pricingRateId: source.pricingRateId,
       message:
-        source.provider === 'debank' && snapshot.accruedCostUsd === null
+        meteredRateMissing(source) && snapshot.accruedCostUsd === null
           ? 'Usage synced; USD cost unknown'
           : null,
     };
@@ -163,6 +183,13 @@ async function loadSource(source: CostSource): Promise<CollectedCostProvider> {
       message: safeProviderError(error),
     };
   }
+}
+
+function meteredRateMissing(source: CostSource): boolean {
+  return (
+    (source.provider === 'debank' || source.provider === 'brave') &&
+    source.pricingRateId === null
+  );
 }
 
 /**

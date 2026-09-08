@@ -7,15 +7,23 @@ export interface HeavyWorkCoordinator {
   tryRunVideo<T>(work: () => Promise<T>): Promise<VideoWorkAttempt<T>>;
 }
 
+/**
+ * Keeps ingest (LLM, TTS, audio HLS) and video work off the same CPU inside one
+ * process. It no longer caps how many videos run: that belongs to the render
+ * worker, which is the only place that can weigh a slot against the machine's
+ * free memory (src/services/render-admission.ts). All this has to know is
+ * whether *any* video is still running, so a waiting ingest does not start
+ * beside one.
+ */
 export function createHeavyWorkCoordinator(): HeavyWorkCoordinator {
   let activeIngests = 0;
   let waitingIngests = 0;
-  let videoActive = false;
+  let activeVideos = 0;
   const videoIdleWaiters = new Set<() => void>();
 
   const waitForVideoIdle = (signal?: AbortSignal): Promise<void> => {
     signal?.throwIfAborted();
-    if (!videoActive) return Promise.resolve();
+    if (activeVideos === 0) return Promise.resolve();
 
     return new Promise<void>((resolve, reject) => {
       const finish = () => {
@@ -60,17 +68,19 @@ export function createHeavyWorkCoordinator(): HeavyWorkCoordinator {
     },
 
     async tryRunVideo<T>(work: () => Promise<T>): Promise<VideoWorkAttempt<T>> {
-      if (videoActive || activeIngests > 0 || waitingIngests > 0) {
+      if (activeIngests > 0 || waitingIngests > 0) {
         return { acquired: false };
       }
 
-      videoActive = true;
+      activeVideos += 1;
       try {
         return { acquired: true, value: await work() };
       } finally {
-        videoActive = false;
-        for (const resolve of videoIdleWaiters) resolve();
-        videoIdleWaiters.clear();
+        activeVideos -= 1;
+        if (activeVideos === 0) {
+          for (const resolve of videoIdleWaiters) resolve();
+          videoIdleWaiters.clear();
+        }
       }
     },
   };

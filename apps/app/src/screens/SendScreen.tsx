@@ -10,7 +10,7 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { Tap } from '@/components/ui/Tap';
-import { type ChainKey } from '@/data/demo';
+import { type ChainKey } from '@/integration/activityTypes';
 import {
   buildSendTransactionRequest,
   defaultSendChain,

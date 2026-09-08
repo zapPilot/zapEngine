@@ -21,6 +21,24 @@ export class SocialPublishError extends Error {
   }
 }
 
+/**
+ * Builds the per-step wrapper a platform publisher uses to label a failure
+ * with the step that failed, without repeating the platform name at every
+ * call site.
+ */
+export function publishStep(platform: SocialPlatform) {
+  return async function step<T>(
+    name: string,
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    try {
+      return await operation();
+    } catch (error) {
+      throw new SocialPublishError(platform, name, error);
+    }
+  };
+}
+
 export type SocialReleaseFailurePhase =
   | 'transport'
   | 'state'

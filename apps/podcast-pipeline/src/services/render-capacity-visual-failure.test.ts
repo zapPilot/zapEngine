@@ -25,7 +25,7 @@ describe('visual failure render-capacity wake reason', () => {
     });
   });
 
-  it('does not add a visual-failure wake before the recovery RPC is available', () => {
-    expect(evaluatePendingRenderWork(snapshot(undefined))).toBeNull();
+  it('adds no visual-failure wake when there are no pending notices', () => {
+    expect(evaluatePendingRenderWork(snapshot([]))).toBeNull();
   });
 });

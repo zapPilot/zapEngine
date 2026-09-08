@@ -10,6 +10,7 @@ export const VISUAL_SUBJECT_TYPES = [
   'asset',
   'standard',
   'organization',
+  'object',
   'other',
 ] as const;
 
@@ -47,7 +48,6 @@ export const visualSubjectSchema = z
     storyRole: z.enum(VISUAL_SUBJECT_ROLES),
     evidenceSceneIds: z
       .array(sceneIdSchema)
-      .min(1)
       .max(SUBJECT_LIMITS.evidenceSceneIds),
     searchQueries: z
       .array(shortTextSchema)
@@ -74,10 +74,34 @@ export const visualSubjectSchema = z
   })
   .strict();
 
+/**
+ * Why a compact LLM subject never made it into the catalog. One bad subject used
+ * to fail the whole catalog and hand every scene to generic B-roll queries, so
+ * the drop is recorded instead and the rest of the catalog still anchors images.
+ */
+export const VISUAL_SUBJECT_DROP_REASONS = [
+  'missing-canonical-name',
+  'invalid-type',
+  'type-other',
+  'generic-term',
+  'not-grounded',
+  'title-only-no-scene-evidence',
+] as const;
+
+export const visualSubjectDropSchema = z
+  .object({
+    id: z.string().min(1).max(80),
+    names: z.array(z.string().min(1).max(80)).max(7),
+    type: z.string().min(1).max(40),
+    reason: z.enum(VISUAL_SUBJECT_DROP_REASONS),
+  })
+  .strict();
+
 export const visualSubjectCatalogSchema = z
   .object({
     primarySubjectId: subjectIdSchema,
     subjects: z.array(visualSubjectSchema).min(1).max(24),
+    droppedSubjects: z.array(visualSubjectDropSchema).max(24).optional(),
   })
   .strict()
   .superRefine((catalog, context) => {
@@ -117,6 +141,19 @@ export const visualSubjectCatalogSchema = z
         path: ['primarySubjectId'],
       });
     }
+    for (const [index, subject] of catalog.subjects.entries()) {
+      if (
+        subject.id !== catalog.primarySubjectId &&
+        subject.evidenceSceneIds.length === 0
+      ) {
+        context.addIssue({
+          code: 'custom',
+          message:
+            'Only the title-grounded primary subject may omit scene evidence',
+          path: ['subjects', index, 'evidenceSceneIds'],
+        });
+      }
+    }
   });
 
 export const visualSceneSubjectAssignmentSchema = z
@@ -128,7 +165,85 @@ export const visualSceneSubjectAssignmentSchema = z
   .strict();
 
 export type VisualSubject = z.infer<typeof visualSubjectSchema>;
+export type VisualSubjectDrop = z.infer<typeof visualSubjectDropSchema>;
 export type VisualSubjectCatalog = z.infer<typeof visualSubjectCatalogSchema>;
+
+/**
+ * Abstract/category phrases that should never become visual anchors. Concrete
+ * common nouns are intentionally not denied here: a GPU, data center, server
+ * rack, factory, or robot can be a useful image-search anchor when it is the
+ * actual subject of a story. The model decides that salience; this set only
+ * blocks phrases whose search results are inherently generic or symbolic.
+ */
+const GENERIC_VISUAL_SUBJECT_TERMS = new Set(
+  [
+    'ai',
+    'artificial intelligence',
+    'generative ai',
+    'ai infrastructure',
+    'ai compute',
+    'ai factory',
+    'ai factories',
+    'ai agents',
+    'ai companies',
+    'llm',
+    'llms',
+    'technology',
+    'tech',
+    'tech giants',
+    'tech giant',
+    'big tech',
+    'startup',
+    'startups',
+    'founders',
+    'office',
+    'investors',
+    'investor',
+    'market',
+    'markets',
+    'stock market',
+    'innovation',
+    'engineers',
+    'business',
+    'finance',
+    'financial',
+    'hyperscaler',
+    'hyperscalers',
+    'neocloud',
+    'neoclouds',
+    'capex',
+    'capital expenditure',
+    'debt',
+    'bond market',
+    'bonds',
+    'cloud',
+    'cloud computing',
+    'private credit',
+    'pension funds',
+    'infrastructure',
+    'crypto',
+    'cryptocurrency',
+    'blockchain',
+    'defi',
+    'web3',
+    'governance',
+    'government',
+    'regulators',
+    'central banks',
+    '科技巨頭',
+    '科技巨头',
+    '人工智慧',
+    '人工智能',
+    '加密貨幣',
+    '加密货币',
+    '區塊鏈',
+    '区块链',
+  ].map(normalized),
+);
+
+export function isGenericVisualSubjectName(name: string): boolean {
+  return GENERIC_VISUAL_SUBJECT_TERMS.has(normalized(name));
+}
 export type VisualSceneSubjectAssignment = z.infer<
   typeof visualSceneSubjectAssignmentSchema
 >;
@@ -216,7 +331,10 @@ export function buildVisualSubjectSearchQueries(
 
 export function isAmbiguousVisualSubject(subject: VisualSubject): boolean {
   const compact = subject.canonicalName.replace(/[^\p{L}\p{N}]/gu, '');
+  // An object anchor is a common noun, so its bare name never identifies the
+  // story's instance of it; the identity hint has to become part of the name.
   return (
+    subject.type === 'object' ||
     subject.negativeHints.length > 0 ||
     compact.length <= 4 ||
     /^[a-z]+\d+$/i.test(compact)

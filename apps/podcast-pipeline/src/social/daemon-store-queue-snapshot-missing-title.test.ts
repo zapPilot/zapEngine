@@ -87,20 +87,29 @@ describe('getSocialQueueSnapshot missing localization titles', () => {
           episodeId: 'episode-titled',
           title: 'Titled episode',
           nextAt: '2026-08-21T09:00:00.000Z',
+          laneCount: 1,
+          lanes: [{ platform: 'threads', languageCode: 'zh-Hant' }],
         },
         {
           episodeId: 'episode-missing-title',
           title: null,
           nextAt: '2026-08-21T10:00:00.000Z',
+          laneCount: 2,
+          lanes: [
+            { platform: 'threads', languageCode: 'zh-Hant' },
+            { platform: 'x', languageCode: 'zh-Hant' },
+          ],
         },
         {
           episodeId: 'episode-null-title',
           title: null,
           nextAt: '2026-08-21T13:00:00.000Z',
+          laneCount: 1,
+          lanes: [{ platform: 'x', languageCode: 'zh-Hant' }],
         },
       ],
-      nextByPlatform: {
-        threads: {
+      nextByLane: {
+        'threads|zh-Hant': {
           episodeId: 'episode-titled',
           languageCode: 'zh-Hant',
           platform: 'threads',
@@ -109,8 +118,9 @@ describe('getSocialQueueSnapshot missing localization titles', () => {
           nextAt: '2026-08-21T09:00:00.000Z',
           attemptCount: 0,
           attemptsExhausted: false,
+          experiment: null,
         },
-        x: {
+        'x|zh-Hant': {
           episodeId: 'episode-missing-title',
           languageCode: 'zh-Hant',
           platform: 'x',
@@ -119,8 +129,10 @@ describe('getSocialQueueSnapshot missing localization titles', () => {
           nextAt: '2026-08-21T10:00:00.000Z',
           attemptCount: 0,
           attemptsExhausted: false,
+          experiment: null,
         },
       },
+      waitingVideos: [],
     });
   });
 

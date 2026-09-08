@@ -4,15 +4,12 @@ import { z } from 'zod';
 
 import { errorMessage } from '../lib/errorMessage.js';
 import {
+  buildJsonModeChatParams,
   createOpenRouterChatCompletion,
   getOpenRouterConfig,
   stripJsonFence,
   unwrapNestedJsonPayload,
 } from '../services/llm.js';
-import {
-  getOpenRouterModelCandidates,
-  supportsJsonResponseFormat,
-} from '../services/llm-model-fallback.js';
 import type { SocialEpisode } from './types.js';
 
 /**
@@ -82,16 +79,17 @@ const RISK_RULES_PROMPT = new URL(
 );
 
 const JUDGE_MAX_TOKENS = 800;
+const JUDGE_PAYLOAD_MAX_ATTEMPTS = 2;
 
 export async function readRednoteRiskRules(): Promise<string> {
   return readFile(RISK_RULES_PROMPT, 'utf8');
 }
 
 /**
- * Judges one generated Rednote note. Throws on a verdict of risk and on being
- * unable to reach a verdict; returns quietly only when a model answered and
- * found nothing. Output-contract failures fail over to the ordered model list
- * before the gate is considered unavailable.
+ * Judges one generated Rednote note. The judge uses LLM_MODEL as its primary;
+ * transport failures automatically advance through LLM_FALLBACK_MODELS in the
+ * shared OpenRouter client. Payload retries stay local so malformed JSON never
+ * creates a second, task-specific model-order policy.
  */
 export async function assertRednoteSemanticRisk(input: {
   rednote: { title: string; body: string; hashtags: readonly string[] };
@@ -99,32 +97,23 @@ export async function assertRednoteSemanticRisk(input: {
   episode: Pick<SocialEpisode, 'title' | 'summary' | 'transcript'>;
 }): Promise<void> {
   const rules = await readRednoteRiskRules();
-  const primaryConfig = getOpenRouterConfig({ thinkingModel: null });
-  const models = getOpenRouterModelCandidates(primaryConfig.model);
+  const config = getOpenRouterConfig({ thinkingModel: null });
   let lastUnavailableDetail = 'the judge returned no verdict';
   let lastUnavailableCause: unknown;
 
-  for (const model of models) {
-    const config =
-      model === primaryConfig.model
-        ? primaryConfig
-        : getOpenRouterConfig({ model, thinkingModel: null });
-
+  for (let attempt = 1; attempt <= JUDGE_PAYLOAD_MAX_ATTEMPTS; attempt += 1) {
     let content: string | null | undefined;
     try {
       const completion = await createOpenRouterChatCompletion(
         config.openai,
-        {
-          model: config.model,
-          ...(supportsJsonResponseFormat(config.model)
-            ? { response_format: { type: 'json_object' as const } }
-            : {}),
-          max_tokens: JUDGE_MAX_TOKENS,
-          messages: [
+        buildJsonModeChatParams(
+          config.model,
+          [
             { role: 'system', content: buildJudgeSystemPrompt(rules) },
             { role: 'user', content: buildJudgeUserPrompt(input) },
           ],
-        },
+          { max_tokens: JUDGE_MAX_TOKENS },
+        ),
         config.thinkingModel,
         {
           reasoning: { enabled: false },
@@ -133,13 +122,11 @@ export async function assertRednoteSemanticRisk(input: {
       );
       content = completion.choices[0]?.message.content;
     } catch (error) {
-      lastUnavailableDetail = `model ${model} request failed`;
-      lastUnavailableCause = error;
-      continue;
+      throw unavailable(`model ${config.model} request failed`, error);
     }
 
     if (typeof content !== 'string' || !content.trim()) {
-      lastUnavailableDetail = `model ${model} returned an empty response`;
+      lastUnavailableDetail = `attempt ${attempt} returned an empty response`;
       lastUnavailableCause = undefined;
       continue;
     }
@@ -152,7 +139,7 @@ export async function assertRednoteSemanticRisk(input: {
         ]),
       );
     } catch (error) {
-      lastUnavailableDetail = `model ${model} returned an unreadable verdict`;
+      lastUnavailableDetail = `attempt ${attempt} returned an unreadable verdict`;
       lastUnavailableCause = error;
       continue;
     }
@@ -174,7 +161,7 @@ export async function assertRednoteSemanticRisk(input: {
   }
 
   throw unavailable(
-    `${lastUnavailableDetail} after trying ${models.length} model${models.length === 1 ? '' : 's'}`,
+    `${lastUnavailableDetail} after ${JUDGE_PAYLOAD_MAX_ATTEMPTS} payload attempts`,
     lastUnavailableCause,
   );
 }

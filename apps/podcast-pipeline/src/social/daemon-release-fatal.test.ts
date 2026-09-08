@@ -4,10 +4,7 @@ const mocks = vi.hoisted(() => ({
   alignPendingSocialReleaseCohorts: vi.fn().mockResolvedValue({
     alignedLanes: 0,
     rescheduledEpisodes: 0,
-    recoveryEpisodes: [],
   }),
-  listPastDueSocialPublishJobs: vi.fn().mockResolvedValue([]),
-  rescheduleSocialPublishJob: vi.fn().mockResolvedValue(true),
   claimSocialPublishBatch: vi.fn().mockResolvedValue([]),
   completeSocialPublishJob: vi.fn(),
   enqueueSocialPublishJob: vi.fn().mockResolvedValue(true),
@@ -17,7 +14,8 @@ const mocks = vi.hoisted(() => ({
   getSocialQueueSnapshot: vi.fn().mockResolvedValue({
     pendingCount: 0,
     episodeQueue: [],
-    nextByPlatform: {},
+    nextByLane: {},
+    waitingVideos: [],
   }),
   listPendingSocialPublishSchedules: vi.fn().mockResolvedValue([]),
   listDueSocialPublishPlatforms: vi.fn().mockResolvedValue([]),
@@ -55,8 +53,6 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('./daemon-store.js', () => ({
-  listPastDueSocialPublishJobs: mocks.listPastDueSocialPublishJobs,
-  rescheduleSocialPublishJob: mocks.rescheduleSocialPublishJob,
   claimSocialPublishBatch: mocks.claimSocialPublishBatch,
   completeSocialPublishJob: mocks.completeSocialPublishJob,
   enqueueSocialPublishJob: mocks.enqueueSocialPublishJob,
@@ -64,7 +60,6 @@ vi.mock('./daemon-store.js', () => ({
   failSocialPublishJob: mocks.failSocialPublishJob,
   getActiveSocialStrategies: mocks.getActiveSocialStrategies,
   getSocialQueueSnapshot: mocks.getSocialQueueSnapshot,
-  latestPendingSocialPublishSchedule: vi.fn().mockResolvedValue(null),
   listPendingSocialPublishSchedules: mocks.listPendingSocialPublishSchedules,
   listDueSocialPublishPlatforms: mocks.listDueSocialPublishPlatforms,
   listLearningSocialPosts: mocks.listLearningSocialPosts,
@@ -162,14 +157,23 @@ beforeEach(() => {
   mocks.alignPendingSocialReleaseCohorts.mockResolvedValue({
     alignedLanes: 0,
     rescheduledEpisodes: 0,
-    recoveryEpisodes: [],
   });
-  mocks.listPastDueSocialPublishJobs.mockResolvedValue([]);
-  mocks.rescheduleSocialPublishJob.mockResolvedValue(true);
   mocks.claimSocialPublishBatch.mockResolvedValue([]);
   mocks.listUnfinishedSocialPublishJobs.mockResolvedValue([]);
   mocks.listSocialPublishCandidates.mockResolvedValue([]);
-  mocks.listSocialPublishCandidatesForEpisodes.mockResolvedValue([]);
+  // Publishing re-checks media for every claimed cohort; the default is the
+  // normal production state, where every claimed episode is fully ready.
+  mocks.listSocialPublishCandidatesForEpisodes.mockImplementation(
+    async (episodeIds: readonly string[]) =>
+      episodeIds.flatMap((episodeId) =>
+        (['zh-Hant', 'ja', 'en'] as const).map((language_code) => ({
+          episode_id: episodeId,
+          ready_at: '2026-08-16T09:00:00.000Z',
+          language_code,
+          episode_created_at: '2026-08-24T00:00:00.000Z',
+        })),
+      ),
+  );
   mocks.listSocialPostsByEpisode.mockResolvedValue([]);
   mocks.listLearningSocialPosts.mockResolvedValue([]);
   mocks.releaseSocialPublishJobLease.mockResolvedValue(undefined);
@@ -289,6 +293,46 @@ describe('social daemon release-shape stages are fatal', () => {
     expect(mocks.captureDueAccountSnapshots).not.toHaveBeenCalled();
   });
 
+  it('releases the whole current language batch when preparation fails before transport', async () => {
+    const xJob = job({
+      id: 'x-en',
+      episode_id: EPISODE_A,
+      platform: 'x',
+      language_code: 'en',
+    });
+    const youtubeJob = job({
+      id: 'youtube-en',
+      episode_id: EPISODE_A,
+      platform: 'youtube',
+      language_code: 'en',
+    });
+    mocks.claimSocialPublishBatch.mockResolvedValue([xJob, youtubeJob]);
+    mocks.publishSocialBatch.mockRejectedValue(
+      new Error('OpenRouter_request_timed_out_after_120000ms'),
+    );
+
+    await expect(
+      runSocialDaemonTick({ now: NOW, firstStartedAt: FIRST_STARTED_AT }),
+    ).rejects.toThrow('OpenRouter_request_timed_out_after_120000ms');
+
+    expect(mocks.releaseSocialPublishJobLease).toHaveBeenCalledWith({
+      jobId: 'x-en',
+      owner: expect.any(String),
+      scheduledAt: NOW.toISOString(),
+      attemptCount: 1,
+      now: NOW,
+    });
+    expect(mocks.releaseSocialPublishJobLease).toHaveBeenCalledWith({
+      jobId: 'youtube-en',
+      owner: expect.any(String),
+      scheduledAt: NOW.toISOString(),
+      attemptCount: 1,
+      now: NOW,
+    });
+    expect(mocks.releaseSocialPublishJobLease).toHaveBeenCalledTimes(2);
+    expect(mocks.refundSocialPublishJobAttempt).not.toHaveBeenCalled();
+  });
+
   it('does not let a failed lease release mask the original fatal error', async () => {
     const jobA1 = job({ id: 'a1', episode_id: EPISODE_A, platform: 'x' });
     const jobB1 = job({
@@ -332,6 +376,134 @@ describe('social daemon release-shape stages are fatal', () => {
     ).rejects.toThrow('reconcile lookup down');
 
     expect(sleep).not.toHaveBeenCalled();
+  });
+});
+
+describe('transient network failures retry inside the daemon loop', () => {
+  function buildTransientPostgrestError(): Error {
+    // Mirrors the real postgrest-js ETIMEDOUT shape: throwSupabaseError wraps a
+    // plain { message, details, code: '' } object as `cause` + `supabaseError`.
+    const plain = {
+      message: 'TypeError: fetch failed',
+      details:
+        'TypeError: fetch failed\n\nCaused by: Error: read ETIMEDOUT (ETIMEDOUT)\n    at TLSWrap.onStreamRead',
+      hint: '',
+      code: '',
+    };
+    const err = new Error(
+      `TypeError: fetch failed Details: TypeError: fetch failed\n\nCaused by: Error: read ETIMEDOUT (ETIMEDOUT)`,
+      { cause: plain },
+    );
+    (err as unknown as Record<string, unknown>)['supabaseError'] = plain;
+    return err;
+  }
+
+  it('retries one transient failure, records an error heartbeat, and recovers on the next tick', async () => {
+    const transient = buildTransientPostgrestError();
+    mocks.listUnfinishedSocialPublishJobs
+      .mockRejectedValueOnce(transient)
+      .mockResolvedValue([]);
+    const sleep = vi
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('stop-loop'));
+    const log = vi.fn();
+    const recordTick = vi.fn().mockResolvedValue(undefined);
+
+    await expect(
+      runSocialDaemon({ now: () => NOW, sleep, log, recordTick }),
+    ).rejects.toThrow('stop-loop');
+
+    expect(recordTick).toHaveBeenCalledWith(
+      expect.objectContaining({ phase: 'error' }),
+    );
+    expect(sleep).toHaveBeenNthCalledWith(1, 60_000);
+    expect(mocks.listUnfinishedSocialPublishJobs).toHaveBeenCalledTimes(2);
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('retry 1/5'));
+  });
+
+  it('still fatals when the same network error is wrapped in SocialReleaseFailureError', async () => {
+    const transient = buildTransientPostgrestError();
+    const releaseError = new SocialReleaseFailureError({
+      episodeId: EPISODE_A,
+      languageCode: 'ja',
+      platform: 'x',
+      phase: 'transport',
+      cause: transient,
+    });
+    mocks.listUnfinishedSocialPublishJobs.mockResolvedValue([]);
+    mocks.claimSocialPublishBatch.mockResolvedValue([
+      job({ id: 'a1', episode_id: EPISODE_A, platform: 'x' }),
+    ]);
+    mocks.publishSocialBatch.mockRejectedValue(releaseError);
+    const sleep = vi.fn();
+    const recordTick = vi.fn().mockResolvedValue(undefined);
+
+    await expect(
+      runSocialDaemon({ now: () => NOW, sleep, log: vi.fn(), recordTick }),
+    ).rejects.toThrow(releaseError);
+
+    expect(sleep).not.toHaveBeenCalled();
+  });
+
+  it('fatals after 6 consecutive transient failures (5 retries)', async () => {
+    const transient = buildTransientPostgrestError();
+    mocks.listUnfinishedSocialPublishJobs.mockRejectedValue(transient);
+    const sleep = vi.fn().mockResolvedValue(undefined);
+    const recordTick = vi.fn().mockResolvedValue(undefined);
+
+    await expect(
+      runSocialDaemon({ now: () => NOW, sleep, log: vi.fn(), recordTick }),
+    ).rejects.toThrow('fetch failed');
+
+    expect(sleep).toHaveBeenCalledTimes(5);
+    expect(sleep).toHaveBeenCalledWith(60_000);
+  });
+
+  it('resets the streak after a successful tick and recovers after the earlier failures', async () => {
+    const transient = buildTransientPostgrestError();
+    const responses: (() => Promise<unknown>)[] = [
+      () => Promise.reject(transient),
+      () => Promise.reject(transient),
+      () => Promise.reject(transient),
+      () => Promise.resolve([]),
+      () => Promise.reject(transient),
+      () => Promise.reject(transient),
+      () => Promise.reject(transient),
+      () => Promise.reject(transient),
+      () => Promise.reject(transient),
+      () => Promise.resolve([]),
+    ];
+    let callIndex = 0;
+    mocks.listUnfinishedSocialPublishJobs.mockImplementation(() => {
+      const fn = responses[callIndex++];
+      return (fn ? fn() : Promise.resolve([])) as never;
+    });
+    const sleep = vi
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('stop-loop'));
+    const log = vi.fn();
+    const recordTick = vi.fn().mockResolvedValue(undefined);
+
+    await expect(
+      runSocialDaemon({ now: () => NOW, sleep, log, recordTick }),
+    ).rejects.toThrow('stop-loop');
+
+    expect(log).toHaveBeenCalledWith(
+      expect.stringContaining('network recovered after 3 failed tick(s)'),
+    );
+    // After the reset, the next 5 failures are still retried, not fatal.
+    // Total sleeps: 3 retries + 1 success + 5 retries = 9 before the final success's sleep that throws.
+    expect(sleep).toHaveBeenCalledTimes(10);
   });
 });
 

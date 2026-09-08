@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -221,7 +224,9 @@ describe('native podcast storage adapter', () => {
         : JSON.stringify({ mainSpeed: 1.5, classroomSpeed: 0.8 }),
     );
     nativeStorageMock.setItem.mockResolvedValue(undefined);
-    const storage = await import('@/storage/podcastStorage.native');
+    const { default: appKeyValueStorage } =
+      await import('@/storage/appKeyValueStorage.native');
+    const storage = createPodcastStorage(appKeyValueStorage);
 
     await expect(storage.loadPodcastProgress()).resolves.toEqual({
       episode: { listened: false, lastPositionSeconds: 120 },
@@ -254,5 +259,18 @@ describe('native podcast storage adapter', () => {
       'podcast_speed_preferences',
       JSON.stringify({ mainSpeed: 2, classroomSpeed: 0.75 }),
     );
+  });
+
+  it('never reads globalThis.localStorage from the native key-value backend', () => {
+    // The native backend must stay AsyncStorage-only; a stray `localStorage`
+    // reference here would silently drop progress/speed writes on-device.
+    const source = readFileSync(
+      fileURLToPath(
+        new URL('../src/storage/appKeyValueStorage.native.ts', import.meta.url),
+      ),
+      'utf8',
+    );
+
+    expect(source).not.toMatch(/localStorage/);
   });
 });

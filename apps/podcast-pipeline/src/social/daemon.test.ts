@@ -5,18 +5,14 @@ const mocks = vi.hoisted(() => ({
   alignPendingSocialReleaseCohorts: vi.fn().mockResolvedValue({
     alignedLanes: 0,
     rescheduledEpisodes: 0,
-    recoveryEpisodes: [],
   }),
   listPartiallyPublishedCohorts: vi.fn().mockResolvedValue([]),
-  listPastDueSocialPublishJobs: vi.fn().mockResolvedValue([]),
-  rescheduleSocialPublishJob: vi.fn().mockResolvedValue(true),
   completeSocialPublishJob: vi.fn(),
   enqueueSocialPublishJob: vi.fn(),
   ensureSocialDaemonStart: vi.fn(),
   failSocialPublishJob: vi.fn(),
   getActiveSocialStrategies: vi.fn(),
   getSocialQueueSnapshot: vi.fn(),
-  latestScheduledSocialJobs: vi.fn(),
   listPendingSocialPublishSchedules: vi.fn().mockResolvedValue([]),
   listDueSocialPublishPlatforms: vi.fn().mockResolvedValue([]),
   listLearningSocialPosts: vi.fn(),
@@ -58,26 +54,12 @@ vi.mock('./release-cohort-store.js', () => ({
 }));
 
 vi.mock('./daemon-store.js', () => ({
-  claimSocialPublishBatch: async (...args: unknown[]) => {
-    const job = await mocks.claimSocialPublishJob(...args);
-    return job ? [job] : [];
-  },
-  listPastDueSocialPublishJobs: mocks.listPastDueSocialPublishJobs,
-  rescheduleSocialPublishJob: mocks.rescheduleSocialPublishJob,
   completeSocialPublishJob: mocks.completeSocialPublishJob,
   enqueueSocialPublishJob: mocks.enqueueSocialPublishJob,
   ensureSocialDaemonStart: mocks.ensureSocialDaemonStart,
   failSocialPublishJob: mocks.failSocialPublishJob,
   getActiveSocialStrategies: mocks.getActiveSocialStrategies,
   getSocialQueueSnapshot: mocks.getSocialQueueSnapshot,
-  latestPendingSocialPublishSchedule: async () => {
-    const schedules = (await mocks.latestScheduledSocialJobs()) as Record<
-      string,
-      string
-    >;
-    const values = Object.values(schedules).sort();
-    return values.at(-1) ?? null;
-  },
   listPendingSocialPublishSchedules: mocks.listPendingSocialPublishSchedules,
   listDueSocialPublishPlatforms: mocks.listDueSocialPublishPlatforms,
   listLearningSocialPosts: mocks.listLearningSocialPosts,
@@ -224,21 +206,26 @@ beforeEach(() => {
   mocks.alignPendingSocialReleaseCohorts.mockReset().mockResolvedValue({
     alignedLanes: 0,
     rescheduledEpisodes: 0,
-    recoveryEpisodes: [],
   });
   mocks.listPartiallyPublishedCohorts.mockReset().mockResolvedValue([]);
   vi.clearAllMocks();
-  mocks.listPastDueSocialPublishJobs.mockResolvedValue([]);
-  mocks.rescheduleSocialPublishJob.mockResolvedValue(true);
   mocks.listSocialPublishCandidates.mockResolvedValue([]);
-  mocks.listSocialPublishCandidatesForEpisodes.mockResolvedValue([]);
+  // Publishing now re-checks media for every claimed cohort, so the default is
+  // the normal production state -- every episode asked about is fully ready.
+  // Tests that exercise the hold override this.
+  mocks.listSocialPublishCandidatesForEpisodes.mockImplementation(
+    async (episodeIds: readonly string[]) =>
+      episodeIds.flatMap((episodeId) =>
+        fullCohortCandidates(episodeId, EPISODE_CREATED_AT),
+      ),
+  );
   mocks.getActiveSocialStrategies.mockResolvedValue([]);
   mocks.getSocialQueueSnapshot.mockResolvedValue({
     pendingCount: 0,
     episodeQueue: [],
-    nextByPlatform: {},
+    nextByLane: {},
+    waitingVideos: [],
   });
-  mocks.latestScheduledSocialJobs.mockResolvedValue({});
   mocks.listPendingSocialPublishSchedules.mockResolvedValue([]);
   // The language experiment is pinned so lane assertions stay deterministic;
   // the slot experiments answer with their own primary variant.
@@ -302,7 +289,6 @@ describe('social daemon', () => {
     mocks.alignPendingSocialReleaseCohorts.mockResolvedValue({
       alignedLanes: 3,
       rescheduledEpisodes: 1,
-      recoveryEpisodes: [],
     });
     const log = vi.fn();
 
@@ -698,22 +684,31 @@ describe('social daemon', () => {
           ],
         },
       ],
-      nextByPlatform: {
-        x: {
+      nextByLane: {
+        'x|en': {
           episodeId: EPISODE_ID,
           platform: 'x',
+          languageCode: 'en',
           status: 'queued',
           title: '穩定幣真實使用場景：境內交易佔六成，亞太地區成最大市場',
           nextAt: '2026-08-16T10:05:00.000Z',
+          attemptCount: 0,
+          attemptsExhausted: false,
+          experiment: null,
         },
-        threads: {
+        'threads|ja': {
           episodeId: EPISODE_ID,
           platform: 'threads',
+          languageCode: 'ja',
           status: 'queued',
           title: '穩定幣真實使用場景',
           nextAt: '2026-08-16T10:15:00.000Z',
+          attemptCount: 0,
+          attemptsExhausted: false,
+          experiment: null,
         },
       },
+      waitingVideos: [],
     });
     const sleep = vi.fn().mockRejectedValue(new Error('stop-loop'));
     const log = vi.fn();
@@ -742,11 +737,48 @@ describe('social daemon', () => {
     );
   });
 
+  it('reports a live processing lease without claiming it is due now', async () => {
+    const leaseExpiresAt = new Date(
+      NOW.getTime() + 60 * 60 * 1000,
+    ).toISOString();
+    mocks.getSocialQueueSnapshot.mockResolvedValue({
+      pendingCount: 1,
+      episodeQueue: [],
+      nextByLane: {
+        'x|zh-Hant': {
+          episodeId: EPISODE_ID,
+          platform: 'x',
+          languageCode: 'zh-Hant',
+          status: 'processing',
+          title: null,
+          nextAt: leaseExpiresAt,
+          leaseExpiresAt,
+          attemptCount: 1,
+          attemptsExhausted: false,
+          experiment: null,
+        },
+      },
+      waitingVideos: [],
+    });
+    const log = vi.fn();
+    await expect(
+      runSocialDaemon({
+        now: () => NOW,
+        sleep: vi.fn().mockRejectedValue(new Error('stop-loop')),
+        log,
+        recordTick: vi.fn(),
+      }),
+    ).rejects.toThrow('stop-loop');
+    const output = log.mock.calls.map(([line]) => String(line)).join('\n');
+    expect(output).toContain('leased until');
+    expect(output).not.toContain('due now');
+  });
+
   it('logs missing video artifacts by article and language rather than channel', async () => {
     mocks.getSocialQueueSnapshot.mockResolvedValue({
       pendingCount: 0,
       episodeQueue: [],
-      nextByPlatform: {},
+      nextByLane: {},
       waitingVideos: [
         {
           episodeId: EPISODE_ID,
@@ -780,10 +812,12 @@ describe('social daemon', () => {
           episodeId: EPISODE_ID,
           title: '穩定幣真實使用場景',
           nextAt: '2026-08-16T10:05:00.000Z',
+          laneCount: 1,
+          lanes: [{ platform: 'x', languageCode: 'zh-Hant' }],
         },
       ],
-      nextByPlatform: {
-        x: {
+      nextByLane: {
+        'x|zh-Hant': {
           episodeId: EPISODE_ID,
           platform: 'x',
           languageCode: 'zh-Hant',
@@ -792,8 +826,10 @@ describe('social daemon', () => {
           nextAt: '2026-08-16T10:05:00.000Z',
           attemptCount: 8,
           attemptsExhausted: true,
+          experiment: null,
         },
       },
+      waitingVideos: [],
     });
     const sleep = vi.fn().mockRejectedValue(new Error('stop-loop'));
     const log = vi.fn();
@@ -1098,13 +1134,13 @@ describe('social daemon', () => {
     mocks.getSocialQueueSnapshot.mockResolvedValue({
       pendingCount: 0,
       episodeQueue: [],
-      nextByPlatform: {},
+      nextByLane: {},
+      waitingVideos: [],
     });
     mocks.claimSocialPublishJob.mockResolvedValue(null);
     mocks.listUnfinishedSocialPublishJobs.mockResolvedValue([]);
     mocks.listLearningSocialPosts.mockResolvedValue([]);
     mocks.listLearningSocialMetrics.mockResolvedValue([]);
-    mocks.latestScheduledSocialJobs.mockResolvedValue({});
     mocks.createMetricsBrowserSession.mockReturnValue({
       withPage: vi.fn(),
       close: mocks.closeMetricsBrowserSession,

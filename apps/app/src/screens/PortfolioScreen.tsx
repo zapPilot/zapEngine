@@ -21,11 +21,11 @@ import { Tap } from '@/components/ui/Tap';
 import { DEMO } from '@/data/demo';
 import { useAccount } from '@/integration/useAccount';
 import {
+  DEFAULT_PORTFOLIO_RANGE,
   type PortfolioRange,
   type PortfolioViewData,
   usePortfolioData,
 } from '@/integration/usePortfolioData';
-import { resolveColor } from '@/lib/colors';
 import { formatSignedPct, formatSignedUsd } from '@/lib/format';
 import { formatSnapshotDate, isSnapshotToday } from '@/lib/portfolioDates';
 import { useContentLanguage } from '@/providers/ContentLanguageProvider';
@@ -53,7 +53,7 @@ const METRIC_TRANSLATION_KEYS: Readonly<Record<string, TranslationKey>> = {
 };
 
 export function PortfolioScreen() {
-  const [range, setRange] = useState<PortfolioRange>('1Y');
+  const [range, setRange] = useState<PortfolioRange>(DEFAULT_PORTFOLIO_RANGE);
   const { languageCode, t } = useContentLanguage();
   const account = useAccount();
   const result = usePortfolioData(account.viewingUserId, range, {
@@ -188,7 +188,7 @@ export function PortfolioScreen() {
                 <View className="flex-row items-center gap-2">
                   <View
                     className="h-[9px] w-[9px] rounded-full"
-                    style={{ backgroundColor: resolveColor(item.color) }}
+                    style={{ backgroundColor: item.color }}
                   />
                   <Text className="text-[13px] text-ink-dim">{item.label}</Text>
                 </View>

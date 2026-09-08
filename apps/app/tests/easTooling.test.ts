@@ -67,6 +67,31 @@ function readEasJson(): EasJson {
   return JSON.parse(readAppFile('eas.json')) as EasJson;
 }
 
+interface IosReleaseBaseline {
+  appVersion?: string;
+  ascBuildNumberFloor?: number;
+}
+
+function readIosBaseline(): IosReleaseBaseline {
+  const baseline = JSON.parse(readAppFile('release-baselines.json')) as {
+    ios?: IosReleaseBaseline;
+  };
+
+  return baseline.ios ?? {};
+}
+
+// Called from a describe body, so it throws instead of asserting: an `expect`
+// failure outside a test is not reported against anything.
+function readIosBuildNumberFloor(): number {
+  const floor = readIosBaseline().ascBuildNumberFloor;
+
+  if (typeof floor !== 'number') {
+    throw new Error('release-baselines.json has no ios.ascBuildNumberFloor.');
+  }
+
+  return floor;
+}
+
 /**
  * Runs `scripts/eas.mjs` against a stub `pnpm` on PATH that echoes its argv, so
  * the wrapper's argument handling is observable without contacting EAS.
@@ -412,8 +437,14 @@ describe('submit-production-build validates exact build', () => {
 });
 
 describe('iOS remote version preflight', () => {
+  // Derived from the committed baseline so a lineage change (a different App
+  // Store listing, and therefore a different floor) does not silently turn
+  // these behavioural cases into no-ops. The literal floor stays pinned by
+  // 'records the App Store Connect build floor used by CI preflight' below.
+  const floor = readIosBuildNumberFloor();
+
   it('fails when EAS remote is below the App Store Connect floor', () => {
-    const versionJson = JSON.stringify({ buildNumber: '18' });
+    const versionJson = JSON.stringify({ buildNumber: String(floor - 1) });
 
     const { status, stderr } = runScriptWithEasStub(preflightScript, [], {
       CI: 'true',
@@ -422,11 +453,11 @@ describe('iOS remote version preflight', () => {
 
     expect(status).toBe(1);
     expect(stderr).toContain('below');
-    expect(stderr).toContain('floor 19');
+    expect(stderr).toContain(`floor ${floor}`);
   });
 
   it('passes when remote equals the floor', () => {
-    const versionJson = JSON.stringify({ buildNumber: '19' });
+    const versionJson = JSON.stringify({ buildNumber: String(floor) });
 
     const { status, stdout } = runScriptWithEasStub(preflightScript, [], {
       CI: 'true',
@@ -435,7 +466,7 @@ describe('iOS remote version preflight', () => {
 
     expect(status).toBe(0);
     expect(stdout).toContain('preflight passed');
-    expect(stdout).toContain('19');
+    expect(stdout).toContain(String(floor));
   });
 
   it('fails with a distinct message when remote is not initialized', () => {
@@ -452,7 +483,7 @@ describe('iOS remote version preflight', () => {
   });
 
   it('passes when remote is above the floor', () => {
-    const versionJson = JSON.stringify({ buildNumber: '42' });
+    const versionJson = JSON.stringify({ buildNumber: String(floor + 23) });
 
     const { status, stdout } = runScriptWithEasStub(preflightScript, [], {
       CI: 'true',
@@ -460,19 +491,17 @@ describe('iOS remote version preflight', () => {
     });
 
     expect(status).toBe(0);
-    expect(stdout).toContain('42');
+    expect(stdout).toContain(String(floor + 23));
   });
 });
 
 describe('iOS release version safety', () => {
   it('records the App Store Connect build floor used by CI preflight', () => {
-    const baseline = JSON.parse(readAppFile('release-baselines.json')) as {
-      ios?: { appVersion?: string; ascBuildNumberFloor?: number };
-    };
-
-    expect(baseline.ios).toMatchObject({
-      appVersion: '2.1.0',
-      ascBuildNumberFloor: 19,
+    // 204 is the final Flutter release 2.0.4 (204) on ASC app 6749248542, the
+    // listing this app continues.
+    expect(readIosBaseline()).toMatchObject({
+      appVersion: '3.0.0',
+      ascBuildNumberFloor: 204,
     });
   });
 

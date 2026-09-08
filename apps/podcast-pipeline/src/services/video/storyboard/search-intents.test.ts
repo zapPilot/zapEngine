@@ -1,3 +1,8 @@
+import {
+  APIConnectionError,
+  APIConnectionTimeoutError,
+  APIError,
+} from 'openai';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -20,6 +25,7 @@ vi.mock('../../llm.js', () => ({
 import {
   MAX_SEARCH_ENTITIES_PER_SCENE,
   type StoryboardDraft,
+  storyboardDraftSchema,
 } from './draft.js';
 import { createDeterministicStoryboard } from './fallback.js';
 import {
@@ -360,6 +366,109 @@ describe('storyboard search intent enrichment', () => {
     ]);
   });
 
+  it('anchors a disambiguated subject on its contextual and its original name', async () => {
+    // Disambiguation rewrites `a16z` into `venture capital a16z` and demotes the
+    // original into `aliases[0]`. A candidate's own metadata carries the short
+    // name and never the contextual phrase, so keeping only the canonical name
+    // made the entity ranking bonus unreachable for exactly the subjects
+    // disambiguation exists for.
+    const provider = stubCatalogProvider([
+      catalogSubject({
+        id: 'subject-a16z',
+        canonicalName: 'a16z',
+        searchQueries: ['a16z partners'],
+        identityHints: ['venture capital'],
+      }),
+    ]);
+
+    const result = await enrichStoryboardSearchIntents(
+      {
+        draft: {
+          scenes: [
+            {
+              sceneId: 'scene-01',
+              startSentenceId: 's0001',
+              endSentenceId: 's0001',
+              imageSearchIntent: ['placeholder'],
+            },
+          ],
+        },
+        title: 'a16z AI writing guide',
+        script: 'a16z published an AI writing guide.',
+      },
+      { provider },
+    );
+
+    expect(result.subjectCatalog?.subjects[0]).toMatchObject({
+      canonicalName: 'venture capital a16z',
+      aliases: ['a16z'],
+    });
+    expect(result.draft.scenes[0]?.imageSearchEntities).toEqual([
+      'venture capital a16z',
+      'a16z',
+    ]);
+    expect(storyboardDraftSchema.parse(result.draft)).toEqual(result.draft);
+  });
+
+  it('keeps a four-subject scene at four entities and drops the demoted names', async () => {
+    const request = catalogEnrichmentRequest('Sui、a16z、Base 與 Aave');
+    const provider = stubCatalogProvider([
+      catalogSubject({
+        id: 'subject-sui',
+        canonicalName: 'Sui',
+        searchQueries: ['Sui validators'],
+        identityHints: ['blockchain'],
+        evidenceSceneIds: ['scene-01', 'scene-02'],
+      }),
+      catalogSubject({
+        id: 'subject-a16z',
+        canonicalName: 'a16z',
+        storyRole: 'secondary',
+        searchQueries: ['a16z partners'],
+        identityHints: ['venture capital'],
+        evidenceSceneIds: ['scene-02'],
+      }),
+      catalogSubject({
+        id: 'subject-base',
+        canonicalName: 'Base',
+        storyRole: 'secondary',
+        searchQueries: ['Base network launch'],
+        identityHints: ['layer 2 network'],
+        evidenceSceneIds: ['scene-02'],
+      }),
+      catalogSubject({
+        id: 'subject-aave',
+        canonicalName: 'Aave',
+        storyRole: 'secondary',
+        searchQueries: ['Aave lending pools'],
+        identityHints: ['lending protocol'],
+        evidenceSceneIds: ['scene-02'],
+      }),
+    ]);
+
+    const result = await enrichStoryboardSearchIntents(request, { provider });
+
+    expect(result.sceneAssignments[1]?.subjectIds).toHaveLength(
+      MAX_SEARCH_ENTITIES_PER_SCENE,
+    );
+    // Four subjects already fill the cap the persisted plan enforces, so the
+    // demoted originals are what yields and this scene is unchanged.
+    expect(result.draft.scenes[1]?.imageSearchEntities).toEqual([
+      'blockchain Sui',
+      'venture capital a16z',
+      'layer 2 network Base',
+      'lending protocol Aave',
+    ]);
+    // A scene inheriting two subjects has room for one demoted name.
+    expect(result.draft.scenes[2]?.imageSearchEntities).toEqual([
+      'blockchain Sui',
+      'venture capital a16z',
+      'Sui',
+      'a16z',
+    ]);
+    expect(storyboardDraftSchema.parse(result.draft)).toEqual(result.draft);
+  });
+
   it('passes catalog queries carrying an unwritten year straight to image search', async () => {
     // Catalog searchQueries are deliberately not numeric-grounded. The per-scene
     // gate this replaced could not tell a hallucinated year from a number inside
@@ -516,12 +625,14 @@ describe('visual subject catalog grounding', () => {
       'direct',
       ...request.draft.scenes.slice(1).map(() => 'section-context'),
     ]);
-    // Image search is held to the disambiguated canonical name, which is what
-    // the planner writes and what the identity gate then matches candidates on.
+    // Both names travel: the contextual one is what the planner searched Brave
+    // for, and the demoted original is the spelling a candidate's own metadata
+    // carries, which is what the ranking bonus is scored against.
     expect(
       result.draft.scenes.every(
         (scene) =>
-          scene.imageSearchEntities?.[0] === 'financial news network CNBC',
+          scene.imageSearchEntities?.join('|') ===
+          'financial news network CNBC|CNBC',
       ),
     ).toBe(true);
   });
@@ -550,7 +661,7 @@ describe('visual subject catalog grounding', () => {
     ]);
   });
 
-  it('still rejects a subject that the episode never names', async () => {
+  it('degrades an ungrounded subject to deterministic intents instead of failing the episode', async () => {
     const request = catalogEnrichmentRequest('財政部');
     const provider = stubCatalogProvider([
       catalogSubject({
@@ -561,27 +672,39 @@ describe('visual subject catalog grounding', () => {
       }),
     ]);
 
-    await expect(
-      enrichStoryboardSearchIntents(request, { provider }),
-    ).rejects.toThrow(
-      /Visual subject subject-imaginary \(ImaginaryCorp\) is not grounded/u,
-    );
+    const result = await enrichStoryboardSearchIntents(request, { provider });
+
+    expect(result).toEqual({
+      draft: request.draft,
+      model: MODEL,
+      enrichedSceneCount: 0,
+      entityAnchoredSceneCount: 0,
+      subjectCatalog: null,
+      sceneAssignments: [],
+      degradedReason: expect.stringMatching(
+        /Visual subject subject-imaginary \(ImaginaryCorp\) is not grounded/u,
+      ),
+    });
+    expect(result.draft).toBe(request.draft);
     expect(provider.catalog).toHaveBeenCalledTimes(1);
   });
 
-  it('rejects a catalog subject that cites an unknown evidence scene', async () => {
+  it('degrades a catalog subject that cites an unknown evidence scene', async () => {
     const request = catalogEnrichmentRequest('CNBC');
     const provider = stubCatalogProvider([
       catalogSubject({ evidenceSceneIds: ['scene-99'] }),
     ]);
 
-    await expect(
-      enrichStoryboardSearchIntents(request, { provider }),
-    ).rejects.toThrow(/cites unknown evidence scene scene-99/u);
+    const result = await enrichStoryboardSearchIntents(request, { provider });
+
+    expect(result.subjectCatalog).toBeNull();
+    expect(result.degradedReason).toMatch(
+      /cites unknown evidence scene scene-99/u,
+    );
     expect(provider.catalog).toHaveBeenCalledTimes(1);
   });
 
-  it('requires exact evidence names and keeps descriptions in identity hints', () => {
+  it('requires exact evidence names and leaves scene/query construction to the application', () => {
     const prompt = buildSubjectCatalogSystemPrompt();
 
     expect(prompt).toContain(
@@ -591,15 +714,13 @@ describe('visual subject catalog grounding', () => {
       'use the English spelling for canonicalName and put the local-script spelling in aliases',
     );
     expect(prompt).toContain(
-      'Put descriptive industry, category, and role terms only in identityHints.',
-    );
-    // The application feeds these queries straight to the image provider and
-    // reads the citations itself, so both have to be stated as final answers.
-    expect(prompt).toContain(
-      'searchQueries are the final image-search queries.',
+      'Put descriptive industry, category, role, and physical-context terms only in identityHints.',
     );
     expect(prompt).toContain(
-      "These IDs are the application's direct scene assignment",
+      'Do not output scene IDs, image-search queries, or domains.',
+    );
+    expect(prompt).toContain(
+      'application derives scene evidence and final search queries deterministically',
     );
   });
 
@@ -654,9 +775,176 @@ describe('visual subject catalog grounding', () => {
   });
 });
 
+describe('visual subject catalog degradation', () => {
+  /** A non-SDK rejection that carries nothing but an HTTP status, which is how a
+   * custom or internal catalog provider surfaces a gateway refusal. */
+  function statusError(status: number, message: string): Error {
+    return Object.assign(new Error(message), { status });
+  }
+
+  function namedError(name: string, message: string): Error {
+    const error = new Error(message);
+    error.name = name;
+    return error;
+  }
+
+  function failingProvider(error: Error) {
+    return {
+      model: MODEL,
+      catalog: vi.fn<SearchIntentProvider['catalog']>(async () => {
+        throw error;
+      }),
+    };
+  }
+
+  it('degrades a catalog that violates the subject schema', async () => {
+    const request = catalogEnrichmentRequest('CNBC');
+    const provider = {
+      model: MODEL,
+      catalog: vi.fn<SearchIntentProvider['catalog']>(() =>
+        Promise.resolve({ primarySubjectId: 'subject-cnbc', subjects: [] }),
+      ),
+    };
+
+    const result = await enrichStoryboardSearchIntents(request, { provider });
+
+    expect(result.subjectCatalog).toBeNull();
+    expect(result.sceneAssignments).toEqual([]);
+    expect(result.draft).toBe(request.draft);
+    expect(result.degradedReason).toContain('Visual subject catalog failed');
+    // A zod message is a multi-line issue dump, and this reason is stored in the
+    // visual debug payload, so it has to stay one bounded line.
+    expect(result.degradedReason).not.toMatch(/\n/u);
+    expect(result.degradedReason?.length).toBeLessThanOrEqual(200);
+  });
+
+  it('degrades a payload error that survived its own retry', async () => {
+    const request = catalogEnrichmentRequest('CNBC');
+    const provider = failingProvider(
+      namedError(
+        'SearchIntentPayloadError',
+        'Search intents returned malformed JSON (provider=x, model=y)',
+      ),
+    );
+
+    const result = await enrichStoryboardSearchIntents(request, { provider });
+
+    expect(result.subjectCatalog).toBeNull();
+    expect(result.degradedReason).toContain(
+      'Search intents returned malformed JSON',
+    );
+  });
+
+  it('fails the episode when a non-SDK provider reports an HTTP status', async () => {
+    const provider = failingProvider(statusError(502, 'Bad gateway'));
+
+    await expect(
+      enrichStoryboardSearchIntents(catalogEnrichmentRequest('CNBC'), {
+        provider,
+      }),
+    ).rejects.toMatchObject({ status: 502, message: 'Bad gateway' });
+  });
+
+  it('fails the episode when the SDK rejects the catalog request on auth', async () => {
+    const provider = failingProvider(
+      new APIError(401, undefined, 'Invalid API key', undefined),
+    );
+
+    await expect(
+      enrichStoryboardSearchIntents(catalogEnrichmentRequest('CNBC'), {
+        provider,
+      }),
+    ).rejects.toMatchObject({ status: 401, message: '401 Invalid API key' });
+  });
+
+  it('fails the episode when the SDK rejects the catalog request on a 5xx', async () => {
+    const provider = failingProvider(
+      new APIError(503, undefined, 'Service unavailable', undefined),
+    );
+
+    await expect(
+      enrichStoryboardSearchIntents(catalogEnrichmentRequest('CNBC'), {
+        provider,
+      }),
+    ).rejects.toMatchObject({ status: 503 });
+  });
+
+  it('fails the episode when the catalog request never reaches the provider', async () => {
+    const error = new APIConnectionError({ message: 'Connection error.' });
+    // Measured against the installed SDK, and the whole reason this is a type
+    // test: a transport failure carries no HTTP status and its `name` is the
+    // plain inherited 'Error', so neither of those can tell it apart from an
+    // unusable model answer that is allowed to degrade the episode.
+    expect(error.status).toBeUndefined();
+    expect(error.name).toBe('Error');
+
+    await expect(
+      enrichStoryboardSearchIntents(catalogEnrichmentRequest('CNBC'), {
+        provider: failingProvider(error),
+      }),
+    ).rejects.toThrow('Connection error.');
+  });
+
+  it('fails the episode when the SDK request deadline expires', async () => {
+    const error = new APIConnectionTimeoutError({
+      message: 'Request timed out.',
+    });
+    expect(error.status).toBeUndefined();
+    expect(error.name).toBe('Error');
+
+    await expect(
+      enrichStoryboardSearchIntents(catalogEnrichmentRequest('CNBC'), {
+        provider: failingProvider(error),
+      }),
+    ).rejects.toThrow('Request timed out.');
+  });
+
+  it('fails the episode when a non-SDK timeout rejects the catalog request', async () => {
+    const provider = failingProvider(
+      namedError('TimeoutError', 'The operation timed out.'),
+    );
+
+    await expect(
+      enrichStoryboardSearchIntents(catalogEnrichmentRequest('CNBC'), {
+        provider,
+      }),
+    ).rejects.toThrow('The operation timed out.');
+  });
+
+  it('fails the episode on an AbortError that arrives without an aborted signal', async () => {
+    const provider = failingProvider(
+      namedError('AbortError', 'This operation was aborted.'),
+    );
+
+    await expect(
+      enrichStoryboardSearchIntents(catalogEnrichmentRequest('CNBC'), {
+        provider,
+      }),
+    ).rejects.toThrow('This operation was aborted.');
+  });
+
+  it('never degrades an aborted render into a quality problem', async () => {
+    const controller = new AbortController();
+    const provider = {
+      model: MODEL,
+      catalog: vi.fn<SearchIntentProvider['catalog']>(async () => {
+        controller.abort();
+        throw new Error('request cancelled mid-flight');
+      }),
+    };
+
+    await expect(
+      enrichStoryboardSearchIntents(catalogEnrichmentRequest('CNBC'), {
+        provider,
+        signal: controller.signal,
+      }),
+    ).rejects.toThrow();
+  });
+});
+
 describe('OpenRouter search intent provider', () => {
   const CATALOG_JSON =
-    '{"primarySubjectId":"subject-coinbase","subjects":[{"id":"subject-coinbase","canonicalName":"Coinbase","type":"company","aliases":[],"storyRole":"primary","evidenceSceneIds":["scene-01"],"searchQueries":["Coinbase"],"identityHints":["crypto exchange"],"negativeHints":[],"officialDomains":[]}]}';
+    '{"primarySubjectId":"subject-stablecoin","subjects":[{"id":"subject-stablecoin","canonicalName":"stablecoin","type":"asset","aliases":[],"storyRole":"primary","identityHints":["digital payments"],"negativeHints":[]}]}';
 
   function mockCompletion(content: string): void {
     llmMocks.getOpenRouterConfig.mockReturnValue({
@@ -666,20 +954,42 @@ describe('OpenRouter search intent provider', () => {
       timeoutMs: 120_000,
     });
     llmMocks.createCompletionWithRetry.mockResolvedValue({
-      choices: [{ message: { content } }],
+      choices: [{ message: { content }, finish_reason: 'stop' }],
     });
   }
 
-  it('asks for a JSON catalog and returns the parsed payload', async () => {
+  it('asks for a compact JSON catalog and materializes deterministic search metadata', async () => {
     mockCompletion(CATALOG_JSON);
     const provider = createOpenRouterSearchIntentProvider();
 
     await expect(
       provider.catalog({
         title: SEARCH_TITLE,
-        scenes: [{ sceneId: 'scene-01', text: '第一段。', searchText: 'One.' }],
+        scenes: [
+          {
+            sceneId: 'scene-01',
+            text: '第一段。',
+            searchText: 'Stablecoin payments are changing.',
+          },
+        ],
       }),
-    ).resolves.toEqual(JSON.parse(CATALOG_JSON));
+    ).resolves.toEqual({
+      primarySubjectId: 'subject-stablecoin',
+      subjects: [
+        {
+          id: 'subject-stablecoin',
+          canonicalName: 'stablecoin',
+          type: 'asset',
+          aliases: [],
+          storyRole: 'primary',
+          identityHints: ['digital payments'],
+          negativeHints: [],
+          evidenceSceneIds: ['scene-01'],
+          searchQueries: ['stablecoin digital payments', 'stablecoin'],
+          officialDomains: [],
+        },
+      ],
+    });
 
     expect(provider.model).toBe('openrouter/free');
     const [, params, , operation] =
@@ -691,11 +1001,52 @@ describe('OpenRouter search intent provider', () => {
       ];
     expect(params['response_format']).toEqual({ type: 'json_object' });
     expect(params['model']).toBe('openrouter/free');
-    expect(params['max_tokens']).toBe(3_072);
+    expect(params).not.toHaveProperty('max_tokens');
     expect(JSON.stringify(params['messages'])).toContain('englishSentences');
-    // Transport failures are retried by the shared OpenRouter policy rather
-    // than being swallowed one episode at a time.
     expect(operation).toBe('buildVisualSubjectCatalog');
+  });
+
+  it('keeps a title-only primary as episode context without fabricating scene evidence', async () => {
+    mockCompletion(CATALOG_JSON);
+    const provider = createOpenRouterSearchIntentProvider();
+
+    const result = await enrichStoryboardSearchIntents(
+      {
+        draft: {
+          scenes: [
+            {
+              sceneId: 'scene-01',
+              startSentenceId: 's0001',
+              endSentenceId: 's0001',
+              imageSearchIntent: ['placeholder'],
+            },
+            {
+              sceneId: 'scene-02',
+              startSentenceId: 's0002',
+              endSentenceId: 's0002',
+              imageSearchIntent: ['placeholder'],
+            },
+          ],
+        },
+        title: 'Stablecoin market outlook',
+        script: 'Markets changed. Payment costs declined.',
+      },
+      { provider },
+    );
+
+    expect(result.subjectCatalog?.subjects[0]?.evidenceSceneIds).toEqual([]);
+    expect(result.sceneAssignments).toEqual([
+      {
+        sceneId: 'scene-01',
+        subjectIds: ['subject-stablecoin'],
+        selectionReason: 'episode-context',
+      },
+      {
+        sceneId: 'scene-02',
+        subjectIds: ['subject-stablecoin'],
+        selectionReason: 'episode-context',
+      },
+    ]);
   });
 
   it('passes an abort signal through to the retrying OpenRouter request', async () => {
@@ -705,7 +1056,13 @@ describe('OpenRouter search intent provider', () => {
 
     await provider.catalog({
       title: SEARCH_TITLE,
-      scenes: [{ sceneId: 'scene-01', text: '第一段。' }],
+      scenes: [
+        {
+          sceneId: 'scene-01',
+          text: '第一段。',
+          searchText: 'Stablecoin payments are changing.',
+        },
+      ],
       signal: controller.signal,
     });
 
@@ -718,7 +1075,8 @@ describe('OpenRouter search intent provider', () => {
     );
   });
 
-  it('rejects empty and malformed completions', async () => {
+  it('rejects empty and malformed completions after one payload retry', async () => {
+    vi.clearAllMocks();
     mockCompletion('   ');
     const provider = createOpenRouterSearchIntentProvider();
     const request = {
@@ -729,17 +1087,256 @@ describe('OpenRouter search intent provider', () => {
     await expect(provider.catalog(request)).rejects.toThrow(
       'Search intents returned empty content',
     );
+    expect(llmMocks.createCompletionWithRetry).toHaveBeenCalledTimes(2);
 
-    llmMocks.createCompletionWithRetry.mockResolvedValueOnce({
-      choices: [{ message: { content: null } }],
-    });
-    await expect(
-      createOpenRouterSearchIntentProvider().catalog(request),
-    ).rejects.toThrow('Search intents returned empty content');
-
+    vi.clearAllMocks();
     mockCompletion('not json');
     await expect(
       createOpenRouterSearchIntentProvider().catalog(request),
     ).rejects.toThrow('Search intents returned malformed JSON');
+    expect(llmMocks.createCompletionWithRetry).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('named-entity-first scene assignment', () => {
+  it('orders the person a scene names ahead of the company it also names', async () => {
+    const request = catalogEnrichmentRequest('Amazon CEO Andy Jassy');
+    const allSceneIds = request.draft.scenes.map((scene) => scene.sceneId);
+    const provider = {
+      model: MODEL,
+      catalog: vi.fn<SearchIntentProvider['catalog']>(() =>
+        Promise.resolve({
+          primarySubjectId: 'subject-amazon',
+          subjects: [
+            {
+              id: 'subject-amazon',
+              canonicalName: 'Amazon',
+              type: 'company' as const,
+              aliases: [],
+              storyRole: 'primary' as const,
+              evidenceSceneIds: allSceneIds,
+              searchQueries: ['Amazon'],
+              identityHints: ['cloud retailer'],
+              negativeHints: [],
+              officialDomains: [],
+            },
+            {
+              id: 'subject-andy-jassy',
+              canonicalName: 'Andy Jassy',
+              type: 'person' as const,
+              aliases: [],
+              storyRole: 'supporting' as const,
+              evidenceSceneIds: allSceneIds,
+              searchQueries: ['Andy Jassy'],
+              identityHints: ['Amazon CEO'],
+              negativeHints: [],
+              officialDomains: [],
+            },
+          ],
+          droppedSubjects: [
+            {
+              id: 'subject-ai',
+              names: ['AI'],
+              type: 'product',
+              reason: 'generic-term' as const,
+            },
+          ],
+        }),
+      ),
+    };
+
+    const result = await enrichStoryboardSearchIntents(request, { provider });
+
+    // The lead scene is still anchored on the primary subject.
+    expect(result.sceneAssignments[0]).toMatchObject({
+      subjectIds: ['subject-amazon'],
+    });
+    // Every other scene that names both puts the person first, so the pool's
+    // query for those scenes is "Andy Jassy" rather than "Amazon".
+    for (const assignment of result.sceneAssignments.slice(1)) {
+      expect(assignment).toMatchObject({
+        subjectIds: ['subject-andy-jassy', 'subject-amazon'],
+        selectionReason: 'direct',
+      });
+    }
+    expect(result.draft.scenes[1]?.imageSearchIntent[0]).toBe('Andy Jassy');
+    expect(result.draft.scenes[1]?.imageSearchEntities).toEqual([
+      'Andy Jassy',
+      'Amazon',
+    ]);
+    // The recorded drops travel with the catalog into the persisted payload.
+    expect(result.subjectCatalog?.droppedSubjects).toEqual([
+      {
+        id: 'subject-ai',
+        names: ['AI'],
+        type: 'product',
+        reason: 'generic-term',
+      },
+    ]);
+  });
+
+  it('orders a common-noun object anchor behind the named entity a scene also names', async () => {
+    const request = catalogEnrichmentRequest('NVIDIA data center');
+    const allSceneIds = request.draft.scenes.map((scene) => scene.sceneId);
+    const provider = {
+      model: MODEL,
+      catalog: vi.fn<SearchIntentProvider['catalog']>(() =>
+        Promise.resolve({
+          primarySubjectId: 'subject-nvidia',
+          // The catalog lists the object first; ranking, not catalog order,
+          // decides which anchor a scene sends to Brave.
+          subjects: [
+            {
+              id: 'subject-data-center',
+              canonicalName: 'data center',
+              type: 'object' as const,
+              aliases: [],
+              storyRole: 'supporting' as const,
+              evidenceSceneIds: allSceneIds,
+              searchQueries: ['data center'],
+              identityHints: ['AI compute facility'],
+              negativeHints: [],
+              officialDomains: [],
+            },
+            {
+              id: 'subject-nvidia',
+              canonicalName: 'NVIDIA',
+              type: 'company' as const,
+              aliases: [],
+              storyRole: 'primary' as const,
+              evidenceSceneIds: allSceneIds,
+              searchQueries: ['NVIDIA'],
+              identityHints: ['GPU maker'],
+              negativeHints: [],
+              officialDomains: [],
+            },
+          ],
+          droppedSubjects: [],
+        }),
+      ),
+    };
+
+    const result = await enrichStoryboardSearchIntents(request, { provider });
+
+    expect(result.degradedReason).toBeUndefined();
+    expect(result.sceneAssignments.length).toBeGreaterThan(1);
+    for (const assignment of result.sceneAssignments.slice(1)) {
+      expect(assignment).toMatchObject({
+        subjectIds: ['subject-nvidia', 'subject-data-center'],
+      });
+    }
+    expect(result.draft.scenes[1]?.imageSearchIntent[0]).toBe('NVIDIA');
+  });
+});
+
+describe('object anchor search queries', () => {
+  it('carries the identity hint into a common-noun object query', async () => {
+    llmMocks.createCompletionWithRetry.mockResolvedValue({
+      model: MODEL,
+      provider: 'Wafer',
+      choices: [
+        {
+          finish_reason: 'stop',
+          message: {
+            content: JSON.stringify({
+              primarySubjectId: 'subject-data-center',
+              subjects: [
+                {
+                  id: 'subject-data-center',
+                  canonicalName: 'data center',
+                  type: 'object',
+                  aliases: [],
+                  storyRole: 'primary',
+                  identityHints: ['AI compute facility'],
+                  negativeHints: [],
+                },
+              ],
+            }),
+          },
+        },
+      ],
+    });
+
+    const catalog = (await createOpenRouterSearchIntentProvider().catalog({
+      title: 'The data center build-out',
+      scenes: [
+        {
+          sceneId: 'scene-01',
+          text: 'A new data center opened this week.',
+          searchText: 'A new data center opened this week.',
+        },
+      ],
+    })) as { subjects: { searchQueries: string[] }[] };
+
+    // A bare "data center" query returns exactly the generic stock art the
+    // anchor catalog exists to avoid, so the hint has to reach the query.
+    expect(catalog.subjects[0]?.searchQueries).toEqual([
+      'data center AI compute facility',
+      'data center',
+    ]);
+  });
+
+  it('carries the identity hint into a long unambiguous company name too', async () => {
+    llmMocks.createCompletionWithRetry.mockResolvedValue({
+      model: MODEL,
+      provider: 'Wafer',
+      choices: [
+        {
+          finish_reason: 'stop',
+          message: {
+            content: JSON.stringify({
+              primarySubjectId: 'subject-tether',
+              subjects: [
+                {
+                  id: 'subject-tether',
+                  canonicalName: 'Tether',
+                  type: 'company',
+                  aliases: [],
+                  storyRole: 'primary',
+                  identityHints: ['stablecoin issuer'],
+                  negativeHints: [],
+                },
+              ],
+            }),
+          },
+        },
+      ],
+    });
+
+    const catalog = (await createOpenRouterSearchIntentProvider().catalog({
+      title: 'Tether keeps minting',
+      scenes: [
+        {
+          sceneId: 'scene-01',
+          text: 'Tether keeps minting.',
+          searchText: 'Tether keeps minting.',
+        },
+      ],
+    })) as { subjects: { searchQueries: string[] }[] };
+
+    // "Tether" is six characters, a real company, and carries no collision
+    // hint, so every ambiguity rule called it safe -- and the bare query it
+    // earned returned photographs of phone tethering cables.
+    expect(catalog.subjects[0]?.searchQueries).toEqual([
+      'Tether stablecoin issuer',
+      'Tether',
+    ]);
+  });
+});
+
+describe('subject catalog prompt contract', () => {
+  it('tells the model that category words are never subjects and to resolve AI to the named entity', () => {
+    const prompt = buildSubjectCatalogSystemPrompt();
+
+    expect(prompt).toContain(
+      'NEVER create an anchor from a broad abstract category or generic concept',
+    );
+    expect(prompt).toContain(
+      'resolve it to the concrete entity named in that context',
+    );
+    expect(prompt).toContain(
+      'If a scene names a person, that person is a subject',
+    );
+    expect(prompt).toContain('never a category word');
   });
 });

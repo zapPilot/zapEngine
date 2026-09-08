@@ -85,7 +85,7 @@ beforeEach(() => {
 
 describe('createSocialPublishJobs', () => {
   it('builds Threads and X jobs with their native video transports', async () => {
-    const jobs = await createSocialPublishJobs({
+    const jobs = createSocialPublishJobs({
       platforms: ['threads', 'x'],
       copy,
       episode,
@@ -108,7 +108,7 @@ describe('createSocialPublishJobs', () => {
   });
 
   it('prepares Threads video with and without a reusable X teaser', async () => {
-    await createSocialPublishJobs({
+    createSocialPublishJobs({
       platforms: ['threads'],
       copy,
       episode,
@@ -123,7 +123,7 @@ describe('createSocialPublishJobs', () => {
     mocks.createThreadsPublisher.mockReturnValue({
       publishThreads: mocks.publishThreads,
     });
-    await createSocialPublishJobs({
+    createSocialPublishJobs({
       platforms: ['threads'],
       copy,
       episode,
@@ -136,8 +136,8 @@ describe('createSocialPublishJobs', () => {
     );
   });
 
-  it('does not instantiate X when X is not selected', async () => {
-    await createSocialPublishJobs({
+  it('does not instantiate X when X is not selected', () => {
+    createSocialPublishJobs({
       platforms: ['threads'],
       copy,
       episode,
@@ -147,20 +147,20 @@ describe('createSocialPublishJobs', () => {
     expect(mocks.createPlaywrightXPublisher).not.toHaveBeenCalled();
   });
 
-  it('rejects X before publishing when no teaser is prepared', async () => {
-    await expect(
+  it('rejects X before publishing when no teaser is prepared', () => {
+    expect(() =>
       createSocialPublishJobs({
         platforms: ['x'],
         copy,
         episode,
         videoUrl: VIDEO_URL,
       }),
-    ).rejects.toThrow('X publishing requires a prepared teaser video.');
+    ).toThrow('X publishing requires a prepared teaser video.');
     expect(mocks.createPlaywrightXPublisher).not.toHaveBeenCalled();
   });
 
   it('builds YouTube with the prepared full video, canonical thumbnail, and metadata', async () => {
-    const [job] = await createSocialPublishJobs({
+    const [job] = createSocialPublishJobs({
       platforms: ['youtube'],
       copy,
       episode,
@@ -181,7 +181,7 @@ describe('createSocialPublishJobs', () => {
   });
 
   it('forwards the break-glass YouTube privacy override', async () => {
-    const [job] = await createSocialPublishJobs({
+    const [job] = createSocialPublishJobs({
       platforms: ['youtube'],
       copy,
       episode,
@@ -197,8 +197,8 @@ describe('createSocialPublishJobs', () => {
     );
   });
 
-  it('rejects YouTube before publishing when video, thumbnail, or episode metadata is missing', async () => {
-    await expect(
+  it('rejects YouTube before publishing when video, thumbnail, or episode metadata is missing', () => {
+    expect(() =>
       createSocialPublishJobs({
         platforms: ['youtube'],
         copy,
@@ -206,9 +206,9 @@ describe('createSocialPublishJobs', () => {
         videoUrl: VIDEO_URL,
         thumbnailUrl: THUMBNAIL_URL,
       }),
-    ).rejects.toThrow('YouTube publishing requires a prepared video.');
+    ).toThrow('YouTube publishing requires a prepared video.');
 
-    await expect(
+    expect(() =>
       createSocialPublishJobs({
         platforms: ['youtube'],
         copy,
@@ -216,9 +216,7 @@ describe('createSocialPublishJobs', () => {
         videoUrl: VIDEO_URL,
         videoPath: VIDEO_PATH,
       }),
-    ).rejects.toThrow(
-      'YouTube publishing requires the canonical video thumbnail.',
-    );
+    ).toThrow('YouTube publishing requires the canonical video thumbnail.');
 
     for (const blank of [
       {
@@ -227,7 +225,7 @@ describe('createSocialPublishJobs', () => {
       },
       { copy, episode: { title: '市場更新', summary: '   ' } },
     ]) {
-      await expect(
+      expect(() =>
         createSocialPublishJobs({
           platforms: ['youtube'],
           copy: blank.copy,
@@ -236,14 +234,12 @@ describe('createSocialPublishJobs', () => {
           thumbnailUrl: THUMBNAIL_URL,
           videoPath: VIDEO_PATH,
         }),
-      ).rejects.toThrow(
-        'YouTube publishing requires title and description metadata.',
-      );
+      ).toThrow('YouTube publishing requires title and description metadata.');
     }
   });
 
   it('builds Rednote with its native title field and no off-platform CTA', async () => {
-    const [job] = await createSocialPublishJobs({
+    const [job] = createSocialPublishJobs({
       platforms: ['rednote'],
       copy,
       episode,
@@ -259,8 +255,8 @@ describe('createSocialPublishJobs', () => {
     });
   });
 
-  it('rejects Rednote before publishing when the copy carries no title', async () => {
-    await expect(
+  it('rejects Rednote before publishing when the copy carries no title', () => {
+    expect(() =>
       createSocialPublishJobs({
         platforms: ['rednote'],
         copy: { ...copy, rednote: { ...copy.rednote!, title: '' } },
@@ -268,26 +264,26 @@ describe('createSocialPublishJobs', () => {
         videoUrl: VIDEO_URL,
         videoPath: VIDEO_PATH,
       }),
-    ).rejects.toThrow('Rednote publishing requires a generated title.');
+    ).toThrow('Rednote publishing requires a generated title.');
 
     expect(mocks.createPlaywrightRednotePublisher).not.toHaveBeenCalled();
   });
 
-  it('rejects unsupported platform values at the exhaustive boundary', async () => {
-    await expect(
+  it('rejects unsupported platform values at the exhaustive boundary', () => {
+    expect(() =>
       createSocialPublishJobs({
         platforms: ['mastodon' as never],
         copy,
         episode,
         videoUrl: VIDEO_URL,
       }),
-    ).rejects.toThrow('Unsupported social platform: mastodon');
+    ).toThrow('Unsupported social platform: mastodon');
   });
 
   // The composed post is the last thing Rednote review sees, and it is reached
   // from paths that never ran the generation schema (a hand-edited copy file).
-  it('rejects Rednote before publishing when the composed post carries moderation-risk wording', async () => {
-    await expect(
+  it('rejects Rednote before publishing when the composed post carries moderation-risk wording', () => {
+    expect(() =>
       createSocialPublishJobs({
         platforms: ['rednote'],
         copy: {
@@ -301,20 +297,20 @@ describe('createSocialPublishJobs', () => {
         videoUrl: VIDEO_URL,
         videoPath: VIDEO_PATH,
       }),
-    ).rejects.toThrow(/moderation-risk wording/);
+    ).toThrow(/moderation-risk wording/);
 
     expect(mocks.createPlaywrightRednotePublisher).not.toHaveBeenCalled();
   });
 
-  it('rejects Rednote before publishing when no video is prepared', async () => {
-    await expect(
+  it('rejects Rednote before publishing when no video is prepared', () => {
+    expect(() =>
       createSocialPublishJobs({
         platforms: ['rednote'],
         copy,
         episode,
         videoUrl: VIDEO_URL,
       }),
-    ).rejects.toThrow('Rednote publishing requires a prepared video.');
+    ).toThrow('Rednote publishing requires a prepared video.');
 
     expect(mocks.createPlaywrightRednotePublisher).not.toHaveBeenCalled();
   });

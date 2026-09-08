@@ -1,14 +1,10 @@
-import {
-  type APIRequestContext,
-  type BrowserContext,
-  chromium,
-  type Page,
-} from 'playwright-core';
+import type { APIRequestContext, BrowserContext, Page } from 'playwright-core';
 
 import { toError } from '../lib/errorMessage.js';
 import { isPlainRecord as isRecord } from '../lib/typeGuards.js';
 import { convertTextToZhCN } from '../services/opencc.js';
 import type { SocialPostMetricDetails, SocialPostRow } from '../types.js';
+import { launchPersistentChrome } from './browser.js';
 import type {
   CollectedSocialMetrics,
   MetricCollectionResult,
@@ -64,7 +60,7 @@ export interface RecoveredPublishedPost {
   videoDurationSec: number | null;
 }
 
-const EMPTY_COUNTS: SocialMetricCounts = {
+export const EMPTY_COUNTS: SocialMetricCounts = {
   views: null,
   impressions: null,
   likes: null,
@@ -343,6 +339,25 @@ export async function inspectXPublishedPost(
   );
 }
 
+async function closestIndexByTimestamp(
+  count: number,
+  readMs: (index: number) => Promise<number | null>,
+  targetMs: number,
+): Promise<{ index: number; distance: number }> {
+  let bestIndex = -1;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (let index = 0; index < count; index += 1) {
+    const candidateMs = await readMs(index);
+    if (candidateMs === null || Number.isNaN(candidateMs)) continue;
+    const distance = Math.abs(candidateMs - targetMs);
+    if (distance < bestDistance) {
+      bestIndex = index;
+      bestDistance = distance;
+    }
+  }
+  return { index: bestIndex, distance: bestDistance };
+}
+
 export async function inspectXPublishedPostAt(
   publishedAt: string,
   profileUrl: string,
@@ -368,23 +383,20 @@ export async function inspectXPublishedPostAt(
         timeout: BROWSER_TIMEOUT_MS,
       });
       const count = await articles.count();
-      let bestIndex = -1;
-      let bestDistance = Number.POSITIVE_INFINITY;
-      for (let index = 0; index < count; index += 1) {
-        const datetime = await articles
-          .nth(index)
-          .locator('time')
-          .first()
-          .getAttribute('datetime')
-          .catch(() => null);
-        const candidateTime = datetime ? Date.parse(datetime) : Number.NaN;
-        if (Number.isNaN(candidateTime)) continue;
-        const distance = Math.abs(candidateTime - target);
-        if (distance < bestDistance) {
-          bestIndex = index;
-          bestDistance = distance;
-        }
-      }
+      const { index: bestIndex, distance: bestDistance } =
+        await closestIndexByTimestamp(
+          count,
+          async (index) => {
+            const datetime = await articles
+              .nth(index)
+              .locator('time')
+              .first()
+              .getAttribute('datetime')
+              .catch(() => null);
+            return datetime ? Date.parse(datetime) : null;
+          },
+          target,
+        );
       if (bestIndex < 0 || bestDistance > 30 * 60_000) {
         throw new Error(
           `No X post found within 30 minutes of ${publishedAt} on ${normalizedProfileUrl}.`,
@@ -670,25 +682,24 @@ async function closestRednoteCardToTimestamp(
   }
 
   const count = await cards.count();
-  let best = cards.first();
-  let bestDistance = Number.POSITIVE_INFINITY;
-  for (let index = 0; index < count; index += 1) {
-    const candidate = cards.nth(index);
-    const raw = await candidate.locator('.note-card__time').textContent();
-    const parsed = parseRednoteTime(raw);
-    if (parsed === null) continue;
-    const distance = Math.abs(parsed - target);
-    if (distance < bestDistance) {
-      bestDistance = distance;
-      best = candidate;
-    }
-  }
+  const { index: bestIndex, distance: bestDistance } =
+    await closestIndexByTimestamp(
+      count,
+      async (index) => {
+        const raw = await cards
+          .nth(index)
+          .locator('.note-card__time')
+          .textContent();
+        return parseRednoteTime(raw);
+      },
+      target,
+    );
   if (bestDistance > maxDistanceMs) {
     throw new Error(
       `${label} could not be matched within ${maxDistanceMs / 60_000} minutes of its publish time.`,
     );
   }
-  return best;
+  return bestIndex >= 0 ? cards.nth(bestIndex) : cards.first();
 }
 
 async function fetchYouTubeAnalytics(
@@ -1063,10 +1074,8 @@ export function createMetricsBrowserSession(): MetricsBrowserSession {
   async function contextFor(profileDirectory: string): Promise<BrowserContext> {
     let context = contexts.get(profileDirectory);
     if (!context) {
-      context = await chromium.launchPersistentContext(profileDirectory, {
-        channel: 'chrome',
+      context = await launchPersistentChrome(profileDirectory, {
         headless: true,
-        viewport: { width: 1440, height: 900 },
       });
       contexts.set(profileDirectory, context);
     }

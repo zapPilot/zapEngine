@@ -28,6 +28,9 @@ from src.models.strategy import (
     DailySuggestionStrategyContextState,
     DailySuggestionTargetState,
 )
+from src.services.backtesting.portfolio_rules import (
+    TECHNICAL_EXPERIMENT_RULE_NAMES,
+)
 from src.services.backtesting.strategy_registry import list_strategy_recipes
 from src.services.dependencies import (
     get_strategy_config_management_service,
@@ -275,7 +278,26 @@ async def test_get_strategy_configs_returns_nested_recipe_presets(
         "spy_latch",
         "dma_overextension_dca_sell",
         "fgi_downshift_dca_sell",
+        "rsi_bearish_divergence_dca_sell",
+        "rsi_overbought_dca_sell",
+        "momentum_breakdown_dca_sell",
+        "volatility_spike_dca_sell",
+        "rsi_bullish_divergence_dca_buy",
+        "rsi_oversold_recovery_dca_buy",
+        "macd_bearish_cross_dca_sell",
+        "macd_bullish_cross_dca_buy",
+        "bollinger_upper_band_dca_sell",
+        "bollinger_lower_band_dca_buy",
+        "breakout_20d_dca_buy",
+        "breakdown_20d_dca_sell",
     ]
+    technical_rules = [
+        rule
+        for rule in portfolio_rules
+        if rule["name"] in TECHNICAL_EXPERIMENT_RULE_NAMES
+    ]
+    assert len(technical_rules) == len(TECHNICAL_EXPERIMENT_RULE_NAMES)
+    assert all(rule["default_enabled"] is False for rule in technical_rules)
     spy_latch_rule = next(
         rule for rule in portfolio_rules if rule["name"] == "spy_latch"
     )

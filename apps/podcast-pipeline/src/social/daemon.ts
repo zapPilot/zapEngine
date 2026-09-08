@@ -4,7 +4,9 @@ import { hostname } from 'node:os';
 
 import { getAllowedTelegramUserIds } from '../lib/env.js';
 import { errorMessage } from '../lib/errorMessage.js';
+import { isMainModule } from '../lib/is-main-module.js';
 import { sleep as defaultSleep } from '../lib/sleep.js';
+import { isTransientNetworkError } from '../lib/transient-network-error.js';
 import {
   capturePipelineException,
   flushSentry,
@@ -31,6 +33,7 @@ import {
   resolveRequiredReleaseLanguages,
 } from './cohort.js';
 import { recordSocialDaemonTick } from './daemon-heartbeat.js';
+import { recoverOrphanedSocialLeases } from './daemon-lease-recovery.js';
 import {
   acquireSocialDaemonLock,
   SocialDaemonAlreadyRunningError,
@@ -56,18 +59,26 @@ import {
   reconcileSocialPublishJob,
   refundSocialPublishJobAttempt,
   releaseSocialPublishJobLease,
-  type SocialEpisodeLocalizationTitle,
   type SocialMetricWindowLabel,
   type SocialPublishCandidate,
   type SocialPublishJobRow,
   type SocialStrategyVersionRow,
 } from './daemon-store.js';
 import { buildSocialExperimentReports } from './experiment-report.js';
-import { isMainModule } from './is-main-module.js';
-import { laneLabel, languageFlag, platformIcon } from './log-format.js';
+import { JST_OFFSET_MS } from './jst.js';
+import { reportLocalPublicationHistory } from './local-publish-history.js';
+import { reconcileLocalPublishedJob } from './local-publish-recovery.js';
+import {
+  laneLabel,
+  languageFlag,
+  languageLabel,
+  platformIcon,
+  platformLabel,
+} from './log-format.js';
 import {
   createMetricCollectors,
   createMetricsBrowserSession,
+  EMPTY_COUNTS,
 } from './metric-collectors.js';
 import { buildSocialPostMetric, collectPostMetrics } from './metrics.js';
 import { activePackagingExperiment } from './packaging-experiments.js';
@@ -98,6 +109,9 @@ import {
 } from './strategy.js';
 
 const POLL_INTERVAL_MS = 60_000;
+// A transient Supabase disconnection typically costs ~78s of socket time plus
+// 60s poll; 5 ticks ≈ 10 minutes of tolerance before escalating to fatal.
+const TRANSIENT_NETWORK_RETRY_LIMIT = 5;
 const METRIC_LOOKBACK_DAYS = 8;
 const STRATEGY_REFRESH_INTERVAL_MS = 6 * 60 * 60_000;
 const OWNER = `${hostname()}:${process.pid}`;
@@ -134,6 +148,7 @@ export async function runSocialDaemon(
   const log = dependencies.log ?? console.log;
   const recordTick = dependencies.recordTick ?? recordSocialDaemonTick;
   let lastStrategyRefresh = 0;
+  let consecutiveTransientFailures = 0;
 
   const firstStartedAt = await ensureSocialDaemonStart(now());
   log(
@@ -167,6 +182,18 @@ export async function runSocialDaemon(
         owner: OWNER,
         error,
       });
+      if (
+        !(error instanceof SocialReleaseFailureError) &&
+        isTransientNetworkError(error) &&
+        consecutiveTransientFailures < TRANSIENT_NETWORK_RETRY_LIMIT
+      ) {
+        consecutiveTransientFailures += 1;
+        log(
+          `⚠️ [social-daemon] transient network failure · retry ${consecutiveTransientFailures}/${TRANSIENT_NETWORK_RETRY_LIMIT} · next check in 60s · ${errorMessage(error).split('\n')[0]}`,
+        );
+        await sleep(POLL_INTERVAL_MS);
+        continue;
+      }
       throw error;
     }
     if (
@@ -184,6 +211,12 @@ export async function runSocialDaemon(
       );
     });
     await recordTick({ phase: 'success', now: now(), owner: OWNER });
+    if (consecutiveTransientFailures > 0) {
+      log(
+        `✅ [social-daemon] network recovered after ${consecutiveTransientFailures} failed tick(s)`,
+      );
+      consecutiveTransientFailures = 0;
+    }
     log('');
     log(
       `✅ [social-daemon] check complete · next check in ${POLL_INTERVAL_MS / 1_000}s.`,
@@ -199,6 +232,15 @@ export async function runSocialDaemon(
  * actually published, or leave the queue mis-scheduled. Those propagate and
  * stop the whole process. Metrics, snapshots, strategy and reports are purely
  * observational and stay isolated.
+ *
+ * One exception is handled by the main loop: socket/DNS-layer transient
+ * network failures (`isTransientNetworkError`) that are not a
+ * `SocialReleaseFailureError` are retried for up to
+ * `TRANSIENT_NETWORK_RETRY_LIMIT` consecutive ticks, because `reconcile` on
+ * the next tick is already the correct recovery path for a Supabase blip that
+ * happened before any transport started. `SocialReleaseFailureError` and all
+ * other errors remain fatal, and this retry does not turn the daemon into a
+ * watch runner — it is a bounded delay before the existing fatal path.
  */
 export async function runSocialDaemonTick(input: {
   now: Date;
@@ -207,8 +249,9 @@ export async function runSocialDaemonTick(input: {
   refreshStrategy?: boolean;
 }): Promise<void> {
   const log = input.log ?? (() => void 0);
+  const titleIndex = createEpisodeTitleIndex();
 
-  await reconcileAlreadyPublishedJobs(input.now, log);
+  await reconcileAlreadyPublishedJobs(input.now, log, titleIndex);
   const alignment = await alignPendingSocialReleaseCohorts(
     input.now,
     PUBLISH_SLOT_GRACE_MS,
@@ -223,6 +266,7 @@ export async function runSocialDaemonTick(input: {
     now: input.now,
     firstStartedAt: input.firstStartedAt,
     log,
+    titleIndex,
   });
 
   await isolate('pre-publish snapshots', log, async () => {
@@ -236,14 +280,32 @@ export async function runSocialDaemonTick(input: {
     });
   });
 
-  await publishDueJobs(input.now, log);
+  await publishDueJobs(input.now, log, titleIndex);
 
-  await isolate('metrics', log, async () => {
-    await collectDueMetricWindows(input.now, log);
-  });
-  await isolate('account snapshots', log, async () => {
-    await captureAccountSnapshots(input.now, log);
-  });
+  // `collectDueMetricWindows` and `captureAccountSnapshots` are the two
+  // observational steps left once publishing (and its own X/Rednote
+  // `launchPersistentContext` sessions) has finished for the tick, so they
+  // share one lazily-created Chrome session instead of opening one each.
+  let observationBrowser:
+    | ReturnType<typeof createMetricsBrowserSession>
+    | undefined;
+  const openObservationBrowser = () =>
+    (observationBrowser ??= createMetricsBrowserSession());
+  try {
+    await isolate('metrics', log, async () => {
+      await collectDueMetricWindows(
+        input.now,
+        log,
+        titleIndex,
+        openObservationBrowser,
+      );
+    });
+    await isolate('account snapshots', log, async () => {
+      await captureAccountSnapshots(input.now, log, openObservationBrowser);
+    });
+  } finally {
+    await observationBrowser?.close();
+  }
   if (input.refreshStrategy) {
     await isolate('strategy', log, () =>
       refreshSocialStrategies({ now: input.now, log }),
@@ -285,6 +347,7 @@ async function discoverAndEnqueue(input: {
   now: Date;
   firstStartedAt: string;
   log: (message: string) => void;
+  titleIndex: EpisodeTitleIndex;
 }): Promise<void> {
   const [candidates, schedules] = await Promise.all([
     listSocialPublishCandidates(input.firstStartedAt),
@@ -297,7 +360,7 @@ async function discoverAndEnqueue(input: {
   ];
   const [readyCandidates, titleByEpisodeLanguage] = await Promise.all([
     listSocialPublishCandidatesForEpisodes(episodeIds),
-    loadEpisodeTitleMap(episodeIds),
+    input.titleIndex.load(episodeIds),
   ]);
   const candidatesByEpisode = new Map<string, SocialPublishCandidate[]>();
   for (const candidate of readyCandidates) {
@@ -407,6 +470,17 @@ function missingLanguages(
   return [...required].filter((language) => !ready.has(language));
 }
 
+function logCohortNotReady(
+  log: (message: string) => void,
+  title: string | null,
+  episodeId: string,
+  missing: readonly string[],
+): void {
+  log(
+    `⏳ [social-daemon] ${episodeLabel(title, episodeId)} · cohort not release-ready · ${missing.map((language) => languageLabel(language)).join(' · ')}`,
+  );
+}
+
 async function enqueueExistingCohort(input: {
   episodeId: string;
   firstCandidate: SocialPublishCandidate;
@@ -432,9 +506,7 @@ async function enqueueExistingCohort(input: {
   );
   const missing = missingLanguages(requiredLanguages, readyLanguages);
   if (missing.length > 0) {
-    input.log(
-      `⏳ [social-daemon] ${episodeLabel(input.title, input.episodeId)} · cohort not release-ready · ${missing.map((language) => `${languageFlag(language)} ${language}`).join(' · ')}`,
-    );
+    logCohortNotReady(input.log, input.title, input.episodeId, missing);
     return;
   }
   const readyAt = readyAtForLanguages(
@@ -470,9 +542,7 @@ async function enqueueExistingCohort(input: {
     readyLanguages,
   );
   if (finalMissing.length > 0) {
-    input.log(
-      `⏳ [social-daemon] ${episodeLabel(input.title, input.episodeId)} · cohort not release-ready · ${finalMissing.map((language) => `${languageFlag(language)} ${language}`).join(' · ')}`,
-    );
+    logCohortNotReady(input.log, input.title, input.episodeId, finalMissing);
     return;
   }
 
@@ -510,9 +580,7 @@ async function enqueueNewCohort(input: {
   );
   const missing = missingLanguages(requiredLanguages, readyLanguages);
   if (missing.length > 0) {
-    input.log(
-      `⏳ [social-daemon] ${episodeLabel(input.title, input.episodeId)} · cohort not release-ready · ${missing.map((language) => `${languageFlag(language)} ${language}`).join(' · ')}`,
-    );
+    logCohortNotReady(input.log, input.title, input.episodeId, missing);
     return;
   }
 
@@ -545,9 +613,7 @@ async function enqueueNewCohort(input: {
     readyLanguages,
   );
   if (finalMissing.length > 0) {
-    input.log(
-      `⏳ [social-daemon] ${episodeLabel(input.title, input.episodeId)} · cohort not release-ready · ${finalMissing.map((language) => `${languageFlag(language)} ${language}`).join(' · ')}`,
-    );
+    logCohortNotReady(input.log, input.title, input.episodeId, finalMissing);
     return;
   }
 
@@ -614,6 +680,7 @@ async function enqueueCohortJobs(input: {
 async function reconcileAlreadyPublishedJobs(
   now: Date,
   log: (message: string) => void,
+  titleIndex: EpisodeTitleIndex,
 ): Promise<void> {
   const jobs = await listUnfinishedSocialPublishJobs();
   if (jobs.length === 0) return;
@@ -621,7 +688,7 @@ async function reconcileAlreadyPublishedJobs(
   const episodeIds = [...new Set(jobs.map((job) => job.episode_id))];
   const [posts, titleByEpisodeLanguage] = await Promise.all([
     listSocialPostIdentitiesByEpisodes(episodeIds),
-    loadEpisodeTitleMap(episodeIds),
+    titleIndex.load(episodeIds),
   ]);
   const postIdByJob = new Map<string, string>();
   for (const post of posts) {
@@ -670,11 +737,11 @@ async function persistPublishFailure(input: {
     });
   } catch (persistenceError) {
     input.log(
-      `❌ [social-daemon] ${platformIcon(input.platform)} ${input.platform} · failed to persist publish failure · episode ${input.episodeId} · ${errorMessage(persistenceError)}`,
+      `❌ [social-daemon] ${platformLabel(input.platform)} · failed to persist publish failure · episode ${input.episodeId} · ${errorMessage(persistenceError)}`,
     );
   }
   input.log(
-    `❌ [social-daemon] ${platformIcon(input.platform)} ${input.platform} · ${episodeLabel(input.title ?? null, input.episodeId)} · publish failed · episode=${input.episodeId} · job=${input.jobId} · ${input.message}`,
+    `❌ [social-daemon] ${platformLabel(input.platform)} · ${episodeLabel(input.title ?? null, input.episodeId)} · publish failed · episode=${input.episodeId} · job=${input.jobId} · ${input.message}`,
   );
 }
 
@@ -690,6 +757,7 @@ async function persistPublishFailure(input: {
 async function publishDueJobs(
   now: Date,
   log: (message: string) => void,
+  titleIndex: EpisodeTitleIndex,
 ): Promise<void> {
   if (!withinPublishWindow(now, SOCIAL_PUBLISH_WINDOW_JST)) return;
 
@@ -715,7 +783,7 @@ async function publishDueJobs(
 
   const [active, titleByEpisodeLanguage] = await Promise.all([
     activeStrategiesForPublish(log),
-    loadEpisodeTitleMap(jobs.map((job) => job.episode_id)),
+    titleIndex.load(jobs.map((job) => job.episode_id)),
   ]);
   const pendingByEpisodeLanguage = new Map<string, SocialPublishJobRow[]>();
   for (const job of jobs) {
@@ -744,7 +812,12 @@ async function publishDueJobs(
     }
   }
 
-  const groups = [...pendingByEpisodeLanguage.values()];
+  const groups = await holdCohortsMissingMedia(
+    pendingByEpisodeLanguage,
+    now,
+    titleByEpisodeLanguage,
+    log,
+  );
   for (const [index, pendingJobs] of groups.entries()) {
     try {
       await publishLanguageBatch(
@@ -756,10 +829,114 @@ async function publishDueJobs(
       );
     } catch (error) {
       await releaseUntouchedLeases(groups.slice(index + 1).flat(), now, log);
-      await refundUntriedLanesInFailedGroup(pendingJobs, error, now, log);
+      // Generic failures happen before publishSocialPlatforms has started
+      // transport (copy/video/packaging/job preparation). No lane in this
+      // language batch could be live, so hand the whole claimed group back
+      // immediately instead of waiting for the 60-minute lease to expire.
+      await (error instanceof SocialReleaseFailureError
+        ? refundUntriedLanesInFailedGroup(pendingJobs, error, now, log)
+        : releaseUntouchedLeases(pendingJobs, now, log));
       throw error;
     }
   }
+}
+
+/**
+ * The enqueue barrier already proved every required lane's media existed, but
+ * nothing freezes it afterwards: a force re-plan between enqueue and this tick
+ * requeues a render and removes the completed video underneath an already
+ * claimed cohort. Publishing then ships the languages that survived and dies
+ * fatally on the one that did not, which is exactly the permanently partial
+ * article the cohort contract forbids. So readiness is re-checked here, against
+ * the same `social_publish_candidates` definition discovery uses, and a missing
+ * language holds that whole episode while every other episode still publishes.
+ *
+ * The hold fails the lanes rather than releasing their leases: media vanishing
+ * after enqueue is exceptional state that has to be visible in `last_error` and
+ * the queue summary, and spending an attempt is what keeps the partial-cohort
+ * fence bounded instead of holding the queue forever.
+ */
+async function holdCohortsMissingMedia(
+  pendingByEpisodeLanguage: ReadonlyMap<string, SocialPublishJobRow[]>,
+  now: Date,
+  titleByEpisodeLanguage: ReadonlyMap<string, string | null>,
+  log: (message: string) => void,
+): Promise<SocialPublishJobRow[][]> {
+  const groups = [...pendingByEpisodeLanguage.values()];
+  const episodeIds = [...new Set(groups.flat().map((job) => job.episode_id))];
+  if (episodeIds.length === 0) return groups;
+
+  const [schedules, candidates] = await Promise.all([
+    listPendingSocialPublishSchedules(),
+    listSocialPublishCandidatesForEpisodes(episodeIds),
+  ]);
+
+  // Every durable lane of the episode has to be publishable, not just the lanes
+  // this tick happened to claim: shipping two of three languages now and
+  // failing the third later is still a partial article.
+  const scopedEpisodes = new Set(episodeIds);
+  const requiredByEpisode = new Map<string, Set<string>>();
+  const requireLanguage = (episodeId: string, language: string) => {
+    const languages = requiredByEpisode.get(episodeId) ?? new Set<string>();
+    languages.add(language);
+    requiredByEpisode.set(episodeId, languages);
+  };
+  for (const schedule of schedules) {
+    if (!scopedEpisodes.has(schedule.episode_id)) continue;
+    requireLanguage(schedule.episode_id, schedule.language_code);
+  }
+  for (const job of groups.flat()) {
+    requireLanguage(job.episode_id, jobLanguage(job));
+  }
+
+  const readyByEpisode = new Map<string, Set<string>>();
+  for (const candidate of candidates) {
+    const languages =
+      readyByEpisode.get(candidate.episode_id) ?? new Set<string>();
+    languages.add(candidate.language_code);
+    readyByEpisode.set(candidate.episode_id, languages);
+  }
+
+  const heldEpisodes = new Map<string, string[]>();
+  for (const episodeId of episodeIds) {
+    const missing = missingLanguages(
+      requiredByEpisode.get(episodeId) ?? new Set<string>(),
+      readyByEpisode.get(episodeId) ?? new Set<string>(),
+    );
+    if (missing.length > 0) heldEpisodes.set(episodeId, missing);
+  }
+  if (heldEpisodes.size === 0) return groups;
+
+  for (const [episodeId, missing] of heldEpisodes) {
+    const held = missing
+      .map((language) => `${languageFlag(language)} ${language}`)
+      .join(' · ');
+    log(
+      `⏸️ [social-daemon] ${episodeLabel(episodeTitle(titleByEpisodeLanguage, episodeId, 'zh-Hant'), episodeId)} · release held · missing ${held}`,
+    );
+    for (const job of groups.flat()) {
+      if (job.episode_id !== episodeId) continue;
+      try {
+        await failSocialPublishJob({
+          jobId: job.id,
+          owner: OWNER,
+          now,
+          attemptCount: job.attempt_count,
+          error: `Release held: ${missing.join(', ')} video is not completed`,
+        });
+      } catch (persistenceError) {
+        // The lease still expires on its own, so a failed hold write must not
+        // take the daemon down over media that is already missing.
+        log(
+          `❌ [social-daemon] ${laneLabel(job.platform, jobLanguage(job))} · failed to persist release hold · job=${job.id} · ${errorMessage(persistenceError)}`,
+        );
+      }
+    }
+  }
+
+  return groups.filter((pendingJobs) =>
+    pendingJobs.every((job) => !heldEpisodes.has(job.episode_id)),
+  );
 }
 
 async function releaseUntouchedLeases(
@@ -833,7 +1010,7 @@ async function reconcileClaimedJob(
     job.platform,
     jobLanguage(job),
   );
-  if (!post) return false;
+  if (!post) return reconcileLocalPublishedJob(job, OWNER, log);
   await completeSocialPublishJob({
     jobId: job.id,
     owner: OWNER,
@@ -948,6 +1125,12 @@ async function finalizePublishOutcome(
     job.platform,
     jobLanguage(job),
   );
+  if (
+    !post &&
+    outcome.status === 'skipped' &&
+    (await reconcileLocalPublishedJob(job, OWNER, log))
+  )
+    return;
   if (!post) {
     throw persistFailure(
       `${job.platform} publish completed but no social_posts row was recorded.`,
@@ -971,18 +1154,39 @@ function jobLanguage(
   return job.language_code ?? 'zh-Hant';
 }
 
-async function loadEpisodeTitleMap(
-  episodeIds: readonly string[],
-): Promise<Map<string, string | null>> {
-  const rows = await listSocialEpisodeLocalizationTitles([
-    ...new Set(episodeIds),
-  ]);
-  return new Map(
-    rows.map((row: SocialEpisodeLocalizationTitle) => [
-      `${row.episode_id}|${row.language_code ?? 'zh-Hant'}`,
-      row.title,
-    ]),
-  );
+interface EpisodeTitleIndex {
+  load(
+    episodeIds: readonly string[],
+  ): Promise<ReadonlyMap<string, string | null>>;
+}
+
+/**
+ * Reconciliation, discovery, publishing and metrics each ask for a title on
+ * largely the same set of episode ids within one tick. This index is created
+ * once per tick and remembers which episode ids it has already fetched, so
+ * only ids no earlier phase in this tick has seen reach the database.
+ */
+function createEpisodeTitleIndex(): EpisodeTitleIndex {
+  const titleByEpisodeLanguage = new Map<string, string | null>();
+  const loadedEpisodeIds = new Set<string>();
+  return {
+    async load(episodeIds) {
+      const unseen = [...new Set(episodeIds)].filter(
+        (episodeId) => !loadedEpisodeIds.has(episodeId),
+      );
+      if (unseen.length > 0) {
+        const rows = await listSocialEpisodeLocalizationTitles(unseen);
+        for (const row of rows) {
+          titleByEpisodeLanguage.set(
+            `${row.episode_id}|${row.language_code ?? 'zh-Hant'}`,
+            row.title,
+          );
+        }
+        for (const episodeId of unseen) loadedEpisodeIds.add(episodeId);
+      }
+      return titleByEpisodeLanguage;
+    },
+  };
 }
 
 function episodeTitle(
@@ -1033,6 +1237,8 @@ const TERMINAL_METRIC_REVIEW_STATUSES = new Set<string>([
 export async function collectDueMetricWindows(
   now: Date,
   log: (message: string) => void = () => void 0,
+  titleIndex: EpisodeTitleIndex = createEpisodeTitleIndex(),
+  openBrowser?: () => ReturnType<typeof createMetricsBrowserSession>,
 ): Promise<number> {
   const cutoff = new Date(
     now.getTime() - METRIC_LOOKBACK_DAYS * 24 * 60 * 60_000,
@@ -1042,7 +1248,7 @@ export async function collectDueMetricWindows(
 
   const [recorded, titleByEpisodeLanguage] = await Promise.all([
     listMetricWindowsForPosts(posts.map((post) => post.id)),
-    loadEpisodeTitleMap(posts.map((post) => post.episode_id)),
+    titleIndex.load(posts.map((post) => post.episode_id)),
   ]);
   const completed = new Set(
     recorded.flatMap((row) =>
@@ -1051,7 +1257,8 @@ export async function collectDueMetricWindows(
         : [],
     ),
   );
-  const browser = createMetricsBrowserSession();
+  const ownsBrowser = !openBrowser;
+  const browser = (openBrowser ?? createMetricsBrowserSession)();
   const collectors = createMetricCollectors({
     browser,
     onRednoteIdentity: async ({ post, platformPostId, postUrl }) => {
@@ -1060,7 +1267,7 @@ export async function collectDueMetricWindows(
     onRednoteReviewStatus: async ({ post, reviewStatus }) => {
       await updateSocialPostReviewStatus({ id: post.id, reviewStatus });
       log(
-        `⚠️ [social-daemon] ${platformIcon(post.platform)} ${post.platform} · ${episodeLabel(episodeTitle(titleByEpisodeLanguage, post.episode_id, post.language_code ?? 'zh-Hant'), post.episode_id)} · review → ${reviewStatus}`,
+        `⚠️ [social-daemon] ${platformLabel(post.platform)} · ${episodeLabel(episodeTitle(titleByEpisodeLanguage, post.episode_id, post.language_code ?? 'zh-Hant'), post.episode_id)} · review → ${reviewStatus}`,
       );
     },
   });
@@ -1084,21 +1291,11 @@ export async function collectDueMetricWindows(
           continue;
         }
         if (result.status === 'unavailable') {
-          const emptyCounts = {
-            views: null,
-            impressions: null,
-            likes: null,
-            comments: null,
-            shares: null,
-            saves: null,
-            profileVisits: null,
-            followersGained: null,
-          } as const;
           await insertSocialPostMetric(
             buildSocialPostMetric({
               post,
               capturedAt: now,
-              counts: emptyCounts,
+              counts: EMPTY_COUNTS,
               details: {
                 platformMetrics: { unavailableReason: result.reason },
               },
@@ -1109,7 +1306,7 @@ export async function collectDueMetricWindows(
           completed.add(`${post.id}:${window.label}`);
           unavailable += 1;
           log(
-            `⚠️ [social-daemon] ${platformIcon(post.platform)} ${post.platform} · ${episodeLabel(episodeTitle(titleByEpisodeLanguage, post.episode_id, post.language_code ?? 'zh-Hant'), post.episode_id)} · ${window.label} metrics unavailable · ${result.reason}`,
+            `⚠️ [social-daemon] ${platformLabel(post.platform)} · ${episodeLabel(episodeTitle(titleByEpisodeLanguage, post.episode_id, post.language_code ?? 'zh-Hant'), post.episode_id)} · ${window.label} metrics unavailable · ${result.reason}`,
           );
           continue;
         }
@@ -1132,7 +1329,7 @@ export async function collectDueMetricWindows(
         );
       } catch (error) {
         log(
-          `❌ [social-daemon] ${platformIcon(post.platform)} ${post.platform} · ${episodeLabel(episodeTitle(titleByEpisodeLanguage, post.episode_id, post.language_code ?? 'zh-Hant'), post.episode_id)} · ${window.label} metrics failed · post=${post.id} · ${errorMessage(error)}`,
+          `❌ [social-daemon] ${platformLabel(post.platform)} · ${episodeLabel(episodeTitle(titleByEpisodeLanguage, post.episode_id, post.language_code ?? 'zh-Hant'), post.episode_id)} · ${window.label} metrics failed · post=${post.id} · ${errorMessage(error)}`,
         );
       }
     }
@@ -1150,7 +1347,7 @@ export async function collectDueMetricWindows(
       );
     }
   } finally {
-    await browser.close();
+    if (ownsBrowser) await browser.close();
   }
   return inserted;
 }
@@ -1158,25 +1355,21 @@ export async function collectDueMetricWindows(
 async function captureAccountSnapshots(
   now: Date,
   log: (message: string) => void,
+  openBrowser: () => ReturnType<typeof createMetricsBrowserSession>,
 ): Promise<void> {
-  let browser: ReturnType<typeof createMetricsBrowserSession> | undefined;
-  try {
-    const captured = await captureDueAccountSnapshots({
+  const captured = await captureDueAccountSnapshots({
+    now,
+    openBrowser,
+    closeBrowser: false,
+    log,
+  });
+  if (captured.length > 0) {
+    await collectRollingPostMetrics({
       now,
-      openBrowser: () => (browser ??= createMetricsBrowserSession()),
-      closeBrowser: false,
+      platforms: captured,
+      browser: openBrowser(),
       log,
     });
-    if (captured.length > 0) {
-      await collectRollingPostMetrics({
-        now,
-        platforms: captured,
-        browser,
-        log,
-      });
-    }
-  } finally {
-    await browser?.close();
   }
 }
 
@@ -1225,7 +1418,7 @@ function logQueueSnapshot(
   now: Date,
   log: (message: string) => void,
 ): void {
-  const waitingVideos = snapshot.waitingVideos ?? [];
+  const waitingVideos = snapshot.waitingVideos;
   if (snapshot.pendingCount === 0 && waitingVideos.length === 0) {
     log('📥 [social-daemon] queue · 0 jobs · 0 articles');
     return;
@@ -1233,7 +1426,7 @@ function logQueueSnapshot(
 
   for (const item of waitingVideos) {
     log(
-      `⏳ [social-daemon] ${episodeLabel(item.title, item.episodeId)} · waiting video · ${item.languageCodes.map((language) => `${languageFlag(language)} ${language}`).join(' · ')}`,
+      `⏳ [social-daemon] ${episodeLabel(item.title, item.episodeId)} · waiting video · ${item.languageCodes.map((language) => languageLabel(language)).join(' · ')}`,
     );
   }
   if (waitingVideos.length > 0) log('');
@@ -1243,36 +1436,33 @@ function logQueueSnapshot(
   );
   snapshot.episodeQueue.forEach((episode, index) => {
     const title = episode.title ?? `episode #${shortId(episode.episodeId)}`;
-    const laneCount = episode.laneCount ?? episode.lanes?.length ?? 1;
+    const laneCount = episode.laneCount;
     log(
       `📥 [social-daemon]   ${index + 1}. “${title}” · ${formatJst(episode.nextAt)} (${formatRelative(episode.nextAt, now)})`,
     );
-    const lanes = formatQueueEpisodeLanes(episode.lanes ?? []);
+    const lanes = formatQueueEpisodeLanes(episode.lanes);
     log(
       `📥 [social-daemon]      ↳ ${laneCount} lane${laneCount === 1 ? '' : 's'}${lanes ? ` · ${lanes}` : ''}`,
     );
   });
-  const lanes =
-    snapshot.nextByLane ??
-    Object.fromEntries(
-      Object.entries(snapshot.nextByPlatform).map(([platform, item]) => [
-        `${platform}|${item?.languageCode ?? 'zh-Hant'}`,
-        {
-          ...item,
-          languageCode: item?.languageCode ?? 'zh-Hant',
-          experiment: null,
-        },
-      ]),
-    );
-  const nextLanes = Object.values(lanes).filter(
-    (item) => item.status === 'failed' || item.attemptsExhausted,
+  const nextLanes = Object.values(snapshot.nextByLane).filter(
+    (item) =>
+      item.status === 'failed' ||
+      item.status === 'processing' ||
+      item.attemptsExhausted,
   );
   if (snapshot.episodeQueue.length > 0 && nextLanes.length > 0) log('');
   for (const item of nextLanes) {
     const title = item.title ? ` “${truncateTitle(item.title)}”` : '';
-    const timing = item.attemptsExhausted
-      ? `blocked (${item.attemptCount} attempts exhausted; ${item.status})`
-      : `${formatJst(item.nextAt)} (${formatRelative(item.nextAt, now)}; ${item.status})`;
+    let timing = `${formatJst(item.nextAt)} (${formatRelative(item.nextAt, now)}; ${item.status})`;
+    if (item.attemptsExhausted) {
+      timing = `blocked (${item.attemptCount} attempts exhausted; ${item.status})`;
+    } else if (
+      item.leaseExpiresAt &&
+      Date.parse(item.leaseExpiresAt) > now.getTime()
+    ) {
+      timing = `leased until ${formatJst(item.leaseExpiresAt)}`;
+    }
     log(
       `⚠️ [social-daemon] ${laneLabel(item.platform, item.languageCode)}${item.experiment ? ` [${item.experiment}]` : ''} ·${title} · ${timing}`,
     );
@@ -1311,7 +1501,7 @@ function padTwoDigits(number: number): string {
 function formatJst(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  const jst = new Date(date.getTime() + 9 * 60 * 60_000);
+  const jst = new Date(date.getTime() + JST_OFFSET_MS);
   return `${padTwoDigits(jst.getUTCMonth() + 1)}/${padTwoDigits(jst.getUTCDate())} ${padTwoDigits(jst.getUTCHours())}:${padTwoDigits(jst.getUTCMinutes())} JST`;
 }
 
@@ -1370,6 +1560,8 @@ if (isMainModule(import.meta.url)) {
     throw error;
   }
   try {
+    await recoverOrphanedSocialLeases();
+    await reportLocalPublicationHistory();
     await runSocialDaemon();
   } catch (error) {
     console.error(buildFatalReport(error));

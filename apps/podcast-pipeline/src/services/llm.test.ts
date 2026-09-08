@@ -64,8 +64,12 @@ vi.mock('node:fs', async () => {
   };
 });
 
-vi.mock('openai', () => {
+// Only the client is faked. The real error classes stay exported so error
+// classification keeps seeing genuine SDK instances -- it matches them by type,
+// and a stub would make every `instanceof` check silently false.
+vi.mock('openai', async () => {
   return {
+    ...(await vi.importActual<typeof import('openai')>('openai')),
     default: vi.fn().mockImplementation(function () {
       return {
         chat: {
@@ -135,12 +139,14 @@ describe('getOpenRouterConfig', () => {
     const apiKeyChanged = getOpenRouterConfig();
 
     expect(baseUrlChanged.openai).not.toBe(original.openai);
-    expect(modelChanged.openai).not.toBe(original.openai);
+    // The model is request-scoped: the shared fallback chain reuses one client
+    // across candidates, so a different primary must not mint a new client.
+    expect(modelChanged.openai).toBe(original.openai);
     expect(modelChanged.model).toBe('memo/other-model');
     expect(modelChanged.thinkingModel).toBe('memo/thinking-model');
     expect(timeoutChanged.openai).not.toBe(original.openai);
     expect(apiKeyChanged.openai).not.toBe(original.openai);
-    expect(OpenAI).toHaveBeenCalledTimes(5);
+    expect(OpenAI).toHaveBeenCalledTimes(4);
   });
 });
 
@@ -307,6 +313,30 @@ describe('createOpenRouterChatCompletion', () => {
     );
 
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('throws a clear error instead of crashing when OpenRouter omits the choices array', async () => {
+    // A malformed relay response with no `choices` field at all -- this used
+    // to crash with "Cannot read properties of undefined" deep inside the
+    // logging that follows every completion (Sentry PODCAST-PIPELINE-M).
+    const mockCreate = vi.fn().mockResolvedValue({
+      model: 'test/model',
+      provider: 'Cloudflare',
+    });
+    const openai = createMockOpenAI(mockCreate) as OpenAI;
+
+    await expect(
+      createOpenRouterChatCompletion(
+        openai,
+        {
+          model: 'test/model',
+          messages: [{ role: 'user', content: 'translate this' }],
+        },
+        null,
+      ),
+    ).rejects.toThrow(
+      'OpenRouter returned no choices array for model test/model (provider=Cloudflare)',
+    );
   });
 });
 
@@ -477,7 +507,7 @@ describe('generateScriptWithLLM', () => {
   it('throws error when OPENROUTER_API_KEY is not set', async () => {
     vi.stubEnv('OPENROUTER_API_KEY', '');
     await expect(generateScriptWithLLM('Title', 'Text')).rejects.toThrow(
-      'OPENROUTER_API_KEY not set',
+      'Missing required environment variable: OPENROUTER_API_KEY',
     );
   });
 
@@ -556,6 +586,9 @@ describe('generateScriptWithLLM', () => {
 
   it('falls back to the default timeout for an invalid environment value', async () => {
     vi.stubEnv('OPENROUTER_TIMEOUT_MS', 'not-a-number');
+    // Fresh cache key: the client cache is module-scoped, so reuse the default
+    // timeout bucket of an earlier test would hide this construction.
+    vi.stubEnv('OPENROUTER_API_KEY', 'invalid-timeout-api-key');
     vi.mocked(OpenAI).mockClear();
 
     const mockCreate = vi.fn().mockResolvedValue({
@@ -899,6 +932,7 @@ ${scriptPayload('「软件市场进入新阶段」', '生成講稿')}
         timeoutMs: 600_000,
         provider: 'Cloudflare',
         costUsd: 0.00001,
+        finishReason: 'unknown',
         outputChars: generatedPayload.length,
       },
     );
@@ -1076,10 +1110,10 @@ describe('generateLanguageClassroomsWithLLM', () => {
   });
 
   // The classroom call is the heaviest generation in the pipeline: one response
-  // carries a full narration script per target language. Left unbounded it hit
-  // the request deadline instead of returning, so these three constraints are
-  // load-bearing, not decoration.
-  it('bounds the request with JSON mode, an output ceiling and reasoning off', async () => {
+  // carries a full narration script per target language. JSON mode and reasoning
+  // off are load-bearing; an output ceiling is deliberately absent, because it
+  // cuts a JSON body mid-string and turns a verbose answer into an unusable one.
+  it('bounds the request with JSON mode and reasoning off, and sends no output ceiling', async () => {
     const mockCreate = vi.fn().mockResolvedValue({
       choices: [{ message: { content: validLanguageClassroomPayload() } }],
       provider: 'Cloudflare',
@@ -1094,7 +1128,7 @@ describe('generateLanguageClassroomsWithLLM', () => {
       articleText: '這篇文章解釋市場流動性與資金進出。',
       script: '大家好，今天談市場流動性。',
       sourceLanguageCode: 'zh-Hant',
-      targetLanguageCodes: ['ja', 'en'],
+      targetLanguageCodes: ['ja'],
     });
 
     const callArgs = mockCreate.mock.calls[0]![0] as {
@@ -1105,7 +1139,7 @@ describe('generateLanguageClassroomsWithLLM', () => {
       usage?: object;
     };
     expect(callArgs.response_format).toEqual({ type: 'json_object' });
-    expect(callArgs.max_tokens).toBe(8000);
+    expect(callArgs).not.toHaveProperty('max_tokens');
     expect(callArgs.reasoning).toEqual({ enabled: false });
     expect(callArgs.provider).toEqual({
       sort: 'throughput',

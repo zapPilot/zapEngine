@@ -17,12 +17,6 @@ import {
   RednoteSemanticRiskError,
 } from './rednote-semantic-risk.js';
 
-const FALLBACKS = [
-  'minimax/minimax-m3:free',
-  'z-ai/glm-5.3-flash',
-  'deepseek/deepseek-v4-flash',
-  'nvidia/nemotron-3-ultra-550b-a55b:free',
-];
 const PRIMARY = 'deepseek/deepseek-v4-flash-0731';
 const INPUT = {
   rednote: {
@@ -43,7 +37,6 @@ function completion(content: string): object {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.stubEnv('LLM_FALLBACK_MODELS', FALLBACKS.join(','));
   llmMocks.getOpenRouterConfig.mockImplementation(
     (overrides?: { model?: string; thinkingModel?: string | null }) => ({
       openai: llmMocks.openai,
@@ -58,21 +51,20 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-describe('Rednote semantic-risk model fallback', () => {
-  it('moves to the next model on empty and malformed outputs', async () => {
+describe('Rednote semantic-risk payload retry', () => {
+  it('retries an empty verdict on the same task primary', async () => {
     llmMocks.createOpenRouterChatCompletion
       .mockResolvedValueOnce(completion('   '))
-      .mockResolvedValueOnce(completion('not json'))
       .mockResolvedValueOnce(completion('{"risks":[]}'));
 
     await expect(assertRednoteSemanticRisk(INPUT)).resolves.toBeUndefined();
 
-    expect(llmMocks.createOpenRouterChatCompletion).toHaveBeenCalledTimes(3);
+    expect(llmMocks.createOpenRouterChatCompletion).toHaveBeenCalledTimes(2);
     expect(
       llmMocks.createOpenRouterChatCompletion.mock.calls.map(
         (call) => call[1]?.model,
       ),
-    ).toEqual([PRIMARY, FALLBACKS[0], FALLBACKS[1]]);
+    ).toEqual([PRIMARY, PRIMARY]);
     expect(llmMocks.createOpenRouterChatCompletion.mock.calls[0]?.[3]).toEqual(
       expect.objectContaining({
         reasoning: { enabled: false },
@@ -83,7 +75,7 @@ describe('Rednote semantic-risk model fallback', () => {
 
   it('keeps a real risk verdict authoritative instead of shopping for a pass', async () => {
     llmMocks.createOpenRouterChatCompletion
-      .mockResolvedValueOnce(completion(''))
+      .mockResolvedValueOnce(completion('not json'))
       .mockResolvedValueOnce(
         completion(
           JSON.stringify({
@@ -110,7 +102,7 @@ describe('Rednote semantic-risk model fallback', () => {
     expect(llmMocks.createOpenRouterChatCompletion).toHaveBeenCalledTimes(2);
   });
 
-  it('still fails closed after every configured model fails the output contract', async () => {
+  it('fails closed after the bounded payload attempts are exhausted', async () => {
     llmMocks.createOpenRouterChatCompletion.mockResolvedValue(
       completion('{"wrong":true}'),
     );
@@ -119,13 +111,11 @@ describe('Rednote semantic-risk model fallback', () => {
       reason: 'unavailable',
       rules: [],
     });
-    expect(llmMocks.createOpenRouterChatCompletion).toHaveBeenCalledTimes(
-      1 + FALLBACKS.length,
-    );
-
-    const finalRequest =
-      llmMocks.createOpenRouterChatCompletion.mock.calls.at(-1)?.[1];
-    expect(finalRequest?.model).toBe(FALLBACKS.at(-1));
-    expect(finalRequest).not.toHaveProperty('response_format');
+    expect(llmMocks.createOpenRouterChatCompletion).toHaveBeenCalledTimes(2);
+    expect(
+      llmMocks.createOpenRouterChatCompletion.mock.calls.map(
+        (call) => call[1]?.model,
+      ),
+    ).toEqual([PRIMARY, PRIMARY]);
   });
 });

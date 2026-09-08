@@ -12,21 +12,32 @@ import {
   splitPodcastVisualSections,
 } from './podcast-packaging.js';
 import { scrapeArticle } from './scrape.js';
-import { uploadEpisodeVisualAssetsToR2 } from './storage.js';
+import {
+  uploadEpisodeVisualAssetsToR2,
+  uploadEpisodeVisualCheckpointImageToR2,
+} from './storage.js';
+import {
+  deriveSearchSubjects,
+  IMAGE_SEARCH_BUDGET,
+  plannedPrimarySubjects,
+  type PoolSubjectScene,
+} from './video/episode-image-pool.js';
 import { analyzeEpisodeAudio } from './video/episode-video.js';
 import {
   buildEpisodeVisualPayload,
   EPISODE_VISUAL_PAYLOAD_SCHEMA_VERSION,
   EPISODE_VISUAL_STORYBOARD_PROMPT_VERSION,
   hashEpisodeVisualSelection,
-  type VisualSearchTraceEntry,
+  sceneSentencesForDraft,
 } from './video/episode-visual.js';
-import { planPodcastVisualAssets } from './video/podcast-visual-assets.js';
 import {
-  createDeterministicStoryboardProvider,
-  type DeterministicStoryboardSearchContext,
-} from './video/storyboard/fallback.js';
-import { createNvidiaStoryboardProvider } from './video/storyboard/nvidia.js';
+  appendImageSearchProgress,
+  createImageSearchTrace,
+  type VisualImageSearch,
+} from './video/image-search-trace.js';
+import { logVideoWorkerEvent } from './video/log.js';
+import { planPodcastVisualAssets } from './video/podcast-visual-assets.js';
+import { createDeterministicStoryboardProvider } from './video/storyboard/fallback.js';
 import {
   generateStoryboard,
   type StoryboardGenerationResult,
@@ -38,7 +49,25 @@ import type {
   VisualSceneSubjectAssignment,
   VisualSubjectCatalog,
 } from './video/storyboard/subject-catalog.js';
-import type { VisualAssetProgress } from './video/visual-asset-planner.js';
+import type {
+  VisualAssetPlan,
+  VisualAssetProgress,
+} from './video/visual-asset-planner.js';
+import {
+  appendVisualCheckpointScene,
+  buildVisualCheckpoint,
+  type DownloadCheckpointImage,
+  downloadVisualCheckpointImage,
+  parseVisualCheckpoint,
+  restoreVisualCheckpointPlan,
+  restoreVisualStoryboard,
+  type VisualCheckpoint,
+} from './video/visual-checkpoint.js';
+import {
+  buildVisualFailureDiagnostics,
+  type VisualFailureStage,
+  VisualPlanningError,
+} from './video/visual-diagnostics.js';
 import {
   EPISODE_VIDEO_VISUAL_VERSION,
   type EpisodeVideoVisualCompletion,
@@ -51,7 +80,6 @@ import { visualStageProgress } from './video-progress.js';
 import { saveEpisodeVideoVisualDebug } from './video-visual-debug.js';
 
 export const VISUAL_ARTICLE_SCRAPE_TIMEOUT_MS = 15_000;
-const MAX_PERSISTED_VISUAL_SEARCH_TRACE_ENTRIES = 256;
 const VISUAL_SEARCH_DEBUG_SCHEMA_VERSION = 'visual-search-debug-v1';
 
 export type ProcessEpisodeVideoVisualJob = (
@@ -73,6 +101,8 @@ interface EpisodeVideoVisualProcessorDependencies {
   scrape: typeof scrapeArticle;
   planAssets: typeof planPodcastVisualAssets;
   upload: typeof uploadEpisodeVisualAssetsToR2;
+  uploadCheckpointImage: typeof uploadEpisodeVisualCheckpointImageToR2;
+  downloadCheckpointImage: DownloadCheckpointImage;
   makeTemporaryDirectory: (prefix: string) => Promise<string>;
   writeManifest: typeof writeFile;
   removeDirectory: typeof rm;
@@ -87,6 +117,8 @@ const defaultDependencies: EpisodeVideoVisualProcessorDependencies = {
   scrape: scrapeArticle,
   planAssets: planPodcastVisualAssets,
   upload: uploadEpisodeVisualAssetsToR2,
+  uploadCheckpointImage: uploadEpisodeVisualCheckpointImageToR2,
+  downloadCheckpointImage: downloadVisualCheckpointImage,
   makeTemporaryDirectory: mkdtemp,
   writeManifest: writeFile,
   removeDirectory: rm,
@@ -105,22 +137,17 @@ export function createEpisodeVideoVisualProcessor(
     const outputDirectory = await dependencies.makeTemporaryDirectory(
       join(tmpdir(), 'episode-video-visual-worker-'),
     );
+    let failureStage: VisualFailureStage = 'analyze-audio';
+    const failureSnapshot: Record<string, unknown> = {};
+
+    const identity = {
+      visualVersion: job.visual_version,
+      sourceHash: job.source_hash,
+    };
+    const resumed = parseVisualCheckpoint(job.checkpoint, identity);
 
     try {
-      context.reportProgress(visualStageProgress('analyzing-audio', 0));
-      const analysis = await dependencies.analyzeAudio(source.hlsUrl, {
-        signal: context.signal,
-      });
-      context.reportProgress(visualStageProgress('analyzing-audio'));
       const visualSections = splitPodcastVisualSections(source.script);
-      logVisualProgress(dependencies.logger, 'visual:sections', {
-        run: context.runId,
-        episode: source.episodeId,
-        intro: String(visualSections.intro ? 1 : 0),
-        body: String(visualSections.body.length),
-        outro: String(visualSections.outro ? 1 : 0),
-      });
-      const editorialScript = getPodcastEditorialScript(source.script);
       const englishBodyScript = getEnglishBodyScript(
         source.englishScript,
         visualSections.isPackaged,
@@ -138,93 +165,167 @@ export function createEpisodeVideoVisualProcessor(
       } else if (englishTitle) {
         searchTitleSource = 'english-localization';
       }
-      const editorialSentences = getPodcastEditorialSentences(source.script);
-      const generated = await dependencies.generateStoryboard({
-        title: source.title,
-        script: source.script,
-        editorialScript,
-        editorialSentences,
-        isPackaged: visualSections.isPackaged,
-        ...(visualSearchTitle ? { searchTitle: visualSearchTitle } : {}),
-        searchScript: englishBodyScript,
-        durationMs: analysis.durationMs,
-        signal: context.signal,
-      });
-      logVisualProgress(dependencies.logger, 'visual:storyboard', {
-        run: context.runId,
-        episode: source.episodeId,
-        editorialSentences: String(visualSections.body.length),
-        packagingExcluded: String(
-          visualSections.isPackaged
-            ? splitCanonicalSentences(source.script).length -
-                visualSections.body.length
-            : 0,
-        ),
-        searchTitleSource,
-      });
-      const brandedDraft = applyAndValidatePodcastBrandingToStoryboard(
-        source.script,
-        generated.draft,
-        analysis.durationMs,
-      );
-      const brandSceneCount = brandedDraft.scenes.filter(
-        (scene) => podcastBrandVisualKind(scene.imageSearchIntent) !== null,
-      ).length;
-      if (brandSceneCount === 0) {
-        logVisualProgress(dependencies.logger, 'visual:branding', {
+
+      const prepareStoryboard = async (): Promise<PreparedStoryboard> => {
+        context.reportProgress(visualStageProgress('analyzing-audio', 0));
+        const analysis = await dependencies.analyzeAudio(source.hlsUrl, {
+          signal: context.signal,
+        });
+        context.reportProgress(visualStageProgress('analyzing-audio'));
+        logVisualProgress(dependencies.logger, 'visual:sections', {
           run: context.runId,
           episode: source.episodeId,
-          status: 'skipped',
-          reason: 'unpackaged-script',
+          intro: String(visualSections.intro ? 1 : 0),
+          body: String(visualSections.body.length),
+          outro: String(visualSections.outro ? 1 : 0),
         });
-      } else {
-        const outroScene = brandedDraft.scenes.find(
-          (scene) =>
-            podcastBrandVisualKind(scene.imageSearchIntent) === 'outro',
+        const editorialScript = getPodcastEditorialScript(source.script);
+        const editorialSentences = getPodcastEditorialSentences(source.script);
+        failureStage = 'storyboard';
+        const generated = await dependencies.generateStoryboard({
+          title: source.title,
+          script: source.script,
+          editorialScript,
+          editorialSentences,
+          isPackaged: visualSections.isPackaged,
+          ...(visualSearchTitle ? { searchTitle: visualSearchTitle } : {}),
+          searchScript: englishBodyScript,
+          durationMs: analysis.durationMs,
+          signal: context.signal,
+        });
+        logVisualProgress(dependencies.logger, 'visual:storyboard', {
+          run: context.runId,
+          episode: source.episodeId,
+          editorialSentences: String(visualSections.body.length),
+          packagingExcluded: String(
+            visualSections.isPackaged
+              ? splitCanonicalSentences(source.script).length -
+                  visualSections.body.length
+              : 0,
+          ),
+          searchTitleSource,
+        });
+        failureStage = 'branding';
+        const brandedDraft = applyAndValidatePodcastBrandingToStoryboard(
+          source.script,
+          generated.draft,
+          analysis.durationMs,
         );
-        if (outroScene) {
-          logVisualProgress(dependencies.logger, 'visual:branding', {
+        logBranding(
+          dependencies.logger,
+          context.runId,
+          source.episodeId,
+          brandedDraft,
+        );
+
+        failureStage = 'search-intents';
+        const intents = await dependencies.enrichSearchIntents(
+          {
+            draft: brandedDraft,
+            title: source.title,
+            ...(visualSearchTitle ? { searchTitle: visualSearchTitle } : {}),
+            script: source.script,
+            ...(englishBodyScript ? { searchScript: englishBodyScript } : {}),
+          },
+          { signal: context.signal },
+        );
+        logVisualProgress(dependencies.logger, 'visual:intents', {
+          run: context.runId,
+          episode: source.episodeId,
+          enriched: `${intents.enrichedSceneCount}/${intents.draft.scenes.length}`,
+          brand: countBrandScenes(brandedDraft),
+          entities: intents.entityAnchoredSceneCount,
+          subjects: intents.subjectCatalog?.subjects.length,
+          primarySubject: intents.subjectCatalog?.primarySubjectId,
+          model: intents.model ?? 'deterministic',
+        });
+        for (const droppedSubject of intents.subjectCatalog?.droppedSubjects ??
+          []) {
+          logVisualProgress(dependencies.logger, 'visual:intents', {
             run: context.runId,
             episode: source.episodeId,
-            kind: 'zap-pilot-outro',
-            sceneId: outroScene.sceneId,
+            phase: 'dropped-subject',
+            subject: droppedSubject.id,
+            reason: droppedSubject.reason,
+            names: JSON.stringify(droppedSubject.names.join(' / ')),
           });
         }
-      }
-
-      const intents = await dependencies.enrichSearchIntents(
-        {
-          draft: brandedDraft,
-          title: source.title,
-          ...(visualSearchTitle ? { searchTitle: visualSearchTitle } : {}),
-          script: source.script,
-          ...(englishBodyScript ? { searchScript: englishBodyScript } : {}),
-        },
-        { signal: context.signal },
-      );
-      const subjectCatalog = intents.subjectCatalog;
-      const sceneAssignments = intents.sceneAssignments;
-      const storyboard = {
-        ...generated,
-        draft: intents.draft,
+        // A catalog-less episode still plans, off the deterministic intents, so
+        // the reason it degraded is the only thing that separates that from an
+        // episode whose scenes simply name nobody.
+        const subjectCatalogFailure = intents.degradedReason ?? null;
+        if (subjectCatalogFailure) {
+          logVisualProgress(dependencies.logger, 'visual:intents', {
+            run: context.runId,
+            episode: source.episodeId,
+            phase: 'degraded',
+            reason: subjectCatalogFailure,
+          });
+        }
+        return {
+          storyboard: { ...generated, draft: intents.draft },
+          searchIntentModel: intents.model,
+          subjectCatalog: intents.subjectCatalog,
+          sceneAssignments: intents.sceneAssignments,
+          subjectCatalogFailure,
+          resumePlan: null,
+        };
       };
-      logVisualProgress(dependencies.logger, 'visual:intents', {
-        run: context.runId,
-        episode: source.episodeId,
-        enriched: `${intents.enrichedSceneCount}/${intents.draft.scenes.length}`,
-        brand: brandSceneCount,
-        entities: intents.entityAnchoredSceneCount,
-        subjects: subjectCatalog?.subjects.length,
-        primarySubject: subjectCatalog?.primarySubjectId,
-        model: intents.model ?? 'deterministic',
-      });
+
+      const prepared = resumed
+        ? await restorePreparedStoryboard(resumed, {
+            workingDirectory: join(outputDirectory, 'images'),
+            signal: context.signal,
+            download: dependencies.downloadCheckpointImage,
+          })
+        : await prepareStoryboard();
+      const {
+        storyboard,
+        searchIntentModel,
+        subjectCatalog,
+        sceneAssignments,
+        subjectCatalogFailure,
+      } = prepared;
+      failureSnapshot['searchIntentModel'] = searchIntentModel;
+      failureSnapshot['subjectCatalog'] = subjectCatalog;
+      failureSnapshot['sceneAssignments'] = sceneAssignments;
+      failureSnapshot['scenes'] = storyboard.draft.scenes.map((scene) => ({
+        sceneId: scene.sceneId,
+        imageSearchIntent: scene.imageSearchIntent,
+        imageSearchEntities: scene.imageSearchEntities,
+      }));
+      const resumedSceneCount = prepared.resumePlan?.scenes.length ?? 0;
+      failureSnapshot['resumedScenes'] = resumedSceneCount;
+
+      let checkpoint: VisualCheckpoint =
+        resumed ??
+        buildVisualCheckpoint({
+          identity,
+          storyboard,
+          searchIntentModel,
+          subjectCatalog,
+          subjectCatalogFailure,
+          sceneAssignments,
+          searchTitleSource,
+        });
+      if (resumed) {
+        logVisualProgress(dependencies.logger, 'visual:checkpoint', {
+          run: context.runId,
+          episode: source.episodeId,
+          phase: 'resumed',
+          resumedScenes: `${resumed.scenes.length}/${storyboard.draft.scenes.length}`,
+        });
+      } else {
+        await saveCheckpointOrThrow(context, checkpoint);
+      }
 
       const debugPayload = buildVisualSearchDebugPayload({
         subjectCatalog,
         sceneAssignments,
         scenes: storyboard.draft.scenes,
         searchTitleSource,
-        model: intents.model,
+        model: searchIntentModel,
+        subjectCatalogFailure,
       });
       if (job.lease_owner) {
         const persisted = await dependencies.persistDebug(
@@ -244,6 +345,7 @@ export function createEpisodeVideoVisualProcessor(
         episode: source.episodeId,
         phase: 'start',
       });
+      failureStage = 'scrape-article';
       const article = await dependencies.scrape(source.sourceUrl, {
         signal: context.signal,
         timeoutMs: VISUAL_ARTICLE_SCRAPE_TIMEOUT_MS,
@@ -257,8 +359,33 @@ export function createEpisodeVideoVisualProcessor(
         elapsedMs: Date.now() - searchStartedAt,
       });
 
-      const searchTrace: VisualSearchTraceEntry[] = [];
+      failureSnapshot['articleImageCandidateCount'] =
+        articleImageCandidateCount;
+      const sceneSentences = sceneSentencesForDraft(
+        source.script,
+        storyboard.draft,
+      );
+      const sceneEvidence = new Map(
+        sceneSentences.map((scene) => {
+          const searchText = storyboard.draft.scenes
+            .find((candidate) => candidate.sceneId === scene.sceneId)
+            ?.imageSearchIntent.join(' ');
+          return [
+            scene.sceneId,
+            { text: scene.text, ...(searchText ? { searchText } : {}) },
+          ] as const;
+        }),
+      );
+      const trace = createImageSearchTrace(
+        IMAGE_SEARCH_BUDGET,
+        resumedSceneCount,
+      );
+      // Held by reference: the trace keeps accumulating into the snapshot, so
+      // an attempt that dies before its first progress event still reports the
+      // empty trace rather than no field at all.
+      failureSnapshot['imageSearch'] = trace;
       let assetPlan: Awaited<ReturnType<typeof planPodcastVisualAssets>>;
+      failureStage = 'plan-assets';
       try {
         assetPlan = await dependencies.planAssets({
           scenes: storyboard.draft.scenes,
@@ -266,17 +393,67 @@ export function createEpisodeVideoVisualProcessor(
           workingDirectory: join(outputDirectory, 'images'),
           selectionMode: 'resilient',
           signal: context.signal,
+          ...(prepared.resumePlan ? { resumePlan: prepared.resumePlan } : {}),
+          onSelection: async (selection) => {
+            // Best effort: a lost R2 write only costs the resume of this scene.
+            // A lost lease must stop the job, exactly like the debug checkpoint.
+            let r2Url: string;
+            try {
+              r2Url = await dependencies.uploadCheckpointImage({
+                episodeId: source.episodeId,
+                visualVersion: job.visual_version,
+                sourceHash: job.source_hash,
+                assetId: selection.asset.assetId,
+                path: selection.asset.path,
+                contentType: selection.asset.contentType,
+                signal: context.signal,
+              });
+            } catch (error) {
+              if (context.signal.aborted) throw error;
+              logVisualProgress(dependencies.logger, 'visual:checkpoint', {
+                run: context.runId,
+                episode: source.episodeId,
+                phase: 'image-upload-skipped',
+                scene: selection.sceneId,
+                error: error instanceof Error ? error.message : String(error),
+              });
+              return;
+            }
+            checkpoint = appendVisualCheckpointScene(checkpoint, {
+              sceneId: selection.sceneId,
+              asset: selection.asset,
+              r2Url,
+            });
+            await saveCheckpointOrThrow(context, checkpoint);
+          },
+          slideFallback: {
+            title: visualSearchTitle || source.title,
+            sceneEvidence,
+          },
           ...(subjectCatalog ? { subjectCatalog } : {}),
           ...(sceneAssignments.length > 0 ? { sceneAssignments } : {}),
           onProgress: (progress) => {
+            appendImageSearchProgress(trace, progress);
             logPlannerProgress(
               dependencies.logger,
               context.runId,
               source.episodeId,
               progress,
+              trace,
             );
-            appendSearchTrace(searchTrace, progress);
-            if (progress.phase === 'assets') {
+            if (progress.phase === 'slide' && progress.assetId) {
+              logVisualProgress(dependencies.logger, 'visual:slide', {
+                run: context.runId,
+                episode: source.episodeId,
+                scene: progress.sceneId,
+                asset: progress.assetId,
+                rejectionSummary: progress.rejectionSummary ?? 'none',
+                lead: String(progress.sceneIndex === 1),
+              });
+            }
+            // Only a scene that actually got an image has advanced the bar; an
+            // exhausted scene is about to fail the attempt, not to progress it.
+            if (progress.phase === 'assets' || progress.phase === 'slide') {
               context.reportProgress(
                 visualStageProgress(
                   'selecting-images',
@@ -293,7 +470,7 @@ export function createEpisodeVideoVisualProcessor(
           leaseOwner: job.lease_owner,
           debugPayload,
           phase: 'search-failed',
-          searchTrace,
+          imageSearch: trace,
         });
         throw cause;
       }
@@ -303,7 +480,7 @@ export function createEpisodeVideoVisualProcessor(
         leaseOwner: job.lease_owner,
         debugPayload,
         phase: 'searched',
-        searchTrace,
+        imageSearch: trace,
       });
 
       const visualHash = hashEpisodeVisualSelection({
@@ -316,6 +493,7 @@ export function createEpisodeVideoVisualProcessor(
         subjectCatalog,
         sceneAssignments,
       });
+      failureStage = 'write-manifest';
       const manifestPath = join(outputDirectory, 'visual-manifest.json');
       const sourceManifest = createSourceVisualManifest({
         job,
@@ -333,6 +511,7 @@ export function createEpisodeVideoVisualProcessor(
       );
       context.signal.throwIfAborted();
 
+      failureStage = 'upload';
       context.reportProgress(visualStageProgress('uploading-visuals', 0));
       const uploadStartedAt = Date.now();
       const uploaded = await dependencies.upload({
@@ -355,6 +534,9 @@ export function createEpisodeVideoVisualProcessor(
         articleAssetCount: assetPlan.assets.filter(
           (asset) => asset.provider === 'article',
         ).length,
+        generatedSlideCount: assetPlan.assets.filter(
+          (asset) => asset.provider === 'generated-slide',
+        ).length,
         elapsedMs: Date.now() - uploadStartedAt,
       });
 
@@ -365,7 +547,7 @@ export function createEpisodeVideoVisualProcessor(
         canonicalLocalizationId: source.canonicalLocalizationId,
         manifestUrl: uploaded.manifestUrl,
         storyboard,
-        searchIntentModel: intents.model,
+        searchIntentModel,
         selectedScenes: assetPlan.scenes,
         assets: assetPlan.assets,
         r2ImageUrls: uploaded.imageUrls,
@@ -373,7 +555,11 @@ export function createEpisodeVideoVisualProcessor(
         sceneAssignments,
         searchTitleSource,
         articleImageCandidateCount,
-        searchTrace,
+        // The planner's own trace is authoritative; the accumulated one only
+        // has to cover an attempt that threw before returning a plan.
+        imageSearch: assetPlan.imageSearch ?? trace,
+        ...(subjectCatalogFailure ? { subjectCatalogFailure } : {}),
+        sceneSentences,
       });
       return {
         visualPayload: payload,
@@ -382,6 +568,21 @@ export function createEpisodeVideoVisualProcessor(
         sourceHash: job.source_hash,
         r2Prefix: uploaded.r2Prefix,
       };
+    } catch (error) {
+      if (context.signal.aborted || error instanceof VisualPlanningError) {
+        throw error;
+      }
+      throw new VisualPlanningError(
+        error,
+        buildVisualFailureDiagnostics({
+          visualVersion: job.visual_version,
+          runId: context.runId,
+          attempt: job.attempt_count,
+          stage: failureStage,
+          error,
+          snapshot: failureSnapshot,
+        }),
+      );
     } finally {
       await dependencies.removeDirectory(outputDirectory, {
         recursive: true,
@@ -401,9 +602,10 @@ interface VisualSearchDebugQuery {
 function buildVisualSearchDebugPayload(input: {
   subjectCatalog: VisualSubjectCatalog | null;
   sceneAssignments: readonly VisualSceneSubjectAssignment[];
-  scenes: readonly { sceneId: string; imageSearchIntent: readonly string[] }[];
+  scenes: readonly PoolSubjectScene[];
   searchTitleSource: 'publisher' | 'english-localization' | 'none';
   model: string | null;
+  subjectCatalogFailure: string | null;
 }): Record<string, unknown> {
   const assignmentByScene = new Map(
     input.sceneAssignments.map((assignment) => [
@@ -411,9 +613,11 @@ function buildVisualSearchDebugPayload(input: {
       assignment,
     ]),
   );
-  const plannedQueries = input.scenes.flatMap<VisualSearchDebugQuery>(
+  const contentScenes = input.scenes.filter(
+    (scene) => podcastBrandVisualKind(scene.imageSearchIntent) === null,
+  );
+  const plannedQueries = contentScenes.flatMap<VisualSearchDebugQuery>(
     (scene) => {
-      if (podcastBrandVisualKind(scene.imageSearchIntent)) return [];
       const assignment = assignmentByScene.get(scene.sceneId);
       if (!assignment) return [];
       // The planner already wrote each scene's queries onto the scene. Reading
@@ -434,9 +638,18 @@ function buildVisualSearchDebugPayload(input: {
     phase: 'planned',
     searchTitleSource: input.searchTitleSource,
     searchIntentModel: input.model,
+    ...(input.subjectCatalogFailure
+      ? { subjectCatalogFailure: input.subjectCatalogFailure }
+      : {}),
     subjectCatalog: input.subjectCatalog,
     sceneAssignments: input.sceneAssignments,
     plannedQueries,
+    // The requests the episode is about to pay for, written before the first
+    // one is sent: a budget-starved episode is only diagnosable against what
+    // it intended to spend.
+    plannedSubjectSearches: plannedPrimarySubjects(
+      deriveSearchSubjects(contentScenes),
+    ),
   };
 }
 
@@ -446,47 +659,29 @@ async function persistSearchTraceCheckpoint(input: {
   leaseOwner: string | null;
   debugPayload: Record<string, unknown>;
   phase: 'searched' | 'search-failed';
-  searchTrace: readonly VisualSearchTraceEntry[];
+  imageSearch: VisualImageSearch;
 }): Promise<void> {
-  if (!input.leaseOwner || input.searchTrace.length === 0) return;
+  if (!input.leaseOwner) return;
+  // An attempt that decided nothing and searched nothing would overwrite the
+  // `planned` checkpoint with strictly less evidence than it already holds.
+  if (
+    input.imageSearch.requests.length === 0 &&
+    input.imageSearch.scenes.length === 0
+  ) {
+    return;
+  }
   const persisted = await input.persistDebug(
     input.episodeId,
     input.leaseOwner,
     {
       ...input.debugPayload,
       phase: input.phase,
-      searchTrace: input.searchTrace,
+      imageSearch: input.imageSearch,
     },
   );
   if (!persisted) {
     throw new Error('Visual search debug checkpoint lost its job lease');
   }
-}
-
-function appendSearchTrace(
-  trace: VisualSearchTraceEntry[],
-  progress: VisualAssetProgress,
-): void {
-  if (
-    trace.length >= MAX_PERSISTED_VISUAL_SEARCH_TRACE_ENTRIES ||
-    progress.phase !== 'search' ||
-    !progress.searchIntent ||
-    (progress.provider !== 'pexels' &&
-      progress.provider !== 'pixabay' &&
-      progress.provider !== 'brave')
-  ) {
-    return;
-  }
-  trace.push({
-    sceneId: progress.sceneId,
-    provider: progress.provider,
-    intent: progress.searchIntent,
-    subjectKey: progress.subjectKey ?? null,
-    returned: progress.searchResultCount ?? 0,
-    accepted: progress.candidateCount ?? 0,
-    entityFiltered: progress.entityFilteredCount ?? 0,
-    rejected: progress.rejectedCandidateCount ?? 0,
-  });
 }
 
 export async function generateVisualStoryboard(input: {
@@ -526,24 +721,12 @@ export async function generateVisualStoryboard(input: {
     ...(isPackaged ? { isPackaged } : {}),
     provider:
       input.provider ??
-      configuredStoryboardProvider({
+      createDeterministicStoryboardProvider({
         ...(input.searchTitle ? { searchTitle: input.searchTitle } : {}),
         ...(englishBody ? { searchScript: englishBody } : {}),
       }),
     ...(input.signal ? { signal: input.signal } : {}),
   });
-}
-
-function configuredStoryboardProvider(
-  searchContext: Partial<DeterministicStoryboardSearchContext>,
-): StoryboardProvider {
-  const providerName =
-    process.env['VIDEO_STORYBOARD_PROVIDER']?.trim() ?? 'deterministic';
-  if (providerName === 'nvidia') return createNvidiaStoryboardProvider();
-  if (providerName === 'deterministic') {
-    return createDeterministicStoryboardProvider(searchContext);
-  }
-  throw new Error(`Unsupported VIDEO_STORYBOARD_PROVIDER: ${providerName}`);
 }
 
 function assertCurrentVisualJob(
@@ -611,6 +794,7 @@ function createSourceVisualManifest(input: {
       perceptualHash: asset.perceptualHash,
       width: asset.width,
       height: asset.height,
+      ...(asset.slide ? { slide: asset.slide } : {}),
     })),
   };
 }
@@ -620,50 +804,136 @@ function logPlannerProgress(
   runId: string,
   episodeId: string,
   progress: VisualAssetProgress,
+  trace: VisualImageSearch,
 ): void {
-  if (progress.phase === 'cover') {
-    logVisualProgress(logger, 'visual:cover', {
-      run: runId,
-      episode: episodeId,
-      candidates: String(progress.candidateCount ?? 0),
-      selected: progress.assetId ?? 'none',
-      fallback: String(
-        progress.candidateCount === 0 || progress.assetId === 'none',
-      ),
-      elapsedMs: progress.elapsedMs,
-    });
-    return;
-  }
+  const { request, selection } = progress;
   logVisualProgress(logger, `visual:${progress.phase}`, {
     run: runId,
     episode: episodeId,
     sceneId: progress.sceneId,
     progress: `${progress.sceneIndex}/${progress.sceneCount}`,
     provider: progress.provider,
+    requestKind: request?.kind,
+    // The spent-against-budget counter, because a starved scene reads the same
+    // as a mis-searched one until you know the episode ran out of requests.
+    requests: request ? `${trace.requestCount}/${trace.budget.max}` : undefined,
+    subjectKey: quotedField(
+      request?.subjectKey ?? selection?.subjectKey ?? progress.subjectKey,
+    ),
+    searchIntent: quotedField(request?.query ?? progress.searchIntent),
+    returned: request?.returned ?? progress.searchResultCount,
+    viable: request?.viable ?? progress.candidateCount,
+    searchError: request?.error ?? undefined,
+    selection: selection?.selection,
+    matchedSubjectKey: quotedField(selection?.matchedSubjectKey),
+    providerRank: selection?.providerRank ?? undefined,
+    fallbackReason: selection?.fallbackReason ?? undefined,
     assetId: progress.assetId,
     sourceHostname: progress.sourceHostname,
     reuseKind: progress.reuseKind,
-    candidateCount: progress.candidateCount,
-    searchResultCount: progress.searchResultCount,
-    entityFilteredCount: progress.entityFilteredCount,
-    searchEntities: progress.searchEntities,
-    searchIntent: progress.searchIntent,
-    subjectKey: progress.subjectKey,
     rejectedCandidateCount: progress.rejectedCandidateCount,
     rejectionSummary: progress.rejectionSummary,
     elapsedMs: progress.elapsedMs,
   });
 }
 
+/** Subject keys and queries carry spaces, so an unquoted value would merge into
+ * the next `key=value` pair of the same line. */
+function quotedField(value: string | null | undefined): string | undefined {
+  return value === null || value === undefined ? undefined : `"${value}"`;
+}
+
+/* jscpd:ignore-start -- thin wrapper repeats logVideoWorkerEvent's parameter
+ * types; every call site here needs the shared `language: 'shared'` field. */
 function logVisualProgress(
   logger: Pick<Console, 'info'>,
   event: string,
   fields: Record<string, string | number | undefined>,
 ): void {
-  const details = Object.entries({ ...fields, language: 'shared' })
-    .flatMap(([key, value]) => (value === undefined ? [] : [`${key}=${value}`]))
-    .join(' ');
-  logger.info(`[video-worker] ${event} ${details}`);
+  logVideoWorkerEvent(logger, event, { ...fields, language: 'shared' });
 }
+/* jscpd:ignore-end */
 
 export const processEpisodeVideoVisualJob = createEpisodeVideoVisualProcessor();
+
+interface PreparedStoryboard {
+  storyboard: StoryboardGenerationResult;
+  searchIntentModel: string | null;
+  subjectCatalog: VisualSubjectCatalog | null;
+  sceneAssignments: VisualSceneSubjectAssignment[];
+  /** Why this episode has no subject catalog, when enrichment degraded rather
+   * than simply finding no named subject. */
+  subjectCatalogFailure: string | null;
+  resumePlan: VisualAssetPlan | null;
+}
+
+async function restorePreparedStoryboard(
+  checkpoint: VisualCheckpoint,
+  options: {
+    workingDirectory: string;
+    signal: AbortSignal;
+    download: DownloadCheckpointImage;
+  },
+): Promise<PreparedStoryboard> {
+  return {
+    storyboard: restoreVisualStoryboard(checkpoint),
+    searchIntentModel: checkpoint.searchIntentModel,
+    subjectCatalog: checkpoint.subjectCatalog,
+    sceneAssignments: [...checkpoint.sceneAssignments],
+    subjectCatalogFailure: checkpoint.subjectCatalogFailure ?? null,
+    resumePlan:
+      checkpoint.scenes.length > 0
+        ? await restoreVisualCheckpointPlan(checkpoint, options)
+        : null,
+  };
+}
+
+async function saveCheckpointOrThrow(
+  context: ProcessEpisodeVideoVisualJobContext,
+  checkpoint: VisualCheckpoint,
+): Promise<void> {
+  if (!(await context.saveCheckpoint(checkpoint))) {
+    throw new Error('Visual checkpoint lost its job lease');
+  }
+}
+
+function countBrandScenes(draft: {
+  scenes: readonly { imageSearchIntent: readonly string[] }[];
+}): number {
+  return draft.scenes.filter(
+    (scene) => podcastBrandVisualKind(scene.imageSearchIntent) !== null,
+  ).length;
+}
+
+function logBranding(
+  logger: Pick<Console, 'info'>,
+  runId: string,
+  episodeId: string,
+  draft: {
+    scenes: readonly {
+      sceneId: string;
+      imageSearchIntent: readonly string[];
+    }[];
+  },
+): void {
+  if (countBrandScenes(draft) === 0) {
+    logVisualProgress(logger, 'visual:branding', {
+      run: runId,
+      episode: episodeId,
+      status: 'skipped',
+      reason: 'unpackaged-script',
+    });
+    return;
+  }
+  const outroScene = draft.scenes.find(
+    (scene) => podcastBrandVisualKind(scene.imageSearchIntent) === 'outro',
+  );
+  if (outroScene) {
+    logVisualProgress(logger, 'visual:branding', {
+      run: runId,
+      episode: episodeId,
+      kind: 'zap-pilot-outro',
+      sceneId: outroScene.sceneId,
+    });
+  }
+}

@@ -15,7 +15,6 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from src.core.config import Environment, settings
 from src.core.utils import coerce_date_to_datetime, row_to_dict
 
 
@@ -196,7 +195,7 @@ class QueryService:
         """Execute a SQL query and return all results."""
         return self._execute(db, query_name, params or {}, single=False)
 
-    async def fetch_time_range_query(
+    def fetch_time_range_query(
         self,
         db: Session,
         query_name: str,
@@ -209,6 +208,9 @@ class QueryService:
         extra_params: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         """Execute a query constrained to a date range.
+
+        Blocking: ``db`` is a synchronous SQLAlchemy Session, so callers running
+        under an event loop must dispatch this through ``run_in_threadpool``.
 
         Args:
             db: Active database session.
@@ -286,7 +288,7 @@ class QueryService:
         Preserves logging and error messages expected by tests.
         """
         try:
-            query_string = self._resolve_query_string(query_name)
+            query_string = self.get_query(query_name)
             self._log_query_start(query_name, params, single=single)
             result = db.execute(text(query_string), params)
 
@@ -307,18 +309,6 @@ class QueryService:
             )
             self.logger.error(msg)
             raise RuntimeError(msg) from e
-
-    def _resolve_query_string(self, query_name: str) -> str:
-        """Resolve the final query string, including environment-specific overrides."""
-        query_string = self.get_query(query_name)
-        if (
-            query_name == "get_portfolio_category_trend_from_mv"
-            and settings.environment != Environment.PRODUCTION
-        ):
-            return self.queries.get(
-                "get_portfolio_category_trend_by_user_id", query_string
-            )
-        return query_string
 
     def _log_query_start(
         self, query_name: str, params: dict[str, Any], *, single: bool

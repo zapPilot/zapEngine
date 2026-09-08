@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import type { TrackRecordState } from '@/hooks/useTrackRecord';
+import type { TrackRecordHookState } from '@/hooks/useTrackRecord';
 import { MOCK_LATEST_CID, mockSnapshotEntries } from '@/data/mock-track-record';
 import { computePerformanceSummary } from '@/data/track-record-accessor';
 import TrackRecordPage from '../page';
@@ -12,7 +12,9 @@ vi.mock('@/hooks/useTrackRecord', () => ({ useTrackRecord }));
 const DEMO_WALLET = '0x1111111111111111111111111111111111111111';
 const LIVE_WALLET = '0x2222222222222222222222222222222222222222';
 
-function state(overrides: Partial<TrackRecordState> = {}): TrackRecordState {
+function state(
+  overrides: Partial<TrackRecordHookState> = {},
+): TrackRecordHookState {
   const snapshots = mockSnapshotEntries
     .slice(-3)
     .map((entry) => entry.snapshot);
@@ -42,12 +44,10 @@ function state(overrides: Partial<TrackRecordState> = {}): TrackRecordState {
     },
     isLoading: false,
     error: null,
+    source: 'backtest',
+    setSource: vi.fn(),
     ...overrides,
   };
-}
-
-function pendingBanner() {
-  return screen.queryByText(/Live tracking pending/);
 }
 
 describe('TrackRecordPage', () => {
@@ -55,25 +55,24 @@ describe('TrackRecordPage', () => {
     vi.clearAllMocks();
   });
 
-  it('presents the demo dataset as pending, not as live', () => {
+  it('presents backtest results by default without live wallet links', () => {
     useTrackRecord.mockReturnValue(state());
 
     render(<TrackRecordPage />);
 
-    expect(pendingBanner()).toBeInTheDocument();
-    // The chart belongs to the backtest section, not the live slot.
+    expect(screen.getByText(/Backtest mode/)).toBeInTheDocument();
     expect(screen.getByText('Historical performance')).toBeInTheDocument();
-    // A fabricated wallet address must not be offered as an on-chain link.
     expect(screen.queryByText(DEMO_WALLET)).toBeNull();
     expect(
-      screen.getByText(/Live wallet addresses will appear here/),
+      screen.getByText(/Wallet addresses are only shown in Live mode/),
     ).toBeInTheDocument();
   });
 
-  it('shows live results and on-chain wallets once a real snapshot is published', () => {
+  it('shows live results and on-chain wallets after switching to Live', () => {
     const base = state();
     useTrackRecord.mockReturnValue(
       state({
+        source: 'live',
         meta: { ...base.meta!, latestSnapshotCid: 'bafyrealsnapshot' },
         latestSnapshot: {
           ...base.latestSnapshot!,
@@ -85,7 +84,7 @@ describe('TrackRecordPage', () => {
 
     render(<TrackRecordPage />);
 
-    expect(pendingBanner()).toBeNull();
+    expect(screen.queryByText(/Backtest mode/)).toBeNull();
     expect(screen.queryByText('Historical performance')).toBeNull();
     expect(screen.getByRole('link', { name: LIVE_WALLET })).toHaveAttribute(
       'href',
@@ -93,21 +92,27 @@ describe('TrackRecordPage', () => {
     );
   });
 
-  it('shows the pending banner when no snapshot has been published at all', () => {
+  it('shows live unavailable when Live has no published snapshot', () => {
     const base = state();
     useTrackRecord.mockReturnValue(
-      state({ meta: { ...base.meta!, latestSnapshotCid: '' } }),
+      state({
+        source: 'live',
+        meta: { ...base.meta!, latestSnapshotCid: '' },
+        latestSnapshot: null,
+        snapshots: [],
+      }),
     );
 
     render(<TrackRecordPage />);
 
-    expect(pendingBanner()).toBeInTheDocument();
+    expect(screen.getByText(/Live tracking unavailable/)).toBeInTheDocument();
   });
 
-  it('holds the pending banner back while the first load is still running', () => {
+  it('holds source status banners back while the first load is still running', () => {
     const base = state();
     useTrackRecord.mockReturnValue(
       state({
+        source: 'live',
         meta: null,
         latestSnapshot: null,
         snapshots: [],
@@ -118,6 +123,7 @@ describe('TrackRecordPage', () => {
 
     render(<TrackRecordPage />);
 
-    expect(pendingBanner()).toBeNull();
+    expect(screen.queryByText(/Live tracking unavailable/)).toBeNull();
+    expect(screen.queryByText(/Backtest mode/)).toBeNull();
   });
 });

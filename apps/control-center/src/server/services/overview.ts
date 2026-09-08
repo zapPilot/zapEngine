@@ -109,6 +109,7 @@ function unconfiguredProviders(): CostProviderResult[] {
   return [
     placeholder('openrouter', 'OpenRouter', 'actual'),
     placeholder('debank', 'DeBank', 'list-price-equivalent'),
+    placeholder('brave', 'Brave Search', 'list-price-equivalent'),
     placeholder('supabase', 'Supabase', 'fixed'),
     placeholder('fly', 'Fly.io', 'estimated'),
   ];

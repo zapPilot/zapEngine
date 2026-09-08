@@ -3,7 +3,10 @@ import {
   type ContentLanguageCode,
   isContentLanguageCode,
 } from '@/config/contentLanguages';
-import type { KeyValueStorage } from '@/storage/keyValueStorage';
+import {
+  createSerializedWriter,
+  type KeyValueStorage,
+} from '@/storage/keyValueStorage';
 
 export const APP_LOCALE_STORAGE_KEY = 'app_locale';
 
@@ -13,16 +16,10 @@ export interface LocaleStorage {
 }
 
 export function createLocaleStorage(storage: KeyValueStorage): LocaleStorage {
-  let writeQueue = Promise.resolve();
+  const writer = createSerializedWriter(storage);
 
-  const saveLocale = (locale: ContentLanguageCode): Promise<void> => {
-    const write = writeQueue.then(
-      () => storage.setItem(APP_LOCALE_STORAGE_KEY, locale),
-      () => storage.setItem(APP_LOCALE_STORAGE_KEY, locale),
-    );
-    writeQueue = write.catch(() => undefined);
-    return writeQueue;
-  };
+  const saveLocale = (locale: ContentLanguageCode): Promise<void> =>
+    writer.write(APP_LOCALE_STORAGE_KEY, locale);
 
   return {
     async loadLocale() {

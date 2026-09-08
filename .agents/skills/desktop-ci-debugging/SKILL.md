@@ -34,8 +34,14 @@ pnpm --filter @zapengine/desktop format:check
 For package/build changes:
 
 ```bash
-pnpm --filter @zapengine/desktop package
+pnpm turbo run package --filter=@zapengine/desktop
 ```
+
+Run it through Turbo (not `pnpm --filter ... package`): the `package` task
+orders `^build` plus `@zapengine/app#build:web` first, so a fresh worktree
+without `dist` output still packages. The renderer export runs once in the
+graph; the desktop `package` script itself only bundles main/preload and
+calls electron-builder.
 
 Package failures may require local macOS/Electron prerequisites. Code/config
 failures should be fixed before handoff.

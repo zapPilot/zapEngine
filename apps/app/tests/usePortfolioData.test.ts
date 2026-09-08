@@ -1,16 +1,25 @@
+// @vitest-environment jsdom
+
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  DEFAULT_PORTFOLIO_RANGE,
   portfolioDaysForRange,
   usePortfolioData,
+  type UsePortfolioDataResult,
 } from '../src/integration/usePortfolioData';
 
 const useLandingPageDataMock = vi.hoisted(() => vi.fn());
 const usePortfolioDashboardMock = vi.hoisted(() => vi.fn());
+const useDailyYieldReturnsMock = vi.hoisted(() => vi.fn());
 vi.mock('@zapengine/app-core/hooks/analytics', () => ({
   usePortfolioDashboard: usePortfolioDashboardMock,
 }));
 
+// These tests call the hook as a plain function, so its React Query observers
+// have to be stubbed. Partial, because the rest of the package loads for real.
 vi.mock('@zapengine/app-core/hooks/queries', async (importOriginal) => {
   const actual =
     await importOriginal<typeof import('@zapengine/app-core/hooks/queries')>();
@@ -18,6 +27,7 @@ vi.mock('@zapengine/app-core/hooks/queries', async (importOriginal) => {
   return {
     ...actual,
     useLandingPageData: useLandingPageDataMock,
+    useDailyYieldReturns: useDailyYieldReturnsMock,
   };
 });
 
@@ -32,16 +42,50 @@ function mockSettledSources() {
     isLoading: false,
     isError: false,
   });
+  useDailyYieldReturnsMock.mockReturnValue({ data: undefined });
+}
+
+/**
+ * `usePortfolioData` memoizes its trend series, so it has to run inside a real
+ * render rather than as a plain function call. One throwaway mount per case
+ * keeps them as independent as the direct calls were.
+ */
+function renderPortfolioData(
+  ...args: Parameters<typeof usePortfolioData>
+): UsePortfolioDataResult {
+  const container = document.createElement('div');
+  const root = createRoot(container);
+  const results: UsePortfolioDataResult[] = [];
+  function Probe() {
+    results.push(usePortfolioData(...args));
+    return null;
+  }
+
+  act(() => {
+    root.render(createElement(Probe));
+  });
+  act(() => {
+    root.unmount();
+  });
+
+  const result = results.at(-1);
+  if (!result) throw new Error('usePortfolioData never rendered');
+  return result;
 }
 
 beforeEach(() => {
+  (
+    globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }
+  ).IS_REACT_ACT_ENVIRONMENT = true;
   useLandingPageDataMock.mockReset();
   usePortfolioDashboardMock.mockReset();
+  useDailyYieldReturnsMock.mockReset();
   mockSettledSources();
 });
 
 describe('Portfolio data range mapping', () => {
-  it('maps portfolio tabs to dashboard windows', () => {
+  it('defaults Portfolio to one month and maps tabs to dashboard windows', () => {
+    expect(DEFAULT_PORTFOLIO_RANGE).toBe('1M');
     expect(portfolioDaysForRange('1W')).toBe(7);
     expect(portfolioDaysForRange('1M')).toBe(30);
     expect(portfolioDaysForRange('3M')).toBe(90);
@@ -52,7 +96,7 @@ describe('Portfolio data range mapping', () => {
 
 describe('usePortfolioData', () => {
   it('keeps the portfolio empty while the user id is still resolving', () => {
-    const result = usePortfolioData(null, '1Y', { isResolvingUser: true });
+    const result = renderPortfolioData(null, '1Y', { isResolvingUser: true });
 
     expect(result).toEqual({ data: null, isLoading: true, isError: false });
     expect(useLandingPageDataMock).toHaveBeenCalledWith(null, false, true);
@@ -64,7 +108,7 @@ describe('usePortfolioData', () => {
   });
 
   it('settles to unavailable portfolio values when no user id is available', () => {
-    const result = usePortfolioData(null, '1Y');
+    const result = renderPortfolioData(null, '1Y');
 
     expect(result).toMatchObject({ isLoading: false, isError: false });
     expect(result.data).toMatchObject({
@@ -88,7 +132,7 @@ describe('usePortfolioData', () => {
   });
 
   it('passes the selected range window only to the dashboard query', () => {
-    const result = usePortfolioData('user-123', '1W');
+    const result = renderPortfolioData('user-123', '1W');
 
     expect(result).toMatchObject({ isLoading: false, isError: false });
     expect(usePortfolioDashboardMock).toHaveBeenCalledWith('user-123', {
@@ -99,7 +143,7 @@ describe('usePortfolioData', () => {
   });
 
   it('surfaces connected live misses as unavailable values instead of demo-like data', () => {
-    const result = usePortfolioData('user-123', '1Y');
+    const result = renderPortfolioData('user-123', '1Y');
 
     expect(result).toMatchObject({ isLoading: false, isError: false });
     expect(result.data).toMatchObject({
@@ -163,7 +207,7 @@ describe('usePortfolioData', () => {
       isError: false,
     });
 
-    const result = usePortfolioData('user-123', '1Y');
+    const result = renderPortfolioData('user-123', '1Y');
 
     expect(result.data).toMatchObject({
       valueChangePct: 25,
@@ -228,7 +272,7 @@ describe('usePortfolioData', () => {
       isLoading: false,
       isError: false,
     });
-    const result = usePortfolioData('user-123', '1Y');
+    const result = renderPortfolioData('user-123', '1Y');
 
     expect(result).toMatchObject({ isLoading: false, isError: true });
     expect(result.data).toMatchObject({
@@ -256,5 +300,85 @@ describe('usePortfolioData', () => {
     expect(result.data?.metrics.map((metric) => metric.label)).not.toContain(
       'Realized yield',
     );
+  });
+
+  it('reads short-range attribution without requesting a full year', () => {
+    usePortfolioDashboardMock.mockReturnValue({
+      dashboard: {
+        trends: {
+          daily_values: [
+            { date: '2026-06-28', total_value_usd: 1000 },
+            { date: '2026-06-29', total_value_usd: 1050 },
+          ],
+        },
+      },
+      isLoading: false,
+      isError: false,
+    });
+    useDailyYieldReturnsMock.mockReturnValue({
+      data: {
+        user_id: 'user-123',
+        period: {
+          start_date: '2026-06-28',
+          end_date: '2026-06-29',
+          days: 2,
+        },
+        daily_returns: [
+          {
+            date: '2026-06-29',
+            protocol_name: 'Aave',
+            chain: 'ethereum',
+            position_type: 'Lending',
+            yield_return_usd: 30,
+            tokens: [],
+          },
+        ],
+      },
+    });
+
+    const result = renderPortfolioData('user-123', '1W');
+
+    expect(useDailyYieldReturnsMock).toHaveBeenCalledWith('user-123', 30);
+    expect(result.data?.trendPoints.at(-1)?.attribution).toEqual([
+      { kind: 'protocol', label: 'Aave', valueUsd: 30 },
+      { kind: 'residual', valueUsd: 20 },
+    ]);
+  });
+
+  it('uses the selected 3M window for attribution', () => {
+    renderPortfolioData('user-123', '3M');
+
+    expect(useDailyYieldReturnsMock).toHaveBeenCalledWith('user-123', 90);
+  });
+
+  it('keeps 1Y and ALL attribution disabled while leaving their charts available', () => {
+    renderPortfolioData('user-123', '1Y');
+    expect(useDailyYieldReturnsMock).toHaveBeenLastCalledWith(undefined, 30);
+
+    renderPortfolioData('user-123', 'ALL');
+    expect(useDailyYieldReturnsMock).toHaveBeenLastCalledWith(undefined, 30);
+  });
+
+  it('leaves the trend unattributed while the attribution query has no data', () => {
+    usePortfolioDashboardMock.mockReturnValue({
+      dashboard: {
+        trends: {
+          daily_values: [
+            { date: '2026-06-28', total_value_usd: 1000 },
+            { date: '2026-06-29', total_value_usd: 11_000 },
+          ],
+        },
+      },
+      isLoading: false,
+      isError: false,
+    });
+
+    const result = renderPortfolioData('user-123', '1W');
+
+    expect(
+      result.data?.trendPoints.every(
+        (point) => point.attribution === undefined,
+      ),
+    ).toBe(true);
   });
 });

@@ -4,6 +4,7 @@ import {
   calculateAdjacentSnapshotChange,
   calculateWindowValueChangePct,
   nearestTrendPointIndex,
+  netPortfolioValueFrom,
   snapshotCategoryTotals,
   toTrendPoints,
   trendPointX,
@@ -103,6 +104,16 @@ describe('portfolioMetrics', () => {
         categories: [{ assets_usd: 0, debt_usd: 0 }],
       }),
     ).toEqual({ assetsUsd: 0, debtUsd: 0 });
+  });
+
+  it('prefers net_portfolio_value and falls back to total_net_usd', () => {
+    expect(
+      netPortfolioValueFrom({ net_portfolio_value: 1500, total_net_usd: 900 }),
+    ).toBe(1500);
+    expect(
+      netPortfolioValueFrom({ net_portfolio_value: null, total_net_usd: 900 }),
+    ).toBe(900);
+    expect(netPortfolioValueFrom(undefined)).toBeNull();
   });
 
   it('selects and positions the nearest marker inside chart bounds', () => {

@@ -21,4 +21,13 @@ describe('ipfsGatewayUrl', () => {
       expect(url.endsWith('/bafkreiabc')).toBe(true);
     }
   });
+
+  // These URLs are rendered as links a reader opens to check a CID against a
+  // third party, so a relative or same-origin entry would point the "verify
+  // independently" affordance back at our own deployment.
+  it('keeps every gateway an absolute public URL', () => {
+    for (const gateway of IPFS_GATEWAYS) {
+      expect(gateway).toMatch(/^https:\/\//);
+    }
+  });
 });

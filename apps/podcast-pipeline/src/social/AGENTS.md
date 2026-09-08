@@ -60,6 +60,11 @@ lane allocation:
 3. `resolveReleaseCohortLanes()` derives the final platform × language lanes from
    that selected slot and durably records/reuses the article's A/B/C profile.
 4. `enqueueCohortJobs()` writes the same slot timestamp to every lane.
+5. `holdCohortsMissingMedia()` re-checks that same readiness view after the
+   cohort is claimed and before transport, because step 1 only proves media
+   existed when the cohort was queued. A language missing now holds that whole
+   episode (its claimed lanes fail with `Release held: …` and serve retry
+   backoff) while every other episode still publishes.
 
 Do not collapse these steps by deriving v2 readiness from a profile chosen before
 the slot exists. Media readiness must not bias which language/time cell gets

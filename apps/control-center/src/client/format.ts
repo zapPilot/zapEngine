@@ -92,6 +92,17 @@ export function relativeTime(value: string): string {
   return new Date(parsed).toLocaleString();
 }
 
+/** One line of an error, whatever the stack underneath it looked like. Raw
+ * provider errors arrive with embedded newlines and multi-kilobyte bodies that
+ * would push every other fact on the card off the screen. */
+export function compactError(error: string): string {
+  const compact = error.replace(/\s+/gu, ' ').trim();
+  if (compact.length > 280) {
+    return `${compact.slice(0, 277)}…`;
+  }
+  return compact;
+}
+
 export function providerUsage(unit: 'usd' | 'units', value: number): string {
   return unit === 'usd' ? usd(value) : `${integer(value)} units`;
 }

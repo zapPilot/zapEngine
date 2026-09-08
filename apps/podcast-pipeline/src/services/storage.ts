@@ -59,6 +59,16 @@ export interface EpisodeVisualUploadResult {
   r2Prefix: string;
 }
 
+export interface EpisodeVisualCheckpointImageInput {
+  episodeId: string;
+  visualVersion: string;
+  sourceHash: string;
+  assetId: string;
+  path: string;
+  contentType: VisualSourceImageUpload['contentType'];
+  signal?: AbortSignal;
+}
+
 const IMMUTABLE_CACHE_CONTROL = 'public, max-age=31536000, immutable';
 const VIDEO_MULTIPART_PART_SIZE = 8 * 1024 * 1024;
 const VIDEO_MULTIPART_QUEUE_SIZE = 2;
@@ -71,9 +81,21 @@ const VIDEO_MULTIPART_QUEUE_SIZE = 2;
  * an episode's ~100 HLS segments used to fail the whole step with zero attempts.
  * Each attempt therefore opens a *fresh* stream — a consumed one cannot be
  * replayed. Object keys are deterministic, so re-PUTting is safe.
+ *
+ * Seven attempts rather than three: R2 answers a transient blip with a bare
+ * HTTP 500 ("We encountered an internal error. Please try again."), and three
+ * attempts covered only ~2s of it — one segment of the third language threw
+ * away a 612-second multilingual run whose other two languages were already
+ * completed.
  */
-const R2_PUT_MAX_ATTEMPTS = 3;
+const R2_PUT_MAX_ATTEMPTS = 7;
 const R2_PUT_BASE_DELAY_MS = 500;
+/**
+ * Ceiling on one sleep. Doubling from 500ms reaches 16s on the sixth retry and
+ * 32s on the seventh — longer than fly.toml's `kill_timeout = '30s'`, so a
+ * deploy would SIGINT the process inside a sleep the retry never woke from.
+ */
+const R2_PUT_MAX_DELAY_MS = 8_000;
 
 /**
  * How many objects one upload call keeps in flight. HLS is `-hls_time 6`, so a
@@ -219,17 +241,26 @@ export async function uploadVideoArtifactsToR2(
   };
 }
 
+export async function uploadEpisodeVisualCheckpointImageToR2(
+  input: EpisodeVisualCheckpointImageInput,
+): Promise<string> {
+  input.signal?.throwIfAborted();
+  const sourceHash = safeKeySegment(input.sourceHash, 'visual source hash');
+  const assetId = safeKeySegment(input.assetId, 'visual asset id');
+  const extension = contentTypeExtension(input.contentType);
+  const key = `${visualKeyPrefix(input)}/checkpoints/${sourceHash}/images/${assetId}.${extension}`;
+  await putImmutableObjects(getR2Client(), getBucket(), input.signal, [
+    { Key: key, path: input.path, contentType: input.contentType },
+  ]);
+  return `${getPublicBase()}/${key}`;
+}
+
 export async function uploadEpisodeVisualAssetsToR2(
   input: EpisodeVisualUploadInput,
 ): Promise<EpisodeVisualUploadResult> {
   input.signal?.throwIfAborted();
-  const episodeId = safeKeySegment(input.episodeId, 'episode id');
-  const visualVersion = safeKeySegment(
-    input.visualVersion,
-    'visual renderer version',
-  );
   const visualHash = safeKeySegment(input.visualHash, 'visual hash');
-  const prefix = `episodes/${episodeId}/visuals/${visualVersion}/${visualHash}`;
+  const prefix = `${visualKeyPrefix(input)}/${visualHash}`;
   const r2 = getR2Client();
   const Bucket = getBucket();
   const manifestKey = `${prefix}/visual-manifest.json`;
@@ -271,6 +302,18 @@ export async function uploadEpisodeVisualAssetsToR2(
     ),
     r2Prefix: prefix,
   };
+}
+
+function visualKeyPrefix(input: {
+  episodeId: string;
+  visualVersion: string;
+}): string {
+  const episodeId = safeKeySegment(input.episodeId, 'episode id');
+  const visualVersion = safeKeySegment(
+    input.visualVersion,
+    'visual renderer version',
+  );
+  return `episodes/${episodeId}/visuals/${visualVersion}`;
 }
 
 function buildVideoArtifactPrefix(input: VideoArtifactUploadInput): string {
@@ -400,6 +443,7 @@ async function putObject(
         key: input.Key,
         attempt,
         nextAttempt: attempt + 1,
+        maxAttempts: R2_PUT_MAX_ATTEMPTS,
         delayMs,
         error: errorMessage(error),
       });
@@ -408,9 +452,12 @@ async function putObject(
   }
 }
 
-/** 500ms, 1s, ... with up to 50% jitter so a whole batch does not resynchronize. */
+/** 500ms, 1s, 2s ... to an 8s ceiling, with up to 50% jitter so a whole batch does not resynchronize. */
 function r2RetryDelayMs(attempt: number): number {
-  const base = R2_PUT_BASE_DELAY_MS * 2 ** (attempt - 1);
+  const base = Math.min(
+    R2_PUT_BASE_DELAY_MS * 2 ** (attempt - 1),
+    R2_PUT_MAX_DELAY_MS,
+  );
   return Math.round(base * (1 + Math.random() * 0.5));
 }
 

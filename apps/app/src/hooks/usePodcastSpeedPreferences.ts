@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback } from 'react';
 
 import {
   DEFAULT_PODCAST_SPEED_PREFERENCES,
@@ -7,6 +7,7 @@ import {
   type PodcastSpeedPreferences,
   withSectionSpeed,
 } from '@/integration/podcastSections';
+import { useHydratedStore } from '@/hooks/useHydratedStore';
 import {
   loadPodcastSpeedPreferences,
   savePodcastSpeedPreferences,
@@ -22,54 +23,28 @@ interface PendingSpeedMutation {
   speed: number;
 }
 
+function reduceSpeedMutation(
+  current: PodcastSpeedPreferences,
+  mutation: PendingSpeedMutation,
+): PodcastSpeedPreferences {
+  return withSectionSpeed(current, mutation.section, mutation.speed);
+}
+
 /** Hydrates durable speed preferences without overwriting an early user edit. */
 export function usePodcastSpeedPreferences(): PodcastSpeedPreferenceState {
-  const [preferences, setPreferences] = useState<PodcastSpeedPreferences>({
-    ...DEFAULT_PODCAST_SPEED_PREFERENCES,
-  });
-  const preferencesRef = useRef(preferences);
-  const hydratedRef = useRef(false);
-  const pendingMutationsRef = useRef<PendingSpeedMutation[]>([]);
-
-  useEffect(() => {
-    let active = true;
-    void loadPodcastSpeedPreferences().then((stored) => {
-      if (!active) return;
-
-      const pending = pendingMutationsRef.current;
-      pendingMutationsRef.current = [];
-      const hydrated = pending.reduce(
-        (current, mutation) =>
-          withSectionSpeed(current, mutation.section, mutation.speed),
-        stored,
-      );
-
-      hydratedRef.current = true;
-      preferencesRef.current = hydrated;
-      setPreferences(hydrated);
-      if (pending.length > 0) {
-        void savePodcastSpeedPreferences(hydrated);
-      }
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
+  const { value: preferences, commit } = useHydratedStore(
+    { ...DEFAULT_PODCAST_SPEED_PREFERENCES },
+    loadPodcastSpeedPreferences,
+    savePodcastSpeedPreferences,
+    reduceSpeedMutation,
+  );
 
   const setSpeedForSection = useCallback(
     (section: PodcastSectionKind, speed: number) => {
-      if (!hydratedRef.current) {
-        pendingMutationsRef.current.push({ section, speed });
-      }
-      const updated = withSectionSpeed(preferencesRef.current, section, speed);
-      preferencesRef.current = updated;
-      setPreferences(updated);
-      if (hydratedRef.current) {
-        void savePodcastSpeedPreferences(updated);
-      }
+      const updated = commit({ section, speed });
       return speedForSection(updated, section);
     },
-    [],
+    [commit],
   );
 
   return { preferences, setSpeedForSection };

@@ -9,6 +9,7 @@ import type {
   EvidenceChart,
   StrategyDecisionPacket,
 } from '@/integration/useStrategyDecisionPacket';
+import { formatOr } from '@/lib/format';
 import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 
 interface DecisionPacketCardProps {
@@ -194,7 +195,7 @@ function AllocationRows({
   );
 }
 function formatNumber(value: number | null): string {
-  return value == null
-    ? '—'
-    : value.toLocaleString('en-US', { maximumFractionDigits: 5 });
+  return formatOr(value, (v) =>
+    v.toLocaleString('en-US', { maximumFractionDigits: 5 }),
+  );
 }

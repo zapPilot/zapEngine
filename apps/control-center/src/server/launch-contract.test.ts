@@ -60,4 +60,18 @@ describe('control-center launch contract', () => {
       existsSync(resolve(repoRoot, 'apps/control-center/api/index.ts')),
     ).toBe(true);
   });
+
+  // Vercel's Hobby-tier Standard Protection does not cover a production custom
+  // domain, so nothing in front of this entrypoint authenticates the operator.
+  // The guard has to come from the entrypoint itself, and its absence has to
+  // fail the boot rather than serve the surface anonymously.
+  it('refuses to boot the remote entrypoint without operator credentials', () => {
+    const entrypoint = readFileSync(
+      resolve(repoRoot, 'apps/control-center/api/index.ts'),
+      'utf8',
+    );
+
+    expect(entrypoint).toContain('requireControlCenterAuth');
+    expect(entrypoint).toMatch(/auth:\s*requireControlCenterAuth\(/);
+  });
 });

@@ -109,7 +109,7 @@ export function WalletProvider({
   );
 }
 
-export function usePrivyExpoWalletBackend(): PrivyExpoWalletBackend {
+function usePrivyExpoWalletBackend(): PrivyExpoWalletBackend {
   const {
     isReady,
     error: privyError,

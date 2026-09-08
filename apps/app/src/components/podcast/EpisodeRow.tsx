@@ -8,7 +8,7 @@ import type { PodcastEpisode } from '@/integration/podcastFeed';
 import { cn } from '@/lib/cn';
 import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 
-export function EpisodeBadge({ active }: { active: boolean }) {
+function EpisodeBadge({ active }: { active: boolean }) {
   return (
     <View
       className={cn(

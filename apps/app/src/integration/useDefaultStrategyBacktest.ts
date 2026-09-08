@@ -17,8 +17,8 @@ import type {
   StrategyPreset,
 } from '@zapengine/app-core/types/strategy';
 
-import { type MetricTone } from '@/data/demo';
-import { formatPct, formatSignedPct, formatUsd } from '@/lib/format';
+import { type MetricTone } from '@/integration/activityTypes';
+import { formatOr, formatPct, formatSignedPct, formatUsd } from '@/lib/format';
 
 const DCA_CLASSIC_STRATEGY_ID = 'dca_classic';
 const DMA_FGI_PORTFOLIO_RULES_STRATEGY_ID = 'dma_fgi_portfolio_rules';
@@ -58,25 +58,19 @@ export interface BuildDefaultBacktestRequestOptions {
 }
 
 function signedPct(value: number | undefined | null): string {
-  if (typeof value !== 'number') {
-    return '—';
-  }
-  return formatSignedPct(value);
+  return formatOr(value, formatSignedPct);
 }
 
 function unsignedPct(value: number | undefined | null): string {
-  if (typeof value !== 'number') {
-    return '—';
-  }
-  return formatPct(value);
+  return formatOr(value, formatPct);
 }
 
 function numberMetric(value: number | undefined | null): string {
-  return typeof value === 'number' ? value.toFixed(2) : '—';
+  return formatOr(value, (v) => v.toFixed(2));
 }
 
 function usdMetric(value: number | undefined | null): string {
-  return typeof value === 'number' ? formatUsd(value) : '—';
+  return formatOr(value, formatUsd);
 }
 
 function roiTone(value: number | undefined | null): MetricTone {

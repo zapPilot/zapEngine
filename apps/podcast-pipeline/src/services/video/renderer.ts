@@ -1,37 +1,25 @@
 import { createHash } from 'node:crypto';
-import {
-  copyFile,
-  mkdir,
-  mkdtemp,
-  readFile,
-  rm,
-  writeFile,
-} from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 
 import sharp from 'sharp';
 
-import { throwIfAborted } from './abort.js';
+import { throwIfAborted } from '../../lib/abort.js';
 import { type ResolvedSlideAsset, resolveSlideAsset } from './assets.js';
 import {
-  buildStaticSlideFilter,
   MEDIA_MOTION_SUPERSAMPLE,
-  renderStaticSlideVideo,
   renderVerticalSlideVideo,
 } from './ffmpeg-video.js';
 import {
-  isVerticalVideoManifest,
-  parseSlideVideoManifest,
+  parseVerticalVideoManifest,
   type Slide,
-  type SlideVideoManifest,
   type VerticalVideoManifest,
 } from './manifest.js';
 import {
   cropMediaImage,
   rasterizeBrandFrame,
   rasterizeOutro,
-  rasterizeSlide,
 } from './rasterizer.js';
 import { bgmTrackPath, videoAssetPaths } from './runtime-assets.js';
 import { createAssSubtitles, portraitSubtitleLayoutFor } from './subtitles.js';
@@ -49,7 +37,6 @@ export interface RenderedSlideVideo {
   subtitlePath: string;
   sourcesPath: string;
   manifestHash: string;
-  slideMasterPaths: string[];
   slideOutputPaths: string[];
   framePath?: string;
   outroPath?: string;
@@ -113,8 +100,6 @@ export async function downscaleMediaToWindow(
 
 interface RenderDependencies {
   resolveAsset: typeof resolveSlideAsset;
-  rasterize: typeof rasterizeSlide;
-  renderVideo: typeof renderStaticSlideVideo;
   rasterizeFrame: typeof rasterizeBrandFrame;
   rasterizeOutroCard: typeof rasterizeOutro;
   cropMedia: typeof cropMediaImage;
@@ -125,8 +110,6 @@ interface RenderDependencies {
 
 const defaultDependencies: RenderDependencies = {
   resolveAsset: resolveSlideAsset,
-  rasterize: rasterizeSlide,
-  renderVideo: renderStaticSlideVideo,
   rasterizeFrame: rasterizeBrandFrame,
   rasterizeOutroCard: rasterizeOutro,
   cropMedia: cropMediaImage,
@@ -135,7 +118,7 @@ const defaultDependencies: RenderDependencies = {
   downscaleMedia: downscaleMediaToWindow,
 };
 
-function sourceListMarkdown(manifest: SlideVideoManifest): string {
+function sourceListMarkdown(manifest: VerticalVideoManifest): string {
   const uniqueSources = new Map(
     manifest.slides.flatMap((slide) =>
       slide.sources.map((source) => [source.id, source] as const),
@@ -159,13 +142,11 @@ function sourceListMarkdown(manifest: SlideVideoManifest): string {
 }
 
 function renderReportMarkdown(
-  manifest: SlideVideoManifest,
+  manifest: VerticalVideoManifest,
   manifestHash: string,
   assets: { slide: Slide; asset: ResolvedImageAsset }[],
 ): string {
-  const masterSize = isVerticalVideoManifest(manifest)
-    ? `${PORTRAIT_TEMPLATE_WIDTH}×${PORTRAIT_TEMPLATE_HEIGHT}`
-    : `${manifest.clip.width * 2}×${manifest.clip.height * 2}`;
+  const masterSize = `${PORTRAIT_TEMPLATE_WIDTH}×${PORTRAIT_TEMPLATE_HEIGHT}`;
   const assetRows = assets.map(({ slide, asset }) => {
     const result = `${asset.width}×${asset.height} ${asset.layout}`;
     return `| ${slide.id} | ${slide.template} | ${result} |`;
@@ -237,18 +218,16 @@ export async function renderSlideVideo(
   const rawManifest = JSON.parse(
     await readFile(options.manifestPath, 'utf8'),
   ) as unknown;
-  const manifest = parseSlideVideoManifest(rawManifest);
+  const manifest = parseVerticalVideoManifest(rawManifest);
   const canonicalManifest = `${JSON.stringify(manifest, null, 2)}\n`;
   const manifestHash = createHash('sha256')
     .update(canonicalManifest)
     .digest('hex');
   const workDirectory = await mkdtemp(join(tmpdir(), 'podcast-slide-video-'));
-  const mastersDirectory = join(options.outputDirectory, 'slides', 'master');
-  const vertical = isVerticalVideoManifest(manifest);
   const outputsDirectory = join(
     options.outputDirectory,
     'slides',
-    vertical ? `${manifest.clip.width}x${manifest.clip.height}` : '1080p',
+    `${manifest.clip.width}x${manifest.clip.height}`,
   );
   const storyboardPath = join(options.outputDirectory, 'storyboard.json');
   const subtitlePath = join(options.outputDirectory, 'captions.ass');
@@ -259,144 +238,37 @@ export async function renderSlideVideo(
   const filterScriptPath = join(workDirectory, 'filter-complex.txt');
   const assetDirectory = join(workDirectory, 'assets');
 
-  await Promise.all([
-    mkdir(mastersDirectory, { recursive: true }),
-    mkdir(outputsDirectory, { recursive: true }),
-  ]);
+  await mkdir(outputsDirectory, { recursive: true });
 
   try {
     await Promise.all([
       writeFile(storyboardPath, canonicalManifest, 'utf8'),
       writeFile(
         subtitlePath,
-        createAssSubtitles(
-          manifest.captions,
-          vertical ? portraitSubtitleLayoutFor(manifest) : undefined,
-        ),
+        createAssSubtitles(manifest.captions, portraitSubtitleLayoutFor()),
         'utf8',
       ),
       writeFile(sourcesPath, sourceListMarkdown(manifest), 'utf8'),
     ]);
 
-    if (vertical) {
-      return await renderVerticalNewsVideo({
-        manifest,
-        manifestHash,
-        workDirectory,
-        outputsDirectory,
-        assetDirectory,
-        filterScriptPath,
-        paths: {
-          storyboardPath,
-          subtitlePath,
-          sourcesPath,
-          reportPath,
-          thumbnailPath,
-          previewPath,
-        },
-        options,
-        dependencies,
-      });
-    }
-
-    const assetResults: {
-      slide: Slide;
-      asset: ResolvedImageAsset;
-    }[] = [];
-    const slideMasterPaths: string[] = [];
-    const slideOutputPaths: string[] = [];
-    const mediaStartedAt = Date.now();
-
-    for (const [index, slide] of manifest.slides.entries()) {
-      throwIfAborted(options.signal);
-      options.onProgress?.({
-        message: `Rendering slide ${index + 1}/${manifest.slides.length}: ${slide.id}`,
-        phase: 'media',
-        sceneId: slide.id,
-        sceneIndex: index + 1,
-        sceneCount: manifest.slides.length,
-      });
-      const asset = await dependencies.resolveAsset(slide, {
-        workingDirectory: assetDirectory,
-        signal: options.signal,
-      });
-      if (asset.kind !== 'image') {
-        throw new Error(
-          `Scene ${slide.id} requires a remote image: ${asset.reason}`,
-        );
-      }
-      assetResults.push({ slide, asset });
-      const filename = numberedSlideFilename(index);
-      const masterPath = join(mastersDirectory, filename);
-      const outputPath = join(outputsDirectory, filename);
-      slideMasterPaths.push(masterPath);
-      slideOutputPaths.push(outputPath);
-      await dependencies.rasterize(
-        slide,
-        asset,
-        {
-          input: join(workDirectory, `${slide.id}.json`),
-          svg: join(workDirectory, `${slide.id}.svg`),
-          master: masterPath,
-          output: outputPath,
-        },
-        { signal: options.signal },
-      );
-    }
-    const mediaMs = Date.now() - mediaStartedAt;
-
-    await writeFile(
-      reportPath,
-      renderReportMarkdown(manifest, manifestHash, assetResults),
-      'utf8',
-    );
-    const firstSlidePath = slideOutputPaths[0];
-    if (!firstSlidePath) throw new Error('Renderer produced no slide images');
-    await copyFile(firstSlidePath, thumbnailPath);
-    await writeFile(
-      filterScriptPath,
-      buildStaticSlideFilter(
-        manifest,
-        subtitlePath,
-        videoAssetPaths.fontsDirectory,
-      ),
-      'utf8',
-    );
-
-    options.onProgress?.({
-      message: 'Encoding image scene video',
-      phase: 'encode',
-    });
-    throwIfAborted(options.signal);
-    const finalEncodeStartedAt = Date.now();
-    await dependencies.renderVideo({
-      onEncodeProgress: encodeProgressReporter(
-        options.onProgress,
-        'Encoding image scene video',
-      ),
+    return await renderVerticalNewsVideo({
       manifest,
-      slidePaths: slideOutputPaths,
-      audioSource: options.audioSource ?? manifest.audio.sourceUrl,
-      filterScriptPath,
-      outputPath: previewPath,
-      signal: options.signal,
-    });
-    const finalEncodeMs = Date.now() - finalEncodeStartedAt;
-
-    return {
-      previewPath,
-      thumbnailPath,
-      storyboardPath,
-      subtitlePath,
-      sourcesPath,
       manifestHash,
-      slideMasterPaths,
-      slideOutputPaths,
-      mediaMs,
-      chunkEncodeMs: 0,
-      finalEncodeMs,
-      downscaleMs: 0,
-    };
+      workDirectory,
+      outputsDirectory,
+      assetDirectory,
+      filterScriptPath,
+      paths: {
+        storyboardPath,
+        subtitlePath,
+        sourcesPath,
+        reportPath,
+        thumbnailPath,
+        previewPath,
+      },
+      options,
+      dependencies,
+    });
   } finally {
     await rm(workDirectory, { recursive: true, force: true });
   }
@@ -555,7 +427,6 @@ async function renderVerticalNewsVideo(context: {
     subtitlePath: context.paths.subtitlePath,
     sourcesPath: context.paths.sourcesPath,
     manifestHash: context.manifestHash,
-    slideMasterPaths: [],
     slideOutputPaths,
     framePath,
     outroPath,

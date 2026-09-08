@@ -1,6 +1,6 @@
 import { useUser } from '@zapengine/app-core/hooks/queries/wallet/useUser';
 import { useWalletProvider } from '@zapengine/app-core/providers/walletContext';
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 
 import { resolveViewingState } from '@/integration/bundleViewModel';
 import { getBundleViewUserId } from '@/integration/bundleViewParam';
@@ -43,6 +43,11 @@ export interface DesktopAccount {
   disconnect: () => Promise<void>;
 }
 
+// A fresh `[]` per render gives every consumer a changed dependency for a
+// bundle that did not change, so the empty case has one shared identity.
+const EMPTY_WALLET_ADDRESSES: string[] = [];
+const EMPTY_WALLET_ENTRIES: DesktopAccount['walletEntries'] = [];
+
 /**
  * Single source of truth for the app's connection + identity state, built
  * from app-core's `useWalletProvider` (Privy connection) and `useUser`
@@ -62,22 +67,31 @@ export function useAccount(): DesktopAccount {
     isConnecting,
   } = wallet;
   const userId = user.userInfo?.userId?.trim() || null;
-  const walletAddresses = user.userInfo?.bundleWallets ?? [];
-  const walletEntries =
-    user.userInfo?.additionalWallets?.map((wallet) => ({
-      address: wallet.wallet_address,
-      label: wallet.label,
-    })) ?? [];
+  const walletAddresses =
+    user.userInfo?.bundleWallets ?? EMPTY_WALLET_ADDRESSES;
+  const additionalWallets = user.userInfo?.additionalWallets;
+  const walletEntries = useMemo(
+    () =>
+      additionalWallets?.map((wallet) => ({
+        address: wallet.wallet_address,
+        label: wallet.label,
+      })) ?? EMPTY_WALLET_ENTRIES,
+    [additionalWallets],
+  );
   const urlUserId = getBundleViewUserId();
   // `userId` stays the real logged-in user; the viewing fields decide whose
   // bundle the screens display (a `?userId=` link overrides, read-only).
-  const viewing = resolveViewingState({
-    urlUserId,
-    ownUserId: userId,
-    isConnected,
-    loadingUser: user.loading,
-    userError: user.error,
-  });
+  const viewing = useMemo(
+    () =>
+      resolveViewingState({
+        urlUserId,
+        ownUserId: userId,
+        isConnected,
+        loadingUser: user.loading,
+        userError: user.error,
+      }),
+    [isConnected, urlUserId, user.error, user.loading, userId],
+  );
 
   const retryUserResolution = useCallback(() => refetchUser(), [refetchUser]);
 
@@ -95,6 +109,9 @@ export function useAccount(): DesktopAccount {
     }
   }, [connectWallet, isConnected, retryUserResolution, urlUserId, userId]);
 
+  // Deliberately not memoized: `useUser().refetch` gets a new identity on most
+  // renders, so a `useMemo` here would advertise a stability this object cannot
+  // have. Consumers depend on the individual fields, which are stable.
   return {
     isConnected,
     isConnecting,

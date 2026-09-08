@@ -6,12 +6,30 @@ import { randomBytes } from 'node:crypto';
  * and wait for the browser to come back. The transport differs — Threads needs
  * HTTPS on the port Meta has registered, YouTube takes an ephemeral HTTP port —
  * so only the pieces that must not drift between them live here: the CSRF state
- * source, the browser handoff, and the callback response shape.
+ * source, the browser handoff, the callback response shape, the options both
+ * `*AuthOptions` shapes carry, and the authorization-URL params they share.
  */
 
 export interface OAuthCallbackResponse {
   end(body?: string): unknown;
   writeHead(status: number, headers: Record<string, string>): unknown;
+}
+
+export interface OAuthLoopbackAuthOptions {
+  callbackTimeoutMs?: number;
+  createState?: () => string;
+  env?: NodeJS.ProcessEnv;
+  fetchImpl?: typeof fetch;
+  additionalScopes?: readonly string[];
+  now?: () => number;
+  openBrowser?: (url: string) => Promise<void>;
+  sessionPath?: string;
+}
+
+export interface AuthorizationUrlInput {
+  redirectUri: string;
+  state: string;
+  scopes?: readonly string[];
 }
 
 export function createSecureState(): string {
@@ -60,4 +78,20 @@ export function respond(
     'Cache-Control': 'no-store',
   });
   response.end(body);
+}
+
+export function applyAuthorizationParams(
+  url: URL,
+  params: {
+    clientId: string;
+    redirectUri: string;
+    state: string;
+    scope: string;
+  },
+): void {
+  url.searchParams.set('client_id', params.clientId);
+  url.searchParams.set('redirect_uri', params.redirectUri);
+  url.searchParams.set('response_type', 'code');
+  url.searchParams.set('scope', params.scope);
+  url.searchParams.set('state', params.state);
 }

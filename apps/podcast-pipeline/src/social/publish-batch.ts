@@ -1,14 +1,10 @@
 import { generateSocialCopy } from './copy.js';
-import { getSocialEpisode, requireSocialEpisodeVideoUrl } from './episode.js';
 import {
   type PackagingAssignment,
   resolvePackagingAssignments,
 } from './packaging-experiments.js';
-import {
-  requiresLocalTeaser,
-  requiresLocalVideo,
-  type SocialPlatform,
-} from './platforms.js';
+import type { SocialPlatform } from './platforms.js';
+import { prepareSocialBatchAssets } from './prepare-batch-assets.js';
 import {
   type PublishPlatformOutcome,
   publishSocialPlatforms,
@@ -23,11 +19,7 @@ import type {
   SocialLanguageCode,
   YouTubePrivacyStatus,
 } from './types.js';
-import {
-  type PreparedVideo,
-  prepareSocialVideo,
-  prepareXTeaserVideo,
-} from './video.js';
+import type { PreparedVideo } from './video.js';
 
 export interface SocialBatchPlatform {
   platform: SocialPlatform;
@@ -51,27 +43,16 @@ export async function publishSocialBatch(input: {
 }): Promise<PublishPlatformOutcome[]> {
   const onLog = input.onLog ?? (() => void 0);
   const platforms = input.platforms.map(({ platform }) => platform);
-  const episode =
-    input.episode ??
-    (await getSocialEpisode(input.episodeId, input.languageCode));
-  const video =
-    input.video ??
-    (requiresLocalVideo(platforms)
-      ? await prepareSocialVideo({
-          episodeId: input.episodeId,
-          languageCode: input.languageCode,
-          url: requireSocialEpisodeVideoUrl(episode),
-        })
-      : undefined);
-  const teaserVideo =
-    input.teaserVideo ??
-    (video && requiresLocalTeaser(platforms)
-      ? await prepareXTeaserVideo({
-          episodeId: input.episodeId,
-          sourcePath: video.path,
-          durationSeconds: episode.videoDurationSeconds,
-        })
-      : undefined);
+  const { episode, video, teaserVideo } = await prepareSocialBatchAssets({
+    episodeId: input.episodeId,
+    languageCode: input.languageCode,
+    platforms,
+    existing: {
+      ...(input.episode ? { episode: input.episode } : {}),
+      ...(input.video ? { video: input.video } : {}),
+      ...(input.teaserVideo ? { teaserVideo: input.teaserVideo } : {}),
+    },
+  });
   const packagingByPlatform =
     input.packagingByPlatform ??
     (await resolvePackagingAssignments({
@@ -103,7 +84,7 @@ export async function publishSocialBatch(input: {
     );
   }
 
-  const jobs = await createSocialPublishJobs({
+  const jobs = createSocialPublishJobs({
     platforms,
     copy: snapshot.published,
     episode,

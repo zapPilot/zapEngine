@@ -25,7 +25,9 @@ See @../AGENTS.md for shared application guidelines.
 Run the workspace gates through Turbo. Changes under `src/main/**`, `src/preload/**`, `scripts/build.mjs`, or `electron-builder.yml` must also pass:
 
 ```bash
-pnpm --filter @zapengine/desktop package
+pnpm turbo run package --filter=@zapengine/desktop
 ```
 
-That package gate rebuilds the app web export and catches renderer/package drift that unit tests cannot.
+Run it through Turbo so workspace dependencies build first via the `package`
+task's ordering (`^build` plus `@zapengine/app#build:web` for the renderer
+export). That package gate rebuilds the app web export and catches renderer/package drift that unit tests cannot.

@@ -91,7 +91,6 @@ describe('runVideoCli', () => {
       subtitlePath: join(outputDirectory, 'captions.ass'),
       sourcesPath: join(outputDirectory, 'sources.md'),
       manifestHash: 'feedface',
-      slideMasterPaths: [join(outputDirectory, 'slides/master/slide-01.png')],
       slideOutputPaths: [join(outputDirectory, 'slides/1080p/slide-01.png')],
     };
     renderSlideVideoMock.mockImplementation(

@@ -14,6 +14,8 @@ export const sourceLicenseSchema = z.enum([
   'cc-by-sa-4.0',
   'official-public-domain',
   'all-rights-reserved',
+  // Retired stock licenses, read-only: payloads written before those providers
+  // were dropped are still parsed when their episode is re-rendered.
   'pexels',
   'pixabay',
   'unknown',
@@ -38,10 +40,7 @@ export const remoteImageAssetSchema = z
     sha256: z.string().regex(/^[a-f\d]{64}$/),
     layout: z.enum(['fullBleed', 'contain']).default('fullBleed'),
     position: z.enum(['center', 'top', 'bottom']).default('center'),
-    // Missing means legacy renderer behavior. Fresh v8 visual payloads always
-    // write one of these values, which is the explicit switch to restrained
-    // editorial motion and makes old/new rendering behavior distinguishable.
-    motion: z.enum(['static', 'pushIn', 'pan']).optional(),
+    motion: z.enum(['static', 'pushIn', 'pan']),
   })
   .strict();
 

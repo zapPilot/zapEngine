@@ -4,11 +4,11 @@ import type {
 } from '@zapengine/app-core/services';
 import { describe, expect, it } from 'vitest';
 
-import {
-  ACTIVITY_FILTERS,
-  type ActivityCategoryDelta,
-  type ActivityGroup,
-} from '@/data/demo';
+import { ACTIVITY_FILTERS } from '@/data/demo';
+import type {
+  ActivityCategoryDelta,
+  ActivityGroup,
+} from '@/integration/activityTypes';
 import {
   activityEventMatchesFilter,
   classifyKind,
@@ -1070,7 +1070,7 @@ describe('activityEventMatchesFilter', () => {
 describe('filterActivityGroups', () => {
   const groups: ActivityGroup[] = [
     {
-      label: 'Today',
+      bucket: 'today',
       events: [
         mappedEvent({
           hash: '0xstable',
@@ -1081,7 +1081,7 @@ describe('filterActivityGroups', () => {
       ],
     },
     {
-      label: 'Earlier',
+      bucket: 'earlier',
       events: [
         mappedEvent({
           hash: '0xbtc',
@@ -1105,7 +1105,7 @@ describe('filterActivityGroups', () => {
     const result = filterActivityGroups(groups, 'btc');
 
     expect(result).toHaveLength(1);
-    expect(result[0]?.label).toBe('Earlier');
+    expect(result[0]?.bucket).toBe('earlier');
     expect(result[0]?.events.map((event) => event.id)).toEqual([
       'arbitrum-0xbtc',
     ]);

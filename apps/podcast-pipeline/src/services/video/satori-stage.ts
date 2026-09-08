@@ -1,38 +1,34 @@
 import { readFile, writeFile } from 'node:fs/promises';
 
+import type { ReactElement } from 'react';
 import satori from 'satori';
-import sharp from 'sharp';
 
-import type { ResolvedSlideAsset } from './assets.js';
-import {
-  LANDSCAPE_OUTPUT_HEIGHT,
-  LANDSCAPE_OUTPUT_WIDTH,
-  RASTER_SCALE,
-  type Slide,
-} from './manifest.js';
 import { videoAssetPaths } from './runtime-assets.js';
 import {
   type BrandFrameContent,
+  CONCEPT_CARD_HEIGHT,
+  CONCEPT_CARD_WIDTH,
+  type ConceptCardContent,
   type OutroContent,
   PORTRAIT_TEMPLATE_HEIGHT,
   PORTRAIT_TEMPLATE_WIDTH,
   renderBrandFrameElement,
+  renderConceptCardElement,
   renderOutroElement,
-  renderSlideElement,
 } from './templates.js';
 
-// Slides keep the frozen landscape canvas that stored v1/v2 templates were
-// designed for; the portrait brand frame and outro card are the only stage
-// kinds rendered at the 9:16 canvas.
+// Every stage kind renders at its own fixed canvas size: the portrait brand
+// frame and outro card at the 9:16 template size, and the concept card at
+// its own dimensions.
 export interface PortraitRasterOutput {
   width: number;
   height: number;
 }
 
 export type SatoriStageInput =
-  | { kind?: 'slide'; slide: Slide; asset: ResolvedSlideAsset }
   | { kind: 'frame'; frame: BrandFrameContent; output: PortraitRasterOutput }
-  | { kind: 'outro'; outro: OutroContent; output: PortraitRasterOutput };
+  | { kind: 'outro'; outro: OutroContent; output: PortraitRasterOutput }
+  | { kind: 'concept-card'; card: ConceptCardContent };
 
 function fontArrayBuffer(buffer: Buffer): ArrayBuffer {
   return Uint8Array.from(buffer).buffer;
@@ -42,64 +38,11 @@ function svgDataUri(svg: Buffer): string {
   return `data:image/svg+xml;base64,${svg.toString('base64')}`;
 }
 
-function isSupportedRasterContentType(contentType: string): boolean {
-  return (
-    contentType === 'image/avif' ||
-    contentType === 'image/jpeg' ||
-    contentType === 'image/jpg' ||
-    contentType === 'image/png' ||
-    contentType === 'image/webp'
-  );
-}
-
-function decodeDataUri(dataUri: string): Buffer {
-  const separatorIndex = dataUri.indexOf(',');
-  const header = dataUri.slice(0, separatorIndex);
-  if (separatorIndex < 0 || !/;base64$/i.test(header)) {
-    throw new Error('Resolved image asset data URI must be base64 encoded');
-  }
-  return Buffer.from(dataUri.slice(separatorIndex + 1), 'base64');
-}
-
-async function readAssetBytes(
-  asset: Extract<ResolvedSlideAsset, { kind: 'image' }>,
-): Promise<Buffer> {
-  if (asset.dataUri) return decodeDataUri(asset.dataUri);
-  if (asset.filePath) return readFile(asset.filePath);
-  throw new Error('Resolved image asset has neither dataUri nor filePath');
-}
-
-async function materializeAssetDataUri(
-  asset: ResolvedSlideAsset,
-): Promise<ResolvedSlideAsset> {
-  if (asset.kind !== 'image') return asset;
-
-  const bytes = await readAssetBytes(asset);
-  if (isSupportedRasterContentType(asset.contentType)) {
-    const png = await sharp(bytes, {
-      animated: false,
-      failOn: 'error',
-    })
-      .png()
-      .toBuffer();
-    return {
-      ...asset,
-      contentType: 'image/png',
-      dataUri: `data:image/png;base64,${png.toString('base64')}`,
-    };
-  }
-
-  return {
-    ...asset,
-    dataUri: `data:${asset.contentType};base64,${bytes.toString('base64')}`,
-  };
-}
-
 async function stageElementAndSize(
   input: SatoriStageInput,
   logoDataUri: string,
 ): Promise<{
-  element: ReturnType<typeof renderSlideElement>;
+  element: ReactElement;
   width: number;
   height: number;
 }> {
@@ -117,11 +60,10 @@ async function stageElementAndSize(
       height: PORTRAIT_TEMPLATE_HEIGHT,
     };
   }
-  const asset = await materializeAssetDataUri(input.asset);
   return {
-    element: renderSlideElement(input.slide, asset, logoDataUri),
-    width: LANDSCAPE_OUTPUT_WIDTH * RASTER_SCALE,
-    height: LANDSCAPE_OUTPUT_HEIGHT * RASTER_SCALE,
+    element: renderConceptCardElement(input.card),
+    width: CONCEPT_CARD_WIDTH,
+    height: CONCEPT_CARD_HEIGHT,
   };
 }
 

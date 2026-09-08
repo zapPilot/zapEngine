@@ -6,7 +6,7 @@ import {
 } from '../services/db.js';
 import type { SocialPostRow } from '../types.js';
 import { listLearningSocialPosts } from './daemon-store.js';
-import { platformIcon } from './log-format.js';
+import { platformLabel } from './log-format.js';
 import {
   createMetricCollectors,
   type MetricsBrowserSession,
@@ -80,7 +80,7 @@ export async function collectRollingPostMetrics(input: {
       inserted += 1;
     } catch (error) {
       log(
-        `❌ [social-daemon] ${platformIcon(post.platform)} ${post.platform} · rolling metrics failed · post=${post.id} · ${errorMessage(error)}`,
+        `❌ [social-daemon] ${platformLabel(post.platform)} · rolling metrics failed · post=${post.id} · ${errorMessage(error)}`,
       );
     }
   }

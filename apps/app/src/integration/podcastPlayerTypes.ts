@@ -59,3 +59,13 @@ export interface PodcastPlayer {
   ) => void;
   setSpeed: (speed: number) => void;
 }
+
+/**
+ * Everything a screen needs to render playback chrome except the ticking
+ * clock (`currentTime`/`duration`) — split out so a screen that never shows
+ * the running position can subscribe without re-rendering on every tick.
+ */
+export type PodcastPlayerStatus = Omit<
+  PodcastPlayer,
+  'currentTime' | 'duration'
+>;

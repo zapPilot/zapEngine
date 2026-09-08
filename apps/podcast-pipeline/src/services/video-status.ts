@@ -14,6 +14,7 @@ import {
   getVideoVisualJobRepository,
 } from './video-jobs.js';
 import {
+  completedVideoResponseFrom,
   composeEpisodeVideoProgress,
   type EpisodeVideoProgressJobState,
   type EpisodeVideoProgressStage,
@@ -203,20 +204,13 @@ export async function loadEpisodeVideoGeneration(
 export function completedVideoResponse(
   job: EpisodeVideoJobRow | null | undefined,
 ): EpisodeVideoResponse | null {
-  if (job?.status !== 'completed') return null;
-  const url = job.mp4_url?.trim();
-  const thumbnailUrl = job.thumbnail_url?.trim();
-  const durationSeconds = job.duration_seconds;
-  if (
-    !url ||
-    !thumbnailUrl ||
-    typeof durationSeconds !== 'number' ||
-    !Number.isFinite(durationSeconds) ||
-    durationSeconds <= 0
-  ) {
-    return null;
-  }
-  return { url, thumbnailUrl, durationSeconds };
+  if (!job) return null;
+  return completedVideoResponseFrom({
+    status: job.status,
+    url: job.mp4_url,
+    thumbnailUrl: job.thumbnail_url,
+    durationSeconds: job.duration_seconds,
+  });
 }
 
 function aggregateVideoGenerationStatus(

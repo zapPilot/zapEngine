@@ -10,10 +10,10 @@ from src.services.backtesting.portfolio_rules.base import (
     DcaSellRuleBase,
     FgiRegime,
     PortfolioSnapshot,
+    above_dma_symbols,
     add_split_proceeds,
     current_fgi_regime_for_symbol,
     normalize_symbol,
-    symbols_for_snapshot,
 )
 from src.services.backtesting.sizing.flat import FlatSizing
 
@@ -58,9 +58,8 @@ class DmaOverextensionDcaSellRule(DcaSellRuleBase):
     def _matching_symbols(self, snapshot: PortfolioSnapshot) -> list[str]:
         return [
             symbol
-            for symbol in symbols_for_snapshot(snapshot)
-            if snapshot.assets[symbol].zone == "above"
-            and snapshot.assets[symbol].dma_distance
+            for symbol in above_dma_symbols(snapshot)
+            if snapshot.assets[symbol].dma_distance
             > _threshold(symbol, rule=self, snapshot=snapshot)
         ]
 

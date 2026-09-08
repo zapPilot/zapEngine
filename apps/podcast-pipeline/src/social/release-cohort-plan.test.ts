@@ -56,7 +56,6 @@ describe('planPendingSocialReleaseCohorts · on-time cohorts', () => {
     );
 
     expect(plan.updates).toEqual([]);
-    expect(plan.recoveryEpisodes).toEqual([]);
   });
 
   it('moves a cohort parked on a time that is not a configured article slot', () => {
@@ -275,7 +274,6 @@ describe('planPendingSocialReleaseCohorts · partial and settled articles', () =
       GRACE_MS,
     );
 
-    expect(plan.recoveryEpisodes).toEqual([ARTICLE_A]);
     expect(plan.updates).toEqual([
       {
         id: 'retrying',
@@ -369,7 +367,6 @@ describe('planPendingSocialReleaseCohorts · partial and settled articles', () =
       GRACE_MS,
     );
 
-    expect(plan.recoveryEpisodes).toEqual([ARTICLE_A]);
     expect(plan.updates).toEqual([]);
   });
 
@@ -391,7 +388,7 @@ describe('planPendingSocialReleaseCohorts · partial and settled articles', () =
       GRACE_MS,
     );
 
-    expect(plan).toEqual({ updates: [], recoveryEpisodes: [] });
+    expect(plan).toEqual({ updates: [] });
   });
 
   it('does not rewrite a lane of an article that holds a live lease', () => {
@@ -410,6 +407,5 @@ describe('planPendingSocialReleaseCohorts · partial and settled articles', () =
     );
 
     expect(plan.updates).toEqual([]);
-    expect(plan.recoveryEpisodes).toEqual([]);
   });
 });

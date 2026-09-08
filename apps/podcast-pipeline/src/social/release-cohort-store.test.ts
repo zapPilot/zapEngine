@@ -179,7 +179,6 @@ describe('alignPendingSocialReleaseCohorts', () => {
     expect(result).toEqual({
       alignedLanes: 2,
       rescheduledEpisodes: 1,
-      recoveryEpisodes: [],
     });
     expect(state.rows.map((item) => item.scheduled_at)).toEqual([
       NEXT_SLOT,
@@ -240,7 +239,6 @@ describe('alignPendingSocialReleaseCohorts', () => {
     expect(result).toEqual({
       alignedLanes: 1,
       rescheduledEpisodes: 0,
-      recoveryEpisodes: [ARTICLE_A],
     });
     expect(state.rows[0]).toMatchObject({
       status: 'completed',

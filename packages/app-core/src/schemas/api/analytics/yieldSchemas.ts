@@ -17,6 +17,8 @@ export const protocolYieldTodaySchema = z.object({
 export const protocolYieldBreakdownSchema = z.object({
   protocol: z.string(),
   chain: z.string().nullable().optional(),
+  token_symbols: z.array(z.string()).optional(),
+  position_types: z.array(z.string()).optional(),
   window: protocolYieldWindowSchema,
   today: protocolYieldTodaySchema.nullable().optional(),
 });
@@ -66,6 +68,7 @@ const dailyYieldTokenSchema = z.object({
   amount_change: z.number(),
   current_price: z.number(),
   yield_return_usd: z.number(),
+  market_return_usd: z.number().default(0),
 });
 
 const dailyYieldReturnSchema = z.object({
@@ -75,12 +78,25 @@ const dailyYieldReturnSchema = z.object({
   position_type: z.string().nullable().optional(),
   yield_return_usd: z.number(),
   tokens: z.array(dailyYieldTokenSchema),
+  /**
+   * Balance change the backend fenced as a deposit/withdrawal spike. Unflagged
+   * changes are the ones safe to present as protocol returns. Defaulted so a
+   * backend that has not shipped the field yet still parses.
+   */
+  outlier: z.boolean().default(false),
+});
+
+const dailyWalletReturnSchema = z.object({
+  date: z.string(),
+  tokens: z.array(dailyYieldTokenSchema),
 });
 
 export const dailyYieldReturnsResponseSchema = z.object({
   user_id: z.string(),
   period: periodWindowSchema,
   daily_returns: z.array(dailyYieldReturnSchema),
+  /** Idle wallet holdings, which the DeFi position snapshots do not cover. */
+  wallet_returns: z.array(dailyWalletReturnSchema).default([]),
 });
 
 export type DailyYieldReturnsResponse = z.infer<

@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { appendBrandCta } from '../brand/cta.js';
+
 const llmMocks = vi.hoisted(() => ({
   createOpenRouterChatCompletion: vi.fn(),
   getOpenRouterConfig: vi.fn(),
@@ -112,35 +114,34 @@ describe('latinLetterRatio', () => {
 });
 
 describe('generateSocialCopy', () => {
-  it('retries through the shared LLM wrapper with the validation reason', async () => {
-    llmMocks.createOpenRouterChatCompletion
-      .mockResolvedValueOnce(socialCompletion(socialCopyJson('中'.repeat(126))))
-      .mockResolvedValueOnce(socialCompletion(socialCopyJson('有效文案')));
+  it('trims overlong X copy locally without another LLM request', async () => {
+    llmMocks.createOpenRouterChatCompletion.mockResolvedValueOnce(
+      socialCompletion(socialCopyJson('中'.repeat(126))),
+    );
 
-    await expect(
-      generateSocialCopy({
-        episode: {
-          id: '123e4567-e89b-12d3-a456-426614174000',
-          title: 'Episode title',
-          summary: 'Episode summary',
-          transcript: 'Episode transcript',
-          publishedAt: '2026-08-12T00:00:00.000Z',
-          episodeUrl: 'https://example.com/e/episode',
-          videoDurationSeconds: 180,
-          languageCode: 'zh-Hant',
-          videoUrl: 'https://example.com/video.mp4',
-          videoThumbnailUrl: 'https://example.com/thumbnail.jpg',
-        },
-      }),
-    ).resolves.toMatchObject({
-      copy: { x: { text: '有效文案' } },
-      model: 'deepseek/deepseek-v4-flash',
+    const result = await generateSocialCopy({
+      episode: {
+        id: '123e4567-e89b-12d3-a456-426614174000',
+        title: 'Episode title',
+        summary: 'Episode summary',
+        transcript: 'Episode transcript',
+        publishedAt: '2026-08-12T00:00:00.000Z',
+        episodeUrl: 'https://example.com/e/episode',
+        videoDurationSeconds: 180,
+        languageCode: 'zh-Hant',
+        videoUrl: 'https://example.com/video.mp4',
+        videoThumbnailUrl: 'https://example.com/thumbnail.jpg',
+      },
     });
 
+    expect(result).toMatchObject({
+      copy: { x: { text: '中'.repeat(125) } },
+      model: 'deepseek/deepseek-v4-flash',
+    });
     expect(llmMocks.getOpenRouterConfig).toHaveBeenCalledWith({
       thinkingModel: null,
     });
-    expect(llmMocks.createOpenRouterChatCompletion).toHaveBeenCalledTimes(2);
+    expect(llmMocks.createOpenRouterChatCompletion).toHaveBeenCalledTimes(1);
     expect(llmMocks.createOpenRouterChatCompletion).toHaveBeenNthCalledWith(
       1,
       llmMocks.openai,
@@ -153,32 +154,34 @@ describe('generateSocialCopy', () => {
         },
       },
     );
-    const retryRequest =
-      llmMocks.createOpenRouterChatCompletion.mock.calls[1]?.[1];
-    expect(retryRequest?.messages.at(-1)?.content).toContain(
-      'x.text: X text is 252 weighted units; the maximum is 250.',
-    );
-    expect(retryRequest?.messages[0]?.content).toContain(
+    const request = llmMocks.createOpenRouterChatCompletion.mock.calls[0]?.[1];
+    expect(request?.messages[0]?.content).toContain(
       'generated copy itself must not contain a URL',
     );
-    expect(retryRequest?.messages[0]?.content).toContain(
+    expect(request?.messages[0]?.content).toContain(
       'Apply platform-specific restrictions only to their corresponding fields.',
     );
-    expect(retryRequest?.messages[0]?.content).toContain(
+    expect(request?.messages[0]?.content).toContain(
       "Lead with the episode's real economic or technology thesis",
     );
-    expect(retryRequest?.messages[0]?.content).toContain(
+    expect(request?.messages[0]?.content).toContain(
       'Never disguise restricted content with misspellings, homophones, emoji substitutions or coded wording to evade moderation.',
     );
-    expect(retryRequest?.messages[0]?.content).toContain(
+    expect(request?.messages[0]?.content).toContain(
       'R1 `asset_allocation_advice`',
     );
-    expect(retryRequest?.messages[0]?.content).toContain(
+    expect(request?.messages[0]?.content).toContain(
       'Allowed topic values: macro, btc, eth, defi, stablecoin, traditional_finance, portfolio, market_event, technology.',
     );
-    expect(retryRequest?.messages[0]?.content).toContain(
+    expect(request?.messages[0]?.content).toContain(
       'Allowed hookType values: question, contrarian, surprising_number, breaking_event, explainer, prediction, risk_warning, comparison.',
     );
+
+    const published = appendBrandCta(result.copy.x!.text, 'zh-Hant');
+    expect(published).toBe(
+      `${'中'.repeat(125)}\n\n官網 https://www.zap-pilot.org`,
+    );
+    expect(weightedTweetLength(published)).toBe(280);
   });
 
   it('includes learned strategy guidance in the generation prompt when provided', async () => {
@@ -657,7 +660,6 @@ describe('parseGeneratedSocialCopy', () => {
         text: `\`\`\`json\n${socialCopyJson('巢狀文案')}\n\`\`\``,
       }),
     );
-
     expect(copy.x!.text).toBe('巢狀文案');
   });
 
@@ -675,10 +677,10 @@ describe('parseGeneratedSocialCopy', () => {
     ).toHaveLength(125);
   });
 
-  it('rejects X text over the 250 weighted-unit limit', () => {
-    expect(() =>
-      parseGeneratedSocialCopy(socialCopyJson('中'.repeat(126))),
-    ).toThrow(/252 weighted units.*maximum is 250/);
+  it('trims X text over the weighted-unit limit instead of rejecting it', () => {
+    const copy = parseGeneratedSocialCopy(socialCopyJson('中'.repeat(126)));
+    expect(copy.x!.text).toBe('中'.repeat(125));
+    expect(weightedTweetLength(copy.x!.text)).toBe(250);
   });
 
   it('rejects an X URL because the publisher owns platform CTA policy', () => {

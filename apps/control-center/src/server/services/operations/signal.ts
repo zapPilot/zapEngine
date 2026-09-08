@@ -1,3 +1,5 @@
+import { errorMessage as sharedErrorMessage } from '@zapengine/types/shared';
+
 import type {
   OperationalSignal,
   OperationalStatus,
@@ -153,8 +155,7 @@ export async function collectOrFail(
 }
 
 export function errorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-  return typeof error === 'string' ? error : 'Unknown error';
+  return error instanceof Error || typeof error === 'string'
+    ? sharedErrorMessage(error)
+    : 'Unknown error';
 }

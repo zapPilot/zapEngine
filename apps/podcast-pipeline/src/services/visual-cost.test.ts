@@ -40,11 +40,11 @@ describe('recordVisualPipelineCost', () => {
             attempt: 2,
             elapsedMs: 150_000,
             usage: {
-              machine: 'performance-2x-4gb',
+              machine: 'performance-1x-2gb',
               work: 'shared_visual',
             },
             pricing: {
-              metricKey: 'machine_second_performance_2x_4gb',
+              metricKey: 'machine_second_performance_1x_2gb',
               quantity: 150,
             },
           }),

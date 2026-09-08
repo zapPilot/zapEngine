@@ -246,19 +246,25 @@ class Settings(BaseSettings):
 
     # HTTP Cache Headers
     http_cache_max_age_seconds: int = Field(
-        default=60 * 60,
+        default=60,
         alias="HTTP_CACHE_MAX_AGE_SECONDS",
         ge=0,
         le=86_400,  # Max 24 hours
-        description="Cache-Control max-age (seconds) for analytics endpoints",
+        description=(
+            "Cache-Control max-age (seconds) for analytics endpoints; kept short "
+            "because responses are per-user and cached privately by the browser"
+        ),
     )
 
     http_cache_stale_while_revalidate_seconds: int = Field(
-        default=23 * 60 * 60,
+        default=300,
         alias="HTTP_CACHE_STALE_WHILE_REVALIDATE_SECONDS",
         ge=0,
         le=7 * 24 * 60 * 60,
-        description="stale-while-revalidate window aligning with the daily ETL",
+        description=(
+            "Window (seconds) in which a stale response may be served while it "
+            "revalidates in the background"
+        ),
     )
 
     # Market Sentiment Service settings

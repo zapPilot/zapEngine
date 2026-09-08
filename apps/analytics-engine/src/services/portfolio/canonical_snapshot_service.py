@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 from datetime import date, timedelta
-from typing import Any, cast
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -65,25 +65,22 @@ class CanonicalSnapshotService:
         self, user_id: UUID, wallet_address: str | None = None
     ) -> SnapshotInfo | None:
         """Return canonical snapshot metadata for a user."""
-        # Build cache key
         wallet_key = wallet_address or "bundle"
         cache_key = analytics_cache.build_key(
             "canonical_snapshot_info", str(user_id), wallet_key
         )
+        return analytics_cache.get_or_compute(
+            cache_key,
+            lambda: self._query_snapshot_info(user_id, wallet_address, wallet_key),
+            ttl=timedelta(hours=self.SNAPSHOT_DATE_CACHE_TTL_HOURS),
+            # A user with no snapshot rows must not re-query on every request.
+            cache_none=True,
+        )
 
-        # Try cache first (5min TTL)
-        cached = analytics_cache.get(cache_key)
-        if cached is not None:
-            # Handle potential legacy cached values or dicts
-            if isinstance(cached, date):
-                return SnapshotInfo(  # pragma: no cover
-                    snapshot_date=cached, wallet_count=0, last_updated=None
-                )
-            if isinstance(cached, dict):
-                return SnapshotInfo(**cached)  # pragma: no cover
-            return cast(SnapshotInfo | None, cached)
-
-        # Query database
+    def _query_snapshot_info(
+        self, user_id: UUID, wallet_address: str | None, wallet_key: str
+    ) -> SnapshotInfo | None:
+        """Read canonical snapshot metadata straight from the database."""
         result = self.query_service.execute_query_one(
             self.db,
             QUERY_NAMES.CANONICAL_SNAPSHOT_DATE,
@@ -96,27 +93,17 @@ class CanonicalSnapshotService:
                 user_id,
                 wallet_address or "all",
             )
-            # Cache None to avoid repeated queries
-            analytics_cache.set(
-                cache_key,
-                None,
-                ttl=timedelta(hours=self.SNAPSHOT_DATE_CACHE_TTL_HOURS),
-            )
             return None
 
-        # Extract fields
         snapshot_date = result.get("snapshot_date")
-        max_snapshot_at = result.get("max_snapshot_at")
-        wallet_count = result.get("wallet_count", 0)
-
         if snapshot_date is None:
             logger.error("Query result missing snapshot_date: %s", result)
             return None
 
         info = SnapshotInfo(
             snapshot_date=snapshot_date,
-            wallet_count=wallet_count,
-            last_updated=max_snapshot_at,
+            wallet_count=result.get("wallet_count", 0),
+            last_updated=result.get("max_snapshot_at"),
         )
 
         logger.info(
@@ -125,14 +112,6 @@ class CanonicalSnapshotService:
             user_id,
             wallet_key,
         )
-
-        # Cache the result
-        analytics_cache.set(
-            cache_key,
-            info,
-            ttl=timedelta(hours=self.SNAPSHOT_DATE_CACHE_TTL_HOURS),
-        )
-
         return info
 
     def get_snapshot_date(

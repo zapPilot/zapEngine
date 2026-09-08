@@ -188,8 +188,24 @@ def get_daily_suggestion(
         logger.warning("Market data unavailable for user %s: %s", user_id, error)
         raise market_data_unavailable_http_exception(error) from error
     except ValueError as error:
-        logger.warning("Validation error for user %s: %s", user_id, error)
-        raise HTTPException(status_code=400, detail=str(error)) from error
+        # Unknown config ids are caller errors even when the service test seam
+        # raises them without the original query param. Unsupported presets are
+        # caller errors only when the caller explicitly selected one. Everything
+        # else is an internal strategy/data/serialization failure and must be 500.
+        detail = str(error)
+        is_config_request_error = detail.startswith("Unknown config_id ") or (
+            config_id is not None and "does not support /daily-suggestion" in detail
+        )
+        if is_config_request_error:
+            logger.warning(
+                "Invalid daily suggestion config for user %s: %s", user_id, error
+            )
+            raise HTTPException(status_code=400, detail=detail) from error
+        logger.exception("Internal daily suggestion ValueError for user %s", user_id)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to generate daily suggestion",
+        ) from error
     except Exception as error:
         logger.exception("Error getting daily suggestion for user %s", user_id)
         raise HTTPException(

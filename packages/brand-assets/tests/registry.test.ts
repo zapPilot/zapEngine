@@ -54,6 +54,7 @@ describe('protocolBrandKeyFor', () => {
     ['Aave V3', 'aave'],
     ['Ondo Finance', 'ondo'],
     ['Lido Finance', 'lido'],
+    ['ETH Staking', 'eth-staking'],
     ['HLP', 'hyperliquid'],
     ['Hyperliquid HLP', 'hyperliquid'],
     ['HyperCore', 'hyperliquid'],

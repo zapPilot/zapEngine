@@ -86,8 +86,8 @@ describe('createEpisodeVideoManifest', () => {
       script: localizedScript,
       canonicalScript,
       visualPlan: visualPlan(2),
-      storyboardProvider: 'nvidia',
-      storyboardModel: 'test-model',
+      storyboardProvider: 'deterministic',
+      storyboardModel: 'deterministic-v1',
       hlsUrl:
         'https://cdn.example.com/episodes/e/localizations/en/main/playlist.m3u8',
       durationMs: 24_000,
@@ -124,33 +124,6 @@ describe('createEpisodeVideoManifest', () => {
       silences: [{ startMs: 11_900, endMs: 12_100 }],
     });
     expect(result.manifest.captions).toHaveLength(2);
-  });
-
-  it('takes the configured-provider path when no alignment provider is injected', async () => {
-    const previous = process.env['VIDEO_ALIGNMENT_PROVIDER'];
-    process.env['VIDEO_ALIGNMENT_PROVIDER'] = 'unsupported-for-test';
-    try {
-      await expect(
-        createEpisodeVideoManifest({
-          episodeId: '9ee737b4-c3d3-4f88-9837-ccc7fc20704e',
-          localizationId: '56b21422-1a38-4917-957e-b23223c0396c',
-          languageCode: 'en',
-          title: 'English episode',
-          script: 'First sentence. Second sentence.',
-          canonicalScript: '第一段。第二段。',
-          visualPlan: visualPlan(2),
-          storyboardProvider: 'deterministic',
-          storyboardModel: null,
-          hlsUrl:
-            'https://cdn.example.com/episodes/e/localizations/en/main/playlist.m3u8',
-          durationMs: 24_000,
-        }),
-      ).rejects.toThrow('Unsupported VIDEO_ALIGNMENT_PROVIDER');
-    } finally {
-      if (previous === undefined)
-        delete process.env['VIDEO_ALIGNMENT_PROVIDER'];
-      else process.env['VIDEO_ALIGNMENT_PROVIDER'] = previous;
-    }
   });
 
   it('uses proportional timing when semantic alignment is invalid', async () => {
@@ -256,6 +229,7 @@ function visualPlan(sceneCount: number): ImageVisualPlan {
           sha256: index.toString(16).padStart(64, '0'),
           layout: 'fullBleed',
           position: 'center',
+          motion: 'static',
         },
       };
     }),

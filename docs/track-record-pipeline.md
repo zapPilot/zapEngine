@@ -4,23 +4,9 @@ The daily workflow is implemented by `.github/workflows/track-record-snapshot.ym
 
 ## Companion: rolling backtest refresh
 
-Until the live wallet publishes its first snapshot, the landing page renders a
-demo track record derived from the committed backtest artifacts. A second daily
-workflow, `.github/workflows/backtest-refresh.yml`, keeps that backtest window
-current: it re-runs `sweep_production_window.py --update-snapshot --in-process`
-with `--reference-date` set to UTC yesterday, syncs
-`apps/landing-page/src/data/strategy-snapshot.json` via
-`pnpm lint snapshot-sync --fix`, checks the regenerated equity curve actually
-reaches the requested date (stale upstream ETL data aborts the run instead of
-publishing a flat tail), and commits the three artifacts. The push triggers the
-landing-page redeploy.
+The track-record page defaults to the committed backtest dataset. Live IPFS snapshots are a separate, explicit opt-in source selected by the reader; publishing a live snapshot does not retire or replace the default backtest view. A second daily workflow, `.github/workflows/backtest-refresh.yml`, keeps that backtest window current: it re-runs `sweep_production_window.py --update-snapshot --in-process` with `--reference-date` set to UTC yesterday, syncs `apps/landing-page/src/data/strategy-snapshot.json` via `pnpm lint snapshot-sync --fix`, checks the regenerated equity curve actually reaches the requested date (stale upstream ETL data aborts the run instead of publishing a flat tail), and commits the three artifacts. The push triggers the landing-page redeploy.
 
-PR CI stays meaningful under this rolling scheme because the snapshot drift
-gate (`test:strategy-snapshot:fast`) reads `reference_date` from the committed
-fixture rather than the wall clock — it verifies the fixture is reproducible at
-its own date, while only the refresh workflow advances that date. Once the live
-pipeline takes over the track-record page, the refresh workflow can keep
-running: the homepage backtest-proof section still consumes these artifacts.
+PR CI stays meaningful under this rolling scheme because the snapshot drift gate (`test:strategy-snapshot:fast`) reads `reference_date` from the committed fixture rather than the wall clock — it verifies the fixture is reproducible at its own date, while only the refresh workflow advances that date. The refresh workflow remains useful even while live snapshots are available because Backtest is still the default track-record source and the homepage backtest-proof section also consumes these artifacts.
 
 ## Flow
 

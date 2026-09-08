@@ -11,6 +11,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { PortfolioTrendChart } from '@/components/charts/PortfolioTrendChart';
+import type { DailyValuePoint } from '@/integration/portfolioMetrics';
 
 interface MockViewProps extends HTMLAttributes<HTMLDivElement> {
   children?: ReactNode;
@@ -43,23 +44,32 @@ vi.mock('react-native', () => ({
   },
 }));
 
+// Every `data` array the chart has handed the sparkline, newest last. Their
+// identities are what `React.memo(Sparkline)` compares, so the array is
+// recorded rather than its contents.
+const sparklineData = vi.hoisted(() => [] as number[][]);
+
 vi.mock('@/components/charts/Sparkline', () => ({
-  Sparkline: () => <div data-testid="sparkline" />,
+  Sparkline: (props: { data: number[] }) => {
+    sparklineData.push(props.data);
+    return <div data-testid="sparkline" />;
+  },
 }));
 
-vi.mock('@/providers/ContentLanguageProvider', () => ({
-  useContentLanguage: () => ({
-    languageCode: 'en',
-    t: (key: string) =>
-      ({
-        'portfolio.tooltip.date': 'Date',
-        'portfolio.tooltip.netWorth': 'Net worth',
-        'portfolio.tooltip.change': 'Portfolio change',
-        'portfolio.tooltip.assets': 'Assets',
-        'portfolio.tooltip.debt': 'Debt',
-      })[key] ?? key,
-  }),
-}));
+// Drives the real English dictionary rather than a parallel fake one, so a
+// missing key or a dropped `{name}` placeholder fails here.
+vi.mock('@/providers/ContentLanguageProvider', async () => {
+  const { en } = await import('@/i18n/translations');
+  return {
+    useContentLanguage: () => ({
+      languageCode: 'en',
+      t: (key: keyof typeof en, params?: Record<string, string | number>) =>
+        en[key].replace(/\{([^}]+)\}/g, (match, name: string) =>
+          params?.[name] === undefined ? match : String(params[name]),
+        ),
+    }),
+  };
+});
 
 let container: HTMLDivElement;
 let root: Root;
@@ -71,6 +81,7 @@ beforeEach(() => {
   container = document.createElement('div');
   document.body.append(container);
   root = createRoot(container);
+  sparklineData.length = 0;
 });
 
 afterEach(async () => {
@@ -91,7 +102,18 @@ function pointerEvent(
   return event;
 }
 
-async function renderChart() {
+const DEFAULT_ATTRIBUTION: NonNullable<DailyValuePoint['attribution']> = [
+  { kind: 'market', label: 'ETH', valueUsd: 20 },
+  { kind: 'protocol', label: 'Aave', valueUsd: 4 },
+  { kind: 'flow', label: 'USDC', valueUsd: 2 },
+  { kind: 'residual', valueUsd: -1 },
+];
+
+async function renderChart(
+  attribution: NonNullable<
+    DailyValuePoint['attribution']
+  > = DEFAULT_ATTRIBUTION,
+) {
   await act(async () => {
     root.render(
       <PortfolioTrendChart
@@ -101,6 +123,7 @@ async function renderChart() {
             date: '2026-08-21',
             total_value_usd: 125,
             categories: [{ assets_usd: 150, debt_usd: 25 }],
+            attribution,
           },
           { date: '2026-08-22', total_value_usd: 120 },
         ]}
@@ -114,15 +137,26 @@ async function renderChart() {
 }
 
 describe('PortfolioTrendChart interactions', () => {
-  it('shows the nearest point on hover and closes when the pointer leaves', async () => {
+  it('shows the nearest point with sorted attribution and closes when the pointer leaves', async () => {
     const chart = await renderChart();
     await act(async () =>
       chart?.dispatchEvent(pointerEvent('pointermove', 'mouse', 100)),
     );
 
-    expect(container.textContent).toContain('Portfolio change: +$25.00');
+    expect(container.textContent).toContain('Net change: +$25.00');
+    expect(container.textContent).toContain('ETH price+$20.00');
+    // A balance change the backend did not flag is presented as a return; a
+    // flagged one and every wallet transfer stay neutral "flow" copy.
+    expect(container.textContent).toContain('Aave returns+$4.00');
+    expect(container.textContent).toContain('USDC flow+$2.00');
+    expect(container.textContent).toContain('Other−$1.00');
     expect(container.textContent).toContain('Assets: $150.00');
     expect(container.textContent).toContain('Debt: $25.00');
+    expect(
+      container.querySelectorAll(
+        '[data-testid="portfolio-trend-attribution-row"]',
+      ),
+    ).toHaveLength(4);
 
     await act(async () =>
       chart?.dispatchEvent(pointerEvent('pointerout', 'mouse', 100)),
@@ -130,6 +164,42 @@ describe('PortfolioTrendChart interactions', () => {
     expect(
       container.querySelector('[data-testid="portfolio-trend-tooltip"]'),
     ).toBeNull();
+  });
+
+  it('keeps one series identity across a tooltip interaction', async () => {
+    const chart = await renderChart();
+    const initial = sparklineData.at(-1);
+    expect(initial).toEqual([100, 125, 120]);
+
+    await act(async () =>
+      chart?.dispatchEvent(pointerEvent('pointermove', 'mouse', 100)),
+    );
+
+    // Selecting a point re-renders the chart. A freshly allocated series here
+    // would make the memoized sparkline redraw its whole path per pointer step.
+    expect(sparklineData.length).toBeGreaterThan(1);
+    expect(sparklineData.at(-1)).toBe(initial);
+  });
+
+  it('says how many attribution rows it dropped instead of truncating silently', async () => {
+    const chart = await renderChart([
+      ...Array.from({ length: 7 }, (_unused, index) => ({
+        kind: 'market' as const,
+        label: `TOKEN${index}`,
+        valueUsd: 10 - index,
+      })),
+      { kind: 'residual' as const, valueUsd: 1 },
+    ]);
+    await act(async () =>
+      chart?.dispatchEvent(pointerEvent('pointermove', 'mouse', 100)),
+    );
+
+    expect(
+      container.querySelectorAll(
+        '[data-testid="portfolio-trend-attribution-row"]',
+      ),
+    ).toHaveLength(6);
+    expect(container.textContent).toContain('+2 more');
   });
 
   it('tracks a pressed touch drag, closes on release, and clamps the marker', async () => {
@@ -141,7 +211,7 @@ describe('PortfolioTrendChart interactions', () => {
       '[data-testid="portfolio-trend-marker"]',
     );
     expect((marker?.style as CSSProperties).left).toBe('0px');
-    expect(container.textContent).not.toContain('Portfolio change:');
+    expect(container.textContent).not.toContain('Net change:');
 
     await act(async () =>
       chart?.dispatchEvent(pointerEvent('pointermove', 'touch', 500)),

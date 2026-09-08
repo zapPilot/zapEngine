@@ -14,6 +14,7 @@ from typing import Any
 import pytest
 
 from src.core.cache_service import CacheService, build_service_cache_key
+from src.core.config import settings
 
 # ==================== FIXTURES ====================
 
@@ -386,3 +387,266 @@ def test_build_service_cache_key_prefixes_service_and_version():
     """Verify build_service_cache_key() prefixes service name and version."""
     key = build_service_cache_key("AnalyticsService", "v2", "user", 123)
     assert key == "AnalyticsService:v2:user:123"
+
+
+# ==================== get_or_compute() SINGLE-FLIGHT TESTS ====================
+
+THREAD_JOIN_TIMEOUT_SECONDS = 10.0
+SLOW_COMPUTE_SECONDS = 0.2
+
+
+def _run_concurrently(worker: Any, thread_count: int) -> None:
+    """Run ``worker`` on ``thread_count`` threads and fail if any hangs."""
+    threads = [threading.Thread(target=worker) for _ in range(thread_count)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=THREAD_JOIN_TIMEOUT_SECONDS)
+    assert not any(thread.is_alive() for thread in threads)
+
+
+def test_get_or_compute_runs_compute_once_for_concurrent_callers(
+    cache_service: CacheService,
+):
+    """Verify N threads on one key trigger a single computation."""
+    thread_count = 8
+    barrier = threading.Barrier(thread_count)
+    calls: list[int] = []
+    results: list[Any] = []
+
+    def compute() -> dict[str, int]:
+        calls.append(1)
+        # Keep the computation open so followers genuinely block on it.
+        time.sleep(SLOW_COMPUTE_SECONDS)
+        return {"value": 42}
+
+    def worker() -> None:
+        barrier.wait(timeout=THREAD_JOIN_TIMEOUT_SECONDS)
+        results.append(cache_service.get_or_compute("trends", compute))
+
+    _run_concurrently(worker, thread_count)
+
+    assert len(calls) == 1
+    assert len(results) == thread_count
+    assert all(result == {"value": 42} for result in results)
+
+
+def test_get_or_compute_leader_failure_reaches_every_waiter(
+    cache_service: CacheService,
+):
+    """Verify a raising leader fails every waiter and caches nothing."""
+    thread_count = 4
+    barrier = threading.Barrier(thread_count)
+    boom = RuntimeError("query timed out")
+    calls: list[int] = []
+    errors: list[BaseException] = []
+
+    def failing_compute() -> str:
+        calls.append(1)
+        time.sleep(SLOW_COMPUTE_SECONDS)
+        raise boom
+
+    def worker() -> None:
+        barrier.wait(timeout=THREAD_JOIN_TIMEOUT_SECONDS)
+        try:
+            cache_service.get_or_compute("trends", failing_compute)
+        except RuntimeError as exc:
+            errors.append(exc)
+
+    _run_concurrently(worker, thread_count)
+
+    assert len(calls) == 1
+    assert len(errors) == thread_count
+    assert all(error is boom for error in errors)
+    assert cache_service.get("trends") is None
+    # The failure must not poison the key for the next caller.
+    assert cache_service.get_or_compute("trends", lambda: "fresh") == "fresh"
+
+
+def test_get_or_compute_skips_storage_when_should_cache_rejects(
+    cache_service: CacheService,
+):
+    """Verify should_cache=False returns the value without storing it."""
+    result = cache_service.get_or_compute(
+        "degraded", lambda: {"pools": []}, should_cache=lambda _value: False
+    )
+
+    assert result == {"pools": []}
+    assert cache_service.get("degraded") is None
+    assert cache_service.get_or_compute("degraded", lambda: {"pools": [1]}) == {
+        "pools": [1]
+    }
+
+
+def test_get_or_compute_caches_none_when_requested(cache_service: CacheService):
+    """Verify cache_none=True turns a cached None into a genuine hit."""
+    calls: list[int] = []
+
+    def compute() -> None:
+        calls.append(1)
+        return None
+
+    assert cache_service.get_or_compute("snapshot", compute, cache_none=True) is None
+    assert cache_service.get_or_compute("snapshot", compute, cache_none=True) is None
+
+    assert len(calls) == 1
+
+
+def test_get_or_compute_recomputes_none_without_cache_none(
+    cache_service: CacheService,
+):
+    """Verify a None result is not cached unless cache_none is requested."""
+    calls: list[int] = []
+
+    def compute() -> None:
+        calls.append(1)
+        return None
+
+    assert cache_service.get_or_compute("snapshot", compute) is None
+    assert cache_service.get_or_compute("snapshot", compute) is None
+
+    assert len(calls) == 2
+
+
+def test_get_or_compute_does_not_block_other_keys(cache_service: CacheService):
+    """Verify an in-progress computation leaves the rest of the cache usable.
+
+    Regression guard: holding the cache lock across compute() would deadlock
+    the unrelated key computed here from the main thread.
+    """
+    leader_started = threading.Event()
+    other_key_done = threading.Event()
+    outcome: dict[str, Any] = {}
+
+    def slow_compute() -> str:
+        leader_started.set()
+        assert other_key_done.wait(timeout=THREAD_JOIN_TIMEOUT_SECONDS)
+        return "slow"
+
+    def worker() -> None:
+        outcome["slow"] = cache_service.get_or_compute("slow_key", slow_compute)
+
+    thread = threading.Thread(target=worker)
+    thread.start()
+    try:
+        assert leader_started.wait(timeout=THREAD_JOIN_TIMEOUT_SECONDS)
+        assert cache_service.get_or_compute("other_key", lambda: "other") == "other"
+        assert cache_service.get("other_key") == "other"
+    finally:
+        other_key_done.set()
+        thread.join(timeout=THREAD_JOIN_TIMEOUT_SECONDS)
+
+    assert not thread.is_alive()
+    assert outcome["slow"] == "slow"
+
+
+def test_get_or_compute_waiter_computes_for_itself_after_timeout(
+    cache_service: CacheService,
+):
+    """Verify a wedged leader cannot pin waiters forever."""
+    leader_started = threading.Event()
+    leader_release = threading.Event()
+    calls: list[str] = []
+
+    def wedged_compute() -> str:
+        calls.append("leader")
+        leader_started.set()
+        assert leader_release.wait(timeout=THREAD_JOIN_TIMEOUT_SECONDS)
+        return "leader-value"
+
+    def worker() -> None:
+        cache_service.get_or_compute("wedged", wedged_compute)
+
+    thread = threading.Thread(target=worker)
+    thread.start()
+    try:
+        assert leader_started.wait(timeout=THREAD_JOIN_TIMEOUT_SECONDS)
+        own_value = cache_service.get_or_compute(
+            "wedged", lambda: "own-value", wait_timeout=0.05
+        )
+        assert own_value == "own-value"
+    finally:
+        leader_release.set()
+        thread.join(timeout=THREAD_JOIN_TIMEOUT_SECONDS)
+
+    assert not thread.is_alive()
+    assert calls == ["leader"]
+
+
+def test_get_or_compute_is_reentrant_for_the_same_thread(cache_service: CacheService):
+    """Verify a thread re-asking for the key it leads computes instead of waiting."""
+
+    def outer() -> str:
+        inner = cache_service.get_or_compute("recursive", lambda: "inner")
+        return f"outer:{inner}"
+
+    # A short timeout turns a re-entrancy regression into a fast failure.
+    result = cache_service.get_or_compute("recursive", outer, wait_timeout=0.5)
+
+    assert result == "outer:inner"
+
+
+def test_get_or_compute_bypasses_cache_when_disabled(
+    cache_service: CacheService, monkeypatch: pytest.MonkeyPatch
+):
+    """Verify the global kill switch is honoured centrally."""
+    monkeypatch.setattr(settings, "analytics_cache_enabled", False)
+    calls: list[int] = []
+
+    def compute() -> str:
+        calls.append(1)
+        return "value"
+
+    assert cache_service.get_or_compute("switch", compute) == "value"
+    assert cache_service.get_or_compute("switch", compute) == "value"
+
+    assert len(calls) == 2
+    assert cache_service.get("switch") is None
+
+
+def test_get_or_compute_survives_lookup_failure(
+    cache_service: CacheService, monkeypatch: pytest.MonkeyPatch
+):
+    """Verify a broken cache read falls back to a fresh computation."""
+
+    def broken_get(key: str) -> Any:
+        raise RuntimeError("cache read failed")
+
+    monkeypatch.setattr(cache_service, "get", broken_get)
+
+    assert cache_service.get_or_compute("broken", lambda: "value") == "value"
+
+
+def test_get_or_compute_survives_store_failure(
+    cache_service: CacheService, monkeypatch: pytest.MonkeyPatch
+):
+    """Verify a broken cache write still returns the computed value."""
+
+    def broken_set(key: str, value: Any, ttl: Any = None) -> None:
+        raise RuntimeError("cache write failed")
+
+    monkeypatch.setattr(cache_service, "set", broken_set)
+
+    assert cache_service.get_or_compute("broken", lambda: "value") == "value"
+
+
+def test_get_or_compute_honours_ttl(cache_service: CacheService):
+    """Verify the stored entry expires on the supplied TTL."""
+    calls: list[int] = []
+
+    def compute() -> str:
+        calls.append(1)
+        return "value"
+
+    cache_service.get_or_compute("expiring", compute, timedelta(milliseconds=1))
+    time.sleep(0.05)
+    cache_service.get_or_compute("expiring", compute, timedelta(milliseconds=1))
+
+    assert len(calls) == 2
+
+
+def test_zero_ttl_expires_immediately(cache_service: CacheService):
+    """Verify a zero TTL means expired, not 'fall back to the default'."""
+    cache_service.set("instant", "value", timedelta(0))
+
+    assert cache_service.get("instant") is None

@@ -12,11 +12,13 @@ on:
 permissions:
   contents: read
 
-# Shared with env-apply: auditing while a rail is writing reports drift that is
-# already being fixed.
+# Shared with env-apply and deploy-fly: auditing while a rail is writing reports
+# drift that is already being fixed. Keep all waiters instead of GitHub's
+# default single pending slot, which silently replaces an older pending run.
 concurrency:
   group: env-rail
   cancel-in-progress: false
+  queue: max
 
 jobs:
   status:

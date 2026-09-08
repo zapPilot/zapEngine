@@ -6,3 +6,5 @@ coverage
 .jscpd
 *.tsbuildinfo
 .expo
+test-results
+playwright-report

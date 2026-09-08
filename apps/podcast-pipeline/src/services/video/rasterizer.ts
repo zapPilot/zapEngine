@@ -3,13 +3,18 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { abortError, throwIfAborted } from './abort.js';
-import type { ResolvedSlideAsset } from './assets.js';
-import type { Slide } from './manifest.js';
+import { abortError, throwIfAborted } from '../../lib/abort.js';
+import { killOnAbort, settleOnce } from '../../lib/spawn-process.js';
 import type { RasterStage } from './raster-stage-entry.js';
 import type { PortraitRasterOutput, SatoriStageInput } from './satori-stage.js';
 import type { SharpCropStageInput } from './sharp-stage.js';
-import type { BrandFrameContent, OutroContent } from './templates.js';
+import {
+  type BrandFrameContent,
+  CONCEPT_CARD_HEIGHT,
+  CONCEPT_CARD_WIDTH,
+  type ConceptCardContent,
+  type OutroContent,
+} from './templates.js';
 
 type RunStage = (
   stage: RasterStage,
@@ -22,6 +27,10 @@ interface RasterizeOptions {
   runStage?: RunStage;
   signal?: AbortSignal;
 }
+
+const noop = (): void => {
+  // reassigned synchronously below, before any event can fire
+};
 
 function stageEntryPath(): string {
   const extension = extname(fileURLToPath(import.meta.url));
@@ -43,35 +52,25 @@ export async function runRasterStage(
       [...process.execArgv, stageEntryPath(), stage, inputPath, outputPath],
       { stdio: 'inherit' },
     );
-    let settled = false;
-    let forceKillTimer: NodeJS.Timeout | undefined;
-    const cleanup = () => {
-      abortSignal?.removeEventListener('abort', onAbort);
-      if (forceKillTimer) clearTimeout(forceKillTimer);
-    };
-    const settleResolve = () => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      resolve();
-    };
-    const settleReject = (error: Error) => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      reject(error);
-    };
-    const onAbort = () => {
-      if (typeof child.kill !== 'function') {
+    let removeAbortListener = noop;
+    const { settleResolve, settleReject } = settleOnce<void>(
+      resolve,
+      reject,
+      () => removeAbortListener(),
+    );
+    if (typeof child.kill === 'function') {
+      removeAbortListener = killOnAbort(child, abortSignal);
+    } else {
+      // Test doubles for this stage's child sometimes stub only the
+      // EventEmitter surface — an abort can't be enforced without `kill`, so
+      // reject immediately instead of leaving the promise to hang.
+      const onAbort = () =>
         settleReject(abortError(abortSignal, `Raster ${stage} stage aborted`));
-        return;
-      }
-      child.kill('SIGTERM');
-      forceKillTimer = setTimeout(() => child.kill('SIGKILL'), 2_000);
-      forceKillTimer.unref?.();
-    };
-    abortSignal?.addEventListener('abort', onAbort, { once: true });
-    if (abortSignal?.aborted) onAbort();
+      abortSignal?.addEventListener('abort', onAbort, { once: true });
+      if (abortSignal?.aborted) onAbort();
+      removeAbortListener = () =>
+        abortSignal?.removeEventListener('abort', onAbort);
+    }
 
     child.once('error', (error) =>
       settleReject(
@@ -81,7 +80,6 @@ export async function runRasterStage(
       ),
     );
     child.once('exit', (code, exitSignal) => {
-      if (settled) return;
       if (abortSignal?.aborted) {
         settleReject(abortError(abortSignal, `Raster ${stage} stage aborted`));
         return;
@@ -135,37 +133,14 @@ async function renderSatoriMaster(
   return runStage;
 }
 
-async function runRasterStages(
-  stageInput: SatoriStageInput,
-  paths: CardRasterPaths,
-  options: RasterizeOptions,
-  finalStage: RasterStage,
-): Promise<void> {
-  const runStage = await renderSatoriMaster(stageInput, paths, options);
-  await runStage(finalStage, paths.master, paths.output, options.signal);
-}
-
-export async function rasterizeSlide(
-  slide: Slide,
-  asset: ResolvedSlideAsset,
-  paths: CardRasterPaths,
-  runStageOrOptions: RunStage | RasterizeOptions = {},
-): Promise<void> {
-  const options: RasterizeOptions =
-    typeof runStageOrOptions === 'function'
-      ? { runStage: runStageOrOptions }
-      : runStageOrOptions;
-  await runRasterStages({ slide, asset }, paths, options, 'sharp');
-}
-
 async function rasterizePortraitCard(
   stageInput: Extract<SatoriStageInput, { kind: 'frame' | 'outro' }>,
   paths: CardRasterPaths,
   options: RasterizeOptions,
 ): Promise<void> {
   const runStage = await renderSatoriMaster(stageInput, paths, options);
-  // The fixed 2160x3840 design master is resized explicitly so stored v3 and
-  // new v4 manifests can retain their own output contracts.
+  // The fixed 2160x3840 design master is resized explicitly to the v4
+  // manifest's output contract.
   await writeStageInputFile(
     paths.input,
     {
@@ -197,6 +172,25 @@ export function rasterizeOutro(
 ): Promise<void> {
   const input = { kind: 'outro' as const, outro, output };
   return rasterizePortraitCard(input, paths, options);
+}
+
+export async function rasterizeConceptCard(
+  card: ConceptCardContent,
+  paths: CardRasterPaths,
+  options: RasterizeOptions = {},
+): Promise<void> {
+  const stageInput = { kind: 'concept-card' as const, card };
+  const runStage = await renderSatoriMaster(stageInput, paths, options);
+  await writeStageInputFile(
+    paths.input,
+    {
+      imagePath: paths.master,
+      width: CONCEPT_CARD_WIDTH,
+      height: CONCEPT_CARD_HEIGHT,
+    },
+    [paths.output],
+  );
+  await runStage('sharp-scale', paths.input, paths.output, options.signal);
 }
 
 /* jscpd:ignore-end */

@@ -8,22 +8,8 @@ import {
 } from './subtitles.js';
 
 describe('portraitSubtitleLayoutFor', () => {
-  it('keeps the legacy 1080x1920 caption geometry only for stored v3 portrait manifests', () => {
-    expect(
-      portraitSubtitleLayoutFor({
-        clip: { width: 1080, height: 1920 } as never,
-      }),
-    ).toMatchObject({ playResX: 1080, playResY: 1920 });
-    expect(
-      portraitSubtitleLayoutFor({
-        clip: { width: 1080, height: 1280 } as never,
-      }),
-    ).toBe(PORTRAIT_SUBTITLE_LAYOUT);
-    expect(
-      portraitSubtitleLayoutFor({
-        clip: { width: 720, height: 1280 } as never,
-      }),
-    ).toBe(PORTRAIT_SUBTITLE_LAYOUT);
+  it('always uses the v4 720x1280 caption geometry', () => {
+    expect(portraitSubtitleLayoutFor()).toBe(PORTRAIT_SUBTITLE_LAYOUT);
   });
 });
 

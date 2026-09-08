@@ -1,15 +1,23 @@
 import { calculateAllocation } from '@zapengine/app-core/adapters';
 import { usePortfolioDashboard } from '@zapengine/app-core/hooks/analytics';
-import { useLandingPageData } from '@zapengine/app-core/hooks/queries';
-
-import { DEMO, type MetricTone } from '@/data/demo';
 import {
+  useDailyYieldReturns,
+  useLandingPageData,
+} from '@zapengine/app-core/hooks/queries';
+import { tokens } from '@zapengine/design-tokens/tokens';
+import { useMemo } from 'react';
+
+import type { MetricTone } from '@/integration/activityTypes';
+import {
+  attachDailyAttribution,
   calculateAdjacentSnapshotChange,
   calculateWindowValueChangePct,
+  DAILY_ATTRIBUTION_WINDOW_DAYS,
   type DailyValuePoint,
+  netPortfolioValueFrom,
   toTrendPoints,
 } from '@/integration/portfolioMetrics';
-import { formatPct, formatSignedPct } from '@/lib/format';
+import { formatOr, formatPct, formatSignedPct } from '@/lib/format';
 
 interface Metric {
   label: string;
@@ -37,40 +45,20 @@ export interface UsePortfolioDataResult {
 }
 
 export type PortfolioRange = '1W' | '1M' | '3M' | '1Y' | 'ALL';
+export const DEFAULT_PORTFOLIO_RANGE: PortfolioRange = '1M';
 
 export interface UsePortfolioDataOptions {
   isResolvingUser?: boolean;
 }
 
-const DEMO_PORTFOLIO = DEMO.portfolio;
+/** Stable identity so a dashboard without trends does not break the memo below. */
+const EMPTY_DAILY_VALUES: readonly DailyValuePoint[] = [];
 
 export function portfolioDaysForRange(range: PortfolioRange): number {
   if (range === '1W') return 7;
   if (range === '1M') return 30;
   if (range === '3M') return 90;
   return 365;
-}
-
-/** A small rotating palette so real allocation categories without a known
- * colour still render with a stable, distinct swatch. */
-const ALLOCATION_PALETTE = [
-  'var(--usd)',
-  'var(--spy)',
-  'var(--btc)',
-  'var(--accent)',
-];
-
-/** Colour for a real allocation category: reuse the DEMO colour for a matching
- *  label, otherwise fall back to a stable palette slot. */
-function allocationColor(label: string, index: number): string {
-  const known = DEMO_PORTFOLIO.allocation.find(
-    (a) => a.label.toLowerCase() === label.toLowerCase(),
-  );
-  return (
-    known?.color ??
-    ALLOCATION_PALETTE[index % ALLOCATION_PALETTE.length] ??
-    'var(--accent)'
-  );
 }
 
 function toneForSignedPct(pct: number): MetricTone {
@@ -98,9 +86,7 @@ function numberMetric(
         ? tone(value)
         : 'neutral'
       : tone;
-  return typeof value === 'number'
-    ? { label, value: format(value), tone: resolvedTone }
-    : unavailableMetric(label, resolvedTone);
+  return { label, value: formatOr(value, format), tone: resolvedTone };
 }
 
 function pctMetric(label: string, pct: number | null): Metric {
@@ -150,6 +136,25 @@ export function usePortfolioData(
     userId ?? undefined,
     { trend_days: days, drawdown_days: days, rolling_days: days },
   );
+  // Short ranges retain at least 30 days for the attribution outlier fence;
+  // 3M uses its full 90 days. The expensive 365-day path is disabled until it
+  // can run safely on the current analytics-engine machine size.
+  const attributionDays = range === '3M' ? 90 : DAILY_ATTRIBUTION_WINDOW_DAYS;
+  const attributionQuery = useDailyYieldReturns(
+    range === '1Y' || range === 'ALL' ? undefined : (userId ?? undefined),
+    attributionDays,
+  );
+
+  // Above every guard below: a hook after an early return is a conditional
+  // call. `PortfolioTrendChart` is memoized on this array, so rebuilding it per
+  // render would re-draw the chart on any unrelated re-render of the screen.
+  const snapshots = dashboard?.trends?.daily_values ?? EMPTY_DAILY_VALUES;
+  const trendPoints = useMemo(
+    () =>
+      attachDailyAttribution(toTrendPoints(snapshots), attributionQuery.data),
+    [attributionQuery.data, snapshots],
+  );
+
   // userId still resolving, or the query hasn't produced a dashboard yet.
   if (!userId && options.isResolvingUser) {
     return { data: null, isLoading: true, isError: false };
@@ -168,26 +173,17 @@ export function usePortfolioData(
   }
 
   const landing = landingQuery.data;
-  const trendPoints = toTrendPoints(dashboard?.trends?.daily_values ?? []);
   const firstDay = trendPoints[0];
   const lastDay = trendPoints.at(-1);
 
   // Position value = authoritative landing BFF balance.
-  const positionValue =
-    typeof landing?.net_portfolio_value === 'number'
-      ? landing.net_portfolio_value
-      : typeof landing?.total_net_usd === 'number'
-        ? landing.total_net_usd
-        : null;
+  const positionValue = netPortfolioValueFrom(landing);
 
-  // Selected-range value change: earliest vs latest total_value_usd.
-  const firstValue = firstDay?.total_value_usd;
-  const lastValue = lastDay?.total_value_usd;
   const trend =
-    typeof firstValue === 'number' &&
-    typeof lastValue === 'number' &&
-    firstValue > 0
-      ? { first: firstValue, last: lastValue }
+    typeof firstDay?.total_value_usd === 'number' &&
+    typeof lastDay?.total_value_usd === 'number' &&
+    firstDay.total_value_usd > 0
+      ? { first: firstDay.total_value_usd, last: lastDay.total_value_usd }
       : null;
   const valueChangeUsd = trend ? trend.last - trend.first : null;
   const valueChangePct = trend
@@ -196,7 +192,6 @@ export function usePortfolioData(
 
   const latestSnapshotChange = calculateAdjacentSnapshotChange(trendPoints);
 
-  // --- Metrics: real where analytics gives a clean source, unavailable otherwise. ---
   const sharpeSeries =
     dashboard?.rolling_analytics?.sharpe?.rolling_sharpe_data ?? [];
   const lastSharpe = sharpeSeries.at(-1)?.rolling_sharpe_ratio;
@@ -210,7 +205,6 @@ export function usePortfolioData(
 
   const valueChangeMetric = pctMetric('Value change', valueChangePct);
 
-  // max_drawdown_pct is reported as a negative value upstream.
   const maxDrawdownMetric = numberMetric(
     'Max drawdown',
     maxDrawdownPct,
@@ -258,7 +252,7 @@ export function usePortfolioData(
         {
           label: 'Stablecoins',
           pct: Math.round(calculatedAllocation.stable),
-          color: allocationColor('Stables', 0),
+          color: tokens.color.pillar.usd,
         },
       ].filter((row) => row.pct > 0)
     : [];

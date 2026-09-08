@@ -26,7 +26,11 @@ const openAiMocks = vi.hoisted(() => ({
   create: vi.fn(),
 }));
 
-vi.mock('openai', () => ({
+// Only the client is faked. The real error classes stay exported so error
+// classification keeps seeing genuine SDK instances -- it matches them by type,
+// and a stub would make every `instanceof` check silently false.
+vi.mock('openai', async () => ({
+  ...(await vi.importActual<typeof import('openai')>('openai')),
   default: vi.fn().mockImplementation(function () {
     return {
       chat: { completions: { create: openAiMocks.create } },
@@ -246,7 +250,12 @@ describe('language classroom content contract (strict)', () => {
     expect(result.lessons[0]!.script).toBe(script);
   });
 
-  it('drops a lesson whose narration script is blank, keeping the rest', async () => {
+  // A partial set used to be returned and persisted, and the run then died two
+  // layers up in assertLanguageClassroomsReady with "missing targets: en" --
+  // after the ja rows were already written and with no chance left to re-ask.
+  // Every caller passes exactly the targets it is still missing, so an absent
+  // target is an unusable response, not a smaller one.
+  it('rejects a response missing a requested target instead of returning a partial set', async () => {
     const createMock = vi.fn().mockResolvedValue(
       jsonResponse(
         JSON.stringify({
@@ -269,11 +278,12 @@ describe('language classroom content contract (strict)', () => {
     );
     mockOpenAIModule(createMock);
 
-    const result = await generateLanguageClassroomsWithLLM(groundedInput);
-
-    expect(result.lessons.map((lesson) => lesson.targetLanguageCode)).toEqual([
-      'ja',
-    ]);
+    await expect(
+      generateLanguageClassroomsWithLLM(groundedInput),
+    ).rejects.toThrow('missing targets: en');
+    // The model returned `en`; this parser dropped it for the blank script. The
+    // failure has to say which, or the next incident cannot tell them apart.
+    expect(createMock).toHaveBeenCalledTimes(3);
   });
 
   it('rejects a response whose lessons all have a blank narration script', async () => {

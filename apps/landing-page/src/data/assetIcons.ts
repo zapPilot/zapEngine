@@ -51,4 +51,5 @@ export const PROTOCOL_ICON_SRC: Record<ProtocolBrandKey, StaticImageData> = {
   ondo: ondoMark,
   aave: aaveMark,
   lido: lidoMark,
+  'eth-staking': ethereumMark,
 };

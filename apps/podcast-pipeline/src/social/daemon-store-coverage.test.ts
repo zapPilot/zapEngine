@@ -69,7 +69,8 @@ describe('social daemon store defensive query paths', () => {
     await expect(getSocialQueueSnapshot()).resolves.toEqual({
       pendingCount: 0,
       episodeQueue: [],
-      nextByPlatform: {},
+      nextByLane: {},
+      waitingVideos: [],
     });
   });
 
@@ -123,10 +124,12 @@ describe('social daemon store defensive query paths', () => {
           episodeId: 'episode-1',
           title: null,
           nextAt: '2026-08-16T10:05:00.000Z',
+          laneCount: 1,
+          lanes: [{ platform: 'x', languageCode: 'zh-Hant' }],
         },
       ],
-      nextByPlatform: {
-        x: {
+      nextByLane: {
+        'x|zh-Hant': {
           episodeId: 'episode-1',
           languageCode: 'zh-Hant',
           platform: 'x',
@@ -135,8 +138,10 @@ describe('social daemon store defensive query paths', () => {
           nextAt: '2026-08-16T10:05:00.000Z',
           attemptCount: 0,
           attemptsExhausted: false,
+          experiment: null,
         },
       },
+      waitingVideos: [],
     });
   });
 

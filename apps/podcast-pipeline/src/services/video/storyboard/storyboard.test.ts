@@ -1,4 +1,3 @@
-import OpenAI from 'openai';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { CanonicalAudioTiming } from '../audio-analysis.js';
@@ -13,11 +12,6 @@ import {
   materializeLocaleVideoManifest,
   TRUSTED_RENDERER_VERSION,
 } from './materialize.js';
-import {
-  buildNvidiaStoryboardSystemPrompt,
-  buildNvidiaStoryboardUserPrompt,
-  createNvidiaStoryboardProvider,
-} from './nvidia.js';
 import { generateStoryboard } from './orchestrator.js';
 import type {
   StoryboardProvider,
@@ -80,6 +74,7 @@ function sceneAsset(sceneId: string) {
     sha256: 'a'.repeat(64),
     layout: 'fullBleed' as const,
     position: 'center' as const,
+    motion: 'static' as const,
   };
 }
 
@@ -438,67 +433,6 @@ describe('storyboard provider orchestration', () => {
     });
     expect(result.effectiveProvider).toBe('deterministic');
     expect(result.usedFallback).toBe(false);
-  });
-});
-
-describe('NVIDIA storyboard provider', () => {
-  it('requests only scene anchors and image-search intents', async () => {
-    const draft = fallbackDraft();
-    const create = vi.fn().mockResolvedValue({
-      model: 'nvidia/test-model',
-      choices: [{ message: { content: JSON.stringify(draft) } }],
-      usage: {
-        prompt_tokens: 100,
-        completion_tokens: 50,
-        total_tokens: 150,
-      },
-    });
-    const client = {
-      chat: { completions: { create } },
-    } as unknown as OpenAI;
-    const provider = createNvidiaStoryboardProvider({
-      model: 'nvidia/test-model',
-      client,
-    });
-    const sentences = splitCanonicalSentences(script);
-
-    await expect(
-      provider.generate({
-        title: '市場流動性觀察',
-        script,
-        durationMs: 90_000,
-        sentences,
-      }),
-    ).resolves.toMatchObject({
-      draft,
-      usage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
-    });
-    expect(create.mock.calls[0]?.[0]).toMatchObject({
-      model: 'nvidia/test-model',
-      temperature: 0.2,
-      max_tokens: 2_000,
-      response_format: { type: 'json_object' },
-    });
-    const systemPrompt = buildNvidiaStoryboardSystemPrompt();
-    expect(systemPrompt).toMatch(/^\/no_think/);
-    expect(systemPrompt).toContain('sceneId');
-    expect(systemPrompt).toContain('imageSearchIntent');
-    expect(systemPrompt).toContain('不得寫旁白');
-    expect(
-      buildNvidiaStoryboardUserPrompt(
-        {
-          title: '市場流動性觀察',
-          script,
-          durationMs: 90_000,
-          sentences,
-        },
-        {
-          repairIssues: [
-            { code: 'test', path: ['scenes', 1], message: '修正範圍' },
-          ],
-        },
-      ),
-    ).toContain('修正範圍');
   });
 });
 

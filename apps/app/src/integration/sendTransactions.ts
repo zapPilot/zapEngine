@@ -1,7 +1,7 @@
 import { CHAIN_BRAND } from '@zapengine/brand-assets';
 import { isWalletAddress } from '@zapengine/types';
 
-import type { ChainKey } from '@/data/demo';
+import type { ChainKey } from '@/integration/activityTypes';
 import type {
   DesktopWalletAsset,
   DesktopWalletAssetHolding,

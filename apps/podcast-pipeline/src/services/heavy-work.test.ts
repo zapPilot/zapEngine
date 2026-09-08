@@ -28,18 +28,48 @@ describe('createHeavyWorkCoordinator', () => {
     });
   });
 
-  it('makes a new ingest wait for the active renderer', async () => {
+  it('lets several videos run at once, leaving the slot count to the worker', async () => {
     const coordinator = createHeavyWorkCoordinator();
-    const video = createDeferred<void>();
-    const runningVideo = coordinator.tryRunVideo(() => video.promise);
+    const first = createDeferred<void>();
+    const second = createDeferred<void>();
+
+    const runningFirst = coordinator.tryRunVideo(() => first.promise);
+    const runningSecond = coordinator.tryRunVideo(() => second.promise);
+    first.resolve();
+    second.resolve();
+
+    // Only the render worker can weigh a second job against free memory, so
+    // this coordinator no longer refuses one.
+    await expect(runningFirst).resolves.toEqual({
+      acquired: true,
+      value: undefined,
+    });
+    await expect(runningSecond).resolves.toEqual({
+      acquired: true,
+      value: undefined,
+    });
+  });
+
+  it('makes a new ingest wait for every active renderer', async () => {
+    const coordinator = createHeavyWorkCoordinator();
+    const first = createDeferred<void>();
+    const second = createDeferred<void>();
+    const runningFirst = coordinator.tryRunVideo(() => first.promise);
+    const runningSecond = coordinator.tryRunVideo(() => second.promise);
     const ingestWork = vi.fn().mockResolvedValue('audio');
 
     const runningIngest = coordinator.runIngest(ingestWork);
     await Promise.resolve();
     expect(ingestWork).not.toHaveBeenCalled();
 
-    video.resolve();
-    await runningVideo;
+    first.resolve();
+    await runningFirst;
+    await Promise.resolve();
+    // One renderer finishing is not an idle machine.
+    expect(ingestWork).not.toHaveBeenCalled();
+
+    second.resolve();
+    await runningSecond;
     await expect(runningIngest).resolves.toBe('audio');
   });
 

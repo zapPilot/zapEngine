@@ -1,0 +1,419 @@
+/* Board chrome only — the drawer's own rules live in QueueDrawer.css, imported
+   by that component. Colours come from the app's semantic tokens (styles.css)
+   rather than the hex literals this file started with, so the board follows the
+   operator palette instead of drifting from it. */
+.queue-board {
+  position: relative;
+  display: grid;
+  gap: 14px;
+  color: var(--ink);
+}
+
+.queue-board-loading,
+.queue-inline-error {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  padding: 18px;
+}
+
+.queue-inline-error {
+  color: var(--error);
+  background: color-mix(in srgb, var(--error) 6%, transparent);
+  border-color: color-mix(in srgb, var(--error) 40%, var(--line));
+}
+
+.queue-board-head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.queue-board-head h2,
+.queue-column h3 {
+  margin: 0;
+}
+
+.queue-board-head p,
+.queue-column header span {
+  margin: 4px 0 0;
+  color: var(--ink-dim);
+  font-size: 13px;
+}
+
+.queue-abandoned-note {
+  margin: 0;
+  color: var(--ink-faint);
+  font-size: 12px;
+}
+
+.queue-search {
+  min-width: 280px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: var(--radius-control);
+  padding: 8px 10px;
+}
+
+.queue-search input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.queue-metrics {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.queue-metric {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  padding: 7px 10px;
+}
+
+.queue-metric strong {
+  font-size: 16px;
+}
+
+.queue-metric span {
+  color: var(--ink-dim);
+  font-size: 12px;
+}
+
+.queue-columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(320px, 1fr));
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+/* `min-width: 0` lets the track's own 320px floor govern. Without it the column
+   is sized by its widest unbreakable token — a worker UUID — and the cards
+   spill under the next column. */
+.queue-column {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--bg);
+  padding: 12px;
+}
+
+.queue-column > header {
+  padding: 2px 2px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.queue-section {
+  display: grid;
+  gap: 8px;
+  padding-top: 12px;
+}
+
+.queue-section-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--ink-faint);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.queue-section-label strong {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-elevated);
+  color: var(--ink-dim);
+  letter-spacing: 0;
+}
+
+.queue-empty {
+  color: var(--ink-faint);
+  font-size: 12px;
+  padding: 8px 2px;
+}
+
+.queue-abandoned {
+  margin-top: 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.queue-abandoned summary {
+  cursor: pointer;
+  color: var(--ink-faint);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+/* A grid item defaults to `min-width: auto`, i.e. its min-content — which here
+   is a non-wrapping episode UUID. Without this the cards are wider than their
+   column and spill under the next one. */
+.queue-card-button {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  text-align: left;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.queue-card-button:focus-visible .queue-card,
+.queue-card-button:hover .queue-card {
+  border-color: var(--line-hi);
+  box-shadow: 0 4px 14px rgb(28 39 55 / 7%);
+}
+
+.queue-card {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  padding: 11px;
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+/* The rail is what makes a wall of cards scannable: state before text. */
+.queue-card-failed,
+.queue-card-blocked {
+  border-left-color: var(--error);
+}
+
+.queue-card-retrying,
+.queue-card-partial {
+  border-left-color: var(--warning);
+}
+
+.queue-card-processing,
+.queue-card-publishing {
+  border-left-color: var(--accent);
+}
+
+.queue-card-published {
+  border-left-color: var(--success);
+}
+
+.queue-thumb {
+  width: 100%;
+  aspect-ratio: 16 / 7;
+  object-fit: cover;
+  border-radius: var(--radius-subtle);
+  background: var(--surface-elevated);
+}
+
+/* Same grid-item floor as the card itself: every row has to be allowed to
+   shrink, or the longest title pushes the state badge off the card. */
+.queue-card > * {
+  min-width: 0;
+}
+
+.queue-card-title-row,
+.queue-card-step {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.queue-card-title-row > strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+}
+
+.queue-card-title-row > span:not(.queue-state) {
+  color: var(--ink-dim);
+  font-size: 11px;
+  flex: none;
+}
+
+.queue-card code {
+  display: block;
+  overflow: hidden;
+  color: var(--ink-faint);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.queue-card-step > strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.queue-card-error {
+  color: var(--error);
+  font-size: 11px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.queue-state,
+.social-status {
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-pill);
+  padding: 3px 7px;
+  background: var(--surface-elevated);
+  color: var(--ink-dim);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: capitalize;
+  flex: none;
+}
+
+.queue-state-processing,
+.queue-state-publishing,
+.social-status-publishing {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.queue-state-retrying,
+.queue-state-partial,
+.social-status-queued,
+.social-status-scheduled {
+  background: color-mix(in srgb, var(--warning) 14%, transparent);
+  color: var(--warning);
+}
+
+.queue-state-failed,
+.queue-state-blocked,
+.social-status-failed {
+  background: color-mix(in srgb, var(--error) 12%, transparent);
+  color: var(--error);
+}
+
+.social-status-published {
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+  color: var(--success);
+}
+
+.social-status-skipped {
+  background: var(--surface-elevated);
+  color: var(--ink-faint);
+}
+
+.queue-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.queue-progress {
+  flex: 1;
+  height: 5px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--surface-elevated);
+}
+
+.queue-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+}
+
+.queue-progress-row small {
+  color: var(--ink-faint);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.queue-card-meta {
+  display: flex;
+  gap: 7px 10px;
+  flex-wrap: wrap;
+  color: var(--ink-faint);
+  font-size: 10px;
+  min-width: 0;
+}
+
+.queue-card-meta span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.social-schedule {
+  color: var(--ink-dim);
+  font-size: 11px;
+}
+
+.social-platforms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding-top: 2px;
+}
+
+/* One chip per platform×language instead of a stacked row each: four lanes are
+   the norm, and the card is a glance, not a report. */
+.social-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  border-radius: var(--radius-pill);
+  padding: 3px 8px;
+  background: var(--surface-elevated);
+  color: var(--ink-dim);
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.social-chip small {
+  font-size: 9px;
+  font-weight: 500;
+  opacity: 0.8;
+}
+
+@media (max-width: 900px) {
+  .queue-board-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .queue-search {
+    min-width: 0;
+  }
+
+  .queue-columns {
+    grid-template-columns: repeat(3, minmax(300px, 82vw));
+  }
+}

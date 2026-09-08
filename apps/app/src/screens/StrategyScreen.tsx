@@ -27,7 +27,6 @@ import { useStrategyData } from '@/integration/useStrategyData';
 import { useStrategyDecisionPacket } from '@/integration/useStrategyDecisionPacket';
 import { createStrategyStartAction } from '@/integration/strategyStartAction';
 import { parseStrategyFocusParam } from '@/integration/strategyFocus';
-import { resolveColor } from '@/lib/colors';
 import { useAuthenticatedAction } from '@/providers/AuthenticatedActionProvider';
 import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 
@@ -183,7 +182,7 @@ export function StrategyScreen() {
               <View className="flex-row items-center gap-2">
                 <View
                   className="h-[9px] w-[9px] rounded-full"
-                  style={{ backgroundColor: resolveColor(item.color) }}
+                  style={{ backgroundColor: item.color }}
                 />
                 <Text className="text-[13px] text-ink-dim">{item.label}</Text>
               </View>

@@ -1,3 +1,4 @@
+import { JST_OFFSET_MS } from './jst.js';
 import type { SocialPlatform } from './platforms.js';
 import {
   SOCIAL_LANGUAGE_EXPERIMENT_KEYS,
@@ -6,7 +7,6 @@ import {
 } from './policy.js';
 import type { SocialLanguageCode } from './types.js';
 
-const JST_OFFSET_MS = 9 * 60 * 60_000;
 const DAY_MS = 24 * 60 * 60_000;
 const ROTATION_ANCHOR_JST_DAY = Date.UTC(2026, 8, 2);
 

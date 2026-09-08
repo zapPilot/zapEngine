@@ -3,7 +3,7 @@ import type { PodcastEpisode } from '@/integration/podcastFeed';
 
 export type EpisodeSortDirection = 'newest' | 'oldest';
 
-export function compareEpisodesNewestFirst(
+function compareEpisodesNewestFirst(
   left: PodcastEpisode,
   right: PodcastEpisode,
 ): number {
@@ -12,7 +12,7 @@ export function compareEpisodesNewestFirst(
   return right.id.localeCompare(left.id);
 }
 
-export function compareEpisodesOldestFirst(
+function compareEpisodesOldestFirst(
   left: PodcastEpisode,
   right: PodcastEpisode,
 ): number {

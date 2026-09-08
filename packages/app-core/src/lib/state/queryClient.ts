@@ -1,10 +1,31 @@
 import { CACHE_WINDOW } from '@core/config/cacheWindow';
+// Imported from the leaf module rather than the `lib/errors` barrel: the barrel
+// would close the `lib/http/request` -> `lib/http/cacheControl` -> this module
+// cycle and leave the binding undefined at module-eval time.
+import { isClientError } from '@core/lib/errors/errorHelpers';
+import { reportHandledError } from '@core/lib/observability/errorReporter';
 import type { DashboardWindowParams } from '@core/services';
-import { QueryClient } from '@tanstack/react-query';
+import { QueryCache, QueryClient } from '@tanstack/react-query';
 
 // Create a client instance with optimized configuration for DeFi app
 // ETL updates run once daily, but we bound freshness to the hourly HTTP cache
 export const queryClient = new QueryClient({
+  // Without a cache-level handler a query failure is visible only to the
+  // component that rendered it, so nothing ever reaches the host's reporter.
+  queryCache: new QueryCache({
+    onError: (error, query) => {
+      // 4xx describe the request, not a broken service — the same reason
+      // createQueryConfig does not retry them.
+      if (isClientError(error)) {
+        return;
+      }
+
+      reportHandledError(error, {
+        scope: 'react-query',
+        extra: { queryKey: query.queryKey },
+      });
+    },
+  }),
   defaultOptions: {
     queries: {
       // Keep React Query cache aligned with Cache-Control max-age/stale-while-revalidate

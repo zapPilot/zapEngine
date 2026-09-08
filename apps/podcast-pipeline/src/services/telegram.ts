@@ -5,6 +5,7 @@ import { errorMessage } from '../lib/errorMessage.js';
 import { isRecord } from '../lib/typeGuards.js';
 import { capturePipelineException } from '../observability/sentry.js';
 import type { LanguageClassroomLanguageCode } from '../types.js';
+import { recordVideoCompletionDelivery } from './video-completion-delivery.js';
 
 export type TelegramChatId = number | string;
 
@@ -27,28 +28,82 @@ export interface TelegramCallbackQueryPayload {
   message?: TelegramMessagePayload;
 }
 
-interface TelegramInlineKeyboardMarkup {
+export interface TelegramInlineKeyboardMarkup {
   inline_keyboard: {
     text: string;
     callback_data: string;
   }[][];
 }
 
-interface TelegramSendMessageOptions {
+export interface TelegramSendMessageOptions {
   replyMarkup?: TelegramInlineKeyboardMarkup;
 }
 
 export const TELEGRAM_HELP_TEXT =
-  '貼一個 PANews 文章 URL，我會幫你產生新一集 podcast。\n目前只支援 panews.io / panewslab.com。';
+  '貼 PANews URL 產生 podcast。\n/retry <URL|episodeId> 重啟卡住步驟\n/status <episodeId> 查看三語音頻、visual、render 狀態。';
 export const TELEGRAM_NO_URL_TEXT = '請貼一個 http(s) 文章網址';
 export const TELEGRAM_INFLIGHT_TEXT = '這個 URL 已在處理中，完成後我會通知你。';
 export const TELEGRAM_START_TEXT = '收到，開始處理文章。';
 export const TELEGRAM_RETRY_CALLBACK_DATA = 'retry_ingest';
+export const TELEGRAM_RETRY_VIDEO_CALLBACK_PREFIX = 'retry_video:';
 export const TELEGRAM_RETRY_REPLY_MARKUP: TelegramInlineKeyboardMarkup = {
   inline_keyboard: [
     [{ text: '🔄 Retry', callback_data: TELEGRAM_RETRY_CALLBACK_DATA }],
   ],
 };
+
+export function buildTelegramVideoRetryReplyMarkup(
+  episodeId: string,
+): TelegramInlineKeyboardMarkup {
+  return {
+    inline_keyboard: [
+      [
+        {
+          text: '🔄 Retry video',
+          callback_data: `${TELEGRAM_RETRY_VIDEO_CALLBACK_PREFIX}${episodeId}`,
+        },
+      ],
+    ],
+  };
+}
+
+export type TelegramCallbackAction =
+  | { kind: 'retry-ingest' }
+  | { kind: 'retry-video'; episodeId: string };
+
+export function parseTelegramCallbackData(
+  data: unknown,
+): TelegramCallbackAction | null {
+  if (data === TELEGRAM_RETRY_CALLBACK_DATA) return { kind: 'retry-ingest' };
+  if (
+    typeof data !== 'string' ||
+    !data.startsWith(TELEGRAM_RETRY_VIDEO_CALLBACK_PREFIX)
+  ) {
+    return null;
+  }
+  const episodeId = data.slice(TELEGRAM_RETRY_VIDEO_CALLBACK_PREFIX.length);
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(
+    episodeId,
+  )
+    ? { kind: 'retry-video', episodeId }
+    : null;
+}
+
+export type TelegramCommand =
+  | { name: 'start' | 'help'; argument: null }
+  | { name: 'retry' | 'status'; argument: string | null }
+  | { name: 'unknown'; argument: null };
+
+export function parseTelegramCommand(text: string): TelegramCommand | null {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith('/')) return null;
+  const [rawCommand = '', ...rest] = trimmed.split(/\s+/u);
+  const name = rawCommand.slice(1).split('@', 1)[0]?.toLowerCase();
+  const argument = rest.join(' ').trim() || null;
+  if (name === 'start' || name === 'help') return { name, argument: null };
+  if (name === 'retry' || name === 'status') return { name, argument };
+  return { name: 'unknown', argument: null };
+}
 const DEFAULT_EPISODE_SHARE_BASE_URL = 'https://from-fed-to-chain-api.fly.dev';
 
 const VIDEO_LANGUAGE_LABELS: Record<LanguageClassroomLanguageCode, string> = {
@@ -97,16 +152,31 @@ export function buildTelegramVideoCompletedMessage(
 export function buildTelegramVideoFailedMessage(
   episodeId: string,
   lastError?: string | null,
+  languageCode: LanguageClassroomLanguageCode = 'zh-Hant',
 ): string {
+  // Renders fail per language, so the notice names which one and links to that
+  // language. Reporting every failure as zh-Hant sent operators to a healthy
+  // page and hid which lane actually broke.
+  //
   // episode_videos.last_error is already carried through the reap RPC, so the
   // notice can name the reason instead of sending the submitter back to the
   // service logs.
   const reason = lastError?.trim();
   return [
-    '⚠️ 影片失敗，但音頻仍可使用',
+    `⚠️ ${VIDEO_LANGUAGE_LABELS[languageCode]}影片失敗，但音頻仍可使用`,
     ...(reason ? [`原因：${publicTelegramErrorMessage(reason)}`] : []),
-    buildEpisodeShareUrl(episodeId),
+    buildEpisodeShareUrl(episodeId, languageCode),
   ].join('\n');
+}
+
+function buildTelegramWarning(
+  title: string,
+  detail: string,
+  footer: string,
+): string {
+  return [title, `原因：${publicTelegramErrorMessage(detail)}`, footer].join(
+    '\n',
+  );
 }
 
 /**
@@ -115,19 +185,19 @@ export function buildTelegramVideoFailedMessage(
  * the only signal that reaches a human.
  */
 export function buildTelegramRenderWakeFailedMessage(detail: string): string {
-  return [
+  return buildTelegramWarning(
     '⚠️ 影片算圖機器無法自動喚醒',
-    `原因：${publicTelegramErrorMessage(detail)}`,
+    detail,
     '音頻不受影響。影片工作留在佇列，喚醒恢復後會自動繼續。',
-  ].join('\n');
+  );
 }
 
 export function buildTelegramRenderFleetWarningMessage(detail: string): string {
-  return [
+  return buildTelegramWarning(
     '⚠️ 影片算圖機器數量異常',
-    `原因：${publicTelegramErrorMessage(detail)}`,
+    detail,
     '目前只會喚醒現行版本的機器；影片工作仍會繼續。',
-  ].join('\n');
+  );
 }
 
 /**
@@ -135,11 +205,11 @@ export function buildTelegramRenderFleetWarningMessage(detail: string): string {
  * the only signal that reaches a human when nobody is watching the terminal.
  */
 export function buildSocialReleaseFailedMessage(detail: string): string {
-  return [
+  return buildTelegramWarning(
     '⚠️ Social 發布程序中止',
-    `原因：${publicTelegramErrorMessage(detail)}`,
+    detail,
     'daemon 已停止，需要手動重啟；已發布的貼文不受影響。',
-  ].join('\n');
+  );
 }
 
 async function telegramApiError(
@@ -186,6 +256,8 @@ export async function sendMessage(
   if (!response.ok) {
     throw await telegramApiError('sendMessage', response);
   }
+
+  await recordVideoCompletionDelivery(text);
 }
 
 export function verifySecret(
@@ -303,22 +375,31 @@ export function getTelegramMessage(
   };
 }
 
+async function bestEffortTelegramCall(
+  operation: 'sendMessage' | 'answerCallbackQuery',
+  fn: () => Promise<void>,
+): Promise<void> {
+  try {
+    await fn();
+  } catch (error) {
+    console.error(`[/telegram/webhook] ${operation} failed:`, {
+      message: errorMessage(error),
+    });
+    capturePipelineException(error, {
+      component: 'telegram',
+      tags: { operation },
+    });
+  }
+}
+
 export async function sendTelegramNotification(
   chatId: TelegramChatId,
   text: string,
   options: TelegramSendMessageOptions = {},
 ): Promise<void> {
-  try {
-    await sendMessage(chatId, text, options);
-  } catch (error) {
-    console.error('[/telegram/webhook] sendMessage failed:', {
-      message: errorMessage(error),
-    });
-    capturePipelineException(error, {
-      component: 'telegram',
-      tags: { operation: 'sendMessage' },
-    });
-  }
+  await bestEffortTelegramCall('sendMessage', () =>
+    sendMessage(chatId, text, options),
+  );
 }
 
 export async function answerTelegramCallbackQuery(
@@ -326,7 +407,7 @@ export async function answerTelegramCallbackQuery(
   text: string,
 ): Promise<void> {
   const token = getTelegramBotToken();
-  try {
+  await bestEffortTelegramCall('answerCallbackQuery', async () => {
     const response = await fetch(
       `https://api.telegram.org/bot${token}/answerCallbackQuery`,
       {
@@ -343,15 +424,7 @@ export async function answerTelegramCallbackQuery(
     if (!response.ok) {
       throw await telegramApiError('answerCallbackQuery', response);
     }
-  } catch (error) {
-    console.error('[/telegram/webhook] answerCallbackQuery failed:', {
-      message: errorMessage(error),
-    });
-    capturePipelineException(error, {
-      component: 'telegram',
-      tags: { operation: 'answerCallbackQuery' },
-    });
-  }
+  });
 }
 
 function findUrlEnd(text: string, start: number): number {

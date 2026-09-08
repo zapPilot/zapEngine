@@ -41,7 +41,6 @@ const {
   mockInsertEpisode,
   mockInsertEpisodeLocalization,
   mockInvalidateEpisodeSearchCache,
-  mockListEpisodeFeedPaged,
   mockListPublishedEpisodeCatalog,
   mockListEpisodeVideoSummariesByLocalizationIds,
   mockListEpisodeLocalizationsByEpisodeId,
@@ -79,7 +78,6 @@ const {
   mockInsertEpisode: vi.fn(),
   mockInsertEpisodeLocalization: vi.fn(),
   mockInvalidateEpisodeSearchCache: vi.fn(),
-  mockListEpisodeFeedPaged: vi.fn(),
   mockListPublishedEpisodeCatalog: vi.fn(),
   mockListEpisodeVideoSummariesByLocalizationIds: vi
     .fn()
@@ -107,7 +105,9 @@ const {
   mockConvertArticleToZhTW: vi.fn(),
   mockSearchEpisodes: vi.fn(),
   mockTelegramFetch: vi.fn(),
-  mockListHydratedEpisodeFeedPage: vi.fn().mockResolvedValue(null),
+  mockListHydratedEpisodeFeedPage: vi
+    .fn()
+    .mockResolvedValue({ items: [], nextCursor: null }),
 }));
 
 vi.mock('@hono/node-server', () => ({
@@ -124,7 +124,6 @@ vi.mock('./services/db.js', async (importOriginal) => ({
   findEpisodeLocalizationByEpisodeId: mockFindEpisodeLocalizationByEpisodeId,
   insertEpisode: mockInsertEpisode,
   insertEpisodeLocalization: mockInsertEpisodeLocalization,
-  listEpisodeFeedPaged: mockListEpisodeFeedPaged,
   listPublishedEpisodeCatalog: mockListPublishedEpisodeCatalog,
   listEpisodeVideoSummariesByLocalizationIds:
     mockListEpisodeVideoSummariesByLocalizationIds,
@@ -1429,7 +1428,7 @@ describe('POST /telegram/webhook', () => {
     expect(response.status).toBe(200);
     await vi.waitFor(() => expect(mockTelegramFetch).toHaveBeenCalledTimes(1));
     expect(telegramMessageTexts()).toEqual([
-      expect.stringContaining('貼一個 PANews 文章 URL'),
+      expect.stringContaining('貼 PANews URL 產生 podcast'),
     ]);
     expect(mockFindEpisodeBySourceUrl).not.toHaveBeenCalled();
   });
@@ -1446,7 +1445,7 @@ describe('POST /telegram/webhook', () => {
         expect(mockTelegramFetch).toHaveBeenCalledTimes(1),
       );
       expect(telegramMessageTexts()).toEqual([
-        expect.stringContaining('貼一個 PANews 文章 URL'),
+        expect.stringContaining('貼 PANews URL 產生 podcast'),
       ]);
       expect(mockFindEpisodeBySourceUrl).not.toHaveBeenCalled();
     },
@@ -1467,7 +1466,7 @@ describe('POST /telegram/webhook', () => {
     expect(response.status).toBe(200);
     await vi.waitFor(() => expect(mockTelegramFetch).toHaveBeenCalledTimes(1));
     expect(telegramMessageTexts()).toEqual([
-      expect.stringContaining('貼一個 PANews 文章 URL'),
+      expect.stringContaining('貼 PANews URL 產生 podcast'),
     ]);
   });
 
@@ -1859,182 +1858,55 @@ describe('GET /episodes', () => {
       t: '2024-01-01T00:00:00.000Z',
       i: raw,
     }));
-    mockListEpisodeFeedPaged.mockResolvedValue({ rows: [], nextCursor: null });
+    mockListHydratedEpisodeFeedPage.mockResolvedValue({
+      items: [],
+      nextCursor: null,
+    });
   });
 
-  it('returns a paginated feed response for zh-Hant', async () => {
-    const row = feedRow();
-    mockListEpisodeFeedPaged.mockResolvedValue({
-      rows: [row],
+  it('returns exactly what the loader returns, called with an explicit limit', async () => {
+    const hydratedPage = {
+      items: [episodeFeedResponse(feedRow())],
       nextCursor: 'next-cursor',
-    });
+    };
+    mockListHydratedEpisodeFeedPage.mockResolvedValue(hydratedPage);
 
     const response = await app.request('/episodes?limit=5');
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(mockListEpisodeFeedPaged).toHaveBeenCalledWith(5, null, 'zh-Hant');
-    expect(body).toEqual({
-      items: [episodeFeedResponse(row)],
-      nextCursor: 'next-cursor',
-    });
+    expect(mockListHydratedEpisodeFeedPage).toHaveBeenCalledWith(
+      5,
+      null,
+      'zh-Hant',
+    );
+    expect(body).toEqual(hydratedPage);
   });
 
-  it('omits script and language classrooms from the feed payload', async () => {
-    const row = feedRow();
-    mockListEpisodeFeedPaged.mockResolvedValue({
-      rows: [row],
+  it('defaults to limit 20 for zh-Hant and echoes the loader result', async () => {
+    const hydratedPage = {
+      items: [episodeFeedResponse(feedRow())],
       nextCursor: null,
-    });
+    };
+    mockListHydratedEpisodeFeedPage.mockResolvedValue(hydratedPage);
 
     const response = await app.request('/episodes');
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(mockListEpisodeFeedPaged).toHaveBeenCalledWith(20, null, 'zh-Hant');
-    expect(body.items[0]).not.toHaveProperty('script');
-    expect(body.items[0]).not.toHaveProperty('languageClassrooms');
-    expect(body.items[0].audioTracks[0].classroomHlsUrl).toBe(
-      row.classroom_hls_url,
+    expect(mockListHydratedEpisodeFeedPage).toHaveBeenCalledWith(
+      20,
+      null,
+      'zh-Hant',
     );
-  });
-
-  it('hydrates feed video fields with one batch query', async () => {
-    const row = feedRow();
-    const video = {
-      url: 'https://cdn.example.com/video.mp4',
-      thumbnailUrl: 'https://cdn.example.com/thumbnail.png',
-      durationSeconds: 90,
-    };
-    const videoGeneration = {
-      status: 'completed' as const,
-      updatedAt: '2026-07-24T00:00:00.000Z',
-    };
-    mockListEpisodeFeedPaged.mockResolvedValue({
-      rows: [row],
-      nextCursor: null,
-    });
-    mockListEpisodeVideoSummariesByLocalizationIds.mockResolvedValue(
-      new Map([
-        [
-          row.localization_id,
-          {
-            video,
-            videoGeneration,
-          },
-        ],
-      ]),
-    );
-
-    const response = await app.request('/episodes');
-    const body = await response.json();
-
-    expect(mockListEpisodeVideoSummariesByLocalizationIds).toHaveBeenCalledWith(
-      [row.localization_id],
-    );
-    expect(body.items[0].video).toEqual(video);
-    expect(body.items[0].videoGeneration).toEqual(videoGeneration);
-  });
-
-  it('serves the public progress fields without leaking failure details', async () => {
-    const row = listRow();
-    mockFindEpisodeListRowByLocalizationId.mockResolvedValue(row);
-    mockListEpisodeVideoSummariesByLocalizationIds.mockResolvedValue(
-      new Map([
-        [
-          row.localization_id,
-          {
-            video: null,
-            videoGeneration: {
-              status: 'queued' as const,
-              updatedAt: '2026-07-24T02:30:00.000Z',
-              progressPercent: 22,
-              stage: 'selecting-images' as const,
-            },
-          },
-        ],
-      ]),
-    );
-
-    const response = await app.request(`/episodes/${row.localization_id}`);
-    const body = await response.json();
-
-    expect(body.videoGeneration).toEqual({
-      status: 'queued',
-      updatedAt: '2026-07-24T02:30:00.000Z',
-      progressPercent: 22,
-      stage: 'selecting-images',
-    });
-    expect(JSON.stringify(body)).not.toContain('lastError');
-  });
-
-  it('returns a processing generation status while the video is unavailable', async () => {
-    const row = feedRow();
-    const videoGeneration = {
-      status: 'processing' as const,
-      updatedAt: '2026-07-24T00:00:00.000Z',
-    };
-    mockListEpisodeFeedPaged.mockResolvedValue({
-      rows: [row],
-      nextCursor: null,
-    });
-    mockListEpisodeVideoSummariesByLocalizationIds.mockResolvedValue(
-      new Map([
-        [
-          row.localization_id,
-          {
-            video: null,
-            videoGeneration,
-          },
-        ],
-      ]),
-    );
-
-    const response = await app.request('/episodes');
-    const body = await response.json();
-
-    expect(body.items[0]).toMatchObject({
-      video: null,
-      videoGeneration,
-    });
-  });
-
-  it('redacts internal video failure details from the public feed', async () => {
-    const row = feedRow();
-    mockListEpisodeFeedPaged.mockResolvedValue({
-      rows: [row],
-      nextCursor: null,
-    });
-    mockListEpisodeVideoSummariesByLocalizationIds.mockResolvedValue(
-      new Map([
-        [
-          row.localization_id,
-          {
-            video: null,
-            videoGeneration: {
-              status: 'failed',
-              updatedAt: '2026-07-24T00:00:00.000Z',
-            },
-          },
-        ],
-      ]),
-    );
-
-    const response = await app.request('/episodes');
-    const body = await response.json();
-
-    expect(body.items[0].videoGeneration).toEqual({
-      status: 'failed',
-      updatedAt: '2026-07-24T00:00:00.000Z',
-    });
-    expect(JSON.stringify(body)).not.toContain('lastError');
+    expect(body).toEqual(hydratedPage);
   });
 
   it('returns 400 for an invalid limit', async () => {
     const response = await app.request('/episodes?limit=abc');
 
     expect(response.status).toBe(400);
-    expect(mockListEpisodeFeedPaged).not.toHaveBeenCalled();
+    expect(mockListHydratedEpisodeFeedPage).not.toHaveBeenCalled();
   });
 
   it('returns 400 for an invalid cursor', async () => {
@@ -2045,14 +1917,14 @@ describe('GET /episodes', () => {
     const response = await app.request('/episodes?cursor=garbage');
 
     expect(response.status).toBe(400);
-    expect(mockListEpisodeFeedPaged).not.toHaveBeenCalled();
+    expect(mockListHydratedEpisodeFeedPage).not.toHaveBeenCalled();
   });
 
   it('returns 400 for unsupported language codes', async () => {
     const response = await app.request('/episodes?language=fr');
 
     expect(response.status).toBe(400);
-    expect(mockListEpisodeFeedPaged).not.toHaveBeenCalled();
+    expect(mockListHydratedEpisodeFeedPage).not.toHaveBeenCalled();
   });
 });
 
@@ -2428,7 +2300,7 @@ describe('app error handling', () => {
   it('returns a production 500 body for non-HTTP errors', async () => {
     vi.stubEnv('NODE_ENV', 'production');
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    mockListEpisodeFeedPaged.mockRejectedValue(
+    mockListHydratedEpisodeFeedPage.mockRejectedValue(
       new Error('database unavailable'),
     );
 
@@ -2442,7 +2314,7 @@ describe('app error handling', () => {
   it('includes Error causes in development error responses', async () => {
     vi.stubEnv('NODE_ENV', 'development');
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    mockListEpisodeFeedPaged.mockRejectedValue(
+    mockListHydratedEpisodeFeedPage.mockRejectedValue(
       new Error('outer failure', { cause: new Error('inner failure') }),
     );
 

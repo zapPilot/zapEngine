@@ -8,13 +8,11 @@ import {
   useRef,
 } from 'react';
 
-import { createAuthenticatedActionModel } from '@/integration/authenticatedActionModel';
+import {
+  type AuthenticatedActionContextValue,
+  createAuthenticatedActionModel,
+} from '@/integration/authenticatedActionModel';
 import { useAccount } from '@/integration/useAccount';
-
-interface AuthenticatedActionContextValue {
-  run(action: () => void): void;
-  cancel(): void;
-}
 
 const AuthenticatedActionContext =
   createContext<AuthenticatedActionContextValue | null>(null);

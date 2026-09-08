@@ -30,7 +30,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 describe('buildBraveImagesSearchUrl', () => {
-  it('builds a strict SafeSearch query with the requested page size', () => {
+  it('builds a strict SafeSearch query with spellcheck disabled', () => {
     const url = new URL(
       buildBraveImagesSearchUrl('  coldcard hardware wallet  ', { count: 35 }),
     );
@@ -42,6 +42,14 @@ describe('buildBraveImagesSearchUrl', () => {
     expect(url.searchParams.get('count')).toBe('35');
     expect(url.searchParams.get('safesearch')).toBe('strict');
     expect(url.searchParams.get('search_lang')).toBe('en');
+    expect(url.searchParams.get('spellcheck')).toBe('false');
+  });
+
+  it('preserves unfamiliar proper nouns instead of allowing provider correction', () => {
+    const url = new URL(buildBraveImagesSearchUrl('Blonskr'));
+
+    expect(url.searchParams.get('q')).toBe('Blonskr');
+    expect(url.searchParams.get('spellcheck')).toBe('false');
   });
 
   it('rejects empty queries and out-of-range counts', () => {

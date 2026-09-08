@@ -2,15 +2,17 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { combineAbortSignalWithTimeout } from '../lib/abort.js';
+import { runWithDeadline } from '../lib/deadline.js';
 import type { EpisodeRenderMetrics } from './ops-ledger.js';
 import { uploadVideoArtifactsToR2 } from './storage.js';
-import { combineAbortSignalWithTimeout } from './video/abort.js';
 import { downloadNarrationAudio } from './video/audio-analysis.js';
 import {
   analyzeEpisodeAudio,
   createEpisodeVideoManifest,
 } from './video/episode-video.js';
 import { parseEpisodeVisualPayload } from './video/episode-visual.js';
+import { logVideoWorkerEvent } from './video/log.js';
 import {
   type RenderProgressEvent,
   renderSlideVideo,
@@ -98,20 +100,19 @@ export function createEpisodeVideoProcessor(
     try {
       context.reportProgress(renderStageProgress('analyzing-audio', 0));
       const narrationDownloadStartedAt = Date.now();
-      const downloadDeadline = combineAbortSignalWithTimeout(
-        context.signal,
-        NARRATION_DOWNLOAD_TIMEOUT_MS,
-        'Narration download exceeded 5m',
-      );
       let narrationDownloadMs: number;
       try {
-        downloadDeadline.signal.throwIfAborted();
-        await dependencies.downloadNarration(source.hlsUrl, narrationPath, {
-          signal: downloadDeadline.signal,
-        });
+        await runWithDeadline(
+          (signal) =>
+            dependencies.downloadNarration(source.hlsUrl, narrationPath, {
+              signal,
+            }),
+          context.signal,
+          NARRATION_DOWNLOAD_TIMEOUT_MS,
+          'Narration download',
+        );
       } finally {
         narrationDownloadMs = Date.now() - narrationDownloadStartedAt;
-        downloadDeadline.dispose();
       }
 
       const analysis = await dependencies.analyzeAudio(narrationPath, {
@@ -119,7 +120,7 @@ export function createEpisodeVideoProcessor(
       });
       context.reportProgress(renderStageProgress('analyzing-audio'));
       const alignmentStartedAt = Date.now();
-      logLocaleVideoEvent(dependencies.logger, 'video:alignment', {
+      logVideoWorkerEvent(dependencies.logger, 'video:alignment', {
         run: context.runId,
         episode: source.episodeId,
         language: source.languageCode,
@@ -140,7 +141,7 @@ export function createEpisodeVideoProcessor(
         silences: analysis.silences,
         signal: context.signal,
       });
-      logLocaleVideoEvent(dependencies.logger, 'video:alignment', {
+      logVideoWorkerEvent(dependencies.logger, 'video:alignment', {
         run: context.runId,
         episode: source.episodeId,
         language: source.languageCode,
@@ -301,7 +302,7 @@ function logRenderProgress(
   languageCode: string,
   event: RenderProgressEvent,
 ): void {
-  logLocaleVideoEvent(logger, 'video:render', {
+  logVideoWorkerEvent(logger, 'video:render', {
     run: runId,
     episode: episodeId,
     language: languageCode,
@@ -314,17 +315,6 @@ function logRenderProgress(
       ? {}
       : { percent: Math.round(event.encodeFraction * 100) }),
   });
-}
-
-function logLocaleVideoEvent(
-  logger: Pick<Console, 'info'>,
-  event: string,
-  fields: Record<string, string | number | undefined>,
-): void {
-  const details = Object.entries(fields)
-    .flatMap(([key, value]) => (value === undefined ? [] : [`${key}=${value}`]))
-    .join(' ');
-  logger.info(`[video-worker] ${event} ${details}`);
 }
 
 async function readCgroupCurrentBytes(): Promise<number | null> {
@@ -410,7 +400,7 @@ function logRenderMetrics(
   metrics: EpisodeRenderMetrics,
 ): void {
   const { realtimeFactor, ...reported } = metrics;
-  logLocaleVideoEvent(logger, 'video:render-metrics', {
+  logVideoWorkerEvent(logger, 'video:render-metrics', {
     ...identity,
     ...reported,
     realtime: realtimeFactor.toFixed(3),

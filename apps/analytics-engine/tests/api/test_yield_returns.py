@@ -8,6 +8,7 @@ import pytest
 
 from src.main import app
 from src.models.yield_returns import (
+    DailyWalletReturn,
     DailyYieldReturn,
     PeriodInfo,
     TokenYieldBreakdown,
@@ -53,6 +54,28 @@ def _sample_response(user_id: str) -> YieldReturnsResponse:
                         yield_return_usd=10.0,
                     )
                 ],
+            ),
+            DailyYieldReturn(
+                date="2024-01-02",
+                protocol_name="Maker",
+                chain="ethereum",
+                position_type="Lending",
+                yield_return_usd=5_000.0,
+                outlier=True,
+            ),
+        ],
+        wallet_returns=[
+            DailyWalletReturn(
+                date="2024-01-02",
+                tokens=[
+                    TokenYieldBreakdown(
+                        symbol="ETH",
+                        amount_change=0.0,
+                        current_price=3_100.0,
+                        yield_return_usd=0.0,
+                        market_return_usd=200.0,
+                    )
+                ],
             )
         ],
         summary=YieldReturnSummary(
@@ -82,6 +105,8 @@ async def test_daily_yield_returns_endpoint_returns_payload(client):
     assert data["user_id"] == user_id
     assert data["summary"]["total_yield_return_usd"] == 12.5
     assert service.calls[0]["days"] == 10
+    assert [entry["outlier"] for entry in data["daily_returns"]] == [False, True]
+    assert data["wallet_returns"][0]["tokens"][0]["market_return_usd"] == 200.0
 
 
 @pytest.mark.asyncio
