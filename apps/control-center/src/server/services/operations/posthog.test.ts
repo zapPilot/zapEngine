@@ -12,6 +12,20 @@ const CONFIG = readControlCenterConfig({
 });
 
 const QUERY_URL = 'https://us.i.posthog.com/api/projects/4242/query/';
+const ROW = [318, 1204, 90, 300, 4, 12, 20, 55, 8, 21, 6];
+const EVIDENCE = {
+  uniqueUsers7d: 318,
+  uniqueUsers30d: 1204,
+  landingVisitors7d: 90,
+  landingVisitors30d: 300,
+  ctaUsers7d: 4,
+  ctaUsers30d: 12,
+  appVisitors7d: 20,
+  appVisitors30d: 55,
+  walletConnectedUsers7d: 8,
+  walletConnectedUsers30d: 21,
+  landingDeadClickUsers7d: 6,
+};
 
 function collect(fetchImpl: typeof fetch) {
   return collectPosthogSignals({ config: CONFIG, now: NOW, fetchImpl });
@@ -30,8 +44,8 @@ describe('collectPosthogSignals', () => {
     }),
   );
 
-  it('reports one healthy audience signal from the HogQL row', async () => {
-    const fetchImpl = fetchReturning({ results: [[318, 1204]] });
+  it('reports one healthy audience signal with product acquisition evidence', async () => {
+    const fetchImpl = fetchReturning({ results: [ROW] });
 
     const signals = await collect(fetchImpl);
 
@@ -42,16 +56,18 @@ describe('collectPosthogSignals', () => {
       Authorization: 'Bearer phx-key',
       'Content-Type': 'application/json',
     });
-    expect(JSON.parse(String(init?.body))).toMatchObject({
-      query: { kind: 'HogQLQuery' },
-    });
+    const body = JSON.parse(String(init?.body));
+    expect(body).toMatchObject({ query: { kind: 'HogQLQuery' } });
+    expect(body.query.query).toContain("event = 'cta_clicked'");
+    expect(body.query.query).toContain("properties.surface = 'landing'");
+    expect(body.query.query).toContain("event = 'wallet_connected'");
     expect(signals).toEqual([
       expect.objectContaining({
         fingerprint: 'posthog:audience/project',
         source: 'posthog',
         domain: 'analytics',
         status: 'healthy',
-        evidence: { uniqueUsers7d: 318, uniqueUsers30d: 1204 },
+        evidence: EVIDENCE,
         observedAt: NOW.toISOString(),
         url: 'https://us.posthog.com/project/4242',
       }),
@@ -60,13 +76,10 @@ describe('collectPosthogSignals', () => {
 
   it('coerces HogQL numerics that arrive as strings', async () => {
     const signals = await collect(
-      fetchReturning({ results: [['318', '1204']] }),
+      fetchReturning({ results: [ROW.map((value) => String(value))] }),
     );
 
-    expect(signals[0]?.evidence).toEqual({
-      uniqueUsers7d: 318,
-      uniqueUsers30d: 1204,
-    });
+    expect(signals[0]?.evidence).toEqual(EVIDENCE);
   });
 
   it.each([
