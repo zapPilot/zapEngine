@@ -1,5 +1,6 @@
 export * from './async.js';
 export * from './env.js';
+export * from './errors.js';
 export * from './market-freshness.js';
 export * from './number.js';
 export * from './podcast.js';

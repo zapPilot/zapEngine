@@ -1,3 +1,99 @@
+/**
+ * The three languages every canonical podcast episode is produced in. Order
+ * is source-language-first (`zh-Hant`), matching how the pipeline localizes:
+ * script -> translation targets.
+ */
+export const PODCAST_LANGUAGE_CODES = ['zh-Hant', 'ja', 'en'] as const;
+
+export type PodcastLanguageCode = (typeof PODCAST_LANGUAGE_CODES)[number];
+
+export const DEFAULT_PODCAST_LANGUAGE_CODE: PodcastLanguageCode = 'zh-Hant';
+
+export function isPodcastLanguageCode(
+  value: string,
+): value is PodcastLanguageCode {
+  return (PODCAST_LANGUAGE_CODES as readonly string[]).includes(value);
+}
+
+export interface PodcastLanguageLabel {
+  /** English name of the language, used in LLM prompts (e.g. translation instructions). */
+  english: string;
+  /** Name of the language written in itself. */
+  native: string;
+  /** Compact badge for a language chip/pill. */
+  badge: string;
+  /** BCP-47 locale for `Intl` formatters. */
+  intlLocale: string;
+}
+
+export const PODCAST_LANGUAGE_LABELS: Record<
+  PodcastLanguageCode,
+  PodcastLanguageLabel
+> = {
+  'zh-Hant': {
+    english: 'Traditional Chinese',
+    native: '繁體中文',
+    badge: '中',
+    intlLocale: 'zh-TW',
+  },
+  ja: {
+    english: 'Japanese',
+    native: '日本語',
+    badge: '日',
+    intlLocale: 'ja-JP',
+  },
+  en: {
+    english: 'English',
+    native: 'English',
+    badge: 'EN',
+    intlLocale: 'en-US',
+  },
+};
+
+/** Stages the shared episode-wide visual job can report. */
+export const PODCAST_VIDEO_VISUAL_STAGES = [
+  'analyzing-audio',
+  'planning-scenes',
+  'selecting-images',
+  'uploading-visuals',
+] as const;
+
+export type PodcastVideoVisualStage =
+  (typeof PODCAST_VIDEO_VISUAL_STAGES)[number];
+
+/** Stages a single per-language render job can report. */
+export const PODCAST_VIDEO_RENDER_STAGES = [
+  'analyzing-audio',
+  'aligning-script',
+  'preparing-media',
+  'encoding',
+  'uploading-video',
+] as const;
+
+export type PodcastVideoRenderStage =
+  (typeof PODCAST_VIDEO_RENDER_STAGES)[number];
+
+/**
+ * The full stage vocabulary a client can see across both jobs, in the order a
+ * localization moves through them. `waiting-for-renderer` is derived by
+ * readers (the gap between a completed visual checkpoint and a render job
+ * picking the work up) and is never itself stored on either job.
+ */
+export const PODCAST_VIDEO_PROGRESS_STAGES = [
+  'analyzing-audio',
+  'planning-scenes',
+  'selecting-images',
+  'uploading-visuals',
+  'waiting-for-renderer',
+  'aligning-script',
+  'preparing-media',
+  'encoding',
+  'uploading-video',
+] as const;
+
+export type PodcastVideoProgressStage =
+  (typeof PODCAST_VIDEO_PROGRESS_STAGES)[number];
+
 // This is the queue compatibility fence for the whole video pipeline, not only
 // image selection. Bump it when a completed render must be regenerated under a
 // new output contract (v4: 720x1280 at 24fps; v5: LLM-written search intents
