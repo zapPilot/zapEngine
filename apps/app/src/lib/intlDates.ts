@@ -1,12 +1,14 @@
+import { PODCAST_LANGUAGE_LABELS } from '@zapengine/types/shared';
+
 import type { ContentLanguageCode } from '@/config/contentLanguages';
 
 /** BCP-47 locale for each content language, shared by every `Intl.DateTimeFormat` caller. */
 export const CONTENT_LANGUAGE_LOCALES: Readonly<
   Record<ContentLanguageCode, string>
 > = {
-  en: 'en-US',
-  'zh-Hant': 'zh-TW',
-  ja: 'ja-JP',
+  en: PODCAST_LANGUAGE_LABELS.en.intlLocale,
+  'zh-Hant': PODCAST_LANGUAGE_LABELS['zh-Hant'].intlLocale,
+  ja: PODCAST_LANGUAGE_LABELS.ja.intlLocale,
 };
 
 /**

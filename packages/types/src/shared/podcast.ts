@@ -50,6 +50,29 @@ export const PODCAST_LANGUAGE_LABELS: Record<
   },
 };
 
+/**
+ * One vocabulary term taught by a language-classroom lesson. This is the
+ * plain data shape only — the pipeline's authoring-time parser (which
+ * enforces `requireKeywords`/`maxKeywords` and a `sourceLanguageCode` guard
+ * while generating a lesson) and the app's defensive `unknown` feed parser
+ * both stay local, since what they do with an untrusted/generated payload is
+ * consumer-specific.
+ */
+export interface PodcastLanguageClassroomKeyword {
+  term: string;
+  reading: string | null;
+  meaning: string;
+  note: string | null;
+}
+
+/** One language-classroom lesson: a source-language one-liner plus its target-language keywords. */
+export interface PodcastLanguageClassroomLesson {
+  sourceLanguageCode: string;
+  targetLanguageCode: string;
+  oneLiner: string;
+  keywords: PodcastLanguageClassroomKeyword[];
+}
+
 /** Stages the shared episode-wide visual job can report. */
 export const PODCAST_VIDEO_VISUAL_STAGES = [
   'analyzing-audio',

@@ -10,6 +10,8 @@ import {
   PODCAST_VIDEO_REVIEW_STATUSES,
   PODCAST_VIDEO_REVIEW_VERDICTS,
   PODCAST_VIDEO_VISUAL_STAGES,
+  type PodcastLanguageClassroomKeyword,
+  type PodcastLanguageClassroomLesson,
 } from '../../../src/shared/podcast.js';
 
 const KEBAB_CASE = /^[a-z]+(?:-[a-z]+)*$/;
@@ -98,5 +100,31 @@ describe('podcast shared contracts', () => {
   it('keeps the catch-all issue category so operators can always file a review', () => {
     expect(PODCAST_VIDEO_REVIEW_ISSUES).toContain('other');
     expect(PODCAST_VIDEO_REVIEW_ISSUES).toContain('abstract-no-image');
+  });
+});
+
+describe('podcast language classroom lesson shape', () => {
+  it('carries a source one-liner plus target-language keywords, nullable fields included', () => {
+    const keyword: PodcastLanguageClassroomKeyword = {
+      term: '通貨膨脹',
+      reading: null,
+      meaning: 'inflation',
+      note: null,
+    };
+    const lesson: PodcastLanguageClassroomLesson = {
+      sourceLanguageCode: 'zh-Hant',
+      targetLanguageCode: 'ja',
+      oneLiner: '中央銀行がインフレと戦う。',
+      keywords: [keyword],
+    };
+
+    expect(lesson).toEqual({
+      sourceLanguageCode: 'zh-Hant',
+      targetLanguageCode: 'ja',
+      oneLiner: '中央銀行がインフレと戦う。',
+      keywords: [
+        { term: '通貨膨脹', reading: null, meaning: 'inflation', note: null },
+      ],
+    });
   });
 });

@@ -2,6 +2,8 @@
  * Podcast/content language options, ported from the retired Flutter mobile
  * app (`apps/mobile/lib/config/language_codes.dart`).
  */
+import { PODCAST_LANGUAGE_LABELS } from '@zapengine/types/shared';
+
 export interface ContentLanguageOption {
   /** BCP-47 style code sent to the podcast API (`/episodes?language=`). */
   code: string;
@@ -11,10 +13,28 @@ export interface ContentLanguageOption {
   nativeName: string;
 }
 
+/**
+ * Same three canonical languages and badge/native labels as
+ * `@zapengine/types/shared`'s `PODCAST_LANGUAGE_LABELS`, reordered for this
+ * app's own display order (English first) rather than the pipeline's
+ * source-language-first order.
+ */
 export const CONTENT_LANGUAGE_OPTIONS = [
-  { code: 'en', badge: 'EN', nativeName: 'English' },
-  { code: 'zh-Hant', badge: '中', nativeName: '繁體中文' },
-  { code: 'ja', badge: '日', nativeName: '日本語' },
+  {
+    code: 'en',
+    badge: PODCAST_LANGUAGE_LABELS.en.badge,
+    nativeName: PODCAST_LANGUAGE_LABELS.en.native,
+  },
+  {
+    code: 'zh-Hant',
+    badge: PODCAST_LANGUAGE_LABELS['zh-Hant'].badge,
+    nativeName: PODCAST_LANGUAGE_LABELS['zh-Hant'].native,
+  },
+  {
+    code: 'ja',
+    badge: PODCAST_LANGUAGE_LABELS.ja.badge,
+    nativeName: PODCAST_LANGUAGE_LABELS.ja.native,
+  },
 ] as const satisfies readonly ContentLanguageOption[];
 
 export type ContentLanguageCode =

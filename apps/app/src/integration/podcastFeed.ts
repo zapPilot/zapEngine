@@ -7,6 +7,12 @@ import { useQuery } from '@tanstack/react-query';
 import { getRuntimeEnv } from '@zapengine/app-core/lib/env/runtimeEnv';
 import { createQueryConfig } from '@zapengine/app-core/hooks/queries/queryDefaults';
 import { queryKeys } from '@zapengine/app-core/lib/state/queryClient';
+import {
+  PODCAST_VIDEO_PROGRESS_STAGES,
+  type PodcastLanguageClassroomKeyword,
+  type PodcastLanguageClassroomLesson,
+  type PodcastVideoProgressStage,
+} from '@zapengine/types/shared';
 
 import {
   CONTENT_LANGUAGE_OPTIONS,
@@ -14,6 +20,8 @@ import {
   type ContentLanguageCode,
 } from '@/config/contentLanguages';
 import { useContentLanguage } from '@/providers/ContentLanguageProvider';
+
+export type { PodcastLanguageClassroomKeyword, PodcastLanguageClassroomLesson };
 
 export interface PodcastClassroomTrack {
   languageCode: string;
@@ -27,20 +35,6 @@ export interface PodcastAudioTrack {
   classroomHlsUrl: string | null;
   /** Per-language classroom tracks. Empty for episodes still on the combined-only track. */
   classrooms: PodcastClassroomTrack[];
-}
-
-export interface PodcastLanguageClassroomKeyword {
-  term: string;
-  reading: string | null;
-  meaning: string;
-  note: string | null;
-}
-
-export interface PodcastLanguageClassroomLesson {
-  sourceLanguageCode: string;
-  targetLanguageCode: string;
-  oneLiner: string;
-  keywords: PodcastLanguageClassroomKeyword[];
 }
 
 export interface PodcastEpisodeVideo {
@@ -64,20 +58,9 @@ export type PodcastVideoGenerationStatus =
  * during which this localization's own render row is still `queued` — which is
  * why the UI keys off this field rather than off `status`.
  */
-export const PODCAST_VIDEO_GENERATION_STAGES = [
-  'analyzing-audio',
-  'planning-scenes',
-  'selecting-images',
-  'uploading-visuals',
-  'waiting-for-renderer',
-  'aligning-script',
-  'preparing-media',
-  'encoding',
-  'uploading-video',
-] as const;
+export const PODCAST_VIDEO_GENERATION_STAGES = PODCAST_VIDEO_PROGRESS_STAGES;
 
-export type PodcastVideoGenerationStage =
-  (typeof PODCAST_VIDEO_GENERATION_STAGES)[number];
+export type PodcastVideoGenerationStage = PodcastVideoProgressStage;
 
 export interface PodcastEpisodeVideoGeneration {
   status: PodcastVideoGenerationStatus;
