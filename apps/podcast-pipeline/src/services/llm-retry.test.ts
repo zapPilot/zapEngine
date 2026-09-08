@@ -290,6 +290,73 @@ describe('generateScriptWithLLM request policy', () => {
     }
   });
 
+  it('keeps the script deadline terminal with a non-empty fallback list', async () => {
+    vi.useFakeTimers();
+    vi.stubEnv(
+      'LLM_FALLBACK_MODELS',
+      'fallback/one,fallback/two,fallback/three',
+    );
+    const requestModels: unknown[] = [];
+    const mockCreate = vi.fn(
+      (
+        request: unknown,
+        options?: { signal?: AbortSignal },
+      ): Promise<unknown> => {
+        const signal = options?.signal;
+        if (!signal) throw new Error('Expected an OpenRouter request signal');
+        requestModels.push((request as { model?: unknown } | undefined)?.model);
+        return timeoutUntilAborted(signal);
+      },
+    );
+    mockOpenAIClient(mockCreate);
+
+    const resultPromise = generateScriptWithLLM('Title', 'Article');
+    const rejection = expect(resultPromise).rejects.toThrow(
+      'OpenRouter request timed out after 600000ms',
+    );
+    await vi.advanceTimersByTimeAsync(SCRIPT_TIMEOUT_MS);
+    await rejection;
+
+    // Without the opt-out the shared chain would spend another ten minutes per
+    // remaining candidate (four 600s requests here).
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    expect(requestModels).toEqual(['test/model']);
+    expect(ingestMocks.logIngestEvent).not.toHaveBeenCalledWith(
+      'llm:model-fallback',
+      expect.anything(),
+    );
+    expect(ingestMocks.logIngestEvent).not.toHaveBeenCalledWith(
+      'llm:fallback',
+      expect.anything(),
+    );
+  });
+
+  it('keeps an SDK request timeout terminal with a non-empty fallback list', async () => {
+    vi.stubEnv(
+      'LLM_FALLBACK_MODELS',
+      'fallback/one,fallback/two,fallback/three',
+    );
+    const requestTimeout = new APIConnectionTimeoutError({
+      message: 'Request timed out.',
+    });
+    const mockCreate = vi.fn().mockRejectedValue(requestTimeout);
+    mockOpenAIClient(mockCreate);
+
+    await expect(generateScriptWithLLM('Title', 'Article')).rejects.toBe(
+      requestTimeout,
+    );
+
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    expect(ingestMocks.logIngestEvent).not.toHaveBeenCalledWith(
+      'llm:model-fallback',
+      expect.anything(),
+    );
+    expect(ingestMocks.logIngestEvent).not.toHaveBeenCalledWith(
+      'llm:fallback',
+      expect.anything(),
+    );
+  });
+
   it('re-routes a gateway failure exactly once', async () => {
     const mockCreate = vi
       .fn()
