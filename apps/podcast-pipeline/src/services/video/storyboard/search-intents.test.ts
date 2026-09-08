@@ -605,44 +605,51 @@ describe('visual subject catalog grounding', () => {
 
   it('drops catalog queries whose numeric claim is not grounded in the scene', async () => {
     const request = catalogEnrichmentRequest('Coinbase');
-    const provider = stubCatalogProvider(
+    const provider = stubCatalogProvider([
       catalogSubject({
         id: 'subject-coinbase',
         canonicalName: 'Coinbase',
         searchQueries: ['Coinbase 2024 annual report', 'Coinbase headquarters'],
         identityHints: ['crypto exchange'],
       }),
-    );
+    ]);
 
     const result = await enrichStoryboardSearchIntents(request, { provider });
 
-    // 2024 never appears in the scene sentences, so the query containing it
-    // must not reach the storyboard validation as an imageSearchIntent.
+    // Catalog searchQueries are deliberately not numeric-grounded. Numbers
+    // inside proper names are identity, so the 2024 query must reach image
+    // search verbatim.
     for (const scene of result.draft.scenes) {
-      expect(scene.imageSearchIntent.join(' ')).not.toMatch(/2024/u);
+      expect(scene.imageSearchIntent.join(' ')).toMatch(/2024/u);
     }
     expect(result.draft.scenes[0]?.imageSearchIntent).toContain(
       'Coinbase headquarters',
+    );
+    expect(result.draft.scenes[0]?.imageSearchIntent).toContain(
+      'Coinbase 2024 annual report',
     );
   });
 
   it('falls back to the canonical name when every catalog query is ungrounded', async () => {
     const request = catalogEnrichmentRequest('Coinbase');
-    const provider = stubCatalogProvider(
+    const provider = stubCatalogProvider([
       catalogSubject({
         id: 'subject-coinbase',
         canonicalName: 'Coinbase',
         searchQueries: ['Coinbase 2024 annual report'],
         identityHints: ['crypto exchange'],
       }),
-    );
+    ]);
 
     const result = await enrichStoryboardSearchIntents(request, { provider });
 
-    // buildVisualSubjectSearchQueries always appends the bare canonical name,
-    // so filtering the ungrounded 2024 query still leaves a grounded fallback.
+    // Catalog queries are passed verbatim, so an ungrounded year is preserved
+    // and the canonical name is still appended as an additional query.
     for (const scene of result.draft.scenes) {
-      expect(scene.imageSearchIntent).toEqual(['Coinbase']);
+      expect(scene.imageSearchIntent).toEqual([
+        'Coinbase 2024 annual report',
+        'Coinbase',
+      ]);
     }
   });
 });
