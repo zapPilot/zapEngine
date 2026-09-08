@@ -1,4 +1,6 @@
 .trigger {
+  border: 0;
+  appearance: none;
   font: inherit;
   cursor: pointer;
 }
