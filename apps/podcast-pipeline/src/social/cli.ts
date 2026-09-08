@@ -7,6 +7,7 @@ import { parseArgs } from 'node:util';
 
 import { errorMessage } from '../lib/errorMessage.js';
 import { isMainModule } from '../lib/is-main-module.js';
+import { SUPPORTED_PRIMARY_LANGUAGE_CODES } from '../types.js';
 import {
   parsePlatformOption,
   parseYouTubePrivacyOption,
@@ -519,7 +520,9 @@ async function editCopy(
 }
 
 function parseSocialLanguage(value: string): SocialLanguageCode {
-  if (value === 'zh-Hant' || value === 'ja' || value === 'en') return value;
+  if ((SUPPORTED_PRIMARY_LANGUAGE_CODES as readonly string[]).includes(value)) {
+    return value as SocialLanguageCode;
+  }
   throw new Error(`Unsupported social language: ${value}.`);
 }
 

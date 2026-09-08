@@ -3,13 +3,14 @@ import {
   throwSupabaseError,
 } from '../services/supabase-client.js';
 import { expectNoError, many, maybeOne } from '../services/supabase-rows.js';
-import type {
-  NewSocialAccountSnapshot,
-  PrimaryLanguageCode,
-  SocialAccountSnapshotRow,
-  SocialDistributionMetadata,
-  SocialPostMetricRow,
-  SocialPostRow,
+import {
+  type NewSocialAccountSnapshot,
+  type PrimaryLanguageCode,
+  type SocialAccountSnapshotRow,
+  type SocialDistributionMetadata,
+  type SocialPostMetricRow,
+  type SocialPostRow,
+  SUPPORTED_PRIMARY_LANGUAGE_CODES,
 } from '../types.js';
 import type { SocialPlatform } from './platforms.js';
 
@@ -464,7 +465,8 @@ async function listWaitingSocialVideos(): Promise<SocialWaitingVideoItem[]> {
     languages.add(row.language_code);
     languagesByEpisode.set(row.episode_id, languages);
   }
-  const languageOrder: PrimaryLanguageCode[] = ['zh-Hant', 'ja', 'en'];
+  const languageOrder: readonly PrimaryLanguageCode[] =
+    SUPPORTED_PRIMARY_LANGUAGE_CODES;
 
   return [...languagesByEpisode.entries()].map(([episodeId, languages]) => ({
     episodeId,

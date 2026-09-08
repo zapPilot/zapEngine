@@ -1,7 +1,10 @@
 import { EPISODE_VIDEO_VISUAL_VERSION } from '@zapengine/types/shared';
 
 import { errorMessage } from '../lib/errorMessage.js';
-import type { LanguageClassroomLanguageCode } from '../types.js';
+import {
+  type LanguageClassroomLanguageCode,
+  SUPPORTED_PRIMARY_LANGUAGE_CODES,
+} from '../types.js';
 import { isEpisodeId, parseInputUrl } from './request-validation.js';
 import { getPipelineSupabase, throwSupabaseError } from './supabase-client.js';
 import { many, maybeOne } from './supabase-rows.js';
@@ -13,8 +16,6 @@ import {
 } from './telegram.js';
 import type { TelegramIngestQueue } from './telegram-ingest-queue.js';
 import { retryEpisodeVideoGeneration } from './video-jobs.js';
-
-const PRIMARY_LANGUAGES = ['zh-Hant', 'ja', 'en'] as const;
 
 export interface TelegramEpisodeTarget {
   episodeId: string;
@@ -175,7 +176,7 @@ export async function handleTelegramStatusCommand(
 
   const lines = [
     `Episode ${episodeId}`,
-    ...PRIMARY_LANGUAGES.map((language) => {
+    ...SUPPORTED_PRIMARY_LANGUAGE_CODES.map((language) => {
       const localization = localizations.find(
         (row) => row.language_code === language,
       );
@@ -198,12 +199,12 @@ async function loadLocalizationStatuses(
       .from('episode_localizations')
       .select('id,language_code,status,script,hls_url,classroom_hls_url')
       .eq('episode_id', episodeId)
-      .in('language_code', [...PRIMARY_LANGUAGES]),
+      .in('language_code', [...SUPPORTED_PRIMARY_LANGUAGE_CODES]),
   );
 }
 
 function audioReady(rows: readonly LocalizationStatusRow[]): boolean {
-  return PRIMARY_LANGUAGES.every((language) => {
+  return SUPPORTED_PRIMARY_LANGUAGE_CODES.every((language) => {
     const row = rows.find((candidate) => candidate.language_code === language);
     return row ? audioReadyForLocalization(row) : false;
   });

@@ -1,3 +1,10 @@
+import {
+  PODCAST_VIDEO_RENDER_STAGES,
+  PODCAST_VIDEO_VISUAL_STAGES,
+  type PodcastVideoRenderStage,
+  type PodcastVideoVisualStage,
+} from '@zapengine/types/shared';
+
 import type {
   EpisodeVideoGenerationPublicStatus,
   EpisodeVideoResponse,
@@ -60,26 +67,13 @@ export function completedVideoResponseFrom(row: {
 }
 
 /** Stages the visual job can persist. Mirrored by a CHECK in migration 023. */
-export const VISUAL_JOB_PROGRESS_STAGES = [
-  'analyzing-audio',
-  'planning-scenes',
-  'selecting-images',
-  'uploading-visuals',
-] as const;
+export const VISUAL_JOB_PROGRESS_STAGES = PODCAST_VIDEO_VISUAL_STAGES;
 
 /** Stages the render job can persist. Mirrored by a CHECK in migration 023. */
-export const RENDER_JOB_PROGRESS_STAGES = [
-  'analyzing-audio',
-  'aligning-script',
-  'preparing-media',
-  'encoding',
-  'uploading-video',
-] as const;
+export const RENDER_JOB_PROGRESS_STAGES = PODCAST_VIDEO_RENDER_STAGES;
 
-export type VisualJobProgressStage =
-  (typeof VISUAL_JOB_PROGRESS_STAGES)[number];
-export type RenderJobProgressStage =
-  (typeof RENDER_JOB_PROGRESS_STAGES)[number];
+export type VisualJobProgressStage = PodcastVideoVisualStage;
+export type RenderJobProgressStage = PodcastVideoRenderStage;
 
 /**
  * `waiting-for-renderer` is derived by the API and never stored: it is the gap
