@@ -7,10 +7,7 @@ import { logIngestEvent } from './ingest/step.js';
 import {
   createOpenRouterChatCompletion,
   getOpenRouterConfig,
-  isRetryableOpenRouterError,
-  OPENROUTER_FALLBACK_ROUTING,
   type OpenRouterChatCompletion,
-  type OpenRouterProviderRouting,
 } from './llm.js';
 import { splitCanonicalSentences } from './video/storyboard/sentences.js';
 
@@ -170,7 +167,6 @@ async function tryTranslationModel<K extends string>(
 ): Promise<TranslationModelAttempt<K>> {
   const costs: UsageCostLine[] = [];
   let retryReason: string | null = null;
-  let providerRouting: OpenRouterProviderRouting | undefined;
 
   for (let attempt = 1; attempt <= TRANSLATION_MAX_ATTEMPTS; attempt += 1) {
     try {
@@ -179,7 +175,6 @@ async function tryTranslationModel<K extends string>(
         targetLanguageCode,
         model,
         retryReason,
-        providerRouting,
       );
       return {
         fields: result.fields,
@@ -193,7 +188,7 @@ async function tryTranslationModel<K extends string>(
         costs.push(attemptCost);
       }
       if (
-        !shouldRetryTranslation(error) ||
+        !(error instanceof TranslationResponseError) ||
         attempt === TRANSLATION_MAX_ATTEMPTS
       ) {
         return {
@@ -204,19 +199,16 @@ async function tryTranslationModel<K extends string>(
         };
       }
 
-      const rerouted = !(error instanceof TranslationResponseError);
       logIngestEvent('translate:retry', {
         targetLanguageCode,
         model,
         attempt,
         nextAttempt: attempt + 1,
         delayMs: TRANSLATION_RETRY_DELAY_MS,
-        rerouted,
+        rerouted: false,
         error: errorMessage(error),
       });
-      retryReason =
-        error instanceof TranslationResponseError ? error.message : null;
-      providerRouting = rerouted ? OPENROUTER_FALLBACK_ROUTING : undefined;
+      retryReason = error.message;
       await sleep(TRANSLATION_RETRY_DELAY_MS);
     }
   }
@@ -251,7 +243,6 @@ async function translateFieldsWithOpenRouter<K extends string>(
   targetLanguageCode: SecondaryLanguageCode,
   translationModel: string,
   retryReason: string | null,
-  providerRouting: OpenRouterProviderRouting | undefined,
 ): Promise<{ fields: Record<K, string>; cost: UsageCostLine[] }> {
   const keys = Object.keys(fields) as K[];
   const { completion, model } = await createTranslationCompletion(
@@ -260,7 +251,6 @@ async function translateFieldsWithOpenRouter<K extends string>(
     Object.fromEntries(keys.map((key) => [key, '...'])),
     translationModel,
     retryReason,
-    providerRouting,
   );
   const costLine = buildOpenRouterTranslateCostLine(
     completion,
@@ -294,13 +284,15 @@ async function createTranslationCompletion(
   outputFormat: Record<string, string>,
   translationModel: string,
   retryReason: string | null,
-  providerRouting: OpenRouterProviderRouting | undefined,
 ): Promise<{ completion: OpenRouterChatCompletion; model: string }> {
   const { openai, model } = getOpenRouterConfig({
     model: translationModel,
     thinkingModel: null,
   });
 
+  // Transport/model failover lives entirely in createOpenRouterChatCompletion
+  // (openrouter/free -> shared LLM_FALLBACK_MODELS). This layer only re-prompts
+  // unusable payloads with correction context on the normal route.
   const completion = await createOpenRouterChatCompletion(
     openai,
     {
@@ -322,7 +314,7 @@ async function createTranslationCompletion(
       temperature: 0,
     },
     null,
-    providerRouting ? { providerRouting } : {},
+    {},
   );
 
   return { completion, model };
@@ -507,13 +499,6 @@ function looksLikeModelChatter(text: string): boolean {
     lower.startsWith("here's the translation") ||
     lower.startsWith('translation:') ||
     lower.startsWith('translated text:')
-  );
-}
-
-function shouldRetryTranslation(error: unknown): boolean {
-  return (
-    error instanceof TranslationResponseError ||
-    isRetryableOpenRouterError(error)
   );
 }
 

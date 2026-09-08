@@ -139,12 +139,14 @@ describe('getOpenRouterConfig', () => {
     const apiKeyChanged = getOpenRouterConfig();
 
     expect(baseUrlChanged.openai).not.toBe(original.openai);
-    expect(modelChanged.openai).not.toBe(original.openai);
+    // The model is request-scoped: the shared fallback chain reuses one client
+    // across candidates, so a different primary must not mint a new client.
+    expect(modelChanged.openai).toBe(original.openai);
     expect(modelChanged.model).toBe('memo/other-model');
     expect(modelChanged.thinkingModel).toBe('memo/thinking-model');
     expect(timeoutChanged.openai).not.toBe(original.openai);
     expect(apiKeyChanged.openai).not.toBe(original.openai);
-    expect(OpenAI).toHaveBeenCalledTimes(5);
+    expect(OpenAI).toHaveBeenCalledTimes(4);
   });
 });
 
@@ -584,6 +586,9 @@ describe('generateScriptWithLLM', () => {
 
   it('falls back to the default timeout for an invalid environment value', async () => {
     vi.stubEnv('OPENROUTER_TIMEOUT_MS', 'not-a-number');
+    // Fresh cache key: the client cache is module-scoped, so reuse the default
+    // timeout bucket of an earlier test would hide this construction.
+    vi.stubEnv('OPENROUTER_API_KEY', 'invalid-timeout-api-key');
     vi.mocked(OpenAI).mockClear();
 
     const mockCreate = vi.fn().mockResolvedValue({

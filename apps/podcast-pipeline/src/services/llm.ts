@@ -401,7 +401,10 @@ export function getOpenRouterConfig(overrides?: {
       ? overrides.thinkingModel
       : process.env['LLM_THINKING_MODEL'] || null;
   const timeoutMs = getOpenRouterTimeoutMs();
-  const clientKey = JSON.stringify([apiKey, baseURL, model, timeoutMs]);
+  // The model is request-scoped, not client-scoped: the shared fallback chain
+  // reuses one client across candidates, so keying on it only minted a redundant
+  // instance per primary.
+  const clientKey = JSON.stringify([apiKey, baseURL, timeoutMs]);
   let openai = openRouterClientCache.get(clientKey);
   if (!openai) {
     openai = new OpenAI({
@@ -1121,47 +1124,37 @@ export async function generateLanguageClassroomsWithLLM(
     attempt <= LANGUAGE_CLASSROOM_MAX_ATTEMPTS;
     attempt += 1
   ) {
-    // Payload retries may change endpoint routing, but transport-level model
-    // failover is always handled by createOpenRouterChatCompletion.
+    // Transport/model failover lives entirely in createOpenRouterChatCompletion
+    // (LLM_MODEL -> shared LLM_FALLBACK_MODELS): a transport error reaching this
+    // layer means every candidate already failed, so it throws immediately
+    // instead of replaying the chain. Only unusable payloads are re-prompted,
+    // with correction context and rerouted endpoints.
     const rerouted = attempt > 1;
-    let completion: OpenRouterChatCompletion;
-    try {
-      completion = await createCompletionWithRetry(
-        openai,
-        {
-          model,
-          // parseLanguageClassroomLessons parses this as JSON either way; asking
-          // for JSON mode is what stops the model prefacing it with prose.
-          response_format: { type: 'json_object' },
-          messages: [
-            {
-              role: 'system',
-              content: languageClassroomSystemPrompt(input.sourceLanguageCode),
-            },
-            {
-              role: 'user',
-              content: buildLanguageClassroomUserMessage(input, retryReason),
-            },
-          ],
-          temperature: 0.4,
-        },
-        thinkingModel,
-        'generateLanguageClassrooms',
-        {
-          reasoning: LANGUAGE_CLASSROOM_REASONING,
-          ...(rerouted ? { providerRouting: OPENROUTER_FALLBACK_ROUTING } : {}),
-        },
-      );
-    } catch (error) {
-      if (
-        attempt === LANGUAGE_CLASSROOM_MAX_ATTEMPTS ||
-        !isRetryableOpenRouterError(error)
-      ) {
-        throw error;
-      }
-      logLanguageClassroomRetry('transport', attempt, error);
-      continue;
-    }
+    const completion = await createOpenRouterChatCompletion(
+      openai,
+      {
+        model,
+        // parseLanguageClassroomLessons parses this as JSON either way; asking
+        // for JSON mode is what stops the model prefacing it with prose.
+        response_format: { type: 'json_object' },
+        messages: [
+          {
+            role: 'system',
+            content: languageClassroomSystemPrompt(input.sourceLanguageCode),
+          },
+          {
+            role: 'user',
+            content: buildLanguageClassroomUserMessage(input, retryReason),
+          },
+        ],
+        temperature: 0.4,
+      },
+      thinkingModel,
+      {
+        reasoning: LANGUAGE_CLASSROOM_REASONING,
+        ...(rerouted ? { providerRouting: OPENROUTER_FALLBACK_ROUTING } : {}),
+      },
+    );
 
     const metadata = completionMetadata(completion, model, thinkingModel);
     // A rejected response was still billed; the ledger has to carry what the

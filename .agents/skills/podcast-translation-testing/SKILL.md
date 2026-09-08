@@ -27,8 +27,7 @@ For classroom generation, dual-HLS resume, and playback integrity, use
   - transport model order: `openrouter/free`, then `getOpenRouterModelCandidates()` appends `LLM_FALLBACK_MODELS` in reviewed order with duplicates removed
   - canonical scripts over 2,000 characters: split by paragraph, then sentence boundary, then hard cap; translated sequentially and rejoined with blank lines
   - transport failures are handled by `createOpenRouterChatCompletion()` in `llm.ts`: timeout, connection failure, 408/409/429, or 5xx advances through the shared model chain; auth/config/client failures remain terminal
-  - translation keeps `TRANSLATION_MAX_ATTEMPTS = 2` around the shared request. `TranslationResponseError` retries with correction context; a retryable transport error can only reach this layer after the shared model chain has already been exhausted
-  - a transport retry uses `OPENROUTER_FALLBACK_ROUTING`; a response-validation retry keeps the normal route and adds the rejection reason
+  - translation keeps `TRANSLATION_MAX_ATTEMPTS = 2` around the shared request for `TranslationResponseError` only, with correction context on the normal route. A transport error reaching this layer means the shared model chain is already exhausted, so it fails immediately without replaying the chain
   - empty source fields are preserved locally without a provider call
   - the final failure log carries the spend already committed by completed attempts
 - `apps/podcast-pipeline/src/services/llm-shared-model-fallback.test.ts` owns the shared transport/model-chain regression coverage.
@@ -40,11 +39,11 @@ For classroom generation, dual-HLS resume, and playback integrity, use
 2. OpenRouter returns an empty translated value for a non-empty source field.
 3. OpenRouter returns explanatory/model-chatter text instead of a pure translation.
 4. OpenRouter returns malformed or non-object JSON.
-5. A transient transport/provider failure advances from `openrouter/free` through `LLM_FALLBACK_MODELS`; the run fails closed only after the shared chain and bounded translation retry are exhausted.
+5. A transient transport/provider failure advances from `openrouter/free` through `LLM_FALLBACK_MODELS` inside the shared chain; the run fails closed as soon as that chain is exhausted — translation never replays it.
 6. Auth/configuration errors do not retry pointlessly and never advance to another model.
 7. Empty source fields remain empty; fully empty requests never call OpenRouter.
 8. Translation cost uses OpenRouter `usage.cost`, including a completed but invalid response when a retry follows it.
-9. A response-validation retry carries `Correction required: ...`; a transport retry does not.
+9. A response-validation retry carries `Correction required: ...`. There is no translation-level transport retry to confuse it with.
 10. `TRANSLATION_LLM_MODEL` and `TRANSLATION_FALLBACK_MODELS` are not part of the runtime contract; translation primary stays code-owned `openrouter/free`, and deploy-time fallback policy is the shared `LLM_FALLBACK_MODELS` list.
 11. Multi-chunk scripts send the title only with the first chunk, preserve chunk order, and aggregate every chunk's actual provider/model cost.
 12. Paragraphs are preferred boundaries; oversized paragraphs fall back to complete sentences, and only an oversized single sentence is hard-sliced at 2,000 characters.
