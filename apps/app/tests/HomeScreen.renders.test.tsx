@@ -196,7 +196,7 @@ describe('HomeScreen — trend chart and attribution render churn', () => {
     const screenBefore = screenRenders();
     expect(sparklineBefore).toBeGreaterThan(0);
     expect(attributionBefore.every((count) => count > 0)).toBe(true);
-    expect(sparklineProbe.lastProps?.data).toHaveLength(4);
+    expect(sparklineProbe.lastProps?.data).toHaveLength(3);
 
     await churn();
 
@@ -207,9 +207,9 @@ describe('HomeScreen — trend chart and attribution render churn', () => {
     // Control group: a real input change has to move both counters. Without
     // it, a probe that quietly stopped recording would make the assertions
     // above pass while proving nothing.
-    await press(buttonByLabel(container, '1W'));
+    await press(buttonByLabel(container, '1Y'));
 
-    expect(sparklineProbe.lastProps?.data).toHaveLength(3);
+    expect(sparklineProbe.lastProps?.data).toHaveLength(4);
     expect(sparklineProbe.renderCount).toBeGreaterThan(sparklineBefore);
     expect(
       attributionIconRenders().every(

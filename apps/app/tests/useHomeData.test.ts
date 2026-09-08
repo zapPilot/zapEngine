@@ -86,7 +86,7 @@ describe('Home data analytics subject', () => {
     expect(useLandingPageDataMock).toHaveBeenCalledWith(null, false, true);
     expect(usePortfolioDashboardMock).toHaveBeenCalledWith(
       undefined,
-      getHomeDashboardWindowParams(),
+      getHomeDashboardWindowParams('1Y'),
     );
   });
 
@@ -101,7 +101,7 @@ describe('Home data analytics subject', () => {
   });
 });
 
-describe('Home data historical dashboard window', () => {
+describe('Home data range-scoped dashboard window', () => {
   const dailyValues = [
     { date: '2026-05-20T00:00:00', total_value_usd: 100 },
     { date: '2026-06-22T00:00:00', total_value_usd: 200 },
@@ -109,12 +109,20 @@ describe('Home data historical dashboard window', () => {
     { date: '2026-06-29T00:00:00', total_value_usd: 220 },
   ];
 
-  it('defaults the Home chart to a historical one-year view', () => {
-    expect(DEFAULT_HOME_RANGE).toBe('1Y');
+  it('defaults the Home chart to a one-month view', () => {
+    expect(DEFAULT_HOME_RANGE).toBe('1M');
     expect(getHomeDashboardWindowParams()).toEqual({
-      trend_days: 365,
+      trend_days: 30,
       metrics: ['trend'],
     });
+  });
+
+  it('maps every Home tab to its own backend trend window', () => {
+    expect(getHomeDashboardWindowParams('1D').trend_days).toBe(2);
+    expect(getHomeDashboardWindowParams('1W').trend_days).toBe(7);
+    expect(getHomeDashboardWindowParams('1M').trend_days).toBe(30);
+    expect(getHomeDashboardWindowParams('3M').trend_days).toBe(90);
+    expect(getHomeDashboardWindowParams('1Y').trend_days).toBe(365);
   });
 
   it('asks the dashboard for the trend alone', () => {
@@ -125,12 +133,13 @@ describe('Home data historical dashboard window', () => {
     expect(params.rolling_days).toBeUndefined();
   });
 
-  it('hands react-query one stable window object', () => {
-    // A fresh literal per render would rebuild the query key every time.
-    expect(getHomeDashboardWindowParams()).toBe(getHomeDashboardWindowParams());
+  it('hands react-query one stable window object per range', () => {
+    expect(getHomeDashboardWindowParams('1M')).toBe(
+      getHomeDashboardWindowParams('1M'),
+    );
   });
 
-  it('slices the 365-day dashboard series locally for shorter ranges', () => {
+  it('slices dashboard series locally for the selected range', () => {
     expect(sliceHomeDailyValuesForRange(dailyValues, '1W')).toEqual([
       dailyValues[1],
       dailyValues[2],
@@ -156,9 +165,8 @@ describe('Home data historical dashboard window', () => {
     });
   });
 
-  it('no longer shares a dashboard cache entry with Portfolio at 1Y', () => {
-    const portfolioDays = portfolioDaysForRange('1Y');
-    // What `usePortfolioData` sends for the same user at 1Y.
+  it('keeps the Home trend-only cache entry distinct from Portfolio', () => {
+    const portfolioDays = portfolioDaysForRange('1M');
     const portfolioKey = queryKeys.portfolioDashboard.detail('user-123', {
       trend_days: portfolioDays,
       drawdown_days: portfolioDays,
@@ -166,11 +174,9 @@ describe('Home data historical dashboard window', () => {
     });
     const homeKey = queryKeys.portfolioDashboard.detail(
       'user-123',
-      getHomeDashboardWindowParams(),
+      getHomeDashboardWindowParams('1M'),
     );
 
-    // Accepted cost of the narrower request: Home -> Portfolio now pays for one
-    // extra dashboard fetch instead of reusing the shared entry.
     expect(homeKey).not.toEqual(portfolioKey);
   });
 });
@@ -194,7 +200,7 @@ describe('useHomeData', () => {
     expect(result.data.home.totalBalance).toBe(DEMO.home.totalBalance);
     expect(result.data.strategyStatus).toMatchObject({ status: 'no_action' });
     expect(usePortfolioDashboardMock).toHaveBeenCalledWith(undefined, {
-      trend_days: 365,
+      trend_days: 7,
       metrics: ['trend'],
     });
   });
@@ -213,7 +219,7 @@ describe('useHomeData', () => {
     });
     expect(result.data.strategyStatus).toBeNull();
     expect(usePortfolioDashboardMock).toHaveBeenCalledWith('user-123', {
-      trend_days: 365,
+      trend_days: 30,
       metrics: ['trend'],
     });
   });
@@ -310,7 +316,6 @@ describe('useHomeData', () => {
     const result = useHomeData('user-123', '1Y');
 
     expect(result).toMatchObject({ isLoading: false, isError: true });
-    // A snapshot already in hand outranks the error it arrived with.
     expect(result.snapshotAvailability).toBe('available');
     expect(result.data.home).toMatchObject({
       totalBalance: 1234,
@@ -348,7 +353,6 @@ describe('Home section states', () => {
     expect(result.balance).toEqual({ isLoading: false, isError: false });
     expect(result.trend).toEqual({ isLoading: true, isError: false });
     expect(result.strategy).toEqual({ isLoading: true, isError: false });
-    // The aggregate still reports the slowest section, as it always has.
     expect(result.isLoading).toBe(true);
     expect(result.data.home.totalBalance).toBe(130);
   });
@@ -390,8 +394,6 @@ describe('Home section states', () => {
   });
 
   it('falls back to total_net_usd when net_portfolio_value is null', () => {
-    // A null there is a missing number: reading it as zero would show a
-    // funded portfolio as empty.
     useLandingPageDataMock.mockReturnValue(
       landingResult({
         data: {
@@ -414,8 +416,6 @@ describe('Home snapshot classification', () => {
 
     const result = useHomeData('user-123', '1Y');
 
-    // `unavailable` drives the import copy and ETL polling; a network blip is
-    // not evidence that the portfolio is missing.
     expect(result.snapshotAvailability).toBe('failed');
     expect(result.data.home.totalBalance).toBeNull();
   });
@@ -494,10 +494,26 @@ describe('Home change attribution', () => {
     });
   }
 
-  it('requests one year so Home and Portfolio share a cache slice', () => {
+  it('keeps a 30-day attribution floor for short ranges', () => {
     useHomeData('user-123', '1D');
 
-    expect(useDailyYieldReturnsMock).toHaveBeenCalledWith('user-123', 365);
+    expect(useDailyYieldReturnsMock).toHaveBeenCalledWith('user-123', 30);
+  });
+
+  it('uses the selected 3M window for attribution', () => {
+    useHomeData('user-123', '3M');
+
+    expect(useDailyYieldReturnsMock).toHaveBeenCalledWith('user-123', 90);
+  });
+
+  it('disables one-year attribution while keeping the one-year chart available', () => {
+    useHomeData('user-123', '1Y');
+
+    expect(usePortfolioDashboardMock).toHaveBeenCalledWith('user-123', {
+      trend_days: 365,
+      metrics: ['trend'],
+    });
+    expect(useDailyYieldReturnsMock).toHaveBeenCalledWith(undefined, 30);
   });
 
   it('attributes before slicing, so a range keeps its first point explained', () => {
@@ -505,8 +521,6 @@ describe('Home change attribution', () => {
 
     const result = useHomeData('user-123', '1W');
 
-    // 2026-08-15 opens the 1W window but its change is measured against
-    // 2026-07-01, which only exists in the unsliced series.
     expect(result.data.home.trendPoints[0]?.attribution).toEqual([
       { kind: 'market', label: 'ETH', valueUsd: 12 },
       { kind: 'protocol', label: 'Aave', valueUsd: 5 },

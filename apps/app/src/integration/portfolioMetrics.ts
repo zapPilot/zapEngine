@@ -26,10 +26,11 @@ export type PortfolioAttributionContributor =
   | { kind: 'residual'; valueUsd: number };
 
 /**
- * Home and Portfolio both read one year so they share a single cache slice, and
- * so the outlier fence sees the same series on either screen.
+ * Minimum attribution window used by short-range Home/Portfolio views. The
+ * one-year path is intentionally disabled by those callers until the 365-day
+ * backend query is safe on the small analytics-engine VM.
  */
-export const DAILY_ATTRIBUTION_WINDOW_DAYS = 365;
+export const DAILY_ATTRIBUTION_WINDOW_DAYS = 30;
 
 /** Stable identity for de-duplication and for React list keys. */
 export function attributionContributorKey(

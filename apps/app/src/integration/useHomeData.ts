@@ -30,17 +30,17 @@ import { useStrategySuggestion } from '@/integration/useStrategySuggestion';
 
 export const HOME_RANGE_OPTIONS = ['1D', '1W', '1M', '3M', '1Y'] as const;
 export type HomeRange = (typeof HOME_RANGE_OPTIONS)[number];
-export const DEFAULT_HOME_RANGE: HomeRange = '1Y';
-const HOME_DASHBOARD_WINDOW_DAYS = 365;
-// Home reads `trends.daily_values` and nothing else. Asking for the other
-// metrics costs four extra backend service calls per request, and every
-// numeric window param is serialized whether or not its metric was requested,
-// so they are dropped rather than left at a default.
-// A stable identity keeps the react-query key from being rebuilt each render.
-const HOME_DASHBOARD_WINDOW_PARAMS = Object.freeze({
-  trend_days: HOME_DASHBOARD_WINDOW_DAYS,
-  metrics: ['trend'],
-});
+export const DEFAULT_HOME_RANGE: HomeRange = '1M';
+
+// Home only needs `trends.daily_values`. Keep one stable params object per
+// selected range so opening the screen does not eagerly materialize a full year.
+const HOME_DASHBOARD_WINDOW_PARAMS = {
+  '1D': Object.freeze({ trend_days: 2, metrics: ['trend'] }),
+  '1W': Object.freeze({ trend_days: 7, metrics: ['trend'] }),
+  '1M': Object.freeze({ trend_days: 30, metrics: ['trend'] }),
+  '3M': Object.freeze({ trend_days: 90, metrics: ['trend'] }),
+  '1Y': Object.freeze({ trend_days: 365, metrics: ['trend'] }),
+} as const;
 const EMPTY_DAILY_VALUES: readonly DailyValuePoint[] = [];
 
 export interface HomeViewData {
@@ -106,8 +106,10 @@ export interface UseHomeDataResult {
  *   the viewer's own id or a `?userId=` bundle-view id. Analytics v2 paths
  *   are UUID-typed; a wallet address must never be passed here.
  */
-export function getHomeDashboardWindowParams() {
-  return HOME_DASHBOARD_WINDOW_PARAMS;
+export function getHomeDashboardWindowParams(
+  range: HomeRange = DEFAULT_HOME_RANGE,
+) {
+  return HOME_DASHBOARD_WINDOW_PARAMS[range];
 }
 
 function rangeWindowDays(range: HomeRange): number | null {
@@ -238,14 +240,17 @@ export function useHomeData(
   );
   const dashboard = usePortfolioDashboard(
     analyticsSubjectId ?? undefined,
-    getHomeDashboardWindowParams(),
+    getHomeDashboardWindowParams(range),
   );
   const suggestion = useStrategySuggestion(analyticsSubjectId);
-  // Deliberately outside isLoading/isError: the chart renders as soon as the
-  // dashboard lands, and the breakdown appears underneath when it can.
+  // Yield attribution needs enough samples for its outlier fence, so short
+  // ranges keep a 30-day floor and 3M uses 90 days. One-year attribution is
+  // disabled until the 365-day backend path is safe on the small Fly VM.
+  const attributionWindowDays =
+    range === '3M' ? 90 : DAILY_ATTRIBUTION_WINDOW_DAYS;
   const attribution = useDailyYieldReturns(
-    analyticsSubjectId ?? undefined,
-    DAILY_ATTRIBUTION_WINDOW_DAYS,
+    range === '1Y' ? undefined : (analyticsSubjectId ?? undefined),
+    attributionWindowDays,
   );
 
   const landingData = landing.data;
