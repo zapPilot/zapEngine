@@ -348,17 +348,12 @@ function LatestEpisodePanel(props: {
 }) {
   const episode = props.episode;
   const platforms = orderedPlatforms(episode?.platforms ?? []);
-  const max = Math.max(
-    1,
-    ...platforms.map((platform) => platform.views ?? 0),
-  );
+  const max = Math.max(1, ...platforms.map((platform) => platform.views ?? 0));
   return (
     <section className="panel latest-episode-panel">
       <div className="panel-head">
         <h2>最新一集表現 · {windowLabel(props.window)}</h2>
-        <small className="panel-note">
-          {episode?.title ?? '等待發布資料'}
-        </small>
+        <small className="panel-note">{episode?.title ?? '等待發布資料'}</small>
       </div>
       <div className="latest-episode-rows">
         {platforms.map((platform) => (
@@ -464,7 +459,9 @@ function bestLaneEfficiency(lanes: SocialGrowthLane[]): string {
 function orderedPlatforms(
   platforms: SocialPlatformPerformance[],
 ): SocialPlatformPerformance[] {
-  const order = new Map(PLATFORM_ORDER.map((platform, index) => [platform, index]));
+  const order = new Map(
+    PLATFORM_ORDER.map((platform, index) => [platform, index]),
+  );
   return [...platforms].sort(
     (left, right) =>
       (order.get(left.platform as (typeof PLATFORM_ORDER)[number]) ?? 99) -
@@ -473,7 +470,9 @@ function orderedPlatforms(
 }
 
 function windowLabel(window: SocialPerformanceResponse['window']): string {
-  if (window === 'latest') return '最新快照';
+  if (window === 'latest') {
+    return '最新快照';
+  }
   return window;
 }
 
