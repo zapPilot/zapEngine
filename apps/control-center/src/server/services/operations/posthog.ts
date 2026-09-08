@@ -43,19 +43,7 @@ WHERE timestamp >= now() - INTERVAL 30 DAY
 const envelopeSchema = z.object({ results: z.array(z.unknown()) });
 
 /** HogQL aggregate columns can arrive as JSON numbers or numeric strings. */
-const rowSchema = z.tuple([
-  z.coerce.number(),
-  z.coerce.number(),
-  z.coerce.number(),
-  z.coerce.number(),
-  z.coerce.number(),
-  z.coerce.number(),
-  z.coerce.number(),
-  z.coerce.number(),
-  z.coerce.number(),
-  z.coerce.number(),
-  z.coerce.number(),
-]);
+const rowSchema = z.array(z.coerce.number()).length(11);
 
 interface AudienceReading {
   uniqueUsers7d: number;
@@ -137,31 +125,18 @@ async function runAudienceQuery(
     throw new Error('PostHog audience query returned no usable row');
   }
 
-  const [
-    uniqueUsers7d,
-    uniqueUsers30d,
-    landingVisitors7d,
-    landingVisitors30d,
-    ctaUsers7d,
-    ctaUsers30d,
-    appVisitors7d,
-    appVisitors30d,
-    walletConnectedUsers7d,
-    walletConnectedUsers30d,
-    landingDeadClickUsers7d,
-  ] = row.data;
-
+  const values = row.data;
   return {
-    uniqueUsers7d,
-    uniqueUsers30d,
-    landingVisitors7d,
-    landingVisitors30d,
-    ctaUsers7d,
-    ctaUsers30d,
-    appVisitors7d,
-    appVisitors30d,
-    walletConnectedUsers7d,
-    walletConnectedUsers30d,
-    landingDeadClickUsers7d,
+    uniqueUsers7d: values[0]!,
+    uniqueUsers30d: values[1]!,
+    landingVisitors7d: values[2]!,
+    landingVisitors30d: values[3]!,
+    ctaUsers7d: values[4]!,
+    ctaUsers30d: values[5]!,
+    appVisitors7d: values[6]!,
+    appVisitors30d: values[7]!,
+    walletConnectedUsers7d: values[8]!,
+    walletConnectedUsers30d: values[9]!,
+    landingDeadClickUsers7d: values[10]!,
   };
 }
