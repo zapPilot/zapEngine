@@ -1,6 +1,5 @@
 import type { StatementsResponse } from '../../shared/statements.js';
 import type {
-  SocialDecision,
   SocialEpisodeSummary,
   SocialGrowthLane,
   SocialGrowthResponse,
@@ -12,6 +11,8 @@ import { PlatformIdentity } from '../platform.js';
 import { StatementHeader } from './StatementHeader.js';
 
 export const CURRENT_RELEASE_SLOTS_JST = ['09:30', '12:00', '16:00'] as const;
+
+const PLATFORM_ORDER = ['x', 'threads', 'rednote', 'youtube'] as const;
 
 export function GrowthView(props: {
   data: SocialPerformanceResponse | null;
@@ -25,7 +26,6 @@ export function GrowthView(props: {
   const followerTotal = sumKnown(
     data?.accounts.map((account) => account.followers) ?? [],
   );
-  const brief = buildPublishingBrief(data?.decisions ?? []);
   const header = props.statements?.headers.find((h) => h.domain === 'growth');
   const latestEpisode = data?.episodes[0] ?? null;
 
@@ -41,42 +41,25 @@ export function GrowthView(props: {
         ) : null}
 
         <div className="growth-plan-row">
-          <section
-            className="publishing-brief"
-            aria-label="Next publishing plan"
-          >
-            <div className="brief-kicker">Next publishing plan</div>
-            <div className="brief-primary">
-              <span>Publish every platform together</span>
-              <strong>{CURRENT_RELEASE_SLOTS_JST.join(' · ')} JST</strong>
-              <small>
-                3 article slots per day · one article uses one shared slot
-                across every active platform
-              </small>
-            </div>
-            <div className="brief-direction">
-              <span>What to write next</span>
-              <strong>{brief.topic}</strong>
-              <p>{brief.topicAdvice}</p>
-            </div>
-          </section>
-
-          <LatestEpisodePanel episode={latestEpisode} />
+          <PublishingCadence />
+          <LatestEpisodePanel
+            episode={latestEpisode}
+            window={data?.window ?? 'latest'}
+          />
         </div>
 
         <section className="decision-section">
           <div className="section-head">
-            <h2>What to publish next</h2>
+            <h2>Language performance</h2>
             <small className="panel-note">
-              One article direction, packaged for how each audience reads
+              Same article everywhere · language is the only lane-level variable
             </small>
           </div>
           <div className="platform-playbook">
-            {(data?.decisions ?? []).map((decision) => (
-              <PlatformPlaybook
-                decision={decision}
-                key={decision.platform}
-                lane={bestLanguageLane(props.growth, decision.platform)}
+            {(props.growth?.platforms ?? []).map((platform) => (
+              <LanguagePerformanceCard
+                key={platform.platform}
+                platform={platform}
               />
             ))}
           </div>
@@ -224,8 +207,8 @@ export function GrowthView(props: {
               <div className="panel-head">
                 <h2>Evidence by recent episode</h2>
                 <small className="panel-note">
-                  Audit the recommendation only when the aggregate decision
-                  looks surprising
+                  Audit language signals when the aggregate comparison looks
+                  surprising
                 </small>
               </div>
               <div className="evidence-stack">
@@ -251,36 +234,24 @@ export function GrowthView(props: {
                           </tr>
                         </thead>
                         <tbody>
-                          {episode.platforms.map((platform, index) => (
-                            <tr
-                              key={`${episode.episodeId}:${platform.platform}:${platform.postUrl ?? index}`}
-                            >
-                              <td className="cell-title">
-                                {platform.postUrl ? (
-                                  <a
-                                    href={platform.postUrl}
-                                    rel="noreferrer"
-                                    target="_blank"
-                                  >
-                                    <PlatformIdentity
-                                      platform={platform.platform}
-                                    />
-                                  </a>
-                                ) : (
-                                  <PlatformIdentity
-                                    platform={platform.platform}
-                                  />
-                                )}
-                              </td>
-                              <td className="mono">
-                                {integer(platform.views)}
-                              </td>
-                              <td className="mono">
-                                {percent(platform.engagementRate)}
-                              </td>
-                              <td>{platformSignal(platform)}</td>
-                            </tr>
-                          ))}
+                          {orderedPlatforms(episode.platforms).map(
+                            (platform, index) => (
+                              <tr
+                                key={`${episode.episodeId}:${platform.platform}:${platform.postUrl ?? index}`}
+                              >
+                                <td className="cell-title">
+                                  <PlatformLink platform={platform} />
+                                </td>
+                                <td className="mono">
+                                  {integer(platform.views)}
+                                </td>
+                                <td className="mono">
+                                  {percent(platform.engagementRate)}
+                                </td>
+                                <td>{platformSignal(platform)}</td>
+                              </tr>
+                            ),
+                          )}
                         </tbody>
                       </table>
                     </div>
@@ -320,142 +291,163 @@ export function GrowthView(props: {
           <div className="empty-inline">No account snapshots available.</div>
         ) : null}
         <p>
-          Missing platforms are collection gaps, not zero followers. Optimize
-          from the playbook; open the evidence only when you need to audit the
-          recommendation.
+          Missing platforms are collection gaps, not zero followers. Compare
+          language performance; open the evidence only when you need to audit
+          the signal.
         </p>
       </aside>
     </div>
   );
 }
 
-function LatestEpisodePanel(props: { episode: SocialEpisodeSummary | null }) {
+function PublishingCadence() {
+  return (
+    <section className="publishing-brief" aria-label="Next publishing plan">
+      <div className="brief-kicker">Next publishing</div>
+      <div className="brief-primary">
+        <span>Shared release cadence</span>
+        <div
+          aria-label="Publishing slots"
+          style={{
+            display: 'grid',
+            gap: '8px',
+            gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+          }}
+        >
+          {CURRENT_RELEASE_SLOTS_JST.map((slot) => (
+            <strong
+              key={slot}
+              style={{
+                border: '1px solid var(--line)',
+                borderRadius: 'var(--radius-control)',
+                padding: '10px 8px',
+                textAlign: 'center',
+              }}
+            >
+              {slot}
+            </strong>
+          ))}
+        </div>
+        <small>JST · 3 article slots per day</small>
+      </div>
+      <div className="brief-direction">
+        <span>Publishing contract</span>
+        <strong>1 article → every active platform</strong>
+        <p>
+          X · Threads · Rednote · YouTube publish together. Language allocation
+          is the only lane-level variation.
+        </p>
+      </div>
+    </section>
+  );
+}
+
+function LatestEpisodePanel(props: {
+  episode: SocialEpisodeSummary | null;
+  window: SocialPerformanceResponse['window'];
+}) {
   const episode = props.episode;
-  const max = episode
-    ? Math.max(1, ...episode.platforms.map((platform) => platform.views ?? 0))
-    : 1;
+  const platforms = orderedPlatforms(episode?.platforms ?? []);
+  const max = Math.max(
+    1,
+    ...platforms.map((platform) => platform.views ?? 0),
+  );
   return (
     <section className="panel latest-episode-panel">
       <div className="panel-head">
-        <h2>Latest episode · 24h</h2>
+        <h2>最新一集表現 · {windowLabel(props.window)}</h2>
         <small className="panel-note">
-          {episode?.title ?? 'Waiting for data'}
+          {episode?.title ?? '等待發布資料'}
         </small>
       </div>
       <div className="latest-episode-rows">
-        {episode?.platforms.map((platform) => (
+        {platforms.map((platform) => (
           <div className="latest-episode-row" key={platform.platform}>
             <span>
-              <PlatformIdentity platform={platform.platform} />
+              <PlatformLink platform={platform} />
             </span>
             <span className="latest-episode-track">
               <i style={{ width: `${((platform.views ?? 0) / max) * 100}%` }} />
             </span>
-            <strong>{integer(platform.views)}</strong>
+            <strong>
+              {platform.views === null
+                ? '尚未取得'
+                : `${integer(platform.views)} views`}
+            </strong>
             <span className="latest-episode-signal">
-              {platformSignal(platform)}
+              {platform.views === null
+                ? 'Metrics unavailable'
+                : platformSignal(platform)}
             </span>
           </div>
         ))}
-        {episode && episode.platforms.length === 0 ? (
-          <div className="empty-inline">No per-platform metrics yet.</div>
+        {episode && platforms.length === 0 ? (
+          <div className="empty-inline">尚未取得各平台資料。</div>
         ) : null}
         {episode ? null : (
-          <div className="empty-inline">No episode metrics yet.</div>
+          <div className="empty-inline">尚未取得最新一集資料。</div>
         )}
       </div>
     </section>
   );
 }
 
-function PlatformPlaybook(props: {
-  decision: SocialDecision;
-  lane: SocialGrowthLane | null;
+function PlatformLink(props: { platform: SocialPlatformPerformance }) {
+  return props.platform.postUrl ? (
+    <a href={props.platform.postUrl} rel="noreferrer" target="_blank">
+      <PlatformIdentity platform={props.platform.platform} /> ↗
+    </a>
+  ) : (
+    <PlatformIdentity platform={props.platform.platform} />
+  );
+}
+
+function LanguagePerformanceCard(props: {
+  platform: SocialGrowthResponse['platforms'][number];
 }) {
-  const { decision, lane } = props;
+  const leader = bestLanguageLane(props.platform.lanes);
   return (
     <article className="playbook-card">
       <header>
         <strong>
-          <PlatformIdentity platform={decision.platform} />
+          <PlatformIdentity platform={props.platform.platform} />
         </strong>
-        <span className={`confidence-${decision.confidence}`}>
-          {decision.evidenceSamples} samples
-        </span>
+        <span>{props.platform.lanes.length} language lanes</span>
       </header>
       <div className="playbook-language">
-        <span>Use</span>
+        <span>Current leader</span>
         <strong>
-          {lane ? languageLabel(lane.languageCode) : 'Keep testing'}
+          {leader ? languageLabel(leader.languageCode) : 'Not enough evidence'}
         </strong>
         <small>
-          {lane
-            ? `${languageCodeLabel(lane.languageCode)} · ${decimal(lane.followersPer1kReach)} / 1k ${lane.basis} follower conversion · ${lane.postCount7d} posts`
-            : 'Not enough language evidence yet'}
+          {leader
+            ? `${leader.postCount7d} posts in 7d · ${leader.basis} follower attribution`
+            : 'Keep collecting comparable language samples'}
         </small>
       </div>
-      <div className="playbook-title">
-        <span>Shape the title like this</span>
-        <strong>{titleDirection(decision)}</strong>
-      </div>
       <div className="playbook-evidence">
-        <span>Next article</span>
+        <span>Follower conversion</span>
         <strong>
-          {decision.bestTopic
-            ? `Prioritize ${decision.bestTopic}`
-            : 'Keep exploring topics'}
+          {leader ? `${decimal(leader.followersPer1kReach)} / 1k reach` : '—'}
         </strong>
-        <small>{topicEvidence(decision)}</small>
+        <small>
+          {leader
+            ? `${decimal(leader.medianReach24h)} median 24h reach · ${decimal(leader.followersGained7d)} followers gained`
+            : 'No comparable 24h language evidence yet'}
+        </small>
       </div>
-      {decision.platform === 'rednote' &&
-      decision.preferredHashtags.length > 0 ? (
-        <div className="playbook-tags">
-          {decision.preferredHashtags.map((tag) => (
-            <span key={tag}>{tag}</span>
-          ))}
-        </div>
-      ) : null}
     </article>
   );
 }
 
-function buildPublishingBrief(decisions: SocialDecision[]): {
-  topic: string;
-  topicAdvice: string;
-} {
-  const topics = new Map<string, number>();
-  for (const decision of decisions) {
-    if (decision.bestTopic) {
-      topics.set(
-        decision.bestTopic,
-        (topics.get(decision.bestTopic) ?? 0) +
-          (decision.bestTopicSamples ?? 0),
-      );
-    }
-  }
-  const bestTopic = [...topics.entries()].sort(
-    (left, right) => right[1] - left[1],
-  )[0];
-
-  return {
-    topic: bestTopic ? topicLabel(bestTopic[0]) : 'Keep the next topic broad',
-    topicAdvice: bestTopic
-      ? `The clearest repeatable signal is ${topicLabel(bestTopic[0]).toLowerCase()}. Lead with one concrete consequence, then explain why the consensus view misses it.`
-      : 'There is not enough repeated topic evidence yet. Publish the same article everywhere and keep the angle easy to compare.',
-  };
-}
-
-function bestLanguageLane(
-  growth: SocialGrowthResponse | null,
-  platform: string,
-): SocialGrowthLane | null {
-  const lanes =
-    growth?.platforms.find((item) => item.platform === platform)?.lanes ?? [];
+function bestLanguageLane(lanes: SocialGrowthLane[]): SocialGrowthLane | null {
   return (
-    lanes
-      .filter((lane) => lane.postCount7d > 0 && lane.medianReach24h !== null)
+    [...lanes]
+      .filter((lane) => lane.postCount7d > 0)
       .sort(
         (left, right) =>
+          (right.followersPer1kReach ?? -1) -
+            (left.followersPer1kReach ?? -1) ||
           (right.medianReach24h ?? -1) - (left.medianReach24h ?? -1) ||
           right.postCount7d - left.postCount7d,
       )[0] ?? null
@@ -463,39 +455,26 @@ function bestLanguageLane(
 }
 
 function bestLaneEfficiency(lanes: SocialGrowthLane[]): string {
-  const best = lanes
-    .filter(
-      (lane): lane is SocialGrowthLane & { followersPer1kReach: number } =>
-        lane.followersPer1kReach !== null,
-    )
-    .sort(
-      (left, right) => right.followersPer1kReach - left.followersPer1kReach,
-    )[0];
+  const best = bestLanguageLane(lanes);
   return best
     ? `${languageCodeLabel(best.languageCode)} · ${decimal(best.followersPer1kReach)} / 1k (${best.basis})`
     : 'No language conversion signal yet';
 }
 
-function topicEvidence(decision: SocialDecision): string {
-  if (
-    !decision.bestTopic ||
-    decision.bestTopicMedian24hViews === null ||
-    decision.bestTopicSamples === null
-  ) {
-    return decision.platformMedian24hViews === null
-      ? 'No comparable 24h evidence yet'
-      : `Platform median ${decimal(decision.platformMedian24hViews)} views; more topic samples needed`;
-  }
+function orderedPlatforms(
+  platforms: SocialPlatformPerformance[],
+): SocialPlatformPerformance[] {
+  const order = new Map(PLATFORM_ORDER.map((platform, index) => [platform, index]));
+  return [...platforms].sort(
+    (left, right) =>
+      (order.get(left.platform as (typeof PLATFORM_ORDER)[number]) ?? 99) -
+      (order.get(right.platform as (typeof PLATFORM_ORDER)[number]) ?? 99),
+  );
+}
 
-  const platformMedian =
-    decision.platformMedian24hViews === null
-      ? ''
-      : ` · platform median ${decimal(decision.platformMedian24hViews)}`;
-  const lift =
-    decision.bestTopicLiftVsPlatformMedian === null
-      ? ''
-      : ` · ${decimal(decision.bestTopicLiftVsPlatformMedian)}× lift`;
-  return `${decimal(decision.bestTopicMedian24hViews)} median 24h views · n=${decision.bestTopicSamples}${platformMedian}${lift}`;
+function windowLabel(window: SocialPerformanceResponse['window']): string {
+  if (window === 'latest') return '最新快照';
+  return window;
 }
 
 function platformSignal(platform: SocialPlatformPerformance): string {
@@ -514,27 +493,6 @@ function platformSignal(platform: SocialPlatformPerformance): string {
     return `${watch}${subscribers}`;
   }
   return `${integer(platform.shares)} shares · ${integer(platform.comments)} replies`;
-}
-
-function titleDirection(decision: SocialDecision): string {
-  const hook = decision.preferredHookTypes[0];
-  if (hook === 'surprising_number') {
-    return 'Open with the strongest number, then say what it changes.';
-  }
-  if (hook === 'contrarian') {
-    return 'State the common belief first, then overturn it with the consequence.';
-  }
-  if (hook === 'question') {
-    return 'Ask the decision the reader is already facing, then answer it plainly.';
-  }
-  if (hook) {
-    return `Lead with ${hook.replaceAll('_', ' ')}, then name the practical consequence.`;
-  }
-  return 'Lead with one concrete consequence, not a generic topic label.';
-}
-
-function topicLabel(topic: string): string {
-  return topic.replaceAll('_', ' ');
 }
 
 function languageLabel(code: string): string {
