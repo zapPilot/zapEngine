@@ -329,4 +329,52 @@ describe('loadWaitlistGrowth', () => {
       ],
     });
   });
+
+  it('treats orphaned social attribution as direct or unknown', async () => {
+    const from = vi
+      .fn()
+      .mockReturnValueOnce(query({ count: 1, error: null }))
+      .mockReturnValueOnce(query({ count: 1, error: null }))
+      .mockReturnValueOnce(query({ count: 1, error: null }))
+      .mockReturnValueOnce(
+        query({
+          data: [
+            {
+              id: 'signup-orphaned',
+              created_at: '2026-09-08T12:00:00.000Z',
+              social_publish_job_id: 'job-missing',
+            },
+          ],
+          error: null,
+        }),
+      );
+    const pipelineFrom = vi.fn().mockReturnValueOnce(
+      query({
+        data: [],
+        error: null,
+      }),
+    );
+    const schema = vi.fn(() => ({ from: pipelineFrom }));
+    const client = { from, schema } as unknown as SupabaseClient;
+    const create = (() => client) as unknown as typeof createClient;
+
+    const result = await loadWaitlistGrowth({
+      create,
+      url: 'https://example.supabase.co',
+      key: 'test-key',
+      now: new Date('2026-09-09T00:00:00.000Z'),
+    });
+
+    expect(result).toEqual({
+      status: 'ok',
+      message: null,
+      total: 1,
+      signups7d: 1,
+      signups30d: 1,
+      attributedSocial7d: 0,
+      directOrUnknown7d: 1,
+      conversions: [],
+    });
+    expect(pipelineFrom).toHaveBeenCalledTimes(1);
+  });
 });
