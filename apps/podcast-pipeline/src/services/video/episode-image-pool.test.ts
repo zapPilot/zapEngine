@@ -51,14 +51,16 @@ describe('episode image pool subject collision guard', () => {
     const provider: ImageSearchProvider = {
       origin: 'brave',
       maxResults: 100,
-      search: vi.fn().mockResolvedValue([
-        braveResult(
-          'orsi',
-          'Yamandú Orsi',
-          'https://simple.wikipedia.org/wiki/Yamand%C3%BA_Orsi',
-        ),
-        braveResult('mining-site', 'Bitcoin mining facility in Uruguay'),
-      ]),
+      search: vi
+        .fn()
+        .mockResolvedValue([
+          braveResult(
+            'orsi',
+            'Yamandú Orsi',
+            'https://simple.wikipedia.org/wiki/Yamand%C3%BA_Orsi',
+          ),
+          braveResult('mining-site', 'Bitcoin mining facility in Uruguay'),
+        ]),
     };
 
     await searchSubject(pool, tether!, 'primary', {
