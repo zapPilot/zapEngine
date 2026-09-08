@@ -28,8 +28,12 @@ function query(result: QueryResult) {
       return promise();
     },
     then<TResult1 = QueryResult, TResult2 = never>(
-      onfulfilled?: ((value: QueryResult) => TResult1 | PromiseLike<TResult1>) | null,
-      onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
+      onfulfilled?:
+        | ((value: QueryResult) => TResult1 | PromiseLike<TResult1>)
+        | null,
+      onrejected?:
+        | ((reason: unknown) => TResult2 | PromiseLike<TResult2>)
+        | null,
     ) {
       return promise().then(onfulfilled, onrejected);
     },
