@@ -22,7 +22,7 @@ describe('waitlist first-touch persistence', () => {
         values: Record<string, unknown>,
         options: { onConflict: string; ignoreDuplicates: boolean },
       ) => {
-        const email = String(values.email);
+        const email = String(values['email']);
         if (!options.ignoreDuplicates || options.onConflict !== 'email') {
           stored.set(email, { ...values });
         } else if (!stored.has(email)) {
