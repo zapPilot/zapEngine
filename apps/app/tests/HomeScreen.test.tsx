@@ -132,6 +132,12 @@ vi.mock(
   async () => (await harness()).homeScreenMocks.walletTokens,
 );
 
+// Heavy jsdom + act mount: the repo default 5s testTimeout trips under
+// repo-wide parallel load (`turbo run test`, 20 tasks), and a timed-out first
+// mount leaves the harness's singleton root/container racing with the next
+// test, cascading into empty-container failures. Give this file headroom.
+vi.setConfig({ testTimeout: 30_000 });
+
 beforeEach(() => {
   (
     globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }

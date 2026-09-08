@@ -127,6 +127,10 @@ vi.mock(
   async () => (await harness()).homeScreenMocks.walletTokens,
 );
 
+// Same heavy harness as HomeScreen.test.tsx — keep the timeout in sync so a
+// slow parallel CI worker cannot time out a mount mid-act.
+vi.setConfig({ testTimeout: 30_000 });
+
 beforeEach(() => {
   (
     globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }
