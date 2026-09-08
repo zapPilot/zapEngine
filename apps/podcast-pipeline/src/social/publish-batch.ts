@@ -1,3 +1,4 @@
+import { socialLandingUrl } from '../brand/cta.js';
 import { generateSocialCopy } from './copy.js';
 import {
   type PackagingAssignment,
@@ -84,12 +85,24 @@ export async function publishSocialBatch(input: {
     );
   }
 
+  const destinationUrlByPlatform = Object.fromEntries(
+    platforms.map((platform) => [
+      platform,
+      socialLandingUrl({
+        episodeId: input.episodeId,
+        platform,
+        languageCode: input.languageCode,
+      }),
+    ]),
+  ) as Partial<Record<SocialPlatform, string>>;
+
   const jobs = createSocialPublishJobs({
     platforms,
     copy: snapshot.published,
     episode,
     videoUrl: episode.videoUrl,
     thumbnailUrl: episode.videoThumbnailUrl,
+    destinationUrlByPlatform,
     ...(video ? { videoPath: video.path } : {}),
     ...(teaserVideo ? { xVideoPath: teaserVideo.path } : {}),
     ...(input.youtubePrivacyStatus
@@ -111,6 +124,7 @@ export async function publishSocialBatch(input: {
     languageCode: input.languageCode,
     experimentByPlatform,
     packagingByPlatform,
+    destinationUrlByPlatform,
     snapshot,
     episode,
     videoDurationSeconds: episode.videoDurationSeconds,
