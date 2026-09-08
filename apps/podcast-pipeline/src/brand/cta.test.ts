@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   appendBrandCta,
   BRAND_CTA_VERSION,
+  socialLandingUrl,
   videoBrandCtaFor,
   ZAP_PILOT_SITE_LABEL,
   ZAP_PILOT_SITE_URL,
@@ -17,6 +18,18 @@ describe('Zap Pilot brand CTA', () => {
       '市場更新\n\n官網 https://www.zap-pilot.org',
     );
     expect(appendBrandCta('   ')).toBe('官網 https://www.zap-pilot.org');
+  });
+
+  it('builds a deterministic release attribution URL without inventing another identity', () => {
+    expect(
+      socialLandingUrl({
+        episodeId: '72f1ee5b-3f57-4e32-b7ad-fe57666985d6',
+        platform: 'youtube',
+        languageCode: 'en',
+      }),
+    ).toBe(
+      'https://www.zap-pilot.org/?utm_source=youtube&utm_medium=social&utm_campaign=72f1ee5b-3f57-4e32-b7ad-fe57666985d6&utm_content=en',
+    );
   });
 
   it('localizes the video headline while preserving the same destination', () => {
