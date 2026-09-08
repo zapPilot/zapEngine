@@ -176,4 +176,79 @@ describe('loadWaitlistGrowth', () => {
       },
     ]);
   });
+
+  it('keeps conversion rate unavailable when collected 24h views are zero', async () => {
+    const from = vi
+      .fn()
+      .mockReturnValueOnce(query({ count: 1, error: null }))
+      .mockReturnValueOnce(query({ count: 1, error: null }))
+      .mockReturnValueOnce(query({ count: 1, error: null }))
+      .mockReturnValueOnce(
+        query({
+          data: [
+            {
+              id: 'signup-1',
+              created_at: '2026-09-08T12:00:00.000Z',
+              social_publish_job_id: 'job-1',
+            },
+          ],
+          error: null,
+        }),
+      );
+    const pipelineFrom = vi
+      .fn()
+      .mockReturnValueOnce(
+        query({
+          data: [
+            {
+              id: 'job-1',
+              episode_id: 'episode-1',
+              platform: 'threads',
+              language_code: 'ja',
+              social_post_id: 'post-1',
+            },
+          ],
+          error: null,
+        }),
+      )
+      .mockReturnValueOnce(query({ data: [], error: null }))
+      .mockReturnValueOnce(
+        query({
+          data: [
+            {
+              id: 'metric-zero',
+              social_post_id: 'post-1',
+              views: 0,
+              captured_at: '2026-09-08T14:00:00.000Z',
+            },
+          ],
+          error: null,
+        }),
+      )
+      .mockReturnValueOnce(query({ data: [], error: null }));
+    const schema = vi.fn(() => ({ from: pipelineFrom }));
+    const client = { from, schema } as unknown as SupabaseClient;
+    const create = (() => client) as unknown as typeof createClient;
+
+    const result = await loadWaitlistGrowth({
+      create,
+      url: 'https://example.supabase.co',
+      key: 'test-key',
+      now: new Date('2026-09-09T00:00:00.000Z'),
+    });
+
+    expect(result.status).toBe('ok');
+    expect(result.conversions).toEqual([
+      {
+        socialPublishJobId: 'job-1',
+        episodeId: 'episode-1',
+        platform: 'threads',
+        languageCode: 'ja',
+        socialPostId: 'post-1',
+        signups: 1,
+        views24h: 0,
+        signupRate: null,
+      },
+    ]);
+  });
 });
