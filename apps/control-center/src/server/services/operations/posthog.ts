@@ -109,7 +109,7 @@ export async function collectPosthogSignals(input: {
         detail:
           `${audience.uniqueUsers7d} unique users in the last 7 days, ` +
           `${audience.uniqueUsers30d} in the last 30 days`,
-        evidence: audience,
+        evidence: { ...audience },
         observedAt: input.now,
         url: `${POSTHOG_APP}/${encodeURIComponent(projectId)}`,
       }),
