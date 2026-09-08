@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { errorMessage as sharedErrorMessage } from '@zapengine/types/shared';
 
 import type { ControlCenterConfig } from '../config/env.js';
 
@@ -49,4 +50,26 @@ export function isMissingColumnError(error: unknown): boolean {
 export function isMissingRpcError(error: unknown): boolean {
   const code = postgrestErrorCode(error);
   return code === 'PGRST202' || code === '42883';
+}
+
+/**
+ * Route-handler error message: an `Error` unwraps normally, a PostgREST RPC
+ * rejection (a plain object carrying `.message`, not an `Error` instance)
+ * unwraps its own message, and anything else falls back to `fallback` rather
+ * than leaking `[object Object]` into an API response.
+ */
+export function postgrestErrorMessage(
+  error: unknown,
+  fallback: string,
+): string {
+  if (error instanceof Error) {
+    return sharedErrorMessage(error);
+  }
+  if (error && typeof error === 'object' && 'message' in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string' && message.trim()) {
+      return message;
+    }
+  }
+  return fallback;
 }

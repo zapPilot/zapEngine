@@ -1,7 +1,11 @@
 import type OpenAI from 'openai';
 
-import { createCompletionWithRetry, getOpenRouterConfig } from '../../llm.js';
-import { throwIfAborted } from '../abort.js';
+import { throwIfAborted } from '../../../lib/abort.js';
+import {
+  completionMetadata,
+  createCompletionWithRetry,
+  getOpenRouterConfig,
+} from '../../llm.js';
 import { containsEntityPhrase, isEnglishOnly } from './english-text.js';
 
 export interface ConceptCardCopy {
@@ -108,10 +112,7 @@ async function completeConceptCardCopy(
   }
   return {
     value,
-    costUsd:
-      'costUsd' in completion && typeof completion.costUsd === 'number'
-        ? completion.costUsd
-        : null,
+    costUsd: completionMetadata(completion, model, null).costUsd,
   };
 }
 

@@ -1,3 +1,5 @@
+import type { PodcastLanguageCode } from '@zapengine/types/shared';
+
 export type PodcastPipelineStatus =
   | 'pending'
   | 'unscheduled'
@@ -12,7 +14,7 @@ export type PodcastPipelineStatus =
 export type PodcastPipelinePhase = 'translation' | 'tts' | 'video' | 'done';
 
 export interface PodcastPipelineLocalization {
-  languageCode: 'zh-Hant' | 'ja' | 'en';
+  languageCode: PodcastLanguageCode;
   status: string;
   hasScript: boolean;
   hasAudio: boolean;
@@ -43,7 +45,7 @@ export interface PodcastPipelineIngestState extends PodcastPipelineJobState {
 }
 
 export interface PodcastPipelineRenderState extends PodcastPipelineJobState {
-  languageCode: 'zh-Hant' | 'ja' | 'en';
+  languageCode: PodcastLanguageCode;
   localizationId: string;
   canRestart: boolean;
 }

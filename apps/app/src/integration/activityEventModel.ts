@@ -22,7 +22,7 @@ import type {
   ActivityWalletRef,
   ChainKey,
   MetricTone,
-} from '@/data/demo';
+} from '@/integration/activityTypes';
 import {
   formatSignedTokenAmount,
   formatSignedUsd,

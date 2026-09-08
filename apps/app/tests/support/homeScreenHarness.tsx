@@ -767,6 +767,11 @@ export const homeScreenMocks = {
         success: '#7fbf7f',
         'ink-dim': '#a6a6a6',
         'ink-faint': '#8a8a8a',
+        pillar: {
+          spy: '#d7dde7',
+          btc: '#f7931a',
+          usd: '#2775ca',
+        },
       },
     },
   },

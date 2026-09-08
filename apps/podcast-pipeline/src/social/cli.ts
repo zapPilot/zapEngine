@@ -6,6 +6,8 @@ import { createInterface } from 'node:readline/promises';
 import { parseArgs } from 'node:util';
 
 import { errorMessage } from '../lib/errorMessage.js';
+import { isMainModule } from '../lib/is-main-module.js';
+import { SUPPORTED_PRIMARY_LANGUAGE_CODES } from '../types.js';
 import {
   parsePlatformOption,
   parseYouTubePrivacyOption,
@@ -13,19 +15,20 @@ import {
 } from './cli-args.js';
 import { composeSocialContent } from './compose.js';
 import { generateSocialCopy, parseGeneratedSocialCopy } from './copy.js';
-import { getSocialEpisode, requireSocialEpisodeVideoUrl } from './episode.js';
-import { isMainModule } from './is-main-module.js';
 import {
   type PackagingAssignment,
   resolvePackagingAssignments,
 } from './packaging-experiments.js';
 import {
   platformLabel,
-  requiresLocalTeaser,
-  requiresLocalVideo,
   SOCIAL_PLATFORM_CONFIG,
   SOCIAL_PLATFORMS,
 } from './platforms.js';
+import {
+  formatBytes,
+  formatDuration,
+  prepareSocialBatchAssets,
+} from './prepare-batch-assets.js';
 import type { PublishPlatformOutcome } from './publish.js';
 import { publishSocialBatch } from './publish-batch.js';
 import { SocialReleaseFailureError } from './publish-error.js';
@@ -38,12 +41,7 @@ import type {
   SocialPublishState,
   YouTubePrivacyStatus,
 } from './types.js';
-import {
-  type PreparedVideo,
-  prepareSocialVideo,
-  prepareXTeaserVideo,
-  xTeaserDurationSeconds,
-} from './video.js';
+import { type PreparedVideo, xTeaserDurationSeconds } from './video.js';
 
 const PLATFORM_USAGE = SOCIAL_PLATFORMS.join('|');
 const USAGE = `Usage: pnpm social:publish <episode-uuid-or-share-url> --language zh-Hant|ja|en [--dry-run] [--yes] [--platform ${PLATFORM_USAGE}] [--youtube-privacy private|unlisted|public] [--force]`;
@@ -270,36 +268,13 @@ async function loadSocialAssets(
   options: SocialCliOptions,
   requestedPlatforms: readonly SocialPlatform[],
 ): Promise<SocialAssets> {
-  console.log(`Fetching episode ${options.episodeId}...`);
-  const episode = await getSocialEpisode(
-    options.episodeId,
-    options.languageCode,
-  );
-  console.log('✓ metadata');
-  console.log('✓ transcript');
-
-  if (!requiresLocalVideo(requestedPlatforms)) return { episode };
-
-  const video = await prepareSocialVideo({
+  const { episode, video, teaserVideo } = await prepareSocialBatchAssets({
     episodeId: options.episodeId,
     languageCode: options.languageCode,
-    url: requireSocialEpisodeVideoUrl(episode),
+    platforms: requestedPlatforms,
+    onLog: console.log,
   });
-  console.log(
-    `✓ ${options.languageCode} video (${formatDuration(episode.videoDurationSeconds)}, ${formatBytes(video.sizeBytes)}${video.reused ? ', cached' : ''})`,
-  );
-
-  if (!requiresLocalTeaser(requestedPlatforms)) return { episode, video };
-
-  const xVideo = await prepareXTeaserVideo({
-    episodeId: options.episodeId,
-    sourcePath: video.path,
-    durationSeconds: episode.videoDurationSeconds,
-  });
-  console.log(
-    `✓ X video (${formatDuration(xTeaserDurationSeconds(episode.videoDurationSeconds))}, ${formatBytes(xVideo.sizeBytes)}${xVideo.reused ? ', cached/reused' : ''})`,
-  );
-  return { episode, video, xVideo };
+  return { episode, video, xVideo: teaserVideo };
 }
 
 async function reviewSocialCopy(input: {
@@ -545,7 +520,9 @@ async function editCopy(
 }
 
 function parseSocialLanguage(value: string): SocialLanguageCode {
-  if (value === 'zh-Hant' || value === 'ja' || value === 'en') return value;
+  if ((SUPPORTED_PRIMARY_LANGUAGE_CODES as readonly string[]).includes(value)) {
+    return value as SocialLanguageCode;
+  }
   throw new Error(`Unsupported social language: ${value}.`);
 }
 
@@ -564,18 +541,6 @@ async function promptLine(message: string): Promise<string> {
   } finally {
     readline.close();
   }
-}
-
-function formatBytes(value: number): string {
-  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
-  return `${(value / 1024 / 1024).toFixed(1)} MB`;
-}
-
-function formatDuration(value: number): string {
-  const seconds = Math.max(0, Math.round(value));
-  const minutes = Math.floor(seconds / 60);
-  const remainder = seconds % 60;
-  return `${minutes}m ${remainder.toString().padStart(2, '0')}s`;
 }
 
 if (isMainModule(import.meta.url)) {

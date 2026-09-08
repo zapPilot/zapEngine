@@ -45,7 +45,6 @@ import {
   handleTelegramRetryCommand,
   handleTelegramRetryVideoCallback,
   handleTelegramStatusCommand,
-  isTelegramRetryMigrationMissing,
   resolveTelegramEpisodeTarget,
   telegramCommandErrorText,
 } from './telegram-commands.js';
@@ -245,7 +244,6 @@ describe('handleTelegramRetryCommand', () => {
     ['missing', '這集還沒有 visual job；請重新貼原始 URL 建立影片工作。'],
     ['abandoned', '這集影片已由操作者結案，不再重排；要重開請清除結案標記。'],
     ['prerequisites', '影片重試的三語音頻前置條件尚未完成。'],
-    ['unavailable', '資料庫尚未升級到影片重試 migration。'],
   ])('maps the %s video retry outcome', async (outcome, text) => {
     setResults({
       episodes: [ok(EPISODE_ROW)],
@@ -269,7 +267,6 @@ describe('handleTelegramRetryVideoCallback', () => {
     ['queued', '影片已重新排程'],
     ['processing', '影片仍在處理中'],
     ['completed', '影片已完成'],
-    ['unavailable', '資料庫尚未升級'],
     ['missing', '找不到 visual job'],
     ['abandoned', '影片已結案，不再重排'],
     ['prerequisites', '音頻前置條件未完成'],
@@ -453,36 +450,7 @@ describe('handleTelegramStatusCommand', () => {
   });
 });
 
-describe('isTelegramRetryMigrationMissing', () => {
-  it('recognises either retry RPC being absent', () => {
-    expect(isTelegramRetryMigrationMissing({ code: 'PGRST202' })).toBe(true);
-    expect(
-      isTelegramRetryMigrationMissing({
-        message:
-          'Could not find the function restart_podcast_ingest in the schema cache',
-      }),
-    ).toBe(true);
-    expect(
-      isTelegramRetryMigrationMissing({
-        message:
-          'Could not find the function retry_episode_video_generation in the schema cache',
-      }),
-    ).toBe(true);
-    expect(
-      isTelegramRetryMigrationMissing({ message: 'schema cache other_fn' }),
-    ).toBe(false);
-    expect(isTelegramRetryMigrationMissing(new Error('boom'))).toBe(false);
-    expect(isTelegramRetryMigrationMissing(null)).toBe(false);
-  });
-});
-
 describe('telegramCommandErrorText', () => {
-  it('names a missing migration', () => {
-    expect(telegramCommandErrorText({ code: '42883' })).toBe(
-      '資料庫尚未升級。',
-    );
-  });
-
   it('keeps only the first line of the message, capped at 160 characters', () => {
     expect(
       telegramCommandErrorText(new Error(`${'m'.repeat(200)}\nsecond`)),

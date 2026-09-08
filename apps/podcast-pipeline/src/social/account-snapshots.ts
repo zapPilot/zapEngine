@@ -7,7 +7,7 @@ import {
   insertSocialAccountSnapshot,
   latestSocialAccountSnapshots,
 } from './daemon-store.js';
-import { platformIcon } from './log-format.js';
+import { platformLabel } from './log-format.js';
 import {
   type MetricsBrowserSession,
   parseFirstMetricNumber,
@@ -333,11 +333,11 @@ async function collectDueSnapshots(input: {
       await insert(snapshot);
       captured.push(socialPlatform);
       log(
-        `📊 [social-daemon] ${platformIcon(platform)} ${platform} · account snapshot · ${snapshot.followers} followers`,
+        `📊 [social-daemon] ${platformLabel(platform)} · account snapshot · ${snapshot.followers} followers`,
       );
     } catch (error) {
       log(
-        `❌ [social-daemon] ${platformIcon(platform)} ${platform} · account snapshot failed · ${errorMessage(error)}`,
+        `❌ [social-daemon] ${platformLabel(platform)} · account snapshot failed · ${errorMessage(error)}`,
       );
     }
   }

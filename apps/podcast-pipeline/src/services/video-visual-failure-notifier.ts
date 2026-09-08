@@ -1,7 +1,7 @@
 import { toError } from '../lib/errorMessage.js';
+import { createSweepNotifier } from '../lib/polling-sweeper.js';
 import {
   getPipelineSupabase,
-  isMissingSupabaseRpc,
   type PipelineSupabaseClient,
   throwSupabaseError,
 } from './supabase-client.js';
@@ -51,42 +51,16 @@ export function createVideoVisualFailureNotifier(
     intervalMs?: number;
   } = {},
 ): VideoVisualFailureNotifier {
-  /* jscpd:ignore-start -- completion and visual-failure notifiers intentionally share the same small single-flight timer lifecycle; their RPC and delivery semantics differ */
+  /* jscpd:ignore-start -- completion and visual-failure notifiers both wire the
+   * same generic createSweepNotifier around a default notify/logger/interval;
+   * their sweepOnce RPC and delivery semantics differ. */
   const notify = options.notify ?? sendMessage;
   const logger = options.logger ?? console;
-  const intervalMs = options.intervalMs ?? DEFAULT_SWEEP_INTERVAL_MS;
-  let timer: NodeJS.Timeout | null = null;
-  let activeSweep: Promise<void> | null = null;
-  let stopped = false;
 
-  const sweep = async (): Promise<void> => {
-    if (stopped) return;
-    if (activeSweep) return activeSweep;
-    const work = sweepOnce(options.supabase, notify, logger);
-    activeSweep = work;
-    try {
-      await work;
-    } finally {
-      if (activeSweep === work) activeSweep = null;
-    }
-  };
-
-  return {
-    start(): void {
-      if (timer || stopped) return;
-      void sweep();
-      timer = setInterval(() => void sweep(), intervalMs);
-      timer.unref();
-    },
-    sweep,
-    stop(): void {
-      stopped = true;
-      if (timer) {
-        clearInterval(timer);
-        timer = null;
-      }
-    },
-  };
+  return createSweepNotifier({
+    intervalMs: options.intervalMs ?? DEFAULT_SWEEP_INTERVAL_MS,
+    run: () => sweepOnce(options.supabase, notify, logger),
+  });
   /* jscpd:ignore-end */
 }
 
@@ -107,7 +81,6 @@ async function sweepOnce(
       p_limit: 20,
     });
     if (error) {
-      if (isMissingSupabaseRpc(error, VISUAL_FAILURE_NOTICE_RPC)) return;
       throwSupabaseError(error);
     }
     failures = Array.isArray(data)

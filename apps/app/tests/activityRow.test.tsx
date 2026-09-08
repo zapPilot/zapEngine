@@ -5,7 +5,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ActivityRow } from '@/components/activity/ActivityRow';
-import type { ActivityEvent } from '@/data/demo';
+import type { ActivityEvent } from '@/integration/activityTypes';
 
 const openUrl = vi.hoisted(() => vi.fn());
 const copyHash = vi.hoisted(() => vi.fn());

@@ -3,7 +3,7 @@ import {
   finiteSeconds,
 } from '@/integration/podcastPlayerShared';
 
-export const VIDEO_HANDOFF_SEEK_TOLERANCE_SECONDS = 0.35;
+const VIDEO_HANDOFF_SEEK_TOLERANCE_SECONDS = 0.35;
 
 export interface EpisodeMediaClock {
   readonly currentTimeSeconds: number;

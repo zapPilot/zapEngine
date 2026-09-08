@@ -4,10 +4,7 @@ import {
   type ReactNode,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
-  useRef,
-  useState,
 } from 'react';
 
 import {
@@ -15,6 +12,7 @@ import {
   type PodcastProgressMap,
 } from '@/integration/podcastProgress';
 import type { PodcastSectionKind } from '@/integration/podcastSections';
+import { useHydratedStore } from '@/hooks/useHydratedStore';
 import {
   loadPodcastProgress,
   savePodcastProgress,
@@ -128,54 +126,22 @@ export function PodcastProgressProvider({
 }: {
   children: ReactNode;
 }): ReactElement {
-  const [progress, setProgress] = useState<PodcastProgressMap>({});
-  const [isHydrated, setIsHydrated] = useState(false);
-  const progressRef = useRef<PodcastProgressMap>({});
-  const hydratedRef = useRef(false);
-  const pendingMutationsRef = useRef<PodcastProgressMutation[]>([]);
-
-  useEffect(() => {
-    let active = true;
-    void loadPodcastProgress().then((stored) => {
-      if (!active) return;
-
-      const pending = pendingMutationsRef.current;
-      pendingMutationsRef.current = [];
-      const hydrated = pending.reduce(applyProgressMutation, stored);
-
-      hydratedRef.current = true;
-      progressRef.current = hydrated;
-      setProgress(hydrated);
-      setIsHydrated(true);
-      if (pending.length > 0) {
-        void savePodcastProgress(hydrated);
-      }
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  const commitMutation = useCallback((mutation: PodcastProgressMutation) => {
-    if (!hydratedRef.current) {
-      pendingMutationsRef.current.push(mutation);
-    }
-
-    const next = applyProgressMutation(progressRef.current, mutation);
-    if (next === progressRef.current) return;
-
-    progressRef.current = next;
-    setProgress(next);
-    if (hydratedRef.current) {
-      void savePodcastProgress(next);
-    }
-  }, []);
+  const {
+    value: progress,
+    isHydrated,
+    commit,
+  } = useHydratedStore<PodcastProgressMap, PodcastProgressMutation>(
+    {},
+    loadPodcastProgress,
+    savePodcastProgress,
+    applyProgressMutation,
+  );
 
   const markListened = useCallback(
     (localizationId: string, listened: boolean) => {
-      commitMutation({ type: 'markListened', localizationId, listened });
+      commit({ type: 'markListened', localizationId, listened });
     },
-    [commitMutation],
+    [commit],
   );
 
   const setPosition = useCallback(
@@ -185,7 +151,7 @@ export function PodcastProgressProvider({
       section: PodcastSectionKind = 'main',
       classroomLanguage?: string,
     ) => {
-      commitMutation({
+      commit({
         type: 'setPosition',
         localizationId,
         seconds,
@@ -193,14 +159,14 @@ export function PodcastProgressProvider({
         ...(classroomLanguage !== undefined ? { classroomLanguage } : {}),
       });
     },
-    [commitMutation],
+    [commit],
   );
 
   const markAllListened = useCallback(
     (localizationIds: readonly string[]) => {
-      commitMutation({ type: 'markAllListened', localizationIds });
+      commit({ type: 'markAllListened', localizationIds });
     },
-    [commitMutation],
+    [commit],
   );
 
   const value = useMemo(

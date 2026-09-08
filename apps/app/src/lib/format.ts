@@ -106,3 +106,14 @@ export function truncateAddress(
     suffixLength: suffix,
   });
 }
+
+/** Formats a value when present, otherwise returns a display fallback
+ * (an em dash by default). Centralizes the "no data yet" pattern repeated
+ * across metric/label formatters. */
+export function formatOr<T>(
+  value: T | null | undefined,
+  format: (value: T) => string,
+  fallback = '—',
+): string {
+  return value == null ? fallback : format(value);
+}

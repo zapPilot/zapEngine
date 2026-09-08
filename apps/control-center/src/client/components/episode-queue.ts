@@ -1,3 +1,5 @@
+import { PODCAST_LANGUAGE_CODES } from '@zapengine/types/shared';
+
 import type {
   PipelinePublishedLink,
   PipelineQueueHistoryEvent,
@@ -136,7 +138,7 @@ function compareJobs(a: PipelineQueueItem, b: PipelineQueueItem): number {
 }
 
 function languageRank(languageCode: string | undefined): number {
-  const order = ['zh-Hant', 'ja', 'en'];
+  const order: readonly string[] = PODCAST_LANGUAGE_CODES;
   const index = languageCode ? order.indexOf(languageCode) : -1;
   return index >= 0 ? index : order.length;
 }

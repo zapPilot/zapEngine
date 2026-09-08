@@ -12,6 +12,7 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -66,6 +67,19 @@ import { useEpisodeProgress } from '@/providers/PodcastProgressProvider';
 
 const VIDEO_PROGRESS_PERSIST_INTERVAL_SECONDS = 10;
 const VIDEO_COMPLETION_THRESHOLD_SECONDS = 2;
+
+/**
+ * The video handoff session's mutable playback clock, tracked in one ref so a
+ * time update doesn't fan out into six separate ref writes.
+ */
+interface VideoClockState {
+  currentTimeSeconds: number;
+  durationSeconds: number;
+  playing: boolean;
+  playbackRate: number;
+  lastPersistedTimeSeconds: number;
+  failureHandled: boolean;
+}
 
 export function PodcastIconButton({
   label,
@@ -203,11 +217,15 @@ function EpisodeVideoProgressAccessory({
   percent,
   stageLabel,
 }: EpisodeVideoProgressView) {
+  const { t } = useContentLanguage();
   return (
     // A definite width: it gives ProgressBar's `w-full` track something to
     // measure inside the panel's `items-center` column, which has none.
     <View className="w-[240px]">
-      <ProgressBar value={percent} accessibilityLabel="Generating video" />
+      <ProgressBar
+        value={percent}
+        accessibilityLabel={t('podcast.generatingVideo')}
+      />
       <View className="mt-2 flex-row items-center justify-between">
         <Text className="font-sans-medium text-[12px] text-ink-dim">
           {stageLabel ?? 'Video is rendering'}
@@ -227,6 +245,7 @@ function EpisodeVideoStatusPanel({
   progress: EpisodeVideoProgressView | null;
   onPlay: () => void;
 }) {
+  const { t } = useContentLanguage();
   const previousStateRef = useRef(state);
 
   useEffect(() => {
@@ -244,7 +263,7 @@ function EpisodeVideoStatusPanel({
     case 'generating':
       return (
         <UnavailableMediaPanel
-          label="Video"
+          label={t('podcast.video')}
           message="Video is being generated"
           detail="This page updates automatically while the video renders."
           liveRegion="polite"
@@ -254,7 +273,7 @@ function EpisodeVideoStatusPanel({
             // reported progress.
             progress === null ? (
               <ActivityIndicator
-                accessibilityLabel="Generating video"
+                accessibilityLabel={t('podcast.generatingVideo')}
                 color="#f5f1e8"
               />
             ) : (
@@ -283,8 +302,8 @@ function EpisodeVideoStatusPanel({
     case 'ready':
       return (
         <UnavailableMediaPanel
-          label="Video"
-          message="Video is ready"
+          label={t('podcast.video')}
+          message={t('podcast.videoReady')}
           liveRegion="polite"
           action={{ label: 'Play video', onPress: onPlay }}
         />
@@ -292,8 +311,8 @@ function EpisodeVideoStatusPanel({
     case 'unavailable':
       return (
         <UnavailableMediaPanel
-          label="Video"
-          message="Video isn’t available yet"
+          label={t('podcast.video')}
+          message={t('podcast.videoUnavailable')}
         />
       );
   }
@@ -310,6 +329,7 @@ function AudioPlaybackControls({
   section: PodcastSectionKind;
   sectionLanguage: string | null;
 }) {
+  const { t } = useContentLanguage();
   const isCurrentEpisode =
     player.nowPlaying?.localizationId === episode.localizationId;
   const isCurrent =
@@ -400,7 +420,9 @@ function AudioPlaybackControls({
       <View className="mt-5 items-end">
         <Tap
           accessibilityRole="button"
-          accessibilityLabel="Change playback speed"
+          accessibilityLabel={t('podcast.playbackSpeed', {
+            speed: player.speed,
+          })}
           onPress={() =>
             player.setSpeed(nextPodcastPlaybackSpeed(player.speed))
           }
@@ -432,21 +454,50 @@ export function EpisodeMediaPlayer({
     null,
   );
   const { markListened, setPosition } = useEpisodeProgress();
-  const videoTimeRef = useRef(finiteSeconds(episode.lastPositionSeconds));
-  const videoDurationRef = useRef(episode.video?.durationSeconds ?? 0);
-  const videoPlayingRef = useRef(false);
-  const videoRateRef = useRef(player.speed);
-  const lastPersistedVideoTimeRef = useRef(
-    Math.floor(finiteSeconds(episode.lastPositionSeconds)),
-  );
-  const videoFailureHandledRef = useRef(false);
+  const videoClockRef = useRef<VideoClockState>({
+    currentTimeSeconds: finiteSeconds(episode.lastPositionSeconds),
+    durationSeconds: episode.video?.durationSeconds ?? 0,
+    playing: false,
+    playbackRate: player.speed,
+    lastPersistedTimeSeconds: Math.floor(
+      finiteSeconds(episode.lastPositionSeconds),
+    ),
+    failureHandled: false,
+  });
 
   const isCurrentAudio =
     player.nowPlaying?.localizationId === episode.localizationId;
-  const availability = episodeMediaTabAvailability(episode);
-  const classroomSections = buildPlaybackSections(episode).filter(
-    (section) => section.kind === 'classroom',
-  );
+  // Keyed on the specific fields the derivations below actually read, not on
+  // `episode` itself: `mergeEpisodeProgress` spreads a new episode object on
+  // every position/listened update, which would otherwise recompute these on
+  // every playback tick.
+  const { availability, classroomSections, videoPanelState, videoProgress } =
+    useMemo(() => {
+      const mediaEpisode: Pick<
+        PodcastEpisode,
+        'hlsUrl' | 'languageCode' | 'audioTracks' | 'video' | 'videoGeneration'
+      > = {
+        hlsUrl: episode.hlsUrl,
+        languageCode: episode.languageCode,
+        audioTracks: episode.audioTracks,
+        video: episode.video,
+        videoGeneration: episode.videoGeneration,
+      };
+      return {
+        availability: episodeMediaTabAvailability(mediaEpisode),
+        classroomSections: buildPlaybackSections(mediaEpisode).filter(
+          (section) => section.kind === 'classroom',
+        ),
+        videoPanelState: episodeVideoPanelState(mediaEpisode),
+        videoProgress: episodeVideoProgressView(mediaEpisode),
+      };
+    }, [
+      episode.hlsUrl,
+      episode.languageCode,
+      episode.audioTracks,
+      episode.video,
+      episode.videoGeneration,
+    ]);
   const activeClassroomLanguage = resolveActiveClassroomLanguage({
     classroomSections,
     playerLanguage:
@@ -455,8 +506,6 @@ export function EpisodeMediaPlayer({
         : null,
     selectedLanguage: selectedClassroomLanguage,
   });
-  const videoPanelState = episodeVideoPanelState(episode);
-  const videoProgress = episodeVideoProgressView(episode);
   const activeTab = resolveActiveEpisodeMediaTab({
     selectedTab,
     isCurrentAudio: isCurrentAudio && availability[selectedTab],
@@ -480,12 +529,13 @@ export function EpisodeMediaPlayer({
       if (roundedSeconds <= 0) return;
       if (
         !force &&
-        Math.abs(roundedSeconds - lastPersistedVideoTimeRef.current) <
-          VIDEO_PROGRESS_PERSIST_INTERVAL_SECONDS
+        Math.abs(
+          roundedSeconds - videoClockRef.current.lastPersistedTimeSeconds,
+        ) < VIDEO_PROGRESS_PERSIST_INTERVAL_SECONDS
       ) {
         return;
       }
-      lastPersistedVideoTimeRef.current = roundedSeconds;
+      videoClockRef.current.lastPersistedTimeSeconds = roundedSeconds;
       setPosition(episode.localizationId, roundedSeconds);
     },
     [episode.localizationId, setPosition],
@@ -494,7 +544,7 @@ export function EpisodeMediaPlayer({
   useEffect(
     () => () => {
       if (videoSession !== null) {
-        persistVideoPosition(videoTimeRef.current, true);
+        persistVideoPosition(videoClockRef.current.currentTimeSeconds, true);
       }
     },
     [persistVideoPosition, videoSession],
@@ -512,11 +562,12 @@ export function EpisodeMediaPlayer({
       shouldPlay: player.isPlaying,
       pauseAudio: () => player.pause(),
     });
-    videoTimeRef.current = nextVideoSession.initialTimeSeconds;
-    videoDurationRef.current = episode.video.durationSeconds;
-    videoPlayingRef.current = nextVideoSession.shouldPlay;
-    videoRateRef.current = nextVideoSession.playbackRate;
-    videoFailureHandledRef.current = false;
+    videoClockRef.current.currentTimeSeconds =
+      nextVideoSession.initialTimeSeconds;
+    videoClockRef.current.durationSeconds = episode.video.durationSeconds;
+    videoClockRef.current.playing = nextVideoSession.shouldPlay;
+    videoClockRef.current.playbackRate = nextVideoSession.playbackRate;
+    videoClockRef.current.failureHandled = false;
     onVideoClockChange?.({
       currentTimeSeconds: nextVideoSession.initialTimeSeconds,
       durationSeconds: episode.video.durationSeconds,
@@ -527,15 +578,15 @@ export function EpisodeMediaPlayer({
   const continueWithAudio = useCallback(
     (
       section: PodcastSectionKind = 'main',
-      shouldPlay = videoPlayingRef.current,
+      shouldPlay = videoClockRef.current.playing,
       languageCode?: string | null,
     ) => {
       const position = clampPodcastPlaybackSeconds(
-        videoTimeRef.current,
-        videoDurationRef.current,
+        videoClockRef.current.currentTimeSeconds,
+        videoClockRef.current.durationSeconds,
       );
       persistVideoPosition(position, true);
-      player.setSpeed(videoRateRef.current);
+      player.setSpeed(videoClockRef.current.playbackRate);
       player.playSectionFromQueue(episodes, episode, section, {
         atSeconds: section === 'main' ? position : 0,
         shouldPlay,
@@ -583,8 +634,8 @@ export function EpisodeMediaPlayer({
   const handleVideoTimeUpdate = useCallback(
     (seconds: number, duration: number) => {
       const position = clampPodcastPlaybackSeconds(seconds, duration);
-      videoTimeRef.current = position;
-      videoDurationRef.current = duration;
+      videoClockRef.current.currentTimeSeconds = position;
+      videoClockRef.current.durationSeconds = duration;
       onVideoClockChange?.({
         currentTimeSeconds: position,
         durationSeconds: duration,
@@ -608,8 +659,8 @@ export function EpisodeMediaPlayer({
   const handleVideoEnd = useCallback(
     (duration: number) => {
       const finalPosition = finiteSeconds(duration);
-      videoTimeRef.current = finalPosition;
-      videoDurationRef.current = finalPosition;
+      videoClockRef.current.currentTimeSeconds = finalPosition;
+      videoClockRef.current.durationSeconds = finalPosition;
       onVideoClockChange?.({
         currentTimeSeconds: finalPosition,
         durationSeconds: finalPosition,
@@ -626,9 +677,9 @@ export function EpisodeMediaPlayer({
   );
 
   const handleVideoError = useCallback(() => {
-    if (videoFailureHandledRef.current) return;
-    videoFailureHandledRef.current = true;
-    continueWithAudio('main', videoPlayingRef.current);
+    if (videoClockRef.current.failureHandled) return;
+    videoClockRef.current.failureHandled = true;
+    continueWithAudio('main', videoClockRef.current.playing);
   }, [continueWithAudio]);
 
   const video = episode.video;
@@ -641,10 +692,10 @@ export function EpisodeMediaPlayer({
       videoTabHint = 'Video is being generated';
       break;
     case 'failed':
-      videoTabHint = 'Video generation failed';
+      videoTabHint = t('podcast.videoFailed');
       break;
     case 'unavailable':
-      videoTabHint = 'Video isn’t available yet';
+      videoTabHint = t('podcast.videoUnavailable');
       break;
   }
 
@@ -672,16 +723,16 @@ export function EpisodeMediaPlayer({
             playbackRate={videoSession.playbackRate}
             shouldPlay={videoSession.shouldPlay}
             onPlayingChange={(isPlaying) => {
-              videoPlayingRef.current = isPlaying;
+              videoClockRef.current.playing = isPlaying;
             }}
             onPlaybackRateChange={(rate) => {
-              videoRateRef.current = rate;
+              videoClockRef.current.playbackRate = rate;
             }}
             onTimeUpdate={handleVideoTimeUpdate}
             onPlaybackEnd={handleVideoEnd}
             onPlaybackError={handleVideoError}
             onPlaybackExit={(seconds) => {
-              videoTimeRef.current = finiteSeconds(seconds);
+              videoClockRef.current.currentTimeSeconds = finiteSeconds(seconds);
               persistVideoPosition(seconds, true);
             }}
           />
@@ -692,7 +743,7 @@ export function EpisodeMediaPlayer({
       return (
         <UnavailableMediaPanel
           label="Classroom"
-          message="Classroom isn’t available for this episode"
+          message={t('podcast.noClassroom')}
         />
       );
     }
@@ -774,13 +825,13 @@ export function EpisodeMediaPlayer({
               hint={
                 availability.classroom
                   ? 'Use the language classroom audio player'
-                  : 'Classroom isn’t available for this episode'
+                  : t('podcast.noClassroom')
               }
               onPress={() => selectAudioTab('classroom')}
             />
             <EpisodeMediaTabButton
               active={activeTab === 'video'}
-              label="Video"
+              label={t('podcast.video')}
               hint={videoTabHint}
               busy={videoPanelState === 'generating'}
               onPress={showVideo}

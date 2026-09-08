@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 import OpenAI, { APIConnectionError, APIConnectionTimeoutError } from 'openai';
 
+import { combineAbortSignalWithTimeout } from '../lib/abort.js';
 import { getRequiredEnv } from '../lib/env.js';
 import { errorMessage } from '../lib/errorMessage.js';
 import { normalizeLanguageClassroomLessonDraft } from '../lib/languageClassroom.js';
@@ -18,7 +19,6 @@ import {
   logPipelineEvent,
 } from './ingest/step.js';
 import { convertTextToZhTW } from './opencc.js';
-import { combineAbortSignalWithTimeout } from './video/abort.js';
 
 export interface ScriptResult {
   title: string | null;
@@ -389,10 +389,7 @@ export function getOpenRouterConfig(overrides?: {
   model?: string;
   thinkingModel?: string | null;
 }): OpenRouterConfig {
-  const apiKey = process.env['OPENROUTER_API_KEY'];
-  if (!apiKey) {
-    throw new Error('OPENROUTER_API_KEY not set');
-  }
+  const apiKey = getRequiredEnv('OPENROUTER_API_KEY');
 
   const baseURL =
     process.env['OPENROUTER_BASE_URL'] || 'https://openrouter.ai/api/v1';

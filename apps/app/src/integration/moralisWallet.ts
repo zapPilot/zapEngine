@@ -16,11 +16,13 @@ import { parseBaseUnits } from '@zapengine/app-core/lib/wallet/usd6';
 import { formatTokenBaseUnits } from '@zapengine/app-core/utils';
 
 import {
+  ACTIVITY_BUCKETS,
+  type ActivityBucket,
   type ActivityCategoryFlow,
   type ActivityGroup,
   type ActivityWalletRef,
   type DemoAsset,
-} from '@/data/demo';
+} from '@/integration/activityTypes';
 import {
   mapMoralisEvent,
   summarizeCategoryFlows,
@@ -508,22 +510,18 @@ export function buildInvestableBalanceRows(
   });
 }
 
-export const ACTIVITY_BUCKETS = ['Today', 'This week', 'Earlier'] as const;
-
-export type ActivityBucket = (typeof ACTIVITY_BUCKETS)[number];
-
 function bucketForTimestamp(timestamp: number, nowMs: number): ActivityBucket {
   if (timestamp <= 0) {
-    return 'Earlier';
+    return 'earlier';
   }
   const diffDays = Math.floor((nowMs - timestamp) / MS_PER_DAY);
   if (diffDays <= 0) {
-    return 'Today';
+    return 'today';
   }
   if (diffDays < 7) {
-    return 'This week';
+    return 'week';
   }
-  return 'Earlier';
+  return 'earlier';
 }
 
 function timeLabel(timestamp: number, nowMs: number): string {
@@ -667,10 +665,10 @@ export function buildActivityGroupsFromMoralisHistory(
     .toSorted((a, b) => b.timestamp - a.timestamp)
     .slice(0, options.limit);
 
-  const groups = ACTIVITY_BUCKETS.map((label) => ({
-    label,
+  const groups = ACTIVITY_BUCKETS.map((bucket) => ({
+    bucket,
     events: orderedEvents
-      .filter((event) => bucketForTimestamp(event.timestamp, nowMs) === label)
+      .filter((event) => bucketForTimestamp(event.timestamp, nowMs) === bucket)
       .map((event) => ({
         ...event,
         time: timeLabel(event.timestamp, nowMs),

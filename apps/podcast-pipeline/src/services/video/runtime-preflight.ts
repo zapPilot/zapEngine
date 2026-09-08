@@ -1,10 +1,11 @@
 import { access, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 
 import sharp from 'sharp';
 
+import { escapeFilterPath } from '../../lib/ffmpeg-filter-path.js';
+import { isMainModule } from '../../lib/is-main-module.js';
 import {
   assertVideoFfmpegCapabilities,
   resolveVideoFfmpegPath,
@@ -141,19 +142,7 @@ export async function assertVideoRenderRuntime(
   }
 }
 
-function escapeFilterPath(path: string): string {
-  return path
-    .replaceAll('\\', '\\\\')
-    .replaceAll(':', '\\:')
-    .replaceAll("'", "\\'");
-}
-
-function isDirectExecution(): boolean {
-  const entry = process.argv[1];
-  return Boolean(entry && resolve(entry) === fileURLToPath(import.meta.url));
-}
-
-if (isDirectExecution()) {
+if (isMainModule(import.meta.url)) {
   const report = await assertVideoRenderRuntime({ verifySubtitleBurnIn: true });
   console.info(
     `[video-runtime] subtitle burn-in verified ffmpeg=${report.ffmpegPath} fonts=${report.fontsDirectory} maxChannel=${report.subtitleFrameMaxChannel ?? 'n/a'}`,

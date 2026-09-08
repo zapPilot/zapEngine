@@ -34,7 +34,7 @@ describe('Moralis wallet query wrappers', () => {
     const refetch = vi.fn();
     useQueryMock.mockReturnValueOnce({
       data: {
-        groups: [{ label: 'Today', events: [] }],
+        groups: [{ bucket: 'today', events: [] }],
         summary: [
           { category: 'stable', usdNet: 50, label: '+50 USDC', share: 1 },
         ],
@@ -46,7 +46,7 @@ describe('Moralis wallet query wrappers', () => {
     });
 
     expect(useMoralisWalletHistory('wallet-address')).toEqual({
-      groups: [{ label: 'Today', events: [] }],
+      groups: [{ bucket: 'today', events: [] }],
       summary: [
         { category: 'stable', usdNet: 50, label: '+50 USDC', share: 1 },
       ],
@@ -116,7 +116,7 @@ describe('Moralis wallet query wrappers', () => {
     await expect(queryOptions.queryFn()).resolves.toMatchObject({
       groups: [
         {
-          label: 'Earlier',
+          bucket: 'earlier',
           events: [
             expect.objectContaining({
               id: 'arbitrum-0xreceived-eth',

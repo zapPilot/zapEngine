@@ -169,25 +169,35 @@ export function buildTelegramVideoFailedMessage(
   ].join('\n');
 }
 
+function buildTelegramWarning(
+  title: string,
+  detail: string,
+  footer: string,
+): string {
+  return [title, `原因：${publicTelegramErrorMessage(detail)}`, footer].join(
+    '\n',
+  );
+}
+
 /**
  * The render process group is started on demand, so a wake that never succeeds
  * leaves queued video work with no worker and no other visible symptom. This is
  * the only signal that reaches a human.
  */
 export function buildTelegramRenderWakeFailedMessage(detail: string): string {
-  return [
+  return buildTelegramWarning(
     '⚠️ 影片算圖機器無法自動喚醒',
-    `原因：${publicTelegramErrorMessage(detail)}`,
+    detail,
     '音頻不受影響。影片工作留在佇列，喚醒恢復後會自動繼續。',
-  ].join('\n');
+  );
 }
 
 export function buildTelegramRenderFleetWarningMessage(detail: string): string {
-  return [
+  return buildTelegramWarning(
     '⚠️ 影片算圖機器數量異常',
-    `原因：${publicTelegramErrorMessage(detail)}`,
+    detail,
     '目前只會喚醒現行版本的機器；影片工作仍會繼續。',
-  ].join('\n');
+  );
 }
 
 /**
@@ -195,11 +205,11 @@ export function buildTelegramRenderFleetWarningMessage(detail: string): string {
  * the only signal that reaches a human when nobody is watching the terminal.
  */
 export function buildSocialReleaseFailedMessage(detail: string): string {
-  return [
+  return buildTelegramWarning(
     '⚠️ Social 發布程序中止',
-    `原因：${publicTelegramErrorMessage(detail)}`,
+    detail,
     'daemon 已停止，需要手動重啟；已發布的貼文不受影響。',
-  ].join('\n');
+  );
 }
 
 async function telegramApiError(
@@ -365,22 +375,31 @@ export function getTelegramMessage(
   };
 }
 
+async function bestEffortTelegramCall(
+  operation: 'sendMessage' | 'answerCallbackQuery',
+  fn: () => Promise<void>,
+): Promise<void> {
+  try {
+    await fn();
+  } catch (error) {
+    console.error(`[/telegram/webhook] ${operation} failed:`, {
+      message: errorMessage(error),
+    });
+    capturePipelineException(error, {
+      component: 'telegram',
+      tags: { operation },
+    });
+  }
+}
+
 export async function sendTelegramNotification(
   chatId: TelegramChatId,
   text: string,
   options: TelegramSendMessageOptions = {},
 ): Promise<void> {
-  try {
-    await sendMessage(chatId, text, options);
-  } catch (error) {
-    console.error('[/telegram/webhook] sendMessage failed:', {
-      message: errorMessage(error),
-    });
-    capturePipelineException(error, {
-      component: 'telegram',
-      tags: { operation: 'sendMessage' },
-    });
-  }
+  await bestEffortTelegramCall('sendMessage', () =>
+    sendMessage(chatId, text, options),
+  );
 }
 
 export async function answerTelegramCallbackQuery(
@@ -388,7 +407,7 @@ export async function answerTelegramCallbackQuery(
   text: string,
 ): Promise<void> {
   const token = getTelegramBotToken();
-  try {
+  await bestEffortTelegramCall('answerCallbackQuery', async () => {
     const response = await fetch(
       `https://api.telegram.org/bot${token}/answerCallbackQuery`,
       {
@@ -405,15 +424,7 @@ export async function answerTelegramCallbackQuery(
     if (!response.ok) {
       throw await telegramApiError('answerCallbackQuery', response);
     }
-  } catch (error) {
-    console.error('[/telegram/webhook] answerCallbackQuery failed:', {
-      message: errorMessage(error),
-    });
-    capturePipelineException(error, {
-      component: 'telegram',
-      tags: { operation: 'answerCallbackQuery' },
-    });
-  }
+  });
 }
 
 function findUrlEnd(text: string, start: number): number {

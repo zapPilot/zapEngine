@@ -21,7 +21,6 @@ vi.mock('../services/supabase-client.js', () => ({
 
 import {
   activateSocialStrategy,
-  claimSocialPublishBatch,
   completeSocialPublishJob,
   enqueueSocialPublishJob,
   ensureSocialDaemonStart,
@@ -32,7 +31,6 @@ import {
   listLearningSocialMetrics,
   listLearningSocialPosts,
   listMetricWindowsForPosts,
-  listPastDueSocialPublishJobs,
   listSocialPublishCandidates,
   listSocialPublishCandidatesForEpisodes,
   listUnfinishedSocialPublishJobs,
@@ -40,7 +38,6 @@ import {
   reconcileSocialPublishJob,
   refundSocialPublishJobAttempt,
   releaseSocialPublishJobLease,
-  rescheduleSocialPublishJob,
 } from './daemon-store.js';
 
 function nextResult(): QueryResult {
@@ -341,7 +338,7 @@ describe('social daemon store', () => {
     ]);
   });
 
-  it('maps candidate, enqueue, schedule, claim, and metric-list queries', async () => {
+  it('maps candidate, enqueue, schedule, and metric-list queries', async () => {
     queue({
       data: [{ episode_id: 'episode-1', ready_at: '2026-08-16T10:00:00Z' }],
       error: null,
@@ -412,15 +409,22 @@ describe('social daemon store', () => {
           episodeId: 'episode-1',
           title: 'First episode',
           nextAt: '2026-08-16T10:05:00Z',
+          laneCount: 1,
+          lanes: [{ platform: 'x', languageCode: 'zh-Hant' }],
         },
         {
           episodeId: 'episode-2',
           title: 'Second episode',
           nextAt: '2026-08-16T10:15:00Z',
+          laneCount: 2,
+          lanes: [
+            { platform: 'x', languageCode: 'zh-Hant' },
+            { platform: 'threads', languageCode: 'zh-Hant' },
+          ],
         },
       ],
-      nextByPlatform: {
-        x: {
+      nextByLane: {
+        'x|zh-Hant': {
           episodeId: 'episode-1',
           languageCode: 'zh-Hant',
           platform: 'x',
@@ -429,8 +433,9 @@ describe('social daemon store', () => {
           nextAt: '2026-08-16T10:05:00Z',
           attemptCount: 0,
           attemptsExhausted: false,
+          experiment: null,
         },
-        threads: {
+        'threads|zh-Hant': {
           episodeId: 'episode-2',
           languageCode: 'zh-Hant',
           platform: 'threads',
@@ -439,21 +444,10 @@ describe('social daemon store', () => {
           nextAt: '2026-08-16T10:15:00Z',
           attemptCount: 0,
           attemptsExhausted: false,
+          experiment: null,
         },
       },
-    });
-
-    const job = { id: 'job-1', platform: 'x' };
-    queue({ data: [job], error: null });
-    await expect(
-      claimSocialPublishBatch({
-        owner: 'mac:1',
-        now: new Date('2026-08-16T10:00:00Z'),
-      }),
-    ).resolves.toEqual([job]);
-    expect(mocks.rpc).toHaveBeenCalledWith('claim_social_publish_batch', {
-      p_owner: 'mac:1',
-      p_now: '2026-08-16T10:00:00.000Z',
+      waitingVideos: [],
     });
 
     queue({ data: [{ id: 'post-1' }], error: null });
@@ -555,11 +549,6 @@ describe('social daemon store', () => {
         scheduledAt: now.toISOString(),
       }),
     ).rejects.toThrow('enqueue failed');
-
-    queue({ data: null, error: null });
-    await expect(
-      claimSocialPublishBatch({ owner: 'mac:1', now }),
-    ).resolves.toEqual([]);
 
     queue({ data: null, error: new Error('lease update failed') });
     await expect(
@@ -671,28 +660,6 @@ describe('social daemon store', () => {
     await expect(
       listSocialPublishCandidates('2026-08-01T00:00:00Z'),
     ).rejects.toThrow('query failed');
-    queue({ data: null, error: new Error('rpc failed') });
-    await expect(
-      claimSocialPublishBatch({ owner: 'mac:1', now: new Date() }),
-    ).rejects.toThrow('rpc failed');
-  });
-
-  // The claim takes whatever is due, with no episode or platform narrowing:
-  // the cross-episode fence it existed for would deadlock a queue whose
-  // platforms deliberately publish the same episode hours apart.
-  it('claims everything due without narrowing the RPC', async () => {
-    const job = { id: 'job-1', platform: 'x' };
-    queue({ data: [job], error: null });
-    await expect(
-      claimSocialPublishBatch({
-        owner: 'mac:1',
-        now: new Date('2026-08-16T10:00:00Z'),
-      }),
-    ).resolves.toEqual([job]);
-    expect(mocks.rpc).toHaveBeenCalledWith('claim_social_publish_batch', {
-      p_owner: 'mac:1',
-      p_now: '2026-08-16T10:00:00.000Z',
-    });
   });
 
   it('reads every ready localization for a set of episodes, unfiltered by the discovery anchor', async () => {
@@ -719,76 +686,6 @@ describe('social daemon store', () => {
     await expect(
       listSocialPublishCandidatesForEpisodes(['episode-1']),
     ).rejects.toThrow('candidates by episode failed');
-  });
-
-  it('reads past-due lanes without touching a lease someone may hold', async () => {
-    const job = {
-      id: 'job-1',
-      episode_id: 'episode-1',
-      platform: 'rednote',
-      language_code: 'zh-Hant',
-      status: 'queued',
-      scheduled_at: '2026-08-16T05:30:00Z',
-    };
-    queue({ data: [job], error: null });
-    await expect(
-      listPastDueSocialPublishJobs(new Date('2026-08-16T10:00:00Z')),
-    ).resolves.toEqual([job]);
-    // `processing` is absent on purpose: only the claim RPC may take an
-    // expired lease back.
-    expect(mocks.calls.filter((call) => call.method === 'in')).toContainEqual({
-      method: 'in',
-      args: ['status', ['queued', 'failed']],
-    });
-
-    queue({ data: null, error: new Error('past due failed') });
-    await expect(
-      listPastDueSocialPublishJobs(new Date('2026-08-16T10:00:00Z')),
-    ).rejects.toThrow('past due failed');
-  });
-
-  it('moves a missed slot forward on both claim gates, fenced by status', async () => {
-    queue({ data: { id: 'job-1' }, error: null });
-    await expect(
-      rescheduleSocialPublishJob({
-        jobId: 'job-1',
-        status: 'failed',
-        scheduledAt: new Date('2026-08-17T05:30:00Z'),
-        now: new Date('2026-08-16T10:00:00Z'),
-      }),
-    ).resolves.toBe(true);
-    const updates = mocks.calls.filter((call) => call.method === 'update');
-    // `next_attempt_at` follows the new slot because the claim RPC fences on
-    // both: retry backoff left behind it would make the lane unclaimable at
-    // the very time it is now due.
-    expect(updates[updates.length - 1]?.args[0]).toEqual({
-      scheduled_at: '2026-08-17T05:30:00.000Z',
-      next_attempt_at: '2026-08-17T05:30:00.000Z',
-      updated_at: '2026-08-16T10:00:00.000Z',
-    });
-    expect(mocks.calls.filter((call) => call.method === 'eq')).toContainEqual({
-      method: 'eq',
-      args: ['status', 'failed'],
-    });
-  });
-
-  // A publish that dies mid-cohort leaves its own lane `processing` under a live
-  // 60-minute lease. Asserted on the query filter rather than on returned rows:
-  // the in-memory reduce already treats every non-completed status as pending,
-  // so a status missing from the filter never reaches it and no fixture of rows
-  // can expose the gap.
-  it('reports a reschedule that raced a claim as not applied', async () => {
-    // The status fence is what makes this safe beside a live claim: a row the
-    // RPC already took is `processing` and matches nothing here.
-    queue({ data: null, error: null });
-    await expect(
-      rescheduleSocialPublishJob({
-        jobId: 'job-1',
-        status: 'queued',
-        scheduledAt: new Date('2026-08-17T05:30:00Z'),
-        now: new Date('2026-08-16T10:00:00Z'),
-      }),
-    ).resolves.toBe(false);
   });
 
   it('releases an untouched lane back to queued and hands its attempt back', async () => {

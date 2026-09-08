@@ -4,10 +4,8 @@ import type {
   PODCAST_VIDEO_REVIEW_VERDICTS,
 } from '@zapengine/types/shared';
 
-import {
-  getPipelineSupabase,
-  throwSupabaseError,
-} from '../../supabase-client.js';
+import { getPipelineSupabase } from '../../supabase-client.js';
+import { many, maybeOne } from '../../supabase-rows.js';
 
 export type PodcastVideoReviewVerdict =
   (typeof PODCAST_VIDEO_REVIEW_VERDICTS)[number];
@@ -48,10 +46,8 @@ export async function listReviewsForExport(input: {
     .limit(input.limit);
   if (input.status !== 'all') query = query.eq('status', input.status);
   if (input.episodeId) query = query.eq('episode_id', input.episodeId);
-  const { data, error } = await query;
-  if (error) throwSupabaseError(error);
+  const rows = await many<Record<string, unknown>>(query);
 
-  const rows = (data ?? []) as Record<string, unknown>[];
   const episodeIds = [
     ...new Set(
       rows.flatMap((row) =>
@@ -61,15 +57,10 @@ export async function listReviewsForExport(input: {
   ];
   const titleByEpisode = new Map<string, string | null>();
   if (episodeIds.length > 0) {
-    const episodes = await supabase
-      .from('episodes')
-      .select('id,source_title')
-      .in('id', episodeIds);
-    if (episodes.error) throwSupabaseError(episodes.error);
-    for (const episode of (episodes.data ?? []) as {
-      id: string;
-      source_title: string | null;
-    }[]) {
+    const episodes = await many<{ id: string; source_title: string | null }>(
+      supabase.from('episodes').select('id,source_title').in('id', episodeIds),
+    );
+    for (const episode of episodes) {
       titleByEpisode.set(episode.id, episode.source_title);
     }
   }
@@ -120,16 +111,14 @@ export async function resolveReview(input: {
   status: 'triaged' | 'resolved';
   note?: string | null;
 }): Promise<boolean> {
-  const { data, error } = await getPipelineSupabase().rpc(
-    'resolve_episode_video_review',
-    {
+  const data = await maybeOne<unknown>(
+    getPipelineSupabase().rpc('resolve_episode_video_review', {
       p_review_id: input.id,
       p_status: input.status,
       p_resolution_note: input.note ?? null,
       p_resolved_by: 'agent',
-    },
+    }),
   );
-  if (error) throwSupabaseError(error);
   return data === true;
 }
 

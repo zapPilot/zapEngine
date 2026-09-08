@@ -4,8 +4,15 @@
  * when no clean source exists.
  */
 
-import type { AllocationCategoryKey } from '@zapengine/app-core/lib/domain/allocationCategories';
+import { tokens } from '@zapengine/design-tokens/tokens';
 
+import type {
+  ActivityCategoryFlow,
+  ActivityFilter,
+  ActivityGroup,
+  DemoAsset,
+  MetricTone,
+} from '@/integration/activityTypes';
 import type { DailyValuePoint } from '@/integration/portfolioMetrics';
 
 const DEMO_MARKET_ETH_SHARE = 0.6;
@@ -52,16 +59,6 @@ function buildDemoTrendPoints(values: number[]): DailyValuePoint[] {
   });
 }
 
-export type ChainKey = 'ethereum' | 'arbitrum' | 'base';
-
-export interface DemoAsset {
-  symbol: string;
-  name: string;
-  usdValue: number | null;
-  amountLabel: string;
-  chains: ChainKey[];
-}
-
 export interface DemoData {
   account: {
     label: string;
@@ -105,85 +102,6 @@ export interface DemoData {
   };
   activitySummary: ActivityCategoryFlow[];
   activity: ActivityGroup[];
-}
-
-export type MetricTone = 'neutral' | 'positive' | 'negative' | 'accent';
-
-export type ActivityKind =
-  | 'invest'
-  | 'rebalance'
-  | 'yield'
-  | 'deposit'
-  | 'withdraw'
-  | 'internal-transfer'
-  | 'contract-interaction'
-  | 'strategy-update';
-
-export type ActivityStatus = 'Completed' | 'Settled' | 'Applied' | 'Failed';
-
-export interface ActivityStep {
-  label: string;
-  done: boolean;
-}
-
-/** Net movement of one allocation category inside an activity event. */
-export interface ActivityCategoryDelta {
-  category: AllocationCategoryKey;
-  /** Net USD when the indexer priced the transfers; token-only otherwise. */
-  usdNet: number | null;
-  /** Pre-composed token-denominated label, e.g. `+5.25 USDC · −0.002 WBTC`. */
-  label: string;
-}
-
-/** Per-category net flow across the loaded feed, for the summary card. */
-export interface ActivityCategoryFlow extends ActivityCategoryDelta {
-  /** Share (0..1) of feed events touching this category. */
-  share: number;
-}
-
-export interface ActivityWalletRef {
-  address: string;
-  label: string;
-}
-
-export interface ActivityEvent {
-  id: string;
-  kind: ActivityKind;
-  title: string;
-  amountLabel?: string;
-  amountTone?: MetricTone;
-  status: ActivityStatus;
-  meta: string;
-  time: string;
-  /** Wallet in the managed bundle that produced this activity perspective. */
-  wallet?: ActivityWalletRef;
-  /** Portfolio-internal transfer attribution when both endpoints are bundle wallets. */
-  walletTransfer?: {
-    from: ActivityWalletRef;
-    to: ActivityWalletRef;
-  };
-  /** Explicit presentation flows for events whose portfolio net delta is zero. */
-  flowLabels?: string[];
-  /** Dominant allocation category — drives the row's category accent. */
-  category?: AllocationCategoryKey;
-  categoryDeltas?: ActivityCategoryDelta[];
-  chain?: ChainKey;
-  /** Transaction hash when the event maps to exactly one on-chain transaction. */
-  txHash?: string;
-  /** Moralis-decoded method label when available. */
-  methodLabel?: string;
-  /** Counterparty protocol/entity label. Known protocols resolve to brand marks. */
-  protocol?: string;
-  /** Native-chain transaction fee, preformatted for the activity card footer. */
-  gasFeeLabel?: string;
-  /** Primary token, retained for filtering/semantic summaries. */
-  tokenSymbol?: string;
-  steps?: ActivityStep[];
-}
-
-export interface ActivityGroup {
-  label: string;
-  events: ActivityEvent[];
 }
 
 export const DEMO: DemoData = {
@@ -233,9 +151,9 @@ export const DEMO: DemoData = {
     quote: 'Buy in fear. Defend in greed.',
     marketModeLabel: 'Market mode · Cautious — defensive tilt',
     pillars: [
-      { label: 'Equities', weight: 5, color: 'var(--spy)' },
-      { label: 'Crypto', weight: 3, color: 'var(--btc)' },
-      { label: 'Stables', weight: 4, color: 'var(--usd)' },
+      { label: 'Equities', weight: 5, color: tokens.color.pillar.spy },
+      { label: 'Crypto', weight: 3, color: tokens.color.pillar.btc },
+      { label: 'Stables', weight: 4, color: tokens.color.pillar.usd },
     ],
     backtest: {
       returnLabel: '+147.2%',
@@ -253,9 +171,9 @@ export const DEMO: DemoData = {
       ],
       currentModeLabel: 'Cautious · defensive tilt',
       allocation: [
-        { label: 'Equities', pct: 40, color: 'var(--spy)' },
-        { label: 'Crypto', pct: 25, color: 'var(--btc)' },
-        { label: 'Stables', pct: 35, color: 'var(--usd)' },
+        { label: 'Equities', pct: 40, color: tokens.color.pillar.spy },
+        { label: 'Crypto', pct: 25, color: tokens.color.pillar.btc },
+        { label: 'Stables', pct: 35, color: tokens.color.pillar.usd },
       ],
       sentiment: 34,
     },
@@ -273,10 +191,10 @@ export const DEMO: DemoData = {
       { label: 'Max drawdown', value: '−6.1%', tone: 'negative' },
     ],
     allocation: [
-      { label: 'Stables', pct: 35, color: 'var(--usd)' },
-      { label: 'ETH', pct: 24, color: 'var(--spy)' },
-      { label: 'BTC', pct: 20, color: 'var(--btc)' },
-      { label: 'DeFi yield', pct: 21, color: 'var(--accent)' },
+      { label: 'Stables', pct: 35, color: tokens.color.pillar.usd },
+      { label: 'ETH', pct: 24, color: tokens.color.pillar.spy },
+      { label: 'BTC', pct: 20, color: tokens.color.pillar.btc },
+      { label: 'DeFi yield', pct: 21, color: tokens.color.accent },
     ],
     lastRebalancedLabel:
       'Auto-managed by Zap Strategy · last rebalanced 2 days ago',
@@ -288,7 +206,7 @@ export const DEMO: DemoData = {
   ],
   activity: [
     {
-      label: 'Today',
+      bucket: 'today',
       events: [
         {
           id: 'demo-rebalance-burst',
@@ -333,7 +251,7 @@ export const DEMO: DemoData = {
       ],
     },
     {
-      label: 'This week',
+      bucket: 'week',
       events: [
         {
           id: 'demo-failed-send',
@@ -358,7 +276,7 @@ export const DEMO: DemoData = {
       ],
     },
     {
-      label: 'Earlier',
+      bucket: 'earlier',
       events: [
         {
           id: 'demo-withdraw',
@@ -384,8 +302,6 @@ export const DEMO: DemoData = {
     },
   ],
 };
-
-export type ActivityFilter = 'All' | AllocationCategoryKey;
 
 export const ACTIVITY_FILTERS = [
   'All',

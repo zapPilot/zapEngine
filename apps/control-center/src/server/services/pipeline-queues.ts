@@ -1,4 +1,7 @@
-import { EPISODE_VIDEO_VISUAL_VERSION } from '@zapengine/types/shared';
+import {
+  EPISODE_VIDEO_VISUAL_VERSION,
+  PODCAST_LANGUAGE_CODES,
+} from '@zapengine/types/shared';
 
 import type {
   PipelinePublishedLink,
@@ -594,7 +597,7 @@ function videoPrerequisitesReady(localizations: LocalizationRow[]): boolean {
       })
       .map((row) => row.language_code),
   );
-  return ['zh-Hant', 'ja', 'en'].every((language) => ready.has(language));
+  return PODCAST_LANGUAGE_CODES.every((language) => ready.has(language));
 }
 
 function deriveWorkState(

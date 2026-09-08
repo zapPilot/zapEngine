@@ -1,4 +1,7 @@
-import type { DailyYieldReturnsResponse } from '@zapengine/app-core/services';
+import type {
+  DailyYieldReturnsResponse,
+  LandingPageResponse,
+} from '@zapengine/app-core/services';
 import { isFiniteNumber } from '@zapengine/types/shared';
 
 /**
@@ -65,6 +68,23 @@ export interface SnapshotCategoryTotals {
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const ATTRIBUTION_EPSILON_USD = 0.005;
+
+/**
+ * Landing's authoritative balance, falling back to the field it superseded.
+ * `net_portfolio_value` is nullable on the wire, and a null there is a missing
+ * number, not a zero balance.
+ */
+export function netPortfolioValueFrom(
+  landing:
+    | Pick<LandingPageResponse, 'net_portfolio_value' | 'total_net_usd'>
+    | undefined,
+): number | null {
+  return typeof landing?.net_portfolio_value === 'number'
+    ? landing.net_portfolio_value
+    : typeof landing?.total_net_usd === 'number'
+      ? landing.total_net_usd
+      : null;
+}
 
 export function sortedDailyValues(
   dailyValues: readonly DailyValuePoint[] | undefined,

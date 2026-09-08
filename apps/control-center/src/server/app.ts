@@ -22,7 +22,10 @@ import { createPodcastCostService } from './services/podcast-costs.js';
 import { createPodcastPipelineService } from './services/podcast-pipeline.js';
 import { createPodcastVisualService } from './services/podcast-visual.js';
 import { createSocialReleaseCleanupService } from './services/social-release-cleanup.js';
-import { isMissingRpcError } from './services/supabase.js';
+import {
+  isMissingRpcError,
+  postgrestErrorMessage,
+} from './services/supabase.js';
 import { createSocialGrowthService } from './services/social-growth.js';
 import { createStatementsService } from './services/statements/index.js';
 
@@ -173,7 +176,7 @@ export function createControlCenterApp(input: {
     try {
       return context.json(await socialReleaseCleanup.closeRelease(episodeId));
     } catch (error) {
-      const message = errorMessage(error);
+      const message = postgrestErrorMessage(error, 'Podcast retry failed');
       if (isPodcastRetryConflict(error, message)) {
         return context.json({ error: message }, 409);
       }
@@ -386,7 +389,10 @@ async function handlePodcastMutation(
       method: context.req.method,
       route: routePath(context),
     });
-    return context.json({ error: errorMessage(error) }, 503);
+    return context.json(
+      { error: postgrestErrorMessage(error, 'Podcast retry failed') },
+      503,
+    );
   }
 }
 
@@ -397,7 +403,7 @@ function mapPodcastMutationError(
   error: unknown,
   migrationMessage: string,
 ): Response | null {
-  const message = errorMessage(error);
+  const message = postgrestErrorMessage(error, 'Podcast retry failed');
   if (isPodcastRetryConflict(error, message)) {
     return context.json({ error: message }, 409);
   }
@@ -520,17 +526,4 @@ function optionalNullableString(value: unknown): string | null {
     return null;
   }
   return typeof value === 'string' ? value.trim() || null : null;
-}
-
-function errorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-  if (error && typeof error === 'object' && 'message' in error) {
-    const message = (error as { message?: unknown }).message;
-    if (typeof message === 'string' && message.trim()) {
-      return message;
-    }
-  }
-  return 'Podcast retry failed';
 }

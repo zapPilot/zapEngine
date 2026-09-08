@@ -6,7 +6,8 @@ const llm = vi.hoisted(() => ({
   createCompletionWithRetry: vi.fn(),
 }));
 
-vi.mock('../../llm.js', () => ({
+vi.mock('../../llm.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../llm.js')>()),
   getOpenRouterConfig: llm.getOpenRouterConfig,
   createCompletionWithRetry: llm.createCompletionWithRetry,
 }));
@@ -359,7 +360,7 @@ describe('writeConceptCardCopy', () => {
   it('builds the OpenRouter provider when none is injected', async () => {
     llm.createCompletionWithRetry.mockResolvedValue({
       choices: [{ message: { content: JSON.stringify(validCopy()) } }],
-      costUsd: 0.0007,
+      usage: { cost: 0.0007 },
     });
 
     await expect(writeConceptCardCopy(request())).resolves.toMatchObject({
@@ -391,7 +392,7 @@ describe('createOpenRouterConceptCardCopyProvider', () => {
     const controller = new AbortController();
     llm.createCompletionWithRetry.mockResolvedValue({
       choices: [{ message: { content: '{"kicker":"CONCEPT"}' } }],
-      costUsd: 0.0042,
+      usage: { cost: 0.0042 },
     });
     const copyProvider = createOpenRouterConceptCardCopyProvider();
     expect(copyProvider.model).toBe('openrouter/test-model');
@@ -436,7 +437,7 @@ describe('createOpenRouterConceptCardCopyProvider', () => {
     const result =
       await createOpenRouterConceptCardCopyProvider().complete(request());
 
-    expect(result).toEqual({ value: {}, costUsd: null });
+    expect(result).toEqual({ value: {}, costUsd: 0 });
     expect(llm.createCompletionWithRetry.mock.calls[0]?.[4]).toEqual({
       reasoning: { enabled: false },
     });
@@ -445,18 +446,18 @@ describe('createOpenRouterConceptCardCopyProvider', () => {
   it('returns a null value when the reply is not JSON or has no choices', async () => {
     llm.createCompletionWithRetry.mockResolvedValueOnce({
       choices: [{ message: { content: 'not json' } }],
-      costUsd: 'free',
+      usage: { cost: 'free' },
     });
     llm.createCompletionWithRetry.mockResolvedValueOnce({ choices: [] });
     const copyProvider = createOpenRouterConceptCardCopyProvider();
 
     await expect(copyProvider.complete(request())).resolves.toEqual({
       value: null,
-      costUsd: null,
+      costUsd: 0,
     });
     await expect(copyProvider.complete(request())).resolves.toEqual({
       value: null,
-      costUsd: null,
+      costUsd: 0,
     });
   });
 });

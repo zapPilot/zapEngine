@@ -35,12 +35,9 @@ import {
   createImageSearchTrace,
   type VisualImageSearch,
 } from './video/image-search-trace.js';
+import { logVideoWorkerEvent } from './video/log.js';
 import { planPodcastVisualAssets } from './video/podcast-visual-assets.js';
-import {
-  createDeterministicStoryboardProvider,
-  type DeterministicStoryboardSearchContext,
-} from './video/storyboard/fallback.js';
-import { createNvidiaStoryboardProvider } from './video/storyboard/nvidia.js';
+import { createDeterministicStoryboardProvider } from './video/storyboard/fallback.js';
 import {
   generateStoryboard,
   type StoryboardGenerationResult,
@@ -724,24 +721,12 @@ export async function generateVisualStoryboard(input: {
     ...(isPackaged ? { isPackaged } : {}),
     provider:
       input.provider ??
-      configuredStoryboardProvider({
+      createDeterministicStoryboardProvider({
         ...(input.searchTitle ? { searchTitle: input.searchTitle } : {}),
         ...(englishBody ? { searchScript: englishBody } : {}),
       }),
     ...(input.signal ? { signal: input.signal } : {}),
   });
-}
-
-function configuredStoryboardProvider(
-  searchContext: Partial<DeterministicStoryboardSearchContext>,
-): StoryboardProvider {
-  const providerName =
-    process.env['VIDEO_STORYBOARD_PROVIDER']?.trim() ?? 'deterministic';
-  if (providerName === 'nvidia') return createNvidiaStoryboardProvider();
-  if (providerName === 'deterministic') {
-    return createDeterministicStoryboardProvider(searchContext);
-  }
-  throw new Error(`Unsupported VIDEO_STORYBOARD_PROVIDER: ${providerName}`);
 }
 
 function assertCurrentVisualJob(
@@ -858,16 +843,16 @@ function quotedField(value: string | null | undefined): string | undefined {
   return value === null || value === undefined ? undefined : `"${value}"`;
 }
 
+/* jscpd:ignore-start -- thin wrapper repeats logVideoWorkerEvent's parameter
+ * types; every call site here needs the shared `language: 'shared'` field. */
 function logVisualProgress(
   logger: Pick<Console, 'info'>,
   event: string,
   fields: Record<string, string | number | undefined>,
 ): void {
-  const details = Object.entries({ ...fields, language: 'shared' })
-    .flatMap(([key, value]) => (value === undefined ? [] : [`${key}=${value}`]))
-    .join(' ');
-  logger.info(`[video-worker] ${event} ${details}`);
+  logVideoWorkerEvent(logger, event, { ...fields, language: 'shared' });
 }
+/* jscpd:ignore-end */
 
 export const processEpisodeVideoVisualJob = createEpisodeVideoVisualProcessor();
 

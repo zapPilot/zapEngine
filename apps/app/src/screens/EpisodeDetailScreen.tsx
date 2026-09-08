@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ChevronLeft, Share2 } from 'lucide-react-native';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Share, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -12,7 +12,6 @@ import {
 import {
   formatPodcastClock,
   formatPodcastEpisodeDate,
-  languageBadgeFor,
 } from '@/components/podcast/episodeFormatters';
 import {
   estimateTranscriptTiming,
@@ -22,6 +21,7 @@ import { Card } from '@/components/ui/Card';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { Tap } from '@/components/ui/Tap';
+import { contentLanguageBadge } from '@/config/contentLanguages';
 import {
   resolveActiveMediaClock,
   type EpisodeMediaClock,
@@ -61,6 +61,7 @@ function EpisodeDetailHeader({
   onBack: () => void;
   onLanguageSelected: (code: ContentLanguageCode) => void;
 }) {
+  const { t } = useContentLanguage();
   const shareEpisode = () => {
     const shareUrl = getPodcastEpisodeShareUrl(episode);
     void Share.share({
@@ -73,7 +74,7 @@ function EpisodeDetailHeader({
   return (
     <View className="flex-row items-center justify-between px-5 pb-3">
       <View className="flex-row items-center gap-3">
-        <PodcastIconButton label="Back" onPress={onBack}>
+        <PodcastIconButton label={t('common.back')} onPress={onBack}>
           <ChevronLeft size={20} strokeWidth={2} color="#d4c5a3" />
         </PodcastIconButton>
         <PodcastLanguageDropdown onLanguageSelected={onLanguageSelected} />
@@ -89,6 +90,7 @@ function EpisodeDetailHeader({
 }
 
 function EpisodeHeroCard({ episode }: { episode: PodcastEpisode }) {
+  const { t } = useContentLanguage();
   const date = formatPodcastEpisodeDate(episode.createdAt, 'long');
 
   return (
@@ -105,7 +107,7 @@ function EpisodeHeroCard({ episode }: { episode: PodcastEpisode }) {
             </Text>
           ) : null}
           <Text className="font-mono text-[10px] uppercase tracking-[1px] text-ink-faint">
-            {episode.listened ? 'Listened' : 'Unplayed'}
+            {episode.listened ? t('podcast.listened') : t('podcast.unheard')}
           </Text>
           {episode.likeCount > 0 ? (
             <Text className="font-mono text-[10px] uppercase tracking-[1px] text-ink-faint">
@@ -131,12 +133,13 @@ function LanguageClassroomSection({
 }: {
   lessons: readonly PodcastLanguageClassroomLesson[];
 }) {
+  const { t } = useContentLanguage();
   if (lessons.length === 0) return null;
 
   return (
     <View className="px-5 pt-7">
       <Text className="font-sans-semibold text-[17px] text-ink">
-        Language Classroom
+        {t('podcast.languageClassroom')}
       </Text>
       <View className="mt-3 gap-3">
         {lessons.map((lesson) => (
@@ -147,7 +150,7 @@ function LanguageClassroomSection({
             <View className="flex-row items-start gap-3">
               <View className="rounded-full border border-[rgba(212,197,163,.3)] bg-[rgba(212,197,163,.12)] px-3 py-1">
                 <Text className="font-mono text-[10px] font-bold text-accent">
-                  {languageBadgeFor(lesson.targetLanguageCode)}
+                  {contentLanguageBadge(lesson.targetLanguageCode)}
                 </Text>
               </View>
               <Text className="min-w-0 flex-1 font-sans-semibold text-[13px] leading-[19px] text-ink">
@@ -201,6 +204,7 @@ function EpisodeTranscript({
   player: PodcastPlayer;
   activeVideoClock: EpisodeMediaClock | null;
 }) {
+  const { t } = useContentLanguage();
   const isCurrentAudio = player.nowPlaying?.id === episode.id;
   const activeClock = resolveActiveMediaClock({
     videoClock: activeVideoClock,
@@ -209,7 +213,14 @@ function EpisodeTranscript({
     audioDurationSeconds: player.duration,
   });
   const activeDuration = activeClock?.durationSeconds ?? 0;
-  const segments = estimateTranscriptTiming(episode.script, activeDuration);
+  const segments = useMemo(
+    () =>
+      estimateTranscriptTiming(
+        episode.script,
+        activeClock?.durationSeconds ?? 0,
+      ),
+    [episode.script, activeClock?.durationSeconds],
+  );
   const currentIndex =
     activeClock !== null && activeDuration > 0
       ? currentTranscriptIndex(segments, activeClock.currentTimeSeconds)
@@ -219,14 +230,14 @@ function EpisodeTranscript({
   return (
     <View className="px-5 pt-7">
       <Text className="font-sans-semibold text-[17px] text-ink">
-        Transcript
+        {t('podcast.transcript')}
       </Text>
       <View className="mt-3 border-t border-line pt-3">
         {segments.length === 0 || currentIndex < 0 ? (
           <Text className="text-[13px] leading-[22px] text-ink-dim">
             {body !== undefined && body !== ''
               ? body
-              : 'No script available yet.'}
+              : t('podcast.noTranscript')}
           </Text>
         ) : (
           <View className="gap-2">
@@ -303,7 +314,7 @@ export function EpisodeDetailScreen() {
     }
   };
   const insets = useSafeAreaInsets();
-  const { languageCode: selectedLanguageCode } = useContentLanguage();
+  const { languageCode: selectedLanguageCode, t } = useContentLanguage();
   const [activeVideoClock, setActiveVideoClock] =
     useState<EpisodeMediaClock | null>(null);
   const routeEpisodeId = decodeURIComponent(
@@ -357,7 +368,7 @@ export function EpisodeDetailScreen() {
         style={{ paddingTop: Math.max(insets.top, 12) }}
       >
         <View className="flex-row items-center px-5 pb-3">
-          <PodcastIconButton label="Back" onPress={goBack}>
+          <PodcastIconButton label={t('common.back')} onPress={goBack}>
             <ChevronLeft size={20} strokeWidth={2} color="#d4c5a3" />
           </PodcastIconButton>
         </View>
@@ -367,11 +378,13 @@ export function EpisodeDetailScreen() {
           <View className="px-5 pt-4">
             <Card className="p-5">
               <Text className="font-sans-semibold text-[16px] text-ink">
-                {isError ? 'Podcast unavailable' : 'Episode not found'}
+                {isError
+                  ? t('podcast.episodeUnavailable')
+                  : 'Episode not found'}
               </Text>
               <Text className="mt-2 text-[13px] leading-5 text-ink-dim">
                 {isError
-                  ? 'The podcast feed is unavailable right now.'
+                  ? t('podcast.episodeUnavailableMessage')
                   : 'This episode is not in the current language feed.'}
               </Text>
             </Card>

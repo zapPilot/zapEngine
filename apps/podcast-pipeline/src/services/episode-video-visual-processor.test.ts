@@ -434,31 +434,14 @@ describe('createEpisodeVideoVisualProcessor', () => {
       expect.objectContaining({ signal: controller.signal }),
     );
 
-    const previous = process.env['VIDEO_STORYBOARD_PROVIDER'];
-    try {
-      delete process.env['VIDEO_STORYBOARD_PROVIDER'];
-      const deterministic = await generateVisualStoryboard({
-        title: 'Title',
-        script: '第一句。第二句。',
-        searchTitle: ' English title ',
-        searchScript: 'First sentence. Second sentence.',
-        durationMs: 20_000,
-      });
-      expect(deterministic.effectiveProvider).toBe('deterministic');
-
-      process.env['VIDEO_STORYBOARD_PROVIDER'] = 'unsupported';
-      await expect(
-        generateVisualStoryboard({
-          title: 'Title',
-          script: '第一句。第二句。',
-          durationMs: 20_000,
-        }),
-      ).rejects.toThrow('Unsupported VIDEO_STORYBOARD_PROVIDER: unsupported');
-    } finally {
-      if (previous === undefined)
-        delete process.env['VIDEO_STORYBOARD_PROVIDER'];
-      else process.env['VIDEO_STORYBOARD_PROVIDER'] = previous;
-    }
+    const deterministic = await generateVisualStoryboard({
+      title: 'Title',
+      script: '第一句。第二句。',
+      searchTitle: ' English title ',
+      searchScript: 'First sentence. Second sentence.',
+      durationMs: 20_000,
+    });
+    expect(deterministic.effectiveProvider).toBe('deterministic');
   });
 
   it('cleans up its temporary images after an R2 upload failure', async () => {

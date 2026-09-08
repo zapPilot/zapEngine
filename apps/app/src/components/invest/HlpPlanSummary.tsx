@@ -10,7 +10,7 @@ import { InfoRow } from '@/components/ui/InfoRow';
 import type { SingleChainFundingDraft } from '@/integration/useInvest';
 import { formatPlanGas } from '@/integration/planPreviewFormatters';
 import { isStrategyDepositPlan } from '@/integration/simulationPreviewModel';
-import { formatUsd } from '@/lib/format';
+import { formatOr, formatUsd } from '@/lib/format';
 
 function asDepositPlan(
   plan: PlanOrchestrationDepositPlan | undefined,
@@ -20,13 +20,11 @@ function asDepositPlan(
 }
 
 function usd6Label(value: string | undefined): string {
-  if (!value) return '—';
-  return `${formatUnits(BigInt(value), 6)} USDC`;
+  return formatOr(value, (v) => `${formatUnits(BigInt(v), 6)} USDC`);
 }
 
 function compactAddress(value: string | undefined): string {
-  if (!value) return '—';
-  return `${value.slice(0, 8)}…${value.slice(-6)}`;
+  return formatOr(value, (v) => `${v.slice(0, 8)}…${v.slice(-6)}`);
 }
 
 export function HlpPlanSummary({

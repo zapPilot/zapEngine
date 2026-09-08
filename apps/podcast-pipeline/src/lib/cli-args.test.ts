@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseFlagArgs } from './cli-args.js';
+import { assertOnlyKnownFlags, parseFlagArgs } from './cli-args.js';
 
 describe('parseFlagArgs', () => {
   it('returns a null command and no flags for an empty argv', () => {
@@ -45,5 +45,26 @@ describe('parseFlagArgs', () => {
       flags: { id: 'abc' },
       positionals: ['first', 'second'],
     });
+  });
+});
+
+describe('assertOnlyKnownFlags', () => {
+  const USAGE = 'Usage: example --foo <value>';
+
+  it('passes through a parse with only allowed flags and no positionals', () => {
+    const parsed = parseFlagArgs(['example', '--foo', 'bar']);
+    expect(() => assertOnlyKnownFlags(parsed, ['foo'], USAGE)).not.toThrow();
+  });
+
+  it('throws the usage message when a stray positional is present', () => {
+    const parsed = parseFlagArgs(['example', 'stray', '--foo', 'bar']);
+    expect(() => assertOnlyKnownFlags(parsed, ['foo'], USAGE)).toThrow(USAGE);
+  });
+
+  it('throws Unknown option for a flag outside the allowed list', () => {
+    const parsed = parseFlagArgs(['example', '--foo', 'bar', '--baz', 'qux']);
+    expect(() => assertOnlyKnownFlags(parsed, ['foo'], USAGE)).toThrow(
+      'Unknown option: --baz',
+    );
   });
 });

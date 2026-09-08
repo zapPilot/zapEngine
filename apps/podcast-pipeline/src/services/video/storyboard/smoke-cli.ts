@@ -1,9 +1,10 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
 
+import { assertOnlyKnownFlags, parseFlagArgs } from '../../../lib/cli-args.js';
+import { runCli } from '../../../lib/cli-runner.js';
+import { isMainModule } from '../../../lib/is-main-module.js';
 import { createDeterministicStoryboardProvider } from './fallback.js';
-import { createNvidiaStoryboardProvider } from './nvidia.js';
 import { generateStoryboard } from './orchestrator.js';
 import type { StoryboardProvider } from './provider.js';
 import { splitCanonicalSentences } from './sentences.js';
@@ -13,40 +14,38 @@ export interface StoryboardSmokeCliOptions {
   title: string;
   durationMs: number;
   outputDirectory: string;
-  provider: 'nvidia' | 'deterministic';
 }
 
 const USAGE =
-  'Usage: video:storyboard:smoke --script <canonical-script.txt> --title <title> --duration-ms <milliseconds> --output <directory> [--provider <nvidia|deterministic>]';
+  'Usage: video:storyboard:smoke --script <canonical-script.txt> --title <title> --duration-ms <milliseconds> --output <directory>';
 
 export function parseStoryboardSmokeCliArgs(
   argv: string[],
 ): StoryboardSmokeCliOptions {
-  const values = new Map<string, string>();
-  for (let index = 0; index < argv.length; index += 2) {
-    const flag = argv[index];
-    const value = argv[index + 1];
-    if (!flag?.startsWith('--') || !value || value.startsWith('--')) {
-      throw new Error(USAGE);
-    }
-    if (
-      ![
-        '--script',
-        '--title',
-        '--duration-ms',
-        '--output',
-        '--provider',
-      ].includes(flag)
-    ) {
-      throw new Error(`Unknown option: ${flag}`);
-    }
-    values.set(flag, value);
+  const parsed = parseFlagArgs(['video:storyboard:smoke', ...argv]);
+  assertOnlyKnownFlags(
+    parsed,
+    ['script', 'title', 'duration-ms', 'output'],
+    USAGE,
+  );
+
+  const scriptFlag = parsed.flags['script'];
+  const titleFlag = parsed.flags['title'];
+  const durationFlag = parsed.flags['duration-ms'];
+  const outputFlag = parsed.flags['output'];
+  if (
+    typeof scriptFlag === 'boolean' ||
+    typeof titleFlag === 'boolean' ||
+    typeof durationFlag === 'boolean' ||
+    typeof outputFlag === 'boolean'
+  ) {
+    throw new Error(USAGE);
   }
 
-  const scriptPath = values.get('--script');
-  const title = values.get('--title')?.trim();
-  const durationRaw = values.get('--duration-ms');
-  const outputDirectory = values.get('--output');
+  const scriptPath = scriptFlag;
+  const title = titleFlag?.trim();
+  const durationRaw = durationFlag;
+  const outputDirectory = outputFlag;
   if (!scriptPath || !title || !durationRaw || !outputDirectory) {
     throw new Error(USAGE);
   }
@@ -55,30 +54,12 @@ export function parseStoryboardSmokeCliArgs(
     throw new Error('--duration-ms must be a positive integer');
   }
 
-  const configuredProvider =
-    values.get('--provider') ??
-    process.env['VIDEO_STORYBOARD_PROVIDER']?.trim() ??
-    'nvidia';
-  if (
-    configuredProvider !== 'nvidia' &&
-    configuredProvider !== 'deterministic'
-  ) {
-    throw new Error(`Unsupported storyboard provider: ${configuredProvider}`);
-  }
-
   return {
     scriptPath: resolve(scriptPath),
     title,
     durationMs,
     outputDirectory: resolve(outputDirectory),
-    provider: configuredProvider,
   };
-}
-
-function createProvider(name: StoryboardSmokeCliOptions['provider']) {
-  return name === 'nvidia'
-    ? createNvidiaStoryboardProvider()
-    : createDeterministicStoryboardProvider();
 }
 
 function estimatedTokens(value: string): number {
@@ -91,7 +72,7 @@ export async function runStoryboardSmokeCli(
 ): Promise<void> {
   const options = parseStoryboardSmokeCliArgs(argv);
   const script = await readFile(options.scriptPath, 'utf8');
-  const provider = providerOverride ?? createProvider(options.provider);
+  const provider = providerOverride ?? createDeterministicStoryboardProvider();
   const result = await generateStoryboard({
     title: options.title,
     script,
@@ -150,16 +131,6 @@ export async function runStoryboardSmokeCli(
   );
 }
 
-// jscpd:ignore-start — CLI direct-invocation check, same pattern in cli.ts, r2-playback-canary.ts, raster-stage-entry.ts
-const invokedPath = process.argv[1]
-  ? pathToFileURL(resolve(process.argv[1])).href
-  : null;
-if (invokedPath === import.meta.url) {
-  try {
-    await runStoryboardSmokeCli(process.argv.slice(2));
-  } catch (error: unknown) {
-    console.error(error);
-    process.exitCode = 1;
-  }
+if (isMainModule(import.meta.url)) {
+  runCli(() => runStoryboardSmokeCli(process.argv.slice(2)));
 }
-// jscpd:ignore-end

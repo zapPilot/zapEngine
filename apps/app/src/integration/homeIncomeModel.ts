@@ -116,7 +116,7 @@ export function buildHomeIncomeView(
 /** Share of each side's magnitude the visible rows must cover before the tail
  *  is rolled up. The long tail is mostly dust that pushes the real drivers off
  *  the first screen. */
-export const INCOME_COVERAGE_TARGET = 0.8;
+const INCOME_COVERAGE_TARGET = 0.8;
 
 export interface HomeIncomePartition {
   visible: HomeProtocolIncomeRow[];

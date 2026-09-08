@@ -431,12 +431,8 @@ export const ENV_MANIFEST = {
     requiredFor: ['podcast-pipeline:base'],
   }),
   FLY_APP_NAME: host(['podcast-pipeline']),
-  VIDEO_STORYBOARD_PROVIDER: server(['podcast-pipeline']),
   NVIDIA_API_KEY: server(['podcast-pipeline'], { sensitive: true }),
   NVIDIA_BASE_URL: server(['podcast-pipeline']),
-  NVIDIA_STORYBOARD_MODEL: server(['podcast-pipeline'], {
-    requiredFor: ['podcast-pipeline:base'],
-  }),
   VIDEO_ALIGNMENT_PROVIDER: server(['podcast-pipeline']),
   VIDEO_ALIGNMENT_MODEL: server(['podcast-pipeline'], {
     requiredFor: ['podcast-pipeline:base'],

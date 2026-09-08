@@ -9,7 +9,7 @@ import {
   isPlainRecord as isRecord,
   nonemptyString,
 } from '../lib/typeGuards.js';
-import { SocialPublishError } from './publish-error.js';
+import { publishStep } from './publish-error.js';
 import type {
   PublishResult,
   YouTubePublisher,
@@ -58,51 +58,43 @@ export function createYouTubePublisher(input?: {
         fetchImpl,
         additionalScopes: [YOUTUBE_ANALYTICS_SCOPE],
       });
-      try {
-        const channelId = await assertYouTubeChannel({
+      const step = publishStep('youtube');
+      const channelId = await step('verify_channel', () =>
+        assertYouTubeChannel({
           accessToken: session.accessToken,
           fetchImpl,
           now,
-        });
-        log(`[youtube] Publishing to channel ${channelId}`);
-      } catch (error) {
-        throw new SocialPublishError('youtube', 'verify_channel', error);
-      }
+        }),
+      );
+      log(`[youtube] Publishing to channel ${channelId}`);
 
       log('[youtube] Preparing canonical thumbnail');
-      let thumbnail: PreparedYouTubeThumbnail;
-      try {
-        thumbnail = await prepareYouTubeThumbnail({
-          thumbnailUrl: publishInput.thumbnailUrl.trim(),
-          fetchImpl,
-        });
-      } catch (error) {
-        throw new SocialPublishError('youtube', 'prepare_thumbnail', error);
-      }
+      const thumbnail: PreparedYouTubeThumbnail = await step(
+        'prepare_thumbnail',
+        () =>
+          prepareYouTubeThumbnail({
+            thumbnailUrl: publishInput.thumbnailUrl.trim(),
+            fetchImpl,
+          }),
+      );
 
-      let uploadUrl: string;
-      try {
-        uploadUrl = await createUploadSession({
+      const uploadUrl: string = await step('create_upload_session', () =>
+        createUploadSession({
           input: publishInput,
           accessToken: session.accessToken,
           fetchImpl,
-        });
-      } catch (error) {
-        throw new SocialPublishError('youtube', 'create_upload_session', error);
-      }
+        }),
+      );
 
       log('[youtube] Uploading video');
-      let video: YouTubeVideoResponse;
-      try {
-        video = await uploadVideo({
+      const video: YouTubeVideoResponse = await step('upload_video', () =>
+        uploadVideo({
           uploadUrl,
           videoPath: publishInput.videoPath,
           accessToken: session.accessToken,
           fetchImpl,
-        });
-      } catch (error) {
-        throw new SocialPublishError('youtube', 'upload_video', error);
-      }
+        }),
+      );
 
       let warnings: string[] | undefined;
       log('[youtube] Setting canonical thumbnail');

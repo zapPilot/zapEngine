@@ -1,18 +1,7 @@
 import { getRegimeLabel } from '@zapengine/app-core/lib/domain/regime';
+import { tokens } from '@zapengine/design-tokens/tokens';
 
 import type { CompositionTarget } from '@/integration/useStrategySuggestion';
-
-interface WeightedPillar {
-  label: string;
-  weight: number;
-  color: string;
-}
-
-interface AllocationSlice {
-  label: string;
-  pct: number;
-  color: string;
-}
 
 export function liveNumberOrDemo(
   value: unknown,
@@ -41,7 +30,7 @@ export function demoTextOrDash(
   return isDemo ? demoValue : fallback;
 }
 
-export function marketModeLabelFor(
+function marketModeLabelFor(
   regimeLabel: string,
   demoLabel: string,
   isDemo: boolean,
@@ -79,56 +68,43 @@ export function regimeDisplayFromRegime(
   };
 }
 
-function emptyPillars(): WeightedPillar[] {
-  return [
-    { label: 'Equities', weight: 0, color: 'var(--spy)' },
-    { label: 'Crypto', weight: 0, color: 'var(--btc)' },
-    { label: 'Stables', weight: 0, color: 'var(--usd)' },
-  ];
-}
+/** The three composition pillars, in display order, with their fixed swatch. */
+const COMPOSITION_ROWS: {
+  label: string;
+  key: keyof CompositionTarget;
+  color: string;
+}[] = [
+  { label: 'Equities', key: 'equities', color: tokens.color.pillar.spy },
+  { label: 'Crypto', key: 'crypto', color: tokens.color.pillar.btc },
+  { label: 'Stables', key: 'stables', color: tokens.color.pillar.usd },
+];
 
-export function pillarsFromTarget<T extends WeightedPillar>(
+/**
+ * Shared shape builder for the strategy pillars (`weight`) and allocation
+ * (`pct`, rounded) rows: both are the same three composition pillars against
+ * a different numeric key.
+ */
+export function compositionRows<T extends { label: string; color: string }>(
   target: CompositionTarget | null,
-  demoPillars: T[],
+  demoRows: T[],
   isDemo: boolean,
+  { valueKey, round = false }: { valueKey: keyof T; round?: boolean },
 ): T[] {
   if (target) {
-    return [
-      { label: 'Equities', weight: target.equities, color: 'var(--spy)' },
-      { label: 'Crypto', weight: target.crypto, color: 'var(--btc)' },
-      { label: 'Stables', weight: target.stables, color: 'var(--usd)' },
-    ] as T[];
+    return COMPOSITION_ROWS.map(
+      (row) =>
+        ({
+          label: row.label,
+          color: row.color,
+          [valueKey]: round ? Math.round(target[row.key]) : target[row.key],
+        }) as unknown as T,
+    );
   }
-  return isDemo ? demoPillars : (emptyPillars() as T[]);
-}
-
-function emptyAllocation(): AllocationSlice[] {
-  return [
-    { label: 'Equities', pct: 0, color: 'var(--spy)' },
-    { label: 'Crypto', pct: 0, color: 'var(--btc)' },
-    { label: 'Stables', pct: 0, color: 'var(--usd)' },
-  ];
-}
-
-export function allocationFromTarget<T extends AllocationSlice>(
-  target: CompositionTarget | null,
-  demoAllocation: T[],
-  isDemo: boolean,
-): T[] {
-  if (target) {
-    return [
-      {
-        label: 'Equities',
-        pct: Math.round(target.equities),
-        color: 'var(--spy)',
-      },
-      { label: 'Crypto', pct: Math.round(target.crypto), color: 'var(--btc)' },
-      {
-        label: 'Stables',
-        pct: Math.round(target.stables),
-        color: 'var(--usd)',
-      },
-    ] as T[];
+  if (isDemo) {
+    return demoRows;
   }
-  return isDemo ? demoAllocation : (emptyAllocation() as T[]);
+  return COMPOSITION_ROWS.map(
+    (row) =>
+      ({ label: row.label, color: row.color, [valueKey]: 0 }) as unknown as T,
+  );
 }

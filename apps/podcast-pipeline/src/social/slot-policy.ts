@@ -1,10 +1,10 @@
+import { JST_OFFSET_MS } from './jst.js';
 import {
   SOCIAL_RELEASE_DAILY_CAP,
   SOCIAL_RELEASE_SLOTS,
   type SocialReleaseSlot,
 } from './policy.js';
 
-const JST_OFFSET_HOURS = 9;
 const DAY_MS = 24 * 60 * 60_000;
 
 /**
@@ -14,9 +14,9 @@ const DAY_MS = 24 * 60 * 60_000;
 export const SCHEDULING_HORIZON_DAYS = 8;
 
 export function startOfJstDay(date: Date): Date {
-  const shifted = new Date(date.getTime() + JST_OFFSET_HOURS * 60 * 60_000);
+  const shifted = new Date(date.getTime() + JST_OFFSET_MS);
   shifted.setUTCHours(0, 0, 0, 0);
-  return new Date(shifted.getTime() - JST_OFFSET_HOURS * 60 * 60_000);
+  return new Date(shifted.getTime() - JST_OFFSET_MS);
 }
 
 function slotAt(dayStart: Date, slot: SocialReleaseSlot): Date {
@@ -77,8 +77,6 @@ export function withinPublishWindow(
   now: Date,
   window: { startHour: number; endHour: number },
 ): boolean {
-  const jstHour = new Date(
-    now.getTime() + JST_OFFSET_HOURS * 60 * 60_000,
-  ).getUTCHours();
+  const jstHour = new Date(now.getTime() + JST_OFFSET_MS).getUTCHours();
   return jstHour >= window.startHour && jstHour < window.endHour;
 }

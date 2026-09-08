@@ -1,13 +1,13 @@
 import { EPISODE_VIDEO_VISUAL_VERSION } from '@zapengine/types/shared';
 
 import { errorMessage } from '../lib/errorMessage.js';
-import type { LanguageClassroomLanguageCode } from '../types.js';
-import { isEpisodeId, parseInputUrl } from './request-validation.js';
 import {
-  getPipelineSupabase,
-  isMissingSupabaseRpc,
-  throwSupabaseError,
-} from './supabase-client.js';
+  type LanguageClassroomLanguageCode,
+  SUPPORTED_PRIMARY_LANGUAGE_CODES,
+} from '../types.js';
+import { isEpisodeId, parseInputUrl } from './request-validation.js';
+import { getPipelineSupabase, throwSupabaseError } from './supabase-client.js';
+import { many, maybeOne } from './supabase-rows.js';
 import {
   answerTelegramCallbackQuery,
   TELEGRAM_HELP_TEXT,
@@ -16,8 +16,6 @@ import {
 } from './telegram.js';
 import type { TelegramIngestQueue } from './telegram-ingest-queue.js';
 import { retryEpisodeVideoGeneration } from './video-jobs.js';
-
-const PRIMARY_LANGUAGES = ['zh-Hant', 'ja', 'en'] as const;
 
 export interface TelegramEpisodeTarget {
   episodeId: string;
@@ -51,12 +49,13 @@ export async function resolveTelegramEpisodeTarget(
   const input = value.trim();
   const supabase = getPipelineSupabase();
   if (isEpisodeId(input)) {
-    const { data, error } = await supabase
-      .from('episodes')
-      .select('id,source_url')
-      .eq('id', input)
-      .maybeSingle<{ id: string; source_url: string }>();
-    if (error) throwSupabaseError(error);
+    const data = await maybeOne<{ id: string; source_url: string }>(
+      supabase
+        .from('episodes')
+        .select('id,source_url')
+        .eq('id', input)
+        .maybeSingle<{ id: string; source_url: string }>(),
+    );
     return data ? { episodeId: data.id, sourceUrl: data.source_url } : null;
   }
 
@@ -66,14 +65,15 @@ export async function resolveTelegramEpisodeTarget(
   } catch {
     return null;
   }
-  const { data, error } = await supabase
-    .from('episodes')
-    .select('id,source_url')
-    .eq('source_url', sourceUrl)
-    .order('created_at', { ascending: false })
-    .limit(1);
-  if (error) throwSupabaseError(error);
-  const row = Array.isArray(data) ? data[0] : undefined;
+  const rows = await many<{ id: string; source_url: string }>(
+    supabase
+      .from('episodes')
+      .select('id,source_url')
+      .eq('source_url', sourceUrl)
+      .order('created_at', { ascending: false })
+      .limit(1),
+  );
+  const row = rows[0];
   return row ? { episodeId: row.id, sourceUrl: row.source_url } : null;
 }
 
@@ -105,8 +105,6 @@ export async function handleTelegramRetryCommand(input: {
       return '這集影片已由操作者結案，不再重排；要重開請清除結案標記。';
     case 'prerequisites':
       return '影片重試的三語音頻前置條件尚未完成。';
-    case 'unavailable':
-      return '資料庫尚未升級到影片重試 migration。';
   }
 }
 
@@ -121,8 +119,6 @@ export async function handleTelegramRetryVideoCallback(
       return '影片仍在處理中';
     case 'completed':
       return '影片已完成';
-    case 'unavailable':
-      return '資料庫尚未升級';
     case 'missing':
       return '找不到 visual job';
     case 'abandoned':
@@ -180,7 +176,7 @@ export async function handleTelegramStatusCommand(
 
   const lines = [
     `Episode ${episodeId}`,
-    ...PRIMARY_LANGUAGES.map((language) => {
+    ...SUPPORTED_PRIMARY_LANGUAGE_CODES.map((language) => {
       const localization = localizations.find(
         (row) => row.language_code === language,
       );
@@ -198,17 +194,17 @@ export async function handleTelegramStatusCommand(
 async function loadLocalizationStatuses(
   episodeId: string,
 ): Promise<LocalizationStatusRow[]> {
-  const { data, error } = await getPipelineSupabase()
-    .from('episode_localizations')
-    .select('id,language_code,status,script,hls_url,classroom_hls_url')
-    .eq('episode_id', episodeId)
-    .in('language_code', [...PRIMARY_LANGUAGES]);
-  if (error) throwSupabaseError(error);
-  return data ?? [];
+  return many<LocalizationStatusRow>(
+    getPipelineSupabase()
+      .from('episode_localizations')
+      .select('id,language_code,status,script,hls_url,classroom_hls_url')
+      .eq('episode_id', episodeId)
+      .in('language_code', [...SUPPORTED_PRIMARY_LANGUAGE_CODES]),
+  );
 }
 
 function audioReady(rows: readonly LocalizationStatusRow[]): boolean {
-  return PRIMARY_LANGUAGES.every((language) => {
+  return SUPPORTED_PRIMARY_LANGUAGE_CODES.every((language) => {
     const row = rows.find((candidate) => candidate.language_code === language);
     return row ? audioReadyForLocalization(row) : false;
   });
@@ -241,15 +237,7 @@ function formatJobStatus(
     .join(' ');
 }
 
-export function isTelegramRetryMigrationMissing(error: unknown): boolean {
-  return (
-    isMissingSupabaseRpc(error, 'restart_podcast_ingest') ||
-    isMissingSupabaseRpc(error, 'retry_episode_video_generation')
-  );
-}
-
 export function telegramCommandErrorText(error: unknown): string {
-  if (isTelegramRetryMigrationMissing(error)) return '資料庫尚未升級。';
   return `操作失敗：${errorMessage(error).split(/\r?\n/u, 1)[0]?.slice(0, 160) ?? 'Unknown error'}`;
 }
 

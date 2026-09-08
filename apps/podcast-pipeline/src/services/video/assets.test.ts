@@ -68,26 +68,24 @@ function imageResponse(
 
 function remoteImageSlide(options: {
   imageHash: string;
-  layout?: 'fullBleed' | 'framed';
+  layout?: 'fullBleed' | 'contain';
   sourceId?: string;
   url?: string;
-}): Extract<Slide, { template: 'photoFact' }> {
+}): Extract<Slide, { template: 'image' }> {
   return {
     id: 'remote-image',
     startMs: 0,
     endMs: 4_000,
-    template: 'photoFact',
-    eyebrow: 'IMAGE',
-    headline: 'Remote image',
-    facts: ['Verified dimensions'],
+    template: 'image',
     sources: [openSource],
     asset: {
       kind: 'remoteImage',
       sourceId: options.sourceId ?? openSource.id,
       url: options.url ?? 'https://example.test/image.png',
       sha256: options.imageHash,
-      layout: options.layout ?? 'framed',
+      layout: options.layout ?? 'contain',
       position: 'center',
+      motion: 'static',
     },
   };
 }
@@ -111,51 +109,9 @@ function containedImageSlide(imageHash: string): Slide {
   };
 }
 
-function bundledMapSlide(
-  sourceId: string = openSource.id,
-): Extract<Slide, { template: 'sourceQuote' }> {
-  return {
-    id: 'pjm-map',
-    startMs: 0,
-    endMs: 4_000,
-    template: 'sourceQuote',
-    eyebrow: 'PJM',
-    quote: '13 states and Washington, D.C.',
-    citation: 'PJM',
-    sources: [openSource],
-    asset: {
-      kind: 'bundledMap',
-      sourceId,
-      key: 'us-states-cc0',
-      layout: 'framed',
-      highlightRegionIds: ['pa', 'nj', 'dc'],
-    },
-  };
-}
-
 describe('resolveSlideAsset', () => {
-  it('returns an attributed editorial fallback when a slide has no image', async () => {
-    const slide: Extract<Slide, { template: 'cover' }> = {
-      id: 'cover',
-      startMs: 0,
-      endMs: 4_000,
-      template: 'cover',
-      kicker: 'NEWS',
-      headline: 'Static slides',
-      subheadline: 'No synthetic news image',
-      sources: [openSource],
-      asset: { kind: 'none' },
-    };
-
-    await expect(resolveSlideAsset(slide)).resolves.toEqual({
-      kind: 'fallback',
-      reason: 'Source-first editorial card; no photograph used',
-      source: openSource,
-    });
-  });
-
   it.each([
-    { layout: 'framed' as const, width: 800, height: 450 },
+    { layout: 'contain' as const, width: 800, height: 450 },
     { layout: 'fullBleed' as const, width: 1_600, height: 900 },
   ])(
     'accepts a $layout image at its minimum long-edge size',
@@ -221,7 +177,7 @@ describe('resolveSlideAsset', () => {
   });
 
   it.each([
-    { layout: 'framed' as const, width: 799, required: 800 },
+    { layout: 'contain' as const, width: 799, required: 800 },
     { layout: 'fullBleed' as const, width: 999, required: 1_000 },
   ])(
     'falls back when a $layout image is below its quality floor',
@@ -373,44 +329,8 @@ describe('resolveSlideAsset', () => {
     expect(fetchImage).not.toHaveBeenCalled();
   });
 
-  it('loads the bundled CC0 map and applies deterministic PJM highlighting', async () => {
-    const resolved = await resolveSlideAsset(bundledMapSlide());
-
-    expect(resolved).toMatchObject({
-      kind: 'image',
-      layout: 'framed',
-      position: 'center',
-      width: 959,
-      height: 593,
-      source: openSource,
-    });
-    if (resolved.kind !== 'image') {
-      throw new Error('Expected a resolved bundled map');
-    }
-    expect(resolved.dataUri).toMatch(/^data:image\/svg\+xml;base64,/);
-    if (!resolved.dataUri) throw new Error('Expected bundled map data URI');
-    const svg = Buffer.from(resolved.dataUri.split(',')[1]!, 'base64').toString(
-      'utf8',
-    );
-    expect(svg).toContain('.pa,.nj,.dc { fill: #d4c5a3; }');
-    expect(svg).toContain('.state { fill: #18181b; }');
-    expect(svg).toContain('class="pa"');
-  });
-
-  it('writes bundled maps and remote images to a caller-owned working directory', async () => {
+  it('writes remote images to a caller-owned working directory', async () => {
     const directory = await tempDirectory();
-    const map = await resolveSlideAsset(bundledMapSlide(), {
-      workingDirectory: directory,
-    });
-    expect(map).toMatchObject({
-      kind: 'image',
-      dataUri: undefined,
-      filePath: join(directory, 'pjm-map.svg'),
-    });
-    expect((await stat(join(directory, 'pjm-map.svg'))).size).toBeGreaterThan(
-      0,
-    );
-
     const buffer = await sharp({
       create: {
         width: 800,
@@ -440,34 +360,6 @@ describe('resolveSlideAsset', () => {
     expect(await readFile(join(directory, 'remote-image.image'))).toEqual(
       buffer,
     );
-  });
-
-  it('uses null source for source-free editorial slides', async () => {
-    const slide: Extract<Slide, { template: 'cover' }> = {
-      id: 'cover-empty',
-      startMs: 0,
-      endMs: 1_000,
-      template: 'cover',
-      kicker: 'NEWS',
-      headline: 'No source',
-      subheadline: '',
-      sources: [],
-      asset: { kind: 'none' },
-    };
-    await expect(resolveSlideAsset(slide)).resolves.toMatchObject({
-      kind: 'fallback',
-      source: null,
-    });
-  });
-
-  it('falls back when bundled-map attribution is missing', async () => {
-    await expect(
-      resolveSlideAsset(bundledMapSlide('missing-source')),
-    ).resolves.toEqual({
-      kind: 'fallback',
-      reason: 'Map attribution is missing',
-      source: null,
-    });
   });
 });
 

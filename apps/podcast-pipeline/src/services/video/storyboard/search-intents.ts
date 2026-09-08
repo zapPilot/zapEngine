@@ -1,5 +1,6 @@
 import OpenAI, { APIError } from 'openai';
 
+import { throwIfAborted } from '../../../lib/abort.js';
 import { errorMessage } from '../../../lib/errorMessage.js';
 import { isRecord } from '../../../lib/typeGuards.js';
 import { createCompletionWithRetry, getOpenRouterConfig } from '../../llm.js';
@@ -7,7 +8,6 @@ import {
   podcastBrandVisualKind,
   splitPodcastVisualSections,
 } from '../../podcast-packaging.js';
-import { throwIfAborted } from '../abort.js';
 import {
   MAX_SEARCH_ENTITIES_PER_SCENE,
   MAX_SEARCH_INTENTS_PER_SCENE,

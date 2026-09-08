@@ -2,7 +2,7 @@ import { type Href, useRouter } from 'expo-router';
 import type { ReactElement, ReactNode } from 'react';
 import { Platform, View } from 'react-native';
 
-import { ConnectGateCard } from '@/components/connect/ConnectGateCard';
+import { ConnectGatePage } from '@/components/connect/ConnectGatePage';
 import { CONNECT_GATE_COPY } from '@/components/connect/connectGateCopy';
 import { AccountUnavailableCard } from '@/components/home/DemoConnectOverlay';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
@@ -46,26 +46,20 @@ export function AuthenticatedRoute({
   }
 
   return (
-    <ScreenScrollView>
-      <View className="flex-1 px-5 pt-16">
-        <ConnectGateCard
-          variant="page"
-          title={CONNECT_GATE_COPY.signInTitle}
-          body={isWeb ? CONNECT_GATE_COPY.webBody : NATIVE_PRIVY_AUTH_COPY.body}
-          isConnecting={account.isConnecting}
-          error={account.connectionError}
-          onConnect={() => {
-            void account
-              .connect()
-              .then(() => {
-                if (redirectAfterLogin) {
-                  router.replace(redirectAfterLogin);
-                }
-              })
-              .catch(() => undefined);
-          }}
-        />
-      </View>
-    </ScreenScrollView>
+    <ConnectGatePage
+      body={isWeb ? CONNECT_GATE_COPY.webBody : NATIVE_PRIVY_AUTH_COPY.body}
+      isConnecting={account.isConnecting}
+      error={account.connectionError}
+      onConnect={() => {
+        void account
+          .connect()
+          .then(() => {
+            if (redirectAfterLogin) {
+              router.replace(redirectAfterLogin);
+            }
+          })
+          .catch(() => undefined);
+      }}
+    />
   );
 }

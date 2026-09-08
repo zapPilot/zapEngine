@@ -4,18 +4,20 @@ import {
   useDailyYieldReturns,
   useLandingPageData,
 } from '@zapengine/app-core/hooks/queries';
+import { tokens } from '@zapengine/design-tokens/tokens';
 import { useMemo } from 'react';
 
-import { DEMO, type MetricTone } from '@/data/demo';
+import type { MetricTone } from '@/integration/activityTypes';
 import {
   attachDailyAttribution,
   calculateAdjacentSnapshotChange,
   calculateWindowValueChangePct,
   DAILY_ATTRIBUTION_WINDOW_DAYS,
   type DailyValuePoint,
+  netPortfolioValueFrom,
   toTrendPoints,
 } from '@/integration/portfolioMetrics';
-import { formatPct, formatSignedPct } from '@/lib/format';
+import { formatOr, formatPct, formatSignedPct } from '@/lib/format';
 
 interface Metric {
   label: string;
@@ -48,7 +50,6 @@ export interface UsePortfolioDataOptions {
   isResolvingUser?: boolean;
 }
 
-const DEMO_PORTFOLIO = DEMO.portfolio;
 /** Stable identity so a dashboard without trends does not break the memo below. */
 const EMPTY_DAILY_VALUES: readonly DailyValuePoint[] = [];
 
@@ -57,28 +58,6 @@ export function portfolioDaysForRange(range: PortfolioRange): number {
   if (range === '1M') return 30;
   if (range === '3M') return 90;
   return 365;
-}
-
-/** A small rotating palette so real allocation categories without a known
- * colour still render with a stable, distinct swatch. */
-const ALLOCATION_PALETTE = [
-  'var(--usd)',
-  'var(--spy)',
-  'var(--btc)',
-  'var(--accent)',
-];
-
-/** Colour for a real allocation category: reuse the DEMO colour for a matching
- *  label, otherwise fall back to a stable palette slot. */
-function allocationColor(label: string, index: number): string {
-  const known = DEMO_PORTFOLIO.allocation.find(
-    (a) => a.label.toLowerCase() === label.toLowerCase(),
-  );
-  return (
-    known?.color ??
-    ALLOCATION_PALETTE[index % ALLOCATION_PALETTE.length] ??
-    'var(--accent)'
-  );
 }
 
 function toneForSignedPct(pct: number): MetricTone {
@@ -106,9 +85,7 @@ function numberMetric(
         ? tone(value)
         : 'neutral'
       : tone;
-  return typeof value === 'number'
-    ? { label, value: format(value), tone: resolvedTone }
-    : unavailableMetric(label, resolvedTone);
+  return { label, value: formatOr(value, format), tone: resolvedTone };
 }
 
 function pctMetric(label: string, pct: number | null): Metric {
@@ -198,12 +175,7 @@ export function usePortfolioData(
   const lastDay = trendPoints.at(-1);
 
   // Position value = authoritative landing BFF balance.
-  const positionValue =
-    typeof landing?.net_portfolio_value === 'number'
-      ? landing.net_portfolio_value
-      : typeof landing?.total_net_usd === 'number'
-        ? landing.total_net_usd
-        : null;
+  const positionValue = netPortfolioValueFrom(landing);
 
   // Selected-range value change: earliest vs latest total_value_usd.
   const firstValue = firstDay?.total_value_usd;
@@ -283,7 +255,7 @@ export function usePortfolioData(
         {
           label: 'Stablecoins',
           pct: Math.round(calculatedAllocation.stable),
-          color: allocationColor('Stables', 0),
+          color: tokens.color.pillar.usd,
         },
       ].filter((row) => row.pct > 0)
     : [];

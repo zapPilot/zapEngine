@@ -1,18 +1,13 @@
-import { resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { runCli } from '../../lib/cli-runner.js';
+import { isMainModule } from '../../lib/is-main-module.js';
 
-export type RasterStage =
-  | 'satori'
-  | 'resvg'
-  | 'sharp'
-  | 'sharp-scale'
-  | 'sharp-crop';
+export type RasterStage = 'satori' | 'resvg' | 'sharp-scale' | 'sharp-crop';
 
 export async function runRasterStageCli(argv: string[]): Promise<void> {
   const [stage, inputPath, outputPath] = argv;
   if (!inputPath || !outputPath) {
     throw new Error(
-      'Usage: raster-stage-entry <satori|resvg|sharp|sharp-scale|sharp-crop> <input> <output>',
+      'Usage: raster-stage-entry <satori|resvg|sharp-scale|sharp-crop> <input> <output>',
     );
   }
 
@@ -25,11 +20,6 @@ export async function runRasterStageCli(argv: string[]): Promise<void> {
     case 'resvg': {
       const { runResvgStage } = await import('./resvg-stage.js');
       await runResvgStage(inputPath, outputPath);
-      return;
-    }
-    case 'sharp': {
-      const { runSharpStage } = await import('./sharp-stage.js');
-      await runSharpStage(inputPath, outputPath);
       return;
     }
     case 'sharp-scale': {
@@ -47,16 +37,6 @@ export async function runRasterStageCli(argv: string[]): Promise<void> {
   }
 }
 
-// jscpd:ignore-start — CLI direct-invocation check, same pattern in cli.ts, smoke-cli.ts, r2-playback-canary.ts
-const invokedPath = process.argv[1]
-  ? pathToFileURL(resolve(process.argv[1])).href
-  : null;
-if (invokedPath === import.meta.url) {
-  try {
-    await runRasterStageCli(process.argv.slice(2));
-  } catch (error: unknown) {
-    console.error(error);
-    process.exitCode = 1;
-  }
+if (isMainModule(import.meta.url)) {
+  runCli(() => runRasterStageCli(process.argv.slice(2)));
 }
-// jscpd:ignore-end

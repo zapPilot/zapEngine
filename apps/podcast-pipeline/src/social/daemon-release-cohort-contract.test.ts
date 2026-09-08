@@ -4,7 +4,6 @@ const mocks = vi.hoisted(() => ({
   alignPendingSocialReleaseCohorts: vi.fn().mockResolvedValue({
     alignedLanes: 0,
     rescheduledEpisodes: 0,
-    recoveryEpisodes: [],
   }),
   listPartiallyPublishedCohorts: vi.fn().mockResolvedValue([]),
   claimReleaseCohortJobs: vi.fn().mockResolvedValue([]),
@@ -16,7 +15,6 @@ const mocks = vi.hoisted(() => ({
   getSocialQueueSnapshot: vi.fn().mockResolvedValue({
     pendingCount: 0,
     episodeQueue: [],
-    nextByPlatform: {},
   }),
   listPendingSocialPublishSchedules: vi.fn().mockResolvedValue([]),
   listDueSocialPublishPlatforms: vi.fn().mockResolvedValue([]),
@@ -174,7 +172,6 @@ beforeEach(() => {
   mocks.alignPendingSocialReleaseCohorts.mockResolvedValue({
     alignedLanes: 0,
     rescheduledEpisodes: 0,
-    recoveryEpisodes: [],
   });
   mocks.listPartiallyPublishedCohorts.mockResolvedValue([]);
   mocks.claimReleaseCohortJobs.mockResolvedValue([]);

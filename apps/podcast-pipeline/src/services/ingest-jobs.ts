@@ -3,7 +3,8 @@ import {
   type LanguageClassroomLanguageCode,
   SUPPORTED_PRIMARY_LANGUAGE_CODES,
 } from '../types.js';
-import { getPipelineSupabase, throwSupabaseError } from './supabase-client.js';
+import { getPipelineSupabase } from './supabase-client.js';
+import { expectNoError, maybeOne } from './supabase-rows.js';
 import type { TelegramChatId } from './telegram.js';
 
 export type PodcastIngestJobStatus =
@@ -181,11 +182,9 @@ async function callClaimRpc(
   rpcName: string,
   params: Record<string, unknown>,
 ): Promise<PodcastIngestJobRow | null> {
-  const { data, error } = await getPipelineSupabase().rpc(
-    rpcName as never,
-    params as never,
+  const data = await maybeOne<unknown>(
+    getPipelineSupabase().rpc(rpcName as never, params as never),
   );
-  if (error) throwSupabaseError(error);
   return parsePodcastIngestJobRpcResult(data);
 }
 
@@ -194,29 +193,28 @@ async function updateProcessingJob(
   owner: string,
   patch: Record<string, unknown>,
 ): Promise<void> {
-  const { error } = await getPipelineSupabase()
-    .from('podcast_ingest_jobs')
-    .update({
-      ...patch,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', jobId)
-    .eq('status', 'processing')
-    .eq('lease_owner', owner);
-  if (error) throwSupabaseError(error);
+  await expectNoError(
+    getPipelineSupabase()
+      .from('podcast_ingest_jobs')
+      .update({
+        ...patch,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', jobId)
+      .eq('status', 'processing')
+      .eq('lease_owner', owner),
+  );
 }
 
 export const podcastIngestJobStore: PodcastIngestJobStore = {
   async enqueue({ chatId, url, languageCode }) {
-    const { data, error } = await getPipelineSupabase().rpc(
-      'enqueue_podcast_ingest_job',
-      {
+    const data = await maybeOne<unknown>(
+      getPipelineSupabase().rpc('enqueue_podcast_ingest_job', {
         p_source_url: url,
         p_language_code: languageCode,
         p_telegram_chat_id: String(chatId),
-      },
+      }),
     );
-    if (error) throwSupabaseError(error);
     const job = parsePodcastIngestJobRpcResult(data);
     if (!job) throw new Error('Failed to enqueue podcast ingest job');
     return job;

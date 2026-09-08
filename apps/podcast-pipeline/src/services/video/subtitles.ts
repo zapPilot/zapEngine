@@ -1,4 +1,4 @@
-import type { SlideVideoManifest } from './manifest.js';
+import type { VerticalVideoManifest } from './manifest.js';
 import { characterUnits, lineUnits } from './text-units.js';
 
 export { characterUnits } from './text-units.js';
@@ -23,15 +23,6 @@ export const LANDSCAPE_SUBTITLE_LAYOUT: SubtitleLayout = {
   maxLineUnits: MAX_LINE_UNITS,
 };
 
-const LEGACY_PORTRAIT_SUBTITLE_LAYOUT: SubtitleLayout = {
-  playResX: 1080,
-  playResY: 1920,
-  fontSize: 56,
-  marginX: 54,
-  marginV: 132,
-  maxLineUnits: 17,
-};
-
 // Sized for the 720x1280 v4 news layout: captions remain in the bottom band
 // below the 720x640 media window.
 export const PORTRAIT_SUBTITLE_LAYOUT: SubtitleLayout = {
@@ -43,12 +34,8 @@ export const PORTRAIT_SUBTITLE_LAYOUT: SubtitleLayout = {
   maxLineUnits: 17,
 };
 
-export function portraitSubtitleLayoutFor(
-  manifest: Pick<SlideVideoManifest, 'clip'>,
-): SubtitleLayout {
-  return manifest.clip.width === 1080 && manifest.clip.height === 1920
-    ? LEGACY_PORTRAIT_SUBTITLE_LAYOUT
-    : PORTRAIT_SUBTITLE_LAYOUT;
+export function portraitSubtitleLayoutFor(): SubtitleLayout {
+  return PORTRAIT_SUBTITLE_LAYOUT;
 }
 
 export function wrapSubtitle(
@@ -124,7 +111,7 @@ function escapeAssText(text: string): string {
 }
 
 export function createAssSubtitles(
-  captions: SlideVideoManifest['captions'],
+  captions: VerticalVideoManifest['captions'],
   layout: SubtitleLayout = LANDSCAPE_SUBTITLE_LAYOUT,
 ): string {
   const dialogueLines = captions.map((caption) => {

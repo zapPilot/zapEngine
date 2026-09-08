@@ -3,7 +3,7 @@ import {
   type LanguageClassroomLanguageCode,
 } from '../../types.js';
 
-function isLanguageClassroomLanguageCode(
+export function isLanguageClassroomLanguageCode(
   languageCode: string,
 ): languageCode is LanguageClassroomLanguageCode {
   return LANGUAGE_CLASSROOM_LANGUAGE_CODES.includes(

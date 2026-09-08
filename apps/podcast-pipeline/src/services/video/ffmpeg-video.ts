@@ -4,8 +4,10 @@ import { rm } from 'node:fs/promises';
 
 import { path as bundledFfmpegPath } from '@ffmpeg-installer/ffmpeg';
 
-import { abortError, throwIfAborted } from './abort.js';
-import type { SlideVideoManifest, VerticalVideoManifest } from './manifest.js';
+import { abortError, throwIfAborted } from '../../lib/abort.js';
+import { escapeFilterPath } from '../../lib/ffmpeg-filter-path.js';
+import { killOnAbort, settleOnce } from '../../lib/spawn-process.js';
+import type { VerticalVideoManifest } from './manifest.js';
 
 export interface VideoProcessResult {
   stdout: string;
@@ -26,12 +28,6 @@ interface SlideVideoRenderOptionsBase {
   outputPath: string;
   signal?: AbortSignal;
   onEncodeProgress?: (fraction: number) => void;
-}
-
-export interface StaticSlideVideoOptions extends SlideVideoRenderOptionsBase {
-  manifest: SlideVideoManifest;
-  slidePaths: string[];
-  filterScriptPath: string;
 }
 
 export interface VerticalSlideVideoOptions extends SlideVideoRenderOptionsBase {
@@ -77,36 +73,14 @@ export async function runProcess(
     const child = spawn(executable, args, {
       stdio: ['ignore', 'pipe', 'pipe'],
     });
-    // jscpd:ignore-start — shared child-process lifecycle pattern; same design in rasterizer.ts
-    let settled = false;
-    let forceKillTimer: NodeJS.Timeout | undefined;
     let stdout = '';
     let stderr = '';
     let stdoutResidual = '';
-    const cleanup = () => {
-      abortSignal?.removeEventListener('abort', onAbort);
-      if (forceKillTimer) clearTimeout(forceKillTimer);
-    };
-    const settleResolve = (value: VideoProcessResult) => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      resolve(value);
-    };
-    const settleReject = (error: Error) => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      reject(error);
-    };
-    const onAbort = () => {
-      child.kill('SIGTERM');
-      forceKillTimer = setTimeout(() => child.kill('SIGKILL'), 2_000);
-      forceKillTimer.unref?.();
-    };
-    abortSignal?.addEventListener('abort', onAbort, { once: true });
-    if (abortSignal?.aborted) onAbort();
-    // jscpd:ignore-end
+    const { settleResolve, settleReject } = settleOnce<VideoProcessResult>(
+      resolve,
+      reject,
+      killOnAbort(child, abortSignal),
+    );
 
     child.stdout?.setEncoding('utf8');
     child.stderr?.setEncoding('utf8');
@@ -291,19 +265,9 @@ export async function assertVideoFfmpegCapabilities(
   }
 }
 
-function escapeFilterPath(path: string): string {
-  return path
-    .replaceAll('\\', '\\\\')
-    .replaceAll(':', '\\:')
-    .replaceAll("'", "\\'");
-}
-
 export const MEDIA_MOTION_SUPERSAMPLE = 4 as const;
 export const VERTICAL_MEDIA_CHUNK_SIZE = 8 as const;
 
-const LEGACY_KEN_BURNS_ZOOM_RATE_PER_SECOND = 0.014;
-const LEGACY_KEN_BURNS_MAX_EXTRA_ZOOM = 0.18;
-const LEGACY_KEN_BURNS_PAN_ZOOM = 1.15;
 const KEN_BURNS_HOLD_SAFETY_FRAMES = 2;
 const EDITORIAL_DRIFT_INSET = 0.98;
 
@@ -333,87 +297,29 @@ export function kenBurnsPanForScene(index: number, seed = 0): KenBurnsPan {
   );
 }
 
-function legacyKenBurnsFilter(
-  slide: SlideVideoManifest['slides'][number],
-  index: number,
-  seed: number,
+function slideDurationFrames(
+  slide: VerticalVideoManifest['slides'][number],
   fps: number,
-  width: number,
-  height: number,
-  holdFrames: number,
-): string {
-  const durationFrames = Math.max(
-    2,
-    Math.round(((slide.endMs - slide.startMs) * fps) / 1_000),
-  );
-  const finalFrame = durationFrames - 1;
-  const progress = `min(on/${finalFrame}\\,1)`;
-  const eased = `pow(${progress}\\,2)*(3-2*${progress})`;
-  const extraZoom = Math.min(
-    (LEGACY_KEN_BURNS_ZOOM_RATE_PER_SECOND * (slide.endMs - slide.startMs)) /
-      1_000,
-    LEGACY_KEN_BURNS_MAX_EXTRA_ZOOM,
-  ).toFixed(4);
-
-  const position =
-    slide.asset.kind === 'remoteImage' ? slide.asset.position : 'center';
-  let motion = kenBurnsPanForScene(index, seed);
-  if (motion === 'topToBottom' && position !== 'center') motion = 'zoomIn';
-  const isPan = motion !== 'zoomIn' && motion !== 'zoomOut';
-
-  let zoom = `1+${extraZoom}*${eased}`;
-  if (motion === 'zoomOut') zoom = `1+${extraZoom}*(1-${eased})`;
-  if (isPan) zoom = String(LEGACY_KEN_BURNS_PAN_ZOOM);
-
-  let x = '(iw-iw/zoom)/2';
-  let y = '(ih-ih/zoom)/2';
-  if (position === 'top') y = '0';
-  if (position === 'bottom') y = 'ih-ih/zoom';
-  if (motion === 'leftToRight') {
-    x = `(iw-iw/zoom)*${eased}`;
-  } else if (motion === 'rightToLeft') {
-    x = `(iw-iw/zoom)*(1-${eased})`;
-  } else if (motion === 'topToBottom') {
-    y = `(ih-ih/zoom)*${eased}`;
-  }
-
-  return `zoompan=z='${zoom}':x='${x}':y='${y}':d=${durationFrames + holdFrames}:s=${width}x${height}:fps=${fps}`;
+): number {
+  return Math.max(2, Math.round(((slide.endMs - slide.startMs) * fps) / 1_000));
 }
 
-function editorialKenBurnsFilter(
-  slide: SlideVideoManifest['slides'][number],
-  _index: number,
-  _seed: number,
+function stillFrameFilter(
+  slide: VerticalVideoManifest['slides'][number],
   fps: number,
   width: number,
   height: number,
   holdFrames: number,
 ): string {
-  const durationFrames = Math.max(
-    2,
-    Math.round(((slide.endMs - slide.startMs) * fps) / 1_000),
-  );
+  const durationFrames = slideDurationFrames(slide, fps);
   // Fresh editorial payloads never zoom. `zoompan` remains only as the bounded
   // still-frame generator used by this encode path; z=1 preserves the complete
   // image that the contain stage handed us.
   return `zoompan=z='1':x='0':y='0':d=${durationFrames + holdFrames}:s=${width}x${height}:fps=${fps}`;
 }
 
-type EditorialMotion = Extract<
-  SlideVideoManifest['slides'][number]['asset'],
-  { kind: 'remoteImage' }
->['motion'];
-
-// A missing `motion` marks a stored legacy payload. Every filter stage has to
-// agree on that split, so they all read it here instead of re-deriving it.
-function editorialMotionOf(
-  slide: SlideVideoManifest['slides'][number],
-): EditorialMotion {
-  return slide.asset.kind === 'remoteImage' ? slide.asset.motion : undefined;
-}
-
 function editorialDriftFilter(
-  slide: SlideVideoManifest['slides'][number],
+  slide: VerticalVideoManifest['slides'][number],
   index: number,
   seed: number,
   fps: number,
@@ -421,14 +327,10 @@ function editorialDriftFilter(
   height: number,
   holdFrames: number,
 ): string | null {
-  const motion = editorialMotionOf(slide);
-  if (motion === undefined || motion === 'static') {
+  if (slide.asset.motion === 'static') {
     return null;
   }
-  const durationFrames = Math.max(
-    2,
-    Math.round(((slide.endMs - slide.startMs) * fps) / 1_000),
-  );
+  const durationFrames = slideDurationFrames(slide, fps);
   const outputFrames = durationFrames + holdFrames;
   const finalFrame = Math.max(1, outputFrames - 1);
   const progress = `min(n/${finalFrame}\\,1)`;
@@ -456,31 +358,7 @@ function editorialDriftFilter(
   return `scale=${innerWidth}:${innerHeight}:flags=lanczos+accurate_rnd,pad=${canvasWidth}:${canvasHeight}:(ow-iw)/2:(oh-ih)/2:color=0x101014,crop=${width}:${height}:x='${x}':y='${y}'`;
 }
 
-function kenBurnsFilter(
-  slide: SlideVideoManifest['slides'][number],
-  index: number,
-  seed: number,
-  fps: number,
-  width: number,
-  height: number,
-  holdFrames: number,
-): string {
-  const hasExplicitEditorialMotion = editorialMotionOf(slide) !== undefined;
-  return hasExplicitEditorialMotion
-    ? editorialKenBurnsFilter(
-        slide,
-        index,
-        seed,
-        fps,
-        width,
-        height,
-        holdFrames,
-      )
-    : legacyKenBurnsFilter(slide, index, seed, fps, width, height, holdFrames);
-}
-
 function imagePreparationFilter(
-  slide: SlideVideoManifest['slides'][number],
   width: number,
   height: number,
   supersample: number,
@@ -488,17 +366,11 @@ function imagePreparationFilter(
   const targetWidth = width * supersample;
   const targetHeight = height * supersample;
   const flags = 'lanczos+accurate_rnd';
-  const layout =
-    slide.asset.kind === 'remoteImage' ? slide.asset.layout : 'fullBleed';
-  const hasExplicitEditorialMotion = editorialMotionOf(slide) !== undefined;
-  if (hasExplicitEditorialMotion || layout === 'contain') {
-    return `scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=decrease:flags=${flags}:in_range=pc:out_range=tv:out_color_matrix=bt709,pad=${targetWidth}:${targetHeight}:(ow-iw)/2:(oh-ih)/2:color=0x101014`;
-  }
-  return `scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=increase:flags=${flags}:in_range=pc:out_range=tv:out_color_matrix=bt709,crop=${targetWidth}:${targetHeight}`;
+  return `scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=decrease:flags=${flags}:in_range=pc:out_range=tv:out_color_matrix=bt709,pad=${targetWidth}:${targetHeight}:(ow-iw)/2:(oh-ih)/2:color=0x101014`;
 }
 
 function slideSceneFilters(
-  slides: SlideVideoManifest['slides'],
+  slides: VerticalVideoManifest['slides'],
   seed: number,
   fps: number,
   width: number,
@@ -520,12 +392,12 @@ function slideSceneFilters(
       height,
       holdFrames,
     );
-    return `[${index}:v]${imagePreparationFilter(slide, width, height, supersample)},${kenBurnsFilter(slide, absoluteIndex, seed, fps, width, height, holdFrames)}${drift ? `,${drift}` : ''},setsar=1,format=yuv444p,settb=expr=1/${fps},setpts=N[s${index}]`;
+    return `[${index}:v]${imagePreparationFilter(width, height, supersample)},${stillFrameFilter(slide, fps, width, height, holdFrames)}${drift ? `,${drift}` : ''},setsar=1,format=yuv444p,settb=expr=1/${fps},setpts=N[s${index}]`;
   });
 }
 
 function sceneChain(
-  manifest: Pick<SlideVideoManifest, 'slides' | 'clip' | 'episode'>,
+  manifest: Pick<VerticalVideoManifest, 'slides' | 'clip' | 'episode'>,
   width: number,
   height: number,
   supersample: number,
@@ -551,19 +423,14 @@ function sceneChain(
   return { filters, priorLabel };
 }
 
-// Editorial scenes wipe in alternating directions; legacy payloads keep the
-// historical crossfade so their look does not change retroactively.
-function transitionForSlide(
-  slide: SlideVideoManifest['slides'][number],
-  slideIndex: number,
-): string {
-  if (editorialMotionOf(slide) === undefined) return 'fade';
+// Editorial scenes wipe in alternating directions.
+function transitionForSlide(slideIndex: number): string {
   return slideIndex % 2 === 0 ? 'smoothright' : 'smoothleft';
 }
 
 function appendXfadeChain(
   filters: string[],
-  slides: SlideVideoManifest['slides'],
+  slides: VerticalVideoManifest['slides'],
   fps: number,
   transitionMs: number,
 ): string {
@@ -574,38 +441,13 @@ function appendXfadeChain(
     const nextStartFrame = Math.round((slide.startMs * fps) / 1_000);
     const transitionOffset = (nextStartFrame - transitionFrames) / fps;
     const outputLabel = `x${slideIndex}`;
-    const transition = transitionForSlide(slide, slideIndex);
+    const transition = transitionForSlide(slideIndex);
     filters.push(
       `[${priorLabel}][s${slideIndex}]xfade=transition=${transition}:duration=${transitionMs / 1_000}:offset=${transitionOffset.toFixed(6)}[${outputLabel}]`,
     );
     priorLabel = outputLabel;
   });
   return priorLabel;
-}
-
-export function buildStaticSlideFilter(
-  manifest: SlideVideoManifest,
-  subtitlePath: string,
-  fontsDirectory: string,
-): string {
-  const fps = manifest.clip.fps;
-  const totalFrames = Math.round((manifest.clip.durationMs * fps) / 1_000);
-  const { filters, priorLabel } = sceneChain(
-    manifest,
-    manifest.clip.width,
-    manifest.clip.height,
-    1,
-  );
-
-  filters.push(
-    `[${priorLabel}]fps=${fps},trim=end_frame=${totalFrames},settb=expr=1/${fps},setpts=N,ass=filename='${escapeFilterPath(subtitlePath)}':fontsdir='${escapeFilterPath(fontsDirectory)}',format=yuv420p[vout]`,
-  );
-  const audioInputIndex = manifest.slides.length;
-  const audioSamples = Math.round((manifest.clip.durationMs / 1_000) * 48_000);
-  filters.push(
-    `[${audioInputIndex}:a]aresample=sample_rate=48000:async=1:first_pts=0,atrim=end_sample=${audioSamples},asetpts=N/SR/TB[aout]`,
-  );
-  return filters.join(';\n');
 }
 
 export interface VerticalMediaChunk {
@@ -835,38 +677,6 @@ function videoCodecArgs(fps: number, crf: string): string[] {
   ];
 }
 
-function encoderOutputArgs(input: {
-  fps: number;
-  totalFrames: number;
-  durationSeconds: number;
-  filterScriptPath: string;
-  outputPath: string;
-}): string[] {
-  return [
-    '-filter_complex_script',
-    input.filterScriptPath,
-    '-map',
-    '[vout]',
-    '-map',
-    '[aout]',
-    '-frames:v',
-    String(input.totalFrames),
-    '-t',
-    String(input.durationSeconds),
-    '-shortest',
-    ...videoCodecArgs(input.fps, X264_CRF),
-    '-c:a',
-    'aac',
-    '-b:a',
-    '128k',
-    '-ar',
-    '48000',
-    '-movflags',
-    '+faststart',
-    input.outputPath,
-  ];
-}
-
 function streamedRenderPrefix(): string[] {
   return [
     '-y',
@@ -877,41 +687,6 @@ function streamedRenderPrefix(): string[] {
     '-progress',
     'pipe:1',
   ];
-}
-
-function renderArgs(input: {
-  fps: number;
-  durationMs: number;
-  imagePaths: readonly string[];
-  audioInputArgs: readonly string[];
-  filterScriptPath: string;
-  outputPath: string;
-}): string[] {
-  return [
-    ...streamedRenderPrefix(),
-    ...stillImageInputs(input.imagePaths),
-    ...input.audioInputArgs,
-    ...encoderOutputArgs({
-      fps: input.fps,
-      totalFrames: Math.round((input.durationMs * input.fps) / 1_000),
-      durationSeconds: input.durationMs / 1_000,
-      filterScriptPath: input.filterScriptPath,
-      outputPath: input.outputPath,
-    }),
-  ];
-}
-
-export function buildStaticSlideFfmpegArgs(
-  options: StaticSlideVideoOptions,
-): string[] {
-  return renderArgs({
-    fps: options.manifest.clip.fps,
-    durationMs: options.manifest.clip.durationMs,
-    imagePaths: options.slidePaths,
-    audioInputArgs: ['-i', options.audioSource],
-    filterScriptPath: options.filterScriptPath,
-    outputPath: options.outputPath,
-  });
 }
 
 export function buildVerticalMediaChunkFfmpegArgs(
@@ -1021,45 +796,6 @@ async function runRenderPass(
           signal,
         )
       : undefined,
-  );
-}
-
-async function renderWithFfmpeg(
-  args: string[],
-  signal: AbortSignal | undefined,
-  ffmpegPath: string,
-  processRunner: VideoProcessRunner,
-  encode?: {
-    totalDurationMs: number;
-    onFraction: (fraction: number) => void;
-  },
-): Promise<void> {
-  await assertVideoFfmpegCapabilities(ffmpegPath, processRunner, signal);
-  await runRenderPass(args, signal, ffmpegPath, processRunner, encode);
-}
-
-function encodeProgressOptions(
-  options: StaticSlideVideoOptions | VerticalSlideVideoOptions,
-):
-  | { totalDurationMs: number; onFraction: (fraction: number) => void }
-  | undefined {
-  const onFraction = options.onEncodeProgress;
-  if (!onFraction) return undefined;
-  return { totalDurationMs: options.manifest.clip.durationMs, onFraction };
-}
-
-export async function renderStaticSlideVideo(
-  options: StaticSlideVideoOptions,
-  ffmpegPath = resolveVideoFfmpegPath(),
-  processRunner: VideoProcessRunner = runProcess,
-): Promise<void> {
-  throwIfAborted(options.signal);
-  await renderWithFfmpeg(
-    buildStaticSlideFfmpegArgs(options),
-    options.signal,
-    ffmpegPath,
-    processRunner,
-    encodeProgressOptions(options),
   );
 }
 

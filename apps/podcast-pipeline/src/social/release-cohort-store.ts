@@ -2,6 +2,7 @@ import {
   getPipelineSupabase,
   throwSupabaseError,
 } from '../services/supabase-client.js';
+import { many, maybeOne } from '../services/supabase-rows.js';
 import {
   MAX_PUBLISH_ATTEMPTS,
   type SocialPublishJobRow,
@@ -19,7 +20,6 @@ interface ReleaseQueueRow extends ReleaseScheduleRow {
 export interface ReleaseCohortAlignmentResult {
   alignedLanes: number;
   rescheduledEpisodes: number;
-  recoveryEpisodes: string[];
 }
 
 const RELEASE_QUEUE_PAGE_SIZE = 1000;
@@ -35,17 +35,17 @@ const RELEASE_QUEUE_PAGE_SIZE = 1000;
 async function listReleaseScheduleRows(): Promise<ReleaseQueueRow[]> {
   const rows: ReleaseQueueRow[] = [];
   for (let offset = 0; ; offset += RELEASE_QUEUE_PAGE_SIZE) {
-    const { data, error } = await getPipelineSupabase()
-      .from('social_publish_jobs')
-      .select(
-        'id,episode_id,status,scheduled_at,next_attempt_at,completed_at,attempt_count',
-      )
-      .in('status', ['queued', 'failed', 'processing', 'completed'])
-      .order('id', { ascending: true })
-      .range(offset, offset + RELEASE_QUEUE_PAGE_SIZE - 1)
-      .returns<ReleaseQueueRow[]>();
-    if (error) throwSupabaseError(error);
-    const page = data ?? [];
+    const page = await many<ReleaseQueueRow>(
+      getPipelineSupabase()
+        .from('social_publish_jobs')
+        .select(
+          'id,episode_id,status,scheduled_at,next_attempt_at,completed_at,attempt_count',
+        )
+        .in('status', ['queued', 'failed', 'processing', 'completed'])
+        .order('id', { ascending: true })
+        .range(offset, offset + RELEASE_QUEUE_PAGE_SIZE - 1)
+        .returns<ReleaseQueueRow[]>(),
+    );
     rows.push(...page);
     if (page.length < RELEASE_QUEUE_PAGE_SIZE) break;
   }
@@ -70,18 +70,19 @@ export async function alignPendingSocialReleaseCohorts(
   const rescheduledEpisodes = new Set<string>();
 
   for (const update of plan.updates) {
-    const { data, error } = await getPipelineSupabase()
-      .from('social_publish_jobs')
-      .update({
-        scheduled_at: update.scheduledAt,
-        next_attempt_at: update.nextAttemptAt,
-        updated_at: now.toISOString(),
-      })
-      .eq('id', update.id)
-      .eq('status', update.status)
-      .select('id')
-      .maybeSingle<{ id: string }>();
-    if (error) throwSupabaseError(error);
+    const data = await maybeOne<{ id: string }>(
+      getPipelineSupabase()
+        .from('social_publish_jobs')
+        .update({
+          scheduled_at: update.scheduledAt,
+          next_attempt_at: update.nextAttemptAt,
+          updated_at: now.toISOString(),
+        })
+        .eq('id', update.id)
+        .eq('status', update.status)
+        .select('id')
+        .maybeSingle<{ id: string }>(),
+    );
     if (!data) continue;
     alignedLanes += 1;
     if (update.reason === 'reschedule') {
@@ -92,7 +93,6 @@ export async function alignPendingSocialReleaseCohorts(
   return {
     alignedLanes,
     rescheduledEpisodes: rescheduledEpisodes.size,
-    recoveryEpisodes: plan.recoveryEpisodes,
   };
 }
 

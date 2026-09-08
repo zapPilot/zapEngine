@@ -851,15 +851,6 @@ describe('classifyVideoRetryError', () => {
     [{ code: '22023', message: 'no video visual job' }, 'missing'],
     [{ code: '22023', message: 'episode does not exist' }, 'missing'],
     [{ code: '22023', message: 'something else' }, 'prerequisites'],
-    [{ code: 'PGRST202', message: 'missing' }, 'unavailable'],
-    [{ code: '42883' }, 'unavailable'],
-    [
-      {
-        message:
-          'Could not find the function retry_episode_video_generation in the schema cache',
-      },
-      'unavailable',
-    ],
   ])('classifies %j as %s', (error, outcome) => {
     expect(classifyVideoRetryError(error)).toBe(outcome);
   });
@@ -912,13 +903,6 @@ describe('retryEpisodeVideoGeneration', () => {
     });
     await expect(retryEpisodeVideoGeneration('episode-1')).resolves.toBe(
       'processing',
-    );
-    pipelineSupabase.rpc.mockResolvedValueOnce({
-      data: null,
-      error: { code: 'PGRST202', message: 'not found' },
-    });
-    await expect(retryEpisodeVideoGeneration('episode-1')).resolves.toBe(
-      'unavailable',
     );
   });
 

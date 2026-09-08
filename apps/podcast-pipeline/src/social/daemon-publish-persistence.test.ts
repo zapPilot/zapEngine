@@ -2,8 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   readPublishState: vi.fn().mockResolvedValue({}),
-  listPastDueSocialPublishJobs: vi.fn().mockResolvedValue([]),
-  rescheduleSocialPublishJob: vi.fn().mockResolvedValue(true),
   claimSocialPublishBatch: vi.fn(),
   completeSocialPublishJob: vi.fn(),
   enqueueSocialPublishJob: vi.fn(),
@@ -12,7 +10,6 @@ const mocks = vi.hoisted(() => ({
   getActiveSocialStrategies: vi.fn(),
   getSocialQueueSnapshot: vi.fn(),
   getSocialStrategyById: vi.fn(),
-  latestPendingSocialPublishSchedule: vi.fn(),
   listPendingSocialPublishSchedules: vi.fn(),
   listDueSocialPublishPlatforms: vi.fn().mockResolvedValue([]),
   listLearningSocialPosts: vi.fn(),
@@ -33,9 +30,6 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('./daemon-store.js', () => ({
-  listPastDueSocialPublishJobs: mocks.listPastDueSocialPublishJobs,
-  rescheduleSocialPublishJob: mocks.rescheduleSocialPublishJob,
-  claimSocialPublishBatch: mocks.claimSocialPublishBatch,
   completeSocialPublishJob: mocks.completeSocialPublishJob,
   enqueueSocialPublishJob: mocks.enqueueSocialPublishJob,
   ensureSocialDaemonStart: mocks.ensureSocialDaemonStart,
@@ -43,7 +37,6 @@ vi.mock('./daemon-store.js', () => ({
   getActiveSocialStrategies: mocks.getActiveSocialStrategies,
   getSocialQueueSnapshot: mocks.getSocialQueueSnapshot,
   getSocialStrategyById: mocks.getSocialStrategyById,
-  latestPendingSocialPublishSchedule: mocks.latestPendingSocialPublishSchedule,
   listPendingSocialPublishSchedules: mocks.listPendingSocialPublishSchedules,
   listDueSocialPublishPlatforms: mocks.listDueSocialPublishPlatforms,
   listLearningSocialPosts: mocks.listLearningSocialPosts,
@@ -62,7 +55,6 @@ vi.mock('./release-cohort-store.js', () => ({
   alignPendingSocialReleaseCohorts: vi.fn().mockResolvedValue({
     alignedLanes: 0,
     rescheduledEpisodes: 0,
-    recoveryEpisodes: [],
   }),
   listPartiallyPublishedCohorts: vi.fn().mockResolvedValue([]),
   claimReleaseCohortJobs: mocks.claimSocialPublishBatch,
@@ -120,8 +112,6 @@ function publishJob(attemptCount = 3) {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.readPublishState.mockReset().mockResolvedValue({});
-  mocks.listPastDueSocialPublishJobs.mockResolvedValue([]);
-  mocks.rescheduleSocialPublishJob.mockResolvedValue(true);
   mocks.listSocialPublishCandidates.mockResolvedValue([]);
   // Publishing re-checks media for every claimed cohort; the default is the
   // normal production state, where every claimed episode is fully ready.
@@ -137,7 +127,6 @@ beforeEach(() => {
       ),
   );
   mocks.getActiveSocialStrategies.mockResolvedValue([]);
-  mocks.latestPendingSocialPublishSchedule.mockResolvedValue(null);
   mocks.listPendingSocialPublishSchedules.mockResolvedValue([]);
   mocks.listLearningSocialPosts.mockResolvedValue([]);
   mocks.listLearningSocialMetrics.mockResolvedValue([]);

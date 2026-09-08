@@ -1,3 +1,9 @@
+import {
+  DEFAULT_PODCAST_LANGUAGE_CODE,
+  PODCAST_LANGUAGE_CODES,
+  type PodcastLanguageCode,
+} from '@zapengine/types/shared';
+
 import type { EpisodeVideoProgressStage } from './services/video-progress.js';
 import type {
   SocialContentFeatures,
@@ -26,25 +32,25 @@ export interface Article {
   images?: ImageCandidate[];
 }
 
-export const DEFAULT_LANGUAGE_CODE = 'zh-Hant';
+export const DEFAULT_LANGUAGE_CODE = DEFAULT_PODCAST_LANGUAGE_CODE;
 export const LEGACY_LANGUAGE_ALIASES = {
   'zh-TW': DEFAULT_LANGUAGE_CODE,
 } as const;
-export const SUPPORTED_PRIMARY_LANGUAGE_CODES = [
-  DEFAULT_LANGUAGE_CODE,
-  'ja',
-  'en',
-] as const;
-export type PrimaryLanguageCode =
-  (typeof SUPPORTED_PRIMARY_LANGUAGE_CODES)[number];
-export const LANGUAGE_CLASSROOM_LANGUAGE_CODES = [
-  DEFAULT_LANGUAGE_CODE,
-  'ja',
-  'en',
-] as const;
+export const SUPPORTED_PRIMARY_LANGUAGE_CODES = PODCAST_LANGUAGE_CODES;
+export type PrimaryLanguageCode = PodcastLanguageCode;
+/**
+ * Distinct name from `SUPPORTED_PRIMARY_LANGUAGE_CODES` on purpose even though
+ * the two are identical: `SUPPORTED_PRIMARY_LANGUAGE_CODES` is now a
+ * re-export from `@zapengine/types/shared`, but every classroom-language call
+ * site keeps its own alias to depend on rather than reaching for the shared
+ * vocabulary directly.
+ * @alias
+ */
+export const LANGUAGE_CLASSROOM_LANGUAGE_CODES =
+  SUPPORTED_PRIMARY_LANGUAGE_CODES;
 
-export type LanguageClassroomLanguageCode =
-  (typeof LANGUAGE_CLASSROOM_LANGUAGE_CODES)[number];
+// eslint-disable-next-line sonarjs/redundant-type-aliases -- see the @alias note above
+export type LanguageClassroomLanguageCode = PrimaryLanguageCode;
 
 export type EpisodeStatus =
   | 'pending'

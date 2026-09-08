@@ -256,6 +256,7 @@ function visualPlan(sceneCount: number): ImageVisualPlan {
           sha256: index.toString(16).padStart(64, '0'),
           layout: 'fullBleed',
           position: 'center',
+          motion: 'static',
         },
       };
     }),

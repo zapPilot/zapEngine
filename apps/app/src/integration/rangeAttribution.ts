@@ -24,7 +24,7 @@ export interface RangeAttributionSummary {
 }
 
 /** Below this share of explained days the breakdown misleads more than it tells. */
-export const MIN_ATTRIBUTION_COVERAGE = 0.5;
+const MIN_ATTRIBUTION_COVERAGE = 0.5;
 
 export function hasUsableAttribution(
   summary: RangeAttributionSummary,

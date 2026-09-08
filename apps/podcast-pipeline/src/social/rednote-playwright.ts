@@ -1,7 +1,7 @@
 import type { Locator, Page } from 'playwright-core';
 
 import { convertTextToZhCN } from '../services/opencc.js';
-import { SocialPublishError } from './publish-error.js';
+import { publishStep, SocialPublishError } from './publish-error.js';
 import {
   isPublisherReady,
   UPLOAD_INPUT_SELECTOR,
@@ -546,10 +546,4 @@ async function firstVisible(
   throw lastError;
 }
 
-async function step<T>(name: string, operation: () => Promise<T>): Promise<T> {
-  try {
-    return await operation();
-  } catch (error) {
-    throw new SocialPublishError('rednote', name, error);
-  }
-}
+const step = publishStep('rednote');

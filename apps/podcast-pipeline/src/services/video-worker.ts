@@ -19,7 +19,6 @@ import {
   type RenderAdmission,
   renderJobCapacity,
 } from './render-admission.js';
-import { isMissingSupabaseRpc } from './supabase-client.js';
 import {
   buildTelegramVideoCompletedMessage,
   buildTelegramVideoFailedMessage,
@@ -28,6 +27,7 @@ import {
   type TelegramChatId,
   type TelegramSendMessageOptions,
 } from './telegram.js';
+import { logVideoWorkerEvent } from './video/log.js';
 import { visualFailureDiagnosticsFor } from './video/visual-diagnostics.js';
 import {
   EPISODE_VIDEO_VISUAL_VERSION,
@@ -459,9 +459,10 @@ export function createVideoWorker(
       logger,
     });
 
-    logger.info(
-      `[video-worker] visual:start run=${runId} episode=${job.episode_id}`,
-    );
+    logVideoWorkerEvent(logger, 'visual:start', {
+      run: runId,
+      episode: job.episode_id,
+    });
     try {
       jobController.signal.throwIfAborted();
       const source = await visualRepository.loadSource(job.episode_id);
@@ -486,9 +487,10 @@ export function createVideoWorker(
       if (!completed) {
         throw new VideoLeaseLostError('visual', job.episode_id);
       }
-      logger.info(
-        `[video-worker] visual:done run=${runId} episode=${job.episode_id}`,
-      );
+      logVideoWorkerEvent(logger, 'visual:done', {
+        run: runId,
+        episode: job.episode_id,
+      });
       return 'completed';
     } catch (error) {
       const diagnostics = jobController.signal.aborted
@@ -502,17 +504,6 @@ export function createVideoWorker(
             diagnostics as unknown as Record<string, unknown>,
           )
           .catch((diagnosticsError) => {
-            if (
-              isMissingSupabaseRpc(
-                diagnosticsError,
-                'record_episode_video_visual_failure_diagnostics',
-              )
-            ) {
-              logger.info(
-                '[video-worker] visual diagnostics migration not applied yet',
-              );
-              return;
-            }
             logger.error(
               '[video-worker] failed to persist visual failure diagnostics',
               toError(diagnosticsError),
@@ -614,9 +605,12 @@ export function createVideoWorker(
       jobController.signal.throwIfAborted();
       source = await repository.loadSource(job.episode_localization_id);
       jobController.signal.throwIfAborted();
-      logger.info(
-        `[video-worker] video:render:start run=${runId} episode=${source.episodeId} language=${source.languageCode} localization=${job.episode_localization_id}`,
-      );
+      logVideoWorkerEvent(logger, 'video:render:start', {
+        run: runId,
+        episode: source.episodeId,
+        language: source.languageCode,
+        localization: job.episode_localization_id,
+      });
       const completion = await options.processJob(job, source, {
         signal: jobController.signal,
         runId,
@@ -651,9 +645,13 @@ export function createVideoWorker(
           job.episode_localization_id,
         );
       }
-      logger.info(
-        `[video-worker] video:render:done run=${runId} episode=${source.episodeId} language=${source.languageCode} localization=${job.episode_localization_id} concurrentJobsPeak=${activeJob.concurrentPeak}`,
-      );
+      logVideoWorkerEvent(logger, 'video:render:done', {
+        run: runId,
+        episode: source.episodeId,
+        language: source.languageCode,
+        localization: job.episode_localization_id,
+        concurrentJobsPeak: activeJob.concurrentPeak,
+      });
 
       const latestJob = await repository
         .find(job.episode_localization_id)

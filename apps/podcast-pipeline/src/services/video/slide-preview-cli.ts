@@ -3,6 +3,7 @@ import { join, resolve } from 'node:path';
 
 import { parseFlagArgs } from '../../lib/cli-args.js';
 import { runCli } from '../../lib/cli-runner.js';
+import { isMainModule } from '../../lib/is-main-module.js';
 import { rasterizeConceptCard } from './rasterizer.js';
 
 export async function runSlidePreviewCli(
@@ -54,7 +55,7 @@ function flag(value: string | boolean | undefined): string | null {
   return typeof value === 'string' ? value.trim() || null : null;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isMainModule(import.meta.url)) {
   runCli(async () => {
     const directory = await runSlidePreviewCli();
     console.log(`Concept-card preview: ${directory}`);

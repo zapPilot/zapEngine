@@ -1,4 +1,5 @@
 import { toError } from '../lib/errorMessage.js';
+import { createPollingSweeper } from '../lib/polling-sweeper.js';
 import {
   flyImageRefsMatch,
   type FlyMachinesClient,
@@ -6,9 +7,10 @@ import {
 } from './fly-machines.js';
 import {
   getPipelineSupabase,
-  isMissingSupabaseRpc,
   type PipelineSupabaseClient,
+  throwSupabaseError,
 } from './supabase-client.js';
+import { many } from './supabase-rows.js';
 import {
   buildTelegramRenderFleetWarningMessage,
   buildTelegramRenderWakeFailedMessage,
@@ -84,8 +86,7 @@ export interface RenderWorkSnapshot {
   /** Active visual rows plus the visual row of every episode with active video work. */
   visuals: readonly VisualWorkRow[];
   videos: readonly VideoWorkRow[];
-  /** Optional until migration 20260901080500 is applied in production. */
-  visualFailureNotices?: readonly VisualFailureNoticeWork[];
+  visualFailureNotices: readonly VisualFailureNoticeWork[];
   nowMs: number;
 }
 
@@ -138,7 +139,7 @@ export function evaluatePendingRenderWork(
     chatIds.push(visual.telegram_chat_id);
   }
 
-  for (const failure of snapshot.visualFailureNotices ?? []) {
+  for (const failure of snapshot.visualFailureNotices) {
     reasons.push(`visual:unnotified-failure:${failure.episode_id}`);
     chatIds.push(failure.telegram_chat_id);
   }
@@ -168,14 +169,14 @@ export function createRenderWorkProbe(
     async loadSnapshot(): Promise<RenderWorkSnapshot> {
       const supabase = client ?? getPipelineSupabase();
       const [videos, visuals, visualFailureNotices] = await Promise.all([
-        selectRows<VideoWorkRow>(
+        many<VideoWorkRow>(
           supabase
             .from('episode_videos')
             .select(VIDEO_WORK_FIELDS)
             .in('status', ACTIVE_JOB_STATUSES)
             .returns<VideoWorkRow[]>(),
         ),
-        selectRows<VisualWorkRow>(
+        many<VisualWorkRow>(
           supabase
             .from('episode_video_visuals')
             .select(VISUAL_WORK_FIELDS)
@@ -200,7 +201,7 @@ export function createRenderWorkProbe(
       const completedVisuals =
         missingEpisodeIds.length === 0
           ? []
-          : await selectRows<VisualWorkRow>(
+          : await many<VisualWorkRow>(
               supabase
                 .from('episode_video_visuals')
                 .select(VISUAL_WORK_FIELDS)
@@ -229,10 +230,8 @@ export function createRenderCapacityReconciler(
     options.pollIntervalMs ?? RENDER_CAPACITY_POLL_INTERVAL_MS;
   const logger = options.logger ?? console;
 
-  let timer: NodeJS.Timeout | null = null;
   let started = false;
   let stopped = false;
-  let running = false;
   let lastFingerprint: string | null = null;
   let repeatedWakes = 0;
   let suppressionNotified = false;
@@ -405,17 +404,15 @@ export function createRenderCapacityReconciler(
     return 'started';
   };
 
-  const tick = async (): Promise<void> => {
-    if (running || stopped) return;
-    running = true;
-    try {
+  const sweeper = createPollingSweeper({
+    intervalMs: pollIntervalMs,
+    run: async () => {
       await runOnce();
-    } catch (error) {
+    },
+    onError: (error) => {
       logger.error('[render-capacity] poll failed', toError(error));
-    } finally {
-      running = false;
-    }
-  };
+    },
+  });
 
   return {
     start(): void {
@@ -424,9 +421,7 @@ export function createRenderCapacityReconciler(
       logger.info(
         `[render-capacity] watching render work every ${pollIntervalMs}ms`,
       );
-      void tick();
-      timer = setInterval(() => void tick(), pollIntervalMs);
-      timer.unref();
+      sweeper.start();
     },
 
     runOnce,
@@ -434,10 +429,7 @@ export function createRenderCapacityReconciler(
     stop(): void {
       stopped = true;
       started = false;
-      if (timer) {
-        clearInterval(timer);
-        timer = null;
-      }
+      sweeper.stop();
     },
   };
 }
@@ -547,34 +539,8 @@ async function loadOptionalVisualFailureNotices(
   const { data, error } = await supabase.rpc(VISUAL_FAILURE_NOTICE_RPC, {
     p_limit: 20,
   });
-  if (!error) {
-    return (data ?? []) as VisualFailureNoticeWork[];
-  }
-  if (isMissingSupabaseRpc(error, VISUAL_FAILURE_NOTICE_RPC)) {
-    return [];
-  }
-  throw new Error(supabaseErrorMessage(error), { cause: error });
-}
-
-async function selectRows<T>(
-  query: PromiseLike<{ data: T[] | null; error: unknown }>,
-): Promise<T[]> {
-  const { data, error } = await query;
   if (error) {
-    throw new Error(supabaseErrorMessage(error), { cause: error });
+    throwSupabaseError(error);
   }
-  return data ?? [];
-}
-
-function supabaseErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-  if (error && typeof error === 'object') {
-    const message = (error as { message?: unknown }).message;
-    if (typeof message === 'string' && message) {
-      return message;
-    }
-  }
-  return 'Supabase render work query failed';
+  return (data ?? []) as VisualFailureNoticeWork[];
 }

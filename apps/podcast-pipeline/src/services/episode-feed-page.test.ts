@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { feedRow } from '../__fixtures__/index-test.js';
 import { encodeCursor } from './db.js';
@@ -21,11 +21,6 @@ const { listHydratedEpisodeFeedPage } = await import('./episode-feed-page.js');
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.stubEnv('NODE_ENV', 'production');
-});
-
-afterEach(() => {
-  vi.unstubAllEnvs();
 });
 
 describe('listHydratedEpisodeFeedPage', () => {
@@ -165,7 +160,7 @@ describe('listHydratedEpisodeFeedPage', () => {
 
     const result = await listHydratedEpisodeFeedPage(30, null, 'zh-Hant');
 
-    expect(result?.items[0]?.videoGeneration).toEqual({
+    expect(result.items[0]?.videoGeneration).toEqual({
       status: 'queued',
       updatedAt: '2026-07-24T02:30:00.000Z',
       progressPercent: 22,
@@ -173,7 +168,7 @@ describe('listHydratedEpisodeFeedPage', () => {
     });
   });
 
-  it('returns null only when the RPC migration is not available yet', async () => {
+  it('does not hide a missing RPC behind a silent fallback', async () => {
     mockRpc.mockResolvedValue({
       data: null,
       error: { code: 'PGRST202', message: 'function not found' },
@@ -181,7 +176,7 @@ describe('listHydratedEpisodeFeedPage', () => {
 
     await expect(
       listHydratedEpisodeFeedPage(30, null, 'zh-Hant'),
-    ).resolves.toBeNull();
+    ).rejects.toThrow('function not found');
   });
 
   it('does not hide real RPC failures behind the legacy path', async () => {
