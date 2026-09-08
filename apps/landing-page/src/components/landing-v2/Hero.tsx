@@ -28,9 +28,9 @@ export function Hero() {
             </span>
           ))}
         </div>
-        <div className="zp-hero-ctas" aria-label="Primary actions">
+        <div className="zp-hero-ctas" id="waitlist" aria-label="Primary actions">
           <AppCtaLink className="zp-btn zp-btn-primary" location="hero">
-            Open the app <span aria-hidden>→</span>
+            Join waitlist <span aria-hidden>→</span>
           </AppCtaLink>
           <a className="zp-btn zp-btn-ghost" href="#proof">
             See the backtest
