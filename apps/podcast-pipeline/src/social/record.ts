@@ -60,6 +60,7 @@ export function buildSocialPostRecord(input: {
   episode: SocialComposeEpisode;
   videoDurationSeconds: number;
   xVideoDurationSeconds?: number;
+  destinationUrl?: string;
   packagingExperiment?: { key: string; variant: string };
 }): NewSocialPost {
   // Recorded through the same composition the publisher used, so telemetry
@@ -73,6 +74,7 @@ export function buildSocialPostRecord(input: {
   const published = composeSocialContent(input.platform, {
     copy: input.snapshot.published,
     episode: input.episode,
+    ...(input.destinationUrl ? { destinationUrl: input.destinationUrl } : {}),
   });
 
   // `published` is what the publisher was asked to post; a platform that
@@ -139,6 +141,7 @@ export function createSocialPostPersister(input: {
     >
   >;
   packagingByPlatform?: Partial<Record<SocialPlatform, PackagingAssignment>>;
+  destinationUrlByPlatform?: Partial<Record<SocialPlatform, string>>;
   snapshot: SocialCopySnapshot;
   episode: SocialComposeEpisode;
   videoDurationSeconds: number;
@@ -162,6 +165,9 @@ export function createSocialPostPersister(input: {
               variant: input.packagingByPlatform[platform].variant,
             },
           }
+        : {}),
+      ...(input.destinationUrlByPlatform?.[platform]
+        ? { destinationUrl: input.destinationUrlByPlatform[platform] }
         : {}),
       result,
       snapshot: input.snapshot,

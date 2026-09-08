@@ -13,6 +13,7 @@ const CONFIGURED = readControlCenterConfig({
 interface QueryResult {
   data: unknown[] | null;
   error: unknown;
+  count?: number | null;
 }
 
 function clientFactory(input: {
@@ -20,9 +21,11 @@ function clientFactory(input: {
   posts?: QueryResult;
   standardized?: QueryResult;
   observations?: QueryResult;
+  waitlist?: QueryResult;
+  jobs?: QueryResult;
   calls?: string[];
 }) {
-  const empty = { data: [], error: null } satisfies QueryResult;
+  const empty = { data: [], error: null, count: 0 } satisfies QueryResult;
   let metricsCall = 0;
   return (() =>
     ({
@@ -32,9 +35,13 @@ function clientFactory(input: {
             ? (input.snapshots ?? empty)
             : table === 'social_posts'
               ? (input.posts ?? empty)
-              : metricsCall++ === 0
-                ? (input.standardized ?? empty)
-                : (input.observations ?? empty);
+              : table === 'waitlist_signups'
+                ? (input.waitlist ?? empty)
+                : table === 'social_publish_jobs'
+                  ? (input.jobs ?? empty)
+                  : metricsCall++ === 0
+                    ? (input.standardized ?? empty)
+                    : (input.observations ?? empty);
         const chain = {
           select: () => chain,
           gte: () => chain,
@@ -44,6 +51,10 @@ function clientFactory(input: {
           },
           eq: (column: string, value: unknown) => {
             input.calls?.push(`eq:${column}:${String(value)}`);
+            return chain;
+          },
+          in: (column: string, value: unknown[]) => {
+            input.calls?.push(`in:${column}:${value.join(',')}`);
             return chain;
           },
           order: () => chain,
@@ -69,6 +80,7 @@ describe('loadSocialGrowth', () => {
     });
 
     expect(response.status).toBe('unconfigured');
+    expect(response.waitlist.status).toBe('unavailable');
     expect(createSupabaseClient).not.toHaveBeenCalled();
   });
 
@@ -141,6 +153,7 @@ describe('loadSocialGrowth', () => {
     });
 
     expect(response.status).toBe('ok');
+    expect(response.waitlist).toMatchObject({ status: 'ok', total: 0 });
     expect(
       response.platforms.find((row) => row.platform === 'x'),
     ).toMatchObject({
@@ -172,11 +185,95 @@ describe('loadSocialGrowth', () => {
         'limit:social_posts:500',
         'limit:social_post_metrics:3000',
         'limit:social_post_metrics:4000',
+        'limit:waitlist_signups:2000',
       ]),
     );
   });
 
-  it('fails closed when any bounded query fails', async () => {
+  it('attributes waitlist customers to the canonical social release and 24h views', async () => {
+    const calls: string[] = [];
+    const response = await loadSocialGrowth({
+      config: CONFIGURED,
+      now: NOW,
+      createSupabaseClient: clientFactory({
+        calls,
+        standardized: {
+          data: [metric('social-post-1', 24, 1000)],
+          error: null,
+        },
+        waitlist: {
+          count: 3,
+          data: [
+            {
+              id: 'signup-1',
+              created_at: '2026-08-30T10:00:00.000Z',
+              social_publish_job_id: 'job-1',
+            },
+            {
+              id: 'signup-2',
+              created_at: '2026-08-29T10:00:00.000Z',
+              social_publish_job_id: 'job-1',
+            },
+            {
+              id: 'signup-3',
+              created_at: '2026-08-29T09:00:00.000Z',
+              social_publish_job_id: null,
+            },
+          ],
+          error: null,
+        },
+        jobs: {
+          data: [
+            {
+              id: 'job-1',
+              episode_id: '72f1ee5b-3f57-4e32-b7ad-fe57666985d6',
+              platform: 'youtube',
+              language_code: 'en',
+              social_post_id: 'social-post-1',
+            },
+          ],
+          error: null,
+        },
+      }),
+    });
+
+    expect(response.waitlist).toMatchObject({
+      status: 'ok',
+      total: 3,
+      signups7d: 3,
+      attributedSocial7d: 2,
+      directOrUnknown7d: 1,
+      conversions: [
+        {
+          episodeId: '72f1ee5b-3f57-4e32-b7ad-fe57666985d6',
+          platform: 'youtube',
+          languageCode: 'en',
+          signups: 2,
+          views24h: 1000,
+          signupRate: 0.002,
+        },
+      ],
+    });
+    expect(calls).toContain('in:id:job-1');
+  });
+
+  it('keeps core growth available when waitlist telemetry is unavailable', async () => {
+    const response = await loadSocialGrowth({
+      config: CONFIGURED,
+      now: NOW,
+      createSupabaseClient: clientFactory({
+        waitlist: { data: null, error: new Error('waitlist unavailable') },
+      }),
+    });
+
+    expect(response.status).toBe('ok');
+    expect(response.waitlist).toMatchObject({
+      status: 'unavailable',
+      message: 'waitlist unavailable',
+    });
+  });
+
+  it('fails closed when any bounded core query fails', async () => {
     const response = await loadSocialGrowth({
       config: CONFIGURED,
       now: NOW,
@@ -191,6 +288,7 @@ describe('loadSocialGrowth', () => {
       platforms: [],
       experiments: [],
       attribution: [],
+      waitlist: { status: 'unavailable' },
     });
   });
 });

@@ -20,6 +20,7 @@ import { createJobsRoutes } from './routes/jobs';
 import { jsonResponse } from './routes/shared';
 import { createTelegramRoutes } from './routes/telegram';
 import { createUsersRoutes } from './routes/users';
+import { createWaitlistRoutes } from './routes/waitlist';
 import { createWalletExecutionRoutes } from './routes/wallet-execution';
 
 const logger = new Logger('Bootstrap');
@@ -37,6 +38,7 @@ export function createApp(
 
   app.route('/health', createHealthRoutes(releaseEnv));
   app.route('/users', createUsersRoutes(services));
+  app.route('/waitlist', createWaitlistRoutes(services.databaseService));
   app.route(
     '/plan-orchestration',
     createPlanOrchestrationRoutes(services.planOrchestrationService),

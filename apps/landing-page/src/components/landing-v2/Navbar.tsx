@@ -31,7 +31,7 @@ export function Navbar() {
         ))}
       </div>
       <AppCtaLink className="zp-nav-cta" location="navbar">
-        Launch App
+        Join waitlist
       </AppCtaLink>
     </nav>
   );

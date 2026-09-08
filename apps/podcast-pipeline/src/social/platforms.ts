@@ -66,9 +66,10 @@ export function applyPlatformCta(
   platform: SocialPlatform,
   body: string,
   languageCode: PrimaryLanguageCode = 'zh-Hant',
+  destinationUrl?: string,
 ): string {
   return SOCIAL_PLATFORM_CONFIG[platform].ctaMode === 'brand'
-    ? appendBrandCta(body, languageCode)
+    ? appendBrandCta(body, languageCode, destinationUrl)
     : body.trim();
 }
 

@@ -37,5 +37,15 @@ export function trackSlideViewed(slideId: string) {
 }
 
 export function trackCtaClicked(location: CtaLocation) {
-  fireEvent('cta_clicked', { location, target: 'app' });
+  fireEvent('waitlist_cta_clicked', { location, target: 'waitlist' });
+}
+
+export function trackWaitlistSubmitted(
+  location: CtaLocation,
+  socialAttributed: boolean,
+) {
+  fireEvent('waitlist_submitted', {
+    location,
+    social_attributed: socialAttributed,
+  });
 }
