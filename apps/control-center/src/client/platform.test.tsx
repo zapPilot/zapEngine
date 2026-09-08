@@ -13,12 +13,15 @@ describe('shared platform identity rendering', () => {
     ['threads', 'Threads', '/platform-icons/threads.svg'],
     ['rednote', 'Rednote', '/platform-icons/rednote.svg'],
     ['youtube', 'YouTube', '/platform-icons/youtube.svg'],
-  ])('renders %s with its canonical label and icon', (platform, label, iconPath) => {
-    const { container } = render(<PlatformIdentity platform={platform} />);
+  ])(
+    'renders %s with its canonical label and icon',
+    (platform, label, iconPath) => {
+      const { container } = render(<PlatformIdentity platform={platform} />);
 
-    expect(screen.getByText(label)).toBeVisible();
-    expect(container.querySelector('img')).toHaveAttribute('src', iconPath);
-  });
+      expect(screen.getByText(label)).toBeVisible();
+      expect(container.querySelector('img')).toHaveAttribute('src', iconPath);
+    },
+  );
 
   it('keeps unknown platform and language identities readable without inventing assets', () => {
     const { container } = render(
