@@ -14,6 +14,7 @@ interface SocialPostRow {
   id: string;
   episode_id: string;
   platform: string;
+  language_code: string | null;
   post_url: string | null;
   published_at: string;
   topic: string;
@@ -94,7 +95,7 @@ export async function loadSocialPerformance(input: {
         client
           .from('social_posts')
           .select(
-            'id,episode_id,platform,post_url,published_at,topic,hook_type,published_title,published_body,hashtags,review_status',
+            'id,episode_id,platform,language_code,post_url,published_at,topic,hook_type,published_title,published_body,hashtags,review_status',
           )
           .gte('published_at', since)
           .order('published_at', { ascending: false })
@@ -105,9 +106,6 @@ export async function loadSocialPerformance(input: {
             'social_post_id,captured_at,age_hours,measurement_window,collection_status,views,impressions,likes,comments,shares,saves,followers_gained,details',
           )
           .gte('captured_at', since)
-          // Rolling attribution rows have no window and would otherwise win a
-          // nearest-age lookup while also crowding standard samples out of the
-          // bounded payload.
           .not('measurement_window', 'is', null)
           .order('captured_at', { ascending: false })
           .limit(3_000),
@@ -122,9 +120,7 @@ export async function loadSocialPerformance(input: {
           .eq('active', true),
       ]);
     const error = postResult.error ?? metricResult.error ?? accountResult.error;
-    if (error) {
-      throw error;
-    }
+    if (error) throw error;
 
     const posts = (postResult.data ?? []) as SocialPostRow[];
     const metrics = (metricResult.data ?? []) as SocialMetricRow[];
@@ -169,9 +165,7 @@ function latestAccounts(rows: AccountRow[]) {
   const seen = new Set<string>();
   return rows
     .filter((row) => {
-      if (seen.has(row.platform)) {
-        return false;
-      }
+      if (seen.has(row.platform)) return false;
       seen.add(row.platform);
       return true;
     })
@@ -182,7 +176,7 @@ function latestAccounts(rows: AccountRow[]) {
     }));
 }
 
-function buildEpisodes(
+export function buildEpisodes(
   posts: SocialPostRow[],
   metrics: SocialMetricRow[],
   window: SocialWindow,
@@ -195,6 +189,7 @@ function buildEpisodes(
     string,
     {
       title: string;
+      titleLanguage: string | null;
       publishedAt: string;
       impressions: number[];
       platforms: SocialPlatformPerformance[];
@@ -203,17 +198,25 @@ function buildEpisodes(
 
   for (const post of posts) {
     const metric = selectMetric(metricsByPost.get(post.id) ?? [], window);
-    if (!metric) {
-      continue;
-    }
     const existing = episodes.get(post.episode_id) ?? {
       title: postTitle(post),
+      titleLanguage: post.language_code,
       publishedAt: post.published_at,
       impressions: [],
       platforms: [],
     };
+    if (
+      post.language_code === 'zh-Hant' &&
+      existing.titleLanguage !== 'zh-Hant'
+    ) {
+      existing.title = postTitle(post);
+      existing.titleLanguage = 'zh-Hant';
+    }
+    if (Date.parse(post.published_at) > Date.parse(existing.publishedAt)) {
+      existing.publishedAt = post.published_at;
+    }
     existing.platforms.push(toPerformance(post, metric));
-    if (metric.impressions !== null) {
+    if (metric?.impressions !== null && metric?.impressions !== undefined) {
       existing.impressions.push(metric.impressions);
     }
     episodes.set(post.episode_id, existing);
@@ -252,9 +255,7 @@ export function buildDecisions(
     )
     .flatMap((metric) => {
       const post = postById.get(metric.social_post_id);
-      if (!post || !isLearnable(post, metric)) {
-        return [];
-      }
+      if (!post || !isLearnable(post, metric)) return [];
       return [{ post, metric }];
     });
 
@@ -264,9 +265,7 @@ export function buildDecisions(
     );
     const strategy = strategyByPlatform.get(platform);
     const evidenceSamples = platformSamples.length;
-    if (!strategy && evidenceSamples === 0) {
-      return [];
-    }
+    if (!strategy && evidenceSamples === 0) return [];
     const topic = bestTopic(platformSamples);
     const platformMedian24hViews = evidenceSamples
       ? median(platformSamples.map((sample) => sample.metric.views ?? 0))
@@ -296,9 +295,7 @@ export function buildDecisions(
 }
 
 function isLearnable(post: SocialPostRow, metric: SocialMetricRow): boolean {
-  if (post.platform !== 'rednote') {
-    return true;
-  }
+  if (post.platform !== 'rednote') return true;
   if (post.review_status && SUPPRESSED_REDNOTE.has(post.review_status)) {
     return false;
   }
@@ -311,9 +308,7 @@ function topExample(
   const best = [...samples].sort(
     (a, b) => (b.metric.views ?? 0) - (a.metric.views ?? 0),
   )[0];
-  if (!best || best.metric.views === null) {
-    return null;
-  }
+  if (!best || best.metric.views === null) return null;
   return `“${postTitle(best.post).slice(0, 68)}” · ${best.metric.views.toLocaleString('en-US')} views`;
 }
 
@@ -334,18 +329,14 @@ function bestTopic(
       medianViews: median(values),
     }))
     .sort((a, b) => b.medianViews - a.medianViews);
-  if (candidates.length < MIN_QUALIFIED_TOPIC_BUCKETS) {
-    return null;
-  }
+  if (candidates.length < MIN_QUALIFIED_TOPIC_BUCKETS) return null;
   return candidates[0]!;
 }
 
 function formatPublishSlots(
   slots: Array<{ hour: number; minute: number }> | undefined,
 ): string | null {
-  if (!slots?.length) {
-    return null;
-  }
+  if (!slots?.length) return null;
   return [...slots]
     .sort((a, b) => a.hour - b.hour || a.minute - b.minute)
     .map(
@@ -356,12 +347,8 @@ function formatPublishSlots(
 }
 
 function confidence(samples: number): SocialDecision['confidence'] {
-  if (samples >= 25) {
-    return 'high';
-  }
-  if (samples >= 10) {
-    return 'medium';
-  }
+  if (samples >= 25) return 'high';
+  if (samples >= 10) return 'medium';
   return 'low';
 }
 
@@ -376,9 +363,7 @@ function groupMetrics(metrics: SocialMetricRow[]) {
 }
 
 function selectMetric(rows: SocialMetricRow[], window: SocialWindow) {
-  if (rows.length === 0) {
-    return null;
-  }
+  if (rows.length === 0) return null;
   if (window === 'latest') {
     return [...rows].sort(
       (a, b) => Date.parse(b.captured_at) - Date.parse(a.captured_at),
@@ -393,8 +378,23 @@ function selectMetric(rows: SocialMetricRow[], window: SocialWindow) {
 
 function toPerformance(
   post: SocialPostRow,
-  metric: SocialMetricRow,
+  metric: SocialMetricRow | null,
 ): SocialPlatformPerformance {
+  if (!metric) {
+    return {
+      platform: post.platform,
+      postUrl: post.post_url,
+      views: null,
+      engagementRate: null,
+      likes: null,
+      comments: null,
+      shares: null,
+      saves: null,
+      followersGained: null,
+      averageViewDurationSec: null,
+      averageViewPercentage: null,
+    };
+  }
   const engagements = sumKnown([
     metric.likes,
     metric.comments,
