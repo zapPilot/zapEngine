@@ -22,6 +22,9 @@ const languageAllocation = read(
   'apps/podcast-pipeline/src/social/language-allocation.ts',
 );
 const readme = read('apps/podcast-pipeline/src/social/README.md');
+const growthView = read(
+  'apps/control-center/src/client/components/GrowthView.tsx',
+);
 const recovery = read(
   'apps/podcast-pipeline/src/social/release-cohort-store.ts',
 );
@@ -141,6 +144,31 @@ requireMatch(
   claimMigration,
   /into\s+seed_episode_id[\s\S]*limit\s+1/i,
 );
+
+const policySlotsBlock =
+  policy.match(/export const SOCIAL_RELEASE_SLOTS = \[([\s\S]*?)\]\s+as const/)?.[1] ??
+  '';
+const policyReleaseSlots = [...policySlotsBlock.matchAll(/\{\s*hour:\s*(\d+),\s*minute:\s*(\d+)\s*\}/g)].map(
+  ([, hour, minute]) => `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`,
+);
+const growthSlotsBlock =
+  growthView.match(/CURRENT_RELEASE_SLOTS_JST = \[([^\]]+)\]/)?.[1] ?? '';
+const growthReleaseSlots = [...growthSlotsBlock.matchAll(/'(\d{2}:\d{2})'/g)].map(
+  ([, slot]) => slot,
+);
+const dailyCap = Number(
+  policy.match(/SOCIAL_RELEASE_DAILY_CAP\s*=\s*(\d+)/)?.[1] ?? Number.NaN,
+);
+if (JSON.stringify(policyReleaseSlots) !== JSON.stringify(growthReleaseSlots)) {
+  failures.push(
+    `Control Center GrowthView release slots ${JSON.stringify(growthReleaseSlots)} do not match policy ${JSON.stringify(policyReleaseSlots)}`,
+  );
+}
+if (dailyCap !== growthReleaseSlots.length) {
+  failures.push(
+    `Control Center GrowthView exposes ${growthReleaseSlots.length} slots but SOCIAL_RELEASE_DAILY_CAP is ${dailyCap}`,
+  );
+}
 
 forbidMatch('daemon', daemon, /enqueuePlatformCohort/);
 forbidMatch('daemon', daemon, /platformBudgetIndex/);

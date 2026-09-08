@@ -20,7 +20,6 @@ import type {
 import { getJson, sendJson } from './api.js';
 import { AppShell, type DashboardView } from './components/AppShell.js';
 import { EconomicsView } from './components/EconomicsView.js';
-import { GrowthDistributionBoard } from './components/GrowthDistributionBoard.js';
 import { GrowthView } from './components/GrowthView.js';
 import { HomeView } from './components/HomeView.js';
 import { PipelineQueuesBoard } from './components/PipelineQueuesBoard.js';
@@ -367,18 +366,12 @@ export function App() {
         />
       ) : null}
       {view === 'growth' ? (
-        <div className="view-stack">
-          <GrowthDistributionBoard
-            performance={social}
-            social={operationsSocial}
-          />
-          <GrowthView
-            data={social}
-            growth={socialGrowth}
-            onWindowChange={loadSocial}
-            statements={statements}
-          />
-        </div>
+        <GrowthView
+          data={social}
+          growth={socialGrowth}
+          onWindowChange={loadSocial}
+          statements={statements}
+        />
       ) : null}
     </AppShell>
   );

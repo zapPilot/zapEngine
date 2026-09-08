@@ -4,12 +4,7 @@ import '@testing-library/jest-dom/vitest';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import type { OperationsSocialResponse } from '../../shared/types.js';
-import {
-  operationsFixture,
-  signalFixture,
-  socialFixture,
-} from '../__fixtures__/dashboard.js';
-import { GrowthDistributionBoard } from './GrowthDistributionBoard.js';
+import { operationsFixture, signalFixture } from '../__fixtures__/dashboard.js';
 import { ReliabilityTopology } from './ReliabilityTopology.js';
 
 afterEach(cleanup);
@@ -61,22 +56,6 @@ function socialOps(): OperationsSocialResponse {
 }
 
 describe('domain-native control center visualizations', () => {
-  it('groups active publish lanes by article and exposes blocked lane state', () => {
-    render(
-      <GrowthDistributionBoard
-        performance={socialFixture()}
-        social={socialOps()}
-      />,
-    );
-
-    expect(screen.getByText('Publishing now')).toBeVisible();
-    expect(screen.getByText('Buy in fear')).toBeVisible();
-    expect(screen.getByText('Threads')).toBeVisible();
-    expect(screen.getByText('ja')).toBeVisible();
-    expect(screen.getByText('Retries exhausted')).toBeVisible();
-    expect(screen.getByText('0 published · 2 remaining')).toBeVisible();
-  });
-
   it('shows source activity as compact clickable events', () => {
     const data = operationsFixture({
       signals: [
