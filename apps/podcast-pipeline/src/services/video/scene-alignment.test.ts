@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const llmMocks = vi.hoisted(() => ({
   createOpenRouterChatCompletion: vi.fn(),
@@ -15,25 +15,14 @@ import {
   alignLocalizedScenes,
   canonicalSceneAlignment,
   configuredSceneAlignmentProvider,
-  createNvidiaSceneAlignmentProvider,
   createOpenRouterSceneAlignmentProvider,
   proportionalSceneAlignment,
   validateSceneAlignment,
   type VisualSceneAnchor,
 } from './scene-alignment.js';
 
-const originalVideoAlignmentModel = process.env['VIDEO_ALIGNMENT_MODEL'];
-
-beforeEach(() => {
-  process.env['VIDEO_ALIGNMENT_MODEL'] = 'test/alignment-model';
-});
-
 afterEach(() => {
-  if (originalVideoAlignmentModel === undefined) {
-    delete process.env['VIDEO_ALIGNMENT_MODEL'];
-  } else {
-    process.env['VIDEO_ALIGNMENT_MODEL'] = originalVideoAlignmentModel;
-  }
+  vi.clearAllMocks();
 });
 
 const scenes: VisualSceneAnchor[] = [
@@ -374,171 +363,23 @@ describe('scene alignment', () => {
     ).toThrow('requires localized sentences');
   });
 
-  it('routes NVIDIA alignment through the NVIDIA-compatible client', async () => {
-    const create = vi.fn().mockResolvedValue({
-      choices: [
-        {
-          message: {
-            content: 'We{"endSentenceIds":["s0001"]}',
-          },
-        },
-      ],
-    });
-    const controller = new AbortController();
-    const provider = createNvidiaSceneAlignmentProvider({
-      model: 'deepseek-ai/deepseek-v4-flash',
-      client: {
-        chat: { completions: { create } },
-      } as never,
-    });
-
-    await expect(
-      provider.align({
-        canonicalScenes: [{ sceneId: 'scene-01', text: '第一句。' }],
-        localizedSentences: '[s0001] First sentence.',
-        languageCode: 'en',
-        signal: controller.signal,
-      }),
-    ).resolves.toEqual({ endSentenceIds: ['s0001'] });
-
-    expect(create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        model: 'deepseek-ai/deepseek-v4-flash',
-        messages: expect.arrayContaining([
-          expect.objectContaining({
-            role: 'system',
-            content: expect.stringMatching(/^\/no_think/),
-          }),
-        ]),
-        response_format: { type: 'json_object' },
-      }),
-      { signal: controller.signal },
+  it('always selects the OpenRouter alignment provider', () => {
+    expect(configuredSceneAlignmentProvider()).toEqual(
+      expect.objectContaining({ align: expect.any(Function) }),
     );
   });
 
-  it('NVIDIA provider handles wrapped JSON, missing JSON, no signal, and API-key validation', async () => {
-    const create = vi
-      .fn()
-      .mockResolvedValueOnce({
-        choices: [
-          {
-            message: { content: 'prefix {"endSentenceIds":["s0001"]} suffix' },
-          },
-        ],
-      })
-      .mockResolvedValueOnce({
-        choices: [{ message: { content: 'no object here' } }],
-      });
-    const provider = createNvidiaSceneAlignmentProvider({
-      client: { chat: { completions: { create } } } as never,
-    });
-    const request = {
-      canonicalScenes: [{ sceneId: 'scene-01', text: 'First.' }],
-      localizedSentences: 's0001\tLocalized.',
-      languageCode: 'en' as const,
-    };
-    await expect(provider.align(request)).resolves.toEqual({
-      endSentenceIds: ['s0001'],
-    });
-    expect(create.mock.calls[0]?.[1]).toBeUndefined();
-    await expect(provider.align(request)).rejects.toThrow(
-      'invalid JSON content',
-    );
-
-    const previousKey = process.env['NVIDIA_API_KEY'];
-    delete process.env['NVIDIA_API_KEY'];
-    try {
-      expect(() => createNvidiaSceneAlignmentProvider()).toThrow(
-        'Missing required environment variable: NVIDIA_API_KEY',
-      );
-      expect(() =>
-        createNvidiaSceneAlignmentProvider({
-          apiKey: 'key',
-          baseURL: 'https://example.test/v1',
-        }),
-      ).not.toThrow();
-    } finally {
-      if (previousKey === undefined) delete process.env['NVIDIA_API_KEY'];
-      else process.env['NVIDIA_API_KEY'] = previousKey;
-    }
-  });
-
-  it('selects the configured NVIDIA provider', () => {
-    const previousProvider = process.env['VIDEO_ALIGNMENT_PROVIDER'];
-    const previousKey = process.env['NVIDIA_API_KEY'];
-    process.env['VIDEO_ALIGNMENT_PROVIDER'] = 'nvidia';
-    process.env['NVIDIA_API_KEY'] = 'test-key';
-    try {
-      expect(configuredSceneAlignmentProvider()).toEqual(
-        expect.objectContaining({ align: expect.any(Function) }),
-      );
-    } finally {
-      if (previousProvider === undefined) {
-        delete process.env['VIDEO_ALIGNMENT_PROVIDER'];
-      } else {
-        process.env['VIDEO_ALIGNMENT_PROVIDER'] = previousProvider;
-      }
-      if (previousKey === undefined) {
-        delete process.env['NVIDIA_API_KEY'];
-      } else {
-        process.env['NVIDIA_API_KEY'] = previousKey;
-      }
-    }
-  });
-
-  it('selects OpenRouter by default and rejects unsupported configured providers', () => {
-    const previous = process.env['VIDEO_ALIGNMENT_PROVIDER'];
-    const previousModel = process.env['VIDEO_ALIGNMENT_MODEL'];
-    try {
-      delete process.env['VIDEO_ALIGNMENT_PROVIDER'];
-      llmMocks.getOpenRouterConfig.mockReturnValue({
-        openai: llmMocks.openai,
-        model: 'test/alignment-model',
-      });
-      expect(configuredSceneAlignmentProvider()).toEqual(
-        expect.objectContaining({ align: expect.any(Function) }),
-      );
-      process.env['VIDEO_ALIGNMENT_PROVIDER'] = 'other';
-      expect(() => configuredSceneAlignmentProvider()).toThrow(
-        'Unsupported VIDEO_ALIGNMENT_PROVIDER: other',
-      );
-    } finally {
-      if (previous === undefined)
-        delete process.env['VIDEO_ALIGNMENT_PROVIDER'];
-      else process.env['VIDEO_ALIGNMENT_PROVIDER'] = previous;
-      if (previousModel === undefined)
-        delete process.env['VIDEO_ALIGNMENT_MODEL'];
-      else process.env['VIDEO_ALIGNMENT_MODEL'] = previousModel;
-    }
-  });
-
-  it('OpenRouter provider requires VIDEO_ALIGNMENT_MODEL and does not fall back to LLM_MODEL', async () => {
-    delete process.env['VIDEO_ALIGNMENT_MODEL'];
-    process.env['LLM_MODEL'] = 'llm-fallback';
-    const provider = createOpenRouterSceneAlignmentProvider();
-    const request = {
-      canonicalScenes: [{ sceneId: 'scene-01', text: 'First.' }],
-      localizedSentences: 's0001\tLocalized.',
-      languageCode: 'en' as const,
-    };
-
-    await expect(provider.align(request)).rejects.toThrow(
-      'Missing required environment variable: VIDEO_ALIGNMENT_MODEL',
-    );
-    expect(llmMocks.getOpenRouterConfig).not.toHaveBeenCalled();
-  });
-
-  it('OpenRouter provider forwards a trimmed VIDEO_ALIGNMENT_MODEL, skips a signal when absent, and rejects malformed content', async () => {
-    process.env['VIDEO_ALIGNMENT_MODEL'] = ' resolved-model ';
+  it('uses LLM_MODEL through the shared OpenRouter config', async () => {
     llmMocks.getOpenRouterConfig.mockReturnValue({
       openai: llmMocks.openai,
-      model: 'resolved-model',
+      model: 'test/llm-model',
+      thinkingModel: null,
+      timeoutMs: 120_000,
     });
-    llmMocks.createOpenRouterChatCompletion
-      .mockResolvedValueOnce({
-        choices: [{ message: { content: '{"endSentenceIds":["s0001"]}' } }],
-      })
-      .mockResolvedValueOnce({ choices: [] });
+    llmMocks.createOpenRouterChatCompletion.mockResolvedValueOnce({
+      choices: [{ message: { content: '{"endSentenceIds":["s0001"]}' } }],
+      model: 'test/llm-model',
+    });
     const provider = createOpenRouterSceneAlignmentProvider();
     const request = {
       canonicalScenes: [{ sceneId: 'scene-01', text: 'First.' }],
@@ -550,15 +391,36 @@ describe('scene alignment', () => {
       endSentenceIds: ['s0001'],
     });
     expect(llmMocks.getOpenRouterConfig).toHaveBeenCalledWith({
-      model: 'resolved-model',
       thinkingModel: null,
     });
-    expect(
-      llmMocks.createOpenRouterChatCompletion.mock.calls.at(-2)?.[3],
-    ).toBeUndefined();
-    await expect(provider.align(request)).rejects.toThrow(
-      'invalid JSON content',
+    expect(llmMocks.createOpenRouterChatCompletion).toHaveBeenCalledWith(
+      llmMocks.openai,
+      expect.objectContaining({ model: 'test/llm-model' }),
+      null,
+      undefined,
     );
+  });
+
+  it('rejects malformed OpenRouter content and lets the caller degrade proportionally', async () => {
+    llmMocks.getOpenRouterConfig.mockReturnValue({
+      openai: llmMocks.openai,
+      model: 'test/llm-model',
+      thinkingModel: null,
+      timeoutMs: 120_000,
+    });
+    llmMocks.createOpenRouterChatCompletion.mockResolvedValueOnce({
+      choices: [],
+      model: 'test/llm-model',
+    });
+    const provider = createOpenRouterSceneAlignmentProvider();
+
+    await expect(
+      provider.align({
+        canonicalScenes: [{ sceneId: 'scene-01', text: 'First.' }],
+        localizedSentences: 's0001\tLocalized.',
+        languageCode: 'en',
+      }),
+    ).rejects.toThrow('invalid JSON content');
   });
 
   it('passes cancellation to the OpenRouter request', async () => {
@@ -577,6 +439,7 @@ describe('scene alignment', () => {
           },
         },
       ],
+      model: 'test/alignment-model',
     });
 
     await createOpenRouterSceneAlignmentProvider().align({

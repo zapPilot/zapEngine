@@ -14,7 +14,6 @@ vi.mock('./llm.js', async (importOriginal) => ({
   ...mocks,
 }));
 
-import { OPENROUTER_FALLBACK_ROUTING } from './llm.js';
 import { translateCanonicalScript, translateChineseText } from './translate.js';
 
 afterEach(() => {
@@ -175,48 +174,24 @@ describe('translateChineseText', () => {
     expect(retriedOptions).toEqual({});
   });
 
-  it('does not add a correction preamble when the provider itself failed', async () => {
-    vi.useFakeTimers();
-    mocks.createOpenRouterChatCompletion
-      .mockRejectedValueOnce({ status: 503 })
-      .mockResolvedValueOnce(
-        completion(JSON.stringify({ text: 'Retried translation' })),
-      );
-
-    const promise = translateChineseText('滑鼠和腳踏車市場', 'en');
-    await vi.advanceTimersByTimeAsync(500);
-    await promise;
-
-    const [, retriedRequest, , retriedOptions] =
-      mocks.createOpenRouterChatCompletion.mock.calls[1] ?? [];
-    expect(retriedRequest.messages[1].content).not.toContain(
-      'Correction required',
-    );
-    expect(retriedOptions).toEqual({
-      providerRouting: OPENROUTER_FALLBACK_ROUTING,
-    });
-  });
-
   it.each([
     ['rate limit', { status: 429 }],
     ['server error', { status: 503 }],
     ['timeout', Object.assign(new Error('timeout'), { name: 'TimeoutError' })],
-  ])('retries once for %s provider failure', async (_label, error) => {
-    vi.useFakeTimers();
-    mocks.createOpenRouterChatCompletion
-      .mockRejectedValueOnce(error)
-      .mockResolvedValueOnce(
-        completion(JSON.stringify({ text: 'Retried translation' }), 0.00002),
-      );
+  ])(
+    'fails fast for %s transport failure without a translation-level retry',
+    async (_label, error) => {
+      // Transport/model failover lives in the shared createOpenRouterChatCompletion
+      // chain (mocked here). A rejection reaching translation means every model
+      // candidate already failed, so translation must not replay the chain.
+      mocks.createOpenRouterChatCompletion.mockRejectedValueOnce(error);
 
-    const promise = translateChineseText('滑鼠和腳踏車市場', 'en');
-    await vi.advanceTimersByTimeAsync(500);
-
-    await expect(promise).resolves.toMatchObject({
-      text: 'Retried translation',
-    });
-    expect(mocks.createOpenRouterChatCompletion).toHaveBeenCalledTimes(2);
-  });
+      await expect(
+        translateChineseText('滑鼠和腳踏車市場', 'en'),
+      ).rejects.toEqual(error);
+      expect(mocks.createOpenRouterChatCompletion).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it('fails immediately for non-retryable provider errors', async () => {
     mocks.createOpenRouterChatCompletion.mockRejectedValueOnce({ status: 401 });

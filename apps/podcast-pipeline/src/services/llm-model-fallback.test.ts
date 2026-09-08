@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   getOpenRouterModelCandidates,
-  getTranslationFallbackModels,
   parseOpenRouterModelList,
 } from './llm-model-fallback.js';
 
@@ -27,7 +26,7 @@ describe('LLM model fallback config', () => {
     ]);
   });
 
-  it('reads the general fallback order from env', () => {
+  it('appends the one shared fallback order and deduplicates the primary', () => {
     vi.stubEnv(
       'LLM_FALLBACK_MODELS',
       'fallback/one,fallback/two,primary/model',
@@ -40,9 +39,13 @@ describe('LLM model fallback config', () => {
     ]);
   });
 
-  it('keeps translation paid fallbacks independently configurable', () => {
-    vi.stubEnv('TRANSLATION_FALLBACK_MODELS', 'paid/one,paid/two,paid/one');
+  it('uses the same fallback list for a task-specific primary such as translation', () => {
+    vi.stubEnv('LLM_FALLBACK_MODELS', 'fallback/one,fallback/two');
 
-    expect(getTranslationFallbackModels()).toEqual(['paid/one', 'paid/two']);
+    expect(getOpenRouterModelCandidates('openrouter/free')).toEqual([
+      'openrouter/free',
+      'fallback/one',
+      'fallback/two',
+    ]);
   });
 });

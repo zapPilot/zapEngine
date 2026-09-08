@@ -290,6 +290,73 @@ describe('generateScriptWithLLM request policy', () => {
     }
   });
 
+  it('keeps the script deadline terminal with a non-empty fallback list', async () => {
+    vi.useFakeTimers();
+    vi.stubEnv(
+      'LLM_FALLBACK_MODELS',
+      'fallback/one,fallback/two,fallback/three',
+    );
+    const requestModels: unknown[] = [];
+    const mockCreate = vi.fn(
+      (
+        request: unknown,
+        options?: { signal?: AbortSignal },
+      ): Promise<unknown> => {
+        const signal = options?.signal;
+        if (!signal) throw new Error('Expected an OpenRouter request signal');
+        requestModels.push((request as { model?: unknown } | undefined)?.model);
+        return timeoutUntilAborted(signal);
+      },
+    );
+    mockOpenAIClient(mockCreate);
+
+    const resultPromise = generateScriptWithLLM('Title', 'Article');
+    const rejection = expect(resultPromise).rejects.toThrow(
+      'OpenRouter request timed out after 600000ms',
+    );
+    await vi.advanceTimersByTimeAsync(SCRIPT_TIMEOUT_MS);
+    await rejection;
+
+    // Without the opt-out the shared chain would spend another ten minutes per
+    // remaining candidate (four 600s requests here).
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    expect(requestModels).toEqual(['test/model']);
+    expect(ingestMocks.logIngestEvent).not.toHaveBeenCalledWith(
+      'llm:model-fallback',
+      expect.anything(),
+    );
+    expect(ingestMocks.logIngestEvent).not.toHaveBeenCalledWith(
+      'llm:fallback',
+      expect.anything(),
+    );
+  });
+
+  it('keeps an SDK request timeout terminal with a non-empty fallback list', async () => {
+    vi.stubEnv(
+      'LLM_FALLBACK_MODELS',
+      'fallback/one,fallback/two,fallback/three',
+    );
+    const requestTimeout = new APIConnectionTimeoutError({
+      message: 'Request timed out.',
+    });
+    const mockCreate = vi.fn().mockRejectedValue(requestTimeout);
+    mockOpenAIClient(mockCreate);
+
+    await expect(generateScriptWithLLM('Title', 'Article')).rejects.toBe(
+      requestTimeout,
+    );
+
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    expect(ingestMocks.logIngestEvent).not.toHaveBeenCalledWith(
+      'llm:model-fallback',
+      expect.anything(),
+    );
+    expect(ingestMocks.logIngestEvent).not.toHaveBeenCalledWith(
+      'llm:fallback',
+      expect.anything(),
+    );
+  });
+
   it('re-routes a gateway failure exactly once', async () => {
     const mockCreate = vi
       .fn()
@@ -448,12 +515,14 @@ describe('generateScriptWithLLM request policy', () => {
 });
 
 describe('generateLanguageClassroomsWithLLM retries', () => {
-  it('retries a timed-out request with a fresh deadline and succeeds', async () => {
+  it('advances a timed-out primary through the shared fallback chain with a fresh deadline', async () => {
     vi.useFakeTimers();
+    vi.stubEnv('LLM_FALLBACK_MODELS', 'test/fallback');
     const requestSignals: AbortSignal[] = [];
+    const requestModels: unknown[] = [];
     const mockCreate = vi.fn(
       (
-        _request: unknown,
+        request: unknown,
         options?: { signal?: AbortSignal },
       ): Promise<unknown> => {
         const signal = options?.signal;
@@ -461,6 +530,7 @@ describe('generateLanguageClassroomsWithLLM retries', () => {
           throw new Error('Expected an OpenRouter request signal');
         }
         requestSignals.push(signal);
+        requestModels.push((request as { model?: unknown } | undefined)?.model);
         return requestSignals.length === 1
           ? timeoutUntilAborted(signal)
           : Promise.resolve(successfulClassroomCompletion());
@@ -493,17 +563,19 @@ describe('generateLanguageClassroomsWithLLM retries', () => {
     await vi.runAllTimersAsync();
     await resultAssertion;
 
+    // Transport failover is one traversal of the shared chain: the timed-out
+    // primary is not retried, the next candidate gets a fresh deadline.
     expect(mockCreate).toHaveBeenCalledTimes(2);
+    expect(requestModels).toEqual(['test/model', 'test/fallback']);
     expect(requestSignals).toHaveLength(2);
     expect(requestSignals[0]).not.toBe(requestSignals[1]);
     expect(requestSignals[0]?.aborted).toBe(true);
     expect(requestSignals[1]?.aborted).toBe(false);
     expect(ingestMocks.logIngestEvent).toHaveBeenCalledWith(
-      'llm:retry',
+      'llm:model-fallback',
       expect.objectContaining({
-        operation: 'generateLanguageClassrooms',
-        attempt: 1,
-        nextAttempt: 2,
+        model: 'test/model',
+        nextModel: 'test/fallback',
         error: 'OpenRouter request timed out after 25ms',
       }),
     );
@@ -668,47 +740,41 @@ describe('generateLanguageClassroomsWithLLM retries', () => {
     expect(mockCreate).toHaveBeenCalledTimes(3);
   });
 
-  // The inner transport retry replays on the same endpoint. When that endpoint
-  // is the degenerate one, the escape is the outer attempt dropping the
-  // deterministic throughput sort.
-  it('re-routes after the inner transport retry is exhausted', async () => {
+  // Model failover replaced the old inner/outer transport replay: when every
+  // shared-chain candidate times out, the classroom fails fast instead of
+  // replaying the exhausted chain. Payload re-prompts (which do reroute) are
+  // covered below; transport has no second pass at this layer.
+  it('fails fast after the shared model chain is exhausted', async () => {
     vi.useFakeTimers();
+    vi.stubEnv('LLM_FALLBACK_MODELS', 'test/fallback');
     const mockCreate: Mock = vi.fn(
       (_request: unknown, options?: { signal?: AbortSignal }) => {
         const signal = options?.signal;
         if (!signal) {
           throw new Error('Expected an OpenRouter request signal');
         }
-        return mockCreate.mock.calls.length <= 2
-          ? timeoutUntilAborted(signal)
-          : Promise.resolve(successfulClassroomCompletion());
+        return timeoutUntilAborted(signal);
       },
     );
     mockOpenAIClient(mockCreate);
 
     const resultPromise = generateLanguageClassroomsWithLLM(classroomInput);
-    const resultAssertion = expect(resultPromise).resolves.toMatchObject({
-      provider: 'test-provider',
-    });
+    const resultAssertion =
+      expect(resultPromise).rejects.toThrow(/timed out after 25ms/u);
     await vi.runAllTimersAsync();
     await resultAssertion;
 
-    expect(mockCreate).toHaveBeenCalledTimes(3);
-    expect(requestProviderRouting(mockCreate, 1)).toEqual({
-      sort: 'throughput',
-      require_parameters: true,
-    });
-    expect(requestProviderRouting(mockCreate, 2)).toEqual({
-      require_parameters: true,
-    });
+    expect(mockCreate).toHaveBeenCalledTimes(2);
     expect(ingestMocks.logIngestEvent).toHaveBeenCalledWith(
-      'llm:retry',
+      'llm:model-fallback',
       expect.objectContaining({
-        operation: 'generateLanguageClassrooms',
-        layer: 'transport',
-        attempt: 1,
-        nextAttempt: 2,
+        model: 'test/model',
+        nextModel: 'test/fallback',
       }),
+    );
+    expect(ingestMocks.logIngestEvent).not.toHaveBeenCalledWith(
+      'llm:retry',
+      expect.objectContaining({ layer: 'transport' }),
     );
   });
 

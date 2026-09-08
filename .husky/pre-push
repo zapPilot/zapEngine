@@ -52,7 +52,12 @@ if [ "$desktop_changed" = "1" ]; then
     echo "Skipping desktop package gate because ZAP_SKIP_DESKTOP_PACKAGE=1."
   else
     echo "Desktop-related changes detected; running desktop package gate..."
-    run_with_workspace_pnpm env CI=true pnpm --filter @zapengine/desktop package
+    # Run through Turbo so workspace dependencies (app-core, types) build
+    # first via the package task's ^build ordering. A direct
+    # `pnpm --filter @zapengine/desktop package` bypasses that graph and fails
+    # on a fresh worktree with missing dist output. --env-mode=loose matches
+    # scripts/dev.sh so the Expo export and electron-builder see the full env.
+    run_with_workspace_pnpm env CI=true pnpm exec turbo run package --filter=@zapengine/desktop --env-mode=loose --no-update-notifier
     printf '\nDesktop package gate passed\n'
   fi
 fi

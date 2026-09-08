@@ -186,7 +186,7 @@ describe('createVideoJobRepository', () => {
         manifest: { schemaVersion: 'v1' },
         manifestHash: 'manifest-hash',
         rendererVersion: 'renderer-v1',
-        storyboardProvider: 'nvidia',
+        storyboardProvider: 'deterministic',
         storyboardModel: 'model',
         storyboardPromptVersion: 'prompt-v1',
         scriptHash: 'script-hash',

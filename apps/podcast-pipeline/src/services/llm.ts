@@ -18,6 +18,7 @@ import {
   logIngestEvent,
   logPipelineEvent,
 } from './ingest/step.js';
+import { getOpenRouterModelCandidates } from './llm-model-fallback.js';
 import { convertTextToZhTW } from './opencc.js';
 
 export interface ScriptResult {
@@ -72,8 +73,10 @@ const SCRIPT_PAYLOAD_MAX_ATTEMPTS = 2;
  * The one workload the shared ceiling is wrong for. The script prompt forbids
  * summarizing, permits an output longer than its input, and sets no token cap,
  * so a 13k-character article legitimately generates for minutes -- the 120s
- * default killed those runs while the model was still working correctly. Every
- * other workload keeps the shared deadline.
+ * default killed those runs while the model was still working correctly. A
+ * retryable non-timeout failure still advances the shared chain with this same
+ * long-form deadline per candidate; a timeout itself stays terminal rather than
+ * spending another ten minutes per remaining candidate.
  */
 const SCRIPT_OPENROUTER_TIMEOUT_MS = 600_000;
 const RETRYABLE_OPENROUTER_STATUS = new Set([408, 409, 429]);
@@ -399,7 +402,10 @@ export function getOpenRouterConfig(overrides?: {
       ? overrides.thinkingModel
       : process.env['LLM_THINKING_MODEL'] || null;
   const timeoutMs = getOpenRouterTimeoutMs();
-  const clientKey = JSON.stringify([apiKey, baseURL, model, timeoutMs]);
+  // The model is request-scoped, not client-scoped: the shared fallback chain
+  // reuses one client across candidates, so keying on it only minted a redundant
+  // instance per primary.
+  const clientKey = JSON.stringify([apiKey, baseURL, timeoutMs]);
   let openai = openRouterClientCache.get(clientKey);
   if (!openai) {
     openai = new OpenAI({
@@ -442,11 +448,9 @@ const OPENROUTER_PROVIDER_ROUTING: OpenRouterProviderRouting = {
 };
 
 /**
- * Dropping `sort` is the whole point of the script fallback: the throughput
- * sort is deterministic, so re-sending an identical request would be handed
- * straight back to the endpoint that just refused it. Without it OpenRouter
- * load-balances the retry itself, while `require_parameters` still keeps
- * `response_format` honoured.
+ * Dropping `sort` lets a task-level retry choose a different endpoint for the
+ * same model. Model failover itself is separate and always comes from
+ * `LLM_FALLBACK_MODELS` inside createOpenRouterChatCompletion.
  */
 export const OPENROUTER_FALLBACK_ROUTING: OpenRouterProviderRouting = {
   require_parameters: true,
@@ -483,6 +487,28 @@ function routingLabel(routing: OpenRouterProviderRouting): string {
   return routing.sort ?? 'default';
 }
 
+/**
+ * One JSON-mode params shape for every OpenRouter workload that expects a JSON
+ * object. `model` stays a parameter (not config) so callers keep owning which
+ * primary they run on; the shared transport in
+ * `createOpenRouterChatCompletion` still advances through `LLM_FALLBACK_MODELS`.
+ */
+export function buildJsonModeChatParams(
+  model: string,
+  messages: OpenAI.Chat.ChatCompletionMessageParam[],
+  extra?: Pick<
+    OpenAI.Chat.ChatCompletionCreateParamsNonStreaming,
+    'max_tokens' | 'temperature'
+  >,
+): OpenAI.Chat.ChatCompletionCreateParamsNonStreaming {
+  return {
+    model,
+    response_format: { type: 'json_object' },
+    ...extra,
+    messages,
+  };
+}
+
 function reasoningLabel(reasoning: OpenRouterReasoning | undefined): string {
   if (!reasoning) return 'provider-default';
   if (reasoning.enabled === false) return 'disabled';
@@ -498,7 +524,14 @@ export interface OpenRouterRequestOptions {
   reasoning?: OpenRouterReasoning;
   /** Overrides the shared deadline for a workload whose output is long-form. */
   timeoutMs?: number;
-  /** Overrides endpoint selection; used by the script fallback. */
+  /**
+   * Script generation opts out: its deadline is already ten minutes, so a
+   * timeout means a model worked that long and replaying the prompt on the next
+   * candidate just spends those minutes again. Every other workload keeps the
+   * default and advances timeouts through the shared chain.
+   */
+  fallbackOnTimeout?: boolean;
+  /** Overrides endpoint selection for task-level retries. */
   providerRouting?: OpenRouterProviderRouting;
   logContext?: {
     prefix: string;
@@ -521,11 +554,66 @@ function logOpenRouterEvent(
   logIngestEvent(event, details);
 }
 
+/**
+ * One transport policy for every OpenRouter workload. The caller supplies the
+ * workload's primary model (`LLM_MODEL` for normal work, `openrouter/free` for
+ * translation). A timeout, connection failure, 408/409/429, or 5xx advances to
+ * the next model in `LLM_FALLBACK_MODELS`, except when the caller opted out of
+ * timeout failover (`fallbackOnTimeout: false`, script generation). Payload /
+ * semantic validation remains the caller's responsibility and never changes
+ * models by itself.
+ */
 export async function createOpenRouterChatCompletion(
   openai: OpenAI,
   params: OpenAI.Chat.ChatCompletionCreateParamsNonStreaming,
   thinkingModel: string | null,
   requestOptions: OpenRouterRequestOptions = {},
+): Promise<OpenRouterChatCompletion> {
+  const models = getOpenRouterModelCandidates(params.model);
+  let lastError: unknown;
+
+  for (const [modelIndex, model] of models.entries()) {
+    try {
+      return await createOpenRouterChatCompletionOnce(
+        openai,
+        { ...params, model },
+        thinkingModel,
+        requestOptions,
+      );
+    } catch (error) {
+      lastError = error;
+      const nextModel = models[modelIndex + 1];
+      const timeoutTerminal =
+        requestOptions.fallbackOnTimeout === false && isTimeoutError(error);
+      const shouldFallback =
+        Boolean(nextModel) &&
+        !timeoutTerminal &&
+        !requestOptions.signal?.aborted &&
+        isRetryableOpenRouterError(error);
+      if (!shouldFallback || !nextModel) throw error;
+
+      logOpenRouterEvent(
+        'llm:model-fallback',
+        {
+          model,
+          nextModel,
+          error: errorMessage(error),
+        },
+        requestOptions.logContext,
+      );
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error('OpenRouter model fallback chain exhausted');
+}
+
+async function createOpenRouterChatCompletionOnce(
+  openai: OpenAI,
+  params: OpenAI.Chat.ChatCompletionCreateParamsNonStreaming,
+  thinkingModel: string | null,
+  requestOptions: OpenRouterRequestOptions,
 ): Promise<OpenRouterChatCompletion> {
   const inputChars = userInputCharacterCount(params.messages);
   const timeoutMs = requestOptions.timeoutMs ?? getOpenRouterTimeoutMs();
@@ -592,6 +680,10 @@ export async function createOpenRouterChatCompletion(
     throw failure;
   } finally {
     deadline.dispose();
+  }
+
+  if (!completion.model) {
+    completion = { ...completion, model: params.model };
   }
   const metadata = completionMetadata(completion, params.model, thinkingModel);
   logOpenRouterEvent(
@@ -689,21 +781,19 @@ export function completionMetadata(
 }
 
 /**
- * Transport-level failures worth one more attempt. Shared with translation so a
- * single OpenRouter retry policy covers every caller of this client. Script
- * generation is deliberately not one of them: see
- * `classifyScriptCompletionError`.
- *
- * The SDK is identified by type, never by `error.name`: every one of its error
- * classes inherits the plain 'Error' name, so a name test silently misses a
- * DNS/TLS/socket failure and a request timeout -- and those two are exactly the
- * ones that carry no numeric `status`, so nothing else here catches them
- * either. `APIConnectionError` is their shared base, and narrow enough to
- * exclude the one statusless sibling that must stay terminal: `APIUserAbortError`
- * is a cancellation, and whoever cancelled does not want another request. The
- * numeric-status branch still covers a non-SDK provider that only reports an
- * HTTP status, and the name check covers the per-request deadline's own
- * `TimeoutError`.
+ * Both shapes a request deadline takes: the SDK's own timeout and the
+ * per-request deadline's `TimeoutError` (see `combineAbortSignalWithTimeout`).
+ */
+function isTimeoutError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  if (error instanceof APIConnectionTimeoutError) return true;
+  return (error as { name?: unknown }).name === 'TimeoutError';
+}
+
+/**
+ * Transport-level failures are the only failures that advance the shared model
+ * chain. Payload/semantic errors stay with the caller so retries can carry a
+ * correction prompt rather than silently changing model behavior.
  */
 export function isRetryableOpenRouterError(error: unknown): boolean {
   if (!error || typeof error !== 'object') {
@@ -741,9 +831,9 @@ export async function createCompletionWithRetry(
         requestOptions,
       );
     } catch (error) {
-      // A caller whose own signal is already aborted gains nothing from another
-      // attempt. The per-request deadline aborts an internal signal instead, so
-      // its `TimeoutError` still gets its retry.
+      // The shared call already advances through every configured model. This
+      // outer retry preserves the task's historical endpoint-reroute budget if
+      // the whole model chain still failed.
       const shouldRetry =
         attempt < LLM_COMPLETION_MAX_ATTEMPTS &&
         !requestOptions.signal?.aborted &&
@@ -773,29 +863,19 @@ export type ScriptCompletionErrorCategory =
   | 'terminal';
 
 /**
- * Script generation gets its own classification because the shared retry policy
- * is wrong for it in both directions.
- *
- * `timeout` is terminal: the deadline is already ten minutes, so a request that
- * hit it had a model working on it, and replaying an identical prompt just
- * spends those minutes again -- which is exactly how one ingest burned 248
- * seconds before failing. `retry_safe` failures never reached a model at all,
- * so a single re-route is genuinely a different attempt rather than a replay.
- *
- * Both of those statusless cases are SDK types, so they are matched by type and
- * never by `error.name`: every SDK error class inherits the plain 'Error' name,
- * which made the whole split unreachable and left a network blip taking the
- * `terminal` path it exists to avoid. `APIConnectionTimeoutError` is checked
- * before its `APIConnectionError` base, and neither matches `APIUserAbortError`
- * -- the one statusless sibling, and a cancellation rather than a blip.
+ * Classifies a failure from the shared call. A timeout is terminal both inside
+ * the chain (script generation passes `fallbackOnTimeout: false`, so the first
+ * candidate timing out throws immediately) and here, so script generation never
+ * replays the wait -- neither model-by-model nor as an endpoint reroute.
+ * Retry-safe gateway failures may still get the historical endpoint reroute
+ * once.
  */
 export function classifyScriptCompletionError(
   error: unknown,
 ): ScriptCompletionErrorCategory {
   if (!error || typeof error !== 'object') return 'terminal';
 
-  if (error instanceof APIConnectionTimeoutError) return 'timeout';
-  if ((error as { name?: unknown }).name === 'TimeoutError') return 'timeout';
+  if (isTimeoutError(error)) return 'timeout';
 
   const status = (error as { status?: unknown }).status;
   if (typeof status === 'number') {
@@ -875,6 +955,10 @@ async function runScriptAttempt(
       input.thinkingModel,
       {
         timeoutMs: SCRIPT_OPENROUTER_TIMEOUT_MS,
+        // The ten-minute deadline is already terminal: a timeout means a model
+        // worked that long, and each further candidate would spend those
+        // minutes again instead of failing fast.
+        fallbackOnTimeout: false,
         providerRouting: input.routing,
       },
     );
@@ -1088,52 +1172,37 @@ export async function generateLanguageClassroomsWithLLM(
     attempt <= LANGUAGE_CLASSROOM_MAX_ATTEMPTS;
     attempt += 1
   ) {
-    // Every retry re-routes, which is where this diverges from translation: a
-    // translation retry keeps its route because the model wrote a bad field,
-    // while the failure here was an endpoint returning 37k characters for a
-    // request whose real answer is a tenth of that. The throughput sort is
-    // deterministic, so keeping it would hand the retry back to that endpoint.
+    // Transport/model failover lives entirely in createOpenRouterChatCompletion
+    // (LLM_MODEL -> shared LLM_FALLBACK_MODELS): a transport error reaching this
+    // layer means every candidate already failed, so it throws immediately
+    // instead of replaying the chain. Only unusable payloads are re-prompted,
+    // with correction context and rerouted endpoints.
     const rerouted = attempt > 1;
-    let completion: OpenRouterChatCompletion;
-    try {
-      completion = await createCompletionWithRetry(
-        openai,
-        {
-          model,
-          // parseLanguageClassroomLessons parses this as JSON either way; asking
-          // for JSON mode is what stops the model prefacing it with prose.
-          response_format: { type: 'json_object' },
-          messages: [
-            {
-              role: 'system',
-              content: languageClassroomSystemPrompt(input.sourceLanguageCode),
-            },
-            {
-              role: 'user',
-              content: buildLanguageClassroomUserMessage(input, retryReason),
-            },
-          ],
-          temperature: 0.4,
-        },
-        thinkingModel,
-        'generateLanguageClassrooms',
-        {
-          reasoning: LANGUAGE_CLASSROOM_REASONING,
-          ...(rerouted ? { providerRouting: OPENROUTER_FALLBACK_ROUTING } : {}),
-        },
-      );
-    } catch (error) {
-      // The inner loop already spent its transport retry on the same endpoint,
-      // so a retryable error reaching here means that endpoint is the problem.
-      if (
-        attempt === LANGUAGE_CLASSROOM_MAX_ATTEMPTS ||
-        !isRetryableOpenRouterError(error)
-      ) {
-        throw error;
-      }
-      logLanguageClassroomRetry('transport', attempt, error);
-      continue;
-    }
+    const completion = await createOpenRouterChatCompletion(
+      openai,
+      {
+        model,
+        // parseLanguageClassroomLessons parses this as JSON either way; asking
+        // for JSON mode is what stops the model prefacing it with prose.
+        response_format: { type: 'json_object' },
+        messages: [
+          {
+            role: 'system',
+            content: languageClassroomSystemPrompt(input.sourceLanguageCode),
+          },
+          {
+            role: 'user',
+            content: buildLanguageClassroomUserMessage(input, retryReason),
+          },
+        ],
+        temperature: 0.4,
+      },
+      thinkingModel,
+      {
+        reasoning: LANGUAGE_CLASSROOM_REASONING,
+        ...(rerouted ? { providerRouting: OPENROUTER_FALLBACK_ROUTING } : {}),
+      },
+    );
 
     const metadata = completionMetadata(completion, model, thinkingModel);
     // A rejected response was still billed; the ledger has to carry what the
@@ -1172,9 +1241,6 @@ function logLanguageClassroomRetry(
     attempt,
     nextAttempt: attempt + 1,
     rerouted: true,
-    // The groupable key. `error` carries the provider diagnostics and the
-    // excerpt, which are useful once you are already reading one line and
-    // useless for counting how a week of rejections split.
     ...(error instanceof LanguageClassroomPayloadError
       ? { reason: error.reason }
       : {}),

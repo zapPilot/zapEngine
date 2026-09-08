@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { SOCIAL_BRAND_CTA_BY_LANGUAGE } from '../brand/cta.js';
 import { errorMessage } from '../lib/errorMessage.js';
 import {
+  buildJsonModeChatParams,
   createOpenRouterChatCompletion,
   getOpenRouterConfig,
   stripJsonFence,
@@ -422,36 +423,32 @@ export async function generateSocialCopy(input: {
     try {
       const completion = await createOpenRouterChatCompletion(
         config.openai,
-        {
-          model: config.model,
-          response_format: { type: 'json_object' },
-          messages: [
-            {
-              role: 'system',
-              content: buildSystemPrompt(
-                commonRules,
-                xRules,
-                threadsRules,
-                `${rednoteRules}\n\n${rednoteRiskRules}`,
-                youtubeRules,
-                languageRules,
-                languageCode,
-                blocks,
-              ),
-            },
-            {
-              role: 'user',
-              content: buildEpisodePrompt(
-                input.episode,
-                input.feedback,
-                retryReason,
-                input.strategyGuidance,
-                input.strategyGuidanceByPlatform,
-                input.packagingByPlatform,
-              ),
-            },
-          ],
-        },
+        buildJsonModeChatParams(config.model, [
+          {
+            role: 'system',
+            content: buildSystemPrompt(
+              commonRules,
+              xRules,
+              threadsRules,
+              `${rednoteRules}\n\n${rednoteRiskRules}`,
+              youtubeRules,
+              languageRules,
+              languageCode,
+              blocks,
+            ),
+          },
+          {
+            role: 'user',
+            content: buildEpisodePrompt(
+              input.episode,
+              input.feedback,
+              retryReason,
+              input.strategyGuidance,
+              input.strategyGuidanceByPlatform,
+              input.packagingByPlatform,
+            ),
+          },
+        ]),
         config.thinkingModel,
         {
           logContext: {
