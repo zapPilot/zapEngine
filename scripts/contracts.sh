@@ -17,6 +17,7 @@ case "${1:-}" in
     node scripts/check-social-release-contract.mjs
     node --test scripts/deploy-vercel-main.test.mjs
     node --test scripts/distribution-snapshot-workflow.test.mjs
+    node --test scripts/llm-fallback-config.test.mjs
     node scripts/check-vercel-deploy-policy.mjs
     ;;
   *) echo "usage: pnpm contracts <export|check>" >&2; exit 2 ;;
