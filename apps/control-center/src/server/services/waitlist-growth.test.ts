@@ -251,4 +251,81 @@ describe('loadWaitlistGrowth', () => {
       },
     ]);
   });
+
+  it('preserves signup counts when 24h metric collection fails', async () => {
+    const from = vi
+      .fn()
+      .mockReturnValueOnce(query({ count: 2, error: null }))
+      .mockReturnValueOnce(query({ count: 2, error: null }))
+      .mockReturnValueOnce(query({ count: 2, error: null }))
+      .mockReturnValueOnce(
+        query({
+          data: [
+            {
+              id: 'signup-1',
+              created_at: '2026-09-08T12:00:00.000Z',
+              social_publish_job_id: 'job-1',
+            },
+            {
+              id: 'signup-2',
+              created_at: '2026-09-08T13:00:00.000Z',
+              social_publish_job_id: null,
+            },
+          ],
+          error: null,
+        }),
+      );
+    const pipelineFrom = vi
+      .fn()
+      .mockReturnValueOnce(
+        query({
+          data: [
+            {
+              id: 'job-1',
+              episode_id: 'episode-1',
+              platform: 'youtube',
+              language_code: 'en',
+              social_post_id: 'post-1',
+            },
+          ],
+          error: null,
+        }),
+      )
+      .mockReturnValueOnce(query({ data: [], error: null }))
+      .mockReturnValueOnce(
+        query({ data: null, error: new Error('metrics unavailable') }),
+      );
+    const schema = vi.fn(() => ({ from: pipelineFrom }));
+    const client = { from, schema } as unknown as SupabaseClient;
+    const create = (() => client) as unknown as typeof createClient;
+
+    const result = await loadWaitlistGrowth({
+      create,
+      url: 'https://example.supabase.co',
+      key: 'test-key',
+      now: new Date('2026-09-09T00:00:00.000Z'),
+    });
+
+    expect(result).toEqual({
+      status: 'ok',
+      message: '24h views unavailable; persisted signup counts remain available.',
+      total: 2,
+      signups7d: 2,
+      signups30d: 2,
+      attributedSocial7d: 1,
+      directOrUnknown7d: 1,
+      conversions: [
+        {
+          socialPublishJobId: 'job-1',
+          episodeId: 'episode-1',
+          platform: 'youtube',
+          languageCode: 'en',
+          socialPostId: 'post-1',
+          signups: 1,
+          views24h: null,
+          signupRate: null,
+        },
+      ],
+    });
+  });
 });
