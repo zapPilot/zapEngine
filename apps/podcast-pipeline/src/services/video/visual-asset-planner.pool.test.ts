@@ -449,7 +449,23 @@ describe('planVisualAssets episode image pool', () => {
 
   it('images a ninth subject from the pool once the budget is gone', async () => {
     const scenes = numberedScenes(9);
-    const search = searchByQuery(numberedAnswers(9, 2));
+    // Generic alt text: under the known-subject collision guard a result that
+    // explicitly names another episode subject cannot clothe this scene, so
+    // the pool entries must not carry their donor's name for the borrow to be
+    // legitimate.
+    const search = searchByQuery(
+      Object.fromEntries(
+        Array.from({ length: 9 }, (_, index) => [
+          numberedQuery(index),
+          Array.from({ length: 2 }, (_, offset) =>
+            braveResult(
+              `meridian-${index + 1}-${offset + 1}`,
+              'dockside cranes at dawn',
+            ),
+          ),
+        ]),
+      ),
+    );
 
     const result = await planVisualAssets({
       scenes,
