@@ -17,15 +17,96 @@ vi.mock('../lib/env.js', () => ({
   }),
 }));
 
-import { getPipelineSupabase, throwSupabaseError } from './supabase-client.js';
+import {
+  createRetryingSupabaseFetch,
+  getPipelineSupabase,
+  throwSupabaseError,
+} from './supabase-client.js';
 
 describe('getPipelineSupabase', () => {
-  it('creates one shared client', () => {
+  it('creates one shared client with the read-retry transport', () => {
     mocks.createClient.mockReturnValue(mocks.client);
 
     expect(getPipelineSupabase()).toBe(mocks.client);
     expect(getPipelineSupabase()).toBe(mocks.client);
     expect(mocks.createClient).toHaveBeenCalledOnce();
+    expect(mocks.createClient).toHaveBeenCalledWith(
+      'https://example.supabase.co',
+      'test-key',
+      expect.objectContaining({
+        global: { fetch: expect.any(Function) },
+      }),
+    );
+  });
+});
+
+describe('createRetryingSupabaseFetch', () => {
+  it('retries a transient network failure for a GET request', async () => {
+    const fetcher = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError('fetch failed'))
+      .mockResolvedValueOnce(new Response('{}', { status: 200 }));
+    const sleep = vi.fn().mockResolvedValue(undefined);
+    const retryingFetch = createRetryingSupabaseFetch(fetcher, sleep);
+
+    const response = await retryingFetch('https://example.test/rest/v1/episodes', {
+      method: 'GET',
+    });
+
+    expect(response.status).toBe(200);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(sleep).toHaveBeenCalledWith(250);
+  });
+
+  it('retries retryable HTTP responses with exponential backoff', async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(new Response('{}', { status: 503 }))
+      .mockResolvedValueOnce(new Response('{}', { status: 429 }))
+      .mockResolvedValueOnce(new Response('{}', { status: 200 }));
+    const sleep = vi.fn().mockResolvedValue(undefined);
+    const retryingFetch = createRetryingSupabaseFetch(fetcher, sleep);
+
+    const response = await retryingFetch('https://example.test/rest/v1/episodes');
+
+    expect(response.status).toBe(200);
+    expect(fetcher).toHaveBeenCalledTimes(3);
+    expect(sleep.mock.calls).toEqual([[250], [500]]);
+  });
+
+  it('never retries mutations after a transport failure', async () => {
+    const failure = new TypeError('fetch failed');
+    const fetcher = vi.fn().mockRejectedValue(failure);
+    const sleep = vi.fn().mockResolvedValue(undefined);
+    const retryingFetch = createRetryingSupabaseFetch(fetcher, sleep);
+
+    await expect(
+      retryingFetch('https://example.test/rest/v1/episodes', {
+        method: 'POST',
+        body: '{}',
+      }),
+    ).rejects.toBe(failure);
+
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(sleep).not.toHaveBeenCalled();
+  });
+
+  it('does not replay an aborted read', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const failure = new DOMException('aborted', 'AbortError');
+    const fetcher = vi.fn().mockRejectedValue(failure);
+    const sleep = vi.fn().mockResolvedValue(undefined);
+    const retryingFetch = createRetryingSupabaseFetch(fetcher, sleep);
+
+    await expect(
+      retryingFetch('https://example.test/rest/v1/episodes', {
+        signal: controller.signal,
+      }),
+    ).rejects.toBe(failure);
+
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(sleep).not.toHaveBeenCalled();
   });
 });
 

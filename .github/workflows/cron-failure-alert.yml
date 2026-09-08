@@ -16,7 +16,8 @@ on:
       - Track Record Snapshot
     types: [completed]
 
-permissions: {}
+permissions:
+  contents: read
 
 jobs:
   notify:
@@ -26,39 +27,40 @@ jobs:
       github.event.workflow_run.conclusion != 'skipped'
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    env:
+      CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+      HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+      RUN_EVENT: ${{ github.event.workflow_run.event }}
+      RUN_URL: ${{ github.event.workflow_run.html_url }}
+      WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
+      INFISICAL_UNIVERSAL_AUTH_CLIENT_ID: ${{ secrets.INFISICAL_UNIVERSAL_AUTH_CLIENT_ID }}
+      INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET: ${{ secrets.INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET }}
+      INFISICAL_PROJECT_ID: ${{ secrets.INFISICAL_PROJECT_ID }}
     steps:
-      - name: Notify operator via Telegram
-        env:
-          CHAT_ID: ${{ secrets.TELEGRAM_ALERT_CHAT_ID }}
-          CONCLUSION: ${{ github.event.workflow_run.conclusion }}
-          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
-          RUN_EVENT: ${{ github.event.workflow_run.event }}
-          RUN_URL: ${{ github.event.workflow_run.html_url }}
-          TOKEN: ${{ secrets.PIPELINE_TELEGRAM_BOT_TOKEN }}
-          WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
-        run: |
-          if [ -z "$TOKEN" ]; then
-            echo "::error::Missing required repository secret PIPELINE_TELEGRAM_BOT_TOKEN"
-            exit 1
-          fi
-          if [ -z "$CHAT_ID" ]; then
-            echo "::error::Missing required repository secret TELEGRAM_ALERT_CHAT_ID"
-            exit 1
-          fi
+      - uses: actions/checkout@v7
 
-          payload="$(jq -n \
-            --arg chat_id "$CHAT_ID" \
-            --arg workflow "$WORKFLOW_NAME" \
-            --arg conclusion "$CONCLUSION" \
-            --arg trigger "$RUN_EVENT" \
-            --arg branch "$HEAD_BRANCH" \
-            --arg url "$RUN_URL" \
-            '{
-              chat_id: $chat_id,
-              text: ("GitHub cron failed\nWorkflow: " + $workflow + "\nConclusion: " + $conclusion + "\nTrigger/branch: " + $trigger + " / " + $branch + "\n" + $url)
-            }')"
-          curl --silent --show-error --fail-with-body \
-            --request POST \
-            --header 'Content-Type: application/json' \
-            --data "$payload" \
-            "https://api.telegram.org/bot$TOKEN/sendMessage"
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+
+      - name: Validate production environment rail credentials
+        run: |
+          missing=0
+          for name in INFISICAL_UNIVERSAL_AUTH_CLIENT_ID \
+            INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET INFISICAL_PROJECT_ID; do
+            if [ -z "${!name}" ]; then
+              echo "::error::$name is not configured"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Authenticate Infisical machine identity
+        run: |
+          npm install --global @infisical/cli@0.43.125
+          token="$(infisical login --method=universal-auth --silent --plain)"
+          echo "::add-mask::$token"
+          echo "INFISICAL_TOKEN=$token" >> "$GITHUB_ENV"
+
+      - name: Notify operator via Telegram
+        run: node scripts/env/run.mjs --environment prod -- node scripts/notify-cron-failure.mjs

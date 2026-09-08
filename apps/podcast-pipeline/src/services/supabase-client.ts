@@ -7,7 +7,13 @@ import { isRecord } from '../lib/typeGuards.js';
 export type PipelineSupabaseClient = SupabaseClient<any, any, any>;
 
 const DEFAULT_SUPABASE_DB_SCHEMA = 'from_fed_to_chain';
+const SUPABASE_READ_MAX_ATTEMPTS = 3;
+const SUPABASE_READ_RETRY_DELAY_MS = 250;
+const RETRYABLE_SUPABASE_STATUS = new Set([408, 429]);
 let pipelineSupabase: PipelineSupabaseClient | null = null;
+
+type Fetcher = typeof globalThis.fetch;
+type Sleep = (milliseconds: number) => Promise<void>;
 
 function createPipelineSupabaseClient(): PipelineSupabaseClient {
   return createClient(
@@ -23,7 +29,80 @@ function createPipelineSupabaseClient(): PipelineSupabaseClient {
         autoRefreshToken: false,
         persistSession: false,
       },
+      global: {
+        fetch: createRetryingSupabaseFetch(),
+      },
     },
+  );
+}
+
+/**
+ * Supabase/PostgREST reads are safe to repeat when the network drops before a
+ * response arrives; mutations are not. Keep retry policy at the transport edge
+ * so every SELECT benefits without teaching each DB helper to replay itself,
+ * while POST/PATCH/DELETE still execute exactly once from this process.
+ */
+export function createRetryingSupabaseFetch(
+  fetcher: Fetcher = globalThis.fetch,
+  sleep: Sleep = (milliseconds) =>
+    new Promise((resolve) => setTimeout(resolve, milliseconds)),
+): Fetcher {
+  return (async (input, init) => {
+    if (!isIdempotentRead(input, init)) {
+      return fetcher(input, init);
+    }
+
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= SUPABASE_READ_MAX_ATTEMPTS; attempt += 1) {
+      try {
+        const response = await fetcher(input, init);
+        if (
+          attempt === SUPABASE_READ_MAX_ATTEMPTS ||
+          !isRetryableSupabaseStatus(response.status)
+        ) {
+          return response;
+        }
+        await response.body?.cancel().catch(() => {});
+      } catch (error) {
+        lastError = error;
+        if (
+          attempt === SUPABASE_READ_MAX_ATTEMPTS ||
+          init?.signal?.aborted ||
+          isAbortError(error)
+        ) {
+          throw error;
+        }
+      }
+
+      await sleep(SUPABASE_READ_RETRY_DELAY_MS * 2 ** (attempt - 1));
+    }
+
+    throw lastError instanceof Error
+      ? lastError
+      : new Error('Supabase read retry loop exhausted');
+  }) as Fetcher;
+}
+
+function isIdempotentRead(
+  input: Parameters<Fetcher>[0],
+  init: Parameters<Fetcher>[1],
+): boolean {
+  const requestMethod =
+    typeof Request !== 'undefined' && input instanceof Request
+      ? input.method
+      : undefined;
+  const method = (init?.method ?? requestMethod ?? 'GET').toUpperCase();
+  return method === 'GET' || method === 'HEAD';
+}
+
+function isRetryableSupabaseStatus(status: number): boolean {
+  return RETRYABLE_SUPABASE_STATUS.has(status) || status >= 500;
+}
+
+function isAbortError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    (error.name === 'AbortError' || error.name === 'TimeoutError')
   );
 }
 

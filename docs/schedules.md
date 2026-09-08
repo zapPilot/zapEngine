@@ -33,16 +33,15 @@ The check does not contact Pipedream, Fly, a production database, an operator Ma
 
 Every GitHub Actions cron workflow is subscribed by `.github/workflows/cron-failure-alert.yml`. A completed run whose conclusion is anything other than `success`, `cancelled`, or `skipped` sends a plain-text alert through the podcast-pipeline Telegram bot. `pnpm lint schedules` enforces exact parity between scheduled workflow names and the alert subscription list.
 
-The alert workflow uses two GitHub Actions secrets. Rotate them from the production environment rail without printing either value:
+The alert workflow reads `PIPELINE_TELEGRAM_BOT_TOKEN` and the first value in `PIPELINE_TELEGRAM_ALLOWED_USER_IDS` directly from the production Infisical environment rail. It authenticates with the same repository-level Infisical machine identity used by the other environment workflows, so Telegram credential rotation does not require duplicating or synchronizing separate GitHub Actions secrets.
 
-```bash
-node scripts/env/run.mjs --environment prod -- bash -c \
-  'gh secret set PIPELINE_TELEGRAM_BOT_TOKEN --repo zapPilot/zapEngine --body "$PIPELINE_TELEGRAM_BOT_TOKEN"'
-node scripts/env/run.mjs --environment prod -- bash -c \
-  'first="${PIPELINE_TELEGRAM_ALLOWED_USER_IDS%%,*}"; gh secret set TELEGRAM_ALERT_CHAT_ID --repo zapPilot/zapEngine --body "${first// /}"'
-```
+The repository still needs these three GitHub Actions secrets so the alert workflow can enter the production rail:
 
-After rotation, send a smoke-test message with the same token and the first allowed user ID before relying on failure alerts.
+- `INFISICAL_UNIVERSAL_AUTH_CLIENT_ID`
+- `INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET`
+- `INFISICAL_PROJECT_ID`
+
+After rotating the Telegram bot token or allowed-user list in Infisical, send a smoke-test message with the same token and first allowed user ID before relying on failure alerts.
 
 ## Recovery by runtime
 

@@ -53,7 +53,8 @@ import {
 
 /**
  * Script generation runs on its own deadline, deliberately unreachable through
- * `OPENROUTER_TIMEOUT_MS`; the literal is the contract these tests assert.
+ * `OPENROUTER_TIMEOUT_MS`; every candidate in the shared model chain gets this
+ * long-form deadline.
  */
 const SCRIPT_TIMEOUT_MS = 600_000;
 
@@ -87,7 +88,7 @@ function mockOpenAIClient(createMock: Mock): void {
   );
 }
 
-function successfulCompletion(): unknown {
+function successfulCompletion(model = 'test/model'): unknown {
   return {
     choices: [
       {
@@ -100,7 +101,7 @@ function successfulCompletion(): unknown {
       },
     ],
     provider: 'test-provider',
-    model: 'test/model',
+    model,
     usage: { cost: 0.01 },
   };
 }
@@ -257,7 +258,7 @@ describe('generateScriptWithLLM request policy', () => {
     expect(requestTimeouts).toEqual([SCRIPT_TIMEOUT_MS]);
   });
 
-  it('aborts at the script deadline and never replays the timeout', async () => {
+  it('aborts at the script deadline and never replays the timeout without fallbacks', async () => {
     vi.useFakeTimers();
     const requestSignals: AbortSignal[] = [];
     const mockCreate = vi.fn(
@@ -290,12 +291,13 @@ describe('generateScriptWithLLM request policy', () => {
     }
   });
 
-  it('keeps the script deadline terminal with a non-empty fallback list', async () => {
+  it('advances a script timeout through the shared fallback list', async () => {
     vi.useFakeTimers();
     vi.stubEnv(
       'LLM_FALLBACK_MODELS',
       'fallback/one,fallback/two,fallback/three',
     );
+    const requestSignals: AbortSignal[] = [];
     const requestModels: unknown[] = [];
     const mockCreate = vi.fn(
       (
@@ -304,26 +306,35 @@ describe('generateScriptWithLLM request policy', () => {
       ): Promise<unknown> => {
         const signal = options?.signal;
         if (!signal) throw new Error('Expected an OpenRouter request signal');
-        requestModels.push((request as { model?: unknown } | undefined)?.model);
-        return timeoutUntilAborted(signal);
+        requestSignals.push(signal);
+        const model = (request as { model?: unknown } | undefined)?.model;
+        requestModels.push(model);
+        return requestModels.length === 1
+          ? timeoutUntilAborted(signal)
+          : Promise.resolve(successfulCompletion(String(model)));
       },
     );
     mockOpenAIClient(mockCreate);
 
     const resultPromise = generateScriptWithLLM('Title', 'Article');
-    const rejection = expect(resultPromise).rejects.toThrow(
-      'OpenRouter request timed out after 600000ms',
-    );
+    const resultAssertion = expect(resultPromise).resolves.toMatchObject({
+      script: 'Generated script',
+      model: 'fallback/one',
+    });
     await vi.advanceTimersByTimeAsync(SCRIPT_TIMEOUT_MS);
-    await rejection;
+    await resultAssertion;
 
-    // Without the opt-out the shared chain would spend another ten minutes per
-    // remaining candidate (four 600s requests here).
-    expect(mockCreate).toHaveBeenCalledTimes(1);
-    expect(requestModels).toEqual(['test/model']);
-    expect(ingestMocks.logIngestEvent).not.toHaveBeenCalledWith(
+    expect(mockCreate).toHaveBeenCalledTimes(2);
+    expect(requestModels).toEqual(['test/model', 'fallback/one']);
+    expect(requestSignals[0]?.aborted).toBe(true);
+    expect(requestSignals[1]?.aborted).toBe(false);
+    expect(ingestMocks.logIngestEvent).toHaveBeenCalledWith(
       'llm:model-fallback',
-      expect.anything(),
+      expect.objectContaining({
+        model: 'test/model',
+        nextModel: 'fallback/one',
+        error: 'OpenRouter request timed out after 600000ms',
+      }),
     );
     expect(ingestMocks.logIngestEvent).not.toHaveBeenCalledWith(
       'llm:fallback',
@@ -331,7 +342,7 @@ describe('generateScriptWithLLM request policy', () => {
     );
   });
 
-  it('keeps an SDK request timeout terminal with a non-empty fallback list', async () => {
+  it('advances an SDK request timeout through the shared fallback list', async () => {
     vi.stubEnv(
       'LLM_FALLBACK_MODELS',
       'fallback/one,fallback/two,fallback/three',
@@ -339,17 +350,24 @@ describe('generateScriptWithLLM request policy', () => {
     const requestTimeout = new APIConnectionTimeoutError({
       message: 'Request timed out.',
     });
-    const mockCreate = vi.fn().mockRejectedValue(requestTimeout);
+    const mockCreate = vi
+      .fn()
+      .mockRejectedValueOnce(requestTimeout)
+      .mockResolvedValueOnce(successfulCompletion('fallback/one'));
     mockOpenAIClient(mockCreate);
 
-    await expect(generateScriptWithLLM('Title', 'Article')).rejects.toBe(
-      requestTimeout,
-    );
+    await expect(generateScriptWithLLM('Title', 'Article')).resolves.toMatchObject({
+      script: 'Generated script',
+      model: 'fallback/one',
+    });
 
-    expect(mockCreate).toHaveBeenCalledTimes(1);
-    expect(ingestMocks.logIngestEvent).not.toHaveBeenCalledWith(
+    expect(mockCreate).toHaveBeenCalledTimes(2);
+    expect(ingestMocks.logIngestEvent).toHaveBeenCalledWith(
       'llm:model-fallback',
-      expect.anything(),
+      expect.objectContaining({
+        model: 'test/model',
+        nextModel: 'fallback/one',
+      }),
     );
     expect(ingestMocks.logIngestEvent).not.toHaveBeenCalledWith(
       'llm:fallback',
@@ -422,7 +440,7 @@ describe('generateScriptWithLLM request policy', () => {
     );
   });
 
-  it('does not re-route an SDK request timeout', async () => {
+  it('does not endpoint-reroute an SDK request timeout after the model chain is exhausted', async () => {
     const requestTimeout = new APIConnectionTimeoutError({
       message: 'Request timed out.',
     });
