@@ -1,8 +1,7 @@
 // @vitest-environment jsdom
-import { render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup } from '@testing-library/react';
 
 import { LanguageIdentity, PlatformIdentity } from './platform.js';
 
