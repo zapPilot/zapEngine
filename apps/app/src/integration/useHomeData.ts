@@ -119,6 +119,32 @@ function rangeWindowDays(range: HomeRange): number | null {
   return null;
 }
 
+export function sliceHomeDailyValuesForRange(
+  dailyValues: readonly DailyValuePoint[],
+  range: HomeRange,
+): DailyValuePoint[] {
+  const sorted = sortedDailyValues(dailyValues);
+  const days = rangeWindowDays(range);
+  const latest = sorted.at(-1);
+  if (days === null || !latest?.date) {
+    return sorted;
+  }
+
+  const latestTs = Date.parse(latest.date);
+  if (Number.isNaN(latestTs)) {
+    return sorted.slice(-Math.max(2, days));
+  }
+
+  const cutoff = latestTs - days * 24 * 60 * 60 * 1000;
+  const sliced = sorted.filter((point) => {
+    if (!point.date) return false;
+    const ts = Date.parse(point.date);
+    return !Number.isNaN(ts) && ts >= cutoff;
+  });
+
+  return sliced.length >= 2 ? sliced : sorted.slice(-2);
+}
+
 function trendPointsOrFallback(
   liveTrendPoints: DailyValuePoint[],
   demoTrendPoints: DailyValuePoint[],
@@ -222,7 +248,7 @@ export function useHomeData(
   const attributionWindowDays =
     range === '3M' ? 90 : DAILY_ATTRIBUTION_WINDOW_DAYS;
   const attribution = useDailyYieldReturns(
-    range === '1Y' ? undefined : analyticsSubjectId ?? undefined,
+    range === '1Y' ? undefined : (analyticsSubjectId ?? undefined),
     attributionWindowDays,
   );
 

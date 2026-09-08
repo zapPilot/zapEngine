@@ -166,7 +166,7 @@ describe('HomeScreen — demo visitor', () => {
     );
     expect(fraction).toBeDefined();
     expect(container.textContent).toContain('+12.3%');
-    expect(container.textContent).toContain('+$2,715.60 · 1Y');
+    expect(container.textContent).toContain('+$2,715.60 · 1M');
 
     expect(
       container.querySelector('[data-testid="demo-connect-overlay"]'),
@@ -230,20 +230,20 @@ describe('HomeScreen — live loaded', () => {
     const { container } = await renderHomeScreen(liveOverrides());
 
     expect(container.textContent).toContain('$12,345.67');
-    expect(container.textContent).toContain('+30.0%');
-    expect(container.textContent).toContain('+$30.00 · 1Y');
+    expect(container.textContent).toContain('+8.3%');
+    expect(container.textContent).toContain('+$10.00 · 1M');
     expect(
       container.querySelector('[data-testid="portfolio-trend-chart"]'),
     ).not.toBeNull();
-    expect(sparklineProbe.lastProps?.data).toEqual([100, 120, 118, 130]);
+    expect(sparklineProbe.lastProps?.data).toEqual([120, 118, 130]);
 
     expect(ariaLabels(container)).toEqual(
       expect.arrayContaining([
-        '+$27 gains',
+        '+$11 gains',
         '−$4 losses',
-        'Price impact, +$16',
-        'Protocol returns, +$7',
-        'Flows & other, +$7',
+        'Price impact, +$4',
+        'Protocol returns, +$3',
+        'Flows & other, +$3',
       ]),
     );
 
@@ -582,8 +582,8 @@ describe('HomeScreen — range tabs', () => {
   it('re-slices the series and moves the selected tab', async () => {
     const { container } = await renderHomeScreen(liveOverrides());
 
-    expect(selectedRangeLabels(container)).toEqual(['1Y']);
-    expect(sparklineProbe.lastProps?.data).toHaveLength(4);
+    expect(selectedRangeLabels(container)).toEqual(['1M']);
+    expect(sparklineProbe.lastProps?.data).toHaveLength(3);
     const rendersBefore = sparklineProbe.renderCount;
 
     await press(buttonByLabel(container, '1W'));

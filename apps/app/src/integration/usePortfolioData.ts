@@ -162,10 +162,9 @@ export function usePortfolioData(
   // Short ranges retain at least 30 days for the attribution outlier fence;
   // 3M uses its full 90 days. The expensive 365-day path is disabled until it
   // can run safely on the current analytics-engine machine size.
-  const attributionDays =
-    range === '3M' ? 90 : DAILY_ATTRIBUTION_WINDOW_DAYS;
+  const attributionDays = range === '3M' ? 90 : DAILY_ATTRIBUTION_WINDOW_DAYS;
   const attributionQuery = useDailyYieldReturns(
-    range === '1Y' || range === 'ALL' ? undefined : userId ?? undefined,
+    range === '1Y' || range === 'ALL' ? undefined : (userId ?? undefined),
     attributionDays,
   );
 

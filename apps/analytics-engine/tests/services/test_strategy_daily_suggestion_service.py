@@ -884,7 +884,7 @@ def test_get_daily_suggestion_requires_serialized_signal(
 
 
 def test_load_market_data_missing_price_raises() -> None:
-    """Cover line 173: latest_price is None raises ValueError."""
+    """Cover line 173: latest_price is None raises MarketDataUnavailableError."""
     from src.services.backtesting.features import MarketDataRequirements
 
     service, mocks = _service()
@@ -895,7 +895,7 @@ def test_load_market_data_missing_price_raises() -> None:
         market_data_requirements=MarketDataRequirements(),
     )
 
-    with pytest.raises(ValueError, match="Missing latest BTC price"):
+    with pytest.raises(MarketDataUnavailableError, match="Missing latest BTC price"):
         service._load_market_data(resolved_config=resolved_config, lookback_days=90)
 
 

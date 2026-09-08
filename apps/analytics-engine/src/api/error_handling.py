@@ -3,7 +3,9 @@ from datetime import UTC, datetime
 from typing import Any, cast
 
 from fastapi import HTTPException, Request, Response
-from fastapi.exception_handlers import http_exception_handler as fastapi_http_exception_handler
+from fastapi.exception_handlers import (
+    http_exception_handler as fastapi_http_exception_handler,
+)
 from fastapi.responses import JSONResponse
 
 from src.core.sentry import capture_server_exception
