@@ -17,7 +17,13 @@ roles now have no grants on `public` and RLS denies them outright; see
 
 Authorization therefore lives entirely in the route layer (Privy identity,
 `ADMIN_API_KEY` for job routes) — never assume Postgres will refuse a query on
-a caller's behalf.
+a caller's behalf. The one intentional unauthenticated persistence exception is
+`POST /waitlist`: it may only insert the bounded `public.waitlist_signups`
+acquisition record through the existing service-role client. Keep it email-only,
+idempotent on normalized email, honeypot/rate-limited, and server-resolve any
+social attribution to a durable `social_publish_jobs` identity before storing it.
+Do not widen this exception into generic public account creation or direct
+browser-to-Supabase access.
 
 # Gotchas
 
