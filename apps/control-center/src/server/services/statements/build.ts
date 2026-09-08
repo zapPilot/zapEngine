@@ -9,6 +9,7 @@ import type {
   OperationalStatus,
   OperationsDomain,
 } from '../../../shared/types.js';
+import { ruleProductDemand } from './product-demand.js';
 import {
   combineSegments,
   ruleR1,
@@ -44,7 +45,7 @@ const RELATED_OPERATIONS_DOMAINS: Record<StatementDomain, OperationsDomain[]> =
 
 const SOURCE_LABEL: Record<StatementDomain, string> = {
   reliability: 'operations',
-  product: 'product-health',
+  product: 'product telemetry',
   pipeline: 'podcast-pipeline',
   spend: 'cost ledger',
   growth: 'social telemetry',
@@ -141,6 +142,7 @@ export function buildStatements(input: StatementInputs): StatementsResponse {
   const r7 = ruleR7(input);
   const r8 = ruleR8(input);
   const r10 = ruleR10(input);
+  const productDemand = ruleProductDemand(input);
 
   const topReliabilitySignal =
     input.operations.priorities.find((p) => p.signal.status === 'critical')
@@ -159,7 +161,10 @@ export function buildStatements(input: StatementInputs): StatementsResponse {
     toStatement(
       input,
       'product',
-      { ...r6, segments: combineSegments(r6, r7) },
+      {
+        ...r6,
+        segments: combineSegments(r6, r7, productDemand),
+      },
       input.overview.generatedAt,
     ),
     toStatement(input, 'pipeline', r10, input.podcastPipeline.generatedAt),
@@ -174,7 +179,7 @@ export function buildStatements(input: StatementInputs): StatementsResponse {
 
   const headers: StatementHeaderData[] = [
     toHeader('reliability', [r1]),
-    toHeader('product', [r6, r7, r8]),
+    toHeader('product', [r6, r7, r8, productDemand]),
     toHeader('pipeline', [r10]),
     toHeader('spend', [r2, r3]),
     toHeader('growth', [r4, r5]),
