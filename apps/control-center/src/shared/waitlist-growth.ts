@@ -12,6 +12,8 @@ export interface SocialWaitlistConversion {
 }
 
 export interface SocialWaitlistSummary {
+  status: 'ok' | 'unavailable';
+  message: string | null;
   /** Exact table count when Supabase can provide one. */
   total: number | null;
   signups7d: number;
