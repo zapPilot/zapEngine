@@ -62,6 +62,8 @@ describe('waitlist routes', () => {
       'episode_id',
       '72f1ee5b-3f57-4e32-b7ad-fe57666985d6',
     );
+    expect(fixture.socialQuery.eq).toHaveBeenCalledWith('platform', 'youtube');
+    expect(fixture.socialQuery.eq).toHaveBeenCalledWith('language_code', 'en');
     expect(fixture.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         email: 'user@example.com',
