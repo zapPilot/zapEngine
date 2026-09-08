@@ -2,7 +2,7 @@
 
 This document describes the current deployed topology and ownership boundaries. It complements [architecture planes](./planes.md), which defines logical product boundaries rather than infrastructure.
 
-The repository is the source of truth for application code, deployment configuration, scheduled-work inventory, and database migration history. Production data remains in Supabase; production schema changes remain manual operator actions after reviewed migrations are merged.
+The repository is the source of truth for application code, deployment configuration, scheduled-work inventory, and database migration history. Production data remains in Supabase; merged root migrations are applied and verified by the production-gated CI migration job before Fly deploys.
 
 ```mermaid
 flowchart TD
@@ -66,7 +66,7 @@ flowchart TD
 | Application and infrastructure definitions | GitHub repository                                        | Code, checked-in deployment config, workflow definitions, and architecture docs live here.                                       |
 | Fly deployment inventory                   | [`.github/fly-apps.json`](../../.github/fly-apps.json)   | CI validates the checked-in Fly app registry.                                                                                    |
 | Recurring work inventory                   | [`.github/schedules.json`](../../.github/schedules.json) | Includes GitHub Actions, remaining Pipedream jobs, process intervals, the local social daemon, and the Electron scheduler.       |
-| Database migration history                 | [`supabase/migrations/`](../../supabase/migrations/)     | New schema changes are added only here. Production apply is manual: review, merge, `db push --dry-run`, then operator `db push`. |
+| Database migration history                 | [`supabase/migrations/`](../../supabase/migrations/)     | New schema changes are added only here. Production `main` runs the CI migration job to dry-run, apply, and verify them before Fly deploys. |
 | Database bootstrap roles                   | [`supabase/roles.sql`](../../supabase/roles.sql)         | Used by local `db reset` and fresh-environment bootstrap. Production roles already exist; `db push` does not apply this file.    |
 | Production application data                | Supabase Postgres                                        | GitHub records schema intent/history; it does not contain the production data itself.                                            |
 | Podcast media                              | Cloudflare R2                                            | Object storage only. There is no Cloudflare Workers compute dependency in the current architecture.                              |
@@ -146,7 +146,7 @@ The single Supabase project contains multiple logical schemas with different own
 - `from_fed_to_chain` and `from_fed_to_chain_private`: podcast, localization, render, and social-pipeline state owned by podcast-pipeline.
 - `ops`: private operational state used by Control Center and supporting pipelines, including cost accounting, customer-service overrides, and per-source refresh bookkeeping; it is not exposed directly through the Supabase Data API.
 
-All new schema changes go through the root [`supabase/migrations/`](../../supabase/migrations/) workflow. GitHub records migration history, but applying a migration to production remains an explicit operator step.
+All new schema changes go through the root [`supabase/migrations/`](../../supabase/migrations/) workflow. GitHub records migration history; on non-PR CI runs, `deploy-supabase-migrations` applies and verifies pending migrations before Fly deploys.
 
 ## Scheduling model
 
