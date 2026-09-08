@@ -1,4 +1,5 @@
 import type { OperationsResponse } from '../../shared/types.js';
+import { evidenceNumber } from './operations/evidence.js';
 
 export interface ProductAcquisitionMetrics {
   uniqueUsers7d: number | null;
@@ -34,22 +35,20 @@ export function productAcquisitionFromOperations(
     return null;
   }
 
-  const evidence = signal.evidence;
   return {
-    uniqueUsers7d: numberEvidence(evidence.uniqueUsers7d),
-    uniqueUsers30d: numberEvidence(evidence.uniqueUsers30d),
-    landingVisitors7d: numberEvidence(evidence.landingVisitors7d),
-    landingVisitors30d: numberEvidence(evidence.landingVisitors30d),
-    ctaUsers7d: numberEvidence(evidence.ctaUsers7d),
-    ctaUsers30d: numberEvidence(evidence.ctaUsers30d),
-    appVisitors7d: numberEvidence(evidence.appVisitors7d),
-    appVisitors30d: numberEvidence(evidence.appVisitors30d),
-    walletConnectedUsers7d: numberEvidence(evidence.walletConnectedUsers7d),
-    walletConnectedUsers30d: numberEvidence(evidence.walletConnectedUsers30d),
-    landingDeadClickUsers7d: numberEvidence(evidence.landingDeadClickUsers7d),
+    uniqueUsers7d: evidenceNumber(signal, 'uniqueUsers7d'),
+    uniqueUsers30d: evidenceNumber(signal, 'uniqueUsers30d'),
+    landingVisitors7d: evidenceNumber(signal, 'landingVisitors7d'),
+    landingVisitors30d: evidenceNumber(signal, 'landingVisitors30d'),
+    ctaUsers7d: evidenceNumber(signal, 'ctaUsers7d'),
+    ctaUsers30d: evidenceNumber(signal, 'ctaUsers30d'),
+    appVisitors7d: evidenceNumber(signal, 'appVisitors7d'),
+    appVisitors30d: evidenceNumber(signal, 'appVisitors30d'),
+    walletConnectedUsers7d: evidenceNumber(signal, 'walletConnectedUsers7d'),
+    walletConnectedUsers30d: evidenceNumber(
+      signal,
+      'walletConnectedUsers30d',
+    ),
+    landingDeadClickUsers7d: evidenceNumber(signal, 'landingDeadClickUsers7d'),
   };
-}
-
-function numberEvidence(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
