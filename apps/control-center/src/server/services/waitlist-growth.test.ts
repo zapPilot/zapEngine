@@ -308,7 +308,8 @@ describe('loadWaitlistGrowth', () => {
 
     expect(result).toEqual({
       status: 'ok',
-      message: '24h views unavailable; persisted signup counts remain available.',
+      message:
+        '24h views unavailable; persisted signup counts remain available.',
       total: 2,
       signups7d: 2,
       signups30d: 2,
