@@ -56,7 +56,7 @@ const optionalText = (max: number) =>
 
 export const waitlistSignupSchema = z.object({
   email: zEmail('Please enter a valid email address')
-    .max(320)
+    .refine((value) => value.length <= 320, 'Email address is too long')
     .transform((value) => value.trim().toLowerCase()),
   ctaLocation: optionalText(64),
   landingPath: optionalText(512),
