@@ -487,6 +487,28 @@ function routingLabel(routing: OpenRouterProviderRouting): string {
   return routing.sort ?? 'default';
 }
 
+/**
+ * One JSON-mode params shape for every OpenRouter workload that expects a JSON
+ * object. `model` stays a parameter (not config) so callers keep owning which
+ * primary they run on; the shared transport in
+ * `createOpenRouterChatCompletion` still advances through `LLM_FALLBACK_MODELS`.
+ */
+export function buildJsonModeChatParams(
+  model: string,
+  messages: OpenAI.Chat.ChatCompletionMessageParam[],
+  extra?: Pick<
+    OpenAI.Chat.ChatCompletionCreateParamsNonStreaming,
+    'max_tokens' | 'temperature'
+  >,
+): OpenAI.Chat.ChatCompletionCreateParamsNonStreaming {
+  return {
+    model,
+    response_format: { type: 'json_object' },
+    ...extra,
+    messages,
+  };
+}
+
 function reasoningLabel(reasoning: OpenRouterReasoning | undefined): string {
   if (!reasoning) return 'provider-default';
   if (reasoning.enabled === false) return 'disabled';

@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 import { errorMessage } from '../lib/errorMessage.js';
 import {
+  buildJsonModeChatParams,
   createOpenRouterChatCompletion,
   getOpenRouterConfig,
   stripJsonFence,
@@ -105,15 +106,14 @@ export async function assertRednoteSemanticRisk(input: {
     try {
       const completion = await createOpenRouterChatCompletion(
         config.openai,
-        {
-          model: config.model,
-          response_format: { type: 'json_object' },
-          max_tokens: JUDGE_MAX_TOKENS,
-          messages: [
+        buildJsonModeChatParams(
+          config.model,
+          [
             { role: 'system', content: buildJudgeSystemPrompt(rules) },
             { role: 'user', content: buildJudgeUserPrompt(input) },
           ],
-        },
+          { max_tokens: JUDGE_MAX_TOKENS },
+        ),
         config.thinkingModel,
         {
           reasoning: { enabled: false },
