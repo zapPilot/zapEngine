@@ -20,9 +20,13 @@ import type {
 } from '../../shared/podcast-visual.js';
 import { getJson } from '../api.js';
 import { compactError } from '../format.js';
+import {
+  LanguageIdentity,
+  PlatformIdentity,
+  platformLabel,
+} from '../platform.js';
 import './PipelineQueuesBoard.css';
 import {
-  PLATFORM_LABELS,
   QueueDrawer,
   formatDateTime,
   type SelectedQueueEntry,
@@ -491,10 +495,12 @@ function SocialCard({ item }: { item: SocialQueueItem }) {
           <span
             className={`social-chip social-status-${lane.status}`}
             key={`${lane.platform}:${lane.languageCode}`}
-            title={`${PLATFORM_LABELS[lane.platform]} · ${lane.languageCode} · ${lane.status}`}
+            title={`${platformLabel(lane.platform)} · ${lane.languageCode} · ${lane.status}`}
           >
-            {PLATFORM_LABELS[lane.platform]}
-            <small>{lane.languageCode}</small>
+            <PlatformIdentity platform={lane.platform} />
+            <small>
+              <LanguageIdentity languageCode={lane.languageCode} />
+            </small>
           </span>
         ))}
       </div>

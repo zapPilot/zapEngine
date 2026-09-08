@@ -9,7 +9,6 @@ import { useEffect, useState, type ReactNode } from 'react';
 import type {
   PipelinePublishedLink,
   PipelineQueueItem,
-  SocialPlatform,
   SocialQueueItem,
 } from '../../shared/pipeline-queues.js';
 import type { PodcastPipelineRestartAction } from '../../shared/podcast-pipeline.js';
@@ -18,6 +17,7 @@ import type {
   PodcastVisualReviewHandlers,
 } from '../../shared/podcast-visual.js';
 import { compactError, relativeTime } from '../format.js';
+import { LanguageIdentity, PlatformIdentity } from '../platform.js';
 import { CopyableId } from './CopyableId.js';
 import './QueueDrawer.css';
 import { VisualEvidence } from './VisualEvidence.js';
@@ -27,13 +27,6 @@ export type SelectedQueueEntry =
   | { kind: 'api'; item: PipelineQueueItem }
   | { kind: 'render'; item: EpisodeRenderQueueItem | PipelineQueueItem }
   | { kind: 'social'; item: SocialQueueItem };
-
-export const PLATFORM_LABELS: Record<SocialPlatform, string> = {
-  x: 'X',
-  threads: 'Threads',
-  rednote: 'Rednote',
-  youtube: 'YouTube',
-};
 
 type DrawerTab = 'overview' | 'scenes' | 'history';
 
@@ -571,8 +564,10 @@ function SocialCurrentState({ item }: { item: SocialQueueItem }) {
       {item.platforms.map((lane) => (
         <div key={`${lane.platform}:${lane.languageCode}`}>
           <div>
-            <strong>{PLATFORM_LABELS[lane.platform]}</strong>
-            <span>{lane.languageCode}</span>
+            <strong>
+              <PlatformIdentity platform={lane.platform} />
+            </strong>
+            <LanguageIdentity languageCode={lane.languageCode} />
             <span className={`social-status social-status-${lane.status}`}>
               {lane.status}
             </span>
@@ -607,8 +602,10 @@ function PublishedLinks({ links }: { links: PipelinePublishedLink[] }) {
       {links.map((link) => (
         <div key={`${link.platform}:${link.languageCode}:${link.publishedAt}`}>
           <div>
-            <strong>{PLATFORM_LABELS[link.platform]}</strong>
-            <span>{link.languageCode}</span>
+            <strong>
+              <PlatformIdentity platform={link.platform} />
+            </strong>
+            <LanguageIdentity languageCode={link.languageCode} />
           </div>
           {link.url ? (
             <a href={link.url} rel="noreferrer" target="_blank">

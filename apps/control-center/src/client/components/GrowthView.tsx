@@ -8,7 +8,7 @@ import type {
   SocialPlatformPerformance,
 } from '../../shared/types.js';
 import { duration, integer, percent, relativeTime } from '../format.js';
-import { platformEmoji, platformIconPath, platformLabel } from '../platform.js';
+import { PlatformIdentity } from '../platform.js';
 import { StatementHeader } from './StatementHeader.js';
 
 export const CURRENT_RELEASE_SLOTS_JST = ['09:30', '12:00', '16:00'] as const;
@@ -416,37 +416,6 @@ function PlatformPlaybook(props: {
         </div>
       ) : null}
     </article>
-  );
-}
-
-function PlatformIdentity(props: { platform: string }) {
-  const icon = platformIconPath(props.platform);
-  return (
-    <span
-      style={{
-        alignItems: 'center',
-        display: 'inline-flex',
-        gap: '0.35em',
-        minWidth: 0,
-      }}
-    >
-      <span aria-hidden="true">{platformEmoji(props.platform)}</span>
-      {icon ? (
-        <img
-          alt=""
-          aria-hidden="true"
-          src={icon}
-          style={{
-            display: 'block',
-            flex: '0 0 auto',
-            height: '1em',
-            objectFit: 'contain',
-            width: '1em',
-          }}
-        />
-      ) : null}
-      <span>{platformLabel(props.platform)}</span>
-    </span>
   );
 }
 
