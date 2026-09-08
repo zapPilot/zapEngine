@@ -1,4 +1,8 @@
-import { EPISODE_VIDEO_VISUAL_VERSION } from '@zapengine/types/shared';
+import {
+  EPISODE_VIDEO_VISUAL_VERSION,
+  PODCAST_LANGUAGE_CODES,
+  type PodcastLanguageCode,
+} from '@zapengine/types/shared';
 
 import type {
   PodcastPipelineEpisode,
@@ -22,8 +26,8 @@ import {
 } from './supabase.js';
 
 const EPISODE_LIMIT = 40;
-const LANGUAGES = ['zh-Hant', 'ja', 'en'] as const;
-type LanguageCode = (typeof LANGUAGES)[number];
+const LANGUAGES = PODCAST_LANGUAGE_CODES;
+type LanguageCode = PodcastLanguageCode;
 
 interface EpisodeRow {
   id: string;

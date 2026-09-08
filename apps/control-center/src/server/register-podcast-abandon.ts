@@ -7,6 +7,7 @@ import { createPodcastAbandonService } from './services/podcast-abandon.js';
 import {
   isMissingColumnError,
   postgrestErrorCode,
+  postgrestErrorMessage,
 } from './services/supabase.js';
 
 const UUID_PATTERN =
@@ -35,7 +36,7 @@ export function registerPodcastAbandonRoute(
       return context.json({ ok: true });
       // jscpd:ignore-start -- operator route error handling mirrors app.ts narrow RPC handlers; intentional duplication for route isolation
     } catch (error) {
-      const message = errorMessage(error);
+      const message = postgrestErrorMessage(error, 'Podcast abandon failed');
       if (postgrestErrorCode(error) === '22023') {
         return context.json({ error: message }, 409);
       }
@@ -57,18 +58,3 @@ export function registerPodcastAbandonRoute(
     // jscpd:ignore-end
   });
 }
-
-// jscpd:ignore-start -- narrow operator route error extraction mirrors app.ts; small helper duplication is intentional and kept local for route isolation
-function errorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-  if (error && typeof error === 'object' && 'message' in error) {
-    const message = (error as { message?: unknown }).message;
-    if (typeof message === 'string' && message.trim()) {
-      return message;
-    }
-  }
-  return 'Podcast abandon failed';
-}
-// jscpd:ignore-end

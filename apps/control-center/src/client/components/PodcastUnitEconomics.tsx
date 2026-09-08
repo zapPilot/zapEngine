@@ -1,3 +1,8 @@
+import {
+  isPodcastLanguageCode,
+  PODCAST_LANGUAGE_LABELS,
+} from '@zapengine/types/shared';
+
 import type {
   PodcastCostBreakdown,
   PodcastCostResponse,
@@ -321,19 +326,28 @@ function parseLanguageBreakdown(item: PodcastCostBreakdown): {
   };
 }
 
+// Display order for this legacy cost breakdown, kept local rather than the
+// shared vocabulary's zh-Hant-first order: 'zh-Hans' is a pre-refactor code
+// these historical cost rows still carry and the shared package has no
+// notion of.
+const LANGUAGE_DISPLAY_ORDER: readonly string[] = [
+  'en',
+  'ja',
+  'zh-Hant',
+  'zh-Hans',
+];
+
 function languageOrder(code: string): number {
-  return ['en', 'ja', 'zh-Hant', 'zh-Hans'].indexOf(code);
+  return LANGUAGE_DISPLAY_ORDER.indexOf(code);
 }
 
 function languageLabel(code: string): string {
-  return (
-    {
-      en: 'English',
-      ja: 'Japanese',
-      'zh-Hant': 'Traditional Chinese',
-      'zh-Hans': 'Simplified Chinese',
-    }[code] ?? code
-  );
+  if (code === 'zh-Hans') {
+    return 'Simplified Chinese';
+  }
+  return isPodcastLanguageCode(code)
+    ? PODCAST_LANGUAGE_LABELS[code].english
+    : code;
 }
 
 function summarize(episodes: PodcastEpisodeCostSummary[]): {

@@ -2,6 +2,7 @@ import type {
   PODCAST_VIDEO_REVIEW_ISSUES,
   PODCAST_VIDEO_REVIEW_STATUSES,
   PODCAST_VIDEO_REVIEW_VERDICTS,
+  PodcastLanguageCode,
 } from '@zapengine/types/shared';
 
 import type { PodcastPipelineVisualDebug } from './podcast-pipeline.js';
@@ -80,7 +81,7 @@ export interface PodcastVideoReview {
 
 export interface PodcastVideoReviewInput {
   visualHash?: string | null;
-  languageCode?: 'zh-Hant' | 'ja' | 'en' | null;
+  languageCode?: PodcastLanguageCode | null;
   sceneId?: string | null;
   verdict: PodcastVideoReviewVerdict;
   issueCategories: PodcastVideoReviewIssue[];
