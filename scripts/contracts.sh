@@ -16,6 +16,7 @@ case "${1:-}" in
     (cd apps/analytics-engine && uv run python ../../scripts/contracts/check_pydantic_parity.py)
     node scripts/check-social-release-contract.mjs
     node --test scripts/deploy-vercel-main.test.mjs
+    node --test scripts/distribution-snapshot-workflow.test.mjs
     node scripts/check-vercel-deploy-policy.mjs
     ;;
   *) echo "usage: pnpm contracts <export|check>" >&2; exit 2 ;;
