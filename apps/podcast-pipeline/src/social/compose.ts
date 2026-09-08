@@ -1,4 +1,4 @@
-import { YOUTUBE_DESCRIPTION_CTA_BY_LANGUAGE } from '../brand/cta.js';
+import { youtubeDescriptionCtaFor } from '../brand/cta.js';
 import { applyPlatformCta, SOCIAL_PLATFORM_CONFIG } from './platforms.js';
 import type {
   GeneratedSocialCopy,
@@ -34,6 +34,8 @@ export function composeSocialContent(
   input: {
     copy: GeneratedSocialCopy;
     episode: SocialComposeEpisode;
+    /** Attributed landing URL used only for the final branded publish copy. */
+    destinationUrl?: string;
     /**
      * `omit` returns the same mapping before platform branding — what telemetry
      * records as the generated copy.
@@ -51,13 +53,18 @@ export function composeSocialContent(
       platform,
       content.body,
       input.episode.languageCode ?? 'zh-Hant',
+      input.destinationUrl,
     ),
   };
 }
 
 function composePlatformContent(
   platform: SocialPlatform,
-  input: { copy: GeneratedSocialCopy; episode: SocialComposeEpisode },
+  input: {
+    copy: GeneratedSocialCopy;
+    episode: SocialComposeEpisode;
+    destinationUrl?: string;
+  },
 ): ComposedSocialContent {
   switch (platform) {
     case 'x': {
@@ -91,7 +98,7 @@ function composePlatformContent(
       const youtube = requireCopyBlock(input.copy.youtube, 'youtube');
       return {
         title: youtube.title,
-        body: composeYouTubeDescription(input.episode),
+        body: composeYouTubeDescription(input.episode, input.destinationUrl),
         hashtags: [],
         hookType: youtube.hookType,
       };
@@ -110,6 +117,7 @@ function requireCopyBlock<T>(block: T | undefined, name: string): T {
 // copy generation and packaging experiments.
 export function composeYouTubeDescription(
   episode: SocialComposeEpisode,
+  destinationUrl?: string,
 ): string {
   const summary = (episode.description?.trim() || episode.summary.trim()).slice(
     0,
@@ -120,7 +128,7 @@ export function composeYouTubeDescription(
   // still catches it.
   const branded =
     summary && SOCIAL_PLATFORM_CONFIG.youtube.ctaMode === 'brand'
-      ? `${summary}\n\n${YOUTUBE_DESCRIPTION_CTA_BY_LANGUAGE[episode.languageCode ?? 'zh-Hant']}`
+      ? `${summary}\n\n${youtubeDescriptionCtaFor(episode.languageCode ?? 'zh-Hant', destinationUrl)}`
       : summary;
   return branded;
 }

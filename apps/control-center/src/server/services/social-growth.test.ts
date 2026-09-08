@@ -1,4 +1,4 @@
-import type { createClient, SupabaseClient } from '@supabase/supabase-js';
+import type { createClient } from '@supabase/supabase-js';
 import { describe, expect, it, vi } from 'vitest';
 
 import { readControlCenterConfig } from '../config/env.js';
@@ -13,6 +13,7 @@ const CONFIGURED = readControlCenterConfig({
 interface QueryResult {
   data: unknown[] | null;
   error: unknown;
+  count?: number | null;
 }
 
 function clientFactory(input: {
@@ -20,41 +21,103 @@ function clientFactory(input: {
   posts?: QueryResult;
   standardized?: QueryResult;
   observations?: QueryResult;
+  waitlistMetrics?: QueryResult;
+  waitlist?: QueryResult;
+  jobs?: QueryResult;
   calls?: string[];
 }) {
-  const empty = { data: [], error: null } satisfies QueryResult;
+  const empty = { data: [], error: null, count: 0 } satisfies QueryResult;
   let metricsCall = 0;
-  return (() =>
-    ({
-      from: (table: string) => {
-        const result =
-          table === 'social_account_snapshots'
-            ? (input.snapshots ?? empty)
-            : table === 'social_posts'
-              ? (input.posts ?? empty)
-              : metricsCall++ === 0
-                ? (input.standardized ?? empty)
-                : (input.observations ?? empty);
-        const chain = {
-          select: () => chain,
-          gte: () => chain,
-          not: (column: string, operator: string, value: unknown) => {
-            input.calls?.push(`not:${column}:${operator}:${String(value)}`);
-            return chain;
-          },
-          eq: (column: string, value: unknown) => {
-            input.calls?.push(`eq:${column}:${String(value)}`);
-            return chain;
-          },
-          order: () => chain,
-          limit: (value: number) => {
-            input.calls?.push(`limit:${table}:${value}`);
-            return Promise.resolve(result);
-          },
+  const client = {
+    from: (table: string) => {
+      let lower: string | undefined;
+      let upper: string | undefined;
+      let head = false;
+      let members: { column: string; values: unknown[] } | undefined;
+      const result =
+        table === 'social_account_snapshots'
+          ? (input.snapshots ?? empty)
+          : table === 'social_posts'
+            ? (input.posts ?? empty)
+            : table === 'waitlist_signups'
+              ? (input.waitlist ?? empty)
+              : table === 'social_publish_jobs'
+                ? (input.jobs ?? empty)
+                : metricsCall++ === 0
+                  ? (input.standardized ?? empty)
+                  : (input.observations ?? empty);
+      const chain = {
+        select: (_columns: string, options?: { head?: boolean }) => {
+          head = options?.head ?? false;
+          return chain;
+        },
+        gte: (_column: string, value: string) => {
+          lower = value;
+          return chain;
+        },
+        lte: (_column: string, value: string) => {
+          upper = value;
+          return chain;
+        },
+        not: (column: string, operator: string, value: unknown) => {
+          input.calls?.push(`not:${column}:${operator}:${String(value)}`);
+          return chain;
+        },
+        eq: (column: string, value: unknown) => {
+          input.calls?.push(`eq:${column}:${String(value)}`);
+          return chain;
+        },
+        in: (column: string, value: unknown[]) => {
+          members = { column, values: value };
+          input.calls?.push(`in:${column}:${value.join(',')}`);
+          return chain;
+        },
+        order: () => chain,
+        then: (resolve: (value: QueryResult) => unknown) =>
+          Promise.resolve(evaluate()).then(resolve),
+        range: (from: number, to: number) => {
+          input.calls?.push(`range:${table}:${from}:${to}`);
+          const evaluated =
+            table === 'social_post_metrics'
+              ? { ...(input.waitlistMetrics ?? input.standardized ?? empty) }
+              : evaluate();
+          return Promise.resolve({
+            ...evaluated,
+            data: evaluated.data?.slice(from, to + 1) ?? null,
+          });
+        },
+        limit: (value: number) => {
+          input.calls?.push(`limit:${table}:${value}`);
+          return Promise.resolve(result);
+        },
+      };
+      function evaluate(): QueryResult {
+        let rows = result.data as Record<string, unknown>[] | null;
+        if (rows && table === 'waitlist_signups') {
+          rows = rows.filter(
+            (row) =>
+              (!lower || String(row['created_at']) >= lower) &&
+              (!upper || String(row['created_at']) <= upper),
+          );
+        }
+        if (rows && members) {
+          rows = rows.filter((row) =>
+            members!.values.includes(row[members!.column]),
+          );
+        }
+        return {
+          ...result,
+          data: head ? null : rows,
+          count: rows?.length ?? null,
         };
-        return chain;
-      },
-    }) as unknown as SupabaseClient) as unknown as typeof createClient;
+      }
+      return chain;
+    },
+  };
+  return (() => ({
+    ...client,
+    schema: () => client,
+  })) as unknown as typeof createClient;
 }
 
 describe('loadSocialGrowth', () => {
@@ -69,6 +132,7 @@ describe('loadSocialGrowth', () => {
     });
 
     expect(response.status).toBe('unconfigured');
+    expect(response.waitlist.status).toBe('unavailable');
     expect(createSupabaseClient).not.toHaveBeenCalled();
   });
 
@@ -141,6 +205,7 @@ describe('loadSocialGrowth', () => {
     });
 
     expect(response.status).toBe('ok');
+    expect(response.waitlist).toMatchObject({ status: 'ok', total: 0 });
     expect(
       response.platforms.find((row) => row.platform === 'x'),
     ).toMatchObject({
@@ -176,7 +241,256 @@ describe('loadSocialGrowth', () => {
     );
   });
 
-  it('fails closed when any bounded query fails', async () => {
+  it('attributes waitlist customers to the canonical social release and 24h views', async () => {
+    const calls: string[] = [];
+    const response = await loadSocialGrowth({
+      config: CONFIGURED,
+      now: NOW,
+      createSupabaseClient: clientFactory({
+        calls,
+        standardized: {
+          data: [metric('social-post-1', 24, 1000)],
+          error: null,
+        },
+        waitlist: {
+          count: 3,
+          data: [
+            {
+              id: 'signup-1',
+              created_at: '2026-08-30T10:00:00.000Z',
+              social_publish_job_id: 'job-1',
+            },
+            {
+              id: 'signup-2',
+              created_at: '2026-08-29T10:00:00.000Z',
+              social_publish_job_id: 'job-1',
+            },
+            {
+              id: 'signup-3',
+              created_at: '2026-08-29T09:00:00.000Z',
+              social_publish_job_id: null,
+            },
+          ],
+          error: null,
+        },
+        jobs: {
+          data: [
+            {
+              id: 'job-1',
+              episode_id: '72f1ee5b-3f57-4e32-b7ad-fe57666985d6',
+              platform: 'youtube',
+              language_code: 'en',
+              social_post_id: 'social-post-1',
+            },
+          ],
+          error: null,
+        },
+      }),
+    });
+
+    expect(response.waitlist).toMatchObject({
+      status: 'ok',
+      total: 3,
+      signups7d: 3,
+      attributedSocial7d: 2,
+      directOrUnknown7d: 1,
+      conversions: [
+        {
+          episodeId: '72f1ee5b-3f57-4e32-b7ad-fe57666985d6',
+          platform: 'youtube',
+          languageCode: 'en',
+          signups: 2,
+          views24h: 1000,
+          signupRate: 0.002,
+        },
+      ],
+    });
+    expect(calls).toContain('in:id:job-1');
+  });
+
+  it('keeps core growth available when waitlist telemetry is unavailable', async () => {
+    const response = await loadSocialGrowth({
+      config: CONFIGURED,
+      now: NOW,
+      createSupabaseClient: clientFactory({
+        waitlist: { data: null, error: new Error('waitlist unavailable') },
+      }),
+    });
+
+    expect(response.status).toBe('ok');
+    expect(response.waitlist).toMatchObject({
+      status: 'unavailable',
+      message: 'waitlist unavailable',
+    });
+  });
+
+  it('reads beyond 2,000 signups and excludes records after the snapshot', async () => {
+    const calls: string[] = [];
+    const rows = Array.from({ length: 2001 }, (_, i) => ({
+      id: `signup-${i}`,
+      created_at: NOW.toISOString(),
+      social_publish_job_id: null,
+    }));
+    rows.push({
+      id: 'future',
+      created_at: '2026-09-01T00:00:00.000Z',
+      social_publish_job_id: null,
+    });
+    const response = await loadSocialGrowth({
+      config: CONFIGURED,
+      now: NOW,
+      createSupabaseClient: clientFactory({
+        calls,
+        waitlist: { data: rows, error: null },
+      }),
+    });
+    expect(response.waitlist).toMatchObject({
+      status: 'ok',
+      total: 2001,
+      signups7d: 2001,
+      signups30d: 2001,
+      directOrUnknown7d: 2001,
+    });
+    expect(calls).toContain('range:waitlist_signups:2000:2499');
+  });
+
+  it('includes exact 7d and 30d boundaries', async () => {
+    const response = await loadSocialGrowth({
+      config: CONFIGURED,
+      now: NOW,
+      createSupabaseClient: clientFactory({
+        waitlist: {
+          error: null,
+          data: [
+            {
+              id: '7d',
+              created_at: '2026-08-23T12:00:00.000Z',
+              social_publish_job_id: null,
+            },
+            {
+              id: '30d',
+              created_at: '2026-07-31T12:00:00.000Z',
+              social_publish_job_id: null,
+            },
+            {
+              id: 'old',
+              created_at: '2026-07-31T11:59:59.999Z',
+              social_publish_job_id: null,
+            },
+          ],
+        },
+      }),
+    });
+    expect(response.waitlist).toMatchObject({
+      total: 3,
+      signups7d: 1,
+      signups30d: 2,
+    });
+  });
+
+  it('does not publish partial or overlapping pagination as exact counts', async () => {
+    const row = {
+      id: 'same-id',
+      created_at: NOW.toISOString(),
+      social_publish_job_id: null,
+    };
+    const response = await loadSocialGrowth({
+      config: CONFIGURED,
+      now: NOW,
+      createSupabaseClient: clientFactory({
+        waitlist: { data: [row, row], error: null },
+      }),
+    });
+    expect(response.waitlist).toMatchObject({
+      status: 'unavailable',
+      total: null,
+      signups7d: null,
+    });
+  });
+
+  it.each([null, 0])('does not invent a rate for %s views', async (views) => {
+    const response = await loadSocialGrowth({
+      config: CONFIGURED,
+      now: NOW,
+      createSupabaseClient: clientFactory({
+        waitlist: {
+          error: null,
+          data: [
+            {
+              id: 's',
+              created_at: NOW.toISOString(),
+              social_publish_job_id: 'j',
+            },
+          ],
+        },
+        jobs: {
+          error: null,
+          data: [
+            {
+              id: 'j',
+              episode_id: 'e',
+              platform: 'x',
+              language_code: 'en',
+              social_post_id: 'p',
+            },
+          ],
+        },
+        waitlistMetrics: {
+          error: null,
+          data: views === null ? [] : [metric('p', 24, views)],
+        },
+      }),
+    });
+    expect(response.waitlist.conversions[0]).toMatchObject({
+      signups: 1,
+      views24h: views,
+      signupRate: null,
+    });
+  });
+
+  it('keeps persisted signups when social metrics fail', async () => {
+    const response = await loadSocialGrowth({
+      config: CONFIGURED,
+      now: NOW,
+      createSupabaseClient: clientFactory({
+        waitlist: {
+          error: null,
+          data: [
+            {
+              id: 's',
+              created_at: NOW.toISOString(),
+              social_publish_job_id: 'j',
+            },
+          ],
+        },
+        jobs: {
+          error: null,
+          data: [
+            {
+              id: 'j',
+              episode_id: 'e',
+              platform: 'x',
+              language_code: 'en',
+              social_post_id: 'p',
+            },
+          ],
+        },
+        waitlistMetrics: { error: new Error('metrics down'), data: null },
+        posts: { error: new Error('posts down'), data: null },
+      }),
+    });
+    expect(response.status).toBe('error');
+    expect(response.waitlist).toMatchObject({
+      status: 'ok',
+      total: 1,
+      attributedSocial7d: 1,
+    });
+    expect(response.waitlist.conversions[0]).toMatchObject({
+      signups: 1,
+      views24h: null,
+    });
+  });
+  it('fails closed when any bounded core query fails', async () => {
     const response = await loadSocialGrowth({
       config: CONFIGURED,
       now: NOW,
@@ -191,6 +505,7 @@ describe('loadSocialGrowth', () => {
       platforms: [],
       experiments: [],
       attribution: [],
+      waitlist: { status: 'ok', total: 0 },
     });
   });
 });

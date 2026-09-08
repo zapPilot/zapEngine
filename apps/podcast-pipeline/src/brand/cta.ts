@@ -5,6 +5,15 @@ export const BRAND_CTA_VERSION = 'v1' as const;
 export const ZAP_PILOT_SITE_URL = 'https://www.zap-pilot.org' as const;
 export const ZAP_PILOT_SITE_LABEL = 'www.zap-pilot.org' as const;
 
+const SOCIAL_BRAND_CTA_PREFIX_BY_LANGUAGE: Record<
+  LanguageClassroomLanguageCode,
+  string
+> = {
+  'zh-Hant': '官網',
+  ja: '公式サイト',
+  en: 'Website',
+};
+
 // Two CJK characters + one space cost five weighted X units. Together with the
 // two separator newlines and X's fixed 23-unit URL weight, this keeps the old
 // 250-unit generated-copy budget intact while making the destination explicit.
@@ -17,16 +26,13 @@ export const SOCIAL_BRAND_CTA_BY_LANGUAGE: Record<
   en: `Website ${ZAP_PILOT_SITE_URL}`,
 };
 
-// YouTube descriptions have no character pressure, so they close with a full
-// sentence instead of the short suffix above. Both strings live here so the
-// destination can never drift between surfaces.
-export const YOUTUBE_DESCRIPTION_CTA_BY_LANGUAGE: Record<
+const YOUTUBE_DESCRIPTION_CTA_PREFIX_BY_LANGUAGE: Record<
   LanguageClassroomLanguageCode,
   string
 > = {
-  'zh-Hant': `更多市場洞察與工具：${ZAP_PILOT_SITE_URL}`,
-  ja: `市場インサイトとツールをもっと：${ZAP_PILOT_SITE_URL}`,
-  en: `More market insights and tools: ${ZAP_PILOT_SITE_URL}`,
+  'zh-Hant': '更多市場洞察與工具：',
+  ja: '市場インサイトとツールをもっと：',
+  en: 'More market insights and tools: ',
 };
 
 const VIDEO_CTA_TITLES: Record<LanguageClassroomLanguageCode, string> = {
@@ -35,13 +41,34 @@ const VIDEO_CTA_TITLES: Record<LanguageClassroomLanguageCode, string> = {
   en: 'MORE MARKET INSIGHTS & TOOLS',
 };
 
+export function socialLandingUrl(input: {
+  episodeId: string;
+  platform: string;
+  languageCode: string;
+}): string {
+  const url = new URL(`${ZAP_PILOT_SITE_URL}/`);
+  url.searchParams.set('utm_source', input.platform);
+  url.searchParams.set('utm_medium', 'social');
+  url.searchParams.set('utm_campaign', input.episodeId);
+  url.searchParams.set('utm_content', input.languageCode);
+  return url.toString();
+}
+
 export function appendBrandCta(
   text: string,
   languageCode: LanguageClassroomLanguageCode = 'zh-Hant',
+  destinationUrl: string = ZAP_PILOT_SITE_URL,
 ): string {
   const body = text.trim();
-  const cta = SOCIAL_BRAND_CTA_BY_LANGUAGE[languageCode];
+  const cta = `${SOCIAL_BRAND_CTA_PREFIX_BY_LANGUAGE[languageCode]} ${destinationUrl}`;
   return body ? `${body}\n\n${cta}` : cta;
+}
+
+export function youtubeDescriptionCtaFor(
+  languageCode: LanguageClassroomLanguageCode,
+  destinationUrl: string = ZAP_PILOT_SITE_URL,
+): string {
+  return `${YOUTUBE_DESCRIPTION_CTA_PREFIX_BY_LANGUAGE[languageCode]}${destinationUrl}`;
 }
 
 export function videoBrandCtaFor(languageCode: string): {

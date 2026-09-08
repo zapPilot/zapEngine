@@ -22,6 +22,8 @@ interface SocialPublishJobsInput {
   thumbnailUrl?: string;
   videoPath?: string;
   xVideoPath?: string;
+  /** Per-platform landing destinations carrying durable release attribution. */
+  destinationUrlByPlatform?: Partial<Record<SocialPlatform, string>>;
   /** Break-glass override for `social:publish`; the daemon always publishes public. */
   youtubePrivacyStatus?: YouTubePrivacyStatus;
   onLog?: (message: string) => void;
@@ -51,10 +53,23 @@ function createPlatformJob(
   }
 }
 
+function composeForPublish(
+  platform: SocialPlatform,
+  input: SocialPublishJobsInput,
+) {
+  return composeSocialContent(platform, {
+    copy: input.copy,
+    episode: input.episode,
+    ...(input.destinationUrlByPlatform?.[platform]
+      ? { destinationUrl: input.destinationUrlByPlatform[platform] }
+      : {}),
+  });
+}
+
 function createXJob(input: SocialPublishJobsInput): SocialPublishJob {
   const platform = 'x';
   const videoPath = requireVideoPath(platform, input);
-  const { body } = composeSocialContent(platform, input);
+  const { body } = composeForPublish(platform, input);
   const publisher = createPlaywrightXPublisher({ onLog: input.onLog });
   return {
     platform,
@@ -64,7 +79,7 @@ function createXJob(input: SocialPublishJobsInput): SocialPublishJob {
 
 function createThreadsJob(input: SocialPublishJobsInput): SocialPublishJob {
   const platform = 'threads';
-  const { body } = composeSocialContent(platform, input);
+  const { body } = composeForPublish(platform, input);
   const publisher = createThreadsPublisher({
     onLog: input.onLog,
     ...(platformVideoMode(platform) === 'teaser'
@@ -94,7 +109,7 @@ function createYouTubeJob(input: SocialPublishJobsInput): SocialPublishJob {
       'YouTube publishing requires the canonical video thumbnail.',
     );
   }
-  const { title, body } = composeSocialContent(platform, input);
+  const { title, body } = composeForPublish(platform, input);
   if (!title?.trim() || !body.trim()) {
     throw new Error(
       'YouTube publishing requires title and description metadata.',
@@ -118,7 +133,7 @@ function createYouTubeJob(input: SocialPublishJobsInput): SocialPublishJob {
 function createRednoteJob(input: SocialPublishJobsInput): SocialPublishJob {
   const platform = 'rednote';
   const videoPath = requireVideoPath(platform, input);
-  const { title, hashtags } = composeSocialContent(platform, input);
+  const { title, hashtags } = composeForPublish(platform, input);
   if (!title) {
     throw new Error('Rednote publishing requires a generated title.');
   }

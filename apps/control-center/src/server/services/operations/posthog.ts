@@ -19,31 +19,51 @@ const POSTHOG_APP = 'https://us.posthog.com/project';
 const ORIGIN = { source: 'posthog', domain: 'analytics' } as const;
 
 /**
- * One scan of the 30-day window answers both columns, because the 7-day figure
- * is a filtered aggregate over the same rows. Two queries would bill twice for
- * the same scan and could straddle a day boundary, leaving the smaller window
- * describing a different population than the larger one contains.
+ * One 30-day scan feeds both reliability and product-demand reporting. The
+ * filtered aggregates deliberately count unique people, not event volume, so
+ * repeated page views/dead clicks do not masquerade as more demand.
  */
 const AUDIENCE_QUERY = `
 SELECT
   uniqIf(person_id, timestamp >= now() - INTERVAL 7 DAY) AS unique_users_7d,
-  uniq(person_id) AS unique_users_30d
+  uniq(person_id) AS unique_users_30d,
+  uniqIf(person_id, timestamp >= now() - INTERVAL 7 DAY AND event = '$pageview' AND properties.surface = 'landing') AS landing_visitors_7d,
+  uniqIf(person_id, event = '$pageview' AND properties.surface = 'landing') AS landing_visitors_30d,
+  uniqIf(person_id, timestamp >= now() - INTERVAL 7 DAY AND event = 'waitlist_cta_clicked' AND properties.surface = 'landing') AS cta_users_7d,
+  uniqIf(person_id, event = 'waitlist_cta_clicked' AND properties.surface = 'landing') AS cta_users_30d,
+  uniqIf(person_id, timestamp >= now() - INTERVAL 7 DAY AND event = '$pageview' AND properties.surface = 'app') AS app_visitors_7d,
+  uniqIf(person_id, event = '$pageview' AND properties.surface = 'app') AS app_visitors_30d,
+  uniqIf(person_id, timestamp >= now() - INTERVAL 7 DAY AND event = 'wallet_connected') AS wallet_connected_users_7d,
+  uniqIf(person_id, event = 'wallet_connected') AS wallet_connected_users_30d,
+  uniqIf(person_id, timestamp >= now() - INTERVAL 7 DAY AND event = '$dead_click' AND properties.surface = 'landing') AS landing_dead_click_users_7d
 FROM events
 WHERE timestamp >= now() - INTERVAL 30 DAY
 `.trim();
 
 const envelopeSchema = z.object({ results: z.array(z.unknown()) });
 
-/**
- * HogQL is inconsistent about whether an aggregate comes back as a JSON number
- * or as a string, and it varies by column type rather than by query, so both
- * columns are coerced instead of trusting either shape.
- */
-const rowSchema = z.tuple([z.coerce.number(), z.coerce.number()]);
+/** HogQL aggregate columns can arrive as JSON numbers or numeric strings. */
+const rowSchema = z
+  .array(
+    z
+      .union([z.number(), z.string().regex(/^\d+$/)])
+      .transform(Number)
+      .pipe(z.number().int().nonnegative()),
+  )
+  .length(11);
 
 interface AudienceReading {
   uniqueUsers7d: number;
   uniqueUsers30d: number;
+  landingVisitors7d: number;
+  landingVisitors30d: number;
+  ctaUsers7d: number;
+  ctaUsers30d: number;
+  appVisitors7d: number;
+  appVisitors30d: number;
+  walletConnectedUsers7d: number;
+  walletConnectedUsers30d: number;
+  landingDeadClickUsers7d: number;
 }
 
 export async function collectPosthogSignals(input: {
@@ -66,11 +86,8 @@ export async function collectPosthogSignals(input: {
     ];
   }
 
-  // Degraded is the ceiling for this adapter, and `collectOrFail` is degraded
-  // by construction. PostHog is a reporting integration: losing it costs a
-  // number on a dashboard, not a user. Escalating a missing analytics reading
-  // to `critical` is how an operator learns that red on this page can be
-  // ignored, which is far more expensive than the gap.
+  // Degraded is the ceiling for this adapter. PostHog is reporting telemetry:
+  // losing it removes insight from the dashboard but does not break users.
   return collectOrFail(ORIGIN, input.now, async () => {
     const audience = await runAudienceQuery(
       apiKey,
@@ -87,10 +104,7 @@ export async function collectPosthogSignals(input: {
         detail:
           `${audience.uniqueUsers7d} unique users in the last 7 days, ` +
           `${audience.uniqueUsers30d} in the last 30 days`,
-        evidence: {
-          uniqueUsers7d: audience.uniqueUsers7d,
-          uniqueUsers30d: audience.uniqueUsers30d,
-        },
+        evidence: { ...audience },
         observedAt: input.now,
         url: `${POSTHOG_APP}/${encodeURIComponent(projectId)}`,
       }),
@@ -112,15 +126,24 @@ async function runAudienceQuery(
     body: { query: { kind: 'HogQLQuery', query: AUDIENCE_QUERY } },
   });
 
-  // The row is validated separately from the envelope so a shape change in the
-  // columns is reported as a lost reading rather than thrown out of zod, and
-  // so an aggregate that returned no rows at all lands on the same path.
   const [first] = envelope.results;
   const row = rowSchema.safeParse(first);
   if (!row.success) {
     throw new Error('PostHog audience query returned no usable row');
   }
 
-  const [uniqueUsers7d, uniqueUsers30d] = row.data;
-  return { uniqueUsers7d, uniqueUsers30d };
+  const values = row.data;
+  return {
+    uniqueUsers7d: values[0]!,
+    uniqueUsers30d: values[1]!,
+    landingVisitors7d: values[2]!,
+    landingVisitors30d: values[3]!,
+    ctaUsers7d: values[4]!,
+    ctaUsers30d: values[5]!,
+    appVisitors7d: values[6]!,
+    appVisitors30d: values[7]!,
+    walletConnectedUsers7d: values[8]!,
+    walletConnectedUsers30d: values[9]!,
+    landingDeadClickUsers7d: values[10]!,
+  };
 }

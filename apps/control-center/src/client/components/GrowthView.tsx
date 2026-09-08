@@ -22,6 +22,8 @@ export function GrowthView(props: {
   statements?: StatementsResponse | null;
 }) {
   const data = props.data;
+  const growth = props.growth;
+  const waitlist = growth?.waitlist ?? null;
   const followerTotal = sumKnown(
     data?.accounts.map((account) => account.followers) ?? [],
   );
@@ -80,6 +82,94 @@ export function GrowthView(props: {
               />
             ))}
           </div>
+        </section>
+
+        <section className="growth-section growth-summary-section">
+          <div className="section-heading">
+            <h2>Waitlist conversion</h2>
+          </div>
+          <p className="decision-note">
+            Cumulative attributed signups / 24h views compares different time
+            windows; it is not an ordered funnel conversion.
+          </p>
+          {waitlist?.status === 'ok' ? (
+            <>
+              <div className="audience-grid">
+                <article className="audience-card">
+                  <div>
+                    <strong>Total waitlist</strong>
+                    <span>{integer(waitlist.total)} signups</span>
+                    <small>Durable first-touch records</small>
+                  </div>
+                </article>
+                <article className="audience-card">
+                  <div>
+                    <strong>Last 7 days</strong>
+                    <span>{integer(waitlist.signups7d)} signups</span>
+                    <small>New prospective users</small>
+                  </div>
+                </article>
+                <article className="audience-card">
+                  <div>
+                    <strong>From social</strong>
+                    <span>{integer(waitlist.attributedSocial7d)} signups</span>
+                    <small>Resolved to a published release</small>
+                  </div>
+                </article>
+                <article className="audience-card">
+                  <div>
+                    <strong>Direct / unknown</strong>
+                    <span>{integer(waitlist.directOrUnknown7d)} signups</span>
+                    <small>7d without a canonical social release</small>
+                  </div>
+                </article>
+              </div>
+              {waitlist.message ? (
+                <p className="empty-inline">{waitlist.message}</p>
+              ) : null}
+              <div className="table-wrap">
+                <table className="data-table episode-table">
+                  <thead>
+                    <tr>
+                      <th>Content</th>
+                      <th>Platform</th>
+                      <th>Language</th>
+                      <th>24h views</th>
+                      <th>Cumulative signups</th>
+                      <th>Signups / 24h views</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {waitlist.conversions.map((conversion) => (
+                      <tr key={conversion.socialPublishJobId}>
+                        <td className="cell-title">
+                          {episodeTitle(data, conversion.episodeId)}
+                        </td>
+                        <td>
+                          <PlatformIdentity platform={conversion.platform} />
+                        </td>
+                        <td>{languageCodeLabel(conversion.languageCode)}</td>
+                        <td className="mono">{integer(conversion.views24h)}</td>
+                        <td className="mono">{integer(conversion.signups)}</td>
+                        <td className="mono">
+                          {percent(conversion.signupRate)}
+                        </td>
+                      </tr>
+                    ))}
+                    {waitlist.conversions.length === 0 ? (
+                      <tr>
+                        <td colSpan={6}>No attributed waitlist signups yet.</td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          ) : (
+            <div className="empty-inline">
+              {waitlist?.message ?? 'Waitlist telemetry is not available yet.'}
+            </div>
+          )}
         </section>
 
         <section className="growth-section growth-summary-section">
@@ -555,6 +645,16 @@ function languageCodeLabel(code: string): string {
     'zh-Hans': '🇨🇳',
   };
   return `${flags[code] ?? '🌐'} ${code}`;
+}
+
+function episodeTitle(
+  data: SocialPerformanceResponse | null,
+  episodeId: string,
+): string {
+  return (
+    data?.episodes.find((episode) => episode.episodeId === episodeId)?.title ??
+    episodeId.slice(0, 8)
+  );
 }
 
 function sumKnown(values: Array<number | null>): number | null {

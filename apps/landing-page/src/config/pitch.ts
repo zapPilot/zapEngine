@@ -4,7 +4,7 @@ import { MESSAGES } from './messages';
 export const PITCH_CTAS = {
   bookCall: LINKS.support.contactUs,
   emailFounder: LINKS.support.contactUs,
-  liveApp: LINKS.app,
+  waitlist: '/#waitlist',
 } as const;
 
 export const PITCH_META = {
@@ -109,9 +109,8 @@ export const PITCH_ASK = {
     { label: 'Book an intro call', href: PITCH_CTAS.bookCall, primary: true },
     { label: 'Email founder', href: PITCH_CTAS.emailFounder },
     {
-      label: 'See the live product',
-      href: PITCH_CTAS.liveApp,
-      external: true,
+      label: 'Join the waitlist',
+      href: PITCH_CTAS.waitlist,
     },
   ],
 } as const;

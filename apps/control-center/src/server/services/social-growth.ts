@@ -1,5 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 
+import { loadWaitlistGrowth } from './waitlist-growth.js';
+import { unavailableWaitlist } from '../../shared/waitlist-growth.js';
 import type {
   SocialExperimentArm,
   SocialExperimentStatus,
@@ -68,14 +70,16 @@ export async function loadSocialGrowth(input: {
       platforms: [],
       experiments: [],
       attribution: [],
+      waitlist: unavailableWaitlist(message),
     }) satisfies SocialGrowthResponse;
   const { SUPABASE_URL: url, SUPABASE_SERVICE_ROLE_KEY: key } = input.config;
   if (!url || !key) {
     return empty('unconfigured', 'Supabase is not connected');
   }
 
+  const create = input.createSupabaseClient ?? createClient;
+  const waitlist = loadWaitlistGrowth({ create, url, key, now: input.now });
   try {
-    const create = input.createSupabaseClient ?? createClient;
     const client = create(url, key, {
       db: { schema: input.config.SUPABASE_DB_SCHEMA },
       auth: { autoRefreshToken: false, persistSession: false },
@@ -168,12 +172,16 @@ export async function loadSocialGrowth(input: {
         exact,
       }),
       attribution: recentIntervals(attribution),
+      waitlist: await waitlist,
     };
   } catch (error) {
-    return empty(
-      'error',
-      error instanceof Error ? error.message : 'Social growth query failed',
-    );
+    return {
+      ...empty(
+        'error',
+        error instanceof Error ? error.message : 'Social growth query failed',
+      ),
+      waitlist: await waitlist,
+    };
   }
 }
 

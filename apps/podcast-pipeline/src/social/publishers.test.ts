@@ -32,7 +32,9 @@ vi.mock('./threads-video.js', () => ({
   prepareThreadsVideoUrl: mocks.prepareThreadsVideoUrl,
 }));
 
+import { socialLandingUrl } from '../brand/cta.js';
 import { createSocialPublishJobs } from './publishers.js';
+import { buildSocialPostRecord } from './record.js';
 import type { GeneratedSocialCopy, SocialEpisode } from './types.js';
 
 const VIDEO_URL = 'https://media.example.com/episode-1.mp4';
@@ -84,6 +86,69 @@ beforeEach(() => {
 });
 
 describe('createSocialPublishJobs', () => {
+  it.each(['x', 'threads', 'youtube', 'rednote'] as const)(
+    'records the exact attributed copy delivered to %s',
+    async (platform) => {
+      const destinationUrl = socialLandingUrl({
+        episodeId: 'episode-1',
+        platform,
+        languageCode: 'en',
+      });
+      const localized = { ...episode, languageCode: 'en' as const };
+      const attributedCopy = {
+        ...copy,
+        threads: { hookType: 'question' as const, text: '市場🙂'.repeat(150) },
+      };
+      const [job] = createSocialPublishJobs({
+        platforms: [platform],
+        copy: attributedCopy,
+        episode: localized,
+        videoUrl: VIDEO_URL,
+        thumbnailUrl: THUMBNAIL_URL,
+        videoPath: VIDEO_PATH,
+        xVideoPath: X_VIDEO_PATH,
+        destinationUrlByPlatform: { [platform]: destinationUrl },
+      });
+      if (platform === 'rednote')
+        mocks.publishRednote.mockResolvedValue({ ...PUBLISHED, body: '' });
+      const result = await job!.publish();
+      const record = buildSocialPostRecord({
+        episodeId: 'episode-1',
+        platform,
+        languageCode: 'en',
+        result,
+        snapshot: {
+          generated: attributedCopy,
+          published: attributedCopy,
+          model: 'test',
+        },
+        episode: localized,
+        videoDurationSeconds: 300,
+        destinationUrl,
+      });
+      if (platform === 'rednote') {
+        expect(record.publishedBody).toBe('');
+        expect(JSON.stringify(mocks.publishRednote.mock.calls)).not.toContain(
+          destinationUrl,
+        );
+      } else {
+        const publish = {
+          x: mocks.publishX,
+          threads: mocks.publishThreads,
+          youtube: mocks.publishYouTube,
+        }[platform];
+        const args = publish.mock.calls[0]![0];
+        expect(record.publishedBody).toBe(
+          platform === 'youtube' ? args.description : args.text,
+        );
+        expect(record.publishedBody).toContain(destinationUrl);
+        if (platform === 'threads')
+          expect(Array.from(record.publishedBody).length).toBeLessThanOrEqual(
+            500,
+          );
+      }
+    },
+  );
   it('builds Threads and X jobs with their native video transports', async () => {
     const jobs = createSocialPublishJobs({
       platforms: ['threads', 'x'],

@@ -24,17 +24,12 @@ describe('PitchAskSlide', () => {
     expect(primary).toHaveClass('pitch-ask-cta--primary');
   });
 
-  it('opens external CTAs in a new tab with safe rel attrs', () => {
+  it('sends prospective users back to the landing waitlist', () => {
     render(<PitchAskSlide />);
-    const externalCta = PITCH_ASK.ctas.find(
-      (cta) => 'external' in cta && cta.external === true,
-    );
-    if (externalCta === undefined) {
-      throw new Error('Expected one external CTA in PITCH_ASK');
-    }
-    const link = screen.getByRole('link', { name: externalCta.label });
-    expect(link).toHaveAttribute('target', '_blank');
-    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    const link = screen.getByRole('link', { name: 'Join the waitlist' });
+    expect(link).toHaveAttribute('href', '/#waitlist');
+    expect(link).not.toHaveAttribute('target');
+    expect(document.querySelector('a[href*="v2.zap-pilot.org"]')).toBeNull();
   });
 
   it('keeps internal CTAs in the same tab', () => {

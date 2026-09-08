@@ -17,7 +17,7 @@ export function ClosingCta() {
         <div className="zp-closing-ctas">
           {/* jscpd:ignore-start — CTA button pair, intentionally consistent styling across landing sections */}
           <AppCtaLink className="zp-btn zp-btn-primary" location="closing">
-            Open the app <span aria-hidden>→</span>
+            Join waitlist <span aria-hidden>→</span>
           </AppCtaLink>
           <a
             className="zp-btn zp-btn-ghost"

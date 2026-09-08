@@ -1,3 +1,4 @@
+import type { SocialWaitlistSummary } from './waitlist-growth.js';
 import type {
   CostProvider,
   CostSnapshot,
@@ -235,6 +236,7 @@ export interface SocialGrowthInterval {
 }
 
 export interface SocialGrowthResponse {
+  waitlist: SocialWaitlistSummary;
   status: ProviderStatus;
   message: string | null;
   generatedAt: string;

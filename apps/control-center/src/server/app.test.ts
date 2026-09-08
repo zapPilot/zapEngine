@@ -1,3 +1,4 @@
+import { unavailableWaitlist } from '../shared/waitlist-growth.js';
 import { describe, expect, it, vi } from 'vitest';
 
 import type {
@@ -97,6 +98,7 @@ const socialGrowth: SocialGrowthResponse = {
   message: null,
   platforms: [],
   experiments: [],
+  waitlist: unavailableWaitlist('Not collected'),
   attribution: [],
 };
 
