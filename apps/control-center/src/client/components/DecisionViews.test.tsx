@@ -294,15 +294,19 @@ describe('decision-first domain views', () => {
     );
 
     expect(screen.getByText('最新一集表現 · 24h')).toBeVisible();
-    expect(screen.getByText('繁體中文標題')).toBeVisible();
+    expect(
+      screen.getByText('繁體中文標題', { selector: '.panel-note' }),
+    ).toBeVisible();
     expect(screen.getByText('123 views')).toBeVisible();
     expect(screen.getByText('尚未取得')).toBeVisible();
-    expect(
-      screen.getByRole('link', { name: /X/ }),
-    ).toHaveAttribute('href', 'https://x.com/zap/status/1');
-    expect(
-      screen.getByRole('link', { name: /Rednote/ }),
-    ).toHaveAttribute('href', 'https://www.xiaohongshu.com/explore/note-1');
+    expect(screen.getByRole('link', { name: /X/ })).toHaveAttribute(
+      'href',
+      'https://x.com/zap/status/1',
+    );
+    expect(screen.getByRole('link', { name: /Rednote/ })).toHaveAttribute(
+      'href',
+      'https://www.xiaohongshu.com/explore/note-1',
+    );
   });
 
   it('shows only the flagged account by default, ranked ahead of AUM once expanded', () => {
