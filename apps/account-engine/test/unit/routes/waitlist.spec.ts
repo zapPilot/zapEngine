@@ -99,6 +99,37 @@ describe('waitlist routes', () => {
     );
   });
 
+  it('does not resolve incomplete social attribution to a canonical job', async () => {
+    const fixture = databaseFixture('forbidden-job');
+    const app = createWaitlistRoutes(fixture.databaseService);
+
+    const response = await app.request(
+      signupRequest(
+        {
+          email: 'partial-social@example.com',
+          utmSource: 'youtube',
+          utmMedium: 'social',
+          utmCampaign: 'not-an-episode-uuid',
+          utmContent: 'fr',
+        },
+        '203.0.113.10',
+      ),
+    );
+
+    expect(response.status).toBe(201);
+    expect(fixture.client.schema).not.toHaveBeenCalled();
+    expect(fixture.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        social_publish_job_id: null,
+        utm_source: 'youtube',
+        utm_medium: 'social',
+        utm_campaign: 'not-an-episode-uuid',
+        utm_content: 'fr',
+      }),
+      expect.any(Object),
+    );
+  });
+
   it('accepts honeypot submissions without writing them', async () => {
     const fixture = databaseFixture();
     const app = createWaitlistRoutes(fixture.databaseService);
