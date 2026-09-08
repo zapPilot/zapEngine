@@ -54,6 +54,13 @@
       "inputs": ["$TURBO_DEFAULT$", ".env*", "!**/*.md"],
       "env": ["EXPO_PUBLIC_*", "VITE_*"]
     },
+    "package": {
+      "dependsOn": ["^build", "@zapengine/app#build:web"],
+      "cache": false,
+      "outputs": ["dist/**"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*", "!**/*.md"],
+      "env": ["EXPO_PUBLIC_*", "VITE_*"]
+    },
     "codegen": {
       "inputs": ["$TURBO_DEFAULT$", "tokens.json", "!src/generated/**"],
       "outputs": ["dist/**", "src/generated/**"]
