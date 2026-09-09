@@ -4,10 +4,8 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type {
-  OperationsResponse,
-  SocialGrowthResponse,
-} from '../../shared/types.js';
+import type { SocialGrowthJourney } from '../../shared/waitlist-growth.js';
+import type { SocialGrowthResponse } from '../../shared/types.js';
 import { getJson } from '../api.js';
 import { GrowthJourneyPanel } from './GrowthJourneyPanel.js';
 
@@ -18,36 +16,20 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-const OPERATIONS = {
-  generatedAt: '2026-09-09T06:00:00.000Z',
-  status: 'healthy',
-  domains: [],
-  priorities: [],
-  signals: [
-    {
-      fingerprint: 'posthog:audience/project',
-      source: 'posthog',
-      domain: 'analytics',
-      status: 'healthy',
-      title: 'PostHog audience',
-      detail: null,
-      evidence: {
-        landingVisitors30d: 300,
-        ctaUsers30d: 12,
-        appVisitors30d: 55,
-        walletConnectedUsers30d: 21,
-        landingThreads30d: 210,
-        landingX30d: 40,
-        landingYoutube30d: 15,
-        landingRednote30d: 5,
-        landingDirect30d: 20,
-        landingOther30d: 10,
-      },
-      observedAt: '2026-09-09T06:00:00.000Z',
-      url: 'https://us.posthog.com/project/4242',
-    },
-  ],
-} satisfies OperationsResponse;
+const JOURNEY = {
+  status: 'ok',
+  message: null,
+  landingVisitors30d: 300,
+  ctaUsers30d: 12,
+  appVisitors30d: 55,
+  walletConnectedUsers30d: 21,
+  landingThreads30d: 210,
+  landingX30d: 40,
+  landingYoutube30d: 15,
+  landingRednote30d: 5,
+  landingDirect30d: 20,
+  landingOther30d: 10,
+} satisfies SocialGrowthJourney;
 
 const GROWTH = {
   status: 'ok',
@@ -70,7 +52,7 @@ const GROWTH = {
 
 describe('GrowthJourneyPanel', () => {
   it('keeps person flow and durable waitlist counts visibly separate', async () => {
-    vi.mocked(getJson).mockResolvedValue(OPERATIONS);
+    vi.mocked(getJson).mockResolvedValue(JOURNEY);
 
     render(<GrowthJourneyPanel growth={GROWTH} />);
 
@@ -84,7 +66,7 @@ describe('GrowthJourneyPanel', () => {
     expect(screen.getByText('PostHog · not identity-linked')).toBeVisible();
     expect(screen.getByText(/aggregate counts/i)).toBeVisible();
     expect(screen.getByText(/96% leave before waitlist CTA/i)).toBeVisible();
-    expect(getJson).toHaveBeenCalledWith('/api/operations');
+    expect(getJson).toHaveBeenCalledWith('/api/growth-journey');
   });
 
   it('degrades locally when PostHog cannot be read', async () => {
