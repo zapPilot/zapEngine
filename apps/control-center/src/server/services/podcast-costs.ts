@@ -76,6 +76,8 @@ const PAGE_SIZE = 500;
 const RUN_ID_CHUNK = 100;
 const USD_SCALE = 100_000_000;
 
+type PodcastCostClient = ReturnType<typeof createClient<any, any, any>>;
+
 export function createPodcastCostService(input: {
   config: ControlCenterConfig;
 }) {
@@ -165,7 +167,7 @@ export function createPodcastCostService(input: {
   };
 }
 
-async function loadRecentEpisodeIds(client: ReturnType<typeof createClient>) {
+async function loadRecentEpisodeIds(client: PodcastCostClient) {
   const ids: string[] = [];
   const seen = new Set<string>();
   for (let offset = 0; ids.length < EPISODE_LIMIT; offset += PAGE_SIZE) {
@@ -205,7 +207,7 @@ function requirePage<T>(data: T[] | null, error: unknown): T[] {
 }
 
 async function loadRunsForEpisodes(
-  client: ReturnType<typeof createClient>,
+  client: PodcastCostClient,
   episodeIds: string[],
 ): Promise<PipelineRunRow[]> {
   const rows: PipelineRunRow[] = [];
@@ -226,7 +228,7 @@ async function loadRunsForEpisodes(
 }
 
 async function loadStagesForRuns(
-  client: ReturnType<typeof createClient>,
+  client: PodcastCostClient,
   runIds: string[],
 ): Promise<PipelineStageRow[]> {
   const rows: PipelineStageRow[] = [];
@@ -469,15 +471,15 @@ export function summarizePodcastCosts(
     })
     .map((entry) => {
       const stripped: Record<string, unknown> = { ...entry };
-      delete stripped.totalCostUnits;
-      delete stripped.podcastCostUnits;
-      delete stripped.videoCostUnits;
-      delete stripped.failedAttemptCostUnits;
-      delete stripped.interruptedAttemptCostUnits;
-      delete stripped.confirmedDeploymentInterruptionCostUnits;
-      delete stripped.shutdownInterruptionCostUnits;
-      delete stripped.confirmedRetryWasteUnits;
-      delete stripped.lineageObserved;
+      delete stripped['totalCostUnits'];
+      delete stripped['podcastCostUnits'];
+      delete stripped['videoCostUnits'];
+      delete stripped['failedAttemptCostUnits'];
+      delete stripped['interruptedAttemptCostUnits'];
+      delete stripped['confirmedDeploymentInterruptionCostUnits'];
+      delete stripped['shutdownInterruptionCostUnits'];
+      delete stripped['confirmedRetryWasteUnits'];
+      delete stripped['lineageObserved'];
       return stripped as unknown as PodcastEpisodeCostEvidenceSummary;
     })
     .sort((left, right) => right.lastRunAt.localeCompare(left.lastRunAt));
