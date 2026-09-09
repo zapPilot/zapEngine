@@ -27,10 +27,12 @@ import { normalizedEntityText } from './storyboard/english-text.js';
  * subject's assets failed the whole episode when that subject had none. Here a
  * subject's relevance is guaranteed by Brave having answered its query, entity
  * mention is a ranking bonus rather than a required match, and running out of
- * budget or candidates degrades the images instead of throwing. The one hard
- * contradiction we reject is a candidate that explicitly names a different
- * known subject from this episode while naming none of the current subject's
- * entities.
+ * budget or candidates degrades the images instead of throwing. Cross-subject
+ * fallback is still allowed, but only when the Brave query that produced the
+ * donor image shares a concrete term with what the scene intended to search.
+ * The one hard candidate contradiction we reject is an image that explicitly
+ * names a different known subject from this episode while naming none of the
+ * current subject's entities.
  */
 export const MAX_PRIMARY_SUBJECT_SEARCHES = 5;
 export const MAX_TARGETED_SUBJECT_SEARCHES = 3;
@@ -55,6 +57,31 @@ export const IMAGE_SEARCH_BUDGET: ImageSearchBudget = {
 };
 
 const BRAVE_ORIGINS: readonly ImageCandidate['origin'][] = ['brave'];
+
+/** Query-shaping words carry almost no topic identity. Keeping them would make
+ * every cryptography result look compatible with every cryptography scene and
+ * reproduce the exact failure this guard exists for (for example a Peter Shor
+ * portrait filling a Bitcoin/BIP-32 scene because both requests are broadly
+ * about signatures). */
+const FALLBACK_QUERY_NOISE = new Set([
+  'based',
+  'company',
+  'crypto',
+  'cryptocurrency',
+  'cryptography',
+  'digital',
+  'image',
+  'images',
+  'lattice',
+  'organization',
+  'photo',
+  'scheme',
+  'signature',
+  'signatures',
+  'standard',
+  'standards',
+  'technology',
+]);
 
 /** Anchors whose most recognizable picture is a mark rather than a photograph.
  * The decorative filter drops anything spelling `logo`, which for these types
@@ -352,8 +379,11 @@ export function rankEntriesForScene(
 
 /**
  * The same score over the whole episode's untried images. A scene whose own
- * subject was never searched, or whose entries are spent, is illustrated from
- * here rather than failing — an imperfect image is a quality degradation.
+ * subject was never searched, or whose entries are spent, can still borrow from
+ * the episode pool, but only from a Brave request that overlaps the scene's own
+ * intended query/anchors. This keeps the resilient pool without letting a large
+ * unrelated result set (for example `Shor mathematician`) swamp a later Bitcoin
+ * or hardware-wallet scene merely because it has many unused photos.
  */
 export function rankFallbackEntries(
   pool: EpisodeImagePool,
@@ -365,6 +395,7 @@ export function rankFallbackEntries(
   return sortedByScore(
     untriedEntries(pool).filter(
       (entry) =>
+        fallbackEntryMatchesSceneQuery(entry, scene) &&
         !candidateExplicitlyNamesAnotherSubject(pool, entry, subjectKey),
     ),
     (entry) =>
@@ -372,6 +403,26 @@ export function rankFallbackEntries(
       SUBJECT_REUSE_PENALTY *
         (poolDrawsBySubject.get(entry.requestSubjectKey) ?? 0),
   );
+}
+
+/**
+ * Cross-subject fallback compares the request that produced an entry with the
+ * scene's own query vocabulary. This is intentionally weaker than an entity
+ * identity gate: unanchored scenes still degrade through the shared pool, while
+ * an anchored scene refuses a donor whose query has no concrete overlap at all.
+ */
+export function fallbackEntryMatchesSceneQuery(
+  entry: Pick<PoolEntry, 'requestQuery'>,
+  scene: Pick<PoolSubjectScene, 'imageSearchIntent' | 'imageSearchEntities'>,
+): boolean {
+  const sceneTerms = new Set(
+    [...scene.imageSearchIntent, ...(scene.imageSearchEntities ?? [])].flatMap(
+      fallbackQueryTerms,
+    ),
+  );
+  const donorTerms = fallbackQueryTerms(entry.requestQuery);
+  if (sceneTerms.size === 0 || donorTerms.length === 0) return true;
+  return donorTerms.some((term) => sceneTerms.has(term));
 }
 
 export function markAttempted(pool: EpisodeImagePool, entry: PoolEntry): void {
@@ -591,6 +642,18 @@ function candidateExplicitlyNamesAnotherSubject(
 function subjectEntitiesFromKey(subjectKey: string): string[] {
   if (subjectKey.startsWith('intent:')) return [];
   return subjectKey.split('|').filter(Boolean);
+}
+
+function fallbackQueryTerms(value: string): string[] {
+  return normalizedEntityText(value)
+    .split(' ')
+    .map((term) => term.trim())
+    .filter(
+      (term) =>
+        term.length >= 2 &&
+        !FALLBACK_QUERY_NOISE.has(term) &&
+        !/^\d+$/u.test(term),
+    );
 }
 
 function sortedByScore(
