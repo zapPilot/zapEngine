@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import type { SocialGrowthJourney } from '../../shared/waitlist-growth.js';
+import type { SocialGrowthJourney } from '../../shared/growth-journey.js';
 import type { SocialGrowthResponse } from '../../shared/types.js';
 import { getJson } from '../api.js';
 import { PlatformIdentity } from '../platform.js';
