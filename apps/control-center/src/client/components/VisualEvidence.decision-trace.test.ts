@@ -20,7 +20,6 @@ function scene(
     selectionReason: 'direct',
     asset: null,
     trace: [],
-    selection: null,
     ...overrides,
   };
 }
