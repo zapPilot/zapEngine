@@ -70,6 +70,7 @@
   align-items: center;
   gap: 8px;
   padding: 24px 22px;
+  overflow-x: auto;
 }
 
 .sources {
@@ -220,19 +221,6 @@
   font-size: 11px;
 }
 
-@media (max-width: 1180px) {
-  .flow {
-    grid-template-columns: minmax(180px, 1fr) 24px repeat(2, minmax(110px, 0.75fr) 24px) minmax(110px, 0.75fr);
-  }
-
-  .flow > :nth-child(8),
-  .flow > :nth-child(9),
-  .flow > :nth-child(10),
-  .flow > :nth-child(11) {
-    margin-top: 12px;
-  }
-}
-
 @media (max-width: 860px) {
   .header,
   .decisionStrip {
@@ -250,6 +238,7 @@
   .flow {
     grid-template-columns: 1fr;
     align-items: stretch;
+    overflow-x: visible;
   }
 
   .arrow {
