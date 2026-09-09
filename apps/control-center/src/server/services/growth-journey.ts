@@ -1,4 +1,4 @@
-import type { SocialGrowthJourney } from '../../shared/waitlist-growth.js';
+import type { SocialGrowthJourney } from '../../shared/growth-journey.js';
 import type { ControlCenterConfig } from '../config/env.js';
 import { createAsyncCache } from './cache.js';
 import { collectPosthogSignals } from './operations/posthog.js';
