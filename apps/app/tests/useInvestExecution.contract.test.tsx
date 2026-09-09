@@ -110,8 +110,9 @@ vi.mock('@/observability/analytics', () => ({
   trackEvent: mocks.trackEvent,
 }));
 
-(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT =
-  true;
+(
+  globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+).IS_REACT_ACT_ENVIRONMENT = true;
 
 const WALLET = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const OTHER_WALLET = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
@@ -187,7 +188,11 @@ interface Harness {
 
 let activeHarness: Harness | null = null;
 
-function Probe({ onValue }: { onValue: (value: InvestExecutionContextValue) => void }) {
+function Probe({
+  onValue,
+}: {
+  onValue: (value: InvestExecutionContextValue) => void;
+}) {
   onValue(useInvestExecution());
   return null;
 }
@@ -307,7 +312,8 @@ describe('InvestExecutionProvider reviewed execution contract', () => {
 
     expect(result).toEqual({
       status: 'blocked',
-      reason: 'The connected wallet changed. Refresh the review before signing.',
+      reason:
+        'The connected wallet changed. Refresh the review before signing.',
     });
     expect(mocks.executeReviewedBatch).not.toHaveBeenCalled();
   });
