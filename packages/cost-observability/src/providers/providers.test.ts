@@ -47,6 +47,27 @@ function braveQuotaResponse(status = 200) {
   });
 }
 
+import type { FetchLike } from '../types.js';
+
+async function expectBraveRetrySnapshot(
+  fetcher: FetchLike,
+  expectedCalls: number,
+  expectedSleeps: number[][],
+) {
+  const sleep = vi.fn().mockResolvedValue(undefined);
+
+  const snapshot = await fetchBraveCostSnapshot({
+    apiKey: 'brave-key',
+    unitCostUsd: 5 / 1_000,
+    fetch: fetcher,
+    sleep,
+  });
+
+  expect(snapshot.accruedCostUsd).toBe(5);
+  expect(fetcher).toHaveBeenCalledTimes(expectedCalls);
+  expect(sleep.mock.calls).toEqual(expectedSleeps);
+}
+
 describe('cost providers', () => {
   it('normalizes OpenRouter monthly usage as actual cost', async () => {
     const fetcher = vi.fn().mockResolvedValue(
@@ -154,18 +175,8 @@ describe('cost providers', () => {
       .fn()
       .mockRejectedValueOnce(new TypeError('fetch failed'))
       .mockResolvedValueOnce(braveQuotaResponse());
-    const sleep = vi.fn().mockResolvedValue(undefined);
 
-    const snapshot = await fetchBraveCostSnapshot({
-      apiKey: 'brave-key',
-      unitCostUsd: 5 / 1_000,
-      fetch: fetcher,
-      sleep,
-    });
-
-    expect(snapshot.accruedCostUsd).toBe(5);
-    expect(fetcher).toHaveBeenCalledTimes(2);
-    expect(sleep).toHaveBeenCalledWith(250);
+    await expectBraveRetrySnapshot(fetcher, 2, [[250]]);
   });
 
   it('retries Brave 429 and 5xx responses with bounded backoff', async () => {
@@ -174,18 +185,8 @@ describe('cost providers', () => {
       .mockResolvedValueOnce(braveQuotaResponse(503))
       .mockResolvedValueOnce(braveQuotaResponse(429))
       .mockResolvedValueOnce(braveQuotaResponse());
-    const sleep = vi.fn().mockResolvedValue(undefined);
 
-    const snapshot = await fetchBraveCostSnapshot({
-      apiKey: 'brave-key',
-      unitCostUsd: 5 / 1_000,
-      fetch: fetcher,
-      sleep,
-    });
-
-    expect(snapshot.accruedCostUsd).toBe(5);
-    expect(fetcher).toHaveBeenCalledTimes(3);
-    expect(sleep.mock.calls).toEqual([[250], [500]]);
+    await expectBraveRetrySnapshot(fetcher, 3, [[250], [500]]);
   });
 
   it('surfaces the final Brave transport failure after bounded retries', async () => {

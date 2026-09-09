@@ -2,8 +2,8 @@ import { SupabaseClient } from '@supabase/supabase-js';
 
 import { getRequiredEnv } from '../lib/env.js';
 import { readNullableString } from '../lib/string.js';
-import { isRecord } from '../lib/typeGuards.js';
 import { isTransientNetworkError } from '../lib/transient-network-error.js';
+import { isRecord } from '../lib/typeGuards.js';
 
 export type PipelineSupabaseClient = SupabaseClient<any, any, any>;
 
@@ -53,17 +53,12 @@ export function createRetryingSupabaseFetch(
   sleep: Sleep = (milliseconds) =>
     new Promise((resolve) => setTimeout(resolve, milliseconds)),
 ): Fetcher {
-  return (async (input, init) => {
+  return async (input, init) => {
     if (!isIdempotentRead(input, init)) {
       return fetcher(input, init);
     }
 
-    const signal =
-      init?.signal !== undefined
-        ? init.signal
-        : input instanceof Request
-          ? input.signal
-          : undefined;
+    const signal = resolveAbortSignal(input, init);
 
     let lastError: unknown;
     for (let attempt = 1; attempt <= SUPABASE_READ_MAX_ATTEMPTS; attempt += 1) {
@@ -95,7 +90,20 @@ export function createRetryingSupabaseFetch(
     throw lastError instanceof Error
       ? lastError
       : new Error('Supabase read retry loop exhausted');
-  }) as Fetcher;
+  };
+}
+
+function resolveAbortSignal(
+  input: Parameters<Fetcher>[0],
+  init: Parameters<Fetcher>[1],
+): AbortSignal | null | undefined {
+  if (init?.signal !== undefined) {
+    return init.signal;
+  }
+  if (typeof Request !== 'undefined' && input instanceof Request) {
+    return input.signal;
+  }
+  return undefined;
 }
 
 function isIdempotentRead(
