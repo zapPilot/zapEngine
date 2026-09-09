@@ -3,12 +3,11 @@ import { describe, expect, it, vi } from 'vitest';
 import { readControlCenterConfig } from '../config/env.js';
 import { loadGrowthJourney } from './growth-journey.js';
 
-const NOW = new Date('2026-09-09T06:00:00.000Z');
 const CONFIG = readControlCenterConfig({
   POSTHOG_PERSONAL_API_KEY: 'phx-key',
   POSTHOG_PROJECT_ID: '4242',
 });
-const AUDIENCE_ROW = [318, 1204, 90, 300, 4, 12, 20, 55, 8, 21, 6];
+const AUDIENCE_ROW = [318, 1204, 90, 310, 4, 18, 20, 55, 8, 21, 6];
 const SOURCE_ROWS = [
   ['threads', 210],
   ['x', 40],
@@ -17,29 +16,57 @@ const SOURCE_ROWS = [
   ['direct', 20],
   ['other', 10],
 ];
+const FUNNEL_STEPS = [
+  { order: 0, count: 300 },
+  { order: 1, count: 12 },
+];
+
+function response(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), { status });
+}
 
 function fetchPosthog() {
   return vi
     .fn<typeof fetch>()
-    .mockResolvedValueOnce(
-      new Response(JSON.stringify({ results: [AUDIENCE_ROW] }), { status: 200 }),
-    )
-    .mockResolvedValueOnce(
-      new Response(JSON.stringify({ results: SOURCE_ROWS }), { status: 200 }),
-    );
+    .mockResolvedValueOnce(response({ results: [AUDIENCE_ROW] }))
+    .mockResolvedValueOnce(response({ results: SOURCE_ROWS }))
+    .mockResolvedValueOnce(response({ results: FUNNEL_STEPS }));
 }
 
 describe('loadGrowthJourney', () => {
-  it('returns only the acquisition fields Growth needs', async () => {
+  it('uses an ordered PostHog funnel for Landing to CTA', async () => {
     const fetchImpl = fetchPosthog();
 
-    const journey = await loadGrowthJourney({
-      config: CONFIG,
-      now: NOW,
-      fetchImpl,
-    });
+    const journey = await loadGrowthJourney({ config: CONFIG, fetchImpl });
 
-    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+    const bodies = fetchImpl.mock.calls.map((call) =>
+      JSON.parse(String(call[1]?.body)),
+    );
+    const sourceQuery = bodies.find(
+      (body) => body.query?.kind === 'HogQLQuery' && body.query.query?.includes('argMin('),
+    );
+    const funnelQuery = bodies.find(
+      (body) => body.query?.kind === 'FunnelsQuery',
+    );
+    expect(sourceQuery?.query.query).toContain(
+      "extractURLParameter(properties.$current_url, 'utm_source')",
+    );
+    expect(funnelQuery).toMatchObject({
+      query: {
+        kind: 'FunnelsQuery',
+        dateRange: { date_from: '-30d' },
+        funnelsFilter: {
+          funnelOrderType: 'ordered',
+          funnelWindowInterval: 1,
+          funnelWindowIntervalUnit: 'day',
+        },
+        series: [
+          { event: '$pageview' },
+          { event: 'waitlist_cta_clicked' },
+        ],
+      },
+    });
     expect(journey).toEqual({
       status: 'ok',
       message: null,
@@ -59,31 +86,38 @@ describe('loadGrowthJourney', () => {
   it('stays unavailable when PostHog credentials are absent', async () => {
     const journey = await loadGrowthJourney({
       config: readControlCenterConfig({}),
-      now: NOW,
     });
 
     expect(journey.status).toBe('unavailable');
     expect(journey.message).toContain('POSTHOG_PERSONAL_API_KEY');
   });
 
-  it('does not fabricate partial journey counts when PostHog degrades', async () => {
+  it('does not fabricate partial journey counts when any provider query fails', async () => {
     const fetchImpl = vi
       .fn<typeof fetch>()
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ results: [AUDIENCE_ROW] }), { status: 200 }),
-      )
-      .mockResolvedValueOnce(new Response('boom', { status: 503 }));
+      .mockResolvedValueOnce(response({ results: [AUDIENCE_ROW] }))
+      .mockResolvedValueOnce(response({ results: SOURCE_ROWS }))
+      .mockResolvedValueOnce(response({ detail: 'boom' }, 503));
 
-    const journey = await loadGrowthJourney({
-      config: CONFIG,
-      now: NOW,
-      fetchImpl,
-    });
+    const journey = await loadGrowthJourney({ config: CONFIG, fetchImpl });
 
     expect(journey).toMatchObject({
       status: 'unavailable',
       landingVisitors30d: null,
       ctaUsers30d: null,
     });
+  });
+
+  it('does not substitute independent audience aggregates for missing funnel steps', async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(response({ results: [AUDIENCE_ROW] }))
+      .mockResolvedValueOnce(response({ results: SOURCE_ROWS }))
+      .mockResolvedValueOnce(response({ results: [{ order: 0, count: 300 }] }));
+
+    const journey = await loadGrowthJourney({ config: CONFIG, fetchImpl });
+
+    expect(journey.status).toBe('unavailable');
+    expect(journey.ctaUsers30d).toBeNull();
   });
 });
