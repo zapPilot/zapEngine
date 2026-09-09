@@ -562,11 +562,12 @@ export function sceneDecisionTrace(
   const selectedQuery = scene.selection?.sourceQuery?.trim() || null;
   const crossedTopicFallback = Boolean(
     scene.selection?.selection === 'pool-fallback' &&
-      selectedQuery &&
-      intendedQuery &&
-      !scene.imageSearchIntent.some(
-        (query) => normalizeTraceText(query) === normalizeTraceText(selectedQuery),
-      ),
+    selectedQuery &&
+    intendedQuery &&
+    !scene.imageSearchIntent.some(
+      (query) =>
+        normalizeTraceText(query) === normalizeTraceText(selectedQuery),
+    ),
   );
   return {
     extractedAnchors,
@@ -672,11 +673,14 @@ function SceneDebug(
           <summary>Advanced trace</summary>
           {decision.inheritedAnchors.length > 0 ? (
             <small>
-              context / ungrounded anchors · {decision.inheritedAnchors.join(' · ')}
+              context / ungrounded anchors ·{' '}
+              {decision.inheritedAnchors.join(' · ')}
             </small>
           ) : null}
           {scene.imageSearchIntent.length > 0 ? (
-            <small>planned queries · {scene.imageSearchIntent.join(' · ')}</small>
+            <small>
+              planned queries · {scene.imageSearchIntent.join(' · ')}
+            </small>
           ) : null}
           {scene.subjectIds.length > 0 ? (
             <small>subject ids · {scene.subjectIds.join(' · ')}</small>
