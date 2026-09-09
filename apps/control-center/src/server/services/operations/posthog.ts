@@ -40,17 +40,50 @@ FROM events
 WHERE timestamp >= now() - INTERVAL 30 DAY
 `.trim();
 
+/**
+ * The Sankey source edge must be mutually exclusive. Pick each person's first
+ * landing page view inside the same 30-day window, preferring explicit UTM
+ * source over browser referrer. This is intentionally visitor attribution,
+ * not a social CTR: social platforms expose aggregate reach, not person IDs.
+ */
+const LANDING_SOURCE_QUERY = `
+SELECT source, count() AS visitors
+FROM (
+  SELECT
+    person_id,
+    argMin(
+      multiIf(
+        extractURLParameter(properties.$current_url, 'utm_source') IN ('x', 'threads', 'youtube', 'rednote'),
+          extractURLParameter(properties.$current_url, 'utm_source'),
+        properties.$referring_domain = 'l.threads.com', 'threads',
+        properties.$referring_domain = 't.co', 'x',
+        properties.$referring_domain LIKE '%youtube%', 'youtube',
+        properties.$referring_domain LIKE '%xiaohongshu%' OR properties.$referring_domain LIKE '%rednote%', 'rednote',
+        properties.$referring_domain = '$direct' OR properties.$referring_domain IS NULL OR properties.$referring_domain = '', 'direct',
+        'other'
+      ),
+      timestamp
+    ) AS source
+  FROM events
+  WHERE
+    timestamp >= now() - INTERVAL 30 DAY
+    AND event = '$pageview'
+    AND properties.surface = 'landing'
+  GROUP BY person_id
+)
+GROUP BY source
+ORDER BY visitors DESC
+`.trim();
+
 const envelopeSchema = z.object({ results: z.array(z.unknown()) });
+const numericSchema = z
+  .union([z.number(), z.string().regex(/^\d+$/)])
+  .transform(Number)
+  .pipe(z.number().int().nonnegative());
 
 /** HogQL aggregate columns can arrive as JSON numbers or numeric strings. */
-const rowSchema = z
-  .array(
-    z
-      .union([z.number(), z.string().regex(/^\d+$/)])
-      .transform(Number)
-      .pipe(z.number().int().nonnegative()),
-  )
-  .length(11);
+const rowSchema = z.array(numericSchema).length(11);
+const sourceRowSchema = z.tuple([z.string(), numericSchema]);
 
 interface AudienceReading {
   uniqueUsers7d: number;
@@ -64,6 +97,16 @@ interface AudienceReading {
   walletConnectedUsers7d: number;
   walletConnectedUsers30d: number;
   landingDeadClickUsers7d: number;
+}
+
+interface LandingSourceReading {
+  landingThreads30d: number;
+  landingX30d: number;
+  landingYoutube30d: number;
+  landingRednote30d: number;
+  landingDirect30d: number;
+  landingOther30d: number;
+  landingSocialAttributed30d: number;
 }
 
 export async function collectPosthogSignals(input: {
@@ -89,11 +132,11 @@ export async function collectPosthogSignals(input: {
   // Degraded is the ceiling for this adapter. PostHog is reporting telemetry:
   // losing it removes insight from the dashboard but does not break users.
   return collectOrFail(ORIGIN, input.now, async () => {
-    const audience = await runAudienceQuery(
-      apiKey,
-      projectId,
-      input.fetchImpl ?? globalThis.fetch,
-    );
+    const fetchImpl = input.fetchImpl ?? globalThis.fetch;
+    const [audience, sources] = await Promise.all([
+      runAudienceQuery(apiKey, projectId, fetchImpl),
+      runLandingSourceQuery(apiKey, projectId, fetchImpl),
+    ]);
     return [
       buildSignal({
         ...ORIGIN,
@@ -104,7 +147,7 @@ export async function collectPosthogSignals(input: {
         detail:
           `${audience.uniqueUsers7d} unique users in the last 7 days, ` +
           `${audience.uniqueUsers30d} in the last 30 days`,
-        evidence: { ...audience },
+        evidence: { ...audience, ...sources },
         observedAt: input.now,
         url: `${POSTHOG_APP}/${encodeURIComponent(projectId)}`,
       }),
@@ -117,13 +160,12 @@ async function runAudienceQuery(
   projectId: string,
   fetchImpl: typeof fetch,
 ): Promise<AudienceReading> {
-  const envelope = await fetchJson({
-    label: 'PostHog audience query',
-    url: `${POSTHOG_API}/${encodeURIComponent(projectId)}/query/`,
-    token: apiKey,
-    schema: envelopeSchema,
+  const envelope = await runQuery({
+    apiKey,
+    projectId,
     fetchImpl,
-    body: { query: { kind: 'HogQLQuery', query: AUDIENCE_QUERY } },
+    label: 'PostHog audience query',
+    query: AUDIENCE_QUERY,
   });
 
   const [first] = envelope.results;
@@ -146,4 +188,57 @@ async function runAudienceQuery(
     walletConnectedUsers30d: values[9]!,
     landingDeadClickUsers7d: values[10]!,
   };
+}
+
+async function runLandingSourceQuery(
+  apiKey: string,
+  projectId: string,
+  fetchImpl: typeof fetch,
+): Promise<LandingSourceReading> {
+  const envelope = await runQuery({
+    apiKey,
+    projectId,
+    fetchImpl,
+    label: 'PostHog landing source query',
+    query: LANDING_SOURCE_QUERY,
+  });
+  const counts = new Map<string, number>();
+  for (const result of envelope.results) {
+    const row = sourceRowSchema.safeParse(result);
+    if (!row.success) {
+      throw new Error('PostHog landing source query returned an unusable row');
+    }
+    counts.set(row.data[0], row.data[1]);
+  }
+  const landingThreads30d = counts.get('threads') ?? 0;
+  const landingX30d = counts.get('x') ?? 0;
+  const landingYoutube30d = counts.get('youtube') ?? 0;
+  const landingRednote30d = counts.get('rednote') ?? 0;
+  return {
+    landingThreads30d,
+    landingX30d,
+    landingYoutube30d,
+    landingRednote30d,
+    landingDirect30d: counts.get('direct') ?? 0,
+    landingOther30d: counts.get('other') ?? 0,
+    landingSocialAttributed30d:
+      landingThreads30d + landingX30d + landingYoutube30d + landingRednote30d,
+  };
+}
+
+function runQuery(input: {
+  apiKey: string;
+  projectId: string;
+  fetchImpl: typeof fetch;
+  label: string;
+  query: string;
+}) {
+  return fetchJson({
+    label: input.label,
+    url: `${POSTHOG_API}/${encodeURIComponent(input.projectId)}/query/`,
+    token: input.apiKey,
+    schema: envelopeSchema,
+    fetchImpl: input.fetchImpl,
+    body: { query: { kind: 'HogQLQuery', query: input.query } },
+  });
 }
