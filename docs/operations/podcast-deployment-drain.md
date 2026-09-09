@@ -101,3 +101,16 @@ For each, the original execution must finish before Fly replaces its Machine,
 no deployment-created retry should appear, and the worker must resume claiming
 after the gate reopens. Observe the release for at least 24 hours after those
 rollouts before treating the historical deployment-SIGINT incident as resolved.
+
+## In-process drain and fleet checks
+
+The worker keeps a render active until its cost-ledger recording finishes, on
+both success and failure. Ledger errors remain warnings and release the drain;
+a drain acknowledgment does not assert that the ledger write succeeded.
+
+The deployment controller requires every render Machine to report `stopped` for
+the two stable polls. Missing Machines, invalid lease counts, and transitional
+states do not count as a drained fleet. Convergence compares image digest values,
+requires both app and render groups, and rejects missing images or transitional
+Machine states. These local checks do not replace the production acceptance
+steps above.

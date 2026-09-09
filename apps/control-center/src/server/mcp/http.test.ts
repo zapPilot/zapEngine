@@ -154,6 +154,49 @@ describe('Ops MCP HTTP protocol', () => {
     );
   });
 
+  it('passes Sentry history and pagination options to the service', async () => {
+    const operations = fakeOperations();
+    vi.mocked(operations.inspectSignal).mockResolvedValue(
+      INCIDENT.primaryEvidence,
+    );
+    const sentry = {
+      start: '2026-08-01T00:00:00Z',
+      end: '2026-08-02T00:00:00Z',
+      cursor: 'next:25:0',
+      query: '',
+    };
+    const { payload } = await mcpRequest(
+      createAuthenticatedApp(operations),
+      toolCallRequest(3, 'ops_inspect_signal', {
+        fingerprint: 'sentry:issues/organization',
+        sentry,
+      }),
+    );
+    expect(payload.result?.structuredContent).toEqual(INCIDENT.primaryEvidence);
+    expect(operations.inspectSignal).toHaveBeenCalledWith(
+      'sentry:issues/organization',
+      sentry,
+    );
+  });
+
+  it.each([
+    { fingerprint: 'fly:app/example', sentry: { query: '' } },
+    {
+      fingerprint: 'sentry:issues/organization',
+      sentry: { start: '2026-08-01T00:00:00Z' },
+    },
+  ])(
+    'rejects invalid inspection options at the MCP boundary',
+    async (arguments_) => {
+      const operations = fakeOperations();
+      await mcpRequest(
+        createAuthenticatedApp(operations),
+        toolCallRequest(3, 'ops_inspect_signal', arguments_),
+      );
+      expect(operations.inspectSignal).not.toHaveBeenCalled();
+    },
+  );
+
   it('calls ops_status and returns structured content', async () => {
     const operations = fakeOperations();
     const app = createAuthenticatedApp(operations);

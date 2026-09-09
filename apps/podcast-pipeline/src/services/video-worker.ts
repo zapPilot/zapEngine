@@ -711,16 +711,25 @@ export function createVideoWorker(
       stopHeartbeat();
       stopProgressFlush();
       releaseShutdownRelay();
-      releaseActiveJob(activeJob);
-      await recordRenderCost({
-        job,
-        source,
-        runRef: runId,
-        status: outcome,
-        startedAt: jobStartedAt,
-        reported: renderMetrics.take(),
-        concurrentJobs: activeJob.concurrentPeak,
-      });
+      try {
+        await recordRenderCost({
+          job,
+          source,
+          runRef: runId,
+          status: outcome,
+          startedAt: jobStartedAt,
+          reported: renderMetrics.take(),
+          concurrentJobs: activeJob.concurrentPeak,
+        });
+      } catch (error) {
+        logger.error('[ops-ledger] render cost not recorded', toError(error));
+        capturePipelineException(error, {
+          component: 'video-render',
+          level: 'warning',
+        });
+      } finally {
+        releaseActiveJob(activeJob);
+      }
     }
   };
   /* jscpd:ignore-end */

@@ -205,13 +205,13 @@ select
   estimated_cost_usd,
   pricing_basis,
   pricing_rate_id,
+  created_at,
   execution_id,
   previous_execution_id,
   work_key,
   execution_mode,
   failure_reason,
-  deployment_id,
-  created_at
+  deployment_id
 from ops.pipeline_stage_runs;
 
 grant select on from_fed_to_chain.ops_pipeline_stage_runs to service_role;

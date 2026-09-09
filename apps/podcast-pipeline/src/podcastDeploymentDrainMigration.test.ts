@@ -26,15 +26,18 @@ describe('podcast deployment drain migration', () => {
     );
     expect(gateMigration).toMatch(/owner_token uuid/);
     expect(gateMigration).toMatch(/deployment_id uuid/);
-    expect(gateMigration).not.toMatch(/heartbeat_at\s*<[^;]*phase\s*=\s*'open'/i);
+    expect(gateMigration).not.toMatch(
+      /heartbeat_at\s*<[^;]*phase\s*=\s*'open'/i,
+    );
   });
 
   it('serializes gate transitions and both public claim RPCs with one advisory lock', () => {
     expect(gateMigration).toMatch(
       /hashtextextended\('zapengine:podcast-deployment-gate', 0\)/,
     );
-    expect(gateMigration.match(/perform ops\.lock_podcast_deployment_gate\(\);/g))
-      .toHaveLength(7);
+    expect(
+      gateMigration.match(/perform ops\.lock_podcast_deployment_gate\(\);/g),
+    ).toHaveLength(7);
     expect(gateMigration).toMatch(
       /create function from_fed_to_chain\.claim_episode_video_v2[\s\S]*?podcast_deployment_claims_open\(\)/,
     );
@@ -81,16 +84,41 @@ describe('podcast deployment drain migration', () => {
 });
 
 describe('pipeline execution lineage migration', () => {
+  it('preserves the existing view column order when appending lineage', () => {
+    const original = fs.readFileSync(
+      path.join(
+        repoRoot,
+        'supabase/migrations/20260827065915_add_ops_pipeline_telemetry.sql',
+      ),
+      'utf8',
+    );
+    const columns = (sql: string) =>
+      /create or replace view from_fed_to_chain\.ops_pipeline_stage_runs[\s\S]*?select([\s\S]*?)from ops\.pipeline_stage_runs;/i
+        .exec(sql)![1]!
+        .split(',')
+        .map((column) => column.trim());
+    const previous = columns(original);
+    expect(columns(lineageMigration).slice(0, previous.length)).toEqual(
+      previous,
+    );
+  });
+
   it('does not backfill historical execution identity heuristically', () => {
-    expect(lineageMigration).toMatch(/add column if not exists execution_id uuid/);
-    expect(lineageMigration).not.toMatch(/update ops\.pipeline_stage_runs[\s\S]*execution_id/i);
+    expect(lineageMigration).toMatch(
+      /add column if not exists execution_id uuid/,
+    );
+    expect(lineageMigration).not.toMatch(
+      /update ops\.pipeline_stage_runs[\s\S]*execution_id/i,
+    );
   });
 
   it('rotates execution identity at claim time independent of attempt_count', () => {
     expect(lineageMigration).toMatch(
       /previous_execution_id = execution_id,\s*execution_id = gen_random_uuid\(\)/,
     );
-    expect(lineageMigration).not.toMatch(/execution_id[\s\S]{0,120}attempt_count/i);
+    expect(lineageMigration).not.toMatch(
+      /execution_id[\s\S]{0,120}attempt_count/i,
+    );
   });
 
   it('records same-work lineage and only calls a shutdown deployment-caused with a concrete deployment', () => {

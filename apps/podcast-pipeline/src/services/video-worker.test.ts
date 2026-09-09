@@ -722,6 +722,68 @@ describe('createVideoWorker', () => {
     ).toBe(1);
   });
 
+  it.each(['completed', 'failed'] as const)(
+    'drain waits for the %s render ledger write',
+    async (outcome) => {
+      const repository = makeRepository();
+      vi.mocked(repository.claim)
+        .mockResolvedValueOnce(job())
+        .mockResolvedValue(null);
+      const write = createDeferred<void>();
+      ledger.recordPipelineRun.mockReturnValueOnce(write.promise);
+      const processJob =
+        outcome === 'completed'
+          ? vi.fn().mockResolvedValue(completion)
+          : vi.fn().mockRejectedValue(new Error('render failed'));
+      const worker = createVideoWorker({
+        repository,
+        processJob,
+        notify: vi.fn().mockResolvedValue(undefined),
+        leaseOwner: 'worker-1',
+      });
+      const running = worker.runOnce();
+      await vi.waitFor(() =>
+        expect(ledger.recordPipelineRun).toHaveBeenCalledTimes(1),
+      );
+      let drained = false;
+      const draining = worker.drain().then(() => {
+        drained = true;
+        return undefined;
+      });
+      await Promise.resolve();
+      expect(drained).toBe(false);
+      await expect(worker.runOnce()).resolves.toBe('busy');
+      write.resolve(undefined);
+      await expect(running).resolves.toBe(outcome);
+      await draining;
+      expect(drained).toBe(true);
+    },
+  );
+
+  it('releases the drain even if the ledger unexpectedly rejects', async () => {
+    const repository = makeRepository();
+    vi.mocked(repository.claim)
+      .mockResolvedValueOnce(job())
+      .mockResolvedValue(null);
+    const write = createDeferred<void>();
+    ledger.recordPipelineRun.mockReturnValueOnce(write.promise);
+    const worker = createVideoWorker({
+      repository,
+      processJob: vi.fn().mockResolvedValue(completion),
+      notify: vi.fn().mockResolvedValue(undefined),
+      leaseOwner: 'worker-1',
+    });
+    const running = worker.runOnce();
+    await vi.waitFor(() =>
+      expect(ledger.recordPipelineRun).toHaveBeenCalledTimes(1),
+    );
+    const draining = worker.drain();
+    const completed = expect(running).resolves.toBe('completed');
+    write.reject(new Error('ledger unavailable'));
+    await completed;
+    await expect(draining).resolves.toBeUndefined();
+  });
+
   it('drain() resolves immediately when nothing is in flight', async () => {
     const worker = createVideoWorker({
       repository: makeRepository(null),

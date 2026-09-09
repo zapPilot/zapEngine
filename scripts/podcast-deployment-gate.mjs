@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 
@@ -30,7 +31,9 @@ async function rpc(name, body) {
   });
   const text = await response.text();
   if (!response.ok) {
-    throw new Error(`${name} failed (${response.status}): ${text.slice(0, 1000)}`);
+    throw new Error(
+      `${name} failed (${response.status}): ${text.slice(0, 1000)}`,
+    );
   }
   if (!text) return null;
   try {
@@ -63,7 +66,12 @@ function run(command, args, { capture = false } = {}) {
     child.on('error', reject);
     child.on('close', (code, signal) => {
       if (code === 0) resolve({ stdout, stderr });
-      else reject(new Error(`${command} ${args.join(' ')} failed (${signal ?? code}): ${stderr.slice(-2000)}`));
+      else
+        reject(
+          new Error(
+            `${command} ${args.join(' ')} failed (${signal ?? code}): ${stderr.slice(-2000)}`,
+          ),
+        );
     });
   });
 }
@@ -75,7 +83,8 @@ async function renderMachines() {
     { capture: true },
   );
   const parsed = JSON.parse(stdout);
-  if (!Array.isArray(parsed)) throw new Error('flyctl machine list did not return an array');
+  if (!Array.isArray(parsed))
+    throw new Error('flyctl machine list did not return an array');
   return parsed.filter((machine) => {
     const group =
       machine.process_group ??
@@ -86,7 +95,9 @@ async function renderMachines() {
 }
 
 function machineState(machine) {
-  return String(machine.state ?? machine.instance_id?.state ?? '').toLowerCase();
+  return String(
+    machine.state ?? machine.instance_id?.state ?? '',
+  ).toLowerCase();
 }
 
 async function fleetConverged() {
@@ -99,23 +110,67 @@ async function fleetConverged() {
   if (!Array.isArray(machines) || machines.length === 0) {
     return { ok: false, detail: 'Fly returned no Machines' };
   }
-  const relevant = machines.filter((machine) => {
-    const group = machine.process_group ?? machine.config?.metadata?.fly_process_group;
-    return group === 'app' || group === 'render';
-  });
-  const images = new Set(
-    relevant
-      .map((machine) => machine.image_ref ?? machine.config?.image)
-      .filter(Boolean),
+  return inspectFleet(machines);
+}
+
+export function inspectFleet(machines) {
+  const relevant = machines.filter((machine) =>
+    ['app', 'render'].includes(processGroup(machine)),
   );
-  const appStarted = relevant.some((machine) => {
-    const group = machine.process_group ?? machine.config?.metadata?.fly_process_group;
-    return group === 'app' && machineState(machine) === 'started';
+  const images = relevant.map((machine) => {
+    const ref = machine.image_ref;
+    if (ref && typeof ref === 'object' && ref.digest) return ref.digest;
+    return typeof ref === 'string' ? ref : machine.config?.image;
   });
+  const imageCount = new Set(images.filter(Boolean)).size;
+  const appStarted = relevant.some(
+    (machine) =>
+      processGroup(machine) === 'app' && machineState(machine) === 'started',
+  );
+  const renderPresent = relevant.some(
+    (machine) => processGroup(machine) === 'render',
+  );
+  const stable = relevant.every((machine) =>
+    processGroup(machine) === 'app'
+      ? machineState(machine) === 'started'
+      : ['started', 'stopped'].includes(machineState(machine)),
+  );
   return {
-    ok: relevant.length > 0 && images.size === 1 && appStarted,
-    detail: `${relevant.length} app/render Machines, ${images.size} image refs, appStarted=${appStarted}`,
+    ok:
+      renderPresent &&
+      images.every(Boolean) &&
+      imageCount === 1 &&
+      appStarted &&
+      stable,
+    detail: `${relevant.length} app/render Machines, ${imageCount} image refs, appStarted=${appStarted}, stable=${stable}`,
   };
+}
+
+function processGroup(machine) {
+  return machine.process_group ?? machine.config?.metadata?.fly_process_group;
+}
+
+export function drainReady(status, renders) {
+  const counts = [status?.active_video_jobs, status?.active_visual_jobs];
+  if (
+    !counts.every(
+      (count) =>
+        count !== null &&
+        count !== undefined &&
+        count !== '' &&
+        Number.isInteger(Number(count)) &&
+        Number(count) >= 0,
+    )
+  ) {
+    throw new Error(
+      'Deployment drain status returned invalid active job counts',
+    );
+  }
+  return (
+    counts.every((count) => Number(count) === 0) &&
+    renders.length > 0 &&
+    renders.every((machine) => machineState(machine) === 'stopped')
+  );
 }
 
 function parseArg(name, fallback = null) {
@@ -142,7 +197,9 @@ async function prepare() {
     p_owner_token: ownerToken,
     p_target_release: release,
   });
-  console.log(`[podcast-deploy] gate acquired deployment=${deploymentId} release=${release}`);
+  console.log(
+    `[podcast-deploy] gate acquired deployment=${deploymentId} release=${release}`,
+  );
 
   let stable = 0;
   try {
@@ -160,9 +217,11 @@ async function prepare() {
         Number(status?.active_video_jobs ?? 0) +
         Number(status?.active_visual_jobs ?? 0);
       const renders = await renderMachines();
-      const startedRenders = renders.filter((machine) => machineState(machine) === 'started').length;
+      const startedRenders = renders.filter(
+        (machine) => machineState(machine) === 'started',
+      ).length;
 
-      if (active === 0 && startedRenders === 0) stable += 1;
+      if (drainReady(status, renders)) stable += 1;
       else stable = 0;
 
       console.log(
@@ -175,7 +234,9 @@ async function prepare() {
       }
       await sleep(POLL_MS);
     }
-    throw new Error(`podcast drain exceeded ${Math.round(timeoutMs / 60000)} minutes`);
+    throw new Error(
+      `podcast drain exceeded ${Math.round(timeoutMs / 60000)} minutes`,
+    );
   } catch (error) {
     await rpc('podcast_deployment_fail', {
       p_deployment_id: deploymentId,
@@ -188,7 +249,8 @@ async function prepare() {
 
 async function markRollout() {
   const { deploymentId, ownerToken } = idsFromArgs();
-  if (!deploymentId || !ownerToken) throw new Error('--deployment-id and --owner-token are required');
+  if (!deploymentId || !ownerToken)
+    throw new Error('--deployment-id and --owner-token are required');
   await rpc('podcast_deployment_mark_rollout', {
     p_deployment_id: deploymentId,
     p_owner_token: ownerToken,
@@ -198,49 +260,77 @@ async function markRollout() {
 
 async function complete() {
   const { deploymentId, ownerToken } = idsFromArgs();
-  if (!deploymentId || !ownerToken) throw new Error('--deployment-id and --owner-token are required');
+  if (!deploymentId || !ownerToken)
+    throw new Error('--deployment-id and --owner-token are required');
   const fleet = await fleetConverged();
-  if (!fleet.ok) throw new Error(`refusing to reopen claims: fleet not converged (${fleet.detail})`);
+  if (!fleet.ok)
+    throw new Error(
+      `refusing to reopen claims: fleet not converged (${fleet.detail})`,
+    );
   await rpc('podcast_deployment_complete', {
     p_deployment_id: deploymentId,
     p_owner_token: ownerToken,
   });
-  console.log(`[podcast-deploy] claims reopened deployment=${deploymentId}; ${fleet.detail}`);
+  console.log(
+    `[podcast-deploy] claims reopened deployment=${deploymentId}; ${fleet.detail}`,
+  );
 }
 
 async function fail() {
   const { deploymentId, ownerToken } = idsFromArgs();
-  if (!deploymentId || !ownerToken) throw new Error('--deployment-id and --owner-token are required');
+  if (!deploymentId || !ownerToken)
+    throw new Error('--deployment-id and --owner-token are required');
   const reason = parseArg('--reason', 'workflow failed or was cancelled');
   const phase = await rpc('podcast_deployment_fail', {
     p_deployment_id: deploymentId,
     p_owner_token: ownerToken,
     p_reason: reason,
   });
-  console.log(`[podcast-deploy] failure fenced deployment=${deploymentId} phase=${String(phase)}`);
+  console.log(
+    `[podcast-deploy] failure fenced deployment=${deploymentId} phase=${String(phase)}`,
+  );
 }
 
 async function recover() {
   const deploymentId = parseArg('--deployment-id');
   const release = parseArg('--release');
-  if (!deploymentId || !release) throw new Error('--deployment-id and --release are required');
+  if (!deploymentId || !release)
+    throw new Error('--deployment-id and --release are required');
   const fleet = await fleetConverged();
-  if (!fleet.ok) throw new Error(`recovery blocked: fleet not converged (${fleet.detail})`);
+  if (!fleet.ok)
+    throw new Error(`recovery blocked: fleet not converged (${fleet.detail})`);
   await rpc('podcast_deployment_recover', {
     p_deployment_id: deploymentId,
     p_target_release: release,
   });
-  console.log(`[podcast-deploy] recovery reopened claims deployment=${deploymentId}; ${fleet.detail}`);
+  console.log(
+    `[podcast-deploy] recovery reopened claims deployment=${deploymentId}; ${fleet.detail}`,
+  );
 }
 
-const command = process.argv[2];
-const actions = { prepare, 'mark-rollout': markRollout, complete, fail, recover };
-if (!actions[command]) {
-  console.error('usage: podcast-deployment-gate.mjs <prepare|mark-rollout|complete|fail|recover> [options]');
-  process.exit(2);
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
+  const command = process.argv[2];
+  const actions = {
+    prepare,
+    'mark-rollout': markRollout,
+    complete,
+    fail,
+    recover,
+  };
+  if (!actions[command]) {
+    console.error(
+      'usage: podcast-deployment-gate.mjs <prepare|mark-rollout|complete|fail|recover> [options]',
+    );
+    process.exitCode = 2;
+  } else {
+    actions[command]().catch((error) => {
+      console.error(
+        error instanceof Error ? (error.stack ?? error.message) : error,
+      );
+      process.exitCode = 1;
+    });
+  }
 }
-
-actions[command]().catch((error) => {
-  console.error(error instanceof Error ? error.stack ?? error.message : error);
-  process.exitCode = 1;
-});

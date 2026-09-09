@@ -16,6 +16,7 @@ import { collectFlySignals } from './fly.js';
 import { collectRecentGithubFailureSignals } from './github-recent.js';
 import { collectGithubSignals } from './github.js';
 import { inspectOperationalSignal } from './inspection/inspect.js';
+import type { SentryInspectionOptions } from './inspection/sentry-options.js';
 import { investigateOperationalSignal } from './investigation.js';
 import { collectPosthogSignals } from './posthog.js';
 import { prioritize } from './prioritize.js';
@@ -149,10 +150,14 @@ export function createOperationsService(input: {
     return (await caches.customers.get(force)).response;
   }
 
-  async function inspectSignal(fingerprint: string) {
+  async function inspectSignal(
+    fingerprint: string,
+    sentry?: SentryInspectionOptions,
+  ) {
     return inspectOperationalSignal({
       config: input.config,
       fingerprint,
+      sentry,
       now,
     });
   }

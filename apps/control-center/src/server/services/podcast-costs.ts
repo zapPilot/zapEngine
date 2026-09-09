@@ -126,7 +126,9 @@ export function createPodcastCostService(input: {
           .from('episodes')
           .select('id,source_title')
           .in('id', recentEpisodeIds);
-        if (episodeError) throw episodeError;
+        if (episodeError) {
+          throw episodeError;
+        }
 
         const titles = new Map(
           ((episodeData ?? []) as EpisodeRow[]).map((row) => [
@@ -172,16 +174,25 @@ async function loadRecentEpisodeIds(client: ReturnType<typeof createClient>) {
       .select('episode_id')
       .not('episode_id', 'is', null)
       .order('started_at', { ascending: false })
+      .order('id', { ascending: false })
       .range(offset, offset + PAGE_SIZE - 1);
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     const rows = (data ?? []) as { episode_id: string | null }[];
     for (const row of rows) {
-      if (!row.episode_id || seen.has(row.episode_id)) continue;
+      if (!row.episode_id || seen.has(row.episode_id)) {
+        continue;
+      }
       seen.add(row.episode_id);
       ids.push(row.episode_id);
-      if (ids.length === EPISODE_LIMIT) break;
+      if (ids.length === EPISODE_LIMIT) {
+        break;
+      }
     }
-    if (rows.length < PAGE_SIZE) break;
+    if (rows.length < PAGE_SIZE) {
+      break;
+    }
   }
   return ids;
 }
@@ -197,11 +208,16 @@ async function loadRunsForEpisodes(
       .select('id,pipeline,episode_id,status,started_at')
       .in('episode_id', episodeIds)
       .order('started_at', { ascending: false })
+      .order('id', { ascending: false })
       .range(offset, offset + PAGE_SIZE - 1);
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     const page = (data ?? []) as PipelineRunRow[];
     rows.push(...page);
-    if (page.length < PAGE_SIZE) return rows;
+    if (page.length < PAGE_SIZE) {
+      return rows;
+    }
   }
 }
 
@@ -210,7 +226,11 @@ async function loadStagesForRuns(
   runIds: string[],
 ): Promise<PipelineStageRow[]> {
   const rows: PipelineStageRow[] = [];
-  for (let chunkStart = 0; chunkStart < runIds.length; chunkStart += RUN_ID_CHUNK) {
+  for (
+    let chunkStart = 0;
+    chunkStart < runIds.length;
+    chunkStart += RUN_ID_CHUNK
+  ) {
     const chunk = runIds.slice(chunkStart, chunkStart + RUN_ID_CHUNK);
     for (let offset = 0; ; offset += PAGE_SIZE) {
       const { data, error } = await client
@@ -219,11 +239,16 @@ async function loadStagesForRuns(
           'run_id,episode_id,language_code,stage,status,estimated_cost_usd,pricing_basis,execution_id,previous_execution_id,work_key,execution_mode,failure_reason,deployment_id',
         )
         .in('run_id', chunk)
+        .order('id', { ascending: true })
         .range(offset, offset + PAGE_SIZE - 1);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       const page = (data ?? []) as PipelineStageRow[];
       rows.push(...page);
-      if (page.length < PAGE_SIZE) break;
+      if (page.length < PAGE_SIZE) {
+        break;
+      }
     }
   }
   return rows;
@@ -285,7 +310,9 @@ export function summarizePodcastCosts(
   >();
 
   for (const run of runs) {
-    if (!run.episode_id) continue;
+    if (!run.episode_id) {
+      continue;
+    }
     const current = summaries.get(run.episode_id) ?? {
       episodeId: run.episode_id,
       title: titles.get(run.episode_id) ?? null,
@@ -320,19 +347,29 @@ export function summarizePodcastCosts(
       lineageObserved: false,
     };
     current.runCount += 1;
-    if (run.status === 'failed') current.failedRuns += 1;
-    if (run.started_at > current.lastRunAt) current.lastRunAt = run.started_at;
+    if (run.status === 'failed') {
+      current.failedRuns += 1;
+    }
+    if (run.started_at > current.lastRunAt) {
+      current.lastRunAt = run.started_at;
+    }
     summaries.set(run.episode_id, current);
   }
 
   for (const stage of stages) {
     const run = runById.get(stage.run_id);
     const episodeId = stage.episode_id ?? run?.episode_id ?? null;
-    if (!run || !episodeId) continue;
+    if (!run || !episodeId) {
+      continue;
+    }
     const summary = summaries.get(episodeId);
-    if (!summary) continue;
+    if (!summary) {
+      continue;
+    }
 
-    if (stage.execution_id) summary.lineageObserved = true;
+    if (stage.execution_id) {
+      summary.lineageObserved = true;
+    }
     if (
       run.pipeline === 'video_render' &&
       stage.estimated_cost_usd !== null &&
@@ -349,12 +386,19 @@ export function summarizePodcastCosts(
       continue;
     }
     const units = usdUnits(stage.estimated_cost_usd);
-    if (units === null) continue;
+    if (units === null) {
+      continue;
+    }
 
     summary.totalCostUnits += units;
-    if (run.pipeline === 'ingest') summary.podcastCostUnits += units;
-    else summary.videoCostUnits += units;
-    if (run.status === 'failed') summary.failedAttemptCostUnits += units;
+    if (run.pipeline === 'ingest') {
+      summary.podcastCostUnits += units;
+    } else {
+      summary.videoCostUnits += units;
+    }
+    if (run.status === 'failed') {
+      summary.failedAttemptCostUnits += units;
+    }
 
     if (stage.failure_reason === 'deploy_shutdown') {
       summary.interruptedAttemptCostUnits += units;
@@ -419,28 +463,28 @@ export function summarizePodcastCosts(
         ),
       };
     })
-    .map(
-      ({
-        totalCostUnits: _totalCostUnits,
-        podcastCostUnits: _podcastCostUnits,
-        videoCostUnits: _videoCostUnits,
-        failedAttemptCostUnits: _failedAttemptCostUnits,
-        interruptedAttemptCostUnits: _interruptedAttemptCostUnits,
-        confirmedDeploymentInterruptionCostUnits:
-          _confirmedDeploymentInterruptionCostUnits,
-        shutdownInterruptionCostUnits: _shutdownInterruptionCostUnits,
-        confirmedRetryWasteUnits: _confirmedRetryWasteUnits,
-        lineageObserved: _lineageObserved,
-        ...summary
-      }) => summary,
-    )
+    .map((entry) => {
+      const stripped: Record<string, unknown> = { ...entry };
+      delete stripped.totalCostUnits;
+      delete stripped.podcastCostUnits;
+      delete stripped.videoCostUnits;
+      delete stripped.failedAttemptCostUnits;
+      delete stripped.interruptedAttemptCostUnits;
+      delete stripped.confirmedDeploymentInterruptionCostUnits;
+      delete stripped.shutdownInterruptionCostUnits;
+      delete stripped.confirmedRetryWasteUnits;
+      delete stripped.lineageObserved;
+      return stripped as unknown as PodcastEpisodeCostEvidenceSummary;
+    })
     .sort((left, right) => right.lastRunAt.localeCompare(left.lastRunAt));
 }
 
 function confirmedRetryExecutions(stages: PipelineStageRow[]): Set<string> {
   const byExecution = new Map<string, Set<string>>();
   for (const stage of stages) {
-    if (!stage.execution_id || !stage.work_key) continue;
+    if (!stage.execution_id || !stage.work_key) {
+      continue;
+    }
     const keys = byExecution.get(stage.execution_id) ?? new Set<string>();
     keys.add(stage.work_key);
     byExecution.set(stage.execution_id, keys);
@@ -456,9 +500,7 @@ function confirmedRetryExecutions(stages: PipelineStageRow[]): Set<string> {
       continue;
     }
     if (
-      byExecution
-        .get(successor.previous_execution_id)
-        ?.has(successor.work_key)
+      byExecution.get(successor.previous_execution_id)?.has(successor.work_key)
     ) {
       confirmed.add(
         executionKey(successor.previous_execution_id, successor.work_key),
@@ -474,7 +516,9 @@ function executionKey(executionId: string, workKey: string): string {
 
 function usdUnits(value: number | string): number | null {
   const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return null;
+  if (!Number.isFinite(parsed)) {
+    return null;
+  }
   return Math.round(parsed * USD_SCALE);
 }
 

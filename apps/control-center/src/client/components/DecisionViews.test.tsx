@@ -209,7 +209,7 @@ describe('decision-first domain views', () => {
     render(<PodcastUnitEconomics data={podcastCosts()} />);
 
     expect(screen.getByText('Average / episode')).toBeVisible();
-    expect(screen.getAllByText('Retry waste')[0]).toBeVisible();
+    expect(screen.getAllByText('Failed attempt cost')[0]).toBeVisible();
     expect(
       screen.queryByRole('columnheader', { name: 'Breakdown' }),
     ).toBeNull();

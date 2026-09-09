@@ -5,12 +5,12 @@ import type { ControlCenterConfig } from '../../../config/env.js';
 import { fetchJson } from '../http.js';
 import type { ParsedOperationalFingerprint } from './fingerprint.js';
 import { messageOf, unsupported } from './helpers.js';
+import type { SentryInspectionOptions } from './sentry-options.js';
 import type { SignalInspection } from './types.js';
 /* jscpd:ignore-end */
 
 const API = 'https://sentry.io/api/0';
 const ISSUE_LIMIT = 25;
-const TOP_ISSUES = 3;
 const STACK_FRAME_LIMIT = 20;
 
 const issueSchema = z.object({
@@ -61,6 +61,7 @@ type Issue = z.infer<typeof issueSchema>;
 /* jscpd:ignore-start -- mirrored inspector signature, intentional parallel */
 export async function inspectSentrySignal(input: {
   config: ControlCenterConfig;
+  sentry?: SentryInspectionOptions;
   fingerprint: string;
   parsed: ParsedOperationalFingerprint;
   inspectedAt: Date;
@@ -96,33 +97,53 @@ export async function inspectSentrySignal(input: {
     };
   }
 
-  const rows = await fetchJson({
-    label: 'Sentry issues inspection',
-    url:
-      `${API}/organizations/${encodeURIComponent(org)}/issues/` +
-      `?query=is%3Aunresolved&statsPeriod=24h&limit=${ISSUE_LIMIT}`,
-    token,
-    schema: z.array(z.unknown()),
-    fetchImpl: input.fetchImpl,
-  });
-  /* jscpd:ignore-start -- analogous row parsing, schemas differ but tokenizer sees same shape */
-  const issues = rows.flatMap((row) => {
-    const parsed = issueSchema.safeParse(row);
-    return parsed.success ? [parsed.data] : [];
-  });
-  /* jscpd:ignore-end */
-  if (rows.length > 0 && issues.length === 0) {
-    throw new Error('Sentry issues inspection returned an unknown issue shape');
-  }
-
+  const options = input.sentry ?? {};
   const project = input.parsed.key;
+  const query = options.query ?? 'is:unresolved';
+  const params = new URLSearchParams({
+    query,
+    limit: String(ISSUE_LIMIT),
+    sort: 'freq',
+  });
+  if (options.start && options.end) {
+    params.set('start', options.start);
+    params.set('end', options.end);
+  } else {
+    params.set('statsPeriod', '24h');
+  }
+  if (options.cursor) {
+    params.set('cursor', options.cursor);
+  }
+  if (project !== 'organization') {
+    params.set('project', project);
+  }
+  let nextCursor: string | null = null;
+  const issues = await fetchJson({
+    label: 'Sentry issues inspection',
+    url: `${API}/organizations/${encodeURIComponent(org)}/issues/?${params}`,
+    token,
+    schema: z.array(issueSchema).max(ISSUE_LIMIT),
+    fetchImpl: input.fetchImpl,
+    onResponseHeaders: (headers) => {
+      nextCursor = readNextCursor(headers.get('link'));
+    },
+  });
+  const page = {
+    query,
+    start:
+      options.start ??
+      new Date(input.inspectedAt.getTime() - 86_400_000).toISOString(),
+    end: options.end ?? input.inspectedAt.toISOString(),
+    cursor: options.cursor ?? null,
+    nextCursor,
+    hasMore: nextCursor !== null,
+    limit: ISSUE_LIMIT,
+  };
   const scoped = (
     project === 'organization'
       ? issues
       : issues.filter((issue) => issue.project.slug === project)
-  )
-    .sort((left, right) => right.count - left.count)
-    .slice(0, TOP_ISSUES);
+  ).sort((left, right) => right.count - left.count);
 
   if (scoped.length === 0) {
     return {
@@ -132,13 +153,13 @@ export async function inspectSentrySignal(input: {
       inspectedAt: input.inspectedAt.toISOString(),
       summary:
         project === 'organization'
-          ? 'No unresolved Sentry issues were found in the current 24h window.'
-          : `No unresolved Sentry issues were found for ${project} in the current 24h window.`,
+          ? 'No matching Sentry issues were found on this page.'
+          : `No matching Sentry issues were found for ${project} on this page.`,
       entities:
         project === 'organization'
           ? []
           : [{ type: 'sentry-project', id: project }],
-      evidence: { project, issueCount: 0 },
+      evidence: { project, issueCount: 0, issues: [], ...page },
       gaps: [],
     };
   }
@@ -157,7 +178,7 @@ export async function inspectSentrySignal(input: {
     source: 'sentry',
     status: 'ok',
     inspectedAt: input.inspectedAt.toISOString(),
-    summary: `${project}: ${scoped.length} high-volume unresolved issue${scoped.length === 1 ? '' : 's'} inspected.`,
+    summary: `${project}: ${scoped.length} matching issue${scoped.length === 1 ? '' : 's'} inspected.`,
     entities: [
       ...(project === 'organization'
         ? []
@@ -170,6 +191,9 @@ export async function inspectSentrySignal(input: {
     ],
     evidence: {
       project,
+      ...page,
+      sampleEventScope:
+        'Latest event; not guaranteed to fall within the requested issue query window.',
       issues: scoped.map(summarizeIssue),
       sampleEvent,
     },
@@ -253,4 +277,14 @@ function extractExceptions(entries: readonly unknown[]) {
     });
   });
   return exceptions.slice(0, 3);
+}
+
+function readNextCursor(link: string | null): string | null {
+  for (const entry of (link ?? '').split(',')) {
+    if (!/;\s*rel="next"/.test(entry) || !/;\s*results="true"/.test(entry)) {
+      continue;
+    }
+    return /;\s*cursor="([^"]+)"/.exec(entry)?.[1] ?? null;
+  }
+  return null;
 }

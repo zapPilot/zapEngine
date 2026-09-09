@@ -1,10 +1,12 @@
 import type { OperationsSource } from '../../../../shared/types.js';
 import type { ControlCenterConfig } from '../../../config/env.js';
 import type { ParsedOperationalFingerprint } from './fingerprint.js';
+import type { SentryInspectionOptions } from './sentry-options.js';
 import type { OperationalEntityRef, SignalInspection } from './types.js';
 
 export interface InspectorInput {
   config: ControlCenterConfig;
+  sentry?: SentryInspectionOptions;
   fingerprint: string;
   parsed: ParsedOperationalFingerprint;
   inspectedAt: Date;

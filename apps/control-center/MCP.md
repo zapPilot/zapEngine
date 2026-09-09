@@ -97,3 +97,20 @@ The repository tests lock both client discovery files to the canonical launcher 
 Send MCP requests to `/api/mcp` with the bearer token from `OPS_MCP_TOKEN`. Missing configuration, missing authorization, and incorrect authorization all return the same `401 Unauthorized` response so the endpoint does not disclose whether a token is configured.
 
 The HTTP integration tests cover protocol initialization, tool discovery, `ops_status`, `ops_investigate` including its remediation facts, and the bounded Sentry resolve tool, including `structuredContent`.
+
+### Sentry history and pagination
+
+`ops_inspect_signal` accepts an optional `sentry` object containing `start`, `end`,
+`cursor`, and `query`. These options are rejected for non-Sentry fingerprints.
+Supply both ISO-8601 timestamps with a timezone and `start < end`; otherwise the
+window defaults to the last 24 hours. `query` defaults to `is:unresolved`; use an
+empty string to include resolved issues when inspecting history.
+
+Each call returns up to 25 issue summaries. Read `evidence.nextCursor` and
+`evidence.hasMore`; pass the cursor with the same fingerprint, query, and time
+range to read the next page. A page is not an organization-wide issue total.
+Use explicit timestamps for a stable window across calls. Project fingerprints
+scope the provider request before pagination. `evidence.start` and `evidence.end`
+report the query window (the default relative window is anchored approximately
+at inspection time). The bounded sample is the latest event of the page's top
+issue, which may fall outside the requested historical period.
