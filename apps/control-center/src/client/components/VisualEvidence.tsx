@@ -583,6 +583,10 @@ function normalizeTraceText(value: string): string {
     .normalize('NFKC')
     .toLocaleLowerCase('en-US')
     .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .replace(
+      /([\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}])/gu,
+      ' $1 ',
+    )
     .replace(/\s+/gu, ' ')
     .trim();
 }
@@ -612,6 +616,7 @@ function SceneDebug(
 ) {
   const { scene } = props;
   const decision = sceneDecisionTrace(scene);
+  const selectedFrom = selectedFromLine(decision);
   return (
     <article className="podcast-visual-scene">
       <div className="podcast-visual-thumb">
@@ -651,8 +656,8 @@ function SceneDebug(
         </div>
         <div className="podcast-visual-chips">
           <small>Selected from</small>
-          {selectedFromLine(decision) ? (
-            <strong>{selectedFromLine(decision)}</strong>
+          {selectedFrom ? (
+            <strong>{selectedFrom}</strong>
           ) : (
             <small>reuse / generated / non-Brave asset</small>
           )}
