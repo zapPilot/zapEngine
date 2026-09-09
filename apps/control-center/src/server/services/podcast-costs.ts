@@ -76,7 +76,7 @@ const PAGE_SIZE = 500;
 const RUN_ID_CHUNK = 100;
 const USD_SCALE = 100_000_000;
 
-type PodcastCostClient = ReturnType<typeof createClient<any, any, any>>;
+type PodcastCostClient = ReturnType<typeof createClient>;
 
 export function createPodcastCostService(input: {
   config: ControlCenterConfig;
