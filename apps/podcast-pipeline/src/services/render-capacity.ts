@@ -168,6 +168,21 @@ export function createRenderWorkProbe(
   return {
     async loadSnapshot(): Promise<RenderWorkSnapshot> {
       const supabase = client ?? getPipelineSupabase();
+
+      // The deployment gate and the claim RPCs are one contract.  When CI has
+      // closed claims, returning an empty snapshot here prevents the always-on
+      // app from waking a stopped render Machine merely to discover the same
+      // closed gate.  A database error throws and runOnce fails closed: it must
+      // never turn "cannot read the gate" into permission to spend/restart.
+      if (!(await podcastDeploymentClaimsOpen(supabase))) {
+        return {
+          visuals: [],
+          videos: [],
+          visualFailureNotices: [],
+          nowMs: Date.now(),
+        };
+      }
+
       const [videos, visuals, visualFailureNotices] = await Promise.all([
         many<VideoWorkRow>(
           supabase
@@ -531,6 +546,17 @@ function toEpochMs(timestamp: string): number {
   // An unparseable timestamp must not read as "ready now": that would wake the
   // render group for a row the claim RPC will never hand out.
   return Number.isNaN(parsed) ? Number.POSITIVE_INFINITY : parsed;
+}
+
+async function podcastDeploymentClaimsOpen(
+  supabase: PipelineSupabaseClient,
+): Promise<boolean> {
+  const { data, error } = await supabase.rpc('podcast_deployment_claims_open');
+  if (error) throwSupabaseError(error);
+  // Test doubles and a pre-migration local database may return a non-boolean
+  // placeholder. Only an explicit false is a closed gate; an RPC error still
+  // fails closed by throwing above.
+  return data !== false;
 }
 
 async function loadOptionalVisualFailureNotices(
