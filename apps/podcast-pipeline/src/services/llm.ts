@@ -73,10 +73,10 @@ const SCRIPT_PAYLOAD_MAX_ATTEMPTS = 2;
  * The one workload the shared ceiling is wrong for. The script prompt forbids
  * summarizing, permits an output longer than its input, and sets no token cap,
  * so a 13k-character article legitimately generates for minutes -- the 120s
- * default killed those runs while the model was still working correctly. A
- * retryable non-timeout failure still advances the shared chain with this same
- * long-form deadline per candidate; a timeout itself stays terminal rather than
- * spending another ten minutes per remaining candidate.
+ * default killed those runs while the model was still working correctly.
+ * Every model candidate gets this same long-form deadline; timeout remains a
+ * retryable transport failure and advances through `LLM_FALLBACK_MODELS` just
+ * like every other OpenRouter workload.
  */
 const SCRIPT_OPENROUTER_TIMEOUT_MS = 600_000;
 const RETRYABLE_OPENROUTER_STATUS = new Set([408, 409, 429]);
@@ -524,13 +524,6 @@ export interface OpenRouterRequestOptions {
   reasoning?: OpenRouterReasoning;
   /** Overrides the shared deadline for a workload whose output is long-form. */
   timeoutMs?: number;
-  /**
-   * Script generation opts out: its deadline is already ten minutes, so a
-   * timeout means a model worked that long and replaying the prompt on the next
-   * candidate just spends those minutes again. Every other workload keeps the
-   * default and advances timeouts through the shared chain.
-   */
-  fallbackOnTimeout?: boolean;
   /** Overrides endpoint selection for task-level retries. */
   providerRouting?: OpenRouterProviderRouting;
   logContext?: {
@@ -558,10 +551,8 @@ function logOpenRouterEvent(
  * One transport policy for every OpenRouter workload. The caller supplies the
  * workload's primary model (`LLM_MODEL` for normal work, `openrouter/free` for
  * translation). A timeout, connection failure, 408/409/429, or 5xx advances to
- * the next model in `LLM_FALLBACK_MODELS`, except when the caller opted out of
- * timeout failover (`fallbackOnTimeout: false`, script generation). Payload /
- * semantic validation remains the caller's responsibility and never changes
- * models by itself.
+ * the next model in `LLM_FALLBACK_MODELS`. Payload / semantic validation remains
+ * the caller's responsibility and never changes models by itself.
  */
 export async function createOpenRouterChatCompletion(
   openai: OpenAI,
@@ -571,6 +562,7 @@ export async function createOpenRouterChatCompletion(
 ): Promise<OpenRouterChatCompletion> {
   const models = getOpenRouterModelCandidates(params.model);
   let lastError: unknown;
+  const failures: unknown[] = [];
 
   for (const [modelIndex, model] of models.entries()) {
     try {
@@ -582,15 +574,23 @@ export async function createOpenRouterChatCompletion(
       );
     } catch (error) {
       lastError = error;
+      failures.push(error);
       const nextModel = models[modelIndex + 1];
-      const timeoutTerminal =
-        requestOptions.fallbackOnTimeout === false && isTimeoutError(error);
       const shouldFallback =
         Boolean(nextModel) &&
-        !timeoutTerminal &&
         !requestOptions.signal?.aborted &&
         isRetryableOpenRouterError(error);
-      if (!shouldFallback || !nextModel) throw error;
+      if (!shouldFallback || !nextModel) {
+        if (
+          !nextModel &&
+          isRetryableOpenRouterError(error) &&
+          !isTimeoutError(error) &&
+          failures.some(isTimeoutError)
+        ) {
+          throw new OpenRouterModelChainTimeoutError(failures, error);
+        }
+        throw error;
+      }
 
       logOpenRouterEvent(
         'llm:model-fallback',
@@ -784,6 +784,17 @@ export function completionMetadata(
  * Both shapes a request deadline takes: the SDK's own timeout and the
  * per-request deadline's `TimeoutError` (see `combineAbortSignalWithTimeout`).
  */
+class OpenRouterModelChainTimeoutError extends AggregateError {
+  constructor(failures: unknown[], cause: unknown) {
+    super(
+      failures,
+      `OpenRouter model chain exhausted after a timeout; final failure: ${errorMessage(cause)}`,
+      { cause },
+    );
+    this.name = 'TimeoutError';
+  }
+}
+
 function isTimeoutError(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false;
   if (error instanceof APIConnectionTimeoutError) return true;
@@ -863,12 +874,12 @@ export type ScriptCompletionErrorCategory =
   | 'terminal';
 
 /**
- * Classifies a failure from the shared call. A timeout is terminal both inside
- * the chain (script generation passes `fallbackOnTimeout: false`, so the first
- * candidate timing out throws immediately) and here, so script generation never
- * replays the wait -- neither model-by-model nor as an endpoint reroute.
- * Retry-safe gateway failures may still get the historical endpoint reroute
- * once.
+ * Classifies a failure after the shared model chain has already run. Timeouts
+ * do advance model-by-model inside `createOpenRouterChatCompletion`; if one
+ * reaches this layer, the exhausted chain included a timeout (even if its last
+ * candidate failed with a gateway error), so script generation does not replay
+ * the entire chain as an endpoint reroute. Non-timeout chains may still get the
+ * historical endpoint reroute once.
  */
 export function classifyScriptCompletionError(
   error: unknown,
@@ -955,10 +966,6 @@ async function runScriptAttempt(
       input.thinkingModel,
       {
         timeoutMs: SCRIPT_OPENROUTER_TIMEOUT_MS,
-        // The ten-minute deadline is already terminal: a timeout means a model
-        // worked that long, and each further candidate would spend those
-        // minutes again instead of failing fast.
-        fallbackOnTimeout: false,
         providerRouting: input.routing,
       },
     );

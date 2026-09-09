@@ -226,7 +226,7 @@ describe('decision-first domain views', () => {
     expect(within(episode!).getByText('Stage breakdown')).toBeVisible();
   });
 
-  it('keeps growth recommendations visible and research evidence collapsed', () => {
+  it('keeps growth language signals visible and research evidence collapsed', () => {
     render(
       <GrowthView
         data={socialFixture()}
@@ -235,14 +235,13 @@ describe('decision-first domain views', () => {
       />,
     );
 
-    expect(screen.getByText('What to publish next')).toBeVisible();
-    expect(screen.getByText('Prioritize regime shifts')).toBeVisible();
-    expect(
-      screen.getByText(
-        /410 median 24h views · n=6 · platform median 205 · 2× lift/,
-      ),
-    ).toBeVisible();
-    expect(screen.getByText(/ja · 2.4 \/ 1k/)).toBeVisible();
+    expect(screen.getByText('Language performance')).toBeVisible();
+    expect(screen.getByText('Current leader')).toBeVisible();
+    expect(screen.getByText('🇯🇵 Japanese')).toBeVisible();
+    expect(screen.getAllByText(/2.4 \/ 1k/)[0]).toBeVisible();
+    expect(screen.queryByText(/Prioritize /)).toBeNull();
+    expect(screen.queryByText('Shape the title like this')).toBeNull();
+    expect(screen.queryByText('What to publish next')).toBeNull();
 
     const disclosure = screen
       .getByText('Research & evidence')
@@ -253,17 +252,104 @@ describe('decision-first domain views', () => {
     expect(screen.getByText('Estimated attribution')).toBeVisible();
   });
 
+  it('does not declare a language leader from publication counts without metrics', () => {
+    const response = growth();
+    response.platforms[0]!.lanes = response.platforms[0]!.lanes.map((lane) => ({
+      ...lane,
+      medianReach24h: null,
+      followersPer1kReach: null,
+      followersGained7d: null,
+    }));
+    render(
+      <GrowthView
+        data={socialFixture()}
+        growth={response}
+        onWindowChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByText('Not enough evidence')).toBeVisible();
+    expect(screen.queryByText('🇯🇵 Japanese')).toBeNull();
+  });
+
+  it('labels latest episode views, keeps post links, and distinguishes telemetry gaps', () => {
+    render(
+      <GrowthView
+        data={socialFixture({
+          window: '24h',
+          episodes: [
+            {
+              episodeId: 'ep-zh',
+              title: '繁體中文標題',
+              totalViews: 123,
+              totalImpressions: null,
+              platforms: [
+                {
+                  platform: 'x',
+                  postUrl: 'https://x.com/zap/status/1',
+                  views: 123,
+                  engagementRate: 0.1,
+                  likes: 10,
+                  comments: 2,
+                  shares: 1,
+                  saves: null,
+                  followersGained: null,
+                  averageViewDurationSec: null,
+                  averageViewPercentage: null,
+                },
+                {
+                  platform: 'rednote',
+                  postUrl: 'https://www.xiaohongshu.com/explore/note-1',
+                  views: null,
+                  engagementRate: null,
+                  likes: null,
+                  comments: null,
+                  shares: null,
+                  saves: null,
+                  followersGained: null,
+                  averageViewDurationSec: null,
+                  averageViewPercentage: null,
+                },
+              ],
+            },
+          ],
+        })}
+        growth={growth()}
+        onWindowChange={vi.fn(async () => undefined)}
+      />,
+    );
+
+    expect(screen.getByText('最新一集表現 · 24h')).toBeVisible();
+    expect(
+      screen.getByText('繁體中文標題', { selector: '.panel-note' }),
+    ).toBeVisible();
+    const latestPanel = screen
+      .getByText('最新一集表現 · 24h')
+      .closest('section');
+    expect(latestPanel).not.toBeNull();
+    expect(
+      within(latestPanel as HTMLElement).getByText('123 views'),
+    ).toBeVisible();
+    expect(
+      within(latestPanel as HTMLElement).getByText('尚未取得'),
+    ).toBeVisible();
+    expect(
+      within(latestPanel as HTMLElement).getByRole('link', { name: /X/ }),
+    ).toHaveAttribute('href', 'https://x.com/zap/status/1');
+    expect(
+      within(latestPanel as HTMLElement).getByRole('link', {
+        name: /Rednote/,
+      }),
+    ).toHaveAttribute('href', 'https://www.xiaohongshu.com/explore/note-1');
+  });
+
   it('shows only the flagged account by default, ranked ahead of AUM once expanded', () => {
     render(<ProductView customers={customers()} product={productFixture()} />);
 
-    // Only the priority account inactive 30d+ trips a rule; the healthy
-    // standard-tier account stays behind "Show all" until asked for.
     let rows = screen.getAllByRole('row');
     expect(rows).toHaveLength(2);
     expect(rows[1]).toHaveTextContent('risk@example.com');
     expect(screen.queryByRole('columnheader', { name: 'Revenue' })).toBeNull();
     expect(screen.queryByRole('columnheader', { name: /30d cost/ })).toBeNull();
-
     fireEvent.click(screen.getByText('risk@example.com'));
     expect(screen.getByText('Attributed cost (30d)')).toBeVisible();
     expect(screen.getByText('Refresh interval')).toBeVisible();

@@ -222,8 +222,9 @@ function staticUnconfiguredSource(
 }
 
 function safeProviderError(error: unknown): string {
-  if (error instanceof Error && /\(\d{3}\)$/.test(error.message)) {
-    return error.message;
+  if (error instanceof Error) {
+    if (/^Brave Search /u.test(error.message)) return error.message;
+    if (/\(\d{3}\)$/.test(error.message)) return error.message;
   }
   return 'Provider request failed';
 }

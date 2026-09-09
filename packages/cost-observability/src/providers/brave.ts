@@ -6,6 +6,11 @@ const BRAVE_IMAGES_SEARCH_ENDPOINT =
   'https://api.search.brave.com/res/v1/images/search';
 const DEFAULT_MONTHLY_FREE_CREDIT_USD = 5;
 const MINIMUM_LONG_QUOTA_WINDOW_SECONDS = 86_400;
+const BRAVE_REQUEST_MAX_ATTEMPTS = 3;
+const BRAVE_REQUEST_RETRY_DELAY_MS = 250;
+const RETRYABLE_BRAVE_STATUS = new Set([408, 429]);
+
+type Sleep = (milliseconds: number) => Promise<void>;
 
 export interface BraveCostInput {
   apiKey: string;
@@ -15,6 +20,7 @@ export interface BraveCostInput {
   baseUrl?: string;
   priorMonthTotalUsd?: number | null;
   monthlyFreeCreditUsd?: number;
+  sleep?: Sleep;
 }
 
 interface BraveMonthlyQuota {
@@ -39,24 +45,13 @@ export async function fetchBraveCostSnapshot(
   input: BraveCostInput,
 ): Promise<CostSnapshot> {
   const now = input.now ?? new Date();
-  const fetcher = input.fetch ?? globalThis.fetch;
   const endpoint = new URL(input.baseUrl ?? BRAVE_IMAGES_SEARCH_ENDPOINT);
   endpoint.searchParams.set('q', 'Brave Search quota probe');
   endpoint.searchParams.set('count', '1');
   endpoint.searchParams.set('safesearch', 'strict');
   endpoint.searchParams.set('search_lang', 'en');
 
-  const response = await fetcher(endpoint, {
-    headers: {
-      accept: 'application/json',
-      'x-subscription-token': input.apiKey,
-    },
-    signal: AbortSignal.timeout(15_000),
-  });
-  if (!response.ok) {
-    throw new Error(`Brave Search quota request failed (${response.status})`);
-  }
-
+  const response = await fetchBraveQuotaResponse(input, endpoint);
   const quota = readMonthlyQuota(response.headers);
   const unitCostUsd = normalizeNonNegative(input.unitCostUsd);
   const grossCostUsd =
@@ -133,6 +128,69 @@ export async function fetchBraveCostSnapshot(
     source: 'api',
     fetchedAt: now.toISOString(),
   };
+}
+
+async function fetchBraveQuotaResponse(
+  input: BraveCostInput,
+  endpoint: URL,
+): Promise<Response> {
+  const fetcher = input.fetch ?? globalThis.fetch;
+  const sleep =
+    input.sleep ??
+    ((milliseconds: number) =>
+      new Promise<void>((resolve) => setTimeout(resolve, milliseconds)));
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= BRAVE_REQUEST_MAX_ATTEMPTS; attempt += 1) {
+    let response: Response;
+    try {
+      response = await fetcher(endpoint, {
+        headers: {
+          accept: 'application/json',
+          'x-subscription-token': input.apiKey,
+        },
+        signal: AbortSignal.timeout(15_000),
+      });
+    } catch (error) {
+      lastError = error;
+      if (attempt === BRAVE_REQUEST_MAX_ATTEMPTS) {
+        throw new Error(
+          `Brave Search quota request failed after ${BRAVE_REQUEST_MAX_ATTEMPTS} attempts: ${safeErrorMessage(error)}`,
+          { cause: error },
+        );
+      }
+      await sleep(BRAVE_REQUEST_RETRY_DELAY_MS * 2 ** (attempt - 1));
+      continue;
+    }
+
+    if (response.ok) return response;
+
+    const statusError = new Error(
+      `Brave Search quota request failed (${response.status})`,
+    );
+    lastError = statusError;
+    if (
+      attempt === BRAVE_REQUEST_MAX_ATTEMPTS ||
+      !isRetryableBraveStatus(response.status)
+    ) {
+      throw statusError;
+    }
+
+    await response.body?.cancel().catch(() => {});
+    await sleep(BRAVE_REQUEST_RETRY_DELAY_MS * 2 ** (attempt - 1));
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error('Brave Search quota retry loop exhausted');
+}
+
+function isRetryableBraveStatus(status: number): boolean {
+  return RETRYABLE_BRAVE_STATUS.has(status) || status >= 500;
+}
+
+function safeErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function readMonthlyQuota(headers: Headers): BraveMonthlyQuota {
