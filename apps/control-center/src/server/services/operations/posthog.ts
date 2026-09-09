@@ -41,10 +41,11 @@ WHERE timestamp >= now() - INTERVAL 30 DAY
 `.trim();
 
 /**
- * The Sankey source edge must be mutually exclusive. Pick each person's first
- * landing page view inside the same 30-day window, preferring explicit UTM
- * source over browser referrer. This is intentionally visitor attribution,
- * not a social CTR: social platforms expose aggregate reach, not person IDs.
+ * Growth source edges must be mutually exclusive. Pick each person's first
+ * landing page view inside the 30-day window, preferring explicit UTM source
+ * on that view and falling back to browser referrer. This is visitor
+ * attribution, not social CTR: social platforms expose aggregate reach, not
+ * the person IDs PostHog sees on the landing page.
  */
 const LANDING_SOURCE_QUERY = `
 SELECT source, count() AS visitors
@@ -84,6 +85,14 @@ const numericSchema = z
 /** HogQL aggregate columns can arrive as JSON numbers or numeric strings. */
 const rowSchema = z.array(numericSchema).length(11);
 const sourceRowSchema = z.tuple([z.string(), numericSchema]);
+const funnelEnvelopeSchema = z.object({
+  results: z.array(
+    z.object({
+      order: z.number().int().nonnegative(),
+      count: numericSchema,
+    }),
+  ),
+});
 
 interface AudienceReading {
   uniqueUsers7d: number;
@@ -106,7 +115,18 @@ interface LandingSourceReading {
   landingRednote30d: number;
   landingDirect30d: number;
   landingOther30d: number;
-  landingSocialAttributed30d: number;
+}
+
+interface LandingCtaFunnelReading {
+  landingVisitors30d: number;
+  ctaUsers30d: number;
+}
+
+export interface PosthogGrowthJourneyReading
+  extends LandingSourceReading,
+    LandingCtaFunnelReading {
+  appVisitors30d: number;
+  walletConnectedUsers30d: number;
 }
 
 export async function collectPosthogSignals(input: {
@@ -132,11 +152,11 @@ export async function collectPosthogSignals(input: {
   // Degraded is the ceiling for this adapter. PostHog is reporting telemetry:
   // losing it removes insight from the dashboard but does not break users.
   return collectOrFail(ORIGIN, input.now, async () => {
-    const fetchImpl = input.fetchImpl ?? globalThis.fetch;
-    const [audience, sources] = await Promise.all([
-      runAudienceQuery(apiKey, projectId, fetchImpl),
-      runLandingSourceQuery(apiKey, projectId, fetchImpl),
-    ]);
+    const audience = await runAudienceQuery(
+      apiKey,
+      projectId,
+      input.fetchImpl ?? globalThis.fetch,
+    );
     return [
       buildSignal({
         ...ORIGIN,
@@ -147,7 +167,7 @@ export async function collectPosthogSignals(input: {
         detail:
           `${audience.uniqueUsers7d} unique users in the last 7 days, ` +
           `${audience.uniqueUsers30d} in the last 30 days`,
-        evidence: { ...audience, ...sources },
+        evidence: { ...audience },
         observedAt: input.now,
         url: `${POSTHOG_APP}/${encodeURIComponent(projectId)}`,
       }),
@@ -155,12 +175,43 @@ export async function collectPosthogSignals(input: {
   });
 }
 
+/**
+ * Growth needs ordered conversion semantics that the operational audience
+ * aggregate intentionally does not provide. Keep those extra provider queries
+ * on the Growth-only read path so Reliability remains a single lightweight
+ * PostHog request.
+ */
+export async function readPosthogGrowthJourney(input: {
+  config: ControlCenterConfig;
+  fetchImpl?: typeof fetch;
+}): Promise<PosthogGrowthJourneyReading> {
+  const apiKey = input.config.POSTHOG_PERSONAL_API_KEY;
+  const projectId = input.config.POSTHOG_PROJECT_ID;
+  if (!apiKey || !projectId) {
+    throw new Error(
+      'Set POSTHOG_PERSONAL_API_KEY and POSTHOG_PROJECT_ID to read growth journey.',
+    );
+  }
+  const fetchImpl = input.fetchImpl ?? globalThis.fetch;
+  const [audience, sources, funnel] = await Promise.all([
+    runAudienceQuery(apiKey, projectId, fetchImpl),
+    runLandingSourceQuery(apiKey, projectId, fetchImpl),
+    runLandingCtaFunnelQuery(apiKey, projectId, fetchImpl),
+  ]);
+  return {
+    ...sources,
+    ...funnel,
+    appVisitors30d: audience.appVisitors30d,
+    walletConnectedUsers30d: audience.walletConnectedUsers30d,
+  };
+}
+
 async function runAudienceQuery(
   apiKey: string,
   projectId: string,
   fetchImpl: typeof fetch,
 ): Promise<AudienceReading> {
-  const envelope = await runQuery({
+  const envelope = await runHogqlQuery({
     apiKey,
     projectId,
     fetchImpl,
@@ -195,7 +246,7 @@ async function runLandingSourceQuery(
   projectId: string,
   fetchImpl: typeof fetch,
 ): Promise<LandingSourceReading> {
-  const envelope = await runQuery({
+  const envelope = await runHogqlQuery({
     apiKey,
     projectId,
     fetchImpl,
@@ -210,23 +261,79 @@ async function runLandingSourceQuery(
     }
     counts.set(row.data[0], row.data[1]);
   }
-  const landingThreads30d = counts.get('threads') ?? 0;
-  const landingX30d = counts.get('x') ?? 0;
-  const landingYoutube30d = counts.get('youtube') ?? 0;
-  const landingRednote30d = counts.get('rednote') ?? 0;
   return {
-    landingThreads30d,
-    landingX30d,
-    landingYoutube30d,
-    landingRednote30d,
+    landingThreads30d: counts.get('threads') ?? 0,
+    landingX30d: counts.get('x') ?? 0,
+    landingYoutube30d: counts.get('youtube') ?? 0,
+    landingRednote30d: counts.get('rednote') ?? 0,
     landingDirect30d: counts.get('direct') ?? 0,
     landingOther30d: counts.get('other') ?? 0,
-    landingSocialAttributed30d:
-      landingThreads30d + landingX30d + landingYoutube30d + landingRednote30d,
   };
 }
 
-function runQuery(input: {
+async function runLandingCtaFunnelQuery(
+  apiKey: string,
+  projectId: string,
+  fetchImpl: typeof fetch,
+): Promise<LandingCtaFunnelReading> {
+  const envelope = await fetchJson({
+    label: 'PostHog landing CTA funnel query',
+    url: `${POSTHOG_API}/${encodeURIComponent(projectId)}/query/`,
+    token: apiKey,
+    schema: funnelEnvelopeSchema,
+    fetchImpl,
+    body: {
+      query: {
+        kind: 'FunnelsQuery',
+        series: [
+          {
+            kind: 'EventsNode',
+            event: '$pageview',
+            custom_name: 'Landing page view',
+            properties: [
+              {
+                key: 'surface',
+                type: 'event',
+                operator: 'exact',
+                value: 'landing',
+              },
+            ],
+          },
+          {
+            kind: 'EventsNode',
+            event: 'waitlist_cta_clicked',
+            custom_name: 'Waitlist CTA clicked',
+            properties: [
+              {
+                key: 'surface',
+                type: 'event',
+                operator: 'exact',
+                value: 'landing',
+              },
+            ],
+          },
+        ],
+        dateRange: { date_from: '-30d' },
+        funnelsFilter: {
+          funnelOrderType: 'ordered',
+          funnelVizType: 'steps',
+          funnelStepReference: 'previous',
+          funnelWindowInterval: 1,
+          funnelWindowIntervalUnit: 'day',
+        },
+      },
+    },
+  });
+  const counts = new Map(envelope.results.map((step) => [step.order, step.count]));
+  const landingVisitors30d = counts.get(0);
+  const ctaUsers30d = counts.get(1);
+  if (landingVisitors30d === undefined || ctaUsers30d === undefined) {
+    throw new Error('PostHog landing CTA funnel query returned incomplete steps');
+  }
+  return { landingVisitors30d, ctaUsers30d };
+}
+
+function runHogqlQuery(input: {
   apiKey: string;
   projectId: string;
   fetchImpl: typeof fetch;
