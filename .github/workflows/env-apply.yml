@@ -53,7 +53,9 @@ jobs:
       cancel-in-progress: false
       queue: max
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Podcast env writes can restart both process groups, so they use the same
+    # 100-minute drain budget as code deploys plus rollout headroom.
+    timeout-minutes: ${{ matrix.target == 'podcast-pipeline' && 150 || 15 }}
     strategy:
       # One expired platform token must not stop the other destinations from
       # converging on the merged manifest.
@@ -80,6 +82,28 @@ jobs:
 
       - uses: ./.github/actions/setup-env-tooling
 
+      - name: Drain podcast render fleet
+        if: matrix.target == 'podcast-pipeline' && github.event.inputs.dry_run != 'true'
+        id: podcast_drain
+        run: |
+          deployment_id="$(node -e "console.log(require('node:crypto').randomUUID())")"
+          owner_token="$(node -e "console.log(require('node:crypto').randomUUID())")"
+          echo "deployment_id=$deployment_id" >> "$GITHUB_OUTPUT"
+          echo "owner_token=$owner_token" >> "$GITHUB_OUTPUT"
+          node scripts/env/run.mjs --environment prod -- \
+            node scripts/podcast-deployment-gate.mjs prepare \
+            --deployment-id "$deployment_id" \
+            --owner-token "$owner_token" \
+            --release "$GITHUB_SHA"
+
+      - name: Authorize podcast env rollout
+        if: matrix.target == 'podcast-pipeline' && github.event.inputs.dry_run != 'true'
+        run: |
+          node scripts/env/run.mjs --environment prod -- \
+            node scripts/podcast-deployment-gate.mjs mark-rollout \
+            --deployment-id "${{ steps.podcast_drain.outputs.deployment_id }}" \
+            --owner-token "${{ steps.podcast_drain.outputs.owner_token }}"
+
       - name: Sync ${{ matrix.target }}
         env:
           DRY_RUN: ${{ github.event.inputs.dry_run }}
@@ -90,6 +114,24 @@ jobs:
           else
             pnpm env:sync --target "$TARGET" --apply --prune
           fi
+
+      - name: Reopen podcast claims
+        if: matrix.target == 'podcast-pipeline' && github.event.inputs.dry_run != 'true'
+        run: |
+          node scripts/env/run.mjs --environment prod -- \
+            node scripts/podcast-deployment-gate.mjs complete \
+            --deployment-id "${{ steps.podcast_drain.outputs.deployment_id }}" \
+            --owner-token "${{ steps.podcast_drain.outputs.owner_token }}"
+
+      - name: Fence failed podcast env rollout
+        if: ${{ always() && matrix.target == 'podcast-pipeline' && github.event.inputs.dry_run != 'true' && failure() && steps.podcast_drain.outputs.deployment_id != '' }}
+        continue-on-error: true
+        run: |
+          node scripts/env/run.mjs --environment prod -- \
+            node scripts/podcast-deployment-gate.mjs fail \
+            --deployment-id "${{ steps.podcast_drain.outputs.deployment_id }}" \
+            --owner-token "${{ steps.podcast_drain.outputs.owner_token }}" \
+            --reason "Environment apply did not complete cleanly"
 
   # The 2026-08 render outage was two Fly secrets going missing without a single
   # red signal. Applying and then auditing in the same workflow makes the fleet
