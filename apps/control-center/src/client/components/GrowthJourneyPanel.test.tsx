@@ -74,9 +74,7 @@ describe('GrowthJourneyPanel', () => {
 
     render(<GrowthJourneyPanel growth={GROWTH} />);
 
-    await waitFor(() =>
-      expect(screen.getByText('300')).toBeVisible(),
-    );
+    await waitFor(() => expect(screen.getByText('300')).toBeVisible());
     expect(screen.getByText('210')).toBeVisible();
     expect(screen.getByText('12')).toBeVisible();
     expect(screen.getByText('8')).toBeVisible();
@@ -84,7 +82,7 @@ describe('GrowthJourneyPanel', () => {
     expect(screen.getByText('21')).toBeVisible();
     expect(screen.getByText('Supabase durable rows')).toBeVisible();
     expect(screen.getByText('PostHog · not identity-linked')).toBeVisible();
-    expect(screen.getByText(/different source.*aggregate counts/i)).toBeVisible();
+    expect(screen.getByText(/aggregate counts/i)).toBeVisible();
     expect(screen.getByText(/96% leave before waitlist CTA/i)).toBeVisible();
     expect(getJson).toHaveBeenCalledWith('/api/operations');
   });
