@@ -188,6 +188,7 @@ async function readViews(
   until: string,
 ): Promise<Map<string, number | null>> {
   const views = new Map<string, number | null>();
+  const seenMetricIds = new Set<string>();
   const ids = [
     ...new Set(
       jobs.flatMap((job) => (job.social_post_id ? [job.social_post_id] : [])),
@@ -214,6 +215,10 @@ async function readViews(
         break;
       }
       for (const row of result.data) {
+        if (seenMetricIds.has(row.id)) {
+          throw new Error('Metric snapshot changed during collection');
+        }
+        seenMetricIds.add(row.id);
         views.set(row.social_post_id, row.views);
       }
       fetched += result.data.length;
