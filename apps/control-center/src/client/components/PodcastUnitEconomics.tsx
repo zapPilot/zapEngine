@@ -56,10 +56,12 @@ export function PodcastUnitEconomics(props: {
               value={unitUsd(costSummary.averageCostUsd)}
             />
             <DecisionMetric
-              label="Retry waste"
-              note={`${percentage(costSummary.retryWasteShare)} of episode cost`}
-              tone={costSummary.retryWasteUsd > 0 ? 'warning' : undefined}
-              value={unitUsd(costSummary.retryWasteUsd)}
+              label="Failed attempt cost"
+              note={`${percentage(costSummary.failedAttemptShare)} of episode cost · not confirmed retry waste`}
+              tone={
+                costSummary.failedAttemptCostUsd > 0 ? 'warning' : undefined
+              }
+              value={unitUsd(costSummary.failedAttemptCostUsd)}
             />
             <DecisionMetric
               label="Highest recent episode"
@@ -103,7 +105,7 @@ export function PodcastUnitEconomics(props: {
               <div className="podcast-list-head" aria-hidden="true">
                 <span>Highest-cost episode audit</span>
                 <span>Total</span>
-                <span>Retry</span>
+                <span>Failed</span>
                 <span>Runs</span>
               </div>
               <EpisodeCostRow
@@ -117,7 +119,8 @@ export function PodcastUnitEconomics(props: {
       <div className="unit-cost-note">
         Based on {props.data?.episodes.length ?? 0} recent episode
         {(props.data?.episodes.length ?? 0) === 1 ? '' : 's'}. Failed-attempt
-        spend is included; unpriced stages are excluded.
+        spend is included; unpriced stages are excluded. Confirmed retry waste
+        requires execution lineage and is not inferred from a failed parent run.
       </div>
     </section>
   );
@@ -168,7 +171,7 @@ function EpisodeCostRow(props: {
           />
           <DetailMetric label="Video" value={unitUsd(episode.videoCostUsd)} />
           <DetailMetric
-            label="Retry waste"
+            label="Failed attempt cost"
             value={unitUsd(episode.retryWasteUsd)}
           />
         </div>
@@ -354,23 +357,25 @@ function summarize(episodes: PodcastEpisodeCostSummary[]): {
   averageCostUsd: number | null;
   highest: PodcastEpisodeCostSummary | null;
   maxCostUsd: number;
-  retryWasteShare: number | null;
-  retryWasteUsd: number;
+  failedAttemptShare: number | null;
+  failedAttemptCostUsd: number;
 } {
   if (episodes.length === 0) {
     return {
       averageCostUsd: null,
       highest: null,
       maxCostUsd: 0,
-      retryWasteShare: null,
-      retryWasteUsd: 0,
+      failedAttemptShare: null,
+      failedAttemptCostUsd: 0,
     };
   }
   const totalCostUsd = episodes.reduce(
     (total, episode) => total + episode.totalCostUsd,
     0,
   );
-  const retryWasteUsd = episodes.reduce(
+  // retryWasteUsd is retained as a compatibility alias in the shared type; the
+  // server now also emits failedAttemptCostUsd with the honest name.
+  const failedAttemptCostUsd = episodes.reduce(
     (total, episode) => total + episode.retryWasteUsd,
     0,
   );
@@ -381,8 +386,9 @@ function summarize(episodes: PodcastEpisodeCostSummary[]): {
     averageCostUsd: totalCostUsd / episodes.length,
     highest,
     maxCostUsd: highest.totalCostUsd,
-    retryWasteShare: totalCostUsd > 0 ? retryWasteUsd / totalCostUsd : null,
-    retryWasteUsd,
+    failedAttemptShare:
+      totalCostUsd > 0 ? failedAttemptCostUsd / totalCostUsd : null,
+    failedAttemptCostUsd,
   };
 }
 
