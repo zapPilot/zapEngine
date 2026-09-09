@@ -25,7 +25,7 @@ function scene(
 }
 
 describe('sceneDecisionTrace', () => {
-  it('makes the Shor cross-topic fallback explicit instead of mixing asked and names', () => {
+  it('exposes that the production scene had no literal Bitcoin/BIP-32 anchor and then crossed to Shor', () => {
     const trace = sceneDecisionTrace(
       scene({
         selection: {
@@ -38,10 +38,24 @@ describe('sceneDecisionTrace', () => {
       }),
     );
 
-    expect(trace.extractedAnchors).toEqual(['Bitcoin', 'BIP-32', '比特幣']);
+    expect(trace.extractedAnchors).toEqual([]);
+    expect(trace.inheritedAnchors).toEqual(['Bitcoin', 'BIP-32', '比特幣']);
     expect(trace.intendedQuery).toBe('Bitcoin cryptocurrency');
     expect(trace.selectedQuery).toBe('Shor mathematician');
+    expect(trace.selectedRank).toBe(6);
     expect(trace.crossedTopicFallback).toBe(true);
+  });
+
+  it('shows only anchors literally grounded in this narration span', () => {
+    const trace = sceneDecisionTrace(
+      scene({
+        sentenceText: '比特幣硬體錢包的記憶體限制也得納入。',
+        imageSearchEntities: ['Bitcoin', 'BIP-32', '比特幣'],
+      }),
+    );
+
+    expect(trace.extractedAnchors).toEqual(['比特幣']);
+    expect(trace.inheritedAnchors).toEqual(['Bitcoin', 'BIP-32']);
   });
 
   it('does not present inherited context as words extracted from this scene', () => {
@@ -59,6 +73,7 @@ describe('sceneDecisionTrace', () => {
   it('keeps a normal same-query selection quiet', () => {
     const trace = sceneDecisionTrace(
       scene({
+        sentenceText: '1994 年 Shor 證明量子電腦可以破解這類簽名。',
         imageSearchIntent: ['Shor mathematician'],
         imageSearchEntities: ['Shor'],
         selection: {
@@ -71,6 +86,7 @@ describe('sceneDecisionTrace', () => {
       }),
     );
 
+    expect(trace.extractedAnchors).toEqual(['Shor']);
     expect(trace.crossedTopicFallback).toBe(false);
     expect(trace.selectedQuery).toBe('Shor mathematician');
   });
