@@ -197,6 +197,13 @@ async function loadRecentEpisodeIds(client: ReturnType<typeof createClient>) {
   return ids;
 }
 
+function requirePage<T>(data: T[] | null, error: unknown): T[] {
+  if (error) {
+    throw error;
+  }
+  return data ?? [];
+}
+
 async function loadRunsForEpisodes(
   client: ReturnType<typeof createClient>,
   episodeIds: string[],
@@ -210,10 +217,7 @@ async function loadRunsForEpisodes(
       .order('started_at', { ascending: false })
       .order('id', { ascending: false })
       .range(offset, offset + PAGE_SIZE - 1);
-    if (error) {
-      throw error;
-    }
-    const page = (data ?? []) as PipelineRunRow[];
+    const page = requirePage(data as PipelineRunRow[] | null, error);
     rows.push(...page);
     if (page.length < PAGE_SIZE) {
       return rows;
