@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Fixed regression evidence for deployment-interrupted renders; no Sentry credentials or event payloads are stored.",
+  "cases": [
+    {
+      "runRef": "362d412a",
+      "languageCode": "zh-Hant",
+      "sentrySignal": "Video worker stopping: SIGINT",
+      "signalAt": "2026-09-06T06:26:57Z",
+      "machineId": "2861322fd97908",
+      "rolloutMachineUpdateStartedAt": "2026-09-06T06:26:37Z",
+      "laterExecutionCompleted": true
+    },
+    {
+      "runRef": "fb5a2509",
+      "languageCode": "en",
+      "sentrySignal": "Video worker stopping: SIGINT",
+      "signalAt": "2026-09-06T06:44:46Z",
+      "machineId": "2861322fd97908",
+      "rolloutMachineUpdateStartedAt": "2026-09-06T06:44:25Z",
+      "laterExecutionCompleted": true
+    }
+  ]
+}
