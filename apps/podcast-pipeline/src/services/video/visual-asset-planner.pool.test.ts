@@ -268,6 +268,8 @@ describe('planVisualAssets episode image pool', () => {
       },
     });
 
+    // Five primary passes plus one targeted retry for the sixth subject: the
+    // thirty scenes cost one request per subject, not one per scene.
     expect(queriesOf(search)).toEqual(
       ANCHORED_SUBJECTS.map((subject) => anchoredQuery(subject)),
     );
@@ -438,6 +440,8 @@ describe('planVisualAssets episode image pool', () => {
       query: numberedQuery(5),
     });
     expect(selectionFor(result, 'scene-06')?.selection).toBe('targeted');
+    // The inherited-subject scene never insists on an identity of its own, so
+    // it degrades to the pool instead of paying for a seventh request.
     expect(selectionFor(result, 'scene-07')).toMatchObject({
       selection: 'pool-fallback',
       fallbackReason: 'subject-not-searched',
@@ -446,6 +450,10 @@ describe('planVisualAssets episode image pool', () => {
 
   it('images a ninth subject from the pool once the budget is gone', async () => {
     const scenes = numberedScenes(9);
+    // Generic alt text: under the known-subject collision guard a result that
+    // explicitly names another episode subject cannot clothe this scene, so
+    // the pool entries must not carry their donor's name for the borrow to be
+    // legitimate.
     const search = searchByQuery(
       Object.fromEntries(
         Array.from({ length: 9 }, (_, index) => [
@@ -485,6 +493,9 @@ describe('planVisualAssets episode image pool', () => {
 
   describe('the production regressions this pool exists for', () => {
     it('E1: images a subject no candidate ever names', async () => {
+      // The identity hard gate this replaced discarded 423 of 423 viable
+      // candidates for one episode, because a news photograph seldom repeats
+      // its subject's name in alt text, image URL or source URL.
       const unnamed = braveResult(
         'server-hall-at-night',
         'quantum annealing hardware rack at night',
@@ -610,6 +621,9 @@ describe('planVisualAssets episode image pool', () => {
       },
     });
 
+    // `repeatedHost` outranks `freshHost` on Brave's own ordering and is
+    // identical on every other signal, so only the repetition penalty can put
+    // it behind -- and behind is last.
     expect(urlsOf(acquireImage)).toEqual([
       seed.imageUrl,
       freshHost.imageUrl,
@@ -696,6 +710,8 @@ describe('planVisualAssets episode image pool', () => {
       },
     });
 
+    // Counts alone say 2 returned, 1 viable, and cannot say which one survived
+    // or what the other one was -- the only two questions a wrong image raises.
     expect(result.imageSearch?.requests[0]?.candidates).toEqual([
       {
         imageUrl: keeper.imageUrl,
@@ -712,6 +728,7 @@ describe('planVisualAssets episode image pool', () => {
         dropReason: 'decorative-asset',
       },
     ]);
+    // The scene names its image by the rank the candidate list is keyed on.
     expect(result.imageSearch?.scenes[0]?.providerRank).toBe(0);
   });
 
@@ -861,6 +878,8 @@ describe('planVisualAssets episode image pool', () => {
       },
     });
 
+    // The two URLs the checkpoint already owns are in the pool for ranking
+    // honesty only; the next mint skips the gap the checkpoint left.
     expect(urlsOf(acquireImage)).toEqual([fresh.imageUrl]);
     expect(result.assets.map((asset) => asset.assetId)).toEqual([
       'image-01',
@@ -903,6 +922,9 @@ describe('planVisualAssets episode image pool', () => {
       },
     });
 
+    // A fully-resumed attempt spends nothing and decides nothing, so without
+    // the resumed count its trace is byte-identical to an episode that never
+    // searched at all -- and the operator cannot tell those apart.
     expect(search).not.toHaveBeenCalled();
     expect(result.imageSearch).toMatchObject({
       requestCount: 0,
@@ -980,6 +1002,8 @@ describe('planVisualAssets episode image pool', () => {
       },
     }).catch((error: unknown) => error);
 
+    // Eight scenes buy two cards. The second scene proves the first card is
+    // not a reuse candidate: it had to mint a card of its own.
     expect(generateSlide).toHaveBeenCalledTimes(2);
     expect(
       generateSlide.mock.calls.map(([request]) => request.scene.sceneId),
@@ -1042,6 +1066,7 @@ describe('planVisualAssets episode image pool', () => {
         imageSearchEntities: [subject],
         searchAnchor: 'direct' as const,
       })),
+      // Five publisher images clothe scenes 2-6; the lead never consumes one.
       articleImages: ['yard-a', 'yard-b', 'yard-c', 'yard-d', 'yard-e'].map(
         (id) => articleResult(id),
       ),
@@ -1054,6 +1079,10 @@ describe('planVisualAssets episode image pool', () => {
       },
     });
 
+    // One searched photo plus five publisher images used to count as six of
+    // this subject's own, which declared it saturated and sent every later
+    // scene back to an already-shown image while eight paid-for, on-subject
+    // pool entries sat untried.
     expect(result.assets.map((asset) => asset.provider)).toEqual([
       'brave',
       'article',
@@ -1077,6 +1106,9 @@ describe('planVisualAssets episode image pool', () => {
     const genericIntent = 'market sentiment overview';
     const strongDonor = 'Aurora Labs';
     const weakDonor = 'Borealis Bank';
+    // The strong donor's entries echo two of the generic intent's tokens and
+    // the weak donor's echo one, a gap smaller than SUBJECT_REUSE_PENALTY, so
+    // one draw from the strong donor is enough to hand the next borrow over.
     const strongDonorIntent = `${strongDonor} market sentiment desk`;
     const weakDonorIntent = `${weakDonor} market desk`;
     const search = searchByQuery({
@@ -1123,6 +1155,8 @@ describe('planVisualAssets episode image pool', () => {
       },
     });
 
+    // Keyed by the borrowing scene's own subject, the penalty recorded nothing
+    // about either donor and the strong one lent every borrow in the episode.
     expect(selectionFor(result, 'scene-03')).toMatchObject({
       selection: 'pool-fallback',
       matchedSubjectKey: 'aurora labs',
@@ -1134,6 +1168,10 @@ describe('planVisualAssets episode image pool', () => {
   });
 
   it('names the provider cause on a starved scene inside one alertable line', async () => {
+    // The worst case an operator alert has to survive: many rejection causes,
+    // many pre-download drops, and several long multi-line provider errors.
+    // `publicTelegramErrorMessage` forwards only the first line, truncated at
+    // 497 characters, so anything past that is lost to whoever is paged.
     const providerErrors = [
       'Brave Images search failed with HTTP 401:\n{"type":"ErrorResponse","error":{"id":"58d1c9c1","status":401,"detail":"Subscription token is invalid or expired"}}',
       'Brave Images search failed with HTTP 429: rate limit exceeded for plan free, retry after 60 seconds',
@@ -1170,6 +1208,8 @@ describe('planVisualAssets episode image pool', () => {
       'Delta Freight',
       'Everest Telecom',
     ];
+    // The fourth subject repeats the first error, so the message has to
+    // de-duplicate before it counts how many it left out.
     const searchErrors = new Map(
       failingSubjects.map((subject, index) => [
         anchoredQuery(subject),
@@ -1215,10 +1255,14 @@ describe('planVisualAssets episode image pool', () => {
       name: 'VisualSceneExhaustedError',
       sceneId: 'scene-01',
       reason: 'candidate-exhaustion',
+      // Untruncated and de-duplicated on the error itself; the message only
+      // ever carries as much of them as the line can afford.
       providerFailures: providerErrors,
     });
     expect(message).toContain('Brave Images search failed with HTTP 401');
     expect(message).toContain('+1 more');
+    // The counts sit at the end of the line, so they are what a longer prefix
+    // would have pushed off it.
     expect(message).toContain('requests=5/8');
     expect(message).not.toContain('\n');
     expect(message.length).toBeLessThan(500);
