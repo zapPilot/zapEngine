@@ -31,7 +31,9 @@ export function GrowthJourneyPanel(props: {
         if (!active) {
           return;
         }
-        setError(cause instanceof Error ? cause.message : 'PostHog unavailable');
+        setError(
+          cause instanceof Error ? cause.message : 'PostHog unavailable',
+        );
       });
     return () => {
       active = false;
@@ -94,7 +96,9 @@ export function GrowthJourneyPanel(props: {
       {!journeyReady ? (
         <div className={styles['unavailable']}>
           <strong>Journey telemetry unavailable</strong>
-          <span>{error ?? journey?.message ?? 'Waiting for PostHog data.'}</span>
+          <span>
+            {error ?? journey?.message ?? 'Waiting for PostHog data.'}
+          </span>
         </div>
       ) : (
         <>
@@ -174,8 +178,8 @@ export function GrowthJourneyPanel(props: {
             </div>
             <p>
               Waitlist 是 Supabase durable truth。虛線兩側是不同 source 的
-              aggregate counts；目前不能宣稱某一個 waitlist email 就是之後的
-              app visitor。
+              aggregate counts；目前不能宣稱某一個 waitlist email 就是之後的 app
+              visitor。
             </p>
           </div>
         </>
