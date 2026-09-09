@@ -62,6 +62,8 @@ describe('waitlist routes', () => {
       'episode_id',
       '72f1ee5b-3f57-4e32-b7ad-fe57666985d6',
     );
+    expect(fixture.socialQuery.eq).toHaveBeenCalledWith('platform', 'youtube');
+    expect(fixture.socialQuery.eq).toHaveBeenCalledWith('language_code', 'en');
     expect(fixture.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         email: 'user@example.com',
@@ -93,6 +95,37 @@ describe('waitlist routes', () => {
     expect(fixture.client.schema).not.toHaveBeenCalled();
     expect(fixture.upsert).toHaveBeenCalledWith(
       expect.objectContaining({ social_publish_job_id: null }),
+      expect.any(Object),
+    );
+  });
+
+  it('does not resolve incomplete social attribution to a canonical job', async () => {
+    const fixture = databaseFixture('forbidden-job');
+    const app = createWaitlistRoutes(fixture.databaseService);
+
+    const response = await app.request(
+      signupRequest(
+        {
+          email: 'partial-social@example.com',
+          utmSource: 'youtube',
+          utmMedium: 'social',
+          utmCampaign: 'not-an-episode-uuid',
+          utmContent: 'fr',
+        },
+        '203.0.113.10',
+      ),
+    );
+
+    expect(response.status).toBe(201);
+    expect(fixture.client.schema).not.toHaveBeenCalled();
+    expect(fixture.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        social_publish_job_id: null,
+        utm_source: 'youtube',
+        utm_medium: 'social',
+        utm_campaign: 'not-an-episode-uuid',
+        utm_content: 'fr',
+      }),
       expect.any(Object),
     );
   });
@@ -160,6 +193,32 @@ describe('waitlist routes', () => {
       expect.objectContaining({ social_publish_job_id: null }),
       expect.any(Object),
     );
+  });
+
+  it('does not persist a social signup when canonical attribution lookup fails', async () => {
+    const fixture = databaseFixture();
+    fixture.socialQuery.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'social lookup unavailable' },
+    });
+    const app = createWaitlistRoutes(fixture.databaseService);
+    app.onError(() => new Response('Unavailable', { status: 500 }));
+
+    const response = await app.request(
+      signupRequest(
+        {
+          email: 'lookup-failed@example.com',
+          utmSource: 'threads',
+          utmMedium: 'social',
+          utmCampaign: '72f1ee5b-3f57-4e32-b7ad-fe57666985d6',
+          utmContent: 'ja',
+        },
+        '203.0.113.9',
+      ),
+    );
+
+    expect(response.status).toBe(500);
+    expect(fixture.upsert).not.toHaveBeenCalled();
   });
 
   it('limits repeated requests and allows retry after the window', async () => {
