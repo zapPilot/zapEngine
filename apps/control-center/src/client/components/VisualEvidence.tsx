@@ -535,35 +535,68 @@ export interface SceneDecisionTrace {
   inheritedAnchors: string[];
   intendedQuery: string | null;
   selectedQuery: string | null;
+  selectedRank: number | null;
   crossedTopicFallback: boolean;
 }
 
 /**
- * Converts the pipeline-shaped scene metadata into the three things an operator
- * actually needs to reason about the image: what the scene extracted, what it
- * intended to search, and which Brave query produced the selected result.
- * Context subjects stay available in Advanced trace but are not presented as
- * words extracted from the current narration.
+ * Converts pipeline metadata into the operator's actual decision chain. The
+ * subject assignment can say `direct` even when localization/evidence grouping
+ * attached an entity that is not literally present in this narration span, so
+ * the main UI never trusts that flag as proof of extraction. Only entity labels
+ * grounded in this scene's persisted sentence text are presented as "extracted";
+ * everything else stays visible as context in Advanced trace.
  */
 export function sceneDecisionTrace(
   scene: PodcastVisualSceneDebug,
 ): SceneDecisionTrace {
+  const sentence = normalizeTraceText(scene.sentenceText ?? '');
+  const extractedAnchors = scene.imageSearchEntities.filter((anchor) =>
+    containsTracePhrase(sentence, normalizeTraceText(anchor)),
+  );
+  const extractedSet = new Set(extractedAnchors);
+  const inheritedAnchors = scene.imageSearchEntities.filter(
+    (anchor) => !extractedSet.has(anchor),
+  );
   const intendedQuery = scene.imageSearchIntent[0]?.trim() || null;
   const selectedQuery = scene.selection?.sourceQuery?.trim() || null;
-  const direct = scene.selectionReason === 'direct';
   const crossedTopicFallback = Boolean(
     scene.selection?.selection === 'pool-fallback' &&
       selectedQuery &&
       intendedQuery &&
-      !scene.imageSearchIntent.includes(selectedQuery),
+      !scene.imageSearchIntent.some(
+        (query) => normalizeTraceText(query) === normalizeTraceText(selectedQuery),
+      ),
   );
   return {
-    extractedAnchors: direct ? [...scene.imageSearchEntities] : [],
-    inheritedAnchors: direct ? [] : [...scene.imageSearchEntities],
+    extractedAnchors,
+    inheritedAnchors,
     intendedQuery,
     selectedQuery,
+    selectedRank: scene.selection?.providerRank ?? null,
     crossedTopicFallback,
   };
+}
+
+function normalizeTraceText(value: string): string {
+  return value
+    .normalize('NFKC')
+    .toLocaleLowerCase('en-US')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .replace(/\s+/gu, ' ')
+    .trim();
+}
+
+function containsTracePhrase(haystack: string, needle: string): boolean {
+  if (!needle) return false;
+  return ` ${haystack} `.includes(` ${needle} `);
+}
+
+function selectedFromLine(decision: SceneDecisionTrace): string | null {
+  if (!decision.selectedQuery) return null;
+  return decision.selectedRank === null
+    ? decision.selectedQuery
+    : `${decision.selectedQuery} (#${decision.selectedRank})`;
 }
 
 function SceneDebug(
@@ -579,7 +612,6 @@ function SceneDebug(
 ) {
   const { scene } = props;
   const decision = sceneDecisionTrace(scene);
-  const displayedQuery = decision.selectedQuery ?? decision.intendedQuery;
   return (
     <article className="podcast-visual-scene">
       <div className="podcast-visual-thumb">
@@ -600,21 +632,29 @@ function SceneDebug(
             'Sentence text not persisted for this version.'}
         </p>
         <div className="podcast-visual-chips">
-          <small>Extracted anchors</small>
+          <small>Extracted from scene</small>
           {decision.extractedAnchors.length > 0 ? (
             decision.extractedAnchors.map((anchor) => (
               <strong key={anchor}>{anchor}</strong>
             ))
           ) : (
-            <small>no direct visual anchor</small>
+            <small>no literal visual anchor found in this narration</small>
           )}
         </div>
         <div className="podcast-visual-chips">
           <small>Brave query</small>
-          {displayedQuery ? (
-            <strong>{displayedQuery}</strong>
+          {decision.intendedQuery ? (
+            <strong>{decision.intendedQuery}</strong>
           ) : (
-            <small>no Brave query · reused/generated asset</small>
+            <small>no planned Brave query</small>
+          )}
+        </div>
+        <div className="podcast-visual-chips">
+          <small>Selected from</small>
+          {selectedFromLine(decision) ? (
+            <strong>{selectedFromLine(decision)}</strong>
+          ) : (
+            <small>reuse / generated / non-Brave asset</small>
           )}
         </div>
         {decision.crossedTopicFallback ? (
@@ -627,7 +667,7 @@ function SceneDebug(
           <summary>Advanced trace</summary>
           {decision.inheritedAnchors.length > 0 ? (
             <small>
-              inherited anchors · {decision.inheritedAnchors.join(' · ')}
+              context / ungrounded anchors · {decision.inheritedAnchors.join(' · ')}
             </small>
           ) : null}
           {scene.imageSearchIntent.length > 0 ? (
