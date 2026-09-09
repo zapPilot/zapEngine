@@ -85,11 +85,11 @@ export function ReliabilityView(props: {
 
       <details className="panel signal-evidence">
         <summary className="signal-evidence-summary">
-          <strong>Signal evidence</strong>
+          <strong>Checks &amp; evidence</strong>
           <span>
             {data
-              ? `${integer(problemSignals.length)} issues · ${integer(data.signals.length)} signals`
-              : 'Waiting for signals'}
+              ? `${integer(problemSignals.length)} need attention · ${integer(data.signals.length)} checks`
+              : 'Waiting for checks'}
           </span>
         </summary>
         <div className="signal-evidence-body">
@@ -116,7 +116,7 @@ function SignalAudit({
     return <div className="empty-inline">Waiting for data.</div>;
   }
   if (signals.length === 0) {
-    return <div className="empty-inline">No signals collected.</div>;
+    return <div className="empty-inline">No checks collected.</div>;
   }
   return (
     <div className="signal-audit-list">
