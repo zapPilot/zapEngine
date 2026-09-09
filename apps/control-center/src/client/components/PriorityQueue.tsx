@@ -1,7 +1,8 @@
 import { useState } from 'react';
 
 import type { OperationalPriority } from '../../shared/types.js';
-import { relativeTime, statusLabel } from '../format.js';
+import { relativeTime } from '../format.js';
+import { StatusPill } from './Status.js';
 
 /**
  * The ranked action list, shared by Home (top slice) and Reliability (all of
@@ -37,9 +38,12 @@ function QueueRow({ priority }: { priority: OperationalPriority }) {
   const [open, setOpen] = useState(false);
   return (
     <li className={`queue-row ${signal.status}`}>
-      <div className="queue-score">
+      <div
+        aria-label={`Priority score ${priority.score} out of 100`}
+        className="queue-score"
+      >
+        <span>Priority</span>
         <strong>{priority.score}</strong>
-        <span>{statusLabel(signal.status)}</span>
       </div>
       <details className="queue-body" open={open}>
         <summary
@@ -49,7 +53,9 @@ function QueueRow({ priority }: { priority: OperationalPriority }) {
             setOpen((value) => !value);
           }}
         >
-          <span className="queue-title">{signal.title}</span>
+          <span className="queue-title">
+            <StatusPill compact status={signal.status} /> {signal.title}
+          </span>
           <span aria-hidden="true" className="queue-toggle">
             Details
           </span>
