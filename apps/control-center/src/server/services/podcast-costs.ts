@@ -76,8 +76,6 @@ const PAGE_SIZE = 500;
 const RUN_ID_CHUNK = 100;
 const USD_SCALE = 100_000_000;
 
-type PodcastCostClient = ReturnType<typeof createClient>;
-
 export function createPodcastCostService(input: {
   config: ControlCenterConfig;
 }) {
@@ -167,7 +165,7 @@ export function createPodcastCostService(input: {
   };
 }
 
-async function loadRecentEpisodeIds(client: PodcastCostClient) {
+async function loadRecentEpisodeIds(client: ReturnType<typeof createClient>) {
   const ids: string[] = [];
   const seen = new Set<string>();
   for (let offset = 0; ids.length < EPISODE_LIMIT; offset += PAGE_SIZE) {
@@ -207,7 +205,7 @@ function requirePage<T>(data: T[] | null, error: unknown): T[] {
 }
 
 async function loadRunsForEpisodes(
-  client: PodcastCostClient,
+  client: ReturnType<typeof createClient>,
   episodeIds: string[],
 ): Promise<PipelineRunRow[]> {
   const rows: PipelineRunRow[] = [];
@@ -228,7 +226,7 @@ async function loadRunsForEpisodes(
 }
 
 async function loadStagesForRuns(
-  client: PodcastCostClient,
+  client: ReturnType<typeof createClient>,
   runIds: string[],
 ): Promise<PipelineStageRow[]> {
   const rows: PipelineStageRow[] = [];
