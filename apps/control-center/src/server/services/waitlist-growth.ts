@@ -188,6 +188,7 @@ async function readViews(
   until: string,
 ): Promise<Map<string, number | null>> {
   const views = new Map<string, number | null>();
+  const seenMetricIds = new Set<string>();
   const ids = [
     ...new Set(
       jobs.flatMap((job) => (job.social_post_id ? [job.social_post_id] : [])),
@@ -195,6 +196,7 @@ async function readViews(
   ];
   for (let offset = 0; offset < ids.length; offset += JOB_BATCH_SIZE) {
     let fetched = 0;
+    let lastMetric: { captured_at: string; id: string } | null = null;
     while (true) {
       const result = await client
         .schema('from_fed_to_chain')
@@ -214,6 +216,17 @@ async function readViews(
         break;
       }
       for (const row of result.data) {
+        if (
+          seenMetricIds.has(row.id) ||
+          (lastMetric !== null &&
+            (row.captured_at < lastMetric.captured_at ||
+              (row.captured_at === lastMetric.captured_at &&
+                row.id <= lastMetric.id)))
+        ) {
+          throw new Error('Metric snapshot changed during collection');
+        }
+        seenMetricIds.add(row.id);
+        lastMetric = { captured_at: row.captured_at, id: row.id };
         views.set(row.social_post_id, row.views);
       }
       fetched += result.data.length;
