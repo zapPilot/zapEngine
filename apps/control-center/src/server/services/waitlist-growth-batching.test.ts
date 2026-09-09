@@ -141,4 +141,63 @@ describe('loadWaitlistGrowth batching', () => {
     expect(secondPage.range).toHaveBeenCalledWith(500, 999);
     expect(pipelineFrom).not.toHaveBeenCalled();
   });
+
+  it('includes an attributed signup exactly on the seven-day boundary', async () => {
+    const signups = [
+      {
+        id: 'signup-before-boundary',
+        created_at: '2026-09-01T23:59:59.999Z',
+        social_publish_job_id: 'job-1',
+      },
+      {
+        id: 'signup-on-boundary',
+        created_at: '2026-09-02T00:00:00.000Z',
+        social_publish_job_id: 'job-1',
+      },
+    ];
+    const signupPage = query({ data: signups, error: null });
+    const from = vi
+      .fn()
+      .mockReturnValueOnce(query({ count: 2, error: null }))
+      .mockReturnValueOnce(query({ count: 1, error: null }))
+      .mockReturnValueOnce(query({ count: 2, error: null }))
+      .mockReturnValueOnce(signupPage);
+    const jobPage = query({
+      data: [
+        {
+          id: 'job-1',
+          episode_id: 'episode-1',
+          platform: 'threads',
+          language_code: 'ja',
+          social_post_id: null,
+        },
+      ],
+      error: null,
+    });
+    const pipelineFrom = vi
+      .fn()
+      .mockReturnValueOnce(jobPage)
+      .mockReturnValueOnce(query({ data: [], error: null }));
+    const schema = vi.fn(() => ({ from: pipelineFrom }));
+    const client = { from, schema } as unknown as SupabaseClient;
+    const create = (() => client) as unknown as typeof createClient;
+
+    const result = await loadWaitlistGrowth({
+      create,
+      url: 'https://example.supabase.co',
+      key: 'test-key',
+      now: new Date('2026-09-09T00:00:00.000Z'),
+    });
+
+    expect(result.status).toBe('ok');
+    expect(result.signups7d).toBe(1);
+    expect(result.attributedSocial7d).toBe(1);
+    expect(result.directOrUnknown7d).toBe(0);
+    expect(result.conversions).toEqual([
+      expect.objectContaining({
+        socialPublishJobId: 'job-1',
+        signups: 2,
+      }),
+    ]);
+  });
 });
