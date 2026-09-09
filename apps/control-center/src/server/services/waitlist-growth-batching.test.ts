@@ -30,9 +30,7 @@ function query(result: QueryResult) {
     order() {
       return this;
     },
-    range() {
-      return promise();
-    },
+    range: vi.fn(() => promise()),
     then<TResult1 = QueryResult, TResult2 = never>(
       onfulfilled?:
         | ((value: QueryResult) => TResult1 | PromiseLike<TResult1>)
@@ -61,12 +59,13 @@ describe('loadWaitlistGrowth batching', () => {
       social_post_id: null,
     }));
 
+    const signupPage = query({ data: signups, error: null });
     const from = vi
       .fn()
       .mockReturnValueOnce(query({ count: 101, error: null }))
       .mockReturnValueOnce(query({ count: 101, error: null }))
       .mockReturnValueOnce(query({ count: 101, error: null }))
-      .mockReturnValueOnce(query({ data: signups, error: null }));
+      .mockReturnValueOnce(signupPage);
 
     const firstBatch = query({ data: jobs.slice(0, 100), error: null });
     const firstBatchDone = query({ data: [], error: null });
@@ -96,10 +95,50 @@ describe('loadWaitlistGrowth batching', () => {
     expect(
       result.conversions.map((conversion) => conversion.socialPublishJobId),
     ).toEqual(jobs.map((job) => job.id));
+    expect(signupPage.range).toHaveBeenCalledWith(0, 499);
     expect(firstBatch.in).toHaveBeenCalledWith(
       'id',
       jobs.slice(0, 100).map((job) => job.id),
     );
     expect(secondBatch.in).toHaveBeenCalledWith('id', [jobs[100]!.id]);
+  });
+
+  it('collects every signup when the exact snapshot crosses the 500-row page boundary', async () => {
+    const signups = Array.from({ length: 501 }, (_, index) => ({
+      id: `signup-${String(index + 1).padStart(3, '0')}`,
+      created_at: '2026-09-08T12:00:00.000Z',
+      social_publish_job_id: null,
+    }));
+    const firstPage = query({ data: signups.slice(0, 500), error: null });
+    const secondPage = query({ data: signups.slice(500), error: null });
+    const from = vi
+      .fn()
+      .mockReturnValueOnce(query({ count: 501, error: null }))
+      .mockReturnValueOnce(query({ count: 501, error: null }))
+      .mockReturnValueOnce(query({ count: 501, error: null }))
+      .mockReturnValueOnce(firstPage)
+      .mockReturnValueOnce(secondPage);
+    const pipelineFrom = vi.fn();
+    const schema = vi.fn(() => ({ from: pipelineFrom }));
+    const client = { from, schema } as unknown as SupabaseClient;
+    const create = (() => client) as unknown as typeof createClient;
+
+    const result = await loadWaitlistGrowth({
+      create,
+      url: 'https://example.supabase.co',
+      key: 'test-key',
+      now: new Date('2026-09-09T00:00:00.000Z'),
+    });
+
+    expect(result.status).toBe('ok');
+    expect(result.total).toBe(501);
+    expect(result.signups7d).toBe(501);
+    expect(result.signups30d).toBe(501);
+    expect(result.attributedSocial7d).toBe(0);
+    expect(result.directOrUnknown7d).toBe(501);
+    expect(result.conversions).toEqual([]);
+    expect(firstPage.range).toHaveBeenCalledWith(0, 499);
+    expect(secondPage.range).toHaveBeenCalledWith(500, 999);
+    expect(pipelineFrom).not.toHaveBeenCalled();
   });
 });
