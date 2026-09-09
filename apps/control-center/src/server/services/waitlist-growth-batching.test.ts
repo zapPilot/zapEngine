@@ -93,9 +93,9 @@ describe('loadWaitlistGrowth batching', () => {
     expect(result.attributedSocial7d).toBe(101);
     expect(result.directOrUnknown7d).toBe(0);
     expect(result.conversions).toHaveLength(101);
-    expect(result.conversions.map((conversion) => conversion.socialPublishJobId)).toEqual(
-      jobs.map((job) => job.id),
-    );
+    expect(
+      result.conversions.map((conversion) => conversion.socialPublishJobId),
+    ).toEqual(jobs.map((job) => job.id));
     expect(firstBatch.in).toHaveBeenCalledWith(
       'id',
       jobs.slice(0, 100).map((job) => job.id),
