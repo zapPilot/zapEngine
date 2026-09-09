@@ -54,7 +54,9 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # A podcast render may legitimately run for 90 minutes. The deployment gate
+    # waits up to 100 minutes for it and still needs room for build + rollout.
+    timeout-minutes: ${{ inputs.app == 'podcast-pipeline' && 150 || 30 }}
     concurrency:
       group: fly-rollout-${{ inputs.app }}
       cancel-in-progress: false
@@ -88,9 +90,27 @@ jobs:
         # admin-controlled via .github/fly-apps.json, so intentional word-splitting is safe.
         run: pnpm run $VERIFY_SCRIPT
 
-      # Also installs the flyctl the deploy step below calls. Note the action
-      # SHA is pinned but the flyctl binary is not — it tracks latest.
+      # Also installs the flyctl used by both the drain controller and deploy.
       - uses: ./.github/actions/setup-env-tooling
+
+      # Close claims before any operation which can restart the podcast app.
+      # The migration is backward-compatible with the previous worker: old
+      # workers keep their current lease, finish normally, then cannot claim a
+      # replacement. We require the render Machine to become stopped as well as
+      # the DB leases to reach zero, so its final ledger/cleanup path has run.
+      - name: Drain podcast render fleet
+        if: inputs.app == 'podcast-pipeline'
+        id: podcast_drain
+        run: |
+          deployment_id="$(node -e "console.log(require('node:crypto').randomUUID())")"
+          owner_token="$(node -e "console.log(require('node:crypto').randomUUID())")"
+          echo "deployment_id=$deployment_id" >> "$GITHUB_OUTPUT"
+          echo "owner_token=$owner_token" >> "$GITHUB_OUTPUT"
+          node scripts/env/run.mjs --environment prod -- \
+            node scripts/podcast-deployment-gate.mjs prepare \
+            --deployment-id "$deployment_id" \
+            --owner-token "$owner_token" \
+            --release "$GITHUB_SHA"
 
       # Every code deploy reasserts this app's manifest so code cannot outrun a
       # required env value. Fly secret writes normally trigger their own rollout
@@ -116,6 +136,14 @@ jobs:
           echo "commit_sha=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
           echo "build_time=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
 
+      - name: Authorize podcast rollout
+        if: inputs.app == 'podcast-pipeline'
+        run: |
+          node scripts/env/run.mjs --environment prod -- \
+            node scripts/podcast-deployment-gate.mjs mark-rollout \
+            --deployment-id "${{ steps.podcast_drain.outputs.deployment_id }}" \
+            --owner-token "${{ steps.podcast_drain.outputs.owner_token }}"
+
       - name: Deploy to Fly.io
         env:
           FLY_API_TOKEN: ${{ secrets.fly_token }}
@@ -129,3 +157,24 @@ jobs:
             args+=(--commit-sha "$COMMIT_SHA" --build-time "$BUILD_TIME")
           fi
           node scripts/fly-deploy.mjs "${args[@]}"
+
+      - name: Reopen podcast claims
+        if: inputs.app == 'podcast-pipeline'
+        run: |
+          node scripts/env/run.mjs --environment prod -- \
+            node scripts/podcast-deployment-gate.mjs complete \
+            --deployment-id "${{ steps.podcast_drain.outputs.deployment_id }}" \
+            --owner-token "${{ steps.podcast_drain.outputs.owner_token }}"
+
+      # If rollout never started, this reopens the owner's draining gate. Once
+      # rolling_out has begun (or its result is unknown), the same RPC fences the
+      # system in recovery_required; stale heartbeats never reopen it.
+      - name: Fence failed podcast deployment
+        if: ${{ always() && inputs.app == 'podcast-pipeline' && failure() && steps.podcast_drain.outputs.deployment_id != '' }}
+        continue-on-error: true
+        run: |
+          node scripts/env/run.mjs --environment prod -- \
+            node scripts/podcast-deployment-gate.mjs fail \
+            --deployment-id "${{ steps.podcast_drain.outputs.deployment_id }}" \
+            --owner-token "${{ steps.podcast_drain.outputs.owner_token }}" \
+            --reason "GitHub Actions deploy did not complete cleanly"
