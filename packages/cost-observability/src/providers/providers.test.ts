@@ -32,6 +32,42 @@ function createOpenRouterFetcher(usageMonthly: number) {
   );
 }
 
+function braveQuotaResponse(status = 200) {
+  return new Response(JSON.stringify({ results: [] }), {
+    status,
+    headers:
+      status >= 200 && status < 300
+        ? {
+            'x-ratelimit-limit': '50, 15000',
+            'x-ratelimit-policy': '50;w=1, 15000;w=2592000',
+            'x-ratelimit-remaining': '49, 14000',
+            'x-ratelimit-reset': '1, 1234567',
+          }
+        : undefined,
+  });
+}
+
+import type { FetchLike } from '../types.js';
+
+async function expectBraveRetrySnapshot(
+  fetcher: FetchLike,
+  expectedCalls: number,
+  expectedSleeps: number[][],
+) {
+  const sleep = vi.fn().mockResolvedValue(undefined);
+
+  const snapshot = await fetchBraveCostSnapshot({
+    apiKey: 'brave-key',
+    unitCostUsd: 5 / 1_000,
+    fetch: fetcher,
+    sleep,
+  });
+
+  expect(snapshot.accruedCostUsd).toBe(5);
+  expect(fetcher).toHaveBeenCalledTimes(expectedCalls);
+  expect(sleep.mock.calls).toEqual(expectedSleeps);
+}
+
 describe('cost providers', () => {
   it('normalizes OpenRouter monthly usage as actual cost', async () => {
     const fetcher = vi.fn().mockResolvedValue(
@@ -90,16 +126,7 @@ describe('cost providers', () => {
   });
 
   it('derives Brave monthly usage and gross cost from rate-limit headers', async () => {
-    const fetcher = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ results: [] }), {
-        headers: {
-          'x-ratelimit-limit': '50, 15000',
-          'x-ratelimit-policy': '50;w=1, 15000;w=2592000',
-          'x-ratelimit-remaining': '49, 14000',
-          'x-ratelimit-reset': '1, 1234567',
-        },
-      }),
-    );
+    const fetcher = vi.fn().mockResolvedValue(braveQuotaResponse());
 
     const snapshot = await fetchBraveCostSnapshot({
       apiKey: 'brave-key',
@@ -141,6 +168,43 @@ describe('cost providers', () => {
         }),
       }),
     );
+  });
+
+  it('retries a transient Brave network failure before reading quota', async () => {
+    const fetcher = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError('fetch failed'))
+      .mockResolvedValueOnce(braveQuotaResponse());
+
+    await expectBraveRetrySnapshot(fetcher, 2, [[250]]);
+  });
+
+  it('retries Brave 429 and 5xx responses with bounded backoff', async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(braveQuotaResponse(503))
+      .mockResolvedValueOnce(braveQuotaResponse(429))
+      .mockResolvedValueOnce(braveQuotaResponse());
+
+    await expectBraveRetrySnapshot(fetcher, 3, [[250], [500]]);
+  });
+
+  it('surfaces the final Brave transport failure after bounded retries', async () => {
+    const fetcher = vi.fn().mockRejectedValue(new TypeError('fetch failed'));
+    const sleep = vi.fn().mockResolvedValue(undefined);
+
+    await expect(
+      fetchBraveCostSnapshot({
+        apiKey: 'brave-key',
+        fetch: fetcher,
+        sleep,
+      }),
+    ).rejects.toThrow(
+      'Brave Search quota request failed after 3 attempts: fetch failed',
+    );
+
+    expect(fetcher).toHaveBeenCalledTimes(3);
+    expect(sleep.mock.calls).toEqual([[250], [500]]);
   });
 
   it('fails Brave collection instead of guessing when quota headers are absent', async () => {

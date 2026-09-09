@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildDecisions } from './social.js';
+import { buildDecisions, buildEpisodes } from './social.js';
 
 type Post = Parameters<typeof buildDecisions>[0][number];
 type Metric = Parameters<typeof buildDecisions>[1][number];
@@ -11,6 +11,7 @@ function post(id: string, overrides: Partial<Post> = {}): Post {
     id,
     episode_id: `episode-${id}`,
     platform: 'x',
+    language_code: 'en',
     post_url: null,
     published_at: '2026-08-20T00:30:00.000Z',
     topic: 'default-topic',
@@ -73,6 +74,103 @@ function strategy(
 ): Strategy {
   return { platform, config };
 }
+
+describe('buildEpisodes', () => {
+  it('does not substitute a different window for unavailable 24h telemetry', () => {
+    const published = post('window', { post_url: 'https://example.com/post' });
+    const result = buildEpisodes(
+      [published],
+      [
+        metric('window', 10, { measurement_window: '6h', age_hours: 6 }),
+        metric('window', null, { collection_status: 'unavailable' }),
+        metric('window', 90, { measurement_window: '72h', age_hours: 72 }),
+      ],
+      '24h',
+    );
+
+    expect(result[0]?.platforms[0]).toMatchObject({
+      views: null,
+      postUrl: 'https://example.com/post',
+    });
+    expect(
+      buildEpisodes(
+        [published],
+        [
+          metric('window', 24),
+          metric('window', 90, { measurement_window: '72h', age_hours: 23 }),
+        ],
+        '24h',
+      )[0]?.totalViews,
+    ).toBe(24);
+  });
+
+  it('keeps published platform links visible when metrics are missing', () => {
+    const youtube = post('youtube', {
+      episode_id: 'episode-shared',
+      platform: 'youtube',
+      language_code: 'en',
+      post_url: 'https://youtube.com/watch?v=video-1',
+      published_title: 'English title',
+    });
+
+    expect(buildEpisodes([youtube], [], 'latest')).toEqual([
+      expect.objectContaining({
+        episodeId: 'episode-shared',
+        title: 'English title',
+        totalViews: null,
+        platforms: [
+          expect.objectContaining({
+            platform: 'youtube',
+            postUrl: 'https://youtube.com/watch?v=video-1',
+            views: null,
+          }),
+        ],
+      }),
+    ]);
+  });
+
+  it('prefers the Traditional Chinese published title for a shared episode', () => {
+    const english = post('english', {
+      episode_id: 'episode-shared',
+      platform: 'youtube',
+      language_code: 'en',
+      published_title: 'English title',
+      published_at: '2026-08-20T00:31:00.000Z',
+    });
+    const chinese = post('chinese', {
+      episode_id: 'episode-shared',
+      platform: 'rednote',
+      language_code: 'zh-Hant',
+      published_title: '繁體中文標題',
+      published_at: '2026-08-20T00:30:00.000Z',
+    });
+
+    expect(buildEpisodes([english, chinese], [], 'latest')[0]?.title).toBe(
+      '繁體中文標題',
+    );
+  });
+
+  it('treats unavailable collection as a telemetry gap instead of zero views', () => {
+    const rednote = post('rednote', {
+      episode_id: 'episode-shared',
+      platform: 'rednote',
+      language_code: 'zh-Hant',
+      post_url: 'https://www.xiaohongshu.com/explore/note-1',
+    });
+
+    const episode = buildEpisodes(
+      [rednote],
+      [metric('rednote', null, { collection_status: 'unavailable' })],
+      '24h',
+    )[0];
+
+    expect(episode?.platforms[0]).toMatchObject({
+      postUrl: 'https://www.xiaohongshu.com/explore/note-1',
+      views: null,
+    });
+    expect(episode?.totalViews).toBeNull();
+  });
+});
 
 describe('buildDecisions', () => {
   it('does not call a topic best when only one bucket meets the sample floor', () => {

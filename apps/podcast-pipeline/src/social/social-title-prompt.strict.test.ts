@@ -20,7 +20,7 @@ describe('social title identity prompt contract', () => {
     expect(prompt).toContain('Title identity is load-bearing.');
     expect(prompt).toContain('keep that material entity in the Rednote title');
     expect(prompt).toContain(
-      'do not turn a named subject such as Fomo or Vector into a generic label',
+      'Do not replace a material subject such as Virtuals, Ethereum, Bitcoin',
     );
   });
 

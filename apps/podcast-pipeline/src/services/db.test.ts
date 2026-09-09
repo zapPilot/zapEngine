@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { SupabaseClient } from '@supabase/supabase-js';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -95,9 +95,12 @@ function makeQuery() {
 }
 
 vi.mock('@supabase/supabase-js', () => ({
-  createClient: vi.fn(() => ({
-    from: mockFrom,
-  })),
+  SupabaseClient: vi.fn(
+    class {
+      rest = { retry: true };
+      from = mockFrom;
+    },
+  ),
 }));
 
 beforeEach(() => {
@@ -350,7 +353,7 @@ describe('episode source and localization lookup', () => {
 
     const result = await findEpisodeBySourceUrl('https://example.com/article');
 
-    expect(createClient).toHaveBeenCalledWith(
+    expect(SupabaseClient).toHaveBeenCalledWith(
       'https://example.supabase.co',
       'test-key',
       expect.objectContaining({
