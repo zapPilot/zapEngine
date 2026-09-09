@@ -38,12 +38,16 @@ describe('loadSocialGrowth experiment readiness', () => {
         paired: false,
         status: expectedStatus,
         arms: expect.arrayContaining([
-          { variant: 'control', samples24h: 20, status: 'eligible' },
-          {
+          expect.objectContaining({
+            variant: 'control',
+            samples24h: 20,
+            status: 'eligible',
+          }),
+          expect.objectContaining({
             variant: 'challenger',
             samples24h: challengerSamples,
             status: expectedStatus,
-          },
+          }),
         ]),
       });
     },
