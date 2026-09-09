@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react';
 
-import type {
-  OperationsResponse,
-  SocialGrowthResponse,
-} from '../../shared/types.js';
+import type { SocialGrowthJourney } from '../../shared/waitlist-growth.js';
+import type { SocialGrowthResponse } from '../../shared/types.js';
 import { getJson } from '../api.js';
 import { PlatformIdentity } from '../platform.js';
 import styles from './GrowthJourneyPanel.module.css';
@@ -18,14 +16,14 @@ const SOCIAL_SOURCES = [
 export function GrowthJourneyPanel(props: {
   growth: SocialGrowthResponse | null;
 }) {
-  const [operations, setOperations] = useState<OperationsResponse | null>(null);
+  const [journey, setJourney] = useState<SocialGrowthJourney | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
-    void getJson<OperationsResponse>('/api/operations')
+    void getJson<SocialGrowthJourney>('/api/growth-journey')
       .then((response) => {
-        if (active) setOperations(response);
+        if (active) setJourney(response);
       })
       .catch((cause: unknown) => {
         if (!active) return;
@@ -36,14 +34,10 @@ export function GrowthJourneyPanel(props: {
     };
   }, []);
 
-  const posthog = operations?.signals.find(
-    (signal) => signal.fingerprint === 'posthog:audience/project',
-  );
-  const evidence = posthog?.evidence;
-  const landing = evidenceNumber(evidence, 'landingVisitors30d');
-  const cta = evidenceNumber(evidence, 'ctaUsers30d');
-  const app = evidenceNumber(evidence, 'appVisitors30d');
-  const activated = evidenceNumber(evidence, 'walletConnectedUsers30d');
+  const landing = journey?.landingVisitors30d ?? null;
+  const cta = journey?.ctaUsers30d ?? null;
+  const app = journey?.appVisitors30d ?? null;
+  const activated = journey?.walletConnectedUsers30d ?? null;
   const waitlist =
     props.growth?.waitlist.status === 'ok'
       ? props.growth.waitlist.signups30d
@@ -52,25 +46,25 @@ export function GrowthJourneyPanel(props: {
     ...SOCIAL_SOURCES.map(([platform, key]) => ({
       id: platform,
       label: platform,
-      value: evidenceNumber(evidence, key),
+      value: journey?.[key] ?? null,
       platform,
     })),
     {
       id: 'direct',
       label: 'Direct',
-      value: evidenceNumber(evidence, 'landingDirect30d'),
+      value: journey?.landingDirect30d ?? null,
       platform: null,
     },
     {
       id: 'other',
       label: 'Other',
-      value: evidenceNumber(evidence, 'landingOther30d'),
+      value: journey?.landingOther30d ?? null,
       platform: null,
     },
   ];
   const maxSource = Math.max(1, ...sources.map((source) => source.value ?? 0));
   const ctaRate = ratio(cta, landing);
-  const posthogReady = posthog?.status === 'healthy';
+  const journeyReady = journey?.status === 'ok';
 
   return (
     <section className={`panel ${styles.panel}`} aria-label="Growth journey">
@@ -84,15 +78,19 @@ export function GrowthJourneyPanel(props: {
           </p>
         </div>
         <div className={styles.legend}>
-          <span><i className={styles.solid} /> PostHog person flow</span>
-          <span><i className={styles.dashed} /> Cross-source count</span>
+          <span>
+            <i className={styles.solid} /> PostHog person flow
+          </span>
+          <span>
+            <i className={styles.dashed} /> Cross-source count
+          </span>
         </div>
       </div>
 
-      {!posthogReady ? (
+      {!journeyReady ? (
         <div className={styles.unavailable}>
           <strong>Journey telemetry unavailable</strong>
-          <span>{error ?? posthog?.detail ?? 'Waiting for PostHog data.'}</span>
+          <span>{error ?? journey?.message ?? 'Waiting for PostHog data.'}</span>
         </div>
       ) : (
         <>
@@ -134,7 +132,11 @@ export function GrowthJourneyPanel(props: {
             <FlowArrow />
             <JourneyStage
               label="CTA"
-              note={ctaRate === null ? 'PostHog' : `${formatPercent(ctaRate)} of landing`}
+              note={
+                ctaRate === null
+                  ? 'PostHog'
+                  : `${formatPercent(ctaRate)} of landing`
+              }
               value={cta}
             />
             <CrossSourceArrow />
@@ -193,7 +195,11 @@ function JourneyStage(props: {
 }
 
 function FlowArrow() {
-  return <span aria-hidden="true" className={styles.arrow}>→</span>;
+  return (
+    <span aria-hidden="true" className={styles.arrow}>
+      →
+    </span>
+  );
 }
 
 function CrossSourceArrow() {
@@ -202,14 +208,6 @@ function CrossSourceArrow() {
       ⇢
     </span>
   );
-}
-
-function evidenceNumber(
-  evidence: Record<string, string | number | boolean | null> | undefined,
-  key: string,
-): number | null {
-  const value = evidence?.[key];
-  return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
 function ratio(numerator: number | null, denominator: number | null) {
