@@ -133,4 +133,82 @@ describe('loadWaitlistGrowth metric pagination', () => {
     expect(secondMetricPage.range).toHaveBeenCalledWith(500, 999);
     expect(metricsDone.range).toHaveBeenCalledWith(501, 1000);
   });
+
+  it('uses id as a deterministic tie-break when snapshots share captured_at', async () => {
+    const from = vi
+      .fn()
+      .mockReturnValueOnce(query({ count: 1, error: null }))
+      .mockReturnValueOnce(query({ count: 1, error: null }))
+      .mockReturnValueOnce(query({ count: 1, error: null }))
+      .mockReturnValueOnce(
+        query({
+          data: [
+            {
+              id: 'signup-1',
+              created_at: '2026-09-08T12:00:00.000Z',
+              social_publish_job_id: 'job-1',
+            },
+          ],
+          error: null,
+        }),
+      );
+
+    const jobPage = query({
+      data: [
+        {
+          id: 'job-1',
+          episode_id: 'episode-1',
+          platform: 'youtube',
+          language_code: 'en',
+          social_post_id: 'post-1',
+        },
+      ],
+      error: null,
+    });
+    const jobPageDone = query({ data: [], error: null });
+    const metricPage = query({
+      data: [
+        {
+          id: 'metric-001',
+          social_post_id: 'post-1',
+          views: 100,
+          captured_at: '2026-09-08T14:00:00.000Z',
+        },
+        {
+          id: 'metric-002',
+          social_post_id: 'post-1',
+          views: 250,
+          captured_at: '2026-09-08T14:00:00.000Z',
+        },
+      ],
+      error: null,
+    });
+    const metricsDone = query({ data: [], error: null });
+    const pipelineFrom = vi
+      .fn()
+      .mockReturnValueOnce(jobPage)
+      .mockReturnValueOnce(jobPageDone)
+      .mockReturnValueOnce(metricPage)
+      .mockReturnValueOnce(metricsDone);
+    const schema = vi.fn(() => ({ from: pipelineFrom }));
+    const client = { from, schema } as unknown as SupabaseClient;
+    const create = (() => client) as unknown as typeof createClient;
+
+    const result = await loadWaitlistGrowth({
+      create,
+      url: 'https://example.supabase.co',
+      key: 'test-key',
+      now: new Date('2026-09-09T00:00:00.000Z'),
+    });
+
+    expect(result.status).toBe('ok');
+    expect(result.conversions).toEqual([
+      expect.objectContaining({
+        socialPostId: 'post-1',
+        signups: 1,
+        views24h: 250,
+        signupRate: 1 / 250,
+      }),
+    ]);
+  });
 });
