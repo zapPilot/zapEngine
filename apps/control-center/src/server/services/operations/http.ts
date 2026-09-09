@@ -34,6 +34,7 @@ export async function fetchJson<T>(input: {
   token: string;
   schema: z.ZodType<T>;
   fetchImpl: typeof fetch;
+  onResponseHeaders?: (headers: Headers) => void;
   headers?: Record<string, string>;
   /** Present sends JSON. Without an explicit method this defaults to POST. */
   body?: unknown;
@@ -54,6 +55,7 @@ export async function fetchJson<T>(input: {
   if (!parsed.success) {
     throw new Error(`${input.label} returned an unrecognised body`);
   }
+  input.onResponseHeaders?.(response.headers);
   return parsed.data;
 }
 

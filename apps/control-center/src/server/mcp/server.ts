@@ -2,6 +2,7 @@ import { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 
 import { OPERATIONS_DOMAINS } from '../../shared/types.js';
+import { sentryInspectionOptionsSchema } from '../services/operations/inspection/sentry-options.js';
 import { projectDomain, projectSignal } from './projections.js';
 import type { OpsMcpOperations } from './types.js';
 
@@ -87,14 +88,22 @@ export function createOpsMcpServer(operations: OpsMcpOperations): McpServer {
     {
       title: 'Inspect operational signal',
       description:
-        'Collect bounded provider evidence for one stable signal fingerprint. GitHub workflow inspection includes recent scheduled runs, failed jobs/steps, and redacted log excerpts; Sentry includes top unresolved issues and a bounded exception sample; Fly includes bounded Machine state, image, and recent lifecycle events.',
-      inputSchema: z.object({
-        fingerprint: z.string().trim().min(1),
-      }),
+        'Collect bounded provider evidence for one stable signal fingerprint. GitHub workflow inspection includes recent scheduled runs, failed jobs/steps, and redacted log excerpts; Sentry includes one page of issues, optional historical range/query/cursor, and a bounded latest exception sample; Fly includes bounded Machine state, image, and recent lifecycle events.',
+      inputSchema: z
+        .object({
+          fingerprint: z.string().trim().min(1),
+          sentry: sentryInspectionOptionsSchema.optional(),
+        })
+        .refine(
+          (value) =>
+            value.sentry === undefined ||
+            value.fingerprint.startsWith('sentry:'),
+          { message: 'Sentry options require a Sentry fingerprint.' },
+        ),
       annotations: READ_ONLY_ANNOTATIONS,
     },
-    async ({ fingerprint }) =>
-      result(await operations.inspectSignal(fingerprint)),
+    async ({ fingerprint, sentry }) =>
+      result(await operations.inspectSignal(fingerprint, sentry)),
   );
 
   server.registerTool(

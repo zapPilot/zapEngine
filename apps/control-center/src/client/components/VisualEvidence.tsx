@@ -146,7 +146,7 @@ export function VisualEvidence(
               <input
                 aria-label="Filter visual scenes"
                 onChange={(event) => setFilter(event.target.value)}
-                placeholder="Filter scenes / queries / entities"
+                placeholder="Filter scenes / queries / anchors"
                 value={filter}
               />
               <label>
@@ -530,6 +530,79 @@ function groupReviewsByScene(
   return grouped;
 }
 
+export interface SceneDecisionTrace {
+  extractedAnchors: string[];
+  inheritedAnchors: string[];
+  intendedQuery: string | null;
+  selectedQuery: string | null;
+  selectedRank: number | null;
+  crossedTopicFallback: boolean;
+}
+
+/**
+ * Converts pipeline metadata into the operator's actual decision chain. The
+ * subject assignment can say `direct` even when localization/evidence grouping
+ * attached an entity that is not literally present in this narration span, so
+ * the main UI never trusts that flag as proof of extraction. Only entity labels
+ * grounded in this scene's persisted sentence text are presented as "extracted";
+ * everything else stays visible as context in Advanced trace.
+ */
+export function sceneDecisionTrace(
+  scene: PodcastVisualSceneDebug,
+): SceneDecisionTrace {
+  const sentence = normalizeTraceText(scene.sentenceText ?? '');
+  const extractedAnchors = scene.imageSearchEntities.filter((anchor) =>
+    containsTracePhrase(sentence, normalizeTraceText(anchor)),
+  );
+  const extractedSet = new Set(extractedAnchors);
+  const inheritedAnchors = scene.imageSearchEntities.filter(
+    (anchor) => !extractedSet.has(anchor),
+  );
+  const intendedQuery = scene.imageSearchIntent[0]?.trim() || null;
+  const selectedQuery = scene.selection?.sourceQuery?.trim() || null;
+  const crossedTopicFallback = Boolean(
+    scene.selection?.selection === 'pool-fallback' &&
+      selectedQuery &&
+      intendedQuery &&
+      !scene.imageSearchIntent.some(
+        (query) => normalizeTraceText(query) === normalizeTraceText(selectedQuery),
+      ),
+  );
+  return {
+    extractedAnchors,
+    inheritedAnchors,
+    intendedQuery,
+    selectedQuery,
+    selectedRank: scene.selection?.providerRank ?? null,
+    crossedTopicFallback,
+  };
+}
+
+function normalizeTraceText(value: string): string {
+  return value
+    .normalize('NFKC')
+    .toLocaleLowerCase('en-US')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .replace(
+      /([\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}])/gu,
+      ' $1 ',
+    )
+    .replace(/\s+/gu, ' ')
+    .trim();
+}
+
+function containsTracePhrase(haystack: string, needle: string): boolean {
+  if (!needle) return false;
+  return ` ${haystack} `.includes(` ${needle} `);
+}
+
+function selectedFromLine(decision: SceneDecisionTrace): string | null {
+  if (!decision.selectedQuery) return null;
+  return decision.selectedRank === null
+    ? decision.selectedQuery
+    : `${decision.selectedQuery} (#${decision.selectedRank})`;
+}
+
 function SceneDebug(
   props: Pick<
     PodcastVisualReviewHandlers,
@@ -542,6 +615,8 @@ function SceneDebug(
   },
 ) {
   const { scene } = props;
+  const decision = sceneDecisionTrace(scene);
+  const selectedFrom = selectedFromLine(decision);
   return (
     <article className="podcast-visual-scene">
       <div className="podcast-visual-thumb">
@@ -550,45 +625,67 @@ function SceneDebug(
         ) : (
           <span>No asset</span>
         )}
-        <small>
-          {scene.asset?.provider ?? 'none'}
-          {scene.selection ? ` · ${sceneSelectionLine(scene.selection)}` : ''}
-        </small>
+        <small>{scene.asset?.provider ?? 'none'}</small>
         {scene.asset?.slideHeadline ? (
           <small>{scene.asset.slideHeadline}</small>
         ) : null}
       </div>
       <div className="podcast-visual-scene-body">
         <strong>{scene.sceneId}</strong>
-        {/* The caption the viewer reads under this image. Without it the panel
-            can say which query won and still not say whether the image belongs
-            to what the scene is actually talking about. */}
         <p className="podcast-visual-sentence">
           {scene.sentenceText ??
             'Sentence text not persisted for this version.'}
         </p>
-        {/* The two lists overlap for a scene whose subject is its own query, so
-            each is labelled: one is what Brave was asked, the other is what the
-            ranking bonus looks for in a candidate. */}
         <div className="podcast-visual-chips">
-          <small>asked</small>
-          {scene.imageSearchIntent.length > 0 ? (
-            scene.imageSearchIntent.map((intent) => (
-              <strong key={intent}>{intent}</strong>
+          <small>Extracted from scene</small>
+          {decision.extractedAnchors.length > 0 ? (
+            decision.extractedAnchors.map((anchor) => (
+              <strong key={anchor}>{anchor}</strong>
             ))
           ) : (
-            <small>no image search intent</small>
+            <small>no literal visual anchor found in this narration</small>
           )}
         </div>
-        {scene.imageSearchEntities.length > 0 ? (
-          <div className="podcast-visual-chips">
-            <small>names</small>
-            {scene.imageSearchEntities.map((entity) => (
-              <strong key={entity}>{entity}</strong>
-            ))}
-          </div>
+        <div className="podcast-visual-chips">
+          <small>Brave query</small>
+          {decision.intendedQuery ? (
+            <strong>{decision.intendedQuery}</strong>
+          ) : (
+            <small>no planned Brave query</small>
+          )}
+        </div>
+        <div className="podcast-visual-chips">
+          <small>Selected from</small>
+          {selectedFrom ? (
+            <strong>{selectedFrom}</strong>
+          ) : (
+            <small>reuse / generated / non-Brave asset</small>
+          )}
+        </div>
+        {decision.crossedTopicFallback ? (
+          <small className="warning-text">
+            Fallback crossed topic · scene wanted “{decision.intendedQuery}” but
+            selected from “{decision.selectedQuery}”
+          </small>
         ) : null}
-        <small>{scene.selectionReason ?? 'no assignment'}</small>
+        <details className="pipeline-details">
+          <summary>Advanced trace</summary>
+          {decision.inheritedAnchors.length > 0 ? (
+            <small>
+              context / ungrounded anchors · {decision.inheritedAnchors.join(' · ')}
+            </small>
+          ) : null}
+          {scene.imageSearchIntent.length > 0 ? (
+            <small>planned queries · {scene.imageSearchIntent.join(' · ')}</small>
+          ) : null}
+          {scene.subjectIds.length > 0 ? (
+            <small>subject ids · {scene.subjectIds.join(' · ')}</small>
+          ) : null}
+          <small>assignment · {scene.selectionReason ?? 'none'}</small>
+          {scene.selection ? (
+            <small>selection · {sceneSelectionLine(scene.selection)}</small>
+          ) : null}
+        </details>
       </div>
       <div className="podcast-visual-scene-review">
         <ReviewEditor

@@ -9,6 +9,10 @@ import {
   unsupportedInspection,
   type InspectorInput,
 } from './result.js';
+import {
+  sentryInspectionOptionsSchema,
+  type SentryInspectionOptions,
+} from './sentry-options.js';
 import { inspectSentrySignal } from './sentry.js';
 import type { SignalInspection } from './types.js';
 
@@ -22,6 +26,7 @@ const INSPECTORS: Partial<Record<OperationsSource, Inspector>> = {
 
 export async function inspectOperationalSignal(input: {
   config: ControlCenterConfig;
+  sentry?: SentryInspectionOptions;
   fingerprint: string;
   now?: () => Date;
   fetchImpl?: typeof fetch;
@@ -49,8 +54,23 @@ export async function inspectOperationalSignal(input: {
     });
   }
 
+  const options = sentryInspectionOptionsSchema.safeParse(input.sentry ?? {});
+  if (input.sentry !== undefined && (source !== 'sentry' || !options.success)) {
+    return unsupportedInspection({
+      fingerprint: input.fingerprint,
+      source,
+      inspectedAt,
+      summary:
+        source !== 'sentry'
+          ? 'Sentry options require a Sentry fingerprint.'
+          : 'Invalid Sentry inspection options: ' +
+            options.error?.issues.map((issue) => issue.message).join(' '),
+    });
+  }
+
   try {
     return await inspector({
+      sentry: options.success ? options.data : undefined,
       config: input.config,
       fingerprint: input.fingerprint,
       parsed,

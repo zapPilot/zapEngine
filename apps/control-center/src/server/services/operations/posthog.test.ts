@@ -44,7 +44,7 @@ describe('collectPosthogSignals', () => {
     }),
   );
 
-  it('reports one healthy audience signal with product acquisition evidence', async () => {
+  it('reports one healthy audience signal without Growth-only query fan-out', async () => {
     const fetchImpl = fetchReturning({ results: [ROW] });
 
     const signals = await collect(fetchImpl);

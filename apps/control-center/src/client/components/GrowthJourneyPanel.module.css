@@ -1,0 +1,260 @@
+.panel {
+  overflow: hidden;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 20px 22px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.header > div:first-child {
+  min-width: 0;
+}
+
+.kicker {
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.header h2 {
+  margin: 5px 0 6px;
+  font-size: 22px;
+  font-weight: 550;
+}
+
+.header p {
+  max-width: 76ch;
+  margin: 0;
+  color: var(--ink-dim);
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+
+.legend {
+  flex: 0 0 auto;
+  display: grid;
+  gap: 6px;
+  color: var(--ink-faint);
+  font-family: var(--font-mono);
+  font-size: 9px;
+}
+
+.legend span {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.legend i {
+  width: 26px;
+  height: 0;
+  border-top: 2px solid var(--accent-muted);
+}
+
+.legend .dashed {
+  border-top-style: dashed;
+}
+
+.flow {
+  display: grid;
+  grid-template-columns:
+    minmax(190px, 1.5fr) 28px minmax(120px, 0.8fr) 28px minmax(110px, 0.75fr)
+    28px minmax(120px, 0.8fr) 28px minmax(120px, 0.8fr) 28px minmax(120px, 0.85fr);
+  align-items: center;
+  gap: 8px;
+  padding: 24px 22px;
+  overflow-x: auto;
+}
+
+.sources {
+  display: grid;
+  gap: 9px;
+}
+
+.columnTitle {
+  color: var(--ink-faint);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.source {
+  display: grid;
+  gap: 4px;
+}
+
+.sourceLabel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 11px;
+}
+
+.sourceLabel strong {
+  font-weight: 550;
+}
+
+.sourceLabel span {
+  color: var(--ink-dim);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.sourceTrack {
+  display: block;
+  height: 5px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-elevated);
+  overflow: hidden;
+}
+
+.sourceTrack i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent-muted);
+}
+
+.stage {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+  padding: 16px 14px;
+  border: 1px solid var(--line-hi);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  text-align: center;
+}
+
+.stage > span {
+  color: var(--ink-faint);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.stage > strong {
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-size: clamp(25px, 2.4vw, 34px);
+  font-weight: 400;
+  line-height: 1;
+}
+
+.stage > small {
+  min-height: 26px;
+  color: var(--ink-dim);
+  font-size: 9.5px;
+  line-height: 1.35;
+}
+
+.arrow {
+  color: var(--accent-muted);
+  font-family: var(--font-mono);
+  font-size: 22px;
+  text-align: center;
+}
+
+.crossArrow {
+  border-top: 1px dashed var(--line-hi);
+  border-bottom: 1px dashed var(--line-hi);
+  color: var(--ink-faint);
+  line-height: 27px;
+}
+
+.decisionStrip {
+  display: grid;
+  grid-template-columns: minmax(210px, 0.65fr) minmax(300px, 1.35fr);
+  gap: 22px;
+  padding: 17px 22px;
+  border-top: 1px solid var(--line);
+  background: var(--accent-soft);
+}
+
+.decisionStrip > div {
+  display: grid;
+  gap: 5px;
+}
+
+.decisionStrip span {
+  color: var(--ink-faint);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.decisionStrip strong {
+  font-size: 13px;
+  font-weight: 550;
+}
+
+.decisionStrip p {
+  margin: 0;
+  color: var(--ink-dim);
+  font-size: 10.5px;
+  line-height: 1.55;
+}
+
+.unavailable {
+  display: grid;
+  gap: 5px;
+  padding: 22px;
+}
+
+.unavailable strong {
+  font-size: 13px;
+}
+
+.unavailable span {
+  color: var(--ink-dim);
+  font-size: 11px;
+}
+
+@media (max-width: 860px) {
+  .header,
+  .decisionStrip {
+    grid-template-columns: 1fr;
+  }
+
+  .header {
+    display: grid;
+  }
+
+  .legend {
+    grid-template-columns: repeat(2, max-content);
+  }
+
+  .flow {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+    overflow-x: visible;
+  }
+
+  .arrow {
+    transform: rotate(90deg);
+  }
+
+  .crossArrow {
+    justify-self: center;
+    width: 34px;
+  }
+
+  .stage {
+    text-align: left;
+  }
+
+  .stage > small {
+    min-height: 0;
+  }
+}
