@@ -75,12 +75,12 @@ and then aggregates the 13 workspaces. CI uploads `coverage/summary.json` for
 | `apps/account-engine`    | 95         | 90       | 95        | 95    |
 | `apps/alpha-etl`         | 92         | 92       | 92        | 92    |
 | `apps/analytics-engine`  | —          | —        | —         | 95    |
-| `apps/app`               | 57         | 61       | 60        | 58    |
-| `apps/control-center`    | 51         | 40       | 50        | 52    |
+| `apps/app`               | 64         | 67       | 68        | 65    |
+| `apps/control-center`    | 77         | 66       | 78        | 78    |
 | `apps/desktop`           | 85         | 80       | 85        | 85    |
-| `apps/landing-page`      | 50         | 45       | 55        | 50    |
+| `apps/landing-page`      | 79         | 67       | 82        | 81    |
 | `apps/podcast-pipeline`  | 91         | 80       | 92        | 92    |
-| `packages/app-core`      | 53         | 42       | 46        | 54    |
+| `packages/app-core`      | 75         | 66       | 73        | 76    |
 | `packages/brand-assets`  | 95         | 90       | 100       | 95    |
 | `packages/design-tokens` | —          | —        | —         | —     |
 | `packages/intent-engine` | 90         | 85       | 90        | 90    |
@@ -88,19 +88,20 @@ and then aggregates the 13 workspaces. CI uploads `coverage/summary.json` for
 
 - `apps/analytics-engine` has one canonical pytest-cov floor:
   `[tool.coverage.report] fail_under = 95` in `pyproject.toml`.
-- `apps/app` floors come from the 2026-07-29 baseline
-  (59.90/63.05/62.98/60.71), rounded down with a two-point buffer.
-- `packages/app-core` floors come from the same baseline run
-  (55.59/44.95/48.88/56.90), rounded down with a two-point buffer. Its test
-  suite is populated even though Vitest retains `passWithNoTests: true`.
-- `apps/landing-page` keeps a scoped temporary POC floor while the track-record
-  dashboard is backfilled. `src/hooks/useMediaQuery.ts` and
+- `apps/app` was re-ratcheted on 2026-09-08 from a measured
+  68.34/71.50/72.63/69.10 baseline, retaining roughly four points of churn
+  buffer while reviewed-execution seam coverage is added.
+- `packages/app-core` was re-ratcheted on 2026-09-08 from a measured
+  79.71/70.58/77.91/80.86 baseline with the same buffer policy.
+- `apps/landing-page` was re-ratcheted on 2026-09-08 from a measured
+  83.87/71.97/87.31/85.72 baseline. `src/hooks/useMediaQuery.ts` and
   `src/hooks/useReducedMotion.ts` additionally enforce per-file floors of
   80/75/80/80.
 - `packages/design-tokens` reports coverage for aggregation but has no absolute
   floor.
-- `apps/control-center` floors are the integer lower bounds of its initial
-  measured baseline (51.58/40.97/50.00/52.15).
+- `apps/control-center` was re-ratcheted on 2026-09-08 from a measured
+  81.84/70.36/82.05/82.06 baseline, leaving roughly four points of normal
+  feature-churn buffer.
 
 Update this table whenever a workspace threshold changes. Ratchet floors upward
 only after sustained coverage improvements; do not lower them to conceal a

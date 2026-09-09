@@ -13,14 +13,13 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'json-summary', 'html'],
       reportsDirectory: 'coverage',
-      // Baseline on 2026-07-29 (statements/branches/functions/lines):
-      // 55.59/44.95/48.88/56.90.
-      // Keep a two-point buffer for normal churn, then ratchet upward.
+      // Ratcheted from the 2026-09-08 measured baseline
+      // (79.71/70.58/77.91/80.86) with ~4 points of churn buffer.
       thresholds: {
-        statements: 53,
-        branches: 42,
-        functions: 46,
-        lines: 54,
+        statements: 75,
+        branches: 66,
+        functions: 73,
+        lines: 76,
       },
     },
   },

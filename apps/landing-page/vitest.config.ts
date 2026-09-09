@@ -34,14 +34,13 @@ export default defineConfig({
         'src/**/index.ts',
         'src/lib/source.ts',
       ],
+      // Ratcheted from the 2026-09-08 measured baseline
+      // (83.87/71.97/87.31/85.72) with ~4 points of churn buffer.
       thresholds: {
-        // Temporary POC floor while the track-record dashboard is being backfilled
-        // with tests. Keep this scoped to landing-page so deploys are not blocked
-        // without weakening coverage gates for the app/product workspaces.
-        statements: 50,
-        branches: 45,
-        functions: 55,
-        lines: 50,
+        statements: 79,
+        branches: 67,
+        functions: 82,
+        lines: 81,
       },
     },
   },

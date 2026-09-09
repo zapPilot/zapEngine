@@ -22,14 +22,13 @@ export default defineConfig({
         'src/data/**',
       ],
       exclude: ['src/integration/podcastPlayer.ts'],
-      // Baseline on 2026-07-29 (statements/branches/functions/lines):
-      // 59.90/63.05/62.98/60.71.
-      // Keep a two-point buffer for normal churn, then ratchet upward.
+      // Ratcheted from the 2026-09-08 measured baseline
+      // (68.34/71.50/72.63/69.10) with ~4 points of churn buffer.
       thresholds: {
-        statements: 57,
-        branches: 61,
-        functions: 60,
-        lines: 58,
+        statements: 64,
+        branches: 67,
+        functions: 68,
+        lines: 65,
       },
     },
   },

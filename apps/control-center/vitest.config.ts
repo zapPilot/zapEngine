@@ -6,13 +6,13 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json-summary', 'html', 'clover', 'json', 'lcov'],
-      // Initial contract floors from the measured 2026-08-26 baseline:
-      // 51.58/40.97/50.00/52.15. Ratchet upward with sustained coverage.
+      // Ratcheted from the 2026-09-08 measured baseline
+      // (81.84/70.36/82.05/82.06) with ~4 points of churn buffer.
       thresholds: {
-        branches: 40,
-        functions: 50,
-        lines: 52,
-        statements: 51,
+        branches: 66,
+        functions: 78,
+        lines: 78,
+        statements: 77,
       },
       reportsDirectory: 'coverage',
     },
