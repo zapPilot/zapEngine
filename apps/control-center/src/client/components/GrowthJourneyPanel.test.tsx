@@ -4,7 +4,7 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { SocialGrowthJourney } from '../../shared/waitlist-growth.js';
+import type { SocialGrowthJourney } from '../../shared/growth-journey.js';
 import type { SocialGrowthResponse } from '../../shared/types.js';
 import { getJson } from '../api.js';
 import { GrowthJourneyPanel } from './GrowthJourneyPanel.js';
