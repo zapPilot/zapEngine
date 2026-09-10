@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import { OPERATIONS_DOMAINS } from '../../shared/types.js';
 import { sentryInspectionOptionsSchema } from '../services/operations/inspection/sentry-options.js';
+import { buildOpsIncidentContext } from './incident-context.js';
 import { projectDomain, projectSignal } from './projections.js';
 import type { OpsMcpOperations } from './types.js';
 
@@ -35,10 +36,10 @@ const fingerprintForceSchema = z.object({
 
 export function createOpsMcpServer(operations: OpsMcpOperations): McpServer {
   const server = new McpServer(
-    { name: 'zap-pilot-ops', version: '0.5.0' },
+    { name: 'zap-pilot-ops', version: '0.6.0' },
     {
       instructions:
-        'Start with ops_status. For a priority incident, use ops_investigate next: it correlates bounded GitHub, Sentry, Fly, product/customer, and social evidence into one deterministic packet, and carries a read-only remediation facts block. Read remediation.blockers before proposing any fix: operational priority is impact, not permission, and missing or unproven evidence fails closed. Use ops_inspect_signal only for extra provider drill-down. Read tools never mutate providers. The sole remediation tool, ops_resolve_sentry_issue, may only resolve one explicit Sentry issue and should be used only when the user asks to close/resolve that issue or explicitly delegates Sentry cleanup.',
+        'Start with ops_status. For a priority incident, use ops_investigate next: it correlates bounded GitHub, Sentry, Fly, product/customer, social, and relevant PostHog evidence into one deterministic packet, exposes explicit repository-backed provider correlation, and carries a read-only remediation facts block. Read remediation.blockers before proposing any fix: operational priority is impact, not permission, and missing or unproven evidence fails closed. Use ops_inspect_signal only for extra provider drill-down. Read tools never mutate providers. The sole remediation tool, ops_resolve_sentry_issue, may only resolve one explicit Sentry issue and should be used only when the user asks to close/resolve that issue or explicitly delegates Sentry cleanup.',
     },
   );
 
@@ -111,12 +112,17 @@ export function createOpsMcpServer(operations: OpsMcpOperations): McpServer {
     {
       title: 'Investigate operational incident',
       description:
-        'Build one deterministic incident packet from a stable signal fingerprint: primary evidence, related GitHub/Sentry/Fly evidence, operational topology, chronological timeline, customer/business impact where proven, explicit evidence gaps, and a read-only remediation facts block (observer trust, inspection coverage, exposure, blockers). Use this after ops_status for normal incident triage, and read remediation.blockers before proposing a fix.',
+        'Build one deterministic incident packet from a stable signal fingerprint: primary evidence, related GitHub/Sentry/Fly evidence, explicit repository-backed provider correlation, relevant product/customer/social/PostHog context, operational topology, chronological timeline, customer/business impact where proven, explicit evidence gaps, and a read-only remediation facts block (observer trust, inspection coverage, exposure, blockers). Use this after ops_status for normal incident triage, and read remediation.blockers before proposing a fix.',
       inputSchema: fingerprintForceSchema,
       annotations: READ_ONLY_ANNOTATIONS,
     },
-    async ({ fingerprint, force }) =>
-      result(await operations.investigate(fingerprint, force)),
+    async ({ fingerprint, force }) => {
+      const packet = await operations.investigate(fingerprint, force);
+      // investigate() already refreshed the provider caches when force=true.
+      // Read the normalized snapshot without forcing a second provider fan-out.
+      const snapshot = await operations.getOperations(false);
+      return result(buildOpsIncidentContext({ packet, snapshot }));
+    },
   );
 
   server.registerTool(
