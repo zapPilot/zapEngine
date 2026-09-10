@@ -73,7 +73,9 @@ describe('loadSocialGrowth zero-view metrics', () => {
       createSupabaseClient: clientFactory({ posts, metrics }),
     });
 
-    const platform = response.platforms.find((row) => row.platform === 'youtube');
+    const platform = response.platforms.find(
+      (row) => row.platform === 'youtube',
+    );
     const experiment = response.experiments.find(
       (row) => row.experimentKey === 'zero-view-v1',
     );
