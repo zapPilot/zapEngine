@@ -20,33 +20,36 @@ import type {
 import { getJson, sendJson } from './api.js';
 import { AppShell, type DashboardView } from './components/AppShell.js';
 import { EconomicsView } from './components/EconomicsView.js';
-import { GrowthView } from './components/GrowthView.js';
-import { HomeView } from './components/HomeView.js';
+import {
+  GrowthFocusView,
+  ReliabilityFocusView,
+  TodayView,
+} from './components/FocusedOperatorViews.js';
 import { PipelineQueuesBoard } from './components/PipelineQueuesBoard.js';
 import { ProductView } from './components/ProductView.js';
-import { ReliabilityView } from './components/ReliabilityView.js';
 import { StatementHeader } from './components/StatementHeader.js';
+import './solo-operator.css';
 
 const VIEW_META: Record<DashboardView, { subtitle: string; title: string }> = {
   home: {
-    subtitle: 'What needs action',
-    title: 'Home',
+    subtitle: '現在最值得你花時間處理的事',
+    title: '今日',
   },
   pipeline: {
-    subtitle: 'Runtime queues',
+    subtitle: 'API → Render → Social：正在跑什麼、卡在哪裡',
     title: 'Pipeline',
   },
   growth: {
-    subtitle: 'Publishing and reach',
-    title: 'Growth',
+    subtitle: '把流量、內容與 waitlist 放在同一條 journey 裡看',
+    title: '成長',
   },
   product: {
     subtitle: 'Customers and data',
     title: 'Product',
   },
   reliability: {
-    subtitle: 'Systems and incidents',
-    title: 'Reliability',
+    subtitle: '系統健康、營運風險與成本浪費',
+    title: '可靠性',
   },
   economics: {
     subtitle: 'Spend and unit cost',
@@ -108,9 +111,10 @@ export function App() {
     }
   }, []);
 
-  // Home leads with the ranked action queue, so the operations snapshot is part
-  // of the first paint rather than a tab-open cost. Its per-source caches make
-  // the repeat reads cheap; the fan-out is paid once every few minutes.
+  // Today is the operator inbox. It composes existing read models rather than
+  // creating another server contract: overview supplies company pulse and
+  // release data, operations supplies ranked intervention candidates, and the
+  // persisted podcast ledger supplies retry waste.
   const loadHome = useCallback(
     (sync = false) =>
       run(async () => {
@@ -217,18 +221,26 @@ export function App() {
     [run],
   );
 
+  // Reliability owns cost risk as well as system risk. Refreshing it therefore
+  // refreshes the same persisted cost summaries Today reads instead of showing
+  // an old Economics snapshot beside fresh operational signals.
   const loadReliability = useCallback(
     (force = false) =>
       run(async () => {
         const query = force ? '?force=1' : '';
-        const [snapshot, socialOps, statementsNext] = await Promise.all([
-          getJson<OperationsResponse>(`/api/operations${query}`),
-          getJson<OperationsSocialResponse>(`/api/operations/social${query}`),
-          getJson<StatementsResponse>(`/api/statements${query}`),
-        ]);
+        const [snapshot, socialOps, statementsNext, next, episodeCosts] =
+          await Promise.all([
+            getJson<OperationsResponse>(`/api/operations${query}`),
+            getJson<OperationsSocialResponse>(`/api/operations/social${query}`),
+            getJson<StatementsResponse>(`/api/statements${query}`),
+            getJson<OverviewResponse>('/api/overview'),
+            getJson<PodcastCostResponse>('/api/costs/podcast'),
+          ]);
         setOperations(snapshot);
         setOperationsSocial(socialOps);
         setStatements(statementsNext);
+        setOverview(next);
+        setPodcastCosts(episodeCosts);
       }),
     [run],
   );
@@ -251,9 +263,9 @@ export function App() {
     void loadHome();
   }, [loadHome]);
 
-  // The pipeline, publish queue and per-customer ledger are view-specific. Keep
-  // them lazy so Home remains a fast decision surface rather than preloading
-  // every operational dataset on first paint.
+  // Pipeline and Growth stay lazy. Product/Economics are intentionally absent
+  // from primary navigation in this IA pass; their components remain available
+  // for a separate cleanup after the new surfaces have settled.
   useEffect(() => {
     if (view === 'pipeline' && !statements) {
       void loadPipeline();
@@ -276,6 +288,7 @@ export function App() {
     operationsSocial,
     social,
     socialGrowth,
+    statements,
     view,
   ]);
 
@@ -308,14 +321,8 @@ export function App() {
           void loadHome(import.meta.env.DEV);
         }
       }}
-      subtitle={
-        view === 'home'
-          ? (statements?.headers.find(
-              (header) => header.domain === 'reliability',
-            )?.facts[0]?.note ?? VIEW_META.home.subtitle)
-          : VIEW_META[view].subtitle
-      }
-      title={view === 'home' ? homeDateTitle() : VIEW_META[view].title}
+      subtitle={VIEW_META[view].subtitle}
+      title={VIEW_META[view].title}
     >
       {error ? (
         <div className="error-state" role="alert">
@@ -324,11 +331,11 @@ export function App() {
         </div>
       ) : null}
       {view === 'home' ? (
-        <HomeView
+        <TodayView
           data={overview}
           onNavigate={setView}
           operations={operations}
-          statements={statements}
+          podcastCosts={podcastCosts}
         />
       ) : null}
       {view === 'pipeline' ? (
@@ -344,8 +351,10 @@ export function App() {
         </div>
       ) : null}
       {view === 'reliability' ? (
-        <ReliabilityView
+        <ReliabilityFocusView
           data={operations}
+          overview={overview}
+          podcastCosts={podcastCosts}
           social={operationsSocial}
           statements={statements}
         />
@@ -366,7 +375,7 @@ export function App() {
         />
       ) : null}
       {view === 'growth' ? (
-        <GrowthView
+        <GrowthFocusView
           data={social}
           growth={socialGrowth}
           onWindowChange={loadSocial}
@@ -375,14 +384,6 @@ export function App() {
       ) : null}
     </AppShell>
   );
-}
-/** Home's H1 is the date, not a page name — "what changed today" over "what page is this". */
-function homeDateTitle(): string {
-  return new Date().toLocaleDateString('en-US', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-  });
 }
 
 /** The one-sentence read on production health that used to head the retired
@@ -426,4 +427,3 @@ function generatedAt(input: {
   }
   return input.overview?.generatedAt;
 }
-// trigger ci

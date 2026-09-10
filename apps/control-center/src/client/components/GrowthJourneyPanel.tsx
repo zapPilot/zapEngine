@@ -23,11 +23,17 @@ export function GrowthJourneyPanel(props: {
     let active = true;
     void getJson<SocialGrowthJourney>('/api/growth-journey')
       .then((response) => {
-        if (active) setJourney(response);
+        if (active) {
+          setJourney(response);
+        }
       })
       .catch((cause: unknown) => {
-        if (!active) return;
-        setError(cause instanceof Error ? cause.message : 'PostHog unavailable');
+        if (!active) {
+          return;
+        }
+        setError(
+          cause instanceof Error ? cause.message : 'PostHog unavailable',
+        );
       });
     return () => {
       active = false;
@@ -67,39 +73,41 @@ export function GrowthJourneyPanel(props: {
   const journeyReady = journey?.status === 'ok';
 
   return (
-    <section className={`panel ${styles.panel}`} aria-label="Growth journey">
-      <div className={styles.header}>
+    <section aria-label="Growth journey" className={`panel ${styles['panel']}`}>
+      <div className={styles['header']}>
         <div>
-          <span className={styles.kicker}>Cross-channel journey · 30d</span>
+          <span className={styles['kicker']}>Cross-channel journey · 30d</span>
           <h2>哪裡把流量變成產品需求？</h2>
           <p>
             Sankey 寬度只使用可比較的 unique people。社群 views 是 aggregate
             reach，不會偽裝成逐人 CTR。
           </p>
         </div>
-        <div className={styles.legend}>
+        <div className={styles['legend']}>
           <span>
-            <i className={styles.solid} /> PostHog person flow
+            <i className={styles['solid']} /> PostHog person flow
           </span>
           <span>
-            <i className={styles.dashed} /> Cross-source count
+            <i className={styles['dashed']} /> Cross-source count
           </span>
         </div>
       </div>
 
       {!journeyReady ? (
-        <div className={styles.unavailable}>
+        <div className={styles['unavailable']}>
           <strong>Journey telemetry unavailable</strong>
-          <span>{error ?? journey?.message ?? 'Waiting for PostHog data.'}</span>
+          <span>
+            {error ?? journey?.message ?? 'Waiting for PostHog data.'}
+          </span>
         </div>
       ) : (
         <>
-          <div className={styles.flow}>
-            <div className={styles.sources} aria-label="Acquisition sources">
-              <span className={styles.columnTitle}>Acquisition</span>
+          <div className={styles['flow']}>
+            <div className={styles['sources']} aria-label="Acquisition sources">
+              <span className={styles['columnTitle']}>Acquisition</span>
               {sources.map((source) => (
-                <div className={styles.source} key={source.id}>
-                  <div className={styles.sourceLabel}>
+                <div className={styles['source']} key={source.id}>
+                  <div className={styles['sourceLabel']}>
                     <strong>
                       {source.platform ? (
                         <PlatformIdentity platform={source.platform} />
@@ -109,7 +117,7 @@ export function GrowthJourneyPanel(props: {
                     </strong>
                     <span>{formatCount(source.value)}</span>
                   </div>
-                  <span className={styles.sourceTrack}>
+                  <span className={styles['sourceTrack']}>
                     <i
                       style={{
                         width: `${Math.max(
@@ -159,7 +167,7 @@ export function GrowthJourneyPanel(props: {
             />
           </div>
 
-          <div className={styles.decisionStrip}>
+          <div className={styles['decisionStrip']}>
             <div>
               <span>Observed website drop-off</span>
               <strong>
@@ -170,8 +178,8 @@ export function GrowthJourneyPanel(props: {
             </div>
             <p>
               Waitlist 是 Supabase durable truth。虛線兩側是不同 source 的
-              aggregate counts；目前不能宣稱某一個 waitlist email 就是之後的
-              app visitor。
+              aggregate counts；目前不能宣稱某一個 waitlist email 就是之後的 app
+              visitor。
             </p>
           </div>
         </>
@@ -186,7 +194,7 @@ function JourneyStage(props: {
   value: number | null;
 }) {
   return (
-    <article className={styles.stage}>
+    <article className={styles['stage']}>
       <span>{props.label}</span>
       <strong>{formatCount(props.value)}</strong>
       <small>{props.note}</small>
@@ -196,7 +204,7 @@ function JourneyStage(props: {
 
 function FlowArrow() {
   return (
-    <span aria-hidden="true" className={styles.arrow}>
+    <span aria-hidden="true" className={styles['arrow']}>
       →
     </span>
   );
@@ -204,7 +212,10 @@ function FlowArrow() {
 
 function CrossSourceArrow() {
   return (
-    <span aria-hidden="true" className={`${styles.arrow} ${styles.crossArrow}`}>
+    <span
+      aria-hidden="true"
+      className={`${styles['arrow']} ${styles['crossArrow']}`}
+    >
       ⇢
     </span>
   );
