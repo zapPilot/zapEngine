@@ -6,6 +6,7 @@ import {
   Sparkles,
   TriangleAlert,
 } from 'lucide-react';
+import type { ReactNode } from 'react';
 
 import type { StatementsResponse } from '../../shared/statements.js';
 import type {
@@ -57,7 +58,9 @@ export function TodayView({
               細節與完整表格放到下一層。
             </p>
           </div>
-          <span className={`operator-health ${operations?.status ?? 'unknown'}`}>
+          <span
+            className={`operator-health ${operations?.status ?? 'unknown'}`}
+          >
             {statusText(operations?.status)}
           </span>
         </div>
@@ -84,7 +87,10 @@ export function TodayView({
               label="Active portfolios · 7d"
               value={integer(data?.product.activePortfolios7d)}
             />
-            <OperatorMetric label="Tracked audience" value={integer(data?.socialReach)} />
+            <OperatorMetric
+              label="Tracked audience"
+              value={integer(data?.socialReach)}
+            />
             <OperatorMetric
               label="Observed AUM"
               value={usdWhole(data?.product.observedPortfolioUsd)}
@@ -135,8 +141,7 @@ function NoIntervention() {
         <span className="operator-action-label">No intervention</span>
         <strong>目前沒有需要你處理的 operational issue</strong>
         <p>
-          系統會繼續收集 signals；有事情跨過 action threshold
-          才會出現在這裡。
+          系統會繼續收集 signals；有事情跨過 action threshold 才會出現在這裡。
         </p>
       </div>
     </article>
@@ -166,7 +171,9 @@ function PriorityAction({
       </div>
       <div className="operator-action-links">
         <button
-          onClick={() => onNavigate(destinationFor(signal.source, signal.domain))}
+          onClick={() =>
+            onNavigate(destinationFor(signal.source, signal.domain))
+          }
           type="button"
         >
           查看
@@ -180,7 +187,9 @@ function PriorityAction({
 type GrowthFocusProps = {
   data: SocialPerformanceResponse | null;
   growth: SocialGrowthResponse | null;
-  onWindowChange: (window: SocialPerformanceResponse['window']) => Promise<void>;
+  onWindowChange: (
+    window: SocialPerformanceResponse['window'],
+  ) => Promise<void>;
   statements?: StatementsResponse | null;
 };
 
@@ -191,7 +200,9 @@ export function GrowthFocusView({
   statements,
 }: GrowthFocusProps) {
   const waitlist = growth?.waitlist ?? null;
-  const statement = statements?.headers.find((header) => header.domain === 'growth');
+  const statement = statements?.headers.find(
+    (header) => header.domain === 'growth',
+  );
 
   return (
     <div className="view-stack focused-view">
@@ -204,7 +215,10 @@ export function GrowthFocusView({
             與貼文表格；先回答「流量有沒有變成需求」。
           </p>
         </div>
-        <WindowPicker active={data?.window ?? 'latest'} onChange={onWindowChange} />
+        <WindowPicker
+          active={data?.window ?? 'latest'}
+          onChange={onWindowChange}
+        />
       </section>
 
       {statement ? (
@@ -228,7 +242,10 @@ export function GrowthFocusView({
           {waitlist?.status === 'ok' ? (
             <div className="waitlist-glance-grid">
               <OperatorMetric label="Total" value={integer(waitlist.total)} />
-              <OperatorMetric label="Last 7d" value={integer(waitlist.signups7d)} />
+              <OperatorMetric
+                label="Last 7d"
+                value={integer(waitlist.signups7d)}
+              />
               <OperatorMetric
                 label="From social · 7d"
                 value={integer(waitlist.attributedSocial7d)}
@@ -373,7 +390,10 @@ function ReliabilityHero({
           label="Social daemon"
           value={statusText(social?.daemon.status)}
         />
-        <OperatorMetric label="Projected spend" value={usd(overview?.projectedCostUsd)} />
+        <OperatorMetric
+          label="Projected spend"
+          value={usd(overview?.projectedCostUsd)}
+        />
         <OperatorMetric label="Retry waste" value={percent(retry.rate)} />
       </div>
     </section>
@@ -394,7 +414,9 @@ function RiskList({
     <div className="reliability-risk-list">
       {risks.map((priority, index) => (
         <article key={priority.signal.fingerprint}>
-          <span className={`risk-rank ${priority.signal.status}`}>{index + 1}</span>
+          <span className={`risk-rank ${priority.signal.status}`}>
+            {index + 1}
+          </span>
           <div>
             <strong>{priority.signal.title}</strong>
             <small>
@@ -453,7 +475,9 @@ function ProviderCosts({
           );
         })}
         {providers.length === 0 ? (
-          <div className="empty-inline">No current provider cost snapshots.</div>
+          <div className="empty-inline">
+            No current provider cost snapshots.
+          </div>
         ) : null}
       </div>
     </>
@@ -539,7 +563,9 @@ function GrowthEvidence({
       <summary>
         <span>
           <strong>Evidence</strong>
-          <small>完整 attribution、waitlist conversion 與 recent episode data</small>
+          <small>
+            完整 attribution、waitlist conversion 與 recent episode data
+          </small>
         </span>
       </summary>
       <div className="operator-evidence-body">
@@ -548,7 +574,10 @@ function GrowthEvidence({
           {waitlist?.status === 'ok' ? (
             <div className="evidence-row-list">
               {waitlist.conversions.slice(0, 10).map((conversion) => (
-                <div className="evidence-row" key={conversion.socialPublishJobId}>
+                <div
+                  className="evidence-row"
+                  key={conversion.socialPublishJobId}
+                >
                   <span>{conversion.episodeId.slice(0, 8)}</span>
                   <PlatformIdentity platform={conversion.platform} />
                   <span>{conversion.languageCode}</span>
@@ -557,7 +586,9 @@ function GrowthEvidence({
                 </div>
               ))}
               {waitlist.conversions.length === 0 ? (
-                <div className="empty-inline">No attributed conversions yet.</div>
+                <div className="empty-inline">
+                  No attributed conversions yet.
+                </div>
               ) : null}
             </div>
           ) : (
@@ -624,8 +655,8 @@ function SummaryCard({
   kicker,
   title,
 }: {
-  action?: React.ReactNode;
-  children: React.ReactNode;
+  action?: ReactNode;
+  children: ReactNode;
   className?: string;
   kicker: string;
   title: string;
@@ -644,7 +675,13 @@ function SummaryCard({
   );
 }
 
-function NavigateLink({ label, onClick }: { label: string; onClick: () => void }) {
+function NavigateLink({
+  label,
+  onClick,
+}: {
+  label: string;
+  onClick: () => void;
+}) {
   return (
     <button className="operator-text-button" onClick={onClick} type="button">
       {label} <ArrowRight aria-hidden="true" />
