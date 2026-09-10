@@ -360,9 +360,10 @@ describe('planVisualAssets episode image pool', () => {
 
   it('lets a generic scene borrow another subject when its own is empty', async () => {
     const anchored = 'Aurora Labs';
+    const anchoredIntent = `${anchored} market sentiment report`;
     const genericIntent = 'market sentiment overview';
     const search = searchByQuery({
-      [anchoredQuery(anchored)]: [
+      [anchoredIntent]: [
         braveResult('aurora-labs-atrium', `${anchored} atrium`),
         braveResult('aurora-labs-rooftop', `${anchored} rooftop`),
       ],
@@ -373,7 +374,7 @@ describe('planVisualAssets episode image pool', () => {
       scenes: [
         {
           sceneId: 'scene-01',
-          imageSearchIntent: [anchoredQuery(anchored)],
+          imageSearchIntent: [anchoredIntent],
           imageSearchEntities: [anchored],
           searchAnchor: 'direct',
         },
@@ -392,7 +393,7 @@ describe('planVisualAssets episode image pool', () => {
       },
     });
 
-    expect(queriesOf(search)).toEqual([anchoredQuery(anchored), genericIntent]);
+    expect(queriesOf(search)).toEqual([anchoredIntent, genericIntent]);
     expect(selectionFor(result, 'scene-02')).toMatchObject({
       subjectKey: `intent:${genericIntent}`,
       selection: 'pool-fallback',
@@ -403,7 +404,7 @@ describe('planVisualAssets episode image pool', () => {
   });
 
   it('buys a targeted request only for a scene that cites its own subject', async () => {
-    const contextIntent = 'coastal weather outlook';
+    const contextIntent = 'shipyard crane outlook';
     const scenes: VisualAssetScene[] = [
       ...numberedScenes(6),
       {
@@ -1108,11 +1109,13 @@ describe('planVisualAssets episode image pool', () => {
     // The strong donor's entries echo two of the generic intent's tokens and
     // the weak donor's echo one, a gap smaller than SUBJECT_REUSE_PENALTY, so
     // one draw from the strong donor is enough to hand the next borrow over.
+    const strongDonorIntent = `${strongDonor} market sentiment desk`;
+    const weakDonorIntent = `${weakDonor} market desk`;
     const search = searchByQuery({
-      [anchoredQuery(strongDonor)]: Array.from({ length: 3 }, (_, offset) =>
+      [strongDonorIntent]: Array.from({ length: 3 }, (_, offset) =>
         braveResult(`donor-a-${offset + 1}`, 'market sentiment desk'),
       ),
-      [anchoredQuery(weakDonor)]: Array.from({ length: 3 }, (_, offset) =>
+      [weakDonorIntent]: Array.from({ length: 3 }, (_, offset) =>
         braveResult(`donor-b-${offset + 1}`, 'market desk'),
       ),
       [genericIntent]: [],
@@ -1122,13 +1125,13 @@ describe('planVisualAssets episode image pool', () => {
       scenes: [
         {
           sceneId: 'scene-01',
-          imageSearchIntent: [anchoredQuery(strongDonor)],
+          imageSearchIntent: [strongDonorIntent],
           imageSearchEntities: [strongDonor],
           searchAnchor: 'direct',
         },
         {
           sceneId: 'scene-02',
-          imageSearchIntent: [anchoredQuery(weakDonor)],
+          imageSearchIntent: [weakDonorIntent],
           imageSearchEntities: [weakDonor],
           searchAnchor: 'direct',
         },

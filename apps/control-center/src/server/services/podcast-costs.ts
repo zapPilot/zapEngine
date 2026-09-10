@@ -1,4 +1,3 @@
-import type { createServiceRoleClient } from './supabase.js';
 import { createClient } from '@supabase/supabase-js';
 
 import type {
@@ -77,6 +76,19 @@ const PAGE_SIZE = 500;
 const RUN_ID_CHUNK = 100;
 const USD_SCALE = 100_000_000;
 
+function createPodcastCostClient(
+  url: string,
+  serviceRoleKey: string,
+  schema: string,
+) {
+  return createClient(url, serviceRoleKey, {
+    db: { schema },
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+}
+
+type PodcastCostClient = ReturnType<typeof createPodcastCostClient>;
+
 export function createPodcastCostService(input: {
   config: ControlCenterConfig;
 }) {
@@ -96,13 +108,10 @@ export function createPodcastCostService(input: {
       }
 
       try {
-        const client = createClient(
+        const client = createPodcastCostClient(
           input.config.SUPABASE_URL,
           input.config.SUPABASE_SERVICE_ROLE_KEY,
-          {
-            db: { schema: input.config.SUPABASE_DB_SCHEMA },
-            auth: { autoRefreshToken: false, persistSession: false },
-          },
+          input.config.SUPABASE_DB_SCHEMA,
         );
 
         const recentEpisodeIds = await loadRecentEpisodeIds(client);
@@ -167,7 +176,7 @@ export function createPodcastCostService(input: {
 }
 
 async function loadRunPage(
-  client: ReturnType<typeof createServiceRoleClient>,
+  client: PodcastCostClient,
   offset: number,
   episodeIds?: string[],
 ): Promise<PipelineRunRow[]> {
@@ -181,15 +190,10 @@ async function loadRunPage(
     .order('started_at', { ascending: false })
     .order('id', { ascending: false })
     .range(offset, offset + PAGE_SIZE - 1);
-  if (error) {
-    throw error;
-  }
-  return (data ?? []) as PipelineRunRow[];
+  return requirePage(data as PipelineRunRow[] | null, error);
 }
 
-async function loadRecentEpisodeIds(
-  client: ReturnType<typeof createServiceRoleClient>,
-) {
+async function loadRecentEpisodeIds(client: PodcastCostClient) {
   const ids: string[] = [];
   const seen = new Set<string>();
   for (let offset = 0; ids.length < EPISODE_LIMIT; offset += PAGE_SIZE) {
@@ -211,8 +215,15 @@ async function loadRecentEpisodeIds(
   return ids;
 }
 
+function requirePage<T>(data: T[] | null, error: unknown): T[] {
+  if (error) {
+    throw error;
+  }
+  return data ?? [];
+}
+
 async function loadRunsForEpisodes(
-  client: ReturnType<typeof createServiceRoleClient>,
+  client: PodcastCostClient,
   episodeIds: string[],
 ): Promise<PipelineRunRow[]> {
   const rows: PipelineRunRow[] = [];
@@ -226,7 +237,7 @@ async function loadRunsForEpisodes(
 }
 
 async function loadStagesForRuns(
-  client: ReturnType<typeof createServiceRoleClient>,
+  client: PodcastCostClient,
   runIds: string[],
 ): Promise<PipelineStageRow[]> {
   const rows: PipelineStageRow[] = [];

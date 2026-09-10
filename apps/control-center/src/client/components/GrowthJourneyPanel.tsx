@@ -73,7 +73,7 @@ export function GrowthJourneyPanel(props: {
   const journeyReady = journey?.status === 'ok';
 
   return (
-    <section aria-label="Growth journey" className={`panel ${styles['panel']}`}>
+    <section className={`panel ${styles['panel']}`} aria-label="Growth journey">
       <div className={styles['header']}>
         <div>
           <span className={styles['kicker']}>Cross-channel journey · 30d</span>

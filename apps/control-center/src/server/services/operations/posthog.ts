@@ -270,6 +270,22 @@ async function runLandingSourceQuery(
   };
 }
 
+function landingFunnelEvent(event: string, customName: string) {
+  return {
+    kind: 'EventsNode',
+    event,
+    custom_name: customName,
+    properties: [
+      {
+        key: 'surface',
+        type: 'event',
+        operator: 'exact',
+        value: 'landing',
+      },
+    ],
+  };
+}
+
 async function runLandingCtaFunnelQuery(
   apiKey: string,
   projectId: string,
@@ -285,21 +301,9 @@ async function runLandingCtaFunnelQuery(
       query: {
         kind: 'FunnelsQuery',
         series: [
-          ['$pageview', 'Landing page view'],
-          ['waitlist_cta_clicked', 'Waitlist CTA clicked'],
-        ].map(([event, custom_name]) => ({
-          kind: 'EventsNode',
-          event,
-          custom_name,
-          properties: [
-            {
-              key: 'surface',
-              type: 'event',
-              operator: 'exact',
-              value: 'landing',
-            },
-          ],
-        })),
+          landingFunnelEvent('$pageview', 'Landing page view'),
+          landingFunnelEvent('waitlist_cta_clicked', 'Waitlist CTA clicked'),
+        ],
         dateRange: { date_from: '-30d' },
         funnelsFilter: {
           funnelOrderType: 'ordered',
