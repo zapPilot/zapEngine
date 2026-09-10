@@ -4,14 +4,18 @@ import {
   Gauge,
   RefreshCw,
   TrendingUp,
-  Users,
-  Wallet,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 import { relativeTime } from '../format.js';
 import { BrandMark } from './BrandMark.js';
 
+/**
+ * Product and Economics remain in the type temporarily so the old detail
+ * components can be removed in a follow-up cleanup without coupling that
+ * deletion to the information-architecture change. They are intentionally not
+ * reachable from primary navigation.
+ */
 export type DashboardView =
   | 'home'
   | 'pipeline'
@@ -21,18 +25,16 @@ export type DashboardView =
   | 'economics';
 
 const navigation = [
-  { id: 'home' as const, label: 'Home', Icon: Gauge },
+  { id: 'home' as const, label: '今日', Icon: Gauge },
+  { id: 'growth' as const, label: '成長', Icon: TrendingUp },
   { id: 'pipeline' as const, label: 'Pipeline', Icon: Clapperboard },
-  { id: 'growth' as const, label: 'Growth', Icon: TrendingUp },
-  { id: 'product' as const, label: 'Product', Icon: Users },
-  { id: 'reliability' as const, label: 'Reliability', Icon: Activity },
-  { id: 'economics' as const, label: 'Economics', Icon: Wallet },
+  { id: 'reliability' as const, label: '可靠性', Icon: Activity },
 ];
 
 export function AppShell(props: {
   activeView: DashboardView;
   children: ReactNode;
-  /** Open decisions, badged on Reliability so leaving Home cannot hide them. */
+  /** Open decisions, badged on Reliability so leaving Today cannot hide them. */
   decisionsPending?: number;
   generatedAt?: string;
   loading: boolean;
@@ -70,9 +72,12 @@ export function AppShell(props: {
             </button>
           ))}
         </nav>
-        <div className="sidebar-note">
+        <div className="sidebar-note sidebar-note-solo">
           <span className="live-dot" />
-          Authenticated operator view
+          <span>
+            One operator. Four questions.
+            <small>Decisions first · evidence on demand</small>
+          </span>
         </div>
       </aside>
       <main className="main-canvas">
