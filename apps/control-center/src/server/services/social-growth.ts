@@ -456,10 +456,9 @@ function packaging(
   };
 }
 
-function armStatus(samples: number): Exclude<
-  SocialExperimentStatus,
-  'paired-cohort'
-> {
+function armStatus(
+  samples: number,
+): Exclude<SocialExperimentStatus, 'paired-cohort'> {
   if (samples >= 20) {
     return 'eligible';
   }
@@ -469,10 +468,9 @@ function armStatus(samples: number): Exclude<
   return 'collecting';
 }
 
-function weakestStatus(arms: SocialExperimentArm[]): Exclude<
-  SocialExperimentStatus,
-  'paired-cohort'
-> {
+function weakestStatus(
+  arms: SocialExperimentArm[],
+): Exclude<SocialExperimentStatus, 'paired-cohort'> {
   if (arms.some((arm) => arm.status === 'collecting')) {
     return 'collecting';
   }
@@ -494,8 +492,12 @@ function groupBy<T, K>(rows: T[], key: (row: T) => K): Map<K, T[]> {
 }
 
 function sum(values: (number | undefined)[]): number | null {
-  const present = values.filter((value): value is number => value !== undefined);
-  return present.length ? present.reduce((total, value) => total + value, 0) : null;
+  const present = values.filter(
+    (value): value is number => value !== undefined,
+  );
+  return present.length
+    ? present.reduce((total, value) => total + value, 0)
+    : null;
 }
 
 function median(values: number[]): number {
