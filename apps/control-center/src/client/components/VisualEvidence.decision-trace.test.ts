@@ -30,7 +30,8 @@ describe('sceneDecisionTrace', () => {
       scene({
         selection: {
           selection: 'pool-fallback',
-          matchedSubject: 'mathematician Shor + Bitcoin + Quantum computer + Shor',
+          matchedSubject:
+            'mathematician Shor + Bitcoin + Quantum computer + Shor',
           sourceQuery: 'Shor mathematician',
           providerRank: 6,
           fallbackReason: 'subject-entries-exhausted',

@@ -37,7 +37,9 @@ describe('reliability priority clarity', () => {
       screen.getByLabelText('Priority score 86 out of 100'),
     ).toHaveTextContent('Priority86');
     expect(screen.getByText('Critical')).toBeVisible();
-    expect(screen.getByText('ops-cost-sync failed 4 runs in a row')).toBeVisible();
+    expect(
+      screen.getByText('ops-cost-sync failed 4 runs in a row'),
+    ).toBeVisible();
   });
 
   it('describes aggregate signals as checks needing attention, not issues', () => {
@@ -62,10 +64,7 @@ describe('reliability priority clarity', () => {
     ];
 
     render(
-      <ReliabilityView
-        data={operationsFixture({ signals })}
-        social={null}
-      />,
+      <ReliabilityView data={operationsFixture({ signals })} social={null} />,
     );
 
     expect(screen.getByText('2 need attention · 3 checks')).toBeVisible();

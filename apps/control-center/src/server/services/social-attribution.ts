@@ -253,6 +253,7 @@ export function exactYoutubeFollowersByPost(
   for (const metric of metrics) {
     if (
       !youtubeIds.has(metric.social_post_id) ||
+      metric.collection_status === 'unavailable' ||
       metric.measurement_window === null ||
       metric.measurement_window === undefined ||
       metric.followers_gained === null

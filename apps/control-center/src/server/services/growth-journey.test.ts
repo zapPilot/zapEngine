@@ -44,7 +44,9 @@ describe('loadGrowthJourney', () => {
       JSON.parse(String(call[1]?.body)),
     );
     const sourceQuery = bodies.find(
-      (body) => body.query?.kind === 'HogQLQuery' && body.query.query?.includes('argMin('),
+      (body) =>
+        body.query?.kind === 'HogQLQuery' &&
+        body.query.query?.includes('argMin('),
     );
     const funnelQuery = bodies.find(
       (body) => body.query?.kind === 'FunnelsQuery',
@@ -61,10 +63,7 @@ describe('loadGrowthJourney', () => {
           funnelWindowInterval: 1,
           funnelWindowIntervalUnit: 'day',
         },
-        series: [
-          { event: '$pageview' },
-          { event: 'waitlist_cta_clicked' },
-        ],
+        series: [{ event: '$pageview' }, { event: 'waitlist_cta_clicked' }],
       },
     });
     expect(journey).toEqual({

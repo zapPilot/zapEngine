@@ -130,7 +130,7 @@ def test_a_snapshot_written_earlier_today_is_still_returned(
     date inclusively; if this side dropped today the two halves of the same
     response would cover different windows.
     """
-    now = datetime.now(UTC)
+    now = datetime(2026, 1, 10, 12, 0, tzinfo=UTC)
     _insert_position(db_session, wallets["owned"][0], now - timedelta(hours=1))
 
     rows = _run(

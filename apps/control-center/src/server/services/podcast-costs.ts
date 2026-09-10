@@ -76,6 +76,19 @@ const PAGE_SIZE = 500;
 const RUN_ID_CHUNK = 100;
 const USD_SCALE = 100_000_000;
 
+function createPodcastCostClient(
+  url: string,
+  serviceRoleKey: string,
+  schema: string,
+) {
+  return createClient(url, serviceRoleKey, {
+    db: { schema },
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+}
+
+type PodcastCostClient = ReturnType<typeof createPodcastCostClient>;
+
 export function createPodcastCostService(input: {
   config: ControlCenterConfig;
 }) {
@@ -95,13 +108,10 @@ export function createPodcastCostService(input: {
       }
 
       try {
-        const client = createClient(
+        const client = createPodcastCostClient(
           input.config.SUPABASE_URL,
           input.config.SUPABASE_SERVICE_ROLE_KEY,
-          {
-            db: { schema: input.config.SUPABASE_DB_SCHEMA },
-            auth: { autoRefreshToken: false, persistSession: false },
-          },
+          input.config.SUPABASE_DB_SCHEMA,
         );
 
         const recentEpisodeIds = await loadRecentEpisodeIds(client);
@@ -165,7 +175,7 @@ export function createPodcastCostService(input: {
   };
 }
 
-async function loadRecentEpisodeIds(client: ReturnType<typeof createClient>) {
+async function loadRecentEpisodeIds(client: PodcastCostClient) {
   const ids: string[] = [];
   const seen = new Set<string>();
   for (let offset = 0; ids.length < EPISODE_LIMIT; offset += PAGE_SIZE) {
@@ -197,8 +207,15 @@ async function loadRecentEpisodeIds(client: ReturnType<typeof createClient>) {
   return ids;
 }
 
+function requirePage<T>(data: T[] | null, error: unknown): T[] {
+  if (error) {
+    throw error;
+  }
+  return data ?? [];
+}
+
 async function loadRunsForEpisodes(
-  client: ReturnType<typeof createClient>,
+  client: PodcastCostClient,
   episodeIds: string[],
 ): Promise<PipelineRunRow[]> {
   const rows: PipelineRunRow[] = [];
@@ -210,10 +227,7 @@ async function loadRunsForEpisodes(
       .order('started_at', { ascending: false })
       .order('id', { ascending: false })
       .range(offset, offset + PAGE_SIZE - 1);
-    if (error) {
-      throw error;
-    }
-    const page = (data ?? []) as PipelineRunRow[];
+    const page = requirePage(data as PipelineRunRow[] | null, error);
     rows.push(...page);
     if (page.length < PAGE_SIZE) {
       return rows;
@@ -222,7 +236,7 @@ async function loadRunsForEpisodes(
 }
 
 async function loadStagesForRuns(
-  client: ReturnType<typeof createClient>,
+  client: PodcastCostClient,
   runIds: string[],
 ): Promise<PipelineStageRow[]> {
   const rows: PipelineStageRow[] = [];
@@ -465,15 +479,15 @@ export function summarizePodcastCosts(
     })
     .map((entry) => {
       const stripped: Record<string, unknown> = { ...entry };
-      delete stripped.totalCostUnits;
-      delete stripped.podcastCostUnits;
-      delete stripped.videoCostUnits;
-      delete stripped.failedAttemptCostUnits;
-      delete stripped.interruptedAttemptCostUnits;
-      delete stripped.confirmedDeploymentInterruptionCostUnits;
-      delete stripped.shutdownInterruptionCostUnits;
-      delete stripped.confirmedRetryWasteUnits;
-      delete stripped.lineageObserved;
+      delete stripped['totalCostUnits'];
+      delete stripped['podcastCostUnits'];
+      delete stripped['videoCostUnits'];
+      delete stripped['failedAttemptCostUnits'];
+      delete stripped['interruptedAttemptCostUnits'];
+      delete stripped['confirmedDeploymentInterruptionCostUnits'];
+      delete stripped['shutdownInterruptionCostUnits'];
+      delete stripped['confirmedRetryWasteUnits'];
+      delete stripped['lineageObserved'];
       return stripped as unknown as PodcastEpisodeCostEvidenceSummary;
     })
     .sort((left, right) => right.lastRunAt.localeCompare(left.lastRunAt));
