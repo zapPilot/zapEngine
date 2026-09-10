@@ -2,7 +2,6 @@ import {
   ArrowRight,
   CircleDollarSign,
   ExternalLink,
-  RadioTower,
   ShieldCheck,
   Sparkles,
   TriangleAlert,
@@ -25,6 +24,7 @@ import { integer, percent, relativeTime, usd, usdWhole } from '../format.js';
 import { PlatformIdentity } from '../platform.js';
 import type { DashboardView } from './AppShell.js';
 import { GrowthJourneyPanel } from './GrowthJourneyPanel.js';
+import { renderSentence } from './statement-sentence.js';
 
 export function TodayView(props: {
   data: OverviewResponse | null;
@@ -47,7 +47,9 @@ export function TodayView(props: {
               只保留需要決策或介入的項目。原始 signal、provider 細節與完整表格放到下一層。
             </p>
           </div>
-          <span className={`operator-health ${props.operations?.status ?? 'unknown'}`}>
+          <span
+            className={`operator-health ${props.operations?.status ?? 'unknown'}`}
+          >
             {statusText(props.operations?.status)}
           </span>
         </div>
@@ -67,7 +69,9 @@ export function TodayView(props: {
               <div>
                 <span className="operator-action-label">No intervention</span>
                 <strong>目前沒有需要你處理的 operational issue</strong>
-                <p>系統會繼續收集 signals；有事情跨過 action threshold 才會出現在這裡。</p>
+                <p>
+                  系統會繼續收集 signals；有事情跨過 action threshold 才會出現在這裡。
+                </p>
               </div>
             </article>
           ) : null}
@@ -121,7 +125,9 @@ export function TodayView(props: {
           </div>
           {latestEpisode ? (
             <>
-              <strong className="operator-feature-title">{latestEpisode.title}</strong>
+              <strong className="operator-feature-title">
+                {latestEpisode.title}
+              </strong>
               <div className="release-platform-list">
                 {latestEpisode.platforms.map((platform, index) => (
                   <div
@@ -250,7 +256,7 @@ export function GrowthFocusView(props: {
       {growthStatement ? (
         <div className={`operator-callout ${growthStatement.status}`}>
           <Sparkles aria-hidden="true" />
-          <span>{growthStatement.sentence}</span>
+          <span>{renderSentence(growthStatement.sentence)}</span>
         </div>
       ) : null}
 
@@ -266,7 +272,9 @@ export function GrowthFocusView(props: {
           </div>
           {latestEpisode ? (
             <>
-              <strong className="operator-feature-title">{latestEpisode.title}</strong>
+              <strong className="operator-feature-title">
+                {latestEpisode.title}
+              </strong>
               <div className="release-platform-list">
                 {latestEpisode.platforms.map((platform, index) => (
                   <div
@@ -305,7 +313,10 @@ export function GrowthFocusView(props: {
           {waitlist?.status === 'ok' ? (
             <div className="waitlist-glance-grid">
               <OperatorMetric label="Total" value={integer(waitlist.total)} />
-              <OperatorMetric label="Last 7d" value={integer(waitlist.signups7d)} />
+              <OperatorMetric
+                label="Last 7d"
+                value={integer(waitlist.signups7d)}
+              />
               <OperatorMetric
                 label="From social · 7d"
                 value={integer(waitlist.attributedSocial7d)}
@@ -342,7 +353,9 @@ export function GrowthFocusView(props: {
                       {languageSignal(lane)}
                     </span>
                   ))}
-                  {platform.lanes.length === 0 ? <small>No lane data</small> : null}
+                  {platform.lanes.length === 0 ? (
+                    <small>No lane data</small>
+                  ) : null}
                 </div>
               </div>
             ))}
@@ -357,7 +370,9 @@ export function GrowthFocusView(props: {
         <summary>
           <span>
             <strong>Evidence</strong>
-            <small>完整 attribution、waitlist conversion 與 recent episode data</small>
+            <small>
+              完整 attribution、waitlist conversion 與 recent episode data
+            </small>
           </span>
         </summary>
         <div className="operator-evidence-body">
@@ -392,7 +407,9 @@ export function ReliabilityFocusView(props: {
 
   return (
     <div className="view-stack focused-view">
-      <section className={`panel reliability-hero ${props.data?.status ?? 'unknown'}`}>
+      <section
+        className={`panel reliability-hero ${props.data?.status ?? 'unknown'}`}
+      >
         <div>
           <span className="operator-kicker">Operational health</span>
           <h2>{statusText(props.data?.status)}</h2>
@@ -417,7 +434,7 @@ export function ReliabilityFocusView(props: {
       {reliabilityStatement ? (
         <div className={`operator-callout ${reliabilityStatement.status}`}>
           <ShieldCheck aria-hidden="true" />
-          <span>{reliabilityStatement.sentence}</span>
+          <span>{renderSentence(reliabilityStatement.sentence)}</span>
         </div>
       ) : null}
 
@@ -518,7 +535,11 @@ export function ReliabilityFocusView(props: {
                   <span className="provider-mini-track">
                     <i
                       style={{
-                        width: `${maxProviderCost > 0 ? (cost / maxProviderCost) * 100 : 0}%`,
+                        width: `${
+                          maxProviderCost > 0
+                            ? (cost / maxProviderCost) * 100
+                            : 0
+                        }%`,
                       }}
                     />
                   </span>
@@ -527,7 +548,9 @@ export function ReliabilityFocusView(props: {
               );
             })}
             {providers.length === 0 ? (
-              <div className="empty-inline">No current provider cost snapshots.</div>
+              <div className="empty-inline">
+                No current provider cost snapshots.
+              </div>
             ) : null}
           </div>
         </section>
@@ -538,7 +561,8 @@ export function ReliabilityFocusView(props: {
           <span>
             <strong>Signal evidence</strong>
             <small>
-              Raw source signals are available for audit, but no longer compete with the decision surface.
+              Raw source signals are available for audit, but no longer compete
+              with the decision surface.
             </small>
           </span>
         </summary>
@@ -625,7 +649,10 @@ function EvidenceEpisodes(props: { data: SocialPerformanceResponse | null }) {
       <h3>Recent episode evidence</h3>
       <div className="evidence-row-list">
         {(props.data?.episodes ?? []).slice(0, 6).map((episode) => (
-          <div className="evidence-row evidence-episode-row" key={episode.episodeId}>
+          <div
+            className="evidence-row evidence-episode-row"
+            key={episode.episodeId}
+          >
             <strong>{episode.title}</strong>
             <span>{integer(episode.totalViews)} views</span>
             <span>{integer(episode.totalImpressions)} impressions</span>
@@ -653,7 +680,10 @@ function retryWaste(data: PodcastCostResponse | null): {
   if (!data || data.status !== 'ok' || data.episodes.length === 0) {
     return { rate: null, wasteUsd: null };
   }
-  const total = data.episodes.reduce((sum, episode) => sum + episode.totalCostUsd, 0);
+  const total = data.episodes.reduce(
+    (sum, episode) => sum + episode.totalCostUsd,
+    0,
+  );
   const waste = data.episodes.reduce(
     (sum, episode) => sum + episode.retryWasteUsd,
     0,
