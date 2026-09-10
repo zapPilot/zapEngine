@@ -37,7 +37,10 @@ describe('social attribution interval boundaries', () => {
   });
 });
 
-function observation(captured_at: string, views: number): AttributionObservation {
+function observation(
+  captured_at: string,
+  views: number,
+): AttributionObservation {
   return {
     social_post_id: 'post-1',
     captured_at,
