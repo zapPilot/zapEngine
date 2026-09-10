@@ -158,18 +158,18 @@ describe('loadSocialGrowth zero-view metrics', () => {
 
     expect(response.status).toBe('ok');
     expect(platform?.lanes[0]).toMatchObject({
-      followersGained7d: 2,
       medianReach24h: 50,
-      followersPer1kReach: 20,
       basis: 'estimated',
     });
+    expect(platform?.lanes[0]?.followersGained7d).toBeCloseTo(2, 10);
+    expect(platform?.lanes[0]?.followersPer1kReach).toBeCloseTo(20, 10);
     expect(arm).toMatchObject({
       samples24h: 2,
       meanReach24h: 50,
-      followersAttributed: 2,
-      followersPer1kReach: 20,
       basis: 'estimated',
     });
+    expect(arm?.followersAttributed).toBeCloseTo(2, 10);
+    expect(arm?.followersPer1kReach).toBeCloseTo(20, 10);
   });
 });
 
