@@ -352,8 +352,8 @@ function buildArm(input: {
   const reach = reaches.reduce((total, value) => total + value, 0);
   return {
     variant: input.variant,
-    samples24h: metrics.length,
-    status: armStatus(metrics.length),
+    samples24h: reaches.length,
+    status: armStatus(reaches.length),
     medianReach24h: reaches.length ? median(reaches) : null,
     meanReach24h: reaches.length ? reach / reaches.length : null,
     medianEngagementRate: engagementRates.length
@@ -442,27 +442,37 @@ function packaging(
   if (!value || typeof value !== 'object') {
     return null;
   }
-  const key = (value as Record<string, unknown>)['key'];
-  const variant = (value as Record<string, unknown>)['variant'];
-  return typeof key === 'string' &&
-    key &&
-    typeof variant === 'string' &&
-    variant
-    ? { key, variant, kind: 'packaging' }
-    : null;
+  const experiment = value as Record<string, unknown>;
+  if (
+    typeof experiment['key'] !== 'string' ||
+    typeof experiment['variant'] !== 'string'
+  ) {
+    return null;
+  }
+  return {
+    key: experiment['key'],
+    variant: experiment['variant'],
+    kind: 'packaging',
+  };
 }
 
-function armStatus(
-  samples: number,
-): Exclude<SocialExperimentStatus, 'paired-cohort'> {
-  return samples >= 20
-    ? 'eligible'
-    : samples >= 10
-      ? 'provisional'
-      : 'collecting';
+function armStatus(samples: number): Exclude<
+  SocialExperimentStatus,
+  'paired-cohort'
+> {
+  if (samples >= 20) {
+    return 'eligible';
+  }
+  if (samples >= 10) {
+    return 'provisional';
+  }
+  return 'collecting';
 }
 
-function weakestStatus(arms: SocialExperimentArm[]): SocialExperimentStatus {
+function weakestStatus(arms: SocialExperimentArm[]): Exclude<
+  SocialExperimentStatus,
+  'paired-cohort'
+> {
   if (arms.some((arm) => arm.status === 'collecting')) {
     return 'collecting';
   }
@@ -472,25 +482,26 @@ function weakestStatus(arms: SocialExperimentArm[]): SocialExperimentStatus {
   return 'eligible';
 }
 
-function median(values: number[]): number {
-  const sorted = [...values].sort((left, right) => left - right);
-  const middle = Math.floor(sorted.length / 2);
-  return sorted.length % 2
-    ? sorted[middle]!
-    : (sorted[middle - 1]! + sorted[middle]!) / 2;
-}
-
-function sum(values: Array<number | undefined>): number | null {
-  const known = values.filter((value): value is number => value !== undefined);
-  return known.length ? known.reduce((total, value) => total + value, 0) : null;
-}
-
-function groupBy<T, K>(rows: readonly T[], key: (row: T) => K): Map<K, T[]> {
-  const groups = new Map<K, T[]>();
+function groupBy<T, K>(rows: T[], key: (row: T) => K): Map<K, T[]> {
+  const result = new Map<K, T[]>();
   for (const row of rows) {
-    const values = groups.get(key(row)) ?? [];
-    values.push(row);
-    groups.set(key(row), values);
+    const value = key(row);
+    const group = result.get(value) ?? [];
+    group.push(row);
+    result.set(value, group);
   }
-  return groups;
+  return result;
+}
+
+function sum(values: (number | undefined)[]): number | null {
+  const present = values.filter((value): value is number => value !== undefined);
+  return present.length ? present.reduce((total, value) => total + value, 0) : null;
+}
+
+function median(values: number[]): number {
+  const ordered = [...values].sort((left, right) => left - right);
+  const midpoint = Math.floor(ordered.length / 2);
+  return ordered.length % 2
+    ? (ordered[midpoint] ?? 0)
+    : ((ordered[midpoint - 1] ?? 0) + (ordered[midpoint] ?? 0)) / 2;
 }
