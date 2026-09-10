@@ -123,8 +123,7 @@ interface LandingCtaFunnelReading {
 }
 
 export interface PosthogGrowthJourneyReading
-  extends LandingSourceReading,
-    LandingCtaFunnelReading {
+  extends LandingSourceReading, LandingCtaFunnelReading {
   appVisitors30d: number;
   walletConnectedUsers30d: number;
 }
@@ -286,33 +285,21 @@ async function runLandingCtaFunnelQuery(
       query: {
         kind: 'FunnelsQuery',
         series: [
-          {
-            kind: 'EventsNode',
-            event: '$pageview',
-            custom_name: 'Landing page view',
-            properties: [
-              {
-                key: 'surface',
-                type: 'event',
-                operator: 'exact',
-                value: 'landing',
-              },
-            ],
-          },
-          {
-            kind: 'EventsNode',
-            event: 'waitlist_cta_clicked',
-            custom_name: 'Waitlist CTA clicked',
-            properties: [
-              {
-                key: 'surface',
-                type: 'event',
-                operator: 'exact',
-                value: 'landing',
-              },
-            ],
-          },
-        ],
+          ['$pageview', 'Landing page view'],
+          ['waitlist_cta_clicked', 'Waitlist CTA clicked'],
+        ].map(([event, custom_name]) => ({
+          kind: 'EventsNode',
+          event,
+          custom_name,
+          properties: [
+            {
+              key: 'surface',
+              type: 'event',
+              operator: 'exact',
+              value: 'landing',
+            },
+          ],
+        })),
         dateRange: { date_from: '-30d' },
         funnelsFilter: {
           funnelOrderType: 'ordered',
@@ -324,11 +311,15 @@ async function runLandingCtaFunnelQuery(
       },
     },
   });
-  const counts = new Map(envelope.results.map((step) => [step.order, step.count]));
+  const counts = new Map(
+    envelope.results.map((step) => [step.order, step.count]),
+  );
   const landingVisitors30d = counts.get(0);
   const ctaUsers30d = counts.get(1);
   if (landingVisitors30d === undefined || ctaUsers30d === undefined) {
-    throw new Error('PostHog landing CTA funnel query returned incomplete steps');
+    throw new Error(
+      'PostHog landing CTA funnel query returned incomplete steps',
+    );
   }
   return { landingVisitors30d, ctaUsers30d };
 }

@@ -1,3 +1,4 @@
+import { OperatorAudit } from './components/OperatorAudit.js';
 import { useCallback, useEffect, useState } from 'react';
 
 import type { PodcastPipelineRestartAction } from '../shared/podcast-pipeline.js';
@@ -351,13 +352,16 @@ export function App() {
         </div>
       ) : null}
       {view === 'reliability' ? (
-        <ReliabilityFocusView
-          data={operations}
-          overview={overview}
-          podcastCosts={podcastCosts}
-          social={operationsSocial}
-          statements={statements}
-        />
+        <>
+          <ReliabilityFocusView
+            data={operations}
+            overview={overview}
+            podcastCosts={podcastCosts}
+            social={operationsSocial}
+            statements={statements}
+          />
+          <OperatorAudit refreshedAt={operations?.generatedAt} />
+        </>
       ) : null}
       {view === 'product' ? (
         <ProductView

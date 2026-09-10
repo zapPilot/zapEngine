@@ -1,3 +1,4 @@
+import type { createServiceRoleClient } from './supabase.js';
 import { createClient } from '@supabase/supabase-js';
 
 import type {
@@ -165,21 +166,34 @@ export function createPodcastCostService(input: {
   };
 }
 
-async function loadRecentEpisodeIds(client: ReturnType<typeof createClient>) {
+async function loadRunPage(
+  client: ReturnType<typeof createServiceRoleClient>,
+  offset: number,
+  episodeIds?: string[],
+): Promise<PipelineRunRow[]> {
+  const query = client
+    .from('ops_pipeline_runs')
+    .select('id,pipeline,episode_id,status,started_at');
+  const scoped = episodeIds
+    ? query.in('episode_id', episodeIds)
+    : query.not('episode_id', 'is', null);
+  const { data, error } = await scoped
+    .order('started_at', { ascending: false })
+    .order('id', { ascending: false })
+    .range(offset, offset + PAGE_SIZE - 1);
+  if (error) {
+    throw error;
+  }
+  return (data ?? []) as PipelineRunRow[];
+}
+
+async function loadRecentEpisodeIds(
+  client: ReturnType<typeof createServiceRoleClient>,
+) {
   const ids: string[] = [];
   const seen = new Set<string>();
   for (let offset = 0; ids.length < EPISODE_LIMIT; offset += PAGE_SIZE) {
-    const { data, error } = await client
-      .from('ops_pipeline_runs')
-      .select('episode_id')
-      .not('episode_id', 'is', null)
-      .order('started_at', { ascending: false })
-      .order('id', { ascending: false })
-      .range(offset, offset + PAGE_SIZE - 1);
-    if (error) {
-      throw error;
-    }
-    const rows = (data ?? []) as { episode_id: string | null }[];
+    const rows = await loadRunPage(client, offset);
     for (const row of rows) {
       if (!row.episode_id || seen.has(row.episode_id)) {
         continue;
@@ -198,22 +212,12 @@ async function loadRecentEpisodeIds(client: ReturnType<typeof createClient>) {
 }
 
 async function loadRunsForEpisodes(
-  client: ReturnType<typeof createClient>,
+  client: ReturnType<typeof createServiceRoleClient>,
   episodeIds: string[],
 ): Promise<PipelineRunRow[]> {
   const rows: PipelineRunRow[] = [];
   for (let offset = 0; ; offset += PAGE_SIZE) {
-    const { data, error } = await client
-      .from('ops_pipeline_runs')
-      .select('id,pipeline,episode_id,status,started_at')
-      .in('episode_id', episodeIds)
-      .order('started_at', { ascending: false })
-      .order('id', { ascending: false })
-      .range(offset, offset + PAGE_SIZE - 1);
-    if (error) {
-      throw error;
-    }
-    const page = (data ?? []) as PipelineRunRow[];
+    const page = await loadRunPage(client, offset, episodeIds);
     rows.push(...page);
     if (page.length < PAGE_SIZE) {
       return rows;
@@ -222,7 +226,7 @@ async function loadRunsForEpisodes(
 }
 
 async function loadStagesForRuns(
-  client: ReturnType<typeof createClient>,
+  client: ReturnType<typeof createServiceRoleClient>,
   runIds: string[],
 ): Promise<PipelineStageRow[]> {
   const rows: PipelineStageRow[] = [];
@@ -465,15 +469,15 @@ export function summarizePodcastCosts(
     })
     .map((entry) => {
       const stripped: Record<string, unknown> = { ...entry };
-      delete stripped.totalCostUnits;
-      delete stripped.podcastCostUnits;
-      delete stripped.videoCostUnits;
-      delete stripped.failedAttemptCostUnits;
-      delete stripped.interruptedAttemptCostUnits;
-      delete stripped.confirmedDeploymentInterruptionCostUnits;
-      delete stripped.shutdownInterruptionCostUnits;
-      delete stripped.confirmedRetryWasteUnits;
-      delete stripped.lineageObserved;
+      delete stripped['totalCostUnits'];
+      delete stripped['podcastCostUnits'];
+      delete stripped['videoCostUnits'];
+      delete stripped['failedAttemptCostUnits'];
+      delete stripped['interruptedAttemptCostUnits'];
+      delete stripped['confirmedDeploymentInterruptionCostUnits'];
+      delete stripped['shutdownInterruptionCostUnits'];
+      delete stripped['confirmedRetryWasteUnits'];
+      delete stripped['lineageObserved'];
       return stripped as unknown as PodcastEpisodeCostEvidenceSummary;
     })
     .sort((left, right) => right.lastRunAt.localeCompare(left.lastRunAt));

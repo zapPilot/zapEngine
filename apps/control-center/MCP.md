@@ -131,3 +131,29 @@ scope the provider request before pagination. `evidence.start` and `evidence.end
 report the query window (the default relative window is anchored approximately
 at inspection time). The bounded sample is the latest event of the page's top
 issue, which may fall outside the requested historical period.
+
+## Operator lifecycle and runtime evidence
+
+`ops_investigate` includes `runtimeCorrelation` (producer-attested records,
+namespaced exact-ID edges, explicit gaps) and `operator` (durable history and
+action catalog). Service topology remains context, not a runtime causal edge.
+The same normalized snapshot builds the incident and service correlation.
+Reads never record a cycle or mutate provider state.
+
+The first executable catalog action is one failed localization render retry.
+It requires a current completed visual checkpoint, no active lease, an open
+podcast deployment gate, no previous repair and no remediation blockers.
+The database rechecks these under locks and commits audit plus queue mutation
+atomically. A timeout must be reconciled through history, never blindly retried.
+Code/PR, deployment/rollback, destructive and investment actions remain human
+controlled regardless of severity.
+
+`ops_resolve_sentry_issue` now requires a registered explicit resolution grant
+and fresh persisted production verification. Missing fix/deploy identity, fewer
+than 900 seconds of observation, failed/incomplete Sentry reads, an unmatched
+runtime, or an incomplete job block closure. A merge alone cannot verify an
+incident. Resolution attempts and uncertain provider outcomes are persisted;
+an uncertain resolve is not automatically repeated.
+
+See [operator runbook](./OPERATOR.md) for local commands, deployment prerequisites,
+policy defaults, audit storage and acceptance evidence.

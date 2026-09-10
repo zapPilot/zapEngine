@@ -88,7 +88,10 @@ const PACKET: IncidentPacket = {
 
 describe('buildOpsIncidentContext', () => {
   it('exposes repository-backed provider links and relevant PostHog context', () => {
-    const result = buildOpsIncidentContext({ packet: PACKET, snapshot: SNAPSHOT });
+    const result = buildOpsIncidentContext({
+      packet: PACKET,
+      snapshot: SNAPSHOT,
+    });
 
     expect(result.correlation.basis).toBe('repository-topology');
     expect(result.correlation.service).toEqual({

@@ -3,7 +3,6 @@ import { z } from 'zod';
 
 import { OPERATIONS_DOMAINS } from '../../shared/types.js';
 import { sentryInspectionOptionsSchema } from '../services/operations/inspection/sentry-options.js';
-import { buildOpsIncidentContext } from './incident-context.js';
 import { projectDomain, projectSignal } from './projections.js';
 import type { OpsMcpOperations } from './types.js';
 
@@ -118,10 +117,7 @@ export function createOpsMcpServer(operations: OpsMcpOperations): McpServer {
     },
     async ({ fingerprint, force }) => {
       const packet = await operations.investigate(fingerprint, force);
-      // investigate() already refreshed the provider caches when force=true.
-      // Read the normalized snapshot without forcing a second provider fan-out.
-      const snapshot = await operations.getOperations(false);
-      return result(buildOpsIncidentContext({ packet, snapshot }));
+      return result(packet);
     },
   );
 

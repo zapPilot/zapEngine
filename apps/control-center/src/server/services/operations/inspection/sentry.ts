@@ -1,3 +1,4 @@
+import { opsCorrelationSchema } from '@zapengine/types/shared';
 import { z } from 'zod';
 
 /* jscpd:ignore-start -- mirrored inspector imports, kept colocated for locality */
@@ -48,6 +49,9 @@ const exceptionEntrySchema = z.object({
 
 const eventSchema = z.object({
   eventID: z.string().nullish(),
+  contexts: z
+    .object({ opsCorrelation: opsCorrelationSchema.optional() })
+    .nullish(),
   title: z.string().nullish(),
   dateCreated: z.string().nullish(),
   environment: z.string().nullish(),
@@ -216,6 +220,11 @@ async function loadLatestEvent(input: {
     });
     return {
       eventId: event.eventID ?? null,
+      correlation: {
+        ...event.contexts?.opsCorrelation,
+        sentryEventId: event.eventID ?? undefined,
+        sentryIssueId: input.issueId,
+      },
       title: event.title ?? null,
       createdAt: event.dateCreated ?? null,
       environment: event.environment ?? null,

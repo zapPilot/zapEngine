@@ -1,4 +1,8 @@
 import * as Sentry from '@sentry/node';
+import {
+  type OpsCorrelation,
+  opsCorrelationSchema,
+} from '@zapengine/types/shared';
 
 import { nonemptyString } from '../lib/typeGuards.js';
 
@@ -24,6 +28,7 @@ export type PipelineComponent =
 
 export interface PipelineExceptionOptions {
   component: PipelineComponent;
+  correlation?: OpsCorrelation;
   /** Low-cardinality dimensions only. Anything per-episode belongs in `context`. */
   tags?: Record<string, string | undefined>;
   /** High-cardinality detail: ids, URLs, attempt counts. */
@@ -67,6 +72,11 @@ export function capturePipelineException(
 ): void {
   Sentry.withScope((scope) => {
     scope.setTag('component', options.component);
+    if (options.correlation)
+      scope.setContext(
+        'opsCorrelation',
+        opsCorrelationSchema.parse(options.correlation),
+      );
     for (const [key, value] of Object.entries(options.tags ?? {})) {
       if (value !== undefined) {
         scope.setTag(key, value);

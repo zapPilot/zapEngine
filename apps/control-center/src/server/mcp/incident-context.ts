@@ -46,7 +46,9 @@ export function buildOpsIncidentContext(input: {
   packet: IncidentPacket;
   snapshot: OperationsResponse;
 }): OpsIncidentContext {
-  const topology = resolveOperationalTopology(input.packet.incident.fingerprint);
+  const topology = resolveOperationalTopology(
+    input.packet.incident.fingerprint,
+  );
   const impact = topology.service?.impact ?? null;
 
   return {
@@ -94,7 +96,9 @@ function relatedSignalsForImpact(
     .slice(0, RELATED_SIGNAL_LIMIT);
 }
 
-function sourcesForImpact(impact: OperationalImpact | null): OperationsSource[] {
+function sourcesForImpact(
+  impact: OperationalImpact | null,
+): OperationsSource[] {
   switch (impact) {
     case 'portfolio-freshness':
       return ['product-health', 'customer-economics'];

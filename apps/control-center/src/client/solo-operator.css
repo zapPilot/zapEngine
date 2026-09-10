@@ -730,3 +730,12 @@
     text-align: left;
   }
 }
+
+.operator-audit {
+  margin-top: 20px;
+  padding: 20px;
+}
+.operator-audit pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

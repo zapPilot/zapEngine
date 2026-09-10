@@ -1,3 +1,4 @@
+import type { GrowthView } from './GrowthView.js';
 import {
   ArrowRight,
   CircleDollarSign,
@@ -6,7 +7,7 @@ import {
   Sparkles,
   TriangleAlert,
 } from 'lucide-react';
-import type { ReactNode } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
 
 import type { StatementsResponse } from '../../shared/statements.js';
 import type {
@@ -45,6 +46,10 @@ export function TodayView({
 }: TodayProps) {
   const priorities = operations?.priorities.slice(0, 3) ?? [];
   const retry = retryWaste(podcastCosts);
+  const stale =
+    !!operations &&
+    (!Number.isFinite(Date.parse(operations.generatedAt)) ||
+      Date.now() - Date.parse(operations.generatedAt) > 15 * 60_000);
 
   return (
     <div className="view-stack focused-view">
@@ -64,6 +69,9 @@ export function TodayView({
             {statusText(operations?.status)}
           </span>
         </div>
+        {stale ? (
+          <p role="status">營運資料已過期，請重新整理後再判斷系統是否恢復。</p>
+        ) : null}
         <div className="operator-action-grid">
           {priorities.map((priority, index) => (
             <PriorityAction
@@ -73,7 +81,16 @@ export function TodayView({
               priority={priority}
             />
           ))}
-          {operations && priorities.length === 0 ? <NoIntervention /> : null}
+          {operations?.status === 'healthy' &&
+          !stale &&
+          priorities.length === 0 ? (
+            <NoIntervention />
+          ) : null}
+          {operations &&
+          operations.status !== 'healthy' &&
+          priorities.length === 0 ? (
+            <div role="status">觀測資料不足或系統尚未恢復，請查看可靠性。</div>
+          ) : null}
           {!operations ? (
             <div className="empty-inline">Waiting for operational signals.</div>
           ) : null}
@@ -184,14 +201,7 @@ function PriorityAction({
   );
 }
 
-type GrowthFocusProps = {
-  data: SocialPerformanceResponse | null;
-  growth: SocialGrowthResponse | null;
-  onWindowChange: (
-    window: SocialPerformanceResponse['window'],
-  ) => Promise<void>;
-  statements?: StatementsResponse | null;
-};
+type GrowthFocusProps = ComponentProps<typeof GrowthView>;
 
 export function GrowthFocusView({
   data,

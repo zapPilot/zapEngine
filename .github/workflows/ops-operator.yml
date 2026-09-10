@@ -1,0 +1,32 @@
+name: Ops Operator
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ops-operator
+  cancel-in-progress: false
+jobs:
+  observe:
+    if: vars.OPS_OPERATOR_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      INFISICAL_UNIVERSAL_AUTH_CLIENT_ID: ${{ secrets.INFISICAL_UNIVERSAL_AUTH_CLIENT_ID }}
+      INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET: ${{ secrets.INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET }}
+      INFISICAL_PROJECT_ID: ${{ secrets.INFISICAL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-workspace
+        with:
+          uv: 'false'
+      - uses: ./.github/actions/setup-env-tooling
+      - run: pnpm turbo run build --filter=@zapengine/types
+      - name: Observe and reconcile
+        if: vars.OPS_OPERATOR_RENDER_RETRY != 'true'
+        run: node scripts/env/run.mjs --environment prod -- pnpm --filter @zapengine/control-center ops:operator
+      - name: Permit one gated render retry
+        if: vars.OPS_OPERATOR_RENDER_RETRY == 'true'
+        run: node scripts/env/run.mjs --environment prod -- pnpm --filter @zapengine/control-center ops:operator --allow-render-retry

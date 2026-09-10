@@ -151,3 +151,49 @@ describe('Focused operator views', () => {
     expect(screen.getByText('Signal evidence')).toBeInTheDocument();
   });
 });
+
+describe('Today observer trust', () => {
+  it.each(['unknown', 'degraded', 'critical'] as const)(
+    'does not call %s with empty priorities healthy',
+    (status) => {
+      render(
+        <TodayView
+          data={null}
+          operations={{
+            generatedAt: new Date().toISOString(),
+            status,
+            priorities: [],
+            signals: [],
+            domains: [],
+          }}
+          podcastCosts={null}
+          onNavigate={vi.fn()}
+        />,
+      );
+      expect(
+        screen.queryByText('目前沒有需要你處理的 operational issue'),
+      ).not.toBeInTheDocument();
+      expect(screen.getByRole('status')).toHaveTextContent('觀測資料不足');
+    },
+  );
+  it('does not call stale healthy data recovered', () => {
+    render(
+      <TodayView
+        data={null}
+        operations={{
+          generatedAt: '2000-01-01T00:00:00Z',
+          status: 'healthy',
+          priorities: [],
+          signals: [],
+          domains: [],
+        }}
+        podcastCosts={null}
+        onNavigate={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole('status')).toHaveTextContent('已過期');
+    expect(
+      screen.queryByText('目前沒有需要你處理的 operational issue'),
+    ).not.toBeInTheDocument();
+  });
+});

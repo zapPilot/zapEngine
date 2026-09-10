@@ -413,8 +413,13 @@ export function rankFallbackEntries(
  */
 export function fallbackEntryMatchesSceneQuery(
   entry: Pick<PoolEntry, 'requestQuery'>,
-  scene: Pick<PoolSubjectScene, 'imageSearchIntent' | 'imageSearchEntities'>,
+  scene: Pick<
+    PoolSubjectScene,
+    'imageSearchIntent' | 'imageSearchEntities' | 'searchAnchor'
+  >,
 ): boolean {
+  if (scene.searchAnchor === 'context' && !scene.imageSearchEntities?.length)
+    return true;
   const sceneTerms = new Set(
     [...scene.imageSearchIntent, ...(scene.imageSearchEntities ?? [])].flatMap(
       fallbackQueryTerms,

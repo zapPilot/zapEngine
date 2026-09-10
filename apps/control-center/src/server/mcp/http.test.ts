@@ -236,7 +236,7 @@ describe('Ops MCP HTTP protocol', () => {
       arguments_.fingerprint,
       false,
     );
-    expect(operations.getOperations).toHaveBeenCalledWith(false);
+    expect(operations.getOperations).not.toHaveBeenCalled();
   });
 
   it('resolves one explicit Sentry issue through the bounded mutation tool', async () => {

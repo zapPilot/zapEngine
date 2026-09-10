@@ -125,6 +125,7 @@ describe('video worker failure reporting', () => {
 
       expect(sentryMocks.capture).toHaveBeenCalledWith(error, {
         component: 'video-render',
+        correlation: {},
         tags: { job_status: status },
         context: {
           runId: expect.stringMatching(/^[a-f0-9]{8}$/),
