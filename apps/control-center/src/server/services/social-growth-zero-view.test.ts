@@ -130,6 +130,47 @@ describe('loadSocialGrowth zero-view metrics', () => {
       basis: 'estimated',
     });
   });
+
+  it('uses only real reach in estimated efficiency when zero and nonzero posts are mixed', async () => {
+    const posts = [post('threads-zero-view'), post('threads-normal-view')];
+    const metrics = [
+      metric('threads-zero-view', 0, 1),
+      metric('threads-normal-view', 100, 10),
+    ];
+    const snapshots = [
+      snapshot('threads', '2026-09-07T23:00:00.000Z', 10),
+      snapshot('threads', '2026-09-09T00:00:00.000Z', 12),
+    ];
+
+    const response = await loadSocialGrowth({
+      config: CONFIGURED,
+      now: NOW,
+      createSupabaseClient: clientFactory({ posts, metrics, snapshots }),
+    });
+
+    const platform = response.platforms.find(
+      (row) => row.platform === 'threads',
+    );
+    const experiment = response.experiments.find(
+      (row) => row.experimentKey === 'zero-view-v1',
+    );
+    const arm = experiment?.arms.find((row) => row.variant === 'control');
+
+    expect(response.status).toBe('ok');
+    expect(platform?.lanes[0]).toMatchObject({
+      followersGained7d: 2,
+      medianReach24h: 50,
+      followersPer1kReach: 20,
+      basis: 'estimated',
+    });
+    expect(arm).toMatchObject({
+      samples24h: 2,
+      meanReach24h: 50,
+      followersAttributed: 2,
+      followersPer1kReach: 20,
+      basis: 'estimated',
+    });
+  });
 });
 
 function post(id: string, platform = 'threads') {
