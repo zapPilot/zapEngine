@@ -54,6 +54,31 @@ describe('exact YouTube follower attribution data quality', () => {
     expect(exact.has('youtube-post')).toBe(true);
     expect(exact.get('youtube-post')).toBe(0);
   });
+
+  it('never treats non-YouTube follower metrics as exact attribution', () => {
+    const exact = exactYoutubeFollowersByPost(
+      [
+        {
+          id: 'threads-post',
+          platform: 'threads',
+          published_at: '2026-08-01T00:00:00.000Z',
+        },
+      ],
+      [
+        {
+          ...metric({
+            age_hours: 24,
+            measurement_window: '24h',
+            followers_gained: 7,
+          }),
+          social_post_id: 'threads-post',
+        },
+      ],
+    );
+
+    expect(exact.has('threads-post')).toBe(false);
+    expect(exact.size).toBe(0);
+  });
 });
 
 function metric(
