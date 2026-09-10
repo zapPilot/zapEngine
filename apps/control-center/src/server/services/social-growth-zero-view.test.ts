@@ -34,6 +34,34 @@ describe('loadSocialGrowth zero-view metrics', () => {
       medianEngagementRate: 0.1,
     });
   });
+
+  it('does not count null-view observations as usable experiment samples', async () => {
+    const posts = [post('missing-view'), post('normal-view')];
+    const metrics = [
+      metric('missing-view', null, 7),
+      metric('normal-view', 100, 10),
+    ];
+
+    const response = await loadSocialGrowth({
+      config: CONFIGURED,
+      now: NOW,
+      createSupabaseClient: clientFactory({ posts, metrics }),
+    });
+
+    const experiment = response.experiments.find(
+      (row) => row.experimentKey === 'zero-view-v1',
+    );
+    const arm = experiment?.arms.find((row) => row.variant === 'control');
+
+    expect(response.status).toBe('ok');
+    expect(arm).toMatchObject({
+      samples24h: 1,
+      status: 'collecting',
+      medianReach24h: 100,
+      meanReach24h: 100,
+      medianEngagementRate: 0.1,
+    });
+  });
 });
 
 function post(id: string) {
@@ -49,7 +77,7 @@ function post(id: string) {
   };
 }
 
-function metric(socialPostId: string, views: number, likes: number) {
+function metric(socialPostId: string, views: number | null, likes: number) {
   return {
     social_post_id: socialPostId,
     captured_at: '2026-09-09T00:00:00.000Z',
