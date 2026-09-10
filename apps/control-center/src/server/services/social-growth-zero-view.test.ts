@@ -62,13 +62,43 @@ describe('loadSocialGrowth zero-view metrics', () => {
       medianEngagementRate: 0.1,
     });
   });
+
+  it('does not invent follower efficiency when exact YouTube followers have zero reach', async () => {
+    const posts = [post('youtube-zero-view', 'youtube')];
+    const metrics = [metric('youtube-zero-view', 0, 0, 3)];
+
+    const response = await loadSocialGrowth({
+      config: CONFIGURED,
+      now: NOW,
+      createSupabaseClient: clientFactory({ posts, metrics }),
+    });
+
+    const platform = response.platforms.find((row) => row.platform === 'youtube');
+    const experiment = response.experiments.find(
+      (row) => row.experimentKey === 'zero-view-v1',
+    );
+    const arm = experiment?.arms.find((row) => row.variant === 'control');
+
+    expect(response.status).toBe('ok');
+    expect(platform?.lanes[0]).toMatchObject({
+      followersGained7d: 3,
+      followersPer1kReach: null,
+      basis: 'exact',
+    });
+    expect(arm).toMatchObject({
+      samples24h: 1,
+      followersAttributed: 3,
+      followersPer1kReach: null,
+      basis: 'exact',
+    });
+  });
 });
 
-function post(id: string) {
+function post(id: string, platform = 'threads') {
   return {
     id,
     episode_id: `episode-${id}`,
-    platform: 'threads',
+    platform,
     language_code: 'ja',
     published_at: '2026-09-08T00:00:00.000Z',
     experiment_key: 'zero-view-v1',
@@ -77,7 +107,12 @@ function post(id: string) {
   };
 }
 
-function metric(socialPostId: string, views: number | null, likes: number) {
+function metric(
+  socialPostId: string,
+  views: number | null,
+  likes: number,
+  followersGained: number | null = null,
+) {
   return {
     social_post_id: socialPostId,
     captured_at: '2026-09-09T00:00:00.000Z',
@@ -91,7 +126,7 @@ function metric(socialPostId: string, views: number | null, likes: number) {
     shares: 0,
     saves: 0,
     profile_visits: null,
-    followers_gained: null,
+    followers_gained: followersGained,
   };
 }
 
