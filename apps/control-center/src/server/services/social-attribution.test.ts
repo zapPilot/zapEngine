@@ -51,6 +51,32 @@ describe('social follower attribution', () => {
     });
   });
 
+  it('ignores unavailable observations when choosing an activity endpoint', () => {
+    expect(
+      computePostActivity({
+        interval,
+        post: post('x', '2026-07-31T20:00:00.000Z'),
+        observations: [
+          observation('post-1', interval.startAt, { views: 100, likes: 5 }),
+          observation('post-1', '2026-08-01T02:00:00.000Z', {
+            views: 140,
+            likes: 9,
+          }),
+          observation('post-1', interval.endAt, {
+            collection_status: 'unavailable',
+            views: 999,
+            likes: 99,
+          }),
+        ],
+      }),
+    ).toEqual({
+      postId: 'post-1',
+      deltaReach: 40,
+      deltaEngagement: 4,
+      deltaProfileVisits: null,
+    });
+  });
+
   it('uses a virtual zero only for a post born inside the interval', () => {
     const endpoint = observation('post-1', interval.endAt, {
       views: 50,
