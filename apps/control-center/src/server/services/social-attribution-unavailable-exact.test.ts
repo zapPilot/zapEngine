@@ -32,6 +32,28 @@ describe('exact YouTube follower attribution data quality', () => {
 
     expect(exact.get('youtube-post')).toBe(2);
   });
+
+  it('keeps a collected zero as an exact cumulative result', () => {
+    const exact = exactYoutubeFollowersByPost(
+      [
+        {
+          id: 'youtube-post',
+          platform: 'youtube',
+          published_at: '2026-08-01T00:00:00.000Z',
+        },
+      ],
+      [
+        metric({
+          age_hours: 24,
+          measurement_window: '24h',
+          followers_gained: 0,
+        }),
+      ],
+    );
+
+    expect(exact.has('youtube-post')).toBe(true);
+    expect(exact.get('youtube-post')).toBe(0);
+  });
 });
 
 function metric(
