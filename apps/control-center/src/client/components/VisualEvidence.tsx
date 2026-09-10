@@ -593,12 +593,16 @@ function normalizeTraceText(value: string): string {
 }
 
 function containsTracePhrase(haystack: string, needle: string): boolean {
-  if (!needle) return false;
+  if (!needle) {
+    return false;
+  }
   return ` ${haystack} `.includes(` ${needle} `);
 }
 
 function selectedFromLine(decision: SceneDecisionTrace): string | null {
-  if (!decision.selectedQuery) return null;
+  if (!decision.selectedQuery) {
+    return null;
+  }
   return decision.selectedRank === null
     ? decision.selectedQuery
     : `${decision.selectedQuery} (#${decision.selectedRank})`;

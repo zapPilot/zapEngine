@@ -74,6 +74,17 @@ const INCIDENT = {
     reasons: ['deep provider inspection completed for this signal'],
   },
   evidenceGaps: [],
+  correlation: {
+    basis: 'unmapped' as const,
+    service: null,
+    providerFingerprints: {
+      primary: INCIDENT_FINGERPRINT,
+      github: null,
+      sentry: null,
+      fly: null,
+    },
+    relatedSignals: [],
+  },
 };
 const RESOLUTION = {
   provider: 'sentry' as const,
@@ -225,6 +236,7 @@ describe('Ops MCP HTTP protocol', () => {
       arguments_.fingerprint,
       false,
     );
+    expect(operations.getOperations).not.toHaveBeenCalled();
   });
 
   it('resolves one explicit Sentry issue through the bounded mutation tool', async () => {

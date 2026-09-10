@@ -7,3 +7,4 @@ export * from './podcast.js';
 export * from './string.js';
 export * from './tokens.js';
 export * from './wallet.js';
+export * from './ops.js';

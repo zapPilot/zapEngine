@@ -16,6 +16,7 @@
     "lint:fix": "eslint src/ api/ scripts/ *.ts *.mjs --fix",
     "ops:cost": "tsx src/server/cost-cli.ts",
     "ops:mcp": "tsx src/server/mcp/stdio.ts",
+    "ops:operator": "tsx src/server/ops-operator-cli.ts",
     "ops:status": "tsx src/server/ops-status-cli.ts",
     "ops:sync": "tsx src/server/sync.ts",
     "start": "node dist/server/server/main.js",
@@ -31,8 +32,8 @@
     "@sentry/node": "^10.70.0",
     "@supabase/supabase-js": "catalog:",
     "@zapengine/cost-observability": "workspace:*",
-    "@zapengine/types": "workspace:*",
     "@zapengine/design-tokens": "workspace:*",
+    "@zapengine/types": "workspace:*",
     "hono": "catalog:",
     "lucide-react": "catalog:",
     "react": "catalog:",
@@ -40,6 +41,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@testing-library/jest-dom": "catalog:",
     "@testing-library/react": "catalog:",
     "@types/node": "catalog:",

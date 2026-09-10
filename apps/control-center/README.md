@@ -17,28 +17,20 @@ The Vite UI listens on `127.0.0.1:4174`; its Hono API listens on `CONTROL_CENTER
 
 ## Views
 
-Six views, each answering one question. Home is a decision surface; the other
-five are where its evidence or narrow operator actions live.
+Four primary surfaces answer the operator's immediate questions:
 
-| View            | Question it answers                                                         | Reads / actions                                                                                                                               |
-| --------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Home**        | What needs a decision right now?                                            | `/api/overview`, `/api/costs/history`, `/api/operations`                                                                                      |
-| **Pipeline**    | Where is each article, what failed, and can its current phase be recovered? | `/api/podcast-pipeline`, lazy `/api/podcast-pipeline/:episodeId/visual`, per-step restart actions, abandon failed/blocked video work, reviews |
-| **Growth**      | Where does acquisition reach the site, where does it drop, and which language lanes are working? | `/api/social-performance`, `/api/social-growth`, `/api/growth-journey`                                                                         |
-| **Product**     | Who do we serve, and is their data still current?                           | `/api/customers` + product health from `/api/overview`                                                                                        |
-| **Reliability** | Which sources are telling us something is wrong?                            | `/api/operations`, `/api/operations/social`                                                                                                   |
-| **Economics**   | What does the company spend, and which provider spends it?                  | `/api/overview`, `/api/costs/history`                                                                                                         |
+| View                     | Question                                        | Evidence                                                                                              |
+| ------------------------ | ----------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| **今日 (Today)**         | What needs intervention now?                    | At most three ranked operations, then company pulse, latest release, cost and retry waste             |
+| **成長 (Growth)**        | How does content reach become product demand?   | Cross-channel journey, latest release, waitlist and language performance; attribution behind Evidence |
+| **Pipeline**             | Which API → Render → Social job needs recovery? | Existing queue board and bounded recovery drawer                                                      |
+| **可靠性 (Reliability)** | Which risks, costs and repairs need attention?  | Operations, provider costs, retry waste, raw Evidence and operator audit                              |
 
-Home opens on priority-sorted founder statements rather than on a metric grid.
-Each statement carries its conclusion and evidence; the Reliability statement can
-disclose the bounded action queue when operator action is warranted. The KPI band
-sits below the statements, grouped by concern rather than spread across six equal
-tiles, and the provider ledger has exactly one home — Economics.
-
-Because operational evidence is part of the first screen, `/api/operations` is
-part of the first paint. Its per-source caches absorb the repeat reads; the
-podcast pipeline, per-customer ledger, and publish queue stay lazy because none
-appears directly on Home.
+Today composes existing read models and hides numeric priority scores. Unknown,
+failed and stale observations never render the healthy no-intervention state.
+Product and Economics components remain as legacy detail implementations; they
+are absent from primary navigation. No LLM inference or priority-scoring change
+is introduced by this information architecture.
 
 The Pipeline view is one queue board — API → Render → Social publishing — and
 every operator action lives in the drawer a card opens. `GET /api/pipeline/queues`
@@ -174,7 +166,7 @@ Ranking is deterministic (`services/operations/prioritize.ts`) rather than model
 
 **Control Center must not call an LLM inference API.** Reliability summaries, priorities, statements, and recommended decisions are rule-based and must remain reproducible without paid model inference. OpenRouter credentials in this app are cost-observability credentials only: they may read provider usage/cost metadata, but they must never be used for chat/completions, Responses API, or other generation endpoints. `src/server/ai-boundary.test.ts` enforces this boundary at the dependency and production-source level.
 
-Every source has its own cache TTL, from 30s for the publish queue to 15 minutes for PostHog. `?force=1` bypasses them, which is what **Refresh** uses on Reliability and Product.
+Every source has its own cache TTL, from 30s for the publish queue to 15 minutes for PostHog. `?force=1` bypasses them, which is what **Refresh** uses on Reliability.
 
 ### Provider credentials
 
@@ -229,7 +221,7 @@ The `ops` schema stays private and is not exposed through Supabase Data API. Con
 
 `ops.cost_snapshots` is per-provider and monthly, so it cannot say what one episode cost. `ops.pipeline_runs` and `ops.pipeline_stage_runs` sit beside it and do: one row per background work unit, one row per billable stage, keyed by episode, localization, language and stage (`script` / `translation` / `narration` / `classroom` / `other` / `video_render`). `apps/podcast-pipeline` writes them; see its README's "Pipeline cost ledger" for what each column means and which costs are deliberately not in there.
 
-Control Center reads this ledger through `GET /api/costs/podcast` and presents episode-level unit economics in the Economics view. The read path uses the service-role-only bridge views `from_fed_to_chain.ops_pipeline_runs` and `from_fed_to_chain.ops_pipeline_stage_runs`; the browser receives only the aggregated cost response.
+Control Center reads this ledger through `GET /api/costs/podcast` and presents episode-level unit economics in Today and Reliability. The read path uses the service-role-only bridge views `from_fed_to_chain.ops_pipeline_runs` and `from_fed_to_chain.ops_pipeline_stage_runs`; the browser receives only the aggregated cost response.
 
 ## Provider semantics
 

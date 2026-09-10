@@ -148,6 +148,7 @@ export const ENV_MANIFEST = {
   ),
 
   NODE_ENV: host(['all']),
+  FLY_MACHINE_ID: host(['podcast-pipeline']),
   APP_COMMIT_SHA: host([
     'account-engine',
     'alpha-etl',

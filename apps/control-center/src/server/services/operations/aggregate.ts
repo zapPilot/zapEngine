@@ -1,3 +1,7 @@
+import { renderSignals, inspectRender } from './operator/render-signals.js';
+import { createOperatorStore } from './operator/store.js';
+import { enrichOperatorContext } from './operator/context.js';
+import { buildOpsIncidentContext } from '../../mcp/incident-context.js';
 import {
   OPERATIONS_DOMAINS,
   type CustomerEconomicsResponse,
@@ -154,6 +158,13 @@ export function createOperationsService(input: {
     fingerprint: string,
     sentry?: SentryInspectionOptions,
   ) {
+    if (fingerprint.startsWith('social-queue:render/')) {
+      return inspectRender(
+        createOperatorStore(input.config),
+        fingerprint,
+        now(),
+      );
+    }
     return inspectOperationalSignal({
       config: input.config,
       fingerprint,
@@ -168,18 +179,50 @@ export function createOperationsService(input: {
     getCustomers,
     inspectSignal,
 
-    resolveSentryIssue(issueId: string, reason: string) {
-      return resolveSentryIssue({ config: input.config, issueId, reason });
+    async resolveSentryIssue(issueId: string, reason: string) {
+      const store = createOperatorStore(input.config);
+      const attempt = await store.rpc('ops_claim_resolution', {
+        p_issue_id: issueId,
+        p_reason: reason,
+      });
+      try {
+        const result = await resolveSentryIssue({
+          config: input.config,
+          issueId,
+          reason,
+        });
+        await store.rpc('ops_finish_resolution', {
+          p_attempt: attempt,
+          p_state: 'succeeded',
+          p_result: result,
+        });
+        return result;
+      } catch (error) {
+        await store.rpc('ops_finish_resolution', {
+          p_attempt: attempt,
+          p_state: 'unknown',
+          p_result: {
+            message:
+              'Provider result requires reconciliation; do not repeat the mutation.',
+          },
+        });
+        throw error;
+      }
     },
 
     async investigate(fingerprint: string, force = false) {
-      return investigateOperationalSignal({
+      const snapshot = await getOperations(force);
+      const packet = await investigateOperationalSignal({
         fingerprint,
-        snapshot: await getOperations(force),
+        snapshot,
         inspect: inspectSignal,
-        loadCustomers: () => getCustomers(force),
-        loadSocial: () => getSocial(force),
+        loadCustomers: () => getCustomers(false),
+        loadSocial: () => getSocial(false),
       });
+      return enrichOperatorContext(
+        buildOpsIncidentContext({ packet, snapshot }),
+        createOperatorStore(input.config),
+      );
     },
   };
 }
@@ -210,7 +253,24 @@ function defaultAdapters(
     social: async () => {
       const observedAt = now();
       const response = await loadOperationsSocial({ config, now: observedAt });
-      return { response, signals: deriveSocialSignals(response, observedAt) };
+      const signals = deriveSocialSignals(response, observedAt);
+      if (config.SUPABASE_URL && config.SUPABASE_SERVICE_ROLE_KEY) {
+        try {
+          signals.push(
+            ...(await renderSignals(createOperatorStore(config), observedAt)),
+          );
+        } catch (error) {
+          signals.push(
+            sourceFailure({
+              source: 'social-queue',
+              domain: 'social',
+              error,
+              observedAt,
+            }),
+          );
+        }
+      }
+      return { response, signals };
     },
     customers: async () => {
       const observedAt = now();

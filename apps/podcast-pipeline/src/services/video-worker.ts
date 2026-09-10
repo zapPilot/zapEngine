@@ -2,6 +2,10 @@ import { randomUUID } from 'node:crypto';
 import { availableParallelism, hostname } from 'node:os';
 
 import { errorMessage, toError } from '../lib/errorMessage.js';
+import {
+  pipelineCorrelation,
+  recordRenderCorrelation,
+} from '../observability/correlation.js';
 import { capturePipelineException } from '../observability/sentry.js';
 import {
   type HeavyWorkCoordinator,
@@ -605,7 +609,20 @@ export function createVideoWorker(
       jobController.signal.throwIfAborted();
       source = await repository.loadSource(job.episode_localization_id);
       jobController.signal.throwIfAborted();
+      await recordRenderCorrelation(
+        `${job.episode_localization_id}/${runId}`,
+        pipelineCorrelation({
+          episodeId: source.episodeId,
+          localizationId: job.episode_localization_id,
+          renderJobId: job.episode_localization_id,
+        }),
+      );
       logVideoWorkerEvent(logger, 'video:render:start', {
+        ...pipelineCorrelation({
+          episodeId: source.episodeId,
+          localizationId: job.episode_localization_id,
+          renderJobId: job.episode_localization_id,
+        }),
         run: runId,
         episode: source.episodeId,
         language: source.languageCode,
@@ -698,6 +715,11 @@ export function createVideoWorker(
       });
       capturePipelineException(error, {
         component: 'video-render',
+        correlation: pipelineCorrelation({
+          episodeId: source?.episodeId,
+          localizationId: job.episode_localization_id,
+          renderJobId: job.episode_localization_id,
+        }),
         tags: { job_status: failedJob?.status ?? 'unknown' },
         context: {
           runId,

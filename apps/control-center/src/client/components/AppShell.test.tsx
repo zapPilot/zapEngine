@@ -18,7 +18,7 @@ function renderShell(props: Partial<Parameters<typeof AppShell>[0]> = {}) {
       onNavigate={onNavigate}
       onRefresh={onRefresh}
       subtitle="What needs a decision right now"
-      title="Home"
+      title="今日"
       {...props}
     >
       <p>content</p>
@@ -28,30 +28,29 @@ function renderShell(props: Partial<Parameters<typeof AppShell>[0]> = {}) {
 }
 
 describe('AppShell', () => {
-  it('names the six domains a founder navigates between', () => {
+  it('keeps primary navigation to four operator questions', () => {
     renderShell();
     const nav = screen.getByRole('navigation', {
       name: 'Control Center views',
     });
     expect(
       [...nav.querySelectorAll('button')].map((button) => button.textContent),
-    ).toEqual([
-      'Home',
-      'Pipeline',
-      'Growth',
-      'Product',
-      'Reliability',
-      'Economics',
-    ]);
+    ).toEqual(['今日', '成長', 'Pipeline', '可靠性']);
+  });
+
+  it('does not expose Product or Economics as primary destinations', () => {
+    renderShell();
+    expect(screen.queryByRole('button', { name: 'Product' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Economics' })).toBeNull();
   });
 
   it('marks only the active view as the current page', () => {
-    renderShell({ activeView: 'economics' });
-    expect(screen.getByRole('button', { name: 'Economics' })).toHaveAttribute(
+    renderShell({ activeView: 'reliability' });
+    expect(screen.getByRole('button', { name: '可靠性' })).toHaveAttribute(
       'aria-current',
       'page',
     );
-    expect(screen.getByRole('button', { name: 'Home' })).not.toHaveAttribute(
+    expect(screen.getByRole('button', { name: '今日' })).not.toHaveAttribute(
       'aria-current',
     );
   });
@@ -62,17 +61,17 @@ describe('AppShell', () => {
     expect(onNavigate).toHaveBeenCalledWith('pipeline' satisfies DashboardView);
   });
 
-  // Leaving Home must not be able to hide open decisions: the count follows
+  // Leaving Today must not be able to hide open decisions: the count follows
   // the reader into every other view.
   it('badges open decisions on Reliability alone', () => {
     renderShell({ decisionsPending: 3 });
-    expect(screen.getByRole('button', { name: 'Reliability 3' })).toBeVisible();
-    expect(screen.queryByRole('button', { name: /Growth \d/ })).toBeNull();
+    expect(screen.getByRole('button', { name: '可靠性 3' })).toBeVisible();
+    expect(screen.queryByRole('button', { name: /成長 \d/ })).toBeNull();
   });
 
   it('drops the badge when nothing needs a decision', () => {
     renderShell({ decisionsPending: 0 });
-    expect(screen.getByRole('button', { name: 'Reliability' })).toBeVisible();
+    expect(screen.getByRole('button', { name: '可靠性' })).toBeVisible();
   });
 
   it('blocks a second refresh while one is in flight', () => {

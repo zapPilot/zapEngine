@@ -188,3 +188,33 @@ describe('createOperationsService', () => {
     await expect(instance.getCustomers()).resolves.toBe(CUSTOMERS);
   });
 });
+
+it('refreshes every adapter only once during forced investigation', async () => {
+  const social = vi.fn(async () => ({
+    response: SOCIAL,
+    signals: [signal('social-queue', 'social', 'healthy')],
+  }));
+  const customers = vi.fn(async () => ({ response: CUSTOMERS, signals: [] }));
+  const service = createOperationsService({
+    config: CONFIG,
+    now: () => NOW,
+    adapters: adapters({ social, customers }),
+  });
+  const result = await service.investigate(
+    'social-queue:waiting-media/podcast',
+    true,
+  );
+  expect(social).toHaveBeenCalledTimes(1);
+  expect(customers).toHaveBeenCalledTimes(1);
+  expect(result.correlation.basis).toBe('repository-topology');
+});
+
+it('blocks Sentry writes without durable verification and authorization', async () => {
+  const service = createOperationsService({
+    config: CONFIG,
+    adapters: adapters(),
+  });
+  await expect(service.resolveSentryIssue('42', 'merged')).rejects.toThrow(
+    'not configured',
+  );
+});

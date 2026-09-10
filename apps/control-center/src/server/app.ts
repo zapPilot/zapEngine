@@ -1,3 +1,4 @@
+import { createOperatorStore } from './services/operations/operator/store.js';
 import {
   PODCAST_VIDEO_REVIEW_ISSUES,
   PODCAST_VIDEO_REVIEW_VERDICTS,
@@ -163,6 +164,13 @@ export function createControlCenterApp(input: {
     return context.json(await growthJourney.getJourney(isForced(context)));
   });
 
+  app.get('/api/operations/operator-history', async (context) => {
+    try {
+      return context.json(await createOperatorStore(input.config).history());
+    } catch {
+      return context.json({ error: 'Operator history is unavailable.' }, 503);
+    }
+  });
   app.get('/api/operations', async (context) => {
     return context.json(await operations.getOperations(isForced(context)));
   });

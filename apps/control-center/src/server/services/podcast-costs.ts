@@ -175,21 +175,29 @@ export function createPodcastCostService(input: {
   };
 }
 
+async function loadRunPage(
+  client: PodcastCostClient,
+  offset: number,
+  episodeIds?: string[],
+): Promise<PipelineRunRow[]> {
+  const query = client
+    .from('ops_pipeline_runs')
+    .select('id,pipeline,episode_id,status,started_at');
+  const scoped = episodeIds
+    ? query.in('episode_id', episodeIds)
+    : query.not('episode_id', 'is', null);
+  const { data, error } = await scoped
+    .order('started_at', { ascending: false })
+    .order('id', { ascending: false })
+    .range(offset, offset + PAGE_SIZE - 1);
+  return requirePage(data as PipelineRunRow[] | null, error);
+}
+
 async function loadRecentEpisodeIds(client: PodcastCostClient) {
   const ids: string[] = [];
   const seen = new Set<string>();
   for (let offset = 0; ids.length < EPISODE_LIMIT; offset += PAGE_SIZE) {
-    const { data, error } = await client
-      .from('ops_pipeline_runs')
-      .select('episode_id')
-      .not('episode_id', 'is', null)
-      .order('started_at', { ascending: false })
-      .order('id', { ascending: false })
-      .range(offset, offset + PAGE_SIZE - 1);
-    if (error) {
-      throw error;
-    }
-    const rows = (data ?? []) as { episode_id: string | null }[];
+    const rows = await loadRunPage(client, offset);
     for (const row of rows) {
       if (!row.episode_id || seen.has(row.episode_id)) {
         continue;
@@ -220,14 +228,7 @@ async function loadRunsForEpisodes(
 ): Promise<PipelineRunRow[]> {
   const rows: PipelineRunRow[] = [];
   for (let offset = 0; ; offset += PAGE_SIZE) {
-    const { data, error } = await client
-      .from('ops_pipeline_runs')
-      .select('id,pipeline,episode_id,status,started_at')
-      .in('episode_id', episodeIds)
-      .order('started_at', { ascending: false })
-      .order('id', { ascending: false })
-      .range(offset, offset + PAGE_SIZE - 1);
-    const page = requirePage(data as PipelineRunRow[] | null, error);
+    const page = await loadRunPage(client, offset, episodeIds);
     rows.push(...page);
     if (page.length < PAGE_SIZE) {
       return rows;
