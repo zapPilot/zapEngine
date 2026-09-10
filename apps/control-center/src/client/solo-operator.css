@@ -488,17 +488,20 @@
 
 .reliability-hero.healthy {
   --status: var(--success);
-  background: linear-gradient(90deg, rgb(25 122 81 / 8%), transparent 60%), var(--surface);
+  background:
+    linear-gradient(90deg, rgb(25 122 81 / 8%), transparent 60%), var(--surface);
 }
 
 .reliability-hero.degraded {
   --status: var(--warning);
-  background: linear-gradient(90deg, rgb(154 99 0 / 8%), transparent 60%), var(--surface);
+  background:
+    linear-gradient(90deg, rgb(154 99 0 / 8%), transparent 60%), var(--surface);
 }
 
 .reliability-hero.critical {
   --status: var(--error);
-  background: linear-gradient(90deg, rgb(196 61 50 / 8%), transparent 60%), var(--surface);
+  background:
+    linear-gradient(90deg, rgb(196 61 50 / 8%), transparent 60%), var(--surface);
 }
 
 .reliability-hero-metrics {
