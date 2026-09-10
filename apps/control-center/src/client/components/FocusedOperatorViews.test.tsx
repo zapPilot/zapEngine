@@ -126,7 +126,9 @@ describe('Focused operator views', () => {
     );
 
     expect(screen.getByText('今天最需要你處理的事')).toBeVisible();
-    expect(screen.getByText('ops-cost-sync failed 4 runs in a row')).toBeVisible();
+    expect(
+      screen.getByText('ops-cost-sync failed 4 runs in a row'),
+    ).toBeVisible();
     expect(screen.queryByText('86')).toBeNull();
     expect(screen.getByText('10.0%')).toBeVisible();
     expect(screen.getByText('The latest release')).toBeVisible();
