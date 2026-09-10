@@ -13,10 +13,7 @@ const CONFIGURED = readControlCenterConfig({
 describe('loadSocialGrowth zero-view metrics', () => {
   it('keeps zero reach in reach aggregates without inventing an engagement rate', async () => {
     const posts = [post('zero-view'), post('normal-view')];
-    const metrics = [
-      metric('zero-view', 0, 7),
-      metric('normal-view', 100, 10),
-    ];
+    const metrics = [metric('zero-view', 0, 7), metric('normal-view', 100, 10)];
 
     const response = await loadSocialGrowth({
       config: CONFIGURED,
