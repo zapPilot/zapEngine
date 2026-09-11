@@ -5,8 +5,6 @@ import type {
   AgentBacklogItem,
   AgentBacklogReleaseInput,
   AgentBacklogReleaseResult,
-  AgentBacklogRenewInput,
-  AgentBacklogRenewResult,
   AgentBacklogResponse,
 } from '../../shared/agent-backlog.js';
 import type {
@@ -34,7 +32,6 @@ export interface OpsMcpOperations {
   releaseBacklog(
     input: AgentBacklogReleaseInput,
   ): Promise<AgentBacklogReleaseResult>;
-  renewBacklog(input: AgentBacklogRenewInput): Promise<AgentBacklogRenewResult>;
   inspectSignal(
     fingerprint: string,
     sentry?: SentryInspectionOptions,
