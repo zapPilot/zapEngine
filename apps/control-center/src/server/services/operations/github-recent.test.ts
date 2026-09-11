@@ -137,6 +137,29 @@ describe('collectRecentGithubFailureSignals', () => {
     expect(signals).toEqual([]);
   });
 
+  it('never counts skipped runs as failures', async () => {
+    const { signals } = await collect([
+      completedRun({
+        id: 60,
+        name: 'Ops Operator',
+        path: '.github/workflows/ops-operator.yml',
+        event: 'workflow_dispatch',
+        conclusion: 'skipped',
+        startedAt: hoursAgo(0.5),
+      }),
+      completedRun({
+        id: 61,
+        name: 'Ops Operator',
+        path: '.github/workflows/ops-operator.yml',
+        event: 'push',
+        conclusion: 'skipped',
+        startedAt: hoursAgo(1),
+      }),
+    ]);
+
+    expect(signals).toEqual([]);
+  });
+
   it('clears an older operational failure after a later success', async () => {
     const { signals } = await collect([
       completedRun({

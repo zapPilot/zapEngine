@@ -45,6 +45,9 @@ const scheduleEntrySchema = z.object({
   entrypoint: z.string().min(1),
   schedule_kind: z.string().min(1),
   schedule: z.string().min(1),
+  // Optional escape hatch for workflows whose job-level `if:` makes `skipped`
+  // the normal outcome (ops-operator gated by `vars.OPS_OPERATOR_ENABLED`).
+  skipExpected: z.boolean().optional(),
 });
 
 /**
@@ -61,6 +64,11 @@ interface ScheduledWorkflow {
   file: string;
   /** How long this workflow's own cadence allows it to stay silent. */
   staleAfterMs: number;
+  /**
+   * Set when the registry marks this workflow's `skipped` runs as the normal
+   * outcome of an intentional job-level gate, not as failures.
+   */
+  skipExpected: boolean;
 }
 
 interface CompletedRun {
@@ -188,6 +196,7 @@ async function readScheduledWorkflows(input: {
               scheduleKind: result.data.schedule_kind,
               schedule: result.data.schedule,
             }),
+            skipExpected: result.data.skipExpected ?? false,
           },
         ]
       : [];
@@ -304,7 +313,7 @@ function judge(
 
   const ageMs = now.getTime() - latest.startedAt.getTime();
   const hoursAgo = Math.round(ageMs / GITHUB_HOUR_MS);
-  const streak = failureStreak(runs);
+  const streak = failureStreak(workflow, runs);
   const conclusion = latest.conclusion ?? 'without a conclusion';
   const common = {
     ...ORIGIN,
@@ -322,6 +331,27 @@ function judge(
     url: latest.url,
   };
 
+  // A gated workflow whose fresh runs all skip as expected is standing by,
+  // not failing. The detail names ops-operator's gate because it is the only
+  // flagged entry today; a second gated workflow with a different gate would
+  // need that gate named in the registry instead of here.
+  if (
+    workflow.skipExpected &&
+    latest.conclusion === 'skipped' &&
+    streak === 0 &&
+    ageMs <= workflow.staleAfterMs
+  ) {
+    return buildSignal({
+      ...common,
+      status: 'healthy',
+      title: `${workflow.name} is standing by`,
+      detail:
+        `Latest scheduled run skipped ${hoursAgo}h ago, which this registry ` +
+        'entry marks as expected: the workflow is gated by ' +
+        '`vars.OPS_OPERATOR_ENABLED` and stays off until that repository ' +
+        'variable is set.',
+    });
+  }
   if (streak === 0 && ageMs <= workflow.staleAfterMs) {
     return buildSignal({
       ...common,
@@ -365,9 +395,19 @@ function judge(
 /**
  * Consecutive non-success completed runs, newest first. Anything other than
  * `success` counts: a cancelled or timed-out nightly job produced no artifact
- * either, and none of these workflows carry a job-level `if:` that would make
- * `skipped` a normal outcome.
+ * either. Entries flagged `skipExpected` in `.github/schedules.json` are the
+ * one exception — their workflow carries a job-level `if:` (ops-operator's
+ * `vars.OPS_OPERATOR_ENABLED` gate) that makes `skipped` the normal outcome,
+ * so skipped runs drop out of the count entirely: transparent rather than
+ * streak-ending, so failures on both sides of a skip still read as
+ * consecutive.
  */
-function failureStreak(runs: readonly CompletedRun[]): number {
-  return consecutiveCount(runs, (run) => run.conclusion !== 'success');
+function failureStreak(
+  workflow: ScheduledWorkflow,
+  runs: readonly CompletedRun[],
+): number {
+  const countable = workflow.skipExpected
+    ? runs.filter((run) => run.conclusion !== 'skipped')
+    : runs;
+  return consecutiveCount(countable, (run) => run.conclusion !== 'success');
 }

@@ -19,7 +19,7 @@ if ! jq -e '
   all(.[ ];
     type == "object" and
     (["name", "purpose", "schedule_kind", "schedule", "schedule_source", "runtime", "workspace", "entrypoint"] - keys | length == 0) and
-    (keys - ["name", "purpose", "schedule_kind", "schedule", "schedule_source", "runtime", "workspace", "entrypoint", "endpoint", "docs"] | length == 0) and
+    (keys - ["name", "purpose", "schedule_kind", "schedule", "schedule_source", "runtime", "workspace", "entrypoint", "endpoint", "docs", "skipExpected"] | length == 0) and
     (.name | type == "string" and length > 0) and
     (.purpose | type == "string" and length > 0) and
     (.schedule_kind | IN("cron", "interval", "continuous")) and
@@ -30,6 +30,7 @@ if ! jq -e '
     (.entrypoint | type == "string" and length > 0) and
     ((.endpoint? // "") | type == "string") and
     ((.docs? // "") | type == "string") and
+    ((.skipExpected? // false) | type == "boolean") and
     (.schedule_source != "workflow" or (.runtime == "github-actions" and .schedule_kind == "cron")) and
     (.runtime != "github-actions" or .schedule_source == "workflow")
   )

@@ -204,6 +204,57 @@ describe('collectGithubSignals', () => {
     expect(signals[0]?.title).toBe('ops-cost-sync failed 2 runs in a row');
   });
 
+  it('reports standby instead of critical when a skip-expected workflow skips', async () => {
+    const { signals } = await collect({
+      repoRoot: await scratchRepoRoot([
+        githubEntry('ops-operator', {
+          schedule: '*/5 * * * *',
+          skipExpected: true,
+        }),
+      ]),
+      respond: everyWorkflowRuns(
+        completedRun({ conclusion: 'skipped', startedAt: hoursAgo(1) }),
+        completedRun({ conclusion: 'skipped', startedAt: hoursAgo(2) }),
+      ),
+    });
+
+    expect(signals[0]?.status).toBe('healthy');
+    expect(signals[0]?.title).toBe('ops-operator is standing by');
+    expect(signals[0]?.evidence['failureStreak']).toBe(0);
+  });
+
+  it('still streaks real failures across an expected skip', async () => {
+    const { signals } = await collect({
+      repoRoot: await scratchRepoRoot([
+        githubEntry('ops-operator', {
+          schedule: '*/5 * * * *',
+          skipExpected: true,
+        }),
+      ]),
+      respond: everyWorkflowRuns(
+        completedRun({ conclusion: 'failure', startedAt: hoursAgo(1) }),
+        completedRun({ conclusion: 'skipped', startedAt: hoursAgo(2) }),
+        completedRun({ conclusion: 'failure', startedAt: hoursAgo(3) }),
+      ),
+    });
+
+    expect(signals[0]?.status).toBe('critical');
+    expect(signals[0]?.evidence['failureStreak']).toBe(2);
+  });
+
+  it('keeps counting skipped runs as failures without skipExpected', async () => {
+    const { signals } = await collect({
+      repoRoot: await repoWith(['env-drift']),
+      respond: everyWorkflowRuns(
+        completedRun({ conclusion: 'skipped', startedAt: hoursAgo(1) }),
+        completedRun({ conclusion: 'skipped', startedAt: hoursAgo(25) }),
+      ),
+    });
+
+    expect(signals[0]?.status).toBe('critical');
+    expect(signals[0]?.evidence['failureStreak']).toBe(2);
+  });
+
   it('degrades a first failure and sorts runs newest-first itself', async () => {
     const { signals } = await collect({
       repoRoot: await repoWith(['env-drift']),

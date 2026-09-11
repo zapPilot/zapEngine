@@ -18,8 +18,7 @@ import { z } from 'zod';
  */
 export const userSchema = z.object({
   id: z.string(),
-  // eslint-disable-next-line sonarjs/deprecation
-  email: z.string().email().nullable().optional(),
+  email: z.email().nullable().optional(),
   is_subscribed_to_reports: z.boolean(),
   created_at: z.string(),
 });
@@ -126,8 +125,7 @@ export const etlJobStatusResponseSchema = z
       })
       .optional(),
   })
-  // eslint-disable-next-line sonarjs/deprecation
-  .passthrough(); // Allow additional fields without failing validation
+  .loose(); // Allow additional fields without failing validation
 
 /**
  * Schema for the wallet fetch trigger endpoint.
