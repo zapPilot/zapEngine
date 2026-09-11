@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  beginPodcastPlaybackSource,
+  createPodcastFinishGate,
+  shouldConsumePodcastFinish,
+} from '@/integration/podcastPlayerShared';
+import {
   buildPlaybackSections,
   resolveFinishedPlayback,
 } from '@/integration/podcastSections';
@@ -49,6 +54,60 @@ const withTwoClassroomLanguages = makeEpisode({
       ],
     },
   ],
+});
+
+describe('podcast finish gate', () => {
+  it('does not let a stale didJustFinish snapshot consume the replacement source', () => {
+    const gate = createPodcastFinishGate();
+
+    beginPodcastPlaybackSource(gate);
+    expect(
+      shouldConsumePodcastFinish(gate, {
+        playing: true,
+        didJustFinish: false,
+      }),
+    ).toBe(false);
+    expect(
+      shouldConsumePodcastFinish(gate, {
+        playing: false,
+        didJustFinish: true,
+      }),
+    ).toBe(true);
+
+    // Replacing Story with Classroom may leave didJustFinish=true until after
+    // the new source begins. The stale snapshot must not consume Classroom.
+    beginPodcastPlaybackSource(gate);
+    expect(
+      shouldConsumePodcastFinish(gate, {
+        playing: false,
+        didJustFinish: true,
+      }),
+    ).toBe(false);
+
+    // Seeing the replacement source actually play arms its generation. Even if
+    // didJustFinish is still stale at this instant, playing wins and is ignored.
+    expect(
+      shouldConsumePodcastFinish(gate, {
+        playing: true,
+        didJustFinish: true,
+      }),
+    ).toBe(false);
+
+    // Classroom can now finish and advance even if React never observed an
+    // intermediate didJustFinish=false update.
+    expect(
+      shouldConsumePodcastFinish(gate, {
+        playing: false,
+        didJustFinish: true,
+      }),
+    ).toBe(true);
+    expect(
+      shouldConsumePodcastFinish(gate, {
+        playing: false,
+        didJustFinish: true,
+      }),
+    ).toBe(false);
+  });
 });
 
 describe('resolveFinishedPlayback', () => {

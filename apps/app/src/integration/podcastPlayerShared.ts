@@ -7,6 +7,51 @@ export interface PendingPodcastPlaybackHandoff {
   shouldPlay: boolean;
 }
 
+export interface PodcastFinishGate {
+  generation: number;
+  armedGeneration: number;
+  consumedGeneration: number;
+}
+
+export function createPodcastFinishGate(): PodcastFinishGate {
+  return {
+    generation: 0,
+    armedGeneration: -1,
+    consumedGeneration: -1,
+  };
+}
+
+export function beginPodcastPlaybackSource(gate: PodcastFinishGate): void {
+  gate.generation += 1;
+  gate.armedGeneration = -1;
+}
+
+export function shouldConsumePodcastFinish(
+  gate: PodcastFinishGate,
+  status: { playing: boolean; didJustFinish: boolean },
+): boolean {
+  // A newly replaced expo-audio source can briefly inherit the previous
+  // source's didJustFinish=true snapshot. Only arm a generation after the new
+  // source has actually entered playback, and never consume while it is still
+  // playing. This makes a stale finish bit harmless even if React never sees
+  // the transient false reset between sources.
+  if (status.playing) {
+    gate.armedGeneration = gate.generation;
+    return false;
+  }
+
+  if (
+    !status.didJustFinish ||
+    gate.armedGeneration !== gate.generation ||
+    gate.consumedGeneration === gate.generation
+  ) {
+    return false;
+  }
+
+  gate.consumedGeneration = gate.generation;
+  return true;
+}
+
 export function finiteSeconds(value: number): number {
   return Number.isFinite(value) ? Math.max(0, value) : 0;
 }
