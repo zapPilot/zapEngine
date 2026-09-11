@@ -37,7 +37,9 @@ export function DashboardSkeleton(props: { view: DashboardView }) {
       >
         {Array.from(
           { length: metricHeavy ? count - 2 : count - 1 },
-          (_, index) => <SkeletonCard key={index} />,
+          (_, index) => (
+            <SkeletonCard key={index} />
+          ),
         )}
       </div>
     </div>

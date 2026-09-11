@@ -105,12 +105,24 @@ function clientFactory(input: {
           return chain;
         },
         limit() {
-          return Promise.resolve({ data: rows, count: rows.length, error: null });
+          return Promise.resolve({
+            data: rows,
+            count: rows.length,
+            error: null,
+          });
         },
-        then(resolve: (value: { data: typeof rows; count: number; error: null }) => unknown) {
-          return Promise.resolve({ data: rows, count: rows.length, error: null }).then(
-            resolve,
-          );
+        then(
+          resolve: (value: {
+            data: typeof rows;
+            count: number;
+            error: null;
+          }) => unknown,
+        ) {
+          return Promise.resolve({
+            data: rows,
+            count: rows.length,
+            error: null,
+          }).then(resolve);
         },
       };
       return chain;

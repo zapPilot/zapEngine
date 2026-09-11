@@ -523,10 +523,10 @@ function dashboardViewReady(input: {
   if (input.view === 'home') {
     return Boolean(
       input.overview &&
-        input.operations &&
-        input.podcastCosts &&
-        input.queues &&
-        input.journey,
+      input.operations &&
+      input.podcastCosts &&
+      input.queues &&
+      input.journey,
     );
   }
   if (input.view === 'pipeline') {
@@ -538,9 +538,9 @@ function dashboardViewReady(input: {
   if (input.view === 'reliability') {
     return Boolean(
       input.operations &&
-        input.overview &&
-        input.podcastCosts &&
-        input.costHistory,
+      input.overview &&
+      input.podcastCosts &&
+      input.costHistory,
     );
   }
   if (input.view === 'product') {
@@ -548,9 +548,9 @@ function dashboardViewReady(input: {
   }
   return Boolean(
     input.overview &&
-      input.costHistory &&
-      input.podcastCosts &&
-      input.statements,
+    input.costHistory &&
+    input.podcastCosts &&
+    input.statements,
   );
 }
 
