@@ -72,11 +72,11 @@ export function createAgentBacklogService(input: {
       );
     }
     try {
-      const [issues, claims] = await Promise.all([
+      const [issues, rawClaims] = await Promise.all([
         fetchGithubIssues(token),
-        claimsSchema.parseAsync(store.rpc('ops_agent_backlog_claims')),
+        store.rpc('ops_agent_backlog_claims'),
       ]);
-      return projectBacklog(issues, claims, generatedAt);
+      return projectBacklog(issues, claimsSchema.parse(rawClaims), generatedAt);
     } catch (error) {
       return emptyResponse(
         generatedAt,
