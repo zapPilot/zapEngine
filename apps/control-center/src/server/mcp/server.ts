@@ -20,6 +20,13 @@ const REMEDIATION_ANNOTATIONS = {
   openWorldHint: true,
 };
 
+const BACKLOG_MUTATION_ANNOTATIONS = {
+  readOnlyHint: false,
+  destructiveHint: false,
+  idempotentHint: false,
+  openWorldHint: true,
+};
+
 const forceSchema = z.object({
   force: z
     .boolean()
@@ -33,12 +40,29 @@ const fingerprintForceSchema = z.object({
   force: z.boolean().optional().default(false),
 });
 
+const agentIdSchema = z
+  .string()
+  .trim()
+  .regex(/^[a-zA-Z0-9_.:/-]{1,120}$/u)
+  .describe('Stable worker identity used to own the temporary backlog lease.');
+const areaSchema = z
+  .string()
+  .trim()
+  .regex(/^[a-z0-9][a-z0-9-]{0,48}$/u);
+const leaseSecondsSchema = z.number().int().min(300).max(14_400).optional();
+/** Shared by every mutation that must act on one specific lease, so a caller
+ * can only claim/renew/release the exact backlog claim it holds. */
+const claimOwnershipSchema = {
+  claimId: z.uuid(),
+  agentId: agentIdSchema,
+};
+
 export function createOpsMcpServer(operations: OpsMcpOperations): McpServer {
   const server = new McpServer(
-    { name: 'zap-pilot-ops', version: '0.6.0' },
+    { name: 'zap-pilot-ops', version: '0.7.0' },
     {
       instructions:
-        'Start with ops_status. For a priority incident, use ops_investigate next: it correlates bounded GitHub, Sentry, Fly, product/customer, social, and relevant PostHog evidence into one deterministic packet, exposes explicit repository-backed provider correlation, and carries a read-only remediation facts block. Read remediation.blockers before proposing any fix: operational priority is impact, not permission, and missing or unproven evidence fails closed. Use ops_inspect_signal only for extra provider drill-down. Read tools never mutate providers. The sole remediation tool, ops_resolve_sentry_issue, may only resolve one explicit Sentry issue and should be used only when the user asks to close/resolve that issue or explicitly delegates Sentry cleanup.',
+        'Start with ops_status. For a priority incident, use ops_investigate next: it correlates bounded GitHub, Sentry, Fly, product/customer, social, and relevant PostHog evidence into one deterministic packet, exposes explicit repository-backed provider correlation, and carries a read-only remediation facts block. Read remediation.blockers before proposing any fix: operational priority is impact, not permission, and missing or unproven evidence fails closed. Use ops_inspect_signal only for extra provider drill-down. For safe background engineering work, use ops_backlog to inspect GitHub-backed agent tasks and ops_backlog_claim to atomically lease one ready task; call ops_backlog_renew before a long-running check would otherwise let the lease expire, and release the task with ops_backlog_release when it must be returned or blocked. Backlog writes are constrained to zapPilot/zapEngine and remain disabled unless the server explicitly enables them. The Sentry remediation tool may only resolve one explicit issue after its existing verification gates pass.',
     },
   );
 
@@ -47,11 +71,23 @@ export function createOpsMcpServer(operations: OpsMcpOperations): McpServer {
     {
       title: 'Operational status',
       description:
-        'Get the company-wide operational snapshot, including all domains, signals, and deterministic ranked priorities. Use this first when asked what is broken or what needs attention.',
+        'Get the company-wide operational snapshot, including all domains, signals, deterministic ranked priorities, and the normalized agent backlog summary. Use this first when asked what is broken or what needs attention.',
       inputSchema: forceSchema,
       annotations: READ_ONLY_ANNOTATIONS,
     },
     async ({ force }) => result(await operations.getOperations(force)),
+  );
+
+  server.registerTool(
+    'ops_backlog',
+    {
+      title: 'Agent backlog',
+      description:
+        'Read the GitHub Issues-backed engineering backlog for weak/background agents. Returns ready, working, blocked and recently completed counts plus normalized open issue details and current lease owners.',
+      inputSchema: forceSchema,
+      annotations: READ_ONLY_ANNOTATIONS,
+    },
+    async ({ force }) => result(await operations.getBacklog(force)),
   );
 
   server.registerTool(
@@ -156,6 +192,83 @@ export function createOpsMcpServer(operations: OpsMcpOperations): McpServer {
     },
     async ({ force }) =>
       result(projectDomain(await operations.getOperations(force), 'costs')),
+  );
+
+  server.registerTool(
+    'ops_backlog_create',
+    {
+      title: 'Create agent backlog item',
+      description:
+        'Create one low-risk weak-agent GitHub issue in zapPilot/zapEngine. The server always applies agent-backlog, agent:weak and risk:low labels; callers cannot select another repository or escalate permissions.',
+      inputSchema: z.object({
+        title: z.string().trim().min(5).max(160),
+        problem: z.string().trim().min(10).max(4_000),
+        expectedOutcome: z.string().trim().min(10).max(4_000),
+        acceptanceCriteria: z
+          .array(z.string().trim().min(3).max(500))
+          .min(1)
+          .max(12),
+        area: areaSchema.nullable().optional(),
+        relevantFiles: z
+          .array(z.string().trim().min(1).max(300))
+          .max(20)
+          .optional(),
+        outOfScope: z
+          .array(z.string().trim().min(1).max(500))
+          .max(12)
+          .optional(),
+      }),
+      annotations: BACKLOG_MUTATION_ANNOTATIONS,
+    },
+    async (input) => result(await operations.createBacklogItem(input)),
+  );
+
+  server.registerTool(
+    'ops_backlog_claim',
+    {
+      title: 'Claim agent backlog work',
+      description:
+        'Atomically lease the first ready weak-agent issue, optionally restricted to area labels. Concurrent agents cannot receive the same live issue. Returns claimed=false when no eligible work remains.',
+      inputSchema: z.object({
+        agentId: agentIdSchema,
+        areas: z.array(areaSchema).max(20).optional(),
+        leaseSeconds: leaseSecondsSchema,
+      }),
+      annotations: BACKLOG_MUTATION_ANNOTATIONS,
+    },
+    async (input) => result(await operations.claimBacklog(input)),
+  );
+
+  server.registerTool(
+    'ops_backlog_release',
+    {
+      title: 'Release agent backlog work',
+      description:
+        'Release one live backlog lease. The server verifies the exact claimId/agentId/issueNumber triple before writing anything; a caller that does not own the lease cannot label or affect an unrelated issue. blocked adds the GitHub blocked label after that check passes; released simply returns the issue to the ready pool. Calling this again after a successful release is safe and returns alreadyReleased=true instead of erroring. Completed work is not closed here: merge a PR with Fixes #<issue> so GitHub remains the completion source of truth.',
+      inputSchema: z.object({
+        ...claimOwnershipSchema,
+        issueNumber: z.number().int().positive(),
+        outcome: z.enum(['released', 'blocked']),
+        reason: z.string().trim().min(8).max(500),
+      }),
+      annotations: BACKLOG_MUTATION_ANNOTATIONS,
+    },
+    async (input) => result(await operations.releaseBacklog(input)),
+  );
+
+  server.registerTool(
+    'ops_backlog_renew',
+    {
+      title: 'Renew agent backlog lease',
+      description:
+        'Extend the lease on one live backlog claim owned by the caller, e.g. while CI is still running. This never touches GitHub; it is pure concurrency bookkeeping so a slow-but-alive agent does not lose its claim to a second agent.',
+      inputSchema: z.object({
+        ...claimOwnershipSchema,
+        leaseSeconds: leaseSecondsSchema,
+      }),
+      annotations: BACKLOG_MUTATION_ANNOTATIONS,
+    },
+    async (input) => result(await operations.renewBacklog(input)),
   );
 
   server.registerTool(

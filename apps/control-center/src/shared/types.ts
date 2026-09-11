@@ -1,3 +1,4 @@
+import type { AgentBacklogResponse } from './agent-backlog.js';
 import type { SocialWaitlistSummary } from './waitlist-growth.js';
 import type {
   CostProvider,
@@ -356,6 +357,8 @@ export interface OperationsResponse {
   domains: OperationsDomainSummary[];
   priorities: OperationalPriority[];
   signals: OperationalSignal[];
+  /** Background engineering work; absent in historical fixtures. */
+  agentBacklog?: AgentBacklogResponse;
 }
 
 export interface OperationsSocialJob {

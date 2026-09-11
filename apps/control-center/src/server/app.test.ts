@@ -134,6 +134,39 @@ function createTestApp(
         }),
       resolveSentryIssue: operationsOverrides.resolveSentryIssue ?? vi.fn(),
       investigate: operationsOverrides.investigate ?? vi.fn(),
+      getBacklog:
+        operationsOverrides.getBacklog ??
+        vi.fn().mockResolvedValue({
+          generatedAt: new Date().toISOString(),
+          status: 'unconfigured',
+          message: 'OPS_GITHUB_BACKLOG_TOKEN is unset.',
+          repo: 'zapPilot/zapEngine',
+          ready: 0,
+          working: 0,
+          blocked: 0,
+          completed7d: 0,
+          items: [],
+          truncated: false,
+        }),
+      createBacklogItem: operationsOverrides.createBacklogItem ?? vi.fn(),
+      claimBacklog:
+        operationsOverrides.claimBacklog ??
+        vi.fn().mockResolvedValue({
+          claimed: false,
+          reused: false,
+          item: null,
+          mirror: 'skipped',
+        }),
+      releaseBacklog:
+        operationsOverrides.releaseBacklog ??
+        vi.fn().mockResolvedValue({
+          released: true,
+          alreadyReleased: false,
+          mirror: 'ok',
+        }),
+      renewBacklog:
+        operationsOverrides.renewBacklog ??
+        vi.fn().mockResolvedValue({ renewed: true, leaseExpiresAt: null }),
     },
     service: {
       getOverview: overrides.getOverview ?? vi.fn(async () => overview),

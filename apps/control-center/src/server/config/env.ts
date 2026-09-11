@@ -32,11 +32,22 @@ const schema = z.object({
   SENTRY_ORG_SLUG: optionalString,
   POSTHOG_PERSONAL_API_KEY: optionalString,
   POSTHOG_PROJECT_ID: optionalString,
-  // Optional, narrowly scoped remediation credential. The only current caller
-  // may resolve one Sentry issue; normal reads never fall back to this token.
+  // Agent backlog access is deliberately separate from Actions health. This
+  // token may have Issues read/write on zapPilot/zapEngine, while the existing
+  // OPS_GITHUB_TOKEN remains read-only and cannot be silently privilege-raised.
+  OPS_GITHUB_BACKLOG_TOKEN: optionalString,
+  // A strict `z.enum(['true','false'])` here would throw --- and take down
+  // the whole server and MCP process --- on any other spelling (`TRUE`, `1`,
+  // an empty string). Every other value is simply "not enabled".
+  OPS_BACKLOG_WRITE_ENABLED: z.preprocess(
+    (value) => typeof value === 'string' && /^(true|1)$/iu.test(value.trim()),
+    z.boolean(),
+  ),
+  // Optional, narrowly scoped remediation credential. Normal reads never fall
+  // back to write credentials.
   SENTRY_OPS_WRITE_TOKEN: optionalString,
   // Remote MCP is independently gated from the dashboard. Provider credentials
-  // stay server-side; clients only receive the normalized read model.
+  // stay server-side; clients only receive normalized read models.
   OPS_MCP_TOKEN: optionalString,
   // Optional here, mandatory at the remote entry point. Parsing them loosely
   // keeps a local dashboard -- which has no exposed surface to guard -- running

@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { AgentBacklogResponse } from '../../shared/agent-backlog.js';
 import {
   OPERATIONS_DOMAINS,
   type OperationsResponse,
@@ -33,6 +34,33 @@ const SNAPSHOT: OperationsResponse = {
   })),
   priorities: [],
   signals: [],
+};
+const BACKLOG: AgentBacklogResponse = {
+  generatedAt: '2026-08-31T00:00:00.000Z',
+  status: 'ok',
+  message: null,
+  repo: 'zapPilot/zapEngine',
+  ready: 1,
+  working: 0,
+  blocked: 0,
+  completed7d: 2,
+  items: [
+    {
+      issueNumber: 451,
+      title: 'Add loading skeleton',
+      body: null,
+      url: 'https://github.com/zapPilot/zapEngine/issues/451',
+      createdAt: '2026-08-30T00:00:00.000Z',
+      updatedAt: '2026-08-30T00:00:00.000Z',
+      labels: ['agent-backlog', 'agent:weak', 'risk:low'],
+      area: null,
+      risk: 'low',
+      effort: null,
+      status: 'ready',
+      claim: null,
+    },
+  ],
+  truncated: false,
 };
 const INCIDENT_FINGERPRINT = 'github-actions:workflow/ci.yml';
 const INCIDENT = {
@@ -104,6 +132,22 @@ function fakeOperations(): OpsMcpOperations {
     getOperations: vi.fn().mockResolvedValue(SNAPSHOT),
     getSocial: vi.fn(),
     getCustomers: vi.fn(),
+    getBacklog: vi.fn().mockResolvedValue(BACKLOG),
+    createBacklogItem: vi.fn().mockResolvedValue(BACKLOG.items[0] ?? {}),
+    claimBacklog: vi.fn().mockResolvedValue({
+      claimed: false,
+      reused: false,
+      item: null,
+      mirror: 'skipped',
+    }),
+    releaseBacklog: vi.fn().mockResolvedValue({
+      released: true,
+      alreadyReleased: false,
+      mirror: 'ok',
+    }),
+    renewBacklog: vi
+      .fn()
+      .mockResolvedValue({ renewed: true, leaseExpiresAt: null }),
     inspectSignal: vi.fn(),
     investigate: vi.fn().mockResolvedValue(INCIDENT),
     resolveSentryIssue: vi.fn().mockResolvedValue(RESOLUTION),
@@ -153,6 +197,7 @@ describe('Ops MCP HTTP protocol', () => {
     expect(payload.result?.tools?.map((tool) => tool.name)).toEqual(
       expect.arrayContaining([
         'ops_status',
+        'ops_backlog',
         'ops_domain',
         'ops_signal',
         'ops_inspect_signal',
@@ -160,9 +205,48 @@ describe('Ops MCP HTTP protocol', () => {
         'ops_customers',
         'ops_social',
         'ops_costs',
+        'ops_backlog_create',
+        'ops_backlog_claim',
+        'ops_backlog_release',
+        'ops_backlog_renew',
         'ops_resolve_sentry_issue',
       ]),
     );
+  });
+
+  it('returns the normalized GitHub-backed agent backlog', async () => {
+    const operations = fakeOperations();
+    const { response, payload } = await mcpRequest(
+      createAuthenticatedApp(operations),
+      toolCallRequest(3, 'ops_backlog'),
+    );
+
+    expect(response.status).toBe(200);
+    expect(payload.result?.structuredContent).toEqual(BACKLOG);
+    expect(operations.getBacklog).toHaveBeenCalledWith(false);
+  });
+
+  it('renews a live backlog lease without exposing GitHub write internals', async () => {
+    const operations = fakeOperations();
+    const { response, payload } = await mcpRequest(
+      createAuthenticatedApp(operations),
+      toolCallRequest(100, 'ops_backlog_renew', {
+        claimId: '11111111-1111-4111-8111-111111111111',
+        agentId: 'weak-1',
+        leaseSeconds: 7200,
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(payload.result?.structuredContent).toEqual({
+      renewed: true,
+      leaseExpiresAt: null,
+    });
+    expect(operations.renewBacklog).toHaveBeenCalledWith({
+      claimId: '11111111-1111-4111-8111-111111111111',
+      agentId: 'weak-1',
+      leaseSeconds: 7200,
+    });
   });
 
   it('passes Sentry history and pagination options to the service', async () => {
@@ -178,7 +262,7 @@ describe('Ops MCP HTTP protocol', () => {
     };
     const { payload } = await mcpRequest(
       createAuthenticatedApp(operations),
-      toolCallRequest(3, 'ops_inspect_signal', {
+      toolCallRequest(4, 'ops_inspect_signal', {
         fingerprint: 'sentry:issues/organization',
         sentry,
       }),
@@ -202,7 +286,7 @@ describe('Ops MCP HTTP protocol', () => {
       const operations = fakeOperations();
       await mcpRequest(
         createAuthenticatedApp(operations),
-        toolCallRequest(3, 'ops_inspect_signal', arguments_),
+        toolCallRequest(5, 'ops_inspect_signal', arguments_),
       );
       expect(operations.inspectSignal).not.toHaveBeenCalled();
     },
@@ -213,7 +297,7 @@ describe('Ops MCP HTTP protocol', () => {
     const app = createAuthenticatedApp(operations);
     const { response, payload } = await mcpRequest(
       app,
-      toolCallRequest(3, 'ops_status'),
+      toolCallRequest(6, 'ops_status'),
     );
 
     expect(response.status).toBe(200);
@@ -227,7 +311,7 @@ describe('Ops MCP HTTP protocol', () => {
     const arguments_ = { fingerprint: INCIDENT_FINGERPRINT };
     const { response, payload } = await mcpRequest(
       app,
-      toolCallRequest(4, 'ops_investigate', arguments_),
+      toolCallRequest(7, 'ops_investigate', arguments_),
     );
 
     expect(response.status).toBe(200);
@@ -248,7 +332,7 @@ describe('Ops MCP HTTP protocol', () => {
     };
     const { response, payload } = await mcpRequest(
       app,
-      toolCallRequest(5, 'ops_resolve_sentry_issue', arguments_),
+      toolCallRequest(8, 'ops_resolve_sentry_issue', arguments_),
     );
 
     expect(response.status).toBe(200);
@@ -266,7 +350,7 @@ describe('Ops MCP HTTP protocol', () => {
     });
     const app = createAuthenticatedApp();
 
-    const { response, payload } = await mcpRequest(app, initializeRequest(6));
+    const { response, payload } = await mcpRequest(app, initializeRequest(9));
 
     expect(response.status).toBe(500);
     expect(JSON.stringify(payload)).not.toContain(error.message);

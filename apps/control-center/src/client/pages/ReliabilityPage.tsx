@@ -1,11 +1,13 @@
 import {
   Activity,
+  Bot,
   CircleDollarSign,
   Lightbulb,
   TriangleAlert,
   Workflow,
 } from 'lucide-react';
 
+import type { AgentBacklogResponse } from '../../shared/agent-backlog.js';
 import type {
   CostHistoryResponse,
   OperationalSignal,
@@ -39,6 +41,7 @@ export function ReliabilityPage(props: {
   const operations = props.data;
   const waste = retryWaste(props.podcastCosts);
   const fly = flyFleet(operations);
+  const backlog = agentBacklog(operations);
 
   return (
     <div className="cc-stack">
@@ -71,6 +74,58 @@ export function ReliabilityPage(props: {
             value={usdWhole(props.overview?.projectedCostUsd)}
           />
         </div>
+      </Card>
+
+      <Card
+        icon={Bot}
+        subtitle="GitHub Issues is the work-item source of truth; Supabase only owns temporary agent leases"
+        title="AI Backlog"
+        tone="info"
+      >
+        {backlog?.status === 'ok' ? (
+          <div className="cc-stack">
+            <div className="rel-hero">
+              <Stat
+                caption="Available to claim"
+                label="Ready"
+                value={integer(backlog.ready)}
+              />
+              <Stat
+                caption="Currently leased"
+                label="Working"
+                value={integer(backlog.working)}
+              />
+              <Stat
+                caption="Needs stronger judgement"
+                label="Blocked"
+                value={integer(backlog.blocked)}
+              />
+              <Stat
+                caption="Closed GitHub issues"
+                label="Completed 7d"
+                value={integer(backlog.completed7d)}
+              />
+            </div>
+            <RankedList
+              empty={
+                <EmptyState
+                  detail="沒有 agent-backlog issue 等待處理。"
+                  title="Backlog is empty"
+                />
+              }
+              items={backlogItems(backlog)}
+            />
+          </div>
+        ) : (
+          <EmptyState
+            detail={backlog?.message ?? 'Backlog has not been loaded yet.'}
+            title={
+              backlog?.status === 'unconfigured'
+                ? 'Backlog not configured'
+                : 'Backlog unavailable'
+            }
+          />
+        )}
       </Card>
 
       <div className="cc-grid rel-main">
@@ -139,6 +194,37 @@ export function ReliabilityPage(props: {
       <OperatorAudit refreshedAt={operations?.generatedAt} />
     </div>
   );
+}
+
+function agentBacklog(
+  operations: OperationsResponse | null,
+): AgentBacklogResponse | null {
+  return operations?.agentBacklog ?? null;
+}
+
+function backlogItems(backlog: AgentBacklogResponse): RankedItem[] {
+  return backlog.items.slice(0, 6).map((item) => ({
+    id: `backlog-${item.issueNumber}`,
+    title: item.title,
+    detail: [
+      item.status,
+      item.area,
+      item.claim ? `claimed by ${item.claim.agentId}` : null,
+    ]
+      .filter(Boolean)
+      .join(' · '),
+    tone:
+      item.status === 'blocked'
+        ? 'warning'
+        : item.status === 'working'
+          ? 'info'
+          : 'accent',
+    aside: (
+      <a href={item.url} rel="noreferrer" target="_blank">
+        #{item.issueNumber}
+      </a>
+    ),
+  }));
 }
 
 function adviceItems(operations: OperationsResponse | null): RankedItem[] {

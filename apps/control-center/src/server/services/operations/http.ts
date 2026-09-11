@@ -39,7 +39,7 @@ export async function fetchJson<T>(input: {
   /** Present sends JSON. Without an explicit method this defaults to POST. */
   body?: unknown;
   /** GET by default without a body, POST by default with a body. */
-  method?: 'GET' | 'POST' | 'PUT';
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
 }): Promise<T> {
   const response = await authenticatedFetch({
     label: input.label,
@@ -84,7 +84,7 @@ async function authenticatedFetch(input: {
   fetchImpl: typeof fetch;
   headers?: Record<string, string>;
   body?: unknown;
-  method?: 'GET' | 'POST' | 'PUT';
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
 }): Promise<Response> {
   const sendsBody = input.body !== undefined;
   const response = await input.fetchImpl(input.url, {
