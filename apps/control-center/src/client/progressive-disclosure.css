@@ -318,38 +318,8 @@
 
 /* Economics ---------------------------------------------------------------*/
 
-.cost-driver-list {
-  display: grid;
-  padding: 6px var(--pad) 12px;
-}
-.cost-driver-row {
-  display: grid;
-  grid-template-columns: minmax(120px, 0.8fr) minmax(160px, 2fr) auto;
-  align-items: center;
-  gap: 16px;
-  padding: 10px 0;
-  border-top: 1px solid var(--line);
-}
-.cost-driver-row:first-child {
-  border-top: 0;
-}
-.cost-driver-row > span:first-child {
-  min-width: 0;
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-.cost-driver-row > span:first-child strong {
-  min-width: 0;
-  overflow-wrap: anywhere;
-  font-size: 12.5px;
-  font-weight: 500;
-}
-.cost-driver-row small {
-  font-size: 9.5px;
-  white-space: nowrap;
-}
-.cost-driver-track,
+/* `.cost-driver-*` is owned by styles.css. Only the podcast track alias lives
+   here: it reuses the cost-driver bar without redeclaring it. */
 .podcast-cost-track {
   display: block;
   height: 5px;
@@ -357,17 +327,11 @@
   border-radius: var(--radius-pill);
   background: var(--surface-elevated);
 }
-.cost-driver-track i,
 .podcast-cost-track i {
   display: block;
   height: 100%;
   border-radius: inherit;
   background: var(--accent-muted);
-}
-.cost-driver-row > strong {
-  font-size: 11.5px;
-  font-weight: 500;
-  white-space: nowrap;
 }
 
 /* Podcast unit economics --------------------------------------------------*/

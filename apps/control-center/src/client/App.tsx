@@ -1,6 +1,7 @@
-import { OperatorAudit } from './components/OperatorAudit.js';
 import { useCallback, useEffect, useState } from 'react';
 
+import type { SocialGrowthJourney } from '../shared/growth-journey.js';
+import type { PipelineQueuesResponse } from '../shared/pipeline-queues.js';
 import type { PodcastPipelineRestartAction } from '../shared/podcast-pipeline.js';
 import type {
   PodcastVideoReviewInput,
@@ -21,15 +22,13 @@ import type {
 import { getJson, sendJson } from './api.js';
 import { AppShell, type DashboardView } from './components/AppShell.js';
 import { EconomicsView } from './components/EconomicsView.js';
-import {
-  GrowthFocusView,
-  ReliabilityFocusView,
-  TodayView,
-} from './components/FocusedOperatorViews.js';
 import { PipelineQueuesBoard } from './components/PipelineQueuesBoard.js';
+import { GrowthPage } from './pages/GrowthPage.js';
+import { PipelineSummary } from './pages/PipelinePage.js';
+import { ReliabilityPage } from './pages/ReliabilityPage.js';
+import { TodayPage } from './pages/TodayPage.js';
 import { ProductView } from './components/ProductView.js';
 import { StatementHeader } from './components/StatementHeader.js';
-import './solo-operator.css';
 
 const VIEW_META: Record<DashboardView, { subtitle: string; title: string }> = {
   home: {
@@ -97,6 +96,8 @@ export function App() {
     null,
   );
   const [statements, setStatements] = useState<StatementsResponse | null>(null);
+  const [queues, setQueues] = useState<PipelineQueuesResponse | null>(null);
+  const [journey, setJourney] = useState<SocialGrowthJourney | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -145,7 +146,12 @@ export function App() {
   const loadPipeline = useCallback(
     () =>
       run(async () => {
-        setStatements(await getJson<StatementsResponse>('/api/statements'));
+        const [statementsNext, episodeCosts] = await Promise.all([
+          getJson<StatementsResponse>('/api/statements'),
+          getJson<PodcastCostResponse>('/api/costs/podcast'),
+        ]);
+        setStatements(statementsNext);
+        setPodcastCosts(episodeCosts);
       }),
     [run],
   );
@@ -229,19 +235,27 @@ export function App() {
     (force = false) =>
       run(async () => {
         const query = force ? '?force=1' : '';
-        const [snapshot, socialOps, statementsNext, next, episodeCosts] =
-          await Promise.all([
-            getJson<OperationsResponse>(`/api/operations${query}`),
-            getJson<OperationsSocialResponse>(`/api/operations/social${query}`),
-            getJson<StatementsResponse>(`/api/statements${query}`),
-            getJson<OverviewResponse>('/api/overview'),
-            getJson<PodcastCostResponse>('/api/costs/podcast'),
-          ]);
+        const [
+          snapshot,
+          socialOps,
+          statementsNext,
+          next,
+          episodeCosts,
+          history,
+        ] = await Promise.all([
+          getJson<OperationsResponse>(`/api/operations${query}`),
+          getJson<OperationsSocialResponse>(`/api/operations/social${query}`),
+          getJson<StatementsResponse>(`/api/statements${query}`),
+          getJson<OverviewResponse>('/api/overview'),
+          getJson<PodcastCostResponse>('/api/costs/podcast'),
+          getJson<CostHistoryResponse>('/api/costs/history'),
+        ]);
         setOperations(snapshot);
         setOperationsSocial(socialOps);
         setStatements(statementsNext);
         setOverview(next);
         setPodcastCosts(episodeCosts);
+        setCostHistory(history);
       }),
     [run],
   );
@@ -260,9 +274,39 @@ export function App() {
     [run],
   );
 
+  // Today's queue and analytics cards are a second wave on purpose: both reads
+  // are slow (the queue payload is large, the journey query hits PostHog) and
+  // neither is needed for the operator inbox at the top of the page. They also
+  // settle independently, so one provider being down cannot blank the other.
+  const loadTodayContext = useCallback(async () => {
+    const [queuesNext, journeyNext] = await Promise.allSettled([
+      getJson<PipelineQueuesResponse>('/api/pipeline/queues'),
+      getJson<SocialGrowthJourney>('/api/growth-journey'),
+    ]);
+    setQueues(
+      queuesNext.status === 'fulfilled'
+        ? queuesNext.value
+        : unreadableQueues(queuesNext.reason),
+    );
+    setJourney(
+      journeyNext.status === 'fulfilled'
+        ? journeyNext.value
+        : unavailableJourney(journeyNext.reason),
+    );
+  }, []);
+
   useEffect(() => {
     void loadHome();
   }, [loadHome]);
+
+  useEffect(() => {
+    if (
+      (view === 'home' || view === 'pipeline' || view === 'growth') &&
+      !queues
+    ) {
+      void loadTodayContext();
+    }
+  }, [loadTodayContext, queues, view]);
 
   // Pipeline and Growth stay lazy. Product/Economics are intentionally absent
   // from primary navigation in this IA pass; their components remain available
@@ -332,16 +376,19 @@ export function App() {
         </div>
       ) : null}
       {view === 'home' ? (
-        <TodayView
+        <TodayPage
           data={overview}
+          journey={journey}
           onNavigate={setView}
           operations={operations}
           podcastCosts={podcastCosts}
+          queues={queues}
         />
       ) : null}
       {view === 'pipeline' ? (
-        <div className="view-stack">
+        <div className="cc-stack">
           <PipelineStatement statements={statements} />
+          <PipelineSummary podcastCosts={podcastCosts} queues={queues} />
           <PipelineQueuesBoard
             onLoadVisualDebug={loadVisualDebug}
             onResolveReview={resolveReview}
@@ -352,16 +399,12 @@ export function App() {
         </div>
       ) : null}
       {view === 'reliability' ? (
-        <>
-          <ReliabilityFocusView
-            data={operations}
-            overview={overview}
-            podcastCosts={podcastCosts}
-            social={operationsSocial}
-            statements={statements}
-          />
-          <OperatorAudit refreshedAt={operations?.generatedAt} />
-        </>
+        <ReliabilityPage
+          costHistory={costHistory}
+          data={operations}
+          overview={overview}
+          podcastCosts={podcastCosts}
+        />
       ) : null}
       {view === 'product' ? (
         <ProductView
@@ -379,15 +422,54 @@ export function App() {
         />
       ) : null}
       {view === 'growth' ? (
-        <GrowthFocusView
+        <GrowthPage
           data={social}
           growth={socialGrowth}
+          journey={journey}
           onWindowChange={loadSocial}
-          statements={statements}
         />
       ) : null}
     </AppShell>
   );
+}
+
+/** A failed read is reported in the shape the panel already understands, so a
+ * transport error and a provider outage render the same way instead of leaving
+ * the card spinning forever. */
+function unreadableQueues(reason: unknown): PipelineQueuesResponse {
+  const empty = { attention: [], processing: [], queued: [] };
+  return {
+    api: empty,
+    generatedAt: new Date().toISOString(),
+    message: reason instanceof Error ? reason.message : 'Queue read failed',
+    render: empty,
+    social: empty,
+    status: 'error',
+    summary: {
+      abandoned: 0,
+      blockedOrFailed: 0,
+      processing: 0,
+      publishedToday: 0,
+      queueDepth: 0,
+    },
+  };
+}
+
+function unavailableJourney(reason: unknown): SocialGrowthJourney {
+  return {
+    appVisitors30d: null,
+    ctaUsers30d: null,
+    landingDirect30d: null,
+    landingOther30d: null,
+    landingRednote30d: null,
+    landingThreads30d: null,
+    landingVisitors30d: null,
+    landingX30d: null,
+    landingYoutube30d: null,
+    message: reason instanceof Error ? reason.message : 'Analytics read failed',
+    status: 'unavailable',
+    walletConnectedUsers30d: null,
+  };
 }
 
 /** The one-sentence read on production health that used to head the retired

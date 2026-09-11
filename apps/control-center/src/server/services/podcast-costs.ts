@@ -6,6 +6,7 @@ import type {
   PodcastEpisodeCostSummary,
 } from '../../shared/types.js';
 import type { ControlCenterConfig } from '../config/env.js';
+import { postgrestErrorCode, postgrestErrorMessage } from './supabase.js';
 
 interface PipelineRunRow {
   id: string;
@@ -164,10 +165,7 @@ export function createPodcastCostService(input: {
         return {
           generatedAt,
           status: 'error',
-          message:
-            error instanceof Error
-              ? error.message
-              : 'Podcast cost ledger unavailable',
+          message: describeLedgerFailure(error),
           episodes: [],
         };
       }
@@ -213,6 +211,21 @@ async function loadRecentEpisodeIds(client: PodcastCostClient) {
     }
   }
   return ids;
+}
+
+/**
+ * PostgREST rejects with a plain object, not an `Error`, so an
+ * `instanceof Error` check discards the only description of what went wrong.
+ * The SQLSTATE / PostgREST code travels with the message because it is what
+ * separates a missing relation from a denied grant or a statement timeout.
+ */
+function describeLedgerFailure(error: unknown): string {
+  const message = postgrestErrorMessage(
+    error,
+    'Podcast cost ledger unavailable',
+  );
+  const code = postgrestErrorCode(error);
+  return code ? `${message} (${code})` : message;
 }
 
 function requirePage<T>(data: T[] | null, error: unknown): T[] {
