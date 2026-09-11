@@ -76,7 +76,23 @@ export function parseOpsArgs(argv) {
     social = false;
   }
 
-  return { dashboard, social, status, json, force, help, error, unknown };
+  // The Fly billing reader follows the dashboard rather than being selectable
+  // on its own: the dashboard is the only thing that displays the figure it
+  // fetches, and a reader with nothing watching it is a browser window for no
+  // reason. `--status` prints and exits, so it takes nothing with it.
+  const flyBilling = dashboard;
+
+  return {
+    dashboard,
+    social,
+    flyBilling,
+    status,
+    json,
+    force,
+    help,
+    error,
+    unknown,
+  };
 }
 
 /**

@@ -10,6 +10,7 @@ import {
   GENERATED_AT,
   manualFlyDayFixture,
   manualFlyProviderFixture,
+  scrapedFlyProviderFixture,
   pricedCostProvidersFixture,
   unrecordedFlyProviderFixture,
 } from '../__fixtures__/dashboard.js';
@@ -158,6 +159,21 @@ describe('RunwayChart', () => {
       within(tooltip).getByText('Estimated · manual · as of Aug 28'),
     ).toBeInTheDocument();
     expect(within(tooltip).queryByText(/Excluded/)).toBeNull();
+  });
+
+  // The dating is what tells a reader the figure is a floor taken at a moment,
+  // not a projection. It keys off the source, so a scraped reading has to carry
+  // it too -- otherwise the browser-read bill silently loses its date.
+  it('dates a scraped figure the same way it dates a typed one', () => {
+    renderRunwayChart({
+      projected: 51.2,
+      providers: [...pricedCostProvidersFixture(), scrapedFlyProviderFixture()],
+    });
+    const { tooltip } = activate(/^Projected month-end /, fireEvent.mouseEnter);
+
+    expect(
+      within(tooltip).getByText('Estimated · dashboard · as of Aug 28'),
+    ).toBeInTheDocument();
   });
 
   it('dates each day with its own reading, not with the newest one', () => {

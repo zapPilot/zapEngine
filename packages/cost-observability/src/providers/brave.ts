@@ -1,3 +1,4 @@
+import { UsageNotMeasurableError } from '../errors.js';
 import { currentUtcPeriod, projectMonthEnd } from '../time.js';
 import type { CostSnapshot, FetchLike } from '../types.js';
 import { normalizeNonNegative, roundUsageUsd } from './numbers.js';
@@ -231,10 +232,23 @@ function readMonthlyQuota(headers: Headers): BraveMonthlyQuota {
     left === undefined ||
     !Number.isFinite(limit) ||
     !Number.isFinite(left) ||
-    limit <= 0 ||
+    limit < 0 ||
     left < 0
   ) {
     throw new Error('Brave Search monthly quota is not measurable');
+  }
+
+  // A limit of zero is Brave answering that the account has no monthly
+  // allowance to report -- the request itself still succeeds on the per-second
+  // window. `used` is derived as `limit - remaining`, so a zero limit does not
+  // mean zero usage; it means the quantity this collector reads no longer
+  // exists. Guessing zero would put a fabricated $0.00 in the ledger, and
+  // throwing would keep the nightly sync red forever over something no code
+  // change can fix.
+  if (limit === 0) {
+    throw new UsageNotMeasurableError(
+      'Brave Search reports a monthly quota limit of 0; request usage is no longer derivable from the rate-limit headers',
+    );
   }
 
   return {

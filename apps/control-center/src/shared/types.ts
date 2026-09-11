@@ -3,6 +3,7 @@ import type { SocialWaitlistSummary } from './waitlist-growth.js';
 import type {
   CostProvider,
   CostSnapshot,
+  CostSource,
   CostType,
 } from '@zapengine/cost-observability';
 
@@ -22,6 +23,31 @@ export type CostTransactionKind =
   | 'top_up'
   | 'invoice'
   | 'adjustment';
+
+/**
+ * A figure the provider itself stated, as opposed to one this system derived.
+ *
+ * Fly is the only provider without a billing API, so its real money reaches the
+ * ledger by reading the dashboard -- by hand (`manual`) or by the browser
+ * session `pnpm ops` keeps alive (`scraped`). Five call sites branch on that
+ * distinction: the carry-forward that decides what survives a sync, the cost
+ * basis label, the month-over-month driver comparison, the chart's "as of"
+ * dating, and the writer. They share this predicate because adding a source and
+ * missing one of them is silent -- the worst case relabels a real invoice as a
+ * run-rate estimate, which is the confusion the basis vocabulary exists to stop.
+ */
+export const RECORDED_BILL_SOURCES = [
+  'manual',
+  'scraped',
+] as const satisfies readonly CostSource[];
+
+export type RecordedBillSource = (typeof RECORDED_BILL_SOURCES)[number];
+
+export function isRecordedBillSource(
+  source: CostSource,
+): source is RecordedBillSource {
+  return (RECORDED_BILL_SOURCES as readonly CostSource[]).includes(source);
+}
 
 /**
  * The flyctl collector's headline number: what every currently-running Machine

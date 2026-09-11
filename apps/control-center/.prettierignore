@@ -5,3 +5,8 @@ dist
 coverage
 .turbo
 .jscpd
+
+# Captured vendor markup. These fixtures exist to be byte-for-byte what the
+# provider actually served, so reformatting them would quietly weaken the test
+# that pins a parser against a page nobody here controls.
+src/server/services/fly-billing/__fixtures__

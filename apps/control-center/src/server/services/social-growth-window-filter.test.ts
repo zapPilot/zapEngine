@@ -49,7 +49,7 @@ describe('loadSocialGrowth standardized metric windows', () => {
     });
   });
 
-  it("does not let another post's 24h metrics inflate an experiment arm or lane", async () => {
+  it("does not let another post's 24h metrics inflate an experiment arm", async () => {
     const posts = [
       {
         id: 'post-1',

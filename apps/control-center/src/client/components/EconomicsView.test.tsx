@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   manualFlyProviderFixture,
   pricedCostProvidersFixture,
+  scrapedFlyProviderFixture,
   unrecordedFlyProviderFixture,
 } from '../__fixtures__/dashboard.js';
 import { renderEconomicsView } from '../__fixtures__/render.js';
@@ -100,6 +101,35 @@ describe('EconomicsView', () => {
     const row = ledgerRow('Fly.io');
     expect(within(row).getByText('Estimated · manual')).toBeInTheDocument();
     expect(row).toHaveTextContent('$14.02');
+  });
+
+  // A scraped figure is a real bill Fly stated, so labelling it `run-rate`
+  // would resurrect the $67.70-standing-in-for-$14 confusion this vocabulary
+  // exists to prevent -- and it is the default a new source falls into.
+  it('reads a scraped Fly figure as a dashboard estimate, not a run-rate', () => {
+    renderEconomicsView([
+      ...pricedCostProvidersFixture(),
+      scrapedFlyProviderFixture(),
+    ]);
+
+    const row = ledgerRow('Fly.io');
+    expect(within(row).getByText('Estimated · dashboard')).toBeInTheDocument();
+    expect(within(row).queryByText('Estimated · run-rate')).toBeNull();
+    expect(row).toHaveTextContent('$14.02');
+  });
+
+  // With a figure recorded, Fly stops being an announced hole in the totals.
+  it('drops the Fly exclusion note once a scraped figure lands', () => {
+    renderEconomicsView([
+      ...pricedCostProvidersFixture(),
+      scrapedFlyProviderFixture(),
+    ]);
+
+    for (const label of ['Accrued', 'Projected']) {
+      expect(
+        within(kpiGroup(label)).queryByText(/^Excludes Fly\.io/),
+      ).toBeNull();
+    }
   });
 
   it('defines Estimated as a recorded bill, never the run-rate', () => {

@@ -7,6 +7,7 @@ test('parseOpsArgs starts the whole stack when no selector is given', () => {
   assert.deepEqual(parseOpsArgs([]), {
     dashboard: true,
     social: true,
+    flyBilling: true,
     status: false,
     json: false,
     force: false,
@@ -20,6 +21,7 @@ test('parseOpsArgs selects one child at a time', () => {
   assert.deepEqual(parseOpsArgs(['--dashboard']), {
     dashboard: true,
     social: false,
+    flyBilling: true,
     status: false,
     json: false,
     force: false,
@@ -30,6 +32,7 @@ test('parseOpsArgs selects one child at a time', () => {
   assert.deepEqual(parseOpsArgs(['--social']), {
     dashboard: false,
     social: true,
+    flyBilling: false,
     status: false,
     json: false,
     force: false,
@@ -40,6 +43,7 @@ test('parseOpsArgs selects one child at a time', () => {
   assert.deepEqual(parseOpsArgs(['--dashboard', '--social']), {
     dashboard: true,
     social: true,
+    flyBilling: true,
     status: false,
     json: false,
     force: false,
@@ -53,6 +57,7 @@ test('parseOpsArgs makes --status exclusive of every long-lived child', () => {
   assert.deepEqual(parseOpsArgs(['--status']), {
     dashboard: false,
     social: false,
+    flyBilling: false,
     status: true,
     json: false,
     force: false,
@@ -63,6 +68,7 @@ test('parseOpsArgs makes --status exclusive of every long-lived child', () => {
   assert.deepEqual(parseOpsArgs(['--status', '--dashboard', '--social']), {
     dashboard: false,
     social: false,
+    flyBilling: false,
     status: true,
     json: false,
     force: false,
@@ -76,6 +82,7 @@ test('parseOpsArgs forwards the status tool flags alongside --status', () => {
   assert.deepEqual(parseOpsArgs(['--status', '--json']), {
     dashboard: false,
     social: false,
+    flyBilling: false,
     status: true,
     json: true,
     force: false,
@@ -86,6 +93,7 @@ test('parseOpsArgs forwards the status tool flags alongside --status', () => {
   assert.deepEqual(parseOpsArgs(['--status', '--force']), {
     dashboard: false,
     social: false,
+    flyBilling: false,
     status: true,
     json: false,
     force: true,
@@ -96,6 +104,7 @@ test('parseOpsArgs forwards the status tool flags alongside --status', () => {
   assert.deepEqual(parseOpsArgs(['--status', '--json', '--force']), {
     dashboard: false,
     social: false,
+    flyBilling: false,
     status: true,
     json: true,
     force: true,
@@ -111,6 +120,17 @@ test('parseOpsArgs rejects the status tool flags without --status', () => {
     assert.match(parsed.error, /--status/);
     assert.deepEqual(parsed.unknown, []);
   }
+});
+
+test('parseOpsArgs keeps the Fly billing reader with the dashboard', () => {
+  // The reader exists to fill in a number the dashboard displays, so selecting
+  // the dashboard has to bring it along and selecting only the social daemon
+  // must not open a browser window nobody asked for.
+  assert.equal(parseOpsArgs(['--dashboard']).flyBilling, true);
+  assert.equal(parseOpsArgs(['--social']).flyBilling, false);
+  assert.equal(parseOpsArgs([]).flyBilling, true);
+  // `--status` prints a snapshot and exits; a browser window would outlive it.
+  assert.equal(parseOpsArgs(['--status']).flyBilling, false);
 });
 
 test('parseOpsArgs rejects the status tool flags next to a named child', () => {
@@ -129,6 +149,7 @@ test('parseOpsArgs recognises both help spellings without defaulting', () => {
     assert.deepEqual(parseOpsArgs([flag]), {
       dashboard: false,
       social: false,
+      flyBilling: false,
       status: false,
       json: false,
       force: false,

@@ -1,7 +1,11 @@
 import type { CostSource, CostType } from '@zapengine/cost-observability';
 import { type KeyboardEvent, useRef, useState } from 'react';
 
-import type { CostHistoryPoint, OverviewResponse } from '../../shared/types.js';
+import {
+  type CostHistoryPoint,
+  isRecordedBillSource,
+  type OverviewResponse,
+} from '../../shared/types.js';
 import {
   costBasisLabel,
   excludedDailyProviders,
@@ -395,7 +399,10 @@ function tooltipLine(input: {
   source: CostSource;
 }): TooltipLine {
   return {
-    asOf: input.source === 'manual' && input.asOf ? dayLabel(input.asOf) : null,
+    asOf:
+      isRecordedBillSource(input.source) && input.asOf
+        ? dayLabel(input.asOf)
+        : null,
     basis: costBasisLabel(input.costType, input.source),
     costUsd: input.costUsd,
     label: input.label,

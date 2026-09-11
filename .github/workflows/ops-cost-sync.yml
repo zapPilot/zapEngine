@@ -22,10 +22,14 @@ jobs:
     # injected value rather than falling back to it. `ops:sync` itself reports
     # which credentials reached the process — turbo runs in strict env mode, so
     # the injection alone does not prove they survive to the child.
+    #
+    # Expo and Vercel are deliberately absent: this job only resolves secrets
+    # and shells out to flyctl. `scripts/env/run.mjs` imports `sources.mjs`,
+    # never `remote.mjs`, and `remote.mjs` is the only reader of EXPO_TOKEN and
+    # VERCEL_TOKEN. Requiring them would let an unrelated token rotation break
+    # the cost ledger.
     env:
-      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       INFISICAL_UNIVERSAL_AUTH_CLIENT_ID: ${{ secrets.INFISICAL_UNIVERSAL_AUTH_CLIENT_ID }}
       INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET: ${{ secrets.INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET }}
       INFISICAL_PROJECT_ID: ${{ secrets.INFISICAL_PROJECT_ID }}
@@ -38,6 +42,9 @@ jobs:
 
       # Also installs flyctl, which FLY_COST_MODE=flyctl shells out to.
       - uses: ./.github/actions/setup-env-tooling
+        with:
+          expo: 'false'
+          vercel: 'false'
 
       - name: Collect and persist cost snapshots
         run: node scripts/env/run.mjs --environment prod -- pnpm ops:sync

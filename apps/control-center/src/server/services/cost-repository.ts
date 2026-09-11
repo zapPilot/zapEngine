@@ -2,12 +2,14 @@ import type {
   CostPricingRate,
   CostProvider,
   CostSnapshot,
+  CostUsageItem,
 } from '@zapengine/cost-observability';
 
 import type {
   CostHistoryResponse,
   CostProviderResult,
   CostTransactionKind,
+  RecordedBillSource,
 } from '../../shared/types.js';
 import type { ControlCenterConfig } from '../config/env.js';
 import {
@@ -57,10 +59,12 @@ export interface CostRepository {
     externalId?: string | null;
     description?: string | null;
   }): Promise<void>;
-  upsertManualSnapshot(input: {
+  upsertRecordedSnapshot(input: {
     provider: CostProvider;
     amountUsd: number;
+    source: RecordedBillSource;
     now: Date;
+    usage?: CostUsageItem[];
   }): Promise<void>;
 }
 
@@ -211,7 +215,14 @@ export function createCostRepository(
       }
     },
 
-    async upsertManualSnapshot(input) {
+    // `usage` is a passthrough rather than a reset. The row is keyed on
+    // (provider, day), so writing `[]` here drops whatever the collector filed
+    // that morning -- for Fly that is the whole fleet census, and it does not
+    // come back until the next scheduled sync merges it in, which can be most
+    // of a day later. A caller that already read today's row hands its usage
+    // straight back; one that has nothing to say omits it and accepts the
+    // reset, which is what the by-hand CLI has always done.
+    async upsertRecordedSnapshot(input) {
       const monthStart = new Date(
         Date.UTC(input.now.getUTCFullYear(), input.now.getUTCMonth(), 1),
       );
@@ -220,11 +231,11 @@ export function createCostRepository(
           provider: input.provider,
           periodStart: monthStart.toISOString(),
           periodEnd: input.now.toISOString(),
-          usage: [],
+          usage: input.usage ?? [],
           accruedCostUsd: input.amountUsd,
           projectedCostUsd: input.amountUsd,
           costType: 'estimated',
-          source: 'manual',
+          source: input.source,
           fetchedAt: input.now.toISOString(),
         },
         null,

@@ -6,8 +6,9 @@ import { createLinePrefixer, parseOpsArgs } from './ops-lib.mjs';
 const USAGE = [
   'usage: pnpm ops [--dashboard] [--social] [--status [--json] [--force]]',
   '',
-  '  (no flags)    start the control-center dashboard and the social daemon',
-  '  --dashboard   start the control-center dashboard only',
+  '  (no flags)    start the control-center dashboard, the Fly billing reader',
+  '                and the social daemon',
+  '  --dashboard   start the control-center dashboard and the Fly billing reader',
   '  --social      start the social publishing daemon only',
   '  --status      print the operations status snapshot and exit',
   '  --json        with --status: print the snapshot as JSON, for an agent',
@@ -23,6 +24,19 @@ const CHILDREN = {
     // raw command keeps `--env-mode=loose`, which preserves the credentials
     // already injected by the parent without resolving Infisical a second time.
     args: ['run', 'ops:dashboard:raw'],
+  },
+  flyBilling: {
+    label: 'fly-billing',
+    command: 'pnpm',
+    // Fly has no billing API and its dashboard authenticates by cookie, so the
+    // only reader of what Fly actually charges is a signed-in browser on this
+    // machine. It never exits non-zero -- see the daemon's own header for why
+    // a signed-out Fly must not colour the whole stack red.
+    args: [
+      '--filter',
+      '@zapengine/control-center',
+      'ops:fly-billing-daemon',
+    ],
   },
   social: {
     label: 'social',

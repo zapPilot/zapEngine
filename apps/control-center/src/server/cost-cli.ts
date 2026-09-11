@@ -14,6 +14,8 @@ const USAGE = [
   '      Fly publishes no billing or usage API, so for Fly this figure is the only',
   '      trustworthy source of month-end spend: without it Fly is excluded from the',
   '      headline totals, and the flyctl collector only ever reports a run-rate estimate.',
+  '      `pnpm ops` now reads the Fly dashboard on its own once you have signed in',
+  '      there; this command stays for the months you would rather type it yourself.',
   '  pnpm ops:cost transaction <provider> <kind> <usd> [description]',
   '      Record one charge that actually happened (invoice, top_up, subscription,',
   '      adjustment) — cash out the door, not a month-to-date position.',
@@ -40,9 +42,10 @@ if (!repository) {
 
 if (command === 'snapshot') {
   const amountUsd = parseAmount(kindOrAmount);
-  await repository.upsertManualSnapshot({
+  await repository.upsertRecordedSnapshot({
     provider,
     amountUsd,
+    source: 'manual',
     now: new Date(),
   });
   process.stdout.write(

@@ -6,6 +6,7 @@ export { createFixedMonthlyCostSnapshot } from './providers/fixed.js';
 export type { FixedMonthlyCostInput } from './providers/fixed.js';
 export { fetchOpenRouterCostSnapshot } from './providers/openrouter.js';
 export type { OpenRouterCostInput } from './providers/openrouter.js';
+export { UsageNotMeasurableError } from './errors.js';
 export { resolvePricingRate } from './pricing.js';
 export type { CostPricingRate } from './pricing.js';
 export { COST_PROVIDERS } from './types.js';

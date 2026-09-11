@@ -9,6 +9,7 @@ import {
   signedPercent,
 } from './format.js';
 import type { RuleFinding, RuleTone, StatementInputs } from './types.js';
+import { isRecordedBillSource } from '../../../shared/types.js';
 import type { MetricSeries } from '../metric-snapshots.js';
 
 function empty(id: string): RuleFinding {
@@ -210,7 +211,10 @@ export function ruleR2(input: StatementInputs): RuleFinding {
   // on the 2nd. It still counts toward the projected total; only this
   // "who moved" comparison drops it.
   const providerDeltas = overview.providers
-    .filter((provider) => provider.snapshot?.source !== 'manual')
+    .filter(
+      (provider) =>
+        !provider.snapshot || !isRecordedBillSource(provider.snapshot.source),
+    )
     .map((provider) => {
       const current = provider.snapshot?.projectedCostUsd ?? null;
       const previous =
