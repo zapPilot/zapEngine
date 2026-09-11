@@ -39,7 +39,7 @@ The remote deployment receives the same provider credentials through the Control
 2. For a priority incident, call `ops_investigate` with the stable signal fingerprint. This is the normal bounded incident packet and may use `force: true` when an operator explicitly needs fresh provider reads. Read its `correlation` block to traverse repository-backed service relationships and its `remediation` block before proposing any fix.
 3. Call `ops_inspect_signal` only when extra provider-specific evidence is needed. For Sentry it returns the internal numeric issue IDs needed for remediation.
 4. Use `ops_domain`, `ops_signal`, `ops_customers`, `ops_social`, or the `ops_costs` compatibility alias for narrower operational reads.
-5. For safe background engineering capacity, call `ops_backlog`. Use `ops_backlog_claim` to lease one eligible task instead of selecting and claiming in separate steps. If the task is unsuitable, use `ops_backlog_release` with `released` or `blocked` plus a reason.
+5. For safe background engineering capacity, call `ops_backlog`. Use `ops_backlog_claim` to lease one eligible task instead of selecting and claiming in separate steps; candidates are ordered by declared `effort:*` (smallest first) so a weak agent is not steered toward the biggest unscoped task by default. Call `ops_backlog_renew` before a long verification step (a CI run, a slow test suite) would otherwise let the lease expire out from under you. If the task is unsuitable, use `ops_backlog_release` with `released` or `blocked` plus a reason.
 6. Strong agents may use `ops_backlog_create` to preserve bounded low-risk follow-up work found during a larger investigation instead of expanding the current PR scope.
 7. Use `ops_resolve_sentry_issue` only when the user explicitly asks to close/resolve that issue or explicitly delegates Sentry cleanup after the fix has been verified.
 
@@ -47,13 +47,15 @@ The remote deployment receives the same provider credentials through the Control
 
 GitHub Issues is the work-item source of truth. The server recognizes open issues carrying `agent-backlog`; newly created MCP backlog issues always receive `agent-backlog`, `agent:weak`, and `risk:low`, plus an optional `area:<slug>`. `blocked` means a weak/background agent found that stronger judgement is required.
 
-Supabase stores only temporary concurrency state in `ops.agent_backlog_claims`. `ops_backlog_claim` sends the ordered currently-ready GitHub issue numbers to one service-role-only RPC; a repository-scoped transaction lock plus a partial unique index ensures two agents cannot obtain the same live issue. Leases expire and are reconciled by the next claim attempt. The database never copies issue titles, bodies, or completion state.
+Supabase stores only temporary concurrency state in `ops.agent_backlog_claims`. `ops_backlog_claim` sends the effort-ordered currently-ready GitHub issue numbers to one service-role-only RPC; a repository-scoped transaction lock plus a partial unique index ensures two agents cannot obtain the same live issue. An agent that already holds a live lease gets that lease back (`reused: true`) instead of a second one, so a crash-and-restart cannot silently hoard capacity. Leases expire and are reconciled by the next claim attempt; `ops_backlog_renew` extends a live lease without touching GitHub. The database never copies issue titles, bodies, or completion state.
+
+Every claim and release is mirrored onto the issue itself — a `status:working` label while the lease is live, plus a short claim comment — purely so a human on github.com (or `gh issue list --label status:working`) can see who is working on what without a client. The mirror is **best-effort and never authoritative**: `getBacklog()`'s `ready`/`working` split always comes from the database lease, never from the label, and every claim/release/renew result carries its own `mirror: 'ok' | 'partial' | 'failed' | 'skipped'` so a GitHub outage is visible without ever unwinding or blocking the underlying database mutation. `blocked` is the one label that is load-bearing: it is applied only after the release RPC has verified the caller owns the exact claim being released, so an unrelated caller cannot label an issue it never leased.
 
 There is deliberately no `ops_backlog_complete` tool. The implementation PR should use `Fixes #<issue>` and GitHub closes the issue on merge. This prevents an agent from declaring work complete merely because its local attempt ended.
 
 `ops_backlog_create` is not a generic GitHub Issues API. The repository and low-risk labels are server-owned, callers cannot select another repository, and writes are disabled unless `OPS_BACKLOG_WRITE_ENABLED=true`. Backlog membership grants no production, deployment, schema, auth, financial, or incident-remediation authority.
 
-Before enabling writes, create the repository labels used by the contract: `agent-backlog`, `agent:weak`, `risk:low`, and `blocked`, plus any desired `area:*` labels.
+Before enabling writes, create the repository labels used by the contract: `agent-backlog`, `agent:weak`, `risk:low`, `blocked`, and `status:working`, plus any desired `area:*` and `effort:*` labels.
 
 ## Incident correlation
 
@@ -127,8 +129,9 @@ From Claude Code or OpenCode at the repository root:
 4. Call `ops_backlog` and confirm GitHub issue counts and current lease owners match the Reliability view.
 5. Pick an active priority fingerprint and call `ops_investigate`; confirm the packet exposes explicit correlation for mapped services, separates `operationalPriorityScore` from the rest of the `remediation` block, and keeps `directMutationAllowed` `false`.
 6. Pick a real Sentry signal fingerprint and call `ops_inspect_signal`; confirm the issue evidence includes a numeric issue ID.
-7. With backlog writes explicitly enabled, claim a disposable low-risk backlog issue, release it, and confirm a second agent cannot obtain the same issue during the live lease.
-8. With `SENTRY_OPS_WRITE_TOKEN` configured, resolve a disposable/test issue through `ops_resolve_sentry_issue` and confirm only that issue changes to `resolved`.
+7. With backlog writes explicitly enabled, claim a disposable low-risk backlog issue, confirm the `status:working` label and claim comment landed on it, release it, and confirm a second agent cannot obtain the same issue during the live lease.
+8. Call `ops_backlog_renew` on a live claim and confirm `leaseExpiresAt` moves forward without any new GitHub write.
+9. With `SENTRY_OPS_WRITE_TOKEN` configured, resolve a disposable/test issue through `ops_resolve_sentry_issue` and confirm only that issue changes to `resolved`.
 
 The repository tests lock both client discovery files to the canonical launcher and assert that the launcher explicitly selects the production environment.
 
@@ -136,7 +139,7 @@ The repository tests lock both client discovery files to the canonical launcher 
 
 Send MCP requests to `/api/mcp` with the bearer token from `OPS_MCP_TOKEN`. Missing configuration, missing authorization, and incorrect authorization all return the same `401 Unauthorized` response so the endpoint does not disclose whether a token is configured.
 
-The HTTP integration tests cover protocol initialization, tool discovery, `ops_status`, `ops_backlog`, `ops_investigate` including its correlation/remediation facts, and the bounded Sentry resolve tool, including `structuredContent`.
+The HTTP integration tests cover protocol initialization, tool discovery, `ops_status`, `ops_backlog`, `ops_backlog_renew`, `ops_investigate` including its correlation/remediation facts, and the bounded Sentry resolve tool, including `structuredContent`.
 
 ### Sentry history and pagination
 
