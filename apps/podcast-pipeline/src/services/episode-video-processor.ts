@@ -13,6 +13,7 @@ import {
 } from './video/episode-video.js';
 import { parseEpisodeVisualPayload } from './video/episode-visual.js';
 import { logVideoWorkerEvent } from './video/log.js';
+import { preparePanewsVideoCover } from './video/panews-cover.js';
 import {
   type RenderProgressEvent,
   renderSlideVideo,
@@ -47,6 +48,7 @@ interface EpisodeVideoProcessorDependencies {
   downloadNarration: typeof downloadNarrationAudio;
   analyzeAudio: typeof analyzeEpisodeAudio;
   createManifest: typeof createEpisodeVideoManifest;
+  prepareCover: typeof preparePanewsVideoCover;
   render: typeof renderSlideVideo;
   upload: typeof uploadVideoArtifactsToR2;
   makeTemporaryDirectory: (prefix: string) => Promise<string>;
@@ -61,6 +63,7 @@ const defaultDependencies: EpisodeVideoProcessorDependencies = {
   downloadNarration: downloadNarrationAudio,
   analyzeAudio: analyzeEpisodeAudio,
   createManifest: createEpisodeVideoManifest,
+  prepareCover: preparePanewsVideoCover,
   render: renderSlideVideo,
   upload: uploadVideoArtifactsToR2,
   makeTemporaryDirectory: mkdtemp,
@@ -150,8 +153,30 @@ export function createEpisodeVideoProcessor(
       });
       context.reportProgress(renderStageProgress('aligning-script'));
 
+      const preparedCover = await dependencies.prepareCover({
+        sourceUrl: source.sourceUrl,
+        workingDirectory: outputDirectory,
+        signal: context.signal,
+      });
+      logVideoWorkerEvent(dependencies.logger, 'video:cover', {
+        run: context.runId,
+        episode: source.episodeId,
+        language: source.languageCode,
+        strategy: preparedCover.metadata.strategy,
+        status: preparedCover.metadata.status,
+        ...(preparedCover.metadata.sourceImageUrl
+          ? { source: preparedCover.metadata.sourceImageUrl }
+          : {}),
+        ...(preparedCover.metadata.fallbackReason
+          ? { reason: preparedCover.metadata.fallbackReason }
+          : {}),
+      });
+      const persistedManifest = JSON.parse(
+        generated.manifestJson,
+      ) as Record<string, unknown>;
+      persistedManifest['coverPhoto'] = preparedCover.metadata;
       await context.saveManifest({
-        manifest: JSON.parse(generated.manifestJson) as Record<string, unknown>,
+        manifest: persistedManifest,
         manifestHash: generated.manifestHash,
         rendererVersion: generated.provenance.rendererVersion,
         storyboardProvider: generated.provenance.storyboardProvider,
@@ -252,7 +277,7 @@ export function createEpisodeVideoProcessor(
         rendererVersion: generated.provenance.rendererVersion,
         manifestHash: generated.manifestHash,
         videoPath: rendered.previewPath,
-        thumbnailPath: rendered.thumbnailPath,
+        thumbnailPath: preparedCover.thumbnailPath ?? rendered.thumbnailPath,
         manifestPath: rendered.storyboardPath,
         captionsPath: rendered.subtitlePath,
         slidePaths: rendered.slideOutputPaths,
@@ -365,7 +390,7 @@ function bytesToMb(bytes: number): number {
 /**
  * Derives the render's own report from the raw measurements. Built once and
  * used twice — logged as `video:render-metrics` and written to the cost ledger
- * — so the line in `fly logs` and the row in `ops.pipeline_stage_runs` can
+ * — so the line in `fly logs` and the row in ops.pipeline_stage_runs can
  * never disagree about what a render cost.
  */
 function buildRenderMetrics(fields: {
