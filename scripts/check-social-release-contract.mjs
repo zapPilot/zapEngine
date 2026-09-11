@@ -142,6 +142,21 @@ requireMatch(
   /into\s+seed_episode_id[\s\S]*limit\s+1/i,
 );
 
+const policySlotsBlock =
+  policy.match(/export const SOCIAL_RELEASE_SLOTS = \[([\s\S]*?)\]\s+as const/)?.[1] ??
+  '';
+const policyReleaseSlots = [...policySlotsBlock.matchAll(/\{\s*hour:\s*(\d+),\s*minute:\s*(\d+)\s*\}/g)].map(
+  ([, hour, minute]) => `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`,
+);
+const dailyCap = Number(
+  policy.match(/SOCIAL_RELEASE_DAILY_CAP\s*=\s*(\d+)/)?.[1] ?? Number.NaN,
+);
+if (dailyCap !== policyReleaseSlots.length) {
+  failures.push(
+    `Social release policy exposes ${policyReleaseSlots.length} slots but SOCIAL_RELEASE_DAILY_CAP is ${dailyCap}`,
+  );
+}
+
 forbidMatch('daemon', daemon, /enqueuePlatformCohort/);
 forbidMatch('daemon', daemon, /platformBudgetIndex/);
 forbidMatch('daemon', daemon, /nextBudgetSlot/);
