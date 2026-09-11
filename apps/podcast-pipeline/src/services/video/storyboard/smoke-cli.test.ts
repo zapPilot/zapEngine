@@ -14,9 +14,9 @@ const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
   await Promise.all(
-    temporaryDirectories.splice(0).map((directory) =>
-      rm(directory, { recursive: true, force: true }),
-    ),
+    temporaryDirectories
+      .splice(0)
+      .map((directory) => rm(directory, { recursive: true, force: true })),
   );
 });
 
@@ -105,7 +105,7 @@ describe('storyboard smoke catalog mode', () => {
     expect(catalogCalls).toBe(1);
     const scenePlan = JSON.parse(
       await readFile(join(outputDirectory, 'scene-plan.json'), 'utf8'),
-    ) as Array<Record<string, unknown>>;
+    ) as Record<string, unknown>[];
     expect(scenePlan.length).toBeGreaterThan(0);
     expect(scenePlan[0]).toMatchObject({
       sceneId: 'scene-01',
@@ -113,9 +113,9 @@ describe('storyboard smoke catalog mode', () => {
       subjectIds: ['subject-nvidia'],
     });
     expect(scenePlan[0]?.['cueQuery']).toContain('NVIDIA');
-    expect(await readFile(join(outputDirectory, 'catalog.json'), 'utf8')).toContain(
-      'sceneCues',
-    );
+    expect(
+      await readFile(join(outputDirectory, 'catalog.json'), 'utf8'),
+    ).toContain('sceneCues');
     expect(
       await readFile(join(outputDirectory, 'assignments.json'), 'utf8'),
     ).toContain('selectionReason');
