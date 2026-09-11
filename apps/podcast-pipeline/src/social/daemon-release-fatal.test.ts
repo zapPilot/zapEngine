@@ -34,6 +34,7 @@ const mocks = vi.hoisted(() => ({
   updateSocialPostIdentity: vi.fn(),
   updateSocialPostReviewStatus: vi.fn(),
   publishSocialBatch: vi.fn(),
+  prepareSocialBatchCopy: vi.fn().mockResolvedValue({}),
   createMetricCollectors: vi.fn().mockReturnValue({
     x: vi.fn(),
     threads: vi.fn(),
@@ -93,6 +94,7 @@ vi.mock('./account-snapshots.js', () => ({
 }));
 vi.mock('./publish-batch.js', () => ({
   publishSocialBatch: mocks.publishSocialBatch,
+  prepareSocialBatchCopy: mocks.prepareSocialBatchCopy,
 }));
 vi.mock('./metric-collectors.js', () => ({
   createMetricCollectors: mocks.createMetricCollectors,
@@ -122,7 +124,11 @@ import {
   runSocialDaemon,
   runSocialDaemonTick,
 } from './daemon.js';
-import { SocialReleaseFailureError } from './publish-error.js';
+import {
+  SocialCopyGenerationError,
+  SocialReleaseFailureError,
+} from './publish-error.js';
+import { RednoteSemanticRiskError } from './rednote-semantic-risk.js';
 
 // 10:00 JST: inside the window `publishDueJobs` will claim in.
 const NOW = new Date('2026-08-16T01:00:00.000Z');
@@ -154,6 +160,7 @@ function job(input: Record<string, unknown>) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.prepareSocialBatchCopy.mockResolvedValue({});
   mocks.alignPendingSocialReleaseCohorts.mockResolvedValue({
     alignedLanes: 0,
     rescheduledEpisodes: 0,
@@ -293,7 +300,7 @@ describe('social daemon release-shape stages are fatal', () => {
     expect(mocks.captureDueAccountSnapshots).not.toHaveBeenCalled();
   });
 
-  it('releases the whole current language batch when preparation fails before transport', async () => {
+  it('releases the whole current language batch when asset preparation fails before transport', async () => {
     const xJob = job({
       id: 'x-en',
       episode_id: EPISODE_A,
@@ -307,13 +314,15 @@ describe('social daemon release-shape stages are fatal', () => {
       language_code: 'en',
     });
     mocks.claimSocialPublishBatch.mockResolvedValue([xJob, youtubeJob]);
+    // Copy is generated before this call now, so what is left inside
+    // `publishSocialBatch` before transport is video/teaser/job preparation.
     mocks.publishSocialBatch.mockRejectedValue(
-      new Error('OpenRouter_request_timed_out_after_120000ms'),
+      new Error('ffmpeg teaser render failed'),
     );
 
     await expect(
       runSocialDaemonTick({ now: NOW, firstStartedAt: FIRST_STARTED_AT }),
-    ).rejects.toThrow('OpenRouter_request_timed_out_after_120000ms');
+    ).rejects.toThrow('ffmpeg teaser render failed');
 
     expect(mocks.releaseSocialPublishJobLease).toHaveBeenCalledWith({
       jobId: 'x-en',
@@ -358,6 +367,82 @@ describe('social daemon release-shape stages are fatal', () => {
     await expect(
       runSocialDaemonTick({ now: NOW, firstStartedAt: FIRST_STARTED_AT }),
     ).rejects.toThrow('x publish failed');
+  });
+
+  // The production incident: one episode's Rednote copy broke a red line, the
+  // daemon exited 1, and every restart reran the identical three attempts on
+  // the same seed episode while the release-lease refund kept the attempt
+  // count flat. Nothing else could publish, ever.
+  it('survives a copy-generation failure and finishes the tick', async () => {
+    mocks.claimSocialPublishBatch.mockResolvedValue([
+      job({ id: 'zh-rednote', platform: 'rednote', language_code: 'zh-Hant' }),
+    ]);
+    mocks.prepareSocialBatchCopy.mockRejectedValue(
+      new SocialCopyGenerationError({
+        episodeId: EPISODE_A,
+        languageCode: 'zh-Hant',
+        attempts: 3,
+        reason: 'Rednote copy breaks investment-direction red lines',
+        cause: undefined,
+      }),
+    );
+
+    await expect(
+      runSocialDaemonTick({ now: NOW, firstStartedAt: FIRST_STARTED_AT }),
+    ).resolves.toBeUndefined();
+
+    expect(mocks.publishSocialBatch).not.toHaveBeenCalled();
+    expect(mocks.failSocialPublishJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobId: 'zh-rednote',
+        error: expect.stringContaining('Release held:'),
+      }),
+    );
+    // The observational stages after publishing still run, so the tick reports
+    // the queue instead of dying halfway through it.
+    expect(mocks.listLearningSocialPosts).toHaveBeenCalled();
+    expect(mocks.captureDueAccountSnapshots).toHaveBeenCalled();
+  });
+
+  // A verdict against one note is decided and repeats on restart; a judge that
+  // cannot answer is an outage the next tick recovers from. Holding on the
+  // outage would burn all eight attempts of every zh-Hant article while the
+  // daemon stayed green -- the fail-open shape this gate exists to prevent.
+  it('still fatals when the Rednote judge is unavailable', async () => {
+    mocks.claimSocialPublishBatch.mockResolvedValue([
+      job({ id: 'zh-rednote', platform: 'rednote', language_code: 'zh-Hant' }),
+    ]);
+    mocks.prepareSocialBatchCopy.mockRejectedValue(
+      new RednoteSemanticRiskError({
+        reason: 'unavailable',
+        message: 'Rednote semantic risk gate could not reach a verdict',
+      }),
+    );
+
+    await expect(
+      runSocialDaemonTick({ now: NOW, firstStartedAt: FIRST_STARTED_AT }),
+    ).rejects.toThrow('could not reach a verdict');
+
+    expect(mocks.failSocialPublishJob).not.toHaveBeenCalled();
+  });
+
+  it('still fatals on a raw error thrown mid-transport', async () => {
+    mocks.claimSocialPublishBatch.mockResolvedValue([
+      job({ id: 'a1', platform: 'x' }),
+    ]);
+    mocks.publishSocialBatch.mockRejectedValue(
+      new TypeError('cannot read properties of undefined'),
+    );
+
+    await expect(
+      runSocialDaemonTick({ now: NOW, firstStartedAt: FIRST_STARTED_AT }),
+    ).rejects.toThrow(TypeError);
+
+    // The copy hold must never widen into "any plain Error holds the article".
+    expect(mocks.failSocialPublishJob).not.toHaveBeenCalled();
+    expect(mocks.releaseSocialPublishJobLease).toHaveBeenCalledWith(
+      expect.objectContaining({ jobId: 'a1' }),
+    );
   });
 
   it('propagates a fatal tick out of the daemon loop instead of sleeping to the next tick', async () => {

@@ -26,6 +26,7 @@ const mocks = vi.hoisted(() => ({
   listSocialPostsByEpisode: vi.fn().mockResolvedValue([]),
   updateSocialPostIdentity: vi.fn(),
   publishSocialBatch: vi.fn(),
+  prepareSocialBatchCopy: vi.fn().mockResolvedValue({}),
   createMetricCollectors: vi.fn().mockReturnValue({
     x: vi.fn(),
     threads: vi.fn(),
@@ -77,6 +78,7 @@ vi.mock('../services/db.js', () => ({
 }));
 vi.mock('./publish-batch.js', () => ({
   publishSocialBatch: mocks.publishSocialBatch,
+  prepareSocialBatchCopy: mocks.prepareSocialBatchCopy,
 }));
 vi.mock('./metric-collectors.js', () => ({
   createMetricCollectors: mocks.createMetricCollectors,

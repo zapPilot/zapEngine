@@ -26,6 +26,7 @@ const mocks = vi.hoisted(() => ({
   capturePrePublishAccountSnapshots: vi.fn(),
   refreshSocialStrategies: vi.fn(),
   publishSocialBatch: vi.fn(),
+  prepareSocialBatchCopy: vi.fn().mockResolvedValue({}),
 }));
 
 vi.mock('./daemon-store.js', () => ({
@@ -103,6 +104,7 @@ vi.mock('./account-snapshots.js', () => ({
 
 vi.mock('./publish-batch.js', () => ({
   publishSocialBatch: mocks.publishSocialBatch,
+  prepareSocialBatchCopy: mocks.prepareSocialBatchCopy,
 }));
 
 vi.mock('./strategy.js', async (importOriginal) => ({
@@ -150,6 +152,7 @@ const NOW_7D = new Date('2026-08-20T10:00:00.000Z');
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.prepareSocialBatchCopy.mockResolvedValue({});
   mocks.listSocialPublishCandidates.mockResolvedValue([]);
   mocks.listSocialPublishCandidatesForEpisodes.mockResolvedValue([]);
   mocks.getActiveSocialStrategies.mockResolvedValue([]);

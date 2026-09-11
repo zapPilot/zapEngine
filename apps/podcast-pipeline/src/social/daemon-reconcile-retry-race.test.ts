@@ -27,6 +27,7 @@ const mocks = vi.hoisted(() => ({
   listSocialPostsByEpisode: vi.fn(),
   updateSocialPostIdentity: vi.fn(),
   publishSocialBatch: vi.fn(),
+  prepareSocialBatchCopy: vi.fn().mockResolvedValue({}),
   createMetricCollectors: vi.fn(),
   refreshSocialStrategies: vi.fn(),
 }));
@@ -76,6 +77,7 @@ vi.mock('../services/db.js', () => ({
 
 vi.mock('./publish-batch.js', () => ({
   publishSocialBatch: mocks.publishSocialBatch,
+  prepareSocialBatchCopy: mocks.prepareSocialBatchCopy,
 }));
 vi.mock('./metric-collectors.js', () => ({
   createMetricCollectors: mocks.createMetricCollectors,
@@ -96,6 +98,7 @@ function existingPost(id: string) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.prepareSocialBatchCopy.mockResolvedValue({});
   mocks.listPastDueSocialPublishJobs.mockResolvedValue([]);
   mocks.rescheduleSocialPublishJob.mockResolvedValue(true);
   mocks.listSocialPublishCandidates.mockResolvedValue([]);

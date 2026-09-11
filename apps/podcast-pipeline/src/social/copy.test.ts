@@ -30,6 +30,7 @@ import {
   parseGeneratedSocialCopy,
   weightedTweetLength,
 } from './copy.js';
+import { SocialCopyGenerationError } from './publish-error.js';
 import { RednoteSemanticRiskError } from './rednote-semantic-risk.js';
 import type { GeneratedSocialCopy } from './types.js';
 
@@ -58,6 +59,19 @@ function socialCopyJson(xText: string): string {
     youtube: { hookType: 'explainer', title: '這集值得看的核心脈絡' },
   });
 }
+
+const ZH_EPISODE = {
+  id: '123e4567-e89b-12d3-a456-426614174000',
+  title: 'Episode title',
+  summary: 'Episode summary',
+  transcript: 'Episode transcript',
+  publishedAt: '2026-08-12T00:00:00.000Z',
+  episodeUrl: 'https://example.com/e/episode',
+  videoDurationSeconds: 180,
+  languageCode: 'zh-Hant',
+  videoUrl: 'https://example.com/video.mp4',
+  videoThumbnailUrl: 'https://example.com/thumbnail.jpg',
+} as const;
 
 function generateSocialCopy(
   input: Omit<Parameters<typeof generateSocialCopyImpl>[0], 'platforms'> & {
@@ -331,22 +345,22 @@ describe('generateSocialCopy', () => {
       .mockResolvedValueOnce({ choices: [{ message: { content: '   ' } }] })
       .mockResolvedValueOnce(socialCompletion(mostlyLatin));
 
-    await expect(
-      generateSocialCopy({
-        episode: {
-          id: '123e4567-e89b-12d3-a456-426614174000',
-          title: 'Episode title',
-          summary: 'Episode summary',
-          transcript: 'Episode transcript',
-          publishedAt: '2026-08-12T00:00:00.000Z',
-          episodeUrl: 'https://example.com/e/episode',
-          videoDurationSeconds: 180,
-          languageCode: 'zh-Hant',
-          videoUrl: 'https://example.com/video.mp4',
-          videoThumbnailUrl: 'https://example.com/thumbnail.jpg',
-        },
-      }),
-    ).rejects.toThrow(/invalid social copy 3 times/u);
+    const exhausted = await generateSocialCopy({
+      episode: ZH_EPISODE,
+    }).catch((thrown: unknown) => thrown);
+
+    // The daemon keys its release hold off this exact type, and writes
+    // `reason` verbatim into the lane's `last_error`.
+    expect(exhausted).toBeInstanceOf(SocialCopyGenerationError);
+    expect(exhausted).toMatchObject({
+      episodeId: ZH_EPISODE.id,
+      languageCode: 'zh-Hant',
+      attempts: 3,
+      reason: expect.stringContaining('Latin letters'),
+    });
+    expect((exhausted as Error).message).toMatch(
+      /invalid social copy 3 times/u,
+    );
 
     const prompts = llmMocks.createOpenRouterChatCompletion.mock.calls.map(
       (call) => call[1]?.messages.at(-1)?.content ?? '',
@@ -530,6 +544,73 @@ describe('generateSocialCopy', () => {
       topic: 'one allowed topic',
       x: { hookType: 'one allowed hook type', text: '...' },
     });
+  });
+
+  // The production failure this fixes: attempt 2 repaired R1 by breaking R2,
+  // and attempt 3 -- which only ever saw R2 -- put R1 straight back.
+  it('carries every earlier rejection into the next attempt, not only the last', async () => {
+    llmMocks.createOpenRouterChatCompletion.mockResolvedValue(
+      socialCompletion(socialCopyJson('第一版文案')),
+    );
+    riskMocks.assertRednoteSemanticRisk
+      .mockRejectedValueOnce(
+        new RednoteSemanticRiskError({
+          reason: 'risk',
+          rules: ['asset_allocation_advice'],
+          message: 'Rednote copy breaks red lines (asset_allocation_advice)',
+        }),
+      )
+      .mockRejectedValueOnce(
+        new RednoteSemanticRiskError({
+          reason: 'risk',
+          rules: ['market_timing_advice'],
+          message: 'Rednote copy breaks red lines (market_timing_advice)',
+        }),
+      )
+      .mockRejectedValueOnce(
+        new RednoteSemanticRiskError({
+          reason: 'risk',
+          rules: ['market_timing_advice'],
+          message: 'Rednote copy breaks red lines (market_timing_advice)',
+        }),
+      );
+
+    await expect(
+      generateSocialCopy({ episode: ZH_EPISODE }),
+    ).rejects.toBeInstanceOf(SocialCopyGenerationError);
+
+    const thirdPrompt = String(
+      llmMocks.createOpenRouterChatCompletion.mock.calls[2]?.[1]?.messages.at(
+        -1,
+      )?.content,
+    );
+    expect(thirdPrompt).toContain('asset_allocation_advice');
+    expect(thirdPrompt).toContain('market_timing_advice');
+    expect(thirdPrompt).toContain('without reintroducing any earlier one');
+  });
+
+  it('hands the rejected note back so the retry edits it instead of rerolling', async () => {
+    llmMocks.createOpenRouterChatCompletion.mockResolvedValue(
+      socialCompletion(socialCopyJson('第一版文案')),
+    );
+    riskMocks.assertRednoteSemanticRisk.mockRejectedValueOnce(
+      new RednoteSemanticRiskError({
+        reason: 'risk',
+        rules: ['asset_allocation_advice'],
+        message: 'Rednote copy breaks red lines (asset_allocation_advice)',
+      }),
+    );
+
+    await generateSocialCopy({ episode: ZH_EPISODE });
+
+    const retryPrompt = String(
+      llmMocks.createOpenRouterChatCompletion.mock.calls[1]?.[1]?.messages.at(
+        -1,
+      )?.content,
+    );
+    expect(retryPrompt).toContain('Your previous rednote note was:');
+    expect(retryPrompt).toContain('正文內容');
+    expect(retryPrompt).toContain('Edit only the part that was flagged.');
   });
 });
 

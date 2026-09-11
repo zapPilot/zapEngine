@@ -14,6 +14,7 @@ vi.mock('../services/llm.js', async (importOriginal) => ({
 
 import {
   assertRednoteSemanticRisk,
+  REDNOTE_RISK_RULES,
   RednoteSemanticRiskError,
 } from './rednote-semantic-risk.js';
 
@@ -173,6 +174,39 @@ describe('assertRednoteSemanticRisk', () => {
     await expect(
       assertRednoteSemanticRisk({ rednote: TRUMP, episode: EPISODE }),
     ).rejects.toMatchObject({ reason: 'risk' });
+  });
+
+  // `error.rules` is the vocabulary per-rule rejection rate will be learned
+  // from. The judge was returning "R1" -- the file's human heading -- so the
+  // filter dropped every verdict and the list was always empty.
+  it('asks for the canonical rule ids and reports the ones it is given', async () => {
+    llmMocks.createOpenRouterChatCompletion.mockResolvedValue(
+      verdict({
+        risks: [
+          {
+            rule: 'asset_allocation_advice',
+            evidence: '你只需持有那條基礎設施',
+            reason: 'Tells the reader what to hold.',
+          },
+        ],
+      }),
+    );
+
+    await expect(
+      assertRednoteSemanticRisk({ rednote: DALIO, episode: EPISODE }),
+    ).rejects.toMatchObject({
+      reason: 'risk',
+      rules: ['asset_allocation_advice'],
+    });
+
+    const systemPrompt = String(
+      llmMocks.createOpenRouterChatCompletion.mock.calls[0]?.[1]?.messages[0]
+        ?.content,
+    );
+    for (const rule of REDNOTE_RISK_RULES) {
+      expect(systemPrompt).toContain(`"${rule}"`);
+    }
+    expect(systemPrompt).toContain('R1-R4 headings above are human labels');
   });
 
   it('still fails on an invented rule id without claiming that id', async () => {

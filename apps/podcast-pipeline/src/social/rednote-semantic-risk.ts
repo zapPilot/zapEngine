@@ -183,6 +183,10 @@ function unavailable(
 }
 
 function buildJudgeSystemPrompt(rules: string): string {
+  // Derived, never spelled out: a hand-written list here is the drift the
+  // shared rule file exists to prevent, and an id the judge invents is an id
+  // the rejection-rate vocabulary silently loses.
+  const ruleIds = REDNOTE_RISK_RULES.map((rule) => `"${rule}"`).join(' | ');
   return `You review one Simplified/Traditional Chinese Rednote note before it is published, against the rules below. You are a reviewer, not an editor: report violations, never rewrite.
 
 ${rules}
@@ -194,9 +198,11 @@ For R4, compare the note against the supplied episode: a prediction the episode 
 Return JSON only with exactly this shape:
 {
   "risks": [
-    { "rule": "one rule id", "evidence": "the exact phrase from the note", "reason": "one short sentence" }
+    { "rule": ${ruleIds}, "evidence": "the exact phrase from the note", "reason": "one short sentence" }
   ]
 }
+
+The R1-R4 headings above are human labels for reading the rules; a rule's id is the snake_case string printed beside its heading, and "rule" must carry that id exactly.
 
 Return {"risks": []} when the note breaks none of them.`;
 }

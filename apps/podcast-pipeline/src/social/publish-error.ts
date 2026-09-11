@@ -84,3 +84,39 @@ export class SocialReleaseFailureError extends Error {
     this.untouchedLanes = input.untouchedLanes ?? [];
   }
 }
+
+/**
+ * Raised once `generateSocialCopy` has spent every attempt on one
+ * episode|language and the copy is still invalid. Deliberately not a
+ * `SocialReleaseFailurePhase`: nothing was transported, nothing is unreadable,
+ * and reusing `SocialReleaseFailureError` would pull this into that type's
+ * attempt-refund branch, its transient-network carve-out, and the fatal report
+ * vocabulary keyed on `phase`. The daemon holds the article on this type
+ * instead, because the same three attempts would fail identically after a
+ * restart and fatal there is an unbounded loop that never spends an attempt.
+ */
+export class SocialCopyGenerationError extends Error {
+  readonly episodeId: string;
+  readonly languageCode: SocialLanguageCode;
+  readonly attempts: number;
+  /** The final attempt's rejection, reused verbatim for `last_error`. */
+  readonly reason: string;
+
+  constructor(input: {
+    episodeId: string;
+    languageCode: SocialLanguageCode;
+    attempts: number;
+    reason: string;
+    cause: unknown;
+  }) {
+    super(
+      `OpenRouter returned invalid social copy ${input.attempts} times. Last failure: ${input.reason}`,
+      { cause: input.cause },
+    );
+    this.name = 'SocialCopyGenerationError';
+    this.episodeId = input.episodeId;
+    this.languageCode = input.languageCode;
+    this.attempts = input.attempts;
+    this.reason = input.reason;
+  }
+}

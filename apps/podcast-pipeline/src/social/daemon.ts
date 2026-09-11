@@ -87,8 +87,15 @@ import {
   SOCIAL_LANGUAGE_EXPERIMENT_KEYS,
   SOCIAL_PUBLISH_WINDOW_JST,
 } from './policy.js';
-import { publishSocialBatch } from './publish-batch.js';
-import { SocialReleaseFailureError } from './publish-error.js';
+import {
+  type PreparedSocialBatchCopy,
+  prepareSocialBatchCopy,
+  publishSocialBatch,
+} from './publish-batch.js';
+import {
+  SocialCopyGenerationError,
+  SocialReleaseFailureError,
+} from './publish-error.js';
 import {
   alignPendingSocialReleaseCohorts,
   claimReleaseCohortJobs,
@@ -790,7 +797,7 @@ async function publishDueJobs(
     try {
       if (await reconcileClaimedJob(job, now, titleByEpisodeLanguage, log))
         continue;
-      const key = `${job.episode_id}|${jobLanguage(job)}`;
+      const key = groupKey(job);
       const pending = pendingByEpisodeLanguage.get(key) ?? [];
       pending.push(job);
       pendingByEpisodeLanguage.set(key, pending);
@@ -812,33 +819,132 @@ async function publishDueJobs(
     }
   }
 
-  const groups = await holdCohortsMissingMedia(
+  const mediaReady = await holdCohortsMissingMedia(
     pendingByEpisodeLanguage,
     now,
     titleByEpisodeLanguage,
     log,
   );
-  for (const [index, pendingJobs] of groups.entries()) {
+  // The cheap database re-check runs first, so an episode whose media is gone
+  // never pays for an LLM call.
+  const groups = await holdCohortsMissingCopy(
+    mediaReady,
+    active,
+    now,
+    titleByEpisodeLanguage,
+    log,
+  );
+  for (const [index, group] of groups.entries()) {
     try {
       await publishLanguageBatch(
-        pendingJobs,
+        group.jobs,
+        group.copy,
         active,
         titleByEpisodeLanguage,
         now,
         log,
       );
     } catch (error) {
-      await releaseUntouchedLeases(groups.slice(index + 1).flat(), now, log);
+      await releaseUntouchedLeases(
+        groups.slice(index + 1).flatMap((rest) => rest.jobs),
+        now,
+        log,
+      );
       // Generic failures happen before publishSocialPlatforms has started
-      // transport (copy/video/packaging/job preparation). No lane in this
-      // language batch could be live, so hand the whole claimed group back
-      // immediately instead of waiting for the 60-minute lease to expire.
+      // transport (video/job preparation). No lane in this language batch
+      // could be live, so hand the whole claimed group back immediately
+      // instead of waiting for the 60-minute lease to expire.
       await (error instanceof SocialReleaseFailureError
-        ? refundUntriedLanesInFailedGroup(pendingJobs, error, now, log)
-        : releaseUntouchedLeases(pendingJobs, now, log));
+        ? refundUntriedLanesInFailedGroup(group.jobs, error, now, log)
+        : releaseUntouchedLeases(group.jobs, now, log));
       throw error;
     }
   }
+}
+
+interface PreparedReleaseGroup {
+  jobs: SocialPublishJobRow[];
+  copy: PreparedSocialBatchCopy;
+}
+
+/**
+ * Copy generation is the last pre-transport step that can fail for one
+ * language of an otherwise healthy article, so every claimed group is written
+ * before the first group is published. Generating it inside the publish loop
+ * instead meant a Rednote note rejected by the red-line judge arrived after
+ * the article's `en` and `ja` lanes were already live -- a permanently partial
+ * article, which the cohort contract forbids.
+ *
+ * A rejected note holds the article rather than killing the daemon: three
+ * attempts were spent before any transport, so nothing is live and nothing is
+ * unreadable, but the same three attempts would fail identically after a
+ * restart. Fatal there is a loop that never spends an attempt and never lets
+ * the next article through, while a hold charges one attempt, applies the
+ * retry backoff, and moves the next tick's claim seed on.
+ *
+ * Everything that is not `SocialCopyGenerationError` is rethrown untouched --
+ * a missing episode row, an unreadable prompt file, or a red-line judge that
+ * could not answer at all are outages and deployment faults, and holding the
+ * article on those would burn all eight attempts of every zh-Hant article
+ * while the daemon reported green.
+ */
+async function holdCohortsMissingCopy(
+  groups: readonly SocialPublishJobRow[][],
+  active: Record<string, SocialStrategyVersionRow | null>,
+  now: Date,
+  titleByEpisodeLanguage: ReadonlyMap<string, string | null>,
+  log: (message: string) => void,
+): Promise<PreparedReleaseGroup[]> {
+  const copyByGroup = new Map<string, PreparedSocialBatchCopy>();
+  const heldEpisodes = new Map<string, ClaimedCohortHold>();
+
+  for (const jobs of groups) {
+    const firstJob = jobs[0];
+    if (!firstJob || heldEpisodes.has(firstJob.episode_id)) continue;
+    const languageCode = jobLanguage(firstJob);
+    const guidanceByPlatform = buildGuidanceForJobs(jobs, active);
+    try {
+      copyByGroup.set(
+        groupKey(firstJob),
+        await prepareSocialBatchCopy({
+          episodeId: firstJob.episode_id,
+          languageCode,
+          platforms: jobs.map((job) => job.platform),
+          ...(Object.keys(guidanceByPlatform).length > 0
+            ? { strategyGuidanceByPlatform: guidanceByPlatform }
+            : {}),
+        }),
+      );
+    } catch (error) {
+      if (!(error instanceof SocialCopyGenerationError)) throw error;
+      heldEpisodes.set(firstJob.episode_id, {
+        logDetail: `copy generation failed ${languageLabel(languageCode)} · ${truncateHoldReason(error.reason)}`,
+        lastError: `Release held: ${languageCode} social copy generation failed after ${error.attempts} attempts — ${error.reason}`,
+      });
+    }
+  }
+
+  const survivors = await holdClaimedCohorts(
+    groups,
+    heldEpisodes,
+    now,
+    titleByEpisodeLanguage,
+    log,
+  );
+  return survivors.flatMap((jobs) => {
+    const firstJob = jobs[0];
+    const copy = firstJob ? copyByGroup.get(groupKey(firstJob)) : undefined;
+    return copy ? [{ jobs, copy }] : [];
+  });
+}
+
+const HOLD_REASON_LOG_MAX_CHARACTERS = 200;
+
+function truncateHoldReason(reason: string): string {
+  const firstLine = reason.split('\n')[0] ?? reason;
+  return firstLine.length > HOLD_REASON_LOG_MAX_CHARACTERS
+    ? `${firstLine.slice(0, HOLD_REASON_LOG_MAX_CHARACTERS)}…`
+    : firstLine;
 }
 
 /**
@@ -897,22 +1003,58 @@ async function holdCohortsMissingMedia(
     readyByEpisode.set(candidate.episode_id, languages);
   }
 
-  const heldEpisodes = new Map<string, string[]>();
+  const heldEpisodes = new Map<string, ClaimedCohortHold>();
   for (const episodeId of episodeIds) {
     const missing = missingLanguages(
       requiredByEpisode.get(episodeId) ?? new Set<string>(),
       readyByEpisode.get(episodeId) ?? new Set<string>(),
     );
-    if (missing.length > 0) heldEpisodes.set(episodeId, missing);
+    if (missing.length === 0) continue;
+    heldEpisodes.set(episodeId, {
+      logDetail: `missing ${missing.map(languageLabel).join(' · ')}`,
+      lastError: `Release held: ${missing.join(', ')} video is not completed`,
+    });
   }
-  if (heldEpisodes.size === 0) return groups;
 
-  for (const [episodeId, missing] of heldEpisodes) {
-    const held = missing
-      .map((language) => `${languageFlag(language)} ${language}`)
-      .join(' · ');
+  return holdClaimedCohorts(
+    groups,
+    heldEpisodes,
+    now,
+    titleByEpisodeLanguage,
+    log,
+  );
+}
+
+interface ClaimedCohortHold {
+  /** Printed after `release held · ` on the article's operator line. */
+  logDetail: string;
+  /** Written to every held lane's `last_error`, prefix included. */
+  lastError: string;
+}
+
+/**
+ * Holds every claimed lane of each named episode and returns the groups that
+ * survive. Failing the lanes rather than releasing their leases is what makes
+ * a hold visible in `last_error` and the queue summary, and what keeps the
+ * partial-cohort fence bounded: a hold spends an attempt, so an episode that
+ * can never recover reaches `MAX_PUBLISH_ATTEMPTS` instead of holding the
+ * queue forever.
+ */
+async function holdClaimedCohorts(
+  groups: readonly SocialPublishJobRow[][],
+  heldEpisodes: ReadonlyMap<string, ClaimedCohortHold>,
+  now: Date,
+  titleByEpisodeLanguage: ReadonlyMap<string, string | null>,
+  log: (message: string) => void,
+): Promise<SocialPublishJobRow[][]> {
+  const survivors = groups.filter((pendingJobs) =>
+    pendingJobs.every((job) => !heldEpisodes.has(job.episode_id)),
+  );
+  if (heldEpisodes.size === 0) return survivors;
+
+  for (const [episodeId, hold] of heldEpisodes) {
     log(
-      `⏸️ [social-daemon] ${episodeLabel(episodeTitle(titleByEpisodeLanguage, episodeId, 'zh-Hant'), episodeId)} · release held · missing ${held}`,
+      `⏸️ [social-daemon] ${episodeLabel(episodeTitle(titleByEpisodeLanguage, episodeId, 'zh-Hant'), episodeId)} · release held · ${hold.logDetail}`,
     );
     for (const job of groups.flat()) {
       if (job.episode_id !== episodeId) continue;
@@ -922,11 +1064,11 @@ async function holdCohortsMissingMedia(
           owner: OWNER,
           now,
           attemptCount: job.attempt_count,
-          error: `Release held: ${missing.join(', ')} video is not completed`,
+          error: hold.lastError,
         });
       } catch (persistenceError) {
         // The lease still expires on its own, so a failed hold write must not
-        // take the daemon down over media that is already missing.
+        // take the daemon down over a release that is already being held.
         log(
           `❌ [social-daemon] ${laneLabel(job.platform, jobLanguage(job))} · failed to persist release hold · job=${job.id} · ${errorMessage(persistenceError)}`,
         );
@@ -934,9 +1076,7 @@ async function holdCohortsMissingMedia(
     }
   }
 
-  return groups.filter((pendingJobs) =>
-    pendingJobs.every((job) => !heldEpisodes.has(job.episode_id)),
-  );
+  return survivors;
 }
 
 async function releaseUntouchedLeases(
@@ -1027,16 +1167,17 @@ const LANGUAGE_EXPERIMENT_KEYS: ReadonlySet<string> = new Set(
   Object.values(SOCIAL_LANGUAGE_EXPERIMENT_KEYS) as string[],
 );
 
-async function publishLanguageBatch(
-  jobs: SocialPublishJobRow[],
+/**
+ * `buildStrategyGuidance` samples `Math.random`, so it is computed exactly
+ * once per group, by the copy barrier that hands it to the writer. Rebuilding
+ * it at publish time -- which is where it used to live -- would record
+ * guidance the published copy was never written against.
+ */
+function buildGuidanceForJobs(
+  jobs: readonly SocialPublishJobRow[],
   active: Record<string, SocialStrategyVersionRow | null>,
-  titleByEpisodeLanguage: ReadonlyMap<string, string | null>,
-  now: Date,
-  log: (message: string) => void,
-): Promise<void> {
-  const firstJob = jobs[0];
-  if (!firstJob) return;
-  const guidanceByPlatform = Object.fromEntries(
+): Partial<Record<SocialPlatform, string>> {
+  return Object.fromEntries(
     jobs.flatMap((job) => {
       const isLanguageExperiment = Boolean(
         job.experiment_key && LANGUAGE_EXPERIMENT_KEYS.has(job.experiment_key),
@@ -1054,7 +1195,19 @@ async function publishLanguageBatch(
       );
       return guidance ? [[job.platform, guidance]] : [];
     }),
-  ) as Partial<Record<SocialPlatform, string>>;
+  );
+}
+
+async function publishLanguageBatch(
+  jobs: SocialPublishJobRow[],
+  preparedCopy: PreparedSocialBatchCopy,
+  active: Record<string, SocialStrategyVersionRow | null>,
+  titleByEpisodeLanguage: ReadonlyMap<string, string | null>,
+  now: Date,
+  log: (message: string) => void,
+): Promise<void> {
+  const firstJob = jobs[0];
+  if (!firstJob) return;
   const outcomes = await publishSocialBatch({
     episodeId: firstJob.episode_id,
     languageCode: jobLanguage(firstJob),
@@ -1063,9 +1216,9 @@ async function publishLanguageBatch(
       experimentKey: job.experiment_key,
       experimentVariant: job.experiment_variant,
     })),
-    ...(Object.keys(guidanceByPlatform).length > 0
-      ? { strategyGuidanceByPlatform: guidanceByPlatform }
-      : {}),
+    episode: preparedCopy.episode,
+    packagingByPlatform: preparedCopy.packagingByPlatform,
+    copySnapshot: preparedCopy.snapshot,
     onLog: log,
   });
   for (const outcome of outcomes) {
@@ -1152,6 +1305,12 @@ function jobLanguage(
   job: Pick<SocialPublishJobRow, 'language_code'>,
 ): SocialPublishJobRow['language_code'] {
   return job.language_code ?? 'zh-Hant';
+}
+
+function groupKey(
+  job: Pick<SocialPublishJobRow, 'episode_id' | 'language_code'>,
+): string {
+  return `${job.episode_id}|${jobLanguage(job)}`;
 }
 
 interface EpisodeTitleIndex {

@@ -65,6 +65,12 @@ lane allocation:
    existed when the cohort was queued. A language missing now holds that whole
    episode (its claimed lanes fail with `Release held: …` and serve retry
    backoff) while every other episode still publishes.
+6. `holdCohortsMissingCopy()` generates every claimed language's copy before the
+   first transport call. Copy is the last pre-transport step that can fail for
+   one language alone -- the Rednote red-line judge runs on `zh-Hant` only -- so
+   generating it inside the publish loop shipped `ja` and `en` before the
+   verdict on `zh-Hant` was known. A rejected note holds that whole article the
+   same way missing media does.
 
 Do not collapse these steps by deriving v2 readiness from a profile chosen before
 the slot exists. Media readiness must not bias which language/time cell gets
