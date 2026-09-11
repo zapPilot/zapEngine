@@ -200,7 +200,7 @@ export function costRepositoryFake(
     loadLatestProviders: vi.fn().mockResolvedValue([]),
     loadHistory: vi.fn().mockResolvedValue(EMPTY_COST_HISTORY),
     insertTransaction: vi.fn().mockResolvedValue(undefined),
-    upsertManualSnapshot: vi.fn().mockResolvedValue(undefined),
+    upsertRecordedSnapshot: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }

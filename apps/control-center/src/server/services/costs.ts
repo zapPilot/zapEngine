@@ -4,6 +4,7 @@ import {
   fetchDeBankCostSnapshot,
   fetchOpenRouterCostSnapshot,
   resolvePricingRate,
+  UsageNotMeasurableError,
   type CostPricingRate,
   type CostProvider,
   type CostSnapshot,
@@ -173,6 +174,24 @@ async function loadSource(source: CostSource): Promise<CollectedCostProvider> {
           : null,
     };
   } catch (error) {
+    // A provider that answered but can no longer be measured is not an
+    // outage, and `sync.ts` exits non-zero on any `error`. Filing it as one
+    // turns the nightly job permanently red over a vendor decision, which
+    // costs us the only signal that would show a genuinely broken collector.
+    // `unconfigured` is this vocabulary's "collected nothing, nothing to fix
+    // in here", which is exactly the situation. The message is authored by the
+    // collector rather than echoed from the vendor, so it needs no sanitising.
+    if (error instanceof UsageNotMeasurableError) {
+      return {
+        provider: source.provider,
+        label: source.label,
+        status: 'unconfigured',
+        costType: source.costType,
+        snapshot: null,
+        pricingRateId: source.pricingRateId,
+        message: error.message,
+      };
+    }
     return {
       provider: source.provider,
       label: source.label,
@@ -223,8 +242,12 @@ function staticUnconfiguredSource(
 
 function safeProviderError(error: unknown): string {
   if (error instanceof Error) {
-    if (/^Brave Search /u.test(error.message)) return error.message;
-    if (/\(\d{3}\)$/.test(error.message)) return error.message;
+    if (/^Brave Search /u.test(error.message)) {
+      return error.message;
+    }
+    if (/\(\d{3}\)$/.test(error.message)) {
+      return error.message;
+    }
   }
   return 'Provider request failed';
 }

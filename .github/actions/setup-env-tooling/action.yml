@@ -4,19 +4,43 @@ description: >-
   Infisical machine identity. Run `./.github/actions/setup-workspace` first so
   the global npm installs land on the workspace Node version.
 
+inputs:
+  expo:
+    description: Require EXPO_TOKEN, for rails that read or write EAS variables.
+    default: 'true'
+  vercel:
+    description: Install the Vercel CLI and require VERCEL_TOKEN.
+    default: 'true'
+
 runs:
   using: composite
   steps:
-    # Every rail reads from Infisical and writes to (or reads from) Fly, EAS,
-    # and Vercel. A missing credential has to fail here rather than surface as a
+    # Most rails read from Infisical and write to (or read from) Fly, EAS, and
+    # Vercel. A missing credential has to fail here rather than surface as a
     # per-destination NOT_CHECKABLE that reads like a clean audit.
+    #
+    # Both destination inputs default to `true`, so a caller that says nothing
+    # keeps the original contract. They exist for the rails that only resolve
+    # secrets and never reach a destination -- `scripts/env/run.mjs` imports
+    # `sources.mjs`, never `remote.mjs`, and `remote.mjs` is the only reader of
+    # EXPO_TOKEN and VERCEL_TOKEN. Demanding them anyway makes an unrelated
+    # token rotation able to break a job that would never have used it.
     - name: Validate required credentials
       shell: bash
+      env:
+        REQUIRE_EXPO: ${{ inputs.expo }}
+        REQUIRE_VERCEL: ${{ inputs.vercel }}
       run: |
+        required=(FLY_API_TOKEN INFISICAL_UNIVERSAL_AUTH_CLIENT_ID \
+          INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET INFISICAL_PROJECT_ID)
+        if [ "$REQUIRE_EXPO" = 'true' ]; then
+          required+=(EXPO_TOKEN)
+        fi
+        if [ "$REQUIRE_VERCEL" = 'true' ]; then
+          required+=(VERCEL_TOKEN)
+        fi
         missing=0
-        for name in EXPO_TOKEN FLY_API_TOKEN VERCEL_TOKEN \
-          INFISICAL_UNIVERSAL_AUTH_CLIENT_ID INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET \
-          INFISICAL_PROJECT_ID; do
+        for name in "${required[@]}"; do
           if [ -z "${!name}" ]; then
             echo "$name is not configured" >&2
             missing=1
@@ -28,7 +52,14 @@ runs:
 
     - name: Install destination CLIs
       shell: bash
-      run: npm install --global @infisical/cli@0.43.125 vercel@54.21.1
+      env:
+        INSTALL_VERCEL: ${{ inputs.vercel }}
+      run: |
+        packages=(@infisical/cli@0.43.125)
+        if [ "$INSTALL_VERCEL" = 'true' ]; then
+          packages+=(vercel@54.21.1)
+        fi
+        npm install --global "${packages[@]}"
 
     - name: Authenticate Infisical machine identity
       shell: bash

@@ -304,6 +304,60 @@ describe('syncCosts', () => {
     expect(fly?.periodEnd).toBe(NOW.toISOString());
   });
 
+  // A figure the browser session read off the same dashboard is the same kind
+  // of evidence as one an operator typed, so it has to survive a sync the same
+  // way. If the carry-forward only recognised `manual`, every nightly run would
+  // overwrite the scraped bill with a run-rate-only row and Fly would drop back
+  // out of the headline totals.
+  it('carries a scraped Fly figure forward exactly like a typed one', async () => {
+    const upsertSnapshot = createUpsertSpy();
+    const repository = repositoryWithManualFly(upsertSnapshot, {
+      source: 'scraped',
+    });
+
+    const result = await syncCosts({
+      config: flyctlConfig(),
+      repository,
+      flyRun: flyctlOneSharedMachine,
+      now: NOW,
+    });
+
+    expect(persistedSnapshot(upsertSnapshot, 'fly')).toMatchObject({
+      accruedCostUsd: 18.43,
+      source: 'scraped',
+      periodEnd: '2026-08-20T12:00:00.000Z',
+      fetchedAt: '2026-08-22T12:00:00.000Z',
+      // The whole census refreshes, not just the run-rate: this row is the
+      // scraped bill wearing the collector's current view of the fleet.
+      usage: expect.arrayContaining([
+        expect.objectContaining({ key: FLY_RUN_RATE_USAGE_KEY, value: 3.32 }),
+        expect.objectContaining({ key: 'running_machines', value: 1 }),
+      ]),
+    });
+    expect(flySummary(result)).toMatchObject({ status: 'persisted' });
+  });
+
+  it('drops a scraped Fly figure that belongs to the previous month', async () => {
+    const upsertSnapshot = createUpsertSpy();
+    const repository = repositoryWithManualFly(upsertSnapshot, {
+      source: 'scraped',
+      periodStart: '2026-07-01T00:00:00.000Z',
+      periodEnd: '2026-07-19T12:00:00.000Z',
+      fetchedAt: '2026-07-19T12:00:00.000Z',
+    });
+
+    await syncCosts({
+      config: flyctlConfig(),
+      repository,
+      flyRun: flyctlOneSharedMachine,
+      now: NOW,
+    });
+
+    const fly = persistedSnapshot(upsertSnapshot, 'fly');
+    expect(fly?.source).toBe('api');
+    expect(fly?.accruedCostUsd).toBeNull();
+  });
+
   it('reports an error when the run-rate collector fails', async () => {
     const { result, upsertSnapshot } = await syncOverStaleCensus({
       config: flyctlConfig(),

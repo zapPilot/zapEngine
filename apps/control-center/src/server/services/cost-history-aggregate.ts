@@ -49,13 +49,14 @@ export const PROVIDER_LABELS: Record<CostProvider, string> = {
 
 /**
  * Fly publishes no billing or usage API, so the flyctl collector can only
- * price the fleet it happens to catch running and an operator reading the Fly
- * dashboard is the only source of what Fly actually billed. Naming that
- * command in the message is the difference between a dashboard that shows a
- * gap and one that tells you how to close it.
+ * price the fleet it happens to catch running, and reading the Fly dashboard
+ * is the only source of what Fly actually billed. Naming the remedy in the
+ * message is the difference between a dashboard that shows a gap and one that
+ * tells you how to close it -- and the remedy is now something you leave
+ * running rather than something you remember to type.
  */
 export const FLY_RUN_RATE_ONLY_MESSAGE =
-  'Run-rate only — no billed figure recorded this month. Record the Fly dashboard total with: pnpm ops:cost snapshot fly <usd>';
+  'Run-rate only — no billed figure recorded this month. Keep `pnpm ops` running and sign in to Fly once; it reads the dashboard total on its own. To record one by hand: pnpm ops:cost snapshot fly <usd>';
 
 const METERED_UNPRICED_MESSAGE = 'Usage synced; USD cost unknown';
 

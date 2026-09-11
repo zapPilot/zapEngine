@@ -1,8 +1,9 @@
 import type { CostSnapshot, FetchLike } from '@zapengine/cost-observability';
 
 import {
-  FLY_COLLECTOR_USAGE_KEYS,
   type CostProviderResult,
+  FLY_COLLECTOR_USAGE_KEYS,
+  isRecordedBillSource,
 } from '../../shared/types.js';
 import type { ControlCenterConfig } from '../config/env.js';
 import {
@@ -138,9 +139,9 @@ function resolveSnapshot(
  * assembled from up to two sources, and the five outcomes mean different
  * things:
  *
- * - collector + this month's manual figure: the billed estimate is still the
+ * - collector + this month's recorded figure: the billed estimate is still the
  *   truth, so the money and `periodEnd` survive — `periodEnd` records *when*
- *   the operator read the dashboard and is not today. `usage` refreshes so the
+ *   the figure was read off the dashboard and is not today. `usage` refreshes so
  *   fleet census stays current, and `fetchedAt` is restamped to now because
  *   `upsertSnapshot` derives `snapshot_date` from it: keeping the operator's
  *   `fetchedAt` would overwrite the day they read the dashboard instead of
@@ -148,11 +149,11 @@ function resolveSnapshot(
  * - collector alone: a capacity reading with no money attached. Persisted with
  *   both cost fields null, and the message names the remedy, because a null
  *   here silently drops Fly out of the headline KPIs.
- * - manual alone, no collector configured (`FLY_COST_MODE=manual`): carry the
+ * - recorded alone, no collector configured (`FLY_COST_MODE=manual`): carry the
  *   figure forward, but strip the collector's usage keys rather than re-stamp
  *   yesterday's Machine counts with today's `fetchedAt` and pass stale fleet
  *   state off as a current reading.
- * - manual alone because the collector failed: the same carried row, reported
+ * - recorded alone because the collector failed: the same carried row, reported
  *   as an error.
  * - neither: nothing to write.
  *
@@ -161,7 +162,7 @@ function resolveSnapshot(
  * laundering the failure into a green "carried forward" line is how a broken
  * flyctl could sit in the scheduled job indefinitely without turning it red.
  *
- * "Manual" always means the current UTC month. A previous month's figure is
+ * A recorded figure always means the current UTC month. A previous month's is
  * last month's bill; carrying it over a rollover would invent spend.
  */
 function resolveFlySnapshot(
@@ -169,13 +170,13 @@ function resolveFlySnapshot(
   latestProviders: CostProviderResult[],
   now: Date,
 ): ResolvedSnapshot {
-  const manual = currentMonthManualSnapshot(latestProviders, now);
+  const recorded = currentMonthRecordedSnapshot(latestProviders, now);
   const collected = result.snapshot;
 
-  if (collected && manual) {
+  if (collected && recorded) {
     return {
       snapshot: {
-        ...manual,
+        ...recorded,
         usage: collected.usage,
         fetchedAt: now.toISOString(),
       },
@@ -189,13 +190,14 @@ function resolveFlySnapshot(
       status: 'persisted',
       message:
         'Compute run-rate only — no billed figure this month; ' +
-        'record one with ops:cost snapshot fly <usd>',
+        'keep `pnpm ops` running and sign in to Fly once, ' +
+        'or record one with ops:cost snapshot fly <usd>',
     };
   }
-  if (manual) {
+  if (recorded) {
     const carried: CostSnapshot = {
-      ...manual,
-      usage: manual.usage.filter(
+      ...recorded,
+      usage: recorded.usage.filter(
         (item) => !FLY_COLLECTOR_USAGE_KEY_SET.has(item.key),
       ),
       fetchedAt: now.toISOString(),
@@ -205,12 +207,12 @@ function resolveFlySnapshot(
           snapshot: carried,
           status: 'error',
           message:
-            'Fly run-rate collector failed; carried forward manual estimate',
+            'Fly run-rate collector failed; carried forward recorded estimate',
         }
       : {
           snapshot: carried,
           status: 'persisted',
-          message: 'Carried forward current-month manual estimate',
+          message: 'Carried forward current-month recorded estimate',
         };
   }
   return {
@@ -229,7 +231,7 @@ function resolveFlySnapshot(
  * whatever a ledger hands over, a figure read off last month's dashboard is
  * last month's bill.
  */
-function currentMonthManualSnapshot(
+function currentMonthRecordedSnapshot(
   providers: CostProviderResult[],
   now: Date,
 ): CostSnapshot | null {
@@ -238,7 +240,7 @@ function currentMonthManualSnapshot(
   )?.snapshot;
   if (
     !snapshot ||
-    snapshot.source !== 'manual' ||
+    !isRecordedBillSource(snapshot.source) ||
     snapshot.fetchedAt.slice(0, 7) !== now.toISOString().slice(0, 7)
   ) {
     return null;

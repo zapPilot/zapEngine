@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { UsageNotMeasurableError } from '../errors.js';
 import { fetchBraveCostSnapshot } from './brave.js';
 import { fetchDeBankCostSnapshot } from './debank.js';
 import { createFixedMonthlyCostSnapshot } from './fixed.js';
@@ -215,6 +216,55 @@ describe('cost providers', () => {
         fetch: vi.fn().mockResolvedValue(new Response('{}')),
       }),
     ).rejects.toThrow('Brave Search quota headers missing');
+  });
+
+  // Captured from the live account on 2026-09-11, the day this turned the
+  // nightly sync red: the per-second window still works, the monthly one
+  // reports no allowance at all.
+  it('degrades Brave to not-measurable when the monthly window reports a zero limit', async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ results: [] }), {
+        headers: {
+          'x-ratelimit-limit': '50, 0',
+          'x-ratelimit-policy': '50;w=1, 0;w=2592000',
+          'x-ratelimit-remaining': '49, 0',
+          'x-ratelimit-reset': '1, 1703577',
+        },
+      }),
+    );
+
+    await expect(
+      fetchBraveCostSnapshot({
+        apiKey: 'brave-key',
+        unitCostUsd: 0.0005,
+        fetch: fetcher,
+      }),
+    ).rejects.toBeInstanceOf(UsageNotMeasurableError);
+  });
+
+  // The zero-limit degradation must not swallow a header we cannot read at
+  // all: that is a Brave change we are meant to notice and fix.
+  it('still fails Brave collection when the monthly limit is unreadable', async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ results: [] }), {
+        headers: {
+          'x-ratelimit-limit': '50, not-a-number',
+          'x-ratelimit-policy': '50;w=1, 15000;w=2592000',
+          'x-ratelimit-remaining': '49, 14000',
+          'x-ratelimit-reset': '1, 1234567',
+        },
+      }),
+    );
+
+    const failure = fetchBraveCostSnapshot({
+      apiKey: 'brave-key',
+      unitCostUsd: 0.0005,
+      fetch: fetcher,
+    });
+    await expect(failure).rejects.toThrow(
+      'Brave Search monthly quota is not measurable',
+    );
+    await expect(failure).rejects.not.toBeInstanceOf(UsageNotMeasurableError);
   });
 
   it('rejects a Brave response that only exposes a short rate-limit window', async () => {

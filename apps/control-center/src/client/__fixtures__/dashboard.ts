@@ -19,6 +19,7 @@ import {
   type OperationsResponse,
   type OverviewResponse,
   type ProductHealthResponse,
+  type RecordedBillSource,
   type SocialPerformanceResponse,
 } from '../../shared/types.js';
 
@@ -377,11 +378,17 @@ export function flyRunRateProviderFixture(
 }
 
 /**
- * Fly once an operator has read the real invoice off the dashboard: the same
- * cost type as the run-rate row, told apart only by `source`.
+ * Fly once the real invoice has been read off the dashboard: the same cost
+ * type as the run-rate row, told apart only by `source`.
+ *
+ * The two exported shapes below are deliberately identical apart from who did
+ * the reading -- an operator typing (`manual`) or the browser session `pnpm
+ * ops` keeps alive (`scraped`). Holding them to one body is what makes a test
+ * that swaps one for the other prove something about the source alone.
  */
-export function manualFlyProviderFixture(
-  overrides: Partial<CostProviderResult> = {},
+function recordedFlyProviderFixture(
+  source: RecordedBillSource,
+  overrides: Partial<CostProviderResult>,
 ): CostProviderResult {
   return flyProviderFixture(
     {
@@ -389,10 +396,22 @@ export function manualFlyProviderFixture(
       usage: [],
       accruedCostUsd: 14.02,
       projectedCostUsd: 15.5,
-      source: 'manual',
+      source,
     },
     overrides,
   );
+}
+
+export function manualFlyProviderFixture(
+  overrides: Partial<CostProviderResult> = {},
+): CostProviderResult {
+  return recordedFlyProviderFixture('manual', overrides);
+}
+
+export function scrapedFlyProviderFixture(
+  overrides: Partial<CostProviderResult> = {},
+): CostProviderResult {
+  return recordedFlyProviderFixture('scraped', overrides);
 }
 
 /**

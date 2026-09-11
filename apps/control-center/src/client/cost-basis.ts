@@ -1,10 +1,22 @@
 import type { CostSource, CostType } from '@zapengine/cost-observability';
 import { humanizeSlug } from '@zapengine/types/shared';
 
-import type {
-  CostHistoryProviderPoint,
-  CostProviderResult,
+import {
+  type CostHistoryProviderPoint,
+  type CostProviderResult,
+  isRecordedBillSource,
+  type RecordedBillSource,
 } from '../shared/types.js';
+
+/**
+ * Naming the reader is the whole point of this branch, so a new recorded-bill
+ * source must not be able to slip through as a run-rate. Keying the map on
+ * `RecordedBillSource` makes adding one a compile error here.
+ */
+const RECORDED_BILL_LABEL: Record<RecordedBillSource, string> = {
+  manual: 'Estimated · manual',
+  scraped: 'Estimated · dashboard',
+};
 
 /**
  * One vocabulary for "how do we know this number", shared by every surface
@@ -25,7 +37,9 @@ export function costBasisLabel(
     return 'List-price equivalent';
   }
   if (costType === 'estimated') {
-    return source === 'manual' ? 'Estimated · manual' : 'Estimated · run-rate';
+    return source && isRecordedBillSource(source)
+      ? RECORDED_BILL_LABEL[source]
+      : 'Estimated · run-rate';
   }
   return humanizeSlug(costType);
 }
