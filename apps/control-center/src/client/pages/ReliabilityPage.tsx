@@ -78,7 +78,7 @@ export function ReliabilityPage(props: {
 
       <Card
         icon={Bot}
-        subtitle="GitHub Issues is the work-item source of truth; Supabase only owns temporary agent leases"
+        subtitle="GitHub issue labels are the backlog state; there is no separate lease store"
         title="AI Backlog"
         tone="info"
       >
@@ -91,7 +91,7 @@ export function ReliabilityPage(props: {
                 value={integer(backlog.ready)}
               />
               <Stat
-                caption="Currently leased"
+                caption="Marked status:working"
                 label="Working"
                 value={integer(backlog.working)}
               />
@@ -206,13 +206,7 @@ function backlogItems(backlog: AgentBacklogResponse): RankedItem[] {
   return backlog.items.slice(0, 6).map((item) => ({
     id: `backlog-${item.issueNumber}`,
     title: item.title,
-    detail: [
-      item.status,
-      item.area,
-      item.claim ? `claimed by ${item.claim.agentId}` : null,
-    ]
-      .filter(Boolean)
-      .join(' · '),
+    detail: [item.status, item.area].filter(Boolean).join(' · '),
     tone:
       item.status === 'blocked'
         ? 'warning'
