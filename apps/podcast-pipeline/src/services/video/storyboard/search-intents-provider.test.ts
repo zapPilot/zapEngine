@@ -11,6 +11,7 @@ vi.mock('../../llm.js', () => ({
 }));
 
 import { createOpenRouterSearchIntentProvider } from './search-intents.js';
+import { parseVisualSubjectCatalog } from './subject-catalog.js';
 
 const MODEL = 'deepseek/deepseek-v4-flash-0731';
 const REQUEST = {
@@ -96,6 +97,64 @@ describe('OpenRouter search-intent provider', () => {
         ],
       }),
     );
+  });
+
+  it('renames compact scenes to sceneCues through the provider path', async () => {
+    llmMocks.createCompletionWithRetry.mockResolvedValue({
+      model: MODEL,
+      provider: 'Wafer',
+      choices: [
+        {
+          finish_reason: 'stop',
+          message: {
+            content: JSON.stringify({
+              primarySubjectId: 'subject-federal-reserve',
+              subjects: [
+                {
+                  id: 'subject-federal-reserve',
+                  canonicalName: 'Federal Reserve',
+                  type: 'regulator',
+                  aliases: ['Fed'],
+                  storyRole: 'primary',
+                  identityHints: ['central bank'],
+                  negativeHints: [],
+                },
+              ],
+              scenes: [
+                {
+                  sceneId: 'scene-01',
+                  subjectId: 'subject-federal-reserve',
+                  visualCue: 'press conference podium',
+                },
+                {
+                  sceneId: 'bad-id',
+                  subjectId: null,
+                  visualCue: 'press conference podium',
+                },
+                null,
+              ],
+            }),
+          },
+        },
+      ],
+    });
+
+    const provider = createOpenRouterSearchIntentProvider();
+    const materialized = (await provider.catalog(REQUEST)) as Record<
+      string,
+      unknown
+    >;
+
+    expect(materialized).not.toHaveProperty('scenes');
+    expect(materialized['sceneCues']).toHaveLength(3);
+    const parsed = parseVisualSubjectCatalog(materialized);
+    expect(parsed.sceneCues).toEqual([
+      {
+        sceneId: 'scene-01',
+        subjectId: 'subject-federal-reserve',
+        visualCue: 'press conference podium',
+      },
+    ]);
   });
 
   it('retries malformed JSON once and accepts a valid replacement payload', async () => {

@@ -186,13 +186,13 @@ export async function runStoryboardSmokeCli(
         ...(searchScript ? { searchScript } : {}),
       },
       {
-        provider:
-          providers.catalog ?? createOpenRouterSearchIntentProvider(),
+        provider: providers.catalog ?? createOpenRouterSearchIntentProvider(),
       },
     );
     if (!enrichment.subjectCatalog) {
       throw new Error(
-        enrichment.degradedReason ?? 'Catalog smoke produced no subject catalog',
+        enrichment.degradedReason ??
+          'Catalog smoke produced no subject catalog',
       );
     }
     const contentScenes = enrichment.draft.scenes.filter(

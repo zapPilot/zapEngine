@@ -1267,4 +1267,127 @@ describe('planVisualAssets episode image pool', () => {
     expect(message).not.toContain('\n');
     expect(message.length).toBeLessThan(500);
   });
+
+  describe('visual cue trace', () => {
+    it('records the cue and a cue match on a pool selection', async () => {
+      const intent = 'NVIDIA GPU maker';
+      const result = await planVisualAssets({
+        scenes: [
+          {
+            sceneId: 'scene-01',
+            imageSearchIntent: [intent],
+            imageSearchEntities: ['NVIDIA'],
+            visualCue: 'trading desk screens',
+            searchAnchor: 'direct',
+          },
+        ],
+        workingDirectory: WORKING_DIRECTORY,
+        selectionMode: 'resilient',
+        dependencies: {
+          acquireImage: vi.fn(acquireByUrl),
+          searchProviders: braveProviders(
+            searchByQuery({
+              [intent]: [braveResult('cue-hit', 'trading desk screens')],
+            }),
+          ),
+          fingerprintImage: vi.fn(distinctFingerprints()),
+        },
+      });
+
+      expect(selectionFor(result, 'scene-01')).toMatchObject({
+        selection: 'pool',
+        visualCue: 'trading desk screens',
+        cueMatched: true,
+      });
+    });
+
+    it('leaves cueMatched null on article, reuse, and slide selections', async () => {
+      const articleIntent = 'Federal Reserve balance sheet';
+      const articlePlan = await planVisualAssets({
+        scenes: [
+          {
+            sceneId: 'scene-01',
+            imageSearchIntent: [articleIntent],
+            visualCue: 'press conference podium',
+          },
+          {
+            sceneId: 'scene-02',
+            imageSearchIntent: [articleIntent],
+            visualCue: 'press conference podium',
+          },
+        ],
+        articleImages: [
+          articleResult('fed-press-room'),
+          articleResult('fed-desk'),
+        ],
+        workingDirectory: WORKING_DIRECTORY,
+        selectionMode: 'resilient',
+        dependencies: {
+          acquireImage: vi.fn(acquireByUrl),
+          searchProviders: braveProviders(searchByQuery({})),
+          fingerprintImage: vi.fn(distinctFingerprints()),
+        },
+      });
+      expect(selectionFor(articlePlan, 'scene-02')).toMatchObject({
+        selection: 'article',
+        cueMatched: null,
+      });
+
+      const reuseIntent = 'kelp forest survey dive';
+      const reusePlan = await planVisualAssets({
+        scenes: [
+          {
+            sceneId: 'scene-01',
+            imageSearchIntent: [reuseIntent],
+            visualCue: 'diver survey transect',
+          },
+          {
+            sceneId: 'scene-02',
+            imageSearchIntent: [reuseIntent],
+            visualCue: 'diver survey transect',
+          },
+        ],
+        workingDirectory: WORKING_DIRECTORY,
+        selectionMode: 'resilient',
+        dependencies: {
+          acquireImage: vi.fn(acquireByUrl),
+          searchProviders: braveProviders(
+            searchByQuery({
+              [reuseIntent]: [braveResult('reef-only', reuseIntent)],
+            }),
+          ),
+          fingerprintImage: vi.fn(distinctFingerprints()),
+        },
+      });
+      expect(selectionFor(reusePlan, 'scene-02')).toMatchObject({
+        selection: 'reuse',
+        cueMatched: null,
+      });
+
+      const slidePlan = await planVisualAssets({
+        scenes: [
+          {
+            sceneId: 'scene-01',
+            imageSearchIntent: ['unphotographable policy debate'],
+            visualCue: 'empty chamber seats',
+          },
+        ],
+        workingDirectory: WORKING_DIRECTORY,
+        selectionMode: 'resilient',
+        slideFallback: { title: 'What the new policy actually changes' },
+        dependencies: {
+          acquireImage: vi.fn(acquireByUrl),
+          searchProviders: braveProviders(searchByQuery({})),
+          fingerprintImage: vi.fn(distinctFingerprints()),
+          generateSlide: vi.fn((request: GeneratedSlideRequest) =>
+            Promise.resolve(conceptCard(request)),
+          ),
+        },
+      });
+      expect(selectionFor(slidePlan, 'scene-01')).toMatchObject({
+        selection: 'generated-slide',
+        cueMatched: null,
+      });
+    });
+  });
 });

@@ -4,6 +4,8 @@ import type { ImageCandidate } from '../../types.js';
 import {
   createEpisodeImagePool,
   deriveSearchSubjects,
+  type PoolEntry,
+  rankEntriesForScene,
   rankFallbackEntries,
   searchSubject,
   subjectEntries,
@@ -121,6 +123,63 @@ describe('episode image pool subject collision guard', () => {
     const fallback = rankFallbackEntries(pool, tetherScene, [], new Map());
     expect(fallback.map((entry) => entry.candidate.altText)).toEqual([
       'Stablecoin reserves and Bitcoin mining',
+    ]);
+  });
+});
+
+describe('episode image pool visual cue ranking', () => {
+  function poolEntry(
+    id: string,
+    altText: string,
+    providerRank: number,
+  ): PoolEntry {
+    return {
+      candidate: braveResult(id, altText),
+      canonicalUrl: `https://images.example.test/${id}.jpg`,
+      queryKeys: ['nvidia gpu maker'],
+      providerRank,
+      requestSubjectKey: 'nvidia',
+      requestQuery: 'NVIDIA GPU maker',
+      attempted: false,
+    };
+  }
+
+  const cueScene = {
+    sceneId: 'scene-01',
+    imageSearchIntent: ['NVIDIA GPU maker'],
+    imageSearchEntities: ['NVIDIA'],
+    visualCue: 'stock chart plunge',
+    searchAnchor: 'direct' as const,
+    subjectType: 'company',
+  };
+
+  it('lets a cue hit beat a better provider rank through sceneEntryScore', () => {
+    const ranked = rankEntriesForScene(
+      [
+        poolEntry('plain-hall', 'server hall at night', 0),
+        poolEntry('cue-photo', 'stock chart plunge', 5),
+      ],
+      cueScene,
+      [],
+    );
+    expect(ranked.map((entry) => entry.candidate.altText)).toEqual([
+      'stock chart plunge',
+      'server hall at night',
+    ]);
+  });
+
+  it('still ranks an entity mention above a cue hit', () => {
+    const ranked = rankEntriesForScene(
+      [
+        poolEntry('cue-photo', 'stock chart plunge', 0),
+        poolEntry('entity-photo', 'NVIDIA press conference', 5),
+      ],
+      cueScene,
+      [],
+    );
+    expect(ranked.map((entry) => entry.candidate.altText)).toEqual([
+      'NVIDIA press conference',
+      'stock chart plunge',
     ]);
   });
 });

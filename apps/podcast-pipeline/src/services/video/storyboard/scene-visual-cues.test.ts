@@ -7,7 +7,7 @@ import {
   MAX_CUE_BONUS,
   searchCueScore,
 } from '../search-candidate-ranking.js';
-import type { StoryboardDraft } from './draft.js';
+import { type StoryboardDraft, storyboardDraftSchema } from './draft.js';
 import {
   enrichStoryboardSearchIntents,
   groundSceneCues,
@@ -237,5 +237,61 @@ describe('visual cue candidate scoring', () => {
         },
       ),
     ).toBe(true);
+  });
+});
+
+describe('scene cue payload round-trip', () => {
+  it('keeps visualCue and sceneCues through the persisted schemas', () => {
+    const draft = storyboardDraftSchema.parse({
+      scenes: [
+        {
+          sceneId: 'scene-01',
+          startSentenceId: 's0001',
+          endSentenceId: 's0001',
+          imageSearchIntent: ['NVIDIA GPU maker'],
+          visualCue: 'chip launch keynote',
+        },
+      ],
+    });
+    expect(draft.scenes[0]?.visualCue).toBe('chip launch keynote');
+
+    const catalog = parseVisualSubjectCatalog({
+      primarySubjectId: 'subject-nvidia',
+      subjects: [nvidiaSubject()],
+      sceneCues: [
+        {
+          sceneId: 'scene-01',
+          subjectId: 'subject-nvidia',
+          visualCue: 'chip launch keynote',
+        },
+      ],
+    });
+    expect(catalog.sceneCues).toEqual([
+      {
+        sceneId: 'scene-01',
+        subjectId: 'subject-nvidia',
+        visualCue: 'chip launch keynote',
+      },
+    ]);
+  });
+
+  it('still parses stored shapes that predate visual cues', () => {
+    const draft = storyboardDraftSchema.parse({
+      scenes: [
+        {
+          sceneId: 'scene-01',
+          startSentenceId: 's0001',
+          endSentenceId: 's0001',
+          imageSearchIntent: ['NVIDIA GPU maker'],
+        },
+      ],
+    });
+    expect(draft.scenes[0]).not.toHaveProperty('visualCue');
+
+    const catalog = parseVisualSubjectCatalog({
+      primarySubjectId: 'subject-nvidia',
+      subjects: [nvidiaSubject()],
+    });
+    expect(catalog.sceneCues ?? []).toEqual([]);
   });
 });
