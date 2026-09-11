@@ -19,9 +19,15 @@ const OPEN_READY = {
   closed_at: null,
   labels: ['agent-backlog', 'agent:weak', 'risk:low', 'area:control-center'],
 };
-const OPEN_BLOCKED = {
+const OPEN_WORKING = {
   ...OPEN_READY,
   number: 452,
+  title: 'Already in progress',
+  labels: [...OPEN_READY.labels, 'status:working'],
+};
+const OPEN_BLOCKED = {
+  ...OPEN_READY,
+  number: 453,
   title: 'Needs product judgement',
   labels: [...OPEN_READY.labels, 'blocked'],
 };
@@ -30,16 +36,6 @@ const CLOSED_RECENT = {
   number: 450,
   state: 'closed',
   closed_at: '2026-09-10T12:00:00.000Z',
-};
-const CLAIM_OFFSET = {
-  claimId: '11111111-1111-4111-8111-111111111111',
-  issueNumber: 451,
-  agentId: 'weak-1',
-  // Postgres timestamptz serializes with an explicit UTC offset, never the
-  // `Z` suffix GitHub uses -- this is the exact shape that broke getBacklog()
-  // before the offset-aware parser landed (F1).
-  claimedAt: '2026-09-11T02:00:00.123456+00:00',
-  leaseExpiresAt: '2026-09-11T03:00:00.123456+00:00',
 };
 
 function json(value: unknown, status = 200): Response {
@@ -56,12 +52,10 @@ function configured(write = false) {
   });
 }
 
-/** Routes GitHub reads by query shape and RPC calls by name so multi-call
- * flows (open+closed issue fetch, comment-then-label mirror writes) do not
- * depend on invocation order. */
 function githubRouter(config: {
   open?: unknown[];
   closed?: unknown[];
+  issues?: Record<number, unknown>;
   onWrite?: (url: string, init: RequestInit) => Response | undefined;
 }) {
   return vi.fn<typeof fetch>(async (resource, init) => {
@@ -74,6 +68,10 @@ function githubRouter(config: {
       if (parsed.searchParams.get('state') === 'closed') {
         return json(config.closed ?? []);
       }
+      const issue = /\/issues\/(\d+)$/u.exec(parsed.pathname)?.[1];
+      if (issue) {
+        return json(config.issues?.[Number(issue)] ?? OPEN_READY);
+      }
     }
     const written = config.onWrite?.(url, init ?? {});
     return written ?? json({});
@@ -85,7 +83,6 @@ describe('agent backlog', () => {
     const service = createAgentBacklogService({
       config: readControlCenterConfig({}),
       now: () => NOW,
-      store: { rpc: vi.fn() },
       fetchImpl: vi.fn(),
     });
 
@@ -98,36 +95,32 @@ describe('agent backlog', () => {
     });
   });
 
-  it('joins GitHub issue truth with temporary claim leases across offset timestamps', async () => {
+  it('derives ready, working and blocked directly from GitHub labels', async () => {
     const fetchImpl = githubRouter({
-      open: [OPEN_READY, OPEN_BLOCKED],
+      open: [OPEN_READY, OPEN_WORKING, OPEN_BLOCKED],
       closed: [CLOSED_RECENT],
     });
-    const store = { rpc: vi.fn().mockResolvedValue([CLAIM_OFFSET]) };
     const service = createAgentBacklogService({
       config: configured(),
       now: () => NOW,
       fetchImpl,
-      store,
     });
 
     const result = await service.getBacklog();
 
     expect(result).toMatchObject({
       status: 'ok',
-      ready: 0,
+      ready: 1,
       working: 1,
       blocked: 1,
       completed7d: 1,
       truncated: false,
     });
-    expect(result.items[0]).toMatchObject({
-      issueNumber: 451,
-      area: 'control-center',
-      status: 'working',
-      claim: CLAIM_OFFSET,
-    });
-    expect(store.rpc).toHaveBeenCalledWith('ops_agent_backlog_claims');
+    expect(result.items.map((item) => [item.issueNumber, item.status])).toEqual([
+      [451, 'ready'],
+      [452, 'working'],
+      [453, 'blocked'],
+    ]);
 
     const closedCall = fetchImpl.mock.calls.find(
       (call) =>
@@ -144,12 +137,10 @@ describe('agent backlog', () => {
       ...OPEN_READY,
       number: 1000 + index,
     }));
-    const fetchImpl = githubRouter({ open: fullPage, closed: [] });
     const service = createAgentBacklogService({
       config: configured(),
       now: () => NOW,
-      fetchImpl,
-      store: { rpc: vi.fn().mockResolvedValue([]) },
+      fetchImpl: githubRouter({ open: fullPage, closed: [] }),
     });
 
     const result = await service.getBacklog();
@@ -163,7 +154,6 @@ describe('agent backlog', () => {
       config: configured(false),
       now: () => NOW,
       fetchImpl: vi.fn(),
-      store: { rpc: vi.fn() },
     });
 
     await expect(
@@ -182,7 +172,6 @@ describe('agent backlog', () => {
       config: configured(true),
       now: () => NOW,
       fetchImpl,
-      store: { rpc: vi.fn() },
     });
 
     const created = await service.createBacklogItem({
@@ -211,73 +200,66 @@ describe('agent backlog', () => {
     expect(body.body).toContain('## Acceptance criteria');
   });
 
-  it('orders claim candidates by effort before creation order', async () => {
-    const biggish = {
+  it('claims the oldest ready issue by adding status:working', async () => {
+    const older = {
       ...OPEN_READY,
-      number: 501,
+      number: 440,
       created_at: '2026-09-01T00:00:00.000Z',
-      labels: ['agent-backlog', 'effort:m'],
     };
-    const unranked = {
-      ...OPEN_READY,
-      number: 502,
-      created_at: '2026-09-02T00:00:00.000Z',
-      labels: ['agent-backlog'],
-    };
-    const tiny = {
-      ...OPEN_READY,
-      number: 503,
-      created_at: '2026-09-03T00:00:00.000Z',
-      labels: ['agent-backlog', 'effort:xs'],
-    };
+    const writes: Array<{ url: string; body: unknown }> = [];
     const fetchImpl = githubRouter({
-      open: [biggish, unranked, tiny],
-      closed: [],
-    });
-    const store = {
-      rpc: vi
-        .fn()
-        .mockResolvedValueOnce([]) // ops_agent_backlog_claims (no active leases)
-        .mockResolvedValueOnce({ claim: null, reused: false, expired: [] }), // ops_claim_agent_backlog
-    };
-    const service = createAgentBacklogService({
-      config: configured(true),
-      now: () => NOW,
-      fetchImpl,
-      store,
-    });
-
-    await service.claimBacklog({ agentId: 'weak-1' });
-
-    expect(store.rpc).toHaveBeenLastCalledWith('ops_claim_agent_backlog', {
-      p_issue_numbers: [503, 501, 502],
-      p_agent_id: 'weak-1',
-      p_lease_seconds: 3600,
-    });
-  });
-
-  it('atomically claims the first ready issue and best-effort mirrors it to GitHub', async () => {
-    const writes: Array<{ url: string; method?: string }> = [];
-    const fetchImpl = githubRouter({
-      open: [OPEN_READY],
+      open: [OPEN_READY, older, OPEN_WORKING, OPEN_BLOCKED],
       closed: [],
       onWrite: (url, init) => {
-        writes.push({ url, method: init.method });
-        return json([{ name: 'status:working' }]);
+        writes.push({ url, body: init.body ? JSON.parse(String(init.body)) : null });
+        if (url.endsWith('/labels')) {
+          return json([{ name: 'status:working' }]);
+        }
+        return json({});
       },
     });
-    const store = {
-      rpc: vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce({
-        claim: CLAIM_OFFSET,
-        reused: false,
-        expired: [],
-      }),
-    };
     const service = createAgentBacklogService({
       config: configured(true),
       now: () => NOW,
       fetchImpl,
-      store,
+    });
+
+    const result = await service.claimBacklog({ agentId: 'weak-1' });
+
+    expect(result).toMatchObject({
+      claimed: true,
+      item: { issueNumber: 440, status: 'working' },
+    });
+    expect(
+      writes.find((write) => write.url.endsWith('/issues/440/labels'))?.body,
+    ).toEqual({ labels: ['status:working'] });
+    expect(writes.some((write) => write.url.includes('/issues/440/comments'))).toBe(
+      true,
+    );
+  });
+
+  it('can restrict claims to an area without effort ranking', async () => {
+    const otherArea = {
+      ...OPEN_READY,
+      number: 430,
+      created_at: '2026-09-01T00:00:00.000Z',
+      labels: ['agent-backlog', 'agent:weak', 'risk:low', 'area:analytics'],
+    };
+    const writes: string[] = [];
+    const fetchImpl = githubRouter({
+      open: [otherArea, OPEN_READY],
+      closed: [],
+      onWrite: (url) => {
+        writes.push(url);
+        return url.endsWith('/labels')
+          ? json([{ name: 'status:working' }])
+          : json({});
+      },
+    });
+    const service = createAgentBacklogService({
+      config: configured(true),
+      now: () => NOW,
+      fetchImpl,
     });
 
     const result = await service.claimBacklog({
@@ -285,274 +267,105 @@ describe('agent backlog', () => {
       areas: ['control-center'],
     });
 
-    expect(result).toMatchObject({
-      claimed: true,
-      reused: false,
-      item: { issueNumber: 451, status: 'working', claim: CLAIM_OFFSET },
-      mirror: 'ok',
-    });
-    expect(store.rpc).toHaveBeenLastCalledWith('ops_claim_agent_backlog', {
-      p_issue_numbers: [451],
-      p_agent_id: 'weak-1',
-      p_lease_seconds: 3600,
-    });
-    expect(writes.some((call) => call.url.includes('/comments'))).toBe(true);
-    expect(writes.some((call) => call.url.endsWith('/issues/451/labels'))).toBe(
-      true,
-    );
+    expect(result.item?.issueNumber).toBe(451);
+    expect(writes.some((url) => url.includes('/issues/451/'))).toBe(true);
+    expect(writes.some((url) => url.includes('/issues/430/'))).toBe(false);
   });
 
-  it('passes reused claims through without treating them as new work', async () => {
-    const fetchImpl = githubRouter({ open: [OPEN_READY], closed: [] });
-    const store = {
-      rpc: vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce({
-        claim: CLAIM_OFFSET,
-        reused: true,
-        expired: [],
-      }),
-    };
-    const service = createAgentBacklogService({
-      config: configured(true),
-      now: () => NOW,
-      fetchImpl,
-      store,
-    });
-
-    const result = await service.claimBacklog({ agentId: 'weak-1' });
-
-    expect(result).toMatchObject({ claimed: true, reused: true });
-  });
-
-  it('never fails a committed claim when both GitHub mirror writes fail', async () => {
+  it('does not claim when the authoritative working-label write fails', async () => {
     const fetchImpl = githubRouter({
       open: [OPEN_READY],
       closed: [],
-      onWrite: () => {
-        throw new Error('GitHub is unreachable');
-      },
-    });
-    const store = {
-      rpc: vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce({
-        claim: CLAIM_OFFSET,
-        reused: false,
-        expired: [],
-      }),
-    };
-    const service = createAgentBacklogService({
-      config: configured(true),
-      now: () => NOW,
-      fetchImpl,
-      store,
-    });
-
-    const result = await service.claimBacklog({ agentId: 'weak-1' });
-
-    expect(result.claimed).toBe(true);
-    expect(result.mirror).toBe('failed');
-  });
-
-  it('best-effort removes the working label of every lease it swept as expired', async () => {
-    const deletes: string[] = [];
-    const fetchImpl = githubRouter({
-      open: [OPEN_READY],
-      closed: [],
-      onWrite: (url, init) => {
-        if (init.method === 'DELETE') {
-          deletes.push(url);
+      onWrite: (url) => {
+        if (url.endsWith('/labels')) {
+          return json({ message: 'boom' }, 500);
         }
-        return json([]);
+        return json({});
       },
     });
-    const store = {
-      rpc: vi
-        .fn()
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce({
-          claim: CLAIM_OFFSET,
-          reused: false,
-          expired: [
-            {
-              issueNumber: 460,
-              claimId: '22222222-2222-4222-8222-222222222222',
-              agentId: 'stale-agent',
-            },
-          ],
-        }),
-    };
     const service = createAgentBacklogService({
       config: configured(true),
       now: () => NOW,
       fetchImpl,
-      store,
     });
 
-    await service.claimBacklog({ agentId: 'weak-1' });
-
-    expect(
-      deletes.some((url) =>
-        url.includes('/issues/460/labels/status%3Aworking'),
-      ),
-    ).toBe(true);
+    await expect(service.claimBacklog({ agentId: 'weak-1' })).rejects.toThrow();
   });
 
-  it('verifies ownership through the RPC before writing the blocked label', async () => {
-    const calls: string[] = [];
+  it('releases only an agent-backlog issue that is currently working', async () => {
+    const writes: string[] = [];
     const fetchImpl = githubRouter({
-      onWrite: () => {
-        calls.push('github');
-        return json([{ name: 'blocked' }]);
+      issues: { 452: OPEN_WORKING },
+      onWrite: (url) => {
+        writes.push(url);
+        return json({});
       },
     });
-    const store = {
-      rpc: vi.fn().mockImplementation(async (name: string) => {
-        calls.push(name);
-        return {
-          released: true,
-          alreadyReleased: false,
-          issueNumber: 451,
-          outcome: 'blocked',
-        };
-      }),
-    };
     const service = createAgentBacklogService({
       config: configured(true),
       now: () => NOW,
       fetchImpl,
-      store,
-    });
-
-    const result = await service.releaseClaim({
-      claimId: CLAIM_OFFSET.claimId,
-      issueNumber: 451,
-      agentId: 'weak-1',
-      outcome: 'blocked',
-      reason: 'Needs an architecture decision from a stronger agent.',
-    });
-
-    expect(result).toEqual({
-      released: true,
-      alreadyReleased: false,
-      mirror: 'ok',
-    });
-    expect(store.rpc).toHaveBeenCalledWith('ops_release_agent_backlog', {
-      p_claim_id: CLAIM_OFFSET.claimId,
-      p_agent_id: 'weak-1',
-      p_issue_number: 451,
-      p_outcome: 'blocked',
-      p_reason: 'Needs an architecture decision from a stronger agent.',
-    });
-    // The RPC (ownership verification + commit) must resolve before any
-    // GitHub write is attempted, so an unrelated caller can never reach the
-    // label endpoint by supplying a claim it does not own.
-    expect(calls[0]).toBe('ops_release_agent_backlog');
-    expect(calls.slice(1)).toContain('github');
-  });
-
-  it('rejects a release whose issueNumber does not match the leased claim', async () => {
-    const store = {
-      rpc: vi.fn().mockResolvedValue({
-        released: false,
-        alreadyReleased: false,
-        issueNumber: 999,
-      }),
-    };
-    const service = createAgentBacklogService({
-      config: configured(true),
-      now: () => NOW,
-      fetchImpl: vi.fn(),
-      store,
     });
 
     await expect(
       service.releaseClaim({
-        claimId: CLAIM_OFFSET.claimId,
-        issueNumber: 999,
+        issueNumber: 452,
         agentId: 'weak-1',
         outcome: 'released',
-        reason: 'Attempting to release an unowned issue.',
+        reason: 'Returning this bounded task to the queue.',
       }),
-    ).rejects.toThrow('no longer active');
+    ).resolves.toEqual({ released: true });
+    expect(
+      writes.some((url) => url.includes('/labels/status%3Aworking')),
+    ).toBe(true);
   });
 
-  it('treats a repeated release as an idempotent no-op, including on GitHub', async () => {
-    const fetchImpl = vi.fn();
-    const store = {
-      rpc: vi.fn().mockResolvedValue({
-        released: true,
-        alreadyReleased: true,
-        issueNumber: 451,
-        outcome: 'released',
-      }),
-    };
+  it('marks blocked before removing status:working', async () => {
+    const writes: Array<{ url: string; method?: string }> = [];
+    const fetchImpl = githubRouter({
+      issues: { 452: OPEN_WORKING },
+      onWrite: (url, init) => {
+        writes.push({ url, method: init.method });
+        return url.endsWith('/labels')
+          ? json([{ name: 'blocked' }, { name: 'status:working' }])
+          : json({});
+      },
+    });
     const service = createAgentBacklogService({
       config: configured(true),
       now: () => NOW,
       fetchImpl,
-      store,
     });
 
-    const result = await service.releaseClaim({
-      claimId: CLAIM_OFFSET.claimId,
-      issueNumber: 451,
+    await service.releaseClaim({
+      issueNumber: 452,
       agentId: 'weak-1',
-      outcome: 'released',
-      reason: 'Retrying after a dropped response.',
+      outcome: 'blocked',
+      reason: 'Needs a stronger architecture decision.',
     });
 
-    expect(result).toEqual({
-      released: true,
-      alreadyReleased: true,
-      mirror: 'skipped',
-    });
-    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(writes[0]?.url).toMatch(/\/issues\/452\/labels$/u);
+    expect(writes[1]).toMatchObject({ method: 'DELETE' });
   });
 
-  it('renews a live lease without touching GitHub', async () => {
-    const fetchImpl = vi.fn();
-    const store = {
-      rpc: vi.fn().mockResolvedValue({
-        renewed: true,
-        leaseExpiresAt: '2026-09-11T05:00:00.123456+00:00',
-      }),
+  it('refuses release against an unrelated or ready issue', async () => {
+    const unrelated = {
+      ...OPEN_WORKING,
+      labels: ['bug', 'status:working'],
     };
     const service = createAgentBacklogService({
       config: configured(true),
       now: () => NOW,
-      fetchImpl,
-      store,
-    });
-
-    const result = await service.renewClaim({
-      claimId: CLAIM_OFFSET.claimId,
-      agentId: 'weak-1',
-      leaseSeconds: 7200,
-    });
-
-    expect(result).toEqual({
-      renewed: true,
-      leaseExpiresAt: '2026-09-11T05:00:00.123456+00:00',
-    });
-    expect(store.rpc).toHaveBeenCalledWith('ops_renew_agent_backlog', {
-      p_claim_id: CLAIM_OFFSET.claimId,
-      p_agent_id: 'weak-1',
-      p_lease_seconds: 7200,
-    });
-    expect(fetchImpl).not.toHaveBeenCalled();
-  });
-
-  it('gates renew on write-enable like every other backlog mutation', async () => {
-    const service = createAgentBacklogService({
-      config: configured(false),
-      now: () => NOW,
-      fetchImpl: vi.fn(),
-      store: { rpc: vi.fn() },
+      fetchImpl: githubRouter({ issues: { 999: unrelated } }),
     });
 
     await expect(
-      service.renewClaim({
-        claimId: CLAIM_OFFSET.claimId,
+      service.releaseClaim({
+        issueNumber: 999,
         agentId: 'weak-1',
+        outcome: 'released',
+        reason: 'This must not mutate arbitrary issues.',
       }),
-    ).rejects.toThrow('writes are disabled');
+    ).rejects.toThrow('not part of the agent backlog');
   });
 });
