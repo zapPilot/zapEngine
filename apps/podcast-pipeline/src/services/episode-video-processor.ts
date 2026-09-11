@@ -4,8 +4,12 @@ import { join } from 'node:path';
 
 import { combineAbortSignalWithTimeout } from '../lib/abort.js';
 import { runWithDeadline } from '../lib/deadline.js';
+import { errorMessage } from '../lib/errorMessage.js';
 import type { EpisodeRenderMetrics } from './ops-ledger.js';
-import { uploadVideoArtifactsToR2 } from './storage.js';
+import {
+  uploadEpisodeVisualCheckpointImageToR2,
+  uploadVideoArtifactsToR2,
+} from './storage.js';
 import { downloadNarrationAudio } from './video/audio-analysis.js';
 import {
   analyzeEpisodeAudio,
@@ -49,6 +53,7 @@ interface EpisodeVideoProcessorDependencies {
   analyzeAudio: typeof analyzeEpisodeAudio;
   createManifest: typeof createEpisodeVideoManifest;
   prepareCover: typeof preparePanewsVideoCover;
+  uploadCover: typeof uploadEpisodeVisualCheckpointImageToR2;
   render: typeof renderSlideVideo;
   upload: typeof uploadVideoArtifactsToR2;
   makeTemporaryDirectory: (prefix: string) => Promise<string>;
@@ -64,6 +69,7 @@ const defaultDependencies: EpisodeVideoProcessorDependencies = {
   analyzeAudio: analyzeEpisodeAudio,
   createManifest: createEpisodeVideoManifest,
   prepareCover: preparePanewsVideoCover,
+  uploadCover: uploadEpisodeVisualCheckpointImageToR2,
   render: renderSlideVideo,
   upload: uploadVideoArtifactsToR2,
   makeTemporaryDirectory: mkdtemp,
@@ -158,23 +164,51 @@ export function createEpisodeVideoProcessor(
         workingDirectory: outputDirectory,
         signal: context.signal,
       });
+      let coverThumbnailUrl: string | null = null;
+      let coverMetadata = preparedCover.metadata;
+      if (preparedCover.thumbnailPath && preparedCover.metadata.sha256) {
+        try {
+          coverThumbnailUrl = await dependencies.uploadCover({
+            episodeId: source.episodeId,
+            visualVersion: source.visualVersion,
+            sourceHash: source.visualHash,
+            assetId: `panews-cover-${preparedCover.metadata.sha256}`,
+            path: preparedCover.thumbnailPath,
+            contentType: 'image/png',
+            signal: context.signal,
+          });
+          coverMetadata = {
+            ...coverMetadata,
+            storedUrl: coverThumbnailUrl,
+          };
+        } catch (error) {
+          context.signal.throwIfAborted();
+          coverMetadata = {
+            ...coverMetadata,
+            status: 'fallback',
+            storedUrl: null,
+            fallbackReason: `cover-cache: ${errorMessage(error)}`.slice(0, 400),
+          };
+        }
+      }
       logVideoWorkerEvent(dependencies.logger, 'video:cover', {
         run: context.runId,
         episode: source.episodeId,
         language: source.languageCode,
-        strategy: preparedCover.metadata.strategy,
-        status: preparedCover.metadata.status,
-        ...(preparedCover.metadata.sourceImageUrl
-          ? { source: preparedCover.metadata.sourceImageUrl }
+        strategy: coverMetadata.strategy,
+        status: coverMetadata.status,
+        ...(coverMetadata.sourceImageUrl
+          ? { source: coverMetadata.sourceImageUrl }
           : {}),
-        ...(preparedCover.metadata.fallbackReason
-          ? { reason: preparedCover.metadata.fallbackReason }
+        ...(coverMetadata.storedUrl ? { stored: coverMetadata.storedUrl } : {}),
+        ...(coverMetadata.fallbackReason
+          ? { reason: coverMetadata.fallbackReason }
           : {}),
       });
       const persistedManifest = JSON.parse(
         generated.manifestJson,
       ) as Record<string, unknown>;
-      persistedManifest['coverPhoto'] = preparedCover.metadata;
+      persistedManifest['coverPhoto'] = coverMetadata;
       await context.saveManifest({
         manifest: persistedManifest,
         manifestHash: generated.manifestHash,
@@ -277,7 +311,7 @@ export function createEpisodeVideoProcessor(
         rendererVersion: generated.provenance.rendererVersion,
         manifestHash: generated.manifestHash,
         videoPath: rendered.previewPath,
-        thumbnailPath: preparedCover.thumbnailPath ?? rendered.thumbnailPath,
+        thumbnailPath: rendered.thumbnailPath,
         manifestPath: rendered.storyboardPath,
         captionsPath: rendered.subtitlePath,
         slidePaths: rendered.slideOutputPaths,
@@ -285,7 +319,7 @@ export function createEpisodeVideoProcessor(
       });
       return {
         mp4Url: uploaded.mp4Url,
-        thumbnailUrl: uploaded.thumbnailUrl,
+        thumbnailUrl: coverThumbnailUrl ?? uploaded.thumbnailUrl,
         manifestUrl: uploaded.manifestUrl,
         captionsAssUrl: uploaded.captionsAssUrl,
         r2Prefix: uploaded.r2Prefix,
@@ -390,7 +424,7 @@ function bytesToMb(bytes: number): number {
 /**
  * Derives the render's own report from the raw measurements. Built once and
  * used twice — logged as `video:render-metrics` and written to the cost ledger
- * — so the line in `fly logs` and the row in ops.pipeline_stage_runs can
+ * — so the line in `fly logs` and the row in `ops.pipeline_stage_runs` can
  * never disagree about what a render cost.
  */
 function buildRenderMetrics(fields: {
