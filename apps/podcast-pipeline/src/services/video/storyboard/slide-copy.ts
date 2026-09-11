@@ -8,8 +8,8 @@ import {
 } from '../../llm.js';
 import {
   containsEntityPhrase,
+  englishWords,
   isEnglishOnly,
-  WORD_PATTERN,
 } from './english-text.js';
 
 export interface ConceptCardCopy {
@@ -210,7 +210,7 @@ function validLine(
 }
 
 function words(value: string): string[] {
-  return value.match(WORD_PATTERN) ?? [];
+  return englishWords(value);
 }
 
 function compactWords(
