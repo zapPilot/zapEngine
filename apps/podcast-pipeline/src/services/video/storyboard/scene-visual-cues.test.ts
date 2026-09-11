@@ -10,6 +10,7 @@ import {
 import type { StoryboardDraft } from './draft.js';
 import {
   enrichStoryboardSearchIntents,
+  groundSceneCues,
   type SearchIntentProvider,
 } from './search-intents.js';
 import { parseVisualSubjectCatalog } from './subject-catalog.js';
@@ -129,32 +130,59 @@ describe('scene visual cues', () => {
         (cue) => cue.sceneId === 'scene-04',
       )?.subjectId,
     ).toBeNull();
-    expect(result.subjectCatalog?.sceneCues?.map((cue) => cue.sceneId)).not.toContain(
-      'scene-05',
-    );
-    expect(result.subjectCatalog?.sceneCues?.map((cue) => cue.sceneId)).not.toContain(
-      'scene-06',
-    );
-    expect(result.subjectCatalog?.sceneCues?.map((cue) => cue.sceneId)).not.toContain(
-      'scene-99',
-    );
+    expect(
+      result.subjectCatalog?.sceneCues?.map((cue) => cue.sceneId),
+    ).not.toContain('scene-05');
+    expect(
+      result.subjectCatalog?.sceneCues?.map((cue) => cue.sceneId),
+    ).not.toContain('scene-06');
+    expect(
+      result.subjectCatalog?.sceneCues?.map((cue) => cue.sceneId),
+    ).not.toContain('scene-99');
   });
 
   it.each([
     ['non-English', '晶片 發表'],
     ['six words', 'chip launch keynote stage audience lights'],
-  ])('drops %s cues without degrading the catalog', async (_label, visualCue) => {
-    const result = await enrichStoryboardSearchIntents(
-      { draft: draft(), title: 'NVIDIA 新晶片', script: SCRIPT },
-      {
-        provider: provider([
-          { sceneId: 'scene-02', subjectId: 'subject-nvidia', visualCue },
-        ]),
-      },
-    );
-    expect(result.degradedReason).toBeUndefined();
-    expect(result.sceneAssignments.length).toBeGreaterThan(1);
-    expect(result.subjectCatalog?.sceneCues).toEqual([]);
+  ])(
+    'drops %s cues without degrading the catalog',
+    async (_label, visualCue) => {
+      const result = await enrichStoryboardSearchIntents(
+        { draft: draft(), title: 'NVIDIA 新晶片', script: SCRIPT },
+        {
+          provider: provider([
+            { sceneId: 'scene-02', subjectId: 'subject-nvidia', visualCue },
+          ]),
+        },
+      );
+      expect(result.degradedReason).toBeUndefined();
+      expect(result.sceneAssignments.length).toBeGreaterThan(1);
+      expect(result.subjectCatalog?.sceneCues).toEqual([]);
+    },
+  );
+
+  it('takes only the first cue row for a scene even when that row is rejected', () => {
+    const catalog = parseVisualSubjectCatalog({
+      primarySubjectId: 'subject-nvidia',
+      subjects: [nvidiaSubject()],
+      sceneCues: [
+        {
+          sceneId: 'scene-02',
+          subjectId: 'subject-nvidia',
+          visualCue: '2024 earnings call',
+        },
+        {
+          sceneId: 'scene-02',
+          subjectId: 'subject-nvidia',
+          visualCue: 'stock chart plunge',
+        },
+      ],
+    });
+    const grounded = groundSceneCues(catalog, {
+      title: 'NVIDIA 新晶片',
+      scenes: [{ sceneId: 'scene-02', text: '市場隨後劇烈波動。' }],
+    });
+    expect(grounded.sceneCues).toEqual([]);
   });
 
   it('repairs the compact provider scenes shape row-by-row and caps it at 64', () => {
@@ -182,9 +210,9 @@ describe('scene visual cues', () => {
 
 describe('visual cue candidate scoring', () => {
   it('scores whole cue tokens and caps the bonus', () => {
-    expect(searchCueScore(candidate('NVIDIA stock chart plunge'), 'stock chart')).toBe(
-      CUE_TOKEN_BONUS * 2,
-    );
+    expect(
+      searchCueScore(candidate('NVIDIA stock chart plunge'), 'stock chart'),
+    ).toBe(CUE_TOKEN_BONUS * 2);
     expect(
       searchCueScore(
         candidate('stock chart plunge market selloff'),
