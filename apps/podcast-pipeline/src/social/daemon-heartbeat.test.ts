@@ -115,4 +115,46 @@ describe('recordSocialDaemonTick', () => {
 
     expect(mocks.capturePipelineException).toHaveBeenCalledOnce();
   });
+
+  it('stays a log line for transient network blips', async () => {
+    mocks.eq.mockResolvedValue({
+      error: new Error('TypeError: fetch failed'),
+    });
+    const consoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+
+    try {
+      await expect(
+        recordSocialDaemonTick({ phase: 'start', now: NOW, owner: OWNER }),
+      ).resolves.toBeUndefined();
+      expect(consoleError).toHaveBeenCalledOnce();
+      expect(mocks.capturePipelineException).not.toHaveBeenCalled();
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
+  it('stays a log line when the client throws a transient error', async () => {
+    mocks.from.mockImplementation(() => {
+      throw Object.assign(new TypeError('fetch failed'), {
+        cause: new Error(
+          'ConnectTimeoutError: Connect Timeout Error (UND_ERR_CONNECT_TIMEOUT)',
+        ),
+      });
+    });
+    const consoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+
+    try {
+      await expect(
+        recordSocialDaemonTick({ phase: 'start', now: NOW, owner: OWNER }),
+      ).resolves.toBeUndefined();
+    } finally {
+      consoleError.mockRestore();
+    }
+
+    expect(mocks.capturePipelineException).not.toHaveBeenCalled();
+  });
 });
