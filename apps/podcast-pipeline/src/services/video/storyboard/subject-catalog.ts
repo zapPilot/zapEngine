@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { MAX_VISUAL_CUE_CHARACTERS } from './draft.js';
+
 export const VISUAL_SUBJECT_TYPES = [
   'company',
   'person',
@@ -31,7 +33,6 @@ export const VISUAL_SELECTION_REASONS = [
 const subjectIdSchema = z.string().regex(/^subject-[a-z0-9]+(?:-[a-z0-9]+)*$/);
 const sceneIdSchema = z.string().regex(/^scene-\d{2}$/);
 const shortTextSchema = z.string().min(2).max(80);
-const MAX_VISUAL_CUE_CHARACTERS = 48;
 const SUBJECT_LIMITS = {
   aliases: 6,
   evidenceSceneIds: 64,
@@ -113,7 +114,10 @@ export const visualSubjectCatalogSchema = z
     primarySubjectId: subjectIdSchema,
     subjects: z.array(visualSubjectSchema).min(1).max(24),
     droppedSubjects: z.array(visualSubjectDropSchema).max(24).optional(),
-    sceneCues: z.array(visualSceneCueSchema).max(SUBJECT_LIMITS.sceneCues).optional(),
+    sceneCues: z
+      .array(visualSceneCueSchema)
+      .max(SUBJECT_LIMITS.sceneCues)
+      .optional(),
   })
   .strict()
   .superRefine((catalog, context) => {
@@ -304,27 +308,32 @@ export function normalizeVisualSubjectCatalogInput(input: unknown): unknown {
 
 function repairedSceneCues(value: unknown): unknown[] | undefined {
   if (!Array.isArray(value)) return undefined;
-  return value
-    .slice(0, SUBJECT_LIMITS.sceneCues)
-    .flatMap((entry) => {
-      if (!isRecord(entry)) return [];
-      const sceneId = entry['sceneId'];
-      const cue = entry['visualCue'];
-      if (typeof sceneId !== 'string' || !/^scene-\d{2}$/u.test(sceneId)) {
-        return [];
-      }
-      if (typeof cue !== 'string') return [];
-      const visualCue = cue.trim().replace(/\s+/gu, ' ');
-      if (
-        visualCue.length < 2 ||
-        visualCue.length > MAX_VISUAL_CUE_CHARACTERS
-      ) {
-        return [];
-      }
-      const rawSubjectId = entry['subjectId'];
-      const subjectId = typeof rawSubjectId === 'string' ? rawSubjectId : null;
-      return [{ sceneId, subjectId, visualCue }];
-    });
+  const repaired: unknown[] = [];
+  for (const entry of value) {
+    if (repaired.length >= SUBJECT_LIMITS.sceneCues) break;
+    if (!isRecord(entry)) continue;
+    const sceneId = entry['sceneId'];
+    const cue = entry['visualCue'];
+    if (typeof sceneId !== 'string' || !/^scene-\d{2}$/u.test(sceneId)) {
+      continue;
+    }
+    if (typeof cue !== 'string') continue;
+    const visualCue = cue.trim().replace(/\s+/gu, ' ');
+    if (
+      visualCue.length < 2 ||
+      visualCue.length > MAX_VISUAL_CUE_CHARACTERS
+    ) {
+      continue;
+    }
+    const rawSubjectId = entry['subjectId'];
+    const subjectId =
+      typeof rawSubjectId === 'string' &&
+      subjectIdSchema.safeParse(rawSubjectId).success
+        ? rawSubjectId
+        : null;
+    repaired.push({ sceneId, subjectId, visualCue });
+  }
+  return repaired;
 }
 
 export function visualSubjectById(
