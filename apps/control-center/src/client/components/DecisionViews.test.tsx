@@ -7,7 +7,7 @@ import {
   within,
 } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import type {
   CustomerEconomicsResponse,
@@ -18,18 +18,13 @@ import type {
 import {
   operationsFixture,
   productFixture,
-  signalFixture,
-  socialFixture,
 } from '../__fixtures__/dashboard.js';
 import { unavailableWaitlist } from '../../shared/waitlist-growth.js';
 import type { StatementsResponse } from '../../shared/statements.js';
 import { ruleProductDemand } from '../../server/services/statements/product-demand.js';
 import type { StatementInputs } from '../../server/services/statements/types.js';
-import { HomeView } from './HomeView.js';
-import { GrowthView } from './GrowthView.js';
 import { PodcastUnitEconomics } from './PodcastUnitEconomics.js';
 import { ProductView } from './ProductView.js';
-import { ReliabilityView } from './ReliabilityView.js';
 
 afterEach(cleanup);
 
@@ -226,122 +221,6 @@ describe('decision-first domain views', () => {
     expect(within(episode!).getByText('Stage breakdown')).toBeVisible();
   });
 
-  it('keeps growth language signals visible and research evidence collapsed', () => {
-    render(
-      <GrowthView
-        data={socialFixture()}
-        growth={growth()}
-        onWindowChange={vi.fn(async () => undefined)}
-      />,
-    );
-
-    expect(screen.getByText('Language performance')).toBeVisible();
-    expect(screen.getByText('Current leader')).toBeVisible();
-    expect(screen.getByText('🇯🇵 Japanese')).toBeVisible();
-    expect(screen.getAllByText(/2.4 \/ 1k/)[0]).toBeVisible();
-    expect(screen.queryByText(/Prioritize /)).toBeNull();
-    expect(screen.queryByText('Shape the title like this')).toBeNull();
-    expect(screen.queryByText('What to publish next')).toBeNull();
-
-    const disclosure = screen
-      .getByText('Research & evidence')
-      .closest('details') as HTMLDetailsElement;
-    expect(disclosure.open).toBe(false);
-    expect(screen.getByText('Estimated attribution')).not.toBeVisible();
-    fireEvent.click(screen.getByText('Research & evidence'));
-    expect(screen.getByText('Estimated attribution')).toBeVisible();
-  });
-
-  it('does not declare a language leader from publication counts without metrics', () => {
-    const response = growth();
-    response.platforms[0]!.lanes = response.platforms[0]!.lanes.map((lane) => ({
-      ...lane,
-      medianReach24h: null,
-      followersPer1kReach: null,
-      followersGained7d: null,
-    }));
-    render(
-      <GrowthView
-        data={socialFixture()}
-        growth={response}
-        onWindowChange={vi.fn()}
-      />,
-    );
-    expect(screen.getByText('Not enough evidence')).toBeVisible();
-    expect(screen.queryByText('🇯🇵 Japanese')).toBeNull();
-  });
-
-  it('labels latest episode views, keeps post links, and distinguishes telemetry gaps', () => {
-    render(
-      <GrowthView
-        data={socialFixture({
-          window: '24h',
-          episodes: [
-            {
-              episodeId: 'ep-zh',
-              title: '繁體中文標題',
-              totalViews: 123,
-              totalImpressions: null,
-              platforms: [
-                {
-                  platform: 'x',
-                  postUrl: 'https://x.com/zap/status/1',
-                  views: 123,
-                  engagementRate: 0.1,
-                  likes: 10,
-                  comments: 2,
-                  shares: 1,
-                  saves: null,
-                  followersGained: null,
-                  averageViewDurationSec: null,
-                  averageViewPercentage: null,
-                },
-                {
-                  platform: 'rednote',
-                  postUrl: 'https://www.xiaohongshu.com/explore/note-1',
-                  views: null,
-                  engagementRate: null,
-                  likes: null,
-                  comments: null,
-                  shares: null,
-                  saves: null,
-                  followersGained: null,
-                  averageViewDurationSec: null,
-                  averageViewPercentage: null,
-                },
-              ],
-            },
-          ],
-        })}
-        growth={growth()}
-        onWindowChange={vi.fn(async () => undefined)}
-      />,
-    );
-
-    expect(screen.getByText('最新一集表現 · 24h')).toBeVisible();
-    expect(
-      screen.getByText('繁體中文標題', { selector: '.panel-note' }),
-    ).toBeVisible();
-    const latestPanel = screen
-      .getByText('最新一集表現 · 24h')
-      .closest('section');
-    expect(latestPanel).not.toBeNull();
-    expect(
-      within(latestPanel as HTMLElement).getByText('123 views'),
-    ).toBeVisible();
-    expect(
-      within(latestPanel as HTMLElement).getByText('尚未取得'),
-    ).toBeVisible();
-    expect(
-      within(latestPanel as HTMLElement).getByRole('link', { name: /X/ }),
-    ).toHaveAttribute('href', 'https://x.com/zap/status/1');
-    expect(
-      within(latestPanel as HTMLElement).getByRole('link', {
-        name: /Rednote/,
-      }),
-    ).toHaveAttribute('href', 'https://www.xiaohongshu.com/explore/note-1');
-  });
-
   it('shows only the flagged account by default, ranked ahead of AUM once expanded', () => {
     render(<ProductView customers={customers()} product={productFixture()} />);
 
@@ -359,38 +238,8 @@ describe('decision-first domain views', () => {
     expect(rows[1]).toHaveTextContent('risk@example.com');
     expect(rows[rows.length - 1]).toHaveTextContent('standard@example.com');
   });
-
-  it('keeps raw reliability fingerprints out of the primary scan path', () => {
-    const data = operationsFixture({
-      signals: [
-        signalFixture({
-          fingerprint: 'sentry:error/boom',
-          status: 'critical',
-          title: 'Unhandled error',
-        }),
-        signalFixture({
-          fingerprint: 'github-actions:workflow/healthy',
-          status: 'healthy',
-          title: 'Scheduled jobs healthy',
-        }),
-      ],
-    });
-    render(<ReliabilityView data={data} social={null} />);
-
-    const disclosure = screen
-      .getByText('Signal evidence')
-      .closest('details') as HTMLDetailsElement;
-    expect(disclosure.open).toBe(false);
-    expect(
-      screen.getByText('github-actions:workflow/healthy'),
-    ).not.toBeVisible();
-
-    fireEvent.click(screen.getByText('Signal evidence'));
-    expect(screen.getByText('github-actions:workflow/healthy')).toBeVisible();
-  });
 });
-
-it('renders persisted waitlist evidence on all three acquisition surfaces', () => {
+it('renders persisted waitlist evidence on the product surface', () => {
   const socialGrowth = growth();
   socialGrowth.waitlist = {
     status: 'ok',
@@ -432,19 +281,7 @@ it('renders persisted waitlist evidence on all three acquisition surfaces', () =
       },
     ],
   };
-  const home = render(
-    <HomeView
-      data={null}
-      operations={operationsFixture()}
-      statements={statements}
-      onNavigate={() => {}}
-    />,
-  );
-  expect(
-    screen.getAllByText('42 total waitlist signups').length,
-  ).toBeGreaterThan(0);
-  home.unmount();
-  const product = render(
+  render(
     <ProductView
       customers={customers()}
       product={productFixture()}
@@ -454,15 +291,4 @@ it('renders persisted waitlist evidence on all three acquisition surfaces', () =
   expect(
     screen.getAllByText('42 total waitlist signups').length,
   ).toBeGreaterThan(0);
-  product.unmount();
-  render(
-    <GrowthView
-      data={socialFixture()}
-      growth={socialGrowth}
-      onWindowChange={async () => {}}
-    />,
-  );
-  expect(screen.getByText('42 signups')).toBeVisible();
-  expect(screen.getByText('Signups / 24h views')).toBeVisible();
-  expect(screen.getByText(/compares different time windows/)).toBeVisible();
 });

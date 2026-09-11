@@ -1,0 +1,77 @@
+/*
+ * Control Center dashboard tokens.
+ *
+ * These sit on top of the semantic aliases `styles.css` already defines. They
+ * exist because the dashboard card language needs vocabulary the shared brand
+ * tokens deliberately do not carry: elevation, a tone scale for status-coloured
+ * chips, and per-provider identity colours.
+ *
+ * `--accent` stays the app's single brand signal. Card chrome reads from the
+ * tone scale instead, so a page can be colourful without a second brand colour.
+ *
+ * Scoped to Control Center on purpose: `packages/design-tokens` is consumed by
+ * the landing page and the mobile app, where none of this applies.
+ */
+
+:root {
+  /* Elevation. A hairline plus a soft shadow, not a 1px border — the border is
+     what makes the current panels read as a wireframe rather than as cards. */
+  --cc-hairline: rgb(17 24 39 / 7%);
+  --cc-shadow-sm: 0 1px 2px rgb(17 24 39 / 5%);
+  --cc-shadow-card: 0 1px 2px rgb(17 24 39 / 4%), 0 4px 12px rgb(17 24 39 / 5%);
+  --cc-shadow-pop:
+    0 2px 6px rgb(17 24 39 / 6%), 0 12px 28px rgb(17 24 39 / 10%);
+
+  /* Radii. `--radius-card` (8px) stays as-is: `.nav-item` and `.queue-column`
+     depend on it, and pushing those to 16px turns nav items into pills. */
+  --cc-radius-card: 16px;
+  --cc-radius-inner: 12px;
+  --cc-radius-chip: 10px;
+
+  /* Spacing scale. `--gap`/`--pad` remain as the legacy aliases. */
+  --cc-space-1: 4px;
+  --cc-space-2: 8px;
+  --cc-space-3: 12px;
+  --cc-space-4: 16px;
+  --cc-space-5: 20px;
+  --cc-space-6: 24px;
+  --cc-space-8: 32px;
+
+  /* Tone scale. `-soft` is the icon-chip and pill fill; the base is the text,
+     icon and rule colour. Every pair is checked against `--surface`. */
+  --cc-tone-accent: var(--accent);
+  --cc-tone-accent-soft: rgb(118 93 47 / 10%);
+  --cc-tone-success: var(--success);
+  --cc-tone-success-soft: rgb(25 122 81 / 10%);
+  --cc-tone-warning: var(--warning);
+  --cc-tone-warning-soft: rgb(154 99 0 / 11%);
+  --cc-tone-danger: var(--error);
+  --cc-tone-danger-soft: rgb(196 61 50 / 10%);
+  --cc-tone-info: #2f5d8a;
+  --cc-tone-info-soft: rgb(47 93 138 / 10%);
+  --cc-tone-neutral: var(--ink-dim);
+  --cc-tone-neutral-soft: rgb(24 26 31 / 6%);
+
+  /* Provider identity. Used as chip fills and dots, never as body text, so
+     these are the recognisable brand hues rather than contrast-tuned ones. */
+  --cc-src-github: #24292f;
+  --cc-src-sentry: #362d59;
+  --cc-src-fly: #5b21b6;
+  --cc-src-posthog: #c2410c;
+  --cc-src-supabase: #1f9d63;
+  --cc-src-openrouter: #4f46e5;
+  --cc-src-brave: #d63e12;
+  --cc-src-debank: #d94a24;
+  --cc-src-x: #14171a;
+  --cc-src-threads: #14171a;
+  --cc-src-youtube: #c4302b;
+  --cc-src-rednote: #d81e35;
+
+  /* Numerals. The headline sizes stay modest because real values here are
+     often single digits; a 40px "1" reads as a placeholder, not a metric. */
+  --cc-num-sm: 19px;
+  --cc-num-md: 26px;
+  --cc-num-lg: 32px;
+
+  --cc-dur-fast: 120ms;
+}

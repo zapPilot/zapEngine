@@ -1,0 +1,534 @@
+/*
+ * The dashboard card language.
+ *
+ * Loaded last, so it wins over the legacy page styles by source order. The one
+ * rule that matters most is the `.panel` redefinition: `.panel` is the card base
+ * roughly twenty call sites already use, so restyling it moves the whole app to
+ * the new language in one edit instead of per-component.
+ *
+ * Grid items get `min-width: 0` centrally. A CSS Grid item defaults to
+ * `min-width: auto` (= min-content), so one non-wrapping episode UUID is enough
+ * to push a card wider than its column and out from under the next one. That
+ * bug has been fixed per-component twice already; it is a rule here so it does
+ * not have to be rediscovered a third time. `QueueDrawer.css` documents the
+ * flex variant of the same failure.
+ */
+
+/* Card ---------------------------------------------------------------------*/
+
+.panel,
+.cc-card {
+  min-width: 0;
+  border: 1px solid var(--cc-hairline);
+  border-radius: var(--cc-radius-card);
+  background: var(--surface);
+  box-shadow: var(--cc-shadow-card);
+}
+
+.cc-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.cc-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--cc-space-3);
+  padding: var(--cc-space-5) var(--cc-space-5) var(--cc-space-3);
+}
+.cc-card-heading {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.cc-card-title {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink);
+}
+.cc-card-subtitle {
+  margin: 3px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-dim);
+}
+.cc-card-action {
+  flex: 0 0 auto;
+  align-self: center;
+}
+.cc-card-body {
+  min-width: 0;
+  flex: 1 1 auto;
+  padding: 0 var(--cc-space-5) var(--cc-space-5);
+}
+.cc-card-body > * {
+  min-width: 0;
+}
+.cc-card-foot {
+  padding: var(--cc-space-3) var(--cc-space-5);
+  border-top: 1px solid var(--cc-hairline);
+}
+
+/* The coloured rounded square that heads every card. Decorative: the icon is
+   aria-hidden and the tone repeats information the text already carries. */
+.cc-icon-chip {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--cc-radius-chip);
+  background: var(--cc-tone-soft, var(--cc-tone-neutral-soft));
+  color: var(--cc-tone, var(--cc-tone-neutral));
+}
+.cc-icon-chip svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.9;
+}
+
+/* Tone modifiers. Set both halves of the pair so descendants can read either. */
+.cc-tone-accent {
+  --cc-tone: var(--cc-tone-accent);
+  --cc-tone-soft: var(--cc-tone-accent-soft);
+}
+.cc-tone-success {
+  --cc-tone: var(--cc-tone-success);
+  --cc-tone-soft: var(--cc-tone-success-soft);
+}
+.cc-tone-warning {
+  --cc-tone: var(--cc-tone-warning);
+  --cc-tone-soft: var(--cc-tone-warning-soft);
+}
+.cc-tone-danger {
+  --cc-tone: var(--cc-tone-danger);
+  --cc-tone-soft: var(--cc-tone-danger-soft);
+}
+.cc-tone-info {
+  --cc-tone: var(--cc-tone-info);
+  --cc-tone-soft: var(--cc-tone-info-soft);
+}
+.cc-tone-neutral {
+  --cc-tone: var(--cc-tone-neutral);
+  --cc-tone-soft: var(--cc-tone-neutral-soft);
+}
+
+/* Grid ---------------------------------------------------------------------*/
+
+.cc-grid {
+  display: grid;
+  gap: var(--cc-space-4);
+  grid-template-columns: repeat(var(--cc-cols, 3), minmax(0, 1fr));
+}
+.cc-grid > * {
+  min-width: 0;
+}
+.cc-stack {
+  display: grid;
+  gap: var(--cc-space-4);
+}
+
+@media (width <= 1180px) {
+  .cc-grid {
+    grid-template-columns: repeat(min(var(--cc-cols, 3), 2), minmax(0, 1fr));
+  }
+}
+@media (width <= 900px) {
+  .cc-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Stat ---------------------------------------------------------------------*/
+
+.cc-stat {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+  align-content: start;
+}
+.cc-stat-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.cc-stat-value {
+  font-size: var(--cc-num-md);
+  font-weight: 600;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+}
+.cc-stat-sm .cc-stat-value {
+  font-size: var(--cc-num-sm);
+}
+.cc-stat-lg .cc-stat-value {
+  font-size: var(--cc-num-lg);
+}
+.cc-stat-caption {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--ink-dim);
+}
+.cc-stat-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--cc-space-2);
+}
+
+/* Pill ---------------------------------------------------------------------*/
+
+.cc-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.cc-pill-soft {
+  background: var(--cc-tone-soft, var(--cc-tone-neutral-soft));
+  color: var(--cc-tone, var(--cc-tone-neutral));
+}
+.cc-pill-outline {
+  border-color: var(--cc-tone, var(--cc-tone-neutral));
+  color: var(--cc-tone, var(--cc-tone-neutral));
+}
+.cc-pill-solid {
+  background: var(--cc-tone, var(--cc-tone-neutral));
+  color: var(--bg-2);
+}
+.cc-pill-dot {
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentcolor;
+}
+
+/* Source badge. The identity colour is passed in as `--cc-src`. */
+.cc-src {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+.cc-src-dot {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  background: var(--cc-src, var(--ink-faint));
+}
+
+/* Ranked list --------------------------------------------------------------*/
+
+.cc-list {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cc-list-item {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--cc-space-3);
+  padding: var(--cc-space-3) 0;
+  border-top: 1px solid var(--cc-hairline);
+}
+.cc-list-item:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.cc-list-item > * {
+  min-width: 0;
+}
+.cc-rank {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 21px;
+  height: 21px;
+  border-radius: 50%;
+  background: var(--cc-tone-soft, var(--cc-tone-neutral-soft));
+  color: var(--cc-tone, var(--cc-tone-neutral));
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  font-style: normal;
+}
+.cc-list-title {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+}
+.cc-list-detail {
+  display: block;
+  margin-top: 2px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  color: var(--ink-dim);
+}
+.cc-list-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--cc-space-2);
+  margin-top: 5px;
+  font-size: 10.5px;
+  color: var(--ink-faint);
+}
+.cc-list-aside {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--cc-space-2);
+  white-space: nowrap;
+}
+
+/* Bar track ----------------------------------------------------------------*/
+
+.cc-track {
+  display: flex;
+  overflow: hidden;
+  width: 100%;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-elevated);
+}
+.cc-track i {
+  display: block;
+  height: 100%;
+  background: var(--cc-seg, var(--cc-tone-accent));
+}
+.cc-bar-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--cc-space-2) var(--cc-space-3);
+  padding: 7px 0;
+}
+.cc-bar-row > * {
+  min-width: 0;
+}
+.cc-bar-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+}
+.cc-bar-value {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--ink-dim);
+}
+.cc-bar-track {
+  grid-column: 1 / -1;
+}
+
+/* Mini bars ----------------------------------------------------------------*/
+
+.cc-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 34px;
+}
+.cc-bars span {
+  flex: 1 1 0;
+  min-width: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--cc-tone, var(--cc-tone-accent));
+  opacity: 0.75;
+}
+.cc-bars span[data-empty='true'] {
+  background: var(--line-hi);
+  opacity: 1;
+}
+
+/* Flow band (funnel + pipeline stage map) ----------------------------------*/
+
+.cc-flow {
+  display: flex;
+  align-items: stretch;
+  gap: var(--cc-space-2);
+  overflow-x: auto;
+  padding-bottom: var(--cc-space-1);
+}
+.cc-flow-stage {
+  min-width: 0;
+  flex: 1 1 0;
+  display: grid;
+  gap: 3px;
+  align-content: start;
+  padding: var(--cc-space-3);
+  border: 1px solid var(--cc-hairline);
+  border-radius: var(--cc-radius-inner);
+  background: var(--bg);
+}
+.cc-flow-stage > * {
+  min-width: 0;
+}
+.cc-flow-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--ink-dim);
+}
+.cc-flow-value {
+  font-size: var(--cc-num-sm);
+  font-weight: 600;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.cc-flow-note {
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: var(--ink-faint);
+}
+.cc-flow-link {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  gap: 2px;
+  padding-top: var(--cc-space-4);
+  color: var(--ink-faint);
+}
+.cc-flow-link svg {
+  width: 15px;
+  height: 15px;
+}
+/* Dashed means the two stages come from different sources and are not a
+   person-level funnel step. Never put a conversion rate on one. */
+.cc-flow-link[data-connector='dashed'] {
+  opacity: 0.65;
+}
+.cc-flow-rate {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-dim);
+}
+
+/* Timeline -----------------------------------------------------------------*/
+
+.cc-timeline {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cc-timeline-item {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--cc-space-3);
+  padding: var(--cc-space-3) 0;
+  border-top: 1px solid var(--cc-hairline);
+}
+.cc-timeline-item:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.cc-timeline-item > * {
+  min-width: 0;
+}
+.cc-timeline-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--cc-tone, var(--cc-tone-neutral));
+}
+
+/* Empty state --------------------------------------------------------------*/
+
+.cc-empty {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: var(--cc-space-6) var(--cc-space-4);
+  border: 1px dashed var(--line-hi);
+  border-radius: var(--cc-radius-inner);
+  text-align: center;
+  color: var(--ink-faint);
+}
+.cc-empty svg {
+  width: 18px;
+  height: 18px;
+}
+.cc-empty strong {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink-dim);
+}
+.cc-empty span {
+  font-size: 11.5px;
+  line-height: 1.5;
+  max-width: 46ch;
+}
+
+/* Links --------------------------------------------------------------------*/
+
+.cc-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color var(--cc-dur-fast) var(--easing-primary);
+}
+.cc-link:hover {
+  color: var(--ink);
+}
+.cc-link svg {
+  width: 13px;
+  height: 13px;
+}
+.cc-wrap-any {
+  overflow-wrap: anywhere;
+}
