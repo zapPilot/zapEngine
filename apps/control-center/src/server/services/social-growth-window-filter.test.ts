@@ -49,7 +49,7 @@ describe('loadSocialGrowth standardized metric windows', () => {
     });
   });
 
-  it('does not let unavailable 24h rows with stale metrics inflate experiments', async () => {
+  it('does not let another post\'s 24h metrics inflate an experiment arm', async () => {
     const posts = [
       {
         id: 'post-1',
@@ -57,14 +57,14 @@ describe('loadSocialGrowth standardized metric windows', () => {
         platform: 'threads',
         language_code: 'ja',
         published_at: '2026-09-10T00:00:00.000Z',
-        experiment_key: 'status-v1',
+        experiment_key: 'post-scope-v1',
         experiment_variant: 'control',
         content_features: null,
       },
     ];
     const metrics = [
       metric('24h', '2026-09-11T00:00:00.000Z', 100, 10),
-      metric('24h', '2026-09-11T00:05:00.000Z', 9_999, 999, 'unavailable'),
+      metric('24h', '2026-09-11T00:05:00.000Z', 9_999, 999, 'other-post'),
     ];
 
     const response = await loadSocialGrowth({
@@ -74,7 +74,7 @@ describe('loadSocialGrowth standardized metric windows', () => {
     });
 
     const experiment = response.experiments.find(
-      (row) => row.experimentKey === 'status-v1',
+      (row) => row.experimentKey === 'post-scope-v1',
     );
     const arm = experiment?.arms.find((row) => row.variant === 'control');
 
@@ -93,14 +93,14 @@ function metric(
   capturedAt: string,
   views: number,
   likes: number,
-  collectionStatus = 'collected',
+  socialPostId = 'post-1',
 ) {
   return {
-    social_post_id: 'post-1',
+    social_post_id: socialPostId,
     captured_at: capturedAt,
     age_hours: measurementWindow === '24h' ? 24 : 72,
     measurement_window: measurementWindow,
-    collection_status: collectionStatus,
+    collection_status: 'collected',
     views,
     impressions: null,
     likes,
