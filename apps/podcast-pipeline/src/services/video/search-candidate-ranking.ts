@@ -260,10 +260,7 @@ export function mentionsAnyEntity(
   return entities.some((entity) => containsEntityPhrase(corpus, entity));
 }
 
-export function searchCueScore(
-  candidate: ImageCandidate,
-  cue: string,
-): number {
+export function searchCueScore(candidate: ImageCandidate, cue: string): number {
   if (!cue.trim()) return 0;
   const corpus = normalizedSearchCandidateCorpus(candidate);
   const score = normalizedSearchTokens(cue).reduce(
