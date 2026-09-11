@@ -17,10 +17,13 @@ import {
 import type { PodcastPlayer } from '@/integration/podcastPlayerTypes';
 import type { PendingPodcastPlaybackHandoff } from '@/integration/podcastPlayerShared';
 import {
+  beginPodcastPlaybackSource,
   clampPodcastPlaybackSeconds,
+  createPodcastFinishGate,
   createPodcastPlayerSnapshot,
   finiteSeconds,
   isSamePodcastEpisode,
+  shouldConsumePodcastFinish,
 } from '@/integration/podcastPlayerShared';
 import type {
   PodcastPlaybackSection,
@@ -83,7 +86,7 @@ export function usePodcastPlayer(): PodcastPlayer {
   const pendingHandoffRef = useRef<PendingPodcastPlaybackHandoff | null>(null);
   const handoffIdRef = useRef(0);
   const [handoffRevision, setHandoffRevision] = useState(0);
-  const finishConsumedRef = useRef(false);
+  const finishGateRef = useRef(createPodcastFinishGate());
   const lockScreenActiveRef = useRef(false);
   const remoteCommandRef = useRef<PodcastRemoteCommandHandlers>(
     IDLE_REMOTE_COMMAND_HANDLERS,
@@ -166,6 +169,7 @@ export function usePodcastPlayer(): PodcastPlayer {
   const playEpisode = useCallback(
     (episode: PodcastEpisode) => {
       cancelPendingHandoff();
+      beginPodcastPlaybackSource(finishGateRef.current);
       audioPlayer.replace({ uri: episode.hlsUrl, name: episode.title });
       audioPlayer.setPlaybackRate(speedForSection(speedPreferences, 'main'));
       setNowPlaying(episode);
@@ -184,6 +188,7 @@ export function usePodcastPlayer(): PodcastPlayer {
     ) => {
       cancelPendingHandoff();
       audioPlayer.pause();
+      beginPodcastPlaybackSource(finishGateRef.current);
       audioPlayer.replace({
         uri: section.hlsUrl,
         name: episode.title,
@@ -235,6 +240,7 @@ export function usePodcastPlayer(): PodcastPlayer {
       };
 
       if (!isSamePodcastEpisode(nowPlaying, episode)) {
+        beginPodcastPlaybackSource(finishGateRef.current);
         audioPlayer.replace({ uri: episode.hlsUrl, name: episode.title });
         audioPlayer.setPlaybackRate(speedForSection(speedPreferences, 'main'));
         setNowPlaying(episode);
@@ -308,16 +314,18 @@ export function usePodcastPlayer(): PodcastPlayer {
 
   // When the current source finishes, play the classroom section before
   // advancing to the next episode (section advance precedes episode advance),
-  // then auto-advance so a "play unheard" queue plays through. The consumed
-  // latch guards against a stale `didJustFinish` snapshot double-firing this
-  // effect across re-renders and skipping the classroom section.
+  // then auto-advance so a "play unheard" queue plays through. expo-audio can
+  // briefly retain didJustFinish=true across replace(), so finish consumption
+  // is gated by source generation and by observing that source actually play.
   useEffect(() => {
-    if (!status.didJustFinish) {
-      finishConsumedRef.current = false;
+    if (
+      !shouldConsumePodcastFinish(finishGateRef.current, {
+        playing: status.playing,
+        didJustFinish: status.didJustFinish,
+      })
+    ) {
       return;
     }
-    if (finishConsumedRef.current) return;
-    finishConsumedRef.current = true;
 
     const action = resolveFinishedPlayback({
       sections,
@@ -336,6 +344,7 @@ export function usePodcastPlayer(): PodcastPlayer {
     }
   }, [
     status.didJustFinish,
+    status.playing,
     sections,
     currentSection,
     currentSectionLanguage,
