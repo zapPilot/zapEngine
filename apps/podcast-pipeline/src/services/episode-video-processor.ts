@@ -205,9 +205,10 @@ export function createEpisodeVideoProcessor(
           ? { reason: coverMetadata.fallbackReason }
           : {}),
       });
-      const persistedManifest = JSON.parse(
-        generated.manifestJson,
-      ) as Record<string, unknown>;
+      const persistedManifest = JSON.parse(generated.manifestJson) as Record<
+        string,
+        unknown
+      >;
       persistedManifest['coverPhoto'] = coverMetadata;
       await context.saveManifest({
         manifest: persistedManifest,
