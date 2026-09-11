@@ -56,7 +56,7 @@ Backlog state is deliberately small and label-only:
 
 `ops_backlog_claim` reads the current GitHub backlog, selects the oldest eligible ready issue, and adds `status:working`. `ops_backlog_release` re-reads the issue first, refuses anything outside `agent-backlog` or not currently working, then either removes `status:working` or adds `blocked` before removing it. Claim/release comments are audit convenience only; the labels are authoritative.
 
-This intentionally does **not** implement distributed locking. Two agents claiming at nearly the same instant can theoretically observe the same ready issue before GitHub applies the first label. That trade-off is accepted for the small number of background agents this repository runs. The worker skill therefore checks for an already-open PR referencing the issue before writing code. If concurrency ever becomes material, add a stronger claim primitive then rather than maintaining a database scheduler pre-emptively.
+This intentionally does **not** implement distributed locking. Two agents claiming at nearly the same instant can theoretically observe the same ready issue before GitHub applies the first label. That trade-off is accepted for the small number of background agents this repository runs. The worker skill therefore checks for an already-open PR referencing the issue before writing code, and stops without releasing when one exists. If concurrency ever becomes material, add a stronger claim primitive then rather than maintaining a database scheduler pre-emptively.
 
 There is deliberately no `ops_backlog_complete` tool. The implementation PR should use `Fixes #<issue>` and GitHub closes the issue on merge. This prevents an agent from declaring work complete merely because its local attempt ended.
 

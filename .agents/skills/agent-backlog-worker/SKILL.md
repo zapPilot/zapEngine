@@ -30,6 +30,9 @@ Remote/background agents reach the MCP over its HTTP transport:
 
 Repository-local agents may use the repo's configured stdio MCP instead.
 
+If the MCP is unreachable, stop and report it. Never pick a task with `gh`
+directly; that bypasses `status:working` and duplicates another agent's work.
+
 ## The loop
 
 1. Call `ops_backlog_claim` with a stable `agentId` and, optionally, `areas`.
@@ -37,7 +40,9 @@ Repository-local agents may use the repo's configured stdio MCP instead.
    `claimed: false`, stop; do not invent work.
 2. Before writing code, run
    `gh pr list --state open --search "#<issue> in:body"`. If a PR already
-   references the issue, call `ops_backlog_release` with `released` and stop.
+   references the issue, stop without releasing: the `status:working` label
+   belongs to that PR and disappears when the issue closes on merge.
+   Leftover labels are cleaned up by a human, never by another worker.
 3. Read the full issue with `gh issue view <issue>`. Work strictly inside its
    Relevant files / area and Acceptance criteria. If the task needs stronger
    judgement or capabilities, release it as `blocked` with a specific reason.
@@ -47,8 +52,10 @@ Repository-local agents may use the repo's configured stdio MCP instead.
 
 This deliberately accepts a tiny race: two agents that claim at nearly the
 same instant could both observe the same ready issue before GitHub applies the
-label. The open-PR check above is the practical duplicate-work guard for the
-small number of background agents this repository runs.
+label. The open-PR check above means the loser stops without releasing, so the
+winner's `status:working` survives. Releasing there would hand the issue back
+to ready and churn it between workers. This holds for the small number of
+background agents this repository runs.
 
 ## Hard rules
 
@@ -68,15 +75,24 @@ small number of background agents this repository runs.
 
 ## Gates you can run with no environment
 
-| Gate | Command |
-| --- | --- |
-| format | `pnpm turbo run format:check --filter=<workspace>` |
-| lint | `pnpm turbo run lint --filter=<workspace>` |
-| type-check | `pnpm turbo run type-check --filter=<workspace>` |
-| test | `pnpm turbo run test --filter=<workspace>` |
-| deadcode | `pnpm turbo run deadcode --filter=<workspace>` |
-| duplication | `node scripts/lint/run-jscpd.mjs src` from the workspace |
-| repo config drift | `pnpm lint repo` |
+| Gate              | Command                                                  |
+| ----------------- | -------------------------------------------------------- |
+| format            | `pnpm turbo run format:check --filter=<workspace>`       |
+| lint              | `pnpm turbo run lint --filter=<workspace>`               |
+| type-check        | `pnpm turbo run type-check --filter=<workspace>`         |
+| test              | `pnpm turbo run test --filter=<workspace>`               |
+| deadcode          | `pnpm turbo run deadcode --filter=<workspace>`           |
+| duplication       | `node scripts/lint/run-jscpd.mjs src` from the workspace |
+| repo config drift | `pnpm lint repo`                                         |
 
 Do not run commands that need production secrets merely to verify a bounded
 background change.
+
+Repo traps that survive this simplification:
+
+- `pnpm format check` and `scripts/format.sh` rewrite files; verify formatting
+  with `format:check` only.
+- `pnpm contracts check` overwrites the zod snapshot; do not run it just to
+  "verify" a bounded change.
+- The pre-commit hook runs `eslint --fix`, which can touch files outside the
+  diff; re-run the full gate set afterwards (it often flips `dup:check` red).
