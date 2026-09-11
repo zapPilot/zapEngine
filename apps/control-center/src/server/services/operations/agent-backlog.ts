@@ -165,7 +165,12 @@ export function createAgentBacklogService(input: {
     if (!item.labels.includes(BACKLOG_LABEL)) {
       throw new Error('Issue is not part of the agent backlog.');
     }
-    if (item.status !== 'working') {
+    // Check the authoritative working label directly rather than the projected
+    // status. A blocked release adds `blocked` before removing
+    // `status:working`; if that second write fails, a retry must still be able
+    // to finish the cleanup even though the projected status is already
+    // `blocked`.
+    if (!item.labels.includes(WORKING_LABEL)) {
       throw new Error('Backlog issue is not currently working.');
     }
 
