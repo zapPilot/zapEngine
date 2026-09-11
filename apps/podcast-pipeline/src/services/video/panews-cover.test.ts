@@ -27,7 +27,7 @@ describe('preparePanewsVideoCover', () => {
   const sourceUrl =
     'https://www.panewslab.com/zh/articles/01a00000-0000-7000-8000-000000000000';
 
-  it('uses the publisher Open Graph image and converts it to the canonical PNG', async () => {
+  it('uses the publisher Open Graph image and converts it to a hashed PNG', async () => {
     const scrape = vi.fn().mockResolvedValue({
       title: 'Article',
       text: 'Body',
@@ -53,7 +53,8 @@ describe('preparePanewsVideoCover', () => {
       width: 1_200,
       height: 630,
     });
-    const renderPng = vi.fn().mockResolvedValue(undefined);
+    const pngHash = 'b'.repeat(64);
+    const renderPng = vi.fn().mockResolvedValue(pngHash);
 
     const result = await preparePanewsVideoCover(
       {
@@ -87,7 +88,8 @@ describe('preparePanewsVideoCover', () => {
         status: 'selected',
         sourcePageUrl: sourceUrl,
         sourceImageUrl: 'https://images.example.test/cover.jpg',
-        sha256: 'a'.repeat(64),
+        storedUrl: null,
+        sha256: pngHash,
         width: 1_200,
         height: 630,
         fallbackReason: null,
@@ -114,6 +116,7 @@ describe('preparePanewsVideoCover', () => {
     expect(result.thumbnailPath).toBeNull();
     expect(result.metadata).toMatchObject({
       status: 'fallback',
+      storedUrl: null,
       fallbackReason: 'source-is-not-panews',
     });
   });
@@ -138,6 +141,7 @@ describe('preparePanewsVideoCover', () => {
         strategy: 'panews-og-image-v1',
         status: 'fallback',
         sourceImageUrl: null,
+        storedUrl: null,
         fallbackReason: 'missing-open-graph-image',
       }),
     });
@@ -168,6 +172,7 @@ describe('preparePanewsVideoCover', () => {
       metadata: expect.objectContaining({
         status: 'fallback',
         sourceImageUrl: 'https://images.example.test/cover.jpg',
+        storedUrl: null,
         fallbackReason: 'HTTP 503',
       }),
     });
