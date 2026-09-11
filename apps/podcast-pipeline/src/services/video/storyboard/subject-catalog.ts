@@ -321,10 +321,7 @@ function repairedSceneCues(value: unknown): unknown[] | undefined {
     if (seenSceneIds.has(sceneId)) continue;
     if (typeof cue !== 'string') continue;
     const visualCue = cue.trim().replace(/\s+/gu, ' ');
-    if (
-      visualCue.length < 2 ||
-      visualCue.length > MAX_VISUAL_CUE_CHARACTERS
-    ) {
+    if (visualCue.length < 2 || visualCue.length > MAX_VISUAL_CUE_CHARACTERS) {
       continue;
     }
     seenSceneIds.add(sceneId);
