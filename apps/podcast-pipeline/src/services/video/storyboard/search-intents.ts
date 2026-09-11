@@ -14,10 +14,7 @@ import {
   MAX_VISUAL_CUE_WORDS,
   type StoryboardDraft,
 } from './draft.js';
-import {
-  isEnglishOnly,
-  WORD_PATTERN,
-} from './english-text.js';
+import { englishWords, isEnglishOnly } from './english-text.js';
 import { balancedSearchEvidenceGroups } from './fallback.js';
 import {
   type CanonicalSentence,
@@ -37,10 +34,7 @@ import {
   type VisualSubjectCatalog,
   type VisualSubjectDrop,
 } from './subject-catalog.js';
-import {
-  normalizeNumericToken,
-  NUMERIC_TOKEN_PATTERN,
-} from './validation.js';
+import { normalizeNumericToken, numericTokens } from './validation.js';
 
 const SEARCH_INTENT_REASONING = { enabled: false } as const;
 const SEARCH_INTENT_PAYLOAD_MAX_ATTEMPTS = 2;
@@ -70,7 +64,7 @@ export interface SearchIntentEnrichment {
   model: string | null;
   enrichedSceneCount: number;
   entityAnchoredSceneCount: number;
-  sceneCueCount: number;
+  sceneCueCount?: number;
   subjectCatalog: VisualSubjectCatalog | null;
   sceneAssignments: VisualSceneSubjectAssignment[];
   /**
@@ -135,7 +129,6 @@ export async function enrichStoryboardSearchIntents(
       model: null,
       enrichedSceneCount: 0,
       entityAnchoredSceneCount: 0,
-      sceneCueCount: 0,
       subjectCatalog: null,
       sceneAssignments: [],
     };
@@ -156,7 +149,6 @@ export async function enrichStoryboardSearchIntents(
       model: provider.model,
       enrichedSceneCount: 0,
       entityAnchoredSceneCount: 0,
-      sceneCueCount: 0,
       subjectCatalog: null,
       sceneAssignments: [],
       degradedReason: degradedCatalogReason(error),
@@ -357,14 +349,17 @@ export function groundSceneCues(
   const scenesById = new Map(
     request.scenes.map((scene) => [scene.sceneId, scene] as const),
   );
-  const survivingSubjectIds = new Set(catalog.subjects.map((subject) => subject.id));
+  const survivingSubjectIds = new Set(
+    catalog.subjects.map((subject) => subject.id),
+  );
   const seenSceneIds = new Set<string>();
   const sceneCues: VisualSceneCue[] = [];
 
   for (const cue of catalog.sceneCues) {
     const scene = scenesById.get(cue.sceneId);
     if (!scene || seenSceneIds.has(cue.sceneId)) continue;
-    const words = cue.visualCue.match(WORD_PATTERN) ?? [];
+    seenSceneIds.add(cue.sceneId);
+    const words = englishWords(cue.visualCue);
     if (
       !isEnglishOnly(cue.visualCue) ||
       words.length < 2 ||
@@ -374,7 +369,6 @@ export function groundSceneCues(
     ) {
       continue;
     }
-    seenSceneIds.add(cue.sceneId);
     sceneCues.push({
       ...cue,
       subjectId:
@@ -387,15 +381,13 @@ export function groundSceneCues(
   return { ...catalog, sceneCues };
 }
 
-function cueNumbersAreGrounded(
-  cue: string,
-  scene: SearchIntentScene,
-): boolean {
-  const cueNumbers = cue.match(NUMERIC_TOKEN_PATTERN) ?? [];
+function cueNumbersAreGrounded(cue: string, scene: SearchIntentScene): boolean {
+  const cueNumbers = numericTokens(cue);
   if (cueNumbers.length === 0) return true;
   const sceneNumbers = new Set(
-    (`${scene.text} ${scene.searchText ?? ''}`.match(NUMERIC_TOKEN_PATTERN) ?? [])
-      .map(normalizeNumericToken),
+    numericTokens(`${scene.text} ${scene.searchText ?? ''}`).map(
+      normalizeNumericToken,
+    ),
   );
   return cueNumbers
     .map(normalizeNumericToken)
