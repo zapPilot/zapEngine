@@ -100,6 +100,8 @@ describe('episode visual v9 provenance', () => {
         sourceQuery: 'Justin Sun',
         providerRank: 0,
         fallbackReason: null,
+        visualCue: null,
+        cueMatched: null,
         rejections: [{ cause: 'perceptual-duplicate', count: 2 }],
       },
     ],
