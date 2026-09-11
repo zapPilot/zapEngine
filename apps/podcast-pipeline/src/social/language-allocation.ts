@@ -85,25 +85,7 @@ export function isThreadsFixedActive(scheduledAt: Date): boolean {
 export function languageRotationProfileForSlot(
   scheduledAt: Date,
 ): (typeof ROTATION_PROFILES)[number] {
-  const jst = new Date(scheduledAt.getTime() + JST_OFFSET_MS);
-  const slotIndex = SOCIAL_RELEASE_SLOTS.findIndex(
-    (slot) =>
-      slot.hour === jst.getUTCHours() && slot.minute === jst.getUTCMinutes(),
-  );
-  if (slotIndex < 0) {
-    throw new Error(
-      `Language rotation requires a configured article slot; got ${scheduledAt.toISOString()}.`,
-    );
-  }
-
-  const jstDay = Date.UTC(
-    jst.getUTCFullYear(),
-    jst.getUTCMonth(),
-    jst.getUTCDate(),
-  );
-  const dayIndex = Math.floor((jstDay - ROTATION_ANCHOR_JST_DAY) / DAY_MS);
-  const profileIndex = mod(dayIndex + slotIndex, ROTATION_PROFILES.length);
-  return ROTATION_PROFILES[profileIndex]!;
+  return profileForSlot(scheduledAt, ROTATION_PROFILES, 'Language rotation');
 }
 
 export function rotatingReleaseCohortLanes(
@@ -205,25 +187,7 @@ const SWAP_PROFILES = [
 export function languageSwapProfileForSlot(
   scheduledAt: Date,
 ): (typeof SWAP_PROFILES)[number] {
-  const jst = new Date(scheduledAt.getTime() + JST_OFFSET_MS);
-  const slotIndex = SOCIAL_RELEASE_SLOTS.findIndex(
-    (slot) =>
-      slot.hour === jst.getUTCHours() && slot.minute === jst.getUTCMinutes(),
-  );
-  if (slotIndex < 0) {
-    throw new Error(
-      `Language swap requires a configured article slot; got ${scheduledAt.toISOString()}.`,
-    );
-  }
-
-  const jstDay = Date.UTC(
-    jst.getUTCFullYear(),
-    jst.getUTCMonth(),
-    jst.getUTCDate(),
-  );
-  const dayIndex = Math.floor((jstDay - ROTATION_ANCHOR_JST_DAY) / DAY_MS);
-  const profileIndex = mod(dayIndex + slotIndex, SWAP_PROFILES.length);
-  return SWAP_PROFILES[profileIndex]!;
+  return profileForSlot(scheduledAt, SWAP_PROFILES, 'Language swap');
 }
 
 export function fixedThreadsReleaseCohortLanes(
@@ -271,6 +235,31 @@ export function fixedThreadsReleaseCohortLanesForProfile(
     { platform: 'threads', language: 'zh-Hant' },
     { platform: 'rednote', language: 'zh-Hant' },
   ];
+}
+
+function profileForSlot<T extends readonly unknown[]>(
+  scheduledAt: Date,
+  profiles: T,
+  policyName: string,
+): T[number] {
+  const jst = new Date(scheduledAt.getTime() + JST_OFFSET_MS);
+  const slotIndex = SOCIAL_RELEASE_SLOTS.findIndex(
+    (slot) =>
+      slot.hour === jst.getUTCHours() && slot.minute === jst.getUTCMinutes(),
+  );
+  if (slotIndex < 0) {
+    throw new Error(
+      `${policyName} requires a configured article slot; got ${scheduledAt.toISOString()}.`,
+    );
+  }
+
+  const jstDay = Date.UTC(
+    jst.getUTCFullYear(),
+    jst.getUTCMonth(),
+    jst.getUTCDate(),
+  );
+  const dayIndex = Math.floor((jstDay - ROTATION_ANCHOR_JST_DAY) / DAY_MS);
+  return profiles[mod(dayIndex + slotIndex, profiles.length)]!;
 }
 
 function mod(value: number, divisor: number): number {
