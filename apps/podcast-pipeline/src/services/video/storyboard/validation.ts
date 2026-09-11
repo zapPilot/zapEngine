@@ -55,8 +55,8 @@ export function storyboardSceneCountRange(
 
 export const NUMERIC_TOKEN_PATTERN = /[$€£¥]?\d[\d,.]*[%％]?/gu;
 
-function numericTokens(value: string): string[] {
-  return value.match(NUMERIC_TOKEN_PATTERN) ?? [];
+export function numericTokens(value: string): string[] {
+  return [...value.matchAll(NUMERIC_TOKEN_PATTERN)].map((match) => match[0]);
 }
 
 export function normalizeNumericToken(value: string): string {
