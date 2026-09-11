@@ -309,6 +309,7 @@ export function normalizeVisualSubjectCatalogInput(input: unknown): unknown {
 function repairedSceneCues(value: unknown): unknown[] | undefined {
   if (!Array.isArray(value)) return undefined;
   const repaired: unknown[] = [];
+  const seenSceneIds = new Set<string>();
   for (const entry of value) {
     if (repaired.length >= SUBJECT_LIMITS.sceneCues) break;
     if (!isRecord(entry)) continue;
@@ -317,6 +318,7 @@ function repairedSceneCues(value: unknown): unknown[] | undefined {
     if (typeof sceneId !== 'string' || !/^scene-\d{2}$/u.test(sceneId)) {
       continue;
     }
+    if (seenSceneIds.has(sceneId)) continue;
     if (typeof cue !== 'string') continue;
     const visualCue = cue.trim().replace(/\s+/gu, ' ');
     if (
@@ -325,6 +327,7 @@ function repairedSceneCues(value: unknown): unknown[] | undefined {
     ) {
       continue;
     }
+    seenSceneIds.add(sceneId);
     const rawSubjectId = entry['subjectId'];
     const subjectId =
       typeof rawSubjectId === 'string' &&
