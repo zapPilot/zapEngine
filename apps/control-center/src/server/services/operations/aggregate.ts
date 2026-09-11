@@ -186,7 +186,6 @@ export function createOperationsService(input: {
     createBacklogItem: backlog.createBacklogItem,
     claimBacklog: backlog.claimBacklog,
     releaseBacklog: backlog.releaseClaim,
-    renewBacklog: backlog.renewClaim,
     inspectSignal,
 
     async resolveSentryIssue(issueId: string, reason: string) {

@@ -151,22 +151,10 @@ function createTestApp(
       createBacklogItem: operationsOverrides.createBacklogItem ?? vi.fn(),
       claimBacklog:
         operationsOverrides.claimBacklog ??
-        vi.fn().mockResolvedValue({
-          claimed: false,
-          reused: false,
-          item: null,
-          mirror: 'skipped',
-        }),
+        vi.fn().mockResolvedValue({ claimed: false, item: null }),
       releaseBacklog:
         operationsOverrides.releaseBacklog ??
-        vi.fn().mockResolvedValue({
-          released: true,
-          alreadyReleased: false,
-          mirror: 'ok',
-        }),
-      renewBacklog:
-        operationsOverrides.renewBacklog ??
-        vi.fn().mockResolvedValue({ renewed: true, leaseExpiresAt: null }),
+        vi.fn().mockResolvedValue({ released: true }),
     },
     service: {
       getOverview: overrides.getOverview ?? vi.fn(async () => overview),
