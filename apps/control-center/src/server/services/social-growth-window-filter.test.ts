@@ -77,7 +77,9 @@ describe('loadSocialGrowth standardized metric windows', () => {
       (row) => row.experimentKey === 'post-scope-v1',
     );
     const arm = experiment?.arms.find((row) => row.variant === 'control');
-    const threads = response.platforms.find((row) => row.platform === 'threads');
+    const threads = response.platforms.find(
+      (row) => row.platform === 'threads',
+    );
     const lane = threads?.lanes.find((row) => row.languageCode === 'ja');
 
     expect(response.status).toBe('ok');

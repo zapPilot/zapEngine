@@ -1,4 +1,5 @@
 import { errorMessage } from '../lib/errorMessage.js';
+import { isTransientNetworkError } from '../lib/transient-network-error.js';
 import { capturePipelineException } from '../observability/sentry.js';
 import {
   getPipelineSupabase,
@@ -34,9 +35,11 @@ interface SocialDaemonTickHeartbeat {
  * Every failure is swallowed. The publisher is the process of record and this
  * write is only telemetry, so a Supabase blip here must never abort a release
  * cohort mid-flight -- that would trade an unobserved daemon for a
- * half-published one. The failure still reaches Sentry as a warning, because a
- * heartbeat that silently stops writing looks exactly like a daemon that died,
- * which is the confusion these columns exist to end.
+ * half-published one. Non-transient failures still reach Sentry as a warning,
+ * because a heartbeat that silently stops writing looks exactly like a daemon
+ * that died, which is the confusion these columns exist to end. Transient
+ * socket/DNS blips stay a log line: the next tick retries the same write, so
+ * reporting each one only creates Sentry noise for a self-healing event.
  */
 export async function recordSocialDaemonTick(
   input: SocialDaemonTickHeartbeat,
@@ -51,6 +54,7 @@ export async function recordSocialDaemonTick(
     console.error(
       `⚠️ [social-daemon] heartbeat ${input.phase} failed · ${errorMessage(failure)}`,
     );
+    if (isTransientNetworkError(failure)) return;
     capturePipelineException(failure, {
       component: 'social-daemon',
       tags: { operation: 'heartbeat' },
