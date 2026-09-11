@@ -500,7 +500,7 @@ describe('iOS release version safety', () => {
     // 204 is the final Flutter release 2.0.4 (204) on ASC app 6749248542, the
     // listing this app continues.
     expect(readIosBaseline()).toMatchObject({
-      appVersion: '3.0.0',
+      appVersion: '3.0.1',
       ascBuildNumberFloor: 204,
     });
   });

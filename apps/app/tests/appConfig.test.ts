@@ -36,7 +36,7 @@ describe('store identity', () => {
   // Anything on the 2.1.x line would be a downgrade, so the rewrite takes the
   // major bump it had earned anyway.
   it('outranks the version the Flutter app left on the App Store', () => {
-    expect(appConfig.version).toBe('3.0.0');
+    expect(appConfig.version).toBe('3.0.1');
     expect(appConfig.android?.versionCode).toBeUndefined();
   });
 
