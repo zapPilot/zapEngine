@@ -9,8 +9,8 @@ import type {
   AgentBacklogResponse,
 } from '../../../shared/agent-backlog.js';
 import type { ControlCenterConfig } from '../../config/env.js';
-import { createOperatorStore } from './operator/store.js';
 import { fetchJson } from './http.js';
+import { createOperatorStore } from './operator/store.js';
 
 const REPO = 'zapPilot/zapEngine';
 const BACKLOG_LABEL = 'agent-backlog';
@@ -49,14 +49,17 @@ const claimSchema = z.object({
 const claimsSchema = z.array(claimSchema);
 const labelsResponseSchema = z.array(z.object({ name: z.string() }));
 
+type BacklogStore = Pick<ReturnType<typeof createOperatorStore>, 'rpc'>;
+
 export function createAgentBacklogService(input: {
   config: ControlCenterConfig;
   now?: () => Date;
   fetchImpl?: typeof fetch;
+  store?: BacklogStore;
 }) {
   const now = input.now ?? (() => new Date());
   const fetchImpl = input.fetchImpl ?? globalThis.fetch;
-  const store = createOperatorStore(input.config);
+  const store = input.store ?? createOperatorStore(input.config);
 
   async function getBacklog(): Promise<AgentBacklogResponse> {
     const generatedAt = now();
@@ -113,7 +116,10 @@ export function createAgentBacklogService(input: {
     if (backlog.status !== 'ok') {
       throw new Error(backlog.message ?? 'Agent backlog is unavailable.');
     }
-    const areas = (inputValue.areas ?? []).map(normalizeArea).filter(Boolean);
+    const areas = (inputValue.areas ?? []).flatMap((area) => {
+      const normalized = normalizeArea(area);
+      return normalized ? [normalized] : [];
+    });
     const candidates = backlog.items
       .filter(
         (item) =>
