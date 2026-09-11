@@ -218,7 +218,7 @@ describe('refreshSocialStrategies', () => {
     expect(store.deactivateSocialStrategy).not.toHaveBeenCalled();
   });
 
-  it('keeps every X, Threads, and YouTube language arm active while retiring lanes outside the current policy', async () => {
+  it('keeps every X and YouTube swap arm active while retiring lanes outside the current policy', async () => {
     store.listLearningSocialPosts.mockResolvedValue([]);
     store.listLearningSocialMetrics.mockResolvedValue([]);
     store.getActiveSocialStrategies.mockResolvedValue([
@@ -260,7 +260,8 @@ describe('refreshSocialStrategies', () => {
       log,
     });
 
-    expect(store.deactivateSocialStrategy).toHaveBeenCalledTimes(1);
+    expect(store.deactivateSocialStrategy).toHaveBeenCalledTimes(2);
+    expect(store.deactivateSocialStrategy).toHaveBeenCalledWith('threads-en');
     expect(store.deactivateSocialStrategy).toHaveBeenCalledWith('rednote-en');
     expect(log).toHaveBeenCalledWith(
       expect.stringContaining('no longer in the publish policy'),

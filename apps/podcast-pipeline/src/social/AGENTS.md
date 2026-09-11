@@ -27,10 +27,10 @@ does not silently drift it back to per-platform language/timing behavior.
   re-derive a durable cohort from a later repaired `scheduled_at`; those changes
   can silently reshape a legacy/interrupted cohort across the rollout boundary.
 
-## Language experiment v2
+## Language experiment v2 (historical rotation)
 
 For episodes created from **2026-09-02 09:00 JST**
-(`2026-09-02T00:00:00.000Z`):
+(`2026-09-02T00:00:00.000Z`) until the Threads-fixed cutover below:
 
 - Rednote is always `zh-Hant`.
 - X, Threads, and YouTube rotate through `zh-Hant`, `ja`, and `en` using the
@@ -46,6 +46,28 @@ For episodes created from **2026-09-02 09:00 JST**
   record whose variant is A/B/C, not a post-performance arm.
 - Episodes created before activation stay on `LEGACY_SOCIAL_LANGUAGE_POLICY`
   even when released later. Deploying this experiment must not reshape backlog.
+
+## Threads fixed to Chinese (current shape)
+
+For episodes created from **2026-09-12 09:00 JST**
+(`2026-09-12T00:00:00.000Z`), the Threads language experiment is concluded:
+Threads ships fixed `zh-Hant` alongside Rednote, and X/YouTube swap `ja`/`en`
+so every article still covers all three languages.
+
+- Threads and Rednote are always `zh-Hant` with no experiment key.
+- X and YouTube swap `ja`/`en` using the D/E profiles in
+  `language-allocation.ts` (D: X `ja` / YouTube `en`; E: X `en` / YouTube
+  `ja`). Day 1 slots run D/E/D, Day 2 E/D/E, then repeat; the two-day cycle
+  gives each swapping platform three `ja` and three `en` articles.
+- Post experiment keys for new lanes are `x-language-v2` and
+  `youtube-language-v1` with variant `ja`/`en`. `threads-language-v1` takes no
+  new assignments; it stays resolvable for reporting and copy guidance on
+  already-persisted lanes. `social-language-profile-v3` is the internal durable
+  allocation record whose variant is D/E, not a post-performance arm.
+- Episodes created before the cutover keep their exact v2 (A/B/C) or legacy
+  lane identities even when released later, including v2 cohorts whose profile
+  was persisted before the deploy. Deploying the fixed shape must not reshape
+  backlog or an already-scheduled cohort.
 
 ## Readiness then slot then lanes
 
@@ -81,10 +103,11 @@ state owns recovery from that point onward.
 
 ## Experiment isolation and evaluation
 
-- While the language experiment is active, X/Threads/YouTube copy-packaging
+- While the language experiment is active, X/YouTube copy-packaging
   experiments stay paused so the low-volume language cells are not confounded by
   simultaneous copy treatments. Rednote packaging may continue because Rednote
-  is not rotating languages.
+  is not rotating languages. Threads packaging stays paused while its
+  concluded `zh-Hant` arm accumulates a clean post-decision baseline.
 - Evaluate language arms **within the same platform** using standardized metric
   windows (especially 24h). Do not rank languages by comparing raw X vs Threads
   vs YouTube view counts as if their distributions were interchangeable.

@@ -24,8 +24,8 @@ export interface PackagingAssignment {
 }
 
 /**
- * Keep only Rednote packaging exploration active while X, Threads, and YouTube
- * run the cross-platform language experiment. Mixing language and copy-treatment
+ * Keep only Rednote packaging exploration active while X and YouTube
+ * run the language swap experiment. Mixing language and copy-treatment
  * experiments at the current sample volume would fragment each cell and make a
  * language winner impossible to attribute cleanly.
  */

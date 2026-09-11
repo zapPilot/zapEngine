@@ -1163,6 +1163,10 @@ async function reconcileClaimedJob(
   return true;
 }
 
+// `threads-language-v1` takes no new assignments since the fixed-Chinese
+// decision, but it stays in this set so copy guidance on already-persisted
+// Threads lanes keeps freezing preferred treatments instead of confounding
+// the concluded arm with learned hook/hashtag bias.
 const LANGUAGE_EXPERIMENT_KEYS: ReadonlySet<string> = new Set(
   Object.values(SOCIAL_LANGUAGE_EXPERIMENT_KEYS) as string[],
 );

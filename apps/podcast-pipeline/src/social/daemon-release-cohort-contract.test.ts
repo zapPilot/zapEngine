@@ -252,6 +252,60 @@ describe('NON-NEGOTIABLE episode release cohort contract', () => {
     expect(new Set(lanes.map((lane) => lane.scheduledAt)).size).toBe(1);
   });
 
+  it('enqueues the fixed-threads swap with no Threads experiment arm', async () => {
+    const createdAt = '2026-09-12T00:10:00.000Z';
+    const candidates = (['zh-Hant', 'ja', 'en'] as const).map(
+      (language_code) => ({
+        episode_id: ARTICLE_A,
+        ready_at: '2026-09-12T00:30:00.000Z',
+        language_code,
+        episode_created_at: createdAt,
+      }),
+    );
+    mocks.listSocialPublishCandidates.mockResolvedValue(candidates);
+    mocks.listSocialPublishCandidatesForEpisodes.mockResolvedValue(candidates);
+
+    await runSocialDaemonTick({
+      now: new Date('2026-09-12T01:00:00.000Z'), // 10:00 JST -> 12:00 slot = E
+      firstStartedAt: FIRST_STARTED_AT,
+    });
+
+    const lanes = mocks.enqueueSocialPublishJob.mock.calls.map(([input]) => ({
+      platform: input.platform,
+      language: input.languageCode,
+      experimentKey: input.experimentKey,
+      experimentVariant: input.experimentVariant,
+      scheduledAt: input.scheduledAt,
+    }));
+    expect(lanes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ platform: 'rednote', language: 'zh-Hant' }),
+        expect.objectContaining({
+          platform: 'x',
+          language: 'en',
+          experimentKey: 'x-language-v2',
+          experimentVariant: 'en',
+        }),
+        expect.objectContaining({
+          platform: 'youtube',
+          language: 'ja',
+          experimentKey: 'youtube-language-v1',
+          experimentVariant: 'ja',
+        }),
+      ]),
+    );
+    expect(lanes).toHaveLength(4);
+    expect(new Set(lanes.map((lane) => lane.language))).toEqual(
+      new Set(['zh-Hant', 'ja', 'en']),
+    );
+    expect(new Set(lanes.map((lane) => lane.scheduledAt)).size).toBe(1);
+    // Threads is fixed Chinese now: same lane as Rednote, no experiment arm.
+    expect(lanes.find((lane) => lane.platform === 'threads')).toMatchObject({
+      language: 'zh-Hant',
+      experimentKey: undefined,
+    });
+  });
+
   it('enqueues zero jobs until every required language media is ready', async () => {
     const incomplete = [
       candidate(ARTICLE_A, 'zh-Hant'),

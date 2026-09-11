@@ -66,6 +66,11 @@ requireMatch(
   /social-language-profile-v2/i,
 );
 requireMatch(
+  'scoped AGENTS fixed-threads profile invariant',
+  socialAgents,
+  /social-language-profile-v3/i,
+);
+requireMatch(
   'daemon episode-level lane resolver',
   daemon,
   /resolveReleaseCohortLanes/,
@@ -102,6 +107,21 @@ requireMatch(
   'language allocation balanced profiles',
   languageAllocation,
   /profile:\s*'A'[\s\S]*profile:\s*'B'[\s\S]*profile:\s*'C'/,
+);
+requireMatch(
+  'language allocation fixed-threads swap profiles',
+  languageAllocation,
+  /profile:\s*'D'[\s\S]*profile:\s*'E'/,
+);
+requireMatch(
+  'threads fixed-chinese cutover',
+  policy,
+  /SOCIAL_LANGUAGE_THREADS_FIXED_SINCE/,
+);
+requireMatch(
+  'durable v3 swap profile assignment',
+  cohort,
+  /SOCIAL_LANGUAGE_SWAP_PROFILE_ASSIGNMENT_KEY/,
 );
 requireMatch(
   'language allocation platform experiment keys',

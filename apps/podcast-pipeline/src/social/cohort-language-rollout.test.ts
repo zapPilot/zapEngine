@@ -156,4 +156,112 @@ describe('social language experiment rollout', () => {
       }),
     );
   });
+
+  it('fixes Threads to zh-Hant for an episode created after the cutover', async () => {
+    const lanes = await resolveReleaseCohortLanes({
+      episodeId: EPISODE_ID,
+      episodeCreatedAt: '2026-09-12T00:00:00.000Z',
+      scheduledAt: new Date('2026-09-12T03:00:00.000Z'), // 12:00 JST = E
+    });
+
+    expect(
+      lanes.map(({ platform, language }) => ({ platform, language })),
+    ).toEqual([
+      { platform: 'x', language: 'en' },
+      { platform: 'youtube', language: 'ja' },
+      { platform: 'threads', language: 'zh-Hant' },
+      { platform: 'rednote', language: 'zh-Hant' },
+    ]);
+    expect(mocks.getOrCreateExperimentAssignment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        experimentKey: 'social-language-profile-v3',
+        variants: ['E'],
+      }),
+    );
+  });
+
+  it('persists the slot-derived v3 profile and reuses it after rescheduling', async () => {
+    const first = await resolveReleaseCohortLanes({
+      episodeId: EPISODE_ID,
+      episodeCreatedAt: '2026-09-12T00:00:00.000Z',
+      scheduledAt: new Date('2026-09-12T03:00:00.000Z'), // 12:00 JST = E
+    });
+    const repaired = await resolveReleaseCohortLanes({
+      episodeId: EPISODE_ID,
+      episodeCreatedAt: '2026-09-12T00:00:00.000Z',
+      scheduledAt: new Date('2026-09-12T07:00:00.000Z'), // 16:00 JST = D
+    });
+
+    expect(first).toEqual(repaired);
+    expect(mocks.getOrCreateExperimentAssignment).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        experimentKey: 'social-language-profile-v3',
+        variants: ['E'],
+      }),
+    );
+    expect(mocks.getOrCreateExperimentAssignment).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        experimentKey: 'social-language-profile-v3',
+        variants: ['D'],
+      }),
+    );
+  });
+
+  it('keeps a v2-window episode on the Latin square even when scheduled after the cutover', async () => {
+    const lanes = await resolveReleaseCohortLanes({
+      episodeId: EPISODE_ID,
+      episodeCreatedAt: '2026-09-11T23:59:59.999Z',
+      scheduledAt: new Date('2026-09-12T03:00:00.000Z'), // 12:00 JST, Latin square = C
+    });
+
+    expect(
+      lanes.map(({ platform, language }) => ({ platform, language })),
+    ).toEqual([
+      { platform: 'x', language: 'zh-Hant' },
+      { platform: 'threads', language: 'en' },
+      { platform: 'youtube', language: 'ja' },
+      { platform: 'rednote', language: 'zh-Hant' },
+    ]);
+    expect(mocks.getOrCreateExperimentAssignment).toHaveBeenCalledWith(
+      expect.objectContaining({ experimentKey: 'social-language-profile-v2' }),
+    );
+    expect(mocks.getOrCreateExperimentAssignment).not.toHaveBeenCalledWith(
+      expect.objectContaining({ experimentKey: 'social-language-profile-v3' }),
+    );
+  });
+
+  it('does not reshape a persisted v2 cohort created after the cutover window', async () => {
+    mocks.assignments.set(`social-language-profile-v2|${EPISODE_ID}`, 'A');
+
+    const lanes = await resolveReleaseCohortLanes({
+      episodeId: EPISODE_ID,
+      episodeCreatedAt: '2026-09-12T00:10:00.000Z',
+      scheduledAt: new Date('2026-09-12T03:00:00.000Z'),
+    });
+
+    expect(
+      lanes.map(({ platform, language }) => ({ platform, language })),
+    ).toEqual([
+      { platform: 'x', language: 'en' },
+      { platform: 'threads', language: 'ja' },
+      { platform: 'youtube', language: 'zh-Hant' },
+      { platform: 'rednote', language: 'zh-Hant' },
+    ]);
+    expect(mocks.getOrCreateExperimentAssignment).not.toHaveBeenCalledWith(
+      expect.objectContaining({ experimentKey: 'social-language-profile-v3' }),
+    );
+  });
+
+  it('requires all three languages for a post-cutover episode', async () => {
+    await expect(
+      resolveRequiredReleaseLanguages({
+        episodeId: EPISODE_ID,
+        episodeCreatedAt: '2026-09-12T00:00:00.000Z',
+        prospectiveScheduledAt: new Date('2026-09-12T03:00:00.000Z'),
+      }),
+    ).resolves.toEqual(['zh-Hant', 'ja', 'en']);
+    expect(mocks.getOrCreateExperimentAssignment).not.toHaveBeenCalled();
+  });
 });

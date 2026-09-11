@@ -25,39 +25,53 @@ export const SOCIAL_LANGUAGE_ROTATION_ACTIVE_SINCE = '2026-09-02T00:00:00.000Z';
 
 export const SOCIAL_LANGUAGE_EXPERIMENT_KEYS = {
   x: 'x-language-v2',
+  /**
+   * Historical only: Threads ran a three-language experiment under this key
+   * until the fixed-Chinese decision. New cohorts after
+   * `SOCIAL_LANGUAGE_THREADS_FIXED_SINCE` ship Threads as a fixed `zh-Hant`
+   * lane with no experiment key; the constant stays so reporting and guidance
+   * on already-persisted lanes keep resolving.
+   */
   threads: 'threads-language-v1',
   youtube: 'youtube-language-v1',
 } as const satisfies Record<'x' | 'threads' | 'youtube', string>;
 
-const ROTATING_LANGUAGES = [
-  'en',
-  'ja',
-  'zh-Hant',
-] as const satisfies readonly SocialLanguageCode[];
+/**
+ * Threads experiment conclusion: episodes created from 09:00 JST on 2026-09-12
+ * ship Threads fixed to Traditional Chinese. Only new episodes use the fixed
+ * shape; older cohorts keep the exact v2/legacy lane identities they were
+ * created under.
+ */
+export const SOCIAL_LANGUAGE_THREADS_FIXED_SINCE = '2026-09-12T00:00:00.000Z';
 
-function rotatingLanguagePolicy(
+function swapLanguagePolicy(
   experimentKey: string,
 ): SocialLanguagePolicyEntry[] {
-  return ROTATING_LANGUAGES.map((language) => ({
-    language,
-    activeSince: SOCIAL_LANGUAGE_ROTATION_ACTIVE_SINCE,
-    experimentKey,
-    experimentVariant: language,
-    assignment: 'always',
-  }));
+  return (['ja', 'en'] as const satisfies readonly SocialLanguageCode[]).map(
+    (language) => ({
+      language,
+      activeSince: SOCIAL_LANGUAGE_THREADS_FIXED_SINCE,
+      experimentKey,
+      experimentVariant: language,
+      assignment: 'always',
+    }),
+  );
 }
 
 /**
- * Current candidate language surface. Rednote stays Traditional Chinese while
- * X, Threads, and YouTube each rotate through all three primary languages.
- * `language-allocation.ts` selects exactly one candidate per rotating platform
- * for each article slot, while preserving one cross-platform release cohort.
+ * Current candidate language surface. Rednote and Threads stay fixed to
+ * Traditional Chinese while X and YouTube swap `ja`/`en` so every article
+ * still covers all three languages. `language-allocation.ts` selects exactly
+ * one candidate per swapping platform for each article slot, while preserving
+ * one cross-platform release cohort.
  */
 export const SOCIAL_LANGUAGE_POLICY = {
   rednote: [{ language: 'zh-Hant', activeSince: MULTILINGUAL_ACTIVE_SINCE }],
-  threads: rotatingLanguagePolicy(SOCIAL_LANGUAGE_EXPERIMENT_KEYS.threads),
-  x: rotatingLanguagePolicy(SOCIAL_LANGUAGE_EXPERIMENT_KEYS.x),
-  youtube: rotatingLanguagePolicy(SOCIAL_LANGUAGE_EXPERIMENT_KEYS.youtube),
+  threads: [
+    { language: 'zh-Hant', activeSince: SOCIAL_LANGUAGE_THREADS_FIXED_SINCE },
+  ],
+  x: swapLanguagePolicy(SOCIAL_LANGUAGE_EXPERIMENT_KEYS.x),
+  youtube: swapLanguagePolicy(SOCIAL_LANGUAGE_EXPERIMENT_KEYS.youtube),
 } satisfies Record<SocialPlatform, readonly SocialLanguagePolicyEntry[]>;
 
 /**
