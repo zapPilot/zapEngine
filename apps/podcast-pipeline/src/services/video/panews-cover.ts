@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import sharp from 'sharp';
@@ -7,14 +9,15 @@ import type { ImageCandidate } from '../../types.js';
 import { scrapeArticle } from '../scrape.js';
 import { acquireRemoteImage } from './assets.js';
 
-const PANews_COVER_SCRAPE_TIMEOUT_MS = 15_000;
-const PANews_COVER_STRATEGY = 'panews-og-image-v1' as const;
+const PANEWS_COVER_SCRAPE_TIMEOUT_MS = 15_000;
+const PANEWS_COVER_STRATEGY = 'panews-og-image-v1' as const;
 
 export interface PanewsVideoCoverMetadata {
-  strategy: typeof PANews_COVER_STRATEGY;
+  strategy: typeof PANEWS_COVER_STRATEGY;
   status: 'selected' | 'fallback';
   sourcePageUrl: string;
   sourceImageUrl: string | null;
+  storedUrl: string | null;
   sha256: string | null;
   width: number | null;
   height: number | null;
@@ -35,7 +38,7 @@ export interface PreparePanewsVideoCoverInput {
 type RenderCoverPng = (
   sourcePath: string,
   outputPath: string,
-) => Promise<void>;
+) => Promise<string>;
 
 interface PanewsCoverDependencies {
   scrape: typeof scrapeArticle;
@@ -54,6 +57,9 @@ const defaultDependencies: PanewsCoverDependencies = {
       .rotate()
       .png({ compressionLevel: 9 })
       .toFile(outputPath);
+    return createHash('sha256')
+      .update(await readFile(outputPath))
+      .digest('hex');
   },
 };
 
@@ -61,12 +67,11 @@ export function isPanewsArticleUrl(value: string): boolean {
   try {
     const parsed = new URL(value);
     const hostname = parsed.hostname.toLowerCase();
-    const isPanewsHost =
-      hostname === 'panews.io' ||
-      hostname.endsWith('.panews.io') ||
-      hostname === 'panewslab.com' ||
-      hostname.endsWith('.panewslab.com');
-    return isPanewsHost && /(?:^|\/)articles(?:\/|$)/.test(parsed.pathname);
+    const panewsHosts = ['panews.io', 'panewslab.com'];
+    const isPanewsHost = panewsHosts.some(
+      (host) => hostname === host || hostname.endsWith(`.${host}`),
+    );
+    return isPanewsHost && parsed.pathname.split('/').includes('articles');
   } catch {
     return false;
   }
@@ -86,10 +91,11 @@ function fallbackMetadata(
   return {
     thumbnailPath: null,
     metadata: {
-      strategy: PANews_COVER_STRATEGY,
+      strategy: PANEWS_COVER_STRATEGY,
       status: 'fallback',
       sourcePageUrl,
       sourceImageUrl,
+      storedUrl: null,
       sha256: null,
       width: null,
       height: null,
@@ -101,9 +107,9 @@ function fallbackMetadata(
 /**
  * Uses PANews' publisher-selected Open Graph image as the deterministic video
  * cover baseline. The image is acquired through the same SSRF-safe, fully
- * decoded image path as scene assets, converted to PNG, and later uploaded by
- * the normal video artifact uploader. Any cover-only failure is deliberately
- * fail-open so rendering can keep the renderer-generated thumbnail.
+ * decoded image path as scene assets and converted to a canonical PNG. Any
+ * cover-only failure is deliberately fail-open so rendering can keep the
+ * renderer-generated thumbnail.
  */
 export async function preparePanewsVideoCover(
   input: PreparePanewsVideoCoverInput,
@@ -119,7 +125,7 @@ export async function preparePanewsVideoCover(
   try {
     const article = await dependencies.scrape(input.sourceUrl, {
       signal: input.signal,
-      timeoutMs: PANews_COVER_SCRAPE_TIMEOUT_MS,
+      timeoutMs: PANEWS_COVER_SCRAPE_TIMEOUT_MS,
     });
     candidate = openGraphCover(article.images);
     if (!candidate) {
@@ -133,17 +139,18 @@ export async function preparePanewsVideoCover(
       signal: input.signal,
     });
     const outputPath = join(input.workingDirectory, 'panews-cover.png');
-    await dependencies.renderPng(acquired.path, outputPath);
+    const pngSha256 = await dependencies.renderPng(acquired.path, outputPath);
     input.signal?.throwIfAborted();
 
     return {
       thumbnailPath: outputPath,
       metadata: {
-        strategy: PANews_COVER_STRATEGY,
+        strategy: PANEWS_COVER_STRATEGY,
         status: 'selected',
         sourcePageUrl: input.sourceUrl,
         sourceImageUrl: candidate.imageUrl,
-        sha256: acquired.sha256,
+        storedUrl: null,
+        sha256: pngSha256,
         width: acquired.width,
         height: acquired.height,
         fallbackReason: null,
