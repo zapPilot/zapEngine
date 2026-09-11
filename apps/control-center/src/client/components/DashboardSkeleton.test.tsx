@@ -25,11 +25,11 @@ describe('DashboardSkeleton', () => {
     expect(
       screen.getByRole('status', { name: 'Loading dashboard data' }),
     ).toHaveAttribute('aria-busy', 'true');
-    expect(container.querySelectorAll('.cc-skeleton-card').length).toBeGreaterThan(
-      0,
-    );
-    expect(container.querySelectorAll('.cc-skeleton-block').length).toBeGreaterThan(
-      0,
-    );
+    expect(
+      container.querySelectorAll('.cc-skeleton-card').length,
+    ).toBeGreaterThan(0);
+    expect(
+      container.querySelectorAll('.cc-skeleton-block').length,
+    ).toBeGreaterThan(0);
   });
 });
