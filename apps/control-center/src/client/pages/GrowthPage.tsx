@@ -23,6 +23,8 @@ const CONFIDENCE_TONE: Record<string, Tone> = {
   medium: 'warning',
 };
 
+export const CURRENT_RELEASE_SLOTS_JST = ['09:30', '12:00', '16:00'] as const;
+
 export function GrowthPage(props: {
   data: SocialPerformanceResponse | null;
   growth: SocialGrowthResponse | null;
@@ -41,6 +43,8 @@ export function GrowthPage(props: {
       </div>
 
       <GrowthJourneyPanel growth={props.growth} />
+
+      <PublishingCadence />
 
       <div className="cc-grid rel-main">
         <Card
@@ -127,6 +131,53 @@ function WindowPicker(props: {
         </button>
       ))}
     </div>
+  );
+}
+
+/**
+ * Canonical publishing cadence. One article consumes one release slot and all
+ * active platform x language lanes share it; the slots here must match
+ * SOCIAL_RELEASE_SLOTS in apps/podcast-pipeline/src/social/policy.ts.
+ */
+function PublishingCadence() {
+  return (
+    <section className="publishing-brief" aria-label="Next publishing plan">
+      <div className="brief-kicker">Next publishing</div>
+      <div className="brief-primary">
+        <span>Shared release cadence</span>
+        <div
+          aria-label="Publishing slots"
+          style={{
+            display: 'grid',
+            gap: '8px',
+            gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+          }}
+        >
+          {CURRENT_RELEASE_SLOTS_JST.map((slot) => (
+            <strong
+              key={slot}
+              style={{
+                border: '1px solid var(--line)',
+                borderRadius: 'var(--radius-control)',
+                padding: '10px 8px',
+                textAlign: 'center',
+              }}
+            >
+              {slot}
+            </strong>
+          ))}
+        </div>
+        <small>JST · 3 article slots per day</small>
+      </div>
+      <div className="brief-direction">
+        <span>Publishing contract</span>
+        <strong>1 article → every active platform</strong>
+        <p>
+          X · Threads · Rednote · YouTube publish together. Language allocation
+          is the only lane-level variation.
+        </p>
+      </div>
+    </section>
   );
 }
 

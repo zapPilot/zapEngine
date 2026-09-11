@@ -23,7 +23,7 @@ const languageAllocation = read(
 );
 const readme = read('apps/podcast-pipeline/src/social/README.md');
 const growthView = read(
-  'apps/control-center/src/client/components/GrowthView.tsx',
+  'apps/control-center/src/client/pages/GrowthPage.tsx',
 );
 const recovery = read(
   'apps/podcast-pipeline/src/social/release-cohort-store.ts',
