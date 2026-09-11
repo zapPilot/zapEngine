@@ -20,8 +20,7 @@ Read-only provider credentials stay server-side and are used by the operations a
 
 Agent backlog access deliberately does **not** privilege-raise `OPS_GITHUB_TOKEN`:
 
-- `OPS_GITHUB_BACKLOG_TOKEN` — fine-grained token for `zapPilot/zapEngine` with Issues read/write only. It backs both the normalized backlog read and the bounded issue mutations.
-- `OPS_BACKLOG_WRITE_ENABLED` — defaults to `false`; `ops_backlog_create`, `ops_backlog_claim`, and `ops_backlog_release` fail closed until explicitly enabled. `ops_backlog` remains readable when the token exists.
+- `OPS_GITHUB_BACKLOG_TOKEN` — fine-grained token for `zapPilot/zapEngine` with Issues read/write only. It backs both the normalized backlog read and the bounded issue mutations. If it is absent, reads degrade to `unconfigured` and mutations fail closed.
 
 Sentry remediation uses a separate server-side credential:
 
@@ -60,9 +59,9 @@ This intentionally does **not** implement distributed locking. Two agents claimi
 
 There is deliberately no `ops_backlog_complete` tool. The implementation PR should use `Fixes #<issue>` and GitHub closes the issue on merge. This prevents an agent from declaring work complete merely because its local attempt ended.
 
-`ops_backlog_create` is not a generic GitHub Issues API. The repository and low-risk labels are server-owned, callers cannot select another repository, and writes are disabled unless `OPS_BACKLOG_WRITE_ENABLED=true`. Backlog membership grants no production, deployment, schema, auth, financial, or incident-remediation authority.
+`ops_backlog_create` is not a generic GitHub Issues API. The repository and low-risk labels are server-owned, callers cannot select another repository, and mutations require the dedicated `OPS_GITHUB_BACKLOG_TOKEN`. Backlog membership grants no production, deployment, schema, auth, financial, or incident-remediation authority.
 
-Before enabling writes, create the repository labels used by the contract: `agent-backlog`, `agent:weak`, `risk:low`, `blocked`, and `status:working`, plus any desired `area:*` labels.
+Before using backlog mutations, create the repository labels used by the contract: `agent-backlog`, `agent:weak`, `risk:low`, `blocked`, and `status:working`, plus any desired `area:*` labels.
 
 ## Incident correlation
 
@@ -136,7 +135,7 @@ From Claude Code or OpenCode at the repository root:
 4. Call `ops_backlog` and confirm GitHub issue counts and ready/working/blocked state match the Reliability view.
 5. Pick an active priority fingerprint and call `ops_investigate`; confirm the packet exposes explicit correlation for mapped services, separates `operationalPriorityScore` from the rest of the `remediation` block, and keeps `directMutationAllowed` `false`.
 6. Pick a real Sentry signal fingerprint and call `ops_inspect_signal`; confirm the issue evidence includes a numeric issue ID.
-7. With backlog writes explicitly enabled, claim a disposable low-risk backlog issue, confirm the `status:working` label landed on it, then release it and confirm the label is removed (or `blocked` is added for a blocked release).
+7. With `OPS_GITHUB_BACKLOG_TOKEN` configured, claim a disposable low-risk backlog issue, confirm the `status:working` label landed on it, then release it and confirm the label is removed (or `blocked` is added for a blocked release).
 8. With `SENTRY_OPS_WRITE_TOKEN` configured, resolve a disposable/test issue through `ops_resolve_sentry_issue` and confirm only that issue changes to `resolved`.
 
 The repository tests lock both client discovery files to the canonical launcher and assert that the launcher explicitly selects the production environment.

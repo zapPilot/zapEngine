@@ -189,14 +189,7 @@ export function createAgentBacklogService(input: {
     return { released: true };
   }
 
-  function assertWritesEnabled(): void {
-    if (!input.config.OPS_BACKLOG_WRITE_ENABLED) {
-      throw new Error('Agent backlog writes are disabled.');
-    }
-  }
-
   function writeToken(): string {
-    assertWritesEnabled();
     const token = input.config.OPS_GITHUB_BACKLOG_TOKEN;
     if (!token) {
       throw new Error('OPS_GITHUB_BACKLOG_TOKEN is unset.');

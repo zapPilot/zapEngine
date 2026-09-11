@@ -45,10 +45,9 @@ function json(value: unknown, status = 200): Response {
   });
 }
 
-function configured(write = false) {
+function configured() {
   return readControlCenterConfig({
     OPS_GITHUB_BACKLOG_TOKEN: 'backlog-token',
-    OPS_BACKLOG_WRITE_ENABLED: write ? 'true' : 'false',
   });
 }
 
@@ -151,9 +150,9 @@ describe('agent backlog', () => {
     expect(result.message).toMatch(/full page/u);
   });
 
-  it('fails closed when writes are not explicitly enabled', async () => {
+  it('rejects writes when the dedicated token is unset', async () => {
     const service = createAgentBacklogService({
-      config: configured(false),
+      config: readControlCenterConfig({}),
       now: () => NOW,
       fetchImpl: vi.fn(),
     });
@@ -165,13 +164,13 @@ describe('agent backlog', () => {
         expectedOutcome: 'The branch has a regression test.',
         acceptanceCriteria: ['Add the missing assertion'],
       }),
-    ).rejects.toThrow('writes are disabled');
+    ).rejects.toThrow('OPS_GITHUB_BACKLOG_TOKEN is unset');
   });
 
   it('creates only the allowlisted weak-agent issue shape', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(json(OPEN_READY));
     const service = createAgentBacklogService({
-      config: configured(true),
+      config: configured(),
       now: () => NOW,
       fetchImpl,
     });
@@ -224,7 +223,7 @@ describe('agent backlog', () => {
       },
     });
     const service = createAgentBacklogService({
-      config: configured(true),
+      config: configured(),
       now: () => NOW,
       fetchImpl,
     });
@@ -262,7 +261,7 @@ describe('agent backlog', () => {
       },
     });
     const service = createAgentBacklogService({
-      config: configured(true),
+      config: configured(),
       now: () => NOW,
       fetchImpl,
     });
@@ -289,7 +288,7 @@ describe('agent backlog', () => {
       },
     });
     const service = createAgentBacklogService({
-      config: configured(true),
+      config: configured(),
       now: () => NOW,
       fetchImpl,
     });
@@ -307,7 +306,7 @@ describe('agent backlog', () => {
       },
     });
     const service = createAgentBacklogService({
-      config: configured(true),
+      config: configured(),
       now: () => NOW,
       fetchImpl,
     });
@@ -337,7 +336,7 @@ describe('agent backlog', () => {
       },
     });
     const service = createAgentBacklogService({
-      config: configured(true),
+      config: configured(),
       now: () => NOW,
       fetchImpl,
     });
@@ -359,7 +358,7 @@ describe('agent backlog', () => {
       labels: ['bug', 'status:working'],
     };
     const service = createAgentBacklogService({
-      config: configured(true),
+      config: configured(),
       now: () => NOW,
       fetchImpl: githubRouter({ issues: { 999: unrelated } }),
     });
@@ -374,7 +373,7 @@ describe('agent backlog', () => {
     ).rejects.toThrow('not part of the agent backlog');
 
     const readyService = createAgentBacklogService({
-      config: configured(true),
+      config: configured(),
       now: () => NOW,
       fetchImpl: githubRouter({ issues: { 451: OPEN_READY } }),
     });
