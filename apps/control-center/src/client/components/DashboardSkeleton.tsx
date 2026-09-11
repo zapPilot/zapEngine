@@ -35,9 +35,10 @@ export function DashboardSkeleton(props: { view: DashboardView }) {
         aria-hidden="true"
         className={`dashboard-skeleton-grid ${count <= 4 ? 'dashboard-skeleton-grid-2' : ''}`}
       >
-        {Array.from({ length: metricHeavy ? count - 2 : count - 1 }, (_, index) => (
-          <SkeletonCard key={index} />
-        ))}
+        {Array.from(
+          { length: metricHeavy ? count - 2 : count - 1 },
+          (_, index) => <SkeletonCard key={index} />,
+        )}
       </div>
     </div>
   );
