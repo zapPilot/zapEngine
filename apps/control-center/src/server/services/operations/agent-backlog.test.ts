@@ -116,11 +116,13 @@ describe('agent backlog', () => {
       completed7d: 1,
       truncated: false,
     });
-    expect(result.items.map((item) => [item.issueNumber, item.status])).toEqual([
-      [451, 'ready'],
-      [452, 'working'],
-      [453, 'blocked'],
-    ]);
+    expect(result.items.map((item) => [item.issueNumber, item.status])).toEqual(
+      [
+        [451, 'ready'],
+        [452, 'working'],
+        [453, 'blocked'],
+      ],
+    );
 
     const closedCall = fetchImpl.mock.calls.find(
       (call) =>
@@ -211,7 +213,10 @@ describe('agent backlog', () => {
       open: [OPEN_READY, older, OPEN_WORKING, OPEN_BLOCKED],
       closed: [],
       onWrite: (url, init) => {
-        writes.push({ url, body: init.body ? JSON.parse(String(init.body)) : null });
+        writes.push({
+          url,
+          body: init.body ? JSON.parse(String(init.body)) : null,
+        });
         if (url.endsWith('/labels')) {
           return json([{ name: 'status:working' }]);
         }
@@ -233,9 +238,9 @@ describe('agent backlog', () => {
     expect(
       writes.find((write) => write.url.endsWith('/issues/440/labels'))?.body,
     ).toEqual({ labels: ['status:working'] });
-    expect(writes.some((write) => write.url.includes('/issues/440/comments'))).toBe(
-      true,
-    );
+    expect(
+      writes.some((write) => write.url.includes('/issues/440/comments')),
+    ).toBe(true);
   });
 
   it('can restrict claims to an area without effort ranking', async () => {
@@ -315,9 +320,9 @@ describe('agent backlog', () => {
         reason: 'Returning this bounded task to the queue.',
       }),
     ).resolves.toEqual({ released: true });
-    expect(
-      writes.some((url) => url.includes('/labels/status%3Aworking')),
-    ).toBe(true);
+    expect(writes.some((url) => url.includes('/labels/status%3Aworking'))).toBe(
+      true,
+    );
   });
 
   it('marks blocked before removing status:working', async () => {
@@ -367,5 +372,20 @@ describe('agent backlog', () => {
         reason: 'This must not mutate arbitrary issues.',
       }),
     ).rejects.toThrow('not part of the agent backlog');
+
+    const readyService = createAgentBacklogService({
+      config: configured(true),
+      now: () => NOW,
+      fetchImpl: githubRouter({ issues: { 451: OPEN_READY } }),
+    });
+
+    await expect(
+      readyService.releaseClaim({
+        issueNumber: 451,
+        agentId: 'weak-1',
+        outcome: 'released',
+        reason: 'This issue was never claimed.',
+      }),
+    ).rejects.toThrow('not currently working');
   });
 });

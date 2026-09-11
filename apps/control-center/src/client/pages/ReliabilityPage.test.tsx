@@ -174,6 +174,69 @@ describe('Reliability cost reading', () => {
   });
 });
 
+describe('Reliability backlog card', () => {
+  const backlogOperations: OperationsResponse = {
+    ...operations,
+    agentBacklog: {
+      blocked: 1,
+      completed7d: 0,
+      generatedAt: '2026-09-10T01:00:00Z',
+      items: [
+        {
+          area: 'control-center',
+          body: null,
+          createdAt: '2026-09-10T00:00:00Z',
+          issueNumber: 451,
+          labels: ['agent-backlog'],
+          risk: 'low',
+          status: 'ready',
+          title: 'Add loading skeleton',
+          updatedAt: '2026-09-10T01:00:00Z',
+          url: 'https://github.com/zapPilot/zapEngine/issues/451',
+        },
+        {
+          area: 'control-center',
+          body: null,
+          createdAt: '2026-09-10T00:00:00Z',
+          issueNumber: 452,
+          labels: ['agent-backlog', 'status:working'],
+          risk: 'low',
+          status: 'working',
+          title: 'Already in progress',
+          updatedAt: '2026-09-10T01:00:00Z',
+          url: 'https://github.com/zapPilot/zapEngine/issues/452',
+        },
+        {
+          area: null,
+          body: null,
+          createdAt: '2026-09-10T00:00:00Z',
+          issueNumber: 453,
+          labels: ['agent-backlog', 'blocked'],
+          risk: 'low',
+          status: 'blocked',
+          title: 'Needs product judgement',
+          updatedAt: '2026-09-10T01:00:00Z',
+          url: 'https://github.com/zapPilot/zapEngine/issues/453',
+        },
+      ],
+      message: null,
+      ready: 1,
+      repo: 'zapPilot/zapEngine',
+      status: 'ok',
+      truncated: false,
+      working: 1,
+    },
+  };
+
+  it('renders GitHub label state without lease wording', () => {
+    renderPage({ data: backlogOperations });
+    expect(screen.getByText('Marked status:working')).toBeVisible();
+    expect(screen.getByText('working · control-center')).toBeVisible();
+    expect(screen.getByText('blocked')).toBeVisible();
+    expect(screen.queryByText(/claimed by/i)).toBeNull();
+  });
+});
+
 describe('Reliability with nothing to report', () => {
   it('does not describe an unknown system as risk-free', () => {
     renderPage({
