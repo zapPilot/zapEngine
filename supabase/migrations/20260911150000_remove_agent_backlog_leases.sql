@@ -9,4 +9,6 @@ drop function if exists from_fed_to_chain.ops_agent_backlog_claims();
 
 drop table if exists ops.agent_backlog_claims;
 
+notify pgrst, 'reload schema';
+
 commit;
