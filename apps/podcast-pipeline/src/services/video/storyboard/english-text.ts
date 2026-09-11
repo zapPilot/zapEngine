@@ -1,6 +1,8 @@
 export const NON_LATIN_SCRIPT_PATTERN =
   /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u;
 
+export const WORD_PATTERN = /[A-Za-z0-9][A-Za-z0-9+&.'’/-]*/gu;
+
 export function normalizedEntityText(value: string): string {
   return value
     .normalize('NFKC')
