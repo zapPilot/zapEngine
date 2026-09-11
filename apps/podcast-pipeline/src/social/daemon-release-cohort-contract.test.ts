@@ -26,6 +26,7 @@ const mocks = vi.hoisted(() => ({
   listSocialPublishCandidatesForEpisodes: vi.fn().mockResolvedValue([]),
   listUnfinishedSocialPublishJobs: vi.fn().mockResolvedValue([]),
   reconcileSocialPublishJob: vi.fn(),
+  refundSocialPublishJobAttempt: vi.fn().mockResolvedValue(undefined),
   releaseSocialPublishJobLease: vi.fn().mockResolvedValue(undefined),
   insertSocialPostMetric: vi.fn(),
   listSocialPostIdentitiesByEpisodes: vi.fn().mockResolvedValue([]),
@@ -33,6 +34,7 @@ const mocks = vi.hoisted(() => ({
   updateSocialPostIdentity: vi.fn(),
   updateSocialPostReviewStatus: vi.fn(),
   publishSocialBatch: vi.fn(),
+  prepareSocialBatchCopy: vi.fn().mockResolvedValue({}),
   createMetricCollectors: vi.fn().mockReturnValue({
     x: vi.fn(),
     threads: vi.fn(),
@@ -75,6 +77,7 @@ vi.mock('./daemon-store.js', () => ({
     mocks.listSocialPublishCandidatesForEpisodes,
   listUnfinishedSocialPublishJobs: mocks.listUnfinishedSocialPublishJobs,
   reconcileSocialPublishJob: mocks.reconcileSocialPublishJob,
+  refundSocialPublishJobAttempt: mocks.refundSocialPublishJobAttempt,
   releaseSocialPublishJobLease: mocks.releaseSocialPublishJobLease,
 }));
 
@@ -91,6 +94,7 @@ vi.mock('./account-snapshots.js', () => ({
 }));
 vi.mock('./publish-batch.js', () => ({
   publishSocialBatch: mocks.publishSocialBatch,
+  prepareSocialBatchCopy: mocks.prepareSocialBatchCopy,
 }));
 vi.mock('./metric-collectors.js', () => ({
   createMetricCollectors: mocks.createMetricCollectors,
@@ -107,6 +111,7 @@ vi.mock('./experiments.js', async (importOriginal) => ({
 }));
 
 import { runSocialDaemonTick } from './daemon.js';
+import { SocialCopyGenerationError } from './publish-error.js';
 
 const NOW = new Date('2026-09-02T01:00:00.000Z'); // 10:00 JST
 const FIRST_STARTED_AT = '2026-09-01T00:00:00.000Z';
@@ -169,6 +174,7 @@ function claimedCohort(episodeId: string) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.prepareSocialBatchCopy.mockResolvedValue({});
   mocks.alignPendingSocialReleaseCohorts.mockResolvedValue({
     alignedLanes: 0,
     rescheduledEpisodes: 0,
@@ -545,5 +551,77 @@ describe('NON-NEGOTIABLE episode release cohort contract', () => {
     );
     expect(enqueued).not.toContain('threads|ja');
     expect(enqueued).not.toContain('x|en');
+  });
+
+  it('holds the whole article when one language cannot produce copy', async () => {
+    // zh-Hant is claimed last on purpose: the red-line judge only runs on it,
+    // and generating copy inside the publish loop would have shipped ja and en
+    // before the rejection was even known.
+    mocks.claimReleaseCohortJobs.mockResolvedValue([
+      claimedLane(ARTICLE_A, 'x', 'ja', `${ARTICLE_A}-x`),
+      claimedLane(ARTICLE_A, 'youtube', 'en', `${ARTICLE_A}-youtube`),
+      claimedLane(ARTICLE_A, 'rednote', 'zh-Hant', `${ARTICLE_A}-rednote`),
+    ]);
+    mocks.listSocialPublishCandidatesForEpisodes.mockResolvedValue(
+      readyEpisode(ARTICLE_A),
+    );
+    mocks.prepareSocialBatchCopy.mockImplementation(
+      async ({ languageCode }: { languageCode: string }) => {
+        if (languageCode !== 'zh-Hant') return {};
+        throw new SocialCopyGenerationError({
+          episodeId: ARTICLE_A,
+          languageCode: 'zh-Hant',
+          attempts: 3,
+          reason:
+            'Rednote copy breaks investment-direction red lines (asset_allocation_advice)',
+          cause: undefined,
+        });
+      },
+    );
+    const log = vi.fn();
+
+    await runSocialDaemonTick({
+      now: NOW,
+      firstStartedAt: FIRST_STARTED_AT,
+      log,
+    });
+
+    expect(mocks.publishSocialBatch).not.toHaveBeenCalled();
+    expect(mocks.failSocialPublishJob).toHaveBeenCalledTimes(3);
+    for (const [input] of mocks.failSocialPublishJob.mock.calls) {
+      expect(input.error).toContain('Release held:');
+      expect(input.error).toContain('zh-Hant social copy generation failed');
+      expect(input.error).toContain('asset_allocation_advice');
+    }
+    // A hold spends the attempt and serves retry backoff; handing the lease
+    // back instead is what made this an unbounded restart loop.
+    expect(mocks.releaseSocialPublishJobLease).not.toHaveBeenCalled();
+    expect(mocks.refundSocialPublishJobAttempt).not.toHaveBeenCalled();
+    expect(log).toHaveBeenCalledWith(
+      expect.stringContaining('release held · copy generation failed'),
+    );
+  });
+
+  it('stops generating copy for the rest of a held article', async () => {
+    mocks.claimReleaseCohortJobs.mockResolvedValue(claimedCohort(ARTICLE_A));
+    mocks.listSocialPublishCandidatesForEpisodes.mockResolvedValue(
+      readyEpisode(ARTICLE_A),
+    );
+    mocks.prepareSocialBatchCopy.mockRejectedValue(
+      new SocialCopyGenerationError({
+        episodeId: ARTICLE_A,
+        languageCode: 'zh-Hant',
+        attempts: 3,
+        reason: 'Rednote copy breaks investment-direction red lines',
+        cause: undefined,
+      }),
+    );
+
+    await runSocialDaemonTick({ now: NOW, firstStartedAt: FIRST_STARTED_AT });
+
+    // zh-Hant is claimed first here, so the ja and en lanes of the same held
+    // article must not pay for an LLM call they can never use.
+    expect(mocks.prepareSocialBatchCopy).toHaveBeenCalledTimes(1);
+    expect(mocks.publishSocialBatch).not.toHaveBeenCalled();
   });
 });

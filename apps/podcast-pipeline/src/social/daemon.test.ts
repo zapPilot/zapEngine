@@ -30,6 +30,7 @@ const mocks = vi.hoisted(() => ({
   updateSocialPostIdentity: vi.fn(),
   updateSocialPostReviewStatus: vi.fn(),
   publishSocialBatch: vi.fn(),
+  prepareSocialBatchCopy: vi.fn().mockResolvedValue({}),
   createMetricCollectors: vi.fn(),
   createMetricsBrowserSession: vi.fn(),
   closeMetricsBrowserSession: vi.fn(),
@@ -92,6 +93,7 @@ vi.mock('./rolling-metrics.js', () => ({
 }));
 vi.mock('./publish-batch.js', () => ({
   publishSocialBatch: mocks.publishSocialBatch,
+  prepareSocialBatchCopy: mocks.prepareSocialBatchCopy,
 }));
 vi.mock('./metric-collectors.js', () => ({
   createMetricCollectors: mocks.createMetricCollectors,
@@ -209,6 +211,7 @@ beforeEach(() => {
   });
   mocks.listPartiallyPublishedCohorts.mockReset().mockResolvedValue([]);
   vi.clearAllMocks();
+  mocks.prepareSocialBatchCopy.mockResolvedValue({});
   mocks.listSocialPublishCandidates.mockResolvedValue([]);
   // Publishing now re-checks media for every claimed cohort, so the default is
   // the normal production state -- every episode asked about is fully ready.

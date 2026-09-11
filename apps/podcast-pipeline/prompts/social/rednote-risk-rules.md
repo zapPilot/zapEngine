@@ -16,6 +16,11 @@ A note that said 「低配債券、超配黃金」 as Ray Dalio's view was remov
 fact survives when it is stated without the allocation verb: describe what he
 treats gold as, or what risk he is hedging, not the position size he prefers.
 
+Second-person holding instructions are the same rule without an allocation verb:
+「你只需持有 X」、「持有就好」、「長期抱著」 all tell the reader what to hold, and
+are violations even when the sentence is praising a design. Describe what the
+mechanism does for whoever uses it, not what the reader should do with it.
+
 ## R2 `market_timing_advice`
 
 Never tell a reader when to act. No entry point, exit point, "退場節奏",

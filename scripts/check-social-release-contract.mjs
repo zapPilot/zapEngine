@@ -89,6 +89,15 @@ requireMatch(
   daemon,
   /holdCohortsMissingMedia/,
 );
+// Copy is the last pre-transport step that can fail for one language. Inside
+// the publish loop it shipped an article's other languages before the Rednote
+// red-line verdict was known, so it has to run as a barrier ahead of the first
+// transport call.
+requireMatch(
+  'daemon publish-time copy barrier',
+  daemon,
+  /holdCohortsMissingCopy/,
+);
 requireMatch(
   'language allocation balanced profiles',
   languageAllocation,

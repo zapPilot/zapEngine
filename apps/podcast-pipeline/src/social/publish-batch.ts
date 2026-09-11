@@ -1,5 +1,6 @@
 import { socialLandingUrl } from '../brand/cta.js';
 import { generateSocialCopy } from './copy.js';
+import { getSocialEpisode } from './episode.js';
 import {
   type PackagingAssignment,
   resolvePackagingAssignments,
@@ -28,14 +29,66 @@ export interface SocialBatchPlatform {
   experimentVariant?: string | null;
 }
 
+export interface PreparedSocialBatchCopy {
+  episode: SocialEpisode;
+  packagingByPlatform: Partial<Record<SocialPlatform, PackagingAssignment>>;
+  snapshot: SocialCopySnapshot;
+}
+
+/**
+ * Everything a release needs before its first transport call, and the only
+ * step left that can fail for one language of an otherwise healthy article.
+ * It is a separate entry point so the daemon can run it for every claimed
+ * language *before* publishing any of them: generating copy inside the
+ * per-language publish loop meant a rejected Rednote note arrived after the
+ * article's other languages were already live, which is the permanently
+ * partial article the cohort contract forbids.
+ *
+ * Deliberately without a try/catch. `generateSocialCopy` already throws
+ * `SocialCopyGenerationError` for the one case that is a decided-copy failure;
+ * wrapping the call here would swallow a missing prompt file or unset
+ * OpenRouter config into the same hold, and those are deployment failures that
+ * have to stay fatal.
+ */
+export async function prepareSocialBatchCopy(input: {
+  episodeId: string;
+  languageCode: SocialLanguageCode;
+  platforms: readonly SocialPlatform[];
+  strategyGuidanceByPlatform?: Partial<Record<SocialPlatform, string>>;
+}): Promise<PreparedSocialBatchCopy> {
+  const episode = await getSocialEpisode(input.episodeId, input.languageCode);
+  const packagingByPlatform = await resolvePackagingAssignments({
+    episodeId: input.episodeId,
+    languageCode: input.languageCode,
+    platforms: input.platforms,
+  });
+  const generated = await generateSocialCopy({
+    episode,
+    languageCode: input.languageCode,
+    platforms: input.platforms,
+    packagingByPlatform,
+    ...(input.strategyGuidanceByPlatform
+      ? { strategyGuidanceByPlatform: input.strategyGuidanceByPlatform }
+      : {}),
+  });
+  return {
+    episode,
+    packagingByPlatform,
+    snapshot: {
+      generated: generated.copy,
+      published: generated.copy,
+      model: generated.model,
+    },
+  };
+}
+
 export async function publishSocialBatch(input: {
   episodeId: string;
   languageCode: SocialLanguageCode;
   platforms: readonly SocialBatchPlatform[];
-  strategyGuidanceByPlatform?: Partial<Record<SocialPlatform, string>>;
-  packagingByPlatform?: Partial<Record<SocialPlatform, PackagingAssignment>>;
-  copySnapshot?: SocialCopySnapshot;
-  episode?: SocialEpisode;
+  packagingByPlatform: Partial<Record<SocialPlatform, PackagingAssignment>>;
+  copySnapshot: SocialCopySnapshot;
+  episode: SocialEpisode;
   video?: PreparedVideo;
   teaserVideo?: PreparedVideo;
   force?: boolean;
@@ -49,35 +102,12 @@ export async function publishSocialBatch(input: {
     languageCode: input.languageCode,
     platforms,
     existing: {
-      ...(input.episode ? { episode: input.episode } : {}),
+      episode: input.episode,
       ...(input.video ? { video: input.video } : {}),
       ...(input.teaserVideo ? { teaserVideo: input.teaserVideo } : {}),
     },
   });
-  const packagingByPlatform =
-    input.packagingByPlatform ??
-    (await resolvePackagingAssignments({
-      episodeId: input.episodeId,
-      languageCode: input.languageCode,
-      platforms,
-    }));
-  let snapshot = input.copySnapshot;
-  if (!snapshot) {
-    const generated = await generateSocialCopy({
-      episode,
-      languageCode: input.languageCode,
-      platforms,
-      packagingByPlatform,
-      ...(input.strategyGuidanceByPlatform
-        ? { strategyGuidanceByPlatform: input.strategyGuidanceByPlatform }
-        : {}),
-    });
-    snapshot = {
-      generated: generated.copy,
-      published: generated.copy,
-      model: generated.model,
-    };
-  }
+  const { packagingByPlatform, copySnapshot: snapshot } = input;
 
   if (platforms.includes('rednote') && episode.videoDurationSeconds > 900) {
     onLog(

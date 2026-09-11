@@ -21,6 +21,7 @@ import {
   type SocialPlatform,
   THREADS_TOTAL_MAX_CHARACTERS,
 } from './platforms.js';
+import { SocialCopyGenerationError } from './publish-error.js';
 import {
   assertRednoteSemanticRisk,
   readRednoteRiskRules,
@@ -420,8 +421,13 @@ export async function generateSocialCopy(input: {
   const config = getOpenRouterConfig({ thinkingModel: null });
 
   let lastError: unknown;
-  let retryReason: string | undefined;
+  // Accumulated rather than overwritten: attempt 2 repairing attempt 1's rule
+  // by breaking a different one must not leave attempt 3 free to write the
+  // first rule back.
+  const failures: string[] = [];
+  let previousRednote: GeneratedSocialCopy['rednote'];
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+    let parsed: GeneratedSocialCopy | undefined;
     try {
       const completion = await createOpenRouterChatCompletion(
         config.openai,
@@ -444,7 +450,8 @@ export async function generateSocialCopy(input: {
             content: buildEpisodePrompt(
               input.episode,
               input.feedback,
-              retryReason,
+              failures,
+              previousRednote,
               input.strategyGuidance,
               input.strategyGuidanceByPlatform,
               input.packagingByPlatform,
@@ -464,19 +471,19 @@ export async function generateSocialCopy(input: {
         throw new Error('OpenRouter returned empty social copy.');
       }
 
-      const copy = parseGeneratedSocialCopy(content, languageCode, blocks);
+      parsed = parseGeneratedSocialCopy(content, languageCode, blocks);
       // The term lists ran inside the schema above. This is the framing half of
       // the gate, and it has to be here rather than in the schema because it is
       // an LLM call: a verdict of risk becomes the next attempt's retry reason,
       // so the model rewrites the note instead of the release failing.
-      if (languageCode === 'zh-Hant' && copy.rednote) {
+      if (languageCode === 'zh-Hant' && parsed.rednote) {
         await assertRednoteSemanticRisk({
-          rednote: copy.rednote,
+          rednote: parsed.rednote,
           episode: input.episode,
         });
       }
 
-      return { copy, model: completion.model ?? config.model };
+      return { copy: parsed, model: completion.model ?? config.model };
     } catch (error) {
       if (
         error instanceof RednoteSemanticRiskError &&
@@ -485,14 +492,25 @@ export async function generateSocialCopy(input: {
         throw error;
       }
       lastError = error;
-      retryReason = describeValidationFailure(error);
+      failures.push(describeValidationFailure(error));
+      // A red-line verdict means this note parsed. Handing it back is what
+      // lets the next attempt edit the flagged sentence instead of rerolling a
+      // whole new note, which can break a different rule.
+      previousRednote = parsed?.rednote ?? previousRednote;
     }
   }
 
-  throw new Error(
-    `OpenRouter returned invalid social copy ${MAX_ATTEMPTS} times. Last failure: ${retryReason ?? 'unknown'}`,
-    { cause: lastError },
-  );
+  // The only throw that means "these attempts are spent and this copy is
+  // decided". Everything above it -- a missing prompt file, unset OpenRouter
+  // config, a judge that could not answer -- is a deployment or outage failure
+  // and stays an ordinary error, so the daemon keeps treating it as fatal.
+  throw new SocialCopyGenerationError({
+    episodeId: input.episode.id,
+    languageCode,
+    attempts: MAX_ATTEMPTS,
+    reason: failures.at(-1) ?? 'unknown',
+    cause: lastError,
+  });
 }
 
 async function readPrompt(filename: string): Promise<string> {
@@ -574,7 +592,8 @@ function copyBlocksForPlatforms(
 function buildEpisodePrompt(
   episode: SocialEpisode,
   feedback: string | undefined,
-  retryReason: string | undefined,
+  failures: readonly string[],
+  previousRednote: GeneratedSocialCopy['rednote'],
   strategyGuidance: string | undefined,
   strategyGuidanceByPlatform:
     | Partial<Record<SocialPlatform, string>>
@@ -586,9 +605,7 @@ function buildEpisodePrompt(
   const feedbackBlock = feedback?.trim()
     ? `\n\nEditor feedback for this regeneration:\n${feedback.trim()}`
     : '';
-  const retryBlock = retryReason
-    ? `\n\nThe previous response failed validation for this reason:\n${retryReason}\nReturn valid JSON only and correct that specific problem while satisfying every required field.`
-    : '';
+  const retryBlock = buildRetryBlock(failures, previousRednote);
   const strategyBlock = strategyGuidance?.trim()
     ? `\n\nPerformance guidance from prior posts:\n${strategyGuidance.trim()}\nTreat this as a preference, never as permission to violate the editorial or platform rules.`
     : '';
@@ -618,6 +635,26 @@ function buildEpisodePrompt(
     : '';
 
   return `Create social copy for this completed episode.\n\nTitle:\n${episode.title}\n\nSummary:\n${episode.summary}\n\nDescription / source article:\n${episode.description ?? ''}\n\nFull podcast transcript:\n${episode.transcript}\n\nEpisode URL:\n${episode.episodeUrl}${strategyBlock}${platformStrategyBlock}${packagingBlock}${feedbackBlock}${retryBlock}`;
+}
+
+/**
+ * A rejected attempt is a rewrite request, not a JSON complaint. Naming every
+ * earlier rejection is what stops the loop from oscillating between two rules,
+ * and echoing the note back is what makes the next attempt an edit of the
+ * flagged sentence rather than a fresh roll of the whole note.
+ */
+function buildRetryBlock(
+  failures: readonly string[],
+  previousRednote: GeneratedSocialCopy['rednote'],
+): string {
+  if (failures.length === 0) return '';
+  const history = failures
+    .map((failure, index) => `${index + 1}. ${failure}`)
+    .join('\n');
+  const previousNoteBlock = previousRednote
+    ? `\n\nYour previous rednote note was:\ntitle: ${previousRednote.title}\nbody: ${previousRednote.body}\nhashtags: ${previousRednote.hashtags.join(', ')}\nEdit only the part that was flagged. Keep the episode's named subject and the same finding, and leave every sentence that was not flagged exactly as it is.`
+    : '';
+  return `\n\nEarlier attempts were rejected for these reasons, oldest first:\n${history}\nFix the newest reason without reintroducing any earlier one -- an attempt that repairs the last rejection by bringing an earlier one back is rejected again.${previousNoteBlock}\nReturn valid JSON with every required field.`;
 }
 
 function describeValidationFailure(error: unknown): string {

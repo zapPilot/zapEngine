@@ -203,6 +203,53 @@ future article slot has already assigned those languages to platforms. As soon
 as an episode has any durable publish job or social post, that view stops
 representing the episode; durable release state owns recovery from then on.
 
+### Copy generation barrier
+
+Copy is the last pre-transport step that can fail for one language of an
+otherwise healthy article, because the Rednote red-line judge
+(`rednote-semantic-risk.ts`) only runs on `zh-Hant`. It used to be generated
+inside `publishSocialBatch()`, which the daemon calls once per language in a
+loop — so a note rejected on the third attempt arrived after that article's
+`en` and `ja` lanes were already live. That is a permanently partial article.
+
+`prepareSocialBatchCopy()` is therefore a separate entry point, and
+`holdCohortsMissingCopy()` runs it for every claimed language before the first
+transport call of the tick. It runs after the media re-check so an episode whose
+video is gone never pays for an LLM call, and it stops generating copy for the
+rest of an article as soon as one of its languages is held.
+
+A rejected note fails the article's claimed lanes rather than releasing their
+leases, for the same reason missing media does — and for one more. Three
+attempts were spent before any transport, so nothing is live and nothing is
+unreadable, but the identical three attempts fail identically after a restart:
+the claim RPC picks the same seed episode and `releaseSocialPublishJobLease()`
+refunds the attempt it charged, so the daemon exits, restarts, and repeats
+forever without ever spending an attempt or letting the next article through.
+Failing the lanes charges one attempt, applies `publishRetryDelayMs`, and moves
+the next tick's seed on.
+
+Only `SocialCopyGenerationError` — the single throw that means "these attempts
+are spent and this copy is decided" — holds the article. A missing prompt file,
+unset OpenRouter config, or a judge that could not reach a verdict at all
+(`RednoteSemanticRiskError` with `reason: 'unavailable'`) stays fatal: those
+recover on the next tick or the next deploy, while holding on them would burn
+all eight attempts of every `zh-Hant` article behind a green daemon.
+
+The operator sees one line per held article and the reason in `last_error`:
+
+```text
+⏸️ [social-daemon] “標題” · release held · copy generation failed 🇹🇼 zh-Hant · Rednote copy breaks investment-direction red lines (…)
+```
+
+```text
+last_error: Release held: zh-Hant social copy generation failed after 3 attempts — …
+```
+
+There is no Telegram notice, same as a media hold; the fatal path keeps its own.
+The backoff ladder is 5/10/20/40/80/160/320 minutes ≈ 10.6 hours of delay in
+total, so inside the 09:00–18:00 JST publish window an article that can never
+produce acceptable copy reaches `blocked` after roughly two days.
+
 ## Missed slots and production queue repair
 
 An already-aligned article remains eligible for the normal catch-up grace after
@@ -267,6 +314,13 @@ experiment reporting, and queue summaries are observational and remain isolated.
 A platform call that already succeeded before a later failure remains persisted.
 The next daemon run reconciles that evidence and continues the recovery cohort;
 it does not pretend the failed remainder succeeded.
+
+Two bounded exceptions, and no others. Socket/DNS-layer transient network
+failures (`isTransientNetworkError`) that are not a `SocialReleaseFailureError`
+are retried inside the main loop for up to five consecutive ticks. And a
+`SocialCopyGenerationError` holds its article (see
+[Copy generation barrier](#copy-generation-barrier)) instead of stopping the
+daemon, because fatal there is an unbounded restart loop rather than a stop.
 
 ## Queue output
 

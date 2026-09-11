@@ -20,6 +20,7 @@ vi.mock('./rednote-semantic-risk.js', async (importOriginal) => ({
 }));
 
 import { generateSocialCopy } from './copy.js';
+import { SocialCopyGenerationError } from './publish-error.js';
 import { RednoteSemanticRiskError } from './rednote-semantic-risk.js';
 
 beforeEach(() => {
@@ -78,5 +79,31 @@ describe('generateSocialCopy when the Rednote judge is unavailable', () => {
 
     expect(llmMocks.createOpenRouterChatCompletion).toHaveBeenCalledTimes(1);
     expect(riskMocks.assertRednoteSemanticRisk).toHaveBeenCalledTimes(1);
+  });
+
+  // The daemon holds an article on SocialCopyGenerationError and stays fatal
+  // on everything else. A judge outage recovers on the next tick, while a
+  // verdict against this note does not -- so only the verdict may hold. If a
+  // judge outage ever became a hold, every zh-Hant article would quietly burn
+  // its eight attempts while the daemon reported green.
+  it('does not exhaust attempts, so the daemon still treats it as fatal', async () => {
+    const error = await generateSocialCopy({
+      platforms: ['rednote'],
+      episode: {
+        id: '123e4567-e89b-12d3-a456-426614174000',
+        title: 'AI滲透率接近100%的公司',
+        summary: '討論AI導入後的組織變化。',
+        transcript: 'AI把能加速的事情加速，留下來更重要的是人與人的信任。',
+        publishedAt: '2026-08-12T00:00:00.000Z',
+        episodeUrl: 'https://example.com/e/episode',
+        videoDurationSeconds: 180,
+        languageCode: 'zh-Hant',
+        videoUrl: 'https://example.com/video.mp4',
+        videoThumbnailUrl: 'https://example.com/thumbnail.jpg',
+      },
+    }).catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(RednoteSemanticRiskError);
+    expect(error).not.toBeInstanceOf(SocialCopyGenerationError);
   });
 });
