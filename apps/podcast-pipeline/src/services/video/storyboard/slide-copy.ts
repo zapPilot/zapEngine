@@ -6,7 +6,11 @@ import {
   createCompletionWithRetry,
   getOpenRouterConfig,
 } from '../../llm.js';
-import { containsEntityPhrase, isEnglishOnly } from './english-text.js';
+import {
+  containsEntityPhrase,
+  englishWords,
+  isEnglishOnly,
+} from './english-text.js';
 
 export interface ConceptCardCopy {
   kicker: string;
@@ -34,7 +38,6 @@ interface ConceptCardCopyProvider {
   }>;
 }
 
-const WORD_PATTERN = /[A-Za-z0-9][A-Za-z0-9+&.'’/-]*/gu;
 const NUMBER_PATTERN = /(?<![A-Za-z])\d+(?:[.,]\d+)*[%xX]?(?![A-Za-z])/gu;
 
 export async function writeConceptCardCopy(
@@ -207,7 +210,7 @@ function validLine(
 }
 
 function words(value: string): string[] {
-  return value.match(WORD_PATTERN) ?? [];
+  return englishWords(value);
 }
 
 function compactWords(

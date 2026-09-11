@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { MAX_VISUAL_CUE_CHARACTERS } from './draft.js';
+
 export const VISUAL_SUBJECT_TYPES = [
   'company',
   'person',
@@ -22,6 +24,7 @@ export const VISUAL_SUBJECT_ROLES = [
 
 export const VISUAL_SELECTION_REASONS = [
   'direct',
+  'model-context',
   'section-context',
   'episode-context',
   'brand',
@@ -37,6 +40,7 @@ const SUBJECT_LIMITS = {
   identityHints: 8,
   negativeHints: 8,
   officialDomains: 4,
+  sceneCues: 64,
 } as const;
 
 export const visualSubjectSchema = z
@@ -74,6 +78,14 @@ export const visualSubjectSchema = z
   })
   .strict();
 
+export const visualSceneCueSchema = z
+  .object({
+    sceneId: sceneIdSchema,
+    subjectId: subjectIdSchema.nullable(),
+    visualCue: z.string().min(2).max(MAX_VISUAL_CUE_CHARACTERS),
+  })
+  .strict();
+
 /**
  * Why a compact LLM subject never made it into the catalog. One bad subject used
  * to fail the whole catalog and hand every scene to generic B-roll queries, so
@@ -102,6 +114,10 @@ export const visualSubjectCatalogSchema = z
     primarySubjectId: subjectIdSchema,
     subjects: z.array(visualSubjectSchema).min(1).max(24),
     droppedSubjects: z.array(visualSubjectDropSchema).max(24).optional(),
+    sceneCues: z
+      .array(visualSceneCueSchema)
+      .max(SUBJECT_LIMITS.sceneCues)
+      .optional(),
   })
   .strict()
   .superRefine((catalog, context) => {
@@ -166,6 +182,7 @@ export const visualSceneSubjectAssignmentSchema = z
 
 export type VisualSubject = z.infer<typeof visualSubjectSchema>;
 export type VisualSubjectDrop = z.infer<typeof visualSubjectDropSchema>;
+export type VisualSceneCue = z.infer<typeof visualSceneCueSchema>;
 export type VisualSubjectCatalog = z.infer<typeof visualSubjectCatalogSchema>;
 
 /**
@@ -277,12 +294,46 @@ export function normalizeVisualSubjectCatalogInput(input: unknown): unknown {
     return input;
   }
 
-  return {
+  const normalizedInput: Record<string, unknown> = {
     ...input,
     subjects: subjects.map((subject) =>
       normalizeVisualSubjectInput(subject, primarySubjectId),
     ),
   };
+  delete normalizedInput['scenes'];
+  const repaired = repairedSceneCues(input['sceneCues'] ?? input['scenes']);
+  if (repaired !== undefined) normalizedInput['sceneCues'] = repaired;
+  return normalizedInput;
+}
+
+function repairedSceneCues(value: unknown): unknown[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const repaired: unknown[] = [];
+  const seenSceneIds = new Set<string>();
+  for (const entry of value) {
+    if (repaired.length >= SUBJECT_LIMITS.sceneCues) break;
+    if (!isRecord(entry)) continue;
+    const sceneId = entry['sceneId'];
+    const cue = entry['visualCue'];
+    if (typeof sceneId !== 'string' || !/^scene-\d{2}$/u.test(sceneId)) {
+      continue;
+    }
+    if (seenSceneIds.has(sceneId)) continue;
+    if (typeof cue !== 'string') continue;
+    const visualCue = cue.trim().replace(/\s+/gu, ' ');
+    if (visualCue.length < 2 || visualCue.length > MAX_VISUAL_CUE_CHARACTERS) {
+      continue;
+    }
+    seenSceneIds.add(sceneId);
+    const rawSubjectId = entry['subjectId'];
+    const subjectId =
+      typeof rawSubjectId === 'string' &&
+      subjectIdSchema.safeParse(rawSubjectId).success
+        ? rawSubjectId
+        : null;
+    repaired.push({ sceneId, subjectId, visualCue });
+  }
+  return repaired;
 }
 
 export function visualSubjectById(
@@ -306,21 +357,29 @@ export function subjectNames(subject: VisualSubject): string[] {
   return [subject.canonicalName, ...subject.aliases];
 }
 
+export function prefixedSubjectQuery(
+  subject: VisualSubject,
+  phrase: string,
+): string {
+  const trimmed = phrase.trim();
+  if (!trimmed) return subject.canonicalName.slice(0, 80).trim();
+  const lowered = trimmed.toLocaleLowerCase('en-US');
+  const names = subjectNames(subject).map((name) =>
+    name.toLocaleLowerCase('en-US'),
+  );
+  if (names.some((name) => lowered.includes(name))) {
+    return trimmed.slice(0, 80).trim();
+  }
+  return `${subject.canonicalName} ${trimmed}`.slice(0, 80).trim();
+}
+
 export function buildVisualSubjectSearchQueries(
   subject: VisualSubject,
 ): string[] {
   const canonical = subject.canonicalName.toLocaleLowerCase('en-US');
-  // Disambiguation demotes the original short name into `aliases`, so a query
-  // already carrying that name names the subject and must not be prefixed with
-  // the contextual canonical name on top of it.
-  const names = subjectNames(subject).map((name) =>
-    name.toLocaleLowerCase('en-US'),
+  const queries = subject.searchQueries.map((query) =>
+    prefixedSubjectQuery(subject, query),
   );
-  const queries = subject.searchQueries.map((query) => {
-    const lowered = query.toLocaleLowerCase('en-US');
-    if (names.some((name) => lowered.includes(name))) return query;
-    return `${subject.canonicalName} ${query}`.slice(0, 80).trim();
-  });
   if (
     !queries.some((query) => query.toLocaleLowerCase('en-US') === canonical)
   ) {

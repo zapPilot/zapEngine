@@ -15,6 +15,7 @@ import {
 import { sceneSearchEntities } from './storyboard/search-intents.js';
 import {
   buildVisualSubjectSearchQueries,
+  prefixedSubjectQuery,
   type VisualSceneSubjectAssignment,
   type VisualSubjectCatalog,
   visualSubjectsForScene,
@@ -110,7 +111,14 @@ function contentScenesForPlanning(
 ): VisualAssetScene[] {
   const { subjectCatalog, sceneAssignments } = input;
   if (!subjectCatalog || !sceneAssignments) return [...contentScenes];
+  return anchoredPlannerScenes(subjectCatalog, sceneAssignments, contentScenes);
+}
 
+export function anchoredPlannerScenes(
+  subjectCatalog: VisualSubjectCatalog,
+  sceneAssignments: readonly VisualSceneSubjectAssignment[],
+  contentScenes: readonly VisualAssetScene[],
+): VisualAssetScene[] {
   const assignmentBySceneId = new Map(
     sceneAssignments.map((assignment) => [assignment.sceneId, assignment]),
   );
@@ -141,6 +149,7 @@ function subjectAnchoredScene(
   if (subjects.length === 0) {
     throw new Error(`Visual subjects are missing for ${scene.sceneId}`);
   }
+  const primarySubject = subjects[0];
   return {
     ...scene,
     imageSearchIntent: [
@@ -149,13 +158,19 @@ function subjectAnchoredScene(
     // Subject names rank a candidate that names the subject above one that does
     // not; they no longer decide whether it may be downloaded at all.
     imageSearchEntities: sceneSearchEntities(subjects),
+    // The cue is trace/ranking metadata in this phase. It deliberately does not
+    // produce another Brave request until Phase 3 is justified by review data.
+    ...(primarySubject && scene.visualCue
+      ? { cueQuery: prefixedSubjectQuery(primarySubject, scene.visualCue) }
+      : {}),
     // Only a scene that cites its subject in its own sentences is worth a
-    // targeted request of its own; an inherited subject has no such claim.
+    // targeted request of its own; model-context and inherited subjects share
+    // the existing context budget.
     searchAnchor:
       assignment.selectionReason === 'direct' ? 'direct' : 'context',
     // Anchors are already ordered by identifying power, so the first subject is
     // the one Brave is asked about and the one the decorative filter judges.
-    ...(subjects[0] ? { subjectType: subjects[0].type } : {}),
+    ...(primarySubject ? { subjectType: primarySubject.type } : {}),
   };
 }
 

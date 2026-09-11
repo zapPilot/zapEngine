@@ -8,6 +8,8 @@ export const MIN_SEARCH_INTENT_CHARACTERS = 2;
 export const MAX_SEARCH_INTENT_CHARACTERS = 80;
 export const MAX_SEARCH_INTENTS_PER_SCENE = 3;
 export const MAX_SEARCH_ENTITIES_PER_SCENE = 4;
+export const MAX_VISUAL_CUE_WORDS = 5;
+export const MAX_VISUAL_CUE_CHARACTERS = 48;
 
 const sentenceIdSchema = z.string().regex(/^s\d{4}$/);
 
@@ -25,6 +27,13 @@ export const storyboardDraftSceneSchema = z
       )
       .min(1)
       .max(MAX_SEARCH_INTENTS_PER_SCENE),
+    // A compact, grounded description of the photographable moment in this
+    // scene. Older checkpoints do not have it, so it must remain optional.
+    visualCue: z
+      .string()
+      .min(MIN_SEARCH_INTENT_CHARACTERS)
+      .max(MAX_VISUAL_CUE_CHARACTERS)
+      .optional(),
     // The proper nouns this scene actually names, verbatim, when it names any.
     // Image search anchors on them: a candidate that mentions none of a scene's
     // entities is not about that scene, however well its wording overlaps.

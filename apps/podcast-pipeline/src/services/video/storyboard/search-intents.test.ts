@@ -717,8 +717,10 @@ describe('visual subject catalog grounding', () => {
       'Put descriptive industry, category, role, and physical-context terms only in identityHints.',
     );
     expect(prompt).toContain(
-      'Do not output scene IDs, image-search queries, or domains.',
+      'Do not output evidenceSceneIds, image-search queries, or domains on subjects.',
     );
+    expect(prompt).toContain('one entry per input sceneId');
+    expect(prompt).toContain('Do not repeat the subject name inside visualCue');
     expect(prompt).toContain(
       'application derives scene evidence and final search queries deterministically',
     );

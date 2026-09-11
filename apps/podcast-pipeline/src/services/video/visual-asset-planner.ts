@@ -53,6 +53,7 @@ import {
 import {
   candidateHostname,
   canonicalCandidateUrl,
+  searchCueScore,
   viableCandidates,
 } from './search-candidate-ranking.js';
 
@@ -85,6 +86,12 @@ export interface VisualAssetScene {
    * sentences upstream. They earn a candidate a ranking bonus; they are not a
    * filter, because a news photo of a subject rarely repeats its name. */
   imageSearchEntities?: readonly string[];
+  /** A grounded 2–5 word description of the photographable moment. It only
+   * reranks candidates from requests already paid for in this phase. */
+  visualCue?: string;
+  /** The subject-prefixed cue query kept for trace/smoke inspection. Phase 3 may
+   * spend Brave budget on it; this planner deliberately does not. */
+  cueQuery?: string;
   /** Whether the scene cites its subject itself or inherited it from the
    * section/episode. Only a direct citation is worth a targeted request of its
    * own. Absent means direct when the scene names entities, context otherwise. */
@@ -274,6 +281,7 @@ interface SelectionOrigin {
   sourceQuery: string | null;
   providerRank: number | null;
   fallbackReason: VisualSceneFallbackReason | null;
+  cueMatched: boolean | null;
 }
 
 interface SelectedVisualImage {
@@ -672,6 +680,7 @@ async function acquireFromPool(
         sourceQuery: entry.requestQuery,
         providerRank: entry.providerRank,
         fallbackReason: origin.fallbackReason,
+        cueMatched: searchCueScore(entry.candidate, scene.visualCue ?? '') > 0,
       },
     };
   }
@@ -783,6 +792,8 @@ function selectionRecord(
     sourceQuery: origin.sourceQuery,
     providerRank: origin.providerRank,
     fallbackReason: origin.fallbackReason,
+    visualCue: scene.visualCue ?? null,
+    cueMatched: origin.cueMatched,
     rejections: countedRejections(candidateRejectionRecord(rejections)),
   };
 }
@@ -794,6 +805,7 @@ function plainOrigin(selection: VisualSceneSelectionKind): SelectionOrigin {
     sourceQuery: null,
     providerRank: null,
     fallbackReason: null,
+    cueMatched: null,
   };
 }
 

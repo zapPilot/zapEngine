@@ -1,6 +1,10 @@
 import { z } from 'zod';
 
-import { MAX_STORYBOARD_SLIDES, type StoryboardDraft } from './draft.js';
+import {
+  MAX_STORYBOARD_SLIDES,
+  MAX_VISUAL_CUE_CHARACTERS,
+  type StoryboardDraft,
+} from './draft.js';
 
 export const IMAGE_VISUAL_PLAN_VERSION =
   'podcast-image-visual-plan.v1' as const;
@@ -50,6 +54,7 @@ export const materializedVisualSceneSchema = z
     startSentenceId: z.string().regex(/^s\d{4}$/),
     endSentenceId: z.string().regex(/^s\d{4}$/),
     imageSearchIntent: z.array(z.string().min(2).max(80)).min(1).max(3),
+    visualCue: z.string().min(2).max(MAX_VISUAL_CUE_CHARACTERS).optional(),
     // Carried through from the draft as an audit trail. v8 additionally stores
     // the episode-level subject catalog/assignment in the episode payload.
     imageSearchEntities: z

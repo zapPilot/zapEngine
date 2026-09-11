@@ -11,8 +11,10 @@ import {
 import {
   MAX_SEARCH_ENTITIES_PER_SCENE,
   MAX_SEARCH_INTENTS_PER_SCENE,
+  MAX_VISUAL_CUE_WORDS,
   type StoryboardDraft,
 } from './draft.js';
+import { englishWords, isEnglishOnly } from './english-text.js';
 import { balancedSearchEvidenceGroups } from './fallback.js';
 import {
   type CanonicalSentence,
@@ -25,12 +27,14 @@ import {
   parseVisualSubjectCatalog,
   subjectNames,
   VISUAL_SUBJECT_TYPES,
+  type VisualSceneCue,
   type VisualSceneSubjectAssignment,
   type VisualSubject,
   visualSubjectById,
   type VisualSubjectCatalog,
   type VisualSubjectDrop,
 } from './subject-catalog.js';
+import { normalizeNumericToken, numericTokens } from './validation.js';
 
 const SEARCH_INTENT_REASONING = { enabled: false } as const;
 const SEARCH_INTENT_PAYLOAD_MAX_ATTEMPTS = 2;
@@ -60,6 +64,7 @@ export interface SearchIntentEnrichment {
   model: string | null;
   enrichedSceneCount: number;
   entityAnchoredSceneCount: number;
+  sceneCueCount?: number;
   subjectCatalog: VisualSubjectCatalog | null;
   sceneAssignments: VisualSceneSubjectAssignment[];
   /**
@@ -201,6 +206,9 @@ function enrichFromSubjectCatalog(
 ): SearchIntentEnrichment {
   const contentSceneIds = new Set(scenes.map((scene) => scene.sceneId));
   const directByScene = new Map<string, string[]>();
+  const cueByScene = new Map(
+    (catalog.sceneCues ?? []).map((cue) => [cue.sceneId, cue] as const),
+  );
   // A scene's first subject is the query Brave is asked, and the entity cap
   // trims from the back, so the most identifying anchor a scene names must come
   // first: "Andy Jassy" finds his photo, "Amazon" finds a warehouse, and a
@@ -225,6 +233,7 @@ function enrichFromSubjectCatalog(
 
   const enrichedScenes = draft.scenes.map((scene) => {
     if (podcastBrandVisualKind(scene.imageSearchIntent)) return scene;
+    const cue = cueByScene.get(scene.sceneId);
     const directSubjectIds = (directByScene.get(scene.sceneId) ?? []).slice(
       0,
       MAX_SEARCH_ENTITIES_PER_SCENE,
@@ -240,6 +249,9 @@ function enrichFromSubjectCatalog(
     } else if (directSubjectIds.length > 0) {
       subjectIds = directSubjectIds;
       selectionReason = 'direct';
+    } else if (cue?.subjectId && visualSubjectById(catalog, cue.subjectId)) {
+      subjectIds = [cue.subjectId];
+      selectionReason = 'model-context';
     } else if (lastDirectSubjectIds.length > 0) {
       subjectIds = lastDirectSubjectIds.slice(0, 2);
       selectionReason = 'section-context';
@@ -263,6 +275,7 @@ function enrichFromSubjectCatalog(
     return {
       ...scene,
       imageSearchIntent,
+      ...(cue ? { visualCue: cue.visualCue } : {}),
       ...(imageSearchEntities.length > 0 ? { imageSearchEntities } : {}),
     };
   });
@@ -276,6 +289,7 @@ function enrichFromSubjectCatalog(
     model,
     enrichedSceneCount: scenes.length,
     entityAnchoredSceneCount,
+    sceneCueCount: catalog.sceneCues?.length ?? 0,
     subjectCatalog: catalog,
     sceneAssignments: assignments,
   };
@@ -316,7 +330,7 @@ async function buildSubjectCatalog(
     const raw = await provider.catalog(request);
     const catalog = parseVisualSubjectCatalog(raw);
     validateSubjectCatalogGrounding(catalog, request);
-    return catalog;
+    return groundSceneCues(catalog, request);
   } catch (error) {
     throwIfAborted(request.signal);
     if (isUpstreamCatalogError(error)) throw error;
@@ -325,6 +339,59 @@ async function buildSubjectCatalog(
       { cause: error },
     );
   }
+}
+
+export function groundSceneCues(
+  catalog: VisualSubjectCatalog,
+  request: SearchIntentCatalogRequest,
+): VisualSubjectCatalog {
+  if (!catalog.sceneCues?.length) return catalog;
+  const scenesById = new Map(
+    request.scenes.map((scene) => [scene.sceneId, scene] as const),
+  );
+  const survivingSubjectIds = new Set(
+    catalog.subjects.map((subject) => subject.id),
+  );
+  const seenSceneIds = new Set<string>();
+  const sceneCues: VisualSceneCue[] = [];
+
+  for (const cue of catalog.sceneCues) {
+    const scene = scenesById.get(cue.sceneId);
+    if (!scene || seenSceneIds.has(cue.sceneId)) continue;
+    seenSceneIds.add(cue.sceneId);
+    const words = englishWords(cue.visualCue);
+    if (
+      !isEnglishOnly(cue.visualCue) ||
+      words.length < 2 ||
+      words.length > MAX_VISUAL_CUE_WORDS ||
+      isGenericVisualSubjectName(cue.visualCue) ||
+      !cueNumbersAreGrounded(cue.visualCue, scene)
+    ) {
+      continue;
+    }
+    sceneCues.push({
+      ...cue,
+      subjectId:
+        cue.subjectId && survivingSubjectIds.has(cue.subjectId)
+          ? cue.subjectId
+          : null,
+    });
+  }
+
+  return { ...catalog, sceneCues };
+}
+
+function cueNumbersAreGrounded(cue: string, scene: SearchIntentScene): boolean {
+  const cueNumbers = numericTokens(cue);
+  if (cueNumbers.length === 0) return true;
+  const sceneNumbers = new Set(
+    numericTokens(`${scene.text} ${scene.searchText ?? ''}`).map(
+      normalizeNumericToken,
+    ),
+  );
+  return cueNumbers
+    .map(normalizeNumericToken)
+    .every((number) => sceneNumbers.has(number));
 }
 
 function validateSubjectCatalogGrounding(
@@ -502,7 +569,7 @@ function materializeVisualSubjectCatalog(
   }
 
   const primarySubjectId = repairedPrimarySubjectId(kept, requestedPrimaryId);
-  return {
+  const output: Record<string, unknown> = {
     ...input,
     primarySubjectId,
     subjects: [
@@ -511,6 +578,10 @@ function materializeVisualSubjectCatalog(
     ],
     ...(dropped.length > 0 ? { droppedSubjects: dropped } : {}),
   };
+  const rawSceneCues = input['sceneCues'] ?? input['scenes'];
+  delete output['scenes'];
+  if (rawSceneCues !== undefined) output['sceneCues'] = rawSceneCues;
+  return output;
 }
 
 function judgeCompactSubject(
@@ -680,9 +751,10 @@ export function buildSubjectCatalogSystemPrompt(): string {
     '- Copy canonicalName verbatim from the title or scenes. When both an English and a local-script name are present, use the English spelling for canonicalName and put the local-script spelling in aliases (example: canonicalName "NVIDIA", aliases ["輝達"]). Put descriptive industry, category, role, and physical-context terms only in identityHints.',
     '- identityHints are 2 to 6 short positive disambiguators such as industry, product, chain, role, location, or physical context. The first one is appended to the name to form the image-search query for every anchor, so it must help image search identify this anchor, not describe a generic mood.',
     '- negativeHints are only known name-collision meanings to reject (for example animal, camera, engine); do not list ordinary competitors as negative hints.',
-    '- Do not output scene IDs, image-search queries, or domains. The application derives scene evidence and final search queries deterministically from the anchor identity.',
+    '- Do not output evidenceSceneIds, image-search queries, or domains on subjects. The application derives scene evidence and final search queries deterministically from the anchor identity.',
+    '- Separately, return "scenes": one entry per input sceneId, {"sceneId","subjectId","visualCue"}. subjectId is the catalog subject the scene is most about, or null. visualCue is 2 to 5 English words naming the concrete, photographable moment the narration describes: a place, object, action or event a news photographer could have shot (examples: "stock chart plunge", "chip launch keynote", "courtroom exterior", "container port cranes"). Never a mood, abstraction, caption, or a number the scene does not state. Do not repeat the subject name inside visualCue; the application prepends it.',
     '- Use stable IDs shaped like subject-nvidia, subject-andy-jassy, or subject-gpu.',
-    'Return valid JSON only: {"primarySubjectId":"subject-nvidia","subjects":[{"id":"subject-nvidia","canonicalName":"NVIDIA","type":"company","aliases":["輝達"],"storyRole":"primary","identityHints":["GPU maker","AI chips"],"negativeHints":[]},{"id":"subject-andy-jassy","canonicalName":"Andy Jassy","type":"person","aliases":[],"storyRole":"supporting","identityHints":["Amazon CEO"],"negativeHints":[]},{"id":"subject-gpu","canonicalName":"GPU","type":"object","aliases":[],"storyRole":"supporting","identityHints":["AI accelerator hardware"],"negativeHints":[]}]}',
+    'Return valid JSON only: {"primarySubjectId":"subject-nvidia","subjects":[{"id":"subject-nvidia","canonicalName":"NVIDIA","type":"company","aliases":["輝達"],"storyRole":"primary","identityHints":["GPU maker","AI chips"],"negativeHints":[]},{"id":"subject-andy-jassy","canonicalName":"Andy Jassy","type":"person","aliases":[],"storyRole":"supporting","identityHints":["Amazon CEO"],"negativeHints":[]},{"id":"subject-gpu","canonicalName":"GPU","type":"object","aliases":[],"storyRole":"supporting","identityHints":["AI accelerator hardware"],"negativeHints":[]}],"scenes":[{"sceneId":"scene-01","subjectId":"subject-nvidia","visualCue":"GPU launch keynote"}]}',
   ].join('\n');
 }
 
