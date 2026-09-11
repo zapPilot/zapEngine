@@ -16,6 +16,7 @@ import {
   partitionViableCandidates,
   type RankedAgainstAsset,
   searchCandidateScore,
+  searchCueScore,
 } from './search-candidate-ranking.js';
 import { normalizedEntityText } from './storyboard/english-text.js';
 
@@ -100,6 +101,9 @@ export interface PoolSubjectScene {
   sceneId: string;
   imageSearchIntent: readonly string[];
   imageSearchEntities?: readonly string[];
+  visualCue?: string;
+  /** Trace-only in Phase 2. Search requests continue to use `imageSearchIntent`. */
+  cueQuery?: string;
   searchAnchor?: 'direct' | 'context';
   /** The catalog `type` of the scene's leading anchor. Only the decorative
    * filter reads it, to tell a company mark apart from a stray icon. */
@@ -415,15 +419,22 @@ export function fallbackEntryMatchesSceneQuery(
   entry: Pick<PoolEntry, 'requestQuery'>,
   scene: Pick<
     PoolSubjectScene,
-    'imageSearchIntent' | 'imageSearchEntities' | 'searchAnchor'
+    'imageSearchIntent' | 'imageSearchEntities' | 'visualCue' | 'searchAnchor'
   >,
 ): boolean {
-  if (scene.searchAnchor === 'context' && !scene.imageSearchEntities?.length)
+  if (
+    scene.searchAnchor === 'context' &&
+    !scene.imageSearchEntities?.length &&
+    !scene.visualCue?.trim()
+  ) {
     return true;
+  }
   const sceneTerms = new Set(
-    [...scene.imageSearchIntent, ...(scene.imageSearchEntities ?? [])].flatMap(
-      fallbackQueryTerms,
-    ),
+    [
+      ...scene.imageSearchIntent,
+      ...(scene.imageSearchEntities ?? []),
+      ...(scene.visualCue ? [scene.visualCue] : []),
+    ].flatMap(fallbackQueryTerms),
   );
   const donorTerms = fallbackQueryTerms(entry.requestQuery);
   if (sceneTerms.size === 0 || donorTerms.length === 0) return true;
@@ -611,6 +622,7 @@ function sceneEntryScore(
       scene.imageSearchIntent[0] ?? '',
       existingAssets,
     ) +
+    searchCueScore(entry.candidate, scene.visualCue ?? '') +
     mentionBonus -
     entry.providerRank * PROVIDER_RANK_PENALTY
   );

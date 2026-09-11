@@ -238,6 +238,7 @@ export function createEpisodeVideoVisualProcessor(
           subjects: intents.subjectCatalog?.subjects.length,
           primarySubject: intents.subjectCatalog?.primarySubjectId,
           model: intents.model ?? 'deterministic',
+          cues: intents.sceneCueCount,
         });
         for (const droppedSubject of intents.subjectCatalog?.droppedSubjects ??
           []) {
@@ -293,6 +294,7 @@ export function createEpisodeVideoVisualProcessor(
         sceneId: scene.sceneId,
         imageSearchIntent: scene.imageSearchIntent,
         imageSearchEntities: scene.imageSearchEntities,
+        visualCue: scene.visualCue,
       }));
       const resumedSceneCount = prepared.resumePlan?.scenes.length ?? 0;
       failureSnapshot['resumedScenes'] = resumedSceneCount;
@@ -596,6 +598,7 @@ interface VisualSearchDebugQuery {
   sceneId: string;
   subjectIds: string[];
   selectionReason: VisualSceneSubjectAssignment['selectionReason'];
+  visualCue: string | null;
   queries: string[];
 }
 
@@ -628,6 +631,7 @@ function buildVisualSearchDebugPayload(input: {
           sceneId: scene.sceneId,
           subjectIds: assignment.subjectIds,
           selectionReason: assignment.selectionReason,
+          visualCue: scene.visualCue ?? null,
           queries: [...scene.imageSearchIntent],
         },
       ];

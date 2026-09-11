@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import type { ImageCandidate } from '../../types.js';
+import { MAX_VISUAL_CUE_CHARACTERS } from './storyboard/draft.js';
 
 /**
  * Why an episode ended up with the images it has. Every Brave request and every
@@ -109,6 +110,13 @@ const visualSceneSelectionSchema = z
     sourceQuery: z.string().min(1).max(200).nullable(),
     providerRank: z.number().int().nonnegative().nullable(),
     fallbackReason: z.enum(VISUAL_SCENE_FALLBACK_REASONS).nullable(),
+    visualCue: z
+      .string()
+      .min(1)
+      .max(MAX_VISUAL_CUE_CHARACTERS)
+      .nullable()
+      .default(null),
+    cueMatched: z.boolean().nullable().default(null),
     rejections: z.array(countedCauseSchema).max(MAX_TRACE_REJECTION_ENTRIES),
   })
   .strict();

@@ -5,6 +5,8 @@ import { containsEntityPhrase } from './storyboard/english-text.js';
 /** One Brave request returns up to this many candidates, and the whole pool is
  * built from those responses, so the cap is per request rather than per scene. */
 export const MAX_SEARCH_CANDIDATES_PER_REQUEST = 100;
+export const CUE_TOKEN_BONUS = 6;
+export const MAX_CUE_BONUS = 18;
 
 /** Ranking only reads where an already-selected asset came from. Declaring the
  * shape here keeps the planner's `PlannedVisualImage` out of this module. */
@@ -258,6 +260,17 @@ export function mentionsAnyEntity(
   return entities.some((entity) => containsEntityPhrase(corpus, entity));
 }
 
+export function searchCueScore(candidate: ImageCandidate, cue: string): number {
+  if (!cue.trim()) return 0;
+  const corpus = normalizedSearchCandidateCorpus(candidate);
+  const score = normalizedSearchTokens(cue).reduce(
+    (total, token) =>
+      total + (containsEntityPhrase(corpus, token) ? CUE_TOKEN_BONUS : 0),
+    0,
+  );
+  return Math.min(score, MAX_CUE_BONUS);
+}
+
 function candidateDimensionScore(candidate: ImageCandidate): number {
   if (!candidate.width || !candidate.height) return 0;
   let score = 0;
@@ -351,7 +364,7 @@ function normalizedSearchCandidateCorpus(candidate: ImageCandidate): string {
   return decoded.normalize('NFKC').toLowerCase();
 }
 
-function normalizedSearchTokens(intent: string): string[] {
+export function normalizedSearchTokens(intent: string): string[] {
   return [
     ...new Set(
       (

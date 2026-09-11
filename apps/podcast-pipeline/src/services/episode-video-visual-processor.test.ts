@@ -514,12 +514,14 @@ describe('visual search debug checkpoints', () => {
           sceneId: 'scene-01',
           subjectIds: ['subject-bank-of-japan'],
           selectionReason: 'direct',
+          visualCue: null,
           queries: ['Bank of Japan headquarters', 'Bank of Japan'],
         },
         {
           sceneId: 'scene-02',
           subjectIds: ['subject-bank-of-japan'],
           selectionReason: 'section-context',
+          visualCue: null,
           queries: ['Bank of Japan headquarters', 'Bank of Japan'],
         },
       ],
@@ -532,6 +534,58 @@ describe('visual search debug checkpoints', () => {
         },
       ],
     });
+  });
+
+  it('carries a scene visual cue into the planned debug payload', async () => {
+    const persistDebug = vi.fn().mockResolvedValue(true);
+    const processor = createEpisodeVideoVisualProcessor(
+      checkpointDependencies({
+        enrichSearchIntents: vi.fn(async () => ({
+          draft: {
+            scenes: storyboard().draft.scenes.map((scene, index) => ({
+              ...scene,
+              imageSearchIntent: [
+                'Bank of Japan headquarters',
+                'Bank of Japan',
+              ],
+              imageSearchEntities: ['Bank of Japan'],
+              ...(index === 0 ? { visualCue: 'press conference podium' } : {}),
+            })),
+          },
+          model: 'openrouter/free',
+          enrichedSceneCount: 2,
+          entityAnchoredSceneCount: 2,
+          subjectCatalog: subjectCatalog(),
+          sceneAssignments: sceneAssignments(),
+        })),
+        scrape: vi.fn().mockResolvedValue({
+          text: 'source text',
+          images: [articleCandidate()],
+        }),
+        planAssets: vi.fn().mockResolvedValue(assetPlan()),
+        persistDebug,
+      }),
+    );
+
+    await processor(job(), source(), context());
+
+    expect(persistDebug).toHaveBeenCalledWith(
+      episodeId,
+      'worker-1',
+      expect.objectContaining({
+        phase: 'planned',
+        plannedQueries: expect.arrayContaining([
+          expect.objectContaining({
+            sceneId: 'scene-01',
+            visualCue: 'press conference podium',
+          }),
+          expect.objectContaining({
+            sceneId: 'scene-02',
+            visualCue: null,
+          }),
+        ]),
+      }),
+    );
   });
 
   it('checkpoints the accumulated search trace once search succeeds', async () => {

@@ -10,7 +10,10 @@ import {
   PODCAST_OUTRO_VISUAL_INTENT,
 } from '../podcast-packaging.js';
 import type { AcquiredRemoteImage } from './assets.js';
-import { planPodcastVisualAssets } from './podcast-visual-assets.js';
+import {
+  anchoredPlannerScenes,
+  planPodcastVisualAssets,
+} from './podcast-visual-assets.js';
 
 const directories: string[] = [];
 
@@ -202,6 +205,65 @@ describe('planPodcastVisualAssets', () => {
       'pool',
       'pool',
     ]);
+  });
+
+  it('carries a scene cue into the planner scene and maps model-context to a context anchor', () => {
+    const catalog = {
+      primarySubjectId: 'subject-nvidia',
+      subjects: [
+        {
+          id: 'subject-nvidia',
+          canonicalName: 'NVIDIA',
+          type: 'company' as const,
+          aliases: [] as string[],
+          storyRole: 'primary' as const,
+          evidenceSceneIds: ['scene-01'],
+          searchQueries: ['NVIDIA GPU maker'],
+          identityHints: ['GPU maker'],
+          negativeHints: [] as string[],
+          officialDomains: [] as string[],
+        },
+      ],
+    };
+    const scenes = anchoredPlannerScenes(
+      catalog,
+      [
+        {
+          sceneId: 'scene-01',
+          subjectIds: ['subject-nvidia'],
+          selectionReason: 'direct',
+        },
+        {
+          sceneId: 'scene-02',
+          subjectIds: ['subject-nvidia'],
+          selectionReason: 'model-context',
+        },
+      ],
+      [
+        {
+          sceneId: 'scene-01',
+          imageSearchIntent: ['news photo'],
+          visualCue: 'chip launch keynote',
+        },
+        {
+          sceneId: 'scene-02',
+          imageSearchIntent: ['news photo'],
+          visualCue: 'trading desk screens',
+        },
+      ],
+    );
+
+    expect(scenes[0]).toMatchObject({
+      visualCue: 'chip launch keynote',
+      searchAnchor: 'direct',
+    });
+    expect(scenes[0]?.cueQuery).toContain('NVIDIA');
+    expect(scenes[0]?.cueQuery).toContain('chip launch keynote');
+    expect(scenes[1]).toMatchObject({
+      visualCue: 'trading desk screens',
+      searchAnchor: 'context',
+    });
+    expect(scenes[1]?.cueQuery).toContain('NVIDIA');
   });
 });
 
