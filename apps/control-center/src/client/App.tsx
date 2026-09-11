@@ -21,14 +21,15 @@ import type {
 } from '../shared/types.js';
 import { getJson, sendJson } from './api.js';
 import { AppShell, type DashboardView } from './components/AppShell.js';
+import { DashboardSkeleton } from './components/DashboardSkeleton.js';
 import { EconomicsView } from './components/EconomicsView.js';
 import { PipelineQueuesBoard } from './components/PipelineQueuesBoard.js';
+import { ProductView } from './components/ProductView.js';
+import { StatementHeader } from './components/StatementHeader.js';
 import { GrowthPage } from './pages/GrowthPage.js';
 import { PipelineSummary } from './pages/PipelinePage.js';
 import { ReliabilityPage } from './pages/ReliabilityPage.js';
 import { TodayPage } from './pages/TodayPage.js';
-import { ProductView } from './components/ProductView.js';
-import { StatementHeader } from './components/StatementHeader.js';
 
 const VIEW_META: Record<DashboardView, { subtitle: string; title: string }> = {
   home: {
@@ -337,6 +338,20 @@ export function App() {
     view,
   ]);
 
+  const viewReady = dashboardViewReady({
+    costHistory,
+    customers,
+    journey,
+    operations,
+    overview,
+    podcastCosts,
+    queues,
+    social,
+    socialGrowth,
+    statements,
+    view,
+  });
+
   return (
     <AppShell
       activeView={view}
@@ -375,7 +390,8 @@ export function App() {
           <span>{error}. Check the server process and provider access.</span>
         </div>
       ) : null}
-      {view === 'home' ? (
+      {!error && !viewReady ? <DashboardSkeleton view={view} /> : null}
+      {viewReady && view === 'home' ? (
         <TodayPage
           data={overview}
           journey={journey}
@@ -385,7 +401,7 @@ export function App() {
           queues={queues}
         />
       ) : null}
-      {view === 'pipeline' ? (
+      {viewReady && view === 'pipeline' ? (
         <div className="cc-stack">
           <PipelineStatement statements={statements} />
           <PipelineSummary podcastCosts={podcastCosts} queues={queues} />
@@ -398,7 +414,7 @@ export function App() {
           />
         </div>
       ) : null}
-      {view === 'reliability' ? (
+      {viewReady && view === 'reliability' ? (
         <ReliabilityPage
           costHistory={costHistory}
           data={operations}
@@ -406,14 +422,14 @@ export function App() {
           podcastCosts={podcastCosts}
         />
       ) : null}
-      {view === 'product' ? (
+      {viewReady && view === 'product' ? (
         <ProductView
           customers={customers}
           product={overview?.product}
           statements={statements}
         />
       ) : null}
-      {view === 'economics' ? (
+      {viewReady && view === 'economics' ? (
         <EconomicsView
           data={overview}
           history={costHistory}
@@ -421,7 +437,7 @@ export function App() {
           statements={statements}
         />
       ) : null}
-      {view === 'growth' ? (
+      {viewReady && view === 'growth' ? (
         <GrowthPage
           data={social}
           growth={socialGrowth}
@@ -488,6 +504,53 @@ function PipelineStatement(props: { statements: StatementsResponse | null }) {
       sentence={header.sentence}
       status={header.status}
     />
+  );
+}
+
+function dashboardViewReady(input: {
+  costHistory: CostHistoryResponse | null;
+  customers: CustomerEconomicsResponse | null;
+  journey: SocialGrowthJourney | null;
+  operations: OperationsResponse | null;
+  overview: OverviewResponse | null;
+  podcastCosts: PodcastCostResponse | null;
+  queues: PipelineQueuesResponse | null;
+  social: SocialPerformanceResponse | null;
+  socialGrowth: SocialGrowthResponse | null;
+  statements: StatementsResponse | null;
+  view: DashboardView;
+}): boolean {
+  if (input.view === 'home') {
+    return Boolean(
+      input.overview &&
+        input.operations &&
+        input.podcastCosts &&
+        input.queues &&
+        input.journey,
+    );
+  }
+  if (input.view === 'pipeline') {
+    return Boolean(input.statements && input.podcastCosts && input.queues);
+  }
+  if (input.view === 'growth') {
+    return Boolean(input.social && input.socialGrowth && input.journey);
+  }
+  if (input.view === 'reliability') {
+    return Boolean(
+      input.operations &&
+        input.overview &&
+        input.podcastCosts &&
+        input.costHistory,
+    );
+  }
+  if (input.view === 'product') {
+    return Boolean(input.customers && input.overview && input.statements);
+  }
+  return Boolean(
+    input.overview &&
+      input.costHistory &&
+      input.podcastCosts &&
+      input.statements,
   );
 }
 
