@@ -186,7 +186,8 @@ export async function runStoryboardSmokeCli(
         ...(searchScript ? { searchScript } : {}),
       },
       {
-        provider: providers.catalog ?? createOpenRouterSearchIntentProvider(),
+        provider:
+          providers.catalog ?? createOpenRouterSearchIntentProvider(),
       },
     );
     if (!enrichment.subjectCatalog) {
