@@ -1,39 +1,30 @@
 import { z } from 'zod';
 
 import type {
-  AgentBacklogClaim,
   AgentBacklogClaimInput,
   AgentBacklogClaimResult,
   AgentBacklogCreateInput,
   AgentBacklogItem,
-  AgentBacklogMirrorStatus,
   AgentBacklogReleaseInput,
   AgentBacklogReleaseResult,
-  AgentBacklogRenewInput,
-  AgentBacklogRenewResult,
   AgentBacklogResponse,
 } from '../../../shared/agent-backlog.js';
 import type { ControlCenterConfig } from '../../config/env.js';
 import { createAsyncCache } from '../cache.js';
 import { fetchJson } from './http.js';
-import { createOperatorStore } from './operator/store.js';
 
 const REPO = 'zapPilot/zapEngine';
 const BACKLOG_LABEL = 'agent-backlog';
 const WORKING_LABEL = 'status:working';
 const REQUIRED_LABELS = [BACKLOG_LABEL, 'agent:weak', 'risk:low'] as const;
 const COMPLETED_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+const BACKLOG_TTL_MS = 30_000;
 const GITHUB_HEADERS = {
   Accept: 'application/vnd.github+json',
   'X-GitHub-Api-Version': '2022-11-28',
   'User-Agent': 'zapengine-control-center',
 };
 const AREA = /^[a-z0-9][a-z0-9-]{0,48}$/u;
-/** Lower rank claims first. Unlabeled/unknown effort sorts last so a weak
- * agent is never steered toward the biggest unscoped task by default. */
-const EFFORT_RANK: Record<string, number> = { xs: 0, s: 1, m: 2 };
-const UNRANKED_EFFORT = 3;
-const BACKLOG_TTL_MS = 30_000;
 
 const labelSchema = z.union([
   z.string(),
@@ -52,54 +43,15 @@ const issueSchema = z.object({
   pull_request: z.unknown().optional(),
 });
 const issueListSchema = z.array(issueSchema);
-/** Postgres timestamptz serializes with an explicit UTC offset (e.g.
- * `+00:00`), not the `Z` suffix GitHub's API uses, so this parser must accept
- * offsets. Without `{ offset: true }`, the very first live lease makes
- * `getBacklog()` report `status: 'error'` and leaves `claimBacklog()` unable
- * to hand the caller its own `claimId` after the database write already
- * committed. */
-const isoWithOffset = z.iso.datetime({ offset: true });
-const claimSchema = z.object({
-  claimId: z.uuid(),
-  issueNumber: z.coerce.number().int().positive(),
-  agentId: z.string().min(1),
-  claimedAt: isoWithOffset,
-  leaseExpiresAt: isoWithOffset,
-});
-const claimsSchema = z.array(claimSchema);
-const expiredEntrySchema = z.object({
-  issueNumber: z.coerce.number().int().positive(),
-  claimId: z.uuid(),
-  agentId: z.string().min(1),
-});
-const claimRpcResultSchema = z.object({
-  claim: claimSchema.nullable(),
-  reused: z.boolean(),
-  expired: z.array(expiredEntrySchema),
-});
-const releaseRpcResultSchema = z.object({
-  released: z.boolean(),
-  alreadyReleased: z.boolean(),
-  issueNumber: z.coerce.number().int().positive(),
-  outcome: z.enum(['released', 'blocked']).optional(),
-});
-const renewRpcResultSchema = z.object({
-  renewed: z.boolean(),
-  leaseExpiresAt: isoWithOffset.nullable(),
-});
 const labelsResponseSchema = z.array(z.object({ name: z.string() }));
-
-type BacklogStore = Pick<ReturnType<typeof createOperatorStore>, 'rpc'>;
 
 export function createAgentBacklogService(input: {
   config: ControlCenterConfig;
   now?: () => Date;
   fetchImpl?: typeof fetch;
-  store?: BacklogStore;
 }) {
   const now = input.now ?? (() => new Date());
   const fetchImpl = input.fetchImpl ?? globalThis.fetch;
-  const store = input.store ?? createOperatorStore(input.config);
 
   async function loadBacklog(): Promise<AgentBacklogResponse> {
     const generatedAt = now();
@@ -113,21 +65,14 @@ export function createAgentBacklogService(input: {
     }
     try {
       const cutoff = new Date(generatedAt.getTime() - COMPLETED_WINDOW_MS);
-      const [openIssues, closedIssues, rawClaims] = await Promise.all([
+      const [openIssues, closedIssues] = await Promise.all([
         fetchGithubIssues(token, { state: 'open' }),
         fetchGithubIssues(token, {
           state: 'closed',
           sinceIso: cutoff.toISOString(),
         }),
-        store.rpc('ops_agent_backlog_claims'),
       ]);
-      return projectBacklog(
-        openIssues,
-        closedIssues,
-        claimsSchema.parse(rawClaims),
-        generatedAt,
-        cutoff,
-      );
+      return projectBacklog(openIssues, closedIssues, generatedAt, cutoff);
     } catch (error) {
       return emptyResponse(
         generatedAt,
@@ -165,7 +110,7 @@ export function createAgentBacklogService(input: {
         labels: [...REQUIRED_LABELS, ...(area ? [`area:${area}`] : [])],
       },
     });
-    return projectIssue(issue, null);
+    return projectIssue(issue);
   }
 
   async function claimBacklog(
@@ -180,99 +125,63 @@ export function createAgentBacklogService(input: {
       const normalized = normalizeArea(area);
       return normalized ? [normalized] : [];
     });
-    const candidates = orderCandidates(
-      backlog.items.filter(
-        (item) =>
-          item.status === 'ready' &&
+    const item = backlog.items
+      .filter(
+        (candidate) =>
+          candidate.status === 'ready' &&
           (areas.length === 0 ||
-            (item.area !== null && areas.includes(item.area))),
+            (candidate.area !== null && areas.includes(candidate.area))),
+      )
+      .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt))[0];
+    if (!item) {
+      return { claimed: false, item: null };
+    }
+
+    await addLabels(token, item.issueNumber, [WORKING_LABEL]);
+    await tryGithub(() =>
+      addComment(
+        token,
+        item.issueNumber,
+        `🤖 Claimed by \`${inputValue.agentId}\`.`,
       ),
     );
-    if (candidates.length === 0) {
-      return { claimed: false, reused: false, item: null, mirror: 'skipped' };
-    }
-    const raw = await store.rpc('ops_claim_agent_backlog', {
-      p_issue_numbers: candidates,
-      p_agent_id: inputValue.agentId,
-      p_lease_seconds: inputValue.leaseSeconds ?? 3600,
-    });
-    const result = claimRpcResultSchema.parse(raw);
-    // Best-effort cleanup so a lease this claim attempt discovered to be
-    // expired does not leave a stale `status:working` label behind for
-    // another agent to be misled by. Never blocks or fails the claim itself.
-    await cleanupExpiredMirrors(token, result.expired);
-    if (!result.claim) {
-      return { claimed: false, reused: false, item: null, mirror: 'skipped' };
-    }
-    // Captured once so its non-null narrowing survives the closures below --
-    // TypeScript does not retain a property's narrowed type across a nested
-    // callback the way it does for a local `const`.
-    const claim = result.claim;
-    const item = backlog.items.find(
-      (candidate) => candidate.issueNumber === claim.issueNumber,
-    );
-    if (!item) {
-      await releaseClaim({
-        claimId: claim.claimId,
-        agentId: claim.agentId,
-        issueNumber: claim.issueNumber,
-        outcome: 'released',
-        reason: 'Claimed issue disappeared from the current GitHub backlog.',
-      });
-      return { claimed: false, reused: false, item: null, mirror: 'skipped' };
-    }
-    const mirror = await mirrorClaim(token, claim);
+
     return {
       claimed: true,
-      reused: result.reused,
-      item: { ...item, status: 'working', claim },
-      mirror,
+      item: {
+        ...item,
+        status: 'working',
+        labels: unique([...item.labels, WORKING_LABEL]),
+      },
     };
   }
 
   async function releaseClaim(
     value: AgentBacklogReleaseInput,
   ): Promise<AgentBacklogReleaseResult> {
-    // The database is the ownership check: only a caller presenting the
-    // exact (claimId, agentId, issueNumber) triple that was leased can reach
-    // the GitHub write below, so the mutation cannot be pointed at an
-    // arbitrary issue by an unrelated caller.
     const token = writeToken();
-    const raw = await store.rpc('ops_release_agent_backlog', {
-      p_claim_id: value.claimId,
-      p_agent_id: value.agentId,
-      p_issue_number: value.issueNumber,
-      p_outcome: value.outcome,
-      p_reason: value.reason,
-    });
-    const result = releaseRpcResultSchema.parse(raw);
-    if (!result.released) {
-      throw new Error(
-        'Backlog claim is no longer active or owned by this agent.',
-      );
+    const issue = await fetchGithubIssue(token, value.issueNumber);
+    const item = projectIssue(issue);
+    if (!item.labels.includes(BACKLOG_LABEL)) {
+      throw new Error('Issue is not part of the agent backlog.');
     }
-    // A retried release after a dropped response is a no-op on GitHub too:
-    // the first successful call already mirrored the outcome.
-    const mirror = result.alreadyReleased
-      ? 'skipped'
-      : await mirrorRelease(token, {
-          issueNumber: result.issueNumber,
-          outcome: value.outcome,
-        });
-    return { released: true, alreadyReleased: result.alreadyReleased, mirror };
-  }
+    if (item.status !== 'working') {
+      throw new Error('Backlog issue is not currently working.');
+    }
 
-  async function renewClaim(
-    value: AgentBacklogRenewInput,
-  ): Promise<AgentBacklogRenewResult> {
-    assertWritesEnabled();
-    const raw = await store.rpc('ops_renew_agent_backlog', {
-      p_claim_id: value.claimId,
-      p_agent_id: value.agentId,
-      p_lease_seconds: value.leaseSeconds ?? 3600,
-    });
-    const result = renewRpcResultSchema.parse(raw);
-    return { renewed: result.renewed, leaseExpiresAt: result.leaseExpiresAt };
+    if (value.outcome === 'blocked') {
+      await addLabels(token, value.issueNumber, ['blocked']);
+    }
+    await removeLabel(token, value.issueNumber, WORKING_LABEL);
+    await tryGithub(() =>
+      addComment(
+        token,
+        value.issueNumber,
+        `🤖 ${value.outcome === 'blocked' ? 'Blocked' : 'Released'} by \`${value.agentId}\`: ${value.reason.trim()}`,
+      ),
+    );
+
+    return { released: true };
   }
 
   function assertWritesEnabled(): void {
@@ -314,111 +223,73 @@ export function createAgentBacklogService(input: {
     });
   }
 
-  async function tryGithub(action: () => Promise<unknown>): Promise<boolean> {
-    try {
-      await action();
-      return true;
-    } catch {
-      return false;
-    }
+  async function fetchGithubIssue(token: string, issueNumber: number) {
+    return fetchJson({
+      label: 'GitHub agent backlog issue read',
+      url: `https://api.github.com/repos/${REPO}/issues/${issueNumber}`,
+      token,
+      schema: issueSchema,
+      fetchImpl,
+      headers: GITHUB_HEADERS,
+    });
   }
 
-  function mirrorOutcome(...oks: boolean[]): AgentBacklogMirrorStatus {
-    const succeeded = oks.filter(Boolean).length;
-    if (succeeded === oks.length) {
-      return 'ok';
-    }
-    if (succeeded === 0) {
-      return 'failed';
-    }
-    return 'partial';
-  }
-
-  async function removeWorkingLabel(
+  async function addLabels(
     token: string,
     issueNumber: number,
-  ): Promise<boolean> {
-    return tryGithub(() =>
-      fetchJson({
-        label: 'GitHub agent backlog working label removal',
-        url:
-          `https://api.github.com/repos/${REPO}/issues/${issueNumber}/labels/` +
-          encodeURIComponent(WORKING_LABEL),
-        token,
-        schema: z.unknown(),
-        fetchImpl,
-        headers: GITHUB_HEADERS,
-        method: 'DELETE',
-      }),
-    );
-  }
-
-  /** Mirrors a live database lease onto the issue so a human on github.com
-   * (or `gh issue list --label status:working`) can see who is working on
-   * it. Both writes are best-effort: the database claim above already
-   * committed, and a GitHub outage here must never unwind or fail it. */
-  async function mirrorClaim(
-    token: string,
-    claim: AgentBacklogClaim,
-  ): Promise<AgentBacklogMirrorStatus> {
-    const commentOk = await tryGithub(() =>
-      fetchJson({
-        label: 'GitHub agent backlog claim comment',
-        url: `https://api.github.com/repos/${REPO}/issues/${claim.issueNumber}/comments`,
-        token,
-        schema: z.unknown(),
-        fetchImpl,
-        headers: GITHUB_HEADERS,
-        body: {
-          body:
-            `🤖 Claimed by \`${claim.agentId}\` until ${claim.leaseExpiresAt} ` +
-            `(claim \`${claim.claimId}\`).`,
-        },
-      }),
-    );
-    const labelOk = await tryGithub(() =>
-      fetchJson({
-        label: 'GitHub agent backlog working label',
-        url: `https://api.github.com/repos/${REPO}/issues/${claim.issueNumber}/labels`,
-        token,
-        schema: labelsResponseSchema,
-        fetchImpl,
-        headers: GITHUB_HEADERS,
-        body: { labels: [WORKING_LABEL] },
-      }),
-    );
-    return mirrorOutcome(commentOk, labelOk);
-  }
-
-  async function mirrorRelease(
-    token: string,
-    value: { issueNumber: number; outcome: 'released' | 'blocked' },
-  ): Promise<AgentBacklogMirrorStatus> {
-    const removedOk = await removeWorkingLabel(token, value.issueNumber);
-    if (value.outcome !== 'blocked') {
-      return removedOk ? 'ok' : 'failed';
-    }
-    const blockedOk = await tryGithub(() =>
-      fetchJson({
-        label: 'GitHub agent backlog blocked label',
-        url: `https://api.github.com/repos/${REPO}/issues/${value.issueNumber}/labels`,
-        token,
-        schema: labelsResponseSchema,
-        fetchImpl,
-        headers: GITHUB_HEADERS,
-        body: { labels: ['blocked'] },
-      }),
-    );
-    return mirrorOutcome(removedOk, blockedOk);
-  }
-
-  async function cleanupExpiredMirrors(
-    token: string,
-    expired: Array<{ issueNumber: number }>,
+    labels: string[],
   ): Promise<void> {
-    await Promise.all(
-      expired.map((entry) => removeWorkingLabel(token, entry.issueNumber)),
-    );
+    await fetchJson({
+      label: 'GitHub agent backlog label add',
+      url: `https://api.github.com/repos/${REPO}/issues/${issueNumber}/labels`,
+      token,
+      schema: labelsResponseSchema,
+      fetchImpl,
+      headers: GITHUB_HEADERS,
+      body: { labels },
+    });
+  }
+
+  async function removeLabel(
+    token: string,
+    issueNumber: number,
+    label: string,
+  ): Promise<void> {
+    await fetchJson({
+      label: 'GitHub agent backlog label removal',
+      url:
+        `https://api.github.com/repos/${REPO}/issues/${issueNumber}/labels/` +
+        encodeURIComponent(label),
+      token,
+      schema: z.unknown(),
+      fetchImpl,
+      headers: GITHUB_HEADERS,
+      method: 'DELETE',
+    });
+  }
+
+  async function addComment(
+    token: string,
+    issueNumber: number,
+    body: string,
+  ): Promise<void> {
+    await fetchJson({
+      label: 'GitHub agent backlog comment',
+      url: `https://api.github.com/repos/${REPO}/issues/${issueNumber}/comments`,
+      token,
+      schema: z.unknown(),
+      fetchImpl,
+      headers: GITHUB_HEADERS,
+      body: { body },
+    });
+  }
+
+  async function tryGithub(action: () => Promise<void>): Promise<void> {
+    try {
+      await action();
+    } catch {
+      // Comments are audit convenience only. GitHub labels are the state.
+    }
   }
 
   return {
@@ -426,33 +297,12 @@ export function createAgentBacklogService(input: {
     createBacklogItem,
     claimBacklog,
     releaseClaim,
-    renewClaim,
   };
-}
-
-function orderCandidates(items: AgentBacklogItem[]): number[] {
-  return [...items]
-    .sort((a, b) => {
-      const rankA =
-        a.effort && a.effort in EFFORT_RANK
-          ? EFFORT_RANK[a.effort]!
-          : UNRANKED_EFFORT;
-      const rankB =
-        b.effort && b.effort in EFFORT_RANK
-          ? EFFORT_RANK[b.effort]!
-          : UNRANKED_EFFORT;
-      if (rankA !== rankB) {
-        return rankA - rankB;
-      }
-      return Date.parse(a.createdAt) - Date.parse(b.createdAt);
-    })
-    .map((item) => item.issueNumber);
 }
 
 function projectBacklog(
   rawOpenIssues: z.infer<typeof issueListSchema>,
   rawClosedIssues: z.infer<typeof issueListSchema>,
-  claims: AgentBacklogClaim[],
   now: Date,
   cutoff: Date,
 ): AgentBacklogResponse {
@@ -462,12 +312,7 @@ function projectBacklog(
   const closedIssues = rawClosedIssues.filter(
     (issue) => issue.pull_request === undefined,
   );
-  const activeClaims = new Map(
-    claims.map((claim) => [claim.issueNumber, claim]),
-  );
-  const items = openIssues.map((issue) =>
-    projectIssue(issue, activeClaims.get(issue.number) ?? null),
-  );
+  const items = openIssues.map(projectIssue);
   const completed7d = closedIssues.filter(
     (issue) =>
       issue.closed_at !== null &&
@@ -492,10 +337,7 @@ function projectBacklog(
   };
 }
 
-function projectIssue(
-  issue: z.infer<typeof issueSchema>,
-  claim: AgentBacklogClaim | null,
-): AgentBacklogItem {
+function projectIssue(issue: z.infer<typeof issueSchema>): AgentBacklogItem {
   const labels = issue.labels.flatMap((value) => {
     const name = typeof value === 'string' ? value : value.name;
     return name ? [name] : [];
@@ -510,13 +352,11 @@ function projectIssue(
     labels,
     area: labelValue(labels, 'area:'),
     risk: labelValue(labels, 'risk:'),
-    effort: labelValue(labels, 'effort:'),
     status: labels.includes('blocked')
       ? 'blocked'
-      : claim
+      : labels.includes(WORKING_LABEL)
         ? 'working'
         : 'ready',
-    claim,
   };
 }
 
@@ -536,6 +376,10 @@ function normalizeArea(area: string | null | undefined): string | null {
     throw new Error('Backlog area must be a lowercase slug.');
   }
   return normalized;
+}
+
+function unique(values: string[]): string[] {
+  return [...new Set(values)];
 }
 
 function backlogBody(value: AgentBacklogCreateInput): string {
