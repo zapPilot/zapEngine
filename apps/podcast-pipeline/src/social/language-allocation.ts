@@ -118,24 +118,9 @@ export function rotatingReleaseCohortLanesForProfile(
   }
 
   return [
-    {
-      platform: 'x',
-      language: profile.x,
-      experimentKey: SOCIAL_LANGUAGE_EXPERIMENT_KEYS.x,
-      experimentVariant: profile.x,
-    },
-    {
-      platform: 'threads',
-      language: profile.threads,
-      experimentKey: SOCIAL_LANGUAGE_EXPERIMENT_KEYS.threads,
-      experimentVariant: profile.threads,
-    },
-    {
-      platform: 'youtube',
-      language: profile.youtube,
-      experimentKey: SOCIAL_LANGUAGE_EXPERIMENT_KEYS.youtube,
-      experimentVariant: profile.youtube,
-    },
+    experimentLane('x', profile.x),
+    experimentLane('threads', profile.threads),
+    experimentLane('youtube', profile.youtube),
     { platform: 'rednote', language: 'zh-Hant' },
   ];
 }
@@ -220,21 +205,23 @@ export function fixedThreadsReleaseCohortLanesForProfile(
   }
 
   return [
-    {
-      platform: 'x',
-      language: profile.x,
-      experimentKey: SOCIAL_LANGUAGE_EXPERIMENT_KEYS.x,
-      experimentVariant: profile.x,
-    },
-    {
-      platform: 'youtube',
-      language: profile.youtube,
-      experimentKey: SOCIAL_LANGUAGE_EXPERIMENT_KEYS.youtube,
-      experimentVariant: profile.youtube,
-    },
+    experimentLane('x', profile.x),
+    experimentLane('youtube', profile.youtube),
     { platform: 'threads', language: 'zh-Hant' },
     { platform: 'rednote', language: 'zh-Hant' },
   ];
+}
+
+function experimentLane(
+  platform: keyof typeof SOCIAL_LANGUAGE_EXPERIMENT_KEYS,
+  language: SocialLanguageCode,
+): RotatingReleaseCohortLane {
+  return {
+    platform,
+    language,
+    experimentKey: SOCIAL_LANGUAGE_EXPERIMENT_KEYS[platform],
+    experimentVariant: language,
+  };
 }
 
 function profileForSlot<T extends readonly unknown[]>(
