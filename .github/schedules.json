@@ -83,7 +83,8 @@
     "schedule_source": "workflow",
     "runtime": "github-actions",
     "workspace": "@zapengine/control-center",
-    "entrypoint": ".github/workflows/ops-operator.yml"
+    "entrypoint": ".github/workflows/ops-operator.yml",
+    "skipExpected": true
   },
   {
     "name": "social-daemon",

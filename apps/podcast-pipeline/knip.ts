@@ -22,5 +22,8 @@ export default defineKnipConfig({
     // in apps/control-center and apps/account-engine.
     '@zapengine/types',
   ],
-  vitest: { config: ['vitest.config.ts'], entry: ['src/**/*.test.ts'] },
+  vitest: {
+    config: ['vitest.config.ts'],
+    entry: ['src/**/*.test.ts', 'tests/**/*.test.ts'],
+  },
 });

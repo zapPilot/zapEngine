@@ -14,6 +14,7 @@
 - `entrypoint`: existing repository path that implements or receives the work.
 - `endpoint`: optional HTTP endpoint invoked by the scheduler.
 - `docs`: optional existing operational document.
+- `skipExpected`: optional boolean; set on a `github-actions` row whose workflow is intentionally gated off (for example a job-level `if:` on an unset repository variable) so the ops dashboard reads `skipped` runs as standby instead of failures.
 
 The trust order is `workflow`, then `code`, then `external`. A workflow row is mechanically compared with its YAML cron. A code row points to the implementation that owns its cadence. An external row records a verified inventory claim, but repository CI cannot observe later changes in that provider.
 
