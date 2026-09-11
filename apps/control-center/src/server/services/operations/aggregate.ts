@@ -15,6 +15,7 @@ import {
 import type { ControlCenterConfig } from '../../config/env.js';
 import { createAsyncCache } from '../cache.js';
 import { deriveCustomerSignals, loadCustomerEconomics } from '../customers.js';
+import { createAgentBacklogService } from './agent-backlog.js';
 import { collectCostSignals } from './costs.js';
 import { collectFlySignals } from './fly.js';
 import { collectRecentGithubFailureSignals } from './github-recent.js';
@@ -95,6 +96,7 @@ export function createOperationsService(input: {
 }) {
   const now = input.now ?? (() => new Date());
   const adapters = defaultAdapters(input.config, now, input.adapters);
+  const backlog = createAgentBacklogService({ config: input.config, now });
 
   const caches = {
     product: cache(TTL_MS.product, adapters.product),
@@ -118,13 +120,15 @@ export function createOperationsService(input: {
 
   async function getOperations(force = false): Promise<OperationsResponse> {
     const observedAt = now();
-    const signals = (
-      await Promise.all(
+    const [signalGroups, agentBacklog] = await Promise.all([
+      Promise.all(
         (Object.keys(ORIGIN) as Array<keyof OperationsAdapters>).map((key) =>
           collect(key, force),
         ),
-      )
-    ).flat();
+      ),
+      backlog.getBacklog(),
+    ]);
+    const signals = signalGroups.flat();
 
     const domains = DOMAINS.map((domain) => {
       const scoped = signals.filter((signal) => signal.domain === domain);
@@ -141,7 +145,8 @@ export function createOperationsService(input: {
       domains,
       priorities: prioritize(signals),
       signals: [...signals].sort(bySeverityThenName),
-    };
+      agentBacklog,
+    } as OperationsResponse & { agentBacklog: typeof agentBacklog };
   }
 
   async function getSocial(force = false): Promise<OperationsSocialResponse> {
@@ -177,6 +182,10 @@ export function createOperationsService(input: {
     getOperations,
     getSocial,
     getCustomers,
+    getBacklog: async (_force = false) => backlog.getBacklog(),
+    createBacklogItem: backlog.createBacklogItem,
+    claimBacklog: backlog.claimBacklog,
+    releaseBacklog: backlog.releaseClaim,
     inspectSignal,
 
     async resolveSentryIssue(issueId: string, reason: string) {
