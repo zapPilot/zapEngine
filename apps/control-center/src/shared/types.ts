@@ -1,3 +1,4 @@
+import type { AgentBacklogResponse } from './agent-backlog.js';
 import type { SocialWaitlistSummary } from './waitlist-growth.js';
 import type {
   CostProvider,
@@ -218,50 +219,20 @@ export interface SocialExperimentSummary {
   arms: SocialExperimentArm[];
 }
 
-export interface SocialGrowthAttributionShare {
-  postId: string;
-  share: number;
-  followersEstimated: number;
-  basis: 'estimated';
-}
-
-export interface SocialGrowthInterval {
-  platform: string;
-  startAt: string;
-  endAt: string;
-  netDelta: number;
-  unattributed: number;
-  posts: SocialGrowthAttributionShare[];
-  basis: 'estimated';
-}
-
 export interface SocialGrowthResponse {
-  waitlist: SocialWaitlistSummary;
   status: ProviderStatus;
   message: string | null;
   generatedAt: string;
   platforms: SocialGrowthPlatform[];
   experiments: SocialExperimentSummary[];
-  attribution: SocialGrowthInterval[];
 }
 
 export interface ProductHealthResponse {
-  registeredUsers: number | null;
-  verifiedWallets: number | null;
-  portfolioUsers: number | null;
-  wau: number | null;
-  mau: number | null;
-  observedPortfolioUsd: number | null;
-  portfolioFresh24h: number | null;
-  portfolioFresh7d: number | null;
-  top1PortfolioShare: number | null;
-  top3PortfolioShare: number | null;
-  /**
-   * North star: users with account-engine activity in the last 7 days AND at
-   * least one wallet whose portfolio refreshed in the last 7 days. Grows only
-   * when the product is used *and* the pipeline that feeds it is working.
-   */
+  status: ProviderStatus;
+  message: string | null;
+  generatedAt: string;
   activePortfolios7d: number | null;
+  waitlist: SocialWaitlistSummary | null;
 }
 
 export interface OverviewResponse {
@@ -356,6 +327,12 @@ export interface OperationsResponse {
   domains: OperationsDomainSummary[];
   priorities: OperationalPriority[];
   signals: OperationalSignal[];
+  /**
+   * Background engineering work is orthogonal to operational health. It is
+   * carried with the normalized snapshot for MCP + Reliability consumers, but
+   * optional so historical fixtures and incident projections stay compatible.
+   */
+  agentBacklog?: AgentBacklogResponse;
 }
 
 export interface OperationsSocialJob {
