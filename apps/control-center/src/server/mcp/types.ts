@@ -1,7 +1,12 @@
 import type {
   AgentBacklogClaimInput,
+  AgentBacklogClaimResult,
   AgentBacklogCreateInput,
+  AgentBacklogItem,
   AgentBacklogReleaseInput,
+  AgentBacklogReleaseResult,
+  AgentBacklogRenewInput,
+  AgentBacklogRenewResult,
   AgentBacklogResponse,
 } from '../../shared/agent-backlog.js';
 import type {
@@ -24,9 +29,12 @@ export interface OpsMcpOperations {
   getSocial(force?: boolean): Promise<OperationsSocialResponse>;
   getCustomers(force?: boolean): Promise<CustomerEconomicsResponse>;
   getBacklog(force?: boolean): Promise<AgentBacklogResponse>;
-  createBacklogItem(input: AgentBacklogCreateInput): Promise<object>;
-  claimBacklog(input: AgentBacklogClaimInput): Promise<object>;
-  releaseBacklog(input: AgentBacklogReleaseInput): Promise<object>;
+  createBacklogItem(input: AgentBacklogCreateInput): Promise<AgentBacklogItem>;
+  claimBacklog(input: AgentBacklogClaimInput): Promise<AgentBacklogClaimResult>;
+  releaseBacklog(
+    input: AgentBacklogReleaseInput,
+  ): Promise<AgentBacklogReleaseResult>;
+  renewBacklog(input: AgentBacklogRenewInput): Promise<AgentBacklogRenewResult>;
   inspectSignal(
     fingerprint: string,
     sentry?: SentryInspectionOptions,

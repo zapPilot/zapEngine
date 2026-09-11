@@ -36,10 +36,13 @@ const schema = z.object({
   // token may have Issues read/write on zapPilot/zapEngine, while the existing
   // OPS_GITHUB_TOKEN remains read-only and cannot be silently privilege-raised.
   OPS_GITHUB_BACKLOG_TOKEN: optionalString,
-  OPS_BACKLOG_WRITE_ENABLED: z
-    .enum(['true', 'false'])
-    .default('false')
-    .transform((value) => value === 'true'),
+  // A strict `z.enum(['true','false'])` here would throw --- and take down
+  // the whole server and MCP process --- on any other spelling (`TRUE`, `1`,
+  // an empty string). Every other value is simply "not enabled".
+  OPS_BACKLOG_WRITE_ENABLED: z.preprocess(
+    (value) => typeof value === 'string' && /^(true|1)$/iu.test(value.trim()),
+    z.boolean(),
+  ),
   // Optional, narrowly scoped remediation credential. Normal reads never fall
   // back to write credentials.
   SENTRY_OPS_WRITE_TOKEN: optionalString,

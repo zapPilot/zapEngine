@@ -85,10 +85,26 @@ export function ReliabilityPage(props: {
         {backlog?.status === 'ok' ? (
           <div className="cc-stack">
             <div className="rel-hero">
-              <Stat caption="Available to claim" label="Ready" value={integer(backlog.ready)} />
-              <Stat caption="Currently leased" label="Working" value={integer(backlog.working)} />
-              <Stat caption="Needs stronger judgement" label="Blocked" value={integer(backlog.blocked)} />
-              <Stat caption="Closed GitHub issues" label="Completed 7d" value={integer(backlog.completed7d)} />
+              <Stat
+                caption="Available to claim"
+                label="Ready"
+                value={integer(backlog.ready)}
+              />
+              <Stat
+                caption="Currently leased"
+                label="Working"
+                value={integer(backlog.working)}
+              />
+              <Stat
+                caption="Needs stronger judgement"
+                label="Blocked"
+                value={integer(backlog.blocked)}
+              />
+              <Stat
+                caption="Closed GitHub issues"
+                label="Completed 7d"
+                value={integer(backlog.completed7d)}
+              />
             </div>
             <RankedList
               empty={
@@ -103,7 +119,11 @@ export function ReliabilityPage(props: {
         ) : (
           <EmptyState
             detail={backlog?.message ?? 'Backlog has not been loaded yet.'}
-            title={backlog?.status === 'unconfigured' ? 'Backlog not configured' : 'Backlog unavailable'}
+            title={
+              backlog?.status === 'unconfigured'
+                ? 'Backlog not configured'
+                : 'Backlog unavailable'
+            }
           />
         )}
       </Card>
@@ -179,13 +199,7 @@ export function ReliabilityPage(props: {
 function agentBacklog(
   operations: OperationsResponse | null,
 ): AgentBacklogResponse | null {
-  return (
-    (
-      operations as
-        | (OperationsResponse & { agentBacklog?: AgentBacklogResponse })
-        | null
-    )?.agentBacklog ?? null
-  );
+  return operations?.agentBacklog ?? null;
 }
 
 function backlogItems(backlog: AgentBacklogResponse): RankedItem[] {

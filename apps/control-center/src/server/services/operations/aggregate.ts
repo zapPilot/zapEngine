@@ -126,7 +126,7 @@ export function createOperationsService(input: {
           collect(key, force),
         ),
       ),
-      backlog.getBacklog(),
+      backlog.getBacklog(force),
     ]);
     const signals = signalGroups.flat();
 
@@ -146,7 +146,7 @@ export function createOperationsService(input: {
       priorities: prioritize(signals),
       signals: [...signals].sort(bySeverityThenName),
       agentBacklog,
-    } as OperationsResponse & { agentBacklog: typeof agentBacklog };
+    };
   }
 
   async function getSocial(force = false): Promise<OperationsSocialResponse> {
@@ -182,10 +182,11 @@ export function createOperationsService(input: {
     getOperations,
     getSocial,
     getCustomers,
-    getBacklog: async (_force = false) => backlog.getBacklog(),
+    getBacklog: backlog.getBacklog,
     createBacklogItem: backlog.createBacklogItem,
     claimBacklog: backlog.claimBacklog,
     releaseBacklog: backlog.releaseClaim,
+    renewBacklog: backlog.renewClaim,
     inspectSignal,
 
     async resolveSentryIssue(issueId: string, reason: string) {

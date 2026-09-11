@@ -60,6 +60,7 @@ const BACKLOG: AgentBacklogResponse = {
       claim: null,
     },
   ],
+  truncated: false,
 };
 const INCIDENT_FINGERPRINT = 'github-actions:workflow/ci.yml';
 const INCIDENT = {
@@ -133,8 +134,20 @@ function fakeOperations(): OpsMcpOperations {
     getCustomers: vi.fn(),
     getBacklog: vi.fn().mockResolvedValue(BACKLOG),
     createBacklogItem: vi.fn().mockResolvedValue(BACKLOG.items[0] ?? {}),
-    claimBacklog: vi.fn().mockResolvedValue({ claimed: false, item: null }),
-    releaseBacklog: vi.fn().mockResolvedValue({ ok: true }),
+    claimBacklog: vi.fn().mockResolvedValue({
+      claimed: false,
+      reused: false,
+      item: null,
+      mirror: 'skipped',
+    }),
+    releaseBacklog: vi.fn().mockResolvedValue({
+      released: true,
+      alreadyReleased: false,
+      mirror: 'ok',
+    }),
+    renewBacklog: vi
+      .fn()
+      .mockResolvedValue({ renewed: true, leaseExpiresAt: null }),
     inspectSignal: vi.fn(),
     investigate: vi.fn().mockResolvedValue(INCIDENT),
     resolveSentryIssue: vi.fn().mockResolvedValue(RESOLUTION),
@@ -195,6 +208,7 @@ describe('Ops MCP HTTP protocol', () => {
         'ops_backlog_create',
         'ops_backlog_claim',
         'ops_backlog_release',
+        'ops_backlog_renew',
         'ops_resolve_sentry_issue',
       ]),
     );
@@ -210,6 +224,29 @@ describe('Ops MCP HTTP protocol', () => {
     expect(response.status).toBe(200);
     expect(payload.result?.structuredContent).toEqual(BACKLOG);
     expect(operations.getBacklog).toHaveBeenCalledWith(false);
+  });
+
+  it('renews a live backlog lease without exposing GitHub write internals', async () => {
+    const operations = fakeOperations();
+    const { response, payload } = await mcpRequest(
+      createAuthenticatedApp(operations),
+      toolCallRequest(100, 'ops_backlog_renew', {
+        claimId: '11111111-1111-4111-8111-111111111111',
+        agentId: 'weak-1',
+        leaseSeconds: 7200,
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(payload.result?.structuredContent).toEqual({
+      renewed: true,
+      leaseExpiresAt: null,
+    });
+    expect(operations.renewBacklog).toHaveBeenCalledWith({
+      claimId: '11111111-1111-4111-8111-111111111111',
+      agentId: 'weak-1',
+      leaseSeconds: 7200,
+    });
   });
 
   it('passes Sentry history and pagination options to the service', async () => {
