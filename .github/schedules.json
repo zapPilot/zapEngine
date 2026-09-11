@@ -76,6 +76,16 @@
     "docs": "apps/control-center/README.md"
   },
   {
+    "name": "ops-operator",
+    "purpose": "Observe production operations and reconcile operator state.",
+    "schedule_kind": "cron",
+    "schedule": "*/5 * * * *",
+    "schedule_source": "workflow",
+    "runtime": "github-actions",
+    "workspace": "@zapengine/control-center",
+    "entrypoint": ".github/workflows/ops-operator.yml"
+  },
+  {
     "name": "social-daemon",
     "purpose": "Publish scheduled social posts, collect metrics, and refresh social strategy guidance.",
     "schedule_kind": "continuous",

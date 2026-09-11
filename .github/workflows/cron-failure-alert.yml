@@ -11,6 +11,7 @@ on:
       - Distribution Snapshot
       - Environment drift
       - Ops Cost Sync
+      - Ops Operator
       - Strategy Change Broadcast
       - Telegram Token Cleanup
       - Track Record Snapshot
