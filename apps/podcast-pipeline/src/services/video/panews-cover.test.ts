@@ -1,9 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import {
-  isPanewsArticleUrl,
-  preparePanewsVideoCover,
-} from './panews-cover.js';
+import { isPanewsArticleUrl, preparePanewsVideoCover } from './panews-cover.js';
 
 describe('isPanewsArticleUrl', () => {
   it.each([
