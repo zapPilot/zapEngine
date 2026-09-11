@@ -32,8 +32,6 @@ export interface OpsMcpOperations {
   releaseBacklog(
     input: AgentBacklogReleaseInput,
   ): Promise<AgentBacklogReleaseResult>;
-  /** Compatibility only for older test fakes; no MCP tool calls this. */
-  renewBacklog?: unknown;
   inspectSignal(
     fingerprint: string,
     sentry?: SentryInspectionOptions,
