@@ -125,6 +125,7 @@ function stateRank(state: PipelineQueueState): number {
     case 'completed':
       return 1;
   }
+  return 0;
 }
 
 function compareJobs(a: PipelineQueueItem, b: PipelineQueueItem): number {

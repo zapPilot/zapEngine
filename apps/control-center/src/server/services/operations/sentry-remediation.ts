@@ -12,6 +12,46 @@ const issueSchema = z.object({
   status: z.string(),
 });
 
+const issueActivitySchema = z.object({
+  id: z.string(),
+  shortId: z.string().nullish(),
+  title: z.string().nullish(),
+  status: z.string(),
+  lastSeen: z.string().nullish(),
+});
+
+export type SentryIssueActivity = z.infer<typeof issueActivitySchema>;
+
+/**
+ * Read-only companion to the resolve mutation. A delegated close is authorized
+ * by a person rather than by production evidence, so the one property that still
+ * has to be proven from the provider is that the issue has actually stopped: a
+ * human saying "that one is dead" cannot make a live alert dead.
+ */
+export async function readSentryIssue(input: {
+  config: ControlCenterConfig;
+  issueId: string;
+  fetchImpl?: typeof fetch;
+}): Promise<SentryIssueActivity> {
+  const token =
+    input.config.SENTRY_OPS_WRITE_TOKEN ?? input.config.SENTRY_OPS_AUTH_TOKEN;
+  const orgSlug = input.config.SENTRY_ORG_SLUG;
+  if (!token || !orgSlug) {
+    throw new Error(
+      'Sentry remediation is not configured. Set SENTRY_OPS_WRITE_TOKEN and SENTRY_ORG_SLUG.',
+    );
+  }
+  return fetchJson({
+    label: 'Sentry issue read request',
+    url:
+      `${SENTRY_API}/${encodeURIComponent(orgSlug)}/issues/` +
+      `${encodeURIComponent(input.issueId)}/`,
+    token,
+    schema: issueActivitySchema,
+    fetchImpl: input.fetchImpl ?? globalThis.fetch,
+  });
+}
+
 export interface SentryResolutionResult {
   provider: 'sentry';
   issueId: string;

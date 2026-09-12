@@ -26,7 +26,7 @@ import { investigateOperationalSignal } from './investigation.js';
 import { collectPosthogSignals } from './posthog.js';
 import { prioritize } from './prioritize.js';
 import { collectProductSignals } from './product.js';
-import { resolveSentryIssue } from './sentry-remediation.js';
+import { readSentryIssue, resolveSentryIssue } from './sentry-remediation.js';
 import { collectSentrySignals } from './sentry.js';
 import { sourceFailure, worstOf } from './signal.js';
 import { deriveSocialSignals, loadOperationsSocial } from './social.js';
@@ -48,6 +48,41 @@ const TTL_MS = {
   sentry: 300_000,
   posthog: 900_000,
 } as const;
+
+/**
+ * A delegated close is authorized by a person, so the database gate that proves
+ * a deployed fix does not apply to it. One property still has to come from the
+ * provider rather than from the caller: the issue must have stopped firing.
+ * Nobody can decide an active alert is history, and this is the check that keeps
+ * "clear the dead backlog" from becoming "silence what is still breaking".
+ */
+const DELEGATED_QUIET_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+async function proveIssueIsQuiet(
+  config: ControlCenterConfig,
+  issueId: string,
+): Promise<Record<string, unknown>> {
+  const issue = await readSentryIssue({ config, issueId });
+  const lastSeen = issue.lastSeen ? Date.parse(issue.lastSeen) : Number.NaN;
+  if (!Number.isFinite(lastSeen)) {
+    throw new Error(
+      `Sentry issue ${issueId} reports no last-seen time, so it cannot be proven quiet.`,
+    );
+  }
+  const quietMs = Date.now() - lastSeen;
+  if (quietMs < DELEGATED_QUIET_WINDOW_MS) {
+    throw new Error(
+      `Sentry issue ${issueId} last fired ${Math.round(quietMs / 60_000)} minutes ago; ` +
+        'a delegated resolution requires 24 hours without an event.',
+    );
+  }
+  return {
+    delegated: true,
+    lastSeen: issue.lastSeen,
+    quietHours: Math.floor(quietMs / 3_600_000),
+    title: issue.title ?? null,
+  };
+}
 
 type SignalCollector = () => Promise<OperationalSignal[]>;
 
@@ -188,12 +223,23 @@ export function createOperationsService(input: {
     releaseBacklog: backlog.releaseClaim,
     inspectSignal,
 
-    async resolveSentryIssue(issueId: string, reason: string) {
+    async resolveSentryIssue(
+      issueId: string,
+      reason: string,
+      delegatedBy?: string,
+    ) {
       const store = createOperatorStore(input.config);
-      const attempt = await store.rpc('ops_claim_resolution', {
-        p_issue_id: issueId,
-        p_reason: reason,
-      });
+      const attempt = delegatedBy
+        ? await store.rpc('ops_claim_delegated_resolution', {
+            p_issue_id: issueId,
+            p_reason: reason,
+            p_actor: delegatedBy,
+            p_evidence: await proveIssueIsQuiet(input.config, issueId),
+          })
+        : await store.rpc('ops_claim_resolution', {
+            p_issue_id: issueId,
+            p_reason: reason,
+          });
       try {
         const result = await resolveSentryIssue({
           config: input.config,

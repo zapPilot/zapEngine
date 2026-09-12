@@ -110,4 +110,5 @@ function sourcesForImpact(
     case null:
       return [];
   }
+  return [];
 }

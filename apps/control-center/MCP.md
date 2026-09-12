@@ -113,7 +113,29 @@ Fail-closed rules:
 
 `ops_resolve_sentry_issue` takes one numeric Sentry issue ID plus a required human-readable `reason`. The implementation always sends exactly `{ "status": "resolved" }` to that one issue. The caller cannot choose `ignored`, merge issues, assign ownership, make an issue public, delete it, or bulk-mutate issues through MCP.
 
+### Two resolution rails
+
+Resolving answers one of two different questions, and conflating them is what left a backlog of dead issues unclosable.
+
+**Verified fix** (default, `delegatedBy` omitted) — the agent's own judgement is the authorization, so it must be backed by durable evidence: `ops_claim_resolution` refuses unless an incident carries a registered fix, reached `state='verified'`, and has a passing verification from the last five minutes. Unchanged, and it stays the only rail an agent may use on its own initiative.
+
+**Operator delegated** (`delegatedBy` set to the person who asked) — a human read the issue and decided it is history. No amount of production evidence can establish that, because there is nothing left to observe; equally, no human assertion can make a live alert dead. So `ops_claim_delegated_resolution` drops the fix/verification requirement and keeps exactly one provider-proven precondition: Control Center reads the issue from Sentry at resolve time and refuses if it fired within 24 hours. The decision is recorded as `state='closed_by_operator'` with `actor` naming the delegator, so an audit never confuses it with a verified fix.
+
+`delegatedBy` is not a convenience flag. Setting it without a person actually having asked converts an audited human decision into a forged one, and the recorded actor is what a later reader will trust.
+
 `ops_costs` is intentionally retained as a compatibility alias for the costs projection of the shared operations snapshot. Do not add dashboard endpoints as MCP tools merely to mirror the HTTP API; each MCP surface needs a separate agent use case and bounded authority.
+
+## What never becomes a signal
+
+A signal is a claim that somebody could still act. Two classes of row are failures that no operator action can reach, so the server withholds them rather than reporting a `degraded` domain nobody can ever clear.
+
+**A failed render that no retry RPC would accept.** `retry_episode_video_render` refuses a visual checkpoint that is not both `completed` and equal to `EPISODE_VIDEO_VISUAL_VERSION`, and `assert_episode_video_not_abandoned` refuses an abandoned episode before the version fence runs. `renderSignals` therefore filters on `visualIsRenderable()` plus `abandonedAt`, reusing the same `podcast-retry-eligibility` helpers the Pipeline view greys its buttons with — one definition of "an operator can press this", so the board and the incident feed cannot disagree.
+
+Renders left behind by a superseded visual version are the normal case, not an edge case: a version bump is a deliberate quality change, and the episodes that were mid-flight when it landed can only be revived by `retry_episode_video_generation(p_force_replan => true)`, which re-runs the storyboard, the subject catalog and the Brave budget from scratch. That is a spend decision per episode, so it belongs to an operator deciding which back-catalogue episodes are worth re-rendering — never to an agent clearing a queue. When that decision is made, make it explicitly; do not reach it by treating the stale rows as an incident backlog.
+
+**Inactive priority accounts.** Refreshing a priority account nobody has opened in 30+ days costs a few dollars a month, and stopping it is a pricing decision, not a defect. Reporting it as `degraded` only ever produced triage that ended in "leave it alone". The count remains visible on the Customers view as `inactiveButPriority`; it is not an incident and must not be reintroduced as one.
+
+Withholding is not suppression: both cases stay fully readable through the ordinary Pipeline and Customers views. What is removed is the claim that somebody is supposed to do something about them.
 
 ## Force semantics
 

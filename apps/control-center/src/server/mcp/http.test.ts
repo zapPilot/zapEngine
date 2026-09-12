@@ -308,6 +308,28 @@ describe('Ops MCP HTTP protocol', () => {
     expect(operations.resolveSentryIssue).toHaveBeenCalledWith(
       arguments_.issueId,
       arguments_.reason,
+      undefined,
+    );
+  });
+
+  it('carries the delegating operator through to the delegated rail', async () => {
+    const operations = fakeOperations();
+    const app = createAuthenticatedApp(operations);
+    const arguments_ = {
+      issueId: '12345',
+      reason: 'Dead history: its cause was abandoned.',
+      delegatedBy: 'taii',
+    };
+
+    await mcpRequest(
+      app,
+      toolCallRequest(9, 'ops_resolve_sentry_issue', arguments_),
+    );
+
+    expect(operations.resolveSentryIssue).toHaveBeenCalledWith(
+      arguments_.issueId,
+      arguments_.reason,
+      arguments_.delegatedBy,
     );
   });
 

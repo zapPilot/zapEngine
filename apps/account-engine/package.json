@@ -22,7 +22,7 @@
     "test:ci": "vitest run --coverage",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "deadcode": "knip --files --exports --dependencies",
+    "deadcode": "knip --files --exports --dependencies --treat-config-hints-as-errors",
     "deadcode:fix": "knip --files --exports --dependencies --fix",
     "dup:check": "node ../../scripts/lint/run-jscpd.mjs src",
     "sentry:smoke": "tsx scripts/sentry-smoke.ts",

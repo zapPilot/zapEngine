@@ -3,6 +3,23 @@ import { opsRuntimeRecordSchema } from '@zapengine/types/shared';
 import type { ControlCenterConfig } from '../../../config/env.js';
 import { createConfiguredServiceRoleClient } from '../../supabase.js';
 
+const renderTargetSchema = z.object({
+  episodeId: z.uuid(),
+  localizationId: z.uuid(),
+  renderStatus: z.string(),
+  renderCompletedAt: z.string().nullable(),
+  renderLeaseExpiresAt: z.string().nullable(),
+  visualStatus: z.string().nullable(),
+  visualVersion: z.string().nullable(),
+  deploymentOpen: z.boolean(),
+  // Optional because Control Center deploys on Vercel while the migration that
+  // adds it lands on the Supabase rail: the two can be minutes apart, and a
+  // required field would fail every operator read in that window.
+  abandonedAt: z.string().nullish(),
+});
+
+export type RenderTarget = z.infer<typeof renderTargetSchema>;
+
 export function createOperatorStore(config: ControlCenterConfig) {
   const client = createConfiguredServiceRoleClient(config);
   async function rpc(
@@ -37,24 +54,11 @@ export function createOperatorStore(config: ControlCenterConfig) {
         );
     },
     async renderTargets(localizationId?: string) {
-      return z
-        .array(
-          z.object({
-            episodeId: z.uuid(),
-            localizationId: z.uuid(),
-            renderStatus: z.string(),
-            renderCompletedAt: z.string().nullable(),
-            renderLeaseExpiresAt: z.string().nullable(),
-            visualStatus: z.string().nullable(),
-            visualVersion: z.string().nullable(),
-            deploymentOpen: z.boolean(),
-          }),
-        )
-        .parse(
-          await rpc('ops_render_targets', {
-            p_localization_id: localizationId ?? null,
-          }),
-        );
+      return z.array(renderTargetSchema).parse(
+        await rpc('ops_render_targets', {
+          p_localization_id: localizationId ?? null,
+        }),
+      );
     },
   };
 }

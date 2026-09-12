@@ -1,10 +1,17 @@
 import { defineKnipConfig } from '@zapengine/knip-config/base';
 
-export default defineKnipConfig({
-  // Two things knip cannot trace on its own: the package `exports` map targets
-  // `dist/`, so it never reaches `src/index.ts`, and `rasterize` is invoked as
-  // `node scripts/rasterize.mjs` from a package script. Both must be declared.
-  entry: ['src/index.ts', 'scripts/rasterize.mjs'],
-  project: ['src/**/*.ts', 'scripts/**/*.mjs'],
-  includeEntryExports: false,
-});
+export default defineKnipConfig(
+  {
+    // Two things knip cannot trace on its own: the package `exports` map targets
+    // `dist/`, so it never reaches `src/index.ts`, and `rasterize` is invoked as
+    // `node scripts/rasterize.mjs` from a package script. Both must be declared.
+    entry: ['src/index.ts', 'scripts/rasterize.mjs'],
+    project: ['src/**/*.ts', 'scripts/**/*.mjs'],
+    includeEntryExports: false,
+  },
+  {
+    // This package does not depend on @zapengine/types, so the shared base
+    // suppression for it would be a dead ignore here.
+    omitDefaultIgnoreDependencies: ['@zapengine/types'],
+  },
+);
