@@ -531,3 +531,76 @@ describe('iOS release version safety', () => {
     expect(workflow).not.toContain('submit -- "$BUILD_ID"');
   });
 });
+
+describe('EAS post-install workspace build', () => {
+  // The hook is never executed by CI, so the filter can only be proven by
+  // asking turbo which packages it actually selects. A transposed filter
+  // (`^pkg...` instead of `pkg^...`) aborts the whole EAS build.
+  function postInstallFilter(): string {
+    const script = (
+      JSON.parse(readAppFile('package.json')) as {
+        scripts?: Record<string, string>;
+      }
+    ).scripts?.['eas-build-post-install'];
+
+    const match = /--filter='([^']+)'/u.exec(script ?? '');
+    expect(match?.[1]).toBeDefined();
+
+    return match![1]!;
+  }
+
+  function turboDryRun(filter: string): {
+    packages: string[];
+    tasks: string[];
+  } {
+    const stdout = execFileSync(
+      path.join(repoRoot, 'node_modules', '.bin', 'turbo'),
+      ['run', 'build', `--filter=${filter}`, '--dry=json'],
+      { cwd: repoRoot, encoding: 'utf8' },
+    );
+
+    const summary = JSON.parse(stdout) as {
+      packages?: string[];
+      tasks?: { taskId: string }[];
+    };
+
+    return {
+      packages: summary.packages ?? [],
+      tasks: (summary.tasks ?? []).map((task) => task.taskId),
+    };
+  }
+
+  function workspaceDependencies(): string[] {
+    const manifest = JSON.parse(readAppFile('package.json')) as {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    };
+
+    return Object.entries({
+      ...manifest.dependencies,
+      ...manifest.devDependencies,
+    })
+      .filter(([, range]) => range.startsWith('workspace:'))
+      .map(([name]) => name);
+  }
+
+  it('selects every workspace dependency of the app', () => {
+    const { packages } = turboDryRun(postInstallFilter());
+
+    expect(packages.length).toBeGreaterThan(0);
+    expect(packages).toEqual(expect.arrayContaining(workspaceDependencies()));
+  });
+
+  it('builds brand-assets, whose missing dist broke Metro on EAS', () => {
+    expect(turboDryRun(postInstallFilter()).tasks).toContain(
+      '@zapengine/brand-assets#build',
+    );
+  });
+
+  it('excludes the app itself so the hook cannot re-enter the app bundle', () => {
+    const { packages, tasks } = turboDryRun(postInstallFilter());
+
+    expect(packages).not.toContain('@zapengine/app');
+    expect(tasks).not.toContain('@zapengine/app#build');
+  });
+});
