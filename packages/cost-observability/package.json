@@ -14,7 +14,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "clean": "rm -rf dist coverage",
-    "deadcode": "knip",
+    "deadcode": "knip --treat-config-hints-as-errors",
     "deadcode:fix": "knip --fix",
     "dup:check": "node ../../scripts/lint/run-jscpd.mjs src",
     "format": "prettier --write .",

@@ -45,7 +45,7 @@ from src.services.strategy.strategy_config_store import (
     StrategyConfigStore,
 )
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:  # pragma: no cover -- type-only import, never executed
     from src.services.market.macro_fear_greed_service import (
         MacroFearGreedDatabaseService,
     )

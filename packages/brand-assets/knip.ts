@@ -2,10 +2,10 @@ import { defineKnipConfig } from '@zapengine/knip-config/base';
 
 export default defineKnipConfig(
   {
-    // Two things knip cannot trace on its own: the package `exports` map targets
-    // `dist/`, so it never reaches `src/index.ts`, and `rasterize` is invoked as
-    // `node scripts/rasterize.mjs` from a package script. Both must be declared.
-    entry: ['src/index.ts', 'scripts/rasterize.mjs'],
+    // knip promotes both entry points on its own: the package `exports` map
+    // resolves `./dist/index.js` back to `src/index.ts`, and `rasterize` is
+    // invoked as `node scripts/rasterize.mjs` from a package script. Nothing
+    // is declared here so a stale explicit pattern cannot mask drift.
     project: ['src/**/*.ts', 'scripts/**/*.mjs'],
     includeEntryExports: false,
   },

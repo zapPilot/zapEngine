@@ -11,7 +11,7 @@ from src.services.backtesting.domain import SignalObservation
 from src.services.backtesting.execution.contracts import ExecutionHints
 from src.services.backtesting.features import MarketDataRequirements, MarketFeatureSet
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:  # pragma: no cover -- type-only import, never executed
     from src.services.backtesting.execution.ath_tracker import ATHTracker
     from src.services.backtesting.strategies.base import StrategyContext
 

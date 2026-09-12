@@ -2,7 +2,9 @@ import { defineKnipConfig } from '@zapengine/knip-config/base';
 
 export default defineKnipConfig(
   {
-    entry: ['src/index.ts'],
+    // The package `exports` map resolves `./dist/index.js` back to
+    // `src/index.ts` on its own; declaring it explicitly only produced a
+    // redundant-entry hint. Nothing is declared here.
     project: ['src/**/*.ts'],
   },
   {

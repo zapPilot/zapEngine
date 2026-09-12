@@ -25,7 +25,7 @@ from src.services.backtesting.features import (
 )
 from src.services.backtesting.utils import coerce_to_date
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:  # pragma: no cover -- type-only import, never executed
     from src.services.market.stock_price_service import (
         StockPriceDmaPoint,
         StockPriceService,
