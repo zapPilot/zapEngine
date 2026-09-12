@@ -8,7 +8,10 @@ const ingestMocks = vi.hoisted(() => ({
 
 vi.mock('./ingest/step.js', () => ingestMocks);
 
-import { createOpenRouterChatCompletion } from './llm.js';
+import {
+  createOpenRouterChatCompletion,
+  OpenRouterEmptyChoicesError,
+} from './llm.js';
 
 function completion(model: string) {
   return {
@@ -38,6 +41,23 @@ function client(create: ReturnType<typeof vi.fn>): OpenAI {
   return {
     chat: { completions: { create } },
   } as unknown as OpenAI;
+}
+
+function malformedChoicesCompletion(model: string) {
+  return {
+    id: 'completion-id',
+    object: 'chat.completion',
+    created: 0,
+    model,
+    choices: undefined,
+    usage: {
+      prompt_tokens: 1,
+      completion_tokens: 0,
+      total_tokens: 1,
+      cost: 0,
+    },
+    provider: 'fixture-provider',
+  };
 }
 
 afterEach(() => {
@@ -126,5 +146,61 @@ describe('shared OpenRouter model fallback', () => {
     ).rejects.toBe(badRequest);
 
     expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  it('malformed primary choices reaches the next configured model', async () => {
+    vi.stubEnv('LLM_FALLBACK_MODELS', 'fallback/one,fallback/two');
+    const create = vi
+      .fn()
+      .mockResolvedValueOnce(malformedChoicesCompletion('primary/model'))
+      .mockResolvedValueOnce(completion('fallback/one'));
+
+    const result = await createOpenRouterChatCompletion(
+      client(create),
+      {
+        model: 'primary/model',
+        messages: [{ role: 'user', content: 'hello' }],
+      },
+      null,
+    );
+
+    expect(result.model).toBe('fallback/one');
+    expect(create.mock.calls.map(([request]) => request.model)).toEqual([
+      'primary/model',
+      'fallback/one',
+    ]);
+    expect(ingestMocks.logIngestEvent).toHaveBeenCalledWith(
+      'llm:model-fallback',
+      expect.objectContaining({
+        model: 'primary/model',
+        nextModel: 'fallback/one',
+        error: expect.stringContaining('no choices array'),
+      }),
+    );
+  });
+
+  it('exhausted malformed models fail without replay', async () => {
+    vi.stubEnv('LLM_FALLBACK_MODELS', 'fallback/one');
+    const create = vi
+      .fn()
+      .mockResolvedValueOnce(malformedChoicesCompletion('primary/model'))
+      .mockResolvedValueOnce(malformedChoicesCompletion('fallback/one'));
+
+    await expect(
+      createOpenRouterChatCompletion(
+        client(create),
+        {
+          model: 'primary/model',
+          messages: [{ role: 'user', content: 'hello' }],
+        },
+        null,
+      ),
+    ).rejects.toBeInstanceOf(OpenRouterEmptyChoicesError);
+
+    expect(create.mock.calls.map(([request]) => request.model)).toEqual([
+      'primary/model',
+      'fallback/one',
+    ]);
+    expect(create).toHaveBeenCalledTimes(2);
   });
 });
