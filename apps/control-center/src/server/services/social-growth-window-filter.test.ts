@@ -103,7 +103,7 @@ describe('loadSocialGrowth standardized metric windows', () => {
     });
   });
 
-  it('ignores unavailable 24h metrics even when stale values are present', async () => {
+  it('ignores metrics without a standardized measurement window', async () => {
     const posts = [
       {
         id: 'post-1',
@@ -111,21 +111,14 @@ describe('loadSocialGrowth standardized metric windows', () => {
         platform: 'threads',
         language_code: 'ja',
         published_at: '2026-09-10T00:00:00.000Z',
-        experiment_key: 'collection-status-v1',
+        experiment_key: 'missing-window-v1',
         experiment_variant: 'control',
         content_features: null,
       },
     ];
     const metrics = [
       metric('24h', '2026-09-11T00:00:00.000Z', 100, 10),
-      metric(
-        '24h',
-        '2026-09-11T00:05:00.000Z',
-        9_999,
-        999,
-        'post-1',
-        'unavailable',
-      ),
+      metric(null, '2026-09-11T00:05:00.000Z', 9_999, 999),
     ];
 
     const response = await loadSocialGrowth({
@@ -135,7 +128,7 @@ describe('loadSocialGrowth standardized metric windows', () => {
     });
 
     const experiment = response.experiments.find(
-      (row) => row.experimentKey === 'collection-status-v1',
+      (row) => row.experimentKey === 'missing-window-v1',
     );
     const arm = experiment?.arms.find((row) => row.variant === 'control');
     const threads = response.platforms.find(
@@ -158,19 +151,18 @@ describe('loadSocialGrowth standardized metric windows', () => {
 });
 
 function metric(
-  measurementWindow: string,
+  measurementWindow: string | null,
   capturedAt: string,
   views: number,
   likes: number,
   socialPostId = 'post-1',
-  collectionStatus = 'collected',
 ) {
   return {
     social_post_id: socialPostId,
     captured_at: capturedAt,
     age_hours: measurementWindow === '24h' ? 24 : 72,
     measurement_window: measurementWindow,
-    collection_status: collectionStatus,
+    collection_status: 'collected',
     views,
     impressions: null,
     likes,
