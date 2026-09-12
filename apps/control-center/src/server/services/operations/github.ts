@@ -217,9 +217,7 @@ async function readScheduledWorkflows(input: {
   if (workflows.length === 0) {
     // Not "nothing is wrong": the inventory that drives this adapter has lost
     // its GitHub entries, and reporting zero signals would read as green.
-    throw new Error(
-      `${source} lists no externally monitored github-actions workflows`,
-    );
+    throw new Error(`${source} lists no github-actions workflows`);
   }
   return workflows;
 }
