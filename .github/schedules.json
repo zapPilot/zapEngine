@@ -83,8 +83,7 @@
     "schedule_source": "workflow",
     "runtime": "github-actions",
     "workspace": "@zapengine/control-center",
-    "entrypoint": ".github/workflows/ops-operator.yml",
-    "skipExpected": true
+    "entrypoint": ".github/workflows/ops-operator.yml"
   },
   {
     "name": "social-daemon",
@@ -130,7 +129,7 @@
     "workspace": "@zapengine/account-engine",
     "entrypoint": "apps/account-engine/src/routes/jobs.ts",
     "endpoint": "https://account-engine.fly.dev/jobs/weekly-report/batch",
-    "docs": "apps/account-engine/docs/pipedream-weekly-report-watchdog.md"
+    "docs": "apps/account-engine/README.md"
   },
   {
     "name": "account-job-processor",
