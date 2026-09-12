@@ -55,6 +55,9 @@ jobs:
         with:
           uv: 'false'
 
+      - name: Validate EAS toolchain config
+        run: node apps/app/scripts/check-eas-toolchain.mjs
+
       - name: Run app workspace gate
         run: pnpm turbo run type-check lint test build --filter=@zapengine/app
 

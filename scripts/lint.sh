@@ -6,10 +6,11 @@ set -euo pipefail
 
 case "${1:-}" in
   repo)
-    # Repository drift checks (config + scripts + snapshot-sync), in order.
+    # Repository drift checks (config + scripts + snapshot-sync + EAS toolchain), in order.
     tsx scripts/lint/config-drift.ts
     tsx scripts/lint/scripts-drift.ts
     tsx scripts/lint/snapshot-sync.ts
+    node apps/app/scripts/check-eas-toolchain.mjs
     ;;
   config)        shift; exec tsx scripts/lint/config-drift.ts "$@" ;;
   scripts)       shift; exec tsx scripts/lint/scripts-drift.ts "$@" ;;
