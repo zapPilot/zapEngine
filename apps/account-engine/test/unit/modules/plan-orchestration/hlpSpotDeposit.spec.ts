@@ -6,11 +6,21 @@ import { createPlanOrchestrationService } from '../../../../src/modules/plan-orc
 const USER = '0x1111111111111111111111111111111111111111' as const;
 
 function makeService() {
+  const forbiddenEvmSimulation = new Proxy(
+    {},
+    {
+      get() {
+        throw new Error('Spot-funded HLP deposits must not use EVM simulation');
+      },
+    },
+  );
+
   return createPlanOrchestrationService({
     adapter: {} as never,
     intentEngine: {} as never,
     publicClients: {} as never,
     hyperliquidNetwork: 'testnet',
+    simulation: { adapter: forbiddenEvmSimulation as never },
   });
 }
 
