@@ -4,8 +4,12 @@ import { join } from 'node:path';
 
 import { combineAbortSignalWithTimeout } from '../lib/abort.js';
 import { runWithDeadline } from '../lib/deadline.js';
+import { errorMessage } from '../lib/errorMessage.js';
 import type { EpisodeRenderMetrics } from './ops-ledger.js';
-import { uploadVideoArtifactsToR2 } from './storage.js';
+import {
+  uploadEpisodeVisualCheckpointImageToR2,
+  uploadVideoArtifactsToR2,
+} from './storage.js';
 import { downloadNarrationAudio } from './video/audio-analysis.js';
 import {
   analyzeEpisodeAudio,
@@ -13,6 +17,7 @@ import {
 } from './video/episode-video.js';
 import { parseEpisodeVisualPayload } from './video/episode-visual.js';
 import { logVideoWorkerEvent } from './video/log.js';
+import { preparePanewsVideoCover } from './video/panews-cover.js';
 import {
   type RenderProgressEvent,
   renderSlideVideo,
@@ -47,6 +52,8 @@ interface EpisodeVideoProcessorDependencies {
   downloadNarration: typeof downloadNarrationAudio;
   analyzeAudio: typeof analyzeEpisodeAudio;
   createManifest: typeof createEpisodeVideoManifest;
+  prepareCover: typeof preparePanewsVideoCover;
+  uploadCover: typeof uploadEpisodeVisualCheckpointImageToR2;
   render: typeof renderSlideVideo;
   upload: typeof uploadVideoArtifactsToR2;
   makeTemporaryDirectory: (prefix: string) => Promise<string>;
@@ -61,6 +68,8 @@ const defaultDependencies: EpisodeVideoProcessorDependencies = {
   downloadNarration: downloadNarrationAudio,
   analyzeAudio: analyzeEpisodeAudio,
   createManifest: createEpisodeVideoManifest,
+  prepareCover: preparePanewsVideoCover,
+  uploadCover: uploadEpisodeVisualCheckpointImageToR2,
   render: renderSlideVideo,
   upload: uploadVideoArtifactsToR2,
   makeTemporaryDirectory: mkdtemp,
@@ -150,8 +159,59 @@ export function createEpisodeVideoProcessor(
       });
       context.reportProgress(renderStageProgress('aligning-script'));
 
+      const preparedCover = await dependencies.prepareCover({
+        sourceUrl: source.sourceUrl,
+        workingDirectory: outputDirectory,
+        signal: context.signal,
+      });
+      let coverThumbnailUrl: string | null = null;
+      let coverMetadata = preparedCover.metadata;
+      if (preparedCover.thumbnailPath && preparedCover.metadata.sha256) {
+        try {
+          coverThumbnailUrl = await dependencies.uploadCover({
+            episodeId: source.episodeId,
+            visualVersion: source.visualVersion,
+            sourceHash: source.visualHash,
+            assetId: `panews-cover-${preparedCover.metadata.sha256}`,
+            path: preparedCover.thumbnailPath,
+            contentType: 'image/png',
+            signal: context.signal,
+          });
+          coverMetadata = {
+            ...coverMetadata,
+            storedUrl: coverThumbnailUrl,
+          };
+        } catch (error) {
+          context.signal.throwIfAborted();
+          coverMetadata = {
+            ...coverMetadata,
+            status: 'fallback',
+            storedUrl: null,
+            fallbackReason: `cover-cache: ${errorMessage(error)}`.slice(0, 400),
+          };
+        }
+      }
+      logVideoWorkerEvent(dependencies.logger, 'video:cover', {
+        run: context.runId,
+        episode: source.episodeId,
+        language: source.languageCode,
+        strategy: coverMetadata.strategy,
+        status: coverMetadata.status,
+        ...(coverMetadata.sourceImageUrl
+          ? { source: coverMetadata.sourceImageUrl }
+          : {}),
+        ...(coverMetadata.storedUrl ? { stored: coverMetadata.storedUrl } : {}),
+        ...(coverMetadata.fallbackReason
+          ? { reason: coverMetadata.fallbackReason }
+          : {}),
+      });
+      const persistedManifest = JSON.parse(generated.manifestJson) as Record<
+        string,
+        unknown
+      >;
+      persistedManifest['coverPhoto'] = coverMetadata;
       await context.saveManifest({
-        manifest: JSON.parse(generated.manifestJson) as Record<string, unknown>,
+        manifest: persistedManifest,
         manifestHash: generated.manifestHash,
         rendererVersion: generated.provenance.rendererVersion,
         storyboardProvider: generated.provenance.storyboardProvider,
@@ -260,7 +320,7 @@ export function createEpisodeVideoProcessor(
       });
       return {
         mp4Url: uploaded.mp4Url,
-        thumbnailUrl: uploaded.thumbnailUrl,
+        thumbnailUrl: coverThumbnailUrl ?? uploaded.thumbnailUrl,
         manifestUrl: uploaded.manifestUrl,
         captionsAssUrl: uploaded.captionsAssUrl,
         r2Prefix: uploaded.r2Prefix,
