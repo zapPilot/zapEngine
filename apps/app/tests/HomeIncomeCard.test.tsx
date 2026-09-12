@@ -5,6 +5,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { HomeIncomeCard } from '@/components/home/HomeIncomeCard';
+import type { HomeBorrowingRiskView } from '@/integration/homeBorrowingRiskModel';
 import type {
   HomeIncomeView,
   HomeProtocolIncomeRow,
@@ -16,6 +17,7 @@ vi.mock('lucide-react-native', () => ({
   ChevronDown: () => <span data-icon="chevron-down" />,
   ChevronRight: () => <span data-icon="chevron-right" />,
   Layers: () => <span data-icon="layers" />,
+  ShieldAlert: () => <span data-icon="shield-alert" />,
 }));
 vi.mock('@zapengine/design-tokens/tokens', () => ({
   tokens: { color: { 'ink-faint': '#8a8a8a' } },
@@ -136,10 +138,18 @@ afterEach(async () => {
   container.remove();
 });
 
-async function render(income: HomeIncomeView) {
+async function render(
+  income: HomeIncomeView,
+  borrowingRisk?: HomeBorrowingRiskView | null,
+) {
   await act(async () => {
     root.render(
-      <HomeIncomeCard income={income} isLoading={false} isError={false} />,
+      <HomeIncomeCard
+        income={income}
+        borrowingRisk={borrowingRisk ?? null}
+        isLoading={false}
+        isError={false}
+      />,
     );
   });
 }
@@ -286,5 +296,109 @@ describe('HomeIncomeCard long tail', () => {
       'Frax, +$40.00',
       'Pendle, +$5.00',
     ]);
+  });
+});
+
+describe('HomeIncomeCard borrowing risk', () => {
+  function borrowingRiskFixture(): HomeBorrowingRiskView {
+    return {
+      nearestLiquidationBufferPct: 39.577_946_685_920_98,
+      worstHealthRate: 1.655,
+      totalDebtUsd: 28_472,
+      positionCount: 2,
+      positions: [
+        {
+          protocol: 'Morpho',
+          chain: 'eth',
+          healthRate: 1.655,
+          liquidationBufferPct: 39.577_946_685_920_98,
+          collateralSymbols: ['WBTC'],
+          debtSymbols: ['EURCV'],
+          collateralUsd: 17_000,
+          debtUsd: 8_472,
+        },
+        {
+          protocol: 'Morpho',
+          chain: 'eth',
+          healthRate: 1.95,
+          liquidationBufferPct: 48.717_948_717_948_72,
+          collateralSymbols: ['wstETH'],
+          debtSymbols: ['USDT'],
+          collateralUsd: 48_800,
+          debtUsd: 20_000,
+        },
+      ],
+    };
+  }
+
+  function riskButton(): HTMLButtonElement | null {
+    return container.querySelector<HTMLButtonElement>('button[aria-expanded]');
+  }
+
+  it('renders a collapsed liquidation-risk summary with buffer and a11y label', async () => {
+    await render(
+      view([row({ protocol: 'Morpho', chain: 'base', monthlyNetUsd: 15.2 })]),
+      borrowingRiskFixture(),
+    );
+
+    expect(container.textContent).toContain(
+      'home.liquidationRiskSummary|2|$28,472.00',
+    );
+    expect(container.textContent).toContain('−39.6%');
+    expect(labels()).toContain('home.liquidationRiskA11y|−39.6%');
+    expect(labels()).not.toContain(
+      'home.liquidationRiskPositionA11y|Morpho|WBTC|EURCV|−39.6%|1.66',
+    );
+    expect(container.textContent).not.toContain('home.liquidationRiskScenario');
+    expect(riskButton()?.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('expands to one row per market with HF and scenario copy', async () => {
+    await render(
+      view([row({ protocol: 'Morpho', chain: 'base', monthlyNetUsd: 15.2 })]),
+      borrowingRiskFixture(),
+    );
+    await act(async () => {
+      riskButton()?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(riskButton()?.getAttribute('aria-expanded')).toBe('true');
+    expect(labels()).toContain(
+      'home.liquidationRiskPositionA11y|Morpho|WBTC|EURCV|−39.6%|1.66',
+    );
+    expect(labels()).toContain(
+      'home.liquidationRiskPositionA11y|Morpho|wstETH|USDT|−48.7%|1.95',
+    );
+    expect(container.textContent).toContain('HF 1.66');
+    expect(container.textContent).toContain('HF 1.95');
+    expect(container.textContent).toContain('home.liquidationRiskScenario');
+  });
+
+  it('floors at-threshold health factors at 0.0%', async () => {
+    await render(
+      view([row({ protocol: 'Morpho', chain: 'base', monthlyNetUsd: 15.2 })]),
+      {
+        nearestLiquidationBufferPct: 0,
+        worstHealthRate: 0.9,
+        totalDebtUsd: 1_000,
+        positionCount: 1,
+        positions: [
+          {
+            protocol: 'Aave',
+            chain: 'eth',
+            healthRate: 0.9,
+            liquidationBufferPct: 0,
+            collateralSymbols: ['WETH'],
+            debtSymbols: ['USDC'],
+            collateralUsd: 900,
+            debtUsd: 1_000,
+          },
+        ],
+      },
+    );
+
+    expect(container.textContent).toContain('0.0%');
+    expect(container.textContent).not.toContain('−0.0%');
+    expect(labels()).toContain('home.liquidationRiskA11y|0.0%');
   });
 });

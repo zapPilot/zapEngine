@@ -155,10 +155,10 @@ async function trapUnstubbedAnalyticsCalls(
 }
 
 /**
- * The five requests Home issues for a bundle subject, enumerated from
+ * The six requests Home issues for a bundle subject, enumerated from
  * `useHomeData` (landing, dashboard, daily yield, daily suggestion) and
- * `useHomeIncome` (yield summary) down to their `analyticsService` /
- * `strategyService` endpoints.
+ * `useHomeIncome` (yield summary, borrowing positions) down to their
+ * `analyticsService` / `strategyService` endpoints.
  *
  * Every pattern is anchored with a leading `**` so it matches whether the
  * client emits a baseURL-relative path (no `ANALYTICS_ENGINE_URL` in the env)
@@ -184,6 +184,19 @@ async function routeHomeBundleApi(
   await page.route(
     `**/api/v2/analytics/${BUNDLE_USER_ID}/yield/summary*`,
     jsonRoute(YIELD_SUMMARY_FIXTURE),
+  );
+  // No debt for the bundle fixture: the borrowing endpoint answers 404 for a
+  // portfolio with no debt, which Home treats as an empty risk section rather
+  // than a broken Protocol income card.
+  await page.route(
+    `**/api/v2/analytics/${BUNDLE_USER_ID}/borrowing/positions`,
+    async (route: Route): Promise<void> => {
+      await route.fulfill({
+        status: 404,
+        contentType: 'application/json',
+        body: JSON.stringify({ detail: 'No borrowing positions' }),
+      });
+    },
   );
   await page.route(
     `**/api/v3/strategy/daily-suggestion/${BUNDLE_USER_ID}*`,

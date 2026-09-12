@@ -5,8 +5,9 @@ import {
   ChevronDown,
   ChevronRight,
   Layers,
+  ShieldAlert,
 } from 'lucide-react-native';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Text, View } from 'react-native';
 
 import { ProtocolIcon } from '@/components/token/ProtocolIcon';
@@ -15,17 +16,19 @@ import { Card } from '@/components/ui/Card';
 import { SectionLabel } from '@/components/ui/SectionLabel';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { Tap } from '@/components/ui/Tap';
+import type { HomeBorrowingRiskView } from '@/integration/homeBorrowingRiskModel';
 import {
   type HomeIncomePartition,
   type HomeIncomeView,
   type HomeProtocolIncomeRow,
   partitionIncomeRowsByCoverage,
 } from '@/integration/homeIncomeModel';
-import { formatSignedUsd, formatUsd } from '@/lib/format';
+import { formatPct, formatSignedUsd, formatUsd } from '@/lib/format';
 import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 
 interface HomeIncomeCardProps {
   income: HomeIncomeView;
+  borrowingRisk?: HomeBorrowingRiskView | null;
   isLoading: boolean;
   isError: boolean;
 }
@@ -37,6 +40,55 @@ const TOKEN_BADGE_WIDTH = TOKEN_BADGE_SIZE + TOKEN_BADGE_BORDER * 2;
 const TOKEN_BADGE_LEFT = 25;
 const TOKEN_BADGE_STEP = 11;
 const MAX_VISIBLE_TOKENS = 3;
+
+interface DisclosureRowProps {
+  icon: ReactNode;
+  title: string;
+  subtitle?: string | null;
+  trailing?: ReactNode;
+  expanded: boolean;
+  onToggle: () => void;
+  accessibilityLabel: string;
+}
+
+function DisclosureRow({
+  icon,
+  title,
+  subtitle,
+  trailing,
+  expanded,
+  onToggle,
+  accessibilityLabel,
+}: DisclosureRowProps) {
+  const Chevron = expanded ? ChevronDown : ChevronRight;
+
+  return (
+    <Tap
+      accessibilityRole="button"
+      accessibilityState={{ expanded }}
+      accessibilityLabel={accessibilityLabel}
+      onPress={onToggle}
+      className="flex-row items-center gap-3 py-2"
+    >
+      <View className="h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-line">
+        {icon}
+      </View>
+      <View className="min-w-0 flex-1">
+        <Text className="text-[13px] text-ink">{title}</Text>
+        {subtitle ? (
+          <Text
+            numberOfLines={1}
+            className="mt-0.5 font-mono text-[9.5px] text-ink-faint"
+          >
+            {subtitle}
+          </Text>
+        ) : null}
+      </View>
+      {trailing}
+      <Chevron size={14} strokeWidth={2} color={tokens.color['ink-faint']} />
+    </Tap>
+  );
+}
 
 /** Widest point of the stack, so overlapping badges never cover the row text. */
 function positionIconWidth(tokenCount: number): number {
@@ -123,7 +175,6 @@ function IncomeRow({ row }: { row: HomeProtocolIncomeRow }) {
 function OtherIncomeRow({ partition }: { partition: HomeIncomePartition }) {
   const { t } = useContentLanguage();
   const [expanded, setExpanded] = useState(false);
-  const Chevron = expanded ? ChevronDown : ChevronRight;
   const subtitle = [
     partition.otherIncomeUsd !== 0
       ? t('home.incomeOtherIncome', {
@@ -141,31 +192,18 @@ function OtherIncomeRow({ partition }: { partition: HomeIncomePartition }) {
 
   return (
     <>
-      <Tap
-        accessibilityRole="button"
-        accessibilityState={{ expanded }}
+      <DisclosureRow
+        icon={
+          <Layers size={16} strokeWidth={2} color={tokens.color['ink-faint']} />
+        }
+        title={t('home.incomeOther')}
+        subtitle={subtitle || null}
+        expanded={expanded}
+        onToggle={() => setExpanded((current) => !current)}
         accessibilityLabel={t('home.incomeOtherA11y', {
           count: partition.other.length,
         })}
-        onPress={() => setExpanded((current) => !current)}
-        className="flex-row items-center gap-3 py-2"
-      >
-        <View className="h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-line">
-          <Layers size={16} strokeWidth={2} color={tokens.color['ink-faint']} />
-        </View>
-        <View className="min-w-0 flex-1">
-          <Text className="text-[13px] text-ink">{t('home.incomeOther')}</Text>
-          {subtitle ? (
-            <Text
-              numberOfLines={1}
-              className="mt-0.5 font-mono text-[9.5px] text-ink-faint"
-            >
-              {subtitle}
-            </Text>
-          ) : null}
-        </View>
-        <Chevron size={14} strokeWidth={2} color={tokens.color['ink-faint']} />
-      </Tap>
+      />
       {expanded
         ? partition.other.map((row) => (
             <IncomeRow
@@ -178,8 +216,106 @@ function OtherIncomeRow({ partition }: { partition: HomeIncomePartition }) {
   );
 }
 
+function BorrowingRiskSection({ risk }: { risk: HomeBorrowingRiskView }) {
+  const { t } = useContentLanguage();
+  const [expanded, setExpanded] = useState(false);
+  const nearestBuffer = risk.nearestLiquidationBufferPct;
+  const nearestLabel =
+    nearestBuffer > 0 ? `−${formatPct(nearestBuffer)}` : formatPct(0);
+  const title = t('home.liquidationRiskTitle');
+  const toLiquidation = t('home.liquidationRiskToLiquidation');
+  const summary = t('home.liquidationRiskSummary', {
+    count: risk.positionCount,
+    debt: formatUsd(risk.totalDebtUsd),
+  });
+
+  return (
+    <View className="mt-3 border-t border-line pt-2">
+      <DisclosureRow
+        icon={
+          <ShieldAlert
+            size={16}
+            strokeWidth={2}
+            color={tokens.color['ink-faint']}
+          />
+        }
+        title={title}
+        subtitle={summary}
+        trailing={
+          <View className="items-end">
+            <Text className="font-mono-semibold text-[12px] text-accent">
+              {nearestLabel}
+            </Text>
+            <Text className="mt-0.5 text-[9.5px] text-ink-faint">
+              {toLiquidation}
+            </Text>
+          </View>
+        }
+        expanded={expanded}
+        onToggle={() => setExpanded((current) => !current)}
+        accessibilityLabel={t('home.liquidationRiskA11y', {
+          buffer: nearestLabel,
+        })}
+      />
+
+      {expanded ? (
+        <View className="mt-1 border-t border-line/70 pt-1">
+          {risk.positions.map((position, index) => {
+            const collateral = position.collateralSymbols.join(' + ') || '—';
+            const debt = position.debtSymbols.join(' + ') || '—';
+            const bufferLabel =
+              position.liquidationBufferPct > 0
+                ? `−${formatPct(position.liquidationBufferPct)}`
+                : formatPct(0);
+
+            return (
+              <View
+                key={`${position.protocol}:${position.chain}:${collateral}:${debt}:${index}`}
+                accessible
+                accessibilityLabel={t('home.liquidationRiskPositionA11y', {
+                  protocol: position.protocol,
+                  collateral,
+                  debt,
+                  buffer: bufferLabel,
+                  healthRate: position.healthRate.toFixed(2),
+                })}
+                className="flex-row items-center gap-3 py-2"
+              >
+                <ProtocolIcon protocol={position.protocol} size={30} />
+                <View className="min-w-0 flex-1">
+                  <Text numberOfLines={1} className="text-[12.5px] text-ink">
+                    {position.protocol}
+                  </Text>
+                  <Text
+                    numberOfLines={1}
+                    className="mt-0.5 font-mono text-[9.5px] text-ink-faint"
+                  >
+                    {position.chain} · {collateral} → {debt}
+                  </Text>
+                </View>
+                <View className="items-end">
+                  <Text className="font-mono-semibold text-[11.5px] text-ink-dim">
+                    {bufferLabel}
+                  </Text>
+                  <Text className="mt-0.5 font-mono text-[9.5px] text-ink-faint">
+                    HF {position.healthRate.toFixed(2)}
+                  </Text>
+                </View>
+              </View>
+            );
+          })}
+          <Text className="mt-1 text-[9.5px] leading-[14px] text-ink-faint">
+            {t('home.liquidationRiskScenario')}
+          </Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 export function HomeIncomeCard({
   income,
+  borrowingRisk = null,
   isLoading,
   isError,
 }: HomeIncomeCardProps) {
@@ -283,6 +419,10 @@ export function HomeIncomeCard({
             ) : null}
           </>
         )}
+
+        {!isLoading && borrowingRisk ? (
+          <BorrowingRiskSection risk={borrowingRisk} />
+        ) : null}
       </Card>
     </View>
   );
