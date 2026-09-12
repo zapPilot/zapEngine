@@ -47,16 +47,20 @@ describe('EAS runtime parity', () => {
   const profiles = ['preview', 'production'] as const;
 
   it.each(profiles)(
-    '%s lets Corepack provide pnpm instead of installing a second copy',
+    '%s pins pnpm to the root packageManager without Corepack',
     (profileName) => {
-      // Corepack already exposes pnpm from root packageManager. A
-      // profile-level `pnpm` makes EAS run a second global npm install that
-      // collides with the Corepack binary (EEXIST on Node 24).
+      // EAS runs `npm -g install pnpm@X` for every build regardless of
+      // Corepack. Enabling Corepack only adds a shim at $NVM_BIN/pnpm that the
+      // later global install collides with, failing the build with EEXIST --
+      // see expo/eas-cli#3148 and #3131, both still open. So the profile pin is
+      // what selects the pnpm version, and `corepack` must stay off.
       const packageManager = rootPackage.packageManager;
       expect(packageManager).toMatch(/^pnpm@\d+\.\d+\.\d+$/u);
 
-      expect(eas.build?.[profileName]?.corepack).toBe(true);
-      expect(eas.build?.[profileName]).not.toHaveProperty('pnpm');
+      expect(eas.build?.[profileName]?.corepack).not.toBe(true);
+      expect(eas.build?.[profileName]?.pnpm).toBe(
+        packageManager!.replace(/^pnpm@/u, ''),
+      );
     },
   );
 
@@ -75,9 +79,8 @@ describe('EAS runtime parity', () => {
 
   it('keeps preview and production on the same build runtime', () => {
     expect(eas.build?.preview?.node).toBe(eas.build?.production?.node);
-    expect(eas.build?.preview?.corepack).toBe(true);
-    expect(eas.build?.production?.corepack).toBe(true);
-    expect(eas.build?.preview).not.toHaveProperty('pnpm');
-    expect(eas.build?.production).not.toHaveProperty('pnpm');
+    expect(eas.build?.preview?.corepack).not.toBe(true);
+    expect(eas.build?.production?.corepack).not.toBe(true);
+    expect(eas.build?.preview?.pnpm).toBe(eas.build?.production?.pnpm);
   });
 });
