@@ -1,5 +1,6 @@
 import {
   belowHlpMinimum,
+  hlpAvailableUsd6,
   hlpBalanceLabel,
   hlpDoneStatusLabel,
   HYPERLIQUID_HLP_SPLIT,
@@ -46,6 +47,22 @@ describe('hyperliquidPanelModel', () => {
         value: 1n,
       }),
     ).toBe('—');
+  });
+
+  it('counts both HyperCore pots toward one deposit ceiling', () => {
+    // The vault debits perp; any shortfall is moved from spot first, so the
+    // user can spend the sum even though neither pot alone covers it.
+    expect(hlpAvailableUsd6(6_000_000n, 4_000_000n)).toBe(10_000_000n);
+    expect(hlpAvailableUsd6(0n, 10_000_000n)).toBe(10_000_000n);
+    expect(hlpAvailableUsd6(10_000_000n, 0n)).toBe(10_000_000n);
+  });
+
+  it('fails closed while either balance is unknown', () => {
+    // Zero would disable the input on a transient read failure; a non-null
+    // guess would let the user sign an amount the exchange rejects.
+    expect(hlpAvailableUsd6(undefined, 4_000_000n)).toBeNull();
+    expect(hlpAvailableUsd6(6_000_000n, undefined)).toBeNull();
+    expect(hlpAvailableUsd6(undefined, undefined)).toBeNull();
   });
 
   it('separates a confirmed HLP deposit from an unverified one', () => {

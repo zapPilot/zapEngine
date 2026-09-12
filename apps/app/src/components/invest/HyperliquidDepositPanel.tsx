@@ -126,7 +126,7 @@ export function HyperliquidDepositPanel() {
       source: 'hypercore-spot',
       requestedUsd6: fromAmount,
     });
-    router.push('/invest/route');
+    router.push('/invest/hlp-deposit');
   };
 
   return (
