@@ -1,6 +1,7 @@
 import { HYPERCORE_CHAIN_ID } from '@zapengine/app-core/config/chains/display';
 import type { WizardHlpStatus } from '@zapengine/app-core/lib/wallet/depositWizardMachine';
 import type { ChainSplit } from '@zapengine/types/api';
+import { formatUnits } from 'viem';
 
 /**
  * Pins the whole deposit to HyperCore instead of relying on the backend's
@@ -31,4 +32,32 @@ export function hlpDoneStatusLabel(status: WizardHlpStatus): string {
     return 'HLP deposit submitted — awaiting confirmation';
   }
   return 'Deposited';
+}
+
+/**
+ * Shared renderer for every HyperCore balance row. Each pot is fetched by its
+ * own query, so the disconnected/loading/error fallbacks have to be resolved
+ * per row rather than once for the whole card.
+ */
+export function hlpBalanceLabel({
+  isConnected,
+  isLoading,
+  isError,
+  value,
+}: {
+  isConnected: boolean;
+  isLoading: boolean;
+  isError: boolean;
+  value: bigint | undefined;
+}): string {
+  if (!isConnected) {
+    return '—';
+  }
+  if (isLoading) {
+    return 'Loading…';
+  }
+  if (isError || value === undefined) {
+    return '—';
+  }
+  return `${formatUnits(value, 6)} USDC`;
 }

@@ -64,6 +64,12 @@ function postInfo(params: {
   );
 }
 
+interface InfoReadParams {
+  user: Address;
+  apiUrl?: string;
+  signal?: AbortSignal;
+}
+
 export interface PerpUsdcBalance {
   withdrawableUsd6: bigint;
   accountValueUsd6: bigint;
@@ -73,11 +79,7 @@ export async function getPerpUsdcBalance({
   user,
   apiUrl = DEFAULT_API_URL,
   signal,
-}: {
-  user: Address;
-  apiUrl?: string;
-  signal?: AbortSignal;
-}): Promise<PerpUsdcBalance> {
+}: InfoReadParams): Promise<PerpUsdcBalance> {
   const state = clearinghouseStateSchema.parse(
     await postInfo({
       apiUrl,
@@ -90,6 +92,46 @@ export async function getPerpUsdcBalance({
     withdrawableUsd6: usdStringToUsd6(state.withdrawable),
     accountValueUsd6: usdStringToUsd6(state.marginSummary.accountValue),
   };
+}
+
+/**
+ * Unrelated coins are validated loosely on purpose: one oddly-formatted
+ * altcoin row must not throw away the USDC balance the caller asked for.
+ */
+const spotClearinghouseStateSchema = z.looseObject({
+  balances: z.array(z.looseObject({ coin: z.string(), total: z.string() })),
+});
+
+export interface SpotUsdcBalance {
+  totalUsd6: bigint;
+}
+
+/**
+ * Spot USDC held on HyperCore — a pot entirely separate from the perp
+ * clearinghouse, and the one Hyperliquid's own UI shows under Spot. Display
+ * only: the HLP bridge credits perp and `vaultTransfer` debits perp, so this
+ * must never gate a deposit amount.
+ *
+ * Unlike `getVaultEquity`, a missing entry returns zero rather than null — an
+ * account with no USDC row genuinely holds no spot USDC. Spot can report more
+ * than 6 fraction digits ("14.62548512"); the excess is truncated downward,
+ * which is safe to display but another reason never to gate on it.
+ */
+export async function getSpotUsdcBalance({
+  user,
+  apiUrl = DEFAULT_API_URL,
+  signal,
+}: InfoReadParams): Promise<SpotUsdcBalance> {
+  const state = spotClearinghouseStateSchema.parse(
+    await postInfo({
+      apiUrl,
+      body: { type: 'spotClearinghouseState', user },
+      ...(signal ? { signal } : {}),
+    }),
+  );
+
+  const usdc = state.balances.find((entry) => entry.coin === 'USDC');
+  return { totalUsd6: usdc ? usdStringToUsd6(usdc.total) : 0n };
 }
 
 export interface VaultEquity {

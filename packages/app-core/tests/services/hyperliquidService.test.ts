@@ -1,6 +1,7 @@
 import { APIError } from '@core/lib/http';
 import {
   getPerpUsdcBalance,
+  getSpotUsdcBalance,
   getVaultEquity,
   HyperliquidVaultDepositError,
   submitVaultDeposit,
@@ -144,6 +145,51 @@ describe('hyperliquid info reads', () => {
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
       'https://api.hyperliquid-testnet.xyz/info',
     );
+  });
+
+  it('reads spot USDC from spotClearinghouseState, ignoring other coins', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        balances: [
+          { coin: 'PURR', token: 1, hold: '0.0', total: '12345.678' },
+          { coin: 'USDC', token: 0, hold: '0.0', total: '14.625485' },
+        ],
+      }),
+    );
+
+    await expect(getSpotUsdcBalance({ user: USER })).resolves.toEqual({
+      totalUsd6: 14625485n,
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.hyperliquid.xyz/info',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ type: 'spotClearinghouseState', user: USER }),
+      }),
+    );
+  });
+
+  it('reports zero spot USDC for an account that holds none', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ balances: [] }));
+
+    await expect(getSpotUsdcBalance({ user: USER })).resolves.toEqual({
+      totalUsd6: 0n,
+    });
+  });
+
+  it('keeps an unrelated malformed coin row from killing the USDC read', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        balances: [
+          { coin: 'WEIRD', token: 7, hold: '', total: '-1e9' },
+          { coin: 'USDC', token: 0, hold: '0.0', total: '8.5' },
+        ],
+      }),
+    );
+
+    await expect(getSpotUsdcBalance({ user: USER })).resolves.toEqual({
+      totalUsd6: 8500000n,
+    });
   });
 
   it('finds the vault equity entry case-insensitively', async () => {

@@ -23,17 +23,20 @@ import {
 import { resolveDepositExecutionCapability } from '@/integration/investExecutionModel';
 import {
   belowHlpMinimum,
+  hlpBalanceLabel,
   HYPERLIQUID_HLP_SPLIT,
 } from '@/integration/hyperliquidPanelModel';
 import { formatPlanGas } from '@/integration/planPreviewFormatters';
 import { useAccount } from '@/integration/useAccount';
-import { useHlpPerpBalance } from '@/integration/useHlpPerpBalance';
+import {
+  useHlpPerpBalance,
+  useHlpSpotBalance,
+} from '@/integration/useHlpBalances';
 import { useDepositPlanPreview } from '@/integration/useDepositPlanPreview';
 import { useInvest } from '@/integration/useInvest';
 import { useInvestExecution } from '@/integration/useInvestExecution';
 import { useWalletAssets } from '@/integration/walletTokens';
 import { formatTokenBalance, formatUsd } from '@/lib/format';
-import { formatUnits } from 'viem';
 
 const BASE_CHAIN_ID = 8453;
 const HLP_FUNDING_TOKEN = HLP_DEPOSIT_TOKENS[0];
@@ -87,14 +90,26 @@ export function HyperliquidDepositPanel() {
     balanceState,
   );
   const hlpPerp = useHlpPerpBalance(account.address);
-  const perpLabel = (value: bigint | undefined): string => {
-    if (!account.isConnected) return '—';
-    if (hlpPerp.isLoading) return 'Loading…';
-    if (hlpPerp.isError || value === undefined) return '—';
-    return `${formatUnits(value, 6)} USDC`;
-  };
-  const perpWithdrawableLabel = perpLabel(hlpPerp.balance?.withdrawableUsd6);
-  const perpAccountValueLabel = perpLabel(hlpPerp.balance?.accountValueUsd6);
+  const hlpSpot = useHlpSpotBalance(account.address);
+  const labelFor = (
+    pot: { isLoading: boolean; isError: boolean },
+    value: bigint | undefined,
+  ): string =>
+    hlpBalanceLabel({
+      isConnected: account.isConnected,
+      isLoading: pot.isLoading,
+      isError: pot.isError,
+      value,
+    });
+  const spotTotalLabel = labelFor(hlpSpot, hlpSpot.balance?.totalUsd6);
+  const perpWithdrawableLabel = labelFor(
+    hlpPerp,
+    hlpPerp.balance?.withdrawableUsd6,
+  );
+  const perpAccountValueLabel = labelFor(
+    hlpPerp,
+    hlpPerp.balance?.accountValueUsd6,
+  );
   const preview = useDepositPlanPreview({
     address: account.address,
     fromToken: HLP_FUNDING_TOKEN.depositAddress,
@@ -202,6 +217,7 @@ export function HyperliquidDepositPanel() {
             On Hyperliquid
           </Text>
           <View className="mt-2">
+            <InfoRow label="Spot USDC" value={spotTotalLabel} divider />
             <InfoRow
               label="Perp USDC withdrawable"
               value={perpWithdrawableLabel}
