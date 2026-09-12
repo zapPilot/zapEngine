@@ -46,7 +46,7 @@ const scheduleEntrySchema = z.object({
   schedule_kind: z.string().min(1),
   schedule: z.string().min(1),
   // Optional escape hatch for workflows whose job-level `if:` makes `skipped`
-  // the normal outcome (ops-operator gated by `vars.OPS_OPERATOR_ENABLED`).
+  // the normal outcome for that registered schedule.
   skipExpected: z.boolean().optional(),
 });
 
@@ -332,9 +332,8 @@ function judge(
   };
 
   // A gated workflow whose fresh runs all skip as expected is standing by,
-  // not failing. The detail names ops-operator's gate because it is the only
-  // flagged entry today; a second gated workflow with a different gate would
-  // need that gate named in the registry instead of here.
+  // not failing. `skipExpected` must be declared explicitly in the schedule
+  // registry so an unexpected skip is still treated as an operational failure.
   if (
     workflow.skipExpected &&
     latest.conclusion === 'skipped' &&
@@ -347,9 +346,7 @@ function judge(
       title: `${workflow.name} is standing by`,
       detail:
         `Latest scheduled run skipped ${hoursAgo}h ago, which this registry ` +
-        'entry marks as expected: the workflow is gated by ' +
-        '`vars.OPS_OPERATOR_ENABLED` and stays off until that repository ' +
-        'variable is set.',
+        'entry marks as an expected gated standby outcome.',
     });
   }
   if (streak === 0 && ageMs <= workflow.staleAfterMs) {
@@ -396,11 +393,9 @@ function judge(
  * Consecutive non-success completed runs, newest first. Anything other than
  * `success` counts: a cancelled or timed-out nightly job produced no artifact
  * either. Entries flagged `skipExpected` in `.github/schedules.json` are the
- * one exception — their workflow carries a job-level `if:` (ops-operator's
- * `vars.OPS_OPERATOR_ENABLED` gate) that makes `skipped` the normal outcome,
- * so skipped runs drop out of the count entirely: transparent rather than
- * streak-ending, so failures on both sides of a skip still read as
- * consecutive.
+ * one exception: skipped runs drop out of the count entirely, remaining
+ * transparent rather than streak-ending so failures on both sides of a skip
+ * still read as consecutive.
  */
 function failureStreak(
   workflow: ScheduledWorkflow,

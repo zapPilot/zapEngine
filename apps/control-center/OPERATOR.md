@@ -1,19 +1,21 @@
 # Bounded operator runbook
 
-The integrated #437/#438 implementation ships dark. No production migration,
-deployment, scheduler setting or provider mutation is performed by local tests.
+The integrated #437/#438 operator is scheduled to run against production every five minutes. Local tests do not execute the production scheduler or provider mutations.
 
 ## Commands and policy
 
 Build internal packages with Turbo, then run `pnpm --filter
 @zapengine/control-center ops:operator`. This records observations and decisions
-but does not retry jobs. `--allow-render-retry` enables only the single-render
-Tier 1 catalog action. An incident gets at most one attempt, including failed or
-unknown attempts; there is no automatic budget reset.
+but does not retry jobs. `--allow-render-retry` enables the bounded mutation path:
+the single-render Tier 1 catalog action, plus explicitly authorized Sentry
+resolution after deploy-aware recovery verification. An incident gets at most one
+repair attempt, including failed or unknown attempts; there is no automatic budget
+reset.
 
-`.github/workflows/ops-operator.yml` has a five-minute schedule, guarded by the
-repository variable `OPS_OPERATOR_ENABLED=true`. Mutation additionally requires
-`OPS_OPERATOR_RENDER_RETRY=true`. Both are unset/disabled by default. Existing
+`.github/workflows/ops-operator.yml` runs every five minutes and invokes the
+bounded mutation path directly. There is no repository-variable rollout switch:
+automation safety is enforced by the operator's target, deployment, lease,
+checkpoint, one-repair-budget, verification, and authorization gates. Existing
 environment injection supplies server-only credentials. Never run these commands
 against production merely to test the implementation.
 
@@ -62,10 +64,9 @@ waitlist UUIDs; it never substitutes emails or manufactures attribution edges.
 - [x] One forced snapshot, exact producer correlation, bounded graph and gaps.
 - [x] Durable lifecycle, deploy-aware verification and guarded Sentry closure.
 - [x] One transactional render retry, deployment/lease/checkpoint gates and audit.
-- [x] Disabled scheduled entrypoint, CLI and Reliability audit visibility.
+- [x] Active scheduled entrypoint, CLI and Reliability audit visibility.
 - [x] Executable PostgreSQL migration/RPC tests with PGlite; provider tests use fixtures.
 - [x] Final aggregate gate and coverage results recorded below.
-- [ ] Production rollout and verification (intentionally not run locally).
 
 The SQL tests exercise the new migration with the repository's actual render
 retry and deployment-lock function bodies against a minimal queue fixture. They
@@ -84,4 +85,4 @@ Validated implementation commit `53258fd9`:
 - Five executable PostgreSQL tests cover migration, role grants, exact queue IDs, duplicate repair prevention, deployment gating and guarded resolution.
 - Repository, environment manifest, offline environment audit and contract checks passed through native gates.
 - Playwright exercised all four views at 1440px and 390px, including populated audit disclosure, no horizontal overflow and no page errors; all API responses came from local fixtures or an unconfigured local service.
-- Production deployment, full production migration history and production recovery were not executed or claimed.
+- Production deployment, full production migration history and production recovery were not executed or claimed by that local validation run.
