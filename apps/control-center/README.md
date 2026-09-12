@@ -3,7 +3,7 @@
 Founder decision dashboard for operational status, customer economics, product health, persisted cost history, learned social publishing guidance, and podcast production recovery. It is lifecycle-independent from production daemons and pipelines.
 
 ```bash
-pnpm ops             # dashboard + social daemon, from the repository root
+pnpm ops             # dashboard + Fly billing reader + social daemon, from the repository root
 pnpm ops:dashboard   # dashboard only
 pnpm ops --status    # one-shot status in the terminal, no server
 pnpm ops --status --json   # the same snapshot as JSON, for an agent
@@ -11,7 +11,7 @@ pnpm ops --status --json   # the same snapshot as JSON, for an agent
 
 `--json` and `--force` only mean anything alongside `--status`; passing either on its own, or with `--dashboard`/`--social`, is rejected rather than silently ignored.
 
-`pnpm ops` starts the dashboard and the social publishing daemon as **independent** children: a dashboard that crashes must never take publishing down with it, and vice versa. Only `SIGINT`/`SIGTERM` are forwarded to both.
+`pnpm ops` starts the dashboard, the Fly billing reader, and the social publishing daemon as **independent** children: one child crashing must never take the others down with it. Only `SIGINT`/`SIGTERM` are forwarded to all three.
 
 The Vite UI listens on `127.0.0.1:4174`; its Hono API listens on `CONTROL_CENTER_PORT` (`4175` by default).
 
@@ -202,9 +202,9 @@ Service-tier controls in the detail panel are disabled and marked `WIP`: there i
 Cost collection is deliberately separate from dashboard reads:
 
 ```text
-vendor APIs / fixed pricing / operator-recorded billed figures
+vendor APIs / fixed pricing / recorded billed figures
                     ↓
-                pnpm ops:sync
+                cost collectors
                     ↓
              ops.cost_snapshots
                     ↓
@@ -213,7 +213,7 @@ vendor APIs / fixed pricing / operator-recorded billed figures
 
 Only a figure we expect to pay enters a snapshot as cost. Usage evidence — request counts, unit balances, the Fly compute run-rate — travels in the same snapshot's `usage` array, where it can inform a decision without ever being read back as a bill.
 
-`GET /api/overview` and `GET /api/costs/history` read persisted cost snapshots directly on every request, so an external `pnpm ops:sync` is visible immediately rather than waiting for an in-process cache TTL. Social aggregation alone keeps the short in-memory cache. On a local development build **Refresh** calls `POST /api/costs/sync` first and then reloads the ledger; a production build only rereads snapshots, and the remote deployment does not register the route at all.
+`GET /api/overview` and `GET /api/costs/history` read persisted cost snapshots directly on every request, so an external cost collector is visible immediately rather than waiting for an in-process cache TTL. Social aggregation alone keeps the short in-memory cache. On a local development build **Refresh** calls `POST /api/costs/sync` first and then reloads the ledger; a production build only rereads snapshots, and the remote deployment does not register the route at all.
 
 The `ops` schema stays private and is not exposed through Supabase Data API. Control Center reaches it through service-role-only views and write RPCs in the already exposed `from_fed_to_chain` schema. `anon` and `authenticated` receive no access to the bridge or the underlying ledger.
 
@@ -229,9 +229,9 @@ Control Center reads this ledger through `GET /api/costs/podcast` and presents e
 - DeBank: balance and daily units from `GET /v1/account/units`. The list price is resolved from versioned `ops.cost_rates`; the initial rate is `$200 / 1,000,000 units = $0.0002 / unit`. There is no env price override. Its projection uses the same early-month blend, for the same reason.
 - Brave Search: every sync performs one successful Images Search request because Brave has no separate usage endpoint; that probe is itself billable and counted against the quota. The collector selects the longest advertised rate-limit window, rejects responses that expose only a sub-day window, and prices `limit - remaining` using the versioned `search_request` rate (`$5 / 1,000 requests`). It records gross list-price-equivalent cost and separately displays the hard-coded `$5` monthly promotional credit and estimated post-credit bill. Brave's documented long window is a rolling 30-day window rather than a calendar-month counter, so the stored accrued value and month-end projection are operational estimates: a mid-month quota reset can make both understate calendar-month activity until request deltas are accumulated independently.
 - Supabase: the versioned `pro_plan` rate currently seeds `$25/month`. It is a `fixed` committed monthly cost, so accrued and projected are both `$25` rather than a time-linear estimate. In the UI, accrued therefore means fixed monthly commitments plus variable usage accrued so far; it is not a day-by-day prorated cash charge.
-- Fly.io: month-end spend comes only from an operator reading the billed month-to-date figure off the Fly dashboard and recording it with `pnpm ops:cost snapshot fly <usd>`. Fly publishes no billing or usage API — `flyctl` can only open the dashboard in a browser — so there is nothing to collect. `FLY_COST_MODE=flyctl` therefore gathers evidence rather than cost: it persists a compute run-rate under the `compute_run_rate_monthly` usage key alongside the Machine census, and leaves accrued and projected empty. That run-rate is what every Machine currently in state `started` would cost at list price if it ran for the whole month, which is a saturation ceiling and not a forecast — Fly bills per second, the collector only ever sees one instant, the podcast render group is on-demand and up for minutes at a time, and a stopped Machine pays only rootfs at `$0.15/GB/month`. One performance-2x that happened to be rendering at 04:30 UTC was accordingly priced at a full month (`2 × $32.19`) and produced a `$67.70` projection against a real bill of about `$14`. The run-rate is equally blind to historical runtime, bandwidth, dedicated IPs, certificates, reservations, and other invoice adjustments, so actual cash spend still belongs in `cost_transactions`.
+- Fly.io: Fly publishes no billing API. `FLY_COST_MODE=flyctl` therefore remains usage evidence rather than spend: it persists a compute run-rate under the `compute_run_rate_monthly` usage key alongside the Machine census, and leaves accrued and projected empty. A signed-in local `pnpm ops` session separately runs the Fly billing reader, which reads the billed month-to-date figure from the dashboard and persists it as a recorded bill (`source = 'scraped'`). `pnpm ops:cost snapshot fly <usd>` remains the manual fallback and writes the same kind of billed reading with `source = 'manual'`. The run-rate is what every Machine currently in state `started` would cost at list price if it ran for the whole month, which is a saturation ceiling and not a forecast — Fly bills per second, the collector only ever sees one instant, the podcast render group is on-demand and up for minutes at a time, and a stopped Machine pays only rootfs at `$0.15/GB/month`. One performance-2x that happened to be rendering at 04:30 UTC was accordingly priced at a full month (`2 × $32.19`) and produced a `$67.70` projection against a real bill of about `$14`. The run-rate is equally blind to historical runtime, bandwidth, dedicated IPs, certificates, reservations, and other invoice adjustments, so actual cash spend still belongs in `cost_transactions`.
 
-The recorded Fly figure is a month-to-date reading, not a month-end one: it is the billed amount for the month so far, and it is stored as both accrued and projected. Fly's contribution to "Projected month-end" is therefore a floor as of the moment the operator read it, not a forecast, and it understates the month the earlier in the month it was read. Extrapolating it the way OpenRouter and DeBank are extrapolated was rejected deliberately: inflating a real `$14` read on the 2nd into a `~$210` month-end would recreate the exact failure this change removed, pointed the other way. An honest floor that is visibly a floor beats a confident number that is wrong.
+A recorded Fly figure is a month-to-date reading, not a month-end one: it is the billed amount for the month so far, and it is stored as both accrued and projected. Fly's contribution to "Projected month-end" is therefore a floor as of the moment it was recorded, not a forecast, and it understates the month the earlier in the month it was read. Extrapolating it the way OpenRouter and DeBank are extrapolated was rejected deliberately: inflating a real `$14` read on the 2nd into a `~$210` month-end would recreate the exact failure this change removed, pointed the other way. An honest floor that is visibly a floor beats a confident number that is wrong.
 
 The previous-month figure that damps those early-month projections is an approximation, and is only ever used as one. `previousMonthByProvider` is the last snapshot of the previous month — that month's spend as of its final sync at 04:30 UTC on its last day, not a true month total — so it reads slightly low, and a provider that only started reporting mid-month contributes a low prior for the first seven days of the next one. That is accepted because the number is a damping weight rather than an accounting figure: its whole job is to stop a four-hour sample from speaking for thirty days, and from day seven it carries no weight at all.
 
@@ -252,7 +252,7 @@ A `$200` DeBank top-up therefore never makes current-month API usage appear to b
 
 ## Commands
 
-Sync all automatic providers and persist today's snapshots:
+Sync all automatic API/fixed-price providers and persist today's snapshots:
 
 ```bash
 pnpm ops:sync
@@ -271,22 +271,24 @@ A `flyctl` failure is reported as a provider error and fails the run even when a
 already-recorded Fly figure is carried forward, so a collector that has quietly
 stopped working cannot sit behind a green scheduled job.
 
-Record the billed month-to-date figure shown on the Fly dashboard. It is the
-only value permitted to act as Fly's accrued and projected spend:
+`pnpm ops` also runs the local Fly billing reader. Once its browser session is
+signed in to the Fly dashboard, it records the billed month-to-date figure as
+`source = 'scraped'`. If that browser reader is unavailable or an operator wants
+to enter the dashboard figure explicitly, use the manual fallback:
 
 ```bash
 pnpm ops:cost snapshot fly 18.43
 ```
 
-The figure keeps the "as of" moment it was recorded at, and a later sync
-refreshes the run-rate beneath it without touching the amount. It is scoped to
-its own month and never carried into the next one, so on the 1st Fly has no cost
-until someone records a new figure. Because the amount is a month-to-date
-reading rather than a forecast, recording it again later in the month is what
-makes the projection accurate: a figure read on the 28th is nearly the whole
-month, one read on the 2nd is barely a floor.
+Both scraped and manual readings keep the "as of" moment they were recorded at,
+and a later sync refreshes the run-rate beneath the newest recorded bill without
+touching its amount. A reading is scoped to its own month and never carried into
+the next one, so on the 1st Fly has no billed cost until the reader or operator
+records a new figure. Because the amount is month-to-date rather than a forecast,
+a later reading is a better floor: one read on the 28th is nearly the whole month,
+one read on the 2nd is barely a floor.
 
-Two wrinkles when recording after the day's sync has already run:
+One wrinkle when a manual recording happens after the day's sync has already run:
 
 - The CLI replaces that day's snapshot row, which clears the
   `compute_run_rate_monthly` usage until the next sync merges the two back
@@ -303,7 +305,7 @@ Fly rows written by the old collector are still in `ops.cost_snapshots` with
 dashboard moves on by itself, but the old rows stay in the monthly history. No
 migration ships with this change; neutralising them is optional, affects stored
 history only, and is one statement. The `source` filter is the load-bearing part
-of it: operator-recorded rows are written as `manual` and must survive.
+of it: recorded bill rows (`manual` or `scraped`) must survive.
 
 ```sql
 update ops.cost_snapshots set projected_cost_usd = null where provider = 'fly' and source = 'api';
@@ -317,11 +319,12 @@ pnpm ops:cost transaction fly invoice 21.07 "August invoice"
 pnpm ops:cost transaction debank top_up 200 "1M API units"
 ```
 
-GitHub Actions is the sole recurring owner and runs `pnpm ops:sync` daily at
-04:30 UTC through `.github/workflows/ops-cost-sync.yml`. It requires these
+GitHub Actions is the sole recurring owner of `pnpm ops:sync` and runs it daily
+at 04:30 UTC through `.github/workflows/ops-cost-sync.yml`. It requires these
 repository secrets: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`,
 `DEBANK_API_KEY`, `OPENROUTER_MANAGEMENT_KEY`, and `FLY_API_TOKEN`. The Fly token
-must allow the CLI to inspect the deployed Zap Engine apps.
+must allow the CLI to inspect the deployed Zap Engine apps. The dashboard scraper
+is a separate local reader owned by `pnpm ops`, not a GitHub Actions cost source.
 
 For recovery, inspect the failed workflow step and provider summary, correct
 the affected credential or provider outage, then use **Run workflow**. Confirm
