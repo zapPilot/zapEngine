@@ -10,13 +10,16 @@ const nvmrc = readFileSync(new URL('../../../.nvmrc', import.meta.url), 'utf8').
 
 const errors = [];
 const packageManager = rootPackage.packageManager;
-const pnpmMatch = /^pnpm@(.+)$/.exec(packageManager ?? '');
+const pnpmMatch = /^pnpm@\d+\.\d+\.\d+$/.exec(packageManager ?? '');
 
 if (!pnpmMatch) {
   errors.push('root package.json must pin pnpm via packageManager');
 }
 
 const expectedNodeMajor = nvmrc.replace(/^v/, '').split('.')[0];
+if (!expectedNodeMajor) {
+  errors.push('could not determine expected Node major from .nvmrc');
+}
 const profiles = ['preview', 'production'];
 
 for (const profileName of profiles) {
@@ -38,9 +41,30 @@ for (const profileName of profiles) {
   }
 
   const nodeMajor = String(profile.node ?? '').replace(/^v/, '').split('.')[0];
-  if (!nodeMajor || nodeMajor !== expectedNodeMajor) {
+  if (
+    expectedNodeMajor &&
+    (!nodeMajor || nodeMajor !== expectedNodeMajor)
+  ) {
     errors.push(
       `build.${profileName}.node must use Node ${expectedNodeMajor}.x to match .nvmrc`,
+    );
+  }
+}
+
+// Any other build profile must follow the same rule: Corepack already
+// provides pnpm, so a profile-level `pnpm` would trigger the duplicate
+// global install that fails with EEXIST.
+for (const [profileName, profile] of Object.entries(eas.build ?? {})) {
+  if (profiles.includes(profileName)) continue;
+  if (
+    profile &&
+    typeof profile === 'object' &&
+    profile.corepack === true &&
+    Object.hasOwn(profile, 'pnpm')
+  ) {
+    errors.push(
+      `build.${profileName} must not set pnpm when Corepack is enabled; ` +
+        'root package.json packageManager is the pnpm version source of truth',
     );
   }
 }
