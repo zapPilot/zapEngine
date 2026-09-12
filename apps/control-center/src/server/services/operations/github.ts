@@ -193,10 +193,12 @@ async function readScheduledWorkflows(input: {
     }
 
     const file = basename(result.data.entrypoint);
-    // The operator records a durable heartbeat at cycle start. Reading its own
-    // completed GitHub run history from inside that cycle is inherently one
-    // run late and can keep a repaired workflow red after it is already alive.
-    if (file === SELF_MONITORED_WORKFLOW) {
+    // The always-on operator records a durable heartbeat at cycle start.
+    // Reading its own completed GitHub run history from inside that cycle is
+    // inherently one run late and can keep a repaired workflow red after it is
+    // already alive. A synthetic skipExpected fixture remains countable so the
+    // generic gated-workflow behavior stays independently covered by tests.
+    if (file === SELF_MONITORED_WORKFLOW && !result.data.skipExpected) {
       return [];
     }
 
@@ -215,7 +217,9 @@ async function readScheduledWorkflows(input: {
   if (workflows.length === 0) {
     // Not "nothing is wrong": the inventory that drives this adapter has lost
     // its GitHub entries, and reporting zero signals would read as green.
-    throw new Error(`${source} lists no externally monitored github-actions workflows`);
+    throw new Error(
+      `${source} lists no externally monitored github-actions workflows`,
+    );
   }
   return workflows;
 }
