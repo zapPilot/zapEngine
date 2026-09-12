@@ -96,3 +96,12 @@ export const ARBITRUM_DEPOSIT_TOKENS = [
 
 export const DEFAULT_BASE_FUNDING_TOKEN = BASE_DEPOSIT_TOKENS[0];
 export const DEFAULT_ARBITRUM_FUNDING_TOKEN = ARBITRUM_DEPOSIT_TOKENS[0];
+
+/**
+ * HLP bridge input is Base USDC only. Kept as a one-item list so the HLP
+ * amount step can reuse the same token dropdown + balance sheet as the
+ * Base/Arbitrum steps while staying pinned to USDC.
+ */
+export const HLP_DEPOSIT_TOKENS = [
+  BASE_DEPOSIT_TOKENS[0],
+] as const satisfies readonly DesktopDepositToken[];
