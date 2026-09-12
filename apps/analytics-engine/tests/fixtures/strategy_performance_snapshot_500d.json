@@ -1,8 +1,8 @@
 {
-  "reference_date": "2026-09-10",
+  "reference_date": "2026-09-11",
   "window_days": 500,
-  "window_start": "2025-04-29",
-  "window_end": "2026-09-10",
+  "window_start": "2025-04-30",
+  "window_end": "2026-09-11",
   "total_capital": 10000.0,
   "default_strategy_id": "dma_fgi_portfolio_rules",
   "tolerances": {
@@ -15,24 +15,24 @@
   "strategies": {
     "dca_classic": {
       "display_name": "DCA Classic",
-      "calmar_ratio": -0.12,
-      "sharpe_ratio": -0.0103,
-      "max_drawdown_percent": -40.6602,
-      "roi_percent": -6.5883,
+      "calmar_ratio": -0.0729,
+      "sharpe_ratio": 0.0553,
+      "max_drawdown_percent": -40.619,
+      "roi_percent": -4.0043,
       "trade_count": 499,
-      "sortino_ratio": -0.015,
-      "volatility": 0.3071,
-      "ulcer_index": 22.8835
+      "sortino_ratio": 0.0811,
+      "volatility": 0.3076,
+      "ulcer_index": 22.8796
     },
     "dma_fgi_portfolio_rules": {
       "display_name": "DMA/FGI Portfolio Rules",
-      "calmar_ratio": 6.8921,
-      "sharpe_ratio": 2.8658,
+      "calmar_ratio": 7.3303,
+      "sharpe_ratio": 2.9705,
       "max_drawdown_percent": -8.9254,
-      "roi_percent": 92.6452,
+      "roi_percent": 99.051,
       "trade_count": 63,
-      "sortino_ratio": 3.8622,
-      "volatility": 0.1729,
+      "sortino_ratio": 4.0506,
+      "volatility": 0.175,
       "ulcer_index": 1.8078
     }
   }
