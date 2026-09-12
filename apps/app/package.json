@@ -17,7 +17,7 @@
     "dev": "expo start --dev-client --port 8081",
     "dev:web": "expo start --web --port 8081",
     "postinstall": "node scripts/install-playwright.mjs",
-    "eas-build-post-install": "cd ../.. && pnpm turbo run build --filter='^@zapengine/app...'",
+    "eas-build-post-install": "cd ../.. && pnpm turbo run build --filter='@zapengine/app^...'",
     "start": "expo start --dev-client --port 8081",
     "android": "pnpm run android:native",
     "android:native": "expo run:android --no-bundler",
