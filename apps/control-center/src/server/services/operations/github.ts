@@ -28,6 +28,7 @@ import { staleAfterMs } from './schedule-interval.js';
 const ORIGIN = { source: 'github-actions', domain: 'jobs' } as const;
 const REPO = 'zapPilot/zapEngine';
 const RUNS_PER_PAGE = 5;
+const SELF_MONITORED_WORKFLOW = 'ops-operator.yml';
 
 /**
  * Only the fields this adapter reads. `.github/schedules.json` is the
@@ -187,24 +188,34 @@ async function readScheduledWorkflows(input: {
   const entries = z.array(z.unknown()).parse(JSON.parse(raw) as unknown);
   const workflows = entries.flatMap((entry) => {
     const result = scheduleEntrySchema.safeParse(entry);
-    return result.success && result.data.runtime === 'github-actions'
-      ? [
-          {
-            name: result.data.name,
-            file: basename(result.data.entrypoint),
-            staleAfterMs: staleAfterMs({
-              scheduleKind: result.data.schedule_kind,
-              schedule: result.data.schedule,
-            }),
-            skipExpected: result.data.skipExpected ?? false,
-          },
-        ]
-      : [];
+    if (!result.success || result.data.runtime !== 'github-actions') {
+      return [];
+    }
+
+    const file = basename(result.data.entrypoint);
+    // The operator records a durable heartbeat at cycle start. Reading its own
+    // completed GitHub run history from inside that cycle is inherently one
+    // run late and can keep a repaired workflow red after it is already alive.
+    if (file === SELF_MONITORED_WORKFLOW) {
+      return [];
+    }
+
+    return [
+      {
+        name: result.data.name,
+        file,
+        staleAfterMs: staleAfterMs({
+          scheduleKind: result.data.schedule_kind,
+          schedule: result.data.schedule,
+        }),
+        skipExpected: result.data.skipExpected ?? false,
+      },
+    ];
   });
   if (workflows.length === 0) {
     // Not "nothing is wrong": the inventory that drives this adapter has lost
     // its GitHub entries, and reporting zero signals would read as green.
-    throw new Error(`${source} lists no github-actions workflows`);
+    throw new Error(`${source} lists no externally monitored github-actions workflows`);
   }
   return workflows;
 }
