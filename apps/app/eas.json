@@ -6,6 +6,7 @@
   "build": {
     "preview": {
       "distribution": "internal",
+      "node": "24.21.0",
       "corepack": true,
       "pnpm": "10.30.3",
       "android": {
@@ -17,6 +18,7 @@
       "environment": "production",
       "credentialsSource": "remote",
       "autoIncrement": true,
+      "node": "24.21.0",
       "corepack": true,
       "pnpm": "10.30.3",
       "android": {
