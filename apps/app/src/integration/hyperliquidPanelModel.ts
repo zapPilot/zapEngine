@@ -61,3 +61,21 @@ export function hlpBalanceLabel({
   }
   return `${formatUnits(value, 6)} USDC`;
 }
+
+/**
+ * What the wallet can actually put into HLP. The vault debits perp, and any
+ * shortfall is topped up from spot, so both pots count toward one ceiling.
+ *
+ * Returns null while either balance is unknown: treating a pending or failed
+ * read as zero would disable the input, and treating it as unlimited would
+ * let the user sign an amount the exchange will reject.
+ */
+export function hlpAvailableUsd6(
+  spotTotalUsd6: bigint | undefined,
+  perpWithdrawableUsd6: bigint | undefined,
+): bigint | null {
+  if (spotTotalUsd6 === undefined || perpWithdrawableUsd6 === undefined) {
+    return null;
+  }
+  return spotTotalUsd6 + perpWithdrawableUsd6;
+}

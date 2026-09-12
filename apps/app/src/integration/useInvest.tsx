@@ -39,6 +39,16 @@ export type {
 
 export type InvestDestination = 'strategy' | 'hlp';
 
+/**
+ * Frozen HLP draft funded from HyperCore rather than an EVM chain. Kept
+ * separate from `SingleChainFundingDraft`, which carries a source chain id
+ * and token address that a HyperCore-funded deposit simply does not have.
+ */
+export interface HyperCoreFundingDraft {
+  source: 'hypercore-spot';
+  requestedUsd6: string;
+}
+
 export interface InvestContextValue {
   /** USD amount the user is investing (entered in step 1). */
   amountUsd: number;
@@ -55,6 +65,8 @@ export interface InvestContextValue {
   setArbitrumFundingToken: (value: DesktopDepositToken) => void;
   singleChainFundingDraft: SingleChainFundingDraft | null;
   setSingleChainFundingDraft: (value: SingleChainFundingDraft | null) => void;
+  hyperCoreFundingDraft: HyperCoreFundingDraft | null;
+  setHyperCoreFundingDraft: (value: HyperCoreFundingDraft | null) => void;
   /** Perp USDC snapshot taken immediately before a reviewed HLP bridge batch. */
   hlpBaselineUsd6: string | null;
   setHlpBaselineUsd6: (value: string | null) => void;
@@ -90,10 +102,13 @@ export function InvestProvider({ children }: { children: ReactNode }) {
     useState<DesktopDepositToken>(DEFAULT_ARBITRUM_FUNDING_TOKEN);
   const [singleChainFundingDraft, setSingleChainFundingDraft] =
     useState<SingleChainFundingDraft | null>(null);
+  const [hyperCoreFundingDraft, setHyperCoreFundingDraft] =
+    useState<HyperCoreFundingDraft | null>(null);
   const [hlpBaselineUsd6, setHlpBaselineUsd6] = useState<string | null>(null);
 
   const clearFrozenExecution = useCallback(() => {
     setSingleChainFundingDraft(null);
+    setHyperCoreFundingDraft(null);
     setHlpBaselineUsd6(null);
   }, []);
   const setAmountInput = useCallback(
@@ -145,6 +160,8 @@ export function InvestProvider({ children }: { children: ReactNode }) {
       setArbitrumFundingToken,
       singleChainFundingDraft,
       setSingleChainFundingDraft,
+      hyperCoreFundingDraft,
+      setHyperCoreFundingDraft,
       hlpBaselineUsd6,
       setHlpBaselineUsd6,
     }),
@@ -155,6 +172,7 @@ export function InvestProvider({ children }: { children: ReactNode }) {
       baseFundingToken,
       destination,
       hlpBaselineUsd6,
+      hyperCoreFundingDraft,
       scope,
       setAmountInput,
       setArbitrumFundingToken,
