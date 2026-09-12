@@ -69,9 +69,10 @@ describe('EAS runtime parity', () => {
 
     expect(buildProfiles.length).toBeGreaterThan(0);
     for (const [profileName, profile] of buildProfiles) {
-      expect(profile.corepack, `${profileName} must keep Corepack disabled`).not.toBe(
-        true,
-      );
+      expect(
+        profile.corepack,
+        `${profileName} must keep Corepack disabled`,
+      ).not.toBe(true);
       expect(profile.pnpm, `${profileName} must pin repository pnpm`).toBe(
         expectedPnpm,
       );
