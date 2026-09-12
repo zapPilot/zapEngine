@@ -120,11 +120,11 @@ function usesFixedThreadsShape(
   episodeCreatedAt: string,
   scheduledAt: Date,
 ): boolean {
-  const episodeCreatedAtMs = Date.parse(episodeCreatedAt);
-  return (
-    Number.isFinite(episodeCreatedAtMs) &&
-    episodeCreatedAtMs >= Date.parse(SOCIAL_LANGUAGE_THREADS_FIXED_SINCE) &&
-    isThreadsFixedActive(scheduledAt)
+  return usesLanguagePolicy(
+    episodeCreatedAt,
+    scheduledAt,
+    SOCIAL_LANGUAGE_THREADS_FIXED_SINCE,
+    isThreadsFixedActive,
   );
 }
 
@@ -147,11 +147,25 @@ function usesLanguageRotation(
   episodeCreatedAt: string,
   scheduledAt: Date,
 ): boolean {
+  return usesLanguagePolicy(
+    episodeCreatedAt,
+    scheduledAt,
+    SOCIAL_LANGUAGE_ROTATION_ACTIVE_SINCE,
+    isLanguageRotationActive,
+  );
+}
+
+function usesLanguagePolicy(
+  episodeCreatedAt: string,
+  scheduledAt: Date,
+  activeSince: string,
+  isActive: (scheduledAt: Date) => boolean,
+): boolean {
   const episodeCreatedAtMs = Date.parse(episodeCreatedAt);
   return (
     Number.isFinite(episodeCreatedAtMs) &&
-    episodeCreatedAtMs >= Date.parse(SOCIAL_LANGUAGE_ROTATION_ACTIVE_SINCE) &&
-    isLanguageRotationActive(scheduledAt)
+    episodeCreatedAtMs >= Date.parse(activeSince) &&
+    isActive(scheduledAt)
   );
 }
 

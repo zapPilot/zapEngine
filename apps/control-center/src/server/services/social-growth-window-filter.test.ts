@@ -134,7 +134,7 @@ function clientFactory(input: {
 }) {
   const client = {
     from(table: string) {
-      const rows =
+      let rows: Array<Record<string, unknown>> =
         table === 'social_posts'
           ? input.posts
           : table === 'social_post_metrics'
@@ -150,10 +150,14 @@ function clientFactory(input: {
         lte() {
           return chain;
         },
-        not() {
+        not(column: string, operator: string, value: unknown) {
+          if (operator === 'is' && value === null) {
+            rows = rows.filter((row) => row[column] !== null);
+          }
           return chain;
         },
-        eq() {
+        eq(column: string, value: unknown) {
+          rows = rows.filter((row) => row[column] === value);
           return chain;
         },
         order() {
