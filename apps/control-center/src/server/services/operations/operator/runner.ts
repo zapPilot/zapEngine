@@ -15,6 +15,11 @@ export async function runOperatorCycle(input: {
   actor: string;
   mutationsEnabled: boolean;
 }) {
+  // Record liveness before reading the operational snapshot. GitHub run history
+  // cannot safely monitor this workflow from inside itself: the current run is
+  // still in progress, so completed-run streaks are necessarily one cycle late.
+  await input.store.recordHeartbeat(input.actor);
+
   const open = await input.store.history();
   const pending = open.find(
     (row) =>
