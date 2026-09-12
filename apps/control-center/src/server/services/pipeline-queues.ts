@@ -21,7 +21,10 @@ import {
   leaseIsActive,
   visualIsRenderable,
 } from './podcast-retry-eligibility.js';
-import { createConfiguredServiceRoleClient } from './supabase.js';
+import {
+  createConfiguredServiceRoleClient,
+  postgrestErrorMessage,
+} from './supabase.js';
 
 const ACTIVE_STATUSES = ['queued', 'processing', 'failed'] as const;
 const READ_LIMIT = 200;
@@ -262,7 +265,7 @@ export function createPipelineQueuesService(input: {
         return unavailable(
           generatedAt,
           'error',
-          cause instanceof Error ? cause.message : 'Pipeline queue read failed',
+          postgrestErrorMessage(cause, 'Pipeline queue read failed'),
         );
       }
     },

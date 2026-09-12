@@ -12,6 +12,7 @@ import type {
 } from '../../shared/types.js';
 import type { ControlCenterConfig } from '../config/env.js';
 import { createAsyncCache } from './cache.js';
+import { postgrestErrorMessage } from './supabase.js';
 import {
   buildFollowerAttribution,
   exactYoutubeFollowersByPost,
@@ -178,7 +179,7 @@ export async function loadSocialGrowth(input: {
     return {
       ...empty(
         'error',
-        error instanceof Error ? error.message : 'Social growth query failed',
+        postgrestErrorMessage(error, 'Social growth query failed'),
       ),
       waitlist: await waitlist,
     };

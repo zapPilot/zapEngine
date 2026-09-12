@@ -267,6 +267,8 @@ describe('cost providers', () => {
     await expect(failure).rejects.not.toBeInstanceOf(UsageNotMeasurableError);
   });
 
+  // A response that only exposes a short rate-limit window carries no
+  // monthly quota to read at all — structurally unmeasurable, not a failure.
   it('rejects a Brave response that only exposes a short rate-limit window', async () => {
     const fetcher = vi.fn().mockResolvedValue(
       new Response('{}', {
@@ -279,13 +281,15 @@ describe('cost providers', () => {
       }),
     );
 
-    await expect(
-      fetchBraveCostSnapshot({
-        apiKey: 'brave-key',
-        unitCostUsd: 5 / 1_000,
-        fetch: fetcher,
-      }),
-    ).rejects.toThrow('Brave Search long-term quota window is not measurable');
+    const failure = fetchBraveCostSnapshot({
+      apiKey: 'brave-key',
+      unitCostUsd: 5 / 1_000,
+      fetch: fetcher,
+    });
+    await expect(failure).rejects.toThrow(
+      'Brave Search long-term quota window is not measurable',
+    );
+    await expect(failure).rejects.toBeInstanceOf(UsageNotMeasurableError);
   });
 
   it('keeps DeBank USD cost unknown without a unit price, prior month or not', async () => {

@@ -8,6 +8,7 @@ import type {
 import type { ControlCenterConfig } from '../config/env.js';
 import { elapsedMs } from './elapsed.js';
 import { sumKnown } from './numbers.js';
+import { postgrestErrorMessage } from './supabase.js';
 import {
   buildSignal,
   sourceFailure,
@@ -153,7 +154,7 @@ export async function loadCustomerEconomics(input: {
     return {
       generatedAt,
       status: 'error',
-      message: error instanceof Error ? error.message : 'Customer query failed',
+      message: postgrestErrorMessage(error, 'Customer query failed'),
       summary: EMPTY_SUMMARY,
       users: [],
     };
