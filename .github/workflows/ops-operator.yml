@@ -12,6 +12,12 @@ jobs:
   observe:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # Server credentials arrive through the environment rail (Infisical prod).
+    # This job never reaches a Fly/EAS/Vercel destination: `run.mjs` imports
+    # `sources.mjs`, never `remote.mjs`, and the operator reads Fly state via
+    # the Machines API with FLY_OPS_TOKEN from that rail. Requiring the
+    # destination tokens would let an unrelated rotation break the 5-minute
+    # loop, so only the Infisical machine identity is mandatory here.
     env:
       INFISICAL_UNIVERSAL_AUTH_CLIENT_ID: ${{ secrets.INFISICAL_UNIVERSAL_AUTH_CLIENT_ID }}
       INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET: ${{ secrets.INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET }}
@@ -22,6 +28,10 @@ jobs:
         with:
           uv: 'false'
       - uses: ./.github/actions/setup-env-tooling
+        with:
+          fly: 'false'
+          expo: 'false'
+          vercel: 'false'
       - run: pnpm turbo run build --filter=@zapengine/types
       - name: Observe and reconcile
         run: node scripts/env/run.mjs --environment prod -- pnpm --filter @zapengine/control-center ops:operator --allow-render-retry

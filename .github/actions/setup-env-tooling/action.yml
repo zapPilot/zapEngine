@@ -5,6 +5,9 @@ description: >-
   the global npm installs land on the workspace Node version.
 
 inputs:
+  fly:
+    description: Require FLY_API_TOKEN, for rails that shell out to flyctl or read/write Fly secrets.
+    default: 'true'
   expo:
     description: Require EXPO_TOKEN, for rails that read or write EAS variables.
     default: 'true'
@@ -19,20 +22,27 @@ runs:
     # Vercel. A missing credential has to fail here rather than surface as a
     # per-destination NOT_CHECKABLE that reads like a clean audit.
     #
-    # Both destination inputs default to `true`, so a caller that says nothing
+    # All destination inputs default to `true`, so a caller that says nothing
     # keeps the original contract. They exist for the rails that only resolve
     # secrets and never reach a destination -- `scripts/env/run.mjs` imports
     # `sources.mjs`, never `remote.mjs`, and `remote.mjs` is the only reader of
     # EXPO_TOKEN and VERCEL_TOKEN. Demanding them anyway makes an unrelated
     # token rotation able to break a job that would never have used it.
+    # FLY_API_TOKEN is likewise only needed when the job shells out to flyctl
+    # or reads/writes Fly secrets; the ops operator talks to the Fly Machines
+    # API with FLY_OPS_TOKEN from the Infisical prod rail instead.
     - name: Validate required credentials
       shell: bash
       env:
+        REQUIRE_FLY: ${{ inputs.fly }}
         REQUIRE_EXPO: ${{ inputs.expo }}
         REQUIRE_VERCEL: ${{ inputs.vercel }}
       run: |
-        required=(FLY_API_TOKEN INFISICAL_UNIVERSAL_AUTH_CLIENT_ID \
+        required=(INFISICAL_UNIVERSAL_AUTH_CLIENT_ID \
           INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET INFISICAL_PROJECT_ID)
+        if [ "$REQUIRE_FLY" = 'true' ]; then
+          required+=(FLY_API_TOKEN)
+        fi
         if [ "$REQUIRE_EXPO" = 'true' ]; then
           required+=(EXPO_TOKEN)
         fi
