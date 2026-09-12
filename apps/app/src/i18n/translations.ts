@@ -129,6 +129,14 @@ export const en = {
   'home.incomeOtherIncome': '{amount} income',
   'home.incomeOtherCost': '{amount} cost',
   'home.incomeOtherA11y': 'Other, {count} protocol(s)',
+  'home.liquidationRiskTitle': 'Liquidation risk',
+  'home.liquidationRiskToLiquidation': 'to liquidation',
+  'home.liquidationRiskSummary': '{count} positions · {debt} debt',
+  'home.liquidationRiskScenario':
+    'Scenario estimate: collateral prices fall together while debt value stays flat.',
+  'home.liquidationRiskA11y': 'Liquidation risk, {buffer} to liquidation',
+  'home.liquidationRiskPositionA11y':
+    '{protocol}, {collateral} to {debt}, {buffer} to liquidation, HF {healthRate}',
   'home.walletAssets': 'Wallet assets',
   'home.assetsIdleAcross': 'Idle across {count} wallet(s)',
   'home.assetsEmptyTitle': 'No supported assets found',
@@ -335,6 +343,14 @@ export const zhHant = {
   'home.incomeOtherIncome': '{amount} 收入',
   'home.incomeOtherCost': '{amount} 成本',
   'home.incomeOtherA11y': '其他，{count} 個協議',
+  'home.liquidationRiskTitle': '清算風險',
+  'home.liquidationRiskToLiquidation': '距清算',
+  'home.liquidationRiskSummary': '{count} 個部位 · {debt} 負債',
+  'home.liquidationRiskScenario':
+    '情境估算：假設抵押品同步下跌，負債價值維持不變。',
+  'home.liquidationRiskA11y': '清算風險, {buffer} 距清算',
+  'home.liquidationRiskPositionA11y':
+    '{protocol}, {collateral} to {debt}, {buffer} 距清算, HF {healthRate}',
   'home.walletAssets': '錢包資產',
   'home.assetsIdleAcross': '閒置於 {count} 個錢包',
   'home.assetsEmptyTitle': '找不到支援的資產',
@@ -537,6 +553,14 @@ export const ja = {
   'home.incomeOtherIncome': '{amount} 収入',
   'home.incomeOtherCost': '{amount} 費用',
   'home.incomeOtherA11y': 'その他、{count} 件のプロトコル',
+  'home.liquidationRiskTitle': '清算リスク',
+  'home.liquidationRiskToLiquidation': '清算まで',
+  'home.liquidationRiskSummary': '{count} ポジション · {debt} 負債',
+  'home.liquidationRiskScenario':
+    'シナリオ推定：担保価格が同率で下落し、負債価値は一定と仮定します。',
+  'home.liquidationRiskA11y': '清算リスク, {buffer} 清算まで',
+  'home.liquidationRiskPositionA11y':
+    '{protocol}, {collateral} to {debt}, {buffer} 清算まで, HF {healthRate}',
   'home.walletAssets': 'ウォレット資産',
   'home.assetsIdleAcross': '{count} 件のウォレットで未運用',
   'home.assetsEmptyTitle': '対応資産が見つかりません',

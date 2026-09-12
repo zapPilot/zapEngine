@@ -7,7 +7,7 @@ import {
   Layers,
   ShieldAlert,
 } from 'lucide-react-native';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Text, View } from 'react-native';
 
 import { ProtocolIcon } from '@/components/token/ProtocolIcon';
@@ -41,31 +41,54 @@ const TOKEN_BADGE_LEFT = 25;
 const TOKEN_BADGE_STEP = 11;
 const MAX_VISIBLE_TOKENS = 3;
 
-const BORROWING_RISK_COPY = {
-  en: {
-    title: 'Liquidation risk',
-    toLiquidation: 'to liquidation',
-    positions: 'positions',
-    debt: 'debt',
-    scenario:
-      'Scenario estimate: collateral prices fall together while debt value stays flat.',
-  },
-  'zh-Hant': {
-    title: '清算風險',
-    toLiquidation: '距清算',
-    positions: '個部位',
-    debt: '負債',
-    scenario: '情境估算：假設抵押品同步下跌，負債價值維持不變。',
-  },
-  ja: {
-    title: '清算リスク',
-    toLiquidation: '清算まで',
-    positions: 'ポジション',
-    debt: '負債',
-    scenario:
-      'シナリオ推定：担保価格が同率で下落し、負債価値は一定と仮定します。',
-  },
-} as const;
+interface DisclosureRowProps {
+  icon: ReactNode;
+  title: string;
+  subtitle?: string | null;
+  trailing?: ReactNode;
+  expanded: boolean;
+  onToggle: () => void;
+  accessibilityLabel: string;
+}
+
+function DisclosureRow({
+  icon,
+  title,
+  subtitle,
+  trailing,
+  expanded,
+  onToggle,
+  accessibilityLabel,
+}: DisclosureRowProps) {
+  const Chevron = expanded ? ChevronDown : ChevronRight;
+
+  return (
+    <Tap
+      accessibilityRole="button"
+      accessibilityState={{ expanded }}
+      accessibilityLabel={accessibilityLabel}
+      onPress={onToggle}
+      className="flex-row items-center gap-3 py-2"
+    >
+      <View className="h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-line">
+        {icon}
+      </View>
+      <View className="min-w-0 flex-1">
+        <Text className="text-[13px] text-ink">{title}</Text>
+        {subtitle ? (
+          <Text
+            numberOfLines={1}
+            className="mt-0.5 font-mono text-[9.5px] text-ink-faint"
+          >
+            {subtitle}
+          </Text>
+        ) : null}
+      </View>
+      {trailing}
+      <Chevron size={14} strokeWidth={2} color={tokens.color['ink-faint']} />
+    </Tap>
+  );
+}
 
 /** Widest point of the stack, so overlapping badges never cover the row text. */
 function positionIconWidth(tokenCount: number): number {
@@ -152,7 +175,6 @@ function IncomeRow({ row }: { row: HomeProtocolIncomeRow }) {
 function OtherIncomeRow({ partition }: { partition: HomeIncomePartition }) {
   const { t } = useContentLanguage();
   const [expanded, setExpanded] = useState(false);
-  const Chevron = expanded ? ChevronDown : ChevronRight;
   const subtitle = [
     partition.otherIncomeUsd !== 0
       ? t('home.incomeOtherIncome', {
@@ -170,31 +192,18 @@ function OtherIncomeRow({ partition }: { partition: HomeIncomePartition }) {
 
   return (
     <>
-      <Tap
-        accessibilityRole="button"
-        accessibilityState={{ expanded }}
+      <DisclosureRow
+        icon={
+          <Layers size={16} strokeWidth={2} color={tokens.color['ink-faint']} />
+        }
+        title={t('home.incomeOther')}
+        subtitle={subtitle || null}
+        expanded={expanded}
+        onToggle={() => setExpanded((current) => !current)}
         accessibilityLabel={t('home.incomeOtherA11y', {
           count: partition.other.length,
         })}
-        onPress={() => setExpanded((current) => !current)}
-        className="flex-row items-center gap-3 py-2"
-      >
-        <View className="h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-line">
-          <Layers size={16} strokeWidth={2} color={tokens.color['ink-faint']} />
-        </View>
-        <View className="min-w-0 flex-1">
-          <Text className="text-[13px] text-ink">{t('home.incomeOther')}</Text>
-          {subtitle ? (
-            <Text
-              numberOfLines={1}
-              className="mt-0.5 font-mono text-[9.5px] text-ink-faint"
-            >
-              {subtitle}
-            </Text>
-          ) : null}
-        </View>
-        <Chevron size={14} strokeWidth={2} color={tokens.color['ink-faint']} />
-      </Tap>
+      />
       {expanded
         ? partition.other.map((row) => (
             <IncomeRow
@@ -208,50 +217,46 @@ function OtherIncomeRow({ partition }: { partition: HomeIncomePartition }) {
 }
 
 function BorrowingRiskSection({ risk }: { risk: HomeBorrowingRiskView }) {
-  const { languageCode } = useContentLanguage();
+  const { t } = useContentLanguage();
   const [expanded, setExpanded] = useState(false);
-  const copy = BORROWING_RISK_COPY[languageCode];
-  const Chevron = expanded ? ChevronDown : ChevronRight;
   const nearestBuffer = risk.nearestLiquidationBufferPct;
   const nearestLabel =
     nearestBuffer > 0 ? `−${formatPct(nearestBuffer)}` : formatPct(0);
+  const title = t('home.liquidationRiskTitle');
+  const toLiquidation = t('home.liquidationRiskToLiquidation');
+  const summary = t('home.liquidationRiskSummary', {
+    count: risk.positionCount,
+    debt: formatUsd(risk.totalDebtUsd),
+  });
 
   return (
     <View className="mt-3 border-t border-line pt-2">
-      <Tap
-        accessibilityRole="button"
-        accessibilityState={{ expanded }}
-        accessibilityLabel={`${copy.title}, ${nearestLabel} ${copy.toLiquidation}`}
-        onPress={() => setExpanded((current) => !current)}
-        className="flex-row items-center gap-3 py-2"
-      >
-        <View className="h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-line">
+      <DisclosureRow
+        icon={
           <ShieldAlert
             size={16}
             strokeWidth={2}
             color={tokens.color['ink-faint']}
           />
-        </View>
-        <View className="min-w-0 flex-1">
-          <Text className="text-[13px] text-ink">{copy.title}</Text>
-          <Text
-            numberOfLines={1}
-            className="mt-0.5 font-mono text-[9.5px] text-ink-faint"
-          >
-            {risk.positionCount} {copy.positions} · {formatUsd(risk.totalDebtUsd)}{' '}
-            {copy.debt}
-          </Text>
-        </View>
-        <View className="items-end">
-          <Text className="font-mono-semibold text-[12px] text-accent">
-            {nearestLabel}
-          </Text>
-          <Text className="mt-0.5 text-[9.5px] text-ink-faint">
-            {copy.toLiquidation}
-          </Text>
-        </View>
-        <Chevron size={14} strokeWidth={2} color={tokens.color['ink-faint']} />
-      </Tap>
+        }
+        title={title}
+        subtitle={summary}
+        trailing={
+          <View className="items-end">
+            <Text className="font-mono-semibold text-[12px] text-accent">
+              {nearestLabel}
+            </Text>
+            <Text className="mt-0.5 text-[9.5px] text-ink-faint">
+              {toLiquidation}
+            </Text>
+          </View>
+        }
+        expanded={expanded}
+        onToggle={() => setExpanded((current) => !current)}
+        accessibilityLabel={t('home.liquidationRiskA11y', {
+          buffer: nearestLabel,
+        })}
+      />
 
       {expanded ? (
         <View className="mt-1 border-t border-line/70 pt-1">
@@ -267,7 +272,13 @@ function BorrowingRiskSection({ risk }: { risk: HomeBorrowingRiskView }) {
               <View
                 key={`${position.protocol}:${position.chain}:${collateral}:${debt}:${index}`}
                 accessible
-                accessibilityLabel={`${position.protocol}, ${collateral} to ${debt}, ${bufferLabel} ${copy.toLiquidation}, HF ${position.healthRate.toFixed(2)}`}
+                accessibilityLabel={t('home.liquidationRiskPositionA11y', {
+                  protocol: position.protocol,
+                  collateral,
+                  debt,
+                  buffer: bufferLabel,
+                  healthRate: position.healthRate.toFixed(2),
+                })}
                 className="flex-row items-center gap-3 py-2"
               >
                 <ProtocolIcon protocol={position.protocol} size={30} />
@@ -294,7 +305,7 @@ function BorrowingRiskSection({ risk }: { risk: HomeBorrowingRiskView }) {
             );
           })}
           <Text className="mt-1 text-[9.5px] leading-[14px] text-ink-faint">
-            {copy.scenario}
+            {t('home.liquidationRiskScenario')}
           </Text>
         </View>
       ) : null}

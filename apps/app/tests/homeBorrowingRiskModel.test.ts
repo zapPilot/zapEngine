@@ -68,10 +68,9 @@ describe('buildHomeBorrowingRiskView', () => {
     expect(view?.totalDebtUsd).toBe(28_472);
     expect(view?.worstHealthRate).toBe(1.655);
     expect(view?.nearestLiquidationBufferPct).toBeCloseTo(39.58, 2);
-    expect(view?.positions.map((position) => position.collateralSymbols)).toEqual([
-      ['WBTC'],
-      ['wstETH'],
-    ]);
+    expect(
+      view?.positions.map((position) => position.collateralSymbols),
+    ).toEqual([['WBTC'], ['wstETH']]);
     expect(view?.positions.map((position) => position.debtSymbols)).toEqual([
       ['EURCV'],
       ['USDT'],

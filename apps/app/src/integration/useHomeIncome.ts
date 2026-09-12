@@ -6,12 +6,12 @@ import { useHomeBorrowingRisk } from '@/integration/useHomeBorrowingRisk';
 
 export function useHomeIncome(subjectUserId: string | null | undefined) {
   const query = useYieldSummary(subjectUserId ?? undefined);
-  const borrowingRiskQuery = useHomeBorrowingRisk(subjectUserId);
+  const { risk: borrowingRisk } = useHomeBorrowingRisk(subjectUserId);
   const income = useMemo(() => buildHomeIncomeView(query.data), [query.data]);
 
   return {
     income,
-    borrowingRisk: borrowingRiskQuery.risk,
+    borrowingRisk,
     isLoading: query.isLoading,
     isError: query.isError,
   };
