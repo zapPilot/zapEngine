@@ -9,13 +9,14 @@ export interface SentryEnv {
 
 export function initSentry(rawEnv: SentryEnv = process.env) {
   const dsn = trimToUndefined(rawEnv.SENTRY_CONTROL_CENTER_DSN);
-  if (!dsn) {
+  const environment = trimToUndefined(rawEnv.NODE_ENV);
+  if (!dsn || !environment) {
     return false;
   }
 
   Sentry.init({
     dsn,
-    environment: trimToUndefined(rawEnv.NODE_ENV),
+    environment,
     release: trimToUndefined(rawEnv.APP_COMMIT_SHA),
     sendDefaultPii: false,
     skipOpenTelemetrySetup: true,

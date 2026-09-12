@@ -1,6 +1,10 @@
 import { EPISODE_VIDEO_VISUAL_VERSION } from '@zapengine/types/shared';
 import { canRestartRender } from '../../podcast-retry-eligibility.js';
 
+export const OPERATOR_EXECUTOR = 'ops-operator-runner';
+export const OPERATOR_CATALOG_NOTE =
+  'This catalog describes unattended server runner actions. allowed:false means the runner does not execute the action; agents may deliver reviewed pull requests under the backlog or incident skill.';
+
 export interface RenderTarget {
   episodeId: string;
   localizationId: string;
@@ -37,6 +41,7 @@ export function renderAction(
   }
   return {
     kind: 'retry-render',
+    executor: OPERATOR_EXECUTOR,
     target: target.localizationId,
     tier: 1,
     policyVersion: 'ops-actions-v1',
@@ -64,6 +69,7 @@ export const manualActions = [
   { kind: 'destructive-or-investment', tier: 4 },
 ].map((action) => ({
   ...action,
+  executor: OPERATOR_EXECUTOR,
   allowed: false,
   target: 'explicit human-selected target',
   preconditions: ['explicit approval', 'exact target', 'verification plan'],
@@ -71,5 +77,7 @@ export const manualActions = [
   blastRadius: 'requires human assessment',
   requiredEvidence: ['root cause', 'tested repair'],
   verification: 'production recovery evidence',
-  blockers: ['Outside the automatic Tier 1 policy.'],
+  blockers: [
+    'Not executed by the ops-operator runner: outside its automatic Tier 1 policy. Deliver this change through a reviewed pull request instead.',
+  ],
 }));

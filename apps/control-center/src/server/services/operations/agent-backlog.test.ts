@@ -186,7 +186,7 @@ describe('agent backlog', () => {
       outOfScope: ['Do not redesign the page'],
     });
 
-    expect(created.issueNumber).toBe(451);
+    expect(created.item.issueNumber).toBe(451);
     const init = fetchImpl.mock.calls[0]?.[1] as RequestInit;
     const body = JSON.parse(String(init.body)) as {
       labels: string[];
@@ -318,7 +318,12 @@ describe('agent backlog', () => {
         outcome: 'released',
         reason: 'Returning this bounded task to the queue.',
       }),
-    ).resolves.toEqual({ released: true });
+    ).resolves.toEqual({
+      released: true,
+      outcome: 'released',
+      closed: false,
+      verification: null,
+    });
     expect(writes.some((url) => url.includes('/labels/status%3Aworking'))).toBe(
       true,
     );
@@ -386,5 +391,142 @@ describe('agent backlog', () => {
         reason: 'This issue was never claimed.',
       }),
     ).rejects.toThrow('not currently working');
+  });
+});
+
+describe('backlog producer and existing-fix contracts', () => {
+  const create = {
+    title: 'Bounded correction',
+    problem: 'A reproducible repository defect',
+    expectedOutcome: 'The named test succeeds',
+    acceptanceCriteria: ['pnpm test'],
+    effort: 's' as const,
+    fingerprint: 'triage:test:bounded',
+  };
+  it('deduplicates open fingerprints without a write', async () => {
+    const fetchImpl = githubRouter({
+      open: [
+        {
+          ...OPEN_READY,
+          body: '<!-- ops-fingerprint: triage:test:bounded -->',
+          labels: [...OPEN_READY.labels, 'effort:s'],
+        },
+      ],
+    });
+    const result = await createAgentBacklogService({
+      config: configured(),
+      fetchImpl,
+    }).createBacklogItem(create);
+    expect(result).toMatchObject({
+      created: false,
+      item: { effort: 's', fingerprint: create.fingerprint },
+    });
+    expect(
+      fetchImpl.mock.calls.every(([, init]) => init?.method === 'GET'),
+    ).toBe(true);
+  });
+  it('refuses deduplication against a truncated snapshot', async () => {
+    const fetchImpl = githubRouter({
+      open: Array.from({ length: 100 }, () => OPEN_READY),
+    });
+    await expect(
+      createAgentBacklogService({
+        config: configured(),
+        fetchImpl,
+      }).createBacklogItem(create),
+    ).rejects.toThrow('uniqueness');
+  });
+  it('writes the effort label and machine fingerprint', async () => {
+    const fetchImpl = githubRouter({
+      onWrite: (_url, init) => {
+        const body = JSON.parse(String(init.body)) as {
+          body: string;
+          labels: string[];
+        };
+        expect(body.labels).toContain('effort:s');
+        expect(body.body).toContain(
+          '<!-- ops-fingerprint: triage:test:bounded -->',
+        );
+        return json({ ...OPEN_READY, ...body });
+      },
+    });
+    expect(
+      await createAgentBacklogService({
+        config: configured(),
+        fetchImpl,
+      }).createBacklogItem(create),
+    ).toMatchObject({
+      created: true,
+      item: { fingerprint: create.fingerprint },
+    });
+  });
+  it.each(['diverged', 'ahead', 'unmerged', 'missing', '404'])(
+    'rejects unverifiable existing fix %s before all writes',
+    async (mode) => {
+      const writes: string[] = [];
+      const fetchImpl: typeof fetch = async (resource, init) => {
+        if (init?.method !== 'GET') {
+          writes.push(String(resource));
+        }
+        if (String(resource).includes('/compare/')) {
+          return json({ status: mode }, mode === '404' ? 404 : 200);
+        }
+        if (String(resource).includes('/pulls/')) {
+          return json({ merged: false, base: { ref: 'main' } });
+        }
+        return json(OPEN_WORKING);
+      };
+      await expect(
+        createAgentBacklogService({
+          config: configured(),
+          fetchImpl,
+        }).releaseClaim({
+          issueNumber: 452,
+          agentId: 'worker',
+          outcome: 'already-fixed',
+          reason: 'Existing fix was verified locally',
+          evidence:
+            mode === 'missing'
+              ? undefined
+              : mode === 'unmerged'
+                ? { prNumber: 502 }
+                : { commitSha: 'a'.repeat(40) },
+        }),
+      ).rejects.toThrow();
+      expect(writes).toEqual([]);
+    },
+  );
+  it('verifies ancestry then labels, closes and removes working before auditing', async () => {
+    const writes: string[] = [];
+    const fetchImpl: typeof fetch = async (resource, init) => {
+      const url = String(resource);
+      if (init?.method === 'GET') {
+        return json(
+          url.includes('/compare/') ? { status: 'behind' } : OPEN_WORKING,
+        );
+      }
+      writes.push(`${init?.method} ${new URL(url).pathname}`);
+      if (init?.method === 'PATCH') {
+        return json({ ...OPEN_WORKING, state: 'closed' });
+      }
+      return json(url.endsWith('/labels') ? [] : {});
+    };
+    const result = await createAgentBacklogService({
+      config: configured(),
+      fetchImpl,
+    }).releaseClaim({
+      issueNumber: 452,
+      agentId: 'worker',
+      outcome: 'already-fixed',
+      reason: 'Regression test passed on main',
+      evidence: { commitSha: 'a'.repeat(40) },
+    });
+    expect(result.closed).toBe(true);
+    expect(writes.map((v) => v.split(' ')[0])).toEqual([
+      'POST',
+      'PATCH',
+      'DELETE',
+      'POST',
+    ]);
   });
 });

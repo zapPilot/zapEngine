@@ -4,7 +4,7 @@ import {
   type OpsRuntimeRecord,
 } from '@zapengine/types/shared';
 import { correlateRuntimeRecords } from './correlation.js';
-import { renderAction } from './actions.js';
+import { manualActions, OPERATOR_EXECUTOR, renderAction } from './actions.js';
 import { verifyRecovery } from './verification.js';
 
 const episodeId = '11111111-1111-4111-8111-111111111111';
@@ -139,5 +139,16 @@ describe('deploy-aware verification', () => {
   it('blocks missing incident policy and missing required signals', () => {
     expect(verifyRecovery(evidence, []).verified).toBe(false);
     expect(verifyRecovery(evidence, ['sentry']).verified).toBe(false);
+  });
+});
+
+describe('operator executor catalog', () => {
+  it('identifies the runner without prohibiting reviewed pull requests', () => {
+    expect(renderAction(target, true).executor).toBe(OPERATOR_EXECUTOR);
+    for (const action of manualActions) {
+      expect(action.executor).toBe('ops-operator-runner');
+      expect(action.allowed).toBe(false);
+      expect(action.blockers.join(' ')).toContain('reviewed pull request');
+    }
   });
 });

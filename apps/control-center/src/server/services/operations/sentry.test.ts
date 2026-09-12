@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { readControlCenterConfig } from '../../config/env.js';
 import { expectUnconfigured, fetchReturning } from './adapter-testing.js';
@@ -17,6 +17,9 @@ const ISSUES_URL =
 
 function issue(overrides: Record<string, unknown> = {}) {
   return {
+    id: '1',
+    lastSeen: '2026-08-26T09:00:00Z',
+    userCount: 0,
     title: 'TypeError',
     culprit: 'app/routes/portfolio',
     permalink: 'https://sentry.io/issues/1/',
@@ -141,5 +144,72 @@ describe('collectSentrySignals', () => {
 
     expect(signals[0]?.fingerprint).toBe('sentry:source-failure/adapter');
     expect(signals[0]?.detail).toContain('unknown shape');
+  });
+});
+
+describe('stale unresolved Sentry signals', () => {
+  function router(active: unknown[], recent: unknown[], status = 200) {
+    return vi.fn(async (url: string | URL | Request) =>
+      String(url).includes('statsPeriod=30d')
+        ? new Response(JSON.stringify(recent), { status })
+        : new Response(JSON.stringify(active)),
+    ) as unknown as typeof fetch;
+  }
+  it('subtracts active IDs, groups projects and never grades stale history critical', async () => {
+    const recent = Array.from({ length: 18 }, (_, i) =>
+      issue({ id: String(i + 2) }),
+    );
+    const fetchImpl = router(
+      [issue()],
+      [
+        issue(),
+        ...recent,
+        issue({ id: 'native', project: { slug: 'native' }, userCount: 3 }),
+      ],
+    );
+    const signals = await collect(fetchImpl);
+    expect(fetchImpl).toHaveBeenCalledWith(
+      ISSUES_URL.replace('24h&limit=25', '30d&limit=100'),
+      expect.anything(),
+    );
+    expect(
+      signals.find(
+        (s) => s.fingerprint === 'sentry:stale-unresolved/account-engine',
+      ),
+    ).toMatchObject({
+      status: 'degraded',
+      evidence: {
+        staleIssueCount: 18,
+        affectedUsers: 0,
+        recentTruncated: false,
+      },
+    });
+    expect(
+      signals.find((s) => s.fingerprint === 'sentry:stale-unresolved/native')
+        ?.evidence['affectedUsers'],
+    ).toBe(3);
+    expect(signals[1]?.evidence).not.toHaveProperty('issueCount');
+  });
+  it('fails closed if only the 30d request fails', async () => {
+    const signals = await collect(router([], [], 403));
+    expect(signals.map((s) => s.fingerprint)).toEqual([
+      'sentry:source-failure/adapter',
+    ]);
+  });
+  it('bounds issue IDs and reports full-page truncation', async () => {
+    const signals = await collect(
+      router(
+        [],
+        Array.from({ length: 100 }, (_, i) => issue({ id: String(i) })),
+      ),
+    );
+    expect(signals[1]?.evidence).toMatchObject({
+      staleIssueCount: 100,
+      issueIdsTruncated: true,
+      recentTruncated: true,
+    });
+    expect(String(signals[1]?.evidence['issueIds']).split(',')).toHaveLength(
+      25,
+    );
   });
 });

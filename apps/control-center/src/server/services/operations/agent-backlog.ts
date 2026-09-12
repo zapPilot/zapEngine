@@ -4,6 +4,7 @@ import type {
   AgentBacklogClaimInput,
   AgentBacklogClaimResult,
   AgentBacklogCreateInput,
+  AgentBacklogCreateResult,
   AgentBacklogItem,
   AgentBacklogReleaseInput,
   AgentBacklogReleaseResult,
@@ -94,9 +95,29 @@ export function createAgentBacklogService(input: {
 
   async function createBacklogItem(
     value: AgentBacklogCreateInput,
-  ): Promise<AgentBacklogItem> {
+  ): Promise<AgentBacklogCreateResult> {
     const token = writeToken();
     const area = normalizeArea(value.area);
+    if (value.fingerprint) {
+      if (
+        !/^[^\r\n]{3,200}$/u.test(value.fingerprint) ||
+        value.fingerprint.includes('-->')
+      ) {
+        throw new Error('Invalid backlog fingerprint.');
+      }
+      const backlog = await cache.get(true);
+      if (backlog.status !== 'ok' || backlog.truncated) {
+        throw new Error(
+          'Cannot prove backlog fingerprint uniqueness: snapshot unavailable or truncated.',
+        );
+      }
+      const existing = backlog.items.find(
+        (item) => item.fingerprint === value.fingerprint,
+      );
+      if (existing) {
+        return { created: false, item: existing };
+      }
+    }
     const issue = await fetchJson({
       label: 'GitHub agent backlog issue create',
       url: `https://api.github.com/repos/${REPO}/issues`,
@@ -107,10 +128,14 @@ export function createAgentBacklogService(input: {
       body: {
         title: value.title.trim(),
         body: backlogBody(value),
-        labels: [...REQUIRED_LABELS, ...(area ? [`area:${area}`] : [])],
+        labels: [
+          ...REQUIRED_LABELS,
+          ...(area ? [`area:${area}`] : []),
+          ...(value.effort ? [`effort:${value.effort}`] : []),
+        ],
       },
     });
-    return projectIssue(issue);
+    return { created: true, item: projectIssue(issue) };
   }
 
   async function claimBacklog(
@@ -174,6 +199,21 @@ export function createAgentBacklogService(input: {
       throw new Error('Backlog issue is not currently working.');
     }
 
+    let verification: string | null = null;
+    if (value.outcome === 'already-fixed') {
+      verification = await verifyFixOnMain(token, value.evidence);
+      await addLabels(token, value.issueNumber, ['resolution:already-fixed']);
+      await fetchJson({
+        label: 'GitHub already-fixed issue close',
+        url: `https://api.github.com/repos/${REPO}/issues/${value.issueNumber}`,
+        token,
+        schema: issueSchema,
+        fetchImpl,
+        headers: GITHUB_HEADERS,
+        method: 'PATCH',
+        body: { state: 'closed', state_reason: 'completed' },
+      });
+    }
     if (value.outcome === 'blocked') {
       await addLabels(token, value.issueNumber, ['blocked']);
     }
@@ -182,11 +222,63 @@ export function createAgentBacklogService(input: {
       addComment(
         token,
         value.issueNumber,
-        `🤖 ${value.outcome === 'blocked' ? 'Blocked' : 'Released'} by \`${value.agentId}\`: ${value.reason.trim()}`,
+        `🤖 ${value.outcome} by \`${value.agentId}\`: ${value.reason.trim()}${verification ? ` Verification: ${verification}` : ''}`,
       ),
     );
 
-    return { released: true };
+    return {
+      released: true,
+      outcome: value.outcome,
+      closed: value.outcome === 'already-fixed',
+      verification,
+    };
+  }
+
+  async function verifyFixOnMain(
+    token: string,
+    evidence: AgentBacklogReleaseInput['evidence'],
+  ): Promise<string> {
+    if (!evidence?.commitSha && !evidence?.prNumber) {
+      throw new Error('already-fixed requires commit or PR evidence.');
+    }
+    const verified: string[] = [];
+    if (evidence.prNumber) {
+      const pr = await fetchJson({
+        label: 'GitHub existing fix PR verification',
+        url: `https://api.github.com/repos/${REPO}/pulls/${evidence.prNumber}`,
+        token,
+        schema: z.object({
+          merged: z.boolean(),
+          base: z.object({ ref: z.string() }),
+        }),
+        fetchImpl,
+        headers: GITHUB_HEADERS,
+      });
+      if (!pr.merged || pr.base.ref !== 'main') {
+        throw new Error('Fix PR must be merged into main.');
+      }
+      verified.push(`PR #${evidence.prNumber} merged into main`);
+    }
+    if (evidence.commitSha) {
+      if (!/^[a-f0-9]{7,40}$/iu.test(evidence.commitSha)) {
+        throw new Error('Invalid fix commit SHA.');
+      }
+      const comparison = await fetchJson({
+        label: 'GitHub existing fix ancestry verification',
+        url: `https://api.github.com/repos/${REPO}/compare/main...${evidence.commitSha}`,
+        token,
+        schema: z.object({ status: z.string() }),
+        fetchImpl,
+        headers: GITHUB_HEADERS,
+      });
+      if (!['identical', 'behind'].includes(comparison.status)) {
+        throw new Error(
+          'Supply the squash/merge commit on main, not a PR branch head.',
+        );
+      }
+      verified.push(`commit ${evidence.commitSha} is on main`);
+    }
+    return verified.join('; ');
   }
 
   function writeToken(): string {
@@ -350,6 +442,9 @@ function projectIssue(issue: z.infer<typeof issueSchema>): AgentBacklogItem {
     labels,
     area: labelValue(labels, 'area:'),
     risk: labelValue(labels, 'risk:'),
+    effort: labelValue(labels, 'effort:'),
+    fingerprint:
+      issue.body?.match(/<!-- ops-fingerprint: ([^\r\n]+?) -->/u)?.[1] ?? null,
     status: labels.includes('blocked')
       ? 'blocked'
       : labels.includes(WORKING_LABEL)
@@ -388,7 +483,12 @@ function backlogBody(value: AgentBacklogCreateInput): string {
     listSection('Relevant files / area', value.relevantFiles ?? []),
     listSection('Out of scope', value.outOfScope ?? []),
   ].filter(Boolean);
-  return sections.join('\n\n');
+  return [
+    ...sections,
+    ...(value.fingerprint
+      ? [`<!-- ops-fingerprint: ${value.fingerprint} -->`]
+      : []),
+  ].join('\n\n');
 }
 
 function section(title: string, body: string): string {

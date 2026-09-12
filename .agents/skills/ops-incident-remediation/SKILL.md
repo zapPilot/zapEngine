@@ -31,7 +31,10 @@ Start broad, then narrow:
 3. Use `ops_inspect_signal` only when provider-specific evidence is needed. For
    Sentry, use it to obtain the numeric issue ID and recent event evidence.
 4. Treat provider state `unknown` as unknown, never healthy.
-5. Use `force: true` only when fresh provider reads are needed after a fix,
+5. Before reporting no Sentry work, inspect all 30d unresolved pages with explicit
+   start/end and nextCursor. A healthy 24h signal only means no recent activity;
+   stale-unresolved signals are candidates for classification, never proof of repair.
+6. Use `force: true` only when fresh provider reads are needed after a fix,
    deploy, or during active triage.
 
 ## Classify unresolved Sentry issues
@@ -73,38 +76,25 @@ or explicitly delegated Sentry cleanup. Without delegation, treat `resolvable`
 as ready but do not call `ops_resolve_sentry_issue`; report it instead. Pure
 `inspect production health` never auto-resolves.
 
-### Which rail to resolve on
+### Resolution rail
 
-`ops_resolve_sentry_issue` has two rails (`apps/control-center/MCP.md`, "Two
-resolution rails"). Pick by what actually authorizes the close:
-
-- The gate above passed on production evidence — omit `delegatedBy`.
-- A person in this conversation told you to close it, and there is no deployed
-  fix to verify because the issue is dead history (its cause was abandoned,
-  removed, or fixed long ago) — set `delegatedBy` to who asked.
-
-Only ever set `delegatedBy` when a person actually asked, in this conversation,
-and name them. It writes a human decision into the audit trail; setting it on
-your own initiative forges one. The 24-hour quiet check still applies and is
-enforced against Sentry, so an issue that is still firing cannot be closed on
-either rail.
+Use production verification, or explicit human delegation for dead history.
+Both require the server quiet gate; see [REFERENCE.md](REFERENCE.md).
 
 ## Clean up completed incidents
 
-Only when the resolve gate passes **and** the delegation gate passes, resolve
-the inspected issues before starting a new repair. Use
-`ops_resolve_sentry_issue` one issue at a time and include a concise
-evidence-based reason containing, when available:
+Resolve inspected issues one at a time only after verification and delegation
+pass. Include fix PR/commit, deployed runtime, regression check and post-deploy
+observation evidence. Never hide diagnostics still producing events unless an
+explicit verified policy says that exact event is no longer an issue.
 
-- fix commit or PR;
-- production deploy/release identity or timestamp;
-- regression verification;
-- post-deploy observation evidence.
+## Recent main failures
 
-Do not use Sentry resolution to hide expected-but-still-active diagnostics. If
-an alert is still producing events, leave it open unless the repository has an
-explicitly verified policy saying that exact event should no longer be treated
-as an issue.
+Inspect recent-failure signals for jobs/steps/logs and commitsSinceFailure;
+`gh run view --log-failed` is also repository evidence, not production verification.
+Zero commits after failure means failed main HEAD: ci.yml goes to CI repair.
+Later commits plus a later green run mean recovery; later commits alone remain
+unverified. Manual release workflows require an operator issue, never redispatch.
 
 ## Choose at most one new repair
 
@@ -112,68 +102,35 @@ After cleanup, rank remaining incidents by impact, confidence, simplicity, and
 blast radius. Repair exactly one new incident only when the root cause and safe
 change are both high confidence.
 
+`operator.actions[].allowed:false` describes the server runner, not permission
+to deliver a reviewed PR through this skill.
+
 Read the `remediation` block on the `ops_investigate` packet first. Any
 `remediation.blockers` entry means defer and report; `no-inspector` coverage
 forbids calling the incident production-verified; non-zero AUM in
 `remediation.exposure` or `customerImpact` is report-only.
 
-Good autonomous candidates include:
-
-- deterministic invalid/null input handling;
-- localized guards around an external call;
-- stale config, path, or environment mapping with clear repository evidence;
-- obvious exception handling bugs;
-- a small invariant violation with a direct regression test.
-
-Do not autonomously undertake:
-
-- architecture refactors;
-- database or data migrations;
-- authentication, authorization, or secret-boundary changes;
-- wallet, transaction, investment, or portfolio semantic changes;
-- broad retry, timeout, concurrency, or scheduling policy changes;
-- threshold weakening or alert suppression;
-- changes whose correctness depends on an unresolved product decision.
+Candidates: deterministic invalid/null guards, bounded external-call handling,
+verified stale paths/config, or local invariant failures with regression tests.
+Never undertake architecture, data/schema migrations, auth/secret boundaries,
+wallet/investment/portfolio semantics, broad retry/timeout/concurrency/scheduling
+policy, threshold weakening, alert suppression or unresolved product decisions.
 
 If no issue meets the bar, make no code change. Report the best candidates and
 why each was deferred.
 
-## Unreachable failures are not a backlog
+## Unreachable failures
 
-Some rows are failures no operator action can reach. Repeatedly deferring them
-one at a time is the wrong answer: fix the surface that reports them, or leave
-them alone entirely.
-
-A **podcast render failure on a superseded `EPISODE_VIDEO_VISUAL_VERSION`**, or
-on an episode with `abandoned_at` set, can never be requeued — both retry RPCs
-refuse it. Reviving one means `retry_episode_video_generation(p_force_replan =>
-true)`, which re-runs the storyboard, subject catalog and full Brave budget: a
-per-episode spend decision that belongs to a human, never to queue-clearing. Do
-not propose a "bounded retry" for these, and do not read a pile of them as an
-incident backlog. `apps/control-center/MCP.md` ("What never becomes a signal")
-holds the fence.
-
-**Inactive priority accounts** (`customer-economics:waste/*`) are a pricing
-question, not a defect, and are deliberately no longer emitted as a signal. If
-one reappears, the bug is the emitter.
-
-More generally: when a signal cannot be cleared by any action available to
-anybody, the defect is that it was reported as an incident. Say so, and fix it
-there — one such fix counts as this run's repair.
+Superseded/abandoned renders and inactive priority accounts are not backlog.
+See [REFERENCE.md](REFERENCE.md) for the producer fence and resolution rails.
 
 ## Fix workflow
 
-For the single selected incident:
-
-1. Read the relevant implementation, tests, scoped instructions, and recent
-   history needed to establish the root cause.
-2. Make the smallest change that fixes the underlying behavior rather than
-   silencing the error.
-3. Add or update a regression test that reproduces the failure where practical.
-4. Run the narrowest repo-native checks listed under **Verification** below.
-5. Re-inspect with `force: true` only after deploy/release when fresh evidence is useful.
-6. Do not resolve just because tests pass or the fix is merged. Keep
-   `fixed_pending_deploy`/`deployed_observing` until the resolve gate passes.
+For the single selected incident, read scoped rules, implementation and history;
+fix the root cause with a regression test and run Verification below. Re-inspect
+with force only after deployment when fresh evidence is useful. Tests or merge
+do not authorize resolution: retain fixed_pending_deploy/deployed_observing until
+the resolve gate passes.
 
 Follow root `AGENTS.md` for working-tree, history, PR, and preservation rules.
 
@@ -204,11 +161,13 @@ CI: `quick-gates` = `format repo contracts`; `code-quality` =
 | "The provider is unknown, so there is nothing wrong."  | Unknown is not healthy.                                                                         |
 | "No evidence gaps came back, so evidence is complete." | `no-inspector` means nothing was gathered; only `inspected` is evidence.                        |
 | "The resolve gate is met, so resolve everything."      | Also require explicit user delegation; otherwise report ready but unresolved.                   |
-| "Twenty failed renders each need one bounded retry."   | Check visual version and `abandoned_at` first; unreachable rows are an emitter bug, not work.    |
+| "Twenty failed renders each need one bounded retry."   | Check visual version and `abandoned_at` first; unreachable rows are an emitter bug, not work.   |
 
 ## Completion report
 
-End each run with a compact operational summary grouped as applicable:
+Start with Coverage: Sentry unresolved N over 30d (pages and projects), recent
+main failures M, backlog ready/working/blocked and unknown providers.
+Then give a compact operational summary grouped as applicable:
 
 - **Resolved** — issue ID, evidence for the resolve gate.
 - **Fixed pending deploy** — fix commit/PR and the production runtime still

@@ -138,3 +138,9 @@ describe('Sentry inspection pages', () => {
     expect(result.gaps[0]?.reason).toContain('403');
   });
 });
+
+it('defaults stale inspection to 30d', async () => {
+  const fetchImpl = vi.fn<typeof fetch>(async () => new Response('[]'));
+  await inspect(fetchImpl, undefined, 'sentry:stale-unresolved/organization');
+  expect(String(fetchImpl.mock.calls[0]?.[0])).toContain('statsPeriod=30d');
+});

@@ -38,8 +38,8 @@ The remote deployment receives the same provider credentials through the Control
 2. For a priority incident, call `ops_investigate` with the stable signal fingerprint. This is the normal bounded incident packet and may use `force: true` when an operator explicitly needs fresh provider reads. Read its `correlation` block to traverse repository-backed service relationships and its `remediation` block before proposing any fix.
 3. Call `ops_inspect_signal` only when extra provider-specific evidence is needed. For Sentry it returns the internal numeric issue IDs needed for remediation.
 4. Use `ops_domain`, `ops_signal`, `ops_customers`, `ops_social`, or the `ops_costs` compatibility alias for narrower operational reads.
-5. For safe background engineering capacity, call `ops_backlog_claim`. It picks the oldest ready issue, optionally restricted by `area:*`, and marks it `status:working`. If the task is unsuitable, use `ops_backlog_release` with `released` or `blocked` plus a reason. There is no lease, TTL, or renew protocol.
-6. Strong agents may use `ops_backlog_create` to preserve bounded low-risk follow-up work found during a larger investigation instead of expanding the current PR scope.
+5. For safe background engineering capacity, use a stable harness/hostname agentId and check for existing PRs before coding. Call `ops_backlog_claim`. It picks the oldest ready issue, optionally restricted by `area:*`, and marks it `status:working`. If the task is unsuitable, use `ops_backlog_release` with `released` or `blocked` plus a reason. There is no lease, TTL, or renew protocol.
+6. `/ops-backlog-triage` is the manual strong-model producer. Strong agents may use `ops_backlog_create` to preserve bounded low-risk follow-up work found during a larger investigation instead of expanding the current PR scope.
 7. Use `ops_resolve_sentry_issue` only when the user explicitly asks to close/resolve that issue or explicitly delegates Sentry cleanup after the fix has been verified.
 
 ## Agent backlog
@@ -55,9 +55,9 @@ Backlog state is deliberately small and label-only:
 
 `ops_backlog_claim` reads the current GitHub backlog, selects the oldest eligible ready issue, and adds `status:working`. `ops_backlog_release` re-reads the issue first, refuses anything outside `agent-backlog` or not currently working, then either removes `status:working` or adds `blocked` before removing it. Claim/release comments are audit convenience only; the labels are authoritative.
 
-This intentionally does **not** implement distributed locking. Two agents claiming at nearly the same instant can theoretically observe the same ready issue before GitHub applies the first label. That trade-off is accepted for the small number of background agents this repository runs. The worker skill therefore checks for an already-open PR referencing the issue before writing code, and stops without releasing when one exists. If concurrency ever becomes material, add a stronger claim primitive then rather than maintaining a database scheduler pre-emptively.
+This intentionally does **not** implement distributed locking. Two agents claiming at nearly the same instant can theoretically observe the same ready issue before GitHub applies the first label. That trade-off is accepted for the small number of background agents this repository runs. The worker skill therefore checks for an already-open PR referencing the issue before writing code, and releases blocked with that PR as evidence when one exists. If concurrency ever becomes material, add a stronger claim primitive then rather than maintaining a database scheduler pre-emptively.
 
-There is deliberately no `ops_backlog_complete` tool. The implementation PR should use `Fixes #<issue>` and GitHub closes the issue on merge. This prevents an agent from declaring work complete merely because its local attempt ended.
+There is deliberately no `ops_backlog_complete` tool. The implementation PR should use `Fixes #<issue>` and GitHub closes the issue on merge. The sole exception is `ops_backlog_release outcome: already-fixed` with commitSha and/or prNumber evidence: the server checks main ancestry (`identical`/`behind`) or a merged main PR before adding resolution:already-fixed, closing, then removing status:working. Run acceptance on main first. This is repository completion, not production verification. The public repository permits read-only compare/PR access with the Issues token; a private repository would also need Contents and Pull requests read permissions.
 
 `ops_backlog_create` is not a generic GitHub Issues API. The repository and low-risk labels are server-owned, callers cannot select another repository, and mutations require the dedicated `OPS_GITHUB_BACKLOG_TOKEN`. Backlog membership grants no production, deployment, schema, auth, financial, or incident-remediation authority.
 
@@ -187,6 +187,11 @@ issue, which may fall outside the requested historical period.
 
 ## Operator lifecycle and runtime evidence
 
+`operator.actions[].allowed` describes the `ops-operator-runner` automatic
+execution catalog. `allowed:false` means that server runner does not execute
+the action; agents may still deliver reviewed pull requests under the backlog
+or incident skill. Both available and unavailable contexts include this note.
+
 `ops_investigate` includes `runtimeCorrelation` (producer-attested records,
 namespaced exact-ID edges, explicit gaps) and `operator` (durable history and
 action catalog). Service topology remains context, not a runtime causal edge.
@@ -210,3 +215,43 @@ an uncertain resolve is not automatically repeated.
 
 See [operator runbook](./OPERATOR.md) for local commands, deployment prerequisites,
 policy defaults, audit storage and acceptance evidence.
+
+## Sentry windows and recent main failures
+
+`sentry:issues/*` retains its 24h semantics. `sentry:stale-unresolved/*` reports
+30d unresolved IDs absent from the 24h result, grouped by project, always degraded.
+Both provider reads must succeed. The 30d snapshot is bounded to 100 issues;
+recentTruncated and issueIdsTruncated identify incomplete evidence. Follow inspector
+pages for actual totals. Stale count is not issueCount priority boost; affectedUsers
+still raises exposed-user priority. Absence from a bounded active page does not
+prove quiet time and never authorizes resolution. The inspector defaults stale to
+30d and issues to 24h; explicit start/end overrides both.
+
+GitHub workflow inspection selects scheduled runs; recent-failure selects main
+runs. Both expose failed jobs, steps, redacted log excerpts and a bounded main
+comparison after the failed SHA. commitsSinceFailure does not claim those commits
+fixed the failure. Compare failure returns unavailable without hiding job evidence.
+
+## Producer and worker audit contract
+
+`/ops-backlog-triage` is the normal manual producer. `ops_backlog_create` accepts
+optional effort (xs/s/m) and fingerprint, returning `{ created, item }`. Effort is
+projected from effort:\* labels; fingerprint from the server-written HTML comment.
+A fingerprint forces a fresh open-backlog read; unavailable or truncated snapshots
+fail closed. Matching open issues return created:false without creating an issue.
+Run producers sequentially: GitHub labels do not provide distributed transactions.
+Use closed-within-14d and wontfix searches as the additional recurrence fence.
+
+Each producer/worker run comments on the single pinned triage-log issue. Workers
+use a stable harness/hostname agentId, claim through MCP, and inspect open PRs
+before coding. New work closes via Fixes references; already-fixed is the verified
+exception above. See [the loop runbook](../../docs/operations/autonomous-engineering-loop.md).
+
+Additional local verification:
+
+9. `node scripts/agents/backlog-pr-merge-check.mjs 499` must deny an already merged
+   or unmarked PR and print reasons; run its node:test suite through contracts.
+10. In an explicitly authorized isolated worker session, use a disposable issue
+    with local acceptance; verify claim, marked PR, allowed merge or reasoned deny,
+    triage-log comment and no orphan working claim. This is a live integration
+    exercise; unit tests alone do not establish harness configuration.
