@@ -5,10 +5,8 @@ export default defineKnipConfig({
     'examples/basic-usage.ts',
     'examples/gmx-v2-btc-btc-verify.ts',
     'examples/hyperliquid-hlp-verify.ts',
-    'src/protocols/hyperliquid/index.ts',
   ],
   project: ['src/**/*.ts', 'test/**/*.ts', 'examples/**/*.ts'],
-  ignoreDependencies: ['@zapengine/types'],
   vitest: {
     entry: ['test/**/*.{test,spec}.ts'],
   },

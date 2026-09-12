@@ -40,5 +40,6 @@ export interface OpsMcpOperations {
   resolveSentryIssue(
     issueId: string,
     reason: string,
+    delegatedBy?: string,
   ): Promise<SentryResolutionResult>;
 }

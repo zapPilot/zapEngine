@@ -14,16 +14,9 @@ export default defineKnipConfig({
     // Also preloaded by the app process to run durable completion retries.
     'src/services/video-completion-notifier-autostart.ts',
   ],
-  ignoreDependencies: [
-    // Pre-existing: loaded via CSS @import; knip only resolves JS imports
-    '@zapengine/design-tokens',
-    // Imported only through the `./shared` subpath, which knip cannot trace
-    // back from the package's `exports` map to source. Same reason it is listed
-    // in apps/control-center and apps/account-engine.
-    '@zapengine/types',
-  ],
-  vitest: {
-    config: ['vitest.config.ts'],
-    entry: ['src/**/*.test.ts', 'tests/**/*.test.ts'],
-  },
+  // Consumed only through the `/tokens` subpath in
+  // src/services/video/templates.tsx. That subpath resolves into the package's
+  // dist output, so knip never credits the direct dependency.
+  ignoreDependencies: ['@zapengine/design-tokens'],
+  vitest: { config: ['vitest.config.ts'] },
 });

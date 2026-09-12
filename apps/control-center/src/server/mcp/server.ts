@@ -268,11 +268,23 @@ export function createOpsMcpServer(operations: OpsMcpOperations): McpServer {
           .min(8)
           .max(500)
           .describe('Why it is appropriate to resolve this issue now.'),
+        delegatedBy: z
+          .string()
+          .trim()
+          .min(2)
+          .max(120)
+          .optional()
+          .describe(
+            'Set ONLY when a person in this conversation told you to close this issue, to who they are. ' +
+              'It selects the operator-delegated rail, which records the decision as a human judgement ' +
+              'rather than a production-verified fix, and still refuses any issue that fired in the last ' +
+              '24 hours. Omit it to use the verified-fix rail.',
+          ),
       }),
       annotations: REMEDIATION_ANNOTATIONS,
     },
-    async ({ issueId, reason }) =>
-      result(await operations.resolveSentryIssue(issueId, reason)),
+    async ({ issueId, reason, delegatedBy }) =>
+      result(await operations.resolveSentryIssue(issueId, reason, delegatedBy)),
   );
 
   return server;

@@ -16,11 +16,3 @@ export function renderSentence(
     ),
   );
 }
-
-export function toneColor(tone: 'good' | 'bad' | 'neutral'): string {
-  return tone === 'good'
-    ? 'var(--success)'
-    : tone === 'bad'
-      ? 'var(--error)'
-      : 'var(--ink-dim)';
-}

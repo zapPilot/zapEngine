@@ -9,7 +9,9 @@ const children = commands.map(([command, args]) =>
 );
 
 function stop(signal) {
-  for (const child of children) child.kill(signal);
+  for (const child of children) {
+    child.kill(signal);
+  }
 }
 
 process.on('SIGINT', () => stop('SIGINT'));

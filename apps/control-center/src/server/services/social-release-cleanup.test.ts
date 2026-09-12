@@ -36,7 +36,9 @@ function client(
   return {
     from: vi.fn((table: string) => {
       const result = tables[table];
-      if (!result) throw new Error(`unexpected read of ${table}`);
+      if (!result) {
+        throw new Error(`unexpected read of ${table}`);
+      }
       return chain(result);
     }),
     rpc,

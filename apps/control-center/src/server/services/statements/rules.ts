@@ -8,9 +8,8 @@ import {
   signedCount,
   signedPercent,
 } from './format.js';
-import type { RuleFinding, RuleTone, StatementInputs } from './types.js';
+import type { RuleFinding, StatementInputs } from './types.js';
 import { isRecordedBillSource } from '../../../shared/types.js';
-import type { MetricSeries } from '../metric-snapshots.js';
 
 function empty(id: string): RuleFinding {
   return {
@@ -32,51 +31,6 @@ function numericEvidence(value: unknown): number | null {
 function sumKnown(values: Array<number | null>): number | null {
   const known = values.filter((value): value is number => value !== null);
   return known.length ? known.reduce((sum, value) => sum + value, 0) : null;
-}
-
-/** Sums several metric keys' series pointwise from the most recent date back. */
-function sumSeries(
-  metricSeries: Map<string, MetricSeries>,
-  keys: readonly string[],
-): { series: number[]; delta7d: number | null } {
-  const entries = keys
-    .map((key) => metricSeries.get(key))
-    .filter((entry): entry is MetricSeries => Boolean(entry?.series.length));
-  if (entries.length === 0) {
-    return { series: [], delta7d: null };
-  }
-  const shortest = Math.min(...entries.map((entry) => entry.series.length));
-  const series = Array.from({ length: shortest }, (_, indexFromEnd) => {
-    const index = shortest - 1 - indexFromEnd;
-    return entries.reduce(
-      (sum, entry) =>
-        sum + (entry.series[entry.series.length - 1 - index] ?? 0),
-      0,
-    );
-  }).reverse();
-  const delta7d = entries.every((entry) => entry.delta7d !== null)
-    ? entries.reduce((sum, entry) => sum + (entry.delta7d ?? 0), 0)
-    : null;
-  return { series, delta7d };
-}
-
-function deltaCaption(
-  delta7d: number | null,
-  rowCount: number,
-  tone: (delta: number) => RuleTone,
-  digits = 0,
-): { delta: string; deltaTone: RuleTone } {
-  if (delta7d === null) {
-    return {
-      delta: `collecting (${Math.min(rowCount, 7)}/7)`,
-      deltaTone: 'neutral',
-    };
-  }
-  const sign = delta7d > 0 ? '+' : delta7d < 0 ? '' : '±';
-  return {
-    delta: `${sign}${delta7d.toFixed(digits)} · 7d`,
-    deltaTone: tone(delta7d),
-  };
 }
 
 const PLATFORM_LABELS: Record<string, string> = {
@@ -581,7 +535,12 @@ export function ruleR8(input: StatementInputs): RuleFinding {
   return finding;
 }
 
-/** R9 — top-wallet AUM concentration. */
+/**
+ * R9 — top-wallet AUM concentration.
+ *
+ * @unwired build.ts composes R1-R8 and R10 only; this rule has never been
+ * called. Kept because it is unfinished wiring, not dead code.
+ */
 export function ruleR9(input: StatementInputs): RuleFinding {
   const { product } = input;
   const finding = empty('R9');
@@ -707,7 +666,12 @@ export function ruleR10(input: StatementInputs): RuleFinding {
   return finding;
 }
 
-/** R11 — overdue publish jobs. */
+/**
+ * R11 — overdue publish jobs.
+ *
+ * @unwired build.ts composes R1-R8 and R10 only; this rule has never been
+ * called. Kept because it is unfinished wiring, not dead code.
+ */
 export function ruleR11(input: StatementInputs): RuleFinding {
   const { operationsSocial } = input;
   const finding = empty('R11');
@@ -747,6 +711,12 @@ export interface StaleSource {
   ttlHours: number;
 }
 
+/**
+ * R12 — source staleness vs its own TTL.
+ *
+ * @unwired build.ts composes R1-R8 and R10 only; this rule has never been
+ * called. Kept because it is unfinished wiring, not dead code.
+ */
 export function ruleR12(staleSources: readonly StaleSource[]): RuleFinding {
   const finding = empty('R12');
   const stale = staleSources.filter(
@@ -777,4 +747,4 @@ export function combineSegments(
   );
 }
 
-export { deltaCaption, numericEvidence, sumKnown, sumSeries };
+export { numericEvidence, sumKnown };

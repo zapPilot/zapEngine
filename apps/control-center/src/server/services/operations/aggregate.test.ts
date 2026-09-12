@@ -218,3 +218,47 @@ it('blocks Sentry writes without durable verification and authorization', async 
     'not configured',
   );
 });
+
+describe('operator-delegated resolution', () => {
+  const delegatedConfig = readControlCenterConfig({
+    SENTRY_OPS_WRITE_TOKEN: 'token',
+    SENTRY_ORG_SLUG: 'zap-pilot',
+  });
+
+  function serviceReading(lastSeen: string) {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({ id: '42', status: 'unresolved', lastSeen }),
+            { headers: { 'content-type': 'application/json' } },
+          ),
+      ),
+    );
+    return createOperationsService({
+      config: delegatedConfig,
+      adapters: adapters(),
+    });
+  }
+
+  it('refuses to close an issue that is still firing', async () => {
+    const service = serviceReading(new Date(Date.now() - 60_000).toISOString());
+
+    await expect(
+      service.resolveSentryIssue('42', 'dead history', 'taii'),
+    ).rejects.toThrow('requires 24 hours without an event');
+  });
+
+  it('reaches the delegated rail once the issue has gone quiet', async () => {
+    const service = serviceReading(
+      new Date(Date.now() - 72 * 3_600_000).toISOString(),
+    );
+
+    // Persistence is unconfigured here, so getting as far as the claim is what
+    // proves the quiet gate passed and the delegated rail was selected.
+    await expect(
+      service.resolveSentryIssue('42', 'dead history', 'taii'),
+    ).rejects.toThrow('Operator persistence is not configured');
+  });
+});

@@ -39,12 +39,6 @@ export function unavailableInspection(
   ]);
 }
 
-export function notFoundInspection(
-  input: InspectionResultInput,
-): SignalInspection {
-  return baseInspection(input, 'not-found', []);
-}
-
 function baseInspection(
   input: InspectionResultInput,
   status: SignalInspection['status'],

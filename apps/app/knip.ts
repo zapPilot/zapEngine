@@ -34,9 +34,6 @@ export default defineKnipConfig(
       '@zapengine/app-core',
       '@zapengine/brand-assets',
       '@zapengine/design-tokens',
-      // Not imported directly, but app-core's public .d.ts surface references it
-      // and pnpm's strict node_modules needs it declared to resolve.
-      '@zapengine/types',
       // Knip's Expo plugin treats these optional defaults as required whenever
       // updates and automatic UI style are enabled, even when they are not
       // installed in the application.

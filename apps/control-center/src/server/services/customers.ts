@@ -192,36 +192,12 @@ export function deriveCustomerSignals(
     ];
   }
 
-  return [wasteSignal(response, now), freshnessSignal(response, now)];
-}
-
-function wasteSignal(
-  response: CustomerEconomicsResponse,
-  now: Date,
-): OperationalSignal {
-  const wasted = response.users.filter(isInactivePriority);
-  const cost = sumRounded(wasted.map((user) => user.attributedCostUsd30d));
-  return buildSignal({
-    source: 'customer-economics',
-    domain: 'customers',
-    kind: 'waste',
-    key: 'inactive-priority',
-    status: wasted.length > 0 ? 'degraded' : 'healthy',
-    title:
-      wasted.length > 0
-        ? `${wasted.length} priority accounts inactive for ${INACTIVE_WINDOW_DAYS}+ days`
-        : 'Every priority account is active',
-    detail:
-      wasted.length > 0
-        ? 'Refreshed daily at full cost while nobody is looking at the result'
-        : null,
-    evidence: {
-      affectedUsers: wasted.length,
-      estimatedMonthlyCostUsd: cost,
-      priorityUsers: response.summary.priorityUsers,
-    },
-    observedAt: now,
-  });
+  // Inactive priority accounts are deliberately not a signal. Refreshing them
+  // costs a couple of dollars a month and stopping it is a pricing decision
+  // nobody has asked for, so reporting it as `degraded` only ever produced
+  // triage work that ended in "leave it alone". The count stays on the
+  // Customers view as `inactiveButPriority`.
+  return [freshnessSignal(response, now)];
 }
 
 function freshnessSignal(

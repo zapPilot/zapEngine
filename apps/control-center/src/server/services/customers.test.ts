@@ -347,16 +347,15 @@ describe('deriveCustomerSignals', () => {
     );
   });
 
-  it('flags inactive priority accounts and stale high-AUM portfolios', async () => {
+  it('flags stale high-AUM portfolios and never reports inactive accounts', async () => {
     const signals = deriveCustomerSignals(await loadHappyPath(), NOW);
-    const [wasteSignal, freshness] = signals;
+    const [freshness] = signals;
 
-    expect(wasteSignal?.fingerprint).toBe(
-      'customer-economics:waste/inactive-priority',
-    );
-    expect(wasteSignal?.status).toBe('degraded');
-    expect(wasteSignal?.evidence['affectedUsers']).toBe(1);
-    expect(wasteSignal?.evidence['estimatedMonthlyCostUsd']).toBe(10);
+    // An inactive priority account is a pricing question, not an incident.
+    expect(signals).toHaveLength(1);
+    expect(
+      signals.some((signal) => signal.fingerprint.includes('waste/')),
+    ).toBe(false);
 
     expect(freshness?.fingerprint).toBe(
       'customer-economics:freshness/priority-portfolios',
@@ -371,10 +370,7 @@ describe('deriveCustomerSignals', () => {
     const response = await loadRows([stateRow({})]);
 
     const signals = deriveCustomerSignals(response, NOW);
-    expect(signals.map((signal) => signal.status)).toEqual([
-      'healthy',
-      'healthy',
-    ]);
+    expect(signals.map((signal) => signal.status)).toEqual(['healthy']);
   });
 
   it('degrades rather than escalates when the stale AUM is small', async () => {
@@ -385,7 +381,7 @@ describe('deriveCustomerSignals', () => {
       }),
     ]);
 
-    const [, freshness] = deriveCustomerSignals(response, NOW);
+    const [freshness] = deriveCustomerSignals(response, NOW);
     expect(freshness?.status).toBe('degraded');
     expect(freshness?.evidence['staleHours']).toBeCloseTo(100, 5);
   });
@@ -395,7 +391,7 @@ describe('deriveCustomerSignals', () => {
       stateRow({ last_portfolio_update_at: null, aum_usd: 500 }),
     ]);
 
-    const [, freshness] = deriveCustomerSignals(response, NOW);
+    const [freshness] = deriveCustomerSignals(response, NOW);
     // No reading is not a small age, and the version that compared ages alone
     // reported this account as healthy.
     expect(freshness?.status).toBe('degraded');
@@ -417,7 +413,7 @@ describe('deriveCustomerSignals', () => {
     expect(user?.portfolioStaleHours).toBe(1);
     expect(user?.portfolioWorstStaleHours).toBeCloseTo(100, 5);
 
-    const [, freshness] = deriveCustomerSignals(response, NOW);
+    const [freshness] = deriveCustomerSignals(response, NOW);
     expect(freshness?.status).toBe('critical');
     expect(freshness?.evidence['aumAtRiskUsd']).toBe(50_000);
   });
@@ -431,7 +427,7 @@ describe('deriveCustomerSignals', () => {
       }),
     ]);
 
-    const [, freshness] = deriveCustomerSignals(response, NOW);
+    const [freshness] = deriveCustomerSignals(response, NOW);
     expect(freshness?.status).toBe('healthy');
     expect(response.users[0]?.neverRefreshedWallets).toBe(0);
   });
@@ -447,7 +443,7 @@ describe('deriveCustomerSignals', () => {
       }),
     ]);
 
-    const [, freshness] = deriveCustomerSignals(response, NOW);
+    const [freshness] = deriveCustomerSignals(response, NOW);
     expect(response.users[0]?.neverRefreshedWallets).toBe(1);
     expect(freshness?.status).toBe('degraded');
   });
@@ -463,7 +459,7 @@ describe('deriveCustomerSignals', () => {
       }),
     ]);
 
-    const [, freshness] = deriveCustomerSignals(response, NOW);
+    const [freshness] = deriveCustomerSignals(response, NOW);
     expect(response.users[0]?.portfolioWorstStaleHours).toBe(2);
     expect(freshness?.status).toBe('healthy');
   });

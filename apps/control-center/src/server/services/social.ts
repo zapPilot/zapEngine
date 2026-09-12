@@ -115,7 +115,9 @@ export async function loadSocialPerformance(input: {
           .eq('active', true),
       ]);
     const error = postResult.error ?? metricResult.error ?? accountResult.error;
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
 
     const posts = (postResult.data ?? []) as SocialPostRow[];
     const metrics = (metricResult.data ?? []) as SocialMetricRow[];
@@ -160,7 +162,9 @@ function latestAccounts(rows: AccountRow[]) {
   const seen = new Set<string>();
   return rows
     .filter((row) => {
-      if (seen.has(row.platform)) return false;
+      if (seen.has(row.platform)) {
+        return false;
+      }
       seen.add(row.platform);
       return true;
     })
@@ -250,7 +254,9 @@ export function buildDecisions(
     )
     .flatMap((metric) => {
       const post = postById.get(metric.social_post_id);
-      if (!post || !isLearnable(post, metric)) return [];
+      if (!post || !isLearnable(post, metric)) {
+        return [];
+      }
       return [{ post, metric }];
     });
 
@@ -260,7 +266,9 @@ export function buildDecisions(
     );
     const strategy = strategyByPlatform.get(platform);
     const evidenceSamples = platformSamples.length;
-    if (!strategy && evidenceSamples === 0) return [];
+    if (!strategy && evidenceSamples === 0) {
+      return [];
+    }
     const topic = bestTopic(platformSamples);
     const platformMedian24hViews = evidenceSamples
       ? median(platformSamples.map((sample) => sample.metric.views ?? 0))
@@ -290,7 +298,9 @@ export function buildDecisions(
 }
 
 function isLearnable(post: SocialPostRow, metric: SocialMetricRow): boolean {
-  if (post.platform !== 'rednote') return true;
+  if (post.platform !== 'rednote') {
+    return true;
+  }
   if (post.review_status && SUPPRESSED_REDNOTE.has(post.review_status)) {
     return false;
   }
@@ -303,7 +313,9 @@ function topExample(
   const best = [...samples].sort(
     (a, b) => (b.metric.views ?? 0) - (a.metric.views ?? 0),
   )[0];
-  if (!best || best.metric.views === null) return null;
+  if (!best || best.metric.views === null) {
+    return null;
+  }
   return `“${postTitle(best.post).slice(0, 68)}” · ${best.metric.views.toLocaleString('en-US')} views`;
 }
 
@@ -324,14 +336,18 @@ function bestTopic(
       medianViews: median(values),
     }))
     .sort((a, b) => b.medianViews - a.medianViews);
-  if (candidates.length < MIN_QUALIFIED_TOPIC_BUCKETS) return null;
+  if (candidates.length < MIN_QUALIFIED_TOPIC_BUCKETS) {
+    return null;
+  }
   return candidates[0]!;
 }
 
 function formatPublishSlots(
   slots: Array<{ hour: number; minute: number }> | undefined,
 ): string | null {
-  if (!slots?.length) return null;
+  if (!slots?.length) {
+    return null;
+  }
   return [...slots]
     .sort((a, b) => a.hour - b.hour || a.minute - b.minute)
     .map(
@@ -342,8 +358,12 @@ function formatPublishSlots(
 }
 
 function confidence(samples: number): SocialDecision['confidence'] {
-  if (samples >= 25) return 'high';
-  if (samples >= 10) return 'medium';
+  if (samples >= 25) {
+    return 'high';
+  }
+  if (samples >= 10) {
+    return 'medium';
+  }
   return 'low';
 }
 
