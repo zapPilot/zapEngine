@@ -1,20 +1,14 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import type { SocialGrowthJourney } from '../../shared/growth-journey.js';
 import type { SocialGrowthResponse } from '../../shared/types.js';
-import { getJson } from '../api.js';
 import { GrowthJourneyPanel } from './GrowthJourneyPanel.js';
 
-vi.mock('../api.js', () => ({ getJson: vi.fn() }));
-
-afterEach(() => {
-  cleanup();
-  vi.clearAllMocks();
-});
+afterEach(cleanup);
 
 const JOURNEY = {
   status: 'ok',
@@ -51,12 +45,10 @@ const GROWTH = {
 } satisfies SocialGrowthResponse;
 
 describe('GrowthJourneyPanel', () => {
-  it('keeps person flow and durable waitlist counts visibly separate', async () => {
-    vi.mocked(getJson).mockResolvedValue(JOURNEY);
+  it('keeps person flow and durable waitlist counts visibly separate', () => {
+    render(<GrowthJourneyPanel growth={GROWTH} journey={JOURNEY} />);
 
-    render(<GrowthJourneyPanel growth={GROWTH} />);
-
-    await waitFor(() => expect(screen.getByText('300')).toBeVisible());
+    expect(screen.getByText('300')).toBeVisible();
     expect(screen.getByText('210')).toBeVisible();
     expect(screen.getByText('12')).toBeVisible();
     expect(screen.getByText('8')).toBeVisible();
@@ -66,17 +58,21 @@ describe('GrowthJourneyPanel', () => {
     expect(screen.getByText('PostHog · not identity-linked')).toBeVisible();
     expect(screen.getByText(/aggregate counts/i)).toBeVisible();
     expect(screen.getByText(/96% leave before waitlist CTA/i)).toBeVisible();
-    expect(getJson).toHaveBeenCalledWith('/api/growth-journey');
   });
 
-  it('degrades locally when PostHog cannot be read', async () => {
-    vi.mocked(getJson).mockRejectedValue(new Error('PostHog timed out'));
+  it('renders the parent snapshot failure without making another request', () => {
+    render(
+      <GrowthJourneyPanel
+        growth={GROWTH}
+        journey={{
+          ...JOURNEY,
+          message: 'PostHog timed out',
+          status: 'unavailable',
+        }}
+      />,
+    );
 
-    render(<GrowthJourneyPanel growth={GROWTH} />);
-
-    expect(
-      await screen.findByText('Journey telemetry unavailable'),
-    ).toBeVisible();
+    expect(screen.getByText('Journey telemetry unavailable')).toBeVisible();
     expect(screen.getByText('PostHog timed out')).toBeVisible();
   });
 });
