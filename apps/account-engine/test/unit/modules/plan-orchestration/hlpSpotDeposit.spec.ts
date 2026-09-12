@@ -60,7 +60,9 @@ describe('spot-funded HLP deposits', () => {
       amountUsd6: '1000000',
     };
 
-    const plan = await service.buildDeposit(request);
+    const plan = await service.buildDeposit(
+      request as PlanOrchestrationDepositRequest,
+    );
 
     if (!('execution' in plan) || plan.execution !== 'hypercore-signatures') {
       throw new Error('Expected an HLP spot-deposit plan');
