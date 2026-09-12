@@ -20,7 +20,7 @@ Do not use Markdown files as a long-lived TODO system.
 
 ## Shared docs
 
-- [manual autonomous engineering loop](./operations/autonomous-engineering-loop.md) — triage, worker, merge policy and recovery
+- [two-role engineering loop](./operations/autonomous-engineering-loop.md) — triage, worker, merge policy and recovery
 
 - [app-layout.md](./app-layout.md) — default layout for new TypeScript server apps
 - [track-record-pipeline.md](./track-record-pipeline.md) — current track-record snapshot runbook

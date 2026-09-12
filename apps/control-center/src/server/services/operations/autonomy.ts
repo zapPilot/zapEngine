@@ -29,9 +29,9 @@ export type RemediationInspectionCoverage =
  * The server deliberately does not grade autonomy. Whether a repair is safe
  * depends on the *kind of change* it needs — a null guard and a schema
  * migration can come from the same signal — and change kind is only knowable
- * after an agent has diagnosed the root cause. `.agents/skills/
- * ops-incident-remediation` owns that judgement; this type owns the facts it
- * cannot see, plus the refusals the server can prove.
+ * after a strong model has diagnosed the root cause. `.agents/skills/triage`
+ * owns that classification judgement; this type owns the facts it cannot see,
+ * plus the refusals the server can prove.
  *
  * `operationalPriorityScore` rides along so an agent can see impact next to
  * safety. It is never an authorization input: the priority engine weights

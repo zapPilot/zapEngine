@@ -1,85 +1,135 @@
-# Manual triage and bounded backlog execution
+# Two-role engineering loop
 
-A person chooses a model and invokes `/ops-backlog-triage` to produce work or
-`/agent-backlog-worker` to consume it. There is no headless runner or new schedule.
-Triage writes issues and one audit comment. The worker claims, fixes, verifies,
-opens a PR and uses a deterministic merge check. Humans own releases, production
-configuration, spending and product decisions.
+The repository exposes only two user-facing autonomous engineering skills:
+
+- `/triage` — use a strong model to inspect operational/repository evidence,
+  decide what is actionable, and create bounded weak-agent work or operator work.
+- `/worker` — use a weak/cheap model to consume already-triaged low-risk issues,
+  implement them, verify them, open PRs and merge only through the deterministic
+  backlog merge gate.
+
+Both roles are manual. There is no headless runner and no schedule: a person picks
+the model and invokes `/triage` or `/worker` in Claude Code, OpenCode or Codex.
+The five-minute schedule described in
+[the operator runbook](../../apps/control-center/OPERATOR.md) drives
+`ops-operator`, which is a different system.
+
+There is no separate incident-remediation loop and no separate CI-fix loop. CI,
+Sentry and hygiene findings are inputs to triage; bounded implementation is work
+for worker. Specialist CI skills remain internal playbooks that worker may read
+when a failure matches them.
+
+Humans continue to own releases, production configuration, spending and product
+or architecture decisions.
 
 ## Sources of truth
 
 [The MCP contract](../../apps/control-center/MCP.md) defines provider evidence and
-backlog writes. GitHub issues and labels are the work state; there is no lease DB.
+backlog writes. GitHub Issues and labels are the work state; there is no lease DB.
 
-| Label or marker                     | Meaning                                            |
-| ----------------------------------- | -------------------------------------------------- |
-| agent-backlog, agent:weak, risk:low | Bounded worker eligibility                         |
-| area:\*, effort:xs/s/m              | Scope and estimated effort                         |
-| status:working                      | Claimed through the MCP                            |
-| blocked                             | Needs stronger judgement or unavailable validation |
-| resolution:already-fixed            | Server verified a fix on main before closing       |
-| operator                            | Human decision or production action                |
-| triage-log                          | Exactly one open, pinned report issue              |
-| ops-fingerprint HTML comment        | Server-written open-issue deduplication key        |
-| Agent-Backlog-PR: true              | Worker PR contract marker                          |
+| Label or marker                           | Meaning                                            |
+| ----------------------------------------- | -------------------------------------------------- |
+| `agent-backlog`, `agent:weak`, `risk:low` | Eligible bounded worker work                       |
+| `area:*`, `effort:xs/s/m`                 | Scope and estimated effort                         |
+| `status:working`                          | Claimed through MCP                                |
+| `blocked`                                 | Needs stronger judgement or unavailable validation |
+| `resolution:already-fixed`                | Server verified a fix on main before closing       |
+| `operator`                                | Human/strong-model decision or production action   |
+| `triage-log`                              | Exactly one open audit/report issue                |
+| ops-fingerprint HTML comment              | Server-written dedupe key                          |
+| `Agent-Backlog-PR: true`                  | Worker PR contract marker                          |
 
 ## Harness setup
 
-Configure each harness's zap-pilot-ops MCP to use `node scripts/ops-mcp.mjs`
-from this repository; it obtains the prod configuration through the existing
-Infisical runner. The repository's Claude skills link points to `.agents/skills`.
-OpenCode commands and Codex prompts can share the same source:
+Configure each harness's `zap-pilot-ops` MCP through `node scripts/ops-mcp.mjs`;
+the launcher obtains production configuration through the existing Infisical
+runner. Repository skills live under `.agents/skills`.
 
-```bash
-ln -s "$REPO/.agents/skills/ops-backlog-triage/SKILL.md" "$HOME/.agents/opencode/commands/ops-backlog-triage.md"
-ln -s "$REPO/.agents/skills/ops-backlog-triage/SKILL.md" "$HOME/.codex/prompts/ops-backlog-triage.md"
+OpenCode commands are `.opencode/commands/triage.md` and
+`.opencode/commands/worker.md`. Claude/Codex may invoke the corresponding skills
+directly or expose thin wrappers that point at:
+
+```text
+.agents/skills/triage/SKILL.md
+.agents/skills/worker/SKILL.md
 ```
 
-Create those directories if missing. Repeat for agent-backlog-worker. Inspect
-existing links before replacing them; preserve real files. MCP registration is
-separate from command discovery. Verify the selected harness can call ops_status.
+Do not duplicate the role logic into harness-specific commands. MCP registration
+is separate from command discovery.
 
-## Triage
+## Triage: strong model
 
-Run daily or after meaningful operational change. The skill reads Sentry's full
-30d unresolved window, recent main workflow failures, backlog capacity and bounded
-hygiene evidence. Unknown providers and skipped scans appear in Coverage. At ten
-ready items it creates no more; at five it skips hygiene. It creates at most ten
-backlog items, three per area, three hygiene, one medium effort and three operator
-issues. Server dedupe plus open/closed issue and PR searches prevent repeats.
+Run after meaningful operational change or when you want a fresh company-health
+pass. Triage reads the full 30-day unresolved Sentry window, recent main workflow
+failures, backlog capacity and bounded hygiene evidence. It then classifies each
+candidate as:
 
-## Worker and merge policy
+- weak-agent backlog work;
+- operator/strong-model decision;
+- Sentry cleanup candidate;
+- ignored/non-actionable history.
 
-Invoke `/agent-backlog-worker [area:<slug>|#<issue>]`. The optional OpenCode
-`/backlog-worker` adds a goal budget. Authorize the documented isolated
-backlog worktree workflow when requesting a fresh worker run; repository guardrails
-otherwise preserve the current checkout. The batch cap is six issues and two
-consecutive blocked results end the run. Every claim must be released or owned by
-an open PR before stopping.
+Triage does not edit code or open implementation PRs. Its job is to make a good
+small contract for worker. CI failures are ordinary triage input: a failure whose
+whole fix stays inside worker scope becomes a backlog item, and anything else —
+a protected path, a threshold, a security or lockfile change, or a red
+`origin/main` HEAD that blocks deploys and every worker PR — is Attention plus an
+operator issue for a human to repair.
+
+The backlog caps remain intentionally small: at ten ready items triage creates no
+more; at five it skips hygiene. Dedupe uses live backlog fingerprints plus issue
+and PR history.
+
+## Worker: weak model
+
+Invoke `/worker [area:<slug>|#<issue>]`. Worker claims through MCP, checks for an
+existing PR, implements only the issue contract, runs local acceptance and opens a
+marked PR on a `backlog/` branch. It may batch at most six issues sharing an
+area/gate family; two consecutive blocked items stop the run.
+
+A new isolated worktree and branch must be authorized in the invocation itself.
+Without that authorization the repository guardrails apply and worker preserves
+the current checkout, reporting that authorization is needed before coding.
+
+Worker routes implementation failures to existing internal playbooks as needed:
+monorepo CI mapping, lint/format, coverage, duplication, build/import, analytics,
+Playwright, desktop and env-drift debugging. Those skills are knowledge modules,
+not additional workflows users need to choose between.
+
+Worker must release or preserve every claim behind an owned open PR before it
+stops.
+
+## Merge policy
 
 [scripts/agents/backlog-pr-merge-check.mjs](../../scripts/agents/backlog-pr-merge-check.mjs)
-is authoritative. It requires an open non-draft main PR by the designated account,
-a backlog/ branch and marker, eligible open closing issues, MERGEABLE/CLEAN state,
-and successful quick-gates, code-quality, tests, e2e, security, check-dead-env and
-coverage checks with no pending or failed checks. Scope must match issue paths or
-workspaces. At most 40 files and 1500 changed lines are allowed. Workflow/actions,
-hooks, env, migrations, lint/CI/agent scripts, harness configuration and root
-package/lock/Turbo config are protected. Threshold removals require human review.
-Use the returned headSha with `--match-head-commit` when merging; deny/error leaves
-the PR open for a person. Branch protection is an additional human-owned control.
+is authoritative. Only its exit-0 `decision: allow` result permits worker to
+squash-merge using the returned head SHA. Deny/error leaves the PR open.
+
+The check requires eligible closing issues, the worker PR marker, clean
+mergeability, all required checks and no protected-path/threshold violations.
+Scope is bounded twice: at most 40 files and 1500 changed lines, and every changed
+path must fall inside the issue's `## Relevant files / area` list or
+`apps|packages/<area>/`. Merge with the head SHA the check returned:
+
+```bash
+gh pr merge <pr> --squash --delete-branch --match-head-commit <headSha>
+```
+
+Branch protection remains an additional human-owned control.
 
 ## Recovery
 
-| Symptom                                          | Action                                                                        |
-| ------------------------------------------------ | ----------------------------------------------------------------------------- |
-| MCP missing or stdio startup fails               | Register the server; restore Infisical login, then retry read-only ops_status |
-| Orphan status:working                            | Inspect open PRs and release through MCP in an interactive session            |
-| Merge-check denies valid work                    | Review reasons; a human may independently review/merge                        |
-| Backlog flood                                    | Stop producer; a human classifies duplicates/wontfix                          |
-| already-fixed rejects branch SHA                 | Supply the main squash/merge commit or merged main PR, rerun acceptance       |
-| Duplicate fingerprint after concurrent producers | Stop concurrent runs, retain evidence; labels are not distributed locks       |
-| Partial Sentry page                              | Follow nextCursor; do not call the visible subset a total                     |
+| Symptom                                          | Action                                                       |
+| ------------------------------------------------ | ------------------------------------------------------------ |
+| MCP missing or stdio startup fails               | restore MCP/Infisical, retry read-only `ops_status`          |
+| orphan `status:working`                          | inspect open PRs, then release through MCP                   |
+| merge-check denies valid work                    | leave PR open for human review                               |
+| backlog flood                                    | stop triage creation and classify duplicates/wontfix         |
+| already-fixed rejects branch SHA                 | provide a main commit or merged-main PR and rerun acceptance |
+| duplicate fingerprint after concurrent producers | stop concurrent triage runs; labels are not transactions     |
+| partial Sentry page                              | follow `nextCursor`; never report visible subset as total    |
 
-Superseded/abandoned renders and inactive priority accounts never become repair
-backlog; see the MCP's producer fence. A merged patch is not production recovery.
-Sentry cleanup requires separate explicit delegation and per-issue evidence.
+Superseded/abandoned renders and inactive priority accounts do not become weak
+repair backlog. A merged patch is not production recovery. Sentry resolution
+still requires the MCP's production evidence gates and explicit delegation when
+using the operator-delegated rail.
