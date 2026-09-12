@@ -5,7 +5,7 @@ import { createPlanOrchestrationService } from '../../../../src/modules/plan-orc
 
 const USER = '0x1111111111111111111111111111111111111111' as const;
 
-function makeService() {
+function makeService(hyperliquidNetwork?: 'mainnet' | 'testnet') {
   const forbiddenEvmSimulation = new Proxy(
     {},
     {
@@ -19,14 +19,14 @@ function makeService() {
     adapter: {} as never,
     intentEngine: {} as never,
     publicClients: {} as never,
-    hyperliquidNetwork: 'testnet',
+    ...(hyperliquidNetwork ? { hyperliquidNetwork } : {}),
     simulation: { adapter: forbiddenEvmSimulation as never },
   });
 }
 
 describe('spot-funded HLP deposits', () => {
   it('builds a HyperCore signature plan without routing through EVM review', async () => {
-    const service = makeService();
+    const service = makeService('testnet');
     const request: PlanOrchestrationDepositRequest = {
       kind: 'hlp-spot-deposit',
       userAddress: USER,
@@ -50,5 +50,21 @@ describe('spot-funded HLP deposits', () => {
     await expect(service.buildDepositReview(request)).rejects.toThrow(
       'Spot-funded HLP deposits have no EVM batch to simulate',
     );
+  });
+
+  it('defaults Hyperliquid signing to mainnet when no network is configured', async () => {
+    const service = makeService();
+    const request: PlanOrchestrationDepositRequest = {
+      kind: 'hlp-spot-deposit',
+      userAddress: USER,
+      amountUsd6: '1000000',
+    };
+
+    const plan = await service.buildDeposit(request);
+
+    if (!('execution' in plan) || plan.execution !== 'hypercore-signatures') {
+      throw new Error('Expected an HLP spot-deposit plan');
+    }
+    expect(plan.steps[0]?.signing.hyperliquidChain).toBe('Mainnet');
   });
 });
