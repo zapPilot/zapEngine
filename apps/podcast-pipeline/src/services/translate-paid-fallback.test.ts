@@ -10,6 +10,7 @@ vi.mock('./llm.js', async (importOriginal) => ({
   ...mocks,
 }));
 
+import { OpenRouterEmptyChoicesError } from './llm.js';
 import { translateChineseText } from './translate.js';
 
 afterEach(() => {
@@ -79,4 +80,21 @@ it('does not hide non-retryable authentication failures behind payload retries',
     model: 'openrouter/free',
     thinkingModel: null,
   });
+});
+
+it('does not replay the shared chain after exhausted malformed models', async () => {
+  mocks.getOpenRouterConfig.mockImplementation(
+    ({ model }: { model: string }) => ({
+      openai: {},
+      model,
+      thinkingModel: null,
+    }),
+  );
+  const exhausted = new OpenRouterEmptyChoicesError(
+    'OpenRouter returned no choices array for model fallback/one (provider=fixture)',
+  );
+  mocks.createOpenRouterChatCompletion.mockRejectedValueOnce(exhausted);
+
+  await expect(translateChineseText('測試', 'ja')).rejects.toBe(exhausted);
+  expect(mocks.createOpenRouterChatCompletion).toHaveBeenCalledTimes(1);
 });
