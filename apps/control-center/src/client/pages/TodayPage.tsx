@@ -259,11 +259,11 @@ const PUBLISH_TONE: Record<string, Tone> = {
 };
 
 /**
- * The newest release and where each platform lane has got to.
- *
- * Publish state comes from the social queue and view counts from social
- * telemetry: a lane that has published but not yet been measured is a normal
- * state, so the two are shown side by side rather than joined into one number.
+ * The newest measured release and where that same episode's platform lanes have
+ * got to. Queue state and telemetry are joined only by episode id: mixing a new
+ * queued episode with an older measured episode would attach the wrong views to
+ * the wrong title. If the measured episode already left the queue, render its
+ * telemetry on its own instead of falling forward to another episode.
  */
 function LatestRelease(props: {
   data: OverviewResponse | null;
@@ -280,7 +280,9 @@ function LatestRelease(props: {
     );
   }
   const views = new Map(
-    (measured?.platforms ?? []).map((entry) => [entry.platform, entry]),
+    release && measured?.episodeId === release.episodeId
+      ? measured.platforms.map((entry) => [entry.platform, entry])
+      : [],
   );
   return (
     <div className="today-release">
@@ -288,37 +290,51 @@ function LatestRelease(props: {
         {release?.title ?? measured?.title}
       </strong>
       <div className="today-release-rows">
-        {(release?.platforms ?? []).map((lane) => {
-          const metric = views.get(lane.platform);
-          return (
-            <div
-              className="today-release-row"
-              key={`${lane.platform}-${lane.languageCode}`}
-            >
-              <PlatformIdentity platform={lane.platform} />
-              <Pill tone={PUBLISH_TONE[lane.status] ?? 'neutral'}>
-                {lane.status}
-              </Pill>
-              <span className="today-release-views">
-                {metric?.views === null || metric?.views === undefined
-                  ? '—'
-                  : integer(metric.views)}
-              </span>
-              <ProviderLink
-                label="查看"
-                title={`${release?.title ?? ''} on ${lane.platform}`}
-                url={lane.url ?? metric?.postUrl}
-              />
-            </div>
-          );
-        })}
+        {release
+          ? release.platforms.map((lane) => {
+              const metric = views.get(lane.platform);
+              return (
+                <div
+                  className="today-release-row"
+                  key={`${lane.platform}-${lane.languageCode}`}
+                >
+                  <PlatformIdentity platform={lane.platform} />
+                  <Pill tone={PUBLISH_TONE[lane.status] ?? 'neutral'}>
+                    {lane.status}
+                  </Pill>
+                  <span className="today-release-views">
+                    {metric?.views === null || metric?.views === undefined
+                      ? '—'
+                      : integer(metric.views)}
+                  </span>
+                  <ProviderLink
+                    label="查看"
+                    title={`${release.title} on ${lane.platform}`}
+                    url={lane.url ?? metric?.postUrl}
+                  />
+                </div>
+              );
+            })
+          : (measured?.platforms ?? []).map((metric) => (
+              <div className="today-release-row" key={metric.platform}>
+                <PlatformIdentity platform={metric.platform} />
+                <span className="today-release-views">
+                  {metric.views === null ? '—' : integer(metric.views)}
+                </span>
+                <ProviderLink
+                  label="查看"
+                  title={`${measured?.title ?? ''} on ${metric.platform}`}
+                  url={metric.postUrl}
+                />
+              </div>
+            ))}
       </div>
     </div>
   );
 }
 
-/** Prefer the lane belonging to the episode telemetry is describing; otherwise
- * whatever the queue is working on now. */
+/** Prefer the queue item for the measured episode. Only when telemetry has no
+ * episode yet may the currently queued release stand on its own. */
 function latestSocialItem(
   queues: PipelineQueuesResponse | null,
   episodeId: string | undefined,
@@ -331,7 +347,9 @@ function latestSocialItem(
     ...queues.social.queued,
     ...queues.social.attention,
   ];
-  return all.find((item) => item.episodeId === episodeId) ?? all[0] ?? null;
+  return episodeId
+    ? (all.find((item) => item.episodeId === episodeId) ?? null)
+    : (all[0] ?? null);
 }
 
 /**

@@ -4,6 +4,7 @@ import type {
   PipelineQueueItem,
   PipelineQueuesResponse,
   SocialPlatform,
+  SocialQueueItem,
 } from '../../shared/pipeline-queues.js';
 import type { PodcastCostResponse } from '../../shared/types.js';
 import { BarRows, type BarRow } from '../components/ui/BarRows.js';
@@ -118,9 +119,13 @@ function renderStages(queues: PipelineQueuesResponse) {
 function stageItems(
   queues: PipelineQueuesResponse,
   stage: (typeof STAGES)[number],
-): PipelineQueueItem[] {
+): Array<PipelineQueueItem | SocialQueueItem> {
   if (stage.lane === 'social') {
-    return [];
+    return [
+      ...queues.social.processing,
+      ...queues.social.queued,
+      ...queues.social.attention,
+    ];
   }
   const lane = stage.lane === 'api' ? queues.api : queues.render;
   const all = [...lane.processing, ...lane.queued, ...lane.attention];

@@ -274,14 +274,15 @@ function CostOverview(props: {
 }) {
   const daily = props.costHistory?.currentMonthDaily ?? [];
   const latest = daily.at(-1) ?? null;
+  const latestSpend = dailySpend(daily).at(-1)?.value ?? null;
   const anomalies = costAnomalies(daily);
   return (
     <div className="rel-cost">
       <div className="rel-cost-top">
         <Stat
           caption={latest ? `As of ${latest.date}` : 'No daily reading yet'}
-          label="Accrued today"
-          value={usd(latest?.accruedCostUsd ?? null)}
+          label="Spend today"
+          value={usd(latestSpend)}
         />
         <Stat
           caption={
@@ -325,9 +326,8 @@ function CostOverview(props: {
 /**
  * `accruedCostUsd` is the month-to-date total, so charting it draws a nearly
  * flat line that says nothing. The day's own spend is the step between two
- * consecutive readings. The first day of the month has no predecessor, and a
- * gap in collection cannot be differenced either, so both are `null` rather
- * than a fabricated zero.
+ * consecutive readings. The first day of the month has no predecessor, so it
+ * is `null` rather than a fabricated zero.
  */
 function dailySpend(
   daily: CostHistoryResponse['currentMonthDaily'],
@@ -361,8 +361,9 @@ interface CostAnomaly {
   today: number;
 }
 
-/** Today against the mean of the three days before it, per provider. A provider
- * without a full baseline is skipped rather than compared against nothing. */
+/** Today against the mean of the three daily deltas before it, per provider.
+ * Provider snapshots are month-to-date totals, so comparing their raw values
+ * would make normal accumulation look like accelerating spend. */
 function costAnomalies(
   daily: CostHistoryResponse['currentMonthDaily'],
 ): CostAnomaly[] {
@@ -370,39 +371,63 @@ function costAnomalies(
   if (!latest) {
     return [];
   }
-  const window = daily.slice(-4, -1);
-  if (window.length < 3) {
-    return [];
-  }
   const found: CostAnomaly[] = [];
   for (const entry of latest.providers) {
-    if (entry.accruedCostUsd === null) {
+    const spend = providerDailySpend(daily, entry.provider).slice(-4);
+    if (spend.length < 4 || spend.some((value) => value === null)) {
       continue;
     }
-    const priors = window
-      .map((day) =>
-        day.providers.find((row) => row.provider === entry.provider),
-      )
-      .map((row) => row?.accruedCostUsd ?? null)
-      .filter((value): value is number => value !== null);
-    if (priors.length < 3) {
+    const [first, second, third, today] = spend;
+    if (
+      first === null ||
+      second === null ||
+      third === null ||
+      today === null
+    ) {
       continue;
     }
-    const baseline = priors.reduce((sum, value) => sum + value, 0) / 3;
+    const baseline = (first + second + third) / 3;
     if (baseline <= 0) {
       continue;
     }
-    const lift = (entry.accruedCostUsd - baseline) / baseline;
+    const lift = (today - baseline) / baseline;
     if (lift > ANOMALY_THRESHOLD) {
       found.push({
         baseline,
         lift,
         provider: entry.label,
-        today: entry.accruedCostUsd,
+        today,
       });
     }
   }
   return found;
+}
+
+function providerDailySpend(
+  daily: CostHistoryResponse['currentMonthDaily'],
+  provider: string,
+): Array<number | null> {
+  return daily.map((point, index) => {
+    if (index === 0) {
+      return null;
+    }
+    const previous = daily[index - 1];
+    const currentValue = point.providers.find(
+      (entry) => entry.provider === provider,
+    )?.accruedCostUsd;
+    const previousValue = previous?.providers.find(
+      (entry) => entry.provider === provider,
+    )?.accruedCostUsd;
+    if (
+      currentValue === null ||
+      currentValue === undefined ||
+      previousValue === null ||
+      previousValue === undefined
+    ) {
+      return null;
+    }
+    return Math.max(0, currentValue - previousValue);
+  });
 }
 
 function flyFleet(operations: OperationsResponse | null) {

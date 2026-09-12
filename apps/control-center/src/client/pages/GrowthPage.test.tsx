@@ -2,7 +2,7 @@
 import '@testing-library/jest-dom/vitest';
 
 import { cleanup, render, screen } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { SocialGrowthJourney } from '../../shared/growth-journey.js';
 import type {
@@ -12,14 +12,6 @@ import type {
 import { GrowthPage } from './GrowthPage.js';
 
 afterEach(cleanup);
-
-beforeEach(() => {
-  // GrowthJourneyPanel fetches its own PostHog read.
-  vi.stubGlobal(
-    'fetch',
-    vi.fn(() => Promise.reject(new Error('journey unavailable'))),
-  );
-});
 
 const journey: SocialGrowthJourney = {
   appVisitors30d: 6,
