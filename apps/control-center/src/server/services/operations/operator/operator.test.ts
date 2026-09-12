@@ -37,6 +37,11 @@ const target = {
 function store() {
   return {
     rpc: vi.fn().mockResolvedValue({ state: 'succeeded' }),
+    recordHeartbeat: vi.fn().mockResolvedValue(undefined),
+    heartbeat: vi.fn().mockResolvedValue({
+      observedAt: now.toISOString(),
+      actor: 'test',
+    }),
     history: vi.fn().mockResolvedValue([]),
     runtime: vi.fn().mockResolvedValue([
       {
@@ -109,6 +114,7 @@ describe('operator cycle', () => {
       mutationsEnabled: true,
     });
     expect(result.state).toBe('observing');
+    expect(persistence.recordHeartbeat).toHaveBeenCalledWith('test');
     expect(persistence.rpc.mock.calls.map((call) => call[0])).toEqual([
       'ops_record_cycle',
       'ops_retry_render',
@@ -130,10 +136,11 @@ describe('operator cycle', () => {
         mutationsEnabled: enabled,
       });
       expect(result.state).toBe('needs_human');
+      expect(persistence.recordHeartbeat).toHaveBeenCalledWith('test');
       expect(persistence.rpc).toHaveBeenCalledTimes(1);
     }
   });
-  it('does nothing when there is no incident', async () => {
+  it('records liveness even when there is no incident', async () => {
     const persistence = store();
     persistence.renderTargets.mockResolvedValue([]);
     expect(
@@ -147,6 +154,7 @@ describe('operator cycle', () => {
         })
       ).state,
     ).toBe('idle');
+    expect(persistence.recordHeartbeat).toHaveBeenCalledWith('test');
     expect(persistence.rpc).not.toHaveBeenCalled();
   });
   it('never retries a transport result it cannot classify', async () => {
@@ -163,6 +171,7 @@ describe('operator cycle', () => {
         mutationsEnabled: true,
       }),
     ).rejects.toThrow('timeout');
+    expect(persistence.recordHeartbeat).toHaveBeenCalledWith('test');
     expect(persistence.rpc).toHaveBeenCalledTimes(2);
   });
 });
@@ -275,6 +284,7 @@ it('escalates a completed action without invented fix identity', async () => {
     mutationsEnabled: true,
   });
   expect(result.state).toBe('needs_human');
+  expect(persistence.recordHeartbeat).toHaveBeenCalledWith('test');
   expect(ops.getOperations).not.toHaveBeenCalled();
   expect(persistence.rpc.mock.calls.map((call) => call[0])).toEqual([
     'ops_record_verification',
@@ -302,6 +312,7 @@ it('continues a registered observation instead of starting another repair', asyn
     mutationsEnabled: true,
   });
   expect(result.state).toBe('observing');
+  expect(persistence.recordHeartbeat).toHaveBeenCalledWith('test');
   expect(ops.getOperations).not.toHaveBeenCalled();
   expect(persistence.rpc.mock.calls.map((call) => call[0])).toEqual([
     'ops_record_verification',
