@@ -3,6 +3,15 @@ import { opsRuntimeRecordSchema } from '@zapengine/types/shared';
 import type { ControlCenterConfig } from '../../../config/env.js';
 import { createConfiguredServiceRoleClient } from '../../supabase.js';
 
+const operatorHeartbeatSchema = z
+  .object({
+    observedAt: z.string().min(1),
+    actor: z.string().min(1),
+    state: z.enum(['running', 'succeeded', 'failed']),
+    failureStreak: z.number().int().nonnegative(),
+  })
+  .nullable();
+
 const renderTargetSchema = z.object({
   episodeId: z.uuid(),
   localizationId: z.uuid(),
@@ -19,6 +28,7 @@ const renderTargetSchema = z.object({
 });
 
 export type RenderTarget = z.infer<typeof renderTargetSchema>;
+export type OperatorHeartbeatState = 'running' | 'succeeded' | 'failed';
 
 export function createOperatorStore(config: ControlCenterConfig) {
   const client = createConfiguredServiceRoleClient(config);
@@ -39,6 +49,15 @@ export function createOperatorStore(config: ControlCenterConfig) {
   }
   return {
     rpc,
+    async recordHeartbeat(actor: string, state: OperatorHeartbeatState) {
+      await rpc('ops_record_operator_heartbeat', {
+        p_actor: actor,
+        p_state: state,
+      });
+    },
+    async heartbeat() {
+      return operatorHeartbeatSchema.parse(await rpc('ops_operator_heartbeat'));
+    },
     async history(fingerprint?: string) {
       return z.array(z.record(z.string(), z.unknown())).parse(
         await rpc('ops_operator_history', {
