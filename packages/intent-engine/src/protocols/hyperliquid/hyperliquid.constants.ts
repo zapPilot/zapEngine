@@ -1,4 +1,4 @@
-import { HYPERCORE_CHAIN_ID } from '@zapengine/types/api';
+import { HLP_MIN_DEPOSIT_USD6, HYPERCORE_CHAIN_ID } from '@zapengine/types/api';
 import type { Address } from 'viem';
 
 export { HYPERCORE_CHAIN_ID };
@@ -44,4 +44,4 @@ export const HLP_VAULT_NAME = 'Hyperliquid HLP';
 export const HLP_LOCKUP_DAYS = 4;
 
 /** Hyperliquid HLP minimum deposit: 10 USDC in 6-decimal base units. */
-export const HLP_MIN_DEPOSIT_USD = '10000000';
+export const HLP_MIN_DEPOSIT_USD = HLP_MIN_DEPOSIT_USD6.toString();

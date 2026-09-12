@@ -3,6 +3,7 @@ import {
   assertApprovalCaps,
   assertMinReceived,
   buildApproveTx,
+  buildHlpSpotDepositPlan,
   type BundleSimulationAdapter,
   composeDeposit,
   GMX_V2_ARBITRUM_CHAIN_ID,
@@ -947,6 +948,10 @@ interface ReviewExecutionGroup {
 function reviewExecutionGroups(
   plan: PlanOrchestrationDepositPlan,
 ): ReviewExecutionGroup[] {
+  if ('kind' in plan && plan.kind === 'hlp-spot-deposit') {
+    return [];
+  }
+
   if ('executionGroups' in plan) {
     return plan.executionGroups.map((group) => ({
       id: group.id,
@@ -1021,6 +1026,11 @@ async function buildDepositReviewResponse(params: {
   // call per execution group rather than first running the pass/fail gate and
   // then asking Tenderly for rich evidence again.
   const plan = await params.buildDeposit(params.request);
+  if ('kind' in plan && plan.kind === 'hlp-spot-deposit') {
+    throw new Error(
+      'Spot-funded HLP deposits have no EVM batch to simulate; they are reviewed client-side and signed directly',
+    );
+  }
   const reviewedAt = Date.now();
   const expiresAt = reviewedAt + DEPOSIT_REVIEW_EXPIRY_MS;
   const planFingerprint = reviewFingerprint(plan);
@@ -1155,6 +1165,13 @@ export function createPlanOrchestrationService({
         simulation: simulationForSafety,
       });
       return parsed;
+    }
+
+    if (request.kind === 'hlp-spot-deposit') {
+      return buildHlpSpotDepositPlan({
+        amountUsd6: request.amountUsd6,
+        ...(hyperliquidNetwork ? { network: hyperliquidNetwork } : {}),
+      });
     }
 
     if (request.kind === 'strategy') {

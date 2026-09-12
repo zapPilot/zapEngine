@@ -1,8 +1,5 @@
 import { hlpStepFromPlan } from '@zapengine/app-core/lib/wallet/depositWizardMachine';
-import type {
-  DepositPlan,
-  PlanOrchestrationDepositPlan,
-} from '@zapengine/types/api';
+import type { DepositPlan, ReviewedDepositPlan } from '@zapengine/types/api';
 import { formatUnits } from 'viem';
 
 import { Card } from '@/components/ui/Card';
@@ -13,7 +10,7 @@ import { isStrategyDepositPlan } from '@/integration/simulationPreviewModel';
 import { formatOr, formatUsd } from '@/lib/format';
 
 function asDepositPlan(
-  plan: PlanOrchestrationDepositPlan | undefined,
+  plan: ReviewedDepositPlan | undefined,
 ): DepositPlan | undefined {
   if (!plan || isStrategyDepositPlan(plan)) return undefined;
   return plan;
@@ -32,7 +29,7 @@ export function HlpPlanSummary({
   amountUsd,
   singleChainFundingDraft,
 }: {
-  plan: PlanOrchestrationDepositPlan | undefined;
+  plan: ReviewedDepositPlan | undefined;
   amountUsd: number;
   singleChainFundingDraft: SingleChainFundingDraft | null;
 }) {

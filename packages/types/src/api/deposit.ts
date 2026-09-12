@@ -31,6 +31,13 @@ export const STRATEGY_DEPOSIT_ID = 'zap-morpho-gmx-v1' as const;
  * is uneconomical. Shared by the request schema and the app's amount screen.
  */
 export const STRATEGY_MIN_DEPOSIT_USD6 = 10_000_000n;
+
+/**
+ * Hyperliquid's own HLP vault minimum ($10, 6-decimal USD). Owned here rather
+ * than in the planner so the request schema can reject an undersized deposit
+ * before any plan is built; `intent-engine` re-exports the string form.
+ */
+export const HLP_MIN_DEPOSIT_USD6 = 10_000_000n;
 export const BASE_USDC_ADDRESS = CANONICAL_TOKEN_ADDRESSES[8453].USDC;
 
 /** Canonical USDC per supported source chain, for request validation. */
@@ -102,20 +109,32 @@ export const FollowUpAmountSchema = z.discriminatedUnion('source', [
 ]);
 
 /**
+ * Shared by every Hyperliquid exchange action. The execution plane (frontend)
+ * adds the ms-timestamp nonce, computes the L1-action hash / phantom-agent
+ * EIP-712 payload, signs via the user's wallet, and POSTs to
+ * `apiUrl` + '/exchange'.
+ */
+export const HyperliquidSigningSchema = z.object({
+  scheme: z.literal('hyperliquid-l1-action'),
+  hyperliquidChain: z.enum(['Mainnet', 'Testnet']),
+  apiUrl: z.string(),
+});
+
+/**
  * Non-EVM Hyperliquid exchange action: deposit perp USDC into a vault (HLP).
- * Declarative only — the execution plane (frontend) adds the ms-timestamp
- * nonce, computes the L1-action hash / phantom-agent EIP-712 payload, signs
- * via the user's wallet, and POSTs to `signing.apiUrl` + '/exchange'. Amounts
- * are 6-decimal base-unit integers.
+ * Declarative only. Amounts are 6-decimal base-unit integers.
  */
 export const HyperliquidVaultDepositStepSchema = z.object({
   kind: z.literal('hyperliquid-vault-deposit'),
   chainId: z.literal(HYPERCORE_CHAIN_ID),
-  /** Index into plan.legs of the bridge leg this step waits on. */
-  afterLegIndex: z.number().int().nonnegative(),
+  /**
+   * Index into plan.legs of the bridge leg this step waits on. Absent on the
+   * spot-funded plan, which has no legs at all.
+   */
+  afterLegIndex: z.number().int().nonnegative().optional(),
   amount: FollowUpAmountSchema,
   /** Planning-time estimate (the bridge leg's toAmountMin), display only. */
-  expectedUsd: decimalStringSchema,
+  expectedUsd: decimalStringSchema.optional(),
   /** Vault minimum deposit, enforced server-side and re-checked in the UI. */
   minDepositUsd: decimalStringSchema,
   action: z.object({
@@ -123,13 +142,38 @@ export const HyperliquidVaultDepositStepSchema = z.object({
     vaultAddress: AddressSchema,
     isDeposit: z.literal(true),
   }),
-  signing: z.object({
-    scheme: z.literal('hyperliquid-l1-action'),
-    hyperliquidChain: z.enum(['Mainnet', 'Testnet']),
-    apiUrl: z.string(),
-  }),
+  signing: HyperliquidSigningSchema,
   /** HLP enforces a withdrawal lock (days) after the latest deposit — UI disclosure. */
   lockupDays: z.number().int().nonnegative(),
+});
+
+/**
+ * Non-EVM Hyperliquid exchange action: move USDC between the spot and perp
+ * accounts. Vault deposits debit perp, so spot-funded HLP deposits need this
+ * first.
+ */
+export const HyperliquidUsdClassTransferStepSchema = z.object({
+  kind: z.literal('hyperliquid-usd-class-transfer'),
+  chainId: z.literal(HYPERCORE_CHAIN_ID),
+  /** 6-decimal base units, matching every other amount in this contract. */
+  amountUsd6: decimalStringSchema,
+  action: z.object({
+    type: z.literal('usdClassTransfer'),
+    toPerp: z.literal(true),
+    /**
+     * DOLLARS — "1" means $1. This exchange action denominates its amount
+     * differently from `vaultTransfer`, whose `usd` is 6-decimal base units;
+     * passing base units here would inflate the transfer 1e6x.
+     *
+     * This is the full deposit. A client whose perp account is already
+     * partially funded transfers only the outstanding shortfall, so the
+     * signed amount can be smaller than this — never larger.
+     */
+    amountUsd: z.string().regex(/^\d+(\.\d{1,6})?$/, {
+      message: 'Expected a dollar-denominated decimal string',
+    }),
+  }),
+  signing: HyperliquidSigningSchema,
 });
 
 /**
@@ -168,6 +212,30 @@ export const DepositPlanSchema = z.object({
   followUps: z.array(DepositFollowUpSchema).optional(),
   totalGasUsd: z.string(),
   sourceChainId: z.number().int().positive(),
+});
+
+/**
+ * Spot-funded HLP deposit. Deliberately NOT a `DepositPlan`: there is no
+ * bridge, no EVM transaction, and no gas, so an empty `legs`/`calls` plan
+ * would have to claim a source chain it does not have and would trip the
+ * client's empty-batch guard. Both steps are gasless wallet signatures.
+ */
+export const HlpSpotDepositPlanSchema = z.object({
+  kind: z.literal('hlp-spot-deposit'),
+  /** Marks this plan as bypassing reviewed-batch (EVM) execution entirely. */
+  execution: z.literal('hypercore-signatures'),
+  amountUsd6: decimalStringSchema,
+  minDepositUsd: decimalStringSchema,
+  lockupDays: z.number().int().nonnegative(),
+  /**
+   * Ordered and separate rather than merged: the two signatures fail
+   * independently, and the spot-to-perp half can already be done when the
+   * user returns, so the UI has to address them one at a time.
+   */
+  steps: z.tuple([
+    HyperliquidUsdClassTransferStepSchema,
+    HyperliquidVaultDepositStepSchema,
+  ]),
 });
 
 export const StrategyAllocationSchema = z.object({
@@ -508,6 +576,15 @@ export const PlanOrchestrationDepositRequestSchema = z
       split: ChainSplitSchema.optional(),
     }),
     z.object({
+      kind: z.literal('hlp-spot-deposit'),
+      userAddress: AddressSchema,
+      /** Spot USDC to move into the vault, 6-decimal base units. */
+      amountUsd6: decimalStringSchema.refine(
+        (value) => BigInt(value) >= HLP_MIN_DEPOSIT_USD6,
+        { message: 'HLP deposits require at least $10' },
+      ),
+    }),
+    z.object({
       kind: z.literal('gmx-v2'),
       marketKey: z.enum(['btc-btc', 'eth-eth', 'btc-usdc', 'eth-usdc']),
       fromToken: AddressSchema,
@@ -562,6 +639,14 @@ export const PlanOrchestrationDepositRequestSchema = z
       return;
     }
 
+    // Nothing chain-shaped to validate: sufficiency of the spot balance is a
+    // client pre-flight gate, and the server has no HyperCore view to check it
+    // against without a rate-limited third-party read that would be stale
+    // by submission time anyway.
+    if (value.kind === 'hlp-spot-deposit') {
+      return;
+    }
+
     if (value.kind === 'gmx-v2' || value.kind === 'gmx-v2-basket') {
       if (
         !STRATEGY_ARBITRUM_FUNDING_TOKENS.has(value.fromToken.toLowerCase())
@@ -591,11 +676,40 @@ export type StrategyChainExecutionGroup = z.infer<
   typeof StrategyChainExecutionGroupSchema
 >;
 export type StrategyDepositPlan = z.infer<typeof StrategyDepositPlanSchema>;
-export type PlanOrchestrationDepositPlan = DepositPlan | StrategyDepositPlan;
+export type HyperliquidUsdClassTransferStep = z.infer<
+  typeof HyperliquidUsdClassTransferStepSchema
+>;
+export type HlpSpotDepositPlan = z.infer<typeof HlpSpotDepositPlanSchema>;
+export type PlanOrchestrationDepositPlan =
+  | DepositPlan
+  | StrategyDepositPlan
+  | HlpSpotDepositPlan;
+
+/**
+ * The plans that go through reviewed EVM batch execution. Excludes the
+ * spot-funded HLP plan, which has no transactions to simulate, approve, or
+ * send — it is two wallet signatures and is executed on its own path.
+ */
+export type ReviewedDepositPlan = Exclude<
+  PlanOrchestrationDepositPlan,
+  { kind: 'hlp-spot-deposit' }
+>;
+
+/** Requests that produce a reviewed EVM batch plan. */
+export type ReviewedDepositRequest = Exclude<
+  PlanOrchestrationDepositRequest,
+  { kind: 'hlp-spot-deposit' }
+>;
+
+export const ReviewedDepositPlanSchema = z.union([
+  DepositPlanSchema,
+  StrategyDepositPlanSchema,
+]);
 
 export const PlanOrchestrationDepositPlanSchema = z.union([
   DepositPlanSchema,
   StrategyDepositPlanSchema,
+  HlpSpotDepositPlanSchema,
 ]);
 export type ChainSplit = z.infer<typeof ChainSplitSchema>;
 export type DepositRequest = z.infer<typeof DepositRequestSchema>;

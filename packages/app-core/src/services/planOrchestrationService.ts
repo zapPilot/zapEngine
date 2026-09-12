@@ -2,6 +2,8 @@ import { httpUtils } from '@core/lib/http';
 import {
   type DepositPlan,
   DepositPlanSchema,
+  type HlpSpotDepositPlan,
+  HlpSpotDepositPlanSchema,
   type PlanOrchestrationDepositRequest,
   PlanOrchestrationDepositRequestSchema,
   type PlanOrchestrationDepositReviewRequest,
@@ -39,7 +41,10 @@ async function postDepositPlanRequest<TPlan>(
 }
 
 async function postDepositPlan(
-  request: Exclude<PlanOrchestrationDepositRequest, { kind: 'strategy' }>,
+  request: Exclude<
+    PlanOrchestrationDepositRequest,
+    { kind: 'strategy' } | { kind: 'hlp-spot-deposit' }
+  >,
 ): Promise<DepositPlan> {
   return postDepositPlanRequest(request, DepositPlanSchema);
 }
@@ -59,6 +64,15 @@ export async function getDepositReview(
     PLAN_REQUEST_CONFIG,
   );
   return PlanOrchestrationDepositReviewResponseSchema.parse(response);
+}
+
+async function postHlpSpotDepositPlan(
+  request: Extract<
+    PlanOrchestrationDepositRequest,
+    { kind: 'hlp-spot-deposit' }
+  >,
+): Promise<HlpSpotDepositPlan> {
+  return postDepositPlanRequest(request, HlpSpotDepositPlanSchema);
 }
 
 async function postStrategyDepositPlan(
@@ -81,5 +95,6 @@ async function postWithdrawPlan(
 }
 
 export const getDepositPlan = postDepositPlan;
+export const getHlpSpotDepositPlan = postHlpSpotDepositPlan;
 export const getStrategyDepositPlan = postStrategyDepositPlan;
 export const getWithdrawPlan = postWithdrawPlan;

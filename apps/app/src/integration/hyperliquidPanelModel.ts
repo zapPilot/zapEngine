@@ -1,6 +1,7 @@
 import { HYPERCORE_CHAIN_ID } from '@zapengine/app-core/config/chains/display';
 import type { WizardHlpStatus } from '@zapengine/app-core/lib/wallet/depositWizardMachine';
 import type { ChainSplit } from '@zapengine/types/api';
+import { formatUnits } from 'viem';
 
 /**
  * Pins the whole deposit to HyperCore instead of relying on the backend's
@@ -31,4 +32,50 @@ export function hlpDoneStatusLabel(status: WizardHlpStatus): string {
     return 'HLP deposit submitted — awaiting confirmation';
   }
   return 'Deposited';
+}
+
+/**
+ * Shared renderer for every HyperCore balance row. Each pot is fetched by its
+ * own query, so the disconnected/loading/error fallbacks have to be resolved
+ * per row rather than once for the whole card.
+ */
+export function hlpBalanceLabel({
+  isConnected,
+  isLoading,
+  isError,
+  value,
+}: {
+  isConnected: boolean;
+  isLoading: boolean;
+  isError: boolean;
+  value: bigint | undefined;
+}): string {
+  if (!isConnected) {
+    return '—';
+  }
+  if (isLoading) {
+    return 'Loading…';
+  }
+  if (isError || value === undefined) {
+    return '—';
+  }
+  return `${formatUnits(value, 6)} USDC`;
+}
+
+/**
+ * What the wallet can actually put into HLP. The vault debits perp, and any
+ * shortfall is topped up from spot, so both pots count toward one ceiling.
+ *
+ * Returns null while either balance is unknown: treating a pending or failed
+ * read as zero would disable the input, and treating it as unlimited would
+ * let the user sign an amount the exchange will reject.
+ */
+export function hlpAvailableUsd6(
+  spotTotalUsd6: bigint | undefined,
+  perpWithdrawableUsd6: bigint | undefined,
+): bigint | null {
+  if (spotTotalUsd6 === undefined || perpWithdrawableUsd6 === undefined) {
+    return null;
+  }
+  return spotTotalUsd6 + perpWithdrawableUsd6;
 }

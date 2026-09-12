@@ -122,6 +122,7 @@ describe('HLP helpers', () => {
     const hlp: WizardHlpState = {
       status: 'arrived',
       step,
+      transferStep: null,
       baselineUsd6: null,
       arrivedUsd6: null,
       vaultEquityUsd6: null,

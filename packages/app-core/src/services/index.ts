@@ -106,6 +106,7 @@ export {
 export {
   getDepositPlan,
   getDepositReview,
+  getHlpSpotDepositPlan,
   getStrategyDepositPlan,
   getWithdrawPlan,
 } from './planOrchestrationService';
@@ -113,8 +114,10 @@ export {
 // Hyperliquid execution-plane access (HLP deposits + balance reads)
 export {
   getPerpUsdcBalance,
+  getSpotUsdcBalance,
   getVaultEquity,
   type PerpUsdcBalance,
+  type SpotUsdcBalance,
   submitVaultDeposit,
   usdStringToUsd6,
   type VaultEquity,

@@ -2,6 +2,7 @@ import {
   depositWizardReducer,
   initialDepositWizardState,
   resolveHlpDepositUsd6,
+  spotFundingShortfallUsd6,
   type DepositWizardEvent,
   type DepositWizardState,
 } from '@core/lib/wallet/depositWizardMachine';
@@ -335,5 +336,130 @@ describe('resolveHlpDepositUsd6', () => {
         99n * 10n ** 6n,
       ),
     ).toBe(10_200_000n);
+  });
+});
+
+const spotPlan = {
+  kind: 'hlp-spot-deposit',
+  execution: 'hypercore-signatures',
+  amountUsd6: '10000000',
+  minDepositUsd: '10000000',
+  lockupDays: 4,
+  steps: [
+    {
+      kind: 'hyperliquid-usd-class-transfer',
+      chainId: 1337,
+      amountUsd6: '10000000',
+      action: {
+        type: 'usdClassTransfer',
+        toPerp: true,
+        amountUsd: '10.000000',
+      },
+      signing: {
+        scheme: 'hyperliquid-l1-action',
+        hyperliquidChain: 'Mainnet',
+        apiUrl: 'https://api.hyperliquid.xyz',
+      },
+    },
+    {
+      kind: 'hyperliquid-vault-deposit',
+      chainId: 1337,
+      amount: { source: 'fixed', amount: '10000000' },
+      minDepositUsd: '10000000',
+      action: { type: 'vaultTransfer', vaultAddress: HLP, isDeposit: true },
+      signing: {
+        scheme: 'hyperliquid-l1-action',
+        hyperliquidChain: 'Mainnet',
+        apiUrl: 'https://api.hyperliquid.xyz',
+      },
+      lockupDays: 4,
+    },
+  ],
+} as never;
+
+function loadSpot(perpWithdrawableUsd6: bigint): DepositWizardState {
+  return depositWizardReducer(initialDepositWizardState, {
+    type: 'SPOT_PLAN_LOADED',
+    plan: spotPlan,
+    perpWithdrawableUsd6,
+  });
+}
+
+describe('spotFundingShortfallUsd6', () => {
+  it('measures against an absolute target, never a delta', () => {
+    expect(spotFundingShortfallUsd6(10_000_000n, 0n)).toBe(10_000_000n);
+    expect(spotFundingShortfallUsd6(10_000_000n, 4_000_000n)).toBe(6_000_000n);
+  });
+
+  it('reports no shortfall once perp already covers the deposit', () => {
+    expect(spotFundingShortfallUsd6(10_000_000n, 10_000_000n)).toBe(0n);
+    // Never negative: a surplus must not be read as a credit to transfer back.
+    expect(spotFundingShortfallUsd6(10_000_000n, 25_000_000n)).toBe(0n);
+  });
+});
+
+describe('spot-funded HLP deposit', () => {
+  it('enters at the Hyperliquid stage with no EVM legs', () => {
+    const state = loadSpot(0n);
+    expect(state.stage).toBe('hyperliquidDeposit');
+    expect(state.legs).toEqual([]);
+    expect(state.plan).toBeNull();
+    expect(state.hlp.transferStep?.action.amountUsd).toBe('10.000000');
+  });
+
+  it('asks for the spot transfer when perp is short', () => {
+    expect(loadSpot(0n).hlp.status).toBe('fundingRequired');
+    expect(loadSpot(9_999_999n).hlp.status).toBe('fundingRequired');
+  });
+
+  it('skips the transfer entirely when perp already covers it', () => {
+    // This is what makes an interrupted attempt safe to resume: the money
+    // already moved, so signature one must not be offered again.
+    expect(loadSpot(10_000_000n).hlp.status).toBe('arrived');
+    expect(loadSpot(50_000_000n).hlp.status).toBe('arrived');
+  });
+
+  it('walks funding through to the vault signature', () => {
+    let state = loadSpot(0n);
+    state = depositWizardReducer(state, { type: 'HL_FUNDING_SUBMITTED' });
+    expect(state.hlp.status).toBe('funding');
+
+    state = depositWizardReducer(state, { type: 'HL_FUNDED' });
+    expect(state.hlp.status).toBe('awaitingArrival');
+
+    state = depositWizardReducer(state, {
+      type: 'HL_ARRIVED',
+      arrivedUsd6: 10_000_000n,
+    });
+    expect(state.hlp.status).toBe('arrived');
+  });
+
+  it('rewinds to fundingRequired when the transfer failed outright', () => {
+    let state = depositWizardReducer(loadSpot(0n), {
+      type: 'HL_FUNDING_SUBMITTED',
+    });
+    state = depositWizardReducer(state, { type: 'HL_FUNDING_FAILED' });
+    expect(state.hlp.status).toBe('fundingRequired');
+  });
+
+  it('ignores funding events outside their predecessor status', () => {
+    const armed = loadSpot(0n);
+    // A late dispatch from a superseded run must not move a fresh machine.
+    for (const event of [
+      { type: 'HL_FUNDED' },
+      { type: 'HL_FUNDING_FAILED' },
+    ] as DepositWizardEvent[]) {
+      expect(depositWizardReducer(armed, event)).toBe(armed);
+    }
+
+    const funded = loadSpot(10_000_000n);
+    expect(depositWizardReducer(funded, { type: 'HL_FUNDING_SUBMITTED' })).toBe(
+      funded,
+    );
+  });
+
+  it('resolves the deposit from the fixed plan amount', () => {
+    const state = loadSpot(10_000_000n);
+    expect(resolveHlpDepositUsd6(state.hlp.step!, null)).toBe(10_000_000n);
   });
 });
