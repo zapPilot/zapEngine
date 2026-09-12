@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import type { PipelineQueuesResponse } from '../../shared/pipeline-queues.js';
@@ -45,6 +45,18 @@ const visualJob = {
   title: 'An episode being illustrated',
 };
 
+const socialJob = {
+  contentType: 'video',
+  episodeId: 'episode-social',
+  history: [],
+  key: 'social-1',
+  platforms: [],
+  publishedLinks: [],
+  scheduledAt: '2026-09-10T01:00:00Z',
+  state: 'publishing',
+  title: 'An episode being published',
+};
+
 const podcastCosts: PodcastCostResponse = {
   episodes: [
     {
@@ -78,6 +90,20 @@ describe('Pipeline stage map', () => {
     );
     expect(screen.getByText('圖片搜尋')).toBeVisible();
     expect(screen.getByText('視覺規劃')).toBeVisible();
+  });
+
+  it('counts social releases instead of hard-coding the stage to zero', () => {
+    render(
+      <PipelineSummary
+        podcastCosts={null}
+        queues={queues({
+          social: { ...emptyLane, processing: [socialJob] },
+        } as Partial<PipelineQueuesResponse>)}
+      />,
+    );
+    const stage = screen.getByText('社群發佈').closest('.cc-flow-stage');
+    expect(stage).not.toBeNull();
+    expect(within(stage as HTMLElement).getByText('1')).toBeVisible();
   });
 
   it('says why translation and TTS are not counted separately', () => {
