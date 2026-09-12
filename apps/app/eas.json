@@ -7,7 +7,7 @@
     "preview": {
       "distribution": "internal",
       "node": "24.21.0",
-      "corepack": true,
+      "pnpm": "10.30.3",
       "android": {
         "buildType": "apk"
       }
@@ -18,7 +18,7 @@
       "credentialsSource": "remote",
       "autoIncrement": true,
       "node": "24.21.0",
-      "corepack": true,
+      "pnpm": "10.30.3",
       "android": {
         "buildType": "app-bundle"
       }
