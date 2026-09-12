@@ -26,6 +26,8 @@ Do not use Markdown files as a long-lived TODO system.
 - [Supabase CLI migration workflow](./spikes/2026-08-22-supabase-cli-migration-workflow.md) — single-workdir baseline and manual production-apply decision
 - [schedule registry](./schedules.md) — canonical inventory, trust levels, validation, and recovery
 - [product strategy](./product-strategy/README.md) — stable positioning only; execution work belongs in Issues
+- [podcast deployment drain](./operations/podcast-deployment-drain.md) — DB-backed rollout gate for in-flight renders
+- [snapshot architecture](./snapshot_architecture.md) — daily-grain snapshot storage and replace-batch transactions
 
 Deeper implementation docs live beside the code under `apps/*/docs/` or `packages/*/docs/`.
 

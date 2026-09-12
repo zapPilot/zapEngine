@@ -94,9 +94,7 @@ and then aggregates the 13 workspaces. CI uploads `coverage/summary.json` for
 - `packages/app-core` was re-ratcheted on 2026-09-08 from a measured
   79.71/70.58/77.91/80.86 baseline with the same buffer policy.
 - `apps/landing-page` was re-ratcheted on 2026-09-08 from a measured
-  83.87/71.97/87.31/85.72 baseline. `src/hooks/useMediaQuery.ts` and
-  `src/hooks/useReducedMotion.ts` additionally enforce per-file floors of
-  80/75/80/80.
+  83.87/71.97/87.31/85.72 baseline.
 - `packages/design-tokens` reports coverage for aggregation but has no absolute
   floor.
 - `apps/control-center` was re-ratcheted on 2026-09-08 from a measured
