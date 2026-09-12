@@ -62,6 +62,8 @@ export async function collectOperatorHeartbeatSignal(
         heartbeatAt: heartbeat.observedAt,
         heartbeatAgeMinutes: null,
         actor: heartbeat.actor,
+        state: heartbeat.state,
+        failureStreak: heartbeat.failureStreak,
       },
       observedAt: now,
     });
@@ -76,34 +78,72 @@ export async function collectOperatorHeartbeatSignal(
       heartbeatAt: heartbeat.observedAt,
       heartbeatAgeMinutes: ageMinutes,
       actor: heartbeat.actor,
+      state: heartbeat.state,
+      failureStreak: heartbeat.failureStreak,
     },
     observedAt: now,
   };
 
-  if (ageMs <= DEGRADED_AFTER_MS) {
+  if (ageMs > CRITICAL_AFTER_MS) {
     return buildSignal({
       ...common,
-      status: 'healthy',
-      title: 'ops-operator heartbeat is fresh',
-      detail: `Latest operator cycle started ${ageMinutes}m ago.`,
+      status: 'critical',
+      title: 'ops-operator heartbeat is stale',
+      detail:
+        `No operator heartbeat update has been recorded for ${ageMinutes}m; the workflow is scheduled every 5 minutes.`,
     });
   }
 
-  if (ageMs <= CRITICAL_AFTER_MS) {
+  if (heartbeat.failureStreak >= 2) {
+    return buildSignal({
+      ...common,
+      status: 'critical',
+      title: `ops-operator failed ${heartbeat.failureStreak} cycles in a row`,
+      detail:
+        heartbeat.state === 'running'
+          ? `A new cycle started ${ageMinutes}m ago after ${heartbeat.failureStreak} consecutive failed cycles.`
+          : `Latest operator cycle failed ${ageMinutes}m ago; ${heartbeat.failureStreak} consecutive cycles have failed.`,
+    });
+  }
+
+  if (heartbeat.state === 'failed') {
+    return buildSignal({
+      ...common,
+      status: 'degraded',
+      title: 'ops-operator last cycle failed',
+      detail: `Latest operator cycle failed ${ageMinutes}m ago.`,
+    });
+  }
+
+  if (heartbeat.state === 'running' && heartbeat.failureStreak === 1) {
+    return buildSignal({
+      ...common,
+      status: 'degraded',
+      title: 'ops-operator is retrying after a failed cycle',
+      detail: `A new cycle started ${ageMinutes}m ago after the previous cycle failed.`,
+    });
+  }
+
+  if (ageMs > DEGRADED_AFTER_MS) {
     return buildSignal({
       ...common,
       status: 'degraded',
       title: 'ops-operator heartbeat is delayed',
       detail:
-        `Latest operator heartbeat is ${ageMinutes}m old; the workflow is scheduled every 5 minutes.`,
+        `Latest operator heartbeat update is ${ageMinutes}m old; the workflow is scheduled every 5 minutes.`,
     });
   }
 
   return buildSignal({
     ...common,
-    status: 'critical',
-    title: 'ops-operator heartbeat is stale',
+    status: 'healthy',
+    title:
+      heartbeat.state === 'running'
+        ? 'ops-operator cycle is running'
+        : 'ops-operator heartbeat is fresh',
     detail:
-      `No operator heartbeat has been recorded for ${ageMinutes}m; the workflow is scheduled every 5 minutes.`,
+      heartbeat.state === 'running'
+        ? `Current operator cycle started ${ageMinutes}m ago.`
+        : `Latest operator cycle succeeded ${ageMinutes}m ago.`,
   });
 }
