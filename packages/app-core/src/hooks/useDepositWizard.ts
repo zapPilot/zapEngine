@@ -7,12 +7,16 @@ import {
   hlpStepFromPlan,
   initialDepositWizardState,
   resolveHlpDepositUsd6,
+  spotFundingShortfallUsd6,
   type WizardLegStatus,
 } from '@core/lib/wallet/depositWizardMachine';
 import { useWalletProvider } from '@core/providers/walletContext';
 import {
+  getPerpUsdcBalance,
   getVaultEquity,
+  HyperliquidClassTransferError,
   HyperliquidVaultDepositError,
+  submitUsdClassTransfer,
   submitVaultDeposit,
   waitForPerpUsdcArrival,
   waitForVaultEquityIncrease,
@@ -21,6 +25,7 @@ import { waitForBridgeCompletion } from '@core/services/intentClient';
 import { logger } from '@core/utils/logger';
 import type {
   DepositPlan,
+  HlpSpotDepositPlan,
   HyperliquidVaultDepositStep,
 } from '@zapengine/types/api';
 import { equalsAddress } from '@zapengine/types/shared';
@@ -212,6 +217,144 @@ export function useDepositWizard() {
     [account?.address, renewAbort, watchBridgeLeg, watchHlpArrival],
   );
 
+  /**
+   * Arm a spot-funded deposit. The perp read decides whether signature one is
+   * needed at all, so an interrupted attempt that already moved the money
+   * resumes straight at the vault signature.
+   */
+  const startSpotDeposit = useCallback(
+    async (plan: HlpSpotDepositPlan): Promise<void> => {
+      const userAddress = requireUserAddress(account?.address);
+      const controller = renewAbort();
+      resumeAddressRef.current = userAddress;
+
+      const perp = await getPerpUsdcBalance({
+        user: userAddress,
+        apiUrl: plan.steps[0].signing.apiUrl,
+        signal: controller.signal,
+      });
+      if (controller.signal.aborted) return;
+
+      dispatch({
+        type: 'SPOT_PLAN_LOADED',
+        plan,
+        perpWithdrawableUsd6: perp.withdrawableUsd6,
+      });
+    },
+    [account?.address, renewAbort],
+  );
+
+  /**
+   * Signature one: move the outstanding shortfall from spot into perp. The
+   * shortfall is recomputed against the live perp balance rather than trusted
+   * from state, so a retry after an ambiguous failure can only ever move what
+   * is still missing — never a second full deposit.
+   */
+  const runSpotFunding = useCallback(async () => {
+    const transferStep = wizard.hlp.transferStep;
+    if (!transferStep || wizard.hlp.status !== 'fundingRequired') {
+      throw new Error('Spot funding is not ready yet');
+    }
+
+    const userAddress = requireUserAddress(account?.address);
+    if (!equalsAddress(userAddress, resumeAddressRef.current)) {
+      throw new Error(
+        'The connected wallet changed. Reconnect the wallet funding this deposit.',
+      );
+    }
+
+    const signal = abortRef.current?.signal;
+    const apiUrl = transferStep.signing.apiUrl;
+    // Claim before the first await: a second tap must not open a duplicate
+    // transfer while this one is still in flight.
+    dispatch({ type: 'HL_FUNDING_SUBMITTED' });
+
+    try {
+      const perp = await getPerpUsdcBalance({
+        user: userAddress,
+        apiUrl,
+        ...(signal ? { signal } : {}),
+      });
+      if (signal?.aborted) return;
+
+      const shortfallUsd6 = spotFundingShortfallUsd6(
+        BigInt(transferStep.amountUsd6),
+        perp.withdrawableUsd6,
+      );
+      if (shortfallUsd6 === 0n) {
+        // A previous attempt already landed; signing again would strand extra
+        // USDC in perp for no reason.
+        dispatch({ type: 'HL_FUNDED' });
+        return;
+      }
+
+      const walletClient = await getWalletClient();
+      if (signal?.aborted) return;
+      if (
+        !equalsAddress(walletClient.account.address, resumeAddressRef.current)
+      ) {
+        dispatch({ type: 'HL_FUNDING_FAILED' });
+        failStage(
+          'hyperliquidDeposit',
+          new Error(
+            'The connected wallet changed. Reconnect the wallet funding this deposit.',
+          ),
+        );
+        return;
+      }
+
+      await submitUsdClassTransfer({
+        walletClient,
+        usd6: shortfallUsd6,
+        isTestnet: transferStep.signing.hyperliquidChain === 'Testnet',
+        apiUrl,
+      });
+    } catch (error) {
+      if (isAbortError(error)) return;
+      if (error instanceof HyperliquidClassTransferError && error.ambiguous) {
+        // Unlike a vault deposit, this transfer locks nothing and is measured
+        // against an absolute target, so the perp balance itself settles
+        // whether it landed. Fall through to the poll rather than stranding
+        // the flow behind a disabled button.
+        wizardLogger.error(
+          '[deposit-wizard] spot transfer outcome is ambiguous:',
+          error,
+        );
+      } else {
+        dispatch({ type: 'HL_FUNDING_FAILED' });
+        failStage('hyperliquidDeposit', error);
+        return;
+      }
+    }
+
+    dispatch({ type: 'HL_FUNDED' });
+
+    try {
+      // Absolute target, not a delta: the baseline is zero because the
+      // invariant is "perp covers the deposit", which stays true no matter
+      // how many attempts it took to get there.
+      const { arrivedUsd6 } = await waitForPerpUsdcArrival({
+        user: userAddress,
+        baselineUsd6: 0n,
+        expectedUsd6: BigInt(transferStep.amountUsd6),
+        apiUrl,
+        ...(signal ? { signal } : {}),
+      });
+      if (signal?.aborted) return;
+      dispatch({ type: 'HL_ARRIVED', arrivedUsd6 });
+    } catch (error) {
+      if (isAbortError(error)) return;
+      failStage('hyperliquidDeposit', error);
+    }
+  }, [
+    account?.address,
+    abortRef,
+    failStage,
+    getWalletClient,
+    wizard.hlp.status,
+    wizard.hlp.transferStep,
+  ]);
+
   const runHlpDeposit = useCallback(async () => {
     const step = wizard.hlp.step;
     if (!step || wizard.hlp.status !== 'arrived') {
@@ -341,6 +484,8 @@ export function useDepositWizard() {
     wizard,
     resumeReviewedPlan,
     runHlpDeposit,
+    runSpotFunding,
+    startSpotDeposit,
     retry,
     reset,
   };

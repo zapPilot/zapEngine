@@ -1,5 +1,7 @@
 import type {
   DepositPlan,
+  HlpSpotDepositPlan,
+  HyperliquidUsdClassTransferStep,
   HyperliquidVaultDepositStep,
 } from '@zapengine/types/api';
 import type { Hash } from 'viem';
@@ -37,6 +39,10 @@ export interface WizardLegProgress {
 
 export type WizardHlpStatus =
   | 'idle'
+  /** Spot-funded only: perp is short of the deposit, signature 1 is pending. */
+  | 'fundingRequired'
+  /** Spot-funded only: the spot-to-perp transfer is in flight. */
+  | 'funding'
   | 'awaitingArrival'
   | 'arrived'
   | 'confirming'
@@ -47,6 +53,8 @@ export type WizardHlpStatus =
 export interface WizardHlpState {
   status: WizardHlpStatus;
   step: HyperliquidVaultDepositStep | null;
+  /** Spot-funded only: the spot-to-perp transfer signed before the deposit. */
+  transferStep: HyperliquidUsdClassTransferStep | null;
   baselineUsd6: bigint | null;
   arrivedUsd6: bigint | null;
   vaultEquityUsd6: bigint | null;
@@ -72,6 +80,14 @@ export type DepositWizardEvent =
       sourceTxHash?: Hash;
       destinationTxHash?: Hash;
     }
+  | {
+      type: 'SPOT_PLAN_LOADED';
+      plan: HlpSpotDepositPlan;
+      perpWithdrawableUsd6: bigint;
+    }
+  | { type: 'HL_FUNDING_SUBMITTED' }
+  | { type: 'HL_FUNDING_FAILED' }
+  | { type: 'HL_FUNDED' }
   | { type: 'HL_ARRIVED'; arrivedUsd6: bigint }
   | { type: 'HL_SUBMITTED' }
   | { type: 'HL_SUBMIT_FAILED' }
@@ -83,6 +99,7 @@ export type DepositWizardEvent =
 const initialHlpState: WizardHlpState = {
   status: 'idle',
   step: null,
+  transferStep: null,
   baselineUsd6: null,
   arrivedUsd6: null,
   vaultEquityUsd6: null,
@@ -161,6 +178,56 @@ function afterBridgingStage(state: DepositWizardState): DepositWizardState {
   return { ...state, stage: 'done' };
 }
 
+/**
+ * How much more perp USDC the deposit needs. Spot funding measures against an
+ * absolute target rather than a delta from a snapshot, so it stays correct
+ * with no stored evidence: recomputing after an interrupted attempt yields
+ * zero once the transfer landed, which is what makes a retry unable to move
+ * the money twice.
+ */
+export function spotFundingShortfallUsd6(
+  requestedUsd6: bigint,
+  perpWithdrawableUsd6: bigint,
+): bigint {
+  const shortfall = requestedUsd6 - perpWithdrawableUsd6;
+  return shortfall > 0n ? shortfall : 0n;
+}
+
+const SPOT_FUNDING_TRANSITIONS = {
+  HL_FUNDING_SUBMITTED: ['fundingRequired', 'funding'],
+  HL_FUNDING_FAILED: ['funding', 'fundingRequired'],
+  HL_FUNDED: ['funding', 'awaitingArrival'],
+} as const satisfies Record<
+  string,
+  readonly [WizardHlpStatus, WizardHlpStatus]
+>;
+
+function spotPlanLoadedState(
+  plan: HlpSpotDepositPlan,
+  perpWithdrawableUsd6: bigint,
+): DepositWizardState {
+  const [transferStep, step] = plan.steps;
+  const shortfallUsd6 = spotFundingShortfallUsd6(
+    BigInt(plan.amountUsd6),
+    perpWithdrawableUsd6,
+  );
+  return {
+    ...initialDepositWizardState,
+    // No legs and no source batch: this plan is two wallet signatures, so it
+    // enters at the Hyperliquid stage rather than walking the EVM stages.
+    stage: 'hyperliquidDeposit',
+    hlp: {
+      ...initialHlpState,
+      step,
+      transferStep,
+      // Perp already covers the deposit — leftover balance, or a transfer the
+      // user signed before quitting — so signature one and the arrival poll
+      // would both be no-ops.
+      status: shortfallUsd6 > 0n ? 'fundingRequired' : 'arrived',
+    },
+  };
+}
+
 export function depositWizardReducer(
   state: DepositWizardState,
   event: DepositWizardEvent,
@@ -182,6 +249,20 @@ export function depositWizardReducer(
           baselineUsd6: event.baselineUsd6 ?? null,
         },
       };
+    }
+
+    case 'SPOT_PLAN_LOADED':
+      return spotPlanLoadedState(event.plan, event.perpWithdrawableUsd6);
+
+    // Each transition belongs to the status that armed it, so a late dispatch
+    // from a superseded run cannot move a fresh machine.
+    case 'HL_FUNDING_SUBMITTED':
+    case 'HL_FUNDING_FAILED':
+    case 'HL_FUNDED': {
+      const [from, to] = SPOT_FUNDING_TRANSITIONS[event.type];
+      return state.hlp.status === from
+        ? { ...state, hlp: { ...state.hlp, status: to } }
+        : state;
     }
 
     case 'SOURCE_SUBMITTED':

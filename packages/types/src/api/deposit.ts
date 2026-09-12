@@ -162,9 +162,12 @@ export const HyperliquidUsdClassTransferStepSchema = z.object({
     toPerp: z.literal(true),
     /**
      * DOLLARS — "1" means $1. This exchange action denominates its amount
-     * differently from `vaultTransfer`, whose `usd` is 6-decimal base units.
-     * The planner emits the converted string so no client divides by 1e6 on a
-     * money path; passing base units here would inflate the transfer 1e6x.
+     * differently from `vaultTransfer`, whose `usd` is 6-decimal base units;
+     * passing base units here would inflate the transfer 1e6x.
+     *
+     * This is the full deposit. A client whose perp account is already
+     * partially funded transfers only the outstanding shortfall, so the
+     * signed amount can be smaller than this — never larger.
      */
     amountUsd: z.string().regex(/^\d+(\.\d{1,6})?$/, {
       message: 'Expected a dollar-denominated decimal string',

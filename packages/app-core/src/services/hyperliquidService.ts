@@ -1,7 +1,7 @@
 import { httpPost } from '@core/lib/http';
 import { createApiServiceCaller } from '@core/lib/http/createServiceCaller';
 import { pollUntil } from '@core/lib/polling';
-import { parseBaseUnits } from '@core/lib/wallet/usd6';
+import { formatUsd6, parseBaseUnits } from '@core/lib/wallet/usd6';
 import { equalsAddress } from '@zapengine/types/shared';
 import type { Address, WalletClient } from 'viem';
 import { z } from 'zod';
@@ -271,18 +271,43 @@ function loadSdk(): Promise<typeof import('@nktkas/hyperliquid')> {
  * retry for an ambiguous failure: the position could already exist and a
  * second transfer locks another 4 days of funds.
  */
-export class HyperliquidVaultDepositError extends Error {
+class HyperliquidActionError extends Error {
   readonly ambiguous: boolean;
 
   constructor(
+    name: string,
     message: string,
     options: { cause?: unknown; ambiguous: boolean },
   ) {
     super(message, {
       ...(options.cause !== undefined ? { cause: options.cause } : {}),
     });
-    this.name = 'HyperliquidVaultDepositError';
+    this.name = name;
     this.ambiguous = options.ambiguous;
+  }
+}
+
+export class HyperliquidVaultDepositError extends HyperliquidActionError {
+  constructor(
+    message: string,
+    options: { cause?: unknown; ambiguous: boolean },
+  ) {
+    super('HyperliquidVaultDepositError', message, options);
+  }
+}
+
+/**
+ * A failed spot-to-perp transfer. Unlike a vault deposit, an ambiguous
+ * failure here is recoverable: the transfer locks nothing, and the perp
+ * balance itself is the evidence of whether it landed. Callers should re-read
+ * the balance rather than blindly re-signing.
+ */
+export class HyperliquidClassTransferError extends HyperliquidActionError {
+  constructor(
+    message: string,
+    options: { cause?: unknown; ambiguous: boolean },
+  ) {
+    super('HyperliquidClassTransferError', message, options);
   }
 }
 
@@ -313,51 +338,136 @@ function isAmbiguousSubmission(
   }
 }
 
-/**
- * Sign and submit a gasless HLP vault deposit. The SDK owns nonce, action
- * hash, and phantom-agent EIP-712 construction; the wallet only ever sees a
- * signTypedData request (no chain switch — the domain is fixed to 1337).
- */
-export async function submitVaultDeposit({
+async function exchangeClientFor({
   walletClient,
-  vaultAddress,
-  usd6,
-  isTestnet = false,
+  isTestnet,
   apiUrl,
 }: {
   walletClient: WalletClient;
-  vaultAddress: Address;
-  usd6: bigint;
-  isTestnet?: boolean;
+  isTestnet: boolean;
   apiUrl?: string;
-}): Promise<void> {
-  if (usd6 <= 0n) {
-    throw new Error('Vault deposit amount must be positive');
-  }
-  if (usd6 > BigInt(Number.MAX_SAFE_INTEGER)) {
-    throw new Error('Vault deposit amount exceeds the safe integer range');
-  }
-
+}) {
   const sdk = await loadSdk();
   const transport = new sdk.HttpTransport({
     isTestnet,
     ...(apiUrl ? { apiUrl } : {}),
   });
-  const client = new sdk.ExchangeClient({
-    transport,
-    wallet: walletClient as never,
+  return {
+    sdk,
+    client: new sdk.ExchangeClient({
+      transport,
+      wallet: walletClient as never,
+    }),
+  };
+}
+
+/**
+ * Move USDC from the spot account into the perp account, which is the only
+ * balance a vault deposit can debit.
+ *
+ * The exchange denominates this action in DOLLARS while `vaultTransfer` uses
+ * 6-decimal base units, so the conversion happens here, once, in string math:
+ * handing the base-unit integer straight to the SDK would transfer a million
+ * times the intended amount.
+ */
+interface SignedActionParams {
+  walletClient: WalletClient;
+  usd6: bigint;
+  isTestnet?: boolean;
+  apiUrl?: string;
+}
+
+type ExchangeClient = Awaited<ReturnType<typeof exchangeClientFor>>['client'];
+
+/**
+ * Shared submission shell: validate, build the client, run the action, and
+ * classify any failure as ambiguous or not. Each caller supplies only the
+ * action and its error type.
+ */
+async function submitSignedAction({
+  walletClient,
+  usd6,
+  isTestnet = false,
+  apiUrl,
+  amountLabel,
+  run,
+  toError,
+}: SignedActionParams & {
+  amountLabel: string;
+  run: (client: ExchangeClient) => Promise<unknown>;
+  toError: (
+    message: string,
+    options: { cause: unknown; ambiguous: boolean },
+  ) => Error;
+}): Promise<void> {
+  if (usd6 <= 0n) {
+    throw new Error(`${amountLabel} must be positive`);
+  }
+
+  const { sdk, client } = await exchangeClientFor({
+    walletClient,
+    isTestnet,
+    ...(apiUrl ? { apiUrl } : {}),
   });
 
   try {
-    await client.vaultTransfer({
-      vaultAddress,
-      isDeposit: true,
-      usd: Number(usd6),
-    });
+    await run(client);
   } catch (error) {
-    throw new HyperliquidVaultDepositError(
-      `Hyperliquid vault deposit failed: ${(error as Error).message}`,
-      { cause: error, ambiguous: isAmbiguousSubmission(sdk, error) },
-    );
+    throw toError((error as Error).message, {
+      cause: error,
+      ambiguous: isAmbiguousSubmission(sdk, error),
+    });
   }
+}
+
+export function submitUsdClassTransfer(
+  params: SignedActionParams,
+): Promise<void> {
+  return submitSignedAction({
+    ...params,
+    amountLabel: 'Class transfer amount',
+    run: (client) =>
+      client.usdClassTransfer({
+        amount: formatUsd6(params.usd6, 6),
+        toPerp: true,
+      }),
+    toError: (message, options) =>
+      new HyperliquidClassTransferError(
+        `Hyperliquid spot-to-perp transfer failed: ${message}`,
+        options,
+      ),
+  });
+}
+
+/**
+ * Sign and submit a gasless HLP vault deposit. The SDK owns nonce, action
+ * hash, and phantom-agent EIP-712 construction; the wallet only ever sees a
+ * signTypedData request (no chain switch — the domain is fixed to 1337).
+ */
+// `async` so the guard below surfaces as a rejection rather than a synchronous
+// throw, which callers using `.catch()` would miss.
+export async function submitVaultDeposit(
+  params: SignedActionParams & { vaultAddress: Address },
+): Promise<void> {
+  // Unlike the class transfer, this action's amount crosses the SDK boundary
+  // as a Number.
+  if (params.usd6 > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new Error('Vault deposit amount exceeds the safe integer range');
+  }
+
+  return submitSignedAction({
+    ...params,
+    amountLabel: 'Vault deposit amount',
+    run: (client) =>
+      client.vaultTransfer({
+        vaultAddress: params.vaultAddress,
+        isDeposit: true,
+        usd: Number(params.usd6),
+      }),
+    toError: (message, options) =>
+      new HyperliquidVaultDepositError(
+        `Hyperliquid vault deposit failed: ${message}`,
+        options,
+      ),
+  });
 }
