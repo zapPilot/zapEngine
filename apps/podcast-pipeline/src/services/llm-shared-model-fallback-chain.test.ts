@@ -86,21 +86,25 @@ describe('shared OpenRouter fallback chain', () => {
       'fallback/one',
       'fallback/two',
     ]);
-    expect(ingestMocks.logIngestEvent).toHaveBeenNthCalledWith(
-      1,
-      'llm:model-fallback',
-      expect.objectContaining({
-        model: 'primary/model',
-        nextModel: 'fallback/one',
-      }),
+
+    const fallbackEvents = ingestMocks.logIngestEvent.mock.calls.filter(
+      ([event]) => event === 'llm:model-fallback',
     );
-    expect(ingestMocks.logIngestEvent).toHaveBeenNthCalledWith(
-      2,
-      'llm:model-fallback',
-      expect.objectContaining({
-        model: 'fallback/one',
-        nextModel: 'fallback/two',
-      }),
-    );
+    expect(fallbackEvents).toEqual([
+      [
+        'llm:model-fallback',
+        expect.objectContaining({
+          model: 'primary/model',
+          nextModel: 'fallback/one',
+        }),
+      ],
+      [
+        'llm:model-fallback',
+        expect.objectContaining({
+          model: 'fallback/one',
+          nextModel: 'fallback/two',
+        }),
+      ],
+    ]);
   });
 });
