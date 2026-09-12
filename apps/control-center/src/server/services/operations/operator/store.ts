@@ -7,6 +7,8 @@ const operatorHeartbeatSchema = z
   .object({
     observedAt: z.string().min(1),
     actor: z.string().min(1),
+    state: z.enum(['running', 'succeeded', 'failed']),
+    failureStreak: z.number().int().nonnegative(),
   })
   .nullable();
 
@@ -26,6 +28,7 @@ const renderTargetSchema = z.object({
 });
 
 export type RenderTarget = z.infer<typeof renderTargetSchema>;
+export type OperatorHeartbeatState = 'running' | 'succeeded' | 'failed';
 
 export function createOperatorStore(config: ControlCenterConfig) {
   const client = createConfiguredServiceRoleClient(config);
@@ -46,8 +49,11 @@ export function createOperatorStore(config: ControlCenterConfig) {
   }
   return {
     rpc,
-    async recordHeartbeat(actor: string) {
-      await rpc('ops_record_operator_heartbeat', { p_actor: actor });
+    async recordHeartbeat(actor: string, state: OperatorHeartbeatState) {
+      await rpc('ops_record_operator_heartbeat', {
+        p_actor: actor,
+        p_state: state,
+      });
     },
     async heartbeat() {
       return operatorHeartbeatSchema.parse(await rpc('ops_operator_heartbeat'));
