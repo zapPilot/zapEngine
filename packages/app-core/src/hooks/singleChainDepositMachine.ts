@@ -12,9 +12,12 @@ const STEP_ID = {
   verifyPosition: 'verify-position',
 } as const;
 
+/** EVM single-chain batch execution only — plans without an EVM batch (the
+ * multi-chain strategy deposit, and the HyperCore spot-funded HLP deposit,
+ * which is two wallet signatures) are executed elsewhere. */
 export type SingleChainDepositRequest = Exclude<
   PlanOrchestrationDepositRequest,
-  { kind: 'strategy' }
+  { kind: 'strategy' } | { kind: 'hlp-spot-deposit' }
 >;
 
 export type SingleChainDepositWizardStepKind =

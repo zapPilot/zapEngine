@@ -14,6 +14,7 @@ import {
   DepositRequestSchema,
   FollowUpAmountSchema,
   HexDataSchema,
+  HLP_MIN_DEPOSIT_USD6,
   HYPERCORE_CHAIN_ID,
   HyperliquidVaultDepositStepSchema,
   MockBridgeCheckpointSchema,
@@ -1010,5 +1011,40 @@ describe('Deposit follow-up schemas', () => {
         sourceChainId: 8453,
       }).success,
     ).toBe(true);
+  });
+});
+
+describe('hlp-spot-deposit request', () => {
+  const valid = {
+    kind: 'hlp-spot-deposit' as const,
+    userAddress: '0x1111111111111111111111111111111111111111',
+    amountUsd6: '10000000',
+  };
+
+  it('accepts a request at the vault minimum', () => {
+    expect(PlanOrchestrationDepositRequestSchema.parse(valid).amountUsd6).toBe(
+      '10000000',
+    );
+    expect(HLP_MIN_DEPOSIT_USD6).toBe(10_000_000n);
+  });
+
+  it('rejects an amount below the vault minimum', () => {
+    expect(() =>
+      PlanOrchestrationDepositRequestSchema.parse({
+        ...valid,
+        amountUsd6: '9999999',
+      }),
+    ).toThrow();
+  });
+
+  it('carries no EVM source, so chain validation cannot reach it', () => {
+    // A stray sourceChainId must not smuggle 1337 past the EVM allowlist.
+    const parsed = PlanOrchestrationDepositRequestSchema.parse({
+      ...valid,
+      sourceChainId: HYPERCORE_CHAIN_ID,
+      fromToken: '0x2222222222222222222222222222222222222222',
+    });
+    expect(parsed).not.toHaveProperty('sourceChainId');
+    expect(parsed).not.toHaveProperty('fromToken');
   });
 });

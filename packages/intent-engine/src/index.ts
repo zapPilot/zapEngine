@@ -111,6 +111,7 @@ export {
   HYPERLIQUID_EXCHANGE_API,
   HYPERLIQUID_VAULT_CATALOG,
   buildHlpDepositFollowUp,
+  buildHlpSpotDepositPlan,
   buildVaultTransferAction,
   hyperliquidVaultCatalogSource,
   ProtocolCapabilitySchema,

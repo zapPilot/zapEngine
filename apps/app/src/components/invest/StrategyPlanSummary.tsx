@@ -1,7 +1,7 @@
 import { type ChainBrandKey } from '@zapengine/brand-assets';
 import {
   type DepositPlan,
-  type PlanOrchestrationDepositPlan,
+  type ReviewedDepositPlan,
   type PreparedTransaction,
   type StrategyDepositPlan,
   SUPPORTED_DEPOSIT_CHAINS,
@@ -30,7 +30,7 @@ import { formatUsd } from '@/lib/format';
 
 interface StrategyPlanSummaryProps {
   variant: 'route' | 'confirm';
-  plan: PlanOrchestrationDepositPlan | undefined;
+  plan: ReviewedDepositPlan | undefined;
   amountUsd: number;
   scope: InvestScope;
   singleChainFundingDraft: SingleChainFundingDraft | null;
@@ -59,7 +59,7 @@ function RowMarks({
 }
 
 export function isDepositPlanForScope(
-  plan: PlanOrchestrationDepositPlan | undefined,
+  plan: ReviewedDepositPlan | undefined,
   scope: InvestScope,
 ): boolean {
   if (scope === 'both') {
@@ -339,7 +339,7 @@ function SingleChainSummary({
 }
 
 function depositPlan(
-  plan: PlanOrchestrationDepositPlan | undefined,
+  plan: ReviewedDepositPlan | undefined,
 ): DepositPlan | undefined {
   if (!plan) return undefined;
   return isStrategyDepositPlan(plan) ? undefined : plan;

@@ -12,7 +12,7 @@ import type {
 import { useWalletProvider } from '@zapengine/app-core/providers/walletContext';
 import type {
   DepositReviewGroup,
-  PlanOrchestrationDepositPlan,
+  ReviewedDepositPlan,
   PreparedTransaction,
 } from '@zapengine/types/api';
 import { equalsAddress } from '@zapengine/types/shared';
@@ -50,27 +50,27 @@ export interface InvestExecutionContextValue {
   reset: () => void;
   /** Submit the exact, already-reviewed group without opening the legacy UI. */
   submitReviewedBatch: (input: {
-    plan: PlanOrchestrationDepositPlan;
+    plan: ReviewedDepositPlan;
     review: DepositReviewGroup;
     acknowledgedRiskHash?: string;
     queue?: {
-      plan: PlanOrchestrationDepositPlan;
+      plan: ReviewedDepositPlan;
       review: DepositReviewGroup;
     }[];
   }) => Promise<ReviewedBatchSubmissionResult>;
   reviewedSubmission: ReviewedBatchSubmission | null;
   reviewedProgress: ReviewedBatchProgress | null;
   reviewedQueue: {
-    plan: PlanOrchestrationDepositPlan;
+    plan: ReviewedDepositPlan;
     review: DepositReviewGroup;
   }[];
   updateReviewedQueueEntry: (input: {
     index: number;
-    plan: PlanOrchestrationDepositPlan;
+    plan: ReviewedDepositPlan;
     review: DepositReviewGroup;
   }) => void;
   submitNextReviewedBatch: (input?: {
-    plan?: PlanOrchestrationDepositPlan;
+    plan?: ReviewedDepositPlan;
     review?: DepositReviewGroup;
     acknowledgedRiskHash?: string;
   }) => Promise<ReviewedBatchSubmissionResult>;
@@ -105,7 +105,7 @@ async function executeReviewedBatchWithWallet({
   acknowledgedRiskHash,
 }: {
   wallet: WalletProviderInterface;
-  plan: PlanOrchestrationDepositPlan;
+  plan: ReviewedDepositPlan;
   review: DepositReviewGroup;
   acknowledgedRiskHash?: string | undefined;
 }): Promise<ReviewedBatchSubmissionResult> {
@@ -159,7 +159,7 @@ async function executeReviewedBatchWithWallet({
 }
 
 function reviewedBatchTransactions(
-  plan: PlanOrchestrationDepositPlan,
+  plan: ReviewedDepositPlan,
   review: DepositReviewGroup,
 ): { transactions: PreparedTransaction[]; chainId: number } | null {
   if ('executionGroups' in plan) {
@@ -226,7 +226,7 @@ export function InvestExecutionProvider({ children }: { children: ReactNode }) {
   const [reviewedSubmission, setReviewedSubmission] =
     useState<ReviewedBatchSubmission | null>(null);
   const [reviewedQueue, setReviewedQueue] = useState<
-    { plan: PlanOrchestrationDepositPlan; review: DepositReviewGroup }[]
+    { plan: ReviewedDepositPlan; review: DepositReviewGroup }[]
   >([]);
   const [reviewedProgress, setReviewedProgress] =
     useState<ReviewedBatchProgress | null>(null);
@@ -354,7 +354,7 @@ export function InvestExecutionProvider({ children }: { children: ReactNode }) {
   );
 
   type ReviewedQueue = {
-    plan: PlanOrchestrationDepositPlan;
+    plan: ReviewedDepositPlan;
     review: DepositReviewGroup;
   }[];
 
@@ -424,7 +424,7 @@ export function InvestExecutionProvider({ children }: { children: ReactNode }) {
 
   const submitReviewedBatch = useCallback(
     async (input: {
-      plan: PlanOrchestrationDepositPlan;
+      plan: ReviewedDepositPlan;
       review: DepositReviewGroup;
       acknowledgedRiskHash?: string;
       queue?: ReviewedQueue;
@@ -454,7 +454,7 @@ export function InvestExecutionProvider({ children }: { children: ReactNode }) {
 
   const submitNextReviewedBatch = useCallback(
     async (input?: {
-      plan?: PlanOrchestrationDepositPlan;
+      plan?: ReviewedDepositPlan;
       review?: DepositReviewGroup;
       acknowledgedRiskHash?: string;
     }): Promise<ReviewedBatchSubmissionResult> => {
@@ -502,7 +502,7 @@ export function InvestExecutionProvider({ children }: { children: ReactNode }) {
   const updateReviewedQueueEntry = useCallback(
     (input: {
       index: number;
-      plan: PlanOrchestrationDepositPlan;
+      plan: ReviewedDepositPlan;
       review: DepositReviewGroup;
     }) => {
       setReviewedQueue((current) =>

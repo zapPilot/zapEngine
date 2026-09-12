@@ -15,8 +15,8 @@ import {
   type ChainSplit,
   type DepositReviewGroup,
   type PlanOrchestrationDepositReviewResponse,
-  type PlanOrchestrationDepositPlan,
-  type PlanOrchestrationDepositRequest,
+  type ReviewedDepositPlan,
+  type ReviewedDepositRequest,
 } from '@zapengine/types/api';
 
 import {
@@ -196,7 +196,7 @@ function baseInvestRequest(
   userAddress: `0x${string}`,
   draft: Extract<SingleChainFundingDraft, { scope: 'base' }>,
   split: ChainSplit,
-): PlanOrchestrationDepositRequest {
+): ReviewedDepositRequest {
   return {
     kind: 'invest',
     userAddress,
@@ -215,7 +215,7 @@ export function buildInvestDepositPlanRequest({
   arbitrumFundingToken,
   singleChainFundingDraft,
   destination = 'strategy',
-}: InvestDepositPlanRequestParams): PlanOrchestrationDepositRequest | null {
+}: InvestDepositPlanRequestParams): ReviewedDepositRequest | null {
   if (destination === 'hlp') {
     if (
       scope !== 'base' ||
@@ -264,7 +264,7 @@ export function buildInvestDepositPlanRequest({
 
 export function buildInvestDepositPlanPreviewKey(
   scope: InvestScope,
-  request: PlanOrchestrationDepositRequest | null,
+  request: ReviewedDepositRequest | null,
 ): readonly unknown[] {
   if (!request) {
     return [scope, 'no-frozen-draft'];
@@ -298,7 +298,7 @@ export function buildInvestDepositPlanPreviewKey(
  */
 function reviewGroupKeysFor(
   scope: InvestScope,
-  plan: PlanOrchestrationDepositPlan | undefined,
+  plan: ReviewedDepositPlan | undefined,
 ): readonly string[] {
   if (scope === 'both') {
     return ['base-morpho', 'arbitrum-gmx'];
@@ -322,7 +322,7 @@ function reviewGroupKeysFor(
  */
 export function useInvestDepositReview(): {
   review: PlanOrchestrationDepositReviewResponse | undefined;
-  plan: PlanOrchestrationDepositPlan | undefined;
+  plan: ReviewedDepositPlan | undefined;
   isLoading: boolean;
   isError: boolean;
   errorMessage: string | null;

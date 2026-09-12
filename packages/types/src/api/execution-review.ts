@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import {
   PlanOrchestrationDepositRequestSchema,
-  PlanOrchestrationDepositPlanSchema,
+  ReviewedDepositPlanSchema,
 } from './deposit.js';
 import {
   SimulationApprovalSchema,
@@ -110,7 +110,7 @@ export const PlanOrchestrationDepositReviewRequestSchema =
 
 export const PlanOrchestrationDepositReviewResponseSchema = z
   .object({
-    plan: PlanOrchestrationDepositPlanSchema,
+    plan: ReviewedDepositPlanSchema,
     planFingerprint: SimulationBytes32Schema,
     reviewedAt: z.number().int().positive(),
     expiresAt: z.number().int().positive(),

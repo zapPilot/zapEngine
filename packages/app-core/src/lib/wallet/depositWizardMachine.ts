@@ -332,6 +332,12 @@ export function resolveHlpDepositUsd6(
     throw new Error('HLP deposit amount is not known yet (funds not arrived)');
   }
 
+  if (step.expectedUsd === undefined) {
+    // Only the spot-funded plan omits this, and it never takes this branch.
+    // Coercing a missing value to 0 would silently cap the deposit at zero.
+    throw new Error('Bridge-funded HLP step is missing its expected amount');
+  }
+
   const ceilingUsd6 =
     (BigInt(step.expectedUsd) * BRIDGE_OUTPUT_CEILING_BPS) / 10_000n;
   return assertVaultMinimum(

@@ -39,7 +39,10 @@ async function postDepositPlanRequest<TPlan>(
 }
 
 async function postDepositPlan(
-  request: Exclude<PlanOrchestrationDepositRequest, { kind: 'strategy' }>,
+  request: Exclude<
+    PlanOrchestrationDepositRequest,
+    { kind: 'strategy' } | { kind: 'hlp-spot-deposit' }
+  >,
 ): Promise<DepositPlan> {
   return postDepositPlanRequest(request, DepositPlanSchema);
 }

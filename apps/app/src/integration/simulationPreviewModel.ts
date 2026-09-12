@@ -9,7 +9,7 @@ import {
   chainBrandKeyForChainId,
 } from '@zapengine/brand-assets';
 import type {
-  PlanOrchestrationDepositPlan,
+  ReviewedDepositPlan,
   PrivyPrepareSendCallsResponse,
   PrivySimulationApproval,
   PrivySimulationAssetChange,
@@ -155,7 +155,7 @@ const SINGLE_CHAIN_PROTOCOL_LABELS: Record<string, string> = {
 /** A plan orchestration response is the multi-chain strategy shape when it
  * carries execution groups; a single-chain `DepositPlan` never does. */
 export function isStrategyDepositPlan(
-  plan: PlanOrchestrationDepositPlan | undefined,
+  plan: ReviewedDepositPlan | undefined,
 ): plan is StrategyDepositPlan {
   return Boolean(plan && 'executionGroups' in plan);
 }
@@ -177,7 +177,7 @@ function formatSharePercent(numerator: bigint, denominator: bigint): string {
  * allocation gets its own chip rather than being collapsed into one label.
  */
 export function resolveRouteProtocols(
-  plan: PlanOrchestrationDepositPlan | undefined,
+  plan: ReviewedDepositPlan | undefined,
   groupId: string,
 ): RouteProtocolContext[] {
   if (isStrategyDepositPlan(plan)) {

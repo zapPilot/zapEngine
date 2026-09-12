@@ -86,11 +86,17 @@ export function useDepositWizard() {
       baselineUsd6: bigint;
       signal: AbortSignal;
     }) => {
+      const expectedUsd = params.step.expectedUsd;
+      if (expectedUsd === undefined) {
+        throw new Error(
+          'Bridge-funded HLP step is missing its expected amount',
+        );
+      }
       try {
         const { arrivedUsd6 } = await waitForPerpUsdcArrival({
           user: params.user,
           baselineUsd6: params.baselineUsd6,
-          expectedUsd6: BigInt(params.step.expectedUsd),
+          expectedUsd6: BigInt(expectedUsd),
           apiUrl: params.step.signing.apiUrl,
           signal: params.signal,
         });

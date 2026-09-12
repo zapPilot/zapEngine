@@ -1,10 +1,7 @@
 import { useDepositWizard } from '@zapengine/app-core/hooks/useDepositWizard';
 import { extractErrorMessage } from '@zapengine/app-core/lib/errors';
 import { hlpStepFromPlan } from '@zapengine/app-core/lib/wallet/depositWizardMachine';
-import type {
-  DepositPlan,
-  PlanOrchestrationDepositPlan,
-} from '@zapengine/types/api';
+import type { DepositPlan, ReviewedDepositPlan } from '@zapengine/types/api';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, Text, View } from 'react-native';
@@ -34,7 +31,7 @@ import { useInvestExecution } from '@/integration/useInvestExecution';
 import { formatUsd } from '@/lib/format';
 
 function asDepositPlan(
-  plan: PlanOrchestrationDepositPlan | undefined,
+  plan: ReviewedDepositPlan | undefined,
 ): DepositPlan | null {
   if (!plan || isStrategyDepositPlan(plan)) return null;
   return plan;

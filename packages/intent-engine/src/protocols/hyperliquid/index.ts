@@ -12,6 +12,7 @@ export {
 } from './hyperliquid.constants.js';
 export {
   buildHlpDepositFollowUp,
+  buildHlpSpotDepositPlan,
   buildVaultTransferAction,
   type HyperliquidVaultTransferAction,
 } from './hyperliquid.encoder.js';
