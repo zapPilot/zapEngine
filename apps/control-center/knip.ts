@@ -8,10 +8,6 @@ export default defineKnipConfig({
   // knip can never report an unused file or export.
   entry: ['api/index.ts', 'src/server/main.ts'],
   project: ['api/**/*.ts', 'src/**/*.{ts,tsx}'],
-  // Exports annotated `@unwired` are finished implementations that nothing
-  // composes yet. They are tracked for follow-up rather than deleted, and this
-  // suppression is per-export so the rest of the file stays under the gate.
-  tags: ['-unwired'],
   // knip cannot follow either of these back to a source file: the cost
   // observability package is consumed through its dist-mapped `exports`, and
   // the design tokens arrive as CSS.

@@ -657,6 +657,81 @@ describe('buildStatements', () => {
     const facts = header.facts.map((f) => `${f.value} ${f.note}`).join(' | ');
     expect(facts).toContain('1 priority account inactive 30d+');
   });
+
+  it('R9: composes top-wallet concentration into the product statement when fired', () => {
+    // The default fixture holds top1PortfolioShare: 0.42, over the 33% bar.
+    const result = buildStatements(inputs());
+    const productStatement = result.statements.find(
+      (s) => s.domain === 'product',
+    )!;
+    const sentence = productStatement.sentence
+      .map((s) => ('text' in s ? s.text : s.value))
+      .join('');
+    expect(sentence).toContain('Top wallet holds 42% of AUM');
+    const header = result.headers.find((h) => h.domain === 'product')!;
+    const facts = header.facts.map((f) => `${f.kicker} ${f.value}`).join(' | ');
+    expect(facts).toContain('Because · concentration Top wallet 42%');
+  });
+
+  it('R9: stays out of the product sentence when concentration is low', () => {
+    const result = buildStatements(
+      inputs({ product: product({ top1PortfolioShare: 0.1 }) }),
+    );
+    const productStatement = result.statements.find(
+      (s) => s.domain === 'product',
+    )!;
+    const sentence = productStatement.sentence
+      .map((s) => ('text' in s ? s.text : s.value))
+      .join('');
+    expect(sentence).not.toContain('Top wallet holds');
+    const header = result.headers.find((h) => h.domain === 'product')!;
+    const facts = header.facts.map((f) => `${f.kicker} ${f.value}`).join(' | ');
+    expect(facts).toContain('Because · concentration Top wallet 10%');
+  });
+
+  it('R11: composes overdue publish jobs into growth when fired', () => {
+    const result = buildStatements(
+      inputs({
+        operationsSocial: operationsSocial({
+          jobs: [
+            {
+              episodeId: 'ep-1',
+              platform: 'x',
+              languageCode: 'ja',
+              status: 'failed',
+              scheduledAt: NOW.toISOString(),
+              nextAttemptAt: NOW.toISOString(),
+              attemptCount: 3,
+              overdueMinutes: 90,
+              attemptsExhausted: false,
+            },
+          ],
+        }),
+      }),
+    );
+    const growth = result.statements.find((s) => s.domain === 'growth')!;
+    const sentence = growth.sentence
+      .map((s) => ('text' in s ? s.text : s.value))
+      .join('');
+    expect(sentence).toContain('1 publish job');
+    expect(sentence).toContain('overdue (x · ja)');
+    const header = result.headers.find((h) => h.domain === 'growth')!;
+    expect(header.status).toBe('degraded');
+    const facts = header.facts.map((f) => `${f.kicker} ${f.value}`).join(' | ');
+    expect(facts).toContain('Because · queue 1 overdue');
+  });
+
+  it('R11: stays silent when the publish queue is current', () => {
+    const result = buildStatements(inputs());
+    const growth = result.statements.find((s) => s.domain === 'growth')!;
+    const sentence = growth.sentence
+      .map((s) => ('text' in s ? s.text : s.value))
+      .join('');
+    expect(sentence).not.toContain('overdue');
+    const header = result.headers.find((h) => h.domain === 'growth')!;
+    const facts = header.facts.map((f) => `${f.kicker} ${f.value}`).join(' | ');
+    expect(facts).toContain('Because · queue 0 overdue');
+  });
 });
 
 it('includes persisted waitlist demand in both Home statements and Product headers', () => {
