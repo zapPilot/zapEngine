@@ -30,7 +30,7 @@ describe('spot-funded HLP deposits', () => {
       execution: 'hypercore-signatures',
       amountUsd6: '12345678',
     });
-    if (!('kind' in plan) || plan.kind !== 'hlp-spot-deposit') {
+    if (!('execution' in plan) || plan.execution !== 'hypercore-signatures') {
       throw new Error('Expected an HLP spot-deposit plan');
     }
     expect(plan.steps[0]?.signing.hyperliquidChain).toBe('Testnet');
