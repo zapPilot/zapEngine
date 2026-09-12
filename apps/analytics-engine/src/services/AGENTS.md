@@ -28,6 +28,6 @@ Prefer the existing domain folder over adding new loose files at `src/services/`
 
 ## Verification traps
 
-- Strategy/backtesting changes are guarded by `tests/test_strategy_performance_snapshot.py`; follow the nested backtesting instructions for intentional fixture changes.
+- Strategy/backtesting changes are guarded by `tests/integration/test_strategy_performance_snapshot.py`; follow the nested backtesting instructions for intentional fixture changes.
 - Local minimal Postgres fixtures do not contain the production `alpha_raw.*` history required by the strategy snapshot. Use the configured read-only snapshot data source for that gate.
 - New DI services must be reachable through `dependencies.py`; the service-reachability gate rejects dead bindings.

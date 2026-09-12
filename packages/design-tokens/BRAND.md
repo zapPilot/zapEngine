@@ -4,9 +4,10 @@ This is the canonical handoff brief for redesigning the Zap Pilot logo across
 web, iOS, Android, and favicon surfaces.
 
 It lives in `packages/design-tokens` because that package is the cross-platform
-source of truth for brand tokens. The current logo assets and
-`apps/landing-page/public/brand-guide.md` use a legacy purple/blue/amber system
-that conflicts with `packages/design-tokens/tokens.json`. The new logo must
+source of truth for brand tokens. The current logo assets use a legacy
+purple/blue/amber system that conflicts with `packages/design-tokens/tokens.json`.
+(The former `apps/landing-page/public/brand-guide.md` described that system
+and was removed when this redesign landed.) The new logo must
 move Zap Pilot onto the warm-gold, dark-first token system.
 
 ## Status — Implemented (2026-07-09)
@@ -306,7 +307,7 @@ Provide 2x PNG fallback files for each SVG:
 
 Place `favicon.ico` in:
 
-- `apps/landing-page/public/`
+- `apps/landing-page/src/app/`
 
 The `.ico` must contain 16 px, 32 px, and 48 px versions. The 16 px version
 must be visually checked, not only auto-scaled.
@@ -386,9 +387,9 @@ Canonical source: `packages/design-tokens/tokens.json` and
 
 Live copy and V2 landing context:
 `apps/landing-page/src/config/messages.ts`,
-`apps/landing-page/src/components/v2/HeroV2.tsx`,
+`apps/landing-page/src/components/landing-v2/Hero.tsx`,
 `apps/landing-page/src/components/v2/PillarsV2.tsx`, and
-`apps/landing-page/src/components/v2/HowItWorksV2.tsx`.
+`apps/landing-page/src/components/landing-v2/HowItWorks.tsx`.
 
 Product narrative: `apps/landing-page/src/app/pitch/page.tsx`,
 `apps/landing-page/src/config/pitch.ts`,
@@ -404,7 +405,6 @@ Legacy visual assets:
 - `apps/landing-page/public/zap-pilot-logo-dark.png`
 - `apps/landing-page/public/zap-pilot-icon.svg`
 - `apps/landing-page/public/zap-pilot-icon.png`
-- `apps/landing-page/public/brand-guide.md`
 
 App asset targets to create or update:
 
@@ -429,7 +429,8 @@ When the logo redesign is complete, implement it in a separate PR.
    `apps/app/app.config.ts`.
 3. Update landing-page favicon and logo references.
 4. If a static Expo web manifest is intentionally introduced, put it in
-   `apps/app/public/` in the same PR and document why generated Expo metadata
+   `apps/app/public/` (which does not exist today — generated Expo metadata
+   is still the mechanism) in the same PR and document why generated Expo metadata
    is insufficient.
 5. If the final design adds any brand color, add it to
    `packages/design-tokens/tokens.json`.
@@ -441,7 +442,7 @@ When the logo redesign is complete, implement it in a separate PR.
    changes, and the final typography decision.
 9. Replace, regenerate, or delete
    `apps/landing-page/public/brand-guide.md` so brand documentation does not
-   diverge.
+   diverge. (Completed — the file was deleted when this redesign landed.)
 
 Expected implementation PR scope:
 
@@ -450,9 +451,8 @@ Expected implementation PR scope:
   `packages/design-tokens/src/generated/tokens.ts`.
 - Brand docs/assets:
   `packages/design-tokens/BRAND.md`,
-  `apps/landing-page/public/zap-pilot-*`,
-  `apps/landing-page/public/favicon.ico`, and
-  `apps/landing-page/public/brand-guide.md` if retained.
+  `apps/landing-page/public/zap-pilot-*`, and
+  `apps/landing-page/src/app/favicon.ico`.
 - Frontend assets:
   `apps/app/assets/brand/` and `apps/app/app.config.ts`.
 

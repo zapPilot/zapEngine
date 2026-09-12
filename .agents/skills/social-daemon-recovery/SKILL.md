@@ -15,7 +15,7 @@ Start from these files instead of reconstructing the state machine from memory:
 - `apps/podcast-pipeline/src/social/daemon.ts`
 - `apps/podcast-pipeline/src/social/daemon-store.ts`
 - `apps/podcast-pipeline/src/social/release-cohort-store.ts`
-- `apps/podcast-pipeline/src/social/daemon-reconcile-stage-isolation.test.ts`
+- `apps/podcast-pipeline/src/social/daemon-reconcile-three-tick-recovery.test.ts`
 - `apps/podcast-pipeline/src/social/daemon-reconcile-retry-race.test.ts`
 - `apps/podcast-pipeline/src/social/daemon-release-cohort-contract.test.ts`
 - `apps/podcast-pipeline/src/social/README.md`

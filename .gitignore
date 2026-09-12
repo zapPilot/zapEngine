@@ -71,6 +71,7 @@ apps/*/playwright-report/
 .agent-loop/
 .ai-verify/
 .todos/
+.superpowers/
 plan.md
 .opencode/goals/
 # Temporary Superpowers plans/specs are local working artifacts, not repo docs.
