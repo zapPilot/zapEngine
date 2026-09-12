@@ -102,21 +102,121 @@ describe('loadSocialGrowth standardized metric windows', () => {
       medianReach24h: 100,
     });
   });
+
+  it('ignores metrics without a standardized measurement window', async () => {
+    const posts = [
+      {
+        id: 'post-1',
+        episode_id: 'episode-1',
+        platform: 'threads',
+        language_code: 'ja',
+        published_at: '2026-09-10T00:00:00.000Z',
+        experiment_key: 'missing-window-v1',
+        experiment_variant: 'control',
+        content_features: null,
+      },
+    ];
+    const metrics = [
+      metric('24h', '2026-09-11T00:00:00.000Z', 100, 10),
+      metric(null, '2026-09-11T00:05:00.000Z', 9_999, 999),
+    ];
+
+    const response = await loadSocialGrowth({
+      config: CONFIGURED,
+      now: NOW,
+      createSupabaseClient: clientFactory({ posts, metrics }),
+    });
+
+    const experiment = response.experiments.find(
+      (row) => row.experimentKey === 'missing-window-v1',
+    );
+    const arm = experiment?.arms.find((row) => row.variant === 'control');
+    const threads = response.platforms.find(
+      (row) => row.platform === 'threads',
+    );
+    const lane = threads?.lanes.find((row) => row.languageCode === 'ja');
+
+    expect(response.status).toBe('ok');
+    expect(arm).toMatchObject({
+      samples24h: 1,
+      medianReach24h: 100,
+      meanReach24h: 100,
+      medianEngagementRate: 0.1,
+    });
+    expect(lane).toMatchObject({
+      postCount7d: 1,
+      medianReach24h: 100,
+    });
+  });
+
+  it('ignores unavailable 24h rows that still carry stale metrics', async () => {
+    const posts = [
+      {
+        id: 'post-1',
+        episode_id: 'episode-1',
+        platform: 'threads',
+        language_code: 'ja',
+        published_at: '2026-09-10T00:00:00.000Z',
+        experiment_key: 'collection-status-v1',
+        experiment_variant: 'control',
+        content_features: null,
+      },
+    ];
+    const metrics = [
+      metric('24h', '2026-09-11T00:00:00.000Z', 100, 10),
+      metric(
+        '24h',
+        '2026-09-11T00:05:00.000Z',
+        9_999,
+        999,
+        'post-1',
+        'unavailable',
+      ),
+    ];
+
+    const response = await loadSocialGrowth({
+      config: CONFIGURED,
+      now: NOW,
+      createSupabaseClient: clientFactory({ posts, metrics }),
+    });
+
+    const experiment = response.experiments.find(
+      (row) => row.experimentKey === 'collection-status-v1',
+    );
+    const arm = experiment?.arms.find((row) => row.variant === 'control');
+    const threads = response.platforms.find(
+      (row) => row.platform === 'threads',
+    );
+    const lane = threads?.lanes.find((row) => row.languageCode === 'ja');
+
+    expect(response.status).toBe('ok');
+    expect(arm).toMatchObject({
+      samples24h: 1,
+      medianReach24h: 100,
+      meanReach24h: 100,
+      medianEngagementRate: 0.1,
+    });
+    expect(lane).toMatchObject({
+      postCount7d: 1,
+      medianReach24h: 100,
+    });
+  });
 });
 
 function metric(
-  measurementWindow: string,
+  measurementWindow: string | null,
   capturedAt: string,
   views: number,
   likes: number,
   socialPostId = 'post-1',
+  collectionStatus = 'collected',
 ) {
   return {
     social_post_id: socialPostId,
     captured_at: capturedAt,
     age_hours: measurementWindow === '24h' ? 24 : 72,
     measurement_window: measurementWindow,
-    collection_status: 'collected',
+    collection_status: collectionStatus,
     views,
     impressions: null,
     likes,
