@@ -84,3 +84,9 @@ describe('operational topology', () => {
     );
   });
 });
+
+it('maps stale Sentry history to the same declared service', () => {
+  expect(
+    resolveOperationalTopology('sentry:stale-unresolved/podcast-pipeline'),
+  ).toEqual(resolveOperationalTopology('sentry:issues/podcast-pipeline'));
+});

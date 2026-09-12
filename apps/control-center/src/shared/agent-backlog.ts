@@ -11,6 +11,8 @@ export interface AgentBacklogItem {
   labels: string[];
   area: string | null;
   risk: string | null;
+  effort: string | null;
+  fingerprint: string | null;
   status: AgentBacklogItemStatus;
 }
 
@@ -35,6 +37,8 @@ export interface AgentBacklogCreateInput {
   expectedOutcome: string;
   acceptanceCriteria: string[];
   area?: string | null;
+  effort?: 'xs' | 's' | 'm' | null;
+  fingerprint?: string;
   relevantFiles?: string[];
   outOfScope?: string[];
 }
@@ -52,10 +56,19 @@ export interface AgentBacklogClaimResult {
 export interface AgentBacklogReleaseInput {
   agentId: string;
   issueNumber: number;
-  outcome: 'released' | 'blocked';
+  outcome: 'released' | 'blocked' | 'already-fixed';
+  evidence?: { commitSha?: string; prNumber?: number };
   reason: string;
 }
 
 export interface AgentBacklogReleaseResult {
   released: boolean;
+  outcome: AgentBacklogReleaseInput['outcome'];
+  closed: boolean;
+  verification: string | null;
+}
+
+export interface AgentBacklogCreateResult {
+  created: boolean;
+  item: AgentBacklogItem;
 }

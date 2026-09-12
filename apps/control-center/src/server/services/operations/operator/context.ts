@@ -5,7 +5,11 @@ import {
 } from '@zapengine/types/shared';
 import type { OpsIncidentContext } from '../../../mcp/incident-context.js';
 import { correlateRuntimeRecords } from './correlation.js';
-import { manualActions, renderAction } from './actions.js';
+import {
+  manualActions,
+  OPERATOR_CATALOG_NOTE,
+  renderAction,
+} from './actions.js';
 import type { OperatorStore } from './store.js';
 
 export async function enrichOperatorContext(
@@ -96,6 +100,7 @@ export async function enrichOperatorContext(
     return {
       ...packet,
       operator: {
+        note: OPERATOR_CATALOG_NOTE,
         history,
         actions: target
           ? [
@@ -127,7 +132,11 @@ export async function enrichOperatorContext(
   } catch {
     return {
       ...packet,
-      operator: { history: [], actions: manualActions },
+      operator: {
+        note: OPERATOR_CATALOG_NOTE,
+        history: [],
+        actions: manualActions,
+      },
       runtimeCorrelation: {
         records: [],
         edges: [],

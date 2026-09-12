@@ -23,6 +23,10 @@ const ORIGIN = { source: 'sentry', domain: 'errors' } as const;
  * second page of rows.
  */
 const ISSUE_LIMIT = 25;
+const ACTIVE_PERIOD = '24h';
+const STALE_PERIOD = '30d';
+const STALE_ISSUE_LIMIT = 100;
+const STALE_ISSUE_ID_LIMIT = 25;
 
 /**
  * Distinct unresolved issues at which a project stops being noisy and starts
@@ -32,6 +36,9 @@ const ISSUE_LIMIT = 25;
 const CRITICAL_ISSUE_COUNT = 5;
 
 const issueSchema = z.object({
+  id: z.coerce.string(),
+  lastSeen: z.string(),
+  userCount: z.coerce.number(),
   title: z.string(),
   culprit: z.string().nullish(),
   permalink: z.string().nullish(),
@@ -67,12 +74,33 @@ export async function collectSentrySignals(input: {
   }
 
   return collectOrFail(ORIGIN, input.now, async () => {
-    const issues = await fetchUnresolvedIssues(
-      token,
-      orgSlug,
-      input.fetchImpl ?? globalThis.fetch,
-    );
-    return buildIssueSignals(issues, input.now);
+    const fetchImpl = input.fetchImpl ?? globalThis.fetch;
+    const [active, recent] = await Promise.all([
+      fetchUnresolvedIssues(
+        token,
+        orgSlug,
+        fetchImpl,
+        ACTIVE_PERIOD,
+        ISSUE_LIMIT,
+      ),
+      fetchUnresolvedIssues(
+        token,
+        orgSlug,
+        fetchImpl,
+        STALE_PERIOD,
+        STALE_ISSUE_LIMIT,
+      ),
+    ]);
+    const activeIds = new Set(active.map((issue) => issue.id));
+    const stale = recent.filter((issue) => !activeIds.has(issue.id));
+    return [
+      ...buildIssueSignals(active, input.now),
+      ...buildStaleSignals(
+        stale,
+        recent.length >= STALE_ISSUE_LIMIT,
+        input.now,
+      ),
+    ];
   });
 }
 
@@ -80,12 +108,14 @@ async function fetchUnresolvedIssues(
   token: string,
   orgSlug: string,
   fetchImpl: typeof fetch,
+  statsPeriod: string,
+  limit: number,
 ): Promise<SentryIssue[]> {
   const rows = await fetchJson({
     label: 'Sentry issues request',
     url:
       `${SENTRY_API}/${encodeURIComponent(orgSlug)}/issues/` +
-      `?query=is%3Aunresolved&statsPeriod=24h&limit=${ISSUE_LIMIT}`,
+      `?query=is%3Aunresolved&statsPeriod=${statsPeriod}&limit=${limit}`,
     token,
     schema: z.array(z.unknown()),
     fetchImpl,
@@ -124,23 +154,16 @@ function buildIssueSignals(
         kind: 'issues',
         key: 'organization',
         status: 'healthy',
-        title: 'No unresolved Sentry issues',
-        detail: 'Nothing unresolved across the organization in the last 24h.',
+        title: 'No Sentry issues active in the last 24h',
+        detail:
+          'No unresolved issues were active across the organization in the last 24h.',
         evidence: { issueCount: 0 },
         observedAt: now,
       }),
     ];
   }
 
-  const byProject = new Map<string, SentryIssue[]>();
-  for (const issue of issues) {
-    const bucket = byProject.get(issue.project.slug);
-    if (bucket) {
-      bucket.push(issue);
-    } else {
-      byProject.set(issue.project.slug, [issue]);
-    }
-  }
+  const byProject = groupByProject(issues);
 
   return [...byProject]
     .sort(([left], [right]) => left.localeCompare(right))
@@ -189,4 +212,56 @@ function buildProjectSignal(
 function issueLabel(issue: SentryIssue): string {
   const culprit = issue.culprit?.trim();
   return culprit ? culprit : issue.title;
+}
+
+function groupByProject(issues: readonly SentryIssue[]) {
+  const byProject = new Map<string, SentryIssue[]>();
+  for (const issue of issues) {
+    const bucket = byProject.get(issue.project.slug);
+    if (bucket) {
+      bucket.push(issue);
+    } else {
+      byProject.set(issue.project.slug, [issue]);
+    }
+  }
+
+  return byProject;
+}
+
+function buildStaleSignals(
+  issues: readonly SentryIssue[],
+  recentTruncated: boolean,
+  now: Date,
+): OperationalSignal[] {
+  return [...groupByProject(issues)]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([slug, rows]) => {
+      const loudest = rows.reduce((a, b) => (a.count >= b.count ? a : b));
+      const dates = rows.map((issue) => issue.lastSeen).sort();
+      return buildSignal({
+        ...ORIGIN,
+        kind: 'stale-unresolved',
+        key: slug,
+        status: 'degraded',
+        title: `${rows.length} stale unresolved issues in ${slug}`,
+        detail:
+          'Unresolved in 30d but absent from the 24h result; inspect before classifying or resolving.',
+        evidence: {
+          staleIssueCount: rows.length,
+          issueIds: rows
+            .slice(0, STALE_ISSUE_ID_LIMIT)
+            .map((issue) => issue.id)
+            .join(','),
+          issueIdsTruncated: rows.length > STALE_ISSUE_ID_LIMIT,
+          oldestLastSeen: dates[0] ?? null,
+          newestLastSeen: dates.at(-1) ?? null,
+          affectedUsers: rows.reduce((sum, issue) => sum + issue.userCount, 0),
+          eventCount30d: rows.reduce((sum, issue) => sum + issue.count, 0),
+          topIssue: issueLabel(loudest),
+          recentTruncated,
+        },
+        observedAt: now,
+        url: loudest.permalink ?? null,
+      });
+    });
 }

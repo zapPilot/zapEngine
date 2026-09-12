@@ -152,3 +152,18 @@ describe('prioritize', () => {
     expect(priorities).toHaveLength(12);
   });
 });
+
+it('keeps stale issue count out of priority boost while preserving affected users', () => {
+  const stale = signal(
+    'sentry:stale-unresolved/podcast-pipeline',
+    'degraded',
+    'errors',
+    { staleIssueCount: 18 },
+  );
+  expect(prioritize([stale])[0]?.score).toBe(46);
+  expect(
+    prioritize([
+      { ...stale, evidence: { staleIssueCount: 18, affectedUsers: 3 } },
+    ])[0]?.score,
+  ).toBe(52);
+});

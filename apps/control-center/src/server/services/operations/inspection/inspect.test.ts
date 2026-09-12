@@ -30,6 +30,7 @@ describe('inspectOperationalSignal', () => {
     const fetchImpl: typeof fetch = async (input) => {
       const url = String(input);
       if (url.includes('/actions/workflows/env-drift.yml/runs?')) {
+        expect(url).toContain('event=schedule');
         return json({
           workflow_runs: [
             {
@@ -280,3 +281,106 @@ function json(value: unknown): Response {
   });
 }
 // jscpd:ignore-end
+
+describe('recent main failure inspection', () => {
+  it('selects completed failure behind an active rerun and reports commits without claiming a fix', async () => {
+    const seen: string[] = [];
+    const result = await inspectOperationalSignal({
+      config: readControlCenterConfig({ OPS_GITHUB_TOKEN: 'token' }),
+      fingerprint: 'github-actions:recent-failure/release-mobile.yml',
+      now: () => NOW,
+      fetchImpl: async (resource) => {
+        const url = String(resource);
+        seen.push(url);
+        if (url.includes('/workflows/')) {
+          return json({
+            workflow_runs: [
+              {
+                id: 34666854093,
+                status: 'in_progress',
+                created_at: '2026-09-12T06:00:00Z',
+              },
+              {
+                id: 34666854092,
+                status: 'completed',
+                conclusion: 'failure',
+                created_at: '2026-09-12T02:09:00Z',
+                head_sha: 'abc',
+              },
+            ],
+          });
+        }
+        if (url.includes('/jobs?')) {
+          return json({
+            jobs: [
+              {
+                id: 9,
+                name: 'build-android',
+                status: 'completed',
+                conclusion: 'failure',
+                steps: [
+                  { name: 'Build Android on EAS', conclusion: 'failure' },
+                ],
+              },
+            ],
+          });
+        }
+        if (url.includes('/logs')) {
+          return new Response('Error: missing brand-assets dist');
+        }
+        return json({
+          status: 'ahead',
+          total_commits: 2,
+          html_url: 'https://github.com/zapPilot/zapEngine/compare/abc...main',
+          commits: [
+            {
+              sha: 'def',
+              html_url: 'https://github.com/zapPilot/zapEngine/commit/def',
+              commit: {
+                message: 'Build brand assets (#502)',
+                committer: { date: '2026-09-12T05:05:00Z' },
+              },
+            },
+            {
+              sha: 'ghi',
+              html_url: 'https://github.com/zapPilot/zapEngine/commit/ghi',
+              commit: {
+                message: 'Merge pull request #503 from zapPilot/fix',
+                committer: null,
+              },
+            },
+          ],
+        });
+      },
+    });
+    expect(seen[0]).toContain('branch=main');
+    expect(result.evidence).toMatchObject({
+      selectedRun: { id: 34666854092 },
+      failedJobs: [
+        {
+          name: 'build-android',
+          failedSteps: [{ name: 'Build Android on EAS' }],
+        },
+      ],
+      commitsSinceFailure: {
+        totalCommits: 2,
+        truncated: false,
+        commits: [{ prNumber: 502 }, { prNumber: 503 }],
+      },
+    });
+    expect(result.evidence['commitsSinceFailureScope']).toContain(
+      'not evidence',
+    );
+  });
+  it('keeps unrelated GitHub kinds unsupported', async () => {
+    const result = await inspectOperationalSignal({
+      config: readControlCenterConfig({}),
+      fingerprint: 'github-actions:recent-runs/repository',
+      now: () => NOW,
+      fetchImpl: async () => {
+        throw new Error('must not fetch');
+      },
+    });
+    expect(result.status).toBe('unsupported');
+  });
+});
