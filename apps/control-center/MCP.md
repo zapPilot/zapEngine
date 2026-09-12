@@ -2,10 +2,10 @@
 
 The Control Center exposes the normalized operations model to agents over two MCP transports. Reads remain the default. Mutations are narrowly allowlisted: backlog lifecycle actions are constrained to low-risk `zapPilot/zapEngine` Issues, while Sentry resolution remains a separately verified single-issue action.
 
-| Transport | Entry point | Authentication | Intended use |
-| --- | --- | --- | --- |
-| stdio | `/.mcp.json` (Claude Code) or `/opencode.json` (OpenCode) -> `scripts/ops-mcp.mjs` | local Infisical access | repository-local agents |
-| remote HTTP | `POST /api/mcp` | `Authorization: Bearer $OPS_MCP_TOKEN` | remote MCP clients using the deployed Control Center |
+| Transport   | Entry point                                                                        | Authentication                         | Intended use                                         |
+| ----------- | ---------------------------------------------------------------------------------- | -------------------------------------- | ---------------------------------------------------- |
+| stdio       | `/.mcp.json` (Claude Code) or `/opencode.json` (OpenCode) -> `scripts/ops-mcp.mjs` | local Infisical access                 | repository-local agents                              |
+| remote HTTP | `POST /api/mcp`                                                                    | `Authorization: Bearer $OPS_MCP_TOKEN` | remote MCP clients using the deployed Control Center |
 
 ## Credential boundaries
 
@@ -40,7 +40,7 @@ There are two user-facing engineering roles: strong-model `triage` and weak-mode
 2. For a priority incident, call `ops_investigate` with the stable signal fingerprint. This is the normal bounded incident packet and may use `force: true` when fresh provider reads are required. Read its `correlation` and `remediation` blocks before classifying the work.
 3. Call `ops_inspect_signal` only when extra provider-specific evidence is needed. For Sentry it returns the internal numeric issue IDs needed for remediation.
 4. Use `ops_domain`, `ops_signal`, `ops_customers`, `ops_social`, or the `ops_costs` compatibility alias for narrower operational reads.
-5. `/triage` is the normal strong-model producer. It may use `ops_backlog_create` only for bounded low-risk work a weak model can finish and verify locally. CI failures are ordinary triage input; there is no separate CI-fix workflow.
+5. `/triage` is the normal strong-model producer. It may use `ops_backlog_create` only for bounded low-risk work a weak model can finish and verify locally. A strong model in a larger investigation may also use it to park such bounded follow-up work instead of expanding the current PR's scope. CI failures are ordinary triage input; there is no separate CI-fix workflow.
 6. `/worker` consumes that backlog. Use a stable harness/hostname agentId and check for existing PRs before coding. Call `ops_backlog_claim`; it picks the oldest ready issue, optionally restricted by `area:*`, and marks it `status:working`. If the task is unsuitable, use `ops_backlog_release` with `released` or `blocked` plus a reason. There is no lease, TTL, or renew protocol.
 7. Use `ops_resolve_sentry_issue` only when the user explicitly asks to close/resolve that issue or delegates Sentry cleanup after the fix has been verified. This remains a strong-model/operator action, never worker backlog execution.
 
@@ -63,7 +63,7 @@ There is deliberately no `ops_backlog_complete` tool. The implementation PR shou
 
 `ops_backlog_create` is not a generic GitHub Issues API. The repository and low-risk labels are server-owned, callers cannot select another repository, and mutations require the dedicated `OPS_GITHUB_BACKLOG_TOKEN`. Backlog membership grants no production, deployment, schema, auth, financial, or incident-remediation authority.
 
-Before using backlog mutations, create the repository labels used by the contract: `agent-backlog`, `agent:weak`, `risk:low`, `blocked`, and `status:working`, plus any desired `area:*` labels.
+Before using backlog mutations, create the repository labels used by the contract: `agent-backlog`, `agent:weak`, `risk:low`, `blocked`, `status:working`, `resolution:already-fixed`, `operator`, `triage-log`, and `wontfix`, plus the `effort:xs`/`effort:s`/`effort:m` and any desired `area:*` labels.
 
 ## Incident correlation
 
@@ -111,7 +111,7 @@ Fail-closed rules:
 
 `no-inspector` is a caveat rather than a blocker. Only `github-actions`, `sentry`, and `fly` have deep inspectors, so for every other source an empty gap list means nothing was gathered rather than that nothing is wrong. Such an incident may still be classified from repository evidence, but it must never be described as production-verified.
 
-`ops_resolve_sentry_issue` remains a separate, explicit delegated mutation. Empty `blockers` does not bypass the Sentry resolve gate documented below or the production verification rules in the triage skill.
+`ops_resolve_sentry_issue` remains a separate, explicit delegated mutation. Empty `blockers` does not bypass the Sentry resolve gate documented below, the triage skill's Sentry cleanup section, or the fix registration rules in [the operator runbook](./OPERATOR.md).
 
 `ops_resolve_sentry_issue` takes one numeric Sentry issue ID plus a required human-readable `reason`. The implementation always sends exactly `{ "status": "resolved" }` to that one issue. The caller cannot choose `ignored`, merge issues, assign ownership, make an issue public, delete it, or bulk-mutate issues through MCP.
 
@@ -178,7 +178,7 @@ Each call returns up to 25 issue summaries. Read `evidence.nextCursor` and `evid
 
 ## Operator lifecycle and runtime evidence
 
-`operator.actions[].allowed` describes the `ops-operator-runner` automatic execution catalog. `allowed:false` means that server runner does not execute the action; agents may still deliver reviewed pull requests through `worker`. Both available and unavailable contexts include this note.
+`operator.actions[].allowed` describes the `ops-operator-runner` automatic execution catalog. `allowed:false` means that server runner does not execute the action; agents may still deliver reviewed pull requests through a backlog item that `triage` created and `worker` consumed. Work outside that contract is operator work. Both available and unavailable contexts include this note.
 
 `ops_investigate` includes `runtimeCorrelation` (producer-attested records, namespaced exact-ID edges, explicit gaps) and `operator` (durable history and action catalog). Service topology remains context, not a runtime causal edge. The same normalized snapshot builds the incident and service correlation. Reads never record a cycle or mutate provider state.
 

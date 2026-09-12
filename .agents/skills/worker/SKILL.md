@@ -17,81 +17,160 @@ backlog labels or close issues manually.
 
 ## Run order
 
-0. Sweep your open PRs marked `Agent-Backlog-PR: true`. Run the deterministic
-   merge check on each. Merge only allowed PRs; repair ordinary local/CI failures
-   in their existing worktree when they remain within worker scope.
-1. Read root/scoped `AGENTS.md`, verify the expected GitHub identity and MCP
-   reachability, then find exactly one open `triage-log` issue.
-2. Claim through `ops_backlog_claim` using a stable
-   `<harness>-worker@<hostname>` agentId. Optional user input may restrict by
-   `area:<slug>` or request `#<issue>`. If the claim does not match an explicitly
-   requested issue, release it and stop.
-3. Read the full issue and search open PRs for it before editing. Existing PR ->
-   release blocked with that PR as evidence; never duplicate work.
-4. Use an isolated worktree/branch only when the invocation explicitly authorizes
-   it; otherwise preserve the current checkout per `AGENTS.md`. Resume existing
-   PRs in their existing checkout.
-5. Implement only the issue contract. Batch at most six issues that share an area
-   or gate family; rerun acceptance after each overlapping change.
-6. Run every acceptance command plus relevant workspace tests/type-check/lint/
-   deadcode/dup/format checks. Run the repository aggregate verification required
-   by `AGENTS.md` before shipping. Never weaken a gate.
-7. Open a PR whose first body line is `Agent-Backlog-PR: true`, with one
-   `Fixes #<issue>` line per completed issue and explicit validation evidence.
-8. Wait for bounded CI checks, then run
-   `node scripts/agents/backlog-pr-merge-check.mjs <pr>` immediately before any
-   merge. Only exit 0 with `decision: allow` authorizes squash merge with the
-   returned head SHA. Never use `--admin`.
-9. Comment on `triage-log` with fixed/merged/released/blocked evidence. Leave no
-   orphan `status:working` claim without an owned open PR.
+0. Sweep your own open PRs and clear them before claiming new work:
+
+   ```bash
+   gh pr list --state open --author i-xtsu-sixyou-ken-mei --search "Agent-Backlog-PR: true in:body"
+   ```
+
+   Run the merge check on each, merge only allowed PRs and skip pending checks.
+   Repair `quick-gates`, `code-quality` and `tests` failures in that PR's existing
+   worktree inside this run's six-issue budget. Report `e2e`, `coverage` and
+   `security` failures on `triage-log`: they need Playwright, CI secrets or
+   lockfile changes that are outside worker scope.
+
+1. Preflight. Read root and scoped `AGENTS.md`, verify MCP reachability, and
+   confirm identity before any write:
+
+   ```bash
+   gh api user --jq .login                        # i-xtsu-sixyou-ken-mei
+   git config user.email                          # ...@users.noreply.github.com
+   gh issue list --label triage-log --state open  # exactly one
+   ```
+
+   Stop on mismatch. Accept optional `area:<slug>` or `#<issue>` user input.
+
+2. Claim one issue:
+
+   ```text
+   ops_backlog_claim { agentId: "<harness>-worker-<hostname>", areas: ["<slug>"] }
+   ```
+
+   `agentId` must match `^[a-zA-Z0-9_.:/-]{1,120}$`; `@` is rejected. `areas` takes
+   bare slugs (`^[a-z0-9][a-z0-9-]{0,48}$`), never `area:<slug>`. `claimed=false`
+   stops the run. Claim returns the oldest eligible issue, so if `#n` was requested
+   and the returned number differs, release it `released` — not `blocked` — and stop.
+
+3. Read the whole issue and search open PR bodies for its number before editing.
+   An existing PR means release `blocked` naming that PR; never duplicate work.
+
+4. Isolate only when this invocation explicitly authorizes a new backlog
+   worktree/branch. Otherwise preserve the current checkout per root `AGENTS.md`
+   and report that authorization is needed before coding.
+
+   ```bash
+   git fetch origin
+   git worktree add -b backlog/YYYYMMDD-<slug> .claude/worktrees/backlog-YYYYMMDD-<n> origin/main
+   HUSKY=0 pnpm install --frozen-lockfile --offline   # no cache: --prefer-offline
+   ```
+
+   The merge gate requires the `backlog/` prefix. Build internal packages through
+   Turbo. Never touch the user's primary checkout; resume a PR in its own checkout.
+
+5. Implement only the issue contract. Batch at most six issues sharing an area or
+   gate family; read each file first, sequence overlapping fixes and rerun
+   acceptance after every one. Never run acceptance backed by production secrets;
+   ambiguous or unavailable verification is `blocked`.
+
+6. Run every acceptance command plus the touched workspaces' test, type-check, lint,
+   deadcode, dup:check and format:check through Turbo, then the aggregates:
+
+   ```bash
+   bash scripts/verify-jobs.sh format repo contracts
+   bash scripts/verify-jobs.sh type-check lint
+   ```
+
+   Never weaken a gate to make one pass.
+
+7. Open a PR using `.github/pull_request_template.md`: Intent, Scope, Validation
+   (one PASS line per gate), Validation gaps, Known unrelated failures.
+   `Agent-Backlog-PR: true` must sit on its own line, with one `Fixes #<issue>`
+   line per completed issue. Push over HTTPS as root `AGENTS.md` requires; a failed
+   push stops the run and never justifies switching identity or bypassing hooks.
+
+8. Wait for CI with bounded polling: at most 20 polls roughly 120 seconds apart,
+   split into separate waits so user updates still arrive. Rerun the merge check
+   immediately before merging. Green checks alone are never permission.
+
+9. Comment on `triage-log` with fixed/opened/merged/released/blocked evidence, URLs
+   and deny reasons, then read it back. Leave no `status:working` claim without an
+   owned open PR. Remove only your own clean, pushed worktree; preserve unpushed
+   changes and name their path.
+
+## Merge gate and worker boundary
+
+Allowed work is low-risk repository implementation with deterministic local
+verification: format, lint, type, test, coverage, dup, build and import failures
+are all normal worker work while the fix stays inside the issue contract.
+
+`node scripts/agents/backlog-pr-merge-check.mjs <pr>` is the sole merge authority.
+Only exit 0 with `decision: allow` permits a merge, with the `headSha` it returned:
+
+```bash
+gh pr merge <pr> --squash --delete-branch --match-head-commit <headSha>
+```
+
+Exit 1, exit 2 or malformed output is a deny: leave the PR open, report the
+reasons, and never use `--admin`. The gate also denies `area:repo`, more than 40
+files or 1500 changed lines, any closing issue that is not open, lacks
+`agent-backlog` or carries `operator`/`blocked`, and any file outside the paths
+the issue listed under `## Relevant files / area` plus `apps|packages/<area>/`.
+One ineligible issue denies a whole batched PR.
+
+Its `FORBIDDEN`, `CONFIG` and `THRESHOLD` regexes are the authoritative
+protected-path list — read them instead of a copy. They cover workflows/actions,
+hooks, `config/env`, migrations, `scripts/lint`, `scripts/agents`, verification
+scripts, `.opencode`/`.agents`/`.claude`, root package/lock/workspace/Turbo
+config, and threshold removals. An issue asking for one does not override the
+gate: release `blocked`.
+
+Never create backlog items, decide product direction, change production state, push
+main, force-push, bypass hooks, hand-edit backlog labels, call `gh issue close`,
+merge a denied PR, or verify with production secrets.
 
 ## Internal playbook routing
 
-Do not duplicate troubleshooting instructions here. When the issue or failing
-acceptance check matches one of these cases, read the existing specialist skill
-as an internal playbook and return here for completion:
+When the issue or a failing acceptance check matches a case below, read that
+skill as an internal playbook and return here for completion.
 
-| Failure | Internal playbook |
-| --- | --- |
-| unclear pnpm/turbo CI mapping | `monorepo-ci-debugging` |
-| format/lint loop | `monorepo-lint-format-loop` |
-| coverage gate | `monorepo-coverage-gate` |
-| duplication gate | `monorepo-dup-check` |
-| build/module/import failure | `monorepo-build-import-errors` |
-| analytics-engine CI | `analytics-engine-ci-debugging` |
-| app Playwright CI | `app-playwright-ci-debugging` |
-| desktop CI | `desktop-ci-debugging` |
-| env drift | `env-drift-ci-debugging` |
+| Failure                       | Internal playbook               |
+| ----------------------------- | ------------------------------- |
+| unclear pnpm/turbo CI mapping | `monorepo-ci-debugging`         |
+| format/lint loop              | `monorepo-lint-format-loop`     |
+| coverage gate                 | `monorepo-coverage-gate`        |
+| duplication gate              | `monorepo-dup-check`            |
+| build/module/import failure   | `monorepo-build-import-errors`  |
+| analytics-engine CI           | `analytics-engine-ci-debugging` |
+| app Playwright CI             | `app-playwright-ci-debugging`   |
+| desktop CI                    | `desktop-ci-debugging`          |
+| env drift                     | `env-drift-ci-debugging`        |
 
-These are implementation knowledge, not additional user-facing workflows. Use the
-model's normal engineering judgement for simple failures without a matching
-playbook.
+Only the accidental-source-reference branch of `env-drift-ci-debugging` is worker
+work; `config/env` and the manifest are protected paths. Changing a coverage, dup,
+lint or knip threshold is always denied, and security-audit lockfile or override
+changes are not worker work: release `blocked`.
 
 ## Release outcomes
 
-- `released` — not worked or unsuitable timing; include a reason.
-- `blocked` — requires judgement, secrets/live e2e, stale/ambiguous acceptance,
-  protected files, or an existing PR.
-- `already-fixed` — acceptance passes on main; provide a main commit SHA or merged
-  PR number so the server can verify it before closing.
+- `released` — not worked, or unsuitable timing; include a reason.
+- `blocked` — needs judgement, secrets or live e2e, stale/ambiguous acceptance,
+  protected paths, or an existing PR.
+- `already-fixed` — acceptance passes on main and `evidence` names main's squash
+  commit or a merged main PR. A branch head is rejected, and a rejected
+  verification leaves the issue `status:working`: retry or fall back to `released`.
 
-New work closes only through merged PR `Fixes` references.
+New work closes only through a merged PR's `Fixes` reference.
 
-## Worker boundary
+## Rationalizations — STOP
 
-Allowed work is low-risk repository implementation with deterministic local
-verification. Format/lint/type/test/coverage/dup/build/import failures are normal
-worker work when the fix remains inside the issue contract.
-
-Never create backlog items, decide product direction, change production state,
-push main, force-push, bypass hooks, manually change backlog labels, or use
-production secrets for verification.
-
-Never edit workflows/actions, hooks, environment manifests, migrations, auth or
-secret boundaries, wallet/investment/portfolio semantics, alert thresholds,
-verification/CI scripts, agent/harness config, `.agents`, `.opencode`, `.claude`,
-or root package/lock/workspace/Turbo configuration. If an issue requires one of
-these, release `blocked` for strong-model/operator triage.
+| Temptation                          | Required behavior                               |
+| ----------------------------------- | ----------------------------------------------- |
+| All checks are green, so merge      | Rerun merge-check; only `allow` authorizes      |
+| Use the branch head as the fix SHA  | already-fixed needs main's squash commit        |
+| The issue says to edit the workflow | Protected paths win; release `blocked`          |
+| Push failed, try the other account  | Stop and report; identity is fixed              |
+| The POC drags coverage down         | Threshold removals are denied by the gate       |
+| Ship all six issues in one PR       | Only while every issue is eligible and in scope |
 
 Stop at `claimed=false`, six issues, two consecutive blocked items, or 80% of the
 harness goal budget. Release unfinished claims honestly before stopping.
