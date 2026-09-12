@@ -387,12 +387,12 @@ Canonical source: `packages/design-tokens/tokens.json` and
 
 Live copy and V2 landing context:
 `apps/landing-page/src/config/messages.ts`,
-`apps/landing-page/src/components/landing-v2/Hero.tsx`,
-`apps/landing-page/src/components/v2/PillarsV2.tsx`, and
+`apps/landing-page/src/components/landing-v2/Hero.tsx`, and
 `apps/landing-page/src/components/landing-v2/HowItWorks.tsx`.
 
 Product narrative: `apps/landing-page/src/app/pitch/page.tsx`,
 `apps/landing-page/src/config/pitch.ts`,
+`apps/landing-page/src/components/pitch/Pillars.tsx`,
 `apps/landing-page/content/docs/index.mdx`,
 `apps/landing-page/content/docs/architecture.mdx`, and
 `apps/landing-page/content/docs/how-it-works.mdx`.
