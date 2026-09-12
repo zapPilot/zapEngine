@@ -14,6 +14,7 @@ import {
   combineSegments,
   ruleR1,
   ruleR10,
+  ruleR11,
   ruleR2,
   ruleR3,
   ruleR4,
@@ -21,6 +22,7 @@ import {
   ruleR6,
   ruleR7,
   ruleR8,
+  ruleR9,
 } from './rules.js';
 import type { RuleFinding, StatementInputs } from './types.js';
 
@@ -141,7 +143,9 @@ export function buildStatements(input: StatementInputs): StatementsResponse {
   const r6 = ruleR6(input);
   const r7 = ruleR7(input);
   const r8 = ruleR8(input);
+  const r9 = ruleR9(input);
   const r10 = ruleR10(input);
+  const r11 = ruleR11(input);
   const productDemand = ruleProductDemand(input);
 
   const topReliabilitySignal =
@@ -163,7 +167,7 @@ export function buildStatements(input: StatementInputs): StatementsResponse {
       'product',
       {
         ...r6,
-        segments: combineSegments(r6, r7, productDemand),
+        segments: combineSegments(r6, r7, productDemand, r9),
       },
       input.overview.generatedAt,
     ),
@@ -172,17 +176,17 @@ export function buildStatements(input: StatementInputs): StatementsResponse {
     toStatement(
       input,
       'growth',
-      { ...r4, segments: combineSegments(r4, r5) },
+      { ...r4, segments: combineSegments(r4, r5, r11) },
       input.socialGrowth.generatedAt,
     ),
   ].sort((a, b) => b.score - a.score);
 
   const headers: StatementHeaderData[] = [
     toHeader('reliability', [r1]),
-    toHeader('product', [r6, r7, r8, productDemand]),
+    toHeader('product', [r6, r7, r8, productDemand, r9]),
     toHeader('pipeline', [r10]),
     toHeader('spend', [r2, r3]),
-    toHeader('growth', [r4, r5]),
+    toHeader('growth', [r4, r5, r11]),
   ];
   // `headers` is exhaustive over STATEMENT_DOMAINS by construction; assert it
   // here so a future domain added to one list is caught if forgotten in the other.
