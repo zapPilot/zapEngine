@@ -222,7 +222,9 @@ function readMonthlyQuota(headers: Headers): BraveMonthlyQuota {
     index === -1 ||
     (windows[index] ?? 0) < MINIMUM_LONG_QUOTA_WINDOW_SECONDS
   ) {
-    throw new Error('Brave Search long-term quota window is not measurable');
+    throw new UsageNotMeasurableError(
+      'Brave Search long-term quota window is not measurable',
+    );
   }
 
   const limit = limits[index];

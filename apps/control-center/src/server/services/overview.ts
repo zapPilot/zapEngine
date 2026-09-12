@@ -14,6 +14,7 @@ import { syncCosts } from './cost-sync.js';
 import { sumKnown } from './numbers.js';
 import { loadProductHealth } from './product-health.js';
 import { loadSocialPerformance } from './social.js';
+import { postgrestErrorMessage } from './supabase.js';
 
 const EMPTY_HISTORY: CostHistoryResponse = {
   currentMonthDaily: [],
@@ -131,12 +132,7 @@ function placeholder(
 }
 
 function repositoryErrorProviders(error: unknown): CostProviderResult[] {
-  const message =
-    error instanceof Error
-      ? error.message
-      : typeof error === 'object' && error && 'message' in error
-        ? String(error.message)
-        : 'Cost ledger unavailable';
+  const message = postgrestErrorMessage(error, 'Cost ledger unavailable');
   return unconfiguredProviders().map((provider) => ({
     ...provider,
     status: 'error' as const,
