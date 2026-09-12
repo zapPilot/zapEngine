@@ -7,6 +7,8 @@ const NOW = new Date('2026-09-12T12:30:00.000Z');
 
 function store(input: {
   observedAt?: string | null;
+  state?: 'running' | 'succeeded' | 'failed';
+  failureStreak?: number;
   error?: Error;
 }): OperatorStore {
   const heartbeat = input.error
@@ -17,6 +19,8 @@ function store(input: {
           : {
               observedAt: input.observedAt ?? NOW.toISOString(),
               actor: 'github-actions',
+              state: input.state ?? 'succeeded',
+              failureStreak: input.failureStreak ?? 0,
             },
       );
   return {
@@ -38,7 +42,7 @@ describe('operator heartbeat signal', () => {
     [5, 'healthy', 'ops-operator heartbeat is fresh'],
     [12, 'degraded', 'ops-operator heartbeat is delayed'],
     [16, 'critical', 'ops-operator heartbeat is stale'],
-  ] as const)('maps a %im heartbeat to %s', async (minutes, status, title) => {
+  ] as const)('maps a %im successful heartbeat to %s', async (minutes, status, title) => {
     const signal = await collectOperatorHeartbeatSignal(
       store({ observedAt: minutesAgo(minutes) }),
       NOW,
@@ -55,8 +59,40 @@ describe('operator heartbeat signal', () => {
         heartbeatAt: minutesAgo(minutes),
         heartbeatAgeMinutes: minutes,
         actor: 'github-actions',
+        state: 'succeeded',
+        failureStreak: 0,
       },
     });
+  });
+
+  it('keeps the current retry degraded after one failed cycle', async () => {
+    const signal = await collectOperatorHeartbeatSignal(
+      store({
+        observedAt: minutesAgo(1),
+        state: 'running',
+        failureStreak: 1,
+      }),
+      NOW,
+    );
+
+    expect(signal.status).toBe('degraded');
+    expect(signal.title).toBe(
+      'ops-operator is retrying after a failed cycle',
+    );
+  });
+
+  it('escalates two consecutive cycle failures immediately', async () => {
+    const signal = await collectOperatorHeartbeatSignal(
+      store({
+        observedAt: minutesAgo(1),
+        state: 'failed',
+        failureStreak: 2,
+      }),
+      NOW,
+    );
+
+    expect(signal.status).toBe('critical');
+    expect(signal.title).toBe('ops-operator failed 2 cycles in a row');
   });
 
   it('degrades when no heartbeat has ever been recorded', async () => {
