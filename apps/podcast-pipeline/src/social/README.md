@@ -64,10 +64,10 @@ For episodes created from **2026-09-12 09:00 JST**, Threads is fixed to
 `zh-Hant` (experiment concluded) alongside Rednote, while X and YouTube run a
 balanced two-language swap:
 
-| Profile | X         | Threads   | YouTube   | Rednote   |
-| ------- | --------- | --------- | --------- | --------- |
-| D       | `ja`      | `zh-Hant` | `en`      | `zh-Hant` |
-| E       | `en`      | `zh-Hant` | `ja`      | `zh-Hant` |
+| Profile | X    | Threads   | YouTube | Rednote   |
+| ------- | ---- | --------- | ------- | --------- |
+| D       | `ja` | `zh-Hant` | `en`    | `zh-Hant` |
+| E       | `en` | `zh-Hant` | `ja`    | `zh-Hant` |
 
 The three daily article slots alternate over a two-day cycle:
 
