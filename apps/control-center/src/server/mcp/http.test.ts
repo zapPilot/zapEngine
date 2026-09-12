@@ -55,6 +55,8 @@ const BACKLOG: AgentBacklogResponse = {
       labels: ['agent-backlog', 'agent:weak', 'risk:low'],
       area: null,
       risk: 'low',
+      effort: null,
+      fingerprint: null,
       status: 'ready',
     },
   ],
@@ -131,12 +133,19 @@ function fakeOperations(): OpsMcpOperations {
     getSocial: vi.fn(),
     getCustomers: vi.fn(),
     getBacklog: vi.fn().mockResolvedValue(BACKLOG),
-    createBacklogItem: vi.fn().mockResolvedValue(BACKLOG.items[0] ?? {}),
+    createBacklogItem: vi
+      .fn()
+      .mockResolvedValue({ created: true, item: BACKLOG.items[0] }),
     claimBacklog: vi.fn().mockResolvedValue({
       claimed: false,
       item: null,
     }),
-    releaseBacklog: vi.fn().mockResolvedValue({ released: true }),
+    releaseBacklog: vi.fn().mockResolvedValue({
+      released: true,
+      outcome: 'released',
+      closed: false,
+      verification: null,
+    }),
     inspectSignal: vi.fn(),
     investigate: vi.fn().mockResolvedValue(INCIDENT),
     resolveSentryIssue: vi.fn().mockResolvedValue(RESOLUTION),
@@ -426,3 +435,17 @@ interface JsonRpcResponse {
     tools?: Array<{ name: string }>;
   };
 }
+
+it('rejects already-fixed without evidence at the tool boundary', async () => {
+  const operations = fakeOperations();
+  await mcpRequest(
+    createAuthenticatedApp(operations),
+    toolCallRequest(55, 'ops_backlog_release', {
+      agentId: 'worker',
+      issueNumber: 451,
+      outcome: 'already-fixed',
+      reason: 'Already fixed on main',
+    }),
+  );
+  expect(operations.releaseBacklog).not.toHaveBeenCalled();
+});

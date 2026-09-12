@@ -52,10 +52,10 @@ const areaSchema = z
 
 export function createOpsMcpServer(operations: OpsMcpOperations): McpServer {
   const server = new McpServer(
-    { name: 'zap-pilot-ops', version: '0.8.0' },
+    { name: 'zap-pilot-ops', version: '0.9.0' },
     {
       instructions:
-        'Start with ops_status. For a priority incident, use ops_investigate next: it correlates bounded GitHub, Sentry, Fly, product/customer, social, and relevant PostHog evidence into one deterministic packet, exposes explicit repository-backed provider correlation, and carries a read-only remediation facts block. Read remediation.blockers before proposing any fix: operational priority is impact, not permission, and missing or unproven evidence fails closed. Use ops_inspect_signal only for extra provider drill-down. For safe background engineering work, use ops_backlog to inspect GitHub-backed agent tasks and ops_backlog_claim to mark one ready task as working. Release unsuitable work with ops_backlog_release. Backlog writes are constrained to zapPilot/zapEngine and remain disabled unless the server explicitly enables them. The Sentry remediation tool may only resolve one explicit issue after its existing verification gates pass.',
+        'operator.actions[].allowed describes only the ops-operator-runner, not agent permission to open reviewed PRs. Start with ops_status. For a priority incident, use ops_investigate next: it correlates bounded GitHub, Sentry, Fly, product/customer, social, and relevant PostHog evidence into one deterministic packet, exposes explicit repository-backed provider correlation, and carries a read-only remediation facts block. Read remediation.blockers before proposing any fix: operational priority is impact, not permission, and missing or unproven evidence fails closed. Use ops_inspect_signal only for extra provider drill-down. For safe background engineering work, use ops_backlog to inspect GitHub-backed agent tasks and ops_backlog_claim to mark one ready task as working. Release unsuitable work with ops_backlog_release. Backlog writes are constrained to zapPilot/zapEngine and remain disabled unless the server explicitly enables them. The Sentry remediation tool may only resolve one explicit issue after its existing verification gates pass.',
     },
   );
 
@@ -117,7 +117,7 @@ export function createOpsMcpServer(operations: OpsMcpOperations): McpServer {
     {
       title: 'Inspect operational signal',
       description:
-        'Collect bounded provider evidence for one stable signal fingerprint. GitHub workflow inspection includes recent scheduled runs, failed jobs/steps, and redacted log excerpts; Sentry includes one page of issues, optional historical range/query/cursor, and a bounded latest exception sample; Fly includes bounded Machine state, image, and recent lifecycle events.',
+        'Sentry issues/* defaults to 24h and stale-unresolved/* to 30d; paginate for full coverage. GitHub workflow/* inspects scheduled runs and recent-failure/* main runs, including failed jobs, steps, logs and commits since failure. Collect bounded provider evidence for one stable signal fingerprint. GitHub workflow inspection includes recent scheduled runs, failed jobs/steps, and redacted log excerpts; Sentry includes one page of issues, optional historical range/query/cursor, and a bounded latest exception sample; Fly includes bounded Machine state, image, and recent lifecycle events.',
       inputSchema: z
         .object({
           fingerprint: z.string().trim().min(1),
@@ -140,7 +140,7 @@ export function createOpsMcpServer(operations: OpsMcpOperations): McpServer {
     {
       title: 'Investigate operational incident',
       description:
-        'Build one deterministic incident packet from a stable signal fingerprint: primary evidence, related GitHub/Sentry/Fly evidence, explicit repository-backed provider correlation, relevant product/customer/social/PostHog context, operational topology, chronological timeline, customer/business impact where proven, explicit evidence gaps, and a read-only remediation facts block (observer trust, inspection coverage, exposure, blockers). Use this after ops_status for normal incident triage, and read remediation.blockers before proposing a fix.',
+        'operator.actions[].allowed describes only the server runner, not agent PR permission. Build one deterministic incident packet from a stable signal fingerprint: primary evidence, related GitHub/Sentry/Fly evidence, explicit repository-backed provider correlation, relevant product/customer/social/PostHog context, operational topology, chronological timeline, customer/business impact where proven, explicit evidence gaps, and a read-only remediation facts block (observer trust, inspection coverage, exposure, blockers). Use this after ops_status for normal incident triage, and read remediation.blockers before proposing a fix.',
       inputSchema: fingerprintForceSchema,
       annotations: READ_ONLY_ANNOTATIONS,
     },
@@ -202,6 +202,14 @@ export function createOpsMcpServer(operations: OpsMcpOperations): McpServer {
           .min(1)
           .max(12),
         area: areaSchema.nullable().optional(),
+        effort: z.enum(['xs', 's', 'm']).nullable().optional(),
+        fingerprint: z
+          .string()
+          .trim()
+          .min(3)
+          .max(200)
+          .refine((value) => !/[\r\n]/u.test(value) && !value.includes('-->'))
+          .optional(),
         relevantFiles: z
           .array(z.string().trim().min(1).max(300))
           .max(20)
@@ -236,13 +244,36 @@ export function createOpsMcpServer(operations: OpsMcpOperations): McpServer {
     {
       title: 'Release agent backlog work',
       description:
-        'Return one status:working backlog issue to ready or mark it blocked. The server re-reads GitHub first and refuses to mutate issues outside the agent backlog. Completed work is not closed here: merge a PR with Fixes #<issue> so GitHub remains the completion source of truth.',
-      inputSchema: z.object({
-        agentId: agentIdSchema,
-        issueNumber: z.number().int().positive(),
-        outcome: z.enum(['released', 'blocked']),
-        reason: z.string().trim().min(8).max(500),
-      }),
+        'Return one status:working backlog issue to ready or mark it blocked. The server re-reads GitHub first and refuses to mutate issues outside the agent backlog. New work closes through a merged PR with Fixes #<issue>. already-fixed requires evidence that the server verifies on main before closing.',
+      inputSchema: z
+        .object({
+          agentId: agentIdSchema,
+          issueNumber: z.number().int().positive(),
+          outcome: z.enum(['released', 'blocked', 'already-fixed']),
+          evidence: z
+            .object({
+              commitSha: z
+                .string()
+                .regex(/^[a-f0-9]{7,40}$/iu)
+                .optional(),
+              prNumber: z.number().int().positive().optional(),
+            })
+            .optional(),
+          reason: z.string().trim().min(8).max(500),
+        })
+        .superRefine((value, ctx) => {
+          if (
+            value.outcome === 'already-fixed' &&
+            !value.evidence?.commitSha &&
+            !value.evidence?.prNumber
+          ) {
+            ctx.addIssue({
+              code: 'custom',
+              path: ['evidence'],
+              message: 'already-fixed requires commitSha or prNumber.',
+            });
+          }
+        }),
       annotations: BACKLOG_MUTATION_ANNOTATIONS,
     },
     async (input) => result(await operations.releaseBacklog(input)),

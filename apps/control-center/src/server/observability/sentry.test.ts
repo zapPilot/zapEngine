@@ -25,6 +25,19 @@ describe('control center Sentry observability', () => {
     expect(sentryMocks.init).not.toHaveBeenCalled();
   });
 
+  it.each([undefined, ' '])(
+    'does not initialize a local shell with environment %s',
+    (NODE_ENV) => {
+      expect(
+        initSentry({
+          SENTRY_CONTROL_CENTER_DSN: 'https://example.test/3',
+          NODE_ENV,
+        }),
+      ).toBe(false);
+      expect(sentryMocks.init).not.toHaveBeenCalled();
+    },
+  );
+
   it('initializes error-only reporting', () => {
     initSentry({
       APP_COMMIT_SHA: 'sha',

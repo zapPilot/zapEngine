@@ -71,7 +71,7 @@ export async function inspectSentrySignal(input: {
   inspectedAt: Date;
   fetchImpl: typeof fetch;
 }): Promise<SignalInspection> {
-  if (input.parsed.kind !== 'issues') {
+  if (!['issues', 'stale-unresolved'].includes(input.parsed.kind)) {
     return unsupported(
       input,
       `Sentry inspection does not support ${input.parsed.kind} signals.`,
@@ -113,7 +113,10 @@ export async function inspectSentrySignal(input: {
     params.set('start', options.start);
     params.set('end', options.end);
   } else {
-    params.set('statsPeriod', '24h');
+    params.set(
+      'statsPeriod',
+      input.parsed.kind === 'stale-unresolved' ? '30d' : '24h',
+    );
   }
   if (options.cursor) {
     params.set('cursor', options.cursor);

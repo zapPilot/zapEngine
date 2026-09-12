@@ -62,7 +62,7 @@ export async function inspectGithubSignal(input: {
   inspectedAt: Date;
   fetchImpl: typeof fetch;
 }): Promise<SignalInspection> {
-  if (input.parsed.kind !== 'workflow') {
+  if (!['workflow', 'recent-failure'].includes(input.parsed.kind)) {
     return unsupported(
       input,
       `GitHub inspection does not support ${input.parsed.kind} signals.`,
@@ -93,7 +93,7 @@ export async function inspectGithubSignal(input: {
     token,
     fetchImpl: input.fetchImpl,
     label: `GitHub run inspection for ${workflow}`,
-    path: `actions/workflows/${encodeURIComponent(workflow)}/runs?per_page=${RUN_LIMIT}&event=schedule`,
+    path: `actions/workflows/${encodeURIComponent(workflow)}/runs?per_page=${RUN_LIMIT}&${input.parsed.kind === 'workflow' ? 'event=schedule' : 'branch=main'}`,
     schema: runsEnvelopeSchema,
   });
   const runs = envelope.workflow_runs
@@ -109,7 +109,7 @@ export async function inspectGithubSignal(input: {
       source: 'github-actions',
       status: 'not-found',
       inspectedAt: input.inspectedAt.toISOString(),
-      summary: `No readable scheduled runs were found for ${workflow}.`,
+      summary: `No readable matching runs were found for ${workflow}.`,
       entities: [{ type: 'github-workflow', id: workflow }],
       evidence: { workflow },
       gaps: [],
@@ -144,6 +144,15 @@ export async function inspectGithubSignal(input: {
     ],
     evidence: {
       workflow,
+      kind: input.parsed.kind,
+      runSelection:
+        'Newest failed completed run, otherwise newest completed or current run.',
+      commitsSinceFailure:
+        target && isFailedRun(target)
+          ? await commitsSinceRun(target.head_sha, token, input.fetchImpl)
+          : null,
+      commitsSinceFailureScope:
+        'Commits on main after the failed run head SHA. Their presence is not evidence that any of them fixes the failure.',
       selectedRun: target ? summarizeRun(target) : null,
       recentRuns: runs.map(summarizeRun),
       failedJobs,
@@ -322,4 +331,58 @@ function githubHeaders(): Record<string, string> {
     'X-GitHub-Api-Version': '2022-11-28',
     'User-Agent': 'zapengine-control-center',
   };
+}
+
+async function commitsSinceRun(
+  headSha: string | null | undefined,
+  token: string,
+  fetchImpl: typeof fetch,
+) {
+  if (!headSha) {
+    return { unavailable: 'Failed run has no head SHA.' };
+  }
+  try {
+    const comparison = await githubJson({
+      token,
+      fetchImpl,
+      label: 'GitHub commits since failed run',
+      path: `compare/${encodeURIComponent(headSha)}...main?per_page=20`,
+      schema: z.object({
+        status: z.string(),
+        total_commits: z.number(),
+        html_url: z.string(),
+        commits: z.array(
+          z.object({
+            sha: z.string(),
+            html_url: z.string(),
+            commit: z.object({
+              message: z.string(),
+              committer: z.object({ date: z.string() }).nullable(),
+            }),
+          }),
+        ),
+      }),
+    });
+    return {
+      status: comparison.status,
+      totalCommits: comparison.total_commits,
+      truncated: comparison.total_commits > comparison.commits.length,
+      url: comparison.html_url,
+      commits: comparison.commits.map((row) => {
+        const subject = row.commit.message.split('\n')[0] ?? '';
+        const match =
+          subject.match(/\(#(\d+)\)$/u) ??
+          subject.match(/^Merge pull request #(\d+)/u);
+        return {
+          sha: row.sha,
+          subject,
+          prNumber: match ? Number(match[1]) : null,
+          committedAt: row.commit.committer?.date ?? null,
+          url: row.html_url,
+        };
+      }),
+    };
+  } catch (error) {
+    return { unavailable: messageOf(error) };
+  }
 }

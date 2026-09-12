@@ -120,7 +120,10 @@ function serviceFor(source: string, kind: string, key: string) {
     );
   }
 
-  if (source === 'sentry' && kind === 'issues') {
+  if (
+    source === 'sentry' &&
+    (kind === 'issues' || kind === 'stale-unresolved')
+  ) {
     return (
       SERVICE_TOPOLOGY.find((service) => service.sentryProject === key) ?? null
     );

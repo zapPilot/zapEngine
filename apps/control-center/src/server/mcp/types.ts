@@ -2,7 +2,7 @@ import type {
   AgentBacklogClaimInput,
   AgentBacklogClaimResult,
   AgentBacklogCreateInput,
-  AgentBacklogItem,
+  AgentBacklogCreateResult,
   AgentBacklogReleaseInput,
   AgentBacklogReleaseResult,
   AgentBacklogResponse,
@@ -27,7 +27,9 @@ export interface OpsMcpOperations {
   getSocial(force?: boolean): Promise<OperationsSocialResponse>;
   getCustomers(force?: boolean): Promise<CustomerEconomicsResponse>;
   getBacklog(force?: boolean): Promise<AgentBacklogResponse>;
-  createBacklogItem(input: AgentBacklogCreateInput): Promise<AgentBacklogItem>;
+  createBacklogItem(
+    input: AgentBacklogCreateInput,
+  ): Promise<AgentBacklogCreateResult>;
   claimBacklog(input: AgentBacklogClaimInput): Promise<AgentBacklogClaimResult>;
   releaseBacklog(
     input: AgentBacklogReleaseInput,

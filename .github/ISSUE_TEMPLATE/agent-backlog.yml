@@ -1,6 +1,6 @@
 name: Agent backlog
 description: Low-risk, bounded engineering work suitable for a background agent
-title: "[agent] "
+title: '[agent] '
 labels:
   - agent-backlog
   - agent:weak
@@ -37,3 +37,19 @@ body:
     attributes:
       label: Out of scope
       description: Decisions or adjacent work this background task must not absorb.
+  - type: dropdown
+    id: effort
+    attributes:
+      label: Effort
+      description: Also add the matching effort:xs, effort:s, or effort:m label manually.
+      options:
+        - xs
+        - s
+        - m
+    validations:
+      required: true
+  - type: input
+    id: fingerprint
+    attributes:
+      label: Fingerprint
+      description: Optional triage correlation key. Server deduplication reads only its ops-fingerprint HTML comment, written by ops_backlog_create.
