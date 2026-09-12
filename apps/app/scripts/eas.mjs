@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 // The only place the EAS CLI version is written. `eas.json`'s `cli.version`
 // floor is asserted against this constant in tests/easTooling.test.ts, so the
 // two cannot drift apart.
-export const EAS_CLI_VERSION = '20.5.1';
+export const EAS_CLI_VERSION = '24.3.0';
 
 const NON_INTERACTIVE = '--non-interactive';
 

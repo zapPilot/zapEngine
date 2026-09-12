@@ -1,6 +1,8 @@
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 
+import { EAS_CLI_VERSION } from '../../apps/app/scripts/eas.mjs';
+
 const repoRoot = path.resolve(import.meta.dirname, '../..');
 const ENV_NAME = /^[A-Z_][A-Z0-9_]*$/u;
 // superfly/flyctl-actions installs only `flyctl`; the `fly` alias is a local Homebrew convenience.
@@ -157,7 +159,7 @@ export function listEasKeys(destination) {
       'pnpm',
       [
         'dlx',
-        'eas-cli@20.5.1',
+        `eas-cli@${EAS_CLI_VERSION}`,
         'env:list',
         '--environment',
         destination.environment,
@@ -268,7 +270,7 @@ export function setEasValue(destination, name, value, sensitive) {
     'pnpm',
     [
       'dlx',
-      'eas-cli@20.5.1',
+      `eas-cli@${EAS_CLI_VERSION}`,
       'env:create',
       '--environment',
       destination.environment,
@@ -297,7 +299,7 @@ export function deleteEasKey(destination, name) {
     'pnpm',
     [
       'dlx',
-      'eas-cli@20.5.1',
+      `eas-cli@${EAS_CLI_VERSION}`,
       'env:delete',
       '--variable-environment',
       destination.environment,

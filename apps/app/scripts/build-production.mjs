@@ -5,7 +5,7 @@ import { runEasJson } from './eas.mjs';
 const PLATFORMS = ['android', 'ios'];
 
 function resolveBuild(payload) {
-  // eas-cli 20.5.1 `eas build --json` prints `printJsonOnlyOutput(builds)`:
+  // eas-cli 24.3.0 `eas build --json` prints `printJsonOnlyOutput(builds)`:
   // always an array of BuildFragment|null.
   if (!Array.isArray(payload)) {
     throw new Error('EAS build output was not an array.');
