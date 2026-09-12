@@ -6,7 +6,10 @@ const eas = JSON.parse(
 const rootPackage = JSON.parse(
   readFileSync(new URL('../../../package.json', import.meta.url), 'utf8'),
 );
-const nvmrc = readFileSync(new URL('../../../.nvmrc', import.meta.url), 'utf8').trim();
+const nvmrc = readFileSync(
+  new URL('../../../.nvmrc', import.meta.url),
+  'utf8',
+).trim();
 
 const errors = [];
 const packageManager = rootPackage.packageManager;
@@ -40,11 +43,10 @@ for (const profileName of profiles) {
     );
   }
 
-  const nodeMajor = String(profile.node ?? '').replace(/^v/, '').split('.')[0];
-  if (
-    expectedNodeMajor &&
-    (!nodeMajor || nodeMajor !== expectedNodeMajor)
-  ) {
+  const nodeMajor = String(profile.node ?? '')
+    .replace(/^v/, '')
+    .split('.')[0];
+  if (expectedNodeMajor && (!nodeMajor || nodeMajor !== expectedNodeMajor)) {
     errors.push(
       `build.${profileName}.node must use Node ${expectedNodeMajor}.x to match .nvmrc`,
     );
