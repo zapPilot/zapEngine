@@ -4,6 +4,7 @@ import {
 } from './config/env.js';
 import { syncCosts } from './services/cost-sync.js';
 import { syncMetricSnapshots } from './services/metric-snapshot-sync.js';
+import { postgrestErrorMessage } from './services/supabase.js';
 
 const config = readControlCenterConfig();
 const credentials = checkCostSyncCredentials(config);
@@ -69,7 +70,7 @@ try {
 } catch (error) {
   metricSyncFailed = true;
   console.error(
-    `metric snapshot sync failed: ${error instanceof Error ? error.message : String(error)}`,
+    `metric snapshot sync failed: ${postgrestErrorMessage(error, 'unknown failure')}`,
   );
 }
 

@@ -227,6 +227,42 @@ describe('syncCosts', () => {
     );
   });
 
+  // A Brave quota window Brave no longer publishes is not a failure the
+  // nightly cron should exit non-zero on: the collector reports itself
+  // unmeasurable, and the summary files that as `skipped` with the reason
+  // intact instead of an `error` that trips `sync.ts`'s exit-1 path.
+  it('skips an unmeasurable Brave quota instead of failing the sync', async () => {
+    const upsertSnapshot = createUpsertSpy();
+    const repository = costRepositoryFake({ upsertSnapshot });
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ results: [] }), {
+        headers: {
+          'x-ratelimit-limit': '50',
+          'x-ratelimit-policy': '50;w=1',
+          'x-ratelimit-remaining': '49',
+          'x-ratelimit-reset': '1',
+        },
+      }),
+    );
+
+    const result = await syncCosts({
+      config: readControlCenterConfig({ BRAVE_SEARCH_API_KEY: 'brave-key' }),
+      repository,
+      fetch: fetcher,
+      now: NOW,
+    });
+
+    const brave = result.providers.find(
+      (provider) => provider.provider === 'brave',
+    );
+    expect(brave).toMatchObject({ status: 'skipped', accruedCostUsd: null });
+    expect(brave?.message ?? '').toContain('not measurable');
+    expect(persistedSnapshot(upsertSnapshot, 'brave')).toBeUndefined();
+    expect(
+      result.providers.some((provider) => provider.status === 'error'),
+    ).toBe(false);
+  });
+
   it('keeps the billed Fly figure and refreshes only the run-rate', async () => {
     const upsertSnapshot = createUpsertSpy();
     const repository = repositoryWithManualFly(upsertSnapshot);

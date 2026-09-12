@@ -16,6 +16,7 @@ import {
   createConfiguredServiceRoleClient,
   isMissingColumnError,
   postgrestErrorCode,
+  postgrestErrorMessage,
 } from './supabase.js';
 
 interface ReviewRow {
@@ -135,7 +136,7 @@ export function createPodcastVisualService(input: {
       } catch (cause) {
         return unavailable(
           'error',
-          cause instanceof Error ? cause.message : 'Visual debug unavailable',
+          postgrestErrorMessage(cause, 'Visual debug unavailable'),
         );
       }
     },

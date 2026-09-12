@@ -86,4 +86,24 @@ describe('cost provider collection', () => {
     expect(brave.status).toBe('ok');
     expect(brave.snapshot?.accruedCostUsd).toBeCloseTo(0.5, 6);
   });
+
+  // The zero-limit degradation above covers a monthly window that reports no
+  // allowance; a response with no long window at all is the same situation —
+  // Brave exposes only the per-second window — and must degrade the same way.
+  it('reads a short-window-only Brave quota as unconfigured, not as an error', async () => {
+    const brave = await collectBrave(
+      vi.fn().mockResolvedValue(
+        braveResponse({
+          'x-ratelimit-limit': '50',
+          'x-ratelimit-policy': '50;w=1',
+          'x-ratelimit-remaining': '49',
+          'x-ratelimit-reset': '1',
+        }),
+      ),
+    );
+
+    expect(brave.status).toBe('unconfigured');
+    expect(brave.snapshot).toBeNull();
+    expect(brave.message).toContain('not measurable');
+  });
 });

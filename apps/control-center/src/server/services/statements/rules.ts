@@ -535,12 +535,7 @@ export function ruleR8(input: StatementInputs): RuleFinding {
   return finding;
 }
 
-/**
- * R9 — top-wallet AUM concentration.
- *
- * @unwired build.ts composes R1-R8 and R10 only; this rule has never been
- * called. Kept because it is unfinished wiring, not dead code.
- */
+/** R9 — top-wallet AUM concentration. */
 export function ruleR9(input: StatementInputs): RuleFinding {
   const { product } = input;
   const finding = empty('R9');
@@ -666,12 +661,7 @@ export function ruleR10(input: StatementInputs): RuleFinding {
   return finding;
 }
 
-/**
- * R11 — overdue publish jobs.
- *
- * @unwired build.ts composes R1-R8 and R10 only; this rule has never been
- * called. Kept because it is unfinished wiring, not dead code.
- */
+/** R11 — overdue publish jobs. */
 export function ruleR11(input: StatementInputs): RuleFinding {
   const { operationsSocial } = input;
   const finding = empty('R11');
@@ -700,39 +690,6 @@ export function ruleR11(input: StatementInputs): RuleFinding {
     note: overdue.length
       ? `worst: ${Math.max(...overdue.map((j) => j.overdueMinutes ?? 0))}m`
       : 'queue is current',
-  };
-  return finding;
-}
-
-/** R12 — source staleness vs its own TTL, across the adapters with a known threshold. */
-export interface StaleSource {
-  label: string;
-  ageHours: number;
-  ttlHours: number;
-}
-
-/**
- * R12 — source staleness vs its own TTL.
- *
- * @unwired build.ts composes R1-R8 and R10 only; this rule has never been
- * called. Kept because it is unfinished wiring, not dead code.
- */
-export function ruleR12(staleSources: readonly StaleSource[]): RuleFinding {
-  const finding = empty('R12');
-  const stale = staleSources.filter(
-    (source) => source.ageHours > source.ttlHours,
-  );
-  finding.status = stale.length > 0 ? 'degraded' : 'healthy';
-  if (stale.length > 0) {
-    finding.segments.push({
-      text: `Stale read (${elapsedFromMinutes(stale[0]!.ageHours * 60)}) — ${stale[0]!.label} is older than its own refresh window.`,
-    });
-  }
-  finding.value = count(stale.length);
-  finding.fact = {
-    kicker: 'Because · freshness',
-    value: stale.length > 0 ? `${stale.length} stale` : 'All sources current',
-    note: stale.map((source) => source.label).join(' · ') || 'within TTL',
   };
   return finding;
 }

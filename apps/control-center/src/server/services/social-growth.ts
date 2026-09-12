@@ -12,6 +12,7 @@ import type {
 } from '../../shared/types.js';
 import type { ControlCenterConfig } from '../config/env.js';
 import { createAsyncCache } from './cache.js';
+import { postgrestErrorMessage } from './supabase.js';
 import {
   buildFollowerAttribution,
   exactYoutubeFollowersByPost,
@@ -119,6 +120,7 @@ export async function loadSocialGrowth(input: {
           'social_post_id,captured_at,age_hours,measurement_window,collection_status,views,impressions,likes,comments,shares,saves,profile_visits,followers_gained',
         )
         .gte('captured_at', metricSince)
+        .eq('collection_status', 'collected')
         .not('measurement_window', 'is', null)
         .order('captured_at', { ascending: true })
         .limit(3_000),
@@ -178,7 +180,7 @@ export async function loadSocialGrowth(input: {
     return {
       ...empty(
         'error',
-        error instanceof Error ? error.message : 'Social growth query failed',
+        postgrestErrorMessage(error, 'Social growth query failed'),
       ),
       waitlist: await waitlist,
     };
@@ -422,7 +424,9 @@ function metrics24hForPostIds(
 ): AttributionObservation[] {
   return metrics.filter(
     (metric) =>
-      postIds.has(metric.social_post_id) && metric.measurement_window === '24h',
+      postIds.has(metric.social_post_id) &&
+      metric.measurement_window === '24h' &&
+      metric.collection_status === 'collected',
   );
 }
 

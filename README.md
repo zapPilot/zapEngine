@@ -25,11 +25,14 @@ zapEngine/
 │   ├── alpha-etl           # Express ETL — DeFi APR data ingestion (port 3003)
 │   ├── analytics-engine    # FastAPI — portfolio analytics & risk metrics (port 8001)
 │   ├── control-center      # Founder-local ops dashboard and cost ledger UI/API
-│   ├── desktop    # Electron — macOS shell around the app web export
+│   ├── desktop             # Electron — macOS shell around the app web export
 │   ├── landing-page        # Next.js 15 — marketing & docs site (port 3000)
-│   ├── app           # Expo / React Native — universal Zap Pilot app (iOS/Android/Web)
+│   ├── app                 # Expo / React Native — universal Zap Pilot app (iOS/Android/Web)
 │   └── podcast-pipeline    # Hono — article → episode pipeline (port 3000)
 └── packages/
+    ├── app-core            # Shared app core — schemas, wallet flows, and state for the Expo app and desktop shell
+    ├── brand-assets        # Brand asset sources and rasterized outputs
+    ├── cost-observability  # Vendor and infra cost collectors feeding the control-center ledger
     ├── design-tokens       # Shared Zap Pilot brand tokens (TS / Tailwind / CSS vars)
     ├── eslint-config       # Shared ESLint flat-config presets
     ├── intent-engine       # Shared TypeScript library — DeFi routing logic

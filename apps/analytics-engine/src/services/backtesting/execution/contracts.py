@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 from src.services.backtesting.decision import AllocationIntent, DecisionAction
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:  # pragma: no cover -- type-only import, never executed
     from src.services.backtesting.strategies.base import StrategyContext
 
 

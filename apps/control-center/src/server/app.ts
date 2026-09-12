@@ -138,10 +138,7 @@ export function createControlCenterApp(input: {
         });
         return context.json(
           {
-            error:
-              error instanceof Error
-                ? error.message
-                : 'Cost synchronization failed',
+            error: postgrestErrorMessage(error, 'Cost synchronization failed'),
           },
           503,
         );

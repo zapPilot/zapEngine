@@ -4,6 +4,7 @@ import {
   unavailableWaitlist,
   type SocialWaitlistSummary,
 } from '../../shared/waitlist-growth.js';
+import { postgrestErrorMessage } from './supabase.js';
 
 const DAY_MS = 86_400_000;
 const PAGE_SIZE = 500;
@@ -177,7 +178,7 @@ export async function loadWaitlistGrowth(input: {
     };
   } catch (error) {
     return unavailableWaitlist(
-      error instanceof Error ? error.message : 'Waitlist telemetry unavailable',
+      postgrestErrorMessage(error, 'Waitlist telemetry unavailable'),
     );
   }
 }

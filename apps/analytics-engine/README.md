@@ -41,4 +41,3 @@ PostgreSQL (Supabase) via async SQLAlchemy. `DATABASE_READ_ONLY=true` is enforce
 See [docs/](./docs/):
 
 - [Snapshot architecture](../../docs/snapshot_architecture.md)
-- [diagnostics/](./docs/diagnostics/)
