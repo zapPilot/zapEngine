@@ -23,7 +23,9 @@ describe('spot-funded HLP deposits', () => {
       amountUsd6: '12345678',
     };
 
-    const plan = await service.buildDeposit(request);
+    const plan = await service.buildDeposit(
+      request as PlanOrchestrationDepositRequest,
+    );
 
     expect(plan).toMatchObject({
       kind: 'hlp-spot-deposit',
