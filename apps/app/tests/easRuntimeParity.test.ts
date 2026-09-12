@@ -33,7 +33,9 @@ function readJson<T>(filePath: string): T {
 
 describe('EAS runtime parity', () => {
   const eas = readJson<EasConfig>(path.join(appRoot, 'eas.json'));
-  const rootPackage = readJson<RootPackage>(path.join(repoRoot, 'package.json'));
+  const rootPackage = readJson<RootPackage>(
+    path.join(repoRoot, 'package.json'),
+  );
   const profiles = ['preview', 'production'] as const;
 
   it.each(profiles)('%s uses the repository pnpm version', (profileName) => {
