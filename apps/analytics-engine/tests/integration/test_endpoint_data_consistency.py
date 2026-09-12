@@ -160,10 +160,10 @@ class TestCrossEndpointConsistency:
         integration_client: AsyncClient,
         test_user_mixed_protocols: dict[str, Any],
     ):
-        pytest.skip("Skipping until trend protocol breakdowns are implemented")
         """
         Test that protocol aggregations match between landing page and trends.
         """
+        pytest.skip("Skipping until trend protocol breakdowns are implemented")
         user_id = test_user_mixed_protocols["user_id"]
 
         landing_resp = await integration_client.get(
@@ -188,10 +188,10 @@ class TestCrossEndpointConsistency:
         integration_client: AsyncClient,
         test_user_mixed_protocols: dict[str, Any],
     ):
-        pytest.skip("Skipping until trend protocol breakdowns are implemented")
         """
         Test that chain aggregations match between landing page and trends.
         """
+        pytest.skip("Skipping until trend protocol breakdowns are implemented")
         user_id = test_user_mixed_protocols["user_id"]
 
         landing_resp = await integration_client.get(

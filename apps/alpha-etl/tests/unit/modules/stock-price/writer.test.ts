@@ -10,6 +10,38 @@ vi.mock('../../../../src/config/database.js', () => ({
 }));
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { PoolClient } from 'pg';
+
+/**
+ * The writer only reaches Postgres through `withDatabaseClient`, so the test
+ * double needs nothing but `query` — narrowed from `PoolClient` to the one
+ * method the writer calls, and widened with the vitest mock surface the tests
+ * program (`mockResolvedValue`, `mock.calls`, …). Casting the narrow double
+ * up at the seam instead of threading `any` keeps this file free of
+ * `no-explicit-any` escapes.
+ */
+type MockDatabaseClient = Pick<PoolClient, 'query'> & {
+  query: ReturnType<typeof vi.fn>;
+};
+
+/** Structural mirror of `BaseDatabaseClient.withDatabaseClient` (protected in prod). */
+interface DatabaseClientSeam {
+  withDatabaseClient<T>(
+    operation: (client: PoolClient) => Promise<T>,
+  ): Promise<T>;
+}
+
+function spyOnWithDatabaseClient(
+  writer: unknown,
+  mockClient: MockDatabaseClient,
+) {
+  const seam = writer as unknown as DatabaseClientSeam;
+  return vi
+    .spyOn(seam, 'withDatabaseClient')
+    .mockImplementation(<T>(operation: (client: PoolClient) => Promise<T>) =>
+      operation(mockClient as unknown as PoolClient),
+    );
+}
 
 describe('stock-price/writer', () => {
   let writer: {
@@ -39,10 +71,13 @@ describe('stock-price/writer', () => {
       source?: string,
     ) => Promise<string[]>;
   };
-  let mockClient: { query: ReturnType<typeof vi.fn> };
+  let mockClient: MockDatabaseClient;
 
   beforeEach(() => {
-    mockClient = { query: vi.fn() };
+    // A bare `vi.fn()` cannot satisfy `PoolClient.query`'s generic overloads
+    // directly; the seam cast in `spyOnWithDatabaseClient` upholds the
+    // `PoolClient` side, so only this creation site needs the assertion.
+    mockClient = { query: vi.fn() } as MockDatabaseClient;
   });
 
   it('should create writer', async () => {
@@ -61,14 +96,9 @@ describe('stock-price/writer', () => {
 
       const { StockPriceWriter: Writer } =
         await import('../../../../src/modules/stock-price/writer.js');
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       writer = new Writer();
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      vi.spyOn(writer as any, 'withDatabaseClient').mockImplementation(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        async (fn: any) => fn(mockClient),
-      );
+      spyOnWithDatabaseClient(writer, mockClient);
 
       await writer.insertSnapshot({
         date: '2024-12-15',
@@ -88,11 +118,7 @@ describe('stock-price/writer', () => {
         await import('../../../../src/modules/stock-price/writer.js');
       writer = new Writer();
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      vi.spyOn(writer as any, 'withDatabaseClient').mockImplementation(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        async (fn: any) => fn(mockClient),
-      );
+      spyOnWithDatabaseClient(writer, mockClient);
 
       await expect(
         writer.insertSnapshot({
@@ -127,11 +153,7 @@ describe('stock-price/writer', () => {
         await import('../../../../src/modules/stock-price/writer.js');
       writer = new Writer();
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      vi.spyOn(writer as any, 'withDatabaseClient').mockImplementation(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        async (fn: any) => fn(mockClient),
-      );
+      spyOnWithDatabaseClient(writer, mockClient);
 
       const snapshots = [
         {
@@ -162,11 +184,7 @@ describe('stock-price/writer', () => {
         await import('../../../../src/modules/stock-price/writer.js');
       writer = new Writer();
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      vi.spyOn(writer as any, 'withDatabaseClient').mockImplementation(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        async (fn: any) => fn(mockClient),
-      );
+      spyOnWithDatabaseClient(writer, mockClient);
 
       const result = await writer.insertBatch([
         {
@@ -193,11 +211,7 @@ describe('stock-price/writer', () => {
         await import('../../../../src/modules/stock-price/writer.js');
       writer = new Writer();
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      vi.spyOn(writer as any, 'withDatabaseClient').mockImplementation(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        async (fn: any) => fn(mockClient),
-      );
+      spyOnWithDatabaseClient(writer, mockClient);
 
       await expect(
         writer.insertBatch([
@@ -220,11 +234,7 @@ describe('stock-price/writer', () => {
         await import('../../../../src/modules/stock-price/writer.js');
       writer = new Writer();
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      vi.spyOn(writer as any, 'withDatabaseClient').mockImplementation(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        async (fn: any) => fn(mockClient),
-      );
+      spyOnWithDatabaseClient(writer, mockClient);
 
       const result = await writer.getLatestSnapshot('SPY');
 
@@ -246,11 +256,7 @@ describe('stock-price/writer', () => {
         await import('../../../../src/modules/stock-price/writer.js');
       writer = new Writer();
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      vi.spyOn(writer as any, 'withDatabaseClient').mockImplementation(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        async (fn: any) => fn(mockClient),
-      );
+      spyOnWithDatabaseClient(writer, mockClient);
 
       const result = await writer.getLatestSnapshot('SPY');
 
@@ -271,11 +277,7 @@ describe('stock-price/writer', () => {
         await import('../../../../src/modules/stock-price/writer.js');
       writer = new Writer();
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      vi.spyOn(writer as any, 'withDatabaseClient').mockImplementation(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        async (fn: any) => fn(mockClient),
-      );
+      spyOnWithDatabaseClient(writer, mockClient);
 
       const result = await writer.getLatestSnapshot('SPY');
 
@@ -289,11 +291,7 @@ describe('stock-price/writer', () => {
         await import('../../../../src/modules/stock-price/writer.js');
       writer = new Writer();
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      vi.spyOn(writer as any, 'withDatabaseClient').mockImplementation(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        async (fn: any) => fn(mockClient),
-      );
+      spyOnWithDatabaseClient(writer, mockClient);
 
       await expect(writer.getLatestSnapshot('SPY')).rejects.toThrow(
         'Latest failed',
@@ -309,11 +307,7 @@ describe('stock-price/writer', () => {
         await import('../../../../src/modules/stock-price/writer.js');
       writer = new Writer();
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      vi.spyOn(writer as any, 'withDatabaseClient').mockImplementation(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        async (fn: any) => fn(mockClient),
-      );
+      spyOnWithDatabaseClient(writer, mockClient);
 
       const result = await writer.getSnapshotCount('SPY');
 
@@ -327,11 +321,7 @@ describe('stock-price/writer', () => {
         await import('../../../../src/modules/stock-price/writer.js');
       writer = new Writer();
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      vi.spyOn(writer as any, 'withDatabaseClient').mockImplementation(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        async (fn: any) => fn(mockClient),
-      );
+      spyOnWithDatabaseClient(writer, mockClient);
 
       const result = await writer.getSnapshotCount('SPY');
 
@@ -348,11 +338,7 @@ describe('stock-price/writer', () => {
         await import('../../../../src/modules/stock-price/writer.js');
       writer = new Writer();
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      vi.spyOn(writer as any, 'withDatabaseClient').mockImplementation(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        async (fn: any) => fn(mockClient),
-      );
+      spyOnWithDatabaseClient(writer, mockClient);
 
       const result = await writer.getSnapshotCount('SPY');
 
@@ -366,11 +352,7 @@ describe('stock-price/writer', () => {
         await import('../../../../src/modules/stock-price/writer.js');
       writer = new Writer();
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      vi.spyOn(writer as any, 'withDatabaseClient').mockImplementation(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        async (fn: any) => fn(mockClient),
-      );
+      spyOnWithDatabaseClient(writer, mockClient);
 
       const result = await writer.getSnapshotCount('SPY');
 
@@ -391,11 +373,7 @@ describe('stock-price/writer', () => {
         await import('../../../../src/modules/stock-price/writer.js');
       writer = new Writer();
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      vi.spyOn(writer as any, 'withDatabaseClient').mockImplementation(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        async (fn: any) => fn(mockClient),
-      );
+      spyOnWithDatabaseClient(writer, mockClient);
 
       const result = await writer.getExistingDatesInRange(
         new Date('2024-12-01T00:00:00.000Z'),
@@ -421,11 +399,7 @@ describe('stock-price/writer', () => {
         await import('../../../../src/modules/stock-price/writer.js');
       writer = new Writer();
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      vi.spyOn(writer as any, 'withDatabaseClient').mockImplementation(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        async (fn: any) => fn(mockClient),
-      );
+      spyOnWithDatabaseClient(writer, mockClient);
 
       await writer.getExistingDatesInRange(
         new Date('2024-12-01T00:00:00.000Z'),
@@ -449,11 +423,7 @@ describe('stock-price/writer', () => {
         await import('../../../../src/modules/stock-price/writer.js');
       writer = new Writer();
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      vi.spyOn(writer as any, 'withDatabaseClient').mockImplementation(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        async (fn: any) => fn(mockClient),
-      );
+      spyOnWithDatabaseClient(writer, mockClient);
 
       const result = await writer.getExistingDatesInRange(
         new Date('2024-12-01T00:00:00.000Z'),

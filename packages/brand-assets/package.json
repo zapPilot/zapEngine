@@ -31,7 +31,7 @@
     "test:ci": "vitest run --coverage",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "deadcode": "knip",
+    "deadcode": "knip --treat-config-hints-as-errors",
     "deadcode:fix": "knip --fix",
     "dup:check": "node ../../scripts/lint/run-jscpd.mjs src"
   },

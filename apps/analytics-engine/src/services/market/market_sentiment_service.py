@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING
 import httpx
 from fastapi import HTTPException
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:  # pragma: no cover -- type-only import, never executed
     from src.services.market.sentiment_database_service import SentimentDatabaseService
 
 from src.core.cache_service import analytics_cache
