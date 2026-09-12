@@ -5,20 +5,30 @@ import { fetchJson } from './http.js';
 
 const SENTRY_API = 'https://sentry.io/api/0/organizations';
 
-const issueSchema = z.object({
+const sentryIssueBaseSchema = z.object({
   id: z.string(),
   shortId: z.string().nullish(),
   title: z.string().nullish(),
   status: z.string(),
 });
 
-const issueActivitySchema = z.object({
-  id: z.string(),
-  shortId: z.string().nullish(),
-  title: z.string().nullish(),
-  status: z.string(),
+const issueSchema = sentryIssueBaseSchema;
+
+const issueActivitySchema = sentryIssueBaseSchema.extend({
   lastSeen: z.string().nullish(),
 });
+
+function requireSentryContext(
+  token: string | undefined,
+  orgSlug: string | undefined,
+): { token: string; orgSlug: string } {
+  if (!token || !orgSlug) {
+    throw new Error(
+      'Sentry remediation is not configured. Set SENTRY_OPS_WRITE_TOKEN and SENTRY_ORG_SLUG.',
+    );
+  }
+  return { token, orgSlug };
+}
 
 export type SentryIssueActivity = z.infer<typeof issueActivitySchema>;
 
@@ -33,14 +43,10 @@ export async function readSentryIssue(input: {
   issueId: string;
   fetchImpl?: typeof fetch;
 }): Promise<SentryIssueActivity> {
-  const token =
-    input.config.SENTRY_OPS_WRITE_TOKEN ?? input.config.SENTRY_OPS_AUTH_TOKEN;
-  const orgSlug = input.config.SENTRY_ORG_SLUG;
-  if (!token || !orgSlug) {
-    throw new Error(
-      'Sentry remediation is not configured. Set SENTRY_OPS_WRITE_TOKEN and SENTRY_ORG_SLUG.',
-    );
-  }
+  const { token, orgSlug } = requireSentryContext(
+    input.config.SENTRY_OPS_WRITE_TOKEN ?? input.config.SENTRY_OPS_AUTH_TOKEN,
+    input.config.SENTRY_ORG_SLUG,
+  );
   return fetchJson({
     label: 'Sentry issue read request',
     url:
@@ -74,13 +80,10 @@ export async function resolveSentryIssue(input: {
   reason: string;
   fetchImpl?: typeof fetch;
 }): Promise<SentryResolutionResult> {
-  const token = input.config.SENTRY_OPS_WRITE_TOKEN;
-  const orgSlug = input.config.SENTRY_ORG_SLUG;
-  if (!token || !orgSlug) {
-    throw new Error(
-      'Sentry remediation is not configured. Set SENTRY_OPS_WRITE_TOKEN and SENTRY_ORG_SLUG.',
-    );
-  }
+  const { token, orgSlug } = requireSentryContext(
+    input.config.SENTRY_OPS_WRITE_TOKEN,
+    input.config.SENTRY_ORG_SLUG,
+  );
 
   const issue = await fetchJson({
     label: 'Sentry issue resolve request',
