@@ -14,10 +14,7 @@ interface EasBuildProfile {
 }
 
 interface EasConfig {
-  build?: {
-    preview?: EasBuildProfile;
-    production?: EasBuildProfile;
-  };
+  build?: Record<string, EasBuildProfile>;
 }
 
 interface RootPackage {
@@ -63,6 +60,23 @@ describe('EAS runtime parity', () => {
       );
     },
   );
+
+  it('keeps every EAS build profile on the repository pnpm without Corepack', () => {
+    const packageManager = rootPackage.packageManager;
+    expect(packageManager).toMatch(/^pnpm@\d+\.\d+\.\d+$/u);
+    const expectedPnpm = packageManager!.replace(/^pnpm@/u, '');
+    const buildProfiles = Object.entries(eas.build ?? {});
+
+    expect(buildProfiles.length).toBeGreaterThan(0);
+    for (const [profileName, profile] of buildProfiles) {
+      expect(profile.corepack, `${profileName} must keep Corepack disabled`).not.toBe(
+        true,
+      );
+      expect(profile.pnpm, `${profileName} must pin repository pnpm`).toBe(
+        expectedPnpm,
+      );
+    }
+  });
 
   it.each(profiles)('%s stays on the repository Node major', (profileName) => {
     const nodeRange = rootPackage.engines?.node;
