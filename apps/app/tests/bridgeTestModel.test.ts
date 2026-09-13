@@ -32,7 +32,9 @@ describe('bridgeTestModel', () => {
   });
 
   it('rejects unsupported bridge chain ids instead of routing them implicitly', () => {
-    expect(() => bridgeChain(999999)).toThrow('Unsupported bridge chain 999999');
+    expect(() => bridgeChain(999999)).toThrow(
+      'Unsupported bridge chain 999999',
+    );
   });
 
   it('parses USDC input with exactly six decimal places', () => {
