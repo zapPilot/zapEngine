@@ -48,7 +48,7 @@ Hard limits for every `.agents/skills/*/SKILL.md`:
 
 - Prefer the shortest file that preserves the recurring, repo-specific decision.
 - Maximum: 180 lines unless there is a strong reason.
-- Frontmatter description: 1 focused paragraph, under 8 wrapped lines.
+- Frontmatter description: one concise, discriminating trigger sentence. Keep detailed symptoms, commands, and workflow steps in the body; wrapped line count is not a useful budget.
 - Body: prefer headings, short bullets, and command blocks.
 - No copied docs. Summarize only the repo-specific part.
 
@@ -64,8 +64,7 @@ Use this shape when every section adds value; shorter skills may omit sections:
 ---
 name: short-gerund-or-domain-name
 description: >-
-  Use when [specific trigger]. Covers [scope]. Symptoms: [recognizable failure
-  phrases or logs]. Does not cover [nearby scope] if useful.
+  Use when [specific trigger]; distinguish nearby workflows only when needed.
 ---
 
 # Human-readable title
@@ -95,8 +94,8 @@ description: >-
 
 - `name` uses lowercase letters, numbers, and hyphens only.
 - Prefer specific names over generic ones: `monorepo-dup-check`, not `ci-helper`.
-- Description is for discovery. Include exact triggers, commands, CI job names,
-  packages, and failure phrases.
+- Description is for discovery. Name the specific task or failure that selects
+  this skill; put detailed commands, package lists, and failure phrases in the body.
 - Write descriptions in third person / imperative-neutral style. Do not write
   "I can" or "you can".
 

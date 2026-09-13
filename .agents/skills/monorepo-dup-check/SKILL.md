@@ -1,14 +1,6 @@
 ---
 name: monorepo-dup-check
-description: >-
-  Use when the `dup:check` CI gate (jscpd duplication) fails — clones reported in
-  a workspace's `lib`/`src`, a `dup:check` that suddenly fails on code you didn't
-  touch (a time-boxed duplicate "quarantine" expired), or you're deciding whether
-  to merge a clone, jscpd:ignore it, or extract a shared helper. Recurring
-  "fixCI: dedupe" / "clear dup-debt to pass dup:check" / "eliminate jscpd clones"
-  task, both TS (app/account-engine/landing-page) and Python
-  (analytics-engine). Symptoms: bumping the jscpd threshold to pass, copy-pasting
-  then re-quarantining, "the gate failed but I didn't change that file".
+description: 'Resolve jscpd dup:check failures or expired duplication quarantines in TypeScript and Python workspaces.'
 ---
 
 # Monorepo duplication gate (jscpd `dup:check`)

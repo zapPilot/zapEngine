@@ -1,15 +1,6 @@
 ---
 name: analytics-engine-ci-debugging
-description: >-
-  Use when the @zapengine/analytics-engine (Python / uv / FastAPI) CI checks
-  fail — `format:check` failing on whitespace though `ruff check` / lint-staged
-  was clean (ruff's linter and formatter are separate tools), a mypy strict
-  missing-annotation error, a `dup:check` jscpd clone (incl. an expired
-  duplicate-quarantine), or `contracts check` zod↔pydantic parity drift.
-  Symptoms: "ruff check passed so formatting is fine", "the pre-commit hook
-  passed so format is fine", reaching for `# type: ignore` / `# noqa` to silence
-  a gate, bumping the jscpd threshold. The TS lint-format-loop skill does NOT
-  cover Python — this one does.
+description: 'Diagnose failing Python checks in @zapengine/analytics-engine, including Ruff formatting, mypy, duplication, and contract parity.'
 ---
 
 # analytics-engine CI debugging (Python / uv)

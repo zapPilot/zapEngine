@@ -1,6 +1,11 @@
 ---
 name: fix-pr
+description: Review and repair a specified PR implementation against its stated scope.
 argument-hint: '<pr-url>'
 ---
 
-請用這個 PR 的 head branch 對應的 local tracking branch 建立 worktree，並在其中修正該 PR 的實作，不用管 CI failures, 把 PR description 當成 spec, 看看實作是否真的能解決問題，其他 format, lint failures 不用管，但是需要修正設計不良的 test cases.
+Use the existing checkout for the PR and preserve the user's branch and worktree.
+Create or switch a branch/worktree only when explicitly requested. Review the PR
+description and relevant discussion against the implementation, fix concrete
+in-scope issues and invalid tests, and verify under root `AGENTS.md`. Address
+related CI, formatting, and lint failures; report unrelated failures separately.
