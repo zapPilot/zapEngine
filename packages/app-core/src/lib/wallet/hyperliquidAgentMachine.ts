@@ -80,7 +80,12 @@ export function hyperliquidAgentReducer(
       };
     case 'FAILED':
       if (!isCurrent(state, event.master)) return state;
-      return { ...state, status: 'error', agentAddress: null, error: event.message };
+      return {
+        ...state,
+        status: 'error',
+        agentAddress: null,
+        error: event.message,
+      };
     default:
       return state;
   }

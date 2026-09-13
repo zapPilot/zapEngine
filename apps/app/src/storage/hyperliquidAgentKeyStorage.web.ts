@@ -7,7 +7,9 @@ const hyperliquidAgentKeyStorage: HyperliquidAgentKeyStore = {
   save(key, value) {
     if (!globalThis.localStorage) {
       return Promise.reject(
-        new Error('Local storage is unavailable; Hyperliquid signing cannot be enabled.'),
+        new Error(
+          'Local storage is unavailable; Hyperliquid signing cannot be enabled.',
+        ),
       );
     }
     globalThis.localStorage.setItem(key, value);

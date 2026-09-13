@@ -164,7 +164,9 @@ async function fetchBraveQuotaResponse(
       continue;
     }
 
-    if (response.ok) return response;
+    if (response.ok) {
+      return response;
+    }
 
     const statusError = new Error(
       `Brave Search quota request failed (${response.status})`,

@@ -85,12 +85,7 @@ export function HyperliquidDepositPanel() {
       void account.connect();
       return;
     }
-    if (
-      !hasAmount ||
-      belowMinimum ||
-      exceedsBalance ||
-      balanceUnavailable
-    ) {
+    if (!hasAmount || belowMinimum || exceedsBalance || balanceUnavailable) {
       return;
     }
 

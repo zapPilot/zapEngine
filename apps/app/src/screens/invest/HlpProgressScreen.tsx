@@ -112,7 +112,10 @@ export function HlpProgressScreen() {
     reviewedSubmission?.callsId ?? null,
   );
   const visibleError =
-    unsafeResumeReason(model) ?? flowError ?? wizard.error?.message ?? agent.error;
+    unsafeResumeReason(model) ??
+    flowError ??
+    wizard.error?.message ??
+    agent.error;
   const retryMode = hlpRetryMode(model);
   const awaitingSourceHash =
     model.reviewedPhase === 'confirming' && sourceTxHash === null;
@@ -293,7 +296,9 @@ export function HlpProgressScreen() {
         {shouldOfferAgentEnable(model) ? (
           <PrimaryButton
             className="mt-5"
-            disabled={agent.status === 'checking' || agent.status === 'approving'}
+            disabled={
+              agent.status === 'checking' || agent.status === 'approving'
+            }
             onPress={enableAgent}
           >
             {agent.status === 'approving'

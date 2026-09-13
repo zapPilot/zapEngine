@@ -2,26 +2,20 @@ import { useAbortControllerRef } from '@core/hooks/useAbortControllerRef';
 import { extractErrorMessage } from '@core/lib/errors';
 import {
   hyperliquidAgentReducer,
-  initialHyperliquidAgentState,
   type HyperliquidAgentSessionStatus,
+  initialHyperliquidAgentState,
 } from '@core/lib/wallet/hyperliquidAgentMachine';
 import { useWalletProvider } from '@core/providers/walletContext';
 import {
   approveNewHyperliquidAgent,
+  type HyperliquidAgentRecord,
   hyperliquidAgentSigner,
   loadApprovedHyperliquidAgent,
-  type HyperliquidAgentRecord,
 } from '@core/services/hyperliquidAgentService';
 import type { HyperliquidAgentKeyStore } from '@core/types/domain/wallet';
 import type { HyperliquidSigning } from '@zapengine/types/api';
 import { equalsAddress } from '@zapengine/types/shared';
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useReducer,
-  useRef,
-} from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
 import type { Address, LocalAccount, WalletClient } from 'viem';
 
 export { type HyperliquidAgentSessionStatus };
@@ -172,9 +166,9 @@ export function useHyperliquidAgentSession({
 
   const isReady = Boolean(
     state.status === 'ready' &&
-      master &&
-      state.masterAddress &&
-      equalsAddress(master, state.masterAddress),
+    master &&
+    state.masterAddress &&
+    equalsAddress(master, state.masterAddress),
   );
 
   return useMemo(

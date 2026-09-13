@@ -45,7 +45,8 @@ function hlpVaultStepBase(network: HyperliquidNetwork) {
     action: buildVaultTransferAction({ vaultAddress: HLP_VAULTS[network] }),
     signing: {
       scheme: 'hyperliquid-l1-action' as const,
-      hyperliquidChain: network === 'mainnet' ? ('Mainnet' as const) : ('Testnet' as const),
+      hyperliquidChain:
+        network === 'mainnet' ? ('Mainnet' as const) : ('Testnet' as const),
       apiUrl: HYPERLIQUID_EXCHANGE_API[network],
     },
     lockupDays: HLP_LOCKUP_DAYS,

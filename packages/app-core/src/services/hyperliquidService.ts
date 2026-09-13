@@ -4,8 +4,8 @@ import { pollUntil } from '@core/lib/polling';
 import { parseBaseUnits } from '@core/lib/wallet/usd6';
 import { equalsAddress } from '@zapengine/types/shared';
 import {
-  isAddress,
   type Address,
+  isAddress,
   type LocalAccount,
   type WalletClient,
 } from 'viem';

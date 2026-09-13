@@ -1,7 +1,13 @@
 import type { HyperliquidAgentKeyStore } from '@core/types/domain/wallet';
 import type { HyperliquidSigning } from '@zapengine/types/api';
 import { equalsAddress } from '@zapengine/types/shared';
-import { isAddress, type Address, type Hex, type LocalAccount, type WalletClient } from 'viem';
+import {
+  type Address,
+  type Hex,
+  isAddress,
+  type LocalAccount,
+  type WalletClient,
+} from 'viem';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { z } from 'zod';
 
@@ -157,10 +163,7 @@ export async function approveNewHyperliquidAgent(
     });
     return record;
   } catch (error) {
-    if (
-      !(error instanceof HyperliquidAgentApprovalError) ||
-      !error.ambiguous
-    ) {
+    if (!(error instanceof HyperliquidAgentApprovalError) || !error.ambiguous) {
       throw error;
     }
 
