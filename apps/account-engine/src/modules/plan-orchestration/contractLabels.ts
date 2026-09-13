@@ -1,6 +1,7 @@
 import {
   GMX_V2_ADDRESSES,
   GMX_V2_EXCHANGE_ROUTER_ABI,
+  HYPERLIQUID_BRIDGE2_ADDRESS,
   MORPHO_VAULT_ABI,
 } from '@zapengine/intent-engine';
 import { decodeFunctionData } from 'viem';
@@ -18,6 +19,10 @@ const PROTOCOL_CONTRACT_NAMES = new Map<string, string>([
   // LI.FI quote rather than a constant; a future address simply falls back to
   // the raw address instead of being mislabelled.
   ['0x1231deb6f5749ef6ce6943a275a1d3e7486f4eae', 'LI.FI Diamond'],
+  // Bridge2 receives a plain USDC transfer, so it never appears as a call
+  // target — only as the recipient in the review's asset changes, where the
+  // raw escrow address would otherwise be unidentifiable.
+  [HYPERLIQUID_BRIDGE2_ADDRESS.toLowerCase(), 'Hyperliquid Bridge2'],
 ]);
 
 /** Names routing contracts that Tenderly and token metadata cannot identify. */

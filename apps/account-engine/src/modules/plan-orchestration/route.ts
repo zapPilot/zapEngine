@@ -1,8 +1,9 @@
 import { zValidator } from '@hono/zod-validator';
 import { PlanSafetyViolationError } from '@zapengine/intent-engine';
 import {
+  PlanOrchestrationDepositRequestSchema,
+  PlanOrchestrationDepositReviewRequestSchema,
   PlanOrchestrationWithdrawRequestSchema,
-  RoutedPlanOrchestrationDepositRequestSchema,
 } from '@zapengine/types/api';
 import { type Context, Hono } from 'hono';
 
@@ -55,7 +56,7 @@ export function createPlanOrchestrationRoutes(
 
   app.post(
     '/deposit',
-    zValidator('json', RoutedPlanOrchestrationDepositRequestSchema),
+    zValidator('json', PlanOrchestrationDepositRequestSchema),
     (c) => {
       const body = c.req.valid('json');
       return handlePlanRequest(c, () => service.buildDeposit(body));
@@ -64,7 +65,7 @@ export function createPlanOrchestrationRoutes(
 
   app.post(
     '/deposit/review',
-    zValidator('json', RoutedPlanOrchestrationDepositRequestSchema),
+    zValidator('json', PlanOrchestrationDepositReviewRequestSchema),
     (c) => {
       const body = c.req.valid('json');
       return handlePlanRequest(c, () => service.buildDepositReview(body));
