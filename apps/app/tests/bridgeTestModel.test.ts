@@ -1,6 +1,7 @@
 import {
   baseUnitsToUsdcInput,
   bridgeBalanceQueryKey,
+  bridgeChain,
   bridgeDestinationChains,
   BRIDGE_CHAIN_OPTIONS,
   BRIDGE_SOURCE_CHAINS,
@@ -28,6 +29,10 @@ describe('bridgeTestModel', () => {
     expect(bridgeDestinationChains(8453).map((chain) => chain.chainId)).toEqual(
       [1, 42161, HYPERCORE_CHAIN_ID],
     );
+  });
+
+  it('rejects unsupported bridge chain ids instead of routing them implicitly', () => {
+    expect(() => bridgeChain(999999)).toThrow('Unsupported bridge chain 999999');
   });
 
   it('parses USDC input with exactly six decimal places', () => {
