@@ -100,6 +100,23 @@ describe('send transaction helpers', () => {
     });
   });
 
+  it('rejects a non-ETH holding with no token address instead of treating it as native', () => {
+    const unsupportedAsset: DesktopWalletAsset = {
+      ...usdcAsset,
+      chains: ['base'],
+      holdings: [{ ...usdcAsset.holdings[1]!, tokenAddress: null }],
+    };
+
+    expect(() =>
+      buildSendTransactionRequest({
+        amount: '1',
+        asset: unsupportedAsset,
+        holding: unsupportedAsset.holdings[0]!,
+        recipient: RECIPIENT,
+      }),
+    ).toThrow('USDC cannot be sent on base.');
+  });
+
   it('rejects invalid recipient addresses', () => {
     expect(() =>
       buildSendTransactionRequest({
