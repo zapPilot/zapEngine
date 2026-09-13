@@ -87,9 +87,11 @@ existing PR, implements only the issue contract, runs local acceptance and opens
 marked PR on a `backlog/` branch. It may batch at most six issues sharing an
 area/gate family; two consecutive blocked items stop the run.
 
-A new isolated worktree and branch must be authorized in the invocation itself.
-Without that authorization the repository guardrails apply and worker preserves
-the current checkout, reporting that authorization is needed before coding.
+Invoking the worker skill or `/worker` command is itself explicit authorization to
+create exactly one isolated `backlog/*` worktree/branch after a successful claim.
+Optional arguments only select an area or issue; callers do not need to repeat
+worktree authorization. `claimed=false` still stops the run before any worktree or
+branch is created.
 
 Worker routes implementation failures to existing internal playbooks as needed:
 monorepo CI mapping, lint/format, coverage, duplication, build/import, analytics,
