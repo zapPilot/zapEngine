@@ -54,9 +54,11 @@ backlog labels or close issues manually.
 3. Read the whole issue and search open PR bodies for its number before editing.
    An existing PR means release `blocked` naming that PR; never duplicate work.
 
-4. Isolate only when this invocation explicitly authorizes a new backlog
-   worktree/branch. Otherwise preserve the current checkout per root `AGENTS.md`
-   and report that authorization is needed before coding.
+4. Invoking this worker skill itself explicitly authorizes creation of one isolated
+   `backlog/*` worktree/branch after a successful claim. No separate authorization
+   argument is required. If `claimed=false`, stop before creating any worktree.
+   Preserve the user's current checkout; create and work only in the isolated
+   backlog worktree for newly claimed work.
 
    ```bash
    git fetch origin
