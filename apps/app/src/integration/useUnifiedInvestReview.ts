@@ -1,16 +1,14 @@
 import { getDepositReview } from '@zapengine/app-core/services';
-import {
-  SUPPORTED_DEPOSIT_CHAINS,
-  type DepositReviewGroup,
-  type PlanOrchestrationDepositReviewResponse,
-  type ReviewedDepositPlan,
+import type {
+  DepositReviewGroup,
+  PlanOrchestrationDepositReviewResponse,
+  ReviewedDepositPlan,
 } from '@zapengine/types/api';
 import { useQuery } from '@tanstack/react-query';
 
 import { useAccount } from '@/integration/useAccount';
 import { useInvest } from '@/integration/useInvest';
 import {
-  buildHlpBridge2Request,
   buildUnifiedInvestRequests,
   type UnifiedInvestTargetDraft,
   type UnifiedInvestTargetId,
@@ -24,7 +22,7 @@ export interface UnifiedReviewedStage extends UnifiedInvestTargetDraft {
   response: PlanOrchestrationDepositReviewResponse;
 }
 
-function singleReview(
+export function singleUnifiedReview(
   response: PlanOrchestrationDepositReviewResponse,
 ): DepositReviewGroup | null {
   const reviews = Object.values(response.reviews);
@@ -35,53 +33,27 @@ function reviewedStage(
   draft: UnifiedInvestTargetDraft,
   response: PlanOrchestrationDepositReviewResponse,
 ): UnifiedReviewedStage {
-  const review = singleReview(response);
+  const review = singleUnifiedReview(response);
   if (!review || !response.plan) {
-    throw new Error(`Review for ${draft.label} did not return one executable batch`);
+    throw new Error(
+      `Review for ${draft.label} did not return one executable batch`,
+    );
   }
   return { ...draft, response, plan: response.plan, review };
 }
 
-function arbitrumBridgeOutputUsd6(plan: ReviewedDepositPlan): string | null {
-  if (!('legs' in plan)) return null;
-  const bridge = plan.legs.find(
-    (leg) =>
-      leg.kind === 'bridge' &&
-      leg.chainId === SUPPORTED_DEPOSIT_CHAINS.ARBITRUM,
-  );
-  return bridge?.toAmountMin ?? null;
-}
-
+/**
+ * Review only batches that can execute against the wallet's current state.
+ *
+ * An HLP ingress from Base/Ethereum intentionally stops at Arbitrum here. The
+ * subsequent Bridge2 transfer is reviewed after LI.FI reports destination
+ * confirmation, otherwise Tenderly would simulate spending USDC that has not
+ * reached Arbitrum yet.
+ */
 async function reviewDraft(
   draft: UnifiedInvestTargetDraft,
-  userAddress: `0x${string}`,
-): Promise<UnifiedReviewedStage[]> {
-  const response = await getDepositReview(draft.request);
-  const first = reviewedStage(draft, response);
-  if (draft.id !== 'hlp' || draft.stage !== 'hlp-ingress') {
-    return [first];
-  }
-
-  const bridgeOutputUsd6 = arbitrumBridgeOutputUsd6(first.plan);
-  if (!bridgeOutputUsd6) {
-    throw new Error(
-      'HLP ingress review did not return an Arbitrum USDC bridge output',
-    );
-  }
-  const bridge2Draft: UnifiedInvestTargetDraft = {
-    id: 'hlp',
-    stage: 'hlp-bridge2',
-    label: 'HLP',
-    detail: 'Arbitrum USDC → Hyperliquid',
-    allocationBps: draft.allocationBps,
-    hlpFunding: draft.hlpFunding,
-    request: buildHlpBridge2Request({
-      userAddress,
-      amountUsd6: bridgeOutputUsd6,
-    }),
-  };
-  const bridge2Response = await getDepositReview(bridge2Draft.request);
-  return [first, reviewedStage(bridge2Draft, bridge2Response)];
+): Promise<UnifiedReviewedStage> {
+  return reviewedStage(draft, await getDepositReview(draft.request));
 }
 
 export function useUnifiedInvestReview(): {
@@ -109,9 +81,6 @@ export function useUnifiedInvestReview(): {
           rows: balances.chainRows,
         }) ?? [])
       : [];
-  const expectedStageCount =
-    drafts.length +
-    drafts.filter((draft) => draft.stage === 'hlp-ingress').length;
   const draftKey = drafts
     .map((target) => JSON.stringify(target.request))
     .join('|');
@@ -124,16 +93,8 @@ export function useUnifiedInvestReview(): {
       draftKey,
     ],
     enabled: Boolean(account.address) && drafts.length > 0,
-    queryFn: async (): Promise<UnifiedReviewedStage[]> => {
-      const userAddress = account.address as `0x${string}`;
-      const reviewed = await Promise.all(
-        drafts.map((draft) => reviewDraft(draft, userAddress)),
-      );
-      // Target order is stable (Morpho → GMX → HLP), and HLP ingress is
-      // immediately followed by Bridge2. This exact ordering is the execution
-      // checkpoint queue shown to the user.
-      return reviewed.flat();
-    },
+    queryFn: async (): Promise<UnifiedReviewedStage[]> =>
+      Promise.all(drafts.map(reviewDraft)),
   });
 
   const stages = result.data ?? [];
@@ -148,8 +109,7 @@ export function useUnifiedInvestReview(): {
         : result.error
           ? String(result.error)
           : null,
-    reviewHasAllStages:
-      expectedStageCount > 0 && stages.length === expectedStageCount,
+    reviewHasAllStages: drafts.length > 0 && stages.length === drafts.length,
     refresh: async () => (await result.refetch()).data ?? [],
     targetStages: (id) => stages.filter((stage) => stage.id === id),
   };
