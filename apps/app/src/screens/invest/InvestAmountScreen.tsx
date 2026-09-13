@@ -1,212 +1,69 @@
 import { useRouter } from 'expo-router';
 import { Info } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
-import { formatEther } from 'viem';
 
 import { CONNECT_WALLET_CTA } from '@/components/connect/connectCopy';
 import { CONNECTING_LABEL } from '@/components/connect/connectGateCopy';
-import { BridgeTestPanel } from '@/components/invest/BridgeTestPanel';
-import { ChainTokenSelectorSheet } from '@/components/invest/ChainTokenSelectorSheet';
-import { FundingSourceCard } from '@/components/invest/FundingSourceCard';
+import { AllocationWeightRow } from '@/components/invest/AllocationWeightRow';
 import { FundingSourceSelector } from '@/components/invest/FundingSourceSelector';
-import { HyperliquidDepositPanel } from '@/components/invest/HyperliquidDepositPanel';
+import { HlpAutoSourceCard } from '@/components/invest/HlpAutoSourceCard';
 import { QuickAmountChips } from '@/components/invest/QuickAmountChips';
-import { TokenSelectorPill } from '@/components/invest/TokenSelectorPill';
 import { StepHeader } from '@/components/invest/StepHeader';
 import { StepProgress } from '@/components/invest/StepProgress';
 import { SwapArrowDivider } from '@/components/invest/SwapArrowDivider';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { Tap } from '@/components/ui/Tap';
+import { isDevBuild } from '@/config/appCoreEnv';
 import {
   ARBITRUM_DEPOSIT_TOKENS,
   BASE_DEPOSIT_TOKENS,
 } from '@/integration/depositTokens';
 import {
-  ARBITRUM_GMX_BASKET_EXECUTION_FEE_WEI,
   amountInputToUsd6,
   amountUsdFromInput,
   balanceForFundingToken,
-  buildSingleChainFundingDraft,
   fundingTokenAmountFromUsd,
-  fundingTokenUsdValueFromInput,
   maxUsdAmountInput,
-  minimumDepositUsd6ForScope,
-  nativeGmxBasketBudgetTooSmall,
   normalizeAmountInput,
   quickAmountUsdInput,
-  requiredChainUnavailableForScope,
-  spendableUsdForFundingToken,
-  strategyMaxTotalUsd,
 } from '@/integration/investAmountModel';
+import {
+  bpsToPercentInput,
+  buildStageDrafts,
+  gmxBasketBudgetTooSmall,
+  GMX_BASKET_EXECUTION_FEE_LABEL,
+  INVEST_POSITIONS,
+  isValidTargetAllocation,
+  normalizePercentInput,
+  percentInputToBps,
+  requiredChainsUnavailable,
+  selectHlpFundingSource,
+  targetMaxTotalUsd,
+  targetMinimumUsd6,
+  targetUsd6Shares,
+  weightBpsFor,
+  type InvestPositionId,
+} from '@/integration/investTargetsModel';
 import { useAccount } from '@/integration/useAccount';
-import { type InvestScope, useInvest } from '@/integration/useInvest';
+import { useInvest } from '@/integration/useInvest';
 import { useWalletAssets } from '@/integration/walletTokens';
 import { formatUsd } from '@/lib/format';
 
 type FundingBalanceState = 'loading' | 'unavailable' | 'loaded';
 
-type InvestAmountTab = InvestScope | 'hyperliquid' | 'bridge';
-
-const GMX_BASKET_EXECUTION_FEE_LABEL = `${formatEther(
-  ARBITRUM_GMX_BASKET_EXECUTION_FEE_WEI,
-)} ETH`;
-
-// Five tabs share one row, so the labels are abbreviated and the full
-// wording moves to `a11yLabel`.
-const INVEST_SCOPE_OPTIONS: readonly {
-  value: InvestAmountTab;
-  label: string;
-  a11yLabel: string;
-}[] = [
-  { value: 'both', label: 'Both', a11yLabel: 'Both chains' },
-  { value: 'base', label: 'Base', a11yLabel: 'Base only' },
-  { value: 'arbitrum', label: 'Arbitrum', a11yLabel: 'Arbitrum only' },
-  { value: 'hyperliquid', label: 'HLP', a11yLabel: 'Hyperliquid HLP' },
-  { value: 'bridge', label: 'Bridge', a11yLabel: 'Bridge test' },
-];
-
 function fundingBalanceState({
   isConnected,
-  isBoth,
-  requiredChainUnavailable,
   chainUnavailable,
   isLoading,
 }: {
   isConnected: boolean;
-  isBoth: boolean;
-  requiredChainUnavailable: boolean;
   chainUnavailable: boolean;
   isLoading: boolean;
 }): FundingBalanceState {
-  if (!isConnected || (isBoth ? requiredChainUnavailable : chainUnavailable)) {
-    return 'unavailable';
-  }
+  if (!isConnected || chainUnavailable) return 'unavailable';
   return isLoading ? 'loading' : 'loaded';
-}
-
-interface AmountNotice {
-  message: string;
-  className: string;
-}
-
-function amountNotice({
-  nativeGmxBudgetTooSmall,
-  belowMinimum,
-  exceedsBalance,
-  requiredChainUnavailable,
-  priceUnavailable,
-  noSupportedBalance,
-  isBoth,
-  isBaseOnly,
-  activeChainLabel,
-}: {
-  nativeGmxBudgetTooSmall: boolean;
-  belowMinimum: boolean;
-  exceedsBalance: boolean;
-  requiredChainUnavailable: boolean;
-  priceUnavailable: boolean;
-  noSupportedBalance: boolean;
-  isBoth: boolean;
-  isBaseOnly: boolean;
-  activeChainLabel: string;
-}): AmountNotice | null {
-  if (nativeGmxBudgetTooSmall) {
-    return {
-      className: 'mt-2.5 px-1 text-[11px] text-error',
-      message: `Enter more than ${GMX_BASKET_EXECUTION_FEE_LABEL} — the four GMX keeper fees are included in your ETH amount.`,
-    };
-  }
-  if (belowMinimum) {
-    return {
-      className: 'mt-2.5 px-1 text-[11px] text-error',
-      message: isBaseOnly
-        ? 'Enter at least $0.01 to test the Base Morpho deposit.'
-        : isBoth
-          ? 'Enter at least $10 to deposit into the strategy.'
-          : 'Enter at least $1 — GMX keeper fees make smaller deposits uneconomical.',
-    };
-  }
-  if (exceedsBalance) {
-    return {
-      className: 'mt-2.5 px-1 text-[11px] text-error',
-      message: isBoth
-        ? 'This amount exceeds the available balance on at least one chain.'
-        : `This amount exceeds the available ${activeChainLabel} balance.`,
-    };
-  }
-  if (requiredChainUnavailable) {
-    return {
-      className: 'mt-2.5 px-1 text-[11px] text-error',
-      message: isBoth
-        ? 'Base or Arbitrum balances are unavailable. Retry to continue.'
-        : `${activeChainLabel} balances are unavailable. Retry to continue.`,
-    };
-  }
-  if (priceUnavailable) {
-    return {
-      className: 'mt-2.5 px-1 text-[11px] leading-[16px] text-ink-dim',
-      message:
-        'Live ETH pricing is unavailable, so this deposit cannot freeze an exact funding amount yet.',
-    };
-  }
-  if (noSupportedBalance) {
-    return {
-      className: 'mt-2.5 px-1 text-[11px] text-ink-dim',
-      message: isBoth
-        ? 'No supported balance is available on both Base and Arbitrum.'
-        : `No supported balance is available on ${activeChainLabel}.`,
-    };
-  }
-  return null;
-}
-
-function InvestScopeToggle({
-  value,
-  onChange,
-}: {
-  value: InvestAmountTab;
-  onChange: (scope: InvestAmountTab) => void;
-}) {
-  return (
-    <View
-      accessibilityLabel="Deposit scope"
-      accessibilityRole="radiogroup"
-      className="mt-4 flex-row rounded-[14px] border border-line bg-[#111113] p-1"
-    >
-      {INVEST_SCOPE_OPTIONS.map((option) => {
-        const selected = option.value === value;
-        return (
-          <Tap
-            key={option.value}
-            accessibilityLabel={option.a11yLabel}
-            accessibilityRole="radio"
-            accessibilityState={{ checked: selected }}
-            className="min-h-11 flex-1 items-center justify-center rounded-[10px] px-2"
-            style={
-              selected
-                ? {
-                    backgroundColor: 'rgba(212,197,163,.14)',
-                    borderColor: 'rgba(212,197,163,.28)',
-                    borderWidth: 1,
-                  }
-                : undefined
-            }
-            onPress={() => onChange(option.value)}
-          >
-            <Text
-              className={`text-center font-sans-semibold text-[11px] ${
-                selected ? 'text-accent' : 'text-ink-dim'
-              }`}
-            >
-              {option.label}
-            </Text>
-          </Tap>
-        );
-      })}
-    </View>
-  );
 }
 
 export function InvestAmountScreen() {
@@ -214,213 +71,128 @@ export function InvestAmountScreen() {
   const account = useAccount();
   const invest = useInvest();
   const balances = useWalletAssets(account.address);
-  // Returning to step 1 must land on the tab that owns the armed draft, not on
-  // the scope the HLP tab had to set to reach Base.
-  const [activeTab, setActiveTab] = useState<InvestAmountTab>(
-    invest.destination === 'hlp' ? 'hyperliquid' : invest.scope,
+  // The editor owns its own text so a half-typed "12." is not rounded away on
+  // every keystroke; committed values live in the invest context as bps.
+  const [percentEdits, setPercentEdits] = useState<
+    Partial<Record<InvestPositionId, string>>
+  >({});
+
+  const allocations = invest.targetAllocations;
+  const allocationValid = isValidTargetAllocation(allocations);
+  const allocationTotalBps = allocations.reduce(
+    (total, entry) => total + entry.weightBps,
+    0,
   );
-  const [singleChainTokenSelector, setSingleChainTokenSelector] = useState<
-    'base' | 'arbitrum' | null
-  >(null);
-  const [singleChainAmountInput, setSingleChainAmountInput] = useState('');
-  const isBoth = invest.scope === 'both';
-  const isBaseOnly = invest.scope === 'base';
-  const activeChainLabel = isBaseOnly ? 'Base' : 'Arbitrum';
-  const activeArbitrumFundingToken = invest.arbitrumFundingToken;
-  const activeFundingToken = isBaseOnly
-    ? invest.baseFundingToken
-    : activeArbitrumFundingToken;
-  const activeFundingTokens = isBaseOnly
-    ? BASE_DEPOSIT_TOKENS
-    : ARBITRUM_DEPOSIT_TOKENS;
+  const morphoBps = weightBpsFor(allocations, 'morpho-base');
+  const gmxBps = weightBpsFor(allocations, 'gmx-arbitrum');
+  const hlpBps = weightBpsFor(allocations, 'hlp');
+
   const baseBalance = balanceForFundingToken(
     balances.chainRows,
     invest.baseFundingToken,
   );
   const arbitrumBalance = balanceForFundingToken(
     balances.chainRows,
-    activeArbitrumFundingToken,
+    invest.arbitrumFundingToken,
   );
-  const activeFundingBalance = isBaseOnly ? baseBalance : arbitrumBalance;
-  const singleChainAmountUsd = fundingTokenUsdValueFromInput(
-    singleChainAmountInput,
-    activeFundingToken,
-    activeFundingBalance,
-  );
-  const amountUsd = isBoth
-    ? amountUsdFromInput(invest.amountInput)
-    : singleChainAmountUsd;
-  const resolvedAmountInput = isBoth
-    ? invest.amountInput
-    : amountUsd === null
-      ? ''
-      : maxUsdAmountInput(amountUsd);
-  const resolvedTotalUsd6 = amountInputToUsd6(resolvedAmountInput);
-
-  useEffect(() => {
-    // Mirror of the single-chain token input only. The HLP and bridge tabs own
-    // their own amount state, so their empty token input must not be written
-    // back — `setAmountInput` clears the frozen draft they just handed to the
-    // review step while this screen is still mounted behind it.
-    if (activeTab === 'hyperliquid' || activeTab === 'bridge') return;
-    if (isBoth || invest.amountInput === resolvedAmountInput) return;
-    invest.setAmountInput(resolvedAmountInput);
-  }, [activeTab, isBoth, invest, resolvedAmountInput]);
-
-  const maxTotalUsd =
-    invest.scope === 'base'
-      ? spendableUsdForFundingToken(baseBalance, invest.baseFundingToken)
-      : invest.scope === 'arbitrum'
-        ? spendableUsdForFundingToken(
-            arbitrumBalance,
-            activeArbitrumFundingToken,
-          )
-        : strategyMaxTotalUsd({
-            base: { token: invest.baseFundingToken, balance: baseBalance },
-            arbitrum: {
-              token: activeArbitrumFundingToken,
-              balance: arbitrumBalance,
-            },
-          });
-  const amountUsd6 = BigInt(resolvedTotalUsd6);
+  const maxTotalUsd = targetMaxTotalUsd({
+    allocations,
+    baseFundingToken: invest.baseFundingToken,
+    arbitrumFundingToken: invest.arbitrumFundingToken,
+    rows: balances.chainRows,
+  });
+  const amountUsd = amountUsdFromInput(invest.amountInput);
+  const amountUsd6 = BigInt(amountInputToUsd6(invest.amountInput));
+  const minimumDepositUsd6 = targetMinimumUsd6(allocations);
   const maxAmountInput =
     maxTotalUsd === null ? '' : maxUsdAmountInput(maxTotalUsd);
   const maxUsd6 = BigInt(amountInputToUsd6(maxAmountInput));
-  const hasExactAmount = amountUsd6 > 0n;
-  const minimumDepositUsd6 = minimumDepositUsd6ForScope(invest.scope);
-  const belowMinimum = hasExactAmount && amountUsd6 < minimumDepositUsd6;
-  const nativeGmxBudgetTooSmall =
-    invest.scope === 'arbitrum' &&
-    nativeGmxBasketBudgetTooSmall(
-      singleChainAmountInput,
-      activeArbitrumFundingToken,
-    );
   const exceedsBalance =
-    maxTotalUsd !== null && hasExactAmount && amountUsd6 > maxUsd6;
-  const baseUnavailable =
-    balances.isError || balances.failedChains.includes('base');
-  const arbitrumUnavailable =
-    balances.isError || balances.failedChains.includes('arbitrum');
-  const requiredChainUnavailable = requiredChainUnavailableForScope(
-    invest.scope,
+    maxTotalUsd !== null && amountUsd6 > 0n && amountUsd6 > maxUsd6;
+  const chainUnavailable = requiredChainsUnavailable(
+    allocations,
     balances.failedChains,
     balances.isError,
   );
-  const baseBalanceState = fundingBalanceState({
-    isConnected: account.isConnected,
-    isBoth,
-    requiredChainUnavailable,
-    chainUnavailable: baseUnavailable,
-    isLoading: balances.isLoading,
-  });
-  const arbitrumBalanceState = fundingBalanceState({
-    isConnected: account.isConnected,
-    isBoth,
-    requiredChainUnavailable,
-    chainUnavailable: arbitrumUnavailable,
-    isLoading: balances.isLoading,
-  });
-  const baseAllocationBps = isBoth ? 4_000 : 10_000;
-  const arbitrumAllocationBps = isBoth ? 6_000 : 10_000;
-  const baseTokenAmount = fundingTokenAmountFromUsd(
-    amountUsd,
-    baseAllocationBps,
-    invest.baseFundingToken,
-    baseBalance,
-  );
-  const arbitrumTokenAmount = fundingTokenAmountFromUsd(
-    amountUsd,
-    arbitrumAllocationBps,
-    activeArbitrumFundingToken,
-    arbitrumBalance,
-  );
-  const hasBaseBalance = BigInt(baseBalance?.balanceBaseUnits ?? '0') > 0n;
-  const hasArbitrumBalance =
-    BigInt(arbitrumBalance?.balanceBaseUnits ?? '0') > 0n;
-  const activeHasBalance =
-    invest.scope === 'base'
-      ? hasBaseBalance
-      : invest.scope === 'arbitrum'
-        ? hasArbitrumBalance
-        : hasBaseBalance && hasArbitrumBalance;
-  const priceUnavailable =
-    !requiredChainUnavailable &&
-    !balances.isLoading &&
-    maxTotalUsd === null &&
-    activeHasBalance;
-  const hasStrategyCapacity =
-    maxTotalUsd === null ? activeHasBalance : maxUsd6 > 0n;
-  const singleChainFundingDraft = buildSingleChainFundingDraft({
-    scope: invest.scope,
-    totalUsd6: resolvedTotalUsd6,
+
+  const shares =
+    amountUsd6 > 0n
+      ? targetUsd6Shares(amountUsd6.toString(), allocations)
+      : null;
+  const hlpFunding = shares
+    ? selectHlpFundingSource({
+        shares,
+        baseFundingToken: invest.baseFundingToken,
+        arbitrumFundingToken: invest.arbitrumFundingToken,
+        rows: balances.chainRows,
+      })
+    : null;
+  const hlpFundingUnavailable = hlpBps > 0 && shares !== null && !hlpFunding;
+
+  const stageDrafts = buildStageDrafts({
+    totalUsd6: amountUsd6.toString(),
+    allocations,
     baseFundingToken: invest.baseFundingToken,
-    baseUsdPrice: baseBalance?.usdPrice ?? null,
-    arbitrumFundingToken: activeArbitrumFundingToken,
-    arbitrumUsdPrice: arbitrumBalance?.usdPrice ?? null,
+    arbitrumFundingToken: invest.arbitrumFundingToken,
+    rows: balances.chainRows,
   });
-  const hasExecutableFundingAmount = isBoth || singleChainFundingDraft !== null;
+  const gmxBudgetTooSmall = (stageDrafts ?? []).some(gmxBasketBudgetTooSmall);
+
   const canReview =
     account.isConnected &&
-    !requiredChainUnavailable &&
+    allocationValid &&
+    !chainUnavailable &&
     !balances.isLoading &&
     amountUsd6 >= minimumDepositUsd6 &&
-    !nativeGmxBudgetTooSmall &&
     !exceedsBalance &&
-    hasStrategyCapacity &&
-    hasExecutableFundingAmount;
+    !gmxBudgetTooSmall &&
+    stageDrafts !== null &&
+    maxTotalUsd !== null &&
+    maxUsd6 > 0n;
   const quickAmountsDisabled =
     !account.isConnected ||
+    !allocationValid ||
     maxTotalUsd === null ||
     maxUsd6 <= 0n ||
     balances.isLoading ||
-    requiredChainUnavailable;
+    chainUnavailable;
   const availableLabel = balances.isLoading
     ? 'Loading balances…'
-    : requiredChainUnavailable || !account.isConnected
+    : chainUnavailable || !account.isConnected
       ? 'Available —'
       : maxTotalUsd === null
         ? 'Available — · USD price unavailable'
         : `Available ${formatUsd(maxTotalUsd)}`;
 
-  const setSingleChainDepositInput = (value: string) => {
-    const normalized = normalizeAmountInput(value);
-    setSingleChainAmountInput(normalized);
-    const usdValue = fundingTokenUsdValueFromInput(
-      normalized,
-      activeFundingToken,
-      activeFundingBalance,
-    );
-    invest.setAmountInput(usdValue === null ? '' : maxUsdAmountInput(usdValue));
-  };
+  const baseTokenAmount = fundingTokenAmountFromUsd(
+    amountUsd,
+    morphoBps,
+    invest.baseFundingToken,
+    baseBalance,
+  );
+  const arbitrumTokenAmount = fundingTokenAmountFromUsd(
+    amountUsd,
+    gmxBps,
+    invest.arbitrumFundingToken,
+    arbitrumBalance,
+  );
+  const baseBalanceState = fundingBalanceState({
+    isConnected: account.isConnected,
+    chainUnavailable:
+      balances.isError || balances.failedChains.includes('base'),
+    isLoading: balances.isLoading,
+  });
+  const arbitrumBalanceState = fundingBalanceState({
+    isConnected: account.isConnected,
+    chainUnavailable:
+      balances.isError || balances.failedChains.includes('arbitrum'),
+    isLoading: balances.isLoading,
+  });
 
-  const handleQuickAmount = (bps: number) => {
-    const usdInput = quickAmountUsdInput(maxTotalUsd, bps);
-    if (isBoth) {
-      invest.setAmountInput(usdInput);
-      return;
-    }
-
-    const usdValue = amountUsdFromInput(usdInput);
-    const tokenAmount = fundingTokenAmountFromUsd(
-      usdValue,
-      10_000,
-      activeFundingToken,
-      activeFundingBalance,
-    );
-    setSingleChainAmountInput(
-      tokenAmount === null ? '' : maxUsdAmountInput(tokenAmount),
-    );
-    invest.setAmountInput(usdInput);
-  };
-
-  const handleSingleChainTokenSelect = (token: typeof activeFundingToken) => {
-    setSingleChainAmountInput('');
-    invest.setAmountInput('');
-    if (isBaseOnly) {
-      invest.setBaseFundingToken(token);
-      return;
-    }
-    invest.setArbitrumFundingToken(token);
+  const handlePercentChange = (positionId: InvestPositionId, raw: string) => {
+    const normalized = normalizePercentInput(raw);
+    setPercentEdits((current) => ({ ...current, [positionId]: normalized }));
+    invest.setTargetWeight(positionId, percentInputToBps(normalized));
   };
 
   const handlePrimaryAction = () => {
@@ -428,296 +200,229 @@ export function InvestAmountScreen() {
       void account.connect();
       return;
     }
-    if (requiredChainUnavailable) {
+    if (chainUnavailable) {
       void balances.refetch();
       return;
     }
-    if (canReview) {
-      invest.setSingleChainFundingDraft(
-        isBoth ? null : singleChainFundingDraft,
-      );
-      router.push('/invest/route');
-    }
+    if (!canReview || !stageDrafts) return;
+    invest.setStageDrafts(stageDrafts);
+    router.push('/invest/route');
   };
 
   const primaryLabel = !account.isConnected
     ? account.isConnecting
       ? CONNECTING_LABEL
       : CONNECT_WALLET_CTA
-    : requiredChainUnavailable
+    : chainUnavailable
       ? 'Retry balances'
       : balances.isLoading
         ? 'Loading balances…'
-        : 'Review deposit';
-  const notice = amountNotice({
-    nativeGmxBudgetTooSmall,
-    belowMinimum,
-    exceedsBalance,
-    requiredChainUnavailable,
-    priceUnavailable,
-    noSupportedBalance:
-      account.isConnected && !balances.isLoading && maxTotalUsd === 0,
-    isBoth,
-    isBaseOnly,
-    activeChainLabel,
-  });
+        : 'Preview investment';
 
-  function handleTabChange(tab: InvestAmountTab): void {
-    setSingleChainTokenSelector(null);
-    if (tab !== activeTab) {
-      setSingleChainAmountInput('');
-      invest.setAmountInput('');
-    }
-    setActiveTab(tab);
-    if (tab !== 'bridge' && tab !== 'hyperliquid') {
-      invest.setScope(tab);
-    }
-    // The tab row is the only owner of the destination, so every tab states it
-    // outright: leaving the HLP tab has to disarm the HLP destination.
-    invest.setDestination(tab === 'hyperliquid' ? 'hlp' : 'strategy');
-  }
-
-  if (activeTab === 'hyperliquid') {
-    return (
-      <ScreenScrollView>
-        <StepHeader title="Invest" step="Hyperliquid HLP" />
-        <View className="px-5 pt-5">
-          <Text className="font-serif text-[28px] leading-[32px] text-ink">
-            Deposit into HLP
-          </Text>
-          <Text className="mt-2 text-[12.5px] leading-[19px] text-ink-dim">
-            Bridge Base USDC to Hyperliquid and deposit into the HLP vault.
-          </Text>
-          <InvestScopeToggle value={activeTab} onChange={handleTabChange} />
-          <HyperliquidDepositPanel />
-        </View>
-      </ScreenScrollView>
-    );
-  }
-
-  if (activeTab === 'bridge') {
-    return (
-      <ScreenScrollView>
-        <StepHeader title="Invest" step="Bridge test" />
-        <View className="px-5 pt-5">
-          <Text className="font-serif text-[28px] leading-[32px] text-ink">
-            Bridge USDC
-          </Text>
-          <Text className="mt-2 text-[12.5px] leading-[19px] text-ink-dim">
-            Test canonical USDC transfers through LI.FI without entering a
-            strategy.
-          </Text>
-          <InvestScopeToggle value={activeTab} onChange={handleTabChange} />
-          <BridgeTestPanel />
-        </View>
-      </ScreenScrollView>
-    );
-  }
+  const amountNotice = !allocationValid
+    ? `Allocation must total 100%. Current total: ${(allocationTotalBps / 100)
+        .toFixed(2)
+        .replace(/\.00$/u, '')}%.`
+    : amountUsd6 > 0n && amountUsd6 < minimumDepositUsd6
+      ? `Enter at least ${formatUsd(
+          Number(minimumDepositUsd6) / 1_000_000,
+        )} so every destination clears its own minimum.`
+      : gmxBudgetTooSmall
+        ? `Enter more than ${GMX_BASKET_EXECUTION_FEE_LABEL} for the GMX share — the four keeper fees come out of your ETH amount.`
+        : exceedsBalance
+          ? 'This amount exceeds the capacity of the selected wallet funding sources.'
+          : hlpFundingUnavailable
+            ? 'No single Ethereum, Base, or Arbitrum source can fully fund the HLP share once the other destinations are reserved.'
+            : chainUnavailable
+              ? 'Base or Arbitrum balances are unavailable. Retry to continue.'
+              : maxTotalUsd === null &&
+                  account.isConnected &&
+                  !balances.isLoading
+                ? 'Live ETH pricing is unavailable, so exact funding amounts cannot be frozen yet.'
+                : null;
 
   return (
-    <>
-      <ScreenScrollView>
-        <StepHeader title="Invest" step="Step 1 of 2" />
-        <StepProgress current={1} />
-        <View className="px-5 pt-5">
-          <Text className="font-serif text-[28px] leading-[32px] text-ink">
-            Deposit into strategy
-          </Text>
-          <Text className="mt-2 text-[12.5px] leading-[19px] text-ink-dim">
-            {isBoth
-              ? 'Choose one funding token on each destination chain.'
-              : isBaseOnly
-                ? 'Test one Base funding token with Morpho Moonwell.'
-                : 'Choose an Arbitrum funding token for GMX BTC/USDC.'}
-          </Text>
+    <ScreenScrollView>
+      <StepHeader title="Invest" step="Step 1 of 2" />
+      <StepProgress current={1} />
+      <View className="px-5 pt-5">
+        <Text className="font-serif text-[28px] leading-[32px] text-ink">
+          Invest in one flow
+        </Text>
+        <Text className="mt-2 text-[12.5px] leading-[19px] text-ink-dim">
+          Enter one amount and your target weights. Zap Pilot resolves the
+          required swaps, bridges, deposits, and the HLP follow-up.
+        </Text>
 
-          <InvestScopeToggle value={activeTab} onChange={handleTabChange} />
-
-          <View className="mt-4 rounded-[22px] border border-line bg-[#111113] p-4">
-            <View className="flex-row items-center justify-between">
-              <Text className="text-[11px] text-ink-dim">You deposit</Text>
-              <Text className="font-mono text-[10.5px] text-ink-dim">
-                {availableLabel}
-              </Text>
-            </View>
-            <View className="mt-2 flex-row items-center">
-              {isBoth ? (
-                <Text className="mr-2 font-sans-semibold text-[30px] text-ink-faint">
-                  $
-                </Text>
-              ) : null}
-              <TextInput
-                accessibilityLabel={
-                  isBoth
-                    ? 'Total deposit in US dollars'
-                    : `Deposit amount in ${activeFundingToken.symbol}`
-                }
-                className="min-w-0 flex-1 font-sans-semibold text-[42px] leading-[48px] text-ink"
-                keyboardType="decimal-pad"
-                placeholder="0"
-                placeholderTextColor="#52525b"
-                selectionColor="#d4c5a3"
-                value={isBoth ? invest.amountInput : singleChainAmountInput}
-                onChangeText={(value) => {
-                  if (isBoth) {
-                    invest.setAmountInput(normalizeAmountInput(value));
-                    return;
-                  }
-                  setSingleChainDepositInput(value);
-                }}
-              />
-              {isBoth ? (
-                <View className="rounded-full bg-[#242427] px-3 py-2">
-                  <Text className="font-sans-semibold text-[12px] text-ink-dim">
-                    USD
-                  </Text>
-                </View>
-              ) : (
-                <TokenSelectorPill
-                  symbol={activeFundingToken.symbol}
-                  chainKey={activeFundingToken.chainKey}
-                  accessibilityLabel={`Select ${activeChainLabel} funding token`}
-                  onPress={() =>
-                    setSingleChainTokenSelector(
-                      isBaseOnly ? 'base' : 'arbitrum',
-                    )
-                  }
-                />
-              )}
-            </View>
-            {!isBoth && singleChainAmountInput !== '' ? (
-              <Text className="mt-1 font-mono text-[11px] text-ink-dim">
-                {amountUsd === null
-                  ? 'USD value unavailable'
-                  : `≈ ${formatUsd(amountUsd)}`}
-              </Text>
-            ) : null}
-            {invest.scope === 'arbitrum' &&
-            activeArbitrumFundingToken.symbol === 'ETH' ? (
-              <Text className="mt-1 text-[11px] leading-[16px] text-ink-dim">
-                Your ETH amount is the total wallet budget.{' '}
-                {GMX_BASKET_EXECUTION_FEE_LABEL} is reserved for four GMX keeper
-                fees; the remainder is invested.
-              </Text>
-            ) : null}
-            <QuickAmountChips
-              disabled={quickAmountsDisabled}
-              maxAccessibilityLabel={
-                isBoth
-                  ? 'Use maximum strategy deposit supported by both chains'
-                  : `Use maximum deposit supported on ${activeChainLabel}`
+        <View className="mt-5 rounded-[22px] border border-line bg-[#111113] p-4">
+          <View className="flex-row items-center justify-between">
+            <Text className="text-[11px] text-ink-dim">You invest</Text>
+            <Text className="font-mono text-[10.5px] text-ink-dim">
+              {availableLabel}
+            </Text>
+          </View>
+          <View className="mt-2 flex-row items-center">
+            <Text className="mr-2 font-sans-semibold text-[30px] text-ink-faint">
+              $
+            </Text>
+            <TextInput
+              accessibilityLabel="Total investment in US dollars"
+              className="min-w-0 flex-1 font-sans-semibold text-[42px] leading-[48px] text-ink"
+              keyboardType="decimal-pad"
+              placeholder="0"
+              placeholderTextColor="#52525b"
+              selectionColor="#d4c5a3"
+              value={invest.amountInput}
+              onChangeText={(value) =>
+                invest.setAmountInput(normalizeAmountInput(value))
               }
-              onSelect={handleQuickAmount}
             />
-          </View>
-
-          <SwapArrowDivider />
-
-          <View className="gap-2">
-            {invest.scope !== 'arbitrum' ? (
-              isBoth ? (
-                <FundingSourceSelector
-                  chainKey="base"
-                  allocation="40%"
-                  protocol="morpho"
-                  venue="Moonwell USDC"
-                  tokens={BASE_DEPOSIT_TOKENS}
-                  token={invest.baseFundingToken}
-                  tokenAmount={baseTokenAmount}
-                  hasAmount={amountUsd !== null}
-                  allocatedUsd={(amountUsd ?? 0) * 0.4}
-                  balance={baseBalance}
-                  balanceState={baseBalanceState}
-                  rows={balances.chainRows}
-                  onSelectToken={invest.setBaseFundingToken}
-                />
-              ) : (
-                <FundingSourceCard
-                  chainKey="base"
-                  allocation="100%"
-                  protocol="morpho"
-                  venue="Moonwell USDC"
-                  token={invest.baseFundingToken}
-                  tokenAmount={baseTokenAmount}
-                  hasAmount={amountUsd !== null}
-                  allocatedUsd={amountUsd ?? 0}
-                  balance={baseBalance}
-                  balanceState={baseBalanceState}
-                  onSelectToken={undefined}
-                />
-              )
-            ) : null}
-            {invest.scope !== 'base' ? (
-              isBoth ? (
-                <FundingSourceSelector
-                  chainKey="arbitrum"
-                  allocation="60%"
-                  protocol="gmx-v2"
-                  venue="BTC/USDC + ETH/USDC"
-                  tokens={ARBITRUM_DEPOSIT_TOKENS}
-                  token={activeArbitrumFundingToken}
-                  tokenAmount={arbitrumTokenAmount}
-                  hasAmount={amountUsd !== null}
-                  allocatedUsd={(amountUsd ?? 0) * 0.6}
-                  balance={arbitrumBalance}
-                  balanceState={arbitrumBalanceState}
-                  rows={balances.chainRows}
-                  onSelectToken={invest.setArbitrumFundingToken}
-                />
-              ) : (
-                <FundingSourceCard
-                  chainKey="arbitrum"
-                  allocation="100%"
-                  protocol="gmx-v2"
-                  venue="4 GM pools"
-                  token={activeArbitrumFundingToken}
-                  tokenAmount={arbitrumTokenAmount}
-                  hasAmount={amountUsd !== null}
-                  allocatedUsd={amountUsd ?? 0}
-                  balance={arbitrumBalance}
-                  balanceState={arbitrumBalanceState}
-                  onSelectToken={undefined}
-                />
-              )
-            ) : null}
-          </View>
-
-          {notice === null ? null : (
-            <Text className={notice.className}>{notice.message}</Text>
-          )}
-
-          {isBoth ? (
-            <View className="mt-3 flex-row items-start gap-2 rounded-xl bg-[rgba(212,197,163,.055)] px-3 py-2.5">
-              <Info size={14} color="#9a8f78" style={{ marginTop: 1 }} />
-              <Text className="flex-1 text-[10.5px] leading-[15px] text-[#9a8f78]">
-                Mock bridge: Arbitrum deposits use funds already in this wallet.
+            <View className="rounded-full bg-[#242427] px-3 py-2">
+              <Text className="font-sans-semibold text-[12px] text-ink-dim">
+                USD
               </Text>
             </View>
-          ) : null}
-
-          <PrimaryButton
-            className="mt-4"
-            disabled={
-              account.isConnecting ||
-              (account.isConnected && !requiredChainUnavailable && !canReview)
+          </View>
+          <QuickAmountChips
+            disabled={quickAmountsDisabled}
+            maxAccessibilityLabel="Use maximum investment supported by current balances"
+            onSelect={(bps) =>
+              invest.setAmountInput(quickAmountUsdInput(maxTotalUsd, bps))
             }
-            onPress={handlePrimaryAction}
-          >
-            {primaryLabel}
-          </PrimaryButton>
+          />
         </View>
-      </ScreenScrollView>
 
-      <ChainTokenSelectorSheet
-        visible={!isBoth && singleChainTokenSelector !== null}
-        chainKey={activeFundingToken.chainKey}
-        tokens={activeFundingTokens}
-        rows={balances.chainRows}
-        balanceState={isBaseOnly ? baseBalanceState : arbitrumBalanceState}
-        selected={activeFundingToken}
-        onSelect={handleSingleChainTokenSelect}
-        onClose={() => setSingleChainTokenSelector(null)}
-      />
-    </>
+        <View className="mt-4 rounded-[20px] border border-[rgba(212,197,163,.22)] bg-[rgba(212,197,163,.055)] px-4 pt-4">
+          <View className="flex-row items-start justify-between pb-3">
+            <View className="min-w-0 flex-1 pr-4">
+              <Text className="font-sans-semibold text-[14px] text-accent">
+                Balanced Yield
+              </Text>
+              <Text className="mt-1 text-[10.5px] leading-4 text-ink-dim">
+                Edit the target mix. Zero disables a destination for this
+                investment.
+              </Text>
+            </View>
+            <Tap
+              accessibilityRole="button"
+              accessibilityLabel="Reset allocation to the default mix"
+              className="rounded-full border border-[rgba(212,197,163,.25)] px-2.5 py-1"
+              onPress={() => {
+                setPercentEdits({});
+                invest.resetTargetAllocations();
+              }}
+            >
+              <Text className="font-sans-semibold text-[9px] uppercase tracking-[.6px] text-accent">
+                Reset
+              </Text>
+            </Tap>
+          </View>
+          {INVEST_POSITIONS.map((position) => (
+            <AllocationWeightRow
+              key={position.id}
+              title={position.label}
+              detail={position.detail}
+              percentInput={
+                percentEdits[position.id] ??
+                bpsToPercentInput(weightBpsFor(allocations, position.id))
+              }
+              onChangePercent={(value) =>
+                handlePercentChange(position.id, value)
+              }
+            />
+          ))}
+        </View>
+
+        <SwapArrowDivider />
+
+        <Text className="mb-2 font-mono-semibold text-[9px] uppercase tracking-[.8px] text-ink-faint">
+          Auto funding
+        </Text>
+        <View className="gap-2">
+          {morphoBps > 0 ? (
+            <FundingSourceSelector
+              chainKey="base"
+              allocation={`${morphoBps / 100}%`}
+              protocol="morpho"
+              venue="Morpho USDC vault"
+              tokens={BASE_DEPOSIT_TOKENS}
+              token={invest.baseFundingToken}
+              tokenAmount={baseTokenAmount}
+              hasAmount={amountUsd !== null}
+              allocatedUsd={(amountUsd ?? 0) * (morphoBps / 10_000)}
+              balance={baseBalance}
+              balanceState={baseBalanceState}
+              rows={balances.chainRows}
+              onSelectToken={invest.setBaseFundingToken}
+            />
+          ) : null}
+          {gmxBps > 0 ? (
+            <FundingSourceSelector
+              chainKey="arbitrum"
+              allocation={`${gmxBps / 100}%`}
+              protocol="gmx-v2"
+              venue="Diversified GM basket"
+              tokens={ARBITRUM_DEPOSIT_TOKENS}
+              token={invest.arbitrumFundingToken}
+              tokenAmount={arbitrumTokenAmount}
+              hasAmount={amountUsd !== null}
+              allocatedUsd={(amountUsd ?? 0) * (gmxBps / 10_000)}
+              balance={arbitrumBalance}
+              balanceState={arbitrumBalanceState}
+              rows={balances.chainRows}
+              onSelectToken={invest.setArbitrumFundingToken}
+            />
+          ) : null}
+          {hlpBps > 0 ? (
+            <HlpAutoSourceCard
+              weightBps={hlpBps}
+              funding={hlpFunding}
+              hasAmount={amountUsd6 > 0n}
+            />
+          ) : null}
+        </View>
+
+        <View className="mt-3 flex-row items-start gap-2 rounded-xl bg-[rgba(212,197,163,.055)] px-3 py-2.5">
+          <Info size={14} color="#9a8f78" style={{ marginTop: 1 }} />
+          <Text className="flex-1 text-[10.5px] leading-[15px] text-[#9a8f78]">
+            Each destination is its own reviewed wallet batch. HLP funded from
+            Arbitrum USDC goes straight into Hyperliquid&apos;s Bridge2 escrow;
+            Base or Ethereum funding bridges to Hyperliquid through LI.FI in one
+            batch. The vault deposit itself is signed by your approved
+            Hyperliquid agent.
+          </Text>
+        </View>
+
+        {amountNotice ? (
+          <Text className="mt-3 px-1 text-[11px] leading-4 text-error">
+            {amountNotice}
+          </Text>
+        ) : null}
+
+        <PrimaryButton
+          className="mt-4"
+          disabled={
+            account.isConnecting ||
+            (account.isConnected && !chainUnavailable && !canReview)
+          }
+          onPress={handlePrimaryAction}
+        >
+          {primaryLabel}
+        </PrimaryButton>
+
+        {isDevBuild() ? (
+          <Tap
+            accessibilityRole="link"
+            accessibilityLabel="Open bridge diagnostics"
+            className="mt-4 self-center"
+            onPress={() => router.push('/invest/bridge')}
+          >
+            <Text className="text-[10.5px] text-ink-faint underline">
+              Bridge diagnostics
+            </Text>
+          </Tap>
+        ) : null}
+      </View>
+    </ScreenScrollView>
   );
 }

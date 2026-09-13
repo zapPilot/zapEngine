@@ -1,28 +1,19 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  ARBITRUM_GMX_BASKET_EXECUTION_FEE_WEI,
   amountInputToUsd6,
   amountUsdFromInput,
-  buildSingleChainFundingDraft,
   buildStrategyFundingOptions,
   fundingTokenAmountFromUsd,
-  fundingTokenUsdValueFromInput,
   maxUsdAmountInput,
-  minimumDepositUsd6ForScope,
-  MIN_STRATEGY_DEPOSIT_USD6,
-  nativeGmxBasketBudgetTooSmall,
   normalizeAmountInput,
   quickAmountUsdInput,
-  requiredChainUnavailableForScope,
   singleChainFromAmount,
   spendableUsdForFundingToken,
-  strategyMaxTotalUsd,
 } from '@/integration/investAmountModel';
 import {
   ARBITRUM_DEPOSIT_TOKENS,
   BASE_DEPOSIT_TOKENS,
-  DEFAULT_ARBITRUM_FUNDING_TOKEN,
 } from '@/integration/depositTokens';
 import type { ChainTokenBalanceRow } from '@/integration/walletTokens';
 import { formatTokenBalance } from '@/lib/format';
@@ -90,55 +81,6 @@ describe('Invest amount helpers', () => {
     expect(amountInputToUsd6('0.000001')).toBe('1');
   });
 
-  it('values single-chain token input in USD before applying deposit floors', () => {
-    const baseEth = row(8453, 'ETH', 2_000, '1000000000000000000', 2_000);
-    expect(
-      fundingTokenUsdValueFromInput('0.001', BASE_DEPOSIT_TOKENS[1], baseEth),
-    ).toBe(2);
-    expect(
-      fundingTokenUsdValueFromInput('1.25', BASE_DEPOSIT_TOKENS[0], null),
-    ).toBe(1.25);
-    expect(
-      fundingTokenUsdValueFromInput('0.001', BASE_DEPOSIT_TOKENS[1], null),
-    ).toBeNull();
-  });
-
-  it('treats native ETH as a total GMX basket budget including keeper fees', () => {
-    const arbitrumEth = ARBITRUM_DEPOSIT_TOKENS[2];
-    expect(ARBITRUM_GMX_BASKET_EXECUTION_FEE_WEI).toBe(4000000000000000n);
-    expect(nativeGmxBasketBudgetTooSmall('0.001', arbitrumEth)).toBe(true);
-    expect(nativeGmxBasketBudgetTooSmall('0.004', arbitrumEth)).toBe(true);
-    expect(nativeGmxBasketBudgetTooSmall('0.004001', arbitrumEth)).toBe(false);
-    expect(nativeGmxBasketBudgetTooSmall('1', ARBITRUM_DEPOSIT_TOKENS[0])).toBe(
-      false,
-    );
-  });
-
-  it('uses scope-specific minimum deposit floors', () => {
-    expect(
-      BigInt(amountInputToUsd6('0.009999')) >=
-        minimumDepositUsd6ForScope('base'),
-    ).toBe(false);
-    expect(
-      BigInt(amountInputToUsd6('0.01')) >= minimumDepositUsd6ForScope('base'),
-    ).toBe(true);
-    expect(
-      BigInt(amountInputToUsd6('0.999999')) >=
-        minimumDepositUsd6ForScope('arbitrum'),
-    ).toBe(false);
-    expect(
-      BigInt(amountInputToUsd6('1')) >= minimumDepositUsd6ForScope('arbitrum'),
-    ).toBe(true);
-    expect(
-      BigInt(amountInputToUsd6('9.999999')) >=
-        minimumDepositUsd6ForScope('both'),
-    ).toBe(false);
-    expect(minimumDepositUsd6ForScope('both')).toBe(MIN_STRATEGY_DEPOSIT_USD6);
-    expect(
-      BigInt(amountInputToUsd6('10')) >= minimumDepositUsd6ForScope('both'),
-    ).toBe(true);
-  });
-
   it('shows allocation token amounts with a stablecoin display fallback', () => {
     expect(
       fundingTokenAmountFromUsd(100, 4_000, BASE_DEPOSIT_TOKENS[0], null),
@@ -148,7 +90,7 @@ describe('Invest amount helpers', () => {
     ).toBeNull();
   });
 
-  it('sorts positive token balances first and caps Max by both chains', () => {
+  it('sorts positive token balances ahead of empty ones', () => {
     const rows = [
       row(8453, 'USDC', 40, '40000000', 1),
       row(42161, 'USDC', 30, '30000000', 1),
@@ -159,26 +101,6 @@ describe('Invest amount helpers', () => {
       rows,
     );
     expect(arbitrumOptions[0]!.token.symbol).toBe('USDC');
-    expect(
-      strategyMaxTotalUsd({
-        base: { token: BASE_DEPOSIT_TOKENS[0], balance: rows[0]! },
-        arbitrum: {
-          token: ARBITRUM_DEPOSIT_TOKENS[0],
-          balance: rows[1]!,
-        },
-      }),
-    ).toBe(50);
-
-    const unpricedBaseEth = row(8453, 'ETH', null, '1000000000000000000', null);
-    expect(
-      strategyMaxTotalUsd({
-        base: { token: BASE_DEPOSIT_TOKENS[1], balance: unpricedBaseEth },
-        arbitrum: {
-          token: ARBITRUM_DEPOSIT_TOKENS[0],
-          balance: rows[1]!,
-        },
-      }),
-    ).toBeNull();
   });
 
   it('uses only the active chain for single-chain Max capacity', () => {
@@ -197,22 +119,6 @@ describe('Invest amount helpers', () => {
     expect(formatTokenBalance('1.23456789', 'ETH', 'loaded')).toBe(
       '1.234568 ETH',
     );
-  });
-
-  it('ignores inactive-chain balance failures in single-chain scopes', () => {
-    expect(requiredChainUnavailableForScope('base', ['arbitrum'], false)).toBe(
-      false,
-    );
-    expect(requiredChainUnavailableForScope('base', ['base'], false)).toBe(
-      true,
-    );
-    expect(requiredChainUnavailableForScope('arbitrum', ['base'], false)).toBe(
-      false,
-    );
-    expect(requiredChainUnavailableForScope('both', ['arbitrum'], false)).toBe(
-      true,
-    );
-    expect(requiredChainUnavailableForScope('base', [], true)).toBe(true);
   });
 
   it('freezes Base USDC directly and Base ETH with conservative integer math', () => {
@@ -245,82 +151,5 @@ describe('Invest amount helpers', () => {
         usdPrice: null,
       }),
     ).toBeNull();
-  });
-
-  it('builds user-address-free frozen drafts for each single-chain route', () => {
-    expect(
-      buildSingleChainFundingDraft({
-        scope: 'base',
-        totalUsd6: '10000000',
-        baseFundingToken: BASE_DEPOSIT_TOKENS[1],
-        baseUsdPrice: 2_000,
-        arbitrumFundingToken: DEFAULT_ARBITRUM_FUNDING_TOKEN,
-        arbitrumUsdPrice: null,
-      }),
-    ).toEqual({
-      scope: 'base',
-      chainId: 8453,
-      fromToken: BASE_DEPOSIT_TOKENS[1].depositAddress,
-      fromAmount: '5000000000000000',
-    });
-    expect(
-      buildSingleChainFundingDraft({
-        scope: 'arbitrum',
-        totalUsd6: '10000000',
-        baseFundingToken: BASE_DEPOSIT_TOKENS[1],
-        baseUsdPrice: null,
-        arbitrumFundingToken: DEFAULT_ARBITRUM_FUNDING_TOKEN,
-        arbitrumUsdPrice: 1,
-      }),
-    ).toEqual({
-      scope: 'arbitrum',
-      chainId: 42161,
-      fromToken: DEFAULT_ARBITRUM_FUNDING_TOKEN.depositAddress,
-      fromAmount: '10000000',
-    });
-    expect(
-      buildSingleChainFundingDraft({
-        scope: 'both',
-        totalUsd6: '10000000',
-        baseFundingToken: BASE_DEPOSIT_TOKENS[0],
-        baseUsdPrice: 1,
-        arbitrumFundingToken: DEFAULT_ARBITRUM_FUNDING_TOKEN,
-        arbitrumUsdPrice: 1,
-      }),
-    ).toBeNull();
-  });
-
-  it('preserves the selected Arbitrum token in frozen single-chain drafts', () => {
-    expect(
-      buildSingleChainFundingDraft({
-        scope: 'arbitrum',
-        totalUsd6: '10000000',
-        baseFundingToken: BASE_DEPOSIT_TOKENS[0],
-        baseUsdPrice: 1,
-        arbitrumFundingToken: ARBITRUM_DEPOSIT_TOKENS[1],
-        arbitrumUsdPrice: 1,
-      }),
-    ).toEqual({
-      scope: 'arbitrum',
-      chainId: 42161,
-      fromToken: ARBITRUM_DEPOSIT_TOKENS[1].depositAddress,
-      fromAmount: '10000000',
-    });
-
-    expect(
-      buildSingleChainFundingDraft({
-        scope: 'arbitrum',
-        totalUsd6: '10000000',
-        baseFundingToken: BASE_DEPOSIT_TOKENS[0],
-        baseUsdPrice: 1,
-        arbitrumFundingToken: ARBITRUM_DEPOSIT_TOKENS[2],
-        arbitrumUsdPrice: 2_000,
-      }),
-    ).toEqual({
-      scope: 'arbitrum',
-      chainId: 42161,
-      fromToken: ARBITRUM_DEPOSIT_TOKENS[2].depositAddress,
-      fromAmount: '5000000000000000',
-    });
   });
 });

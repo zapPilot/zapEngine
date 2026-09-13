@@ -22,6 +22,18 @@ const HexQuantitySchema = z
   .string()
   .regex(/^0x[0-9a-fA-F]+$/, 'value must be a hex quantity');
 const Bytes32Schema = SimulationBytes32Schema;
+/**
+ * Chains the reviewed Privy batch rail accepts. Ethereum is in the set so a
+ * mainnet wallet can fund HyperCore directly; HyperCore itself never appears
+ * (it carries no EVM transactions).
+ */
+export const PrivyBatchChainIdSchema = z.union([
+  z.literal(1),
+  z.literal(8453),
+  z.literal(42161),
+]);
+
+export type PrivyBatchChainId = z.infer<typeof PrivyBatchChainIdSchema>;
 
 export const PrivyAtomicBatchCallSchema = z.object({
   to: z.string().regex(WALLET_ADDRESS_REGEX, 'Invalid call target address'),
@@ -34,7 +46,7 @@ export const PrivyAtomicBatchPayloadSchema = z.object({
   walletAddress: z
     .string()
     .regex(WALLET_ADDRESS_REGEX, 'Invalid Privy wallet address'),
-  chainId: z.union([z.literal(8453), z.literal(42161)]),
+  chainId: PrivyBatchChainIdSchema,
   calls: z.array(PrivyAtomicBatchCallSchema).min(1),
   idempotencyKey: z.string().min(1).max(128),
 });
@@ -69,7 +81,7 @@ export const PrivySimulationWarningSchema = SimulationWarningSchema;
 
 const PrivySimulationReviewEvidenceShape = {
   ...SimulationReviewEvidenceShape,
-  chainId: z.union([z.literal(8453), z.literal(42161)]),
+  chainId: PrivyBatchChainIdSchema,
   calls: z.array(PrivySimulationCallSchema).min(1),
 };
 

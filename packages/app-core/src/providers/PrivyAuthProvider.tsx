@@ -1,7 +1,7 @@
 import { getPrivyAppId } from '@core/lib/env/privy';
 import { type PrivyClientConfig, PrivyProvider } from '@privy-io/react-auth';
 import { type ReactNode } from 'react';
-import { arbitrum, base, optimism } from 'viem/chains';
+import { arbitrum, base, mainnet, optimism } from 'viem/chains';
 
 /**
  * Privy bundles its own `Chain` type (from `@privy-io/js-sdk-core`, with
@@ -10,10 +10,14 @@ import { arbitrum, base, optimism } from 'viem/chains';
  * objects are valid viem chains, so we bridge the type skew in one place.
  */
 type PrivyChain = NonNullable<PrivyClientConfig['supportedChains']>[number];
+// Privy refuses to switch the embedded wallet to a chain that is not listed
+// here, so every chain a reviewed batch can execute on must appear — Ethereum
+// included, since mainnet USDC/ETH can fund HyperCore.
 const PRIVY_SUPPORTED_CHAINS = [
   arbitrum,
   base,
   optimism,
+  mainnet,
 ] as unknown as PrivyChain[];
 const PRIVY_DEFAULT_CHAIN = arbitrum as unknown as PrivyChain;
 

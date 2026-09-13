@@ -4,16 +4,34 @@ import {
   type HyperliquidVaultDepositStep,
   HyperliquidVaultDepositStepSchema,
 } from '@zapengine/types/api';
-import type { Address } from 'viem';
+import { encodeFunctionData, erc20Abi, type Address, type Hex } from 'viem';
 
 import {
   HLP_LOCKUP_DAYS,
   HLP_MIN_DEPOSIT_USD,
   HLP_VAULTS,
   HYPERCORE_CHAIN_ID,
+  HYPERLIQUID_BRIDGE2_ADDRESS,
   HYPERLIQUID_EXCHANGE_API,
   type HyperliquidNetwork,
 } from './hyperliquid.constants.js';
+
+/**
+ * Calldata for funding HyperCore through Bridge2: a plain USDC transfer to the
+ * escrow. The token contract is the transaction target, so the caller supplies
+ * it; this encoder only owns the escrow address and the amount.
+ */
+export function encodeBridge2Deposit(amount: bigint): Hex {
+  if (amount <= 0n) {
+    throw new Error('Hyperliquid Bridge2 deposit amount must be positive');
+  }
+
+  return encodeFunctionData({
+    abi: erc20Abi,
+    functionName: 'transfer',
+    args: [HYPERLIQUID_BRIDGE2_ADDRESS, amount],
+  });
+}
 
 /**
  * Unsigned Hyperliquid exchange action. Signing is impossible at planning

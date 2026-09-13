@@ -1,5 +1,9 @@
 import type { WalletTypedData } from '@core/types';
-import type { PreparedTransaction } from '@zapengine/types/api';
+import {
+  type PreparedTransaction,
+  type PrivyBatchChainId,
+  PrivyBatchChainIdSchema,
+} from '@zapengine/types/api';
 import {
   type Chain,
   decodeFunctionData,
@@ -7,26 +11,39 @@ import {
   type Hex,
   toHex,
 } from 'viem';
-import { arbitrum, base } from 'viem/chains';
+import { arbitrum, base, mainnet } from 'viem/chains';
 
 /**
- * Chains the account-engine Privy Wallets API accepts for atomic batches
- * (`PrivyAtomicBatchPayloadSchema` pins `chainId` to 8453 | 42161).
+ * Chains the account-engine Privy Wallets API accepts for atomic batches.
+ * Keyed by `PrivyBatchChainId` so the map and the wire schema cannot drift.
  */
-const PRIVY_ATOMIC_BATCH_CHAINS = new Map<number, Chain>(
-  [arbitrum, base].map((chain) => [chain.id, chain]),
-);
+const PRIVY_ATOMIC_BATCH_CHAINS: Record<PrivyBatchChainId, Chain> = {
+  1: mainnet,
+  8453: base,
+  42161: arbitrum,
+};
 
 export const WALLET_NOT_CONNECTED_ERROR = 'No Privy wallet connected';
 
-export function getPrivyAtomicBatchChain(chainId: number): Chain {
-  const chain = PRIVY_ATOMIC_BATCH_CHAINS.get(chainId);
-  if (!chain) {
+/**
+ * Resolve a chain id against the atomic-batch contract. The narrowed id comes
+ * back alongside the viem chain so callers can put it straight into a Privy
+ * payload without re-asserting the literal union.
+ */
+export function getPrivyAtomicBatchChain(chainId: number): {
+  chain: Chain;
+  chainId: PrivyBatchChainId;
+} {
+  const parsed = PrivyBatchChainIdSchema.safeParse(chainId);
+  if (!parsed.success) {
     throw new Error(
       `Privy EOA EIP-7702 atomic batching is not configured for chain ${chainId}`,
     );
   }
-  return chain;
+  return {
+    chain: PRIVY_ATOMIC_BATCH_CHAINS[parsed.data],
+    chainId: parsed.data,
+  };
 }
 
 export function summarizeTransaction(tx: PreparedTransaction, index: number) {

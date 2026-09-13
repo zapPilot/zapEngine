@@ -1,11 +1,17 @@
 import { equalsAddress } from '@zapengine/types/shared';
 import { toHex, type Chain } from 'viem';
-import { arbitrum, base, optimism } from 'viem/chains';
+import { arbitrum, base, mainnet, optimism } from 'viem/chains';
 
-export const NATIVE_WALLET_SUPPORTED_CHAINS: [Chain, Chain, Chain] = [
+/**
+ * Chains the native wallet may switch to. Ethereum is here because mainnet
+ * USDC/ETH can fund HyperCore; HyperCore itself (1337) never appears, since it
+ * carries no EVM transactions.
+ */
+export const NATIVE_WALLET_SUPPORTED_CHAINS: readonly [Chain, ...Chain[]] = [
   arbitrum,
   base,
   optimism,
+  mainnet,
 ];
 
 export const DEFAULT_NATIVE_WALLET_CHAIN = arbitrum;

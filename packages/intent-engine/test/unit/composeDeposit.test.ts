@@ -3,6 +3,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { decodeFunctionData, erc20Abi, type Address } from 'viem';
 
 import type { LiFiAdapter } from '../../src/adapters/lifi.adapter.js';
+import {
+  HYPERCORE_PERPS_USDC,
+  HYPERLIQUID_BRIDGE2_ADDRESS,
+  HYPERLIQUID_BRIDGE2_BRIDGE_ID,
+  HYPERLIQUID_BRIDGE2_DURATION_SEC,
+} from '../../src/protocols/hyperliquid/index.js';
 import { MORPHO_VAULT_ABI } from '../../src/protocols/morpho/morpho.constants.js';
 import { composeDeposit } from '../../src/strategies/composeDeposit.js';
 import type { TransactionQuote } from '../../src/types/transaction.types.js';
@@ -510,6 +516,159 @@ describe('composeDeposit', () => {
     ).rejects.toThrow('HLP allocation is below the vault minimum');
   });
 
+  it('escrows native Arbitrum USDC through Bridge2 instead of quoting LI.FI', async () => {
+    const { adapter, getQuote } = makeAdapter();
+    const { publicClients, readContract } = makePublicClients();
+
+    const plan = await composeDeposit(
+      {
+        fromToken: ARBITRUM_USDC,
+        fromAmount: '25000000',
+        sourceChainId: 42161,
+        userAddress: USER,
+        split: { 1337: 1 },
+      },
+      { adapter, publicClients: publicClients as never },
+    );
+
+    expect(getQuote).not.toHaveBeenCalled();
+    expect(readContract).not.toHaveBeenCalled();
+    expect(plan.approvals).toEqual([]);
+
+    expect(plan.calls).toHaveLength(1);
+    expect(plan.calls[0]!.to).toBe(ARBITRUM_USDC);
+    expect(plan.calls[0]!.chainId).toBe(42161);
+    expect(plan.calls[0]!.value).toBe('0');
+    expect(
+      decodeFunctionData({
+        abi: erc20Abi,
+        data: plan.calls[0]!.data as `0x${string}`,
+      }),
+    ).toMatchObject({
+      functionName: 'transfer',
+      args: [HYPERLIQUID_BRIDGE2_ADDRESS, 25000000n],
+    });
+
+    expect(plan.legs).toEqual([
+      {
+        chainId: 1337,
+        kind: 'bridge',
+        protocol: 'hyperliquid',
+        toToken: HYPERCORE_PERPS_USDC,
+        fromAmount: '25000000',
+        toAmountMin: '25000000',
+        bridge: HYPERLIQUID_BRIDGE2_BRIDGE_ID,
+        gasUsd: '0',
+        durationSec: HYPERLIQUID_BRIDGE2_DURATION_SEC,
+      },
+    ]);
+    expect(plan.followUps?.[0]).toMatchObject({
+      kind: 'hyperliquid-vault-deposit',
+      afterLegIndex: 0,
+      expectedUsd: '25000000',
+    });
+  });
+
+  it('keeps Arbitrum USDC on LI.FI when planning against testnet', async () => {
+    const { adapter, getQuote } = makeAdapter();
+    const { publicClients } = makePublicClients();
+
+    const plan = await composeDeposit(
+      {
+        fromToken: ARBITRUM_USDC,
+        fromAmount: '25000000',
+        sourceChainId: 42161,
+        userAddress: USER,
+        split: { 1337: 1 },
+      },
+      {
+        adapter,
+        publicClients: publicClients as never,
+        hyperliquidNetwork: 'testnet',
+      },
+    );
+
+    expect(getQuote).toHaveBeenCalledWith(
+      expect.objectContaining({ toChain: 1337, toToken: HYPERCORE_PERPS_USDC }),
+    );
+    expect(plan.legs[0]!.bridge).not.toBe(HYPERLIQUID_BRIDGE2_BRIDGE_ID);
+  });
+
+  it('bridges native Arbitrum ETH into HyperCore through LI.FI', async () => {
+    const { adapter, getQuote } = makeAdapter();
+    const { publicClients } = makePublicClients();
+
+    const plan = await composeDeposit(
+      {
+        fromToken: NATIVE_ETH,
+        fromAmount: '25000000',
+        sourceChainId: 42161,
+        userAddress: USER,
+        split: { 1337: 1 },
+      },
+      { adapter, publicClients: publicClients as never },
+    );
+
+    expect(getQuote).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fromChain: 42161,
+        toChain: 1337,
+        fromToken: NATIVE_ETH,
+        toToken: HYPERCORE_PERPS_USDC,
+      }),
+    );
+    expect(plan.legs[0]).toMatchObject({ chainId: 1337, kind: 'bridge' });
+    expect(plan.approvals).toEqual([]);
+  });
+
+  it('bridges Ethereum USDC into HyperCore with a mainnet approval', async () => {
+    const { adapter, getQuote } = makeAdapter();
+    const { publicClients } = makePublicClients();
+
+    const plan = await composeDeposit(
+      {
+        fromToken: ETHEREUM_USDC,
+        fromAmount: '25000000',
+        sourceChainId: 1,
+        userAddress: USER,
+        split: { 1337: 1 },
+      },
+      { adapter, publicClients: publicClients as never },
+    );
+
+    expect(getQuote).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fromChain: 1,
+        toChain: 1337,
+        toToken: HYPERCORE_PERPS_USDC,
+      }),
+    );
+    expect(plan.sourceChainId).toBe(1);
+    expect(plan.approvals).toHaveLength(1);
+    expect(plan.approvals[0]!.chainId).toBe(1);
+    expect(plan.approvals[0]!.to).toBe(ETHEREUM_USDC);
+    expect(plan.followUps).toHaveLength(1);
+  });
+
+  it('rejects a Bridge2 allocation below the vault minimum before escrowing', async () => {
+    const { adapter, getQuote } = makeAdapter();
+    const { publicClients } = makePublicClients();
+
+    await expect(
+      composeDeposit(
+        {
+          fromToken: ARBITRUM_USDC,
+          fromAmount: '5000000',
+          sourceChainId: 42161,
+          userAddress: USER,
+          split: { 1337: 1 },
+        },
+        { adapter, publicClients: publicClients as never },
+      ),
+    ).rejects.toThrow('HLP allocation is below the vault minimum');
+    expect(getQuote).not.toHaveBeenCalled();
+  });
+
   it('uses LI.FI Earn quote for non-vault-asset source deposits', async () => {
     const { adapter, getContractCallQuote, getQuote } = makeAdapter();
     const { publicClients } = makePublicClients();
@@ -574,7 +733,7 @@ describe('composeDeposit error cases', () => {
     ).rejects.toThrow('No stable deposit vault configured for chain 42161');
   });
 
-  it('rejects a multi-chain split from a non-Base source chain', async () => {
+  it('rejects a non-Base source bridging to another EVM chain', async () => {
     const { adapter } = makeAdapter();
     const { publicClients } = makePublicClients();
 
@@ -590,7 +749,27 @@ describe('composeDeposit error cases', () => {
         { adapter, publicClients: publicClients as never },
       ),
     ).rejects.toThrow(
-      'Non-Base source chains support a single-chain split only',
+      'Non-Base source chains may only target themselves or HyperCore (1337)',
+    );
+  });
+
+  it('rejects an Ethereum source bridging to Arbitrum', async () => {
+    const { adapter } = makeAdapter();
+    const { publicClients } = makePublicClients();
+
+    await expect(
+      composeDeposit(
+        {
+          fromToken: ETHEREUM_USDC,
+          fromAmount: '20000000',
+          sourceChainId: 1,
+          userAddress: USER,
+          split: { 42161: 1 },
+        },
+        { adapter, publicClients: publicClients as never },
+      ),
+    ).rejects.toThrow(
+      'Non-Base source chains may only target themselves or HyperCore (1337)',
     );
   });
 

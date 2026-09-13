@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { arbitrum, base, optimism } from 'viem/chains';
+import { arbitrum, base, mainnet, optimism } from 'viem/chains';
 
 import {
   assertNativeWalletChain,
@@ -19,6 +19,7 @@ describe('native wallet backend model', () => {
       arbitrum.id,
       base.id,
       optimism.id,
+      mainnet.id,
     ]);
     expect(DEFAULT_NATIVE_WALLET_CHAIN.id).toBe(arbitrum.id);
   });
@@ -31,8 +32,10 @@ describe('native wallet backend model', () => {
 
   it('rejects unsupported chain ids for user-initiated wallet operations', () => {
     expect(assertNativeWalletChain(optimism.id).id).toBe(optimism.id);
-    expect(() => assertNativeWalletChain(1)).toThrow(
-      'Unsupported mobile wallet chain 1',
+    expect(assertNativeWalletChain(mainnet.id).id).toBe(mainnet.id);
+    // HyperCore is a bridge destination, never a wallet chain to switch to.
+    expect(() => assertNativeWalletChain(1337)).toThrow(
+      'Unsupported mobile wallet chain 1337',
     );
   });
 

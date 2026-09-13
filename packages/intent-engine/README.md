@@ -70,14 +70,15 @@ interface IntentEngineConfig {
 
 ### Builders
 
-| Export               | Description                        |
-| -------------------- | ---------------------------------- |
-| `buildSwapTx`        | Build swap transaction             |
-| `buildSupplyTx`      | Build supply transaction           |
-| `buildBridgeTx`      | Build bridge transaction           |
-| `buildWithdrawTx`    | Build withdraw transaction         |
-| `buildRotateTx`      | Build rotate transaction           |
-| `buildGmxV2SupplyTx` | Build GMX v2 GM-market supply plan |
+| Export                             | Description                                    |
+| ---------------------------------- | ---------------------------------------------- |
+| `buildSwapTx`                      | Build swap transaction                         |
+| `buildSupplyTx`                    | Build supply transaction                       |
+| `buildBridgeTx`                    | Build bridge transaction                       |
+| `buildHyperliquidBridge2DepositTx` | Build a 1:1 Arbitrum USDC → HyperCore transfer |
+| `buildWithdrawTx`                  | Build withdraw transaction                     |
+| `buildRotateTx`                    | Build rotate transaction                       |
+| `buildGmxV2SupplyTx`               | Build GMX v2 GM-market supply plan             |
 
 ### Strategies
 

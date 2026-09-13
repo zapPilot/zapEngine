@@ -1,6 +1,7 @@
 export { buildSwapTx } from './swap.builder.js';
 export { buildSupplyTx } from './supply.builder.js';
 export { buildBridgeTx, type BridgeIntentInput } from './bridge.builder.js';
+export { buildHyperliquidBridge2DepositTx } from './hyperliquid-bridge2.builder.js';
 export { buildWithdrawTx } from './withdraw.builder.js';
 export {
   buildWithdrawSwapTx,

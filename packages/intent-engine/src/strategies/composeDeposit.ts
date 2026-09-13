@@ -15,6 +15,7 @@ import {
   type ApprovalRequirement,
 } from '../approvals/erc20Approval.js';
 import { buildBridgeTx } from '../builders/bridge.builder.js';
+import { buildHyperliquidBridge2DepositTx } from '../builders/hyperliquid-bridge2.builder.js';
 import { buildSupplyTx } from '../builders/supply.builder.js';
 import {
   buildHlpDepositFollowUp,
@@ -214,20 +215,42 @@ function resolveSplit(input: ComposeDepositInput): ChainSplit {
     (isBaseSource ? DEFAULT_SPLIT : { [input.sourceChainId]: 1 });
 
   if (!isBaseSource) {
-    // Non-Base sources exist only for destination re-quotes (bridge landed →
-    // re-plan with the received amount); re-bridging from them is not allowed.
+    // Base is the only source that fans out across EVM chains. Every other
+    // source may supply its own chain (destination re-quote after a bridge
+    // landed) or bridge into HyperCore, which any wallet chain can fund.
     const foreignLeg = Object.entries(split).find(
       ([chainId, weight]) =>
-        (weight ?? 0) > 0 && Number(chainId) !== input.sourceChainId,
+        (weight ?? 0) > 0 &&
+        Number(chainId) !== input.sourceChainId &&
+        Number(chainId) !== HYPERCORE_CHAIN_ID,
     );
     if (foreignLeg) {
       throw new Error(
-        'Non-Base source chains support a single-chain split only',
+        'Non-Base source chains may only target themselves or HyperCore (1337)',
       );
     }
   }
 
   return split;
+}
+
+/**
+ * Native Arbitrum USDC is the one HyperCore ingress that can skip LI.FI: the
+ * official Bridge2 escrow takes it 1:1 with no bridge fee. Every other source
+ * token/chain bridges through LI.FI straight into HyperCore. Testnet has no
+ * Bridge2 deployment we route to, so it stays on LI.FI.
+ */
+function fundsHlpViaBridge2(
+  input: ComposeDepositInput,
+  deps: ComposeDepositDeps,
+): boolean {
+  const arbitrumUsdc = USDC_ADDRESS[SUPPORTED_CHAINS.ARBITRUM];
+  return (
+    (deps.hyperliquidNetwork ?? 'mainnet') === 'mainnet' &&
+    input.sourceChainId === SUPPORTED_CHAINS.ARBITRUM &&
+    Boolean(arbitrumUsdc) &&
+    equalsAddress(input.fromToken, arbitrumUsdc as Address)
+  );
 }
 
 /** One allocation's quote plus the plan fragments assembled from it. */
@@ -336,17 +359,19 @@ export async function composeDeposit(
       }
 
       if (allocation.chainId === HYPERCORE_CHAIN_ID) {
-        const quote = await buildBridgeTx(
-          {
-            fromChainId: input.sourceChainId,
-            toChainId: HYPERCORE_CHAIN_ID,
-            fromToken: input.fromToken,
-            toToken: HYPERCORE_PERPS_USDC,
-            fromAmount: allocation.amount,
-            userAddress: input.userAddress,
-          },
-          deps.adapter,
-        );
+        const quote = fundsHlpViaBridge2(input, deps)
+          ? buildHyperliquidBridge2DepositTx({ amount: allocation.amount })
+          : await buildBridgeTx(
+              {
+                fromChainId: input.sourceChainId,
+                toChainId: HYPERCORE_CHAIN_ID,
+                fromToken: input.fromToken,
+                toToken: HYPERCORE_PERPS_USDC,
+                fromAmount: allocation.amount,
+                userAddress: input.userAddress,
+              },
+              deps.adapter,
+            );
 
         // Checked against the quoted output (6-decimal perp USDC) rather than
         // the allocation, which may be denominated in a different source token.
