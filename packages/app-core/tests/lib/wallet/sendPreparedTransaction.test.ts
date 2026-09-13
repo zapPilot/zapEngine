@@ -77,4 +77,21 @@ describe('sendPreparedTransaction', () => {
 
     expect(sendTransaction).not.toHaveBeenCalled();
   });
+
+  it('rejects malformed prepared gas limits before calling the wallet', () => {
+    const sendTransaction = vi.fn();
+    const transaction = {
+      to: '0x5555555555555555555555555555555555555555',
+      data: '0x',
+      value: '1',
+      chainId: 8453,
+      gasLimit: '21000.5',
+    } as Parameters<typeof sendPreparedTransaction>[1];
+
+    expect(() =>
+      sendPreparedTransaction({ sendTransaction }, transaction),
+    ).toThrow(SyntaxError);
+
+    expect(sendTransaction).not.toHaveBeenCalled();
+  });
 });
