@@ -15,8 +15,8 @@ import {
   type ApprovalRequirement,
 } from '../approvals/erc20Approval.js';
 import { buildBridgeTx } from '../builders/bridge.builder.js';
+import { buildHyperliquidBridge2DepositTx } from '../builders/hyperliquid-bridge2.builder.js';
 import { buildSupplyTx } from '../builders/supply.builder.js';
-import { buildHyperliquidBridge2DepositTx } from '../protocols/hyperliquid/hyperliquid.bridge.js';
 import {
   buildHlpDepositFollowUp,
   HLP_MIN_DEPOSIT_USD,
@@ -209,33 +209,48 @@ function sourcePublicClient(
 }
 
 function resolveSplit(input: ComposeDepositInput): ChainSplit {
-  if (input.split) {
-    return input.split;
+  const isBaseSource = input.sourceChainId === SUPPORTED_CHAINS.BASE;
+  const split =
+    input.split ??
+    (isBaseSource ? DEFAULT_SPLIT : { [input.sourceChainId]: 1 });
+
+  if (!isBaseSource) {
+    // Base is the only source that fans out across EVM chains. Every other
+    // source may supply its own chain (destination re-quote after a bridge
+    // landed) or bridge into HyperCore, which any wallet chain can fund.
+    const foreignLeg = Object.entries(split).find(
+      ([chainId, weight]) =>
+        (weight ?? 0) > 0 &&
+        Number(chainId) !== input.sourceChainId &&
+        Number(chainId) !== HYPERCORE_CHAIN_ID,
+    );
+    if (foreignLeg) {
+      throw new Error(
+        'Non-Base source chains may only target themselves or HyperCore (1337)',
+      );
+    }
   }
-  return input.sourceChainId === SUPPORTED_CHAINS.BASE
-    ? DEFAULT_SPLIT
-    : { [input.sourceChainId]: 1 };
+
+  return split;
 }
 
-function hyperliquidBridge2Quote(amount: string): TransactionQuote {
-  const transaction = buildHyperliquidBridge2DepositTx({ amount });
-  const estimate = {
-    fromAmount: amount,
-    toAmount: amount,
-    toAmountMin: amount,
-    gasCostUsd: '0',
-    feeCostUsd: '0',
-    executionDuration: 60,
-    tool: 'hyperliquid-bridge2',
-  };
-  return {
-    transaction,
-    estimate,
-    route: {
-      tool: 'hyperliquid-bridge2',
-      estimate,
-    },
-  };
+/**
+ * Native Arbitrum USDC is the one HyperCore ingress that can skip LI.FI: the
+ * official Bridge2 escrow takes it 1:1 with no bridge fee. Every other source
+ * token/chain bridges through LI.FI straight into HyperCore. Testnet has no
+ * Bridge2 deployment we route to, so it stays on LI.FI.
+ */
+function fundsHlpViaBridge2(
+  input: ComposeDepositInput,
+  deps: ComposeDepositDeps,
+): boolean {
+  const arbitrumUsdc = USDC_ADDRESS[SUPPORTED_CHAINS.ARBITRUM];
+  return (
+    (deps.hyperliquidNetwork ?? 'mainnet') === 'mainnet' &&
+    input.sourceChainId === SUPPORTED_CHAINS.ARBITRUM &&
+    Boolean(arbitrumUsdc) &&
+    equalsAddress(input.fromToken, arbitrumUsdc as Address)
+  );
 }
 
 /** One allocation's quote plus the plan fragments assembled from it. */
@@ -344,27 +359,31 @@ export async function composeDeposit(
       }
 
       if (allocation.chainId === HYPERCORE_CHAIN_ID) {
-        if (input.sourceChainId !== SUPPORTED_CHAINS.ARBITRUM) {
+        const quote = fundsHlpViaBridge2(input, deps)
+          ? buildHyperliquidBridge2DepositTx({ amount: allocation.amount })
+          : await buildBridgeTx(
+              {
+                fromChainId: input.sourceChainId,
+                toChainId: HYPERCORE_CHAIN_ID,
+                fromToken: input.fromToken,
+                toToken: HYPERCORE_PERPS_USDC,
+                fromAmount: allocation.amount,
+                userAddress: input.userAddress,
+              },
+              deps.adapter,
+            );
+
+        // Checked against the quoted output (6-decimal perp USDC) rather than
+        // the allocation, which may be denominated in a different source token.
+        if (BigInt(quote.estimate.toAmountMin) < BigInt(HLP_MIN_DEPOSIT_USD)) {
           throw new Error(
-            'Hyperliquid deposits must first arrive as native USDC on Arbitrum',
-          );
-        }
-        const arbitrumUsdc = USDC_ADDRESS[SUPPORTED_CHAINS.ARBITRUM];
-        if (!arbitrumUsdc || !equalsAddress(input.fromToken, arbitrumUsdc)) {
-          throw new Error(
-            'Hyperliquid Bridge2 accepts native Arbitrum USDC only',
-          );
-        }
-        if (BigInt(allocation.amount) < BigInt(HLP_MIN_DEPOSIT_USD)) {
-          throw new Error(
-            `HLP allocation is below the vault minimum of ${HLP_MIN_DEPOSIT_USD} USDC base units`,
+            `HLP allocation is below the vault minimum of ${HLP_MIN_DEPOSIT_USD} perp USDC base units (quoted ${quote.estimate.toAmountMin})`,
           );
         }
 
-        const quote = hyperliquidBridge2Quote(allocation.amount);
         return {
           quote,
-          approval: undefined,
+          approval: quote.approval,
           leg: bridgeLegFromQuote({
             chainId: HYPERCORE_CHAIN_ID,
             toToken: HYPERCORE_PERPS_USDC,
@@ -372,7 +391,7 @@ export async function composeDeposit(
             quote,
             protocol: 'hyperliquid',
           }),
-          hlpFollowUp: { expectedUsd: allocation.amount },
+          hlpFollowUp: { expectedUsd: quote.estimate.toAmountMin },
         };
       }
 
