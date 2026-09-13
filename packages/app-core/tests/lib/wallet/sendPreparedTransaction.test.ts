@@ -71,9 +71,9 @@ describe('sendPreparedTransaction', () => {
       chainId: 8453,
     } as Parameters<typeof sendPreparedTransaction>[1];
 
-    expect(() => sendPreparedTransaction({ sendTransaction }, transaction)).toThrow(
-      SyntaxError,
-    );
+    expect(() =>
+      sendPreparedTransaction({ sendTransaction }, transaction),
+    ).toThrow(SyntaxError);
 
     expect(sendTransaction).not.toHaveBeenCalled();
   });
