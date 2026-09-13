@@ -130,4 +130,36 @@ describe('useDepositWizard Bridge2 arrival', () => {
     );
     expect(result.current.wizard.hlp.arrivedUsd6).toBe(20_100_000n);
   });
+
+  it('fails closed when HyperCore arrival cannot be confirmed', async () => {
+    mocks.waitForHyperCoreUsdcArrival.mockRejectedValueOnce(
+      new Error('HyperCore arrival timed out'),
+    );
+    const { result } = renderHook(() =>
+      useDepositWizard({
+        hyperliquidAgent: {
+          isReady: false,
+          masterAddress: null,
+          getSigner: vi.fn(),
+        },
+      }),
+    );
+
+    await act(async () => {
+      await result.current.resumeReviewedPlan({
+        plan: bridge2Plan,
+        baselineUsd6: 1_000_000n,
+        sourceTxHash: SOURCE_TX,
+      });
+    });
+
+    expect(mocks.waitForBridgeCompletion).not.toHaveBeenCalled();
+    expect(result.current.wizard.stage).toBe('hyperliquidDeposit');
+    expect(result.current.wizard.hlp.status).toBe('awaitingArrival');
+    expect(result.current.wizard.hlp.arrivedUsd6).toBeNull();
+    expect(result.current.wizard.error).toEqual({
+      stage: 'hyperliquidDeposit',
+      message: 'HyperCore arrival timed out',
+    });
+  });
 });
