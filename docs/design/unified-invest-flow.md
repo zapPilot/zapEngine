@@ -72,7 +72,7 @@ Example target:
   { positionId: 'morpho-base', weightBps: 4000 },
   { positionId: 'gmx-arbitrum', weightBps: 3500 },
   { positionId: 'hlp', weightBps: 2500 },
-]
+];
 ```
 
 The planner should resolve the target into bridge/swap/deposit legs instead of the UI selecting those routes directly.
@@ -142,19 +142,49 @@ A reasonable planner objective is:
 
 The exact optimization policy can remain deterministic and simple initially. The important architectural change is that funding chains are inputs to the planner, not top-level product tabs.
 
+### What Phase 1 implements
+
+Morpho and GMX draw on their own destination chain, so their funding token stays a
+user choice on Base and Arbitrum respectively.
+
+HLP is the one position with no chain of its own, so the amount screen resolves its
+funding automatically. It picks the first supported wallet source that can cover the
+whole HLP share by itself, after subtracting whatever Morpho and GMX have already
+claimed from the same token:
+
+`Arbitrum USDC → Base USDC → Ethereum USDC → Base ETH → Arbitrum ETH → Ethereum ETH`
+
+Splitting HLP across two sources is deliberately not attempted: it would mean two
+bridges and two vault deposits for one position.
+
+The route into HyperCore is then chosen server-side, in `composeDeposit`:
+
+- native Arbitrum USDC goes straight into Hyperliquid's own Bridge2 escrow — a plain
+  ERC-20 transfer, 1:1, no bridge fee and no route to poll;
+- every other source (Base or Ethereum, USDC or native ETH) bridges into HyperCore
+  through LI.FI in a single reviewed batch.
+
+Either way the user signs one wallet batch for HLP. The vault deposit that follows is
+signed by the approved Hyperliquid agent, not by the wallet.
+
 ## Execution / review expectations
 
-`InvestRouteScreen.tsx` should evolve into one unified review surface capable of displaying heterogeneous execution groups.
+`InvestRouteScreen.tsx` is one review surface listing every reviewed batch the
+investment needs, in execution order — one batch per funded position:
 
-The route may include combinations such as:
+- Morpho: a Base batch (swap when funded with ETH, then supply);
+- GMX: an Arbitrum GM-basket batch;
+- HLP: one batch on whichever chain funds it, bridging into HyperCore.
 
-- local Base batch;
-- Base → Arbitrum bridge;
-- Arbitrum GMX basket deposit;
-- Base → Hyperliquid bridge;
-- HLP agent-signed vault deposit after funds arrive.
+Only the first batch is submitted from the review screen. Every later batch pauses at a
+checkpoint on the progress screen, is re-reviewed against the chain it executes on, and
+is compared against the fingerprints the user already saw before it can be confirmed. A
+confirmed batch is never resubmitted, so a partially completed multi-chain investment
+resumes rather than starting over.
 
-Each leg should expose status/checkpoints so a partially completed multi-chain investment can resume rather than start over.
+The checkpoint queue lives in frontend state. The server persists no multi-batch
+session: each batch is an independent, self-contained `/plan-orchestration/deposit/review`
+request bound by its own expiry and hashes.
 
 ## Bridge tab
 
@@ -177,7 +207,9 @@ Keep it behind a dev/internal route if it remains useful for diagnostics.
 - make the orchestration API accept funding sources + target allocations;
 - return a heterogeneous execution plan;
 - resolve bridge shortfalls automatically;
-- make review independent of the legacy `scope` / `destination` split.
+- collapse positions that share one source chain into a single batch — Base USDC
+  funding both Morpho and HLP is already expressible as one `split` request, but
+  Phase 1 still sends one request per position.
 
 ### Phase 3 — Target-aware deposits
 
