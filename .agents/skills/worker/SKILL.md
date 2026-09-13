@@ -15,6 +15,11 @@ small, locally verifiable contract.
 GitHub Issues is the work source of truth. Use MCP claim/release; never hand-edit
 backlog labels or close issues manually.
 
+A user invocation of this worker skill or `/worker` command explicitly authorizes
+creation of exactly one isolated `backlog/*` worktree/branch after a successful
+backlog claim. Optional input only selects `area:<slug>` or `#<issue>`; it does not
+need to repeat worktree authorization.
+
 ## Run order
 
 0. Sweep your own open PRs and clear them before claiming new work:
@@ -54,9 +59,8 @@ backlog labels or close issues manually.
 3. Read the whole issue and search open PR bodies for its number before editing.
    An existing PR means release `blocked` naming that PR; never duplicate work.
 
-4. Isolate only when this invocation explicitly authorizes a new backlog
-   worktree/branch. Otherwise preserve the current checkout per root `AGENTS.md`
-   and report that authorization is needed before coding.
+4. After a successful claim, create the single isolated backlog worktree/branch
+   authorized by this worker invocation. Never create it before `claimed=true`.
 
    ```bash
    git fetch origin
