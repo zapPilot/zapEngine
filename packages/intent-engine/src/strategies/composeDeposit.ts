@@ -16,6 +16,7 @@ import {
 } from '../approvals/erc20Approval.js';
 import { buildBridgeTx } from '../builders/bridge.builder.js';
 import { buildSupplyTx } from '../builders/supply.builder.js';
+import { buildHyperliquidBridge2DepositTx } from '../protocols/hyperliquid/hyperliquid.bridge.js';
 import {
   buildHlpDepositFollowUp,
   HLP_MIN_DEPOSIT_USD,
@@ -208,26 +209,33 @@ function sourcePublicClient(
 }
 
 function resolveSplit(input: ComposeDepositInput): ChainSplit {
-  const isBaseSource = input.sourceChainId === SUPPORTED_CHAINS.BASE;
-  const split =
-    input.split ??
-    (isBaseSource ? DEFAULT_SPLIT : { [input.sourceChainId]: 1 });
-
-  if (!isBaseSource) {
-    // Non-Base sources exist only for destination re-quotes (bridge landed →
-    // re-plan with the received amount); re-bridging from them is not allowed.
-    const foreignLeg = Object.entries(split).find(
-      ([chainId, weight]) =>
-        (weight ?? 0) > 0 && Number(chainId) !== input.sourceChainId,
-    );
-    if (foreignLeg) {
-      throw new Error(
-        'Non-Base source chains support a single-chain split only',
-      );
-    }
+  if (input.split) {
+    return input.split;
   }
+  return input.sourceChainId === SUPPORTED_CHAINS.BASE
+    ? DEFAULT_SPLIT
+    : { [input.sourceChainId]: 1 };
+}
 
-  return split;
+function hyperliquidBridge2Quote(amount: string): TransactionQuote {
+  const transaction = buildHyperliquidBridge2DepositTx({ amount });
+  const estimate = {
+    fromAmount: amount,
+    toAmount: amount,
+    toAmountMin: amount,
+    gasCostUsd: '0',
+    feeCostUsd: '0',
+    executionDuration: 60,
+    tool: 'hyperliquid-bridge2',
+  };
+  return {
+    transaction,
+    estimate,
+    route: {
+      tool: 'hyperliquid-bridge2',
+      estimate,
+    },
+  };
 }
 
 /** One allocation's quote plus the plan fragments assembled from it. */
@@ -336,29 +344,27 @@ export async function composeDeposit(
       }
 
       if (allocation.chainId === HYPERCORE_CHAIN_ID) {
-        const quote = await buildBridgeTx(
-          {
-            fromChainId: input.sourceChainId,
-            toChainId: HYPERCORE_CHAIN_ID,
-            fromToken: input.fromToken,
-            toToken: HYPERCORE_PERPS_USDC,
-            fromAmount: allocation.amount,
-            userAddress: input.userAddress,
-          },
-          deps.adapter,
-        );
-
-        // Checked against the quoted output (6-decimal perp USDC) rather than
-        // the allocation, which may be denominated in a different source token.
-        if (BigInt(quote.estimate.toAmountMin) < BigInt(HLP_MIN_DEPOSIT_USD)) {
+        if (input.sourceChainId !== SUPPORTED_CHAINS.ARBITRUM) {
           throw new Error(
-            `HLP allocation is below the vault minimum of ${HLP_MIN_DEPOSIT_USD} perp USDC base units (quoted ${quote.estimate.toAmountMin})`,
+            'Hyperliquid deposits must first arrive as native USDC on Arbitrum',
+          );
+        }
+        const arbitrumUsdc = USDC_ADDRESS[SUPPORTED_CHAINS.ARBITRUM];
+        if (!arbitrumUsdc || !equalsAddress(input.fromToken, arbitrumUsdc)) {
+          throw new Error(
+            'Hyperliquid Bridge2 accepts native Arbitrum USDC only',
+          );
+        }
+        if (BigInt(allocation.amount) < BigInt(HLP_MIN_DEPOSIT_USD)) {
+          throw new Error(
+            `HLP allocation is below the vault minimum of ${HLP_MIN_DEPOSIT_USD} USDC base units`,
           );
         }
 
+        const quote = hyperliquidBridge2Quote(allocation.amount);
         return {
           quote,
-          approval: quote.approval,
+          approval: undefined,
           leg: bridgeLegFromQuote({
             chainId: HYPERCORE_CHAIN_ID,
             toToken: HYPERCORE_PERPS_USDC,
@@ -366,7 +372,7 @@ export async function composeDeposit(
             quote,
             protocol: 'hyperliquid',
           }),
-          hlpFollowUp: { expectedUsd: quote.estimate.toAmountMin },
+          hlpFollowUp: { expectedUsd: allocation.amount },
         };
       }
 
