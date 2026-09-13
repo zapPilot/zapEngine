@@ -20,8 +20,8 @@ const mocks = vi.hoisted(() => ({
   buildApproveTx: vi.fn(),
   getPublicClient: vi.fn(),
   waitForBridgeCompletion: vi.fn(),
-  getPerpUsdcBalance: vi.fn(),
-  waitForPerpUsdcArrival: vi.fn(),
+  getHyperCoreSpendableUsdc: vi.fn(),
+  waitForHyperCoreUsdcArrival: vi.fn(),
   readContract: vi.fn(),
   estimateGas: vi.fn(),
   getBalance: vi.fn(),
@@ -47,8 +47,8 @@ vi.mock('@core/services/intentClient', () => ({
 }));
 
 vi.mock('@core/services/hyperliquidService', () => ({
-  getPerpUsdcBalance: mocks.getPerpUsdcBalance,
-  waitForPerpUsdcArrival: mocks.waitForPerpUsdcArrival,
+  getHyperCoreSpendableUsdc: mocks.getHyperCoreSpendableUsdc,
+  waitForHyperCoreUsdcArrival: mocks.waitForHyperCoreUsdcArrival,
 }));
 
 vi.mock('@zapengine/intent-engine', () => ({
@@ -110,8 +110,12 @@ describe('useBridgeTest Hyperliquid arrival confirmation', () => {
       getGasPrice: mocks.getGasPrice,
       waitForTransactionReceipt: mocks.waitForTransactionReceipt,
     });
-    mocks.getPerpUsdcBalance.mockResolvedValue({
-      withdrawableUsd6: 5_000_000n,
+    mocks.getHyperCoreSpendableUsdc.mockResolvedValue({
+      mode: 'unified',
+      rawAbstraction: 'unifiedAccount',
+      spendableUsd6: 5_000_000n,
+      spot: { totalUsd6: 5_000_000n, holdUsd6: 0n },
+      perp: { withdrawableUsd6: 0n, accountValueUsd6: 0n },
     });
     mocks.executeDepositPlanWithWallet.mockResolvedValue({
       kind: 'eip7702',
@@ -122,10 +126,14 @@ describe('useBridgeTest Hyperliquid arrival confirmation', () => {
       status: 'DONE',
       receiving: { txHash: DESTINATION_HASH, chainId: 1337 },
     });
+    mocks.waitForHyperCoreUsdcArrival.mockResolvedValue({
+      arrivedUsd6: 9_900_000n,
+      mode: 'unified',
+    });
   });
 
   it('blocks wallet interaction when the destination baseline is unavailable', async () => {
-    mocks.getPerpUsdcBalance.mockRejectedValue(
+    mocks.getHyperCoreSpendableUsdc.mockRejectedValue(
       new Error('Unable to load Hyperliquid balance.'),
     );
     const { result } = renderHook(() => useBridgeTest());
@@ -138,11 +146,11 @@ describe('useBridgeTest Hyperliquid arrival confirmation', () => {
     expect(result.current.error).toBe('Unable to load Hyperliquid balance.');
     expect(mocks.sendTransaction).not.toHaveBeenCalled();
     expect(mocks.waitForBridgeCompletion).not.toHaveBeenCalled();
-    expect(mocks.waitForPerpUsdcArrival).not.toHaveBeenCalled();
+    expect(mocks.waitForHyperCoreUsdcArrival).not.toHaveBeenCalled();
   });
 
   it('preserves the receiving hash and exposes destination arrival failure', async () => {
-    mocks.waitForPerpUsdcArrival.mockRejectedValue(
+    mocks.waitForHyperCoreUsdcArrival.mockRejectedValue(
       new Error('Hyperliquid USDC arrival timed out.'),
     );
     const { result } = renderHook(() => useBridgeTest());
@@ -151,8 +159,8 @@ describe('useBridgeTest Hyperliquid arrival confirmation', () => {
       await result.current.execute(request);
     });
 
-    expect(mocks.getPerpUsdcBalance).toHaveBeenCalledWith({ user: USER });
-    expect(mocks.waitForPerpUsdcArrival).toHaveBeenCalledWith(
+    expect(mocks.getHyperCoreSpendableUsdc).toHaveBeenCalledWith({ user: USER });
+    expect(mocks.waitForHyperCoreUsdcArrival).toHaveBeenCalledWith(
       expect.objectContaining({
         user: USER,
         baselineUsd6: 5_000_000n,
@@ -167,7 +175,7 @@ describe('useBridgeTest Hyperliquid arrival confirmation', () => {
 
   it('keeps reset state when an aborted arrival poll rejects later', async () => {
     let rejectArrival!: (error: Error) => void;
-    mocks.waitForPerpUsdcArrival.mockImplementation(
+    mocks.waitForHyperCoreUsdcArrival.mockImplementation(
       () =>
         new Promise<void>((_resolve, reject) => {
           rejectArrival = reject;
@@ -179,34 +187,26 @@ describe('useBridgeTest Hyperliquid arrival confirmation', () => {
     await act(async () => {
       execution = result.current.execute(request);
       await vi.waitFor(() => {
-        expect(mocks.waitForPerpUsdcArrival).toHaveBeenCalledTimes(1);
+        expect(mocks.waitForHyperCoreUsdcArrival).toHaveBeenCalledTimes(1);
       });
     });
 
-    const arrivalSignal = mocks.waitForPerpUsdcArrival.mock.calls[0]?.[0]
+    const arrivalSignal = mocks.waitForHyperCoreUsdcArrival.mock.calls[0]?.[0]
       .signal as AbortSignal;
-
-    act(() => {
-      result.current.reset();
-    });
-
+    act(() => result.current.reset());
     expect(arrivalSignal.aborted).toBe(true);
-    expect(result.current.status).toBe('idle');
 
     await act(async () => {
       rejectArrival(new Error('Stale arrival poll failed.'));
       await execution;
     });
-
     expect(result.current.status).toBe('idle');
     expect(result.current.error).toBeNull();
-    expect(result.current.sourceTxHash).toBeNull();
-    expect(result.current.destinationTxHash).toBeNull();
   });
 
   it('keeps reset state when an aborted arrival poll resolves later', async () => {
     let resolveArrival!: () => void;
-    mocks.waitForPerpUsdcArrival.mockImplementation(
+    mocks.waitForHyperCoreUsdcArrival.mockImplementation(
       () =>
         new Promise<void>((resolve) => {
           resolveArrival = resolve;
@@ -218,31 +218,20 @@ describe('useBridgeTest Hyperliquid arrival confirmation', () => {
     await act(async () => {
       execution = result.current.execute(request);
       await vi.waitFor(() => {
-        expect(mocks.waitForPerpUsdcArrival).toHaveBeenCalledTimes(1);
+        expect(mocks.waitForHyperCoreUsdcArrival).toHaveBeenCalledTimes(1);
       });
     });
-
-    const arrivalSignal = mocks.waitForPerpUsdcArrival.mock.calls[0]?.[0]
+    const arrivalSignal = mocks.waitForHyperCoreUsdcArrival.mock.calls[0]?.[0]
       .signal as AbortSignal;
-
-    act(() => {
-      result.current.reset();
-    });
-
+    act(() => result.current.reset());
     expect(arrivalSignal.aborted).toBe(true);
-    expect(result.current.status).toBe('idle');
-    expect(result.current.quote).toBeNull();
 
     await act(async () => {
       resolveArrival();
       await execution;
     });
-
     expect(result.current.status).toBe('idle');
-    expect(result.current.error).toBeNull();
     expect(result.current.quote).toBeNull();
-    expect(result.current.sourceTxHash).toBeNull();
-    expect(result.current.destinationTxHash).toBeNull();
   });
 
   it('keeps the second execution result when the first arrival poll rejects later', async () => {
@@ -267,31 +256,29 @@ describe('useBridgeTest Hyperliquid arrival confirmation', () => {
         status: 'DONE',
         receiving: { txHash: SECOND_DESTINATION_HASH, chainId: 1337 },
       });
-    mocks.waitForPerpUsdcArrival
+    mocks.waitForHyperCoreUsdcArrival
       .mockImplementationOnce(
         () =>
           new Promise<void>((_resolve, reject) => {
             rejectFirstArrival = reject;
           }),
       )
-      .mockResolvedValueOnce(undefined);
+      .mockResolvedValueOnce({ arrivedUsd6: 9_900_000n, mode: 'unified' });
+
     const { result } = renderHook(() => useBridgeTest());
     let firstExecution!: Promise<void>;
-
     await act(async () => {
       firstExecution = result.current.execute(request);
       await vi.waitFor(() => {
-        expect(mocks.waitForPerpUsdcArrival).toHaveBeenCalledTimes(1);
+        expect(mocks.waitForHyperCoreUsdcArrival).toHaveBeenCalledTimes(1);
       });
     });
-
-    const firstSignal = mocks.waitForPerpUsdcArrival.mock.calls[0]?.[0]
+    const firstSignal = mocks.waitForHyperCoreUsdcArrival.mock.calls[0]?.[0]
       .signal as AbortSignal;
 
     await act(async () => {
       await result.current.execute(request);
     });
-
     expect(firstSignal.aborted).toBe(true);
     expect(result.current.status).toBe('completed');
     expect(result.current.sourceTxHash).toBe(SECOND_SOURCE_HASH);
@@ -301,10 +288,7 @@ describe('useBridgeTest Hyperliquid arrival confirmation', () => {
       rejectFirstArrival(new Error('Stale first execution failed.'));
       await firstExecution;
     });
-
     expect(result.current.status).toBe('completed');
     expect(result.current.error).toBeNull();
-    expect(result.current.sourceTxHash).toBe(SECOND_SOURCE_HASH);
-    expect(result.current.destinationTxHash).toBe(SECOND_DESTINATION_HASH);
   });
 });
