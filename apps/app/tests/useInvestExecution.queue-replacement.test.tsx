@@ -32,7 +32,10 @@ const mocks = vi.hoisted(() => ({
   trackEvent: vi.fn(),
   invest: { stageDrafts: [] as StageDraft[] },
   wallet: {
-    account: { address: WALLET, isConnected: true },
+    account: {
+      address: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      isConnected: true,
+    },
     isConnected: true,
     executionMode: 'eip7702' as const,
     executeReviewedBatch: vi.fn(),
@@ -49,8 +52,9 @@ vi.mock('@zapengine/app-core/providers/walletContext', () => ({
 vi.mock('@/integration/useInvest', () => ({ useInvest: () => mocks.invest }));
 vi.mock('@/observability/analytics', () => ({ trackEvent: mocks.trackEvent }));
 
-(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT =
-  true;
+(
+  globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+).IS_REACT_ACT_ENVIRONMENT = true;
 
 function stageDraft(): StageDraft {
   return {
