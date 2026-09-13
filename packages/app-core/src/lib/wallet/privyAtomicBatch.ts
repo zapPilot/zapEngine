@@ -7,14 +7,11 @@ import {
   type Hex,
   toHex,
 } from 'viem';
-import { arbitrum, base } from 'viem/chains';
+import { arbitrum, base, mainnet } from 'viem/chains';
 
-/**
- * Chains the account-engine Privy Wallets API accepts for atomic batches
- * (`PrivyAtomicBatchPayloadSchema` pins `chainId` to 8453 | 42161).
- */
+/** Chains accepted by the account-engine reviewed Privy batch rail. */
 const PRIVY_ATOMIC_BATCH_CHAINS = new Map<number, Chain>(
-  [arbitrum, base].map((chain) => [chain.id, chain]),
+  [mainnet, arbitrum, base].map((chain) => [chain.id, chain]),
 );
 
 export const WALLET_NOT_CONNECTED_ERROR = 'No Privy wallet connected';
