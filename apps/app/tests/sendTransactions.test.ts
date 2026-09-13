@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import {
   buildSendTransactionRequest,
   defaultSendChain,
-  encodeErc20TransferData,
   parseTokenAmountToBaseUnits,
 } from '@/integration/sendTransactions';
 import type { DesktopWalletAsset } from '@/integration/walletTokens';
@@ -81,7 +80,7 @@ describe('send transaction helpers', () => {
     expect(request).toEqual({
       chainId: 8453,
       to: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
-      data: encodeErc20TransferData(RECIPIENT, 12340000n),
+      data: '0xa9059cbb00000000000000000000000011111111111111111111111111111111111111110000000000000000000000000000000000000000000000000000000000bc4b20',
     });
   });
 
@@ -98,6 +97,19 @@ describe('send transaction helpers', () => {
       to: RECIPIENT,
       value: 10000000000000000n,
     });
+  });
+
+  it('rejects zero-value sends even though zero parses to valid base units', () => {
+    expect(parseTokenAmountToBaseUnits('0', 6)).toBe(0n);
+
+    expect(() =>
+      buildSendTransactionRequest({
+        amount: '0',
+        asset: usdcAsset,
+        holding: usdcAsset.holdings[1]!,
+        recipient: RECIPIENT,
+      }),
+    ).toThrow('Enter a valid amount.');
   });
 
   it('rejects a non-ETH holding with no token address instead of treating it as native', () => {
