@@ -1,9 +1,14 @@
 import { httpPost } from '@core/lib/http';
 import { createApiServiceCaller } from '@core/lib/http/createServiceCaller';
 import { pollUntil } from '@core/lib/polling';
-import { formatUsd6, parseBaseUnits } from '@core/lib/wallet/usd6';
+import { parseBaseUnits } from '@core/lib/wallet/usd6';
 import { equalsAddress } from '@zapengine/types/shared';
-import type { Address, WalletClient } from 'viem';
+import {
+  type Address,
+  isAddress,
+  type LocalAccount,
+  type WalletClient,
+} from 'viem';
 import { z } from 'zod';
 
 const DEFAULT_API_URL = 'https://api.hyperliquid.xyz';
@@ -18,6 +23,21 @@ const clearinghouseStateSchema = z.looseObject({
   marginSummary: z.looseObject({ accountValue: usdStringSchema }),
 });
 
+/**
+ * Unrelated coins are validated loosely on purpose: one oddly-formatted
+ * altcoin row must not throw away the USDC balance the caller asked for.
+ * The USDC row's own strings are validated where they are converted.
+ */
+const spotClearinghouseStateSchema = z.looseObject({
+  balances: z.array(
+    z.looseObject({
+      coin: z.string(),
+      total: z.string(),
+      hold: z.string().optional(),
+    }),
+  ),
+});
+
 const vaultEquitiesSchema = z.array(
   z.looseObject({
     vaultAddress: z.string(),
@@ -26,10 +46,28 @@ const vaultEquitiesSchema = z.array(
   }),
 );
 
+const hyperliquidAbstractionSchema = z.enum([
+  'unifiedAccount',
+  'portfolioMargin',
+  'disabled',
+  'default',
+  'dexAbstraction',
+]);
+
+const extraAgentsSchema = z.array(
+  z.object({
+    address: z
+      .string()
+      .refine(isAddress, { message: 'Expected an EVM address' }),
+    name: z.string(),
+    validUntil: z.number().nullable(),
+  }),
+);
+
 /**
  * Convert an info-API decimal USD string into 6-decimal base units using
  * string math — never floats on a money path. Digits beyond 6 decimals are
- * truncated (the API itself reports 6).
+ * truncated.
  */
 export function usdStringToUsd6(value: string): bigint {
   const parsed = parseBaseUnits(value, { truncateExcessFraction: true });
@@ -64,7 +102,7 @@ function postInfo(params: {
   );
 }
 
-interface InfoReadParams {
+export interface InfoReadParams {
   user: Address;
   apiUrl?: string;
   signal?: AbortSignal;
@@ -94,28 +132,14 @@ export async function getPerpUsdcBalance({
   };
 }
 
-/**
- * Unrelated coins are validated loosely on purpose: one oddly-formatted
- * altcoin row must not throw away the USDC balance the caller asked for.
- */
-const spotClearinghouseStateSchema = z.looseObject({
-  balances: z.array(z.looseObject({ coin: z.string(), total: z.string() })),
-});
-
 export interface SpotUsdcBalance {
   totalUsd6: bigint;
+  holdUsd6: bigint;
 }
 
 /**
- * Spot USDC held on HyperCore — a pot entirely separate from the perp
- * clearinghouse, and the one Hyperliquid's own UI shows under Spot. Display
- * only: the HLP bridge credits perp and `vaultTransfer` debits perp, so this
- * must never gate a deposit amount.
- *
- * Unlike `getVaultEquity`, a missing entry returns zero rather than null — an
- * account with no USDC row genuinely holds no spot USDC. Spot can report more
- * than 6 fraction digits ("14.62548512"); the excess is truncated downward,
- * which is safe to display but another reason never to gate on it.
+ * Spot USDC held on HyperCore. Unified accounts spend from this balance; a
+ * `hold` amount is reserved and therefore not available for a vault deposit.
  */
 export async function getSpotUsdcBalance({
   user,
@@ -131,7 +155,163 @@ export async function getSpotUsdcBalance({
   );
 
   const usdc = state.balances.find((entry) => entry.coin === 'USDC');
-  return { totalUsd6: usdc ? usdStringToUsd6(usdc.total) : 0n };
+  return {
+    totalUsd6: usdc ? usdStringToUsd6(usdc.total) : 0n,
+    holdUsd6: usdc?.hold ? usdStringToUsd6(usdc.hold) : 0n,
+  };
+}
+
+export type HyperliquidAbstraction = z.infer<
+  typeof hyperliquidAbstractionSchema
+>;
+export type HyperCoreAccountMode = 'unified' | 'standard';
+
+export function accountModeFromAbstraction(
+  abstraction: HyperliquidAbstraction,
+): HyperCoreAccountMode {
+  return abstraction === 'unifiedAccount' || abstraction === 'portfolioMargin'
+    ? 'unified'
+    : 'standard';
+}
+
+export async function getUserAbstraction({
+  user,
+  apiUrl = DEFAULT_API_URL,
+  signal,
+}: InfoReadParams): Promise<HyperliquidAbstraction> {
+  return hyperliquidAbstractionSchema.parse(
+    await postInfo({
+      apiUrl,
+      body: { type: 'userAbstraction', user },
+      ...(signal ? { signal } : {}),
+    }),
+  );
+}
+
+export interface HyperliquidExtraAgent {
+  address: Address;
+  name: string;
+  validUntil: number | null;
+}
+
+export async function getExtraAgents({
+  user,
+  apiUrl = DEFAULT_API_URL,
+  signal,
+}: InfoReadParams): Promise<HyperliquidExtraAgent[]> {
+  const agents = extraAgentsSchema.parse(
+    await postInfo({
+      apiUrl,
+      body: { type: 'extraAgents', user },
+      ...(signal ? { signal } : {}),
+    }),
+  );
+  return agents.map((agent) => ({
+    ...agent,
+    address: agent.address as Address,
+  }));
+}
+
+export interface HyperCoreSpendableUsdc {
+  mode: HyperCoreAccountMode;
+  rawAbstraction: HyperliquidAbstraction;
+  spendableUsd6: bigint;
+  spot: SpotUsdcBalance;
+  perp: PerpUsdcBalance;
+}
+
+export function spendableUsd6For(input: {
+  mode: HyperCoreAccountMode;
+  spot: SpotUsdcBalance;
+  perp: PerpUsdcBalance;
+}): bigint {
+  if (input.mode === 'standard') {
+    return input.perp.withdrawableUsd6;
+  }
+  const spendable = input.spot.totalUsd6 - input.spot.holdUsd6;
+  return spendable > 0n ? spendable : 0n;
+}
+
+export async function getHyperCoreSpendableUsdc({
+  user,
+  apiUrl = DEFAULT_API_URL,
+  signal,
+}: InfoReadParams): Promise<HyperCoreSpendableUsdc> {
+  const params = { user, apiUrl, ...(signal ? { signal } : {}) };
+  const [rawAbstraction, spot, perp] = await Promise.all([
+    getUserAbstraction(params),
+    getSpotUsdcBalance(params),
+    getPerpUsdcBalance(params),
+  ]);
+  const mode = accountModeFromAbstraction(rawAbstraction);
+  return {
+    mode,
+    rawAbstraction,
+    spot,
+    perp,
+    spendableUsd6: spendableUsd6For({ mode, spot, perp }),
+  };
+}
+
+/**
+ * Poll the account-mode-specific spendable HyperCore USDC until at least
+ * `baselineUsd6 + expectedUsd6` is available. The abstraction is resolved
+ * once; subsequent polls touch only the balance pocket that actually funds
+ * HLP for that account mode.
+ */
+export async function waitForHyperCoreUsdcArrival({
+  user,
+  baselineUsd6,
+  expectedUsd6,
+  apiUrl = DEFAULT_API_URL,
+  signal,
+  timeoutMs = 15 * 60_000,
+  onTick,
+}: {
+  user: Address;
+  baselineUsd6: bigint;
+  expectedUsd6: bigint;
+  apiUrl?: string;
+  signal?: AbortSignal;
+  timeoutMs?: number;
+  onTick?: (currentUsd6: bigint) => void;
+}): Promise<{ arrivedUsd6: bigint; mode: HyperCoreAccountMode }> {
+  const abstraction = await getUserAbstraction({
+    user,
+    apiUrl,
+    ...(signal ? { signal } : {}),
+  });
+  const mode = accountModeFromAbstraction(abstraction);
+  const target = baselineUsd6 + expectedUsd6;
+
+  const spendable = await pollUntil<bigint>({
+    fn: async () => {
+      if (mode === 'unified') {
+        const spot = await getSpotUsdcBalance({
+          user,
+          apiUrl,
+          ...(signal ? { signal } : {}),
+        });
+        const value = spot.totalUsd6 - spot.holdUsd6;
+        return value > 0n ? value : 0n;
+      }
+      const perp = await getPerpUsdcBalance({
+        user,
+        apiUrl,
+        ...(signal ? { signal } : {}),
+      });
+      return perp.withdrawableUsd6;
+    },
+    shouldStop: (value) => value >= target,
+    intervalMs: 6_000,
+    timeoutMs,
+    ...(signal ? { signal } : {}),
+    onAttempt: (value) => {
+      if (value !== undefined) onTick?.(value);
+    },
+  });
+
+  return { arrivedUsd6: spendable - baselineUsd6, mode };
 }
 
 export interface VaultEquity {
@@ -162,9 +342,7 @@ export async function getVaultEquity({
   const entry = equities.find((candidate) =>
     equalsAddress(candidate.vaultAddress, vaultAddress),
   );
-  if (!entry) {
-    return null;
-  }
+  if (!entry) return null;
 
   return {
     equityUsd6: usdStringToUsd6(entry.equity),
@@ -174,54 +352,6 @@ export async function getVaultEquity({
   };
 }
 
-/**
- * Poll the user's perp USDC balance until at least `baselineUsd6 +
- * expectedUsd6` is withdrawable. Bridge DONE does not guarantee the perp
- * credit is queryable yet, and the baseline snapshot keeps pre-existing
- * balance from producing a false arrival.
- */
-export async function waitForPerpUsdcArrival({
-  user,
-  baselineUsd6,
-  expectedUsd6,
-  apiUrl = DEFAULT_API_URL,
-  signal,
-  timeoutMs = 15 * 60_000,
-  onTick,
-}: {
-  user: Address;
-  baselineUsd6: bigint;
-  expectedUsd6: bigint;
-  apiUrl?: string;
-  signal?: AbortSignal;
-  timeoutMs?: number;
-  onTick?: (currentUsd6: bigint) => void;
-}): Promise<{ arrivedUsd6: bigint }> {
-  const target = baselineUsd6 + expectedUsd6;
-  const balance = await pollUntil<PerpUsdcBalance>({
-    fn: () =>
-      getPerpUsdcBalance({ user, apiUrl, ...(signal ? { signal } : {}) }),
-    shouldStop: (value) => value.withdrawableUsd6 >= target,
-    // The public info API is rate limited — never poll faster than this.
-    intervalMs: 6_000,
-    timeoutMs,
-    ...(signal ? { signal } : {}),
-    onAttempt: (value) => {
-      if (value) {
-        onTick?.(value.withdrawableUsd6);
-      }
-    },
-  });
-
-  return { arrivedUsd6: balance.withdrawableUsd6 - baselineUsd6 };
-}
-
-/**
- * Poll the user's vault equity until it exceeds the pre-deposit snapshot. A
- * timeout only means the credit is not visible yet — the vaultTransfer itself
- * was already accepted by the exchange, so callers must not treat it as a
- * failed deposit.
- */
 export async function waitForVaultEquityIncrease({
   user,
   vaultAddress,
@@ -246,18 +376,13 @@ export async function waitForVaultEquityIncrease({
         ...(signal ? { signal } : {}),
       }),
     shouldStop: (value) => (value?.equityUsd6 ?? 0n) > equityBeforeUsd6,
-    // Same public info API as the arrival poll — stay inside its rate limit.
     intervalMs: 4_000,
     timeoutMs,
     ...(signal ? { signal } : {}),
   });
-
   return { equityUsd6: equity?.equityUsd6 ?? 0n };
 }
 
-// Load @nktkas/hyperliquid lazily: the SDK (msgpack action hashing + EIP-712
-// phantom-agent signing) is only needed at the moment the user confirms the
-// HLP deposit, so the wizard's read/polling path never pays its weight.
 let sdkPromise: Promise<typeof import('@nktkas/hyperliquid')> | undefined;
 
 function loadSdk(): Promise<typeof import('@nktkas/hyperliquid')> {
@@ -265,13 +390,7 @@ function loadSdk(): Promise<typeof import('@nktkas/hyperliquid')> {
   return sdkPromise;
 }
 
-/**
- * A failed vault deposit whose `ambiguous` flag says whether the signed
- * action may already have reached the exchange. Callers must never re-arm a
- * retry for an ambiguous failure: the position could already exist and a
- * second transfer locks another 4 days of funds.
- */
-class HyperliquidActionError extends Error {
+export class HyperliquidActionError extends Error {
   readonly ambiguous: boolean;
 
   constructor(
@@ -296,54 +415,35 @@ export class HyperliquidVaultDepositError extends HyperliquidActionError {
   }
 }
 
-/**
- * A failed spot-to-perp transfer. Unlike a vault deposit, an ambiguous
- * failure here is recoverable: the transfer locks nothing, and the perp
- * balance itself is the evidence of whether it landed. Callers should re-read
- * the balance rather than blindly re-signing.
- */
-export class HyperliquidClassTransferError extends HyperliquidActionError {
+export class HyperliquidAgentApprovalError extends HyperliquidActionError {
   constructor(
     message: string,
     options: { cause?: unknown; ambiguous: boolean },
   ) {
-    super('HyperliquidClassTransferError', message, options);
+    super('HyperliquidAgentApprovalError', message, options);
   }
 }
 
-/**
- * A `TransportError` (HTTP failure, timeout, abort) is only raised after the
- * signed action left the process, so the exchange may already have accepted
- * it. Everything else — an explicit `ApiRequestError` answer, SDK validation,
- * a wallet rejection — happens with nothing moved. When the SDK's error
- * surface drifts and `TransportError` is gone, fail closed: wrongly re-arming
- * the CTA can double a real deposit, while wrongly holding it only costs the
- * user a manual check.
- */
 function isAmbiguousSubmission(
   sdk: typeof import('@nktkas/hyperliquid'),
   error: unknown,
 ): boolean {
   try {
-    if (typeof sdk.TransportError !== 'function') {
-      return true;
-    }
+    if (typeof sdk.TransportError !== 'function') return true;
     return error instanceof sdk.TransportError;
   } catch {
-    // Reading the class can itself throw on a wrapped or drifted module
-    // surface. Letting that escape would replace this classification with a
-    // plain error, which callers read as "definitely not accepted" — the one
-    // answer that can double a live deposit.
     return true;
   }
 }
 
+export type HyperliquidSigner = WalletClient | LocalAccount;
+
 async function exchangeClientFor({
-  walletClient,
+  signer,
   isTestnet,
   apiUrl,
 }: {
-  walletClient: WalletClient;
+  signer: HyperliquidSigner;
   isTestnet: boolean;
   apiUrl?: string;
 }) {
@@ -356,60 +456,36 @@ async function exchangeClientFor({
     sdk,
     client: new sdk.ExchangeClient({
       transport,
-      wallet: walletClient as never,
+      // Both viem WalletClient and LocalAccount implement the SDK's
+      // AbstractWallet signing surface; the SDK does not expose that type.
+      wallet: signer as never,
     }),
   };
 }
 
-/**
- * Move USDC from the spot account into the perp account, which is the only
- * balance a vault deposit can debit.
- *
- * The exchange denominates this action in DOLLARS while `vaultTransfer` uses
- * 6-decimal base units, so the conversion happens here, once, in string math:
- * handing the base-unit integer straight to the SDK would transfer a million
- * times the intended amount.
- */
-interface SignedActionParams {
-  walletClient: WalletClient;
-  usd6: bigint;
-  isTestnet?: boolean;
-  apiUrl?: string;
-}
-
 type ExchangeClient = Awaited<ReturnType<typeof exchangeClientFor>>['client'];
 
-/**
- * Shared submission shell: validate, build the client, run the action, and
- * classify any failure as ambiguous or not. Each caller supplies only the
- * action and its error type.
- */
 async function submitSignedAction({
-  walletClient,
-  usd6,
+  signer,
   isTestnet = false,
   apiUrl,
-  amountLabel,
   run,
   toError,
-}: SignedActionParams & {
-  amountLabel: string;
+}: {
+  signer: HyperliquidSigner;
+  isTestnet?: boolean;
+  apiUrl?: string;
   run: (client: ExchangeClient) => Promise<unknown>;
   toError: (
     message: string,
     options: { cause: unknown; ambiguous: boolean },
   ) => Error;
 }): Promise<void> {
-  if (usd6 <= 0n) {
-    throw new Error(`${amountLabel} must be positive`);
-  }
-
   const { sdk, client } = await exchangeClientFor({
-    walletClient,
+    signer,
     isTestnet,
     ...(apiUrl ? { apiUrl } : {}),
   });
-
   try {
     await run(client);
   } catch (error) {
@@ -420,49 +496,68 @@ async function submitSignedAction({
   }
 }
 
-export function submitUsdClassTransfer(
-  params: SignedActionParams,
-): Promise<void> {
-  return submitSignedAction({
-    ...params,
-    amountLabel: 'Class transfer amount',
-    run: (client) =>
-      client.usdClassTransfer({
-        amount: formatUsd6(params.usd6, 6),
-        toPerp: true,
-      }),
+/**
+ * One-time user-wallet approval for the named Zap Pilot agent. This is a
+ * Hyperliquid signed action, not an EVM transaction.
+ */
+export async function approveHyperliquidAgent({
+  walletClient,
+  agentAddress,
+  agentName,
+  isTestnet = false,
+  apiUrl,
+}: {
+  walletClient: WalletClient;
+  agentAddress: Address;
+  agentName: string;
+  isTestnet?: boolean;
+  apiUrl?: string;
+}): Promise<void> {
+  if (agentName.length < 1 || agentName.length > 16) {
+    throw new Error(
+      'Hyperliquid agent name must be between 1 and 16 characters',
+    );
+  }
+  await submitSignedAction({
+    signer: walletClient,
+    isTestnet,
+    ...(apiUrl ? { apiUrl } : {}),
+    run: (client) => client.approveAgent({ agentAddress, agentName }),
     toError: (message, options) =>
-      new HyperliquidClassTransferError(
-        `Hyperliquid spot-to-perp transfer failed: ${message}`,
+      new HyperliquidAgentApprovalError(
+        `Hyperliquid agent approval failed: ${message}`,
         options,
       ),
   });
 }
 
-/**
- * Sign and submit a gasless HLP vault deposit. The SDK owns nonce, action
- * hash, and phantom-agent EIP-712 construction; the wallet only ever sees a
- * signTypedData request (no chain switch — the domain is fixed to 1337).
- */
-// `async` so the guard below surfaces as a rejection rather than a synchronous
-// throw, which callers using `.catch()` would miss.
-export async function submitVaultDeposit(
-  params: SignedActionParams & { vaultAddress: Address },
-): Promise<void> {
-  // Unlike the class transfer, this action's amount crosses the SDK boundary
-  // as a Number.
-  if (params.usd6 > BigInt(Number.MAX_SAFE_INTEGER)) {
+/** Sign and submit an HLP vault deposit with the approved local agent. */
+export async function submitVaultDeposit({
+  signer,
+  vaultAddress,
+  usd6,
+  isTestnet = false,
+  apiUrl,
+}: {
+  signer: HyperliquidSigner;
+  vaultAddress: Address;
+  usd6: bigint;
+  isTestnet?: boolean;
+  apiUrl?: string;
+}): Promise<void> {
+  if (usd6 <= 0n) throw new Error('Vault deposit amount must be positive');
+  if (usd6 > BigInt(Number.MAX_SAFE_INTEGER)) {
     throw new Error('Vault deposit amount exceeds the safe integer range');
   }
-
-  return submitSignedAction({
-    ...params,
-    amountLabel: 'Vault deposit amount',
+  await submitSignedAction({
+    signer,
+    isTestnet,
+    ...(apiUrl ? { apiUrl } : {}),
     run: (client) =>
       client.vaultTransfer({
-        vaultAddress: params.vaultAddress,
+        vaultAddress,
         isDeposit: true,
-        usd: Number(params.usd6),
+        usd: Number(usd6),
       }),
     toError: (message, options) =>
       new HyperliquidVaultDepositError(

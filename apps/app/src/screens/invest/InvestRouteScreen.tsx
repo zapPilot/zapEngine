@@ -1,6 +1,6 @@
 import { extractErrorMessage } from '@zapengine/app-core/lib/errors';
 import { hlpStepFromPlan } from '@zapengine/app-core/lib/wallet/depositWizardMachine';
-import { getPerpUsdcBalance } from '@zapengine/app-core/services';
+import { getHyperCoreSpendableUsdc } from '@zapengine/app-core/services';
 import type { DepositPlan } from '@zapengine/types/api';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
@@ -133,8 +133,8 @@ export function InvestRouteScreen() {
       await startHlpSubmission(
         { user: userAddress, apiUrl: step.signing.apiUrl },
         {
-          readWithdrawableUsd6: async (input) =>
-            (await getPerpUsdcBalance(input)).withdrawableUsd6,
+          readSpendableUsd6: async (input) =>
+            (await getHyperCoreSpendableUsdc(input)).spendableUsd6,
           setBaselineUsd6: invest.setHlpBaselineUsd6,
           submitReviewedBatch: handleConfirm,
         },
@@ -251,8 +251,8 @@ export function InvestRouteScreen() {
         {isHlp ? (
           <View className="mt-4">
             <NonCustodialCard
-              title="Two signatures, one guided flow"
-              body="The reviewed Base batch bridges USDC to Hyperliquid. After it arrives, your wallet signs a separate gasless Hyperliquid HLP vault action; Zap Pilot never signs it automatically."
+              title="Reviewed bridge, agent-signed HLP"
+              body="The reviewed Base batch bridges USDC to Hyperliquid. After it arrives, Zap Pilot uses the Hyperliquid signing key you approved once to submit the gasless HLP vault action."
             />
           </View>
         ) : null}
@@ -322,7 +322,7 @@ export function InvestRouteScreen() {
         </PrimaryButton>
         <Text className="mt-3 text-center text-[10.5px] leading-[16px] text-ink-faint">
           {isHlp
-            ? 'One guided flow, no custody: confirm the reviewed Base batch now; the HLP signature is requested only after your USDC reaches Hyperliquid.'
+            ? 'One guided flow, no custody: confirm the reviewed Base batch now; the HLP action runs through your approved Hyperliquid agent after USDC arrives.'
             : isBoth
               ? 'No custody and no automatic signatures. Confirm the reviewed Base batch first; Arbitrum follows after the checkpoint.'
               : 'No custody and no automatic signatures. Confirm the reviewed wallet batch to send.'}

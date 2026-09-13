@@ -4,6 +4,7 @@ import {
   hlpRetryMode,
   resumeKey,
   shouldAutoRunHlpDeposit,
+  shouldOfferAgentEnable,
   unsafeResumeReason,
   type HlpProgressInput,
   type HlpRetryMode,
@@ -25,6 +26,7 @@ function input(overrides: Partial<HlpProgressInput> = {}): HlpProgressInput {
     hlpStatus: 'awaitingArrival',
     bridgeConfirmed: false,
     flowError: null,
+    agentReady: true,
     ...overrides,
   };
 }
@@ -68,96 +70,89 @@ const BATCH_FAILED =
 const MISSING_HASH =
   'The wallet did not expose the source transaction hash, so Zap Pilot cannot safely track this bridge. The source transaction will not be resubmitted.';
 
+const ARRIVED = {
+  bridgeConfirmed: true,
+  wizardStage: 'hyperliquidDeposit',
+  hlpStatus: 'arrived',
+} as const satisfies Partial<HlpProgressInput>;
+
 describe('hlpProgressRows', () => {
   it('tracks the submitted source batch while the bridge runs', () => {
     expect(rowStates({})).toEqual(['done', 'active', 'active', 'waiting']);
   });
 
   it('keeps the source row active until the wallet exposes a hash', () => {
-    const rows = rowStates({
-      sourceTxHash: null,
-      reviewedPhase: 'confirming',
-    });
-    expect(rows).toEqual(['active', 'active', 'active', 'waiting']);
+    expect(
+      rowStates({ sourceTxHash: null, reviewedPhase: 'confirming' }),
+    ).toEqual(['active', 'active', 'active', 'waiting']);
   });
 
   it('fails the source row on a reported batch failure', () => {
-    const rows = rowStates({
-      reviewedPhase: 'failed',
-      wizardStage: 'sourceExecution',
-      hlpStatus: 'idle',
-    });
-    expect(rows).toEqual(['failed', 'waiting', 'waiting', 'waiting']);
+    expect(
+      rowStates({
+        reviewedPhase: 'failed',
+        wizardStage: 'sourceExecution',
+        hlpStatus: 'idle',
+      }),
+    ).toEqual(['failed', 'waiting', 'waiting', 'waiting']);
   });
 
   it('completes the bridge row from the leg status, not the stage', () => {
-    const rows = rowStates({
-      bridgeConfirmed: true,
-      wizardStage: 'hyperliquidDeposit',
-      hlpStatus: 'arrived',
-    });
-    expect(rows).toEqual(['done', 'done', 'done', 'waiting']);
+    expect(rowStates(ARRIVED)).toEqual(['done', 'done', 'done', 'waiting']);
   });
 
   it('fails the bridge row on a bridging-stage error', () => {
-    const rows = rowStates({ wizardErrorStage: 'bridging', hlpStatus: 'idle' });
-    expect(rows).toEqual(['done', 'failed', 'waiting', 'waiting']);
+    expect(
+      rowStates({ wizardErrorStage: 'bridging', hlpStatus: 'idle' }),
+    ).toEqual(['done', 'failed', 'waiting', 'waiting']);
   });
 
   it('activates the vault row while the vaultTransfer confirms', () => {
-    const rows = rowStates({
-      bridgeConfirmed: true,
-      wizardStage: 'hyperliquidDeposit',
-      hlpStatus: 'confirming',
-    });
-    expect(rows).toEqual(['done', 'done', 'done', 'active']);
-  });
-
-  it('treats an accepted-but-unverified deposit as a finished vault', () => {
-    const rows = rowStates({
-      bridgeConfirmed: true,
-      wizardStage: 'done',
-      hlpStatus: 'submittedUnverified',
-    });
-    expect(rows).toEqual(['done', 'done', 'done', 'done']);
-  });
-
-  it('never fails an unverified vault row on a deposit-stage error', () => {
-    const rows = rowStates({
-      bridgeConfirmed: true,
-      wizardStage: 'done',
-      hlpStatus: 'submittedUnverified',
-      wizardErrorStage: 'hyperliquidDeposit',
-    });
-    expect(rows).toEqual(['done', 'done', 'done', 'done']);
+    expect(rowStates({ ...ARRIVED, hlpStatus: 'confirming' })).toEqual([
+      'done',
+      'done',
+      'done',
+      'active',
+    ]);
   });
 
   it('marks a confirmed deposit done on both HLP rows', () => {
-    const rows = rowStates({
-      bridgeConfirmed: true,
-      wizardStage: 'done',
-      hlpStatus: 'deposited',
-    });
-    expect(rows).toEqual(['done', 'done', 'done', 'done']);
+    expect(
+      rowStates({ ...ARRIVED, wizardStage: 'done', hlpStatus: 'deposited' }),
+    ).toEqual(['done', 'done', 'done', 'done']);
   });
 
-  it('fails only the vault row when the signature failed from arrived', () => {
-    const rows = rowStates({
-      bridgeConfirmed: true,
-      wizardStage: 'hyperliquidDeposit',
-      hlpStatus: 'arrived',
-      wizardErrorStage: 'hyperliquidDeposit',
-    });
-    expect(rows).toEqual(['done', 'done', 'done', 'failed']);
+  it('never fails an unverified vault row on a deposit-stage error', () => {
+    // The exchange accepted the transfer; showing it as failed would invite a
+    // second deposit and double a position that locks for four days.
+    expect(
+      rowStates({
+        ...ARRIVED,
+        wizardStage: 'done',
+        hlpStatus: 'submittedUnverified',
+      }),
+    ).toEqual(['done', 'done', 'done', 'done']);
+    expect(
+      rowStates({
+        ...ARRIVED,
+        wizardStage: 'done',
+        hlpStatus: 'submittedUnverified',
+        wizardErrorStage: 'hyperliquidDeposit',
+      }),
+    ).toEqual(['done', 'done', 'done', 'done']);
   });
 
-  it('fails the arrival row when arrival polling itself failed', () => {
-    const rows = rowStates({
-      bridgeConfirmed: true,
-      wizardStage: 'hyperliquidDeposit',
-      wizardErrorStage: 'hyperliquidDeposit',
-    });
-    expect(rows).toEqual(['done', 'done', 'failed', 'waiting']);
+  it('separates a failed vault action from failed arrival polling', () => {
+    expect(
+      rowStates({ ...ARRIVED, wizardErrorStage: 'hyperliquidDeposit' }),
+    ).toEqual(['done', 'done', 'done', 'failed']);
+    expect(
+      rowStates({
+        bridgeConfirmed: true,
+        wizardStage: 'hyperliquidDeposit',
+        wizardErrorStage: 'hyperliquidDeposit',
+      }),
+    ).toEqual(['done', 'done', 'failed', 'waiting']);
   });
 });
 
@@ -166,23 +161,11 @@ describe('canTrackExisting', () => {
     expect(canTrackExisting(input())).toBe(true);
   });
 
-  it('refuses to track without the exact reviewed plan', () => {
+  it('refuses every input that makes the existing run unidentifiable', () => {
     expect(canTrackExisting(input({ hasExactPlan: false }))).toBe(false);
-  });
-
-  it('refuses to track a plan without the HLP follow-up', () => {
     expect(canTrackExisting(input({ hasHlpStep: false }))).toBe(false);
-  });
-
-  it('refuses to track without a source transaction hash', () => {
     expect(canTrackExisting(input({ sourceTxHash: null }))).toBe(false);
-  });
-
-  it('refuses to infer the amount without the pre-bridge snapshot', () => {
     expect(canTrackExisting(input({ baselineUsd6: null }))).toBe(false);
-  });
-
-  it('refuses to follow a batch that reported a failure', () => {
     expect(canTrackExisting(input({ reviewedPhase: 'failed' }))).toBe(false);
   });
 });
@@ -232,7 +215,7 @@ describe('hlpRetryMode', () => {
     expectRetryMode({}, 'none');
   });
 
-  it('offers the signature retry only from arrived', () => {
+  it('offers the vault retry only from arrived', () => {
     expectRetryMode(
       { wizardErrorStage: 'hyperliquidDeposit', hlpStatus: 'arrived' },
       'hlp-signature',
@@ -249,6 +232,8 @@ describe('hlpRetryMode', () => {
   });
 
   it('never re-polls arrival once the vaultTransfer was accepted', () => {
+    // From `confirming` onwards the accepted transfer already consumed the
+    // balance, so a re-poll would report a successful deposit as a failure.
     expectRetryMode({ hlpStatus: 'confirming', flowError: 'boom' }, 'none');
     expectRetryMode(
       { hlpStatus: 'submittedUnverified', flowError: 'boom' },
@@ -268,32 +253,36 @@ describe('hlpRetryMode', () => {
   });
 });
 
-describe('shouldAutoRunHlpDeposit', () => {
+describe('agent-gated HLP execution', () => {
   it('runs once the funds arrived on a clean trackable run', () => {
-    expectAutoRun({ hlpStatus: 'arrived' }, false, true);
+    expectAutoRun(ARRIVED, false, true);
   });
 
   it('never runs twice for the same arrival', () => {
-    expectAutoRun({ hlpStatus: 'arrived' }, true, false);
+    expectAutoRun(ARRIVED, true, false);
   });
 
   it('waits for the arrival before running', () => {
     expectAutoRun({}, false, false);
   });
 
+  it('never runs without an approved device-local agent', () => {
+    expectAutoRun({ ...ARRIVED, agentReady: false }, false, false);
+  });
+
   it('never runs while an error is on screen', () => {
     expectAutoRun(
-      { hlpStatus: 'arrived', wizardErrorStage: 'hyperliquidDeposit' },
+      { ...ARRIVED, wizardErrorStage: 'hyperliquidDeposit' },
       false,
       false,
     );
-    expectAutoRun({ hlpStatus: 'arrived', flowError: 'boom' }, false, false);
+    expectAutoRun({ ...ARRIVED, flowError: 'boom' }, false, false);
   });
 
   it('never runs once the reviewed submission was cleared', () => {
     expectAutoRun(
       {
-        hlpStatus: 'arrived',
+        ...ARRIVED,
         hasReviewedSubmission: false,
         hasExactPlan: false,
         sourceTxHash: null,
@@ -301,6 +290,33 @@ describe('shouldAutoRunHlpDeposit', () => {
       false,
       false,
     );
+  });
+
+  it('offers signing enablement exactly when the deposit cannot auto-run', () => {
+    expect(
+      shouldOfferAgentEnable(input({ ...ARRIVED, agentReady: false })),
+    ).toBe(true);
+    // Never both at once: the CTA and the automatic run are alternatives.
+    expect(shouldOfferAgentEnable(input(ARRIVED))).toBe(false);
+    expect(
+      shouldOfferAgentEnable(
+        input({ ...ARRIVED, agentReady: false, flowError: 'boom' }),
+      ),
+    ).toBe(false);
+    expect(
+      shouldOfferAgentEnable(
+        input({
+          ...ARRIVED,
+          agentReady: false,
+          wizardErrorStage: 'hyperliquidDeposit',
+        }),
+      ),
+    ).toBe(false);
+    expect(
+      shouldOfferAgentEnable(
+        input({ ...ARRIVED, agentReady: false, baselineUsd6: null }),
+      ),
+    ).toBe(false);
   });
 });
 
