@@ -60,6 +60,23 @@ function malformedChoicesCompletion(model: string) {
   };
 }
 
+function emptyChoicesCompletion(model: string) {
+  return {
+    id: 'completion-id',
+    object: 'chat.completion',
+    created: 0,
+    model,
+    choices: [],
+    usage: {
+      prompt_tokens: 1,
+      completion_tokens: 0,
+      total_tokens: 1,
+      cost: 0,
+    },
+    provider: 'fixture-provider',
+  };
+}
+
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.clearAllMocks();
@@ -176,6 +193,31 @@ describe('shared OpenRouter model fallback', () => {
         nextModel: 'fallback/one',
         error: expect.stringContaining('no choices array'),
       }),
+    );
+  });
+
+  it('keeps a well-formed empty choices response on the selected model', async () => {
+    vi.stubEnv('LLM_FALLBACK_MODELS', 'fallback/one');
+    const create = vi
+      .fn()
+      .mockResolvedValueOnce(emptyChoicesCompletion('primary/model'));
+
+    const result = await createOpenRouterChatCompletion(
+      client(create),
+      {
+        model: 'primary/model',
+        messages: [{ role: 'user', content: 'hello' }],
+      },
+      null,
+    );
+
+    expect(result.choices).toEqual([]);
+    expect(create.mock.calls.map(([request]) => request.model)).toEqual([
+      'primary/model',
+    ]);
+    expect(ingestMocks.logIngestEvent).not.toHaveBeenCalledWith(
+      'llm:model-fallback',
+      expect.anything(),
     );
   });
 
