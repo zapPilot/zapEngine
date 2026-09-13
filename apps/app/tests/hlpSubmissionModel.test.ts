@@ -8,7 +8,7 @@ const TARGET = {
 };
 
 describe('startHlpSubmission', () => {
-  it('records the pre-bridge snapshot before the batch can move funds', async () => {
+  it('records the pre-bridge spendable snapshot before the batch can move funds', async () => {
     const order: string[] = [];
     const setBaselineUsd6 = vi.fn((value: string) => {
       order.push(`baseline:${value}`);
@@ -18,7 +18,7 @@ describe('startHlpSubmission', () => {
     });
 
     await startHlpSubmission(TARGET, {
-      readWithdrawableUsd6: async (input) => {
+      readSpendableUsd6: async (input) => {
         expect(input).toEqual(TARGET);
         order.push('read');
         return 7_250_000n;
@@ -27,19 +27,17 @@ describe('startHlpSubmission', () => {
       submitReviewedBatch,
     });
 
-    // The follow-up deposits the delta against this snapshot, so a baseline
-    // taken after the bridge would sweep pre-existing perp USDC.
     expect(order).toEqual(['read', 'baseline:7250000', 'submit']);
     expect(setBaselineUsd6).toHaveBeenCalledWith('7250000');
   });
 
-  it('does not submit when the snapshot read fails', async () => {
+  it('does not submit when the spendable snapshot read fails', async () => {
     const setBaselineUsd6 = vi.fn();
     const submitReviewedBatch = vi.fn(async () => undefined);
 
     await expect(
       startHlpSubmission(TARGET, {
-        readWithdrawableUsd6: async () => {
+        readSpendableUsd6: async () => {
           throw new Error('Hyperliquid info request failed.');
         },
         setBaselineUsd6,
