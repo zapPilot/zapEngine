@@ -1,7 +1,6 @@
 import type {
   DepositPlan,
   HlpSpotDepositPlan,
-  HyperliquidUsdClassTransferStep,
   HyperliquidVaultDepositStep,
 } from '@zapengine/types/api';
 import type { Hash } from 'viem';
@@ -9,9 +8,6 @@ import type { Hash } from 'viem';
 /**
  * Pure state machine behind the deposit wizard (step 1/2/3/4 UX). No React,
  * no I/O — the useDepositWizard hook owns side effects and feeds events in.
- * v1 stages cover Base source execution → bridge watching → HLP deposit;
- * destination-chain EVM supplies (`destination-replan` follow-ups) get their
- * own stage when a destination vault ships.
  */
 export type WizardStage =
   | 'configure'
@@ -39,10 +35,6 @@ export interface WizardLegProgress {
 
 export type WizardHlpStatus =
   | 'idle'
-  /** Spot-funded only: perp is short of the deposit, signature 1 is pending. */
-  | 'fundingRequired'
-  /** Spot-funded only: the spot-to-perp transfer is in flight. */
-  | 'funding'
   | 'awaitingArrival'
   | 'arrived'
   | 'confirming'
@@ -53,8 +45,6 @@ export type WizardHlpStatus =
 export interface WizardHlpState {
   status: WizardHlpStatus;
   step: HyperliquidVaultDepositStep | null;
-  /** Spot-funded only: the spot-to-perp transfer signed before the deposit. */
-  transferStep: HyperliquidUsdClassTransferStep | null;
   baselineUsd6: bigint | null;
   arrivedUsd6: bigint | null;
   vaultEquityUsd6: bigint | null;
@@ -83,11 +73,8 @@ export type DepositWizardEvent =
   | {
       type: 'SPOT_PLAN_LOADED';
       plan: HlpSpotDepositPlan;
-      perpWithdrawableUsd6: bigint;
+      spendableUsd6: bigint;
     }
-  | { type: 'HL_FUNDING_SUBMITTED' }
-  | { type: 'HL_FUNDING_FAILED' }
-  | { type: 'HL_FUNDED' }
   | { type: 'HL_ARRIVED'; arrivedUsd6: bigint }
   | { type: 'HL_SUBMITTED' }
   | { type: 'HL_SUBMIT_FAILED' }
@@ -99,7 +86,6 @@ export type DepositWizardEvent =
 const initialHlpState: WizardHlpState = {
   status: 'idle',
   step: null,
-  transferStep: null,
   baselineUsd6: null,
   arrivedUsd6: null,
   vaultEquityUsd6: null,
@@ -156,9 +142,7 @@ function anyBridgeLegFailed(legs: WizardLegProgress[]): boolean {
 }
 
 function afterBridgingStage(state: DepositWizardState): DepositWizardState {
-  if (!allBridgeLegsTerminal(state.legs)) {
-    return state;
-  }
+  if (!allBridgeLegsTerminal(state.legs)) return state;
   if (anyBridgeLegFailed(state.legs)) {
     return {
       ...state,
@@ -178,53 +162,44 @@ function afterBridgingStage(state: DepositWizardState): DepositWizardState {
   return { ...state, stage: 'done' };
 }
 
-/**
- * How much more perp USDC the deposit needs. Spot funding measures against an
- * absolute target rather than a delta from a snapshot, so it stays correct
- * with no stored evidence: recomputing after an interrupted attempt yields
- * zero once the transfer landed, which is what makes a retry unable to move
- * the money twice.
- */
-export function spotFundingShortfallUsd6(
+/** Amount by which a requested HLP deposit exceeds current spendable USDC. */
+export function hlpSpendableShortfallUsd6(
   requestedUsd6: bigint,
-  perpWithdrawableUsd6: bigint,
+  spendableUsd6: bigint,
 ): bigint {
-  const shortfall = requestedUsd6 - perpWithdrawableUsd6;
+  const shortfall = requestedUsd6 - spendableUsd6;
   return shortfall > 0n ? shortfall : 0n;
 }
 
-const SPOT_FUNDING_TRANSITIONS = {
-  HL_FUNDING_SUBMITTED: ['fundingRequired', 'funding'],
-  HL_FUNDING_FAILED: ['funding', 'fundingRequired'],
-  HL_FUNDED: ['funding', 'awaitingArrival'],
-} as const satisfies Record<
-  string,
-  readonly [WizardHlpStatus, WizardHlpStatus]
->;
+export function insufficientHyperCoreUsdcMessage(
+  shortfallUsd6: bigint,
+): string {
+  return `Insufficient spendable Hyperliquid USDC; short by ${shortfallUsd6} base units.`;
+}
 
 function spotPlanLoadedState(
   plan: HlpSpotDepositPlan,
-  perpWithdrawableUsd6: bigint,
+  spendableUsd6: bigint,
 ): DepositWizardState {
-  const [transferStep, step] = plan.steps;
-  const shortfallUsd6 = spotFundingShortfallUsd6(
+  const shortfallUsd6 = hlpSpendableShortfallUsd6(
     BigInt(plan.amountUsd6),
-    perpWithdrawableUsd6,
+    spendableUsd6,
   );
   return {
     ...initialDepositWizardState,
-    // No legs and no source batch: this plan is two wallet signatures, so it
-    // enters at the Hyperliquid stage rather than walking the EVM stages.
     stage: 'hyperliquidDeposit',
     hlp: {
       ...initialHlpState,
-      step,
-      transferStep,
-      // Perp already covers the deposit — leftover balance, or a transfer the
-      // user signed before quitting — so signature one and the arrival poll
-      // would both be no-ops.
-      status: shortfallUsd6 > 0n ? 'fundingRequired' : 'arrived',
+      step: plan.step,
+      status: 'arrived',
     },
+    error:
+      shortfallUsd6 > 0n
+        ? {
+            stage: 'hyperliquidDeposit',
+            message: insufficientHyperCoreUsdcMessage(shortfallUsd6),
+          }
+        : null,
   };
 }
 
@@ -252,18 +227,7 @@ export function depositWizardReducer(
     }
 
     case 'SPOT_PLAN_LOADED':
-      return spotPlanLoadedState(event.plan, event.perpWithdrawableUsd6);
-
-    // Each transition belongs to the status that armed it, so a late dispatch
-    // from a superseded run cannot move a fresh machine.
-    case 'HL_FUNDING_SUBMITTED':
-    case 'HL_FUNDING_FAILED':
-    case 'HL_FUNDED': {
-      const [from, to] = SPOT_FUNDING_TRANSITIONS[event.type];
-      return state.hlp.status === from
-        ? { ...state, hlp: { ...state.hlp, status: to } }
-        : state;
-    }
+      return spotPlanLoadedState(event.plan, event.spendableUsd6);
 
     case 'SOURCE_SUBMITTED':
       return {
@@ -282,20 +246,12 @@ export function depositWizardReducer(
         }),
       );
       const hasBridgeLeg = legs.some((leg) => leg.kind === 'bridge');
-      if (hasBridgeLeg) {
-        return { ...state, stage: 'bridging', legs };
-      }
+      if (hasBridgeLeg) return { ...state, stage: 'bridging', legs };
       return afterBridgingStage({ ...state, legs });
     }
 
     case 'BRIDGE_UPDATE': {
-      // Only the bridging stage owns leg progress. After a RESET the legs
-      // array is empty, and an empty array reads as "every bridge terminal",
-      // so a settled poll from a superseded run would flip the wizard to
-      // 'done' with nothing bridged and nothing deposited.
-      if (state.stage !== 'bridging') {
-        return state;
-      }
+      if (state.stage !== 'bridging') return state;
       const legs = withLegPatch(state.legs, event.legIndex, {
         status: event.status,
         ...(event.sourceTxHash ? { sourceTxHash: event.sourceTxHash } : {}),
@@ -307,9 +263,6 @@ export function depositWizardReducer(
     }
 
     case 'HL_ARRIVED':
-      // Only an armed arrival watcher can produce this. A late resolve from a
-      // superseded or reset run must not stamp a foreign delta onto a fresh
-      // machine, where nothing downstream would ever clear it again.
       return state.hlp.status === 'awaitingArrival'
         ? {
             ...state,
@@ -322,21 +275,16 @@ export function depositWizardReducer(
         : state;
 
     case 'HL_SUBMITTED':
-      return { ...state, hlp: { ...state.hlp, status: 'confirming' } };
+      return state.hlp.status === 'arrived'
+        ? { ...state, error: null, hlp: { ...state.hlp, status: 'confirming' } }
+        : state;
 
-    // The three HL_SUBMITTED successors only apply to the submission they
-    // belong to: a reset (or a second attempt) moves the status away from
-    // `confirming`, and a late dispatch from the superseded run is a no-op.
     case 'HL_SUBMIT_FAILED':
-      // The signature/POST never reached the exchange, so the funds are still
-      // withdrawable perp USDC — hand the deposit CTA back to the user.
       return state.hlp.status === 'confirming'
         ? { ...state, hlp: { ...state.hlp, status: 'arrived' } }
         : state;
 
     case 'HL_UNVERIFIED':
-      // Submitted and accepted; only the equity confirmation timed out. Never
-      // fall back to `arrived` — a second deposit would double the position.
       return state.hlp.status === 'confirming'
         ? {
             ...state,
@@ -375,8 +323,7 @@ export function depositWizardReducer(
 /**
  * Routed bridge quotes are validated against a 1% slippage ceiling, so a real
  * HyperCore credit can exceed the quoted minimum only marginally. The extra
- * headroom therefore never clips a legitimate arrival, while still excluding
- * unrelated perp USDC.
+ * headroom excludes unrelated USDC from a position that locks for days.
  */
 const BRIDGE_OUTPUT_CEILING_BPS = 10_200n;
 
@@ -392,16 +339,6 @@ function assertVaultMinimum(
   return usd6;
 }
 
-/**
- * Resolve the vaultTransfer amount for the HLP step: the actually-received
- * perp USDC for `bridge-output`, or the plan-fixed amount. Enforces the vault
- * minimum from the plan payload.
- *
- * A `bridge-output` amount is a withdrawable-balance delta measured against a
- * pre-bridge snapshot, so it also captures any unrelated credit that landed
- * in between. Capping it at what this bridge could have delivered keeps such
- * a credit out of a position that locks for days.
- */
 export function resolveHlpDepositUsd6(
   step: HyperliquidVaultDepositStep,
   arrivedUsd6: bigint | null,
@@ -412,10 +349,7 @@ export function resolveHlpDepositUsd6(
   if (arrivedUsd6 === null) {
     throw new Error('HLP deposit amount is not known yet (funds not arrived)');
   }
-
   if (step.expectedUsd === undefined) {
-    // Only the spot-funded plan omits this, and it never takes this branch.
-    // Coercing a missing value to 0 would silently cap the deposit at zero.
     throw new Error('Bridge-funded HLP step is missing its expected amount');
   }
 
