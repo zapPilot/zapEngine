@@ -25,7 +25,7 @@ function makeService(hyperliquidNetwork?: 'mainnet' | 'testnet') {
 }
 
 describe('spot-funded HLP deposits', () => {
-  it('builds a HyperCore signature plan without routing through EVM review', async () => {
+  it('builds one vaultTransfer without routing through EVM review', async () => {
     const service = makeService('testnet');
     const request: PlanOrchestrationDepositRequest = {
       kind: 'hlp-spot-deposit',
@@ -33,9 +33,7 @@ describe('spot-funded HLP deposits', () => {
       amountUsd6: '12345678',
     };
 
-    const plan = await service.buildDeposit(
-      request as PlanOrchestrationDepositRequest,
-    );
+    const plan = await service.buildDeposit(request);
 
     expect(plan).toMatchObject({
       kind: 'hlp-spot-deposit',
@@ -45,7 +43,13 @@ describe('spot-funded HLP deposits', () => {
     if (!('execution' in plan) || plan.execution !== 'hypercore-signatures') {
       throw new Error('Expected an HLP spot-deposit plan');
     }
-    expect(plan.steps[0]?.signing.hyperliquidChain).toBe('Testnet');
+    expect(plan.step.kind).toBe('hyperliquid-vault-deposit');
+    expect(plan.step.amount).toEqual({
+      source: 'fixed',
+      amount: '12345678',
+    });
+    expect(plan.step.signing.hyperliquidChain).toBe('Testnet');
+    expect('steps' in plan).toBe(false);
 
     await expect(service.buildDepositReview(request)).rejects.toThrow(
       'Spot-funded HLP deposits have no EVM batch to simulate',
@@ -57,16 +61,13 @@ describe('spot-funded HLP deposits', () => {
     const request: PlanOrchestrationDepositRequest = {
       kind: 'hlp-spot-deposit',
       userAddress: USER,
-      amountUsd6: '1000000',
+      amountUsd6: '10000000',
     };
 
-    const plan = await service.buildDeposit(
-      request as PlanOrchestrationDepositRequest,
-    );
-
+    const plan = await service.buildDeposit(request);
     if (!('execution' in plan) || plan.execution !== 'hypercore-signatures') {
       throw new Error('Expected an HLP spot-deposit plan');
     }
-    expect(plan.steps[0]?.signing.hyperliquidChain).toBe('Mainnet');
+    expect(plan.step.signing.hyperliquidChain).toBe('Mainnet');
   });
 });
