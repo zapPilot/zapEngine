@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   useWalletProvider: vi.fn(),
   waitForBridgeCompletion: vi.fn(),
   waitForHyperCoreUsdcArrival: vi.fn(),
+  submitVaultDeposit: vi.fn(),
 }));
 
 vi.mock('@core/providers/walletContext', () => ({
@@ -31,7 +32,7 @@ vi.mock('@core/services/hyperliquidService', () => ({
   HyperliquidVaultDepositError: class HyperliquidVaultDepositError extends Error {},
   getHyperCoreSpendableUsdc: vi.fn(),
   getVaultEquity: vi.fn(),
-  submitVaultDeposit: vi.fn(),
+  submitVaultDeposit: mocks.submitVaultDeposit,
   waitForHyperCoreUsdcArrival: mocks.waitForHyperCoreUsdcArrival,
   waitForVaultEquityIncrease: vi.fn(),
 }));
@@ -154,6 +155,7 @@ describe('useDepositWizard Bridge2 arrival', () => {
     });
 
     expect(mocks.waitForBridgeCompletion).not.toHaveBeenCalled();
+    expect(result.current.wizard.legs[0]?.status).toBe('destinationConfirmed');
     expect(result.current.wizard.stage).toBe('hyperliquidDeposit');
     expect(result.current.wizard.hlp.status).toBe('awaitingArrival');
     expect(result.current.wizard.hlp.arrivedUsd6).toBeNull();
@@ -161,5 +163,10 @@ describe('useDepositWizard Bridge2 arrival', () => {
       stage: 'hyperliquidDeposit',
       message: 'HyperCore arrival timed out',
     });
+
+    await expect(result.current.runHlpDeposit()).rejects.toThrow(
+      'HLP deposit is not ready yet',
+    );
+    expect(mocks.submitVaultDeposit).not.toHaveBeenCalled();
   });
 });
