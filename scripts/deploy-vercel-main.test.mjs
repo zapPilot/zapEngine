@@ -72,6 +72,23 @@ test('waits for every production deployment to become READY', async () => {
   }
 });
 
+test('allows a production deployment to finish after the previous eight-minute boundary', async () => {
+  const { fetchImpl } = fakeVercel({
+    'zap-engine-frontend': ['READY'],
+    'zap-engine-landing-page': ['BUILDING', 'READY'],
+    'zap-engine-control-center': ['READY'],
+  });
+  const times = [0, 0, 8 * 60 * 1_000 + 1_000, 0];
+
+  await deployVercelMain({
+    token: 'token',
+    sha: SHA,
+    fetchImpl,
+    sleep: async () => {},
+    now: () => times.shift() ?? 8 * 60 * 1_000 + 1_000,
+  });
+});
+
 test('fails the workflow when a Vercel build reaches ERROR', async () => {
   const { fetchImpl } = fakeVercel({
     'zap-engine-frontend': ['BUILDING', 'ERROR'],
