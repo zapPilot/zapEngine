@@ -1,9 +1,16 @@
+import { HYPERCORE_CHAIN_ID } from '@zapengine/app-core/config/chains/display';
+import type { WizardHlpStatus } from '@zapengine/app-core/lib/wallet/depositWizardMachine';
 import type {
   HyperCoreAccountMode,
   HyperCoreSpendableUsdc,
 } from '@zapengine/app-core/services';
-import type { WizardHlpStatus } from '@zapengine/app-core/lib/wallet/depositWizardMachine';
+import type { ChainSplit } from '@zapengine/types/api';
 import { formatUnits } from 'viem';
+
+/** Preserve the dormant bridge route's explicit HyperCore destination. */
+export const HYPERLIQUID_HLP_SPLIT: ChainSplit = {
+  [String(HYPERCORE_CHAIN_ID)]: 1,
+};
 
 /** Hyperliquid's HLP vault minimum: $10 in 6-decimal USD. */
 export const MIN_HYPERLIQUID_DEPOSIT_USD6 = 10_000_000n;
