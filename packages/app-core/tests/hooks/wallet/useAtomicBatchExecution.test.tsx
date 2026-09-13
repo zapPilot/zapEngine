@@ -176,6 +176,17 @@ describe('executeAtomicBatch', () => {
     expect(held.settled).toBe(false);
   });
 
+  it('batches on Ethereum mainnet, the HyperCore funding source', async () => {
+    const deps = makeDeps();
+    const hook = renderExecutionHook(deps);
+
+    await startExecution(hook, [tx({ chainId: 1 })], 1);
+
+    expect(deps.ensureChain).toHaveBeenCalledWith(1);
+    const [batch] = mocks.preparePrivyAtomicBatch.mock.calls[0];
+    expect(batch).toMatchObject({ chainId: 1 });
+  });
+
   it.each([
     {
       name: 'no wallet connected',

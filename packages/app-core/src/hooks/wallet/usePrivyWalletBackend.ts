@@ -25,7 +25,7 @@ import {
 import { equalsAddress } from '@zapengine/types/shared';
 import { useCallback, useMemo, useState } from 'react';
 import { type Chain, createWalletClient, custom } from 'viem';
-import { arbitrum, base, optimism } from 'viem/chains';
+import { arbitrum, base, mainnet, optimism } from 'viem/chains';
 
 export type { PrivyBatchExecutionPhase } from '@core/hooks/wallet/useAtomicBatchExecution';
 
@@ -33,7 +33,7 @@ export type { PrivyBatchExecutionPhase } from '@core/hooks/wallet/useAtomicBatch
  * Chains the Privy embedded wallet may operate on. Defined inline from
  * `viem/chains` to keep the bundle free of `wagmi/chains` imports.
  */
-const PRIVY_CHAINS: readonly Chain[] = [arbitrum, base, optimism];
+const PRIVY_CHAINS: readonly Chain[] = [arbitrum, base, optimism, mainnet];
 const CHAIN_BY_ID = new Map<number, Chain>(
   PRIVY_CHAINS.map((chain) => [chain.id, chain]),
 );

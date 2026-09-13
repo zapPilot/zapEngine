@@ -5,12 +5,13 @@ import {
   type HlpSpotDepositPlan,
   HlpSpotDepositPlanSchema,
   type PlanOrchestrationDepositRequest,
+  PlanOrchestrationDepositRequestSchema,
   type PlanOrchestrationDepositReviewRequest,
+  PlanOrchestrationDepositReviewRequestSchema,
   type PlanOrchestrationDepositReviewResponse,
   PlanOrchestrationDepositReviewResponseSchema,
   type PlanOrchestrationWithdrawRequest,
   PlanOrchestrationWithdrawRequestSchema,
-  RoutedPlanOrchestrationDepositRequestSchema,
   type StrategyDepositPlan,
   StrategyDepositPlanSchema,
   type WithdrawPlan,
@@ -30,7 +31,7 @@ async function postDepositPlanRequest<TPlan>(
   request: PlanOrchestrationDepositRequest,
   planSchema: ParseSchema<TPlan>,
 ): Promise<TPlan> {
-  const body = RoutedPlanOrchestrationDepositRequestSchema.parse(request);
+  const body = PlanOrchestrationDepositRequestSchema.parse(request);
   const response = await httpUtils.accountApi.post<unknown>(
     '/plan-orchestration/deposit',
     body,
@@ -56,7 +57,7 @@ async function postDepositPlan(
 export async function getDepositReview(
   request: PlanOrchestrationDepositReviewRequest,
 ): Promise<PlanOrchestrationDepositReviewResponse> {
-  const body = RoutedPlanOrchestrationDepositRequestSchema.parse(request);
+  const body = PlanOrchestrationDepositReviewRequestSchema.parse(request);
   const response = await httpUtils.accountApi.post<unknown>(
     '/plan-orchestration/deposit/review',
     body,

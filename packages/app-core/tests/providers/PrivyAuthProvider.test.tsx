@@ -32,11 +32,17 @@ describe('PrivyAuthProvider', () => {
         config: {
           externalWallets?: { disableAllExternalWallets?: boolean };
           loginMethods?: string[];
+          supportedChains?: Array<{ id: number }>;
         };
       },
     ];
     expect(appId).toBe('test-privy-app-id');
     expect(config.externalWallets?.disableAllExternalWallets).toBe(true);
     expect(config.loginMethods).not.toContain('wallet');
+    // Privy refuses switchChain to a chain missing from this list, so every
+    // reviewed-batch chain (Ethereum included) has to be declared.
+    expect(config.supportedChains?.map((chain) => chain.id)).toEqual([
+      42161, 8453, 10, 1,
+    ]);
   });
 });

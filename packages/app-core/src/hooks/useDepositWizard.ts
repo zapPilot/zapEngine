@@ -20,10 +20,11 @@ import {
 } from '@core/services/hyperliquidService';
 import { waitForBridgeCompletion } from '@core/services/intentClient';
 import { logger } from '@core/utils/logger';
-import type {
-  DepositPlan,
-  HlpSpotDepositPlan,
-  HyperliquidVaultDepositStep,
+import {
+  type DepositPlan,
+  type HlpSpotDepositPlan,
+  HYPERLIQUID_BRIDGE2_BRIDGE_ID,
+  type HyperliquidVaultDepositStep,
 } from '@zapengine/types/api';
 import { equalsAddress } from '@zapengine/types/shared';
 import { useCallback, useReducer, useRef } from 'react';
@@ -129,10 +130,12 @@ export function useDepositWizard({
         sourceTxHash: params.sourceTxHash,
       });
 
-      // Bridge2 is a direct Arbitrum USDC transfer, not a LI.FI route. The
-      // reviewed wallet batch already confirmed the source transaction; the
-      // authoritative destination check is the HyperCore balance delta below.
-      if (leg.protocol === 'hyperliquid') {
+      // Bridge2 is a direct Arbitrum USDC transfer, not a LI.FI route, so
+      // there is no route status to poll. The reviewed wallet batch already
+      // confirmed the source transaction; arrival is proven by the HyperCore
+      // balance delta `watchHlpArrival` waits on. LI.FI routes into HyperCore
+      // also carry `protocol: 'hyperliquid'`, so key off the bridge id.
+      if (leg.bridge === HYPERLIQUID_BRIDGE2_BRIDGE_ID) {
         if (params.signal.aborted) return false;
         dispatch({
           type: 'BRIDGE_UPDATE',

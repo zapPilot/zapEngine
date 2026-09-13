@@ -111,9 +111,6 @@ export {
   getWithdrawPlan,
 } from './planOrchestrationService';
 
-// Cross-chain route settlement tracking
-export { waitForBridgeCompletion } from './intentClient';
-
 // Hyperliquid execution-plane access (HLP deposits + balance reads)
 export {
   accountModeFromAbstraction,
