@@ -28,9 +28,36 @@ export interface DesktopDepositToken {
   balanceAddress: `0x${string}`;
 }
 
-const BALANCE_NATIVE_TOKEN_ADDRESS =
-  '0x0000000000000000000000000000000000000000' as const;
+/**
+ * Native ETH is the one token whose deposit and balance addresses differ: the
+ * planner takes the EIP-7528 sentinel, the balance reader takes the zero
+ * address. Shared by every chain's ETH entry.
+ */
+const NATIVE_ETH_ADDRESSES = {
+  depositAddress: DEPOSIT_NATIVE_TOKEN_ADDRESS as `0x${string}`,
+  balanceAddress: '0x0000000000000000000000000000000000000000',
+} as const;
 
+/**
+ * Canonical ERC-20 addresses pulled out of the registry once. Both the deposit
+ * and the balance lookup use the same address for an ERC-20; only native ETH
+ * splits them (deposit sentinel vs. zero address).
+ */
+const ETHEREUM_USDC = DEPOSIT_USDC_ADDRESSES[
+  SUPPORTED_DEPOSIT_CHAINS.ETHEREUM
+]! as `0x${string}`;
+const ARBITRUM_USDC = DEPOSIT_USDC_ADDRESSES[
+  SUPPORTED_DEPOSIT_CHAINS.ARBITRUM
+]! as `0x${string}`;
+const ARBITRUM_USDT = DEPOSIT_USDT_ADDRESSES[
+  SUPPORTED_DEPOSIT_CHAINS.ARBITRUM
+]! as `0x${string}`;
+
+/**
+ * Ethereum mainnet funding, used only as an HLP source: the `invest` request
+ * schema accepts canonical USDC or native ETH, and mainnet has no strategy
+ * destination of its own.
+ */
 export const ETHEREUM_DEPOSIT_TOKENS = [
   {
     symbol: 'USDC',
@@ -39,26 +66,8 @@ export const ETHEREUM_DEPOSIT_TOKENS = [
     chainKey: 'ethereum',
     decimals: 6,
     category: 'stable',
-    depositAddress: DEPOSIT_USDC_ADDRESSES[
-      SUPPORTED_DEPOSIT_CHAINS.ETHEREUM
-    ]! as `0x${string}`,
-    balanceAddress: DEPOSIT_USDC_ADDRESSES[
-      SUPPORTED_DEPOSIT_CHAINS.ETHEREUM
-    ]! as `0x${string}`,
-  },
-  {
-    symbol: 'USDT',
-    name: 'Tether USD',
-    chainId: SUPPORTED_DEPOSIT_CHAINS.ETHEREUM,
-    chainKey: 'ethereum',
-    decimals: 6,
-    category: 'stable',
-    depositAddress: DEPOSIT_USDT_ADDRESSES[
-      SUPPORTED_DEPOSIT_CHAINS.ETHEREUM
-    ]! as `0x${string}`,
-    balanceAddress: DEPOSIT_USDT_ADDRESSES[
-      SUPPORTED_DEPOSIT_CHAINS.ETHEREUM
-    ]! as `0x${string}`,
+    depositAddress: ETHEREUM_USDC,
+    balanceAddress: ETHEREUM_USDC,
   },
   {
     symbol: 'ETH',
@@ -67,8 +76,7 @@ export const ETHEREUM_DEPOSIT_TOKENS = [
     chainKey: 'ethereum',
     decimals: 18,
     category: 'crypto',
-    depositAddress: DEPOSIT_NATIVE_TOKEN_ADDRESS as `0x${string}`,
-    balanceAddress: BALANCE_NATIVE_TOKEN_ADDRESS,
+    ...NATIVE_ETH_ADDRESSES,
   },
 ] as const satisfies readonly DesktopDepositToken[];
 
@@ -90,8 +98,7 @@ export const BASE_DEPOSIT_TOKENS = [
     chainKey: 'base',
     decimals: 18,
     category: 'crypto',
-    depositAddress: DEPOSIT_NATIVE_TOKEN_ADDRESS,
-    balanceAddress: BALANCE_NATIVE_TOKEN_ADDRESS,
+    ...NATIVE_ETH_ADDRESSES,
   },
 ] as const satisfies readonly DesktopDepositToken[];
 
@@ -103,12 +110,8 @@ export const ARBITRUM_DEPOSIT_TOKENS = [
     chainKey: 'arbitrum',
     decimals: 6,
     category: 'stable',
-    depositAddress: DEPOSIT_USDC_ADDRESSES[
-      SUPPORTED_DEPOSIT_CHAINS.ARBITRUM
-    ]! as `0x${string}`,
-    balanceAddress: DEPOSIT_USDC_ADDRESSES[
-      SUPPORTED_DEPOSIT_CHAINS.ARBITRUM
-    ]! as `0x${string}`,
+    depositAddress: ARBITRUM_USDC,
+    balanceAddress: ARBITRUM_USDC,
   },
   {
     symbol: 'USDT',
@@ -117,12 +120,8 @@ export const ARBITRUM_DEPOSIT_TOKENS = [
     chainKey: 'arbitrum',
     decimals: 6,
     category: 'stable',
-    depositAddress: DEPOSIT_USDT_ADDRESSES[
-      SUPPORTED_DEPOSIT_CHAINS.ARBITRUM
-    ]! as `0x${string}`,
-    balanceAddress: DEPOSIT_USDT_ADDRESSES[
-      SUPPORTED_DEPOSIT_CHAINS.ARBITRUM
-    ]! as `0x${string}`,
+    depositAddress: ARBITRUM_USDT,
+    balanceAddress: ARBITRUM_USDT,
   },
   {
     symbol: 'ETH',
@@ -131,11 +130,9 @@ export const ARBITRUM_DEPOSIT_TOKENS = [
     chainKey: 'arbitrum',
     decimals: 18,
     category: 'crypto',
-    depositAddress: DEPOSIT_NATIVE_TOKEN_ADDRESS as `0x${string}`,
-    balanceAddress: BALANCE_NATIVE_TOKEN_ADDRESS,
+    ...NATIVE_ETH_ADDRESSES,
   },
 ] as const satisfies readonly DesktopDepositToken[];
 
-export const DEFAULT_ETHEREUM_FUNDING_TOKEN = ETHEREUM_DEPOSIT_TOKENS[0];
 export const DEFAULT_BASE_FUNDING_TOKEN = BASE_DEPOSIT_TOKENS[0];
 export const DEFAULT_ARBITRUM_FUNDING_TOKEN = ARBITRUM_DEPOSIT_TOKENS[0];

@@ -6,10 +6,8 @@ import {
   hlpDoneStatusLabel,
   hlpSpendableUsd6,
   hlpStandardAccountHint,
-  HYPERLIQUID_HLP_SPLIT,
   MIN_HYPERLIQUID_DEPOSIT_USD6,
 } from '@/integration/hyperliquidPanelModel';
-import { HYPERCORE_CHAIN_ID } from '@zapengine/app-core/config/chains/display';
 import type { HyperCoreSpendableUsdc } from '@zapengine/app-core/services';
 import { describe, expect, it } from 'vitest';
 
@@ -30,10 +28,6 @@ const standard: HyperCoreSpendableUsdc = {
 };
 
 describe('hyperliquidPanelModel', () => {
-  it('preserves the dormant bridge route to HyperCore', () => {
-    expect(HYPERLIQUID_HLP_SPLIT).toEqual({ [HYPERCORE_CHAIN_ID]: 1 });
-  });
-
   it('enforces the official 10 USDC minimum', () => {
     expect(MIN_HYPERLIQUID_DEPOSIT_USD6).toBe(10_000_000n);
     expect(belowHlpMinimum('9999999')).toBe(true);

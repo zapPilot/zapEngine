@@ -1,14 +1,4 @@
 import { queryKeys } from '@zapengine/app-core/hooks/queries';
-import {
-  useSingleChainDepositWizard,
-  type SingleChainDepositRecovery,
-  type SingleChainDepositWizardStep,
-} from '@zapengine/app-core/hooks/useSingleChainDepositWizard';
-import { useStrategyDepositWizard } from '@zapengine/app-core/hooks/useStrategyDepositWizard';
-import type {
-  StrategyDepositWizardState,
-  StrategyWizardStep,
-} from '@zapengine/app-core/lib/wallet/strategyDepositMachine';
 import { useWalletProvider } from '@zapengine/app-core/providers/walletContext';
 import type {
   DepositReviewGroup,
@@ -24,20 +14,16 @@ import {
   useCallback,
   useContext,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from 'react';
 
 import {
   type DepositExecutionCapability,
-  resolveInvestExecutionCapability,
+  resolveDepositExecutionCapability,
 } from '@/integration/investExecutionModel';
-import {
-  buildInvestDepositPlanRequest,
-  useInvest,
-} from '@/integration/useInvest';
-import { useUnifiedInvest } from '@/integration/useUnifiedInvest';
+import { stageDraftsKey } from '@/integration/investTargetsModel';
+import { useInvest } from '@/integration/useInvest';
 import { trackEvent } from '@/observability/analytics';
 
 type ReviewedQueueEntry = {
@@ -47,15 +33,9 @@ type ReviewedQueueEntry = {
 type ReviewedQueue = ReviewedQueueEntry[];
 
 export interface InvestExecutionContextValue {
-  wizard: InvestExecutionWizardState;
-  pending: boolean;
   capability: DepositExecutionCapability;
-  mode: 'strategy' | 'single-chain';
-  startFromDraft: () => Promise<void>;
-  advance: () => Promise<void>;
-  retry: () => void;
   reset: () => void;
-  /** Submit the exact, already-reviewed group without opening the legacy UI. */
+  /** Submit the exact, already-reviewed group without re-planning. */
   submitReviewedBatch: (input: {
     plan: ReviewedDepositPlan;
     review: DepositReviewGroup;
@@ -70,8 +50,6 @@ export interface InvestExecutionContextValue {
     plan: ReviewedDepositPlan;
     review: DepositReviewGroup;
   }) => void;
-  /** Add a newly reviewable stage after an earlier cross-chain checkpoint lands. */
-  appendReviewedQueueEntry: (input: ReviewedQueueEntry) => void;
   submitNextReviewedBatch: (input?: {
     plan?: ReviewedDepositPlan;
     review?: DepositReviewGroup;
@@ -182,49 +160,13 @@ function reviewedBatchTransactions(
   };
 }
 
-export type InvestExecutionWizardStep =
-  | StrategyWizardStep
-  | SingleChainDepositWizardStep;
-
-export interface InvestExecutionWizardState {
-  steps: InvestExecutionWizardStep[];
-  currentIndex: number;
-  status: StrategyDepositWizardState['status'] | 'failed';
-  error: string | null;
-  recovery: SingleChainDepositRecovery;
-}
-
 const InvestExecutionContext =
   createContext<InvestExecutionContextValue | null>(null);
 
 export function InvestExecutionProvider({ children }: { children: ReactNode }) {
   const wallet = useWalletProvider();
   const queryClient = useQueryClient();
-  const {
-    scope,
-    destination,
-    totalUsd6,
-    baseFundingToken,
-    arbitrumFundingToken,
-    singleChainFundingDraft,
-  } = useInvest();
-  const { allocation: unifiedAllocation } = useUnifiedInvest();
-  const {
-    wizard: strategyWizard,
-    pending: strategyPending,
-    start: startStrategy,
-    advance: advanceStrategy,
-    retry: retryStrategy,
-    reset: resetStrategy,
-  } = useStrategyDepositWizard();
-  const {
-    wizard: singleChainWizard,
-    pending: singleChainPending,
-    start: startSingleChain,
-    advance: advanceSingleChain,
-    retry: retrySingleChain,
-    reset: resetSingleChain,
-  } = useSingleChainDepositWizard();
+  const { stageDrafts } = useInvest();
   const invalidatedDone = useRef(false);
   const previousDraftKey = useRef('');
   const [reviewedSubmission, setReviewedSubmission] =
@@ -233,40 +175,22 @@ export function InvestExecutionProvider({ children }: { children: ReactNode }) {
   const [reviewedProgress, setReviewedProgress] =
     useState<ReviewedBatchProgress | null>(null);
   const walletAddress = wallet.account?.address;
-  const mode = scope === 'both' ? 'strategy' : 'single-chain';
-  const singleChainDraftKey = singleChainFundingDraft
-    ? [
-        singleChainFundingDraft.scope,
-        singleChainFundingDraft.chainId,
-        singleChainFundingDraft.fromToken,
-        singleChainFundingDraft.fromAmount,
-      ].join(':')
-    : 'none';
   const executionDraftKey = [
     walletAddress?.toLowerCase() ?? 'none',
-    scope,
-    destination,
-    totalUsd6,
-    baseFundingToken.depositAddress,
-    arbitrumFundingToken.depositAddress,
-    JSON.stringify(unifiedAllocation),
-    singleChainDraftKey,
+    stageDraftsKey(stageDrafts),
   ].join('|');
 
-  const capability = resolveInvestExecutionCapability({
+  const capability = resolveDepositExecutionCapability({
     isConnected: wallet.isConnected,
     executionMode: wallet.executionMode,
-    scope,
   });
 
-  const clearReviewedExecution = useCallback(() => {
+  const reset = useCallback(() => {
     invalidatedDone.current = false;
     setReviewedSubmission(null);
     setReviewedQueue([]);
     setReviewedProgress(null);
-    resetStrategy();
-    resetSingleChain();
-  }, [resetSingleChain, resetStrategy]);
+  }, []);
 
   useEffect(() => {
     if (previousDraftKey.current === '') {
@@ -275,68 +199,8 @@ export function InvestExecutionProvider({ children }: { children: ReactNode }) {
     }
     if (previousDraftKey.current === executionDraftKey) return;
     previousDraftKey.current = executionDraftKey;
-    clearReviewedExecution();
-  }, [clearReviewedExecution, executionDraftKey]);
-
-  const startFromDraft = useCallback(async () => {
-    if (!walletAddress || totalUsd6 === '0') return;
-    // The guided wizard carries no plan follow-ups, so it would submit the
-    // Base bridge and then strand the funds on HyperCore with nothing to sign
-    // the HLP vault action. HLP drafts execute through the reviewed route only.
-    if (destination === 'hlp') return;
-    invalidatedDone.current = false;
-    const userAddress = walletAddress as `0x${string}`;
-    const request = buildInvestDepositPlanRequest({
-      userAddress,
-      scope,
-      totalUsd6,
-      baseFundingToken,
-      arbitrumFundingToken,
-      singleChainFundingDraft,
-      destination,
-    });
-    if (request === null) return;
-
-    if (request.kind === 'strategy') {
-      const {
-        kind: _kind,
-        strategyId: _strategyId,
-        ...strategyRequest
-      } = request;
-      void _kind;
-      void _strategyId;
-      await startStrategy(strategyRequest);
-      return;
-    }
-    await startSingleChain(request);
-  }, [
-    arbitrumFundingToken,
-    baseFundingToken,
-    destination,
-    scope,
-    singleChainFundingDraft,
-    startSingleChain,
-    startStrategy,
-    totalUsd6,
-    walletAddress,
-  ]);
-
-  const selectedWizard =
-    mode === 'strategy' ? strategyWizard : singleChainWizard;
-  const wizard = useMemo<InvestExecutionWizardState>(
-    () => ({
-      steps: selectedWizard.steps,
-      currentIndex: selectedWizard.currentIndex,
-      status: selectedWizard.status,
-      error: selectedWizard.error,
-      recovery: mode === 'single-chain' ? singleChainWizard.recovery : null,
-    }),
-    [mode, selectedWizard, singleChainWizard.recovery],
-  );
-  const pending = mode === 'strategy' ? strategyPending : singleChainPending;
-  const advance = mode === 'strategy' ? advanceStrategy : advanceSingleChain;
-  const retry = mode === 'strategy' ? retryStrategy : retrySingleChain;
-  const reset = clearReviewedExecution;
+    reset();
+  }, [executionDraftKey, reset]);
 
   const commitReviewedSubmission = useCallback(
     (
@@ -514,52 +378,25 @@ export function InvestExecutionProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  const appendReviewedQueueEntry = useCallback(
-    (input: ReviewedQueueEntry) => {
-      const alreadyQueued = reviewedQueue.some(
-        (entry) =>
-          entry.review.groupFingerprint === input.review.groupFingerprint &&
-          entry.review.batchFingerprint === input.review.batchFingerprint,
-      );
-      if (alreadyQueued) return;
-
-      const nextQueue = [...reviewedQueue, input];
-      setReviewedQueue(nextQueue);
-      setReviewedProgress((current) => {
-        if (!current) return current;
-        return {
-          ...current,
-          groupCount: nextQueue.length,
-          ...(current.phase === 'complete'
-            ? { phase: 'checkpoint' as const, statusNote: undefined }
-            : {}),
-        };
-      });
-    },
-    [reviewedQueue],
-  );
-
+  // The wallet-level batches are done once the last queued group completes;
+  // refresh the portfolio views the invest flow just changed.
+  const allBatchesComplete =
+    reviewedProgress?.phase === 'complete' &&
+    reviewedProgress.groupIndex === reviewedQueue.length - 1;
   useEffect(() => {
-    if (wizard.status !== 'done' || invalidatedDone.current) return;
+    if (!allBatchesComplete || invalidatedDone.current) return;
     invalidatedDone.current = true;
     void queryClient.invalidateQueries({ queryKey: queryKeys.desktop.all });
-  }, [queryClient, wizard.status]);
+  }, [allBatchesComplete, queryClient]);
 
   const value: InvestExecutionContextValue = {
-    wizard,
-    pending,
     capability,
-    mode,
-    startFromDraft,
-    advance,
-    retry,
     reset,
     submitReviewedBatch,
     reviewedSubmission,
     reviewedProgress,
     reviewedQueue,
     updateReviewedQueueEntry,
-    appendReviewedQueueEntry,
     submitNextReviewedBatch,
   };
 

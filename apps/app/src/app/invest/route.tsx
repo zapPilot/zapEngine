@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 
-import { UnifiedInvestRouteScreen } from '@/screens/invest/UnifiedInvestRouteScreen';
+import { InvestRouteScreen } from '@/screens/invest/InvestRouteScreen';
 
 export default function InvestRouteRoute(): ReactElement {
-  return <UnifiedInvestRouteScreen />;
+  return <InvestRouteScreen />;
 }

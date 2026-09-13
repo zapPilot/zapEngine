@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 
-import { UnifiedInvestProgressScreen } from '@/screens/invest/UnifiedInvestProgressScreen';
+import { InvestProgressScreen } from '@/screens/invest/InvestProgressScreen';
 
 export default function InvestProgressRoute(): ReactElement {
-  return <UnifiedInvestProgressScreen />;
+  return <InvestProgressScreen />;
 }
