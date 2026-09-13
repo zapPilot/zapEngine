@@ -45,4 +45,28 @@ describe('GMX execution-fee preview', () => {
     expect(gmxExecutionFeeWei([call])).toBe(0n);
     expect(formatGmxExecutionFee([call])).toBe('0 ETH total');
   });
+
+  it('ignores malformed route metadata while preserving valid keeper fees', () => {
+    const missingRoute = gmxCall('5000000000000000');
+    missingRoute.meta.route = null;
+
+    const arrayRoute = gmxCall('5000000000000000');
+    arrayRoute.meta.route = [];
+
+    const invalidFee = gmxCall('5000000000000000');
+    invalidFee.meta.route = {
+      tool: 'gmx-v2-direct',
+      marketKey: 'eth-eth',
+      executionFeeWei: '1.5',
+    };
+
+    const validFee = gmxCall('5000000000000000');
+
+    expect(
+      gmxExecutionFeeWei([missingRoute, arrayRoute, invalidFee, validFee]),
+    ).toBe(1000000000000000n);
+    expect(
+      formatGmxExecutionFee([missingRoute, arrayRoute, invalidFee, validFee]),
+    ).toBe('0.001 ETH total');
+  });
 });
