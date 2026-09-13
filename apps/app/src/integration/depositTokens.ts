@@ -10,6 +10,7 @@ import {
 
 export type DepositTokenSymbol = 'USDC' | 'USDT' | 'ETH';
 export type StrategyFundingChainId =
+  | typeof SUPPORTED_DEPOSIT_CHAINS.ETHEREUM
   | typeof SUPPORTED_DEPOSIT_CHAINS.BASE
   | typeof SUPPORTED_DEPOSIT_CHAINS.ARBITRUM;
 
@@ -18,7 +19,7 @@ export interface DesktopDepositToken {
   name: string;
   chainId: StrategyFundingChainId;
   /** Key into `CHAIN_BRAND`, which owns the chain's label, color, and mark. */
-  chainKey: Extract<ChainBrandKey, 'base' | 'arbitrum'>;
+  chainKey: Extract<ChainBrandKey, 'ethereum' | 'base' | 'arbitrum'>;
   decimals: number;
   category: 'stable' | 'crypto';
   /** Address sent to plan-orchestration deposit requests. */
@@ -29,6 +30,47 @@ export interface DesktopDepositToken {
 
 const BALANCE_NATIVE_TOKEN_ADDRESS =
   '0x0000000000000000000000000000000000000000' as const;
+
+export const ETHEREUM_DEPOSIT_TOKENS = [
+  {
+    symbol: 'USDC',
+    name: 'USD Coin',
+    chainId: SUPPORTED_DEPOSIT_CHAINS.ETHEREUM,
+    chainKey: 'ethereum',
+    decimals: 6,
+    category: 'stable',
+    depositAddress: DEPOSIT_USDC_ADDRESSES[
+      SUPPORTED_DEPOSIT_CHAINS.ETHEREUM
+    ]! as `0x${string}`,
+    balanceAddress: DEPOSIT_USDC_ADDRESSES[
+      SUPPORTED_DEPOSIT_CHAINS.ETHEREUM
+    ]! as `0x${string}`,
+  },
+  {
+    symbol: 'USDT',
+    name: 'Tether USD',
+    chainId: SUPPORTED_DEPOSIT_CHAINS.ETHEREUM,
+    chainKey: 'ethereum',
+    decimals: 6,
+    category: 'stable',
+    depositAddress: DEPOSIT_USDT_ADDRESSES[
+      SUPPORTED_DEPOSIT_CHAINS.ETHEREUM
+    ]! as `0x${string}`,
+    balanceAddress: DEPOSIT_USDT_ADDRESSES[
+      SUPPORTED_DEPOSIT_CHAINS.ETHEREUM
+    ]! as `0x${string}`,
+  },
+  {
+    symbol: 'ETH',
+    name: 'Ethereum',
+    chainId: SUPPORTED_DEPOSIT_CHAINS.ETHEREUM,
+    chainKey: 'ethereum',
+    decimals: 18,
+    category: 'crypto',
+    depositAddress: DEPOSIT_NATIVE_TOKEN_ADDRESS as `0x${string}`,
+    balanceAddress: BALANCE_NATIVE_TOKEN_ADDRESS,
+  },
+] as const satisfies readonly DesktopDepositToken[];
 
 export const BASE_DEPOSIT_TOKENS = [
   {
@@ -94,5 +136,6 @@ export const ARBITRUM_DEPOSIT_TOKENS = [
   },
 ] as const satisfies readonly DesktopDepositToken[];
 
+export const DEFAULT_ETHEREUM_FUNDING_TOKEN = ETHEREUM_DEPOSIT_TOKENS[0];
 export const DEFAULT_BASE_FUNDING_TOKEN = BASE_DEPOSIT_TOKENS[0];
 export const DEFAULT_ARBITRUM_FUNDING_TOKEN = ARBITRUM_DEPOSIT_TOKENS[0];
