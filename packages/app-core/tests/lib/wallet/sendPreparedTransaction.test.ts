@@ -44,4 +44,21 @@ describe('sendPreparedTransaction', () => {
       chainId: 42161,
     });
   });
+
+  it('propagates wallet transaction failures unchanged', async () => {
+    const failure = new Error('wallet rejected transaction');
+    const sendTransaction = vi.fn().mockRejectedValue(failure);
+    const transaction = {
+      to: '0x3333333333333333333333333333333333333333',
+      data: '0xabcd',
+      value: '1',
+      chainId: 1,
+    } as Parameters<typeof sendPreparedTransaction>[1];
+
+    await expect(
+      sendPreparedTransaction({ sendTransaction }, transaction),
+    ).rejects.toBe(failure);
+
+    expect(sendTransaction).toHaveBeenCalledOnce();
+  });
 });
