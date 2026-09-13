@@ -37,7 +37,14 @@ import {
   buildInvestDepositPlanRequest,
   useInvest,
 } from '@/integration/useInvest';
+import { useUnifiedInvest } from '@/integration/useUnifiedInvest';
 import { trackEvent } from '@/observability/analytics';
+
+type ReviewedQueueEntry = {
+  plan: ReviewedDepositPlan;
+  review: DepositReviewGroup;
+};
+type ReviewedQueue = ReviewedQueueEntry[];
 
 export interface InvestExecutionContextValue {
   wizard: InvestExecutionWizardState;
@@ -53,22 +60,18 @@ export interface InvestExecutionContextValue {
     plan: ReviewedDepositPlan;
     review: DepositReviewGroup;
     acknowledgedRiskHash?: string;
-    queue?: {
-      plan: ReviewedDepositPlan;
-      review: DepositReviewGroup;
-    }[];
+    queue?: ReviewedQueue;
   }) => Promise<ReviewedBatchSubmissionResult>;
   reviewedSubmission: ReviewedBatchSubmission | null;
   reviewedProgress: ReviewedBatchProgress | null;
-  reviewedQueue: {
-    plan: ReviewedDepositPlan;
-    review: DepositReviewGroup;
-  }[];
+  reviewedQueue: ReviewedQueue;
   updateReviewedQueueEntry: (input: {
     index: number;
     plan: ReviewedDepositPlan;
     review: DepositReviewGroup;
   }) => void;
+  /** Add a newly reviewable stage after an earlier cross-chain checkpoint lands. */
+  appendReviewedQueueEntry: (input: ReviewedQueueEntry) => void;
   submitNextReviewedBatch: (input?: {
     plan?: ReviewedDepositPlan;
     review?: DepositReviewGroup;
@@ -205,6 +208,7 @@ export function InvestExecutionProvider({ children }: { children: ReactNode }) {
     arbitrumFundingToken,
     singleChainFundingDraft,
   } = useInvest();
+  const { allocation: unifiedAllocation } = useUnifiedInvest();
   const {
     wizard: strategyWizard,
     pending: strategyPending,
@@ -225,9 +229,7 @@ export function InvestExecutionProvider({ children }: { children: ReactNode }) {
   const previousDraftKey = useRef('');
   const [reviewedSubmission, setReviewedSubmission] =
     useState<ReviewedBatchSubmission | null>(null);
-  const [reviewedQueue, setReviewedQueue] = useState<
-    { plan: ReviewedDepositPlan; review: DepositReviewGroup }[]
-  >([]);
+  const [reviewedQueue, setReviewedQueue] = useState<ReviewedQueue>([]);
   const [reviewedProgress, setReviewedProgress] =
     useState<ReviewedBatchProgress | null>(null);
   const walletAddress = wallet.account?.address;
@@ -247,6 +249,7 @@ export function InvestExecutionProvider({ children }: { children: ReactNode }) {
     totalUsd6,
     baseFundingToken.depositAddress,
     arbitrumFundingToken.depositAddress,
+    JSON.stringify(unifiedAllocation),
     singleChainDraftKey,
   ].join('|');
 
@@ -352,11 +355,6 @@ export function InvestExecutionProvider({ children }: { children: ReactNode }) {
     },
     [],
   );
-
-  type ReviewedQueue = {
-    plan: ReviewedDepositPlan;
-    review: DepositReviewGroup;
-  }[];
 
   const monitorReviewedBatch = useCallback(
     async (
@@ -516,6 +514,31 @@ export function InvestExecutionProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const appendReviewedQueueEntry = useCallback(
+    (input: ReviewedQueueEntry) => {
+      const alreadyQueued = reviewedQueue.some(
+        (entry) =>
+          entry.review.groupFingerprint === input.review.groupFingerprint &&
+          entry.review.batchFingerprint === input.review.batchFingerprint,
+      );
+      if (alreadyQueued) return;
+
+      const nextQueue = [...reviewedQueue, input];
+      setReviewedQueue(nextQueue);
+      setReviewedProgress((current) => {
+        if (!current) return current;
+        return {
+          ...current,
+          groupCount: nextQueue.length,
+          ...(current.phase === 'complete'
+            ? { phase: 'checkpoint' as const, statusNote: undefined }
+            : {}),
+        };
+      });
+    },
+    [reviewedQueue],
+  );
+
   useEffect(() => {
     if (wizard.status !== 'done' || invalidatedDone.current) return;
     invalidatedDone.current = true;
@@ -536,6 +559,7 @@ export function InvestExecutionProvider({ children }: { children: ReactNode }) {
     reviewedProgress,
     reviewedQueue,
     updateReviewedQueueEntry,
+    appendReviewedQueueEntry,
     submitNextReviewedBatch,
   };
 
