@@ -321,6 +321,12 @@ export function InvestExecutionProvider({ children }: { children: ReactNode }) {
       acknowledgedRiskHash?: string;
     }): Promise<ReviewedBatchSubmissionResult> => {
       const progress = reviewedProgress;
+      if (progress && progress.phase !== 'checkpoint') {
+        return {
+          status: 'blocked',
+          reason: 'The current reviewed batch has not reached its checkpoint.',
+        };
+      }
       const nextIndex = progress ? progress.groupIndex + 1 : 0;
       const queued = reviewedQueue[nextIndex];
       const next =
