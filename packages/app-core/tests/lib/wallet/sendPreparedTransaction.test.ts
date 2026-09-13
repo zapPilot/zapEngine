@@ -62,7 +62,7 @@ describe('sendPreparedTransaction', () => {
     expect(sendTransaction).toHaveBeenCalledOnce();
   });
 
-  it('rejects malformed prepared numeric values before calling the wallet', async () => {
+  it('rejects malformed prepared numeric values before calling the wallet', () => {
     const sendTransaction = vi.fn();
     const transaction = {
       to: '0x4444444444444444444444444444444444444444',
@@ -71,9 +71,9 @@ describe('sendPreparedTransaction', () => {
       chainId: 8453,
     } as Parameters<typeof sendPreparedTransaction>[1];
 
-    await expect(
-      sendPreparedTransaction({ sendTransaction }, transaction),
-    ).rejects.toThrow();
+    expect(() => sendPreparedTransaction({ sendTransaction }, transaction)).toThrow(
+      SyntaxError,
+    );
 
     expect(sendTransaction).not.toHaveBeenCalled();
   });
