@@ -98,6 +98,10 @@
       "types": "./dist/hooks/useDepositWizard.d.ts",
       "import": "./dist/hooks/useDepositWizard.js"
     },
+    "./hooks/useHyperliquidAgentSession": {
+      "types": "./dist/hooks/useHyperliquidAgentSession.d.ts",
+      "import": "./dist/hooks/useHyperliquidAgentSession.js"
+    },
     "./hooks/useSingleChainDepositWizard": {
       "types": "./dist/hooks/useSingleChainDepositWizard.d.ts",
       "import": "./dist/hooks/useSingleChainDepositWizard.js"
