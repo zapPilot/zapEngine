@@ -17,8 +17,8 @@ const mocks = vi.hoisted(() => ({
   buildApproveTx: vi.fn(),
   getPublicClient: vi.fn(),
   waitForBridgeCompletion: vi.fn(),
-  getPerpUsdcBalance: vi.fn(),
-  waitForPerpUsdcArrival: vi.fn(),
+  getHyperCoreSpendableUsdc: vi.fn(),
+  waitForHyperCoreUsdcArrival: vi.fn(),
   executeDepositPlanWithWallet: vi.fn(),
   readContract: vi.fn(),
   estimateGas: vi.fn(),
@@ -42,8 +42,8 @@ vi.mock('@core/services/intentClient', () => ({
 }));
 
 vi.mock('@core/services/hyperliquidService', () => ({
-  getPerpUsdcBalance: mocks.getPerpUsdcBalance,
-  waitForPerpUsdcArrival: mocks.waitForPerpUsdcArrival,
+  getHyperCoreSpendableUsdc: mocks.getHyperCoreSpendableUsdc,
+  waitForHyperCoreUsdcArrival: mocks.waitForHyperCoreUsdcArrival,
 }));
 
 vi.mock('@zapengine/intent-engine', () => ({
@@ -138,7 +138,7 @@ describe('useBridgeTest reset during wallet signature', () => {
     });
 
     expect(mocks.waitForBridgeCompletion).not.toHaveBeenCalled();
-    expect(mocks.waitForPerpUsdcArrival).not.toHaveBeenCalled();
+    expect(mocks.waitForHyperCoreUsdcArrival).not.toHaveBeenCalled();
     expect(result.current.status).toBe('idle');
     expect(result.current.error).toBeNull();
     expect(result.current.quote).toBeNull();
@@ -186,7 +186,7 @@ describe('useBridgeTest reset during wallet signature', () => {
     });
 
     expect(mocks.waitForBridgeCompletion).not.toHaveBeenCalled();
-    expect(mocks.waitForPerpUsdcArrival).not.toHaveBeenCalled();
+    expect(mocks.waitForHyperCoreUsdcArrival).not.toHaveBeenCalled();
     expect(result.current.status).toBe('idle');
     expect(result.current.error).toBeNull();
     expect(result.current.quote).toBeNull();

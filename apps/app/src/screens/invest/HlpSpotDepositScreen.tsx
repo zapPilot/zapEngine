@@ -1,6 +1,6 @@
 import { useDepositWizard } from '@zapengine/app-core/hooks/useDepositWizard';
 import { extractErrorMessage } from '@zapengine/app-core/lib/errors';
-import { spotFundingShortfallUsd6 } from '@zapengine/app-core/lib/wallet/depositWizardMachine';
+import { hlpSpendableShortfallUsd6 } from '@zapengine/app-core/lib/wallet/depositWizardMachine';
 import { getHlpSpotDepositPlan } from '@zapengine/app-core/services';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
@@ -15,44 +15,42 @@ import { InlineErrorCard } from '@/components/ui/InlineErrorCard';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { Tap } from '@/components/ui/Tap';
-import { useAccount } from '@/integration/useAccount';
+import { useHyperliquidAgent } from '@/hooks/useHyperliquidAgent';
 import {
-  useHlpPerpBalance,
-  useHlpSpotBalance,
-} from '@/integration/useHlpBalances';
+  hlpAccountModeLabel,
+  hlpSpendableUsd6,
+} from '@/integration/hyperliquidPanelModel';
+import {
+  hlpSpotDepositCta,
+  hlpSpotDone,
+  hlpSpotSignatureLabel,
+} from '@/integration/hlpSpotDepositModel';
+import { useAccount } from '@/integration/useAccount';
+import { useHyperCoreSpendable } from '@/integration/useHlpBalances';
 import { useInvest } from '@/integration/useInvest';
 import { formatUsd } from '@/lib/format';
 
-function usd(value: bigint | undefined): string {
-  return value === undefined ? '—' : formatUsd(Number(formatUnits(value, 6)));
+function usd(value: bigint | undefined | null): string {
+  return value === undefined || value === null
+    ? '—'
+    : formatUsd(Number(formatUnits(value, 6)));
 }
 
-/**
- * Review and sign a HyperCore-funded HLP deposit. This is deliberately not the
- * shared `/invest/route` screen: that flow reviews an EVM batch through
- * Tenderly, and this one has no transactions to simulate, no gas to quote and
- * no source chain — only two wallet signatures.
- */
+/** Review and execute a gasless agent-signed HLP vault deposit. */
 export function HlpSpotDepositScreen() {
   const router = useRouter();
   const invest = useInvest();
   const account = useAccount();
-  const spot = useHlpSpotBalance(account.address);
-  const perp = useHlpPerpBalance(account.address);
-  const { wizard, startSpotDeposit, runSpotFunding, runHlpDeposit, reset } =
-    useDepositWizard();
+  const hyperCore = useHyperCoreSpendable(account.address);
   const [acknowledged, setAcknowledged] = useState(false);
   const [flowError, setFlowError] = useState<string | null>(null);
   const armedForRef = useRef<string | null>(null);
 
   const draft = invest.hyperCoreFundingDraft;
   const requestedUsd6 = draft ? BigInt(draft.requestedUsd6) : null;
-
   const plan = useQuery({
     queryKey: ['hlp', 'spot-plan', account.address, draft?.requestedUsd6],
     enabled: Boolean(draft && account.address),
-    // A plan with no quote and no gas cannot go stale on its own; refetching
-    // would only churn the wizard that is already armed against it.
     staleTime: Infinity,
     retry: false,
     queryFn: () =>
@@ -63,10 +61,13 @@ export function HlpSpotDepositScreen() {
       }),
   });
 
+  const agent = useHyperliquidAgent(plan.data?.step.signing ?? null);
+  const { wizard, startSpotDeposit, runHlpDeposit, reset } = useDepositWizard({
+    hyperliquidAgent: agent,
+  });
+
   useEffect(() => {
     if (!plan.data || !draft) return;
-    // Arm once per frozen amount: re-arming would reset a half-finished
-    // signature pair back to its first step.
     if (armedForRef.current === draft.requestedUsd6) return;
     armedForRef.current = draft.requestedUsd6;
     void startSpotDeposit(plan.data).catch((error: unknown) => {
@@ -89,68 +90,64 @@ export function HlpSpotDepositScreen() {
   }
 
   const status = wizard.hlp.status;
+  const liveSpendableUsd6 = hlpSpendableUsd6(hyperCore.balance);
   const shortfallUsd6 =
-    requestedUsd6 === null || perp.balance === undefined
+    requestedUsd6 === null || liveSpendableUsd6 === null
       ? null
-      : spotFundingShortfallUsd6(requestedUsd6, perp.balance.withdrawableUsd6);
-  const done = status === 'deposited' || status === 'submittedUnverified';
-  const busy =
-    status === 'funding' ||
-    status === 'awaitingArrival' ||
-    status === 'confirming';
+      : hlpSpendableShortfallUsd6(requestedUsd6, liveSpendableUsd6);
+  const done = hlpSpotDone(status);
+  const wizardBusy = status === 'awaitingArrival' || status === 'confirming';
+  const agentBusy = agent.status === 'checking' || agent.status === 'approving';
+  const liveShortfall = shortfallUsd6 !== null && shortfallUsd6 > 0n;
+  const cta = hlpSpotDepositCta({
+    planLoading: plan.isLoading,
+    wizardStatus: status,
+    agentStatus: agent.status,
+  });
 
-  const run = (action: () => Promise<void>) => () => {
+  const runGuarded = (action: () => Promise<void>) => () => {
     setFlowError(null);
     void action().catch((error: unknown) => {
       setFlowError(extractErrorMessage(error));
     });
   };
 
-  const ctaLabel = (): string => {
-    if (plan.isLoading) return 'Preparing deposit…';
-    if (status === 'funding') return 'Confirm in your wallet…';
-    if (status === 'awaitingArrival') return 'Waiting for perp credit…';
-    if (status === 'confirming') return 'Confirming deposit…';
-    if (status === 'fundingRequired') {
-      return `Move ${usd(shortfallUsd6 ?? undefined)} into perp`;
-    }
-    return 'Deposit into HLP vault';
-  };
-
   return (
     <ScreenScrollView>
-      <StepHeader step="HLP · Step 2 of 2" title="Review HLP deposit" />
+      <StepHeader step="HLP · Review" title="Review HLP deposit" />
 
       <Card className="mt-4 p-4">
+        <InfoRow label="Deposit" value={usd(requestedUsd6)} divider />
         <InfoRow
-          label="Deposit"
-          value={usd(requestedUsd6 ?? undefined)}
+          label="Available on Hyperliquid"
+          value={usd(liveSpendableUsd6)}
           divider
         />
         <InfoRow
-          label="Spot USDC"
-          value={usd(spot.balance?.totalUsd6)}
-          divider
-        />
-        <InfoRow
-          label="Perp USDC"
-          value={usd(perp.balance?.withdrawableUsd6)}
-          divider
-        />
-        <InfoRow
-          label="To move from spot"
-          value={shortfallUsd6 === null ? '—' : usd(shortfallUsd6)}
+          label="Account mode"
+          value={
+            hyperCore.balance
+              ? hlpAccountModeLabel(hyperCore.balance.mode)
+              : '—'
+          }
         />
       </Card>
 
       <Card className="mt-3 p-4">
-        <InfoRow label="Route" value="Spot → Perp → HLP vault" divider />
+        <InfoRow
+          label="Route"
+          value="Hyperliquid balance → HLP vault"
+          divider
+        />
         <InfoRow label="Destination" value="Official HLP vault" divider />
-        <InfoRow label="Network fee" value="None — signatures only" divider />
-        <InfoRow label="Signatures" value={shortfallUsd6 === 0n ? '1' : '2'} />
+        <InfoRow label="Network fee" value="None — no gas" divider />
+        <InfoRow
+          label="Signatures"
+          value={hlpSpotSignatureLabel(agent.status)}
+        />
       </Card>
 
-      {done ? null : (
+      {!done && agent.isReady ? (
         <Tap
           accessibilityRole="checkbox"
           accessibilityState={{ checked: acknowledged }}
@@ -165,15 +162,26 @@ export function HlpSpotDepositScreen() {
           />
           <Text className="flex-1 text-[11.5px] leading-4 text-ink-dim">
             I understand HLP locks withdrawals for 4 days after each deposit.
-            This is the only step here that cannot be undone.
           </Text>
         </Tap>
-      )}
+      ) : null}
 
       {plan.isError ? (
         <InlineErrorCard
           className="mt-3"
           body="The deposit plan could not be prepared. Go back and try again."
+        />
+      ) : null}
+      {wizard.error ? (
+        <InlineErrorCard className="mt-3" body={wizard.error.message} />
+      ) : null}
+      {agent.error ? (
+        <InlineErrorCard className="mt-3" body={agent.error} />
+      ) : null}
+      {liveShortfall && !wizard.error ? (
+        <InlineErrorCard
+          className="mt-3"
+          body={`Your spendable Hyperliquid balance is now ${usd(liveSpendableUsd6)}. Go back and lower the deposit amount.`}
         />
       ) : null}
       {flowError ? <InlineErrorCard className="mt-3" body={flowError} /> : null}
@@ -196,21 +204,35 @@ export function HlpSpotDepositScreen() {
             Done
           </PrimaryButton>
         </>
+      ) : wizard.error || liveShortfall ? (
+        <PrimaryButton
+          className="mt-5"
+          onPress={() => router.replace('/invest/amount')}
+        >
+          Back to amount
+        </PrimaryButton>
       ) : (
         <PrimaryButton
           className="mt-5"
-          disabled={plan.isLoading || plan.isError || busy || !acknowledged}
-          onPress={run(
-            status === 'fundingRequired' ? runSpotFunding : runHlpDeposit,
+          disabled={
+            plan.isLoading ||
+            plan.isError ||
+            wizardBusy ||
+            agentBusy ||
+            (agent.isReady && !acknowledged)
+          }
+          onPress={runGuarded(
+            agent.isReady ? runHlpDeposit : () => agent.approve(),
           )}
         >
-          {ctaLabel()}
+          {cta}
         </PrimaryButton>
       )}
 
       <Text className="mt-3 text-[10.5px] leading-[16px] text-ink-faint">
-        Both actions are gasless Hyperliquid signatures. Moving USDC between
-        spot and perp is reversible; the vault deposit is not.
+        Enabling signing is a one-time wallet signature that approves a Zap
+        Pilot agent named ZapPilot on Hyperliquid. The vault deposit itself is
+        signed by that agent and cannot be undone for 4 days.
       </Text>
     </ScreenScrollView>
   );

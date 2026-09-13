@@ -113,15 +113,19 @@ export {
 
 // Hyperliquid execution-plane access (HLP deposits + balance reads)
 export {
-  getPerpUsdcBalance,
-  getSpotUsdcBalance,
+  accountModeFromAbstraction,
+  getExtraAgents,
+  getHyperCoreSpendableUsdc,
+  getUserAbstraction,
   getVaultEquity,
-  type PerpUsdcBalance,
-  type SpotUsdcBalance,
+  type HyperCoreAccountMode,
+  type HyperCoreSpendableUsdc,
+  type HyperliquidAbstraction,
+  type HyperliquidExtraAgent,
   submitVaultDeposit,
   usdStringToUsd6,
   type VaultEquity,
-  waitForPerpUsdcArrival,
+  waitForHyperCoreUsdcArrival,
 } from './hyperliquidService';
 
 // Moralis wallet history POC (desktop/web clients; proxy before production)

@@ -158,6 +158,13 @@ export interface WalletProviderInterface {
   executionMode?: 'atomic-batch' | 'eip7702';
 }
 
+/** Host-provided persistence for a device-local Hyperliquid agent private key. */
+export interface HyperliquidAgentKeyStore {
+  load(key: string): Promise<string | null>;
+  save(key: string, value: string): Promise<void>;
+  remove(key: string): Promise<void>;
+}
+
 /** A discoverable wallet a user can pick in the connect UI (web/desktop only). */
 export interface WalletConnectorOption {
   /** Stable connector id — for EIP-6963-discovered wallets, this is their rdns. */

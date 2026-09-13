@@ -14,11 +14,13 @@ import { InlineErrorCard } from '@/components/ui/InlineErrorCard';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { Tap } from '@/components/ui/Tap';
+import { useHyperliquidAgent } from '@/hooks/useHyperliquidAgent';
 import {
   hlpProgressRows,
   hlpRetryMode,
   resumeKey,
   shouldAutoRunHlpDeposit,
+  shouldOfferAgentEnable,
   unsafeResumeReason,
   type HlpProgressInput,
 } from '@/integration/hlpProgressModel';
@@ -47,19 +49,21 @@ export function HlpProgressScreen() {
     reviewedQueue,
     reset: resetReviewedExecution,
   } = useInvestExecution();
+
+  const exactPlan = asDepositPlan(reviewedQueue[0]?.plan);
+  const hlpStep = exactPlan ? hlpStepFromPlan(exactPlan) : null;
+  const agent = useHyperliquidAgent(hlpStep?.signing ?? null);
   const {
     wizard,
     resumeReviewedPlan,
     runHlpDeposit,
     retry,
     reset: resetHlp,
-  } = useDepositWizard();
+  } = useDepositWizard({ hyperliquidAgent: agent });
   const [flowError, setFlowError] = useState<string | null>(null);
   const resumedKeyRef = useRef<string | null>(null);
   const autoDepositAttemptedRef = useRef(false);
 
-  const exactPlan = asDepositPlan(reviewedQueue[0]?.plan);
-  const hlpStep = exactPlan ? hlpStepFromPlan(exactPlan) : null;
   const sourceTxHash =
     reviewedProgress?.transactionHash ??
     reviewedSubmission?.transactionHash ??
@@ -83,8 +87,10 @@ export function HlpProgressScreen() {
       hlpStatus: wizard.hlp.status,
       bridgeConfirmed,
       flowError,
+      agentReady: agent.isReady,
     }),
     [
+      agent.isReady,
       baselineUsd6,
       bridgeConfirmed,
       exactPlan,
@@ -106,7 +112,10 @@ export function HlpProgressScreen() {
     reviewedSubmission?.callsId ?? null,
   );
   const visibleError =
-    unsafeResumeReason(model) ?? flowError ?? wizard.error?.message;
+    unsafeResumeReason(model) ??
+    flowError ??
+    wizard.error?.message ??
+    agent.error;
   const retryMode = hlpRetryMode(model);
   const awaitingSourceHash =
     model.reviewedPhase === 'confirming' && sourceTxHash === null;
@@ -133,9 +142,6 @@ export function HlpProgressScreen() {
 
   useEffect(() => {
     if (currentResumeKey === null) {
-      // The submission this run belonged to is gone (a wallet change clears
-      // it), so drop the run instead of letting it publish state for a plan
-      // the screen no longer holds.
       if (resumedKeyRef.current !== null) {
         resumedKeyRef.current = null;
         autoDepositAttemptedRef.current = false;
@@ -152,8 +158,6 @@ export function HlpProgressScreen() {
     if (!shouldAutoRunHlpDeposit(model, autoDepositAttemptedRef.current)) {
       return;
     }
-    // This keeps the product interaction to one app CTA. Hyperliquid still
-    // opens its own wallet typed-data confirmation; there is no auto-signing.
     autoDepositAttemptedRef.current = true;
     runGuarded(runHlpDeposit);
   }, [model, runGuarded, runHlpDeposit]);
@@ -165,19 +169,20 @@ export function HlpProgressScreen() {
   };
 
   const retryHlpSignature = () => {
-    // Only an `arrived` deposit is repeatable: the wizard rewinds there when
-    // the submission provably never reached the exchange.
-    if (wizard.hlp.status !== 'arrived') return;
+    if (wizard.hlp.status !== 'arrived' || !agent.isReady) return;
     retry();
     runGuarded(runHlpDeposit);
   };
 
   const retryTracking = () => {
-    // Claim the key this attempt tracks; clearing it would let the next
-    // dependency change start a third concurrent run.
     resumedKeyRef.current = currentResumeKey;
     autoDepositAttemptedRef.current = false;
     runGuarded(trackExistingDeposit);
+  };
+
+  const enableAgent = () => {
+    autoDepositAttemptedRef.current = false;
+    runGuarded(() => agent.approve());
   };
 
   const openHyperliquidAccount = () => {
@@ -223,8 +228,7 @@ export function HlpProgressScreen() {
         </Text>
         <Text className="mt-2 text-[12px] leading-[18px] text-ink-dim">
           Keep this flow open while Zap Pilot tracks the reviewed Base bridge.
-          When the USDC arrives, your wallet will ask for the separate HLP
-          typed-data signature.
+          Once USDC arrives, the approved Zap Pilot agent signs the HLP deposit.
         </Text>
 
         <View className="mt-5 rounded-[18px] border border-line bg-[rgba(255,255,255,.02)] px-4 pt-4">
@@ -247,7 +251,7 @@ export function HlpProgressScreen() {
             detail={
               wizard.hlp.arrivedUsd6 !== null
                 ? `${formatUnits(wizard.hlp.arrivedUsd6, 6)} USDC received for this deposit.`
-                : 'Waiting for the balance delta above the pre-bridge snapshot.'
+                : 'Waiting for the spendable-balance delta above the pre-bridge snapshot.'
             }
             tone={rows.arrival}
           />
@@ -256,7 +260,7 @@ export function HlpProgressScreen() {
             detail={
               wizard.hlp.status === 'confirming'
                 ? 'Hyperliquid vaultTransfer submitted; verifying vault equity.'
-                : 'A separate wallet signature is required only after the bridge arrives.'
+                : 'Signed by your approved Zap Pilot agent once the bridge arrives.'
             }
             tone={rows.vault}
             isLast
@@ -276,8 +280,8 @@ export function HlpProgressScreen() {
               title="HLP deposit needs attention"
               body={visibleError}
               action={
-                retryMode === 'hlp-signature'
-                  ? { label: 'Retry HLP signature', onPress: retryHlpSignature }
+                retryMode === 'hlp-signature' && agent.isReady
+                  ? { label: 'Retry HLP deposit', onPress: retryHlpSignature }
                   : retryMode === 'tracking'
                     ? { label: 'Retry tracking', onPress: retryTracking }
                     : {
@@ -289,9 +293,23 @@ export function HlpProgressScreen() {
           </View>
         ) : null}
 
-        {wizard.hlp.status === 'arrived' && !wizard.error ? (
+        {shouldOfferAgentEnable(model) ? (
+          <PrimaryButton
+            className="mt-5"
+            disabled={
+              agent.status === 'checking' || agent.status === 'approving'
+            }
+            onPress={enableAgent}
+          >
+            {agent.status === 'approving'
+              ? 'Confirm in your wallet…'
+              : 'Enable Hyperliquid signing and deposit'}
+          </PrimaryButton>
+        ) : null}
+
+        {wizard.hlp.status === 'arrived' && agent.isReady && !wizard.error ? (
           <Text className="mt-4 text-center text-[11px] leading-4 text-ink-dim">
-            Funds arrived. Opening the HLP wallet confirmation…
+            Funds arrived. Depositing into HLP…
           </Text>
         ) : null}
 
