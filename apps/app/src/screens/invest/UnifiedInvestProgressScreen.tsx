@@ -1,6 +1,7 @@
 import { useDepositWizard } from '@zapengine/app-core/hooks/useDepositWizard';
 import { hlpStepFromPlan } from '@zapengine/app-core/lib/wallet/depositWizardMachine';
 import {
+  getDepositReview,
   getHyperCoreSpendableUsdc,
   waitForBridgeCompletion,
 } from '@zapengine/app-core/services';
@@ -11,7 +12,7 @@ import {
   type ReviewedDepositPlan,
 } from '@zapengine/types/api';
 import { Redirect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Text, View } from 'react-native';
 import { formatUnits, type Address, type Hash } from 'viem';
 
@@ -27,7 +28,11 @@ import { useAccount } from '@/integration/useAccount';
 import { useInvest } from '@/integration/useInvest';
 import { useInvestExecution } from '@/integration/useInvestExecution';
 import { resolveRouteProtocols } from '@/integration/simulationPreviewModel';
-import { useUnifiedInvestReview } from '@/integration/useUnifiedInvestReview';
+import { buildHlpBridge2Request } from '@/integration/unifiedInvestModel';
+import {
+  singleUnifiedReview,
+  useUnifiedInvestReview,
+} from '@/integration/useUnifiedInvestReview';
 import { formatUsd } from '@/lib/format';
 
 function reviewBlocked(review: DepositReviewGroup): boolean {
@@ -93,6 +98,7 @@ export function UnifiedInvestProgressScreen() {
     reviewedProgress,
     reviewedQueue,
     updateReviewedQueueEntry,
+    appendReviewedQueueEntry,
     submitNextReviewedBatch,
     reset: resetReviewedExecution,
   } = execution;
@@ -119,19 +125,26 @@ export function UnifiedInvestProgressScreen() {
     'idle' | 'waiting' | 'ready' | 'failed'
   >('idle');
   const [ingressError, setIngressError] = useState<string | null>(null);
+  const [ingressRetryNonce, setIngressRetryNonce] = useState(0);
   const hlpResumeKey = useRef<string | null>(null);
   const hlpAutoRun = useRef(false);
+  const deferredBridge2Key = useRef<string | null>(null);
 
   const ingress = ingressToArbitrum(currentEntry?.plan);
   const sourceTxHash = reviewedProgress?.transactionHash as Hash | undefined;
 
   useEffect(() => {
-    if (reviewedProgress?.phase !== 'checkpoint' || !ingress) {
+    const phase = reviewedProgress?.phase;
+    const shouldTrackIngress =
+      Boolean(ingress) &&
+      !nextEntry &&
+      (phase === 'complete' || phase === 'checkpoint');
+    if (!shouldTrackIngress) {
       setIngressStatus('ready');
       setIngressError(null);
       return;
     }
-    if (!sourceTxHash) {
+    if (!sourceTxHash || !ingress) {
       setIngressStatus('waiting');
       return;
     }
@@ -156,9 +169,61 @@ export function UnifiedInvestProgressScreen() {
     return () => controller.abort();
   }, [
     ingress?.plan.sourceChainId,
+    ingressRetryNonce,
+    nextEntry,
     reviewedProgress?.callsId,
     reviewedProgress?.phase,
     sourceTxHash,
+  ]);
+
+  useEffect(() => {
+    if (
+      reviewedProgress?.phase !== 'complete' ||
+      !ingress ||
+      ingressStatus !== 'ready' ||
+      nextEntry ||
+      !account.address
+    ) {
+      return;
+    }
+
+    const key = `${reviewedProgress.callsId}:${ingress.leg.toAmountMin}`;
+    if (deferredBridge2Key.current === key) return;
+    deferredBridge2Key.current = key;
+    setCheckpointPending(true);
+    setCheckpointError(null);
+
+    void getDepositReview(
+      buildHlpBridge2Request({
+        userAddress: account.address as `0x${string}`,
+        amountUsd6: ingress.leg.toAmountMin,
+      }),
+    )
+      .then((response) => {
+        const bridge2Review = singleUnifiedReview(response);
+        if (!response.plan || !bridge2Review) {
+          throw new Error(
+            'Bridge2 review did not return one executable Arbitrum batch.',
+          );
+        }
+        appendReviewedQueueEntry({
+          plan: response.plan,
+          review: bridge2Review,
+        });
+      })
+      .catch((error: unknown) => {
+        deferredBridge2Key.current = null;
+        setCheckpointError(error instanceof Error ? error.message : String(error));
+      })
+      .finally(() => setCheckpointPending(false));
+  }, [
+    account.address,
+    appendReviewedQueueEntry,
+    ingress,
+    ingressStatus,
+    nextEntry,
+    reviewedProgress?.callsId,
+    reviewedProgress?.phase,
   ]);
 
   const finalBatchComplete =
@@ -190,7 +255,11 @@ export function UnifiedInvestProgressScreen() {
   ]);
 
   useEffect(() => {
-    if (hlpWizard.hlp.status !== 'arrived' || !agent.isReady || hlpAutoRun.current) {
+    if (
+      hlpWizard.hlp.status !== 'arrived' ||
+      !agent.isReady ||
+      hlpAutoRun.current
+    ) {
       return;
     }
     hlpAutoRun.current = true;
@@ -200,11 +269,31 @@ export function UnifiedInvestProgressScreen() {
   }, [agent.isReady, hlpWizard.hlp.status, runHlpDeposit]);
 
   const refreshNext = useCallback(async () => {
+    if (!nextEntry) {
+      throw new Error('The next reviewed batch is unavailable.');
+    }
+
+    const nextHlpPlan = asHlpPlan(nextEntry.plan);
+    const nextHlpStep = nextHlpPlan ? hlpStepFromPlan(nextHlpPlan) : null;
+    if (nextHlpStep?.expectedUsd && account.address) {
+      const response = await getDepositReview(
+        buildHlpBridge2Request({
+          userAddress: account.address as `0x${string}`,
+          amountUsd6: nextHlpStep.expectedUsd,
+        }),
+      );
+      const freshReview = singleUnifiedReview(response);
+      if (!response.plan || !freshReview) {
+        throw new Error('The Bridge2 review is unavailable.');
+      }
+      return { plan: response.plan, review: freshReview };
+    }
+
     const freshStages = await review.refresh();
     const fresh = freshStages[nextIndex];
     if (!fresh) throw new Error('The next reviewed batch is unavailable.');
     return fresh;
-  }, [nextIndex, review]);
+  }, [account.address, nextEntry, nextIndex, review]);
 
   const confirmNext = async () => {
     if (!nextEntry || checkpointPending || ingressStatus !== 'ready') return;
@@ -229,7 +318,9 @@ export function UnifiedInvestProgressScreen() {
           plan: fresh.plan,
           review: fresh.review,
         });
-        setCheckpointError('The next batch is blocked or expired. Refresh and retry.');
+        setCheckpointError(
+          'The next batch is blocked or expired. Refresh and retry.',
+        );
         return;
       }
 
@@ -270,7 +361,10 @@ export function UnifiedInvestProgressScreen() {
     return <Redirect href="/invest/amount" />;
   }
 
-  const routeComplete = finalBatchComplete && !finalHlpPlan;
+  const awaitingDeferredBridge2 =
+    finalBatchComplete && ingress !== null && finalHlpPlan === null;
+  const routeComplete =
+    finalBatchComplete && !finalHlpPlan && !awaitingDeferredBridge2;
   const hlpDone = hlpWizard.stage === 'done';
   const hlpNeedsAgent =
     finalBatchComplete &&
@@ -310,7 +404,7 @@ export function UnifiedInvestProgressScreen() {
         </Text>
         <Text className="mt-2 text-[12px] leading-[18px] text-ink-dim">
           Confirmed batches stay locked. Cross-chain HLP funding waits for
-          Arbitrum arrival before Bridge2 can be submitted.
+          Arbitrum arrival before Bridge2 is reviewed and submitted.
         </Text>
 
         <View className="mt-5 rounded-[18px] border border-line bg-[rgba(255,255,255,.02)] px-4 pt-4">
@@ -324,9 +418,25 @@ export function UnifiedInvestProgressScreen() {
                 currentIndex,
                 phase: reviewedProgress.phase,
               })}
-              isLast={index === reviewedQueue.length - 1 && !finalHlpPlan}
+              isLast={
+                index === reviewedQueue.length - 1 &&
+                !finalHlpPlan &&
+                !awaitingDeferredBridge2
+              }
             />
           ))}
+          {awaitingDeferredBridge2 ? (
+            <ProgressTimelineRow
+              label="Prepare Arbitrum → Hyperliquid"
+              detail={
+                ingressStatus === 'ready'
+                  ? 'Arbitrum USDC arrived. Creating a fresh Bridge2 review.'
+                  : 'Waiting for the source bridge to settle on Arbitrum.'
+              }
+              tone={ingressStatus === 'failed' ? 'failed' : 'active'}
+              isLast
+            />
+          ) : null}
           {finalHlpPlan ? (
             <>
               <ProgressTimelineRow
@@ -349,7 +459,8 @@ export function UnifiedInvestProgressScreen() {
                 label="Deposit into official HLP vault"
                 detail="Signed by the approved Hyperliquid agent; no EVM wallet signature."
                 tone={
-                  hlpWizard.hlp.status === 'deposited' || hlpWizard.stage === 'done'
+                  hlpWizard.hlp.status === 'deposited' ||
+                  hlpWizard.stage === 'done'
                     ? 'done'
                     : hlpWizard.hlp.status === 'arrived' ||
                         hlpWizard.hlp.status === 'confirming'
@@ -362,6 +473,28 @@ export function UnifiedInvestProgressScreen() {
           ) : null}
         </View>
 
+        {awaitingDeferredBridge2 && (ingressError || checkpointError) ? (
+          <View className="mt-5">
+            <InlineErrorCard
+              title="HLP route preparation needs attention"
+              body={
+                ingressError ??
+                checkpointError ??
+                'The Bridge2 review could not be prepared.'
+              }
+              action={{
+                label: 'Retry route preparation',
+                onPress: () => {
+                  deferredBridge2Key.current = null;
+                  setCheckpointError(null);
+                  setIngressError(null);
+                  setIngressRetryNonce((current) => current + 1);
+                },
+              }}
+            />
+          </View>
+        ) : null}
+
         {reviewedProgress.phase === 'checkpoint' && nextEntry ? (
           <View className="mt-5 rounded-[18px] border border-line bg-[#111113] p-4">
             <Text className="font-sans-semibold text-[13px] text-ink">
@@ -369,11 +502,7 @@ export function UnifiedInvestProgressScreen() {
             </Text>
             {ingress ? (
               <Text className="mt-1 text-[10.5px] leading-4 text-ink-dim">
-                {ingressStatus === 'ready'
-                  ? 'Arbitrum USDC arrived. Bridge2 can now use the received funds.'
-                  : ingressStatus === 'failed'
-                    ? 'Arbitrum arrival tracking failed.'
-                    : 'Waiting for the source bridge to settle on Arbitrum before Bridge2.'}
+                Arbitrum USDC arrived. Bridge2 can now use the received funds.
               </Text>
             ) : null}
             <View className="mt-4">
@@ -385,9 +514,12 @@ export function UnifiedInvestProgressScreen() {
                 )}
               />
             </View>
-            {ingressError || checkpointError ? (
-              <Text accessibilityRole="alert" className="mt-3 text-[10.5px] leading-4 text-error">
-                {ingressError ?? checkpointError}
+            {checkpointError ? (
+              <Text
+                accessibilityRole="alert"
+                className="mt-3 text-[10.5px] leading-4 text-error"
+              >
+                {checkpointError}
               </Text>
             ) : null}
             <PrimaryButton
@@ -399,11 +531,7 @@ export function UnifiedInvestProgressScreen() {
               }
               onPress={() => void confirmNext()}
             >
-              {checkpointPending
-                ? 'Refreshing & confirming…'
-                : ingressStatus === 'waiting'
-                  ? 'Waiting for Arbitrum arrival…'
-                  : 'Confirm next batch'}
+              {checkpointPending ? 'Refreshing & confirming…' : 'Confirm next batch'}
             </PrimaryButton>
           </View>
         ) : null}
@@ -446,7 +574,9 @@ export function UnifiedInvestProgressScreen() {
         {hlpNeedsAgent ? (
           <PrimaryButton
             className="mt-5"
-            disabled={agent.status === 'checking' || agent.status === 'approving'}
+            disabled={
+              agent.status === 'checking' || agent.status === 'approving'
+            }
             onPress={() => void agent.approve()}
           >
             {agent.status === 'approving'
