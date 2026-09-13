@@ -45,6 +45,27 @@ describe('sendPreparedTransaction', () => {
     });
   });
 
+  it('preserves an explicit zero gas limit instead of treating it as absent', async () => {
+    const sendTransaction = vi.fn().mockResolvedValue('0xzero');
+    const transaction = {
+      to: '0x2222222222222222222222222222222222222222',
+      data: '0x',
+      value: '0',
+      chainId: 42161,
+      gasLimit: '0',
+    } as Parameters<typeof sendPreparedTransaction>[1];
+
+    await sendPreparedTransaction({ sendTransaction }, transaction);
+
+    expect(sendTransaction).toHaveBeenCalledWith({
+      to: '0x2222222222222222222222222222222222222222',
+      data: '0x',
+      value: 0n,
+      chainId: 42161,
+      gas: 0n,
+    });
+  });
+
   it('propagates wallet transaction failures unchanged', async () => {
     const failure = new Error('wallet rejected transaction');
     const sendTransaction = vi.fn().mockRejectedValue(failure);
