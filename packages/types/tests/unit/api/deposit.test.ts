@@ -496,16 +496,88 @@ describe('PlanOrchestrationDepositRequestSchema (discriminated union)', () => {
     }
   });
 
-  it('rejects a multi-chain split from a non-Base source (re-quotes are single-chain)', () => {
+  it('rejects an Arbitrum source bridging to another EVM chain', () => {
     const result = PlanOrchestrationDepositRequestSchema.safeParse({
       kind: 'invest',
       userAddress: USER,
       fromToken: DEPOSIT_USDC_ADDRESSES[SUPPORTED_DEPOSIT_CHAINS.ARBITRUM],
       fromAmount: '1000000',
       sourceChainId: SUPPORTED_DEPOSIT_CHAINS.ARBITRUM,
-      split: { '42161': 0.5, '1337': 0.5 },
+      split: { '42161': 0.5, '8453': 0.5 },
     });
     expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(
+        result.error.issues.some((issue) =>
+          issue.message.includes('may only target themselves or HyperCore'),
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it('rejects an Ethereum source bridging to Arbitrum', () => {
+    expect(
+      PlanOrchestrationDepositRequestSchema.safeParse({
+        kind: 'invest',
+        userAddress: USER,
+        fromToken: DEPOSIT_USDC_ADDRESSES[SUPPORTED_DEPOSIT_CHAINS.ETHEREUM],
+        fromAmount: '1000000',
+        sourceChainId: SUPPORTED_DEPOSIT_CHAINS.ETHEREUM,
+        split: { '42161': 1 },
+      }).success,
+    ).toBe(false);
+  });
+
+  it('accepts Arbitrum USDC funding HyperCore', () => {
+    expect(
+      PlanOrchestrationDepositRequestSchema.safeParse({
+        kind: 'invest',
+        userAddress: USER,
+        fromToken: DEPOSIT_USDC_ADDRESSES[SUPPORTED_DEPOSIT_CHAINS.ARBITRUM],
+        fromAmount: '25000000',
+        sourceChainId: SUPPORTED_DEPOSIT_CHAINS.ARBITRUM,
+        split: { '1337': 1 },
+      }).success,
+    ).toBe(true);
+  });
+
+  it('accepts Ethereum USDC funding HyperCore', () => {
+    expect(
+      PlanOrchestrationDepositRequestSchema.safeParse({
+        kind: 'invest',
+        userAddress: USER,
+        fromToken: DEPOSIT_USDC_ADDRESSES[SUPPORTED_DEPOSIT_CHAINS.ETHEREUM],
+        fromAmount: '25000000',
+        sourceChainId: SUPPORTED_DEPOSIT_CHAINS.ETHEREUM,
+        split: { '1337': 1 },
+      }).success,
+    ).toBe(true);
+  });
+
+  it('accepts native Arbitrum ETH funding HyperCore', () => {
+    expect(
+      PlanOrchestrationDepositRequestSchema.safeParse({
+        kind: 'invest',
+        userAddress: USER,
+        fromToken: NATIVE_TOKEN_ADDRESS,
+        fromAmount: '10000000000000000',
+        sourceChainId: SUPPORTED_DEPOSIT_CHAINS.ARBITRUM,
+        split: { '1337': 1 },
+      }).success,
+    ).toBe(true);
+  });
+
+  it('accepts an Arbitrum split across itself and HyperCore', () => {
+    expect(
+      PlanOrchestrationDepositRequestSchema.safeParse({
+        kind: 'invest',
+        userAddress: USER,
+        fromToken: DEPOSIT_USDC_ADDRESSES[SUPPORTED_DEPOSIT_CHAINS.ARBITRUM],
+        fromAmount: '50000000',
+        sourceChainId: SUPPORTED_DEPOSIT_CHAINS.ARBITRUM,
+        split: { '42161': 0.5, '1337': 0.5 },
+      }).success,
+    ).toBe(true);
   });
 });
 
