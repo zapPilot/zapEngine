@@ -114,6 +114,15 @@ describe('PrivyAtomicBatchPayloadSchema', () => {
     ).toBe(true);
   });
 
+  it('accepts ethereum chain', () => {
+    expect(
+      PrivyAtomicBatchPayloadSchema.safeParse({
+        ...validBatchPayload,
+        chainId: 1,
+      }).success,
+    ).toBe(true);
+  });
+
   it('accepts base chain', () => {
     expect(
       PrivyAtomicBatchPayloadSchema.safeParse({
@@ -145,7 +154,7 @@ describe('PrivyAtomicBatchPayloadSchema', () => {
     expect(
       PrivyAtomicBatchPayloadSchema.safeParse({
         ...validBatchPayload,
-        chainId: 1,
+        chainId: 10,
       }).success,
     ).toBe(false);
   });
@@ -311,6 +320,17 @@ describe('PrivyPrepareSendCallsResponseSchema', () => {
       ).toBe(true);
     },
   );
+
+  it('accepts ethereum simulation evidence', () => {
+    expect(
+      PrivyPrepareSendCallsResponseSchema.safeParse({
+        status: 'passed',
+        ...reviewEvidence,
+        chainId: 1,
+        ...signingFields,
+      }).success,
+    ).toBe(true);
+  });
 
   it.each([
     { status: 'failed', failureReason: 'execution reverted' },

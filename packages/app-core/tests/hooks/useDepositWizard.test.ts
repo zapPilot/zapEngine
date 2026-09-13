@@ -3,7 +3,11 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { useDepositWizard } from '@core/hooks/useDepositWizard';
 import { PollTimeoutError } from '@core/lib/polling';
 import { initialDepositWizardState } from '@core/lib/wallet/depositWizardMachine';
-import type { DepositPlan, HlpSpotDepositPlan } from '@zapengine/types/api';
+import {
+  type DepositPlan,
+  type HlpSpotDepositPlan,
+  HYPERLIQUID_BRIDGE2_BRIDGE_ID,
+} from '@zapengine/types/api';
 import type { Address, Hash } from 'viem';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -126,6 +130,48 @@ const bridgePlan: DepositPlan = {
   sourceChainId: 8453,
 };
 
+/** Arbitrum USDC funding HyperCore through the Bridge2 escrow — no LI.FI route. */
+const bridge2Plan: DepositPlan = {
+  legs: [
+    {
+      chainId: 1337,
+      kind: 'bridge',
+      protocol: 'hyperliquid',
+      toToken: HYPERCORE_USDC,
+      fromAmount: '20000000',
+      toAmountMin: '20000000',
+      bridge: HYPERLIQUID_BRIDGE2_BRIDGE_ID,
+      gasUsd: '0',
+      durationSec: 60,
+    },
+  ],
+  approvals: [],
+  calls: [
+    {
+      to: HYPERCORE_USDC,
+      data: '0x33',
+      value: '0',
+      chainId: 42161,
+      meta: { intentType: 'BRIDGE' },
+    },
+  ],
+  followUps: [
+    {
+      kind: 'hyperliquid-vault-deposit',
+      chainId: 1337,
+      afterLegIndex: 0,
+      amount: { source: 'bridge-output', legIndex: 0 },
+      expectedUsd: '20000000',
+      minDepositUsd: '10000000',
+      action: { type: 'vaultTransfer', vaultAddress: HLP, isDeposit: true },
+      signing,
+      lockupDays: 4,
+    },
+  ],
+  totalGasUsd: '0',
+  sourceChainId: 42161,
+};
+
 const spotPlan: HlpSpotDepositPlan = {
   kind: 'hlp-spot-deposit',
   execution: 'hypercore-signatures',
@@ -194,7 +240,7 @@ describe('useDepositWizard', () => {
     });
   });
 
-  it('tracks the existing reviewed bridge without resubmitting it', async () => {
+  it('polls LI.FI for a routed HyperCore leg without resubmitting it', async () => {
     const { result } = await resumeUntilArrived();
 
     expect(mocks.waitForBridgeCompletion).toHaveBeenCalledWith(
@@ -219,6 +265,31 @@ describe('useDepositWizard', () => {
     expect(result.current.wizard.hlp.arrivedUsd6).toBe(29_500_000n);
     expect(result.current.wizard.legs[1]?.sourceTxHash).toBe(SOURCE_TX);
     expect(result.current.wizard.legs[1]?.destinationTxHash).toBe('0xdest');
+  });
+
+  it('confirms a Bridge2 leg without polling LI.FI and waits for HyperCore arrival', async () => {
+    mocks.waitForHyperCoreUsdcArrival.mockResolvedValue(20_100_000n);
+    const { result } = renderWizard();
+    await act(async () => {
+      await result.current.resumeReviewedPlan({
+        plan: bridge2Plan,
+        baselineUsd6: 1_000_000n,
+        sourceTxHash: SOURCE_TX,
+      });
+    });
+    await waitFor(() => {
+      expect(result.current.wizard.hlp.status).toBe('arrived');
+    });
+
+    expect(mocks.waitForBridgeCompletion).not.toHaveBeenCalled();
+    expect(result.current.wizard.legs[0]?.status).toBe('destinationConfirmed');
+    expect(mocks.waitForHyperCoreUsdcArrival).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user: USER,
+        baselineUsd6: 1_000_000n,
+        expectedUsd6: 20_000_000n,
+      }),
+    );
   });
 
   it('stops the resume chain when the bridge leg fails', async () => {

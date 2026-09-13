@@ -82,6 +82,14 @@ export const PreparedTransactionSchema = z.object({
     .passthrough(),
 });
 
+/**
+ * `DepositLeg.bridge` value for Hyperliquid's own Bridge2 escrow — the one
+ * ingress that is a plain Arbitrum USDC transfer rather than a LI.FI route.
+ * Clients key off it to skip LI.FI route polling (there is no route to poll)
+ * and prove arrival from the HyperCore balance delta instead.
+ */
+export const HYPERLIQUID_BRIDGE2_BRIDGE_ID = 'hyperliquid-bridge2' as const;
+
 export const DepositLegSchema = z.object({
   chainId: z.number().int().positive(),
   kind: z.enum(['supply', 'bridge']),
@@ -490,9 +498,10 @@ interface InvestDepositFields extends BaseDepositFields {
   readonly split?: Record<string, number> | undefined;
 }
 
-// Chain-aware validation for the invest branch. Non-Base source chains exist
-// only for the destination re-quote flow (bridge landed → re-quote with the
-// actually-received amount), so their split must target the source chain alone.
+// Chain-aware validation for the invest branch. Base is the one source chain
+// that fans out across EVM destinations; every other source chain may only
+// supply its own chain (destination re-quote after a bridge landed) or bridge
+// into HyperCore, which every supported wallet chain can fund directly.
 function addInvestDepositValidationIssues(
   value: InvestDepositFields,
   ctx: z.RefinementCtx,
@@ -535,12 +544,15 @@ function addInvestDepositValidationIssues(
 
   if (
     value.sourceChainId !== BASE_CHAIN_ID &&
-    splitChainIds.some((chainId) => chainId !== value.sourceChainId)
+    splitChainIds.some(
+      (chainId) =>
+        chainId !== value.sourceChainId && chainId !== HYPERCORE_CHAIN_ID,
+    )
   ) {
     ctx.addIssue({
       code: 'custom',
       message:
-        'Non-Base source chains support a single-chain split only (destination re-quote)',
+        'Non-Base source chains may only target themselves or HyperCore (1337)',
       path: ['split'],
     });
   }

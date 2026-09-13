@@ -13,6 +13,7 @@ import {
 
 const USER = '0x1111111111111111111111111111111111111111';
 const ARBITRUM_USDC = '0xaf88d065e77c8cc2239327c5edb3a432268e5831';
+const ETHEREUM_USDC = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48';
 
 const plan: DepositPlan = {
   legs: [],
@@ -200,6 +201,79 @@ describe('POST /plan-orchestration/deposit', () => {
     );
   });
 
+  it('accepts an Arbitrum USDC request that funds HyperCore', async () => {
+    const { app, service } = createApp();
+
+    const response = await app.request(
+      'http://localhost/plan-orchestration/deposit',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          kind: 'invest',
+          userAddress: USER,
+          fromToken: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
+          fromAmount: '25000000',
+          sourceChainId: 42161,
+          split: { '1337': 1 },
+        }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(service.buildDeposit).toHaveBeenCalledWith(
+      expect.objectContaining({ sourceChainId: 42161, split: { '1337': 1 } }),
+    );
+  });
+
+  it('accepts an Ethereum USDC request that funds HyperCore', async () => {
+    const { app, service } = createApp();
+
+    const response = await app.request(
+      'http://localhost/plan-orchestration/deposit',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          kind: 'invest',
+          userAddress: USER,
+          fromToken: ETHEREUM_USDC,
+          fromAmount: '25000000',
+          sourceChainId: 1,
+          split: { '1337': 1 },
+        }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(service.buildDeposit).toHaveBeenCalledWith(
+      expect.objectContaining({ sourceChainId: 1, split: { '1337': 1 } }),
+    );
+  });
+
+  it('rejects an Arbitrum source that bridges to Base', async () => {
+    const { app, service } = createApp();
+
+    const response = await app.request(
+      'http://localhost/plan-orchestration/deposit',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          kind: 'invest',
+          userAddress: USER,
+          fromToken: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
+          fromAmount: '25000000',
+          sourceChainId: 42161,
+          split: { '42161': 0.5, '8453': 0.5 },
+        }),
+      },
+    );
+
+    expect(response.status).toBe(400);
+    expect(service.buildDeposit).not.toHaveBeenCalled();
+  });
+
   it('rejects invalid request bodies before service execution', async () => {
     const { app, service } = createApp();
 
@@ -263,6 +337,42 @@ describe('POST /plan-orchestration/deposit/review', () => {
       fromAmount: '1000',
       sourceChainId: 8453,
     });
+  });
+
+  it('reviews an Ethereum USDC request that funds HyperCore', async () => {
+    const service: PlanOrchestrationService = {
+      buildDeposit: vi.fn().mockResolvedValue(plan),
+      buildDepositReview: vi.fn().mockResolvedValue({
+        plan,
+        planFingerprint: `0x${'2'.repeat(64)}`,
+        reviewedAt: 1_000,
+        expiresAt: 301_000,
+        reviews: {},
+      }),
+      buildWithdraw: vi.fn().mockResolvedValue(withdrawPlan),
+    };
+    const { app } = createApp(service);
+
+    const response = await app.request(
+      'http://localhost/plan-orchestration/deposit/review',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          kind: 'invest',
+          userAddress: USER,
+          fromToken: ETHEREUM_USDC,
+          fromAmount: '25000000',
+          sourceChainId: 1,
+          split: { '1337': 1 },
+        }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(service.buildDepositReview).toHaveBeenCalledWith(
+      expect.objectContaining({ sourceChainId: 1, split: { '1337': 1 } }),
+    );
   });
 });
 

@@ -31,6 +31,8 @@ import {
   PlanOrchestrationDepositReviewResponseSchema,
   type PlanOrchestrationWithdrawRequest,
   type PreparedTransaction,
+  type PrivyBatchChainId,
+  PrivyBatchChainIdSchema,
   STRATEGY_DEPOSIT_ID,
   type StrategyDepositPlan,
   StrategyDepositPlanSchema,
@@ -997,7 +999,10 @@ function unavailableExecutionReview(params: {
   return {
     status: 'unavailable',
     unavailableReason: params.reason,
-    chainId: params.group.chainId as 8453 | 42161,
+    // An unavailable review deliberately echoes the group's own chain so the
+    // client can name it, even when that chain is outside the batch rail and
+    // therefore not a `PrivyBatchChainId`.
+    chainId: params.group.chainId as PrivyBatchChainId,
     walletAddress: params.userAddress.toLowerCase(),
     calls,
     assetChanges: [],
@@ -1039,16 +1044,18 @@ async function buildDepositReviewResponse(params: {
     await Promise.all(
       reviewExecutionGroups(plan).map(async (group) => {
         let review: TenderlySimulationReview;
+        const batchChain = PrivyBatchChainIdSchema.safeParse(group.chainId);
         if (!params.reviewService) {
           review = unavailableExecutionReview({
             group,
             userAddress: params.request.userAddress,
             reason: 'Tenderly simulation is not configured',
           });
-        } else if (group.chainId !== 8453 && group.chainId !== 42161) {
-          // The current rich Tenderly endpoint is intentionally limited to the
-          // wallet execution chains. Keep unsupported plans renderable and
-          // blocked rather than returning an unsimulated executable review.
+        } else if (!batchChain.success) {
+          // The rich Tenderly endpoint is limited to the chains the reviewed
+          // batch rail can execute on. Anything else is reported unavailable
+          // with its own chain id so the client can render and name it; the
+          // wallet layer is what refuses to batch on an unsupported chain.
           review = unavailableExecutionReview({
             group,
             userAddress: params.request.userAddress,
@@ -1057,7 +1064,7 @@ async function buildDepositReviewResponse(params: {
         } else {
           try {
             review = await params.reviewService.simulateBundle({
-              chainId: group.chainId,
+              chainId: batchChain.data,
               walletAddress: params.request.userAddress,
               calls: [...group.approvals, ...group.calls],
             });
@@ -1133,9 +1140,10 @@ export function createPlanOrchestrationService({
     simulationForSafety?: PlanSimulationDeps,
   ): Promise<PlanOrchestrationDepositPlan> {
     if (request.kind === 'invest') {
-      // The env-configured default only applies to Base-source plans;
-      // non-Base sources are destination re-quotes and default to
-      // single-chain inside composeDeposit.
+      // The env-configured default only applies to Base-source plans. A
+      // non-Base source either re-quotes on its own chain or bridges into
+      // HyperCore, and in both cases the request names the split explicitly;
+      // composeDeposit defaults it to single-chain.
       const split =
         chainSplitFromRequest(request.split) ??
         (request.sourceChainId === BASE_CHAIN_ID ? defaultSplit : undefined);

@@ -142,10 +142,10 @@ export function useAtomicBatchExecution(
       }
       const connectedAddress = guard.connectedAddress;
 
-      let chain: ReturnType<typeof getPrivyAtomicBatchChain>;
+      let batchChain: ReturnType<typeof getPrivyAtomicBatchChain>;
       try {
-        chain = getPrivyAtomicBatchChain(input.chainId);
-        await ensureChain(chain.id);
+        batchChain = getPrivyAtomicBatchChain(input.chainId);
+        await ensureChain(batchChain.chain.id);
       } catch (error: unknown) {
         return {
           status: 'blocked',
@@ -175,7 +175,7 @@ export function useAtomicBatchExecution(
       const batch: PrivyPrepareSendCallsRequest = {
         walletId,
         walletAddress: connectedAddress,
-        chainId: chain.id as 8453 | 42161,
+        chainId: batchChain.chainId,
         calls: input.transactions.map(toWalletSendCall),
         idempotencyKey: createIdempotencyKey(),
       };
@@ -290,10 +290,10 @@ export function useAtomicBatchExecution(
       }
       assertSameChainTransactions(transactions, chainId);
 
-      const chain = getPrivyAtomicBatchChain(chainId);
-      const caip2 = `eip155:${chain.id}`;
+      const batchChain = getPrivyAtomicBatchChain(chainId);
+      const caip2 = `eip155:${batchChain.chainId}`;
 
-      await ensureChain(chain.id);
+      await ensureChain(batchChain.chain.id);
 
       const calls = transactions.map(toWalletSendCall);
       const walletId = resolveWalletId();
@@ -303,7 +303,7 @@ export function useAtomicBatchExecution(
       const batch: PrivyPrepareSendCallsRequest = {
         walletId,
         walletAddress,
-        chainId: chain.id as 8453 | 42161,
+        chainId: batchChain.chainId,
         calls,
         idempotencyKey: createIdempotencyKey(),
       };

@@ -4,6 +4,7 @@ import {
   encodeWithdraw,
   GMX_V2_ADDRESSES,
   GMX_V2_MARKETS,
+  HYPERLIQUID_BRIDGE2_ADDRESS,
 } from '@zapengine/intent-engine';
 import { describe, expect, it } from 'vitest';
 
@@ -24,6 +25,12 @@ describe('resolveProtocolContractName', () => {
     expect(
       resolveProtocolContractName('0x1231deb6f5749ef6ce6943a275a1d3e7486f4eae'),
     ).toBe('LI.FI Diamond');
+  });
+
+  it('names the Hyperliquid Bridge2 escrow', () => {
+    expect(resolveProtocolContractName(HYPERLIQUID_BRIDGE2_ADDRESS)).toBe(
+      'Hyperliquid Bridge2',
+    );
   });
 
   it('matches regardless of address casing', () => {

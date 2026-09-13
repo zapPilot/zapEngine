@@ -33,6 +33,17 @@ describe('startHlpSubmission', () => {
     expect(setBaselineUsd6).toHaveBeenCalledWith('7250000');
   });
 
+  it('returns the submit result so callers can branch on it', async () => {
+    const result = await startHlpSubmission(TARGET, {
+      readSpendableUsd6: async () => 1_000_000n,
+      setBaselineUsd6: vi.fn(),
+      submitReviewedBatch: async () =>
+        ({ status: 'blocked', reason: 'wallet changed' }) as const,
+    });
+
+    expect(result).toEqual({ status: 'blocked', reason: 'wallet changed' });
+  });
+
   it('does not submit when the spendable snapshot read fails', async () => {
     const setBaselineUsd6 = vi.fn();
     const submitReviewedBatch = vi.fn(async () => undefined);

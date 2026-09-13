@@ -10,41 +10,31 @@ import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { BASE_DEPOSIT_TOKENS } from '@/integration/depositTokens';
+import type { StageDraft } from '@/integration/investTargetsModel';
 import {
   InvestExecutionProvider,
   type InvestExecutionContextValue,
   useInvestExecution,
 } from '@/integration/useInvestExecution';
 
+function stageDraft(fromAmount: string): StageDraft {
+  return {
+    positionId: 'morpho-base',
+    weightBps: 10_000,
+    usd6: fromAmount,
+    sourceToken: BASE_DEPOSIT_TOKENS[0],
+    fromAmount,
+  };
+}
+
 const mocks = vi.hoisted(() => ({
-  buildInvestDepositPlanRequest: vi.fn(),
   executeReviewedBatch: vi.fn(),
   waitForReviewedBatch: vi.fn(),
   trackEvent: vi.fn(),
-  resetStrategy: vi.fn(),
-  resetSingleChain: vi.fn(),
-  startStrategy: vi.fn(),
-  startSingleChain: vi.fn(),
-  advanceStrategy: vi.fn(),
-  advanceSingleChain: vi.fn(),
-  retryStrategy: vi.fn(),
-  retrySingleChain: vi.fn(),
+  invalidateQueries: vi.fn(),
   invest: {
-    scope: 'base',
-    destination: 'morpho',
-    totalUsd6: '1000000',
-    baseFundingToken: {
-      depositAddress: '0x1111111111111111111111111111111111111111',
-    },
-    arbitrumFundingToken: {
-      depositAddress: '0x2222222222222222222222222222222222222222',
-    },
-    singleChainFundingDraft: null as null | {
-      scope: string;
-      chainId: number;
-      fromToken: string;
-      fromAmount: string;
-    },
+    stageDrafts: [] as StageDraft[],
   },
   wallet: {
     account: {
@@ -56,45 +46,10 @@ const mocks = vi.hoisted(() => ({
     executeReviewedBatch: vi.fn(),
     waitForReviewedBatch: vi.fn(),
   },
-  strategyWizard: {
-    steps: [],
-    currentIndex: 0,
-    status: 'idle',
-    error: null,
-  },
-  singleChainWizard: {
-    steps: [],
-    currentIndex: 0,
-    status: 'idle',
-    error: null,
-    recovery: null,
-  },
 }));
 
 vi.mock('@zapengine/app-core/hooks/queries', () => ({
   queryKeys: { desktop: { all: ['desktop'] } },
-}));
-
-vi.mock('@zapengine/app-core/hooks/useStrategyDepositWizard', () => ({
-  useStrategyDepositWizard: () => ({
-    wizard: mocks.strategyWizard,
-    pending: false,
-    start: mocks.startStrategy,
-    advance: mocks.advanceStrategy,
-    retry: mocks.retryStrategy,
-    reset: mocks.resetStrategy,
-  }),
-}));
-
-vi.mock('@zapengine/app-core/hooks/useSingleChainDepositWizard', () => ({
-  useSingleChainDepositWizard: () => ({
-    wizard: mocks.singleChainWizard,
-    pending: false,
-    start: mocks.startSingleChain,
-    advance: mocks.advanceSingleChain,
-    retry: mocks.retrySingleChain,
-    reset: mocks.resetSingleChain,
-  }),
 }));
 
 vi.mock('@zapengine/app-core/providers/walletContext', () => ({
@@ -102,7 +57,6 @@ vi.mock('@zapengine/app-core/providers/walletContext', () => ({
 }));
 
 vi.mock('@/integration/useInvest', () => ({
-  buildInvestDepositPlanRequest: mocks.buildInvestDepositPlanRequest,
   useInvest: () => mocks.invest,
 }));
 
@@ -247,23 +201,17 @@ async function settle(): Promise<void> {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.invest.scope = 'base';
-  mocks.invest.destination = 'morpho';
-  mocks.invest.totalUsd6 = '1000000';
-  mocks.invest.singleChainFundingDraft = null;
+  mocks.invest.stageDrafts = [stageDraft('1000000')];
   mocks.wallet.account = { address: WALLET, isConnected: true };
   mocks.wallet.isConnected = true;
   mocks.wallet.executionMode = 'eip7702';
   mocks.wallet.executeReviewedBatch = mocks.executeReviewedBatch;
   mocks.wallet.waitForReviewedBatch = mocks.waitForReviewedBatch;
-  mocks.strategyWizard.status = 'idle';
-  mocks.singleChainWizard.status = 'idle';
   mocks.executeReviewedBatch.mockResolvedValue({
     status: 'submitted',
     callsId: 'calls-1',
   });
   mocks.waitForReviewedBatch.mockResolvedValue({ status: 'confirmed' });
-  mocks.buildInvestDepositPlanRequest.mockReturnValue(null);
 });
 
 afterEach(async () => {
@@ -447,7 +395,7 @@ describe('InvestExecutionProvider reviewed execution contract', () => {
     });
   });
 
-  it('clears a committed review when the execution draft changes', async () => {
+  it('clears a committed review when the frozen stages change', async () => {
     const harness = await renderHarness();
 
     await act(async () => {
@@ -459,13 +407,41 @@ describe('InvestExecutionProvider reviewed execution contract', () => {
     await settle();
     expect(harness.current().reviewedSubmission).not.toBeNull();
 
-    mocks.invest.totalUsd6 = '2000000';
+    mocks.invest.stageDrafts = [stageDraft('2000000')];
     await harness.rerender();
 
     expect(harness.current().reviewedSubmission).toBeNull();
     expect(harness.current().reviewedProgress).toBeNull();
     expect(harness.current().reviewedQueue).toEqual([]);
-    expect(mocks.resetStrategy).toHaveBeenCalledTimes(1);
-    expect(mocks.resetSingleChain).toHaveBeenCalledTimes(1);
+  });
+
+  it('refreshes portfolio data only once the last queued batch completes', async () => {
+    const firstReview = review();
+    const secondReview = review({ batchFingerprint: HASH_C });
+    mocks.executeReviewedBatch
+      .mockResolvedValueOnce({ status: 'submitted', callsId: 'calls-1' })
+      .mockResolvedValueOnce({ status: 'submitted', callsId: 'calls-2' });
+    const harness = await renderHarness();
+    const invalidateSpy = vi.spyOn(harness.client, 'invalidateQueries');
+
+    await act(async () => {
+      await harness.current().submitReviewedBatch({
+        plan: PLAN,
+        review: firstReview,
+        queue: [
+          { plan: PLAN, review: firstReview },
+          { plan: PLAN, review: secondReview },
+        ],
+      });
+    });
+    await settle();
+    expect(invalidateSpy).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await harness.current().submitNextReviewedBatch();
+    });
+    await settle();
+
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['desktop'] });
   });
 });
