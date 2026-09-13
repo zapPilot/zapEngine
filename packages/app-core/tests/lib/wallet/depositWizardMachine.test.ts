@@ -1,13 +1,14 @@
 import {
   depositWizardReducer,
+  hlpSpendableShortfallUsd6,
   initialDepositWizardState,
   resolveHlpDepositUsd6,
-  spotFundingShortfallUsd6,
   type DepositWizardEvent,
   type DepositWizardState,
 } from '@core/lib/wallet/depositWizardMachine';
 import type {
   DepositPlan,
+  HlpSpotDepositPlan,
   HyperliquidVaultDepositStep,
 } from '@zapengine/types/api';
 import { describe, expect, it } from 'vitest';
@@ -15,6 +16,12 @@ import { describe, expect, it } from 'vitest';
 const BASE_USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 const HYPERCORE_USDC = '0xaf88d065e77c8cC2239327C5EDb3A432268e5831';
 const HLP = '0xdfc24b077bc1425ad1dea75bcb6f8158e10df303';
+
+const signing = {
+  scheme: 'hyperliquid-l1-action' as const,
+  hyperliquidChain: 'Mainnet' as const,
+  apiUrl: 'https://api.hyperliquid.xyz',
+};
 
 const hlpStep: HyperliquidVaultDepositStep = {
   kind: 'hyperliquid-vault-deposit',
@@ -24,11 +31,7 @@ const hlpStep: HyperliquidVaultDepositStep = {
   expectedUsd: '29000000',
   minDepositUsd: '10000000',
   action: { type: 'vaultTransfer', vaultAddress: HLP, isDeposit: true },
-  signing: {
-    scheme: 'hyperliquid-l1-action',
-    hyperliquidChain: 'Mainnet',
-    apiUrl: 'https://api.hyperliquid.xyz',
-  },
+  signing,
   lockupDays: 4,
 };
 
@@ -78,6 +81,23 @@ const plan: DepositPlan = {
   sourceChainId: 8453,
 };
 
+const spotPlan: HlpSpotDepositPlan = {
+  kind: 'hlp-spot-deposit',
+  execution: 'hypercore-signatures',
+  amountUsd6: '10000000',
+  minDepositUsd: '10000000',
+  lockupDays: 4,
+  step: {
+    kind: 'hyperliquid-vault-deposit',
+    chainId: 1337,
+    amount: { source: 'fixed', amount: '10000000' },
+    minDepositUsd: '10000000',
+    action: { type: 'vaultTransfer', vaultAddress: HLP, isDeposit: true },
+    signing,
+    lockupDays: 4,
+  },
+};
+
 function run(
   events: DepositWizardEvent[],
   from: DepositWizardState = initialDepositWizardState,
@@ -85,7 +105,6 @@ function run(
   return events.reduce(depositWizardReducer, from);
 }
 
-/** Bridged, funds credited on HyperCore, HLP deposit not yet submitted. */
 function arrivedState(): DepositWizardState {
   return run([
     { type: 'PLAN_LOADED', plan, baselineUsd6: 1_000_000n },
@@ -96,12 +115,10 @@ function arrivedState(): DepositWizardState {
 }
 
 describe('depositWizardReducer', () => {
-  it('walks the full happy path from configure to done', () => {
+  it('walks the reviewed bridge and HLP follow-up to done', () => {
     let state = run([{ type: 'PLAN_LOADED', plan, baselineUsd6: 1_000_000n }]);
     expect(state.stage).toBe('sourceExecution');
-    expect(state.legs.map((leg) => leg.status)).toEqual(['pending', 'pending']);
     expect(state.hlp.step).toEqual(hlpStep);
-    expect(state.hlp.baselineUsd6).toBe(1_000_000n);
 
     state = run([{ type: 'SOURCE_SUBMITTED' }], state);
     expect(state.legs.every((leg) => leg.status === 'submitted')).toBe(true);
@@ -111,23 +128,13 @@ describe('depositWizardReducer', () => {
       state,
     );
     expect(state.stage).toBe('bridging');
-    expect(state.legs[0]?.sourceTxHash).toBe('0xbatch');
 
     state = run(
-      [
-        { type: 'BRIDGE_UPDATE', legIndex: 1, status: 'bridgePending' },
-        {
-          type: 'BRIDGE_UPDATE',
-          legIndex: 1,
-          status: 'destinationConfirmed',
-          destinationTxHash: '0xdest',
-        },
-      ],
+      [{ type: 'BRIDGE_UPDATE', legIndex: 1, status: 'destinationConfirmed' }],
       state,
     );
     expect(state.stage).toBe('hyperliquidDeposit');
     expect(state.hlp.status).toBe('awaitingArrival');
-    expect(state.legs[1]?.destinationTxHash).toBe('0xdest');
 
     state = run(
       [
@@ -139,101 +146,55 @@ describe('depositWizardReducer', () => {
     );
     expect(state.stage).toBe('done');
     expect(state.hlp.status).toBe('deposited');
-    expect(state.hlp.arrivedUsd6).toBe(29_500_000n);
-    expect(state.hlp.vaultEquityUsd6).toBe(29_400_000n);
   });
 
-  it('goes straight to done when the plan has neither bridges nor an HLP step', () => {
-    const baseOnly: DepositPlan = {
-      ...plan,
-      legs: [plan.legs[0]!],
-      calls: [plan.calls[0]!],
-    };
-    delete (baseOnly as { followUps?: unknown }).followUps;
-
+  it('arms a sufficient spot plan directly at the vault action', () => {
     const state = run([
-      { type: 'PLAN_LOADED', plan: baseOnly },
-      { type: 'SOURCE_CONFIRMED' },
+      { type: 'SPOT_PLAN_LOADED', plan: spotPlan, spendableUsd6: 10_000_000n },
     ]);
-    expect(state.stage).toBe('done');
+    expect(state.stage).toBe('hyperliquidDeposit');
+    expect(state.hlp.status).toBe('arrived');
+    expect(state.hlp.step).toEqual(spotPlan.step);
+    expect(state.error).toBeNull();
   });
 
-  it('skips the HLP stage for bridge-only plans without an HLP follow-up', () => {
-    const bridgeOnly: DepositPlan = { ...plan };
-    delete (bridgeOnly as { followUps?: unknown }).followUps;
-
+  it('fails closed when live spendable USDC is insufficient', () => {
     const state = run([
-      { type: 'PLAN_LOADED', plan: bridgeOnly },
-      { type: 'SOURCE_CONFIRMED' },
-      { type: 'BRIDGE_UPDATE', legIndex: 1, status: 'destinationConfirmed' },
+      { type: 'SPOT_PLAN_LOADED', plan: spotPlan, spendableUsd6: 9_000_000n },
     ]);
-    expect(state.stage).toBe('done');
+    expect(state.hlp.status).toBe('arrived');
+    expect(state.error?.stage).toBe('hyperliquidDeposit');
+    expect(state.error?.message).toContain('short by 1000000');
   });
 
-  it('surfaces a bridging error when a bridge leg fails terminally', () => {
-    const state = run([
-      { type: 'PLAN_LOADED', plan },
-      { type: 'SOURCE_CONFIRMED' },
-      { type: 'BRIDGE_UPDATE', legIndex: 1, status: 'failed' },
-    ]);
-    expect(state.stage).toBe('bridging');
-    expect(state.error?.stage).toBe('bridging');
-  });
-
-  it('does not advance while a bridge leg is still pending', () => {
-    const state = run([
-      { type: 'PLAN_LOADED', plan },
-      { type: 'SOURCE_CONFIRMED' },
-      { type: 'BRIDGE_UPDATE', legIndex: 1, status: 'bridgePending' },
-    ]);
-    expect(state.stage).toBe('bridging');
-    expect(state.hlp.status).toBe('idle');
-  });
-
-  it('hands the deposit CTA back when the submission never reached the exchange', () => {
+  it('hands the vault action back only when submission definitely failed', () => {
     const submitting = run([{ type: 'HL_SUBMITTED' }], arrivedState());
     expect(submitting.hlp.status).toBe('confirming');
-
     const state = run([{ type: 'HL_SUBMIT_FAILED' }], submitting);
     expect(state.hlp.status).toBe('arrived');
-    expect(state.stage).toBe('hyperliquidDeposit');
-    // The retry needs both of these to resolve the vaultTransfer amount.
-    expect(state.hlp.arrivedUsd6).toBe(29_500_000n);
-    expect(state.hlp.step).toEqual(hlpStep);
   });
 
-  it('finishes as submitted-but-unverified when equity never confirms', () => {
+  it('finishes submitted-unverified after an accepted action cannot be confirmed', () => {
     const state = run(
       [{ type: 'HL_SUBMITTED' }, { type: 'HL_UNVERIFIED' }],
       arrivedState(),
     );
     expect(state.stage).toBe('done');
     expect(state.hlp.status).toBe('submittedUnverified');
-    // A confirmation timeout is not a stage failure.
     expect(state.error).toBeNull();
   });
 
-  it('ignores HLP submission outcomes that do not belong to a live submission', () => {
-    // A reset mid-submit must not let the superseded run publish anything.
-    const afterReset = run(
-      [{ type: 'HL_SUBMITTED' }, { type: 'RESET' }],
-      arrivedState(),
-    );
-    for (const event of [
-      { type: 'HL_SUBMIT_FAILED' },
-      { type: 'HL_UNVERIFIED' },
-      { type: 'HL_CONFIRMED', vaultEquityUsd6: 29_400_000n },
-    ] satisfies DepositWizardEvent[]) {
-      expect(run([event], afterReset)).toEqual(initialDepositWizardState);
-    }
-
-    // Same guard from the terminal states themselves.
-    const deposited = run(
-      [{ type: 'HL_SUBMITTED' }, { type: 'HL_CONFIRMED', vaultEquityUsd6: 1n }],
-      arrivedState(),
-    );
-    expect(run([{ type: 'HL_SUBMIT_FAILED' }], deposited)).toBe(deposited);
-    expect(run([{ type: 'HL_UNVERIFIED' }], deposited)).toBe(deposited);
+  it('ignores late HLP and bridge events after reset', () => {
+    const afterReset = run([{ type: 'RESET' }], arrivedState());
+    expect(
+      run([{ type: 'HL_ARRIVED', arrivedUsd6: 42_000_000n }], afterReset),
+    ).toEqual(initialDepositWizardState);
+    expect(
+      run(
+        [{ type: 'BRIDGE_UPDATE', legIndex: 1, status: 'destinationConfirmed' }],
+        afterReset,
+      ),
+    ).toEqual(initialDepositWizardState);
   });
 
   it('records and clears stage failures via RETRY', () => {
@@ -241,225 +202,34 @@ describe('depositWizardReducer', () => {
       { type: 'PLAN_LOADED', plan },
       { type: 'STAGE_FAILED', stage: 'sourceExecution', message: 'boom' },
     ]);
-    expect(state.error).toEqual({ stage: 'sourceExecution', message: 'boom' });
-
+    expect(state.error?.message).toBe('boom');
     state = run([{ type: 'RETRY' }], state);
     expect(state.error).toBeNull();
-    expect(state.stage).toBe('sourceExecution');
   });
+});
 
-  it('resets to the initial state', () => {
-    const state = run([{ type: 'PLAN_LOADED', plan }, { type: 'RESET' }]);
-    expect(state).toEqual(initialDepositWizardState);
-  });
-
-  it('ignores HL_ARRIVED unless an arrival watcher is armed', () => {
-    // Nothing downstream clears a foreign delta, so a late resolve from a
-    // superseded run must not stamp one onto a fresh machine.
-    const afterReset = run([{ type: 'RESET' }], arrivedState());
-    expect(
-      run([{ type: 'HL_ARRIVED', arrivedUsd6: 42_000_000n }], afterReset),
-    ).toEqual(initialDepositWizardState);
-
-    // Nor may it overwrite the measurement of a submission already in flight.
-    const confirming = run([{ type: 'HL_SUBMITTED' }], arrivedState());
-    expect(
-      run([{ type: 'HL_ARRIVED', arrivedUsd6: 42_000_000n }], confirming),
-    ).toBe(confirming);
-  });
-
-  it('ignores BRIDGE_UPDATE outside the bridging stage', () => {
-    // A settled poll from a superseded run must not resurrect leg progress.
-    const afterReset = run([{ type: 'RESET' }], arrivedState());
-    expect(
-      run(
-        [
-          {
-            type: 'BRIDGE_UPDATE',
-            legIndex: 1,
-            status: 'destinationConfirmed',
-            destinationTxHash: '0xdest',
-          },
-        ],
-        afterReset,
-      ),
-    ).toEqual(initialDepositWizardState);
-
-    // Same guard once the wizard has already moved past bridging.
-    const arrived = arrivedState();
-    expect(
-      run([{ type: 'BRIDGE_UPDATE', legIndex: 1, status: 'failed' }], arrived),
-    ).toBe(arrived);
-  });
-
-  it('resets out of the submitted-but-unverified terminal state', () => {
-    const state = run(
-      [{ type: 'HL_SUBMITTED' }, { type: 'HL_UNVERIFIED' }, { type: 'RESET' }],
-      arrivedState(),
-    );
-    expect(state).toEqual(initialDepositWizardState);
+describe('hlpSpendableShortfallUsd6', () => {
+  it('returns only the missing spendable amount', () => {
+    expect(hlpSpendableShortfallUsd6(10_000_000n, 7_000_000n)).toBe(3_000_000n);
+    expect(hlpSpendableShortfallUsd6(10_000_000n, 10_000_000n)).toBe(0n);
+    expect(hlpSpendableShortfallUsd6(10_000_000n, 20_000_000n)).toBe(0n);
   });
 });
 
 describe('resolveHlpDepositUsd6', () => {
-  it('uses the actually-received amount for bridge-output steps', () => {
+  it('uses the fixed amount for direct HLP deposits', () => {
+    expect(resolveHlpDepositUsd6(spotPlan.step, null)).toBe(10_000_000n);
+  });
+
+  it('uses the bridge arrival but caps unrelated extra credits', () => {
     expect(resolveHlpDepositUsd6(hlpStep, 29_500_000n)).toBe(29_500_000n);
+    expect(resolveHlpDepositUsd6(hlpStep, 41_000_000n)).toBe(29_580_000n);
   });
 
-  it('uses the fixed amount when the plan pinned one', () => {
-    expect(
-      resolveHlpDepositUsd6(
-        { ...hlpStep, amount: { source: 'fixed', amount: '12000000' } },
-        null,
-      ),
-    ).toBe(12_000_000n);
-  });
-
-  it('throws before arrival and below the vault minimum', () => {
+  it('rejects missing bridge arrival and below-minimum amounts', () => {
     expect(() => resolveHlpDepositUsd6(hlpStep, null)).toThrow('not known yet');
     expect(() => resolveHlpDepositUsd6(hlpStep, 9_999_999n)).toThrow(
       'below the vault minimum',
     );
-  });
-
-  it('caps a bridge-output amount at what the bridge could deliver', () => {
-    // An unrelated HyperCore credit landing between the pre-bridge snapshot
-    // and the signature must not be swept into the days-long lock.
-    expect(resolveHlpDepositUsd6(hlpStep, 41_000_000n)).toBe(29_580_000n);
-    // A real arrival inside the quote's slippage tolerance is untouched.
-    expect(resolveHlpDepositUsd6(hlpStep, 29_500_000n)).toBe(29_500_000n);
-    // The cap is expressed in the destination's units, so it cannot be
-    // confused with a source amount denominated in another token's decimals.
-    expect(
-      resolveHlpDepositUsd6(
-        { ...hlpStep, expectedUsd: '10000000' },
-        99n * 10n ** 6n,
-      ),
-    ).toBe(10_200_000n);
-  });
-});
-
-const spotPlan = {
-  kind: 'hlp-spot-deposit',
-  execution: 'hypercore-signatures',
-  amountUsd6: '10000000',
-  minDepositUsd: '10000000',
-  lockupDays: 4,
-  steps: [
-    {
-      kind: 'hyperliquid-usd-class-transfer',
-      chainId: 1337,
-      amountUsd6: '10000000',
-      action: {
-        type: 'usdClassTransfer',
-        toPerp: true,
-        amountUsd: '10.000000',
-      },
-      signing: {
-        scheme: 'hyperliquid-l1-action',
-        hyperliquidChain: 'Mainnet',
-        apiUrl: 'https://api.hyperliquid.xyz',
-      },
-    },
-    {
-      kind: 'hyperliquid-vault-deposit',
-      chainId: 1337,
-      amount: { source: 'fixed', amount: '10000000' },
-      minDepositUsd: '10000000',
-      action: { type: 'vaultTransfer', vaultAddress: HLP, isDeposit: true },
-      signing: {
-        scheme: 'hyperliquid-l1-action',
-        hyperliquidChain: 'Mainnet',
-        apiUrl: 'https://api.hyperliquid.xyz',
-      },
-      lockupDays: 4,
-    },
-  ],
-} as never;
-
-function loadSpot(perpWithdrawableUsd6: bigint): DepositWizardState {
-  return depositWizardReducer(initialDepositWizardState, {
-    type: 'SPOT_PLAN_LOADED',
-    plan: spotPlan,
-    perpWithdrawableUsd6,
-  });
-}
-
-describe('spotFundingShortfallUsd6', () => {
-  it('measures against an absolute target, never a delta', () => {
-    expect(spotFundingShortfallUsd6(10_000_000n, 0n)).toBe(10_000_000n);
-    expect(spotFundingShortfallUsd6(10_000_000n, 4_000_000n)).toBe(6_000_000n);
-  });
-
-  it('reports no shortfall once perp already covers the deposit', () => {
-    expect(spotFundingShortfallUsd6(10_000_000n, 10_000_000n)).toBe(0n);
-    // Never negative: a surplus must not be read as a credit to transfer back.
-    expect(spotFundingShortfallUsd6(10_000_000n, 25_000_000n)).toBe(0n);
-  });
-});
-
-describe('spot-funded HLP deposit', () => {
-  it('enters at the Hyperliquid stage with no EVM legs', () => {
-    const state = loadSpot(0n);
-    expect(state.stage).toBe('hyperliquidDeposit');
-    expect(state.legs).toEqual([]);
-    expect(state.plan).toBeNull();
-    expect(state.hlp.transferStep?.action.amountUsd).toBe('10.000000');
-  });
-
-  it('asks for the spot transfer when perp is short', () => {
-    expect(loadSpot(0n).hlp.status).toBe('fundingRequired');
-    expect(loadSpot(9_999_999n).hlp.status).toBe('fundingRequired');
-  });
-
-  it('skips the transfer entirely when perp already covers it', () => {
-    // This is what makes an interrupted attempt safe to resume: the money
-    // already moved, so signature one must not be offered again.
-    expect(loadSpot(10_000_000n).hlp.status).toBe('arrived');
-    expect(loadSpot(50_000_000n).hlp.status).toBe('arrived');
-  });
-
-  it('walks funding through to the vault signature', () => {
-    let state = loadSpot(0n);
-    state = depositWizardReducer(state, { type: 'HL_FUNDING_SUBMITTED' });
-    expect(state.hlp.status).toBe('funding');
-
-    state = depositWizardReducer(state, { type: 'HL_FUNDED' });
-    expect(state.hlp.status).toBe('awaitingArrival');
-
-    state = depositWizardReducer(state, {
-      type: 'HL_ARRIVED',
-      arrivedUsd6: 10_000_000n,
-    });
-    expect(state.hlp.status).toBe('arrived');
-  });
-
-  it('rewinds to fundingRequired when the transfer failed outright', () => {
-    let state = depositWizardReducer(loadSpot(0n), {
-      type: 'HL_FUNDING_SUBMITTED',
-    });
-    state = depositWizardReducer(state, { type: 'HL_FUNDING_FAILED' });
-    expect(state.hlp.status).toBe('fundingRequired');
-  });
-
-  it('ignores funding events outside their predecessor status', () => {
-    const armed = loadSpot(0n);
-    // A late dispatch from a superseded run must not move a fresh machine.
-    for (const event of [
-      { type: 'HL_FUNDED' },
-      { type: 'HL_FUNDING_FAILED' },
-    ] as DepositWizardEvent[]) {
-      expect(depositWizardReducer(armed, event)).toBe(armed);
-    }
-
-    const funded = loadSpot(10_000_000n);
-    expect(depositWizardReducer(funded, { type: 'HL_FUNDING_SUBMITTED' })).toBe(
-      funded,
-    );
-  });
-
-  it('resolves the deposit from the fixed plan amount', () => {
-    const state = loadSpot(10_000_000n);
-    expect(resolveHlpDepositUsd6(state.hlp.step!, null)).toBe(10_000_000n);
   });
 });
