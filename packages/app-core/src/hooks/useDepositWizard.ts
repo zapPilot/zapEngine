@@ -120,17 +120,33 @@ export function useDepositWizard({
       sourceTxHash: Hash;
       signal: AbortSignal;
     }): Promise<boolean> => {
+      const leg = params.plan.legs[params.legIndex];
+      if (!leg) return false;
       dispatch({
         type: 'BRIDGE_UPDATE',
         legIndex: params.legIndex,
         status: 'bridgePending' as WizardLegStatus,
         sourceTxHash: params.sourceTxHash,
       });
+
+      // Bridge2 is a direct Arbitrum USDC transfer, not a LI.FI route. The
+      // reviewed wallet batch already confirmed the source transaction; the
+      // authoritative destination check is the HyperCore balance delta below.
+      if (leg.protocol === 'hyperliquid') {
+        if (params.signal.aborted) return false;
+        dispatch({
+          type: 'BRIDGE_UPDATE',
+          legIndex: params.legIndex,
+          status: 'destinationConfirmed',
+        });
+        return true;
+      }
+
       try {
         const bridgeStatus = await waitForBridgeCompletion({
           txHash: params.sourceTxHash,
           fromChain: params.plan.sourceChainId,
-          toChain: params.plan.legs[params.legIndex]!.chainId,
+          toChain: leg.chainId,
           signal: params.signal,
         });
         if (params.signal.aborted) return false;
