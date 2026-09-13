@@ -1,4 +1,3 @@
-import { useWalletProvider } from '@zapengine/app-core/providers/walletContext';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
@@ -12,8 +11,11 @@ import { InfoRow } from '@/components/ui/InfoRow';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import {
   belowHlpMinimum,
-  hlpAvailableUsd6,
+  hlpAccountModeLabel,
   hlpBalanceLabel,
+  hlpBalanceRows,
+  hlpSpendableUsd6,
+  hlpStandardAccountHint,
 } from '@/integration/hyperliquidPanelModel';
 import {
   amountInputToUsd6,
@@ -21,81 +23,53 @@ import {
   normalizeAmountInput,
   quickAmountUsdInput,
 } from '@/integration/investAmountModel';
-import { resolveDepositExecutionCapability } from '@/integration/investExecutionModel';
 import { useAccount } from '@/integration/useAccount';
-import {
-  useHlpPerpBalance,
-  useHlpSpotBalance,
-} from '@/integration/useHlpBalances';
+import { useHyperCoreSpendable } from '@/integration/useHlpBalances';
 import { useInvest } from '@/integration/useInvest';
 import { useInvestExecution } from '@/integration/useInvestExecution';
 import { formatUsd } from '@/lib/format';
 
 /**
- * Step 1 for the HLP flow. The deposit is funded from the wallet's existing
- * HyperCore balance — no bridge, no EVM transaction — so both pots count
- * toward one ceiling: the vault debits perp, and any shortfall is moved from
- * spot first. This step only freezes the amount; both signatures are taken in
- * the reviewed flow.
+ * Step 1 for HLP. The deposit is funded by USDC already on Hyperliquid; the
+ * service resolves whether a Unified or Standard account supplies the vault.
  */
 export function HyperliquidDepositPanel() {
   const router = useRouter();
   const account = useAccount();
   const invest = useInvest();
   const { reset: resetReviewedExecution } = useInvestExecution();
-  const wallet = useWalletProvider();
   const [amountInput, setAmountInput] = useState(
     invest.destination === 'hlp' ? invest.amountInput : '',
   );
   const amountUsd = amountUsdFromInput(amountInput);
   const fromAmount = amountInputToUsd6(amountInput);
 
-  const hlpSpot = useHlpSpotBalance(account.address);
-  const hlpPerp = useHlpPerpBalance(account.address);
-  const labelFor = (
-    pot: { isLoading: boolean; isError: boolean },
-    value: bigint | undefined,
-  ): string =>
-    hlpBalanceLabel({
-      isConnected: account.isConnected,
-      isLoading: pot.isLoading,
-      isError: pot.isError,
-      value,
-    });
-  const spotTotalLabel = labelFor(hlpSpot, hlpSpot.balance?.totalUsd6);
-  const perpWithdrawableLabel = labelFor(
-    hlpPerp,
-    hlpPerp.balance?.withdrawableUsd6,
-  );
-  const perpAccountValueLabel = labelFor(
-    hlpPerp,
-    hlpPerp.balance?.accountValueUsd6,
-  );
-
-  const balancesLoading = hlpSpot.isLoading || hlpPerp.isLoading;
-  const balancesUnavailable = hlpSpot.isError || hlpPerp.isError;
-  const availableUsd6 = account.isConnected
-    ? hlpAvailableUsd6(
-        hlpSpot.balance?.totalUsd6,
-        hlpPerp.balance?.withdrawableUsd6,
-      )
-    : null;
-  const availableLabel = balancesLoading
-    ? 'Loading balances…'
+  const hyperCore = useHyperCoreSpendable(account.address);
+  const balance = hyperCore.balance;
+  const availableUsd6 = account.isConnected ? hlpSpendableUsd6(balance) : null;
+  const availableLabel = hyperCore.isLoading
+    ? 'Loading balance…'
     : availableUsd6 === null
       ? 'Available —'
       : `Available ${formatUsd(Number(formatUnits(availableUsd6, 6)))}`;
+  const rowLabel = (value: bigint): string =>
+    hlpBalanceLabel({
+      isConnected: account.isConnected,
+      isLoading: hyperCore.isLoading,
+      isError: hyperCore.isError,
+      value,
+    });
 
-  const capability = resolveDepositExecutionCapability({
-    isConnected: wallet.isConnected,
-    executionMode: wallet.executionMode,
-  });
   const belowMinimum = belowHlpMinimum(fromAmount);
   const hasAmount = amountUsd !== null && fromAmount !== '0';
   const exceedsBalance =
     availableUsd6 !== null && hasAmount && BigInt(fromAmount) > availableUsd6;
+  const balanceUnavailable =
+    account.isConnected &&
+    (hyperCore.isLoading || hyperCore.isError || availableUsd6 === null);
   const quickAmountsDisabled =
     !account.isConnected || availableUsd6 === null || availableUsd6 <= 0n;
+  const standardHint = hlpStandardAccountHint(balance);
 
   const handleQuickAmount = (bps: number) => {
     setAmountInput(
@@ -107,19 +81,20 @@ export function HyperliquidDepositPanel() {
   };
 
   const reviewDeposit = () => {
-    if (capability === 'connect-wallet') {
+    if (!account.isConnected) {
       void account.connect();
       return;
     }
-    if (capability !== 'ready' || !hasAmount || belowMinimum || exceedsBalance)
+    if (
+      !hasAmount ||
+      belowMinimum ||
+      exceedsBalance ||
+      balanceUnavailable
+    ) {
       return;
+    }
 
-    // A previous reviewed EVM execution is not valid evidence for this
-    // HyperCore-funded deposit, even if the amount happens to match.
     resetReviewedExecution();
-
-    // No `setScope` here: it force-resets the destination, and a HyperCore
-    // deposit has no EVM source scope to select in the first place.
     invest.setDestination('hlp');
     invest.setAmountInput(amountInput);
     invest.setHyperCoreFundingDraft({
@@ -155,17 +130,17 @@ export function HyperliquidDepositPanel() {
               setAmountInput(normalizeAmountInput(value))
             }
           />
-          {/* No press handler: USDC on HyperCore is the only funding option,
-              so the pill names the asset rather than opening a picker. */}
           <TokenSelectorPill
             symbol="USDC"
             chainKey="hyperliquid"
             accessibilityLabel="Funding asset: USDC on Hyperliquid"
           />
         </View>
-        <Text className="mt-1 font-mono text-[11px] text-ink-dim">
-          Spot {spotTotalLabel} · Perp {perpWithdrawableLabel}
-        </Text>
+        {balance ? (
+          <Text className="mt-1 font-mono text-[11px] text-ink-dim">
+            Account mode · {hlpAccountModeLabel(balance.mode)}
+          </Text>
+        ) : null}
         <QuickAmountChips
           disabled={quickAmountsDisabled}
           maxAccessibilityLabel="Use the full Hyperliquid balance"
@@ -178,13 +153,28 @@ export function HyperliquidDepositPanel() {
           On Hyperliquid
         </Text>
         <View className="mt-2">
-          <InfoRow label="Spot USDC" value={spotTotalLabel} divider />
-          <InfoRow
-            label="Perp USDC withdrawable"
-            value={perpWithdrawableLabel}
-            divider
-          />
-          <InfoRow label="Perp account value" value={perpAccountValueLabel} />
+          {balance ? (
+            <>
+              <InfoRow
+                label="Account mode"
+                value={hlpAccountModeLabel(balance.mode)}
+                divider
+              />
+              {hlpBalanceRows(balance).map((row, index, rows) => (
+                <InfoRow
+                  key={row.label}
+                  label={row.label}
+                  value={rowLabel(row.value)}
+                  divider={index < rows.length - 1}
+                />
+              ))}
+            </>
+          ) : (
+            <InfoRow
+              label="Account mode"
+              value={hyperCore.isLoading ? 'Loading…' : '—'}
+            />
+          )}
         </View>
       </Card>
 
@@ -192,9 +182,14 @@ export function HyperliquidDepositPanel() {
         <InfoRow label="Destination" value="Official HLP vault" divider />
         <InfoRow label="Minimum deposit" value="10 USDC" divider />
         <InfoRow label="Withdrawal lock" value="4 days" divider />
-        <InfoRow label="Network fee" value="None — signatures only" />
+        <InfoRow label="Network fee" value="None — no gas" />
       </Card>
 
+      {standardHint ? (
+        <Text className="mt-2.5 px-1 text-[11px] leading-4 text-ink-dim">
+          {standardHint}
+        </Text>
+      ) : null}
       {belowMinimum ? (
         <Text className="mt-2.5 px-1 text-[11px] text-error">
           Enter at least $10. The HLP vault rejects smaller deposits.
@@ -202,10 +197,10 @@ export function HyperliquidDepositPanel() {
       ) : null}
       {exceedsBalance ? (
         <Text className="mt-2.5 px-1 text-[11px] text-error">
-          This amount exceeds your Hyperliquid balance.
+          This amount exceeds your spendable Hyperliquid balance.
         </Text>
       ) : null}
-      {balancesUnavailable ? (
+      {hyperCore.isError ? (
         <Text className="mt-2.5 px-1 text-[11px] leading-4 text-error">
           Your Hyperliquid balance is unavailable right now, so the deposit
           cannot be sized. Retry in a moment.
@@ -215,22 +210,17 @@ export function HyperliquidDepositPanel() {
       <PrimaryButton
         className="mt-5"
         disabled={
-          !hasAmount ||
-          belowMinimum ||
-          exceedsBalance ||
-          capability === 'unsupported-wallet'
+          account.isConnected &&
+          (!hasAmount || belowMinimum || exceedsBalance || balanceUnavailable)
         }
         onPress={reviewDeposit}
       >
-        {capability === 'connect-wallet'
-          ? CONNECT_WALLET_CTA
-          : capability === 'unsupported-wallet'
-            ? 'Use a supported web wallet'
-            : 'Review HLP deposit'}
+        {account.isConnected ? 'Review HLP deposit' : CONNECT_WALLET_CTA}
       </PrimaryButton>
       <Text className="mt-3 text-[10.5px] leading-[16px] text-ink-faint">
-        Your wallet signs two gasless Hyperliquid actions: moving USDC from spot
-        into perp, then depositing it into the HLP vault.
+        Zap Pilot deposits with a Hyperliquid signing key you approve once. The
+        key can act inside your Hyperliquid account but can never withdraw or
+        send funds to anyone else.
       </Text>
     </View>
   );
