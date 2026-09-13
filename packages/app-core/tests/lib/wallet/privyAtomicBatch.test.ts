@@ -25,13 +25,14 @@ function tx(overrides: Partial<PreparedTransaction> = {}): PreparedTransaction {
 }
 
 describe('getPrivyAtomicBatchChain', () => {
-  it('returns base and arbitrum', () => {
+  it('returns ethereum, base, and arbitrum', () => {
+    expect(getPrivyAtomicBatchChain(1).id).toBe(1);
     expect(getPrivyAtomicBatchChain(8453).id).toBe(8453);
     expect(getPrivyAtomicBatchChain(42161).id).toBe(42161);
   });
 
   it('rejects chains outside the atomic-batch contract', () => {
-    for (const chainId of [1, 10, 1337]) {
+    for (const chainId of [10, 1337]) {
       expect(() => getPrivyAtomicBatchChain(chainId)).toThrow(
         `not configured for chain ${chainId}`,
       );
