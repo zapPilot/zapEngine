@@ -156,6 +156,7 @@ describe('useBridgeTest Hyperliquid concurrent arrival success', () => {
     });
     expect(firstSignal.aborted).toBe(true);
     expect(result.current.status).toBe('completed');
+    expect(result.current.error).toBeNull();
     expect(result.current.sourceTxHash).toBe(SECOND_SOURCE_HASH);
     expect(result.current.destinationTxHash).toBe(SECOND_DESTINATION_HASH);
 
@@ -163,8 +164,11 @@ describe('useBridgeTest Hyperliquid concurrent arrival success', () => {
       resolveFirstArrival();
       await firstExecution;
     });
+
+    // A superseded arrival that succeeds must not overwrite the newer run.
     expect(result.current.status).toBe('completed');
     expect(result.current.error).toBeNull();
     expect(result.current.sourceTxHash).toBe(SECOND_SOURCE_HASH);
+    expect(result.current.destinationTxHash).toBe(SECOND_DESTINATION_HASH);
   });
 });

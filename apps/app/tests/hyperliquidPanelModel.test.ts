@@ -9,6 +9,7 @@ import {
   HYPERLIQUID_HLP_SPLIT,
   MIN_HYPERLIQUID_DEPOSIT_USD6,
 } from '@/integration/hyperliquidPanelModel';
+import { HYPERCORE_CHAIN_ID } from '@zapengine/app-core/config/chains/display';
 import type { HyperCoreSpendableUsdc } from '@zapengine/app-core/services';
 import { describe, expect, it } from 'vitest';
 
@@ -30,13 +31,15 @@ const standard: HyperCoreSpendableUsdc = {
 
 describe('hyperliquidPanelModel', () => {
   it('preserves the dormant bridge route to HyperCore', () => {
-    expect(HYPERLIQUID_HLP_SPLIT).toEqual({ 1337: 1 });
+    expect(HYPERLIQUID_HLP_SPLIT).toEqual({ [HYPERCORE_CHAIN_ID]: 1 });
   });
 
   it('enforces the official 10 USDC minimum', () => {
     expect(MIN_HYPERLIQUID_DEPOSIT_USD6).toBe(10_000_000n);
     expect(belowHlpMinimum('9999999')).toBe(true);
     expect(belowHlpMinimum('10000000')).toBe(false);
+    expect(belowHlpMinimum('12000000')).toBe(false);
+    // An empty amount field is not a minimum violation.
     expect(belowHlpMinimum('0')).toBe(false);
   });
 
@@ -52,6 +55,15 @@ describe('hyperliquidPanelModel', () => {
     expect(hlpBalanceLabel({ ...base, isError: true, value: undefined })).toBe(
       '—',
     );
+    // A disconnected wallet wins over a still-pending query.
+    expect(
+      hlpBalanceLabel({
+        isConnected: false,
+        isLoading: true,
+        isError: false,
+        value: 1n,
+      }),
+    ).toBe('—');
   });
 
   it('uses only the resolved spendable balance instead of combining pots', () => {
@@ -75,6 +87,19 @@ describe('hyperliquidPanelModel', () => {
     ]);
   });
 
+  it('omits the Unified hold row when nothing is reserved', () => {
+    expect(
+      hlpBalanceRows({
+        ...unified,
+        spendableUsd6: 20_000_000n,
+        spot: { totalUsd6: 20_000_000n, holdUsd6: 0n },
+      }),
+    ).toEqual([
+      { label: 'USDC balance', value: 20_000_000n },
+      { label: 'Spendable', value: 20_000_000n },
+    ]);
+  });
+
   it('guides Standard spot-only users instead of silently class-transferring', () => {
     expect(hlpStandardAccountHint(standard)).toContain('Standard account');
     expect(hlpStandardAccountHint(unified)).toBeNull();
@@ -91,5 +116,6 @@ describe('hyperliquidPanelModel', () => {
     expect(hlpDoneStatusLabel('submittedUnverified')).toBe(
       'HLP deposit submitted — awaiting confirmation',
     );
+    expect(hlpDoneStatusLabel('arrived')).toBe('Deposited');
   });
 });

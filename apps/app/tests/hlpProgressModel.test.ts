@@ -7,6 +7,8 @@ import {
   shouldOfferAgentEnable,
   unsafeResumeReason,
   type HlpProgressInput,
+  type HlpRetryMode,
+  type HlpRowState,
 } from '@/integration/hlpProgressModel';
 import { describe, expect, it } from 'vitest';
 
@@ -29,150 +31,315 @@ function input(overrides: Partial<HlpProgressInput> = {}): HlpProgressInput {
   };
 }
 
+/** Row states in timeline order: source, bridge, arrival, vault. */
+function rowStates(overrides: Partial<HlpProgressInput>): HlpRowState[] {
+  const rows = hlpProgressRows(input(overrides));
+  return [rows.source, rows.bridge, rows.arrival, rows.vault];
+}
+
+function expectReason(
+  overrides: Partial<HlpProgressInput>,
+  expected: string | null,
+): void {
+  expect(unsafeResumeReason(input(overrides))).toBe(expected);
+}
+
+function expectRetryMode(
+  overrides: Partial<HlpProgressInput>,
+  expected: HlpRetryMode,
+): void {
+  expect(hlpRetryMode(input(overrides))).toBe(expected);
+}
+
+function expectAutoRun(
+  overrides: Partial<HlpProgressInput>,
+  attempted: boolean,
+  expected: boolean,
+): void {
+  expect(shouldAutoRunHlpDeposit(input(overrides), attempted)).toBe(expected);
+}
+
+const NO_SUBMISSION =
+  'No reviewed source submission was found. No HLP action will be attempted.';
+const MISSING_BASELINE =
+  'The pre-bridge Hyperliquid balance snapshot is missing. For safety, Zap Pilot will not infer the deposit amount from the current balance or submit another bridge.';
+const MISSING_FOLLOW_UP =
+  'The submitted reviewed plan does not contain the expected HLP follow-up. The source transaction will not be resubmitted.';
+const BATCH_FAILED =
+  'The reviewed Base batch reported a failure. Zap Pilot will not resubmit it automatically.';
+const MISSING_HASH =
+  'The wallet did not expose the source transaction hash, so Zap Pilot cannot safely track this bridge. The source transaction will not be resubmitted.';
+
+const ARRIVED = {
+  bridgeConfirmed: true,
+  wizardStage: 'hyperliquidDeposit',
+  hlpStatus: 'arrived',
+} as const satisfies Partial<HlpProgressInput>;
+
 describe('hlpProgressRows', () => {
-  it('tracks source, bridge, arrival and vault independently', () => {
-    expect(hlpProgressRows(input())).toEqual({
-      source: 'done',
-      bridge: 'active',
-      arrival: 'active',
-      vault: 'waiting',
-    });
-    expect(
-      hlpProgressRows(
-        input({
-          bridgeConfirmed: true,
-          wizardStage: 'hyperliquidDeposit',
-          hlpStatus: 'confirming',
-        }),
-      ),
-    ).toEqual({
-      source: 'done',
-      bridge: 'done',
-      arrival: 'done',
-      vault: 'active',
-    });
+  it('tracks the submitted source batch while the bridge runs', () => {
+    expect(rowStates({})).toEqual(['done', 'active', 'active', 'waiting']);
   });
 
-  it('treats submitted-unverified as terminal, never as a retryable failure', () => {
+  it('keeps the source row active until the wallet exposes a hash', () => {
     expect(
-      hlpProgressRows(
-        input({
-          bridgeConfirmed: true,
-          wizardStage: 'done',
-          hlpStatus: 'submittedUnverified',
-          wizardErrorStage: 'hyperliquidDeposit',
-        }),
-      ),
-    ).toEqual({
-      source: 'done',
-      bridge: 'done',
-      arrival: 'done',
-      vault: 'done',
-    });
+      rowStates({ sourceTxHash: null, reviewedPhase: 'confirming' }),
+    ).toEqual(['active', 'active', 'active', 'waiting']);
+  });
+
+  it('fails the source row on a reported batch failure', () => {
+    expect(
+      rowStates({
+        reviewedPhase: 'failed',
+        wizardStage: 'sourceExecution',
+        hlpStatus: 'idle',
+      }),
+    ).toEqual(['failed', 'waiting', 'waiting', 'waiting']);
+  });
+
+  it('completes the bridge row from the leg status, not the stage', () => {
+    expect(rowStates(ARRIVED)).toEqual(['done', 'done', 'done', 'waiting']);
+  });
+
+  it('fails the bridge row on a bridging-stage error', () => {
+    expect(
+      rowStates({ wizardErrorStage: 'bridging', hlpStatus: 'idle' }),
+    ).toEqual(['done', 'failed', 'waiting', 'waiting']);
+  });
+
+  it('activates the vault row while the vaultTransfer confirms', () => {
+    expect(rowStates({ ...ARRIVED, hlpStatus: 'confirming' })).toEqual([
+      'done',
+      'done',
+      'done',
+      'active',
+    ]);
+  });
+
+  it('marks a confirmed deposit done on both HLP rows', () => {
+    expect(
+      rowStates({ ...ARRIVED, wizardStage: 'done', hlpStatus: 'deposited' }),
+    ).toEqual(['done', 'done', 'done', 'done']);
+  });
+
+  it('never fails an unverified vault row on a deposit-stage error', () => {
+    // The exchange accepted the transfer; showing it as failed would invite a
+    // second deposit and double a position that locks for four days.
+    expect(
+      rowStates({
+        ...ARRIVED,
+        wizardStage: 'done',
+        hlpStatus: 'submittedUnverified',
+      }),
+    ).toEqual(['done', 'done', 'done', 'done']);
+    expect(
+      rowStates({
+        ...ARRIVED,
+        wizardStage: 'done',
+        hlpStatus: 'submittedUnverified',
+        wizardErrorStage: 'hyperliquidDeposit',
+      }),
+    ).toEqual(['done', 'done', 'done', 'done']);
+  });
+
+  it('separates a failed vault action from failed arrival polling', () => {
+    expect(
+      rowStates({ ...ARRIVED, wizardErrorStage: 'hyperliquidDeposit' }),
+    ).toEqual(['done', 'done', 'done', 'failed']);
+    expect(
+      rowStates({
+        bridgeConfirmed: true,
+        wizardStage: 'hyperliquidDeposit',
+        wizardErrorStage: 'hyperliquidDeposit',
+      }),
+    ).toEqual(['done', 'done', 'failed', 'waiting']);
   });
 });
 
-describe('tracking safety', () => {
-  it('requires exact plan, HLP step, source hash, baseline, and nonfailed review', () => {
+describe('canTrackExisting', () => {
+  it('accepts a submitted reviewed plan with a hash and a snapshot', () => {
     expect(canTrackExisting(input())).toBe(true);
+  });
+
+  it('refuses every input that makes the existing run unidentifiable', () => {
     expect(canTrackExisting(input({ hasExactPlan: false }))).toBe(false);
     expect(canTrackExisting(input({ hasHlpStep: false }))).toBe(false);
     expect(canTrackExisting(input({ sourceTxHash: null }))).toBe(false);
     expect(canTrackExisting(input({ baselineUsd6: null }))).toBe(false);
     expect(canTrackExisting(input({ reviewedPhase: 'failed' }))).toBe(false);
   });
+});
 
-  it('reports unsafe resume states without suggesting a source resubmission', () => {
-    expect(unsafeResumeReason(input())).toBeNull();
-    expect(
-      unsafeResumeReason(input({ hasReviewedSubmission: false })),
-    ).toContain('No reviewed source submission');
-    expect(unsafeResumeReason(input({ baselineUsd6: null }))).toContain(
-      'pre-bridge Hyperliquid balance snapshot is missing',
-    );
-    expect(unsafeResumeReason(input({ hasHlpStep: false }))).toContain(
-      'does not contain the expected HLP follow-up',
-    );
-    expect(
-      unsafeResumeReason(input({ sourceTxHash: null, reviewedPhase: 'submitted' })),
-    ).toContain('will not be resubmitted');
+describe('unsafeResumeReason', () => {
+  it('stays silent for a healthy tracked run', () => {
+    expectReason({}, null);
   });
 
-  it('keeps a missing hash nonfatal while the reviewed batch is confirming', () => {
-    expect(
-      unsafeResumeReason(
-        input({ sourceTxHash: null, reviewedPhase: 'confirming' }),
-      ),
-    ).toBeNull();
+  it('reports a missing reviewed submission first', () => {
+    expectReason(
+      { hasReviewedSubmission: false, baselineUsd6: null },
+      NO_SUBMISSION,
+    );
+  });
+
+  it('reports the missing pre-bridge snapshot', () => {
+    expectReason({ baselineUsd6: null }, MISSING_BASELINE);
+  });
+
+  it('reports a plan without the expected HLP follow-up', () => {
+    expectReason({ hasHlpStep: false }, MISSING_FOLLOW_UP);
+    expectReason({ hasExactPlan: false }, MISSING_FOLLOW_UP);
+  });
+
+  it('prefers the reported failure note over the generic copy', () => {
+    const note = 'Batch 0xabc reverted in the router call.';
+    expectReason({ reviewedPhase: 'failed', reviewedStatusNote: note }, note);
+    expectReason({ reviewedPhase: 'failed' }, BATCH_FAILED);
+  });
+
+  it('reports the real failure instead of the hash it never produced', () => {
+    expectReason({ reviewedPhase: 'failed', sourceTxHash: null }, BATCH_FAILED);
+  });
+
+  it('reports a missing hash once the batch is no longer confirming', () => {
+    expectReason({ sourceTxHash: null }, MISSING_HASH);
+  });
+
+  it('treats a missing hash during confirmation as pending, not unsafe', () => {
+    expectReason({ sourceTxHash: null, reviewedPhase: 'confirming' }, null);
+  });
+});
+
+describe('hlpRetryMode', () => {
+  it('offers no action without an error', () => {
+    expectRetryMode({}, 'none');
+  });
+
+  it('offers the vault retry only from arrived', () => {
+    expectRetryMode(
+      { wizardErrorStage: 'hyperliquidDeposit', hlpStatus: 'arrived' },
+      'hlp-signature',
+    );
+    expectRetryMode(
+      { wizardErrorStage: 'hyperliquidDeposit', hlpStatus: 'awaitingArrival' },
+      'tracking',
+    );
+  });
+
+  it('offers tracking only while arrival is still pollable', () => {
+    expectRetryMode({ hlpStatus: 'idle', flowError: 'boom' }, 'tracking');
+    expectRetryMode({ flowError: 'boom' }, 'tracking');
+  });
+
+  it('never re-polls arrival once the vaultTransfer was accepted', () => {
+    // From `confirming` onwards the accepted transfer already consumed the
+    // balance, so a re-poll would report a successful deposit as a failure.
+    expectRetryMode({ hlpStatus: 'confirming', flowError: 'boom' }, 'none');
+    expectRetryMode(
+      { hlpStatus: 'submittedUnverified', flowError: 'boom' },
+      'none',
+    );
+    expectRetryMode({ hlpStatus: 'deposited', flowError: 'boom' }, 'none');
+  });
+
+  it('offers no instant re-poll for a below-minimum arrival', () => {
+    expectRetryMode({ hlpStatus: 'arrived', flowError: 'below min' }, 'none');
+  });
+
+  it('offers no retry when the run is not trackable any more', () => {
+    expectRetryMode({ flowError: 'boom', baselineUsd6: null }, 'none');
+    expectRetryMode({ flowError: 'boom', hasExactPlan: false }, 'none');
+    expectRetryMode({ flowError: 'boom', reviewedPhase: 'failed' }, 'none');
   });
 });
 
 describe('agent-gated HLP execution', () => {
-  const arrived = {
-    bridgeConfirmed: true,
-    wizardStage: 'hyperliquidDeposit' as const,
-    hlpStatus: 'arrived' as const,
-  };
-
-  it('auto-runs only when the local agent is ready', () => {
-    expect(shouldAutoRunHlpDeposit(input(arrived), false)).toBe(true);
-    expect(
-      shouldAutoRunHlpDeposit(input({ ...arrived, agentReady: false }), false),
-    ).toBe(false);
-    expect(shouldAutoRunHlpDeposit(input(arrived), true)).toBe(false);
+  it('runs once the funds arrived on a clean trackable run', () => {
+    expectAutoRun(ARRIVED, false, true);
   });
 
-  it('offers one-time signing enablement instead of a vault signature', () => {
+  it('never runs twice for the same arrival', () => {
+    expectAutoRun(ARRIVED, true, false);
+  });
+
+  it('waits for the arrival before running', () => {
+    expectAutoRun({}, false, false);
+  });
+
+  it('never runs without an approved device-local agent', () => {
+    expectAutoRun({ ...ARRIVED, agentReady: false }, false, false);
+  });
+
+  it('never runs while an error is on screen', () => {
+    expectAutoRun(
+      { ...ARRIVED, wizardErrorStage: 'hyperliquidDeposit' },
+      false,
+      false,
+    );
+    expectAutoRun({ ...ARRIVED, flowError: 'boom' }, false, false);
+  });
+
+  it('never runs once the reviewed submission was cleared', () => {
+    expectAutoRun(
+      {
+        ...ARRIVED,
+        hasReviewedSubmission: false,
+        hasExactPlan: false,
+        sourceTxHash: null,
+      },
+      false,
+      false,
+    );
+  });
+
+  it('offers signing enablement exactly when the deposit cannot auto-run', () => {
     expect(
-      shouldOfferAgentEnable(input({ ...arrived, agentReady: false })),
+      shouldOfferAgentEnable(input({ ...ARRIVED, agentReady: false })),
     ).toBe(true);
-    expect(shouldOfferAgentEnable(input(arrived))).toBe(false);
+    // Never both at once: the CTA and the automatic run are alternatives.
+    expect(shouldOfferAgentEnable(input(ARRIVED))).toBe(false);
     expect(
       shouldOfferAgentEnable(
-        input({ ...arrived, agentReady: false, flowError: 'boom' }),
-      ),
-    ).toBe(false);
-  });
-
-  it('never auto-runs when an error is visible or tracking is unsafe', () => {
-    expect(
-      shouldAutoRunHlpDeposit(
-        input({ ...arrived, wizardErrorStage: 'hyperliquidDeposit' }),
-        false,
+        input({ ...ARRIVED, agentReady: false, flowError: 'boom' }),
       ),
     ).toBe(false);
     expect(
-      shouldAutoRunHlpDeposit(
-        input({ ...arrived, hasReviewedSubmission: false }),
-        false,
+      shouldOfferAgentEnable(
+        input({
+          ...ARRIVED,
+          agentReady: false,
+          wizardErrorStage: 'hyperliquidDeposit',
+        }),
+      ),
+    ).toBe(false);
+    expect(
+      shouldOfferAgentEnable(
+        input({ ...ARRIVED, agentReady: false, baselineUsd6: null }),
       ),
     ).toBe(false);
   });
 });
 
-describe('retry and resume identity', () => {
-  it('only retries a definitely failed vault signature from arrived', () => {
-    expect(
-      hlpRetryMode(
-        input({
-          hlpStatus: 'arrived',
-          wizardErrorStage: 'hyperliquidDeposit',
-        }),
-      ),
-    ).toBe('hlp-signature');
-    expect(
-      hlpRetryMode(
-        input({
-          hlpStatus: 'submittedUnverified',
-          flowError: 'confirmation timeout',
-        }),
-      ),
-    ).toBe('none');
+describe('resumeKey', () => {
+  it('has no key when tracking is impossible', () => {
+    expect(resumeKey(input({ baselineUsd6: null }), 'c1')).toBeNull();
+    expect(resumeKey(input({ sourceTxHash: null }), 'c1')).toBeNull();
+    expect(resumeKey(input({ reviewedPhase: 'failed' }), 'c1')).toBeNull();
   });
 
-  it('uses stable existing-submission identity', () => {
+  it('stays stable for the same submission, hash and snapshot', () => {
     expect(resumeKey(input(), 'c1')).toBe('c1:0xsource:1000000');
+    expect(resumeKey(input(), 'c1')).toBe(resumeKey(input(), 'c1'));
+  });
+
+  it('changes with the calls id, the hash or the snapshot', () => {
+    const base = resumeKey(input(), 'c1');
+    expect(resumeKey(input(), 'c2')).not.toBe(base);
+    expect(resumeKey(input({ sourceTxHash: '0xother' }), 'c1')).not.toBe(base);
+    expect(resumeKey(input({ baselineUsd6: '2000000' }), 'c1')).not.toBe(base);
+  });
+
+  it('falls back to a stable key when the wallet exposes no calls id', () => {
     expect(resumeKey(input(), null)).toBe('reviewed:0xsource:1000000');
-    expect(resumeKey(input({ baselineUsd6: null }), 'c1')).toBeNull();
   });
 });

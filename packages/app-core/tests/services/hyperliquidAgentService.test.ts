@@ -40,7 +40,9 @@ vi.mock('@core/services/hyperliquidService', () => ({
   HyperliquidAgentApprovalError: mocks.HyperliquidAgentApprovalError,
 }));
 
-function memoryStore(): HyperliquidAgentKeyStore & { data: Map<string, string> } {
+function memoryStore(): HyperliquidAgentKeyStore & {
+  data: Map<string, string>;
+} {
   const data = new Map<string, string>();
   return {
     data,
@@ -218,5 +220,60 @@ describe('hyperliquidAgentService', () => {
         walletClient: {} as never,
       }),
     ).resolves.toEqual(expect.objectContaining({ name: 'ZapPilot' }));
+  });
+
+  it('rethrows an ambiguous approval that extraAgents cannot confirm', async () => {
+    const keyStore = memoryStore();
+    mocks.approveHyperliquidAgent.mockRejectedValueOnce(
+      new mocks.HyperliquidAgentApprovalError('network lost', {
+        ambiguous: true,
+      }),
+    );
+    // The exchange never registered the agent, so reporting success would
+    // arm a deposit that can never be signed.
+    mocks.getExtraAgents.mockResolvedValue([]);
+
+    await expect(
+      approveNewHyperliquidAgent({
+        keyStore,
+        masterAddress: MASTER,
+        signing,
+        walletClient: {} as never,
+      }),
+    ).rejects.toThrow('network lost');
+  });
+
+  it('never swallows an unambiguous approval failure', async () => {
+    const keyStore = memoryStore();
+    mocks.approveHyperliquidAgent.mockRejectedValueOnce(
+      new mocks.HyperliquidAgentApprovalError('User rejected the request', {
+        ambiguous: false,
+      }),
+    );
+
+    await expect(
+      approveNewHyperliquidAgent({
+        keyStore,
+        masterAddress: MASTER,
+        signing,
+        walletClient: {} as never,
+      }),
+    ).rejects.toThrow('User rejected the request');
+    // A definite rejection needs no confirmation round-trip.
+    expect(mocks.getExtraAgents).not.toHaveBeenCalled();
+  });
+
+  it('scopes stored keys so testnet and mainnet never share an agent', () => {
+    expect(
+      hyperliquidAgentStorageKey({
+        hyperliquidChain: 'Testnet',
+        masterAddress: MASTER,
+      }),
+    ).not.toBe(
+      hyperliquidAgentStorageKey({
+        hyperliquidChain: 'Mainnet',
+        masterAddress: MASTER,
+      }),
+    );
   });
 });

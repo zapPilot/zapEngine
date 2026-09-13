@@ -17,8 +17,8 @@ const mocks = vi.hoisted(() => ({
   buildApproveTx: vi.fn(),
   getPublicClient: vi.fn(),
   waitForBridgeCompletion: vi.fn(),
-  getPerpUsdcBalance: vi.fn(),
-  waitForPerpUsdcArrival: vi.fn(),
+  getHyperCoreSpendableUsdc: vi.fn(),
+  waitForHyperCoreUsdcArrival: vi.fn(),
   readContract: vi.fn(),
   estimateGas: vi.fn(),
   getBalance: vi.fn(),
@@ -39,8 +39,8 @@ vi.mock('@core/services/intentClient', () => ({
   waitForBridgeCompletion: mocks.waitForBridgeCompletion,
 }));
 vi.mock('@core/services/hyperliquidService', () => ({
-  getPerpUsdcBalance: mocks.getPerpUsdcBalance,
-  waitForPerpUsdcArrival: mocks.waitForPerpUsdcArrival,
+  getHyperCoreSpendableUsdc: mocks.getHyperCoreSpendableUsdc,
+  waitForHyperCoreUsdcArrival: mocks.waitForHyperCoreUsdcArrival,
 }));
 vi.mock('@zapengine/intent-engine', () => ({
   HYPERCORE_CHAIN_ID: 1337,

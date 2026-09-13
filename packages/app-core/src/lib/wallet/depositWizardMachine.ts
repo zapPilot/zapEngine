@@ -185,21 +185,25 @@ function spotPlanLoadedState(
     BigInt(plan.amountUsd6),
     spendableUsd6,
   );
+  // A shortfall must not leave the machine in `arrived`: that is the one
+  // status `runHlpDeposit` accepts, so the deposit would be gated by the
+  // screen's error rendering alone. Staying in `idle` fails closed in the
+  // hook itself, no matter which caller taps.
+  const insufficient = shortfallUsd6 > 0n;
   return {
     ...initialDepositWizardState,
     stage: 'hyperliquidDeposit',
     hlp: {
       ...initialHlpState,
       step: plan.step,
-      status: 'arrived',
+      status: insufficient ? 'idle' : 'arrived',
     },
-    error:
-      shortfallUsd6 > 0n
-        ? {
-            stage: 'hyperliquidDeposit',
-            message: insufficientHyperCoreUsdcMessage(shortfallUsd6),
-          }
-        : null,
+    error: insufficient
+      ? {
+          stage: 'hyperliquidDeposit',
+          message: insufficientHyperCoreUsdcMessage(shortfallUsd6),
+        }
+      : null,
   };
 }
 

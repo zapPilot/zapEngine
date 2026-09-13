@@ -3,7 +3,12 @@ import { createApiServiceCaller } from '@core/lib/http/createServiceCaller';
 import { pollUntil } from '@core/lib/polling';
 import { parseBaseUnits } from '@core/lib/wallet/usd6';
 import { equalsAddress } from '@zapengine/types/shared';
-import { isAddress, type Address, type LocalAccount, type WalletClient } from 'viem';
+import {
+  isAddress,
+  type Address,
+  type LocalAccount,
+  type WalletClient,
+} from 'viem';
 import { z } from 'zod';
 
 const DEFAULT_API_URL = 'https://api.hyperliquid.xyz';
@@ -18,12 +23,17 @@ const clearinghouseStateSchema = z.looseObject({
   marginSummary: z.looseObject({ accountValue: usdStringSchema }),
 });
 
+/**
+ * Unrelated coins are validated loosely on purpose: one oddly-formatted
+ * altcoin row must not throw away the USDC balance the caller asked for.
+ * The USDC row's own strings are validated where they are converted.
+ */
 const spotClearinghouseStateSchema = z.looseObject({
   balances: z.array(
     z.looseObject({
       coin: z.string(),
-      total: usdStringSchema,
-      hold: usdStringSchema.optional(),
+      total: z.string(),
+      hold: z.string().optional(),
     }),
   ),
 });
@@ -46,7 +56,9 @@ const hyperliquidAbstractionSchema = z.enum([
 
 const extraAgentsSchema = z.array(
   z.object({
-    address: z.string().refine(isAddress, { message: 'Expected an EVM address' }),
+    address: z
+      .string()
+      .refine(isAddress, { message: 'Expected an EVM address' }),
     name: z.string(),
     validUntil: z.number().nullable(),
   }),
@@ -502,7 +514,9 @@ export async function approveHyperliquidAgent({
   apiUrl?: string;
 }): Promise<void> {
   if (agentName.length < 1 || agentName.length > 16) {
-    throw new Error('Hyperliquid agent name must be between 1 and 16 characters');
+    throw new Error(
+      'Hyperliquid agent name must be between 1 and 16 characters',
+    );
   }
   await submitSignedAction({
     signer: walletClient,

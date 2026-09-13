@@ -159,7 +159,9 @@ describe('useBridgeTest Hyperliquid arrival confirmation', () => {
       await result.current.execute(request);
     });
 
-    expect(mocks.getHyperCoreSpendableUsdc).toHaveBeenCalledWith({ user: USER });
+    expect(mocks.getHyperCoreSpendableUsdc).toHaveBeenCalledWith({
+      user: USER,
+    });
     expect(mocks.waitForHyperCoreUsdcArrival).toHaveBeenCalledWith(
       expect.objectContaining({
         user: USER,
@@ -193,15 +195,24 @@ describe('useBridgeTest Hyperliquid arrival confirmation', () => {
 
     const arrivalSignal = mocks.waitForHyperCoreUsdcArrival.mock.calls[0]?.[0]
       .signal as AbortSignal;
-    act(() => result.current.reset());
+
+    act(() => {
+      result.current.reset();
+    });
+
     expect(arrivalSignal.aborted).toBe(true);
+    expect(result.current.status).toBe('idle');
 
     await act(async () => {
       rejectArrival(new Error('Stale arrival poll failed.'));
       await execution;
     });
+
+    // A superseded poll must not restore any of the run it belonged to.
     expect(result.current.status).toBe('idle');
     expect(result.current.error).toBeNull();
+    expect(result.current.sourceTxHash).toBeNull();
+    expect(result.current.destinationTxHash).toBeNull();
   });
 
   it('keeps reset state when an aborted arrival poll resolves later', async () => {
@@ -223,15 +234,26 @@ describe('useBridgeTest Hyperliquid arrival confirmation', () => {
     });
     const arrivalSignal = mocks.waitForHyperCoreUsdcArrival.mock.calls[0]?.[0]
       .signal as AbortSignal;
-    act(() => result.current.reset());
+
+    act(() => {
+      result.current.reset();
+    });
+
     expect(arrivalSignal.aborted).toBe(true);
+    expect(result.current.status).toBe('idle');
+    expect(result.current.quote).toBeNull();
 
     await act(async () => {
       resolveArrival();
       await execution;
     });
+
+    // A successful resolve is just as stale as a rejection.
     expect(result.current.status).toBe('idle');
+    expect(result.current.error).toBeNull();
     expect(result.current.quote).toBeNull();
+    expect(result.current.sourceTxHash).toBeNull();
+    expect(result.current.destinationTxHash).toBeNull();
   });
 
   it('keeps the second execution result when the first arrival poll rejects later', async () => {
@@ -288,7 +310,11 @@ describe('useBridgeTest Hyperliquid arrival confirmation', () => {
       rejectFirstArrival(new Error('Stale first execution failed.'));
       await firstExecution;
     });
+
+    // Only the newest execution may publish state.
     expect(result.current.status).toBe('completed');
     expect(result.current.error).toBeNull();
+    expect(result.current.sourceTxHash).toBe(SECOND_SOURCE_HASH);
+    expect(result.current.destinationTxHash).toBe(SECOND_DESTINATION_HASH);
   });
 });

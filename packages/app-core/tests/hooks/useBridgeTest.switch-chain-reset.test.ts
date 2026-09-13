@@ -15,8 +15,8 @@ const mocks = vi.hoisted(() => ({
   buildApproveTx: vi.fn(),
   getPublicClient: vi.fn(),
   waitForBridgeCompletion: vi.fn(),
-  getPerpUsdcBalance: vi.fn(),
-  waitForPerpUsdcArrival: vi.fn(),
+  getHyperCoreSpendableUsdc: vi.fn(),
+  waitForHyperCoreUsdcArrival: vi.fn(),
   sendPreparedTransaction: vi.fn(),
   readContract: vi.fn(),
   estimateGas: vi.fn(),
@@ -42,8 +42,8 @@ vi.mock('@core/services/intentClient', () => ({
 }));
 
 vi.mock('@core/services/hyperliquidService', () => ({
-  getPerpUsdcBalance: mocks.getPerpUsdcBalance,
-  waitForPerpUsdcArrival: mocks.waitForPerpUsdcArrival,
+  getHyperCoreSpendableUsdc: mocks.getHyperCoreSpendableUsdc,
+  waitForHyperCoreUsdcArrival: mocks.waitForHyperCoreUsdcArrival,
 }));
 
 vi.mock('@zapengine/intent-engine', () => ({
@@ -222,11 +222,11 @@ describe('useBridgeTest reset during chain switch', () => {
   });
 
   it('stops after Hyperliquid baseline lookup finishes following reset', async () => {
-    let resolveBaseline!: (balance: { withdrawableUsd6: bigint }) => void;
+    let resolveBaseline!: (balance: { spendableUsd6: bigint }) => void;
     mocks.switchChain.mockResolvedValue(undefined);
-    mocks.getPerpUsdcBalance.mockImplementation(
+    mocks.getHyperCoreSpendableUsdc.mockImplementation(
       () =>
-        new Promise<{ withdrawableUsd6: bigint }>((resolve) => {
+        new Promise<{ spendableUsd6: bigint }>((resolve) => {
           resolveBaseline = resolve;
         }),
     );
@@ -238,7 +238,9 @@ describe('useBridgeTest reset during chain switch', () => {
     await act(async () => {
       execution = result.current.execute(hyperliquidRequest);
       await vi.waitFor(() => {
-        expect(mocks.getPerpUsdcBalance).toHaveBeenCalledWith({ user: USER });
+        expect(mocks.getHyperCoreSpendableUsdc).toHaveBeenCalledWith({
+          user: USER,
+        });
       });
     });
 
@@ -247,14 +249,14 @@ describe('useBridgeTest reset during chain switch', () => {
     });
 
     await act(async () => {
-      resolveBaseline({ withdrawableUsd6: 5000000n });
+      resolveBaseline({ spendableUsd6: 5_000_000n });
       await execution;
     });
 
     expect(mocks.sendTransaction).not.toHaveBeenCalled();
     expect(mocks.sendPreparedTransaction).not.toHaveBeenCalled();
     expect(mocks.waitForBridgeCompletion).not.toHaveBeenCalled();
-    expect(mocks.waitForPerpUsdcArrival).not.toHaveBeenCalled();
+    expect(mocks.waitForHyperCoreUsdcArrival).not.toHaveBeenCalled();
     expect(result.current.status).toBe('idle');
     expect(result.current.error).toBeNull();
     expect(result.current.quote).toBeNull();

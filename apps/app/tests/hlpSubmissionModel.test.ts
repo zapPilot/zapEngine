@@ -27,6 +27,8 @@ describe('startHlpSubmission', () => {
       submitReviewedBatch,
     });
 
+    // The follow-up deposits the delta against this snapshot, so a baseline
+    // taken after the bridge would sweep USDC the user already held.
     expect(order).toEqual(['read', 'baseline:7250000', 'submit']);
     expect(setBaselineUsd6).toHaveBeenCalledWith('7250000');
   });

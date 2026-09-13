@@ -61,6 +61,68 @@ describe('hyperliquidAgentReducer', () => {
     ).toBe(checking);
   });
 
+  it('ignores a stale approval result from another master wallet', () => {
+    const approving = hyperliquidAgentReducer(
+      hyperliquidAgentReducer(initialHyperliquidAgentState, {
+        type: 'CHECK_STARTED',
+        master: MASTER,
+      }),
+      { type: 'APPROVE_STARTED', master: MASTER },
+    );
+    expect(
+      hyperliquidAgentReducer(approving, {
+        type: 'APPROVE_RESOLVED',
+        master: OTHER,
+        agentAddress: AGENT,
+      }),
+    ).toBe(approving);
+    expect(
+      hyperliquidAgentReducer(approving, {
+        type: 'APPROVE_STARTED',
+        master: OTHER,
+      }),
+    ).toBe(approving);
+  });
+
+  it('drops the agent address on failure so nothing reads as ready', () => {
+    const ready = hyperliquidAgentReducer(
+      hyperliquidAgentReducer(initialHyperliquidAgentState, {
+        type: 'CHECK_STARTED',
+        master: MASTER,
+      }),
+      { type: 'APPROVE_RESOLVED', master: MASTER, agentAddress: AGENT },
+    );
+    const failed = hyperliquidAgentReducer(ready, {
+      type: 'FAILED',
+      master: MASTER,
+      message: 'Unable to check Hyperliquid signing',
+    });
+    expect(failed.status).toBe('error');
+    expect(failed.agentAddress).toBeNull();
+    expect(failed.error).toBe('Unable to check Hyperliquid signing');
+  });
+
+  it('rebinds to the new wallet as soon as a check starts for it', () => {
+    const ready = hyperliquidAgentReducer(
+      hyperliquidAgentReducer(initialHyperliquidAgentState, {
+        type: 'CHECK_STARTED',
+        master: MASTER,
+      }),
+      { type: 'APPROVE_RESOLVED', master: MASTER, agentAddress: AGENT },
+    );
+    // A wallet switch must not leave the previous wallet's agent addressable.
+    const switched = hyperliquidAgentReducer(ready, {
+      type: 'CHECK_STARTED',
+      master: OTHER,
+    });
+    expect(switched).toEqual({
+      status: 'checking',
+      masterAddress: OTHER,
+      agentAddress: null,
+      error: null,
+    });
+  });
+
   it('reset removes every association with the previous wallet', () => {
     const ready = {
       status: 'ready' as const,
