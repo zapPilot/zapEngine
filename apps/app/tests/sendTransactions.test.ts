@@ -99,6 +99,19 @@ describe('send transaction helpers', () => {
     });
   });
 
+  it('rejects zero-value sends even though zero parses to valid base units', () => {
+    expect(parseTokenAmountToBaseUnits('0', 6)).toBe(0n);
+
+    expect(() =>
+      buildSendTransactionRequest({
+        amount: '0',
+        asset: usdcAsset,
+        holding: usdcAsset.holdings[1]!,
+        recipient: RECIPIENT,
+      }),
+    ).toThrow('Enter a valid amount.');
+  });
+
   it('rejects a non-ETH holding with no token address instead of treating it as native', () => {
     const unsupportedAsset: DesktopWalletAsset = {
       ...usdcAsset,
