@@ -22,21 +22,14 @@ export const SOCIAL_LANGUAGE_ROTATION_ACTIVE_SINCE = '2026-09-02T00:00:00.000Z';
 /**
  * Historical language experiment keys. They stay readable so persisted v1/v2/v3
  * cohorts and metrics remain attributable, but no new fixed-policy lane should
- * write one of these keys.
+ * write one of these keys. Runtime code uses them only to classify/reconstruct
+ * historical rows; this is not an active assignment registry.
  */
-export const HISTORICAL_SOCIAL_LANGUAGE_EXPERIMENT_KEYS = {
+export const SOCIAL_LANGUAGE_EXPERIMENT_KEYS = {
   x: 'x-language-v2',
   threads: 'threads-language-v1',
   youtube: 'youtube-language-v1',
 } as const satisfies Record<'x' | 'threads' | 'youtube', string>;
-
-/**
- * Backward-compatible classifier for persisted jobs. Runtime code may use this
- * set to recognize historical language experiment rows; it is not an active
- * assignment registry.
- */
-export const SOCIAL_LANGUAGE_EXPERIMENT_KEYS =
-  HISTORICAL_SOCIAL_LANGUAGE_EXPERIMENT_KEYS;
 
 /** Historical Threads-fixed / X-YouTube swap activation fence. */
 export const SOCIAL_LANGUAGE_THREADS_FIXED_SINCE = '2026-09-12T00:00:00.000Z';
