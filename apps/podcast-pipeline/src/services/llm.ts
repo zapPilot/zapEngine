@@ -9,6 +9,7 @@ import { getRequiredEnv } from '../lib/env.js';
 import { errorMessage } from '../lib/errorMessage.js';
 import { normalizeLanguageClassroomLessonDraft } from '../lib/languageClassroom.js';
 import { sleep } from '../lib/sleep.js';
+import { isRecord } from '../lib/typeGuards.js';
 import type {
   LanguageClassroomLanguageCode,
   LanguageClassroomLessonDraft,
@@ -60,6 +61,8 @@ const LLM_COMPLETION_MAX_ATTEMPTS = 2;
 const LLM_COMPLETION_RETRY_DELAY_MS = 2_000;
 /** Selecting concepts and writing narration, not a reasoning task. */
 const LANGUAGE_CLASSROOM_REASONING: OpenRouterReasoning = { enabled: false };
+/** Rewriting an article as narration, not a reasoning task. */
+const SCRIPT_REASONING: OpenRouterReasoning = { enabled: false };
 /**
  * There is deliberately no `max_tokens` on this call any more. A ceiling cannot
  * tell a runaway provider from a verbose one: it cuts the body wherever the
@@ -140,6 +143,22 @@ export class OpenRouterEmptyChoicesError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'OpenRouterEmptyChoicesError';
+  }
+}
+
+/**
+ * The other half of the same family: HTTP 200 carrying a well-formed envelope
+ * with nothing to read in it -- no candidate at all, or a candidate whose text
+ * is blank (observed as `finish_reason=length` with zero output characters,
+ * the endpoint having spent the whole budget on reasoning tokens). Every
+ * workload here asks for text and none of them use tool calls, so a blank body
+ * is unusable for all of them, and re-prompting the same endpoint cannot fix
+ * what it never wrote -- only the next configured model can.
+ */
+export class OpenRouterEmptyContentError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'OpenRouterEmptyContentError';
   }
 }
 
@@ -320,10 +339,6 @@ export function normalizeEditorialTitle(value: unknown): string | null {
 }
 
 function parseScriptPayload(content: string): ParsedScriptPayload {
-  if (!content.trim()) {
-    throw new Error('LLM returned empty script content');
-  }
-
   const stripped = stripJsonFence(content.trim());
   if (!stripped.startsWith('{')) {
     assertGeneratedScriptBody(content);
@@ -663,7 +678,8 @@ async function createOpenRouterChatCompletionOnce(
         ? abortReason
         : error;
     // `llm:response` is the only line carrying the provider, and it fires only
-    // on success -- a timeout otherwise left no record of what was requested.
+    // once a response arrives -- a timeout otherwise left no record of what was
+    // requested.
     logOpenRouterEvent(
       'llm:failed',
       {
@@ -700,6 +716,11 @@ async function createOpenRouterChatCompletionOnce(
     },
     requestOptions.logContext,
   );
+  // Deliberately after the log and outside the try above: `llm:response` is the
+  // only line carrying the provider that served an unusable answer, and a
+  // second `llm:failed` for the same request would misreport it as a transport
+  // failure.
+  assertOpenRouterCompletionContent(completion, params.model);
 
   return completion;
 }
@@ -718,10 +739,10 @@ function userInputCharacterCount(
 
 /**
  * Guards only the shape every reader below assumes -- `choices` is an array
- * it can index or reduce over. A well-formed "no candidate" response already
- * carries an empty array, which every reader already handles via `?.`/`??`
- * fallbacks; this only catches `choices` being missing, `null`, or otherwise
- * not an array at all, which is what actually crashes them.
+ * it can index or reduce over. This catches `choices` being missing, `null`,
+ * or otherwise not an array at all, which is what crashes them with a bare
+ * `Cannot read properties of undefined`; an array that is merely empty is a
+ * readable envelope and belongs to the content guard below.
  */
 function assertOpenRouterCompletionChoices(
   completion: OpenRouterChatCompletion,
@@ -730,6 +751,22 @@ function assertOpenRouterCompletionChoices(
   if (Array.isArray(completion.choices)) return;
   throw new OpenRouterEmptyChoicesError(
     `OpenRouter returned no choices array for model ${model} (provider=${completion.provider || 'unknown'})`,
+  );
+}
+
+/**
+ * Guards what every caller actually needs: text it can parse. Kept separate
+ * from the `choices` shape guard because this failure is about the body, and
+ * it names the endpoint, stop reason, and reasoning volume that explain it.
+ */
+function assertOpenRouterCompletionContent(
+  completion: OpenRouterChatCompletion,
+  model: string,
+): void {
+  const choice = completion.choices[0];
+  if (choice && messageContentText(choice.message?.content).trim()) return;
+  throw new OpenRouterEmptyContentError(
+    `OpenRouter returned no usable content for model ${model} (provider=${completion.provider || 'unknown'}, finishReason=${completionFinishReason(completion)}, reasoningChars=${messageReasoningCharacterCount(choice?.message)})`,
   );
 }
 
@@ -753,13 +790,35 @@ function completionOutputCharacterCount(
 }
 
 function messageContentCharacterCount(content: unknown): number {
-  if (typeof content === 'string') return content.length;
-  if (!Array.isArray(content)) return 0;
+  return messageContentText(content).length;
+}
+
+function messageContentText(content: unknown): string {
+  if (typeof content === 'string') return content;
+  if (!Array.isArray(content)) return '';
 
   const contentParts = content as unknown[];
-  return contentParts.reduce<number>((total, part) => {
-    if (!part || typeof part !== 'object') return total;
-    const text = (part as { text?: unknown }).text;
+  return contentParts.reduce<string>((text, part) => {
+    if (!part || typeof part !== 'object') return text;
+    const partText = (part as { text?: unknown }).text;
+    return typeof partText === 'string' ? text + partText : text;
+  }, '');
+}
+
+/**
+ * Reasoning tokens never arrive as content, so they are invisible in
+ * `outputChars` -- and they are the usual explanation for an endpoint that
+ * answered with nothing to read.
+ */
+export function messageReasoningCharacterCount(message: unknown): number {
+  if (!isRecord(message)) return 0;
+  const reasoning = message['reasoning'];
+  if (typeof reasoning === 'string') return reasoning.length;
+  const details = message['reasoning_details'];
+  if (!Array.isArray(details)) return 0;
+  return details.reduce<number>((total: number, detail: unknown) => {
+    if (!isRecord(detail)) return total;
+    const text = detail['text'];
     return total + (typeof text === 'string' ? text.length : 0);
   }, 0);
 }
@@ -806,17 +865,18 @@ function isTimeoutError(error: unknown): boolean {
  * chain. Payload/semantic errors stay with the caller so retries can carry a
  * correction prompt rather than silently changing model behavior.
  *
- * A malformed provider response (HTTP 200 with `choices` missing, null, or not
- * an array) is a transport-level failure for chain purposes: the endpoint
- * answered but unusably, and the next configured model is the only thing that
- * can fix it. Auth/configuration failures (401/403/404/400) stay terminal.
+ * An unusable HTTP 200 -- `choices` missing, null, or not an array, or an
+ * envelope with no readable text in it -- is a transport-level failure for
+ * chain purposes: the endpoint answered but gave the caller nothing to work
+ * with, and the next configured model is the only thing that can fix it.
+ * Auth/configuration failures (401/403/404/400) stay terminal.
  */
 export function isRetryableOpenRouterError(error: unknown): boolean {
   if (!error || typeof error !== 'object') {
     return false;
   }
 
-  if (error instanceof OpenRouterEmptyChoicesError) return true;
+  if (isUnusableOpenRouterCompletionError(error)) return true;
 
   const status = (error as { status?: unknown }).status;
   if (typeof status === 'number') {
@@ -895,6 +955,8 @@ export function classifyScriptCompletionError(
 
   if (isTimeoutError(error)) return 'timeout';
 
+  if (isUnusableOpenRouterCompletionError(error)) return 'retry_safe';
+
   const status = (error as { status?: unknown }).status;
   if (typeof status === 'number') {
     return RETRYABLE_OPENROUTER_STATUS.has(status) || status >= 500
@@ -903,6 +965,13 @@ export function classifyScriptCompletionError(
   }
 
   return error instanceof APIConnectionError ? 'retry_safe' : 'terminal';
+}
+
+function isUnusableOpenRouterCompletionError(error: unknown): boolean {
+  return (
+    error instanceof OpenRouterEmptyChoicesError ||
+    error instanceof OpenRouterEmptyContentError
+  );
 }
 
 /**
@@ -974,6 +1043,7 @@ async function runScriptAttempt(
       {
         timeoutMs: SCRIPT_OPENROUTER_TIMEOUT_MS,
         providerRouting: input.routing,
+        reasoning: SCRIPT_REASONING,
       },
     );
     const metadata = completionMetadata(

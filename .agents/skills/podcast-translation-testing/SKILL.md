@@ -26,7 +26,7 @@ For classroom generation, dual-HLS resume, and playback integrity, use
   - primary model: code-owned `openrouter/free`
   - transport model order: `openrouter/free`, then `getOpenRouterModelCandidates()` appends `LLM_FALLBACK_MODELS` in reviewed order with duplicates removed
   - canonical scripts over 2,000 characters: split by paragraph, then sentence boundary, then hard cap; translated sequentially and rejoined with blank lines
-  - transport failures are handled by `createOpenRouterChatCompletion()` in `llm.ts`: timeout, connection failure, 408/409/429, or 5xx advances through the shared model chain; auth/config/client failures remain terminal
+  - transport failures are handled by `createOpenRouterChatCompletion()` in `llm.ts`: timeout, connection failure, 408/409/429, 5xx, or an unusable HTTP 200 (`choices` missing, no candidate, or blank candidate text) advances through the shared model chain; auth/config/client failures remain terminal
   - translation keeps `TRANSLATION_MAX_ATTEMPTS = 2` around the shared request for `TranslationResponseError` only, with correction context on the normal route. A transport error reaching this layer means the shared model chain is already exhausted, so it fails immediately without replaying the chain
   - empty source fields are preserved locally without a provider call
   - the final failure log carries the spend already committed by completed attempts

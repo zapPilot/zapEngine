@@ -17,7 +17,8 @@ const llmMocks = vi.hoisted(() => ({
   getOpenRouterConfig: vi.fn(),
 }));
 
-vi.mock('../../llm.js', () => ({
+vi.mock('../../llm.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../llm.js')>()),
   createCompletionWithRetry: llmMocks.createCompletionWithRetry,
   getOpenRouterConfig: llmMocks.getOpenRouterConfig,
 }));
