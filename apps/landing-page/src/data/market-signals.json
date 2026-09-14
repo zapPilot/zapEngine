@@ -51,67 +51,6 @@
   },
   "snapshots": [
     {
-      "snapshot_date": "2025-09-12",
-      "values": {
-        "btc": {
-          "value": 116101.58089648,
-          "indicators": {
-            "dma_200": {
-              "value": 102204.67900877,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "eth": {
-          "value": 4715.24630997,
-          "indicators": {
-            "dma_200": {
-              "value": 2779.55027866,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "spy": {
-          "value": 651.8805542,
-          "indicators": {
-            "dma_200": {
-              "value": 589.77905685,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "eth_btc": {
-          "value": 0.04061311,
-          "indicators": {
-            "dma_200": {
-              "value": 0.02665697,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
-        "fgi": {
-          "value": 50.0,
-          "indicators": {},
-          "tags": {
-            "regime": "n"
-          }
-        },
-        "macro_fear_greed": {
-          "value": 61.34,
-          "indicators": {},
-          "tags": {
-            "label": "greed",
-            "regime": "greed",
-            "source": "cnn_fear_greed_unofficial"
-          }
-        }
-      }
-    },
-    {
       "snapshot_date": "2025-09-13",
       "values": {
         "btc": {
@@ -134,16 +73,6 @@
           },
           "tags": {}
         },
-        "spy": {
-          "value": 651.8805542,
-          "indicators": {
-            "dma_200": {
-              "value": 589.77905685,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
         "eth_btc": {
           "value": 0.04026011,
           "indicators": {
@@ -159,15 +88,6 @@
           "indicators": {},
           "tags": {
             "regime": "n"
-          }
-        },
-        "macro_fear_greed": {
-          "value": 61.34,
-          "indicators": {},
-          "tags": {
-            "label": "greed",
-            "regime": "greed",
-            "source": "cnn_fear_greed_unofficial"
           }
         }
       }
@@ -195,16 +115,6 @@
           },
           "tags": {}
         },
-        "spy": {
-          "value": 651.8805542,
-          "indicators": {
-            "dma_200": {
-              "value": 589.77905685,
-              "is_above": true
-            }
-          },
-          "tags": {}
-        },
         "eth_btc": {
           "value": 0.03994187,
           "indicators": {
@@ -220,15 +130,6 @@
           "indicators": {},
           "tags": {
             "regime": "n"
-          }
-        },
-        "macro_fear_greed": {
-          "value": 61.34,
-          "indicators": {},
-          "tags": {
-            "label": "greed",
-            "regime": "greed",
-            "source": "cnn_fear_greed_unofficial"
           }
         }
       }
@@ -22237,12 +22138,73 @@
           }
         }
       }
+    },
+    {
+      "snapshot_date": "2026-09-13",
+      "values": {
+        "btc": {
+          "value": 76846.0,
+          "indicators": {
+            "dma_200": {
+              "value": 70001.55728619,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "eth": {
+          "value": 2479.77,
+          "indicators": {
+            "dma_200": {
+              "value": 2051.13562593,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "spy": {
+          "value": 764.29,
+          "indicators": {
+            "dma_200": {
+              "value": 710.93468221,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "eth_btc": {
+          "value": 0.03226934,
+          "indicators": {
+            "dma_200": {
+              "value": 0.02923243,
+              "is_above": true
+            }
+          },
+          "tags": {}
+        },
+        "fgi": {
+          "value": 66.0,
+          "indicators": {},
+          "tags": {
+            "regime": "g"
+          }
+        },
+        "macro_fear_greed": {
+          "value": 33.34,
+          "indicators": {},
+          "tags": {
+            "label": "fear",
+            "regime": "fear",
+            "source": "cnn_fear_greed_unofficial"
+          }
+        }
+      }
     }
   ],
   "meta": {
     "primary_series": "btc",
     "days_requested": 366,
     "count": 365,
-    "timestamp": "2026-09-12T00:00:00Z"
+    "timestamp": "2026-09-13T00:00:00Z"
   }
 }
