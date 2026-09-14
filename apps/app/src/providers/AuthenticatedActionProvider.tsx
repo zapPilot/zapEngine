@@ -42,14 +42,20 @@ export function AuthenticatedActionProvider({
         // Drop the queued action when the login does not complete, otherwise
         // it stays armed and the `isConnected` effect replays it on a later,
         // unrelated connection.
-        void account
-          .connect()
-          .then((outcome) => {
-            if (outcome === 'cancelled') {
-              cancel();
-            }
-          })
-          .catch(cancel);
+        try {
+          void account
+            .connect()
+            .then((outcome) => {
+              if (outcome === 'cancelled') {
+                cancel();
+              }
+            })
+            .catch(cancel);
+        } catch {
+          // Providers may fail before returning a promise. Keep the same
+          // fail-closed behavior as an async rejection.
+          cancel();
+        }
       }
     },
     [account, cancel],

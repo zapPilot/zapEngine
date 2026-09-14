@@ -114,6 +114,20 @@ describe('AuthenticatedActionProvider', () => {
     expect(action).not.toHaveBeenCalled();
   });
 
+  it('drops the queued action when the login throws synchronously', async () => {
+    mocks.account.connect.mockImplementation(() => {
+      throw new Error('provider unavailable');
+    });
+    await render();
+    const action = vi.fn();
+
+    expect(() => context().run(action)).not.toThrow();
+
+    await reconnect();
+
+    expect(action).not.toHaveBeenCalled();
+  });
+
   it('runs the action immediately while already connected', async () => {
     mocks.account.isConnected = true;
     await render();

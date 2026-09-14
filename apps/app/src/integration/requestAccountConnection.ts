@@ -11,5 +11,10 @@
 export function requestAccountConnection(connectable: {
   connect: () => Promise<unknown>;
 }): void {
-  void connectable.connect().catch(() => undefined);
+  try {
+    void connectable.connect().catch(() => undefined);
+  } catch {
+    // A provider may throw before it can return its promise. Press handlers
+    // must contain that failure just like an async rejection.
+  }
 }
