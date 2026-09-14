@@ -189,22 +189,18 @@ function safeErrorMessage(error: unknown): string {
 }
 
 function readMonthlyQuota(headers: Headers): BraveMonthlyQuota {
-  const limits = parseNumbers(headers.get('x-ratelimit-limit'));
-  const remaining = parseNumbers(headers.get('x-ratelimit-remaining'));
-  const resets = parseNumbers(headers.get('x-ratelimit-reset'));
-  const policies = (headers.get('x-ratelimit-policy') ?? '')
-    .split(',')
-    .map((part) => part.trim())
-    .filter(Boolean);
+  const limits = parseNumberSlots(headers.get('x-ratelimit-limit'));
+  const remaining = parseNumberSlots(headers.get('x-ratelimit-remaining'));
+  const resets = parseNumberSlots(headers.get('x-ratelimit-reset'));
 
-  if (limits.length === 0 || remaining.length === 0) {
+  if (
+    limits.every((value) => value === null) ||
+    remaining.every((value) => value === null)
+  ) {
     throw new Error('Brave Search quota headers missing');
   }
 
-  const windows = policies.map((policy) => {
-    const match = /(?:^|;)w=(\d+)(?:;|$)/.exec(policy);
-    return match ? Number(match[1]) : null;
-  });
+  const windows = parseWindowSlots(headers.get('x-ratelimit-policy'));
   const index = windows.reduce<number>(
     (best, window, current) =>
       window !== null && (best === -1 || window > windows[best]!)
@@ -220,9 +216,18 @@ function readMonthlyQuota(headers: Headers): BraveMonthlyQuota {
 
   const limit = limits[index];
   const left = remaining[index];
-  // parseNumbers has already discarded non-finite values; only alignment and
-  // non-negative quota semantics remain to validate here.
-  if (limit === undefined || left === undefined || limit < 0 || left < 0) {
+  // Unreadable slots stay in place as `null`, so a `null` here means the
+  // monthly window's own limit or remaining could not be read. Missing slots
+  // (`undefined`) and negative values fail the same way: none of them may be
+  // realigned into a coherent quota.
+  if (
+    limit === undefined ||
+    limit === null ||
+    left === undefined ||
+    left === null ||
+    limit < 0 ||
+    left < 0
+  ) {
     throw new Error('Brave Search monthly quota is not measurable');
   }
 
@@ -247,11 +252,26 @@ function readMonthlyQuota(headers: Headers): BraveMonthlyQuota {
   };
 }
 
-function parseNumbers(value: string | null): number[] {
-  return (value ?? '')
-    .split(',')
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .map(Number)
-    .filter((value) => Number.isFinite(value));
+// Brave publishes one comma-separated slot per rate-limit window and the four
+// headers are positional: slot N of `x-ratelimit-limit` belongs to slot N of
+// `x-ratelimit-policy`. Dropping an unreadable slot would shift the rest and
+// silently pair a limit with the wrong window, so it stays in place as `null`
+// and fails the alignment check instead of fabricating a coherent quota.
+function splitSlots(value: string | null): string[] {
+  return (value ?? '').split(',').map((part) => part.trim());
+}
+
+function parseNumberSlots(value: string | null): (number | null)[] {
+  return splitSlots(value).map((slot) => {
+    const parsed = Number(slot);
+    // `Number('')` is 0, so the blank check cannot be folded into isFinite.
+    return slot !== '' && Number.isFinite(parsed) ? parsed : null;
+  });
+}
+
+function parseWindowSlots(value: string | null): (number | null)[] {
+  return splitSlots(value).map((slot) => {
+    const match = /(?:^|;)w=(\d+)(?:;|$)/.exec(slot);
+    return match ? Number(match[1]) : null;
+  });
 }

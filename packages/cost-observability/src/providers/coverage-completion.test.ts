@@ -198,23 +198,20 @@ describe('Brave quota header completion paths', () => {
     );
   });
 
-  it('ignores blank and non-numeric values before selecting a long window', async () => {
-    const snapshot = await fetchBraveQuotaSnapshot(
-      {
-        'x-ratelimit-limit': ' , nope, 100',
-        'x-ratelimit-policy': ' , 100;w=2592000, ',
-        'x-ratelimit-remaining': ' , Infinity, 90',
-        'x-ratelimit-reset': ' , NaN, 123',
-      },
-      NOW,
+  it('rejects misaligned slots instead of realigning a coherent quota', async () => {
+    // Slot 1 is the only monthly window, and its limit/remaining are
+    // unreadable. Compacting the slots would realign limit=100 with
+    // remaining=90 and invoice a quota Brave never reported.
+    const error = await expectBraveQuotaFailure({
+      'x-ratelimit-limit': ' , nope, 100',
+      'x-ratelimit-policy': ' , 100;w=2592000, ',
+      'x-ratelimit-remaining': ' , Infinity, 90',
+      'x-ratelimit-reset': ' , NaN, 123',
+    });
+    expect((error as Error).message).toBe(
+      'Brave Search monthly quota is not measurable',
     );
-
-    expect(snapshot.accruedCostUsd).toBe(10);
-    expect(snapshot.usage).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ key: 'quota_reset_seconds', value: 123 }),
-      ]),
-    );
+    expect(error).not.toBeInstanceOf(UsageNotMeasurableError);
   });
 
   it('skips malformed policies and keeps the greatest measurable window', async () => {
@@ -245,6 +242,14 @@ describe('Brave quota header completion paths', () => {
         'x-ratelimit-limit': '50, 100',
         'x-ratelimit-policy': '50;w=1, 100;w=2592000',
         'x-ratelimit-remaining': '49',
+      },
+    ],
+    [
+      'unparseable aligned remaining',
+      {
+        'x-ratelimit-limit': '50, 100',
+        'x-ratelimit-policy': '50;w=1, 100;w=2592000',
+        'x-ratelimit-remaining': '49, nope',
       },
     ],
     [
