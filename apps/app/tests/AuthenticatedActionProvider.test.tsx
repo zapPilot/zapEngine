@@ -129,6 +129,33 @@ describe('AuthenticatedActionProvider', () => {
     expect(latestAction).toHaveBeenCalledTimes(1);
   });
 
+  it('does not let an older rejected login clear a newer queued action', async () => {
+    let rejectFirst: ((reason?: unknown) => void) | undefined;
+    const firstLogin = new Promise<ConnectOutcome>((_resolve, reject) => {
+      rejectFirst = reject;
+    });
+    mocks.account.connect
+      .mockReturnValueOnce(firstLogin)
+      .mockResolvedValueOnce('connected');
+    await render();
+    const firstAction = vi.fn();
+    const latestAction = vi.fn();
+
+    await act(async () => {
+      context().run(firstAction);
+      context().run(latestAction);
+    });
+
+    await act(async () => {
+      rejectFirst?.(new Error('first login failed late'));
+      await firstLogin.catch(() => undefined);
+    });
+    await reconnect();
+
+    expect(firstAction).not.toHaveBeenCalled();
+    expect(latestAction).toHaveBeenCalledTimes(1);
+  });
+
   it('drops the queued action when the login fails', async () => {
     mocks.account.connect.mockRejectedValue(new Error('network failed'));
     await render();
