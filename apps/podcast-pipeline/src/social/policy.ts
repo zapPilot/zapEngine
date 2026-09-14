@@ -30,6 +30,14 @@ export const HISTORICAL_SOCIAL_LANGUAGE_EXPERIMENT_KEYS = {
   youtube: 'youtube-language-v1',
 } as const satisfies Record<'x' | 'threads' | 'youtube', string>;
 
+/**
+ * Backward-compatible classifier for persisted jobs. Runtime code may use this
+ * set to recognize historical language experiment rows; it is not an active
+ * assignment registry.
+ */
+export const SOCIAL_LANGUAGE_EXPERIMENT_KEYS =
+  HISTORICAL_SOCIAL_LANGUAGE_EXPERIMENT_KEYS;
+
 /** Historical Threads-fixed / X-YouTube swap activation fence. */
 export const SOCIAL_LANGUAGE_THREADS_FIXED_SINCE = '2026-09-12T00:00:00.000Z';
 
