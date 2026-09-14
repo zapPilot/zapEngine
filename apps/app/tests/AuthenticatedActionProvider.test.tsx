@@ -267,6 +267,19 @@ describe('AuthenticatedActionProvider', () => {
     expect(action).not.toHaveBeenCalled();
   });
 
+  it('consumes a queued action only once across connected re-renders', async () => {
+    await render();
+    const action = vi.fn();
+
+    await act(async () => context().run(action));
+    await reconnect();
+    await render();
+    await render();
+
+    expect(mocks.account.connect).toHaveBeenCalledTimes(1);
+    expect(action).toHaveBeenCalledTimes(1);
+  });
+
   it('runs the action immediately while already connected', async () => {
     mocks.account.isConnected = true;
     await render();
