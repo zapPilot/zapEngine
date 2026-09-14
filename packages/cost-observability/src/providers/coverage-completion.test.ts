@@ -6,6 +6,13 @@ import { fetchBraveCostSnapshot } from './brave.js';
 import { fetchDeBankCostSnapshot } from './debank.js';
 import { createFixedMonthlyCostSnapshot } from './fixed.js';
 import { fetchOpenRouterCostSnapshot } from './openrouter.js';
+import {
+  braveTestResponse,
+  createOpenRouterKeyFetcher,
+  expectBraveSearchAuthCall,
+  expectFreshZeroCostSnapshot,
+  fetchBraveQuotaSnapshot,
+} from './test-helpers.js';
 
 const NOW = new Date('2026-09-14T04:00:00.000Z');
 const LONG_WINDOW_HEADERS = {
@@ -14,13 +21,6 @@ const LONG_WINDOW_HEADERS = {
   'x-ratelimit-remaining': '90',
   'x-ratelimit-reset': '123',
 };
-
-function braveResponse(
-  headers: Record<string, string>,
-  status = 200,
-): Response {
-  return new Response('{}', { status, headers });
-}
 
 async function withGlobalFetch<T>(
   fetcher: typeof globalThis.fetch,
@@ -41,7 +41,7 @@ async function expectBraveQuotaFailure(
   try {
     await fetchBraveCostSnapshot({
       apiKey: 'key',
-      fetch: vi.fn().mockResolvedValue(braveResponse(headers)),
+      fetch: vi.fn().mockResolvedValue(braveTestResponse(headers)),
       now: NOW,
     });
   } catch (error) {
@@ -94,8 +94,7 @@ describe('provider defaults through the public surface', () => {
       fetchDeBankCostSnapshot({ apiKey: 'debank-key', unitCostUsd: 0 }),
     );
 
-    expect(snapshot.accruedCostUsd).toBe(0);
-    expect(Number.isNaN(Date.parse(snapshot.fetchedAt))).toBe(false);
+    expectFreshZeroCostSnapshot(snapshot);
     expect(fetcher).toHaveBeenCalledWith(
       'https://pro-openapi.debank.com/v1/account/units',
       expect.objectContaining({
@@ -105,20 +104,11 @@ describe('provider defaults through the public surface', () => {
   });
 
   it('uses OpenRouter global fetch, clock, and endpoint defaults', async () => {
-    const fetcher = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          data: {
-            usage: 0,
-            usage_daily: 0,
-            usage_weekly: 0,
-            usage_monthly: 0,
-            limit: null,
-            limit_remaining: 0,
-          },
-        }),
-      ),
-    ) as typeof globalThis.fetch;
+    const fetcher = createOpenRouterKeyFetcher({
+      usage: 0,
+      limit: null,
+      limitRemaining: 0,
+    }) as typeof globalThis.fetch;
 
     const snapshot = await withGlobalFetch(fetcher, () =>
       fetchOpenRouterCostSnapshot({ apiKey: 'router-key' }),
@@ -138,26 +128,17 @@ describe('provider defaults through the public surface', () => {
     const fetcher = vi
       .fn()
       .mockResolvedValue(
-        braveResponse(LONG_WINDOW_HEADERS),
+        braveTestResponse(LONG_WINDOW_HEADERS),
       ) as typeof globalThis.fetch;
 
     const snapshot = await withGlobalFetch(fetcher, () =>
       fetchBraveCostSnapshot({ apiKey: 'brave-key', unitCostUsd: 0 }),
     );
 
-    expect(snapshot.accruedCostUsd).toBe(0);
-    expect(Number.isNaN(Date.parse(snapshot.fetchedAt))).toBe(false);
-    expect(fetcher).toHaveBeenCalledWith(
-      expect.objectContaining({
-        href: expect.stringContaining(
-          'https://api.search.brave.com/res/v1/images/search?',
-        ),
-      }),
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          'x-subscription-token': 'brave-key',
-        }),
-      }),
+    expectFreshZeroCostSnapshot(snapshot);
+    expectBraveSearchAuthCall(
+      fetcher,
+      'https://api.search.brave.com/res/v1/images/search?',
     );
   });
 });
@@ -167,7 +148,7 @@ describe('Brave retry completion paths', () => {
     const fetcher = vi
       .fn()
       .mockResolvedValueOnce({ ok: false, status: 503, body: null } as Response)
-      .mockResolvedValueOnce(braveResponse(LONG_WINDOW_HEADERS));
+      .mockResolvedValueOnce(braveTestResponse(LONG_WINDOW_HEADERS));
 
     const snapshot = await fetchBraveCostSnapshot({
       apiKey: 'key',
@@ -180,7 +161,7 @@ describe('Brave retry completion paths', () => {
   });
 
   it('throws the final retryable HTTP response after the attempt limit', async () => {
-    const fetcher = vi.fn().mockResolvedValue(braveResponse({}, 503));
+    const fetcher = vi.fn().mockResolvedValue(braveTestResponse({}, 503));
     const sleep = vi.fn().mockResolvedValue(undefined);
 
     await expect(
@@ -218,19 +199,15 @@ describe('Brave quota header completion paths', () => {
   });
 
   it('ignores blank and non-numeric values before selecting a long window', async () => {
-    const snapshot = await fetchBraveCostSnapshot({
-      apiKey: 'key',
-      unitCostUsd: 1,
-      fetch: vi.fn().mockResolvedValue(
-        braveResponse({
-          'x-ratelimit-limit': ' , nope, 100',
-          'x-ratelimit-policy': ' , 100;w=2592000, ',
-          'x-ratelimit-remaining': ' , Infinity, 90',
-          'x-ratelimit-reset': ' , NaN, 123',
-        }),
-      ),
-      now: NOW,
-    });
+    const snapshot = await fetchBraveQuotaSnapshot(
+      {
+        'x-ratelimit-limit': ' , nope, 100',
+        'x-ratelimit-policy': ' , 100;w=2592000, ',
+        'x-ratelimit-remaining': ' , Infinity, 90',
+        'x-ratelimit-reset': ' , NaN, 123',
+      },
+      NOW,
+    );
 
     expect(snapshot.accruedCostUsd).toBe(10);
     expect(snapshot.usage).toEqual(
@@ -241,18 +218,14 @@ describe('Brave quota header completion paths', () => {
   });
 
   it('skips malformed policies and keeps the greatest measurable window', async () => {
-    const snapshot = await fetchBraveCostSnapshot({
-      apiKey: 'key',
-      unitCostUsd: 1,
-      fetch: vi.fn().mockResolvedValue(
-        braveResponse({
-          'x-ratelimit-limit': '1, 100, 9',
-          'x-ratelimit-policy': 'broken, 100;w=2592000, 9;w=86400',
-          'x-ratelimit-remaining': '1, 90, 8',
-        }),
-      ),
-      now: NOW,
-    });
+    const snapshot = await fetchBraveQuotaSnapshot(
+      {
+        'x-ratelimit-limit': '1, 100, 9',
+        'x-ratelimit-policy': 'broken, 100;w=2592000, 9;w=86400',
+        'x-ratelimit-remaining': '1, 90, 8',
+      },
+      NOW,
+    );
 
     expect(snapshot.accruedCostUsd).toBe(10);
   });
