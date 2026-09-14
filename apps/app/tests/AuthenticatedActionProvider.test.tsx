@@ -156,6 +156,34 @@ describe('AuthenticatedActionProvider', () => {
     expect(latestAction).toHaveBeenCalledTimes(1);
   });
 
+  it('does not let an older successful login revive a superseded action', async () => {
+    let connectFirst: ((outcome: ConnectOutcome) => void) | undefined;
+    const firstLogin = new Promise<ConnectOutcome>((resolve) => {
+      connectFirst = resolve;
+    });
+    mocks.account.connect
+      .mockReturnValueOnce(firstLogin)
+      .mockResolvedValueOnce('connected');
+    await render();
+    const firstAction = vi.fn();
+    const latestAction = vi.fn();
+
+    await act(async () => {
+      context().run(firstAction);
+      context().run(latestAction);
+    });
+
+    await act(async () => {
+      connectFirst?.('connected');
+      await firstLogin;
+    });
+    await reconnect();
+    await render();
+
+    expect(firstAction).not.toHaveBeenCalled();
+    expect(latestAction).toHaveBeenCalledTimes(1);
+  });
+
   it('does not let a login settled after manual cancel affect a later action', async () => {
     let cancelFirst: ((outcome: ConnectOutcome) => void) | undefined;
     const firstLogin = new Promise<ConnectOutcome>((resolve) => {
