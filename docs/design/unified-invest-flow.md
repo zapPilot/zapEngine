@@ -1,71 +1,33 @@
 # Unified Invest Experience
 
-## Goal
+## Current product contract
 
-Replace the current chain/destination-oriented invest entry points with one portfolio-oriented flow.
+The primary invest flow is portfolio-oriented rather than chain/destination-oriented.
 
-A user should be able to:
+A user can:
 
 1. enter one investment amount;
-2. fund it from any supported wallet balance;
-3. use a saved or edited target allocation;
+2. edit the target allocation;
+3. fund Morpho and GMX from supported balances on their destination chains while HLP funding is resolved automatically;
 4. let Zap Pilot determine the required bridge, swap, and deposit actions;
-5. review the resolved route once before execution.
+5. review the resolved execution batches before signing;
+6. execute later batches through explicit checkpoints.
 
-The user should not need to choose between `Both`, `Base`, `Arbitrum`, `HLP`, or `Bridge` as product concepts.
+`Both`, `Base`, `Arbitrum`, `HLP`, and `Bridge` are not primary invest tabs. The standalone Bridge surface is retained only as a development/testing route, while direct deposits from an existing Hyperliquid USDC balance retain their dedicated HLP entry point.
 
 ![Unified invest mockups](./unified-invest-flow.svg)
 
-## Current problem
+## Replaced entry model
 
-`InvestAmountScreen.tsx` currently exposes implementation details as five tabs:
+The earlier invest surface exposed implementation details as five top-level choices (`Both`, `Base`, `Arbitrum`, `HLP`, and `Bridge`) and modeled the draft primarily around chain scope plus destination. That model was replaced by target allocation plus destination-specific funding.
 
-- Both
-- Base
-- Arbitrum
-- HLP
-- Bridge
+The primary user concepts are now:
 
-This made sense while each execution path was being built independently, but it does not match the intended one-stop product experience now that the HLP path is executable.
+- **Funding** — which supported wallet balance funds each position.
+- **Target allocation** — where the user wants the new investment allocated.
+- **Execution plan** — bridge/swap/deposit actions derived from the chosen funding and target allocation.
 
-`useInvest.tsx` also models the draft mainly as:
-
-- `scope: both | base | arbitrum`
-- `destination: strategy | hlp`
-
-That shape makes chains and one destination type first-class user choices. It will become increasingly awkward as more chains, protocols, and destinations are added.
-
-## Proposed product model
-
-The primary user concepts should be:
-
-- **Funding** — how much value is available and which wallet balances Zap Pilot may use.
-- **Target allocation** — where the user wants the portfolio exposure to end up.
-- **Execution plan** — internal bridge/swap/deposit actions derived from funding + target allocation.
-
-Conceptually:
-
-```ts
-type TargetAllocation = {
-  positionId: string;
-  weightBps: number;
-};
-
-type FundingSource = {
-  chainId: number;
-  token: Address;
-  availableAmount: bigint;
-};
-
-type InvestDraft = {
-  totalUsd6: string;
-  fundingMode: 'auto' | 'manual';
-  fundingSources: FundingSource[];
-  targetAllocations: TargetAllocation[];
-};
-```
-
-Example target:
+The default target is:
 
 ```ts
 [
@@ -75,154 +37,67 @@ Example target:
 ];
 ```
 
-The planner should resolve the target into bridge/swap/deposit legs instead of the UI selecting those routes directly.
-
-## Mockup options
-
-### A — Allocation first
-
-Best incremental replacement for the current tabs.
-
-The user enters an amount, selects `Auto` funding, then sees editable target allocations. The screen may summarize the expected number of bridges/swaps/deposits but does not make those implementation details interactive.
-
-### B — Route visualizer
-
-Best for the review step rather than the primary input screen.
-
-It visually explains:
-
-`wallet balances → Zap Router → Base / Arbitrum / Hyperliquid positions`
-
-This is useful for trust and review, but bridge/swap mechanics should remain derived output rather than user configuration.
-
-### C — Strategy first
-
-Preferred long-term primary experience.
-
-The user deposits into a saved strategy such as `Balanced Yield`. New capital can be allocated toward the portfolio target rather than mechanically applying the same split on every deposit.
-
-For example, if Morpho is underweight and GMX is overweight, a new deposit can bias toward Morpho so the overall portfolio moves toward the configured target.
-
-## Recommended composition
-
-Use all three concepts at different layers:
-
-- **Step 1:** C — Strategy first
-- **Edit allocation:** A — Allocation first
-- **Step 2 / review:** B — Route visualizer
-
-The default flow becomes:
-
-```text
-Amount
-  ↓
-Saved strategy / target allocation
-  ↓
-Auto funding from supported wallet balances
-  ↓
-Planner resolves bridge + swap + deposit legs
-  ↓
-Single route review
-  ↓
-Guided execution with checkpoints
-```
+A `0%` allocation disables that destination. The minimum total investment is derived from the funded destinations' own minimums rather than from a separate product-wide constant.
 
 ## Funding behavior
 
-`Auto` funding should prefer existing balances before creating cross-chain movements.
+Morpho and GMX draw on their own destination chain, so their funding token remains a user choice on Base and Arbitrum respectively.
 
-A reasonable planner objective is:
-
-1. use supported assets already present on the destination chain;
-2. swap locally when necessary;
-3. bridge only the destination shortfall;
-4. minimize unnecessary bridge actions and gas;
-5. preserve destination minimums / keeper-fee requirements;
-6. treat Hyperliquid/HLP as another target position even though its final action uses the approved Hyperliquid agent flow.
-
-The exact optimization policy can remain deterministic and simple initially. The important architectural change is that funding chains are inputs to the planner, not top-level product tabs.
-
-### What Phase 1 implements
-
-Morpho and GMX draw on their own destination chain, so their funding token stays a
-user choice on Base and Arbitrum respectively.
-
-HLP is the one position with no chain of its own, so the amount screen resolves its
-funding automatically. It picks the first supported wallet source that can cover the
-whole HLP share by itself, after subtracting whatever Morpho and GMX have already
-claimed from the same token:
+HLP has no EVM destination chain of its own. The amount screen resolves its source automatically by selecting the first supported wallet balance that can cover the whole HLP share after subtracting amounts already claimed by Morpho or GMX from the same token:
 
 `Arbitrum USDC → Base USDC → Ethereum USDC → Base ETH → Arbitrum ETH → Ethereum ETH`
 
-Splitting HLP across two sources is deliberately not attempted: it would mean two
-bridges and two vault deposits for one position.
+Splitting one HLP allocation across multiple source balances is not attempted.
 
-The route into HyperCore is then chosen server-side, in `composeDeposit`:
+The route into HyperCore is chosen server-side in `composeDeposit`:
 
-- native Arbitrum USDC goes straight into Hyperliquid's own Bridge2 escrow — a plain
-  ERC-20 transfer, 1:1, no bridge fee and no route to poll;
-- every other source (Base or Ethereum, USDC or native ETH) bridges into HyperCore
-  through LI.FI in a single reviewed batch.
+- native Arbitrum USDC uses Hyperliquid Bridge2 as a plain ERC-20 transfer, 1:1, with no approval or bridge fee;
+- Base/Ethereum USDC or native ETH uses LI.FI directly into HyperCore in one reviewed wallet batch.
 
-Either way the user signs one wallet batch for HLP. The vault deposit that follows is
-signed by the approved Hyperliquid agent, not by the wallet.
+After HyperCore USDC arrives, the approved Hyperliquid agent performs the HLP `vaultTransfer`. The wallet does not sign that final vault action.
 
-## Execution / review expectations
+Token amounts are frozen when the user leaves the amount step so later price movement cannot change the amounts represented by the reviewed batches.
 
-`InvestRouteScreen.tsx` is one review surface listing every reviewed batch the
-investment needs, in execution order — one batch per funded position:
+## Execution and review
 
-- Morpho: a Base batch (swap when funded with ETH, then supply);
-- GMX: an Arbitrum GM-basket batch;
-- HLP: one batch on whichever chain funds it, bridging into HyperCore.
+`InvestRouteScreen.tsx` presents the reviewed wallet batches in execution order, one batch per funded position:
 
-Only the first batch is submitted from the review screen. Every later batch pauses at a
-checkpoint on the progress screen, is re-reviewed against the chain it executes on, and
-is compared against the fingerprints the user already saw before it can be confirmed. A
-confirmed batch is never resubmitted, so a partially completed multi-chain investment
-resumes rather than starting over.
+- Morpho: a Base batch;
+- GMX: an Arbitrum batch;
+- HLP: one batch on whichever supported chain funds it, ending in HyperCore.
 
-The checkpoint queue lives in frontend state. The server persists no multi-batch
-session: each batch is an independent, self-contained `/plan-orchestration/deposit/review`
-request bound by its own expiry and hashes.
+Only the first batch is submitted from the review screen. Every later batch pauses at a checkpoint, is re-reviewed on its execution chain, and is compared with the fingerprints already shown to the user before confirmation. A confirmed batch is not resubmitted.
 
-## Bridge tab
+Ethereum mainnet is part of the reviewed wallet-batch execution rail, alongside Base and Arbitrum.
 
-The current standalone Bridge UI is useful as a development/testing utility but should not remain a primary user-facing invest tab.
+The checkpoint queue is frontend state. The server does not persist a multi-batch invest session: each batch is an independent `/plan-orchestration/deposit/review` request bound by its own expiry and hashes.
 
-Keep it behind a dev/internal route if it remains useful for diagnostics.
+## Bridge utility
 
-## Suggested implementation phases
+The standalone Bridge UI is a development/testing utility under the internal invest bridge route. It is not a primary invest product concept.
 
-### Phase 1 — UI/model convergence
+## Remaining phases
 
-- remove the five-way product tab from the default invest flow;
-- introduce `targetAllocations` in the invest draft;
-- add an `Auto` funding mode;
-- keep the current working execution paths underneath;
-- map the initial target set to the existing Base / Arbitrum / HLP implementations.
+### Unified planning
 
-### Phase 2 — Unified planning
+The current product composes one orchestration request per funded position. A future planner may:
 
-- make the orchestration API accept funding sources + target allocations;
-- return a heterogeneous execution plan;
-- resolve bridge shortfalls automatically;
-- collapse positions that share one source chain into a single batch — Base USDC
-  funding both Morpho and HLP is already expressible as one `split` request, but
-  Phase 1 still sends one request per position.
+- accept funding sources plus target allocations as one heterogeneous request;
+- resolve destination shortfalls across positions;
+- collapse positions that share a source chain into a single batch when the underlying route supports it.
 
-### Phase 3 — Target-aware deposits
+### Target-aware deposits
+
+A later phase may:
 
 - read current portfolio weights;
-- allocate new capital toward target weights;
-- optionally expose explicit `Rebalance` separately from `Invest`;
+- direct new capital toward underweight positions;
+- expose explicit rebalancing separately from investing;
 - support additional chains/protocols without adding new top-level tabs.
 
-## Non-goals for the first implementation
+## Non-goals of the current implementation
 
-- globally optimal bridge routing;
-- arbitrary user-selected DeFi protocols;
-- replacing the already-working HLP signing/execution flow;
-- exact portfolio rebalance through selling existing positions.
-
-The first milestone is a unified product experience over the execution paths that already work.
+- globally optimal bridge routing across multiple partial source balances;
+- arbitrary protocol discovery;
+- exact portfolio rebalance through selling existing positions;
+- replacing the approved Hyperliquid agent signing model.
