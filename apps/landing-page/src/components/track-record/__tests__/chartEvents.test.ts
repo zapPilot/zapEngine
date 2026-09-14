@@ -102,3 +102,17 @@ describe('buildChartMarkers', () => {
     expect(markers[0]?.action).toBe('buy');
   });
 });
+
+describe('marker sentence fallbacks', () => {
+  it('uses readable copy when an event has no named leg', () => {
+    expect(labelFor({ type: 'sell', toAsset: null, fromAssets: [] })).toBe(
+      'Sold into stables',
+    );
+    expect(labelFor({ type: 'buy', toAsset: null, fromAssets: [] })).toBe(
+      'Bought into the market',
+    );
+    expect(
+      labelFor({ type: 'rotate_to_eth', toAsset: 'ETH', fromAssets: [] }),
+    ).toBe('Rotated into ETH');
+  });
+});
