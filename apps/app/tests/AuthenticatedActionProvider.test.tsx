@@ -297,16 +297,21 @@ describe('AuthenticatedActionProvider', () => {
     expect(laterAction).toHaveBeenCalledTimes(1);
   });
 
-  it('drops the queued action when the login fails', async () => {
-    mocks.account.connect.mockRejectedValue(new Error('network failed'));
+  it('recovers cleanly after a login failure', async () => {
+    mocks.account.connect
+      .mockRejectedValueOnce(new Error('network failed'))
+      .mockResolvedValueOnce('connected');
     await render();
-    const action = vi.fn();
+    const failedAction = vi.fn();
+    const laterAction = vi.fn();
 
-    await act(async () => context().run(action));
-
+    await act(async () => context().run(failedAction));
+    await act(async () => context().run(laterAction));
     await reconnect();
 
-    expect(action).not.toHaveBeenCalled();
+    expect(mocks.account.connect).toHaveBeenCalledTimes(2);
+    expect(failedAction).not.toHaveBeenCalled();
+    expect(laterAction).toHaveBeenCalledTimes(1);
   });
 
   it('drops the queued action when the login throws synchronously', async () => {
