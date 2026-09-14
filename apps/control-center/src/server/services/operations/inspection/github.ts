@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 /* jscpd:ignore-start -- mirrored inspector imports, kept colocated for locality */
 import type { ControlCenterConfig } from '../../../config/env.js';
+import { isGithubOperationalFailure } from '../github-run.js';
 import { fetchJson, fetchText } from '../http.js';
 import type { ParsedOperationalFingerprint } from './fingerprint.js';
 import { messageOf, unsupported } from './helpers.js';
@@ -10,7 +11,8 @@ import type { SignalInspection } from './types.js';
 
 const REPO = 'zapPilot/zapEngine';
 const API = `https://api.github.com/repos/${REPO}`;
-const RUN_LIMIT = 5;
+const RUN_EVIDENCE_LIMIT = 5;
+const RECENT_FAILURE_RUN_FETCH_LIMIT = 100;
 const JOB_LIMIT = 3;
 const LOG_LINE_LIMIT = 160;
 const LOG_CHAR_LIMIT = 12_000;
@@ -94,7 +96,7 @@ export async function inspectGithubSignal(input: {
     token,
     fetchImpl: input.fetchImpl,
     label: `GitHub run inspection for ${workflow}`,
-    path: `actions/workflows/${encodeURIComponent(workflow)}/runs?per_page=${RUN_LIMIT}&${input.parsed.kind === 'workflow' ? 'event=schedule' : 'branch=main'}`,
+    path: `actions/workflows/${encodeURIComponent(workflow)}/runs?per_page=${input.parsed.kind === 'recent-failure' ? RECENT_FAILURE_RUN_FETCH_LIMIT : RUN_EVIDENCE_LIMIT}&${input.parsed.kind === 'workflow' ? 'event=schedule' : 'branch=main'}`,
     schema: runsEnvelopeSchema,
   });
   const runs = envelope.workflow_runs
@@ -118,7 +120,14 @@ export async function inspectGithubSignal(input: {
   }
 
   const completed = runs.filter((run) => run.status === 'completed');
-  const target = completed.find(isFailedRun) ?? completed[0] ?? runs[0];
+  // Keep recent-failure inspection on the exact semantics used by the signal
+  // collector: skipped workflow_run wrappers are not recovery, while a real
+  // later success is. Fetch a wide enough window to see through wrapper churn.
+  const decisiveCompleted = completed.filter(isRecentFailureDecisiveRun);
+  const target =
+    input.parsed.kind === 'recent-failure'
+      ? (decisiveCompleted[0] ?? completed[0] ?? runs[0])
+      : (completed.find(isFailedRun) ?? completed[0] ?? runs[0]);
   const failedJobs = target
     ? await inspectRunJobs(target, token, input.fetchImpl)
     : [];
@@ -147,7 +156,9 @@ export async function inspectGithubSignal(input: {
       workflow,
       kind: input.parsed.kind,
       runSelection:
-        'Newest failed completed run, otherwise newest completed or current run.',
+        input.parsed.kind === 'recent-failure'
+          ? 'Newest decisive completed run (success or failure); skipped wrappers do not recover an older failure.'
+          : 'Newest failed completed run, otherwise newest completed or current run.',
       commitsSinceFailure:
         target && isFailedRun(target)
           ? await commitsSinceRun(target, token, input.fetchImpl)
@@ -155,7 +166,7 @@ export async function inspectGithubSignal(input: {
       commitsSinceFailureScope:
         'Commits on main after the failed run head SHA. Their presence is not evidence that any of them fixes the failure.',
       selectedRun: target ? summarizeRun(target) : null,
-      recentRuns: runs.map(summarizeRun),
+      recentRuns: runs.slice(0, RUN_EVIDENCE_LIMIT).map(summarizeRun),
       failedJobs,
     },
     gaps: [],
@@ -244,6 +255,12 @@ function startedAt(run: WorkflowRun): string {
 
 function isFailedRun(run: WorkflowRun): boolean {
   return isFailedConclusion(run.conclusion);
+}
+
+function isRecentFailureDecisiveRun(run: WorkflowRun): boolean {
+  return (
+    run.conclusion === 'success' || isGithubOperationalFailure(run.conclusion)
+  );
 }
 
 function isFailedJob(job: WorkflowJob): boolean {

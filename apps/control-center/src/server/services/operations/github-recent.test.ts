@@ -160,6 +160,71 @@ describe('collectRecentGithubFailureSignals', () => {
     expect(signals).toEqual([]);
   });
 
+  it('does not let a skipped wrapper clear an older operational failure', async () => {
+    const { signals } = await collect([
+      completedRun({
+        id: 71,
+        name: 'Deploy Vercel',
+        path: '.github/workflows/deploy-vercel.yml',
+        event: 'workflow_run',
+        conclusion: 'skipped',
+        startedAt: hoursAgo(0.25),
+      }),
+      completedRun({
+        id: 70,
+        name: 'Deploy Vercel',
+        path: '.github/workflows/deploy-vercel.yml',
+        event: 'workflow_run',
+        conclusion: 'failure',
+        startedAt: hoursAgo(0.5),
+      }),
+    ]);
+
+    expect(signals).toHaveLength(1);
+    expect(signals[0]).toMatchObject({
+      fingerprint: 'github-actions:recent-failure/deploy-vercel.yml',
+      status: 'degraded',
+      evidence: {
+        runId: 70,
+        failureStreak: 1,
+        lastConclusion: 'failure',
+      },
+    });
+  });
+
+  it('keeps a failure streak across skipped wrapper runs', async () => {
+    const { signals } = await collect([
+      completedRun({
+        id: 82,
+        name: 'Deploy Vercel',
+        path: '.github/workflows/deploy-vercel.yml',
+        event: 'workflow_run',
+        conclusion: 'failure',
+        startedAt: hoursAgo(0.5),
+      }),
+      completedRun({
+        id: 81,
+        name: 'Deploy Vercel',
+        path: '.github/workflows/deploy-vercel.yml',
+        event: 'workflow_run',
+        conclusion: 'skipped',
+        startedAt: hoursAgo(0.75),
+      }),
+      completedRun({
+        id: 80,
+        name: 'Deploy Vercel',
+        path: '.github/workflows/deploy-vercel.yml',
+        event: 'workflow_run',
+        conclusion: 'failure',
+        startedAt: hoursAgo(1),
+      }),
+    ]);
+
+    expect(signals).toHaveLength(1);
+    expect(signals[0]?.status).toBe('critical');
+    expect(signals[0]?.evidence['failureStreak']).toBe(2);
+  });
+
   it('clears an older operational failure after a later success', async () => {
     const { signals } = await collect([
       completedRun({

@@ -9,6 +9,9 @@ function store(input: {
   observedAt?: string | null;
   state?: 'running' | 'succeeded' | 'failed';
   failureStreak?: number;
+  cadenceMinutes?: number | null;
+  sourceSha?: string | null;
+  runId?: string | null;
   error?: Error;
 }): OperatorStore {
   const heartbeat = input.error
@@ -21,6 +24,10 @@ function store(input: {
               actor: 'github-actions',
               state: input.state ?? 'succeeded',
               failureStreak: input.failureStreak ?? 0,
+              cadenceMinutes:
+                input.cadenceMinutes === undefined ? 60 : input.cadenceMinutes,
+              sourceSha: input.sourceSha ?? 'current-sha',
+              runId: input.runId ?? '12345',
             },
       );
   return {
@@ -72,6 +79,33 @@ describe('operator heartbeat signal', () => {
       });
     },
   );
+
+  it('degrades a fresh legacy heartbeat that cannot attest the current schedule config', async () => {
+    const signal = await collectOperatorHeartbeatSignal(
+      store({ observedAt: minutesAgo(30), cadenceMinutes: null }),
+      NOW,
+    );
+
+    expect(signal).toMatchObject({
+      status: 'degraded',
+      title: 'ops-operator heartbeat config identity is missing',
+      evidence: { cadenceMinutes: null },
+    });
+  });
+
+  it('degrades a fresh heartbeat produced by a superseded cadence', async () => {
+    const signal = await collectOperatorHeartbeatSignal(
+      store({ observedAt: minutesAgo(30), cadenceMinutes: 5 }),
+      NOW,
+    );
+
+    expect(signal).toMatchObject({
+      status: 'degraded',
+      title: 'ops-operator heartbeat comes from a different schedule',
+      evidence: { cadenceMinutes: 5 },
+    });
+    expect(signal.detail).toContain('60 minutes');
+  });
 
   it('keeps the current retry degraded after one failed cycle', async () => {
     const signal = await collectOperatorHeartbeatSignal(

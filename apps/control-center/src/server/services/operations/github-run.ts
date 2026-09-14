@@ -2,6 +2,22 @@ import { z } from 'zod';
 
 export const GITHUB_HOUR_MS = 60 * 60 * 1000;
 
+export const GITHUB_OPERATIONAL_FAILURE_CONCLUSIONS = new Set([
+  'action_required',
+  'failure',
+  'stale',
+  'startup_failure',
+  'timed_out',
+]);
+
+export function isGithubOperationalFailure(
+  conclusion: string | null | undefined,
+): boolean {
+  return Boolean(
+    conclusion && GITHUB_OPERATIONAL_FAILURE_CONCLUSIONS.has(conclusion),
+  );
+}
+
 export const githubIsoTimestamp = z
   .string()
   .refine((value) => Number.isFinite(Date.parse(value)));

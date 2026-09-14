@@ -4,9 +4,18 @@ The integrated #437/#438 operator is scheduled to run against production every h
 
 ## Commands and policy
 
-Build internal packages with Turbo, then run `pnpm --filter
-@zapengine/control-center ops:operator`. This records observations and decisions
-but does not retry jobs. `--allow-render-retry` enables the bounded mutation path:
+Build internal packages with Turbo. A direct **production** operator invocation
+must run through the repository's merged production environment, for example:
+
+```bash
+node scripts/env/run.mjs --environment prod -- \
+  pnpm --filter @zapengine/control-center ops:operator
+```
+
+Do not replace that prefix with bare `infisical run --env=prod -- ...`; the latter
+does not guarantee the committed non-secret production env is merged. The command
+records observations and decisions but does not retry jobs. `--allow-render-retry`
+enables the bounded mutation path:
 the single-render Tier 1 catalog action, plus explicitly authorized Sentry
 resolution after deploy-aware recovery verification. An incident gets at most one
 repair attempt, including failed or unknown attempts; there is no automatic budget

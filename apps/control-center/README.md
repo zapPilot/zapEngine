@@ -5,16 +5,20 @@ Founder decision dashboard for operational status, customer economics, product h
 ```bash
 pnpm ops             # dashboard + Fly billing reader + social daemon, from the repository root
 pnpm ops:dashboard   # dashboard only
-infisical run --env=prod -- pnpm ops --status          # production one-shot status, no server
-infisical run --env=prod -- pnpm ops --status --json   # production snapshot as JSON, for an agent
+node scripts/env/run.mjs --environment prod -- \
+  pnpm --filter @zapengine/control-center ops:status --json --force # production agent snapshot
 ```
 
-Direct shell reads of operational state must use the production Infisical
-environment. Running bare `pnpm ops --status` can omit production-only provider
-credentials and therefore report Fly, Sentry, PostHog, or the agent backlog as
-`unconfigured`; that is an environment/configuration result, not production
-health. The repository-local `zap-pilot-ops` MCP launcher handles this itself by
-selecting the production environment.
+Direct shell reads of operational state must use the repository's canonical merged
+production runner. It combines committed non-secret production values with
+Infisical secrets. Bare `infisical run --env=prod -- ...` is **not** equivalent:
+it can omit identifiers from `config/env/prod.env` and make a configured provider
+look `unconfigured`. A bare local command can likewise report configuration state
+instead of production health. The repository-local `zap-pilot-ops` MCP launcher
+already uses the canonical production runner and is preferred for agent reads.
+
+For the independent "what could still be broken while this looks green?" pass,
+follow [`docs/operations/coverage-review.md`](../../docs/operations/coverage-review.md).
 
 `--json` and `--force` only mean anything alongside `--status`; passing either on its own, or with `--dashboard`/`--social`, is rejected rather than silently ignored.
 
@@ -168,6 +172,12 @@ A stopped Machine is not an outage everywhere. `account-engine`, `alpha-etl`, an
 | `analytics` | `posthog` | 7d/30d unique users |
 
 All eight domains appear in every response even when nothing reported on them: an absent domain in a status page reads as a green light.
+
+Domain rollups intentionally skip individual `unknown` readings when another known
+reading exists. A green domain therefore means its **known** readings are healthy;
+it is not evidence that every optional detector reported. Coverage reviews must
+inspect individual unknown/source-failure signals as described in the
+[coverage-review runbook](../../docs/operations/coverage-review.md).
 
 Ranking is deterministic (`services/operations/prioritize.ts`) rather than model-generated, so the dashboard and an agent agree on what matters: a status base, a domain weight, and capped boosts for evidence like overdue minutes, failure streaks, affected users, and AUM at risk. The threshold is set so an `unknown` signal can never reach the action list — an unconfigured integration is a setup task, not an incident.
 

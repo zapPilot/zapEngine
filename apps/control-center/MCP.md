@@ -28,7 +28,13 @@ Sentry remediation uses a separate server-side credential:
 
 Normal Sentry collection and inspection never fall back to the write token. If `SENTRY_OPS_WRITE_TOKEN` is absent, all read tools continue to work and `ops_resolve_sentry_issue` fails closed before sending a request.
 
-The stdio launcher deliberately runs through `scripts/env/run.mjs --environment prod`, so a repository-local agent sees production operational truth instead of silently falling back to the env runner's default `dev` rail. Missing provider read credentials still degrade that provider to `unknown`; they must never be interpreted as healthy.
+The stdio launcher deliberately runs through `scripts/env/run.mjs --environment prod`, so a repository-local agent sees production operational truth instead of silently falling back to the env runner's default `dev` rail. For direct shell reads, use the same canonical runner; do not substitute bare `infisical run --env=prod -- ...`, because that injects secrets without necessarily merging committed non-secret values from `config/env/prod.env` and the repository env projection. Missing provider read credentials still degrade that provider to `unknown`; they must never be interpreted as healthy.
+
+`ops_status` is an incident inventory, not proof that every failure class is
+observable. Before making a broad "production is healthy" claim, apply the
+[negative-space coverage review](../../docs/operations/coverage-review.md), which
+checks silent functional failures, scheduler-vs-heartbeat disagreement, waiting
+age, retry/deploy waste, regression guards, recurrence, and unknown coverage.
 
 The remote deployment receives the same provider credentials through the Control Center server environment. Clients receive normalized read models and bounded action results, never provider tokens.
 
