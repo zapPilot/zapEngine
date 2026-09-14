@@ -336,6 +336,35 @@ describe('AuthenticatedActionProvider', () => {
     expect(action).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps a later queued action when an earlier login cancels after a connection cycle', async () => {
+    let cancelFirst: ((outcome: ConnectOutcome) => void) | undefined;
+    const firstLogin = new Promise<ConnectOutcome>((resolve) => {
+      cancelFirst = resolve;
+    });
+    mocks.account.connect
+      .mockReturnValueOnce(firstLogin)
+      .mockResolvedValueOnce('connected');
+    await render();
+    const firstAction = vi.fn();
+    const laterAction = vi.fn();
+
+    await act(async () => context().run(firstAction));
+    await reconnect();
+
+    mocks.account.isConnected = false;
+    await render();
+    await act(async () => context().run(laterAction));
+
+    await act(async () => {
+      cancelFirst?.('cancelled');
+      await firstLogin;
+    });
+    await reconnect();
+
+    expect(firstAction).toHaveBeenCalledTimes(1);
+    expect(laterAction).toHaveBeenCalledTimes(1);
+  });
+
   it('runs the action immediately while already connected', async () => {
     mocks.account.isConnected = true;
     await render();
