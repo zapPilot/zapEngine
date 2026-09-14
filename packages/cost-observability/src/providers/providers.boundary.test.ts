@@ -254,18 +254,17 @@ describe('Brave retry and quota boundaries', () => {
     'x-ratelimit-policy': '10;w=86400',
     'x-ratelimit-remaining': '11',
   };
+  const requestBraveQuota = (
+    fetch: NonNullable<Parameters<typeof fetchBraveCostSnapshot>[0]['fetch']>,
+    sleep: NonNullable<Parameters<typeof fetchBraveCostSnapshot>[0]['sleep']>,
+  ) => fetchBraveCostSnapshot({ apiKey: 'key', fetch, sleep, now: NOW });
 
   it('does not retry non-retryable client errors', async () => {
     const fetcher = vi.fn().mockResolvedValue(braveResponse({}, 400));
     const sleep = vi.fn().mockResolvedValue(undefined);
-    await expect(
-      fetchBraveCostSnapshot({
-        apiKey: 'key',
-        fetch: fetcher,
-        sleep,
-        now: NOW,
-      }),
-    ).rejects.toThrow('Brave Search quota request failed (400)');
+    await expect(requestBraveQuota(fetcher, sleep)).rejects.toThrow(
+      'Brave Search quota request failed (400)',
+    );
     expect(fetcher).toHaveBeenCalledTimes(1);
     expect(sleep).not.toHaveBeenCalled();
   });
@@ -301,14 +300,7 @@ describe('Brave retry and quota boundaries', () => {
   it('reports non-Error transport failures after bounded retries', async () => {
     const fetcher = vi.fn().mockRejectedValue('offline');
     const sleep = vi.fn().mockResolvedValue(undefined);
-    await expect(
-      fetchBraveCostSnapshot({
-        apiKey: 'key',
-        fetch: fetcher,
-        sleep,
-        now: NOW,
-      }),
-    ).rejects.toThrow(
+    await expect(requestBraveQuota(fetcher, sleep)).rejects.toThrow(
       'Brave Search quota request failed after 3 attempts: offline',
     );
     expect(fetcher).toHaveBeenCalledTimes(3);
