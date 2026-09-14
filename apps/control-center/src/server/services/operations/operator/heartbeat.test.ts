@@ -96,6 +96,27 @@ describe('operator heartbeat signal', () => {
     expect(signal.title).toBe('ops-operator failed 2 cycles in a row');
   });
 
+  it('keeps a fresh running cycle critical when it follows two failed cycles', async () => {
+    const signal = await collectOperatorHeartbeatSignal(
+      store({
+        observedAt: minutesAgo(1),
+        state: 'running',
+        failureStreak: 2,
+      }),
+      NOW,
+    );
+
+    expect(signal).toMatchObject({
+      status: 'critical',
+      title: 'ops-operator failed 2 cycles in a row',
+      evidence: {
+        state: 'running',
+        failureStreak: 2,
+      },
+    });
+    expect(signal.detail).toContain('after 2 consecutive failed cycles');
+  });
+
   it('degrades when no heartbeat has ever been recorded', async () => {
     const signal = await collectOperatorHeartbeatSignal(
       store({ observedAt: null }),
