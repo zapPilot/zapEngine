@@ -89,6 +89,25 @@ test('allows a production deployment to finish after the previous eight-minute b
   });
 });
 
+test('does one final status poll when the deployment deadline is reached', async () => {
+  const { fetchImpl, calls } = fakeVercel({
+    'zap-engine-frontend': ['BUILDING', 'READY'],
+    'zap-engine-landing-page': ['READY'],
+    'zap-engine-control-center': ['READY'],
+  });
+  const times = [0, 9 * 60 * 1_000, 0, 0];
+
+  await deployVercelMain({
+    token: 'token',
+    sha: SHA,
+    fetchImpl,
+    sleep: async () => {},
+    now: () => times.shift() ?? 0,
+  });
+
+  assert.equal(calls.filter((call) => call.method === 'GET').length, 1);
+});
+
 test('fails the workflow when a Vercel build reaches ERROR', async () => {
   const { fetchImpl } = fakeVercel({
     'zap-engine-frontend': ['BUILDING', 'ERROR'],
