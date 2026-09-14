@@ -53,8 +53,8 @@ export function AuthenticatedRoute({
       onConnect={() => {
         void account
           .connect()
-          .then(() => {
-            if (redirectAfterLogin) {
+          .then((outcome) => {
+            if (outcome === 'connected' && redirectAfterLogin) {
               router.replace(redirectAfterLogin);
             }
           })

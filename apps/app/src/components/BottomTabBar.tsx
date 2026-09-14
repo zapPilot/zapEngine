@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Tap } from '@/components/ui/Tap';
 import type { AppTabName } from '@/integration/navigationModel';
+import { requestAccountConnection } from '@/integration/requestAccountConnection';
 import { useTabAccess } from '@/integration/useTabAccess';
 import type { TranslationKey } from '@/i18n/translations';
 import { useContentLanguage } from '@/providers/ContentLanguageProvider';
@@ -95,9 +96,11 @@ export function BottomTabBar({
             aria-selected={active}
             accessibilityHint={accessible ? undefined : t('tabs.signInHint')}
             className="flex-1 items-center gap-1.5"
-            onPress={async () => {
+            onPress={() => {
               if (!accessible) {
-                await tabAccess.connect();
+                // Pressable discards the handler's return value, so an async
+                // handler would leave the connect promise unhandled.
+                requestAccountConnection(tabAccess);
                 return;
               }
 

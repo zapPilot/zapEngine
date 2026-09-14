@@ -38,6 +38,7 @@ import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { Tap } from '@/components/ui/Tap';
 import { DEMO } from '@/data/demo';
 import type { TranslationKey } from '@/i18n/translations';
+import { requestAccountConnection } from '@/integration/requestAccountConnection';
 import { useAccount } from '@/integration/useAccount';
 import {
   DEFAULT_HOME_RANGE,
@@ -161,7 +162,7 @@ export function HomeScreen() {
       void triggerEtl(account.userId, account.address);
     }
   };
-  const connect = () => void account.connect().catch(() => undefined);
+  const connect = () => requestAccountConnection(account);
   const retryWalletAssets = () => void walletAssets.refetch();
   const displayedAssets = isDemo ? DEMO.home.assets : walletAssets.assets;
   const walletCount = ownWalletAddresses.length;

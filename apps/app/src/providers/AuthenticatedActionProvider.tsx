@@ -39,7 +39,17 @@ export function AuthenticatedActionProvider({
     (action: () => void) => {
       const needsLogin = modelRef.current.request(account.isConnected, action);
       if (needsLogin) {
-        void account.connect().catch(cancel);
+        // Drop the queued action when the login does not complete, otherwise
+        // it stays armed and the `isConnected` effect replays it on a later,
+        // unrelated connection.
+        void account
+          .connect()
+          .then((outcome) => {
+            if (outcome === 'cancelled') {
+              cancel();
+            }
+          })
+          .catch(cancel);
       }
     },
     [account, cancel],

@@ -4,6 +4,18 @@ import { useCallback, useMemo } from 'react';
 
 import { resolveViewingState } from '@/integration/bundleViewModel';
 import { getBundleViewUserId } from '@/integration/bundleViewParam';
+import { isPrivyLoginCancellation } from '@/integration/nativePrivyLogin';
+
+/**
+ * Outcome of {@link DesktopAccount.connect}. Dismissing Privy's login UI is a
+ * normal user action, not a failure, so it resolves as `'cancelled'` rather
+ * than rejecting — a rejection escapes every fire-and-forget call site as an
+ * unhandled promise rejection and lands in Sentry.
+ *
+ * `'connected'` means the connect call ran to completion; on web that is the
+ * handoff to Privy's modal, which app-core resolves without waiting.
+ */
+export type ConnectOutcome = 'connected' | 'cancelled';
 
 export interface DesktopAccount {
   /** A wallet/account is connected (Privy embedded wallet present). */
@@ -38,7 +50,7 @@ export interface DesktopAccount {
   connectionError: string | null;
   /** Error raised while loading the connected wallet's account record. */
   userResolutionError: string | null;
-  connect: () => Promise<void>;
+  connect: () => Promise<ConnectOutcome>;
   retryUserResolution: () => Promise<unknown>;
   disconnect: () => Promise<void>;
 }
@@ -95,10 +107,20 @@ export function useAccount(): DesktopAccount {
 
   const retryUserResolution = useCallback(() => refetchUser(), [refetchUser]);
 
-  const connect = useCallback(async (): Promise<void> => {
+  const connect = useCallback(async (): Promise<ConnectOutcome> => {
     if (!isConnected) {
-      await connectWallet();
-      return;
+      try {
+        await connectWallet();
+      } catch (error) {
+        // Closing Privy's login UI is a cancellation, not a failure. Real
+        // failures keep rejecting; the provider already exposes them through
+        // `connectionError` for the screens that render it.
+        if (isPrivyLoginCancellation(error)) {
+          return 'cancelled';
+        }
+        throw error;
+      }
+      return 'connected';
     }
 
     // A connected wallet already has a live connector. If its account-engine
@@ -107,6 +129,7 @@ export function useAccount(): DesktopAccount {
     if (userId === null && urlUserId === null) {
       await retryUserResolution();
     }
+    return 'connected';
   }, [connectWallet, isConnected, retryUserResolution, urlUserId, userId]);
 
   // Deliberately not memoized: `useUser().refetch` gets a new identity on most

@@ -27,6 +27,7 @@ import {
   percentOfBaseUnits,
   usdcInputToBaseUnits,
 } from '@/integration/bridgeTestModel';
+import { requestAccountConnection } from '@/integration/requestAccountConnection';
 import { useAccount } from '@/integration/useAccount';
 import { formatUsd, numberFrom } from '@/lib/format';
 
@@ -282,7 +283,7 @@ export function BridgeTestPanel() {
 
   function handlePrimaryAction(): void {
     if (!account.isConnected) {
-      void account.connect();
+      requestAccountConnection(account);
       return;
     }
     if (bridge.status === 'completed') {

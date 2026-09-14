@@ -145,6 +145,24 @@ export default defineConfig([
     },
   },
   {
+    // React Native discards a press/gesture handler's return value, so an async
+    // JSX handler hands its promise to nobody: a rejection inside it becomes an
+    // unhandled rejection and is reported to Sentry as a production error (see
+    // src/integration/requestAccountConnection.ts).
+    files: ['src/**/*.tsx'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            'JSXAttribute[name.name=/^on[A-Z]/] > JSXExpressionContainer > :matches(ArrowFunctionExpression, FunctionExpression)[async=true]',
+          message:
+            'A JSX event handler must not be async: its promise is discarded, so a rejection goes unhandled. Call a fire-and-forget helper that catches, or handle the promise inside a synchronous handler.',
+        },
+      ],
+    },
+  },
+  {
     // React provider/lifecycle tests render into jsdom; DOM imports here never
     // enter the universal app bundle.
     files: ['tests/**/*.{ts,tsx}'],

@@ -130,7 +130,7 @@ function baseAccount(): DesktopAccount {
     loadingUser: false,
     connectionError: null,
     userResolutionError: null,
-    connect: vi.fn(async () => undefined),
+    connect: vi.fn(async () => 'connected' as const),
     retryUserResolution: vi.fn(async () => undefined),
     disconnect: vi.fn(async () => undefined),
   };

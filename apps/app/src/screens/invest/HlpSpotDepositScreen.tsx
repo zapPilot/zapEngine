@@ -38,6 +38,7 @@ import {
   normalizeAmountInput,
   quickAmountUsdInput,
 } from '@/integration/investAmountModel';
+import { requestAccountConnection } from '@/integration/requestAccountConnection';
 import { useAccount } from '@/integration/useAccount';
 import { useHyperCoreSpendable } from '@/integration/useHlpBalances';
 import { useInvest } from '@/integration/useInvest';
@@ -80,7 +81,7 @@ function HlpSpotAmountStep() {
 
   const armDeposit = () => {
     if (!account.isConnected) {
-      void account.connect();
+      requestAccountConnection(account);
       return;
     }
     if (!hasAmount || belowMinimum || exceedsBalance || balanceUnavailable) {

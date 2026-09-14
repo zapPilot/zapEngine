@@ -46,6 +46,7 @@ import {
   weightBpsFor,
   type InvestPositionId,
 } from '@/integration/investTargetsModel';
+import { requestAccountConnection } from '@/integration/requestAccountConnection';
 import { useAccount } from '@/integration/useAccount';
 import { useInvest } from '@/integration/useInvest';
 import { useWalletAssets } from '@/integration/walletTokens';
@@ -197,7 +198,7 @@ export function InvestAmountScreen() {
 
   const handlePrimaryAction = () => {
     if (!account.isConnected) {
-      void account.connect();
+      requestAccountConnection(account);
       return;
     }
     if (chainUnavailable) {

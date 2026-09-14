@@ -15,6 +15,8 @@ import type {
 } from '@zapengine/app-core/types';
 import { useCallback, useMemo, useState } from 'react';
 
+import { isPrivyLoginCancellation } from '@/integration/nativePrivyLogin';
+
 function createInitialOperations(): WalletOperations {
   return {
     adding: { isLoading: false, error: null },
@@ -109,7 +111,18 @@ export function useWalletManager(
   const verifyWallet = useCallback(
     async (walletAddress: string) => {
       if (!equalsAddress(activeAddress, walletAddress)) {
-        await walletProvider.connect();
+        // Callers fire this without awaiting, so a rejected connect would be
+        // an unhandled rejection. Report it through the result instead.
+        try {
+          await walletProvider.connect();
+        } catch (error) {
+          if (!isPrivyLoginCancellation(error)) {
+            return {
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+            };
+          }
+        }
         return {
           success: false,
           error: 'Select this wallet, then tap Verify again.',
