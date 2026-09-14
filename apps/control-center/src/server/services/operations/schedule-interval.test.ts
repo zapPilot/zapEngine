@@ -1,6 +1,14 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
-import { estimateCronIntervalMs, staleAfterMs } from './schedule-interval.js';
+import { findRepoRoot } from './repo-root.js';
+import {
+  estimateCronIntervalMs,
+  OPS_OPERATOR_CADENCE_MS,
+  staleAfterMs,
+} from './schedule-interval.js';
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -62,5 +70,29 @@ describe('staleAfterMs', () => {
     expect(
       staleAfterMs({ scheduleKind: 'interval', schedule: 'every 15 minutes' }),
     ).toBe(48 * HOUR_MS);
+  });
+});
+
+describe('OPS_OPERATOR_CADENCE_MS', () => {
+  /**
+   * The registry mirrors the cron in `.github/workflows/ops-operator.yml`, and
+   * `lint schedules` already fails if those two disagree. Reading the committed
+   * registry here closes the third edge: a cron change that leaves the
+   * heartbeat thresholds derived from this constant behind.
+   */
+  it('matches the committed ops-operator registry row', () => {
+    const root = findRepoRoot(import.meta.dirname);
+    const registry: readonly { name: string; schedule: string }[] = JSON.parse(
+      readFileSync(join(root, '.github', 'schedules.json'), 'utf8'),
+    );
+    const entry = registry.find((row) => row.name === 'ops-operator');
+
+    // The literal, not just the estimate: `estimateCronIntervalMs` ignores the
+    // minute field, so `*/5 * * * *` and `0 * * * *` are indistinguishable to
+    // it and a regression to the old sub-hourly cron would slip through.
+    expect(entry?.schedule).toBe('0 * * * *');
+    expect(estimateCronIntervalMs(entry?.schedule ?? '')).toBe(
+      OPS_OPERATOR_CADENCE_MS,
+    );
   });
 });

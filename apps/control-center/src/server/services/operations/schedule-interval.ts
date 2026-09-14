@@ -2,12 +2,25 @@ const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 
 /**
- * The floor every derived window is measured against. Every GitHub workflow in
- * `.github/schedules.json` runs daily today, and 48h is the silence that told
- * an operator the cron had stopped rather than had a slow night. Keeping it as
- * a floor means deriving windows changes nothing for the fleet as it stands.
+ * The floor every derived window is measured against. Every GitHub workflow
+ * that `staleAfterMs` judges runs daily or slower, and 48h is the silence that
+ * told an operator the cron had stopped rather than had a slow night. Keeping
+ * it as a floor means deriving windows changes nothing for the fleet as it
+ * stands.
  */
 export const DEFAULT_STALE_AFTER_MS = 48 * HOUR_MS;
+
+/**
+ * How often `.github/workflows/ops-operator.yml` fires. The operator repairs at
+ * most one fingerprint per cycle, so the cadence is also the ceiling on repairs
+ * per day; hourly leaves 24 slots against an observed ~7 actionable cycles.
+ *
+ * This is the only place the cadence is written as a duration. The heartbeat
+ * thresholds and the operator-facing wording derive from it, and a test asserts
+ * the committed registry row still agrees — the previous drift was a workflow
+ * change landing against thresholds calibrated for a different period.
+ */
+export const OPS_OPERATOR_CADENCE_MS = HOUR_MS;
 
 const CRON_FIELDS = 5;
 

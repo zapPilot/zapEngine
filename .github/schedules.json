@@ -79,7 +79,7 @@
     "name": "ops-operator",
     "purpose": "Observe production operations and reconcile operator state.",
     "schedule_kind": "cron",
-    "schedule": "*/5 * * * *",
+    "schedule": "0 * * * *",
     "schedule_source": "workflow",
     "runtime": "github-actions",
     "workspace": "@zapengine/control-center",

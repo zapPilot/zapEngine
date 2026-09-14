@@ -10,7 +10,7 @@ The repository exposes only two user-facing autonomous engineering skills:
 
 Both roles are manual. There is no headless runner and no schedule: a person picks
 the model and invokes `/triage` or `/worker` in Claude Code, OpenCode or Codex.
-The five-minute schedule described in
+The hourly schedule described in
 [the operator runbook](../../apps/control-center/OPERATOR.md) drives
 `ops-operator`, which is a different system.
 
