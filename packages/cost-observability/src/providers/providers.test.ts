@@ -269,7 +269,7 @@ describe('cost providers', () => {
       fetch: fetcher,
     });
     await expect(failure).rejects.toThrow(
-      'Brave Search long-term quota window is not measurable',
+      'Brave Search monthly quota window is not measurable',
     );
     await expect(failure).rejects.toBeInstanceOf(UsageNotMeasurableError);
   });

@@ -58,12 +58,12 @@ describe('resolveWebAsset', () => {
     ).toEqual({ status: 403 });
   });
 
-  it('rejects candidates outside a non-canonical web root prefix', () => {
+  it('treats trailing-separator and canonical web roots equivalently', () => {
     const rootWithTrailingSeparator = `${WEB_ROOT}${sep}`;
     const fs = fakeFs([`${WEB_ROOT}${sep}app.js`]);
 
     expect(resolveWebAsset(rootWithTrailingSeparator, '/app.js', fs)).toEqual({
-      status: 403,
+      filePath: `${WEB_ROOT}${sep}app.js`,
     });
   });
 

@@ -29,16 +29,18 @@ export default defineConfig({
         '**/*.d.ts',
         '**/*.test.{ts,tsx}',
         'src/**/__tests__/**',
-        'src/app/**',
+        'src/test-utils/**',
         'src/types/**',
         'src/**/index.ts',
         'src/lib/source.ts',
       ],
+      // Ratcheted from the 2026-09-14 production denominator
+      // (86.57/78.74/91.62/87.93) with ~3 points of churn buffer.
       thresholds: {
-        statements: 100,
-        branches: 100,
-        functions: 100,
-        lines: 100,
+        statements: 83,
+        branches: 75,
+        functions: 89,
+        lines: 84,
       },
     },
   },

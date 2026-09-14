@@ -6,7 +6,7 @@ import { normalizeNonNegative, roundUsageUsd } from './numbers.js';
 const BRAVE_IMAGES_SEARCH_ENDPOINT =
   'https://api.search.brave.com/res/v1/images/search';
 const DEFAULT_MONTHLY_FREE_CREDIT_USD = 5;
-const MINIMUM_LONG_QUOTA_WINDOW_SECONDS = 86_400;
+const MINIMUM_MONTHLY_QUOTA_WINDOW_SECONDS = 28 * 86_400;
 const BRAVE_REQUEST_MAX_ATTEMPTS = 3;
 const BRAVE_REQUEST_RETRY_DELAY_MS = 250;
 const RETRYABLE_BRAVE_STATUS = new Set([408, 429]);
@@ -208,9 +208,9 @@ function readMonthlyQuota(headers: Headers): BraveMonthlyQuota {
         : best,
     -1,
   );
-  if (index === -1 || windows[index]! < MINIMUM_LONG_QUOTA_WINDOW_SECONDS) {
+  if (index === -1 || windows[index]! < MINIMUM_MONTHLY_QUOTA_WINDOW_SECONDS) {
     throw new UsageNotMeasurableError(
-      'Brave Search long-term quota window is not measurable',
+      'Brave Search monthly quota window is not measurable',
     );
   }
 

@@ -290,9 +290,9 @@ describe('OpenRouter failures and optional usage', () => {
 });
 
 describe('Brave retry and quota boundaries', () => {
-  const minimumWindow = {
+  const minimumMonthlyWindow = {
     'x-ratelimit-limit': '10',
-    'x-ratelimit-policy': '10;w=86400',
+    'x-ratelimit-policy': '10;w=2419200',
     'x-ratelimit-remaining': '11',
   };
   const requestBraveQuota = (
@@ -320,7 +320,7 @@ describe('Brave retry and quota boundaries', () => {
     const fetcher = vi
       .fn()
       .mockResolvedValueOnce(transient)
-      .mockResolvedValueOnce(braveResponse(minimumWindow));
+      .mockResolvedValueOnce(braveResponse(minimumMonthlyWindow));
     const sleep = vi.fn().mockResolvedValue(undefined);
     const snapshot = await fetchBraveCostSnapshot({
       apiKey: 'key',
@@ -348,12 +348,12 @@ describe('Brave retry and quota boundaries', () => {
     expect(sleep.mock.calls).toEqual([[250], [500]]);
   });
 
-  it('accepts minimum long window, clamps used, and omits missing reset', async () => {
+  it('accepts the minimum monthly-class window, clamps used, and omits missing reset', async () => {
     const snapshot = await fetchBraveCostSnapshot({
       apiKey: 'key',
       unitCostUsd: 0.5,
       monthlyFreeCreditUsd: 0,
-      fetch: vi.fn().mockResolvedValue(braveResponse(minimumWindow)),
+      fetch: vi.fn().mockResolvedValue(braveResponse(minimumMonthlyWindow)),
       now: NOW,
     });
     expect(snapshot.accruedCostUsd).toBe(0);
@@ -371,9 +371,15 @@ describe('Brave retry and quota boundaries', () => {
   it.each([
     ['missing policy', {}],
     [
-      'window below one day',
+      'daily-only window',
       {
-        'x-ratelimit-policy': '10;w=86399',
+        'x-ratelimit-policy': '10;w=86400',
+      },
+    ],
+    [
+      'window below monthly class',
+      {
+        'x-ratelimit-policy': '10;w=2419199',
       },
     ],
   ])('degrades a successful %s response', async (_label, headers) => {

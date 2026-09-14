@@ -6,13 +6,15 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json-summary', 'html', 'clover', 'json', 'lcov'],
-      // Ratcheted from the 2026-09-08 measured baseline
-      // (81.84/70.36/82.05/82.06) with ~4 points of churn buffer.
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: ['**/*.d.ts', '**/*.test.{ts,tsx}', 'src/**/__fixtures__/**'],
+      // Ratcheted from the honest 2026-09-14 denominator
+      // (83.03/74.30/85.09/83.07) with ~3 points of churn buffer.
       thresholds: {
-        branches: 66,
-        functions: 78,
-        lines: 78,
-        statements: 77,
+        branches: 71,
+        functions: 82,
+        lines: 80,
+        statements: 80,
       },
       reportsDirectory: 'coverage',
     },

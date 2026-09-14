@@ -146,7 +146,10 @@ describe('createSuggestionDriftReader', () => {
 
     const result = await createSuggestionDriftReader()(CONTEXT);
 
-    expect(result).toEqual({ driftPercent: 7.5 });
+    expect(result).toEqual({
+      driftPercent: 7.5,
+      strategyId: 'strategy-default',
+    });
   });
 
   it('uses sentinel drift when actionable transfer volume cannot be normalized', async () => {
@@ -165,7 +168,10 @@ describe('createSuggestionDriftReader', () => {
 
     const result = await createSuggestionDriftReader()(CONTEXT);
 
-    expect(result).toEqual({ driftPercent: 100 });
+    expect(result).toEqual({
+      driftPercent: 100,
+      strategyId: 'strategy-default',
+    });
   });
 
   it('uses empty transfers and sentinel drift when optional payload data is absent', async () => {
@@ -181,7 +187,10 @@ describe('createSuggestionDriftReader', () => {
 
     const result = await createSuggestionDriftReader()(CONTEXT);
 
-    expect(result).toEqual({ driftPercent: 100 });
+    expect(result).toEqual({
+      driftPercent: 100,
+      strategyId: 'strategy-default',
+    });
   });
 
   it('treats missing transfer amounts and portfolio data as unquantified', async () => {
@@ -200,6 +209,9 @@ describe('createSuggestionDriftReader', () => {
 
     const result = await createSuggestionDriftReader()(CONTEXT);
 
-    expect(result).toEqual({ driftPercent: 100 });
+    expect(result).toEqual({
+      driftPercent: 100,
+      strategyId: 'strategy-default',
+    });
   });
 });
