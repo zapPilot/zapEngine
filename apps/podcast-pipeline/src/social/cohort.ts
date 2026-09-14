@@ -3,7 +3,9 @@ import {
   getOrCreateExperimentAssignment,
 } from './experiments.js';
 import {
+  finalReleaseCohortLanes,
   fixedThreadsReleaseCohortLanesForProfile,
+  isFinalLanguagePolicyActive,
   isLanguageRotationActive,
   isThreadsFixedActive,
   languageRotationProfileForSlot,
@@ -33,24 +35,30 @@ export interface ReleaseCohortLane {
 
 /**
  * The single definition of "which lanes does this episode's release cohort
- * have". Episodes created from the Threads-fixed cutover use the v3 swap
- * (Threads/Rednote fixed `zh-Hant`, X/YouTube swapping `ja`/`en`); episodes
- * created in the v2 window keep the Latin square; older backlog and
- * already-scheduled cohorts keep the exact historical policy even when their
- * release slot lands after activation.
+ * have". From the final language-policy cutover onward, a cohort with no
+ * persisted historical language assignment is fixed to X=ja, YouTube=en,
+ * Threads=zh-Hant, Rednote=zh-Hant and carries no language experiment metadata.
+ * Historical v1/v2/v3 assignments remain authoritative for already-started or
+ * partially released cohorts.
  */
 export async function resolveReleaseCohortLanes(input: {
   episodeId: string;
   episodeCreatedAt: string;
   scheduledAt: Date;
 }): Promise<ReleaseCohortLane[]> {
+  if (
+    isFinalLanguagePolicyActive(input.scheduledAt) &&
+    !(await hasPersistedHistoricalLanguageAssignment(input.episodeId))
+  ) {
+    return finalReleaseCohortLanes();
+  }
+
   if (usesFixedThreadsShape(input.episodeCreatedAt, input.scheduledAt)) {
     if (await hasLegacyLanguageGeneration(input.episodeId)) {
       return resolveLegacyReleaseCohortLanes(input);
     }
-    // A v2 cohort created before the deploy must finish as v2: its persisted
-    // A/B/C profile owns recovery, and deriving v3 now would reshape the
-    // durable lane identities repair is required to preserve.
+    // A v2 cohort created before the v3 deploy must finish as v2: its persisted
+    // A/B/C profile owns recovery, and deriving v3 would reshape durable lanes.
     if (await hasSwapPredecessorAssignment(input.episodeId)) {
       return resolveV2ReleaseCohortLanes(input);
     }
@@ -87,9 +95,9 @@ async function resolveV2ReleaseCohortLanes(input: {
 }
 
 /**
- * New language-v2/v3 articles must wait for all three localizations before a
- * slot is consumed. Legacy cohorts only wait for the languages their
- * historical lane assignment actually needs.
+ * Current fixed policy and historical v2/v3 cohorts all need the three primary
+ * localizations before an article consumes a slot. Legacy pre-v2 cohorts only
+ * wait for the languages their historical lane assignment actually needs.
  */
 export async function resolveRequiredReleaseLanguages(input: {
   episodeId: string;
@@ -97,10 +105,11 @@ export async function resolveRequiredReleaseLanguages(input: {
   prospectiveScheduledAt: Date;
 }): Promise<SocialLanguageCode[]> {
   if (
-    (usesFixedThreadsShape(
-      input.episodeCreatedAt,
-      input.prospectiveScheduledAt,
-    ) ||
+    (isFinalLanguagePolicyActive(input.prospectiveScheduledAt) ||
+      usesFixedThreadsShape(
+        input.episodeCreatedAt,
+        input.prospectiveScheduledAt,
+      ) ||
       usesLanguageRotation(
         input.episodeCreatedAt,
         input.prospectiveScheduledAt,
@@ -141,6 +150,31 @@ async function hasSwapPredecessorAssignment(
       episodeId,
     }),
   );
+}
+
+/**
+ * The final fixed policy must not reshape a cohort that already has durable
+ * language-generation state. The cutover migration removes these assignments
+ * only for fully unpublished queued cohorts that it rewrites atomically.
+ */
+async function hasPersistedHistoricalLanguageAssignment(
+  episodeId: string,
+): Promise<boolean> {
+  for (const experimentKey of [
+    LEGACY_LANGUAGE_GENERATION_MARKER,
+    SOCIAL_LANGUAGE_PROFILE_ASSIGNMENT_KEY,
+    SOCIAL_LANGUAGE_SWAP_PROFILE_ASSIGNMENT_KEY,
+  ]) {
+    if (
+      await getExperimentAssignment({
+        experimentKey,
+        episodeId,
+      })
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function usesLanguageRotation(
