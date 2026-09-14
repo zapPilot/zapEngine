@@ -21,18 +21,18 @@ import { useAccount } from '@/integration/useAccount';
 import { useInvest } from '@/integration/useInvest';
 import { useInvestExecution } from '@/integration/useInvestExecution';
 import type {
-  ReviewedStage,
+  ReviewedBatch,
   UseInvestReviewResult,
 } from '@/integration/useInvestReview';
 
-function hlpPlanFor(stage: ReviewedStage): DepositPlan | null {
-  if (isStrategyDepositPlan(stage.plan)) return null;
-  return hlpStepFromPlan(stage.plan) ? stage.plan : null;
+function hlpPlanFor(batch: ReviewedBatch): DepositPlan | null {
+  if (isStrategyDepositPlan(batch.plan)) return null;
+  return hlpStepFromPlan(batch.plan) ? batch.plan : null;
 }
 
 /**
  * Owns the Step 2 confirm flow: the review expiry ticker, the gate
- * derivations, and the submit handler that hands the first reviewed stage to
+ * derivations, and the submit handler that hands the first reviewed batch to
  * the wallet along with the rest of the queue. The reviewed batches are an
  * immutable snapshot — nothing is re-planned here.
  */
@@ -50,7 +50,7 @@ export function useInvestRouteSubmit({
   const [launchRequested, setLaunchRequested] = useState(false);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
 
-  const groups = review.stages.map((stage) => stage.review);
+  const groups = review.batches.map((batch) => batch.review);
   const reviewNow = useNowTicker(groups.length > 0, reviewExpiryKey(groups));
   const reviewBlocked = groups.some((group) =>
     reviewGroupBlocked(group, reviewNow),
@@ -59,8 +59,8 @@ export function useInvestRouteSubmit({
     capability === 'ready' &&
     (review.isLoading ||
       review.isError ||
-      !review.hasAllStages ||
-      review.stages.length === 0 ||
+      !review.hasAllBatches ||
+      review.batches.length === 0 ||
       reviewBlocked);
   const reviewExecutionLocked = reviewedProgress !== null;
 
@@ -81,7 +81,7 @@ export function useInvestRouteSubmit({
     if (capability !== 'ready' || reviewNotReadyForSend || launchRequested) {
       return;
     }
-    const first = review.stages[0];
+    const first = review.batches[0];
     const userAddress = account.address as Address | null;
     if (!first || !userAddress) {
       setSubmissionError(
@@ -102,9 +102,9 @@ export function useInvestRouteSubmit({
         submitReviewedBatch({
           plan: first.plan,
           review: first.review,
-          queue: review.stages.map((stage) => ({
-            plan: stage.plan,
-            review: stage.review,
+          queue: review.batches.map((batch) => ({
+            plan: batch.plan,
+            review: batch.review,
           })),
           ...riskAcknowledgement(first.review),
         });

@@ -19,7 +19,8 @@ import {
   reviewGroupBlocked,
   riskAcknowledgement,
   sameReviewFingerprints,
-  stageSummaryRows,
+  batchSummaryRows,
+  positionSummaryRows,
 } from '@/integration/investReviewModel';
 import type { StageDraft } from '@/integration/investTargetsModel';
 
@@ -253,32 +254,66 @@ describe('queueTone', () => {
   });
 });
 
-describe('stageSummaryRows', () => {
-  it('summarises a Morpho stage without protocol-specific rows', () => {
-    const rows = stageSummaryRows({ draft: morphoDraft, plan: undefined });
-    expect(rows.map((entry) => entry.label)).toEqual([
-      'Funding',
-      'Transactions',
-      'Source gas',
-    ]);
+/** GMX supply calls and the Bridge2 transfer merged into one Arbitrum batch. */
+const mergedArbitrumPlan: DepositPlan = {
+  ...hlpPlan,
+  legs: [
+    {
+      chainId: 42161,
+      kind: 'supply',
+      protocol: 'gmx-v2',
+      label: 'GMX BTC/USDC',
+      toToken: ARBITRUM_DEPOSIT_TOKENS[0].depositAddress,
+      fromAmount: '35000000',
+      toAmountMin: '1',
+      gasUsd: '0.1',
+      durationSec: 60,
+    },
+    ...hlpPlan.legs,
+  ],
+  approvals: [
+    {
+      to: ARBITRUM_DEPOSIT_TOKENS[0].depositAddress,
+      data: '0x095ea7b3',
+      value: '0',
+      chainId: 42161,
+      meta: { intentType: 'APPROVAL' },
+    },
+  ],
+  calls: [
+    {
+      to: '0x1C3fa76e6E1088bCE750f23a5BFcffa1efEF6A41',
+      data: '0x1234',
+      value: '0',
+      chainId: 42161,
+      meta: {
+        intentType: 'SUPPLY',
+        route: { executionFeeWei: '4000000000000000' },
+      },
+    },
+    ...hlpPlan.calls,
+  ],
+  followUps: [
+    {
+      ...hlpPlan.followUps![0]!,
+      afterLegIndex: 1,
+      amount: { source: 'bridge-output', legIndex: 1 },
+    },
+  ],
+  totalGasUsd: '0.12',
+};
+
+describe('positionSummaryRows', () => {
+  it('summarises a Morpho position without protocol-specific rows', () => {
+    const rows = positionSummaryRows({ draft: morphoDraft, plan: undefined });
+    expect(rows.map((entry) => entry.label)).toEqual(['Funding']);
     expect(rows[0]!.value).toBe('40 USDC');
   });
 
-  it('adds the GMX keeper fee row', () => {
-    const rows = stageSummaryRows({
+  it('counts only the GMX keeper fees inside a merged batch', () => {
+    const rows = positionSummaryRows({
       draft: gmxDraft,
-      plan: {
-        ...hlpPlan,
-        calls: [
-          {
-            ...hlpPlan.calls[0]!,
-            meta: {
-              intentType: 'SUPPLY',
-              route: { executionFeeWei: '4000000000000000' },
-            },
-          },
-        ],
-      },
+      plan: mergedArbitrumPlan,
     });
     expect(rows.find((entry) => entry.label === 'Keeper fees')?.value).toBe(
       '0.004 ETH total',
@@ -286,7 +321,7 @@ describe('stageSummaryRows', () => {
   });
 
   it('discloses the HLP route, minimum, vault, and withdrawal lock', () => {
-    const rows = stageSummaryRows({ draft: hlpDraft, plan: hlpPlan });
+    const rows = positionSummaryRows({ draft: hlpDraft, plan: hlpPlan });
     const byLabel = Object.fromEntries(
       rows.map((entry) => [entry.label, entry.value]),
     );
@@ -295,6 +330,34 @@ describe('stageSummaryRows', () => {
     expect(byLabel['HLP minimum']).toBe('10 USDC');
     expect(byLabel['Withdrawal lock']).toBe('4 days after deposit');
     expect(byLabel['Official HLP vault']).toContain('…');
+  });
+
+  it('finds the HLP disclosures behind another position in a merged batch', () => {
+    const rows = positionSummaryRows({
+      draft: hlpDraft,
+      plan: mergedArbitrumPlan,
+    });
+    const byLabel = Object.fromEntries(
+      rows.map((entry) => [entry.label, entry.value]),
+    );
+    expect(byLabel['Expected received']).toBe('25 USDC');
+    expect(byLabel['HLP minimum']).toBe('10 USDC');
+  });
+});
+
+describe('batchSummaryRows', () => {
+  it('totals the whole batch, not one position', () => {
+    expect(batchSummaryRows(mergedArbitrumPlan)).toEqual([
+      { label: 'Transactions', value: '3' },
+      { label: 'Source gas', value: '≈ $0.12' },
+    ]);
+  });
+
+  it('degrades to placeholders with no plan', () => {
+    expect(batchSummaryRows(undefined)).toEqual([
+      { label: 'Transactions', value: '0' },
+      { label: 'Source gas', value: '—' },
+    ]);
   });
 });
 

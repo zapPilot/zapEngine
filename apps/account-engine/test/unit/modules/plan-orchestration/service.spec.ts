@@ -165,6 +165,298 @@ function makeInvestService({
   return { composeDeposit, service };
 }
 
+const HLP_VAULT = '0xdfc24b077bc1425AD1DEA75bCB6f8158E10Df303' as Address;
+
+/** A Bridge2 HLP plan: one bridge leg, one transfer call, one follow-up. */
+function hlpBridge2Plan(amount: string): DepositPlan {
+  return {
+    legs: [
+      {
+        chainId: 1337,
+        kind: 'bridge',
+        protocol: 'hyperliquid',
+        bridge: 'hyperliquid-bridge2',
+        toToken: USDC,
+        fromAmount: amount,
+        toAmountMin: amount,
+        gasUsd: '0.02',
+        durationSec: 60,
+      },
+    ],
+    approvals: [],
+    calls: [
+      {
+        to: USDC,
+        data: '0xa9059cbb',
+        value: '0',
+        chainId: 42161,
+        gasLimit: '65000',
+        meta: { intentType: 'BRIDGE' },
+      },
+    ],
+    followUps: [
+      {
+        kind: 'hyperliquid-vault-deposit',
+        chainId: 1337,
+        afterLegIndex: 0,
+        amount: { source: 'bridge-output', legIndex: 0 },
+        minDepositUsd: '10000000',
+        action: {
+          type: 'vaultTransfer',
+          vaultAddress: HLP_VAULT,
+          isDeposit: true,
+        },
+        signing: {
+          scheme: 'hyperliquid-l1-action',
+          hyperliquidChain: 'Mainnet',
+          apiUrl: 'https://api.hyperliquid.xyz/exchange',
+        },
+        lockupDays: 4,
+      },
+    ],
+    totalGasUsd: '0.02',
+    sourceChainId: 42161,
+  };
+}
+
+/** GMX basket + HLP, both fundable from Arbitrum, on one service. */
+function makeChainBatchService(
+  options: { allowance?: bigint; reviewStatus?: 'passed' } = {},
+) {
+  const composeDeposit = vi
+    .fn()
+    .mockImplementation(async ({ fromAmount }: { fromAmount: string }) =>
+      hlpBridge2Plan(fromAmount),
+    );
+  const buildGmxV2Supply = vi.fn().mockResolvedValue(gmxPlan);
+  const bundleGate = vi.fn().mockResolvedValue({ status: 'passed' });
+  const simulateBundle = vi.fn().mockResolvedValue({
+    status: 'passed',
+    chainId: 42161,
+    walletAddress: USER,
+    calls: [],
+    assetChanges: [],
+    approvals: [],
+    contracts: [],
+    warnings: [],
+    blockNumber: null,
+    callGas: '0',
+    simulationIds: ['sim-batch'],
+    shareUrls: [],
+    simulationFingerprint: `0x${'33'.repeat(32)}`,
+    riskHash: `0x${'44'.repeat(32)}`,
+  });
+  const service = createPlanOrchestrationService({
+    intentEngine: {
+      buildGmxV2Supply,
+      buildGmxV2Withdraw: vi.fn(),
+      buildWithdrawSwap: vi.fn(),
+      buildSupply: vi.fn(),
+      buildSwap: vi.fn(),
+      getTokenPrice: vi.fn().mockResolvedValue({
+        address: NATIVE_TOKEN_ADDRESS,
+        symbol: 'ETH',
+        decimals: 18,
+        priceUSD: '3000',
+      }),
+    },
+    adapter: { getQuote: vi.fn(), getContractCallQuote: vi.fn() } as never,
+    publicClients: {
+      42161: {
+        readContract: vi.fn().mockResolvedValue(options.allowance ?? 0n),
+        getGasPrice: vi.fn().mockResolvedValue(100_000_000n),
+      },
+      8453: { readContract: vi.fn().mockResolvedValue(0n) },
+    } as never,
+    composeDeposit,
+    simulation: {
+      adapter: { simulateBundle: bundleGate },
+      reviewService: { simulateBundle },
+    },
+  });
+
+  return {
+    service,
+    composeDeposit,
+    buildGmxV2Supply,
+    bundleGate,
+    simulateBundle,
+  };
+}
+
+describe('plan-orchestration chain batches', () => {
+  const gmxPosition = {
+    kind: 'gmx-v2-basket',
+    fromToken: USDC,
+    amount: '35000000',
+  } as const;
+  const hlpPosition = {
+    kind: 'invest',
+    fromToken: USDC,
+    fromAmount: '25000000',
+    split: { '1337': 1 },
+  } as const;
+
+  it('merges same-chain positions into one reviewed group', async () => {
+    const { service, simulateBundle } = makeChainBatchService();
+
+    const result = await service.buildDepositReview({
+      kind: 'chain-batch',
+      userAddress: USER,
+      sourceChainId: 42161,
+      positions: [gmxPosition, hlpPosition],
+    });
+    const plan = result.plan as DepositPlan;
+
+    expect(Object.keys(result.reviews)).toEqual(['chain-42161']);
+    expect(simulateBundle).toHaveBeenCalledTimes(1);
+    // Four GMX supplies then the Bridge2 transfer, in position order.
+    expect(plan.legs).toHaveLength(5);
+    expect(plan.legs[4]!.protocol).toBe('hyperliquid');
+    expect(plan.calls).toHaveLength(5);
+    expect(plan.calls[4]!.to).toBe(USDC);
+    expect(plan.approvals).toHaveLength(1);
+    // The follow-up still names its own bridge leg after the shift.
+    expect(plan.followUps?.[0]).toMatchObject({
+      afterLegIndex: 4,
+      amount: { source: 'bridge-output', legIndex: 4 },
+    });
+    // Both positions contributed: the HLP plan alone quotes 0.02.
+    expect(Number.parseFloat(plan.totalGasUsd)).toBeGreaterThan(0.02);
+    expect(simulateBundle.mock.calls[0]![0].calls).toHaveLength(6);
+  });
+
+  it('runs the bundle gate once over the merged batch', async () => {
+    const { service, bundleGate } = makeChainBatchService();
+
+    await service.buildDeposit({
+      kind: 'chain-batch',
+      userAddress: USER,
+      sourceChainId: 42161,
+      positions: [gmxPosition, hlpPosition],
+    });
+
+    expect(bundleGate).toHaveBeenCalledTimes(1);
+    expect(bundleGate.mock.calls[0]![0].calls).toHaveLength(6);
+  });
+
+  it('builds the same plan a single-position legacy request would', async () => {
+    const batched = await makeChainBatchService().service.buildDeposit({
+      kind: 'chain-batch',
+      userAddress: USER,
+      sourceChainId: 42161,
+      positions: [gmxPosition],
+    });
+    const legacy = await makeChainBatchService().service.buildDeposit({
+      kind: 'gmx-v2-basket',
+      userAddress: USER,
+      fromToken: USDC,
+      amount: '35000000',
+    });
+
+    expect(batched).toEqual(legacy);
+  });
+
+  it('caps a shared source token against every position drawing on it', async () => {
+    // The mocked basket approves 4 x 1000 USDC. Alone that is above what GMX
+    // asked for; together with HLP's share of the same token it is not.
+    const gmxOnly = { ...gmxPosition, amount: '3000' };
+    const hlpShare = { ...hlpPosition, fromAmount: '2000' };
+
+    await expect(
+      makeChainBatchService().service.buildDeposit({
+        kind: 'chain-batch',
+        userAddress: USER,
+        sourceChainId: 42161,
+        positions: [gmxOnly, hlpShare],
+      }),
+    ).resolves.toMatchObject({ sourceChainId: 42161 });
+
+    await expect(
+      makeChainBatchService().service.buildDeposit({
+        kind: 'chain-batch',
+        userAddress: USER,
+        sourceChainId: 42161,
+        positions: [gmxOnly],
+      }),
+    ).rejects.toThrow('above the intent amount');
+  });
+
+  it('fingerprints the merged batch the client will rebuild from the plan', async () => {
+    const { service } = makeChainBatchService();
+
+    const result = await service.buildDepositReview({
+      kind: 'chain-batch',
+      userAddress: USER,
+      sourceChainId: 42161,
+      positions: [gmxPosition, hlpPosition],
+    });
+    const plan = result.plan as DepositPlan;
+
+    // Mirrors computeReviewedBatchFingerprint in app-core, which the wallet
+    // recomputes from `[...plan.approvals, ...plan.calls]` before signing.
+    const clientFingerprint = keccak256(
+      toBytes(
+        JSON.stringify({
+          chainId: 42161,
+          transactions: [...plan.approvals, ...plan.calls].map((call) => ({
+            chainId: call.chainId,
+            to: call.to.toLowerCase(),
+            data: call.data,
+            value: BigInt(call.value).toString(),
+          })),
+        }),
+      ),
+    );
+    expect(result.reviews['chain-42161']!.batchFingerprint).toBe(
+      clientFingerprint,
+    );
+  });
+
+  it('carries a LI.FI approval through the merge unchanged', async () => {
+    // The merge re-derives every approval; one that arrived without a gas
+    // limit must not gain an invented one, or the batch fingerprint moves.
+    const { service, composeDeposit } = makeChainBatchService();
+    const lifiApproval = {
+      to: USDC,
+      data: approveData(LIFI_SPENDER, 25_000_000n),
+      value: '0',
+      chainId: 42161,
+      meta: { intentType: 'ERC20_APPROVE' },
+    };
+    composeDeposit.mockResolvedValue({
+      ...hlpBridge2Plan('25000000'),
+      approvals: [lifiApproval],
+    });
+
+    const plan = await service.buildDeposit({
+      kind: 'chain-batch',
+      userAddress: USER,
+      sourceChainId: 42161,
+      positions: [hlpPosition],
+    });
+
+    expect(plan.approvals).toEqual([lifiApproval]);
+  });
+
+  it('refuses a position planned on another chain', async () => {
+    const { service, composeDeposit } = makeChainBatchService();
+    composeDeposit.mockResolvedValue({
+      ...hlpBridge2Plan('25000000'),
+      sourceChainId: 8453,
+    });
+
+    await expect(
+      service.buildDeposit({
+        kind: 'chain-batch',
+        userAddress: USER,
+        sourceChainId: 42161,
+        positions: [hlpPosition],
+      }),
+    ).rejects.toThrow('planned on chain 8453');
+  });
+});
+
 describe('plan-orchestration service', () => {
   it('builds fixed 40/30/30 groups and splits Base ETH into manual swap and supply calls', async () => {
     const buildSupply = vi.fn().mockImplementation(({ fromAmount }) => ({

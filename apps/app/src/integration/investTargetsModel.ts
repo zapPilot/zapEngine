@@ -1,5 +1,6 @@
 import { CHAIN_BRAND } from '@zapengine/brand-assets';
 import {
+  type ChainBatchPosition,
   type ChainSplit,
   HLP_MIN_DEPOSIT_USD6,
   HYPERCORE_CHAIN_ID,
@@ -39,8 +40,9 @@ export interface InvestPosition {
 }
 
 /**
- * The destinations one invest amount can fan out to, in execution order. Each
- * one becomes its own reviewed wallet batch.
+ * The destinations one invest amount can fan out to, in execution order.
+ * Destinations that draw on the same source chain are planned together and
+ * become a single reviewed wallet batch.
  */
 export const INVEST_POSITIONS: readonly InvestPosition[] = [
   {
@@ -382,29 +384,68 @@ export function buildStageDrafts(
   return drafts.length > 0 ? drafts : null;
 }
 
-/** The exact plan-orchestration request one frozen stage executes. */
-export function stageDraftRequest(
-  draft: StageDraft,
-  userAddress: `0x${string}`,
-): ReviewedDepositRequest {
+/** Every frozen stage funded from one source chain, in position order. */
+export interface ChainBatchDraft {
+  chainId: number;
+  positions: StageDraft[];
+}
+
+/**
+ * Group the frozen stages by source chain. One group is one reviewed wallet
+ * batch and one checkpoint-queue entry, so this ordering — a chain takes the
+ * place of the first position that funds from it — is also execution order.
+ */
+export function chainBatchDrafts(
+  drafts: readonly StageDraft[],
+): ChainBatchDraft[] {
+  const batches: ChainBatchDraft[] = [];
+  for (const draft of drafts) {
+    const existing = batches.find(
+      (batch) => batch.chainId === draft.sourceToken.chainId,
+    );
+    if (existing) {
+      existing.positions.push(draft);
+      continue;
+    }
+    batches.push({ chainId: draft.sourceToken.chainId, positions: [draft] });
+  }
+  return batches;
+}
+
+/** One destination inside a chain-batch request. */
+export function positionRequest(draft: StageDraft): ChainBatchPosition {
   if (draft.positionId === 'gmx-arbitrum') {
     return {
       kind: 'gmx-v2-basket',
-      userAddress,
       fromToken: draft.sourceToken.depositAddress,
       amount: draft.fromAmount,
     };
   }
   return {
     kind: 'invest',
-    userAddress,
     fromToken: draft.sourceToken.depositAddress,
     fromAmount: draft.fromAmount,
-    sourceChainId: draft.sourceToken.chainId,
     split:
       draft.positionId === 'hlp'
         ? HYPERLIQUID_HLP_SPLIT
         : { [String(SUPPORTED_DEPOSIT_CHAINS.BASE)]: 1 },
+  };
+}
+
+/**
+ * The exact plan-orchestration request one chain batch executes. A
+ * single-position batch uses the same shape, so the client never has to decide
+ * between two request kinds.
+ */
+export function chainBatchRequest(
+  batch: ChainBatchDraft,
+  userAddress: `0x${string}`,
+): ReviewedDepositRequest {
+  return {
+    kind: 'chain-batch',
+    userAddress,
+    sourceChainId: batch.chainId,
+    positions: batch.positions.map(positionRequest),
   };
 }
 
@@ -436,6 +477,43 @@ export function stageLabel(draft: StageDraft): string {
   if (draft.positionId === 'morpho-base') return 'Morpho · Base';
   if (draft.positionId === 'gmx-arbitrum') return 'GMX · Arbitrum';
   return `HLP · ${hlpRouteLabel(draft.sourceToken, draft.ingress)}`;
+}
+
+/** The `DepositLeg.protocol` each position's own legs carry. */
+const POSITION_LEG_PROTOCOL: Record<InvestPositionId, string> = {
+  'morpho-base': 'morpho',
+  'gmx-arbitrum': 'gmx-v2',
+  hlp: 'hyperliquid',
+};
+
+/**
+ * Each venue's share of the whole invest amount, for the review chips. A merged
+ * batch can fund two positions from different source tokens, so the chips
+ * cannot derive their shares from leg amounts alone.
+ */
+export function batchProtocolWeightsBps(
+  batch: ChainBatchDraft,
+): Record<string, number> {
+  const weights: Record<string, number> = {};
+  for (const draft of batch.positions) {
+    const protocol = POSITION_LEG_PROTOCOL[draft.positionId];
+    weights[protocol] = (weights[protocol] ?? 0) + draft.weightBps;
+  }
+  return weights;
+}
+
+/** Heading for one reviewed batch, e.g. `Arbitrum · GMX + HLP`. */
+export function chainBatchLabel(batch: ChainBatchDraft): string {
+  const first = batch.positions[0];
+  const chainLabel = first
+    ? CHAIN_BRAND[first.sourceToken.chainKey].label
+    : `Chain ${batch.chainId}`;
+  const venues = batch.positions.map(
+    (draft) =>
+      INVEST_POSITIONS.find((position) => position.id === draft.positionId)
+        ?.label ?? draft.positionId,
+  );
+  return `${chainLabel} · ${venues.join(' + ')}`;
 }
 
 function capacityForShare(spendableUsd: number, weightBps: number): number {

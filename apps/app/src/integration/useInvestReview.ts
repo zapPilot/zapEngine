@@ -8,58 +8,61 @@ import type {
 
 import { resolveStageReviewGroup } from '@/integration/investReviewModel';
 import {
-  stageDraftRequest,
+  chainBatchDrafts,
+  chainBatchRequest,
   stageDraftsKey,
+  type ChainBatchDraft,
   type StageDraft,
 } from '@/integration/investTargetsModel';
 import { useAccount } from '@/integration/useAccount';
 import { useInvest } from '@/integration/useInvest';
 
-export interface ReviewedStage {
-  draft: StageDraft;
+export interface ReviewedBatch {
+  /** The frozen positions this one wallet batch funds, in execution order. */
+  draft: ChainBatchDraft;
   plan: ReviewedDepositPlan;
   review: DepositReviewGroup;
 }
 
-async function reviewStageDraft(
-  draft: StageDraft,
+async function reviewChainBatch(
+  batch: ChainBatchDraft,
   userAddress: `0x${string}`,
-): Promise<ReviewedStage> {
+): Promise<ReviewedBatch> {
   const response = await getDepositReview(
-    stageDraftRequest(draft, userAddress),
+    chainBatchRequest(batch, userAddress),
   );
   const review = resolveStageReviewGroup(response);
   if (!review) {
     throw new Error(
-      `The review for ${draft.positionId} did not return one executable batch.`,
+      `The review for chain ${batch.chainId} did not return one executable batch.`,
     );
   }
-  return { draft, plan: response.plan, review };
+  return { draft: batch, plan: response.plan, review };
 }
 
 export interface UseInvestReviewResult {
   drafts: readonly StageDraft[];
-  stages: ReviewedStage[];
-  hasAllStages: boolean;
+  batches: ReviewedBatch[];
+  hasAllBatches: boolean;
   isLoading: boolean;
   isError: boolean;
   errorMessage: string | null;
   retry: () => void;
-  refresh: () => Promise<ReviewedStage[]>;
-  /** Re-review a single stage, for a checkpoint that must not disturb the rest. */
-  reviewStage: (index: number) => Promise<ReviewedStage>;
+  refresh: () => Promise<ReviewedBatch[]>;
+  /** Re-review a single batch, for a checkpoint that must not disturb the rest. */
+  reviewBatch: (index: number) => Promise<ReviewedBatch>;
 }
 
 /**
- * Review every frozen stage in parallel. The drafts are already frozen by the
- * amount step, so this never reads live balances — re-deriving amounts here
- * would let a price tick change what the user is about to sign.
+ * Review every frozen source chain in parallel. The drafts are already frozen
+ * by the amount step, so this never reads live balances — re-deriving amounts
+ * here would let a price tick change what the user is about to sign.
  */
 export function useInvestReview(
   options: {
     /**
-     * Set false on screens that only need `reviewStage` for a checkpoint;
-     * mounting them must not re-review every stage against Tenderly again.
+     * Set false on screens that only need `reviewBatch` for a checkpoint;
+     * mounting them must not re-review every batch against Tenderly again.
      */
     autoReview?: boolean;
   } = {},
@@ -68,39 +71,40 @@ export function useInvestReview(
   const { stageDrafts } = useInvest();
   const userAddress = address ? (address as `0x${string}`) : null;
   const draftsKey = stageDraftsKey(stageDrafts);
+  const drafted = chainBatchDrafts(stageDrafts);
   const enabled =
-    (options.autoReview ?? true) &&
-    Boolean(userAddress) &&
-    stageDrafts.length > 0;
+    (options.autoReview ?? true) && Boolean(userAddress) && drafted.length > 0;
 
   const result = useQuery({
     queryKey: ['invest-review', address, draftsKey],
     enabled,
-    queryFn: async (): Promise<ReviewedStage[]> => {
+    queryFn: async (): Promise<ReviewedBatch[]> => {
       if (!userAddress)
         throw new Error('Connect a wallet to review the route.');
       return Promise.all(
-        stageDrafts.map((draft) => reviewStageDraft(draft, userAddress)),
+        chainBatchDrafts(stageDrafts).map((batch) =>
+          reviewChainBatch(batch, userAddress),
+        ),
       );
     },
   });
 
-  const stages = result.data ?? [];
+  const batches = result.data ?? [];
   return {
     drafts: stageDrafts,
-    stages,
-    hasAllStages: enabled && stages.length === stageDrafts.length,
+    batches,
+    hasAllBatches: enabled && batches.length === drafted.length,
     isLoading: enabled && result.isLoading,
     isError: result.isError,
     errorMessage: result.error ? handleHTTPError(result.error) : null,
     retry: () => void result.refetch(),
     refresh: async () => (await result.refetch()).data ?? [],
-    reviewStage: async (index) => {
-      const draft = stageDrafts[index];
-      if (!draft || !userAddress) {
+    reviewBatch: async (index) => {
+      const batch = chainBatchDrafts(stageDrafts)[index];
+      if (!batch || !userAddress) {
         throw new Error('The next reviewed batch is unavailable.');
       }
-      return reviewStageDraft(draft, userAddress);
+      return reviewChainBatch(batch, userAddress);
     },
   };
 }

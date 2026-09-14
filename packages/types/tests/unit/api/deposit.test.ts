@@ -967,6 +967,121 @@ describe('StrategyDepositPlanSchema', () => {
   });
 });
 
+describe('chain-batch request', () => {
+  const ARBITRUM_USDC =
+    DEPOSIT_USDC_ADDRESSES[SUPPORTED_DEPOSIT_CHAINS.ARBITRUM];
+
+  function arbitrumBatch(positions: unknown[]) {
+    return {
+      kind: 'chain-batch',
+      userAddress: USER,
+      sourceChainId: SUPPORTED_DEPOSIT_CHAINS.ARBITRUM,
+      positions,
+    };
+  }
+
+  it('accepts a GMX basket and an HLP bridge funded from Arbitrum', () => {
+    expect(
+      PlanOrchestrationDepositRequestSchema.safeParse(
+        arbitrumBatch([
+          {
+            kind: 'gmx-v2-basket',
+            fromToken: ARBITRUM_USDC,
+            amount: '35000000',
+          },
+          {
+            kind: 'invest',
+            fromToken: ARBITRUM_USDC,
+            fromAmount: '25000000',
+            split: { [String(HYPERCORE_CHAIN_ID)]: 1 },
+          },
+        ]),
+      ).success,
+    ).toBe(true);
+  });
+
+  it('accepts a single-position batch, so the client sends one request shape', () => {
+    expect(
+      PlanOrchestrationDepositRequestSchema.safeParse({
+        kind: 'chain-batch',
+        userAddress: USER,
+        sourceChainId: BASE_CHAIN_ID,
+        positions: [
+          {
+            kind: 'invest',
+            fromToken: BASE_USDC_ADDRESS,
+            fromAmount: '40000000',
+            split: { [String(BASE_CHAIN_ID)]: 1 },
+          },
+        ],
+      }).success,
+    ).toBe(true);
+  });
+
+  it('rejects a GMX position on a chain GMX does not execute on', () => {
+    const result = PlanOrchestrationDepositRequestSchema.safeParse({
+      kind: 'chain-batch',
+      userAddress: USER,
+      sourceChainId: BASE_CHAIN_ID,
+      positions: [
+        { kind: 'gmx-v2-basket', fromToken: BASE_USDC_ADDRESS, amount: '1' },
+      ],
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(
+        result.error.issues.some((issue) =>
+          issue.message.includes('GMX v2 executes on Arbitrum only'),
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it('reports an invest position issue under the position that owns it', () => {
+    const result = PlanOrchestrationDepositRequestSchema.safeParse(
+      arbitrumBatch([
+        { kind: 'gmx-v2-basket', fromToken: ARBITRUM_USDC, amount: '1' },
+        {
+          kind: 'invest',
+          fromToken: BASE_USDC_ADDRESS,
+          fromAmount: '1',
+          split: { [String(HYPERCORE_CHAIN_ID)]: 1 },
+        },
+      ]),
+    );
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(
+        result.error.issues.some(
+          (issue) => issue.path.join('.') === 'positions.1.fromToken',
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it('rejects an empty batch', () => {
+    expect(
+      PlanOrchestrationDepositRequestSchema.safeParse(arbitrumBatch([]))
+        .success,
+    ).toBe(false);
+  });
+
+  it('rejects a position that restates the envelope wallet or chain', () => {
+    expect(
+      PlanOrchestrationDepositRequestSchema.safeParse(
+        arbitrumBatch([
+          {
+            kind: 'gmx-v2-basket',
+            fromToken: ARBITRUM_USDC,
+            amount: '1',
+            userAddress: USER,
+          },
+        ]),
+      ).success,
+    ).toBe(false);
+  });
+});
+
 describe('ChainSplitSchema', () => {
   it('accepts chain-id keys with positive weights', () => {
     expect(

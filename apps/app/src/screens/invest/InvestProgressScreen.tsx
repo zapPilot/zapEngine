@@ -8,14 +8,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, Text, View } from 'react-native';
 import { formatUnits, type Address, type Hash } from 'viem';
 
+import { ChainBatchReviewCard } from '@/components/invest/ChainBatchReviewCard';
 import { ProgressTimelineRow } from '@/components/invest/ProgressTimelineRow';
-import { StageReviewCard } from '@/components/invest/StageReviewCard';
 import { StepHeader } from '@/components/invest/StepHeader';
 import { WizardDoneCard } from '@/components/invest/WizardDoneCard';
 import { InlineErrorCard } from '@/components/ui/InlineErrorCard';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { Tap } from '@/components/ui/Tap';
+import { useCheckpointAutoAdvance } from '@/hooks/useCheckpointAutoAdvance';
 import { useHyperliquidAgent } from '@/hooks/useHyperliquidAgent';
 import { useNowTicker } from '@/hooks/useNowTicker';
 import {
@@ -26,16 +27,18 @@ import {
   shouldOfferAgentEnable,
   unsafeResumeReason,
 } from '@/integration/hlpProgressModel';
+import { advanceCheckpoint } from '@/integration/checkpointAdvanceModel';
 import {
   hlpStageProgressInput,
   investDoneStatusLabel,
   queueTone,
   reviewGroupBlocked,
-  riskAcknowledgement,
-  sameReviewFingerprints,
 } from '@/integration/investReviewModel';
 import { hyperliquidAccountUrl } from '@/integration/investExecutionModel';
-import { stageLabel } from '@/integration/investTargetsModel';
+import {
+  chainBatchDrafts,
+  chainBatchLabel,
+} from '@/integration/investTargetsModel';
 import { isStrategyDepositPlan } from '@/integration/simulationPreviewModel';
 import { useAccount } from '@/integration/useAccount';
 import { useInvest } from '@/integration/useInvest';
@@ -66,14 +69,18 @@ export function InvestProgressScreen() {
     reset: resetReviewedExecution,
   } = useInvestExecution();
 
+  const batches = useMemo(
+    () => chainBatchDrafts(invest.stageDrafts),
+    [invest.stageDrafts],
+  );
   const currentIndex = reviewedProgress?.groupIndex ?? 0;
   const nextIndex = currentIndex + 1;
   const nextEntry = reviewedQueue[nextIndex];
   // The queued entry — not a freshly fetched one — is the exact plan the
   // checkpoint will submit, so it is also what the card must show.
-  const nextDraft = invest.stageDrafts[nextIndex];
-  const hlpIndex = invest.stageDrafts.findIndex(
-    (draft) => draft.positionId === 'hlp',
+  const nextBatch = batches[nextIndex];
+  const hlpIndex = batches.findIndex((batch) =>
+    batch.positions.some((draft) => draft.positionId === 'hlp'),
   );
   const hlpPlan =
     hlpIndex >= 0 ? asDepositPlan(reviewedQueue[hlpIndex]?.plan) : null;
@@ -92,6 +99,12 @@ export function InvestProgressScreen() {
   const [flowError, setFlowError] = useState<string | null>(null);
   const resumedKeyRef = useRef<string | null>(null);
   const autoDepositAttemptedRef = useRef(false);
+  // Read after every await so a checkpoint that moved on while this screen was
+  // waiting cannot have stale evidence or a stale error written over it.
+  const latestProgressRef = useRef(reviewedProgress);
+  useEffect(() => {
+    latestProgressRef.current = reviewedProgress;
+  }, [reviewedProgress]);
 
   const checkpointNow = useNowTicker(reviewedProgress?.phase === 'checkpoint');
   const hlpBatchComplete =
@@ -181,59 +194,77 @@ export function InvestProgressScreen() {
     runGuarded(runHlpDeposit);
   }, [hlpModel, runGuarded, runHlpDeposit]);
 
-  const confirmNextBatch = async () => {
+  /**
+   * Carry the flow from this checkpoint to the next batch. Runs on its own once
+   * the checkpoint is reached and again only when a person presses Retry: every
+   * non-submitted outcome is something they have to look at.
+   */
+  const advanceToNextBatch = useCallback(async () => {
     if (!nextEntry || checkpointPending) return;
+    const startedCallsId = latestProgressRef.current?.callsId ?? null;
+    const stillAtThisCheckpoint = () => {
+      const progress = latestProgressRef.current;
+      return (
+        progress !== null &&
+        progress.callsId === startedCallsId &&
+        progress.phase === 'checkpoint'
+      );
+    };
+
     setCheckpointPending(true);
     setCheckpointError(null);
     try {
-      const fresh = await review.reviewStage(nextIndex);
-      if (!sameReviewFingerprints(nextEntry.review, fresh.review)) {
-        updateReviewedQueueEntry({
-          index: nextIndex,
-          plan: fresh.plan,
-          review: fresh.review,
-        });
-        setCheckpointError(
-          'The next route review changed. Inspect the updated evidence and confirm again.',
-        );
-        return;
-      }
-      if (reviewGroupBlocked(fresh.review, Date.now())) {
-        updateReviewedQueueEntry({
-          index: nextIndex,
-          plan: fresh.plan,
-          review: fresh.review,
-        });
-        setCheckpointError(
-          'The next batch is blocked or expired. Refresh and retry.',
-        );
-        return;
-      }
-
-      const nextHlpPlan = asDepositPlan(fresh.plan);
-      const nextHlpStep = nextHlpPlan ? hlpStepFromPlan(nextHlpPlan) : null;
-      const userAddress = account.address as Address | null;
-      if (nextHlpStep) {
-        if (!userAddress) throw new Error('HLP preflight is unavailable.');
-        const baseline = await getHyperCoreSpendableUsdc({
-          user: userAddress,
-          apiUrl: nextHlpStep.signing.apiUrl,
-        });
-        invest.setHlpBaselineUsd6(baseline.spendableUsd6.toString());
-      }
-
-      const result = await submitNextReviewedBatch({
-        plan: fresh.plan,
-        review: fresh.review,
-        ...riskAcknowledgement(fresh.review),
+      const outcome = await advanceCheckpoint({
+        reviewNext: () => review.reviewBatch(nextIndex),
+        queued: nextEntry,
+        now: () => Date.now(),
+        captureHlpBaseline: async (step) => {
+          const userAddress = account.address as Address | null;
+          if (!userAddress) throw new Error('HLP preflight is unavailable.');
+          const baseline = await getHyperCoreSpendableUsdc({
+            user: userAddress,
+            apiUrl: step.signing.apiUrl,
+          });
+          invest.setHlpBaselineUsd6(baseline.spendableUsd6.toString());
+        },
+        submitNext: submitNextReviewedBatch,
       });
-      if (result.status !== 'submitted') setCheckpointError(result.reason);
+      if (outcome.status === 'submitted' || !stillAtThisCheckpoint()) return;
+      if (outcome.status !== 'rejected') {
+        updateReviewedQueueEntry({
+          index: nextIndex,
+          plan: outcome.fresh.plan,
+          review: outcome.fresh.review,
+        });
+      }
+      setCheckpointError(outcome.reason);
     } catch (error: unknown) {
-      setCheckpointError(extractErrorMessage(error));
+      if (stillAtThisCheckpoint()) {
+        setCheckpointError(extractErrorMessage(error));
+      }
     } finally {
       setCheckpointPending(false);
     }
-  };
+  }, [
+    account.address,
+    checkpointPending,
+    invest,
+    nextEntry,
+    nextIndex,
+    review,
+    submitNextReviewedBatch,
+    updateReviewedQueueEntry,
+  ]);
+
+  // One automatic attempt per checkpoint; a Retry press is the only replay.
+  useCheckpointAutoAdvance(
+    reviewedProgress?.phase === 'checkpoint' &&
+      nextEntry &&
+      checkpointError === null
+      ? `${reviewedProgress.callsId}:${nextIndex}`
+      : null,
+    () => void advanceToNextBatch(),
+  );
 
   const finish = () => {
     resetHlp();
@@ -317,16 +348,17 @@ export function InvestProgressScreen() {
         </Text>
         <Text className="mt-2 text-[12px] leading-[18px] text-ink-dim">
           Confirmed batches stay locked. Each later batch is re-reviewed against
-          the chain it executes on before you confirm it.
+          the chain it executes on and only continues when that evidence still
+          matches what you approved.
         </Text>
 
         <View className="mt-5 rounded-[18px] border border-line bg-[rgba(255,255,255,.02)] px-4 pt-4">
           {reviewedQueue.map((entry, index) => {
-            const draft = invest.stageDrafts[index];
+            const batch = batches[index];
             return (
               <ProgressTimelineRow
                 key={`${entry.review.groupId}-${index}`}
-                label={draft ? stageLabel(draft) : `Batch ${index + 1}`}
+                label={batch ? chainBatchLabel(batch) : `Batch ${index + 1}`}
                 detail={`Chain ${entry.review.chainId} · reviewed wallet batch`}
                 tone={queueTone({
                   index,
@@ -378,35 +410,41 @@ export function InvestProgressScreen() {
             <Text className="mb-2 font-sans-semibold text-[13px] text-ink">
               Next reviewed batch
             </Text>
-            {nextDraft ? (
-              <StageReviewCard
-                stage={{
-                  draft: nextDraft,
+            {nextBatch ? (
+              <ChainBatchReviewCard
+                batch={{
+                  draft: nextBatch,
                   plan: nextEntry.plan,
                   review: nextEntry.review,
                 }}
               />
             ) : null}
             {checkpointError ? (
-              <Text
-                accessibilityRole="alert"
-                className="mt-3 text-[10.5px] leading-4 text-error"
-              >
-                {checkpointError}
+              <>
+                <Text
+                  accessibilityRole="alert"
+                  className="mt-3 text-[10.5px] leading-4 text-error"
+                >
+                  {checkpointError}
+                </Text>
+                <PrimaryButton
+                  className="mt-4"
+                  disabled={
+                    checkpointPending ||
+                    reviewGroupBlocked(nextEntry.review, checkpointNow)
+                  }
+                  onPress={() => void advanceToNextBatch()}
+                >
+                  Retry next batch
+                </PrimaryButton>
+              </>
+            ) : (
+              <Text className="mt-3 text-[10.5px] leading-4 text-ink-dim">
+                {checkpointPending
+                  ? 'Sending the next batch to your wallet…'
+                  : 'Re-reviewing the next batch against its chain…'}
               </Text>
-            ) : null}
-            <PrimaryButton
-              className="mt-4"
-              disabled={
-                checkpointPending ||
-                reviewGroupBlocked(nextEntry.review, checkpointNow)
-              }
-              onPress={() => void confirmNextBatch()}
-            >
-              {checkpointPending
-                ? 'Refreshing & confirming…'
-                : 'Confirm next batch'}
-            </PrimaryButton>
+            )}
           </View>
         ) : null}
 

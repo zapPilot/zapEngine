@@ -51,6 +51,14 @@ const morphoDraft: StageDraft = {
   fromAmount: '60000000',
 };
 
+const gmxDraft: StageDraft = {
+  positionId: 'gmx-arbitrum',
+  weightBps: 3_500,
+  usd6: '35000000',
+  sourceToken: ARBITRUM_DEPOSIT_TOKENS[0],
+  fromAmount: '35000000',
+};
+
 const hlpDraft: StageDraft = {
   positionId: 'hlp',
   ingress: 'bridge2',
@@ -162,7 +170,7 @@ describe('useInvestReview', () => {
     const harness = await render();
     expect(mocks.getDepositReview).not.toHaveBeenCalled();
     expect(harness.current().isLoading).toBe(false);
-    expect(harness.current().hasAllStages).toBe(false);
+    expect(harness.current().hasAllBatches).toBe(false);
   });
 
   it('stays disabled without a connected wallet', async () => {
@@ -172,30 +180,45 @@ describe('useInvestReview', () => {
     expect(mocks.getDepositReview).not.toHaveBeenCalled();
   });
 
-  it('reviews each frozen stage with its own request', async () => {
-    mocks.invest.stageDrafts = [morphoDraft, hlpDraft];
+  it('sends one request per source chain, not per position', async () => {
+    mocks.invest.stageDrafts = [morphoDraft, gmxDraft, hlpDraft];
     const harness = await render();
 
     expect(mocks.getDepositReview).toHaveBeenCalledTimes(2);
     expect(mocks.getDepositReview.mock.calls[0]?.[0]).toEqual({
-      kind: 'invest',
+      kind: 'chain-batch',
       userAddress: WALLET,
-      fromToken: BASE_DEPOSIT_TOKENS[0].depositAddress,
-      fromAmount: '60000000',
       sourceChainId: 8453,
-      split: { '8453': 1 },
+      positions: [
+        {
+          kind: 'invest',
+          fromToken: BASE_DEPOSIT_TOKENS[0].depositAddress,
+          fromAmount: '60000000',
+          split: { '8453': 1 },
+        },
+      ],
     });
     expect(mocks.getDepositReview.mock.calls[1]?.[0]).toEqual({
-      kind: 'invest',
+      kind: 'chain-batch',
       userAddress: WALLET,
-      fromToken: ARBITRUM_DEPOSIT_TOKENS[0].depositAddress,
-      fromAmount: '40000000',
       sourceChainId: 42161,
-      split: { '1337': 1 },
+      positions: [
+        {
+          kind: 'gmx-v2-basket',
+          fromToken: ARBITRUM_DEPOSIT_TOKENS[0].depositAddress,
+          amount: '35000000',
+        },
+        {
+          kind: 'invest',
+          fromToken: ARBITRUM_DEPOSIT_TOKENS[0].depositAddress,
+          fromAmount: '40000000',
+          split: { '1337': 1 },
+        },
+      ],
     });
-    expect(harness.current().hasAllStages).toBe(true);
+    expect(harness.current().hasAllBatches).toBe(true);
     expect(
-      harness.current().stages.map((stage) => stage.review.groupId),
+      harness.current().batches.map((batch) => batch.review.groupId),
     ).toEqual(['chain-8453', 'chain-42161']);
   });
 
@@ -208,20 +231,20 @@ describe('useInvestReview', () => {
     const harness = await render();
 
     expect(harness.current().isError).toBe(true);
-    expect(harness.current().errorMessage).toContain('morpho-base');
+    expect(harness.current().errorMessage).toContain('chain 8453');
   });
 
-  it('re-reviews only the requested stage at a checkpoint', async () => {
-    mocks.invest.stageDrafts = [morphoDraft, hlpDraft];
+  it('re-reviews only the requested batch at a checkpoint', async () => {
+    mocks.invest.stageDrafts = [morphoDraft, gmxDraft, hlpDraft];
     const harness = await render();
     mocks.getDepositReview.mockClear();
 
-    const fresh = await harness.current().reviewStage(1);
+    const fresh = await harness.current().reviewBatch(1);
 
     expect(mocks.getDepositReview).toHaveBeenCalledTimes(1);
     expect(mocks.getDepositReview.mock.calls[0]?.[0]).toMatchObject({
       sourceChainId: 42161,
     });
-    expect(fresh.draft).toBe(hlpDraft);
+    expect(fresh.draft.positions).toEqual([gmxDraft, hlpDraft]);
   });
 });

@@ -60,13 +60,15 @@ Token amounts are frozen when the user leaves the amount step so later price mov
 
 ## Execution and review
 
-`InvestRouteScreen.tsx` presents the reviewed wallet batches in execution order, one batch per funded position:
+`InvestRouteScreen.tsx` presents the reviewed wallet batches in execution order, one batch per **source chain**. Positions funded from the same chain are planned together in a single `chain-batch` review request and merged server-side into one `DepositPlan`, so the wallet is asked to sign once for all of them:
 
-- Morpho: a Base batch;
-- GMX: an Arbitrum batch;
-- HLP: one batch on whichever supported chain funds it, ending in HyperCore.
+- Morpho always funds from Base;
+- GMX always funds from Arbitrum;
+- HLP funds from whichever supported chain covers its share, ending in HyperCore.
 
-Only the first batch is submitted from the review screen. Every later batch pauses at a checkpoint, is re-reviewed on its execution chain, and is compared with the fingerprints already shown to the user before confirmation. A confirmed batch is not resubmitted.
+With the default funding choices that is two batches, not three: Base (Morpho) and Arbitrum (GMX + HLP).
+
+Only the first batch is submitted from the review screen. Every later batch pauses at a checkpoint, is re-reviewed on its execution chain, and is compared with the fingerprints already shown to the user. When they still match, the next batch continues on its own and the wallet prompt appears without a second confirmation; the checkpoint button exists only to retry after a failure. Changed evidence, a blocked or expired review, and a refused submission all stop the queue for a person. A confirmed batch is not resubmitted.
 
 Ethereum mainnet is part of the reviewed wallet-batch execution rail, alongside Base and Arbitrum.
 
@@ -80,11 +82,11 @@ The standalone Bridge UI is a development/testing utility under the internal inv
 
 ### Unified planning
 
-The current product composes one orchestration request per funded position. A future planner may:
+The current product composes one orchestration request per source chain. A future planner may:
 
 - accept funding sources plus target allocations as one heterogeneous request;
 - resolve destination shortfalls across positions;
-- collapse positions that share a source chain into a single batch when the underlying route supports it.
+- split a chain batch that exceeds a wallet's own `wallet_sendCalls` ceiling. No such ceiling is configured today: `ApprovedWallet.maxCallsPerBatch` is the slot for one, deliberately unset until a real limit is reproduced rather than guessed.
 
 ### Target-aware deposits
 
