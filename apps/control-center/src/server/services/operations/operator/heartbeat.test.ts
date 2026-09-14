@@ -117,6 +117,26 @@ describe('operator heartbeat signal', () => {
     expect(signal.detail).toContain('after 2 consecutive failed cycles');
   });
 
+  it('reports an invalid stored timestamp without inventing heartbeat age', async () => {
+    const signal = await collectOperatorHeartbeatSignal(
+      store({ observedAt: 'not-a-timestamp' }),
+      NOW,
+    );
+
+    expect(signal).toMatchObject({
+      status: 'unknown',
+      title: 'ops-operator heartbeat is invalid',
+      evidence: {
+        heartbeatAt: 'not-a-timestamp',
+        heartbeatAgeMinutes: null,
+        actor: 'github-actions',
+        state: 'succeeded',
+        failureStreak: 0,
+      },
+    });
+    expect(signal.detail).toContain('not-a-timestamp');
+  });
+
   it('degrades when no heartbeat has ever been recorded', async () => {
     const signal = await collectOperatorHeartbeatSignal(
       store({ observedAt: null }),
