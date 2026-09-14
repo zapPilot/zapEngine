@@ -16,37 +16,35 @@ export async function collectOperatorHeartbeatSignal(
   store: OperatorStore,
   now: Date,
 ): Promise<OperationalSignal> {
+  const missingHeartbeat = {
+    ...COMMON,
+    evidence: {
+      workflow: 'ops-operator.yml',
+      heartbeatAt: null,
+      heartbeatAgeMinutes: null,
+    },
+    observedAt: now,
+  };
+
   let heartbeat;
   try {
     heartbeat = await store.heartbeat();
   } catch (error) {
     return buildSignal({
-      ...COMMON,
+      ...missingHeartbeat,
       status: 'unknown',
       title: 'ops-operator heartbeat unavailable',
       detail: errorMessage(error),
-      evidence: {
-        workflow: 'ops-operator.yml',
-        heartbeatAt: null,
-        heartbeatAgeMinutes: null,
-      },
-      observedAt: now,
     });
   }
 
   if (!heartbeat) {
     return buildSignal({
-      ...COMMON,
+      ...missingHeartbeat,
       status: 'degraded',
       title: 'ops-operator has not recorded a heartbeat',
       detail:
         'No durable operator heartbeat exists yet; scheduled-run history is intentionally not used for self-monitoring.',
-      evidence: {
-        workflow: 'ops-operator.yml',
-        heartbeatAt: null,
-        heartbeatAgeMinutes: null,
-      },
-      observedAt: now,
     });
   }
 
