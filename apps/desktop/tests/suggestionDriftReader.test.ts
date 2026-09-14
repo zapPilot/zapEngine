@@ -100,6 +100,15 @@ describe('createSuggestionDriftReader', () => {
     expect(suggestionMocks.getDailySuggestion).not.toHaveBeenCalled();
   });
 
+  it('uses the default no-op logger when analytics is not configured', async () => {
+    suggestionMocks.getRuntimeEnv.mockReturnValue('');
+
+    const result = await createSuggestionDriftReader({})(CONTEXT);
+
+    expect(result).toBeUndefined();
+    expect(suggestionMocks.getDailySuggestion).not.toHaveBeenCalled();
+  });
+
   it('returns undefined when the suggestion has no required action', async () => {
     suggestionMocks.getDailySuggestion.mockResolvedValue(
       makeDailySuggestion({
@@ -137,7 +146,10 @@ describe('createSuggestionDriftReader', () => {
 
     const result = await createSuggestionDriftReader()(CONTEXT);
 
-    expect(result).toEqual({ driftPercent: 7.5 });
+    expect(result).toEqual({
+      driftPercent: 7.5,
+      strategyId: 'strategy-default',
+    });
   });
 
   it('uses sentinel drift when actionable transfer volume cannot be normalized', async () => {
@@ -156,6 +168,50 @@ describe('createSuggestionDriftReader', () => {
 
     const result = await createSuggestionDriftReader()(CONTEXT);
 
-    expect(result).toEqual({ driftPercent: 100 });
+    expect(result).toEqual({
+      driftPercent: 100,
+      strategyId: 'strategy-default',
+    });
+  });
+
+  it('uses empty transfers and sentinel drift when optional payload data is absent', async () => {
+    const base = makeDailySuggestion();
+    suggestionMocks.getDailySuggestion.mockResolvedValue({
+      ...base,
+      action: {
+        ...base.action,
+        transfers: undefined,
+      },
+      context: undefined,
+    });
+
+    const result = await createSuggestionDriftReader()(CONTEXT);
+
+    expect(result).toEqual({
+      driftPercent: 100,
+      strategyId: 'strategy-default',
+    });
+  });
+
+  it('treats missing transfer amounts and portfolio data as unquantified', async () => {
+    const base = makeDailySuggestion();
+    suggestionMocks.getDailySuggestion.mockResolvedValue({
+      ...base,
+      action: {
+        ...base.action,
+        transfers: [{ from_bucket: 'btc', to_bucket: 'stable' }],
+      },
+      context: {
+        ...base.context,
+        portfolio: undefined,
+      },
+    });
+
+    const result = await createSuggestionDriftReader()(CONTEXT);
+
+    expect(result).toEqual({
+      driftPercent: 100,
+      strategyId: 'strategy-default',
+    });
   });
 });

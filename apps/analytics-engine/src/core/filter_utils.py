@@ -26,5 +26,9 @@ def normalize_filter(values: list[str] | None) -> str:
     """
     if not values:
         return "all"
-    normalized = sorted(v.strip().lower() for v in values if v)
+    normalized = sorted(
+        normalized_value
+        for value in values
+        if (normalized_value := value.strip().lower())
+    )
     return ",".join(normalized) if normalized else "all"

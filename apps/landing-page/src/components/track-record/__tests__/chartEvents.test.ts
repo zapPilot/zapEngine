@@ -4,6 +4,7 @@ import {
   buildChartMarkers,
   formatCompactUsd,
   formatWholePercent,
+  markerLabel,
 } from '../chartEvents';
 
 const POINTS = [
@@ -24,7 +25,7 @@ function event(overrides: Partial<StrategyEvent> = {}): StrategyEvent {
 }
 
 function labelFor(overrides: Partial<StrategyEvent> = {}): string {
-  return buildChartMarkers([event(overrides)], POINTS, 100, 200)[0]!.label;
+  return markerLabel(event(overrides));
 }
 
 describe('marker labels', () => {
@@ -100,5 +101,19 @@ describe('buildChartMarkers', () => {
     expect(markers[0]?.index).toBe(2);
     expect(markers[0]?.asset).toBe('BTC');
     expect(markers[0]?.action).toBe('buy');
+  });
+});
+
+describe('marker sentence fallbacks', () => {
+  it('uses readable copy when an event has no named leg', () => {
+    expect(labelFor({ type: 'sell', toAsset: null, fromAssets: [] })).toBe(
+      'Sold into stables',
+    );
+    expect(labelFor({ type: 'buy', toAsset: null, fromAssets: [] })).toBe(
+      'Bought into the market',
+    );
+    expect(
+      labelFor({ type: 'rotate_to_eth', toAsset: 'ETH', fromAssets: [] }),
+    ).toBe('Rotated into ETH');
   });
 });

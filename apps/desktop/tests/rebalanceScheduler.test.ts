@@ -71,6 +71,33 @@ describe('createRebalanceScheduler', () => {
     expect(notifications).toHaveLength(0);
   });
 
+  it('uses timer and timestamp defaults and tolerates redundant stops', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-04T00:00:00.000Z'));
+    const notify = vi.fn();
+    const scheduler = createRebalanceScheduler({
+      readDrift: vi.fn(async () => ({ driftPercent: 1 })),
+      notify,
+      intervalMs: MIN_INTERVAL_MS,
+    });
+
+    try {
+      scheduler.stop();
+      scheduler.setContext(CONTEXT);
+      await Promise.resolve();
+
+      expect(notify).toHaveBeenCalledWith({
+        driftPercent: 1,
+        generatedAt: '2026-07-04T00:00:00.000Z',
+      });
+
+      scheduler.stop();
+      scheduler.stop();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('notifies when drift meets the threshold', async () => {
     const { deps, notifications } = makeDeps({ drift: 5, threshold: 5 });
     const scheduler = createRebalanceScheduler(deps);
@@ -173,6 +200,27 @@ describe('createRebalanceScheduler', () => {
       expect.any(Error),
       expect.objectContaining({ component: 'scheduler', level: 'warning' }),
     );
+  });
+
+  it('uses the default no-op logger when a drift read fails', async () => {
+    const captureException = vi.fn();
+    const scheduler = createRebalanceScheduler({
+      readDrift: vi.fn(async () => {
+        throw new Error('network down');
+      }),
+      notify: vi.fn(),
+      intervalMs: MIN_INTERVAL_MS,
+      setIntervalFn: vi.fn(
+        () => 0 as unknown as ReturnType<typeof setInterval>,
+      ),
+      clearIntervalFn: vi.fn(),
+      captureException,
+    });
+
+    scheduler.setContext(CONTEXT);
+    await scheduler.tick();
+
+    expect(captureException).toHaveBeenCalledTimes(1);
   });
 
   it('reports only the first failure of consecutive tick failures', async () => {

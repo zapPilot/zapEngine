@@ -41,6 +41,6 @@ export function createSuggestionDriftReader(options?: {
         ? (totalUsd / totalValueUsd) * 100
         : 100; // sentinel: actionable but unquantified
 
-    return { driftPercent };
+    return { driftPercent, strategyId: suggestion.strategy_id };
   };
 }

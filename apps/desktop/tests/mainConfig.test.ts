@@ -37,6 +37,25 @@ describe('buildMainEnvSource', () => {
     expect(source['VITE_ACCOUNT_API_URL']).toBe('https://account.prod.example');
   });
 
+  it('ignores non-string userData config values', () => {
+    const source = buildMainEnvSource({
+      env: {},
+      configFile: {
+        VITE_ACCOUNT_API_URL: 42,
+        VITE_ANALYTICS_ENGINE_URL: null,
+        VITE_SENTRY_DSN: false,
+      },
+      defaults: DEFAULTS,
+      isPackaged: true,
+    });
+
+    expect(source['VITE_ACCOUNT_API_URL']).toBe('https://account.prod.example');
+    expect(source['VITE_ANALYTICS_ENGINE_URL']).toBe(
+      'https://analytics.prod.example',
+    );
+    expect(source['VITE_SENTRY_DSN']).toBe('');
+  });
+
   it('canonical env wins over config file and defaults', () => {
     const source = buildMainEnvSource({
       env: { ANALYTICS_ENGINE_URL: 'http://localhost:8001' },

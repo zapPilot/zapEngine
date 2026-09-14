@@ -7,11 +7,11 @@ import {
 } from '@/data/distribution';
 
 function publishSpanHours(example: Example): number | null {
-  const stamps = example.channels.flatMap((channel) =>
-    channel.publishedAt === null
-      ? []
-      : [new Date(channel.publishedAt).getTime()],
-  );
+  const stamps = example.channels.flatMap((channel) => {
+    if (channel.publishedAt === null) return [];
+    const timestamp = new Date(channel.publishedAt).getTime();
+    return Number.isNaN(timestamp) ? [] : [timestamp];
+  });
   if (stamps.length < 2) return null;
   const span = Math.max(...stamps) - Math.min(...stamps);
   return Math.max(1, Math.round(span / 3_600_000));
