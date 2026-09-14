@@ -1,5 +1,6 @@
 import { renderSignals, inspectRender } from './operator/render-signals.js';
 import { createOperatorStore } from './operator/store.js';
+import { collectOperatorHeartbeatSignal } from './operator/heartbeat.js';
 import { enrichOperatorContext } from './operator/context.js';
 import { buildOpsIncidentContext } from '../../mcp/incident-context.js';
 import {
@@ -296,11 +297,12 @@ function defaultAdapters(
     costs: () => collectCostSignals({ config, now: now() }),
     github: async () => {
       const observedAt = now();
-      const [scheduled, recent] = await Promise.all([
+      const [scheduled, recent, operatorHeartbeat] = await Promise.all([
         collectGithubSignals({ config, now: observedAt }),
         collectRecentGithubFailureSignals({ config, now: observedAt }),
+        collectOperatorHeartbeatSignal(createOperatorStore(config), observedAt),
       ]);
-      return [...scheduled, ...recent];
+      return [...scheduled, ...recent, operatorHeartbeat];
     },
     fly: () => collectFlySignals({ config, now: now() }),
     sentry: () => collectSentrySignals({ config, now: now() }),
