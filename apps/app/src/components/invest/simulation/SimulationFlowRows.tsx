@@ -115,9 +115,9 @@ function ApproveSection({
       <SimulationFlowSectionHeader label="You approve">
         <ShieldCheck size={14} color="#d4c5a3" />
       </SimulationFlowSectionHeader>
-      {approvals.map((approval) => (
+      {approvals.map((approval, index) => (
         <ApproveRow
-          key={`approve-${approval.callIndex}`}
+          key={`approve-${approval.callIndex}-${approval.owner}-${approval.spender}-${approval.token.address ?? approval.token.symbol}-${index}`}
           approval={approval}
           contracts={contracts}
         />

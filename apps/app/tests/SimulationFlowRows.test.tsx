@@ -206,6 +206,27 @@ describe('SimulationFlowRows', () => {
     expect(text).toContain('Call 2');
   });
 
+  it('renders multiple approvals from the same call without duplicate React keys', async () => {
+    const consoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+
+    await render({
+      approvals: [
+        createApproval({ callIndex: 5, spender: SPENDER }),
+        createApproval({ callIndex: 5, spender: RECIPIENT }),
+      ],
+    });
+
+    const errorOutput = consoleError.mock.calls.flat().join(' ');
+    consoleError.mockRestore();
+
+    expect(container.textContent ?? '').toContain('Call 6');
+    expect(errorOutput).not.toContain(
+      'Encountered two children with the same key',
+    );
+  });
+
   it('keeps asset rows from different call indexes distinct', async () => {
     await render({
       outgoing: [
