@@ -195,3 +195,11 @@ describe('allocationBar', () => {
     expect(before.showValues).toBe(false);
   });
 });
+
+describe('allocationBar empty display', () => {
+  it('returns no segments for an entirely invalid or empty book', () => {
+    expect(
+      allocationBar({ btc: 0, eth: Number.NaN, spy: 0, stable: 0 }).segments,
+    ).toEqual([]);
+  });
+});

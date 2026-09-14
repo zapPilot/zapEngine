@@ -58,7 +58,11 @@ export function resolveWebAsset(
   pathname: string,
   fs: AssetFs = nodeFs,
 ): ResolvedAsset {
-  const indexPath = resolve(webRoot, 'index.html');
+  const normalizedWebRoot = resolve(webRoot);
+  const rootPrefix = normalizedWebRoot.endsWith(sep)
+    ? normalizedWebRoot
+    : `${normalizedWebRoot}${sep}`;
+  const indexPath = resolve(normalizedWebRoot, 'index.html');
 
   let decodedPath: string;
   try {
@@ -72,8 +76,8 @@ export function resolveWebAsset(
   }
 
   const normalized = normalize(decodedPath).replace(/^[/\\]+/, '');
-  const candidate = resolve(webRoot, normalized);
-  if (candidate !== webRoot && !candidate.startsWith(`${webRoot}${sep}`)) {
+  const candidate = resolve(normalizedWebRoot, normalized);
+  if (candidate !== normalizedWebRoot && !candidate.startsWith(rootPrefix)) {
     return { status: 403 };
   }
 
