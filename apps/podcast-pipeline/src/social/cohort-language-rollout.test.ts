@@ -157,7 +157,7 @@ describe('social language experiment rollout', () => {
     );
   });
 
-  it('fixes Threads to zh-Hant for an episode created after the cutover', async () => {
+  it('fixes Threads to zh-Hant for an episode created after the v3 cutover', async () => {
     const lanes = await resolveReleaseCohortLanes({
       episodeId: EPISODE_ID,
       episodeCreatedAt: '2026-09-12T00:00:00.000Z',
@@ -209,7 +209,7 @@ describe('social language experiment rollout', () => {
     );
   });
 
-  it('keeps a v2-window episode on the Latin square even when scheduled after the cutover', async () => {
+  it('keeps a v2-window episode on the Latin square even when scheduled after the v3 cutover', async () => {
     const lanes = await resolveReleaseCohortLanes({
       episodeId: EPISODE_ID,
       episodeCreatedAt: '2026-09-11T23:59:59.999Z',
@@ -232,7 +232,7 @@ describe('social language experiment rollout', () => {
     );
   });
 
-  it('does not reshape a persisted v2 cohort created after the cutover window', async () => {
+  it('does not reshape a persisted v2 cohort created after the v3 cutover window', async () => {
     mocks.assignments.set(`social-language-profile-v2|${EPISODE_ID}`, 'A');
 
     const lanes = await resolveReleaseCohortLanes({
@@ -254,7 +254,7 @@ describe('social language experiment rollout', () => {
     );
   });
 
-  it('requires all three languages for a post-cutover episode', async () => {
+  it('requires all three languages for a post-v3-cutover episode', async () => {
     await expect(
       resolveRequiredReleaseLanguages({
         episodeId: EPISODE_ID,
@@ -263,5 +263,50 @@ describe('social language experiment rollout', () => {
       }),
     ).resolves.toEqual(['zh-Hant', 'ja', 'en']);
     expect(mocks.getOrCreateExperimentAssignment).not.toHaveBeenCalled();
+  });
+
+  it('uses the final fixed languages without creating a new experiment assignment', async () => {
+    const lanes = await resolveReleaseCohortLanes({
+      episodeId: EPISODE_ID,
+      episodeCreatedAt: '2026-09-14T00:05:00.000Z',
+      scheduledAt: new Date('2026-09-14T03:00:00.000Z'),
+    });
+
+    expect(lanes).toEqual([
+      { platform: 'x', language: 'ja' },
+      { platform: 'youtube', language: 'en' },
+      { platform: 'threads', language: 'zh-Hant' },
+      { platform: 'rednote', language: 'zh-Hant' },
+    ]);
+    expect(mocks.getOrCreateExperimentAssignment).not.toHaveBeenCalled();
+  });
+
+  it('preserves a persisted historical v3 assignment after the final cutover', async () => {
+    mocks.assignments.set(`social-language-profile-v3|${EPISODE_ID}`, 'E');
+
+    const lanes = await resolveReleaseCohortLanes({
+      episodeId: EPISODE_ID,
+      episodeCreatedAt: '2026-09-13T00:10:00.000Z',
+      scheduledAt: new Date('2026-09-14T03:00:00.000Z'),
+    });
+
+    expect(
+      lanes.map(({ platform, language }) => ({ platform, language })),
+    ).toEqual([
+      { platform: 'x', language: 'en' },
+      { platform: 'youtube', language: 'ja' },
+      { platform: 'threads', language: 'zh-Hant' },
+      { platform: 'rednote', language: 'zh-Hant' },
+    ]);
+  });
+
+  it('requires all three languages for the final fixed policy', async () => {
+    await expect(
+      resolveRequiredReleaseLanguages({
+        episodeId: EPISODE_ID,
+        episodeCreatedAt: '2026-09-14T00:05:00.000Z',
+        prospectiveScheduledAt: new Date('2026-09-14T03:00:00.000Z'),
+      }),
+    ).resolves.toEqual(['zh-Hant', 'ja', 'en']);
   });
 });
