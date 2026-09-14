@@ -1,107 +1,38 @@
 import type { SocialPlatform } from './platforms.js';
 import type { SocialLanguageCode } from './types.js';
 
-export interface SocialLanguagePolicyEntry {
-  language: SocialLanguageCode;
-  activeSince: string;
-  experimentKey?: string;
-  experimentVariant?: string;
-  /**
-   * Historical policies used `exclusive` to resolve one persisted language arm.
-   * Current Latin-square allocation is resolved at article-slot scope instead;
-   * `always` marks candidate lanes for strategy/reporting policy only.
-   */
-  assignment?: 'exclusive' | 'always';
-}
-
-const MULTILINGUAL_ACTIVE_SINCE = '2026-08-24T00:00:00.000Z';
+/**
+ * Multilingual distribution started here. Episodes created before this date
+ * were never given social lanes and must stay that way: `social_publish_
+ * candidates` has no creation-time filter of its own, so re-rendering an
+ * ancient episode's video would otherwise make its whole back catalogue
+ * publishable in one daemon tick.
+ */
+export const SOCIAL_RELEASE_MIN_EPISODE_CREATED_AT = '2026-08-24T00:00:00.000Z';
 
 /**
- * The balanced language experiment starts at 09:00 JST on 2026-09-02. Episodes
- * created before this instant keep their legacy lane shape even if released
- * later, so deploying the experiment never reshapes backlog.
+ * The language every platform ships, permanently. This is not an experiment
+ * arm and not a default that a learned row may override: changing it is a
+ * product decision that has to change this constant and the scoped AGENTS.md
+ * contract together.
+ *
+ * Traditional Chinese reaches two platforms, Japanese one, English one, so a
+ * single article still covers all three localizations.
  */
-export const SOCIAL_LANGUAGE_ROTATION_ACTIVE_SINCE = '2026-09-02T00:00:00.000Z';
-
-export const SOCIAL_LANGUAGE_EXPERIMENT_KEYS = {
-  x: 'x-language-v2',
-  /**
-   * Historical only: Threads ran a three-language experiment under this key
-   * until the fixed-Chinese decision. New cohorts after
-   * `SOCIAL_LANGUAGE_THREADS_FIXED_SINCE` ship Threads as a fixed `zh-Hant`
-   * lane with no experiment key; the constant stays so reporting and guidance
-   * on already-persisted lanes keep resolving.
-   */
-  threads: 'threads-language-v1',
-  youtube: 'youtube-language-v1',
-} as const satisfies Record<'x' | 'threads' | 'youtube', string>;
+export const SOCIAL_LANGUAGE_BY_PLATFORM = {
+  rednote: 'zh-Hant',
+  threads: 'zh-Hant',
+  x: 'ja',
+  youtube: 'en',
+} as const satisfies Record<SocialPlatform, SocialLanguageCode>;
 
 /**
- * Threads experiment conclusion: episodes created from 09:00 JST on 2026-09-12
- * ship Threads fixed to Traditional Chinese. Only new episodes use the fixed
- * shape; older cohorts keep the exact v2/legacy lane identities they were
- * created under.
+ * Every localization an article must have ready before it may consume a
+ * release slot. Derived from the mapping above so the two can never disagree.
  */
-export const SOCIAL_LANGUAGE_THREADS_FIXED_SINCE = '2026-09-12T00:00:00.000Z';
-
-function swapLanguagePolicy(
-  experimentKey: string,
-): SocialLanguagePolicyEntry[] {
-  return (['ja', 'en'] as const satisfies readonly SocialLanguageCode[]).map(
-    (language) => ({
-      language,
-      activeSince: SOCIAL_LANGUAGE_THREADS_FIXED_SINCE,
-      experimentKey,
-      experimentVariant: language,
-      assignment: 'always',
-    }),
-  );
-}
-
-/**
- * Current candidate language surface. Rednote and Threads stay fixed to
- * Traditional Chinese while X and YouTube swap `ja`/`en` so every article
- * still covers all three languages. `language-allocation.ts` selects exactly
- * one candidate per swapping platform for each article slot, while preserving
- * one cross-platform release cohort.
- */
-export const SOCIAL_LANGUAGE_POLICY = {
-  rednote: [{ language: 'zh-Hant', activeSince: MULTILINGUAL_ACTIVE_SINCE }],
-  threads: [
-    { language: 'zh-Hant', activeSince: SOCIAL_LANGUAGE_THREADS_FIXED_SINCE },
-  ],
-  x: swapLanguagePolicy(SOCIAL_LANGUAGE_EXPERIMENT_KEYS.x),
-  youtube: swapLanguagePolicy(SOCIAL_LANGUAGE_EXPERIMENT_KEYS.youtube),
-} satisfies Record<SocialPlatform, readonly SocialLanguagePolicyEntry[]>;
-
-/**
- * Kept only so an interrupted cohort scheduled before the v2 activation can
- * finish with the exact language contract it was created under.
- */
-export const LEGACY_SOCIAL_LANGUAGE_POLICY = {
-  rednote: [{ language: 'zh-Hant', activeSince: MULTILINGUAL_ACTIVE_SINCE }],
-  threads: [{ language: 'ja', activeSince: MULTILINGUAL_ACTIVE_SINCE }],
-  x: [
-    {
-      language: 'en',
-      activeSince: MULTILINGUAL_ACTIVE_SINCE,
-      experimentKey: 'x-language-v1',
-      experimentVariant: 'en',
-      assignment: 'exclusive',
-    },
-    {
-      language: 'ja',
-      activeSince: MULTILINGUAL_ACTIVE_SINCE,
-      experimentKey: 'x-language-v1',
-      experimentVariant: 'ja',
-      assignment: 'exclusive',
-    },
-  ],
-  youtube: [{ language: 'en', activeSince: MULTILINGUAL_ACTIVE_SINCE }],
-} as const satisfies Record<
-  SocialPlatform,
-  readonly SocialLanguagePolicyEntry[]
->;
+export const SOCIAL_REQUIRED_RELEASE_LANGUAGES = [
+  ...new Set(Object.values(SOCIAL_LANGUAGE_BY_PLATFORM)),
+] as readonly SocialLanguageCode[];
 
 export interface SocialReleaseSlot {
   hour: number;

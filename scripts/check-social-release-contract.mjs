@@ -18,13 +18,8 @@ const socialAgents = read('apps/podcast-pipeline/src/social/AGENTS.md');
 const daemon = read('apps/podcast-pipeline/src/social/daemon.ts');
 const cohort = read('apps/podcast-pipeline/src/social/cohort.ts');
 const policy = read('apps/podcast-pipeline/src/social/policy.ts');
-const languageAllocation = read(
-  'apps/podcast-pipeline/src/social/language-allocation.ts',
-);
 const readme = read('apps/podcast-pipeline/src/social/README.md');
-const growthView = read(
-  'apps/control-center/src/client/pages/GrowthPage.tsx',
-);
+const growthView = read('apps/control-center/src/client/pages/GrowthPage.tsx');
 const recovery = read(
   'apps/podcast-pipeline/src/social/release-cohort-store.ts',
 );
@@ -36,10 +31,7 @@ const claimMigration = read(
 );
 const contractTest =
   'apps/podcast-pipeline/src/social/daemon-release-cohort-contract.test.ts';
-const languageContractTest =
-  'apps/podcast-pipeline/src/social/language-allocation.test.ts';
-const rolloutContractTest =
-  'apps/podcast-pipeline/src/social/cohort-language-rollout.test.ts';
+const languageContractTest = 'apps/podcast-pipeline/src/social/cohort.test.ts';
 const waitingMediaContractTest =
   'apps/podcast-pipeline/src/socialWaitingMediaPolicyMigration.test.ts';
 const recoveryTest =
@@ -61,14 +53,9 @@ requireMatch(
   /Each article must cover all three languages/i,
 );
 requireMatch(
-  'scoped AGENTS durable profile invariant',
+  'scoped AGENTS fixed language policy',
   socialAgents,
-  /social-language-profile-v2/i,
-);
-requireMatch(
-  'scoped AGENTS fixed-threads profile invariant',
-  socialAgents,
-  /social-language-profile-v3/i,
+  /Fixed language policy/i,
 );
 requireMatch(
   'daemon episode-level lane resolver',
@@ -104,39 +91,27 @@ requireMatch(
   /holdCohortsMissingCopy/,
 );
 requireMatch(
-  'language allocation balanced profiles',
-  languageAllocation,
-  /profile:\s*'A'[\s\S]*profile:\s*'B'[\s\S]*profile:\s*'C'/,
-);
-requireMatch(
-  'language allocation fixed-threads swap profiles',
-  languageAllocation,
-  /profile:\s*'D'[\s\S]*profile:\s*'E'/,
-);
-requireMatch(
-  'threads fixed-chinese cutover',
+  'fixed language mapping',
   policy,
-  /SOCIAL_LANGUAGE_THREADS_FIXED_SINCE/,
+  /SOCIAL_LANGUAGE_BY_PLATFORM = \{\s*rednote:\s*'zh-Hant',\s*threads:\s*'zh-Hant',\s*x:\s*'ja',\s*youtube:\s*'en',/,
 );
-requireMatch(
-  'durable v3 swap profile assignment',
+// Language is a constant now. A cohort resolver that reads a durable
+// assignment, or a lane carrying experiment metadata, means the concluded
+// experiment has been reintroduced rather than a new one deliberately designed.
+forbidMatch(
+  'cohort assigns no language experiment',
   cohort,
-  /SOCIAL_LANGUAGE_SWAP_PROFILE_ASSIGNMENT_KEY/,
+  /ExperimentAssignment|experimentKey|experimentVariant/,
 );
 requireMatch(
-  'language allocation platform experiment keys',
-  policy,
-  /x-language-v2[\s\S]*threads-language-v1[\s\S]*youtube-language-v1/,
-);
-requireMatch(
-  'durable v2 profile assignment',
+  'cohort derives lanes from the fixed mapping',
   cohort,
-  /SOCIAL_LANGUAGE_PROFILE_ASSIGNMENT_KEY/,
+  /SOCIAL_LANGUAGE_BY_PLATFORM/,
 );
 requireMatch(
-  'legacy generation marker read',
+  'pre-multilingual back catalogue stays unpublishable',
   cohort,
-  /LEGACY_LANGUAGE_GENERATION_MARKER[\s\S]*getExperimentAssignment/,
+  /SOCIAL_RELEASE_MIN_EPISODE_CREATED_AT/,
 );
 requireMatch(
   'database generation guard',
@@ -164,6 +139,11 @@ requireMatch(
   /`?episode_id`? is the scheduling unit/i,
 );
 requireMatch(
+  'README fixed language policy',
+  readme,
+  /X[^\n]*`ja`[\s\S]*YouTube[^\n]*`en`/i,
+);
+requireMatch(
   'episode-scoped claim RPC',
   claimMigration,
   /p_episode_id\s+uuid\s+default\s+null/i,
@@ -175,16 +155,19 @@ requireMatch(
 );
 
 const policySlotsBlock =
-  policy.match(/export const SOCIAL_RELEASE_SLOTS = \[([\s\S]*?)\]\s+as const/)?.[1] ??
-  '';
-const policyReleaseSlots = [...policySlotsBlock.matchAll(/\{\s*hour:\s*(\d+),\s*minute:\s*(\d+)\s*\}/g)].map(
+  policy.match(
+    /export const SOCIAL_RELEASE_SLOTS = \[([\s\S]*?)\]\s+as const/,
+  )?.[1] ?? '';
+const policyReleaseSlots = [
+  ...policySlotsBlock.matchAll(/\{\s*hour:\s*(\d+),\s*minute:\s*(\d+)\s*\}/g),
+].map(
   ([, hour, minute]) => `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`,
 );
 const growthSlotsBlock =
   growthView.match(/CURRENT_RELEASE_SLOTS_JST = \[([^\]]+)\]/)?.[1] ?? '';
-const growthReleaseSlots = [...growthSlotsBlock.matchAll(/'(\d{2}:\d{2})'/g)].map(
-  ([, slot]) => slot,
-);
+const growthReleaseSlots = [
+  ...growthSlotsBlock.matchAll(/'(\d{2}:\d{2})'/g),
+].map(([, slot]) => slot);
 const dailyCap = Number(
   policy.match(/SOCIAL_RELEASE_DAILY_CAP\s*=\s*(\d+)/)?.[1] ?? Number.NaN,
 );
@@ -209,7 +192,6 @@ forbidMatch('README', readme, /different platforms[^\n]*independent releases/i);
 for (const path of [
   contractTest,
   languageContractTest,
-  rolloutContractTest,
   waitingMediaContractTest,
   recoveryTest,
 ]) {

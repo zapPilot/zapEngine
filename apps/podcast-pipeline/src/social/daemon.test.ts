@@ -388,8 +388,7 @@ describe('social daemon', () => {
     expect(mocks.listSocialPublishCandidates).toHaveBeenCalledWith(
       '2026-08-16T08:00:00.000Z',
     );
-    // rednote/zh-Hant, threads/ja, x/ja (assigned), youtube/en. Four lanes,
-    // not five: YouTube distributes in English only.
+    // One lane per platform under the fixed language policy.
     expect(mocks.enqueueSocialPublishJob).toHaveBeenCalledTimes(4);
     // One article-level log line carries every lane on the shared timestamp.
     const enqueueLogs = log.mock.calls
@@ -397,7 +396,7 @@ describe('social daemon', () => {
       .filter((line) => line.includes('· queued 4 lanes ·'));
     expect(enqueueLogs).toHaveLength(1);
     expect(enqueueLogs.join('\n')).toContain('“穩定幣真實使用場景”');
-    for (const lane of ['📕zh-Hant', '🧵ja', '𝕏ja', '▶️en']) {
+    for (const lane of ['📕zh-Hant', '🧵zh-Hant', '𝕏ja', '▶️en']) {
       expect(enqueueLogs.some((line) => line.includes(lane))).toBe(true);
     }
     expect(enqueueLogs.join('\n')).not.toContain(EPISODE_ID);

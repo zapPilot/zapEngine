@@ -202,7 +202,7 @@ describe('refreshSocialStrategies', () => {
       {
         id: 'x-default',
         platform: 'x',
-        language_code: 'en',
+        language_code: 'ja',
         version: 1,
         config: defaultSocialStrategy(),
         based_on_samples: 0,
@@ -218,10 +218,22 @@ describe('refreshSocialStrategies', () => {
     expect(store.deactivateSocialStrategy).not.toHaveBeenCalled();
   });
 
-  it('keeps every X and YouTube swap arm active while retiring lanes outside the current policy', async () => {
+  it('retires every lane outside the fixed language policy', async () => {
     store.listLearningSocialPosts.mockResolvedValue([]);
     store.listLearningSocialMetrics.mockResolvedValue([]);
     store.getActiveSocialStrategies.mockResolvedValue([
+      // The only lane still in the policy.
+      {
+        id: 'youtube-en',
+        platform: 'youtube',
+        language_code: 'en',
+        version: 3,
+        config: defaultSocialStrategy(),
+        based_on_samples: 9,
+        active: true,
+        created_at: '2026-08-16T00:00:00.000Z',
+      },
+      // Left behind by the concluded language experiment.
       {
         id: 'youtube-ja',
         platform: 'youtube',
@@ -260,9 +272,13 @@ describe('refreshSocialStrategies', () => {
       log,
     });
 
-    expect(store.deactivateSocialStrategy).toHaveBeenCalledTimes(2);
+    expect(store.deactivateSocialStrategy).toHaveBeenCalledTimes(3);
+    expect(store.deactivateSocialStrategy).toHaveBeenCalledWith('youtube-ja');
     expect(store.deactivateSocialStrategy).toHaveBeenCalledWith('threads-en');
     expect(store.deactivateSocialStrategy).toHaveBeenCalledWith('rednote-en');
+    expect(store.deactivateSocialStrategy).not.toHaveBeenCalledWith(
+      'youtube-en',
+    );
     expect(log).toHaveBeenCalledWith(
       expect.stringContaining('no longer in the publish policy'),
     );

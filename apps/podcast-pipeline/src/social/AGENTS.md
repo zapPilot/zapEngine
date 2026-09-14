@@ -2,8 +2,8 @@
 
 This scope inherits `apps/podcast-pipeline/AGENTS.md`. The parent file owns the
 NON-NEGOTIABLE episode release cohort invariant; this file makes the current
-language-allocation contract explicit so scheduler or reach-optimization work
-does not silently drift it back to per-platform language/timing behavior.
+language contract explicit so scheduler or reach-optimization work does not
+silently drift it back to per-platform language/timing behavior.
 
 ## Release transaction boundary
 
@@ -13,74 +13,63 @@ does not silently drift it back to per-platform language/timing behavior.
   Transport calls may complete seconds/minutes apart, but code must never assign
   platform-specific publish slots, days, budgets, or catch-up times.
 - Recovery preserves already-created lane identities. A missed-slot repair may
-  move an unpublished cohort as a whole, but must not reshape languages to make
-  experimental counts look balanced. A successful lane is never resent.
-- **V2 generation and profile identity are durable state, not something to infer
-  from the current clock after enqueue starts.** `resolveReleaseCohortLanes()`
-  first persists the selected A/B/C slot profile under
-  `social-language-profile-v2`; missed-slot repair may change `scheduled_at` but
-  must reuse that persisted profile. A new v2 enqueue also persists a rotating,
-  experiment-tagged lane before the generation-ambiguous Rednote lane. The
-  database generation guard rejects v2 rotating-lane inserts when an episode
-  already has durable publish jobs but none carry a v2 language experiment key.
-  Do not reorder Rednote to be first, remove the profile assignment/guard, or
-  re-derive a durable cohort from a later repaired `scheduled_at`; those changes
-  can silently reshape a legacy/interrupted cohort across the rollout boundary.
+  move an unpublished cohort as a whole, but must not reshape a partially
+  published cohort. A successful lane is never resent.
+- **Durable lanes outrank the current policy.** Once an episode has publish
+  jobs, those rows are the source of truth for its languages.
+  `reconcileExistingCohort()` re-derives lanes only to detect an interrupted
+  enqueue: if the derived set is not equal to, or a strict superset of, the
+  existing set, it keeps the existing lanes. Do not "correct" an already-queued
+  cohort to the current mapping — that is how a policy change reshapes a release
+  that has already been scheduled and copy-planned.
 
-## Language experiment v2 (historical rotation)
+## Fixed language policy
 
-For episodes created from **2026-09-02 09:00 JST**
-(`2026-09-02T00:00:00.000Z`) until the Threads-fixed cutover below:
+Language is a constant, not an experiment. `SOCIAL_LANGUAGE_BY_PLATFORM` in
+`policy.ts` is the single definition:
 
-- Rednote is always `zh-Hant`.
-- X, Threads, and YouTube rotate through `zh-Hant`, `ja`, and `en` using the
-  balanced profiles in `language-allocation.ts`.
-- Each article must cover all three languages somewhere in its final lane set.
-- The three configured article slots use the Latin-square sequence A/B/C,
-  B/C/A, C/A/B across successive JST days. Do not replace this with independent
-  per-platform randomization; independent randomization can drop a language from
-  an article and confound language with time-of-day.
-- Platform-specific post experiment keys are `x-language-v2`,
-  `threads-language-v1`, and `youtube-language-v1`; their variants are the lane
-  language. `social-language-profile-v2` is an internal durable allocation
-  record whose variant is A/B/C, not a post-performance arm.
-- Episodes created before activation stay on `LEGACY_SOCIAL_LANGUAGE_POLICY`
-  even when released later. Deploying this experiment must not reshape backlog.
+- Rednote: `zh-Hant`
+- Threads: `zh-Hant`
+- X: `ja`
+- YouTube: `en`
 
-## Threads fixed to Chinese (current shape)
+Each article must cover all three languages: Traditional Chinese reaches two
+platforms, Japanese one, English one. `SOCIAL_REQUIRED_RELEASE_LANGUAGES` is
+derived from the mapping so readiness and lanes cannot disagree.
 
-For episodes created from **2026-09-12 09:00 JST**
-(`2026-09-12T00:00:00.000Z`), the Threads language experiment is concluded:
-Threads ships fixed `zh-Hant` alongside Rednote, and X/YouTube swap `ja`/`en`
-so every article still covers all three languages.
+`resolveReleaseCohortLanes()` reads nothing but this mapping — no clock, no
+durable assignment, no rotation profile. No lane carries a language
+`experiment_key` / `experiment_variant`.
 
-- Threads and Rednote are always `zh-Hant` with no experiment key.
-- X and YouTube swap `ja`/`en` using the D/E profiles in
-  `language-allocation.ts` (D: X `ja` / YouTube `en`; E: X `en` / YouTube
-  `ja`). Day 1 slots run D/E/D, Day 2 E/D/E, then repeat; the two-day cycle
-  gives each swapping platform three `ja` and three `en` articles.
-- Post experiment keys for new lanes are `x-language-v2` and
-  `youtube-language-v1` with variant `ja`/`en`. `threads-language-v1` takes no
-  new assignments; it stays resolvable for reporting and copy guidance on
-  already-persisted lanes. `social-language-profile-v3` is the internal durable
-  allocation record whose variant is D/E, not a post-performance arm.
-- Episodes created before the cutover keep their exact v2 (A/B/C) or legacy
-  lane identities even when released later, including v2 cohorts whose profile
-  was persisted before the deploy. Deploying the fixed shape must not reshape
-  backlog or an already-scheduled cohort.
+This replaced a cross-platform language experiment (v1 `x-language-v1`, v2 A/B/C
+rotation, v3 D/E swap) that was concluded on **2026-09-14**. Its allocators were
+deleted rather than kept as dead recovery paths; jobs queued before that date
+keep their own languages through the durable-lane rule above, and published
+experiment posts, metrics, and assignments remain in the database for analysis.
+`daemon.ts` still recognises the historical experiment keys for one purpose
+only: freezing learned copy guidance on those not-yet-published lanes.
+
+Reintroducing a language experiment is a product decision, not a refactor. It
+needs a new design in this file first — do not resurrect the deleted profiles.
+
+### Back-catalogue fence
+
+`SOCIAL_RELEASE_MIN_EPISODE_CREATED_AT` (2026-08-24, when multilingual
+distribution started) keeps episodes created before it unpublishable.
+`social_publish_candidates` has no creation-time filter of its own, so this
+constant is the only thing stopping a re-rendered video from making the entire
+back catalogue publishable in one daemon tick.
 
 ## Readiness then slot then lanes
 
-The current contract deliberately separates pre-scheduling readiness from final
-lane allocation:
+The contract separates pre-scheduling readiness from lane creation:
 
 1. `resolveRequiredReleaseLanguages()` defines which localization media must be
-   ready before a new article may consume a release slot. For v2 this is all of
-   `zh-Hant`, `ja`, and `en`.
+   ready before a new article may consume a release slot: `zh-Hant`, `ja`, and
+   `en`, because every article ships all three.
 2. `discoverAndEnqueue()` chooses/reuses exactly one article slot only after that
    readiness barrier passes.
-3. `resolveReleaseCohortLanes()` derives the final platform × language lanes from
-   that selected slot and durably records/reuses the article's A/B/C profile.
+3. `resolveReleaseCohortLanes()` returns the four fixed lanes.
 4. `enqueueCohortJobs()` writes the same slot timestamp to every lane.
 5. `holdCohortsMissingMedia()` re-checks that same readiness view after the
    cohort is claimed and before transport, because step 1 only proves media
@@ -89,32 +78,42 @@ lane allocation:
    backoff) while every other episode still publishes.
 6. `holdCohortsMissingCopy()` generates every claimed language's copy before the
    first transport call. Copy is the last pre-transport step that can fail for
-   one language alone -- the Rednote red-line judge runs on `zh-Hant` only -- so
-   generating it inside the publish loop shipped `ja` and `en` before the
-   verdict on `zh-Hant` was known. A rejected note holds that whole article the
-   same way missing media does.
+   one language alone — the Rednote red-line judge runs on `zh-Hant` only — so
+   generating it inside the publish loop shipped `ja` and `en` before the verdict
+   on `zh-Hant` was known. A rejected note holds that whole article the same way
+   missing media does.
 
-Do not collapse these steps by deriving v2 readiness from a profile chosen before
-the slot exists. Media readiness must not bias which language/time cell gets
-sampled. `social_waiting_media` is an episode-language readiness signal, not a
-future platform-lane assignment table. Once an episode has any durable publish
-job or social post, the waiting-media view stops representing it; durable release
-state owns recovery from that point onward.
+`social_waiting_media` is an episode-language readiness signal, not a future
+platform-lane assignment table. Once an episode has any durable publish job or
+social post, the waiting-media view stops representing it; durable release state
+owns recovery from that point onward.
+
+## Database guard still in place
+
+`guard_social_language_v2_generation`
+(`supabase/migrations/20260901031500_social_language_v2_recovery_guards.sql`) is
+a live `before insert` trigger that silently drops a lane tagged with a v2
+language experiment key when the episode already has jobs but no such key. It
+cannot fire on current inserts, which carry `experiment_key = null`. Leave it:
+it is the last defence against code that reintroduces an experiment-tagged
+insert against a legacy cohort.
 
 ## Experiment isolation and evaluation
 
-- While the language experiment is active, X/YouTube copy-packaging
-  experiments stay paused so the low-volume language cells are not confounded by
-  simultaneous copy treatments. Rednote packaging may continue because Rednote
-  is not rotating languages. Threads packaging stays paused while its
-  concluded `zh-Hant` arm accumulates a clean post-decision baseline.
-- Evaluate language arms **within the same platform** using standardized metric
-  windows (especially 24h). Do not rank languages by comparing raw X vs Threads
-  vs YouTube view counts as if their distributions were interchangeable.
-- Strategy learning may adapt copy guidance for an active platform-language lane
-  but cannot alter lane allocation, readiness, or release timing.
+- Language is no longer an experiment arm, so current lanes must not suppress
+  learned copy guidance. Only the historical keys in `daemon.ts` do that, and
+  only for jobs queued before the decision.
+- Historical language results are still evaluated **within the same platform**
+  using standardized metric windows (especially 24h). Do not compare raw X vs
+  Threads vs YouTube view counts as though their distributions were
+  interchangeable.
+- Packaging experiments are separate from lane allocation. Keep only treatments
+  explicitly registered in `packaging-experiments.ts`; ending the language test
+  does not silently invent a new packaging experiment.
+- Strategy learning may adapt copy guidance for a platform-language lane but
+  cannot alter lane allocation, readiness, or release timing.
 
-Any change to the coverage rule, rotation matrix, activation fence, durable v2
-profile assignment/generation marker/guard, or one-article/one-timestamp
-transaction boundary requires an explicit product decision plus updates to this
-file, `src/social/README.md`, and the executable contract tests.
+Any change to the fixed mapping, the coverage rule, the back-catalogue fence,
+the durable-lane rule, or the one-article/one-timestamp transaction boundary
+requires an explicit product decision plus updates to this file,
+`src/social/README.md`, and the executable contract tests.

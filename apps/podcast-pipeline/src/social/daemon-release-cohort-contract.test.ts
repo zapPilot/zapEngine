@@ -48,7 +48,6 @@ const mocks = vi.hoisted(() => ({
   captureDueAccountSnapshots: vi.fn().mockResolvedValue([]),
   capturePrePublishAccountSnapshots: vi.fn().mockResolvedValue([]),
   refreshSocialStrategies: vi.fn(),
-  getExperimentAssignment: vi.fn(),
   getOrCreateExperimentAssignment: vi.fn(),
 }));
 
@@ -106,7 +105,6 @@ vi.mock('./strategy.js', async (importOriginal) => ({
 }));
 vi.mock('./experiments.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./experiments.js')>()),
-  getExperimentAssignment: mocks.getExperimentAssignment,
   getOrCreateExperimentAssignment: mocks.getOrCreateExperimentAssignment,
 }));
 
@@ -187,7 +185,6 @@ beforeEach(() => {
   mocks.listUnfinishedSocialPublishJobs.mockResolvedValue([]);
   mocks.listSocialPostsByEpisode.mockResolvedValue([]);
   mocks.listSocialEpisodeLocalizationTitles.mockResolvedValue([]);
-  mocks.getExperimentAssignment.mockResolvedValue(null);
   mocks.getOrCreateExperimentAssignment.mockImplementation(
     ({
       experimentKey,
@@ -208,7 +205,7 @@ beforeEach(() => {
 });
 
 describe('NON-NEGOTIABLE episode release cohort contract', () => {
-  it('enqueues the slot-balanced language profile at exactly one timestamp', async () => {
+  it('enqueues the fixed four lanes at exactly one timestamp', async () => {
     const candidates = readyEpisode(ARTICLE_A);
     mocks.listSocialPublishCandidates.mockResolvedValue(candidates);
     mocks.listSocialPublishCandidatesForEpisodes.mockResolvedValue(candidates);
@@ -225,85 +222,58 @@ describe('NON-NEGOTIABLE episode release cohort contract', () => {
     expect(lanes).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ platform: 'rednote', language: 'zh-Hant' }),
-        expect.objectContaining({
-          platform: 'threads',
-          language: 'zh-Hant',
-          experimentKey: 'threads-language-v1',
-          experimentVariant: 'zh-Hant',
-        }),
-        expect.objectContaining({
-          platform: 'x',
-          language: 'ja',
-          experimentKey: 'x-language-v2',
-          experimentVariant: 'ja',
-        }),
-        expect.objectContaining({
-          platform: 'youtube',
-          language: 'en',
-          experimentKey: 'youtube-language-v1',
-          experimentVariant: 'en',
-        }),
+        expect.objectContaining({ platform: 'threads', language: 'zh-Hant' }),
+        expect.objectContaining({ platform: 'x', language: 'ja' }),
+        expect.objectContaining({ platform: 'youtube', language: 'en' }),
       ]),
     );
     expect(lanes).toHaveLength(4);
+    // Language is no longer an experiment: nothing may be tagged as an arm.
+    for (const lane of lanes) {
+      expect(lane.experimentKey).toBeUndefined();
+      expect(lane.experimentVariant).toBeUndefined();
+    }
+    expect(mocks.getOrCreateExperimentAssignment).not.toHaveBeenCalled();
     expect(new Set(lanes.map((lane) => lane.language))).toEqual(
       new Set(['zh-Hant', 'ja', 'en']),
     );
     expect(new Set(lanes.map((lane) => lane.scheduledAt)).size).toBe(1);
   });
 
-  it('enqueues the fixed-threads swap with no Threads experiment arm', async () => {
-    const createdAt = '2026-09-12T00:10:00.000Z';
-    const candidates = (['zh-Hant', 'ja', 'en'] as const).map(
-      (language_code) => ({
+  it('does not reshape a scheduled cohort whose lanes predate the fixed policy', async () => {
+    // The language experiment left queued cohorts on rotated lanes. Fixing the
+    // policy must not rewrite one of them into x=ja / youtube=en underneath a
+    // release that was already scheduled and copy-planned.
+    const scheduledAt = '2026-09-15T03:00:00.000Z';
+    mocks.listPendingSocialPublishSchedules.mockResolvedValue(
+      (
+        [
+          ['rednote', 'zh-Hant'],
+          ['threads', 'ja'],
+          ['x', 'en'],
+          ['youtube', 'zh-Hant'],
+        ] as const
+      ).map(([platform, language_code]) => ({
         episode_id: ARTICLE_A,
-        ready_at: '2026-09-12T00:30:00.000Z',
+        platform,
         language_code,
-        episode_created_at: createdAt,
-      }),
+        scheduled_at: scheduledAt,
+        completed_at: null,
+        status: 'queued',
+      })),
     );
+    const candidates = readyEpisode(ARTICLE_A);
     mocks.listSocialPublishCandidates.mockResolvedValue(candidates);
     mocks.listSocialPublishCandidatesForEpisodes.mockResolvedValue(candidates);
 
-    await runSocialDaemonTick({
-      now: new Date('2026-09-12T01:00:00.000Z'), // 10:00 JST -> 12:00 slot = E
-      firstStartedAt: FIRST_STARTED_AT,
-    });
+    await runSocialDaemonTick({ now: NOW, firstStartedAt: FIRST_STARTED_AT });
 
-    const lanes = mocks.enqueueSocialPublishJob.mock.calls.map(([input]) => ({
-      platform: input.platform,
-      language: input.languageCode,
-      experimentKey: input.experimentKey,
-      experimentVariant: input.experimentVariant,
-      scheduledAt: input.scheduledAt,
-    }));
-    expect(lanes).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ platform: 'rednote', language: 'zh-Hant' }),
-        expect.objectContaining({
-          platform: 'x',
-          language: 'en',
-          experimentKey: 'x-language-v2',
-          experimentVariant: 'en',
-        }),
-        expect.objectContaining({
-          platform: 'youtube',
-          language: 'ja',
-          experimentKey: 'youtube-language-v1',
-          experimentVariant: 'ja',
-        }),
-      ]),
+    const enqueued = mocks.enqueueSocialPublishJob.mock.calls.map(
+      ([input]) => `${input.platform}|${input.languageCode}`,
     );
-    expect(lanes).toHaveLength(4);
-    expect(new Set(lanes.map((lane) => lane.language))).toEqual(
-      new Set(['zh-Hant', 'ja', 'en']),
-    );
-    expect(new Set(lanes.map((lane) => lane.scheduledAt)).size).toBe(1);
-    // Threads is fixed Chinese now: same lane as Rednote, no experiment arm.
-    expect(lanes.find((lane) => lane.platform === 'threads')).toMatchObject({
-      language: 'zh-Hant',
-      experimentKey: undefined,
-    });
+    expect(enqueued).not.toContain('x|ja');
+    expect(enqueued).not.toContain('youtube|en');
+    expect(enqueued).not.toContain('threads|zh-Hant');
   });
 
   it('enqueues zero jobs until every required language media is ready', async () => {
@@ -520,20 +490,14 @@ describe('NON-NEGOTIABLE episode release cohort contract', () => {
     expect(log).toHaveBeenCalledWith(expect.stringContaining('“繁中標題”'));
   });
 
-  it('does not reshape an ambiguous partial legacy cohort created after activation', async () => {
-    const legacyScheduledAt = '2026-09-02T03:00:00.000Z';
-    mocks.getExperimentAssignment.mockResolvedValue({
-      experiment_key: 'x-language-v1',
-      episode_id: ARTICLE_A,
-      variant: 'en',
-      assigned_at: CREATED_AT,
-    });
+  it('completes an interrupted cohort whose lanes already match the fixed policy', async () => {
+    const scheduledAt = '2026-09-15T03:00:00.000Z';
     mocks.listPendingSocialPublishSchedules.mockResolvedValue([
       {
         episode_id: ARTICLE_A,
         platform: 'rednote',
         language_code: 'zh-Hant',
-        scheduled_at: legacyScheduledAt,
+        scheduled_at: scheduledAt,
         completed_at: null,
         status: 'queued',
       },
@@ -541,7 +505,7 @@ describe('NON-NEGOTIABLE episode release cohort contract', () => {
         episode_id: ARTICLE_A,
         platform: 'youtube',
         language_code: 'en',
-        scheduled_at: legacyScheduledAt,
+        scheduled_at: scheduledAt,
         completed_at: null,
         status: 'queued',
       },
@@ -555,19 +519,12 @@ describe('NON-NEGOTIABLE episode release cohort contract', () => {
     const enqueued = mocks.enqueueSocialPublishJob.mock.calls.map(
       ([input]) => `${input.platform}|${input.languageCode}`,
     );
-    expect(enqueued).not.toContain('threads|zh-Hant');
-    expect(enqueued).not.toContain('x|ja');
     expect(enqueued).toEqual(
-      expect.arrayContaining([
-        'rednote|zh-Hant',
-        'threads|ja',
-        'x|en',
-        'youtube|en',
-      ]),
+      expect.arrayContaining(['threads|zh-Hant', 'x|ja']),
     );
   });
 
-  it('completes an interrupted v2 enqueue without reshaping', async () => {
+  it('completes an interrupted experiment-era enqueue without tagging new lanes', async () => {
     const scheduledAt = '2026-09-02T03:00:00.000Z';
     mocks.listPendingSocialPublishSchedules.mockResolvedValue([
       {
@@ -605,6 +562,11 @@ describe('NON-NEGOTIABLE episode release cohort contract', () => {
     );
     expect(enqueued).not.toContain('threads|ja');
     expect(enqueued).not.toContain('x|en');
+    // The lanes this tick adds are fixed-policy lanes, not new experiment arms.
+    for (const [input] of mocks.enqueueSocialPublishJob.mock.calls) {
+      expect(input.experimentKey).toBeUndefined();
+      expect(input.experimentVariant).toBeUndefined();
+    }
   });
 
   it('holds the whole article when one language cannot produce copy', async () => {
