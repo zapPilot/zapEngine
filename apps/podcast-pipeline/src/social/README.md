@@ -355,12 +355,12 @@ override for smoke testing.
 
 Current media shape is owned by `platforms.ts`:
 
-| Platform | Local MP4 required | Published media                                       |
-| -------- | ------------------ | ----------------------------------------------------- |
+| Platform | Local MP4 required | Published media                                      |
+| -------- | ------------------ | ---------------------------------------------------- |
 | X        | yes                | Japanese teaser, or full video within X duration cap |
 | Threads  | no                 | teaser prepared/reused from the `zh-Hant` video      |
-| Rednote  | yes                | local `zh-Hant` full video                            |
-| YouTube  | yes                | English full video                                    |
+| Rednote  | yes                | local `zh-Hant` full video                           |
+| YouTube  | yes                | English full video                                   |
 
 X and Threads share the deterministic teaser path where possible. Rednote always
 publishes the Traditional Chinese full video, Threads publishes the Traditional
