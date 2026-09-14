@@ -34,7 +34,7 @@ export const METRIC_KEYS = [
   'usage_run_rate_usd',
   'episodes_in_production',
   'avg_episode_cost_usd',
-  'retry_share',
+  'failed_attempt_share',
 ] as const;
 
 export function createStatementsService(input: {

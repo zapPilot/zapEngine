@@ -6,6 +6,10 @@ import type {
   SocialPlatform,
   SocialQueueItem,
 } from '../../shared/pipeline-queues.js';
+import {
+  type PodcastCostEvidenceTotals,
+  podcastCostEvidenceTotals,
+} from '../../shared/podcast-cost-evidence.js';
 import type { PodcastCostResponse } from '../../shared/types.js';
 import { BarRows, type BarRow } from '../components/ui/BarRows.js';
 import { Card } from '../components/ui/Card.js';
@@ -14,7 +18,11 @@ import { FlowBand, type FlowStage } from '../components/ui/FlowBand.js';
 import { Pill } from '../components/ui/Pill.js';
 import { Stat } from '../components/ui/Stat.js';
 import { integer, percent, usd } from '../format.js';
-import { retryWaste } from '../operator-model.js';
+import {
+  evidenceAmountText,
+  FAILED_ATTEMPT_SHARE_DANGER,
+  failedAttemptCost,
+} from '../operator-model.js';
 import { PlatformIdentity } from '../platform.js';
 import { QueuePanel } from '../queue-availability.js';
 
@@ -73,11 +81,11 @@ export function PipelineSummary(props: {
 
         <Card
           icon={CircleDollarSign}
-          subtitle="Sunk cost from attempts that had to run again"
-          title="重試浪費"
+          subtitle="Priced stages whose run failed — not confirmed retry waste"
+          title="失敗嘗試成本"
           tone="warning"
         >
-          <RetryWasteCard podcastCosts={props.podcastCosts} />
+          <FailedAttemptCostCard podcastCosts={props.podcastCosts} />
         </Card>
       </div>
     </div>
@@ -194,9 +202,17 @@ function PublishStatus(props: { queues: PipelineQueuesResponse | null }) {
   );
 }
 
-function RetryWasteCard(props: { podcastCosts: PodcastCostResponse | null }) {
-  const waste = retryWaste(props.podcastCosts);
-  if (waste.rate === null) {
+/**
+ * Failed-attempt cost is what the ledger can actually prove: priced stages
+ * belonging to a run that failed. Whether that work then ran again is a
+ * separate, weaker claim, so confirmed retry waste sits beside it rather than
+ * replacing it — and stays `Unknown` where no lineage was recorded.
+ */
+function FailedAttemptCostCard(props: {
+  podcastCosts: PodcastCostResponse | null;
+}) {
+  const failed = failedAttemptCost(props.podcastCosts);
+  if (failed.costUsd === null) {
     return (
       <EmptyState
         detail={props.podcastCosts?.message ?? '成本 ledger 尚未載入。'}
@@ -204,37 +220,85 @@ function RetryWasteCard(props: { podcastCosts: PodcastCostResponse | null }) {
       />
     );
   }
+  const evidence = podcastCostEvidenceTotals(
+    props.podcastCosts?.episodes ?? [],
+  );
   return (
     <div className="cc-stack">
       <div className="pipe-waste-top">
         <Stat
-          caption="Share of all podcast spend"
-          label="Retry share"
-          tone={waste.rate > 0.15 ? 'danger' : 'neutral'}
-          value={percent(waste.rate)}
+          caption="of all episode spend (podcast + video)"
+          label="Failed-attempt share"
+          tone={
+            failed.share !== null && failed.share > FAILED_ATTEMPT_SHARE_DANGER
+              ? 'danger'
+              : 'neutral'
+          }
+          value={percent(failed.share)}
         />
         <Stat
-          caption="Spent on attempts that had to run again"
-          label="Sunk cost"
-          value={usd(waste.wasteUsd)}
+          caption="Already inside total spend; the run failed, the work may not have re-run"
+          label="Failed-attempt cost"
+          value={usd(failed.costUsd)}
+        />
+        <Stat
+          caption={lineageCaption(evidence)}
+          label="Confirmed retry waste"
+          tone={
+            (evidence.confirmedRetryWaste.usd ?? 0) > 0 ? 'warning' : 'neutral'
+          }
+          value={evidenceAmountText(evidence.confirmedRetryWaste)}
+        />
+        <Stat
+          caption={interruptionCaption(evidence)}
+          label="Interrupted attempts"
+          tone={
+            (evidence.interruptedAttemptCost.usd ?? 0) > 0
+              ? 'warning'
+              : 'neutral'
+          }
+          value={evidenceAmountText(evidence.interruptedAttemptCost)}
         />
       </div>
-      <BarRows rows={wasteRows(props.podcastCosts)} />
+      <BarRows rows={failedAttemptRows(props.podcastCosts)} />
     </div>
   );
 }
 
-/** The episodes carrying the most sunk cost, so the ranking points at work that
- * can actually be investigated rather than at a single aggregate. */
-function wasteRows(data: PodcastCostResponse | null): BarRow[] {
+function lineageCaption(evidence: PodcastCostEvidenceTotals): string {
+  if (evidence.confirmedRetryWaste.usd === null) {
+    return 'No render lineage recorded for these episodes';
+  }
+  if (evidence.confirmedRetryWaste.lowerBound) {
+    return `${integer(evidence.unknownLineageStages)} priced render stages predate lineage`;
+  }
+  return 'Every priced render stage has lineage';
+}
+
+function interruptionCaption(evidence: PodcastCostEvidenceTotals): string {
+  const interrupted = evidence.interruptedAttemptCost;
+  if (interrupted.usd !== null && interrupted.usd > 0) {
+    return `Deploy ${usd(evidence.deploymentInterruptionCostUsd)} · other shutdown ${usd(evidence.shutdownInterruptionCostUsd)}`;
+  }
+  if (interrupted.usd === null || interrupted.lowerBound) {
+    return `${integer(evidence.unknownFailureReasonStages)} failed stages carry no failure reason`;
+  }
+  return 'Every failed stage carries a reason';
+}
+
+/** The episodes carrying the most failed-attempt cost, so the ranking points at
+ * work that can actually be investigated rather than at a single aggregate. */
+function failedAttemptRows(data: PodcastCostResponse | null): BarRow[] {
   return (data?.episodes ?? [])
-    .filter((episode) => episode.retryWasteUsd > 0)
-    .sort((left, right) => right.retryWasteUsd - left.retryWasteUsd)
+    .filter((episode) => episode.failedAttemptCostUsd > 0)
+    .sort(
+      (left, right) => right.failedAttemptCostUsd - left.failedAttemptCostUsd,
+    )
     .slice(0, 5)
     .map((episode) => ({
       id: episode.episodeId,
       label: episode.title ?? episode.episodeId,
-      value: usd(episode.retryWasteUsd),
-      weight: episode.retryWasteUsd,
+      value: usd(episode.failedAttemptCostUsd),
+      weight: episode.failedAttemptCostUsd,
     }));
 }

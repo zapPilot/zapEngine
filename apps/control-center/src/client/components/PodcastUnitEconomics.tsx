@@ -147,12 +147,12 @@ function EpisodeCostRow(props: {
         </strong>
         <span
           className={
-            episode.retryWasteUsd > 0
+            episode.failedAttemptCostUsd > 0
               ? 'mono podcast-retry warning-text'
               : 'mono podcast-retry'
           }
         >
-          {unitUsd(episode.retryWasteUsd)}
+          {unitUsd(episode.failedAttemptCostUsd)}
         </span>
         <span className="mono podcast-runs">
           {episode.runCount}
@@ -172,7 +172,7 @@ function EpisodeCostRow(props: {
           <DetailMetric label="Video" value={unitUsd(episode.videoCostUsd)} />
           <DetailMetric
             label="Failed attempt cost"
-            value={unitUsd(episode.retryWasteUsd)}
+            value={unitUsd(episode.failedAttemptCostUsd)}
           />
         </div>
         <div className="podcast-breakdown">
@@ -373,10 +373,8 @@ function summarize(episodes: PodcastEpisodeCostSummary[]): {
     (total, episode) => total + episode.totalCostUsd,
     0,
   );
-  // retryWasteUsd is retained as a compatibility alias in the shared type; the
-  // server now also emits failedAttemptCostUsd with the honest name.
   const failedAttemptCostUsd = episodes.reduce(
-    (total, episode) => total + episode.retryWasteUsd,
+    (total, episode) => total + episode.failedAttemptCostUsd,
     0,
   );
   const highest = episodes.reduce((current, episode) =>

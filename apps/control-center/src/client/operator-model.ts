@@ -2,10 +2,14 @@
  * Read-model helpers shared by more than one page.
  *
  * These live outside the page files because Today and Reliability both need
- * `retryWaste` — a copy in each page would be a duplicate long enough to fail
- * `dup:check`.
+ * `failedAttemptShareStat` — a copy in each page would be a duplicate long
+ * enough to fail `dup:check`.
  */
 
+import {
+  type EvidenceAmount,
+  podcastCostEvidenceTotals,
+} from '../shared/podcast-cost-evidence.js';
 import type {
   OperationalStatus,
   OperationsResponse,
@@ -13,29 +17,62 @@ import type {
   PodcastCostResponse,
 } from '../shared/types.js';
 import type { DashboardView } from './components/AppShell.js';
+import { percent, usd } from './format.js';
+import type { Tone } from './components/ui/tone.js';
 
-export interface RetryWaste {
-  rate: number | null;
-  wasteUsd: number | null;
+/** Above this, failed attempts stop reading as ordinary pipeline noise. */
+export const FAILED_ATTEMPT_SHARE_DANGER = 0.15;
+
+export interface FailedAttemptCost {
+  /** Failed-attempt spend over all episode spend. Null when nothing was spent. */
+  share: number | null;
+  /** Null when the ledger said nothing, never `0`: nobody claimed it is zero. */
+  costUsd: number | null;
 }
 
-/** Sunk cost from failed attempts, as a share of all podcast spend. An
- * unavailable or empty ledger is `null`, never `0`: nobody has said it is zero. */
-export function retryWaste(data: PodcastCostResponse | null): RetryWaste {
+export function failedAttemptCost(
+  data: PodcastCostResponse | null,
+): FailedAttemptCost {
   if (!data || data.status !== 'ok' || data.episodes.length === 0) {
-    return { rate: null, wasteUsd: null };
+    return { share: null, costUsd: null };
   }
-  const totals = data.episodes.reduce(
-    (sum, episode) => ({
-      all: sum.all + episode.totalCostUsd,
-      wasted: sum.wasted + episode.retryWasteUsd,
-    }),
-    { all: 0, wasted: 0 },
-  );
+  const totals = podcastCostEvidenceTotals(data.episodes);
   return {
-    rate: totals.all > 0 ? totals.wasted / totals.all : 0,
-    wasteUsd: totals.wasted,
+    share: totals.failedAttemptShare,
+    costUsd: totals.failedAttemptCostUsd,
   };
+}
+
+/** The one-number version Today and Reliability both show. */
+export function failedAttemptShareStat(data: PodcastCostResponse | null): {
+  caption: string;
+  tone: Tone;
+  value: string;
+} {
+  const failed = failedAttemptCost(data);
+  return {
+    caption:
+      failed.costUsd === null
+        ? (data?.message ?? 'No priced attempts yet')
+        : `${usd(failed.costUsd)} spent on attempts whose run failed`,
+    tone:
+      failed.share !== null && failed.share > FAILED_ATTEMPT_SHARE_DANGER
+        ? 'danger'
+        : 'neutral',
+    value: percent(failed.share),
+  };
+}
+
+/**
+ * Evidence that is absent reads as `Unknown`, and evidence that is partial
+ * reads as a floor. Printing `$0.00` for either would turn "the ledger cannot
+ * say" into "nothing was wasted".
+ */
+export function evidenceAmountText(amount: EvidenceAmount): string {
+  if (amount.usd === null) {
+    return 'Unknown';
+  }
+  return amount.lowerBound ? `≥ ${usd(amount.usd)}` : usd(amount.usd);
 }
 
 const STATUS_TEXT: Record<OperationalStatus, string> = {

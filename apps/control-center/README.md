@@ -21,10 +21,10 @@ Four primary surfaces answer the operator's immediate questions:
 
 | View                     | Question                                        | Evidence                                                                                              |
 | ------------------------ | ----------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| **今日 (Today)**         | What needs intervention now?                    | At most three ranked operations, then company pulse, latest release, cost and retry waste             |
+| **今日 (Today)**         | What needs intervention now?                    | At most three ranked operations, then company pulse, latest release, cost and failed-attempt spend    |
 | **成長 (Growth)**        | How does content reach become product demand?   | Cross-channel journey, latest release, waitlist and language performance; attribution behind Evidence |
 | **Pipeline**             | Which API → Render → Social job needs recovery? | Existing queue board and bounded recovery drawer                                                      |
-| **可靠性 (Reliability)** | Which risks, costs and repairs need attention?  | Operations, provider costs, retry waste, raw Evidence and operator audit                              |
+| **可靠性 (Reliability)** | Which risks, costs and repairs need attention?  | Operations, provider costs, failed-attempt spend, raw Evidence and operator audit                     |
 
 Today composes existing read models and hides numeric priority scores. Unknown,
 failed and stale observations never render the healthy no-intervention state.

@@ -37,26 +37,6 @@ interface EpisodeRow {
   source_title: string | null;
 }
 
-export interface PodcastCostEvidenceFields {
-  /** The old retryWasteUsd field, correctly named. */
-  failedAttemptCostUsd: number;
-  /** Priced attempts carrying explicit runtime interruption evidence. */
-  interruptedAttemptCostUsd: number | null;
-  confirmedDeploymentInterruptionCostUsd: number;
-  shutdownInterruptionCostUsd: number;
-  /**
-   * Earlier execution cost which has a later executed successor with the exact
-   * same work_key. Null means lineage is too incomplete to assert even $0.
-   */
-  confirmedRetryWasteUsd: number | null;
-  confirmedRetryWasteIsLowerBound: boolean;
-  unknownLineageStages: number;
-  unknownFailureReasonStages: number;
-}
-
-export type PodcastEpisodeCostEvidenceSummary = PodcastEpisodeCostSummary &
-  PodcastCostEvidenceFields;
-
 export interface PodcastCostEvidenceResponse {
   scope: {
     episodeLimit: number;
@@ -287,7 +267,7 @@ function withEvidence(
   runs: PipelineRunRow[],
   stages: PipelineStageRow[],
 ): PodcastCostResponse {
-  const enriched = response.episodes as PodcastEpisodeCostEvidenceSummary[];
+  const enriched = response.episodes as PodcastEpisodeCostSummary[];
   const evidence: PodcastCostEvidenceResponse = {
     scope: {
       episodeLimit: EPISODE_LIMIT,
@@ -318,12 +298,12 @@ export function summarizePodcastCosts(
   runs: PipelineRunRow[],
   stages: PipelineStageRow[],
   titles: ReadonlyMap<string, string | null>,
-): PodcastEpisodeCostEvidenceSummary[] {
+): PodcastEpisodeCostSummary[] {
   const runById = new Map(runs.map((run) => [run.id, run]));
   const confirmedWastedExecutions = confirmedRetryExecutions(stages);
   const summaries = new Map<
     string,
-    PodcastEpisodeCostEvidenceSummary & {
+    PodcastEpisodeCostSummary & {
       breakdownMap: Map<string, PodcastCostBreakdown>;
       totalCostUnits: number;
       podcastCostUnits: number;
@@ -333,7 +313,6 @@ export function summarizePodcastCosts(
       confirmedDeploymentInterruptionCostUnits: number;
       shutdownInterruptionCostUnits: number;
       confirmedRetryWasteUnits: number;
-      lineageObserved: boolean;
     }
   >();
 
@@ -348,9 +327,6 @@ export function summarizePodcastCosts(
       totalCostUsd: 0,
       podcastCostUsd: 0,
       videoCostUsd: 0,
-      // Backward-compatible JSON field. Its semantics were always failed-parent
-      // spend; callers can migrate off it while the UI stops calling it waste.
-      retryWasteUsd: 0,
       failedAttemptCostUsd: 0,
       interruptedAttemptCostUsd: null,
       confirmedDeploymentInterruptionCostUsd: 0,
@@ -372,7 +348,6 @@ export function summarizePodcastCosts(
       confirmedDeploymentInterruptionCostUnits: 0,
       shutdownInterruptionCostUnits: 0,
       confirmedRetryWasteUnits: 0,
-      lineageObserved: false,
     };
     current.runCount += 1;
     if (run.status === 'failed') {
@@ -395,9 +370,6 @@ export function summarizePodcastCosts(
       continue;
     }
 
-    if (stage.execution_id) {
-      summary.lineageObserved = true;
-    }
     if (
       run.pipeline === 'video_render' &&
       stage.estimated_cost_usd !== null &&
@@ -457,54 +429,71 @@ export function summarizePodcastCosts(
     summary.breakdownMap.set(label, breakdown);
   }
 
-  return [...summaries.values()]
-    .map(({ breakdownMap, ...summary }) => {
-      const failedAttemptCostUsd = fromUsdUnits(summary.failedAttemptCostUnits);
-      const lineageComplete = summary.unknownLineageStages === 0;
-      const confirmedRetryWasteUsd =
-        summary.confirmedRetryWasteUnits > 0 || lineageComplete
-          ? fromUsdUnits(summary.confirmedRetryWasteUnits)
-          : null;
-      return {
-        ...summary,
-        totalCostUsd: fromUsdUnits(summary.totalCostUnits),
-        podcastCostUsd: fromUsdUnits(summary.podcastCostUnits),
-        videoCostUsd: fromUsdUnits(summary.videoCostUnits),
-        retryWasteUsd: failedAttemptCostUsd,
-        failedAttemptCostUsd,
-        interruptedAttemptCostUsd:
-          summary.interruptedAttemptCostUnits > 0
-            ? fromUsdUnits(summary.interruptedAttemptCostUnits)
-            : summary.unknownFailureReasonStages === 0
-              ? 0
-              : null,
-        confirmedDeploymentInterruptionCostUsd: fromUsdUnits(
-          summary.confirmedDeploymentInterruptionCostUnits,
-        ),
-        shutdownInterruptionCostUsd: fromUsdUnits(
-          summary.shutdownInterruptionCostUnits,
-        ),
-        confirmedRetryWasteUsd,
-        confirmedRetryWasteIsLowerBound: !lineageComplete,
-        breakdown: [...breakdownMap.values()].sort(
-          (left, right) => right.costUsd - left.costUsd,
-        ),
-      };
-    })
-    .map((entry) => {
-      const stripped: Record<string, unknown> = { ...entry };
-      delete stripped['totalCostUnits'];
-      delete stripped['podcastCostUnits'];
-      delete stripped['videoCostUnits'];
-      delete stripped['failedAttemptCostUnits'];
-      delete stripped['interruptedAttemptCostUnits'];
-      delete stripped['confirmedDeploymentInterruptionCostUnits'];
-      delete stripped['shutdownInterruptionCostUnits'];
-      delete stripped['confirmedRetryWasteUnits'];
-      delete stripped['lineageObserved'];
-      return stripped as unknown as PodcastEpisodeCostEvidenceSummary;
-    })
-    .sort((left, right) => right.lastRunAt.localeCompare(left.lastRunAt));
+  return (
+    [...summaries.values()]
+      .map(({ breakdownMap, ...summary }) => {
+        const failedAttemptCostUsd = fromUsdUnits(
+          summary.failedAttemptCostUnits,
+        );
+        const lineageComplete = summary.unknownLineageStages === 0;
+        const confirmedRetryWasteUsd =
+          summary.confirmedRetryWasteUnits > 0 || lineageComplete
+            ? fromUsdUnits(summary.confirmedRetryWasteUnits)
+            : null;
+        return {
+          ...summary,
+          totalCostUsd: fromUsdUnits(summary.totalCostUnits),
+          podcastCostUsd: fromUsdUnits(summary.podcastCostUnits),
+          videoCostUsd: fromUsdUnits(summary.videoCostUnits),
+          failedAttemptCostUsd,
+          interruptedAttemptCostUsd:
+            summary.interruptedAttemptCostUnits > 0
+              ? fromUsdUnits(summary.interruptedAttemptCostUnits)
+              : summary.unknownFailureReasonStages === 0
+                ? 0
+                : null,
+          confirmedDeploymentInterruptionCostUsd: fromUsdUnits(
+            summary.confirmedDeploymentInterruptionCostUnits,
+          ),
+          shutdownInterruptionCostUsd: fromUsdUnits(
+            summary.shutdownInterruptionCostUnits,
+          ),
+          confirmedRetryWasteUsd,
+          confirmedRetryWasteIsLowerBound: !lineageComplete,
+          breakdown: [...breakdownMap.values()].sort(
+            (left, right) => right.costUsd - left.costUsd,
+          ),
+        };
+      })
+      // Listed rather than deleted: the integer accumulators above are internal,
+      // and a `delete` list silently leaks the next one somebody adds into the
+      // public JSON.
+      .map(
+        (entry): PodcastEpisodeCostSummary => ({
+          episodeId: entry.episodeId,
+          title: entry.title,
+          lastRunAt: entry.lastRunAt,
+          totalCostUsd: entry.totalCostUsd,
+          podcastCostUsd: entry.podcastCostUsd,
+          videoCostUsd: entry.videoCostUsd,
+          failedAttemptCostUsd: entry.failedAttemptCostUsd,
+          interruptedAttemptCostUsd: entry.interruptedAttemptCostUsd,
+          confirmedDeploymentInterruptionCostUsd:
+            entry.confirmedDeploymentInterruptionCostUsd,
+          shutdownInterruptionCostUsd: entry.shutdownInterruptionCostUsd,
+          confirmedRetryWasteUsd: entry.confirmedRetryWasteUsd,
+          confirmedRetryWasteIsLowerBound:
+            entry.confirmedRetryWasteIsLowerBound,
+          unknownLineageStages: entry.unknownLineageStages,
+          unknownFailureReasonStages: entry.unknownFailureReasonStages,
+          runCount: entry.runCount,
+          failedRuns: entry.failedRuns,
+          unpricedStages: entry.unpricedStages,
+          breakdown: entry.breakdown,
+        }),
+      )
+      .sort((left, right) => right.lastRunAt.localeCompare(left.lastRunAt))
+  );
 }
 
 function confirmedRetryExecutions(stages: PipelineStageRow[]): Set<string> {

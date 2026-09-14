@@ -17,6 +17,7 @@ import type {
 } from '../../shared/types.js';
 import {
   operationsFixture,
+  podcastEpisodeCostFixture,
   productFixture,
 } from '../__fixtures__/dashboard.js';
 import { unavailableWaitlist } from '../../shared/waitlist-growth.js';
@@ -36,14 +37,14 @@ function podcastCosts(): PodcastCostResponse {
     status: 'ok',
     message: null,
     episodes: [
-      {
+      podcastEpisodeCostFixture({
         episodeId: 'ep-expensive',
         title: 'Expensive episode',
         lastRunAt: NOW,
         totalCostUsd: 1.2,
         podcastCostUsd: 0.4,
         videoCostUsd: 0.8,
-        retryWasteUsd: 0.2,
+        failedAttemptCostUsd: 0.2,
         runCount: 3,
         failedRuns: 1,
         unpricedStages: 1,
@@ -51,20 +52,20 @@ function podcastCosts(): PodcastCostResponse {
           { label: 'Fish TTS', costUsd: 0.3, operations: 2 },
           { label: 'ja render', costUsd: 0.8, operations: 1 },
         ],
-      },
-      {
+      }),
+      podcastEpisodeCostFixture({
         episodeId: 'ep-cheap',
         title: 'Cheap episode',
         lastRunAt: '2026-08-30T00:00:00.000Z',
         totalCostUsd: 0.4,
         podcastCostUsd: 0.2,
         videoCostUsd: 0.2,
-        retryWasteUsd: 0,
+        failedAttemptCostUsd: 0,
         runCount: 1,
         failedRuns: 0,
         unpricedStages: 0,
         breakdown: [{ label: 'LLM', costUsd: 0.2, operations: 1 }],
-      },
+      }),
     ],
   };
 }

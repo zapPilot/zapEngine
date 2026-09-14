@@ -117,7 +117,7 @@ export function App() {
   // Today is the operator inbox. It composes existing read models rather than
   // creating another server contract: overview supplies company pulse and
   // release data, operations supplies ranked intervention candidates, and the
-  // persisted podcast ledger supplies retry waste.
+  // persisted podcast ledger supplies failed-attempt spend.
   const loadHome = useCallback(
     (sync = false) =>
       run(async () => {
