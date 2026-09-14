@@ -34,13 +34,11 @@ export default defineConfig({
         'src/**/index.ts',
         'src/lib/source.ts',
       ],
-      // Ratcheted from the 2026-09-08 measured baseline
-      // (83.87/71.97/87.31/85.72) with ~4 points of churn buffer.
       thresholds: {
-        statements: 79,
-        branches: 67,
-        functions: 82,
-        lines: 81,
+        statements: 100,
+        branches: 100,
+        functions: 100,
+        lines: 100,
       },
     },
   },

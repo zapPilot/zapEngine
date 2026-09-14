@@ -36,6 +36,21 @@ describe('isSchedulerContext', () => {
     expect(isSchedulerContext('string')).toBe(false);
     expect(isSchedulerContext(undefined)).toBe(false);
   });
+
+  it('rejects non-string context fields', () => {
+    expect(
+      isSchedulerContext({
+        userId: 123,
+        walletAddress: '0x1111111111111111111111111111111111111111',
+      }),
+    ).toBe(false);
+    expect(
+      isSchedulerContext({
+        userId: 'u1',
+        walletAddress: 123,
+      }),
+    ).toBe(false);
+  });
 });
 
 describe('isHttpsUrl', () => {

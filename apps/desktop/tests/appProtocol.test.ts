@@ -58,6 +58,15 @@ describe('resolveWebAsset', () => {
     ).toEqual({ status: 403 });
   });
 
+  it('rejects candidates outside a non-canonical web root prefix', () => {
+    const rootWithTrailingSeparator = `${WEB_ROOT}${sep}`;
+    const fs = fakeFs([`${WEB_ROOT}${sep}app.js`]);
+
+    expect(resolveWebAsset(rootWithTrailingSeparator, '/app.js', fs)).toEqual({
+      status: 403,
+    });
+  });
+
   it('rejects undecodable percent-encoding with 400', () => {
     const fs = fakeFs([]);
     expect(resolveWebAsset(WEB_ROOT, '/%zz.js', fs)).toEqual({ status: 400 });
