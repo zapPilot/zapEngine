@@ -283,6 +283,64 @@ function json(value: unknown): Response {
 // jscpd:ignore-end
 
 describe('recent main failure inspection', () => {
+  it('does not compare wrapper head SHA for workflow_run failures', async () => {
+    const seen: string[] = [];
+    const result = await inspectOperationalSignal({
+      config: readControlCenterConfig({ OPS_GITHUB_TOKEN: 'token' }),
+      fingerprint: 'github-actions:recent-failure/deploy-vercel.yml',
+      now: () => NOW,
+      fetchImpl: async (resource) => {
+        const url = String(resource);
+        seen.push(url);
+        if (url.includes('/workflows/')) {
+          return json({
+            workflow_runs: [
+              {
+                id: 34840414414,
+                status: 'completed',
+                conclusion: 'failure',
+                event: 'workflow_run',
+                created_at: '2026-09-14T11:52:36Z',
+                head_sha: 'wrapper-sha',
+              },
+            ],
+          });
+        }
+        if (url.includes('/jobs?')) {
+          return json({
+            jobs: [
+              {
+                id: 103963836798,
+                name: 'deploy',
+                status: 'completed',
+                conclusion: 'failure',
+                steps: [
+                  {
+                    name: 'Deploy production Vercel projects',
+                    conclusion: 'failure',
+                  },
+                ],
+              },
+            ],
+          });
+        }
+        if (url.includes('/logs')) {
+          return new Response('Error: deployment polling timed out');
+        }
+        throw new Error(`unexpected request: ${url}`);
+      },
+    });
+
+    expect(result.evidence).toMatchObject({
+      selectedRun: { id: 34840414414, event: 'workflow_run' },
+      commitsSinceFailure: {
+        unavailable:
+          'workflow_run head_sha identifies the wrapper run, not the triggering workflow source SHA.',
+      },
+    });
+    expect(seen.some((url) => url.includes('/compare/'))).toBe(false);
+  });
+
   it('selects completed failure behind an active rerun and reports commits without claiming a fix', async () => {
     const seen: string[] = [];
     const result = await inspectOperationalSignal({

@@ -19,6 +19,7 @@ const runSchema = z.object({
   id: z.number(),
   status: z.string(),
   conclusion: z.string().nullish(),
+  event: z.string().nullish(),
   created_at: z.string(),
   run_started_at: z.string().nullish(),
   updated_at: z.string().nullish(),
@@ -149,7 +150,7 @@ export async function inspectGithubSignal(input: {
         'Newest failed completed run, otherwise newest completed or current run.',
       commitsSinceFailure:
         target && isFailedRun(target)
-          ? await commitsSinceRun(target.head_sha, token, input.fetchImpl)
+          ? await commitsSinceRun(target, token, input.fetchImpl)
           : null,
       commitsSinceFailureScope:
         'Commits on main after the failed run head SHA. Their presence is not evidence that any of them fixes the failure.',
@@ -231,6 +232,7 @@ function summarizeRun(run: WorkflowRun) {
     startedAt: startedAt(run),
     completedAt: run.updated_at ?? null,
     attempt: run.run_attempt ?? null,
+    event: run.event ?? null,
     headSha: run.head_sha ?? null,
     url: run.html_url ?? null,
   };
@@ -334,10 +336,17 @@ function githubHeaders(): Record<string, string> {
 }
 
 async function commitsSinceRun(
-  headSha: string | null | undefined,
+  run: WorkflowRun,
   token: string,
   fetchImpl: typeof fetch,
 ) {
+  if (run.event === 'workflow_run') {
+    return {
+      unavailable:
+        'workflow_run head_sha identifies the wrapper run, not the triggering workflow source SHA.',
+    };
+  }
+  const headSha = run.head_sha;
   if (!headSha) {
     return { unavailable: 'Failed run has no head SHA.' };
   }
