@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   IntentEngineError,
   ValidationError,
+  QuoteError,
   InsufficientBalanceError,
   SlippageError,
   UnsupportedChainError,
@@ -45,6 +46,22 @@ describe('intent.errors', () => {
       const json = error.toJSON();
       expect(json.issues).toEqual(issues);
       expect(json.code).toBe('VALIDATION_ERROR');
+    });
+
+    it('defaults issues to an empty array', () => {
+      expect(new ValidationError('invalid input').toJSON().issues).toEqual([]);
+    });
+  });
+
+  describe('QuoteError', () => {
+    it('preserves its code and cause', () => {
+      const cause = new Error('provider unavailable');
+      expect(new QuoteError('quote failed', { cause }).toJSON()).toEqual({
+        name: 'QuoteError',
+        code: 'QUOTE_ERROR',
+        message: 'quote failed',
+        cause: 'provider unavailable',
+      });
     });
   });
 
@@ -95,6 +112,13 @@ describe('intent.errors', () => {
       expect(json.hash).toBe('0x123');
       expect(json.code).toBe('EXECUTION_ERROR');
     });
+
+    it('serializes omitted optional fields', () => {
+      expect(new ExecutionError('failed').toJSON()).toMatchObject({
+        hash: undefined,
+        cause: undefined,
+      });
+    });
   });
 
   describe('SimulationFailedError', () => {
@@ -103,6 +127,12 @@ describe('intent.errors', () => {
       const json = error.toJSON();
       expect(json.simulationError).toBe('out of gas');
       expect(json.code).toBe('SIMULATION_FAILED');
+    });
+
+    it('serializes an omitted simulation detail', () => {
+      expect(new SimulationFailedError('sim failed').toJSON()).toMatchObject({
+        simulationError: undefined,
+      });
     });
   });
 });

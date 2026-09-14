@@ -71,6 +71,22 @@ describe('ERC20 approval helpers', () => {
     ).resolves.toBe(true);
   });
 
+  it('fails open when allowance lookup rejects with a non-Error value', async () => {
+    const readContract = vi.fn().mockRejectedValue('rpc unavailable');
+
+    await expect(
+      needsApproval({
+        publicClient: makePublicClient(readContract),
+        owner: USER,
+        requirement: {
+          tokenAddress: TOKEN,
+          spenderAddress: SPENDER,
+          amount: 1000n,
+        },
+      }),
+    ).resolves.toBe(true);
+  });
+
   it('builds an exact amount approve transaction', () => {
     const tx = buildApproveTx({
       token: TOKEN,
@@ -105,5 +121,29 @@ describe('ERC20 approval helpers', () => {
         chainId: 42161,
       }),
     ).toThrow(PlanSafetyViolationError);
+  });
+
+  it('omits optional gas and preserves an explicit intent type', () => {
+    expect(
+      buildApproveTx({
+        token: TOKEN,
+        spender: SPENDER,
+        amount: '1',
+        chainId: 1,
+        intentType: 'SUPPLY',
+      }),
+    ).toMatchObject({
+      chainId: 1,
+      meta: { intentType: 'SUPPLY' },
+    });
+    expect(
+      buildApproveTx({
+        token: TOKEN,
+        spender: SPENDER,
+        amount: '1',
+        chainId: 1,
+        intentType: 'SUPPLY',
+      }),
+    ).not.toHaveProperty('gasLimit');
   });
 });

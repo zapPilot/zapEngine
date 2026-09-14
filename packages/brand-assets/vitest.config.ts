@@ -18,11 +18,13 @@ export default defineConfig({
       reporter: ['text', 'json-summary', 'html', 'lcov'],
       reportsDirectory: 'coverage',
       include: ['src/**/*.ts'],
+      // Registry lookups, aliases, unknown-input fallbacks, and asset
+      // reachability are exhaustively covered.
       thresholds: {
-        branches: 90,
+        branches: 100,
         functions: 100,
-        lines: 95,
-        statements: 95,
+        lines: 100,
+        statements: 100,
       },
     },
   },

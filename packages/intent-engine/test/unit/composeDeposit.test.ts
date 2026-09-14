@@ -699,6 +699,59 @@ describe('composeDeposit', () => {
 });
 
 describe('composeDeposit error cases', () => {
+  it('fails before quoting when the source chain has no public client', async () => {
+    const { adapter, getQuote } = makeAdapter();
+
+    await expect(
+      composeDeposit(
+        {
+          fromToken: BASE_USDC,
+          fromAmount: '1000000',
+          sourceChainId: 8453,
+          userAddress: USER,
+        },
+        { adapter, publicClients: {} },
+      ),
+    ).rejects.toThrow('No public client configured for chain 8453');
+    expect(getQuote).not.toHaveBeenCalled();
+  });
+
+  it('rejects a split without any positive allocation', async () => {
+    const { adapter } = makeAdapter();
+    const { publicClients } = makePublicClients();
+
+    await expect(
+      composeDeposit(
+        {
+          fromToken: BASE_USDC,
+          fromAmount: '1000000',
+          sourceChainId: 8453,
+          userAddress: USER,
+          split: { 8453: 0 },
+        },
+        { adapter, publicClients: publicClients as never },
+      ),
+    ).rejects.toThrow('Deposit split must include at least one positive leg');
+  });
+
+  it('rejects positive weights that round to zero at split precision', async () => {
+    const { adapter } = makeAdapter();
+    const { publicClients } = makePublicClients();
+
+    await expect(
+      composeDeposit(
+        {
+          fromToken: BASE_USDC,
+          fromAmount: '1000000',
+          sourceChainId: 8453,
+          userAddress: USER,
+          split: { 8453: 0.0000001 },
+        },
+        { adapter, publicClients: publicClients as never },
+      ),
+    ).rejects.toThrow('Deposit split must include at least one positive leg');
+  });
+
   it('throws when sourceChainId is not a supported chain', async () => {
     const { adapter } = makeAdapter();
     const { publicClients } = makePublicClients();

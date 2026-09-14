@@ -15,11 +15,13 @@ export default defineConfig({
         'src/main/config.ts',
         'src/main/scheduler/**',
       ],
+      // Pure resolver, runtime-config, IPC, and scheduler boundaries are
+      // exhaustively covered. Keep every dimension pinned at 100%.
       thresholds: {
-        lines: 85,
-        functions: 85,
-        branches: 80,
-        statements: 85,
+        lines: 100,
+        functions: 100,
+        branches: 100,
+        statements: 100,
       },
       exclude: ['**/*.test.ts', '**/node_modules/**', '**/dist/**'],
     },
