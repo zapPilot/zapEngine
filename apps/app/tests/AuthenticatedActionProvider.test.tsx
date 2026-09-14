@@ -184,6 +184,34 @@ describe('AuthenticatedActionProvider', () => {
     expect(latestAction).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps the latest cancellation authoritative when an older login succeeds late', async () => {
+    let connectFirst: ((outcome: ConnectOutcome) => void) | undefined;
+    const firstLogin = new Promise<ConnectOutcome>((resolve) => {
+      connectFirst = resolve;
+    });
+    mocks.account.connect
+      .mockReturnValueOnce(firstLogin)
+      .mockResolvedValueOnce('cancelled');
+    await render();
+    const firstAction = vi.fn();
+    const latestAction = vi.fn();
+
+    await act(async () => {
+      context().run(firstAction);
+      context().run(latestAction);
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+      connectFirst?.('connected');
+      await firstLogin;
+    });
+    await reconnect();
+
+    expect(firstAction).not.toHaveBeenCalled();
+    expect(latestAction).not.toHaveBeenCalled();
+  });
+
   it('does not let a login settled after manual cancel affect a later action', async () => {
     let cancelFirst: ((outcome: ConnectOutcome) => void) | undefined;
     const firstLogin = new Promise<ConnectOutcome>((resolve) => {
