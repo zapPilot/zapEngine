@@ -12,6 +12,26 @@ const COMMON = {
   key: 'ops-operator.yml',
 } as const;
 
+function nullHeartbeatSignal(
+  status: 'unknown' | 'degraded',
+  title: string,
+  detail: string,
+  observedAt: Date,
+): OperationalSignal {
+  return buildSignal({
+    ...COMMON,
+    status,
+    title,
+    detail,
+    evidence: {
+      workflow: 'ops-operator.yml',
+      heartbeatAt: null,
+      heartbeatAgeMinutes: null,
+    },
+    observedAt,
+  });
+}
+
 export async function collectOperatorHeartbeatSignal(
   store: OperatorStore,
   now: Date,
@@ -20,34 +40,21 @@ export async function collectOperatorHeartbeatSignal(
   try {
     heartbeat = await store.heartbeat();
   } catch (error) {
-    return buildSignal({
-      ...COMMON,
-      status: 'unknown',
-      title: 'ops-operator heartbeat unavailable',
-      detail: errorMessage(error),
-      evidence: {
-        workflow: 'ops-operator.yml',
-        heartbeatAt: null,
-        heartbeatAgeMinutes: null,
-      },
-      observedAt: now,
-    });
+    return nullHeartbeatSignal(
+      'unknown',
+      'ops-operator heartbeat unavailable',
+      errorMessage(error),
+      now,
+    );
   }
 
   if (!heartbeat) {
-    return buildSignal({
-      ...COMMON,
-      status: 'degraded',
-      title: 'ops-operator has not recorded a heartbeat',
-      detail:
-        'No durable operator heartbeat exists yet; scheduled-run history is intentionally not used for self-monitoring.',
-      evidence: {
-        workflow: 'ops-operator.yml',
-        heartbeatAt: null,
-        heartbeatAgeMinutes: null,
-      },
-      observedAt: now,
-    });
+    return nullHeartbeatSignal(
+      'degraded',
+      'ops-operator has not recorded a heartbeat',
+      'No durable operator heartbeat exists yet; scheduled-run history is intentionally not used for self-monitoring.',
+      now,
+    );
   }
 
   const heartbeatAt = Date.parse(heartbeat.observedAt);
@@ -89,8 +96,7 @@ export async function collectOperatorHeartbeatSignal(
       ...common,
       status: 'critical',
       title: 'ops-operator heartbeat is stale',
-      detail:
-        `No operator heartbeat update has been recorded for ${ageMinutes}m; the workflow is scheduled every 5 minutes.`,
+      detail: `No operator heartbeat update has been recorded for ${ageMinutes}m; the workflow is scheduled every 5 minutes.`,
     });
   }
 
@@ -129,8 +135,7 @@ export async function collectOperatorHeartbeatSignal(
       ...common,
       status: 'degraded',
       title: 'ops-operator heartbeat is delayed',
-      detail:
-        `Latest operator heartbeat update is ${ageMinutes}m old; the workflow is scheduled every 5 minutes.`,
+      detail: `Latest operator heartbeat update is ${ageMinutes}m old; the workflow is scheduled every 5 minutes.`,
     });
   }
 
