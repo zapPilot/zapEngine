@@ -4,12 +4,12 @@ import { UsageNotMeasurableError } from '../errors.js';
 import * as costObservability from '../index.js';
 import { resolvePricingRate, type CostPricingRate } from '../pricing.js';
 import { currentUtcPeriod, projectMonthEnd, roundUsd } from '../time.js';
-import type { CostSnapshot } from '../types.js';
 import { fetchBraveCostSnapshot } from './brave.js';
 import { fetchDeBankCostSnapshot } from './debank.js';
 import { createFixedMonthlyCostSnapshot } from './fixed.js';
 import { normalizeNonNegative, roundUsageUsd } from './numbers.js';
 import { fetchOpenRouterCostSnapshot } from './openrouter.js';
+import { expectFreshZeroCostSnapshot } from './test-helpers.js';
 
 const NOW = new Date('2026-09-01T00:00:00.000Z');
 const jsonResponse = (value: unknown, status = 200) =>
@@ -32,11 +32,6 @@ const LONG_WINDOW_HEADERS = {
   'x-ratelimit-remaining': '90',
   'x-ratelimit-reset': '123',
 };
-
-function expectDefaultClockSnapshot(snapshot: CostSnapshot): void {
-  expect(snapshot.accruedCostUsd).toBe(0);
-  expect(Number.isNaN(Date.parse(snapshot.fetchedAt))).toBe(false);
-}
 
 async function withGlobalFetch<T>(
   fetcher: typeof globalThis.fetch,
@@ -475,7 +470,7 @@ describe('provider defaults through the public surface', () => {
       () => fetchDeBankCostSnapshot({ apiKey: 'debank-key', unitCostUsd: 0 }),
     );
 
-    expectDefaultClockSnapshot(snapshot);
+    expectFreshZeroCostSnapshot(snapshot);
     expect(fetcher).toHaveBeenCalledWith(
       'https://pro-openapi.debank.com/v1/account/units',
       expect.objectContaining({
@@ -524,7 +519,7 @@ describe('provider defaults through the public surface', () => {
       () => fetchBraveCostSnapshot({ apiKey: 'brave-key', unitCostUsd: 0 }),
     );
 
-    expectDefaultClockSnapshot(snapshot);
+    expectFreshZeroCostSnapshot(snapshot);
     const [url, init] = fetcher.mock.calls[0] as [URL, RequestInit];
     expect(url.href).toContain(
       'https://api.search.brave.com/res/v1/images/search?',

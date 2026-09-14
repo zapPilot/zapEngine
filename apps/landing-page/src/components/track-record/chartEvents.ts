@@ -47,7 +47,7 @@ export function buildChartMarkers(
  * Assembling it here rather than in the layer keeps the tooltip and the
  * screen-reader readout reading from one string.
  */
-function markerLabel(event: StrategyEvent): string {
+export function markerLabel(event: StrategyEvent): string {
   return [
     eventSentence(event),
     event.amountUsd === undefined ? '' : formatCompactUsd(event.amountUsd),

@@ -4,6 +4,7 @@ import {
   buildChartMarkers,
   formatCompactUsd,
   formatWholePercent,
+  markerLabel,
 } from '../chartEvents';
 
 const POINTS = [
@@ -24,7 +25,7 @@ function event(overrides: Partial<StrategyEvent> = {}): StrategyEvent {
 }
 
 function labelFor(overrides: Partial<StrategyEvent> = {}): string {
-  return buildChartMarkers([event(overrides)], POINTS, 100, 200)[0]!.label;
+  return markerLabel(event(overrides));
 }
 
 describe('marker labels', () => {
