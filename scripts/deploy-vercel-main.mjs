@@ -104,27 +104,48 @@ async function waitForDeployment(input) {
       );
     }
     if (input.now() >= deadline) {
+      deployment = await fetchDeploymentStatus(input, deployment.id);
+      if (deployment.readyState === 'READY') {
+        if (deployment.aliasError) {
+          throw new Error(
+            `Vercel deployment ${deployment.id} for ${input.destination.project} ` +
+              `is ready but production aliasing failed: ${JSON.stringify(deployment.aliasError)}`,
+          );
+        }
+        console.log(`${input.destination.project}: production deployment READY`);
+        return;
+      }
+      if (FAILURE_STATES.has(deployment.readyState)) {
+        throw new Error(
+          `Vercel deployment ${deployment.id} for ${input.destination.project} ended ${deployment.readyState}`,
+        );
+      }
       throw new Error(
         `Timed out waiting for Vercel deployment ${deployment.id} for ${input.destination.project}`,
       );
     }
 
     await input.sleep(POLL_INTERVAL_MS);
-    const endpoint = new URL(
-      `https://api.vercel.com/v13/deployments/${encodeURIComponent(deployment.id)}`,
-    );
-    endpoint.searchParams.set('teamId', input.destination.orgId);
-    const response = await input.fetchImpl(endpoint, {
-      headers: { Authorization: `Bearer ${input.token}` },
-    });
-    deployment = await readJsonResponse(response, input.destination.project);
-    if (!response.ok) {
-      throw new Error(
-        `Vercel deployment status failed for ${input.destination.project}: ` +
-          `${response.status} ${JSON.stringify(deployment)}`,
-      );
-    }
+    deployment = await fetchDeploymentStatus(input, deployment.id);
   }
+}
+
+async function fetchDeploymentStatus(input, deploymentId) {
+  const endpoint = new URL(
+    `https://api.vercel.com/v13/deployments/${encodeURIComponent(deploymentId)}`,
+  );
+  endpoint.searchParams.set('teamId', input.destination.orgId);
+  const response = await input.fetchImpl(endpoint, {
+    headers: { Authorization: `Bearer ${input.token}` },
+  });
+  const deployment = await readJsonResponse(response, input.destination.project);
+  if (!response.ok) {
+    throw new Error(
+      `Vercel deployment status failed for ${input.destination.project}: ` +
+        `${response.status} ${JSON.stringify(deployment)}`,
+    );
+  }
+  return deployment;
 }
 
 async function readJsonResponse(response, project) {
