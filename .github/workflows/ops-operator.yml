@@ -1,7 +1,7 @@
 name: Ops Operator
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '0 * * * *'
   workflow_dispatch:
 permissions:
   contents: read
@@ -16,7 +16,7 @@ jobs:
     # This job never reaches a Fly/EAS/Vercel destination: `run.mjs` imports
     # `sources.mjs`, never `remote.mjs`, and the operator reads Fly state via
     # the Machines API with FLY_OPS_TOKEN from that rail. Requiring the
-    # destination tokens would let an unrelated rotation break the 5-minute
+    # destination tokens would let an unrelated rotation break the hourly
     # loop, so only the Infisical machine identity is mandatory here.
     env:
       INFISICAL_UNIVERSAL_AUTH_CLIENT_ID: ${{ secrets.INFISICAL_UNIVERSAL_AUTH_CLIENT_ID }}

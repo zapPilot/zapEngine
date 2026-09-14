@@ -38,10 +38,15 @@ function minutesAgo(minutes: number): string {
 }
 
 describe('operator heartbeat signal', () => {
+  // Thresholds are 120m and 180m, and the comparisons are strict, so the
+  // interior values stay clear of both edges and the boundary rows below pin
+  // which side of each edge the equality case falls on.
   it.each([
-    [5, 'healthy', 'ops-operator heartbeat is fresh'],
-    [12, 'degraded', 'ops-operator heartbeat is delayed'],
-    [16, 'critical', 'ops-operator heartbeat is stale'],
+    [30, 'healthy', 'ops-operator heartbeat is fresh'],
+    [120, 'healthy', 'ops-operator heartbeat is fresh'],
+    [150, 'degraded', 'ops-operator heartbeat is delayed'],
+    [180, 'degraded', 'ops-operator heartbeat is delayed'],
+    [200, 'critical', 'ops-operator heartbeat is stale'],
   ] as const)(
     'maps a %im successful heartbeat to %s',
     async (minutes, status, title) => {

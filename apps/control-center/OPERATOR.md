@@ -1,6 +1,6 @@
 # Bounded operator runbook
 
-The integrated #437/#438 operator is scheduled to run against production every five minutes. Local tests do not execute the production scheduler or provider mutations.
+The integrated #437/#438 operator is scheduled to run against production every hour. Local tests do not execute the production scheduler or provider mutations.
 
 ## Commands and policy
 
@@ -12,18 +12,23 @@ resolution after deploy-aware recovery verification. An incident gets at most on
 repair attempt, including failed or unknown attempts; there is no automatic budget
 reset.
 
-`.github/workflows/ops-operator.yml` runs every five minutes and invokes the
-bounded mutation path directly. There is no repository-variable rollout switch:
-automation safety is enforced by the operator's target, deployment, lease,
-checkpoint, one-repair-budget, verification, and authorization gates. Existing
-environment injection supplies server-only credentials. Never run these commands
-against production merely to test the implementation.
+`.github/workflows/ops-operator.yml` runs hourly and invokes the bounded
+mutation path directly. A cycle repairs at most one fingerprint, so the cadence
+is also the ceiling on repairs per day; 24 slots sit well above the observed
+load of roughly seven actionable cycles. There is no repository-variable
+rollout switch: automation safety is enforced by the operator's target,
+deployment, lease, checkpoint, one-repair-budget, verification, and
+authorization gates. Existing environment injection supplies server-only
+credentials. Never run these commands against production merely to test the
+implementation.
 
 The operator does not judge its own liveness from completed GitHub workflow runs.
 Each cycle writes a durable heartbeat before it reads the operations snapshot,
 and Control Center uses that heartbeat for the existing
-`github-actions:workflow/ops-operator.yml` condition. A heartbeat up to 10 minutes
-old is healthy, 10–15 minutes is degraded, and more than 15 minutes is critical.
+`github-actions:workflow/ops-operator.yml` condition. The thresholds are two and
+three times the cadence, so one missed firing reads as a slow scheduler and two
+as a stopped one: a heartbeat of 120 minutes or less is healthy, more than 120
+and up to 180 minutes is degraded, and more than 180 minutes is critical.
 This avoids the unavoidable one-cycle lag of asking an in-progress workflow to
 inspect only its own completed runs. Manual `workflow_dispatch` runs still do not
 reset failure streaks for any other scheduled workflow.

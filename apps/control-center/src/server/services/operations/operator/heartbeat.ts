@@ -1,9 +1,17 @@
 import type { OperationalSignal } from '../../../../shared/types.js';
+import { OPS_OPERATOR_CADENCE_MS } from '../schedule-interval.js';
 import { buildSignal, errorMessage } from '../signal.js';
 import type { OperatorStore } from './store.js';
 
-const DEGRADED_AFTER_MS = 10 * 60 * 1000;
-const CRITICAL_AFTER_MS = 15 * 60 * 1000;
+// One missed firing is a slow scheduler; two is the schedule having stopped.
+// Both derive from the cadence so retuning the cron cannot leave a window
+// calibrated for a period the workflow no longer runs on.
+const DEGRADED_AFTER_MS = 2 * OPS_OPERATOR_CADENCE_MS;
+const CRITICAL_AFTER_MS = 3 * OPS_OPERATOR_CADENCE_MS;
+
+// Interpolated rather than written out so the sentence an operator reads cannot
+// contradict the thresholds it is explaining.
+const CADENCE_SENTENCE = `the workflow is scheduled every ${OPS_OPERATOR_CADENCE_MS / 60_000} minutes`;
 
 const COMMON = {
   source: 'github-actions',
@@ -96,7 +104,7 @@ export async function collectOperatorHeartbeatSignal(
       ...common,
       status: 'critical',
       title: 'ops-operator heartbeat is stale',
-      detail: `No operator heartbeat update has been recorded for ${ageMinutes}m; the workflow is scheduled every 5 minutes.`,
+      detail: `No operator heartbeat update has been recorded for ${ageMinutes}m; ${CADENCE_SENTENCE}.`,
     });
   }
 
@@ -135,7 +143,7 @@ export async function collectOperatorHeartbeatSignal(
       ...common,
       status: 'degraded',
       title: 'ops-operator heartbeat is delayed',
-      detail: `Latest operator heartbeat update is ${ageMinutes}m old; the workflow is scheduled every 5 minutes.`,
+      detail: `Latest operator heartbeat update is ${ageMinutes}m old; ${CADENCE_SENTENCE}.`,
     });
   }
 
