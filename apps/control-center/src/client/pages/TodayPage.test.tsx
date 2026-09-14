@@ -213,6 +213,25 @@ describe('Today as an action inbox', () => {
     expect(screen.getByText('queued')).toBeVisible();
   });
 
+  it('does not attach measured views to a different queued episode', () => {
+    const other = {
+      ...queues.social.queued[0]!,
+      episodeId: 'episode-2',
+      key: 'social-episode-2',
+      title: 'Different queued release',
+    };
+    renderToday({
+      queues: {
+        ...queues,
+        social: { attention: [], processing: [], queued: [other] },
+      },
+    });
+    expect(screen.getByText('The latest release')).toBeVisible();
+    expect(screen.getByText('120')).toBeVisible();
+    expect(screen.queryByText('Different queued release')).toBeNull();
+    expect(screen.queryByText('published')).toBeNull();
+  });
+
   it('reports queue depth without inventing a capacity', () => {
     renderToday();
     expect(screen.getByText(/處理中 0 · 排隊 1/)).toBeVisible();

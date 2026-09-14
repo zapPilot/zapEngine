@@ -97,10 +97,11 @@ function day(date: string, supabase: number, openrouter: number) {
 const costHistory = {
   cashSpendUsd: null,
   currentMonthDaily: [
-    day('2026-09-06', 25, 1),
-    day('2026-09-07', 25, 1),
-    day('2026-09-08', 25, 1),
-    day('2026-09-09', 25, 2),
+    day('2026-09-05', 25, 1),
+    day('2026-09-06', 26, 2),
+    day('2026-09-07', 27, 3),
+    day('2026-09-08', 28, 4),
+    day('2026-09-09', 29, 7),
   ],
   monthlyTotals: [],
   previousMonthByProvider: [],
@@ -141,21 +142,27 @@ describe('Reliability combines operational risk and cost', () => {
 });
 
 describe('Reliability cost reading', () => {
-  it('flags a provider whose day is well above its recent run rate', () => {
+  it('shows today spend as the delta from month-to-date accrual', () => {
+    renderPage();
+    expect(screen.getByText('Spend today')).toBeVisible();
+    expect(screen.getByText('$4.00')).toBeVisible();
+  });
+
+  it('flags a provider whose daily spend is well above its recent run rate', () => {
     renderPage();
     expect(screen.getByText(/OpenRouter 花費上升/)).toBeVisible();
   });
 
-  it('says nothing about providers that stayed flat', () => {
+  it('says nothing about providers whose daily spend stayed flat', () => {
     renderPage();
     expect(screen.queryByText(/Supabase 花費上升/)).toBeNull();
   });
 
-  it('needs a full three-day baseline before calling anything an anomaly', () => {
+  it('needs a full three-day daily baseline before calling anything an anomaly', () => {
     renderPage({
       costHistory: {
         ...costHistory,
-        currentMonthDaily: costHistory.currentMonthDaily.slice(-2),
+        currentMonthDaily: costHistory.currentMonthDaily.slice(-3),
       },
     });
     expect(screen.queryByText(/花費上升/)).toBeNull();

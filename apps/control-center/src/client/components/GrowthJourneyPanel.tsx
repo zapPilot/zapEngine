@@ -1,8 +1,5 @@
-import { useEffect, useState } from 'react';
-
 import type { SocialGrowthJourney } from '../../shared/growth-journey.js';
 import type { SocialGrowthResponse } from '../../shared/types.js';
-import { getJson } from '../api.js';
 import { PlatformIdentity } from '../platform.js';
 import styles from './GrowthJourneyPanel.module.css';
 
@@ -15,31 +12,9 @@ const SOCIAL_SOURCES = [
 
 export function GrowthJourneyPanel(props: {
   growth: SocialGrowthResponse | null;
+  journey: SocialGrowthJourney | null;
 }) {
-  const [journey, setJourney] = useState<SocialGrowthJourney | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    void getJson<SocialGrowthJourney>('/api/growth-journey')
-      .then((response) => {
-        if (active) {
-          setJourney(response);
-        }
-      })
-      .catch((cause: unknown) => {
-        if (!active) {
-          return;
-        }
-        setError(
-          cause instanceof Error ? cause.message : 'PostHog unavailable',
-        );
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
-
+  const journey = props.journey;
   const landing = journey?.landingVisitors30d ?? null;
   const cta = journey?.ctaUsers30d ?? null;
   const app = journey?.appVisitors30d ?? null;
@@ -96,9 +71,7 @@ export function GrowthJourneyPanel(props: {
       {!journeyReady ? (
         <div className={styles['unavailable']}>
           <strong>Journey telemetry unavailable</strong>
-          <span>
-            {error ?? journey?.message ?? 'Waiting for PostHog data.'}
-          </span>
+          <span>{journey?.message ?? 'Waiting for PostHog data.'}</span>
         </div>
       ) : (
         <>

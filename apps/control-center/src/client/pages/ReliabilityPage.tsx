@@ -9,6 +9,7 @@ import {
 
 import type { AgentBacklogResponse } from '../../shared/agent-backlog.js';
 import type {
+  CostHistoryPoint,
   CostHistoryResponse,
   OperationalSignal,
   OperationsResponse,
@@ -274,14 +275,15 @@ function CostOverview(props: {
 }) {
   const daily = props.costHistory?.currentMonthDaily ?? [];
   const latest = daily.at(-1) ?? null;
+  const latestSpend = dailySpend(daily).at(-1)?.value ?? null;
   const anomalies = costAnomalies(daily);
   return (
     <div className="rel-cost">
       <div className="rel-cost-top">
         <Stat
           caption={latest ? `As of ${latest.date}` : 'No daily reading yet'}
-          label="Accrued today"
-          value={usd(latest?.accruedCostUsd ?? null)}
+          label="Spend today"
+          value={usd(latestSpend)}
         />
         <Stat
           caption={
@@ -329,18 +331,43 @@ function CostOverview(props: {
  * gap in collection cannot be differenced either, so both are `null` rather
  * than a fabricated zero.
  */
+function dailyDeltas(
+  daily: CostHistoryResponse['currentMonthDaily'],
+  read: (point: CostHistoryPoint) => number | null,
+): Array<number | null> {
+  return daily.map((point, index) => {
+    const previousPoint = daily[index - 1];
+    if (!previousPoint) {
+      return null;
+    }
+    const previous = read(previousPoint);
+    const current = read(point);
+    if (current === null || previous === null) {
+      return null;
+    }
+    return Math.max(0, current - previous);
+  });
+}
+
 function dailySpend(
   daily: CostHistoryResponse['currentMonthDaily'],
 ): { id: string; label: string; value: number | null }[] {
-  return daily.map((point, index) => {
-    const previous = index > 0 ? daily[index - 1]?.accruedCostUsd : undefined;
-    const current = point.accruedCostUsd;
-    const value =
-      current === null || previous === null || previous === undefined
-        ? null
-        : Math.max(0, current - previous);
-    return { id: point.date, label: point.date, value };
-  });
+  const deltas = dailyDeltas(daily, (point) => point.accruedCostUsd);
+  return daily.map((point, index) => ({
+    id: point.date,
+    label: point.date,
+    value: deltas[index] ?? null,
+  }));
+}
+
+function providerSpend(
+  point: CostHistoryPoint,
+  provider: string,
+): number | null {
+  return (
+    point.providers.find((entry) => entry.provider === provider)
+      ?.accruedCostUsd ?? null
+  );
 }
 
 function providerRows(
@@ -361,8 +388,10 @@ interface CostAnomaly {
   today: number;
 }
 
-/** Today against the mean of the three days before it, per provider. A provider
- * without a full baseline is skipped rather than compared against nothing. */
+/** Today against the mean of the three daily deltas before it, per provider.
+ * Provider snapshots are month-to-date totals, so comparing their raw values
+ * would make normal accumulation look like accelerating spend. A complete
+ * baseline needs five snapshots (four daily deltas). */
 function costAnomalies(
   daily: CostHistoryResponse['currentMonthDaily'],
 ): CostAnomaly[] {
@@ -370,35 +399,28 @@ function costAnomalies(
   if (!latest) {
     return [];
   }
-  const window = daily.slice(-4, -1);
-  if (window.length < 3) {
-    return [];
-  }
   const found: CostAnomaly[] = [];
   for (const entry of latest.providers) {
-    if (entry.accruedCostUsd === null) {
+    const window = dailyDeltas(daily, (point) =>
+      providerSpend(point, entry.provider),
+    ).slice(-4);
+    const today = window.at(-1) ?? null;
+    const priors = window.slice(0, -1).filter((v): v is number => v !== null);
+    if (today === null || priors.length < 3) {
       continue;
     }
-    const priors = window
-      .map((day) =>
-        day.providers.find((row) => row.provider === entry.provider),
-      )
-      .map((row) => row?.accruedCostUsd ?? null)
-      .filter((value): value is number => value !== null);
-    if (priors.length < 3) {
-      continue;
-    }
-    const baseline = priors.reduce((sum, value) => sum + value, 0) / 3;
+    const baseline =
+      priors.reduce((sum, value) => sum + value, 0) / priors.length;
     if (baseline <= 0) {
       continue;
     }
-    const lift = (entry.accruedCostUsd - baseline) / baseline;
+    const lift = (today - baseline) / baseline;
     if (lift > ANOMALY_THRESHOLD) {
       found.push({
         baseline,
         lift,
         provider: entry.label,
-        today: entry.accruedCostUsd,
+        today,
       });
     }
   }

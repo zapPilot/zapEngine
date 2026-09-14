@@ -42,7 +42,7 @@ export function GrowthPage(props: {
         />
       </div>
 
-      <GrowthJourneyPanel growth={props.growth} />
+      <GrowthJourneyPanel growth={props.growth} journey={props.journey} />
 
       <PublishingCadence />
 
