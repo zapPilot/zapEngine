@@ -5,7 +5,8 @@ const llmMocks = vi.hoisted(() => ({
   getOpenRouterConfig: vi.fn(),
 }));
 
-vi.mock('../../llm.js', () => ({
+vi.mock('../../llm.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../llm.js')>()),
   createCompletionWithRetry: llmMocks.createCompletionWithRetry,
   getOpenRouterConfig: llmMocks.getOpenRouterConfig,
 }));
@@ -213,7 +214,12 @@ describe('OpenRouter search-intent provider', () => {
     expect(llmMocks.createCompletionWithRetry).toHaveBeenCalledTimes(2);
   });
 
-  it('preserves provider diagnostics when OpenRouter returns empty final content', async () => {
+  // Production never gets here any more -- the shared transport rejects a blank
+  // completion and advances the model chain before the provider sees it. The
+  // parser keeps its own guard, and this exercises it with the transport
+  // stubbed out, so a caller that ever hands it empty content still fails with
+  // the endpoint named rather than a bare JSON error.
+  it('preserves provider diagnostics when the parser is handed empty final content', async () => {
     llmMocks.createCompletionWithRetry.mockResolvedValue({
       model: MODEL,
       provider: 'Wafer',

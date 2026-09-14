@@ -3,7 +3,11 @@ import OpenAI, { APIError } from 'openai';
 import { throwIfAborted } from '../../../lib/abort.js';
 import { errorMessage } from '../../../lib/errorMessage.js';
 import { isRecord } from '../../../lib/typeGuards.js';
-import { createCompletionWithRetry, getOpenRouterConfig } from '../../llm.js';
+import {
+  createCompletionWithRetry,
+  getOpenRouterConfig,
+  messageReasoningCharacterCount,
+} from '../../llm.js';
 import {
   podcastBrandVisualKind,
   splitPodcastVisualSections,
@@ -502,7 +506,7 @@ async function completeSearchIntentRequest(input: {
     provider: completion.provider || 'unknown',
     model: completion.model || input.model,
     finishReason: choice?.finish_reason || 'unknown',
-    reasoningChars: searchIntentReasoningCharacterCount(choice?.message),
+    reasoningChars: messageReasoningCharacterCount(choice?.message),
   });
 }
 
@@ -814,19 +818,6 @@ function parseSearchIntentContent(
       { cause: error },
     );
   }
-}
-
-function searchIntentReasoningCharacterCount(message: unknown): number {
-  if (!isRecord(message)) return 0;
-  const reasoning = message['reasoning'];
-  if (typeof reasoning === 'string') return reasoning.length;
-  const details = message['reasoning_details'];
-  if (!Array.isArray(details)) return 0;
-  return details.reduce<number>((total: number, detail: unknown) => {
-    if (!isRecord(detail)) return total;
-    const text = detail['text'];
-    return total + (typeof text === 'string' ? text.length : 0);
-  }, 0);
 }
 
 function searchIntentScenes(

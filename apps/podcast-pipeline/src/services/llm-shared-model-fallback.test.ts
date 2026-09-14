@@ -11,6 +11,7 @@ vi.mock('./ingest/step.js', () => ingestMocks);
 import {
   createOpenRouterChatCompletion,
   OpenRouterEmptyChoicesError,
+  OpenRouterEmptyContentError,
 } from './llm.js';
 
 function completion(model: string) {
@@ -55,6 +56,30 @@ function malformedChoicesCompletion(model: string) {
       completion_tokens: 0,
       total_tokens: 1,
       cost: 0,
+    },
+    provider: 'fixture-provider',
+  };
+}
+
+function emptyContentCompletion(model: string, finishReason = 'length') {
+  return {
+    id: 'completion-id',
+    object: 'chat.completion',
+    created: 0,
+    model,
+    choices: [
+      {
+        index: 0,
+        finish_reason: finishReason,
+        message: { role: 'assistant', content: '', refusal: null },
+        logprobs: null,
+      },
+    ],
+    usage: {
+      prompt_tokens: 1,
+      completion_tokens: 0,
+      total_tokens: 1,
+      cost: 0.087,
     },
     provider: 'fixture-provider',
   };
@@ -196,11 +221,16 @@ describe('shared OpenRouter model fallback', () => {
     );
   });
 
-  it('keeps a well-formed empty choices response on the selected model', async () => {
+  // A well-formed envelope with no candidate in it used to be kept as a
+  // "successful" response. Every caller then read `choices[0]` as nothing and
+  // failed on its own terms, so the chain never got a chance to route around
+  // the endpoint that produced it.
+  it('an empty choices array reaches the next configured model', async () => {
     vi.stubEnv('LLM_FALLBACK_MODELS', 'fallback/one');
     const create = vi
       .fn()
-      .mockResolvedValueOnce(emptyChoicesCompletion('primary/model'));
+      .mockResolvedValueOnce(emptyChoicesCompletion('primary/model'))
+      .mockResolvedValueOnce(completion('fallback/one'));
 
     const result = await createOpenRouterChatCompletion(
       client(create),
@@ -211,14 +241,67 @@ describe('shared OpenRouter model fallback', () => {
       null,
     );
 
-    expect(result.choices).toEqual([]);
+    expect(result.model).toBe('fallback/one');
     expect(create.mock.calls.map(([request]) => request.model)).toEqual([
       'primary/model',
+      'fallback/one',
     ]);
-    expect(ingestMocks.logIngestEvent).not.toHaveBeenCalledWith(
-      'llm:model-fallback',
-      expect.anything(),
+  });
+
+  it('blank content reaches the next configured model', async () => {
+    vi.stubEnv('LLM_FALLBACK_MODELS', 'fallback/one');
+    const create = vi
+      .fn()
+      .mockResolvedValueOnce(emptyContentCompletion('primary/model'))
+      .mockResolvedValueOnce(completion('fallback/one'));
+
+    const result = await createOpenRouterChatCompletion(
+      client(create),
+      {
+        model: 'primary/model',
+        messages: [{ role: 'user', content: 'hello' }],
+      },
+      null,
     );
+
+    expect(result.model).toBe('fallback/one');
+    expect(create.mock.calls.map(([request]) => request.model)).toEqual([
+      'primary/model',
+      'fallback/one',
+    ]);
+    expect(ingestMocks.logIngestEvent).toHaveBeenCalledWith(
+      'llm:model-fallback',
+      expect.objectContaining({
+        model: 'primary/model',
+        nextModel: 'fallback/one',
+        error: expect.stringContaining('finishReason=length'),
+      }),
+    );
+  });
+
+  it('exhausted blank-content models fail without replay', async () => {
+    vi.stubEnv('LLM_FALLBACK_MODELS', 'fallback/one');
+    const create = vi
+      .fn()
+      .mockResolvedValueOnce(emptyContentCompletion('primary/model'))
+      .mockResolvedValueOnce(emptyContentCompletion('fallback/one'));
+
+    await expect(
+      createOpenRouterChatCompletion(
+        client(create),
+        {
+          model: 'primary/model',
+          messages: [{ role: 'user', content: 'hello' }],
+        },
+        null,
+      ),
+    ).rejects.toBeInstanceOf(OpenRouterEmptyContentError);
+
+    expect(create.mock.calls.map(([request]) => request.model)).toEqual([
+      'primary/model',
+      'fallback/one',
+    ]);
+    expect(create).toHaveBeenCalledTimes(2);
   });
 
   it('exhausted malformed models fail without replay', async () => {

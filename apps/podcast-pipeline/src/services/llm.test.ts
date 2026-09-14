@@ -20,7 +20,9 @@ import {
   generateScriptWithLLM,
   getOpenRouterConfig,
   getOpenRouterTimeoutMs,
+  type LlmAttemptRecord,
   normalizeEditorialTitle,
+  OpenRouterEmptyContentError,
 } from './llm.js';
 
 const ingestMocks = vi.hoisted(() => ({
@@ -667,6 +669,29 @@ describe('generateScriptWithLLM', () => {
     expect(callArgs.extra_body).toBeUndefined();
   });
 
+  // Rewriting an article into narration is not a reasoning task, and an
+  // endpoint that spends the whole output budget on reasoning tokens answers
+  // `finish_reason=length` with zero characters of script.
+  it('pins reasoning off for script generation', async () => {
+    ingestMocks.logIngestEvent.mockClear();
+    const mockCreate = vi.fn().mockResolvedValue({
+      choices: [{ message: { content: 'Script' } }],
+      provider: 'Cloudflare',
+      model: 'test/model',
+    });
+
+    mockOpenAIClient(mockCreate);
+
+    await generateScriptWithLLM('Title', 'Text');
+
+    const callArgs = mockCreate.mock.calls[0]![0] as { reasoning?: object };
+    expect(callArgs.reasoning).toEqual({ enabled: false });
+    expect(ingestMocks.logIngestEvent).toHaveBeenCalledWith(
+      'llm:request',
+      expect.objectContaining({ reasoning: 'disabled' }),
+    );
+  });
+
   it('accepts a fenced JSON response', async () => {
     const mockCreate = vi.fn().mockResolvedValue({
       choices: [
@@ -919,7 +944,7 @@ ${scriptPayload('「软件市场进入新阶段」', '生成講稿')}
         inputChars,
         timeoutMs: 600_000,
         maxTokens: 'unset',
-        reasoning: 'provider-default',
+        reasoning: 'disabled',
       },
     );
     expect(ingestMocks.logIngestEvent).toHaveBeenNthCalledWith(
@@ -974,7 +999,7 @@ ${scriptPayload('「软件市场进入新阶段」', '生成講稿')}
         model: 'test/model',
         timeoutMs: 600_000,
         maxTokens: 'unset',
-        reasoning: 'provider-default',
+        reasoning: 'disabled',
         routing: 'throughput',
         error: 'Request timed out',
       }),
@@ -1022,7 +1047,10 @@ ${scriptPayload('「软件市场进入新阶段」', '生成講稿')}
     expect(result.costUsd).toBe(0);
   });
 
-  it('rejects when the API returns no script content', async () => {
+  // A completion with nothing in it is the endpoint's failure, not a contract
+  // violation: re-prompting the same endpoint to "fix its JSON" would spend
+  // another full script deadline on a body it never wrote.
+  it('reroutes and fails as a transport error when the API returns no script content', async () => {
     const mockCreate = vi.fn().mockResolvedValue({
       choices: [{ message: { content: null } }],
       provider: 'Cloudflare',
@@ -1031,10 +1059,20 @@ ${scriptPayload('「软件市场进入新阶段」', '生成講稿')}
 
     mockOpenAIClient(mockCreate);
 
-    await expect(generateScriptWithLLM('Title', 'Text')).rejects.toThrow(
-      'LLM returned empty script content',
-    );
-    expect(mockCreate).toHaveBeenCalledTimes(1);
+    const attempts: LlmAttemptRecord[] = [];
+    await expect(
+      generateScriptWithLLM('Title', 'Text', {
+        onAttempt: (record) => attempts.push(record),
+      }),
+    ).rejects.toBeInstanceOf(OpenRouterEmptyContentError);
+
+    expect(mockCreate).toHaveBeenCalledTimes(2);
+    const rerouted = mockCreate.mock.calls[1]![0] as { provider?: object };
+    expect(rerouted.provider).toEqual({ require_parameters: true });
+    expect(attempts).toMatchObject([
+      { attempt: 1, status: 'failed', errorCategory: 'retry_safe' },
+      { attempt: 2, status: 'failed', errorCategory: 'retry_safe' },
+    ]);
   });
 
   it('returns unknown provider when API returns null provider', async () => {
@@ -1282,7 +1320,10 @@ ${validLanguageClassroomPayload()}
     },
   );
 
-  it('throws when the classroom completion has no message content', async () => {
+  // The classroom layer re-prompts unusable payloads, but an envelope with no
+  // candidate in it never reaches it: the shared transport rejects it first, so
+  // the failure names the endpoint instead of a JSON parser.
+  it('throws when the classroom completion carries no candidate', async () => {
     const mockCreate = vi.fn().mockResolvedValue({
       choices: [],
       provider: 'Cloudflare',
@@ -1299,7 +1340,10 @@ ${validLanguageClassroomPayload()}
         sourceLanguageCode: 'zh-Hant',
         targetLanguageCodes: ['ja'],
       }),
-    ).rejects.toThrow('Unexpected end of JSON input');
+    ).rejects.toThrow(
+      'OpenRouter returned no usable content for model test/model (provider=Cloudflare, finishReason=unknown, reasoningChars=0)',
+    );
+    expect(mockCreate).toHaveBeenCalledTimes(1);
   });
 
   it('throws when response has no valid lessons', async () => {

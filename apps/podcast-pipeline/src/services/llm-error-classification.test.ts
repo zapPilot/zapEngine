@@ -12,6 +12,8 @@ import { describe, expect, it } from 'vitest';
 import {
   classifyScriptCompletionError,
   isRetryableOpenRouterError,
+  OpenRouterEmptyChoicesError,
+  OpenRouterEmptyContentError,
 } from './llm.js';
 
 /**
@@ -93,6 +95,19 @@ describe('isRetryableOpenRouterError', () => {
     );
   });
 
+  it('retries an HTTP 200 that carried nothing usable', () => {
+    expect(
+      isRetryableOpenRouterError(
+        new OpenRouterEmptyChoicesError('no choices array'),
+      ),
+    ).toBe(true);
+    expect(
+      isRetryableOpenRouterError(
+        new OpenRouterEmptyContentError('no usable content'),
+      ),
+    ).toBe(true);
+  });
+
   it('does not retry a request the caller cancelled', () => {
     expect(isRetryableOpenRouterError(new APIUserAbortError())).toBe(false);
   });
@@ -157,6 +172,22 @@ describe('classifyScriptCompletionError', () => {
     expect(classifyScriptCompletionError(sdkError(401, 'no key'))).toBe(
       'terminal',
     );
+  });
+
+  // An HTTP 200 the caller cannot read is the endpoint's failure, not the
+  // prompt's: script generation keeps its endpoint reroute for it instead of
+  // recording it as terminal on the ledger.
+  it('calls an unusable completion retry_safe', () => {
+    expect(
+      classifyScriptCompletionError(
+        new OpenRouterEmptyChoicesError('no choices array'),
+      ),
+    ).toBe('retry_safe');
+    expect(
+      classifyScriptCompletionError(
+        new OpenRouterEmptyContentError('no usable content'),
+      ),
+    ).toBe('retry_safe');
   });
 
   it('calls a non-object or an unclassified error terminal', () => {
