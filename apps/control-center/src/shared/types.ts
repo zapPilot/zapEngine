@@ -433,16 +433,49 @@ export interface OperationsSocialDaemon {
   staleMinutes: number | null;
 }
 
+/**
+ * What the waiting-media view could be read to say this cycle.
+ *
+ * A lane count alone cannot tell a lane that started ten minutes ago from one
+ * that has been stuck for ten days, so the reading carries the oldest lane's age
+ * and whether a render worker could still claim what it sampled.
+ */
+export interface OperationsSocialWaitingMedia {
+  /**
+   * The view's exact total, independent of how many rows were sampled. One row
+   * per required (episode, language) lane, so several can belong to one
+   * episode: this is not an episode count.
+   *
+   * `null` means the view could not be read at all — never "nothing is
+   * waiting". `message` then carries why.
+   */
+  lanes: number | null;
+  /** Rows actually sampled. Below `lanes` when the view was truncated. */
+  rowsRead: number;
+  /** Oldest sampled lane, and which lane it is, so an operator can act on it. */
+  oldestWaitingSince: string | null;
+  oldestEpisodeId: string | null;
+  oldestLanguageCode: string | null;
+  /**
+   * Sampled lanes no render worker can claim without an operator. A lower bound
+   * whenever `rowsRead < lanes`.
+   */
+  blockedLanes: number;
+  /** Sampled rows the reader could not parse: lanes it cannot speak for. */
+  invalidRows: number;
+  /**
+   * Why the waiting reading is missing or partial, or `null` when it is whole.
+   * Separate from the response-level `message` because losing this one view
+   * must not be reported as losing the publish queue and daemon with it.
+   */
+  message: string | null;
+}
+
 export interface OperationsSocialResponse {
   generatedAt: string;
   daemon: OperationsSocialDaemon;
   jobs: OperationsSocialJob[];
-  /**
-   * `social_waiting_media` yields one row per (episode, platform, language)
-   * lane, so a single unrendered localization contributes several. Counting
-   * them as episodes would overstate how much is stuck.
-   */
-  waitingMediaLanes: number | null;
+  waitingMedia: OperationsSocialWaitingMedia;
   /**
    * Queue rows the reader could not parse. A dropped row is a lane the panel
    * cannot see, so the count travels with the response rather than being

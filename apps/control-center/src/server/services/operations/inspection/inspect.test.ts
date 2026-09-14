@@ -430,6 +430,174 @@ describe('recent main failure inspection', () => {
       'not evidence',
     );
   });
+  it('looks through skipped workflow_run wrappers to inspect the failure behind the signal', async () => {
+    const seen: string[] = [];
+    const result = await inspectOperationalSignal({
+      config: readControlCenterConfig({ OPS_GITHUB_TOKEN: 'token' }),
+      fingerprint: 'github-actions:recent-failure/deploy-vercel.yml',
+      now: () => NOW,
+      fetchImpl: async (resource) => {
+        const url = String(resource);
+        seen.push(url);
+        if (url.includes('/workflows/')) {
+          return json({
+            workflow_runs: [
+              ...Array.from({ length: 8 }, (_, index) => ({
+                id: 90 - index,
+                status: 'completed',
+                conclusion: 'skipped',
+                created_at: `2026-09-12T0${8 - index}:00:00Z`,
+              })),
+              {
+                id: 70,
+                status: 'completed',
+                conclusion: 'failure',
+                created_at: '2026-09-11T23:00:00Z',
+                head_sha: 'failed-sha',
+              },
+            ],
+          });
+        }
+        if (url.includes('/jobs?')) {
+          return json({
+            jobs: [
+              {
+                id: 701,
+                name: 'deploy',
+                status: 'completed',
+                conclusion: 'failure',
+                steps: [{ name: 'Wait for Vercel', conclusion: 'failure' }],
+              },
+            ],
+          });
+        }
+        if (url.includes('/logs')) {
+          return new Response('Error: timed out waiting for Vercel');
+        }
+        return json({
+          status: 'ahead',
+          total_commits: 0,
+          html_url:
+            'https://github.com/zapPilot/zapEngine/compare/failed-sha...main',
+          commits: [],
+        });
+      },
+    });
+
+    expect(seen[0]).toContain('per_page=100');
+    expect(result.evidence).toMatchObject({
+      selectedRun: { id: 70, conclusion: 'failure' },
+      failedJobs: [{ id: 701, name: 'deploy' }],
+    });
+    expect((result.evidence['recentRuns'] as unknown[]).length).toBe(5);
+  });
+
+  it('ignores cancelled wrapper runs when selecting a recent operational failure', async () => {
+    const result = await inspectOperationalSignal({
+      config: readControlCenterConfig({ OPS_GITHUB_TOKEN: 'token' }),
+      fingerprint: 'github-actions:recent-failure/deploy-vercel.yml',
+      now: () => NOW,
+      fetchImpl: async (resource) => {
+        const url = String(resource);
+        if (url.includes('/workflows/')) {
+          return json({
+            workflow_runs: [
+              {
+                id: 91,
+                status: 'completed',
+                conclusion: 'cancelled',
+                created_at: '2026-09-12T09:00:00Z',
+                head_sha: 'cancelled-sha',
+              },
+              {
+                id: 90,
+                status: 'completed',
+                conclusion: 'skipped',
+                created_at: '2026-09-12T08:30:00Z',
+              },
+              {
+                id: 80,
+                status: 'completed',
+                conclusion: 'failure',
+                created_at: '2026-09-12T08:00:00Z',
+                head_sha: 'failed-sha',
+              },
+            ],
+          });
+        }
+        if (url.includes('/jobs?')) {
+          return json({
+            jobs: [
+              {
+                id: 801,
+                name: 'deploy',
+                status: 'completed',
+                conclusion: 'failure',
+                steps: [],
+              },
+            ],
+          });
+        }
+        if (url.includes('/logs')) {
+          return new Response('Error: timed out waiting for Vercel');
+        }
+        return json({
+          status: 'ahead',
+          total_commits: 0,
+          html_url:
+            'https://github.com/zapPilot/zapEngine/compare/failed-sha...main',
+          commits: [],
+        });
+      },
+    });
+
+    expect(result.evidence).toMatchObject({
+      selectedRun: { id: 80, conclusion: 'failure' },
+      failedJobs: [{ id: 801, name: 'deploy' }],
+    });
+  });
+
+  it('treats a later success as recovery instead of inspecting an older failure', async () => {
+    const result = await inspectOperationalSignal({
+      config: readControlCenterConfig({ OPS_GITHUB_TOKEN: 'token' }),
+      fingerprint: 'github-actions:recent-failure/deploy-vercel.yml',
+      now: () => NOW,
+      fetchImpl: async (resource) => {
+        const url = String(resource);
+        if (url.includes('/workflows/')) {
+          return json({
+            workflow_runs: [
+              {
+                id: 81,
+                status: 'completed',
+                conclusion: 'success',
+                created_at: '2026-09-12T08:00:00Z',
+                head_sha: 'success-sha',
+              },
+              {
+                id: 80,
+                status: 'completed',
+                conclusion: 'failure',
+                created_at: '2026-09-12T07:00:00Z',
+                head_sha: 'failed-sha',
+              },
+            ],
+          });
+        }
+        if (url.includes('/jobs?')) {
+          return json({ jobs: [] });
+        }
+        throw new Error(`unexpected fetch ${url}`);
+      },
+    });
+
+    expect(result.evidence).toMatchObject({
+      selectedRun: { id: 81, conclusion: 'success' },
+      commitsSinceFailure: null,
+      failedJobs: [],
+    });
+  });
+
   it('keeps unrelated GitHub kinds unsupported', async () => {
     const result = await inspectOperationalSignal({
       config: readControlCenterConfig({}),

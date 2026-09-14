@@ -23,11 +23,13 @@ export default defineConfig({
         'src/strategy/json.ts', // Type-only re-export module
         'src/etl/**', // ETL contracts — owned by alpha-etl, exercised there
       ],
+      // Parse-level contract suites and shared-helper boundary tests exhaust the
+      // configured denominator. Keep every dimension pinned at 100%.
       thresholds: {
-        branches: 85,
-        functions: 90,
-        lines: 90,
-        statements: 90,
+        branches: 100,
+        functions: 100,
+        lines: 100,
+        statements: 100,
       },
     },
   },

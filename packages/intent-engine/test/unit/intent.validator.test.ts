@@ -67,6 +67,20 @@ describe('Intent Validators', () => {
 
       expect(() => validateSwapIntent(intent)).toThrow(UnsupportedTokenError);
     });
+
+    it('allows syntactically valid token addresses absent from the registry', () => {
+      const unknownToken = '0x1111111111111111111111111111111111111111';
+      const result = validateSwapIntent({
+        type: 'SWAP',
+        fromAddress: '0x1234567890123456789012345678901234567890',
+        chainId: 8453,
+        fromToken: unknownToken,
+        toToken: '0x2222222222222222222222222222222222222222',
+        fromAmount: '1000000',
+      });
+
+      expect(result.fromToken).toBe(unknownToken);
+    });
   });
 
   describe('validateSupplyIntent', () => {
@@ -232,6 +246,21 @@ describe('Intent Validators', () => {
       expect(() => validateRotateIntent({ type: 'ROTATE' })).toThrow(
         ValidationError,
       );
+    });
+
+    it('rejects an intermediate token known only on another chain', () => {
+      expect(() =>
+        validateRotateIntent({
+          type: 'ROTATE',
+          fromAddress: '0x1234567890123456789012345678901234567890',
+          chainId: 8453,
+          fromVault: '0x7BfA7C4f149E7415b73bdeDfe609237e29CBF34A',
+          toVault: '0xa0E430870c4604CcfC7B38Ca7845B1FF653D0ff1',
+          shareAmount: '1000000000000000000',
+          protocol: 'morpho',
+          intermediateToken: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+        }),
+      ).toThrow(UnsupportedTokenError);
     });
   });
 });

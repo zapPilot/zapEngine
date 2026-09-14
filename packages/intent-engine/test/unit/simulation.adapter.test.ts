@@ -144,6 +144,35 @@ describe('createTenderlyBundleSimulationAdapter', () => {
     );
   });
 
+  it('classifies an AbortError as a bundle timeout', async () => {
+    const fetchFn = vi
+      .fn()
+      .mockRejectedValue(new DOMException('aborted', 'AbortError'));
+    const adapter = createTenderlyBundleSimulationAdapter({
+      ...CONFIG,
+      fetchFn,
+      timeoutMs: 1,
+    });
+
+    await expect(adapter.simulateBundle(REQUEST)).resolves.toEqual({
+      status: 'unavailable',
+      reason: 'Tenderly bundle simulation timed out',
+    });
+  });
+
+  it('stringifies a non-Error fetch rejection', async () => {
+    const fetchFn = vi.fn().mockRejectedValue('offline');
+    const adapter = createTenderlyBundleSimulationAdapter({
+      ...CONFIG,
+      fetchFn,
+    });
+
+    await expect(adapter.simulateBundle(REQUEST)).resolves.toEqual({
+      status: 'unavailable',
+      reason: 'Tenderly bundle simulation unavailable: offline',
+    });
+  });
+
   it('returns unavailable when results are silently truncated without a revert', async () => {
     const fetchFn = vi
       .fn()

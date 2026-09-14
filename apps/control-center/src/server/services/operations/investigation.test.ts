@@ -120,7 +120,16 @@ const SOCIAL: OperationsSocialResponse = {
   },
   // jscpd:ignore-end
   jobs: [],
-  waitingMediaLanes: 0,
+  waitingMedia: {
+    lanes: 0,
+    rowsRead: 0,
+    oldestWaitingSince: null,
+    oldestEpisodeId: null,
+    oldestLanguageCode: null,
+    blockedLanes: 0,
+    invalidRows: 0,
+    message: null,
+  },
   invalidJobRows: 0,
   message: null,
 };
@@ -243,7 +252,12 @@ describe('investigateOperationalSignal', () => {
     });
     const social: OperationsSocialResponse = {
       ...SOCIAL,
-      waitingMediaLanes: 4,
+      waitingMedia: {
+        ...SOCIAL.waitingMedia,
+        lanes: 4,
+        rowsRead: 4,
+        blockedLanes: 2,
+      },
       jobs: [
         {
           episodeId: 'ep-1',
@@ -273,6 +287,7 @@ describe('investigateOperationalSignal', () => {
     expect(result.relatedEvidence.social).toEqual({
       daemonStatus: 'healthy',
       waitingMediaLanes: 4,
+      blockedWaitingLanes: 2,
       overdueJobs: 1,
       exhaustedJobs: 1,
     });

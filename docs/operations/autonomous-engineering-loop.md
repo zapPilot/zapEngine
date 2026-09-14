@@ -42,8 +42,10 @@ backlog writes. GitHub Issues and labels are the work state; there is no lease D
 ## Harness setup
 
 Configure each harness's `zap-pilot-ops` MCP through `node scripts/ops-mcp.mjs`;
-the launcher obtains production configuration through the existing Infisical
-runner. Repository skills live under `.agents/skills`.
+the launcher selects `scripts/env/run.mjs --environment prod`, which merges the
+repository's committed non-secret production values with Infisical secrets. Do
+not replace it with a bare `infisical run --env=prod -- ...` command when full
+production truth is required. Repository skills live under `.agents/skills`.
 
 OpenCode commands are `.opencode/commands/triage.md` and
 `.opencode/commands/worker.md`. Claude/Codex may invoke the corresponding skills
@@ -68,6 +70,11 @@ candidate as:
 - operator/strong-model decision;
 - Sentry cleanup candidate;
 - ignored/non-actionable history.
+
+When the question is whether the system has blind spots rather than which current
+signal is red, also run the independent
+[coverage review](./coverage-review.md). It deliberately checks properties that a
+normal signal can leave unobserved even while its domain rollup is green.
 
 Triage does not edit code or open implementation PRs. Its job is to make a good
 small contract for worker. CI failures are ordinary triage input: a failure whose

@@ -49,7 +49,16 @@ const SOCIAL: OperationsSocialResponse = {
     staleMinutes: 0,
   },
   jobs: [],
-  waitingMediaLanes: 0,
+  waitingMedia: {
+    lanes: 0,
+    rowsRead: 0,
+    oldestWaitingSince: null,
+    oldestEpisodeId: null,
+    oldestLanguageCode: null,
+    blockedLanes: 0,
+    invalidRows: 0,
+    message: null,
+  },
   invalidJobRows: 0,
   message: null,
 };

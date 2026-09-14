@@ -78,15 +78,15 @@ and then aggregates the 14 workspaces. CI uploads `coverage/summary.json` for
 | `apps/analytics-engine`       | —          | —        | —         | 95    |
 | `apps/app`                    | 64         | 67       | 68        | 65    |
 | `apps/control-center`         | 80         | 71       | 82        | 80    |
-| `apps/desktop`                | 85         | 80       | 85        | 85    |
+| `apps/desktop`                | 100        | 100      | 100       | 100   |
 | `apps/landing-page`           | 83         | 75       | 89        | 84    |
 | `apps/podcast-pipeline`       | 91         | 80       | 92        | 92    |
 | `packages/app-core`           | 75         | 66       | 73        | 76    |
-| `packages/brand-assets`       | 95         | 90       | 100       | 95    |
+| `packages/brand-assets`       | 100        | 100      | 100       | 100   |
 | `packages/cost-observability` | 100        | 100      | 100       | 100   |
 | `packages/design-tokens`      | 100        | 100      | 100       | 100   |
 | `packages/intent-engine`      | 90         | 85       | 90        | 90    |
-| `packages/types`              | 90         | 85       | 90        | 90    |
+| `packages/types`              | 100        | 100      | 100       | 100   |
 
 - `apps/analytics-engine` has one canonical pytest-cov floor:
   `[tool.coverage.report] fail_under = 95` in `pyproject.toml`.
@@ -99,8 +99,9 @@ and then aggregates the 14 workspaces. CI uploads `coverage/summary.json` for
   denominator to include App Router code and exclude test-only helpers. The
   Node-24 measured baseline is 86.57/78.74/91.62/87.93, leaving roughly three
   points of churn buffer.
-- `packages/cost-observability` and `packages/design-tokens` pin statements,
-  branches, functions, and lines at 100% after exhaustive boundary coverage.
+- `apps/desktop`, `packages/brand-assets`, `packages/cost-observability`,
+  `packages/design-tokens`, and `packages/types` pin statements, branches,
+  functions, and lines at 100% after exhaustive boundary coverage.
 - `apps/control-center` was re-ratcheted on 2026-09-14 after adding an explicit
   production-source denominator. The measured baseline is
   83.03/74.30/85.09/83.07, leaving roughly three points of normal

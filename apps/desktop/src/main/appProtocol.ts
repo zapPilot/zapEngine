@@ -35,6 +35,8 @@ export interface AssetFs {
   isFile: (path: string) => boolean;
 }
 
+export type AssetPathResolver = (...paths: string[]) => string;
+
 const nodeFs: AssetFs = {
   isFile: (path) => {
     try {
@@ -57,12 +59,13 @@ export function resolveWebAsset(
   webRoot: string,
   pathname: string,
   fs: AssetFs = nodeFs,
+  resolvePath: AssetPathResolver = resolve,
 ): ResolvedAsset {
-  const normalizedWebRoot = resolve(webRoot);
+  const normalizedWebRoot = resolvePath(webRoot);
   const rootPrefix = normalizedWebRoot.endsWith(sep)
     ? normalizedWebRoot
     : `${normalizedWebRoot}${sep}`;
-  const indexPath = resolve(normalizedWebRoot, 'index.html');
+  const indexPath = resolvePath(normalizedWebRoot, 'index.html');
 
   let decodedPath: string;
   try {
@@ -76,7 +79,7 @@ export function resolveWebAsset(
   }
 
   const normalized = normalize(decodedPath).replace(/^[/\\]+/, '');
-  const candidate = resolve(normalizedWebRoot, normalized);
+  const candidate = resolvePath(normalizedWebRoot, normalized);
   if (candidate !== normalizedWebRoot && !candidate.startsWith(rootPrefix)) {
     return { status: 403 };
   }

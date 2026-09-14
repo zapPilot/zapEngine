@@ -92,6 +92,24 @@ describe('assertApprovalCaps', () => {
       ),
     ).not.toThrow();
   });
+
+  it('ignores malformed calldata and approvals without source bounds', () => {
+    expect(() =>
+      assertApprovalCaps(
+        {
+          approvals: [
+            {
+              ...approveTx(1n),
+              data: '0xnot-calldata',
+            },
+            approveTx(2n),
+          ],
+          calls: [],
+        },
+        {},
+      ),
+    ).not.toThrow();
+  });
 });
 
 describe('assertMinReceived', () => {
@@ -125,6 +143,32 @@ describe('assertMinReceived', () => {
   it('skips calls that carry no routed estimate', () => {
     expect(() =>
       assertMinReceived({ calls: [approveTx(1n)] }, { maxSlippageBps: 100 }),
+    ).not.toThrow();
+  });
+
+  it.each([
+    ['a primitive route', 'route'],
+    ['a null route', null],
+    ['a missing estimate', {}],
+    ['a null estimate', { estimate: null }],
+    ['non-string amounts', { estimate: { toAmount: 1, toAmountMin: 1 } }],
+    [
+      'non-integer amounts',
+      { estimate: { toAmount: 'not-an-int', toAmountMin: '1' } },
+    ],
+  ])('skips %s', (_label, route) => {
+    expect(() =>
+      assertMinReceived(
+        {
+          calls: [
+            {
+              ...approveTx(1n),
+              meta: { intentType: 'LIFI_SWAP', route },
+            },
+          ],
+        },
+        { maxSlippageBps: 100 },
+      ),
     ).not.toThrow();
   });
 });

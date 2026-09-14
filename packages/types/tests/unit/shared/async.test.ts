@@ -33,6 +33,26 @@ describe('sleep', () => {
     await expect(sleep(50, controller.signal)).rejects.toThrow('stop');
   });
 
+  it.each([
+    ['operator cancelled', 'operator cancelled'],
+    ['   ', 'sleep aborted'],
+    [42, 'sleep aborted'],
+  ])(
+    'normalizes a non-Error abort reason %j',
+    async (reason, expectedMessage) => {
+      const controller = new AbortController();
+      controller.abort(reason);
+
+      const error = await sleep(50, controller.signal).catch(
+        (caught: unknown) => caught,
+      );
+
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).name).toBe('AbortError');
+      expect((error as Error).message).toBe(expectedMessage);
+    },
+  );
+
   it('rejects and clears the timer when the signal aborts before ms elapses', async () => {
     vi.useFakeTimers();
     try {
@@ -55,5 +75,27 @@ describe('sleep', () => {
     const controller = new AbortController();
     controller.abort();
     await expect(sleep(0, controller.signal)).resolves.toBeUndefined();
+  });
+
+  it('removes the abort listener after the timer resolves', async () => {
+    vi.useFakeTimers();
+    try {
+      const controller = new AbortController();
+      const removeEventListener = vi.spyOn(
+        controller.signal,
+        'removeEventListener',
+      );
+      const pending = sleep(50, controller.signal);
+
+      await vi.advanceTimersByTimeAsync(50);
+      await pending;
+
+      expect(removeEventListener).toHaveBeenCalledWith(
+        'abort',
+        expect.any(Function),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

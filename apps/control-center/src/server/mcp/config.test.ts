@@ -36,6 +36,38 @@ describe('Ops MCP repository wiring', () => {
     expect(launcher).toMatch(/'--environment',\s*'prod'/u);
     expect(launcher).toContain("'apps/control-center/src/server/mcp/stdio.ts'");
   });
+
+  it('keeps production ops runbooks on the merged environment runner', async () => {
+    const runbooks = [
+      'apps/control-center/AGENTS.md',
+      'apps/control-center/README.md',
+      'apps/control-center/MCP.md',
+      'apps/control-center/OPERATOR.md',
+      'docs/operations/autonomous-engineering-loop.md',
+      'docs/operations/coverage-review.md',
+    ];
+    const contents = await Promise.all(
+      runbooks.map(async (file) => ({
+        file,
+        text: await readFile(path.join(repoRoot, file), 'utf8'),
+      })),
+    );
+
+    for (const { file, text } of contents) {
+      expect(text, file).not.toMatch(/^\s*infisical run --env=prod --/mu);
+    }
+
+    for (const file of [
+      'apps/control-center/AGENTS.md',
+      'apps/control-center/README.md',
+      'docs/operations/coverage-review.md',
+    ]) {
+      expect(
+        contents.find((entry) => entry.file === file)?.text,
+        file,
+      ).toContain('node scripts/env/run.mjs --environment prod --');
+    }
+  });
 });
 
 interface McpConfig {

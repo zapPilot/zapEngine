@@ -11,7 +11,8 @@ const CRITICAL_AFTER_MS = 3 * OPS_OPERATOR_CADENCE_MS;
 
 // Interpolated rather than written out so the sentence an operator reads cannot
 // contradict the thresholds it is explaining.
-const CADENCE_SENTENCE = `the workflow is scheduled every ${OPS_OPERATOR_CADENCE_MS / 60_000} minutes`;
+const EXPECTED_CADENCE_MINUTES = OPS_OPERATOR_CADENCE_MS / 60_000;
+const CADENCE_SENTENCE = `the workflow is scheduled every ${EXPECTED_CADENCE_MINUTES} minutes`;
 
 const COMMON = {
   source: 'github-actions',
@@ -65,6 +66,8 @@ export async function collectOperatorHeartbeatSignal(
     );
   }
 
+  // sourceSha and runId are diagnostic correlation only, never verdict inputs.
+  // Which SHA defines authoritative execution identity remains unresolved.
   const heartbeatAt = Date.parse(heartbeat.observedAt);
   if (!Number.isFinite(heartbeatAt)) {
     return buildSignal({
@@ -79,6 +82,9 @@ export async function collectOperatorHeartbeatSignal(
         actor: heartbeat.actor,
         state: heartbeat.state,
         failureStreak: heartbeat.failureStreak,
+        cadenceMinutes: heartbeat.cadenceMinutes ?? null,
+        sourceSha: heartbeat.sourceSha ?? null,
+        runId: heartbeat.runId ?? null,
       },
       observedAt: now,
     });
@@ -95,6 +101,9 @@ export async function collectOperatorHeartbeatSignal(
       actor: heartbeat.actor,
       state: heartbeat.state,
       failureStreak: heartbeat.failureStreak,
+      cadenceMinutes: heartbeat.cadenceMinutes ?? null,
+      sourceSha: heartbeat.sourceSha ?? null,
+      runId: heartbeat.runId ?? null,
     },
     observedAt: now,
   };
@@ -135,6 +144,27 @@ export async function collectOperatorHeartbeatSignal(
       status: 'degraded',
       title: 'ops-operator is retrying after a failed cycle',
       detail: `A new cycle started ${ageMinutes}m ago after the previous cycle failed.`,
+    });
+  }
+
+  if (
+    heartbeat.cadenceMinutes === null ||
+    heartbeat.cadenceMinutes === undefined
+  ) {
+    return buildSignal({
+      ...common,
+      status: 'degraded',
+      title: 'ops-operator heartbeat cadence provenance is missing',
+      detail: `Latest heartbeat does not record the schedule cadence that produced it; ${CADENCE_SENTENCE}.`,
+    });
+  }
+
+  if (heartbeat.cadenceMinutes !== EXPECTED_CADENCE_MINUTES) {
+    return buildSignal({
+      ...common,
+      status: 'degraded',
+      title: 'ops-operator heartbeat comes from a different schedule',
+      detail: `Latest heartbeat was produced with a ${heartbeat.cadenceMinutes}-minute cadence, but ${CADENCE_SENTENCE}.`,
     });
   }
 

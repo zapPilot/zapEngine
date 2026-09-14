@@ -58,6 +58,23 @@ describe('resolveWebAsset', () => {
     ).toEqual({ status: 403 });
   });
 
+  it('rejects a path resolver result outside the normalized web root', () => {
+    const resolvedPaths = [
+      WEB_ROOT,
+      `${WEB_ROOT}${sep}index.html`,
+      `${sep}srv${sep}private${sep}secrets.txt`,
+    ];
+
+    expect(
+      resolveWebAsset(
+        WEB_ROOT,
+        '/secrets.txt',
+        fakeFs([]),
+        () => resolvedPaths.shift()!,
+      ),
+    ).toEqual({ status: 403 });
+  });
+
   it('treats trailing-separator and canonical web roots equivalently', () => {
     const rootWithTrailingSeparator = `${WEB_ROOT}${sep}`;
     const fs = fakeFs([`${WEB_ROOT}${sep}app.js`]);
@@ -65,6 +82,19 @@ describe('resolveWebAsset', () => {
     expect(resolveWebAsset(rootWithTrailingSeparator, '/app.js', fs)).toEqual({
       filePath: `${WEB_ROOT}${sep}app.js`,
     });
+  });
+
+  it('keeps a resolver-emitted trailing separator as the root prefix', () => {
+    const resolvedPaths = [
+      `${WEB_ROOT}${sep}`,
+      `${WEB_ROOT}${sep}index.html`,
+      `${WEB_ROOT}${sep}app.js`,
+    ];
+    const fs = fakeFs([`${WEB_ROOT}${sep}app.js`]);
+
+    expect(
+      resolveWebAsset(WEB_ROOT, '/app.js', fs, () => resolvedPaths.shift()!),
+    ).toEqual({ filePath: `${WEB_ROOT}${sep}app.js` });
   });
 
   it('rejects undecodable percent-encoding with 400', () => {

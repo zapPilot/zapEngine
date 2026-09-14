@@ -4,14 +4,19 @@ runbook.
 
 # Gotchas
 
-- **Production ops reads require the production Infisical environment.** When
-  running Control Center / ops commands directly from a shell, use
-  `infisical run --env=prod -- pnpm ops --status --json` (and the analogous
-  prefix for other direct ops commands). A bare local `pnpm ops --status` can
-  run without the production provider credentials and make Fly, Sentry,
-  PostHog, or backlog access appear `unconfigured`; do not treat that result as
-  production truth. The repository MCP launcher already selects prod itself via
-  `scripts/env/run.mjs --environment prod`.
+- **Production ops reads require the repository's merged production environment.**
+  Prefer the `zap-pilot-ops` MCP. For a direct shell read, use
+  `node scripts/env/run.mjs --environment prod -- pnpm --filter @zapengine/control-center ops:status --json --force`.
+  Do **not** substitute bare `infisical run --env=prod -- ...`: Infisical injects
+  secrets but omits committed non-secret production values from
+  `config/env/prod.env`/the env manifest, which can make configured Sentry,
+  PostHog, or other providers appear `unconfigured`. A bare local command can
+  likewise report configuration state instead of production truth. The MCP
+  launcher already selects the canonical production rail itself.
+- **A green rollup is not complete coverage.** Read
+  `../../docs/operations/coverage-review.md` before claiming broad production
+  health from `ops_status`: no Sentry errors, a successful workflow, a non-overdue
+  queue, or a healthy cost provider each prove only one dimension.
 - **This is a read-only, lifecycle-independent UI.** A dashboard port failure
   must never stop publishing, metrics, or ingest — keep it that way. The one
   exception is the nightly `ops:sync` cron (`src/server/sync.ts`), which

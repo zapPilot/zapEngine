@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { opsRuntimeRecordSchema } from '@zapengine/types/shared';
 import type { ControlCenterConfig } from '../../../config/env.js';
+import { OPS_OPERATOR_CADENCE_MS } from '../schedule-interval.js';
 import { createConfiguredServiceRoleClient } from '../../supabase.js';
 
 const operatorHeartbeatSchema = z
@@ -9,6 +10,9 @@ const operatorHeartbeatSchema = z
     actor: z.string().min(1),
     state: z.enum(['running', 'succeeded', 'failed']),
     failureStreak: z.number().int().nonnegative(),
+    cadenceMinutes: z.number().int().positive().nullish(),
+    sourceSha: z.string().min(1).nullish(),
+    runId: z.string().min(1).nullish(),
   })
   .nullable();
 
@@ -50,10 +54,32 @@ export function createOperatorStore(config: ControlCenterConfig) {
   return {
     rpc,
     async recordHeartbeat(actor: string, state: OperatorHeartbeatState) {
-      await rpc('ops_record_operator_heartbeat', {
+      const provenance = {
         p_actor: actor,
         p_state: state,
-      });
+        p_cadence_minutes: Math.round(OPS_OPERATOR_CADENCE_MS / 60_000),
+        p_source_sha: process.env['GITHUB_SHA']?.trim() || null,
+        p_run_id: process.env['GITHUB_RUN_ID']?.trim() || null,
+      };
+      try {
+        await rpc('ops_record_operator_heartbeat_v2', provenance);
+      } catch (error) {
+        // Keep the application rail-safe while the additive migration reaches
+        // Supabase. The old function still records liveness, but the reader
+        // will deliberately mark that heartbeat as lacking cadence provenance.
+        if (
+          error instanceof Error &&
+          /ops_record_operator_heartbeat_v2/i.test(error.message) &&
+          /(schema cache|could not find|does not exist)/i.test(error.message)
+        ) {
+          await rpc('ops_record_operator_heartbeat', {
+            p_actor: actor,
+            p_state: state,
+          });
+          return;
+        }
+        throw error;
+      }
     },
     async heartbeat() {
       return operatorHeartbeatSchema.parse(await rpc('ops_operator_heartbeat'));

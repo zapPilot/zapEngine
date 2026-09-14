@@ -11,13 +11,6 @@ const ORIGIN = { source: 'github-actions', domain: 'jobs' } as const;
 const REPO = 'zapPilot/zapEngine';
 const RUNS_PER_PAGE = 100;
 const FAILURE_WINDOW_MS = 7 * 24 * githubRun.GITHUB_HOUR_MS;
-const FAILURE_CONCLUSIONS = new Set([
-  'action_required',
-  'failure',
-  'stale',
-  'startup_failure',
-  'timed_out',
-]);
 const RECENT_OPERATIONAL_EVENTS = new Set([
   'push',
   'release',
@@ -102,7 +95,12 @@ export async function collectRecentGithubFailureSignals(
       );
 
     return [...groupByWorkflow(runs).values()].flatMap((workflowRuns) => {
-      const latest = workflowRuns[0];
+      // workflow_run wrappers are created for every upstream completion, even
+      // when this workflow's job-level `if` rejects that upstream run. GitHub
+      // records those wrappers as `skipped`. They are not a recovery signal:
+      // only an actual success can clear an older operational failure.
+      const decisiveRuns = workflowRuns.filter(isDecisiveRun);
+      const latest = decisiveRuns[0];
       if (
         !latest ||
         latest.event === 'schedule' ||
@@ -113,7 +111,7 @@ export async function collectRecentGithubFailureSignals(
         return [];
       }
 
-      return [buildRecentFailureSignal(latest, workflowRuns, input.now)];
+      return [buildRecentFailureSignal(latest, decisiveRuns, input.now)];
     });
   } catch (error) {
     return [
@@ -214,6 +212,10 @@ function failureStreak(runs: readonly RecentRun[]): number {
   return githubRun.consecutiveCount(runs, isFailure);
 }
 
+function isDecisiveRun(run: RecentRun): boolean {
+  return run.conclusion === 'success' || isFailure(run);
+}
+
 function isFailure(run: RecentRun): boolean {
-  return run.conclusion !== null && FAILURE_CONCLUSIONS.has(run.conclusion);
+  return githubRun.isGithubOperationalFailure(run.conclusion);
 }

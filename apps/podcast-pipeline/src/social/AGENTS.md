@@ -117,3 +117,9 @@ Any change to the fixed mapping, the coverage rule, the back-catalogue fence,
 the durable-lane rule, or the one-article/one-timestamp transaction boundary
 requires an explicit product decision plus updates to this file,
 `src/social/README.md`, and the executable contract tests.
+
+The `social_waiting_media` view also exposes waiting age, render progress,
+attempts, leases, and visual versions. Consumers must not interpret every
+nonempty result as media merely catching up: terminal or unclaimable producers
+need operator intervention. The view supplies facts; shared TypeScript retry
+eligibility owns the version policy.

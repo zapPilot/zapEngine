@@ -455,3 +455,9 @@ neighbouring article's title, with original publication times and matching local
 links. These are historical records, not scheduled reposts; missing links and
 telemetry are labelled explicitly. History display failures are nonfatal and
 never prevent the publishing loop from starting.
+
+The `social_waiting_media` view also exposes waiting age, render progress,
+attempts, leases, and visual versions. Consumers must not interpret every
+nonempty result as media merely catching up: terminal or unclaimable producers
+need operator intervention. The view supplies facts; shared TypeScript retry
+eligibility owns the version policy.

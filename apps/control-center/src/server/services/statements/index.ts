@@ -54,7 +54,11 @@ export function createStatementsService(input: {
       : createMetricSnapshotRepository(input.config);
 
   async function getStatements(force = false): Promise<StatementsResponse> {
-    const nowDate = now();
+    // Metric history needs an anchor before the fan-out. Narrative freshness,
+    // however, must be measured after the async reads complete: several source
+    // services stamp `generatedAt` during that fan-out, so using the earlier
+    // timestamp can make freshly generated data appear to come from the future.
+    const metricNow = now();
     const [
       operations,
       overview,
@@ -74,8 +78,10 @@ export function createStatementsService(input: {
       input.operations.getSocial(force),
       input.podcastPipeline.getPipeline(),
       input.podcastCosts.getPodcastCosts(),
-      loadMetricSeries(metricSnapshots, nowDate),
+      loadMetricSeries(metricSnapshots, metricNow),
     ]);
+
+    const nowDate = now();
 
     return buildStatements({
       now: nowDate,
