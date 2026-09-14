@@ -7,6 +7,11 @@ allowed to discover an active render by signalling it.
 
 ## Normal code deploy / environment apply
 
+A `main` push deploys only the apps whose image inputs changed, so a merge that
+does not touch `apps/podcast-pipeline/**`, `packages/**` or the root workspace
+files never enters this drain at all. Merges that do touch them still pay the
+full drain below.
+
 Both `.github/workflows/deploy-fly.yml` and the `podcast-pipeline` lane of
 `.github/workflows/env-apply.yml` use the same DB-backed gate:
 
@@ -73,9 +78,11 @@ not before the compatibility window closes.
 
 ## Cost semantics
 
-`retryWasteUsd` is retained temporarily as a JSON compatibility alias, but it is
-**failed-attempt cost**: priced stages attached to a failed parent run. The UI no
-longer calls it confirmed waste.
+`/api/costs/podcast` reports **failed-attempt cost** (`failedAttemptCostUsd`):
+priced stages attached to a failed parent run, whatever the stage itself did.
+The `retryWasteUsd` alias has been removed rather than deprecated — a consumer
+still reading it would keep republishing failed-parent spend as proven waste.
+The daily metric key is `failed_attempt_share`.
 
 New render/shared-visual claims receive durable `execution_id` and
 `previous_execution_id` values. New stage rows are enriched with a stable
@@ -84,6 +91,11 @@ an earlier priced execution counts only when a later `executed` successor points
 to it and has the exact same work key. Historical rows are not guessed into
 lineage. Missing lineage, unpriced stages, and missing failure reasons remain
 explicit unknowns.
+
+Lineage is recorded for render stages only, so an ingest retry can never appear
+as confirmed waste. The dashboard renders that honestly: `null` shows as
+`Unknown` rather than `$0.00`, and a total assembled from partial evidence shows
+as `≥ $x` rather than an exact figure.
 
 Future interrupted-attempt attribution uses runtime evidence (`shutdown` or
 `deploy_shutdown`) rather than attempt counters. `deploy_shutdown` is only

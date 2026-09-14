@@ -12,6 +12,7 @@ import type {
   OverviewResponse,
   PodcastCostResponse,
 } from '../../shared/types.js';
+import { podcastEpisodeCostFixture } from '../__fixtures__/dashboard.js';
 import { TodayPage } from './TodayPage.js';
 
 afterEach(cleanup);
@@ -92,21 +93,7 @@ const overview = {
 } as OverviewResponse;
 
 const podcastCosts: PodcastCostResponse = {
-  episodes: [
-    {
-      breakdown: [],
-      episodeId: 'episode-1',
-      failedRuns: 1,
-      lastRunAt: '2026-09-10T00:30:00Z',
-      podcastCostUsd: 7,
-      retryWasteUsd: 1,
-      runCount: 2,
-      title: 'The latest release',
-      totalCostUsd: 10,
-      unpricedStages: 0,
-      videoCostUsd: 3,
-    },
-  ],
+  episodes: [podcastEpisodeCostFixture()],
   generatedAt: '2026-09-10T01:00:00Z',
   message: null,
   status: 'ok',

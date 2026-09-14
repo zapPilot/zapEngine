@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import type { PodcastCostResponse } from '../shared/types.js';
+import { podcastEpisodeCostFixture } from './__fixtures__/dashboard.js';
 import {
   destinationFor,
-  retryWaste,
+  evidenceAmountText,
+  failedAttemptCost,
+  failedAttemptShareStat,
   sourceLabel,
   statusText,
 } from './operator-model.js';
@@ -17,31 +20,86 @@ function costs(episodes: PodcastCostResponse['episodes']): PodcastCostResponse {
   };
 }
 
-describe('retryWaste', () => {
+describe('failedAttemptCost', () => {
   it('returns nulls when the ledger is unavailable or empty', () => {
-    expect(retryWaste(null)).toEqual({ rate: null, wasteUsd: null });
-    expect(retryWaste({ ...costs([]), status: 'error' })).toEqual({
-      rate: null,
-      wasteUsd: null,
+    expect(failedAttemptCost(null)).toEqual({ share: null, costUsd: null });
+    expect(failedAttemptCost({ ...costs([]), status: 'error' })).toEqual({
+      share: null,
+      costUsd: null,
     });
-    expect(retryWaste(costs([]))).toEqual({ rate: null, wasteUsd: null });
+    expect(failedAttemptCost(costs([]))).toEqual({
+      share: null,
+      costUsd: null,
+    });
   });
 
-  it('shares waste across all spend, never zero by default', () => {
+  it('shares failed-attempt spend across all episode spend', () => {
     expect(
-      retryWaste(
+      failedAttemptCost(
         costs([
-          { totalCostUsd: 10, retryWasteUsd: 2 },
-          { totalCostUsd: 30, retryWasteUsd: 3 },
-        ] as never),
+          podcastEpisodeCostFixture({
+            totalCostUsd: 10,
+            failedAttemptCostUsd: 2,
+          }),
+          podcastEpisodeCostFixture({
+            totalCostUsd: 30,
+            failedAttemptCostUsd: 3,
+          }),
+        ]),
       ),
-    ).toEqual({ rate: 0.125, wasteUsd: 5 });
+    ).toEqual({ share: 0.125, costUsd: 5 });
   });
 
-  it('reports an honest zero only when spend exists without waste', () => {
+  it('refuses to call a share of zero spend 0%', () => {
     expect(
-      retryWaste(costs([{ totalCostUsd: 0, retryWasteUsd: 0 }] as never)),
-    ).toEqual({ rate: 0, wasteUsd: 0 });
+      failedAttemptCost(
+        costs([
+          podcastEpisodeCostFixture({
+            totalCostUsd: 0,
+            failedAttemptCostUsd: 0,
+          }),
+        ]),
+      ),
+    ).toEqual({ share: null, costUsd: 0 });
+  });
+});
+
+describe('failedAttemptShareStat', () => {
+  it('names the ledger failure instead of implying no failed attempts', () => {
+    expect(
+      failedAttemptShareStat({
+        ...costs([]),
+        message: 'relation does not exist',
+        status: 'error',
+      }),
+    ).toEqual({
+      caption: 'relation does not exist',
+      tone: 'neutral',
+      value: '—',
+    });
+  });
+
+  it('flags a share above the danger threshold', () => {
+    const stat = failedAttemptShareStat(
+      costs([
+        podcastEpisodeCostFixture({
+          totalCostUsd: 10,
+          failedAttemptCostUsd: 2,
+        }),
+      ]),
+    );
+    expect(stat.tone).toBe('danger');
+    expect(stat.value).toBe('20.0%');
+    expect(stat.caption).toBe('$2.00 spent on attempts whose run failed');
+  });
+});
+
+describe('evidenceAmountText', () => {
+  it('separates unknown evidence from a measured zero', () => {
+    expect(evidenceAmountText({ usd: null, lowerBound: true })).toBe('Unknown');
+    expect(evidenceAmountText({ usd: 0, lowerBound: true })).toBe('≥ $0.00');
+    expect(evidenceAmountText({ usd: 0, lowerBound: false })).toBe('$0.00');
+    expect(evidenceAmountText({ usd: 1.5, lowerBound: false })).toBe('$1.50');
   });
 });
 

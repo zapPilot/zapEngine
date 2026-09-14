@@ -1,3 +1,4 @@
+import { podcastCostEvidenceTotals } from '../../shared/podcast-cost-evidence.js';
 import type { ControlCenterConfig } from '../config/env.js';
 import {
   createMetricSnapshotRepository,
@@ -65,16 +66,10 @@ export async function syncMetricSnapshots(input: {
     (episode) => episode.currentPhase !== 'done',
   ).length;
   const priced = costsResponse.episodes;
-  const totalCost = priced.reduce(
-    (sum, episode) => sum + episode.totalCostUsd,
-    0,
-  );
-  const totalRetryWaste = priced.reduce(
-    (sum, episode) => sum + episode.retryWasteUsd,
-    0,
-  );
-  const avgEpisodeCost = priced.length ? totalCost / priced.length : null;
-  const retryShare = totalCost > 0 ? totalRetryWaste / totalCost : null;
+  const evidence = podcastCostEvidenceTotals(priced);
+  const avgEpisodeCost = priced.length
+    ? evidence.totalCostUsd / priced.length
+    : null;
 
   const values: Record<string, number | null> = {
     active_portfolios_7d: product.activePortfolios7d,
@@ -90,7 +85,7 @@ export async function syncMetricSnapshots(input: {
     usage_run_rate_usd: overviewResponse.projectedCostUsd,
     episodes_in_production: inProduction,
     avg_episode_cost_usd: avgEpisodeCost,
-    retry_share: retryShare,
+    failed_attempt_share: evidence.failedAttemptShare,
   };
   for (const platform of socialGrowthResponse.platforms) {
     values[`followers_${platform.platform}`] = platform.followersNow;

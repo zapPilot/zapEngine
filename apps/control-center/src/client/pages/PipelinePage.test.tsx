@@ -5,10 +5,20 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import type { PipelineQueuesResponse } from '../../shared/pipeline-queues.js';
-import type { PodcastCostResponse } from '../../shared/types.js';
+import type {
+  PodcastCostResponse,
+  PodcastEpisodeCostSummary,
+} from '../../shared/types.js';
+import { podcastEpisodeCostFixture } from '../__fixtures__/dashboard.js';
 import { PipelineSummary } from './PipelinePage.js';
 
 afterEach(cleanup);
+
+function statFor(label: string): HTMLElement {
+  const stat = screen.getByText(label).closest('.cc-stat');
+  expect(stat).not.toBeNull();
+  return stat as HTMLElement;
+}
 
 const emptyLane = { attention: [], processing: [], queued: [] };
 
@@ -57,26 +67,23 @@ const socialJob = {
   title: 'An episode being published',
 };
 
-const podcastCosts: PodcastCostResponse = {
-  episodes: [
-    {
-      breakdown: [],
-      episodeId: 'ep-1',
-      failedRuns: 1,
-      lastRunAt: '2026-09-10T00:30:00Z',
-      podcastCostUsd: 7,
-      retryWasteUsd: 2,
-      runCount: 2,
-      title: 'Costly episode',
-      totalCostUsd: 10,
-      unpricedStages: 0,
-      videoCostUsd: 3,
-    },
-  ],
-  generatedAt: '2026-09-10T01:00:00Z',
-  message: null,
-  status: 'ok',
-};
+function podcastCosts(
+  episode: Partial<PodcastEpisodeCostSummary> = {},
+): PodcastCostResponse {
+  return {
+    episodes: [
+      podcastEpisodeCostFixture({
+        episodeId: 'ep-1',
+        title: 'Costly episode',
+        failedAttemptCostUsd: 2,
+        ...episode,
+      }),
+    ],
+    generatedAt: '2026-09-10T01:00:00Z',
+    message: null,
+    status: 'ok',
+  };
+}
 
 describe('Pipeline stage map', () => {
   it('counts work in flight per stage', () => {
@@ -145,11 +152,94 @@ describe('Pipeline stage map', () => {
   });
 });
 
-describe('Pipeline retry waste', () => {
-  it('ranks the episodes carrying the sunk cost', () => {
-    render(<PipelineSummary podcastCosts={podcastCosts} queues={queues()} />);
+describe('Pipeline failed-attempt cost', () => {
+  it('ranks the episodes carrying the failed-attempt cost', () => {
+    render(<PipelineSummary podcastCosts={podcastCosts()} queues={queues()} />);
     expect(screen.getByText('20.0%')).toBeVisible();
     expect(screen.getByText('Costly episode')).toBeVisible();
+  });
+
+  // The card used to call this "重試浪費 / Retry share / Sunk cost", which
+  // asserts a rerun the ledger never recorded. The wording is the fix, so it is
+  // what the test holds.
+  it('names failed attempts rather than proven retries', () => {
+    render(<PipelineSummary podcastCosts={podcastCosts()} queues={queues()} />);
+
+    expect(screen.getByText('失敗嘗試成本')).toBeVisible();
+    expect(screen.getByText('Failed-attempt share')).toBeVisible();
+    expect(screen.getByText('Failed-attempt cost')).toBeVisible();
+    expect(screen.getByText('Confirmed retry waste')).toBeVisible();
+    expect(screen.getByText('Interrupted attempts')).toBeVisible();
+    expect(
+      screen.getByText('of all episode spend (podcast + video)'),
+    ).toBeVisible();
+    expect(screen.queryByText('重試浪費')).toBeNull();
+    expect(screen.queryByText('Retry share')).toBeNull();
+    expect(screen.queryByText('Sunk cost')).toBeNull();
+  });
+
+  it('shows unknown, never $0.00, where no lineage was recorded', () => {
+    render(<PipelineSummary podcastCosts={podcastCosts()} queues={queues()} />);
+
+    const stat = statFor('Confirmed retry waste');
+    expect(within(stat).getByText('Unknown')).toBeVisible();
+    expect(within(stat).queryByText('$0.00')).toBeNull();
+    expect(
+      screen.getByText('No render lineage recorded for these episodes'),
+    ).toBeVisible();
+  });
+
+  it('reads partial lineage as a floor and names the gap', () => {
+    render(
+      <PipelineSummary
+        podcastCosts={podcastCosts({
+          confirmedRetryWasteUsd: 0,
+          confirmedRetryWasteIsLowerBound: true,
+          unknownLineageStages: 3,
+        })}
+        queues={queues()}
+      />,
+    );
+
+    expect(screen.getByText('≥ $0.00')).toBeVisible();
+    expect(
+      screen.getByText('3 priced render stages predate lineage'),
+    ).toBeVisible();
+  });
+
+  it('states an exact figure once lineage is complete', () => {
+    render(
+      <PipelineSummary
+        podcastCosts={podcastCosts({
+          confirmedRetryWasteUsd: 0.02,
+          confirmedRetryWasteIsLowerBound: false,
+        })}
+        queues={queues()}
+      />,
+    );
+
+    expect(screen.getByText('$0.02')).toBeVisible();
+    expect(
+      screen.getByText('Every priced render stage has lineage'),
+    ).toBeVisible();
+  });
+
+  it('cannot claim zero interruption while failure reasons are missing', () => {
+    render(
+      <PipelineSummary
+        podcastCosts={podcastCosts({
+          interruptedAttemptCostUsd: null,
+          unknownFailureReasonStages: 4,
+        })}
+        queues={queues()}
+      />,
+    );
+
+    const stat = statFor('Interrupted attempts');
+    expect(within(stat).getByText('Unknown')).toBeVisible();
+    expect(
+      screen.getByText('4 failed stages carry no failure reason'),
+    ).toBeVisible();
   });
 
   it('names the ledger failure instead of showing zero', () => {

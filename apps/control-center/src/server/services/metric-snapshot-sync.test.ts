@@ -26,7 +26,7 @@ const state = vi.hoisted(() => ({
   pipeline: {
     episodes: [{ currentPhase: 'render' }, { currentPhase: 'done' }],
   },
-  costs: { episodes: [{ totalCostUsd: 10, retryWasteUsd: 1 }] },
+  costs: { episodes: [{ totalCostUsd: 10, failedAttemptCostUsd: 1 }] },
   failKeys: [] as string[],
 }));
 
@@ -77,7 +77,7 @@ function defaults() {
     pipeline: {
       episodes: [{ currentPhase: 'render' }, { currentPhase: 'done' }],
     },
-    costs: { episodes: [{ totalCostUsd: 10, retryWasteUsd: 1 }] },
+    costs: { episodes: [{ totalCostUsd: 10, failedAttemptCostUsd: 1 }] },
     failKeys: [] as string[],
   };
 }
@@ -108,7 +108,7 @@ describe('syncMetricSnapshots', () => {
     });
 
     // 9 product + healthy_domains + run-rate + in-production + avg cost +
-    // retry share + one platform lane.
+    // failed-attempt share + one platform lane.
     expect(result.persisted).toBe(15);
     expect(result.skipped).toEqual([]);
     expect(result.syncedAt).toBe(NOW.toISOString());
@@ -126,7 +126,7 @@ describe('syncMetricSnapshots', () => {
       fetchedAt: NOW.toISOString(),
     });
     expect(upsert).toHaveBeenCalledWith({
-      metricKey: 'retry_share',
+      metricKey: 'failed_attempt_share',
       date: '2026-09-17',
       value: 0.1,
       fetchedAt: NOW.toISOString(),

@@ -409,19 +409,74 @@ describe('ruleR10', () => {
     expect(sentence(finding)).toContain('(stuck at download for 42m).');
   });
 
-  it('reports average cost and retry share once episodes are priced', () => {
+  it('reports average cost and failed-attempt share once episodes are priced', () => {
     const finding = ruleR10({
       now: NOW,
       podcastPipeline: { episodes: [] },
       podcastCosts: {
-        episodes: [{ totalCostUsd: 10, runCount: 2, retryWasteUsd: 1 }],
+        episodes: [
+          {
+            totalCostUsd: 10,
+            runCount: 2,
+            failedAttemptCostUsd: 1,
+            confirmedRetryWasteUsd: null,
+            confirmedRetryWasteIsLowerBound: true,
+          },
+        ],
       },
       metricSeries: new Map(),
     } as unknown as StatementInputs);
 
     expect(finding.value).toBe('$10.00');
     expect(sentence(finding)).toContain('Average episode $10.00');
-    expect(sentence(finding)).toContain('retries are 10% of that.');
+    expect(sentence(finding)).toContain('failed attempts are 10% of that');
+    expect(sentence(finding)).toContain(
+      'confirmed retry waste unknown (no render lineage).',
+    );
+  });
+
+  it('marks partial lineage as a floor rather than an exact figure', () => {
+    const finding = ruleR10({
+      now: NOW,
+      podcastPipeline: { episodes: [] },
+      podcastCosts: {
+        episodes: [
+          {
+            totalCostUsd: 10,
+            runCount: 2,
+            failedAttemptCostUsd: 1,
+            confirmedRetryWasteUsd: 0.25,
+            confirmedRetryWasteIsLowerBound: true,
+          },
+        ],
+      },
+      metricSeries: new Map(),
+    } as unknown as StatementInputs);
+
+    expect(sentence(finding)).toContain(
+      'confirmed retry waste at least $0.25.',
+    );
+  });
+
+  it('states an exact figure once every priced render stage has lineage', () => {
+    const finding = ruleR10({
+      now: NOW,
+      podcastPipeline: { episodes: [] },
+      podcastCosts: {
+        episodes: [
+          {
+            totalCostUsd: 10,
+            runCount: 2,
+            failedAttemptCostUsd: 1,
+            confirmedRetryWasteUsd: 0.25,
+            confirmedRetryWasteIsLowerBound: false,
+          },
+        ],
+      },
+      metricSeries: new Map(),
+    } as unknown as StatementInputs);
+
+    expect(sentence(finding)).toContain('confirmed retry waste $0.25.');
   });
 });
 

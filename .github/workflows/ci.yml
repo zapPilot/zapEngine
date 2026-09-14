@@ -182,6 +182,11 @@ jobs:
   deploy-gates:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # The baseline step reads this workflow's own run history. A job-level block
+    # replaces the workflow default outright, so `contents: read` is repeated.
+    permissions:
+      contents: read
+      actions: read
     outputs:
       deploy_matrix: ${{ steps.resolve.outputs.deploy_matrix }}
       verify_matrix: ${{ steps.resolve.outputs.verify_matrix }}
@@ -197,10 +202,31 @@ jobs:
       - name: Assert schedules match .github/schedules.json
         run: bash scripts/check-schedules-registry.sh
 
+      - name: Lock deploy-matrix and deploy-baseline semantics
+        run: |
+          bash scripts/resolve-deploy-matrix.test.sh
+          bash scripts/resolve-deploy-baseline.test.sh
+
+      # A main push deploys only the apps whose inputs changed, so the diff base
+      # decides what ships. `github.event.before` is the wrong base: pending
+      # runs get cancelled when the next push queues, and everything those runs
+      # would have deployed would be silently skipped. The last successful run
+      # is where the fleet actually is.
+      - name: Resolve deploy baseline
+        id: baseline
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/resolve-deploy-baseline.sh
+
       - uses: dorny/paths-filter@v3
         id: filter
         if: github.event_name != 'workflow_dispatch'
         with:
+          # Empty on a pull_request (the step above is skipped), which leaves
+          # paths-filter on its own PR-base behaviour.
+          base: ${{ steps.baseline.outputs.base_sha }}
+          ref: ${{ github.sha }}
           filters: |
             account-engine:
               - 'apps/account-engine/**'

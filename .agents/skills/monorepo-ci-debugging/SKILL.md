@@ -13,17 +13,17 @@ drifts.
 
 ## CI job → local parity
 
-| GitHub job          | Local parity                                                                                                                         |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `quick-gates`       | `bash scripts/verify-jobs.sh format repo contracts`                                                                                  |
-| `code-quality`      | `bash scripts/verify-jobs.sh type-check lint deadcode dup`                                                                           |
-| `tests`             | `bash scripts/verify-jobs.sh test analytics`                                                                                         |
-| `e2e`               | `bash scripts/verify-jobs.sh e2e` → **app-playwright-ci-debugging**                                                                  |
-| `security`          | `pnpm run security audit` → **monorepo-security-audit**                                                                              |
-| `deploy-gates`      | `bash scripts/check-dispatch-registry-drift.sh`; `bash scripts/resolve-deploy-matrix.test.sh` (deploy_matrix / verify_matrix parity) |
-| `ios-release-smoke` | `pnpm turbo run test:ios:release-smoke --filter=@zapengine/app` (macOS)                                                              |
-| `check-dead-env`    | `pnpm lint dead-env` → **env-drift-ci-debugging**                                                                                    |
-| `coverage`          | `pnpm run coverage test && pnpm run coverage summary`                                                                                |
+| GitHub job          | Local parity                                                                                                                                  |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `quick-gates`       | `bash scripts/verify-jobs.sh format repo contracts`                                                                                           |
+| `code-quality`      | `bash scripts/verify-jobs.sh type-check lint deadcode dup`                                                                                    |
+| `tests`             | `bash scripts/verify-jobs.sh test analytics`                                                                                                  |
+| `e2e`               | `bash scripts/verify-jobs.sh e2e` → **app-playwright-ci-debugging**                                                                           |
+| `security`          | `pnpm run security audit` → **monorepo-security-audit**                                                                                       |
+| `deploy-gates`      | `bash scripts/check-dispatch-registry-drift.sh`; `bash scripts/resolve-deploy-matrix.test.sh`; `bash scripts/resolve-deploy-baseline.test.sh` |
+| `ios-release-smoke` | `pnpm turbo run test:ios:release-smoke --filter=@zapengine/app` (macOS)                                                                       |
+| `check-dead-env`    | `pnpm lint dead-env` → **env-drift-ci-debugging**                                                                                             |
+| `coverage`          | `pnpm run coverage test && pnpm run coverage summary`                                                                                         |
 
 `pnpm verify ci` / `pnpm verify parallel` cover only `quick-gates`,
 `code-quality`, `tests`, and `e2e`. Security, coverage, dead-env, deploy/Docker,
@@ -69,8 +69,12 @@ gh run view <run-id> --log-failed
   a JSON `extends` target. New TypeScript workspaces must use `knip.ts` with
   `defineKnipConfig` from `@zapengine/knip-config/base`; keep framework/MDX-only
   entries explicit and narrow instead of adding blanket deadcode ignores.
-- **Fly deploy/verify matrix:** `deploy-gates` outputs `deploy_matrix` / `verify_matrix` (not `fly_*`). `pull_request` → `deploy=[]` + `verify=changed where verify_docker`; `push:refs/heads/main` → `deploy=ALL` (ignores `PATHS_CHANGES`) + `verify=[]`; `workflow_dispatch` → `deploy=requested` + `verify=[]`; non-main `push` → both `[]`. `paths-filter` still runs on `main` push for `app_ios` only. `scripts/resolve-deploy-matrix.test.sh` locks these 9 cases + full-object shape (`app/fly_config/secret_name/verify_package_script/verify_docker/capture_release_metadata`).
-- **CI fleet converge:** top-level concurrency is `ci-${{ github.ref }}-${{ github.event_name }}` with `cancel-in-progress` on `push` or PR — latest `main` push cancels the previous `main` run so fleet converges to `main HEAD`. Per-app `deploy-fly` concurrency is only second-layer.
+- **Fly deploy/verify matrix:** `deploy-gates` outputs `deploy_matrix` / `verify_matrix` (not `fly_*`). `pull_request` → `deploy=[]` + `verify=changed where verify_docker`; `push:refs/heads/main` → `deploy=changed apps` + `verify=[]`; `workflow_dispatch` → `deploy=requested` + `verify=[]`; non-main `push` → both `[]`. A malformed `PATHS_CHANGES` exits 1 rather than resolving to `[]`. `scripts/resolve-deploy-matrix.test.sh` locks every case + full-object shape (`app/fly_config/secret_name/verify_package_script/verify_docker/capture_release_metadata`).
+- **CI fleet converge:** top-level concurrency is `ci-${{ github.ref }}-${{ github.event_name }}` with `cancel-in-progress` only for PR refs. A `main` push therefore never cancels a running `main` run; it waits in the single pending slot, and a newer push evicts whatever is pending. Convergence comes from the diff base instead: `scripts/resolve-deploy-baseline.sh` asks the API for the last _successful_ `main` push run and `paths-filter` diffs `that SHA..github.sha`, so commits whose run was evicted or failed are still covered by the next push. Consequences: a failed deploy retries on the next push to `main`; if there is no next push, converge with `gh workflow run ci.yml -f deploy_target=all`; and never re-run an old `main` run — the baseline step refuses it rather than rolling the fleet backwards. Per-app `deploy-fly` concurrency is only second-layer.
+- **Deploy machinery is outside the filter:** `paths-filter` matches an app's
+  _image inputs_, so editing `.github/workflows/deploy-fly.yml`,
+  `scripts/fly-deploy.mjs`, or the drain gate deploys nothing by itself. Verify
+  such a change with `gh workflow run ci.yml -f deploy_target=<app>`.
 - **Formatting loops:** follow **monorepo-lint-format-loop** rather than adding
   formatting workarounds here.
 - **iOS cancellation/timeouts:** follow

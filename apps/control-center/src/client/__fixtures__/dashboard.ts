@@ -13,6 +13,7 @@ import {
   OPERATIONS_DOMAINS,
   type OperationsResponse,
   type OverviewResponse,
+  type PodcastEpisodeCostSummary,
   type ProductHealthResponse,
   type RecordedBillSource,
   type SocialPerformanceResponse,
@@ -444,6 +445,37 @@ export function overviewFixture(
     product: productFixture(),
     providers: [],
     social: socialFixture(),
+    ...overrides,
+  };
+}
+
+/**
+ * Every cost-evidence field defaults to the honest "nothing recorded" reading,
+ * so a test that cares about one number does not have to assert the other
+ * seventeen — and cannot accidentally claim lineage it never set up.
+ */
+export function podcastEpisodeCostFixture(
+  overrides: Partial<PodcastEpisodeCostSummary> = {},
+): PodcastEpisodeCostSummary {
+  return {
+    episodeId: 'episode-1',
+    title: 'The latest release',
+    lastRunAt: '2026-09-10T00:30:00Z',
+    totalCostUsd: 10,
+    podcastCostUsd: 7,
+    videoCostUsd: 3,
+    failedAttemptCostUsd: 1,
+    interruptedAttemptCostUsd: null,
+    confirmedDeploymentInterruptionCostUsd: 0,
+    shutdownInterruptionCostUsd: 0,
+    confirmedRetryWasteUsd: null,
+    confirmedRetryWasteIsLowerBound: true,
+    unknownLineageStages: 0,
+    unknownFailureReasonStages: 0,
+    runCount: 2,
+    failedRuns: 1,
+    unpricedStages: 0,
+    breakdown: [],
     ...overrides,
   };
 }
