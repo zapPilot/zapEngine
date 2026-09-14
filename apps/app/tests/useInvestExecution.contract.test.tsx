@@ -395,6 +395,46 @@ describe('InvestExecutionProvider reviewed execution contract', () => {
     });
   });
 
+  it('blocks the next reviewed batch after the current batch fails', async () => {
+    const firstReview = review();
+    const secondReview = review({ batchFingerprint: HASH_C });
+    mocks.waitForReviewedBatch.mockResolvedValueOnce({
+      status: 'failed',
+      reason: 'batch reverted',
+    });
+    const harness = await renderHarness();
+
+    await act(async () => {
+      await harness.current().submitReviewedBatch({
+        plan: PLAN,
+        review: firstReview,
+        queue: [
+          { plan: PLAN, review: firstReview },
+          { plan: PLAN, review: secondReview },
+        ],
+      });
+    });
+    await settle();
+    expect(harness.current().reviewedProgress).toMatchObject({
+      phase: 'failed',
+      groupIndex: 0,
+      statusNote: 'batch reverted',
+    });
+
+    let result: Awaited<
+      ReturnType<InvestExecutionContextValue['submitNextReviewedBatch']>
+    > | null = null;
+    await act(async () => {
+      result = await harness.current().submitNextReviewedBatch();
+    });
+
+    expect(result).toEqual({
+      status: 'blocked',
+      reason: 'The current reviewed batch has not reached its checkpoint.',
+    });
+    expect(mocks.executeReviewedBatch).toHaveBeenCalledOnce();
+  });
+
   it('clears a committed review when the frozen stages change', async () => {
     const harness = await renderHarness();
 
