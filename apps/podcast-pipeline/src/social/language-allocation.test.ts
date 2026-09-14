@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  finalReleaseCohortLanes,
   fixedThreadsReleaseCohortLanes,
   fixedThreadsReleaseCohortLanesForProfile,
+  isFinalLanguagePolicyActive,
   languageRotationProfileForLane,
   languageRotationProfileForSlot,
   languageSwapProfileForSlot,
@@ -23,7 +25,31 @@ function languageByPlatform(date: Date): Record<string, string> {
   );
 }
 
-describe('social language Latin square', () => {
+describe('final social language policy', () => {
+  it('activates at 2026-09-14 09:00 JST', () => {
+    expect(
+      isFinalLanguagePolicyActive(new Date('2026-09-13T23:59:59.999Z')),
+    ).toBe(false);
+    expect(
+      isFinalLanguagePolicyActive(new Date('2026-09-14T00:00:00.000Z')),
+    ).toBe(true);
+  });
+
+  it('fixes every platform and emits no language experiment metadata', () => {
+    expect(finalReleaseCohortLanes()).toEqual([
+      { platform: 'x', language: 'ja' },
+      { platform: 'youtube', language: 'en' },
+      { platform: 'threads', language: 'zh-Hant' },
+      { platform: 'rednote', language: 'zh-Hant' },
+    ]);
+    for (const lane of finalReleaseCohortLanes()) {
+      expect(lane).not.toHaveProperty('experimentKey');
+      expect(lane).not.toHaveProperty('experimentVariant');
+    }
+  });
+});
+
+describe('historical social language Latin square', () => {
   it('rotates A/B/C across the three article slots and shifts once per JST day', () => {
     const day1 = [
       slot(2, 0, 30), // 09:30 JST
@@ -122,7 +148,7 @@ describe('social language Latin square', () => {
   });
 });
 
-describe('fixed-threads language swap', () => {
+describe('historical fixed-threads language swap', () => {
   it('alternates D/E/D then E/D/E across two JST days', () => {
     const day1 = [slot(12, 0, 30), slot(12, 3), slot(12, 7)].map(
       (date) => languageSwapProfileForSlot(date).profile,
