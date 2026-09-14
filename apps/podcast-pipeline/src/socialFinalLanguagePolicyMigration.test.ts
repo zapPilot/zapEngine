@@ -50,6 +50,14 @@ describe('final social language policy migration', () => {
     expect(normalized).not.toContain("'rednote-packaging-v1-zh-hant'");
   });
 
+  it('preserves published experiment evidence', () => {
+    const normalized = migration.toLowerCase();
+    expect(normalized).not.toContain('delete from from_fed_to_chain.social_posts');
+    expect(normalized).not.toContain(
+      'delete from from_fed_to_chain.social_post_metrics',
+    );
+  });
+
   it('runs atomically', () => {
     expect(migration).toMatch(/^begin;/m);
     expect(migration).toMatch(/set local lock_timeout/i);
