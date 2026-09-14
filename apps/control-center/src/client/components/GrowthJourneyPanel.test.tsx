@@ -25,6 +25,21 @@ const JOURNEY = {
   landingOther30d: 10,
 } satisfies SocialGrowthJourney;
 
+const UNAVAILABLE_JOURNEY = {
+  status: 'unavailable',
+  message: 'PostHog timed out',
+  landingVisitors30d: null,
+  ctaUsers30d: null,
+  appVisitors30d: null,
+  walletConnectedUsers30d: null,
+  landingThreads30d: null,
+  landingX30d: null,
+  landingYoutube30d: null,
+  landingRednote30d: null,
+  landingDirect30d: null,
+  landingOther30d: null,
+} satisfies SocialGrowthJourney;
+
 const GROWTH = {
   status: 'ok',
   message: null,
@@ -62,14 +77,7 @@ describe('GrowthJourneyPanel', () => {
 
   it('renders the parent snapshot failure without making another request', () => {
     render(
-      <GrowthJourneyPanel
-        growth={GROWTH}
-        journey={{
-          ...JOURNEY,
-          message: 'PostHog timed out',
-          status: 'unavailable',
-        }}
-      />,
+      <GrowthJourneyPanel growth={GROWTH} journey={UNAVAILABLE_JOURNEY} />,
     );
 
     expect(screen.getByText('Journey telemetry unavailable')).toBeVisible();

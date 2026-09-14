@@ -135,6 +135,9 @@
   border-top: 1px solid var(--cc-hairline);
   font-size: 12px;
 }
+.today-release-row--telemetry {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
 .today-release-row:first-child {
   border-top: 0;
 }

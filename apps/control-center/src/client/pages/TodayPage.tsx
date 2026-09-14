@@ -316,7 +316,10 @@ function LatestRelease(props: {
               );
             })
           : (measured?.platforms ?? []).map((metric) => (
-              <div className="today-release-row" key={metric.platform}>
+              <div
+                className="today-release-row today-release-row--telemetry"
+                key={metric.platform}
+              >
                 <PlatformIdentity platform={metric.platform} />
                 <span className="today-release-views">
                   {metric.views === null ? '—' : integer(metric.views)}

@@ -9,6 +9,7 @@ import {
 
 import type { AgentBacklogResponse } from '../../shared/agent-backlog.js';
 import type {
+  CostHistoryPoint,
   CostHistoryResponse,
   OperationalSignal,
   OperationsResponse,
@@ -329,18 +330,43 @@ function CostOverview(props: {
  * consecutive readings. The first day of the month has no predecessor, so it
  * is `null` rather than a fabricated zero.
  */
+function dailyDeltas(
+  daily: CostHistoryResponse['currentMonthDaily'],
+  read: (point: CostHistoryPoint) => number | null,
+): Array<number | null> {
+  return daily.map((point, index) => {
+    const previousPoint = daily[index - 1];
+    if (!previousPoint) {
+      return null;
+    }
+    const previous = read(previousPoint);
+    const current = read(point);
+    if (current === null || previous === null) {
+      return null;
+    }
+    return Math.max(0, current - previous);
+  });
+}
+
 function dailySpend(
   daily: CostHistoryResponse['currentMonthDaily'],
 ): { id: string; label: string; value: number | null }[] {
-  return daily.map((point, index) => {
-    const previous = index > 0 ? daily[index - 1]?.accruedCostUsd : undefined;
-    const current = point.accruedCostUsd;
-    const value =
-      current === null || previous === null || previous === undefined
-        ? null
-        : Math.max(0, current - previous);
-    return { id: point.date, label: point.date, value };
-  });
+  const deltas = dailyDeltas(daily, (point) => point.accruedCostUsd);
+  return daily.map((point, index) => ({
+    id: point.date,
+    label: point.date,
+    value: deltas[index] ?? null,
+  }));
+}
+
+function providerSpend(
+  point: CostHistoryPoint,
+  provider: string,
+): number | null {
+  return (
+    point.providers.find((entry) => entry.provider === provider)
+      ?.accruedCostUsd ?? null
+  );
 }
 
 function providerRows(
@@ -363,7 +389,8 @@ interface CostAnomaly {
 
 /** Today against the mean of the three daily deltas before it, per provider.
  * Provider snapshots are month-to-date totals, so comparing their raw values
- * would make normal accumulation look like accelerating spend. */
+ * would make normal accumulation look like accelerating spend. A complete
+ * baseline needs five snapshots (four daily deltas). */
 function costAnomalies(
   daily: CostHistoryResponse['currentMonthDaily'],
 ): CostAnomaly[] {
@@ -373,20 +400,15 @@ function costAnomalies(
   }
   const found: CostAnomaly[] = [];
   for (const entry of latest.providers) {
-    const spend = providerDailySpend(daily, entry.provider).slice(-4);
-    if (spend.length < 4 || spend.some((value) => value === null)) {
+    const window = dailyDeltas(daily, (point) =>
+      providerSpend(point, entry.provider),
+    ).slice(-4);
+    const today = window.at(-1) ?? null;
+    const priors = window.slice(0, -1).filter((v): v is number => v !== null);
+    if (today === null || priors.length < 3) {
       continue;
     }
-    const [first, second, third, today] = spend;
-    if (
-      first === null ||
-      second === null ||
-      third === null ||
-      today === null
-    ) {
-      continue;
-    }
-    const baseline = (first + second + third) / 3;
+    const baseline = priors.reduce((sum, value) => sum + value, 0) / 3;
     if (baseline <= 0) {
       continue;
     }
@@ -401,33 +423,6 @@ function costAnomalies(
     }
   }
   return found;
-}
-
-function providerDailySpend(
-  daily: CostHistoryResponse['currentMonthDaily'],
-  provider: string,
-): Array<number | null> {
-  return daily.map((point, index) => {
-    if (index === 0) {
-      return null;
-    }
-    const previous = daily[index - 1];
-    const currentValue = point.providers.find(
-      (entry) => entry.provider === provider,
-    )?.accruedCostUsd;
-    const previousValue = previous?.providers.find(
-      (entry) => entry.provider === provider,
-    )?.accruedCostUsd;
-    if (
-      currentValue === null ||
-      currentValue === undefined ||
-      previousValue === null ||
-      previousValue === undefined
-    ) {
-      return null;
-    }
-    return Math.max(0, currentValue - previousValue);
-  });
 }
 
 function flyFleet(operations: OperationsResponse | null) {
