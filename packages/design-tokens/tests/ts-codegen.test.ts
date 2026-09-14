@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import { tokens } from '../src/generated/tokens.js';
 import { packageRoot } from '../src/paths.js';
-import { renderTsTokens } from '../src/ts-codegen.js';
+import { renderTsTokens, writeTsTokens } from '../src/ts-codegen.js';
 import { loadTokens } from '../src/tokens.js';
 
 describe('ts tokens codegen', () => {
@@ -19,5 +19,13 @@ describe('ts tokens codegen', () => {
       'utf8',
     );
     expect(onDisk).toBe(await renderTsTokens(loadTokens()));
+  });
+
+  it('writes the generated module deterministically', async () => {
+    await writeTsTokens();
+
+    expect(
+      readFileSync(join(packageRoot, 'src/generated/tokens.ts'), 'utf8'),
+    ).toBe(await renderTsTokens(loadTokens()));
   });
 });
