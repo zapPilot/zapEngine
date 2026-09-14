@@ -6,13 +6,13 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json-summary', 'html', 'lcov'],
-      // Set at the measured baseline (94.53/78.81/86.2/95.16); raise only
-      // after sustained coverage improvements.
+      // Provider defaults, retry/error paths, header parsing, and UTC/pricing
+      // seams are exhaustively covered. Keep every dimension pinned at 100%.
       thresholds: {
-        branches: 78,
-        functions: 86,
-        lines: 95,
-        statements: 94,
+        branches: 100,
+        functions: 100,
+        lines: 100,
+        statements: 100,
       },
       reportsDirectory: 'coverage',
     },

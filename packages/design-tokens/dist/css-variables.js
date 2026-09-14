@@ -63,7 +63,10 @@ export function writeCssVariables() {
     renderCssVariables(loadTokens()),
   );
 }
-if (isCurrentScript(import.meta.url)) {
-  writeCssVariables();
+export function runCssVariablesCli(metaUrl) {
+  if (isCurrentScript(metaUrl)) {
+    writeCssVariables();
+  }
 }
+runCssVariablesCli(import.meta.url);
 //# sourceMappingURL=css-variables.js.map

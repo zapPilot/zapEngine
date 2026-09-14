@@ -68,6 +68,10 @@ export function writeCssVariables(): void {
   );
 }
 
-if (isCurrentScript(import.meta.url)) {
-  writeCssVariables();
+export function runCssVariablesCli(metaUrl: string): void {
+  if (isCurrentScript(metaUrl)) {
+    writeCssVariables();
+  }
 }
+
+runCssVariablesCli(import.meta.url);

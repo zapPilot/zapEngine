@@ -27,9 +27,9 @@ Failed: @zapengine/<workspace>#test:coverage
 ```
 
 then the failing layer is that configured workspace's `vitest.config.ts` or
-pytest threshold, not the aggregation step. `packages/design-tokens`
-has no absolute floor. The aggregate contains 13 workspaces, including
-`apps/control-center`.
+pytest threshold, not the aggregation step. The aggregate contains 14
+workspaces, including `apps/control-center`, `packages/cost-observability`, and
+`packages/design-tokens`.
 
 ## Core principle — fix coverage without hiding the blast radius
 

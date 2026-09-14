@@ -4,7 +4,11 @@ import { pathToFileURL } from 'node:url';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { renderCssVariables, writeCssVariables } from '../src/css-variables.js';
+import {
+  renderCssVariables,
+  runCssVariablesCli,
+  writeCssVariables,
+} from '../src/css-variables.js';
 import {
   isCurrentScript,
   packageRoot,
@@ -74,6 +78,9 @@ describe('design-token loading and CSS generation', () => {
 
   it('writes the checked-in CSS output deterministically', () => {
     writeCssVariables();
+    runCssVariablesCli(pathToFileURL(process.argv[1] ?? '').href);
+    runCssVariablesCli(pathToFileURL('/definitely/not-current.ts').href);
+
     expect(
       readFileSync(join(packageRoot, 'dist/css/variables.css'), 'utf8'),
     ).toBe(renderCssVariables(loadTokens()));
@@ -88,6 +95,16 @@ describe('codegen path helpers', () => {
     expect(
       isCurrentScript(pathToFileURL('/definitely/not-current.ts').href),
     ).toBe(false);
+  });
+
+  it('handles a missing argv entry', () => {
+    const original = process.argv[1];
+    try {
+      (process.argv as Array<string | undefined>)[1] = undefined;
+      expect(isCurrentScript(pathToFileURL('').href)).toBe(true);
+    } finally {
+      process.argv[1] = original;
+    }
   });
 
   it('creates missing parent directories and overwrites by path', () => {
