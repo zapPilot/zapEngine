@@ -1,8 +1,8 @@
 import { JST_OFFSET_MS } from './jst.js';
 import type { SocialPlatform } from './platforms.js';
 import {
-  HISTORICAL_SOCIAL_LANGUAGE_EXPERIMENT_KEYS,
   SOCIAL_FINAL_LANGUAGE_BY_PLATFORM,
+  SOCIAL_LANGUAGE_EXPERIMENT_KEYS,
   SOCIAL_LANGUAGE_FINAL_FIXED_SINCE,
   SOCIAL_LANGUAGE_ROTATION_ACTIVE_SINCE,
   SOCIAL_LANGUAGE_THREADS_FIXED_SINCE,
@@ -207,13 +207,13 @@ export function fixedThreadsReleaseCohortLanesForProfile(
 }
 
 function experimentLane(
-  platform: keyof typeof HISTORICAL_SOCIAL_LANGUAGE_EXPERIMENT_KEYS,
+  platform: keyof typeof SOCIAL_LANGUAGE_EXPERIMENT_KEYS,
   language: SocialLanguageCode,
 ): RotatingReleaseCohortLane {
   return {
     platform,
     language,
-    experimentKey: HISTORICAL_SOCIAL_LANGUAGE_EXPERIMENT_KEYS[platform],
+    experimentKey: SOCIAL_LANGUAGE_EXPERIMENT_KEYS[platform],
     experimentVariant: language,
   };
 }
