@@ -72,20 +72,20 @@ test('waits for every production deployment to become READY', async () => {
   }
 });
 
-test('allows a production deployment to finish after the previous eight-minute boundary', async () => {
+test('allows a production deployment to finish after the previous nine-minute deadline', async () => {
   const { fetchImpl } = fakeVercel({
     'zap-engine-frontend': ['READY'],
     'zap-engine-landing-page': ['BUILDING', 'READY'],
     'zap-engine-control-center': ['READY'],
   });
-  const times = [0, 0, 8 * 60 * 1_000 + 1_000, 0];
+  const times = [0, 0, 9 * 60 * 1_000 + 30_000, 0];
 
   await deployVercelMain({
     token: 'token',
     sha: SHA,
     fetchImpl,
     sleep: async () => {},
-    now: () => times.shift() ?? 8 * 60 * 1_000 + 1_000,
+    now: () => times.shift() ?? 9 * 60 * 1_000 + 30_000,
   });
 });
 
@@ -95,7 +95,7 @@ test('does one final status poll when the deployment deadline is reached', async
     'zap-engine-landing-page': ['READY'],
     'zap-engine-control-center': ['READY'],
   });
-  const times = [0, 9 * 60 * 1_000, 0, 0];
+  const times = [0, 12 * 60 * 1_000, 0, 0];
 
   await deployVercelMain({
     token: 'token',
