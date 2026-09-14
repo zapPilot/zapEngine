@@ -327,8 +327,9 @@ function CostOverview(props: {
 /**
  * `accruedCostUsd` is the month-to-date total, so charting it draws a nearly
  * flat line that says nothing. The day's own spend is the step between two
- * consecutive readings. The first day of the month has no predecessor, so it
- * is `null` rather than a fabricated zero.
+ * consecutive readings. The first day of the month has no predecessor, and a
+ * gap in collection cannot be differenced either, so both are `null` rather
+ * than a fabricated zero.
  */
 function dailyDeltas(
   daily: CostHistoryResponse['currentMonthDaily'],
@@ -408,7 +409,8 @@ function costAnomalies(
     if (today === null || priors.length < 3) {
       continue;
     }
-    const baseline = priors.reduce((sum, value) => sum + value, 0) / 3;
+    const baseline =
+      priors.reduce((sum, value) => sum + value, 0) / priors.length;
     if (baseline <= 0) {
       continue;
     }

@@ -106,6 +106,23 @@ describe('Pipeline stage map', () => {
     expect(within(stage as HTMLElement).getByText('1')).toBeVisible();
   });
 
+  it('flags a failed social release as needing attention', () => {
+    render(
+      <PipelineSummary
+        podcastCosts={null}
+        queues={queues({
+          social: {
+            ...emptyLane,
+            attention: [{ ...socialJob, state: 'failed' }],
+          },
+        } as Partial<PipelineQueuesResponse>)}
+      />,
+    );
+    const stage = screen.getByText('社群發佈').closest('.cc-flow-stage');
+    expect(stage).not.toBeNull();
+    expect(within(stage as HTMLElement).getByText('1 需介入')).toBeVisible();
+  });
+
   it('says why translation and TTS are not counted separately', () => {
     render(<PipelineSummary podcastCosts={null} queues={queues()} />);
     expect(screen.getByText(/翻譯與 TTS 在同一個擷取工作內執行/)).toBeVisible();
