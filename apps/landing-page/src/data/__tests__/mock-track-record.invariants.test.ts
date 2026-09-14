@@ -32,6 +32,6 @@ describe('mock track-record artifact fallbacks', () => {
     expect(data.mockSnapshotEntries).toHaveLength(1);
     expect(
       data.mockSnapshotEntries[0]?.snapshot.benchmarks[0]?.cumulativeReturn,
-    ).toBe('0.00%');
+    ).toBe('+0.00%');
   });
 });

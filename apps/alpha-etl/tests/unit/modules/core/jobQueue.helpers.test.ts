@@ -208,13 +208,14 @@ describe('job queue helpers', () => {
     expect(shouldPersistJobStatus({ userId: '' })).toBe(false);
     expect(shouldPersistJobStatus({ userId: 'user-1' })).toBe(true);
 
-    logPersistStatusFailure('job-1', 'failed', 'database offline');
+    const persistError = new Error('database offline');
+    logPersistStatusFailure('job-1', 'failed', persistError);
     expect(mocks.warn).toHaveBeenCalledWith(
       'Failed to persist job status to database (non-fatal)',
       expect.objectContaining({ error: 'database offline' }),
     );
     expect(mocks.captureBackgroundException).toHaveBeenCalledWith(
-      'database offline',
+      persistError,
       expect.objectContaining({
         component: 'job',
         tags: { operation: 'persist_status', job_status: 'failed' },

@@ -133,8 +133,11 @@ describe('track-record network accessors', () => {
       }),
     );
     const pending = fetchLatestSnapshot(meta());
+    const rejection = expect(pending).rejects.toThrow(
+      /All 2 IPFS gateways failed/,
+    );
     await vi.advanceTimersByTimeAsync(8_000);
-    await expect(pending).rejects.toThrow(/All 2 IPFS gateways failed/);
+    await rejection;
   });
 
   it('walks history newest-to-genesis and honours a limit', async () => {
@@ -171,7 +174,7 @@ describe('performance edge cases', () => {
       snapshot('2026-01-02', '0'),
       snapshot('2026-01-03', '10'),
     ]);
-    expect(summary).toMatchObject({ totalDays: 3, bestDay: '0.00%' });
+    expect(summary).toMatchObject({ totalDays: 3, bestDay: '+0.00%' });
   });
 
   it('computes long-window ratios', () => {

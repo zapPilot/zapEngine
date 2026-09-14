@@ -55,12 +55,23 @@ describe('distribution edge branches', () => {
   it('renders numeric channel counts, no coverage window, and an unreached language', () => {
     const snapshot = {
       ...base,
-      coverage: { firstPublishedAt: null, lastPublishedAt: null },
+      coverage: {
+        firstEpisodeAt: null,
+        lastEpisodeAt: null,
+        firstPostAt: null,
+        lastPostAt: null,
+      },
       channels: Array.from({ length: 13 }, (_, index) => ({
         platform: `platform-${index}`,
         language: 'en',
         posts: 0,
+        postsWithMetrics: 0,
         reach: 0,
+        likes: 0,
+        comments: 0,
+        shares: 0,
+        firstPostAt: null,
+        lastPostAt: null,
       })),
       languages: [
         ...base.languages,
@@ -83,6 +94,6 @@ describe('distribution edge branches', () => {
     expect(
       screen.getByRole('heading', { name: /13 channels out/ }),
     ).toBeInTheDocument();
-    expect(screen.getByText('none yet')).toBeInTheDocument();
+    expect(screen.getAllByText('none yet')).toHaveLength(3);
   });
 });

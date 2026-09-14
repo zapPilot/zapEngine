@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import type { DailySnapshot } from '@zapengine/types/strategy';
+import type { TrackRecordHookState } from '@/hooks/useTrackRecord';
 import { MarketSeriesChart } from '../MarketSeriesChart';
 import { NavCurveChart } from '../NavCurveChart';
 import { PositionsTable } from '../PositionsTable';
@@ -12,15 +13,15 @@ const point = { date: '2026-01-01', value: 0 };
 
 function market(overrides: Record<string, unknown> = {}) {
   return {
+    kicker: 'Signal',
     title: 'Market',
-    unit: 'USD',
-    points: [point],
-    dma: null,
+    color: 'currentColor',
+    formatValue: (value: number) => String(value),
+    points: [{ ...point, dma: null }],
     dmaLabel: '200-DMA',
-    tokenSymbol: null,
-    tokenPair: null,
-    status: null,
-    caption: null,
+    tokenSymbol: undefined,
+    tokenPair: undefined,
+    caption: undefined,
     ...overrides,
   };
 }
@@ -72,11 +73,9 @@ describe('track-record presentation edge branches', () => {
     rerender(
       <MarketSeriesChart
         {...market({
-          points: [{ date: '2026-01-01', value: 5 }],
-          dma: [{ date: '2026-01-01', value: 5 }],
+          points: [{ date: '2026-01-01', value: 5, dma: 5 }],
           tokenPair: ['ETH', 'BTC'],
           caption: 'Pair caption',
-          status: true,
         })}
       />,
     );
@@ -85,13 +84,7 @@ describe('track-record presentation edge branches', () => {
   });
 
   it('renders a NAV curve whose initial value is zero', () => {
-    render(
-      <NavCurveChart
-        snapshots={[snapshot()]}
-        cidByIndex={['cid']}
-        signatureByIndex={[null]}
-      />,
-    );
+    render(<NavCurveChart snapshots={[snapshot()]} />);
     expect(screen.getByText('100.00')).toBeInTheDocument();
   });
 
@@ -99,29 +92,46 @@ describe('track-record presentation edge branches', () => {
     render(
       <>
         <PositionsTable positions={snapshot().positions} />
-        <RebalanceTable transactions={snapshot().transactions} />
+        <RebalanceTable snapshots={[snapshot()]} />
       </>,
     );
     expect(screen.getByText('ETH')).toBeInTheDocument();
-    expect(screen.getByText('0x1')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /0x1/ })).toBeInTheDocument();
   });
 
   it.each([
-    ['risk_off', 'RISK OFF'],
-    ['defensive', 'DEFENSIVE'],
-    ['risk_on', 'RISK ON'],
-    ['greed', 'GREED'],
-    [undefined, 'NEUTRAL'],
-  ])('infers sentiment regime %s', (regime, expected) => {
+    [10, 'Extreme Fear'],
+    [35, 'Fear'],
+    [50, 'Neutral'],
+    [60, 'Greed'],
+    [80, 'Extreme Greed'],
+  ])('infers sentiment regime for %s', (value, expected) => {
     const { unmount } = render(
-      <SentimentChart snapshots={[snapshot(regime)]} />,
+      <SentimentChart
+        kicker="Sentiment"
+        title="Crypto FGI"
+        points={[{ date: '2026-01-01', value, regime: null }]}
+      />,
     );
-    expect(screen.getByText(expected)).toBeInTheDocument();
+    expect(screen.getByText(`${value} · ${expected}`)).toBeInTheDocument();
     unmount();
   });
 
   it('renders verification loading without a class name', () => {
-    render(<VerificationPanel state={{ status: 'loading' }} />);
-    expect(screen.getByText(/verifying/i)).toBeInTheDocument();
+    render(
+      <VerificationPanel
+        state={
+          {
+            isLoading: true,
+            meta: null,
+            snapshotEntries: [],
+            verification: undefined,
+            latestSnapshot: null,
+            source: 'backtest',
+          } as unknown as TrackRecordHookState
+        }
+      />,
+    );
+    expect(screen.getByText(/loading verification data/i)).toBeInTheDocument();
   });
 });
