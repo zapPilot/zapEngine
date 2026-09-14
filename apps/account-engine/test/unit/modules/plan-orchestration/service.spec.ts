@@ -17,6 +17,7 @@ const USDT = '0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9' as Address;
 const GMX_ROUTER = '0x7452c558d45f8afC8c83dAe62C3f8A5BE19c71f6' as Address;
 const EXCHANGE_ROUTER = '0x1C3fa76e6E1088bCE750f23a5BFcffa1efEF6A41' as Address;
 const BASE_USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as Address;
+const ETHEREUM_USDC = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48' as Address;
 
 function approveData(spender: Address, amount: bigint) {
   return encodeFunctionData({
@@ -458,6 +459,109 @@ describe('plan-orchestration service', () => {
     });
   });
 
+  it('reviews an Ethereum-source HLP plan on the batch rail', async () => {
+    const composeDeposit = vi.fn().mockResolvedValue({
+      legs: [],
+      approvals: [],
+      calls: [],
+      totalGasUsd: '0',
+      sourceChainId: 1,
+    } satisfies DepositPlan);
+    const simulateBundle = vi.fn().mockResolvedValue({
+      status: 'passed',
+      chainId: 1,
+      walletAddress: USER,
+      calls: [],
+      assetChanges: [],
+      approvals: [],
+      contracts: [],
+      warnings: [],
+      blockNumber: null,
+      callGas: '0',
+      simulationIds: ['sim-eth'],
+      shareUrls: [],
+      simulationFingerprint: `0x${'55'.repeat(32)}`,
+      riskHash: `0x${'66'.repeat(32)}`,
+    });
+    const service = createPlanOrchestrationService({
+      intentEngine: {
+        buildGmxV2Supply: vi.fn(),
+        buildGmxV2Withdraw: vi.fn(),
+        buildWithdrawSwap: vi.fn(),
+        buildSupply: vi.fn(),
+        buildSwap: vi.fn(),
+        getTokenPrice: vi.fn(),
+      },
+      adapter: {} as never,
+      publicClients: {},
+      composeDeposit,
+      simulation: {
+        adapter: { simulateBundle: vi.fn() },
+        reviewService: { simulateBundle },
+      },
+    });
+
+    const result = await service.buildDepositReview({
+      kind: 'invest',
+      userAddress: USER,
+      fromToken: ETHEREUM_USDC,
+      fromAmount: '25000000',
+      sourceChainId: 1,
+      split: { '1337': 1 },
+    });
+
+    expect(simulateBundle).toHaveBeenCalledTimes(1);
+    expect(simulateBundle.mock.calls[0]![0].chainId).toBe(1);
+    expect(result.reviews['chain-1']).toMatchObject({
+      status: 'passed',
+      blocked: false,
+      executionAllowed: true,
+    });
+  });
+
+  it('leaves chains outside the batch rail unsimulated', async () => {
+    const composeDeposit = vi.fn().mockResolvedValue({
+      legs: [],
+      approvals: [],
+      calls: [],
+      totalGasUsd: '0',
+      sourceChainId: 10,
+    } satisfies DepositPlan);
+    const simulateBundle = vi.fn();
+    const service = createPlanOrchestrationService({
+      intentEngine: {
+        buildGmxV2Supply: vi.fn(),
+        buildGmxV2Withdraw: vi.fn(),
+        buildWithdrawSwap: vi.fn(),
+        buildSupply: vi.fn(),
+        buildSwap: vi.fn(),
+        getTokenPrice: vi.fn(),
+      },
+      adapter: {} as never,
+      publicClients: {},
+      composeDeposit,
+      simulation: {
+        adapter: { simulateBundle: vi.fn() },
+        reviewService: { simulateBundle },
+      },
+    });
+
+    const result = await service.buildDepositReview({
+      kind: 'invest',
+      userAddress: USER,
+      fromToken: BASE_USDC,
+      fromAmount: '1000',
+      sourceChainId: 8453,
+    });
+
+    expect(simulateBundle).not.toHaveBeenCalled();
+    expect(result.reviews['chain-10']).toMatchObject({
+      status: 'unavailable',
+      chainId: 10,
+      unavailableReason: 'Tenderly review is unavailable for chain 10',
+    });
+  });
+
   it('keeps Tenderly timeouts visible but executable', async () => {
     const composeDeposit = vi.fn().mockResolvedValue({
       legs: [],
@@ -687,7 +791,7 @@ describe('plan-orchestration service', () => {
     );
   });
 
-  it('does not apply the default split to non-Base source re-quotes', async () => {
+  it('does not apply the default split to non-Base source requests', async () => {
     const { composeDeposit, service } = makeInvestService({
       defaultSplit: { 8453: 0.9, 1337: 0.1 },
     });

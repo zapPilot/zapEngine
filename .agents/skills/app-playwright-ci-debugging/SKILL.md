@@ -1,9 +1,6 @@
 ---
 name: app-playwright-ci-debugging
-description: >-
-  Use when `apps/app` Playwright e2e fails, especially Expo web export startup,
-  Privy config screens, Metro env-cache poisoning, port/base-URL mismatch, route
-  smoke drift, or auth navigation mismatch.
+description: 'Diagnose apps/app Playwright failures in Expo export, startup, route smoke, or authentication navigation.'
 ---
 
 # App Playwright CI debugging
@@ -19,11 +16,13 @@ changing app code or timeouts.
 ## Narrow commands
 
 ```bash
-cd apps/app && pnpm run test:e2e
-cd apps/app && PLAYWRIGHT_PORT=3100 pnpm exec playwright test tests/e2e/smoke.spec.ts
+cd apps/app
+node scripts/build-e2e-web.mjs # when the checked export is missing or stale
+PLAYWRIGHT_PORT=3100 pnpm exec playwright test tests/e2e/smoke.spec.ts
 ```
 
-Run `test:e2e` before raw Playwright so the checked E2E export exists.
+Build the checked export when missing or stale, then run the named failing spec.
+`test:e2e` also runs the full suite; it is not a build-only prerequisite.
 
 ## Expo export, env, and Metro cache
 
@@ -73,16 +72,17 @@ sign-in gate.
 
 1. Read the failing Playwright log and `error-context.md`.
 2. If several tests stop before app boot, diagnose the shared boot/export issue.
-3. For missing Privy config, inspect prior env-less exports and rerun
-   `pnpm run test:e2e`; do not edit later route/media assertions.
+3. For missing Privy config, inspect prior env-less exports, rebuild through
+   `node scripts/build-e2e-web.mjs`, and rerun the failing spec; do not edit later
+   route/media assertions.
 4. For other startup failures, verify server command, port/base URL, config
    screen, console, and page errors before changing timeouts.
 5. For post-boot smoke failures, prefer stable route/shell/error assertions over
    balances, APR, marketing copy, `$`, or `%`.
 6. For auth-tab failures, compare the inaccessible-tab implementation and smoke
    expectation directly.
-7. Run `cd apps/app && pnpm run test:e2e`, then return to
-   **monorepo-ci-debugging** if root/shared files changed.
+7. Use the verification gate below once for the final inputs; route root/shared
+   failures through **monorepo-ci-debugging**.
 
 ## Verification
 
@@ -90,5 +90,7 @@ sign-in gate.
 cd apps/app && pnpm run test:e2e
 ```
 
-If the change touches root config, shared packages, env, or CI wiring, widen via
-**monorepo-ci-debugging** before handoff.
+Reuse a passing full E2E run for unchanged inputs, including one run by the
+chosen aggregate gate. If root config, shared packages, env, or CI wiring changed,
+select the appropriate aggregate gate via **monorepo-ci-debugging** without
+repeating equivalent E2E checks.

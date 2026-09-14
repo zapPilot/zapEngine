@@ -5,7 +5,7 @@ import type { OpsMcpOperations } from '../../../mcp/types.js';
 import { renderAction } from './actions.js';
 import type { OperatorStore } from './store.js';
 
-export async function runOperatorCycle(input: {
+type OperatorCycleInput = {
   operations: Pick<
     OpsMcpOperations,
     'getOperations' | 'investigate' | 'resolveSentryIssue'
@@ -14,7 +14,30 @@ export async function runOperatorCycle(input: {
   config: ControlCenterConfig;
   actor: string;
   mutationsEnabled: boolean;
-}) {
+};
+
+export async function runOperatorCycle(input: OperatorCycleInput) {
+  // Self-health is durable rather than inferred from this workflow's own
+  // completed-run history. Mark the attempt before reading the snapshot so the
+  // cycle never treats its currently-running self as stale.
+  await input.store.recordHeartbeat(input.actor, 'running');
+  try {
+    const result = await runOperatorCycleBody(input);
+    await input.store.recordHeartbeat(input.actor, 'succeeded');
+    return result;
+  } catch (error) {
+    try {
+      await input.store.recordHeartbeat(input.actor, 'failed');
+    } catch {
+      // Preserve the original operator failure. A failed heartbeat write will
+      // leave the previous state stale, which is itself actionable liveness
+      // evidence, rather than hiding the root exception behind persistence.
+    }
+    throw error;
+  }
+}
+
+async function runOperatorCycleBody(input: OperatorCycleInput) {
   const open = await input.store.history();
   const pending = open.find(
     (row) =>

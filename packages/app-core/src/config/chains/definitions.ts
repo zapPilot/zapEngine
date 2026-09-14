@@ -13,6 +13,36 @@ import { BaseChainConfig } from './types';
  */
 const MAINNET_CHAINS: BaseChainConfig[] = [
   {
+    id: 1,
+    name: 'Ethereum',
+    symbol: 'ETH',
+    isSupported: true,
+    rpcUrls: {
+      default: {
+        http: [
+          'https://eth.llamarpc.com',
+          'https://ethereum-rpc.publicnode.com',
+        ],
+      },
+      public: {
+        http: ['https://rpc.ankr.com/eth', 'https://cloudflare-eth.com'],
+      },
+    },
+    blockExplorers: {
+      default: { name: 'Etherscan', url: 'https://etherscan.io' },
+      etherscan: { name: 'Etherscan', url: 'https://etherscan.io' },
+    },
+    nativeCurrency: {
+      name: 'Ether',
+      symbol: 'ETH',
+      decimals: 18,
+    },
+    metadata: {
+      blockTime: 12,
+      layer: 'L1',
+    },
+  },
+  {
     id: 42161,
     name: 'Arbitrum One',
     symbol: 'ARB',

@@ -1,10 +1,6 @@
 ---
 name: podcast-audio-section-integrity
-description: >-
-  Use when changing or debugging podcast ingest completion, classroom script/TTS/HLS generation,
-  resume behavior, or app main/classroom playback. Symptoms include completed episodes missing
-  classroom audio, regenerated published episodes, main-only fallback, duplicate classroom playback,
-  or regressions around classroom_hls_url / language_classrooms.hls_url.
+description: 'Preserve main and classroom audio integrity when changing podcast ingest, TTS/HLS, resume, or app playback.'
 ---
 
 # Podcast audio section integrity
@@ -68,14 +64,14 @@ When the touched path can affect them, verify these behaviors rather than duplic
 
 ## Rationalizations — STOP
 
-| Shortcut | Why it is wrong here |
-| --- | --- |
-| "The row is completed, so it is playable." | Required persisted HLS artifacts define readiness. |
-| "Main-only is a graceful fallback." | Canonical classroom targets are required; fail visibly. |
-| "Regenerate main while repairing classroom." | It wastes TTS and changes published narration; reuse main. |
-| "A blank legacy script means content is missing." | Presence-based detection prevents mass regeneration of published episodes. |
-| "Checkpointed target HLS means retry can skip TTS." | Current retry contract intentionally re-synthesizes required targets. |
-| "Update the strict test with the prompt change." | The independent contract gate exists to stop accidental content-contract weakening. |
+| Shortcut                                            | Why it is wrong here                                                                |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| "The row is completed, so it is playable."          | Required persisted HLS artifacts define readiness.                                  |
+| "Main-only is a graceful fallback."                 | Canonical classroom targets are required; fail visibly.                             |
+| "Regenerate main while repairing classroom."        | It wastes TTS and changes published narration; reuse main.                          |
+| "A blank legacy script means content is missing."   | Presence-based detection prevents mass regeneration of published episodes.          |
+| "Checkpointed target HLS means retry can skip TTS." | Current retry contract intentionally re-synthesizes required targets.               |
+| "Update the strict test with the prompt change."    | The independent contract gate exists to stop accidental content-contract weakening. |
 
 ## Verification
 

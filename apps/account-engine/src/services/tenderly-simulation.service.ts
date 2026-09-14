@@ -5,6 +5,7 @@ import type {
   ExecutionSimulationContract,
   ExecutionSimulationToken,
   ExecutionSimulationWarning,
+  PrivyBatchChainId,
 } from '@zapengine/types/api';
 import {
   decodeFunctionData,
@@ -137,7 +138,7 @@ type RawSimulationResult = z.infer<typeof RawSimulationResultSchema>;
 type RawTokenInfo = z.infer<typeof RawTokenInfoSchema>;
 
 interface ReviewEvidence {
-  chainId: 8453 | 42161;
+  chainId: PrivyBatchChainId;
   walletAddress: string;
   calls: ExecutionSimulationCall[];
   assetChanges: ExecutionSimulationAssetChange[];
@@ -159,7 +160,7 @@ export type TenderlySimulationReview =
 
 export interface TenderlySimulationService {
   simulateBundle(input: {
-    chainId: 8453 | 42161;
+    chainId: PrivyBatchChainId;
     walletAddress: string;
     calls: TenderlySimulationCall[];
   }): Promise<TenderlySimulationReview>;

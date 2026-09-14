@@ -13,7 +13,7 @@ Outbound user communication for Telegram, email, chart attachments, and admin fa
 
 ## Invariants
 
-- Use the anon Supabase client for user-facing access unless an explicitly admin-only flow requires service-role.
+- Use `DatabaseService.getClient()` and enforce user authorization in the route layer as defined in the app-level `AGENTS.md`. Never expose its service-role credentials to clients.
 - Account-engine Telegram envs stay `TELEGRAM_*`; podcast-pipeline uses the separate `PIPELINE_TELEGRAM_*` bot. Do not merge or rename them.
 - Email delivery failures must not block the originating request; catch them and emit the existing admin failure signal.
 - Telegram messages are formatted by a dedicated pure util (`strategy-change-message.util.ts`); never hand-build escaped Telegram markup at a call site. Legacy Markdown is the parse mode, so any identifier carrying `_` must sit inside backticks.

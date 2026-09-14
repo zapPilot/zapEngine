@@ -1,29 +1,27 @@
 import type { Address } from 'viem';
 
-interface HlpSubmissionPorts {
-  /** Pre-bridge HyperCore withdrawable balance of the funding wallet. */
-  readWithdrawableUsd6: (input: {
+interface HlpSubmissionPorts<TResult> {
+  /** Pre-bridge account-mode-aware spendable HyperCore USDC. */
+  readSpendableUsd6: (input: {
     user: Address;
     apiUrl: string;
   }) => Promise<bigint>;
   /** Records the snapshot the HLP follow-up measures its delta against. */
   setBaselineUsd6: (value: string) => void;
-  /** Hands the exact reviewed Base batch to the wallet. */
-  submitReviewedBatch: () => Promise<void>;
+  /** Hands the exact reviewed source batch to the wallet. */
+  submitReviewedBatch: () => Promise<TResult>;
 }
 
 /**
- * Starts an HLP deposit in the only safe order: the HyperCore snapshot is
- * recorded before the reviewed batch can move any USDC, because the follow-up
- * deposits the balance delta measured against that snapshot. A failed read
- * therefore has to abort the submission — measuring against a post-bridge
- * balance would sweep perp USDC the user already held into a days-long lock.
+ * Starts an HLP deposit in the only safe order: the account-mode-aware
+ * HyperCore snapshot is recorded before the reviewed batch can move any USDC.
+ * The submit result is passed straight back so callers can branch on it.
  */
-export async function startHlpSubmission(
+export async function startHlpSubmission<TResult>(
   target: { user: Address; apiUrl: string },
-  ports: HlpSubmissionPorts,
-): Promise<void> {
-  const withdrawableUsd6 = await ports.readWithdrawableUsd6(target);
-  ports.setBaselineUsd6(withdrawableUsd6.toString());
-  await ports.submitReviewedBatch();
+  ports: HlpSubmissionPorts<TResult>,
+): Promise<TResult> {
+  const spendableUsd6 = await ports.readSpendableUsd6(target);
+  ports.setBaselineUsd6(spendableUsd6.toString());
+  return ports.submitReviewedBatch();
 }

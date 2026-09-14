@@ -1,21 +1,11 @@
-import { HYPERCORE_CHAIN_ID } from '@zapengine/app-core/config/chains/display';
 import type { WizardHlpStatus } from '@zapengine/app-core/lib/wallet/depositWizardMachine';
-import type { ChainSplit } from '@zapengine/types/api';
+import type {
+  HyperCoreAccountMode,
+  HyperCoreSpendableUsdc,
+} from '@zapengine/app-core/services';
 import { formatUnits } from 'viem';
 
-/**
- * Pins the whole deposit to HyperCore instead of relying on the backend's
- * `DEPOSIT_DEFAULT_SPLIT` rollout env, which currently routes Base-only.
- */
-export const HYPERLIQUID_HLP_SPLIT: ChainSplit = {
-  [String(HYPERCORE_CHAIN_ID)]: 1,
-};
-
-/**
- * HLP requires at least 10 USDC on HyperCore. The planner separately enforces
- * this against the quoted bridge output (`toAmountMin`), so an input at the
- * floor is rejected if bridge fees/slippage would leave less than 10 USDC.
- */
+/** Hyperliquid's HLP vault minimum: $10 in 6-decimal USD. */
 export const MIN_HYPERLIQUID_DEPOSIT_USD6 = 10_000_000n;
 
 export function belowHlpMinimum(fromAmountUsd6: string): boolean {
@@ -25,20 +15,13 @@ export function belowHlpMinimum(fromAmountUsd6: string): boolean {
 
 /** Completion-card status line — the HLP leg may end unconfirmed. */
 export function hlpDoneStatusLabel(status: WizardHlpStatus): string {
-  if (status === 'deposited') {
-    return 'Deposited (incl. HLP)';
-  }
+  if (status === 'deposited') return 'Deposited (incl. HLP)';
   if (status === 'submittedUnverified') {
     return 'HLP deposit submitted — awaiting confirmation';
   }
   return 'Deposited';
 }
 
-/**
- * Shared renderer for every HyperCore balance row. Each pot is fetched by its
- * own query, so the disconnected/loading/error fallbacks have to be resolved
- * per row rather than once for the whole card.
- */
 export function hlpBalanceLabel({
   isConnected,
   isLoading,
@@ -50,32 +33,55 @@ export function hlpBalanceLabel({
   isError: boolean;
   value: bigint | undefined;
 }): string {
-  if (!isConnected) {
-    return '—';
-  }
-  if (isLoading) {
-    return 'Loading…';
-  }
-  if (isError || value === undefined) {
-    return '—';
-  }
+  if (!isConnected) return '—';
+  if (isLoading) return 'Loading…';
+  if (isError || value === undefined) return '—';
   return `${formatUnits(value, 6)} USDC`;
 }
 
-/**
- * What the wallet can actually put into HLP. The vault debits perp, and any
- * shortfall is topped up from spot, so both pots count toward one ceiling.
- *
- * Returns null while either balance is unknown: treating a pending or failed
- * read as zero would disable the input, and treating it as unlimited would
- * let the user sign an amount the exchange will reject.
- */
-export function hlpAvailableUsd6(
-  spotTotalUsd6: bigint | undefined,
-  perpWithdrawableUsd6: bigint | undefined,
+export function hlpSpendableUsd6(
+  balance: HyperCoreSpendableUsdc | undefined,
 ): bigint | null {
-  if (spotTotalUsd6 === undefined || perpWithdrawableUsd6 === undefined) {
-    return null;
+  return balance?.spendableUsd6 ?? null;
+}
+
+export function hlpAccountModeLabel(mode: HyperCoreAccountMode): string {
+  return mode === 'unified' ? 'Unified' : 'Standard';
+}
+
+function spotSpendable(balance: HyperCoreSpendableUsdc): bigint {
+  const value = balance.spot.totalUsd6 - balance.spot.holdUsd6;
+  return value > 0n ? value : 0n;
+}
+
+export function hlpStandardAccountHint(
+  balance: HyperCoreSpendableUsdc | undefined,
+): string | null {
+  if (!balance || balance.mode !== 'standard') return null;
+  if (spotSpendable(balance) <= 0n) return null;
+  return 'On a Standard account only Perp USDC can fund HLP. Enable Unified Account on Hyperliquid, or move USDC from Spot to Perp there, then retry.';
+}
+
+export interface HlpBalanceRow {
+  label: string;
+  value: bigint;
+}
+
+export function hlpBalanceRows(
+  balance: HyperCoreSpendableUsdc,
+): HlpBalanceRow[] {
+  if (balance.mode === 'unified') {
+    return [
+      { label: 'USDC balance', value: balance.spot.totalUsd6 },
+      ...(balance.spot.holdUsd6 > 0n
+        ? [{ label: 'On hold', value: balance.spot.holdUsd6 }]
+        : []),
+      { label: 'Spendable', value: balance.spendableUsd6 },
+    ];
   }
-  return spotTotalUsd6 + perpWithdrawableUsd6;
+  return [
+    { label: 'Spot USDC', value: balance.spot.totalUsd6 },
+    { label: 'Perp USDC withdrawable', value: balance.perp.withdrawableUsd6 },
+    { label: 'Perp account value', value: balance.perp.accountValueUsd6 },
+  ];
 }

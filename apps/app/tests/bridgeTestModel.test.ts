@@ -1,6 +1,7 @@
 import {
   baseUnitsToUsdcInput,
   bridgeBalanceQueryKey,
+  bridgeChain,
   bridgeDestinationChains,
   BRIDGE_CHAIN_OPTIONS,
   BRIDGE_SOURCE_CHAINS,
@@ -27,6 +28,12 @@ describe('bridgeTestModel', () => {
   it('excludes the selected source from destinations', () => {
     expect(bridgeDestinationChains(8453).map((chain) => chain.chainId)).toEqual(
       [1, 42161, HYPERCORE_CHAIN_ID],
+    );
+  });
+
+  it('rejects unsupported bridge chain ids instead of routing them implicitly', () => {
+    expect(() => bridgeChain(999999)).toThrow(
+      'Unsupported bridge chain 999999',
     );
   });
 

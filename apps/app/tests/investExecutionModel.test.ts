@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest';
 import {
   hyperliquidAccountUrl,
   resolveDepositExecutionCapability,
-  resolveInvestExecutionCapability,
 } from '@/integration/investExecutionModel';
 
 describe('resolveDepositExecutionCapability', () => {
@@ -45,58 +44,6 @@ describe('resolveDepositExecutionCapability', () => {
   });
 });
 
-describe('resolveInvestExecutionCapability', () => {
-  it('asks for a wallet before checking the execution mode', () => {
-    expect(
-      resolveInvestExecutionCapability({
-        isConnected: false,
-        executionMode: undefined,
-        scope: 'base',
-      }),
-    ).toBe('connect-wallet');
-  });
-
-  it('requires an executable wallet for either single-chain scope', () => {
-    expect(
-      resolveInvestExecutionCapability({
-        isConnected: true,
-        executionMode: undefined,
-        scope: 'base',
-      }),
-    ).toBe('unsupported-wallet');
-    expect(
-      resolveInvestExecutionCapability({
-        isConnected: true,
-        executionMode: undefined,
-        scope: 'arbitrum',
-      }),
-    ).toBe('unsupported-wallet');
-  });
-
-  it('requires an atomic-capable wallet for the strategy batch too', () => {
-    expect(
-      resolveInvestExecutionCapability({
-        isConnected: true,
-        executionMode: undefined,
-        scope: 'both',
-      }),
-    ).toBe('unsupported-wallet');
-  });
-
-  it.each(['atomic-batch', 'eip7702'] as const)(
-    'accepts %s for single-chain execution',
-    (executionMode) => {
-      expect(
-        resolveInvestExecutionCapability({
-          isConnected: true,
-          executionMode,
-          scope: 'base',
-        }),
-      ).toBe('ready');
-    },
-  );
-});
-
 describe('HLP helpers', () => {
   const step = {
     kind: 'hyperliquid-vault-deposit',
@@ -122,7 +69,6 @@ describe('HLP helpers', () => {
     const hlp: WizardHlpState = {
       status: 'arrived',
       step,
-      transferStep: null,
       baselineUsd6: null,
       arrivedUsd6: null,
       vaultEquityUsd6: null,

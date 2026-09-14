@@ -19,6 +19,15 @@ checkpoint, one-repair-budget, verification, and authorization gates. Existing
 environment injection supplies server-only credentials. Never run these commands
 against production merely to test the implementation.
 
+The operator does not judge its own liveness from completed GitHub workflow runs.
+Each cycle writes a durable heartbeat before it reads the operations snapshot,
+and Control Center uses that heartbeat for the existing
+`github-actions:workflow/ops-operator.yml` condition. A heartbeat up to 10 minutes
+old is healthy, 10–15 minutes is degraded, and more than 15 minutes is critical.
+This avoids the unavoidable one-cycle lag of asking an in-progress workflow to
+inspect only its own completed runs. Manual `workflow_dispatch` runs still do not
+reset failure streaks for any other scheduled workflow.
+
 ## Fix registration and observation
 
 Use `ops:operator --record-fix /absolute/path/fix.json` to register an operator's
@@ -45,11 +54,14 @@ manually; do not delete audit rows to bypass deduplication.
 
 Migration `20260910120000_ops_operator.sql` adds private, RLS-enabled `ops` tables
 for incidents, cycles, actions, verifications and runtime records, with
-service-role-only bridge RPCs. Queue triggers attest episode/localization/render
-and social publish-job relationships using the existing row keys. Render workers
-record actual machine IDs and commit SHAs and add allowlisted Sentry context and
-structured log fields. Sentry inspection exposes only approved correlation
-fields. Unknown IDs are omitted, never inferred from timestamps or text.
+service-role-only bridge RPCs. Migration
+`20260912123000_ops_operator_heartbeat.sql` adds service-role-only heartbeat
+write/read RPCs backed by the existing runtime-record table. Queue triggers attest
+episode/localization/render and social publish-job relationships using the
+existing row keys. Render workers record actual machine IDs and commit SHAs and
+add allowlisted Sentry context and structured log fields. Sentry inspection
+exposes only approved correlation fields. Unknown IDs are omitted, never inferred
+from timestamps or text.
 
 The graph is bounded to 100 records and 12 exact lookup keys. Historical records
 without propagation, absent machine IDs, and unavailable analytics/waitlist

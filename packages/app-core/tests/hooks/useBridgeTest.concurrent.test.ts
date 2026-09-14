@@ -19,8 +19,8 @@ const mocks = vi.hoisted(() => ({
   buildApproveTx: vi.fn(),
   getPublicClient: vi.fn(),
   waitForBridgeCompletion: vi.fn(),
-  getPerpUsdcBalance: vi.fn(),
-  waitForPerpUsdcArrival: vi.fn(),
+  getHyperCoreSpendableUsdc: vi.fn(),
+  waitForHyperCoreUsdcArrival: vi.fn(),
   readContract: vi.fn(),
   estimateGas: vi.fn(),
   getBalance: vi.fn(),
@@ -41,8 +41,8 @@ vi.mock('@core/services/intentClient', () => ({
   waitForBridgeCompletion: mocks.waitForBridgeCompletion,
 }));
 vi.mock('@core/services/hyperliquidService', () => ({
-  getPerpUsdcBalance: mocks.getPerpUsdcBalance,
-  waitForPerpUsdcArrival: mocks.waitForPerpUsdcArrival,
+  getHyperCoreSpendableUsdc: mocks.getHyperCoreSpendableUsdc,
+  waitForHyperCoreUsdcArrival: mocks.waitForHyperCoreUsdcArrival,
 }));
 vi.mock('@zapengine/intent-engine', () => ({
   HYPERCORE_CHAIN_ID: 1337,
@@ -100,10 +100,17 @@ describe('useBridgeTest concurrent execution isolation', () => {
       getBalance: mocks.getBalance,
       getGasPrice: mocks.getGasPrice,
     });
-    mocks.getPerpUsdcBalance.mockResolvedValue({
-      withdrawableUsd6: 5_000_000n,
+    mocks.getHyperCoreSpendableUsdc.mockResolvedValue({
+      mode: 'unified',
+      rawAbstraction: 'unifiedAccount',
+      spendableUsd6: 5_000_000n,
+      spot: { totalUsd6: 5_000_000n, holdUsd6: 0n },
+      perp: { withdrawableUsd6: 0n, accountValueUsd6: 0n },
     });
-    mocks.waitForPerpUsdcArrival.mockResolvedValue(undefined);
+    mocks.waitForHyperCoreUsdcArrival.mockResolvedValue({
+      arrivedUsd6: 9_900_000n,
+      mode: 'unified',
+    });
     mocks.executeDepositPlanWithWallet
       .mockResolvedValueOnce({
         kind: 'eip7702',
@@ -198,7 +205,7 @@ describe('useBridgeTest concurrent execution isolation', () => {
       await execution;
     });
 
-    expect(mocks.waitForPerpUsdcArrival).not.toHaveBeenCalled();
+    expect(mocks.waitForHyperCoreUsdcArrival).not.toHaveBeenCalled();
     expect(result.current.status).toBe('idle');
     expect(result.current.error).toBeNull();
     expect(result.current.sourceTxHash).toBeNull();
@@ -240,7 +247,7 @@ describe('useBridgeTest concurrent execution isolation', () => {
       await execution;
     });
 
-    expect(mocks.waitForPerpUsdcArrival).not.toHaveBeenCalled();
+    expect(mocks.waitForHyperCoreUsdcArrival).not.toHaveBeenCalled();
     expect(result.current.status).toBe('idle');
     expect(result.current.error).toBeNull();
     expect(result.current.quote).toBeNull();

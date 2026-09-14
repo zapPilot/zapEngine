@@ -136,7 +136,7 @@ class LanguageClassroomPayloadError extends Error {
  * message that names what actually failed. Guarded once here, at the door
  * every caller shares, rather than at each of their `choices[0]` reads.
  */
-class OpenRouterEmptyChoicesError extends Error {
+export class OpenRouterEmptyChoicesError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'OpenRouterEmptyChoicesError';
@@ -805,11 +805,18 @@ function isTimeoutError(error: unknown): boolean {
  * Transport-level failures are the only failures that advance the shared model
  * chain. Payload/semantic errors stay with the caller so retries can carry a
  * correction prompt rather than silently changing model behavior.
+ *
+ * A malformed provider response (HTTP 200 with `choices` missing, null, or not
+ * an array) is a transport-level failure for chain purposes: the endpoint
+ * answered but unusably, and the next configured model is the only thing that
+ * can fix it. Auth/configuration failures (401/403/404/400) stay terminal.
  */
 export function isRetryableOpenRouterError(error: unknown): boolean {
   if (!error || typeof error !== 'object') {
     return false;
   }
+
+  if (error instanceof OpenRouterEmptyChoicesError) return true;
 
   const status = (error as { status?: unknown }).status;
   if (typeof status === 'number') {

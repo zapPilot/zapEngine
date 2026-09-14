@@ -1,59 +1,13 @@
 import { GMX_V2_BASKET_EXECUTION_FEE_WEI } from '@zapengine/app-core/gmxFees';
 import { parseBaseUnits } from '@zapengine/app-core/lib/wallet/usd6';
 import { CHAIN_BRAND } from '@zapengine/brand-assets';
-import { STRATEGY_MIN_DEPOSIT_USD6 } from '@zapengine/types/api';
-import { parseUnits } from 'viem';
 
 import type { ChainTokenBalanceRow } from '@/integration/walletTokens';
 import type { DesktopDepositToken } from '@/integration/depositTokens';
 
-export type InvestScope = 'both' | 'base' | 'arbitrum';
-
-export type SingleChainFundingDraft =
-  | {
-      scope: 'base';
-      chainId: 8453;
-      fromToken: `0x${string}`;
-      fromAmount: string;
-    }
-  | {
-      scope: 'arbitrum';
-      chainId: 42161;
-      fromToken: `0x${string}`;
-      fromAmount: string;
-    };
-
-// Shared with the strategy request schema for flows that include GMX legs.
-export const MIN_STRATEGY_DEPOSIT_USD6 = STRATEGY_MIN_DEPOSIT_USD6;
-const MIN_BASE_MORPHO_DEPOSIT_USD6 = 10_000n;
-const MIN_ARBITRUM_GMX_DEPOSIT_USD6 = 1_000_000n;
 const USD_INPUT_DECIMALS = 6;
 export const ARBITRUM_GMX_BASKET_EXECUTION_FEE_WEI =
   GMX_V2_BASKET_EXECUTION_FEE_WEI;
-
-export function nativeGmxBasketBudgetTooSmall(
-  groupedAmount: string,
-  token: DesktopDepositToken,
-): boolean {
-  if (token.chainId !== 42161 || token.symbol !== 'ETH') return false;
-  const cleaned = groupedAmount.replace(/,/gu, '');
-  if (!/^\d+(?:\.\d*)?$/u.test(cleaned)) return false;
-
-  try {
-    return (
-      parseUnits(cleaned, token.decimals) <=
-      ARBITRUM_GMX_BASKET_EXECUTION_FEE_WEI
-    );
-  } catch {
-    return false;
-  }
-}
-
-export function minimumDepositUsd6ForScope(scope: InvestScope): bigint {
-  if (scope === 'base') return MIN_BASE_MORPHO_DEPOSIT_USD6;
-  if (scope === 'arbitrum') return MIN_ARBITRUM_GMX_DEPOSIT_USD6;
-  return MIN_STRATEGY_DEPOSIT_USD6;
-}
 
 /** Parse the grouped display amount (e.g. "1,000.50") to a number. */
 function parseAmount(grouped: string): number {
@@ -132,22 +86,6 @@ function usableUsdPrice(
   return price !== null && Number.isFinite(price) && price > 0 ? price : null;
 }
 
-/** Convert a selected funding-token amount into its current USD value. */
-export function fundingTokenUsdValueFromInput(
-  groupedAmount: string,
-  token: DesktopDepositToken,
-  row: ChainTokenBalanceRow | null,
-): number | null {
-  const tokenAmount = parseAmount(groupedAmount);
-  if (tokenAmount <= 0) return null;
-
-  const price = usableUsdPrice(token, row);
-  if (price === null) return null;
-
-  const usdValue = tokenAmount * price;
-  return Number.isFinite(usdValue) && usdValue > 0 ? usdValue : null;
-}
-
 /** Convert a user-entered USD decimal to an exact 6-decimal integer string. */
 export function amountInputToUsd6(groupedAmount: string): string {
   const parsed = parseBaseUnits(groupedAmount.replace(/,/gu, ''), {
@@ -217,17 +155,6 @@ export function spendableUsdForFundingToken(
   return Math.max(0, row.usdValue - row.usdPrice * NATIVE_GAS_RESERVE_ETH);
 }
 
-export function requiredChainUnavailableForScope(
-  scope: InvestScope,
-  failedChains: readonly string[],
-  queryFailed: boolean,
-): boolean {
-  if (queryFailed) return true;
-  if (scope === 'base') return failedChains.includes('base');
-  if (scope === 'arbitrum') return failedChains.includes('arbitrum');
-  return failedChains.includes('base') || failedChains.includes('arbitrum');
-}
-
 const USD_PRICE_SCALE = 1_000_000;
 
 /**
@@ -273,48 +200,6 @@ export function singleChainFromAmount(params: {
   return fromAmount > 0n ? fromAmount.toString() : null;
 }
 
-/** Build the immutable request input captured when the user taps Review. */
-export function buildSingleChainFundingDraft(params: {
-  scope: InvestScope;
-  totalUsd6: string;
-  baseFundingToken: DesktopDepositToken;
-  baseUsdPrice: number | null;
-  arbitrumFundingToken: DesktopDepositToken;
-  arbitrumUsdPrice: number | null;
-}): SingleChainFundingDraft | null {
-  if (params.scope === 'both') return null;
-
-  if (params.scope === 'arbitrum') {
-    const fromAmount = singleChainFromAmount({
-      totalUsd6: params.totalUsd6,
-      token: params.arbitrumFundingToken,
-      usdPrice: params.arbitrumUsdPrice,
-    });
-    return fromAmount === null
-      ? null
-      : {
-          scope: 'arbitrum',
-          chainId: 42161,
-          fromToken: params.arbitrumFundingToken.depositAddress,
-          fromAmount,
-        };
-  }
-
-  const fromAmount = singleChainFromAmount({
-    totalUsd6: params.totalUsd6,
-    token: params.baseFundingToken,
-    usdPrice: params.baseUsdPrice,
-  });
-  return fromAmount === null
-    ? null
-    : {
-        scope: 'base',
-        chainId: 8453,
-        fromToken: params.baseFundingToken.depositAddress,
-        fromAmount,
-      };
-}
-
 /**
  * Display-only funding amount for one strategy allocation. Transaction amounts
  * are still calculated server-side from the exact USD6 request.
@@ -331,29 +216,4 @@ export function fundingTokenAmountFromUsd(
   if (price === null) return null;
 
   return (totalUsd * allocationBps) / 10_000 / price;
-}
-
-export function strategyMaxTotalUsd(params: {
-  base: StrategyFundingOption;
-  arbitrum: StrategyFundingOption;
-}): number | null {
-  const baseSpendable = spendableUsdForFundingToken(
-    params.base.balance,
-    params.base.token,
-  );
-  const arbitrumSpendable = spendableUsdForFundingToken(
-    params.arbitrum.balance,
-    params.arbitrum.token,
-  );
-
-  if (baseSpendable === 0 || arbitrumSpendable === 0) {
-    return 0;
-  }
-  if (baseSpendable === null || arbitrumSpendable === null) {
-    return null;
-  }
-
-  const baseCapacity = baseSpendable / 0.4;
-  const arbitrumCapacity = arbitrumSpendable / 0.6;
-  return Math.max(0, Math.min(baseCapacity, arbitrumCapacity));
 }

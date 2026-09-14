@@ -2,7 +2,7 @@ import { APP_RUNTIME } from '@/config/appRuntime';
 import type { ExpoExtraConfig } from '@/config/mobileRuntimeConfig';
 
 // Metro defines __DEV__ at build/runtime; vitest (node) does not, so guard the read.
-function isDevBuild(): boolean {
+export function isDevBuild(): boolean {
   return typeof __DEV__ !== 'undefined' && __DEV__;
 }
 

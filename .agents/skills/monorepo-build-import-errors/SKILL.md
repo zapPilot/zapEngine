@@ -1,13 +1,6 @@
 ---
 name: monorepo-build-import-errors
-description: >-
-  Use when a build, module-resolution, or import error in a pnpm + turbo
-  monorepo resists simple fixes — TS2307 "cannot find module @scope/pkg",
-  "Unexpected token 'export'" / "seems to be an ES Module but shipped in a
-  CommonJS package" from a transitive node_modules dep, or a check that passes
-  locally but fails in CI (or vice-versa). Symptoms: adding deps to vitest/vite
-  `deps.inline` or `ssr.noExternal` and the error just moves to the next dep,
-  flipping `pool`, or pinning a dep back. Not for simple type errors / deadcode.
+description: 'Diagnose internal-package TS2307 or transitive ESM/CJS import failures in the pnpm and Turbo monorepo.'
 ---
 
 # Monorepo build & import errors (pnpm + turbo)
@@ -48,8 +41,8 @@ pnpm --filter @zapengine/types build               # targeted rebuild of one dep
 pnpm build packages                             # rebuild all packages (rarely needed)
 ```
 
-If CI is green but you see TS2307 locally, you almost certainly skipped
-`pnpm build packages` before running a turbo task.
+If TS2307 persists through Turbo, inspect the failing task's dependency graph
+and package exports. Rebuild only the named dependency if its output is missing.
 
 ## Mechanism B — ESM / CJS interop crash (the hard one)
 

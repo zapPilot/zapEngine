@@ -15,6 +15,7 @@ import {
   FollowUpAmountSchema,
   HexDataSchema,
   HLP_MIN_DEPOSIT_USD6,
+  HlpSpotDepositPlanSchema,
   HYPERCORE_CHAIN_ID,
   HyperliquidVaultDepositStepSchema,
   MockBridgeCheckpointSchema,
@@ -495,16 +496,88 @@ describe('PlanOrchestrationDepositRequestSchema (discriminated union)', () => {
     }
   });
 
-  it('rejects a multi-chain split from a non-Base source (re-quotes are single-chain)', () => {
+  it('rejects an Arbitrum source bridging to another EVM chain', () => {
     const result = PlanOrchestrationDepositRequestSchema.safeParse({
       kind: 'invest',
       userAddress: USER,
       fromToken: DEPOSIT_USDC_ADDRESSES[SUPPORTED_DEPOSIT_CHAINS.ARBITRUM],
       fromAmount: '1000000',
       sourceChainId: SUPPORTED_DEPOSIT_CHAINS.ARBITRUM,
-      split: { '42161': 0.5, '1337': 0.5 },
+      split: { '42161': 0.5, '8453': 0.5 },
     });
     expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(
+        result.error.issues.some((issue) =>
+          issue.message.includes('may only target themselves or HyperCore'),
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it('rejects an Ethereum source bridging to Arbitrum', () => {
+    expect(
+      PlanOrchestrationDepositRequestSchema.safeParse({
+        kind: 'invest',
+        userAddress: USER,
+        fromToken: DEPOSIT_USDC_ADDRESSES[SUPPORTED_DEPOSIT_CHAINS.ETHEREUM],
+        fromAmount: '1000000',
+        sourceChainId: SUPPORTED_DEPOSIT_CHAINS.ETHEREUM,
+        split: { '42161': 1 },
+      }).success,
+    ).toBe(false);
+  });
+
+  it('accepts Arbitrum USDC funding HyperCore', () => {
+    expect(
+      PlanOrchestrationDepositRequestSchema.safeParse({
+        kind: 'invest',
+        userAddress: USER,
+        fromToken: DEPOSIT_USDC_ADDRESSES[SUPPORTED_DEPOSIT_CHAINS.ARBITRUM],
+        fromAmount: '25000000',
+        sourceChainId: SUPPORTED_DEPOSIT_CHAINS.ARBITRUM,
+        split: { '1337': 1 },
+      }).success,
+    ).toBe(true);
+  });
+
+  it('accepts Ethereum USDC funding HyperCore', () => {
+    expect(
+      PlanOrchestrationDepositRequestSchema.safeParse({
+        kind: 'invest',
+        userAddress: USER,
+        fromToken: DEPOSIT_USDC_ADDRESSES[SUPPORTED_DEPOSIT_CHAINS.ETHEREUM],
+        fromAmount: '25000000',
+        sourceChainId: SUPPORTED_DEPOSIT_CHAINS.ETHEREUM,
+        split: { '1337': 1 },
+      }).success,
+    ).toBe(true);
+  });
+
+  it('accepts native Arbitrum ETH funding HyperCore', () => {
+    expect(
+      PlanOrchestrationDepositRequestSchema.safeParse({
+        kind: 'invest',
+        userAddress: USER,
+        fromToken: NATIVE_TOKEN_ADDRESS,
+        fromAmount: '10000000000000000',
+        sourceChainId: SUPPORTED_DEPOSIT_CHAINS.ARBITRUM,
+        split: { '1337': 1 },
+      }).success,
+    ).toBe(true);
+  });
+
+  it('accepts an Arbitrum split across itself and HyperCore', () => {
+    expect(
+      PlanOrchestrationDepositRequestSchema.safeParse({
+        kind: 'invest',
+        userAddress: USER,
+        fromToken: DEPOSIT_USDC_ADDRESSES[SUPPORTED_DEPOSIT_CHAINS.ARBITRUM],
+        fromAmount: '50000000',
+        sourceChainId: SUPPORTED_DEPOSIT_CHAINS.ARBITRUM,
+        split: { '42161': 0.5, '1337': 0.5 },
+      }).success,
+    ).toBe(true);
   });
 });
 
@@ -1046,5 +1119,69 @@ describe('hlp-spot-deposit request', () => {
     });
     expect(parsed).not.toHaveProperty('sourceChainId');
     expect(parsed).not.toHaveProperty('fromToken');
+  });
+});
+
+describe('hlp-spot-deposit plan', () => {
+  const step = {
+    kind: 'hyperliquid-vault-deposit' as const,
+    chainId: HYPERCORE_CHAIN_ID,
+    amount: { source: 'fixed' as const, amount: '10000000' },
+    minDepositUsd: '10000000',
+    action: {
+      type: 'vaultTransfer' as const,
+      vaultAddress: '0xdfc24b077bc1425ad1dea75bcb6f8158e10df303',
+      isDeposit: true as const,
+    },
+    signing: {
+      scheme: 'hyperliquid-l1-action' as const,
+      hyperliquidChain: 'Mainnet' as const,
+      apiUrl: 'https://api.hyperliquid.xyz',
+    },
+    lockupDays: 4,
+  };
+  const valid = {
+    kind: 'hlp-spot-deposit' as const,
+    execution: 'hypercore-signatures' as const,
+    amountUsd6: '10000000',
+    minDepositUsd: '10000000',
+    lockupDays: 4,
+    step,
+  };
+
+  it('accepts one fixed vault action matching the requested amount', () => {
+    expect(HlpSpotDepositPlanSchema.parse(valid).step.amount).toEqual({
+      source: 'fixed',
+      amount: '10000000',
+    });
+  });
+
+  it('rejects a bridge-output amount that has no bridge to measure', () => {
+    expect(() =>
+      HlpSpotDepositPlanSchema.parse({
+        ...valid,
+        step: { ...step, amount: { source: 'bridge-output', legIndex: 0 } },
+      }),
+    ).toThrow('requires a fixed vault amount');
+  });
+
+  it('rejects a vault amount that disagrees with the reviewed amount', () => {
+    // The user reviewed `amountUsd6`; signing anything else would move a
+    // different sum into a position that locks for days.
+    expect(() =>
+      HlpSpotDepositPlanSchema.parse({
+        ...valid,
+        step: { ...step, amount: { source: 'fixed', amount: '12000000' } },
+      }),
+    ).toThrow('must match amountUsd6');
+  });
+
+  it('rejects a plan that still carries the removed two-step shape', () => {
+    const twoStep = {
+      ...valid,
+      steps: [{ kind: 'hyperliquid-usd-class-transfer' }, step],
+    };
+    delete (twoStep as { step?: unknown }).step;
+    expect(() => HlpSpotDepositPlanSchema.parse(twoStep)).toThrow();
   });
 });

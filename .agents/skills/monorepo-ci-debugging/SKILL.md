@@ -1,9 +1,6 @@
 ---
 name: monorepo-ci-debugging
-description: >-
-  Use when a GitHub CI job in the pnpm + turbo monorepo fails and it is unclear
-  which local command reproduces it. Covers CI-to-command mapping, evidence-first
-  triage, cascaded failures, and widened verification.
+description: 'Map a failing monorepo GitHub CI job to its local reproduction command when that mapping is unclear.'
 ---
 
 # Monorepo CI debugging
@@ -16,17 +13,17 @@ drifts.
 
 ## CI job → local parity
 
-| GitHub job | Local parity |
-| --- | --- |
-| `quick-gates` | `bash scripts/verify-jobs.sh format repo contracts` |
-| `code-quality` | `bash scripts/verify-jobs.sh type-check lint deadcode dup` |
-| `tests` | `bash scripts/verify-jobs.sh test analytics` |
-| `e2e` | `bash scripts/verify-jobs.sh e2e` → **app-playwright-ci-debugging** |
-| `security` | `pnpm run security audit` → **monorepo-security-audit** |
-| `deploy-gates` | `bash scripts/check-dispatch-registry-drift.sh`; `bash scripts/resolve-deploy-matrix.test.sh` (deploy_matrix / verify_matrix parity) |
-| `ios-release-smoke` | `pnpm turbo run test:ios:release-smoke --filter=@zapengine/app` (macOS) |
-| `check-dead-env` | `pnpm lint dead-env` → **env-drift-ci-debugging** |
-| `coverage` | `pnpm run coverage test && pnpm run coverage summary` |
+| GitHub job          | Local parity                                                                                                                         |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `quick-gates`       | `bash scripts/verify-jobs.sh format repo contracts`                                                                                  |
+| `code-quality`      | `bash scripts/verify-jobs.sh type-check lint deadcode dup`                                                                           |
+| `tests`             | `bash scripts/verify-jobs.sh test analytics`                                                                                         |
+| `e2e`               | `bash scripts/verify-jobs.sh e2e` → **app-playwright-ci-debugging**                                                                  |
+| `security`          | `pnpm run security audit` → **monorepo-security-audit**                                                                              |
+| `deploy-gates`      | `bash scripts/check-dispatch-registry-drift.sh`; `bash scripts/resolve-deploy-matrix.test.sh` (deploy_matrix / verify_matrix parity) |
+| `ios-release-smoke` | `pnpm turbo run test:ios:release-smoke --filter=@zapengine/app` (macOS)                                                              |
+| `check-dead-env`    | `pnpm lint dead-env` → **env-drift-ci-debugging**                                                                                    |
+| `coverage`          | `pnpm run coverage test && pnpm run coverage summary`                                                                                |
 
 `pnpm verify ci` / `pnpm verify parallel` cover only `quick-gates`,
 `code-quality`, `tests`, and `e2e`. Security, coverage, dead-env, deploy/Docker,
@@ -36,8 +33,9 @@ and iOS smoke remain separate jobs.
 
 1. Read the named CI log first. For local verify failures, read
    `.ai-verify/result.json` and the referenced `.ai-verify/logs/*` file.
-2. Enumerate every red job before editing; one named failure is a starting point,
-   not the full scope.
+2. Inspect the current failed jobs to distinguish shared causes from unrelated
+   failures. Fix jobs caused by this change or included in the user's requested
+   scope; report other failures without expanding the assignment.
 3. Reproduce the smallest faithful unit, for example:
    - `pnpm turbo run <task> --filter=@zapengine/<workspace>`
    - `cd apps/app && pnpm exec vitest run <file>`
@@ -92,5 +90,12 @@ gh run view <run-id> --log-failed
 ## Handoff
 
 Use the root verification policy, then run the separate job parity commands
-affected by the fix. Node 24 on CI is authoritative. A CI fix is complete only
-when the original parity command and latest PR checks are green.
+affected by the fix. Node 24 on CI is authoritative. Mark the local fix verified
+when the original failure and one appropriate aggregate gate pass. Report pending
+CI and unrelated failures separately; this does not mean the PR is ready to merge.
+
+Before merge, require the current head's required checks to pass. If waiting is
+part of the request, use one bounded observation window (10 minutes by default)
+and report its result. Do not restart an unchanged window without new evidence or
+a user request to keep monitoring. A request for all CI checks to pass broadens
+the completion condition to those checks; report unresolved blockers honestly.

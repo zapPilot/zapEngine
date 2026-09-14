@@ -1,13 +1,6 @@
 ---
 name: monorepo-coverage-gate
-description: >-
-  Use when the separate GitHub `coverage` job fails, a workspace
-  `test:coverage` exits non-zero, or coverage drops after adding a large POC
-  surface. Covers the current CI coverage-summary job and the per-workspace
-  absolute Vitest/pytest floors. Symptoms: `Coverage for
-  lines/functions/statements/branches does not meet global threshold`, `verify
-  ci` is green while the coverage job is red, or lowering a configured
-  threshold to hide a regression.
+description: 'Diagnose a failing GitHub coverage job or workspace test:coverage threshold without weakening the configured gate.'
 ---
 
 # Monorepo coverage-gate debugging
@@ -41,8 +34,8 @@ has no absolute floor. The aggregate contains 13 workspaces, including
 ## Core principle — fix coverage without hiding the blast radius
 
 A coverage failure has one shape: the workspace is below its configured
-absolute threshold. Add tests for the changed surface, delete dead code, or make
-an explicitly scoped temporary threshold decision. Aggregation never fails the
+absolute threshold. Add tests for the changed surface or delete dead code. Apply
+a threshold exception only when explicitly authorized as described below. Aggregation never fails the
 job on its own — `coverage/summary.json` is a report, not a gate.
 
 ## Diagnose the failing workspace
@@ -73,34 +66,28 @@ Preferred order:
 
 1. Add smoke/unit tests for the highest-value pure functions, data mappers,
    validation helpers, and render paths.
-2. A temporary workspace threshold reduction is allowed only for an explicitly
-   disposable POC or experiment. It is **not** an acceptable way to land a
-   production pipeline, durable worker, schema migration, auth boundary, or
-   invariant fix.
-3. When the POC exception genuinely applies, all of these are required:
-   - scoped to the affected workspace's `vitest.config.ts`, never repo-wide;
-   - set just below the current measured coverage, with meaningful tests added first;
-   - documented beside the threshold with a `Temporary POC floor` comment;
-   - recorded in the PR body with before/after metrics and a concrete ratchet task;
-   - not combined with blanket `knip`, `jscpd`, or coverage ignores to clear the
-     same large feature surface.
-4. If those conditions are missing, keep the threshold and either add coverage,
-   remove dead surface, or split the feature so the uncovered portion cannot be
-   mistaken for validated production code.
+2. Keep the configured floor. Any experimental threshold exception must come
+   from an explicit user decision or an applicable scoped repository policy;
+   this skill grants no exception.
+3. If such an exception is authorized, document its workspace scope, measured
+   before/after coverage, and the agreed restoration condition in the PR.
+4. Otherwise add meaningful coverage or remove genuinely dead code. Do not split
+   the feature or change branch/worktree context without explicit user direction.
+
 5. Do not use blanket `c8 ignore` to hide reachable code. Only ignore genuinely
    unreachable defensive branches, with a reason.
 
 ## Rationalizations — STOP
 
-| Excuse                                                                              | Reality                                                                                                                   |
-| ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| "`verify ci` passed, so coverage is fine."                                          | Coverage is a separate GitHub job, not part of `verify ci`.                                                               |
-| "`pnpm coverage summary` is the same as CI."                                        | Almost — CI also runs `pnpm run coverage test` first. Compare with the workflow before debugging.                         |
-| "Just lower the root threshold."                                                    | That weakens the gate for everyone. Only scoped, temporary workspace floors are acceptable for explicit POCs.             |
-| "The branch touched one workspace, so that workspace must be the coverage failure." | Coverage runs all workspaces; read the failed workspace line.                                                             |
-| "This production pipeline is large, so call it a POC and lower the floor."          | Durable production behavior must earn coverage; the POC exception requires disposable scope and an explicit ratchet plan. |
-| "Blanket-ignore deadcode and duplicates too; they are all from the same feature."   | Multiple gate suppressions hide an unreviewed surface. Fix or split it instead.                                           |
-| "Blanket ignore the new dashboard."                                                 | Add high-value tests first; only ignore unreachable code with a reason.                                                   |
+| Excuse                                                                              | Reality                                                                                           |
+| ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| "`verify ci` passed, so coverage is fine."                                          | Coverage is a separate GitHub job, not part of `verify ci`.                                       |
+| "`pnpm coverage summary` is the same as CI."                                        | Almost — CI also runs `pnpm run coverage test` first. Compare with the workflow before debugging. |
+| "Just lower the root threshold."                                                    | Keep the configured floor; this skill grants no threshold exception.                              |
+| "The branch touched one workspace, so that workspace must be the coverage failure." | Coverage runs all workspaces; read the failed workspace line.                                     |
+| "This production pipeline is large, so call it a POC and lower the floor."          | Durable production behavior must earn coverage; this skill does not authorize an exception.       |
+| "Blanket-ignore deadcode and duplicates too; they are all from the same feature."   | Fix the underlying issues; do not suppress gates or split the task without authorization.         |
+| "Blanket ignore the new dashboard."                                                 | Add high-value tests first; only ignore unreachable code with a reason.                           |
 
 ## Verification
 

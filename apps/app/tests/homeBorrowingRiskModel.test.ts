@@ -77,6 +77,10 @@ describe('buildHomeBorrowingRiskView', () => {
     ]);
   });
 
+  it('returns no Home risk section while borrowing data is absent', () => {
+    expect(buildHomeBorrowingRiskView(undefined)).toBeNull();
+  });
+
   it('returns no Home risk section when there are no borrowing positions', () => {
     const empty = response();
     empty.positions = [];

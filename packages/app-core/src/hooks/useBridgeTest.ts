@@ -2,8 +2,8 @@ import { extractErrorMessage } from '@core/lib/errors';
 import { executeDepositPlanWithWallet } from '@core/lib/wallet/executeDepositPlan';
 import { useWalletProvider } from '@core/providers/walletContext';
 import {
-  getPerpUsdcBalance,
-  waitForPerpUsdcArrival,
+  getHyperCoreSpendableUsdc,
+  waitForHyperCoreUsdcArrival,
 } from '@core/services/hyperliquidService';
 import {
   getPublicClient,
@@ -102,9 +102,6 @@ async function assertFundingAndEstimateGas(params: {
   }
 
   const bridgeTx = params.quote.transaction;
-  // A bridge simulation can legitimately revert before its required ERC20
-  // approval has been mined. In that state, use LI.FI's quoted gas limit for
-  // the funding preflight instead of simulating an impossible transaction.
   let totalGas =
     params.includeApproval && params.quote.approval
       ? BigInt(bridgeTx.gasLimit ?? '0')
@@ -201,10 +198,7 @@ export function useBridgeTest() {
       const controller = new AbortController();
       abortRef.current = controller;
 
-      setState({
-        ...INITIAL_STATE,
-        status: 'quoting',
-      });
+      setState({ ...INITIAL_STATE, status: 'quoting' });
 
       try {
         const quote = await buildFreshQuote(request, userAddress);
@@ -237,8 +231,8 @@ export function useBridgeTest() {
         let hyperliquidBaseline: bigint | null = null;
         if (request.toChainId === HYPERCORE_CHAIN_ID) {
           hyperliquidBaseline = (
-            await getPerpUsdcBalance({ user: userAddress })
-          ).withdrawableUsd6;
+            await getHyperCoreSpendableUsdc({ user: userAddress })
+          ).spendableUsd6;
           if (controller.signal.aborted) return;
         }
 
@@ -320,7 +314,7 @@ export function useBridgeTest() {
             status: 'confirmingDestination',
             destinationTxHash,
           }));
-          await waitForPerpUsdcArrival({
+          await waitForHyperCoreUsdcArrival({
             user: userAddress,
             baselineUsd6: hyperliquidBaseline,
             expectedUsd6: BigInt(quote.estimate.toAmountMin),

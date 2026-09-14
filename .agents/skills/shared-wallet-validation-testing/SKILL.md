@@ -1,13 +1,6 @@
 ---
 name: shared-wallet-validation-testing
-description: >-
-  Use when changing or testing wallet form validation shared through
-  @zapengine/app-core, especially wallet invite email, wallet label, or Ethereum
-  address behavior consumed by app wallet and bundle flows.
-  Symptoms: app-core validation tests pass but app consumer tests fail,
-  pasted input with leading/trailing whitespace, duplicated validation assertions
-  across packages, or repeated PRs around validateEmail / validateNewWallet /
-  walletValidation.test.ts.
+description: 'Verify shared app-core wallet email, label, or Ethereum address validation and affected app consumer contracts.'
 ---
 
 # Shared wallet validation testing
@@ -79,12 +72,11 @@ consumer test file or the named CI failure:
 rg -n "walletValidation|validateNewWallet|validateEmail" apps/app packages/app-core
 ```
 
-Before merge, use the repo's CI-equivalent gate from `.github/workflows/ci.yml`:
-
-```bash
-pnpm verify ci
-pnpm run security audit
-```
+Before handoff, use one aggregate gate appropriate to the changed surface under
+root `AGENTS.md`. Reuse passing checks for unchanged inputs. Run the separate
+dependency security audit when dependency resolution changed or that audit failed.
+Required CI checks still apply before merge; do not duplicate them locally solely
+because this helper changed.
 
 ## Rationalizations — STOP
 
