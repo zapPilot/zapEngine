@@ -184,6 +184,34 @@ describe('AuthenticatedActionProvider', () => {
     expect(laterAction).toHaveBeenCalledTimes(1);
   });
 
+  it('does not let a login rejected after manual cancel affect a later action', async () => {
+    let rejectFirst: ((reason?: unknown) => void) | undefined;
+    const firstLogin = new Promise<ConnectOutcome>((_resolve, reject) => {
+      rejectFirst = reject;
+    });
+    mocks.account.connect
+      .mockReturnValueOnce(firstLogin)
+      .mockResolvedValueOnce('connected');
+    await render();
+    const cancelledAction = vi.fn();
+    const laterAction = vi.fn();
+
+    await act(async () => {
+      context().run(cancelledAction);
+      context().cancel();
+      context().run(laterAction);
+    });
+
+    await act(async () => {
+      rejectFirst?.(new Error('cancelled login failed late'));
+      await firstLogin.catch(() => undefined);
+    });
+    await reconnect();
+
+    expect(cancelledAction).not.toHaveBeenCalled();
+    expect(laterAction).toHaveBeenCalledTimes(1);
+  });
+
   it('drops the queued action when the login fails', async () => {
     mocks.account.connect.mockRejectedValue(new Error('network failed'));
     await render();
