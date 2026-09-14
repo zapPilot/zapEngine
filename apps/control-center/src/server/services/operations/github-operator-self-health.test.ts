@@ -58,7 +58,9 @@ it('does not read completed-run history for the always-on ops operator', async (
   expect(String(fetchImpl.mock.calls[0]?.[0])).toContain(
     '/actions/workflows/env-drift.yml/runs?',
   );
-  expect(String(fetchImpl.mock.calls[0]?.[0])).not.toContain('ops-operator.yml');
+  expect(String(fetchImpl.mock.calls[0]?.[0])).not.toContain(
+    'ops-operator.yml',
+  );
   expect(signals.map((signal) => signal.fingerprint)).toEqual([
     'github-actions:workflow/env-drift.yml',
   ]);
