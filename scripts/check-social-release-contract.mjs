@@ -31,6 +31,9 @@ const recovery = read(
 const languageRecoveryMigration = read(
   'supabase/migrations/20260901031500_social_language_v2_recovery_guards.sql',
 );
+const finalLanguageMigration = read(
+  'supabase/migrations/20260914004500_finalize_social_language_policy.sql',
+);
 const claimMigration = read(
   'supabase/migrations/20260826120000_claim_social_publish_batch_episode_scope.sql',
 );
@@ -42,6 +45,8 @@ const rolloutContractTest =
   'apps/podcast-pipeline/src/social/cohort-language-rollout.test.ts';
 const waitingMediaContractTest =
   'apps/podcast-pipeline/src/socialWaitingMediaPolicyMigration.test.ts';
+const finalLanguageMigrationTest =
+  'apps/podcast-pipeline/src/socialFinalLanguagePolicyMigration.test.ts';
 const recoveryTest =
   'apps/podcast-pipeline/src/social/release-cohort-store.test.ts';
 
@@ -61,14 +66,19 @@ requireMatch(
   /Each article must cover all three languages/i,
 );
 requireMatch(
-  'scoped AGENTS durable profile invariant',
+  'scoped AGENTS historical v2 profile invariant',
   socialAgents,
   /social-language-profile-v2/i,
 );
 requireMatch(
-  'scoped AGENTS fixed-threads profile invariant',
+  'scoped AGENTS historical v3 profile invariant',
   socialAgents,
   /social-language-profile-v3/i,
+);
+requireMatch(
+  'scoped AGENTS final language policy',
+  socialAgents,
+  /Final fixed language policy/i,
 );
 requireMatch(
   'daemon episode-level lane resolver',
@@ -86,50 +96,58 @@ requireMatch(
   daemon,
   /listPartiallyPublishedCohorts/,
 );
-// The enqueue barrier only proves media existed when the cohort was queued. A
-// re-plan afterwards can delete a completed render underneath a claimed cohort,
-// so transport is gated on a second readiness read as well.
 requireMatch(
   'daemon publish-time media re-check',
   daemon,
   /holdCohortsMissingMedia/,
 );
-// Copy is the last pre-transport step that can fail for one language. Inside
-// the publish loop it shipped an article's other languages before the Rednote
-// red-line verdict was known, so it has to run as a barrier ahead of the first
-// transport call.
 requireMatch(
   'daemon publish-time copy barrier',
   daemon,
   /holdCohortsMissingCopy/,
 );
 requireMatch(
-  'language allocation balanced profiles',
+  'historical language allocation balanced profiles',
   languageAllocation,
   /profile:\s*'A'[\s\S]*profile:\s*'B'[\s\S]*profile:\s*'C'/,
 );
 requireMatch(
-  'language allocation fixed-threads swap profiles',
+  'historical fixed-threads swap profiles',
   languageAllocation,
   /profile:\s*'D'[\s\S]*profile:\s*'E'/,
 );
 requireMatch(
-  'threads fixed-chinese cutover',
+  'historical threads fixed-chinese cutover',
   policy,
   /SOCIAL_LANGUAGE_THREADS_FIXED_SINCE/,
 );
 requireMatch(
-  'durable v3 swap profile assignment',
+  'final fixed-language cutover',
+  policy,
+  /SOCIAL_LANGUAGE_FINAL_FIXED_SINCE/,
+);
+requireMatch(
+  'final fixed-language mapping',
+  policy,
+  /rednote:\s*'zh-Hant'[\s\S]*threads:\s*'zh-Hant'[\s\S]*x:\s*'ja'[\s\S]*youtube:\s*'en'/,
+);
+requireMatch(
+  'final fixed cohort resolver',
+  cohort,
+  /isFinalLanguagePolicyActive[\s\S]*finalReleaseCohortLanes/,
+);
+requireMatch(
+  'historical durable v3 swap profile assignment',
   cohort,
   /SOCIAL_LANGUAGE_SWAP_PROFILE_ASSIGNMENT_KEY/,
 );
 requireMatch(
-  'language allocation platform experiment keys',
+  'historical language allocation experiment keys',
   policy,
   /x-language-v2[\s\S]*threads-language-v1[\s\S]*youtube-language-v1/,
 );
 requireMatch(
-  'durable v2 profile assignment',
+  'historical durable v2 profile assignment',
   cohort,
   /SOCIAL_LANGUAGE_PROFILE_ASSIGNMENT_KEY/,
 );
@@ -149,19 +167,31 @@ requireMatch(
   /cross join required_language/i,
 );
 requireMatch(
+  'final queue language rewrite',
+  finalLanguageMigration,
+  /update from_fed_to_chain\.social_publish_jobs[\s\S]*when 'x' then 'ja'[\s\S]*when 'youtube' then 'en'/i,
+);
+requireMatch(
+  'final queue experiment cleanup',
+  finalLanguageMigration,
+  /delete from from_fed_to_chain\.social_experiment_assignments/i,
+);
+requireMatch(
   'production queue reconciliation',
   recovery,
   /alignPendingSocialReleaseCohorts/,
 );
-// The partial-cohort fence stops every other article while it holds. Mirroring
-// the claim RPC's attempt fence is what keeps that hold bounded instead of
-// permanent, so it is guarded here and not only by the unit tests.
 requireMatch('bounded partial-cohort fence', recovery, /MAX_PUBLISH_ATTEMPTS/);
 requireMatch('paged durable queue read', recovery, /\.range\(\s*offset/);
 requireMatch(
   'README episode scheduling unit',
   readme,
   /`?episode_id`? is the scheduling unit/i,
+);
+requireMatch(
+  'README final fixed language policy',
+  readme,
+  /X[^\n]*`ja`[\s\S]*YouTube[^\n]*`en`/i,
 );
 requireMatch(
   'episode-scoped claim RPC',
@@ -211,6 +241,7 @@ for (const path of [
   languageContractTest,
   rolloutContractTest,
   waitingMediaContractTest,
+  finalLanguageMigrationTest,
   recoveryTest,
 ]) {
   if (!existsSync(resolve(root, path))) {
