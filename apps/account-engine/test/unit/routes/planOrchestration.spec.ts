@@ -76,6 +76,36 @@ describe('POST /plan-orchestration/deposit', () => {
     });
   });
 
+  it('validates a chain-batch request and delegates it unchanged', async () => {
+    const { app, service } = createApp();
+    const body = {
+      kind: 'chain-batch',
+      userAddress: USER,
+      sourceChainId: 42161,
+      positions: [
+        { kind: 'gmx-v2-basket', fromToken: ARBITRUM_USDC, amount: '35000000' },
+        {
+          kind: 'invest',
+          fromToken: ARBITRUM_USDC,
+          fromAmount: '25000000',
+          split: { '1337': 1 },
+        },
+      ],
+    };
+
+    const response = await app.request(
+      'http://localhost/plan-orchestration/deposit',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(service.buildDeposit).toHaveBeenCalledWith(body);
+  });
+
   it('validates the Invest request and returns the DepositPlan response', async () => {
     const { app, service } = createApp();
 

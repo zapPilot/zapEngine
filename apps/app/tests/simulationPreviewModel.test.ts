@@ -537,6 +537,34 @@ describe('resolveRouteProtocols', () => {
     expect(badges).toEqual(['25%', '25%', '25%', '24.9%']);
   });
 
+  it('weights a merged batch by position instead of by incomparable leg amounts', () => {
+    // GMX funds from 6-decimal USDC, HLP from 18-decimal ETH in the same batch,
+    // so raw leg amounts would put GMX at a fraction of a percent.
+    const merged: DepositPlan = {
+      ...gmxBasketPlan(['8750000', '8750000', '8750000', '8750000']),
+      legs: [
+        ...gmxBasketPlan(['8750000', '8750000', '8750000', '8750000']).legs,
+        {
+          chainId: 1337,
+          kind: 'bridge',
+          protocol: 'hyperliquid',
+          toToken: TOKEN,
+          fromAmount: '7000000000000000',
+          toAmountMin: '25000000',
+          gasUsd: '0.02',
+          durationSec: 60,
+        },
+      ],
+    };
+
+    expect(
+      resolveRouteProtocols(merged, 'n/a', {
+        'gmx-v2': 3_500,
+        hyperliquid: 2_500,
+      }).map((chip) => chip.badge),
+    ).toEqual(['8.7%', '8.7%', '8.7%', '8.7%', '25%']);
+  });
+
   it('returns no chips when the plan is undefined or no leg carries a protocol', () => {
     expect(resolveRouteProtocols(undefined, 'n/a')).toEqual([]);
     expect(resolveRouteProtocols(singleChainPlan(), 'n/a')).toEqual([]);

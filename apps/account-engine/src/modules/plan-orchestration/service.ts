@@ -20,7 +20,9 @@ import {
 import {
   BASE_CHAIN_ID,
   BASE_USDC_ADDRESS,
+  type ChainBatchPosition,
   type ChainSplit,
+  type DepositFollowUp,
   type DepositPlan,
   DepositPlanSchema,
   NATIVE_TOKEN_ADDRESS,
@@ -245,6 +247,10 @@ const MAX_PLAN_SLIPPAGE_BPS = 100;
  * the pure safety validators always, then the bundle simulation when one is
  * configured. `followUps` (HyperCore actions) are not EVM transactions and are
  * never simulated — only the source-chain approvals+calls batch is.
+ *
+ * `intents` is a list because a chain batch funds several destinations from
+ * one wallet: an approval of a shared source token is capped by what every
+ * position drawing on that token asked for, not by any single position.
  */
 async function assertPlanSafety(params: {
   plan: {
@@ -253,10 +259,12 @@ async function assertPlanSafety(params: {
     sourceChainId: number;
   };
   userAddress: string;
-  intent: { fromToken?: string; fromAmount?: string };
+  intents: readonly { fromToken?: string; fromAmount?: string }[];
   simulation: PlanSimulationDeps | undefined;
 }): Promise<void> {
-  assertApprovalCaps(params.plan, params.intent);
+  for (const intent of params.intents) {
+    assertApprovalCaps(params.plan, intent);
+  }
   assertMinReceived(params.plan, { maxSlippageBps: MAX_PLAN_SLIPPAGE_BPS });
 
   if (!params.simulation) {
@@ -293,7 +301,7 @@ async function finalizePlan<
   await assertPlanSafety({
     plan,
     userAddress: params.userAddress,
-    intent: {},
+    intents: [{}],
     simulation: params.simulation,
   });
   return plan;
@@ -384,23 +392,122 @@ function mergeApprovalTransactions(
   );
 }
 
-type GmxV2BasketDepositRequest = Extract<
-  PlanOrchestrationDepositRequest,
-  { kind: 'gmx-v2-basket' }
->;
+/**
+ * A follow-up addresses its bridge leg by index, so concatenating another
+ * position's legs in front of it moves the target. Both index fields are
+ * shifted together — they name the same leg.
+ */
+function shiftFollowUpLegIndices(
+  followUp: DepositFollowUp,
+  legOffset: number,
+): DepositFollowUp {
+  if (legOffset === 0) {
+    return followUp;
+  }
+  const amount: DepositFollowUp['amount'] =
+    followUp.amount.source === 'bridge-output'
+      ? {
+          source: 'bridge-output',
+          legIndex: followUp.amount.legIndex + legOffset,
+        }
+      : followUp.amount;
+  if (followUp.kind === 'destination-replan') {
+    return {
+      ...followUp,
+      afterLegIndex: followUp.afterLegIndex + legOffset,
+      amount,
+    };
+  }
+  return {
+    ...followUp,
+    ...(followUp.afterLegIndex === undefined
+      ? {}
+      : { afterLegIndex: followUp.afterLegIndex + legOffset }),
+    amount,
+  };
+}
+
+/**
+ * Fold every position planned for one source chain into the single batch the
+ * wallet signs. Approvals of the same (token, spender) are summed so the batch
+ * carries one bounded allowance rather than two competing ones; everything
+ * else keeps position order, which is what makes the follow-up leg indices
+ * shiftable and the approvals-then-calls ordering safe.
+ *
+ * Known limit: each position filtered its own approvals against the same live
+ * allowance, so two positions that each need no approval but together exceed
+ * the allowance would under-approve. No two positions funded from one chain
+ * share a (token, spender) today — Morpho's vault, GMX's router, and LI.FI's
+ * spender are all distinct, and Bridge2 is a plain transfer.
+ */
+function mergeChainBatchPlans(
+  plans: readonly DepositPlan[],
+  sourceChainId: number,
+): DepositPlan {
+  const legs: DepositPlan['legs'] = [];
+  const calls: PreparedTransaction[] = [];
+  const approvals: PreparedTransaction[] = [];
+  const followUps: DepositFollowUp[] = [];
+
+  for (const plan of plans) {
+    if (plan.sourceChainId !== sourceChainId) {
+      throw new Error(
+        `Chain batch position planned on chain ${plan.sourceChainId}, not ${sourceChainId}`,
+      );
+    }
+    const legOffset = legs.length;
+    legs.push(...plan.legs);
+    calls.push(...plan.calls);
+    approvals.push(...plan.approvals);
+    for (const followUp of plan.followUps ?? []) {
+      followUps.push(shiftFollowUpLegIndices(followUp, legOffset));
+    }
+  }
+
+  return DepositPlanSchema.parse({
+    legs,
+    approvals: mergeApprovalTransactions(approvals),
+    calls,
+    ...(followUps.length > 0 ? { followUps } : {}),
+    totalGasUsd: sumGasUsd(plans.map((plan) => plan.totalGasUsd)),
+    sourceChainId,
+  });
+}
+
+/** What each distinct source token is allowed to be approved for, in total. */
+function chainBatchIntents(
+  positions: readonly ChainBatchPosition[],
+): { fromToken: string; fromAmount: string }[] {
+  const totals = new Map<string, { fromToken: string; total: bigint }>();
+  for (const position of positions) {
+    const amount = 'amount' in position ? position.amount : position.fromAmount;
+    const key = position.fromToken.toLowerCase();
+    const current = totals.get(key);
+    totals.set(key, {
+      fromToken: position.fromToken,
+      total: (current?.total ?? 0n) + BigInt(amount),
+    });
+  }
+  return [...totals.values()].map(({ fromToken, total }) => ({
+    fromToken,
+    fromAmount: total.toString(),
+  }));
+}
 
 async function buildGmxV2BasketDeposit(params: {
-  request: GmxV2BasketDepositRequest;
+  userAddress: string;
+  fromToken: string;
+  amount: string;
   intentEngine: PlanOrchestrationServiceDeps['intentEngine'];
   publicClients: DepositPublicClients;
   simulation: PlanSimulationDeps | undefined;
 }): Promise<DepositPlan> {
-  const { request, intentEngine, publicClients, simulation } = params;
+  const { intentEngine, publicClients, simulation } = params;
   const publicClient = publicClientFor(publicClients, GMX_V2_ARBITRUM_CHAIN_ID);
-  const userAddress = request.userAddress as Address;
+  const userAddress = params.userAddress as Address;
   const collateralBudget = gmxCollateralBudget({
-    amount: request.amount,
-    fromToken: request.fromToken,
+    amount: params.amount,
+    fromToken: params.fromToken,
     orderCount: GMX_V2_BASKET_MARKET_KEYS.length,
   });
   const amounts = splitGmxBasketAmount(collateralBudget);
@@ -409,7 +516,7 @@ async function buildGmxV2BasketDeposit(params: {
       intentEngine.buildGmxV2Supply(
         {
           marketKey,
-          fromToken: request.fromToken as Address,
+          fromToken: params.fromToken as Address,
           fromAmount: amounts[index]!,
           userAddress,
         },
@@ -462,7 +569,7 @@ async function buildGmxV2BasketDeposit(params: {
   });
 
   return finalizePlan(parsed, {
-    userAddress: request.userAddress,
+    userAddress: params.userAddress,
     simulation,
   });
 }
@@ -797,19 +904,20 @@ async function assertStrategyExecutionSafety(params: {
     assertPlanSafety({
       plan: { ...baseGroup, sourceChainId: baseGroup.chainId },
       userAddress: request.userAddress,
-      intent: {
-        fromToken: baseGroup.fromToken,
-        fromAmount: baseGroup.fromAmount,
-      },
+      intents: [
+        { fromToken: baseGroup.fromToken, fromAmount: baseGroup.fromAmount },
+      ],
       simulation,
     }),
     assertPlanSafety({
       plan: { ...arbitrumGroup, sourceChainId: arbitrumGroup.chainId },
       userAddress: request.userAddress,
-      intent: {
-        fromToken: arbitrumGroup.fromToken,
-        fromAmount: arbitrumGroup.fromAmount,
-      },
+      intents: [
+        {
+          fromToken: arbitrumGroup.fromToken,
+          fromAmount: arbitrumGroup.fromAmount,
+        },
+      ],
       simulation,
     }),
   ]);
@@ -1135,44 +1243,106 @@ export function createPlanOrchestrationService({
   publicClients,
   simulation,
 }: PlanOrchestrationServiceDeps): PlanOrchestrationService {
+  /**
+   * Plan exactly one destination. The bundle-simulation gate is a parameter
+   * rather than a closure read so a chain batch can skip it per position and
+   * run it once over the merged batch — the list the wallet actually signs.
+   */
+  async function buildPositionPlan(
+    position: ChainBatchPosition,
+    envelope: { userAddress: string; sourceChainId: number },
+    simulationForSafety?: PlanSimulationDeps,
+  ): Promise<DepositPlan> {
+    if (position.kind === 'gmx-v2-basket') {
+      return buildGmxV2BasketDeposit({
+        userAddress: envelope.userAddress,
+        fromToken: position.fromToken,
+        amount: position.amount,
+        intentEngine,
+        publicClients,
+        simulation: simulationForSafety,
+      });
+    }
+
+    // The env-configured default only applies to Base-source plans. A
+    // non-Base source either re-quotes on its own chain or bridges into
+    // HyperCore, and in both cases the request names the split explicitly;
+    // composeDeposit defaults it to single-chain.
+    const split =
+      chainSplitFromRequest(position.split) ??
+      (envelope.sourceChainId === BASE_CHAIN_ID ? defaultSplit : undefined);
+    const plan = await compose(
+      {
+        userAddress: envelope.userAddress as Address,
+        fromToken: position.fromToken as Address,
+        fromAmount: position.fromAmount,
+        sourceChainId: envelope.sourceChainId,
+        ...(split ? { split } : {}),
+      },
+      {
+        adapter,
+        publicClients,
+        ...(hyperliquidNetwork ? { hyperliquidNetwork } : {}),
+      },
+    );
+
+    const parsed = DepositPlanSchema.parse(plan);
+    await assertPlanSafety({
+      plan: parsed,
+      userAddress: envelope.userAddress,
+      intents: [
+        { fromToken: position.fromToken, fromAmount: position.fromAmount },
+      ],
+      simulation: simulationForSafety,
+    });
+    return parsed;
+  }
+
+  async function buildChainBatchDeposit(
+    request: Extract<PlanOrchestrationDepositRequest, { kind: 'chain-batch' }>,
+    simulationForSafety: PlanSimulationDeps | undefined,
+  ): Promise<DepositPlan> {
+    // Each position is an independent set of quote/allowance round trips.
+    const plans = await Promise.all(
+      request.positions.map((position) =>
+        buildPositionPlan(position, {
+          userAddress: request.userAddress,
+          sourceChainId: request.sourceChainId,
+        }),
+      ),
+    );
+    const merged = mergeChainBatchPlans(plans, request.sourceChainId);
+    await assertPlanSafety({
+      plan: merged,
+      userAddress: request.userAddress,
+      intents: chainBatchIntents(request.positions),
+      simulation: simulationForSafety,
+    });
+    return merged;
+  }
+
   async function buildDeposit(
     request: PlanOrchestrationDepositRequest,
     simulationForSafety?: PlanSimulationDeps,
   ): Promise<PlanOrchestrationDepositPlan> {
     if (request.kind === 'invest') {
-      // The env-configured default only applies to Base-source plans. A
-      // non-Base source either re-quotes on its own chain or bridges into
-      // HyperCore, and in both cases the request names the split explicitly;
-      // composeDeposit defaults it to single-chain.
-      const split =
-        chainSplitFromRequest(request.split) ??
-        (request.sourceChainId === BASE_CHAIN_ID ? defaultSplit : undefined);
-      const plan = await compose(
+      return buildPositionPlan(
         {
-          userAddress: request.userAddress as Address,
-          fromToken: request.fromToken as Address,
-          fromAmount: request.fromAmount,
-          sourceChainId: request.sourceChainId,
-          ...(split ? { split } : {}),
-        },
-        {
-          adapter,
-          publicClients,
-          ...(hyperliquidNetwork ? { hyperliquidNetwork } : {}),
-        },
-      );
-
-      const parsed = DepositPlanSchema.parse(plan);
-      await assertPlanSafety({
-        plan: parsed,
-        userAddress: request.userAddress,
-        intent: {
+          kind: 'invest',
           fromToken: request.fromToken,
           fromAmount: request.fromAmount,
+          ...(request.split ? { split: request.split } : {}),
         },
-        simulation: simulationForSafety,
-      });
-      return parsed;
+        {
+          userAddress: request.userAddress,
+          sourceChainId: request.sourceChainId,
+        },
+        simulationForSafety,
+      );
+    }
+
+    if (request.kind === 'chain-batch') {
+      return buildChainBatchDeposit(request, simulationForSafety);
     }
 
     if (request.kind === 'hlp-spot-deposit') {
@@ -1192,12 +1362,18 @@ export function createPlanOrchestrationService({
     }
 
     if (request.kind === 'gmx-v2-basket') {
-      return buildGmxV2BasketDeposit({
-        request,
-        intentEngine,
-        publicClients,
-        simulation: simulationForSafety,
-      });
+      return buildPositionPlan(
+        {
+          kind: request.kind,
+          fromToken: request.fromToken,
+          amount: request.amount,
+        },
+        {
+          userAddress: request.userAddress,
+          sourceChainId: GMX_V2_ARBITRUM_CHAIN_ID,
+        },
+        simulationForSafety,
+      );
     }
 
     const publicClient = publicClientFor(

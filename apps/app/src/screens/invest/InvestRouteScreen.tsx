@@ -1,7 +1,7 @@
 import { Redirect } from 'expo-router';
 import { Text, View } from 'react-native';
 
-import { StageReviewCard } from '@/components/invest/StageReviewCard';
+import { ChainBatchReviewCard } from '@/components/invest/ChainBatchReviewCard';
 import { StepHeader } from '@/components/invest/StepHeader';
 import { StepProgress } from '@/components/invest/StepProgress';
 import { InlineErrorCard } from '@/components/ui/InlineErrorCard';
@@ -10,6 +10,7 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
 import type { DepositExecutionCapability } from '@/integration/investExecutionModel';
+import { chainBatchDrafts } from '@/integration/investTargetsModel';
 import { useInvest } from '@/integration/useInvest';
 import { useInvestExecution } from '@/integration/useInvestExecution';
 import { useInvestReview } from '@/integration/useInvestReview';
@@ -38,6 +39,7 @@ function capabilityNotice(
 export function InvestRouteScreen() {
   const invest = useInvest();
   const review = useInvestReview();
+  const batchCount = chainBatchDrafts(invest.stageDrafts).length;
   const { capability } = useInvestExecution();
   const {
     handleConfirm,
@@ -64,11 +66,10 @@ export function InvestRouteScreen() {
           Review one investment route
         </Text>
         <Text className="mt-2 text-[12px] leading-[18px] text-ink-dim">
-          {formatUsd(invest.amountUsd)} splits into {invest.stageDrafts.length}{' '}
-          reviewed wallet{' '}
-          {invest.stageDrafts.length === 1 ? 'batch' : 'batches'}. Only the
-          first is submitted now; each later batch waits for its own checkpoint
-          and is never sent twice.
+          {formatUsd(invest.amountUsd)} splits into {batchCount} reviewed wallet{' '}
+          {batchCount === 1 ? 'batch' : 'batches'}, one per source chain. Only
+          the first is submitted now; each later batch continues automatically
+          once its checkpoint re-review matches, and is never sent twice.
         </Text>
 
         <Text className="mb-2.5 mt-5 font-mono-semibold text-[9px] uppercase tracking-[.8px] text-ink-faint">
@@ -89,8 +90,8 @@ export function InvestRouteScreen() {
               action={{ label: 'Retry review', onPress: review.retry }}
             />
           ) : (
-            review.stages.map((stage) => (
-              <StageReviewCard key={stage.draft.positionId} stage={stage} />
+            review.batches.map((batch) => (
+              <ChainBatchReviewCard key={batch.draft.chainId} batch={batch} />
             ))
           )}
         </View>

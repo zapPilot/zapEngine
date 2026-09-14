@@ -502,15 +502,18 @@ interface InvestDepositFields extends BaseDepositFields {
 // that fans out across EVM destinations; every other source chain may only
 // supply its own chain (destination re-quote after a bridge landed) or bridge
 // into HyperCore, which every supported wallet chain can fund directly.
+// `pathPrefix` places the issues under the position that owns them when the
+// same fields arrive inside a chain batch.
 function addInvestDepositValidationIssues(
   value: InvestDepositFields,
   ctx: z.RefinementCtx,
+  pathPrefix: readonly (string | number)[] = [],
 ): void {
   if (!INVEST_SOURCE_CHAIN_IDS.has(value.sourceChainId)) {
     ctx.addIssue({
       code: 'custom',
       message: 'sourceChainId must be a supported EVM deposit chain',
-      path: ['sourceChainId'],
+      path: [...pathPrefix, 'sourceChainId'],
     });
     return;
   }
@@ -523,7 +526,7 @@ function addInvestDepositValidationIssues(
     ctx.addIssue({
       code: 'custom',
       message: 'fromToken must be USDC or the native token on the source chain',
-      path: ['fromToken'],
+      path: [...pathPrefix, 'fromToken'],
     });
   }
 
@@ -537,7 +540,7 @@ function addInvestDepositValidationIssues(
       ctx.addIssue({
         code: 'custom',
         message: `Unsupported split chain ${chainId}`,
-        path: ['split'],
+        path: [...pathPrefix, 'split'],
       });
     }
   }
@@ -553,21 +556,75 @@ function addInvestDepositValidationIssues(
       code: 'custom',
       message:
         'Non-Base source chains may only target themselves or HyperCore (1337)',
-      path: ['split'],
+      path: [...pathPrefix, 'split'],
     });
   }
 }
 
+function addGmxFundingTokenIssue(
+  fromToken: string,
+  ctx: z.RefinementCtx,
+  pathPrefix: readonly (string | number)[],
+): void {
+  if (STRATEGY_ARBITRUM_FUNDING_TOKENS.has(fromToken.toLowerCase())) {
+    return;
+  }
+  ctx.addIssue({
+    code: 'custom',
+    message:
+      'GMX v2 funding must be canonical Arbitrum USDC, USDT, or native ETH',
+    path: [...pathPrefix, 'fromToken'],
+  });
+}
+
+const InvestDepositRequestSchema = z.object({
+  kind: z.literal('invest'),
+  userAddress: AddressSchema,
+  fromToken: AddressSchema,
+  fromAmount: decimalStringSchema,
+  sourceChainId: z.number().int().positive(),
+  split: ChainSplitSchema.optional(),
+});
+
+const GmxV2BasketDepositRequestSchema = z.object({
+  kind: z.literal('gmx-v2-basket'),
+  fromToken: AddressSchema,
+  amount: decimalStringSchema,
+  userAddress: AddressSchema,
+});
+
+/**
+ * One destination inside a chain batch. The envelope owns the wallet and the
+ * source chain, so a position never restates either: two positions in one
+ * batch execute from the same wallet on the same chain by construction. Strict
+ * because a position that carried its own `userAddress` would otherwise be
+ * stripped in silence and funded from the envelope's wallet instead.
+ */
+export const ChainBatchPositionSchema = z.discriminatedUnion('kind', [
+  InvestDepositRequestSchema.omit({
+    userAddress: true,
+    sourceChainId: true,
+  }).strict(),
+  GmxV2BasketDepositRequestSchema.omit({ userAddress: true }).strict(),
+]);
+
+/**
+ * Every destination funded from one source chain, planned together so they
+ * land in a single reviewed wallet batch. A one-position batch is legal and
+ * builds the identical plan its standalone request would, which is what lets
+ * the client send this shape unconditionally.
+ */
+export const ChainBatchDepositRequestSchema = z.object({
+  kind: z.literal('chain-batch'),
+  userAddress: AddressSchema,
+  sourceChainId: z.number().int().positive(),
+  positions: z.array(ChainBatchPositionSchema).min(1),
+});
+
 export const PlanOrchestrationDepositRequestSchema = z
   .discriminatedUnion('kind', [
-    z.object({
-      kind: z.literal('invest'),
-      userAddress: AddressSchema,
-      fromToken: AddressSchema,
-      fromAmount: decimalStringSchema,
-      sourceChainId: z.number().int().positive(),
-      split: ChainSplitSchema.optional(),
-    }),
+    InvestDepositRequestSchema,
+    ChainBatchDepositRequestSchema,
     z.object({
       kind: z.literal('hlp-spot-deposit'),
       userAddress: AddressSchema,
@@ -584,12 +641,7 @@ export const PlanOrchestrationDepositRequestSchema = z
       amount: decimalStringSchema,
       userAddress: AddressSchema,
     }),
-    z.object({
-      kind: z.literal('gmx-v2-basket'),
-      fromToken: AddressSchema,
-      amount: decimalStringSchema,
-      userAddress: AddressSchema,
-    }),
+    GmxV2BasketDepositRequestSchema,
     z.object({
       kind: z.literal('strategy'),
       strategyId: z.literal(STRATEGY_DEPOSIT_ID),
@@ -639,15 +691,31 @@ export const PlanOrchestrationDepositRequestSchema = z
     }
 
     if (value.kind === 'gmx-v2' || value.kind === 'gmx-v2-basket') {
-      if (
-        !STRATEGY_ARBITRUM_FUNDING_TOKENS.has(value.fromToken.toLowerCase())
-      ) {
-        ctx.addIssue({
-          code: 'custom',
-          message:
-            'GMX v2 funding must be canonical Arbitrum USDC, USDT, or native ETH',
-          path: ['fromToken'],
-        });
+      addGmxFundingTokenIssue(value.fromToken, ctx, []);
+      return;
+    }
+
+    if (value.kind === 'chain-batch') {
+      for (const [index, position] of value.positions.entries()) {
+        if (position.kind === 'gmx-v2-basket') {
+          if (value.sourceChainId !== SUPPORTED_DEPOSIT_CHAINS.ARBITRUM) {
+            ctx.addIssue({
+              code: 'custom',
+              message: `GMX v2 executes on Arbitrum only, not chain ${value.sourceChainId}`,
+              path: ['positions', index],
+            });
+          }
+          addGmxFundingTokenIssue(position.fromToken, ctx, [
+            'positions',
+            index,
+          ]);
+          continue;
+        }
+        addInvestDepositValidationIssues(
+          { ...position, sourceChainId: value.sourceChainId },
+          ctx,
+          ['positions', index],
+        );
       }
       return;
     }
@@ -699,6 +767,10 @@ export const PlanOrchestrationDepositPlanSchema = z.union([
   StrategyDepositPlanSchema,
   HlpSpotDepositPlanSchema,
 ]);
+export type ChainBatchPosition = z.infer<typeof ChainBatchPositionSchema>;
+export type ChainBatchDepositRequest = z.infer<
+  typeof ChainBatchDepositRequestSchema
+>;
 export type ChainSplit = z.infer<typeof ChainSplitSchema>;
 export type DepositRequest = z.infer<typeof DepositRequestSchema>;
 export type PlanOrchestrationDepositRequest = z.infer<

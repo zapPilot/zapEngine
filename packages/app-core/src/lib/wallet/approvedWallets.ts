@@ -7,6 +7,18 @@ export interface ApprovedWallet {
   nameNeedle: string;
   /** Product-facing brand name. */
   label: string;
+  /**
+   * Largest `wallet_sendCalls` batch this wallet accepts, when a real limit has
+   * been observed. Left unset on purpose: MetaMask documents only the error
+   * (5740 `Batch size limit exceeded`) and never a number, and the figures that
+   * circulate are third-party. Guessing one would split batches the wallet
+   * would have taken whole, so a brand stays unset until the limit is
+   * reproduced — either from `@metamask/transaction-controller`'s own
+   * `addTransactionBatch` condition, or by growing a testnet batch of no-op
+   * calls until 5740 appears. The same measurement applies to Privy's prepare
+   * rail, which has its own executor.
+   */
+  maxCallsPerBatch?: number;
 }
 
 export type ApprovedWalletBrand = 'ambire' | 'okx' | 'metamask';
@@ -48,10 +60,21 @@ export function approvedWalletBrand(connector: {
   return APPROVED_WALLETS[rank]?.brand ?? null;
 }
 
+function approvedWalletFor(
+  brand: ApprovedWalletBrand | undefined,
+): ApprovedWallet | undefined {
+  return APPROVED_WALLETS.find((wallet) => wallet.brand === brand);
+}
+
+/** The wallet's own batch-size ceiling, or null when none is known. */
+export function approvedWalletMaxCallsPerBatch(
+  brand: ApprovedWalletBrand | undefined,
+): number | null {
+  return approvedWalletFor(brand)?.maxCallsPerBatch ?? null;
+}
+
 export function approvedWalletLabel(brand: ApprovedWalletBrand): string {
-  return (
-    APPROVED_WALLETS.find((wallet) => wallet.brand === brand)?.label ?? brand
-  );
+  return approvedWalletFor(brand)?.label ?? brand;
 }
 
 export function approvedWalletRank(connector: {

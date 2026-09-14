@@ -18,7 +18,10 @@ import {
   percentInputToBps,
   requiredChainsUnavailable,
   selectHlpFundingSource,
-  stageDraftRequest,
+  batchProtocolWeightsBps,
+  chainBatchDrafts,
+  chainBatchLabel,
+  chainBatchRequest,
   stageDraftsKey,
   stageLabel,
   targetMaxTotalUsd,
@@ -333,36 +336,132 @@ describe('buildStageDrafts', () => {
   });
 });
 
-describe('stageDraftRequest', () => {
+describe('chainBatchDrafts', () => {
   const rows = [usdcRow(8453, 1_000), usdcRow(42161, 1_000), usdcRow(1, 1_000)];
 
-  it('sends Morpho to the Base split and GMX to the basket endpoint', () => {
-    const drafts = buildStageDrafts({
+  function drafts(params: {
+    allocations?: readonly TargetAllocation[];
+    baseFundingToken?: typeof BASE_USDC;
+    arbitrumFundingToken?: typeof ARBITRUM_USDC;
+    rows?: ChainTokenBalanceRow[];
+  }) {
+    return buildStageDrafts({
       totalUsd6: '100000000',
-      allocations: DEFAULT_TARGET_ALLOCATIONS,
-      baseFundingToken: BASE_USDC,
-      arbitrumFundingToken: ARBITRUM_USDC,
-      rows,
+      allocations: params.allocations ?? DEFAULT_TARGET_ALLOCATIONS,
+      baseFundingToken: params.baseFundingToken ?? BASE_USDC,
+      arbitrumFundingToken: params.arbitrumFundingToken ?? ARBITRUM_USDC,
+      rows: params.rows ?? rows,
     })!;
+  }
 
-    expect(stageDraftRequest(drafts[0]!, USER)).toEqual({
-      kind: 'invest',
-      userAddress: USER,
-      fromToken: BASE_USDC.depositAddress,
-      fromAmount: '40000000',
-      sourceChainId: 8453,
-      split: { '8453': 1 },
+  it('collapses Arbitrum GMX and Arbitrum-funded HLP into one batch', () => {
+    const batches = chainBatchDrafts(drafts({}));
+
+    expect(
+      batches.map((batch) => [
+        batch.chainId,
+        batch.positions.map((draft) => draft.positionId),
+      ]),
+    ).toEqual([
+      [8453, ['morpho-base']],
+      [42161, ['gmx-arbitrum', 'hlp']],
+    ]);
+    expect(batches.map(chainBatchLabel)).toEqual([
+      'Base · Morpho',
+      'Arbitrum · GMX + HLP',
+    ]);
+  });
+
+  it('joins HLP to the Base batch when Base USDC funds it', () => {
+    // Arbitrum holds only enough for GMX, so HLP falls to the next candidate.
+    const batches = chainBatchDrafts(
+      drafts({ rows: [usdcRow(8453, 1_000), usdcRow(42161, 35)] }),
+    );
+
+    expect(
+      batches.map((batch) => [
+        batch.chainId,
+        batch.positions.map((draft) => draft.positionId),
+      ]),
+    ).toEqual([
+      [8453, ['morpho-base', 'hlp']],
+      [42161, ['gmx-arbitrum']],
+    ]);
+  });
+
+  it('keeps three batches when only Ethereum can fund HLP', () => {
+    // Base covers Morpho and Arbitrum covers GMX, with nothing spare for HLP.
+    const batches = chainBatchDrafts(
+      drafts({
+        rows: [usdcRow(8453, 50), usdcRow(42161, 35), usdcRow(1, 1_000)],
+      }),
+    );
+
+    expect(batches.map((batch) => batch.chainId)).toEqual([8453, 42161, 1]);
+    expect(batches[2]!.positions.map((draft) => draft.positionId)).toEqual([
+      'hlp',
+    ]);
+  });
+
+  it('weights the review chips by each position, not by leg amount', () => {
+    const [, arbitrum] = chainBatchDrafts(drafts({}));
+
+    expect(batchProtocolWeightsBps(arbitrum!)).toEqual({
+      'gmx-v2': 3_500,
+      hyperliquid: 2_500,
     });
-    expect(stageDraftRequest(drafts[1]!, USER)).toEqual({
-      kind: 'gmx-v2-basket',
+  });
+});
+
+describe('chainBatchRequest', () => {
+  const rows = [usdcRow(8453, 1_000), usdcRow(42161, 1_000), usdcRow(1, 1_000)];
+
+  it('sends every Arbitrum destination as one chain-batch request', () => {
+    const batches = chainBatchDrafts(
+      buildStageDrafts({
+        totalUsd6: '100000000',
+        allocations: DEFAULT_TARGET_ALLOCATIONS,
+        baseFundingToken: BASE_USDC,
+        arbitrumFundingToken: ARBITRUM_USDC,
+        rows,
+      })!,
+    );
+
+    expect(chainBatchRequest(batches[0]!, USER)).toEqual({
+      kind: 'chain-batch',
       userAddress: USER,
-      fromToken: ARBITRUM_USDC.depositAddress,
-      amount: '35000000',
+      sourceChainId: 8453,
+      positions: [
+        {
+          kind: 'invest',
+          fromToken: BASE_USDC.depositAddress,
+          fromAmount: '40000000',
+          split: { '8453': 1 },
+        },
+      ],
+    });
+    expect(chainBatchRequest(batches[1]!, USER)).toEqual({
+      kind: 'chain-batch',
+      userAddress: USER,
+      sourceChainId: 42161,
+      positions: [
+        {
+          kind: 'gmx-v2-basket',
+          fromToken: ARBITRUM_USDC.depositAddress,
+          amount: '35000000',
+        },
+        {
+          kind: 'invest',
+          fromToken: ARBITRUM_USDC.depositAddress,
+          fromAmount: '25000000',
+          split: { '1337': 1 },
+        },
+      ],
     });
   });
 
-  it('names HyperCore as the only split for an Ethereum-funded HLP stage', () => {
-    const drafts = buildStageDrafts({
+  it('names HyperCore as the only split for an Ethereum-funded HLP batch', () => {
+    const stages = buildStageDrafts({
       totalUsd6: '100000000',
       allocations: allocation(0, 0, 10_000),
       baseFundingToken: BASE_ETH,
@@ -370,16 +469,25 @@ describe('stageDraftRequest', () => {
       rows: [usdcRow(1, 1_000)],
     })!;
 
-    expect(drafts[0]).toMatchObject({ ingress: 'lifi' });
-    expect(stageDraftRequest(drafts[0]!, USER)).toEqual({
-      kind: 'invest',
+    expect(stages[0]).toMatchObject({ ingress: 'lifi' });
+    expect(chainBatchRequest(chainBatchDrafts(stages)[0]!, USER)).toEqual({
+      kind: 'chain-batch',
       userAddress: USER,
-      fromToken: ETHEREUM_USDC.depositAddress,
-      fromAmount: '100000000',
       sourceChainId: 1,
-      split: { '1337': 1 },
+      positions: [
+        {
+          kind: 'invest',
+          fromToken: ETHEREUM_USDC.depositAddress,
+          fromAmount: '100000000',
+          split: { '1337': 1 },
+        },
+      ],
     });
   });
+});
+
+describe('stageDraftsKey', () => {
+  const rows = [usdcRow(8453, 1_000), usdcRow(42161, 1_000), usdcRow(1, 1_000)];
 
   it('keys a frozen stage set by every executable field', () => {
     const drafts = buildStageDrafts({

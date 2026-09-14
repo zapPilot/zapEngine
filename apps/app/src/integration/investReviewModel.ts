@@ -57,7 +57,7 @@ export function riskAcknowledgement(
 }
 
 /**
- * One stage is always one reviewed batch on its own source chain, so the
+ * A chain batch is always one reviewed batch on its own source chain, so the
  * response carries exactly one group. Strategy plans (multi-group) belong to
  * the retired combined flow and are rejected here rather than guessed at.
  */
@@ -118,17 +118,20 @@ function compactAddress(value: string | undefined): string {
 }
 
 /**
- * Human-readable summary for one reviewed stage. HLP adds the disclosures the
- * vault itself imposes — the minimum, the escrow address, and the withdrawal
- * lock that starts at the latest deposit.
+ * Human-readable summary for one destination inside a reviewed batch. HLP adds
+ * the disclosures the vault itself imposes — the minimum, the escrow address,
+ * and the withdrawal lock that starts at the latest deposit.
+ *
+ * `plan` is the whole merged batch, so every row here reads only the parts that
+ * belong to this position: GMX keeper fees come from the calls that carry an
+ * execution fee, and the HLP rows from the HyperCore follow-up and its bridge
+ * leg. Batch-wide totals belong to `batchSummaryRows`.
  */
-export function stageSummaryRows(params: {
+export function positionSummaryRows(params: {
   draft: StageDraft;
   plan: ReviewedDepositPlan | undefined;
 }): StageSummaryRow[] {
   const plan = asDepositPlan(params.plan);
-  const transactionCount =
-    (plan?.approvals.length ?? 0) + (plan?.calls.length ?? 0);
   const rows: StageSummaryRow[] = [
     { label: 'Funding', value: tokenAmountLabel(params.draft) },
   ];
@@ -166,11 +169,20 @@ export function stageSummaryRows(params: {
     );
   }
 
-  rows.push(
-    { label: 'Transactions', value: String(transactionCount) },
-    { label: 'Source gas', value: formatPlanGas(plan?.totalGasUsd) },
-  );
   return rows;
+}
+
+/** Totals for the one wallet batch every position in it shares. */
+export function batchSummaryRows(
+  plan: ReviewedDepositPlan | undefined,
+): StageSummaryRow[] {
+  const depositPlan = asDepositPlan(plan);
+  const transactionCount =
+    (depositPlan?.approvals.length ?? 0) + (depositPlan?.calls.length ?? 0);
+  return [
+    { label: 'Transactions', value: String(transactionCount) },
+    { label: 'Source gas', value: formatPlanGas(depositPlan?.totalGasUsd) },
+  ];
 }
 
 /**

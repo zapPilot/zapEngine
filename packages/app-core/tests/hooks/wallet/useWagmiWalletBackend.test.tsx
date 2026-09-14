@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   getWalletClient: vi.fn(),
   assertEIP7702DelegationCompatibility: vi.fn(),
   submitPreparedTransactionsWithEIP7702: vi.fn(),
+  maxCallsPerBatch: vi.fn<() => number | null>(),
   connection: {
     address: undefined as string | undefined,
     isConnected: false,
@@ -64,6 +65,15 @@ vi.mock('@core/utils', () => ({
   walletLogger: { info: vi.fn(), error: vi.fn() },
 }));
 
+// No brand configures a batch-size ceiling today; the guard is exercised here
+// by standing one in, so the policy slot cannot rot unnoticed.
+vi.mock('@core/lib/wallet/approvedWallets', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('@core/lib/wallet/approvedWallets')
+  >()),
+  approvedWalletMaxCallsPerBatch: mocks.maxCallsPerBatch,
+}));
+
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.connectAsync.mockReset();
@@ -71,6 +81,7 @@ beforeEach(() => {
   mocks.assertEIP7702DelegationCompatibility
     .mockReset()
     .mockResolvedValue(undefined);
+  mocks.maxCallsPerBatch.mockReset().mockReturnValue(null);
   mocks.connection = {
     address: undefined,
     isConnected: false,
@@ -147,6 +158,54 @@ describe('useWagmiWalletBackend', () => {
       walletClient,
       chainId: 8453,
     });
+  });
+
+  it('refuses a batch above the wallet ceiling instead of splitting it', async () => {
+    const transactions: PreparedTransaction[] = [1, 2, 3].map((index) => ({
+      to: '0x2222222222222222222222222222222222222222',
+      data: `0x0${index}`,
+      value: '0',
+      chainId: 8453,
+      meta: { intentType: 'supply' },
+    }));
+    mocks.maxCallsPerBatch.mockReturnValue(2);
+    mocks.connection = {
+      address: '0x1111111111111111111111111111111111111111',
+      isConnected: true,
+      isConnecting: false,
+      isReconnecting: false,
+      connector: {
+        id: 'io.metamask',
+        name: 'MetaMask',
+        type: 'injected',
+      },
+      chain: { id: 42161, name: 'Arbitrum' },
+    };
+    const { result } = renderHook(() => useWagmiWalletBackend());
+
+    const outcome = await result.current.backend.executeReviewedBatch?.({
+      transactions,
+      chainId: 8453,
+      expectedWalletAddress: '0x1111111111111111111111111111111111111111',
+      expectedBatchFingerprint: computeReviewedBatchFingerprint({
+        chainId: 8453,
+        transactions,
+      }),
+      expiresAt: Date.now() + 60_000,
+      executionAllowed: true,
+      expectedSimulationFingerprint: `0x${'ab'.repeat(32)}`,
+      expectedRiskHash: `0x${'cd'.repeat(32)}`,
+      requiresRiskAcknowledgement: false,
+    });
+
+    expect(outcome).toMatchObject({
+      status: 'blocked',
+      code: 'BATCH_TOO_LARGE',
+    });
+    // Splitting a reviewed batch would renumber its calls and invalidate the
+    // hashes the user approved, so nothing is sent and no chain is switched.
+    expect(mocks.switchChainAsync).not.toHaveBeenCalled();
+    expect(mocks.submitPreparedTransactionsWithEIP7702).not.toHaveBeenCalled();
   });
 
   it('switches to the reviewed batch chain before resolving the wallet client', async () => {

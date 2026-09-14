@@ -2,6 +2,8 @@ import { getWagmiConfig } from '@core/config/wagmi';
 import { extractErrorMessage } from '@core/lib/errors';
 import {
   approvedWalletBrand,
+  approvedWalletLabel,
+  approvedWalletMaxCallsPerBatch,
   isApprovedWalletConnector,
 } from '@core/lib/wallet/approvedWallets';
 import {
@@ -373,6 +375,22 @@ export function useWagmiWalletBackend(): WagmiWalletBackend {
       const guard = checkReviewedBatchGuards(input, address);
       if (!guard.ok) {
         return guard.result;
+      }
+
+      // A reviewed batch is an immutable snapshot: splitting it here would
+      // renumber its calls and invalidate the hashes the user approved. When a
+      // wallet's own ceiling is known and exceeded, refuse instead.
+      const maxCalls = approvedWalletMaxCallsPerBatch(externalWalletBrand);
+      if (
+        externalWalletBrand &&
+        maxCalls !== null &&
+        input.transactions.length > maxCalls
+      ) {
+        return {
+          status: 'blocked',
+          code: 'BATCH_TOO_LARGE',
+          reason: `${approvedWalletLabel(externalWalletBrand)} accepts at most ${maxCalls} calls per batch; this reviewed batch has ${input.transactions.length}.`,
+        };
       }
 
       try {

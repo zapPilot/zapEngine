@@ -175,10 +175,18 @@ function formatSharePercent(numerator: bigint, denominator: bigint): string {
  * EIP-7702 bundle can move funds through more than one protocol allocation
  * (e.g. the Arbitrum leg supplies both GMX BTC/USDC and ETH/USDC), so each
  * allocation gets its own chip rather than being collapsed into one label.
+ *
+ * `weightBpsByProtocol` carries each venue's share of the whole invest amount.
+ * It is needed because a merged chain batch can fund two positions from
+ * different source tokens, which makes raw leg amounts incomparable across
+ * protocols; inside one protocol they always share a token, so the outer share
+ * is subdivided by leg amount. Without an entry a leg falls back to its share
+ * of the batch.
  */
 export function resolveRouteProtocols(
   plan: ReviewedDepositPlan | undefined,
   groupId: string,
+  weightBpsByProtocol: Readonly<Record<string, number>> = {},
 ): RouteProtocolContext[] {
   if (isStrategyDepositPlan(plan)) {
     const group = plan.executionGroups.find(
@@ -207,15 +215,31 @@ export function resolveRouteProtocols(
     (sum, leg) => sum + BigInt(leg.fromAmount),
     0n,
   );
-  return legs.map((leg, index) => ({
-    id: `${leg.protocol}-${leg.toToken.toLowerCase()}-${index}`,
-    protocol: leg.protocol,
-    label:
-      leg.label ??
-      SINGLE_CHAIN_PROTOCOL_LABELS[leg.protocol] ??
-      titleCase(leg.protocol),
-    badge: formatSharePercent(BigInt(leg.fromAmount), totalFromAmount),
-  }));
+  const totalByProtocol = new Map<string, bigint>();
+  for (const leg of legs) {
+    totalByProtocol.set(
+      leg.protocol,
+      (totalByProtocol.get(leg.protocol) ?? 0n) + BigInt(leg.fromAmount),
+    );
+  }
+  return legs.map((leg, index) => {
+    const weightBps = weightBpsByProtocol[leg.protocol];
+    return {
+      id: `${leg.protocol}-${leg.toToken.toLowerCase()}-${index}`,
+      protocol: leg.protocol,
+      label:
+        leg.label ??
+        SINGLE_CHAIN_PROTOCOL_LABELS[leg.protocol] ??
+        titleCase(leg.protocol),
+      badge:
+        weightBps === undefined
+          ? formatSharePercent(BigInt(leg.fromAmount), totalFromAmount)
+          : formatSharePercent(
+              BigInt(leg.fromAmount) * BigInt(weightBps),
+              (totalByProtocol.get(leg.protocol) ?? 0n) * 10_000n,
+            ),
+    };
+  });
 }
 
 export function approvalForCall(
