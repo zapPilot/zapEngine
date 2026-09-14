@@ -2,7 +2,7 @@
 
 import type {
   DepositReviewGroup,
-  PlanOrchestrationDepositPlan,
+  DepositPlan,
   PreparedTransaction,
 } from '@zapengine/types/api';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -76,7 +76,7 @@ function call(data: string): PreparedTransaction {
   };
 }
 
-function plan(data: string): PlanOrchestrationDepositPlan {
+function plan(data: string): DepositPlan {
   return {
     legs: [],
     approvals: [],

@@ -2,7 +2,7 @@
 
 import type {
   DepositReviewGroup,
-  PlanOrchestrationDepositPlan,
+  DepositPlan,
   PreparedTransaction,
 } from '@zapengine/types/api';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -92,7 +92,7 @@ const CALL: PreparedTransaction = {
   meta: { intentType: 'deposit' },
 };
 
-const PLAN: PlanOrchestrationDepositPlan = {
+const PLAN: DepositPlan = {
   legs: [],
   approvals: [APPROVAL],
   calls: [CALL],
@@ -341,7 +341,7 @@ describe('InvestExecutionProvider reviewed execution contract', () => {
 
   it('advances a reviewed queue one batch at a time without resubmitting the first group', async () => {
     const firstReview = review();
-    const secondPlan: PlanOrchestrationDepositPlan = {
+    const secondPlan: DepositPlan = {
       ...PLAN,
       approvals: [],
       calls: [{ ...CALL, data: '0xbeef' }],
