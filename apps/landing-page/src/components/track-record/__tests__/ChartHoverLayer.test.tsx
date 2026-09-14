@@ -287,3 +287,15 @@ describe('ChartHoverLayer', () => {
     expect(container.querySelector('.chart-tooltip-alloc-group')).toBeNull();
   });
 });
+
+describe('ChartHoverLayer focus cleanup', () => {
+  it('clears the active readout when the scrubber loses focus', () => {
+    const { container } = renderLayer();
+    fireEvent.focus(surface());
+    expect(container.querySelector('.chart-tooltip')).not.toBeNull();
+
+    fireEvent.blur(surface());
+    expect(container.querySelector('.chart-tooltip')).toBeNull();
+    expect(surface()).toHaveAttribute('aria-valuetext', '');
+  });
+});

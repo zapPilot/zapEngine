@@ -77,9 +77,9 @@ and then aggregates the 14 workspaces. CI uploads `coverage/summary.json` for
 | `apps/alpha-etl`              | 92         | 92       | 92        | 92    |
 | `apps/analytics-engine`       | —          | —        | —         | 95    |
 | `apps/app`                    | 64         | 67       | 68        | 65    |
-| `apps/control-center`         | 77         | 66       | 78        | 78    |
+| `apps/control-center`         | 80         | 71       | 82        | 80    |
 | `apps/desktop`                | 85         | 80       | 85        | 85    |
-| `apps/landing-page`           | 79         | 67       | 82        | 81    |
+| `apps/landing-page`           | 83         | 75       | 89        | 84    |
 | `apps/podcast-pipeline`       | 91         | 80       | 92        | 92    |
 | `packages/app-core`           | 75         | 66       | 73        | 76    |
 | `packages/brand-assets`       | 95         | 90       | 100       | 95    |
@@ -95,12 +95,15 @@ and then aggregates the 14 workspaces. CI uploads `coverage/summary.json` for
   buffer while reviewed-execution seam coverage is added.
 - `packages/app-core` was re-ratcheted on 2026-09-08 from a measured
   79.71/70.58/77.91/80.86 baseline with the same buffer policy.
-- `apps/landing-page` was re-ratcheted on 2026-09-08 from a measured
-  83.87/71.97/87.31/85.72 baseline.
+- `apps/landing-page` was re-ratcheted on 2026-09-14 after widening the
+  denominator to include App Router code and exclude test-only helpers. The
+  Node-24 measured baseline is 86.57/78.74/91.62/87.93, leaving roughly three
+  points of churn buffer.
 - `packages/cost-observability` and `packages/design-tokens` pin statements,
   branches, functions, and lines at 100% after exhaustive boundary coverage.
-- `apps/control-center` was re-ratcheted on 2026-09-08 from a measured
-  81.84/70.36/82.05/82.06 baseline, leaving roughly four points of normal
+- `apps/control-center` was re-ratcheted on 2026-09-14 after adding an explicit
+  production-source denominator. The measured baseline is
+  83.03/74.30/85.09/83.07, leaving roughly three points of normal
   feature-churn buffer.
 
 Update this table whenever a workspace threshold changes. Ratchet floors upward

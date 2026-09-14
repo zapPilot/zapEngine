@@ -5,9 +5,16 @@ Founder decision dashboard for operational status, customer economics, product h
 ```bash
 pnpm ops             # dashboard + Fly billing reader + social daemon, from the repository root
 pnpm ops:dashboard   # dashboard only
-pnpm ops --status    # one-shot status in the terminal, no server
-pnpm ops --status --json   # the same snapshot as JSON, for an agent
+infisical run --env=prod -- pnpm ops --status          # production one-shot status, no server
+infisical run --env=prod -- pnpm ops --status --json   # production snapshot as JSON, for an agent
 ```
+
+Direct shell reads of operational state must use the production Infisical
+environment. Running bare `pnpm ops --status` can omit production-only provider
+credentials and therefore report Fly, Sentry, PostHog, or the agent backlog as
+`unconfigured`; that is an environment/configuration result, not production
+health. The repository-local `zap-pilot-ops` MCP launcher handles this itself by
+selecting the production environment.
 
 `--json` and `--force` only mean anything alongside `--status`; passing either on its own, or with `--dashboard`/`--social`, is rejected rather than silently ignored.
 

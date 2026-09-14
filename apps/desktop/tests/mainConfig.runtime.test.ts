@@ -95,6 +95,14 @@ describe('configureMainAppCoreEnv', () => {
     expectInjectedDefaults('development');
   });
 
+  it('ignores a null JSON config', () => {
+    configMocks.readFileSync.mockReturnValue('null');
+
+    configureMainAppCoreEnv();
+
+    expectInjectedDefaults('production');
+  });
+
   it('uses defaults when config JSON cannot be parsed', () => {
     configMocks.readFileSync.mockReturnValue('{');
 
