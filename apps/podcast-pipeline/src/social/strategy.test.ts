@@ -12,7 +12,7 @@ import {
 const POLICY_LANGUAGE = {
   rednote: 'zh-Hant',
   threads: 'zh-Hant',
-  x: 'en',
+  x: 'ja',
   youtube: 'en',
 } as const;
 
@@ -97,8 +97,6 @@ describe('social strategy', () => {
       { platform: 'rednote', languageCode: 'zh-Hant' },
       { platform: 'threads', languageCode: 'zh-Hant' },
       { platform: 'x', languageCode: 'ja' },
-      { platform: 'x', languageCode: 'en' },
-      { platform: 'youtube', languageCode: 'ja' },
       { platform: 'youtube', languageCode: 'en' },
     ]);
   });
@@ -213,7 +211,7 @@ describe('social strategy', () => {
 
   it('freezes preferred copy for language experiment lanes while preserving avoid guidance', () => {
     const random = vi.fn(() => 0);
-    // X/Threads/YouTube language experiment must not emit language-specific hook bias.
+    // Historical language experiment jobs must not emit language-specific hook bias.
     expect(
       buildStrategyGuidance(
         'x',
