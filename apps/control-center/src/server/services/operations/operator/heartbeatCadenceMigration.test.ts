@@ -7,21 +7,21 @@ const repoRoot = path.resolve(process.cwd(), '../..');
 const migration = fs.readFileSync(
   path.join(
     repoRoot,
-    'supabase/migrations/20260914131500_ops_operator_heartbeat_identity.sql',
+    'supabase/migrations/20260914131500_ops_operator_heartbeat_cadence.sql',
   ),
   'utf8',
 );
 const normalized = migration.toLowerCase();
 
-describe('operator heartbeat identity migration', () => {
-  it('records the schedule identity and execution correlation', () => {
+describe('operator heartbeat cadence migration', () => {
+  it('records the cadence provenance and execution correlation', () => {
     expect(normalized).toContain('ops_record_operator_heartbeat_v2');
     expect(normalized).toContain("'cadenceminutes', p_cadence_minutes");
     expect(normalized).toContain("'sourcesha', nullif(trim(p_source_sha), '')");
     expect(normalized).toContain("'runid', nullif(trim(p_run_id), '')");
   });
 
-  it('returns identity fields without removing the existing heartbeat fields', () => {
+  it('returns provenance fields without removing the existing heartbeat fields', () => {
     for (const field of [
       "'observedat'",
       "'actor'",

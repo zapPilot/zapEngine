@@ -50,6 +50,9 @@ const SOCIAL: OperationsSocialResponse = {
   },
   jobs: [],
   waitingMediaLanes: 0,
+  oldestWaitingSince: null,
+  blockedWaitingLanes: 0,
+  invalidWaitingMediaRows: 0,
   invalidJobRows: 0,
   message: null,
 };

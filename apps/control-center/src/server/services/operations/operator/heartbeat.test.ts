@@ -88,7 +88,7 @@ describe('operator heartbeat signal', () => {
 
     expect(signal).toMatchObject({
       status: 'degraded',
-      title: 'ops-operator heartbeat config identity is missing',
+      title: 'ops-operator heartbeat cadence provenance is missing',
       evidence: { cadenceMinutes: null },
     });
   });

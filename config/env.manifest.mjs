@@ -457,6 +457,8 @@ export const ENV_MANIFEST = {
   // encouraging developers to place ephemeral values in their local .env.
   CI: host(['all'], { documented: false }),
   PORT: host(['all'], { documented: false }),
+  GITHUB_SHA: host(['all'], { documented: false }),
+  GITHUB_RUN_ID: host(['all'], { documented: false }),
   TEST_DATABASE_URL: server(['analytics-engine'], {
     documented: false,
     environments: [],

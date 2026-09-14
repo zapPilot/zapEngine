@@ -54,7 +54,7 @@ export function createOperatorStore(config: ControlCenterConfig) {
   return {
     rpc,
     async recordHeartbeat(actor: string, state: OperatorHeartbeatState) {
-      const identity = {
+      const provenance = {
         p_actor: actor,
         p_state: state,
         p_cadence_minutes: Math.round(OPS_OPERATOR_CADENCE_MS / 60_000),
@@ -62,11 +62,11 @@ export function createOperatorStore(config: ControlCenterConfig) {
         p_run_id: process.env['GITHUB_RUN_ID']?.trim() || null,
       };
       try {
-        await rpc('ops_record_operator_heartbeat_v2', identity);
+        await rpc('ops_record_operator_heartbeat_v2', provenance);
       } catch (error) {
         // Keep the application rail-safe while the additive migration reaches
         // Supabase. The old function still records liveness, but the reader
-        // will deliberately mark that heartbeat as lacking config identity.
+        // will deliberately mark that heartbeat as lacking cadence provenance.
         if (
           error instanceof Error &&
           /ops_record_operator_heartbeat_v2/i.test(error.message) &&

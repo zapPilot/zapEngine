@@ -80,9 +80,13 @@ Check, where available:
 - attempt/backoff/lease fences; and
 - whether the waiting row correlates to the same current job/version.
 
-A count-only waiting-media signal cannot prove that one or two lanes are fresh.
-When the collector exposes only a count, report the age dimension as unobserved
-instead of calling an old under-threshold row verified healthy.
+Social waiting-media now observes oldest age and producer claim eligibility,
+using the oldest 200 lanes and an exact total count. Blocked counts are lower
+bounds within that sample. A blocked lane is critical; a claimable lane older
+than 48 hours is degraded. Progress timestamps, retries, leases, and versions
+come from the view; eligibility uses the shared TypeScript visual policy.
+Other count-only queues still have an unobserved age dimension; do not call
+an old under-threshold row verified healthy.
 
 ### 4. Provider cost health is not economical execution
 

@@ -51,6 +51,7 @@ export interface IncidentPacket {
     social?: {
       daemonStatus: OperationsSocialResponse['daemon']['status'];
       waitingMediaLanes: number | null;
+      blockedWaitingLanes: number | null;
       overdueJobs: number;
       exhaustedJobs: number;
     };
@@ -136,6 +137,7 @@ export async function investigateOperationalSignal(input: {
       relatedEvidence.social = {
         daemonStatus: social.daemon.status,
         waitingMediaLanes: social.waitingMediaLanes,
+        blockedWaitingLanes: social.blockedWaitingLanes,
         overdueJobs: social.jobs.filter((job) => (job.overdueMinutes ?? 0) > 0)
           .length,
         exhaustedJobs: social.jobs.filter((job) => job.attemptsExhausted)

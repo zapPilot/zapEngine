@@ -1,10 +1,8 @@
 begin;
 set local lock_timeout = '5s';
 
--- Keep the original two-argument writer for a short application/Supabase rail
--- mismatch. New callers use v2 so the durable heartbeat can prove which
--- schedule contract produced it rather than letting a fresh row from an old
--- cron configuration attest the current one.
+-- Record schedule cadence provenance and diagnostic source/run correlation.
+-- These fields do not establish authoritative execution identity.
 create or replace function from_fed_to_chain.ops_record_operator_heartbeat_v2(
   p_actor text,
   p_state text,

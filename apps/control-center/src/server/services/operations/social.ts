@@ -10,6 +10,10 @@ import type {
 } from '../../../shared/types.js';
 import type { ControlCenterConfig } from '../../config/env.js';
 import {
+  isCurrentVisualVersion,
+  visualIsRenderable,
+} from '../podcast-retry-eligibility.js';
+import {
   buildSignal,
   errorMessage,
   sourceFailure,
@@ -42,13 +46,12 @@ const JOB_GRACE_MINUTES = 15;
  */
 const MAX_ATTEMPTS = 8;
 
-/**
- * `social_waiting_media` is policy-shaped — one row per (episode, platform,
- * language) lane — so a single unrendered localization can contribute several
- * rows. The floor is set against that inflated count on purpose: one or two
- * rows is a video still rendering, a handful means rendering has stopped.
- */
+// Preserve the existing backlog floor alongside age and producer eligibility.
 const WAITING_MEDIA_FLOOR = 3;
+const WAITING_MEDIA_SAMPLE_LIMIT = 200;
+// 212 completed production lanes: p90 41.13h; 48h allows normal slow renders.
+// Revisit after one month of additional observations.
+const WAITING_MEDIA_STALE_HOURS = 48;
 
 /**
  * `OperationsSocialResponse` carries no status field — the panel renders
@@ -91,6 +94,18 @@ const DAEMON_DETAIL: Record<OperationalStatus, string> = {
 const timestamp = z
   .string()
   .refine((value) => Number.isFinite(Date.parse(value)));
+
+const waitingRowSchema = z.object({
+  waiting_since: timestamp,
+  last_progress_at: timestamp.nullable(),
+  render_status: z.string().nullable(),
+  render_attempt_count: z.number().int().nonnegative().nullable(),
+  render_next_attempt_at: timestamp.nullable(),
+  render_lease_expires_at: timestamp.nullable(),
+  render_visual_version: z.string().nullable(),
+  visual_status: z.string().nullable(),
+  visual_version: z.string().nullable(),
+});
 
 const jobRowSchema = z.object({
   episode_id: z.string(),
@@ -161,7 +176,12 @@ export async function loadOperationsSocial(input: {
         .maybeSingle(),
       client
         .from('social_waiting_media')
-        .select('*', { count: 'exact', head: true }),
+        .select(
+          'waiting_since,last_progress_at,render_status,render_attempt_count,render_next_attempt_at,render_lease_expires_at,render_visual_version,visual_status,visual_version',
+          { count: 'exact' },
+        )
+        .order('waiting_since', { ascending: true })
+        .limit(WAITING_MEDIA_SAMPLE_LIMIT),
     ]);
     const error = jobResult.error ?? daemonResult.error ?? waitingResult.error;
     if (error) {
@@ -181,12 +201,41 @@ export async function loadOperationsSocial(input: {
         `Supabase returned ${invalidRows} social publish jobs in an unknown shape`,
       );
     }
+    const waitingRows = waitingResult.data ?? [];
+    const parsedWaiting = waitingRows.flatMap((row) => {
+      const parsed = waitingRowSchema.safeParse(row);
+      return parsed.success ? [parsed.data] : [];
+    });
+    const invalidWaitingMediaRows = waitingRows.length - parsedWaiting.length;
+    if ((waitingResult.count ?? 0) > 0 && parsedWaiting.length === 0) {
+      throw new Error('Supabase returned waiting media in an unknown shape');
+    }
+    // claim_episode_video requires current, completed visuals and attempts < 3;
+    // fail_episode_video makes failed terminal until an operator retries it.
+    const blockedWaitingLanes = parsedWaiting.filter(
+      (row) =>
+        row.render_status === null ||
+        row.render_status === 'failed' ||
+        (row.render_attempt_count ?? 0) >= 3 ||
+        !visualIsRenderable(row.visual_status, row.visual_version) ||
+        !isCurrentVisualVersion(row.render_visual_version),
+    ).length;
+    const oldestWaitingSince = parsedWaiting.reduce<string | null>(
+      (oldest, row) =>
+        oldest === null || Date.parse(row.waiting_since) < Date.parse(oldest)
+          ? row.waiting_since
+          : oldest,
+      null,
+    );
     const daemon = toDaemon(daemonResult.data, jobs, input.now);
     return {
       generatedAt: input.now.toISOString(),
       daemon,
       jobs,
       waitingMediaLanes: waitingResult.count ?? 0,
+      oldestWaitingSince,
+      blockedWaitingLanes,
+      invalidWaitingMediaRows,
       invalidJobRows: invalidRows,
       message: null,
     };
@@ -330,21 +379,41 @@ function waitingMediaSignal(
   now: Date,
 ): OperationalSignal {
   const waiting = response.waitingMediaLanes ?? 0;
-  const degraded = waiting >= WAITING_MEDIA_FLOOR;
+  const oldestWaitingHours =
+    response.oldestWaitingSince === null
+      ? null
+      : Math.max(
+          0,
+          (now.getTime() - Date.parse(response.oldestWaitingSince)) / 3_600_000,
+        );
+  const blocked = (response.blockedWaitingLanes ?? 0) > 0;
+  const degraded =
+    waiting >= WAITING_MEDIA_FLOOR ||
+    (oldestWaitingHours ?? 0) > WAITING_MEDIA_STALE_HOURS ||
+    response.invalidWaitingMediaRows > 0;
   return buildSignal({
     source: 'social-queue',
     domain: 'social',
     kind: 'waiting-media',
     key: 'episodes',
-    status: degraded ? 'degraded' : 'healthy',
-    title: degraded
-      ? 'Publish lanes are waiting on rendered video'
-      : 'Media for the publish queue is keeping up',
-    detail: degraded
-      ? `${waiting} publish lanes have no finished video, so no job can be ` +
-        'queued for them until rendering catches up.'
-      : null,
-    evidence: { waitingMediaLanes: waiting },
+    status: blocked ? 'critical' : degraded ? 'degraded' : 'healthy',
+    title: blocked
+      ? 'Waiting media requires operator intervention'
+      : degraded
+        ? 'Publish lanes are waiting on rendered video'
+        : 'Media for the publish queue is keeping up',
+    detail: blocked
+      ? 'At least one sampled lane cannot be claimed by a render worker.'
+      : degraded
+        ? `${waiting} publish lanes have no finished video, so no job can be ` +
+          'queued yet; inspect age, producer eligibility, and unread rows.'
+        : null,
+    evidence: {
+      waitingMediaLanes: waiting,
+      oldestWaitingHours,
+      blockedWaitingLanes: response.blockedWaitingLanes,
+      invalidWaitingMediaRows: response.invalidWaitingMediaRows,
+    },
     observedAt: now,
   });
 }
@@ -465,6 +534,9 @@ function emptyResponse(now: Date, message: string): OperationsSocialResponse {
     daemon: unknownDaemon(),
     jobs: [],
     waitingMediaLanes: null,
+    oldestWaitingSince: null,
+    blockedWaitingLanes: null,
+    invalidWaitingMediaRows: 0,
     invalidJobRows: 0,
     message,
   };

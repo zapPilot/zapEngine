@@ -152,18 +152,20 @@ defaults to a function duration below 15 seconds, configure a longer
 
 ## Operations snapshot
 
+Waiting media is measured by oldest age and producer claim eligibility as well as count. The oldest 200 lanes are sampled; blocked counts are sample lower bounds.
+
 `GET /api/operations` is one read model for "is anything wrong, and what should I do first", shared by Home's statement evidence, the Reliability view, and `pnpm ops --status` (`--json` for agents; exit code 1 when anything is `critical`).
 
 Every source is an adapter that returns `OperationalSignal[]` and is contractually forbidden from throwing. Missing credentials produce `unknown`, never `healthy` — a provider nobody asked has not reported that it is fine — and a failed request produces a `degraded` source failure so a lost reading is visibly different from a healthy one.
 
-| Domain      | Source                           | Reads                                                                               |
-| ----------- | -------------------------------- | ----------------------------------------------------------------------------------- |
-| `customers` | `customer-economics`             | `public.get_user_service_states()` + the usage ledger                               |
-| `product`   | `product-health`                 | the existing public-schema account data                                             |
-| `costs`     | `cost-ledger`                    | `ops.cost_snapshots` through the bridge, plus its own staleness                     |
-| `social`    | `social-queue` / `social-daemon` | `social_publish_jobs`, `social_daemon_state`, waiting media                         |
-| `jobs`      | `github-actions`                 | `schedule`-triggered runs of the github-actions entries in `.github/schedules.json` |
-| `infra`     | `fly`                            | Fly Machines HTTP API state per app and process group                               |
+| Domain      | Source                           | Reads                                                                                 |
+| ----------- | -------------------------------- | ------------------------------------------------------------------------------------- |
+| `customers` | `customer-economics`             | `public.get_user_service_states()` + the usage ledger                                 |
+| `product`   | `product-health`                 | the existing public-schema account data                                               |
+| `costs`     | `cost-ledger`                    | `ops.cost_snapshots` through the bridge, plus its own staleness                       |
+| `social`    | `social-queue` / `social-daemon` | `social_publish_jobs`, `social_daemon_state`, waiting-media age and claim eligibility |
+| `jobs`      | `github-actions`                 | `schedule`-triggered runs of the github-actions entries in `.github/schedules.json`   |
+| `infra`     | `fly`                            | Fly Machines HTTP API state per app and process group                                 |
 
 Job health reads `event=schedule` runs only. A workflow carries both a cron and a `workflow_dispatch` trigger, so counting manual runs would let a successful re-run mask a cron that has stopped firing — the exact failure this domain exists to catch. Staleness is derived from each entry's own cron expression rather than assumed daily, floored at 48h.
 

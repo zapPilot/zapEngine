@@ -438,11 +438,14 @@ export interface OperationsSocialResponse {
   daemon: OperationsSocialDaemon;
   jobs: OperationsSocialJob[];
   /**
-   * `social_waiting_media` yields one row per (episode, platform, language)
-   * lane, so a single unrendered localization contributes several. Counting
-   * them as episodes would overstate how much is stuck.
+   * `social_waiting_media` yields one row per required episode-language lane.
+   * Several languages can belong to one episode, so this is not an episode count.
    */
   waitingMediaLanes: number | null;
+  oldestWaitingSince: string | null;
+  /** Lower bound from the oldest bounded sample, not a total across all lanes. */
+  blockedWaitingLanes: number | null;
+  invalidWaitingMediaRows: number;
   /**
    * Queue rows the reader could not parse. A dropped row is a lane the panel
    * cannot see, so the count travels with the response rather than being

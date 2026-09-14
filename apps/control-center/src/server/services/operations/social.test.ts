@@ -1,4 +1,5 @@
 import type { createClient } from '@supabase/supabase-js';
+import { EPISODE_VIDEO_VISUAL_VERSION } from '@zapengine/types/shared';
 import { describe, expect, it } from 'vitest';
 
 import type {
@@ -24,7 +25,8 @@ interface StubChain {
   select: () => StubChain;
   in: () => StubChain;
   eq: () => StubChain;
-  limit: () => StubChain;
+  limit: (count: number) => StubChain;
+  order: (column: string, options: { ascending: boolean }) => StubChain;
   maybeSingle: () => Promise<StubPayload>;
   then: (resolve: (value: StubPayload) => unknown) => Promise<unknown>;
 }
@@ -53,7 +55,21 @@ function stubSupabase(tables: Record<string, StubTable>): typeof createClient {
         select: () => chain,
         in: () => chain,
         eq: () => chain,
-        limit: () => chain,
+        order: (column, options) => {
+          if (Array.isArray(payload.data)) {
+            payload.data = [...payload.data].sort(
+              (a, b) =>
+                String(a[column]).localeCompare(String(b[column])) *
+                (options.ascending ? 1 : -1),
+            );
+          }
+          return chain;
+        },
+        limit: (count) => {
+          if (Array.isArray(payload.data))
+            {payload.data = payload.data.slice(0, count);}
+          return chain;
+        },
         maybeSingle: () => Promise.resolve(payload),
         then: (resolve) => Promise.resolve(payload).then(resolve),
       };
@@ -61,6 +77,21 @@ function stubSupabase(tables: Record<string, StubTable>): typeof createClient {
     },
   });
   return factory as unknown as typeof createClient;
+}
+
+function waitingRow(overrides: Record<string, unknown> = {}) {
+  return {
+    waiting_since: '2026-08-28T11:00:00.000Z',
+    last_progress_at: '2026-08-28T11:30:00.000Z',
+    render_status: 'pending',
+    render_attempt_count: 0,
+    render_next_attempt_at: null,
+    render_lease_expires_at: null,
+    render_visual_version: EPISODE_VIDEO_VISUAL_VERSION,
+    visual_status: 'completed',
+    visual_version: EPISODE_VIDEO_VISUAL_VERSION,
+    ...overrides,
+  };
 }
 
 function jobRow(overrides: Record<string, unknown> = {}) {
@@ -174,7 +205,7 @@ describe('loadOperationsSocial', () => {
     const response = await load({
       social_publish_jobs: { data: [jobRow()] },
       social_daemon_state: { data: daemonRow() },
-      social_waiting_media: { count: 1 },
+      social_waiting_media: { count: 1, data: [waitingRow()] },
     });
 
     expect(response.daemon).toMatchObject({
@@ -352,7 +383,10 @@ describe('loadOperationsSocial', () => {
       // must read as "nothing pending", not as a lost reading.
       social_publish_jobs: { data: null },
       social_daemon_state: { data: daemonRow() },
-      social_waiting_media: { count: 4 },
+      social_waiting_media: {
+        count: 4,
+        data: Array.from({ length: 4 }, () => waitingRow()),
+      },
     });
 
     expect(response.jobs).toEqual([]);
@@ -445,5 +479,83 @@ describe('loadOperationsSocial', () => {
     const failure = soleSourceFailure(response);
     expect(failure.status).toBe('degraded');
     expect(failure.detail).toBe('permission denied');
+  });
+});
+
+describe('waiting media progress', () => {
+  async function media(rows: unknown[], count = rows.length) {
+    return load({
+      social_waiting_media: { data: rows, count },
+      social_daemon_state: { data: daemonRow() },
+    });
+  }
+  function verdict(response: OperationsSocialResponse) {
+    return signal(
+      deriveSocialSignals(response, NOW),
+      'social-queue:waiting-media/episodes',
+    );
+  }
+  it.each([
+    { render_status: null },
+    { render_status: 'failed' },
+    { render_attempt_count: 3 },
+    { visual_status: 'failed' },
+    { visual_version: 'old' },
+    { render_visual_version: 'old' },
+  ])('reports a single old blocked lane as critical: %j', async (overrides) => {
+    const result = verdict(
+      await media([
+        waitingRow({ waiting_since: '2026-08-18T12:00:00.000Z', ...overrides }),
+      ]),
+    );
+    expect(result.status).toBe('critical');
+    expect(result.evidence).toMatchObject({
+      waitingMediaLanes: 1,
+      oldestWaitingHours: 240,
+      blockedWaitingLanes: 1,
+    });
+  });
+  it('keeps a young claimable lane healthy and observes its age', async () => {
+    const result = verdict(await media([waitingRow()]));
+    expect(result.status).toBe('healthy');
+    expect(result.evidence).toMatchObject({
+      oldestWaitingHours: 1,
+      blockedWaitingLanes: 0,
+    });
+  });
+  it('degrades an old claimable lane', async () => {
+    expect(
+      verdict(
+        await media([
+          waitingRow({ waiting_since: '2026-08-26T11:00:00.000Z' }),
+        ]),
+      ).status,
+    ).toBe('degraded');
+  });
+  it('never reports partly unreadable media healthy', async () => {
+    const response = await media([
+      waitingRow(),
+      waitingRow({ waiting_since: 'invalid' }),
+    ]);
+    expect(response.invalidWaitingMediaRows).toBe(1);
+    expect(verdict(response).status).toBe('degraded');
+  });
+  it('rejects a positive count with no readable rows', async () => {
+    for (const rows of [[], [waitingRow({ waiting_since: 'invalid' })]]) {
+      expect(soleSourceFailure(await media(rows, 1)).status).toBe('degraded');
+    }
+  });
+  it('samples oldest first before limiting and preserves the exact total', async () => {
+    const rows = Array.from({ length: 250 }, () => waitingRow());
+    rows.push(
+      waitingRow({
+        waiting_since: '2026-08-18T12:00:00.000Z',
+        render_status: 'failed',
+      }),
+    );
+    const response = await media(rows);
+    expect(response.waitingMediaLanes).toBe(251);
+    expect(verdict(response).status).toBe('critical');
+    expect(verdict(response).evidence['oldestWaitingHours']).toBe(240);
   });
 });

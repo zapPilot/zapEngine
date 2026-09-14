@@ -66,6 +66,8 @@ export async function collectOperatorHeartbeatSignal(
     );
   }
 
+  // sourceSha and runId are diagnostic correlation only, never verdict inputs.
+  // Which SHA defines authoritative execution identity remains unresolved.
   const heartbeatAt = Date.parse(heartbeat.observedAt);
   if (!Number.isFinite(heartbeatAt)) {
     return buildSignal({
@@ -152,7 +154,7 @@ export async function collectOperatorHeartbeatSignal(
     return buildSignal({
       ...common,
       status: 'degraded',
-      title: 'ops-operator heartbeat config identity is missing',
+      title: 'ops-operator heartbeat cadence provenance is missing',
       detail: `Latest heartbeat does not record the schedule cadence that produced it; ${CADENCE_SENTENCE}.`,
     });
   }
