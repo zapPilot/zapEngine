@@ -51,9 +51,28 @@ describe('native Privy login', () => {
   });
 
   it('treats closing the Privy login UI as cancellation', () => {
+    // Mirrors @privy-io/expo's UI error: an Error subclass carrying `code`.
+    class PrivyUiError extends Error {
+      constructor(
+        readonly code: string,
+        message: string,
+      ) {
+        super(message);
+      }
+    }
+
+    expect(
+      isPrivyLoginCancellation(
+        new PrivyUiError('login_flow_closed', 'The login flow was closed'),
+      ),
+    ).toBe(true);
     expect(isPrivyLoginCancellation({ code: 'login_flow_closed' })).toBe(true);
     expect(isPrivyLoginCancellation({ code: 'ui_flow_closed' })).toBe(true);
     expect(isPrivyLoginCancellation({ code: 'underlying_error' })).toBe(false);
     expect(isPrivyLoginCancellation(new Error('network failed'))).toBe(false);
+    // The display message alone is not a cancellation signal.
+    expect(
+      isPrivyLoginCancellation(new Error('The login flow was closed')),
+    ).toBe(false);
   });
 });

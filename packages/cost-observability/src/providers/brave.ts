@@ -140,9 +140,7 @@ async function fetchBraveQuotaResponse(
     input.sleep ??
     ((milliseconds: number) =>
       new Promise<void>((resolve) => setTimeout(resolve, milliseconds)));
-  let lastError: unknown;
-
-  for (let attempt = 1; attempt <= BRAVE_REQUEST_MAX_ATTEMPTS; attempt += 1) {
+  for (let attempt = 1; ; attempt += 1) {
     let response: Response;
     try {
       response = await fetcher(endpoint, {
@@ -153,7 +151,6 @@ async function fetchBraveQuotaResponse(
         signal: AbortSignal.timeout(15_000),
       });
     } catch (error) {
-      lastError = error;
       if (attempt === BRAVE_REQUEST_MAX_ATTEMPTS) {
         throw new Error(
           `Brave Search quota request failed after ${BRAVE_REQUEST_MAX_ATTEMPTS} attempts: ${safeErrorMessage(error)}`,
@@ -171,7 +168,6 @@ async function fetchBraveQuotaResponse(
     const statusError = new Error(
       `Brave Search quota request failed (${response.status})`,
     );
-    lastError = statusError;
     if (
       attempt === BRAVE_REQUEST_MAX_ATTEMPTS ||
       !isRetryableBraveStatus(response.status)
@@ -182,10 +178,6 @@ async function fetchBraveQuotaResponse(
     await response.body?.cancel().catch(() => {});
     await sleep(BRAVE_REQUEST_RETRY_DELAY_MS * 2 ** (attempt - 1));
   }
-
-  throw lastError instanceof Error
-    ? lastError
-    : new Error('Brave Search quota retry loop exhausted');
 }
 
 function isRetryableBraveStatus(status: number): boolean {
@@ -215,15 +207,12 @@ function readMonthlyQuota(headers: Headers): BraveMonthlyQuota {
   });
   const index = windows.reduce<number>(
     (best, window, current) =>
-      window !== null && (best === -1 || window > (windows[best] ?? -1))
+      window !== null && (best === -1 || window > windows[best]!)
         ? current
         : best,
     -1,
   );
-  if (
-    index === -1 ||
-    (windows[index] ?? 0) < MINIMUM_LONG_QUOTA_WINDOW_SECONDS
-  ) {
+  if (index === -1 || windows[index]! < MINIMUM_LONG_QUOTA_WINDOW_SECONDS) {
     throw new UsageNotMeasurableError(
       'Brave Search long-term quota window is not measurable',
     );
@@ -231,14 +220,9 @@ function readMonthlyQuota(headers: Headers): BraveMonthlyQuota {
 
   const limit = limits[index];
   const left = remaining[index];
-  if (
-    limit === undefined ||
-    left === undefined ||
-    !Number.isFinite(limit) ||
-    !Number.isFinite(left) ||
-    limit < 0 ||
-    left < 0
-  ) {
+  // parseNumbers has already discarded non-finite values; only alignment and
+  // non-negative quota semantics remain to validate here.
+  if (limit === undefined || left === undefined || limit < 0 || left < 0) {
     throw new Error('Brave Search monthly quota is not measurable');
   }
 

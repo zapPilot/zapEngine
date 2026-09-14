@@ -17,6 +17,7 @@ import {
   riskAcknowledgement,
 } from '@/integration/investReviewModel';
 import { isStrategyDepositPlan } from '@/integration/simulationPreviewModel';
+import { requestAccountConnection } from '@/integration/requestAccountConnection';
 import { useAccount } from '@/integration/useAccount';
 import { useInvest } from '@/integration/useInvest';
 import { useInvestExecution } from '@/integration/useInvestExecution';
@@ -75,7 +76,7 @@ export function useInvestRouteSubmit({
       return;
     }
     if (capability === 'connect-wallet') {
-      void account.connect();
+      requestAccountConnection(account);
       return;
     }
     if (capability !== 'ready' || reviewNotReadyForSend || launchRequested) {

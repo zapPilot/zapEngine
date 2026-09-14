@@ -28,6 +28,11 @@ export async function loginWithPrivy(login: PrivyLogin): Promise<void> {
   await login(getNativePrivyLoginConfig());
 }
 
+/**
+ * Privy rejects the pending login promise when the user dismisses its UI
+ * (`closeLoginFlow`). The thrown value is an `Error` subclass carrying the
+ * machine-readable `code`, so match on that rather than the display message.
+ */
 export function isPrivyLoginCancellation(error: unknown): boolean {
   if (typeof error !== 'object' || error === null || !('code' in error)) {
     return false;

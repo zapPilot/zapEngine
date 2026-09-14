@@ -6,6 +6,6 @@ import type { TabAccess } from '@/integration/useTabAccess';
 export function useTabAccess(): TabAccess {
   return {
     isAccessible: () => true,
-    connect: async () => {},
+    connect: async () => 'connected',
   };
 }

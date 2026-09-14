@@ -33,9 +33,12 @@ describe('chainBrandKeyForChainId', () => {
     expect(chainBrandKeyForChainId(1337)).toBe('hyperliquid');
   });
 
-  it('returns undefined for an unknown chain id', () => {
-    expect(chainBrandKeyForChainId(137)).toBeUndefined();
-  });
+  it.each([137, 0, -1, Number.NaN, Number.POSITIVE_INFINITY])(
+    'returns undefined for unknown or non-finite chain id %s',
+    (chainId) => {
+      expect(chainBrandKeyForChainId(chainId)).toBeUndefined();
+    },
+  );
 });
 
 describe('protocolBrandKeyFor', () => {
@@ -62,10 +65,17 @@ describe('protocolBrandKeyFor', () => {
     expect(protocolBrandKeyFor(raw)).toBe(expected);
   });
 
-  it('returns undefined for an unknown protocol so callers can fall back', () => {
-    expect(protocolBrandKeyFor('unknown-router')).toBeUndefined();
-    expect(protocolBrandKeyFor('')).toBeUndefined();
+  it('collapses mixed separators before resolving an alias', () => {
+    expect(protocolBrandKeyFor('  GMX___V--2  ')).toBe('gmx-v2');
+    expect(protocolBrandKeyFor('\tHyperliquid   HLP\n')).toBe('hyperliquid');
   });
+
+  it.each(['unknown-router', '', '   ', 'gmx-v3', '💸'])(
+    'returns undefined for unknown protocol %s so callers can fall back',
+    (protocol) => {
+      expect(protocolBrandKeyFor(protocol)).toBeUndefined();
+    },
+  );
 });
 
 describe('tokenBrandSymbolFor', () => {
@@ -83,9 +93,12 @@ describe('tokenBrandSymbolFor', () => {
     expect(tokenBrandSymbolFor(raw)).toBe(expected);
   });
 
-  it('returns undefined for an unknown symbol', () => {
-    expect(tokenBrandSymbolFor('DOGE')).toBeUndefined();
-  });
+  it.each(['DOGE', '', '   ', 'US DC', '₿'])(
+    'returns undefined for unknown symbol %s',
+    (symbol) => {
+      expect(tokenBrandSymbolFor(symbol)).toBeUndefined();
+    },
+  );
 });
 
 describe('registry entries', () => {

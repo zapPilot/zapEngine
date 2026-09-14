@@ -4,11 +4,11 @@ import {
   isTabAccessible,
   type AppTabName,
 } from '@/integration/navigationModel';
-import { useAccount } from '@/integration/useAccount';
+import { useAccount, type ConnectOutcome } from '@/integration/useAccount';
 
 export interface TabAccess {
   isAccessible(tabName: AppTabName): boolean;
-  connect(): Promise<void>;
+  connect(): Promise<ConnectOutcome>;
 }
 
 export function useTabAccess(): TabAccess {

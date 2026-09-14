@@ -12,6 +12,7 @@ import { LanguageSettingsCard } from '@/components/account/LanguageSettingsCard'
 import { DeleteAccountCard } from '@/components/account/DeleteAccountCard';
 import { TelegramCard } from '@/components/account/TelegramCard';
 import { DEMO } from '@/data/demo';
+import { requestAccountConnection } from '@/integration/requestAccountConnection';
 import { useAccount } from '@/integration/useAccount';
 import { truncateAddress } from '@/lib/format';
 import { useContentLanguage } from '@/providers/ContentLanguageProvider';
@@ -60,7 +61,7 @@ export function AccountScreen() {
             if (account.isConnected) {
               void account.disconnect();
             } else {
-              void account.connect().catch(() => undefined);
+              requestAccountConnection(account);
             }
           }}
         >

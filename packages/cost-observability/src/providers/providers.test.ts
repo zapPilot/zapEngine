@@ -5,6 +5,10 @@ import { fetchBraveCostSnapshot } from './brave.js';
 import { fetchDeBankCostSnapshot } from './debank.js';
 import { createFixedMonthlyCostSnapshot } from './fixed.js';
 import { fetchOpenRouterCostSnapshot } from './openrouter.js';
+import {
+  createOpenRouterKeyFetcher,
+  expectBraveSearchAuthCall,
+} from './test-helpers.js';
 
 function createDeBankFetcher(
   stats: Array<{ usage: number; remains: number; date: string }>,
@@ -17,20 +21,7 @@ function createDeBankFetcher(
 }
 
 function createOpenRouterFetcher(usageMonthly: number) {
-  return vi.fn().mockResolvedValue(
-    new Response(
-      JSON.stringify({
-        data: {
-          usage: usageMonthly,
-          usage_daily: usageMonthly,
-          usage_weekly: usageMonthly,
-          usage_monthly: usageMonthly,
-          limit: 100,
-          limit_remaining: null,
-        },
-      }),
-    ),
-  );
+  return createOpenRouterKeyFetcher({ usage: usageMonthly });
 }
 
 function braveQuotaResponse(status = 200) {
@@ -159,16 +150,7 @@ describe('cost providers', () => {
         expect.objectContaining({ key: 'estimated_billed_usd', value: 0 }),
       ]),
     );
-    expect(fetcher).toHaveBeenCalledWith(
-      expect.objectContaining({
-        href: expect.stringContaining('count=1'),
-      }),
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          'x-subscription-token': 'brave-key',
-        }),
-      }),
-    );
+    expectBraveSearchAuthCall(fetcher, 'count=1');
   });
 
   it('retries a transient Brave network failure before reading quota', async () => {

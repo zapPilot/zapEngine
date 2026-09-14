@@ -100,7 +100,7 @@ describe('iOS useTabAccess', () => {
   it('exposes a no-op connect', async () => {
     const rendered = await renderTabAccess(useTabAccessIos);
 
-    await expect(rendered.value.connect()).resolves.toBeUndefined();
+    await expect(rendered.value.connect()).resolves.toBe('connected');
     expect(mocks.account.connect).not.toHaveBeenCalled();
     await rendered.unmount();
   });

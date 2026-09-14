@@ -113,11 +113,40 @@ describe('useAccount', () => {
     const rendered = await renderAccount();
 
     await act(async () => {
-      await rendered.account.connect();
+      await expect(rendered.account.connect()).resolves.toBe('connected');
     });
 
     expect(mocks.wallet.connect).toHaveBeenCalledTimes(1);
     expect(mocks.user.refetch).not.toHaveBeenCalled();
+    await rendered.unmount();
+  });
+
+  // Regression: a rejection here reaches every fire-and-forget call site as an
+  // unhandled promise rejection (Sentry 7728341048).
+  it('resolves as cancelled when the user closes the Privy login UI', async () => {
+    mocks.wallet.connect.mockRejectedValue(
+      Object.assign(new Error('The login flow was closed'), {
+        code: 'login_flow_closed',
+      }),
+    );
+    const rendered = await renderAccount();
+
+    await act(async () => {
+      await expect(rendered.account.connect()).resolves.toBe('cancelled');
+    });
+
+    await rendered.unmount();
+  });
+
+  it('still rejects when the login itself fails', async () => {
+    const failure = new Error('network failed');
+    mocks.wallet.connect.mockRejectedValue(failure);
+    const rendered = await renderAccount();
+
+    await act(async () => {
+      await expect(rendered.account.connect()).rejects.toBe(failure);
+    });
+
     await rendered.unmount();
   });
 
@@ -127,7 +156,7 @@ describe('useAccount', () => {
     const rendered = await renderAccount();
 
     await act(async () => {
-      await rendered.account.connect();
+      await expect(rendered.account.connect()).resolves.toBe('connected');
     });
 
     expect(mocks.wallet.connect).not.toHaveBeenCalled();
@@ -142,7 +171,7 @@ describe('useAccount', () => {
     const rendered = await renderAccount();
 
     await act(async () => {
-      await rendered.account.connect();
+      await expect(rendered.account.connect()).resolves.toBe('connected');
     });
 
     expect(mocks.wallet.connect).not.toHaveBeenCalled();
