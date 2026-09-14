@@ -1,7 +1,9 @@
 import { JST_OFFSET_MS } from './jst.js';
 import type { SocialPlatform } from './platforms.js';
 import {
-  SOCIAL_LANGUAGE_EXPERIMENT_KEYS,
+  HISTORICAL_SOCIAL_LANGUAGE_EXPERIMENT_KEYS,
+  SOCIAL_FINAL_LANGUAGE_BY_PLATFORM,
+  SOCIAL_LANGUAGE_FINAL_FIXED_SINCE,
   SOCIAL_LANGUAGE_ROTATION_ACTIVE_SINCE,
   SOCIAL_LANGUAGE_THREADS_FIXED_SINCE,
   SOCIAL_RELEASE_SLOTS,
@@ -14,12 +16,7 @@ const ROTATION_ANCHOR_JST_DAY = Date.UTC(2026, 8, 2);
 export const SOCIAL_LANGUAGE_PROFILE_ASSIGNMENT_KEY =
   'social-language-profile-v2';
 
-/**
- * Durable allocation record for the post-Threads-decision shape. Its variant
- * is D/E (the X/YouTube `ja`/`en` swap), never a post-performance arm.
- * A separate key from v2 keeps the retired A/B/C letters from ever being
- * reinterpreted under the fixed-Threads lane shape.
- */
+/** Historical durable assignment for the D/E X/YouTube swap. */
 export const SOCIAL_LANGUAGE_SWAP_PROFILE_ASSIGNMENT_KEY =
   'social-language-profile-v3';
 
@@ -36,8 +33,28 @@ export const SOCIAL_REQUIRED_ROTATION_LANGUAGES = [
   'en',
 ] as const satisfies readonly SocialLanguageCode[];
 
+export function isFinalLanguagePolicyActive(scheduledAt: Date): boolean {
+  return (
+    scheduledAt.getTime() >= Date.parse(SOCIAL_LANGUAGE_FINAL_FIXED_SINCE)
+  );
+}
+
+/**
+ * Final language allocation. New cohorts created after the final cutover carry
+ * no language experiment metadata.
+ */
+export function finalReleaseCohortLanes(): RotatingReleaseCohortLane[] {
+  return [
+    { platform: 'x', language: SOCIAL_FINAL_LANGUAGE_BY_PLATFORM.x },
+    { platform: 'youtube', language: SOCIAL_FINAL_LANGUAGE_BY_PLATFORM.youtube },
+    { platform: 'threads', language: SOCIAL_FINAL_LANGUAGE_BY_PLATFORM.threads },
+    { platform: 'rednote', language: SOCIAL_FINAL_LANGUAGE_BY_PLATFORM.rednote },
+  ];
+}
+
 export type SocialLanguageRotationProfile = 'A' | 'B' | 'C';
 
+/** Historical v2 Latin-square profiles. */
 const ROTATION_PROFILES = [
   {
     profile: 'A',
@@ -77,10 +94,8 @@ export function isThreadsFixedActive(scheduledAt: Date): boolean {
 }
 
 /**
- * Balanced Latin square:
+ * Historical balanced Latin square:
  * Day 1 slots = A/B/C, Day 2 = B/C/A, Day 3 = C/A/B, then repeat.
- * Every platform therefore sees every language once per three article slots,
- * and a fixed clock slot sees every profile once per three JST days.
  */
 export function languageRotationProfileForSlot(
   scheduledAt: Date,
@@ -97,15 +112,8 @@ export function rotatingReleaseCohortLanes(
 }
 
 /**
- * Rebuild a durable v2 cohort from its persisted profile rather than from its
- * current timestamp. Missed-slot repair may move the whole article to a later
- * slot, but that must never change the languages it was originally assigned.
- *
- * Rotating lanes intentionally come before Rednote. `enqueueCohortJobs()`
- * persists lanes sequentially, so any interrupted v2 enqueue that wrote at
- * least one row leaves a platform-specific experiment key behind. Recovery can
- * then distinguish it from a legacy partial cohort; Rednote alone is ambiguous
- * because its lane is identical in both generations.
+ * Rebuild a durable historical v2 cohort from its persisted profile rather than
+ * from its current timestamp.
  */
 export function rotatingReleaseCohortLanesForProfile(
   profileName: string,
@@ -139,12 +147,7 @@ export function languageRotationProfileForLane(
 
 export type SocialLanguageSwapProfile = 'D' | 'E';
 
-/**
- * Post-Threads-decision shape (episodes created from
- * `SOCIAL_LANGUAGE_THREADS_FIXED_SINCE`): Threads and Rednote are both fixed
- * to `zh-Hant` while X and YouTube swap `ja`/`en`, so every article still
- * covers all three languages somewhere in its final lane set.
- */
+/** Historical post-Threads-decision X/YouTube swap profiles. */
 const SWAP_PROFILES = [
   {
     profile: 'D',
@@ -162,13 +165,7 @@ const SWAP_PROFILES = [
   youtube: SocialLanguageCode;
 }[];
 
-/**
- * Two-way swap over the same three daily article slots: Day 1 slots run
- * D/E/D, Day 2 E/D/E, then repeat. Three slots cannot split evenly across two
- * profiles in one day, but the two-day cycle gives each swapping platform
- * three `ja` and three `en` articles, and each fixed clock slot alternates
- * day to day instead of confounding language with time-of-day.
- */
+/** Historical two-way D/E swap over the three daily article slots. */
 export function languageSwapProfileForSlot(
   scheduledAt: Date,
 ): (typeof SWAP_PROFILES)[number] {
@@ -183,17 +180,7 @@ export function fixedThreadsReleaseCohortLanes(
   );
 }
 
-/**
- * Rebuild a durable v3 cohort from its persisted swap profile rather than
- * from its current timestamp. Same repair rule as v2: moving the whole
- * article to a later slot must never change the languages already allocated.
- *
- * Swapping lanes intentionally come before the fixed lanes. `enqueueCohortJobs()`
- * persists lanes sequentially, so any interrupted v3 enqueue that wrote at
- * least one row leaves a swapping-platform experiment key behind. Recovery can
- * then distinguish it from a legacy partial cohort; Threads/Rednote alone are
- * ambiguous because their fixed lanes are identical in every generation.
- */
+/** Rebuild a durable historical v3 cohort from its persisted D/E profile. */
 export function fixedThreadsReleaseCohortLanesForProfile(
   profileName: string,
 ): RotatingReleaseCohortLane[] {
@@ -213,13 +200,13 @@ export function fixedThreadsReleaseCohortLanesForProfile(
 }
 
 function experimentLane(
-  platform: keyof typeof SOCIAL_LANGUAGE_EXPERIMENT_KEYS,
+  platform: keyof typeof HISTORICAL_SOCIAL_LANGUAGE_EXPERIMENT_KEYS,
   language: SocialLanguageCode,
 ): RotatingReleaseCohortLane {
   return {
     platform,
     language,
-    experimentKey: SOCIAL_LANGUAGE_EXPERIMENT_KEYS[platform],
+    experimentKey: HISTORICAL_SOCIAL_LANGUAGE_EXPERIMENT_KEYS[platform],
     experimentVariant: language,
   };
 }
