@@ -40,7 +40,7 @@ export function AuthenticatedActionProvider({
   const run = useCallback(
     (action: () => void) => {
       const needsLogin = modelRef.current.request(account.isConnected, action);
-      if (needsLogin) {
+      if (needsLogin && !account.isConnecting) {
         const requestId = ++requestIdRef.current;
         const cancelIfCurrent = () => {
           if (requestIdRef.current === requestId) {
