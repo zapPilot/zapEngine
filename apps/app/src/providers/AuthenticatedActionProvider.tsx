@@ -24,6 +24,7 @@ export function AuthenticatedActionProvider({
 }): ReactElement {
   const account = useAccount();
   const modelRef = useRef(createAuthenticatedActionModel());
+  const requestIdRef = useRef(0);
 
   useEffect(() => {
     if (account.isConnected) {
@@ -32,6 +33,7 @@ export function AuthenticatedActionProvider({
   }, [account.isConnected]);
 
   const cancel = useCallback(() => {
+    requestIdRef.current += 1;
     modelRef.current.cancel();
   }, []);
 
@@ -39,20 +41,34 @@ export function AuthenticatedActionProvider({
     (action: () => void) => {
       const needsLogin = modelRef.current.request(account.isConnected, action);
       if (needsLogin) {
+        const requestId = ++requestIdRef.current;
+        const cancelIfCurrent = () => {
+          if (requestIdRef.current === requestId) {
+            modelRef.current.cancel();
+          }
+        };
+
         // Drop the queued action when the login does not complete, otherwise
         // it stays armed and the `isConnected` effect replays it on a later,
-        // unrelated connection.
-        void account
-          .connect()
-          .then((outcome) => {
-            if (outcome === 'cancelled') {
-              cancel();
-            }
-          })
-          .catch(cancel);
+        // unrelated connection. A superseded login attempt must not clear a
+        // newer queued action if its promise settles afterward.
+        try {
+          void account
+            .connect()
+            .then((outcome) => {
+              if (outcome === 'cancelled') {
+                cancelIfCurrent();
+              }
+            })
+            .catch(cancelIfCurrent);
+        } catch {
+          // Providers may fail before returning a promise. Keep the same
+          // fail-closed behavior as an async rejection.
+          cancelIfCurrent();
+        }
       }
     },
-    [account, cancel],
+    [account],
   );
 
   return (
