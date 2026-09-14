@@ -24,10 +24,9 @@ export interface PackagingAssignment {
 }
 
 /**
- * Keep only Rednote packaging exploration active while X and YouTube
- * run the language swap experiment. Mixing language and copy-treatment
- * experiments at the current sample volume would fragment each cell and make a
- * language winner impossible to attribute cleanly.
+ * Packaging experiments are independent from the fixed language allocation.
+ * Keep only explicitly registered treatments here; concluding the language
+ * experiment does not implicitly activate new X/Threads/YouTube copy tests.
  */
 export const PACKAGING_EXPERIMENTS: readonly PackagingExperiment[] = [
   {
