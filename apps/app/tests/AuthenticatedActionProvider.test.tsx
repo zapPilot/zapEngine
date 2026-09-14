@@ -212,6 +212,35 @@ describe('AuthenticatedActionProvider', () => {
     expect(laterAction).toHaveBeenCalledTimes(1);
   });
 
+  it('does not revive a cancelled action when its login succeeds late', async () => {
+    let connectFirst: ((outcome: ConnectOutcome) => void) | undefined;
+    const firstLogin = new Promise<ConnectOutcome>((resolve) => {
+      connectFirst = resolve;
+    });
+    mocks.account.connect
+      .mockReturnValueOnce(firstLogin)
+      .mockResolvedValueOnce('connected');
+    await render();
+    const cancelledAction = vi.fn();
+    const laterAction = vi.fn();
+
+    await act(async () => {
+      context().run(cancelledAction);
+      context().cancel();
+      context().run(laterAction);
+    });
+
+    await act(async () => {
+      connectFirst?.('connected');
+      await firstLogin;
+    });
+    await reconnect();
+    await render();
+
+    expect(cancelledAction).not.toHaveBeenCalled();
+    expect(laterAction).toHaveBeenCalledTimes(1);
+  });
+
   it('drops the queued action when the login fails', async () => {
     mocks.account.connect.mockRejectedValue(new Error('network failed'));
     await render();
