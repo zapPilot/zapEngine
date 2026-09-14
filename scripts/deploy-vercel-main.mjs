@@ -6,7 +6,7 @@ import { ENV_DESTINATIONS } from '../config/env.destinations.mjs';
 const VERCEL_TARGETS = ['web', 'landing-page', 'control-center-vercel'];
 const GITHUB_REPO_ID = 1211979661;
 const POLL_INTERVAL_MS = 5_000;
-const DEPLOY_TIMEOUT_MS = 9 * 60 * 1_000;
+const DEPLOY_TIMEOUT_MS = 12 * 60 * 1_000;
 const FAILURE_STATES = new Set(['ERROR', 'CANCELED']);
 
 export async function deployVercelMain(input = {}) {

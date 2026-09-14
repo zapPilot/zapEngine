@@ -156,16 +156,162 @@ describe('AuthenticatedActionProvider', () => {
     expect(latestAction).toHaveBeenCalledTimes(1);
   });
 
-  it('drops the queued action when the login fails', async () => {
-    mocks.account.connect.mockRejectedValue(new Error('network failed'));
+  it('does not let an older successful login revive a superseded action', async () => {
+    let connectFirst: ((outcome: ConnectOutcome) => void) | undefined;
+    const firstLogin = new Promise<ConnectOutcome>((resolve) => {
+      connectFirst = resolve;
+    });
+    mocks.account.connect
+      .mockReturnValueOnce(firstLogin)
+      .mockResolvedValueOnce('connected');
     await render();
-    const action = vi.fn();
+    const firstAction = vi.fn();
+    const latestAction = vi.fn();
 
-    await act(async () => context().run(action));
+    await act(async () => {
+      context().run(firstAction);
+      context().run(latestAction);
+    });
 
+    await act(async () => {
+      connectFirst?.('connected');
+      await firstLogin;
+    });
+    await reconnect();
+    await render();
+
+    expect(firstAction).not.toHaveBeenCalled();
+    expect(latestAction).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the latest cancellation authoritative when an older login succeeds late', async () => {
+    let connectFirst: ((outcome: ConnectOutcome) => void) | undefined;
+    const firstLogin = new Promise<ConnectOutcome>((resolve) => {
+      connectFirst = resolve;
+    });
+    mocks.account.connect
+      .mockReturnValueOnce(firstLogin)
+      .mockResolvedValueOnce('cancelled');
+    await render();
+    const firstAction = vi.fn();
+    const latestAction = vi.fn();
+
+    await act(async () => {
+      context().run(firstAction);
+      context().run(latestAction);
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+      connectFirst?.('connected');
+      await firstLogin;
+    });
     await reconnect();
 
-    expect(action).not.toHaveBeenCalled();
+    expect(firstAction).not.toHaveBeenCalled();
+    expect(latestAction).not.toHaveBeenCalled();
+  });
+
+  it('does not let a login settled after manual cancel affect a later action', async () => {
+    let cancelFirst: ((outcome: ConnectOutcome) => void) | undefined;
+    const firstLogin = new Promise<ConnectOutcome>((resolve) => {
+      cancelFirst = resolve;
+    });
+    mocks.account.connect
+      .mockReturnValueOnce(firstLogin)
+      .mockResolvedValueOnce('connected');
+    await render();
+    const cancelledAction = vi.fn();
+    const laterAction = vi.fn();
+
+    await act(async () => {
+      context().run(cancelledAction);
+      context().cancel();
+      context().run(laterAction);
+    });
+
+    await act(async () => {
+      cancelFirst?.('cancelled');
+      await firstLogin;
+    });
+    await reconnect();
+
+    expect(cancelledAction).not.toHaveBeenCalled();
+    expect(laterAction).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not let a login rejected after manual cancel affect a later action', async () => {
+    let rejectFirst: ((reason?: unknown) => void) | undefined;
+    const firstLogin = new Promise<ConnectOutcome>((_resolve, reject) => {
+      rejectFirst = reject;
+    });
+    mocks.account.connect
+      .mockReturnValueOnce(firstLogin)
+      .mockResolvedValueOnce('connected');
+    await render();
+    const cancelledAction = vi.fn();
+    const laterAction = vi.fn();
+
+    await act(async () => {
+      context().run(cancelledAction);
+      context().cancel();
+      context().run(laterAction);
+    });
+
+    await act(async () => {
+      rejectFirst?.(new Error('cancelled login failed late'));
+      await firstLogin.catch(() => undefined);
+    });
+    await reconnect();
+
+    expect(cancelledAction).not.toHaveBeenCalled();
+    expect(laterAction).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not revive a cancelled action when its login succeeds late', async () => {
+    let connectFirst: ((outcome: ConnectOutcome) => void) | undefined;
+    const firstLogin = new Promise<ConnectOutcome>((resolve) => {
+      connectFirst = resolve;
+    });
+    mocks.account.connect
+      .mockReturnValueOnce(firstLogin)
+      .mockResolvedValueOnce('connected');
+    await render();
+    const cancelledAction = vi.fn();
+    const laterAction = vi.fn();
+
+    await act(async () => {
+      context().run(cancelledAction);
+      context().cancel();
+      context().run(laterAction);
+    });
+
+    await act(async () => {
+      connectFirst?.('connected');
+      await firstLogin;
+    });
+    await reconnect();
+    await render();
+
+    expect(cancelledAction).not.toHaveBeenCalled();
+    expect(laterAction).toHaveBeenCalledTimes(1);
+  });
+
+  it('recovers cleanly after a login failure', async () => {
+    mocks.account.connect
+      .mockRejectedValueOnce(new Error('network failed'))
+      .mockResolvedValueOnce('connected');
+    await render();
+    const failedAction = vi.fn();
+    const laterAction = vi.fn();
+
+    await act(async () => context().run(failedAction));
+    await act(async () => context().run(laterAction));
+    await reconnect();
+
+    expect(mocks.account.connect).toHaveBeenCalledTimes(2);
+    expect(failedAction).not.toHaveBeenCalled();
+    expect(laterAction).toHaveBeenCalledTimes(1);
   });
 
   it('drops the queued action when the login throws synchronously', async () => {
@@ -180,6 +326,77 @@ describe('AuthenticatedActionProvider', () => {
     await reconnect();
 
     expect(action).not.toHaveBeenCalled();
+  });
+
+  it('consumes a queued action only once across connected re-renders', async () => {
+    await render();
+    const action = vi.fn();
+
+    await act(async () => context().run(action));
+    await reconnect();
+    await render();
+    await render();
+
+    expect(mocks.account.connect).toHaveBeenCalledTimes(1);
+    expect(action).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a later queued action when an earlier login cancels after a connection cycle', async () => {
+    let cancelFirst: ((outcome: ConnectOutcome) => void) | undefined;
+    const firstLogin = new Promise<ConnectOutcome>((resolve) => {
+      cancelFirst = resolve;
+    });
+    mocks.account.connect
+      .mockReturnValueOnce(firstLogin)
+      .mockResolvedValueOnce('connected');
+    await render();
+    const firstAction = vi.fn();
+    const laterAction = vi.fn();
+
+    await act(async () => context().run(firstAction));
+    await reconnect();
+
+    mocks.account.isConnected = false;
+    await render();
+    await act(async () => context().run(laterAction));
+
+    await act(async () => {
+      cancelFirst?.('cancelled');
+      await firstLogin;
+    });
+    await reconnect();
+
+    expect(firstAction).toHaveBeenCalledTimes(1);
+    expect(laterAction).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a later queued action when an earlier login rejects after a connection cycle', async () => {
+    let rejectFirst: ((reason?: unknown) => void) | undefined;
+    const firstLogin = new Promise<ConnectOutcome>((_resolve, reject) => {
+      rejectFirst = reject;
+    });
+    mocks.account.connect
+      .mockReturnValueOnce(firstLogin)
+      .mockResolvedValueOnce('connected');
+    await render();
+    const firstAction = vi.fn();
+    const laterAction = vi.fn();
+
+    await act(async () => context().run(firstAction));
+    await reconnect();
+
+    mocks.account.isConnected = false;
+    await render();
+    await act(async () => context().run(laterAction));
+
+    await act(async () => {
+      rejectFirst?.(new Error('first login failed after reconnect'));
+      await firstLogin.catch(() => undefined);
+    });
+    await reconnect();
+
+    expect(firstAction).toHaveBeenCalledTimes(1);
+    expect(laterAction).toHaveBeenCalledTimes(1);
   });
 
   it('runs the action immediately while already connected', async () => {
