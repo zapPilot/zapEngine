@@ -89,8 +89,7 @@ export async function collectOperatorHeartbeatSignal(
       ...common,
       status: 'critical',
       title: 'ops-operator heartbeat is stale',
-      detail:
-        `No operator heartbeat update has been recorded for ${ageMinutes}m; the workflow is scheduled every 5 minutes.`,
+      detail: `No operator heartbeat update has been recorded for ${ageMinutes}m; the workflow is scheduled every 5 minutes.`,
     });
   }
 
@@ -129,8 +128,7 @@ export async function collectOperatorHeartbeatSignal(
       ...common,
       status: 'degraded',
       title: 'ops-operator heartbeat is delayed',
-      detail:
-        `Latest operator heartbeat update is ${ageMinutes}m old; the workflow is scheduled every 5 minutes.`,
+      detail: `Latest operator heartbeat update is ${ageMinutes}m old; the workflow is scheduled every 5 minutes.`,
     });
   }
 
