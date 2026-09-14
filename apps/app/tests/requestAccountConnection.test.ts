@@ -17,4 +17,13 @@ describe('requestAccountConnection', () => {
     expect(catchSpy).toHaveBeenCalledTimes(1);
     await expect(pending).rejects.toThrow('network failed');
   });
+
+  it('contains a synchronous connect failure instead of throwing from the press helper', () => {
+    const connect = vi.fn(() => {
+      throw new Error('provider unavailable');
+    });
+
+    expect(() => requestAccountConnection({ connect })).not.toThrow();
+    expect(connect).toHaveBeenCalledTimes(1);
+  });
 });
