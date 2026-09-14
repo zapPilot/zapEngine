@@ -7,6 +7,11 @@ allowed to discover an active render by signalling it.
 
 ## Normal code deploy / environment apply
 
+A `main` push deploys only the apps whose image inputs changed, so a merge that
+does not touch `apps/podcast-pipeline/**`, `packages/**` or the root workspace
+files never enters this drain at all. Merges that do touch them still pay the
+full drain below.
+
 Both `.github/workflows/deploy-fly.yml` and the `podcast-pipeline` lane of
 `.github/workflows/env-apply.yml` use the same DB-backed gate:
 

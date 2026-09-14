@@ -177,7 +177,10 @@ After linking, Turbo checks remote cache on local misses — `pnpm verify` stays
 
 ## Deployment
 
-- **Backend services** → Fly.io via GitHub Actions (push to `main`)
+- **Backend services** → Fly.io via GitHub Actions on push to `main`, and
+  only the apps whose image inputs changed since the last successful `main`
+  run. Converge the whole fleet by hand with
+  `gh workflow run ci.yml -f deploy_target=all`
 - **Universal app (web) / Landing / Docs** → Vercel (app root: `apps/app`)
 - **Universal app (iOS / Android)** → EAS Build + Submit via GitHub Actions,
   triggered manually from the Actions tab

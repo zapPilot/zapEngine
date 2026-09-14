@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # scripts/resolve-deploy-matrix.test.sh
-# Regression lock for resolve-deploy-matrix.sh — covers the 8 event semantics
-# from the fleet-converge plan plus full-object shape checks.
+# Regression lock for resolve-deploy-matrix.sh — covers every event semantic
+# plus full-object shape checks and fail-closed handling of a broken filter.
 #
 # Run: bash scripts/resolve-deploy-matrix.test.sh
 # CI parity: invoked as a deploy-gates local check (no external deps beyond jq).
@@ -19,6 +19,7 @@ fi
 
 ALL_JSON=$(jq -c '.' "$REGISTRY")
 PODCAST_JSON=$(jq -c --arg t "podcast-pipeline" '[.[] | select(.app == $t)]' "$REGISTRY")
+ALPHA_JSON=$(jq -c --arg t "alpha-etl" '[.[] | select(.app == $t)]' "$REGISTRY")
 ACCOUNT_PODCAST_JSON=$(jq -c --argjson changes '["account-engine","podcast-pipeline"]' '[.[] | select(.app as $a | $changes | index($a))]' "$REGISTRY")
 # verify-only subset (verify_docker==true) for those two
 ACCOUNT_PODCAST_VERIFY_JSON=$(jq -c --argjson changes '["account-engine","podcast-pipeline"]' '[.[] | select(.app as $a | $changes | index($a)) | select(.verify_docker)]' "$REGISTRY")
@@ -125,12 +126,52 @@ echo "[3] PR nothing → deploy=[] verify=[]"
 assert_resolve "PR nothing" "pull_request" "refs/pull/123/merge" "" '[]' "[]" "[]"
 
 echo ""
-echo "[4] push main + PATHS_CHANGES=[alpha-etl] → deploy=ALL verify=[]"
-assert_resolve "push main with changes" "push" "refs/heads/main" "" '["alpha-etl"]' "$ALL_JSON" "[]"
+echo "[4] push main + PATHS_CHANGES=[alpha-etl] → deploy=[alpha-etl] verify=[]"
+assert_resolve "push main with changes" "push" "refs/heads/main" "" '["alpha-etl"]' "$ALPHA_JSON" "[]"
 
 echo ""
-echo "[5] push main + PATHS_CHANGES=[] → deploy=ALL verify=[]"
-assert_resolve "push main empty" "push" "refs/heads/main" "" '[]' "$ALL_JSON" "[]"
+echo "[5] push main touching no Fly app → deploy=[] verify=[]"
+assert_resolve "push main empty" "push" "refs/heads/main" "" '[]' "[]" "[]"
+# An unset PATHS_CHANGES is the same no-op, not a reason to deploy everything.
+assert_resolve "push main unset changes" "push" "refs/heads/main" "" "__UNSET__" "[]" "[]"
+
+echo ""
+echo "[5b] push main + two apps → registry order, whatever the input order"
+assert_resolve "push main two apps" "push" "refs/heads/main" "" '["account-engine","podcast-pipeline"]' "$ACCOUNT_PODCAST_JSON" "[]"
+assert_resolve "push main two apps reversed" "push" "refs/heads/main" "" '["podcast-pipeline","account-engine"]' "$ACCOUNT_PODCAST_JSON" "[]"
+
+echo ""
+echo "[5c] push main + non-registry filter keys are ignored"
+# app_ios is a real filter key with no Fly app behind it; a typo must not
+# silently widen or narrow the matrix either.
+assert_resolve "push main ios only" "push" "refs/heads/main" "" '["app_ios"]' "[]" "[]"
+assert_resolve "push main ios plus app" "push" "refs/heads/main" "" '["app_ios","alpha-etl"]' "$ALPHA_JSON" "[]"
+assert_resolve "push main typo" "push" "refs/heads/main" "" '["alpha_etl"]' "[]" "[]"
+
+echo ""
+echo "[5d] push main + every app → deploy=ALL verify=[]"
+assert_resolve "push main all apps" "push" "refs/heads/main" "" '["account-engine","alpha-etl","analytics-engine","podcast-pipeline"]' "$ALL_JSON" "[]"
+
+echo ""
+echo "[5e] malformed PATHS_CHANGES → exit 1, never an empty matrix"
+# A broken paths-filter must stop the run. Resolving it to [] would read as
+# "nothing changed" and silently stop deploying anything, forever.
+for bad_event in push pull_request; do
+  for bad_changes in 'not json' '{"a":1}' '[1,2]'; do
+    set +e
+    EVENT_NAME="$bad_event" GITHUB_REF=refs/heads/main PATHS_CHANGES="$bad_changes" \
+      bash "$SCRIPT" >/dev/null 2>&1
+    code=$?
+    set -e
+    if [ "$code" -eq 1 ]; then
+      echo "  ✓ $bad_event rejects PATHS_CHANGES=$bad_changes"
+      pass=$((pass+1))
+    else
+      echo "  ✗ $bad_event PATHS_CHANGES=$bad_changes — expected exit 1, got $code"
+      fail=$((fail+1))
+    fi
+  done
+done
 
 echo ""
 echo "[6] push non-main → deploy=[] verify=[]"
