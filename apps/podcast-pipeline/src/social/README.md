@@ -14,7 +14,7 @@ in production; it does not define a competing policy.
 | ------------------------------------ | ------------------------------------------------------------------------------------------------- |
 | Product invariant                    | `apps/podcast-pipeline/AGENTS.md` + `src/social/AGENTS.md`                                        |
 | Executable invariant                 | `src/social/daemon-release-cohort-contract.test.ts` + `scripts/check-social-release-contract.mjs` |
-| Release-lane shape                   | `src/social/cohort.ts` + `src/social/language-allocation.ts` + `src/social/policy.ts`             |
+| Release-lane shape                   | `src/social/cohort.ts` + `src/social/policy.ts`                                                   |
 | Article timing policy                | `src/social/policy.ts` (`SOCIAL_RELEASE_DAILY_CAP`, `SOCIAL_RELEASE_SLOTS`)                       |
 | Scheduling / recovery implementation | `src/social/daemon.ts`, `src/social/release-cohort-store.ts`, `src/social/slot-policy.ts`         |
 | Platform media / CTA behavior        | `src/social/platforms.ts`, `src/brand/cta.ts`                                                     |
@@ -60,8 +60,7 @@ before running a command that drives one of the same browser profiles.
 `episode_id` is the scheduling unit. One article consumes one release slot; its
 active platform × language lanes are not independent scheduling units.
 
-From **2026-09-14 09:00 JST** (`2026-09-14T00:00:00.000Z`), the language
-experiment is concluded and every new release cohort uses one fixed mapping:
+Language is fixed per platform by `SOCIAL_LANGUAGE_BY_PLATFORM` in `policy.ts`:
 
 | Platform | Language  |
 | -------- | --------- |
@@ -70,29 +69,28 @@ experiment is concluded and every new release cohort uses one fixed mapping:
 | X        | `ja`      |
 | YouTube  | `en`      |
 
-Every article still covers all three primary languages: Traditional Chinese on
-Rednote and Threads, Japanese on X, and English on YouTube. Current fixed-policy
-jobs carry no language `experiment_key` / `experiment_variant`, and new episodes
-do not create `social-language-profile-v2` or `social-language-profile-v3`
-assignments.
+Every article covers all three primary languages: Traditional Chinese on Rednote
+and Threads, Japanese on X, and English on YouTube. `resolveReleaseCohortLanes()`
+reads nothing else — no clock, no durable assignment — and no lane carries a
+language `experiment_key` / `experiment_variant`.
 
-The language experiment history remains readable rather than being deleted:
+This concluded the cross-platform language experiment on **2026-09-14**. The
+allocators (v1 `x-language-v1`, v2 A/B/C Latin square, v3 D/E swap) were deleted
+rather than kept as dead recovery paths. Nothing was lost:
 
-- v2, from 2026-09-02 09:00 JST, used A/B/C Latin-square profiles across X,
-  Threads, and YouTube while Rednote stayed `zh-Hant`.
-- v3, from 2026-09-12 09:00 JST, fixed Threads/Rednote to `zh-Hant` and swapped
-  X/YouTube between D (`ja`/`en`) and E (`en`/`ja`).
-- Pre-v2 cohorts used the older Rednote `zh-Hant`, Threads `ja`, X `en`/`ja`
-  (`x-language-v1`), YouTube `en` policy.
+- Jobs queued before the decision keep their own languages, because durable
+  lanes outrank the current policy (see [Missed-slot repair](#missed-slot-repair-and-queue-reconciliation)).
+  They publish on their original languages and then the experiment shape is gone.
+- Published experiment posts, metrics, and `social_experiment_assignments` rows
+  are untouched in the database and remain available for analysis.
+- `daemon.ts` still recognises the historical experiment keys for one purpose:
+  keeping learned copy guidance frozen on those not-yet-published lanes.
 
-Persisted historical assignments remain authoritative for cohorts that have
-already started or are not safe to reshape. The final cutover migration rewrites
-only an intact, completely unpublished four-lane cohort when every row is still
-`queued`, every `social_post_id` is null, the episode has no social post, and the
-whole cohort is scheduled at/after the cutover. For those safe rows it replaces
-the lane languages with the fixed mapping, clears language experiment metadata
-and stale strategy identity, and removes the historical language-generation
-assignment so repair cannot rotate it back later.
+Episodes created before **2026-08-24** (`SOCIAL_RELEASE_MIN_EPISODE_CREATED_AT`,
+when multilingual distribution started) get no lanes at all.
+`social_publish_candidates` has no creation-time filter of its own, so this
+constant is what stops a re-rendered old video from making the whole back
+catalogue publishable in one tick.
 
 Current article timing is **3 articles per JST day at 09:30, 12:00 and 16:00
 JST**. Each article takes one of those times and every active lane of that
@@ -138,14 +136,10 @@ Rednote and X drive local browser sessions.
 
 ## Release readiness barrier
 
-The current fixed cohort is enqueued only after `zh-Hant`, `ja`, and `en` media
-are all ready. The barrier is episode-wide and is evaluated before the article
-consumes a release slot. The slot chooses timing only; it no longer chooses a
-language profile for new fixed-policy cohorts.
-
-Historical v1/v2/v3 cohorts retain the required-language behavior needed to
-reconstruct their already-persisted release state. A ready Rednote lane never
-releases early while another required language is still missing.
+A cohort is enqueued only after `zh-Hant`, `ja`, and `en` media are all ready.
+The barrier is episode-wide and is evaluated before the article consumes a
+release slot; the slot chooses timing only. A ready Rednote lane never releases
+early while another required language is still missing.
 
 ### Publish-time re-check
 
@@ -240,16 +234,18 @@ per-platform scheduler:
 - failed lanes preserve any later `next_attempt_at` retry backoff;
 - `processing` rows are not rewritten underneath an active lease.
 
-After the final-language migration, ordinary timestamp repair still preserves
-the languages already stored on durable jobs. It does not dynamically convert a
-partial historical cohort to the fixed mapping. The one intentional reshape is
-the migration's narrowly defined intact/unpublished queue set described above.
+Timestamp repair preserves the languages already stored on durable jobs. It
+never converts a queued cohort to the current mapping: `reconcileExistingCohort()`
+re-derives lanes only to detect an interrupted enqueue, and keeps the existing
+lanes whenever the derived set is not equal to, or a strict superset of, them.
+That is why concluding the language experiment needed no queue migration — the
+cohorts already scheduled under rotated languages simply finish as they were
+scheduled.
 
-Historical v2/v3 profile identity survives timestamp repair through persisted
-`social-language-profile-v2` / `social-language-profile-v3` assignments when
-those assignments were not removed by the final cutover migration. The old
-database generation guard remains for historical recovery so a delayed v2/v3
-repair cannot silently add experimental lanes to a legacy cohort.
+The database generation guard `guard_social_language_v2_generation` remains in
+place. It cannot fire on current inserts (they carry `experiment_key = null`),
+but it still blocks any code that would add an experiment-tagged lane to a
+legacy cohort.
 
 This reconciliation runs before new discovery on every daemon tick, so deploy of
 a scheduler fix repairs existing Supabase queue state instead of only affecting
@@ -393,10 +389,10 @@ not write language experiment keys or variants. Historical `social_posts` and
 `social_experiment_assignments` remain intact so the v1/v2/v3 results can still
 be evaluated within each platform using standardized 24-hour samples.
 
-Fixed-policy jobs are no longer treated as language experiment arms, so normal
-strategy guidance is not frozen merely because historical keys still exist in
-the database. Stale active strategy rows for language lanes no longer present in
-`SOCIAL_LANGUAGE_POLICY` are retired by the normal strategy refresh.
+Current jobs are not language experiment arms, so strategy guidance is not
+frozen merely because historical keys still exist in the database. Stale active
+strategy rows for language lanes no longer present in
+`SOCIAL_LANGUAGE_BY_PLATFORM` are retired by the normal strategy refresh.
 
 Packaging experiments remain separate. `packaging-experiments.ts` currently
 registers only `rednote-packaging-v1-zh-Hant`; concluding the language experiment

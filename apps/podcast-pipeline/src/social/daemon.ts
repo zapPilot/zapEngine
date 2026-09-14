@@ -83,10 +83,7 @@ import {
 import { buildSocialPostMetric, collectPostMetrics } from './metrics.js';
 import { activePackagingExperiment } from './packaging-experiments.js';
 import type { SocialPlatform } from './platforms.js';
-import {
-  SOCIAL_LANGUAGE_EXPERIMENT_KEYS,
-  SOCIAL_PUBLISH_WINDOW_JST,
-} from './policy.js';
+import { SOCIAL_PUBLISH_WINDOW_JST } from './policy.js';
 import {
   type PreparedSocialBatchCopy,
   prepareSocialBatchCopy,
@@ -448,12 +445,6 @@ function durableLanesForEpisode(
   return [...deduped.values()].map((schedule) => ({
     platform: schedule.platform,
     language: schedule.language_code,
-    ...(schedule.experiment_key
-      ? { experimentKey: schedule.experiment_key }
-      : {}),
-    ...(schedule.experiment_variant
-      ? { experimentVariant: schedule.experiment_variant }
-      : {}),
   }));
 }
 
@@ -524,11 +515,9 @@ async function enqueueExistingCohort(input: {
   const scheduledAt = new Date(input.existingSchedule.scheduled_at);
 
   // Determine whether this is an interrupted enqueue (subset) vs a reshape.
-  const intendedLanes = await resolveReleaseCohortLanes({
-    episodeId: input.episodeId,
-    episodeCreatedAt: input.firstCandidate.episode_created_at,
-    scheduledAt,
-  });
+  const intendedLanes = resolveReleaseCohortLanes(
+    input.firstCandidate.episode_created_at,
+  );
   const existingKeys = new Set(
     existingLanes.map((lane) => `${lane.platform}|${lane.language}`),
   );
@@ -572,13 +561,8 @@ async function enqueueNewCohort(input: {
   now: Date;
   log: (message: string) => void;
 }): Promise<void> {
-  const prospectiveScheduledAt = input.now;
   const requiredLanguages = new Set(
-    await resolveRequiredReleaseLanguages({
-      episodeId: input.episodeId,
-      episodeCreatedAt: input.firstCandidate.episode_created_at,
-      prospectiveScheduledAt,
-    }),
+    resolveRequiredReleaseLanguages(input.firstCandidate.episode_created_at),
   );
   if (requiredLanguages.size === 0) return;
 
@@ -608,11 +592,9 @@ async function enqueueNewCohort(input: {
     return;
   }
 
-  const lanes = await resolveReleaseCohortLanes({
-    episodeId: input.episodeId,
-    episodeCreatedAt: input.firstCandidate.episode_created_at,
-    scheduledAt,
-  });
+  const lanes = resolveReleaseCohortLanes(
+    input.firstCandidate.episode_created_at,
+  );
   if (lanes.length === 0) return;
 
   const finalMissing = missingLanguages(
@@ -666,8 +648,6 @@ async function enqueueCohortJobs(input: {
       episodeId: input.episodeId,
       platform: lane.platform,
       languageCode: lane.language,
-      experimentKey: lane.experimentKey,
-      experimentVariant: lane.experimentVariant,
       scheduledAt: input.scheduledAt.toISOString(),
     });
     if (inserted) insertedLanes.push(lane);
@@ -1163,13 +1143,17 @@ async function reconcileClaimedJob(
   return true;
 }
 
-// `threads-language-v1` takes no new assignments since the fixed-Chinese
-// decision, but it stays in this set so copy guidance on already-persisted
-// Threads lanes keeps freezing preferred treatments instead of confounding
-// the concluded arm with learned hook/hashtag bias.
-const LANGUAGE_EXPERIMENT_KEYS: ReadonlySet<string> = new Set(
-  Object.values(SOCIAL_LANGUAGE_EXPERIMENT_KEYS) as string[],
-);
+// The language experiment is over and no new lane is ever tagged, but jobs
+// queued before the decision still carry these keys and have not all published
+// yet. Copy guidance on those lanes stays frozen so their concluded arms are
+// not confounded by learned hook/hashtag bias in their final posts. This set
+// can be deleted once no unpublished job carries a language experiment key.
+const HISTORICAL_LANGUAGE_EXPERIMENT_KEYS: ReadonlySet<string> = new Set([
+  'x-language-v1',
+  'x-language-v2',
+  'threads-language-v1',
+  'youtube-language-v1',
+]);
 
 /**
  * `buildStrategyGuidance` samples `Math.random`, so it is computed exactly
@@ -1184,7 +1168,8 @@ function buildGuidanceForJobs(
   return Object.fromEntries(
     jobs.flatMap((job) => {
       const isLanguageExperiment = Boolean(
-        job.experiment_key && LANGUAGE_EXPERIMENT_KEYS.has(job.experiment_key),
+        job.experiment_key &&
+        HISTORICAL_LANGUAGE_EXPERIMENT_KEYS.has(job.experiment_key),
       );
       const guidance = buildStrategyGuidance(
         job.platform,

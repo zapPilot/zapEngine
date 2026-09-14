@@ -3,7 +3,7 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { SOCIAL_REQUIRED_ROTATION_LANGUAGES } from './social/language-allocation.js';
+import { SOCIAL_REQUIRED_RELEASE_LANGUAGES } from './social/policy.js';
 
 const repoRoot = path.resolve(process.cwd(), '../..');
 const migration = fs.readFileSync(
@@ -34,9 +34,9 @@ describe('social language-v2 migration guards', () => {
     );
 
     expect(new Set(languages)).toEqual(
-      new Set(SOCIAL_REQUIRED_ROTATION_LANGUAGES),
+      new Set(SOCIAL_REQUIRED_RELEASE_LANGUAGES),
     );
-    expect(languages).toHaveLength(SOCIAL_REQUIRED_ROTATION_LANGUAGES.length);
+    expect(languages).toHaveLength(SOCIAL_REQUIRED_RELEASE_LANGUAGES.length);
   });
 
   it('models waiting media as pre-scheduling episode-language readiness', () => {

@@ -12,8 +12,6 @@ const packet = {
 function store(unavailable: boolean): OperatorStore {
   return {
     rpc: vi.fn(),
-    recordHeartbeat: vi.fn().mockResolvedValue(undefined),
-    heartbeat: vi.fn().mockResolvedValue(null),
     history: unavailable
       ? vi.fn().mockRejectedValue(new Error('unavailable'))
       : vi.fn().mockResolvedValue([]),

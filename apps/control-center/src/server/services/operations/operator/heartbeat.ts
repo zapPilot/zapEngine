@@ -16,35 +16,37 @@ export async function collectOperatorHeartbeatSignal(
   store: OperatorStore,
   now: Date,
 ): Promise<OperationalSignal> {
-  const missingHeartbeat = {
-    ...COMMON,
-    evidence: {
-      workflow: 'ops-operator.yml',
-      heartbeatAt: null,
-      heartbeatAgeMinutes: null,
-    },
-    observedAt: now,
-  };
-
   let heartbeat;
   try {
     heartbeat = await store.heartbeat();
   } catch (error) {
     return buildSignal({
-      ...missingHeartbeat,
+      ...COMMON,
       status: 'unknown',
       title: 'ops-operator heartbeat unavailable',
       detail: errorMessage(error),
+      evidence: {
+        workflow: 'ops-operator.yml',
+        heartbeatAt: null,
+        heartbeatAgeMinutes: null,
+      },
+      observedAt: now,
     });
   }
 
   if (!heartbeat) {
     return buildSignal({
-      ...missingHeartbeat,
+      ...COMMON,
       status: 'degraded',
       title: 'ops-operator has not recorded a heartbeat',
       detail:
         'No durable operator heartbeat exists yet; scheduled-run history is intentionally not used for self-monitoring.',
+      evidence: {
+        workflow: 'ops-operator.yml',
+        heartbeatAt: null,
+        heartbeatAgeMinutes: null,
+      },
+      observedAt: now,
     });
   }
 
@@ -87,7 +89,8 @@ export async function collectOperatorHeartbeatSignal(
       ...common,
       status: 'critical',
       title: 'ops-operator heartbeat is stale',
-      detail: `No operator heartbeat update has been recorded for ${ageMinutes}m; the workflow is scheduled every 5 minutes.`,
+      detail:
+        `No operator heartbeat update has been recorded for ${ageMinutes}m; the workflow is scheduled every 5 minutes.`,
     });
   }
 
@@ -126,7 +129,8 @@ export async function collectOperatorHeartbeatSignal(
       ...common,
       status: 'degraded',
       title: 'ops-operator heartbeat is delayed',
-      detail: `Latest operator heartbeat update is ${ageMinutes}m old; the workflow is scheduled every 5 minutes.`,
+      detail:
+        `Latest operator heartbeat update is ${ageMinutes}m old; the workflow is scheduled every 5 minutes.`,
     });
   }
 

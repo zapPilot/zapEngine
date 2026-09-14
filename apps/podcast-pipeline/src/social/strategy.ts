@@ -15,7 +15,7 @@ import {
 } from './daemon-store.js';
 import { laneLabel } from './log-format.js';
 import { SOCIAL_PLATFORMS, type SocialPlatform } from './platforms.js';
-import { SOCIAL_LANGUAGE_POLICY } from './policy.js';
+import { SOCIAL_LANGUAGE_BY_PLATFORM } from './policy.js';
 import { median } from './statistics.js';
 import type { SocialReviewStatus } from './types.js';
 
@@ -50,11 +50,11 @@ export function policyStrategyLanes(): {
   platform: SocialPlatform;
   languageCode: PrimaryLanguageCode;
 }[] {
-  return Object.entries(SOCIAL_LANGUAGE_POLICY).flatMap(([platform, entries]) =>
-    entries.map((entry) => ({
+  return Object.entries(SOCIAL_LANGUAGE_BY_PLATFORM).map(
+    ([platform, languageCode]) => ({
       platform: platform as SocialPlatform,
-      languageCode: entry.language,
-    })),
+      languageCode,
+    }),
   );
 }
 

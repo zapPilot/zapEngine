@@ -42,31 +42,28 @@ describe('operator heartbeat signal', () => {
     [5, 'healthy', 'ops-operator heartbeat is fresh'],
     [12, 'degraded', 'ops-operator heartbeat is delayed'],
     [16, 'critical', 'ops-operator heartbeat is stale'],
-  ] as const)(
-    'maps a %im successful heartbeat to %s',
-    async (minutes, status, title) => {
-      const signal = await collectOperatorHeartbeatSignal(
-        store({ observedAt: minutesAgo(minutes) }),
-        NOW,
-      );
+  ] as const)('maps a %im successful heartbeat to %s', async (minutes, status, title) => {
+    const signal = await collectOperatorHeartbeatSignal(
+      store({ observedAt: minutesAgo(minutes) }),
+      NOW,
+    );
 
-      expect(signal).toMatchObject({
-        fingerprint: 'github-actions:workflow/ops-operator.yml',
-        source: 'github-actions',
-        domain: 'jobs',
-        status,
-        title,
-        evidence: {
-          workflow: 'ops-operator.yml',
-          heartbeatAt: minutesAgo(minutes),
-          heartbeatAgeMinutes: minutes,
-          actor: 'github-actions',
-          state: 'succeeded',
-          failureStreak: 0,
-        },
-      });
-    },
-  );
+    expect(signal).toMatchObject({
+      fingerprint: 'github-actions:workflow/ops-operator.yml',
+      source: 'github-actions',
+      domain: 'jobs',
+      status,
+      title,
+      evidence: {
+        workflow: 'ops-operator.yml',
+        heartbeatAt: minutesAgo(minutes),
+        heartbeatAgeMinutes: minutes,
+        actor: 'github-actions',
+        state: 'succeeded',
+        failureStreak: 0,
+      },
+    });
+  });
 
   it('keeps the current retry degraded after one failed cycle', async () => {
     const signal = await collectOperatorHeartbeatSignal(
@@ -79,7 +76,9 @@ describe('operator heartbeat signal', () => {
     );
 
     expect(signal.status).toBe('degraded');
-    expect(signal.title).toBe('ops-operator is retrying after a failed cycle');
+    expect(signal.title).toBe(
+      'ops-operator is retrying after a failed cycle',
+    );
   });
 
   it('escalates two consecutive cycle failures immediately', async () => {
@@ -103,7 +102,9 @@ describe('operator heartbeat signal', () => {
     );
 
     expect(signal.status).toBe('degraded');
-    expect(signal.fingerprint).toBe('github-actions:workflow/ops-operator.yml');
+    expect(signal.fingerprint).toBe(
+      'github-actions:workflow/ops-operator.yml',
+    );
   });
 
   it('reports an unknown reading without inventing workflow failure', async () => {
