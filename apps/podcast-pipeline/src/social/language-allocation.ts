@@ -34,9 +34,7 @@ export const SOCIAL_REQUIRED_ROTATION_LANGUAGES = [
 ] as const satisfies readonly SocialLanguageCode[];
 
 export function isFinalLanguagePolicyActive(scheduledAt: Date): boolean {
-  return (
-    scheduledAt.getTime() >= Date.parse(SOCIAL_LANGUAGE_FINAL_FIXED_SINCE)
-  );
+  return scheduledAt.getTime() >= Date.parse(SOCIAL_LANGUAGE_FINAL_FIXED_SINCE);
 }
 
 /**
@@ -46,9 +44,18 @@ export function isFinalLanguagePolicyActive(scheduledAt: Date): boolean {
 export function finalReleaseCohortLanes(): RotatingReleaseCohortLane[] {
   return [
     { platform: 'x', language: SOCIAL_FINAL_LANGUAGE_BY_PLATFORM.x },
-    { platform: 'youtube', language: SOCIAL_FINAL_LANGUAGE_BY_PLATFORM.youtube },
-    { platform: 'threads', language: SOCIAL_FINAL_LANGUAGE_BY_PLATFORM.threads },
-    { platform: 'rednote', language: SOCIAL_FINAL_LANGUAGE_BY_PLATFORM.rednote },
+    {
+      platform: 'youtube',
+      language: SOCIAL_FINAL_LANGUAGE_BY_PLATFORM.youtube,
+    },
+    {
+      platform: 'threads',
+      language: SOCIAL_FINAL_LANGUAGE_BY_PLATFORM.threads,
+    },
+    {
+      platform: 'rednote',
+      language: SOCIAL_FINAL_LANGUAGE_BY_PLATFORM.rednote,
+    },
   ];
 }
 
