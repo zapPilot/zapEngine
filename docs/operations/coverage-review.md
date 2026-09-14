@@ -83,8 +83,17 @@ Check, where available:
 Social waiting-media now observes oldest age and producer claim eligibility,
 using the oldest 200 lanes and an exact total count. Blocked counts are lower
 bounds within that sample. A blocked lane is critical; a claimable lane older
-than 48 hours is degraded. Progress timestamps, retries, leases, and versions
-come from the view; eligibility uses the shared TypeScript visual policy.
+than 48 hours is degraded. Progress timestamps, retries, leases, hashes, and
+versions come from the view; eligibility uses the shared TypeScript visual
+policy rather than a second copy of the claim fence in SQL.
+
+Read that signal's own status before trusting its numbers. `unknown` means the
+view could not be read at all this cycle, so the age dimension went unobserved —
+it is not a report that nothing is waiting, and the accompanying evidence carries
+nulls rather than zeros. A non-zero `invalidWaitingMediaRows`, or a
+`waitingMediaRowsRead` below `waitingMediaLanes`, means the blocked count speaks
+for only part of the view.
+
 Other count-only queues still have an unobserved age dimension; do not call
 an old under-threshold row verified healthy.
 

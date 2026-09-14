@@ -152,7 +152,9 @@ defaults to a function duration below 15 seconds, configure a longer
 
 ## Operations snapshot
 
-Waiting media is measured by oldest age and producer claim eligibility as well as count. The oldest 200 lanes are sampled; blocked counts are sample lower bounds.
+Waiting media is measured by oldest age and producer claim eligibility as well as count. A count alone cannot tell a lane that started ten minutes ago from one stuck for ten days — production held a single waiting lane for roughly 240 hours while the count-based signal reported healthy. The oldest 200 lanes are sampled, ordered oldest first so the limit can never hide the oldest; blocked counts are sample lower bounds. A lane no render worker can claim is `critical`, a lane older than 48h is `degraded`, and the count floor of 3 still degrades on its own.
+
+The view ships on the Supabase rail while this reader ships on Vercel, so a deploy window can leave the reader asking for columns the database does not have yet. That failure is contained: waiting media reports `unknown` and names why, while the publish queue and daemon heartbeat readings from the same round trip survive. `unknown` there means the age dimension went unobserved this cycle — never that nothing is waiting.
 
 `GET /api/operations` is one read model for "is anything wrong, and what should I do first", shared by Home's statement evidence, the Reliability view, and `pnpm ops --status` (`--json` for agents; exit code 1 when anything is `critical`).
 

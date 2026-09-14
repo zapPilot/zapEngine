@@ -66,8 +66,9 @@ function stubSupabase(tables: Record<string, StubTable>): typeof createClient {
           return chain;
         },
         limit: (count) => {
-          if (Array.isArray(payload.data))
-            {payload.data = payload.data.slice(0, count);}
+          if (Array.isArray(payload.data)) {
+            payload.data = payload.data.slice(0, count);
+          }
           return chain;
         },
         maybeSingle: () => Promise.resolve(payload),
@@ -81,15 +82,21 @@ function stubSupabase(tables: Record<string, StubTable>): typeof createClient {
 
 function waitingRow(overrides: Record<string, unknown> = {}) {
   return {
+    episode_id: 'episode-waiting',
+    language_code: 'ja',
     waiting_since: '2026-08-28T11:00:00.000Z',
     last_progress_at: '2026-08-28T11:30:00.000Z',
-    render_status: 'pending',
+    render_status: 'queued',
     render_attempt_count: 0,
     render_next_attempt_at: null,
     render_lease_expires_at: null,
     render_visual_version: EPISODE_VIDEO_VISUAL_VERSION,
+    // The claim joins the checkpoint on hash as well as version, so a claimable
+    // lane has to agree on both.
+    render_visual_hash: 'visual-hash',
     visual_status: 'completed',
     visual_version: EPISODE_VIDEO_VISUAL_VERSION,
+    visual_hash: 'visual-hash',
     ...overrides,
   };
 }
@@ -192,7 +199,7 @@ describe('loadOperationsSocial', () => {
 
     expect(response.daemon.status).toBe('unknown');
     expect(response.jobs).toEqual([]);
-    expect(response.waitingMediaLanes).toBeNull();
+    expect(response.waitingMedia.lanes).toBeNull();
     expect(response.message).not.toBeNull();
 
     const signals = deriveSocialSignals(response, NOW);
@@ -415,7 +422,7 @@ describe('loadOperationsSocial', () => {
     expect(response.jobs).toHaveLength(1);
     expect(response.jobs[0]?.episodeId).toBe('episode-good');
     expect(response.invalidJobRows).toBe(2);
-    expect(response.waitingMediaLanes).toBe(0);
+    expect(response.waitingMedia.lanes).toBe(0);
 
     const queue = expectQueue(response, 'degraded');
     expect(queue.detail).toContain('failed to parse');
@@ -474,7 +481,7 @@ describe('loadOperationsSocial', () => {
 
     expect(response.message).toBe('permission denied');
     expect(response.jobs).toEqual([]);
-    expect(response.waitingMediaLanes).toBeNull();
+    expect(response.waitingMedia.lanes).toBeNull();
 
     const failure = soleSourceFailure(response);
     expect(failure.status).toBe('degraded');
@@ -495,6 +502,8 @@ describe('waiting media progress', () => {
       'social-queue:waiting-media/episodes',
     );
   }
+  // One row per condition `claim_episode_video_v2` fences on, so deleting any
+  // single clause from `renderWorkerCannotClaim` turns exactly one row red.
   it.each([
     { render_status: null },
     { render_status: 'failed' },
@@ -502,6 +511,9 @@ describe('waiting media progress', () => {
     { visual_status: 'failed' },
     { visual_version: 'old' },
     { render_visual_version: 'old' },
+    { render_visual_hash: 'stale-hash' },
+    { visual_hash: 'replanned-hash' },
+    { render_visual_hash: null },
   ])('reports a single old blocked lane as critical: %j', async (overrides) => {
     const result = verdict(
       await media([
@@ -513,7 +525,26 @@ describe('waiting media progress', () => {
       waitingMediaLanes: 1,
       oldestWaitingHours: 240,
       blockedWaitingLanes: 1,
+      waitingMediaRowsRead: 1,
     });
+  });
+
+  it('names the oldest lane so an operator knows what to act on', async () => {
+    const result = verdict(
+      await media([
+        waitingRow({
+          episode_id: 'episode-stuck',
+          language_code: 'ja',
+          waiting_since: '2026-08-18T12:00:00.000Z',
+          render_status: 'failed',
+        }),
+      ]),
+    );
+    expect(result.evidence).toMatchObject({
+      oldestWaitingEpisodeId: 'episode-stuck',
+    });
+    expect(result.detail).toContain('episode-stuck');
+    expect(result.detail).toContain('(ja)');
   });
   it('keeps a young claimable lane healthy and observes its age', async () => {
     const result = verdict(await media([waitingRow()]));
@@ -537,13 +568,52 @@ describe('waiting media progress', () => {
       waitingRow(),
       waitingRow({ waiting_since: 'invalid' }),
     ]);
-    expect(response.invalidWaitingMediaRows).toBe(1);
+    expect(response.waitingMedia.invalidRows).toBe(1);
     expect(verdict(response).status).toBe('degraded');
   });
-  it('rejects a positive count with no readable rows', async () => {
-    for (const rows of [[], [waitingRow({ waiting_since: 'invalid' })]]) {
-      expect(soleSourceFailure(await media(rows, 1)).status).toBe('degraded');
-    }
+  it('reports an unreadable waiting view as unknown, never as nothing waiting', async () => {
+    const response = await media([waitingRow({ waiting_since: 'invalid' })], 1);
+
+    expect(response.waitingMedia.lanes).toBeNull();
+    const result = verdict(response);
+    expect(result.status).toBe('unknown');
+    expect(result.evidence).toMatchObject({
+      waitingMediaLanes: null,
+      oldestWaitingHours: null,
+    });
+  });
+
+  // The reader deploys on Vercel while the view ships on the Supabase rail, so
+  // it can run for a window against a database without the appended columns.
+  // PostgREST rejects the whole request then. Losing the age dimension is the
+  // cost; losing the publish queue and the daemon heartbeat with it is not.
+  it('keeps the queue and daemon readings when only the waiting view fails', async () => {
+    const response = await load({
+      social_publish_jobs: { data: [jobRow()] },
+      social_daemon_state: { data: daemonRow() },
+      social_waiting_media: {
+        error: {
+          message: 'column social_waiting_media.waiting_since does not exist',
+        },
+      },
+    });
+
+    expect(response.message).toBeNull();
+    expect(response.jobs).toHaveLength(1);
+    expect(response.daemon.status).toBe('healthy');
+
+    const signals = deriveSocialSignals(response, NOW);
+    expect(signal(signals, 'social-queue:overdue/queue').status).toBe(
+      'healthy',
+    );
+    expect(
+      signal(signals, 'social-daemon:heartbeat/local-social-daemon-v1').status,
+    ).toBe('healthy');
+
+    const waiting = verdict(response);
+    expect(waiting.status).toBe('unknown');
+    expect(waiting.detail).toContain('waiting_since does not exist');
+    expect(waiting.detail).toContain('unobserved');
   });
   it('samples oldest first before limiting and preserves the exact total', async () => {
     const rows = Array.from({ length: 250 }, () => waitingRow());
@@ -554,7 +624,7 @@ describe('waiting media progress', () => {
       }),
     );
     const response = await media(rows);
-    expect(response.waitingMediaLanes).toBe(251);
+    expect(response.waitingMedia.lanes).toBe(251);
     expect(verdict(response).status).toBe('critical');
     expect(verdict(response).evidence['oldestWaitingHours']).toBe(240);
   });

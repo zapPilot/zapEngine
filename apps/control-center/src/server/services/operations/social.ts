@@ -7,6 +7,7 @@ import type {
   OperationsSocialDaemon,
   OperationsSocialJob,
   OperationsSocialResponse,
+  OperationsSocialWaitingMedia,
 } from '../../../shared/types.js';
 import type { ControlCenterConfig } from '../../config/env.js';
 import {
@@ -46,12 +47,58 @@ const JOB_GRACE_MINUTES = 15;
  */
 const MAX_ATTEMPTS = 8;
 
-// Preserve the existing backlog floor alongside age and producer eligibility.
+/**
+ * Mirrors the `attempt_count < 3` fence in `claim_episode_video_v2` and the
+ * `attempt_count >= 3 then 'failed'` transition in `fail_episode_video`. Both
+ * live in `supabase/migrations`; this copy exists because Control Center reads
+ * the view rather than calling the claim.
+ */
+const MAX_RENDER_ATTEMPTS = 3;
+
+/**
+ * `social_waiting_media` is policy-shaped — one row per (episode, language)
+ * lane — so a single unrendered localization can contribute several rows. The
+ * floor is set against that inflated count on purpose: one or two rows is a
+ * video still rendering, a handful means rendering has stopped.
+ *
+ * The floor stays, but it is no longer the only rule. It answers "is a lot
+ * stuck?" and is blind to "has one thing been stuck forever?" — production held
+ * a single lane for roughly 240 hours while this signal reported healthy.
+ */
 const WAITING_MEDIA_FLOOR = 3;
+
+/**
+ * Bounded like `JOB_LIMIT`, and ordered oldest-first so the limit can never hide
+ * the oldest lane. A truncated sample makes `blockedWaitingLanes` a lower bound,
+ * which is safe here: any total past the sample is far past `WAITING_MEDIA_FLOOR`
+ * and already degrades on count alone.
+ */
 const WAITING_MEDIA_SAMPLE_LIMIT = 200;
-// 212 completed production lanes: p90 41.13h; 48h allows normal slow renders.
-// Revisit after one month of additional observations.
+
+/**
+ * Measured against 212 completed production lanes on 2026-09-14: p50 4.07h,
+ * p90 41.13h, p99 191.40h. 48h sits just above p90, so an ordinary slow render
+ * does not trip it while the tail that needed an operator does. Age alone is
+ * only `degraded`; the decisive reading is whether a worker can still claim the
+ * lane at all. Revisit after another month of observations.
+ */
 const WAITING_MEDIA_STALE_HOURS = 48;
+
+const WAITING_MEDIA_COLUMNS = [
+  'episode_id',
+  'language_code',
+  'waiting_since',
+  'last_progress_at',
+  'render_status',
+  'render_attempt_count',
+  'render_next_attempt_at',
+  'render_lease_expires_at',
+  'render_visual_version',
+  'render_visual_hash',
+  'visual_status',
+  'visual_version',
+  'visual_hash',
+].join(',');
 
 /**
  * `OperationsSocialResponse` carries no status field — the panel renders
@@ -96,15 +143,22 @@ const timestamp = z
   .refine((value) => Number.isFinite(Date.parse(value)));
 
 const waitingRowSchema = z.object({
+  episode_id: z.string(),
+  language_code: z.string().nullish(),
   waiting_since: timestamp,
   last_progress_at: timestamp.nullable(),
   render_status: z.string().nullable(),
-  render_attempt_count: z.number().int().nonnegative().nullable(),
+  // PostgREST serialises integer columns as JSON numbers here, but the same
+  // bigint-as-string hazard documented on `jobRowSchema` applies the moment a
+  // column type widens, and a dropped row would understate how much is stuck.
+  render_attempt_count: z.coerce.number().nullable(),
   render_next_attempt_at: timestamp.nullable(),
   render_lease_expires_at: timestamp.nullable(),
   render_visual_version: z.string().nullable(),
+  render_visual_hash: z.string().nullable(),
   visual_status: z.string().nullable(),
   visual_version: z.string().nullable(),
+  visual_hash: z.string().nullable(),
 });
 
 const jobRowSchema = z.object({
@@ -174,16 +228,18 @@ export async function loadOperationsSocial(input: {
         .select('*')
         .eq('id', DAEMON_STATE_ID)
         .maybeSingle(),
+      // Naming the appended columns — and ordering by one of them — is what
+      // lets this read report an age at all, but it also makes the request fail
+      // outright against a database that has not taken the migration yet. That
+      // failure is deliberately NOT fatal here: it costs the age dimension, and
+      // it must not cost the queue and daemon readings alongside it.
       client
         .from('social_waiting_media')
-        .select(
-          'waiting_since,last_progress_at,render_status,render_attempt_count,render_next_attempt_at,render_lease_expires_at,render_visual_version,visual_status,visual_version',
-          { count: 'exact' },
-        )
+        .select(WAITING_MEDIA_COLUMNS, { count: 'exact' })
         .order('waiting_since', { ascending: true })
         .limit(WAITING_MEDIA_SAMPLE_LIMIT),
     ]);
-    const error = jobResult.error ?? daemonResult.error ?? waitingResult.error;
+    const error = jobResult.error ?? daemonResult.error;
     if (error) {
       // PostgREST hands back a plain object rather than an `Error`, which
       // `errorMessage` would flatten to "Unknown error" and strip the one
@@ -201,41 +257,12 @@ export async function loadOperationsSocial(input: {
         `Supabase returned ${invalidRows} social publish jobs in an unknown shape`,
       );
     }
-    const waitingRows = waitingResult.data ?? [];
-    const parsedWaiting = waitingRows.flatMap((row) => {
-      const parsed = waitingRowSchema.safeParse(row);
-      return parsed.success ? [parsed.data] : [];
-    });
-    const invalidWaitingMediaRows = waitingRows.length - parsedWaiting.length;
-    if ((waitingResult.count ?? 0) > 0 && parsedWaiting.length === 0) {
-      throw new Error('Supabase returned waiting media in an unknown shape');
-    }
-    // claim_episode_video requires current, completed visuals and attempts < 3;
-    // fail_episode_video makes failed terminal until an operator retries it.
-    const blockedWaitingLanes = parsedWaiting.filter(
-      (row) =>
-        row.render_status === null ||
-        row.render_status === 'failed' ||
-        (row.render_attempt_count ?? 0) >= 3 ||
-        !visualIsRenderable(row.visual_status, row.visual_version) ||
-        !isCurrentVisualVersion(row.render_visual_version),
-    ).length;
-    const oldestWaitingSince = parsedWaiting.reduce<string | null>(
-      (oldest, row) =>
-        oldest === null || Date.parse(row.waiting_since) < Date.parse(oldest)
-          ? row.waiting_since
-          : oldest,
-      null,
-    );
     const daemon = toDaemon(daemonResult.data, jobs, input.now);
     return {
       generatedAt: input.now.toISOString(),
       daemon,
       jobs,
-      waitingMediaLanes: waitingResult.count ?? 0,
-      oldestWaitingSince,
-      blockedWaitingLanes,
-      invalidWaitingMediaRows,
+      waitingMedia: toWaitingMedia(waitingResult),
       invalidJobRows: invalidRows,
       message: null,
     };
@@ -378,44 +405,93 @@ function waitingMediaSignal(
   response: OperationsSocialResponse,
   now: Date,
 ): OperationalSignal {
-  const waiting = response.waitingMediaLanes ?? 0;
-  const oldestWaitingHours =
-    response.oldestWaitingSince === null
-      ? null
-      : Math.max(
-          0,
-          (now.getTime() - Date.parse(response.oldestWaitingSince)) / 3_600_000,
-        );
-  const blocked = (response.blockedWaitingLanes ?? 0) > 0;
-  const degraded =
-    waiting >= WAITING_MEDIA_FLOOR ||
-    (oldestWaitingHours ?? 0) > WAITING_MEDIA_STALE_HOURS ||
-    response.invalidWaitingMediaRows > 0;
-  return buildSignal({
+  const media = response.waitingMedia;
+  const common = {
     source: 'social-queue',
     domain: 'social',
     kind: 'waiting-media',
     key: 'episodes',
+    observedAt: now,
+  } as const;
+
+  // A view nobody could read has not reported that nothing is stuck. This is
+  // the deploy window where the reader has shipped ahead of the migration.
+  if (media.lanes === null) {
+    return buildSignal({
+      ...common,
+      status: 'unknown',
+      title: 'Waiting media is not readable',
+      detail:
+        `${media.message ?? 'The waiting-media view could not be read'}. ` +
+        'Lane age and producer eligibility are unobserved this cycle.',
+      evidence: {
+        waitingMediaLanes: null,
+        oldestWaitingHours: null,
+        blockedWaitingLanes: null,
+        waitingMediaRowsRead: 0,
+        invalidWaitingMediaRows: media.invalidRows,
+      },
+    });
+  }
+
+  const oldestWaitingHours =
+    media.oldestWaitingSince === null
+      ? null
+      : Math.max(
+          0,
+          (now.getTime() - Date.parse(media.oldestWaitingSince)) / 3_600_000,
+        );
+  const blocked = media.blockedLanes > 0;
+  const stale = (oldestWaitingHours ?? 0) > WAITING_MEDIA_STALE_HOURS;
+  const degraded =
+    media.lanes >= WAITING_MEDIA_FLOOR || stale || media.invalidRows > 0;
+  const oldestLane =
+    media.oldestEpisodeId === null
+      ? 'the oldest lane'
+      : `episode ${media.oldestEpisodeId}` +
+        (media.oldestLanguageCode === null
+          ? ''
+          : ` (${media.oldestLanguageCode})`);
+  const partial =
+    media.invalidRows > 0
+      ? ` ${unreadWaitingRowsDetail(media.invalidRows)}`
+      : '';
+
+  return buildSignal({
+    ...common,
     status: blocked ? 'critical' : degraded ? 'degraded' : 'healthy',
     title: blocked
-      ? 'Waiting media requires operator intervention'
+      ? 'Publish lanes are waiting on video no worker can render'
       : degraded
         ? 'Publish lanes are waiting on rendered video'
         : 'Media for the publish queue is keeping up',
     detail: blocked
-      ? 'At least one sampled lane cannot be claimed by a render worker.'
+      ? `${media.blockedLanes} of ${media.rowsRead} sampled lanes cannot be ` +
+        `claimed by a render worker, so they will never finish on their own; ` +
+        `${oldestLane} has waited ${Math.round(oldestWaitingHours ?? 0)}h.` +
+        partial
       : degraded
-        ? `${waiting} publish lanes have no finished video, so no job can be ` +
-          'queued yet; inspect age, producer eligibility, and unread rows.'
+        ? `${media.lanes} publish lanes have no finished video, so no job can ` +
+          `be queued for them yet; ${oldestLane} has waited ` +
+          `${Math.round(oldestWaitingHours ?? 0)}h.` +
+          partial
         : null,
     evidence: {
-      waitingMediaLanes: waiting,
+      waitingMediaLanes: media.lanes,
       oldestWaitingHours,
-      blockedWaitingLanes: response.blockedWaitingLanes,
-      invalidWaitingMediaRows: response.invalidWaitingMediaRows,
+      blockedWaitingLanes: media.blockedLanes,
+      waitingMediaRowsRead: media.rowsRead,
+      invalidWaitingMediaRows: media.invalidRows,
+      oldestWaitingEpisodeId: media.oldestEpisodeId,
     },
-    observedAt: now,
   });
+}
+
+function unreadWaitingRowsDetail(unread: number): string {
+  return (
+    ` ${unread} waiting-media ${unread === 1 ? 'row' : 'rows'} failed to ` +
+    'parse, so this reading is incomplete.'
+  );
 }
 
 /**
@@ -436,6 +512,84 @@ function worseJob(
 
 function overdueJobs(jobs: OperationsSocialJob[]): OperationsSocialJob[] {
   return jobs.filter((job) => job.overdueMinutes !== null);
+}
+
+/**
+ * Turn one read of `social_waiting_media` into what it can honestly claim.
+ *
+ * Every failure mode here degrades this reading alone. The publish queue and the
+ * daemon heartbeat come from different tables in the same round trip, and losing
+ * the age dimension must never cost an operator the other two.
+ */
+function toWaitingMedia(result: {
+  data: unknown[] | null;
+  count: number | null;
+  error: { message: string } | null;
+}): OperationsSocialWaitingMedia {
+  if (result.error) {
+    return unreadWaitingMedia(result.error.message);
+  }
+
+  const rows = result.data ?? [];
+  const parsed = rows.flatMap((row) => {
+    const candidate = waitingRowSchema.safeParse(row);
+    return candidate.success ? [candidate.data] : [];
+  });
+  const invalidRows = rows.length - parsed.length;
+
+  // Rows that exist but none of which parse is a reader that no longer matches
+  // the view, not a view with nothing in it. Reporting "nothing is waiting" from
+  // a broken read is the exact green-from-nothing this signal exists to prevent.
+  if (parsed.length === 0 && rows.length > 0) {
+    return unreadWaitingMedia(
+      `Supabase returned ${rows.length} waiting-media ` +
+        `${rows.length === 1 ? 'row' : 'rows'} in an unknown shape`,
+    );
+  }
+
+  // The request orders oldest-first, so the oldest lane is in the sample even
+  // when the view was truncated.
+  const oldest = parsed[0] ?? null;
+
+  return {
+    lanes: result.count ?? parsed.length,
+    rowsRead: parsed.length,
+    oldestWaitingSince: oldest?.waiting_since ?? null,
+    oldestEpisodeId: oldest?.episode_id ?? null,
+    oldestLanguageCode: oldest?.language_code ?? null,
+    blockedLanes: parsed.filter(renderWorkerCannotClaim).length,
+    invalidRows,
+    message: null,
+  };
+}
+
+/**
+ * Whether no render worker will ever pick this lane up without an operator.
+ *
+ * Mirrors `claim_episode_video_v2`, which requires a queued row under the
+ * attempt ceiling whose visual checkpoint is completed and matches on BOTH hash
+ * and version, and `fail_episode_video`, which only writes `failed` once the
+ * attempts are spent — so `failed` is terminal until `retry_episode_video_render`
+ * resets it. The version and checkpoint judgement itself is not re-implemented
+ * here: it belongs to `podcast-retry-eligibility.ts`, which three other read
+ * models already share.
+ *
+ * Deliberately not modelled: `podcast_deployment_claims_open()`. A closed
+ * deployment gate makes every lane unclaimable for the minutes a deploy drains,
+ * which is far below the age at which this reading becomes interesting.
+ */
+function renderWorkerCannotClaim(
+  row: z.infer<typeof waitingRowSchema>,
+): boolean {
+  return (
+    row.render_status === null ||
+    row.render_status === 'failed' ||
+    (row.render_attempt_count ?? 0) >= MAX_RENDER_ATTEMPTS ||
+    !visualIsRenderable(row.visual_status, row.visual_version) ||
+    !isCurrentVisualVersion(row.render_visual_version) ||
+    row.render_visual_hash === null ||
+    row.render_visual_hash !== row.visual_hash
+  );
 }
 
 function toJobs(
@@ -533,11 +687,21 @@ function emptyResponse(now: Date, message: string): OperationsSocialResponse {
     generatedAt: now.toISOString(),
     daemon: unknownDaemon(),
     jobs: [],
-    waitingMediaLanes: null,
-    oldestWaitingSince: null,
-    blockedWaitingLanes: null,
-    invalidWaitingMediaRows: 0,
+    waitingMedia: unreadWaitingMedia(message),
     invalidJobRows: 0,
+    message,
+  };
+}
+
+function unreadWaitingMedia(message: string): OperationsSocialWaitingMedia {
+  return {
+    lanes: null,
+    rowsRead: 0,
+    oldestWaitingSince: null,
+    oldestEpisodeId: null,
+    oldestLanguageCode: null,
+    blockedLanes: 0,
+    invalidRows: 0,
     message,
   };
 }

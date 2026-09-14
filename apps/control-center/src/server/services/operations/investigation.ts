@@ -136,8 +136,8 @@ export async function investigateOperationalSignal(input: {
       social = await input.loadSocial();
       relatedEvidence.social = {
         daemonStatus: social.daemon.status,
-        waitingMediaLanes: social.waitingMediaLanes,
-        blockedWaitingLanes: social.blockedWaitingLanes,
+        waitingMediaLanes: social.waitingMedia.lanes,
+        blockedWaitingLanes: social.waitingMedia.blockedLanes,
         overdueJobs: social.jobs.filter((job) => (job.overdueMinutes ?? 0) > 0)
           .length,
         exhaustedJobs: social.jobs.filter((job) => job.attemptsExhausted)
@@ -145,6 +145,14 @@ export async function investigateOperationalSignal(input: {
       };
       if (social.message) {
         gaps.push({ source: 'social-queue', reason: social.message });
+      }
+      // The waiting view can fail on its own while the rest of the response is
+      // whole, so its loss is its own evidence gap rather than a silent zero.
+      if (social.waitingMedia.message) {
+        gaps.push({
+          source: 'social-queue',
+          reason: social.waitingMedia.message,
+        });
       }
     } catch (error) {
       gaps.push({ source: 'social-queue', reason: messageOf(error) });
