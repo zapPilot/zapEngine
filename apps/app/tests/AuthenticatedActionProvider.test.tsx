@@ -102,6 +102,33 @@ describe('AuthenticatedActionProvider', () => {
     expect(action).not.toHaveBeenCalled();
   });
 
+  it('does not let an older cancelled login clear a newer queued action', async () => {
+    let cancelFirst: ((outcome: ConnectOutcome) => void) | undefined;
+    const firstLogin = new Promise<ConnectOutcome>((resolve) => {
+      cancelFirst = resolve;
+    });
+    mocks.account.connect
+      .mockReturnValueOnce(firstLogin)
+      .mockResolvedValueOnce('connected');
+    await render();
+    const firstAction = vi.fn();
+    const latestAction = vi.fn();
+
+    await act(async () => {
+      context().run(firstAction);
+      context().run(latestAction);
+    });
+
+    await act(async () => {
+      cancelFirst?.('cancelled');
+      await firstLogin;
+    });
+    await reconnect();
+
+    expect(firstAction).not.toHaveBeenCalled();
+    expect(latestAction).toHaveBeenCalledTimes(1);
+  });
+
   it('drops the queued action when the login fails', async () => {
     mocks.account.connect.mockRejectedValue(new Error('network failed'));
     await render();
