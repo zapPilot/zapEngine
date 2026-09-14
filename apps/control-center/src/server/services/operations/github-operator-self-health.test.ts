@@ -18,7 +18,7 @@ it('does not read completed-run history for the always-on ops operator', async (
         runtime: 'github-actions',
         entrypoint: '.github/workflows/ops-operator.yml',
         schedule_kind: 'cron',
-        schedule: '*/5 * * * *',
+        schedule: '0 * * * *',
       },
       {
         name: 'env-drift',
