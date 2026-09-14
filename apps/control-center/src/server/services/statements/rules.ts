@@ -9,6 +9,10 @@ import {
   signedPercent,
 } from './format.js';
 import type { RuleFinding, StatementInputs } from './types.js';
+import {
+  type EvidenceAmount,
+  podcastCostEvidenceTotals,
+} from '../../../shared/podcast-cost-evidence.js';
 import { isRecordedBillSource } from '../../../shared/types.js';
 
 function empty(id: string): RuleFinding {
@@ -558,6 +562,16 @@ export function ruleR9(input: StatementInputs): RuleFinding {
 }
 
 /** R10 — podcast pipeline production/retry state. */
+/** Never a bare "$0.00": an absent lineage record is unknown, not proof. */
+function confirmedWasteText(amount: EvidenceAmount): string {
+  if (amount.usd === null) {
+    return 'unknown (no render lineage)';
+  }
+  return amount.lowerBound
+    ? `at least ${money(amount.usd, 2)}`
+    : money(amount.usd, 2);
+}
+
 export function ruleR10(input: StatementInputs): RuleFinding {
   const { podcastPipeline, podcastCosts } = input;
   const finding = empty('R10');
@@ -596,19 +610,8 @@ export function ruleR10(input: StatementInputs): RuleFinding {
       : null;
 
   const priced = podcastCosts.episodes;
-  const avgCost = priced.length
-    ? priced.reduce((sum, e) => sum + e.totalCostUsd, 0) / priced.length
-    : null;
-  const totalRuns = priced.reduce((sum, e) => sum + e.runCount, 0);
-  const totalWaste = priced.reduce((sum, e) => sum + e.retryWasteUsd, 0);
-  const retryShare =
-    totalRuns > 0
-      ? totalWaste /
-        Math.max(
-          priced.reduce((sum, e) => sum + e.totalCostUsd, 0),
-          0.0001,
-        )
-      : null;
+  const evidence = podcastCostEvidenceTotals(priced);
+  const avgCost = priced.length ? evidence.totalCostUsd / priced.length : null;
 
   finding.status = stuckOrFailed.length > 0 ? 'degraded' : 'healthy';
   finding.segments.push({ text: `${inProduction} in production` });
@@ -632,10 +635,13 @@ export function ruleR10(input: StatementInputs): RuleFinding {
     finding.segments.push(
       { text: ' Average episode ' },
       { value: money(avgCost, 2), tone: 'neutral' },
+      // A failed run is not a retry: the share below counts spend on attempts
+      // whose run failed, and confirmed waste is reported separately because
+      // only render stages carry the lineage that could prove a rerun.
       {
         text:
-          retryShare !== null
-            ? `; retries are ${percent(retryShare, 0)} of that.`
+          evidence.failedAttemptShare !== null
+            ? `; failed attempts are ${percent(evidence.failedAttemptShare, 0)} of that; confirmed retry waste ${confirmedWasteText(evidence.confirmedRetryWaste)}.`
             : '.',
       },
     );

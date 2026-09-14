@@ -46,6 +46,7 @@ export function createControlCenterApp(input: {
   operations?: ReturnType<typeof createOperationsService>;
   socialGrowth?: ReturnType<typeof createSocialGrowthService>;
   podcastPipeline?: ReturnType<typeof createPodcastPipelineService>;
+  podcastCosts?: ReturnType<typeof createPodcastCostService>;
   podcastVisual?: ReturnType<typeof createPodcastVisualService>;
   statements?: ReturnType<typeof createStatementsService>;
   /**
@@ -88,7 +89,8 @@ export function createControlCenterApp(input: {
   }
   const service =
     input.service ?? createOverviewService({ config: input.config });
-  const podcastCosts = createPodcastCostService({ config: input.config });
+  const podcastCosts =
+    input.podcastCosts ?? createPodcastCostService({ config: input.config });
   const podcastPipeline =
     input.podcastPipeline ??
     createPodcastPipelineService({ config: input.config });

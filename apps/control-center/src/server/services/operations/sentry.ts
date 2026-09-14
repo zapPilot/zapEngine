@@ -207,11 +207,14 @@ function buildProjectSignal(
 /**
  * `culprit` is the code location and is what an operator recognises; `title`
  * is the exception class, which repeats across unrelated failures. Sentry
- * leaves the culprit empty for issues it could not attribute to a frame.
+ * leaves the culprit empty or emits `?` / `?(...)` placeholders for issues it
+ * could not attribute to a useful frame.
  */
 function issueLabel(issue: SentryIssue): string {
   const culprit = issue.culprit?.trim();
-  return culprit ? culprit : issue.title;
+  return culprit && culprit !== '?' && !culprit.startsWith('?(')
+    ? culprit
+    : issue.title;
 }
 
 function groupByProject(issues: readonly SentryIssue[]) {

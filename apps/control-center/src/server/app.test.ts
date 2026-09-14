@@ -6,6 +6,7 @@ import type {
   OperationsResponse,
   OperationsSocialResponse,
   OverviewResponse,
+  PodcastCostResponse,
   SocialGrowthResponse,
 } from '../shared/types.js';
 import { createControlCenterApp } from './app.js';
@@ -102,6 +103,34 @@ const socialGrowth: SocialGrowthResponse = {
   attribution: [],
 };
 
+const podcastCosts: PodcastCostResponse = {
+  generatedAt: '2026-08-16T12:00:00.000Z',
+  status: 'ok',
+  message: null,
+  episodes: [
+    {
+      episodeId: 'episode-1',
+      title: 'An episode',
+      lastRunAt: '2026-08-16T11:00:00.000Z',
+      totalCostUsd: 1,
+      podcastCostUsd: 0.6,
+      videoCostUsd: 0.4,
+      failedAttemptCostUsd: 0.2,
+      interruptedAttemptCostUsd: null,
+      confirmedDeploymentInterruptionCostUsd: 0,
+      shutdownInterruptionCostUsd: 0,
+      confirmedRetryWasteUsd: null,
+      confirmedRetryWasteIsLowerBound: true,
+      unknownLineageStages: 1,
+      unknownFailureReasonStages: 1,
+      runCount: 2,
+      failedRuns: 1,
+      unpricedStages: 0,
+      breakdown: [],
+    },
+  ],
+};
+
 function createTestApp(
   overrides: Partial<ReturnType<typeof createOverviewService>> = {},
   operationsOverrides: Partial<ReturnType<typeof createOperationsService>> = {},
@@ -180,6 +209,9 @@ function createTestApp(
       getSocialGrowth:
         growthOverrides.getSocialGrowth ??
         vi.fn().mockResolvedValue(socialGrowth),
+    },
+    podcastCosts: {
+      getPodcastCosts: vi.fn().mockResolvedValue(podcastCosts),
     },
     allowCostSync: options.allowCostSync,
   });
@@ -343,5 +375,19 @@ describe('API surface boundary', () => {
     const response = await createTestApp().request('/api/does-not-exist');
 
     expect(response.headers.get('cache-control')).toBe('no-store');
+  });
+
+  // The alias used to travel on this payload naming failed-parent spend
+  // "retry waste". A consumer reading it would republish that claim.
+  it('serves podcast costs without the retryWaste alias', async () => {
+    const response = await createTestApp().request('/api/costs/podcast');
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(body).not.toContain('retryWasteUsd');
+    expect(JSON.parse(body).episodes[0]).toMatchObject({
+      failedAttemptCostUsd: 0.2,
+      confirmedRetryWasteUsd: null,
+    });
   });
 });

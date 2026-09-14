@@ -26,7 +26,7 @@ import { RankedList, type RankedItem } from '../components/ui/RankedList.js';
 import { Stat } from '../components/ui/Stat.js';
 import { statusTone } from '../components/ui/tone.js';
 import { integer, percent, relativeTime, usd, usdWhole } from '../format.js';
-import { retryWaste, statusText } from '../operator-model.js';
+import { failedAttemptShareStat, statusText } from '../operator-model.js';
 import { priorityItems } from '../priority-items.js';
 
 /** A provider whose day is this much above its recent run rate is called out.
@@ -40,7 +40,6 @@ export function ReliabilityPage(props: {
   podcastCosts: PodcastCostResponse | null;
 }) {
   const operations = props.data;
-  const waste = retryWaste(props.podcastCosts);
   const fly = flyFleet(operations);
   const backlog = agentBacklog(operations);
 
@@ -170,7 +169,6 @@ export function ReliabilityPage(props: {
           <CostOverview
             costHistory={props.costHistory}
             podcastCosts={props.podcastCosts}
-            waste={waste}
           />
         </Card>
 
@@ -271,7 +269,6 @@ function WorkflowHealth(props: { operations: OperationsResponse | null }) {
 function CostOverview(props: {
   costHistory: CostHistoryResponse | null;
   podcastCosts: PodcastCostResponse | null;
-  waste: { rate: number | null; wasteUsd: number | null };
 }) {
   const daily = props.costHistory?.currentMonthDaily ?? [];
   const latest = daily.at(-1) ?? null;
@@ -286,18 +283,8 @@ function CostOverview(props: {
           value={usd(latestSpend)}
         />
         <Stat
-          caption={
-            props.waste.wasteUsd === null
-              ? (props.podcastCosts?.message ?? 'No priced attempts yet')
-              : `${usd(props.waste.wasteUsd)} sunk in failed attempts`
-          }
-          label="Retry waste"
-          tone={
-            props.waste.rate !== null && props.waste.rate > 0.15
-              ? 'danger'
-              : 'neutral'
-          }
-          value={props.waste.rate === null ? '—' : percent(props.waste.rate)}
+          label="Podcast failed-attempt share"
+          {...failedAttemptShareStat(props.podcastCosts)}
         />
       </div>
       <div className="rel-cost-trend">

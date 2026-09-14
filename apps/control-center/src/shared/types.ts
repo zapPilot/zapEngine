@@ -129,8 +129,30 @@ export interface PodcastEpisodeCostSummary {
   totalCostUsd: number;
   podcastCostUsd: number;
   videoCostUsd: number;
-  /** Sunk cost from failed pipeline attempts; already included in total cost. */
-  retryWasteUsd: number;
+  /**
+   * Priced stages whose parent run failed, whatever the stage itself did.
+   * Already inside `totalCostUsd`. This is not retry waste: a run failing does
+   * not establish that the same work ever ran a second time.
+   */
+  failedAttemptCostUsd: number;
+  /**
+   * Priced attempts carrying explicit runtime interruption evidence. Null while
+   * some failed stage records no `failure_reason`, because then not even $0 is
+   * known.
+   */
+  interruptedAttemptCostUsd: number | null;
+  confirmedDeploymentInterruptionCostUsd: number;
+  shutdownInterruptionCostUsd: number;
+  /**
+   * Cost of an earlier execution that has a later executed successor on the
+   * exact same `work_key`. Null means lineage is too incomplete to assert even
+   * $0. Lineage is recorded for render stages only, so ingest retries can never
+   * appear here.
+   */
+  confirmedRetryWasteUsd: number | null;
+  confirmedRetryWasteIsLowerBound: boolean;
+  unknownLineageStages: number;
+  unknownFailureReasonStages: number;
   runCount: number;
   failedRuns: number;
   unpricedStages: number;

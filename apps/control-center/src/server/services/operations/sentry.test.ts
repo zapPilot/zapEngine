@@ -103,6 +103,22 @@ describe('collectSentrySignals', () => {
     expect(signals[0]?.evidence['eventCount']).toBe(20);
   });
 
+  it.each(['?', '?(worker)'])(
+    'falls back to the issue title for Sentry culprit placeholder %s',
+    async (culprit) => {
+      const signals = await collect(
+        fetchReturning([
+          issue({
+            title: 'App Hang Fully Blocked',
+            culprit,
+          }),
+        ]),
+      );
+
+      expect(signals[0]?.evidence['topIssue']).toBe('App Hang Fully Blocked');
+    },
+  );
+
   it('drops an unrecognised issue row and keeps the rest', async () => {
     const signals = await collect(
       fetchReturning([issue(), { unexpected: true }]),

@@ -28,8 +28,12 @@ import { RankedList } from '../components/ui/RankedList.js';
 import { SourceBadge } from '../components/ui/SourceBadge.js';
 import { Stat } from '../components/ui/Stat.js';
 import { statusTone, type Tone } from '../components/ui/tone.js';
-import { integer, percent, relativeTime, usd, usdWhole } from '../format.js';
-import { destinationFor, retryWaste, statusText } from '../operator-model.js';
+import { integer, percent, relativeTime, usdWhole } from '../format.js';
+import {
+  destinationFor,
+  failedAttemptShareStat,
+  statusText,
+} from '../operator-model.js';
 import { priorityItems } from '../priority-items.js';
 import { PlatformIdentity } from '../platform.js';
 import { QueuePanel } from '../queue-availability.js';
@@ -163,7 +167,7 @@ export function TodayPage(props: {
             />
           }
           icon={CircleDollarSign}
-          subtitle="Month-end projection and sunk retries"
+          subtitle="Month-end projection and failed-attempt spend"
           title="成本與浪費"
           tone="warning"
         >
@@ -433,8 +437,6 @@ function CostGlance(props: {
   data: OverviewResponse | null;
   podcastCosts: PodcastCostResponse | null;
 }) {
-  const waste = retryWaste(props.podcastCosts);
-  const failed = props.podcastCosts?.status === 'error';
   return (
     <div className="today-cost">
       <Stat
@@ -443,16 +445,8 @@ function CostGlance(props: {
         value={usdWhole(props.data?.projectedCostUsd)}
       />
       <Stat
-        caption={
-          waste.wasteUsd === null
-            ? failed
-              ? (props.podcastCosts?.message ?? 'Ledger unavailable')
-              : 'No priced attempts yet'
-            : `${usd(waste.wasteUsd)} sunk in failed attempts`
-        }
-        label="Podcast retry waste"
-        tone={waste.rate !== null && waste.rate > 0.15 ? 'danger' : 'neutral'}
-        value={waste.rate === null ? '—' : percent(waste.rate)}
+        label="Podcast failed-attempt share"
+        {...failedAttemptShareStat(props.podcastCosts)}
       />
     </div>
   );
