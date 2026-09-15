@@ -96,4 +96,19 @@ describe('inspectDelegation', () => {
       label: 'Unrecognized EIP-7702 implementation',
     });
   });
+
+  it.each([
+    ['missing code', undefined],
+    ['ordinary contract bytecode', '0x6001600055'],
+    ['truncated delegation', '0xef01001234'],
+    ['non-hex delegation payload', `0xef0100${'g'.repeat(40)}`],
+  ])('treats %s as not delegated', async (_, code) => {
+    mocks.getCode.mockResolvedValue(code);
+    await expect(
+      inspectDelegation({
+        address: '0x1111111111111111111111111111111111111111',
+        chainId: 8453,
+      }),
+    ).resolves.toEqual({ kind: 'notDelegated' });
+  });
 });
