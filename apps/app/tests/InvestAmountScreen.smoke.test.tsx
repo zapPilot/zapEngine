@@ -45,6 +45,16 @@ vi.mock('@/integration/walletTokens', () => ({
   }),
 }));
 vi.mock('@/config/appCoreEnv', () => ({ isDevBuild: () => false }));
+// A real balance, so this also proves the HyperCore leg is frozen alongside
+// the EVM stages rather than left behind.
+vi.mock('@/integration/useHlpBalances', () => ({
+  useHyperCoreSpendable: () => ({
+    balance: { spendableUsd6: 60_000_000n, mode: 'unified' },
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
+  }),
+}));
 it('freezes exactly the automatic plan shown by the default sector experience', async () => {
   let current: InvestContextValue | undefined;
   function Probe() {
@@ -88,10 +98,20 @@ it('freezes exactly the automatic plan shown by the default sector experience', 
   );
   const expected = planFunding({
     demand: { totalUsd6: '100000000', allocations: current!.targetAllocations },
-    supply: { rows, unavailableChainIds: [] },
+    supply: {
+      rows,
+      unavailableChainIds: [],
+      hyperCoreSpendableUsd6: 60_000_000n,
+    },
     constraints: { preferences: {}, gasReserveUsd: 5 },
   });
   await clickUi(container, 'Preview investment');
   expect(push).toHaveBeenCalledWith('/invest/route');
   expect(current!.stageDrafts).toEqual(expected.stages);
+  expect(expected.hyperCoreLeg).not.toBeNull();
+  expect(current!.hyperCoreFundingDraft).toEqual({
+    source: 'hypercore-spot',
+    requestedUsd6: expected.hyperCoreLeg!.usd6,
+    weightBps: expected.hyperCoreLeg!.weightBps,
+  });
 });

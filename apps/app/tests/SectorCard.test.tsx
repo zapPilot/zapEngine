@@ -35,6 +35,6 @@ it('keeps partial percentage edits and reveals protocol details on demand', asyn
   expect(onChange).toHaveBeenCalledWith('12.');
   await clickUi(container, 'Stable details');
   expect(container.textContent).toContain('Morpho USDC vault');
-  expect(container.textContent).toContain('Base · 60% of Stable');
+  expect(container.textContent).toContain('Base · 5% of Stable');
   expect(container.textContent).toContain('$36.00');
 });

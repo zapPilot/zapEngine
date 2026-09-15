@@ -14,6 +14,8 @@ import { describe, expect, it } from 'vitest';
 
 function input(overrides: Partial<HlpProgressInput> = {}): HlpProgressInput {
   return {
+    fundingSource: 'bridge',
+    hyperCoreRequestedUsd6: null,
     hasReviewedSubmission: true,
     reviewedPhase: 'submitted',
     reviewedStatusNote: null,
@@ -31,10 +33,9 @@ function input(overrides: Partial<HlpProgressInput> = {}): HlpProgressInput {
   };
 }
 
-/** Row states in timeline order: source, bridge, arrival, vault. */
+/** Row states in timeline order: bridge, arrival, vault. */
 function rowStates(overrides: Partial<HlpProgressInput>): HlpRowState[] {
-  const rows = hlpProgressRows(input(overrides));
-  return [rows.source, rows.bridge, rows.arrival, rows.vault];
+  return hlpProgressRows(input(overrides)).map((row) => row.state);
 }
 
 function expectReason(
@@ -77,39 +78,32 @@ const ARRIVED = {
 } as const satisfies Partial<HlpProgressInput>;
 
 describe('hlpProgressRows', () => {
-  it('tracks the submitted source batch while the bridge runs', () => {
-    expect(rowStates({})).toEqual(['done', 'active', 'active', 'waiting']);
+  it('tracks the bridge while it runs', () => {
+    expect(rowStates({})).toEqual(['active', 'active', 'waiting']);
   });
 
-  it('keeps the source row active until the wallet exposes a hash', () => {
-    expect(
-      rowStates({ sourceTxHash: null, reviewedPhase: 'confirming' }),
-    ).toEqual(['active', 'active', 'active', 'waiting']);
-  });
-
-  it('fails the source row on a reported batch failure', () => {
+  it('leaves every HLP row untouched when the source batch failed', () => {
     expect(
       rowStates({
         reviewedPhase: 'failed',
         wizardStage: 'sourceExecution',
         hlpStatus: 'idle',
       }),
-    ).toEqual(['failed', 'waiting', 'waiting', 'waiting']);
+    ).toEqual(['waiting', 'waiting', 'waiting']);
   });
 
   it('completes the bridge row from the leg status, not the stage', () => {
-    expect(rowStates(ARRIVED)).toEqual(['done', 'done', 'done', 'waiting']);
+    expect(rowStates(ARRIVED)).toEqual(['done', 'done', 'waiting']);
   });
 
   it('fails the bridge row on a bridging-stage error', () => {
     expect(
       rowStates({ wizardErrorStage: 'bridging', hlpStatus: 'idle' }),
-    ).toEqual(['done', 'failed', 'waiting', 'waiting']);
+    ).toEqual(['failed', 'waiting', 'waiting']);
   });
 
   it('activates the vault row while the vaultTransfer confirms', () => {
     expect(rowStates({ ...ARRIVED, hlpStatus: 'confirming' })).toEqual([
-      'done',
       'done',
       'done',
       'active',
@@ -119,7 +113,7 @@ describe('hlpProgressRows', () => {
   it('marks a confirmed deposit done on both HLP rows', () => {
     expect(
       rowStates({ ...ARRIVED, wizardStage: 'done', hlpStatus: 'deposited' }),
-    ).toEqual(['done', 'done', 'done', 'done']);
+    ).toEqual(['done', 'done', 'done']);
   });
 
   it('never fails an unverified vault row on a deposit-stage error', () => {
@@ -131,7 +125,7 @@ describe('hlpProgressRows', () => {
         wizardStage: 'done',
         hlpStatus: 'submittedUnverified',
       }),
-    ).toEqual(['done', 'done', 'done', 'done']);
+    ).toEqual(['done', 'done', 'done']);
     expect(
       rowStates({
         ...ARRIVED,
@@ -139,20 +133,20 @@ describe('hlpProgressRows', () => {
         hlpStatus: 'submittedUnverified',
         wizardErrorStage: 'hyperliquidDeposit',
       }),
-    ).toEqual(['done', 'done', 'done', 'done']);
+    ).toEqual(['done', 'done', 'done']);
   });
 
   it('separates a failed vault action from failed arrival polling', () => {
     expect(
       rowStates({ ...ARRIVED, wizardErrorStage: 'hyperliquidDeposit' }),
-    ).toEqual(['done', 'done', 'done', 'failed']);
+    ).toEqual(['done', 'done', 'failed']);
     expect(
       rowStates({
         bridgeConfirmed: true,
         wizardStage: 'hyperliquidDeposit',
         wizardErrorStage: 'hyperliquidDeposit',
       }),
-    ).toEqual(['done', 'done', 'failed', 'waiting']);
+    ).toEqual(['done', 'failed', 'waiting']);
   });
 });
 
@@ -341,5 +335,59 @@ describe('resumeKey', () => {
 
   it('falls back to a stable key when the wallet exposes no calls id', () => {
     expect(resumeKey(input(), null)).toBe('reviewed:0xsource:1000000');
+  });
+});
+
+describe('a HyperCore-funded HLP leg', () => {
+  const spot = (overrides: Partial<HlpProgressInput> = {}): HlpProgressInput =>
+    input({
+      fundingSource: 'hypercore',
+      hyperCoreRequestedUsd6: '24000000',
+      // A spot deposit has none of the bridge evidence, by construction.
+      sourceTxHash: null,
+      baselineUsd6: null,
+      bridgeConfirmed: false,
+      wizardStage: 'hyperliquidDeposit',
+      hlpStatus: 'arrived',
+      ...overrides,
+    });
+
+  it('is trackable from its own plan, with no hash or snapshot to wait for', () => {
+    expect(canTrackExisting(spot())).toBe(true);
+    expect(canTrackExisting(spot({ hyperCoreRequestedUsd6: null }))).toBe(
+      false,
+    );
+    expect(canTrackExisting(spot({ hasHlpStep: false }))).toBe(false);
+  });
+
+  it('offers the agent-enable button instead of stalling silently', () => {
+    expect(shouldOfferAgentEnable(spot({ agentReady: false }))).toBe(true);
+    expect(shouldAutoRunHlpDeposit(spot(), false)).toBe(true);
+  });
+
+  it('reports no bridge evidence as missing, because none is expected', () => {
+    expect(unsafeResumeReason(spot())).toBeNull();
+    expect(
+      unsafeResumeReason(spot({ hasReviewedSubmission: false })),
+    ).toBeNull();
+  });
+
+  it('renders one vault row rather than a bridge that never arrives', () => {
+    expect(hlpProgressRows(spot())).toEqual([
+      { key: 'vault', state: 'waiting' },
+    ]);
+    expect(hlpProgressRows(spot({ hlpStatus: 'deposited' }))).toEqual([
+      { key: 'vault', state: 'done' },
+    ]);
+  });
+
+  it('keys its resume on the frozen amount and never offers bridge tracking', () => {
+    expect(resumeKey(spot(), 'calls-1')).toBe('hypercore:24000000');
+    expect(hlpRetryMode(spot({ hlpStatus: 'idle', flowError: 'boom' }))).toBe(
+      'none',
+    );
+    expect(hlpRetryMode(spot({ wizardErrorStage: 'hyperliquidDeposit' }))).toBe(
+      'hlp-signature',
+    );
   });
 });

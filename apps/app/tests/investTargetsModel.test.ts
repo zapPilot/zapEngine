@@ -92,8 +92,8 @@ describe('isValidTargetAllocation', () => {
 });
 
 describe('targetMinimumUsd6', () => {
-  it("is driven by HLP's $10 floor at the default 25% weight", () => {
-    expect(targetMinimumUsd6(defaults)).toBe(41_666_667n);
+  it("is driven by HLP's $10 floor at the default 57% weight", () => {
+    expect(targetMinimumUsd6(defaults)).toBe(17_543_860n);
   });
 
   it('falls back to each destination on its own', () => {
@@ -111,9 +111,9 @@ describe('targetUsd6Shares', () => {
   it('gives the rounding remainder to the last funded destination', () => {
     const shares = targetUsd6Shares('100000001', defaults);
     expect(shares).toEqual({
-      'morpho-base': 36_000_000n,
+      'morpho-base': 3_000_000n,
       'gmx-arbitrum': 40_000_000n,
-      hlp: 24_000_001n,
+      hlp: 57_000_001n,
     });
   });
 

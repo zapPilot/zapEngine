@@ -18,8 +18,8 @@ import {
 describe('sector allocation', () => {
   it('resolves the recommendation deterministically and derives the HLP minimum', () => {
     const allocations = resolveTargetAllocations(defaults);
-    expect(allocations.map((a) => a.weightBps)).toEqual([3600, 4000, 2400]);
-    expect(targetMinimumUsd6(allocations)).toBe(41666667n);
+    expect(allocations.map((a) => a.weightBps)).toEqual([300, 4000, 5700]);
+    expect(targetMinimumUsd6(allocations)).toBe(17543860n);
     expect(resolveTargetAllocations(defaults)).toEqual(allocations);
     expect(sectorAllocationSummary(defaults)).toBe(
       'Crypto 40%, Stable 60%, S&P 500 0%',
@@ -63,7 +63,7 @@ describe('sector allocation', () => {
       resolveTargetAllocations({ crypto: 3333, stable: 6667, sp500: 0 }).map(
         (a) => a.weightBps,
       ),
-    ).toEqual([4000, 3333, 2667]);
+    ).toEqual([333, 3333, 6334]);
   });
   it('sector dollar totals exactly equal the details, including rounding', () => {
     const weights = { crypto: 3333, stable: 6667, sp500: 0 };
@@ -82,6 +82,12 @@ describe('sector allocation', () => {
     expect(sectorWeightsFromDrafts([])).toEqual({
       crypto: 0,
       stable: 0,
+      sp500: 0,
+    });
+    // A HyperCore-funded HLP share has no draft to count, so it is added back.
+    expect(sectorWeightsFromDrafts([], 5700)).toEqual({
+      crypto: 0,
+      stable: 5700,
       sp500: 0,
     });
   });

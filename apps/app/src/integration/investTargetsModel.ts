@@ -117,7 +117,7 @@ function ceilDiv(numerator: bigint, denominator: bigint): bigint {
 
 /**
  * Smallest total that keeps every funded destination above its own minimum.
- * The default sector mix puts 24% in HLP: its $10 floor requires $41.67.
+ * The default sector mix puts 57% in HLP: its $10 floor requires $17.55.
  */
 export function targetMinimumUsd6(
   allocations: readonly TargetAllocation[],

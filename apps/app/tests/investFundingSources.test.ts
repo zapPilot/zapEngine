@@ -3,25 +3,30 @@ import {
   ARBITRUM_DEPOSIT_TOKENS as A,
   BASE_DEPOSIT_TOKENS as B,
 } from '@/integration/depositTokens';
+import { HYPERCORE_CHAIN_ID } from '@zapengine/types/api';
 import {
   fundingCapacityUsd6,
   planFunding,
+  FUNDING_SOURCE_EXCLUDED,
   type FundingPreferences,
 } from '@/integration/investFundingPlanner';
 import {
   fundingSourceRows,
   type FundingSourceView,
 } from '@/integration/investFundingSources';
-import {
-  DEFAULT_SECTOR_WEIGHTS,
-  resolveTargetAllocations,
-} from '@/integration/investSectorModel';
+
 import type { TargetAllocation } from '@/integration/investTargetsModel';
 import type { ChainTokenBalanceRow } from '@/integration/walletTokens';
 import { balanceRow as row } from './support/fundingBalanceRow';
 
 const GAS_RESERVE_USD = 5;
-const defaults = resolveTargetAllocations(DEFAULT_SECTOR_WEIGHTS);
+// Pinned so the dollar figures below stay readable; the recommended sector mix
+// is covered by `investSectorModel.test.ts`.
+const defaults: TargetAllocation[] = [
+  { positionId: 'morpho-base', weightBps: 3600 },
+  { positionId: 'gmx-arbitrum', weightBps: 4000 },
+  { positionId: 'hlp', weightBps: 2400 },
+];
 const morpho: TargetAllocation[] = [
   { positionId: 'morpho-base', weightBps: 10000 },
   { positionId: 'gmx-arbitrum', weightBps: 0 },
@@ -34,11 +39,16 @@ function view(
     allocations?: readonly TargetAllocation[];
     preferences?: FundingPreferences;
     failed?: number[];
+    hyperCoreSpendableUsd6?: bigint | null;
   } = {},
 ): FundingSourceView {
   const allocations = options.allocations ?? defaults;
   const preferences = options.preferences ?? {};
-  const supply = { rows, unavailableChainIds: options.failed ?? [] };
+  const supply = {
+    rows,
+    unavailableChainIds: options.failed ?? [],
+    hyperCoreSpendableUsd6: options.hyperCoreSpendableUsd6 ?? 0n,
+  };
   const plan = planFunding({
     demand: { totalUsd6: '100000000', allocations },
     supply,
@@ -92,6 +102,7 @@ describe('funding sources', () => {
       ['42161:ETH', 'empty'],
       ['1:USDC', 'unavailable'],
       ['1:ETH', 'unavailable'],
+      ['1337:USDC', 'empty'],
     ]);
   });
   it('applies the five dollar gas reserve once, agreeing with planner capacity', () => {
@@ -107,7 +118,11 @@ describe('funding sources', () => {
     expect(
       fundingCapacityUsd6({
         allocations: morpho,
-        supply: { rows, unavailableChainIds: [] },
+        supply: {
+          rows,
+          unavailableChainIds: [],
+          hyperCoreSpendableUsd6: 0n,
+        },
         constraints: { preferences: {}, gasReserveUsd: GAS_RESERVE_USD },
       }),
     ).toBe(100000000n);
@@ -120,6 +135,43 @@ describe('funding sources', () => {
       hasBalance: true,
       status: 'idle',
     });
+  });
+  it('lists Hyperliquid as a source the plan can draw on but never switch within', () => {
+    const key = `${HYPERCORE_CHAIN_ID}:USDC`;
+    const evm = [row(B[0], 36), row(A[0], 40)];
+    expect(rowFor(view(evm), key)).toMatchObject({
+      label: 'Hyperliquid USDC',
+      chainLabel: 'Hyperliquid',
+      status: 'empty',
+      canChange: false,
+      canExclude: true,
+      excluded: false,
+    });
+    expect(
+      rowFor(view(evm, { hyperCoreSpendableUsd6: 24000000n }), key),
+    ).toMatchObject({
+      status: 'used',
+      usedUsd6: 24000000n,
+      balanceUsd6: 24000000n,
+      canChange: false,
+    });
+    // A HyperCore leg signs no wallet batch, so it must not inflate the count.
+    expect(view(evm, { hyperCoreSpendableUsd6: 24000000n })).toMatchObject({
+      usedSourceCount: 3,
+      usedChainCount: 2,
+    });
+    expect(
+      rowFor(view(evm, { hyperCoreSpendableUsd6: 5000000n }), key),
+    ).toMatchObject({ status: 'idle', hasBalance: true });
+    expect(
+      rowFor(
+        view(evm, {
+          hyperCoreSpendableUsd6: 24000000n,
+          preferences: { [HYPERCORE_CHAIN_ID]: FUNDING_SOURCE_EXCLUDED },
+        }),
+        key,
+      ),
+    ).toMatchObject({ status: 'idle', excluded: true, canExclude: true });
   });
   it('marks only the token the user chose for that chain as preferred', () => {
     const result = view([row(B[0], 100), row(A[0], 100), row(B[1], 100)], {

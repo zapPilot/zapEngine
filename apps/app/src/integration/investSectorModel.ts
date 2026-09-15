@@ -35,8 +35,8 @@ export const INVEST_SECTORS: readonly InvestSector[] = [
     executable: true,
     lockedReason: null,
     positions: [
-      { positionId: 'morpho-base', intraBps: 6000 },
-      { positionId: 'hlp', intraBps: 4000 },
+      { positionId: 'morpho-base', intraBps: 500 },
+      { positionId: 'hlp', intraBps: 9500 },
     ],
   },
   {
@@ -154,12 +154,18 @@ export function sectorUsd6Shares(
     ]),
   ) as Record<InvestSectorId, bigint>;
 }
+/**
+ * An HLP share funded from HyperCore produces no `StageDraft`, so it has to be
+ * added back or the review step under-reports the Stable sector.
+ */
 export function sectorWeightsFromDrafts(
   drafts: readonly StageDraft[],
+  hyperCoreLegWeightBps = 0,
 ): SectorWeights {
   const result: SectorWeights = { crypto: 0, stable: 0, sp500: 0 };
   for (const d of drafts)
     result[sectorForPosition(d.positionId).id] += d.weightBps;
+  result[sectorForPosition('hlp').id] += hyperCoreLegWeightBps;
   return result;
 }
 export function sectorAllocationSummary(weights: SectorWeights): string {
