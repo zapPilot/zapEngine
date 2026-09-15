@@ -1,3 +1,6 @@
+import { CHAIN_BRAND } from '@zapengine/brand-assets';
+import { HLP_MIN_DEPOSIT_USD6, HYPERCORE_CHAIN_ID } from '@zapengine/types/api';
+
 import {
   ARBITRUM_DEPOSIT_TOKENS as A,
   BASE_DEPOSIT_TOKENS as B,
@@ -26,9 +29,10 @@ import type {
   ChainTokenBalanceRow,
   MoralisChainKey,
 } from '@/integration/walletTokens';
+import { formatUsd6 } from '@/lib/format';
 
 export const NATIVE_GAS_RESERVE_USD = 5;
-/** Every balance the planner may draw on, in the order sources are listed. */
+/** Every EVM balance the planner may draw on, in the order sources are listed. */
 export const FUNDING_TOKEN_UNIVERSE: readonly DesktopDepositToken[] = [
   ...B,
   ...A,
@@ -37,21 +41,80 @@ export const FUNDING_TOKEN_UNIVERSE: readonly DesktopDepositToken[] = [
 const FUNDING_CHAIN_IDS: readonly StrategyFundingChainId[] = [
   ...new Set(FUNDING_TOKEN_UNIVERSE.map((t) => t.chainId)),
 ];
-export interface FundingCandidate {
-  token: DesktopDepositToken;
-  route:
-    | 'deposit'
-    | 'swap-deposit'
-    | 'bridge2'
-    | 'lifi-bridge'
-    | 'lifi-swap-bridge';
-  costTier: number;
-}
+/**
+ * HyperCore holds USDC only, so one reserved literal addresses it. It is not a
+ * `${chainId}:${address}` pair by construction, so it can never collide with an
+ * EVM token key — and no synthetic address ever reaches a deposit request.
+ */
+export const HYPERCORE_SOURCE_KEY = 'hypercore:usdc';
+export const HYPERCORE_SYMBOL: DepositTokenSymbol = 'USDC';
+
+/** A source the user switched off. HyperCore holds one token, so declining it
+ * cannot be expressed by picking a different symbol. */
+export const FUNDING_SOURCE_EXCLUDED = 'excluded';
+export type FundingPreference =
+  | DepositTokenSymbol
+  | typeof FUNDING_SOURCE_EXCLUDED;
+export type FundingSourceChainId =
+  | StrategyFundingChainId
+  | typeof HYPERCORE_CHAIN_ID;
+/**
+ * One chosen balance per source. A source with no entry is left to the
+ * automatic ranking, so an empty object reproduces the recommended plan.
+ */
+export type FundingPreferences = Partial<
+  Record<FundingSourceChainId, FundingPreference>
+>;
+const PREFERENCE_CHAIN_IDS: readonly FundingSourceChainId[] = [
+  ...FUNDING_CHAIN_IDS,
+  HYPERCORE_CHAIN_ID,
+];
+
+export type EvmFundingRoute =
+  | 'deposit'
+  | 'swap-deposit'
+  | 'bridge2'
+  | 'lifi-bridge'
+  | 'lifi-swap-bridge';
+
+/**
+ * A balance one destination can be funded from. USDC already on HyperCore has
+ * no source chain, no token address, and no route, so it is a separate variant
+ * rather than a synthetic `DesktopDepositToken`.
+ */
+export type FundingCandidate =
+  | {
+      kind: 'evm';
+      token: DesktopDepositToken;
+      route: EvmFundingRoute;
+      costTier: number;
+    }
+  | { kind: 'hypercore'; costTier: number };
+
 const candidate = (
   token: DesktopDepositToken,
-  route: FundingCandidate['route'],
+  route: EvmFundingRoute,
   costTier: number,
-): FundingCandidate => ({ token, route, costTier });
+): FundingCandidate => ({ kind: 'evm', token, route, costTier });
+
+export function candidateChainId(c: FundingCandidate): FundingSourceChainId {
+  return c.kind === 'hypercore' ? HYPERCORE_CHAIN_ID : c.token.chainId;
+}
+export function candidateSymbol(c: FundingCandidate): DepositTokenSymbol {
+  return c.kind === 'hypercore' ? HYPERCORE_SYMBOL : c.token.symbol;
+}
+function sameFundingSource(a: FundingCandidate, b: FundingCandidate): boolean {
+  if (a.kind === 'hypercore' || b.kind === 'hypercore')
+    return a.kind === b.kind;
+  return sameDepositToken(a.token, b.token);
+}
+
+/**
+ * Cost tiers are compared as a sum across destinations, so a tie is resolved by
+ * enumeration order rather than intent. HyperCore therefore takes tier 0 alone
+ * and every bridge route is shifted up by one, making "spend what is already on
+ * Hyperliquid first" true regardless of how combinations are enumerated.
+ */
 export const STATIC_FUNDING_RANKING: Record<
   InvestPositionId,
   FundingCandidate[]
@@ -66,32 +129,28 @@ export const STATIC_FUNDING_RANKING: Record<
     candidate(A[2], 'swap-deposit', 2),
   ],
   hlp: [
-    candidate(A[0], 'bridge2', 0),
-    candidate(B[0], 'lifi-bridge', 1),
-    candidate(E[0], 'lifi-bridge', 2),
-    candidate(B[1], 'lifi-swap-bridge', 3),
-    candidate(A[2], 'lifi-swap-bridge', 3),
-    candidate(E[1], 'lifi-swap-bridge', 4),
+    { kind: 'hypercore', costTier: 0 },
+    candidate(A[0], 'bridge2', 1),
+    candidate(B[0], 'lifi-bridge', 2),
+    candidate(E[0], 'lifi-bridge', 3),
+    candidate(B[1], 'lifi-swap-bridge', 4),
+    candidate(A[2], 'lifi-swap-bridge', 4),
+    candidate(E[1], 'lifi-swap-bridge', 5),
   ],
 };
-/**
- * One chosen balance per source chain. A chain with no entry is left to the
- * automatic ranking, so an empty object reproduces the recommended plan.
- */
-export type FundingPreferences = Partial<
-  Record<StrategyFundingChainId, DepositTokenSymbol>
->;
+
 type Rejection =
   | 'chain-unavailable'
   | 'no-price'
   | 'insufficient'
+  | 'below-minimum'
   | 'gmx-eth-budget';
 export type FundingBlocker =
   | { kind: 'invalid-allocation' }
   | {
       kind: 'override-not-viable';
-      chainId: StrategyFundingChainId;
-      symbol: DepositTokenSymbol;
+      chainId: FundingSourceChainId;
+      symbol: FundingPreference;
       reason: 'not-a-candidate' | 'blocks-plan';
     }
   | {
@@ -110,7 +169,7 @@ export type FundingBlocker =
       positionId: InvestPositionId;
       requiredUsd6: bigint;
       bestAvailableUsd6: bigint;
-      bestToken: DesktopDepositToken;
+      bestSource: FundingCandidate;
     };
 export interface FundingAssignment {
   positionId: InvestPositionId;
@@ -131,9 +190,21 @@ export type FundingWarning =
       kind: 'eth-reserve-applied' | 'chain-balances-unavailable';
       chainId: number;
     }
-  | { kind: 'low-gas'; chainId: number; ethUsd: number };
+  | { kind: 'low-gas'; chainId: number; ethUsd: number }
+  | { kind: 'hypercore-balance-unavailable' }
+  | {
+      kind: 'hypercore-partial';
+      availableUsd6: bigint;
+      requiredUsd6: bigint;
+    };
+/** The HLP share funded straight from HyperCore, outside every EVM batch. */
+export interface HyperCoreFundingLeg {
+  weightBps: number;
+  usd6: string;
+}
 export interface FundingPlan {
   stages: StageDraft[] | null;
+  hyperCoreLeg: HyperCoreFundingLeg | null;
   assignments: FundingAssignment[];
   blockers: FundingBlocker[];
   warnings: FundingWarning[];
@@ -142,6 +213,11 @@ export interface FundingPlan {
 export interface FundingSupplyInput {
   rows: readonly ChainTokenBalanceRow[];
   unavailableChainIds: readonly number[];
+  /**
+   * Spendable HyperCore USDC. `null` means the balance could not be read: the
+   * planner then funds HLP by bridge exactly as it did before and says why.
+   */
+  hyperCoreSpendableUsd6: bigint | null;
 }
 interface Constraints {
   preferences: FundingPreferences;
@@ -159,6 +235,8 @@ interface PlanInput {
 }
 const tokenKey = (t: DesktopDepositToken): string =>
   `${t.chainId}:${t.depositAddress.toLowerCase()}`;
+const sourceKey = (c: FundingCandidate): string =>
+  c.kind === 'hypercore' ? HYPERCORE_SOURCE_KEY : tokenKey(c.token);
 export function sameDepositToken(
   a: DesktopDepositToken,
   b: DesktopDepositToken,
@@ -187,8 +265,8 @@ export function buildFundingSupply(
   supply: FundingSupplyInput,
   gasReserveUsd: number,
 ): Map<string, FundingSupplyEntry> {
-  return new Map(
-    FUNDING_TOKEN_UNIVERSE.map((token) => {
+  const entries: [string, FundingSupplyEntry][] = FUNDING_TOKEN_UNIVERSE.map(
+    (token) => {
       const row = balanceForFundingToken(supply.rows, token);
       const price = token.symbol === 'ETH' ? (row?.usdPrice ?? null) : 1;
       const raw = BigInt(row?.balanceBaseUnits ?? '0');
@@ -212,14 +290,33 @@ export function buildFundingSupply(
           unavailable: supply.unavailableChainIds.includes(token.chainId),
         },
       ];
-    }),
+    },
   );
+  // An unreadable balance spends as zero rather than as "unpriced": HLP simply
+  // falls back to a bridge instead of blocking step 1 on the Hyperliquid API.
+  const hyperCore = supply.hyperCoreSpendableUsd6 ?? 0n;
+  entries.push([
+    HYPERCORE_SOURCE_KEY,
+    {
+      balanceUsd6: hyperCore,
+      spendableUsd6: hyperCore,
+      hasBalance: hyperCore > 0n,
+      usdPrice: 1,
+      unavailable: false,
+    },
+  ]);
+  return new Map(entries);
 }
 export function fundingSupplyEntry(
   supply: ReadonlyMap<string, FundingSupplyEntry>,
   token: DesktopDepositToken,
 ): FundingSupplyEntry {
   return supply.get(tokenKey(token))!;
+}
+export function hyperCoreSupplyEntry(
+  supply: ReadonlyMap<string, FundingSupplyEntry>,
+): FundingSupplyEntry {
+  return supply.get(HYPERCORE_SOURCE_KEY)!;
 }
 function evaluate(
   c: FundingCandidate,
@@ -228,25 +325,35 @@ function evaluate(
   supply: Map<string, FundingSupplyEntry>,
   reserved: Map<string, bigint>,
 ): Omit<FundingOption, 'candidate' | 'selected'> & { fromAmount: string } {
-  const entry = supply.get(tokenKey(c.token))!;
+  const key = sourceKey(c);
+  const entry = supply.get(key)!;
   const available =
     entry.spendableUsd6 === null
       ? null
-      : entry.spendableUsd6 - (reserved.get(tokenKey(c.token)) ?? 0n);
+      : entry.spendableUsd6 - (reserved.get(key) ?? 0n);
   const availableUsd6 =
     available === null ? null : available > 0n ? available : 0n;
-  const fromAmount = singleChainFromAmount({
-    totalUsd6: usd6.toString(),
-    token: c.token,
-    usdPrice: entry.usdPrice,
-  });
+  // HyperCore USDC is 6-decimal by construction, so the conversion is the
+  // identity; `singleChainFromAmount` only knows EVM tokens.
+  const fromAmount =
+    c.kind === 'hypercore'
+      ? usd6.toString()
+      : singleChainFromAmount({
+          totalUsd6: usd6.toString(),
+          token: c.token,
+          usdPrice: entry.usdPrice,
+        });
   let rejection: Rejection | null = null;
   if (entry.unavailable) rejection = 'chain-unavailable';
   else if (availableUsd6 === null) rejection = 'no-price';
   else if (availableUsd6 < usd6) rejection = 'insufficient';
   else if (fromAmount === null) rejection = 'no-price';
+  else if (c.kind === 'hypercore' && usd6 < HLP_MIN_DEPOSIT_USD6)
+    // The only place the vault's own $10 floor is stated inside the planner.
+    rejection = 'below-minimum';
   else if (
     id === 'gmx-arbitrum' &&
+    c.kind === 'evm' &&
     c.token.symbol === 'ETH' &&
     BigInt(fromAmount) <= ARBITRUM_GMX_BASKET_EXECUTION_FEE_WEI
   )
@@ -259,8 +366,8 @@ function candidatesFor(
   ranking: typeof STATIC_FUNDING_RANKING,
 ): FundingCandidate[] {
   return ranking[id].filter((c) => {
-    const preferred = constraints.preferences[c.token.chainId];
-    return preferred === undefined || c.token.symbol === preferred;
+    const preferred = constraints.preferences[candidateChainId(c)];
+    return preferred === undefined || candidateSymbol(c) === preferred;
   });
 }
 function combinations(lists: FundingCandidate[][]): FundingCandidate[][] {
@@ -269,16 +376,21 @@ function combinations(lists: FundingCandidate[][]): FundingCandidate[][] {
     [[]],
   );
 }
-function toStage(a: FundingAssignment): StageDraft {
+function toStage(a: FundingAssignment, token: DesktopDepositToken): StageDraft {
   const common = {
     weightBps: a.weightBps,
     usd6: a.usd6.toString(),
-    sourceToken: a.source.token,
+    sourceToken: token,
     fromAmount: a.fromAmount,
   };
   return a.positionId === 'hlp'
-    ? { ...common, positionId: 'hlp', ingress: hlpIngressFor(a.source.token) }
+    ? { ...common, positionId: 'hlp', ingress: hlpIngressFor(token) }
     : { ...common, positionId: a.positionId };
+}
+function evmStages(assignments: readonly FundingAssignment[]): StageDraft[] {
+  return assignments.flatMap((a) =>
+    a.source.kind === 'evm' ? [toStage(a, a.source.token)] : [],
+  );
 }
 /** Everything a solve needs beyond the demand it is solving for. */
 interface SolveContext {
@@ -287,6 +399,8 @@ interface SolveContext {
   supply: Map<string, FundingSupplyEntry>;
   funded: typeof INVEST_POSITIONS;
 }
+const cost = (combo: readonly FundingCandidate[]): number =>
+  combo.reduce((n, c) => n + c.costTier, 0);
 /** Replace this selection boundary when a server optimizer is available. */
 function selectAssignments(
   input: PlanInput,
@@ -314,14 +428,20 @@ function selectAssignments(
         availableUsd6: check.availableUsd6!,
       });
       reserved.set(
-        tokenKey(source.token),
-        (reserved.get(tokenKey(source.token)) ?? 0n) + shares[id],
+        sourceKey(source),
+        (reserved.get(sourceKey(source)) ?? 0n) + shares[id],
       );
     }
-    const cost = combo.reduce((n, c) => n + c.costTier, 0);
-    if (assignments.length === funded.length && cost < bestCost) {
+    // Every downstream step — the reviewed queue, the checkpoint chain, the
+    // progress screen — assumes at least one EVM batch exists. Today the sector
+    // model guarantees it; refusing a HyperCore-only solve makes that explicit
+    // so a future allocation cannot silently produce an unexecutable plan.
+    const usable =
+      assignments.length === funded.length &&
+      assignments.some((a) => a.source.kind === 'evm');
+    if (usable && cost(combo) < bestCost) {
       chosen = assignments;
-      bestCost = cost;
+      bestCost = cost(combo);
     } else if (bestCost === Infinity && assignments.length > chosen.length)
       chosen = assignments;
   }
@@ -329,14 +449,14 @@ function selectAssignments(
 }
 function preferenceEntries(
   preferences: FundingPreferences,
-): { chainId: StrategyFundingChainId; symbol: DepositTokenSymbol }[] {
-  return FUNDING_CHAIN_IDS.flatMap((chainId) => {
+): { chainId: FundingSourceChainId; symbol: FundingPreference }[] {
+  return PREFERENCE_CHAIN_IDS.flatMap((chainId) => {
     const symbol = preferences[chainId];
     return symbol === undefined ? [] : [{ chainId, symbol }];
   });
 }
 /**
- * A preference narrows a whole chain, so a rejection cannot be attributed to
+ * A preference narrows a whole source, so a rejection cannot be attributed to
  * one destination. `blocks-plan` is therefore proven by re-solving without
  * preferences rather than inferred from a per-destination rejection.
  */
@@ -354,7 +474,9 @@ function preferenceBlockers(
   return entries.flatMap<FundingBlocker>(({ chainId, symbol }) => {
     const known = funded.some((p) =>
       ranking[p.id].some(
-        (c) => c.token.chainId === chainId && c.token.symbol === symbol,
+        (c) =>
+          candidateChainId(c) === chainId &&
+          (symbol === FUNDING_SOURCE_EXCLUDED || candidateSymbol(c) === symbol),
       ),
     );
     if (known && !relaxed.complete) return [];
@@ -374,6 +496,7 @@ export function planFunding(
 ): FundingPlan {
   const result: FundingPlan = {
     stages: null,
+    hyperCoreLeg: null,
     assignments: [],
     blockers: [],
     warnings: [],
@@ -399,20 +522,24 @@ export function planFunding(
     const reserved = new Map<string, bigint>();
     for (const a of result.assignments.filter((a) => a.positionId !== p.id))
       reserved.set(
-        tokenKey(a.source.token),
-        (reserved.get(tokenKey(a.source.token)) ?? 0n) + a.usd6,
+        sourceKey(a.source),
+        (reserved.get(sourceKey(a.source)) ?? 0n) + a.usd6,
       );
     result.options[p.id] = ranking[p.id].map((c) => ({
       candidate: c,
       ...evaluate(c, p.id, shares[p.id], supply, reserved),
       selected: result.assignments.some(
-        (a) =>
-          a.positionId === p.id && sameDepositToken(a.source.token, c.token),
+        (a) => a.positionId === p.id && sameFundingSource(a.source, c),
       ),
     }));
   }
-  if (selection.complete) result.stages = result.assignments.map(toStage);
-  else {
+  if (selection.complete) {
+    result.stages = evmStages(result.assignments);
+    const leg = result.assignments.find((a) => a.source.kind === 'hypercore');
+    result.hyperCoreLeg = leg
+      ? { weightBps: leg.weightBps, usd6: leg.usd6.toString() }
+      : null;
+  } else {
     const blockers: FundingBlocker[] = preferenceBlockers(input, context);
     for (const p of funded) {
       const opts = result.options[p.id]!;
@@ -420,7 +547,9 @@ export function planFunding(
         blockers.push({
           kind: 'chain-unavailable',
           positionId: p.id,
-          chainIds: [...new Set(opts.map((o) => o.candidate.token.chainId))],
+          chainIds: [
+            ...new Set(opts.map((o) => candidateChainId(o.candidate))),
+          ],
         });
       if (opts.some((o) => o.rejection === null)) continue;
       const fee = opts.find((o) => o.rejection === 'gmx-eth-budget');
@@ -435,12 +564,17 @@ export function planFunding(
             new Map(),
           ).fromAmount,
         });
-      const unpriced = opts.filter((o) => o.rejection === 'no-price');
+      const unpriced = opts.filter(
+        (o) => o.rejection === 'no-price' && o.candidate.kind === 'evm',
+      );
       if (unpriced.length)
         blockers.push({
           kind: 'no-price',
           positionId: p.id,
-          tokens: unpriced.map((o) => o.candidate.token),
+          tokens: unpriced.map(
+            (o) =>
+              (o.candidate as Extract<FundingCandidate, { kind: 'evm' }>).token,
+          ),
         });
       const best = [...opts].sort((a, b) =>
         Number((b.availableUsd6 ?? 0n) - (a.availableUsd6 ?? 0n)),
@@ -450,7 +584,7 @@ export function planFunding(
         positionId: p.id,
         requiredUsd6: shares[p.id],
         bestAvailableUsd6: best.availableUsd6 ?? 0n,
-        bestToken: best.candidate.token,
+        bestSource: best.candidate,
       });
     }
     const priority = [
@@ -467,7 +601,9 @@ export function planFunding(
     result.blockers = blockers.slice(0, 1);
   }
   const usedChains = new Set(
-    result.assignments.map((a) => a.source.token.chainId),
+    result.assignments.flatMap((a) =>
+      a.source.kind === 'evm' ? [a.source.token.chainId] : [],
+    ),
   );
   for (const chainId of usedChains) {
     const eth = FUNDING_TOKEN_UNIVERSE.find(
@@ -486,7 +622,9 @@ export function planFunding(
     if (
       result.assignments.some(
         (a) =>
-          a.source.token.chainId === chainId && a.source.token.symbol === 'ETH',
+          a.source.kind === 'evm' &&
+          a.source.token.chainId === chainId &&
+          a.source.token.symbol === 'ETH',
       )
     )
       result.warnings.push({ kind: 'eth-reserve-applied', chainId });
@@ -494,17 +632,51 @@ export function planFunding(
   const hlp = result.assignments.find((a) => a.positionId === 'hlp');
   if (hlp) {
     const selectedRank = ranking.hlp.findIndex((c) =>
-      sameDepositToken(c.token, hlp.source.token),
+      sameFundingSource(c, hlp.source),
     );
     const fallbackChains = new Set<number>(
-      ranking.hlp.slice(0, selectedRank).map((c) => c.token.chainId),
+      ranking.hlp
+        .slice(0, selectedRank)
+        .flatMap((c) => (c.kind === 'evm' ? [c.token.chainId] : [])),
     );
     for (const chainId of input.supply.unavailableChainIds) {
       if (fallbackChains.has(chainId))
         result.warnings.push({ kind: 'chain-balances-unavailable', chainId });
     }
   }
+  result.warnings.push(
+    ...hyperCoreWarnings(input, { shares, supply, ranking }),
+  );
   return result;
+}
+/**
+ * Why HLP is being bridged even though the user holds USDC on Hyperliquid.
+ * Partial coverage is deliberately not mixed: the bridged deposit is capped
+ * against a pre-bridge balance snapshot, so sweeping an unrelated HyperCore
+ * balance into a four-day lock is exactly what that cap exists to prevent.
+ */
+function hyperCoreWarnings(
+  input: PlanInput,
+  context: Pick<SolveContext, 'shares' | 'supply' | 'ranking'>,
+): FundingWarning[] {
+  const required = context.shares.hlp;
+  if (required <= 0n) return [];
+  const offered = candidatesFor('hlp', input.constraints, context.ranking).some(
+    (c) => c.kind === 'hypercore',
+  );
+  if (!offered) return [];
+  if (input.supply.hyperCoreSpendableUsd6 === null)
+    return [{ kind: 'hypercore-balance-unavailable' }];
+  const available = hyperCoreSupplyEntry(context.supply).spendableUsd6 ?? 0n;
+  return available > 0n && available < required
+    ? [
+        {
+          kind: 'hypercore-partial',
+          availableUsd6: available,
+          requiredUsd6: required,
+        },
+      ]
+    : [];
 }
 export function fundingCapacityUsd6(input: CapacityInput): bigint | null {
   if (!isValidTargetAllocation(input.allocations)) return 0n;
@@ -525,8 +697,8 @@ export function fundingCapacityUsd6(input: CapacityInput): bigint | null {
     const weights = new Map<string, number>();
     combo.forEach((c, i) =>
       weights.set(
-        tokenKey(c.token),
-        (weights.get(tokenKey(c.token)) ?? 0) +
+        sourceKey(c),
+        (weights.get(sourceKey(c)) ?? 0) +
           weightBpsFor(input.allocations, funded[i]!.id),
       ),
     );
@@ -539,8 +711,8 @@ export function fundingCapacityUsd6(input: CapacityInput): bigint | null {
         viable = false;
         break;
       }
-      const members = combo.filter((c) => tokenKey(c.token) === key).length;
-      const includesLast = tokenKey(combo[combo.length - 1]!.token) === key;
+      const members = combo.filter((c) => sourceKey(c) === key).length;
+      const includesLast = sourceKey(combo[combo.length - 1]!) === key;
       const cap = includesLast
         ? (entry.spendableUsd6 * 10000n) / BigInt(bps)
         : ((entry.spendableUsd6 + BigInt(members)) * 10000n - 1n) / BigInt(bps);
@@ -557,8 +729,8 @@ export function fundingCapacityUsd6(input: CapacityInput): bigint | null {
       const spent = new Map<string, bigint>();
       combo.forEach((c, i) =>
         spent.set(
-          tokenKey(c.token),
-          (spent.get(tokenKey(c.token)) ?? 0n) + shares[funded[i]!.id],
+          sourceKey(c),
+          (spent.get(sourceKey(c)) ?? 0n) + shares[funded[i]!.id],
         ),
       );
       return [...spent].every(
@@ -596,10 +768,15 @@ export function unavailableFundingChains(
       { preferences, gasReserveUsd: NATIVE_GAS_RESERVE_USD },
       STATIC_FUNDING_RANKING,
     );
+    // HyperCore is never a Moralis chain, so its presence alone keeps HLP off
+    // the hard "retry balances" gate; an empty HyperCore balance still shows
+    // up as an ordinary per-candidate rejection.
     return (
       weightBpsFor(allocations, p.id) > 0 &&
       candidates.length > 0 &&
-      candidates.every((c) => failed.includes(c.token.chainId))
+      candidates.every(
+        (c) => c.kind === 'evm' && failed.includes(c.token.chainId),
+      )
     );
   });
 }
@@ -617,6 +794,23 @@ export function fundingBlockerMessage(b: FundingBlocker): string {
       return 'An ETH price is unavailable. Retry balances or choose a stablecoin source.';
     case 'insufficient-single-source':
       return 'No single source balance can cover this position.';
+  }
+}
+export function fundingWarningMessage(w: FundingWarning): string {
+  const chainLabel = (chainId: number): string =>
+    Object.values(CHAIN_BRAND).find((c) => c.chainId === chainId)?.label ??
+    `Chain ${chainId}`;
+  switch (w.kind) {
+    case 'low-gas':
+      return `${chainLabel(w.chainId)} has little ETH for gas.`;
+    case 'chain-balances-unavailable':
+      return `${chainLabel(w.chainId)} balances were unavailable, so we used another chain.`;
+    case 'eth-reserve-applied':
+      return `We keep about $${NATIVE_GAS_RESERVE_USD} of ${chainLabel(w.chainId)} ETH back for gas.`;
+    case 'hypercore-balance-unavailable':
+      return 'Your Hyperliquid balance could not be read, so HLP will be funded by bridge.';
+    case 'hypercore-partial':
+      return `You have ${formatUsd6(w.availableUsd6)} on Hyperliquid, but this HLP allocation is ${formatUsd6(w.requiredUsd6)}. We'll bridge the full amount.`;
   }
 }
 export function fundingPlanSummary(context: {

@@ -87,9 +87,9 @@ describe('InvestProvider', () => {
         .current()
         .targetAllocations.map((entry) => [entry.positionId, entry.weightBps]),
     ).toEqual([
-      ['morpho-base', 3_600],
+      ['morpho-base', 300],
       ['gmx-arbitrum', 4_000],
-      ['hlp', 2_400],
+      ['hlp', 5_700],
     ]);
     expect(harness.current().stageDrafts).toEqual([]);
     expect(harness.current().totalUsd6).toBe('0');
@@ -125,6 +125,7 @@ describe('InvestProvider', () => {
       harness.current().setHyperCoreFundingDraft({
         source: 'hypercore-spot',
         requestedUsd6: '10000000',
+        weightBps: 2400,
       });
     });
     expect(harness.current().hyperCoreFundingDraft).not.toBeNull();
@@ -151,6 +152,7 @@ describe('InvestProvider', () => {
         harness.current().setHyperCoreFundingDraft({
           source: 'hypercore-spot',
           requestedUsd6: '10',
+          weightBps: 2400,
         });
       });
       await act(async () => {
@@ -189,7 +191,7 @@ describe('InvestProvider', () => {
         .current()
         .targetAllocations.find((entry) => entry.positionId === 'hlp')
         ?.weightBps,
-    ).toBe(2_400);
+    ).toBe(5_700);
     expect(harness.current().stageDrafts).toEqual([]);
   });
 });

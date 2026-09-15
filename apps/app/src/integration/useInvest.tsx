@@ -5,7 +5,11 @@ import {
   type SectorWeights,
   type InvestSectorId,
 } from '@/integration/investSectorModel';
-import type { FundingPreferences } from '@/integration/investFundingPlanner';
+import type {
+  FundingPreference,
+  FundingPreferences,
+  FundingSourceChainId,
+} from '@/integration/investFundingPlanner';
 import {
   createContext,
   type ReactNode,
@@ -15,10 +19,6 @@ import {
   useState,
 } from 'react';
 
-import {
-  type DepositTokenSymbol,
-  type StrategyFundingChainId,
-} from '@/integration/depositTokens';
 import {
   amountInputToUsd6,
   amountUsdFromInput,
@@ -36,6 +36,8 @@ import {
 export interface HyperCoreFundingDraft {
   source: 'hypercore-spot';
   requestedUsd6: string;
+  /** This leg's share of the whole invest amount, for the step 2 sector bar. */
+  weightBps: number;
 }
 
 export interface InvestContextValue {
@@ -51,8 +53,8 @@ export interface InvestContextValue {
   resetSectorWeights: () => void;
   fundingPreferences: FundingPreferences;
   setFundingPreference: (
-    chainId: StrategyFundingChainId,
-    symbol: DepositTokenSymbol | null,
+    chainId: FundingSourceChainId,
+    preference: FundingPreference | null,
   ) => void;
   clearFundingPreferences: () => void;
   /** Stages frozen when the user leaves step 1; the review step reads only these. */
@@ -127,10 +129,10 @@ export function InvestProvider({ children }: { children: ReactNode }) {
     [clearFrozenExecution],
   );
   const setFundingPreference = useCallback(
-    (chainId: StrategyFundingChainId, symbol: DepositTokenSymbol | null) => {
+    (chainId: FundingSourceChainId, preference: FundingPreference | null) => {
       setFundingPreferences((current) => {
         const next = { ...current };
-        if (symbol) next[chainId] = symbol;
+        if (preference) next[chainId] = preference;
         else delete next[chainId];
         return next;
       });

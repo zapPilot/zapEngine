@@ -65,7 +65,7 @@ export function ChainTokenSelectorSheet({
               >
                 <TokenIcon
                   symbol={row.symbol}
-                  chainKey={row.token.chainKey}
+                  chainKey={row.chainKey}
                   size={32}
                   alt=""
                 />

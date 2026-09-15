@@ -12,21 +12,32 @@ import {
   fundingBlockerMessage,
   unavailableChainIds,
   unavailableFundingChains,
+  FUNDING_SOURCE_EXCLUDED,
+  type FundingCandidate,
   type FundingPreferences,
 } from '@/integration/investFundingPlanner';
-import {
-  DEFAULT_SECTOR_WEIGHTS,
-  resolveTargetAllocations,
-} from '@/integration/investSectorModel';
+import { resolveTargetAllocations } from '@/integration/investSectorModel';
 import {
   chainBatchDrafts,
   stageDraftsKey,
   type TargetAllocation,
 } from '@/integration/investTargetsModel';
 import type { ChainTokenBalanceRow } from '@/integration/walletTokens';
+import { HYPERCORE_CHAIN_ID } from '@zapengine/types/api';
 import { balanceRow as row } from './support/fundingBalanceRow';
-const defaults = resolveTargetAllocations(DEFAULT_SECTOR_WEIGHTS);
+// Pinned rather than derived from the recommended sector mix: every balance
+// figure below is reasoned against these exact weights, and the mix itself is
+// covered by `investSectorModel.test.ts`.
+const defaults: TargetAllocation[] = [
+  { positionId: 'morpho-base', weightBps: 3600 },
+  { positionId: 'gmx-arbitrum', weightBps: 4000 },
+  { positionId: 'hlp', weightBps: 2400 },
+];
 const stable = resolveTargetAllocations({ crypto: 0, stable: 10000, sp500: 0 });
+const tokenOf = (c: FundingCandidate) =>
+  c.kind === 'evm' ? c.token : 'hypercore';
+const routeOf = (c: FundingCandidate) =>
+  c.kind === 'evm' ? c.route : 'hypercore';
 const morpho: TargetAllocation[] = [
   { positionId: 'morpho-base', weightBps: 10000 },
   { positionId: 'gmx-arbitrum', weightBps: 0 },
@@ -37,10 +48,11 @@ function input(
   allocations = defaults,
   preferences: FundingPreferences = {},
   failed: number[] = [],
+  hyperCoreSpendableUsd6: bigint | null = 0n,
 ) {
   return {
     allocations,
-    supply: { rows, unavailableChainIds: failed },
+    supply: { rows, unavailableChainIds: failed, hyperCoreSpendableUsd6 },
     constraints: { preferences, gasReserveUsd: 5 },
   };
 }
@@ -55,7 +67,11 @@ describe('automatic funding', () => {
     const result = plan(input([row(B[0], 100), row(A[0], 100)]));
     expect(result.blockers).toEqual([]);
     expect(
-      result.assignments.map((a) => [a.usd6, a.source.token, a.source.route]),
+      result.assignments.map((a) => [
+        a.usd6,
+        tokenOf(a.source),
+        routeOf(a.source),
+      ]),
     ).toEqual([
       [36000000n, B[0], 'deposit'],
       [40000000n, A[0], 'deposit'],
@@ -74,7 +90,8 @@ describe('automatic funding', () => {
         isConnected: true,
       }),
     ).toBe('Selected automatically · 2 sources');
-    expect(result.options.hlp!.map((o) => o.candidate.token)).toEqual([
+    expect(result.options.hlp!.map((o) => tokenOf(o.candidate))).toEqual([
+      'hypercore',
       A[0],
       B[0],
       E[0],
@@ -85,7 +102,7 @@ describe('automatic funding', () => {
   });
   it('chooses the lowest total cost instead of greedily consuming HLP bridge funds', () => {
     const result = plan(input([row(B[0], 36), row(A[0], 24), row(A[1], 40)]));
-    expect(result.assignments.map((a) => a.source.token)).toEqual([
+    expect(result.assignments.map((a) => tokenOf(a.source))).toEqual([
       B[0],
       A[1],
       A[0],
@@ -117,7 +134,7 @@ describe('automatic funding', () => {
     const config = input([row(B[1], 105)], stable);
     const result = plan(config);
     expect(result.stages).toHaveLength(2);
-    expect(result.assignments.map((a) => a.source.route)).toEqual([
+    expect(result.assignments.map((a) => routeOf(a.source))).toEqual([
       'swap-deposit',
       'lifi-swap-bridge',
     ]);
@@ -140,7 +157,7 @@ describe('automatic funding', () => {
     );
     expect(result.blockers).toEqual([]);
     expect(
-      result.assignments.map((a) => [a.source.token, a.source.route]),
+      result.assignments.map((a) => [tokenOf(a.source), routeOf(a.source)]),
     ).toEqual([
       [B[1], 'swap-deposit'],
       [A[0], 'deposit'],
@@ -283,5 +300,139 @@ describe('automatic funding', () => {
             `${base}/${arb}/${eth}/${capacity}`,
           ).toBeNull();
         }
+  });
+});
+
+describe('HyperCore as a funding source', () => {
+  const hlpOnly: TargetAllocation[] = [
+    { positionId: 'morpho-base', weightBps: 0 },
+    { positionId: 'gmx-arbitrum', weightBps: 0 },
+    { positionId: 'hlp', weightBps: 10000 },
+  ];
+  const evmRows = [row(B[0], 36), row(A[0], 40)];
+
+  it('funds HLP from an existing HyperCore balance and leaves it out of the batches', () => {
+    const result = plan(input(evmRows, defaults, {}, [], 24000000n));
+    expect(result.blockers).toEqual([]);
+    expect(result.hyperCoreLeg).toEqual({ weightBps: 2400, usd6: '24000000' });
+    expect(
+      result.stages!.map((stage) => [stage.positionId, stage.usd6]),
+    ).toEqual([
+      ['morpho-base', '36000000'],
+      ['gmx-arbitrum', '40000000'],
+    ]);
+    expect(chainBatchDrafts(result.stages!).map((b) => b.chainId)).toEqual([
+      8453, 42161,
+    ]);
+    expect(result.assignments.map((a) => tokenOf(a.source))).toEqual([
+      B[0],
+      A[0],
+      'hypercore',
+    ]);
+  });
+
+  it('ignores a HyperCore balance that cannot cover the whole HLP share', () => {
+    const bridged = plan(input([row(B[0], 36), row(A[0], 64)]));
+    const partial = plan(
+      input([row(B[0], 36), row(A[0], 64)], defaults, {}, [], 23999999n),
+    );
+    expect(partial.hyperCoreLeg).toBeNull();
+    expect(stageDraftsKey(partial.stages!)).toBe(
+      stageDraftsKey(bridged.stages!),
+    );
+    expect(partial.warnings).toContainEqual({
+      kind: 'hypercore-partial',
+      availableUsd6: 23999999n,
+      requiredUsd6: 24000000n,
+    });
+  });
+
+  it('treats an unreadable HyperCore balance as zero rather than blocking step 1', () => {
+    const unknown = plan(
+      input([row(B[0], 36), row(A[0], 64)], defaults, {}, [], null),
+    );
+    expect(unknown.stages).not.toBeNull();
+    expect(unknown.hyperCoreLeg).toBeNull();
+    expect(stageDraftsKey(unknown.stages!)).toBe(
+      stageDraftsKey(plan(input([row(B[0], 36), row(A[0], 64)])).stages!),
+    );
+    expect(unknown.warnings).toContainEqual({
+      kind: 'hypercore-balance-unavailable',
+    });
+  });
+
+  it('refuses a HyperCore-only solve that would leave no wallet batch to sign', () => {
+    const result = plan(input([row(A[0], 100)], hlpOnly, {}, [], 100000000n));
+    expect(result.hyperCoreLeg).toBeNull();
+    expect(
+      result.stages!.map((stage) => [stage.positionId, stage.sourceToken]),
+    ).toEqual([['hlp', A[0]]]);
+  });
+
+  it('declines HyperCore below the vault minimum and bridges instead', () => {
+    const tiny: TargetAllocation[] = [
+      { positionId: 'morpho-base', weightBps: 5000 },
+      { positionId: 'gmx-arbitrum', weightBps: 4950 },
+      { positionId: 'hlp', weightBps: 50 },
+    ];
+    const result = plan(
+      input([row(B[0], 100), row(A[0], 100)], tiny, {}, [], 100000000n),
+    );
+    expect(result.hyperCoreLeg).toBeNull();
+    expect(result.stages!.map((s) => s.positionId)).toContain('hlp');
+    expect(
+      result.options.hlp!.find((o) => o.candidate.kind === 'hypercore')
+        ?.rejection,
+    ).toBe('below-minimum');
+  });
+
+  it('raises the fundable ceiling by the balance already on Hyperliquid', () => {
+    const rows = [row(B[0], 36), row(A[0], 40)];
+    expect(fundingCapacityUsd6(input(rows))).toBe(62500000n);
+    expect(fundingCapacityUsd6(input(rows, defaults, {}, [], 24000000n))).toBe(
+      100000000n,
+    );
+  });
+
+  it('wins on cost alone, not on where it sits in the ranking', () => {
+    expect(STATIC_FUNDING_RANKING.hlp.map((c) => c.costTier)).toEqual([
+      0, 1, 2, 3, 4, 4, 5,
+    ]);
+    const lastPlace = {
+      ...STATIC_FUNDING_RANKING,
+      hlp: [...STATIC_FUNDING_RANKING.hlp].reverse(),
+    };
+    const config = input(evmRows, defaults, {}, [], 24000000n);
+    const result = planFunding(
+      {
+        ...config,
+        demand: {
+          totalUsd6: '100000000',
+          allocations: config.allocations,
+        },
+      },
+      lastPlace,
+    );
+    expect(result.hyperCoreLeg).toEqual({ weightBps: 2400, usd6: '24000000' });
+  });
+
+  it('lets the user decline the Hyperliquid balance outright', () => {
+    const declined = plan(
+      input(
+        [row(B[0], 36), row(A[0], 64)],
+        defaults,
+        {
+          [HYPERCORE_CHAIN_ID]: FUNDING_SOURCE_EXCLUDED,
+        },
+        [],
+        100000000n,
+      ),
+    );
+    expect(declined.hyperCoreLeg).toBeNull();
+    expect(declined.stages!.map((s) => s.positionId)).toContain('hlp');
+    // Declining a balance is not a warning to nag about.
+    expect(declined.warnings).not.toContainEqual({
+      kind: 'hypercore-balance-unavailable',
+    });
   });
 });

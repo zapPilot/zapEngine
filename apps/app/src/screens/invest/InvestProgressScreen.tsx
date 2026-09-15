@@ -26,6 +26,7 @@ import {
   shouldAutoRunHlpDeposit,
   shouldOfferAgentEnable,
   unsafeResumeReason,
+  type HlpRowKey,
 } from '@/integration/hlpProgressModel';
 import { advanceCheckpoint } from '@/integration/checkpointAdvanceModel';
 import {
@@ -46,11 +47,37 @@ import { useInvestExecution } from '@/integration/useInvestExecution';
 import { useInvestReview } from '@/integration/useInvestReview';
 import { formatUsd } from '@/lib/format';
 
+import { useHyperCoreLegPlan } from './useHyperCoreLegPlan';
+
 function asDepositPlan(
   plan: ReviewedDepositPlan | undefined,
 ): DepositPlan | null {
   if (!plan || isStrategyDepositPlan(plan)) return null;
   return plan;
+}
+
+function hlpRowLabel(key: HlpRowKey): string {
+  if (key === 'bridge') return 'Bridge into Hyperliquid';
+  if (key === 'arrival') return 'HyperCore USDC arrived';
+  return 'Deposit into official HLP vault';
+}
+
+function hlpRowDetail(
+  key: HlpRowKey,
+  hlp: ReturnType<typeof useDepositWizard>['wizard']['hlp'],
+): string {
+  if (key === 'bridge') {
+    return 'Tracks the submitted transfer; the source transaction is never resubmitted.';
+  }
+  if (key === 'arrival') {
+    return hlp.arrivedUsd6 !== null
+      ? `${formatUnits(hlp.arrivedUsd6, 6)} USDC received for this deposit.`
+      : 'Waiting for the spendable-balance delta above the pre-bridge snapshot.';
+  }
+  if (hlp.status === 'confirming') {
+    return 'Hyperliquid vaultTransfer submitted; verifying vault equity.';
+  }
+  return 'Signed by your approved Zap Pilot agent.';
 }
 
 export function InvestProgressScreen() {
@@ -85,10 +112,20 @@ export function InvestProgressScreen() {
   const hlpPlan =
     hlpIndex >= 0 ? asDepositPlan(reviewedQueue[hlpIndex]?.plan) : null;
   const hlpStep = hlpPlan ? hlpStepFromPlan(hlpPlan) : null;
-  const agent = useHyperliquidAgent(hlpStep?.signing ?? null);
+  const hyperCoreDraft = invest.hyperCoreFundingDraft;
+  const legPlan = useHyperCoreLegPlan(hyperCoreDraft);
+  const spotPlan = hyperCoreDraft ? legPlan.plan : null;
+  const fundingSource = hyperCoreDraft ? 'hypercore' : 'bridge';
+  // A HyperCore-funded HLP allocation never joins `chainBatchDrafts`, so the
+  // signing material has to come from its own plan; reading it only from the
+  // reviewed queue would leave the agent permanently un-armed and silent.
+  const agent = useHyperliquidAgent(
+    spotPlan?.step.signing ?? hlpStep?.signing ?? null,
+  );
   const {
     wizard,
     resumeReviewedPlan,
+    startSpotDeposit,
     runHlpDeposit,
     retry: retryHlp,
     reset: resetHlp,
@@ -107,6 +144,13 @@ export function InvestProgressScreen() {
   }, [reviewedProgress]);
 
   const checkpointNow = useNowTicker(reviewedProgress?.phase === 'checkpoint');
+  const allBatchesComplete =
+    reviewedProgress?.phase === 'complete' &&
+    currentIndex === reviewedQueue.length - 1;
+  // Hold the HyperCore deposit until every wallet batch has landed. It does
+  // not depend on them, but it locks withdrawals for four days, so it must not
+  // start while a batch the user is still signing for could yet fail.
+  const armedSpotPlan = allBatchesComplete ? spotPlan : null;
   const hlpBatchComplete =
     hlpIndex >= 0 &&
     currentIndex === hlpIndex &&
@@ -127,6 +171,9 @@ export function InvestProgressScreen() {
         sourceTxHash,
         baselineUsd6: invest.hlpBaselineUsd6,
         hlpPlan: hlpBatchComplete ? hlpPlan : null,
+        spotPlan: armedSpotPlan,
+        fundingSource,
+        hyperCoreRequestedUsd6: hyperCoreDraft?.requestedUsd6 ?? null,
         wizardStage: wizard.stage,
         wizardErrorStage: wizard.error?.stage ?? null,
         hlpStatus: wizard.hlp.status,
@@ -136,10 +183,13 @@ export function InvestProgressScreen() {
       }),
     [
       agent.isReady,
+      armedSpotPlan,
       bridgeConfirmed,
       flowError,
+      fundingSource,
       hlpBatchComplete,
       hlpPlan,
+      hyperCoreDraft?.requestedUsd6,
       invest.hlpBaselineUsd6,
       reviewedProgress?.phase,
       reviewedProgress?.statusNote,
@@ -163,14 +213,31 @@ export function InvestProgressScreen() {
     });
   }, []);
 
+  /**
+   * Arm the vault deposit from whichever evidence this run actually has. The
+   * HyperCore path skips the baseline machinery entirely: `startSpotDeposit`
+   * sizes itself against the live account-mode-aware balance, so there is no
+   * bridge delta to measure and no source transaction to resume from.
+   */
   const trackHlpDeposit = useCallback(async () => {
+    if (armedSpotPlan) {
+      await startSpotDeposit(armedSpotPlan);
+      return;
+    }
     if (!hlpPlan || !sourceTxHash || !invest.hlpBaselineUsd6) return;
     await resumeReviewedPlan({
       plan: hlpPlan,
       baselineUsd6: BigInt(invest.hlpBaselineUsd6),
       sourceTxHash,
     });
-  }, [hlpPlan, invest.hlpBaselineUsd6, resumeReviewedPlan, sourceTxHash]);
+  }, [
+    armedSpotPlan,
+    hlpPlan,
+    invest.hlpBaselineUsd6,
+    resumeReviewedPlan,
+    sourceTxHash,
+    startSpotDeposit,
+  ]);
 
   useEffect(() => {
     if (currentResumeKey === null) {
@@ -277,17 +344,22 @@ export function InvestProgressScreen() {
   }
 
   const lastBatchIndex = reviewedQueue.length - 1;
-  const allBatchesComplete =
-    reviewedProgress.phase === 'complete' && currentIndex === lastBatchIndex;
   const hlpDone = wizard.stage === 'done';
-  const routeComplete = allBatchesComplete && (hlpIndex < 0 || hlpDone);
-  const rows = hlpProgressRows(hlpModel);
+  // A HyperCore leg runs after the last EVM batch lands, so collapsing this to
+  // `allBatchesComplete` would declare the route finished before the vault
+  // deposit had been attempted at all.
+  const hasHlpLeg = hlpIndex >= 0 || hyperCoreDraft !== null;
+  const routeComplete = allBatchesComplete && (hasHlpLeg ? hlpDone : true);
+  const rows = hasHlpLeg ? hlpProgressRows(hlpModel) : [];
   const accountUrl =
     wizard.hlp.status === 'submittedUnverified'
       ? hyperliquidAccountUrl(wizard.hlp, account.address)
       : null;
   const visibleError =
     (hlpBatchComplete ? unsafeResumeReason(hlpModel) : null) ??
+    (hyperCoreDraft && legPlan.isError
+      ? 'The Hyperliquid deposit could not be prepared. Retry in a moment.'
+      : null) ??
     flowError ??
     wizard.error?.message ??
     agent.error;
@@ -321,6 +393,7 @@ export function InvestProgressScreen() {
             amountLabel={formatUsd(invest.amountUsd)}
             statusLabel={investDoneStatusLabel({
               drafts: invest.stageDrafts,
+              hasHyperCoreLeg: hyperCoreDraft !== null,
               hlpDeposited: wizard.hlp.status === 'deposited',
             })}
             onDone={finish}
@@ -365,7 +438,7 @@ export function InvestProgressScreen() {
                   currentIndex,
                   phase: reviewedProgress.phase,
                 })}
-                isLast={index === lastBatchIndex && hlpIndex < 0}
+                isLast={index === lastBatchIndex && rows.length === 0}
               >
                 {index === currentIndex && reviewedProgress.transactionHash ? (
                   <Text className="mt-1 font-mono text-[9px] text-accent">
@@ -375,34 +448,15 @@ export function InvestProgressScreen() {
               </ProgressTimelineRow>
             );
           })}
-          {hlpIndex >= 0 ? (
-            <>
-              <ProgressTimelineRow
-                label="Bridge into Hyperliquid"
-                detail="Tracks the submitted transfer; the source transaction is never resubmitted."
-                tone={rows.bridge}
-              />
-              <ProgressTimelineRow
-                label="HyperCore USDC arrived"
-                detail={
-                  wizard.hlp.arrivedUsd6 !== null
-                    ? `${formatUnits(wizard.hlp.arrivedUsd6, 6)} USDC received for this deposit.`
-                    : 'Waiting for the spendable-balance delta above the pre-bridge snapshot.'
-                }
-                tone={rows.arrival}
-              />
-              <ProgressTimelineRow
-                label="Deposit into official HLP vault"
-                detail={
-                  wizard.hlp.status === 'confirming'
-                    ? 'Hyperliquid vaultTransfer submitted; verifying vault equity.'
-                    : 'Signed by your approved Zap Pilot agent once the bridge arrives.'
-                }
-                tone={rows.vault}
-                isLast
-              />
-            </>
-          ) : null}
+          {rows.map((row, index) => (
+            <ProgressTimelineRow
+              key={row.key}
+              label={hlpRowLabel(row.key)}
+              detail={hlpRowDetail(row.key, wizard.hlp)}
+              tone={row.state}
+              isLast={index === rows.length - 1}
+            />
+          ))}
         </View>
 
         {reviewedProgress.phase === 'checkpoint' && nextEntry ? (

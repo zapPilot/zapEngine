@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { BASE_DEPOSIT_TOKENS } from '@/integration/depositTokens';
 import type { StageDraft } from '@/integration/investTargetsModel';
+import type { HyperCoreFundingDraft } from '@/integration/useInvest';
 import {
   InvestExecutionProvider,
   type InvestExecutionContextValue,
@@ -35,6 +36,7 @@ const mocks = vi.hoisted(() => ({
   invalidateQueries: vi.fn(),
   invest: {
     stageDrafts: [] as StageDraft[],
+    hyperCoreFundingDraft: null as HyperCoreFundingDraft | null,
   },
   wallet: {
     account: {
@@ -202,6 +204,7 @@ async function settle(): Promise<void> {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.invest.stageDrafts = [stageDraft('1000000')];
+  mocks.invest.hyperCoreFundingDraft = null;
   mocks.wallet.account = { address: WALLET, isConnected: true };
   mocks.wallet.isConnected = true;
   mocks.wallet.executionMode = 'eip7702';
@@ -452,6 +455,37 @@ describe('InvestExecutionProvider reviewed execution contract', () => {
 
     expect(harness.current().reviewedSubmission).toBeNull();
     expect(harness.current().reviewedProgress).toBeNull();
+    expect(harness.current().reviewedQueue).toEqual([]);
+  });
+
+  it('clears a committed review when only the HyperCore leg amount changes', async () => {
+    // The leg is not a reviewed batch, so it contributes nothing to
+    // `stageDraftsKey`; without it in the execution key an in-flight run would
+    // survive an edit to the amount it is about to deposit.
+    mocks.invest.hyperCoreFundingDraft = {
+      source: 'hypercore-spot',
+      requestedUsd6: '57000000',
+      weightBps: 5700,
+    };
+    const harness = await renderHarness();
+
+    await act(async () => {
+      await harness.current().submitReviewedBatch({
+        plan: PLAN,
+        review: review(),
+      });
+    });
+    await settle();
+    expect(harness.current().reviewedSubmission).not.toBeNull();
+
+    mocks.invest.hyperCoreFundingDraft = {
+      source: 'hypercore-spot',
+      requestedUsd6: '58000000',
+      weightBps: 5700,
+    };
+    await harness.rerender();
+
+    expect(harness.current().reviewedSubmission).toBeNull();
     expect(harness.current().reviewedQueue).toEqual([]);
   });
 

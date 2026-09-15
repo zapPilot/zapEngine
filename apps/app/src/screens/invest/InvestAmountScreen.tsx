@@ -39,8 +39,13 @@ import {
   NATIVE_GAS_RESERVE_USD,
 } from '@/integration/investFundingPlanner';
 import { fundingSourceRows } from '@/integration/investFundingSources';
+import {
+  hlpSpendableUsd6,
+  hlpStandardAccountHint,
+} from '@/integration/hyperliquidPanelModel';
 import { requestAccountConnection } from '@/integration/requestAccountConnection';
 import { useAccount } from '@/integration/useAccount';
+import { useHyperCoreSpendable } from '@/integration/useHlpBalances';
 import { useInvest } from '@/integration/useInvest';
 import { useWalletAssets } from '@/integration/walletTokens';
 import { formatUsd6 } from '@/lib/format';
@@ -54,9 +59,16 @@ export function InvestAmountScreen() {
     sectorId: InvestSectorId;
     text: string;
   } | null>(null);
+  const hyperCore = useHyperCoreSpendable(account.address);
   const supply = {
     rows: balances.chainRows,
     unavailableChainIds: unavailableChainIds(balances.failedChains),
+    // Loading spends as zero so step 1 never waits on the Hyperliquid API: the
+    // plan starts out bridged and flips to HyperCore when the balance lands.
+    // Only a genuine read failure becomes `null`, which the card explains.
+    hyperCoreSpendableUsd6: hyperCore.isError
+      ? null
+      : (hlpSpendableUsd6(hyperCore.balance) ?? 0n),
   };
   const constraints = {
     preferences: invest.fundingPreferences,
@@ -134,6 +146,18 @@ export function InvestAmountScreen() {
     }
     if (!canReview || !plan.stages) return;
     invest.setStageDrafts(plan.stages);
+    // Both slots are written every time, including the null branch: this setter
+    // does not clear frozen execution state, so a stale leg would otherwise
+    // survive into a plan that no longer has one.
+    invest.setHyperCoreFundingDraft(
+      plan.hyperCoreLeg
+        ? {
+            source: 'hypercore-spot',
+            requestedUsd6: plan.hyperCoreLeg.usd6,
+            weightBps: plan.hyperCoreLeg.weightBps,
+          }
+        : null,
+    );
     router.push('/invest/route');
   };
   const primaryLabel = !account.isConnected
@@ -201,9 +225,9 @@ export function InvestAmountScreen() {
           hasAmount={amountUsd6 > 0n}
           isConnected={account.isConnected}
           hasPreferences={Object.keys(invest.fundingPreferences).length > 0}
+          hyperCoreNote={hlpStandardAccountHint(hyperCore.balance)}
           onChangePreference={invest.setFundingPreference}
           onUseRecommended={invest.clearFundingPreferences}
-          onOpenHlpSpotDeposit={() => router.push('/invest/hlp-deposit')}
         />
         <View className="mt-5 flex-row items-center justify-between">
           <Text className="font-sans-semibold text-[16px] text-ink">

@@ -1,6 +1,7 @@
 import type {
   DepositPlan,
   DepositReviewGroup,
+  HlpSpotDepositPlan,
   PlanOrchestrationDepositReviewResponse,
   StrategyDepositPlan,
 } from '@zapengine/types/api';
@@ -136,6 +137,27 @@ const hlpPlan: DepositPlan = {
   ],
   totalGasUsd: '0.02',
   sourceChainId: 42161,
+};
+
+const spotPlanFixture: HlpSpotDepositPlan = {
+  kind: 'hlp-spot-deposit',
+  execution: 'hypercore-signatures',
+  amountUsd6: '24000000',
+  minDepositUsd: '10000000',
+  lockupDays: 4,
+  step: {
+    kind: 'hyperliquid-vault-deposit',
+    chainId: 1337,
+    amount: { source: 'fixed', amount: '24000000' },
+    minDepositUsd: '10000000',
+    action: { type: 'vaultTransfer', vaultAddress: HLP_VAULT, isDeposit: true },
+    signing: {
+      scheme: 'hyperliquid-l1-action',
+      hyperliquidChain: 'Mainnet',
+      apiUrl: 'https://api.hyperliquid.xyz',
+    },
+    lockupDays: 4,
+  },
 };
 
 describe('reviewGroupBlocked', () => {
@@ -363,6 +385,8 @@ describe('batchSummaryRows', () => {
 
 describe('hlpStageProgressInput', () => {
   const base = {
+    fundingSource: 'bridge' as const,
+    hyperCoreRequestedUsd6: null,
     hasReviewedSubmission: true,
     reviewedPhase: 'complete' as const,
     reviewedStatusNote: null,
@@ -377,14 +401,23 @@ describe('hlpStageProgressInput', () => {
   };
 
   it('reports the HLP step only when the plan carries one', () => {
-    expect(hlpStageProgressInput({ ...base, hlpPlan })).toMatchObject({
-      hasExactPlan: true,
-      hasHlpStep: true,
-    });
-    expect(hlpStageProgressInput({ ...base, hlpPlan: null })).toMatchObject({
-      hasExactPlan: false,
-      hasHlpStep: false,
-    });
+    expect(
+      hlpStageProgressInput({ ...base, hlpPlan, spotPlan: null }),
+    ).toMatchObject({ hasExactPlan: true, hasHlpStep: true });
+    expect(
+      hlpStageProgressInput({ ...base, hlpPlan: null, spotPlan: null }),
+    ).toMatchObject({ hasExactPlan: false, hasHlpStep: false });
+  });
+
+  it('takes a HyperCore plan as complete on its own, with no batch to wait for', () => {
+    expect(
+      hlpStageProgressInput({
+        ...base,
+        fundingSource: 'hypercore',
+        hlpPlan: null,
+        spotPlan: spotPlanFixture,
+      }),
+    ).toMatchObject({ hasExactPlan: true, hasHlpStep: true });
   });
 });
 
@@ -393,14 +426,31 @@ describe('investDoneStatusLabel', () => {
     expect(
       investDoneStatusLabel({
         drafts: [morphoDraft, gmxDraft, hlpDraft],
+        hasHyperCoreLeg: false,
         hlpDeposited: true,
       }),
     ).toBe('Morpho supplied · GMX settled · HLP deposited');
     expect(
-      investDoneStatusLabel({ drafts: [hlpDraft], hlpDeposited: false }),
+      investDoneStatusLabel({
+        drafts: [hlpDraft],
+        hasHyperCoreLeg: false,
+        hlpDeposited: false,
+      }),
     ).toBe('HLP pending');
-    expect(investDoneStatusLabel({ drafts: [], hlpDeposited: false })).toBe(
-      'Route complete',
-    );
+    expect(
+      investDoneStatusLabel({
+        drafts: [],
+        hasHyperCoreLeg: false,
+        hlpDeposited: false,
+      }),
+    ).toBe('Route complete');
+    // A HyperCore-funded HLP share leaves no draft, so it must be named anyway.
+    expect(
+      investDoneStatusLabel({
+        drafts: [morphoDraft, gmxDraft],
+        hasHyperCoreLeg: true,
+        hlpDeposited: true,
+      }),
+    ).toBe('Morpho supplied · GMX settled · HLP deposited');
   });
 });
