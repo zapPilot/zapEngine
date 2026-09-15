@@ -22,15 +22,6 @@ export interface ViableCandidateOptions {
   allowLogo?: boolean;
 }
 
-export function viableCandidates(
-  candidates: readonly ImageCandidate[],
-  allowedOrigins: readonly ImageCandidate['origin'][],
-  options: ViableCandidateOptions = {},
-): ImageCandidate[] {
-  return partitionViableCandidates(candidates, allowedOrigins, options)
-    .candidates;
-}
-
 export interface PartitionedViableCandidates {
   candidates: ImageCandidate[];
   drops: Map<string, number>;
