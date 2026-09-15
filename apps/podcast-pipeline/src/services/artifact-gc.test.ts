@@ -35,6 +35,27 @@ it.each([
   expect(classifyArtifactKey(key)?.kind).toBe(kind),
 );
 
+it('blocks an entire artifact prefix when any sibling object is unfamiliar', () => {
+  const prefix = video('mixed');
+  const plan = planArtifactGc({
+    now,
+    references: new Set(),
+    retirements: new Map([[prefix, old]]),
+    objects: [object(prefix), object(prefix, 'unexpected.bin')],
+  });
+
+  expect(plan).toHaveLength(1);
+  expect(plan[0]).toMatchObject({
+    prefix,
+    decision: 'malformed',
+    bytes: 200,
+  });
+  expect(plan[0]?.objects.map(({ key }) => key)).toEqual([
+    `${prefix}/video.mp4`,
+    `${prefix}/unexpected.bin`,
+  ]);
+});
+
 it('keeps current video/visual and grace versions across historical hashes', () => {
   const plan = planArtifactGc({
     now,
