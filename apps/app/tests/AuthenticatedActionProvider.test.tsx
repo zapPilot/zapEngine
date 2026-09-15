@@ -13,6 +13,7 @@ import {
 const mocks = vi.hoisted(() => ({
   account: {
     isConnected: false,
+    isConnecting: false,
     connect: vi.fn<() => Promise<ConnectOutcome>>(),
   },
 }));
@@ -62,6 +63,7 @@ beforeEach(() => {
   ).IS_REACT_ACT_ENVIRONMENT = true;
   vi.clearAllMocks();
   mocks.account.isConnected = false;
+  mocks.account.isConnecting = false;
   mocks.account.connect.mockResolvedValue('connected');
   authContext = undefined;
   container = document.createElement('div');
@@ -82,6 +84,21 @@ describe('AuthenticatedActionProvider', () => {
     await act(async () => context().run(action));
 
     expect(mocks.account.connect).toHaveBeenCalledTimes(1);
+    expect(action).not.toHaveBeenCalled();
+
+    await reconnect();
+
+    expect(action).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not start another login while a connection is already in progress', async () => {
+    mocks.account.isConnecting = true;
+    await render();
+    const action = vi.fn();
+
+    await act(async () => context().run(action));
+
+    expect(mocks.account.connect).not.toHaveBeenCalled();
     expect(action).not.toHaveBeenCalled();
 
     await reconnect();

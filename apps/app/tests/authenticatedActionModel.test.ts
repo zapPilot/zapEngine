@@ -25,6 +25,19 @@ describe('authenticated action model', () => {
     expect(latest).toHaveBeenCalledTimes(1);
   });
 
+  it('runs a newly authenticated action instead of a previously queued action', () => {
+    const queued = vi.fn();
+    const authenticated = vi.fn();
+    const model = createAuthenticatedActionModel();
+
+    expect(model.request(false, queued)).toBe(true);
+    expect(model.request(true, authenticated)).toBe(false);
+    model.resume();
+
+    expect(queued).not.toHaveBeenCalled();
+    expect(authenticated).toHaveBeenCalledTimes(1);
+  });
+
   it('does not resume a cancelled action', () => {
     const action = vi.fn();
     const model = createAuthenticatedActionModel();
@@ -34,5 +47,19 @@ describe('authenticated action model', () => {
     model.resume();
 
     expect(action).not.toHaveBeenCalled();
+  });
+
+  it('accepts a new pending action after cancellation', () => {
+    const cancelled = vi.fn();
+    const later = vi.fn();
+    const model = createAuthenticatedActionModel();
+
+    expect(model.request(false, cancelled)).toBe(true);
+    model.cancel();
+    expect(model.request(false, later)).toBe(true);
+    model.resume();
+
+    expect(cancelled).not.toHaveBeenCalled();
+    expect(later).toHaveBeenCalledTimes(1);
   });
 });
