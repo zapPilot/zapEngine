@@ -35,11 +35,6 @@ const RawIntegerSchema = z.union([
   z.string().regex(/^0x[0-9a-fA-F]+$/),
 ]);
 
-const RawAmountSchema = z.union([
-  z.string().min(1),
-  z.number().int().nonnegative(),
-]);
-
 const RawTokenInfoSchema = z
   .object({
     contract_address: z.string().regex(ADDRESS_REGEX).optional(),
@@ -56,7 +51,7 @@ const RawAssetChangeSchema = z
     type: z.string().min(1),
     from: z.string().regex(ADDRESS_REGEX).optional().nullable(),
     to: z.string().regex(ADDRESS_REGEX).optional().nullable(),
-    raw_amount: RawAmountSchema,
+    raw_amount: RawIntegerSchema,
     amount: z.string().optional(),
   })
   .passthrough();
@@ -67,7 +62,7 @@ const RawExposureChangeSchema = z
     type: z.string().min(1),
     owner: z.string().regex(ADDRESS_REGEX),
     spender: z.string().regex(ADDRESS_REGEX),
-    raw_amount: RawAmountSchema,
+    raw_amount: RawIntegerSchema,
     amount: z.string().optional(),
   })
   .passthrough();
@@ -204,6 +199,9 @@ function integerString(value: number | string): string {
 }
 
 function parseRawAmount(value: number | string): bigint {
+  // RawIntegerSchema only admits decimal or 0x-hex digit strings, and BigInt
+  // parses both — a catch-and-passthrough here could never run on payloads
+  // that survived validation.
   return BigInt(value);
 }
 

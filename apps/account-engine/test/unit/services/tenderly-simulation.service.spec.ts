@@ -368,6 +368,39 @@ describe('TenderlySimulationService', () => {
     });
   });
 
+  it('rejects a non-numeric raw_amount instead of throwing during normalization', async () => {
+    const fetchFn = vi.fn().mockResolvedValue(
+      response([
+        simulationResult({
+          id: 'sim-bad-amount',
+          assetChanges: [
+            {
+              token_info: tokenInfo,
+              type: 'Transfer',
+              from: SPENDER,
+              to: WALLET,
+              raw_amount: 'not-a-number',
+              amount: '0',
+            },
+          ],
+          contracts: [contract(TOKEN, { token: true })],
+        }),
+      ]),
+    );
+    const service = createService(fetchFn);
+
+    const result = await service.simulateBundle({
+      chainId: 8453,
+      walletAddress: WALLET,
+      calls: [{ to: TOKEN, data: '0x1234' }],
+    });
+
+    expect(result).toMatchObject({
+      status: 'unavailable',
+      unavailableReason: 'Tenderly returned malformed simulation data',
+    });
+  });
+
   it('preserves a failed result and marks later unexecuted calls as skipped', async () => {
     const fetchFn = vi.fn().mockResolvedValueOnce(
       response([
