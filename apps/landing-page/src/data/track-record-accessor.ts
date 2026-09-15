@@ -150,8 +150,8 @@ function computePerformanceSummary(
   const cumulativeReturn = lastNav / firstNav - 1;
   const totalDays = snapshots.length;
   const years = totalDays / 365;
-  const annualizedReturn =
-    years > 0 ? Math.pow(lastNav / firstNav, 1 / years) - 1 : 0;
+  // The empty collection returned above; every non-empty history has > 0 years.
+  const annualizedReturn = Math.pow(lastNav / firstNav, 1 / years) - 1;
 
   const navs = snapshots.map((s) => parseFloat(s.nav.usd));
   let peak = navs[0]!;
@@ -497,7 +497,8 @@ function stableStringify(value: unknown): string | undefined {
 function canonicalizeSnapshotForSigning(snapshot: DailySnapshot): string {
   const unsignedSnapshot: Record<string, unknown> = { ...snapshot };
   delete unsignedSnapshot['signature'];
-  return stableStringify(unsignedSnapshot) ?? '{}';
+  // A spread snapshot is always an object, which stableStringify serializes.
+  return stableStringify(unsignedSnapshot)!;
 }
 
 function createSnapshotMessageHash(snapshot: DailySnapshot): `0x${string}` {

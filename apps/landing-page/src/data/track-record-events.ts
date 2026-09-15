@@ -203,22 +203,22 @@ function classify(
   if (riskIn === 0 && riskOut === 0) return null;
 
   const gained = RISK_ASSETS.filter((asset) => (deltas.get(asset) ?? 0) > 0);
-  const target =
-    gained.length > 0
-      ? gained.reduce((best, asset) =>
-          (deltas.get(asset) ?? 0) > (deltas.get(best) ?? 0) ? asset : best,
-        )
-      : null;
+  const target = gained[0]
+    ? gained.reduce((best, asset) =>
+        (deltas.get(asset) ?? 0) > (deltas.get(best) ?? 0) ? asset : best,
+      )
+    : null;
   const fromAssets = RISK_ASSETS.filter(
     (asset) => (deltas.get(asset) ?? 0) < 0,
   ).sort((a, b) => (deltas.get(a) ?? 0) - (deltas.get(b) ?? 0));
   const amountPercent = Math.round(Math.max(riskIn, riskOut) * 10) / 10;
 
   if (riskIn > 0 && riskOut > 0) {
-    if (target === null) return null;
+    // riskIn can only be positive when at least one risk asset gained.
+    const rotationTarget = target!;
     return {
-      type: ROTATION_TYPE[target],
-      toAsset: target,
+      type: ROTATION_TYPE[rotationTarget],
+      toAsset: rotationTarget,
       fromAssets,
       amountPercent,
     };

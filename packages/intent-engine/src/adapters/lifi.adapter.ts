@@ -112,16 +112,10 @@ export class LiFiAdapter {
     return this.sdkPromise;
   }
 
-  private buildQuoteRequest(_params: QuoteParams): QuoteRequest {
-    throw new Error('Not implemented - use getQuote directly');
-  }
-
   /**
    * Get a simple swap quote (same-chain or cross-chain)
    */
-  async getSwapQuote(
-    params: Parameters<typeof this.buildQuoteRequest>[0],
-  ): Promise<TransactionQuote> {
+  async getSwapQuote(params: QuoteParams): Promise<TransactionQuote> {
     return this.getQuote({ ...params, intentType: 'SWAP' });
   }
 
