@@ -7,39 +7,63 @@ import { InvestLineItem } from '@/components/invest/InvestLineItem';
 import { TokenIcon } from '@/components/token/TokenIcon';
 import { Disclosure } from '@/components/ui/Disclosure';
 import { Tap } from '@/components/ui/Tap';
-import type { DesktopDepositToken } from '@/integration/depositTokens';
+import type {
+  DepositTokenSymbol,
+  StrategyFundingChainId,
+} from '@/integration/depositTokens';
 import {
   fundingPlanSummary,
-  fundingSourceLabel,
-  fundingRouteLabel,
   type FundingPlan,
 } from '@/integration/investFundingPlanner';
-import {
-  INVEST_POSITIONS,
-  type InvestPositionId,
-} from '@/integration/investTargetsModel';
+import type {
+  FundingSourceRow,
+  FundingSourceView,
+} from '@/integration/investFundingSources';
 import { formatUsd6 } from '@/lib/format';
+
+/**
+ * Deliberately free of route names and fee estimates: the ranking is a static
+ * cost tier, not a quote, so anything money-shaped here would be invented.
+ */
+function sourceSubtitle(row: FundingSourceRow): string {
+  if (row.status === 'unavailable') return 'Balance unavailable';
+  if (row.balanceUsd6 === null) return 'Price unavailable';
+  const parts = [`${formatUsd6(row.balanceUsd6)} balance`];
+  if (row.status !== 'used') parts.push('Not used');
+  if (row.preferred) parts.push('Custom');
+  return parts.join(' · ');
+}
+
 export function FundingPlanDisclosure({
   plan,
+  sources,
   hasAmount,
   isConnected,
-  hasOverrides,
-  onChangeSource,
+  hasPreferences,
+  onChangePreference,
   onUseRecommended,
   onOpenHlpSpotDeposit,
 }: {
   plan: FundingPlan;
+  sources: FundingSourceView;
   hasAmount: boolean;
   isConnected: boolean;
-  hasOverrides: boolean;
-  onChangeSource: (id: InvestPositionId, token: DesktopDepositToken) => void;
+  hasPreferences: boolean;
+  onChangePreference: (
+    chainId: StrategyFundingChainId,
+    symbol: DepositTokenSymbol | null,
+  ) => void;
   onUseRecommended: () => void;
   onOpenHlpSpotDeposit: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const [picker, setPicker] = useState<InvestPositionId | null>(null);
-  const count = new Set(plan.assignments.map((a) => a.source.token.chainId))
-    .size;
+  const [picker, setPicker] = useState<StrategyFundingChainId | null>(null);
+  // Empty balances would triple the list without answering anything.
+  const visible = sources.rows.filter((row) => row.status !== 'empty');
+  // Rows are funded-first, so a chain's first visible row is the one it is
+  // currently drawing on; only that row carries the chain's switch control.
+  const isChainAnchor = (row: FundingSourceRow): boolean =>
+    visible.find((other) => other.token.chainId === row.token.chainId) === row;
   return (
     <View className="mt-4 rounded-[18px] border border-line px-4">
       <Disclosure
@@ -54,55 +78,52 @@ export function FundingPlanDisclosure({
                 How we&apos;ll fund this
               </Text>
               <Text className="mt-1 text-[10px] text-ink-dim">
-                {fundingPlanSummary(plan, { hasOverrides, isConnected })}
+                {fundingPlanSummary({
+                  sourceCount: sources.usedSourceCount,
+                  hasPreferences,
+                  isConnected,
+                })}
               </Text>
             </View>
           </>
         }
       >
         <Text className="text-[9px] uppercase text-ink-faint">Sources</Text>
-        {INVEST_POSITIONS.filter((p) => plan.options[p.id]).map((p) => {
-          const a = plan.assignments.find((a) => a.positionId === p.id);
-          const canChange =
-            plan.options[p.id]!.filter((o) => o.rejection === null).length > 1;
-          return (
-            <InvestLineItem
-              key={p.id}
-              icon={
-                a ? (
-                  <TokenIcon
-                    symbol={a.source.token.symbol}
-                    chainKey={a.source.token.chainKey}
-                    size={28}
-                    alt=""
-                  />
-                ) : undefined
-              }
-              title={p.venue}
-              subtitle={
-                a
-                  ? `${fundingSourceLabel(a.source.token)} · ${fundingRouteLabel(a)}${a.pinned ? ' · Custom' : ''}`
-                  : 'No balance can cover this'
-              }
-              value={a && hasAmount ? formatUsd6(a.usd6) : '—'}
-              valueTone={a ? undefined : 'error'}
-              divider
-              trailing={
-                canChange ? (
-                  <Tap
-                    accessibilityRole="button"
-                    accessibilityLabel={`Change source for ${p.label}`}
-                    onPress={() => setPicker(p.id)}
-                  >
-                    <Text className="mt-2 text-[10px] text-accent">
-                      Change source
-                    </Text>
-                  </Tap>
-                ) : undefined
-              }
-            />
-          );
-        })}
+        {visible.map((row) => (
+          <InvestLineItem
+            key={row.key}
+            icon={
+              <TokenIcon
+                symbol={row.symbol}
+                chainKey={row.token.chainKey}
+                size={28}
+                alt=""
+              />
+            }
+            title={row.label}
+            subtitle={sourceSubtitle(row)}
+            value={
+              row.status === 'used' && hasAmount
+                ? formatUsd6(row.usedUsd6)
+                : '—'
+            }
+            valueTone={row.status === 'unavailable' ? 'error' : undefined}
+            divider
+            trailing={
+              row.canChange && isChainAnchor(row) ? (
+                <Tap
+                  accessibilityRole="button"
+                  accessibilityLabel={`Change source for ${row.chainLabel}`}
+                  onPress={() => setPicker(row.token.chainId)}
+                >
+                  <Text className="mt-2 text-[10px] text-accent">
+                    Change source
+                  </Text>
+                </Tap>
+              ) : undefined
+            }
+          />
+        ))}
         <Text className="my-2 text-[10px] text-ink-dim">
           We keep about $5 of ETH on each chain for gas.
         </Text>
@@ -125,9 +146,10 @@ export function FundingPlanDisclosure({
             );
           })}
         <Text className="my-2 text-[10px] text-ink-dim">
-          {count} wallet batches — one signature per source chain.
+          {sources.usedChainCount} wallet batches — one signature per source
+          chain.
         </Text>
-        {hasOverrides ? (
+        {hasPreferences ? (
           <Tap accessibilityRole="button" onPress={onUseRecommended}>
             <Text className="py-2 text-[11px] text-accent">
               Use recommended
@@ -142,17 +164,14 @@ export function FundingPlanDisclosure({
           </Tap>
         ) : null}
       </Disclosure>
-      {picker ? (
+      {picker !== null ? (
         <ChainTokenSelectorSheet
           visible
           title="Change source"
-          subtitle="Choose a balance that can cover this position."
-          options={plan.options[picker] ?? []}
-          selected={
-            plan.assignments.find((a) => a.positionId === picker)?.source
-              .token ?? null
-          }
-          onSelect={(token) => onChangeSource(picker, token)}
+          subtitle="Choose which balance funds this chain."
+          rows={sources.rows.filter((row) => row.token.chainId === picker)}
+          onSelect={(symbol) => onChangePreference(picker, symbol)}
+          onClearPreference={() => onChangePreference(picker, null)}
           onClose={() => setPicker(null)}
         />
       ) : null}

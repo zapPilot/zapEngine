@@ -1,9 +1,10 @@
-import { CHAIN_BRAND } from '@zapengine/brand-assets';
 import {
   ARBITRUM_DEPOSIT_TOKENS as A,
   BASE_DEPOSIT_TOKENS as B,
   ETHEREUM_DEPOSIT_TOKENS as E,
+  type DepositTokenSymbol,
   type DesktopDepositToken,
+  type StrategyFundingChainId,
 } from '@/integration/depositTokens';
 import {
   balanceForFundingToken,
@@ -17,8 +18,6 @@ import {
   weightBpsFor,
   isValidTargetAllocation,
   hlpIngressFor,
-  hlpRouteLabel,
-  chainBatchDrafts,
   type InvestPositionId,
   type StageDraft,
   type TargetAllocation,
@@ -29,6 +28,15 @@ import type {
 } from '@/integration/walletTokens';
 
 export const NATIVE_GAS_RESERVE_USD = 5;
+/** Every balance the planner may draw on, in the order sources are listed. */
+export const FUNDING_TOKEN_UNIVERSE: readonly DesktopDepositToken[] = [
+  ...B,
+  ...A,
+  ...E,
+];
+const FUNDING_CHAIN_IDS: readonly StrategyFundingChainId[] = [
+  ...new Set(FUNDING_TOKEN_UNIVERSE.map((t) => t.chainId)),
+];
 export interface FundingCandidate {
   token: DesktopDepositToken;
   route:
@@ -66,8 +74,12 @@ export const STATIC_FUNDING_RANKING: Record<
     candidate(E[1], 'lifi-swap-bridge', 4),
   ],
 };
-export type FundingOverrides = Partial<
-  Record<InvestPositionId, DesktopDepositToken>
+/**
+ * One chosen balance per source chain. A chain with no entry is left to the
+ * automatic ranking, so an empty object reproduces the recommended plan.
+ */
+export type FundingPreferences = Partial<
+  Record<StrategyFundingChainId, DepositTokenSymbol>
 >;
 type Rejection =
   | 'chain-unavailable'
@@ -78,9 +90,9 @@ export type FundingBlocker =
   | { kind: 'invalid-allocation' }
   | {
       kind: 'override-not-viable';
-      positionId: InvestPositionId;
-      token: DesktopDepositToken;
-      reason: Rejection | 'not-a-candidate';
+      chainId: StrategyFundingChainId;
+      symbol: DepositTokenSymbol;
+      reason: 'not-a-candidate' | 'blocks-plan';
     }
   | {
       kind: 'chain-unavailable';
@@ -107,7 +119,6 @@ export interface FundingAssignment {
   source: FundingCandidate;
   fromAmount: string;
   availableUsd6: bigint;
-  pinned: boolean;
 }
 export interface FundingOption {
   candidate: FundingCandidate;
@@ -128,22 +139,22 @@ export interface FundingPlan {
   warnings: FundingWarning[];
   options: Partial<Record<InvestPositionId, FundingOption[]>>;
 }
-interface SupplyInput {
+export interface FundingSupplyInput {
   rows: readonly ChainTokenBalanceRow[];
   unavailableChainIds: readonly number[];
 }
 interface Constraints {
-  overrides: FundingOverrides;
+  preferences: FundingPreferences;
   gasReserveUsd: number;
 }
 interface CapacityInput {
   allocations: readonly TargetAllocation[];
-  supply: SupplyInput;
+  supply: FundingSupplyInput;
   constraints: Constraints;
 }
 interface PlanInput {
   demand: { totalUsd6: string; allocations: readonly TargetAllocation[] };
-  supply: SupplyInput;
+  supply: FundingSupplyInput;
   constraints: Constraints;
 }
 const tokenKey = (t: DesktopDepositToken): string =>
@@ -154,33 +165,49 @@ export function sameDepositToken(
 ): boolean {
   return tokenKey(a) === tokenKey(b);
 }
-interface SupplyEntry {
+export interface FundingSupplyEntry {
+  /** Balance in USD before the native gas reserve; null when unpriced. */
+  balanceUsd6: bigint | null;
   spendableUsd6: bigint | null;
+  /** True whenever the wallet holds any of this token, priced or not. */
+  hasBalance: boolean;
   usdPrice: number | null;
   unavailable: boolean;
 }
-function buildSupply(
-  supply: SupplyInput,
-  constraints: Constraints,
-): Map<string, SupplyEntry> {
+function usdToUsd6(usd: number | null): bigint | null {
+  if (usd === null) return null;
+  const scaled = Math.floor(Math.max(0, usd) * 1e6);
+  return Number.isSafeInteger(scaled) ? BigInt(scaled) : null;
+}
+/**
+ * The one place the $5 native gas reserve is applied, so a displayed balance
+ * and the amount the planner may spend can never drift apart.
+ */
+export function buildFundingSupply(
+  supply: FundingSupplyInput,
+  gasReserveUsd: number,
+): Map<string, FundingSupplyEntry> {
   return new Map(
-    [...B, ...A, ...E].map((token) => {
+    FUNDING_TOKEN_UNIVERSE.map((token) => {
       const row = balanceForFundingToken(supply.rows, token);
       const price = token.symbol === 'ETH' ? (row?.usdPrice ?? null) : 1;
-      let spendable: bigint | null = BigInt(row?.balanceBaseUnits ?? '0');
-      if (token.symbol === 'ETH' && spendable > 0n) {
-        const scaled =
+      const raw = BigInt(row?.balanceBaseUnits ?? '0');
+      let balanceUsd6: bigint | null = raw;
+      let spendableUsd6: bigint | null = raw;
+      if (token.symbol === 'ETH' && raw > 0n) {
+        const usd =
           row?.usdValue == null || price === null || price <= 0
-            ? NaN
-            : Math.floor(
-                Math.max(0, row.usdValue - constraints.gasReserveUsd) * 1e6,
-              );
-        spendable = Number.isSafeInteger(scaled) ? BigInt(scaled) : null;
+            ? null
+            : row.usdValue;
+        balanceUsd6 = usdToUsd6(usd);
+        spendableUsd6 = usdToUsd6(usd === null ? null : usd - gasReserveUsd);
       }
       return [
         tokenKey(token),
         {
-          spendableUsd6: spendable,
+          balanceUsd6,
+          spendableUsd6,
+          hasBalance: raw > 0n,
           usdPrice: price,
           unavailable: supply.unavailableChainIds.includes(token.chainId),
         },
@@ -188,11 +215,17 @@ function buildSupply(
     }),
   );
 }
+export function fundingSupplyEntry(
+  supply: ReadonlyMap<string, FundingSupplyEntry>,
+  token: DesktopDepositToken,
+): FundingSupplyEntry {
+  return supply.get(tokenKey(token))!;
+}
 function evaluate(
   c: FundingCandidate,
   id: InvestPositionId,
   usd6: bigint,
-  supply: Map<string, SupplyEntry>,
+  supply: Map<string, FundingSupplyEntry>,
   reserved: Map<string, bigint>,
 ): Omit<FundingOption, 'candidate' | 'selected'> & { fromAmount: string } {
   const entry = supply.get(tokenKey(c.token))!;
@@ -225,10 +258,10 @@ function candidatesFor(
   constraints: Constraints,
   ranking: typeof STATIC_FUNDING_RANKING,
 ): FundingCandidate[] {
-  const override = constraints.overrides[id];
-  return ranking[id].filter(
-    (c) => !override || sameDepositToken(c.token, override),
-  );
+  return ranking[id].filter((c) => {
+    const preferred = constraints.preferences[c.token.chainId];
+    return preferred === undefined || c.token.symbol === preferred;
+  });
 }
 function combinations(lists: FundingCandidate[][]): FundingCandidate[][] {
   return lists.reduce<FundingCandidate[][]>(
@@ -247,14 +280,19 @@ function toStage(a: FundingAssignment): StageDraft {
     ? { ...common, positionId: 'hlp', ingress: hlpIngressFor(a.source.token) }
     : { ...common, positionId: a.positionId };
 }
+/** Everything a solve needs beyond the demand it is solving for. */
+interface SolveContext {
+  ranking: typeof STATIC_FUNDING_RANKING;
+  shares: NonNullable<ReturnType<typeof targetUsd6Shares>>;
+  supply: Map<string, FundingSupplyEntry>;
+  funded: typeof INVEST_POSITIONS;
+}
 /** Replace this selection boundary when a server optimizer is available. */
 function selectAssignments(
   input: PlanInput,
-  ranking: typeof STATIC_FUNDING_RANKING,
-  shares: NonNullable<ReturnType<typeof targetUsd6Shares>>,
-  supply: Map<string, SupplyEntry>,
-  funded: typeof INVEST_POSITIONS,
+  context: SolveContext,
 ): { assignments: FundingAssignment[]; complete: boolean } {
+  const { ranking, shares, supply, funded } = context;
   let chosen: FundingAssignment[] = [];
   const lists = funded.map((p) =>
     candidatesFor(p.id, input.constraints, ranking),
@@ -274,7 +312,6 @@ function selectAssignments(
         source,
         fromAmount: check.fromAmount,
         availableUsd6: check.availableUsd6!,
-        pinned: Boolean(input.constraints.overrides[id]),
       });
       reserved.set(
         tokenKey(source.token),
@@ -289,6 +326,47 @@ function selectAssignments(
       chosen = assignments;
   }
   return { assignments: chosen, complete: bestCost < Infinity };
+}
+function preferenceEntries(
+  preferences: FundingPreferences,
+): { chainId: StrategyFundingChainId; symbol: DepositTokenSymbol }[] {
+  return FUNDING_CHAIN_IDS.flatMap((chainId) => {
+    const symbol = preferences[chainId];
+    return symbol === undefined ? [] : [{ chainId, symbol }];
+  });
+}
+/**
+ * A preference narrows a whole chain, so a rejection cannot be attributed to
+ * one destination. `blocks-plan` is therefore proven by re-solving without
+ * preferences rather than inferred from a per-destination rejection.
+ */
+function preferenceBlockers(
+  input: PlanInput,
+  context: SolveContext,
+): FundingBlocker[] {
+  const { ranking, funded } = context;
+  const entries = preferenceEntries(input.constraints.preferences);
+  if (entries.length === 0) return [];
+  const relaxed = selectAssignments(
+    { ...input, constraints: { ...input.constraints, preferences: {} } },
+    context,
+  );
+  return entries.flatMap<FundingBlocker>(({ chainId, symbol }) => {
+    const known = funded.some((p) =>
+      ranking[p.id].some(
+        (c) => c.token.chainId === chainId && c.token.symbol === symbol,
+      ),
+    );
+    if (known && !relaxed.complete) return [];
+    return [
+      {
+        kind: 'override-not-viable',
+        chainId,
+        symbol,
+        reason: known ? 'blocks-plan' : 'not-a-candidate',
+      },
+    ];
+  });
 }
 export function planFunding(
   input: PlanInput,
@@ -310,8 +388,12 @@ export function planFunding(
     return result;
   }
   const funded = INVEST_POSITIONS.filter((p) => shares[p.id] > 0n);
-  const supply = buildSupply(input.supply, input.constraints);
-  const selection = selectAssignments(input, ranking, shares, supply, funded);
+  const supply = buildFundingSupply(
+    input.supply,
+    input.constraints.gasReserveUsd,
+  );
+  const context: SolveContext = { ranking, shares, supply, funded };
+  const selection = selectAssignments(input, context);
   result.assignments = selection.assignments;
   for (const p of funded) {
     const reserved = new Map<string, bigint>();
@@ -331,20 +413,9 @@ export function planFunding(
   }
   if (selection.complete) result.stages = result.assignments.map(toStage);
   else {
-    const blockers: FundingBlocker[] = [];
+    const blockers: FundingBlocker[] = preferenceBlockers(input, context);
     for (const p of funded) {
       const opts = result.options[p.id]!;
-      const override = input.constraints.overrides[p.id];
-      const pinned = opts.find(
-        (o) => override && sameDepositToken(o.candidate.token, override),
-      );
-      if (override && (!pinned || pinned.rejection))
-        blockers.push({
-          kind: 'override-not-viable',
-          positionId: p.id,
-          token: override,
-          reason: pinned?.rejection ?? 'not-a-candidate',
-        });
       if (opts.every((o) => o.rejection === 'chain-unavailable'))
         blockers.push({
           kind: 'chain-unavailable',
@@ -399,7 +470,7 @@ export function planFunding(
     result.assignments.map((a) => a.source.token.chainId),
   );
   for (const chainId of usedChains) {
-    const eth = [...B, ...A, ...E].find(
+    const eth = FUNDING_TOKEN_UNIVERSE.find(
       (t) => t.chainId === chainId && t.symbol === 'ETH',
     )!;
     const row = balanceForFundingToken(input.supply.rows, eth);
@@ -437,7 +508,10 @@ export function planFunding(
 }
 export function fundingCapacityUsd6(input: CapacityInput): bigint | null {
   if (!isValidTargetAllocation(input.allocations)) return 0n;
-  const supply = buildSupply(input.supply, input.constraints);
+  const supply = buildFundingSupply(
+    input.supply,
+    input.constraints.gasReserveUsd,
+  );
   const funded = INVEST_POSITIONS.filter(
     (p) => weightBpsFor(input.allocations, p.id) > 0,
   );
@@ -514,12 +588,12 @@ export function unavailableChainIds(
 export function unavailableFundingChains(
   allocations: readonly TargetAllocation[],
   failed: readonly number[],
-  overrides: FundingOverrides,
+  preferences: FundingPreferences,
 ): boolean {
   return INVEST_POSITIONS.some((p) => {
     const candidates = candidatesFor(
       p.id,
-      { overrides, gasReserveUsd: NATIVE_GAS_RESERVE_USD },
+      { preferences, gasReserveUsd: NATIVE_GAS_RESERVE_USD },
       STATIC_FUNDING_RANKING,
     );
     return (
@@ -529,22 +603,12 @@ export function unavailableFundingChains(
     );
   });
 }
-export function fundingSourceLabel(token: DesktopDepositToken): string {
-  return `${CHAIN_BRAND[token.chainKey].label} ${token.symbol}`;
-}
-export function fundingRouteLabel(a: FundingAssignment): string {
-  return a.positionId === 'hlp'
-    ? hlpRouteLabel(a.source.token)
-    : a.source.route === 'deposit'
-      ? 'Deposit'
-      : 'Swap and deposit';
-}
 export function fundingBlockerMessage(b: FundingBlocker): string {
   switch (b.kind) {
     case 'invalid-allocation':
       return 'Choose an amount and a valid mix.';
     case 'override-not-viable':
-      return 'This source cannot fund the position. Choose another source or use recommended.';
+      return 'This source cannot fund your plan. Choose another source or use recommended.';
     case 'chain-unavailable':
       return 'Required chain balances are unavailable. Retry balances.';
     case 'gmx-eth-budget':
@@ -555,13 +619,14 @@ export function fundingBlockerMessage(b: FundingBlocker): string {
       return 'No single source balance can cover this position.';
   }
 }
-export function fundingPlanSummary(
-  plan: FundingPlan,
-  context: { hasOverrides: boolean; isConnected: boolean },
-): string {
+export function fundingPlanSummary(context: {
+  sourceCount: number;
+  hasPreferences: boolean;
+  isConnected: boolean;
+}): string {
   if (!context.isConnected) return 'Connect a wallet to see your plan';
-  const sources = [
-    ...new Set(plan.assignments.map((a) => fundingSourceLabel(a.source.token))),
-  ].join(' + ');
-  return `${context.hasOverrides ? 'Custom' : 'Recommended'} · ${sources || 'Waiting for available balances'} · ${chainBatchDrafts(plan.stages ?? plan.assignments.map(toStage)).length} wallet batches`;
+  const lead = context.hasPreferences ? 'Custom' : 'Selected automatically';
+  if (context.sourceCount === 0)
+    return `${lead} · Waiting for available balances`;
+  return `${lead} · ${context.sourceCount} source${context.sourceCount === 1 ? '' : 's'}`;
 }

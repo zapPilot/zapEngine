@@ -38,6 +38,7 @@ import {
   fundingBlockerMessage,
   NATIVE_GAS_RESERVE_USD,
 } from '@/integration/investFundingPlanner';
+import { fundingSourceRows } from '@/integration/investFundingSources';
 import { requestAccountConnection } from '@/integration/requestAccountConnection';
 import { useAccount } from '@/integration/useAccount';
 import { useInvest } from '@/integration/useInvest';
@@ -58,7 +59,7 @@ export function InvestAmountScreen() {
     unavailableChainIds: unavailableChainIds(balances.failedChains),
   };
   const constraints = {
-    overrides: invest.fundingOverrides,
+    preferences: invest.fundingPreferences,
     gasReserveUsd: NATIVE_GAS_RESERVE_USD,
   };
   const minimumUsd6 = targetMinimumUsd6(invest.targetAllocations);
@@ -76,12 +77,18 @@ export function InvestAmountScreen() {
     supply,
     constraints,
   });
+  const sources = fundingSourceRows({
+    assignments: plan.assignments,
+    supply,
+    preferences: invest.fundingPreferences,
+    gasReserveUsd: NATIVE_GAS_RESERVE_USD,
+  });
   const chainUnavailable =
     balances.isError ||
     unavailableFundingChains(
       invest.targetAllocations,
       supply.unavailableChainIds,
-      invest.fundingOverrides,
+      invest.fundingPreferences,
     );
   const canReview =
     account.isConnected &&
@@ -188,6 +195,16 @@ export function InvestAmountScreen() {
           />
         </View>
 
+        <FundingPlanDisclosure
+          plan={plan}
+          sources={sources}
+          hasAmount={amountUsd6 > 0n}
+          isConnected={account.isConnected}
+          hasPreferences={Object.keys(invest.fundingPreferences).length > 0}
+          onChangePreference={invest.setFundingPreference}
+          onUseRecommended={invest.clearFundingPreferences}
+          onOpenHlpSpotDeposit={() => router.push('/invest/hlp-deposit')}
+        />
         <View className="mt-5 flex-row items-center justify-between">
           <Text className="font-sans-semibold text-[16px] text-ink">
             Your mix
@@ -233,15 +250,6 @@ export function InvestAmountScreen() {
             />
           ))}
         </View>
-        <FundingPlanDisclosure
-          plan={plan}
-          hasAmount={amountUsd6 > 0n}
-          isConnected={account.isConnected}
-          hasOverrides={Object.keys(invest.fundingOverrides).length > 0}
-          onChangeSource={invest.setFundingOverride}
-          onUseRecommended={invest.clearFundingOverrides}
-          onOpenHlpSpotDeposit={() => router.push('/invest/hlp-deposit')}
-        />
         {amountNotice ? (
           <Text
             accessibilityRole="alert"
