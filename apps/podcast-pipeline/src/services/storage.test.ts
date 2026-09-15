@@ -70,11 +70,10 @@ vi.mock('@aws-sdk/lib-storage', () => ({
   }),
 }));
 
-import type { HlsFile } from './hls.js';
 import {
+  uploadEpisodeCoverToR2,
   uploadEpisodeVisualAssetsToR2,
   uploadEpisodeVisualCheckpointImageToR2,
-  uploadHlsToR2,
   uploadVideoArtifactsToR2,
 } from './storage.js';
 
@@ -89,130 +88,6 @@ beforeEach(() => {
   vi.mocked(PutObjectCommand).mockClear();
 });
 
-describe('uploadHlsToR2', () => {
-  it('streams files from disk with the correct URL format', async () => {
-    const files: HlsFile[] = [
-      {
-        name: 'playlist.m3u8',
-        path: '/render/hls/playlist.m3u8',
-        contentType: 'application/vnd.apple.mpegurl',
-      },
-    ];
-
-    const result = await uploadHlsToR2(files, 'test-id', 'zh-Hant', 'main');
-
-    expect(result).toEqual({
-      hlsUrl:
-        'https://cdn.example.com/episodes/test-id/localizations/zh-Hant/main/playlist.m3u8',
-      r2Prefix: 'episodes/test-id/localizations/zh-Hant/main',
-    });
-    expect(createReadStream).toHaveBeenCalledWith('/render/hls/playlist.m3u8');
-    expect(PutObjectCommand).toHaveBeenCalledWith({
-      Bucket: 'test-bucket',
-      Key: 'episodes/test-id/localizations/zh-Hant/main/playlist.m3u8',
-      Body: vi.mocked(createReadStream).mock.results[0]?.value,
-      ContentType: 'application/vnd.apple.mpegurl',
-    });
-    expect(mockSend).toHaveBeenCalledTimes(1);
-  });
-
-  it('waits for every in-flight stream upload before rejecting', async () => {
-    const uploadError = new Error('playlist upload failed');
-    let finishSegmentUpload!: () => void;
-    mockSend.mockRejectedValueOnce(uploadError).mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          finishSegmentUpload = () => resolve({});
-        }),
-    );
-
-    const pending = uploadHlsToR2(
-      [
-        {
-          name: 'playlist.m3u8',
-          path: '/render/hls/playlist.m3u8',
-          contentType: 'application/vnd.apple.mpegurl',
-        },
-        {
-          name: 'seg1.ts',
-          path: '/render/hls/seg1.ts',
-          contentType: 'video/mp2t',
-        },
-      ],
-      'test-id',
-      'zh-Hant',
-      'classroom',
-    );
-    let settled = false;
-    void pending.then(
-      () => {
-        settled = true;
-        return undefined;
-      },
-      () => {
-        settled = true;
-        return undefined;
-      },
-    );
-
-    await vi.waitFor(() => expect(mockSend).toHaveBeenCalledTimes(2));
-    await Promise.resolve();
-    expect(settled).toBe(false);
-
-    finishSegmentUpload();
-
-    await expect(pending).rejects.toBe(uploadError);
-    expect(createReadStream).toHaveBeenCalledWith('/render/hls/playlist.m3u8');
-    expect(createReadStream).toHaveBeenCalledWith('/render/hls/seg1.ts');
-  });
-
-  it('nests a per-target-language prefix under the classroom section', async () => {
-    const files: HlsFile[] = [
-      {
-        name: 'playlist.m3u8',
-        path: '/render/hls/playlist.m3u8',
-        contentType: 'application/vnd.apple.mpegurl',
-      },
-    ];
-
-    const result = await uploadHlsToR2(
-      files,
-      'test-id',
-      'zh-Hant',
-      'classroom',
-      'ja',
-    );
-
-    expect(result).toEqual({
-      hlsUrl:
-        'https://cdn.example.com/episodes/test-id/localizations/zh-Hant/classroom/ja/playlist.m3u8',
-      r2Prefix: 'episodes/test-id/localizations/zh-Hant/classroom/ja',
-    });
-    expect(PutObjectCommand).toHaveBeenCalledWith(
-      expect.objectContaining({
-        Key: 'episodes/test-id/localizations/zh-Hant/classroom/ja/playlist.m3u8',
-      }),
-    );
-  });
-
-  it('rejects a target language code outside the classroom section', async () => {
-    const files: HlsFile[] = [
-      {
-        name: 'playlist.m3u8',
-        path: '/render/hls/playlist.m3u8',
-        contentType: 'application/vnd.apple.mpegurl',
-      },
-    ];
-
-    await expect(
-      uploadHlsToR2(files, 'test-id', 'zh-Hant', 'main', 'ja'),
-    ).rejects.toThrow(
-      'classroomTargetLanguageCode is only valid when section is "classroom"',
-    );
-    expect(mockSend).not.toHaveBeenCalled();
-  });
-});
-
 describe('uploadVideoArtifactsToR2', () => {
   it('uses bounded multipart upload for MP4 and immutable keys for sidecars', async () => {
     const result = await uploadVideoArtifactsToR2({
@@ -224,7 +99,6 @@ describe('uploadVideoArtifactsToR2', () => {
       thumbnailPath: '/render/thumbnail.png',
       manifestPath: '/render/storyboard.json',
       captionsPath: '/render/captions.ass',
-      slidePaths: ['/render/slide-01.png', '/render/slide-02.png'],
     });
 
     const prefix =
@@ -250,7 +124,14 @@ describe('uploadVideoArtifactsToR2', () => {
       }),
     );
     expect(mockUploadDone).toHaveBeenCalledTimes(1);
-    expect(mockSend).toHaveBeenCalledTimes(5);
+    expect(mockSend).toHaveBeenCalledTimes(3);
+    expect(
+      vi.mocked(PutObjectCommand).mock.calls.map(([input]) => input?.Key),
+    ).toEqual([
+      `${prefix}/thumbnail.png`,
+      `${prefix}/manifest.json`,
+      `${prefix}/captions.ass`,
+    ]);
   });
 
   it('aborts an in-flight multipart upload with the caller signal', async () => {
@@ -272,7 +153,7 @@ describe('uploadVideoArtifactsToR2', () => {
       thumbnailPath: '/render/thumbnail.png',
       manifestPath: '/render/manifest.json',
       captionsPath: '/render/captions.ass',
-      slidePaths: [],
+
       signal: controller.signal,
     });
 
@@ -295,26 +176,8 @@ describe('uploadVideoArtifactsToR2', () => {
         thumbnailPath: '/render/thumbnail.png',
         manifestPath: '/render/manifest.json',
         captionsPath: '/render/captions.ass',
-        slidePaths: [],
       }),
     ).rejects.toThrow('Invalid video artifact episode id');
-    expect(mockUploadDone).not.toHaveBeenCalled();
-  });
-
-  it('rejects slide paths with unsafe filenames', async () => {
-    await expect(
-      uploadVideoArtifactsToR2({
-        episodeId: 'episode-1',
-        languageCode: 'zh-Hant',
-        rendererVersion: 'renderer-v1',
-        manifestHash: 'hash',
-        videoPath: '/render/video.mp4',
-        thumbnailPath: '/render/thumbnail.png',
-        manifestPath: '/render/manifest.json',
-        captionsPath: '/render/captions.ass',
-        slidePaths: ['/render/unsafe name with space.png'],
-      }),
-    ).rejects.toThrow('Invalid slide filename at index 0');
     expect(mockUploadDone).not.toHaveBeenCalled();
   });
 });
@@ -395,14 +258,6 @@ describe('uploadEpisodeVisualAssetsToR2', () => {
 });
 
 describe('R2 upload retries', () => {
-  const playlist: HlsFile[] = [
-    {
-      name: 'playlist.m3u8',
-      path: '/render/hls/playlist.m3u8',
-      contentType: 'application/vnd.apple.mpegurl',
-    },
-  ];
-
   function transportError(
     message: string,
     extra: Record<string, unknown> = {},
@@ -410,7 +265,14 @@ describe('R2 upload retries', () => {
     return Object.assign(new Error(message), extra);
   }
 
-  const upload = () => uploadHlsToR2(playlist, 'test-id', 'zh-Hant', 'main');
+  const upload = () =>
+    uploadEpisodeVisualAssetsToR2({
+      episodeId: 'test-id',
+      visualVersion: 'v1',
+      visualHash: 'hash',
+      manifestPath: '/render/visual-manifest.json',
+      images: [],
+    });
 
   it('reopens the stream on a retry instead of replaying a consumed one', async () => {
     // The AWS SDK refuses to retry a Readable body at all, so the second
@@ -427,7 +289,7 @@ describe('R2 upload retries', () => {
     expect(
       vi
         .mocked(createReadStream)
-        .mock.calls.filter(([path]) => path === '/render/hls/playlist.m3u8'),
+        .mock.calls.filter(([path]) => path === '/render/visual-manifest.json'),
     ).toHaveLength(2);
   });
 
@@ -540,7 +402,7 @@ describe('R2 upload retries', () => {
       '[r2]',
       'put:retry',
       expect.objectContaining({
-        key: 'episodes/test-id/localizations/zh-Hant/main/playlist.m3u8',
+        key: 'episodes/test-id/visuals/v1/hash/visual-manifest.json',
         attempt: 6,
         nextAttempt: 7,
         maxAttempts: 7,
@@ -571,29 +433,6 @@ describe('R2 upload retries', () => {
 });
 
 describe('R2 upload concurrency', () => {
-  it('keeps at most four HLS segment uploads in flight', async () => {
-    let active = 0;
-    let peak = 0;
-    mockSend.mockImplementation(async () => {
-      active += 1;
-      peak = Math.max(peak, active);
-      await new Promise((resolve) => setTimeout(resolve, 1));
-      active -= 1;
-      return {};
-    });
-
-    const files: HlsFile[] = Array.from({ length: 10 }, (_unused, index) => ({
-      name: `seg${index}.ts`,
-      path: `/render/hls/seg${index}.ts`,
-      contentType: 'video/mp2t',
-    }));
-
-    await uploadHlsToR2(files, 'test-id', 'zh-Hant', 'main');
-
-    expect(mockSend).toHaveBeenCalledTimes(10);
-    expect(peak).toBe(4);
-  });
-
   it('bounds the visual asset fan-out too', async () => {
     let active = 0;
     let peak = 0;
@@ -622,27 +461,6 @@ describe('R2 upload concurrency', () => {
 });
 
 describe('R2 cache headers', () => {
-  it('leaves HLS objects cacheable-but-revalidatable', async () => {
-    // The HLS prefix carries no content hash, so a resumed ingest rewrites the
-    // same keys. An immutable header here would pin the CDN to stale audio.
-    await uploadHlsToR2(
-      [
-        {
-          name: 'playlist.m3u8',
-          path: '/render/hls/playlist.m3u8',
-          contentType: 'application/vnd.apple.mpegurl',
-        },
-      ],
-      'test-id',
-      'zh-Hant',
-      'main',
-    );
-
-    expect(vi.mocked(PutObjectCommand).mock.calls[0]![0]).not.toHaveProperty(
-      'CacheControl',
-    );
-  });
-
   it('keeps content-addressed artifacts immutable', async () => {
     await uploadEpisodeVisualAssetsToR2({
       episodeId: 'ep-1',
@@ -676,7 +494,7 @@ describe('uploadEpisodeVisualCheckpointImageToR2', () => {
     contentType: 'image/png' as const,
   };
   const key =
-    'episodes/00000000-0000-4000-8000-000000000001/visuals/image-slideshow-v1/checkpoints/source-hash/images/asset-01.png';
+    'transient/visual-checkpoints/00000000-0000-4000-8000-000000000001/image-slideshow-v1/source-hash/images/asset-01.png';
 
   it('uploads one immutable image under the checkpoint prefix and returns its URL', async () => {
     await expect(uploadEpisodeVisualCheckpointImageToR2(input)).resolves.toBe(
@@ -730,5 +548,26 @@ describe('uploadEpisodeVisualCheckpointImageToR2', () => {
       }),
     ).rejects.toThrow('cancelled');
     expect(mockSend).not.toHaveBeenCalled();
+  });
+});
+
+describe('published cover retention', () => {
+  it('stores the official cover outside checkpoint lifecycle prefixes', async () => {
+    const sha256 = 'a'.repeat(64);
+    const url = await uploadEpisodeCoverToR2({
+      episodeId: 'ep-1',
+      visualHash: 'hash',
+      sha256,
+      path: '/render/cover.png',
+    });
+    expect(url).toBe(
+      `https://cdn.example.com/episodes/ep-1/covers/hash/${sha256}.png`,
+    );
+    expect(PutObjectCommand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        Key: `episodes/ep-1/covers/hash/${sha256}.png`,
+        CacheControl: 'public, max-age=31536000, immutable',
+      }),
+    );
   });
 });

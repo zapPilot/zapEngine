@@ -152,7 +152,6 @@ describe('createEpisodeVideoProcessor', () => {
       expect.objectContaining({
         manifestHash: 'manifest-hash',
         videoPath: '/work/preview.mp4',
-        slidePaths: ['/work/slides/slide-01.png'],
         signal,
       }),
     );

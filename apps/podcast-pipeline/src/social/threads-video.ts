@@ -66,7 +66,7 @@ export async function prepareThreadsVideoUrl(
         ffmpegPath: options.ffmpegPath ?? resolveVideoFfmpegPath(),
       });
 
-  const key = `social/threads/${sourceHash}/${BRAND_CTA_VERSION}/video.mp4`;
+  const key = `transient/social/threads/${sourceHash}/${BRAND_CTA_VERSION}/video.mp4`;
   const uploadVideo = options.uploadVideo ?? uploadVideoToR2;
   await uploadVideo({ path: teaserPath, key });
 

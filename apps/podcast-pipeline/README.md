@@ -363,3 +363,7 @@ Locally the two entry points are separate processes:
 pnpm --filter @zapengine/podcast-pipeline dev          # API only
 pnpm --filter @zapengine/podcast-pipeline dev:worker   # video renders only
 ```
+
+### R2 artifact retention
+
+Current published media remains durable. See [artifact retention and GC](docs/artifact-retention.md) for transient lifecycle rules, safe HLS replacement, and the reference-aware `artifacts:gc` dry-run / maintenance command.

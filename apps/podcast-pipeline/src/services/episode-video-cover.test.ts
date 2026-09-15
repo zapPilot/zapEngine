@@ -51,11 +51,9 @@ describe('episode video cover integration', () => {
 
     expect(uploadCover).toHaveBeenCalledWith({
       episodeId,
-      visualVersion: EPISODE_VIDEO_VISUAL_VERSION,
-      sourceHash: visualHash,
-      assetId: `video-cover-${coverHash}`,
+      visualHash,
+      sha256: coverHash,
       path: '/work/video-cover.png',
-      contentType: 'image/png',
       signal: expect.any(AbortSignal),
     });
     expect(upload).toHaveBeenCalledWith(
