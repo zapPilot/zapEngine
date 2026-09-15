@@ -16,6 +16,7 @@ export function createAuthenticatedActionModel(): AuthenticatedActionModel {
   return {
     request(isAuthenticated, action) {
       if (isAuthenticated) {
+        pendingAction = null;
         action();
         return false;
       }
