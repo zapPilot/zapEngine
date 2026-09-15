@@ -7,7 +7,7 @@ import type {
   Response as PlaywrightResponse,
 } from 'playwright-core';
 
-import { launchPersistentChrome } from './browser.js';
+import { launchManualChrome, launchPersistentChrome } from './browser.js';
 import { publishStep } from './publish-error.js';
 import type { PublishResult, XPublisher, XPublishInput } from './types.js';
 import {
@@ -16,13 +16,13 @@ import {
 } from './x-response.js';
 
 const COMPOSE_URL = 'https://x.com/compose/post';
+const LOGIN_URL = 'https://x.com/login';
 const PROFILE_DIRECTORY = join(homedir(), '.zap-pilot', 'x-chrome-profile');
 const COMPOSER_SELECTOR = '[data-testid="tweetTextarea_0"]';
 const FILE_INPUT_SELECTOR = 'input[type="file"][data-testid="fileInput"]';
 const POST_BUTTON_SELECTOR =
   '[data-testid="tweetButtonInline"], [data-testid="tweetButton"]';
 const READY_TIMEOUT_MS = 15_000;
-const LOGIN_TIMEOUT_MS = 300_000;
 const UPLOAD_TIMEOUT_MS = 180_000;
 const SUCCESS_TIMEOUT_MS = 30_000;
 
@@ -51,18 +51,16 @@ export async function isXSessionReady(): Promise<boolean> {
 export async function runXLogin(
   log: (message: string) => void = console.log,
 ): Promise<void> {
-  await withXComposePage(async (page) => {
-    if (await isComposerReady(page, 2_000)) {
-      log('✓ X session is already logged in.');
-      return;
-    }
+  if (await isXSessionReady()) {
+    log('✓ X session is already logged in.');
+    return;
+  }
 
-    log('A Chrome window is open on X.');
-    log('Log in there (the publisher never sees or stores your credentials).');
-    log(`Waiting up to ${LOGIN_TIMEOUT_MS / 60_000} minutes...`);
-    await waitForComposer(page, LOGIN_TIMEOUT_MS);
-    log(`✓ Logged in. Session saved to ${PROFILE_DIRECTORY}`);
-  });
+  log('A Chrome window is open on X. Playwright is not driving it.');
+  log('Log in there (the publisher never sees or stores your credentials).');
+  log('Then quit Chrome with ⌘Q — closing the window leaves it running.');
+  await launchManualChrome(PROFILE_DIRECTORY, LOGIN_URL);
+  log(`✓ Chrome closed. Session saved to ${PROFILE_DIRECTORY}`);
 }
 
 // jscpd:ignore-start — every platform's page wrapper takes the same

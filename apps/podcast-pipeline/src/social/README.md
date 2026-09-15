@@ -307,13 +307,34 @@ Threads, Rednote, and YouTube.
 
 ### X
 
-X publishing uses a dedicated Playwright Chrome profile:
+X publishing uses a dedicated Chrome profile:
 
 ```text
 ~/.zap-pilot/x-chrome-profile
 ```
 
 The browser owns the login session; the publisher does not receive the password.
+
+Publishing drives that profile through Playwright, but **logging in does not**.
+X and Google both detect the CDP attach and refuse to complete a sign-in inside
+it: the Google OAuth popup comes back as `accounts.google.com/v3/signin/rejected`
+("this browser or app may not be secure"), and the password form routes into an X
+onboarding challenge rather than a session, so the profile never receives an
+`auth_token`. `social:login` therefore starts the same Chrome as an ordinary
+browser (`launchManualChrome` in `browser.ts`) and waits for it:
+
+1. A normal Chrome window opens on `https://x.com/login`.
+2. Log in there. Prefer the X username/password over "Sign in with Google".
+3. Quit that Chrome with ⌘Q. Closing the window is not enough — macOS leaves
+   the process running, and `social:login` waits for it to exit before it
+   verifies the session headlessly and prints `✓ X`.
+
+That manual launch mirrors Playwright's `--use-mock-keychain` and
+`--password-store=basic` deliberately, and neither is optional. Under those
+switches Chrome encrypts `Cookies.encrypted_value` against a mock keychain, so a
+session logged in without them is written under the real macOS Keychain key and
+cannot be read back when the publisher reopens the profile — indistinguishable
+from never having logged in at all.
 
 ### Threads
 
