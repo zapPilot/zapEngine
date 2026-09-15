@@ -236,7 +236,7 @@ afterEach(async () => {
     active.container.remove();
     active = null;
   }
-  delete (window.navigator as Navigator & { mediaSession?: unknown })
+  delete (window.navigator as unknown as { mediaSession?: unknown })
     .mediaSession;
   vi.unstubAllGlobals();
 });

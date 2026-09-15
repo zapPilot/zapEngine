@@ -1,3 +1,4 @@
+import type { ReactElement } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -28,10 +29,14 @@ describe('native platform adapters', () => {
 
   it('lets both iOS provider stubs pass their children through', () => {
     const child = { marker: 'child' } as never;
-    expect(InvestProvider({ children: child }).props.children).toBe(child);
-    expect(InvestExecutionProvider({ children: child }).props.children).toBe(
-      child,
-    );
+    const investElement = InvestProvider({ children: child }) as ReactElement<{
+      children: unknown;
+    }>;
+    const investExecutionElement = InvestExecutionProvider({
+      children: child,
+    }) as ReactElement<{ children: unknown }>;
+    expect(investElement.props.children).toBe(child);
+    expect(investExecutionElement.props.children).toBe(child);
   });
 });
 

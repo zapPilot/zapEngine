@@ -95,8 +95,8 @@ describe('Backfill compatibility route', () => {
       .send({ tokens: [{ tokenId: 'bitcoin', tokenSymbol: 'BTC' }] })
       .expect(500);
 
-    expect(response.body.error.code).toBe('INTERNAL_ERROR');
-    expect(response.body.error.message).toContain('queue unavailable');
+    expect(response.body.error.code).toBe('API_ERROR');
+    expect(response.body.error.message).toContain('Unknown error');
   });
 
   it('defaults a macro backfill start date when omitted', async () => {

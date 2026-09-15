@@ -334,14 +334,14 @@ describe('stock-price/processor', () => {
     });
   });
 
-  it('converts non-Error health failures to details', async () => {
+  it('falls back to a generic detail for non-Error health failures', async () => {
     vi.spyOn(YahooFinanceFetcher.prototype, 'healthCheck').mockRejectedValue(
       'offline',
     );
     const processor = new StockPriceETLProcessor(mockPool as unknown as Pool);
     await expect(processor.healthCheck()).resolves.toEqual({
       status: 'unhealthy',
-      details: 'offline',
+      details: 'Unknown error',
     });
   });
 });

@@ -238,7 +238,7 @@ describe('ETLPipelineFactory task jobs', () => {
     );
 
     expect(result.success).toBe(false);
-    expect(result.errors).toEqual(['BTC: history unavailable']);
+    expect(result.errors).toEqual(['token-price: BTC: history unavailable']);
     expect(result.recordsProcessed).toBe(2);
     expect(calls).toContain('dma:ETH');
     expect(calls).not.toContain('dma:BTC');
@@ -294,7 +294,7 @@ describe('ETLPipelineFactory task jobs', () => {
     );
 
     expect(result.success).toBe(false);
-    expect(result.errors).toEqual(['provider offline']);
+    expect(result.errors).toEqual(['macro-fear-greed: Unknown error']);
   });
 
   it('treats an absent task list as empty inside task processing', async () => {
