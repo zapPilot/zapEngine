@@ -66,8 +66,16 @@ describe('useHomeBorrowingRisk', () => {
   });
 
   it('fetches a trimmed subject and maps its borrowing risk', async () => {
+    const emptyBorrowing = {
+      positions: [],
+      total_collateral_usd: 0,
+      total_debt_usd: 0,
+      worst_health_rate: 0,
+      last_updated: '2026-09-11T00:00:00Z',
+    };
+    mocks.getBorrowingPositions.mockResolvedValue(emptyBorrowing);
     mocks.useQuery.mockReturnValueOnce({
-      data: [],
+      data: emptyBorrowing,
       isLoading: false,
       isError: false,
       refetch: vi.fn(),
@@ -84,7 +92,7 @@ describe('useHomeBorrowingRisk', () => {
       queryKey: ['borrowing', 'user-1'],
       retry: 2,
     });
-    await expect(options.queryFn()).resolves.toEqual([]);
+    await expect(options.queryFn()).resolves.toEqual(emptyBorrowing);
     expect(mocks.getBorrowingPositions).toHaveBeenCalledWith('user-1');
   });
 });
@@ -149,7 +157,16 @@ describe('useHomeIncome', () => {
     });
 
     expect(useHomeIncome(null)).toEqual({
-      income: null,
+      income: {
+        status: 'empty',
+        passiveMonthlyUsd: 0,
+        incomeMonthlyUsd: 0,
+        costMonthlyUsd: 0,
+        medianDailyUsd: 0,
+        windowDays: 30,
+        observedDays: 0,
+        protocolRows: [],
+      },
       borrowingRisk: null,
       isLoading: true,
       isError: true,

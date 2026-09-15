@@ -27,6 +27,19 @@ const makeEpisode = createPodcastEpisodeFactory({
 const first = makeEpisode();
 const second = makeEpisode({ id: 'article-2', localizationId: 'loc-2' });
 const missing = makeEpisode({ id: 'article-3', localizationId: 'loc-3' });
+const solo = makeEpisode({
+  id: 'article-solo',
+  localizationId: 'loc-solo',
+  audioTracks: [
+    {
+      languageCode: 'en',
+      title: 'Episode',
+      hlsUrl: 'https://cdn.example/main.m3u8',
+      classroomHlsUrl: null,
+      classrooms: [],
+    },
+  ],
+});
 
 const callbacks = {
   playEpisode: vi.fn(),
@@ -152,7 +165,7 @@ describe('usePodcastPlayerQueue', () => {
     const harness = await render(null);
 
     act(() =>
-      harness.current().playSectionFromQueue([first], first, 'classroom', {
+      harness.current().playSectionFromQueue([solo], solo, 'classroom', {
         languageCode: 'fr',
       }),
     );

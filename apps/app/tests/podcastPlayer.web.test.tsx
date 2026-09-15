@@ -455,6 +455,7 @@ describe('usePodcastPlayer web media-session commands', () => {
     const element = audio();
     element.currentTime = 20;
     element.duration = 120;
+    element.playbackRate = 1.25;
     element.readyState = HTMLMediaElement.HAVE_METADATA;
 
     await act(async () => element.emit('durationchange'));

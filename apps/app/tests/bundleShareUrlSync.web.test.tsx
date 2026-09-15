@@ -115,6 +115,7 @@ describe('OwnBundleUrlSync web', () => {
 
   it('does not write when the model reports an already-correct URL', async () => {
     const replace = vi.spyOn(window.history, 'replaceState');
+    replace.mockClear();
     await render();
     await flushFirstFrame();
     expect(replace).not.toHaveBeenCalled();
