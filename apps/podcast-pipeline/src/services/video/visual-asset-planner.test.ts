@@ -102,9 +102,9 @@ describe('planVisualAssets', () => {
     ]);
   });
 
-  it('keeps the lead scene off the publisher image the pool also returned', async () => {
-    // The cover is independently sourced from the headline subject, so the
-    // article's own photograph must not reach scene-01 through Brave either.
+  it('lets the lead scene take the publisher image the pool also returned', async () => {
+    // The publisher's own photograph is what the share card shows, so scene-01
+    // may render it whichever rung of the ladder hands it over.
     const publisherPhoto = {
       ...candidate('publisher-hero', 'brave'),
       sourceUrl: 'https://publisher.example.test/story',
@@ -114,7 +114,10 @@ describe('planVisualAssets', () => {
       ...candidate('independent-hero', 'brave'),
       altText: 'Coldcard air-gapped device',
     };
-    const acquireImage = vi.fn().mockResolvedValue(acquired('independent'));
+    const acquireImage = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('temporary decode failure'))
+      .mockResolvedValue(acquired('publisher-hero'));
 
     const result = await planVisualAssets({
       scenes: [
@@ -143,9 +146,124 @@ describe('planVisualAssets', () => {
     });
 
     expect(acquireImage.mock.calls.map(([url]) => url)).toEqual([
-      independent.imageUrl,
+      'https://images.example.test/article-hero.jpg',
+      publisherPhoto.imageUrl,
     ]);
-    expect(result.assets[0]?.originalImageUrl).toBe(independent.imageUrl);
+    expect(result.assets[0]?.originalImageUrl).toBe(publisherPhoto.imageUrl);
+  });
+
+  it('renders the publisher open graph image on the lead scene without searching', async () => {
+    const searchImages = vi.fn();
+    const openGraph = candidate('og-hero', 'openGraph');
+    const acquireImage = vi.fn(async (url: string) =>
+      acquired(new URL(url).pathname.split('/').at(-1)!.replace('.jpg', '')),
+    );
+
+    const result = await planVisualAssets({
+      // A named lead scene is exactly the case the old rule excluded.
+      scenes: [
+        {
+          sceneId: 'scene-01',
+          imageSearchIntent: ['Coldcard hardware wallet'],
+          imageSearchEntities: ['Coldcard'],
+        },
+      ],
+      // The Open Graph image is deliberately not first: the rule reads the
+      // origin, never the publisher's DOM order.
+      articleImages: [candidate('body-photo'), openGraph],
+      workingDirectory: '/work/visual-assets',
+      dependencies: {
+        acquireImage,
+        searchProviders: braveProviders(searchImages),
+        fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
+      },
+    });
+
+    expect(searchImages).not.toHaveBeenCalled();
+    expect(acquireImage.mock.calls.map(([url]) => url)).toEqual([
+      openGraph.imageUrl,
+    ]);
+    expect(result.assets[0]?.provider).toBe('article');
+    expect(result.assets[0]?.originalImageUrl).toBe(openGraph.imageUrl);
+    expect(result.leadCover).toEqual({
+      imageUrl: openGraph.imageUrl,
+      fallbackReason: null,
+    });
+  });
+
+  it('names the rule that dropped a decorative open graph image', async () => {
+    const decorative: ImageCandidate = {
+      ...candidate('og-hero', 'openGraph'),
+      imageUrl: 'https://images.example.test/thumb/og-hero.jpg',
+    };
+    const acquireImage = vi.fn(async (url: string) =>
+      acquired(new URL(url).pathname.split('/').at(-1)!.replace('.jpg', '')),
+    );
+
+    const result = await planVisualAssets({
+      scenes: scenes.slice(0, 1),
+      articleImages: [decorative, candidate('body-photo')],
+      workingDirectory: '/work/visual-assets',
+      dependencies: {
+        acquireImage,
+        searchProviders: braveProviders(vi.fn()),
+        fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
+      },
+    });
+
+    expect(acquireImage.mock.calls.map(([url]) => url)).toEqual([
+      'https://images.example.test/body-photo.jpg',
+    ]);
+    expect(result.leadCover).toEqual({
+      imageUrl: null,
+      fallbackReason: 'decorative-asset',
+    });
+  });
+
+  it('claims no lead cover when the open graph image fails to download', async () => {
+    const openGraph = candidate('og-hero', 'openGraph');
+    const acquireImage = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('HTTP 404'))
+      .mockResolvedValueOnce(acquired('body-photo'));
+
+    const result = await planVisualAssets({
+      scenes: scenes.slice(0, 1),
+      articleImages: [openGraph, candidate('body-photo')],
+      workingDirectory: '/work/visual-assets',
+      dependencies: {
+        acquireImage,
+        searchProviders: braveProviders(vi.fn()),
+        fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
+      },
+    });
+
+    expect(result.assets[0]?.originalImageUrl).toBe(
+      'https://images.example.test/body-photo.jpg',
+    );
+    expect(result.leadCover).toEqual({
+      imageUrl: null,
+      fallbackReason: 'open-graph-image-not-used-as-lead',
+    });
+  });
+
+  it('reports a missing open graph image rather than claiming a lead cover', async () => {
+    const result = await planVisualAssets({
+      scenes: scenes.slice(0, 1),
+      articleImages: [candidate('body-photo')],
+      workingDirectory: '/work/visual-assets',
+      dependencies: {
+        acquireImage: vi.fn().mockResolvedValue(acquired('body-photo')),
+        searchProviders: braveProviders(vi.fn()),
+        fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
+      },
+    });
+
+    expect(result.assets[0]?.provider).toBe('article');
+    expect(result.leadCover).toEqual({
+      imageUrl: null,
+      fallbackReason: 'missing-open-graph-image',
+    });
   });
 
   it('continues after rejected article candidates and deduplicates canonical URLs', async () => {

@@ -17,11 +17,11 @@ import {
 } from './video/episode-video.js';
 import { parseEpisodeVisualPayload } from './video/episode-visual.js';
 import { logVideoWorkerEvent } from './video/log.js';
-import { preparePanewsVideoCover } from './video/panews-cover.js';
 import {
   type RenderProgressEvent,
   renderSlideVideo,
 } from './video/renderer.js';
+import { prepareVideoCover } from './video/video-cover.js';
 import {
   type EpisodeVideoProgressUpdate,
   renderStageProgress,
@@ -52,7 +52,7 @@ interface EpisodeVideoProcessorDependencies {
   downloadNarration: typeof downloadNarrationAudio;
   analyzeAudio: typeof analyzeEpisodeAudio;
   createManifest: typeof createEpisodeVideoManifest;
-  prepareCover: typeof preparePanewsVideoCover;
+  prepareCover: typeof prepareVideoCover;
   uploadCover: typeof uploadEpisodeVisualCheckpointImageToR2;
   render: typeof renderSlideVideo;
   upload: typeof uploadVideoArtifactsToR2;
@@ -68,7 +68,7 @@ const defaultDependencies: EpisodeVideoProcessorDependencies = {
   downloadNarration: downloadNarrationAudio,
   analyzeAudio: analyzeEpisodeAudio,
   createManifest: createEpisodeVideoManifest,
-  prepareCover: preparePanewsVideoCover,
+  prepareCover: prepareVideoCover,
   uploadCover: uploadEpisodeVisualCheckpointImageToR2,
   render: renderSlideVideo,
   upload: uploadVideoArtifactsToR2,
@@ -162,6 +162,7 @@ export function createEpisodeVideoProcessor(
       const preparedCover = await dependencies.prepareCover({
         sourceUrl: source.sourceUrl,
         workingDirectory: outputDirectory,
+        knownImageUrl: visual.provenance.leadCoverImageUrl ?? null,
         signal: context.signal,
       });
       let coverThumbnailUrl: string | null = null;
@@ -172,7 +173,7 @@ export function createEpisodeVideoProcessor(
             episodeId: source.episodeId,
             visualVersion: source.visualVersion,
             sourceHash: source.visualHash,
-            assetId: `panews-cover-${preparedCover.metadata.sha256}`,
+            assetId: `video-cover-${preparedCover.metadata.sha256}`,
             path: preparedCover.thumbnailPath,
             contentType: 'image/png',
             signal: context.signal,
@@ -199,6 +200,9 @@ export function createEpisodeVideoProcessor(
         status: coverMetadata.status,
         ...(coverMetadata.sourceImageUrl
           ? { source: coverMetadata.sourceImageUrl }
+          : {}),
+        ...(visual.provenance.leadCoverFallbackReason
+          ? { leadCoverFallback: visual.provenance.leadCoverFallbackReason }
           : {}),
         ...(coverMetadata.storedUrl ? { stored: coverMetadata.storedUrl } : {}),
         ...(coverMetadata.fallbackReason

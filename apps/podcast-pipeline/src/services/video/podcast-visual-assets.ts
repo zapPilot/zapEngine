@@ -97,6 +97,7 @@ export async function planPodcastVisualAssets(
     ...(contentPlan.imageSearch
       ? { imageSearch: contentPlan.imageSearch }
       : {}),
+    ...(contentPlan.leadCover ? { leadCover: contentPlan.leadCover } : {}),
   };
 }
 

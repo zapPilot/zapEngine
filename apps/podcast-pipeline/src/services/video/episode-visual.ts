@@ -27,6 +27,7 @@ import {
 import type {
   PlannedVisualImage,
   PlannedVisualScene,
+  VisualAssetLeadCover,
 } from './visual-asset-planner.js';
 import { visualAssetIdentityFields } from './visual-asset-shared.js';
 
@@ -158,6 +159,17 @@ export const episodeVisualPayloadSchema = z
         generatedSlideSceneIds: z
           .array(z.string().regex(/^scene-\d{2}$/))
           .max(64)
+          .optional(),
+        // v11 records which publisher `og:image` the lead content scene
+        // rendered, so the render job dresses the cover from the plan instead
+        // of scraping the article again and drifting off the first frame.
+        // Optional keeps stored v1-v10 payloads parseable.
+        leadCoverImageUrl: z.string().url().nullable().optional(),
+        leadCoverFallbackReason: z
+          .string()
+          .min(1)
+          .max(200)
+          .nullable()
           .optional(),
       })
       .strict(),
@@ -303,6 +315,7 @@ export function buildEpisodeVisualPayload(input: {
   sceneAssignments?: readonly VisualSceneSubjectAssignment[];
   searchTitleSource?: 'publisher' | 'english-localization' | 'none';
   articleImageCandidateCount?: number;
+  leadCover?: VisualAssetLeadCover;
   imageSearch?: VisualImageSearch;
   sceneSentences?: readonly { sceneId: string; text: string }[];
 }): EpisodeVisualPayload {
@@ -413,6 +426,12 @@ export function buildEpisodeVisualPayload(input: {
         ? { articleImageCandidateCount: input.articleImageCandidateCount }
         : {}),
       articleImageAssetCount,
+      ...(input.leadCover
+        ? {
+            leadCoverImageUrl: input.leadCover.imageUrl,
+            leadCoverFallbackReason: input.leadCover.fallbackReason,
+          }
+        : {}),
       ...(input.imageSearch ? { imageSearch: input.imageSearch } : {}),
       ...(input.sceneSentences
         ? { sceneSentences: [...input.sceneSentences] }

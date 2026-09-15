@@ -129,7 +129,9 @@ export type PodcastVideoProgressStage =
 // publisher-image body reuse, free-first entity-gated search, bounded subject
 // image pools, and Brave as the relevance escalation path; v10: portrait
 // images are always shown whole with dark padding, zero editorial zoom, safe
-// drift, and short directional transitions).
+// drift, and short directional transitions; v11: the publisher's own
+// `og:image` is the lead content scene as well as the cover, so the thumbnail
+// a viewer clicks and the first frame they then see are one image).
 //
 // It lives here rather than in the pipeline because it is a cross-app contract:
 // both claim RPCs fence on it, so any surface that requeues video work has to
@@ -137,7 +139,7 @@ export type PodcastVideoProgressStage =
 // claim. `@zapengine/podcast-pipeline` re-exports this as the value its workers
 // pass; Control Center passes it when restarting an episode's video.
 export const EPISODE_VIDEO_VISUAL_VERSION =
-  'podcast-image-visual-plan.v10' as const;
+  'podcast-image-visual-plan.v11' as const;
 
 export const PODCAST_VIDEO_REVIEW_VERDICTS = [
   'good',
