@@ -341,13 +341,9 @@ export class JobProcessorService {
    * Execute a job asynchronously without blocking the processing loop
    */
   private executeJobInBackground(job: Job): void {
-    void (async () => {
-      try {
-        await this.executeJob(job);
-      } catch (error) {
-        this.logger.error(`Failed to execute job ${job.id}`, error);
-      }
-    })();
+    // executeJob wraps its whole body in try/catch/finally, so the returned
+    // promise never rejects — a wrapper catch here could never run.
+    void this.executeJob(job);
   }
 
   /**

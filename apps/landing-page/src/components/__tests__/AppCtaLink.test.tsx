@@ -139,4 +139,86 @@ describe('AppCtaLink', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(trigger).toHaveFocus();
   });
+
+  it('closes from the backdrop but not from a click inside the dialog', () => {
+    render(
+      <AppCtaLink className="cta" location="closing">
+        Join waitlist
+      </AppCtaLink>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Join waitlist' }));
+    const dialog = screen.getByRole('dialog');
+    fireEvent.mouseDown(dialog);
+    expect(dialog).toBeInTheDocument();
+    fireEvent.mouseDown(dialog.parentElement!);
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('keeps the dialog open and disables closing while submission is pending', async () => {
+    let resolve!: (response: Response) => void;
+    vi.spyOn(globalThis, 'fetch').mockReturnValue(
+      new Promise<Response>((done) => {
+        resolve = done;
+      }),
+    );
+    render(
+      <AppCtaLink className="cta" location="hero">
+        Join waitlist
+      </AppCtaLink>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Join waitlist' }));
+    fireEvent.change(screen.getByPlaceholderText('you@example.com'), {
+      target: { value: 'pending@example.com' },
+    });
+    fireEvent.submit(
+      screen.getByPlaceholderText('you@example.com').closest('form')!,
+    );
+    const dialog = screen.getByRole('dialog');
+    expect(
+      within(dialog).getByRole('button', { name: 'Joining…' }),
+    ).toBeDisabled();
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Close waitlist' }),
+    );
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+    fireEvent.mouseDown(dialog.parentElement!);
+    expect(dialog).toBeInTheDocument();
+    resolve({ ok: true } as Response);
+    expect(await screen.findByText('You’re on the list ✓')).toBeInTheDocument();
+  });
+
+  it('submits without optional attribution when capture is unavailable', async () => {
+    // Isolate from earlier tests that set UTM params in the URL; with a clean
+    // '/' path the live capture carries only landingPath, so the "no optional
+    // attribution" assertion is deterministic even though readWaitlistAttribution
+    // stays fail-open (stored ?? live capture) when storage reads are blocked.
+    window.history.replaceState({}, '', '/');
+    window.localStorage.clear();
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('blocked');
+    });
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue({ ok: true } as Response);
+    render(
+      <AppCtaLink className="cta" location="hero">
+        Join waitlist
+      </AppCtaLink>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Join waitlist' }));
+    fireEvent.change(screen.getByPlaceholderText('you@example.com'), {
+      target: { value: 'plain@example.com' },
+    });
+    fireEvent.submit(
+      screen.getByPlaceholderText('you@example.com').closest('form')!,
+    );
+    expect(await screen.findByText('You’re on the list ✓')).toBeInTheDocument();
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
+      email: 'plain@example.com',
+      company: '',
+      ctaLocation: 'hero',
+      landingPath: '/',
+    });
+    expect(trackWaitlistSubmitted).toHaveBeenCalledWith('hero', false);
+  });
 });

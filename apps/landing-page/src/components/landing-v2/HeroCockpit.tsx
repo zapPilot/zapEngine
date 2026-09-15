@@ -37,9 +37,7 @@ function splitAmount(value: number): { int: string; frac: string } {
     maximumFractionDigits: 2,
   });
   const dot = formatted.indexOf('.');
-  if (dot === -1) {
-    return { int: formatted, frac: '00' };
-  }
+  // minimumFractionDigits guarantees a decimal separator for this locale.
   return { int: formatted.slice(0, dot), frac: formatted.slice(dot + 1) };
 }
 
@@ -82,7 +80,7 @@ export function HeroCockpit() {
   }, []);
 
   const { int: netInt, frac: netFrac } = splitAmount(net);
-  const weights = WEIGHT_STATES[weightIndex] ?? INITIAL_WEIGHTS;
+  const weights = WEIGHT_STATES[weightIndex]!;
   const readout = REGIME_READOUT;
 
   return (
@@ -124,7 +122,7 @@ export function HeroCockpit() {
             <span
               key={pillar.label}
               style={{
-                width: `${weights[index] ?? 0}%`,
+                width: `${weights[index]}%`,
                 background: pillar.color,
               }}
             />
@@ -138,7 +136,7 @@ export function HeroCockpit() {
               ) : (
                 <TokenIcon symbol={pillar.symbols[0]} size={14} />
               )}
-              {pillar.label} <strong>{weights[index] ?? 0}%</strong>
+              {pillar.label} <strong>{weights[index]}%</strong>
             </span>
           ))}
         </div>

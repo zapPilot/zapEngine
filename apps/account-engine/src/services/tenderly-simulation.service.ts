@@ -35,11 +35,6 @@ const RawIntegerSchema = z.union([
   z.string().regex(/^0x[0-9a-fA-F]+$/),
 ]);
 
-const RawAmountSchema = z.union([
-  z.string().min(1),
-  z.number().int().nonnegative(),
-]);
-
 const RawTokenInfoSchema = z
   .object({
     contract_address: z.string().regex(ADDRESS_REGEX).optional(),
@@ -56,7 +51,7 @@ const RawAssetChangeSchema = z
     type: z.string().min(1),
     from: z.string().regex(ADDRESS_REGEX).optional().nullable(),
     to: z.string().regex(ADDRESS_REGEX).optional().nullable(),
-    raw_amount: RawAmountSchema,
+    raw_amount: RawIntegerSchema,
     amount: z.string().optional(),
   })
   .passthrough();
@@ -67,7 +62,7 @@ const RawExposureChangeSchema = z
     type: z.string().min(1),
     owner: z.string().regex(ADDRESS_REGEX),
     spender: z.string().regex(ADDRESS_REGEX),
-    raw_amount: RawAmountSchema,
+    raw_amount: RawIntegerSchema,
     amount: z.string().optional(),
   })
   .passthrough();
@@ -197,14 +192,16 @@ function integerString(value: number | string): string {
   if (typeof value === 'number') {
     return value.toString();
   }
-  try {
-    return BigInt(value).toString();
-  } catch {
-    return value;
-  }
+  // RawIntegerSchema only admits decimal or 0x-hex digit strings, and BigInt
+  // parses both — a catch-and-passthrough here could never run on payloads
+  // that survived validation.
+  return BigInt(value).toString();
 }
 
 function parseRawAmount(value: number | string): bigint {
+  // RawIntegerSchema only admits decimal or 0x-hex digit strings, and BigInt
+  // parses both — a catch-and-passthrough here could never run on payloads
+  // that survived validation.
   return BigInt(value);
 }
 
@@ -722,10 +719,11 @@ export function createTenderlySimulationService(config: {
       try {
         parsed = RawBundleResponseSchema.parse(await response.json());
         const results = parsed.simulation_results;
-        const lastResult = results.at(-1);
+        // RawBundleResponseSchema enforces min(1), so a last result always
+        // exists — assert instead of a guard whose false side is unreachable.
+        const lastResult = results[results.length - 1]!;
         const stoppedAfterFailure =
           results.length < input.calls.length &&
-          lastResult !== undefined &&
           !(lastResult.transaction?.status && lastResult.simulation.status);
         if (
           results.length > input.calls.length ||

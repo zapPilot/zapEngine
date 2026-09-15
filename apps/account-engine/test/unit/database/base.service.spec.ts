@@ -395,3 +395,69 @@ describe('BaseService', () => {
     });
   });
 });
+
+describe('BaseService branch sweep', () => {
+  // Each test names the previously-uncovered branch it locks.
+  // mutation: not run (offline sandbox — vitest could not be executed here).
+
+  let service: TestableService;
+  let dbMock: ReturnType<typeof createMockDatabaseService>;
+
+  beforeEach(() => {
+    dbMock = createMockDatabaseService();
+    service = new TestableService(dbMock.mock as unknown as DatabaseService);
+  });
+
+  it('locks the findMany default ascending order', async () => {
+    // Locks: `orderBy.ascending ?? true` fallback.
+    const qb = dbMock.supabase.queryBuilder;
+    qb.mockResolvedThen({ data: [], error: null });
+
+    await service.exposeFindMany(
+      'users',
+      {},
+      {
+        orderBy: { column: 'created_at' },
+      },
+    );
+
+    expect(qb.order).toHaveBeenCalledWith('created_at', { ascending: true });
+  });
+
+  it('locks insertOne skipping the projection when select is empty', async () => {
+    // Locks: `select ? builder.select(select) : builder` false outcome.
+    const qb = dbMock.supabase.queryBuilder;
+    qb.single.mockResolvedValue({ data: { id: '1' }, error: null });
+
+    await service.exposeInsertOne('users', { name: 'Alice' }, { select: '' });
+
+    expect(qb.insert).toHaveBeenCalledWith({ name: 'Alice' });
+    expect(qb.select).not.toHaveBeenCalled();
+  });
+
+  it('locks updateWhere skipping the projection when select is empty', async () => {
+    // Locks: `select ? query.select(select) : query` false outcome.
+    const qb = dbMock.supabase.queryBuilder;
+    qb.mockResolvedThen({ data: [{ id: '1' }], error: null });
+
+    const result = await service.exposeUpdateWhere(
+      'users',
+      { name: 'Bob' },
+      { id: '1' },
+      { select: '' },
+    );
+
+    expect(result).toEqual([{ id: '1' }]);
+    expect(qb.select).not.toHaveBeenCalled();
+  });
+
+  it('locks exists() called with an explicit entity name', async () => {
+    // Locks: exists entityName default-parameter not-taken outcome.
+    const qb = dbMock.supabase.queryBuilder;
+    qb.single.mockResolvedValue({ data: { id: '1' }, error: null });
+
+    await expect(
+      service.exposeExists('users', { id: '1' }, 'User'),
+    ).resolves.toBe(true);
+  });
+});

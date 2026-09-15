@@ -1,13 +1,12 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 
-import { HttpStatus, RateLimitException } from '../common/http';
+import { HttpStatus } from '../common/http';
 import type { DatabaseService } from '../database/database.service';
 import { jsonResponse, jsonValidator } from './shared';
 import { zEmail } from './validators';
+import { createWaitlistRateLimiter } from './waitlist-rate-limit';
 
-const WAITLIST_RATE_LIMIT = 10;
-const WAITLIST_RATE_WINDOW_MS = 10 * 60 * 1000;
 const SOCIAL_PLATFORMS = new Set(['x', 'threads', 'rednote', 'youtube']);
 const SOCIAL_LANGUAGES = new Set(['zh-Hant', 'ja', 'en']);
 const UUID_REGEX =
@@ -39,12 +38,7 @@ interface WaitlistDatabaseClient {
   schema(schema: string): { from(table: string): TableQuery };
 }
 
-interface RateBucket {
-  count: number;
-  resetAt: number;
-}
-
-const rateBuckets = new Map<string, RateBucket>();
+const waitlistRateLimiter = createWaitlistRateLimiter();
 
 const optionalText = (max: number) =>
   z
@@ -77,7 +71,7 @@ export function createWaitlistRoutes(databaseService: DatabaseService) {
   const app = new Hono();
 
   app.post('/', jsonValidator(waitlistSignupSchema), async (c) => {
-    consumeRateLimit(clientIp(c.req.header()));
+    waitlistRateLimiter.consume(clientIp(c.req.header()));
     const signup = c.req.valid('json');
 
     // Honeypot submissions get the same success response so automated form
@@ -144,20 +138,6 @@ async function resolveSocialPublishJob(
   return data?.id ?? null;
 }
 
-function consumeRateLimit(ip: string): void {
-  const now = Date.now();
-  const current = rateBuckets.get(ip);
-  if (!current || current.resetAt <= now) {
-    rateBuckets.set(ip, { count: 1, resetAt: now + WAITLIST_RATE_WINDOW_MS });
-    sweepRateBuckets(now);
-    return;
-  }
-  if (current.count >= WAITLIST_RATE_LIMIT) {
-    throw new RateLimitException('Too many waitlist submissions');
-  }
-  current.count += 1;
-}
-
 function clientIp(headers: Record<string, string | undefined>): string {
   return (
     headers['fly-client-ip'] ??
@@ -165,11 +145,4 @@ function clientIp(headers: Record<string, string | undefined>): string {
     headers['x-forwarded-for']?.split(',')[0]?.trim() ??
     'unknown'
   );
-}
-
-function sweepRateBuckets(now: number): void {
-  if (rateBuckets.size < 1_000) return;
-  for (const [key, bucket] of rateBuckets) {
-    if (bucket.resetAt <= now) rateBuckets.delete(key);
-  }
 }

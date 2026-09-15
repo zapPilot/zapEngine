@@ -195,3 +195,17 @@ describe('Route validators', () => {
     });
   });
 });
+
+describe('isValidEmail edge branches', () => {
+  // Each case names the previously-uncovered branch it locks.
+  // mutation: not run (offline sandbox — vitest could not be executed here).
+  it.each([
+    ['@test.com', 'local part empty'],
+    ['user@ab', 'domain shorter than 3 chars'],
+    ['user@testcom', 'domain without a dot'],
+    ['user@test..com', 'domain with an empty label'],
+    ['', 'empty string'],
+  ])('rejects %s (%s)', (email) => {
+    expect(updateEmailBodySchema.safeParse({ email }).success).toBe(false);
+  });
+});

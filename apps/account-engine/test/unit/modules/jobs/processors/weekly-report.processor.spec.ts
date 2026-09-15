@@ -559,3 +559,138 @@ describe('WeeklyReportProcessor', () => {
     });
   });
 });
+
+describe('WeeklyReportProcessor branch sweep', () => {
+  // Each test names the previously-uncovered branch it locks.
+  // mutation: not run (offline sandbox — vitest could not be executed here).
+
+  it('locks the invalid (non-finite) portfolio balance failure', async () => {
+    // Locks: `!isFiniteNumber(balanceUsd)` true → throw → failure result.
+    const { processor, analyticsClient, emailService } = createMocks();
+    analyticsClient.getPortfolioData.mockResolvedValue({
+      total_net_usd: Number.NaN,
+    });
+
+    const result = await processor.process(
+      createPendingJob({
+        type: JobType.WEEKLY_REPORT_SINGLE,
+        payload: { userId: 'u-1' },
+      }),
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('invalid portfolio balance');
+    expect(emailService.sendEmail).not.toHaveBeenCalled();
+  });
+
+  it('locks the no-wallets fallback to the placeholder address list', async () => {
+    // Locks: `userWallets.length > 0 ? userWallets : ['unknown']` false.
+    const { processor, supabaseUserService, templateService } = createMocks();
+    supabaseUserService.getReportRecipientWithWallets.mockResolvedValue({
+      user: { id: 'u-1', email: 'user@test.com' },
+      wallets: [],
+    });
+
+    const result = await processor.process(
+      createPendingJob({
+        type: JobType.WEEKLY_REPORT_SINGLE,
+        payload: { userId: 'u-1' },
+      }),
+    );
+
+    expect(result.success).toBe(true);
+    expect(templateService.generateReportHTML).toHaveBeenCalledWith(
+      'u-1',
+      expect.any(Object),
+      'chart-cid',
+      'https://app.zap-pilot.org/unsubscribe?token=signed',
+      ['unknown'],
+    );
+  });
+
+  it('locks the test-mode recipient fallback to the user email', async () => {
+    // Locks: `payload.testRecipient ?? user.email` fallback (testMode true,
+    // no testRecipient carried by the child job payload).
+    const { processor, emailService } = createMocks();
+
+    await processor.process(
+      createPendingJob({
+        type: JobType.WEEKLY_REPORT_SINGLE,
+        payload: { userId: 'u-1', testMode: true },
+      }),
+    );
+
+    expect(emailService.sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'user@test.com' }),
+    );
+  });
+
+  it('locks balance-history entries with invalid dates or values being filtered', async () => {
+    // Locks: `Number.isFinite(entry.timestamp) && Number.isFinite(entry.usdValue)`
+    // false outcomes (both operands).
+    const { processor, analyticsClient, supabaseUserService, emailService } =
+      createMocks();
+    analyticsClient.transformToEmailMetrics.mockReturnValue({
+      currentBalance: 5000,
+      estimatedYearlyROI: 10,
+      estimatedYearlyPnL: 500,
+      walletCount: 2,
+      recommendedPeriod: '30_days',
+    });
+    const now = Date.now();
+    supabaseUserService.getBalanceHistory.mockResolvedValue([
+      { date: 'not-a-date', usd_value: 100 },
+      { date: new Date(now).toISOString(), usd_value: Number.NaN },
+      {
+        date: new Date(now - 8 * 24 * 60 * 60 * 1000).toISOString(),
+        usd_value: 4000,
+      },
+      { date: new Date(now).toISOString(), usd_value: 5000 },
+    ]);
+
+    const result = await processor.process(
+      createPendingJob({
+        type: JobType.WEEKLY_REPORT_SINGLE,
+        payload: { userId: 'u-1' },
+      }),
+    );
+
+    expect(result.success).toBe(true);
+    expect(emailService.generateSubject).toHaveBeenCalledWith({
+      weeklyPnLPercentage: 25,
+    });
+  });
+
+  it('locks the unusable 7d baseline falling back to no subject percentage', async () => {
+    // Locks: `pct === null` true (non-positive baseline) → warn → undefined %.
+    const { processor, analyticsClient, supabaseUserService, emailService } =
+      createMocks();
+    analyticsClient.transformToEmailMetrics.mockReturnValue({
+      currentBalance: 5000,
+      estimatedYearlyROI: 10,
+      estimatedYearlyPnL: 500,
+      walletCount: 2,
+      recommendedPeriod: '30_days',
+    });
+    const now = Date.now();
+    supabaseUserService.getBalanceHistory.mockResolvedValue([
+      {
+        date: new Date(now - 8 * 24 * 60 * 60 * 1000).toISOString(),
+        usd_value: 0,
+      },
+      { date: new Date(now).toISOString(), usd_value: 5000 },
+    ]);
+
+    const result = await processor.process(
+      createPendingJob({
+        type: JobType.WEEKLY_REPORT_SINGLE,
+        payload: { userId: 'u-1' },
+      }),
+    );
+
+    expect(result.success).toBe(true);
+    expect(emailService.generateSubject).toHaveBeenCalledWith({
+      weeklyPnLPercentage: undefined,
+    });
+  });
+});

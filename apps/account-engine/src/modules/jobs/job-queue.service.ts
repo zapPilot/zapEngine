@@ -464,6 +464,9 @@ export class JobQueueService {
   stop() {
     if (this.cleanupInterval) {
       clearInterval(this.cleanupInterval);
+      // Unset so a second stop() is a genuine no-op instead of re-clearing a
+      // dead handle; keeps the guard (and both its outcomes) meaningful.
+      this.cleanupInterval = undefined;
     }
   }
 }

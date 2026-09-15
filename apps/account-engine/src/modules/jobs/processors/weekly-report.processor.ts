@@ -396,11 +396,7 @@ export class WeeklyReportProcessor implements JobProcessor {
       )
       .sort((a, b) => b.timestamp - a.timestamp);
 
-    if (normalizedHistory.length === 0) {
-      return { reason: 'no_valid_balance_history' };
-    }
-
-    const latestPoint = normalizedHistory[0];
+    const [latestPoint] = normalizedHistory;
     if (!latestPoint) {
       return { reason: 'no_valid_balance_history' };
     }

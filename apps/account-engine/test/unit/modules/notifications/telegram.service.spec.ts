@@ -2,8 +2,12 @@ import { Telegraf } from 'telegraf';
 import type { Mock } from 'vitest';
 
 import { DatabaseService } from '../../../../src/database/database.service';
+import type { DailySuggestionSubset } from '../../../../src/modules/notifications/analytics-client/daily-suggestion.schema';
 import { TelegramService } from '../../../../src/modules/notifications/telegram.service';
+import { TelegramConnectionService } from '../../../../src/modules/notifications/telegram-connection.service';
+import { TelegramNotificationService } from '../../../../src/modules/notifications/telegram-notification.service';
 import { TelegramTokenService } from '../../../../src/modules/notifications/telegram-token.service';
+import { TelegramTradeRecorderService } from '../../../../src/modules/notifications/telegram-trade-recorder.service';
 import {
   createMockConfigService,
   createMockDatabaseService,
@@ -30,6 +34,7 @@ interface MockBot {
   start: Mock;
   command: Mock;
   help: Mock;
+  on: Mock;
   launch: Mock;
   stop: Mock;
   telegram: {
@@ -151,5 +156,54 @@ describe('TelegramService facade', () => {
       expect.stringContaining('Zap Pilot Telegram Bot'),
       { parse_mode: 'Markdown' },
     );
+  });
+
+  it('delegates sendDailySuggestion through the facade', async () => {
+    // Locks: telegram.service.ts sendDailySuggestion facade function.
+    // mutation: not run (offline sandbox — vitest could not be executed here).
+    const sendSpy = vi
+      .spyOn(TelegramNotificationService.prototype, 'sendDailySuggestion')
+      .mockResolvedValue(undefined);
+    const { service } = createMocks();
+    const data = {} as unknown as DailySuggestionSubset;
+
+    await service.sendDailySuggestion('u-1', data);
+
+    expect(sendSpy).toHaveBeenCalledWith('u-1', data);
+    sendSpy.mockRestore();
+  });
+
+  it('wires /start, /stop, and callback_query handlers to their services', async () => {
+    // Locks: registerHandlers onStart / onCommand('stop') / onCallbackQuery
+    // arrow functions. mutation: not run (offline sandbox).
+    const startSpy = vi
+      .spyOn(TelegramConnectionService.prototype, 'handleStartCommand')
+      .mockResolvedValue(undefined);
+    const stopSpy = vi
+      .spyOn(TelegramConnectionService.prototype, 'handleStopCommand')
+      .mockResolvedValue(undefined);
+    const callbackSpy = vi
+      .spyOn(
+        TelegramTradeRecorderService.prototype,
+        'handleDailySuggestionDoneCallback',
+      )
+      .mockResolvedValue(undefined);
+    createMocks();
+    const bot = getLatestBotMock();
+    const ctx = {};
+
+    const startHandler = bot.start.mock.calls[0]?.[0];
+    const stopHandler = bot.command.mock.calls[0]?.[1];
+    const callbackHandler = bot.on.mock.calls.find(
+      (call: unknown[]) => call[0] === 'callback_query',
+    )?.[1];
+    await startHandler(ctx);
+    await stopHandler(ctx);
+    await callbackHandler(ctx);
+
+    expect(startSpy).toHaveBeenCalledWith(ctx);
+    expect(stopSpy).toHaveBeenCalledWith(ctx);
+    expect(callbackSpy).toHaveBeenCalledWith(ctx);
+    vi.restoreAllMocks();
   });
 });

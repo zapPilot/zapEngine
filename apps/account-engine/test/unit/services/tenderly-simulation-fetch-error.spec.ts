@@ -78,3 +78,32 @@ describe('TenderlySimulationService fetch errors', () => {
     expect(fetchFn).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('TenderlySimulationService fetch error branch sweep', () => {
+  // mutation: not run (offline sandbox — vitest could not be executed here).
+
+  it('locks mapping a non-abort DOMException to the generic unavailable reason', async () => {
+    // Locks: `error instanceof DOMException && error.name === 'AbortError'`
+    // second-operand false.
+    const fetchFn = vi
+      .fn()
+      .mockRejectedValueOnce(new DOMException('denied', 'SecurityError'));
+    const service = createTenderlySimulationService({
+      accountSlug: 'account-slug',
+      projectSlug: 'project-slug',
+      accessToken: 'secret-token',
+      fetchFn,
+    });
+
+    const result = await service.simulateBundle({
+      chainId: 8453,
+      walletAddress: WALLET,
+      calls: [{ to: TARGET }],
+    });
+
+    expect(result).toMatchObject({
+      status: 'unavailable',
+      unavailableReason: 'Tenderly simulation unavailable: denied',
+    });
+  });
+});

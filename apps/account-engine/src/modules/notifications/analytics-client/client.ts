@@ -26,6 +26,8 @@ import {
 } from './daily-suggestion.schema';
 import { transformToEmailMetrics } from './mappers';
 
+type AnalyticsQueryParamValue = string | number | boolean;
+
 export class AnalyticsClientService {
   private readonly logger = new Logger(AnalyticsClientService.name);
   private readonly analyticsEngineUrl: string;
@@ -98,7 +100,7 @@ export class AnalyticsClientService {
     userId: string,
     options?: {
       baseUrl?: string;
-      params?: Record<string, unknown>;
+      params?: Record<string, AnalyticsQueryParamValue>;
       retryOnTimeout?: boolean;
       timeoutMs?: number;
     },
@@ -240,15 +242,13 @@ export class AnalyticsClientService {
     url: string,
     options?: {
       timeoutMs?: number;
-      params?: Record<string, unknown>;
+      params?: Record<string, AnalyticsQueryParamValue>;
     },
   ): Promise<T> {
     const requestUrl = new URL(url);
 
     for (const [key, value] of Object.entries(options?.params ?? {})) {
-      if (value !== undefined && value !== null) {
-        requestUrl.searchParams.set(key, this.stringifyQueryValue(value));
-      }
+      requestUrl.searchParams.set(key, this.stringifyQueryValue(value));
     }
 
     const response = await fetch(requestUrl.toString(), {
@@ -269,16 +269,7 @@ export class AnalyticsClientService {
     return (await response.json()) as T;
   }
 
-  private stringifyQueryValue(value: unknown): string {
-    if (
-      typeof value === 'string' ||
-      typeof value === 'number' ||
-      typeof value === 'boolean'
-    ) {
-      return String(value);
-    }
-
-    /* v8 ignore next -- no current public method passes non-primitive params */
-    return JSON.stringify(value);
+  private stringifyQueryValue(value: AnalyticsQueryParamValue): string {
+    return String(value);
   }
 }

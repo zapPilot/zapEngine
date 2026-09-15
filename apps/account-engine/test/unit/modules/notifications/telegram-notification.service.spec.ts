@@ -1,6 +1,7 @@
 import type { Mock } from 'vitest';
 
 import { DatabaseService } from '../../../../src/database/database.service';
+import { DailySuggestionSubsetSchema } from '../../../../src/modules/notifications/analytics-client/daily-suggestion.schema';
 import { TelegramBotCoreService } from '../../../../src/modules/notifications/telegram-bot-core.service';
 import { TelegramNotificationService } from '../../../../src/modules/notifications/telegram-notification.service';
 import { createMockDatabaseService } from '../../../test-utils';
@@ -196,5 +197,92 @@ describe('TelegramNotificationService', () => {
     );
     expect(service.isBotBlockedError('string error')).toBe(false);
     expect(service.isBotBlockedError(null)).toBe(false);
+  });
+
+  describe('sendDailySuggestion', () => {
+    // Each test names the previously-uncovered branch it locks.
+    // mutation: not run (offline sandbox — vitest could not be executed here).
+
+    const suggestionData = DailySuggestionSubsetSchema.parse({
+      as_of: '2026-08-22',
+      config_id: 'operator_config',
+      config_display_name: 'Operator Strategy',
+      strategy_id: 'dma_strategy',
+      action: {
+        status: 'action_required',
+        required: true,
+        reason_code: 'eth_btc_ratio_rebalance',
+        transfers: [
+          { from_bucket: 'stable', to_bucket: 'eth', amount_usd: 100 },
+        ],
+      },
+      context: {
+        portfolio: { total_value: 1000, asset_allocation: { stable: 1 } },
+        target: { allocation: { eth: 1 } },
+        signal: { regime: 'fear', details: null },
+        market: null,
+        strategy: { details: null },
+      },
+    });
+
+    it('warns and returns without touching the database when the bot is unconfigured', async () => {
+      // Locks: `if (!this.botCore.getBot())` true in sendDailySuggestion.
+      const { service, dbMock, bot } = createNotificationMocks(null);
+
+      await service.sendDailySuggestion('u-1', suggestionData);
+
+      expect(dbMock.mock.getClient).not.toHaveBeenCalled();
+      expect(bot).toBeNull();
+    });
+
+    it('returns without sending when the user has no Telegram chat id', async () => {
+      // Locks: `if (!chatId) return` true.
+      const { service, dbMock, bot } = createNotificationMocks();
+      dbMock.supabase.queryBuilder.single.mockResolvedValue(chatIdFor(null));
+
+      await service.sendDailySuggestion('u-1', suggestionData);
+
+      expect(bot?.telegram.sendMessage).not.toHaveBeenCalled();
+    });
+
+    it('returns without sending when the stored config has no chat_id', async () => {
+      // Locks: `settings.config.chat_id ?? null` fallback in getTelegramChatId.
+      const { service, dbMock, bot } = createNotificationMocks();
+      dbMock.supabase.queryBuilder.single.mockResolvedValue({
+        data: { config: {} },
+        error: null,
+      });
+
+      await service.sendDailySuggestion('u-1', suggestionData);
+
+      expect(bot?.telegram.sendMessage).not.toHaveBeenCalled();
+    });
+
+    it('delivers the decision packet with the Done reply markup', async () => {
+      // Locks: bot-configured false path, chatId-present false path, and the
+      // `replyMarkup ? { reply_markup } : {}` spread true in sendMessageToUser.
+      const { service, dbMock, bot } = createNotificationMocks();
+      dbMock.supabase.queryBuilder.single.mockResolvedValue(chatIdFor('12345'));
+
+      await service.sendDailySuggestion('u-1', suggestionData);
+
+      expect(bot?.telegram.sendMessage).toHaveBeenCalledTimes(1);
+      expect(bot?.telegram.sendMessage).toHaveBeenCalledWith(
+        '12345',
+        expect.stringContaining('Rebalance Needed'),
+        expect.objectContaining({
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: '☑️ Done',
+                  callback_data: 'dsdone|operator_config|dma_strategy',
+                },
+              ],
+            ],
+          },
+        }),
+      );
+    });
   });
 });

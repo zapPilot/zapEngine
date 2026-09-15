@@ -86,4 +86,22 @@ describe('webhookPayloadSchema', () => {
       ]);
     }
   });
+
+  it('copies filters only onto generated current tasks', () => {
+    const filters = { chains: ['eth'] };
+    const result = webhookPayloadSchema.parse({ source: 'debank', filters });
+
+    expect(result).toEqual({
+      sources: ['debank'],
+      tasks: [{ source: 'debank', operation: 'current', filters }],
+      filters,
+    });
+  });
+
+  it('defaults the macro task start date', () => {
+    const result = webhookPayloadSchema.parse({
+      tasks: [{ source: 'macro-fear-greed', operation: 'backfill' }],
+    });
+    expect(result.tasks[0]).toMatchObject({ startDate: '2021-01-01' });
+  });
 });

@@ -65,12 +65,17 @@ export function buildDecisionPacketMessage(
 }
 
 function formatDecisionPacketMessage(data: DailySuggestionSubset): string {
-  const blocks = [header(data), actionBlock(data), targetBlock(data)];
-  const trigger = triggerBlock(data);
-  if (trigger) blocks.push(trigger);
-  blocks.push(checksBlock(data));
-  blocks.push('[Open strategy](https://v2.zap-pilot.org/strategy)');
-  return blocks.filter(Boolean).join('\n\n');
+  // Every block is a non-empty string by construction — triggerBlock always
+  // joins at least the title and Rule lines — so no truthiness filtering is
+  // needed here.
+  return [
+    header(data),
+    actionBlock(data),
+    targetBlock(data),
+    triggerBlock(data),
+    checksBlock(data),
+    '[Open strategy](https://v2.zap-pilot.org/strategy)',
+  ].join('\n\n');
 }
 
 function header(data: DailySuggestionSubset): string {
@@ -110,24 +115,28 @@ function formatAllocation(
   allocation: Record<string, number> | null | undefined,
 ): string {
   if (!allocation) return '';
-  const keys = [
-    ...ALLOCATION_ORDER.filter((key) => key in allocation),
-    ...Object.keys(allocation).filter(
-      (key) =>
-        !ALLOCATION_ORDER.includes(key as (typeof ALLOCATION_ORDER)[number]),
-    ),
-  ];
-  return keys
-    .map((key) => ({
+  // Keys are sourced from the allocation object itself (schema:
+  // Record<string, number>), so every paired value is a real number and no
+  // `?? 0` fallback is reachable.
+  const prioritized = ALLOCATION_ORDER.flatMap((key) => {
+    const value = allocation[key];
+    return value === undefined ? [] : [[key, value] as const];
+  });
+  const rest = Object.entries(allocation).filter(
+    ([key]) =>
+      !ALLOCATION_ORDER.includes(key as (typeof ALLOCATION_ORDER)[number]),
+  );
+  return [...prioritized, ...rest]
+    .map(([key, value]) => ({
       label: ALLOCATION_LABELS[key.toLowerCase()] ?? humanizeSlug(key),
-      percent: (allocation[key] ?? 0) * 100,
+      percent: value * 100,
     }))
     .filter(({ percent }) => Math.abs(percent) >= MIN_DISPLAYED_PERCENT)
     .map(({ label, percent }) => `${label} ${percent.toFixed(1)}%`)
     .join(' · ');
 }
 
-function triggerBlock(data: DailySuggestionSubset): string | null {
+function triggerBlock(data: DailySuggestionSubset): string {
   const rule = data.context.strategy.details?.matched_rule_name;
   const lines = [
     '*TRIGGER*',

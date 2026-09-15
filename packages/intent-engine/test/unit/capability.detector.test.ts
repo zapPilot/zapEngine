@@ -79,6 +79,14 @@ describe('detectEIP7702Support', () => {
     expect(getCapabilitiesMock).toHaveBeenCalledTimes(1);
   });
 
+  it('ignores a non-string atomic status and falls back to sequential', async () => {
+    getCapabilitiesMock
+      .mockResolvedValueOnce({ atomic: { status: 123 } })
+      .mockResolvedValueOnce({ 1: { atomic: { status: 123 } } });
+
+    expect(await detectEIP7702Support(DUMMY_WALLET, 1)).toBe(false);
+  });
+
   it('returns false when wallet.request throws (non-EIP-5792 wallet)', async () => {
     getCapabilitiesMock.mockRejectedValueOnce(new Error('Method not found'));
     expect(await detectEIP7702Support(DUMMY_WALLET, 1)).toBe(false);

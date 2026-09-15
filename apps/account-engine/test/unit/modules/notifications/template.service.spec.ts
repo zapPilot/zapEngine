@@ -2,7 +2,10 @@ import * as fs from 'node:fs';
 
 import type { Mock } from 'vitest';
 
-import { TemplateService } from '../../../../src/modules/notifications/template.service';
+import {
+  type EmailMetrics,
+  TemplateService,
+} from '../../../../src/modules/notifications/template.service';
 
 vi.mock('node:fs');
 
@@ -206,4 +209,109 @@ describe('TemplateService', () => {
       expect(service.calculateRiskScore(35)).toBe('Very High');
     });
   });
+
+  describe('branch sweep', () => {
+    // Each test names the previously-uncovered branch it locks.
+    // mutation: not run (offline sandbox — vitest could not be executed here).
+
+    beforeEach(() => {
+      service = new TemplateService();
+      service.clearTemplateCache();
+      mockReadFileSync.mockReset();
+    });
+
+    it('locks leaving unknown placeholders untouched', () => {
+      // Locks: interpolateTemplate `hasOwnProperty(...)` false outcome.
+      mockReadFileSync
+        .mockReturnValueOnce('<p>{{UNKNOWN_PLACEHOLDER}}</p>')
+        .mockReturnValueOnce('');
+
+      const result = service.generateReportHTML(
+        'u-1',
+        baseMetrics(),
+        'cid',
+        'https://app.example.com/unsubscribe?token=signed',
+      );
+
+      expect(result).toContain('{{UNKNOWN_PLACEHOLDER}}');
+    });
+
+    it('locks the N/A fallback when no addresses are supplied at all', () => {
+      // Locks: pickPrimaryAddress `addresses.length > 0` false outcome.
+      mockReadFileSync
+        .mockReturnValueOnce('{{ADDRESS}}')
+        .mockReturnValueOnce('');
+
+      const result = service.generateReportHTML(
+        'u-1',
+        baseMetrics(),
+        'cid',
+        'https://app.example.com/unsubscribe?token=signed',
+        [],
+      );
+
+      expect(result).toContain('N/A');
+    });
+
+    it('locks negative trend classes and signed percentages', () => {
+      // Locks: getTrendClass `value < 0` true; formatPercentage `value > 0`
+      // false outcome.
+      mockReadFileSync
+        .mockReturnValueOnce(
+          '{{PNL_HERO_CLASS}}|{{APR_CLASS}}|{{ESTIMATED_APR}}|{{WEEKLY_PNL_CLASS}}|{{WEEKLY_PNL}}|{{WEEKLY_PNL_PERCENTAGE}}',
+        )
+        .mockReturnValueOnce('');
+
+      const result = service.generateReportHTML(
+        'u-1',
+        {
+          currentBalance: 1000,
+          estimatedYearlyROI: -5,
+          estimatedYearlyPnL: -50,
+          walletCount: 1,
+          recommendedPeriod: '30_days',
+        },
+        'cid',
+        'https://app.example.com/unsubscribe?token=signed',
+      );
+
+      expect(result).toBe('negative|negative|-5.00%|negative|-$50.00|-5.00%');
+    });
+
+    it('locks the non-number metric fallback to zero', () => {
+      // Locks: toNumber `typeof value === 'number' ? value : 0` false outcome.
+      // Reachable because PortfolioResponse is an unvalidated upstream
+      // interface — a malformed analytics payload can surface undefined values.
+      mockReadFileSync
+        .mockReturnValueOnce('{{CURRENT_BALANCE}} {{ESTIMATED_APR}}')
+        .mockReturnValueOnce('');
+      const metrics = {
+        currentBalance: undefined,
+        estimatedYearlyROI: undefined,
+        estimatedYearlyPnL: 0,
+        walletCount: 1,
+        recommendedPeriod: '30_days',
+      } as unknown as EmailMetrics;
+
+      const result = service.generateReportHTML(
+        'u-1',
+        metrics,
+        'cid',
+        'https://app.example.com/unsubscribe?token=signed',
+      );
+
+      expect(result).toContain('$0.00');
+      expect(result).toContain('0.00%');
+    });
+  });
 });
+
+function baseMetrics(): EmailMetrics {
+  return {
+    currentBalance: 1000,
+    estimatedYearlyROI: 12.5,
+    estimatedYearlyPnL: 125,
+    walletCount: 2,
+    recommendedPeriod: '30_days',
+  };
+}

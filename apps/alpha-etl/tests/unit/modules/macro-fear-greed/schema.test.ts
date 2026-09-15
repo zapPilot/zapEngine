@@ -127,4 +127,40 @@ describe('CNN macro Fear & Greed parser', () => {
     expect(labelFromScore(75)).toBe('greed');
     expect(labelFromScore(76)).toBe('extreme_greed');
   });
+
+  it('falls back to the clock for missing and invalid timestamps', () => {
+    const before = Date.now();
+    for (const timestamp of [null, undefined, 'not-a-date']) {
+      const value = msToIso(timestamp);
+      expect(Date.parse(value)).toBeGreaterThanOrEqual(before);
+    }
+  });
+
+  it('falls back from absent and non-object current values', () => {
+    for (const fear_and_greed of [undefined, null, 'invalid']) {
+      const result = parseCurrentCnnFearGreed({
+        fear_and_greed: fear_and_greed as never,
+        fear_and_greed_historical: {
+          data: [{ x: 1777420800000, y: 42 }],
+        },
+      });
+      expect(result).toMatchObject({ score: 42, rawRating: null });
+    }
+  });
+
+  it('ignores non-string current ratings and missing history', () => {
+    expect(
+      parseCurrentCnnFearGreed({
+        fear_and_greed: {
+          score: 50,
+          rating: 123,
+          timestamp: null,
+        },
+      }),
+    ).toMatchObject({ score: 50, label: 'neutral', rawRating: null });
+    expect(parseCnnFearGreedHistory({})).toEqual([]);
+    expect(
+      parseCnnFearGreedHistory({ fear_and_greed_historical: null }),
+    ).toEqual([]);
+  });
 });

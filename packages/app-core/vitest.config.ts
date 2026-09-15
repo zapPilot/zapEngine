@@ -1,3 +1,4 @@
+import { COVERAGE_EXCLUDES } from './coverage-exclusions';
 import { defineConfig } from 'vitest/config';
 import path from 'node:path';
 
@@ -13,6 +14,8 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'json-summary', 'html'],
       reportsDirectory: 'coverage',
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: COVERAGE_EXCLUDES,
       // Ratcheted from the 2026-09-08 measured baseline
       // (79.71/70.58/77.91/80.86) with ~4 points of churn buffer.
       thresholds: {

@@ -109,6 +109,14 @@ describe('stock-price/writer', () => {
       });
 
       expect(mockClient.query).toHaveBeenCalled();
+
+      await writer.insertSnapshot({
+        priceUsd: 4511,
+        symbol: 'SPY',
+        source: 'yahoo-finance',
+        timestamp: new Date('2024-12-16T12:00:00.000Z'),
+      });
+      expect(mockClient.query).toHaveBeenCalledTimes(2);
     });
 
     it('should throw when insert fails', async () => {

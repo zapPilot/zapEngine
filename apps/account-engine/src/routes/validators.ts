@@ -6,7 +6,9 @@ const UUID_V4_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function isValidEmail(value: string): boolean {
-  if (value.length === 0 || value.includes(' ')) {
+  // An empty string is rejected identically by the `@`-split check below, so
+  // a dedicated length guard is redundant here.
+  if (value.includes(' ')) {
     return false;
   }
 
@@ -15,7 +17,9 @@ function isValidEmail(value: string): boolean {
     return false;
   }
 
-  const [local = '', domain = ''] = parts;
+  // `parts.length === 2` above guarantees both elements exist; assert the
+  // tuple shape instead of carrying impossible default fallbacks.
+  const [local, domain] = parts as [string, string];
   if (local.length === 0 || domain.length < 3) {
     return false;
   }

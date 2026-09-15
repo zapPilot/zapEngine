@@ -6,6 +6,7 @@ vi.mock('../../../../src/observability/sentry', () => ({
   captureBackgroundException: sentryMocks.captureBackgroundException,
 }));
 
+import { JOB_CONFIG } from '../../../../src/common/constants';
 import { ServiceLayerException } from '../../../../src/common/exceptions';
 import {
   type JobProcessingResult,
@@ -403,6 +404,143 @@ describe('JobProcessorService', () => {
         expect.stringContaining('Batch job dispatched'),
         expect.any(Object),
       );
+    });
+  });
+
+  describe('branch sweep', () => {
+    // Each test names the previously-uncovered branch it locks.
+    // mutation: not run (offline sandbox — vitest could not be executed here).
+
+    it('locks the max-concurrency early return in processAvailableJobs', async () => {
+      // Locks: `this.activeJobs.size >= this.maxConcurrentJobs` true.
+      const { service, jobQueueService } = createMocks();
+      let release: () => void = () => undefined;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      service.registerProcessor({
+        supportedJobTypes: [JobType.WEEKLY_REPORT_BATCH],
+        process: vi.fn(async () => {
+          await gate;
+          return { success: true };
+        }),
+      });
+      const jobs = Array.from(
+        { length: JOB_CONFIG.MAX_CONCURRENT_JOBS + 1 },
+        (_, index) => createPendingJob({ id: `job-${index}` }),
+      );
+      let cursor = 0;
+      jobQueueService.getNextJob.mockImplementation(
+        () => jobs[cursor++] ?? null,
+      );
+
+      vi.useFakeTimers();
+      service.start();
+      vi.advanceTimersByTime(JOB_CONFIG.PROCESSING_INTERVAL_MS + 100);
+      jobQueueService.getNextJob.mockClear();
+      vi.advanceTimersByTime(JOB_CONFIG.PROCESSING_INTERVAL_MS + 100);
+
+      expect(jobQueueService.getNextJob).not.toHaveBeenCalled();
+
+      service.stop();
+      release();
+      vi.useRealTimers();
+      for (let index = 0; index < 10; index++) {
+        await Promise.resolve();
+      }
+    });
+
+    it('locks the default failure message when a failure result has no error', async () => {
+      // Locks: `result.error ?? 'Job processing failed'` fallback.
+      const { service, jobQueueService } = createMocks();
+      const job = createPendingJob({ maxRetries: 3, retryCount: 0 });
+      jobQueueService.getJob.mockReturnValue(job);
+      service.registerProcessor(createTestProcessor({ success: false }));
+
+      await service.processJob('job-1');
+
+      expect(jobQueueService.retryJob).toHaveBeenCalledWith(
+        'job-1',
+        'Job processing failed',
+      );
+    });
+
+    it('locks the unknown-error fallback for an empty rejection message', async () => {
+      // Locks: `error.message || 'Unknown error'` fallback.
+      const { service, jobQueueService } = createMocks();
+      const job = createPendingJob({ maxRetries: 0, retryCount: 0 });
+      jobQueueService.getJob.mockReturnValue(job);
+      const emptyMessageError = new Error('placeholder');
+      emptyMessageError.message = '';
+      service.registerProcessor({
+        supportedJobTypes: [JobType.WEEKLY_REPORT_BATCH],
+        process: vi.fn().mockRejectedValue(emptyMessageError),
+      });
+
+      await service.processJob('job-1');
+
+      expect(jobQueueService.failJob).toHaveBeenCalledWith(
+        'job-1',
+        'Unknown error',
+      );
+    });
+
+    it('locks skipping the admin notification when the failed job is gone', async () => {
+      // Locks: `if (failedJob)` false in failJobPermanently.
+      const { service, jobQueueService, adminNotificationService } =
+        createMocks();
+      const job = createPendingJob({ maxRetries: 0, retryCount: 0 });
+      jobQueueService.getJob
+        .mockReturnValueOnce(job) // processJob's initial lookup
+        .mockReturnValue(null); // failJobPermanently's re-read
+      service.registerProcessor(
+        createTestProcessor({ success: false, error: 'perm fail' }),
+      );
+
+      await service.processJob('job-1');
+
+      expect(jobQueueService.failJob).toHaveBeenCalledWith(
+        'job-1',
+        'perm fail',
+      );
+      expect(adminNotificationService.notifyJobFailure).not.toHaveBeenCalled();
+    });
+
+    it('locks wrapping a non-Error rejection', async () => {
+      // Locks: `error instanceof Error ? error : new Error(String(error))` false.
+      const { service, jobQueueService } = createMocks();
+      const job = createPendingJob({ maxRetries: 3, retryCount: 0 });
+      jobQueueService.getJob.mockReturnValue(job);
+      service.registerProcessor({
+        supportedJobTypes: [JobType.WEEKLY_REPORT_BATCH],
+        process: vi.fn().mockRejectedValue('plain string rejection'),
+      });
+
+      const result = await service.processJob('job-1');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('plain string rejection');
+      expect(jobQueueService.retryJob).toHaveBeenCalledWith(
+        'job-1',
+        'plain string rejection',
+      );
+    });
+
+    it('locks non-retryable detection via the error constructor name', async () => {
+      // Locks: `error.constructor.name === errorType` true (first operand).
+      class ValidationError extends Error {}
+      const { service, jobQueueService } = createMocks();
+      const job = createPendingJob({ maxRetries: 3, retryCount: 0 });
+      jobQueueService.getJob.mockReturnValue(job);
+      service.registerProcessor({
+        supportedJobTypes: [JobType.WEEKLY_REPORT_BATCH],
+        process: vi.fn().mockRejectedValue(new ValidationError('plain')),
+      });
+
+      await service.processJob('job-1');
+
+      expect(jobQueueService.failJob).toHaveBeenCalled();
+      expect(jobQueueService.retryJob).not.toHaveBeenCalled();
     });
   });
 });

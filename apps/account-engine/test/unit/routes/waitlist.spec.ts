@@ -256,3 +256,95 @@ describe('waitlist routes', () => {
     expect(response.status).toBe(500);
   });
 });
+
+describe('waitlist clientIp precedence (branch sweep)', () => {
+  // Each test names the previously-uncovered branch it locks.
+  // mutation: not run (offline sandbox — vitest could not be executed here).
+
+  function rawRequest(headers: Record<string, string>) {
+    return new Request('http://account-engine.test/', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...headers },
+      body: JSON.stringify({ email: 'ip-probe@example.com' }),
+    });
+  }
+
+  function appWithErrorMapping(fixture: ReturnType<typeof databaseFixture>) {
+    const app = createWaitlistRoutes(fixture.databaseService);
+    app.onError(
+      (error) => new Response(error.message, { status: getErrorStatus(error) }),
+    );
+    return app;
+  }
+
+  it('locks the cf-connecting-ip fallback when fly-client-ip is absent', async () => {
+    // Locks: clientIp `?? headers['cf-connecting-ip']` fallback.
+    const app = appWithErrorMapping(databaseFixture());
+    const send = () =>
+      app.request(rawRequest({ 'cf-connecting-ip': '198.51.100.10' }));
+
+    for (let index = 0; index < 10; index++) {
+      expect((await send()).status).toBe(201);
+    }
+    expect((await send()).status).toBe(429);
+  });
+
+  it('locks the x-forwarded-for fallback when fly/cf are absent', async () => {
+    // Locks: `?? headers['x-forwarded-for']?.split(',')[0]?.trim()` value path.
+    const app = appWithErrorMapping(databaseFixture());
+    const send = () =>
+      app.request(rawRequest({ 'x-forwarded-for': '198.51.100.11, 10.0.0.1' }));
+
+    for (let index = 0; index < 10; index++) {
+      expect((await send()).status).toBe(201);
+    }
+    expect((await send()).status).toBe(429);
+  });
+
+  it('locks the unknown fallback when no IP header is present', async () => {
+    // Locks: `?? 'unknown'`.
+    const app = appWithErrorMapping(databaseFixture());
+    const send = () => app.request(rawRequest({}));
+
+    for (let index = 0; index < 10; index++) {
+      expect((await send()).status).toBe(201);
+    }
+    expect((await send()).status).toBe(429);
+  });
+
+  it('locks fly-over-cf and cf-over-forwarded precedence', async () => {
+    // Locks: earlier headers winning over later fallbacks (both ?? left-defined
+    // outcomes).
+    const app = appWithErrorMapping(databaseFixture());
+    const flyAndCf = () =>
+      app.request(
+        rawRequest({
+          'fly-client-ip': '198.51.100.20',
+          'cf-connecting-ip': '198.51.100.21',
+        }),
+      );
+    for (let index = 0; index < 10; index++) {
+      expect((await flyAndCf()).status).toBe(201);
+    }
+    // If cf had keyed those ten, this cf-only request would be the eleventh.
+    const cfOnly = await app.request(
+      rawRequest({ 'cf-connecting-ip': '198.51.100.21' }),
+    );
+    expect(cfOnly.status).toBe(201);
+
+    const cfAndForwarded = () =>
+      app.request(
+        rawRequest({
+          'cf-connecting-ip': '198.51.100.22',
+          'x-forwarded-for': '198.51.100.23',
+        }),
+      );
+    for (let index = 0; index < 10; index++) {
+      expect((await cfAndForwarded()).status).toBe(201);
+    }
+    const forwardedOnly = await app.request(
+      rawRequest({ 'x-forwarded-for': '198.51.100.23' }),
+    );
+    expect(forwardedOnly.status).toBe(201);
+  });
+});
