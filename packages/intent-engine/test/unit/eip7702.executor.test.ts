@@ -102,6 +102,29 @@ describe('EIP-7702 Executor', () => {
       );
     });
 
+    it('returns an error result for an unsupported chain', async () => {
+      const result = await executeWithEIP7702(mockTxs, mockWalletClient, {
+        chainId: 10,
+      });
+
+      expect(result).toEqual({
+        success: false,
+        error: 'Unsupported EIP-7702 chain id: 10',
+      });
+      expect(sendCalls).not.toHaveBeenCalled();
+    });
+
+    it('uses the generic message for a non-Error sendCalls rejection', async () => {
+      vi.mocked(sendCalls).mockRejectedValue('boom');
+
+      await expect(
+        executeWithEIP7702(mockTxs, mockWalletClient),
+      ).resolves.toEqual({
+        success: false,
+        error: 'Unknown error during EIP-7702 execution',
+      });
+    });
+
     it('returns error result when sendCalls fails', async () => {
       vi.mocked(sendCalls).mockRejectedValue(
         new Error('User rejected request'),

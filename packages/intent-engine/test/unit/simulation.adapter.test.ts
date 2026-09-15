@@ -173,6 +173,73 @@ describe('createTenderlyBundleSimulationAdapter', () => {
     });
   });
 
+  it('uses global fetch when no fetchFn is provided', async () => {
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValue(
+        okResponse({ simulation_results: [passedResult(), passedResult()] }),
+      );
+    vi.stubGlobal('fetch', fetchFn);
+    try {
+      const adapter = createTenderlyBundleSimulationAdapter(CONFIG);
+      await expect(adapter.simulateBundle(REQUEST)).resolves.toEqual({
+        status: 'passed',
+      });
+      expect(fetchFn).toHaveBeenCalledOnce();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('aborts a pending request after the configured timeout', async () => {
+    vi.useFakeTimers();
+    const fetchFn = vi.fn(
+      (_url: string, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () =>
+            reject(new DOMException('aborted', 'AbortError')),
+          );
+        }),
+    );
+    const adapter = createTenderlyBundleSimulationAdapter({
+      ...CONFIG,
+      fetchFn: fetchFn as typeof fetch,
+      timeoutMs: 25,
+    });
+
+    const pending = adapter.simulateBundle(REQUEST);
+    await vi.advanceTimersByTimeAsync(26);
+    await expect(pending).resolves.toEqual({
+      status: 'unavailable',
+      reason: 'Tenderly bundle simulation timed out',
+    });
+    expect((fetchFn.mock.calls[0]?.[1] as RequestInit).signal?.aborted).toBe(
+      true,
+    );
+    vi.useRealTimers();
+  });
+
+  it('uses the generic revert reason when Tenderly supplies no message', async () => {
+    const fetchFn = vi.fn().mockResolvedValue(
+      okResponse({
+        simulation_results: [
+          { transaction: { status: false }, simulation: { status: false } },
+        ],
+      }),
+    );
+    const adapter = createTenderlyBundleSimulationAdapter({
+      ...CONFIG,
+      fetchFn,
+    });
+
+    await expect(
+      adapter.simulateBundle({ ...REQUEST, calls: REQUEST.calls.slice(0, 1) }),
+    ).resolves.toEqual({
+      status: 'failed',
+      reason: 'Simulation reverted',
+    });
+  });
+
   it('returns unavailable when results are silently truncated without a revert', async () => {
     const fetchFn = vi
       .fn()

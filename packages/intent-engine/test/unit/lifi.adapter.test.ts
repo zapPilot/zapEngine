@@ -420,6 +420,113 @@ describe('LiFiAdapter', () => {
     });
   });
 
+  describe('remaining quote mapping branches', () => {
+    const request = {
+      fromChain: 8453,
+      toChain: 8453,
+      fromToken: '0x0000000000000000000000000000000000000001' as const,
+      toToken: '0x0000000000000000000000000000000000000002' as const,
+      fromAmount: '100',
+      fromAddress: '0x000000000000000000000000000000000000abcd' as const,
+    };
+
+    function quote(fromToken: string, approvalAddress?: string) {
+      return {
+        ...makeQuoteWithTransactionRequest({
+          to: '0x0000000000000000000000000000000000000def',
+          data: '0xdeadbeef',
+        }),
+        action: {
+          ...makeQuoteWithTransactionRequest({ to: '0x1', data: '0x' }).action,
+          fromChainId: 8453,
+          toChainId: 8453,
+          fromToken: { address: fromToken, symbol: 'A', decimals: 18 },
+          fromAmount: '100',
+        },
+        estimate: {
+          fromAmount: '100',
+          toAmount: '99',
+          toAmountMin: '98',
+          approvalAddress,
+          gasCosts: [{}, { amountUSD: '1.25' }],
+          feeCosts: [{}],
+        },
+      };
+    }
+
+    it.each([
+      '0x0000000000000000000000000000000000000000',
+      '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+    ])(
+      'does not request approval for native token sentinel %s',
+      async (fromToken) => {
+        vi.mocked(lifiSdk.getQuote).mockResolvedValueOnce(
+          quote(
+            fromToken,
+            '0x0000000000000000000000000000000000000aaa',
+          ) as unknown as never,
+        );
+
+        const result = await adapter.getSwapQuote({
+          ...request,
+          fromToken: fromToken as `0x${string}`,
+        });
+        expect(result.approval).toBeUndefined();
+      },
+    );
+
+    it('returns an approval for an ERC-20 quote', async () => {
+      vi.mocked(lifiSdk.getQuote).mockResolvedValueOnce(
+        quote(
+          request.fromToken,
+          '0x0000000000000000000000000000000000000aaa',
+        ) as unknown as never,
+      );
+
+      const result = await adapter.getSwapQuote(request);
+      expect(result.approval).toEqual({
+        tokenAddress: request.fromToken,
+        spenderAddress: '0x0000000000000000000000000000000000000aaa',
+        amount: '100',
+      });
+      expect(result.estimate.gasCostUsd).toBe('1.25');
+      expect(result.estimate.feeCostUsd).toBe('0');
+    });
+
+    it.each([
+      [8453, 'SWAP'],
+      [42161, 'BRIDGE'],
+    ] as const)(
+      'infers intent type for destination chain %s',
+      async (toChain, intentType) => {
+        vi.mocked(lifiSdk.getQuote).mockResolvedValueOnce(
+          quote(request.fromToken) as unknown as never,
+        );
+
+        const result = await adapter.getQuote({ ...request, toChain });
+        expect(result.transaction.meta.intentType).toBe(intentType);
+      },
+    );
+
+    it('wraps a quote without a transaction request as a QuoteError', async () => {
+      const missingTransaction = quote(request.fromToken) as Record<
+        string,
+        unknown
+      >;
+      delete missingTransaction.transactionRequest;
+      vi.mocked(lifiSdk.getQuote).mockResolvedValueOnce(
+        missingTransaction as never,
+      );
+
+      await expect(adapter.getQuote(request)).rejects.toMatchObject({
+        message: 'Failed to get quote from LI.FI',
+        cause: expect.objectContaining({
+          message: 'No transaction in quote response',
+        }),
+      });
+    });
+  });
+
   describe('getTokenPrice', () => {
     it('returns token price metadata from LI.FI getToken', async () => {
       vi.mocked(lifiSdk.getToken).mockResolvedValueOnce({

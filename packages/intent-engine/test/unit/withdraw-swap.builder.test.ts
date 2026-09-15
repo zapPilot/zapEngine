@@ -87,6 +87,26 @@ describe('buildWithdrawSwapTx', () => {
     expect(plan.estimates.expectedOutput).toBe(REDEEM_OUT.toString());
   });
 
+  it('defaults swap slippage to 50 bps', async () => {
+    const { adapter, getSwapQuote } = makeAdapter();
+
+    await buildWithdrawSwapTx(
+      {
+        vaultAddress: VAULT,
+        shareAmount: SHARES,
+        toToken: TARGET_TOKEN,
+        fromAddress: USER,
+        chainId: BASE_CHAIN,
+      },
+      adapter,
+      makePublicClient(VAULT_ASSET),
+    );
+
+    expect(getSwapQuote).toHaveBeenCalledWith(
+      expect.objectContaining({ slippageBps: 50 }),
+    );
+  });
+
   it('redeems then swaps the underlying into the requested token', async () => {
     const { adapter, getSwapQuote } = makeAdapter();
     const publicClient = makePublicClient(VAULT_ASSET);
