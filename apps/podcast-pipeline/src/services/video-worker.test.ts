@@ -347,7 +347,7 @@ describe('createVideoWorker', () => {
     expect(repository.claim).not.toHaveBeenCalled();
   });
 
-  it('releases a failed visual job without attempting a localization render', async () => {
+  it('reports an ordinary visual failure even when its message resembles worker shutdown', async () => {
     const repository = makeRepository();
     const visualRepository = makeVisualRepository(visualJob());
     vi.mocked(visualRepository.fail).mockResolvedValue(
@@ -361,9 +361,7 @@ describe('createVideoWorker', () => {
       repository,
       visualRepository,
       processJob: vi.fn(),
-      processVisualJob: vi
-        .fn()
-        .mockRejectedValue(new Error('no qualified images')),
+      processVisualJob: vi.fn().mockRejectedValue(new Error('deploy shutdown')),
       leaseOwner: 'worker-1',
     });
 
@@ -371,11 +369,11 @@ describe('createVideoWorker', () => {
     expect(visualRepository.fail).toHaveBeenCalledWith(
       'episode-1',
       'worker-1',
-      'no qualified images',
+      'deploy shutdown',
     );
     expect(repository.claim).not.toHaveBeenCalled();
     expect(sentry.capturePipelineException).toHaveBeenCalledWith(
-      expect.objectContaining({ message: 'no qualified images' }),
+      expect.objectContaining({ message: 'deploy shutdown' }),
       expect.objectContaining({ component: 'video-visual' }),
     );
   });
