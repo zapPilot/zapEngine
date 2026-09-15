@@ -1,94 +1,31 @@
 import { describe, expect, it } from 'vitest';
-
 import {
-  ARBITRUM_DEPOSIT_TOKENS,
-  BASE_DEPOSIT_TOKENS,
-  ETHEREUM_DEPOSIT_TOKENS,
+  BASE_DEPOSIT_TOKENS as B,
+  ARBITRUM_DEPOSIT_TOKENS as A,
+  ETHEREUM_DEPOSIT_TOKENS as E,
 } from '@/integration/depositTokens';
 import {
   bpsToPercentInput,
-  buildStageDrafts,
-  DEFAULT_TARGET_ALLOCATIONS,
-  gmxBasketBudgetTooSmall,
-  hlpIngressFor,
-  HLP_FUNDING_CANDIDATES,
-  INVEST_POSITIONS,
-  isValidTargetAllocation,
   normalizePercentInput,
   percentInputToBps,
-  requiredChainsUnavailable,
-  selectHlpFundingSource,
-  batchProtocolWeightsBps,
+  isValidTargetAllocation,
+  targetMinimumUsd6,
+  targetUsd6Shares,
+  hlpIngressFor,
   chainBatchDrafts,
-  chainBatchLabel,
   chainBatchRequest,
   stageDraftsKey,
   stageLabel,
-  targetMaxTotalUsd,
-  targetMinimumUsd6,
-  targetUsd6Shares,
+  chainBatchLabel,
+  batchProtocolWeightsBps,
+  type StageDraft,
   type TargetAllocation,
 } from '@/integration/investTargetsModel';
-import type { ChainTokenBalanceRow } from '@/integration/walletTokens';
-
-const USER = '0x1111111111111111111111111111111111111111' as const;
-const BASE_USDC = BASE_DEPOSIT_TOKENS[0];
-const BASE_ETH = BASE_DEPOSIT_TOKENS[1];
-const ARBITRUM_USDC = ARBITRUM_DEPOSIT_TOKENS[0];
-const ARBITRUM_ETH = ARBITRUM_DEPOSIT_TOKENS[2];
-const ETHEREUM_USDC = ETHEREUM_DEPOSIT_TOKENS[0];
-
-function row(params: {
-  chainId: 1 | 8453 | 42161;
-  symbol: 'USDC' | 'USDT' | 'ETH';
-  balance: string;
-  balanceBaseUnits: string;
-  usdValue: number | null;
-  usdPrice: number | null;
-}): ChainTokenBalanceRow {
-  const chain =
-    params.chainId === 8453
-      ? 'base'
-      : params.chainId === 42161
-        ? 'arbitrum'
-        : 'ethereum';
-  return {
-    id: `${params.chainId}:${params.symbol}`,
-    chain,
-    chainLabel: chain,
-    chainId: params.chainId,
-    tokenAddress: null,
-    decimals: params.symbol === 'ETH' ? 18 : 6,
-    balance: params.balance,
-    balanceBaseUnits: params.balanceBaseUnits,
-    usdValue: params.usdValue,
-    usdPrice: params.usdPrice,
-    token: { symbol: params.symbol, name: params.symbol },
-  };
-}
-
-function usdcRow(chainId: 1 | 8453 | 42161, amount: number) {
-  return row({
-    chainId,
-    symbol: 'USDC',
-    balance: String(amount),
-    balanceBaseUnits: String(Math.round(amount * 1_000_000)),
-    usdValue: amount,
-    usdPrice: 1,
-  });
-}
-
-function ethRow(chainId: 1 | 8453 | 42161, eth: number, price: number | null) {
-  return row({
-    chainId,
-    symbol: 'ETH',
-    balance: String(eth),
-    balanceBaseUnits: String(BigInt(Math.round(eth * 1e6)) * 10n ** 12n),
-    usdValue: price === null ? null : eth * price,
-    usdPrice: price,
-  });
-}
-
+import {
+  DEFAULT_SECTOR_WEIGHTS,
+  resolveTargetAllocations,
+} from '@/integration/investSectorModel';
+const defaults = resolveTargetAllocations(DEFAULT_SECTOR_WEIGHTS);
 function allocation(
   morpho: number,
   gmx: number,
@@ -100,29 +37,30 @@ function allocation(
     { positionId: 'hlp', weightBps: hlp },
   ];
 }
-
-describe('INVEST_POSITIONS', () => {
-  it('lists the destinations in execution order with their own minimums', () => {
-    expect(INVEST_POSITIONS.map((position) => position.id)).toEqual([
-      'morpho-base',
-      'gmx-arbitrum',
-      'hlp',
-    ]);
-    expect(INVEST_POSITIONS.map((position) => position.minUsd6)).toEqual([
-      10_000n,
-      1_000_000n,
-      10_000_000n,
-    ]);
-  });
-
-  it('defaults to a 40/35/25 mix that sums to 100%', () => {
-    expect(isValidTargetAllocation(DEFAULT_TARGET_ALLOCATIONS)).toBe(true);
-    expect(DEFAULT_TARGET_ALLOCATIONS.map((entry) => entry.weightBps)).toEqual([
-      4_000, 3_500, 2_500,
-    ]);
-  });
-});
-
+const stages: StageDraft[] = [
+  {
+    positionId: 'morpho-base',
+    weightBps: 3600,
+    usd6: '36000000',
+    fromAmount: '36000000',
+    sourceToken: B[0],
+  },
+  {
+    positionId: 'gmx-arbitrum',
+    weightBps: 4000,
+    usd6: '40000000',
+    fromAmount: '40000000',
+    sourceToken: A[0],
+  },
+  {
+    positionId: 'hlp',
+    weightBps: 2400,
+    usd6: '24000000',
+    fromAmount: '24000000',
+    sourceToken: A[0],
+    ingress: 'bridge2',
+  },
+];
 describe('isValidTargetAllocation', () => {
   it('rejects weights that do not total 100%', () => {
     expect(isValidTargetAllocation(allocation(4_000, 3_500, 2_400))).toBe(
@@ -155,7 +93,7 @@ describe('isValidTargetAllocation', () => {
 
 describe('targetMinimumUsd6', () => {
   it("is driven by HLP's $10 floor at the default 25% weight", () => {
-    expect(targetMinimumUsd6(DEFAULT_TARGET_ALLOCATIONS)).toBe(40_000_000n);
+    expect(targetMinimumUsd6(defaults)).toBe(41_666_667n);
   });
 
   it('falls back to each destination on its own', () => {
@@ -171,11 +109,11 @@ describe('targetMinimumUsd6', () => {
 
 describe('targetUsd6Shares', () => {
   it('gives the rounding remainder to the last funded destination', () => {
-    const shares = targetUsd6Shares('100000001', DEFAULT_TARGET_ALLOCATIONS);
+    const shares = targetUsd6Shares('100000001', defaults);
     expect(shares).toEqual({
-      'morpho-base': 40_000_000n,
-      'gmx-arbitrum': 35_000_000n,
-      hlp: 25_000_001n,
+      'morpho-base': 36_000_000n,
+      'gmx-arbitrum': 40_000_000n,
+      hlp: 24_000_001n,
     });
   });
 
@@ -188,180 +126,16 @@ describe('targetUsd6Shares', () => {
   });
 
   it('returns null for a zero total or an invalid allocation', () => {
-    expect(targetUsd6Shares('0', DEFAULT_TARGET_ALLOCATIONS)).toBeNull();
+    expect(targetUsd6Shares('0', defaults)).toBeNull();
     expect(targetUsd6Shares('100', allocation(1, 1, 1))).toBeNull();
   });
 });
 
-describe('hlpIngressFor', () => {
-  it('routes native Arbitrum USDC through Bridge2 and everything else via LI.FI', () => {
-    expect(hlpIngressFor(ARBITRUM_USDC)).toBe('bridge2');
-    expect(hlpIngressFor(BASE_USDC)).toBe('lifi');
-    expect(hlpIngressFor(ETHEREUM_USDC)).toBe('lifi');
-    expect(hlpIngressFor(ARBITRUM_ETH)).toBe('lifi');
-  });
-
-  it('offers only USDC and native ETH, the tokens the invest schema accepts', () => {
+describe('frozen execution batches', () => {
+  it('preserves source chain and position order for review and execution', () => {
+    const batches = chainBatchDrafts(stages);
     expect(
-      HLP_FUNDING_CANDIDATES.every((token) =>
-        ['USDC', 'ETH'].includes(token.symbol),
-      ),
-    ).toBe(true);
-    expect(HLP_FUNDING_CANDIDATES[0]).toBe(ARBITRUM_USDC);
-  });
-});
-
-describe('selectHlpFundingSource', () => {
-  const shares = {
-    'morpho-base': 40_000_000n,
-    'gmx-arbitrum': 35_000_000n,
-    hlp: 25_000_000n,
-  };
-
-  it('prefers Arbitrum USDC when it covers the share on its own', () => {
-    const funding = selectHlpFundingSource({
-      shares,
-      baseFundingToken: BASE_USDC,
-      arbitrumFundingToken: ARBITRUM_ETH,
-      rows: [usdcRow(42161, 100), usdcRow(8453, 100)],
-    });
-    expect(funding?.token).toBe(ARBITRUM_USDC);
-    expect(funding?.ingress).toBe('bridge2');
-    expect(funding?.fromAmount).toBe('25000000');
-  });
-
-  it('subtracts the GMX reservation from a shared Arbitrum USDC balance', () => {
-    const funding = selectHlpFundingSource({
-      shares,
-      baseFundingToken: BASE_USDC,
-      arbitrumFundingToken: ARBITRUM_USDC,
-      rows: [usdcRow(42161, 50), usdcRow(8453, 100)],
-    });
-    // 50 spendable − 35 reserved for GMX = 15 < the 25 HLP share.
-    expect(funding?.token).toBe(BASE_USDC);
-    expect(funding?.ingress).toBe('lifi');
-    expect(funding?.reservedUsd6).toBe(40_000_000n);
-  });
-
-  it('skips an ETH candidate with no live quote', () => {
-    const funding = selectHlpFundingSource({
-      shares,
-      baseFundingToken: BASE_ETH,
-      arbitrumFundingToken: ARBITRUM_ETH,
-      rows: [ethRow(8453, 1, null), usdcRow(1, 100)],
-    });
-    expect(funding?.token).toBe(ETHEREUM_USDC);
-  });
-
-  it('prefers Ethereum USDC over Base ETH', () => {
-    const funding = selectHlpFundingSource({
-      shares,
-      baseFundingToken: BASE_USDC,
-      arbitrumFundingToken: ARBITRUM_USDC,
-      rows: [usdcRow(1, 100), ethRow(8453, 5, 3_000)],
-    });
-    expect(funding?.token).toBe(ETHEREUM_USDC);
-  });
-
-  it('returns null when no single source covers the share', () => {
-    expect(
-      selectHlpFundingSource({
-        shares,
-        baseFundingToken: BASE_USDC,
-        arbitrumFundingToken: ARBITRUM_USDC,
-        rows: [usdcRow(8453, 10), usdcRow(42161, 10)],
-      }),
-    ).toBeNull();
-  });
-});
-
-describe('buildStageDrafts', () => {
-  const rows = [usdcRow(8453, 1_000), usdcRow(42161, 1_000)];
-
-  it('freezes one stage per funded destination in execution order', () => {
-    const drafts = buildStageDrafts({
-      totalUsd6: '100000000',
-      allocations: DEFAULT_TARGET_ALLOCATIONS,
-      baseFundingToken: BASE_USDC,
-      arbitrumFundingToken: ARBITRUM_USDC,
-      rows,
-    });
-
-    expect(drafts?.map((draft) => draft.positionId)).toEqual([
-      'morpho-base',
-      'gmx-arbitrum',
-      'hlp',
-    ]);
-    expect(drafts?.map((draft) => draft.fromAmount)).toEqual([
-      '40000000',
-      '35000000',
-      '25000000',
-    ]);
-    expect(drafts?.[2]).toMatchObject({ ingress: 'bridge2' });
-  });
-
-  it('converts an ETH funding source with conservative integer math', () => {
-    const drafts = buildStageDrafts({
-      totalUsd6: '100000000',
-      allocations: allocation(10_000, 0, 0),
-      baseFundingToken: BASE_ETH,
-      arbitrumFundingToken: ARBITRUM_USDC,
-      rows: [ethRow(8453, 1, 2_000)],
-    });
-    expect(drafts?.[0]?.fromAmount).toBe('50000000000000000');
-  });
-
-  it('returns null when no wallet source can fund the HLP share', () => {
-    expect(
-      buildStageDrafts({
-        totalUsd6: '100000000',
-        allocations: DEFAULT_TARGET_ALLOCATIONS,
-        baseFundingToken: BASE_USDC,
-        arbitrumFundingToken: ARBITRUM_USDC,
-        rows: [],
-      }),
-    ).toBeNull();
-  });
-
-  it('returns null when an ETH funding source has no live quote', () => {
-    expect(
-      buildStageDrafts({
-        totalUsd6: '100000000',
-        allocations: allocation(10_000, 0, 0),
-        baseFundingToken: BASE_ETH,
-        arbitrumFundingToken: ARBITRUM_USDC,
-        rows: [ethRow(8453, 1, null)],
-      }),
-    ).toBeNull();
-  });
-});
-
-describe('chainBatchDrafts', () => {
-  const rows = [usdcRow(8453, 1_000), usdcRow(42161, 1_000), usdcRow(1, 1_000)];
-
-  function drafts(params: {
-    allocations?: readonly TargetAllocation[];
-    baseFundingToken?: typeof BASE_USDC;
-    arbitrumFundingToken?: typeof ARBITRUM_USDC;
-    rows?: ChainTokenBalanceRow[];
-  }) {
-    return buildStageDrafts({
-      totalUsd6: '100000000',
-      allocations: params.allocations ?? DEFAULT_TARGET_ALLOCATIONS,
-      baseFundingToken: params.baseFundingToken ?? BASE_USDC,
-      arbitrumFundingToken: params.arbitrumFundingToken ?? ARBITRUM_USDC,
-      rows: params.rows ?? rows,
-    })!;
-  }
-
-  it('collapses Arbitrum GMX and Arbitrum-funded HLP into one batch', () => {
-    const batches = chainBatchDrafts(drafts({}));
-
-    expect(
-      batches.map((batch) => [
-        batch.chainId,
-        batch.positions.map((draft) => draft.positionId),
-      ]),
+      batches.map((b) => [b.chainId, b.positions.map((p) => p.positionId)]),
     ).toEqual([
       [8453, ['morpho-base']],
       [42161, ['gmx-arbitrum', 'hlp']],
@@ -370,235 +144,76 @@ describe('chainBatchDrafts', () => {
       'Base · Morpho',
       'Arbitrum · GMX + HLP',
     ]);
-  });
-
-  it('joins HLP to the Base batch when Base USDC funds it', () => {
-    // Arbitrum holds only enough for GMX, so HLP falls to the next candidate.
-    const batches = chainBatchDrafts(
-      drafts({ rows: [usdcRow(8453, 1_000), usdcRow(42161, 35)] }),
-    );
-
-    expect(
-      batches.map((batch) => [
-        batch.chainId,
-        batch.positions.map((draft) => draft.positionId),
-      ]),
-    ).toEqual([
-      [8453, ['morpho-base', 'hlp']],
-      [42161, ['gmx-arbitrum']],
-    ]);
-  });
-
-  it('keeps three batches when only Ethereum can fund HLP', () => {
-    // Base covers Morpho and Arbitrum covers GMX, with nothing spare for HLP.
-    const batches = chainBatchDrafts(
-      drafts({
-        rows: [usdcRow(8453, 50), usdcRow(42161, 35), usdcRow(1, 1_000)],
-      }),
-    );
-
-    expect(batches.map((batch) => batch.chainId)).toEqual([8453, 42161, 1]);
-    expect(batches[2]!.positions.map((draft) => draft.positionId)).toEqual([
-      'hlp',
-    ]);
-  });
-
-  it('weights the review chips by each position, not by leg amount', () => {
-    const [, arbitrum] = chainBatchDrafts(drafts({}));
-
-    expect(batchProtocolWeightsBps(arbitrum!)).toEqual({
-      'gmx-v2': 3_500,
-      hyperliquid: 2_500,
+    expect(batchProtocolWeightsBps(batches[1]!)).toEqual({
+      'gmx-v2': 4000,
+      hyperliquid: 2400,
     });
-  });
-});
-
-describe('chainBatchRequest', () => {
-  const rows = [usdcRow(8453, 1_000), usdcRow(42161, 1_000), usdcRow(1, 1_000)];
-
-  it('sends every Arbitrum destination as one chain-batch request', () => {
-    const batches = chainBatchDrafts(
-      buildStageDrafts({
-        totalUsd6: '100000000',
-        allocations: DEFAULT_TARGET_ALLOCATIONS,
-        baseFundingToken: BASE_USDC,
-        arbitrumFundingToken: ARBITRUM_USDC,
-        rows,
-      })!,
-    );
-
-    expect(chainBatchRequest(batches[0]!, USER)).toEqual({
-      kind: 'chain-batch',
-      userAddress: USER,
-      sourceChainId: 8453,
-      positions: [
-        {
-          kind: 'invest',
-          fromToken: BASE_USDC.depositAddress,
-          fromAmount: '40000000',
-          split: { '8453': 1 },
-        },
-      ],
-    });
-    expect(chainBatchRequest(batches[1]!, USER)).toEqual({
-      kind: 'chain-batch',
-      userAddress: USER,
-      sourceChainId: 42161,
-      positions: [
-        {
-          kind: 'gmx-v2-basket',
-          fromToken: ARBITRUM_USDC.depositAddress,
-          amount: '35000000',
-        },
-        {
-          kind: 'invest',
-          fromToken: ARBITRUM_USDC.depositAddress,
-          fromAmount: '25000000',
-          split: { '1337': 1 },
-        },
-      ],
-    });
-  });
-
-  it('names HyperCore as the only split for an Ethereum-funded HLP batch', () => {
-    const stages = buildStageDrafts({
-      totalUsd6: '100000000',
-      allocations: allocation(0, 0, 10_000),
-      baseFundingToken: BASE_ETH,
-      arbitrumFundingToken: ARBITRUM_ETH,
-      rows: [usdcRow(1, 1_000)],
-    })!;
-
-    expect(stages[0]).toMatchObject({ ingress: 'lifi' });
-    expect(chainBatchRequest(chainBatchDrafts(stages)[0]!, USER)).toEqual({
-      kind: 'chain-batch',
-      userAddress: USER,
-      sourceChainId: 1,
-      positions: [
-        {
-          kind: 'invest',
-          fromToken: ETHEREUM_USDC.depositAddress,
-          fromAmount: '100000000',
-          split: { '1337': 1 },
-        },
-      ],
-    });
-  });
-});
-
-describe('stageDraftsKey', () => {
-  const rows = [usdcRow(8453, 1_000), usdcRow(42161, 1_000), usdcRow(1, 1_000)];
-
-  it('keys a frozen stage set by every executable field', () => {
-    const drafts = buildStageDrafts({
-      totalUsd6: '100000000',
-      allocations: allocation(10_000, 0, 0),
-      baseFundingToken: BASE_USDC,
-      arbitrumFundingToken: ARBITRUM_USDC,
-      rows,
-    })!;
-    expect(stageDraftsKey(drafts)).toBe(
-      `morpho-base:8453:${BASE_USDC.depositAddress}:100000000:100000000`,
-    );
-    expect(stageDraftsKey([])).toBe('');
-  });
-
-  it('labels each stage by its destination and HLP route', () => {
-    const drafts = buildStageDrafts({
-      totalUsd6: '100000000',
-      allocations: DEFAULT_TARGET_ALLOCATIONS,
-      baseFundingToken: BASE_USDC,
-      arbitrumFundingToken: ARBITRUM_USDC,
-      rows,
-    })!;
-    expect(drafts.map(stageLabel)).toEqual([
+    expect(stages.map(stageLabel)).toEqual([
       'Morpho · Base',
       'GMX · Arbitrum',
       'HLP · Arbitrum USDC → Hyperliquid Bridge2',
     ]);
   });
-});
-
-describe('targetMaxTotalUsd', () => {
-  it('caps by the tightest funded destination', () => {
-    expect(
-      targetMaxTotalUsd({
-        allocations: allocation(4_000, 6_000, 0),
-        baseFundingToken: BASE_USDC,
-        arbitrumFundingToken: ARBITRUM_USDC,
-        rows: [usdcRow(8453, 40), usdcRow(42161, 30)],
-      }),
-    ).toBe(50);
+  it('sends the exact frozen amounts and canonical destination splits', () => {
+    const user = '0x1111111111111111111111111111111111111111';
+    const batches = chainBatchDrafts(stages);
+    expect(chainBatchRequest(batches[1]!, user)).toEqual({
+      kind: 'chain-batch',
+      userAddress: user,
+      sourceChainId: 42161,
+      positions: [
+        {
+          kind: 'gmx-v2-basket',
+          fromToken: A[0].depositAddress,
+          amount: '40000000',
+        },
+        {
+          kind: 'invest',
+          fromToken: A[0].depositAddress,
+          fromAmount: '24000000',
+          split: { '1337': 1 },
+        },
+      ],
+    });
+    expect(chainBatchRequest(batches[0]!, user)).toMatchObject({
+      positions: [
+        {
+          kind: 'invest',
+          fromToken: B[0].depositAddress,
+          fromAmount: '36000000',
+          split: { '8453': 1 },
+        },
+      ],
+    });
   });
-
-  it('counts a shared HLP source once by combining its weights', () => {
-    expect(
-      targetMaxTotalUsd({
-        allocations: allocation(0, 5_000, 5_000),
-        baseFundingToken: BASE_USDC,
-        arbitrumFundingToken: ARBITRUM_USDC,
-        rows: [usdcRow(42161, 100)],
-      }),
-    ).toBe(100);
+  it('keys execution identity independently of presentation weights', () => {
+    expect(stageDraftsKey(stages)).toBe(
+      `morpho-base:8453:${B[0].depositAddress}:36000000:36000000|gmx-arbitrum:42161:${A[0].depositAddress}:40000000:40000000|hlp:42161:${A[0].depositAddress}:24000000:24000000`,
+    );
+    expect(stageDraftsKey([])).toBe('');
+    expect(stageDraftsKey(stages.map((s) => ({ ...s, weightBps: 0 })))).toBe(
+      stageDraftsKey(stages),
+    );
   });
-
-  it('is null when a funded destination has no live price', () => {
-    expect(
-      targetMaxTotalUsd({
-        allocations: DEFAULT_TARGET_ALLOCATIONS,
-        baseFundingToken: BASE_ETH,
-        arbitrumFundingToken: ARBITRUM_USDC,
-        rows: [ethRow(8453, 1, null), usdcRow(42161, 100)],
-      }),
-    ).toBeNull();
-  });
-});
-
-describe('requiredChainsUnavailable', () => {
-  it('only reports chains a funded destination actually needs', () => {
-    expect(
-      requiredChainsUnavailable(allocation(0, 10_000, 0), ['base'], false),
-    ).toBe(false);
-    expect(
-      requiredChainsUnavailable(allocation(10_000, 0, 0), ['base'], false),
-    ).toBe(true);
-    expect(
-      requiredChainsUnavailable(
-        DEFAULT_TARGET_ALLOCATIONS,
-        ['arbitrum'],
-        false,
-      ),
-    ).toBe(true);
-    expect(
-      requiredChainsUnavailable(DEFAULT_TARGET_ALLOCATIONS, [], true),
-    ).toBe(true);
-  });
-});
-
-describe('gmxBasketBudgetTooSmall', () => {
-  it('rejects an ETH budget that the four keeper fees would consume', () => {
-    const base = {
-      positionId: 'gmx-arbitrum' as const,
-      weightBps: 10_000,
-      usd6: '1000000',
-      sourceToken: ARBITRUM_ETH,
-    };
-    expect(
-      gmxBasketBudgetTooSmall({ ...base, fromAmount: '4000000000000000' }),
-    ).toBe(true);
-    expect(
-      gmxBasketBudgetTooSmall({ ...base, fromAmount: '4000000000000001' }),
-    ).toBe(false);
-    expect(
-      gmxBasketBudgetTooSmall({
-        ...base,
-        sourceToken: ARBITRUM_USDC,
-        fromAmount: '1',
-      }),
-    ).toBe(false);
+  it('groups alternate HLP sources without reordering earlier batches', () => {
+    for (const token of [B[0], E[0]]) {
+      const alternate = [
+        ...stages.slice(0, 2),
+        {
+          ...stages[2]!,
+          positionId: 'hlp' as const,
+          sourceToken: token,
+          ingress: hlpIngressFor(token),
+        },
+      ];
+      expect(chainBatchDrafts(alternate).map((b) => b.chainId)).toEqual(
+        token === B[0] ? [8453, 42161] : [8453, 42161, 1],
+      );
+    }
+    expect(hlpIngressFor(A[0])).toBe('bridge2');
+    expect(hlpIngressFor(A[2])).toBe('lifi');
   });
 });
-
 describe('percentage helpers', () => {
   it('keeps a half-typed percentage editable and clamps at 100', () => {
     expect(normalizePercentInput('12.')).toBe('12.');

@@ -117,3 +117,10 @@ export function formatOr<T>(
 ): string {
   return value == null ? fallback : format(value);
 }
+
+/** Format USD6 without losing integer precision to a floating point conversion. */
+export function formatUsd6(value: bigint | string): string {
+  const raw = BigInt(value);
+  const cents = ((raw < 0n ? -raw : raw) + 5000n) / 10000n;
+  return `${raw < 0n ? '-' : ''}$${(cents / 100n).toLocaleString('en-US')}.${(cents % 100n).toString().padStart(2, '0')}`;
+}

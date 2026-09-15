@@ -3,47 +3,23 @@ import { describe, expect, it } from 'vitest';
 import {
   amountInputToUsd6,
   amountUsdFromInput,
-  buildStrategyFundingOptions,
-  fundingTokenAmountFromUsd,
-  maxUsdAmountInput,
   normalizeAmountInput,
   quickAmountUsdInput,
   singleChainFromAmount,
-  spendableUsdForFundingToken,
+  usd6ToAmountInput,
 } from '@/integration/investAmountModel';
-import {
-  ARBITRUM_DEPOSIT_TOKENS,
-  BASE_DEPOSIT_TOKENS,
-} from '@/integration/depositTokens';
-import type { ChainTokenBalanceRow } from '@/integration/walletTokens';
+import { BASE_DEPOSIT_TOKENS } from '@/integration/depositTokens';
 import { formatTokenBalance } from '@/lib/format';
 
-function row(
-  chainId: 8453 | 42161,
-  symbol: 'USDC' | 'USDT' | 'ETH',
-  usdValue: number | null,
-  balanceBaseUnits: string,
-  usdPrice: number | null,
-): ChainTokenBalanceRow {
-  return {
-    id: `${chainId}:${symbol}`,
-    chain: chainId === 8453 ? 'base' : 'arbitrum',
-    chainLabel: chainId === 8453 ? 'Base' : 'Arbitrum',
-    chainId,
-    tokenAddress: null,
-    decimals: symbol === 'ETH' ? 18 : 6,
-    balance: symbol === 'ETH' ? '1' : String(usdValue ?? 0),
-    balanceBaseUnits,
-    usdValue,
-    usdPrice,
-    token: {
-      symbol,
-      name: symbol,
-    },
-  };
-}
-
 describe('Invest amount helpers', () => {
+  it('preserves exact bigint capacities and floors chip shares', () => {
+    expect(usd6ToAmountInput(1234567890123456789n)).toBe(
+      '1,234,567,890,123.456789',
+    );
+    expect(quickAmountUsdInput(1234567891n, 5000)).toBe('617.283945');
+    expect(quickAmountUsdInput(null, 10000)).toBe('');
+    expect(usd6ToAmountInput(0n)).toBe('');
+  });
   it('parses grouped USD input and rejects an empty amount', () => {
     expect(amountUsdFromInput('1,000')).toBe(1000);
     expect(amountUsdFromInput('0')).toBeNull();
@@ -57,61 +33,9 @@ describe('Invest amount helpers', () => {
     expect(normalizeAmountInput('')).toBe('');
   });
 
-  it('floors strategy Max to USD6 precision without overspending', () => {
-    expect(maxUsdAmountInput(0.006)).toBe('0.006');
-    expect(maxUsdAmountInput(0.0069999999)).toBe('0.006999');
-    expect(maxUsdAmountInput(12.3456789)).toBe('12.345678');
-    expect(maxUsdAmountInput(0.0000009)).toBe('');
-  });
-
-  it('derives quick-amount chip values from capacity without overspending', () => {
-    expect(quickAmountUsdInput(null, 10_000)).toBe('');
-    expect(quickAmountUsdInput(0, 5_000)).toBe('');
-    expect(quickAmountUsdInput(100, 2_500)).toBe('25');
-    expect(quickAmountUsdInput(100, 7_500)).toBe('75');
-    expect(quickAmountUsdInput(1_234.5678912, 5_000)).toBe('617.283945');
-    expect(quickAmountUsdInput(12.3456789, 10_000)).toBe(
-      maxUsdAmountInput(12.3456789),
-    );
-    expect(quickAmountUsdInput(100_000, 10_000)).toBe('100,000');
-  });
-
   it('converts USD input to exact 6-decimal base units', () => {
     expect(amountInputToUsd6('1,234.5678919')).toBe('1234567891');
     expect(amountInputToUsd6('0.000001')).toBe('1');
-  });
-
-  it('shows allocation token amounts with a stablecoin display fallback', () => {
-    expect(
-      fundingTokenAmountFromUsd(100, 4_000, BASE_DEPOSIT_TOKENS[0], null),
-    ).toBe(40);
-    expect(
-      fundingTokenAmountFromUsd(100, 4_000, BASE_DEPOSIT_TOKENS[1], null),
-    ).toBeNull();
-  });
-
-  it('sorts positive token balances ahead of empty ones', () => {
-    const rows = [
-      row(8453, 'USDC', 40, '40000000', 1),
-      row(42161, 'USDC', 30, '30000000', 1),
-      row(42161, 'USDT', 0, '0', 1),
-    ];
-    const arbitrumOptions = buildStrategyFundingOptions(
-      ARBITRUM_DEPOSIT_TOKENS,
-      rows,
-    );
-    expect(arbitrumOptions[0]!.token.symbol).toBe('USDC');
-  });
-
-  it('uses only the active chain for single-chain Max capacity', () => {
-    const baseUsdc = row(8453, 'USDC', 40, '40000000', 1);
-    const baseEth = row(8453, 'ETH', 2_000, '1000000000000000000', 2_000);
-    expect(spendableUsdForFundingToken(baseUsdc, BASE_DEPOSIT_TOKENS[0])).toBe(
-      40,
-    );
-    expect(spendableUsdForFundingToken(baseEth, BASE_DEPOSIT_TOKENS[1])).toBe(
-      1_994,
-    );
   });
 
   it('formats invalid token balances as zero instead of NaN', () => {

@@ -79,7 +79,7 @@ afterEach(async () => {
 });
 
 describe('InvestProvider', () => {
-  it('starts on the default 40/35/25 mix with nothing frozen', async () => {
+  it('starts on the default sector 40/60/0 mix with nothing frozen', async () => {
     const harness = await render();
 
     expect(
@@ -87,9 +87,9 @@ describe('InvestProvider', () => {
         .current()
         .targetAllocations.map((entry) => [entry.positionId, entry.weightBps]),
     ).toEqual([
-      ['morpho-base', 4_000],
-      ['gmx-arbitrum', 3_500],
-      ['hlp', 2_500],
+      ['morpho-base', 3_600],
+      ['gmx-arbitrum', 4_000],
+      ['hlp', 2_400],
     ]);
     expect(harness.current().stageDrafts).toEqual([]);
     expect(harness.current().totalUsd6).toBe('0');
@@ -105,7 +105,7 @@ describe('InvestProvider', () => {
     expect(harness.current().stageDrafts).toEqual([draft]);
 
     await act(async () => {
-      harness.current().setTargetWeight('hlp', 0);
+      harness.current().setSectorWeight('stable', 0);
     });
 
     expect(harness.current().stageDrafts).toEqual([]);
@@ -138,16 +138,50 @@ describe('InvestProvider', () => {
     expect(harness.current().amountUsd).toBe(40);
   });
 
+  it('clears frozen execution for overrides and locked-sector edits, and preserves overrides on reset', async () => {
+    const harness = await render();
+    for (const edit of [
+      () => harness.current().setFundingOverride('hlp', BASE_DEPOSIT_TOKENS[1]),
+      () => harness.current().setSectorWeight('sp500', 5000),
+      () => harness.current().clearFundingOverrides(),
+    ]) {
+      await act(async () => {
+        harness.current().setStageDrafts([draft]);
+        harness.current().setHlpBaselineUsd6('1');
+        harness.current().setHyperCoreFundingDraft({
+          source: 'hypercore-spot',
+          requestedUsd6: '10',
+        });
+      });
+      await act(async () => {
+        edit();
+      });
+      expect(harness.current().stageDrafts).toEqual([]);
+      expect(harness.current().hlpBaselineUsd6).toBeNull();
+      expect(harness.current().hyperCoreFundingDraft).toBeNull();
+      expect(harness.current().sectorWeights.sp500).toBe(0);
+    }
+    await act(async () => {
+      harness.current().setFundingOverride('hlp', BASE_DEPOSIT_TOKENS[1]);
+      harness.current().resetSectorWeights();
+    });
+    expect(harness.current().fundingOverrides.hlp).toBe(BASE_DEPOSIT_TOKENS[1]);
+    await act(async () => {
+      harness.current().setFundingOverride('hlp', null);
+    });
+    expect(harness.current().fundingOverrides).toEqual({});
+  });
+
   it('restores the default mix and clears frozen stages on reset', async () => {
     const harness = await render();
 
     await act(async () => {
-      harness.current().setTargetWeight('hlp', 0);
+      harness.current().setSectorWeight('stable', 0);
       harness.current().setStageDrafts([draft]);
     });
 
     await act(async () => {
-      harness.current().resetTargetAllocations();
+      harness.current().resetSectorWeights();
     });
 
     expect(
@@ -155,7 +189,7 @@ describe('InvestProvider', () => {
         .current()
         .targetAllocations.find((entry) => entry.positionId === 'hlp')
         ?.weightBps,
-    ).toBe(2_500);
+    ).toBe(2_400);
     expect(harness.current().stageDrafts).toEqual([]);
   });
 });

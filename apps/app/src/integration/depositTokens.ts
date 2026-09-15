@@ -133,6 +133,3 @@ export const ARBITRUM_DEPOSIT_TOKENS = [
     ...NATIVE_ETH_ADDRESSES,
   },
 ] as const satisfies readonly DesktopDepositToken[];
-
-export const DEFAULT_BASE_FUNDING_TOKEN = BASE_DEPOSIT_TOKENS[0];
-export const DEFAULT_ARBITRUM_FUNDING_TOKEN = ARBITRUM_DEPOSIT_TOKENS[0];

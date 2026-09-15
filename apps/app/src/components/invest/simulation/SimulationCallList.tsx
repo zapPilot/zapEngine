@@ -3,16 +3,11 @@ import type {
   PrivySimulationCall,
   PrivySimulationContract,
 } from '@zapengine/types/api';
-import {
-  CheckCircle2,
-  ChevronDown,
-  CircleDashed,
-  XCircle,
-} from 'lucide-react-native';
+import { CheckCircle2, CircleDashed, XCircle } from 'lucide-react-native';
 import { type ReactNode, useState } from 'react';
 import { Text, View } from 'react-native';
 
-import { Tap } from '@/components/ui/Tap';
+import { Disclosure } from '@/components/ui/Disclosure';
 import {
   approvalForCall,
   compactTokenAmount,
@@ -120,33 +115,31 @@ export function SimulationCollapseToggle({
   icon?: ReactNode;
 }) {
   return (
-    <Tap
+    <Disclosure
+      expanded={expanded}
+      onToggle={onToggle}
       accessibilityLabel={expanded ? expandedLabel : collapsedLabel}
-      accessibilityRole="button"
-      accessibilityState={{ expanded }}
       className="flex-row items-center gap-3 px-4 py-3.5"
-      onPress={onToggle}
-    >
-      {icon}
-      <View className="min-w-0 flex-1">
-        <Text
-          className="font-sans-semibold text-[12px] text-ink"
-          numberOfLines={1}
-        >
-          {title}
-        </Text>
-        <Text className="mt-0.5 text-[10px] text-ink-faint" numberOfLines={1}>
-          {subtitle}
-        </Text>
-      </View>
-      <ChevronDown
-        size={17}
-        color="#a1a1aa"
-        style={{
-          transform: [{ rotate: expanded ? '180deg' : '0deg' }],
-        }}
-      />
-    </Tap>
+      header={
+        <>
+          {icon}
+          <View className="min-w-0 flex-1">
+            <Text
+              className="font-sans-semibold text-[12px] text-ink"
+              numberOfLines={1}
+            >
+              {title}
+            </Text>
+            <Text
+              className="mt-0.5 text-[10px] text-ink-faint"
+              numberOfLines={1}
+            >
+              {subtitle}
+            </Text>
+          </View>
+        </>
+      }
+    />
   );
 }
 

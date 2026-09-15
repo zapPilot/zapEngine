@@ -109,3 +109,5 @@ export function useWalletAssets(
     [data, enabled, error, isError, isLoading, refetch],
   );
 }
+
+export type { MoralisChainKey } from '@/integration/moralisWallet';

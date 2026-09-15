@@ -14,7 +14,9 @@ import { chainBatchDrafts } from '@/integration/investTargetsModel';
 import { useInvest } from '@/integration/useInvest';
 import { useInvestExecution } from '@/integration/useInvestExecution';
 import { useInvestReview } from '@/integration/useInvestReview';
-import { formatUsd } from '@/lib/format';
+import { formatUsd6 } from '@/lib/format';
+import { sectorWeightsFromDrafts } from '@/integration/investSectorModel';
+import { InvestPreviewSummary } from '@/components/invest/InvestPreviewSummary';
 
 import { useInvestRouteSubmit } from './useInvestRouteSubmit';
 
@@ -39,6 +41,11 @@ function capabilityNotice(
 export function InvestRouteScreen() {
   const invest = useInvest();
   const review = useInvestReview();
+  const totalUsd6 = invest.stageDrafts.reduce(
+    (n, draft) => n + BigInt(draft.usd6),
+    0n,
+  );
+  const weights = sectorWeightsFromDrafts(invest.stageDrafts);
   const batchCount = chainBatchDrafts(invest.stageDrafts).length;
   const { capability } = useInvestExecution();
   const {
@@ -59,21 +66,22 @@ export function InvestRouteScreen() {
 
   return (
     <ScreenScrollView>
-      <StepHeader title="Route" step="Step 2 of 2" />
+      <StepHeader title="Preview" step="Step 2 of 2" />
       <StepProgress current={2} />
       <View className="px-5 pt-6">
         <Text className="font-serif text-[28px] leading-[32px] text-ink">
-          Review one investment route
+          Preview investment
         </Text>
         <Text className="mt-2 text-[12px] leading-[18px] text-ink-dim">
-          {formatUsd(invest.amountUsd)} splits into {batchCount} reviewed wallet{' '}
-          {batchCount === 1 ? 'batch' : 'batches'}, one per source chain. Only
-          the first is submitted now; each later batch continues automatically
-          once its checkpoint re-review matches, and is never sent twice.
+          {formatUsd6(totalUsd6)} across Crypto and Stable. You&apos;ll sign{' '}
+          {batchCount} {batchCount === 1 ? 'transaction' : 'transactions'}, one
+          per chain — each later one continues on its own after a quick
+          re-check.
         </Text>
 
+        <InvestPreviewSummary totalUsd6={totalUsd6} weights={weights} />
         <Text className="mb-2.5 mt-5 font-mono-semibold text-[9px] uppercase tracking-[.8px] text-ink-faint">
-          Tenderly review · authoritative source batches
+          Transaction sequence
         </Text>
         <View className="gap-4">
           {review.isLoading ? (
@@ -90,8 +98,12 @@ export function InvestRouteScreen() {
               action={{ label: 'Retry review', onPress: review.retry }}
             />
           ) : (
-            review.batches.map((batch) => (
-              <ChainBatchReviewCard key={batch.draft.chainId} batch={batch} />
+            review.batches.map((batch, index) => (
+              <ChainBatchReviewCard
+                key={batch.draft.chainId}
+                batch={batch}
+                stepLabel={`Step ${index + 1} of ${batchCount}`}
+              />
             ))
           )}
         </View>
@@ -136,9 +148,10 @@ export function InvestRouteScreen() {
           {ctaLabel}
         </PrimaryButton>
         <Text className="mt-3 text-center text-[10.5px] leading-[16px] text-ink-faint">
-          No custody and no automatic signatures. HLP ends with your approved
-          Hyperliquid agent signing the vault deposit once the bridged USDC
-          lands.
+          Zap Pilot never holds your funds. You sign each transaction yourself
+          {invest.stageDrafts.some((d) => d.positionId === 'hlp')
+            ? '; the final HLP vault deposit is signed by your approved Hyperliquid agent once USDC arrives on Hyperliquid.'
+            : '.'}
         </Text>
       </View>
     </ScreenScrollView>

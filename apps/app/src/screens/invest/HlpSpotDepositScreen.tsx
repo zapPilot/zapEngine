@@ -6,7 +6,6 @@ import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
-import { formatUnits } from 'viem';
 
 import { CONNECT_WALLET_CTA } from '@/components/connect/connectCopy';
 import { QuickAmountChips } from '@/components/invest/QuickAmountChips';
@@ -42,12 +41,10 @@ import { requestAccountConnection } from '@/integration/requestAccountConnection
 import { useAccount } from '@/integration/useAccount';
 import { useHyperCoreSpendable } from '@/integration/useHlpBalances';
 import { useInvest } from '@/integration/useInvest';
-import { formatUsd } from '@/lib/format';
+import { formatUsd6 } from '@/lib/format';
 
 function usd(value: bigint | undefined | null): string {
-  return value === undefined || value === null
-    ? '—'
-    : formatUsd(Number(formatUnits(value, 6)));
+  return value === undefined || value === null ? '—' : formatUsd6(value);
 }
 
 /**
@@ -142,9 +139,7 @@ function HlpSpotAmountStep() {
             onSelect={(bps) =>
               setAmountInput(
                 quickAmountUsdInput(
-                  availableUsd6 === null
-                    ? null
-                    : Number(formatUnits(availableUsd6, 6)),
+                  availableUsd6 === null ? null : availableUsd6,
                   bps,
                 ),
               )
