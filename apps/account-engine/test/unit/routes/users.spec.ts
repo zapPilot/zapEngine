@@ -548,7 +548,7 @@ describe('GET /users/by-wallet/:walletAddress', () => {
   it('returns the user for a valid wallet address', async () => {
     const services = createServices();
     const response = await createApp(services).request(
-      `{{http://localhost/users/by-wallet/${VALID_WALLET}}}`,
+      `http://localhost/users/by-wallet/${VALID_WALLET}`,
     );
 
     expect(response.status).toBe(200);

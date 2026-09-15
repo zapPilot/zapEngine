@@ -90,7 +90,7 @@ vi.mock('./components/PipelineQueuesBoard.js', () => ({
     onSubmitReview: (episodeId: string, input: unknown) => Promise<void>;
   }) => (
     <div>
-      pipeline-board
+      pipeline-ready
       <button onClick={() => void props.onLoadVisualDebug('ep /1')}>
         visual-debug
       </button>

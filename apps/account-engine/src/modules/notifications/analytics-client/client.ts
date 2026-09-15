@@ -26,6 +26,8 @@ import {
 } from './daily-suggestion.schema';
 import { transformToEmailMetrics } from './mappers';
 
+type AnalyticsQueryParamValue = string | number | boolean;
+
 export class AnalyticsClientService {
   private readonly logger = new Logger(AnalyticsClientService.name);
   private readonly analyticsEngineUrl: string;
@@ -98,7 +100,7 @@ export class AnalyticsClientService {
     userId: string,
     options?: {
       baseUrl?: string;
-      params?: Record<string, string | number | boolean>;
+      params?: Record<string, AnalyticsQueryParamValue>;
       retryOnTimeout?: boolean;
       timeoutMs?: number;
     },
@@ -240,7 +242,7 @@ export class AnalyticsClientService {
     url: string,
     options?: {
       timeoutMs?: number;
-      params?: Record<string, unknown>;
+      params?: Record<string, AnalyticsQueryParamValue>;
     },
   ): Promise<T> {
     const requestUrl = new URL(url);
@@ -267,7 +269,7 @@ export class AnalyticsClientService {
     return (await response.json()) as T;
   }
 
-  private stringifyQueryValue(value: string | number | boolean): string {
+  private stringifyQueryValue(value: AnalyticsQueryParamValue): string {
     return String(value);
   }
 }

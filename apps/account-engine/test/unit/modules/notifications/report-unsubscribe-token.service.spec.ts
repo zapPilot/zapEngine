@@ -96,19 +96,22 @@ describe('ReportUnsubscribeTokenService', () => {
     });
 
     it.each([
-      [{ v: 2, userId: 'u', email: 'e@x.com' }, 'wrong version'],
-      [{ v: 1, userId: 42, email: 'e@x.com' }, 'non-string userId'],
-      [{ v: 1, userId: '', email: 'e@x.com' }, 'empty userId'],
-      [{ v: 1, userId: 'u', email: 42 }, 'non-string email'],
-      [{ v: 1, userId: 'u', email: '' }, 'empty email'],
-    ])('locks rejecting a well-signed but invalid payload (%s)', (payload) => {
-      // Locks: the parsed-shape guards (each || operand) and the
-      // `error instanceof BadRequestException` rethrow path.
-      const service = createService();
-      expect(() => service.verifyToken(forgePayloadToken(payload))).toThrow(
-        BadRequestException,
-      );
-    });
+      ['wrong version', { v: 2, userId: 'u', email: 'e@x.com' }],
+      ['non-string userId', { v: 1, userId: 42, email: 'e@x.com' }],
+      ['empty userId', { v: 1, userId: '', email: 'e@x.com' }],
+      ['non-string email', { v: 1, userId: 'u', email: 42 }],
+      ['empty email', { v: 1, userId: 'u', email: '' }],
+    ])(
+      'locks rejecting a well-signed but invalid payload (%s)',
+      (_label, payload) => {
+        // Locks: the parsed-shape guards (each || operand) and the
+        // `error instanceof BadRequestException` rethrow path.
+        const service = createService();
+        expect(() => service.verifyToken(forgePayloadToken(payload))).toThrow(
+          BadRequestException,
+        );
+      },
+    );
 
     it('locks rejecting a well-signed payload that is not JSON', () => {
       // Locks: JSON.parse throw → catch → non-BadRequestException → invalidToken.
