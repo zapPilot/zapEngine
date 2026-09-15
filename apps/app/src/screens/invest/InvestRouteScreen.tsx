@@ -2,6 +2,7 @@ import { Redirect } from 'expo-router';
 import { Text, View } from 'react-native';
 
 import { ChainBatchReviewCard } from '@/components/invest/ChainBatchReviewCard';
+import { HyperCoreLegReviewCard } from '@/components/invest/HyperCoreLegReviewCard';
 import { StepHeader } from '@/components/invest/StepHeader';
 import { StepProgress } from '@/components/invest/StepProgress';
 import { InlineErrorCard } from '@/components/ui/InlineErrorCard';
@@ -10,6 +11,7 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
 import type { DepositExecutionCapability } from '@/integration/investExecutionModel';
+import { useHyperliquidAgent } from '@/hooks/useHyperliquidAgent';
 import { chainBatchDrafts } from '@/integration/investTargetsModel';
 import { useInvest } from '@/integration/useInvest';
 import { useInvestExecution } from '@/integration/useInvestExecution';
@@ -18,6 +20,12 @@ import { formatUsd6 } from '@/lib/format';
 import { sectorWeightsFromDrafts } from '@/integration/investSectorModel';
 import { InvestPreviewSummary } from '@/components/invest/InvestPreviewSummary';
 
+import {
+  investAgentDisclaimer,
+  investSignatureSummary,
+} from '@/integration/hyperCoreLegModel';
+
+import { useHyperCoreLegPlan } from './useHyperCoreLegPlan';
 import { useInvestRouteSubmit } from './useInvestRouteSubmit';
 
 function capabilityNotice(
@@ -41,12 +49,21 @@ function capabilityNotice(
 export function InvestRouteScreen() {
   const invest = useInvest();
   const review = useInvestReview();
-  const totalUsd6 = invest.stageDrafts.reduce(
-    (n, draft) => n + BigInt(draft.usd6),
-    0n,
+  const hyperCoreDraft = invest.hyperCoreFundingDraft;
+  const legPlan = useHyperCoreLegPlan(hyperCoreDraft);
+  const leg = hyperCoreDraft ? legPlan : null;
+  // Reading the agent session here is what turns "Signatures" into a fact
+  // rather than a guess: signing may already be enabled from an earlier run.
+  const agent = useHyperliquidAgent(leg?.plan?.step.signing ?? null);
+  const totalUsd6 =
+    invest.stageDrafts.reduce((n, draft) => n + BigInt(draft.usd6), 0n) +
+    BigInt(hyperCoreDraft?.requestedUsd6 ?? '0');
+  const weights = sectorWeightsFromDrafts(
+    invest.stageDrafts,
+    hyperCoreDraft?.weightBps ?? 0,
   );
-  const weights = sectorWeightsFromDrafts(invest.stageDrafts);
   const batchCount = chainBatchDrafts(invest.stageDrafts).length;
+  const stepCount = batchCount + (leg ? 1 : 0);
   const { capability } = useInvestExecution();
   const {
     handleConfirm,
@@ -56,7 +73,7 @@ export function InvestRouteScreen() {
     reviewExecutionLocked,
     submissionError,
     dismissSubmissionError,
-  } = useInvestRouteSubmit({ review, capability });
+  } = useInvestRouteSubmit({ review, capability, hyperCoreLeg: leg });
 
   if (invest.stageDrafts.length === 0 && !reviewExecutionLocked) {
     return <Redirect href="/invest/amount" />;
@@ -73,10 +90,11 @@ export function InvestRouteScreen() {
           Preview investment
         </Text>
         <Text className="mt-2 text-[12px] leading-[18px] text-ink-dim">
-          {formatUsd6(totalUsd6)} across Crypto and Stable. You&apos;ll sign{' '}
-          {batchCount} {batchCount === 1 ? 'transaction' : 'transactions'}, one
-          per chain — each later one continues on its own after a quick
-          re-check.
+          {formatUsd6(totalUsd6)} across Crypto and Stable.{' '}
+          {investSignatureSummary({
+            batchCount,
+            hasHyperCoreLeg: leg !== null,
+          })}
         </Text>
 
         <InvestPreviewSummary totalUsd6={totalUsd6} weights={weights} />
@@ -102,10 +120,17 @@ export function InvestRouteScreen() {
               <ChainBatchReviewCard
                 key={batch.draft.chainId}
                 batch={batch}
-                stepLabel={`Step ${index + 1} of ${batchCount}`}
+                stepLabel={`Step ${index + 1} of ${stepCount}`}
               />
             ))
           )}
+          {leg ? (
+            <HyperCoreLegReviewCard
+              leg={leg}
+              agentStatus={agent.status}
+              stepLabel={`Step ${stepCount} of ${stepCount}`}
+            />
+          ) : null}
         </View>
 
         {reviewBlocked ? (
@@ -149,9 +174,12 @@ export function InvestRouteScreen() {
         </PrimaryButton>
         <Text className="mt-3 text-center text-[10.5px] leading-[16px] text-ink-faint">
           Zap Pilot never holds your funds. You sign each transaction yourself
-          {invest.stageDrafts.some((d) => d.positionId === 'hlp')
-            ? '; the final HLP vault deposit is signed by your approved Hyperliquid agent once USDC arrives on Hyperliquid.'
-            : '.'}
+          {investAgentDisclaimer({
+            hasBridgedHlp: invest.stageDrafts.some(
+              (d) => d.positionId === 'hlp',
+            ),
+            hasHyperCoreLeg: leg !== null,
+          })}
         </Text>
       </View>
     </ScreenScrollView>

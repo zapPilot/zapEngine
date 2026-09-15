@@ -1,4 +1,3 @@
-import { CHAIN_BRAND } from '@zapengine/brand-assets';
 import { Wallet } from 'lucide-react-native';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
@@ -7,13 +6,13 @@ import { InvestLineItem } from '@/components/invest/InvestLineItem';
 import { TokenIcon } from '@/components/token/TokenIcon';
 import { Disclosure } from '@/components/ui/Disclosure';
 import { Tap } from '@/components/ui/Tap';
-import type {
-  DepositTokenSymbol,
-  StrategyFundingChainId,
-} from '@/integration/depositTokens';
 import {
   fundingPlanSummary,
+  fundingWarningMessage,
+  FUNDING_SOURCE_EXCLUDED,
   type FundingPlan,
+  type FundingPreference,
+  type FundingSourceChainId,
 } from '@/integration/investFundingPlanner';
 import type {
   FundingSourceRow,
@@ -30,7 +29,8 @@ function sourceSubtitle(row: FundingSourceRow): string {
   if (row.balanceUsd6 === null) return 'Price unavailable';
   const parts = [`${formatUsd6(row.balanceUsd6)} balance`];
   if (row.status !== 'used') parts.push('Not used');
-  if (row.preferred) parts.push('Custom');
+  if (row.excluded) parts.push('Turned off');
+  else if (row.preferred) parts.push('Custom');
   return parts.join(' · ');
 }
 
@@ -40,30 +40,63 @@ export function FundingPlanDisclosure({
   hasAmount,
   isConnected,
   hasPreferences,
+  hyperCoreNote,
   onChangePreference,
   onUseRecommended,
-  onOpenHlpSpotDeposit,
 }: {
   plan: FundingPlan;
   sources: FundingSourceView;
   hasAmount: boolean;
   isConnected: boolean;
   hasPreferences: boolean;
+  /** Account-shape caveat about the Hyperliquid balance, when there is one. */
+  hyperCoreNote: string | null;
   onChangePreference: (
-    chainId: StrategyFundingChainId,
-    symbol: DepositTokenSymbol | null,
+    chainId: FundingSourceChainId,
+    preference: FundingPreference | null,
   ) => void;
   onUseRecommended: () => void;
-  onOpenHlpSpotDeposit: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const [picker, setPicker] = useState<StrategyFundingChainId | null>(null);
+  const [picker, setPicker] = useState<FundingSourceChainId | null>(null);
   // Empty balances would triple the list without answering anything.
   const visible = sources.rows.filter((row) => row.status !== 'empty');
   // Rows are funded-first, so a chain's first visible row is the one it is
   // currently drawing on; only that row carries the chain's switch control.
   const isChainAnchor = (row: FundingSourceRow): boolean =>
-    visible.find((other) => other.token.chainId === row.token.chainId) === row;
+    visible.find((other) => other.chainId === row.chainId) === row;
+  const sourceControl = (row: FundingSourceRow) => {
+    if (row.canExclude) {
+      return (
+        <Tap
+          accessibilityRole="button"
+          accessibilityLabel={
+            row.excluded ? `Use ${row.label}` : `Do not use ${row.label}`
+          }
+          onPress={() =>
+            onChangePreference(
+              row.chainId,
+              row.excluded ? null : FUNDING_SOURCE_EXCLUDED,
+            )
+          }
+        >
+          <Text className="mt-2 text-[10px] text-accent">
+            {row.excluded ? 'Use this balance' : "Don't use"}
+          </Text>
+        </Tap>
+      );
+    }
+    if (!row.canChange || !isChainAnchor(row)) return undefined;
+    return (
+      <Tap
+        accessibilityRole="button"
+        accessibilityLabel={`Change source for ${row.chainLabel}`}
+        onPress={() => setPicker(row.chainId)}
+      >
+        <Text className="mt-2 text-[10px] text-accent">Change source</Text>
+      </Tap>
+    );
+  };
   return (
     <View className="mt-4 rounded-[18px] border border-line px-4">
       <Disclosure
@@ -95,7 +128,7 @@ export function FundingPlanDisclosure({
             icon={
               <TokenIcon
                 symbol={row.symbol}
-                chainKey={row.token.chainKey}
+                chainKey={row.chainKey}
                 size={28}
                 alt=""
               />
@@ -109,19 +142,7 @@ export function FundingPlanDisclosure({
             }
             valueTone={row.status === 'unavailable' ? 'error' : undefined}
             divider
-            trailing={
-              row.canChange && isChainAnchor(row) ? (
-                <Tap
-                  accessibilityRole="button"
-                  accessibilityLabel={`Change source for ${row.chainLabel}`}
-                  onPress={() => setPicker(row.token.chainId)}
-                >
-                  <Text className="mt-2 text-[10px] text-accent">
-                    Change source
-                  </Text>
-                </Tap>
-              ) : undefined
-            }
+            trailing={sourceControl(row)}
           />
         ))}
         <Text className="my-2 text-[10px] text-ink-dim">
@@ -129,22 +150,17 @@ export function FundingPlanDisclosure({
         </Text>
         {plan.warnings
           .filter((w) => w.kind !== 'eth-reserve-applied')
-          .map((w) => {
-            const chain = Object.values(CHAIN_BRAND).find(
-              (c) => c.chainId === w.chainId,
-            );
-            return (
-              <Text
-                key={`${w.kind}:${w.chainId}`}
-                className="my-1 text-[10px] text-ink-dim"
-              >
-                {chain?.label ?? `Chain ${w.chainId}`}{' '}
-                {w.kind === 'low-gas'
-                  ? 'has little ETH for gas.'
-                  : 'balances were unavailable, so we used another chain.'}
-              </Text>
-            );
-          })}
+          .map((w, index) => (
+            <Text
+              key={`${w.kind}:${index}`}
+              className="my-1 text-[10px] text-ink-dim"
+            >
+              {fundingWarningMessage(w)}
+            </Text>
+          ))}
+        {hyperCoreNote ? (
+          <Text className="my-1 text-[10px] text-ink-dim">{hyperCoreNote}</Text>
+        ) : null}
         <Text className="my-2 text-[10px] text-ink-dim">
           {sources.usedChainCount} wallet batches — one signature per source
           chain.
@@ -156,20 +172,13 @@ export function FundingPlanDisclosure({
             </Text>
           </Tap>
         ) : null}
-        {plan.options.hlp ? (
-          <Tap accessibilityRole="link" onPress={onOpenHlpSpotDeposit}>
-            <Text className="py-3 text-[11px] text-accent">
-              Already have USDC on Hyperliquid? Deposit it directly
-            </Text>
-          </Tap>
-        ) : null}
       </Disclosure>
       {picker !== null ? (
         <ChainTokenSelectorSheet
           visible
           title="Change source"
           subtitle="Choose which balance funds this chain."
-          rows={sources.rows.filter((row) => row.token.chainId === picker)}
+          rows={sources.rows.filter((row) => row.chainId === picker)}
           onSelect={(symbol) => onChangePreference(picker, symbol)}
           onClearPreference={() => onChangePreference(picker, null)}
           onClose={() => setPicker(null)}

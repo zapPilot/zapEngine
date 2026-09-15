@@ -7,13 +7,23 @@ import type { ReviewedBatchProgress } from '@/integration/useInvestExecution';
 
 export type HlpRowState = 'waiting' | 'active' | 'done' | 'failed';
 export type HlpRetryMode = 'hlp-signature' | 'tracking' | 'none';
+/** Where the HLP allocation's money comes from, which changes every predicate. */
+export type HlpFundingSource = 'bridge' | 'hypercore';
+export type HlpRowKey = 'bridge' | 'arrival' | 'vault';
+export interface HlpProgressRow {
+  key: HlpRowKey;
+  state: HlpRowState;
+}
 
 export interface HlpProgressInput {
+  fundingSource: HlpFundingSource;
   hasReviewedSubmission: boolean;
   reviewedPhase: ReviewedBatchProgress['phase'] | null;
   reviewedStatusNote: string | null;
   sourceTxHash: string | null;
   baselineUsd6: string | null;
+  /** The frozen HyperCore leg amount; the only identity a spot deposit has. */
+  hyperCoreRequestedUsd6: string | null;
   hasExactPlan: boolean;
   hasHlpStep: boolean;
   wizardStage: WizardStage;
@@ -24,28 +34,43 @@ export interface HlpProgressInput {
   agentReady: boolean;
 }
 
+/**
+ * Whether the vault deposit may be driven from what is already known. A bridged
+ * deposit needs the source transaction and the pre-bridge balance snapshot it
+ * is measured against; a HyperCore deposit has neither and needs neither — its
+ * amount is fixed by the plan itself.
+ */
 export function canTrackExisting(input: HlpProgressInput): boolean {
+  if (input.reviewedPhase === 'failed') return false;
+  if (input.fundingSource === 'hypercore') {
+    return (
+      input.hasExactPlan &&
+      input.hasHlpStep &&
+      Boolean(input.hyperCoreRequestedUsd6)
+    );
+  }
   return (
     input.hasExactPlan &&
     input.hasHlpStep &&
     Boolean(input.sourceTxHash) &&
-    Boolean(input.baselineUsd6) &&
-    input.reviewedPhase !== 'failed'
+    Boolean(input.baselineUsd6)
   );
 }
 
-export function hlpProgressRows(input: HlpProgressInput): {
-  source: HlpRowState;
-  bridge: HlpRowState;
-  arrival: HlpRowState;
-  vault: HlpRowState;
-} {
-  const source: HlpRowState =
-    input.reviewedPhase === 'failed'
-      ? 'failed'
-      : input.sourceTxHash
-        ? 'done'
-        : 'active';
+export function hlpProgressRows(input: HlpProgressInput): HlpProgressRow[] {
+  const vault: HlpRowState =
+    input.hlpStatus === 'deposited' || input.hlpStatus === 'submittedUnverified'
+      ? 'done'
+      : input.hlpStatus === 'confirming'
+        ? 'active'
+        : input.wizardErrorStage === 'hyperliquidDeposit' &&
+            input.hlpStatus === 'arrived'
+          ? 'failed'
+          : 'waiting';
+  // A HyperCore deposit has no bridge and no arrival to wait for, so rendering
+  // those rows would show progress that can never complete.
+  if (input.fundingSource === 'hypercore')
+    return [{ key: 'vault', state: vault }];
   const bridge: HlpRowState = input.bridgeConfirmed
     ? 'done'
     : input.wizardErrorStage === 'bridging'
@@ -64,19 +89,18 @@ export function hlpProgressRows(input: HlpProgressInput): {
         : input.hlpStatus === 'awaitingArrival'
           ? 'active'
           : 'waiting';
-  const vault: HlpRowState =
-    input.hlpStatus === 'deposited' || input.hlpStatus === 'submittedUnverified'
-      ? 'done'
-      : input.hlpStatus === 'confirming'
-        ? 'active'
-        : input.wizardErrorStage === 'hyperliquidDeposit' &&
-            input.hlpStatus === 'arrived'
-          ? 'failed'
-          : 'waiting';
-  return { source, bridge, arrival, vault };
+  return [
+    { key: 'bridge', state: bridge },
+    { key: 'arrival', state: arrival },
+    { key: 'vault', state: vault },
+  ];
 }
 
 export function unsafeResumeReason(input: HlpProgressInput): string | null {
+  // Every reason below describes a missing piece of *bridge* evidence. A spot
+  // deposit has no source transaction to withhold and no snapshot to lose, so
+  // reporting any of them here would name a problem that does not exist.
+  if (input.fundingSource === 'hypercore') return null;
   if (!input.hasReviewedSubmission) {
     return 'No reviewed source submission was found. No HLP action will be attempted.';
   }
@@ -110,7 +134,10 @@ export function hlpRetryMode(input: HlpProgressInput): HlpRetryMode {
   const hasError = input.wizardErrorStage !== null || input.flowError !== null;
   const arrivalStillPollable =
     input.hlpStatus === 'idle' || input.hlpStatus === 'awaitingArrival';
-  return hasError && arrivalStillPollable && canTrackExisting(input)
+  return input.fundingSource === 'bridge' &&
+    hasError &&
+    arrivalStillPollable &&
+    canTrackExisting(input)
     ? 'tracking'
     : 'none';
 }
@@ -144,5 +171,7 @@ export function resumeKey(
   callsId: string | null,
 ): string | null {
   if (!canTrackExisting(input)) return null;
-  return `${callsId ?? 'reviewed'}:${input.sourceTxHash}:${input.baselineUsd6}`;
+  return input.fundingSource === 'hypercore'
+    ? `hypercore:${input.hyperCoreRequestedUsd6}`
+    : `${callsId ?? 'reviewed'}:${input.sourceTxHash}:${input.baselineUsd6}`;
 }

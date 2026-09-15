@@ -26,6 +26,8 @@ import type {
   UseInvestReviewResult,
 } from '@/integration/useInvestReview';
 
+import type { HyperCoreLegPlan } from './useHyperCoreLegPlan';
+
 function hlpPlanFor(batch: ReviewedBatch): DepositPlan | null {
   if (isStrategyDepositPlan(batch.plan)) return null;
   return hlpStepFromPlan(batch.plan) ? batch.plan : null;
@@ -40,9 +42,12 @@ function hlpPlanFor(batch: ReviewedBatch): DepositPlan | null {
 export function useInvestRouteSubmit({
   review,
   capability,
+  hyperCoreLeg,
 }: {
   review: UseInvestReviewResult;
   capability: DepositExecutionCapability;
+  /** The HyperCore-funded HLP leg, when this plan has one. */
+  hyperCoreLeg: HyperCoreLegPlan | null;
 }) {
   const router = useRouter();
   const account = useAccount();
@@ -56,13 +61,19 @@ export function useInvestRouteSubmit({
   const reviewBlocked = groups.some((group) =>
     reviewGroupBlocked(group, reviewNow),
   );
+  // The leg is not a reviewed batch, but it is signed in the same run: sending
+  // before its plan exists, or after the live balance stopped covering it,
+  // would strand the user mid-flow on the progress screen.
+  const legNotReadyForSend =
+    capability === 'ready' && hyperCoreLeg !== null && !hyperCoreLeg.isReady;
   const reviewNotReadyForSend =
     capability === 'ready' &&
     (review.isLoading ||
       review.isError ||
       !review.hasAllBatches ||
       review.batches.length === 0 ||
-      reviewBlocked);
+      reviewBlocked ||
+      legNotReadyForSend);
   const reviewExecutionLocked = reviewedProgress !== null;
 
   const dismissSubmissionError = () => {
@@ -164,6 +175,7 @@ export function useInvestRouteSubmit({
     reviewNow,
     reviewBlocked,
     reviewNotReadyForSend,
+    legNotReadyForSend,
     reviewExecutionLocked,
     submissionError,
     dismissSubmissionError,

@@ -166,7 +166,7 @@ const InvestExecutionContext =
 export function InvestExecutionProvider({ children }: { children: ReactNode }) {
   const wallet = useWalletProvider();
   const queryClient = useQueryClient();
-  const { stageDrafts } = useInvest();
+  const { stageDrafts, hyperCoreFundingDraft } = useInvest();
   const invalidatedDone = useRef(false);
   const previousDraftKey = useRef('');
   const [reviewedSubmission, setReviewedSubmission] =
@@ -175,9 +175,13 @@ export function InvestExecutionProvider({ children }: { children: ReactNode }) {
   const [reviewedProgress, setReviewedProgress] =
     useState<ReviewedBatchProgress | null>(null);
   const walletAddress = wallet.account?.address;
+  // The HyperCore leg is not a queue entry, but it is part of what the user
+  // froze: leaving it out lets its amount change while an in-flight execution
+  // state survives.
   const executionDraftKey = [
     walletAddress?.toLowerCase() ?? 'none',
     stageDraftsKey(stageDrafts),
+    `hypercore:${hyperCoreFundingDraft?.requestedUsd6 ?? 'none'}`,
   ].join('|');
 
   const capability = resolveDepositExecutionCapability({

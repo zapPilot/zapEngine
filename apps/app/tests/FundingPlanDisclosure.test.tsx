@@ -7,25 +7,29 @@ import {
   BASE_DEPOSIT_TOKENS as B,
   ETHEREUM_DEPOSIT_TOKENS as E,
 } from '@/integration/depositTokens';
+import { HYPERCORE_CHAIN_ID } from '@zapengine/types/api';
 import {
   planFunding,
   type FundingPreferences,
 } from '@/integration/investFundingPlanner';
 import { fundingSourceRows } from '@/integration/investFundingSources';
-import {
-  DEFAULT_SECTOR_WEIGHTS,
-  resolveTargetAllocations,
-} from '@/integration/investSectorModel';
 import type { ChainTokenBalanceRow } from '@/integration/walletTokens';
+import type { TargetAllocation } from '@/integration/investTargetsModel';
 import { balanceRow as row } from './support/fundingBalanceRow';
 
-const allocations = resolveTargetAllocations(DEFAULT_SECTOR_WEIGHTS);
+// Pinned so the dollar figures asserted below stay readable.
+const allocations: TargetAllocation[] = [
+  { positionId: 'morpho-base', weightBps: 3600 },
+  { positionId: 'gmx-arbitrum', weightBps: 4000 },
+  { positionId: 'hlp', weightBps: 2400 },
+];
 
 function scenario(
   rows: ChainTokenBalanceRow[],
   preferences: FundingPreferences = {},
+  hyperCoreSpendableUsd6: bigint | null = 0n,
 ) {
-  const supply = { rows, unavailableChainIds: [] };
+  const supply = { rows, unavailableChainIds: [], hyperCoreSpendableUsd6 };
   const constraints = { preferences, gasReserveUsd: 5 };
   const plan = planFunding({
     demand: { totalUsd6: '100000000', allocations },
@@ -45,7 +49,6 @@ function scenario(
 
 it('lists the balances the money comes from, not the destinations it goes to', async () => {
   const onPreference = vi.fn();
-  const onHlp = vi.fn();
   const { plan, sources } = scenario([
     row(B[0], 100),
     row(A[0], 100),
@@ -60,9 +63,9 @@ it('lists the balances the money comes from, not the destinations it goes to', a
       hasAmount
       isConnected
       hasPreferences={false}
+      hyperCoreNote={null}
       onChangePreference={onPreference}
       onUseRecommended={vi.fn()}
-      onOpenHlpSpotDeposit={onHlp}
     />,
   );
   expect(container.textContent).toContain('Selected automatically · 2 sources');
@@ -96,12 +99,79 @@ it('lists the balances the money comes from, not the destinations it goes to', a
   await clickUi(container, 'Change source for Arbitrum');
   await clickUi(container, 'Automatic');
   expect(onPreference).toHaveBeenLastCalledWith(42161, null);
+});
 
-  await clickUi(
-    container,
-    'Already have USDC on Hyperliquid? Deposit it directly',
+it('shows an existing Hyperliquid balance as a source the user can decline', async () => {
+  const onPreference = vi.fn();
+  const { plan, sources } = scenario(
+    [row(B[0], 36), row(A[0], 40)],
+    {},
+    24000000n,
   );
-  expect(onHlp).toHaveBeenCalledOnce();
+  const container = await renderInvestUi(
+    <FundingPlanDisclosure
+      plan={plan}
+      sources={sources}
+      hasAmount
+      isConnected
+      hasPreferences={false}
+      hyperCoreNote={null}
+      onChangePreference={onPreference}
+      onUseRecommended={vi.fn()}
+    />,
+  );
+  await clickUi(container, "How we'll fund this");
+  expect(container.textContent).toContain('Hyperliquid USDC');
+  expect(container.textContent).toContain('$24.00');
+  // The HLP leg signs no wallet batch, so it must not be counted as one.
+  expect(container.textContent).toContain('2 wallet batches');
+
+  await clickUi(container, 'Do not use Hyperliquid USDC');
+  expect(onPreference).toHaveBeenCalledWith(HYPERCORE_CHAIN_ID, 'excluded');
+});
+
+it('keeps the Standard-account caveat that the removed HLP screen used to carry', async () => {
+  const { plan, sources } = scenario([row(B[0], 36), row(A[0], 64)]);
+  const container = await renderInvestUi(
+    <FundingPlanDisclosure
+      plan={plan}
+      sources={sources}
+      hasAmount
+      isConnected
+      hasPreferences={false}
+      hyperCoreNote="On a Standard account only Perp USDC can fund HLP."
+      onChangePreference={vi.fn()}
+      onUseRecommended={vi.fn()}
+    />,
+  );
+  await clickUi(container, "How we'll fund this");
+  expect(container.textContent).toContain(
+    'On a Standard account only Perp USDC can fund HLP.',
+  );
+});
+
+it('explains a Hyperliquid balance too small to cover the HLP share', async () => {
+  const { plan, sources } = scenario(
+    [row(B[0], 36), row(A[0], 64)],
+    {},
+    10000000n,
+  );
+  const container = await renderInvestUi(
+    <FundingPlanDisclosure
+      plan={plan}
+      sources={sources}
+      hasAmount
+      isConnected
+      hasPreferences={false}
+      hyperCoreNote={null}
+      onChangePreference={vi.fn()}
+      onUseRecommended={vi.fn()}
+    />,
+  );
+  await clickUi(container, "How we'll fund this");
+  expect(container.textContent).toContain(
+    "You have $10.00 on Hyperliquid, but this HLP allocation is $24.00. We'll bridge the full amount.",
+  );
 });
 
 it('offers reset only with a preference and hides the picker with nothing to switch to', async () => {
@@ -116,9 +186,9 @@ it('offers reset only with a preference and hides the picker with nothing to swi
       hasAmount={false}
       isConnected
       hasPreferences
+      hyperCoreNote={null}
       onChangePreference={vi.fn()}
       onUseRecommended={onRecommended}
-      onOpenHlpSpotDeposit={vi.fn()}
     />,
   );
   expect(container.textContent).toContain('Custom · 2 sources');

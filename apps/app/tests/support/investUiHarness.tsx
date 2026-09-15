@@ -45,8 +45,11 @@ vi.mock('react-native', () => ({
     visible ? <div role="dialog">{children}</div> : null,
 }));
 vi.mock('lucide-react-native', () => ({
+  Check: () => null,
   ChevronDown: () => null,
   ChevronLeft: () => null,
+  Circle: () => null,
+  LoaderCircle: () => null,
   X: () => null,
   Lock: () => null,
   Wallet: () => null,

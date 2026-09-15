@@ -1,4 +1,5 @@
-import { CHAIN_BRAND } from '@zapengine/brand-assets';
+import { CHAIN_BRAND, type ChainBrandKey } from '@zapengine/brand-assets';
+import { HYPERCORE_CHAIN_ID } from '@zapengine/types/api';
 
 import type {
   DepositTokenSymbol,
@@ -6,11 +7,17 @@ import type {
 } from '@/integration/depositTokens';
 import {
   buildFundingSupply,
+  candidateChainId,
+  candidateSymbol,
   fundingSupplyEntry,
+  hyperCoreSupplyEntry,
   FUNDING_TOKEN_UNIVERSE,
-  sameDepositToken,
+  FUNDING_SOURCE_EXCLUDED,
+  HYPERCORE_SYMBOL,
   type FundingAssignment,
   type FundingPreferences,
+  type FundingSourceChainId,
+  type FundingSupplyEntry,
   type FundingSupplyInput,
 } from '@/integration/investFundingPlanner';
 
@@ -18,7 +25,9 @@ export type FundingSourceStatus = 'used' | 'idle' | 'empty' | 'unavailable';
 
 export interface FundingSourceRow {
   key: string;
-  token: DesktopDepositToken;
+  /** 1337 for HyperCore, which is a destination-side balance, not an EVM chain. */
+  chainId: FundingSourceChainId;
+  chainKey: ChainBrandKey;
   chainLabel: string;
   symbol: DepositTokenSymbol;
   /** How the balance is named in the UI, e.g. "Arbitrum USDC". */
@@ -33,12 +42,30 @@ export interface FundingSourceRow {
   preferred: boolean;
   /** The chain holds another balance the user could switch to. */
   canChange: boolean;
+  /**
+   * The user can decline this balance outright. HLP locks withdrawals for four
+   * days, so an existing Hyperliquid balance must be refusable even though
+   * there is no second HyperCore token to switch to.
+   */
+  canExclude: boolean;
+  excluded: boolean;
 }
 
 export interface FundingSourceView {
   rows: readonly FundingSourceRow[];
   usedSourceCount: number;
+  /** EVM chains only: this is the number of wallet batches the plan signs. */
   usedChainCount: number;
+}
+
+type SourceDescriptor =
+  | { kind: 'evm'; token: DesktopDepositToken }
+  | { kind: 'hypercore' };
+
+function descriptorKey(source: SourceDescriptor): string {
+  return source.kind === 'hypercore'
+    ? `${HYPERCORE_CHAIN_ID}:${HYPERCORE_SYMBOL}`
+    : `${source.token.chainId}:${source.token.symbol}`;
 }
 
 /**
@@ -53,12 +80,14 @@ export function fundingSourceRows(input: {
   gasReserveUsd: number;
 }): FundingSourceView {
   const supply = buildFundingSupply(input.supply, input.gasReserveUsd);
-  const entryFor = (token: DesktopDepositToken) =>
-    fundingSupplyEntry(supply, token);
+  const entryFor = (source: SourceDescriptor): FundingSupplyEntry =>
+    source.kind === 'hypercore'
+      ? hyperCoreSupplyEntry(supply)
+      : fundingSupplyEntry(supply, source.token);
 
-  const selectablePerChain = new Map<number, number>();
+  const selectablePerChain = new Map<FundingSourceChainId, number>();
   for (const token of FUNDING_TOKEN_UNIVERSE) {
-    const entry = entryFor(token);
+    const entry = fundingSupplyEntry(supply, token);
     if (!entry.unavailable && (entry.spendableUsd6 ?? 0n) > 0n)
       selectablePerChain.set(
         token.chainId,
@@ -69,28 +98,47 @@ export function fundingSourceRows(input: {
   // Funded balances lead, in the order the review step will batch them; the
   // remainder keeps the fixed universe order so typing an amount never
   // reshuffles the rows underneath the user.
-  const tokens: DesktopDepositToken[] = [];
-  for (const token of [
-    ...input.assignments.map((a) => a.source.token),
-    ...FUNDING_TOKEN_UNIVERSE,
+  const sources: SourceDescriptor[] = [];
+  for (const source of [
+    ...input.assignments.map(
+      (a): SourceDescriptor =>
+        a.source.kind === 'hypercore'
+          ? { kind: 'hypercore' }
+          : { kind: 'evm', token: a.source.token },
+    ),
+    ...FUNDING_TOKEN_UNIVERSE.map(
+      (token): SourceDescriptor => ({ kind: 'evm', token }),
+    ),
+    { kind: 'hypercore' } as SourceDescriptor,
   ])
-    if (!tokens.some((seen) => sameDepositToken(seen, token)))
-      tokens.push(token);
+    if (!sources.some((seen) => descriptorKey(seen) === descriptorKey(source)))
+      sources.push(source);
 
-  const rows = tokens.map((token): FundingSourceRow => {
-    const entry = entryFor(token);
-    const chainLabel = CHAIN_BRAND[token.chainKey].label;
+  const rows = sources.map((source): FundingSourceRow => {
+    const entry = entryFor(source);
+    const chainId: FundingSourceChainId =
+      source.kind === 'hypercore' ? HYPERCORE_CHAIN_ID : source.token.chainId;
+    const chainKey: ChainBrandKey =
+      source.kind === 'hypercore' ? 'hyperliquid' : source.token.chainKey;
+    const symbol =
+      source.kind === 'hypercore' ? HYPERCORE_SYMBOL : source.token.symbol;
+    const chainLabel = CHAIN_BRAND[chainKey].label;
     const usedUsd6 = input.assignments.reduce(
       (total, a) =>
-        sameDepositToken(a.source.token, token) ? total + a.usd6 : total,
+        candidateChainId(a.source) === chainId &&
+        candidateSymbol(a.source) === symbol
+          ? total + a.usd6
+          : total,
       0n,
     );
+    const preference = input.preferences[chainId];
     return {
-      key: `${token.chainId}:${token.symbol}`,
-      token,
+      key: descriptorKey(source),
+      chainId,
+      chainKey,
       chainLabel,
-      symbol: token.symbol,
-      label: `${chainLabel} ${token.symbol}`,
+      symbol,
+      label: `${chainLabel} ${symbol}`,
       balanceUsd6: entry.balanceUsd6,
       spendableUsd6: entry.spendableUsd6,
       hasBalance: entry.hasBalance,
@@ -103,8 +151,10 @@ export function fundingSourceRows(input: {
             : entry.hasBalance
               ? 'idle'
               : 'empty',
-      preferred: input.preferences[token.chainId] === token.symbol,
-      canChange: (selectablePerChain.get(token.chainId) ?? 0) > 1,
+      preferred: preference === symbol,
+      canChange: (selectablePerChain.get(chainId) ?? 0) > 1,
+      canExclude: source.kind === 'hypercore',
+      excluded: preference === FUNDING_SOURCE_EXCLUDED,
     };
   });
 
@@ -112,6 +162,10 @@ export function fundingSourceRows(input: {
   return {
     rows,
     usedSourceCount: used.length,
-    usedChainCount: new Set(used.map((row) => row.token.chainId)).size,
+    usedChainCount: new Set(
+      used
+        .filter((row) => row.chainId !== HYPERCORE_CHAIN_ID)
+        .map((row) => row.chainId),
+    ).size,
   };
 }

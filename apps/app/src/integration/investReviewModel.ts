@@ -2,6 +2,7 @@ import { hlpStepFromPlan } from '@zapengine/app-core/lib/wallet/depositWizardMac
 import type {
   DepositPlan,
   DepositReviewGroup,
+  HlpSpotDepositPlan,
   PlanOrchestrationDepositReviewResponse,
   ReviewedDepositPlan,
 } from '@zapengine/types/api';
@@ -192,11 +193,15 @@ export function batchSummaryRows(
  */
 export function hlpStageProgressInput({
   hlpPlan,
+  spotPlan,
   ...rest
 }: Omit<HlpProgressInput, 'hasExactPlan' | 'hasHlpStep'> & {
   /** The reviewed HLP plan once its batch has landed, null before that. */
   hlpPlan: DepositPlan | null;
+  /** The HyperCore-funded plan, which carries its own step and needs no batch. */
+  spotPlan: HlpSpotDepositPlan | null;
 }): HlpProgressInput {
+  if (spotPlan) return { ...rest, hasExactPlan: true, hasHlpStep: true };
   return {
     ...rest,
     hasExactPlan: hlpPlan !== null,
@@ -207,12 +212,16 @@ export function hlpStageProgressInput({
 /** Completion line for the unified done card. */
 export function investDoneStatusLabel(params: {
   drafts: readonly StageDraft[];
+  /** True when HLP was funded from HyperCore, so it produced no stage draft. */
+  hasHyperCoreLeg: boolean;
   hlpDeposited: boolean;
 }): string {
+  const hlpLabel = params.hlpDeposited ? 'HLP deposited' : 'HLP pending';
   const parts = params.drafts.map((draft) => {
     if (draft.positionId === 'morpho-base') return 'Morpho supplied';
     if (draft.positionId === 'gmx-arbitrum') return 'GMX settled';
-    return params.hlpDeposited ? 'HLP deposited' : 'HLP pending';
+    return hlpLabel;
   });
+  if (params.hasHyperCoreLeg) parts.push(hlpLabel);
   return parts.length > 0 ? parts.join(' · ') : 'Route complete';
 }
