@@ -311,6 +311,19 @@ export function createEpisodeVideoVisualProcessor(
           searchTitleSource,
         });
       if (resumed) {
+        const available = new Set(
+          prepared.resumePlan?.assets.map((asset) => asset.assetId) ?? [],
+        );
+        checkpoint = {
+          ...checkpoint,
+          assets: checkpoint.assets.filter((asset) =>
+            available.has(asset.assetId),
+          ),
+          scenes: checkpoint.scenes.filter((scene) =>
+            available.has(scene.assetId),
+          ),
+        };
+        await saveCheckpointOrThrow(context, checkpoint);
         logVisualProgress(dependencies.logger, 'visual:checkpoint', {
           run: context.runId,
           episode: source.episodeId,

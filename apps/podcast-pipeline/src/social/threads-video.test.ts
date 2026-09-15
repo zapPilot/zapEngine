@@ -48,7 +48,7 @@ describe('prepareThreadsVideoUrl', () => {
     const uploaded = uploadVideo.mock.calls[0]?.[0];
     expect(uploaded).toMatchObject({ path: teaserPath });
     expect(uploaded?.key).toMatch(
-      /^social\/threads\/[a-f0-9]{24}\/v1\/video\.mp4$/,
+      /^transient\/social\/threads\/[a-f0-9]{24}\/v1\/video\.mp4$/,
     );
     expect(url).toBe(`https://cdn.example.com/${uploaded?.key}`);
   });
@@ -200,7 +200,7 @@ describe('prepareThreadsVideoUrl', () => {
     try {
       const result = await prepareThreadsVideoUrl(sourceUrl, { uploadVideo });
       expect(result).toMatch(
-        /^https:\/\/cdn-default\.example\.com\/social\/threads\/[^/]+\/v1\/video\.mp4$/,
+        /^https:\/\/cdn-default\.example\.com\/transient\/social\/threads\/[^/]+\/v1\/video\.mp4$/,
       );
       expect(uploadVideo).toHaveBeenCalledWith(
         expect.objectContaining({ path: teaserPath }),

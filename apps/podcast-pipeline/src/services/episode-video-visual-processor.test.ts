@@ -10,6 +10,7 @@ import type {
   VisualSceneSubjectAssignment,
   VisualSubjectCatalog,
 } from './video/storyboard/subject-catalog.js';
+import { ExpiredVisualCheckpointImageError } from './video/visual-checkpoint.js';
 import {
   EPISODE_VIDEO_VISUAL_VERSION,
   type EpisodeVideoVisualJobRow,
@@ -731,6 +732,32 @@ describe('visual search debug checkpoints', () => {
 });
 
 describe('visual checkpoint resume', () => {
+  it('replans expired checkpoint scenes and clears their stale asset IDs before reuse', async () => {
+    const planAssets = vi.fn().mockResolvedValue(assetPlan());
+    const processor = createEpisodeVideoVisualProcessor(
+      checkpointDependencies({
+        planAssets,
+        downloadCheckpointImage: vi
+          .fn()
+          .mockRejectedValue(new ExpiredVisualCheckpointImageError('expired')),
+        persistDebug: vi.fn().mockResolvedValue(true),
+      }),
+    );
+    const jobContext = context();
+    await processor(
+      { ...job(), checkpoint: resumableCheckpoint() },
+      source(),
+      jobContext,
+    );
+    expect(planAssets.mock.calls[0]?.[0].resumePlan).toEqual({
+      assets: [],
+      scenes: [],
+    });
+    expect(
+      vi.mocked(jobContext.saveCheckpoint).mock.calls[0]?.[0],
+    ).toMatchObject({ assets: [], scenes: [] });
+  });
+
   it('resumes the checkpointed scenes of an episode whose catalog degraded to none', async () => {
     const generateStoryboard = vi.fn().mockResolvedValue(storyboard());
     const enrichSearchIntents = keepDeterministicIntents();

@@ -6,10 +6,7 @@ import { combineAbortSignalWithTimeout } from '../lib/abort.js';
 import { runWithDeadline } from '../lib/deadline.js';
 import { errorMessage } from '../lib/errorMessage.js';
 import type { EpisodeRenderMetrics } from './ops-ledger.js';
-import {
-  uploadEpisodeVisualCheckpointImageToR2,
-  uploadVideoArtifactsToR2,
-} from './storage.js';
+import { uploadEpisodeCoverToR2, uploadVideoArtifactsToR2 } from './storage.js';
 import { downloadNarrationAudio } from './video/audio-analysis.js';
 import {
   analyzeEpisodeAudio,
@@ -53,7 +50,7 @@ interface EpisodeVideoProcessorDependencies {
   analyzeAudio: typeof analyzeEpisodeAudio;
   createManifest: typeof createEpisodeVideoManifest;
   prepareCover: typeof prepareVideoCover;
-  uploadCover: typeof uploadEpisodeVisualCheckpointImageToR2;
+  uploadCover: typeof uploadEpisodeCoverToR2;
   render: typeof renderSlideVideo;
   upload: typeof uploadVideoArtifactsToR2;
   makeTemporaryDirectory: (prefix: string) => Promise<string>;
@@ -69,7 +66,7 @@ const defaultDependencies: EpisodeVideoProcessorDependencies = {
   analyzeAudio: analyzeEpisodeAudio,
   createManifest: createEpisodeVideoManifest,
   prepareCover: prepareVideoCover,
-  uploadCover: uploadEpisodeVisualCheckpointImageToR2,
+  uploadCover: uploadEpisodeCoverToR2,
   render: renderSlideVideo,
   upload: uploadVideoArtifactsToR2,
   makeTemporaryDirectory: mkdtemp,
@@ -171,11 +168,9 @@ export function createEpisodeVideoProcessor(
         try {
           coverThumbnailUrl = await dependencies.uploadCover({
             episodeId: source.episodeId,
-            visualVersion: source.visualVersion,
-            sourceHash: source.visualHash,
-            assetId: `video-cover-${preparedCover.metadata.sha256}`,
+            visualHash: source.visualHash,
+            sha256: preparedCover.metadata.sha256,
             path: preparedCover.thumbnailPath,
-            contentType: 'image/png',
             signal: context.signal,
           });
           coverMetadata = {
@@ -319,7 +314,6 @@ export function createEpisodeVideoProcessor(
         thumbnailPath: rendered.thumbnailPath,
         manifestPath: rendered.storyboardPath,
         captionsPath: rendered.subtitlePath,
-        slidePaths: rendered.slideOutputPaths,
         signal: context.signal,
       });
       return {

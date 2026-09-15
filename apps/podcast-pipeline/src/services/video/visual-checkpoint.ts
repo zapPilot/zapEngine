@@ -211,12 +211,22 @@ export type DownloadCheckpointImage = (
   signal: AbortSignal,
 ) => Promise<void>;
 
+export class ExpiredVisualCheckpointImageError extends Error {}
+
 export async function downloadVisualCheckpointImage(
   url: string,
   path: string,
   signal: AbortSignal,
 ): Promise<void> {
   const response = await fetch(url, { signal });
+  if (
+    response.status === 404 &&
+    new URL(url).pathname.startsWith('/transient/visual-checkpoints/')
+  ) {
+    throw new ExpiredVisualCheckpointImageError(
+      'Visual checkpoint image expired',
+    );
+  }
   if (!response.ok) {
     throw new Error(
       `Visual checkpoint image ${url} responded ${response.status}`,
@@ -246,10 +256,20 @@ export async function restoreVisualCheckpointPlan(
       'checkpoint',
       `${stored.assetId}.${contentTypeExtension(stored.contentType)}`,
     );
-    await options.download(r2Url, path, options.signal);
+    try {
+      await options.download(r2Url, path, options.signal);
+    } catch (error) {
+      options.signal.throwIfAborted();
+      if (error instanceof ExpiredVisualCheckpointImageError) continue;
+      throw error;
+    }
     assets.push({ ...rest, path });
   }
-  return { assets, scenes: [...checkpoint.scenes] };
+  const available = new Set(assets.map((asset) => asset.assetId));
+  return {
+    assets,
+    scenes: checkpoint.scenes.filter((scene) => available.has(scene.assetId)),
+  };
 }
 
 function withoutLocalPath(

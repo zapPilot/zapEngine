@@ -39,7 +39,8 @@ fi
 # for exactly those. The fly.toml part of the audit is warning-only and cannot
 # fail the check, so fly.toml alone does not trigger it.
 if printf '%s\n' "$staged_paths" | grep -qE '^config/env(/|\.)|^scripts/env/|^scripts/ops-lib' ||
-  git diff --cached -U0 | grep -qE '^[+-][^+-].*(process\.env\.|import\.meta\.env\.|os\.environ|os\.getenv)'; then
+  git diff --cached -U0 | grep -E '^[+-]' | grep -vE '^(\+\+\+|---)' |
+    grep -qE '(process\.env\.|import\.meta\.env\.|os\.environ|os\.getenv)'; then
   pnpm lint dead-env
 fi
 

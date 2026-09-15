@@ -1,0 +1,31 @@
+{
+  "date": "2026-09-15",
+  "bucket": "from-fed-to-chain-mono",
+  "mode": "read-only pre-migration inventory; no retirement history supplied",
+  "summary": {
+    "event": "gc:summary",
+    "dryRun": true,
+    "candidatePrefixes": 580,
+    "retainedReferences": 539,
+    "deletedObjects": 0,
+    "deletedBytes": 0,
+    "failures": 0
+  },
+  "decisions": {
+    "referenced": {
+      "prefixes": 539,
+      "objects": 28535,
+      "bytes": 48633670311
+    },
+    "young": {
+      "prefixes": 31,
+      "objects": 1377,
+      "bytes": 1532181579
+    },
+    "unobserved": {
+      "prefixes": 10,
+      "objects": 330,
+      "bytes": 896049729
+    }
+  }
+}

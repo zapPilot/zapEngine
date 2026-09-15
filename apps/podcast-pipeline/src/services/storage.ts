@@ -1,5 +1,4 @@
 import { createReadStream } from 'node:fs';
-import { basename } from 'node:path';
 
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 
@@ -11,6 +10,7 @@ import { sleep } from '../lib/sleep.js';
 import type { LanguageClassroomLanguageCode } from '../types.js';
 import type { HlsFile } from './hls.js';
 import { logPipelineEvent } from './ingest/step.js';
+import { replaceHls } from './storage-hls.js';
 
 export interface HlsUploadResult {
   hlsUrl: string;
@@ -26,7 +26,6 @@ export interface VideoArtifactUploadInput {
   thumbnailPath: string;
   manifestPath: string;
   captionsPath: string;
-  slidePaths: readonly string[];
   signal?: AbortSignal;
 }
 
@@ -69,6 +68,7 @@ export interface EpisodeVisualCheckpointImageInput {
   signal?: AbortSignal;
 }
 
+const EPISODE_ID_LABEL = 'episode id';
 const IMMUTABLE_CACHE_CONTROL = 'public, max-age=31536000, immutable';
 const VIDEO_MULTIPART_PART_SIZE = 8 * 1024 * 1024;
 const VIDEO_MULTIPART_QUEUE_SIZE = 2;
@@ -160,6 +160,10 @@ export async function uploadHlsToR2(
     );
   }
 
+  safeKeySegment(episodeId, EPISODE_ID_LABEL);
+  safeKeySegment(languageCode, 'language code');
+  if (classroomTargetLanguageCode)
+    safeKeySegment(classroomTargetLanguageCode, 'classroom language');
   const prefix =
     classroomTargetLanguageCode === undefined
       ? `episodes/${episodeId}/localizations/${languageCode}/${section}`
@@ -167,20 +171,13 @@ export async function uploadHlsToR2(
   const r2 = getR2Client();
   const Bucket = getBucket();
 
-  // No CacheControl on purpose: this prefix carries no content hash, so a
-  // resumed ingest rewrites the same keys and an immutable header would pin the
-  // CDN to the previous audio.
-  await mapWithConcurrency(
+  await replaceHls({
+    r2,
+    bucket: Bucket,
+    prefix,
     files,
-    R2_PUT_CONCURRENCY,
-    ({ name, path, contentType }) =>
-      putObject(r2, {
-        Bucket,
-        Key: `${prefix}/${name}`,
-        path,
-        contentType,
-      }),
-  );
+    put: (object) => putObject(r2, { Bucket, ...object }),
+  });
 
   return {
     hlsUrl: `${getPublicBase()}/${prefix}/playlist.m3u8`,
@@ -199,10 +196,6 @@ export async function uploadVideoArtifactsToR2(
   const thumbnailKey = `${prefix}/thumbnail.png`;
   const manifestKey = `${prefix}/manifest.json`;
   const captionsKey = `${prefix}/captions.ass`;
-  const slideKeys = input.slidePaths.map(
-    (slidePath, index) =>
-      `${prefix}/slides/${safeSlideFilename(slidePath, index)}`,
-  );
 
   await uploadMp4({
     r2,
@@ -224,11 +217,6 @@ export async function uploadVideoArtifactsToR2(
       path: input.captionsPath,
       contentType: 'text/x-ssa; charset=utf-8',
     },
-    ...input.slidePaths.map((slidePath, index) => ({
-      Key: slideKeys[index]!,
-      path: slidePath,
-      contentType: 'image/png',
-    })),
   ]);
 
   const base = getPublicBase();
@@ -248,9 +236,33 @@ export async function uploadEpisodeVisualCheckpointImageToR2(
   const sourceHash = safeKeySegment(input.sourceHash, 'visual source hash');
   const assetId = safeKeySegment(input.assetId, 'visual asset id');
   const extension = contentTypeExtension(input.contentType);
-  const key = `${visualKeyPrefix(input)}/checkpoints/${sourceHash}/images/${assetId}.${extension}`;
+  const episodeId = safeKeySegment(input.episodeId, EPISODE_ID_LABEL);
+  const version = safeKeySegment(
+    input.visualVersion,
+    'visual renderer version',
+  );
+  const key = `transient/visual-checkpoints/${episodeId}/${version}/${sourceHash}/images/${assetId}.${extension}`;
   await putImmutableObjects(getR2Client(), getBucket(), input.signal, [
     { Key: key, path: input.path, contentType: input.contentType },
+  ]);
+  return `${getPublicBase()}/${key}`;
+}
+
+export async function uploadEpisodeCoverToR2(input: {
+  episodeId: string;
+  visualHash: string;
+  sha256: string;
+  path: string;
+  signal?: AbortSignal;
+}): Promise<string> {
+  input.signal?.throwIfAborted();
+  const episodeId = safeKeySegment(input.episodeId, EPISODE_ID_LABEL);
+  const visualHash = safeKeySegment(input.visualHash, 'visual hash');
+  if (!/^[a-f0-9]{64}$/.test(input.sha256))
+    throw new Error('Invalid cover sha256');
+  const key = `episodes/${episodeId}/covers/${visualHash}/${input.sha256}.png`;
+  await putImmutableObjects(getR2Client(), getBucket(), input.signal, [
+    { Key: key, path: input.path, contentType: 'image/png' },
   ]);
   return `${getPublicBase()}/${key}`;
 }
@@ -308,7 +320,7 @@ function visualKeyPrefix(input: {
   episodeId: string;
   visualVersion: string;
 }): string {
-  const episodeId = safeKeySegment(input.episodeId, 'episode id');
+  const episodeId = safeKeySegment(input.episodeId, EPISODE_ID_LABEL);
   const visualVersion = safeKeySegment(
     input.visualVersion,
     'visual renderer version',
@@ -317,7 +329,7 @@ function visualKeyPrefix(input: {
 }
 
 function buildVideoArtifactPrefix(input: VideoArtifactUploadInput): string {
-  const episodeId = safeKeySegment(input.episodeId, 'episode id');
+  const episodeId = safeKeySegment(input.episodeId, EPISODE_ID_LABEL);
   const rendererVersion = safeKeySegment(
     input.rendererVersion,
     'renderer version',
@@ -331,14 +343,6 @@ function safeKeySegment(value: string, label: string): string {
     throw new Error(`Invalid video artifact ${label}`);
   }
   return value;
-}
-
-function safeSlideFilename(path: string, index: number): string {
-  const filename = basename(path);
-  if (!/^[a-z\d][a-z\d._-]*\.png$/i.test(filename)) {
-    throw new Error(`Invalid slide filename at index ${index}`);
-  }
-  return filename;
 }
 
 async function uploadMp4(input: {
@@ -408,6 +412,8 @@ async function putObject(
   input: R2ObjectUpload & {
     Bucket: string;
     cacheControl?: string;
+    ifMatch?: string;
+    ifNoneMatch?: string;
     signal?: AbortSignal;
   },
 ): Promise<void> {
@@ -422,6 +428,8 @@ async function putObject(
           // will not retry a streaming body itself.
           Body: createReadStream(input.path),
           ContentType: input.contentType,
+          ...(input.ifMatch ? { IfMatch: input.ifMatch } : {}),
+          ...(input.ifNoneMatch ? { IfNoneMatch: input.ifNoneMatch } : {}),
           ...(input.cacheControl === undefined
             ? {}
             : { CacheControl: input.cacheControl }),
