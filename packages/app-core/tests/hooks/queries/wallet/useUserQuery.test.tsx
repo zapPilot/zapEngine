@@ -294,6 +294,57 @@ describe('useCurrentUser bootstrap coordination', () => {
     expect(mocks.getUserByWallet).toHaveBeenCalledWith('0xaaa');
   });
 
+  it('delegates manual refetch directly while disconnected', async () => {
+    mocks.activeAddress.value = null;
+    const { result } = renderHook(() => useCurrentUser(), {
+      wrapper: createWrapper(),
+    });
+
+    await act(async () => {
+      await result.current.refetch();
+    });
+
+    expect(result.current.isConnected).toBe(false);
+    expect(mocks.connectWallet).not.toHaveBeenCalled();
+  });
+
+  it('delegates manual refetch directly after bootstrap is ready', async () => {
+    mocks.activeAddress.value = '0xaaa';
+    mockSuccessfulBootstrap();
+    const { result } = renderHook(() => useCurrentUser(), {
+      wrapper: createWrapper(),
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const bootstrapCalls = mocks.connectWallet.mock.calls.length;
+
+    await act(async () => {
+      await result.current.refetch();
+    });
+
+    expect(mocks.connectWallet).toHaveBeenCalledTimes(bootstrapCalls);
+    expect(mocks.getUserByWallet.mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('ignores a stale rejected bootstrap after disconnect', async () => {
+    mocks.activeAddress.value = '0xaaa';
+    const gate = deferred();
+    mocks.connectWallet.mockImplementationOnce(() => gate.promise);
+
+    const mounted = mountConsumers(makeClient(), 1);
+    const { result } = mounted.consumers[0];
+    await waitFor(() => expect(mocks.connectWallet).toHaveBeenCalledTimes(1));
+
+    mocks.activeAddress.value = null;
+    mounted.rerenderAll();
+    await waitFor(() => expect(result.current.isConnected).toBe(false));
+
+    gate.reject(new Error('stale bootstrap failure'));
+    await flushMacrotasks();
+
+    expect(result.current.error).toBeNull();
+    expect(result.current.isSuccess).toBe(false);
+  });
+
   it('ignores a stale bootstrap completion after disconnect and retries cleanly', async () => {
     mocks.activeAddress.value = '0xaaa';
     const gate = deferred();

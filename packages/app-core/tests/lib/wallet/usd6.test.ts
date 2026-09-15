@@ -1,4 +1,8 @@
-import { formatUsd6, parseUsdcInput } from '@core/lib/wallet/usd6';
+import {
+  formatUsd6,
+  parseBaseUnits,
+  parseUsdcInput,
+} from '@core/lib/wallet/usd6';
 import { describe, expect, it } from 'vitest';
 
 describe('formatUsd6', () => {
@@ -15,6 +19,24 @@ describe('formatUsd6', () => {
 
   it('formats negative values', () => {
     expect(formatUsd6(-49_500_000n)).toBe('-49.50');
+  });
+});
+
+describe('parseBaseUnits', () => {
+  it('supports empty fractions, custom decimals, and truncation when requested', () => {
+    expect(parseBaseUnits('12.', { allowEmptyFraction: true })).toBe(
+      12_000_000n,
+    );
+    expect(
+      parseBaseUnits('1.239', { decimals: 2, truncateExcessFraction: true }),
+    ).toBe(123n);
+    expect(parseBaseUnits('7', { decimals: 0 })).toBe(7n);
+  });
+
+  it('rejects extra separators and malformed fractions', () => {
+    expect(parseBaseUnits('1.2.3')).toBeNull();
+    expect(parseBaseUnits('12.')).toBeNull();
+    expect(parseBaseUnits('1.nope')).toBeNull();
   });
 });
 

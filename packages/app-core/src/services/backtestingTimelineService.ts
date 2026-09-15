@@ -14,8 +14,7 @@ function sampleEvenlyFromIndices(
   }
 
   if (targetSize <= 1) {
-    const middleIndex = indices[Math.floor(indices.length / 2)];
-    return middleIndex !== undefined ? [middleIndex] : [];
+    return [indices[Math.floor(indices.length / 2)]!];
   }
 
   const step = (indices.length - 1) / (targetSize - 1);

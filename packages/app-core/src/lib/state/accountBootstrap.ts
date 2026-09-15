@@ -28,9 +28,6 @@ async function runBootstrap(
   if (generationAtStart !== getGeneration(key)) {
     return 'stale';
   }
-  if (suspendedWallets.has(key)) {
-    return 'suspended';
-  }
   bootstrappedWallets.add(key);
   return 'ready';
 }

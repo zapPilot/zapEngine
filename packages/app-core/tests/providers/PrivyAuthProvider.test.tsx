@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { renderToString } from 'react-dom/server';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   getPrivyAppId: vi.fn(() => 'test-privy-app-id'),
@@ -15,6 +15,26 @@ vi.mock('@core/lib/env/privy', () => ({
 }));
 
 describe('PrivyAuthProvider', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getPrivyAppId.mockReturnValue('test-privy-app-id');
+  });
+
+  it('fails fast when the required app id is missing', async () => {
+    mocks.getPrivyAppId.mockReturnValueOnce(undefined);
+    const { PrivyAuthProvider } =
+      await import('@core/providers/PrivyAuthProvider');
+
+    expect(() =>
+      renderToString(
+        <PrivyAuthProvider>
+          <span>Privy missing</span>
+        </PrivyAuthProvider>,
+      ),
+    ).toThrow('Missing required VITE_PRIVY_APP_ID');
+    expect(mocks.PrivyProvider).not.toHaveBeenCalled();
+  });
+
   it('disables Privy external wallets while retaining embedded-wallet login methods', async () => {
     const { PrivyAuthProvider } =
       await import('@core/providers/PrivyAuthProvider');

@@ -117,6 +117,48 @@ describe('useBridgeTest', () => {
     });
   });
 
+  it.each([
+    [{ ...request, toChainId: request.fromChainId }, 'must be different'],
+    [{ ...request, fromAmount: '0' }, 'greater than zero'],
+    [{ ...request, fromAmount: 'not-a-number' }, 'greater than zero'],
+  ])(
+    'rejects invalid bridge input before quoting',
+    async (invalidRequest, message) => {
+      const { result } = renderHook(() => useBridgeTest());
+
+      await act(async () => {
+        await result.current.prepare(invalidRequest);
+      });
+
+      expect(mocks.buildBridge).not.toHaveBeenCalled();
+      expect(result.current.status).toBe('failed');
+      expect(result.current.error).toContain(message);
+    },
+  );
+
+  it('fails prepare cleanly when no wallet is connected', async () => {
+    mocks.useWalletProvider.mockReturnValue({ account: undefined });
+    const { result } = renderHook(() => useBridgeTest());
+
+    await act(async () => {
+      await result.current.prepare(request);
+    });
+
+    expect(result.current.status).toBe('failed');
+    expect(result.current.error).toContain('Connect a wallet');
+    expect(mocks.buildBridge).not.toHaveBeenCalled();
+  });
+
+  it('rejects execute immediately when no wallet is connected', async () => {
+    mocks.useWalletProvider.mockReturnValue({ account: undefined });
+    const { result } = renderHook(() => useBridgeTest());
+
+    await expect(result.current.execute(request)).rejects.toThrow(
+      'Connect a wallet before bridging',
+    );
+    expect(mocks.buildBridge).not.toHaveBeenCalled();
+  });
+
   it('prepares a USDC bridge quote through LI.FI', async () => {
     const { result } = renderHook(() => useBridgeTest());
 
@@ -204,6 +246,90 @@ describe('useBridgeTest', () => {
       }),
     );
     expect(mocks.sendTransaction).not.toHaveBeenCalled();
+  });
+
+  it('skips approval batching when allowance is already sufficient', async () => {
+    mocks.buildBridge.mockResolvedValue({
+      ...quote,
+      approval: {
+        tokenAddress: BASE_USDC,
+        spenderAddress: SPENDER,
+        amount: request.fromAmount,
+      },
+    });
+    mocks.needsApproval.mockResolvedValue(false);
+    const { result } = renderHook(() => useBridgeTest());
+
+    await act(async () => {
+      await result.current.execute(request);
+    });
+
+    expect(mocks.buildApproveTx).not.toHaveBeenCalled();
+    expect(mocks.estimateGas).toHaveBeenCalledWith(
+      expect.objectContaining({ to: ROUTER }),
+    );
+    expect(mocks.executeDepositPlanWithWallet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        plan: expect.objectContaining({ approvals: [] }),
+      }),
+    );
+  });
+
+  it('handles a quote without a bridge gasLimit while approval is required', async () => {
+    const approvalTx = {
+      to: BASE_USDC,
+      data: '0x5678',
+      value: '0',
+      chainId: 8453,
+      meta: { intentType: 'BRIDGE_APPROVAL' },
+    };
+    mocks.buildBridge.mockResolvedValue({
+      ...quote,
+      transaction: { ...quote.transaction, gasLimit: undefined },
+      approval: {
+        tokenAddress: BASE_USDC,
+        spenderAddress: SPENDER,
+        amount: request.fromAmount,
+      },
+    });
+    mocks.needsApproval.mockResolvedValue(true);
+    mocks.buildApproveTx.mockReturnValue(approvalTx);
+    const { result } = renderHook(() => useBridgeTest());
+
+    await act(async () => {
+      await result.current.execute(request);
+    });
+
+    expect(result.current.status).toBe('completed');
+    expect(mocks.estimateGas).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails closed when the executor unexpectedly falls back to sequential sends', async () => {
+    mocks.executeDepositPlanWithWallet.mockResolvedValue({
+      kind: 'sequential',
+      hashes: [SOURCE_HASH],
+    });
+    const { result } = renderHook(() => useBridgeTest());
+
+    await act(async () => {
+      await result.current.execute(request);
+    });
+
+    expect(result.current.status).toBe('failed');
+    expect(result.current.error).toContain('did not use atomic EIP-7702');
+    expect(mocks.waitForBridgeCompletion).not.toHaveBeenCalled();
+  });
+
+  it('completes even when LI.FI has no destination transaction hash', async () => {
+    mocks.waitForBridgeCompletion.mockResolvedValueOnce({ status: 'DONE' });
+    const { result } = renderHook(() => useBridgeTest());
+
+    await act(async () => {
+      await result.current.execute(request);
+    });
+
+    expect(result.current.status).toBe('completed');
+    expect(result.current.destinationTxHash).toBeNull();
   });
 
   it('fails closed when the connected wallet has no atomic execution mode', async () => {

@@ -596,6 +596,13 @@ describe('useWagmiWalletBackend', () => {
     });
   });
 
+  it('keeps active-wallet switching as a no-op in wagmi mode', async () => {
+    const { result } = renderHook(() => useWagmiWalletBackend());
+    await expect(
+      result.current.backend.switchActiveWallet('0xabc'),
+    ).resolves.toBeUndefined();
+  });
+
   it('the default connect() asks the user to choose when multiple wallets are detected, and connects the sole one otherwise', async () => {
     mocks.connectors = [
       { id: 'com.ambire', name: 'Ambire Wallet', type: 'injected' },

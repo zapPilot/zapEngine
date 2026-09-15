@@ -240,6 +240,66 @@ describe('useDepositWizard', () => {
     });
   });
 
+  it('requires a connected wallet before starting either deposit flow', async () => {
+    mocks.useWalletProvider.mockReturnValue({ account: undefined });
+    const { result } = renderWizard();
+
+    await expect(
+      result.current.resumeReviewedPlan({
+        plan: bridgePlan,
+        baselineUsd6: 1_000_000n,
+        sourceTxHash: SOURCE_TX,
+      }),
+    ).rejects.toThrow('Connect wallet first');
+    await expect(result.current.startSpotDeposit(spotPlan)).rejects.toThrow(
+      'Connect wallet first',
+    );
+  });
+
+  it('rejects a bridge-funded HLP step without an expected amount', async () => {
+    const missingExpected: DepositPlan = {
+      ...bridgePlan,
+      followUps: bridgePlan.followUps?.map((step) => ({ ...step })),
+    };
+    delete (missingExpected.followUps?.[0] as { expectedUsd?: string })
+      .expectedUsd;
+    const { result } = renderWizard();
+
+    await expect(
+      result.current.resumeReviewedPlan({
+        plan: missingExpected,
+        baselineUsd6: 1_000_000n,
+        sourceTxHash: SOURCE_TX,
+      }),
+    ).rejects.toThrow('missing its expected amount');
+  });
+
+  it('accepts a bridge completion without a destination transaction hash', async () => {
+    mocks.waitForBridgeCompletion.mockResolvedValueOnce({ status: 'DONE' });
+    const { result } = await resumeUntilArrived();
+
+    expect(result.current.wizard.legs[1]?.status).toBe('destinationConfirmed');
+    expect(result.current.wizard.legs[1]?.destinationTxHash).toBeUndefined();
+  });
+
+  it('treats an aborted bridge poll as cancellation rather than failure', async () => {
+    mocks.waitForBridgeCompletion.mockRejectedValueOnce(
+      new DOMException('Polling aborted', 'AbortError'),
+    );
+    const { result } = renderWizard();
+
+    await act(async () => {
+      await result.current.resumeReviewedPlan({
+        plan: bridgePlan,
+        baselineUsd6: 1_000_000n,
+        sourceTxHash: SOURCE_TX,
+      });
+    });
+
+    expect(mocks.waitForHyperCoreUsdcArrival).not.toHaveBeenCalled();
+    expect(result.current.wizard.error).toBeNull();
+  });
+
   it('polls LI.FI for a routed HyperCore leg without resubmitting it', async () => {
     const { result } = await resumeUntilArrived();
 
@@ -505,6 +565,80 @@ describe('useDepositWizard', () => {
     );
     expect(mocks.getSigner).not.toHaveBeenCalled();
     expect(mocks.submitVaultDeposit).not.toHaveBeenCalled();
+  });
+
+  it('drops a spot balance result that arrives after reset', async () => {
+    let resolveBalance:
+      | ((
+          value: Awaited<ReturnType<typeof mocks.getHyperCoreSpendableUsdc>>,
+        ) => void)
+      | undefined;
+    mocks.getHyperCoreSpendableUsdc.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveBalance = resolve;
+      }),
+    );
+    const { result } = renderWizard();
+
+    let startPromise: Promise<void> | undefined;
+    act(() => {
+      startPromise = result.current.startSpotDeposit(spotPlan);
+    });
+    await waitFor(() =>
+      expect(mocks.getHyperCoreSpendableUsdc).toHaveBeenCalledOnce(),
+    );
+    act(() => result.current.reset());
+    resolveBalance?.({
+      mode: 'unified',
+      rawAbstraction: 'unifiedAccount',
+      spendableUsd6: 20_000_000n,
+      spot: { totalUsd6: 20_000_000n, holdUsd6: 0n },
+      perp: { withdrawableUsd6: 0n, accountValueUsd6: 0n },
+    });
+    await act(async () => {
+      await startPromise;
+    });
+
+    expect(result.current.wizard).toEqual(initialDepositWizardState);
+  });
+
+  it('drops a submission when reset happens while obtaining the agent signer', async () => {
+    let resolveSigner: ((value: typeof mocks.signer) => void) | undefined;
+    mocks.getSigner.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveSigner = resolve;
+      }),
+    );
+    const { result } = await resumeUntilArrived();
+
+    let submission: Promise<void> | undefined;
+    act(() => {
+      submission = result.current.runHlpDeposit();
+    });
+    await waitFor(() => expect(mocks.getSigner).toHaveBeenCalledOnce());
+    act(() => result.current.reset());
+    resolveSigner?.(mocks.signer);
+    await act(async () => {
+      await submission;
+    });
+
+    expect(mocks.submitVaultDeposit).not.toHaveBeenCalled();
+    expect(result.current.wizard).toEqual(initialDepositWizardState);
+  });
+
+  it('re-arms after a plain pre-submission error', async () => {
+    mocks.submitVaultDeposit.mockRejectedValueOnce(
+      new Error('wallet rejected'),
+    );
+    const { result } = await resumeUntilArrived();
+
+    await act(async () => {
+      await result.current.runHlpDeposit();
+    });
+
+    expect(result.current.wizard.hlp.status).toBe('arrived');
+    expect(result.current.wizard.error?.message).toContain('wallet rejected');
+    expect(mocks.waitForVaultEquityIncrease).not.toHaveBeenCalled();
   });
 
   it('signs vaultTransfer with the approved local agent', async () => {

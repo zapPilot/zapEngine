@@ -128,6 +128,134 @@ describe('useHyperliquidAgentSession', () => {
     expect(mocks.loadApprovedHyperliquidAgent).toHaveBeenCalledTimes(1);
   });
 
+  it('surfaces refresh failures without exposing a stale signer', async () => {
+    mocks.loadApprovedHyperliquidAgent.mockRejectedValueOnce(
+      new Error('agent lookup failed'),
+    );
+    const { result } = render();
+
+    await waitFor(() => {
+      expect(result.current.status).toBe('error');
+    });
+    expect(result.current.error).toContain('agent lookup failed');
+    expect(result.current.isReady).toBe(false);
+  });
+
+  it('drops a stale successful refresh after signing is removed', async () => {
+    let resolveLoad: ((value: typeof record) => void) | undefined;
+    mocks.loadApprovedHyperliquidAgent.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveLoad = resolve;
+      }),
+    );
+    const { result, rerender } = render();
+    await waitFor(() => expect(result.current.status).toBe('checking'));
+
+    rerender({ s: null });
+    resolveLoad?.(record);
+    await waitFor(() => expect(result.current.status).toBe('idle'));
+
+    expect(result.current.agentAddress).toBeNull();
+    expect(result.current.isReady).toBe(false);
+  });
+
+  it('drops a stale refresh failure after signing is removed', async () => {
+    let rejectLoad: ((error: Error) => void) | undefined;
+    mocks.loadApprovedHyperliquidAgent.mockReturnValueOnce(
+      new Promise((_resolve, reject) => {
+        rejectLoad = reject;
+      }),
+    );
+    const { result, rerender } = render();
+    await waitFor(() => expect(result.current.status).toBe('checking'));
+
+    rerender({ s: null });
+    rejectLoad?.(new Error('stale lookup failure'));
+    await waitFor(() => expect(result.current.status).toBe('idle'));
+
+    expect(result.current.error).toBeNull();
+  });
+
+  it('rejects a second approval while the first wallet prompt is pending', async () => {
+    let resolveWallet:
+      | ((value: { account: { address: Address } }) => void)
+      | undefined;
+    mocks.getWalletClient.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveWallet = resolve;
+      }),
+    );
+    const { result } = render();
+    await waitFor(() => expect(result.current.status).toBe('unapproved'));
+
+    let firstApproval: Promise<void> | undefined;
+    act(() => {
+      firstApproval = result.current.approve();
+    });
+    await expect(result.current.approve()).rejects.toThrow(
+      'approval is already in progress',
+    );
+    resolveWallet?.({ account: { address: MASTER } });
+    await act(async () => {
+      await firstApproval;
+    });
+
+    expect(mocks.approveNewHyperliquidAgent).toHaveBeenCalledOnce();
+  });
+
+  it('stops approval after the wallet prompt when the session is reset', async () => {
+    let resolveWallet:
+      | ((value: { account: { address: Address } }) => void)
+      | undefined;
+    mocks.getWalletClient.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveWallet = resolve;
+      }),
+    );
+    const { result, rerender } = render();
+    await waitFor(() => expect(result.current.status).toBe('unapproved'));
+
+    let approval: Promise<void> | undefined;
+    act(() => {
+      approval = result.current.approve();
+    });
+    rerender({ s: null });
+    resolveWallet?.({ account: { address: MASTER } });
+    await act(async () => {
+      await approval;
+    });
+
+    expect(mocks.approveNewHyperliquidAgent).not.toHaveBeenCalled();
+    expect(result.current.status).toBe('idle');
+  });
+
+  it('drops an approved record that resolves after the session is reset', async () => {
+    let resolveApproval: ((value: typeof record) => void) | undefined;
+    mocks.approveNewHyperliquidAgent.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveApproval = resolve;
+      }),
+    );
+    const { result, rerender } = render();
+    await waitFor(() => expect(result.current.status).toBe('unapproved'));
+
+    let approval: Promise<void> | undefined;
+    act(() => {
+      approval = result.current.approve();
+    });
+    await waitFor(() =>
+      expect(mocks.approveNewHyperliquidAgent).toHaveBeenCalledOnce(),
+    );
+    rerender({ s: null });
+    resolveApproval?.(record);
+    await act(async () => {
+      await approval;
+    });
+
+    expect(result.current.status).toBe('idle');
+    expect(result.current.isReady).toBe(false);
+  });
+
   it('approves a fresh agent and exposes its signer', async () => {
     const { result } = render();
     await waitFor(() => {

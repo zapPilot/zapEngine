@@ -7,7 +7,10 @@ const mocks = vi.hoisted(() => ({
   getLandingPagePortfolioData: vi.fn(),
   getPortfolioDashboard: vi.fn(),
   getMarketDashboardData: vi.fn(),
+  fetchRegimeHistory: vi.fn(),
+  fetchMarketSentiment: vi.fn(),
   createQueryConfig: vi.fn(),
+  createLoggedQueryFn: vi.fn(),
   useCurrentUser: vi.fn(),
 }));
 
@@ -27,6 +30,10 @@ vi.mock('@core/lib/state/queryClient', () => ({
         params,
       ],
     },
+    sentiment: {
+      market: () => ['sentiment', 'market'],
+      regimeHistory: () => ['sentiment', 'regime-history'],
+    },
   },
 }));
 
@@ -40,10 +47,16 @@ vi.mock('@core/services', () => ({
     mocks.getPortfolioDashboard(...args),
   getMarketDashboardData: (...args: unknown[]) =>
     mocks.getMarketDashboardData(...args),
+  fetchRegimeHistory: (...args: unknown[]) => mocks.fetchRegimeHistory(...args),
+  fetchMarketSentiment: (...args: unknown[]) =>
+    mocks.fetchMarketSentiment(...args),
+  DEFAULT_REGIME_HISTORY: { currentRegime: 'n', previousRegime: null },
 }));
 
 vi.mock('@core/hooks/queries/queryDefaults', () => ({
   createQueryConfig: (...args: unknown[]) => mocks.createQueryConfig(...args),
+  createLoggedQueryFn: (...args: unknown[]) =>
+    mocks.createLoggedQueryFn(...args),
 }));
 
 vi.mock('@core/hooks/queries/wallet/useUserQuery', () => ({
@@ -53,12 +66,17 @@ vi.mock('@core/hooks/queries/wallet/useUserQuery', () => ({
 import { usePortfolioDashboard } from '@core/hooks/analytics/usePortfolioDashboard';
 import { useLandingPageData } from '@core/hooks/queries/analytics/usePortfolioQuery';
 import { useMarketDashboardQuery } from '@core/hooks/queries/market/useMarketDashboardQuery';
+import { useRegimeHistory } from '@core/hooks/queries/market/useRegimeHistoryQuery';
+import { useSentimentData } from '@core/hooks/queries/market/useSentimentQuery';
 import { useUser } from '@core/hooks/queries/wallet/useUser';
 
 describe('query hook coverage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.createQueryConfig.mockReturnValue({ retry: 'config' });
+    mocks.createLoggedQueryFn.mockImplementation(
+      (_message: string, fn: () => Promise<unknown>) => fn,
+    );
     mocks.useQuery.mockImplementation((config) => ({
       data: 'query-data',
       config,
@@ -141,6 +159,46 @@ describe('query hook coverage', () => {
     renderHook(() => useMarketDashboardQuery(30, { enabled: false }));
     config = mocks.useQuery.mock.calls.at(-1)?.[0];
     expect(config.queryKey).toEqual(['market-dashboard', 30]);
+    expect(config.enabled).toBe(false);
+  });
+
+  it('configures regime history query with defaults, caching, and enabled state', async () => {
+    mocks.fetchRegimeHistory.mockResolvedValue({ currentRegime: 'g' });
+    renderHook(() => useRegimeHistory());
+    let config = mocks.useQuery.mock.calls.at(-1)?.[0];
+
+    expect(config).toMatchObject({
+      queryKey: ['sentiment', 'regime-history'],
+      staleTime: 60_000,
+      gcTime: 180_000,
+      enabled: true,
+      retry: 1,
+      placeholderData: { currentRegime: 'n', previousRegime: null },
+    });
+    await expect(config.queryFn()).resolves.toEqual({ currentRegime: 'g' });
+    expect(mocks.fetchRegimeHistory).toHaveBeenCalledWith(2);
+
+    renderHook(() => useRegimeHistory(false));
+    config = mocks.useQuery.mock.calls.at(-1)?.[0];
+    expect(config.enabled).toBe(false);
+  });
+
+  it('configures sentiment query with defaults and enabled state', async () => {
+    mocks.fetchMarketSentiment.mockResolvedValue({ value: 50 });
+    renderHook(() => useSentimentData());
+    let config = mocks.useQuery.mock.calls.at(-1)?.[0];
+
+    expect(config).toMatchObject({
+      queryKey: ['sentiment', 'market'],
+      staleTime: 10 * 60 * 1000,
+      gcTime: 30 * 60 * 1000,
+      enabled: true,
+      retry: 1,
+    });
+    await expect(config.queryFn()).resolves.toEqual({ value: 50 });
+
+    renderHook(() => useSentimentData(false));
+    config = mocks.useQuery.mock.calls.at(-1)?.[0];
     expect(config.enabled).toBe(false);
   });
 

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { createElement, type ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -61,7 +61,7 @@ describe('useDailyYieldReturns', () => {
     );
   });
 
-  it('stays disabled without a user id', () => {
+  it('stays disabled without a user id and guards manual refetch', async () => {
     const { wrapper } = createHarness();
 
     const { result } = renderHook(() => useDailyYieldReturns(undefined, 365), {
@@ -69,6 +69,16 @@ describe('useDailyYieldReturns', () => {
     });
 
     expect(result.current.fetchStatus).toBe('idle');
+    expect(mocks.getDailyYieldReturns).not.toHaveBeenCalled();
+
+    let refetched;
+    await act(async () => {
+      refetched = await result.current.refetch();
+    });
+    expect(refetched).toMatchObject({
+      status: 'error',
+      error: expect.objectContaining({ message: 'User ID is required' }),
+    });
     expect(mocks.getDailyYieldReturns).not.toHaveBeenCalled();
   });
 });

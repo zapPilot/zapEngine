@@ -15,10 +15,7 @@ function trimTrailingZeros(value: string): string {
 }
 
 function firstSignificantDigit(value: string): number {
-  for (let index = 0; index < value.length; index += 1) {
-    if (value[index] !== '0') return index;
-  }
-  return -1;
+  return value.search(/[1-9]/u);
 }
 
 /**

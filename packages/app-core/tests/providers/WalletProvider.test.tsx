@@ -188,6 +188,45 @@ describe('WalletProvider (unified)', () => {
     expect(login.isConnecting).toBe(false);
   });
 
+  it('connects Privy from the picker and clears busy state even after failure', async () => {
+    let resolveConnect: (() => void) | undefined;
+    mocks.privy.backend = stubBackend({
+      connect: vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveConnect = resolve;
+          }),
+      ),
+    });
+    const rendered = renderClientAndCapture();
+
+    let pending: Promise<void> | undefined;
+    act(() => {
+      pending = rendered.value.login.connectPrivy();
+    });
+    expect(rendered.value.login.connectingId).toBe('privy');
+    expect(rendered.value.login.isConnecting).toBe(true);
+
+    await act(async () => {
+      resolveConnect?.();
+      await pending;
+    });
+    expect(rendered.value.login.connectingId).toBeNull();
+
+    mocks.privy.backend.connect = vi
+      .fn()
+      .mockRejectedValue(new Error('login failed'));
+    rendered.unmount();
+    const failed = renderClientAndCapture();
+    await act(async () => {
+      await expect(failed.value.login.connectPrivy()).rejects.toThrow(
+        'login failed',
+      );
+    });
+    expect(failed.value.login.connectingId).toBeNull();
+    failed.unmount();
+  });
+
   it('reports busy only while a picker-initiated connect is in flight', async () => {
     let resolveConnect: ((connected: boolean) => void) | undefined;
     mocks.wagmi.connectInjected.mockImplementation(
