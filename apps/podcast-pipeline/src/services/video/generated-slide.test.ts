@@ -118,18 +118,22 @@ describe('createGeneratedSlideAsset', () => {
   it.each([
     [{ width: undefined, height: 675 }, 'width'],
     [{ width: 1200, height: undefined }, 'height'],
-  ])('rejects output without image dimensions (%s)', async (metadata) => {
-    sharpMocks.metadata.mockResolvedValue(metadata);
-    const rasterize = vi.fn(async (_input, paths) => {
-      await writeFile(paths.output, Buffer.from('invalid image metadata'));
-    });
+  ])(
+    'rejects output without image dimensions (%s)',
+    async (metadata, field) => {
+      expect(field).toMatch(/^(width|height)$/);
+      sharpMocks.metadata.mockResolvedValue(metadata);
+      const rasterize = vi.fn(async (_input, paths) => {
+        await writeFile(paths.output, Buffer.from('invalid image metadata'));
+      });
 
-    await expect(
-      createGeneratedSlideAsset(await request(), {
-        writeCopy: vi.fn().mockResolvedValue(copy),
-        rasterize,
-        fingerprint: vi.fn(),
-      }),
-    ).rejects.toThrow('scene-01 has no dimensions');
-  });
+      await expect(
+        createGeneratedSlideAsset(await request(), {
+          writeCopy: vi.fn().mockResolvedValue(copy),
+          rasterize,
+          fingerprint: vi.fn(),
+        }),
+      ).rejects.toThrow('scene-01 has no dimensions');
+    },
+  );
 });
