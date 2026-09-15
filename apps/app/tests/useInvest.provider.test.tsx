@@ -138,12 +138,12 @@ describe('InvestProvider', () => {
     expect(harness.current().amountUsd).toBe(40);
   });
 
-  it('clears frozen execution for overrides and locked-sector edits, and preserves overrides on reset', async () => {
+  it('clears frozen execution for preferences and locked-sector edits, and preserves preferences on reset', async () => {
     const harness = await render();
     for (const edit of [
-      () => harness.current().setFundingOverride('hlp', BASE_DEPOSIT_TOKENS[1]),
+      () => harness.current().setFundingPreference(8453, 'ETH'),
       () => harness.current().setSectorWeight('sp500', 5000),
-      () => harness.current().clearFundingOverrides(),
+      () => harness.current().clearFundingPreferences(),
     ]) {
       await act(async () => {
         harness.current().setStageDrafts([draft]);
@@ -162,14 +162,14 @@ describe('InvestProvider', () => {
       expect(harness.current().sectorWeights.sp500).toBe(0);
     }
     await act(async () => {
-      harness.current().setFundingOverride('hlp', BASE_DEPOSIT_TOKENS[1]);
+      harness.current().setFundingPreference(8453, 'ETH');
       harness.current().resetSectorWeights();
     });
-    expect(harness.current().fundingOverrides.hlp).toBe(BASE_DEPOSIT_TOKENS[1]);
+    expect(harness.current().fundingPreferences).toEqual({ 8453: 'ETH' });
     await act(async () => {
-      harness.current().setFundingOverride('hlp', null);
+      harness.current().setFundingPreference(8453, null);
     });
-    expect(harness.current().fundingOverrides).toEqual({});
+    expect(harness.current().fundingPreferences).toEqual({});
   });
 
   it('restores the default mix and clears frozen stages on reset', async () => {

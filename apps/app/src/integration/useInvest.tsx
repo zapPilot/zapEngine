@@ -5,7 +5,7 @@ import {
   type SectorWeights,
   type InvestSectorId,
 } from '@/integration/investSectorModel';
-import type { FundingOverrides } from '@/integration/investFundingPlanner';
+import type { FundingPreferences } from '@/integration/investFundingPlanner';
 import {
   createContext,
   type ReactNode,
@@ -15,13 +15,15 @@ import {
   useState,
 } from 'react';
 
-import { type DesktopDepositToken } from '@/integration/depositTokens';
+import {
+  type DepositTokenSymbol,
+  type StrategyFundingChainId,
+} from '@/integration/depositTokens';
 import {
   amountInputToUsd6,
   amountUsdFromInput,
 } from '@/integration/investAmountModel';
 import {
-  type InvestPositionId,
   type StageDraft,
   type TargetAllocation,
 } from '@/integration/investTargetsModel';
@@ -47,12 +49,12 @@ export interface InvestContextValue {
   sectorWeights: SectorWeights;
   setSectorWeight: (sectorId: InvestSectorId, weightBps: number) => void;
   resetSectorWeights: () => void;
-  fundingOverrides: FundingOverrides;
-  setFundingOverride: (
-    positionId: InvestPositionId,
-    token: DesktopDepositToken | null,
+  fundingPreferences: FundingPreferences;
+  setFundingPreference: (
+    chainId: StrategyFundingChainId,
+    symbol: DepositTokenSymbol | null,
   ) => void;
-  clearFundingOverrides: () => void;
+  clearFundingPreferences: () => void;
   /** Stages frozen when the user leaves step 1; the review step reads only these. */
   stageDrafts: readonly StageDraft[];
   setStageDrafts: (value: readonly StageDraft[]) => void;
@@ -88,9 +90,8 @@ export function InvestProvider({ children }: { children: ReactNode }) {
     () => resolveTargetAllocations(sectorWeights),
     [sectorWeights],
   );
-  const [fundingOverrides, setFundingOverrides] = useState<FundingOverrides>(
-    {},
-  );
+  const [fundingPreferences, setFundingPreferences] =
+    useState<FundingPreferences>({});
   const amountUsd = amountUsdFromInput(amountInput) ?? 0;
   const [stageDrafts, setStageDraftsState] = useState<readonly StageDraft[]>(
     [],
@@ -125,20 +126,20 @@ export function InvestProvider({ children }: { children: ReactNode }) {
       ),
     [clearFrozenExecution],
   );
-  const setFundingOverride = useCallback(
-    (id: InvestPositionId, token: DesktopDepositToken | null) => {
-      setFundingOverrides((current) => {
+  const setFundingPreference = useCallback(
+    (chainId: StrategyFundingChainId, symbol: DepositTokenSymbol | null) => {
+      setFundingPreferences((current) => {
         const next = { ...current };
-        if (token) next[id] = token;
-        else delete next[id];
+        if (symbol) next[chainId] = symbol;
+        else delete next[chainId];
         return next;
       });
       clearFrozenExecution();
     },
     [clearFrozenExecution],
   );
-  const clearFundingOverrides = useCallback(
-    () => withFreezeClear(setFundingOverrides, clearFrozenExecution, {}),
+  const clearFundingPreferences = useCallback(
+    () => withFreezeClear(setFundingPreferences, clearFrozenExecution, {}),
     [clearFrozenExecution],
   );
 
@@ -152,9 +153,9 @@ export function InvestProvider({ children }: { children: ReactNode }) {
       sectorWeights,
       setSectorWeight,
       resetSectorWeights,
-      fundingOverrides,
-      setFundingOverride,
-      clearFundingOverrides,
+      fundingPreferences,
+      setFundingPreference,
+      clearFundingPreferences,
       stageDrafts,
       setStageDrafts: setStageDraftsState,
       hyperCoreFundingDraft,
@@ -166,9 +167,9 @@ export function InvestProvider({ children }: { children: ReactNode }) {
       sectorWeights,
       setSectorWeight,
       resetSectorWeights,
-      fundingOverrides,
-      setFundingOverride,
-      clearFundingOverrides,
+      fundingPreferences,
+      setFundingPreference,
+      clearFundingPreferences,
       amountInput,
       amountUsd,
       hlpBaselineUsd6,

@@ -65,7 +65,13 @@ it('freezes exactly the automatic plan shown by the default sector experience', 
   expect(container.textContent).toContain(
     'No executable S&P 500 position is live yet',
   );
-  expect(container.textContent).toContain("How we'll fund this");
+  // The funding card answers "where does this come from" before the mix
+  // editor asks "where does it go".
+  const text = container.textContent!;
+  expect(text).toContain("How we'll fund this");
+  expect(text.indexOf("How we'll fund this")).toBeLessThan(
+    text.indexOf('Your mix'),
+  );
   expect(container.querySelector('[role="dialog"]')).toBeNull();
   for (const forbidden of [
     'Select token',
@@ -83,7 +89,7 @@ it('freezes exactly the automatic plan shown by the default sector experience', 
   const expected = planFunding({
     demand: { totalUsd6: '100000000', allocations: current!.targetAllocations },
     supply: { rows, unavailableChainIds: [] },
-    constraints: { overrides: {}, gasReserveUsd: 5 },
+    constraints: { preferences: {}, gasReserveUsd: 5 },
   });
   await clickUi(container, 'Preview investment');
   expect(push).toHaveBeenCalledWith('/invest/route');

@@ -3,96 +3,129 @@ import { clickUi, renderInvestUi } from './support/investUiHarness';
 import { expect, it, vi } from 'vitest';
 import { FundingPlanDisclosure } from '@/components/invest/FundingPlanDisclosure';
 import {
-  STATIC_FUNDING_RANKING,
-  type FundingPlan,
+  ARBITRUM_DEPOSIT_TOKENS as A,
+  BASE_DEPOSIT_TOKENS as B,
+  ETHEREUM_DEPOSIT_TOKENS as E,
+} from '@/integration/depositTokens';
+import {
+  planFunding,
+  type FundingPreferences,
 } from '@/integration/investFundingPlanner';
-const sources = STATIC_FUNDING_RANKING;
-const plan: FundingPlan = {
-  stages: null,
-  blockers: [],
-  warnings: [],
-  assignments: [
-    {
-      positionId: 'hlp',
-      weightBps: 2400,
-      usd6: 24000000n,
-      source: sources.hlp[0]!,
-      fromAmount: '24000000',
-      availableUsd6: 100000000n,
-      pinned: true,
-    },
-  ],
-  options: {
-    hlp: sources.hlp.map((candidate, i) => ({
-      candidate,
-      selected: i === 0,
-      availableUsd6: 100000000n,
-      rejection: i < 2 ? null : 'insufficient',
-    })),
-  },
-};
-it('hides source controls, exposes viable options and keeps direct HLP entry advanced', async () => {
-  const onSource = vi.fn();
-  const onRecommended = vi.fn();
+import { fundingSourceRows } from '@/integration/investFundingSources';
+import {
+  DEFAULT_SECTOR_WEIGHTS,
+  resolveTargetAllocations,
+} from '@/integration/investSectorModel';
+import type { ChainTokenBalanceRow } from '@/integration/walletTokens';
+import { balanceRow as row } from './support/fundingBalanceRow';
+
+const allocations = resolveTargetAllocations(DEFAULT_SECTOR_WEIGHTS);
+
+function scenario(
+  rows: ChainTokenBalanceRow[],
+  preferences: FundingPreferences = {},
+) {
+  const supply = { rows, unavailableChainIds: [] };
+  const constraints = { preferences, gasReserveUsd: 5 };
+  const plan = planFunding({
+    demand: { totalUsd6: '100000000', allocations },
+    supply,
+    constraints,
+  });
+  return {
+    plan,
+    sources: fundingSourceRows({
+      assignments: plan.assignments,
+      supply,
+      preferences,
+      gasReserveUsd: 5,
+    }),
+  };
+}
+
+it('lists the balances the money comes from, not the destinations it goes to', async () => {
+  const onPreference = vi.fn();
   const onHlp = vi.fn();
+  const { plan, sources } = scenario([
+    row(B[0], 100),
+    row(A[0], 100),
+    row(A[1], 50),
+    row(A[2], 60),
+    row(E[0], 80),
+  ]);
   const container = await renderInvestUi(
     <FundingPlanDisclosure
       plan={plan}
+      sources={sources}
       hasAmount
       isConnected
-      hasOverrides
-      onChangeSource={onSource}
-      onUseRecommended={onRecommended}
+      hasPreferences={false}
+      onChangePreference={onPreference}
+      onUseRecommended={vi.fn()}
       onOpenHlpSpotDeposit={onHlp}
     />,
   );
-  expect(container.textContent).toContain(
-    'Custom · Arbitrum USDC · 1 wallet batches',
-  );
-  expect(container.textContent).not.toContain('Change source');
+  expect(container.textContent).toContain('Selected automatically · 2 sources');
   expect(container.querySelector('[role="dialog"]')).toBeNull();
+
   await clickUi(container, "How we'll fund this");
-  expect(container.textContent).toContain('$24.00');
-  await clickUi(container, 'Change source for HLP');
-  expect(container.querySelector('[role="dialog"]')?.textContent).toContain(
-    'Base USDC',
-  );
-  expect(container.querySelector('[role="dialog"]')?.textContent).not.toContain(
-    'Ethereum USDC',
-  );
-  await clickUi(container, 'Base USDC');
-  expect(onSource).toHaveBeenCalledWith('hlp', sources.hlp[1]!.token);
-  await clickUi(container, 'Use recommended');
-  expect(onRecommended).toHaveBeenCalledOnce();
+  expect(container.textContent).toContain('Arbitrum USDC');
+  expect(container.textContent).toContain('$64.00');
+  // Rows answer "which balance", so no destination is ever a row heading.
+  for (const forbidden of [
+    'Morpho USDC vault',
+    'Diversified GM basket',
+    'Official HLP vault',
+  ])
+    expect(container.textContent).not.toContain(forbidden);
+  expect(container.textContent).toContain('Not used');
+  expect(container.textContent).toContain('2 wallet batches');
+  // The ranking is a static cost tier, so a fee or route claim would be made up.
+  expect(container.textContent).not.toMatch(/Est\.? fee|~\$|Best route/);
+  expect(container.textContent).not.toContain('Use recommended');
+
+  await clickUi(container, 'Change source for Arbitrum');
+  const sheet = () => container.querySelector('[role="dialog"]')!;
+  for (const label of ['Arbitrum USDT', 'Arbitrum ETH', 'Automatic'])
+    expect(sheet().textContent).toContain(label);
+  expect(sheet().textContent).not.toContain('Base USDC');
+
+  await clickUi(container, 'Arbitrum USDT');
+  expect(onPreference).toHaveBeenCalledWith(42161, 'USDT');
+
+  await clickUi(container, 'Change source for Arbitrum');
+  await clickUi(container, 'Automatic');
+  expect(onPreference).toHaveBeenLastCalledWith(42161, null);
+
   await clickUi(
     container,
     'Already have USDC on Hyperliquid? Deposit it directly',
   );
   expect(onHlp).toHaveBeenCalledOnce();
-  for (const forbidden of [
-    'Funding route',
-    'Resolved after you enter an amount',
-    'Deposit from your Hyperliquid balance instead',
-  ])
-    expect(container.textContent).not.toContain(forbidden);
 });
-it('omits reset and source picker when no alternatives are viable', async () => {
-  const restricted = {
-    ...plan,
-    options: { hlp: plan.options.hlp!.slice(0, 1) },
-  };
+
+it('offers reset only with a preference and hides the picker with nothing to switch to', async () => {
+  const onRecommended = vi.fn();
+  const { plan, sources } = scenario([row(B[0], 100), row(A[0], 100)], {
+    42161: 'USDC',
+  });
   const container = await renderInvestUi(
     <FundingPlanDisclosure
-      plan={restricted}
+      plan={plan}
+      sources={sources}
       hasAmount={false}
       isConnected
-      hasOverrides={false}
-      onChangeSource={vi.fn()}
-      onUseRecommended={vi.fn()}
+      hasPreferences
+      onChangePreference={vi.fn()}
+      onUseRecommended={onRecommended}
       onOpenHlpSpotDeposit={vi.fn()}
     />,
   );
+  expect(container.textContent).toContain('Custom · 2 sources');
   await clickUi(container, "How we'll fund this");
-  expect(container.textContent).not.toContain('Use recommended');
   expect(container.textContent).not.toContain('Change source');
+  await clickUi(container, 'Use recommended');
+  expect(onRecommended).toHaveBeenCalledOnce();
+  // No amount entered yet, so the plan is priced off the minimum, not shown.
+  expect(container.textContent).not.toContain('$36.00');
 });

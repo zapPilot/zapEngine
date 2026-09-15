@@ -3,7 +3,6 @@ import {
   BASE_DEPOSIT_TOKENS as B,
   ARBITRUM_DEPOSIT_TOKENS as A,
   ETHEREUM_DEPOSIT_TOKENS as E,
-  type DesktopDepositToken,
 } from '@/integration/depositTokens';
 import {
   planFunding,
@@ -11,10 +10,9 @@ import {
   STATIC_FUNDING_RANKING,
   fundingPlanSummary,
   fundingBlockerMessage,
-  fundingRouteLabel,
   unavailableChainIds,
   unavailableFundingChains,
-  type FundingOverrides,
+  type FundingPreferences,
 } from '@/integration/investFundingPlanner';
 import {
   DEFAULT_SECTOR_WEIGHTS,
@@ -26,6 +24,7 @@ import {
   type TargetAllocation,
 } from '@/integration/investTargetsModel';
 import type { ChainTokenBalanceRow } from '@/integration/walletTokens';
+import { balanceRow as row } from './support/fundingBalanceRow';
 const defaults = resolveTargetAllocations(DEFAULT_SECTOR_WEIGHTS);
 const stable = resolveTargetAllocations({ crypto: 0, stable: 10000, sp500: 0 });
 const morpho: TargetAllocation[] = [
@@ -33,41 +32,16 @@ const morpho: TargetAllocation[] = [
   { positionId: 'gmx-arbitrum', weightBps: 0 },
   { positionId: 'hlp', weightBps: 0 },
 ];
-function row(
-  token: DesktopDepositToken,
-  usd: number,
-  price: number | null = token.symbol === 'ETH' ? 2000 : 1,
-): ChainTokenBalanceRow {
-  return {
-    id: `${token.chainId}:${token.symbol}`,
-    chain: token.chainKey,
-    chainLabel: token.chainKey,
-    chainId: token.chainId,
-    tokenAddress: token.balanceAddress,
-    decimals: token.decimals,
-    balance: String(usd / (price ?? 2000)),
-    balanceBaseUnits:
-      token.symbol === 'ETH'
-        ? (
-            BigInt(Math.round((usd * 1e6) / (price ?? 2000))) *
-            10n ** 12n
-          ).toString()
-        : String(Math.round(usd * 1e6)),
-    usdValue: price === null ? null : usd,
-    usdPrice: price,
-    token: { symbol: token.symbol, name: token.name },
-  };
-}
 function input(
   rows: ChainTokenBalanceRow[],
   allocations = defaults,
-  overrides: FundingOverrides = {},
+  preferences: FundingPreferences = {},
   failed: number[] = [],
 ) {
   return {
     allocations,
     supply: { rows, unavailableChainIds: failed },
-    constraints: { overrides, gasReserveUsd: 5 },
+    constraints: { preferences, gasReserveUsd: 5 },
   };
 }
 function plan(config: ReturnType<typeof input>, amount = 100000000n) {
@@ -94,9 +68,12 @@ describe('automatic funding', () => {
       `morpho-base:8453:${B[0].depositAddress}:36000000:36000000|gmx-arbitrum:42161:${A[0].depositAddress}:40000000:40000000|hlp:42161:${A[0].depositAddress}:24000000:24000000`,
     );
     expect(
-      fundingPlanSummary(result, { hasOverrides: false, isConnected: true }),
-    ).toBe('Recommended · Base USDC + Arbitrum USDC · 2 wallet batches');
-    expect(fundingRouteLabel(result.assignments[2]!)).toContain('Bridge2');
+      fundingPlanSummary({
+        sourceCount: 2,
+        hasPreferences: false,
+        isConnected: true,
+      }),
+    ).toBe('Selected automatically · 2 sources');
     expect(result.options.hlp!.map((o) => o.candidate.token)).toEqual([
       A[0],
       B[0],
@@ -155,33 +132,53 @@ describe('automatic funding', () => {
       expect(plan(test, (capacity ?? 0n) + 1n).stages).toBeNull();
     }
   });
-  it('honors viable overrides and rejects unsupported, unpriced or insufficient overrides', () => {
-    const config = input(
-      [row(B[0], 100), row(A[0], 100), row(B[1], 100)],
-      defaults,
-      { hlp: B[1] },
+  it('narrows only the preferred chain and leaves the other chain automatic', () => {
+    const result = plan(
+      input([row(B[0], 100), row(A[0], 100), row(B[1], 100)], defaults, {
+        8453: 'ETH',
+      }),
     );
-    const result = plan(config);
-    expect(result.assignments[2]).toMatchObject({
-      pinned: true,
-      source: { token: B[1], route: 'lifi-swap-bridge' },
-    });
-    expect(result.options.hlp!.filter((o) => o.selected)).toHaveLength(1);
-    for (const [token, rows, reason] of [
-      [A[1], [], 'not-a-candidate'],
-      [B[1], [], 'insufficient'],
-      [B[1], [row(B[1], 100, null)], 'no-price'],
+    expect(result.blockers).toEqual([]);
+    expect(
+      result.assignments.map((a) => [a.source.token, a.source.route]),
+    ).toEqual([
+      [B[1], 'swap-deposit'],
+      [A[0], 'deposit'],
+      [A[0], 'bridge2'],
+    ]);
+  });
+  it('reproduces the automatic plan when a preference names the recommended token', () => {
+    const rows = [row(B[0], 100), row(A[0], 100)];
+    const auto = input(rows);
+    const preferred = input(rows, defaults, { 8453: 'USDC', 42161: 'USDC' });
+    expect(fundingCapacityUsd6(preferred)).toBe(fundingCapacityUsd6(auto));
+    expect(stageDraftsKey(plan(preferred).stages!)).toBe(
+      stageDraftsKey(plan(auto).stages!),
+    );
+  });
+  it('separates a preference no chain offers from one that breaks a viable plan', () => {
+    for (const [preferences, reason] of [
+      [{ 8453: 'USDT' }, 'not-a-candidate'],
+      [{ 42161: 'ETH' }, 'blocks-plan'],
     ] as const) {
       const rejected = plan(
-        input([row(B[0], 100), row(A[0], 100), ...rows], defaults, {
-          hlp: token,
-        }),
+        input([row(B[0], 100), row(A[0], 100)], defaults, preferences),
       );
       expect(rejected.stages).toBeNull();
       expect(rejected.blockers).toEqual([
-        { kind: 'override-not-viable', positionId: 'hlp', token, reason },
+        {
+          kind: 'override-not-viable',
+          chainId: Number(Object.keys(preferences)[0]),
+          symbol: Object.values(preferences)[0],
+          reason,
+        },
       ]);
     }
+    // An unfundable wallet is not the preference's fault, so no blame is
+    // assigned to a chain the empty-preference solve could not fund either.
+    expect(
+      plan(input([], defaults, { 42161: 'ETH' })).blockers[0]?.kind,
+    ).not.toBe('override-not-viable');
   });
   it('reports unavailable required chains and allows HLP to use another chain', () => {
     expect(unavailableChainIds(['eth', 'base', 'arbitrum'])).toEqual([
@@ -237,7 +234,7 @@ describe('automatic funding', () => {
       input([]),
       input([], []),
       input([row(B[1], 10, null)]),
-      input([], defaults, { hlp: A[1] }),
+      input([], defaults, { 8453: 'USDT' }),
       input([], defaults, {}, [8453]),
       input([row(A[2], 100)], crypto),
     ]) {
@@ -245,11 +242,26 @@ describe('automatic funding', () => {
       expect(fundingBlockerMessage(result.blockers[0]!)).toBeTruthy();
     }
     expect(
-      fundingPlanSummary(plan(input([])), {
-        hasOverrides: true,
+      fundingPlanSummary({
+        sourceCount: 0,
+        hasPreferences: true,
         isConnected: false,
       }),
     ).toBe('Connect a wallet to see your plan');
+    expect(
+      fundingPlanSummary({
+        sourceCount: 0,
+        hasPreferences: false,
+        isConnected: true,
+      }),
+    ).toBe('Selected automatically · Waiting for available balances');
+    expect(
+      fundingPlanSummary({
+        sourceCount: 1,
+        hasPreferences: true,
+        isConnected: true,
+      }),
+    ).toBe('Custom · 1 source');
   });
   it('Max and Max plus one respect shared pools throughout a balance grid', () => {
     for (const base of [0, 0.5, 36, 60, 100])

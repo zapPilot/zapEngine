@@ -1,28 +1,24 @@
 import { Modal, Text, View } from 'react-native';
 import { TokenIcon } from '@/components/token/TokenIcon';
 import { Tap } from '@/components/ui/Tap';
-import type { DesktopDepositToken } from '@/integration/depositTokens';
-import {
-  fundingSourceLabel,
-  sameDepositToken,
-  type FundingOption,
-} from '@/integration/investFundingPlanner';
+import type { DepositTokenSymbol } from '@/integration/depositTokens';
+import type { FundingSourceRow } from '@/integration/investFundingSources';
 import { formatUsd6 } from '@/lib/format';
 export function ChainTokenSelectorSheet({
   visible,
   title,
   subtitle,
-  options,
-  selected,
+  rows,
   onSelect,
+  onClearPreference,
   onClose,
 }: {
   visible: boolean;
   title: string;
   subtitle: string;
-  options: readonly FundingOption[];
-  selected: DesktopDepositToken | null;
-  onSelect: (token: DesktopDepositToken) => void;
+  rows: readonly FundingSourceRow[];
+  onSelect: (symbol: DepositTokenSymbol) => void;
+  onClearPreference: () => void;
   onClose: () => void;
 }) {
   if (!visible) return null;
@@ -35,35 +31,47 @@ export function ChainTokenSelectorSheet({
         >
           <Text className="font-serif text-[24px] text-ink">{title}</Text>
           <Text className="my-2 text-[11px] text-ink-dim">{subtitle}</Text>
-          {options
-            .filter((o) => o.rejection === null)
-            .map((o) => (
+          <Tap
+            accessibilityRole="button"
+            accessibilityLabel="Automatic"
+            accessibilityState={{ selected: rows.every((r) => !r.preferred) }}
+            className="flex-row items-center gap-3 border-t border-line py-4"
+            onPress={() => {
+              onClearPreference();
+              onClose();
+            }}
+          >
+            <Text className="flex-1 text-ink">Automatic</Text>
+            <Text className="font-mono text-[11px] text-ink-dim">
+              Recommended
+            </Text>
+          </Tap>
+          {rows
+            .filter(
+              (row) =>
+                row.status !== 'unavailable' && (row.spendableUsd6 ?? 0n) > 0n,
+            )
+            .map((row) => (
               <Tap
-                key={`${o.candidate.token.chainId}:${o.candidate.token.symbol}`}
+                key={row.key}
                 accessibilityRole="button"
-                accessibilityLabel={fundingSourceLabel(o.candidate.token)}
-                accessibilityState={{
-                  selected:
-                    selected !== null &&
-                    sameDepositToken(selected, o.candidate.token),
-                }}
+                accessibilityLabel={row.label}
+                accessibilityState={{ selected: row.preferred }}
                 className="flex-row items-center gap-3 border-t border-line py-4"
                 onPress={() => {
-                  onSelect(o.candidate.token);
+                  onSelect(row.symbol);
                   onClose();
                 }}
               >
                 <TokenIcon
-                  symbol={o.candidate.token.symbol}
-                  chainKey={o.candidate.token.chainKey}
+                  symbol={row.symbol}
+                  chainKey={row.token.chainKey}
                   size={32}
                   alt=""
                 />
-                <Text className="flex-1 text-ink">
-                  {fundingSourceLabel(o.candidate.token)}
-                </Text>
+                <Text className="flex-1 text-ink">{row.label}</Text>
                 <Text className="font-mono text-[11px] text-ink-dim">
-                  Available {formatUsd6(o.availableUsd6 ?? 0n)}
+                  Available {formatUsd6(row.spendableUsd6 ?? 0n)}
                 </Text>
               </Tap>
             ))}
