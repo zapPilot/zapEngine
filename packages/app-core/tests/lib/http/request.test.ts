@@ -22,18 +22,16 @@ describe('httpRequest', () => {
   });
 
   it('serializes mutation bodies and accepts Cache-Control hints', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(
-        response(
-          { ok: true },
-          {
-            headers: {
-              'Cache-Control': 'public, max-age=60, stale-while-revalidate=120',
-            },
+    const fetchMock = vi.fn().mockResolvedValue(
+      response(
+        { ok: true },
+        {
+          headers: {
+            'Cache-Control': 'public, max-age=60, stale-while-revalidate=120',
           },
-        ),
-      );
+        },
+      ),
+    );
     vi.stubGlobal('fetch', fetchMock);
 
     await expect(
