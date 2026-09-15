@@ -7,6 +7,9 @@ dist/
 .next/
 .source/
 build/
+# apps/desktop/build is electron-builder's input resources dir, not an output;
+# the packaging gate reads icon.icns from it, so it must survive a clean clone.
+!apps/desktop/build/
 apps/desktop/release/
 *.tsbuildinfo
 !packages/design-tokens/dist/
