@@ -48,3 +48,24 @@ describe('normalizeLoopbackUrl', () => {
     );
   });
 });
+
+describe('normalizeLoopbackUrl unparseable fallbacks', () => {
+  // Each test names the previously-uncovered branch it locks.
+  // mutation: not run (offline sandbox — vitest could not be executed here).
+
+  it('normalizes a localhost URL the URL parser rejects', () => {
+    // Locks: normalizeLoopbackUrl catch branch with a localhost regex match,
+    // including the `replace` callback (previously-uncovered function).
+    // eslint-disable-next-line sonarjs/no-clear-text-protocols -- loopback normalization subject requires http
+    expect(normalizeLoopbackUrl('http://localhost:99999/path')).toBe(
+      // eslint-disable-next-line sonarjs/no-clear-text-protocols -- expected loopback output requires http
+      'http://127.0.0.1:99999/path',
+    );
+  });
+
+  it('returns an unparseable non-localhost string unchanged', () => {
+    // Locks: catch branch with regex miss (`return url`).
+    // eslint-disable-next-line sonarjs/no-clear-text-protocols -- unparseable input subject requires http
+    expect(normalizeLoopbackUrl('http://:99999')).toBe('http://:99999');
+  });
+});

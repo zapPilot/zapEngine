@@ -400,10 +400,10 @@ export class WeeklyReportProcessor implements JobProcessor {
       return { reason: 'no_valid_balance_history' };
     }
 
-    const latestPoint = normalizedHistory[0];
-    if (!latestPoint) {
-      return { reason: 'no_valid_balance_history' };
-    }
+    // Non-empty by the guard above. Destructuring (unlike `[0]` access) is
+    // unaffected by noUncheckedIndexedAccess, so the strict type stays honest
+    // without a second guard whose true side could never execute.
+    const [latestPoint] = normalizedHistory;
 
     if (latestPoint.usdValue <= 0) {
       return { reason: 'invalid_latest_balance' };

@@ -138,3 +138,44 @@ describe('TelegramBotCoreService', () => {
     expect(() => service.logWebhookError(new Error('boom'))).not.toThrow();
   });
 });
+
+describe('TelegramBotCoreService branch sweep', () => {
+  // Each test names the previously-uncovered branch it locks.
+  // mutation: not run (offline sandbox — vitest could not be executed here).
+
+  it('no-ops lifecycle and handler registration when unconfigured', async () => {
+    // Locks: start() `if (!this.bot)` true; startPolling() `if (!this.bot)`
+    // true; stop() `!this.bot || !this.isPolling` first-operand true;
+    // onStart/onCommand/onHelp/onCallbackQuery `this.bot?.` nullish outcomes.
+    const service = createService({ TELEGRAM_BOT_TOKEN: '' });
+    const handler = vi.fn();
+
+    service.start();
+    await service.startPolling();
+    await service.stop();
+    service.onStart(handler);
+    service.onCommand('stop', handler);
+    service.onHelp(handler);
+    service.onCallbackQuery(handler);
+
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the default bot name when TELEGRAM_BOT_NAME is unset', () => {
+    // Locks: `?? 'ZapPilotBot'` fallback.
+    const service = createService({
+      TELEGRAM_BOT_NAME: undefined as unknown as string,
+    });
+
+    expect(service.getBotName()).toBe('ZapPilotBot');
+  });
+
+  it('falls back to an empty webhook secret when TELEGRAM_WEBHOOK_SECRET is unset', () => {
+    // Locks: `?? ''` fallback for the webhook secret.
+    const service = createService({
+      TELEGRAM_WEBHOOK_SECRET: undefined as unknown as string,
+    });
+
+    expect(service.validateWebhookSecret('anything')).toBe(false);
+  });
+});

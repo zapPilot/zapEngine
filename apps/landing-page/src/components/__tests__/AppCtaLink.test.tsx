@@ -142,7 +142,7 @@ describe('AppCtaLink', () => {
 
   it('closes from the backdrop but not from a click inside the dialog', () => {
     render(
-      <AppCtaLink className="cta" location="footer">
+      <AppCtaLink className="cta" location="closing">
         Join waitlist
       </AppCtaLink>,
     );
@@ -188,6 +188,11 @@ describe('AppCtaLink', () => {
   });
 
   it('submits without optional attribution when capture is unavailable', async () => {
+    // Isolate from earlier tests that set UTM params in the URL; with a clean
+    // '/' path the live capture carries only landingPath, so the "no optional
+    // attribution" assertion is deterministic even though readWaitlistAttribution
+    // stays fail-open (stored ?? live capture) when storage reads are blocked.
+    window.history.replaceState({}, '', '/');
     window.localStorage.clear();
     vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
       throw new Error('blocked');
@@ -212,6 +217,7 @@ describe('AppCtaLink', () => {
       email: 'plain@example.com',
       company: '',
       ctaLocation: 'hero',
+      landingPath: '/',
     });
     expect(trackWaitlistSubmitted).toHaveBeenCalledWith('hero', false);
   });

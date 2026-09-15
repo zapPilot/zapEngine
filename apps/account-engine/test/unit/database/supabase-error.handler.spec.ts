@@ -131,3 +131,20 @@ describe('SupabaseErrorHandler', () => {
     });
   });
 });
+
+describe('SupabaseErrorHandler branch sweep', () => {
+  // mutation: not run (offline sandbox — vitest could not be executed here).
+
+  it('treats an Error without a Postgres code as an unknown failure', () => {
+    // Locks: getErrorCode `'code' in error` false outcome (plain Error input,
+    // which DatabaseOperationResult explicitly allows).
+    const result = { data: null, error: new Error('connection reset') };
+
+    expect(() =>
+      SupabaseErrorHandler.validateOperation(result, 'fetch user', 'User'),
+    ).toThrow(BadRequestException);
+    expect(() =>
+      SupabaseErrorHandler.validateOperation(result, 'fetch user', 'User'),
+    ).toThrow('Failed to fetch user');
+  });
+});

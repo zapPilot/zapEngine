@@ -22,6 +22,9 @@ function createServices(): AppServices {
       cleanupCache: vi.fn(),
     },
     usersService: {
+      getUserByWallet: vi
+        .fn()
+        .mockResolvedValue({ id: 'user-1', wallet: VALID_WALLET }),
       connectWallet: vi
         .fn()
         .mockResolvedValue({ user_id: 'user-1', is_new_user: false }),
@@ -535,5 +538,30 @@ describe('onError handler', () => {
       `http://localhost/users/${VALID_UUID}`,
     );
     expect(response.status).toBe(503);
+  });
+});
+
+describe('GET /users/by-wallet/:walletAddress', () => {
+  // Locks: routes/users.ts /by-wallet/:walletAddress handler (function + lines).
+  // mutation: not run (offline sandbox — vitest could not be executed here).
+
+  it('returns the user for a valid wallet address', async () => {
+    const services = createServices();
+    const response = await createApp(services).request(
+      `{{http://localhost/users/by-wallet/${VALID_WALLET}}}`,
+    );
+
+    expect(response.status).toBe(200);
+    expect(
+      (services.usersService.getUserByWallet as Mock).mock.calls[0],
+    ).toEqual([VALID_WALLET]);
+  });
+
+  it('returns 400 for an invalid wallet address', async () => {
+    const response = await createApp(createServices()).request(
+      'http://localhost/users/by-wallet/not-a-wallet',
+    );
+
+    expect(response.status).toBe(400);
   });
 });

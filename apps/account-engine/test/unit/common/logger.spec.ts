@@ -97,3 +97,27 @@ describe('Logger', () => {
     });
   });
 });
+
+describe('Logger branch sweep', () => {
+  // mutation: not run (offline sandbox — vitest could not be executed here).
+
+  let infoSpy: MockInstance;
+
+  beforeEach(() => {
+    infoSpy = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+  });
+
+  it('falls back to the error message when an Error has no stack', () => {
+    // Locks: serializeEntry `entry.stack ?? entry.message` fallback. Reachable
+    // when stack capture is disabled (e.g. Error.stackTraceLimit = 0); mutating
+    // the fallback away turns this red because the message disappears.
+    const logger = new Logger('Test');
+    const err = new Error('stackless-error');
+    err.stack = undefined;
+
+    logger.log('msg', err);
+
+    const line: string = infoSpy.mock.calls[0]?.[0];
+    expect(line).toContain('stackless-error');
+  });
+});

@@ -334,3 +334,48 @@ describe('AnalyticsClientService', () => {
     });
   });
 });
+
+describe('AnalyticsClientService branch sweep', () => {
+  // Each test names the previously-uncovered branch it locks.
+  // mutation: not run (offline sandbox — vitest could not be executed here).
+
+  it('falls back to the default trends URL when the base URL is unparseable', async () => {
+    // Locks: resolvePortfolioTrendsBaseUrl catch path (and its lines).
+    const service = new AnalyticsClientService(
+      createMockConfigService({ ANALYTICS_ENGINE_URL: 'not a url' }),
+    );
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ trend: [] }),
+    });
+
+    await service.getPortfolioTrendData('user-1');
+
+    const calledUrl = (global.fetch as Mock).mock.calls[0]?.[0];
+    expect(calledUrl).toContain('127.0.0.1');
+    expect(calledUrl).toContain('days=365');
+  });
+
+  it('labels a non-object daily-suggestion payload with the root path', async () => {
+    // Locks: `issue.path.length ? join('.') : 'root'` false outcome.
+    const service = new AnalyticsClientService(createMockConfigService());
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(null),
+    });
+
+    await expect(service.getDailySuggestion('user-1')).rejects.toThrow(
+      'Unexpected daily suggestion shape: root',
+    );
+  });
+
+  it('maps an unrecognized failure to a generic ServiceLayerException', async () => {
+    // Locks: handleAnalyticsError fallthrough (no ServiceLayer/404/500/ECONNREFUSED).
+    const service = new AnalyticsClientService(createMockConfigService());
+    global.fetch = vi.fn().mockRejectedValue(new Error('socket hangup'));
+
+    await expect(service.getPortfolioData('user-1')).rejects.toThrow(
+      'Failed to retrieve portfolio data: socket hangup',
+    );
+  });
+});

@@ -1006,3 +1006,397 @@ describe('TenderlySimulationService', () => {
     ]);
   });
 });
+
+describe('TenderlySimulationService branch sweep', () => {
+  // Each test names the previously-uncovered branch it locks.
+  // mutation: not run (offline sandbox — vitest could not be executed here).
+
+  it('locks string gas values normalized through integerString', async () => {
+    // Locks: integerString `typeof value === 'number'` false (decimal and
+    // 0x-hex digit strings, both admitted by RawIntegerSchema).
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response([
+          simulationResult({
+            id: 'sim-dec',
+            gasUsed: '21000' as unknown as number,
+          }),
+          simulationResult({
+            id: 'sim-hex',
+            gasUsed: '0x5208' as unknown as number,
+          }),
+        ]),
+      )
+      .mockResolvedValue({ ok: true, status: 204 });
+    const service = createService(fetchFn);
+
+    const result = await service.simulateBundle({
+      chainId: 8453,
+      walletAddress: WALLET,
+      calls: [{ to: TARGET }, { to: TOKEN }],
+    });
+
+    expect(result.callGas).toBe('42000');
+    expect(result.calls.map((call) => call.gasUsed)).toEqual([
+      '21000',
+      '21000',
+    ]);
+  });
+
+  it('locks an invalid logo URL normalizing to null', async () => {
+    // Locks: normalizeLogoUrl catch (`new URL(value)` throws) → null.
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response([
+          simulationResult({
+            id: 'sim-logo',
+            to: TOKEN,
+            assetChanges: [
+              {
+                token_info: { ...tokenInfo, logo: 'not a url' },
+                type: 'Transfer',
+                from: WALLET,
+                to: SPENDER,
+                raw_amount: '50',
+              },
+            ],
+            contracts: [contract(TOKEN, { token: true })],
+          }),
+        ]),
+      )
+      .mockResolvedValue({ ok: true, status: 204 });
+    const service = createService(fetchFn);
+
+    const result = await service.simulateBundle({
+      chainId: 8453,
+      walletAddress: WALLET,
+      calls: [{ to: TOKEN }],
+    });
+
+    expect(result.assetChanges[0]?.token.logoUrl).toBeNull();
+  });
+
+  it('locks skipping the approvals fallback for a decodable non-approve call', async () => {
+    // Locks: decodeApproval `decoded.functionName !== 'approve'` true.
+    const transferData = encodeFunctionData({
+      abi: erc20Abi,
+      functionName: 'transfer',
+      args: [SPENDER, 1n],
+    });
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response([
+          simulationResult({
+            id: 'sim-transfer',
+            to: TOKEN,
+            method: '',
+            contracts: [contract(TOKEN, { token: true })],
+          }),
+        ]),
+      )
+      .mockResolvedValue({ ok: true, status: 204 });
+    const service = createService(fetchFn);
+
+    const result = await service.simulateBundle({
+      chainId: 8453,
+      walletAddress: WALLET,
+      calls: [{ to: TOKEN, data: transferData }],
+    });
+
+    expect(result.calls[0]?.method).toBe('transfer');
+    expect(result.approvals).toEqual([]);
+  });
+
+  it('locks contract-name absence and the first-name-wins guard', async () => {
+    // Locks: indexReview `name && !contractNameByAddress.has(address)` — name
+    // falsy (null contract_name) and duplicate-address guard true.
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response([
+          simulationResult({
+            id: 'sim-a',
+            contracts: [{ address: TARGET, contract_name: 'First' }],
+          }),
+          simulationResult({
+            id: 'sim-b',
+            contracts: [
+              { address: TARGET, contract_name: 'Second' },
+              { address: TOKEN, contract_name: null },
+            ],
+          }),
+        ]),
+      )
+      .mockResolvedValue({ ok: true, status: 204 });
+    const service = createService(fetchFn);
+
+    const result = await service.simulateBundle({
+      chainId: 8453,
+      walletAddress: WALLET,
+      calls: [{ to: TARGET }, { to: TARGET }],
+    });
+
+    expect(result.contracts).toEqual([
+      { address: TARGET, name: 'First', callIndexes: [0, 1] },
+    ]);
+  });
+
+  it('locks skipping same-wallet transfers and address-less token metadata', async () => {
+    // Locks: `from === walletAddress && to === walletAddress` continue;
+    // `if (rawChange.token_info.contract_address)` false; spendByToken
+    // `!change.token.address` true.
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response([
+          simulationResult({
+            id: 'sim-self',
+            to: TOKEN,
+            assetChanges: [
+              {
+                token_info: tokenInfo,
+                type: 'Transfer',
+                from: WALLET,
+                to: WALLET,
+                raw_amount: '5',
+              },
+              {
+                token_info: {
+                  standard: 'ERC20',
+                  type: 'Fungible',
+                  symbol: 'NN',
+                },
+                type: 'Transfer',
+                from: WALLET,
+                to: SPENDER,
+                raw_amount: '7',
+              },
+            ],
+            contracts: [contract(TOKEN, { token: true })],
+          }),
+        ]),
+      )
+      .mockResolvedValue({ ok: true, status: 204 });
+    const service = createService(fetchFn);
+
+    const result = await service.simulateBundle({
+      chainId: 8453,
+      walletAddress: WALLET,
+      calls: [{ to: TOKEN }],
+    });
+
+    expect(result.assetChanges).toEqual([
+      expect.objectContaining({
+        direction: 'out',
+        rawAmount: '7',
+        token: expect.objectContaining({ address: null, symbol: 'NN' }),
+      }),
+    ]);
+  });
+
+  it('locks the halted-call defaults for missing error and block number', async () => {
+    // Locks: `transaction?.error_message?.trim() || simulation.error_message?.trim()
+    // || 'Simulation reverted'` full fallthrough; `transaction?.status &&
+    // simulation.status` second-operand false; `results[0]?.transaction?.block_number
+    // ?? null` nullish fallback.
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response([
+          {
+            transaction: null,
+            simulation: {
+              id: '',
+              status: false,
+              gas_used: 0,
+              block_number: null,
+              error_message: null,
+            },
+            contracts: [],
+          },
+          {
+            transaction: {
+              status: true,
+              to: TARGET,
+              input: '0x1234',
+              gas_used: 21_000,
+              block_number: 123,
+              method: 'execute',
+              error_message: null,
+              transaction_info: { asset_changes: [] },
+            },
+            simulation: {
+              id: 'sim-mix',
+              status: false,
+              gas_used: 21_000,
+              block_number: 123,
+              method: 'execute',
+              error_message: 'boom',
+            },
+            contracts: [],
+          },
+        ]),
+      )
+      .mockResolvedValue({ ok: true, status: 204 });
+    const service = createService(fetchFn);
+
+    const result = await service.simulateBundle({
+      chainId: 8453,
+      walletAddress: WALLET,
+      calls: [{ to: TARGET }, { to: TARGET }],
+    });
+
+    expect(result).toMatchObject({
+      status: 'failed',
+      failureReason: 'Simulation reverted',
+      blockNumber: null,
+    });
+    expect(result.calls.map((call) => call.status)).toEqual([
+      'failed',
+      'failed',
+    ]);
+    expect(result.calls[1]?.error).toBe('boom');
+  });
+
+  it('locks an approval that stays within the simulated spend', async () => {
+    // Locks: `approval.exceedsSimulatedSpend` false (no warning emitted).
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response([
+          simulationResult({
+            id: 'sim-covered-approval',
+            to: TOKEN,
+            method: 'approve',
+            assetChanges: [
+              {
+                token_info: tokenInfo,
+                type: 'Transfer',
+                from: WALLET,
+                to: SPENDER,
+                raw_amount: '200',
+              },
+            ],
+            exposureChanges: [
+              {
+                token_info: tokenInfo,
+                type: 'Approve',
+                owner: WALLET,
+                spender: SPENDER,
+                raw_amount: '100',
+              },
+            ],
+            contracts: [contract(TOKEN, { token: true })],
+          }),
+        ]),
+      )
+      .mockResolvedValue({ ok: true, status: 204 });
+    const service = createService(fetchFn);
+
+    const result = await service.simulateBundle({
+      chainId: 8453,
+      walletAddress: WALLET,
+      calls: [{ to: TOKEN }],
+    });
+
+    expect(result.approvals).toEqual([
+      expect.objectContaining({
+        rawAmount: '100',
+        simulatedSpendRaw: '200',
+        exceedsSimulatedSpend: false,
+        unlimited: false,
+      }),
+    ]);
+    expect(result.warnings.map((warning) => warning.code)).not.toContain(
+      'APPROVAL_EXCEEDS_SIMULATED_SPEND',
+    );
+  });
+
+  it('locks the unknown-token fallback for calldata-derived approvals', async () => {
+    // Locks: `tokenByAddress.get(tokenAddress) ?? unknownToken(tokenAddress)`
+    // fallback in the no-exposure-changes approvals path.
+    const approveData = encodeFunctionData({
+      abi: erc20Abi,
+      functionName: 'approve',
+      args: [SPENDER, 1n],
+    });
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response([
+          simulationResult({
+            id: 'sim-unknown-token',
+            to: TOKEN,
+            method: '',
+            contracts: [],
+          }),
+        ]),
+      )
+      .mockResolvedValue({ ok: true, status: 204 });
+    const service = createService(fetchFn);
+
+    const result = await service.simulateBundle({
+      chainId: 8453,
+      walletAddress: WALLET,
+      calls: [{ to: TOKEN, data: approveData }],
+    });
+
+    expect(result.approvals[0]?.token).toEqual({
+      address: TOKEN,
+      symbol: 'UNKNOWN',
+      name: 'Unknown token',
+      decimals: 0,
+      logoUrl: null,
+    });
+    expect(result.approvals[0]?.amount).toBe('1');
+  });
+
+  it('locks rejecting more results than requested calls', async () => {
+    // Locks: `results.length > input.calls.length` true → malformed.
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response([
+          simulationResult({ id: 'sim-1' }),
+          simulationResult({ id: 'sim-2' }),
+        ]),
+      );
+    const service = createService(fetchFn);
+
+    const result = await service.simulateBundle({
+      chainId: 8453,
+      walletAddress: WALLET,
+      calls: [{ to: TARGET }],
+    });
+
+    expect(result).toMatchObject({
+      status: 'unavailable',
+      unavailableReason: 'Tenderly returned malformed simulation data',
+    });
+  });
+
+  it('locks the non-Error parse failure path', async () => {
+    // Locks: `err instanceof Error ? err.message : String(err)` false outcome.
+    const fetchFn = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors -- deliberately a non-Error rejection, the subject under test
+      json: () => Promise.reject('plain string failure'),
+    });
+    const service = createService(fetchFn);
+
+    const result = await service.simulateBundle({
+      chainId: 8453,
+      walletAddress: WALLET,
+      calls: [{ to: TARGET }],
+    });
+
+    expect(result).toMatchObject({
+      status: 'unavailable',
+      unavailableReason: 'Tenderly returned malformed simulation data',
+    });
+  });
+});

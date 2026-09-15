@@ -197,11 +197,10 @@ function integerString(value: number | string): string {
   if (typeof value === 'number') {
     return value.toString();
   }
-  try {
-    return BigInt(value).toString();
-  } catch {
-    return value;
-  }
+  // RawIntegerSchema only admits decimal or 0x-hex digit strings, and BigInt
+  // parses both — a catch-and-passthrough here could never run on payloads
+  // that survived validation.
+  return BigInt(value).toString();
 }
 
 function parseRawAmount(value: number | string): bigint {
@@ -722,10 +721,11 @@ export function createTenderlySimulationService(config: {
       try {
         parsed = RawBundleResponseSchema.parse(await response.json());
         const results = parsed.simulation_results;
-        const lastResult = results.at(-1);
+        // RawBundleResponseSchema enforces min(1), so a last result always
+        // exists — assert instead of a guard whose false side is unreachable.
+        const lastResult = results[results.length - 1]!;
         const stoppedAfterFailure =
           results.length < input.calls.length &&
-          lastResult !== undefined &&
           !(lastResult.transaction?.status && lastResult.simulation.status);
         if (
           results.length > input.calls.length ||

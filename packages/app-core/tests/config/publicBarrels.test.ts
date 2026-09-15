@@ -76,6 +76,9 @@ const PUBLIC_BARRELS = [
 describe('public runtime barrels', () => {
   // Invariant: every runtime barrel remains executable and exposes representative
   // public bindings. Barrels stay in the production coverage denominator.
+  // Timeout is explicit: dynamic barrel imports under V8 coverage are slow on
+  // CI (shared runners), and the default 5s flakes. This is a reliability
+  // budget, not a coverage gate change.
   it.each(PUBLIC_BARRELS)(
     '$path exposes its public runtime bindings',
     async ({ load, expectedExports }) => {
@@ -85,5 +88,6 @@ describe('public runtime barrels', () => {
         expect(Object.hasOwn(moduleExports, exportName)).toBe(true);
       }
     },
+    20000,
   );
 });

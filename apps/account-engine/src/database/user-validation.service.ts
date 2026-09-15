@@ -164,7 +164,7 @@ export class UserValidationService extends BaseService {
 
   private async validateWalletExists(
     walletAddress: string,
-    expectedUserId?: string,
+    expectedUserId: string,
   ): Promise<{
     exists: boolean;
     userId?: string;
@@ -186,26 +186,26 @@ export class UserValidationService extends BaseService {
       return { exists: false };
     }
 
-    const belongsToUser = expectedUserId
-      ? String(wallet.user_id) === expectedUserId
-      : undefined;
-
     return {
       exists: true,
       userId: String(wallet.user_id),
-      belongsToUser,
+      // The only caller always passes expectedUserId, so the ownership check
+      // is unconditional — no ternary fallback to undefined.
+      belongsToUser: String(wallet.user_id) === expectedUserId,
     };
   }
 
   private async validateEmailAvailable(
     email: string,
-    excludeUserId?: string,
+    excludeUserId: string,
   ): Promise<{ exists: boolean }> {
-    let query = this.supabase.from('users').select('id').eq('email', email);
-
-    if (excludeUserId) {
-      query = query.neq('id', excludeUserId);
-    }
+    // The only caller (validateEmailAvailability) always excludes the
+    // requesting user, so the neq filter is unconditional.
+    const query = this.supabase
+      .from('users')
+      .select('id')
+      .eq('email', email)
+      .neq('id', excludeUserId);
 
     const result = await query.single();
 

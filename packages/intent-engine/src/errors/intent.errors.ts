@@ -11,16 +11,17 @@ export type IntentErrorCode =
 
 export class IntentEngineError extends Error {
   public readonly code: IntentErrorCode;
-  public readonly errorCause?: unknown;
 
   constructor(
     message: string,
     options?: { code?: IntentErrorCode; cause?: unknown },
   ) {
-    super(message);
+    super(
+      message,
+      options?.cause !== undefined ? { cause: options.cause } : undefined,
+    );
     this.name = 'IntentEngineError';
     this.code = options?.code ?? 'INTENT_ENGINE_ERROR';
-    this.errorCause = options?.cause;
   }
 
   toJSON() {
@@ -28,10 +29,7 @@ export class IntentEngineError extends Error {
       name: this.name,
       code: this.code,
       message: this.message,
-      cause:
-        this.errorCause instanceof Error
-          ? this.errorCause.message
-          : this.errorCause,
+      cause: this.cause instanceof Error ? this.cause.message : this.cause,
     };
   }
 }

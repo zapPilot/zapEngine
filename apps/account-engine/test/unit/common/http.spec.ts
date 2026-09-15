@@ -174,3 +174,16 @@ describe('toErrorResponse', () => {
     expect(result.path).toBe('/api/jobs');
   });
 });
+
+describe('AppError branch sweep', () => {
+  // mutation: not run (offline sandbox — vitest could not be executed here).
+
+  it('defaults the status code to 500 when omitted', () => {
+    // Locks: AppError constructor `statusCode = HttpStatus.INTERNAL_SERVER_ERROR`
+    // default-parameter taken outcome.
+    const err = new AppError('boom');
+
+    expect(err.statusCode).toBe(HttpStatus.INTERNAL_SERVER_ERROR);
+    expect(err.name).toBe('AppError');
+  });
+});

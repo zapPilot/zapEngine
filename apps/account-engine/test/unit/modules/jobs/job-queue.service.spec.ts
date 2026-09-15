@@ -534,4 +534,149 @@ describe('JobQueueService', () => {
       service.stop();
     });
   });
+
+  describe('branch sweep', () => {
+    // Each test names the previously-uncovered branch it locks.
+    // mutation: not run (offline sandbox — vitest could not be executed here).
+
+    it('locks getNextJob skipping jobs that are not pending', () => {
+      // Locks: `job.status !== JobStatus.PENDING` true in the scan loop.
+      const service = makeService();
+      const done = service.createJob({
+        type: JobType.WEEKLY_REPORT_BATCH,
+        payload: {},
+      });
+      service.completeJob(done.id);
+      const pending = service.createJob({
+        type: JobType.STRATEGY_CHANGE_BATCH,
+        payload: {},
+      });
+
+      expect(service.getNextJob()?.id).toBe(pending.id);
+      service.stop();
+    });
+
+    it('locks priority comparison fallthrough and the scheduledAt tie-break', () => {
+      // Locks: `compareJobsByPriorityAndSchedule(job, next) < 0` false, and the
+      // `b.priority - a.priority || …` tie-break comparing scheduledAt.
+      const service = makeService();
+      const now = Date.now();
+      service.createJob({
+        type: JobType.WEEKLY_REPORT_BATCH,
+        payload: {},
+        priority: 5,
+        scheduledAt: new Date(now),
+      });
+      service.createJob({
+        type: JobType.WEEKLY_REPORT_BATCH,
+        payload: {},
+        priority: 3,
+        scheduledAt: new Date(now - 60_000),
+      });
+      const tiedEarlier = service.createJob({
+        type: JobType.WEEKLY_REPORT_BATCH,
+        payload: {},
+        priority: 5,
+        scheduledAt: new Date(now - 60_000),
+      });
+
+      expect(service.getNextJob()?.id).toBe(tiedEarlier.id);
+      service.stop();
+    });
+
+    it('locks non-array childJobIds metadata falling back to the bare job', () => {
+      // Locks: `!Array.isArray(childJobIds)` true.
+      const service = makeService();
+      const job = service.createJob({
+        type: JobType.WEEKLY_REPORT_BATCH,
+        payload: {},
+      });
+      service.updateJobMetadata(job.id, { childJobIds: 'oops' });
+
+      const result = service.getJobWithAggregatedStatus(job.id);
+      expect(result?.job.id).toBe(job.id);
+      expect(result?.progress).toBeUndefined();
+      service.stop();
+    });
+
+    it('locks PROCESSING children counting as pending', () => {
+      // Locks: `status === JobStatus.PENDING || status === JobStatus.PROCESSING`
+      // second operand true.
+      const service = makeService();
+      const parent = service.createJob({
+        type: JobType.WEEKLY_REPORT_BATCH,
+        payload: {},
+      });
+      const child = service.createJob({
+        type: JobType.WEEKLY_REPORT_SINGLE,
+        payload: {},
+      });
+      service.updateJobMetadata(parent.id, { childJobIds: [child.id] });
+      service.startProcessing(child.id);
+
+      const result = service.getJobWithAggregatedStatus(parent.id);
+      expect(result?.progress?.pending).toBe(1);
+      expect(result?.job.status).toBe(JobStatus.PROCESSING);
+      service.stop();
+    });
+
+    it('locks unknown child ids hitting the aggregate fall-through', () => {
+      // Locks: `this.jobs.get(childId)?.status` undefined short-circuit and the
+      // aggregate if-chain fall-through keeping parentStatus.
+      const service = makeService();
+      const parent = service.createJob({
+        type: JobType.WEEKLY_REPORT_BATCH,
+        payload: {},
+      });
+      service.updateJobMetadata(parent.id, { childJobIds: ['missing-child'] });
+
+      const result = service.getJobWithAggregatedStatus(parent.id);
+      expect(result?.progress).toEqual({
+        total: 1,
+        completed: 0,
+        failed: 0,
+        pending: 0,
+      });
+      expect(result?.job.status).toBe(JobStatus.PENDING);
+      service.stop();
+    });
+
+    it('locks failed-plus-pending children aggregating to PROCESSING', () => {
+      // Locks: `progress.failed > 0 && progress.pending === 0` true-then-false.
+      const service = makeService();
+      const parent = service.createJob({
+        type: JobType.WEEKLY_REPORT_BATCH,
+        payload: {},
+      });
+      const childA = service.createJob({
+        type: JobType.WEEKLY_REPORT_SINGLE,
+        payload: {},
+      });
+      const childB = service.createJob({
+        type: JobType.WEEKLY_REPORT_SINGLE,
+        payload: {},
+      });
+      service.updateJobMetadata(parent.id, {
+        childJobIds: [childA.id, childB.id],
+      });
+      service.failJob(childA.id, 'boom');
+
+      const result = service.getJobWithAggregatedStatus(parent.id);
+      expect(result?.progress).toEqual({
+        total: 2,
+        completed: 0,
+        failed: 1,
+        pending: 1,
+      });
+      expect(result?.job.status).toBe(JobStatus.PROCESSING);
+      service.stop();
+    });
+
+    it('locks stop() being idempotent', () => {
+      // Locks: `if (this.cleanupInterval)` false (second call).
+      const service = makeService();
+      service.stop();
+      expect(() => service.stop()).not.toThrow();
+    });
+  });
 });

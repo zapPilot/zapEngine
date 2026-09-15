@@ -91,7 +91,6 @@ export class TemplateService {
       APR_CLASS: this.getTrendClass(calculatedValues.yearlyROIPercentage),
       ESTIMATED_APR: this.formatPercentage(
         calculatedValues.yearlyROIPercentage,
-        true,
       ),
       DATA_POINTS_USED: this.formatPeriodLabel(metrics.recommendedPeriod),
       TOTAL_DAYS_ANALYZED: this.formatRecommendedPeriod(
@@ -104,7 +103,6 @@ export class TemplateService {
       }),
       WEEKLY_PNL_PERCENTAGE: this.formatPercentage(
         calculatedValues.percentageOfBalance,
-        true,
       ),
       UNSUBSCRIBE_URL: unsubscribeUrl,
     };
@@ -125,7 +123,9 @@ export class TemplateService {
   ): string {
     return template.replace(PLACEHOLDER_PATTERN, (match, key: string) =>
       Object.prototype.hasOwnProperty.call(variables, key)
-        ? (variables[key] ?? match)
+        ? // hasOwnProperty implies a present string value — assert instead of
+          // an impossible `?? match` fallback.
+          variables[key]!
         : match,
     );
   }
@@ -192,13 +192,16 @@ export class TemplateService {
     }
   }
 
-  private pickPrimaryAddress(addresses: string[] = []): string {
+  private pickPrimaryAddress(addresses: string[]): string {
     const candidate = addresses.find((address) => isWalletAddress(address));
     if (candidate) {
       return candidate;
     }
 
-    return addresses.length > 0 ? (addresses[0] ?? 'N/A') : 'N/A';
+    // The only caller always passes an array (its own parameter defaults to
+    // []), and a non-empty array guarantees element 0 exists — assert instead
+    // of carrying an impossible `?? 'N/A'` fallback.
+    return addresses.length > 0 ? addresses[0]! : 'N/A';
   }
 
   private getTrendClass(value: number): 'positive' | 'negative' | 'neutral' {
@@ -207,10 +210,12 @@ export class TemplateService {
     return 'neutral';
   }
 
-  private formatPercentage(value: number, includeSign = false): string {
+  private formatPercentage(value: number): string {
     const absolute = Math.abs(value).toFixed(2) + '%';
 
-    if (!includeSign || value === 0) {
+    // Both call sites always want the sign, so the old includeSign flag was a
+    // permanently-true parameter; zero keeps its unsigned rendering.
+    if (value === 0) {
       return absolute;
     }
 

@@ -81,7 +81,9 @@ describe('track-record layout', () => {
         <p>child route</p>
       </TrackRecordLayout>,
     );
-    expect(screen.getByText(label)).toBeInTheDocument();
+    // The toggle button and the source badge render the same label, so the
+    // page intentionally contains duplicates.
+    expect(screen.getAllByText(label).length).toBeGreaterThan(0);
     expect(screen.getByText('child route')).toBeInTheDocument();
   });
 
@@ -116,8 +118,9 @@ describe('track-record subroutes', () => {
   it('renders performance statistics', () => {
     render(<PerformancePage />);
     expect(screen.getByText('Key Statistics')).toBeInTheDocument();
-    expect(screen.getByText('Worst Day')).toBeInTheDocument();
-    expect(screen.getByText('Time Underwater')).toBeInTheDocument();
+    // MetricsRow and the stat cards render the same labels by design.
+    expect(screen.getAllByText('Worst Day').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Time Underwater').length).toBeGreaterThan(0);
   });
 
   it('renders empty and populated position states', () => {
@@ -128,6 +131,9 @@ describe('track-record subroutes', () => {
     expect(screen.queryByText('Position Details')).toBeNull();
     empty.unmount();
 
+    // The first mock set latestSnapshot to null and persists until replaced;
+    // restore the default populated snapshot for the non-empty assertion.
+    useTrackRecord.mockReturnValue(state());
     render(<PositionsPage />);
     expect(screen.getByText('Position Details')).toBeInTheDocument();
     expect(screen.getAllByText('Pricing Source').length).toBeGreaterThan(0);
@@ -142,7 +148,10 @@ describe('track-record subroutes', () => {
     }));
     useTrackRecord.mockReturnValue(state({ snapshots: without }));
     const empty = render(<RebalancesPage />);
-    expect(screen.getByText('No rebalances recorded yet.')).toBeInTheDocument();
+    // The meta paragraph and RebalanceTable empty state render the same copy.
+    expect(
+      screen.getAllByText('No rebalances recorded yet.').length,
+    ).toBeGreaterThanOrEqual(2);
     empty.unmount();
 
     const one = [
