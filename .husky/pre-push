@@ -2,8 +2,13 @@
 # Pre-push hook: does not run the full gate by default.
 # Heavy checks are handled by CI and by the local gate (scripts/verify-jobs.sh,
 # scripts/verify-ci-parallel.sh).
-# Desktop packaging is the exception: when pushed commits touch the desktop app
-# or package inputs, run the DMG package gate unless explicitly skipped.
+# Desktop packaging is the exception: no CI job packages the Electron app (that
+# needs a macOS runner), so this hook is the only rail for it. It is scoped to
+# the packaging-sensitive inputs documented in apps/desktop/AGENTS.md. Everything
+# else that used to trigger it is already covered: CI's e2e job builds the app
+# web export, and desktop type-check/lint/test/deadcode/dup run in the
+# code-quality and tests jobs. Only the esbuild main/preload bundle and the
+# electron-builder config are uncovered.
 #
 # Use manually before opening PR if needed:
 #   pnpm verify branch
@@ -40,7 +45,7 @@ while read -r local_ref local_sha remote_ref remote_sha; do
 
   for path in $changed_files; do
     case "$path" in
-      apps/desktop/*|packages/app-core/*|packages/types/*|package.json|pnpm-lock.yaml|pnpm-workspace.yaml|turbo.json)
+      apps/desktop/src/main/*|apps/desktop/src/preload/*|apps/desktop/scripts/build.mjs|apps/desktop/electron-builder.yml)
         desktop_changed=1
         ;;
     esac

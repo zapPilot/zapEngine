@@ -1,24 +1,46 @@
 #!/usr/bin/env sh
-# Pre-commit hook: fast feedback only.
-# Runs lint-staged + drift checks on staged files. CI is the real gate.
+# Pre-commit hook: fast feedback only. CI is the real gate.
+#
+# Everything here is staged-scoped except `lint repo` and `lint-staged`, which
+# cost a few seconds between them. The expensive checks run only when the staged
+# diff can actually break them — `lint dead-env` in particular used to run on
+# every commit and accounted for almost all of this hook's runtime.
 # To run the full local gate manually before pushing: `pnpm verify`.
 set -eu
 
-# Keep deps in sync; near-instant when lockfile hasn't changed.
-pnpm install --frozen-lockfile --prefer-offline --ignore-scripts
+staged_paths=$(git diff --cached --name-only)
 
-# Auto-sync strategy snapshot mirror (analytics-engine fixture -> landing-page data)
-# so the strict drift check in lint:repo will pass.
-pnpm lint snapshot-sync --fix
-git add apps/landing-page/src/data/strategy-snapshot.json
+# Keep node_modules matching the lockfile this commit is publishing, so
+# lint-staged resolves the same plugin versions CI will.
+if printf '%s\n' "$staged_paths" | grep -qE '^((apps|packages)/[^/]+/)?package\.json$|^pnpm-lock\.yaml$|^pnpm-workspace\.yaml$'; then
+  pnpm install --frozen-lockfile --prefer-offline --ignore-scripts
+fi
+
+# Auto-sync strategy snapshot mirror (analytics-engine fixture -> landing-page
+# data) so the strict drift check in lint:repo will pass. scripts/lint/
+# snapshot-sync.ts reads only these two files, so nothing else can drift them.
+if printf '%s\n' "$staged_paths" | grep -qE '^(apps/analytics-engine/tests/fixtures/strategy_performance_snapshot_500d|apps/landing-page/src/data/strategy-snapshot)\.json$'; then
+  pnpm lint snapshot-sync --fix
+  git add apps/landing-page/src/data/strategy-snapshot.json
+fi
+
 pnpm lint repo
-pnpm lint dead-env
 
 # Merging main applies config/env to production, so a manifest that cannot pass
 # its own offline audit must not reach a PR. Diff-scoped because this is the
 # only class of staged change the audit can fail on.
-if git diff --cached --name-only | grep -qE '^config/env(/|\.)'; then
+if printf '%s\n' "$staged_paths" | grep -qE '^config/env(/|\.)'; then
   pnpm env:status --offline
+fi
+
+# The env registry audit is by far the most expensive check here. It can only
+# fail on a manifest change, on its own tooling, or on a source env reference
+# being added (orphan) or removed (leaving a key dead) — so test the staged diff
+# for exactly those. The fly.toml part of the audit is warning-only and cannot
+# fail the check, so fly.toml alone does not trigger it.
+if printf '%s\n' "$staged_paths" | grep -qE '^config/env(/|\.)|^scripts/env/|^scripts/ops-lib' ||
+  git diff --cached -U0 | grep -qE '^[+-][^+-].*(process\.env\.|import\.meta\.env\.|os\.environ|os\.getenv)'; then
+  pnpm lint dead-env
 fi
 
 pnpm lint-staged

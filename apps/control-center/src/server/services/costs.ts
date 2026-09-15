@@ -236,6 +236,8 @@ function staticUnconfiguredSource(
     costType,
     configured: false,
     pricingRateId: null,
+    // v8 ignore next -- loadSource returns early for unconfigured sources, so
+    // this rejection is never invoked; it only satisfies the CostSource type.
     load: () => Promise.reject(new Error('Not connected')),
   };
 }

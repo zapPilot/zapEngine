@@ -69,37 +69,16 @@ is_declared_var() {
 }
 
 # ── Helper: check if var exists in any app's source ─────────────────────────
-# var_in_apps <var-name> returns list of apps that reference the var
+# var_in_apps <var-name> returns list of apps that reference the var.
+# Backed by the token index built in build_token_index() — a lookup, not a scan.
 check_var_in_apps() {
   local var="$1"
-  local lower_var
-  lower_var=$(tr '[:upper:]' '[:lower:]' <<< "$var")
-  local unprefixed_lower_var="${lower_var#analytics_}"
-  local found_in=()
+  local found_in
 
-  # Check each app's source
-  for entry in "${APP_REGISTRY[@]}"; do
-    IFS='|' read -r base_dir app_name src_subdir exts <<< "$entry"
-    local src_dir="$base_dir/$app_name/$src_subdir"
+  found_in=$(awk -F'\t' -v token="$var" '$1 == token { printf "%s%s", sep, $2; sep = " " }' "$TOKEN_INDEX")
 
-    # Skip if src dir doesn't exist
-    [ -d "$src_dir" ] || continue
-
-    # Build include args for this app's extensions
-    local include_args=()
-    for ext in $exts; do
-      include_args+=("--include=*.$ext")
-    done
-
-    # Check if var exists in this app's source
-    if grep -rqw "$var" "${include_args[@]}" "$src_dir" 2>/dev/null ||
-      { [[ " $exts " == *" py "* ]] && grep -rqiE "\\b(${lower_var}|${unprefixed_lower_var})\\b" "${include_args[@]}" "$src_dir" 2>/dev/null; }; then
-      found_in+=("$app_name")
-    fi
-  done
-
-  if [ ${#found_in[@]} -gt 0 ]; then
-    printf "%s" "${found_in[*]}"
+  if [ -n "$found_in" ]; then
+    printf "%s" "$found_in"
     return 0
   fi
   return 1
@@ -311,6 +290,86 @@ if [ -z "$declared_vars" ]; then
   printf "${YELLOW}No env vars declared in the manifest${RESET}\n"
   exit 0
 fi
+
+# ── Token index ──────────────────────────────────────────────────────────────
+# check_var_in_apps() used to run one recursive grep per (token, tree) pair.
+# With ~225 declared keys plus their projections over ~16 source trees that is
+# thousands of full-tree scans, and it dominated the pre-commit hook. Scan each
+# tree exactly once against the whole token set instead, then look answers up.
+#
+# The index is TAB-separated `token<TAB>app-name` lines, appended in
+# APP_REGISTRY order so lookups report apps in the same order as before.
+TOKEN_INDEX_DIR=$(mktemp -d)
+trap 'rm -rf "$TOKEN_INDEX_DIR"' EXIT
+
+TOKEN_INDEX="$TOKEN_INDEX_DIR/index"
+token_patterns="$TOKEN_INDEX_DIR/tokens"
+lower_patterns="$TOKEN_INDEX_DIR/lower-tokens"
+lower_map="$TOKEN_INDEX_DIR/lower-map"
+tree_hits="$TOKEN_INDEX_DIR/tree-hits"
+
+build_token_index() {
+  # Declared keys and their projections are both looked up, so both are scanned.
+  { printf '%s\n' "$declared_vars"; printf '%s\n' "$projected_vars"; } \
+    | grep -v '^$' \
+    | sort -u > "$token_patterns"
+
+  # Python sources spell keys as lowercase settings fields, with or without the
+  # analytics_ prefix. Keep a reverse map: stripping the prefix can collapse two
+  # canonical keys onto one lowercase token, so a token maps to 1..n keys.
+  : > "$lower_map"
+  while IFS= read -r token; do
+    lower=$(tr '[:upper:]' '[:lower:]' <<< "$token")
+    printf '%s\t%s\n' "$lower" "$token" >> "$lower_map"
+    printf '%s\t%s\n' "${lower#analytics_}" "$token" >> "$lower_map"
+  done < "$token_patterns"
+  cut -f1 "$lower_map" | sort -u > "$lower_patterns"
+
+  : > "$TOKEN_INDEX"
+
+  for entry in "${APP_REGISTRY[@]}"; do
+    IFS='|' read -r base_dir app_name src_subdir exts <<< "$entry"
+    src_dir="$base_dir/$app_name/$src_subdir"
+
+    [ -d "$src_dir" ] || continue
+
+    include_args=()
+    find_name_args=()
+    first_ext=1
+    for ext in $exts; do
+      include_args+=("--include=*.$ext")
+      [ "$first_ext" = 1 ] || find_name_args+=(-o)
+      first_ext=0
+      find_name_args+=(-name "*.$ext")
+    done
+
+    # No --exclude for tests here: the original whole-word scan counted test
+    # files as references too (unlike check_var_in_app_source below).
+    : > "$tree_hits"
+    grep -rhowF -f "$token_patterns" "${include_args[@]}" "$src_dir" 2>/dev/null \
+      >> "$tree_hits" || true
+
+    if [[ " $exts " == *" py "* ]]; then
+      # Python spells keys in lowercase, so this pass has to be case-insensitive.
+      # `grep -iowF` over a large tree costs ~3x lowercasing the haystack first,
+      # and awk keeps per-file line boundaries so the two agree exactly.
+      find "$src_dir" -type f \( "${find_name_args[@]}" \) \
+        -exec awk '{ print tolower($0) }' {} + 2>/dev/null \
+        | grep -howF -f "$lower_patterns" 2>/dev/null \
+        | awk -F'\t' '
+            NR == FNR { map[$1] = map[$1] " " $2; next }
+            ($0 in map) {
+              n = split(map[$0], keys, " ")
+              for (i = 1; i <= n; i++) if (keys[i] != "") print keys[i]
+            }
+          ' "$lower_map" - >> "$tree_hits" || true
+    fi
+
+    sort -u "$tree_hits" | awk -v app="$app_name" 'NF { print $0 "\t" app }' >> "$TOKEN_INDEX"
+  done
+}
+
+build_token_index
 
 # ── check each var ───────────────────────────────────────────────────────────
 dead_vars=()
