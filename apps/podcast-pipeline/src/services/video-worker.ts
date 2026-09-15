@@ -530,16 +530,23 @@ export function createVideoWorker(
         status: failedJob?.status ?? 'unknown',
         error: videoJobErrorMessage(error),
       });
-      capturePipelineException(error, {
-        component: 'video-visual',
-        tags: { job_status: failedJob?.status ?? 'unknown' },
-        context: {
-          runId,
-          episodeId: job.episode_id,
-          attemptCount: job.attempt_count,
-        },
-        level: jobFailureLevel(failedJob?.status),
-      });
+      if (
+        !wasAbortedByWorkerShutdown(
+          jobController.signal,
+          shutdownController.signal,
+        )
+      ) {
+        capturePipelineException(error, {
+          component: 'video-visual',
+          tags: { job_status: failedJob?.status ?? 'unknown' },
+          context: {
+            runId,
+            episodeId: job.episode_id,
+            attemptCount: job.attempt_count,
+          },
+          level: jobFailureLevel(failedJob?.status),
+        });
+      }
       return 'failed';
     } finally {
       stopHeartbeat();
@@ -713,21 +720,28 @@ export function createVideoWorker(
         status: failedJob?.status ?? 'unknown',
         error: videoJobErrorMessage(error),
       });
-      capturePipelineException(error, {
-        component: 'video-render',
-        correlation: pipelineCorrelation({
-          episodeId: source?.episodeId,
-          localizationId: job.episode_localization_id,
-          renderJobId: job.episode_localization_id,
-        }),
-        tags: { job_status: failedJob?.status ?? 'unknown' },
-        context: {
-          runId,
-          episodeLocalizationId: job.episode_localization_id,
-          attemptCount: job.attempt_count,
-        },
-        level: jobFailureLevel(failedJob?.status),
-      });
+      if (
+        !wasAbortedByWorkerShutdown(
+          jobController.signal,
+          shutdownController.signal,
+        )
+      ) {
+        capturePipelineException(error, {
+          component: 'video-render',
+          correlation: pipelineCorrelation({
+            episodeId: source?.episodeId,
+            localizationId: job.episode_localization_id,
+            renderJobId: job.episode_localization_id,
+          }),
+          tags: { job_status: failedJob?.status ?? 'unknown' },
+          context: {
+            runId,
+            episodeLocalizationId: job.episode_localization_id,
+            attemptCount: job.attempt_count,
+          },
+          level: jobFailureLevel(failedJob?.status),
+        });
+      }
       return 'failed';
     } finally {
       stopHeartbeat();
@@ -1132,6 +1146,24 @@ function formatSeconds(milliseconds: number): string {
 
 function videoJobErrorMessage(error: unknown): string {
   return errorMessage(error).slice(0, 4_000);
+}
+
+/**
+ * Worker shutdown is expected control flow (deploy/restart/idle shutdown), not
+ * an application failure. The job still goes through repository.fail() so its
+ * lease is released and retry state stays durable; only the Sentry issue is
+ * suppressed. Lease-loss and other job-local aborts do not share the worker's
+ * abort reason, so they remain observable.
+ */
+function wasAbortedByWorkerShutdown(
+  jobSignal: AbortSignal,
+  shutdownSignal: AbortSignal,
+): boolean {
+  return (
+    shutdownSignal.aborted &&
+    jobSignal.aborted &&
+    jobSignal.reason === shutdownSignal.reason
+  );
 }
 
 /**

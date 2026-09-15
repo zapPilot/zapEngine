@@ -1,12 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const ledger = vi.hoisted(() => ({ recordPipelineRun: vi.fn() }));
+const sentry = vi.hoisted(() => ({ capturePipelineException: vi.fn() }));
 
 // Only the write is stubbed. renderStageRun stays real so the worker's own
 // pricing of a render is what these tests assert on.
 vi.mock('./ops-ledger.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./ops-ledger.js')>()),
   recordPipelineRun: ledger.recordPipelineRun,
+}));
+
+vi.mock('../observability/sentry.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../observability/sentry.js')>()),
+  capturePipelineException: sentry.capturePipelineException,
 }));
 
 import { createDeferred } from '../__fixtures__/index-test.js';
@@ -261,6 +267,7 @@ describe('createVideoWorker', () => {
     vi.useRealTimers();
     ledger.recordPipelineRun.mockReset();
     ledger.recordPipelineRun.mockResolvedValue(undefined);
+    sentry.capturePipelineException.mockReset();
   });
 
   it('processes one job, persists provenance, completes, and notifies the latest chat', async () => {
@@ -367,6 +374,10 @@ describe('createVideoWorker', () => {
       'no qualified images',
     );
     expect(repository.claim).not.toHaveBeenCalled();
+    expect(sentry.capturePipelineException).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'no qualified images' }),
+      expect.objectContaining({ component: 'video-visual' }),
+    );
   });
 
   it('flushes only the newest progress report per interval', async () => {
@@ -567,6 +578,53 @@ describe('createVideoWorker', () => {
       'worker-1',
       expect.stringContaining('lease lost'),
     );
+    expect(sentry.capturePipelineException).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.stringContaining('lease lost'),
+      }),
+      expect.objectContaining({ component: 'video-visual' }),
+    );
+  });
+
+  it('does not report a visual job aborted by worker shutdown to Sentry', async () => {
+    const visualRepository = makeVisualRepository(visualJob());
+    vi.mocked(visualRepository.fail).mockResolvedValue(
+      visualJob({
+        status: 'queued',
+        lease_owner: null,
+        lease_expires_at: null,
+      }),
+    );
+    const processVisualJob: ProcessEpisodeVideoVisualJob = vi.fn(
+      (_job, _source, context) =>
+        new Promise<EpisodeVideoVisualCompletion>((_resolve, reject) => {
+          context.signal.addEventListener(
+            'abort',
+            // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+            () => reject(context.signal.reason),
+            { once: true },
+          );
+        }),
+    );
+    const worker = createVideoWorker({
+      repository: makeRepository(null),
+      visualRepository,
+      processJob: vi.fn(),
+      processVisualJob,
+      leaseOwner: 'worker-1',
+    });
+
+    const running = worker.runOnce();
+    await vi.waitFor(() => expect(processVisualJob).toHaveBeenCalledOnce());
+    await worker.stop(new Error('deploy shutdown'));
+
+    await expect(running).resolves.toBe('failed');
+    expect(visualRepository.fail).toHaveBeenCalledWith(
+      'episode-1',
+      'worker-1',
+      'deploy shutdown',
+    );
+    expect(sentry.capturePipelineException).not.toHaveBeenCalled();
   });
 
   it('treats a false visual completion update as a lost lease', async () => {
@@ -919,6 +977,8 @@ describe('createVideoWorker', () => {
     expect(aborted).toEqual(['localization-1', 'localization-2']);
     await expect(first).resolves.toBe('failed');
     await expect(second).resolves.toBe('failed');
+    expect(repository.fail).toHaveBeenCalledTimes(2);
+    expect(sentry.capturePipelineException).not.toHaveBeenCalled();
   });
 
   it('reports busy, never empty, while another job still holds a slot', async () => {
@@ -1049,6 +1109,10 @@ describe('createVideoWorker', () => {
     // Failing the job does not notify inline — it only releases the row.
     await expect(worker.runOnce()).resolves.toBe('failed');
     expect(notify).not.toHaveBeenCalled();
+    expect(sentry.capturePipelineException).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'render failed' }),
+      expect.objectContaining({ component: 'video-render' }),
+    );
 
     // The next poll's reap sweep delivers the failure notice, then records it
     // only after the send resolves. This also covers crash-recovery and
