@@ -11,7 +11,7 @@ import {
   normalizeActivityWallets,
   normalizeWalletAddressList,
 } from '@/integration/moralisWallet';
-import { DEFAULT_ARBITRUM_FUNDING_TOKEN } from '@/integration/depositTokens';
+import { ARBITRUM_DEPOSIT_TOKENS } from '@/integration/depositTokens';
 import { balanceForFundingToken } from '@/integration/investAmountModel';
 
 function balances(
@@ -243,9 +243,7 @@ describe('Moralis desktop wallet mapping', () => {
     );
 
     expect(rows).toHaveLength(1);
-    expect(
-      balanceForFundingToken(rows, DEFAULT_ARBITRUM_FUNDING_TOKEN),
-    ).toEqual(
+    expect(balanceForFundingToken(rows, ARBITRUM_DEPOSIT_TOKENS[0])).toEqual(
       expect.objectContaining({
         chainId: 42161,
         tokenAddress: '0xaf88d065e77c8cc2239327c5edb3a432268e5831',

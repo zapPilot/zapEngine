@@ -1,201 +1,121 @@
 import { useRouter } from 'expo-router';
-import { Info } from 'lucide-react-native';
 import { useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
-
 import { CONNECT_WALLET_CTA } from '@/components/connect/connectCopy';
 import { CONNECTING_LABEL } from '@/components/connect/connectGateCopy';
-import { AllocationWeightRow } from '@/components/invest/AllocationWeightRow';
-import { FundingSourceSelector } from '@/components/invest/FundingSourceSelector';
-import { HlpAutoSourceCard } from '@/components/invest/HlpAutoSourceCard';
 import { QuickAmountChips } from '@/components/invest/QuickAmountChips';
 import { StepHeader } from '@/components/invest/StepHeader';
 import { StepProgress } from '@/components/invest/StepProgress';
-import { SwapArrowDivider } from '@/components/invest/SwapArrowDivider';
+import { SectorAllocationBar } from '@/components/invest/SectorAllocationBar';
+import { SectorCard } from '@/components/invest/SectorCard';
+import { FundingPlanDisclosure } from '@/components/invest/FundingPlanDisclosure';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { Tap } from '@/components/ui/Tap';
 import { isDevBuild } from '@/config/appCoreEnv';
 import {
-  ARBITRUM_DEPOSIT_TOKENS,
-  BASE_DEPOSIT_TOKENS,
-} from '@/integration/depositTokens';
-import {
-  amountInputToUsd6,
-  amountUsdFromInput,
-  balanceForFundingToken,
-  fundingTokenAmountFromUsd,
-  maxUsdAmountInput,
   normalizeAmountInput,
   quickAmountUsdInput,
 } from '@/integration/investAmountModel';
 import {
   bpsToPercentInput,
-  buildStageDrafts,
-  gmxBasketBudgetTooSmall,
-  GMX_BASKET_EXECUTION_FEE_LABEL,
-  INVEST_POSITIONS,
-  isValidTargetAllocation,
   normalizePercentInput,
   percentInputToBps,
-  requiredChainsUnavailable,
-  selectHlpFundingSource,
-  targetMaxTotalUsd,
   targetMinimumUsd6,
   targetUsd6Shares,
-  weightBpsFor,
-  type InvestPositionId,
 } from '@/integration/investTargetsModel';
+import {
+  INVEST_SECTORS,
+  isDefaultSectorWeights,
+  sectorUsd6Shares,
+  type InvestSectorId,
+} from '@/integration/investSectorModel';
+import {
+  planFunding,
+  fundingCapacityUsd6,
+  unavailableChainIds,
+  unavailableFundingChains,
+  fundingBlockerMessage,
+  NATIVE_GAS_RESERVE_USD,
+} from '@/integration/investFundingPlanner';
 import { requestAccountConnection } from '@/integration/requestAccountConnection';
 import { useAccount } from '@/integration/useAccount';
 import { useInvest } from '@/integration/useInvest';
 import { useWalletAssets } from '@/integration/walletTokens';
-import { formatUsd } from '@/lib/format';
-
-type FundingBalanceState = 'loading' | 'unavailable' | 'loaded';
-
-function fundingBalanceState({
-  isConnected,
-  chainUnavailable,
-  isLoading,
-}: {
-  isConnected: boolean;
-  chainUnavailable: boolean;
-  isLoading: boolean;
-}): FundingBalanceState {
-  if (!isConnected || chainUnavailable) return 'unavailable';
-  return isLoading ? 'loading' : 'loaded';
-}
+import { formatUsd6 } from '@/lib/format';
 
 export function InvestAmountScreen() {
   const router = useRouter();
   const account = useAccount();
   const invest = useInvest();
   const balances = useWalletAssets(account.address);
-  // The editor owns its own text so a half-typed "12." is not rounded away on
-  // every keystroke; committed values live in the invest context as bps.
-  const [percentEdits, setPercentEdits] = useState<
-    Partial<Record<InvestPositionId, string>>
-  >({});
-
-  const allocations = invest.targetAllocations;
-  const allocationValid = isValidTargetAllocation(allocations);
-  const allocationTotalBps = allocations.reduce(
-    (total, entry) => total + entry.weightBps,
-    0,
-  );
-  const morphoBps = weightBpsFor(allocations, 'morpho-base');
-  const gmxBps = weightBpsFor(allocations, 'gmx-arbitrum');
-  const hlpBps = weightBpsFor(allocations, 'hlp');
-
-  const baseBalance = balanceForFundingToken(
-    balances.chainRows,
-    invest.baseFundingToken,
-  );
-  const arbitrumBalance = balanceForFundingToken(
-    balances.chainRows,
-    invest.arbitrumFundingToken,
-  );
-  const maxTotalUsd = targetMaxTotalUsd({
-    allocations,
-    baseFundingToken: invest.baseFundingToken,
-    arbitrumFundingToken: invest.arbitrumFundingToken,
+  const [percentEdit, setPercentEdit] = useState<{
+    sectorId: InvestSectorId;
+    text: string;
+  } | null>(null);
+  const supply = {
     rows: balances.chainRows,
+    unavailableChainIds: unavailableChainIds(balances.failedChains),
+  };
+  const constraints = {
+    overrides: invest.fundingOverrides,
+    gasReserveUsd: NATIVE_GAS_RESERVE_USD,
+  };
+  const minimumUsd6 = targetMinimumUsd6(invest.targetAllocations);
+  const amountUsd6 = BigInt(invest.totalUsd6);
+  const capacityUsd6 = fundingCapacityUsd6({
+    allocations: invest.targetAllocations,
+    supply,
+    constraints,
   });
-  const amountUsd = amountUsdFromInput(invest.amountInput);
-  const amountUsd6 = BigInt(amountInputToUsd6(invest.amountInput));
-  const minimumDepositUsd6 = targetMinimumUsd6(allocations);
-  const maxAmountInput =
-    maxTotalUsd === null ? '' : maxUsdAmountInput(maxTotalUsd);
-  const maxUsd6 = BigInt(amountInputToUsd6(maxAmountInput));
-  const exceedsBalance =
-    maxTotalUsd !== null && amountUsd6 > 0n && amountUsd6 > maxUsd6;
-  const chainUnavailable = requiredChainsUnavailable(
-    allocations,
-    balances.failedChains,
-    balances.isError,
-  );
-
-  const shares =
-    amountUsd6 > 0n
-      ? targetUsd6Shares(amountUsd6.toString(), allocations)
-      : null;
-  const hlpFunding = shares
-    ? selectHlpFundingSource({
-        shares,
-        baseFundingToken: invest.baseFundingToken,
-        arbitrumFundingToken: invest.arbitrumFundingToken,
-        rows: balances.chainRows,
-      })
-    : null;
-  const hlpFundingUnavailable = hlpBps > 0 && shares !== null && !hlpFunding;
-
-  const stageDrafts = buildStageDrafts({
-    totalUsd6: amountUsd6.toString(),
-    allocations,
-    baseFundingToken: invest.baseFundingToken,
-    arbitrumFundingToken: invest.arbitrumFundingToken,
-    rows: balances.chainRows,
+  const plan = planFunding({
+    demand: {
+      totalUsd6: amountUsd6 > 0n ? invest.totalUsd6 : minimumUsd6.toString(),
+      allocations: invest.targetAllocations,
+    },
+    supply,
+    constraints,
   });
-  const gmxBudgetTooSmall = (stageDrafts ?? []).some(gmxBasketBudgetTooSmall);
-
+  const chainUnavailable =
+    balances.isError ||
+    unavailableFundingChains(
+      invest.targetAllocations,
+      supply.unavailableChainIds,
+      invest.fundingOverrides,
+    );
   const canReview =
     account.isConnected &&
-    allocationValid &&
-    !chainUnavailable &&
     !balances.isLoading &&
-    amountUsd6 >= minimumDepositUsd6 &&
-    !exceedsBalance &&
-    !gmxBudgetTooSmall &&
-    stageDrafts !== null &&
-    maxTotalUsd !== null &&
-    maxUsd6 > 0n;
+    !chainUnavailable &&
+    amountUsd6 >= minimumUsd6 &&
+    capacityUsd6 !== null &&
+    amountUsd6 <= capacityUsd6 &&
+    plan.stages !== null;
   const quickAmountsDisabled =
     !account.isConnected ||
-    !allocationValid ||
-    maxTotalUsd === null ||
-    maxUsd6 <= 0n ||
     balances.isLoading ||
-    chainUnavailable;
+    chainUnavailable ||
+    capacityUsd6 === null ||
+    capacityUsd6 <= 0n;
   const availableLabel = balances.isLoading
     ? 'Loading balances…'
     : chainUnavailable || !account.isConnected
       ? 'Available —'
-      : maxTotalUsd === null
+      : capacityUsd6 === null
         ? 'Available — · USD price unavailable'
-        : `Available ${formatUsd(maxTotalUsd)}`;
-
-  const baseTokenAmount = fundingTokenAmountFromUsd(
-    amountUsd,
-    morphoBps,
-    invest.baseFundingToken,
-    baseBalance,
-  );
-  const arbitrumTokenAmount = fundingTokenAmountFromUsd(
-    amountUsd,
-    gmxBps,
-    invest.arbitrumFundingToken,
-    arbitrumBalance,
-  );
-  const baseBalanceState = fundingBalanceState({
-    isConnected: account.isConnected,
-    chainUnavailable:
-      balances.isError || balances.failedChains.includes('base'),
-    isLoading: balances.isLoading,
-  });
-  const arbitrumBalanceState = fundingBalanceState({
-    isConnected: account.isConnected,
-    chainUnavailable:
-      balances.isError || balances.failedChains.includes('arbitrum'),
-    isLoading: balances.isLoading,
-  });
-
-  const handlePercentChange = (positionId: InvestPositionId, raw: string) => {
-    const normalized = normalizePercentInput(raw);
-    setPercentEdits((current) => ({ ...current, [positionId]: normalized }));
-    invest.setTargetWeight(positionId, percentInputToBps(normalized));
-  };
-
+        : `Available ${formatUsd6(capacityUsd6)}`;
+  const amountNotice =
+    amountUsd6 <= 0n
+      ? null
+      : amountUsd6 < minimumUsd6
+        ? `Enter at least ${formatUsd6(minimumUsd6)} so every position clears its own minimum.`
+        : capacityUsd6 !== null && amountUsd6 > capacityUsd6
+          ? 'This amount is more than your wallet can fund right now.'
+          : plan.blockers[0]
+            ? fundingBlockerMessage(plan.blockers[0])
+            : null;
+  const sectorShares = sectorUsd6Shares(invest.totalUsd6, invest.sectorWeights);
+  const shares = targetUsd6Shares(invest.totalUsd6, invest.targetAllocations);
   const handlePrimaryAction = () => {
     if (!account.isConnected) {
       requestAccountConnection(account);
@@ -205,11 +125,10 @@ export function InvestAmountScreen() {
       void balances.refetch();
       return;
     }
-    if (!canReview || !stageDrafts) return;
-    invest.setStageDrafts(stageDrafts);
+    if (!canReview || !plan.stages) return;
+    invest.setStageDrafts(plan.stages);
     router.push('/invest/route');
   };
-
   const primaryLabel = !account.isConnected
     ? account.isConnecting
       ? CONNECTING_LABEL
@@ -219,42 +138,18 @@ export function InvestAmountScreen() {
       : balances.isLoading
         ? 'Loading balances…'
         : 'Preview investment';
-
-  const amountNotice = !allocationValid
-    ? `Allocation must total 100%. Current total: ${(allocationTotalBps / 100)
-        .toFixed(2)
-        .replace(/\.00$/u, '')}%.`
-    : amountUsd6 > 0n && amountUsd6 < minimumDepositUsd6
-      ? `Enter at least ${formatUsd(
-          Number(minimumDepositUsd6) / 1_000_000,
-        )} so every destination clears its own minimum.`
-      : gmxBudgetTooSmall
-        ? `Enter more than ${GMX_BASKET_EXECUTION_FEE_LABEL} for the GMX share — the four keeper fees come out of your ETH amount.`
-        : exceedsBalance
-          ? 'This amount exceeds the capacity of the selected wallet funding sources.'
-          : hlpFundingUnavailable
-            ? 'No single Ethereum, Base, or Arbitrum source can fully fund the HLP share once the other destinations are reserved.'
-            : chainUnavailable
-              ? 'Base or Arbitrum balances are unavailable. Retry to continue.'
-              : maxTotalUsd === null &&
-                  account.isConnected &&
-                  !balances.isLoading
-                ? 'Live ETH pricing is unavailable, so exact funding amounts cannot be frozen yet.'
-                : null;
-
   return (
     <ScreenScrollView>
       <StepHeader title="Invest" step="Step 1 of 2" />
       <StepProgress current={1} />
       <View className="px-5 pt-5">
         <Text className="font-serif text-[28px] leading-[32px] text-ink">
-          Invest in one flow
+          How much do you want to invest?
         </Text>
         <Text className="mt-2 text-[12.5px] leading-[19px] text-ink-dim">
-          Enter one amount and your target weights. Zap Pilot resolves the
-          required swaps, bridges, deposits, and the HLP follow-up.
+          Pick an amount and a mix. Zap Pilot handles the rest — you review
+          everything before anything is signed.
         </Text>
-
         <View className="mt-5 rounded-[22px] border border-line bg-[#111113] p-4">
           <View className="flex-row items-center justify-between">
             <Text className="text-[11px] text-ink-dim">You invest</Text>
@@ -288,118 +183,73 @@ export function InvestAmountScreen() {
             disabled={quickAmountsDisabled}
             maxAccessibilityLabel="Use maximum investment supported by current balances"
             onSelect={(bps) =>
-              invest.setAmountInput(quickAmountUsdInput(maxTotalUsd, bps))
+              invest.setAmountInput(quickAmountUsdInput(capacityUsd6, bps))
             }
           />
         </View>
 
-        <View className="mt-4 rounded-[20px] border border-[rgba(212,197,163,.22)] bg-[rgba(212,197,163,.055)] px-4 pt-4">
-          <View className="flex-row items-start justify-between pb-3">
-            <View className="min-w-0 flex-1 pr-4">
-              <Text className="font-sans-semibold text-[14px] text-accent">
-                Balanced Yield
-              </Text>
-              <Text className="mt-1 text-[10.5px] leading-4 text-ink-dim">
-                Edit the target mix. Zero disables a destination for this
-                investment.
-              </Text>
-            </View>
+        <View className="mt-5 flex-row items-center justify-between">
+          <Text className="font-sans-semibold text-[16px] text-ink">
+            Your mix
+          </Text>
+          {!isDefaultSectorWeights(invest.sectorWeights) ? (
             <Tap
               accessibilityRole="button"
-              accessibilityLabel="Reset allocation to the default mix"
-              className="rounded-full border border-[rgba(212,197,163,.25)] px-2.5 py-1"
+              accessibilityLabel="Reset to the recommended mix"
               onPress={() => {
-                setPercentEdits({});
-                invest.resetTargetAllocations();
+                setPercentEdit(null);
+                invest.resetSectorWeights();
               }}
             >
-              <Text className="font-sans-semibold text-[9px] uppercase tracking-[.6px] text-accent">
-                Reset
-              </Text>
+              <Text className="text-[11px] text-accent">Reset</Text>
             </Tap>
-          </View>
-          {INVEST_POSITIONS.map((position) => (
-            <AllocationWeightRow
-              key={position.id}
-              title={position.label}
-              detail={position.detail}
+          ) : null}
+        </View>
+        <Text className="mt-2 text-[11px] text-ink-dim">
+          Recommended 60 / 40. Adjust one sector and the rest rebalances.
+        </Text>
+        <SectorAllocationBar weights={invest.sectorWeights} />
+        <View className="gap-3">
+          {INVEST_SECTORS.map((sector) => (
+            <SectorCard
+              key={sector.id}
+              sector={sector}
+              totalUsd6={amountUsd6 > 0n ? sectorShares[sector.id] : null}
               percentInput={
-                percentEdits[position.id] ??
-                bpsToPercentInput(weightBpsFor(allocations, position.id))
+                percentEdit?.sectorId === sector.id
+                  ? percentEdit.text
+                  : bpsToPercentInput(invest.sectorWeights[sector.id])
               }
-              onChangePercent={(value) =>
-                handlePercentChange(position.id, value)
-              }
+              positions={sector.positions.map((p) => ({
+                ...p,
+                usd6: shares?.[p.positionId] ?? null,
+              }))}
+              onChangePercent={(raw) => {
+                const text = normalizePercentInput(raw);
+                setPercentEdit({ sectorId: sector.id, text });
+                invest.setSectorWeight(sector.id, percentInputToBps(text));
+              }}
+              onBlurPercent={() => setPercentEdit(null)}
             />
           ))}
         </View>
-
-        <SwapArrowDivider />
-
-        <Text className="mb-2 font-mono-semibold text-[9px] uppercase tracking-[.8px] text-ink-faint">
-          Auto funding
-        </Text>
-        <View className="gap-2">
-          {morphoBps > 0 ? (
-            <FundingSourceSelector
-              chainKey="base"
-              allocation={`${morphoBps / 100}%`}
-              protocol="morpho"
-              venue="Morpho USDC vault"
-              tokens={BASE_DEPOSIT_TOKENS}
-              token={invest.baseFundingToken}
-              tokenAmount={baseTokenAmount}
-              hasAmount={amountUsd !== null}
-              allocatedUsd={(amountUsd ?? 0) * (morphoBps / 10_000)}
-              balance={baseBalance}
-              balanceState={baseBalanceState}
-              rows={balances.chainRows}
-              onSelectToken={invest.setBaseFundingToken}
-            />
-          ) : null}
-          {gmxBps > 0 ? (
-            <FundingSourceSelector
-              chainKey="arbitrum"
-              allocation={`${gmxBps / 100}%`}
-              protocol="gmx-v2"
-              venue="Diversified GM basket"
-              tokens={ARBITRUM_DEPOSIT_TOKENS}
-              token={invest.arbitrumFundingToken}
-              tokenAmount={arbitrumTokenAmount}
-              hasAmount={amountUsd !== null}
-              allocatedUsd={(amountUsd ?? 0) * (gmxBps / 10_000)}
-              balance={arbitrumBalance}
-              balanceState={arbitrumBalanceState}
-              rows={balances.chainRows}
-              onSelectToken={invest.setArbitrumFundingToken}
-            />
-          ) : null}
-          {hlpBps > 0 ? (
-            <HlpAutoSourceCard
-              weightBps={hlpBps}
-              funding={hlpFunding}
-              hasAmount={amountUsd6 > 0n}
-            />
-          ) : null}
-        </View>
-
-        <View className="mt-3 flex-row items-start gap-2 rounded-xl bg-[rgba(212,197,163,.055)] px-3 py-2.5">
-          <Info size={14} color="#9a8f78" style={{ marginTop: 1 }} />
-          <Text className="flex-1 text-[10.5px] leading-[15px] text-[#9a8f78]">
-            Each destination is its own reviewed wallet batch. HLP funded from
-            Arbitrum USDC goes straight into Hyperliquid&apos;s Bridge2 escrow;
-            Base or Ethereum funding bridges to Hyperliquid through LI.FI in one
-            batch. The vault deposit itself is signed by your approved
-            Hyperliquid agent.
-          </Text>
-        </View>
-
+        <FundingPlanDisclosure
+          plan={plan}
+          hasAmount={amountUsd6 > 0n}
+          isConnected={account.isConnected}
+          hasOverrides={Object.keys(invest.fundingOverrides).length > 0}
+          onChangeSource={invest.setFundingOverride}
+          onUseRecommended={invest.clearFundingOverrides}
+          onOpenHlpSpotDeposit={() => router.push('/invest/hlp-deposit')}
+        />
         {amountNotice ? (
-          <Text className="mt-3 px-1 text-[11px] leading-4 text-error">
+          <Text
+            accessibilityRole="alert"
+            className="mt-3 text-[11px] text-error"
+          >
             {amountNotice}
           </Text>
         ) : null}
-
         <PrimaryButton
           className="mt-4"
           disabled={
@@ -410,7 +260,6 @@ export function InvestAmountScreen() {
         >
           {primaryLabel}
         </PrimaryButton>
-
         {isDevBuild() ? (
           <Tap
             accessibilityRole="link"

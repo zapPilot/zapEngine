@@ -1,4 +1,12 @@
 import {
+  DEFAULT_SECTOR_WEIGHTS,
+  rebalanceSectorWeights,
+  resolveTargetAllocations,
+  type SectorWeights,
+  type InvestSectorId,
+} from '@/integration/investSectorModel';
+import type { FundingOverrides } from '@/integration/investFundingPlanner';
+import {
   createContext,
   type ReactNode,
   useCallback,
@@ -7,17 +15,12 @@ import {
   useState,
 } from 'react';
 
-import {
-  DEFAULT_ARBITRUM_FUNDING_TOKEN,
-  DEFAULT_BASE_FUNDING_TOKEN,
-  type DesktopDepositToken,
-} from '@/integration/depositTokens';
+import { type DesktopDepositToken } from '@/integration/depositTokens';
 import {
   amountInputToUsd6,
   amountUsdFromInput,
 } from '@/integration/investAmountModel';
 import {
-  DEFAULT_TARGET_ALLOCATIONS,
   type InvestPositionId,
   type StageDraft,
   type TargetAllocation,
@@ -41,12 +44,15 @@ export interface InvestContextValue {
   totalUsd6: string;
   /** Target weights per destination; always one entry per `INVEST_POSITIONS`. */
   targetAllocations: readonly TargetAllocation[];
-  setTargetWeight: (positionId: InvestPositionId, weightBps: number) => void;
-  resetTargetAllocations: () => void;
-  baseFundingToken: DesktopDepositToken;
-  setBaseFundingToken: (value: DesktopDepositToken) => void;
-  arbitrumFundingToken: DesktopDepositToken;
-  setArbitrumFundingToken: (value: DesktopDepositToken) => void;
+  sectorWeights: SectorWeights;
+  setSectorWeight: (sectorId: InvestSectorId, weightBps: number) => void;
+  resetSectorWeights: () => void;
+  fundingOverrides: FundingOverrides;
+  setFundingOverride: (
+    positionId: InvestPositionId,
+    token: DesktopDepositToken | null,
+  ) => void;
+  clearFundingOverrides: () => void;
   /** Stages frozen when the user leaves step 1; the review step reads only these. */
   stageDrafts: readonly StageDraft[];
   setStageDrafts: (value: readonly StageDraft[]) => void;
@@ -77,14 +83,15 @@ function withFreezeClear<T>(
  */
 export function InvestProvider({ children }: { children: ReactNode }) {
   const [amountInput, setAmountInputState] = useState('');
-  const [targetAllocations, setTargetAllocations] = useState<
-    readonly TargetAllocation[]
-  >(DEFAULT_TARGET_ALLOCATIONS);
+  const [sectorWeights, setSectorWeights] = useState(DEFAULT_SECTOR_WEIGHTS);
+  const targetAllocations = useMemo(
+    () => resolveTargetAllocations(sectorWeights),
+    [sectorWeights],
+  );
+  const [fundingOverrides, setFundingOverrides] = useState<FundingOverrides>(
+    {},
+  );
   const amountUsd = amountUsdFromInput(amountInput) ?? 0;
-  const [baseFundingToken, setBaseFundingTokenState] =
-    useState<DesktopDepositToken>(DEFAULT_BASE_FUNDING_TOKEN);
-  const [arbitrumFundingToken, setArbitrumFundingTokenState] =
-    useState<DesktopDepositToken>(DEFAULT_ARBITRUM_FUNDING_TOKEN);
   const [stageDrafts, setStageDraftsState] = useState<readonly StageDraft[]>(
     [],
   );
@@ -102,38 +109,36 @@ export function InvestProvider({ children }: { children: ReactNode }) {
       withFreezeClear(setAmountInputState, clearFrozenExecution, value),
     [clearFrozenExecution],
   );
-  const setTargetWeight = useCallback(
-    (positionId: InvestPositionId, weightBps: number) => {
-      setTargetAllocations((current) =>
-        current.map((entry) =>
-          entry.positionId === positionId ? { ...entry, weightBps } : entry,
-        ),
-      );
+  const setSectorWeight = useCallback(
+    (id: InvestSectorId, bps: number) => {
+      setSectorWeights((current) => rebalanceSectorWeights(current, id, bps));
       clearFrozenExecution();
     },
     [clearFrozenExecution],
   );
-  const resetTargetAllocations = useCallback(
+  const resetSectorWeights = useCallback(
     () =>
       withFreezeClear(
-        setTargetAllocations,
+        setSectorWeights,
         clearFrozenExecution,
-        DEFAULT_TARGET_ALLOCATIONS,
+        DEFAULT_SECTOR_WEIGHTS,
       ),
     [clearFrozenExecution],
   );
-  const setBaseFundingToken = useCallback(
-    (value: DesktopDepositToken) =>
-      withFreezeClear(setBaseFundingTokenState, clearFrozenExecution, value),
+  const setFundingOverride = useCallback(
+    (id: InvestPositionId, token: DesktopDepositToken | null) => {
+      setFundingOverrides((current) => {
+        const next = { ...current };
+        if (token) next[id] = token;
+        else delete next[id];
+        return next;
+      });
+      clearFrozenExecution();
+    },
     [clearFrozenExecution],
   );
-  const setArbitrumFundingToken = useCallback(
-    (value: DesktopDepositToken) =>
-      withFreezeClear(
-        setArbitrumFundingTokenState,
-        clearFrozenExecution,
-        value,
-      ),
+  const clearFundingOverrides = useCallback(
+    () => withFreezeClear(setFundingOverrides, clearFrozenExecution, {}),
     [clearFrozenExecution],
   );
 
@@ -144,12 +149,12 @@ export function InvestProvider({ children }: { children: ReactNode }) {
       setAmountInput,
       totalUsd6: amountInputToUsd6(amountInput),
       targetAllocations,
-      setTargetWeight,
-      resetTargetAllocations,
-      baseFundingToken,
-      setBaseFundingToken,
-      arbitrumFundingToken,
-      setArbitrumFundingToken,
+      sectorWeights,
+      setSectorWeight,
+      resetSectorWeights,
+      fundingOverrides,
+      setFundingOverride,
+      clearFundingOverrides,
       stageDrafts,
       setStageDrafts: setStageDraftsState,
       hyperCoreFundingDraft,
@@ -158,17 +163,17 @@ export function InvestProvider({ children }: { children: ReactNode }) {
       setHlpBaselineUsd6,
     }),
     [
+      sectorWeights,
+      setSectorWeight,
+      resetSectorWeights,
+      fundingOverrides,
+      setFundingOverride,
+      clearFundingOverrides,
       amountInput,
       amountUsd,
-      arbitrumFundingToken,
-      baseFundingToken,
       hlpBaselineUsd6,
       hyperCoreFundingDraft,
-      resetTargetAllocations,
       setAmountInput,
-      setArbitrumFundingToken,
-      setBaseFundingToken,
-      setTargetWeight,
       stageDrafts,
       targetAllocations,
     ],

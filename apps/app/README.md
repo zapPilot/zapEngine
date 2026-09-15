@@ -177,7 +177,7 @@ export served by `node scripts/serve-web.mjs --port 3100 --build-if-missing`.
 
 ## Phase 3 QA Checklist
 
-Cold start, demo tabs, Privy login, live portfolio, range tabs, invest three-step
+Cold start, demo tabs, Privy login, live portfolio, range tabs, invest two-step
 signing flow, activity, send validation, account copy/disconnect, podcast
 play/pause/seek, and deep link `zappilotv2://home`.
 
