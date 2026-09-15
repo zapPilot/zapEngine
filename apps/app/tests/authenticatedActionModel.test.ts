@@ -35,4 +35,18 @@ describe('authenticated action model', () => {
 
     expect(action).not.toHaveBeenCalled();
   });
+
+  it('accepts a new pending action after cancellation', () => {
+    const cancelled = vi.fn();
+    const later = vi.fn();
+    const model = createAuthenticatedActionModel();
+
+    expect(model.request(false, cancelled)).toBe(true);
+    model.cancel();
+    expect(model.request(false, later)).toBe(true);
+    model.resume();
+
+    expect(cancelled).not.toHaveBeenCalled();
+    expect(later).toHaveBeenCalledTimes(1);
+  });
 });
