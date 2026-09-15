@@ -7,9 +7,7 @@ case "${1:-}" in -h|--help) echo "usage: pnpm format [check]  (bare = turbo run 
 
 if [ "${1:-}" = "check" ]; then
   shift
-  turbo run format "$@"
-  git diff --exit-code
-  exit 0
+  exec turbo run format:check "$@"
 fi
 
 exec turbo run format "$@"
