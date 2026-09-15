@@ -17,7 +17,9 @@ const social = {
 };
 
 function loadSocialMock() {
-  return vi.fn().mockResolvedValue(social) as unknown as typeof loadSocialPerformance;
+  return vi
+    .fn()
+    .mockResolvedValue(social) as unknown as typeof loadSocialPerformance;
 }
 
 describe('overview coverage', () => {
@@ -30,7 +32,9 @@ describe('overview coverage', () => {
       now: () => NOW,
     });
     const result = await service.getOverview();
-    expect(result.providers.every((p) => p.status === 'unconfigured')).toBe(true);
+    expect(result.providers.every((p) => p.status === 'unconfigured')).toBe(
+      true,
+    );
     expect(result.providers).toHaveLength(5);
     expect(result.accruedCostUsd).toBeNull();
     expect(result.socialReach).toBe(10);
@@ -43,7 +47,9 @@ describe('overview coverage', () => {
     const service = createOverviewService({
       config: readControlCenterConfig({}),
       repository: costRepositoryFake({
-        loadLatestProviders: vi.fn().mockRejectedValue({ message: 'ledger down' }),
+        loadLatestProviders: vi
+          .fn()
+          .mockRejectedValue({ message: 'ledger down' }),
       }),
       loadSocial: loadSocialMock(),
       now: () => NOW,

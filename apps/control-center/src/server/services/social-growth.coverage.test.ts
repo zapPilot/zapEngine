@@ -13,7 +13,10 @@ const CONFIGURED = readControlCenterConfig({
   SUPABASE_SERVICE_ROLE_KEY: 'service-role-key',
 });
 
-interface QueryResult { data: unknown[] | null; error: unknown; }
+interface QueryResult {
+  data: unknown[] | null;
+  error: unknown;
+}
 
 function chainFor(result: QueryResult, calls?: string[]) {
   const chain: Record<string, unknown> = {
@@ -40,17 +43,33 @@ function factory(results: QueryResult[], waitlistRows: unknown[] = []) {
       if (table === 'waitlist_signups') {
         return {
           select: () => ({
-            gte: () => ({ lte: () => Promise.resolve({ data: waitlistRows, error: null, count: waitlistRows.length }) }),
+            gte: () => ({
+              lte: () =>
+                Promise.resolve({
+                  data: waitlistRows,
+                  error: null,
+                  count: waitlistRows.length,
+                }),
+            }),
           }),
         };
       }
       if (table === 'social_post_metrics') {
-        const result = results[2 + Math.min(metricsCall++, 1)] ?? { data: [], error: null };
+        const result = results[2 + Math.min(metricsCall++, 1)] ?? {
+          data: [],
+          error: null,
+        };
         return chainFor(result as QueryResult);
       }
       const index =
-        table === 'social_account_snapshots' ? 0 : table === 'social_posts' ? 1 : 3;
-      return chainFor((results[index] ?? { data: [], error: null }) as QueryResult);
+        table === 'social_account_snapshots'
+          ? 0
+          : table === 'social_posts'
+            ? 1
+            : 3;
+      return chainFor(
+        (results[index] ?? { data: [], error: null }) as QueryResult,
+      );
     },
   };
   return (() => client) as unknown as typeof createClient;
@@ -68,7 +87,7 @@ describe('social growth coverage', () => {
     const service = createSocialGrowthService({
       config: CONFIGURED,
       now: () => NOW,
-      createSupabaseClient: spy,
+      createSupabaseClient: spy as unknown as typeof createClient,
     });
     const first = await service.getSocialGrowth();
     const second = await service.getSocialGrowth();
@@ -140,15 +159,46 @@ describe('social growth coverage', () => {
         { data: [], error: null },
       ]),
     });
-    const xIntervals = response.attribution.filter((row) => row.platform === 'x');
+    const xIntervals = response.attribution.filter(
+      (row) => row.platform === 'x',
+    );
     expect(xIntervals.length).toBeLessThanOrEqual(10);
   });
 
   it('ignores packaging experiments with malformed shapes', async () => {
     const posts = [
-      { id: 'p1', episode_id: 'ep-1', platform: 'x', language_code: 'en', published_at: '2026-08-29T00:00:00.000Z', content_features: 'nope', experiment_key: null, experiment_variant: null },
-      { id: 'p2', episode_id: 'ep-1', platform: 'x', language_code: 'en', published_at: '2026-08-29T00:00:00.000Z', content_features: { packagingExperiment: { key: 42 } }, experiment_key: null, experiment_variant: null },
-      { id: 'p3', episode_id: 'ep-1', platform: 'x', language_code: 'en', published_at: '2026-08-29T00:00:00.000Z', content_features: { packagingExperiment: { key: 'pack-1', variant: 'a' } }, experiment_key: null, experiment_variant: null },
+      {
+        id: 'p1',
+        episode_id: 'ep-1',
+        platform: 'x',
+        language_code: 'en',
+        published_at: '2026-08-29T00:00:00.000Z',
+        content_features: 'nope',
+        experiment_key: null,
+        experiment_variant: null,
+      },
+      {
+        id: 'p2',
+        episode_id: 'ep-1',
+        platform: 'x',
+        language_code: 'en',
+        published_at: '2026-08-29T00:00:00.000Z',
+        content_features: { packagingExperiment: { key: 42 } },
+        experiment_key: null,
+        experiment_variant: null,
+      },
+      {
+        id: 'p3',
+        episode_id: 'ep-1',
+        platform: 'x',
+        language_code: 'en',
+        published_at: '2026-08-29T00:00:00.000Z',
+        content_features: {
+          packagingExperiment: { key: 'pack-1', variant: 'a' },
+        },
+        experiment_key: null,
+        experiment_variant: null,
+      },
     ];
     const response = await loadSocialGrowth({
       config: CONFIGURED,
@@ -160,7 +210,9 @@ describe('social growth coverage', () => {
         { data: [], error: null },
       ]),
     });
-    expect(response.experiments.map((e) => e.experimentKey)).toEqual(['pack-1']);
+    expect(response.experiments.map((e) => e.experimentKey)).toEqual([
+      'pack-1',
+    ]);
     expect(response.experiments[0]?.status).toBe('collecting');
   });
 });

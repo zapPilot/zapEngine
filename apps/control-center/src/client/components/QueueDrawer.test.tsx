@@ -261,7 +261,7 @@ describe('QueueDrawer tabs', () => {
       {
         visualDebug: visualDebug({
           status: 'completed',
-          visualVersion: 'podcast-image-visual-plan.v10',
+          visualVersion: 'podcast-image-visual-plan.v11',
           visualHash: 'a'.repeat(64),
           attempts: 1,
           lastError: null,

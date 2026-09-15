@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { createEpisodeVideoProcessor } from './episode-video-processor.js';
+import { prepareVideoCover } from './video/video-cover.js';
 import {
   EPISODE_VIDEO_VISUAL_VERSION,
   type EpisodeVideoJobRow,
@@ -11,15 +12,16 @@ const episodeId = '00000000-0000-4000-8000-000000000001';
 const localizationId = '00000000-0000-4000-8000-000000000002';
 const visualHash = 'a'.repeat(64);
 const coverHash = 'c'.repeat(64);
+const LEAD_IMAGE_URL = 'https://images.example.com/image-01.jpg';
 const panewsSourceUrl =
   'https://www.panewslab.com/zh/articles/01a00000-0000-7000-8000-000000000000';
 
-describe('episode video PANews cover integration', () => {
-  it('returns the content-addressed PANews cover while preserving the render artifact thumbnail', async () => {
+describe('episode video cover integration', () => {
+  it('returns the content-addressed cover while preserving the render artifact thumbnail', async () => {
     const saveManifest = vi.fn().mockResolvedValue(undefined);
     const uploadCover = vi
       .fn()
-      .mockResolvedValue('https://cdn.example.com/panews-cover.png');
+      .mockResolvedValue('https://cdn.example.com/video-cover.png');
     const upload = vi.fn().mockResolvedValue(uploadedArtifacts());
     const processor = createEpisodeVideoProcessor({
       downloadNarration: vi.fn().mockResolvedValue(undefined),
@@ -51,21 +53,19 @@ describe('episode video PANews cover integration', () => {
       episodeId,
       visualVersion: EPISODE_VIDEO_VISUAL_VERSION,
       sourceHash: visualHash,
-      assetId: `panews-cover-${coverHash}`,
-      path: '/work/panews-cover.png',
+      assetId: `video-cover-${coverHash}`,
+      path: '/work/video-cover.png',
       contentType: 'image/png',
       signal: expect.any(AbortSignal),
     });
     expect(upload).toHaveBeenCalledWith(
       expect.objectContaining({
-        // Keep the renderer artifact immutable under manifestHash. The PANews
-        // cover lives at its own content-addressed URL instead of overwriting it.
+        // Keep the renderer artifact immutable under manifestHash. The cover
+        // lives at its own content-addressed URL instead of overwriting it.
         thumbnailPath: '/work/thumbnail.png',
       }),
     );
-    expect(result.thumbnailUrl).toBe(
-      'https://cdn.example.com/panews-cover.png',
-    );
+    expect(result.thumbnailUrl).toBe('https://cdn.example.com/video-cover.png');
     expect(saveManifest).toHaveBeenCalledWith(
       expect.objectContaining({
         manifest: expect.objectContaining({
@@ -73,7 +73,7 @@ describe('episode video PANews cover integration', () => {
             strategy: 'panews-og-image-v1',
             status: 'selected',
             sourceImageUrl: 'https://images.example.com/cover.jpg',
-            storedUrl: 'https://cdn.example.com/panews-cover.png',
+            storedUrl: 'https://cdn.example.com/video-cover.png',
             sha256: coverHash,
           }),
         }),
@@ -81,7 +81,7 @@ describe('episode video PANews cover integration', () => {
     );
   });
 
-  it('falls back to the renderer thumbnail when caching the PANews cover fails', async () => {
+  it('falls back to the renderer thumbnail when caching the cover fails', async () => {
     const saveManifest = vi.fn().mockResolvedValue(undefined);
     const processor = createEpisodeVideoProcessor({
       downloadNarration: vi.fn().mockResolvedValue(undefined),
@@ -122,11 +122,72 @@ describe('episode video PANews cover integration', () => {
       }),
     );
   });
+
+  it('dresses the cover from the image the lead content scene rendered', async () => {
+    const manifest = visualManifest(LEAD_IMAGE_URL);
+    const scrape = vi.fn();
+    const saveManifest = vi.fn().mockResolvedValue(undefined);
+    const processor = createEpisodeVideoProcessor({
+      downloadNarration: vi.fn().mockResolvedValue(undefined),
+      analyzeAudio: vi
+        .fn()
+        .mockResolvedValue({ durationMs: 90_000, silences: [] }),
+      createManifest: vi
+        .fn()
+        .mockResolvedValue(generatedManifest('manifest-hash')),
+      // The real cover module, so the plan-to-cover handoff is exercised
+      // instead of asserted against a stub that cannot drift.
+      prepareCover: (input) =>
+        prepareVideoCover(input, {
+          scrape,
+          acquire: vi.fn().mockResolvedValue({
+            path: '/work/video-cover-source.image',
+            contentType: 'image/jpeg',
+            sha256: 'd'.repeat(64),
+            width: 1_200,
+            height: 630,
+          }),
+          renderPng: vi.fn().mockResolvedValue(coverHash),
+        }),
+      uploadCover: vi
+        .fn()
+        .mockResolvedValue('https://cdn.example.com/video-cover.png'),
+      render: vi.fn().mockResolvedValue(renderedArtifacts('manifest-hash')),
+      upload: vi.fn().mockResolvedValue(uploadedArtifacts()),
+      makeTemporaryDirectory: vi.fn().mockResolvedValue('/work'),
+      writeManifest: vi.fn().mockResolvedValue(undefined),
+      removeDirectory: vi.fn().mockResolvedValue(undefined),
+      readCgroupMemory: vi.fn().mockResolvedValue(null),
+    });
+
+    await processor(job(), source(manifest), {
+      signal: new AbortController().signal,
+      runId: 'run-cover-from-plan',
+      saveManifest,
+      reportProgress: vi.fn(),
+      reportRenderMetrics: vi.fn(),
+    });
+
+    expect(scrape).not.toHaveBeenCalled();
+    const saved = saveManifest.mock.calls[0]?.[0] as {
+      manifest: { coverPhoto: { strategy: string; sourceImageUrl: string } };
+    };
+    // The invariant this whole change exists for: the thumbnail a viewer clicks
+    // and the first content frame they then see resolve to one source URL.
+    const leadSceneAsset = (
+      manifest['assets'] as { originalImageUrl: string }[]
+    )[0];
+    expect(leadSceneAsset?.originalImageUrl).toBe(LEAD_IMAGE_URL);
+    expect(saved.manifest.coverPhoto.sourceImageUrl).toBe(
+      leadSceneAsset?.originalImageUrl,
+    );
+    expect(saved.manifest.coverPhoto.strategy).toBe('visual-plan-og-image-v1');
+  });
 });
 
 function preparedCover() {
   return {
-    thumbnailPath: '/work/panews-cover.png',
+    thumbnailPath: '/work/video-cover.png',
     metadata: {
       strategy: 'panews-og-image-v1' as const,
       status: 'selected' as const,
@@ -167,7 +228,9 @@ function uploadedArtifacts() {
   };
 }
 
-function source(): EpisodeVideoSource {
+function source(
+  manifest: Record<string, unknown> = visualManifest(),
+): EpisodeVideoSource {
   return {
     episodeId,
     localizationId,
@@ -180,7 +243,7 @@ function source(): EpisodeVideoSource {
     sourceTitle: 'PANews article',
     canonicalLocalizationId: localizationId,
     canonicalScript: 'Canonical script',
-    visualManifest: visualManifest(),
+    visualManifest: manifest,
     visualHash,
     visualVersion: EPISODE_VIDEO_VISUAL_VERSION,
     visualR2Prefix: 'episodes/e/visuals/v/hash',
@@ -238,7 +301,9 @@ function generatedManifest(manifestHash: string) {
   };
 }
 
-function visualManifest(): Record<string, unknown> {
+function visualManifest(
+  leadCoverImageUrl: string | null = null,
+): Record<string, unknown> {
   return {
     schemaVersion: 'podcast-episode-visual.v1',
     visualVersion: EPISODE_VIDEO_VISUAL_VERSION,
@@ -297,6 +362,10 @@ function visualManifest(): Record<string, unknown> {
       storyboardPromptVersion: 'image-storyboard-v2',
       usedFallback: false,
       searchIntentModel: 'openrouter/free',
+      leadCoverImageUrl,
+      leadCoverFallbackReason: leadCoverImageUrl
+        ? null
+        : 'missing-open-graph-image',
     },
   };
 }

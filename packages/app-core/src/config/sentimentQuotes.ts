@@ -147,7 +147,10 @@ export function getQuoteForSentiment(value: number): SentimentQuoteResult {
           : normalizedValue < 75
             ? 3
             : 4;
-  const config = SENTIMENT_QUOTE_CONFIG[configIndex]!;
+  const config = SENTIMENT_QUOTE_CONFIG[configIndex];
+  if (config === undefined) {
+    return DEFAULT_QUOTE;
+  }
 
   const quote = selectQuote(config.quotes);
 

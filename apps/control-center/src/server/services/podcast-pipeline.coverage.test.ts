@@ -26,15 +26,24 @@ const NOW = new Date('2026-09-01T00:00:00.000Z');
 
 function thenable(result: { data: unknown; error: unknown }) {
   const chain: Record<string, unknown> = {};
-  for (const m of ['select', 'in', 'eq', 'order', 'limit']) chain[m] = () => chain;
-  chain['then'] = (ok: (v: unknown) => unknown, bad?: (e: unknown) => unknown) =>
-    Promise.resolve(result).then(ok, bad);
+  for (const m of ['select', 'in', 'eq', 'order', 'limit']) {
+    chain[m] = () => chain;
+  }
+  chain['then'] = (
+    ok: (v: unknown) => unknown,
+    bad?: (e: unknown) => unknown,
+  ) => Promise.resolve(result).then(ok, bad);
   return chain;
 }
 
-function serviceClient(tables: Record<string, { data: unknown; error: unknown }>, rpc = vi.fn()) {
+function serviceClient(
+  tables: Record<string, { data: unknown; error: unknown }>,
+  rpc = vi.fn(),
+) {
   return {
-    from: vi.fn((table: string) => thenable(tables[table] ?? { data: [], error: null })),
+    from: vi.fn((table: string) =>
+      thenable(tables[table] ?? { data: [], error: null }),
+    ),
     rpc,
   };
 }
@@ -47,7 +56,8 @@ function loc(lang: string, overrides: Record<string, unknown> = {}) {
     status: 'completed',
     script: `${lang} script`,
     hls_url: `https://cdn.example/${lang}.m3u8`,
-    classroom_hls_url: lang === 'zh-Hant' ? 'https://cdn.example/class.m3u8' : null,
+    classroom_hls_url:
+      lang === 'zh-Hant' ? 'https://cdn.example/class.m3u8' : null,
     updated_at: '2026-08-31T16:00:00.000Z',
     ...overrides,
   };
@@ -56,7 +66,9 @@ function loc(lang: string, overrides: Record<string, unknown> = {}) {
 describe('podcast pipeline coverage', () => {
   it('returns unconfigured without Supabase', async () => {
     configured.client = null;
-    const svc = createPodcastPipelineService({ config: readControlCenterConfig({}) });
+    const svc = createPodcastPipelineService({
+      config: readControlCenterConfig({}),
+    });
     const res = await svc.getPipeline();
     expect(res.status).toBe('unconfigured');
     await expect(svc.restartIngest('x')).rejects.toThrow('not connected');
@@ -67,15 +79,23 @@ describe('podcast pipeline coverage', () => {
   it('returns an empty pipeline when no episodes exist', async () => {
     configured.client = serviceClient({ episodes: { data: [], error: null } });
     const res = await createPodcastPipelineService({
-      config: readControlCenterConfig({ SUPABASE_URL: 'https://x.co', SUPABASE_SERVICE_ROLE_KEY: 'k' }),
+      config: readControlCenterConfig({
+        SUPABASE_URL: 'https://x.co',
+        SUPABASE_SERVICE_ROLE_KEY: 'k',
+      }),
     }).getPipeline();
     expect(res).toMatchObject({ status: 'ok', episodes: [] });
   });
 
   it('maps a query failure to an error pipeline', async () => {
-    configured.client = serviceClient({ episodes: { data: null, error: new Error('episodes down') } });
+    configured.client = serviceClient({
+      episodes: { data: null, error: new Error('episodes down') },
+    });
     const res = await createPodcastPipelineService({
-      config: readControlCenterConfig({ SUPABASE_URL: 'https://x.co', SUPABASE_SERVICE_ROLE_KEY: 'k' }),
+      config: readControlCenterConfig({
+        SUPABASE_URL: 'https://x.co',
+        SUPABASE_SERVICE_ROLE_KEY: 'k',
+      }),
     }).getPipeline();
     expect(res.status).toBe('error');
     expect(res.message).toBe('episodes down');
@@ -94,15 +114,28 @@ describe('podcast pipeline coverage', () => {
       from: vi.fn((table: string) => {
         if (table === 'podcast_ingest_jobs') {
           ingestCalls += 1;
-          if (ingestCalls === 1) return thenable({ data: [], error: null });
-          return thenable({ data: null, error: { code: '42703', message: 'no column' } });
+          if (ingestCalls === 1) {
+            return thenable({ data: [], error: null });
+          }
+          return thenable({
+            data: null,
+            error: { code: '42703', message: 'no column' },
+          });
         }
-        return thenable(baseTables[table as keyof typeof baseTables] ?? { data: [], error: null });
+        return thenable(
+          baseTables[table as keyof typeof baseTables] ?? {
+            data: [],
+            error: null,
+          },
+        );
       }),
       rpc: vi.fn(),
     };
     const res = await createPodcastPipelineService({
-      config: readControlCenterConfig({ SUPABASE_URL: 'https://x.co', SUPABASE_SERVICE_ROLE_KEY: 'k' }),
+      config: readControlCenterConfig({
+        SUPABASE_URL: 'https://x.co',
+        SUPABASE_SERVICE_ROLE_KEY: 'k',
+      }),
     }).getPipeline();
     expect(res.status).toBe('ok');
   });
@@ -113,20 +146,35 @@ describe('podcast pipeline coverage', () => {
       .mockResolvedValueOnce({ data: null, error: { message: 'rpc down' } })
       .mockResolvedValueOnce({ data: null, error: null })
       .mockResolvedValueOnce({ data: false, error: null });
-    configured.client = serviceClient({ episodes: { data: [], error: null } }, rpc);
+    configured.client = serviceClient(
+      { episodes: { data: [], error: null } },
+      rpc,
+    );
     const svc = createPodcastPipelineService({
-      config: readControlCenterConfig({ SUPABASE_URL: 'https://x.co', SUPABASE_SERVICE_ROLE_KEY: 'k' }),
+      config: readControlCenterConfig({
+        SUPABASE_URL: 'https://x.co',
+        SUPABASE_SERVICE_ROLE_KEY: 'k',
+      }),
     });
-    await expect(svc.restartIngest(EPISODE.id)).rejects.toMatchObject({ message: 'rpc down' });
-    await expect(svc.restartIngest(EPISODE.id)).rejects.toThrow('changed no episode');
-    await expect(svc.restartVideo(EPISODE.id)).rejects.toThrow('changed no episode');
+    await expect(svc.restartIngest(EPISODE.id)).rejects.toMatchObject({
+      message: 'rpc down',
+    });
+    await expect(svc.restartIngest(EPISODE.id)).rejects.toThrow(
+      'changed no episode',
+    );
+    await expect(svc.restartVideo(EPISODE.id)).rejects.toThrow(
+      'changed no episode',
+    );
   });
 
   it('sends force_replan only when requested and validates render retries', async () => {
     const rpc = vi.fn().mockResolvedValue({ data: true, error: null });
     configured.client = serviceClient({}, rpc);
     const svc = createPodcastPipelineService({
-      config: readControlCenterConfig({ SUPABASE_URL: 'https://x.co', SUPABASE_SERVICE_ROLE_KEY: 'k' }),
+      config: readControlCenterConfig({
+        SUPABASE_URL: 'https://x.co',
+        SUPABASE_SERVICE_ROLE_KEY: 'k',
+      }),
     });
     await svc.restartVideo(EPISODE.id, { forceReplan: true });
     expect(rpc).toHaveBeenCalledWith(
@@ -136,7 +184,9 @@ describe('podcast pipeline coverage', () => {
     await svc.restartRender(EPISODE.id, 'loc-1');
     expect(rpc).toHaveBeenCalledWith(
       'retry_episode_video_render',
-      expect.objectContaining({ p_visual_version: EPISODE_VIDEO_VISUAL_VERSION }),
+      expect.objectContaining({
+        p_visual_version: EPISODE_VIDEO_VISUAL_VERSION,
+      }),
     );
   });
 
@@ -145,7 +195,20 @@ describe('podcast pipeline coverage', () => {
       [EPISODE],
       [],
       [loc('zh-Hant'), loc('ja'), loc('en')],
-      [{ episode_id: EPISODE.id, status: 'failed', attempt_count: 1, lease_expires_at: null, last_error: 'x', updated_at: '2026-08-31T20:00:00Z', visual_payload: null, visual_version: EPISODE_VIDEO_VISUAL_VERSION, abandoned_at: '2026-09-01T00:00:00Z', abandoned_reason: '  ' } as never],
+      [
+        {
+          episode_id: EPISODE.id,
+          status: 'failed',
+          attempt_count: 1,
+          lease_expires_at: null,
+          last_error: 'x',
+          updated_at: '2026-08-31T20:00:00Z',
+          visual_payload: null,
+          visual_version: EPISODE_VIDEO_VISUAL_VERSION,
+          abandoned_at: '2026-09-01T00:00:00Z',
+          abandoned_reason: '  ',
+        } as never,
+      ],
       [],
       NOW,
     );
@@ -158,7 +221,27 @@ describe('podcast pipeline coverage', () => {
   it('parses only well-formed ingest failure history entries', () => {
     const [summary] = summarizePodcastPipeline(
       [EPISODE],
-      [{ source_url: EPISODE.source_url, status: 'failed', attempt_count: 1, lease_expires_at: null, last_error: 'bad', updated_at: '2026-09-01T00:00:00Z', failure_history: [{ kind: 'failed', at: '2026-09-01T00:00:00Z', attempt: 1, owner: 'w', error: 'e' }, 'junk', { kind: 'nope', at: 'x', attempt: 1 }] } as never],
+      [
+        {
+          source_url: EPISODE.source_url,
+          status: 'failed',
+          attempt_count: 1,
+          lease_expires_at: null,
+          last_error: 'bad',
+          updated_at: '2026-09-01T00:00:00Z',
+          failure_history: [
+            {
+              kind: 'failed',
+              at: '2026-09-01T00:00:00Z',
+              attempt: 1,
+              owner: 'w',
+              error: 'e',
+            },
+            'junk',
+            { kind: 'nope', at: 'x', attempt: 1 },
+          ],
+        } as never,
+      ],
       [],
       [],
       [],
@@ -171,9 +254,29 @@ describe('podcast pipeline coverage', () => {
   it('treats processing with an expired lease as stuck and stale versions as stale', () => {
     const [summary] = summarizePodcastPipeline(
       [EPISODE],
-      [{ source_url: EPISODE.source_url, status: 'processing', attempt_count: 1, lease_expires_at: '2026-08-01T00:00:00Z', last_error: null, updated_at: '2026-08-31T00:00:00Z' } as never],
+      [
+        {
+          source_url: EPISODE.source_url,
+          status: 'processing',
+          attempt_count: 1,
+          lease_expires_at: '2026-08-01T00:00:00Z',
+          last_error: null,
+          updated_at: '2026-08-31T00:00:00Z',
+        } as never,
+      ],
       [loc('zh-Hant'), loc('ja'), loc('en')],
-      [{ episode_id: EPISODE.id, status: 'queued', attempt_count: 0, lease_expires_at: null, last_error: null, updated_at: '2026-08-31T00:00:00Z', visual_payload: null, visual_version: 'v0' } as never],
+      [
+        {
+          episode_id: EPISODE.id,
+          status: 'queued',
+          attempt_count: 0,
+          lease_expires_at: null,
+          last_error: null,
+          updated_at: '2026-08-31T00:00:00Z',
+          visual_payload: null,
+          visual_version: 'v0',
+        } as never,
+      ],
       [],
       NOW,
     );

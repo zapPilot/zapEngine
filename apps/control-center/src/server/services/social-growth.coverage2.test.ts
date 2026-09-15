@@ -10,7 +10,10 @@ const CONFIGURED = readControlCenterConfig({
   SUPABASE_SERVICE_ROLE_KEY: 'service-role-key',
 });
 
-interface QueryResult { data: unknown[] | null; error: unknown; }
+interface QueryResult {
+  data: unknown[] | null;
+  error: unknown;
+}
 
 function chainFor(result: QueryResult) {
   const chain: Record<string, unknown> = {
@@ -31,14 +34,23 @@ function factory(results: QueryResult[]) {
       if (table === 'waitlist_signups') {
         return {
           select: () => ({
-            gte: () => ({ lte: () => Promise.resolve({ data: [], error: null, count: 0 }) }),
+            gte: () => ({
+              lte: () => Promise.resolve({ data: [], error: null, count: 0 }),
+            }),
           }),
         };
       }
       if (table === 'social_post_metrics') {
-        return chainFor(results[2 + Math.min(metricsCall++, 1)] ?? { data: [], error: null });
+        return chainFor(
+          results[2 + Math.min(metricsCall++, 1)] ?? { data: [], error: null },
+        );
       }
-      const index = table === 'social_account_snapshots' ? 0 : table === 'social_posts' ? 1 : 3;
+      const index =
+        table === 'social_account_snapshots'
+          ? 0
+          : table === 'social_posts'
+            ? 1
+            : 3;
       return chainFor(results[index] ?? { data: [], error: null });
     },
   };
@@ -53,9 +65,21 @@ describe('social growth coverage round 2', () => {
       createSupabaseClient: factory([
         {
           data: [
-            { platform: 'x', captured_at: '2026-08-29T11:00:00.000Z', followers: 90 },
-            { platform: 'x', captured_at: '2026-08-29T12:30:00.000Z', followers: 95 },
-            { platform: 'x', captured_at: '2026-08-30T12:00:00.000Z', followers: 104 },
+            {
+              platform: 'x',
+              captured_at: '2026-08-29T11:00:00.000Z',
+              followers: 90,
+            },
+            {
+              platform: 'x',
+              captured_at: '2026-08-29T12:30:00.000Z',
+              followers: 95,
+            },
+            {
+              platform: 'x',
+              captured_at: '2026-08-30T12:00:00.000Z',
+              followers: 104,
+            },
           ],
           error: null,
         },
@@ -77,7 +101,16 @@ describe('social growth coverage round 2', () => {
         { data: [], error: null },
         {
           data: [
-            { id: 'p1', episode_id: 'ep-1', platform: 'x', language_code: 'en', published_at: '2026-08-29T00:00:00.000Z', content_features: { packagingExperiment: 'str' }, experiment_key: null, experiment_variant: null },
+            {
+              id: 'p1',
+              episode_id: 'ep-1',
+              platform: 'x',
+              language_code: 'en',
+              published_at: '2026-08-29T00:00:00.000Z',
+              content_features: { packagingExperiment: 'str' },
+              experiment_key: null,
+              experiment_variant: null,
+            },
           ],
           error: null,
         },

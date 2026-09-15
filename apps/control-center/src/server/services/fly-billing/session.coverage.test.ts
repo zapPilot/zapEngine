@@ -1,9 +1,7 @@
+import type { BrowserContext } from 'playwright-core';
 import { describe, expect, it, vi } from 'vitest';
 
-import {
-  restoreFlySession,
-  saveFlySession,
-} from './session.js';
+import { restoreFlySession, saveFlySession } from './session.js';
 
 vi.mock('node:fs', () => ({
   mkdirSync: vi.fn(),
@@ -12,12 +10,7 @@ vi.mock('node:fs', () => ({
   writeFileSync: vi.fn(),
 }));
 
-import {
-  mkdirSync,
-  readFileSync,
-  renameSync,
-  writeFileSync,
-} from 'node:fs';
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 
 const mockedRead = vi.mocked(readFileSync);
 const mockedWrite = vi.mocked(writeFileSync);
@@ -28,7 +21,7 @@ function contextWith(cookies: unknown[]) {
   return {
     cookies: vi.fn().mockResolvedValue(cookies),
     addCookies: vi.fn().mockResolvedValue(undefined),
-  } as never;
+  } as unknown as BrowserContext;
 }
 
 function flyCookie(overrides: Record<string, unknown> = {}) {

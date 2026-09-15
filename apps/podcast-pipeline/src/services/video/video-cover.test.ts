@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { isPanewsArticleUrl, preparePanewsVideoCover } from './panews-cover.js';
+import { isPanewsArticleUrl, prepareVideoCover } from './video-cover.js';
 
 describe('isPanewsArticleUrl', () => {
   it.each([
@@ -20,7 +20,7 @@ describe('isPanewsArticleUrl', () => {
   });
 });
 
-describe('preparePanewsVideoCover', () => {
+describe('prepareVideoCover', () => {
   const sourceUrl =
     'https://www.panewslab.com/zh/articles/01a00000-0000-7000-8000-000000000000';
 
@@ -44,7 +44,7 @@ describe('preparePanewsVideoCover', () => {
       ],
     });
     const acquire = vi.fn().mockResolvedValue({
-      path: '/work/panews-cover-source.image',
+      path: '/work/video-cover-source.image',
       contentType: 'image/jpeg',
       sha256: 'a'.repeat(64),
       width: 1_200,
@@ -53,7 +53,7 @@ describe('preparePanewsVideoCover', () => {
     const pngHash = 'b'.repeat(64);
     const renderPng = vi.fn().mockResolvedValue(pngHash);
 
-    const result = await preparePanewsVideoCover(
+    const result = await prepareVideoCover(
       {
         sourceUrl,
         workingDirectory: '/work',
@@ -70,16 +70,16 @@ describe('preparePanewsVideoCover', () => {
       'https://images.example.test/cover.jpg',
       expect.objectContaining({
         workingDirectory: '/work',
-        filename: 'panews-cover-source',
+        filename: 'video-cover-source',
         layout: 'framed',
       }),
     );
     expect(renderPng).toHaveBeenCalledWith(
-      '/work/panews-cover-source.image',
-      '/work/panews-cover.png',
+      '/work/video-cover-source.image',
+      '/work/video-cover.png',
     );
     expect(result).toEqual({
-      thumbnailPath: '/work/panews-cover.png',
+      thumbnailPath: '/work/video-cover.png',
       metadata: {
         strategy: 'panews-og-image-v1',
         status: 'selected',
@@ -99,7 +99,7 @@ describe('preparePanewsVideoCover', () => {
     const acquire = vi.fn();
     const renderPng = vi.fn();
 
-    const result = await preparePanewsVideoCover(
+    const result = await prepareVideoCover(
       {
         sourceUrl: 'https://example.com/article',
         workingDirectory: '/work',
@@ -121,7 +121,7 @@ describe('preparePanewsVideoCover', () => {
   it('keeps the renderer thumbnail when PANews has no Open Graph image', async () => {
     const acquire = vi.fn();
     const renderPng = vi.fn();
-    const result = await preparePanewsVideoCover(
+    const result = await prepareVideoCover(
       { sourceUrl, workingDirectory: '/work' },
       {
         scrape: vi.fn().mockResolvedValue({ title: 'Article', text: 'Body' }),
@@ -145,7 +145,7 @@ describe('preparePanewsVideoCover', () => {
   });
 
   it('fails open when the cover image cannot be acquired', async () => {
-    const result = await preparePanewsVideoCover(
+    const result = await prepareVideoCover(
       { sourceUrl, workingDirectory: '/work' },
       {
         scrape: vi.fn().mockResolvedValue({
@@ -173,5 +173,120 @@ describe('preparePanewsVideoCover', () => {
         fallbackReason: 'HTTP 503',
       }),
     });
+  });
+  it('renders the cover from the visual plan without scraping the article', async () => {
+    const scrape = vi.fn();
+    const acquire = vi.fn().mockResolvedValue({
+      path: '/work/video-cover-source.image',
+      contentType: 'image/jpeg',
+      sha256: 'c'.repeat(64),
+      width: 1_200,
+      height: 630,
+    });
+    const renderPng = vi.fn().mockResolvedValue('d'.repeat(64));
+
+    const result = await prepareVideoCover(
+      {
+        sourceUrl,
+        workingDirectory: '/work',
+        knownImageUrl: 'https://images.example.test/lead-scene.jpg',
+      },
+      { scrape, acquire, renderPng },
+    );
+
+    expect(scrape).not.toHaveBeenCalled();
+    expect(acquire).toHaveBeenCalledWith(
+      'https://images.example.test/lead-scene.jpg',
+      expect.objectContaining({ filename: 'video-cover-source' }),
+    );
+    expect(result.metadata).toMatchObject({
+      strategy: 'visual-plan-og-image-v1',
+      status: 'selected',
+      sourceImageUrl: 'https://images.example.test/lead-scene.jpg',
+      sha256: 'd'.repeat(64),
+    });
+  });
+
+  it('uses a planned cover even when the source is not PANews', async () => {
+    const acquire = vi.fn().mockResolvedValue({
+      path: '/work/video-cover-source.image',
+      contentType: 'image/jpeg',
+      sha256: 'c'.repeat(64),
+      width: 1_200,
+      height: 630,
+    });
+
+    const result = await prepareVideoCover(
+      {
+        sourceUrl: 'https://theblock.example/article',
+        workingDirectory: '/work',
+        knownImageUrl: 'https://images.example.test/lead-scene.jpg',
+      },
+      {
+        scrape: vi.fn(),
+        acquire,
+        renderPng: vi.fn().mockResolvedValue('e'.repeat(64)),
+      },
+    );
+
+    expect(result.thumbnailPath).toBe('/work/video-cover.png');
+    expect(result.metadata.status).toBe('selected');
+  });
+
+  it('fails open when a planned cover cannot be acquired', async () => {
+    const result = await prepareVideoCover(
+      {
+        sourceUrl,
+        workingDirectory: '/work',
+        knownImageUrl: 'https://images.example.test/lead-scene.jpg',
+      },
+      {
+        scrape: vi.fn(),
+        acquire: vi.fn().mockRejectedValue(new Error('HTTP 410')),
+        renderPng: vi.fn(),
+      },
+    );
+
+    expect(result).toEqual({
+      thumbnailPath: null,
+      metadata: expect.objectContaining({
+        strategy: 'visual-plan-og-image-v1',
+        status: 'fallback',
+        sourceImageUrl: 'https://images.example.test/lead-scene.jpg',
+        fallbackReason: 'HTTP 410',
+      }),
+    });
+  });
+
+  it('scrapes for itself when the plan recorded no lead cover', async () => {
+    const scrape = vi.fn().mockResolvedValue({
+      title: 'Article',
+      text: 'Body',
+      images: [
+        {
+          imageUrl: 'https://images.example.test/cover.jpg',
+          sourceUrl,
+          origin: 'openGraph',
+        },
+      ],
+    });
+
+    const result = await prepareVideoCover(
+      { sourceUrl, workingDirectory: '/work', knownImageUrl: null },
+      {
+        scrape,
+        acquire: vi.fn().mockResolvedValue({
+          path: '/work/video-cover-source.image',
+          contentType: 'image/jpeg',
+          sha256: 'c'.repeat(64),
+          width: 1_200,
+          height: 630,
+        }),
+        renderPng: vi.fn().mockResolvedValue('f'.repeat(64)),
+      },
+    );
+
+    expect(scrape).toHaveBeenCalledTimes(1);
+    expect(result.metadata.strategy).toBe('panews-og-image-v1');
   });
 });

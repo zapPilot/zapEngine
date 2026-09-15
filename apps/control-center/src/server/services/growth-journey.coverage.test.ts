@@ -54,7 +54,9 @@ describe('growth journey coverage', () => {
       }),
     });
     expect(journey.status).toBe('unavailable');
-    expect(journey.message).toBe('PostHog acquisition telemetry is unavailable');
+    expect(journey.message).toBe(
+      'PostHog acquisition telemetry is unavailable',
+    );
     expect(journey.landingVisitors30d).toBeNull();
   });
 });

@@ -557,6 +557,7 @@ export function createEpisodeVideoVisualProcessor(
         sceneAssignments,
         searchTitleSource,
         articleImageCandidateCount,
+        ...(assetPlan.leadCover ? { leadCover: assetPlan.leadCover } : {}),
         // The planner's own trace is authoritative; the accumulated one only
         // has to cover an attempt that threw before returning a plan.
         imageSearch: assetPlan.imageSearch ?? trace,

@@ -170,6 +170,46 @@ describe('extractArticleImageCandidates', () => {
       },
     ]);
   });
+
+  it('extracts a head-only publisher cover the article body never repeats', () => {
+    // PANews renders its share image in `<head>` alone, so the cover is only
+    // reachable through the Open Graph tags -- the body carries other photos.
+    const dom = new JSDOM(`
+      <head>
+        <meta property="og:image" content="https://cdn.panewslab.com/webp/photos/cover.jpg" />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+      </head>
+      <body>
+        <article>
+          <img src="/body-chart.jpg" width="1600" height="900" alt="Body chart" />
+        </article>
+      </body>
+    `);
+
+    const candidates = extractArticleImageCandidates(
+      dom.window.document,
+      'https://www.panewslab.com/zh/articles/01a-example',
+    );
+
+    expect(candidates).toEqual([
+      {
+        imageUrl: 'https://cdn.panewslab.com/webp/photos/cover.jpg',
+        sourceUrl: 'https://www.panewslab.com/zh/articles/01a-example',
+        origin: 'openGraph',
+        width: 1200,
+        height: 630,
+      },
+      {
+        imageUrl: 'https://www.panewslab.com/body-chart.jpg',
+        sourceUrl: 'https://www.panewslab.com/zh/articles/01a-example',
+        origin: 'article',
+        altText: 'Body chart',
+        width: 1600,
+        height: 900,
+      },
+    ]);
+  });
 });
 
 describe('scrapeArticle', () => {

@@ -32,7 +32,9 @@ function client(
   return {
     from: vi.fn((table: string) => {
       const result = tables[table];
-      if (!result) throw new Error(`unexpected read of ${table}`);
+      if (!result) {
+        throw new Error(`unexpected read of ${table}`);
+      }
       return chain(result);
     }),
     rpc,
@@ -91,8 +93,18 @@ describe('social release cleanup coverage', () => {
       social_publish_jobs: { data: [{ episode_id: 'ep-1' }], error: null },
       social_posts: {
         data: [
-          { episode_id: 'ep-1', platform: 'x', language_code: 42, post_url: 7, published_at: '2026-09-05T03:00:00.000Z' },
-          { episode_id: null, platform: 'x', published_at: '2026-09-05T03:00:00.000Z' },
+          {
+            episode_id: 'ep-1',
+            platform: 'x',
+            language_code: 42,
+            post_url: 7,
+            published_at: '2026-09-05T03:00:00.000Z',
+          },
+          {
+            episode_id: null,
+            platform: 'x',
+            published_at: '2026-09-05T03:00:00.000Z',
+          },
           { episode_id: 'ep-1', platform: 'x', published_at: null },
         ],
         error: null,
@@ -113,7 +125,11 @@ describe('social release cleanup coverage', () => {
   it('dedupes job episode ids and skips non-string episode ids', async () => {
     const fake = client({
       social_publish_jobs: {
-        data: [{ episode_id: 'ep-1' }, { episode_id: 'ep-1' }, { episode_id: 7 }],
+        data: [
+          { episode_id: 'ep-1' },
+          { episode_id: 'ep-1' },
+          { episode_id: 7 },
+        ],
         error: null,
       },
       social_posts: { data: [], error: null },
@@ -131,14 +147,20 @@ describe('social release cleanup coverage', () => {
 
   it('reports skipped 0 when the RPC returns a non-number', async () => {
     const rpc = vi.fn().mockResolvedValue({ data: 'ok', error: null });
-    await expect(service(client({}, rpc)).closeRelease('ep-1')).resolves.toEqual({
+    await expect(
+      service(client({}, rpc)).closeRelease('ep-1'),
+    ).resolves.toEqual({
       skipped: 0,
     });
   });
 
   it('throws when close RPC fails', async () => {
-    const rpc = vi.fn().mockResolvedValue({ data: null, error: { message: 'rpc boom' } });
-    await expect(service(client({}, rpc)).closeRelease('ep-1')).rejects.toMatchObject({
+    const rpc = vi
+      .fn()
+      .mockResolvedValue({ data: null, error: { message: 'rpc boom' } });
+    await expect(
+      service(client({}, rpc)).closeRelease('ep-1'),
+    ).rejects.toMatchObject({
       message: 'rpc boom',
     });
   });

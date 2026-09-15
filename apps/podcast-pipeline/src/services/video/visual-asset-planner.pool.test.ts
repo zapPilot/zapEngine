@@ -777,6 +777,9 @@ describe('planVisualAssets episode image pool', () => {
     const progress: VisualAssetProgress[] = [];
 
     const result = await planVisualAssets({
+      // A concept card is only reachable while the episode owns no image at
+      // all: the lead scene now takes the publisher image when there is one,
+      // and every later scene can reuse whatever the lead already validated.
       scenes: [
         {
           sceneId: 'scene-01',
@@ -784,9 +787,7 @@ describe('planVisualAssets episode image pool', () => {
           imageSearchEntities: ['Kestrel Dynamics'],
           searchAnchor: 'direct',
         },
-        { sceneId: 'scene-02', imageSearchIntent: [genericIntent] },
       ],
-      articleImages: [articleResult('supply-chain-yard')],
       workingDirectory: WORKING_DIRECTORY,
       selectionMode: 'resilient',
       slideFallback: { title: 'Kestrel Dynamics reopens its factory' },
@@ -806,9 +807,7 @@ describe('planVisualAssets episode image pool', () => {
     );
     expect(progress.map((event) => event.phase)).toEqual([
       'search',
-      'search',
       'slide',
-      'assets',
       'assets',
     ]);
     const searchEvents = progress.filter((event) => event.phase === 'search');
@@ -1066,7 +1065,7 @@ describe('planVisualAssets episode image pool', () => {
         imageSearchEntities: [subject],
         searchAnchor: 'direct' as const,
       })),
-      // Five publisher images clothe scenes 2-6; the lead never consumes one.
+      // Five publisher images clothe scenes 1-5, the lead included.
       articleImages: ['yard-a', 'yard-b', 'yard-c', 'yard-d', 'yard-e'].map(
         (id) => articleResult(id),
       ),
@@ -1079,26 +1078,26 @@ describe('planVisualAssets episode image pool', () => {
       },
     });
 
-    // One searched photo plus five publisher images used to count as six of
-    // this subject's own, which declared it saturated and sent every later
-    // scene back to an already-shown image while eight paid-for, on-subject
-    // pool entries sat untried.
+    // Five publisher images plus the searched photos used to count together
+    // against this subject's rotation of six, which declared it saturated and
+    // sent every later scene back to an already-shown image while eight
+    // paid-for, on-subject pool entries sat untried.
     expect(result.assets.map((asset) => asset.provider)).toEqual([
+      'article',
+      'article',
+      'article',
+      'article',
+      'article',
       'brave',
-      'article',
-      'article',
-      'article',
-      'article',
-      'article',
       'brave',
       'brave',
       'brave',
     ]);
     expect(
-      ['scene-07', 'scene-08', 'scene-09'].map(
+      ['scene-06', 'scene-07', 'scene-08', 'scene-09'].map(
         (scene) => selectionFor(result, scene)?.selection,
       ),
-    ).toEqual(['pool', 'pool', 'pool']);
+    ).toEqual(['pool', 'pool', 'pool', 'pool']);
     expect(new Set(result.scenes.map((scene) => scene.assetId)).size).toBe(9);
   });
 

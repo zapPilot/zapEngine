@@ -53,8 +53,8 @@ import {
 import {
   candidateHostname,
   canonicalCandidateUrl,
+  partitionViableCandidates,
   searchCueScore,
-  viableCandidates,
 } from './search-candidate-ranking.js';
 
 /**
@@ -172,11 +172,27 @@ export interface PlannedVisualScene {
   assetId: string;
 }
 
+/**
+ * Which publisher `og:image` the lead content scene actually rendered. The
+ * cover and the first frame a viewer sees have to resolve to one source URL, so
+ * the render job reads this instead of scraping the article a second time.
+ */
+export interface VisualAssetLeadCover {
+  /** Observed, not intended: the URL is only filled in once the lead scene owns
+   * an asset downloaded from it. */
+  imageUrl: string | null;
+  /** Why the lead scene fell back to the ordinary ladder, named by the rule
+   * that removed the Open Graph candidate. Null once `imageUrl` is set. */
+  fallbackReason: string | null;
+}
+
 export interface VisualAssetPlan {
   assets: PlannedVisualImage[];
   scenes: PlannedVisualScene[];
   /** Absent on a plan restored from a checkpoint, which predates the trace. */
   imageSearch?: VisualImageSearch;
+  /** Absent on a plan restored from a checkpoint, which predates the field. */
+  leadCover?: VisualAssetLeadCover;
 }
 
 export interface VisualAssetProgress {
@@ -249,6 +265,10 @@ interface VisualAssetPlannerState {
   input: PlanVisualAssetsInput;
   dependencies: VisualAssetPlannerDependencies;
   articleImages: ImageCandidate[];
+  /** The publisher `og:image` hoisted to the front of `articleImages`, or null
+   * when the article offered none that survived filtering. */
+  leadCoverCandidateUrl: string | null;
+  leadCoverFallbackReason: string | null;
   articleCursor: number;
   attemptedUrls: Set<string>;
   assets: PlannedVisualImage[];
@@ -335,11 +355,7 @@ export async function planVisualAssets(
   const state: VisualAssetPlannerState = {
     input,
     dependencies: resolvePlannerDependencies(input.dependencies),
-    articleImages: viableCandidates(input.articleImages ?? [], [
-      'openGraph',
-      'article',
-      'figure',
-    ]),
+    ...leadCoverOrderedArticleImages(input.articleImages ?? []),
     articleCursor: 0,
     // Canonical, because that is the form every later comparison uses: seeding
     // the raw URLs let a resumed scene re-download an image it already owns.
@@ -409,6 +425,91 @@ export async function planVisualAssets(
     assets: state.assets,
     scenes: state.scenes,
     imageSearch: state.trace,
+    leadCover: observedLeadCover(state),
+  };
+}
+
+const ARTICLE_IMAGE_ORIGINS = ['openGraph', 'article', 'figure'] as const;
+
+/**
+ * The publisher's own `og:image` is what every share card, feed preview and
+ * video cover already shows, so the first content scene has to render that same
+ * image rather than an independently searched one. Hoisting it to the front of
+ * the cursor is all that takes: scene 0 draws first.
+ *
+ * The decorative filter still judges it. An `og:image` served from a path the
+ * filter reads as an icon or a thumbnail is worse than no lead image at all, so
+ * a rejected one falls through to the ordinary ladder under its named reason.
+ */
+function leadCoverOrderedArticleImages(
+  candidates: readonly ImageCandidate[],
+): Pick<
+  VisualAssetPlannerState,
+  'articleImages' | 'leadCoverCandidateUrl' | 'leadCoverFallbackReason'
+> {
+  const { candidates: viable, dropReasons } = partitionViableCandidates(
+    candidates,
+    ARTICLE_IMAGE_ORIGINS,
+  );
+  const openGraph = candidates.find(
+    (candidate) => candidate.origin === 'openGraph',
+  );
+  if (!openGraph) {
+    return {
+      articleImages: viable,
+      leadCoverCandidateUrl: null,
+      leadCoverFallbackReason: 'missing-open-graph-image',
+    };
+  }
+
+  const canonicalUrl = canonicalCandidateUrl(openGraph.imageUrl);
+  const leadIndex = viable.findIndex(
+    (candidate) => canonicalCandidateUrl(candidate.imageUrl) === canonicalUrl,
+  );
+  if (leadIndex === -1) {
+    return {
+      articleImages: viable,
+      leadCoverCandidateUrl: null,
+      leadCoverFallbackReason:
+        dropReasons.get(openGraph.imageUrl) ?? 'open-graph-image-rejected',
+    };
+  }
+
+  const lead = viable[leadIndex]!;
+  return {
+    articleImages: [
+      lead,
+      ...viable.slice(0, leadIndex),
+      ...viable.slice(leadIndex + 1),
+    ],
+    leadCoverCandidateUrl: lead.imageUrl,
+    leadCoverFallbackReason: null,
+  };
+}
+
+/**
+ * What the lead scene ended up showing, not what it was offered: an `og:image`
+ * that failed to download leaves the plan honest about the cover having to
+ * scrape for itself.
+ */
+function observedLeadCover(
+  state: VisualAssetPlannerState,
+): VisualAssetLeadCover {
+  const leadSceneId = state.input.scenes[0]?.sceneId;
+  const leadAssetId = state.scenes.find(
+    (scene) => scene.sceneId === leadSceneId,
+  )?.assetId;
+  const leadAsset = state.assets.find((asset) => asset.assetId === leadAssetId);
+  const rendered =
+    state.leadCoverCandidateUrl !== null &&
+    leadAsset?.originalImageUrl === state.leadCoverCandidateUrl;
+  if (rendered) {
+    return { imageUrl: state.leadCoverCandidateUrl, fallbackReason: null };
+  }
+  return {
+    imageUrl: null,
+    fallbackReason:
+      state.leadCoverFallbackReason ?? 'open-graph-image-not-used-as-lead',
   };
 }
 
@@ -522,15 +623,8 @@ async function selectImageForScene(
 async function tryArticleImage(
   ladder: SceneLadder,
 ): Promise<SelectedVisualImage | null> {
-  const { state, scene, sceneIndex, rejections } = ladder;
-  // The publisher's own images are valuable source material, but the lead
-  // visual must be independently sourced from the original headline subject.
-  // Do not consume the first article image here; scene 2 can still use it.
-  const isLeadNamedScene =
-    sceneIndex === 0 && (scene.imageSearchEntities?.length ?? 0) > 0;
-  const asset = isLeadNamedScene
-    ? null
-    : await acquireNextArticleImage(state, scene, rejections);
+  const { state, scene, rejections } = ladder;
+  const asset = await acquireNextArticleImage(state, scene, rejections);
   if (!asset) return null;
   return {
     asset,
@@ -643,11 +737,9 @@ async function acquireFromPool(
     fallbackReason: VisualSceneFallbackReason | null;
   },
 ): Promise<SelectedVisualImage | null> {
-  const { state, scene, sceneIndex, rejections } = ladder;
+  const { state, scene, rejections } = ladder;
   for (const entry of entries) {
     state.input.signal?.throwIfAborted();
-    if (sceneIndex === 0 && isPublisherArticleCandidate(state, entry.candidate))
-      continue;
     // Claimed before the download rather than after it: thirty scenes walking
     // a hundred shared entries would otherwise re-attempt every one of them and
     // manufacture thousands of duplicate-url rejections.
@@ -935,26 +1027,6 @@ async function acquireNextArticleImage(
     if (acquired) return acquired;
   }
   return null;
-}
-
-function isPublisherArticleCandidate(
-  state: VisualAssetPlannerState,
-  candidate: ImageCandidate,
-): boolean {
-  const sourceUrl = state.articleImages[0]?.sourceUrl;
-  if (!sourceUrl) return false;
-  try {
-    const article = new URL(sourceUrl);
-    const candidateSource = new URL(candidate.sourceUrl);
-    return (
-      article.hostname.toLowerCase() ===
-        candidateSource.hostname.toLowerCase() &&
-      article.pathname.replace(/\/$/u, '') ===
-        candidateSource.pathname.replace(/\/$/u, '')
-    );
-  } catch {
-    return false;
-  }
 }
 
 async function generatedSlideOrThrow(

@@ -2,10 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { describe, expect, it } from 'vitest';
 
 import { readControlCenterConfig } from '../config/env.js';
-import {
-  deriveCustomerSignals,
-  loadCustomerEconomics,
-} from './customers.js';
+import { deriveCustomerSignals, loadCustomerEconomics } from './customers.js';
 
 const NOW = new Date('2026-08-28T12:00:00.000Z');
 const CONFIGURED = readControlCenterConfig({
@@ -13,17 +10,26 @@ const CONFIGURED = readControlCenterConfig({
   SUPABASE_SERVICE_ROLE_KEY: 'service-role-key',
 });
 
-interface QueryResult { data: unknown; error: unknown; }
+interface QueryResult {
+  data: unknown;
+  error: unknown;
+}
 
 function tableStub(result: QueryResult) {
   const chain: Record<string, unknown> = {};
-  for (const m of ['select', 'eq', 'order']) chain[m] = () => chain;
+  for (const m of ['select', 'eq', 'order']) {
+    chain[m] = () => chain;
+  }
   chain['gte'] = () => Promise.resolve(result);
   chain['limit'] = () => Promise.resolve(result);
   return chain;
 }
 
-function factory(input: { policy: QueryResult; usage?: QueryResult; cost?: QueryResult }) {
+function factory(input: {
+  policy: QueryResult;
+  usage?: QueryResult;
+  cost?: QueryResult;
+}) {
   const empty: QueryResult = { data: [], error: null };
   return (_url: string, _key: string, schema: string) =>
     (schema === 'public'
@@ -68,8 +74,18 @@ describe('customers coverage', () => {
           data: [
             { user_id: '', wallet: '0x0' },
             { user_id: 'u1', wallet: '' },
-            stateRow({ user_id: 'low', email: 'l@x.com', wallet: '0xl', aum_usd: 1 }),
-            stateRow({ user_id: 'high', email: 'h@x.com', wallet: '0xh', aum_usd: 999 }),
+            stateRow({
+              user_id: 'low',
+              email: 'l@x.com',
+              wallet: '0xl',
+              aum_usd: 1,
+            }),
+            stateRow({
+              user_id: 'high',
+              email: 'h@x.com',
+              wallet: '0xh',
+              aum_usd: 999,
+            }),
           ],
           error: null,
         },
@@ -93,7 +109,10 @@ describe('customers coverage', () => {
           ],
           error: null,
         },
-        cost: { data: [{ accrued_cost_usd: 100, projected_cost_usd: 100 }], error: null },
+        cost: {
+          data: [{ accrued_cost_usd: 100, projected_cost_usd: 100 }],
+          error: null,
+        },
       }),
     });
     expect(res.users[0]?.aumUsd).toBeNull();
@@ -107,8 +126,20 @@ describe('customers coverage', () => {
       createSupabaseClient: factory({
         policy: {
           data: [
-            stateRow({ user_id: 'rich', email: 'r@x.com', wallet: '0xr', aum_usd: 50000, last_portfolio_update_at: null }),
-            stateRow({ user_id: 'poor', email: 'p@x.com', wallet: '0xp', aum_usd: 1000, last_portfolio_update_at: '2026-08-20T00:00:00Z' }),
+            stateRow({
+              user_id: 'rich',
+              email: 'r@x.com',
+              wallet: '0xr',
+              aum_usd: 50000,
+              last_portfolio_update_at: null,
+            }),
+            stateRow({
+              user_id: 'poor',
+              email: 'p@x.com',
+              wallet: '0xp',
+              aum_usd: 1000,
+              last_portfolio_update_at: '2026-08-20T00:00:00Z',
+            }),
           ],
           error: null,
         },
@@ -126,7 +157,12 @@ describe('customers coverage', () => {
       now: NOW,
       createSupabaseClient: factory({
         policy: {
-          data: [stateRow({ aum_usd: 100, last_portfolio_update_at: '2026-08-20T00:00:00Z' })],
+          data: [
+            stateRow({
+              aum_usd: 100,
+              last_portfolio_update_at: '2026-08-20T00:00:00Z',
+            }),
+          ],
           error: null,
         },
       }),
@@ -135,7 +171,9 @@ describe('customers coverage', () => {
     const fresh = await loadCustomerEconomics({
       config: CONFIGURED,
       now: NOW,
-      createSupabaseClient: factory({ policy: { data: [stateRow({})], error: null } }),
+      createSupabaseClient: factory({
+        policy: { data: [stateRow({})], error: null },
+      }),
     });
     expect(deriveCustomerSignals(fresh, NOW)[0]?.status).toBe('healthy');
   });
@@ -146,7 +184,9 @@ describe('customers coverage', () => {
       now: NOW,
       createSupabaseClient: factory({
         policy: {
-          data: [stateRow({ last_portfolio_update_at: '2026-08-25T12:00:00Z' })],
+          data: [
+            stateRow({ last_portfolio_update_at: '2026-08-25T12:00:00Z' }),
+          ],
           error: null,
         },
       }),

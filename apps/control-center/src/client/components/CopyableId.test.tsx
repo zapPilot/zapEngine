@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CopyableId } from './CopyableId.js';
@@ -29,9 +35,9 @@ describe('CopyableId', () => {
   it('shows the full value so it can be pasted into a query', () => {
     render(<CopyableId label="episode id" value="ep-123" />);
 
-    expect(screen.getByRole('button', { name: 'Copy episode id' })).toHaveTextContent(
-      'ep-123',
-    );
+    expect(
+      screen.getByRole('button', { name: 'Copy episode id' }),
+    ).toHaveTextContent('ep-123');
   });
 
   it('copies on click and confirms, then reverts after the timeout', async () => {
@@ -41,16 +47,16 @@ describe('CopyableId', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Copy episode id' }));
 
     expect(writeText).toHaveBeenCalledWith('ep-123');
-    expect(screen.getByRole('button', { name: 'Copy episode id' })).toHaveTextContent(
-      'Copied',
-    );
+    expect(
+      screen.getByRole('button', { name: 'Copy episode id' }),
+    ).toHaveTextContent('Copied');
 
     await act(async () => {
       vi.advanceTimersByTime(1200);
     });
-    expect(screen.getByRole('button', { name: 'Copy episode id' })).toHaveTextContent(
-      'ep-123',
-    );
+    expect(
+      screen.getByRole('button', { name: 'Copy episode id' }),
+    ).toHaveTextContent('ep-123');
   });
 
   it('still confirms when the clipboard write rejects', () => {
@@ -61,9 +67,9 @@ describe('CopyableId', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Copy visual hash' }));
 
-    expect(screen.getByRole('button', { name: 'Copy visual hash' })).toHaveTextContent(
-      'Copied',
-    );
+    expect(
+      screen.getByRole('button', { name: 'Copy visual hash' }),
+    ).toHaveTextContent('Copied');
   });
 
   it('copies nothing but still confirms when the clipboard API is absent', () => {
@@ -75,9 +81,9 @@ describe('CopyableId', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Copy episode id' }));
 
-    expect(screen.getByRole('button', { name: 'Copy episode id' })).toHaveTextContent(
-      'Copied',
-    );
+    expect(
+      screen.getByRole('button', { name: 'Copy episode id' }),
+    ).toHaveTextContent('Copied');
   });
 
   it('merges an extra class onto the button', () => {

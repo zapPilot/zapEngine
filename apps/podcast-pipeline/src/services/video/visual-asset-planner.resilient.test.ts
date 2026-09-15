@@ -175,21 +175,14 @@ describe('planVisualAssets resilient selection', () => {
     });
   });
 
-  it('does not consume publisher article imagery as the lead named cover', async () => {
-    const article = candidate('publisher-cover');
+  it('renders the publisher open graph image as the lead named cover', async () => {
+    const article = candidate('publisher-cover', 'openGraph');
     article.sourceUrl = 'https://publisher.example.test/story';
-    const searched = braveCandidate(
-      'justin-sun-interview',
-      'Justin Sun interview portrait',
-    );
+    const searched = braveCandidate('crypto-desk', 'crypto market desk');
     const braveSearch = vi.fn(async (query: string) =>
-      query.includes('Justin Sun') ? [searched] : [],
+      query.includes('crypto market') ? [searched] : [],
     );
-    const acquireImage = vi.fn(async (url: string) =>
-      url.includes('publisher-cover')
-        ? acquired('publisher-cover')
-        : acquired('justin-sun-interview'),
-    );
+    const acquireImage = vi.fn(acquireByUrl);
 
     const result = await planVisualAssets({
       scenes: [
@@ -206,17 +199,23 @@ describe('planVisualAssets resilient selection', () => {
       dependencies: {
         acquireImage,
         searchProviders: [braveProvider(braveSearch)],
-        fingerprintImage: vi
-          .fn()
-          .mockResolvedValueOnce('0000000000000000')
-          .mockResolvedValueOnce('ffffffffffffffff'),
+        fingerprintImage: distinctFingerprints(),
       },
     });
 
-    expect(result.assets[0]?.provider).toBe('brave');
-    expect(result.assets[1]?.provider).toBe('article');
+    expect(result.assets[0]?.provider).toBe('article');
+    expect(result.assets[0]?.originalImageUrl).toBe(article.imageUrl);
+    expect(result.assets[1]?.provider).toBe('brave');
     expect(result.scenes[0]?.assetId).toBe('image-01');
     expect(result.scenes[1]?.assetId).toBe('image-02');
+    expect(result.leadCover).toEqual({
+      imageUrl: article.imageUrl,
+      fallbackReason: null,
+    });
+    expect(braveSearch).not.toHaveBeenCalledWith(
+      'Justin Sun crypto entrepreneur',
+      expect.anything(),
+    );
   });
 
   it('respects provider result ceilings when requesting a large candidate pool', async () => {

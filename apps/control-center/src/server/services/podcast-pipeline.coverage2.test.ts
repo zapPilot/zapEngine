@@ -26,13 +26,19 @@ const NOW = new Date('2026-09-01T00:00:00.000Z');
 
 function thenable(result: { data: unknown; error: unknown }) {
   const chain: Record<string, unknown> = {};
-  for (const m of ['select', 'in', 'eq', 'order', 'limit']) chain[m] = () => chain;
-  chain['then'] = (ok: (v: unknown) => unknown, bad?: (e: unknown) => unknown) =>
-    Promise.resolve(result).then(ok, bad);
+  for (const m of ['select', 'in', 'eq', 'order', 'limit']) {
+    chain[m] = () => chain;
+  }
+  chain['then'] = (
+    ok: (v: unknown) => unknown,
+    bad?: (e: unknown) => unknown,
+  ) => Promise.resolve(result).then(ok, bad);
   return chain;
 }
 
-function fullClient(overrides: Record<string, { data: unknown; error: unknown }> = {}) {
+function fullClient(
+  overrides: Record<string, { data: unknown; error: unknown }> = {},
+) {
   const tables: Record<string, { data: unknown; error: unknown }> = {
     episodes: { data: [EPISODE], error: null },
     podcast_ingest_jobs: { data: [], error: null },
@@ -43,7 +49,9 @@ function fullClient(overrides: Record<string, { data: unknown; error: unknown }>
     ...overrides,
   };
   return {
-    from: vi.fn((table: string) => thenable(tables[table] ?? { data: [], error: null })),
+    from: vi.fn((table: string) =>
+      thenable(tables[table] ?? { data: [], error: null }),
+    ),
     rpc: vi.fn().mockResolvedValue({ data: true, error: null }),
   };
 }
@@ -56,7 +64,8 @@ function loc(lang: string, overrides: Record<string, unknown> = {}) {
     status: 'completed',
     script: `${lang} script`,
     hls_url: `https://cdn.example/${lang}.m3u8`,
-    classroom_hls_url: lang === 'zh-Hant' ? 'https://cdn.example/class.m3u8' : null,
+    classroom_hls_url:
+      lang === 'zh-Hant' ? 'https://cdn.example/class.m3u8' : null,
     updated_at: '2026-08-31T16:00:00.000Z',
     ...overrides,
   };
@@ -65,7 +74,10 @@ function loc(lang: string, overrides: Record<string, unknown> = {}) {
 function svcWith(client: unknown) {
   configured.client = client;
   return createPodcastPipelineService({
-    config: readControlCenterConfig({ SUPABASE_URL: 'https://x.co', SUPABASE_SERVICE_ROLE_KEY: 'k' }),
+    config: readControlCenterConfig({
+      SUPABASE_URL: 'https://x.co',
+      SUPABASE_SERVICE_ROLE_KEY: 'k',
+    }),
   });
 }
 
@@ -87,7 +99,10 @@ describe('podcast pipeline coverage round 2', () => {
       if (table === 'podcast_ingest_jobs' && ++ingestCalls === 2) {
         return thenable({ data: null, error: new Error('history down') });
       }
-      return thenable({ data: table === 'episodes' ? [EPISODE] : [], error: null });
+      return thenable({
+        data: table === 'episodes' ? [EPISODE] : [],
+        error: null,
+      });
     }) as never);
     const res = await svcWith(client).getPipeline();
     expect(res.status).toBe('error');
@@ -100,7 +115,20 @@ describe('podcast pipeline coverage round 2', () => {
       episodes: { data: [EPISODE], error: null },
       episode_localizations: { data: [], error: null },
       episode_video_visuals: {
-        data: [{ episode_id: EPISODE.id, status: 'queued', progress_percent: null, progress_stage: null, attempt_count: 0, lease_expires_at: null, last_error: null, visual_payload: null, visual_version: EPISODE_VIDEO_VISUAL_VERSION, updated_at: '2026-08-31T20:00:00Z' }],
+        data: [
+          {
+            episode_id: EPISODE.id,
+            status: 'queued',
+            progress_percent: null,
+            progress_stage: null,
+            attempt_count: 0,
+            lease_expires_at: null,
+            last_error: null,
+            visual_payload: null,
+            visual_version: EPISODE_VIDEO_VISUAL_VERSION,
+            updated_at: '2026-08-31T20:00:00Z',
+          },
+        ],
         error: null,
       },
       episode_videos: { data: [], error: null },
@@ -111,12 +139,43 @@ describe('podcast pipeline coverage round 2', () => {
         if (table === 'podcast_ingest_jobs') {
           ingestCalls += 1;
           if (ingestCalls === 1) {
-            return thenable({ data: [{ source_url: EPISODE.source_url, status: 'queued', attempt_count: 0, lease_expires_at: null, last_error: null, updated_at: '2026-08-31T20:00:00Z' }], error: null });
+            return thenable({
+              data: [
+                {
+                  source_url: EPISODE.source_url,
+                  status: 'queued',
+                  attempt_count: 0,
+                  lease_expires_at: null,
+                  last_error: null,
+                  updated_at: '2026-08-31T20:00:00Z',
+                },
+              ],
+              error: null,
+            });
           }
-          return thenable({ data: [{ source_url: EPISODE.source_url, failure_history: [{ kind: 'failed', at: '2026-08-31T20:00:00Z', attempt: 1 }] }], error: null });
+          return thenable({
+            data: [
+              {
+                source_url: EPISODE.source_url,
+                failure_history: [
+                  { kind: 'failed', at: '2026-08-31T20:00:00Z', attempt: 1 },
+                ],
+              },
+            ],
+            error: null,
+          });
         }
         if (table === 'episode_video_visuals' && ingestCalls >= 2) {
-          return thenable({ data: [{ episode_id: EPISODE.id, abandoned_at: '2026-09-01T00:00:00Z', abandoned_reason: 'done' }], error: null });
+          return thenable({
+            data: [
+              {
+                episode_id: EPISODE.id,
+                abandoned_at: '2026-09-01T00:00:00Z',
+                abandoned_reason: 'done',
+              },
+            ],
+            error: null,
+          });
         }
         return thenable(base[table] ?? { data: [], error: null });
       }),
@@ -155,15 +214,29 @@ describe('podcast pipeline coverage round 2', () => {
       .mockResolvedValueOnce({ data: false, error: null });
     configured.client = { from: vi.fn(), rpc };
     const svc = svcWith(configured.client);
-    await expect(svc.restartVideo(EPISODE.id)).rejects.toThrow('video rpc down');
-    await expect(svc.restartRender(EPISODE.id, 'loc')).rejects.toThrow('Render retry changed no episode');
+    await expect(svc.restartVideo(EPISODE.id)).rejects.toThrow(
+      'video rpc down',
+    );
+    await expect(svc.restartRender(EPISODE.id, 'loc')).rejects.toThrow(
+      'Render retry changed no episode',
+    );
   });
 
   it('applies queued and processing ingest status onto pending bases', () => {
     for (const status of ['queued', 'processing'] as const) {
       const [summary] = summarizePodcastPipeline(
         [EPISODE],
-        [{ source_url: EPISODE.source_url, status, attempt_count: 0, lease_expires_at: status === 'processing' ? '2026-09-01T01:00:00Z' : null, last_error: null, updated_at: '2026-08-31T20:00:00Z' } as never],
+        [
+          {
+            source_url: EPISODE.source_url,
+            status,
+            attempt_count: 0,
+            lease_expires_at:
+              status === 'processing' ? '2026-09-01T01:00:00Z' : null,
+            last_error: null,
+            updated_at: '2026-08-31T20:00:00Z',
+          } as never,
+        ],
         [],
         [],
         [],
@@ -178,7 +251,18 @@ describe('podcast pipeline coverage round 2', () => {
       [EPISODE],
       [],
       [loc('zh-Hant'), loc('ja'), loc('en')],
-      [{ episode_id: EPISODE.id, status: 'processing', attempt_count: 1, lease_expires_at: '2026-08-01T00:00:00Z', last_error: null, updated_at: '2026-08-31T20:00:00Z', visual_payload: null, visual_version: EPISODE_VIDEO_VISUAL_VERSION } as never],
+      [
+        {
+          episode_id: EPISODE.id,
+          status: 'processing',
+          attempt_count: 1,
+          lease_expires_at: '2026-08-01T00:00:00Z',
+          last_error: null,
+          updated_at: '2026-08-31T20:00:00Z',
+          visual_payload: null,
+          visual_version: EPISODE_VIDEO_VISUAL_VERSION,
+        } as never,
+      ],
       [],
       NOW,
     )[0];
@@ -187,8 +271,33 @@ describe('podcast pipeline coverage round 2', () => {
       [EPISODE],
       [],
       [loc('zh-Hant'), loc('ja'), loc('en')],
-      [{ episode_id: EPISODE.id, status: 'completed', attempt_count: 1, lease_expires_at: null, last_error: null, updated_at: '2026-08-31T20:00:00Z', visual_payload: null, visual_version: EPISODE_VIDEO_VISUAL_VERSION } as never],
-      (['zh-Hant', 'ja', 'en'] as const).map((lang) => ({ episode_localization_id: `id-${lang}`, episode_id: EPISODE.id, status: 'completed', progress_percent: null, progress_stage: null, attempt_count: 1, lease_expires_at: null, last_error: null, updated_at: '2026-08-31T20:00:00Z', visual_version: EPISODE_VIDEO_VISUAL_VERSION }) as never),
+      [
+        {
+          episode_id: EPISODE.id,
+          status: 'completed',
+          attempt_count: 1,
+          lease_expires_at: null,
+          last_error: null,
+          updated_at: '2026-08-31T20:00:00Z',
+          visual_payload: null,
+          visual_version: EPISODE_VIDEO_VISUAL_VERSION,
+        } as never,
+      ],
+      (['zh-Hant', 'ja', 'en'] as const).map(
+        (lang) =>
+          ({
+            episode_localization_id: `id-${lang}`,
+            episode_id: EPISODE.id,
+            status: 'completed',
+            progress_percent: null,
+            progress_stage: null,
+            attempt_count: 1,
+            lease_expires_at: null,
+            last_error: null,
+            updated_at: '2026-08-31T20:00:00Z',
+            visual_version: EPISODE_VIDEO_VISUAL_VERSION,
+          }) as never,
+      ),
       NOW,
     )[0];
     expect(done?.videoStatus).toBe('completed');
@@ -197,7 +306,16 @@ describe('podcast pipeline coverage round 2', () => {
   it('falls back to pending for unknown job statuses', () => {
     const [summary] = summarizePodcastPipeline(
       [EPISODE],
-      [{ source_url: EPISODE.source_url, status: 'weird', attempt_count: 0, lease_expires_at: null, last_error: null, updated_at: '2026-08-31T20:00:00Z' } as never],
+      [
+        {
+          source_url: EPISODE.source_url,
+          status: 'weird',
+          attempt_count: 0,
+          lease_expires_at: null,
+          last_error: null,
+          updated_at: '2026-08-31T20:00:00Z',
+        } as never,
+      ],
       [],
       [],
       [],

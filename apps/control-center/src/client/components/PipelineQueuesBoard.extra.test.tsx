@@ -16,13 +16,9 @@ import type {
   PipelineQueueItem,
   PipelineQueuesResponse,
 } from '../../shared/pipeline-queues.js';
-import {
-  itemMatches,
-  PipelineQueuesBoard,
-} from './PipelineQueuesBoard.js';
+import { itemMatches, PipelineQueuesBoard } from './PipelineQueuesBoard.js';
 
 const EPISODE_ID = '11111111-1111-4111-8111-111111111111';
-const LOCALIZATION_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const TIMER_HANDLE = 1 as unknown as ReturnType<typeof window.setInterval>;
 
 afterEach(() => {
@@ -116,7 +112,9 @@ describe('PipelineQueuesBoard loading', () => {
     render(<PipelineQueuesBoard {...boardProps()} />);
 
     expect(
-      await screen.findByText('Pipeline queues unavailable: connection refused'),
+      await screen.findByText(
+        'Pipeline queues unavailable: connection refused',
+      ),
     ).toBeVisible();
   });
 
@@ -126,24 +124,27 @@ describe('PipelineQueuesBoard loading', () => {
     render(<PipelineQueuesBoard {...boardProps()} />);
 
     expect(
-      await screen.findByText('Pipeline queues unavailable: Queue refresh failed'),
+      await screen.findByText(
+        'Pipeline queues unavailable: Queue refresh failed',
+      ),
     ).toBeVisible();
   });
 
   it('renders the unconfigured message instead of empty lanes', async () => {
     stubPoll(
-      vi
-        .fn()
-        .mockResolvedValue(
-          response(queues({ status: 'unconfigured', message: 'Supabase is not configured' })),
+      vi.fn().mockResolvedValue(
+        response(
+          queues({
+            status: 'unconfigured',
+            message: 'Supabase is not configured',
+          }),
         ),
+      ),
     );
 
     render(<PipelineQueuesBoard {...boardProps()} />);
 
-    expect(
-      await screen.findByText('Supabase is not configured'),
-    ).toBeVisible();
+    expect(await screen.findByText('Supabase is not configured')).toBeVisible();
     expect(screen.getByText('API queue')).toBeVisible();
   });
 
@@ -172,7 +173,9 @@ describe('PipelineQueuesBoard loading', () => {
       await new Promise((r) => setTimeout(r, 50));
     });
 
-    expect(await screen.findByText('Last refresh: refresh blew up')).toBeVisible();
+    expect(
+      await screen.findByText('Last refresh: refresh blew up'),
+    ).toBeVisible();
     expect(screen.getByText('API queue')).toBeVisible();
   });
 });
@@ -202,7 +205,9 @@ describe('PipelineQueuesBoard search', () => {
     render(<PipelineQueuesBoard {...boardProps()} />);
     await screen.findByText('Morning ingest');
 
-    const search = screen.getByRole('searchbox', { name: 'Search pipeline queues' });
+    const search = screen.getByRole('searchbox', {
+      name: 'Search pipeline queues',
+    });
     fireEvent.change(search, { target: { value: 'morning' } });
 
     expect(screen.getByText('Morning ingest')).toBeVisible();
@@ -229,7 +234,9 @@ describe('PipelineQueuesBoard queue operations', () => {
     const props = boardProps();
     singleRenderBoard(fetchMock, props);
 
-    fireEvent.click(await screen.findByRole('button', { name: /Morning ingest/i }));
+    fireEvent.click(
+      await screen.findByRole('button', { name: /Morning ingest/i }),
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Restart ingest' }));
 
     await waitFor(() =>
@@ -255,7 +262,7 @@ describe('PipelineQueuesBoard queue operations', () => {
         ],
       },
     });
-    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+    const fetchMock = vi.fn(async (url: string) => {
       if (typeof url === 'string' && url.includes('/abandon')) {
         return new Response('{}', {
           headers: { 'content-type': 'application/json' },
@@ -267,7 +274,9 @@ describe('PipelineQueuesBoard queue operations', () => {
     const props = boardProps();
     singleRenderBoard(fetchMock, props);
 
-    fireEvent.click(await screen.findByRole('button', { name: /Morning ingest/i }));
+    fireEvent.click(
+      await screen.findByRole('button', { name: /Morning ingest/i }),
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Abandon episode' }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
@@ -300,7 +309,9 @@ describe('PipelineQueuesBoard queue operations', () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true);
     singleRenderBoard(fetchMock, boardProps());
 
-    fireEvent.click(await screen.findByRole('button', { name: /Morning ingest/i }));
+    fireEvent.click(
+      await screen.findByRole('button', { name: /Morning ingest/i }),
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Abandon episode' }));
 
     expect(await screen.findByText('already processing')).toBeVisible();
@@ -333,7 +344,9 @@ describe('PipelineQueuesBoard queue operations', () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true);
     singleRenderBoard(fetchMock, boardProps());
 
-    fireEvent.click(await screen.findByRole('button', { name: /Morning ingest/i }));
+    fireEvent.click(
+      await screen.findByRole('button', { name: /Morning ingest/i }),
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Abandon episode' }));
 
     expect(await screen.findByText('HTTP 500')).toBeVisible();
@@ -400,20 +413,24 @@ describe('PipelineQueuesBoard cards', () => {
     expect(screen.getByText('fetch failed')).toBeVisible();
     expect(screen.getByText('worker · worker-1')).toBeVisible();
     expect(screen.getByText(/elapsed/)).toBeVisible();
-    expect(screen.getByText(/waiting/)).toBeVisible();
+    expect(screen.getAllByText(/waiting/)).toHaveLength(2);
     expect(screen.getByText('retry 3')).toBeVisible();
     expect(screen.getByText('no episode row')).toBeVisible();
   });
 
   it('opens the drawer for api work', async () => {
     stubPoll(
-      vi.fn().mockResolvedValue(
-        response(queues({ api: { ...emptyLane, attention: [workItem()] } })),
-      ),
+      vi
+        .fn()
+        .mockResolvedValue(
+          response(queues({ api: { ...emptyLane, attention: [workItem()] } })),
+        ),
     );
 
     render(<PipelineQueuesBoard {...boardProps()} />);
-    fireEvent.click(await screen.findByRole('button', { name: /Morning ingest/i }));
+    fireEvent.click(
+      await screen.findByRole('button', { name: /Morning ingest/i }),
+    );
 
     const drawer = screen.getByRole('complementary', {
       name: 'Episode queue details',

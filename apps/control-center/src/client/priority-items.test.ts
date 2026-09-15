@@ -9,7 +9,7 @@ function priority(fingerprint: string): OperationalPriority {
     score: 90,
     signal: {
       detail: 'queue is backing up',
-      domain: 'pipeline',
+      domain: 'social',
       evidence: {},
       fingerprint,
       observedAt: '2026-09-10T00:00:00.000Z',
