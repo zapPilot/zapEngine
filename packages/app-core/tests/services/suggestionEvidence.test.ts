@@ -81,4 +81,121 @@ describe('suggestion evidence', () => {
       ],
     });
   });
+
+  it('uses reason-code evidence when no matched rule is present', () => {
+    const data = fixture('cross_up_equal_weight');
+    data.context.strategy.details.matched_rule_name = null as never;
+    expect(deriveTriggerEvidence(data)).toMatchObject({
+      kind: 'none',
+      ruleName: null,
+      ruleLabel: 'Fallback reason',
+    });
+  });
+
+  it('falls back to none evidence for unknown rule families', () => {
+    expect(deriveTriggerEvidence(fixture('unknown_rule'))).toMatchObject({
+      kind: 'none',
+      ruleName: 'unknown_rule',
+      ruleLabel: 'Fallback reason',
+    });
+  });
+
+  it('selects SPY and BTC DMA chart series from the outer asset', () => {
+    expect(
+      deriveTriggerEvidence(fixture('cross_up', 'SPY')).chartSeriesId,
+    ).toBe('spy');
+    expect(
+      deriveTriggerEvidence(fixture('cross_up', 'SOL')).chartSeriesId,
+    ).toBe('btc');
+  });
+
+  it('uses macro FGI values first and falls back to market sentiment', () => {
+    const macro = fixture('fgi_downshift');
+    macro.context.market = {
+      ...macro.context.market,
+      macro_fear_greed: { score: 72, label: 'Greed' },
+    } as never;
+    const macroMetrics = deriveTriggerEvidence(macro).metrics;
+    expect(macroMetrics).toEqual(
+      expect.arrayContaining([
+        { label: 'FGI', value: '72' },
+        { label: 'Sentiment', value: 'Greed' },
+        { label: 'Slope', value: '-10.0%' },
+      ]),
+    );
+
+    const fallbackMetrics = deriveTriggerEvidence(
+      fixture('fgi_downshift'),
+    ).metrics;
+    expect(fallbackMetrics).toEqual(
+      expect.arrayContaining([
+        { label: 'FGI', value: '39' },
+        { label: 'Sentiment', value: 'Fear' },
+      ]),
+    );
+  });
+
+  it('omits null evidence metrics and formats large positive percentages', () => {
+    const data = fixture('cross_up');
+    data.context.signal.details.dma = {
+      dma_200: null,
+      distance: 12.5,
+      outer_dma_asset: 'BTC',
+      cross_event: null,
+      cooldown_active: null,
+    } as never;
+    expect(deriveTriggerEvidence(data).metrics).toEqual([
+      { label: 'Asset', value: 'BTC' },
+      { label: 'Distance', value: '+12.5%' },
+    ]);
+  });
+
+  it('selects ratio, SPY, and DMA guard indicators and exposes unavailable states', () => {
+    expect(
+      deriveGuardStates(fixture('eth_btc_ratio_rotation')).cooldown,
+    ).toEqual({ active: false, remainingDays: null });
+    expect(deriveGuardStates(fixture('spy_latch')).cooldown).toEqual({
+      active: false,
+      remainingDays: null,
+    });
+
+    const unavailable = fixture('cross_up');
+    unavailable.context.signal.details.dma = {} as never;
+    unavailable.context.strategy.details.enabled = null as never;
+    unavailable.context.strategy.details.cooldown_skipped_rules = null as never;
+    expect(deriveGuardStates(unavailable)).toEqual({
+      cooldown: 'unavailable',
+      quota: 'unavailable',
+      skippedRules: [],
+    });
+  });
+
+  it('fills missing quota counters with null when quota is enabled', () => {
+    const data = fixture('cross_up');
+    data.context.strategy.details = {
+      matched_rule_name: 'cross_up',
+      enabled: false,
+    } as never;
+    expect(deriveGuardStates(data).quota).toEqual({
+      trades7d: null,
+      maxTrades7d: null,
+      trades30d: null,
+      maxTrades30d: null,
+      nextTradeDate: null,
+    });
+  });
+
+  it('handles malformed and sparse allocation maps', () => {
+    expect(deriveAllocationDiff({ nope: true })).toEqual({
+      before: [],
+      after: [],
+    });
+    const data = fixture('cross_up');
+    data.context.portfolio.asset_allocation = null as never;
+    data.context.target.allocation = { btc: 0.0001, eth: -0.0004, spy: 0.1 };
+    expect(deriveAllocationDiff(data)).toEqual({
+      before: [],
+      after: [{ label: 'SPY', value: 10 }],
+    });
+  });
 });

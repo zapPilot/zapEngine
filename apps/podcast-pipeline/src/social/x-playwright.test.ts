@@ -11,6 +11,15 @@ vi.mock('playwright-core', () => ({
   chromium: { launchPersistentContext: browser.launchPersistentContext },
 }));
 
+const manual = vi.hoisted(() => ({
+  launchManualChrome: vi.fn(),
+}));
+
+vi.mock('./browser.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./browser.js')>()),
+  launchManualChrome: manual.launchManualChrome,
+}));
+
 import {
   createPlaywrightXPublisher,
   isXSessionReady,
@@ -111,6 +120,8 @@ function installContext(
 beforeEach(() => {
   vi.restoreAllMocks();
   browser.launchPersistentContext.mockReset();
+  manual.launchManualChrome.mockReset();
+  manual.launchManualChrome.mockResolvedValue(undefined);
 });
 
 describe('X Playwright session lifecycle', () => {
@@ -121,7 +132,11 @@ describe('X Playwright session lifecycle', () => {
     await expect(isXSessionReady()).resolves.toBe(true);
     expect(browser.launchPersistentContext).toHaveBeenCalledWith(
       expect.any(String),
-      expect.objectContaining({ channel: 'chrome', headless: true }),
+      expect.objectContaining({
+        channel: 'chrome',
+        chromiumSandbox: true,
+        headless: true,
+      }),
     );
     expect(context.close).toHaveBeenCalledOnce();
   });
@@ -152,30 +167,31 @@ describe('X Playwright session lifecycle', () => {
     await runXLogin(log);
 
     expect(log).toHaveBeenCalledWith('✓ X session is already logged in.');
+    expect(manual.launchManualChrome).not.toHaveBeenCalled();
     expect(browser.launchPersistentContext).toHaveBeenCalledWith(
       expect.any(String),
-      expect.objectContaining({ headless: false }),
+      expect.objectContaining({ chromiumSandbox: true, headless: true }),
     );
   });
 
-  it('waits for the composer after asking the user to log in', async () => {
-    const composerWait = vi
-      .fn()
-      .mockRejectedValueOnce(new Error('not logged in'))
-      .mockResolvedValueOnce(undefined);
+  it('hands an unauthenticated login to a Chrome Playwright does not drive', async () => {
+    const composerWait = vi.fn().mockRejectedValue(new Error('not logged in'));
     const { page } = pageFixture({ composerWait });
     installContext(page);
     const log = vi.fn();
 
     await runXLogin(log);
 
-    expect(composerWait).toHaveBeenCalledTimes(2);
+    expect(manual.launchManualChrome).toHaveBeenCalledWith(
+      expect.stringContaining('x-chrome-profile'),
+      'https://x.com/login',
+    );
     expect(log.mock.calls.map(([line]) => String(line))).toEqual(
       expect.arrayContaining([
-        'A Chrome window is open on X.',
+        'A Chrome window is open on X. Playwright is not driving it.',
         'Log in there (the publisher never sees or stores your credentials).',
-        expect.stringContaining('Waiting up to 5 minutes'),
-        expect.stringContaining('✓ Logged in. Session saved to'),
+        'Then quit Chrome with ⌘Q — closing the window leaves it running.',
+        expect.stringContaining('✓ Chrome closed. Session saved to'),
       ]),
     );
   });

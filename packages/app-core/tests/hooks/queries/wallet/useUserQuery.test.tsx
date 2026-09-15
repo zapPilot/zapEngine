@@ -32,6 +32,7 @@ import {
 import {
   useCurrentUser,
   useUserById,
+  useUserByWallet,
 } from '@core/hooks/queries/wallet/useUserQuery';
 
 const USER_ID = '5fc63d4e-4e07-47d8-840b-ccd3420d553f';
@@ -293,6 +294,57 @@ describe('useCurrentUser bootstrap coordination', () => {
     expect(mocks.getUserByWallet).toHaveBeenCalledWith('0xaaa');
   });
 
+  it('delegates manual refetch directly while disconnected', async () => {
+    mocks.activeAddress.value = null;
+    const { result } = renderHook(() => useCurrentUser(), {
+      wrapper: createWrapper(),
+    });
+
+    await act(async () => {
+      await result.current.refetch();
+    });
+
+    expect(result.current.isConnected).toBe(false);
+    expect(mocks.connectWallet).not.toHaveBeenCalled();
+  });
+
+  it('delegates manual refetch directly after bootstrap is ready', async () => {
+    mocks.activeAddress.value = '0xaaa';
+    mockSuccessfulBootstrap();
+    const { result } = renderHook(() => useCurrentUser(), {
+      wrapper: createWrapper(),
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const bootstrapCalls = mocks.connectWallet.mock.calls.length;
+
+    await act(async () => {
+      await result.current.refetch();
+    });
+
+    expect(mocks.connectWallet).toHaveBeenCalledTimes(bootstrapCalls);
+    expect(mocks.getUserByWallet.mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('ignores a stale rejected bootstrap after disconnect', async () => {
+    mocks.activeAddress.value = '0xaaa';
+    const gate = deferred();
+    mocks.connectWallet.mockImplementationOnce(() => gate.promise);
+
+    const mounted = mountConsumers(makeClient(), 1);
+    const { result } = mounted.consumers[0];
+    await waitFor(() => expect(mocks.connectWallet).toHaveBeenCalledTimes(1));
+
+    mocks.activeAddress.value = null;
+    mounted.rerenderAll();
+    await waitFor(() => expect(result.current.isConnected).toBe(false));
+
+    gate.reject(new Error('stale bootstrap failure'));
+    await flushMacrotasks();
+
+    expect(result.current.error).toBeNull();
+    expect(result.current.isSuccess).toBe(false);
+  });
+
   it('ignores a stale bootstrap completion after disconnect and retries cleanly', async () => {
     mocks.activeAddress.value = '0xaaa';
     const gate = deferred();
@@ -319,6 +371,99 @@ describe('useCurrentUser bootstrap coordination', () => {
 
     expect(mocks.connectWallet).toHaveBeenCalledTimes(2);
     expect(mocks.getUserByWallet).toHaveBeenCalledWith('0xaaa');
+  });
+});
+
+describe('useUser query mapping', () => {
+  it('maps API wallets, labels, subscription defaults, and totals for wallet lookup', async () => {
+    mocks.getUserByWallet.mockResolvedValue({ user_id: USER_ID });
+    mocks.getUserProfile.mockResolvedValue({
+      user: {
+        id: USER_ID,
+        email: '',
+        created_at: '2026-01-01T00:00:00.000Z',
+      },
+      wallets: [
+        {
+          id: 'wallet-1',
+          user_id: USER_ID,
+          wallet: '0x1111111111111111111111111111111111111111',
+          label: 'Main',
+          created_at: '2026-01-01T00:00:00.000Z',
+          ownership_verified_at: null,
+        },
+        {
+          id: 'wallet-2',
+          user_id: USER_ID,
+          wallet: '0x2222222222222222222222222222222222222222',
+          label: null,
+          created_at: '2026-01-02T00:00:00.000Z',
+          ownership_verified_at: null,
+        },
+      ],
+    });
+
+    const { result } = renderHook(
+      () => useUserByWallet('0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'),
+      { wrapper: createWrapper() },
+    );
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(result.current.data).toMatchObject({
+      userId: USER_ID,
+      email: '',
+      isSubscribedToReports: false,
+      bundleWallets: [
+        '0x1111111111111111111111111111111111111111',
+        '0x2222222222222222222222222222222222222222',
+      ],
+      visibleWallets: [
+        '0x1111111111111111111111111111111111111111',
+        '0x2222222222222222222222222222222222222222',
+      ],
+      totalWallets: 2,
+      totalVisibleWallets: 2,
+      additionalWallets: [
+        expect.objectContaining({ label: 'Main' }),
+        expect.objectContaining({ label: null }),
+      ],
+    });
+  });
+
+  it('uses the lookup wallet as fallback when the profile has no wallets', async () => {
+    const lookupWallet = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+    mocks.getUserByWallet.mockResolvedValue({ user_id: USER_ID });
+    mocks.getUserProfile.mockResolvedValue({
+      user: undefined,
+      wallets: [],
+    });
+    const { result } = renderHook(() => useUserByWallet(lookupWallet), {
+      wrapper: createWrapper(),
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toMatchObject({
+      email: '',
+      isSubscribedToReports: false,
+      bundleWallets: [lookupWallet],
+      additionalWallets: [],
+    });
+  });
+
+  it('keeps bundle wallets empty when an id lookup profile has no wallets', async () => {
+    mocks.getUserProfile.mockResolvedValue({
+      user: undefined,
+      wallets: undefined,
+    });
+    const { result } = renderHook(() => useUserById(USER_ID), {
+      wrapper: createWrapper(),
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toMatchObject({
+      email: '',
+      bundleWallets: [],
+      totalWallets: 0,
+      isSubscribedToReports: false,
+    });
   });
 });
 

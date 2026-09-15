@@ -12,7 +12,7 @@ vi.mock('../../src/lib/http', () => ({
   },
 }));
 
-const { getDailySuggestion } =
+const { getDailySuggestion, getStrategyConfigs } =
   await import('../../src/services/strategyService');
 
 /**
@@ -72,82 +72,94 @@ beforeEach(() => {
   setErrorReporter(reporter);
 });
 
-describe('getDailySuggestion', () => {
-  it('returns a schema-clean payload without reporting anything', async () => {
-    const response = buildValidSuggestion();
+describe('strategyService', () => {
+  it('fetches strategy bootstrap configs', async () => {
+    const response = { strategies: [], presets: [], backtest_defaults: {} };
     analyticsEngine.get.mockResolvedValue(response);
 
-    await expect(getDailySuggestion('user-1')).resolves.toBe(response);
-
+    await expect(getStrategyConfigs()).resolves.toBe(response);
     expect(analyticsEngine.get).toHaveBeenCalledWith(
-      '/api/v3/strategy/daily-suggestion/user-1',
-      { timeout: 60_000 },
-    );
-    expect(reporter).not.toHaveBeenCalled();
-  });
-
-  it('passes a preset config id through as a query parameter', async () => {
-    analyticsEngine.get.mockResolvedValue(buildValidSuggestion());
-
-    await getDailySuggestion('user-1', 'dma_fgi_portfolio_rules_default');
-
-    expect(analyticsEngine.get).toHaveBeenCalledWith(
-      '/api/v3/strategy/daily-suggestion/user-1?config_id=dma_fgi_portfolio_rules_default',
-      { timeout: 60_000 },
+      '/api/v3/strategy/configs',
     );
   });
 
-  it('still returns the payload when the backend adds an allocation key', async () => {
-    // TargetAllocationSchema is `.strict()`, so a new backend asset key is a
-    // hard schema failure. The card must survive it.
-    const response = buildValidSuggestion();
-    Object.assign(response.context.target.allocation, { sol: 0 });
-    analyticsEngine.get.mockResolvedValue(response);
+  describe('getDailySuggestion', () => {
+    it('returns a schema-clean payload without reporting anything', async () => {
+      const response = buildValidSuggestion();
+      analyticsEngine.get.mockResolvedValue(response);
 
-    await expect(getDailySuggestion('user-1')).resolves.toBe(response);
+      await expect(getDailySuggestion('user-1')).resolves.toBe(response);
 
-    expect(reporter).toHaveBeenCalledTimes(1);
-    const [error, context] = reporter.mock.calls[0] as [
-      Error,
-      { scope: string; extra: { issues: { path: string; code: string }[] } },
-    ];
-    expect(error).toBeInstanceOf(Error);
-    expect(context.scope).toBe('strategyService.getDailySuggestion');
-    expect(context.extra.issues).toEqual([
-      { path: 'context.target.allocation', code: 'unrecognized_keys' },
-    ]);
-  });
+      expect(analyticsEngine.get).toHaveBeenCalledWith(
+        '/api/v3/strategy/daily-suggestion/user-1',
+        { timeout: 60_000 },
+      );
+      expect(reporter).not.toHaveBeenCalled();
+    });
 
-  it('still returns the payload when alt sits inside the backend tolerance', async () => {
-    // The backend only rejects `alt > 0.001`; the schema demands exactly 0.
-    const response = buildValidSuggestion();
-    response.context.target.allocation.alt = 0.001;
-    analyticsEngine.get.mockResolvedValue(response);
+    it('passes a preset config id through as a query parameter', async () => {
+      analyticsEngine.get.mockResolvedValue(buildValidSuggestion());
 
-    await expect(getDailySuggestion('user-1')).resolves.toBe(response);
+      await getDailySuggestion('user-1', 'dma_fgi_portfolio_rules_default');
 
-    expect(reporter).toHaveBeenCalledTimes(1);
-    const [, context] = reporter.mock.calls[0] as [
-      Error,
-      { extra: { issues: { path: string; code: string }[] } },
-    ];
-    expect(context.extra.issues).toEqual([
-      { path: 'context.target.allocation.alt', code: 'custom' },
-    ]);
-  });
+      expect(analyticsEngine.get).toHaveBeenCalledWith(
+        '/api/v3/strategy/daily-suggestion/user-1?config_id=dma_fgi_portfolio_rules_default',
+        { timeout: 60_000 },
+      );
+    });
 
-  it('reports nothing but the mismatch shape, never the payload', async () => {
-    const response = buildValidSuggestion();
-    response.context.portfolio.total_value = -1;
-    analyticsEngine.get.mockResolvedValue(response);
+    it('still returns the payload when the backend adds an allocation key', async () => {
+      // TargetAllocationSchema is `.strict()`, so a new backend asset key is a
+      // hard schema failure. The card must survive it.
+      const response = buildValidSuggestion();
+      Object.assign(response.context.target.allocation, { sol: 0 });
+      analyticsEngine.get.mockResolvedValue(response);
 
-    await getDailySuggestion('user-1');
+      await expect(getDailySuggestion('user-1')).resolves.toBe(response);
 
-    const [, context] = reporter.mock.calls[0] as [
-      Error,
-      { extra: Record<string, unknown> },
-    ];
-    expect(JSON.stringify(context.extra)).not.toContain('64000.5');
-    expect(Object.keys(context.extra)).toEqual(['issues']);
+      expect(reporter).toHaveBeenCalledTimes(1);
+      const [error, context] = reporter.mock.calls[0] as [
+        Error,
+        { scope: string; extra: { issues: { path: string; code: string }[] } },
+      ];
+      expect(error).toBeInstanceOf(Error);
+      expect(context.scope).toBe('strategyService.getDailySuggestion');
+      expect(context.extra.issues).toEqual([
+        { path: 'context.target.allocation', code: 'unrecognized_keys' },
+      ]);
+    });
+
+    it('still returns the payload when alt sits inside the backend tolerance', async () => {
+      // The backend only rejects `alt > 0.001`; the schema demands exactly 0.
+      const response = buildValidSuggestion();
+      response.context.target.allocation.alt = 0.001;
+      analyticsEngine.get.mockResolvedValue(response);
+
+      await expect(getDailySuggestion('user-1')).resolves.toBe(response);
+
+      expect(reporter).toHaveBeenCalledTimes(1);
+      const [, context] = reporter.mock.calls[0] as [
+        Error,
+        { extra: { issues: { path: string; code: string }[] } },
+      ];
+      expect(context.extra.issues).toEqual([
+        { path: 'context.target.allocation.alt', code: 'custom' },
+      ]);
+    });
+
+    it('reports nothing but the mismatch shape, never the payload', async () => {
+      const response = buildValidSuggestion();
+      response.context.portfolio.total_value = -1;
+      analyticsEngine.get.mockResolvedValue(response);
+
+      await getDailySuggestion('user-1');
+
+      const [, context] = reporter.mock.calls[0] as [
+        Error,
+        { extra: Record<string, unknown> },
+      ];
+      expect(JSON.stringify(context.extra)).not.toContain('64000.5');
+      expect(Object.keys(context.extra)).toEqual(['issues']);
+    });
   });
 });

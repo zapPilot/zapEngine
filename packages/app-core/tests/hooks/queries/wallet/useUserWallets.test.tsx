@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { createElement, type ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -31,13 +31,23 @@ beforeEach(() => {
 });
 
 describe('useUserWallets', () => {
-  it('does not fetch when userId is null', () => {
+  it('does not fetch when userId is null and guards manual refetch', async () => {
     const { wrapper } = createHarness();
     const { result } = renderHook(() => useUserWallets(null), { wrapper });
 
     expect(mocks.getUserWallets).not.toHaveBeenCalled();
     expect(result.current.fetchStatus).toBe('idle');
     expect(result.current.data).toBeUndefined();
+
+    let refetched;
+    await act(async () => {
+      refetched = await result.current.refetch();
+    });
+    expect(refetched).toMatchObject({
+      status: 'error',
+      error: expect.objectContaining({ message: 'No user ID provided' }),
+    });
+    expect(mocks.getUserWallets).not.toHaveBeenCalled();
   });
 
   it('fetches and returns the wallet rows for a userId', async () => {

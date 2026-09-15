@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { createElement, type ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -35,12 +35,33 @@ describe('useYieldSummary', () => {
     });
   });
 
-  it('stays disabled without a user id', () => {
+  it('loads the bundle summary without a wallet filter', async () => {
+    mocks.getYieldSummary.mockResolvedValue({ user_id: 'user', windows: {} });
+    const { result } = renderHook(() => useYieldSummary('user'), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(mocks.getYieldSummary).toHaveBeenCalledWith('user', {});
+  });
+
+  it('stays disabled without a user id and guards manual refetch', async () => {
     const { result } = renderHook(() => useYieldSummary(undefined), {
       wrapper: createWrapper(),
     });
 
     expect(result.current.fetchStatus).toBe('idle');
     expect(mocks.getYieldSummary).not.toHaveBeenCalled();
+
+    let refetched;
+    await act(async () => {
+      refetched = await result.current.refetch();
+    });
+    expect(refetched).toMatchObject({
+      status: 'error',
+      error: expect.objectContaining({
+        message: 'userId is required to fetch yield summary',
+      }),
+    });
   });
 });

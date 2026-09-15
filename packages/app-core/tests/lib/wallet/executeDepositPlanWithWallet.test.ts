@@ -1,6 +1,10 @@
 import {
+  assertEIP7702DelegationCompatibility,
   EIP7702WalletRecoveryError,
+  executeDepositPlan,
   executeDepositPlanWithWallet,
+  isEIP7702WalletRecoveryError,
+  submitPreparedTransactionsWithEIP7702,
 } from '@core/lib/wallet/executeDepositPlan';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -229,5 +233,262 @@ describe('executeDepositPlanWithWallet', () => {
     ).rejects.toThrow('User rejected the request');
 
     expect(mocks.inspectDelegation).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns atomic submissions with and without transaction hashes and invokes callbacks correctly', async () => {
+    const onBundleSubmitted = vi.fn();
+    const onBundleConfirmed = vi.fn();
+    const withHash = vi.fn().mockResolvedValue({
+      callsId: 'calls-with-hash',
+      transactionHash: '0xhash',
+    });
+    await expect(
+      executeDepositPlan({
+        plan,
+        chainId: 8453,
+        executeAtomicBatch: withHash,
+        onBundleSubmitted,
+        onBundleConfirmed,
+      }),
+    ).resolves.toEqual({
+      kind: 'eip7702',
+      callsId: 'calls-with-hash',
+      transactionHash: '0xhash',
+    });
+    expect(onBundleSubmitted).toHaveBeenCalledWith('calls-with-hash');
+    expect(onBundleConfirmed).toHaveBeenCalledWith('0xhash');
+
+    onBundleConfirmed.mockClear();
+    const withoutHash = vi.fn().mockResolvedValue({ callsId: 'calls-only' });
+    await expect(
+      executeDepositPlan({
+        plan,
+        chainId: 8453,
+        executeAtomicBatch: withoutHash,
+        onBundleConfirmed,
+      }),
+    ).resolves.toEqual({ kind: 'eip7702', callsId: 'calls-only' });
+    expect(onBundleConfirmed).not.toHaveBeenCalled();
+  });
+
+  it('requires a wallet client and a connected wallet account for generic execution', async () => {
+    await expect(
+      executeDepositPlan({
+        plan,
+        chainId: 8453,
+        externalWalletBrand: 'okx',
+      }),
+    ).rejects.toThrow('Wallet client is required');
+
+    await expect(
+      executeDepositPlan({
+        plan,
+        chainId: 8453,
+        walletClient: { account: undefined } as never,
+        externalWalletBrand: 'okx',
+      }),
+    ).rejects.toThrow('Wallet client has no connected account');
+  });
+
+  it('accepts string wallet accounts in addition to account objects', async () => {
+    const stringAccountClient = {
+      account: '0x1111111111111111111111111111111111111111',
+    } as never;
+    await expect(
+      executeDepositPlan({
+        plan,
+        chainId: 8453,
+        walletClient: stringAccountClient,
+        externalWalletBrand: 'okx',
+      }),
+    ).resolves.toEqual({ kind: 'eip7702', callsId: '0xbundle' });
+    expect(mocks.inspectDelegation).toHaveBeenCalledWith({
+      address: '0x1111111111111111111111111111111111111111',
+      chainId: 8453,
+    });
+  });
+
+  it('surfaces submitted bundles when calls-status lookup is unavailable', async () => {
+    mocks.waitForEIP7702Confirmation.mockRejectedValue(
+      new Error('wallet_getCallsStatus unsupported'),
+    );
+    const onBundleSubmitted = vi.fn();
+    const onBundleConfirmed = vi.fn();
+
+    await expect(
+      executeDepositPlan({
+        plan,
+        chainId: 8453,
+        walletClient: walletClient as never,
+        externalWalletBrand: 'okx',
+        onBundleSubmitted,
+        onBundleConfirmed,
+      }),
+    ).resolves.toEqual({ kind: 'eip7702', callsId: '0xbundle' });
+    expect(onBundleSubmitted).toHaveBeenCalledWith('0xbundle');
+    expect(onBundleConfirmed).toHaveBeenCalledWith();
+  });
+
+  it('returns confirmed bundle hashes when confirmation succeeds', async () => {
+    mocks.waitForEIP7702Confirmation.mockResolvedValue({
+      status: 'success',
+      transactionHash: '0xconfirmed',
+    });
+    const onBundleConfirmed = vi.fn();
+    await expect(
+      executeDepositPlan({
+        plan,
+        chainId: 8453,
+        walletClient: walletClient as never,
+        externalWalletBrand: 'okx',
+        onBundleConfirmed,
+      }),
+    ).resolves.toEqual({
+      kind: 'eip7702',
+      callsId: '0xbundle',
+      transactionHash: '0xconfirmed',
+    });
+    expect(onBundleConfirmed).toHaveBeenCalledWith('0xconfirmed');
+  });
+
+  it('omits transactionHash when success confirmation has none', async () => {
+    mocks.waitForEIP7702Confirmation.mockResolvedValue({ status: 'success' });
+    await expect(
+      executeDepositPlan({
+        plan,
+        chainId: 8453,
+        walletClient: walletClient as never,
+        externalWalletBrand: 'okx',
+      }),
+    ).resolves.toEqual({ kind: 'eip7702', callsId: '0xbundle' });
+  });
+
+  it('reports failed on-chain bundles with current delegation diagnostics', async () => {
+    mocks.waitForEIP7702Confirmation.mockResolvedValue({ status: 'failed' });
+    mocks.inspectDelegation
+      .mockResolvedValueOnce({ kind: 'notDelegated' })
+      .mockResolvedValueOnce({
+        kind: 'delegated',
+        label: 'OKX SmartWalletEntry',
+        walletBrand: 'okx',
+        walletLabel: 'OKX Wallet',
+        implementation: '0x0000000000000000000000000000000000000002',
+      });
+
+    await expect(
+      executeDepositPlan({
+        plan,
+        chainId: 8453,
+        walletClient: walletClient as never,
+        externalWalletBrand: 'okx',
+      }),
+    ).rejects.toThrow('Current delegation: OKX SmartWalletEntry');
+  });
+
+  it('falls back to not-delegated diagnostics when post-failure inspection fails', async () => {
+    mocks.waitForEIP7702Confirmation.mockResolvedValue({ status: 'failed' });
+    mocks.inspectDelegation
+      .mockResolvedValueOnce({ kind: 'notDelegated' })
+      .mockRejectedValueOnce(new Error('rpc down'));
+    await expect(
+      executeDepositPlan({
+        plan,
+        chainId: 8453,
+        walletClient: walletClient as never,
+        externalWalletBrand: 'okx',
+      }),
+    ).rejects.toThrow('no EIP-7702 delegation detected');
+  });
+
+  it.each([
+    'Atomicity not supported',
+    'wallet_sendCalls method not found',
+    'delegate implementation mismatch',
+    'invalid signature authorization',
+  ])('maps compatibility error "%s" to wallet recovery', async (message) => {
+    mocks.executeWithEIP7702.mockResolvedValue({
+      success: false,
+      error: message,
+    });
+    mocks.inspectDelegation.mockResolvedValue({ kind: 'notDelegated' });
+    await expect(
+      executeDepositPlan({
+        plan,
+        chainId: 8453,
+        walletClient: walletClient as never,
+        externalWalletBrand: 'okx',
+      }),
+    ).rejects.toBeInstanceOf(EIP7702WalletRecoveryError);
+  });
+
+  it('falls back to the generic batch error when no error string is supplied', async () => {
+    mocks.executeWithEIP7702.mockResolvedValue({ success: false });
+    await expect(
+      executeDepositPlan({
+        plan,
+        chainId: 8453,
+        walletClient: walletClient as never,
+        externalWalletBrand: 'okx',
+      }),
+    ).rejects.toThrow('failed to return a calls bundle id');
+  });
+
+  it('validates prepared batches and exposes the returned calls id', async () => {
+    await expect(
+      submitPreparedTransactionsWithEIP7702({
+        transactions: [],
+        walletClient: walletClient as never,
+        chainId: 8453,
+      }),
+    ).rejects.toThrow('Cannot execute empty transaction array');
+
+    await expect(
+      submitPreparedTransactionsWithEIP7702({
+        transactions: plan.calls as never,
+        walletClient: walletClient as never,
+        chainId: 8453,
+      }),
+    ).resolves.toEqual({ callsId: '0xbundle' });
+
+    mocks.executeWithEIP7702.mockResolvedValue({ success: false });
+    await expect(
+      submitPreparedTransactionsWithEIP7702({
+        transactions: plan.calls as never,
+        walletClient: walletClient as never,
+        chainId: 8453,
+      }),
+    ).rejects.toThrow('failed to return a calls bundle id');
+  });
+
+  it('exposes wallet recovery error type guards and original wallet labels', () => {
+    const error = new EIP7702WalletRecoveryError({
+      kind: 'delegated',
+      label: 'Ambire delegation',
+      walletBrand: 'ambire',
+      walletLabel: 'Ambire Wallet',
+      implementation: '0x0000000000000000000000000000000000000002',
+    });
+    expect(error.originalWalletLabel).toBe('Ambire Wallet');
+    expect(isEIP7702WalletRecoveryError(error)).toBe(true);
+    expect(isEIP7702WalletRecoveryError(new Error('nope'))).toBe(false);
+  });
+
+  it('fails compatibility checks for unknown wallets and inspection failures', async () => {
+    await expect(
+      assertEIP7702DelegationCompatibility({
+        address: walletClient.account.address as never,
+        chainId: 8453,
+        activeWalletBrand: undefined,
+      }),
+    ).rejects.toThrow('could not identify the active browser wallet');
+
+    mocks.inspectDelegation.mockRejectedValue(new Error('rpc down'));
+    await expect(
+      assertEIP7702DelegationCompatibility({
+        address: walletClient.account.address as never,
+        chainId: 8453,
+        activeWalletBrand: 'okx',
+      }),
+    ).rejects.toThrow('could not verify this account');
   });
 });

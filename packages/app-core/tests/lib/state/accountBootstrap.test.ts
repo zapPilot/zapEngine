@@ -161,6 +161,20 @@ describe('ensureAccountBootstrap', () => {
     expect(bootstrap).toHaveBeenCalledTimes(2);
   });
 
+  it('handles empty and missing wallet helper inputs without mutating state', async () => {
+    const bootstrap = vi.fn(async () => undefined);
+
+    clearAccountBootstrap('   ');
+    suspendAccountBootstrap('   ');
+
+    expect(isAccountBootstrapped(null)).toBe(false);
+    expect(isAccountBootstrapped(undefined)).toBe(false);
+    expect(isAccountBootstrapSuspended(null)).toBe(false);
+    expect(isAccountBootstrapSuspended(undefined)).toBe(false);
+    expect(await ensureAccountBootstrap('0xaaa', bootstrap)).toBe('ready');
+    expect(bootstrap).toHaveBeenCalledOnce();
+  });
+
   it('treats different wallets as independent sessions', async () => {
     const bootstrap = vi.fn(async () => undefined);
 

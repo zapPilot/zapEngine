@@ -35,6 +35,21 @@ beforeEach(() => {
 });
 
 describe('useEtlJobPolling', () => {
+  it('starts idle and ignores empty polling ids', () => {
+    const { wrapper } = createHarness();
+    const { result } = renderHook(() => useEtlJobPolling(), { wrapper });
+
+    expect(result.current.state).toEqual({
+      jobId: null,
+      status: 'idle',
+      errorMessage: undefined,
+      isLoading: false,
+      isInProgress: false,
+    });
+    act(() => result.current.startPolling('', 'user-1'));
+    expect(result.current.state.jobId).toBeNull();
+  });
+
   it('refreshes portfolio caches and preserves completed status', async () => {
     mocks.getEtlJobStatus.mockResolvedValue({
       jobId: 'job-1',
@@ -90,5 +105,151 @@ describe('useEtlJobPolling', () => {
       isInProgress: false,
     });
     expect(mocks.getEtlJobStatus).not.toHaveBeenCalled();
+  });
+
+  it('tracks pending and processing remote statuses as in-progress', async () => {
+    mocks.getEtlJobStatus
+      .mockResolvedValueOnce({
+        jobId: 'job-progress',
+        status: 'pending',
+        createdAt: '2026-08-02T00:00:00.000Z',
+      })
+      .mockResolvedValue({
+        jobId: 'job-progress',
+        status: 'processing',
+        createdAt: '2026-08-02T00:00:00.000Z',
+      });
+    const { client, wrapper } = createHarness();
+    const { result } = renderHook(() => useEtlJobPolling(), { wrapper });
+
+    act(() => result.current.startPolling('job-progress', 'user-1'));
+    await waitFor(() => expect(result.current.state.status).toBe('pending'));
+    expect(result.current.state.isInProgress).toBe(true);
+
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: ['etl-job-status'] });
+    });
+    await waitFor(() => expect(result.current.state.status).toBe('processing'));
+    expect(result.current.state.isInProgress).toBe(true);
+  });
+
+  it('refreshes only global portfolio cache when no user id is attached', async () => {
+    mocks.getEtlJobStatus.mockResolvedValue({
+      jobId: 'job-global',
+      status: 'completed',
+      createdAt: '2026-08-02T00:00:00.000Z',
+    });
+    const { invalidateSpy, wrapper } = createHarness();
+    const { result } = renderHook(() => useEtlJobPolling(), { wrapper });
+
+    act(() => result.current.startPolling('job-global', '   '));
+    await waitFor(() => expect(result.current.state.status).toBe('completed'));
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['portfolio'] });
+    expect(invalidateSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('accepts a successful ETL trigger and begins polling the returned job id', async () => {
+    mocks.triggerWalletDataFetch.mockResolvedValue({
+      rate_limited: false,
+      job_id: 'triggered-job',
+      message: 'started',
+    });
+    mocks.getEtlJobStatus.mockResolvedValue({
+      jobId: 'triggered-job',
+      status: 'pending',
+      createdAt: '2026-08-02T00:00:00.000Z',
+    });
+    const { wrapper } = createHarness();
+    const { result } = renderHook(() => useEtlJobPolling(), { wrapper });
+
+    await act(async () => {
+      await result.current.triggerEtl('user-1', '0xabc');
+    });
+    expect(result.current.state.jobId).toBe('triggered-job');
+    expect(result.current.state.status).toBe('pending');
+    expect(result.current.state.isInProgress).toBe(true);
+    await waitFor(() =>
+      expect(mocks.getEtlJobStatus).toHaveBeenCalledWith('triggered-job'),
+    );
+  });
+
+  it('uses response and default errors when trigger succeeds without a job id', async () => {
+    const { wrapper } = createHarness();
+    const first = renderHook(() => useEtlJobPolling(), { wrapper });
+    mocks.triggerWalletDataFetch.mockResolvedValueOnce({
+      rate_limited: false,
+      message: 'No job created',
+    });
+    await act(async () => {
+      await first.result.current.triggerEtl('user-1', '0xabc');
+    });
+    expect(first.result.current.state).toMatchObject({
+      status: 'failed',
+      errorMessage: 'No job created',
+    });
+    first.unmount();
+
+    const second = renderHook(() => useEtlJobPolling(), { wrapper });
+    mocks.triggerWalletDataFetch.mockResolvedValueOnce({ rate_limited: false });
+    await act(async () => {
+      await second.result.current.triggerEtl('user-1', '0xabc');
+    });
+    expect(second.result.current.state.errorMessage).toBe(
+      'Failed to trigger ETL',
+    );
+  });
+
+  it('normalizes thrown trigger errors from Error and non-Error values', async () => {
+    const { wrapper } = createHarness();
+    const first = renderHook(() => useEtlJobPolling(), { wrapper });
+    mocks.triggerWalletDataFetch.mockRejectedValueOnce(
+      new Error('network down'),
+    );
+    await act(async () => {
+      await first.result.current.triggerEtl('user-1', '0xabc');
+    });
+    expect(first.result.current.state.errorMessage).toBe('network down');
+    first.unmount();
+
+    const second = renderHook(() => useEtlJobPolling(), { wrapper });
+    mocks.triggerWalletDataFetch.mockRejectedValueOnce('bad');
+    await act(async () => {
+      await second.result.current.triggerEtl('user-1', '0xabc');
+    });
+    expect(second.result.current.state.errorMessage).toBe(
+      'Failed to trigger ETL',
+    );
+  });
+
+  it('surfaces polling request errors and stops progress', async () => {
+    mocks.getEtlJobStatus.mockRejectedValue(new Error('poll failed'));
+    const { wrapper } = createHarness();
+    const { result } = renderHook(() => useEtlJobPolling(), { wrapper });
+
+    act(() => result.current.startPolling('job-error', 'user-1'));
+    await waitFor(() => expect(result.current.state.status).toBe('failed'));
+    expect(result.current.state.errorMessage).toBe('poll failed');
+    expect(result.current.state.isInProgress).toBe(false);
+  });
+
+  it('reset and completeTransition clear state and cached polling queries', async () => {
+    mocks.getEtlJobStatus.mockResolvedValue({
+      jobId: 'job-reset',
+      status: 'pending',
+      createdAt: '2026-08-02T00:00:00.000Z',
+    });
+    const { client, wrapper } = createHarness();
+    const removeSpy = vi.spyOn(client, 'removeQueries');
+    const { result } = renderHook(() => useEtlJobPolling(), { wrapper });
+
+    act(() => result.current.startPolling('job-reset', 'user-1'));
+    await waitFor(() => expect(result.current.state.jobId).toBe('job-reset'));
+    act(() => result.current.reset());
+    expect(result.current.state).toMatchObject({ jobId: null, status: 'idle' });
+    expect(removeSpy).toHaveBeenCalledWith({ queryKey: ['etl-job-status'] });
+
+    act(() => result.current.startPolling('job-reset', 'user-1'));
+    act(() => result.current.completeTransition());
+    expect(result.current.state.jobId).toBeNull();
   });
 });

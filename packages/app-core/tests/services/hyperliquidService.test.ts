@@ -235,6 +235,39 @@ describe('Hyperliquid info reads', () => {
     });
   });
 
+  it('forwards abort signals and covers optional spot/vault fields', async () => {
+    const controller = new AbortController();
+    fetchMock
+      .mockResolvedValueOnce(perpResponse('1'))
+      .mockResolvedValueOnce(
+        jsonResponse({ balances: [{ coin: 'USDC', total: '2' }] }),
+      )
+      .mockResolvedValueOnce(jsonResponse('disabled'))
+      .mockResolvedValueOnce(jsonResponse([]))
+      .mockResolvedValueOnce(
+        jsonResponse([{ vaultAddress: HLP, equity: '3' }]),
+      );
+
+    await getPerpUsdcBalance({ user: USER, signal: controller.signal });
+    await expect(
+      getSpotUsdcBalance({ user: USER, signal: controller.signal }),
+    ).resolves.toEqual({ totalUsd6: 2_000_000n, holdUsd6: 0n });
+    await getUserAbstraction({ user: USER, signal: controller.signal });
+    await getExtraAgents({ user: USER, signal: controller.signal });
+    await expect(
+      getVaultEquity({
+        user: USER,
+        vaultAddress: HLP,
+        signal: controller.signal,
+      }),
+    ).resolves.toEqual({ equityUsd6: 3_000_000n });
+
+    for (const [, init] of fetchMock.mock.calls) {
+      expect((init as RequestInit).signal).toBeInstanceOf(AbortSignal);
+      expect((init as RequestInit).signal?.aborted).toBe(false);
+    }
+  });
+
   it('finds vault equity case-insensitively', async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse([
@@ -301,6 +334,23 @@ describe('account-mode-aware spendable balance', () => {
       spot: { totalUsd6: 20_000_000n, holdUsd6: 3_000_000n },
       perp: { withdrawableUsd6: 99_000_000n, accountValueUsd6: 99_000_000n },
     });
+  });
+
+  it('forwards a signal through the combined HyperCore read', async () => {
+    const controller = new AbortController();
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse('disabled'))
+      .mockResolvedValueOnce(spotResponse('2'))
+      .mockResolvedValueOnce(perpResponse('3'));
+
+    await expect(
+      getHyperCoreSpendableUsdc({ user: USER, signal: controller.signal }),
+    ).resolves.toMatchObject({ mode: 'standard', spendableUsd6: 3_000_000n });
+    expect(fetchMock.mock.calls).toHaveLength(3);
+    for (const [, init] of fetchMock.mock.calls) {
+      expect((init as RequestInit).signal).toBeInstanceOf(AbortSignal);
+      expect((init as RequestInit).signal?.aborted).toBe(false);
+    }
   });
 
   it('uses only perp withdrawable for Standard accounts', async () => {
@@ -374,6 +424,49 @@ describe('waitForHyperCoreUsdcArrival', () => {
 
     await promise;
     expect(ticks).toEqual([100_000_000n, 149_500_000n]);
+  });
+
+  it('clamps a negative unified spot pocket to zero while polling', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse('unifiedAccount'))
+      .mockResolvedValueOnce(spotResponse('1', '2'))
+      .mockResolvedValueOnce(spotResponse('2', '0'));
+
+    const promise = waitForHyperCoreUsdcArrival({
+      user: USER,
+      baselineUsd6: 0n,
+      expectedUsd6: 1_000_000n,
+    });
+    await vi.advanceTimersByTimeAsync(6_000);
+    await expect(promise).resolves.toEqual({
+      arrivedUsd6: 2_000_000n,
+      mode: 'unified',
+    });
+  });
+
+  it('forwards signal and ignores undefined onAttempt values after transient parse failures', async () => {
+    const controller = new AbortController();
+    const ticks: bigint[] = [];
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse('unifiedAccount'))
+      .mockResolvedValueOnce(
+        jsonResponse({ balances: [{ coin: 'USDC', total: 'bad' }] }),
+      )
+      .mockResolvedValueOnce(spotResponse('2'));
+
+    const promise = waitForHyperCoreUsdcArrival({
+      user: USER,
+      baselineUsd6: 0n,
+      expectedUsd6: 1_000_000n,
+      signal: controller.signal,
+      onTick: (value) => ticks.push(value),
+    });
+    await vi.advanceTimersByTimeAsync(9_000);
+    await expect(promise).resolves.toEqual({
+      arrivedUsd6: 2_000_000n,
+      mode: 'unified',
+    });
+    expect(ticks).toEqual([2_000_000n]);
   });
 
   it('polls perp withdrawable for Standard accounts', async () => {
@@ -453,6 +546,35 @@ describe('waitForVaultEquityIncrease', () => {
     await vi.advanceTimersByTimeAsync(4_000);
     await expect(promise).resolves.toEqual({ equityUsd6: 149_500_000n });
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('polls through a missing vault entry and forwards a signal', async () => {
+    const controller = new AbortController();
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse([]))
+      .mockResolvedValueOnce(
+        jsonResponse([{ vaultAddress: HLP, equity: '1' }]),
+      );
+
+    const promise = waitForVaultEquityIncrease({
+      user: USER,
+      vaultAddress: HLP,
+      equityBeforeUsd6: 0n,
+      signal: controller.signal,
+    });
+    await vi.advanceTimersByTimeAsync(4_000);
+    await expect(promise).resolves.toEqual({ equityUsd6: 1_000_000n });
+  });
+
+  it('can return zero when a null equity satisfies a negative diagnostic baseline', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse([]));
+    await expect(
+      waitForVaultEquityIncrease({
+        user: USER,
+        vaultAddress: HLP,
+        equityBeforeUsd6: -1n,
+      }),
+    ).resolves.toEqual({ equityUsd6: 0n });
   });
 
   it('treats a first-ever deposit (no prior entry) as an increase', async () => {
@@ -555,6 +677,17 @@ describe('agent and vault signed actions', () => {
     expect((vaultError as HyperliquidVaultDepositError).ambiguous).toBe(true);
   });
 
+  it('constructs classified errors without an optional cause', () => {
+    const vaultError = new HyperliquidVaultDepositError('no cause', {
+      ambiguous: false,
+    });
+    const approvalError = new HyperliquidAgentApprovalError('no cause', {
+      ambiguous: true,
+    });
+    expect(vaultError.cause).toBeUndefined();
+    expect(approvalError.cause).toBeUndefined();
+  });
+
   it('targets the requested network and exchange endpoint', async () => {
     await submitVaultDeposit({
       signer: agentSigner,
@@ -568,6 +701,19 @@ describe('agent and vault signed actions', () => {
       signer: agentSigner,
       vaultAddress: HLP,
       usd6: 5_000_000n,
+      apiUrl: 'https://api.hyperliquid-testnet.xyz',
+      isTestnet: true,
+    });
+    expect(sdkMocks.HttpTransport).toHaveBeenCalledWith({
+      apiUrl: 'https://api.hyperliquid-testnet.xyz',
+      isTestnet: true,
+    });
+
+    sdkMocks.HttpTransport.mockClear();
+    await approveHyperliquidAgent({
+      walletClient,
+      agentAddress: AGENT,
+      agentName: 'ZapPilot',
       apiUrl: 'https://api.hyperliquid-testnet.xyz',
       isTestnet: true,
     });

@@ -2,7 +2,10 @@
 import { useStrategyDepositWizard } from '@core/hooks/useStrategyDepositWizard';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { MORPHO_VAULTS } from '@zapengine/intent-engine';
-import type { StrategyDepositPlan } from '@zapengine/types/api';
+import {
+  NATIVE_TOKEN_ADDRESS,
+  type StrategyDepositPlan,
+} from '@zapengine/types/api';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const USER = '0x1111111111111111111111111111111111111111';
@@ -142,21 +145,23 @@ describe('useStrategyDepositWizard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     morphoBalances = [0n, 1n];
-    mocks.useWalletProvider.mockReturnValue(walletValue());
-    mocks.getStrategyDepositPlan.mockResolvedValue(PLAN);
-    mocks.getBalance.mockResolvedValue(1_000_000_000_000_000_000n);
-    mocks.readContract.mockImplementation(
-      ({ address }: { address: string }) => {
+    mocks.useWalletProvider.mockReset().mockReturnValue(walletValue());
+    mocks.getStrategyDepositPlan.mockReset().mockResolvedValue(PLAN);
+    mocks.getBalance.mockReset().mockResolvedValue(1_000_000_000_000_000_000n);
+    mocks.readContract
+      .mockReset()
+      .mockImplementation(({ address }: { address: string }) => {
         if (address.toLowerCase() === BASE_USDC.toLowerCase()) {
           return Promise.resolve(1_000_000_000n);
         }
         return Promise.resolve(morphoBalances.shift() ?? 1n);
-      },
-    );
-    mocks.waitForTransactionReceipt.mockResolvedValue({ status: 'success' });
-    mocks.sendTransaction.mockResolvedValue(HASH_A);
-    mocks.switchChain.mockResolvedValue(undefined);
-    mocks.getPublicClient.mockReturnValue({
+      });
+    mocks.waitForTransactionReceipt
+      .mockReset()
+      .mockResolvedValue({ status: 'success' });
+    mocks.sendTransaction.mockReset().mockResolvedValue(HASH_A);
+    mocks.switchChain.mockReset().mockResolvedValue(undefined);
+    mocks.getPublicClient.mockReset().mockReturnValue({
       getBalance: mocks.getBalance,
       readContract: mocks.readContract,
       waitForTransactionReceipt: mocks.waitForTransactionReceipt,
@@ -181,6 +186,212 @@ describe('useStrategyDepositWizard', () => {
     });
     expect(result.current.wizard.steps[1]?.kind).toBe('transaction');
   }
+
+  it('surfaces plan preparation failures and rethrows them', async () => {
+    const failure = new Error('planner offline');
+    mocks.getStrategyDepositPlan.mockRejectedValueOnce(failure);
+    const { result } = renderHook(() => useStrategyDepositWizard());
+
+    await act(async () => {
+      await expect(
+        result.current.start({
+          userAddress: USER,
+          totalUsd6: PLAN.totalUsd6,
+          fundingSources: [],
+        }),
+      ).rejects.toBe(failure);
+    });
+    expect(result.current.wizard.error).toBe('planner offline');
+  });
+
+  it('fails safely when the refreshed execution group disappears', async () => {
+    mocks.getStrategyDepositPlan
+      .mockResolvedValueOnce(PLAN)
+      .mockResolvedValueOnce({ ...PLAN, executionGroups: [] });
+    const { result } = renderHook(() => useStrategyDepositWizard());
+    await act(async () => {
+      await result.current.start({
+        userAddress: USER,
+        totalUsd6: PLAN.totalUsd6,
+        fundingSources: [],
+      });
+    });
+    await act(async () => {
+      await result.current.advance();
+    });
+    expect(result.current.wizard.error).toContain('Execution group is missing');
+  });
+
+  it('checks token and native gas funding failures during group preflight', async () => {
+    const input = {
+      userAddress: USER,
+      totalUsd6: PLAN.totalUsd6,
+      fundingSources: [{ chainId: 8453, fromToken: BASE_USDC }],
+    };
+
+    mocks.readContract.mockResolvedValueOnce(1n);
+    const tokenLow = renderHook(() => useStrategyDepositWizard());
+    await act(async () => {
+      await tokenLow.result.current.start(input);
+    });
+    await act(async () => {
+      await tokenLow.result.current.advance();
+    });
+    expect(tokenLow.result.current.wizard.error).toContain(
+      'Funding balance too low',
+    );
+    tokenLow.unmount();
+
+    mocks.getStrategyDepositPlan.mockResolvedValue(PLAN);
+    mocks.readContract.mockResolvedValueOnce(1_000_000_000n);
+    mocks.getBalance.mockResolvedValueOnce(1n);
+    const gasLow = renderHook(() => useStrategyDepositWizard());
+    await act(async () => {
+      await gasLow.result.current.start(input);
+    });
+    await act(async () => {
+      await gasLow.result.current.advance();
+    });
+    expect(gasLow.result.current.wizard.error).toContain('ETH balance too low');
+  });
+
+  it('checks native funding and switches chain when required', async () => {
+    const nativePlan: StrategyDepositPlan = {
+      ...PLAN,
+      executionGroups: [
+        {
+          ...PLAN.executionGroups[0]!,
+          fromToken: NATIVE_TOKEN_ADDRESS,
+          approvals: [],
+          calls: [{ ...PLAN.executionGroups[0]!.calls[0]!, value: '1000' }],
+        },
+      ],
+      checkpoints: [PLAN.checkpoints[0]!],
+    };
+    mocks.getStrategyDepositPlan.mockResolvedValue(nativePlan);
+    mocks.getBalance.mockResolvedValueOnce(1n);
+    const low = renderHook(() => useStrategyDepositWizard());
+    await act(async () => {
+      await low.result.current.start({
+        userAddress: USER,
+        totalUsd6: nativePlan.totalUsd6,
+        fundingSources: [],
+      });
+    });
+    await act(async () => {
+      await low.result.current.advance();
+    });
+    expect(low.result.current.wizard.error).toContain('Native balance too low');
+    low.unmount();
+
+    mocks.getStrategyDepositPlan.mockResolvedValue(nativePlan);
+    mocks.getBalance.mockResolvedValue(10n ** 18n);
+    mocks.useWalletProvider.mockReturnValue({
+      ...walletValue(),
+      chain: { id: 1 },
+    });
+    const switched = renderHook(() => useStrategyDepositWizard());
+    await act(async () => {
+      await switched.result.current.start({
+        userAddress: USER,
+        totalUsd6: nativePlan.totalUsd6,
+        fundingSources: [],
+      });
+    });
+    await act(async () => {
+      await switched.result.current.advance();
+    });
+    expect(mocks.switchChain).toHaveBeenCalledWith(8453);
+  });
+
+  it('handles a GMX market transaction, position polling, and mock bridge', async () => {
+    const gmxTx = {
+      to: '0x3333333333333333333333333333333333333333',
+      data: '0x1234',
+      value: '0',
+      chainId: 42161,
+      meta: {
+        intentType: 'SUPPLY',
+        route: { marketKey: 'btc-usdc' },
+      },
+    } as const;
+    const gmxPlan: StrategyDepositPlan = {
+      ...PLAN,
+      executionGroups: [
+        {
+          id: 'arbitrum-gmx',
+          chainId: 42161,
+          fromToken: ARBITRUM_USDC,
+          fromAmount: '1000000',
+          approvals: [],
+          calls: [gmxTx],
+          allocationIds: ['gmx-btc-usdc'],
+          gasUsd: '0',
+        },
+      ],
+      checkpoints: [PLAN.checkpoints[0]!],
+    };
+    mocks.getStrategyDepositPlan.mockResolvedValue(gmxPlan);
+    mocks.readContract
+      .mockReset()
+      .mockResolvedValueOnce(10_000_000n)
+      .mockResolvedValueOnce(1n)
+      .mockResolvedValueOnce(2n);
+    const { result } = renderHook(() => useStrategyDepositWizard());
+    await act(async () => {
+      await result.current.start({
+        userAddress: USER,
+        totalUsd6: gmxPlan.totalUsd6,
+        fundingSources: [],
+      });
+    });
+    await act(async () => {
+      await result.current.advance();
+    });
+    expect(mocks.switchChain).toHaveBeenCalledWith(42161);
+
+    await act(async () => result.current.advance());
+    expect(result.current.wizard.steps[1]?.status).toBe('confirmed');
+    expect(mocks.waitForTransactionReceipt).toHaveBeenCalled();
+
+    await act(async () => result.current.advance());
+    expect(result.current.wizard.steps[2]?.kind).toBe('mock-bridge');
+    expect(result.current.wizard.steps[2]?.status).toBe('confirmed');
+  });
+
+  it('covers malformed internal transaction guards and resumes an existing hash', async () => {
+    const missingTx = renderHook(() => useStrategyDepositWizard());
+    await reachBaseDeposit(missingTx.result);
+    const originalTransaction =
+      missingTx.result.current.wizard.steps[1]!.transaction;
+    missingTx.result.current.wizard.steps[1]!.transaction = undefined;
+    await act(async () => missingTx.result.current.advance());
+    expect(missingTx.result.current.wizard.error).toContain(
+      'Prepared transaction is missing',
+    );
+    missingTx.result.current.wizard.steps[1]!.transaction = originalTransaction;
+    missingTx.unmount();
+
+    mocks.getStrategyDepositPlan.mockResolvedValue(PLAN);
+    const missingChain = renderHook(() => useStrategyDepositWizard());
+    await reachBaseDeposit(missingChain.result);
+    missingChain.result.current.wizard.steps[1]!.chainId = undefined;
+    await act(async () => missingChain.result.current.advance());
+    expect(missingChain.result.current.wizard.error).toContain(
+      'Prepared transaction is missing',
+    );
+    missingChain.unmount();
+
+    mocks.getStrategyDepositPlan.mockResolvedValue(PLAN);
+    const existingHash = renderHook(() => useStrategyDepositWizard());
+    await reachBaseDeposit(existingHash.result);
+    existingHash.result.current.wizard.steps[1]!.transactionHash = HASH_A;
+    await act(async () => existingHash.result.current.advance());
+    expect(mocks.sendTransaction).not.toHaveBeenCalled();
+    expect(existingHash.result.current.wizard.steps[1]?.status).toBe(
+      'confirmed',
+    );
+  });
 
   it('allows only one transaction submission while advance is in flight', async () => {
     let releaseSend: ((hash: typeof HASH_A) => void) | undefined;
@@ -224,6 +435,23 @@ describe('useStrategyDepositWizard', () => {
     expect(mocks.sendTransaction).not.toHaveBeenCalled();
     expect(result.current.wizard.error).toMatch(/connected wallet changed/i);
     expect(result.current.wizard.steps[1]?.status).toBe('failed');
+  });
+
+  it('resets wizard state and internal request/baseline state', async () => {
+    const { result } = renderHook(() => useStrategyDepositWizard());
+    await reachBaseDeposit(result);
+
+    act(() => result.current.reset());
+
+    expect(result.current.wizard).toMatchObject({
+      plan: null,
+      steps: [],
+      currentIndex: 0,
+      status: 'idle',
+      error: null,
+    });
+    await act(async () => result.current.advance());
+    expect(mocks.sendTransaction).not.toHaveBeenCalled();
   });
 
   it('clears a reverted hash and submits a replacement on retry', async () => {

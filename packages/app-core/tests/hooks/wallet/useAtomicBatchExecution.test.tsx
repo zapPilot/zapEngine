@@ -373,6 +373,147 @@ describe('executeReviewedBatch', () => {
     });
     expect(mocks.sendPrivyAtomicBatch).toHaveBeenCalledTimes(1);
   });
+
+  it('blocks reviewed execution when chain setup, wallet id, or access token is unavailable', async () => {
+    const input = {
+      transactions: [tx()],
+      chainId: 8453,
+      expectedWalletAddress: WALLET_ADDRESS,
+      expectedBatchFingerprint: BATCH_FINGERPRINT,
+      expiresAt: Date.now() + 60_000,
+      executionAllowed: true,
+      expectedSimulationFingerprint: SIMULATION_FINGERPRINT,
+      expectedRiskHash: RISK_HASH,
+      requiresRiskAcknowledgement: false,
+    };
+
+    const chainHook = renderExecutionHook(
+      makeDeps({ ensureChain: vi.fn(async () => Promise.reject('bad chain')) }),
+    );
+    await expect(
+      chainHook.result.current.executeReviewedBatch(input),
+    ).resolves.toMatchObject({
+      status: 'blocked',
+      code: 'CHAIN_UNAVAILABLE',
+    });
+    chainHook.unmount();
+
+    const walletHook = renderExecutionHook(
+      makeDeps({ resolveWalletId: vi.fn(() => undefined) }),
+    );
+    await expect(
+      walletHook.result.current.executeReviewedBatch(input),
+    ).resolves.toMatchObject({
+      status: 'blocked',
+      code: 'WALLET_ID_UNAVAILABLE',
+    });
+    walletHook.unmount();
+
+    const tokenHook = renderExecutionHook(
+      makeDeps({ getAccessToken: vi.fn(async () => null) }),
+    );
+    await expect(
+      tokenHook.result.current.executeReviewedBatch(input),
+    ).resolves.toMatchObject({
+      status: 'blocked',
+      code: 'ACCESS_TOKEN_EXPIRED',
+    });
+  });
+
+  it('blocks failed/unavailable simulations and detects risk-hash drift', async () => {
+    const deps = makeDeps();
+    const hook = renderExecutionHook(deps);
+    const input = {
+      transactions: [tx()],
+      chainId: 8453,
+      expectedWalletAddress: WALLET_ADDRESS,
+      expectedBatchFingerprint: BATCH_FINGERPRINT,
+      expiresAt: Date.now() + 60_000,
+      executionAllowed: true,
+      expectedSimulationFingerprint: SIMULATION_FINGERPRINT,
+      expectedRiskHash: RISK_HASH,
+      requiresRiskAcknowledgement: false,
+    };
+
+    mocks.preparePrivyAtomicBatch.mockResolvedValueOnce(
+      preview({ status: 'failed', failureReason: 'reverted' }),
+    );
+    await expect(
+      hook.result.current.executeReviewedBatch(input),
+    ).resolves.toMatchObject({
+      status: 'blocked',
+      code: 'SIMULATION_FAILED',
+      reason: 'reverted',
+    });
+
+    mocks.preparePrivyAtomicBatch.mockResolvedValueOnce(
+      preview({ status: 'unavailable', unavailableReason: 'offline' }),
+    );
+    await expect(
+      hook.result.current.executeReviewedBatch(input),
+    ).resolves.toMatchObject({
+      status: 'blocked',
+      code: 'SIMULATION_UNAVAILABLE',
+      reason: 'offline',
+    });
+
+    mocks.preparePrivyAtomicBatch.mockResolvedValueOnce(
+      preview({ riskHash: `0x${'ef'.repeat(32)}` }),
+    );
+    await expect(
+      hook.result.current.executeReviewedBatch(input),
+    ).resolves.toMatchObject({
+      status: 'review-changed',
+      reason: 'risk-hash-mismatch',
+    });
+  });
+
+  it('rechecks the access token after signing and forwards risk acknowledgement without requiring a transaction hash', async () => {
+    const getAccessToken = vi
+      .fn<() => Promise<string | null>>()
+      .mockResolvedValueOnce('prepare-token')
+      .mockResolvedValueOnce(null);
+    const deps = makeDeps({ getAccessToken });
+    const hook = renderExecutionHook(deps);
+    const input = {
+      transactions: [tx()],
+      chainId: 8453,
+      expectedWalletAddress: WALLET_ADDRESS,
+      expectedBatchFingerprint: BATCH_FINGERPRINT,
+      expiresAt: Date.now() + 60_000,
+      executionAllowed: true,
+      expectedSimulationFingerprint: SIMULATION_FINGERPRINT,
+      expectedRiskHash: RISK_HASH,
+      requiresRiskAcknowledgement: true,
+      acknowledgedRiskHash: RISK_HASH,
+    };
+
+    await expect(
+      hook.result.current.executeReviewedBatch(input),
+    ).resolves.toMatchObject({
+      status: 'blocked',
+      code: 'ACCESS_TOKEN_EXPIRED',
+    });
+
+    const successTokens = vi.fn(async () => 'token');
+    const successHook = renderExecutionHook(
+      makeDeps({ getAccessToken: successTokens }),
+    );
+    mocks.sendPrivyAtomicBatch.mockResolvedValueOnce({
+      status: 'submitted',
+      transactionId: 'txn-no-hash',
+      caip2: 'eip155:8453',
+    });
+    await expect(
+      successHook.result.current.executeReviewedBatch(input),
+    ).resolves.toEqual({
+      status: 'submitted',
+      callsId: 'txn-no-hash',
+    });
+    expect(mocks.sendPrivyAtomicBatch.mock.calls.at(-1)?.[0]).toMatchObject({
+      acknowledgedRiskHash: RISK_HASH,
+    });
+  });
 });
 
 describe('confirmBatchExecution', () => {
@@ -561,9 +702,24 @@ describe('cancelBatchExecution', () => {
     expect(held.error?.message).toBe('Transaction rejected by the user.');
     expect(hook.result.current.simulationPreview).toBeNull();
   });
+
+  it('is safe to cancel when no execution is pending', () => {
+    const hook = renderExecutionHook(makeDeps());
+    act(() => hook.result.current.cancelBatchExecution());
+    expect(hook.result.current.simulationPreview).toBeNull();
+    expect(hook.result.current.retryError).toBeNull();
+  });
 });
 
 describe('retryBatchSimulation', () => {
+  it('is a no-op without a pending execution', async () => {
+    const hook = renderExecutionHook(makeDeps());
+    await act(async () => {
+      await hook.result.current.retryBatchSimulation();
+    });
+    expect(mocks.preparePrivyAtomicBatch).not.toHaveBeenCalled();
+  });
+
   it('replaces the preview on success', async () => {
     const hook = renderExecutionHook(makeDeps());
     await startExecution(hook);
@@ -594,6 +750,20 @@ describe('retryBatchSimulation', () => {
     expect(hook.result.current.simulationPreview?.previewId).toBe('preview-1');
     expect(held.settled).toBe(false);
   });
+
+  it('records an expired-token error during retry', async () => {
+    const getAccessToken = vi
+      .fn<() => Promise<string | null>>()
+      .mockResolvedValueOnce('prepare-token')
+      .mockResolvedValueOnce(null);
+    const hook = renderExecutionHook(makeDeps({ getAccessToken }));
+    await startExecution(hook);
+
+    await act(async () => {
+      await hook.result.current.retryBatchSimulation();
+    });
+    expect(hook.result.current.retryError).toContain('access token is invalid');
+  });
 });
 
 describe('updateApprovalAmount', () => {
@@ -614,6 +784,14 @@ describe('updateApprovalAmount', () => {
         exceedsSimulatedSpend: false,
       },
     ],
+  });
+
+  it('is a no-op without a pending execution', async () => {
+    const hook = renderExecutionHook(makeDeps());
+    await act(async () => {
+      await hook.result.current.updateApprovalAmount(0, '1');
+    });
+    expect(mocks.preparePrivyAtomicBatch).not.toHaveBeenCalled();
   });
 
   it('re-encodes the approve call and re-prepares with a fresh idempotency key', async () => {
@@ -661,5 +839,48 @@ describe('updateApprovalAmount', () => {
         hook.result.current.updateApprovalAmount(3, '1'),
       ).rejects.toThrow('Approval call is no longer available.');
     });
+  });
+
+  it('rejects negative approval amounts', async () => {
+    mocks.preparePrivyAtomicBatch.mockResolvedValue(approvalPreview);
+    const hook = renderExecutionHook(makeDeps());
+    await startExecution(hook, [approveTx]);
+    await act(async () => {
+      await expect(
+        hook.result.current.updateApprovalAmount(0, '-1'),
+      ).rejects.toThrow('Approval amount cannot be negative.');
+    });
+    expect(hook.result.current.retryError).toBe(
+      'Approval amount cannot be negative.',
+    );
+  });
+
+  it('surfaces expired tokens and preparation failures while updating approvals', async () => {
+    const getAccessToken = vi
+      .fn<() => Promise<string | null>>()
+      .mockResolvedValueOnce('prepare-token')
+      .mockResolvedValueOnce(null);
+    mocks.preparePrivyAtomicBatch.mockResolvedValue(approvalPreview);
+    const tokenHook = renderExecutionHook(makeDeps({ getAccessToken }));
+    await startExecution(tokenHook, [approveTx]);
+    await act(async () => {
+      await expect(
+        tokenHook.result.current.updateApprovalAmount(0, '2'),
+      ).rejects.toThrow('access token is invalid');
+    });
+    expect(tokenHook.result.current.retryError).toContain(
+      'access token is invalid',
+    );
+    tokenHook.result.current.cancelBatchExecution();
+
+    const prepareHook = renderExecutionHook(makeDeps());
+    await startExecution(prepareHook, [approveTx]);
+    mocks.preparePrivyAtomicBatch.mockRejectedValueOnce('prepare failed');
+    await act(async () => {
+      await expect(
+        prepareHook.result.current.updateApprovalAmount(0, '2'),
+      ).rejects.toBe('prepare failed');
+    });
+    expect(prepareHook.result.current.retryError).toBe('prepare failed');
   });
 });

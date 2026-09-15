@@ -24,7 +24,7 @@ interface SentimentQuoteConfig {
   min: number;
   max: number;
   sentiment: SentimentLabel;
-  quotes: SentimentQuote[];
+  quotes: [SentimentQuote, ...SentimentQuote[]];
 }
 
 interface SentimentQuoteResult extends SentimentQuote {
@@ -118,26 +118,7 @@ const DEFAULT_QUOTE: SentimentQuoteResult = {
   author: WARREN_BUFFETT,
 };
 
-const FALLBACK_CONFIG: SentimentQuoteConfig = {
-  min: 45,
-  max: 55,
-  sentiment: DEFAULT_QUOTE.sentiment,
-  quotes: [
-    {
-      quote: DEFAULT_QUOTE.quote,
-      author: WARREN_BUFFETT,
-    },
-  ],
-};
-
-function selectQuote(quotes: SentimentQuote[]): SentimentQuote {
-  if (quotes.length === 0) {
-    return {
-      quote: DEFAULT_QUOTE.quote,
-      author: DEFAULT_QUOTE.author,
-    };
-  }
-
+function selectQuote(quotes: SentimentQuoteConfig['quotes']): SentimentQuote {
   const index = Math.floor(Math.random() * quotes.length);
   return (
     quotes[index] ?? {
@@ -156,14 +137,17 @@ export function getQuoteForSentiment(value: number): SentimentQuoteResult {
   }
 
   const normalizedValue = Math.min(Math.max(value, 0), 100);
-  const config =
-    SENTIMENT_QUOTE_CONFIG.find(
-      (quoteConfig) =>
-        normalizedValue >= quoteConfig.min &&
-        normalizedValue <= quoteConfig.max,
-    ) ??
-    SENTIMENT_QUOTE_CONFIG[2] ??
-    FALLBACK_CONFIG;
+  const configIndex =
+    normalizedValue < 25
+      ? 0
+      : normalizedValue < 45
+        ? 1
+        : normalizedValue <= 55
+          ? 2
+          : normalizedValue < 75
+            ? 3
+            : 4;
+  const config = SENTIMENT_QUOTE_CONFIG[configIndex]!;
 
   const quote = selectQuote(config.quotes);
 

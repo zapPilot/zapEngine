@@ -15,6 +15,8 @@ const mocks = vi.hoisted(() => ({
   assertEIP7702DelegationCompatibility: vi.fn(),
   submitPreparedTransactionsWithEIP7702: vi.fn(),
   maxCallsPerBatch: vi.fn<() => number | null>(),
+  waitForEIP7702Confirmation: vi.fn(),
+  balance: undefined as { value: bigint; decimals: number } | undefined,
   connection: {
     address: undefined as string | undefined,
     isConnected: false,
@@ -39,7 +41,7 @@ vi.mock('wagmi', () => ({
   useSwitchChain: () => ({ mutateAsync: mocks.switchChainAsync }),
   useSignMessage: () => ({ mutateAsync: mocks.signMessageAsync }),
   useSignTypedData: () => ({ mutateAsync: mocks.signTypedDataAsync }),
-  useBalance: () => ({ data: undefined }),
+  useBalance: () => ({ data: mocks.balance }),
 }));
 
 vi.mock('wagmi/actions', () => ({
@@ -48,6 +50,10 @@ vi.mock('wagmi/actions', () => ({
 
 vi.mock('@core/config/wagmi', () => ({
   getWagmiConfig: () => ({}),
+}));
+
+vi.mock('@zapengine/intent-engine', () => ({
+  waitForEIP7702Confirmation: mocks.waitForEIP7702Confirmation,
 }));
 
 vi.mock('@core/lib/wallet/executeDepositPlan', () => ({
@@ -82,6 +88,14 @@ beforeEach(() => {
     .mockReset()
     .mockResolvedValue(undefined);
   mocks.maxCallsPerBatch.mockReset().mockReturnValue(null);
+  mocks.waitForEIP7702Confirmation.mockReset();
+  mocks.balance = undefined;
+  mocks.disconnectAsync.mockReset().mockResolvedValue(undefined);
+  mocks.switchChainAsync.mockReset().mockResolvedValue(undefined);
+  mocks.signMessageAsync.mockReset();
+  mocks.signTypedDataAsync.mockReset();
+  mocks.getWalletClient.mockReset();
+  mocks.submitPreparedTransactionsWithEIP7702.mockReset();
   mocks.connection = {
     address: undefined,
     isConnected: false,
@@ -582,6 +596,13 @@ describe('useWagmiWalletBackend', () => {
     });
   });
 
+  it('keeps active-wallet switching as a no-op in wagmi mode', async () => {
+    const { result } = renderHook(() => useWagmiWalletBackend());
+    await expect(
+      result.current.backend.switchActiveWallet('0xabc'),
+    ).resolves.toBeUndefined();
+  });
+
   it('the default connect() asks the user to choose when multiple wallets are detected, and connects the sole one otherwise', async () => {
     mocks.connectors = [
       { id: 'com.ambire', name: 'Ambire Wallet', type: 'injected' },
@@ -623,5 +644,329 @@ describe('useWagmiWalletBackend', () => {
       id: 8453,
       name: 'Base',
     });
+  });
+
+  it('surfaces NO_WALLET from the default connect path when no connector exists', async () => {
+    const { result } = renderHook(() => useWagmiWalletBackend());
+    await act(async () => {
+      await result.current.backend.connect();
+    });
+    expect(result.current.backend.error).toEqual({
+      message: 'No wallet detected. Install a browser wallet extension.',
+      code: 'NO_WALLET',
+    });
+    act(() => result.current.backend.clearError());
+    expect(result.current.backend.error).toBeNull();
+  });
+
+  it('recognizes the same active connector by object identity when uid is absent', async () => {
+    const connector = {
+      id: 'injected-specific',
+      name: 'Browser Wallet',
+      type: 'injected',
+    };
+    mocks.connectors = [connector];
+    mocks.connection = {
+      address: '0x1111111111111111111111111111111111111111',
+      isConnected: true,
+      isConnecting: false,
+      isReconnecting: false,
+      connector,
+      chain: { id: 1, name: 'Ethereum' },
+    };
+    const { result } = renderHook(() => useWagmiWalletBackend());
+    await expect(result.current.connectInjected(connector.id)).resolves.toBe(
+      true,
+    );
+    expect(mocks.connectAsync).not.toHaveBeenCalled();
+  });
+
+  it('uses the fallback connect error for non-Error rejection values', async () => {
+    const connector = {
+      id: 'injected-specific',
+      name: 'Browser Wallet',
+      type: 'injected',
+    };
+    mocks.connectors = [connector];
+    mocks.connectAsync.mockRejectedValue('rejected');
+    const { result } = renderHook(() => useWagmiWalletBackend());
+    await act(async () => {
+      await expect(result.current.connectInjected(connector.id)).resolves.toBe(
+        false,
+      );
+    });
+    expect(result.current.backend.error).toEqual({
+      message: 'Failed to connect wallet',
+      code: 'CONNECT_ERROR',
+    });
+  });
+
+  it('disconnects cleanly and converts disconnect failures into provider errors', async () => {
+    const { result, rerender } = renderHook(() => useWagmiWalletBackend());
+    await act(async () => {
+      await result.current.backend.disconnect();
+    });
+    expect(mocks.disconnectAsync).toHaveBeenCalledTimes(1);
+    expect(result.current.backend.error).toBeNull();
+
+    mocks.disconnectAsync.mockRejectedValue('disconnect failed');
+    rerender();
+    await act(async () => {
+      await result.current.backend.disconnect();
+    });
+    expect(result.current.backend.error).toEqual({
+      message: 'Failed to disconnect wallet',
+      code: 'DISCONNECT_ERROR',
+    });
+  });
+
+  it('switches chains and rethrows switch failures', async () => {
+    const { result } = renderHook(() => useWagmiWalletBackend());
+    await expect(
+      result.current.backend.switchChain(10),
+    ).resolves.toBeUndefined();
+    expect(mocks.switchChainAsync).toHaveBeenCalledWith({ chainId: 10 });
+
+    const failure = new Error('switch rejected');
+    mocks.switchChainAsync.mockRejectedValue(failure);
+    await expect(result.current.backend.switchChain(42161)).rejects.toBe(
+      failure,
+    );
+  });
+
+  it('requires an account for message and typed-data signatures', async () => {
+    const { result } = renderHook(() => useWagmiWalletBackend());
+    await expect(result.current.backend.signMessage('hello')).rejects.toThrow(
+      'No account connected',
+    );
+    await expect(
+      result.current.backend.signTypedData({} as never),
+    ).rejects.toThrow('No account connected');
+  });
+
+  it('signs messages and typed data, while preserving SDK failures', async () => {
+    mocks.connection = {
+      address: '0x1111111111111111111111111111111111111111',
+      isConnected: true,
+      isConnecting: false,
+      chain: { id: 1, name: 'Ethereum' },
+    };
+    mocks.signMessageAsync.mockResolvedValue('0xsigned');
+    mocks.signTypedDataAsync.mockResolvedValue('0xtyped');
+    const { result } = renderHook(() => useWagmiWalletBackend());
+
+    await expect(result.current.backend.signMessage('hello')).resolves.toBe(
+      '0xsigned',
+    );
+    await expect(
+      result.current.backend.signTypedData({ domain: {} } as never),
+    ).resolves.toBe('0xtyped');
+
+    const signFailure = new Error('sign rejected');
+    mocks.signMessageAsync.mockRejectedValue(signFailure);
+    await expect(result.current.backend.signMessage('again')).rejects.toBe(
+      signFailure,
+    );
+    mocks.signTypedDataAsync.mockRejectedValue(signFailure);
+    await expect(
+      result.current.backend.signTypedData({ domain: {} } as never),
+    ).rejects.toBe(signFailure);
+  });
+
+  it('resolves wallet clients with and without explicit chain ids', async () => {
+    const walletClient = { account: { address: '0x1' } };
+    mocks.getWalletClient.mockResolvedValue(walletClient);
+    const disconnected = renderHook(() => useWagmiWalletBackend());
+    await expect(
+      disconnected.result.current.backend.getWalletClient(),
+    ).rejects.toThrow('No account connected');
+    disconnected.unmount();
+
+    mocks.connection = {
+      address: '0x1111111111111111111111111111111111111111',
+      isConnected: true,
+      isConnecting: false,
+      chain: { id: 8453, name: 'Base' },
+    };
+    const connected = renderHook(() => useWagmiWalletBackend());
+    await expect(
+      connected.result.current.backend.getWalletClient(),
+    ).resolves.toBe(walletClient);
+    expect(mocks.getWalletClient).toHaveBeenLastCalledWith({}, {});
+    await connected.result.current.backend.getWalletClient(42161);
+    expect(mocks.getWalletClient).toHaveBeenLastCalledWith(
+      {},
+      { chainId: 42161 },
+    );
+  });
+
+  it('sends transactions on the current chain and includes only provided optional fields', async () => {
+    const sendTransaction = vi.fn().mockResolvedValue('0xhash');
+    mocks.getWalletClient.mockResolvedValue({ sendTransaction });
+    mocks.connection = {
+      address: '0x1111111111111111111111111111111111111111',
+      isConnected: true,
+      isConnecting: false,
+      chain: { id: 8453, name: 'Base' },
+    };
+    const { result } = renderHook(() => useWagmiWalletBackend());
+    await expect(
+      result.current.backend.sendTransaction({
+        to: '0x2222222222222222222222222222222222222222',
+        chainId: 8453,
+      }),
+    ).resolves.toBe('0xhash');
+    expect(mocks.switchChainAsync).not.toHaveBeenCalled();
+    expect(sendTransaction).toHaveBeenLastCalledWith({
+      to: '0x2222222222222222222222222222222222222222',
+    });
+
+    await result.current.backend.sendTransaction({
+      to: '0x2222222222222222222222222222222222222222',
+      data: '0x1234',
+      value: 10n,
+      gas: 21_000n,
+      chainId: 42161,
+    });
+    expect(mocks.switchChainAsync).toHaveBeenCalledWith({ chainId: 42161 });
+    expect(sendTransaction).toHaveBeenLastCalledWith({
+      to: '0x2222222222222222222222222222222222222222',
+      data: '0x1234',
+      value: 10n,
+      gas: 21_000n,
+    });
+  });
+
+  it('rejects transaction submission while disconnected', async () => {
+    const { result } = renderHook(() => useWagmiWalletBackend());
+    await expect(
+      result.current.backend.sendTransaction({
+        to: '0x2222222222222222222222222222222222222222',
+        chainId: 1,
+      }),
+    ).rejects.toThrow('Wallet not connected');
+  });
+
+  it('blocks generic EIP-7702 incompatibility errors but rethrows unrelated failures', async () => {
+    const transactions: PreparedTransaction[] = [
+      {
+        to: '0x2222222222222222222222222222222222222222',
+        data: '0x',
+        value: '0',
+        chainId: 8453,
+        meta: { intentType: 'supply' },
+      },
+    ];
+    mocks.connection = {
+      address: '0x1111111111111111111111111111111111111111',
+      isConnected: true,
+      isConnecting: false,
+      connector: { id: 'unknown', name: 'Unknown', type: 'injected' },
+      chain: { id: 8453, name: 'Base' },
+    };
+    mocks.getWalletClient.mockResolvedValue({});
+    const { result } = renderHook(() => useWagmiWalletBackend());
+    const input = {
+      transactions,
+      chainId: 8453,
+      expectedWalletAddress: mocks.connection.address!,
+      expectedBatchFingerprint: computeReviewedBatchFingerprint({
+        chainId: 8453,
+        transactions,
+      }),
+      expiresAt: Date.now() + 60_000,
+      executionAllowed: true,
+      expectedSimulationFingerprint: `0x${'ab'.repeat(32)}`,
+      expectedRiskHash: `0x${'cd'.repeat(32)}`,
+      requiresRiskAcknowledgement: false,
+    };
+
+    mocks.submitPreparedTransactionsWithEIP7702.mockRejectedValue(
+      new Error('wallet_sendCalls is unavailable'),
+    );
+    await expect(
+      result.current.backend.executeReviewedBatch?.(input),
+    ).resolves.toMatchObject({
+      status: 'blocked',
+      code: 'EIP7702_UNAVAILABLE',
+    });
+
+    const unrelated = new Error('rpc exploded');
+    mocks.submitPreparedTransactionsWithEIP7702.mockRejectedValue(unrelated);
+    await expect(
+      result.current.backend.executeReviewedBatch?.({
+        ...input,
+        expectedBatchFingerprint: computeReviewedBatchFingerprint({
+          chainId: 8453,
+          transactions,
+        }),
+      }),
+    ).rejects.toBe(unrelated);
+  });
+
+  it('maps reviewed-batch confirmation success, failure, and lookup errors', async () => {
+    const walletClient = {};
+    mocks.connection = {
+      address: '0x1111111111111111111111111111111111111111',
+      isConnected: true,
+      isConnecting: false,
+      chain: { id: 8453, name: 'Base' },
+    };
+    mocks.getWalletClient.mockResolvedValue(walletClient);
+    mocks.waitForEIP7702Confirmation.mockResolvedValue({
+      status: 'success',
+      transactionHash: '0xconfirmed',
+    });
+    const { result } = renderHook(() => useWagmiWalletBackend());
+
+    await expect(
+      result.current.backend.waitForReviewedBatch?.({
+        callsId: 'calls-1',
+        chainId: 8453,
+      }),
+    ).resolves.toEqual({ status: 'confirmed', transactionHash: '0xconfirmed' });
+
+    mocks.waitForEIP7702Confirmation.mockResolvedValue({ status: 'success' });
+    await expect(
+      result.current.backend.waitForReviewedBatch?.({
+        callsId: 'calls-2',
+        chainId: 8453,
+      }),
+    ).resolves.toEqual({ status: 'confirmed' });
+
+    mocks.waitForEIP7702Confirmation.mockResolvedValue({ status: 'failed' });
+    await expect(
+      result.current.backend.waitForReviewedBatch?.({
+        callsId: 'calls-3',
+        chainId: 8453,
+      }),
+    ).resolves.toMatchObject({ status: 'failed' });
+
+    mocks.waitForEIP7702Confirmation.mockRejectedValue('lookup unavailable');
+    await expect(
+      result.current.backend.waitForReviewedBatch?.({
+        callsId: 'calls-4',
+        chainId: 8453,
+      }),
+    ).resolves.toMatchObject({ status: 'unknown' });
+  });
+
+  it('formats balance and exposes one active connected wallet', () => {
+    mocks.balance = { value: 1_234_500n, decimals: 6 };
+    mocks.connection = {
+      address: '0x1111111111111111111111111111111111111111',
+      isConnected: true,
+      isConnecting: false,
+      chain: { id: 8453, name: 'Base' },
+    };
+    const { result } = renderHook(() => useWagmiWalletBackend());
+    expect(result.current.backend.account).toMatchObject({ balance: '1.2345' });
+    expect(result.current.backend.connectedWallets).toEqual([
+      {
+        address: '0x1111111111111111111111111111111111111111',
+        isActive: true,
+      },
+    ]);
+    expect(result.current.backend.hasMultipleWallets).toBe(false);
   });
 });

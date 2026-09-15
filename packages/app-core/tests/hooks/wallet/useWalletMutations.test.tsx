@@ -47,6 +47,7 @@ function createWrapper() {
 function useHarness(
   signingAddress: string | null,
   signMessage: (message: string) => Promise<string>,
+  userId = USER_ID,
 ) {
   const [operations, setOperations] = useState<WalletOperations>({
     adding: { isLoading: false, error: null },
@@ -55,10 +56,31 @@ function useHarness(
     verifying: {},
     subscribing: { isLoading: false, error: null },
   });
-  const [, setWallets] = useState([]);
+  const [, setWallets] = useState([
+    {
+      id: 'wallet-1',
+      address: WALLET,
+      label: 'Primary',
+      isMain: false,
+      isActive: false,
+      createdAt: '2026-01-01T00:00:00Z',
+      ownershipVerifiedAt: null,
+      isVerified: false,
+    },
+    {
+      id: 'wallet-2',
+      address: '0x2222222222222222222222222222222222222222',
+      label: 'Secondary',
+      isMain: false,
+      isActive: false,
+      createdAt: '2026-01-02T00:00:00Z',
+      ownershipVerifiedAt: null,
+      isVerified: false,
+    },
+  ]);
 
   return useWalletMutations({
-    userId: USER_ID,
+    userId,
     operations,
     setOperations,
     setWallets,
@@ -74,6 +96,7 @@ beforeEach(() => {
   mocks.invalidateAndRefetch.mockResolvedValue(undefined);
   mocks.loadWallets.mockResolvedValue(undefined);
   mocks.addWallet.mockResolvedValue({ success: true });
+  mocks.removeWallet.mockResolvedValue({ success: true });
   mocks.verifyWallet.mockResolvedValue({ success: true });
   mocks.requestWalletBindingChallenge.mockResolvedValue({
     nonce: 'a'.repeat(64),
@@ -83,6 +106,125 @@ beforeEach(() => {
 });
 
 describe('useWalletMutations ownership proof', () => {
+  it('deletes a wallet, updates local state, and refreshes queries', async () => {
+    const signMessage = vi.fn();
+    const { result } = renderHook(() => useHarness(WALLET, signMessage), {
+      wrapper: createWrapper(),
+    });
+
+    await act(async () => {
+      await result.current.handleDeleteWallet('wallet-1');
+    });
+
+    expect(mocks.removeWallet).toHaveBeenCalledWith(USER_ID, 'wallet-1');
+    expect(mocks.invalidateAndRefetch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        queryKey: ['user-wallets', USER_ID],
+        operationName: 'wallet removal',
+      }),
+    );
+    expect(mocks.setWalletOperationState).toHaveBeenNthCalledWith(
+      1,
+      'removing',
+      'wallet-1',
+      { isLoading: true, error: null },
+    );
+    expect(mocks.setWalletOperationState).toHaveBeenLastCalledWith(
+      'removing',
+      'wallet-1',
+      { isLoading: false, error: null },
+    );
+  });
+
+  it('handles delete service failures, thrown failures, and missing users', async () => {
+    const signMessage = vi.fn();
+    mocks.removeWallet.mockResolvedValueOnce({ success: false });
+    const failed = renderHook(() => useHarness(WALLET, signMessage), {
+      wrapper: createWrapper(),
+    });
+    await act(async () => failed.result.current.handleDeleteWallet('wallet-1'));
+    expect(mocks.setWalletOperationState).toHaveBeenLastCalledWith(
+      'removing',
+      'wallet-1',
+      { isLoading: false, error: 'Failed to remove wallet' },
+    );
+    failed.unmount();
+
+    mocks.removeWallet.mockRejectedValueOnce(new Error('delete exploded'));
+    const thrown = renderHook(() => useHarness(WALLET, signMessage), {
+      wrapper: createWrapper(),
+    });
+    await act(async () => thrown.result.current.handleDeleteWallet('wallet-2'));
+    expect(mocks.setWalletOperationState).toHaveBeenLastCalledWith(
+      'removing',
+      'wallet-2',
+      expect.objectContaining({ isLoading: false }),
+    );
+    thrown.unmount();
+
+    const missing = renderHook(() => useHarness(WALLET, signMessage, ''), {
+      wrapper: createWrapper(),
+    });
+    mocks.removeWallet.mockClear();
+    await act(async () =>
+      missing.result.current.handleDeleteWallet('wallet-3'),
+    );
+    expect(mocks.removeWallet).not.toHaveBeenCalled();
+  });
+
+  it('rejects add/verify without a user and invalid wallet input', async () => {
+    const signMessage = vi.fn();
+    const missing = renderHook(() => useHarness(WALLET, signMessage, ''), {
+      wrapper: createWrapper(),
+    });
+    await expect(
+      missing.result.current.handleAddWallet({ address: WALLET, label: 'x' }),
+    ).resolves.toEqual({ success: false, error: 'User ID is required' });
+    await expect(
+      missing.result.current.handleVerifyWallet(WALLET),
+    ).resolves.toEqual({
+      success: false,
+      error: 'User ID is required',
+    });
+    missing.unmount();
+
+    const normal = renderHook(() => useHarness(WALLET, signMessage), {
+      wrapper: createWrapper(),
+    });
+    await expect(
+      normal.result.current.handleAddWallet({ address: 'invalid', label: '' }),
+    ).resolves.toMatchObject({ success: false });
+    expect(mocks.addWallet).not.toHaveBeenCalled();
+  });
+
+  it('uses fallback add/verify errors and normalizes thrown add errors', async () => {
+    const signMessage = vi.fn().mockResolvedValue('0xsignature');
+    const { result } = renderHook(() => useHarness(WALLET, signMessage), {
+      wrapper: createWrapper(),
+    });
+
+    mocks.addWallet.mockResolvedValueOnce({ success: false });
+    await act(async () => {
+      await expect(
+        result.current.handleAddWallet({ address: WALLET, label: 'Owned' }),
+      ).resolves.toEqual({ success: false, error: 'Failed to add wallet' });
+    });
+
+    mocks.addWallet.mockRejectedValueOnce(new Error('add exploded'));
+    await act(async () => {
+      await expect(
+        result.current.handleAddWallet({ address: WALLET, label: 'Owned' }),
+      ).resolves.toMatchObject({ success: false });
+    });
+
+    mocks.verifyWallet.mockResolvedValueOnce({ success: false });
+    await act(async () => {
+      await expect(result.current.handleVerifyWallet(WALLET)).resolves.toEqual({
+        success: false,
+        error: 'Failed to verify wallet',
+      });
+    });
+  });
   it('adds a non-matching address without a signature', async () => {
     const signMessage = vi.fn();
     const { result } = renderHook(

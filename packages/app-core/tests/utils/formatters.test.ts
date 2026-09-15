@@ -1,6 +1,7 @@
 import {
   formatAddress,
   formatCompactTokenAmount,
+  formatters,
 } from '@core/utils/formatters';
 import { describe, expect, it } from 'vitest';
 
@@ -21,5 +22,16 @@ describe('shared display formatters', () => {
         fractionPrecision: 'decimal-places',
       }),
     ).toBe('0.00936');
+  });
+
+  it('exercises the unified formatter facade', () => {
+    expect(formatters.currency(1234.56)).toBe('$1,235');
+    expect(formatters.percent(12.345)).toBe('12.3%');
+    expect(formatters.percent(12.345, 2)).toBe('12.35%');
+    expect(formatters.number(1234)).toBe('1,234');
+    expect(formatters.currencyPrecise(1.5)).toContain('$');
+    expect(formatters.chartDate('2026-09-15')).toBeTruthy();
+    expect(formatters.dataFreshness(new Date().toISOString())).toBeTruthy();
+    expect(formatters.relativeTime(new Date().toISOString())).toBeTruthy();
   });
 });
