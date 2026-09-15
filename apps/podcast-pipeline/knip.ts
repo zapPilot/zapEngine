@@ -13,12 +13,6 @@ export default defineKnipConfig({
     'src/release-heartbeat.ts',
     // Also preloaded by the app process to run durable completion retries.
     'src/services/video-completion-notifier-autostart.ts',
-    // Package.json-script CLIs with no importing test: `sentry:smoke` and
-    // `video:slide:preview`. Every other CLI is imported by its co-located
-    // test, which is how knip reaches it; these two have none, so list them
-    // here rather than letting them read as unused files.
-    'src/observability/sentry-smoke.ts',
-    'src/services/video/slide-preview-cli.ts',
   ],
   // Consumed only through the `/tokens` subpath in
   // src/services/video/templates.tsx. That subpath resolves into the package's
