@@ -45,7 +45,9 @@ describe('sendJson coverage', () => {
       .mockResolvedValueOnce({ unexpected: true });
     stubFetch(response);
 
-    await expect(sendJson('/api/costs/sync', 'POST')).rejects.toThrow('HTTP 500');
+    await expect(sendJson('/api/costs/sync', 'POST')).rejects.toThrow(
+      'HTTP 500',
+    );
   });
 
   it('names a rejected HTML body instead of its parse failure', async () => {

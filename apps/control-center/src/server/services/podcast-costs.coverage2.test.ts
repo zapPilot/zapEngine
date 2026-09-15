@@ -136,15 +136,13 @@ describe('podcast costs coverage round 2', () => {
             .filter(Boolean);
           seen.push(list.length);
           return Response.json(
-            list
-              .slice(0, 1)
-              .map((id) => ({
-                id: `run-${id}`,
-                episode_id: id,
-                pipeline: 'ingest',
-                status: 'completed',
-                started_at: '2026-09-01T00:00:00Z',
-              })),
+            list.slice(0, 1).map((id) => ({
+              id: `run-${id}`,
+              episode_id: id,
+              pipeline: 'ingest',
+              status: 'completed',
+              started_at: '2026-09-01T00:00:00Z',
+            })),
           );
         }
         if (table === 'ops_pipeline_stage_runs') {

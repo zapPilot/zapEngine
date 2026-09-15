@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import type {
@@ -62,7 +68,9 @@ describe('PodcastUnitEconomics coverage', () => {
   it('says no runs have been recorded yet', () => {
     render(<PodcastUnitEconomics data={costs([])} />);
 
-    expect(screen.getByText('No production cost runs recorded yet.')).toBeVisible();
+    expect(
+      screen.getByText('No production cost runs recorded yet.'),
+    ).toBeVisible();
   });
 
   it('shows a dash, not 0%, when nothing was spent', () => {
@@ -108,7 +116,9 @@ describe('PodcastUnitEconomics coverage', () => {
     expect(within(untitled!).getByText('No priced stages')).toBeVisible();
     expect(within(untitled!).getByText('1 unpriced stage')).toBeVisible();
     // One run with no failure: no "· N failed" suffix on the run count.
-    expect(within(untitled!).getByText('1', { selector: '.podcast-runs' })).toBeVisible();
+    expect(
+      within(untitled!).getByText('1', { selector: '.podcast-runs' }),
+    ).toBeVisible();
     expect(within(untitled!).queryByText(/· 1 failed/)).toBeNull();
   });
 
@@ -129,7 +139,9 @@ describe('PodcastUnitEconomics coverage', () => {
             videoCostUsd: 1.3,
           }),
           podcastEpisodeCostFixture({
-            breakdown: [{ costUsd: 0.4, label: 'zh-Hans render', operations: 1 }],
+            breakdown: [
+              { costUsd: 0.4, label: 'zh-Hans render', operations: 1 },
+            ],
             episodeId: 'episode-2',
             failedAttemptCostUsd: 0,
             podcastCostUsd: 0,
@@ -180,7 +192,9 @@ describe('PodcastUnitEconomics coverage', () => {
     );
 
     const episode = screen
-      .getByText('Expensive episode', { selector: '.podcast-episode-title strong' })
+      .getByText('Expensive episode', {
+        selector: '.podcast-episode-title strong',
+      })
       .closest('details');
     expect(episode).not.toBeNull();
     fireEvent.click(

@@ -19,7 +19,9 @@ describe('costs coverage', () => {
     });
     expect(providers).toHaveLength(5);
     expect(providers.every((p) => p.status === 'unconfigured')).toBe(true);
-    expect(providers.find((p) => p.provider === 'fly')?.message).toBe('Not connected');
+    expect(providers.find((p) => p.provider === 'fly')?.message).toBe(
+      'Not connected',
+    );
   });
 
   it('reports usage-without-rate for metered providers missing a pricing rate', async () => {
@@ -29,12 +31,12 @@ describe('costs coverage', () => {
       fetch: vi.fn().mockRejectedValue(new Error('must not fetch')),
       now: NOW,
     });
-    expect(
-      providers.find((p) => p.provider === 'debank')?.message,
-    ).toBe('Usage available; pricing rate missing');
-    expect(
-      providers.find((p) => p.provider === 'brave')?.message,
-    ).toBe('Usage available; pricing rate missing');
+    expect(providers.find((p) => p.provider === 'debank')?.message).toBe(
+      'Usage available; pricing rate missing',
+    );
+    expect(providers.find((p) => p.provider === 'brave')?.message).toBe(
+      'Usage available; pricing rate missing',
+    );
   });
 
   it('collects a fixed Supabase snapshot when a rate exists', async () => {
@@ -77,7 +79,9 @@ describe('costs coverage', () => {
       priorMonthTotals: null,
     });
     // suffixed status code passes through; anything else is sanitized
-    expect(providers.find((p) => p.provider === 'debank')?.message).toBe('boom (500)');
+    expect(providers.find((p) => p.provider === 'debank')?.message).toBe(
+      'boom (500)',
+    );
   });
 
   it('sanitizes unexpected provider errors', async () => {

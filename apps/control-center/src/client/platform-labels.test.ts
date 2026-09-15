@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  languageFlag,
-  platformIconPath,
-  platformLabel,
-} from './platform.js';
+import { languageFlag, platformIconPath, platformLabel } from './platform.js';
 
 describe('platform labels, icons and language flags', () => {
   it.each([

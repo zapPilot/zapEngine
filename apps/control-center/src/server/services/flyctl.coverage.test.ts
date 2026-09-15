@@ -13,7 +13,10 @@ describe('runFlyctl coverage', () => {
     execAsync.mockImplementationOnce(
       (_cmd: unknown, _args: unknown, _opts: unknown) => {
         expect(_cmd).toBe('flyctl');
-        expect(_opts).toMatchObject({ timeout: 20_000, maxBuffer: 10 * 1024 * 1024 });
+        expect(_opts).toMatchObject({
+          timeout: 20_000,
+          maxBuffer: 10 * 1024 * 1024,
+        });
         return Promise.resolve({ stdout: 'ok\n', stderr: '' });
       },
     );

@@ -43,7 +43,9 @@ describe('ProviderLedger coverage', () => {
   });
 
   it('renders an unpriced provider row without inventing figures', () => {
-    render(<ProviderLedger detailed providers={[unrecordedFlyProviderFixture()]} />);
+    render(
+      <ProviderLedger detailed providers={[unrecordedFlyProviderFixture()]} />,
+    );
 
     const row = ledgerRow('Fly.io');
     expect(within(row).getByText('Not connected')).toBeInTheDocument();
@@ -75,7 +77,9 @@ describe('UsageSignals coverage', () => {
     render(<UsageSignals providers={[unrecordedFlyProviderFixture()]} />);
 
     expect(
-      screen.getByText('Add provider credentials on the server to see usage signals.'),
+      screen.getByText(
+        'Add provider credentials on the server to see usage signals.',
+      ),
     ).toBeVisible();
   });
 

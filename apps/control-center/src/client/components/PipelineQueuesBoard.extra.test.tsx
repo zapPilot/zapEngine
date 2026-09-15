@@ -132,16 +132,14 @@ describe('PipelineQueuesBoard loading', () => {
 
   it('renders the unconfigured message instead of empty lanes', async () => {
     stubPoll(
-      vi
-        .fn()
-        .mockResolvedValue(
-          response(
-            queues({
-              status: 'unconfigured',
-              message: 'Supabase is not configured',
-            }),
-          ),
+      vi.fn().mockResolvedValue(
+        response(
+          queues({
+            status: 'unconfigured',
+            message: 'Supabase is not configured',
+          }),
         ),
+      ),
     );
 
     render(<PipelineQueuesBoard {...boardProps()} />);

@@ -20,7 +20,11 @@ function post(id: string, overrides: Record<string, unknown> = {}) {
   };
 }
 
-function metric(id: string, views: number | null, overrides: Record<string, unknown> = {}) {
+function metric(
+  id: string,
+  views: number | null,
+  overrides: Record<string, unknown> = {},
+) {
   return {
     social_post_id: id,
     captured_at: '2026-08-21T00:30:00.000Z',
@@ -64,9 +68,17 @@ describe('social coverage round 2', () => {
       posts.push(post(id, { platform: 'youtube', topic: 't' }));
       metrics.push(metric(id, 20 + i));
     }
-    const decisions = buildDecisions(posts as never, metrics as never, [] as never);
-    expect(decisions.find((d) => d.platform === 'threads')?.confidence).toBe('medium');
-    expect(decisions.find((d) => d.platform === 'youtube')?.confidence).toBe('high');
+    const decisions = buildDecisions(
+      posts as never,
+      metrics as never,
+      [] as never,
+    );
+    expect(decisions.find((d) => d.platform === 'threads')?.confidence).toBe(
+      'medium',
+    );
+    expect(decisions.find((d) => d.platform === 'youtube')?.confidence).toBe(
+      'high',
+    );
   });
 
   it('selects the latest captured metric within the window', () => {

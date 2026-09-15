@@ -198,7 +198,11 @@ describe('ProductView coverage', () => {
             refreshIntervalHours: null,
             userId: 'vip',
             wallets: [
-              { wallet: '0xabc', lastPortfolioUpdateAt: null, dueForRefresh: false },
+              {
+                wallet: '0xabc',
+                lastPortfolioUpdateAt: null,
+                dueForRefresh: false,
+              },
               {
                 wallet: '0xdue',
                 lastPortfolioUpdateAt: NOW,
