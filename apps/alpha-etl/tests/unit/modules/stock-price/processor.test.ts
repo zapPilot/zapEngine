@@ -317,4 +317,31 @@ describe('stock-price/processor', () => {
       lastProcessedAt: null,
     });
   });
+
+  it('uses fallback health details when the API omits them', async () => {
+    vi.spyOn(YahooFinanceFetcher.prototype, 'healthCheck').mockResolvedValue({
+      status: 'unhealthy',
+    });
+    vi.spyOn(StockPriceWriter.prototype, 'getLatestSnapshot').mockResolvedValue(
+      null,
+    );
+
+    const processor = new StockPriceETLProcessor(mockPool as unknown as Pool);
+
+    await expect(processor.healthCheck()).resolves.toEqual({
+      status: 'unhealthy',
+      details: 'API unhealthy',
+    });
+  });
+
+  it('converts non-Error health failures to details', async () => {
+    vi.spyOn(YahooFinanceFetcher.prototype, 'healthCheck').mockRejectedValue(
+      'offline',
+    );
+    const processor = new StockPriceETLProcessor(mockPool as unknown as Pool);
+    await expect(processor.healthCheck()).resolves.toEqual({
+      status: 'unhealthy',
+      details: 'offline',
+    });
+  });
 });

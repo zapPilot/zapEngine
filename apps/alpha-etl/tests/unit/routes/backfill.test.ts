@@ -86,4 +86,25 @@ describe('Backfill compatibility route', () => {
     expect(response.body.error.code).toBe('VALIDATION_ERROR');
     expect(mockJobQueue.enqueue).not.toHaveBeenCalled();
   });
+
+  it('returns a system error when enqueue fails with a non-Error value', async () => {
+    mockJobQueue.enqueue.mockRejectedValueOnce('queue unavailable');
+
+    const response = await request(app)
+      .post('/backfill')
+      .send({ tokens: [{ tokenId: 'bitcoin', tokenSymbol: 'BTC' }] })
+      .expect(500);
+
+    expect(response.body.error.code).toBe('INTERNAL_ERROR');
+    expect(response.body.error.message).toContain('queue unavailable');
+  });
+
+  it('defaults a macro backfill start date when omitted', async () => {
+    await request(app).post('/backfill/macro-fear-greed').send({}).expect(202);
+
+    expect(mockJobQueue.enqueue).toHaveBeenCalledWith({
+      sources: ['macro-fear-greed'],
+      tasks: [expect.objectContaining({ startDate: '2021-01-01' })],
+    });
+  });
 });

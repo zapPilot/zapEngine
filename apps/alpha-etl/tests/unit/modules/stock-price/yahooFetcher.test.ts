@@ -207,4 +207,21 @@ describe('stock-price/YahooFinanceFetcher', () => {
     await expect(promise).resolves.toMatchObject({ priceUsd: 512.34 });
     expect(mockQuote).toHaveBeenCalledWith('SPY');
   });
+
+  it('reports an unknown health error for non-Error failures', async () => {
+    mockQuote.mockRejectedValue('offline');
+    const fetcher = new YahooFinanceFetcher({ rateLimitMs: 0 });
+
+    await expect(fetcher.healthCheck()).resolves.toEqual({
+      status: 'unhealthy',
+      details: 'Unknown error',
+    });
+  });
+
+  it('rethrows non-Error quote failures unchanged', async () => {
+    mockQuote.mockRejectedValue('offline');
+    const fetcher = new YahooFinanceFetcher({ rateLimitMs: 0 });
+
+    await expect(fetcher.fetchLatestPrice()).rejects.toBe('offline');
+  });
 });
