@@ -7,7 +7,6 @@ import {
   render,
   screen,
   waitFor,
-  within,
 } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -86,9 +85,7 @@ function aggregatedItem(
   };
 }
 
-function socialItem(
-  overrides: Partial<SocialQueueItem> = {},
-): SocialQueueItem {
+function socialItem(overrides: Partial<SocialQueueItem> = {}): SocialQueueItem {
   return {
     key: `social:${EPISODE_ID}`,
     episodeId: EPISODE_ID,
@@ -187,7 +184,9 @@ describe('QueueDrawer chrome', () => {
     expect(screen.getByText('Queue history')).toBeVisible();
 
     const next = workItem({ key: 'render:other', title: 'Other episode' });
-    rerender(<QueueDrawer {...props} selected={{ kind: 'render', item: next }} />);
+    rerender(
+      <QueueDrawer {...props} selected={{ kind: 'render', item: next }} />,
+    );
 
     expect(screen.getByText('Recovery')).toBeVisible();
     expect(screen.queryByText('Queue history')).toBeNull();
@@ -288,7 +287,11 @@ describe('QueueDrawer abandon flow', () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true);
     renderDrawer(
       { kind: 'render', item: workItem() },
-      { onAbandonEpisode: vi.fn().mockRejectedValue(new Error('already closed')) },
+      {
+        onAbandonEpisode: vi
+          .fn()
+          .mockRejectedValue(new Error('already closed')),
+      },
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Abandon episode' }));
@@ -356,7 +359,9 @@ describe('QueueDrawer aggregated render episodes', () => {
     expect(screen.getByText('Render · ja')).toBeVisible();
     // Episode jobs print the raw progress figure, unclamped.
     expect(screen.getByText('150%')).toBeVisible();
-    expect(screen.getByText('A worker holds this job right now.')).toBeVisible();
+    expect(
+      screen.getByText('A worker holds this job right now.'),
+    ).toBeVisible();
     expect(screen.getByText(/stale/)).toBeVisible();
   });
 
@@ -369,7 +374,10 @@ describe('QueueDrawer aggregated render episodes', () => {
       });
     renderDrawer({
       kind: 'render',
-      item: aggregatedItem({ state: 'processing', jobs: [held('a'), held('b')] }),
+      item: aggregatedItem({
+        state: 'processing',
+        jobs: [held('a'), held('b')],
+      }),
     });
 
     expect(
@@ -472,7 +480,7 @@ describe('QueueDrawer social work', () => {
       {
         visualDebug: visualDebug({
           status: 'completed',
-          visualVersion: 'podcast-image-visual-plan.v10',
+          visualVersion: 'podcast-image-visual-plan.v11',
           visualHash: 'a'.repeat(64),
           attempts: 1,
           lastError: null,
@@ -568,15 +576,29 @@ describe('QueueDrawer helpers', () => {
     expect(
       restartLabel(
         action as Parameters<typeof restartLabel>[0],
-        workItem({ languageCode: action.step === 'render' && 'localizationId' in action ? 'ja' : undefined }),
+        workItem({
+          languageCode:
+            action.step === 'render' && 'localizationId' in action
+              ? 'ja'
+              : undefined,
+        }),
       ),
     ).toBe(label);
   });
 
   it.each([
-    [{ step: 'ingest' }, 'Resumes translation and TTS from durable checkpoints.'],
-    [{ step: 'render' }, 'Requeues this language against the existing visual plan.'],
-    [{ step: 'video' }, 'Re-plans the visual if needed, then requeues the unfinished renders.'],
+    [
+      { step: 'ingest' },
+      'Resumes translation and TTS from durable checkpoints.',
+    ],
+    [
+      { step: 'render' },
+      'Requeues this language against the existing visual plan.',
+    ],
+    [
+      { step: 'video' },
+      'Re-plans the visual if needed, then requeues the unfinished renders.',
+    ],
   ])('hints %j', (action, hint) => {
     expect(restartHint(action as Parameters<typeof restartHint>[0])).toBe(hint);
   });

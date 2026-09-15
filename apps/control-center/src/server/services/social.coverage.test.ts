@@ -35,7 +35,11 @@ function post(id: string, overrides: Record<string, unknown> = {}) {
   };
 }
 
-function metric(id: string, views: number | null, overrides: Record<string, unknown> = {}) {
+function metric(
+  id: string,
+  views: number | null,
+  overrides: Record<string, unknown> = {},
+) {
   return {
     social_post_id: id,
     captured_at: '2026-08-21T00:30:00.000Z',
@@ -64,15 +68,24 @@ function okClient() {
             ? [metric('p1', 10, { impressions: 100, likes: 2 })]
             : table === 'social_account_snapshots'
               ? [
-                  { platform: 'x', followers: 5, captured_at: '2026-08-21T00:00:00Z' },
-                  { platform: 'x', followers: 6, captured_at: '2026-08-20T00:00:00Z' },
+                  {
+                    platform: 'x',
+                    followers: 5,
+                    captured_at: '2026-08-21T00:00:00Z',
+                  },
+                  {
+                    platform: 'x',
+                    followers: 6,
+                    captured_at: '2026-08-20T00:00:00Z',
+                  },
                 ]
               : table === 'social_strategy_versions'
                 ? [{ platform: 'x', config: { preferredHookTypes: ['q'] } }]
                 : [];
       const chain: Record<string, unknown> = {};
-      for (const m of ['select', 'gte', 'order', 'limit', 'eq', 'not'])
+      for (const m of ['select', 'gte', 'order', 'limit', 'eq', 'not']) {
         chain[m] = () => chain;
+      }
       chain['then'] = (ok: (v: unknown) => unknown) =>
         Promise.resolve({ data, error: null }).then(ok);
       return chain;
@@ -111,9 +124,14 @@ describe('social coverage', () => {
       from: (table: string) => {
         if (table === 'social_strategy_versions') {
           const chain: Record<string, unknown> = {};
-          for (const m of ['select', 'eq']) chain[m] = () => chain;
+          for (const m of ['select', 'eq']) {
+            chain[m] = () => chain;
+          }
           chain['then'] = (ok: (v: unknown) => unknown) =>
-            Promise.resolve({ data: null, error: { message: 'strategy boom' } }).then(ok);
+            Promise.resolve({
+              data: null,
+              error: { message: 'strategy boom' },
+            }).then(ok);
           return chain;
         }
         return (base as { from: (t: string) => unknown }).from(table);
@@ -132,10 +150,14 @@ describe('social coverage', () => {
     serviceRole.client = {
       from: () => {
         const chain: Record<string, unknown> = {};
-        for (const m of ['select', 'gte', 'order', 'limit', 'eq', 'not'])
+        for (const m of ['select', 'gte', 'order', 'limit', 'eq', 'not']) {
           chain[m] = () => chain;
+        }
         chain['then'] = (ok: (v: unknown) => unknown) =>
-          Promise.resolve({ data: null, error: { message: 'telemetry down' } }).then(ok);
+          Promise.resolve({
+            data: null,
+            error: { message: 'telemetry down' },
+          }).then(ok);
         return chain;
       },
     };
@@ -151,8 +173,18 @@ describe('social coverage', () => {
 
   it('prefers zh-Hant titles, keeps the newest publish date, and sorts episodes desc', () => {
     const posts = [
-      post('a', { episode_id: 'ep', language_code: 'en', published_at: '2026-08-20T00:00:00Z', published_title: 'EN' }),
-      post('b', { episode_id: 'ep', language_code: 'zh-Hant', published_at: '2026-08-19T00:00:00Z', published_title: '繁中' }),
+      post('a', {
+        episode_id: 'ep',
+        language_code: 'en',
+        published_at: '2026-08-20T00:00:00Z',
+        published_title: 'EN',
+      }),
+      post('b', {
+        episode_id: 'ep',
+        language_code: 'zh-Hant',
+        published_at: '2026-08-19T00:00:00Z',
+        published_title: '繁中',
+      }),
       post('c', { episode_id: 'ep2', published_at: '2026-08-21T00:00:00Z' }),
     ];
     const metrics = [
@@ -163,7 +195,9 @@ describe('social coverage', () => {
     const episodes = buildEpisodes(posts as never, metrics as never, 'latest');
     expect(episodes.find((e) => e.episodeId === 'ep')?.title).toBe('繁中');
     expect(episodes[0]?.episodeId).toBe('ep2');
-    expect(episodes.find((e) => e.episodeId === 'ep')?.totalImpressions).toBe(120);
+    expect(episodes.find((e) => e.episodeId === 'ep')?.totalImpressions).toBe(
+      120,
+    );
   });
 
   it('falls back to body first line and Untitled episode for titles', () => {
@@ -172,16 +206,26 @@ describe('social coverage', () => {
       post('t2', { published_title: '  ', published_body: '' }),
     ];
     const episodes = buildEpisodes(posts as never, [] as never, 'latest');
-    expect(episodes.find((e) => e.episodeId === 'episode-t1')?.title).toBe('First line');
-    expect(episodes.find((e) => e.episodeId === 'episode-t2')?.title).toBe('Untitled episode');
+    expect(episodes.find((e) => e.episodeId === 'episode-t1')?.title).toBe(
+      'First line',
+    );
+    expect(episodes.find((e) => e.episodeId === 'episode-t2')?.title).toBe(
+      'Untitled episode',
+    );
   });
 
   it('emits strategy-only decisions with low confidence and formatted slots', () => {
-    const decisions = buildDecisions(
-      [],
-      [],
-      [{ platform: 'youtube', config: { publishSlotsJst: [{ hour: 9, minute: 5 }, { hour: 8, minute: 30 }] } }] as never,
-    );
+    const decisions = buildDecisions([], [], [
+      {
+        platform: 'youtube',
+        config: {
+          publishSlotsJst: [
+            { hour: 9, minute: 5 },
+            { hour: 8, minute: 30 },
+          ],
+        },
+      },
+    ] as never);
     const yt = decisions.find((d) => d.platform === 'youtube');
     expect(yt).toMatchObject({
       evidenceSamples: 0,
@@ -203,7 +247,11 @@ describe('social coverage', () => {
     };
     add('alpha', [100, 110, 120]);
     add('beta', [10, 12, 11]);
-    const [decision] = buildDecisions(posts as never, metrics as never, [] as never);
+    const [decision] = buildDecisions(
+      posts as never,
+      metrics as never,
+      [] as never,
+    );
     expect(decision?.evidenceSamples).toBe(6);
     expect(decision?.bestTopic).toBe('alpha');
     expect(decision?.bestTopicLiftVsPlatformMedian).toBeGreaterThan(1);
@@ -212,7 +260,11 @@ describe('social coverage', () => {
 
   it('returns null topics with fewer than two qualified buckets', () => {
     const posts = [post('s1', { platform: 'x', topic: 'solo' })];
-    const decisions = buildDecisions(posts as never, [metric('s1', 10)] as never, [] as never);
+    const decisions = buildDecisions(
+      posts as never,
+      [metric('s1', 10)] as never,
+      [] as never,
+    );
     expect(decisions.find((d) => d.platform === 'x')?.bestTopic).toBeNull();
   });
 

@@ -15,9 +15,13 @@ vi.mock('./supabase.js', async (importOriginal) => {
 
 function queryable(result: { data: unknown; error: unknown }) {
   const builder: Record<string, unknown> = {};
-  for (const m of ['select', 'in', 'gte', 'order']) builder[m] = () => builder;
-  builder['then'] = (ok: (v: unknown) => unknown, bad?: (e: unknown) => unknown) =>
-    Promise.resolve(result).then(ok, bad);
+  for (const m of ['select', 'in', 'gte', 'order']) {
+    builder[m] = () => builder;
+  }
+  builder['then'] = (
+    ok: (v: unknown) => unknown,
+    bad?: (e: unknown) => unknown,
+  ) => Promise.resolve(result).then(ok, bad);
   return builder;
 }
 
@@ -51,7 +55,12 @@ describe('metric snapshots coverage', () => {
       expect.objectContaining({ p_basis: 'measured' }),
     );
     await expect(
-      repo.upsert({ metricKey: 'm', date: '2026-09-01', value: null, fetchedAt: 'x' }),
+      repo.upsert({
+        metricKey: 'm',
+        date: '2026-09-01',
+        value: null,
+        fetchedAt: 'x',
+      }),
     ).rejects.toMatchObject({ message: 'rpc boom' });
   });
 
@@ -94,7 +103,12 @@ describe('metric snapshots coverage', () => {
         value: i === 2 ? null : String((i + 1) * 10),
         fetched_at: '2026-09-10T00:00:00Z',
       })),
-      { metric_key: 'other', snapshot_date: '2026-08-01', value: 5, fetched_at: 'x' },
+      {
+        metric_key: 'other',
+        snapshot_date: '2026-08-01',
+        value: 5,
+        fetched_at: 'x',
+      },
     ];
     serviceRole.client = {
       from: () => queryable({ data: rows, error: null }),
@@ -140,7 +154,10 @@ describe('metric snapshots coverage', () => {
         SUPABASE_SERVICE_ROLE_KEY: 'k',
       }),
     )!;
-    const result = await repo.loadSeries(['m'], new Date('2026-09-10T00:00:00Z'));
+    const result = await repo.loadSeries(
+      ['m'],
+      new Date('2026-09-10T00:00:00Z'),
+    );
     expect(result.get('m')?.delta7d).toBe(70);
     expect(result.get('m')?.latest).toBe(90);
   });

@@ -5,7 +5,6 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import type { StatementsResponse } from '../../shared/statements.js';
-import type { OverviewResponse } from '../../shared/types.js';
 import {
   costProvidersFixture,
   costProviderFixture,
@@ -23,7 +22,10 @@ function statements(): StatementsResponse {
       {
         domain: 'spend',
         status: 'healthy',
-        sentence: [{ text: 'Spend is within expectations at ' }, { value: '$41.30', tone: 'neutral' }],
+        sentence: [
+          { text: 'Spend is within expectations at ' },
+          { value: '$41.30', tone: 'neutral' },
+        ],
         facts: [{ kicker: 'Accrued', value: '$26.96', note: 'to date' }],
       },
     ],
@@ -61,7 +63,9 @@ describe('EconomicsView coverage', () => {
     expect(screen.getByText('No provider cost snapshots yet.')).toBeVisible();
     // The audit disclosure starts closed, so its empty state is present but hidden.
     expect(
-      screen.getByText('Add provider credentials on the server to see usage signals.'),
+      screen.getByText(
+        'Add provider credentials on the server to see usage signals.',
+      ),
     ).toBeInTheDocument();
   });
 

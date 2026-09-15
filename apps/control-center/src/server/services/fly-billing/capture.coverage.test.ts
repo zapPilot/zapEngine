@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 
+import type { BrowserContext } from 'playwright-core';
 import { describe, expect, it, vi } from 'vitest';
 
 import { captureFlyBilling, FLY_BILLING_URL } from './capture.js';
@@ -31,7 +32,7 @@ function contextFor(p: ReturnType<typeof page>) {
     close: vi.fn().mockResolvedValue(undefined),
     cookies: vi.fn(),
     addCookies: vi.fn(),
-  } as never;
+  } as unknown as BrowserContext;
 }
 
 describe('captureFlyBilling coverage', () => {
