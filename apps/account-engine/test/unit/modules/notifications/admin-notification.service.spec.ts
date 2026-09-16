@@ -205,5 +205,36 @@ describe('AdminNotificationService', () => {
 
       expect(emailService.sendEmail).toHaveBeenCalled();
     });
+
+    it('does not throw when email template generation fails (covers outer catch)', async () => {
+      const { service } = createMocks();
+      const templateSpy = vi
+        .spyOn(
+          service as unknown as {
+            generateFailureEmailHtml: (j: Job) => string;
+          },
+          'generateFailureEmailHtml',
+        )
+        .mockImplementation(() => {
+          throw new Error('boom');
+        });
+
+      await expect(
+        service.notifyJobFailure(createFailedJob()),
+      ).resolves.toBeUndefined();
+
+      templateSpy.mockRestore();
+    });
+
+    it('renders N/A when payload has no user keys (covers ?? null fallback)', async () => {
+      const { service, emailService } = createMocks();
+
+      await service.notifyJobFailure(
+        createFailedJob({ payload: { foo: 'bar' } }),
+      );
+
+      expect(emailService.sendEmail).toHaveBeenCalled();
+      expect(getSentHtml(emailService)).toContain('N/A');
+    });
   });
 });

@@ -44,6 +44,23 @@ describe('ChartService', () => {
         }),
       ).rejects.toThrow(ServiceLayerException);
     });
+
+    it('throws ServiceLayerException with undefined cause on non-Error rejection', async () => {
+      global.fetch = vi.fn().mockRejectedValue('boom-string');
+
+      try {
+        await service.generateChart({
+          data: [{ date: '2025-01-01', usd_value: 100 }],
+          title: 'Test',
+          yField: 'usd_value',
+        });
+        expect.unreachable('expected generateChart to throw');
+      } catch (error) {
+        expect(error).toBeInstanceOf(ServiceLayerException);
+        expect((error as ServiceLayerException).cause).toBeUndefined();
+        expect((error as Error).message).toContain('boom-string');
+      }
+    });
   });
 
   describe('generateHistoricalBalanceChart', () => {

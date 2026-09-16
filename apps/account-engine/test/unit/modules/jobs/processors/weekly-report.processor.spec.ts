@@ -439,6 +439,43 @@ describe('WeeklyReportProcessor', () => {
       expect(result.success).toBe(false);
       expect(result.error).toContain('NOTIFICATIONS_TEST_RECIPIENT');
     });
+
+    it('returns test recipient when testMode is enabled with recipient configured', () => {
+      const { processor, emailService } = createMocks();
+      emailService.getTestRecipient.mockReturnValue('test@example.com');
+
+      const recipient = (
+        processor as unknown as {
+          validateTestMode: (t: boolean) => string | undefined;
+        }
+      ).validateTestMode(true);
+
+      expect(recipient).toBe('test@example.com');
+      expect(emailService.getTestRecipient).toHaveBeenCalled();
+    });
+
+    it('fans out batch with test recipient when testMode is enabled', async () => {
+      const { processor, emailService, jobQueueService } = createMocks();
+      emailService.getTestRecipient.mockReturnValue('test@example.com');
+
+      const job = createPendingJob({
+        type: JobType.WEEKLY_REPORT_BATCH,
+        payload: { testMode: true },
+      });
+
+      const result = await processor.process(job);
+
+      expect(result.success).toBe(true);
+      expect(emailService.getTestRecipient).toHaveBeenCalled();
+      expect(jobQueueService.createJob).toHaveBeenCalledWith(
+        expect.objectContaining({
+          payload: expect.objectContaining({
+            testMode: true,
+            testRecipient: 'test@example.com',
+          }),
+        }),
+      );
+    });
   });
 
   describe('non-PortfolioNotFoundError rethrows', () => {

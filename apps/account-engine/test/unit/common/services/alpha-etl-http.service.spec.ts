@@ -150,5 +150,17 @@ describe('AlphaEtlHttpService', () => {
         ServiceLayerException,
       );
     });
+
+    it('throws invalid response message when error field is missing', async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ success: false, data: null }),
+      });
+
+      await expect(service.getJobStatus('job-1')).rejects.toThrow(
+        'Alpha-ETL job status returned invalid response',
+      );
+    });
   });
 });

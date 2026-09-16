@@ -318,6 +318,30 @@ describe('UsersService', () => {
       ).rejects.toThrow(ConflictException);
     });
 
+    it('rethrows non-conflict wallet insert failures without consulting wallet availability', async () => {
+      // Locks: addWallet `if (error instanceof ConflictException)` false and
+      // `throw error` — a non-unique-violation insert failure must not be
+      // reinterpreted as a wallet conflict.
+      const { service, qb, validationService } = createMocks();
+      const cause = new Error('db-down');
+      qb.single.mockRejectedValue(cause);
+
+      try {
+        await service.addWallet('user-1', '0x123', undefined);
+        expect.unreachable('expected addWallet to reject on insert failure');
+      } catch (error) {
+        expect(error).toBeInstanceOf(ServiceLayerException);
+        expect((error as ServiceLayerException).message).toContain(
+          'Failed to add wallet',
+        );
+        expect((error as ServiceLayerException).cause).toBe(cause);
+      }
+      expect(qb.insert).toHaveBeenCalled();
+      expect(
+        validationService.validateWalletAvailability,
+      ).not.toHaveBeenCalled();
+    });
+
     it('throws NotFoundException when user does not exist', async () => {
       const { service, validationService } = createMocks();
       validationService.validateUserExists.mockRejectedValue(
@@ -841,6 +865,37 @@ describe('UsersService', () => {
       );
 
       expect(result.job_id).toBe('etl-1');
+    });
+
+    it('still queues the ETL job when the alpha-etl health ping rejects', async () => {
+      // Locks: wakeAlphaEtl catch — a rejecting healthPing warns and the
+      // webhook proceeds anyway. wakeAlphaEtl runs fire-and-forget, so wait
+      // for the warn before asserting.
+      const { service, alphaEtlHttpService } = createMocks();
+      alphaEtlHttpService.healthPing.mockRejectedValue(new Error('etl-down'));
+      const logger = (
+        service as unknown as {
+          logger: { warn: (...args: unknown[]) => void };
+        }
+      ).logger;
+      const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+      try {
+        const result = await service.triggerWalletDataFetch(
+          'user-1',
+          '0x1234567890abcdef1234567890abcdef12345678',
+        );
+
+        expect(result.job_id).toBe('etl-1');
+        expect(result.status).toBe('pending');
+        await vi.waitFor(() => {
+          expect(warnSpy).toHaveBeenCalledWith(
+            'Alpha-ETL health check failed, proceeding with webhook anyway',
+            expect.objectContaining({ error: 'etl-down' }),
+          );
+        });
+      } finally {
+        warnSpy.mockRestore();
+      }
     });
 
     it('throws when user validation fails', async () => {
