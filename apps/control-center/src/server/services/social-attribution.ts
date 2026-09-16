@@ -184,9 +184,10 @@ export function attributeIntervalDelta(input: {
     (sum, dimension) => sum + dimension.weight,
     0,
   );
-  if (weightTotal === 0) {
-    return unattributedInterval(input.interval, netDelta);
-  }
+  // `usable` is non-empty here: `active` holds at least two posts with a
+  // positive delta, so at least one dimension total is positive and its weight
+  // (>0) lands in the sum. The zero-weight fallback above (`unattributedInterval`
+  // for `netDelta <= 0` or no active posts) already returned.
   const posts = active.map((activity) => {
     const score = usable.reduce(
       (sum, dimension) =>

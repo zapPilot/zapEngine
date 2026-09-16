@@ -105,7 +105,8 @@ export async function loadProductHealth(input: {
         .length,
       top1PortfolioShare:
         total > 0 && sortedValues.length
-          ? (sortedValues[0] ?? 0) / total
+          ? // `total > 0` implies at least one value, so the top entry exists.
+            sortedValues[0]! / total
           : null,
       top3PortfolioShare:
         total > 0 && sortedValues.length

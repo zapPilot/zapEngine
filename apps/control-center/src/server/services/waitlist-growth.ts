@@ -38,7 +38,10 @@ export async function loadWaitlistGrowth(input: {
     const until = input.now.toISOString();
     const since7d = new Date(input.now.getTime() - 7 * DAY_MS).toISOString();
     const since30d = new Date(input.now.getTime() - 30 * DAY_MS).toISOString();
-    const [total, signups7d, signups30d] = await Promise.all(
+    // Fixed-length input, so the result is always a 3-tuple of counts; the
+    // assertion (not a runtime check) keeps `noUncheckedIndexedAccess` happy
+    // without adding an uncoverable `undefined` branch.
+    const [total, signups7d, signups30d] = (await Promise.all(
       ([null, since7d, since30d] as const).map(async (since) => {
         let query = client
           .from('waitlist_signups')
@@ -56,14 +59,7 @@ export async function loadWaitlistGrowth(input: {
         }
         return result.count;
       }),
-    );
-    if (
-      total === undefined ||
-      signups7d === undefined ||
-      signups30d === undefined
-    ) {
-      throw new Error('Waitlist count unavailable');
-    }
+    )) as [number, number, number];
     const signups: Signup[] = [];
     while (signups.length < total) {
       const result = await client
