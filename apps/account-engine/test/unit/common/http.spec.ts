@@ -186,4 +186,22 @@ describe('AppError branch sweep', () => {
     expect(err.statusCode).toBe(HttpStatus.INTERNAL_SERVER_ERROR);
     expect(err.name).toBe('AppError');
   });
+
+  it('constructs normally when Error.captureStackTrace is unavailable', () => {
+    // Locks: `typeof Error.captureStackTrace === 'function'` false outcome
+    // (non-V8 environments).
+    const original = Error.captureStackTrace;
+    (Error as unknown as { captureStackTrace: unknown }).captureStackTrace =
+      undefined;
+    try {
+      const err = new AppError('boom', HttpStatus.BAD_REQUEST);
+
+      expect(err.message).toBe('boom');
+      expect(err.statusCode).toBe(HttpStatus.BAD_REQUEST);
+      expect(err.name).toBe('AppError');
+    } finally {
+      (Error as unknown as { captureStackTrace: unknown }).captureStackTrace =
+        original;
+    }
+  });
 });

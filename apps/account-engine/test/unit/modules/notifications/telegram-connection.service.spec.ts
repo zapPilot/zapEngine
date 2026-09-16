@@ -124,6 +124,33 @@ describe('TelegramConnectionService', () => {
     );
   });
 
+  it('connects successfully without updating username when from.username is missing', async () => {
+    const { service, dbMock, tokenService } = createConnectionMocks();
+    tokenService.validateToken.mockResolvedValueOnce('user-1');
+    dbMock.supabase.queryBuilder.mockResolvedThen({
+      data: {},
+      error: null,
+    });
+    const ctx = {
+      ...makeStartCtx(),
+      from: { id: 12345 },
+      reply: vi.fn().mockResolvedValue(undefined),
+    } as unknown as Context;
+
+    await service.handleStartCommand(ctx);
+
+    expect(dbMock.supabase.client.from).toHaveBeenCalledWith(
+      'notification_settings',
+    );
+    expect(dbMock.supabase.client.from).not.toHaveBeenCalledWith('users');
+    expect(dbMock.supabase.queryBuilder.update).not.toHaveBeenCalled();
+    expect(tokenService.invalidateToken).toHaveBeenCalledWith('valid-token');
+    expect(ctx.reply).toHaveBeenCalledWith(
+      expect.stringContaining('Successfully connected'),
+      expect.any(Object),
+    );
+  });
+
   it('finds a user id by Telegram chat id', async () => {
     const { service, dbMock } = createConnectionMocks();
     dbMock.supabase.queryBuilder.maybeSingle.mockResolvedValueOnce({

@@ -470,6 +470,35 @@ describe('JobQueueService', () => {
       expect(logs[logs.length - 1]).toContain(`entry-${overflow - 1}`);
       service.stop();
     });
+
+    it('initializes log list for a fresh jobId (covers ?? [] fallback)', () => {
+      const service = makeService();
+      const freshJobId = 'fresh-job-id-no-prior-logs';
+      expect(jobLogsOf(service).get(freshJobId)).toBeUndefined();
+
+      service.logJobEvent(freshJobId, LogLevel.INFO, 'first entry');
+
+      const logs = jobLogsOf(service).get(freshJobId) ?? [];
+      expect(logs.length).toBe(1);
+      expect(logs[0]).toContain('first entry');
+      service.stop();
+    });
+
+    it('appends to existing log list (covers ?? [] left branch)', () => {
+      const service = makeService();
+      const job = service.createJob({
+        type: JobType.WEEKLY_REPORT_BATCH,
+        payload: {},
+      });
+
+      service.logJobEvent(job.id, LogLevel.INFO, 'entry-one');
+      service.logJobEvent(job.id, LogLevel.INFO, 'entry-two');
+
+      const logs = jobLogsOf(service).get(job.id) ?? [];
+      expect(logs.some((l) => l.includes('entry-one'))).toBe(true);
+      expect(logs.some((l) => l.includes('entry-two'))).toBe(true);
+      service.stop();
+    });
   });
 
   describe('stop / cleanup', () => {
@@ -531,6 +560,42 @@ describe('JobQueueService', () => {
           level: 'error',
         },
       );
+      service.stop();
+    });
+
+    it('cleanup keeps terminal jobs with recent completedAt (covers 407 else)', () => {
+      vi.useFakeTimers();
+      const service = makeService();
+
+      const job = service.createJob({
+        type: JobType.WEEKLY_REPORT_BATCH,
+        payload: {},
+      });
+      service.completeJob(job.id);
+
+      // Trigger a sweep immediately — completedAt is fresh, within retention
+      vi.advanceTimersByTime(JOB_CONFIG.CLEANUP_INTERVAL_MS + 1);
+
+      expect(service.getJob(job.id)).not.toBeNull();
+      expect(service.getJob(job.id)?.status).toBe(JobStatus.COMPLETED);
+      service.stop();
+    });
+
+    it('cleanup keeps terminal jobs with missing completedAt (covers 407 first-operand false)', () => {
+      vi.useFakeTimers();
+      const service = makeService();
+
+      const job = service.createJob({
+        type: JobType.WEEKLY_REPORT_BATCH,
+        payload: {},
+      });
+      // Terminal without completedAt — hits `job.completedAt && ...` false
+      service.updateJobStatus(job.id, JobStatus.COMPLETED);
+
+      vi.advanceTimersByTime(JOB_CONFIG.CLEANUP_INTERVAL_MS + 1);
+
+      expect(service.getJob(job.id)).not.toBeNull();
+      expect(service.getJob(job.id)?.status).toBe(JobStatus.COMPLETED);
       service.stop();
     });
   });

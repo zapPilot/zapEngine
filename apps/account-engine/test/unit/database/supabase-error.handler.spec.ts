@@ -77,6 +77,16 @@ describe('SupabaseErrorHandler', () => {
         SupabaseErrorHandler.handleDatabaseError(error, 'fetch'),
       ).toThrow('Resource not found');
     });
+
+    it('defaults entity name to Resource for 23505 when not provided', () => {
+      const error = { code: SupabaseErrorCode.DUPLICATE_KEY, message: '' };
+      expect(() =>
+        SupabaseErrorHandler.handleDatabaseError(error, 'create wallet'),
+      ).toThrow(ConflictException);
+      expect(() =>
+        SupabaseErrorHandler.handleDatabaseError(error, 'create wallet'),
+      ).toThrow('Resource already exists');
+    });
   });
 
   describe('validateOperation', () => {

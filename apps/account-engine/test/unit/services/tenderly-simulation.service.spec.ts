@@ -1432,4 +1432,132 @@ describe('TenderlySimulationService branch sweep', () => {
       unavailableReason: 'Tenderly returned malformed simulation data',
     });
   });
+
+  it('locks deriving approvals from exposure metadata without a token address', async () => {
+    // Locks: indexReview `if (exposure.token_info.contract_address)` false;
+    // normalizeReview `exposure.token_info.contract_address ?? ''` right
+    // operand; `tokenByAddress.get(tokenAddress) ?? normalizeToken(...)`
+    // fallback (the empty address is never indexed, so the lookup misses).
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response([
+          simulationResult({
+            id: 'sim-address-less-exposure',
+            to: TOKEN,
+            method: 'approve',
+            exposureChanges: [
+              {
+                token_info: { decimals: 18, symbol: 'ETH' },
+                type: 'Approve',
+                owner: WALLET,
+                spender: SPENDER,
+                raw_amount: '1000',
+              },
+            ],
+            contracts: [contract(TOKEN, { token: true })],
+          }),
+        ]),
+      )
+      .mockResolvedValue({ ok: true, status: 204 });
+    const service = createService(fetchFn);
+
+    const result = await service.simulateBundle({
+      chainId: 8453,
+      walletAddress: WALLET,
+      calls: [{ to: TOKEN }],
+    });
+
+    expect(result.status).toBe('warning');
+    expect(result.approvals).toEqual([
+      expect.objectContaining({
+        owner: WALLET,
+        spender: SPENDER,
+        rawAmount: '1000',
+        token: expect.objectContaining({
+          address: null,
+          symbol: 'ETH',
+          decimals: 18,
+        }),
+        simulatedSpendRaw: '0',
+        exceedsSimulatedSpend: true,
+        unlimited: false,
+      }),
+    ]);
+  });
+
+  it('locks falling back to the global fetch when no fetchFn is injected', async () => {
+    // Locks: `config.fetchFn ?? fetch` right operand — production wires no
+    // fetchFn (see container.ts), so the global fetch is the live path.
+    const globalFetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response([simulationResult({ id: 'sim-global-fetch' })]),
+      )
+      .mockResolvedValueOnce({ ok: true, status: 204 });
+    vi.stubGlobal('fetch', globalFetch);
+    try {
+      const service = createTenderlySimulationService({
+        accountSlug: 'account-slug',
+        projectSlug: 'project-slug',
+        accessToken: 'secret-token',
+      });
+
+      const result = await service.simulateBundle({
+        chainId: 8453,
+        walletAddress: WALLET,
+        calls: [{ to: TARGET }],
+      });
+
+      expect(result.status).toBe('passed');
+      expect(result.shareUrls).toEqual([
+        'https://www.tdly.co/shared/simulation/sim-global-fetch',
+      ]);
+      expect(globalFetch).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('locks a wallet-sent asset change that omits the destination', async () => {
+    // Locks: `rawChange.to ? normalizeAddress(rawChange.to) : null` null
+    // branch — direction still resolves to `out` from the wallet sender.
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response([
+          simulationResult({
+            id: 'sim-no-destination',
+            to: TOKEN,
+            assetChanges: [
+              {
+                token_info: tokenInfo,
+                type: 'Transfer',
+                from: WALLET,
+                raw_amount: '50',
+              },
+            ],
+            contracts: [contract(TOKEN, { token: true })],
+          }),
+        ]),
+      )
+      .mockResolvedValue({ ok: true, status: 204 });
+    const service = createService(fetchFn);
+
+    const result = await service.simulateBundle({
+      chainId: 8453,
+      walletAddress: WALLET,
+      calls: [{ to: TOKEN }],
+    });
+
+    expect(result.status).toBe('passed');
+    expect(result.assetChanges).toEqual([
+      expect.objectContaining({
+        direction: 'out',
+        rawAmount: '50',
+        from: WALLET,
+        to: null,
+      }),
+    ]);
+  });
 });

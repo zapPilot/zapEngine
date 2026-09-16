@@ -369,6 +369,105 @@ describe('PrivyWalletExecutionService', () => {
     });
   });
 
+  it('wraps a primitive Privy error body as 502 instead of 401', async () => {
+    const client = createClient();
+    vi.mocked(client.sendCalls).mockRejectedValue({ error: 12345 });
+    const service = createService(client);
+    const prepared = await service.prepareSendCalls(batch, accessToken);
+    if (prepared.status !== 'passed')
+      throw new Error('Expected passed preview');
+
+    await expect(
+      service.confirmSendCalls(confirmRequest(prepared.previewId), accessToken),
+    ).rejects.toMatchObject({
+      statusCode: 502,
+      message: expect.stringContaining('Privy Wallets API batch failed'),
+    });
+  });
+
+  it('hashes calls that omit data and value with protocol defaults', async () => {
+    const sparseBatch: PrivyPrepareSendCallsRequest = {
+      ...batch,
+      calls: [{ to: batch.calls[0]!.to }],
+    };
+    const prepared = await createService().prepareSendCalls(
+      sparseBatch,
+      accessToken,
+    );
+
+    expect(prepared.status).toBe('passed');
+    if (prepared.status !== 'passed')
+      throw new Error('Expected passed preview');
+    expect(prepared.batchHash).toMatch(/^0x[0-9a-f]{64}$/);
+  });
+
+  it('rejects with 401 when access-token verification throws a non-Error', async () => {
+    const client = createClient();
+    vi.mocked(client.verifyAccessToken).mockRejectedValue('token-bad-string');
+
+    await expect(
+      createService(client).prepareSendCalls(batch, accessToken),
+    ).rejects.toMatchObject({ statusCode: 401 });
+    expect(client.getUserWallets).not.toHaveBeenCalled();
+  });
+
+  it('falls back to nonce zero when the preview wallet has no retained nonce', async () => {
+    const otherWallet = '0x3333333333333333333333333333333333333333';
+    const client = createClient();
+    vi.mocked(client.getUserWallets).mockResolvedValue([
+      { id: batch.walletId, address: batch.walletAddress },
+      { id: batch.walletId, address: otherWallet },
+    ]);
+    const service = createService(client);
+    const request: PrivyPrepareSendCallsRequest = { ...batch };
+    const prepared = await service.prepareSendCalls(request, accessToken);
+    if (prepared.status !== 'passed')
+      throw new Error('Expected passed preview');
+
+    // The service retains the request by reference, so pointing it at another
+    // owned wallet makes confirm look up a wallet key with no retained nonce
+    // state and exercise the `?? 0` fallback.
+    request.walletAddress = otherWallet;
+
+    await expect(
+      service.confirmSendCalls(confirmRequest(prepared.previewId), accessToken),
+    ).resolves.toMatchObject({
+      status: 'submitted',
+      transactionId: 'privy-transaction-id',
+    });
+  });
+
+  it('maps a non-Error Privy JWT failure to 401', async () => {
+    const client = createClient();
+    vi.mocked(client.sendCalls).mockRejectedValue({
+      error: { message: 'invalid jwt' },
+    });
+    const service = createService(client);
+    const prepared = await service.prepareSendCalls(batch, accessToken);
+    if (prepared.status !== 'passed')
+      throw new Error('Expected passed preview');
+
+    await expect(
+      service.confirmSendCalls(confirmRequest(prepared.previewId), accessToken),
+    ).rejects.toMatchObject({ statusCode: 401 });
+  });
+
+  it('wraps a non-Error Privy submission failure as 502', async () => {
+    const client = createClient();
+    vi.mocked(client.sendCalls).mockRejectedValue('network-boom-string');
+    const service = createService(client);
+    const prepared = await service.prepareSendCalls(batch, accessToken);
+    if (prepared.status !== 'passed')
+      throw new Error('Expected passed preview');
+
+    await expect(
+      service.confirmSendCalls(confirmRequest(prepared.previewId), accessToken),
+    ).rejects.toMatchObject({
+      statusCode: 502,
+      message: expect.stringContaining('network-boom-string'),
+    });
+  });
+
   describe('real Privy client adapter', () => {
     function installMockPrivyClient(options?: {
       linkedAccounts?: unknown[];
@@ -603,6 +702,39 @@ describe('PrivyWalletExecutionService', () => {
         tenderlyAccountSlug: 'tenderly-account',
         tenderlyProjectSlug: 'tenderly-project',
         tenderlyAccessToken: 'tenderly-token',
+      });
+
+      expect(service).toBeDefined();
+    });
+
+    it('ignores embedded linked accounts without an id', async () => {
+      installMockPrivyClient({
+        linkedAccounts: [
+          {
+            type: 'wallet',
+            wallet_client_type: 'privy',
+            connector_type: 'embedded',
+            address: batch.walletAddress,
+          },
+        ],
+      });
+      const service = createPrivyWalletExecutionService({
+        appId: 'real-app-id',
+        appSecret: 'real-app-secret',
+        tenderlySimulationService: simulationService(),
+      });
+
+      await expect(
+        service.prepareSendCalls(batch, accessToken),
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        message: 'Privy wallet does not belong to the authenticated user',
+      });
+    });
+
+    it('instantiates the default Tenderly service without Tenderly slugs', () => {
+      const service = createPrivyWalletExecutionService({
+        client: createClient(),
       });
 
       expect(service).toBeDefined();

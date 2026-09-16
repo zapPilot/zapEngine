@@ -50,6 +50,27 @@ describe('POST /telegram/webhook', () => {
     expect(response.status).toBe(401);
   });
 
+  it('returns 401 when the secret header is missing', async () => {
+    const services = createServices();
+    (services.telegramService.validateWebhookSecret as Mock).mockReturnValue(
+      false,
+    );
+
+    const response = await createApp(services).request(
+      'http://localhost/telegram/webhook',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: webhookBody,
+      },
+    );
+
+    expect(response.status).toBe(401);
+    expect(services.telegramService.validateWebhookSecret).toHaveBeenCalledWith(
+      '',
+    );
+  });
+
   it('returns 200 with null body when bot is not configured', async () => {
     const services = createServices();
     (services.telegramService.getBot as Mock).mockReturnValue(null);

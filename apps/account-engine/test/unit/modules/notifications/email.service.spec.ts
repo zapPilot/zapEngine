@@ -85,6 +85,20 @@ describe('EmailService', () => {
       ).rejects.toThrow(ServiceLayerException);
     });
 
+    it('throws ServiceLayerException with undefined cause on non-Error rejection', async () => {
+      mockSendMail.mockRejectedValue('smtp-boom');
+      const service = createService();
+
+      try {
+        await service.sendEmail({ to: 'a@b.com', subject: 's', html: '' });
+        expect.unreachable('expected sendEmail to throw');
+      } catch (error) {
+        expect(error).toBeInstanceOf(ServiceLayerException);
+        expect((error as ServiceLayerException).cause).toBeUndefined();
+        expect((error as Error).message).toContain('smtp-boom');
+      }
+    });
+
     it('includes attachments metadata', async () => {
       mockSendMail.mockResolvedValue({});
       const service = createService();
