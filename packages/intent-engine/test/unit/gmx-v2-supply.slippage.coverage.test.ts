@@ -20,9 +20,7 @@ const BASE_INPUT = {
   userAddress: USER,
 };
 
-function pricingAdapterFor(
-  estimatedMarketTokens: bigint,
-): GmxV2PricingAdapter {
+function pricingAdapterFor(estimatedMarketTokens: bigint): GmxV2PricingAdapter {
   return {
     getDepositAmountOut: vi.fn().mockResolvedValue(estimatedMarketTokens),
   };
