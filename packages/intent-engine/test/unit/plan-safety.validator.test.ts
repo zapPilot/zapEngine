@@ -93,6 +93,27 @@ describe('assertApprovalCaps', () => {
     ).not.toThrow();
   });
 
+  it('ignores valid ERC-20 calldata for non-approve methods', () => {
+    expect(() =>
+      assertApprovalCaps(
+        {
+          approvals: [
+            {
+              ...approveTx(1n),
+              data: encodeFunctionData({
+                abi: erc20Abi,
+                functionName: 'transfer',
+                args: [SPENDER as `0x${string}`, 1n],
+              }),
+            },
+          ],
+          calls: [],
+        },
+        {},
+      ),
+    ).not.toThrow();
+  });
+
   it('ignores malformed calldata and approvals without source bounds', () => {
     expect(() =>
       assertApprovalCaps(

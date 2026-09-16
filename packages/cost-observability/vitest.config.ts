@@ -5,7 +5,7 @@ export default defineConfig({
     exclude: ['dist/**', 'node_modules/**'],
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'json-summary', 'html', 'lcov'],
+      reporter: ['text', 'json-summary', 'json', 'html', 'lcov'],
       include: ['src/**/*.ts'],
       // Specs sit beside the sources they cover and Vitest 4's default
       // `coverage.exclude` is empty, so they have to be named here or `include`

@@ -70,6 +70,23 @@ describe('detectEIP7702Support', () => {
     expect(await detectEIP7702Support(DUMMY_WALLET, 8453)).toBe(true);
   });
 
+  it('returns true when the all-chain response marks the requested chain ready', async () => {
+    getCapabilitiesMock.mockResolvedValueOnce({}).mockResolvedValueOnce({
+      8453: { atomic: { status: 'ready' } },
+    });
+
+    expect(await detectEIP7702Support(DUMMY_WALLET, 8453)).toBe(true);
+  });
+
+  it('returns false when the all-chain response marks the requested chain unsupported', async () => {
+    getCapabilitiesMock.mockResolvedValueOnce({}).mockResolvedValueOnce({
+      8453: { atomic: { status: 'unsupported' } },
+      0: { atomic: { status: 'supported' } },
+    });
+
+    expect(await detectEIP7702Support(DUMMY_WALLET, 8453)).toBe(false);
+  });
+
   it('returns false when chain-specific unsupported overrides global support', async () => {
     getCapabilitiesMock.mockResolvedValueOnce({
       atomic: { status: 'unsupported' },

@@ -13,13 +13,20 @@ filters from the workflow before debugging. It currently runs:
 ```bash
 pnpm run coverage test
 pnpm run coverage summary
+pnpm tsx scripts/coverage-handoff.ts
 ```
 
 `pnpm coverage summary` is `turbo run test:coverage` followed by
 `scripts/coverage-summary.ts`. That job enforces **configured per-workspace
 absolute floors** through each workspace's `test:coverage` command. Workspaces
-without thresholds do not fail an absolute floor, and only reporters that emit
-`json-summary` enter the aggregate. If the log says:
+without thresholds do not fail an absolute floor. Vitest workspaces emit both
+`json-summary` and detailed `json`; analytics-engine emits Cobertura.
+
+The CI job then creates the `coverage-handoff` artifact from those existing
+reports. The handoff generator does not execute coverage again. `handoff.json`
+is the canonical structured source; `HANDOFF.md` is the compact LLM rendering.
+
+If the log says:
 
 ```txt
 ERROR: Coverage for lines (...) does not meet global threshold (...)
@@ -35,26 +42,34 @@ workspaces, including `apps/control-center`, `packages/cost-observability`, and
 
 A coverage failure has one shape: the workspace is below its configured
 absolute threshold. Add tests for the changed surface or delete dead code. Apply
-a threshold exception only when explicitly authorized as described below. Aggregation never fails the
-job on its own — `coverage/summary.json` is a report, not a gate.
+a threshold exception only when explicitly authorized as described below.
+Aggregation and handoff generation do not lower or replace the gate.
 
 ## Diagnose the failing workspace
 
-1. Read the GitHub log. Capture the exact `Failed: @zapengine/<workspace>#test:coverage` line.
-2. Re-run that workspace directly:
+1. Before running monorepo-wide coverage just to discover gaps, download the
+   latest relevant `coverage-handoff` artifact and inspect `handoff.json`.
+   `reportStatus: partial|unavailable` and `missingReports` are unknown evidence,
+   never proof of 100% coverage.
+2. Read the GitHub log. Capture the exact
+   `Failed: @zapengine/<workspace>#test:coverage` line when the gate itself is
+   red.
+3. Re-run only the selected workspace during iteration:
 
    ```bash
    pnpm turbo run test:coverage --filter=@zapengine/<workspace>
    ```
 
-3. If you need CI parity for the whole current coverage job, run:
+4. If you need CI parity for the whole current coverage job, run:
 
    ```bash
    pnpm run coverage summary
+   pnpm tsx scripts/coverage-handoff.ts
    ```
 
-4. Inspect the workspace's `coverage/coverage-summary.json` or HTML report and
-   test the cheapest real functions/components first.
+5. Use the handoff's exact incomplete files and uncovered locations to test the
+   cheapest real functions/components first. Let CI produce the next canonical
+   monorepo-wide state after push.
 
 ## Large POC / dashboard drops
 
@@ -73,7 +88,6 @@ Preferred order:
    before/after coverage, and the agreed restoration condition in the PR.
 4. Otherwise add meaningful coverage or remove genuinely dead code. Do not split
    the feature or change branch/worktree context without explicit user direction.
-
 5. Do not use blanket `c8 ignore` to hide reachable code. Only ignore genuinely
    unreachable defensive branches, with a reason.
 
@@ -82,7 +96,8 @@ Preferred order:
 | Excuse                                                                              | Reality                                                                                           |
 | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
 | "`verify ci` passed, so coverage is fine."                                          | Coverage is a separate GitHub job, not part of `verify ci`.                                       |
-| "`pnpm coverage summary` is the same as CI."                                        | Almost — CI also runs `pnpm run coverage test` first. Compare with the workflow before debugging. |
+| "I need full coverage locally just to see what is missing."                         | Read a fresh `coverage-handoff` first; use scoped coverage while iterating.                        |
+| "`pnpm coverage summary` is the same as CI."                                        | Almost — CI self-tests the scripts and then generates/uploads the handoff artifact.                |
 | "Just lower the root threshold."                                                    | Keep the configured floor; this skill grants no threshold exception.                              |
 | "The branch touched one workspace, so that workspace must be the coverage failure." | Coverage runs all workspaces; read the failed workspace line.                                     |
 | "This production pipeline is large, so call it a POC and lower the floor."          | Durable production behavior must earn coverage; this skill does not authorize an exception.       |
@@ -96,7 +111,8 @@ For the current CI coverage job:
 ```bash
 pnpm run coverage test
 pnpm run coverage summary
+pnpm tsx scripts/coverage-handoff.ts
 ```
 
-Then push and read the GitHub `coverage` job. It can reveal the next workspace
-only after the previous failing workspace floor is cleared.
+Then push and read the GitHub `coverage` job. The resulting `coverage-handoff`
+artifact is the canonical next-state sensor for subsequent agents.
