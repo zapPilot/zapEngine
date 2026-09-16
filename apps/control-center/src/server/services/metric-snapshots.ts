@@ -109,13 +109,12 @@ export function createMetricSnapshotRepository(
         const series = rows
           .map((row) => (row.value === null ? null : Number(row.value)))
           .filter((value): value is number => value !== null);
-        const latest = series.length
-          ? (series[series.length - 1] ?? null)
-          : null;
+        // `series.length` guards the index: a non-empty series always has a
+        // last element, and eight points always have an eighth-from-last one.
+        const latest = series.length ? series[series.length - 1]! : null;
         const delta7d =
           series.length >= 8
-            ? (series[series.length - 1] ?? 0) -
-              (series[series.length - 8] ?? 0)
+            ? series[series.length - 1]! - series[series.length - 8]!
             : null;
         result.set(key, { series, latest, delta7d, rowCount: rows.length });
       }

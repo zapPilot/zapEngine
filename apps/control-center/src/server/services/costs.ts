@@ -25,7 +25,10 @@ interface CostSource {
   costType: CostType;
   configured: boolean;
   pricingRateId: string | null;
-  load: () => Promise<CostSnapshot>;
+  // Present only when `configured`: `loadSource` returns early otherwise, so
+  // an unconfigured source never needs a loader. Keeping it optional removes
+  // the dead `Promise.reject` stub that existed only to satisfy the type.
+  load?: () => Promise<CostSnapshot>;
 }
 
 export interface CollectedCostProvider extends CostProviderResult {
@@ -160,7 +163,9 @@ async function loadSource(source: CostSource): Promise<CollectedCostProvider> {
   }
 
   try {
-    const snapshot = await source.load();
+    // `configured` implies `load` is present: unconfigured sources return
+    // early above and never provide a loader.
+    const snapshot = await source.load!();
     return {
       provider: source.provider,
       label: source.label,
@@ -236,9 +241,6 @@ function staticUnconfiguredSource(
     costType,
     configured: false,
     pricingRateId: null,
-    // v8 ignore next -- loadSource returns early for unconfigured sources, so
-    // this rejection is never invoked; it only satisfies the CostSource type.
-    load: () => Promise.reject(new Error('Not connected')),
   };
 }
 
