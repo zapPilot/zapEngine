@@ -210,3 +210,13 @@ Additional local verification:
 
 9. `node scripts/agents/backlog-pr-merge-check.mjs 499` must deny an already merged or unmarked PR and print reasons; run its node:test suite through contracts.
 10. In an explicitly authorized isolated worker session, use a disposable issue with local acceptance; verify claim, marked PR, allowed merge or reasoned deny, triage-log comment and no orphan working claim. This is a live integration exercise; unit tests alone do not establish harness configuration.
+
+## Growth and coverage review
+
+`ops_growth` is a separate lazy read with a 15-minute cache and `force` refresh.
+It returns observation time, a 30-day window and the existing PostHog journey;
+`available` describes telemetry availability, while failed/unconfigured reads are
+`unknown` with null counts. It does not contribute signals or priorities to
+`ops_status`. Use the [growth skill](../../.agents/skills/growth/SKILL.md) for
+operator experiment proposals. See [loop isolation and version correlation](../../docs/operations/rsi-loops.md)
+for interactive session commands, metric provenance and rollout requirements.

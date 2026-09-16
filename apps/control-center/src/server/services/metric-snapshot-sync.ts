@@ -1,3 +1,7 @@
+import {
+  readMetricVersionContext,
+  type MetricVersionContext,
+} from './metric-version-context.js';
 import { podcastCostEvidenceTotals } from '../../shared/podcast-cost-evidence.js';
 import type { ControlCenterConfig } from '../config/env.js';
 import {
@@ -15,6 +19,8 @@ export interface MetricSnapshotSyncSummary {
   persisted: number;
   /** Metric keys with no value to persist this run (source null, not a failure). */
   skipped: string[];
+  failed: string[];
+  versionContext: MetricVersionContext;
 }
 
 /**
@@ -28,6 +34,7 @@ export async function syncMetricSnapshots(input: {
   config: ControlCenterConfig;
   now?: Date;
   repository?: MetricSnapshotRepository | null;
+  versionContext?: MetricVersionContext;
 }): Promise<MetricSnapshotSyncSummary> {
   const now = input.now ?? new Date();
   const repository =
@@ -50,13 +57,19 @@ export async function syncMetricSnapshots(input: {
     socialGrowthResponse,
     pipelineResponse,
     costsResponse,
+    growthResponse,
   ] = await Promise.all([
     operations.getOperations(true),
     overview.getOverview(true),
     socialGrowth.getSocialGrowth(true),
     podcastPipeline.getPipeline(),
     podcastCosts.getPodcastCosts(),
+    operations.getGrowth(true),
   ]);
+
+  const versionContext =
+    input.versionContext ??
+    (await readMetricVersionContext({ config: input.config, now }));
 
   const product = overviewResponse.product;
   const healthyDomains = operationsResponse.domains.filter(
@@ -72,6 +85,10 @@ export async function syncMetricSnapshots(input: {
     : null;
 
   const values: Record<string, number | null> = {
+    landing_visitors_30d: growthResponse.journey.landingVisitors30d,
+    cta_users_30d: growthResponse.journey.ctaUsers30d,
+    app_visitors_30d: growthResponse.journey.appVisitors30d,
+    wallet_connected_users_30d: growthResponse.journey.walletConnectedUsers30d,
     active_portfolios_7d: product.activePortfolios7d,
     wau: product.wau,
     mau: product.mau,
@@ -95,18 +112,25 @@ export async function syncMetricSnapshots(input: {
   const fetchedAt = now.toISOString();
   let persisted = 0;
   const skipped: string[] = [];
+  const failed: string[] = [];
   for (const [metricKey, value] of Object.entries(values)) {
     if (value === null) {
       skipped.push(metricKey);
       continue;
     }
     try {
-      await repository.upsert({ metricKey, date, value, fetchedAt });
+      await repository.upsert({
+        metricKey,
+        date,
+        value,
+        fetchedAt,
+        versionContext,
+      });
       persisted += 1;
     } catch {
-      skipped.push(metricKey);
+      failed.push(metricKey);
     }
   }
 
-  return { syncedAt: fetchedAt, persisted, skipped };
+  return { syncedAt: fetchedAt, persisted, skipped, failed, versionContext };
 }

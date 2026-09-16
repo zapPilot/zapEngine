@@ -61,6 +61,15 @@ if (failed.length > 0) {
 let metricSyncFailed = false;
 try {
   const metricSummary = await syncMetricSnapshots({ config });
+  metricSyncFailed = metricSummary.failed.length > 0;
+  if (metricSyncFailed) {
+    console.error(
+      `Metric persistence failed: ${metricSummary.failed.join(', ')}`,
+    );
+  }
+  console.log(
+    `Version context: ${JSON.stringify(metricSummary.versionContext)}`,
+  );
   console.log(
     `\n${metricSummary.persisted} metric snapshots persisted` +
       (metricSummary.skipped.length

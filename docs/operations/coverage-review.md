@@ -10,25 +10,9 @@ what a signal actually proves from what nobody measured.
 
 ## Canonical production evidence
 
-Prefer the repository-local `zap-pilot-ops` MCP for production operations reads.
-It launches through the repository's canonical merged production environment.
-
-For a direct shell read, use the same environment rail explicitly:
-
-```bash
-node scripts/env/run.mjs --environment prod -- \
-  pnpm --filter @zapengine/control-center ops:status --json --force
-```
-
-Do **not** use bare `infisical run --env=prod -- ...` as the source of truth for a
-full Control Center production read. Infisical injects secrets, but the canonical
-runner also merges committed non-secret production values from `config/env/prod.env`
-and the repository environment manifest/projection. A partial environment can make
-configured providers such as Sentry or PostHog appear unconfigured.
-
-A direct status command may intentionally exit non-zero when it reports a critical
-condition. Read the emitted JSON before classifying a non-zero exit as a command
-failure.
+Invoke the [coverage-review skill](../../.agents/skills/coverage-review/SKILL.md)
+for the interactive workflow, canonical production read command and proposal
+boundaries. This runbook supplies its detailed checks; it does not add a schedule.
 
 ## Anti-green checklist
 
@@ -146,6 +130,23 @@ Always scan individual `unknown` and source-failure signals during a coverage
 review. Report material unknowns separately, especially when the missing source is
 the only detector for a failure class relevant to the conclusion being drawn.
 
+### 8. Readable telemetry is not a successful product outcome
+
+PostHog audience and product engagement signals report counters with a fixed
+`healthy` status. That proves neither effective acquisition nor activation or
+retention. Inspect their evidence even when no operational priority is raised.
+
+Compare outcomes with an explicit objective and baseline, using a defined window
+and eligible population. Check event instrumentation and traffic quality before
+interpreting zero CTA or wallet events as a failed conversion path. Audience totals
+are not an ordered cohort funnel; use the separate Growth journey read for that
+question. Distinguish missing telemetry, a functional failure and an outcome that
+is measured but below its target. Without a target or sufficient evidence, record
+an outcome hypothesis or coverage gap rather than a verified incident.
+
+Propose an observable success criterion and a falsifiable experiment or detector.
+Keep growth decisions outside reliability ranking and weak-agent backlog work.
+
 ## Evidence classification
 
 For every important claim, label the evidence mentally (and in a triage report when
@@ -170,7 +171,8 @@ observed":
 5. Which recently fixed incident classes have a regression guard?
 6. Can a resolved fingerprint recur without being hidden by dedupe/history?
 7. Which domains are green while carrying individual unknown readings?
-8. Which conclusions still depend on a person remembering a command or caveat that is not in the repository?
+8. Which product outcomes have a defined objective, baseline and trustworthy measurement, beyond readable telemetry?
+9. Which conclusions still depend on a person remembering a command or caveat that is not in the repository?
 
 Persist newly discovered operating rules in the nearest `AGENTS.md` or runbook.
 Persist general cross-service coverage rules here. Do not use chat history as the

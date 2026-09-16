@@ -45,6 +45,7 @@ describe('Ops MCP repository wiring', () => {
       'apps/control-center/OPERATOR.md',
       'docs/operations/autonomous-engineering-loop.md',
       'docs/operations/coverage-review.md',
+      '.agents/skills/coverage-review/SKILL.md',
     ];
     const contents = await Promise.all(
       runbooks.map(async (file) => ({
@@ -60,7 +61,7 @@ describe('Ops MCP repository wiring', () => {
     for (const file of [
       'apps/control-center/AGENTS.md',
       'apps/control-center/README.md',
-      'docs/operations/coverage-review.md',
+      '.agents/skills/coverage-review/SKILL.md',
     ]) {
       expect(
         contents.find((entry) => entry.file === file)?.text,

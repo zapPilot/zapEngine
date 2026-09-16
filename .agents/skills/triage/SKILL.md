@@ -53,14 +53,10 @@ Unknown is unknown, never healthy.
    whole fix sits inside worker scope — no protected path, no threshold, no security
    or lockfile change. Otherwise file an operator issue for a human to repair.
 
-5. If the user asks for coverage completeness, self-iteration gaps, or "what can
-   still be broken while green", run `docs/operations/coverage-review.md` as an
-   independent anti-green pass. Do not infer functional health from absent Sentry
-   errors, scheduler health from a successful historical run, progress from a
-   non-overdue queue, or economical execution from a healthy cost provider. Inspect
-   individual `unknown` signals even when their domain rollup is healthy. A proven
-   post-resolution recurrence overrides the ordinary closed-within-14-days dedupe
-   fence; use a recurrence fingerprint only with new provider evidence.
+5. Route coverage completeness and self-iteration reviews to the independent
+   [coverage-review skill](../coverage-review/SKILL.md). Keep growth hypotheses
+   outside incident priorities and agent-backlog; provider MCP exploration does
+   not belong in this triage session.
 
 6. When ready <5, inspect at most three hygiene candidates against current green-main
    artifacts, reading the coverage-summary artifact into a unique temporary directory

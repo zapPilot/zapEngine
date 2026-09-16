@@ -25,6 +25,7 @@ import { inspectOperationalSignal } from './inspection/inspect.js';
 import type { SentryInspectionOptions } from './inspection/sentry-options.js';
 import { investigateOperationalSignal } from './investigation.js';
 import { collectPosthogSignals } from './posthog.js';
+import { createOperationsGrowth } from './growth.js';
 import { prioritize } from './prioritize.js';
 import { collectProductSignals } from './product.js';
 import { readSentryIssue, resolveSentryIssue } from './sentry-remediation.js';
@@ -216,6 +217,7 @@ export function createOperationsService(input: {
 
   return {
     getOperations,
+    getGrowth: createOperationsGrowth({ config: input.config, now }),
     getSocial,
     getCustomers,
     getBacklog: backlog.getBacklog,

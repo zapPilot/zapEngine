@@ -1,3 +1,4 @@
+import type { MetricVersionContext } from './metric-version-context.js';
 import type { ControlCenterConfig } from '../config/env.js';
 import { createServiceRoleClient } from './supabase.js';
 
@@ -36,6 +37,7 @@ export interface MetricSnapshotRepository {
     value: number | null;
     basis?: 'measured' | 'derived';
     fetchedAt: string;
+    versionContext?: MetricVersionContext;
   }): Promise<void>;
   /** One `MetricSeries` per requested key, always present even with zero rows. */
   loadSeries(
@@ -71,6 +73,8 @@ export function createMetricSnapshotRepository(
         p_basis: input.basis ?? 'measured',
         p_fetched_at: input.fetchedAt,
         p_updated_at: new Date().toISOString(),
+        p_main_sha: input.versionContext?.mainSha ?? null,
+        p_version_context: input.versionContext ?? null,
       });
       if (response.error) {
         throw response.error;

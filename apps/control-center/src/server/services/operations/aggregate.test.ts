@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type {
   CustomerEconomicsResponse,
@@ -13,6 +13,8 @@ import {
   createOperationsService,
   type OperationsAdapters,
 } from './aggregate.js';
+
+afterEach(() => vi.unstubAllGlobals());
 
 const CONFIG = readControlCenterConfig({});
 const NOW = new Date('2026-08-28T12:00:00.000Z');
@@ -270,4 +272,25 @@ describe('operator-delegated resolution', () => {
       service.resolveSentryIssue('42', 'dead history', 'taii'),
     ).rejects.toThrow('Operator persistence is not configured');
   });
+});
+
+it('keeps growth provider queries out of the reliability snapshot', async () => {
+  const fetchSpy = vi
+    .spyOn(globalThis, 'fetch')
+    .mockResolvedValue(new Response('{}'));
+  try {
+    const service = createOperationsService({
+      config: readControlCenterConfig({
+        POSTHOG_PERSONAL_API_KEY: 'test',
+        POSTHOG_PROJECT_ID: '123',
+      }),
+      adapters: adapters(),
+    });
+    await service.getOperations(true);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    await service.getGrowth();
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
+  } finally {
+    fetchSpy.mockRestore();
+  }
 });
