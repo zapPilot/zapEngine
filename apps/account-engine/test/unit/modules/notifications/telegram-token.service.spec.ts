@@ -145,6 +145,26 @@ describe('TelegramTokenService', () => {
       expect(count).toBe(5);
     });
 
+    it('returns 0 when rpc data is null', async () => {
+      dbMock.supabase.client.rpc.mockResolvedValue({
+        data: null,
+        error: null,
+      });
+
+      const count = await service.cleanupExpiredTokens();
+      expect(count).toBe(0);
+    });
+
+    it('returns 0 when rpc data is not a number', async () => {
+      dbMock.supabase.client.rpc.mockResolvedValue({
+        data: '5',
+        error: null,
+      });
+
+      const count = await service.cleanupExpiredTokens();
+      expect(count).toBe(0);
+    });
+
     it('throws ServiceLayerException on rpc error', async () => {
       dbMock.supabase.client.rpc.mockResolvedValue({
         data: null,

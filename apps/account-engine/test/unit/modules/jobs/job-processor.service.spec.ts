@@ -108,6 +108,16 @@ describe('JobProcessorService', () => {
       expect(() => service.stop()).not.toThrow();
       expect(internals(service).isProcessing).toBe(false);
     });
+
+    it('covers stopProcessing when processingInterval is undefined', () => {
+      const { service } = createMocks();
+      (service as unknown as { isProcessing: boolean }).isProcessing = true;
+      (
+        service as unknown as { processingInterval: NodeJS.Timeout | undefined }
+      ).processingInterval = undefined;
+      expect(() => service.stopProcessing()).not.toThrow();
+      expect(internals(service).isProcessing).toBe(false);
+    });
   });
 
   describe('processAvailableJobs (via interval)', () => {
@@ -142,6 +152,36 @@ describe('JobProcessorService', () => {
       service.start();
 
       expect(() => vi.advanceTimersByTime(5100)).not.toThrow();
+      service.stop();
+    });
+
+    it('logs error when processAvailableJobs throws inside interval without crashing', () => {
+      const { service } = createMocks();
+      const loggerErrorSpy = vi
+        .spyOn(
+          (service as unknown as { logger: { error: (...a: never[]) => void } })
+            .logger,
+          'error',
+        )
+        .mockImplementation(() => undefined);
+      const processSpy = vi
+        .spyOn(
+          service as unknown as { processAvailableJobs: () => void },
+          'processAvailableJobs',
+        )
+        .mockImplementation(() => {
+          throw new Error('boom');
+        });
+      service.start();
+
+      expect(() => vi.advanceTimersByTime(5100)).not.toThrow();
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        'Error in job processing cycle',
+        expect.any(Error),
+      );
+
+      processSpy.mockRestore();
+      loggerErrorSpy.mockRestore();
       service.stop();
     });
   });

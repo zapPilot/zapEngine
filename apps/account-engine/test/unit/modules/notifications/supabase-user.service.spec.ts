@@ -118,6 +118,53 @@ describe('SupabaseUserService', () => {
       const result = await service.getReportRecipientsWithWallets();
       expect(result).toHaveLength(0);
     });
+
+    it('returns empty wallets when user_crypto_wallets is null', async () => {
+      const { service, dbMock } = createMocks();
+      dbMock.supabase.queryBuilder.mockResolvedThen({
+        data: [
+          {
+            id: 'u-1',
+            email: 'a@b.com',
+            user_crypto_wallets: null,
+          },
+        ],
+        error: null,
+      });
+
+      const result = await service.getReportRecipientsWithWallets();
+      expect(result).toHaveLength(1);
+      expect(result[0]?.wallets).toEqual([]);
+    });
+
+    it('normalizes a single wallet object into an array', async () => {
+      const { service, dbMock } = createMocks();
+      dbMock.supabase.queryBuilder.mockResolvedThen({
+        data: [
+          {
+            id: 'u-1',
+            email: 'a@b.com',
+            user_crypto_wallets: { wallet: '0xabc123' },
+          },
+        ],
+        error: null,
+      });
+
+      const result = await service.getReportRecipientsWithWallets();
+      expect(result).toHaveLength(1);
+      expect(result[0]?.wallets).toEqual(['0xabc123']);
+    });
+
+    it('returns empty when query returns null data', async () => {
+      const { service, dbMock } = createMocks();
+      dbMock.supabase.queryBuilder.mockResolvedThen({
+        data: null,
+        error: null,
+      });
+
+      const result = await service.getReportRecipientsWithWallets();
+      expect(result).toEqual([]);
+    });
   });
 
   describe('getReportRecipientWithWallets', () => {

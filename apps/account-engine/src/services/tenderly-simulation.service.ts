@@ -494,8 +494,10 @@ function normalizeReview(
         });
       }
     } else {
-      const call = input.calls[callIndex];
-      if (!call) continue;
+      // More results than calls is rejected as malformed before
+      // normalizeReview runs, so every result index has a corresponding call
+      // — assert instead of a guard whose true side is unreachable.
+      const call = input.calls[callIndex]!;
       const approval = decodeApproval(call);
       if (!approval) continue;
       const tokenAddress = normalizeAddress(call.to);
@@ -610,10 +612,15 @@ function normalizeReview(
     riskHash: hashMaterial(warnings),
   };
 
+  // A failed call always carries a non-empty error: the constructor above
+  // falls back to 'Simulation reverted' when Tenderly reports no message, and
+  // skippedCall (the only null-error shape) reports status 'skipped', so this
+  // find never selects it — assert instead of a fallback whose side is
+  // unreachable.
   return failedCall
     ? {
         status: 'failed',
-        failureReason: failedCall.error ?? 'Simulation reverted',
+        failureReason: failedCall.error!,
         ...evidence,
       }
     : { status: successStatus, ...evidence };
