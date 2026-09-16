@@ -77,7 +77,7 @@ export async function runDaemon(
   }
 }
 
-if (!process.env['VITEST']) {
+if (process.env['NODE_ENV'] !== 'test') {
   void runDaemon();
 }
 
