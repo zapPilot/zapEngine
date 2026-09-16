@@ -1,26 +1,18 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Address } from 'viem';
 
-import { USDC_ADDRESS } from '../../src/registry/chains.js';
+import { USDC_ADDRESS } from '../../src/registry/index.js';
 import { composeDeposit } from '../../src/strategies/composeDeposit.js';
 
 const getVaultForBucket = vi.hoisted(() => vi.fn());
 
-vi.mock('../../src/registry/chains.js', async (importOriginal) => {
+vi.mock('../../src/registry/index.js', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('../../src/registry/chains.js')>();
-  return {
-    ...actual,
-    USDC_ADDRESS: { ...actual.USDC_ADDRESS },
-  };
-});
-
-vi.mock('../../src/registry/vaults.js', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('../../src/registry/vaults.js')>();
+    await importOriginal<typeof import('../../src/registry/index.js')>();
   return {
     ...actual,
     getVaultForBucket,
+    USDC_ADDRESS: { ...actual.USDC_ADDRESS },
   };
 });
 
