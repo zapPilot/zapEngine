@@ -60,19 +60,16 @@ describe('buildGmxV2SupplyTx deposit slippage boundaries', () => {
     ['fractional', 0.5],
     ['zero', 0],
     ['above the maximum', GMX_V2_DEFAULT_DEPOSIT_SLIPPAGE_BPS + 1],
-  ] as const)(
-    'rejects %s deposit slippage',
-    async (_label, slippageBps) => {
-      await expect(
-        buildGmxV2SupplyTx(
-          { ...BASE_INPUT, slippageBps },
-          ADAPTER,
-          PUBLIC_CLIENT,
-          pricingAdapterFor(10_000n),
-        ),
-      ).rejects.toThrow(
-        `GMX deposit slippage must be an integer from 1 to ${GMX_V2_DEFAULT_DEPOSIT_SLIPPAGE_BPS} bps`,
-      );
-    },
-  );
+  ] as const)('rejects %s deposit slippage', async (_label, slippageBps) => {
+    await expect(
+      buildGmxV2SupplyTx(
+        { ...BASE_INPUT, slippageBps },
+        ADAPTER,
+        PUBLIC_CLIENT,
+        pricingAdapterFor(10_000n),
+      ),
+    ).rejects.toThrow(
+      `GMX deposit slippage must be an integer from 1 to ${GMX_V2_DEFAULT_DEPOSIT_SLIPPAGE_BPS} bps`,
+    );
+  });
 });
