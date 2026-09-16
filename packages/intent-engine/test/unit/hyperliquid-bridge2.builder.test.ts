@@ -71,6 +71,20 @@ describe('buildHyperliquidBridge2DepositTx', () => {
     ).not.toThrow();
   });
 
+  it('fails closed when Arbitrum USDC is not configured', () => {
+    const addresses = USDC_ADDRESS as Partial<typeof USDC_ADDRESS>;
+    const original = addresses[SUPPORTED_CHAINS.ARBITRUM];
+    addresses[SUPPORTED_CHAINS.ARBITRUM] = undefined;
+
+    try {
+      expect(() =>
+        buildHyperliquidBridge2DepositTx({ amount: '25000000' }),
+      ).toThrow('No USDC address configured for Arbitrum');
+    } finally {
+      addresses[SUPPORTED_CHAINS.ARBITRUM] = original;
+    }
+  });
+
   it('rejects a zero deposit', () => {
     expect(() => buildHyperliquidBridge2DepositTx({ amount: '0' })).toThrow(
       'Hyperliquid Bridge2 deposit amount must be positive',
