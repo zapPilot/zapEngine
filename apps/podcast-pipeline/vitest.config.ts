@@ -14,7 +14,7 @@ export default defineConfig({
     exclude: ['**/node_modules/**', '**/dist/**'],
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'json-summary', 'html'],
+      reporter: ['text', 'json-summary', 'json', 'html'],
       thresholds: {
         lines: 92,
         functions: 92,

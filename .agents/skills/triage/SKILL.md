@@ -63,11 +63,17 @@ Unknown is unknown, never healthy.
    fence; use a recurrence fingerprint only with new provider evidence.
 
 6. When ready <5, inspect at most three hygiene candidates against current green-main
-   artifacts, reading the coverage-summary artifact into a unique temporary directory
-   outside the repository. Run lint only where the script lacks `--max-warnings 0`,
-   and deadcode only where it lacks `--treat-config-hints-as-errors`. Scan files
-   changed in the last seven days with the doc-freshness and comment-discipline
-   skills, recording `unscanned` when unavailable. Never mine jscpd: its threshold is 0.
+   artifacts. For coverage, download the latest relevant `coverage-handoff` artifact
+   into a unique temporary directory outside the repository and read `handoff.json`
+   first; use `HANDOFF.md` only as the compact model-facing rendering. Do not run
+   monorepo-wide coverage solely to discover gaps when a fresh handoff exists. Pick a
+   bounded incomplete workspace/file from the artifact and use scoped coverage only
+   while investigating. Treat `reportStatus: partial|unavailable` and every
+   `missingReports` entry as unknown evidence, never as 100% coverage. Run lint only
+   where the script lacks `--max-warnings 0`, and deadcode only where it lacks
+   `--treat-config-hints-as-errors`. Scan files changed in the last seven days with
+   the doc-freshness and comment-discipline skills, recording `unscanned` when
+   unavailable. Never mine jscpd: its threshold is 0.
 
 7. Read open operator issues and comment only when the evidence changed; never
    edit their bodies or labels. Deduplicate every candidate, classify it, then add

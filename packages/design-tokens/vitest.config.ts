@@ -7,7 +7,7 @@ export default defineConfig({
     exclude: ['node_modules/', 'dist/'],
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'json-summary', 'html', 'lcov'],
+      reporter: ['text', 'json-summary', 'json', 'html', 'lcov'],
       reportsDirectory: 'coverage',
       include: ['src/**/*.ts'],
       // Generated data module — values are asserted against tokens.json in

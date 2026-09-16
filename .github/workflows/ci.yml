@@ -530,12 +530,19 @@ jobs:
       - name: Coverage summary (workspace thresholds)
         run: pnpm run coverage summary
 
-      - name: Upload coverage summary artifact
+      - name: Generate coverage AI handoff
+        if: always()
+        run: pnpm tsx scripts/coverage-handoff.ts
+
+      - name: Upload coverage handoff artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-summary
-          path: coverage/summary.json
+          name: coverage-handoff
+          path: |
+            coverage/HANDOFF.md
+            coverage/handoff.json
+            coverage/summary.json
           if-no-files-found: warn
           retention-days: 30
 
