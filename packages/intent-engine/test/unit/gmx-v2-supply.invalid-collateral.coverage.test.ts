@@ -81,7 +81,7 @@ function makeAdapter() {
 }
 
 describe('buildGmxV2SupplyTx invalid collateral coverage', () => {
-  it('rejects a non-single-collateral market whose collateral is neither long nor short', async () => {
+  it('rejects unrelated collateral for a two-token market', async () => {
     const market = GMX_V2_MARKETS['btc-usdc'];
     const { adapter, getSwapQuote } = makeAdapter();
     const pricingAdapter: GmxV2PricingAdapter = {
