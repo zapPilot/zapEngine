@@ -2,10 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Address } from 'viem';
 
 import type { LiFiAdapter } from '../../src/adapters/lifi.adapter.js';
-import {
-  SUPPORTED_CHAINS,
-  USDC_ADDRESS,
-} from '../../src/registry/chains.js';
+import { SUPPORTED_CHAINS, USDC_ADDRESS } from '../../src/registry/chains.js';
 import { composeDeposit } from '../../src/strategies/composeDeposit.js';
 import type { TransactionQuote } from '../../src/types/transaction.types.js';
 
