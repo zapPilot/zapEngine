@@ -6,8 +6,7 @@ import { composeDeposit } from '../../src/strategies/composeDeposit.js';
 
 const USER = '0x1111111111111111111111111111111111111111' as Address;
 const BASE_USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as Address;
-const ETHEREUM_USDC =
-  '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48' as Address;
+const ETHEREUM_USDC = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48' as Address;
 const LIFI_DIAMOND = '0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE' as Address;
 
 describe('composeDeposit zero-approval coverage', () => {
