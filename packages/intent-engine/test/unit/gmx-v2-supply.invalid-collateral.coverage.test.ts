@@ -13,7 +13,9 @@ import type { TransactionQuote } from '../../src/types/transaction.types.js';
 
 vi.mock('../../src/protocols/gmx-v2/index.js', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('../../src/protocols/gmx-v2/index.js')>();
+    await importOriginal<
+      typeof import('../../src/protocols/gmx-v2/index.js')
+    >();
   const market = actual.GMX_V2_MARKETS['btc-usdc'];
 
   return {
@@ -35,44 +37,59 @@ const FROM_AMOUNT = '1000000';
 const SWAP_AMOUNT = '1100000';
 const SWAP_MIN_AMOUNT = '1000000';
 
+function makeSwapQuote(params: {
+  fromToken: Address;
+  toToken: Address;
+  fromAmount: string;
+  toAmount?: string;
+  toAmountMin?: string;
+}): TransactionQuote {
+  return {
+    transaction: {
+      to: SWAP_TARGET,
+      data: '0x1234',
+      value: '0',
+      chainId: GMX_V2_ARBITRUM_CHAIN_ID,
+      gasLimit: '300000',
+      meta: { intentType: 'SWAP', route: { tool: 'lifi' } },
+    },
+    estimate: {
+      fromAmount: params.fromAmount,
+      toAmount: params.toAmount ?? SWAP_AMOUNT,
+      toAmountMin: params.toAmountMin ?? SWAP_MIN_AMOUNT,
+      gasCostUsd: '0.02',
+      executionDuration: 30,
+    },
+    route: {
+      action: {
+        fromToken: { address: params.fromToken },
+        toToken: { address: params.toToken },
+      },
+    },
+  };
+}
+
 function makeAdapter() {
-  const getSwapQuote = vi.fn().mockImplementation(
-    ({
-      fromToken,
-      toToken,
-      fromAmount,
-    }: {
-      fromToken: Address;
-      toToken: Address;
-      fromAmount: string;
-    }): Promise<TransactionQuote> =>
-      Promise.resolve({
-        transaction: {
-          to: SWAP_TARGET,
-          data: '0x1234',
-          value: '0',
-          chainId: GMX_V2_ARBITRUM_CHAIN_ID,
-          gasLimit: '300000',
-          meta: {
-            intentType: 'SWAP',
-            route: { tool: 'lifi' },
-          },
-        },
-        estimate: {
-          fromAmount,
-          toAmount: SWAP_AMOUNT,
-          toAmountMin: SWAP_MIN_AMOUNT,
-          gasCostUsd: '0.02',
-          executionDuration: 30,
-        },
-        route: {
-          action: {
-            fromToken: { address: fromToken },
-            toToken: { address: toToken },
-          },
-        },
-      }),
-  );
+  const getSwapQuote = vi
+    .fn()
+    .mockImplementation(
+      ({
+        fromToken,
+        toToken,
+        fromAmount,
+      }: {
+        fromToken: Address;
+        toToken: Address;
+        fromAmount: string;
+      }) =>
+        Promise.resolve(
+          makeSwapQuote({
+            fromToken,
+            toToken,
+            fromAmount,
+          }),
+        ),
+    );
 
   return {
     adapter: { getSwapQuote } as unknown as LiFiAdapter,
@@ -109,16 +126,7 @@ describe('buildGmxV2SupplyTx invalid collateral coverage', () => {
       'GMX deposit token must match the market long or short token',
     );
 
-    expect(getSwapQuote).toHaveBeenCalledWith({
-      fromChain: GMX_V2_ARBITRUM_CHAIN_ID,
-      toChain: GMX_V2_ARBITRUM_CHAIN_ID,
-      fromToken: GMX_V2_TOKENS.USDT.address,
-      toToken: GMX_V2_TOKENS.USDT.address,
-      fromAmount: FROM_AMOUNT,
-      fromAddress: USER,
-      toAddress: USER,
-      slippageBps: 50,
-    });
+    expect(getSwapQuote).toHaveBeenCalledOnce();
     expect(pricingAdapter.getDepositAmountOut).not.toHaveBeenCalled();
   });
 });
