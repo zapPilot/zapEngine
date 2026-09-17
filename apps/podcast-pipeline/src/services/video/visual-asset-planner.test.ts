@@ -183,6 +183,10 @@ describe('planVisualAssets', () => {
     expect(acquireImage.mock.calls.map(([url]) => url)).toEqual([
       openGraph.imageUrl,
     ]);
+    expect(acquireImage).toHaveBeenCalledWith(
+      openGraph.imageUrl,
+      expect.objectContaining({ referer: openGraph.sourceUrl }),
+    );
     expect(result.assets[0]?.provider).toBe('article');
     expect(result.assets[0]?.originalImageUrl).toBe(openGraph.imageUrl);
     expect(result.leadCover).toEqual({
@@ -218,6 +222,28 @@ describe('planVisualAssets', () => {
       imageUrl: null,
       fallbackReason: 'decorative-asset',
     });
+  });
+
+  it('preserves the acquisition cause when a mandatory open graph image fails', async () => {
+    const openGraph = candidate('og-hero', 'openGraph');
+    const acquireImage = vi.fn().mockRejectedValueOnce(new Error('HTTP 403'));
+
+    await expect(
+      planVisualAssets({
+        scenes: scenes.slice(0, 1),
+        articleImages: [openGraph, candidate('body-photo')],
+        requireLeadCover: true,
+        workingDirectory: '/work/visual-assets',
+        dependencies: {
+          acquireImage,
+          searchProviders: braveProviders(vi.fn()),
+          fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
+        },
+      }),
+    ).rejects.toThrow(
+      'Publisher og:image is required for the first content scene (open-graph-image-acquisition-http-403)',
+    );
+    expect(acquireImage).toHaveBeenCalledTimes(1);
   });
 
   it('claims no lead cover when the open graph image fails to download', async () => {
