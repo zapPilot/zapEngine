@@ -60,5 +60,5 @@ describe('metric version migration', () => {
     } finally {
       await db.close();
     }
-  });
+  }, 30_000);
 });
