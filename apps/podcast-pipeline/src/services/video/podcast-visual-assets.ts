@@ -71,6 +71,7 @@ export async function planPodcastVisualAssets(
   const searchScenes = contentScenesForPlanning(input, contentScenes);
   const contentPlan = await planVisualAssets({
     scenes: searchScenes,
+    requireLeadCover: true,
     articleImages: input.articleImages,
     workingDirectory: input.workingDirectory,
     ...(input.resumePlan
@@ -87,6 +88,7 @@ export async function planPodcastVisualAssets(
       input.scenes.length,
     ),
   });
+  assertMandatoryLeadCover(contentPlan);
   assets.push(...contentPlan.assets);
   const assetByScene = new Map(
     contentPlan.scenes.map((scene) => [scene.sceneId, scene.assetId] as const),
@@ -99,6 +101,14 @@ export async function planPodcastVisualAssets(
       : {}),
     ...(contentPlan.leadCover ? { leadCover: contentPlan.leadCover } : {}),
   };
+}
+
+function assertMandatoryLeadCover(plan: VisualAssetPlan): void {
+  if (plan.leadCover?.imageUrl) return;
+  const reason = plan.leadCover?.fallbackReason ?? 'missing-open-graph-image';
+  throw new Error(
+    `Publisher og:image is required for the first content scene (${reason})`,
+  );
 }
 
 /**

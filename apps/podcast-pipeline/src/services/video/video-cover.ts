@@ -4,22 +4,12 @@ import { join } from 'node:path';
 
 import sharp from 'sharp';
 
-import { errorMessage } from '../../lib/errorMessage.js';
-import type { ImageCandidate } from '../../types.js';
-import { scrapeArticle } from '../scrape.js';
 import { acquireRemoteImage } from './assets.js';
 
-const COVER_SCRAPE_TIMEOUT_MS = 15_000;
-/** The cover was chosen by the visual plan, so the article is never fetched:
- * the first content scene already rendered this exact URL. */
+/** The cover is the publisher `og:image` selected by the visual plan. */
 const VISUAL_PLAN_COVER_STRATEGY = 'visual-plan-og-image-v1' as const;
-/** No plan said which image to use, so the cover finds the publisher's
- * `og:image` itself. Only PANews articles are scraped on this path. */
-const SCRAPED_COVER_STRATEGY = 'panews-og-image-v1' as const;
 
-export type VideoCoverStrategy =
-  | typeof VISUAL_PLAN_COVER_STRATEGY
-  | typeof SCRAPED_COVER_STRATEGY;
+export type VideoCoverStrategy = typeof VISUAL_PLAN_COVER_STRATEGY;
 
 export interface VideoCoverMetadata {
   strategy: VideoCoverStrategy;
@@ -41,9 +31,9 @@ export interface PreparedVideoCover {
 export interface PrepareVideoCoverInput {
   sourceUrl: string;
   workingDirectory: string;
-  /** The `og:image` the visual plan recorded for the lead content scene. When
-   * present it decides the cover outright, which is what keeps the thumbnail a
-   * viewer clicks and the first frame they then see on one image. */
+  /** The publisher `og:image` that the visual plan rendered on the lead scene.
+   * It is mandatory: rendering must stop rather than silently choose a different
+   * thumbnail when the visual plan could not supply it. */
   knownImageUrl?: string | null;
   signal?: AbortSignal;
 }
@@ -54,13 +44,11 @@ type RenderCoverPng = (
 ) => Promise<string>;
 
 interface VideoCoverDependencies {
-  scrape: typeof scrapeArticle;
   acquire: typeof acquireRemoteImage;
   renderPng: RenderCoverPng;
 }
 
 const defaultDependencies: VideoCoverDependencies = {
-  scrape: scrapeArticle,
   acquire: acquireRemoteImage,
   renderPng: async (sourcePath, outputPath) => {
     await sharp(sourcePath, {
@@ -76,52 +64,9 @@ const defaultDependencies: VideoCoverDependencies = {
   },
 };
 
-export function isPanewsArticleUrl(value: string): boolean {
-  try {
-    const parsed = new URL(value);
-    const hostname = parsed.hostname.toLowerCase();
-    const panewsHosts = ['panews.io', 'panewslab.com'];
-    const isPanewsHost = panewsHosts.some(
-      (host) => hostname === host || hostname.endsWith(`.${host}`),
-    );
-    return isPanewsHost && parsed.pathname.split('/').includes('articles');
-  } catch {
-    return false;
-  }
-}
-
-function openGraphCover(
-  images: readonly ImageCandidate[] | undefined,
-): ImageCandidate | null {
-  return images?.find((image) => image.origin === 'openGraph') ?? null;
-}
-
-function fallbackMetadata(
-  strategy: VideoCoverStrategy,
-  sourcePageUrl: string,
-  reason: string,
-  sourceImageUrl: string | null = null,
-): PreparedVideoCover {
-  return {
-    thumbnailPath: null,
-    metadata: {
-      strategy,
-      status: 'fallback',
-      sourcePageUrl,
-      sourceImageUrl,
-      storedUrl: null,
-      sha256: null,
-      width: null,
-      height: null,
-      fallbackReason: reason.slice(0, 400),
-    },
-  };
-}
-
 async function renderCoverFrom(
   input: PrepareVideoCoverInput,
   dependencies: VideoCoverDependencies,
-  strategy: VideoCoverStrategy,
   imageUrl: string,
 ): Promise<PreparedVideoCover> {
   const acquired = await dependencies.acquire(imageUrl, {
@@ -137,7 +82,7 @@ async function renderCoverFrom(
   return {
     thumbnailPath: outputPath,
     metadata: {
-      strategy,
+      strategy: VISUAL_PLAN_COVER_STRATEGY,
       status: 'selected',
       sourcePageUrl: input.sourceUrl,
       sourceImageUrl: imageUrl,
@@ -151,78 +96,25 @@ async function renderCoverFrom(
 }
 
 /**
- * The publisher's own Open Graph image, rendered as the deterministic video
- * cover. It is acquired through the same SSRF-safe, fully decoded image path as
- * scene assets and converted to a canonical PNG.
- *
- * A plan that recorded the image its lead scene rendered decides the cover
- * outright — the article is not fetched again, so three language renders of one
- * episode cannot drift apart or away from their own first frame. Only a payload
- * written before the plan carried that field falls back to scraping, and only
- * for PANews. Any cover-only failure is deliberately fail-open so rendering can
- * keep the renderer-generated thumbnail.
+ * Render the exact publisher Open Graph image that the lead content scene used.
+ * There is intentionally no scrape-or-renderer fallback here. The visual plan
+ * owns the cover decision, and a missing or unusable `og:image` is a failed
+ * video attempt rather than permission to ship a different thumbnail.
  */
 export async function prepareVideoCover(
   input: PrepareVideoCoverInput,
   overrides: Partial<VideoCoverDependencies> = {},
 ): Promise<PreparedVideoCover> {
   input.signal?.throwIfAborted();
-  const dependencies = { ...defaultDependencies, ...overrides };
-  const planned = input.knownImageUrl;
-  if (planned) {
-    try {
-      return await renderCoverFrom(
-        input,
-        dependencies,
-        VISUAL_PLAN_COVER_STRATEGY,
-        planned,
-      );
-    } catch (error) {
-      input.signal?.throwIfAborted();
-      return fallbackMetadata(
-        VISUAL_PLAN_COVER_STRATEGY,
-        input.sourceUrl,
-        errorMessage(error),
-        planned,
-      );
-    }
-  }
-
-  if (!isPanewsArticleUrl(input.sourceUrl)) {
-    return fallbackMetadata(
-      SCRAPED_COVER_STRATEGY,
-      input.sourceUrl,
-      'source-is-not-panews',
+  const imageUrl = input.knownImageUrl?.trim();
+  if (!imageUrl) {
+    throw new Error(
+      'Video cover requires the publisher og:image selected by the visual plan',
     );
   }
-
-  let candidate: ImageCandidate | null = null;
-  try {
-    const article = await dependencies.scrape(input.sourceUrl, {
-      signal: input.signal,
-      timeoutMs: COVER_SCRAPE_TIMEOUT_MS,
-    });
-    candidate = openGraphCover(article.images);
-    if (!candidate) {
-      return fallbackMetadata(
-        SCRAPED_COVER_STRATEGY,
-        input.sourceUrl,
-        'missing-open-graph-image',
-      );
-    }
-    return await renderCoverFrom(
-      input,
-      dependencies,
-      SCRAPED_COVER_STRATEGY,
-      candidate.imageUrl,
-    );
-  } catch (error) {
-    input.signal?.throwIfAborted();
-    return fallbackMetadata(
-      SCRAPED_COVER_STRATEGY,
-      input.sourceUrl,
-      errorMessage(error),
-      candidate?.imageUrl ?? null,
-    );
-  }
+  return renderCoverFrom(
+    input,
+    { ...defaultDependencies, ...overrides },
+    imageUrl,
+  );
 }

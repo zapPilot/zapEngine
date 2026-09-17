@@ -10,6 +10,7 @@ import {
 } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { EPISODE_VIDEO_VISUAL_VERSION } from '@zapengine/types/shared';
 import type {
   PipelineQueueItem,
   SocialQueueItem,
@@ -261,7 +262,7 @@ describe('QueueDrawer tabs', () => {
       {
         visualDebug: visualDebug({
           status: 'completed',
-          visualVersion: 'podcast-image-visual-plan.v11',
+          visualVersion: EPISODE_VIDEO_VISUAL_VERSION,
           visualHash: 'a'.repeat(64),
           attempts: 1,
           lastError: null,

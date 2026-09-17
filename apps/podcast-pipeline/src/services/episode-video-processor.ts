@@ -4,7 +4,6 @@ import { join } from 'node:path';
 
 import { combineAbortSignalWithTimeout } from '../lib/abort.js';
 import { runWithDeadline } from '../lib/deadline.js';
-import { errorMessage } from '../lib/errorMessage.js';
 import type { EpisodeRenderMetrics } from './ops-ledger.js';
 import { uploadEpisodeCoverToR2, uploadVideoArtifactsToR2 } from './storage.js';
 import { downloadNarrationAudio } from './video/audio-analysis.js';
@@ -162,31 +161,22 @@ export function createEpisodeVideoProcessor(
         knownImageUrl: visual.provenance.leadCoverImageUrl ?? null,
         signal: context.signal,
       });
-      let coverThumbnailUrl: string | null = null;
-      let coverMetadata = preparedCover.metadata;
-      if (preparedCover.thumbnailPath && preparedCover.metadata.sha256) {
-        try {
-          coverThumbnailUrl = await dependencies.uploadCover({
-            episodeId: source.episodeId,
-            visualHash: source.visualHash,
-            sha256: preparedCover.metadata.sha256,
-            path: preparedCover.thumbnailPath,
-            signal: context.signal,
-          });
-          coverMetadata = {
-            ...coverMetadata,
-            storedUrl: coverThumbnailUrl,
-          };
-        } catch (error) {
-          context.signal.throwIfAborted();
-          coverMetadata = {
-            ...coverMetadata,
-            status: 'fallback',
-            storedUrl: null,
-            fallbackReason: `cover-cache: ${errorMessage(error)}`.slice(0, 400),
-          };
-        }
+      if (!preparedCover.thumbnailPath || !preparedCover.metadata.sha256) {
+        throw new Error(
+          'Video cover preparation returned no uploadable artifact',
+        );
       }
+      const coverThumbnailUrl = await dependencies.uploadCover({
+        episodeId: source.episodeId,
+        visualHash: source.visualHash,
+        sha256: preparedCover.metadata.sha256,
+        path: preparedCover.thumbnailPath,
+        signal: context.signal,
+      });
+      const coverMetadata = {
+        ...preparedCover.metadata,
+        storedUrl: coverThumbnailUrl,
+      };
       logVideoWorkerEvent(dependencies.logger, 'video:cover', {
         run: context.runId,
         episode: source.episodeId,
@@ -318,7 +308,7 @@ export function createEpisodeVideoProcessor(
       });
       return {
         mp4Url: uploaded.mp4Url,
-        thumbnailUrl: coverThumbnailUrl ?? uploaded.thumbnailUrl,
+        thumbnailUrl: coverThumbnailUrl,
         manifestUrl: uploaded.manifestUrl,
         captionsAssUrl: uploaded.captionsAssUrl,
         r2Prefix: uploaded.r2Prefix,

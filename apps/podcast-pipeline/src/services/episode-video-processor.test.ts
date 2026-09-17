@@ -103,6 +103,7 @@ describe('createEpisodeVideoProcessor', () => {
     });
     const removeDirectory = vi.fn().mockResolvedValue(undefined);
     const processJob = createEpisodeVideoProcessor({
+      ...coverDependencies(),
       downloadNarration,
       analyzeAudio,
       createManifest,
@@ -192,6 +193,7 @@ describe('createEpisodeVideoProcessor', () => {
       return renderedArtifacts('manifest-hash');
     });
     const processJob = createEpisodeVideoProcessor({
+      ...coverDependencies(),
       downloadNarration: vi.fn().mockResolvedValue(undefined),
       analyzeAudio: vi
         .fn()
@@ -249,6 +251,7 @@ describe('createEpisodeVideoProcessor', () => {
       return renderedArtifacts('manifest-hash');
     });
     const processJob = createEpisodeVideoProcessor({
+      ...coverDependencies(),
       downloadNarration: vi.fn().mockResolvedValue(undefined),
       analyzeAudio: vi
         .fn()
@@ -289,6 +292,7 @@ describe('createEpisodeVideoProcessor', () => {
       .mockResolvedValueOnce(300 * mib)
       .mockResolvedValueOnce(120 * mib);
     const processJob = createEpisodeVideoProcessor({
+      ...coverDependencies(),
       downloadNarration: vi.fn().mockResolvedValue(undefined),
       analyzeAudio: vi
         .fn()
@@ -353,6 +357,7 @@ describe('createEpisodeVideoProcessor', () => {
     const logger = { info: vi.fn() };
     const reportRenderMetrics = vi.fn();
     const processJob = createEpisodeVideoProcessor({
+      ...coverDependencies(),
       downloadNarration: vi.fn().mockResolvedValue(undefined),
       analyzeAudio: vi
         .fn()
@@ -389,6 +394,7 @@ describe('createEpisodeVideoProcessor', () => {
 
   it('rejects when the rendered manifest hash diverges from the persisted hash', async () => {
     const processJob = createEpisodeVideoProcessor({
+      ...coverDependencies(),
       downloadNarration: vi.fn().mockResolvedValue(undefined),
       analyzeAudio: vi.fn().mockResolvedValue({
         durationMs: 60_000,
@@ -442,6 +448,7 @@ describe('createEpisodeVideoProcessor', () => {
         });
       });
       const processJob = createEpisodeVideoProcessor({
+        ...coverDependencies(),
         downloadNarration: vi.fn().mockResolvedValue(undefined),
         analyzeAudio: vi
           .fn()
@@ -501,6 +508,7 @@ describe('createEpisodeVideoProcessor', () => {
         },
       );
       const processJob = createEpisodeVideoProcessor({
+        ...coverDependencies(),
         downloadNarration,
         analyzeAudio,
         makeTemporaryDirectory: vi.fn().mockResolvedValue('/work'),
@@ -534,6 +542,7 @@ describe('createEpisodeVideoProcessor', () => {
     const createManifest = vi.fn();
     const render = vi.fn();
     const processJob = createEpisodeVideoProcessor({
+      ...coverDependencies(),
       downloadNarration: vi.fn().mockResolvedValue(undefined),
       analyzeAudio: vi.fn().mockRejectedValue(new Error('ffprobe failed')),
       createManifest,
@@ -573,6 +582,7 @@ describe('createEpisodeVideoProcessor', () => {
       .mockResolvedValue(100);
     const render = vi.fn();
     const processJob = createEpisodeVideoProcessor({
+      ...coverDependencies(),
       downloadNarration: vi.fn().mockResolvedValue(undefined),
       analyzeAudio: vi
         .fn()
@@ -619,6 +629,7 @@ describe('createEpisodeVideoProcessor', () => {
 
   it('fails closed when the renderer returns no artifacts', async () => {
     const processJob = createEpisodeVideoProcessor({
+      ...coverDependencies(),
       downloadNarration: vi.fn().mockResolvedValue(undefined),
       analyzeAudio: vi
         .fn()
@@ -658,6 +669,7 @@ describe('createEpisodeVideoProcessor', () => {
       return renderedArtifacts('manifest-hash');
     });
     const processJob = createEpisodeVideoProcessor({
+      ...coverDependencies(),
       downloadNarration: vi.fn().mockResolvedValue(undefined),
       analyzeAudio: vi
         .fn()
@@ -699,6 +711,7 @@ describe('createEpisodeVideoProcessor', () => {
       .mockResolvedValueOnce(null);
     const render = vi.fn();
     const processJob = createEpisodeVideoProcessor({
+      ...coverDependencies(),
       downloadNarration: vi.fn().mockResolvedValue(undefined),
       analyzeAudio: vi
         .fn()
@@ -728,6 +741,7 @@ describe('createEpisodeVideoProcessor', () => {
   it('cleans up the render directory after upload failure', async () => {
     const removeDirectory = vi.fn().mockResolvedValue(undefined);
     const processJob = createEpisodeVideoProcessor({
+      ...coverDependencies(),
       downloadNarration: vi.fn().mockResolvedValue(undefined),
       analyzeAudio: vi.fn().mockResolvedValue({
         durationMs: 90_000,
@@ -901,6 +915,25 @@ function visualManifest(): Record<string, unknown> {
       storyboardPromptVersion: 'image-storyboard-v2',
       usedFallback: false,
       searchIntentModel: 'openrouter/free',
+      leadCoverImageUrl: 'https://images.example.com/image-01.jpg',
+      leadCoverFallbackReason: null,
     },
+  };
+}
+
+function coverDependencies() {
+  return {
+    prepareCover: vi.fn().mockResolvedValue({
+      thumbnailPath: '/work/cover.png',
+      metadata: {
+        strategy: 'visual-plan-og-image-v1',
+        status: 'selected',
+        sha256: 'c'.repeat(64),
+        sourceImageUrl: 'https://images.example.com/image-01.jpg',
+      },
+    }),
+    uploadCover: vi
+      .fn()
+      .mockResolvedValue('https://cdn.example.com/thumbnail.png'),
   };
 }
