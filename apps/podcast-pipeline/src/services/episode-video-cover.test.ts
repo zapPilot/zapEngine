@@ -17,7 +17,7 @@ const panewsSourceUrl =
   'https://www.panewslab.com/zh/articles/01a00000-0000-7000-8000-000000000000';
 
 describe('episode video cover integration', () => {
-  it('returns the content-addressed cover while preserving the render artifact thumbnail', async () => {
+  it('returns the content-addressed OG cover while preserving the render artifact thumbnail', async () => {
     const saveManifest = vi.fn().mockResolvedValue(undefined);
     const uploadCover = vi
       .fn()
@@ -58,8 +58,6 @@ describe('episode video cover integration', () => {
     });
     expect(upload).toHaveBeenCalledWith(
       expect.objectContaining({
-        // Keep the renderer artifact immutable under manifestHash. The cover
-        // lives at its own content-addressed URL instead of overwriting it.
         thumbnailPath: '/work/thumbnail.png',
       }),
     );
@@ -68,9 +66,9 @@ describe('episode video cover integration', () => {
       expect.objectContaining({
         manifest: expect.objectContaining({
           coverPhoto: expect.objectContaining({
-            strategy: 'panews-og-image-v1',
+            strategy: 'visual-plan-og-image-v1',
             status: 'selected',
-            sourceImageUrl: 'https://images.example.com/cover.jpg',
+            sourceImageUrl: LEAD_IMAGE_URL,
             storedUrl: 'https://cdn.example.com/video-cover.png',
             sha256: coverHash,
           }),
@@ -79,7 +77,7 @@ describe('episode video cover integration', () => {
     );
   });
 
-  it('falls back to the renderer thumbnail when caching the cover fails', async () => {
+  it('keeps the existing renderer-thumbnail fallback only when cover caching fails after a valid OG render', async () => {
     const saveManifest = vi.fn().mockResolvedValue(undefined);
     const processor = createEpisodeVideoProcessor({
       downloadNarration: vi.fn().mockResolvedValue(undefined),
@@ -101,7 +99,7 @@ describe('episode video cover integration', () => {
 
     const result = await processor(job(), source(), {
       signal: new AbortController().signal,
-      runId: 'run-cover-fallback',
+      runId: 'run-cover-cache-fallback',
       saveManifest,
       reportProgress: vi.fn(),
       reportRenderMetrics: vi.fn(),
@@ -121,9 +119,8 @@ describe('episode video cover integration', () => {
     );
   });
 
-  it('dresses the cover from the image the lead content scene rendered', async () => {
+  it('dresses the cover from the exact image the lead content scene rendered', async () => {
     const manifest = visualManifest(LEAD_IMAGE_URL);
-    const scrape = vi.fn();
     const saveManifest = vi.fn().mockResolvedValue(undefined);
     const processor = createEpisodeVideoProcessor({
       downloadNarration: vi.fn().mockResolvedValue(undefined),
@@ -133,11 +130,8 @@ describe('episode video cover integration', () => {
       createManifest: vi
         .fn()
         .mockResolvedValue(generatedManifest('manifest-hash')),
-      // The real cover module, so the plan-to-cover handoff is exercised
-      // instead of asserted against a stub that cannot drift.
       prepareCover: (input) =>
         prepareVideoCover(input, {
-          scrape,
           acquire: vi.fn().mockResolvedValue({
             path: '/work/video-cover-source.image',
             contentType: 'image/jpeg',
@@ -166,12 +160,9 @@ describe('episode video cover integration', () => {
       reportRenderMetrics: vi.fn(),
     });
 
-    expect(scrape).not.toHaveBeenCalled();
     const saved = saveManifest.mock.calls[0]?.[0] as {
       manifest: { coverPhoto: { strategy: string; sourceImageUrl: string } };
     };
-    // The invariant this whole change exists for: the thumbnail a viewer clicks
-    // and the first content frame they then see resolve to one source URL.
     const leadSceneAsset = (
       manifest['assets'] as { originalImageUrl: string }[]
     )[0];
@@ -187,10 +178,10 @@ function preparedCover() {
   return {
     thumbnailPath: '/work/video-cover.png',
     metadata: {
-      strategy: 'panews-og-image-v1' as const,
+      strategy: 'visual-plan-og-image-v1' as const,
       status: 'selected' as const,
       sourcePageUrl: panewsSourceUrl,
-      sourceImageUrl: 'https://images.example.com/cover.jpg',
+      sourceImageUrl: LEAD_IMAGE_URL,
       storedUrl: null,
       sha256: coverHash,
       width: 1_200,
@@ -227,7 +218,7 @@ function uploadedArtifacts() {
 }
 
 function source(
-  manifest: Record<string, unknown> = visualManifest(),
+  manifest: Record<string, unknown> = visualManifest(LEAD_IMAGE_URL),
 ): EpisodeVideoSource {
   return {
     episodeId,
@@ -300,7 +291,7 @@ function generatedManifest(manifestHash: string) {
 }
 
 function visualManifest(
-  leadCoverImageUrl: string | null = null,
+  leadCoverImageUrl: string,
 ): Record<string, unknown> {
   return {
     schemaVersion: 'podcast-episode-visual.v1',
@@ -343,7 +334,7 @@ function visualManifest(
       {
         assetId: 'image-01',
         r2Url: 'https://cdn.example.com/visuals/image-01.jpg',
-        originalImageUrl: 'https://images.example.com/image-01.jpg',
+        originalImageUrl: LEAD_IMAGE_URL,
         sourcePageUrl: panewsSourceUrl,
         provider: 'article',
         license: 'unknown',
@@ -361,9 +352,7 @@ function visualManifest(
       usedFallback: false,
       searchIntentModel: 'openrouter/free',
       leadCoverImageUrl,
-      leadCoverFallbackReason: leadCoverImageUrl
-        ? null
-        : 'missing-open-graph-image',
+      leadCoverFallbackReason: null,
     },
   };
 }
