@@ -77,8 +77,10 @@ describe('episode video cover integration', () => {
     );
   });
 
-  it('keeps the existing renderer-thumbnail fallback only when cover caching fails after a valid OG render', async () => {
+  it('stops the render when the valid OG cover cannot be cached', async () => {
     const saveManifest = vi.fn().mockResolvedValue(undefined);
+    const render = vi.fn().mockResolvedValue(renderedArtifacts('manifest-hash'));
+    const upload = vi.fn().mockResolvedValue(uploadedArtifacts());
     const processor = createEpisodeVideoProcessor({
       downloadNarration: vi.fn().mockResolvedValue(undefined),
       analyzeAudio: vi
@@ -89,34 +91,27 @@ describe('episode video cover integration', () => {
         .mockResolvedValue(generatedManifest('manifest-hash')),
       prepareCover: vi.fn().mockResolvedValue(preparedCover()),
       uploadCover: vi.fn().mockRejectedValue(new Error('R2 unavailable')),
-      render: vi.fn().mockResolvedValue(renderedArtifacts('manifest-hash')),
-      upload: vi.fn().mockResolvedValue(uploadedArtifacts()),
+      render,
+      upload,
       makeTemporaryDirectory: vi.fn().mockResolvedValue('/work'),
       writeManifest: vi.fn().mockResolvedValue(undefined),
       removeDirectory: vi.fn().mockResolvedValue(undefined),
       readCgroupMemory: vi.fn().mockResolvedValue(null),
     });
 
-    const result = await processor(job(), source(), {
-      signal: new AbortController().signal,
-      runId: 'run-cover-cache-fallback',
-      saveManifest,
-      reportProgress: vi.fn(),
-      reportRenderMetrics: vi.fn(),
-    });
-
-    expect(result.thumbnailUrl).toBe('https://cdn.example.com/thumbnail.png');
-    expect(saveManifest).toHaveBeenCalledWith(
-      expect.objectContaining({
-        manifest: expect.objectContaining({
-          coverPhoto: expect.objectContaining({
-            status: 'fallback',
-            storedUrl: null,
-            fallbackReason: 'cover-cache: R2 unavailable',
-          }),
-        }),
+    await expect(
+      processor(job(), source(), {
+        signal: new AbortController().signal,
+        runId: 'run-cover-cache-failure',
+        saveManifest,
+        reportProgress: vi.fn(),
+        reportRenderMetrics: vi.fn(),
       }),
-    );
+    ).rejects.toThrow('R2 unavailable');
+
+    expect(saveManifest).not.toHaveBeenCalled();
+    expect(render).not.toHaveBeenCalled();
+    expect(upload).not.toHaveBeenCalled();
   });
 
   it('dresses the cover from the exact image the lead content scene rendered', async () => {
