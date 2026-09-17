@@ -1027,6 +1027,7 @@ async function acquireNextArticleImage(
 ): Promise<PlannedVisualImage | null> {
   while (state.articleCursor < state.articleImages.length) {
     const candidate = state.articleImages[state.articleCursor++]!;
+    const rejectionCountsBefore = new Map(rejections.causes);
     const acquired = await tryAcquireUniqueImage({
       candidate,
       provider: 'article',
@@ -1038,8 +1039,20 @@ async function acquireNextArticleImage(
       rejections,
     });
     if (acquired) return acquired;
-    if (state.input.requireLeadCover && scene === state.input.scenes[0]) {
-      throw mandatoryLeadCoverError('open-graph-image-not-used-as-lead');
+    const isMandatoryLead =
+      state.input.requireLeadCover &&
+      scene === state.input.scenes[0] &&
+      state.leadCoverCandidateUrl !== null &&
+      canonicalCandidateUrl(candidate.imageUrl) ===
+        canonicalCandidateUrl(state.leadCoverCandidateUrl);
+    if (isMandatoryLead) {
+      const cause = candidateRejectionDelta(
+        rejectionCountsBefore,
+        rejections.causes,
+      );
+      throw mandatoryLeadCoverError(
+        `open-graph-image-acquisition-${cause ?? 'failed'}`,
+      );
     }
   }
   return null;
@@ -1281,6 +1294,9 @@ async function tryAcquireUniqueImage(input: {
         input.attemptedUrls.size,
       ).padStart(3, '0')}`,
       layout: 'fullBleed',
+      ...(input.provider === 'article'
+        ? { referer: input.candidate.sourceUrl }
+        : {}),
       ...(input.input.signal ? { signal: input.input.signal } : {}),
     });
   } catch (error) {
@@ -1341,6 +1357,16 @@ function recordCandidateRejection(
 ): void {
   rejections.total += 1;
   incrementCount(rejections.causes, cause);
+}
+
+function candidateRejectionDelta(
+  before: ReadonlyMap<string, number>,
+  after: ReadonlyMap<string, number>,
+): string | null {
+  for (const [cause, count] of after) {
+    if (count > (before.get(cause) ?? 0)) return cause;
+  }
+  return null;
 }
 
 function summarizeCandidateRejections(
