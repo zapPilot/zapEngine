@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildSendTransactionRequest,
   defaultSendChain,
+  holdingForChain,
   parseTokenAmountToBaseUnits,
 } from '@/integration/sendTransactions';
 import type { DesktopWalletAsset } from '@/integration/walletTokens';
@@ -63,10 +64,37 @@ describe('send transaction helpers', () => {
     expect(parseTokenAmountToBaseUnits('0.000001', 6)).toBe(1n);
     expect(parseTokenAmountToBaseUnits('0.0000001', 6)).toBeNull();
     expect(parseTokenAmountToBaseUnits('1e6', 6)).toBeNull();
+    expect(parseTokenAmountToBaseUnits(' 1,000. ', 0)).toBe(1000n);
+    expect(parseTokenAmountToBaseUnits('.5', 6)).toBeNull();
+    expect(parseTokenAmountToBaseUnits('-1', 6)).toBeNull();
   });
 
-  it('prefers Base when a token exists on multiple chains', () => {
+  it('finds holdings by chain and returns null when none are available', () => {
+    expect(holdingForChain(usdcAsset, 'ethereum')).toBe(usdcAsset.holdings[0]);
+    expect(holdingForChain(usdcAsset, 'arbitrum')).toBeNull();
+    expect(holdingForChain(null, 'base')).toBeNull();
+    expect(holdingForChain(undefined, 'base')).toBeNull();
+  });
+
+  it('chooses Base, Ethereum, the first holding, then Base as defaults', () => {
     expect(defaultSendChain(usdcAsset)).toBe('base');
+    expect(
+      defaultSendChain({
+        ...usdcAsset,
+        chains: ['ethereum'],
+        holdings: [usdcAsset.holdings[0]!],
+      }),
+    ).toBe('ethereum');
+    expect(
+      defaultSendChain({
+        ...usdcAsset,
+        chains: ['arbitrum'],
+        holdings: [{ ...usdcAsset.holdings[0]!, chain: 'arbitrum' }],
+      }),
+    ).toBe('arbitrum');
+    expect(defaultSendChain({ ...usdcAsset, chains: [], holdings: [] })).toBe(
+      'base',
+    );
   });
 
   it('builds an ERC-20 transfer request for the selected chain', () => {
@@ -99,17 +127,43 @@ describe('send transaction helpers', () => {
     });
   });
 
-  it('rejects zero-value sends even though zero parses to valid base units', () => {
+  it('rejects invalid and zero-value sends', () => {
     expect(parseTokenAmountToBaseUnits('0', 6)).toBe(0n);
 
-    expect(() =>
+    for (const amount of ['invalid', '0']) {
+      expect(() =>
+        buildSendTransactionRequest({
+          amount,
+          asset: usdcAsset,
+          holding: usdcAsset.holdings[1]!,
+          recipient: RECIPIENT,
+        }),
+      ).toThrow('Enter a valid amount.');
+    }
+  });
+
+  it('builds an ERC-20 transfer when an ETH-labelled asset has a token address', () => {
+    const wrappedEth = {
+      ...ethAsset,
+      holdings: [
+        {
+          ...ethAsset.holdings[0]!,
+          tokenAddress: '0x4200000000000000000000000000000000000006' as const,
+        },
+      ],
+    };
+
+    expect(
       buildSendTransactionRequest({
-        amount: '0',
-        asset: usdcAsset,
-        holding: usdcAsset.holdings[1]!,
-        recipient: RECIPIENT,
+        amount: '1',
+        asset: wrappedEth,
+        holding: wrappedEth.holdings[0]!,
+        recipient: `  ${RECIPIENT}  `,
       }),
-    ).toThrow('Enter a valid amount.');
+    ).toMatchObject({
+      chainId: 8453,
+      to: '0x4200000000000000000000000000000000000006',
+    });
   });
 
   it('rejects a non-ETH holding with no token address instead of treating it as native', () => {

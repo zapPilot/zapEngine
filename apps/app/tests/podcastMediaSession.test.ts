@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   buildMediaSessionPositionState,
   buildPodcastMediaMetadata,
+  IDLE_REMOTE_COMMAND_HANDLERS,
   registerPodcastMediaSessionHandlers,
   resolvePodcastRemoteCommand,
   type PodcastMediaSessionHandlers,
@@ -35,6 +36,14 @@ function createMediaSession() {
     }),
   };
 }
+
+describe('idle remote command handlers', () => {
+  it('safely drops commands received before the queue is wired', () => {
+    expect(IDLE_REMOTE_COMMAND_HANDLERS.nextTrack()).toBeUndefined();
+    expect(IDLE_REMOTE_COMMAND_HANDLERS.previousTrack()).toBeUndefined();
+    expect(Object.isFrozen(IDLE_REMOTE_COMMAND_HANDLERS)).toBe(true);
+  });
+});
 
 describe('buildPodcastMediaMetadata', () => {
   it('labels the classroom section so the lock screen distinguishes it', () => {

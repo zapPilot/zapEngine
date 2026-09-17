@@ -234,6 +234,49 @@ describe('useInvestReview', () => {
     expect(harness.current().errorMessage).toContain('chain 8453');
   });
 
+  it('supports explicit retry and refresh of all reviewed batches', async () => {
+    mocks.invest.stageDrafts = [morphoDraft];
+    const harness = await render();
+    mocks.getDepositReview.mockClear();
+
+    harness.current().retry();
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(mocks.getDepositReview).toHaveBeenCalledOnce();
+
+    mocks.getDepositReview.mockClear();
+    await expect(harness.current().refresh()).resolves.toHaveLength(1);
+    expect(mocks.getDepositReview).toHaveBeenCalledOnce();
+  });
+
+  it('returns an empty refresh result when review cannot run without a wallet', async () => {
+    mocks.account.address = null;
+    mocks.invest.stageDrafts = [morphoDraft];
+    const harness = await render();
+
+    await expect(harness.current().refresh()).resolves.toEqual([]);
+  });
+
+  it('rejects a checkpoint index with no matching batch', async () => {
+    mocks.invest.stageDrafts = [morphoDraft];
+    const harness = await render();
+
+    await expect(harness.current().reviewBatch(9)).rejects.toThrow(
+      'next reviewed batch is unavailable',
+    );
+  });
+
+  it('rejects checkpoint review without a connected wallet', async () => {
+    mocks.account.address = null;
+    mocks.invest.stageDrafts = [morphoDraft];
+    const harness = await render();
+
+    await expect(harness.current().reviewBatch(0)).rejects.toThrow(
+      'next reviewed batch is unavailable',
+    );
+  });
+
   it('re-reviews only the requested batch at a checkpoint', async () => {
     mocks.invest.stageDrafts = [morphoDraft, gmxDraft, hlpDraft];
     const harness = await render();
