@@ -37,7 +37,13 @@ if ! jq -e '
 ' "$REGISTRY_PATH" >/dev/null; then
   echo "error: .github/schedules.json is malformed or has missing/invalid fields." >&2
   echo "" >&2
-  echo "Remedy: follow the field contract in docs/schedules.md." >&2
+  echo "Remedy: every entry needs non-empty strings: name, purpose, schedule," >&2
+  echo "  workspace, entrypoint; plus schedule_kind, schedule_source, runtime." >&2
+  echo "  Optional: endpoint, docs (strings), skipExpected (boolean). No other keys." >&2
+  echo "  schedule_kind: cron | interval | continuous" >&2
+  echo "  schedule_source: workflow | code | external (trust order, workflow first)" >&2
+  echo "  runtime: github-actions | pipedream | pg_cron | fly-process | local-mac | electron" >&2
+  echo "  schedule_source=workflow <=> runtime=github-actions; workflow requires cron." >&2
   exit 1
 fi
 

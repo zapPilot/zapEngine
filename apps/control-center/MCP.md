@@ -204,7 +204,27 @@ GitHub workflow inspection selects scheduled runs; recent-failure selects main r
 
 `/triage` is the normal manual producer. `ops_backlog_create` accepts optional effort (`xs`/`s`/`m`) and fingerprint, returning `{ created, item }`. Effort is projected from `effort:*` labels; fingerprint from the server-written HTML comment. A fingerprint forces a fresh open-backlog read; unavailable or truncated snapshots fail closed. Matching open issues return `created:false` without creating an issue. Run producers sequentially: GitHub labels do not provide distributed transactions. Use closed-within-14d and wontfix searches as the additional recurrence fence.
 
-Each triage/worker run comments on the single pinned `triage-log` issue. Workers use a stable harness/hostname agentId, claim through MCP, and inspect open PRs before coding. New work closes via `Fixes` references; already-fixed is the verified exception above. See [the loop runbook](../../docs/operations/autonomous-engineering-loop.md).
+Each triage/worker run comments on the single pinned `triage-log` issue. Workers use a stable harness/hostname agentId, claim through MCP, and inspect open PRs before coding. New work closes via `Fixes` references; already-fixed is the verified exception above.
+
+Both `/triage` and `/worker` are manual, with no headless runner or schedule.
+The hourly `ops-operator` schedule in [OPERATOR.md](./OPERATOR.md) is a separate system.
+GitHub Issues and labels are the work state; there is no lease DB and labels are
+not transactions.
+
+| Label or marker                             | Meaning                                            |
+| ------------------------------------------- | -------------------------------------------------- |
+| `agent-backlog` + `agent:weak` + `risk:low` | Eligible bounded worker work                       |
+| `status:working`                            | Claimed through MCP                                |
+| `blocked`                                   | Needs stronger judgement or unavailable validation |
+| `resolution:already-fixed`                  | Server verified a fix on main before closing       |
+| `operator`                                  | Human/strong-model decision or production action   |
+| `triage-log`                                | Exactly one open audit/report issue                |
+| ops-fingerprint HTML comment                | Server-written deduplication key                   |
+| `Agent-Backlog-PR: true`                    | Worker PR contract marker                          |
+
+For an orphan `status:working`, inspect open PRs before releasing through MCP.
+If already-fixed closure is rejected, supply the main commit or a PR merged into
+main and rerun acceptance. A merged patch does not prove production recovery.
 
 Additional local verification:
 
@@ -218,5 +238,20 @@ It returns observation time, a 30-day window and the existing PostHog journey;
 `available` describes telemetry availability, while failed/unconfigured reads are
 `unknown` with null counts. It does not contribute signals or priorities to
 `ops_status`. Use the [growth skill](../../.agents/skills/growth/SKILL.md) for
-operator experiment proposals. See [loop isolation and version correlation](../../docs/operations/rsi-loops.md)
-for interactive session commands, metric provenance and rollout requirements.
+operator experiment proposals. See [loop isolation](../../docs/operations/rsi-loops.md)
+for the coverage exploration boundary.
+
+## Growth metric provenance
+
+`ops:sync` persists growth counts with nullable `main_sha` and `version_context`
+through the service-role-only `from_fed_to_chain.ops_metric_snapshots` view.
+Observation time, main HEAD and production deployment evidence are distinct:
+missing or truncated deployment evidence stays explicit and never proves fleet
+coverage. Persistence failures fail the sync; missing readings remain unknown.
+
+Use dated observations and the actual intervention deployment/exposure window.
+Overlapping rolling 30-day counts are not independent samples, and the `delta7d`
+sparkline is only a display summary. A SHA plus a before/after delta is correlation,
+not causality. Keep low-volume results inconclusive without sufficient evidence.
+Experiment decisions and results belong in operator issues; the initial landing
+CTA proposal is [issue #574](https://github.com/zapPilot/zapEngine/issues/574).

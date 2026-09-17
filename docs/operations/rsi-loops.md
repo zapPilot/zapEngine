@@ -44,73 +44,9 @@ The launcher excludes local settings, so another checkout's permissive allowlist
 is not inherited. No unrelated personal settings were edited. Exploration has no
 shell/editor/agent tools; it returns issue-ready proposals for operator publication.
 
-## Growth evidence and experiments
+The [detector proposal](./coverage-detector-proposal.md) remains a local draft.
 
-`ops_growth` reads the existing PostHog growth journey only on demand and caches
-it for 15 minutes; `force:true` refreshes it. `status:available` is availability,
-not a judgement of conversion or retention. Missing credentials or failed queries
-produce `unknown` and null counts, never invented zeros. The ordered funnel covers
-landing to CTA within one day over a 30-day window. App and wallet counts are
-independent aggregates, not later steps in that cohort.
-
-The first [growth experiment proposal](./growth-experiment-proposal.md) is published
-as [operator issue #574](https://github.com/zapPilot/zapEngine/issues/574). The
-[detector proposal](./coverage-detector-proposal.md) remains a local draft.
-A review produces operator-owned experiment proposals with baseline, population,
-primary metric, guardrails, exposure window, sample/precision goal and stopping
-rule. Compare two independent reviews; repeated known issues indicate a decision
-cadence problem, not a need for more provider tools. No automatic growth schedule
-or experiment execution is installed.
-
-## Metric and version correlation
-
-`ops:sync` persists the four growth counts alongside existing daily metrics. Each
-row now carries nullable `main_sha` and `version_context`, exposed through the
-service-role-only `from_fed_to_chain.ops_metric_snapshots` view. The context
-records observation time, independently read main HEAD, and successful GitHub
-production deployment records with their own SHA, environment, status timestamp,
-deployment ID and source URL. The bounded scan examines 20 recent deployments
-and reports truncation and missing evidence. It does not assert fleet coverage,
-map an environment to an unproven service, or substitute main for deployed SHA.
-Missing permissions leave explicit gaps while metric collection continues.
-Persistence errors are reported separately from missing readings and fail the sync.
-
-Apply `20260916071552_add_metric_version_context.sql` through the reviewed migration
-release process before deploying the new sync writer. It replaces the old RPC
-signature; pause/avoid scheduled sync during the coordinated migration and code
-rollout. Existing rows retain null provenance. The migration is covered by a real
-PGlite execution test, including grants, old-row preservation and SHA validation.
-It has not been applied to production by this implementation task.
-
-For an operator analysis, read dated rows through the existing service-role
-connection (never expose it in clients):
-
-```sql
-select metric_key, snapshot_date, value, fetched_at, main_sha, version_context
-from from_fed_to_chain.ops_metric_snapshots
-where metric_key in ('cta_users_30d', 'landing_visitors_30d', 'wau')
-  and snapshot_date >= current_date - 35
-order by metric_key, snapshot_date;
-```
-
-Link the intervention PR to the relevant deployed commit, determine actual
-exposure and compare the preregistered observation windows. Daily rolling 30-day
-counts overlap and are not independent samples. A SHA plus a delta is correlation,
-not causality. The existing sparkline `delta7d` is a display summary and must not
-replace dated observations or a controlled comparison. At low volume, report
-inconclusive outcomes instead of declaring an experiment successful. Accumulating
-weeks of evidence remains an observation task after rollout.
-
-## Initial live checks — 2026-09-16
-
-The new local reader ran through the canonical production environment without
-provider writes at 07:23 UTC. It returned a 30-day ordered funnel of 454 landing
-visitors and 1 CTA user (about 0.22%); app visitors were 8 and wallet-connected
-users 1, independently counted. This verifies the data path, not instrumentation
-completeness or an experiment effect. Main was
-`be0d00aa69caa76019991de06eacd5351f057f7a`; the bounded GitHub deployment scan
-returned no qualifying success attestations and reported truncation. Deployment
-coverage is therefore still unknown, not equivalent to main.
+## Initial exploration checks — 2026-09-16
 
 The first Supabase exploration read performance/security advisors and aggregate
 logs for 06:00–07:00 UTC. Performance advisors reported 11 unindexed foreign keys,
@@ -152,10 +88,3 @@ Implementation validation on 2026-09-16: Control Center passed 218 test files /
 Fly MCP handshake exposed only six reads and rejected a mutation locally. Both
 skills validated. Repository format, drift and aggregate type-check passed after
 running the landing page's normal `fumadocs-mdx` postinstall generation.
-
-The aggregate contracts job remains blocked by the unchanged root exporter calling
-`z.toJSONSchema` on an incompatible resolved Zod instance. Aggregate lint remains
-blocked by the unchanged landing-page `HeroCockpit.tsx` synchronous state update
-inside an effect. No gates were weakened and those unrelated source files were
-not changed. The user authorized publication of the growth proposal and its production metrics
-to `zapPilot/zapEngine`; operator issue #574 records the decision and experiment.

@@ -162,7 +162,7 @@ never killed.
 
 All apps — including analytics-engine — run via `pnpm <script>`. Python scripts wrap `uv run` under the hood; the CLI is uniform. The default `pnpm dev` includes analytics-engine so backtesting and analytics pages work out of the box. Use `pnpm dev lite` only when you are not touching those pages.
 
-For development and verification commands, see [CONTRIBUTING.md](./CONTRIBUTING.md). Repository-wide engineering principles live in [AGENTS.md](./AGENTS.md). For the deployed topology, data ownership, and infrastructure sources of truth, see [current architecture](./docs/architecture/current.md).
+For development and verification commands, see [CONTRIBUTING.md](./CONTRIBUTING.md). Repository-wide engineering principles live in [AGENTS.md](./AGENTS.md). Infrastructure sources of truth are the [Fly inventory](./.github/fly-apps.json), [recurring-work registry](./.github/schedules.json), and [schema history](./supabase/migrations/).
 
 ## Turbo Remote Cache (optional)
 

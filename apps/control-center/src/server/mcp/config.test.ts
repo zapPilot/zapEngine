@@ -43,7 +43,6 @@ describe('Ops MCP repository wiring', () => {
       'apps/control-center/README.md',
       'apps/control-center/MCP.md',
       'apps/control-center/OPERATOR.md',
-      'docs/operations/autonomous-engineering-loop.md',
       'docs/operations/coverage-review.md',
       '.agents/skills/coverage-review/SKILL.md',
     ];
