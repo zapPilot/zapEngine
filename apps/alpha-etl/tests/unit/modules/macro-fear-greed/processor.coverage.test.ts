@@ -58,8 +58,8 @@ describe('MacroFearGreedETLProcessor coverage', () => {
       writeResult({ success: false, recordsInserted: 0, errors: [] }),
     );
 
-    await expect(
-      new MacroFearGreedETLProcessor().backfillHistory(),
-    ).rejects.toThrow('Macro Fear & Greed backfill write failed');
+    await expect(new MacroFearGreedETLProcessor().backfillHistory()).rejects.toThrow(
+      'Macro Fear & Greed backfill write failed',
+    );
   });
 });
