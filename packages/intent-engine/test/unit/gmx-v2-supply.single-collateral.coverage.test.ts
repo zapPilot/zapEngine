@@ -10,9 +10,10 @@ import {
 import type { TransactionQuote } from '../../src/types/transaction.types.js';
 
 vi.mock('../../src/protocols/gmx-v2/index.js', async (importOriginal) => {
-  const actual = await importOriginal<
-    typeof import('../../src/protocols/gmx-v2/index.js')
-  >();
+  const actual =
+    await importOriginal<
+      typeof import('../../src/protocols/gmx-v2/index.js')
+    >();
 
   return {
     ...actual,
@@ -58,39 +59,36 @@ function makeSwapQuote(): TransactionQuote {
 }
 
 describe('buildGmxV2SupplyTx single-collateral coverage', () => {
-  it(
-    'rejects collateral that does not match the single-collateral pool token',
-    async () => {
-      const getSwapQuote = vi.fn().mockResolvedValue(makeSwapQuote());
-      const adapter = { getSwapQuote } as unknown as LiFiAdapter;
-      const getDepositAmountOut = vi.fn().mockResolvedValue(500000000000000000n);
-      const pricingAdapter = {
-        getDepositAmountOut,
-      } as unknown as GmxV2PricingAdapter;
+  it('rejects collateral that does not match the single-collateral pool token', async () => {
+    const getSwapQuote = vi.fn().mockResolvedValue(makeSwapQuote());
+    const adapter = { getSwapQuote } as unknown as LiFiAdapter;
+    const getDepositAmountOut = vi.fn().mockResolvedValue(500000000000000000n);
+    const pricingAdapter = {
+      getDepositAmountOut,
+    } as unknown as GmxV2PricingAdapter;
 
-      await expect(
-        buildGmxV2SupplyTx(
-          {
-            marketKey: 'btc-btc',
-            fromToken: GMX_V2_TOKENS.USDC.address,
-            fromAmount: '1000000',
-            userAddress: USER,
-          },
-          adapter,
-          PUBLIC_CLIENT,
-          pricingAdapter,
-        ),
-      ).rejects.toThrow(
-        'GMX single-collateral deposit token must match the pool token',
-      );
-
-      expect(getSwapQuote).toHaveBeenCalledWith(
-        expect.objectContaining({
+    await expect(
+      buildGmxV2SupplyTx(
+        {
+          marketKey: 'btc-btc',
           fromToken: GMX_V2_TOKENS.USDC.address,
-          toToken: GMX_V2_TOKENS.WETH.address,
-        }),
-      );
-      expect(getDepositAmountOut).not.toHaveBeenCalled();
-    },
-  );
+          fromAmount: '1000000',
+          userAddress: USER,
+        },
+        adapter,
+        PUBLIC_CLIENT,
+        pricingAdapter,
+      ),
+    ).rejects.toThrow(
+      'GMX single-collateral deposit token must match the pool token',
+    );
+
+    expect(getSwapQuote).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fromToken: GMX_V2_TOKENS.USDC.address,
+        toToken: GMX_V2_TOKENS.WETH.address,
+      }),
+    );
+    expect(getDepositAmountOut).not.toHaveBeenCalled();
+  });
 });
