@@ -85,9 +85,8 @@ describe('LiFiAdapter remaining coverage', () => {
       contractCalls,
       toAmount: '990000',
     });
-    expect(vi.mocked(lifiSdk.getContractCallsQuote).mock.calls[0]?.[0]).not.toHaveProperty(
-      'fromAmount',
-    );
+    const request = vi.mocked(lifiSdk.getContractCallsQuote).mock.calls[0]?.[0];
+    expect(request).not.toHaveProperty('fromAmount');
   });
 
   it('wraps LI.FI getToken failures in QuoteError and preserves the cause', async () => {
