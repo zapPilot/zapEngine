@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Address, PublicClient } from 'viem';
 
-import type { GmxV2PricingAdapter } from '../../src/adapters/gmx-v2-pricing.adapter.js';
 import type { LiFiAdapter } from '../../src/adapters/lifi.adapter.js';
+import * as supply from '../../src/builders/gmx-v2-supply.builder.js';
 import {
   GMX_V2_ARBITRUM_CHAIN_ID,
   GMX_V2_TOKENS,
@@ -10,10 +10,9 @@ import {
 import type { TransactionQuote } from '../../src/types/transaction.types.js';
 
 vi.mock('../../src/protocols/gmx-v2/index.js', async (importOriginal) => {
-  const actual =
-    await importOriginal<
-      typeof import('../../src/protocols/gmx-v2/index.js')
-    >();
+  const actual = await importOriginal<
+    typeof import('../../src/protocols/gmx-v2/index.js')
+  >();
 
   return {
     ...actual,
@@ -26,8 +25,6 @@ vi.mock('../../src/protocols/gmx-v2/index.js', async (importOriginal) => {
     },
   };
 });
-
-import { buildGmxV2SupplyTx } from '../../src/builders/gmx-v2-supply.builder.js';
 
 const USER = '0x1111111111111111111111111111111111111111' as Address;
 const SWAP_TARGET = '0x2222222222222222222222222222222222222222' as Address;
@@ -59,16 +56,14 @@ function makeSwapQuote(): TransactionQuote {
 }
 
 describe('buildGmxV2SupplyTx single-collateral coverage', () => {
-  it('rejects collateral that does not match the single-collateral pool token', async () => {
+  it('rejects a mismatched single-collateral token', async () => {
     const getSwapQuote = vi.fn().mockResolvedValue(makeSwapQuote());
     const adapter = { getSwapQuote } as unknown as LiFiAdapter;
     const getDepositAmountOut = vi.fn().mockResolvedValue(500000000000000000n);
-    const pricingAdapter = {
-      getDepositAmountOut,
-    } as unknown as GmxV2PricingAdapter;
+    const pricingAdapter = { getDepositAmountOut };
 
     await expect(
-      buildGmxV2SupplyTx(
+      supply.buildGmxV2SupplyTx(
         {
           marketKey: 'btc-btc',
           fromToken: GMX_V2_TOKENS.USDC.address,
