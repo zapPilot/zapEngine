@@ -6,7 +6,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { ImageCandidate } from '../../types.js';
 import type { AcquiredRemoteImage } from './assets.js';
-import { planPodcastVisualAssets } from './podcast-visual-assets.js';
+import {
+  planPodcastVisualAssets,
+  type PodcastVisualAssetPlanInput,
+} from './podcast-visual-assets.js';
 import { parseVisualSubjectCatalog } from './storyboard/subject-catalog.js';
 
 const directories: string[] = [];
@@ -20,7 +23,7 @@ afterEach(async () => {
 });
 
 describe('podcast visual assets subject ranking', () => {
-  it('keeps Coinbase as lead and ranks Alpaca/B20 name collisions last', async () => {
+  it('ranks Coinbase and Alpaca/B20 name collisions after the publisher cover', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'podcast-visual-v8-'));
     directories.push(directory);
 
@@ -146,7 +149,7 @@ describe('podcast visual assets subject ranking', () => {
       return [];
     });
 
-    const plan = await planPodcastVisualAssets({
+    const plan = await planWithPublisherCover({
       scenes: [
         { sceneId: 'scene-01', imageSearchIntent: ['tokenized stocks'] },
         { sceneId: 'scene-02', imageSearchIntent: ['custody'] },
@@ -203,21 +206,19 @@ describe('podcast visual assets subject ranking', () => {
       'primary',
       'primary',
     ]);
-    expect(plan.imageSearch?.scenes.map((scene) => scene.selection)).toEqual([
-      'pool',
-      'pool',
-      'pool',
-    ]);
+    expect(
+      plan.imageSearch?.scenes.slice(1).map((scene) => scene.selection),
+    ).toEqual(['pool', 'pool', 'pool']);
     expect(downloaded.some((url) => badUrls.has(url))).toBe(false);
-    expect(plan.assets.map((asset) => asset.sourcePageUrl)).toEqual([
+    expect(plan.assets.slice(1).map((asset) => asset.sourcePageUrl)).toEqual([
       'https://news.example.test/coinbase-tokenized-stocks',
       'https://news.example.test/alpaca-markets',
       'https://basemedia.example.test/base-b20-token-standard',
     ]);
-    expect(plan.scenes).toEqual([
-      { sceneId: 'scene-01', assetId: 'image-01' },
-      { sceneId: 'scene-02', assetId: 'image-02' },
-      { sceneId: 'scene-03', assetId: 'image-03' },
+    expect(plan.scenes.slice(1)).toEqual([
+      { sceneId: 'scene-01', assetId: 'image-02' },
+      { sceneId: 'scene-02', assetId: 'image-03' },
+      { sceneId: 'scene-03', assetId: 'image-04' },
     ]);
   });
 
@@ -266,7 +267,7 @@ describe('podcast visual assets subject ranking', () => {
       },
     );
 
-    const plan = await planPodcastVisualAssets({
+    const plan = await planWithPublisherCover({
       scenes: [
         { sceneId: 'scene-01', imageSearchIntent: ['tokenized stocks'] },
       ],
@@ -294,8 +295,10 @@ describe('podcast visual assets subject ranking', () => {
     });
 
     expect(downloaded).toEqual([unnamedCandidate.imageUrl]);
-    expect(plan.scenes).toEqual([{ sceneId: 'scene-01', assetId: 'image-01' }]);
-    expect(plan.imageSearch?.scenes[0]).toMatchObject({
+    expect(plan.scenes.slice(1)).toEqual([
+      { sceneId: 'scene-01', assetId: 'image-02' },
+    ]);
+    expect(plan.imageSearch?.scenes[1]).toMatchObject({
       selection: 'pool',
       fallbackReason: null,
     });
@@ -352,7 +355,7 @@ describe('podcast visual assets subject ranking', () => {
       },
     );
 
-    const plan = await planPodcastVisualAssets({
+    const plan = await planWithPublisherCover({
       scenes: [{ sceneId: 'scene-01', imageSearchIntent: ['validator set'] }],
       articleImages: [],
       subjectCatalog: catalog,
@@ -378,7 +381,7 @@ describe('podcast visual assets subject ranking', () => {
     });
 
     expect(downloaded).toEqual([onSubject.imageUrl]);
-    expect(plan.imageSearch?.scenes[0]).toMatchObject({
+    expect(plan.imageSearch?.scenes[1]).toMatchObject({
       selection: 'pool',
       fallbackReason: null,
     });
@@ -420,7 +423,7 @@ describe('podcast visual assets subject ranking', () => {
       ],
     });
 
-    const plan = await planPodcastVisualAssets({
+    const plan = await planWithPublisherCover({
       scenes: [{ sceneId: 'scene-01', imageSearchIntent: ['validator set'] }],
       articleImages: [],
       subjectCatalog: catalog,
@@ -509,4 +512,56 @@ function braveCandidate(
     altText,
     origin: 'brave',
   };
+}
+
+async function planWithPublisherCover(input: PodcastVisualAssetPlanInput) {
+  const coverUrl = 'https://publisher.example.test/cover.jpg';
+  const coverPath = join(input.workingDirectory, 'cover.jpg');
+  const plan = await planPodcastVisualAssets({
+    ...input,
+    sceneAssignments: [
+      {
+        sceneId: 'publisher-cover',
+        subjectIds: [input.subjectCatalog!.primarySubjectId],
+        selectionReason: 'direct',
+      },
+      ...(input.sceneAssignments ?? []),
+    ],
+    scenes: [
+      { sceneId: 'publisher-cover', imageSearchIntent: ['publisher cover'] },
+      ...input.scenes,
+    ],
+    articleImages: [
+      {
+        imageUrl: coverUrl,
+        sourceUrl: 'https://publisher.example.test/article',
+        origin: 'openGraph',
+        width: 1600,
+        height: 900,
+      },
+    ],
+    dependencies: {
+      ...input.dependencies,
+      acquireImage: async (url, options) =>
+        url === coverUrl
+          ? {
+              path: coverPath,
+              contentType: 'image/jpeg',
+              sha256: '9'.repeat(64),
+              width: 1600,
+              height: 900,
+            }
+          : input.dependencies!.acquireImage!(url, options),
+      fingerprintImage: async (path) =>
+        path === coverPath
+          ? 'ffffffffffffffff'
+          : input.dependencies!.fingerprintImage!(path),
+    },
+  });
+  expect(plan.leadCover?.imageUrl).toBe(coverUrl);
+  expect(plan.scenes[0]).toEqual({
+    sceneId: 'publisher-cover',
+    assetId: 'image-01',
+  });
+  return plan;
 }

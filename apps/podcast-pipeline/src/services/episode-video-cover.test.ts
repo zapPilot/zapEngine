@@ -79,7 +79,9 @@ describe('episode video cover integration', () => {
 
   it('stops the render when the valid OG cover cannot be cached', async () => {
     const saveManifest = vi.fn().mockResolvedValue(undefined);
-    const render = vi.fn().mockResolvedValue(renderedArtifacts('manifest-hash'));
+    const render = vi
+      .fn()
+      .mockResolvedValue(renderedArtifacts('manifest-hash'));
     const upload = vi.fn().mockResolvedValue(uploadedArtifacts());
     const processor = createEpisodeVideoProcessor({
       downloadNarration: vi.fn().mockResolvedValue(undefined),
@@ -285,9 +287,7 @@ function generatedManifest(manifestHash: string) {
   };
 }
 
-function visualManifest(
-  leadCoverImageUrl: string,
-): Record<string, unknown> {
+function visualManifest(leadCoverImageUrl: string): Record<string, unknown> {
   return {
     schemaVersion: 'podcast-episode-visual.v1',
     visualVersion: EPISODE_VIDEO_VISUAL_VERSION,

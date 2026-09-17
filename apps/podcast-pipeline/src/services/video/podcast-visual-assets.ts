@@ -71,6 +71,7 @@ export async function planPodcastVisualAssets(
   const searchScenes = contentScenesForPlanning(input, contentScenes);
   const contentPlan = await planVisualAssets({
     scenes: searchScenes,
+    requireLeadCover: true,
     articleImages: input.articleImages,
     workingDirectory: input.workingDirectory,
     ...(input.resumePlan

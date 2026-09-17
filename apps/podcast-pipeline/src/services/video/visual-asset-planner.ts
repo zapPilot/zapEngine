@@ -245,6 +245,7 @@ export interface PlanVisualAssetsInput {
   articleImages?: readonly ImageCandidate[];
   workingDirectory: string;
   resumePlan?: VisualAssetPlan;
+  requireLeadCover?: boolean;
   selectionMode?: VisualSelectionMode;
   signal?: AbortSignal;
   onProgress?: (event: VisualAssetProgress) => void;
@@ -378,6 +379,12 @@ export async function planVisualAssets(
     allowGeneratedSlides: mode === 'resilient',
   };
 
+  if (input.requireLeadCover && !state.leadCoverCandidateUrl) {
+    throw mandatoryLeadCoverError(
+      state.leadCoverFallbackReason ?? 'missing-open-graph-image',
+    );
+  }
+
   for (const resumedScene of state.scenes) {
     const scene = input.scenes.find(
       (candidate) => candidate.sceneId === resumedScene.sceneId,
@@ -427,6 +434,12 @@ export async function planVisualAssets(
     imageSearch: state.trace,
     leadCover: observedLeadCover(state),
   };
+}
+
+function mandatoryLeadCoverError(reason: string): Error {
+  return new Error(
+    `Publisher og:image is required for the first content scene (${reason})`,
+  );
 }
 
 const ARTICLE_IMAGE_ORIGINS = ['openGraph', 'article', 'figure'] as const;
@@ -1025,6 +1038,9 @@ async function acquireNextArticleImage(
       rejections,
     });
     if (acquired) return acquired;
+    if (state.input.requireLeadCover && scene === state.input.scenes[0]) {
+      throw mandatoryLeadCoverError('open-graph-image-not-used-as-lead');
+    }
   }
   return null;
 }

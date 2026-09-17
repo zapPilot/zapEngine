@@ -162,7 +162,9 @@ export function createEpisodeVideoProcessor(
         signal: context.signal,
       });
       if (!preparedCover.thumbnailPath || !preparedCover.metadata.sha256) {
-        throw new Error('Video cover preparation returned no uploadable artifact');
+        throw new Error(
+          'Video cover preparation returned no uploadable artifact',
+        );
       }
       const coverThumbnailUrl = await dependencies.uploadCover({
         episodeId: source.episodeId,

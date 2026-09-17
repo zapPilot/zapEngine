@@ -14,6 +14,7 @@ import {
   anchoredPlannerScenes,
   planPodcastVisualAssets,
 } from './podcast-visual-assets.js';
+import type { VisualAssetPlan } from './visual-asset-planner.js';
 
 const directories: string[] = [];
 
@@ -200,7 +201,56 @@ describe('planPodcastVisualAssets', () => {
     ).rejects.toThrow(
       'Publisher og:image is required for the first content scene (open-graph-image-not-used-as-lead)',
     );
-    expect(acquireImage).toHaveBeenCalledTimes(2);
+    expect(acquireImage).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries a recovered OG without checkpointing an alternative image', async () => {
+    const directory = await temporaryDirectory();
+    const checkpoint: VisualAssetPlan = { assets: [], scenes: [] };
+    const cover = candidate('publisher-cover');
+    const acquireImage = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('temporary HTTP 503'))
+      .mockResolvedValue(acquired('publisher-cover'));
+    const onSelection = vi.fn(
+      async (selection: {
+        sceneId: string;
+        asset: VisualAssetPlan['assets'][number];
+      }) => {
+        checkpoint.assets.push(selection.asset);
+        checkpoint.scenes.push({
+          sceneId: selection.sceneId,
+          assetId: selection.asset.assetId,
+        });
+      },
+    );
+    const input = {
+      scenes: [{ sceneId: 'scene-01', imageSearchIntent: ['market'] }],
+      articleImages: [cover, candidate('body-photo', 'article')],
+      workingDirectory: join(directory, 'images'),
+      selectionMode: 'resilient' as const,
+      onSelection,
+      dependencies: {
+        acquireImage,
+        searchProviders: [],
+        fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
+      },
+    };
+    await expect(planPodcastVisualAssets(input)).rejects.toThrow(
+      'open-graph-image-not-used-as-lead',
+    );
+    expect(onSelection).not.toHaveBeenCalled();
+    expect(checkpoint.scenes).toEqual([]);
+    const plan = await planPodcastVisualAssets({
+      ...input,
+      resumePlan: checkpoint,
+    });
+    expect(acquireImage.mock.calls.map(([url]) => url)).toEqual([
+      cover.imageUrl,
+      cover.imageUrl,
+    ]);
+    expect(plan.leadCover?.imageUrl).toBe(cover.imageUrl);
+    expect(checkpoint.assets[0]?.originalImageUrl).toBe(cover.imageUrl);
   });
 
   // The subject-catalog step can come back empty. The publisher cover still
