@@ -165,6 +165,71 @@ describe('Moralis wallet query wrappers', () => {
     expect(historyRefetch).toHaveBeenCalledOnce();
   });
 
+  it('maps visited wallet rows, labels, and loading state into history input', () => {
+    const visitedWalletsRefetch = vi.fn();
+    const historyRefetch = vi.fn();
+    useQueryMock
+      .mockReturnValueOnce({
+        data: [
+          { wallet: '0xABC', label: 'Primary' },
+          { wallet: '0xDEF', label: undefined },
+        ],
+        isLoading: true,
+        isError: false,
+        error: null,
+        refetch: visitedWalletsRefetch,
+      })
+      .mockReturnValueOnce({
+        data: undefined,
+        isLoading: false,
+        isError: false,
+        error: null,
+        refetch: historyRefetch,
+      });
+
+    const activity = useActivityData({
+      isOwnBundle: false,
+      viewingUserId: 'visited-user',
+      ownWalletAddresses: ['0xOWNED'],
+      ownAddress: '0xOWNED',
+    });
+
+    expect(activity.isLoading).toBe(true);
+    expect(useQueryMock.mock.calls[1]?.[0]).toMatchObject({
+      queryKey: ['desktop', 'moralis', 'wallet-history', ['0xabc', '0xdef']],
+    });
+  });
+
+  it('passes explicit own-wallet labels to history instead of deriving entries', () => {
+    useQueryMock
+      .mockReturnValueOnce({
+        data: undefined,
+        isLoading: false,
+        isError: false,
+        error: null,
+        refetch: vi.fn(),
+      })
+      .mockReturnValueOnce({
+        data: undefined,
+        isLoading: false,
+        isError: false,
+        error: null,
+        refetch: vi.fn(),
+      });
+
+    useActivityData({
+      isOwnBundle: true,
+      viewingUserId: null,
+      ownWalletAddresses: ['0xFALLBACK'],
+      ownWalletEntries: [{ address: '0xLABELLED', label: 'Vault' }],
+      ownAddress: null,
+    });
+
+    expect(useQueryMock.mock.calls[1]?.[0]).toMatchObject({
+      queryKey: ['desktop', 'moralis', 'wallet-history', ['0xlabelled']],
+    });
+  });
+
   it('retries only history for the own bundle', () => {
     const disabledVisitedWalletsRefetch = vi.fn();
     const historyRefetch = vi.fn();

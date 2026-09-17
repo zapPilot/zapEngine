@@ -47,15 +47,15 @@ export function parseTokenAmountToBaseUnits(
     return null;
   }
 
-  const [whole = '0', fraction = ''] = normalized.split('.');
+  const [whole, fraction = ''] = normalized.split('.');
   if (fraction.length > decimals) {
     return null;
   }
 
   const base = 10n ** BigInt(decimals);
-  const wholeUnits = BigInt(whole || '0') * base;
+  const wholeUnits = BigInt(whole) * base;
   const fractionUnits =
-    fraction.length === 0 ? 0n : BigInt(fraction.padEnd(decimals, '0') || '0');
+    fraction.length === 0 ? 0n : BigInt(fraction.padEnd(decimals, '0'));
 
   return wholeUnits + fractionUnits;
 }
