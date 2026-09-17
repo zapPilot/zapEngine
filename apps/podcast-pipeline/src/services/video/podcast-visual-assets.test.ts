@@ -60,7 +60,7 @@ describe('planPodcastVisualAssets', () => {
     expect(plan.imageSearch).toBeUndefined();
   });
 
-  it('plans a body scene from the publisher article and reports progress in scene order', async () => {
+  it('plans a body scene from the publisher Open Graph image and reports progress in scene order', async () => {
     const directory = await temporaryDirectory();
     const acquireImage = vi.fn().mockResolvedValue(acquired('article-body'));
     const fingerprintImage = vi.fn().mockResolvedValue('0000000000000000');
@@ -71,6 +71,7 @@ describe('planPodcastVisualAssets', () => {
       provider?: string;
     }[] = [];
 
+    const cover = candidate('article-body');
     const plan = await planPodcastVisualAssets({
       scenes: [
         {
@@ -82,7 +83,7 @@ describe('planPodcastVisualAssets', () => {
           imageSearchIntent: ['Federal Reserve balance sheet'],
         },
       ],
-      articleImages: [candidate('article-body')],
+      articleImages: [cover],
       workingDirectory: join(directory, 'images'),
       selectionMode: 'resilient',
       dependencies: {
@@ -104,6 +105,10 @@ describe('planPodcastVisualAssets', () => {
       { sceneId: 'scene-01', assetId: 'image-98' },
       { sceneId: 'scene-02', assetId: 'image-01' },
     ]);
+    expect(plan.leadCover).toEqual({
+      imageUrl: cover.imageUrl,
+      fallbackReason: null,
+    });
     expect(progress).toEqual([
       {
         phase: 'assets',
@@ -150,16 +155,62 @@ describe('planPodcastVisualAssets', () => {
     });
   });
 
-  // The subject-catalog step can come back empty, and an episode without
-  // disambiguated subjects still has to render.
-  it('searches the storyboard intents when no subject catalog was resolved', async () => {
+  it('fails when the publisher provides no Open Graph image for the lead content scene', async () => {
+    const directory = await temporaryDirectory();
+
+    await expect(
+      planPodcastVisualAssets({
+        scenes: [{ sceneId: 'scene-01', imageSearchIntent: ['market'] }],
+        articleImages: [candidate('body-photo', 'article')],
+        workingDirectory: join(directory, 'images'),
+        selectionMode: 'resilient',
+        dependencies: {
+          acquireImage: vi.fn().mockResolvedValue(acquired('body-photo')),
+          searchProviders: [],
+          fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
+        },
+      }),
+    ).rejects.toThrow(
+      'Publisher og:image is required for the first content scene (missing-open-graph-image)',
+    );
+  });
+
+  it('fails instead of using another article image when the Open Graph image cannot be acquired', async () => {
+    const directory = await temporaryDirectory();
+    const acquireImage = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('content type mismatch'))
+      .mockResolvedValueOnce(acquired('body-photo'));
+
+    await expect(
+      planPodcastVisualAssets({
+        scenes: [{ sceneId: 'scene-01', imageSearchIntent: ['market'] }],
+        articleImages: [
+          candidate('og-cover'),
+          candidate('body-photo', 'article'),
+        ],
+        workingDirectory: join(directory, 'images'),
+        selectionMode: 'resilient',
+        dependencies: {
+          acquireImage,
+          searchProviders: [],
+          fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
+        },
+      }),
+    ).rejects.toThrow(
+      'Publisher og:image is required for the first content scene (open-graph-image-not-used-as-lead)',
+    );
+    expect(acquireImage).toHaveBeenCalledTimes(2);
+  });
+
+  // The subject-catalog step can come back empty. The publisher cover still
+  // owns the lead scene, while later scenes may search the storyboard's own
+  // deterministic intents.
+  it('searches storyboard intents for later scenes when no subject catalog was resolved', async () => {
     const directory = await temporaryDirectory();
     const search = vi.fn(
       async (query: string): Promise<ImageCandidate[]> => [
-        braveCandidate(
-          query.startsWith('Federal') ? 'fed-building' : 'treasury-desk',
-          query,
-        ),
+        braveCandidate('treasury-desk', query),
       ],
     );
     const acquireImage = vi.fn(
@@ -171,6 +222,7 @@ describe('planPodcastVisualAssets', () => {
       .mockResolvedValueOnce('0000000000000000')
       .mockResolvedValueOnce('ffffffffffffffff');
 
+    const cover = candidate('publisher-cover');
     const plan = await planPodcastVisualAssets({
       scenes: [
         {
@@ -179,7 +231,7 @@ describe('planPodcastVisualAssets', () => {
         },
         { sceneId: 'scene-02', imageSearchIntent: ['Treasury bond auction'] },
       ],
-      articleImages: [],
+      articleImages: [cover],
       workingDirectory: join(directory, 'images'),
       selectionMode: 'resilient',
       dependencies: {
@@ -190,19 +242,18 @@ describe('planPodcastVisualAssets', () => {
     });
 
     expect(search.mock.calls.map(([query]) => query)).toEqual([
-      'Federal Reserve balance sheet',
       'Treasury bond auction',
     ]);
     expect(plan.scenes).toEqual([
       { sceneId: 'scene-01', assetId: 'image-01' },
       { sceneId: 'scene-02', assetId: 'image-02' },
     ]);
+    expect(plan.leadCover?.imageUrl).toBe(cover.imageUrl);
     expect(plan.imageSearch?.requests.map((request) => request.kind)).toEqual([
-      'primary',
       'primary',
     ]);
     expect(plan.imageSearch?.scenes.map((scene) => scene.selection)).toEqual([
-      'pool',
+      'article',
       'pool',
     ]);
   });
@@ -273,11 +324,14 @@ async function temporaryDirectory(): Promise<string> {
   return directory;
 }
 
-function candidate(id: string): ImageCandidate {
+function candidate(
+  id: string,
+  origin: ImageCandidate['origin'] = 'openGraph',
+): ImageCandidate {
   return {
     imageUrl: `https://images.example.test/${id}.jpg`,
     sourceUrl: `https://publisher.example.test/${id}`,
-    origin: 'article',
+    origin,
     width: 1600,
     height: 900,
   };
