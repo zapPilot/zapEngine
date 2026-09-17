@@ -71,3 +71,35 @@ defect and must not become incident backlog.
 
 More generally, if no reachable action can clear a signal, classify the signal
 producer or presentation as the defect instead of creating one issue per stale row.
+
+## Zap Pilot system map
+
+| Component                          | Responsibility                                                        |
+| ---------------------------------- | --------------------------------------------------------------------- |
+| Universal App                      | User execution surface                                                |
+| account-engine                     | Identity / persistence / plan orchestration                           |
+| analytics-engine                   | Strategy / analytics (read-only)                                      |
+| alpha-etl                          | External portfolio ingestion; daily canonical writer                  |
+| podcast-pipeline                   | Content / render / social                                             |
+| control-center + zap-pilot-ops MCP | Operational evidence                                                  |
+| Supabase                           | Durable product / analytics / ops state; schemas have distinct owners |
+| Cloudflare R2                      | Podcast media objects                                                 |
+| Pinata / IPFS                      | Signed track-record publication                                       |
+| GitHub Actions                     | Repo-native schedules + deploy                                        |
+| Fly                                | Backend compute                                                       |
+| Vercel                             | App web / landing / control-center                                    |
+| Local Mac                          | Social daemon; requires a persistent browser session                  |
+
+Sources of truth (repository-relative):
+
+- Fly inventory: `.github/fly-apps.json`.
+- Recurring work: `.github/schedules.json`.
+- Schema history: `supabase/migrations/`.
+
+## Product invariants
+
+- Zap Pilot is a self-custodial investment autopilot: users sign from their own wallet and must understand transaction effects before signing.
+- Lead with disciplined portfolio management, not cross-chain infrastructure.
+- Prefer one proven user path over protocol breadth.
+- Treat public track record and repeat usage as stronger evidence than feature count.
+- Keep Privy as an onboarding rail rather than the product identity.

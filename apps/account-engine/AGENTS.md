@@ -40,4 +40,4 @@ intent/orchestration code permitted here is a single bounded `plan-orchestration
 module: its own `POST /plan-orchestration/*`
 routes, its own `@zapengine/types` contract, no imports to/from the rest of
 account-engine, shaped for extraction to `apps/plan-orchestration`. Nothing else in
-account-engine may import `@zapengine/intent-engine`. See [Architecture planes](../../docs/architecture/planes.md).
+account-engine may import `@zapengine/intent-engine`. See [Architecture boundaries](../AGENTS.md#architecture-boundaries).

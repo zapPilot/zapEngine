@@ -52,6 +52,13 @@ function metricSummary(
     syncedAt: '2026-09-17T07:42:00.000Z',
     persisted: 15,
     skipped: [],
+    failed: [],
+    versionContext: {
+      observedAt: '2026-09-17T07:42:00.000Z',
+      mainSha: null,
+      deployments: [],
+      gaps: [],
+    },
     ...overrides,
   };
 }
@@ -131,6 +138,12 @@ describe('ops:sync entrypoint', () => {
         'metric snapshot sync failed: snapshot write down',
       ),
     );
+  });
+
+  it('fails the job when even one metric write fails', async () => {
+    state.metricSummary = metricSummary({ failed: ['wau'], persisted: 14 });
+    await expect(import('./sync.js')).rejects.toThrow('process.exit(1)');
+    expect(errorLog).toHaveBeenCalledWith('Metric persistence failed: wau');
   });
 
   it('keeps a skipped provider green', async () => {

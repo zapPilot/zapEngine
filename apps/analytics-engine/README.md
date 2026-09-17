@@ -35,9 +35,3 @@ See [AGENTS.md](./AGENTS.md).
 ## Environment
 
 PostgreSQL (Supabase) via async SQLAlchemy. `DATABASE_READ_ONLY=true` is enforced — writes are blocked at the pool level. Local port override: `ANALYTICS_ENGINE_PORT=8001`.
-
-## Deep dives
-
-See [docs/](./docs/):
-
-- [Snapshot architecture](../../docs/snapshot_architecture.md)

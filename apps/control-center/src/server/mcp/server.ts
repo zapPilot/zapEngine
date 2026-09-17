@@ -175,6 +175,18 @@ export function createOpsMcpServer(operations: OpsMcpOperations): McpServer {
   );
 
   server.registerTool(
+    'ops_growth',
+    {
+      title: 'Growth journey',
+      description:
+        'Read the lazy 30-day PostHog growth journey, including the ordered landing-to-CTA funnel. Availability is not product health. App and wallet counts are independent aggregates, not later funnel steps. Use for growth hypotheses and operator experiment proposals, never reliability priorities or agent backlog.',
+      inputSchema: forceSchema,
+      annotations: READ_ONLY_ANNOTATIONS,
+    },
+    async ({ force }) => result(await operations.getGrowth(force)),
+  );
+
+  server.registerTool(
     'ops_costs',
     {
       title: 'Cost operations',

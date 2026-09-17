@@ -12,6 +12,7 @@ import type {
   OperationsResponse,
   OperationsSocialResponse,
 } from '../../shared/types.js';
+import type { OperationsGrowthResponse } from '../services/operations/growth.js';
 import type { SentryInspectionOptions } from '../services/operations/inspection/sentry-options.js';
 import type { SignalInspection } from '../services/operations/inspection/types.js';
 import type { IncidentPacket } from '../services/operations/investigation.js';
@@ -23,6 +24,7 @@ import type { SentryResolutionResult } from '../services/operations/sentry-remed
  * to backlog lifecycle actions and single-issue Sentry resolution.
  */
 export interface OpsMcpOperations {
+  getGrowth(force?: boolean): Promise<OperationsGrowthResponse>;
   getOperations(force?: boolean): Promise<OperationsResponse>;
   getSocial(force?: boolean): Promise<OperationsSocialResponse>;
   getCustomers(force?: boolean): Promise<CustomerEconomicsResponse>;

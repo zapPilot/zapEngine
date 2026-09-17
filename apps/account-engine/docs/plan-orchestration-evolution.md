@@ -2,7 +2,7 @@
 
 The architecture planes (Strategy / Intent / **plan-orchestration** /
 Execution / Identity) and the one-line dependency rule are defined in the
-[architecture planes](../../../docs/architecture/planes.md).
+[architecture boundaries](../../AGENTS.md#architecture-boundaries).
 
 This file holds the **multi-step evolution guardrail** for the
 plan-orchestration plane specifically — roadmap-shaped content that does not

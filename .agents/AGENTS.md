@@ -138,3 +138,9 @@ run, they should make the smallest durable update:
 4. Add a new skill only if the criteria above pass.
 5. Keep related code, tests, CI fixes, documentation, and skill corrections
    together; follow the repository root working-tree and history rules.
+
+## Harness commands
+
+Do not copy role logic into harness-specific commands. `.opencode/commands/*`
+must remain thin wrappers pointing to the canonical `SKILL.md`. MCP registration
+and command discovery are separate concerns.

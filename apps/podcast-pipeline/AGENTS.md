@@ -87,3 +87,20 @@ Changing this behavior requires explicit product approval. Do not rewrite this i
 - **Every Rednote note declares itself as AI-synthesized.** `declareAiContent()` opens the 「添加内容类型声明」 select, picks 「笔记含AI合成内容」, and waits for the `.d-select-description` that proves it stuck; it fails the publish rather than logging and continuing, because a skipped declaration is invisible after the fact. This is a compliance step about how the video was made, and is unrelated to AI as a subject -- which is never a risk.
 - **The Rednote copy gate has two layers, and neither is a topic blacklist.** `prompts/social/rednote-risk-rules.md` is the single source for the four investment-direction red lines; it is appended to the writer's Rednote block **and** read by the judge, so the two cannot drift. `asset_allocation_advice` and `market_timing_advice` are lexical and are caught by `lexicon/asset-allocation.ts` / `lexicon/market-timing.ts` at both existing gate points. `political_market_speculation` and `strong_prediction_unattributed` are framing, so `rednote-semantic-risk.ts` judges them with one LLM call inside `copy.ts`'s existing three-attempt loop -- a verdict of risk becomes the next attempt's retry reason. That judge is **fail-closed** on its own failures (`reason: 'unavailable'`, distinct from `'risk'`): a gate that fails open is the exact silent failure it exists to prevent. Do not answer a zero-view post by adding its subject (AI, Bitcoin, a named politician) to a term list -- suppressing a topic is the learner's job, and the AI note that also scored zero is pinned as a passing fixture precisely to stop that.
 - **Guarding tests.** `daemon-release-cohort-contract.test.ts`, `release-cohort-store.test.ts`, `publish.test.ts`, `daemon-release-fatal.test.ts`, `daemon-reconcile-*.test.ts`, `daemon.test.ts`, `daemon-store-queue-snapshot-timing.test.ts`, `rednote-playwright.test.ts`, `rednote-semantic-risk.test.ts`, `publish-error.test.ts`, `copy-risk-unavailable.test.ts`, and `lexicon/index.test.ts`, plus `scripts/check-social-release-contract.mjs`, are what would catch a regression on the social bullets above.
+
+## Deployment gate and recovery
+
+- The podcast lanes in [deploy-fly.yml](../../.github/workflows/deploy-fly.yml) and [env-apply.yml](../../.github/workflows/env-apply.yml) share a DB-backed gate fenced by `deployment_id` + `owner_token`: `open → draining → rolling_out → open`. Never interrupt an active render with rollout signals.
+- Drain is bounded to 100 minutes; the job timeout is 150 minutes. A drain timeout happens before rollout and reopens only the same owner's gate. Failure after rollout starts leaves `recovery_required`.
+- A stale heartbeat never automatically reopens claims. Do not add automatic stale-unlock.
+- The render-capacity reconciler reads the same gate and fails closed when it cannot read it; it must not wake capacity.
+- Recover only with the exact deployment ID and release printed by the failed workflow, from the repository root:
+
+  ```bash
+  node scripts/env/run.mjs --environment prod -- node scripts/podcast-deployment-gate.mjs recover --deployment-id <uuid> --release <git-sha>
+  ```
+
+  Read-only inspection uses the service-role RPC `from_fed_to_chain.podcast_deployment_state()`.
+
+- Migrations precede code rollout. Later migrations must preserve DB contracts used by the old release still draining; destructive schema changes wait until the compatibility window closes.
+- `retryWasteUsd` is removed, not deprecated. `failedAttemptCostUsd` counts priced stages on failed parent runs. Confirmed waste is a lower bound: display `null` as `Unknown`, never `$0.00`, and totals as `≥ $x`.

@@ -7,8 +7,7 @@
     "schedule_source": "workflow",
     "runtime": "github-actions",
     "workspace": "root",
-    "entrypoint": ".github/workflows/track-record-snapshot.yml",
-    "docs": "docs/track-record-pipeline.md"
+    "entrypoint": ".github/workflows/track-record-snapshot.yml"
   },
   {
     "name": "backtest-refresh",

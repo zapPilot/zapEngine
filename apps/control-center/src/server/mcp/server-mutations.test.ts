@@ -40,6 +40,7 @@ const BACKLOG: AgentBacklogResponse = {
 function fakeOperations(): OpsMcpOperations {
   return {
     getOperations: vi.fn().mockResolvedValue(SNAPSHOT),
+    getGrowth: vi.fn(),
     getSocial: vi.fn().mockResolvedValue({ generatedAt: SNAPSHOT.generatedAt }),
     getCustomers: vi
       .fn()

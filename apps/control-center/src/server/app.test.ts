@@ -149,6 +149,7 @@ function createTestApp(
   return createControlCenterApp({
     config: readControlCenterConfig({}),
     operations: {
+      getGrowth: operationsOverrides.getGrowth ?? vi.fn(),
       getOperations:
         operationsOverrides.getOperations ??
         vi.fn().mockResolvedValue(operations),

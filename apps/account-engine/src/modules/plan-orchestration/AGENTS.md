@@ -1,4 +1,4 @@
-See @../../../AGENTS.md and [Architecture planes](../../../../../docs/architecture/planes.md).
+See @../../../AGENTS.md and [Architecture boundaries](../../../../AGENTS.md#architecture-boundaries).
 
 # Plan orchestration module
 

@@ -19,6 +19,7 @@ case "${1:-}" in
     node --test scripts/distribution-snapshot-workflow.test.mjs
     node --test scripts/llm-fallback-config.test.mjs
     node --test scripts/agents/backlog-pr-merge-check.test.mjs
+    node --test scripts/operations/*.test.mjs
     node scripts/check-vercel-deploy-policy.mjs
     ;;
   *) echo "usage: pnpm contracts <export|check>" >&2; exit 2 ;;

@@ -21,3 +21,9 @@ See @README.md for project overview and @package.json for available scripts.
 - The CNN source is an unofficial/internal JSON endpoint (`production.dataviz.cnn.io/index/fearandgreed/graphdata`), so provider code must use cache/fallback and must not be called directly from strategy logic.
 - Store CNN macro FGI in `alpha_raw.macro_fear_greed_snapshots`; do not mix it into crypto `alpha_raw.sentiment_snapshots`.
 - Strategy consumers should only read the normalized provider result (`score`/`normalized_score` 0..100, `label`, `source`, `updated_at`) from cached DB-backed data.
+
+## Canonical portfolio ownership
+
+- `analytics.daily_portfolio_positions` and `analytics.daily_wallet_tokens` are canonical; alpha-etl is their only application writer.
+- Readers needing provider slices must read `analytics.daily_portfolio_positions` directly: compatibility views omit `source` and cannot anchor the latest DeBank day (see `../analytics-engine/src/queries/sql/get_latest_lst_exposure.sql`).
+- `user_crypto_wallets.last_portfolio_update_at` is a DeBank-only display aggregate, never a scheduling gate. One wallet timestamp cannot represent independent provider freshness; gating both providers on it skips Hyperliquid after DeBank succeeds.

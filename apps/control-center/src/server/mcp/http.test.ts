@@ -130,6 +130,7 @@ beforeEach(() => {
 function fakeOperations(): OpsMcpOperations {
   return {
     getOperations: vi.fn().mockResolvedValue(SNAPSHOT),
+    getGrowth: vi.fn(),
     getSocial: vi.fn(),
     getCustomers: vi.fn(),
     getBacklog: vi.fn().mockResolvedValue(BACKLOG),
@@ -202,6 +203,7 @@ describe('Ops MCP HTTP protocol', () => {
         'ops_investigate',
         'ops_customers',
         'ops_social',
+        'ops_growth',
         'ops_costs',
         'ops_backlog_create',
         'ops_backlog_claim',
@@ -212,6 +214,26 @@ describe('Ops MCP HTTP protocol', () => {
     expect(payload.result?.tools?.map((tool) => tool.name)).not.toContain(
       'ops_backlog_renew',
     );
+  });
+
+  it('routes growth only to its lazy service with force preserved', async () => {
+    const operations = fakeOperations();
+    const { loadGrowthJourney } = await import('../services/growth-journey.js');
+    const { readControlCenterConfig } = await import('../config/env.js');
+    const growth = {
+      observedAt: SNAPSHOT.generatedAt,
+      status: 'unknown' as const,
+      windowDays: 30 as const,
+      journey: await loadGrowthJourney({ config: readControlCenterConfig({}) }),
+    };
+    vi.mocked(operations.getGrowth).mockResolvedValue(growth);
+    const { payload } = await mcpRequest(
+      createAuthenticatedApp(operations),
+      toolCallRequest(99, 'ops_growth', { force: true }),
+    );
+    expect(payload.result?.structuredContent).toEqual(growth);
+    expect(operations.getGrowth).toHaveBeenCalledWith(true);
+    expect(operations.getOperations).not.toHaveBeenCalled();
   });
 
   it('returns the normalized GitHub-backed agent backlog', async () => {

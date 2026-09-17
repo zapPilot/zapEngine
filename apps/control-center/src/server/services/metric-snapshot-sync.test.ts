@@ -32,6 +32,14 @@ const state = vi.hoisted(() => ({
 
 vi.mock('./operations/aggregate.js', () => ({
   createOperationsService: () => ({
+    getGrowth: async () => ({
+      journey: {
+        landingVisitors30d: 320,
+        ctaUsers30d: 0,
+        appVisitors30d: 3,
+        walletConnectedUsers30d: 0,
+      },
+    }),
     getOperations: async () => state.operations,
   }),
 }));
@@ -107,29 +115,44 @@ describe('syncMetricSnapshots', () => {
       repository: repo,
     });
 
-    // 9 product + healthy_domains + run-rate + in-production + avg cost +
+    // 4 growth + 9 product + healthy_domains + run-rate + in-production + avg cost +
     // failed-attempt share + one platform lane.
-    expect(result.persisted).toBe(15);
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ metricKey: 'cta_users_30d', value: 0 }),
+    );
+    expect(result.persisted).toBe(19);
     expect(result.skipped).toEqual([]);
     expect(result.syncedAt).toBe(NOW.toISOString());
-    expect(upsert).toHaveBeenCalledTimes(15);
+    expect(upsert).toHaveBeenCalledTimes(19);
     expect(upsert).toHaveBeenCalledWith({
       metricKey: 'healthy_domains',
       date: '2026-09-17',
       value: 1,
       fetchedAt: NOW.toISOString(),
+      versionContext: expect.objectContaining({
+        mainSha: null,
+        deployments: [],
+      }),
     });
     expect(upsert).toHaveBeenCalledWith({
       metricKey: 'followers_x',
       date: '2026-09-17',
       value: 240,
       fetchedAt: NOW.toISOString(),
+      versionContext: expect.objectContaining({
+        mainSha: null,
+        deployments: [],
+      }),
     });
     expect(upsert).toHaveBeenCalledWith({
       metricKey: 'failed_attempt_share',
       date: '2026-09-17',
       value: 0.1,
       fetchedAt: NOW.toISOString(),
+      versionContext: expect.objectContaining({
+        mainSha: null,
+        deployments: [],
+      }),
     });
   });
 
@@ -143,14 +166,14 @@ describe('syncMetricSnapshots', () => {
       repository: repo,
     });
 
-    expect(result.persisted).toBe(13);
+    expect(result.persisted).toBe(17);
     expect(result.skipped).toEqual(
       expect.arrayContaining(['usage_run_rate_usd', 'fresh_24h']),
     );
-    expect(upsert).toHaveBeenCalledTimes(13);
+    expect(upsert).toHaveBeenCalledTimes(17);
   });
 
-  it('records a failed upsert as skipped and keeps the rest', async () => {
+  it('reports failed writes separately from missing readings', async () => {
     state.failKeys = ['wau'];
     const { repo, upsert } = repository();
     const result = await syncMetricSnapshots({
@@ -159,9 +182,10 @@ describe('syncMetricSnapshots', () => {
       repository: repo,
     });
 
-    expect(result.persisted).toBe(14);
-    expect(result.skipped).toEqual(['wau']);
-    expect(upsert).toHaveBeenCalledTimes(15);
+    expect(result.persisted).toBe(18);
+    expect(result.skipped).toEqual([]);
+    expect(result.failed).toEqual(['wau']);
+    expect(upsert).toHaveBeenCalledTimes(19);
   });
 
   it('throws when no ops repository is configured', async () => {

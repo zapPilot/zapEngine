@@ -25,6 +25,7 @@ const TOKEN = 'secret-token';
 function fakeOperations(): OpsMcpOperations {
   return {
     getOperations: vi.fn(),
+    getGrowth: vi.fn(),
     getSocial: vi.fn(),
     getCustomers: vi.fn(),
     getBacklog: vi.fn(),
