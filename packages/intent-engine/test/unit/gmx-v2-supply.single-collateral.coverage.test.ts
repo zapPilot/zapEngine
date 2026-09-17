@@ -12,9 +12,10 @@ import {
 import type { TransactionQuote } from '../../src/types/transaction.types.js';
 
 vi.mock('../../src/protocols/gmx-v2/index.js', async (importOriginal) => {
-  const actual = await importOriginal<
-    typeof import('../../src/protocols/gmx-v2/index.js')
-  >();
+  const actual =
+    await importOriginal<
+      typeof import('../../src/protocols/gmx-v2/index.js')
+    >();
 
   return {
     ...actual,
