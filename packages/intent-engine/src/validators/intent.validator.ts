@@ -40,7 +40,6 @@ function assertKnownOnThisChainOrUnknown(
   address: string,
   chainId: number,
   registry: Record<number, Record<string, string>>,
-  kind: 'token' | 'vault',
 ): void {
   const onThisChain = Object.values(registry[chainId] ?? {}).some((addr) =>
     equalsAddress(addr, address),
@@ -58,12 +57,7 @@ function assertKnownOnThisChainOrUnknown(
       equalsAddress(addr, address),
     );
     if (onOtherChain) {
-      if (kind === 'token') {
-        throw new UnsupportedTokenError(address, chainId);
-      }
-      throw new ValidationError(
-        `Vault ${address} is known on chain ${otherChainId}, not chain ${chainId}`,
-      );
+      throw new UnsupportedTokenError(address, chainId);
     }
   }
 }
@@ -73,7 +67,6 @@ function assertTokenForChain(token: string, chainId: number): void {
     token,
     chainId,
     TOKENS as unknown as Record<number, Record<string, string>>,
-    'token',
   );
 }
 
