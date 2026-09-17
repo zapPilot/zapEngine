@@ -47,8 +47,8 @@ export function parseTokenAmountToBaseUnits(
     return null;
   }
 
-  const [whole, fraction = ''] = normalized.split('.');
-  if (fraction.length > decimals) {
+  const [whole = '', fraction = ''] = normalized.split('.');
+  if (whole === '' || fraction.length > decimals) {
     return null;
   }
 

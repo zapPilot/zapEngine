@@ -157,7 +157,7 @@ describe('send transaction helpers', () => {
       buildSendTransactionRequest({
         amount: '1',
         asset: wrappedEth,
-        holding: wrappedEth.holdings[0],
+        holding: wrappedEth.holdings[0]!,
         recipient: `  ${RECIPIENT}  `,
       }),
     ).toMatchObject({
