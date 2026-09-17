@@ -80,6 +80,8 @@ export interface ResolveSlideAssetOptions {
   workingDirectory?: string;
   signal?: AbortSignal;
   timeoutMs?: number;
+  /** Public publisher page used as the HTTP Referer for anti-hotlink CDNs. */
+  referer?: string;
 }
 
 export interface AcquiredRemoteImage {
@@ -330,18 +332,22 @@ export const pinnedFetchImage: FetchImage = async (url, init) => {
     );
   }
   const target = new URL(url);
+  const headers = new Headers(init?.headers);
+  if (!headers.has('user-agent')) {
+    headers.set(
+      'user-agent',
+      'zapengine-podcast-pipeline/0.0.1 (https://zap-pilot.org)',
+    );
+  }
   return new Promise<Response>((resolve, reject) => {
     const request = httpsRequest(
       {
         hostname: target.hostname.replace(/^\[|\]$/g, ''),
         port: target.port === '' ? 443 : Number(target.port),
         path: `${target.pathname}${target.search}`,
-        // node:https sends no default User-Agent, and Wikimedia Commons (the
-        // planned image source) rejects UA-less requests with HTTP 403.
-        headers: {
-          'user-agent':
-            'zapengine-podcast-pipeline/0.0.1 (https://zap-pilot.org)',
-        },
+        // node:https sends no default User-Agent. Keep our UA while allowing
+        // the caller to add a public publisher Referer for anti-hotlink CDNs.
+        headers: Object.fromEntries(headers.entries()),
         lookup: createPinnedLookup(pinnedAddresses),
         // No socket pooling: a reused socket could outlive its validation.
         agent: false,
@@ -367,6 +373,7 @@ async function fetchWithSafeRedirects(
     Pick<ResolveSlideAssetOptions, 'fetchImage' | 'resolveHost'>
   > & {
     signal: AbortSignal;
+    headers?: HeadersInit;
   },
 ): Promise<Response> {
   let url = new URL(rawUrl);
@@ -381,6 +388,7 @@ async function fetchWithSafeRedirects(
       redirect: 'manual',
       signal: options.signal,
       pinnedAddresses,
+      ...(options.headers ? { headers: options.headers } : {}),
     });
     const location = redirectLocation(response);
     if (!location) return response;
@@ -451,6 +459,7 @@ async function downloadRemoteImage(
         fetchImage: options.fetchImage ?? pinnedFetchImage,
         resolveHost: options.resolveHost ?? defaultResolveHost,
         signal,
+        ...(options.referer ? { headers: { referer: options.referer } } : {}),
       });
       if (!response.ok) {
         throw new Error(`Image request failed with HTTP ${response.status}`);
