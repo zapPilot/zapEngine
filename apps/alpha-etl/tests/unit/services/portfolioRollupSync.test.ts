@@ -56,6 +56,20 @@ describe('PortfolioRollupSynchronizer', () => {
     expect(mockClient.release).toHaveBeenCalledOnce();
   });
 
+  it('preserves numeric metrics returned by the database', async () => {
+    mockClient.query.mockResolvedValue({
+      rows: [{ usersProcessed: 2, trendRowsWritten: 21 }],
+    });
+
+    const result = await synchronizer.synchronize('job-numeric', null);
+
+    expect(result.metrics).toEqual({
+      usersProcessed: 2,
+      trendRowsWritten: 21,
+    });
+    expect(mockClient.release).toHaveBeenCalledOnce();
+  });
+
   it('fails when the processor does not return its metrics row', async () => {
     mockClient.query.mockResolvedValue({ rows: [] });
 
