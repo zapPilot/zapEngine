@@ -574,6 +574,38 @@ describe('DNS pinning', () => {
 });
 
 describe('acquireRemoteImage', () => {
+  it('forwards a publisher referer to the pinned image request', async () => {
+    const directory = await tempDirectory();
+    const buffer = await sharp({
+      create: {
+        width: 800,
+        height: 450,
+        channels: 3,
+        background: '#ffffff',
+      },
+    })
+      .jpeg()
+      .toBuffer();
+    const fetchImage = vi.fn(async () =>
+      imageResponse(buffer, { contentType: 'image/jpeg' }),
+    );
+
+    await acquireRemoteImage('https://cdn.example.test/photo.jpg', {
+      workingDirectory: directory,
+      filename: 'publisher-photo',
+      referer: 'https://publisher.example.test/story',
+      fetchImage,
+      resolveHost: async () => ['8.8.8.8'],
+    });
+
+    expect(fetchImage).toHaveBeenCalledWith(
+      'https://cdn.example.test/photo.jpg',
+      expect.objectContaining({
+        headers: { referer: 'https://publisher.example.test/story' },
+      }),
+    );
+  });
+
   it('rejects unsafe filenames before creating output', async () => {
     const directory = await tempDirectory();
     await expect(
