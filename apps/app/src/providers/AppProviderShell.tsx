@@ -19,6 +19,7 @@ import { AuthenticatedActionProvider } from '@/providers/AuthenticatedActionProv
 import { ContentLanguageProvider } from '@/providers/ContentLanguageProvider';
 import { PodcastPlayerProvider } from '@/providers/PodcastPlayerProvider';
 import { VideoPlaybackCoordinatorProvider } from '@/providers/VideoPlaybackCoordinatorProvider';
+import { PodcastDownloadsProvider } from '@/providers/PodcastDownloadsProvider';
 import { PodcastProgressProvider } from '@/providers/PodcastProgressProvider';
 import { ToastProvider } from '@/providers/ToastProvider';
 
@@ -112,22 +113,27 @@ export function AppProviderShell(
 
   const appContent = (
     <ContentLanguageProvider>
-      <PodcastProgressProvider>
-        <AuthenticatedActionProvider>
-          <VideoPlaybackCoordinatorProvider>
-            <PodcastPlayerProvider>
-              <PodcastProgressTracker />
-              <ToastProvider>
-                <View className="flex-1 bg-bg" nativeID={runtimeConfig.runtime}>
-                  <StatusBar style="light" />
-                  {children}
-                  <ConnectSheetHost />
-                </View>
-              </ToastProvider>
-            </PodcastPlayerProvider>
-          </VideoPlaybackCoordinatorProvider>
-        </AuthenticatedActionProvider>
-      </PodcastProgressProvider>
+      <PodcastDownloadsProvider>
+        <PodcastProgressProvider>
+          <AuthenticatedActionProvider>
+            <VideoPlaybackCoordinatorProvider>
+              <PodcastPlayerProvider>
+                <PodcastProgressTracker />
+                <ToastProvider>
+                  <View
+                    className="flex-1 bg-bg"
+                    nativeID={runtimeConfig.runtime}
+                  >
+                    <StatusBar style="light" />
+                    {children}
+                    <ConnectSheetHost />
+                  </View>
+                </ToastProvider>
+              </PodcastPlayerProvider>
+            </VideoPlaybackCoordinatorProvider>
+          </AuthenticatedActionProvider>
+        </PodcastProgressProvider>
+      </PodcastDownloadsProvider>
     </ContentLanguageProvider>
   );
 

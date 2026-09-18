@@ -1,3 +1,6 @@
+import { EpisodeDownloadButton } from '@/components/podcast/EpisodeDownloadButton';
+import { downloadedEpisodeRows } from '@/integration/podcastVideoDownloads';
+import { usePodcastDownloads } from '@/providers/PodcastDownloadsProvider';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ChevronLeft, Share2 } from 'lucide-react-native';
 import { useState } from 'react';
@@ -70,6 +73,7 @@ function EpisodeDetailHeader({
       <Text className="min-w-0 flex-1 px-3 text-center font-sans-semibold text-[14px] text-ink">
         Podcast
       </Text>
+      <EpisodeDownloadButton episode={episode} />
       <PodcastIconButton label="Share episode" onPress={shareEpisode}>
         <Share2 size={18} strokeWidth={2} color="#d4c5a3" />
       </PodcastIconButton>
@@ -203,6 +207,13 @@ export function EpisodeDetailScreen() {
     episodeParamToString(params.lang) ||
     episodeParamToString(params.language) ||
     selectedLanguageCode;
+  const downloads = usePodcastDownloads();
+  const offlineEpisode =
+    downloadedEpisodeRows(downloads.records, 'newest').find(
+      (item) =>
+        item.localizationId === routeEpisodeId ||
+        (item.id === routeEpisodeId && item.languageCode === routeLanguageCode),
+    ) ?? null;
   const feedQuery = usePodcastEpisodes();
   const player = usePodcastPlayer();
   const { progress, isHydrated: progressIsHydrated } = useEpisodeProgress();
@@ -219,15 +230,15 @@ export function EpisodeDetailScreen() {
     !feedQuery.isPending,
     pendingFeedVideoGeneration,
   );
-  const rawEpisode = mergePodcastEpisodeVideo(
-    feedEpisode,
-    detailQuery.data ?? null,
-  );
+  const rawEpisode =
+    mergePodcastEpisodeVideo(feedEpisode, detailQuery.data ?? null) ??
+    offlineEpisode;
   const episode =
     rawEpisode === null ? null : mergeEpisodeProgress(rawEpisode, progress);
   const episodes =
     feedEpisodes.length > 0 ? feedEpisodes : episode === null ? [] : [episode];
   const isLoading =
+    !downloads.isHydrated ||
     !progressIsHydrated ||
     feedQuery.isPending ||
     (feedEpisode === null && detailQuery.isPending);

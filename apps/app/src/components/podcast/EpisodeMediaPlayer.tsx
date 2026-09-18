@@ -1,3 +1,5 @@
+import { resolveOfflineEpisodeVideo } from '@/integration/podcastVideoDownloads';
+import { usePodcastDownloads } from '@/providers/PodcastDownloadsProvider';
 import Slider from '@react-native-community/slider';
 import {
   Gauge,
@@ -439,14 +441,31 @@ function AudioPlaybackControls({
 }
 
 export function EpisodeMediaPlayer({
-  episode,
+  episode: sourceEpisode,
   episodes,
   player,
   onEpisodeChanged,
   onVideoClockChange,
 }: EpisodeMediaPlayerProps) {
   const { t } = useContentLanguage();
-  const [selectedTab, setSelectedTab] = useState<EpisodeMediaTab>('story');
+  const downloads = usePodcastDownloads();
+  const record = downloads.records.find(
+    (item) => item.localizationId === sourceEpisode.localizationId,
+  );
+  const episode = useMemo(
+    () => ({
+      ...sourceEpisode,
+      video: resolveOfflineEpisodeVideo(
+        sourceEpisode.video,
+        record,
+        downloads.localUri,
+      ),
+    }),
+    [sourceEpisode, record, downloads.localUri],
+  );
+  const [selectedTab, setSelectedTab] = useState<EpisodeMediaTab>(
+    record === undefined ? 'story' : 'video',
+  );
   const [selectedClassroomLanguage, setSelectedClassroomLanguage] = useState<
     string | null
   >(null);
@@ -611,7 +630,7 @@ export function EpisodeMediaPlayer({
     if (tab === 'classroom' && targetLanguage !== null) {
       setSelectedClassroomLanguage(targetLanguage);
     }
-    if (!availability[tab]) return;
+    if (!availability[tab] || episode.hlsUrl === '') return;
 
     if (videoSession !== null) {
       continueWithAudio(section, undefined, targetLanguage);
@@ -737,6 +756,15 @@ export function EpisodeMediaPlayer({
             }}
           />
         </View>
+      );
+    }
+    if (episode.hlsUrl === '') {
+      return (
+        <UnavailableMediaPanel
+          label={activeTab === 'classroom' ? 'Classroom' : 'Story'}
+          message="Offline downloads include the main video only"
+          detail="Choose Video to play your download. Audio and language classrooms require a connection."
+        />
       );
     }
     if (activeTab === 'classroom' && !availability.classroom) {

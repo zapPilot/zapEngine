@@ -1,7 +1,12 @@
+import {
+  downloadedEpisodeRows,
+  totalDownloadedBytes,
+} from '@/integration/podcastVideoDownloads';
+import { usePodcastDownloads } from '@/providers/PodcastDownloadsProvider';
 import { useRouter } from 'expo-router';
 import { Search, X } from 'lucide-react-native';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
-import { RefreshControl, Text, TextInput, View } from 'react-native';
+import { Image, RefreshControl, Text, TextInput, View } from 'react-native';
 
 import {
   PodcastLanguageDropdown,
@@ -204,6 +209,7 @@ function NowPlayingBarConnected({
 }
 
 export function PodcastScreen() {
+  const downloads = usePodcastDownloads();
   const router = useRouter();
   const player = usePodcastPlayerStatus();
   const { languageCode, t } = useContentLanguage();
@@ -217,6 +223,10 @@ export function PodcastScreen() {
   const [searchExpanded, setSearchExpanded] = useState(false);
   const debouncedSearchQuery = useDebouncedValue(searchQuery, 300);
   const { direction, setDirection } = useEpisodeSortDirection();
+  const downloadedRows = useMemo(
+    () => downloadedEpisodeRows(downloads.records, direction),
+    [downloads.records, direction],
+  );
   const [visibleListened, setVisibleListened] = useState(LISTENED_PAGE_SIZE);
   const [confirmMarkAll, setConfirmMarkAll] = useState(false);
 
@@ -349,6 +359,49 @@ export function PodcastScreen() {
       );
     });
 
+  const downloadedSection = downloads.isSupported ? (
+    <ExpandableSection
+      title="Downloaded"
+      count={downloadedRows.length}
+      defaultExpanded
+    >
+      <Text className="pb-3 text-[12px] text-ink-dim">
+        Main narration video only · No language classroom ·{' '}
+        {Math.ceil(totalDownloadedBytes(downloads.records) / 1024 / 1024)} MB
+      </Text>
+      {downloadedRows.map((episode) => (
+        <EpisodeRow
+          key={episode.localizationId}
+          episode={mergeEpisodeProgress(episode, progress)}
+          first={false}
+          active={false}
+          playing={false}
+          supportingContent={
+            <Image
+              accessibilityLabel="Downloaded video thumbnail"
+              source={{
+                uri: downloads.localUri(
+                  downloads.records.find(
+                    (record) =>
+                      record.localizationId === episode.localizationId,
+                  )!.thumbnailFileName,
+                ),
+              }}
+              className="mt-2 h-16 w-28 rounded-lg"
+            />
+          }
+          onToggle={() => openEpisode(episode)}
+          onOpen={() => openEpisode(episode)}
+        />
+      ))}
+      {downloadedRows.length === 0 ? (
+        <Text className="text-[12px] text-ink-dim">
+          Download available videos from an episode page.
+        </Text>
+      ) : null}
+    </ExpandableSection>
+  ) : null;
+
   const renderEpisodeContent = () => {
     if (normalisedSearchQuery !== '' && !searchActive) {
       return (
@@ -424,6 +477,8 @@ export function PodcastScreen() {
             }
           }}
         />
+
+        {downloadedSection}
 
         {unheardEpisodes.length > 0 ? (
           <ExpandableSection
@@ -551,6 +606,12 @@ export function PodcastScreen() {
           </View>
         ) : null}
 
+        {normalisedSearchQuery !== '' ||
+        listLoading ||
+        listError ||
+        !hasAnyEpisode
+          ? downloadedSection
+          : null}
         {renderEpisodeContent()}
       </ScreenScrollView>
 
