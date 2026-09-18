@@ -20,8 +20,14 @@ const LOGIN_URL = 'https://x.com/login';
 const PROFILE_DIRECTORY = join(homedir(), '.zap-pilot', 'x-chrome-profile');
 const COMPOSER_SELECTOR = '[data-testid="tweetTextarea_0"]';
 const FILE_INPUT_SELECTOR = 'input[type="file"][data-testid="fileInput"]';
+// Scoped to #layers (the compose dialog's portal root): X renders the
+// composer as a dialog over the still-mounted home timeline, whose sidebar
+// carries its own disabled tweetButtonInline. An unscoped selector matches
+// both, and once the background button's enabled state or mount order
+// varies, findActionablePostButton can pick it -- clicking it then hangs
+// until timeout because the compose dialog's overlay intercepts the click.
 const POST_BUTTON_SELECTOR =
-  '[data-testid="tweetButtonInline"], [data-testid="tweetButton"]';
+  '#layers [data-testid="tweetButtonInline"], #layers [data-testid="tweetButton"]';
 const READY_TIMEOUT_MS = 15_000;
 const UPLOAD_TIMEOUT_MS = 180_000;
 const SUCCESS_TIMEOUT_MS = 30_000;
@@ -117,8 +123,10 @@ async function publish(
         isCreateTweetResponseUrl(candidate.url()),
       { timeout: SUCCESS_TIMEOUT_MS },
     );
-    await button.click();
-    return responsePromise;
+    // Promise.all rather than click-then-await: a click that hangs must not
+    // leave responsePromise's own eventual timeout unhandled.
+    const [response] = await Promise.all([responsePromise, button.click()]);
+    return response;
   });
   const identity = await step('confirm_success', () =>
     publishedTweetIdentity(response),
