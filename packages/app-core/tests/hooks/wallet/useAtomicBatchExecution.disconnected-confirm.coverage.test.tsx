@@ -81,7 +81,7 @@ describe('useAtomicBatchExecution disconnected confirmation coverage', () => {
     hook.rerender({ deps: disconnected });
 
     await expect(hook.result.current.confirmBatchExecution()).rejects.toThrow(
-      'Wallet not connected',
+      'No Privy wallet connected',
     );
     expect(disconnected.signPreviewTypedData).not.toHaveBeenCalled();
     expect(mocks.sendPrivyAtomicBatch).not.toHaveBeenCalled();
