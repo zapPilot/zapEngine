@@ -68,7 +68,7 @@ export async function prepareSocialBatchCopy(input: {
     languageCode: input.languageCode,
     platforms: input.platforms,
     packagingByPlatform,
-    logLlm: input.logLlm,
+    ...(input.logLlm === undefined ? {} : { logLlm: input.logLlm }),
     ...(input.strategyGuidanceByPlatform
       ? { strategyGuidanceByPlatform: input.strategyGuidanceByPlatform }
       : {}),
