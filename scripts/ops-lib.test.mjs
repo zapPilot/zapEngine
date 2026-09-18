@@ -11,6 +11,7 @@ test('parseOpsArgs starts the whole stack when no selector is given', () => {
     status: false,
     json: false,
     force: false,
+    verbose: false,
     help: false,
     error: null,
     unknown: [],
@@ -25,6 +26,7 @@ test('parseOpsArgs selects one child at a time', () => {
     status: false,
     json: false,
     force: false,
+    verbose: false,
     help: false,
     error: null,
     unknown: [],
@@ -36,6 +38,7 @@ test('parseOpsArgs selects one child at a time', () => {
     status: false,
     json: false,
     force: false,
+    verbose: false,
     help: false,
     error: null,
     unknown: [],
@@ -47,6 +50,7 @@ test('parseOpsArgs selects one child at a time', () => {
     status: false,
     json: false,
     force: false,
+    verbose: false,
     help: false,
     error: null,
     unknown: [],
@@ -61,6 +65,7 @@ test('parseOpsArgs makes --status exclusive of every long-lived child', () => {
     status: true,
     json: false,
     force: false,
+    verbose: false,
     help: false,
     error: null,
     unknown: [],
@@ -72,6 +77,7 @@ test('parseOpsArgs makes --status exclusive of every long-lived child', () => {
     status: true,
     json: false,
     force: false,
+    verbose: false,
     help: false,
     error: null,
     unknown: [],
@@ -86,6 +92,7 @@ test('parseOpsArgs forwards the status tool flags alongside --status', () => {
     status: true,
     json: true,
     force: false,
+    verbose: false,
     help: false,
     error: null,
     unknown: [],
@@ -97,6 +104,7 @@ test('parseOpsArgs forwards the status tool flags alongside --status', () => {
     status: true,
     json: false,
     force: true,
+    verbose: false,
     help: false,
     error: null,
     unknown: [],
@@ -108,6 +116,7 @@ test('parseOpsArgs forwards the status tool flags alongside --status', () => {
     status: true,
     json: true,
     force: true,
+    verbose: false,
     help: false,
     error: null,
     unknown: [],
@@ -120,6 +129,30 @@ test('parseOpsArgs rejects the status tool flags without --status', () => {
     assert.match(parsed.error, /--status/);
     assert.deepEqual(parsed.unknown, []);
   }
+});
+
+test('parseOpsArgs enables compact-log override for the social daemon', () => {
+  assert.deepEqual(parseOpsArgs(['--verbose']), {
+    dashboard: true,
+    social: true,
+    flyBilling: true,
+    status: false,
+    json: false,
+    force: false,
+    verbose: true,
+    help: false,
+    error: null,
+    unknown: [],
+  });
+  assert.equal(parseOpsArgs(['--social', '--verbose']).verbose, true);
+  assert.match(
+    parseOpsArgs(['--dashboard', '--verbose']).error,
+    /requires the social daemon/,
+  );
+  assert.match(
+    parseOpsArgs(['--status', '--verbose']).error,
+    /cannot be combined with --status/,
+  );
 });
 
 test('parseOpsArgs keeps the Fly billing reader with the dashboard', () => {
