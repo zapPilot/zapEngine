@@ -1837,6 +1837,7 @@ if (isMainModule(import.meta.url)) {
     await reportLocalPublicationHistory();
     if (process.argv.slice(2).includes('--once')) {
       await runSocialCatchUpOnce();
+      lock.release();
     } else {
       await runSocialDaemon();
     }
