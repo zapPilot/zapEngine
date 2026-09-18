@@ -61,8 +61,8 @@ import {
   releaseSocialPublishJobLease,
   type SocialMetricWindowLabel,
   type SocialPublishCandidate,
-  type SocialQueueLaneItem,
   type SocialPublishJobRow,
+  type SocialQueueLaneItem,
   type SocialStrategyVersionRow,
 } from './daemon-store.js';
 import { buildSocialExperimentReports } from './experiment-report.js';
@@ -1371,13 +1371,7 @@ async function finalizePublishOutcome(
     socialPostId: post.id,
     ...(strategy ? { strategyVersionId: strategy.id } : {}),
   });
-  logPublishedOutcome(
-    job,
-    post.post_url,
-    titleByEpisodeLanguage,
-    log,
-    verbose,
-  );
+  logPublishedOutcome(job, post.post_url, titleByEpisodeLanguage, log, verbose);
 }
 
 function jobLanguage(
@@ -1804,9 +1798,7 @@ function logCompactBacklog(
 }
 
 function logCompactUpcoming(
-  episodes: Awaited<
-    ReturnType<typeof getSocialQueueSnapshot>
-  >['episodeQueue'],
+  episodes: Awaited<ReturnType<typeof getSocialQueueSnapshot>>['episodeQueue'],
   now: Date,
   log: (message: string) => void,
 ): void {
@@ -1816,9 +1808,7 @@ function logCompactUpcoming(
     const title = episode.title ?? `episode #${shortId(episode.episodeId)}`;
     const dueLabel =
       Date.parse(episode.nextAt) <= now.getTime() ? ' · due now' : '';
-    log(
-      `   ${formatJst(episode.nextAt)} · ${truncateTitle(title)}${dueLabel}`,
-    );
+    log(`   ${formatJst(episode.nextAt)} · ${truncateTitle(title)}${dueLabel}`);
   }
   if (episodes.length > 3) {
     log(`   +${episodes.length - 3} more scheduled`);
@@ -1863,12 +1853,7 @@ function logQueueSnapshot(
 ): void {
   const waitingVideos = snapshot.waitingVideos;
   if (!options.verbose) {
-    logCompactQueueSnapshot(
-      snapshot,
-      now,
-      log,
-      options.deferredArticles ?? 0,
-    );
+    logCompactQueueSnapshot(snapshot, now, log, options.deferredArticles ?? 0);
     return;
   }
   if (snapshot.pendingCount === 0 && waitingVideos.length === 0) {
