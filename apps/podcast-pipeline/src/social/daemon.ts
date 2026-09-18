@@ -892,7 +892,7 @@ async function publishDueJobs(
   if (!verbose && groups.length > 0) {
     const lanes = groups
       .flatMap((group) => group.jobs)
-      .map((job) => laneLabel(job.platform, jobLanguage(job)))
+      .map((job) => operatorPlatformLabel(job.platform))
       .join(' · ');
     log(`   Platforms · ${lanes}`);
   }
@@ -991,7 +991,7 @@ async function holdCohortsMissingCopy(
         }),
       );
       if (!verbose) {
-        log(`   ✓ ${languageLabel(languageCode)} copy ready`);
+        log(`   ✓ ${operatorLanguageLabel(languageCode)} copy ready`);
       }
     } catch (error) {
       if (!(error instanceof SocialCopyGenerationError)) throw error;
@@ -1389,7 +1389,7 @@ async function finalizePublishOutcome(
   log(
     verbose
       ? `✅ [social-daemon] ${laneLabel(job.platform, jobLanguage(job))} · ${episodeLabel(episodeTitle(titleByEpisodeLanguage, job.episode_id, jobLanguage(job)), job.episode_id)} · published${post.post_url ? ` · ${post.post_url}` : ''}`
-      : `   ✓ ${laneLabel(job.platform, jobLanguage(job))} published`,
+      : `   ✓ ${operatorPlatformLabel(job.platform)} published`,
   );
 }
 
@@ -1697,7 +1697,7 @@ function logQueueSnapshot(
       );
       for (const item of waitingVideos.slice(0, 3)) {
         log(
-          `   ${episodeLabel(item.title, item.episodeId)} · missing ${item.languageCodes.map((language) => languageLabel(language)).join(' · ')}`,
+          `   ${episodeLabel(item.title, item.episodeId)} · missing ${item.languageCodes.map((language) => operatorLanguageLabel(language)).join(' · ')}`,
         );
       }
       if (waitingVideos.length > 3) {
@@ -1731,7 +1731,7 @@ function logQueueSnapshot(
           ? `blocked after ${item.attemptCount} attempts`
           : item.status;
         log(
-          `   ${laneLabel(item.platform, item.languageCode)} · ${title}${state}`,
+          `   ${operatorPlatformLabel(item.platform)} · ${operatorLanguageLabel(item.languageCode)} · ${title}${state}`,
         );
       }
       if (attention.length > 3) log(`   +${attention.length - 3} more`);
@@ -1794,6 +1794,32 @@ function warningsOnlyLog(
   return (message) => {
     if (message.startsWith('⚠️') || message.startsWith('❌')) log(message);
   };
+}
+
+function operatorPlatformLabel(platform: SocialPlatform): string {
+  switch (platform) {
+    case 'rednote':
+      return '📕 Rednote';
+    case 'threads':
+      return '🧵 Threads';
+    case 'x':
+      return '𝕏 X';
+    case 'youtube':
+      return '▶️ YouTube';
+  }
+}
+
+function operatorLanguageLabel(language: string): string {
+  switch (language) {
+    case 'zh-Hant':
+      return '🇹🇼 Traditional Chinese';
+    case 'ja':
+      return '🇯🇵 Japanese';
+    case 'en':
+      return '🇺🇸 English';
+    default:
+      return languageLabel(language);
+  }
 }
 
 function formatQueueEpisodeLanes(
