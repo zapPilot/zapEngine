@@ -66,4 +66,18 @@ describe('approvedWallets', () => {
   it('formats the approved list in user-facing order', () => {
     expect(formatApprovedWalletList()).toBe('Ambire, OKX Wallet, or MetaMask');
   });
+
+  it('formats a single approved wallet without list punctuation', () => {
+    const wallets = APPROVED_WALLETS as ApprovedWallet[];
+    const original = [...wallets];
+
+    try {
+      wallets.splice(0, wallets.length, original[0]!);
+      expect(formatApprovedWalletList()).toBe('Ambire');
+    } finally {
+      wallets.splice(0, wallets.length, ...original);
+    }
+  });
 });
+
+type ApprovedWallet = (typeof APPROVED_WALLETS)[number];
