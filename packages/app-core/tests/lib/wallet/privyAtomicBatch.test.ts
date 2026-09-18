@@ -9,7 +9,7 @@ import {
 } from '@core/lib/wallet/privyAtomicBatch';
 import type { PreparedTransaction } from '@zapengine/types/api';
 import { encodeFunctionData, erc20Abi } from 'viem';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 const SPENDER = '0x9999999999999999999999999999999999999999' as const;
 
@@ -149,6 +149,16 @@ describe('atomicBatchSummary', () => {
       },
     ]);
   });
+
+  it('skips decodable non-approve calls', () => {
+    const transferData = encodeFunctionData({
+      abi: erc20Abi,
+      functionName: 'transfer',
+      args: [SPENDER, 456n],
+    });
+    const summary = atomicBatchSummary([tx({ data: transferData })]);
+    expect(summary.approvals).toEqual([]);
+  });
 });
 
 describe('createIdempotencyKey', () => {
@@ -157,5 +167,18 @@ describe('createIdempotencyKey', () => {
     const second = createIdempotencyKey();
     expect(first).not.toBe('');
     expect(first).not.toBe(second);
+  });
+
+  it('falls back to timestamp entropy when randomUUID is unavailable', () => {
+    try {
+      vi.stubGlobal('crypto', {});
+      const first = createIdempotencyKey();
+      const second = createIdempotencyKey();
+      expect(first).toMatch(/^\d+-[0-9a-f]+$/);
+      expect(second).toMatch(/^\d+-[0-9a-f]+$/);
+      expect(first).not.toBe(second);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

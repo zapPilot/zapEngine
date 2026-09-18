@@ -160,6 +160,17 @@ describe('checkReviewedBatchGuards', () => {
     });
   });
 
+  it('blocks a malformed batch when the fingerprint cannot be computed', () => {
+    const guard = checkReviewedBatchGuards(
+      input({ transactions: [tx({ value: 'invalid' })] }),
+      WALLET_ADDRESS,
+    );
+    expect(guard).toMatchObject({
+      ok: false,
+      result: { status: 'blocked', code: 'INVALID_REVIEWED_BATCH' },
+    });
+  });
+
   it('passes an untouched review with a connected wallet', () => {
     const guard = checkReviewedBatchGuards(input(), WALLET_ADDRESS);
     expect(guard).toEqual({ ok: true, connectedAddress: WALLET_ADDRESS });

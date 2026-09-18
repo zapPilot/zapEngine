@@ -102,6 +102,25 @@ describe('hyperliquidAgentService', () => {
     expect(mocks.getExtraAgents).not.toHaveBeenCalled();
   });
 
+  it('clears malformed local records without querying the exchange', async () => {
+    const keyStore = memoryStore();
+    const key = hyperliquidAgentStorageKey({
+      hyperliquidChain: 'Mainnet',
+      masterAddress: MASTER,
+    });
+    keyStore.data.set(key, '{"privateKey":"nope"}');
+
+    await expect(
+      loadApprovedHyperliquidAgent({
+        keyStore,
+        masterAddress: MASTER,
+        signing,
+      }),
+    ).resolves.toBeNull();
+    expect(keyStore.data.has(key)).toBe(false);
+    expect(mocks.getExtraAgents).not.toHaveBeenCalled();
+  });
+
   it('accepts only the same named address with sufficient validity', () => {
     const saved = record();
     const now = 1_000_000;
