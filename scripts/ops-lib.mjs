@@ -5,6 +5,7 @@
 
 const DASHBOARD = '--dashboard';
 const SOCIAL = '--social';
+const SOCIAL_ONCE = '--social-once';
 const STATUS = '--status';
 const JSON_OUTPUT = '--json';
 const FORCE = '--force';
@@ -13,6 +14,7 @@ export function parseOpsArgs(argv) {
   const unknown = [];
   let dashboard = false;
   let social = false;
+  let socialOnce = false;
   let status = false;
   let json = false;
   let force = false;
@@ -25,6 +27,9 @@ export function parseOpsArgs(argv) {
         break;
       case SOCIAL:
         social = true;
+        break;
+      case SOCIAL_ONCE:
+        socialOnce = true;
         break;
       case STATUS:
         status = true;
@@ -53,9 +58,20 @@ export function parseOpsArgs(argv) {
   // Read the selectors before the defaults below fill them in, so `pnpm ops
   // --json` complains about the missing `--status` rather than about a stack
   // the operator never asked for.
-  const selectors = [dashboard && DASHBOARD, social && SOCIAL].filter(Boolean);
+  const selectors = [
+    dashboard && DASHBOARD,
+    social && SOCIAL,
+    socialOnce && SOCIAL_ONCE,
+  ].filter(Boolean);
+  const socialOnceConflicts = [
+    dashboard && DASHBOARD,
+    social && SOCIAL,
+    status && STATUS,
+  ].filter(Boolean);
   let error = null;
-  if (modifiers.length > 0 && selectors.length > 0) {
+  if (socialOnce && socialOnceConflicts.length > 0) {
+    error = `${SOCIAL_ONCE} cannot be combined with ${socialOnceConflicts.join(', ')}`;
+  } else if (modifiers.length > 0 && selectors.length > 0) {
     error = `${modifiers.join(', ')} cannot be combined with ${selectors.join(', ')}`;
   } else if (modifiers.length > 0 && !status) {
     error = `--status is required for ${modifiers.join(', ')}`;
@@ -64,7 +80,7 @@ export function parseOpsArgs(argv) {
   // `pnpm ops` with no selector means "run my operations stack", because that
   // is the whole point of having one entry point: publishing and the dashboard
   // that watches it come up together.
-  if (!dashboard && !social && !status && !help) {
+  if (!dashboard && !social && !socialOnce && !status && !help) {
     dashboard = true;
     social = true;
   }
@@ -74,6 +90,7 @@ export function parseOpsArgs(argv) {
   if (status) {
     dashboard = false;
     social = false;
+    socialOnce = false;
   }
 
   // The Fly billing reader follows the dashboard rather than being selectable
@@ -85,6 +102,7 @@ export function parseOpsArgs(argv) {
   return {
     dashboard,
     social,
+    socialOnce,
     flyBilling,
     status,
     json,
