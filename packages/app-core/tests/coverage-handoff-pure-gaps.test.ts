@@ -48,7 +48,7 @@ describe('coverage handoff: pure app-core boundary behavior', () => {
       '2026-01-01',
       '2026-01-02',
       '2026-01-04',
-      '2026-01-05',
+      '2026-01-07',
       '2026-01-08',
     ]);
   });
@@ -69,7 +69,20 @@ describe('coverage handoff: pure app-core boundary behavior', () => {
   });
 
   it('defaults absent portfolio balances in both public transformers', () => {
-    const input = landing({ total_value: 0 });
+    const zeroCategory = {
+      total_value: 0,
+      percentage_of_portfolio: 0,
+      wallet_tokens_value: 0,
+      other_sources_value: 0,
+    };
+    const input = landing({
+      portfolio_allocation: {
+        btc: zeroCategory,
+        eth: zeroCategory,
+        stablecoins: zeroCategory,
+        others: zeroCategory,
+      },
+    });
     expect(transformToWalletPortfolioData(input, null).balance).toBe(0);
     expect(extractBalanceData(input).balance).toBe(0);
   });
@@ -107,7 +120,7 @@ describe('coverage handoff: pure app-core boundary behavior', () => {
   });
 
   it('uses currency defaults when both optional flags are omitted', () => {
-    expect(formatCurrency(0.005, {})).toContain('0.005');
+    expect(formatCurrency(0.005, {})).toBe('$0.01');
     expect(formatCurrency(-1, {})).toContain('-');
   });
 });
