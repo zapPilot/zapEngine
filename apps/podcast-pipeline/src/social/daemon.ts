@@ -144,6 +144,19 @@ export interface SocialDaemonDependencies {
   recordTick?: typeof recordSocialDaemonTick;
 }
 
+export type SocialCatchUpResult = 'released' | 'held' | 'backoff' | 'idle';
+
+type PublishDueJobsOutcome =
+  | 'empty'
+  | 'blocked-partial'
+  | 'reconciled'
+  | 'held'
+  | 'released';
+
+interface PublishDueJobsOptions {
+  ignorePublishWindow?: boolean;
+}
+
 export async function runSocialDaemon(
   dependencies: SocialDaemonDependencies = {},
 ): Promise<never> {
@@ -230,6 +243,74 @@ export async function runSocialDaemon(
   }
 }
 
+export async function runSocialCatchUpOnce(
+  dependencies: Pick<SocialDaemonDependencies, 'now' | 'log'> = {},
+): Promise<SocialCatchUpResult> {
+  const now = (dependencies.now ?? (() => new Date()))();
+  const log = dependencies.log ?? console.log;
+  const firstStartedAt = await ensureSocialDaemonStart(now);
+  const titleIndex = createEpisodeTitleIndex();
+
+  log('🩹 [social-once] checking for one catch-up article');
+  await reconcileAlreadyPublishedJobs(now, log, titleIndex);
+
+  // A stale job that is already represented in social_posts is reconciliation
+  // work, not a release. Keep walking those rows until we either reach an
+  // actually unpublished cohort, a partial-release backoff, or an empty queue.
+  for (;;) {
+    await capturePrePublishSnapshotsForDue(now, log);
+    const outcome = await publishDueJobs(now, log, titleIndex, {
+      ignorePublishWindow: true,
+    });
+    if (outcome === 'reconciled') continue;
+    if (outcome !== 'empty') return finishSocialCatchUp(outcome, log);
+    break;
+  }
+
+  // No durable overdue cohort exists. Run one discovery pass and allow only the
+  // oldest fully-ready new article to become immediately due; this is the only
+  // place one-shot mode creates an off-slot timestamp.
+  const discovered = await discoverAndEnqueue({
+    now,
+    firstStartedAt,
+    log,
+    titleIndex,
+    immediateScheduleAt: now,
+    maxNewCohorts: 1,
+  });
+  if (discovered === 0) return finishSocialCatchUp('empty', log);
+
+  await capturePrePublishSnapshotsForDue(now, log);
+  const outcome = await publishDueJobs(now, log, titleIndex, {
+    ignorePublishWindow: true,
+  });
+  return finishSocialCatchUp(outcome, log);
+}
+
+function finishSocialCatchUp(
+  outcome: PublishDueJobsOutcome,
+  log: (message: string) => void,
+): SocialCatchUpResult {
+  if (outcome === 'released') {
+    log('✅ [social-once] catch-up complete · 1 article released · exiting');
+    return 'released';
+  }
+  if (outcome === 'blocked-partial') {
+    log(
+      '⏸️ [social-once] catch-up complete · partial release backoff still active · 0 articles released · exiting',
+    );
+    return 'backoff';
+  }
+  if (outcome === 'held') {
+    log(
+      '⏸️ [social-once] catch-up complete · article held by release safety checks · 0 articles released · exiting',
+    );
+    return 'held';
+  }
+  log('✅ [social-once] catch-up complete · nothing due · exiting');
+  return 'idle';
+}
+
 /**
  * `reconcile`, `align schedules`, `discover`, and `publish` are release-shape
  * stages: a failure here can leave a cohort's lanes disagreeing about what was
@@ -273,16 +354,7 @@ export async function runSocialDaemonTick(input: {
     titleIndex,
   });
 
-  await isolate('pre-publish snapshots', log, async () => {
-    const platforms = await listDueSocialPublishPlatforms(input.now);
-    if (platforms.length === 0) return;
-    await capturePrePublishAccountSnapshots({
-      now: input.now,
-      platforms,
-      openBrowser: createMetricsBrowserSession,
-      log,
-    });
-  });
+  await capturePrePublishSnapshotsForDue(input.now, log);
 
   await publishDueJobs(input.now, log, titleIndex);
 
@@ -320,6 +392,22 @@ export async function runSocialDaemonTick(input: {
   }
 }
 
+async function capturePrePublishSnapshotsForDue(
+  now: Date,
+  log: (message: string) => void,
+): Promise<void> {
+  await isolate('pre-publish snapshots', log, async () => {
+    const platforms = await listDueSocialPublishPlatforms(now);
+    if (platforms.length === 0) return;
+    await capturePrePublishAccountSnapshots({
+      now,
+      platforms,
+      openBrowser: createMetricsBrowserSession,
+      log,
+    });
+  });
+}
+
 async function logExperimentReports(
   now: Date,
   log: (message: string) => void,
@@ -352,12 +440,14 @@ async function discoverAndEnqueue(input: {
   firstStartedAt: string;
   log: (message: string) => void;
   titleIndex: EpisodeTitleIndex;
-}): Promise<void> {
+  immediateScheduleAt?: Date;
+  maxNewCohorts?: number;
+}): Promise<number> {
   const [candidates, schedules] = await Promise.all([
     listSocialPublishCandidates(input.firstStartedAt),
     listPendingSocialPublishSchedules(),
   ]);
-  if (candidates.length === 0) return;
+  if (candidates.length === 0) return 0;
 
   const episodeIds = [
     ...new Set(candidates.map((candidate) => candidate.episode_id)),
@@ -373,9 +463,10 @@ async function discoverAndEnqueue(input: {
     candidatesByEpisode.set(candidate.episode_id, list);
   }
   const scheduledArticles = releaseBudgetIndex(schedules);
+  let newCohorts = 0;
 
   for (const episodeId of episodeIds) {
-    await discoverAndEnqueueEpisode({
+    const inserted = await discoverAndEnqueueEpisode({
       episodeId,
       episodeCandidates: candidatesByEpisode.get(episodeId) ?? [],
       schedules,
@@ -383,8 +474,18 @@ async function discoverAndEnqueue(input: {
       titleByEpisodeLanguage,
       now: input.now,
       log: input.log,
+      immediateScheduleAt: input.immediateScheduleAt,
     });
+    if (!inserted) continue;
+    newCohorts += 1;
+    if (
+      input.maxNewCohorts !== undefined &&
+      newCohorts >= input.maxNewCohorts
+    ) {
+      break;
+    }
   }
+  return newCohorts;
 }
 
 async function discoverAndEnqueueEpisode(input: {
@@ -395,9 +496,10 @@ async function discoverAndEnqueueEpisode(input: {
   titleByEpisodeLanguage: ReadonlyMap<string, string | null>;
   now: Date;
   log: (message: string) => void;
-}): Promise<void> {
+  immediateScheduleAt?: Date;
+}): Promise<boolean> {
   const firstCandidate = input.episodeCandidates[0];
-  if (!firstCandidate) return;
+  if (!firstCandidate) return false;
 
   const title = episodeTitle(
     input.titleByEpisodeLanguage,
@@ -418,10 +520,10 @@ async function discoverAndEnqueueEpisode(input: {
       episodeCandidates: input.episodeCandidates,
       log: input.log,
     });
-    return;
+    return false;
   }
 
-  await enqueueNewCohort({
+  return enqueueNewCohort({
     episodeId: input.episodeId,
     firstCandidate,
     title,
@@ -429,6 +531,7 @@ async function discoverAndEnqueueEpisode(input: {
     scheduledArticles: input.scheduledArticles,
     now: input.now,
     log: input.log,
+    immediateScheduleAt: input.immediateScheduleAt,
   });
 }
 
@@ -560,11 +663,12 @@ async function enqueueNewCohort(input: {
   scheduledArticles: Date[];
   now: Date;
   log: (message: string) => void;
-}): Promise<void> {
+  immediateScheduleAt?: Date;
+}): Promise<boolean> {
   const requiredLanguages = new Set(
     resolveRequiredReleaseLanguages(input.firstCandidate.episode_created_at),
   );
-  if (requiredLanguages.size === 0) return;
+  if (requiredLanguages.size === 0) return false;
 
   const readyLanguages = new Set(
     input.episodeCandidates.map((candidate) => candidate.language_code),
@@ -572,30 +676,36 @@ async function enqueueNewCohort(input: {
   const missing = missingLanguages(requiredLanguages, readyLanguages);
   if (missing.length > 0) {
     logCohortNotReady(input.log, input.title, input.episodeId, missing);
-    return;
+    return false;
   }
 
   const readyAt = readyAtForLanguages(
     input.episodeCandidates,
     requiredLanguages,
   );
-  if (!readyAt) return;
+  if (!readyAt) return false;
 
-  const scheduledAt = nextReleaseSlot({
-    after: new Date(Math.max(readyAt.getTime(), input.now.getTime())),
-    scheduled: input.scheduledArticles,
-  });
+  let scheduledAt: Date | null;
+  if (input.immediateScheduleAt) {
+    if (readyAt.getTime() > input.immediateScheduleAt.getTime()) return false;
+    scheduledAt = input.immediateScheduleAt;
+  } else {
+    scheduledAt = nextReleaseSlot({
+      after: new Date(Math.max(readyAt.getTime(), input.now.getTime())),
+      scheduled: input.scheduledArticles,
+    });
+  }
   if (!scheduledAt) {
     input.log(
       `🗓️ [social-daemon] ${episodeLabel(input.title, input.episodeId)} · no article slot inside the ${SCHEDULING_HORIZON_DAYS}-day horizon · staying discoverable for a later tick`,
     );
-    return;
+    return false;
   }
 
   const lanes = resolveReleaseCohortLanes(
     input.firstCandidate.episode_created_at,
   );
-  if (lanes.length === 0) return;
+  if (lanes.length === 0) return false;
 
   const finalMissing = missingLanguages(
     new Set(lanes.map((lane) => lane.language)),
@@ -603,7 +713,7 @@ async function enqueueNewCohort(input: {
   );
   if (finalMissing.length > 0) {
     logCohortNotReady(input.log, input.title, input.episodeId, finalMissing);
-    return;
+    return false;
   }
 
   const insertedAny = await enqueueCohortJobs({
@@ -614,9 +724,8 @@ async function enqueueNewCohort(input: {
     scheduledAt,
     log: input.log,
   });
-  if (insertedAny) {
-    input.scheduledArticles.push(scheduledAt);
-  }
+  if (insertedAny) input.scheduledArticles.push(scheduledAt);
+  return insertedAny;
 }
 
 /** One budget entry per episode, never one per platform or language lane. */
@@ -745,8 +854,14 @@ async function publishDueJobs(
   now: Date,
   log: (message: string) => void,
   titleIndex: EpisodeTitleIndex,
-): Promise<void> {
-  if (!withinPublishWindow(now, SOCIAL_PUBLISH_WINDOW_JST)) return;
+  options: PublishDueJobsOptions = {},
+): Promise<PublishDueJobsOutcome> {
+  if (
+    !options.ignorePublishWindow &&
+    !withinPublishWindow(now, SOCIAL_PUBLISH_WINDOW_JST)
+  ) {
+    return 'empty';
+  }
 
   const partialCohorts = await listPartiallyPublishedCohorts();
   const recoveryEpisode = partialCohorts[0];
@@ -764,8 +879,9 @@ async function publishDueJobs(
       log(
         `⏸️ [social-daemon] ${shortId(recoveryEpisode)} · partial release holds the queue · no lane due yet`,
       );
+      return 'blocked-partial';
     }
-    return;
+    return 'empty';
   }
 
   const [active, titleByEpisodeLanguage] = await Promise.all([
@@ -773,6 +889,7 @@ async function publishDueJobs(
     titleIndex.load(jobs.map((job) => job.episode_id)),
   ]);
   const pendingByEpisodeLanguage = new Map<string, SocialPublishJobRow[]>();
+  let claimFailures = 0;
   for (const job of jobs) {
     try {
       if (await reconcileClaimedJob(job, now, titleByEpisodeLanguage, log))
@@ -782,6 +899,7 @@ async function publishDueJobs(
       pending.push(job);
       pendingByEpisodeLanguage.set(key, pending);
     } catch (error) {
+      claimFailures += 1;
       await persistPublishFailure({
         jobId: job.id,
         episodeId: job.episode_id,
@@ -799,12 +917,17 @@ async function publishDueJobs(
     }
   }
 
+  if (pendingByEpisodeLanguage.size === 0) {
+    return claimFailures > 0 ? 'held' : 'reconciled';
+  }
+
   const mediaReady = await holdCohortsMissingMedia(
     pendingByEpisodeLanguage,
     now,
     titleByEpisodeLanguage,
     log,
   );
+  if (mediaReady.length === 0) return 'held';
   // The cheap database re-check runs first, so an episode whose media is gone
   // never pays for an LLM call.
   const groups = await holdCohortsMissingCopy(
@@ -814,6 +937,7 @@ async function publishDueJobs(
     titleByEpisodeLanguage,
     log,
   );
+  if (groups.length === 0) return 'held';
   for (const [index, group] of groups.entries()) {
     try {
       await publishLanguageBatch(
@@ -840,6 +964,7 @@ async function publishDueJobs(
       throw error;
     }
   }
+  return 'released';
 }
 
 interface PreparedReleaseGroup {
@@ -1710,7 +1835,11 @@ if (isMainModule(import.meta.url)) {
   try {
     await recoverOrphanedSocialLeases();
     await reportLocalPublicationHistory();
-    await runSocialDaemon();
+    if (process.argv.slice(2).includes('--once')) {
+      await runSocialCatchUpOnce();
+    } else {
+      await runSocialDaemon();
+    }
   } catch (error) {
     console.error(buildFatalReport(error));
     capturePipelineException(error, {
