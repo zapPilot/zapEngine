@@ -233,70 +233,81 @@ beforeEach(() => {
 });
 
 describe('NON-NEGOTIABLE episode release cohort contract', () => {
-  it('manual catch-up bypasses the watch window without running missed-slot alignment', async () => {
-    mocks.claimReleaseCohortJobs.mockResolvedValueOnce(
-      claimedFixedCohort(ARTICLE_A),
-    );
-    mocks.listSocialPublishCandidatesForEpisodes.mockResolvedValue(
-      readyEpisode(ARTICLE_A),
-    );
-    mockSuccessfulCatchUpPublish();
-    const log = vi.fn();
+  it(
+    'manual catch-up bypasses the watch window without running missed-slot alignment',
+    async () => {
+      mocks.claimReleaseCohortJobs.mockResolvedValueOnce(
+        claimedFixedCohort(ARTICLE_A),
+      );
+      mocks.listSocialPublishCandidatesForEpisodes.mockResolvedValue(
+        readyEpisode(ARTICLE_A),
+      );
+      mockSuccessfulCatchUpPublish();
+      const log = vi.fn();
 
-    await expect(
-      runSocialCatchUpOnce({ now: () => NOW_AFTER_HOURS, log }),
-    ).resolves.toBe('released');
+      await expect(
+        runSocialCatchUpOnce({ now: () => NOW_AFTER_HOURS, log }),
+      ).resolves.toBe('released');
 
-    expect(mocks.alignPendingSocialReleaseCohorts).not.toHaveBeenCalled();
-    expect(mocks.claimReleaseCohortJobs).toHaveBeenCalledTimes(1);
-    expect(mocks.publishSocialBatch).toHaveBeenCalledTimes(3);
-    expect(log).toHaveBeenCalledWith(
-      '✅ [social-once] catch-up complete · 1 article released · exiting',
-    );
-  });
+      expect(mocks.alignPendingSocialReleaseCohorts).not.toHaveBeenCalled();
+      expect(mocks.claimReleaseCohortJobs).toHaveBeenCalledTimes(1);
+      expect(mocks.publishSocialBatch).toHaveBeenCalledTimes(3);
+      expect(log).toHaveBeenCalledWith(
+        '✅ [social-once] catch-up complete · 1 article released · exiting',
+      );
+    },
+  );
 
-  it('manual catch-up discovers only the oldest fully-ready unscheduled article and makes it due now', async () => {
-    const candidates = readyEpisode(ARTICLE_A);
-    mocks.claimReleaseCohortJobs
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce(claimedFixedCohort(ARTICLE_A));
-    mocks.listSocialPublishCandidates.mockResolvedValue(candidates);
-    mocks.listSocialPublishCandidatesForEpisodes.mockResolvedValue(candidates);
-    mockSuccessfulCatchUpPublish();
+  it(
+    'manual catch-up discovers only the oldest fully-ready unscheduled article and makes it due now',
+    async () => {
+      const candidates = readyEpisode(ARTICLE_A);
+      mocks.claimReleaseCohortJobs
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce(claimedFixedCohort(ARTICLE_A));
+      mocks.listSocialPublishCandidates.mockResolvedValue(candidates);
+      mocks.listSocialPublishCandidatesForEpisodes.mockResolvedValue(candidates);
+      mockSuccessfulCatchUpPublish();
 
-    await expect(
-      runSocialCatchUpOnce({ now: () => NOW_AFTER_HOURS }),
-    ).resolves.toBe('released');
+      await expect(
+        runSocialCatchUpOnce({ now: () => NOW_AFTER_HOURS }),
+      ).resolves.toBe('released');
 
-    expect(mocks.enqueueSocialPublishJob).toHaveBeenCalledTimes(4);
-    for (const [input] of mocks.enqueueSocialPublishJob.mock.calls) {
-      expect(input).toMatchObject({
-        episodeId: ARTICLE_A,
-        scheduledAt: NOW_AFTER_HOURS.toISOString(),
-      });
-    }
-    expect(mocks.claimReleaseCohortJobs).toHaveBeenCalledTimes(2);
-    expect(mocks.alignPendingSocialReleaseCohorts).not.toHaveBeenCalled();
-  });
+      expect(mocks.enqueueSocialPublishJob).toHaveBeenCalledTimes(4);
+      for (const [input] of mocks.enqueueSocialPublishJob.mock.calls) {
+        expect(input).toMatchObject({
+          episodeId: ARTICLE_A,
+          scheduledAt: NOW_AFTER_HOURS.toISOString(),
+        });
+      }
+      expect(mocks.claimReleaseCohortJobs).toHaveBeenCalledTimes(2);
+      expect(mocks.alignPendingSocialReleaseCohorts).not.toHaveBeenCalled();
+    },
+  );
 
-  it('manual catch-up lets a partial-release backoff fence the queue instead of discovering a newer article', async () => {
-    mocks.listPartiallyPublishedCohorts.mockResolvedValue([ARTICLE_A]);
-    mocks.listSocialPublishCandidates.mockResolvedValue(readyEpisode(ARTICLE_B));
-    const log = vi.fn();
+  it(
+    'manual catch-up lets a partial-release backoff fence the queue instead of discovering a newer article',
+    async () => {
+      mocks.listPartiallyPublishedCohorts.mockResolvedValue([ARTICLE_A]);
+      mocks.listSocialPublishCandidates.mockResolvedValue(
+        readyEpisode(ARTICLE_B),
+      );
+      const log = vi.fn();
 
-    await expect(
-      runSocialCatchUpOnce({ now: () => NOW_AFTER_HOURS, log }),
-    ).resolves.toBe('backoff');
+      await expect(
+        runSocialCatchUpOnce({ now: () => NOW_AFTER_HOURS, log }),
+      ).resolves.toBe('backoff');
 
-    expect(mocks.claimReleaseCohortJobs).toHaveBeenCalledWith(
-      expect.objectContaining({ episodeId: ARTICLE_A }),
-    );
-    expect(mocks.listSocialPublishCandidates).not.toHaveBeenCalled();
-    expect(mocks.enqueueSocialPublishJob).not.toHaveBeenCalled();
-    expect(log).toHaveBeenCalledWith(
-      expect.stringContaining('partial release backoff still active'),
-    );
-  });
+      expect(mocks.claimReleaseCohortJobs).toHaveBeenCalledWith(
+        expect.objectContaining({ episodeId: ARTICLE_A }),
+      );
+      expect(mocks.listSocialPublishCandidates).not.toHaveBeenCalled();
+      expect(mocks.enqueueSocialPublishJob).not.toHaveBeenCalled();
+      expect(log).toHaveBeenCalledWith(
+        expect.stringContaining('partial release backoff still active'),
+      );
+    },
+  );
 
   it('enqueues the fixed four lanes at exactly one timestamp', async () => {
     const candidates = readyEpisode(ARTICLE_A);
