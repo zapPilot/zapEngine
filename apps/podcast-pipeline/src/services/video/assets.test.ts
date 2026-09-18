@@ -606,6 +606,44 @@ describe('acquireRemoteImage', () => {
     );
   });
 
+  it('allows a mandatory publisher cover below the normal full-bleed size floor', async () => {
+    const directory = await tempDirectory();
+    const buffer = await sharp({
+      create: {
+        width: 640,
+        height: 360,
+        channels: 3,
+        background: '#ffffff',
+      },
+    })
+      .jpeg()
+      .toBuffer();
+    const fetchImage = vi.fn(async () =>
+      imageResponse(buffer, { contentType: 'image/jpeg' }),
+    );
+    const baseOptions = {
+      workingDirectory: directory,
+      layout: 'fullBleed' as const,
+      fetchImage,
+      resolveHost: async () => ['8.8.8.8'],
+    };
+
+    await expect(
+      acquireRemoteImage('https://cdn.example.test/small-cover.jpg', {
+        ...baseOptions,
+        filename: 'normal-photo',
+      }),
+    ).rejects.toThrow('fullBleed image long edge is 640px; 1000px is required');
+
+    await expect(
+      acquireRemoteImage('https://cdn.example.test/small-cover.jpg', {
+        ...baseOptions,
+        filename: 'publisher-cover',
+        allowSmallDimensions: true,
+      }),
+    ).resolves.toMatchObject({ width: 640, height: 360 });
+  });
+
   it('rejects unsafe filenames before creating output', async () => {
     const directory = await tempDirectory();
     await expect(
