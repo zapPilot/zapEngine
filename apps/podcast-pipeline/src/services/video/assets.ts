@@ -536,7 +536,9 @@ async function inspectDownloadedImage(
     const requiredLongEdge =
       layout === 'fullBleed' ? MIN_FULL_BLEED_LONG_EDGE : MIN_FRAMED_LONG_EDGE;
     const requiredShortEdge =
-      layout === 'fullBleed' ? MIN_FULL_BLEED_SHORT_EDGE : MIN_FRAMED_SHORT_EDGE;
+      layout === 'fullBleed'
+        ? MIN_FULL_BLEED_SHORT_EDGE
+        : MIN_FRAMED_SHORT_EDGE;
     if (longEdge < requiredLongEdge) {
       throw new Error(
         `${layout} image long edge is ${longEdge}px; ${requiredLongEdge}px is required`,

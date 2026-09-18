@@ -101,11 +101,12 @@ describe('prepareVideoCover', () => {
           height,
           originalImageUrl: imageUrl,
         });
+        expect(plan.leadCover).toMatchObject({ imageUrl });
         const cover = await prepareVideoCover(
           {
             sourceUrl,
             workingDirectory,
-            knownImageUrl: plan.leadCover.imageUrl,
+            knownImageUrl: plan.leadCover?.imageUrl,
           },
           { acquire },
         );
