@@ -129,9 +129,10 @@ describe('coverage handoff: chain-batch construction', () => {
   });
 
   it('builds reviewed requests and stable cache keys', () => {
+    const positions = [draft('gmx-arbitrum'), draft('hlp')];
     const batch = {
       chainId: 42161,
-      positions: [draft('gmx-arbitrum'), draft('hlp')],
+      positions,
     } as never;
     expect(
       chainBatchRequest(batch, '0x0000000000000000000000000000000000000002'),
@@ -140,7 +141,7 @@ describe('coverage handoff: chain-batch construction', () => {
       sourceChainId: 42161,
       positions: [{ kind: 'gmx-v2-basket' }, { kind: 'invest' }],
     });
-    expect(stageDraftsKey(batch.positions)).toContain('gmx-arbitrum:42161');
+    expect(stageDraftsKey(positions)).toContain('gmx-arbitrum:42161');
     expect(batchProtocolWeightsBps(batch)).toEqual({
       'gmx-v2': 1000,
       hyperliquid: 1000,
