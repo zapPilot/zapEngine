@@ -1,3 +1,4 @@
+import { STATEMENT_DOMAINS } from '../../../shared/statements.js';
 import { unavailableWaitlist } from '../../../shared/waitlist-growth.js';
 import type { CostSnapshot } from '@zapengine/cost-observability';
 import { describe, expect, it } from 'vitest';
@@ -740,6 +741,51 @@ describe('buildStatements', () => {
     const header = result.headers.find((h) => h.domain === 'growth')!;
     const facts = header.facts.map((f) => `${f.kicker} ${f.value}`).join(' | ');
     expect(facts).toContain('Because · queue 0 overdue');
+  });
+});
+
+describe('coverage handoff: statement freshness boundaries', () => {
+  function reliabilityKicker(generatedAt: string | undefined): string {
+    const result = buildStatements(
+      inputs({
+        operations: {
+          ...operations(),
+          generatedAt,
+        } as never,
+      }),
+    );
+    return result.statements.find(
+      (statement) => statement.domain === 'reliability',
+    )!.kicker;
+  }
+
+  it('labels a missing source timestamp as unknown', () => {
+    expect(reliabilityKicker(undefined)).toContain('seen unknown');
+  });
+
+  it.each([
+    ['invalid timestamp', 'not-an-iso-date'],
+    ['future timestamp', '2026-09-17T08:42:00.000Z'],
+  ])('labels an %s as unknown', (_label, generatedAt) => {
+    expect(reliabilityKicker(generatedAt)).toContain('seen unknown');
+  });
+
+  it('renders a sub-hour source age in minutes', () => {
+    expect(reliabilityKicker('2026-09-17T07:12:00.000Z')).toContain(
+      'seen 30 min ago',
+    );
+  });
+
+  it('fails loudly if a newly declared narrative domain has no header', () => {
+    const mutableDomains = STATEMENT_DOMAINS as unknown as string[];
+    mutableDomains.push('future-domain');
+    try {
+      expect(() => buildStatements(inputs())).toThrow(
+        'Missing StatementHeader for domain(s): future-domain',
+      );
+    } finally {
+      mutableDomains.pop();
+    }
   });
 });
 
