@@ -20,6 +20,7 @@ import {
   targetMinimumUsd6,
   targetUsd6Shares,
   weightBpsFor,
+  type ChainBatchDraft,
 } from '../src/integration/investTargetsModel';
 
 const allocations = [
@@ -133,7 +134,7 @@ describe('coverage handoff: chain-batch construction', () => {
     const batch = {
       chainId: 42161,
       positions,
-    } as never;
+    } as unknown as ChainBatchDraft;
     expect(
       chainBatchRequest(batch, '0x0000000000000000000000000000000000000002'),
     ).toMatchObject({
