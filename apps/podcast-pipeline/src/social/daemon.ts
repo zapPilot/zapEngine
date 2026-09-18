@@ -585,7 +585,7 @@ async function enqueueExistingCohort(input: {
     isEqual || (isSubset && existingKeys.size < intendedKeys.size)
       ? intendedLanes
       : existingLanes;
-  if (lanes.length === 0) return false;
+  if (lanes.length === 0) return;
 
   const finalMissing = missingLanguages(
     new Set(lanes.map((lane) => lane.language)),
@@ -652,7 +652,7 @@ async function enqueueNewCohort(input: {
   const lanes = resolveReleaseCohortLanes(
     input.firstCandidate.episode_created_at,
   );
-  if (lanes.length === 0) return;
+  if (lanes.length === 0) return false;
 
   const finalMissing = missingLanguages(
     new Set(lanes.map((lane) => lane.language)),
