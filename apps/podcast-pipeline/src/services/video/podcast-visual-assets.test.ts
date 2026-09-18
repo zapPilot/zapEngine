@@ -199,7 +199,7 @@ describe('planPodcastVisualAssets', () => {
         },
       }),
     ).rejects.toThrow(
-      'Publisher og:image is required for the first content scene (open-graph-image-not-used-as-lead)',
+      'Publisher og:image is required for the first content scene (open-graph-image-acquisition-unsupported-format)',
     );
     expect(acquireImage).toHaveBeenCalledTimes(1);
   });
@@ -237,7 +237,7 @@ describe('planPodcastVisualAssets', () => {
       },
     };
     await expect(planPodcastVisualAssets(input)).rejects.toThrow(
-      'open-graph-image-not-used-as-lead',
+      'open-graph-image-acquisition-http-503',
     );
     expect(onSelection).not.toHaveBeenCalled();
     expect(checkpoint.scenes).toEqual([]);
