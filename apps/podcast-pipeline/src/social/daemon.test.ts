@@ -373,7 +373,7 @@ describe('social daemon', () => {
     expect(lines).toContain('Preparing release…');
     expect(lines).toContain('Japanese copy ready');
     expect(lines).toContain('Platforms ·');
-    expect(lines).toContain('𝕏 x · 🇯🇵 Japanese published');
+    expect(lines).toContain('✓ 𝕏 X published');
     expect(lines).toContain('✅ [social-daemon] Published ·');
     expect(mocks.prepareSocialBatchCopy).toHaveBeenCalledWith(
       expect.objectContaining({ logLlm: false }),
