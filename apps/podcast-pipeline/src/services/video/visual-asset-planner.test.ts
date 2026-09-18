@@ -92,6 +92,9 @@ describe('planVisualAssets', () => {
     });
 
     expect(searchImages).not.toHaveBeenCalled();
+    for (const [, options] of acquireImage.mock.calls) {
+      expect(options).not.toHaveProperty('allowSmallDimensions');
+    }
     expect(result.scenes).toEqual([
       { sceneId: 'scene-01', assetId: 'image-01' },
       { sceneId: 'scene-02', assetId: 'image-02' },
@@ -185,7 +188,10 @@ describe('planVisualAssets', () => {
     ]);
     expect(acquireImage).toHaveBeenCalledWith(
       openGraph.imageUrl,
-      expect.objectContaining({ referer: openGraph.sourceUrl }),
+      expect.objectContaining({
+        referer: openGraph.sourceUrl,
+        allowSmallDimensions: true,
+      }),
     );
     expect(result.assets[0]?.provider).toBe('article');
     expect(result.assets[0]?.originalImageUrl).toBe(openGraph.imageUrl);
