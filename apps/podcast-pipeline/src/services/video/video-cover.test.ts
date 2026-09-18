@@ -1,6 +1,13 @@
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import sharp from 'sharp';
 import { describe, expect, it, vi } from 'vitest';
 
+import { acquireRemoteImage } from './assets.js';
 import { prepareVideoCover } from './video-cover.js';
+import { planVisualAssets } from './visual-asset-planner.js';
 
 describe('prepareVideoCover', () => {
   const sourceUrl =
@@ -33,6 +40,8 @@ describe('prepareVideoCover', () => {
         workingDirectory: '/work',
         filename: 'video-cover-source',
         layout: 'framed',
+        allowSmallDimensions: true,
+        referer: sourceUrl,
       }),
     );
     expect(renderPng).toHaveBeenCalledWith(
@@ -54,6 +63,69 @@ describe('prepareVideoCover', () => {
       },
     });
   });
+
+  it.each([
+    { width: 640, height: 360 },
+    { width: 1200, height: 630 },
+  ])(
+    'uses the same $width x $height publisher image for the lead and rendered cover',
+    async ({ width, height }) => {
+      const workingDirectory = await mkdtemp(join(tmpdir(), 'small-og-cover-'));
+      try {
+        const buffer = await sharp({
+          create: { width, height, channels: 3, background: '#abcdef' },
+        })
+          .jpeg()
+          .toBuffer();
+        const imageUrl = 'https://images.example.test/publisher.jpg';
+        const acquire: typeof acquireRemoteImage = (url, options) =>
+          acquireRemoteImage(url, {
+            ...options,
+            // Deterministic test adapter, not a real host.
+            // eslint-disable-next-line sonarjs/no-hardcoded-ip -- deterministic test adapter, not a real host
+            resolveHost: async () => ['8.8.8.8'],
+            fetchImage: async () =>
+              new Response(Uint8Array.from(buffer), {
+                headers: { 'content-type': 'image/jpeg' },
+              }),
+          });
+        const plan = await planVisualAssets({
+          scenes: [{ sceneId: 'scene-01', imageSearchIntent: ['publisher'] }],
+          articleImages: [{ imageUrl, sourceUrl, origin: 'openGraph' }],
+          requireLeadCover: true,
+          workingDirectory,
+          dependencies: { acquireImage: acquire, searchProviders: [] },
+        });
+        expect(plan.assets[0]).toMatchObject({
+          width,
+          height,
+          originalImageUrl: imageUrl,
+        });
+        expect(plan.leadCover).toMatchObject({ imageUrl });
+        const cover = await prepareVideoCover(
+          {
+            sourceUrl,
+            workingDirectory,
+            knownImageUrl: plan.leadCover?.imageUrl,
+          },
+          { acquire },
+        );
+        expect(cover.metadata).toMatchObject({
+          width,
+          height,
+          sourceImageUrl: imageUrl,
+          status: 'selected',
+        });
+        expect(await sharp(cover.thumbnailPath!).metadata()).toMatchObject({
+          width,
+          height,
+          format: 'png',
+        });
+      } finally {
+        await rm(workingDirectory, { recursive: true, force: true });
+      }
+    },
+  );
 
   it('requires the visual plan to provide the publisher Open Graph image', async () => {
     const acquire = vi.fn();

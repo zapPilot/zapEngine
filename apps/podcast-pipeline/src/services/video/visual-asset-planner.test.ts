@@ -1,7 +1,7 @@
 import { describe, expect, it, type Mock, vi } from 'vitest';
 
 import type { ImageCandidate } from '../../types.js';
-import type { AcquiredRemoteImage } from './assets.js';
+import type { AcquiredRemoteImage, acquireRemoteImage } from './assets.js';
 import type { ImageSearchProvider } from './image-search-provider.js';
 import { mentionsAnyEntity } from './search-candidate-ranking.js';
 import {
@@ -72,7 +72,7 @@ describe('planVisualAssets', () => {
   });
 
   it('uses qualified article images before invoking Brave search', async () => {
-    const acquireImage = vi.fn(async (url: string) =>
+    const acquireImage = vi.fn<typeof acquireRemoteImage>(async (url: string) =>
       acquired(new URL(url).pathname.split('/').at(-1)!.replace('.jpg', '')),
     );
     const searchImages = vi.fn();
@@ -92,6 +92,9 @@ describe('planVisualAssets', () => {
     });
 
     expect(searchImages).not.toHaveBeenCalled();
+    for (const [, options] of acquireImage.mock.calls) {
+      expect(options).not.toHaveProperty('allowSmallDimensions');
+    }
     expect(result.scenes).toEqual([
       { sceneId: 'scene-01', assetId: 'image-01' },
       { sceneId: 'scene-02', assetId: 'image-02' },
@@ -152,55 +155,70 @@ describe('planVisualAssets', () => {
     expect(result.assets[0]?.originalImageUrl).toBe(publisherPhoto.imageUrl);
   });
 
-  it('renders the publisher open graph image on the lead scene without searching', async () => {
-    const searchImages = vi.fn();
-    const openGraph = candidate('og-hero', 'openGraph');
-    const acquireImage = vi.fn(async (url: string) =>
-      acquired(new URL(url).pathname.split('/').at(-1)!.replace('.jpg', '')),
-    );
+  it.each([false, true])(
+    'renders the publisher open graph image with requireLeadCover=%s',
+    async (requireLeadCover) => {
+      const searchImages = vi.fn();
+      const openGraph = candidate('og-hero', 'openGraph');
+      const acquireImage = vi.fn<typeof acquireRemoteImage>(
+        async (url: string) =>
+          acquired(
+            new URL(url).pathname.split('/').at(-1)!.replace('.jpg', ''),
+          ),
+      );
 
-    const result = await planVisualAssets({
-      // A named lead scene is exactly the case the old rule excluded.
-      scenes: [
-        {
-          sceneId: 'scene-01',
-          imageSearchIntent: ['Coldcard hardware wallet'],
-          imageSearchEntities: ['Coldcard'],
+      const result = await planVisualAssets({
+        requireLeadCover,
+        // A named lead scene is exactly the case the old rule excluded.
+        scenes: [
+          {
+            sceneId: 'scene-01',
+            imageSearchIntent: ['Coldcard hardware wallet'],
+            imageSearchEntities: ['Coldcard'],
+          },
+        ],
+        // The Open Graph image is deliberately not first: the rule reads the
+        // origin, never the publisher's DOM order.
+        articleImages: [candidate('body-photo'), openGraph],
+        workingDirectory: '/work/visual-assets',
+        dependencies: {
+          acquireImage,
+          searchProviders: braveProviders(searchImages),
+          fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
         },
-      ],
-      // The Open Graph image is deliberately not first: the rule reads the
-      // origin, never the publisher's DOM order.
-      articleImages: [candidate('body-photo'), openGraph],
-      workingDirectory: '/work/visual-assets',
-      dependencies: {
-        acquireImage,
-        searchProviders: braveProviders(searchImages),
-        fingerprintImage: vi.fn().mockResolvedValue('0000000000000000'),
-      },
-    });
+      });
 
-    expect(searchImages).not.toHaveBeenCalled();
-    expect(acquireImage.mock.calls.map(([url]) => url)).toEqual([
-      openGraph.imageUrl,
-    ]);
-    expect(acquireImage).toHaveBeenCalledWith(
-      openGraph.imageUrl,
-      expect.objectContaining({ referer: openGraph.sourceUrl }),
-    );
-    expect(result.assets[0]?.provider).toBe('article');
-    expect(result.assets[0]?.originalImageUrl).toBe(openGraph.imageUrl);
-    expect(result.leadCover).toEqual({
-      imageUrl: openGraph.imageUrl,
-      fallbackReason: null,
-    });
-  });
+      expect(searchImages).not.toHaveBeenCalled();
+      expect(acquireImage.mock.calls.map(([url]) => url)).toEqual([
+        openGraph.imageUrl,
+      ]);
+      expect(acquireImage).toHaveBeenCalledWith(
+        openGraph.imageUrl,
+        expect.objectContaining({
+          referer: openGraph.sourceUrl,
+          ...(requireLeadCover ? { allowSmallDimensions: true } : {}),
+        }),
+      );
+      if (!requireLeadCover) {
+        expect(acquireImage.mock.calls[0]?.[1]).not.toHaveProperty(
+          'allowSmallDimensions',
+        );
+      }
+      expect(result.assets[0]?.provider).toBe('article');
+      expect(result.assets[0]?.originalImageUrl).toBe(openGraph.imageUrl);
+      expect(result.leadCover).toEqual({
+        imageUrl: openGraph.imageUrl,
+        fallbackReason: null,
+      });
+    },
+  );
 
   it('names the rule that dropped a decorative open graph image', async () => {
     const decorative: ImageCandidate = {
       ...candidate('og-hero', 'openGraph'),
       imageUrl: 'https://images.example.test/thumb/og-hero.jpg',
     };
-    const acquireImage = vi.fn(async (url: string) =>
+    const acquireImage = vi.fn<typeof acquireRemoteImage>(async (url: string) =>
       acquired(new URL(url).pathname.split('/').at(-1)!.replace('.jpg', '')),
     );
 
@@ -466,8 +484,9 @@ describe('planVisualAssets', () => {
       ...candidate('search-b', 'brave'),
       altText: 'second subject',
     };
-    const acquireImage = vi.fn(async (url: string) =>
-      url === article.imageUrl ? acquired('article-a') : acquired('search-b'),
+    const acquireImage = vi.fn<typeof acquireRemoteImage>(
+      async (url: string) =>
+        url === article.imageUrl ? acquired('article-a') : acquired('search-b'),
     );
     const searchImages = searchByQuery({ 'second subject': [searched] });
     const progress = vi.fn();
@@ -629,7 +648,7 @@ describe('planVisualAssets', () => {
       ...candidate('coldcard-signing-device', 'brave'),
       altText: 'Coldcard air-gapped signing device',
     };
-    const acquireImage = vi.fn(async (url: string) =>
+    const acquireImage = vi.fn<typeof acquireRemoteImage>(async (url: string) =>
       acquired(new URL(url).pathname.split('/').at(-1)!.replace('.jpg', '')),
     );
     const subject = {
