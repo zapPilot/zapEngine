@@ -128,6 +128,25 @@ describe('pollUntil', () => {
     expect(fn).toHaveBeenCalledTimes(1);
   });
 
+  it('rejects when onAttempt aborts before sleep starts', async () => {
+    const controller = new AbortController();
+    const fn = vi.fn().mockResolvedValue('PENDING');
+
+    await expect(
+      pollUntil({
+        fn,
+        shouldStop: () => false,
+        intervalMs: 60_000,
+        signal: controller.signal,
+        onAttempt: () => controller.abort(),
+      }),
+    ).rejects.toSatisfy(
+      (error: unknown) =>
+        error instanceof DOMException && error.name === 'AbortError',
+    );
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
   it('rejects immediately when the signal is already aborted', async () => {
     const controller = new AbortController();
     controller.abort();
