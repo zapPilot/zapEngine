@@ -34,6 +34,16 @@ pnpm social:login
 pnpm social:daemon
 ```
 
+Bounded operator catch-up after the Mac was offline:
+
+```bash
+pnpm ops --social-once
+```
+
+That command takes the same daemon pid lock, publishes at most one article
+cohort, and exits. Run it again explicitly if you want to catch up one more
+article.
+
 The daemon CLI now defaults to the compact operator log: queue repair is summarized,
 out-of-horizon articles are counted instead of printed one-by-one, successful
 account/LLM telemetry is hidden, and a live release gets a dedicated publishing
@@ -137,8 +147,11 @@ copy, or explicitly registered packaging experiments. It must not derive a
 separate publish budget or time from each platform. Changing the fixed language
 mapping is now a product-contract change rather than an active optimization arm.
 
-Publishing is constrained to the code-owned 09:00–18:00 JST watch window because
-Rednote and X drive local browser sessions.
+The long-lived daemon is constrained to the code-owned 09:00–18:00 JST watch
+window because Rednote and X drive local browser sessions. The explicit
+`pnpm ops --social-once` operator path is the only exception: it may publish one
+catch-up article outside that window, while preserving all retry, readiness,
+copy-safety, lease, and duplicate-protection fences.
 
 ## Release readiness barrier
 
@@ -256,6 +269,24 @@ legacy cohort.
 This reconciliation runs before new discovery on every daemon tick, so deploy of
 a scheduler fix repairs existing Supabase queue state instead of only affecting
 new episodes.
+
+### One-shot operator catch-up
+
+`pnpm ops --social-once` deliberately does **not** run
+`alignPendingSocialReleaseCohorts()`. Its purpose is to recover one article the
+operator missed while the local Mac was off, not to rewrite that article onto a
+future slot first. It also ignores the normal watch window for that invocation.
+
+Everything else stays on the production path: the same pid lock, persisted-post
+reconciliation, partial-release priority, `scheduled_at` + `next_attempt_at`
+claim fences, attempt ceiling, media re-check, copy/red-line barrier, leases, and
+duplicate protection. The claim RPC still selects one article cohort, so one
+invocation cannot fan out across the backlog.
+
+If no overdue durable cohort is claimable, the command performs one discovery
+pass and may make only the oldest fully-ready unscheduled article due at the
+current time. It then publishes that one cohort and exits. A partial release in
+retry backoff always stops the command before discovery.
 
 ## Partial release recovery
 

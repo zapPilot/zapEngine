@@ -53,8 +53,10 @@ export const SOCIAL_RELEASE_SLOTS = [
 ] as const satisfies readonly SocialReleaseSlot[];
 
 /**
- * Publishing only runs inside working hours, because the Rednote and X
- * publishers drive real browser sessions on a Mac that a person has to be able
- * to see fail. A missed cohort is rescheduled as a whole, never lane-by-lane.
+ * The long-lived daemon only publishes inside working hours, because Rednote
+ * and X drive real browser sessions on a Mac that a person has to be able to
+ * see fail. The explicit operator catch-up command may bypass this watch
+ * window, but it still releases one whole article cohort and keeps every
+ * publish safety/backoff fence.
  */
 export const SOCIAL_PUBLISH_WINDOW_JST = { startHour: 9, endHour: 18 };

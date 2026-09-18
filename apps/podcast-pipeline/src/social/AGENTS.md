@@ -88,6 +88,28 @@ platform-lane assignment table. Once an episode has any durable publish job or
 social post, the waiting-media view stops representing it; durable release state
 owns recovery from that point onward.
 
+## Manual catch-up exception
+
+`pnpm ops --social-once` is an operator recovery command, not another timing
+policy. It takes the same pid lock as `social:daemon`, reconciles already-live
+lanes first, then may release **at most one** article cohort before exiting.
+
+For that one invocation only:
+
+- the 09:00–18:00 JST watch window is ignored;
+- missed-slot alignment/rescheduling is skipped, so an overdue cohort remains
+  claimable at its original timestamp;
+- a partial cohort still fences every fresh article, including while its
+  remaining lane is serving `next_attempt_at` backoff;
+- the existing claim RPC still owns due-ness, attempt ceilings, and leases;
+- media readiness, copy generation/red-line checks, and persisted
+  `social_posts` duplicate protection are unchanged;
+- if no overdue durable cohort can be claimed, discovery may enqueue only the
+  oldest fully-ready unscheduled article at the current time.
+
+The command must never drain every overdue article in one run. Re-run it
+explicitly if another catch-up release is desired.
+
 ## Database guard still in place
 
 `guard_social_language_v2_generation`
