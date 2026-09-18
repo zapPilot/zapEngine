@@ -114,9 +114,7 @@ describe('coverage handoff: podcast section boundaries', () => {
       classroomSpeed: 1,
     });
     expect(
-      parseStoredSpeedPreferences(
-        JSON.stringify({ mainSpeed: 99, classroomSpeed: -1 }),
-      ),
+      parseStoredSpeedPreferences({ mainSpeed: 99, classroomSpeed: -1 }),
     ).toEqual({ mainSpeed: 3, classroomSpeed: 1 });
     const next = withSectionSpeed(
       { mainSpeed: 1, classroomSpeed: 1 },
