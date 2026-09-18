@@ -34,6 +34,12 @@ pnpm social:login
 pnpm social:daemon
 ```
 
+The daemon CLI now defaults to the compact operator log: queue repair is summarized,
+out-of-horizon articles are counted instead of printed one-by-one, successful
+account/LLM telemetry is hidden, and a live release gets a dedicated publishing
+section. Use `pnpm ops --verbose` (or `pnpm social:daemon --verbose`) when the
+full provider/browser diagnostics are needed.
+
 Only one daemon may run at a time. It owns a pid lock at:
 
 ```text

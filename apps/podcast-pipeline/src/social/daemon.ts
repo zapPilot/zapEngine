@@ -62,6 +62,7 @@ import {
   type SocialMetricWindowLabel,
   type SocialPublishCandidate,
   type SocialPublishJobRow,
+  type SocialQueueLaneItem,
   type SocialStrategyVersionRow,
 } from './daemon-store.js';
 import { buildSocialExperimentReports } from './experiment-report.js';
@@ -142,6 +143,11 @@ export interface SocialDaemonDependencies {
   sleep?: (milliseconds: number) => Promise<void>;
   log?: (message: string) => void;
   recordTick?: typeof recordSocialDaemonTick;
+  verbose?: boolean;
+}
+
+export interface SocialDaemonTickSummary {
+  deferredArticles: number;
 }
 
 export async function runSocialDaemon(
@@ -151,30 +157,53 @@ export async function runSocialDaemon(
   const sleep = dependencies.sleep ?? defaultSleep;
   const log = dependencies.log ?? console.log;
   const recordTick = dependencies.recordTick ?? recordSocialDaemonTick;
+  // Programmatic callers keep the historical detailed log unless they opt in
+  // to compact mode. The CLI entry point explicitly passes false by default.
+  const verbose = dependencies.verbose ?? true;
   let lastStrategyRefresh = 0;
   let consecutiveTransientFailures = 0;
+  let lastQueueFingerprint: string | null = null;
 
-  const firstStartedAt = await ensureSocialDaemonStart(now());
-  log(
-    `🤖 [social-daemon] started as ${OWNER}; discovery begins at ${firstStartedAt}.`,
-  );
+  const daemonStartedAt = now();
+  const firstStartedAt = await ensureSocialDaemonStart(daemonStartedAt);
+  if (verbose) {
+    log(
+      `🤖 [social-daemon] started as ${OWNER}; discovery begins at ${firstStartedAt}.`,
+    );
+  } else {
+    log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    log(
+      `🛰️ [social-daemon] Social Publisher · ${formatJst(daemonStartedAt.toISOString())}`,
+    );
+    log(
+      '   Compact operator log · use pnpm ops --verbose for full diagnostics',
+    );
+    log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  }
 
   for (;;) {
     const tickStartedAt = now();
-    log(
-      `🔄 [social-daemon] checking discovery · publishing · metrics${
-        tickStartedAt.getTime() - lastStrategyRefresh >=
-        STRATEGY_REFRESH_INTERVAL_MS
-          ? ' · strategy'
-          : ''
-      }`,
-    );
+    if (verbose) {
+      log(
+        `🔄 [social-daemon] checking discovery · publishing · metrics${
+          tickStartedAt.getTime() - lastStrategyRefresh >=
+          STRATEGY_REFRESH_INTERVAL_MS
+            ? ' · strategy'
+            : ''
+        }`,
+      );
+    }
     await recordTick({ phase: 'start', now: tickStartedAt, owner: OWNER });
+    let tickSummary: SocialDaemonTickSummary = { deferredArticles: 0 };
     try {
       await runSocialDaemonTick({
         now: tickStartedAt,
         firstStartedAt,
         log,
+        verbose,
+        onSummary: (summary) => {
+          tickSummary = summary;
+        },
         refreshStrategy:
           tickStartedAt.getTime() - lastStrategyRefresh >=
           STRATEGY_REFRESH_INTERVAL_MS,
@@ -207,12 +236,21 @@ export async function runSocialDaemon(
       lastStrategyRefresh = tickStartedAt.getTime();
     }
     await isolate('queue summary', log, async () => {
-      log('');
-      logQueueSnapshot(
-        await getSocialQueueSnapshot({ includeWaitingMedia: true }),
-        tickStartedAt,
-        log,
-      );
+      const snapshot = await getSocialQueueSnapshot({
+        includeWaitingMedia: true,
+      });
+      const fingerprint = JSON.stringify({
+        snapshot,
+        deferredArticles: tickSummary.deferredArticles,
+      });
+      if (verbose || fingerprint !== lastQueueFingerprint) {
+        log('');
+        logQueueSnapshot(snapshot, tickStartedAt, log, {
+          verbose,
+          deferredArticles: tickSummary.deferredArticles,
+        });
+        lastQueueFingerprint = fingerprint;
+      }
     });
     await recordTick({ phase: 'success', now: now(), owner: OWNER });
     if (consecutiveTransientFailures > 0) {
@@ -221,11 +259,13 @@ export async function runSocialDaemon(
       );
       consecutiveTransientFailures = 0;
     }
-    log('');
-    log(
-      `✅ [social-daemon] check complete · next check in ${POLL_INTERVAL_MS / 1_000}s.`,
-    );
-    log('');
+    if (verbose) {
+      log('');
+      log(
+        `✅ [social-daemon] check complete · next check in ${POLL_INTERVAL_MS / 1_000}s.`,
+      );
+      log('');
+    }
     await sleep(POLL_INTERVAL_MS);
   }
 }
@@ -251,8 +291,12 @@ export async function runSocialDaemonTick(input: {
   firstStartedAt: string;
   log?: (message: string) => void;
   refreshStrategy?: boolean;
+  verbose?: boolean;
+  onSummary?: (summary: SocialDaemonTickSummary) => void;
 }): Promise<void> {
   const log = input.log ?? (() => void 0);
+  const verbose = input.verbose ?? true;
+  const observationLog = verbose ? log : warningsOnlyLog(log);
   const titleIndex = createEpisodeTitleIndex();
 
   await reconcileAlreadyPublishedJobs(input.now, log, titleIndex);
@@ -261,16 +305,15 @@ export async function runSocialDaemonTick(input: {
     PUBLISH_SLOT_GRACE_MS,
   );
   if (alignment.alignedLanes > 0) {
-    log(
-      `📥 [social-daemon] repaired release cohorts · ${alignment.alignedLanes} lane${alignment.alignedLanes === 1 ? '' : 's'} aligned · ${alignment.rescheduledEpisodes} article${alignment.rescheduledEpisodes === 1 ? '' : 's'} rescheduled`,
-    );
+    log(formatReleaseCohortRepair(alignment, verbose));
   }
 
-  await discoverAndEnqueue({
+  const discovery = await discoverAndEnqueue({
     now: input.now,
     firstStartedAt: input.firstStartedAt,
     log,
     titleIndex,
+    verbose,
   });
 
   await isolate('pre-publish snapshots', log, async () => {
@@ -280,11 +323,11 @@ export async function runSocialDaemonTick(input: {
       now: input.now,
       platforms,
       openBrowser: createMetricsBrowserSession,
-      log,
+      log: observationLog,
     });
   });
 
-  await publishDueJobs(input.now, log, titleIndex);
+  await publishDueJobs(input.now, log, titleIndex, verbose);
 
   // `collectDueMetricWindows` and `captureAccountSnapshots` are the two
   // observational steps left once publishing (and its own X/Rednote
@@ -299,25 +342,33 @@ export async function runSocialDaemonTick(input: {
     await isolate('metrics', log, async () => {
       await collectDueMetricWindows(
         input.now,
-        log,
+        observationLog,
         titleIndex,
         openObservationBrowser,
       );
     });
     await isolate('account snapshots', log, async () => {
-      await captureAccountSnapshots(input.now, log, openObservationBrowser);
+      await captureAccountSnapshots(
+        input.now,
+        observationLog,
+        openObservationBrowser,
+      );
     });
   } finally {
     await observationBrowser?.close();
   }
   if (input.refreshStrategy) {
     await isolate('strategy', log, () =>
-      refreshSocialStrategies({ now: input.now, log }),
+      refreshSocialStrategies({ now: input.now, log: observationLog }),
     );
-    await isolate('experiment report', log, () =>
-      logExperimentReports(input.now, log),
-    );
+    if (verbose) {
+      await isolate('experiment report', log, () =>
+        logExperimentReports(input.now, log),
+      );
+    }
   }
+
+  input.onSummary?.({ deferredArticles: discovery.deferredArticles });
 }
 
 async function logExperimentReports(
@@ -352,12 +403,13 @@ async function discoverAndEnqueue(input: {
   firstStartedAt: string;
   log: (message: string) => void;
   titleIndex: EpisodeTitleIndex;
-}): Promise<void> {
+  verbose: boolean;
+}): Promise<{ deferredArticles: number }> {
   const [candidates, schedules] = await Promise.all([
     listSocialPublishCandidates(input.firstStartedAt),
     listPendingSocialPublishSchedules(),
   ]);
-  if (candidates.length === 0) return;
+  if (candidates.length === 0) return { deferredArticles: 0 };
 
   const episodeIds = [
     ...new Set(candidates.map((candidate) => candidate.episode_id)),
@@ -373,18 +425,25 @@ async function discoverAndEnqueue(input: {
     candidatesByEpisode.set(candidate.episode_id, list);
   }
   const scheduledArticles = releaseBudgetIndex(schedules);
+  let deferredArticles = 0;
 
   for (const episodeId of episodeIds) {
-    await discoverAndEnqueueEpisode({
-      episodeId,
-      episodeCandidates: candidatesByEpisode.get(episodeId) ?? [],
-      schedules,
-      scheduledArticles,
-      titleByEpisodeLanguage,
-      now: input.now,
-      log: input.log,
-    });
+    if (
+      await discoverAndEnqueueEpisode({
+        episodeId,
+        episodeCandidates: candidatesByEpisode.get(episodeId) ?? [],
+        schedules,
+        scheduledArticles,
+        titleByEpisodeLanguage,
+        now: input.now,
+        log: input.log,
+        verbose: input.verbose,
+      })
+    ) {
+      deferredArticles += 1;
+    }
   }
+  return { deferredArticles };
 }
 
 async function discoverAndEnqueueEpisode(input: {
@@ -395,9 +454,10 @@ async function discoverAndEnqueueEpisode(input: {
   titleByEpisodeLanguage: ReadonlyMap<string, string | null>;
   now: Date;
   log: (message: string) => void;
-}): Promise<void> {
+  verbose: boolean;
+}): Promise<boolean> {
   const firstCandidate = input.episodeCandidates[0];
-  if (!firstCandidate) return;
+  if (!firstCandidate) return false;
 
   const title = episodeTitle(
     input.titleByEpisodeLanguage,
@@ -418,10 +478,10 @@ async function discoverAndEnqueueEpisode(input: {
       episodeCandidates: input.episodeCandidates,
       log: input.log,
     });
-    return;
+    return false;
   }
 
-  await enqueueNewCohort({
+  return enqueueNewCohort({
     episodeId: input.episodeId,
     firstCandidate,
     title,
@@ -429,6 +489,7 @@ async function discoverAndEnqueueEpisode(input: {
     scheduledArticles: input.scheduledArticles,
     now: input.now,
     log: input.log,
+    verbose: input.verbose,
   });
 }
 
@@ -560,11 +621,12 @@ async function enqueueNewCohort(input: {
   scheduledArticles: Date[];
   now: Date;
   log: (message: string) => void;
-}): Promise<void> {
+  verbose: boolean;
+}): Promise<boolean> {
   const requiredLanguages = new Set(
     resolveRequiredReleaseLanguages(input.firstCandidate.episode_created_at),
   );
-  if (requiredLanguages.size === 0) return;
+  if (requiredLanguages.size === 0) return false;
 
   const readyLanguages = new Set(
     input.episodeCandidates.map((candidate) => candidate.language_code),
@@ -572,30 +634,32 @@ async function enqueueNewCohort(input: {
   const missing = missingLanguages(requiredLanguages, readyLanguages);
   if (missing.length > 0) {
     logCohortNotReady(input.log, input.title, input.episodeId, missing);
-    return;
+    return false;
   }
 
   const readyAt = readyAtForLanguages(
     input.episodeCandidates,
     requiredLanguages,
   );
-  if (!readyAt) return;
+  if (!readyAt) return false;
 
   const scheduledAt = nextReleaseSlot({
     after: new Date(Math.max(readyAt.getTime(), input.now.getTime())),
     scheduled: input.scheduledArticles,
   });
   if (!scheduledAt) {
-    input.log(
-      `🗓️ [social-daemon] ${episodeLabel(input.title, input.episodeId)} · no article slot inside the ${SCHEDULING_HORIZON_DAYS}-day horizon · staying discoverable for a later tick`,
-    );
-    return;
+    if (input.verbose) {
+      input.log(
+        `🗓️ [social-daemon] ${episodeLabel(input.title, input.episodeId)} · no article slot inside the ${SCHEDULING_HORIZON_DAYS}-day horizon · staying discoverable for a later tick`,
+      );
+    }
+    return true;
   }
 
   const lanes = resolveReleaseCohortLanes(
     input.firstCandidate.episode_created_at,
   );
-  if (lanes.length === 0) return;
+  if (lanes.length === 0) return false;
 
   const finalMissing = missingLanguages(
     new Set(lanes.map((lane) => lane.language)),
@@ -603,7 +667,7 @@ async function enqueueNewCohort(input: {
   );
   if (finalMissing.length > 0) {
     logCohortNotReady(input.log, input.title, input.episodeId, finalMissing);
-    return;
+    return false;
   }
 
   const insertedAny = await enqueueCohortJobs({
@@ -617,6 +681,7 @@ async function enqueueNewCohort(input: {
   if (insertedAny) {
     input.scheduledArticles.push(scheduledAt);
   }
+  return false;
 }
 
 /** One budget entry per episode, never one per platform or language lane. */
@@ -745,6 +810,7 @@ async function publishDueJobs(
   now: Date,
   log: (message: string) => void,
   titleIndex: EpisodeTitleIndex,
+  verbose: boolean,
 ): Promise<void> {
   if (!withinPublishWindow(now, SOCIAL_PUBLISH_WINDOW_JST)) return;
 
@@ -799,6 +865,13 @@ async function publishDueJobs(
     }
   }
 
+  logCompactPublishingStart(
+    pendingByEpisodeLanguage,
+    titleByEpisodeLanguage,
+    log,
+    verbose,
+  );
+
   const mediaReady = await holdCohortsMissingMedia(
     pendingByEpisodeLanguage,
     now,
@@ -813,7 +886,10 @@ async function publishDueJobs(
     now,
     titleByEpisodeLanguage,
     log,
+    verbose,
   );
+  logCompactPublishingPlatforms(groups, log, verbose);
+  const publishStartedAt = Date.now();
   for (const [index, group] of groups.entries()) {
     try {
       await publishLanguageBatch(
@@ -823,6 +899,7 @@ async function publishDueJobs(
         titleByEpisodeLanguage,
         now,
         log,
+        verbose,
       );
     } catch (error) {
       await releaseUntouchedLeases(
@@ -840,6 +917,7 @@ async function publishDueJobs(
       throw error;
     }
   }
+  logCompactPublishingComplete(groups, publishStartedAt, log, verbose);
 }
 
 interface PreparedReleaseGroup {
@@ -874,6 +952,7 @@ async function holdCohortsMissingCopy(
   now: Date,
   titleByEpisodeLanguage: ReadonlyMap<string, string | null>,
   log: (message: string) => void,
+  verbose: boolean,
 ): Promise<PreparedReleaseGroup[]> {
   const copyByGroup = new Map<string, PreparedSocialBatchCopy>();
   const heldEpisodes = new Map<string, ClaimedCohortHold>();
@@ -893,8 +972,12 @@ async function holdCohortsMissingCopy(
           ...(Object.keys(guidanceByPlatform).length > 0
             ? { strategyGuidanceByPlatform: guidanceByPlatform }
             : {}),
+          logLlm: verbose,
         }),
       );
+      if (!verbose) {
+        log(`   ✓ ${operatorLanguageLabel(languageCode)} copy ready`);
+      }
     } catch (error) {
       if (!(error instanceof SocialCopyGenerationError)) throw error;
       heldEpisodes.set(firstJob.episode_id, {
@@ -1194,6 +1277,7 @@ async function publishLanguageBatch(
   titleByEpisodeLanguage: ReadonlyMap<string, string | null>,
   now: Date,
   log: (message: string) => void,
+  verbose: boolean,
 ): Promise<void> {
   const firstJob = jobs[0];
   if (!firstJob) return;
@@ -1208,7 +1292,7 @@ async function publishLanguageBatch(
     episode: preparedCopy.episode,
     packagingByPlatform: preparedCopy.packagingByPlatform,
     copySnapshot: preparedCopy.snapshot,
-    onLog: log,
+    ...(verbose ? { onLog: log } : {}),
   });
   for (const outcome of outcomes) {
     if (!outcome.warnings?.length) continue;
@@ -1237,6 +1321,7 @@ async function publishLanguageBatch(
       now,
       titleByEpisodeLanguage,
       log,
+      verbose,
     );
   }
 }
@@ -1248,6 +1333,7 @@ async function finalizePublishOutcome(
   now: Date,
   titleByEpisodeLanguage: ReadonlyMap<string, string | null>,
   log: (message: string) => void,
+  verbose: boolean,
 ): Promise<void> {
   const persistFailure = (message: string): SocialReleaseFailureError =>
     new SocialReleaseFailureError({
@@ -1285,9 +1371,7 @@ async function finalizePublishOutcome(
     socialPostId: post.id,
     ...(strategy ? { strategyVersionId: strategy.id } : {}),
   });
-  log(
-    `✅ [social-daemon] ${laneLabel(job.platform, jobLanguage(job))} · ${episodeLabel(episodeTitle(titleByEpisodeLanguage, job.episode_id, jobLanguage(job)), job.episode_id)} · published${post.post_url ? ` · ${post.post_url}` : ''}`,
-  );
+  logPublishedOutcome(job, post.post_url, titleByEpisodeLanguage, log, verbose);
 }
 
 function jobLanguage(
@@ -1561,12 +1645,217 @@ async function isolate(
   }
 }
 
+function formatReleaseCohortRepair(
+  alignment: { alignedLanes: number; rescheduledEpisodes: number },
+  verbose: boolean,
+): string {
+  const laneLabelText = alignment.alignedLanes === 1 ? 'lane' : 'lanes';
+  const articleLabel =
+    alignment.rescheduledEpisodes === 1 ? 'article' : 'articles';
+  if (verbose) {
+    return `📥 [social-daemon] repaired release cohorts · ${alignment.alignedLanes} ${laneLabelText} aligned · ${alignment.rescheduledEpisodes} ${articleLabel} rescheduled`;
+  }
+  return `📋 [social-daemon] Queue repair · ${alignment.rescheduledEpisodes} ${articleLabel} rescheduled · ${alignment.alignedLanes} ${laneLabelText} aligned`;
+}
+
+function logCompactPublishingStart(
+  pendingByEpisodeLanguage: ReadonlyMap<string, SocialPublishJobRow[]>,
+  titleByEpisodeLanguage: ReadonlyMap<string, string | null>,
+  log: (message: string) => void,
+  verbose: boolean,
+): void {
+  if (verbose) return;
+  const firstPendingJob = pendingByEpisodeLanguage.values().next().value?.[0];
+  if (!firstPendingJob) return;
+
+  log('');
+  log('────────────────────────────────────────');
+  log(
+    `🚀 [social-daemon] Publishing now · ${formatJst(firstPendingJob.scheduled_at)}`,
+  );
+  log(
+    `   ${episodeLabel(
+      episodeTitle(
+        titleByEpisodeLanguage,
+        firstPendingJob.episode_id,
+        'zh-Hant',
+      ),
+      firstPendingJob.episode_id,
+    )}`,
+  );
+  log('   Preparing release…');
+}
+
+function logCompactPublishingPlatforms(
+  groups: readonly PreparedReleaseGroup[],
+  log: (message: string) => void,
+  verbose: boolean,
+): void {
+  if (verbose || groups.length === 0) return;
+  const platforms = groups
+    .flatMap((group) => group.jobs)
+    .map((job) => operatorPlatformLabel(job.platform))
+    .join(' · ');
+  log(`   Platforms · ${platforms}`);
+}
+
+function logCompactPublishingComplete(
+  groups: readonly PreparedReleaseGroup[],
+  publishStartedAt: number,
+  log: (message: string) => void,
+  verbose: boolean,
+): void {
+  if (verbose || groups.length === 0) return;
+  const durationSeconds = Math.max(
+    1,
+    Math.round((Date.now() - publishStartedAt) / 1_000),
+  );
+  log(
+    `✅ [social-daemon] Published · ${formatJst(new Date().toISOString())} · ${durationSeconds}s`,
+  );
+}
+
+function logPublishedOutcome(
+  job: SocialPublishJobRow,
+  postUrl: string | null,
+  titleByEpisodeLanguage: ReadonlyMap<string, string | null>,
+  log: (message: string) => void,
+  verbose: boolean,
+): void {
+  if (!verbose) {
+    log(`   ✓ ${operatorPlatformLabel(job.platform)} published`);
+    return;
+  }
+  const urlSuffix = postUrl ? ` · ${postUrl}` : '';
+  log(
+    `✅ [social-daemon] ${laneLabel(job.platform, jobLanguage(job))} · ${episodeLabel(episodeTitle(titleByEpisodeLanguage, job.episode_id, jobLanguage(job)), job.episode_id)} · published${urlSuffix}`,
+  );
+}
+
+function logCompactQueueSnapshot(
+  snapshot: Awaited<ReturnType<typeof getSocialQueueSnapshot>>,
+  now: Date,
+  log: (message: string) => void,
+  deferredArticles: number,
+): void {
+  const waitingVideos = snapshot.waitingVideos;
+  if (
+    snapshot.pendingCount === 0 &&
+    waitingVideos.length === 0 &&
+    deferredArticles === 0
+  ) {
+    log('📋 [social-daemon] Queue · clear');
+    return;
+  }
+
+  const scheduledCount = snapshot.episodeQueue.length;
+  const scheduledLabel =
+    scheduledCount === 1 ? 'scheduled article' : 'scheduled articles';
+  const laneLabelText = snapshot.pendingCount === 1 ? 'lane' : 'lanes';
+  log(
+    `📋 [social-daemon] Queue · ${scheduledCount} ${scheduledLabel} · ${snapshot.pendingCount} ${laneLabelText}`,
+  );
+
+  logCompactWaitingVideos(waitingVideos, log);
+  logCompactBacklog(deferredArticles, log);
+  logCompactUpcoming(snapshot.episodeQueue, now, log);
+  logCompactAttention(Object.values(snapshot.nextByLane), log);
+}
+
+function logCompactWaitingVideos(
+  waitingVideos: Awaited<
+    ReturnType<typeof getSocialQueueSnapshot>
+  >['waitingVideos'],
+  log: (message: string) => void,
+): void {
+  if (waitingVideos.length === 0) return;
+  const waitingLabel = waitingVideos.length === 1 ? 'article' : 'articles';
+  log(
+    `⚠️ [social-daemon] Waiting for media · ${waitingVideos.length} ${waitingLabel}`,
+  );
+  for (const item of waitingVideos.slice(0, 3)) {
+    const missingLanguages = item.languageCodes
+      .map((language) => operatorLanguageLabel(language))
+      .join(' · ');
+    log(
+      `   ${episodeLabel(item.title, item.episodeId)} · missing ${missingLanguages}`,
+    );
+  }
+  if (waitingVideos.length > 3) {
+    log(`   +${waitingVideos.length - 3} more`);
+  }
+}
+
+function logCompactBacklog(
+  deferredArticles: number,
+  log: (message: string) => void,
+): void {
+  if (deferredArticles === 0) return;
+  const backlogLabel = deferredArticles === 1 ? 'article' : 'articles';
+  log(
+    `   Backlog · ${deferredArticles} ${backlogLabel} beyond the ${SCHEDULING_HORIZON_DAYS}-day scheduling horizon`,
+  );
+}
+
+function logCompactUpcoming(
+  episodes: Awaited<ReturnType<typeof getSocialQueueSnapshot>>['episodeQueue'],
+  now: Date,
+  log: (message: string) => void,
+): void {
+  if (episodes.length === 0) return;
+  log('📅 [social-daemon] Upcoming');
+  for (const episode of episodes.slice(0, 3)) {
+    const title = episode.title ?? `episode #${shortId(episode.episodeId)}`;
+    const dueLabel =
+      Date.parse(episode.nextAt) <= now.getTime() ? ' · due now' : '';
+    log(`   ${formatJst(episode.nextAt)} · ${truncateTitle(title)}${dueLabel}`);
+  }
+  if (episodes.length > 3) {
+    log(`   +${episodes.length - 3} more scheduled`);
+  }
+}
+
+function logCompactAttention(
+  items: readonly SocialQueueLaneItem[],
+  log: (message: string) => void,
+): void {
+  const attention = items.filter(
+    (item) =>
+      item.status === 'failed' ||
+      item.status === 'processing' ||
+      item.attemptsExhausted,
+  );
+  if (attention.length === 0) return;
+
+  const attentionLabel = attention.length === 1 ? 'lane needs' : 'lanes need';
+  log(
+    `⚠️ [social-daemon] Attention · ${attention.length} ${attentionLabel} review`,
+  );
+  for (const item of attention.slice(0, 3)) {
+    const title = item.title ? `“${truncateTitle(item.title)}” · ` : '';
+    const state = item.attemptsExhausted
+      ? `blocked after ${item.attemptCount} attempts`
+      : item.status;
+    const platform = operatorPlatformLabel(item.platform);
+    const language = operatorLanguageLabel(item.languageCode);
+    log(`   ${platform} · ${language} · ${title}${state}`);
+  }
+  if (attention.length > 3) {
+    log(`   +${attention.length - 3} more`);
+  }
+}
+
 function logQueueSnapshot(
   snapshot: Awaited<ReturnType<typeof getSocialQueueSnapshot>>,
   now: Date,
   log: (message: string) => void,
+  options: { verbose?: boolean; deferredArticles?: number } = {},
 ): void {
   const waitingVideos = snapshot.waitingVideos;
+  if (!options.verbose) {
+    logCompactQueueSnapshot(snapshot, now, log, options.deferredArticles ?? 0);
+    return;
+  }
   if (snapshot.pendingCount === 0 && waitingVideos.length === 0) {
     log('📥 [social-daemon] queue · 0 jobs · 0 articles');
     return;
@@ -1614,6 +1903,40 @@ function logQueueSnapshot(
     log(
       `⚠️ [social-daemon] ${laneLabel(item.platform, item.languageCode)}${item.experiment ? ` [${item.experiment}]` : ''} ·${title} · ${timing}`,
     );
+  }
+}
+
+function warningsOnlyLog(
+  log: (message: string) => void,
+): (message: string) => void {
+  return (message) => {
+    if (message.startsWith('⚠️') || message.startsWith('❌')) log(message);
+  };
+}
+
+function operatorPlatformLabel(platform: SocialPlatform): string {
+  switch (platform) {
+    case 'rednote':
+      return '📕 Rednote';
+    case 'threads':
+      return '🧵 Threads';
+    case 'x':
+      return '𝕏 X';
+    case 'youtube':
+      return '▶️ YouTube';
+  }
+}
+
+function operatorLanguageLabel(language: string): string {
+  switch (language) {
+    case 'zh-Hant':
+      return '🇹🇼 Traditional Chinese';
+    case 'ja':
+      return '🇯🇵 Japanese';
+    case 'en':
+      return '🇺🇸 English';
+    default:
+      return languageLabel(language);
   }
 }
 
@@ -1708,9 +2031,12 @@ if (isMainModule(import.meta.url)) {
     throw error;
   }
   try {
+    const verbose = process.argv.includes('--verbose');
     await recoverOrphanedSocialLeases();
-    await reportLocalPublicationHistory();
-    await runSocialDaemon();
+    await reportLocalPublicationHistory(
+      verbose ? console.log : warningsOnlyLog(console.log),
+    );
+    await runSocialDaemon({ verbose });
   } catch (error) {
     console.error(buildFatalReport(error));
     capturePipelineException(error, {
