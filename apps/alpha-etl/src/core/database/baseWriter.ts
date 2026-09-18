@@ -83,7 +83,9 @@ export abstract class BaseWriter<T> extends BaseDatabaseClient {
       logger.info(`${logContext} write completed`, {
         totalRecords: records.length,
         recordsInserted: result.recordsInserted,
-        duplicatesSkipped: result.duplicatesSkipped ?? 0,
+        // Always a number: result is created by createEmptyWriteResult and
+        // mergeBatchResult only assigns numeric totals.
+        duplicatesSkipped: result.duplicatesSkipped,
         errors: result.errors.length,
         success: result.success,
       });

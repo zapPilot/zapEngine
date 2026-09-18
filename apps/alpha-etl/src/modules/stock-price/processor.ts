@@ -130,7 +130,7 @@ export class StockPriceETLProcessor implements BaseETLProcessor {
       const latestSnapshot = await this.writer.getLatestSnapshot(symbol);
 
       let status: 'healthy' | 'unhealthy' = 'unhealthy';
-      let details = 'Unknown state';
+      let details: string;
 
       if (apiHealth.status === 'healthy' && latestSnapshot) {
         status = 'healthy';
@@ -138,7 +138,9 @@ export class StockPriceETLProcessor implements BaseETLProcessor {
         details = `${symbol} price: $${latestSnapshot.price.toFixed(2)} on ${latestSnapshot.date} (${freshness})`;
       } else if (apiHealth.status === 'unhealthy') {
         details = apiHealth.details ?? 'API unhealthy';
-      } else if (!latestSnapshot) {
+      } else {
+        // Reachable only with a healthy API and no snapshot: status is
+        // 'healthy' | 'unhealthy', so the earlier arms exclude every other case.
         details = `No ${symbol} data in database`;
       }
 

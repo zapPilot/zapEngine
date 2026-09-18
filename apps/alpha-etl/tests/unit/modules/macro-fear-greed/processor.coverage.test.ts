@@ -33,12 +33,13 @@ describe('MacroFearGreedETLProcessor coverage', () => {
   afterEach(() => vi.restoreAllMocks());
 
   it('defaults existing count when the writer omits duplicatesSkipped', async () => {
-    vi.spyOn(MacroFearGreedFetcher.prototype, 'fetchHistory').mockResolvedValue([
-      macroData,
-    ]);
-    vi.spyOn(MacroFearGreedWriter.prototype, 'writeSnapshots').mockResolvedValue(
-      writeResult(),
+    vi.spyOn(MacroFearGreedFetcher.prototype, 'fetchHistory').mockResolvedValue(
+      [macroData],
     );
+    vi.spyOn(
+      MacroFearGreedWriter.prototype,
+      'writeSnapshots',
+    ).mockResolvedValue(writeResult());
 
     const result = await new MacroFearGreedETLProcessor().backfillHistory();
 
@@ -51,10 +52,13 @@ describe('MacroFearGreedETLProcessor coverage', () => {
   });
 
   it('uses the default write failure message when no writer error is supplied', async () => {
-    vi.spyOn(MacroFearGreedFetcher.prototype, 'fetchHistory').mockResolvedValue([
-      macroData,
-    ]);
-    vi.spyOn(MacroFearGreedWriter.prototype, 'writeSnapshots').mockResolvedValue(
+    vi.spyOn(MacroFearGreedFetcher.prototype, 'fetchHistory').mockResolvedValue(
+      [macroData],
+    );
+    vi.spyOn(
+      MacroFearGreedWriter.prototype,
+      'writeSnapshots',
+    ).mockResolvedValue(
       writeResult({ success: false, recordsInserted: 0, errors: [] }),
     );
 
