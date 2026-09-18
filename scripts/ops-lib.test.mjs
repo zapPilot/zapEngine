@@ -181,6 +181,7 @@ test('parseOpsArgs recognises both help spellings without defaulting', () => {
     assert.deepEqual(parseOpsArgs([flag]), {
       dashboard: false,
       social: false,
+      socialOnce: false,
       flyBilling: false,
       status: false,
       json: false,
