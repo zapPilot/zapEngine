@@ -206,7 +206,6 @@ export async function runSocialDaemon(
         refreshStrategy:
           tickStartedAt.getTime() - lastStrategyRefresh >=
           STRATEGY_REFRESH_INTERVAL_MS,
-        verbose,
       });
     } catch (error) {
       await recordTick({
