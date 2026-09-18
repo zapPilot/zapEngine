@@ -47,10 +47,14 @@ describe('useEtlJobPolling completed restart coverage', () => {
     await waitFor(() => expect(result.current.state.status).toBe('completed'));
     const invalidationCount = invalidateSpy.mock.calls.length;
 
+    act(() => result.current.reset());
+    await waitFor(() => expect(result.current.state.status).toBe('idle'));
+
     act(() => result.current.startPolling('job-completed', 'user-1'));
     await waitFor(() => expect(result.current.state.status).toBe('completed'));
 
     expect(invalidateSpy).toHaveBeenCalledTimes(invalidationCount);
     expect(result.current.state.jobId).toBe('job-completed');
+    expect(mocks.getEtlJobStatus).toHaveBeenCalledTimes(2);
   });
 });
