@@ -55,6 +55,7 @@ export async function prepareSocialBatchCopy(input: {
   languageCode: SocialLanguageCode;
   platforms: readonly SocialPlatform[];
   strategyGuidanceByPlatform?: Partial<Record<SocialPlatform, string>>;
+  logLlm?: boolean;
 }): Promise<PreparedSocialBatchCopy> {
   const episode = await getSocialEpisode(input.episodeId, input.languageCode);
   const packagingByPlatform = await resolvePackagingAssignments({
@@ -67,6 +68,7 @@ export async function prepareSocialBatchCopy(input: {
     languageCode: input.languageCode,
     platforms: input.platforms,
     packagingByPlatform,
+    logLlm: input.logLlm,
     ...(input.strategyGuidanceByPlatform
       ? { strategyGuidanceByPlatform: input.strategyGuidanceByPlatform }
       : {}),
