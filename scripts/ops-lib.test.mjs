@@ -7,6 +7,7 @@ test('parseOpsArgs starts the whole stack when no selector is given', () => {
   assert.deepEqual(parseOpsArgs([]), {
     dashboard: true,
     social: true,
+    socialOnce: false,
     flyBilling: true,
     status: false,
     json: false,
@@ -21,6 +22,7 @@ test('parseOpsArgs selects one child at a time', () => {
   assert.deepEqual(parseOpsArgs(['--dashboard']), {
     dashboard: true,
     social: false,
+    socialOnce: false,
     flyBilling: true,
     status: false,
     json: false,
@@ -32,6 +34,7 @@ test('parseOpsArgs selects one child at a time', () => {
   assert.deepEqual(parseOpsArgs(['--social']), {
     dashboard: false,
     social: true,
+    socialOnce: false,
     flyBilling: false,
     status: false,
     json: false,
@@ -43,6 +46,7 @@ test('parseOpsArgs selects one child at a time', () => {
   assert.deepEqual(parseOpsArgs(['--dashboard', '--social']), {
     dashboard: true,
     social: true,
+    socialOnce: false,
     flyBilling: true,
     status: false,
     json: false,
@@ -53,10 +57,34 @@ test('parseOpsArgs selects one child at a time', () => {
   });
 });
 
+test('parseOpsArgs selects the bounded social catch-up mode', () => {
+  assert.deepEqual(parseOpsArgs(['--social-once']), {
+    dashboard: false,
+    social: false,
+    socialOnce: true,
+    flyBilling: false,
+    status: false,
+    json: false,
+    force: false,
+    help: false,
+    error: null,
+    unknown: [],
+  });
+  assert.match(
+    parseOpsArgs(['--social-once', '--dashboard']).error,
+    /--social-once cannot be combined with --dashboard/,
+  );
+  assert.match(
+    parseOpsArgs(['--social-once', '--status']).error,
+    /--social-once cannot be combined with --status/,
+  );
+});
+
 test('parseOpsArgs makes --status exclusive of every long-lived child', () => {
   assert.deepEqual(parseOpsArgs(['--status']), {
     dashboard: false,
     social: false,
+    socialOnce: false,
     flyBilling: false,
     status: true,
     json: false,
@@ -68,6 +96,7 @@ test('parseOpsArgs makes --status exclusive of every long-lived child', () => {
   assert.deepEqual(parseOpsArgs(['--status', '--dashboard', '--social']), {
     dashboard: false,
     social: false,
+    socialOnce: false,
     flyBilling: false,
     status: true,
     json: false,
@@ -82,6 +111,7 @@ test('parseOpsArgs forwards the status tool flags alongside --status', () => {
   assert.deepEqual(parseOpsArgs(['--status', '--json']), {
     dashboard: false,
     social: false,
+    socialOnce: false,
     flyBilling: false,
     status: true,
     json: true,
@@ -93,6 +123,7 @@ test('parseOpsArgs forwards the status tool flags alongside --status', () => {
   assert.deepEqual(parseOpsArgs(['--status', '--force']), {
     dashboard: false,
     social: false,
+    socialOnce: false,
     flyBilling: false,
     status: true,
     json: false,
@@ -104,6 +135,7 @@ test('parseOpsArgs forwards the status tool flags alongside --status', () => {
   assert.deepEqual(parseOpsArgs(['--status', '--json', '--force']), {
     dashboard: false,
     social: false,
+    socialOnce: false,
     flyBilling: false,
     status: true,
     json: true,
