@@ -688,44 +688,49 @@ describe('acquireRemoteImage', () => {
     expect((await stat(result.path)).size).toBe(buffer.length);
   });
 
-  it('removes downloaded files when decoded format or dimensions are unsafe', async () => {
-    const directory = await tempDirectory();
-    const png = await sharp({
-      create: { width: 800, height: 450, channels: 3, background: '#fff' },
-    })
-      .png()
-      .toBuffer();
-    await expect(
-      acquireRemoteImage('https://example.test/mismatch.jpg', {
-        workingDirectory: directory,
-        filename: 'mismatch',
-        fetchImage: async () =>
-          imageResponse(png, { contentType: 'image/jpeg' }),
-        resolveHost: async () => ['8.8.8.8'],
-      }),
-    ).rejects.toThrow('content type does not match decoded format');
-    await expect(stat(join(directory, 'mismatch.image'))).rejects.toThrow();
+  it.each([false, true])(
+    'removes unsafe downloads with allowSmallDimensions=%s',
+    async (allowSmallDimensions) => {
+      const directory = await tempDirectory();
+      const png = await sharp({
+        create: { width: 800, height: 450, channels: 3, background: '#fff' },
+      })
+        .png()
+        .toBuffer();
+      await expect(
+        acquireRemoteImage('https://example.test/mismatch.jpg', {
+          workingDirectory: directory,
+          allowSmallDimensions,
+          filename: 'mismatch',
+          fetchImage: async () =>
+            imageResponse(png, { contentType: 'image/jpeg' }),
+          resolveHost: async () => ['8.8.8.8'],
+        }),
+      ).rejects.toThrow('content type does not match decoded format');
+      await expect(stat(join(directory, 'mismatch.image'))).rejects.toThrow();
 
-    const wide = await sharp({
-      create: {
-        width: 16_385,
-        height: 1,
-        channels: 3,
-        background: '#fff',
-      },
-    })
-      .png()
-      .toBuffer();
-    await expect(
-      acquireRemoteImage('https://example.test/wide.png', {
-        workingDirectory: directory,
-        filename: 'wide',
-        fetchImage: async () => imageResponse(wide),
-        resolveHost: async () => ['8.8.8.8'],
-      }),
-    ).rejects.toThrow('safe pixel-dimension limit');
-    await expect(stat(join(directory, 'wide.image'))).rejects.toThrow();
-  });
+      const wide = await sharp({
+        create: {
+          width: 16_385,
+          height: 1,
+          channels: 3,
+          background: '#fff',
+        },
+      })
+        .png()
+        .toBuffer();
+      await expect(
+        acquireRemoteImage('https://example.test/wide.png', {
+          workingDirectory: directory,
+          allowSmallDimensions,
+          filename: 'wide',
+          fetchImage: async () => imageResponse(wide),
+          resolveHost: async () => ['8.8.8.8'],
+        }),
+      ).rejects.toThrow('safe pixel-dimension limit');
+      await expect(stat(join(directory, 'wide.image'))).rejects.toThrow();
+    },
+  );
 
   it('rejects successful HTTP responses with no body', async () => {
     const directory = await tempDirectory();
