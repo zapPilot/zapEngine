@@ -45,6 +45,18 @@ describe('runtimeEnv', () => {
       expect(env.getRuntimeEnv(TEST_KEY)).toBe('from_process');
     });
 
+    it('returns undefined when process is unavailable in a browser runtime', async () => {
+      vi.stubGlobal('process', undefined);
+      try {
+        const env = await loadRuntimeEnv();
+        env.configureAppCoreEnv({});
+
+        expect(env.getRuntimeEnv(TEST_KEY)).toBeUndefined();
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
     it('returns undefined when the key is absent everywhere', async () => {
       const env = await loadRuntimeEnv();
 
