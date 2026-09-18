@@ -174,7 +174,9 @@ export async function runSocialDaemon(
     log(
       `🛰️ [social-daemon] Social Publisher · ${formatJst(daemonStartedAt.toISOString())}`,
     );
-    log('   Compact operator log · use pnpm ops --verbose for full diagnostics');
+    log(
+      '   Compact operator log · use pnpm ops --verbose for full diagnostics',
+    );
     log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   }
 
@@ -193,7 +195,7 @@ export async function runSocialDaemon(
     await recordTick({ phase: 'start', now: tickStartedAt, owner: OWNER });
     let tickSummary: SocialDaemonTickSummary = { deferredArticles: 0 };
     try {
-      tickSummary = await runSocialDaemonTick({
+      await runSocialDaemonTick({
         now: tickStartedAt,
         firstStartedAt,
         log,
@@ -867,7 +869,8 @@ async function publishDueJobs(
   }
 
   if (!verbose) {
-    const firstPendingJob = pendingByEpisodeLanguage.values().next().value?.[0];
+    const firstPendingJob =
+      pendingByEpisodeLanguage.values().next().value?.[0];
     if (firstPendingJob) {
       log('');
       log('────────────────────────────────────────');
@@ -1727,7 +1730,8 @@ function logQueueSnapshot(
     if (snapshot.episodeQueue.length > 0) {
       log('📅 [social-daemon] Upcoming');
       for (const episode of snapshot.episodeQueue.slice(0, 3)) {
-        const title = episode.title ?? `episode #${shortId(episode.episodeId)}`;
+        const title =
+          episode.title ?? `episode #${shortId(episode.episodeId)}`;
         log(
           `   ${formatJst(episode.nextAt)} · ${truncateTitle(title)}${Date.parse(episode.nextAt) <= now.getTime() ? ' · due now' : ''}`,
         );
