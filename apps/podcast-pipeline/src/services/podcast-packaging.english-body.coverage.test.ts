@@ -19,7 +19,10 @@ describe('getEnglishBodyScript coverage', () => {
 
   it('extracts only the body sentences from packaged English scripts', () => {
     expect(
-      getEnglishBodyScript('Intro sentence. First body. Second body. Outro sentence.', true),
+      getEnglishBodyScript(
+        'Intro sentence. First body. Second body. Outro sentence.',
+        true,
+      ),
     ).toBe('First body. Second body.');
   });
 });
