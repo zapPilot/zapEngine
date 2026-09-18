@@ -888,34 +888,13 @@ async function publishDueJobs(
     activeStrategiesForPublish(log),
     titleIndex.load(jobs.map((job) => job.episode_id)),
   ]);
-  const pendingByEpisodeLanguage = new Map<string, SocialPublishJobRow[]>();
-  let claimFailures = 0;
-  for (const job of jobs) {
-    try {
-      if (await reconcileClaimedJob(job, now, titleByEpisodeLanguage, log))
-        continue;
-      const key = groupKey(job);
-      const pending = pendingByEpisodeLanguage.get(key) ?? [];
-      pending.push(job);
-      pendingByEpisodeLanguage.set(key, pending);
-    } catch (error) {
-      claimFailures += 1;
-      await persistPublishFailure({
-        jobId: job.id,
-        episodeId: job.episode_id,
-        platform: job.platform,
-        attemptCount: job.attempt_count,
-        now,
-        message: errorMessage(error),
-        title: episodeTitle(
-          titleByEpisodeLanguage,
-          job.episode_id,
-          jobLanguage(job),
-        ),
-        log,
-      });
-    }
-  }
+  const { pendingByEpisodeLanguage, claimFailures } =
+    await reconcileClaimedJobsForPublish(
+      jobs,
+      now,
+      titleByEpisodeLanguage,
+      log,
+    );
 
   if (pendingByEpisodeLanguage.size === 0) {
     return claimFailures > 0 ? 'held' : 'reconciled';
@@ -965,6 +944,47 @@ async function publishDueJobs(
     }
   }
   return 'released';
+}
+
+async function reconcileClaimedJobsForPublish(
+  jobs: readonly SocialPublishJobRow[],
+  now: Date,
+  titleByEpisodeLanguage: ReadonlyMap<string, string | null>,
+  log: (message: string) => void,
+): Promise<{
+  pendingByEpisodeLanguage: Map<string, SocialPublishJobRow[]>;
+  claimFailures: number;
+}> {
+  const pendingByEpisodeLanguage = new Map<string, SocialPublishJobRow[]>();
+  let claimFailures = 0;
+  for (const job of jobs) {
+    try {
+      if (await reconcileClaimedJob(job, now, titleByEpisodeLanguage, log)) {
+        continue;
+      }
+      const key = groupKey(job);
+      const pending = pendingByEpisodeLanguage.get(key) ?? [];
+      pending.push(job);
+      pendingByEpisodeLanguage.set(key, pending);
+    } catch (error) {
+      claimFailures += 1;
+      await persistPublishFailure({
+        jobId: job.id,
+        episodeId: job.episode_id,
+        platform: job.platform,
+        attemptCount: job.attempt_count,
+        now,
+        message: errorMessage(error),
+        title: episodeTitle(
+          titleByEpisodeLanguage,
+          job.episode_id,
+          jobLanguage(job),
+        ),
+        log,
+      });
+    }
+  }
+  return { pendingByEpisodeLanguage, claimFailures };
 }
 
 interface PreparedReleaseGroup {
