@@ -73,6 +73,8 @@ async function renderCoverFrom(
     workingDirectory: input.workingDirectory,
     filename: 'video-cover-source',
     layout: 'framed',
+    allowSmallDimensions: true,
+    referer: input.sourceUrl,
     signal: input.signal,
   });
   const outputPath = join(input.workingDirectory, 'video-cover.png');

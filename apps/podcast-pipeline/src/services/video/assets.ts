@@ -96,6 +96,13 @@ export interface AcquireRemoteImageOptions extends ResolveSlideAssetOptions {
   workingDirectory: string;
   filename: string;
   layout?: 'fullBleed' | 'framed';
+  /**
+   * Skip only the minimum-quality dimension floor. Format, complete decode,
+   * pixel-count ceilings and all network safety checks still apply. This is
+   * reserved for a publisher's mandatory og:image, whose identity outranks
+   * our normal full-bleed source-quality heuristic.
+   */
+  allowSmallDimensions?: boolean;
 }
 
 function findAssetSource(slide: Slide): SlideSource | null {
@@ -498,6 +505,7 @@ async function inspectDownloadedImage(
   outputPath: string,
   contentType: SupportedRemoteImageContentType,
   layout: 'fullBleed' | 'contain' | 'framed',
+  allowSmallDimensions = false,
 ): Promise<{ width: number; height: number }> {
   const metadata = await sharp(outputPath, {
     failOn: 'error',
@@ -522,21 +530,25 @@ async function inspectDownloadedImage(
     throw new Error('Image exceeds the safe pixel-dimension limit');
   }
 
-  const longEdge = Math.max(metadata.width, metadata.height);
-  const shortEdge = Math.min(metadata.width, metadata.height);
-  const requiredLongEdge =
-    layout === 'fullBleed' ? MIN_FULL_BLEED_LONG_EDGE : MIN_FRAMED_LONG_EDGE;
-  const requiredShortEdge =
-    layout === 'fullBleed' ? MIN_FULL_BLEED_SHORT_EDGE : MIN_FRAMED_SHORT_EDGE;
-  if (longEdge < requiredLongEdge) {
-    throw new Error(
-      `${layout} image long edge is ${longEdge}px; ${requiredLongEdge}px is required`,
-    );
-  }
-  if (shortEdge < requiredShortEdge) {
-    throw new Error(
-      `${layout} image short edge is ${shortEdge}px; ${requiredShortEdge}px is required`,
-    );
+  if (!allowSmallDimensions) {
+    const longEdge = Math.max(metadata.width, metadata.height);
+    const shortEdge = Math.min(metadata.width, metadata.height);
+    const requiredLongEdge =
+      layout === 'fullBleed' ? MIN_FULL_BLEED_LONG_EDGE : MIN_FRAMED_LONG_EDGE;
+    const requiredShortEdge =
+      layout === 'fullBleed'
+        ? MIN_FULL_BLEED_SHORT_EDGE
+        : MIN_FRAMED_SHORT_EDGE;
+    if (longEdge < requiredLongEdge) {
+      throw new Error(
+        `${layout} image long edge is ${longEdge}px; ${requiredLongEdge}px is required`,
+      );
+    }
+    if (shortEdge < requiredShortEdge) {
+      throw new Error(
+        `${layout} image short edge is ${shortEdge}px; ${requiredShortEdge}px is required`,
+      );
+    }
   }
 
   // `metadata()` only proves the image header is readable. A truncated PNG can
@@ -575,6 +587,7 @@ export async function acquireRemoteImage(
       outputPath,
       downloaded.contentType,
       options.layout ?? 'framed',
+      options.allowSmallDimensions ?? false,
     );
     return {
       path: outputPath,

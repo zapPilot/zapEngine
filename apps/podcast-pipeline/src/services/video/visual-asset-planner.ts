@@ -1027,6 +1027,12 @@ async function acquireNextArticleImage(
 ): Promise<PlannedVisualImage | null> {
   while (state.articleCursor < state.articleImages.length) {
     const candidate = state.articleImages[state.articleCursor++]!;
+    const isMandatoryLead =
+      state.input.requireLeadCover &&
+      scene === state.input.scenes[0] &&
+      state.leadCoverCandidateUrl !== null &&
+      canonicalCandidateUrl(candidate.imageUrl) ===
+        canonicalCandidateUrl(state.leadCoverCandidateUrl);
     const rejectionCountsBefore = new Map(rejections.causes);
     const acquired = await tryAcquireUniqueImage({
       candidate,
@@ -1037,14 +1043,9 @@ async function acquireNextArticleImage(
       assets: state.assets,
       attemptedUrls: state.attemptedUrls,
       rejections,
+      allowSmallDimensions: isMandatoryLead,
     });
     if (acquired) return acquired;
-    const isMandatoryLead =
-      state.input.requireLeadCover &&
-      scene === state.input.scenes[0] &&
-      state.leadCoverCandidateUrl !== null &&
-      canonicalCandidateUrl(candidate.imageUrl) ===
-        canonicalCandidateUrl(state.leadCoverCandidateUrl);
     if (isMandatoryLead) {
       const cause = candidateRejectionDelta(
         rejectionCountsBefore,
@@ -1274,6 +1275,7 @@ async function tryAcquireUniqueImage(input: {
   assets: PlannedVisualImage[];
   attemptedUrls: Set<string>;
   rejections: CandidateRejections;
+  allowSmallDimensions?: boolean;
 }): Promise<PlannedVisualImage | null> {
   const canonicalUrl = canonicalCandidateUrl(input.candidate.imageUrl);
   if (!canonicalUrl) {
@@ -1294,6 +1296,7 @@ async function tryAcquireUniqueImage(input: {
         input.attemptedUrls.size,
       ).padStart(3, '0')}`,
       layout: 'fullBleed',
+      ...(input.allowSmallDimensions ? { allowSmallDimensions: true } : {}),
       ...(input.provider === 'article'
         ? { referer: input.candidate.sourceUrl }
         : {}),

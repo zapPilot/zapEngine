@@ -44,6 +44,12 @@ That command takes the same daemon pid lock, publishes at most one article
 cohort, and exits. Run it again explicitly if you want to catch up one more
 article.
 
+The daemon CLI now defaults to the compact operator log: queue repair is summarized,
+out-of-horizon articles are counted instead of printed one-by-one, successful
+account/LLM telemetry is hidden, and a live release gets a dedicated publishing
+section. Use `pnpm ops --verbose` (or `pnpm social:daemon --verbose`) when the
+full provider/browser diagnostics are needed.
+
 Only one daemon may run at a time. It owns a pid lock at:
 
 ```text

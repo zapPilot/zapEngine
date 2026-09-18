@@ -9,6 +9,7 @@ const SOCIAL_ONCE = '--social-once';
 const STATUS = '--status';
 const JSON_OUTPUT = '--json';
 const FORCE = '--force';
+const VERBOSE = '--verbose';
 
 export function parseOpsArgs(argv) {
   const unknown = [];
@@ -18,6 +19,7 @@ export function parseOpsArgs(argv) {
   let status = false;
   let json = false;
   let force = false;
+  let verbose = false;
   let help = false;
 
   for (const argument of argv) {
@@ -39,6 +41,9 @@ export function parseOpsArgs(argv) {
         break;
       case FORCE:
         force = true;
+        break;
+      case VERBOSE:
+        verbose = true;
         break;
       case '-h':
       case '--help':
@@ -93,6 +98,12 @@ export function parseOpsArgs(argv) {
     socialOnce = false;
   }
 
+  if (verbose && status) {
+    error = `${VERBOSE} cannot be combined with ${STATUS}`;
+  } else if (verbose && !social && !socialOnce) {
+    error = `${VERBOSE} requires the social daemon`;
+  }
+
   // The Fly billing reader follows the dashboard rather than being selectable
   // on its own: the dashboard is the only thing that displays the figure it
   // fetches, and a reader with nothing watching it is a browser window for no
@@ -107,6 +118,7 @@ export function parseOpsArgs(argv) {
     status,
     json,
     force,
+    verbose,
     help,
     error,
     unknown,

@@ -349,6 +349,37 @@ describe('social daemon', () => {
     expect(mocks.publishSocialBatch).toHaveBeenCalledOnce();
   });
 
+  it('shows operator-friendly publish progress in compact mode', async () => {
+    mocks.claimSocialPublishJob.mockResolvedValue(
+      publishJob({ language_code: 'ja' }),
+    );
+    mocks.publishSocialBatch.mockResolvedValue([
+      { platform: 'x', status: 'published', url: 'https://x.com/zap/status/1' },
+    ]);
+    mocks.listSocialPostsByEpisode
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([socialPost()]);
+
+    const log = vi.fn();
+    await runSocialDaemonTick({
+      now: NOW_PUBLISHING,
+      firstStartedAt: '2026-08-16T00:00:00.000Z',
+      log,
+      verbose: false,
+    });
+
+    const lines = log.mock.calls.map(([line]) => String(line)).join('\n');
+    expect(lines).toContain('🚀 [social-daemon] Publishing now');
+    expect(lines).toContain('Preparing release…');
+    expect(lines).toContain('Japanese copy ready');
+    expect(lines).toContain('Platforms ·');
+    expect(lines).toContain('✓ 𝕏 X published');
+    expect(lines).toContain('✅ [social-daemon] Published ·');
+    expect(mocks.prepareSocialBatchCopy).toHaveBeenCalledWith(
+      expect.objectContaining({ logLlm: false }),
+    );
+  });
+
   it('discovers a fully ready cohort, publishes one due job, and refreshes learning without backfilling before the durable start', async () => {
     mockCandidates(
       fullCohortCandidates(EPISODE_ID, '2026-08-16T09:00:00.000Z'),

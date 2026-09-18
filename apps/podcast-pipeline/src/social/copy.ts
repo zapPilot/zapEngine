@@ -392,6 +392,8 @@ export async function generateSocialCopy(input: {
   strategyGuidance?: string;
   strategyGuidanceByPlatform?: Partial<Record<SocialPlatform, string>>;
   packagingByPlatform?: Partial<Record<SocialPlatform, PackagingAssignment>>;
+  /** Keep provider request/response telemetry visible for CLI/debug runs. */
+  logLlm?: boolean;
 }): Promise<{ copy: GeneratedSocialCopy; model: string }> {
   const languageCode =
     input.languageCode ?? input.episode.languageCode ?? 'zh-Hant';
@@ -459,12 +461,14 @@ export async function generateSocialCopy(input: {
           },
         ]),
         config.thinkingModel,
-        {
-          logContext: {
-            prefix: '[social-copy]',
-            details: { language: languageCode },
-          },
-        },
+        input.logLlm === false
+          ? {}
+          : {
+              logContext: {
+                prefix: '[social-copy]',
+                details: { language: languageCode },
+              },
+            },
       );
       const content = completion.choices[0]?.message.content;
       if (typeof content !== 'string' || !content.trim()) {
