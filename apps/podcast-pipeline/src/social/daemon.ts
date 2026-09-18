@@ -1706,54 +1706,75 @@ function logQueueSnapshot(
       return;
     }
 
+    const scheduledCount = snapshot.episodeQueue.length;
+    const scheduledLabel =
+      scheduledCount === 1 ? 'scheduled article' : 'scheduled articles';
+    const laneLabelText =
+      snapshot.pendingCount === 1 ? 'lane' : 'lanes';
     log(
-      `📋 [social-daemon] Queue · ${snapshot.episodeQueue.length} scheduled article${snapshot.episodeQueue.length === 1 ? '' : 's'} · ${snapshot.pendingCount} lane${snapshot.pendingCount === 1 ? '' : 's'}`,
+      `📋 [social-daemon] Queue · ${scheduledCount} ${scheduledLabel} · ${snapshot.pendingCount} ${laneLabelText}`,
     );
+
     if (waitingVideos.length > 0) {
+      const waitingLabel =
+        waitingVideos.length === 1 ? 'article' : 'articles';
       log(
-        `⚠️ [social-daemon] Waiting for media · ${waitingVideos.length} article${waitingVideos.length === 1 ? '' : 's'}`,
+        `⚠️ [social-daemon] Waiting for media · ${waitingVideos.length} ${waitingLabel}`,
       );
       for (const item of waitingVideos.slice(0, 3)) {
+        const missingLanguages = item.languageCodes
+          .map((language) => operatorLanguageLabel(language))
+          .join(' · ');
         log(
-          `   ${episodeLabel(item.title, item.episodeId)} · missing ${item.languageCodes.map((language) => operatorLanguageLabel(language)).join(' · ')}`,
+          `   ${episodeLabel(item.title, item.episodeId)} · missing ${missingLanguages}`,
         );
       }
       if (waitingVideos.length > 3) {
         log(`   +${waitingVideos.length - 3} more`);
       }
     }
+
     if (deferredArticles > 0) {
+      const backlogLabel = deferredArticles === 1 ? 'article' : 'articles';
       log(
-        `   Backlog · ${deferredArticles} article${deferredArticles === 1 ? '' : 's'} beyond the ${SCHEDULING_HORIZON_DAYS}-day scheduling horizon`,
+        `   Backlog · ${deferredArticles} ${backlogLabel} beyond the ${SCHEDULING_HORIZON_DAYS}-day scheduling horizon`,
       );
     }
-    if (snapshot.episodeQueue.length > 0) {
+
+    if (scheduledCount > 0) {
       log('📅 [social-daemon] Upcoming');
       for (const episode of snapshot.episodeQueue.slice(0, 3)) {
         const title =
           episode.title ?? `episode #${shortId(episode.episodeId)}`;
+        const dueLabel =
+          Date.parse(episode.nextAt) <= now.getTime() ? ' · due now' : '';
         log(
-          `   ${formatJst(episode.nextAt)} · ${truncateTitle(title)}${Date.parse(episode.nextAt) <= now.getTime() ? ' · due now' : ''}`,
+          `   ${formatJst(episode.nextAt)} · ${truncateTitle(title)}${dueLabel}`,
         );
       }
-      if (snapshot.episodeQueue.length > 3) {
-        log(`   +${snapshot.episodeQueue.length - 3} more scheduled`);
+      if (scheduledCount > 3) {
+        log(`   +${scheduledCount - 3} more scheduled`);
       }
     }
+
     if (attention.length > 0) {
+      const attentionLabel =
+        attention.length === 1 ? 'lane needs' : 'lanes need';
       log(
-        `⚠️ [social-daemon] Attention · ${attention.length} lane${attention.length === 1 ? ' needs' : 's need'} review`,
+        `⚠️ [social-daemon] Attention · ${attention.length} ${attentionLabel} review`,
       );
       for (const item of attention.slice(0, 3)) {
         const title = item.title ? `“${truncateTitle(item.title)}” · ` : '';
         const state = item.attemptsExhausted
           ? `blocked after ${item.attemptCount} attempts`
           : item.status;
-        log(
-          `   ${operatorPlatformLabel(item.platform)} · ${operatorLanguageLabel(item.languageCode)} · ${title}${state}`,
-        );
+        const platform = operatorPlatformLabel(item.platform);
+        const language = operatorLanguageLabel(item.languageCode);
+        log(`   ${platform} · ${language} · ${title}${state}`);
       }
-      if (attention.length > 3) log(`   +${attention.length - 3} more`);
+      if (attention.length > 3) {
+        log(`   +${attention.length - 3} more`);
+      }
     }
     return;
   }
