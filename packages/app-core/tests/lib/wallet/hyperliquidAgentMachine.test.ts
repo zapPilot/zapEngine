@@ -134,4 +134,20 @@ describe('hyperliquidAgentReducer', () => {
       initialHyperliquidAgentState,
     );
   });
+
+  it('preserves state when an unknown runtime event reaches the reducer', () => {
+    const checking = hyperliquidAgentReducer(initialHyperliquidAgentState, {
+      type: 'CHECK_STARTED',
+      master: MASTER,
+    });
+
+    expect(
+      hyperliquidAgentReducer(
+        checking,
+        // Runtime boundaries can still deliver malformed events despite the
+        // compile-time union, so the reducer must fail closed.
+        { type: 'UNKNOWN_EVENT' } as never,
+      ),
+    ).toBe(checking);
+  });
 });

@@ -5,6 +5,8 @@ const sentryMocks = vi.hoisted(() => ({ captureRequestError: vi.fn() }));
 vi.mock('@sentry/nextjs', () => ({
   captureRequestError: sentryMocks.captureRequestError,
 }));
+vi.mock('../../sentry.server.config', () => ({}));
+vi.mock('../../sentry.edge.config', () => ({}));
 
 describe('Next.js server instrumentation', () => {
   beforeEach(() => {
@@ -19,4 +21,13 @@ describe('Next.js server instrumentation', () => {
     );
     await expect(instrumentation.register()).resolves.toBeUndefined();
   });
+
+  it.each(['nodejs', 'edge'] as const)(
+    'loads the %s runtime instrumentation',
+    async (runtime) => {
+      vi.stubEnv('NEXT_RUNTIME', runtime);
+      const instrumentation = await import('../instrumentation');
+      await expect(instrumentation.register()).resolves.toBeUndefined();
+    },
+  );
 });

@@ -106,6 +106,7 @@ export function demoStrategyEvents(): StrategyEvent[] {
   if (!Array.isArray(raw)) return [];
 
   return raw.flatMap((entry): StrategyEvent[] => {
+    if (typeof entry !== 'object' || entry === null) return [];
     const event = entry as Record<string, unknown>;
     const date = event['date'];
     const type = event['type'];
