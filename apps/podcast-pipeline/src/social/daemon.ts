@@ -181,11 +181,11 @@ export async function runSocialDaemon(
     if (verbose) {
       log(
         `🔄 [social-daemon] checking discovery · publishing · metrics${
-        tickStartedAt.getTime() - lastStrategyRefresh >=
-        STRATEGY_REFRESH_INTERVAL_MS
-          ? ' · strategy'
-          : ''
-      }`,
+          tickStartedAt.getTime() - lastStrategyRefresh >=
+          STRATEGY_REFRESH_INTERVAL_MS
+            ? ' · strategy'
+            : ''
+        }`,
       );
     }
     await recordTick({ phase: 'start', now: tickStartedAt, owner: OWNER });
@@ -228,7 +228,9 @@ export async function runSocialDaemon(
       lastStrategyRefresh = tickStartedAt.getTime();
     }
     await isolate('queue summary', log, async () => {
-      const snapshot = await getSocialQueueSnapshot({ includeWaitingMedia: true });
+      const snapshot = await getSocialQueueSnapshot({
+        includeWaitingMedia: true,
+      });
       const fingerprint = JSON.stringify({
         snapshot,
         deferredArticles: tickSummary.deferredArticles,
@@ -423,11 +425,11 @@ async function discoverAndEnqueue(input: {
   for (const episodeId of episodeIds) {
     if (
       await discoverAndEnqueueEpisode({
-      episodeId,
-      episodeCandidates: candidatesByEpisode.get(episodeId) ?? [],
-      schedules,
-      scheduledArticles,
-      titleByEpisodeLanguage,
+        episodeId,
+        episodeCandidates: candidatesByEpisode.get(episodeId) ?? [],
+        schedules,
+        scheduledArticles,
+        titleByEpisodeLanguage,
         now: input.now,
         log: input.log,
         verbose: input.verbose,
@@ -831,21 +833,6 @@ async function publishDueJobs(
     activeStrategiesForPublish(log),
     titleIndex.load(jobs.map((job) => job.episode_id)),
   ]);
-  if (!verbose) {
-    const firstJob = jobs[0];
-    if (firstJob) {
-      log('');
-      log('────────────────────────────────────────');
-      log(
-        `🚀 [social-daemon] Publishing now · ${formatJst(firstJob.scheduled_at)}`,
-      );
-      log(
-        `   ${episodeLabel(episodeTitle(titleByEpisodeLanguage, firstJob.episode_id, 'zh-Hant'), firstJob.episode_id)}`,
-      );
-      log('   Preparing release…');
-    }
-  }
-
   const pendingByEpisodeLanguage = new Map<string, SocialPublishJobRow[]>();
   for (const job of jobs) {
     try {
@@ -870,6 +857,28 @@ async function publishDueJobs(
         ),
         log,
       });
+    }
+  }
+
+  if (!verbose) {
+    const firstPendingJob = pendingByEpisodeLanguage.values().next().value?.[0];
+    if (firstPendingJob) {
+      log('');
+      log('────────────────────────────────────────');
+      log(
+        `🚀 [social-daemon] Publishing now · ${formatJst(firstPendingJob.scheduled_at)}`,
+      );
+      log(
+        `   ${episodeLabel(
+          episodeTitle(
+            titleByEpisodeLanguage,
+            firstPendingJob.episode_id,
+            'zh-Hant',
+          ),
+          firstPendingJob.episode_id,
+        )}`,
+      );
+      log('   Preparing release…');
     }
   }
 
@@ -1723,7 +1732,7 @@ function logQueueSnapshot(
     }
     if (attention.length > 0) {
       log(
-        `⚠️ [social-daemon] Attention · ${attention.length} lane${attention.length === 1 ? '' : 's'} need review`,
+        `⚠️ [social-daemon] Attention · ${attention.length} lane${attention.length === 1 ? ' needs' : 's need'} review`,
       );
       for (const item of attention.slice(0, 3)) {
         const title = item.title ? `“${truncateTitle(item.title)}” · ` : '';
