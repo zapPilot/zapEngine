@@ -4,12 +4,13 @@ import { spawn } from 'node:child_process';
 import { createLinePrefixer, parseOpsArgs } from './ops-lib.mjs';
 
 const USAGE = [
-  'usage: pnpm ops [--dashboard] [--social] [--status [--json] [--force]]',
+  'usage: pnpm ops [--dashboard] [--social] [--verbose] [--status [--json] [--force]]',
   '',
   '  (no flags)    start the control-center dashboard, the Fly billing reader',
   '                and the social daemon',
   '  --dashboard   start the control-center dashboard and the Fly billing reader',
   '  --social      start the social publishing daemon only',
+  '  --verbose     show full social publisher debug logs instead of compact operator logs',
   '  --status      print the operations status snapshot and exit',
   '  --json        with --status: print the snapshot as JSON, for an agent',
   '  --force       with --status: refetch instead of reading the caches',
@@ -123,7 +124,11 @@ function startStack() {
   };
 
   for (const child of selected) {
-    const spawned = spawn(child.command, child.args, {
+    const args =
+      child.label === 'social' && options.verbose
+        ? [...child.args, '--verbose']
+        : child.args;
+    const spawned = spawn(child.command, args, {
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     running.add(spawned);
