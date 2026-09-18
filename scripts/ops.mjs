@@ -4,12 +4,13 @@ import { spawn } from 'node:child_process';
 import { createLinePrefixer, parseOpsArgs } from './ops-lib.mjs';
 
 const USAGE = [
-  'usage: pnpm ops [--dashboard] [--social] [--status [--json] [--force]]',
+  'usage: pnpm ops [--dashboard] [--social] [--social-once] [--status [--json] [--force]]',
   '',
   '  (no flags)    start the control-center dashboard, the Fly billing reader',
   '                and the social daemon',
   '  --dashboard   start the control-center dashboard and the Fly billing reader',
   '  --social      start the social publishing daemon only',
+  '  --social-once publish at most one catch-up article cohort, then exit',
   '  --status      print the operations status snapshot and exit',
   '  --json        with --status: print the snapshot as JSON, for an agent',
   '  --force       with --status: refetch instead of reading the caches',
@@ -46,6 +47,13 @@ const CHILDREN = {
     // `:watch` variant either -- a watcher that restarts the daemon mid-publish
     // is how a release cohort gets posted twice.
     args: ['--filter', '@zapengine/podcast-pipeline', 'social:daemon'],
+  },
+  socialOnce: {
+    label: 'social-once',
+    command: 'pnpm',
+    // Same daemon entry point and pid lock, but the workspace script selects
+    // the bounded operator catch-up path and exits after at most one article.
+    args: ['--filter', '@zapengine/podcast-pipeline', 'social:once'],
   },
 };
 
