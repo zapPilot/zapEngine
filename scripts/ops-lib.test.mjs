@@ -186,6 +186,7 @@ test('parseOpsArgs recognises both help spellings without defaulting', () => {
       status: false,
       json: false,
       force: false,
+      verbose: false,
       help: true,
       error: null,
       unknown: [],
