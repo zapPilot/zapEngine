@@ -156,7 +156,9 @@ export async function runSocialDaemon(
   const sleep = dependencies.sleep ?? defaultSleep;
   const log = dependencies.log ?? console.log;
   const recordTick = dependencies.recordTick ?? recordSocialDaemonTick;
-  const verbose = dependencies.verbose ?? false;
+  // Programmatic callers keep the historical detailed log unless they opt in
+  // to compact mode. The CLI entry point explicitly passes false by default.
+  const verbose = dependencies.verbose ?? true;
   let lastStrategyRefresh = 0;
   let consecutiveTransientFailures = 0;
   let lastQueueFingerprint: string | null = null;
@@ -196,6 +198,9 @@ export async function runSocialDaemon(
         firstStartedAt,
         log,
         verbose,
+        onSummary: (summary) => {
+          tickSummary = summary;
+        },
         refreshStrategy:
           tickStartedAt.getTime() - lastStrategyRefresh >=
           STRATEGY_REFRESH_INTERVAL_MS,
@@ -284,7 +289,8 @@ export async function runSocialDaemonTick(input: {
   log?: (message: string) => void;
   refreshStrategy?: boolean;
   verbose?: boolean;
-}): Promise<SocialDaemonTickSummary> {
+  onSummary?: (summary: SocialDaemonTickSummary) => void;
+}): Promise<void> {
   const log = input.log ?? (() => void 0);
   const verbose = input.verbose ?? true;
   const observationLog = verbose ? log : warningsOnlyLog(log);
@@ -363,7 +369,7 @@ export async function runSocialDaemonTick(input: {
     }
   }
 
-  return { deferredArticles: discovery.deferredArticles };
+  input.onSummary?.({ deferredArticles: discovery.deferredArticles });
 }
 
 async function logExperimentReports(
