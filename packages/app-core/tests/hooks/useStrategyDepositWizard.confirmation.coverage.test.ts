@@ -71,7 +71,18 @@ const PLAN: StrategyDepositPlan = {
       gasUsd: '0.03',
     },
   ],
-  checkpoints: [],
+  checkpoints: [
+    {
+      kind: 'mock-bridge',
+      id: 'base-to-arbitrum',
+      fromChainId: 8453,
+      toChainId: 42161,
+      afterGroupId: 'base-morpho',
+      beforeGroupId: 'arbitrum-gmx',
+      amountUsd6: '0',
+      disclosure: 'No funds move.',
+    },
+  ],
   totalGasUsd: '0.03',
 };
 
