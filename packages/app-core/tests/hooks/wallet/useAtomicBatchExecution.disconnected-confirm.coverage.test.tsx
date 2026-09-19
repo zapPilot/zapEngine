@@ -95,9 +95,6 @@ describe('useAtomicBatchExecution disconnected confirmation coverage', () => {
   it('fails closed if the Privy access token expires between preview and confirmation', async () => {
     mocks.preparePrivyAtomicBatch.mockResolvedValue(preview);
     const connected = makeDeps(WALLET_ADDRESS);
-    vi.mocked(connected.getAccessToken)
-      .mockResolvedValueOnce('access-token')
-      .mockResolvedValueOnce(null);
     const hook = renderHook(() => useAtomicBatchExecution(connected));
 
     let execution: Promise<unknown> | undefined;
@@ -106,6 +103,8 @@ describe('useAtomicBatchExecution disconnected confirmation coverage', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
     expect(hook.result.current.simulationPreview?.status).toBe('passed');
+
+    vi.mocked(connected.getAccessToken).mockResolvedValue(null);
 
     await expect(hook.result.current.confirmBatchExecution()).rejects.toThrow(
       'Privy user access token is invalid or expired. Please re-login.',
