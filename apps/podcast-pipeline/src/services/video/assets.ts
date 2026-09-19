@@ -502,7 +502,10 @@ async function inspectDownloadedImage(
     animated: false,
   })
     .metadata()
-    .catch(() => {
+    .catch((error) => {
+      if (/pixel limit/i.test(errorMessage(error))) {
+        throw new Error('Image exceeds the safe pixel-dimension limit');
+      }
       throw new Error(
         'Remote asset is not an image or uses an unsupported raster format',
       );
