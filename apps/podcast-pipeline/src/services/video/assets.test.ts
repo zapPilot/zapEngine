@@ -177,15 +177,15 @@ describe('resolveSlideAsset', () => {
   });
 
   it.each([
-    { layout: 'contain' as const, width: 799, required: 800 },
-    { layout: 'fullBleed' as const, width: 999, required: 1_000 },
+    { layout: 'contain' as const, width: 370, height: 208 },
+    { layout: 'fullBleed' as const, width: 640, height: 360 },
   ])(
-    'falls back when a $layout image is below its quality floor',
-    async ({ layout, width, required }) => {
+    'renders a prevalidated $layout manifest image below the planner quality floor',
+    async ({ layout, width, height }) => {
       const buffer = await sharp({
         create: {
           width,
-          height: 20,
+          height,
           channels: 3,
           background: '#0a0a0a',
         },
@@ -199,46 +199,13 @@ describe('resolveSlideAsset', () => {
       );
 
       expect(resolved).toMatchObject({
-        kind: 'fallback',
-        source: openSource,
+        kind: 'image',
+        layout,
+        width,
+        height,
       });
-      if (resolved.kind !== 'fallback') {
-        throw new Error('Expected a dimension fallback');
-      }
-      expect(resolved.reason).toContain(
-        `${layout} image long edge is ${width}px; ${required}px is required`,
-      );
     },
   );
-
-  it('rejects a full-bleed image below the 800px short-edge floor', async () => {
-    const buffer = await sharp({
-      create: {
-        width: 1_600,
-        height: 799,
-        channels: 3,
-        background: '#0a0a0a',
-      },
-    })
-      .png()
-      .toBuffer();
-
-    const resolved = await resolveSlideAsset(
-      remoteImageSlide({
-        imageHash: hash(buffer),
-        layout: 'fullBleed',
-      }),
-      async () => imageResponse(buffer),
-    );
-
-    expect(resolved).toMatchObject({ kind: 'fallback' });
-    if (resolved.kind !== 'fallback') {
-      throw new Error('Expected a short-edge dimension fallback');
-    }
-    expect(resolved.reason).toContain(
-      'fullBleed image short edge is 799px; 800px is required',
-    );
-  });
 
   it('falls back when the downloaded bytes do not match the manifest hash', async () => {
     const buffer = await sharp({
@@ -688,27 +655,40 @@ describe('acquireRemoteImage', () => {
     expect((await stat(result.path)).size).toBe(buffer.length);
   });
 
-  it.each([false, true])(
-    'removes unsafe downloads with allowSmallDimensions=%s',
-    async (allowSmallDimensions) => {
+  it.each(['application/octet-stream', 'image/jpeg', 'text/plain'])(
+    'uses decoded raster bytes instead of HTTP MIME metadata (%s)',
+    async (contentType) => {
       const directory = await tempDirectory();
       const png = await sharp({
         create: { width: 800, height: 450, channels: 3, background: '#fff' },
       })
         .png()
         .toBuffer();
-      await expect(
-        acquireRemoteImage('https://example.test/mismatch.jpg', {
-          workingDirectory: directory,
-          allowSmallDimensions,
-          filename: 'mismatch',
-          fetchImage: async () =>
-            imageResponse(png, { contentType: 'image/jpeg' }),
-          resolveHost: async () => ['8.8.8.8'],
-        }),
-      ).rejects.toThrow('content type does not match decoded format');
-      await expect(stat(join(directory, 'mismatch.image'))).rejects.toThrow();
 
+      const result = await acquireRemoteImage(
+        'https://example.test/mislabeled-image',
+        {
+          workingDirectory: directory,
+          filename: `mislabeled-${contentType.replace(/[^a-z]/gi, '-')}`,
+          fetchImage: async () => imageResponse(png, { contentType }),
+          resolveHost: async () => ['8.8.8.8'],
+        },
+      );
+
+      expect(result).toMatchObject({
+        contentType: 'image/png',
+        width: 800,
+        height: 450,
+        sha256: hash(png),
+      });
+      expect((await stat(result.path)).size).toBe(png.length);
+    },
+  );
+
+  it.each([false, true])(
+    'removes pixel-unsafe downloads with allowSmallDimensions=%s',
+    async (allowSmallDimensions) => {
+      const directory = await tempDirectory();
       const wide = await sharp({
         create: {
           width: 16_385,
