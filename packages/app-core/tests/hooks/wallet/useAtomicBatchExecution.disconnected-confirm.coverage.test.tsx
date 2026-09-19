@@ -30,7 +30,9 @@ function makeDeps(walletAddress: string | undefined): AtomicBatchExecutionDeps {
   return {
     getAccessToken: vi.fn(async () => 'access-token'),
     signPreviewTypedData: vi.fn(async () => '0xusersig' as `0x${string}`),
-    generateAuthorizationSignature: vi.fn(async () => ({ signature: 'authsig' })),
+    generateAuthorizationSignature: vi.fn(async () => ({
+      signature: 'authsig',
+    })),
     ensureChain: vi.fn(async () => {}),
     resolveWalletId: vi.fn(() => 'wallet-id'),
     walletAddress,
