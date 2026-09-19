@@ -16,6 +16,8 @@ afterEach(cleanup);
 const journey: SocialGrowthJourney = {
   appVisitors30d: 6,
   ctaUsers30d: 1,
+  discordCtaUsers30d: 0,
+  discordCtaPostWaitlistUsers30d: 0,
   landingDirect30d: 4,
   landingOther30d: 2,
   landingRednote30d: 0,
@@ -65,6 +67,7 @@ function renderGrowth(
   const onWindowChange = vi.fn(async () => undefined);
   render(
     <GrowthPage
+      acquisition={null}
       data={social}
       growth={growth}
       journey={journey}
@@ -104,6 +107,8 @@ describe('GrowthPage coverage', () => {
         landingVisitors30d: 0,
         walletConnectedUsers30d: 0,
         ctaUsers30d: 0,
+        discordCtaUsers30d: 0,
+        discordCtaPostWaitlistUsers30d: 0,
       },
     });
 

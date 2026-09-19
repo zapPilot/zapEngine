@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   captureWaitlistFirstTouch,
+  firstTouchSuperProperties,
   readWaitlistAttribution,
 } from '../waitlist-attribution';
 
@@ -64,5 +65,26 @@ describe('waitlist attribution', () => {
       throw new Error('blocked');
     });
     expect(captureWaitlistFirstTouch()).toMatchObject({ landingPath: '/' });
+  });
+  it('maps only present UTM fields and keeps identity and path out of analytics', () => {
+    expect(firstTouchSuperProperties(null)).toEqual({});
+    expect(
+      firstTouchSuperProperties({
+        landingPath: '/private',
+        referrer: 'https://example.com',
+        utmSource: 'youtube',
+        utmMedium: 'social',
+        utmCampaign: 'episode',
+        utmContent: 'en',
+      }),
+    ).toEqual({
+      first_touch_utm_source: 'youtube',
+      first_touch_utm_medium: 'social',
+      first_touch_utm_campaign: 'episode',
+      first_touch_utm_content: 'en',
+    });
+    expect(
+      firstTouchSuperProperties({ landingPath: '/', utmSource: '' }),
+    ).toEqual({});
   });
 });

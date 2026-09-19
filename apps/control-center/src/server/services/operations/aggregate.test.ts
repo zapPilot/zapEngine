@@ -289,7 +289,7 @@ it('keeps growth provider queries out of the reliability snapshot', async () => 
     await service.getOperations(true);
     expect(fetchSpy).not.toHaveBeenCalled();
     await service.getGrowth();
-    expect(fetchSpy).toHaveBeenCalledTimes(3);
+    expect(fetchSpy).toHaveBeenCalledTimes(5);
   } finally {
     fetchSpy.mockRestore();
   }

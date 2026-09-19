@@ -35,7 +35,9 @@ SELECT
   uniqIf(person_id, event = '$pageview' AND properties.surface = 'app') AS app_visitors_30d,
   uniqIf(person_id, timestamp >= now() - INTERVAL 7 DAY AND event = 'wallet_connected') AS wallet_connected_users_7d,
   uniqIf(person_id, event = 'wallet_connected') AS wallet_connected_users_30d,
-  uniqIf(person_id, timestamp >= now() - INTERVAL 7 DAY AND event = '$dead_click' AND properties.surface = 'landing') AS landing_dead_click_users_7d
+  uniqIf(person_id, timestamp >= now() - INTERVAL 7 DAY AND event = '$dead_click' AND properties.surface = 'landing') AS landing_dead_click_users_7d,
+  uniqIf(person_id, event = 'discord_cta_clicked' AND properties.surface = 'landing') AS discord_cta_users_30d,
+  uniqIf(person_id, event = 'discord_cta_clicked' AND properties.surface = 'landing' AND toString(properties.post_waitlist) IN ('true', '1')) AS discord_cta_post_waitlist_users_30d
 FROM events
 WHERE timestamp >= now() - INTERVAL 30 DAY
 `.trim();
@@ -83,7 +85,7 @@ const numericSchema = z
   .pipe(z.number().int().nonnegative());
 
 /** HogQL aggregate columns can arrive as JSON numbers or numeric strings. */
-const rowSchema = z.array(numericSchema).length(11);
+const rowSchema = z.array(numericSchema).length(13);
 const sourceRowSchema = z.tuple([z.string(), numericSchema]);
 const funnelEnvelopeSchema = z.object({
   results: z.array(
@@ -106,6 +108,8 @@ interface AudienceReading {
   walletConnectedUsers7d: number;
   walletConnectedUsers30d: number;
   landingDeadClickUsers7d: number;
+  discordCtaUsers30d: number;
+  discordCtaPostWaitlistUsers30d: number;
 }
 
 interface LandingSourceReading {
@@ -124,6 +128,8 @@ interface LandingCtaFunnelReading {
 
 export interface PosthogGrowthJourneyReading
   extends LandingSourceReading, LandingCtaFunnelReading {
+  discordCtaUsers30d: number;
+  discordCtaPostWaitlistUsers30d: number;
   appVisitors30d: number;
   walletConnectedUsers30d: number;
 }
@@ -192,14 +198,30 @@ export async function readPosthogGrowthJourney(input: {
     );
   }
   const fetchImpl = input.fetchImpl ?? globalThis.fetch;
-  const [audience, sources, funnel] = await Promise.all([
+  const [audience, sources, funnel, discord] = await Promise.all([
     runAudienceQuery(apiKey, projectId, fetchImpl),
     runLandingSourceQuery(apiKey, projectId, fetchImpl),
-    runLandingCtaFunnelQuery(apiKey, projectId, fetchImpl),
+    runLandingFunnelQuery(
+      apiKey,
+      projectId,
+      fetchImpl,
+      'waitlist_cta_clicked',
+      'CTA',
+    ),
+    runLandingFunnelQuery(
+      apiKey,
+      projectId,
+      fetchImpl,
+      'discord_cta_clicked',
+      'Discord',
+    ),
   ]);
   return {
     ...sources,
-    ...funnel,
+    landingVisitors30d: funnel.get(0)!,
+    ctaUsers30d: funnel.get(1)!,
+    discordCtaUsers30d: discord.get(1)!,
+    discordCtaPostWaitlistUsers30d: audience.discordCtaPostWaitlistUsers30d,
     appVisitors30d: audience.appVisitors30d,
     walletConnectedUsers30d: audience.walletConnectedUsers30d,
   };
@@ -237,6 +259,8 @@ async function runAudienceQuery(
     walletConnectedUsers7d: values[8]!,
     walletConnectedUsers30d: values[9]!,
     landingDeadClickUsers7d: values[10]!,
+    discordCtaUsers30d: values[11]!,
+    discordCtaPostWaitlistUsers30d: values[12]!,
   };
 }
 
@@ -286,13 +310,15 @@ function landingFunnelEvent(event: string, customName: string) {
   };
 }
 
-async function runLandingCtaFunnelQuery(
+async function runLandingFunnelQuery(
   apiKey: string,
   projectId: string,
   fetchImpl: typeof fetch,
-): Promise<LandingCtaFunnelReading> {
+  event: string,
+  label: string,
+): Promise<Map<number, number>> {
   const envelope = await fetchJson({
-    label: 'PostHog landing CTA funnel query',
+    label: `PostHog landing ${label} funnel query`,
     url: `${POSTHOG_API}/${encodeURIComponent(projectId)}/query/`,
     token: apiKey,
     schema: funnelEnvelopeSchema,
@@ -302,7 +328,7 @@ async function runLandingCtaFunnelQuery(
         kind: 'FunnelsQuery',
         series: [
           landingFunnelEvent('$pageview', 'Landing page view'),
-          landingFunnelEvent('waitlist_cta_clicked', 'Waitlist CTA clicked'),
+          landingFunnelEvent(event, `${label} clicked`),
         ],
         dateRange: { date_from: '-30d' },
         funnelsFilter: {
@@ -322,10 +348,10 @@ async function runLandingCtaFunnelQuery(
   const ctaUsers30d = counts.get(1);
   if (landingVisitors30d === undefined || ctaUsers30d === undefined) {
     throw new Error(
-      'PostHog landing CTA funnel query returned incomplete steps',
+      `PostHog landing ${label} funnel query returned incomplete steps`,
     );
   }
-  return { landingVisitors30d, ctaUsers30d };
+  return counts;
 }
 
 function runHogqlQuery(input: {
@@ -343,4 +369,74 @@ function runHogqlQuery(input: {
     fetchImpl: input.fetchImpl,
     body: { query: { kind: 'HogQLQuery', query: input.query } },
   });
+}
+
+export interface PosthogLaneReading {
+  episodeId: string;
+  platform: string;
+  languageCode: string;
+  landingVisitors30d: number;
+  ctaUsers30d: number;
+  discordCtaUsers30d: number;
+}
+
+export async function readPosthogGrowthLanes(input: {
+  config: ControlCenterConfig;
+  fetchImpl?: typeof fetch;
+}): Promise<PosthogLaneReading[]> {
+  const apiKey = input.config.POSTHOG_PERSONAL_API_KEY;
+  const projectId = input.config.POSTHOG_PROJECT_ID;
+  if (!apiKey || !projectId) {
+    throw new Error('PostHog growth lanes are not configured');
+  }
+  const envelope = await runHogqlQuery({
+    apiKey,
+    projectId,
+    fetchImpl: input.fetchImpl ?? globalThis.fetch,
+    label: 'PostHog growth lanes query',
+    query: `
+SELECT properties.first_touch_utm_campaign AS episode_id,
+       properties.first_touch_utm_source AS platform,
+       properties.first_touch_utm_content AS language_code,
+       uniqIf(person_id, event = '$pageview') AS landing_visitors_30d,
+       uniqIf(person_id, event = 'waitlist_cta_clicked') AS cta_users_30d,
+       uniqIf(person_id, event = 'discord_cta_clicked') AS discord_cta_users_30d
+FROM events
+WHERE timestamp >= now() - INTERVAL 30 DAY AND properties.surface = 'landing'
+  AND properties.first_touch_utm_medium = 'social' AND notEmpty(properties.first_touch_utm_campaign)
+GROUP BY episode_id, platform, language_code ORDER BY landing_visitors_30d DESC LIMIT 200
+`.trim(),
+  });
+  const rows = z
+    .array(
+      z.tuple([
+        z.string(),
+        z.string().nullable(),
+        z.string().nullable(),
+        numericSchema,
+        numericSchema,
+        numericSchema,
+      ]),
+    )
+    .safeParse(envelope.results);
+  if (!rows.success) {
+    throw new Error('PostHog growth lanes query returned an unusable row');
+  }
+  return rows.data.map(
+    ([
+      episodeId,
+      platform,
+      languageCode,
+      landingVisitors30d,
+      ctaUsers30d,
+      discordCtaUsers30d,
+    ]) => ({
+      episodeId,
+      platform: platform?.trim().toLowerCase() || 'unknown',
+      languageCode: languageCode?.trim() || 'unknown',
+      landingVisitors30d,
+      ctaUsers30d,
+      discordCtaUsers30d,
+    }),
+  );
 }

@@ -24,12 +24,13 @@ import { createSocialGrowthService } from './services/social-growth.js';
 const json = process.argv.includes('--json');
 const force = process.argv.includes('--force');
 const config = readControlCenterConfig();
-const operationsService = createOperationsService({ config });
+const socialGrowth = createSocialGrowthService({ config });
+const operationsService = createOperationsService({ config, socialGrowth });
 const statementsService = createStatementsService({
   config,
   service: createOverviewService({ config }),
   operations: operationsService,
-  socialGrowth: createSocialGrowthService({ config }),
+  socialGrowth,
   podcastPipeline: createPodcastPipelineService({ config }),
   podcastCosts: createPodcastCostService({ config }),
 });

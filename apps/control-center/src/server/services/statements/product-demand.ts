@@ -49,6 +49,17 @@ export function ruleProductDemand(input: StatementInputs): RuleFinding {
       },
     );
   }
+  const discord = acquisition?.discordCtaUsers30d ?? null;
+  const postWaitlist = acquisition?.discordCtaPostWaitlistUsers30d ?? null;
+  if (discord !== null) {
+    finding.segments.push(
+      { text: '; ' },
+      {
+        value: `${count(discord)} showed Discord CTA intent${postWaitlist === null ? '' : ` (${count(postWaitlist)} after joining the waitlist)`}`,
+        tone: 'neutral',
+      },
+    );
+  }
   if (finding.segments.length) {
     finding.segments.push({ text: '.' });
   }
@@ -79,6 +90,12 @@ export function ruleProductDemand(input: StatementInputs): RuleFinding {
         { text: ' were observed overall, not attributed to the waitlist.' },
       );
     }
+  }
+
+  if (input.community.status === 'ok') {
+    finding.segments.push({
+      text: ` ${count(input.community.memberCount)} Discord members (guild total, not attributable to any source).`,
+    });
   }
 
   const deadClicks = acquisition?.landingDeadClickUsers7d ?? null;

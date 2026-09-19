@@ -77,7 +77,8 @@
   border-color: rgb(255 255 255 / 50%);
 }
 
-.submit {
+.submit,
+.successCta {
   border: 0;
   border-radius: 12px;
   padding: 13px 16px;
@@ -128,4 +129,10 @@
   width: 1px;
   height: 1px;
   overflow: hidden;
+}
+
+.successCta {
+  display: inline-block;
+  margin-top: 16px;
+  text-decoration: none;
 }

@@ -15,6 +15,8 @@ const JOURNEY = {
   message: null,
   landingVisitors30d: 300,
   ctaUsers30d: 12,
+  discordCtaUsers30d: 0,
+  discordCtaPostWaitlistUsers30d: 0,
   appVisitors30d: 55,
   walletConnectedUsers30d: 21,
   landingThreads30d: 210,
@@ -30,6 +32,8 @@ const UNAVAILABLE_JOURNEY = {
   message: 'PostHog timed out',
   landingVisitors30d: null,
   ctaUsers30d: null,
+  discordCtaUsers30d: null,
+  discordCtaPostWaitlistUsers30d: null,
   appVisitors30d: null,
   walletConnectedUsers30d: null,
   landingThreads30d: null,
@@ -61,9 +65,11 @@ const GROWTH = {
 
 describe('GrowthJourneyPanel', () => {
   it('keeps person flow and durable waitlist counts visibly separate', () => {
-    render(<GrowthJourneyPanel growth={GROWTH} journey={JOURNEY} />);
+    render(
+      <GrowthJourneyPanel community={null} growth={GROWTH} journey={JOURNEY} />,
+    );
 
-    expect(screen.getByText('300')).toBeVisible();
+    expect(screen.getAllByText('300')).toHaveLength(2);
     expect(screen.getByText('210')).toBeVisible();
     expect(screen.getByText('12')).toBeVisible();
     expect(screen.getByText('8')).toBeVisible();
@@ -77,7 +83,11 @@ describe('GrowthJourneyPanel', () => {
 
   it('renders the parent snapshot failure without making another request', () => {
     render(
-      <GrowthJourneyPanel growth={GROWTH} journey={UNAVAILABLE_JOURNEY} />,
+      <GrowthJourneyPanel
+        community={null}
+        growth={GROWTH}
+        journey={UNAVAILABLE_JOURNEY}
+      />,
     );
 
     expect(screen.getByText('Journey telemetry unavailable')).toBeVisible();

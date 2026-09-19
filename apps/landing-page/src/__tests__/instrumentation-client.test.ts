@@ -14,6 +14,8 @@ vi.mock('posthog-js', () => ({
 
 describe('PostHog client instrumentation', () => {
   beforeEach(() => {
+    localStorage.clear();
+    history.replaceState({}, '', '/');
     vi.resetModules();
     vi.clearAllMocks();
     vi.stubEnv('NEXT_PUBLIC_POSTHOG_KEY', undefined);
@@ -119,5 +121,37 @@ describe('PostHog client instrumentation', () => {
       'phc_test',
       expect.objectContaining({ api_host: 'https://eu.i.posthog.com' }),
     );
+  });
+  it('registers all first-touch properties before any later tracking', async () => {
+    vi.stubEnv('NEXT_PUBLIC_POSTHOG_KEY', 'key');
+    history.replaceState(
+      {},
+      '',
+      '/?utm_source=youtube&utm_medium=social&utm_campaign=episode&utm_content=en',
+    );
+    await import('../instrumentation-client');
+    expect(posthogMocks.register).toHaveBeenNthCalledWith(2, {
+      first_touch_utm_source: 'youtube',
+      first_touch_utm_medium: 'social',
+      first_touch_utm_campaign: 'episode',
+      first_touch_utm_content: 'en',
+    });
+  });
+  it('does not register empty attribution properties', async () => {
+    vi.stubEnv('NEXT_PUBLIC_POSTHOG_KEY', 'key');
+    await import('../instrumentation-client');
+    expect(posthogMocks.register).toHaveBeenCalledTimes(1);
+  });
+  it('preserves stored first touch over current URL', async () => {
+    vi.stubEnv('NEXT_PUBLIC_POSTHOG_KEY', 'key');
+    localStorage.setItem(
+      'zap-pilot:waitlist-first-touch:v1',
+      JSON.stringify({ landingPath: '/', utmSource: 'threads' }),
+    );
+    history.replaceState({}, '', '/?utm_source=youtube');
+    await import('../instrumentation-client');
+    expect(posthogMocks.register).toHaveBeenNthCalledWith(2, {
+      first_touch_utm_source: 'threads',
+    });
   });
 });

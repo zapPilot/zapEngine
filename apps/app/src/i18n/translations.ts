@@ -117,7 +117,7 @@ export const en = {
   'home.attribution.basis':
     'Protocol returns exclude deposit-like outlier days; transfers and unexplained days count as flows.',
   'home.passiveIncomeTitle': 'Protocol income',
-  'home.passiveIncomePerMonth': 'Passive income {amount} /month',
+  'home.passiveIncomePerMonth': 'Net income {amount} /month',
   'home.passiveIncomeBasis':
     'Est. monthly, from the last 30 days of protocol yield',
   'home.passiveIncomeGrossA11y': 'Income {amount} per month',
@@ -333,7 +333,7 @@ export const zhHant = {
   'home.attribution.basis':
     '協議收益已排除疑似入金/出金的離群日；轉帳與無法歸因的日子計入資金流動。',
   'home.passiveIncomeTitle': '協議收入',
-  'home.passiveIncomePerMonth': '被動收入 {amount} /月',
+  'home.passiveIncomePerMonth': '淨收入 {amount} /月',
   'home.passiveIncomeBasis': '依最近 30 天協議收益估算的月收入',
   'home.passiveIncomeGrossA11y': '收入 {amount} /月',
   'home.passiveCostGrossA11y': '協議成本 {amount} /月',
@@ -543,7 +543,7 @@ export const ja = {
   'home.attribution.basis':
     'プロトコル収益は入出金と思われる外れ値日を除外し、送金と未分類の日は入出金に計上します。',
   'home.passiveIncomeTitle': 'プロトコル収益',
-  'home.passiveIncomePerMonth': 'パッシブ収入 {amount} /月',
+  'home.passiveIncomePerMonth': '純収入 {amount} /月',
   'home.passiveIncomeBasis': '直近30日間のプロトコル収益に基づく月間推定',
   'home.passiveIncomeGrossA11y': '収入 {amount} /月',
   'home.passiveCostGrossA11y': 'プロトコル費用 {amount} /月',

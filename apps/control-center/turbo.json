@@ -22,7 +22,8 @@
         "SENTRY_OPS_AUTH_TOKEN",
         "SENTRY_ORG_SLUG",
         "POSTHOG_PERSONAL_API_KEY",
-        "POSTHOG_PROJECT_ID"
+        "POSTHOG_PROJECT_ID",
+        "DISCORD_INVITE_CODE"
       ]
     }
   }

@@ -1,20 +1,26 @@
-import {
-  classifyIncomeProtocol,
-  estimateMonthlyIncomeUsd,
-} from '@zapengine/app-core/lib/analytics';
+import { estimateMonthlyIncomeUsd } from '@zapengine/app-core/lib/analytics';
 import type { YieldReturnsSummaryResponse } from '@zapengine/app-core/services';
 
 export const MIN_OBSERVED_DAYS = 7;
 export const MIN_DISPLAY_MONTHLY_USD = 0.005;
 const ETH_STAKING_PROTOCOL = 'ETH Staking';
 
+/** The Hyperliquid ingest names its rows after the venue and only ever reads
+ *  the official HLP vault, so the product name behind `hyperliquid` is not
+ *  ambiguous. The raw name stays the row identity for icons and keys. */
+const PROTOCOL_ROW_LABELS: Record<string, string> = { hyperliquid: 'HLP' };
+
 export interface HomeProtocolIncomeRow {
   protocol: string;
+  /** What the row is called on screen, which the venue name does not always
+   *  match. */
+  label: string;
   chain?: string;
   /**
    * Net monthly estimate. The summary endpoint reports net protocol yield only,
    * so a negative number is a protocol cost / negative yield, not necessarily
-   * pure borrow interest.
+   * pure borrow interest. Strategy venues contribute observed balance change,
+   * which is an estimate of return rather than a fee or APR model.
    */
   monthlyNetUsd: number;
   tokenSymbols: string[];
@@ -74,10 +80,10 @@ export function buildHomeIncomeView(
   }
 
   const protocolRows = window.protocol_breakdown
-    .filter((item) => classifyIncomeProtocol(item.protocol) === 'passive')
     .map(
       (item): HomeProtocolIncomeRow => ({
         protocol: item.protocol,
+        label: PROTOCOL_ROW_LABELS[item.protocol] ?? item.protocol,
         ...(item.chain ? { chain: item.chain } : {}),
         monthlyNetUsd: estimateMonthlyIncomeUsd(
           item.window.average_daily_yield_usd,

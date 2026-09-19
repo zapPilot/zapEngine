@@ -30,8 +30,8 @@ export async function fetchJson<T>(input: {
   /** How a failure reads on the dashboard, e.g. `Sentry issues request`. */
   label: string;
   url: string;
-  /** Bearer credential. Required: none of these APIs are read anonymously. */
-  token: string;
+  /** Omit only for intentionally public endpoints such as Discord invites. */
+  token?: string;
   schema: z.ZodType<T>;
   fetchImpl: typeof fetch;
   onResponseHeaders?: (headers: Headers) => void;
@@ -80,7 +80,7 @@ export async function fetchText(input: {
 async function authenticatedFetch(input: {
   label: string;
   url: string;
-  token: string;
+  token?: string;
   fetchImpl: typeof fetch;
   headers?: Record<string, string>;
   body?: unknown;
@@ -90,7 +90,7 @@ async function authenticatedFetch(input: {
   const response = await input.fetchImpl(input.url, {
     method: input.method ?? (sendsBody ? 'POST' : 'GET'),
     headers: {
-      Authorization: `Bearer ${input.token}`,
+      ...(input.token ? { Authorization: `Bearer ${input.token}` } : {}),
       ...(sendsBody ? { 'Content-Type': 'application/json' } : {}),
       ...input.headers,
     },

@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 
-import type { SocialGrowthJourney } from '../shared/growth-journey.js';
+import type { OperationsGrowthResponse } from '../shared/growth.js';
+import {
+  unavailableGrowthJourney,
+  type SocialGrowthJourney,
+} from '../shared/growth-journey.js';
 import type { PipelineQueuesResponse } from '../shared/pipeline-queues.js';
 import type { PodcastPipelineRestartAction } from '../shared/podcast-pipeline.js';
 import type {
@@ -87,6 +91,8 @@ export function App() {
     Record<string, PodcastVisualDebugResponse | undefined>
   >({});
   const [social, setSocial] = useState<SocialPerformanceResponse | null>(null);
+  const [acquisition, setAcquisition] =
+    useState<OperationsGrowthResponse | null>(null);
   const [socialGrowth, setSocialGrowth] = useState<SocialGrowthResponse | null>(
     null,
   );
@@ -212,15 +218,23 @@ export function App() {
     (window: SocialPerformanceResponse['window'], force = false) =>
       run(async () => {
         const query = force ? '?force=1' : '';
-        const [performance, growth, socialOps, statementsNext] =
-          await Promise.all([
-            getJson<SocialPerformanceResponse>(
-              `/api/social-performance?window=${encodeURIComponent(window)}`,
-            ),
-            getJson<SocialGrowthResponse>(`/api/social-growth${query}`),
-            getJson<OperationsSocialResponse>(`/api/operations/social${query}`),
-            getJson<StatementsResponse>(`/api/statements${query}`),
-          ]);
+        const [
+          performance,
+          growth,
+          socialOps,
+          statementsNext,
+          acquisitionNext,
+        ] = await Promise.all([
+          getJson<SocialPerformanceResponse>(
+            `/api/social-performance?window=${encodeURIComponent(window)}`,
+          ),
+          getJson<SocialGrowthResponse>(`/api/social-growth${query}`),
+          getJson<OperationsSocialResponse>(`/api/operations/social${query}`),
+          getJson<StatementsResponse>(`/api/statements${query}`),
+          getJson<OperationsGrowthResponse>(`/api/growth${query}`),
+        ]);
+        setAcquisition(acquisitionNext);
+        setJourney(acquisitionNext.journey);
         setSocial(performance);
         setSocialGrowth(growth);
         setOperationsSocial(socialOps);
@@ -282,17 +296,24 @@ export function App() {
   const loadTodayContext = useCallback(async () => {
     const [queuesNext, journeyNext] = await Promise.allSettled([
       getJson<PipelineQueuesResponse>('/api/pipeline/queues'),
-      getJson<SocialGrowthJourney>('/api/growth-journey'),
+      getJson<OperationsGrowthResponse>('/api/growth'),
     ]);
     setQueues(
       queuesNext.status === 'fulfilled'
         ? queuesNext.value
         : unreadableQueues(queuesNext.reason),
     );
+    setAcquisition(
+      journeyNext.status === 'fulfilled' ? journeyNext.value : null,
+    );
     setJourney(
       journeyNext.status === 'fulfilled'
-        ? journeyNext.value
-        : unavailableJourney(journeyNext.reason),
+        ? journeyNext.value.journey
+        : unavailableGrowthJourney(
+            journeyNext.reason instanceof Error
+              ? journeyNext.reason.message
+              : 'Analytics read failed',
+          ),
     );
   }, []);
 
@@ -439,6 +460,7 @@ export function App() {
       ) : null}
       {viewReady && view === 'growth' ? (
         <GrowthPage
+          acquisition={acquisition}
           data={social}
           growth={socialGrowth}
           journey={journey}
@@ -468,23 +490,6 @@ function unreadableQueues(reason: unknown): PipelineQueuesResponse {
       publishedToday: 0,
       queueDepth: 0,
     },
-  };
-}
-
-function unavailableJourney(reason: unknown): SocialGrowthJourney {
-  return {
-    appVisitors30d: null,
-    ctaUsers30d: null,
-    landingDirect30d: null,
-    landingOther30d: null,
-    landingRednote30d: null,
-    landingThreads30d: null,
-    landingVisitors30d: null,
-    landingX30d: null,
-    landingYoutube30d: null,
-    message: reason instanceof Error ? reason.message : 'Analytics read failed',
-    status: 'unavailable',
-    walletConnectedUsers30d: null,
   };
 }
 

@@ -30,12 +30,12 @@ The Vite UI listens on `127.0.0.1:4174`; its Hono API listens on `CONTROL_CENTER
 
 Four primary surfaces answer the operator's immediate questions:
 
-| View                     | Question                                        | Evidence                                                                                              |
-| ------------------------ | ----------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| **今日 (Today)**         | What needs intervention now?                    | At most three ranked operations, then company pulse, latest release, cost and failed-attempt spend    |
-| **成長 (Growth)**        | How does content reach become product demand?   | Cross-channel journey, latest release, waitlist and language performance; attribution behind Evidence |
-| **Pipeline**             | Which API → Render → Social job needs recovery? | Existing queue board and bounded recovery drawer                                                      |
-| **可靠性 (Reliability)** | Which risks, costs and repairs need attention?  | Operations, provider costs, failed-attempt spend, raw Evidence and operator audit                     |
+| View                     | Question                                        | Evidence                                                                                                                 |
+| ------------------------ | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| **今日 (Today)**         | What needs intervention now?                    | At most three ranked operations, then company pulse, latest release, cost and failed-attempt spend                       |
+| **成長 (Growth)**        | How does content reach become product demand?   | Cross-channel journey, per-episode acquisition lanes, Discord intent and guild totals, waitlist and language performance |
+| **Pipeline**             | Which API → Render → Social job needs recovery? | Existing queue board and bounded recovery drawer                                                                         |
+| **可靠性 (Reliability)** | Which risks, costs and repairs need attention?  | Operations, provider costs, failed-attempt spend, raw Evidence and operator audit                                        |
 
 Today composes existing read models and hides numeric priority scores. Unknown,
 failed and stale observations never render the healthy no-intervention state.
@@ -139,6 +139,7 @@ The remote server uses these environment variables as applicable to its read pat
 - `SENTRY_ORG_SLUG`
 - `POSTHOG_PERSONAL_API_KEY`
 - `POSTHOG_PROJECT_ID`
+- `DISCORD_INVITE_CODE` — public invite code (not a secret); guild totals are not attributable.
 - `SENTRY_CONTROL_CENTER_DSN`
 - `OPS_MCP_TOKEN` (remote MCP client authentication only)
 - `OPS_AUTH_USERNAME` and `OPS_AUTH_PASSWORD` (mandatory; the deployment refuses to boot without them)
@@ -197,6 +198,7 @@ These ship dark. Their adapters report `unknown` and send no request until the c
 - `FLY_OPS_TOKEN` — read-only Fly organization token used by the Machines HTTP API for fleet state and incident inspection.
 - `SENTRY_OPS_AUTH_TOKEN` + `SENTRY_ORG_SLUG` — `org:read`, `project:read`, `event:read`.
 - `POSTHOG_PERSONAL_API_KEY` + `POSTHOG_PROJECT_ID` — `query:read`.
+- `DISCORD_INVITE_CODE` — public Discord invite, no credential; guild counts cannot be attributed to any source.
 
 The read credentials remain separate from `SENTRY_OPS_WRITE_TOKEN`, whose only caller is the bounded Sentry issue-resolution path described in [`MCP.md`](./MCP.md). `OPS_MCP_TOKEN` authenticates remote MCP clients and is not a provider credential.
 

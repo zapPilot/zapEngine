@@ -17,6 +17,9 @@ import { buildStatements } from './build.js';
  * the sync job and this read path cannot drift on what a key is called.
  */
 export const METRIC_KEYS = [
+  'discord_cta_users_30d',
+  'discord_cta_post_waitlist_users_30d',
+  'discord_members',
   'active_portfolios_7d',
   'wau',
   'mau',
@@ -69,6 +72,7 @@ export function createStatementsService(input: {
       podcastPipeline,
       podcastCosts,
       metricSeries,
+      community,
     ] = await Promise.all([
       input.operations.getOperations(force),
       input.service.getOverview(force),
@@ -79,6 +83,7 @@ export function createStatementsService(input: {
       input.podcastPipeline.getPipeline(),
       input.podcastCosts.getPodcastCosts(),
       loadMetricSeries(metricSnapshots, metricNow),
+      input.operations.getCommunity(force),
     ]);
 
     const nowDate = now();
@@ -96,6 +101,7 @@ export function createStatementsService(input: {
       podcastPipeline,
       podcastCosts,
       metricSeries,
+      community,
     });
   }
 

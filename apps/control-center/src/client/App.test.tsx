@@ -160,6 +160,12 @@ const statements = {
 };
 const queues = { generatedAt: 'queues-at', status: 'ok', summary: {} };
 const journey = { status: 'ok' };
+const acquisition = {
+  journey,
+  lanes: [],
+  community: { status: 'unavailable' },
+  laneSources: {},
+};
 const customers = { generatedAt: 'customers-at' };
 const socialGrowth = { generatedAt: 'growth-at' };
 const podcastCosts = { generatedAt: 'podcast-costs-at' };
@@ -197,8 +203,8 @@ function installSuccessfulReads() {
     if (clean === '/api/pipeline/queues') {
       return queues;
     }
-    if (clean === '/api/growth-journey') {
-      return journey;
+    if (clean === '/api/growth') {
+      return acquisition;
     }
     if (clean === '/api/customers') {
       return customers;
@@ -238,8 +244,8 @@ describe('App orchestration', () => {
       if (url === '/api/pipeline/queues') {
         return pendingQueues;
       }
-      if (url === '/api/growth-journey') {
-        return journey;
+      if (url === '/api/growth') {
+        return acquisition;
       }
       if (url === '/api/overview') {
         return overview;
@@ -273,7 +279,7 @@ describe('App orchestration', () => {
       if (url === '/api/pipeline/queues') {
         throw new Error('queue provider down');
       }
-      if (url === '/api/growth-journey') {
+      if (url === '/api/growth') {
         const reason: unknown = { message: 'not an Error' };
         throw reason;
       }
@@ -358,6 +364,7 @@ describe('App orchestration', () => {
 
     await waitFor(() => {
       expect(api.getJson).toHaveBeenCalledWith('/api/social-growth?force=1');
+      expect(api.getJson).toHaveBeenCalledWith('/api/growth?force=1');
       expect(api.getJson).toHaveBeenCalledWith('/api/operations?force=1');
       expect(api.getJson).toHaveBeenCalledWith('/api/customers?force=1');
       expect(api.getJson).toHaveBeenCalledWith(
@@ -426,7 +433,7 @@ describe('App orchestration', () => {
         ['/api/operations', operations],
         ['/api/costs/podcast', podcastCosts],
         ['/api/pipeline/queues', queues],
-        ['/api/growth-journey', journey],
+        ['/api/growth', acquisition],
       ]);
       const value = values.get(url);
       if (value) {

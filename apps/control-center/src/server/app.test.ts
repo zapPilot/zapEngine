@@ -149,6 +149,9 @@ function createTestApp(
   return createControlCenterApp({
     config: readControlCenterConfig({}),
     operations: {
+      getCommunity:
+        operationsOverrides.getCommunity ??
+        vi.fn().mockResolvedValue({ status: 'unavailable' }),
       getGrowth: operationsOverrides.getGrowth ?? vi.fn(),
       getOperations:
         operationsOverrides.getOperations ??
@@ -399,5 +402,15 @@ describe('API surface boundary', () => {
       failedAttemptCostUsd: 0.2,
       confirmedRetryWasteUsd: null,
     });
+  });
+  it('serves unified growth with forced refresh and removes the obsolete route', async () => {
+    const getGrowth = vi
+      .fn()
+      .mockResolvedValue({ status: 'unknown', lanes: [] });
+    const app = createTestApp({}, { getGrowth });
+    const response = await app.request('/api/growth?force=1');
+    expect(response.status).toBe(200);
+    expect(getGrowth).toHaveBeenCalledWith(true);
+    expect((await app.request('/api/growth-journey')).status).toBe(404);
   });
 });

@@ -16,6 +16,8 @@ afterEach(cleanup);
 const journey: SocialGrowthJourney = {
   appVisitors30d: 6,
   ctaUsers30d: 1,
+  discordCtaUsers30d: 0,
+  discordCtaPostWaitlistUsers30d: 0,
   landingDirect30d: 4,
   landingOther30d: 2,
   landingRednote30d: 0,
@@ -102,6 +104,7 @@ function renderGrowth(
 ) {
   return render(
     <GrowthPage
+      acquisition={null}
       data={social}
       growth={growth}
       journey={journey}
@@ -188,6 +191,8 @@ describe('Growth drop-off reading', () => {
       journey: {
         appVisitors30d: null,
         ctaUsers30d: null,
+        discordCtaUsers30d: null,
+        discordCtaPostWaitlistUsers30d: null,
         landingDirect30d: null,
         landingOther30d: null,
         landingRednote30d: null,

@@ -4,12 +4,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AppCtaLink } from '@/components/landing-v2/AppCtaLink';
 import { LINKS } from '@/config/links';
 
-const { trackCtaClicked, trackWaitlistSubmitted } = vi.hoisted(() => ({
-  trackCtaClicked: vi.fn(),
-  trackWaitlistSubmitted: vi.fn(),
-}));
+const { trackCtaClicked, trackWaitlistSubmitted, trackDiscordCtaClicked } =
+  vi.hoisted(() => ({
+    trackDiscordCtaClicked: vi.fn(),
+    trackCtaClicked: vi.fn(),
+    trackWaitlistSubmitted: vi.fn(),
+  }));
 
 vi.mock('@/lib/analytics/events', () => ({
+  trackDiscordCtaClicked,
   trackCtaClicked,
   trackWaitlistSubmitted,
 }));
@@ -220,5 +223,36 @@ describe('AppCtaLink', () => {
       landingPath: '/',
     });
     expect(trackWaitlistSubmitted).toHaveBeenCalledWith('hero', false);
+  });
+  it('focuses the Discord CTA after signup and traps keyboard focus in the success dialog', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response('{}', { status: 200 }),
+    );
+    render(
+      <AppCtaLink className="zp-btn" location="hero">
+        Join waitlist
+      </AppCtaLink>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Join waitlist' }));
+    fireEvent.change(screen.getByPlaceholderText('you@example.com'), {
+      target: { value: 'person@example.com' },
+    });
+    fireEvent.submit(
+      screen.getByPlaceholderText('you@example.com').closest('form')!,
+    );
+    const link = await screen.findByRole('link', {
+      name: 'Join the Discord →',
+    });
+    expect(link).toHaveFocus();
+    fireEvent.click(link);
+    expect(trackDiscordCtaClicked).toHaveBeenLastCalledWith(
+      'waitlist_success',
+      true,
+    );
+    fireEvent.keyDown(link, { key: 'Tab' });
+    const close = screen.getByRole('button', { name: 'Close waitlist' });
+    expect(close).toHaveFocus();
+    fireEvent.keyDown(close, { key: 'Tab', shiftKey: true });
+    expect(link).toHaveFocus();
   });
 });

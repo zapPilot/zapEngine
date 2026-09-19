@@ -234,7 +234,15 @@ Additional local verification:
 ## Growth and coverage review
 
 `ops_growth` is a separate lazy read with a 15-minute cache and `force` refresh.
-It returns observation time, a 30-day window and the existing PostHog journey;
+Version 0.10.0 returns observation time, `windowDays: 30`, `journey`,
+`community`, `lanes`, and `laneSources`. Journey contains separate ordered one-day
+landing → waitlist CTA and landing → Discord CTA funnels. Lanes join first-touch
+episode/platform/language across PostHog 30-day unique people, recent social posts,
+and cumulative waitlist signups; these mixed windows must not be treated as a
+same-window conversion rate. `laneSources` records availability independently
+(`null` counts mean unavailable, `0` means measured zero). Discord CTA means intent,
+not membership; `community.memberCount` is a guild total and cannot be attributed
+to any source. The HTTP equivalent is `/api/growth`;
 `available` describes telemetry availability, while failed/unconfigured reads are
 `unknown` with null counts. It does not contribute signals or priorities to
 `ops_status`. Use the [growth skill](../../.agents/skills/growth/SKILL.md) for

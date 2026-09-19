@@ -37,7 +37,7 @@ reconfigure providers during this review, or expose them to triage/worker.
 The PostHog audience and product engagement signals carry counters with a fixed
 healthy status. Their green state does not evaluate conversion or retention.
 Inspect the counters even when `priorities` is empty. Ordered funnel evidence lives
-in `readPosthogGrowthJourney` and the Control Center `/api/growth-journey` read path;
+in `readPosthogGrowthJourney` and the Control Center `/api/growth` read path;
 audience totals alone are not a cohort conversion funnel.
 
 For a concerning outcome, identify the objective, metric definition, time window,

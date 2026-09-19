@@ -435,7 +435,9 @@ function toPerformance(
   };
 }
 
-function postTitle(post: SocialPostRow): string {
+export function postTitle(
+  post: Pick<SocialPostRow, 'published_title' | 'published_body'>,
+): string {
   return (
     post.published_title?.trim() ||
     post.published_body.split('\n')[0]?.slice(0, 80) ||

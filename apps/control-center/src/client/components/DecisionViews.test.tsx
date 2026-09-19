@@ -253,6 +253,7 @@ it('renders persisted waitlist evidence on the product surface', () => {
     conversions: [],
   };
   const finding = ruleProductDemand({
+    community: { status: 'unavailable' },
     operations: operationsFixture(),
     socialGrowth,
   } as StatementInputs);

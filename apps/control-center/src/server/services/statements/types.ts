@@ -39,6 +39,7 @@ export interface RuleFinding {
 
 /** Every already-fetched response a rule might read, gathered once per request. */
 export interface StatementInputs {
+  community: import('../../../shared/growth.js').DiscordCommunitySummary;
   now: Date;
   operations: OperationsResponse;
   overview: OverviewResponse;

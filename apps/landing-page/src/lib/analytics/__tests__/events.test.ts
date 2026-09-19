@@ -76,4 +76,40 @@ describe('landing analytics events', () => {
       social_attributed: true,
     });
   });
+  it('sends Discord intent to both sinks without claiming membership', async () => {
+    const { trackDiscordCtaClicked } = await importEvents();
+    trackDiscordCtaClicked('waitlist_success', true);
+    const props = {
+      location: 'waitlist_success',
+      target: 'discord',
+      post_waitlist: true,
+    };
+    expect(window.gtag).toHaveBeenCalledWith(
+      'event',
+      'discord_cta_clicked',
+      props,
+    );
+    expect(posthogMocks.capture).toHaveBeenCalledWith(
+      'discord_cta_clicked',
+      props,
+    );
+  });
+  it('uses beacon transport before a redirect', async () => {
+    const { trackDiscordCtaClicked } = await importEvents();
+    trackDiscordCtaClicked('redirect', false, { beacon: true });
+    const props = {
+      location: 'redirect',
+      target: 'discord',
+      post_waitlist: false,
+    };
+    expect(window.gtag).toHaveBeenCalledWith('event', 'discord_cta_clicked', {
+      ...props,
+      transport_type: 'beacon',
+    });
+    expect(posthogMocks.capture).toHaveBeenCalledWith(
+      'discord_cta_clicked',
+      props,
+      { transport: 'sendBeacon' },
+    );
+  });
 });

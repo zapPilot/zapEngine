@@ -1,3 +1,4 @@
+import type { DiscordCommunitySummary } from '../../shared/growth.js';
 import type { SocialGrowthJourney } from '../../shared/growth-journey.js';
 import type { SocialGrowthResponse } from '../../shared/types.js';
 import { PlatformIdentity } from '../platform.js';
@@ -11,6 +12,7 @@ const SOCIAL_SOURCES = [
 ] as const;
 
 export function GrowthJourneyPanel(props: {
+  community: DiscordCommunitySummary | null;
   growth: SocialGrowthResponse | null;
   journey: SocialGrowthJourney | null;
 }) {
@@ -45,6 +47,7 @@ export function GrowthJourneyPanel(props: {
   ];
   const maxSource = Math.max(1, ...sources.map((source) => source.value ?? 0));
   const ctaRate = ratio(cta, landing);
+  const discordRate = ratio(journey?.discordCtaUsers30d ?? null, landing);
   const journeyReady = journey?.status === 'ok';
 
   return (
@@ -152,11 +155,43 @@ export function GrowthJourneyPanel(props: {
             <p>
               Waitlist 是 Supabase durable truth。虛線兩側是不同 source 的
               aggregate counts；目前不能宣稱某一個 waitlist email 就是之後的 app
-              visitor。
+              visitor。Discord CTA 是 intent，不是加入；Members 是 guild
+              總數，無法歸因。
             </p>
           </div>
         </>
       )}
+      <div className={styles['community']} aria-label="Community from Landing">
+        <h3>Community · from Landing</h3>
+        <div className={styles['branch']}>
+          <JourneyStage
+            label="Landing"
+            note="PostHog unique people · 30d"
+            value={landing}
+          />
+          <FlowArrow />
+          <JourneyStage
+            label="Discord CTA"
+            note={`landing→Discord CTA · 1-day ordered${discordRate === null ? '' : ` · ${formatPercent(discordRate)} of landing`}`}
+            value={journey?.discordCtaUsers30d ?? null}
+          />
+          <CrossSourceArrow />
+          <JourneyStage
+            label="Members"
+            note={
+              props.community?.status === 'ok'
+                ? 'guild total, not attributable'
+                : (props.community?.message ??
+                  'Community telemetry unavailable')
+            }
+            value={props.community?.memberCount ?? null}
+          />
+        </div>
+        <p>
+          Discord CTA 是點擊意圖，不是加入人數；Members
+          是社群總人數，無法歸因到來源或集數。
+        </p>
+      </div>
     </section>
   );
 }

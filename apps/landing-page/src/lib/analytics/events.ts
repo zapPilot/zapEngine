@@ -20,10 +20,23 @@ type EventProps = Record<string, string | number | boolean>;
 // avoids a console warning per event when no project is configured.
 const posthogEnabled = Boolean(process.env['NEXT_PUBLIC_POSTHOG_KEY']?.trim());
 
-function fireEvent(name: string, props: EventProps = {}) {
+function fireEvent(
+  name: string,
+  props: EventProps = {},
+  options: { beacon?: boolean } = {},
+) {
   if (typeof window === 'undefined') return;
-  if (typeof window.gtag === 'function') window.gtag('event', name, props);
-  if (posthogEnabled) posthog.capture(name, props);
+  if (typeof window.gtag === 'function')
+    window.gtag(
+      'event',
+      name,
+      options.beacon ? { ...props, transport_type: 'beacon' } : props,
+    );
+  if (posthogEnabled) {
+    if (options.beacon)
+      posthog.capture(name, props, { transport: 'sendBeacon' });
+    else posthog.capture(name, props);
+  }
 }
 
 export type CtaLocation = 'hero' | 'navbar' | 'closing';
@@ -48,4 +61,22 @@ export function trackWaitlistSubmitted(
     location,
     social_attributed: socialAttributed,
   });
+}
+
+export type DiscordCtaLocation =
+  | 'waitlist_success'
+  | 'closing'
+  | 'footer'
+  | 'redirect';
+
+export function trackDiscordCtaClicked(
+  location: DiscordCtaLocation,
+  postWaitlist: boolean,
+  options?: { beacon?: boolean },
+) {
+  fireEvent(
+    'discord_cta_clicked',
+    { location, target: 'discord', post_waitlist: postWaitlist },
+    options,
+  );
 }

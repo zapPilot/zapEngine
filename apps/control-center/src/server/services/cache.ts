@@ -3,7 +3,7 @@ export interface AsyncCache<T> {
 }
 
 export function createAsyncCache<T>(input: {
-  load: () => Promise<T>;
+  load: (force: boolean) => Promise<T>;
   ttlMs: number;
   now?: () => number;
 }): AsyncCache<T> {
@@ -19,7 +19,7 @@ export function createAsyncCache<T>(input: {
       if (pending) {
         return pending;
       }
-      pending = input.load();
+      pending = input.load(force);
       try {
         const value = await pending;
         cached = { value, expiresAt: now() + input.ttlMs };
