@@ -79,6 +79,7 @@ describe('useAtomicBatchExecution disconnected confirmation coverage', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
     expect(hook.result.current.simulationPreview?.status).toBe('passed');
+    const executionRejection = expect(execution).rejects.toThrow();
 
     hook.rerender({ deps: disconnected });
 
@@ -89,7 +90,7 @@ describe('useAtomicBatchExecution disconnected confirmation coverage', () => {
     expect(mocks.sendPrivyAtomicBatch).not.toHaveBeenCalled();
 
     act(() => hook.result.current.cancelBatchExecution());
-    await expect(execution).rejects.toThrow();
+    await executionRejection;
   });
 
   it(
@@ -105,6 +106,7 @@ describe('useAtomicBatchExecution disconnected confirmation coverage', () => {
         await new Promise((resolve) => setTimeout(resolve, 0));
       });
       expect(hook.result.current.simulationPreview?.status).toBe('passed');
+      const executionRejection = expect(execution).rejects.toThrow();
 
       vi.mocked(connected.getAccessToken).mockResolvedValue(null);
 
@@ -118,7 +120,7 @@ describe('useAtomicBatchExecution disconnected confirmation coverage', () => {
       expect(mocks.sendPrivyAtomicBatch).not.toHaveBeenCalled();
 
       act(() => hook.result.current.cancelBatchExecution());
-      await expect(execution).rejects.toThrow();
+      await executionRejection;
     },
   );
 });
