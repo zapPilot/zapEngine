@@ -89,4 +89,27 @@ describe('coverage handoff: alpha ETL final branch gaps', () => {
     expect(internals.fetcher.healthCheck).toHaveBeenCalledWith('SPY');
     expect(internals.writer.getLatestSnapshot).toHaveBeenCalledWith('SPY');
   });
+
+  it('fails closed to unknown state for unexpected API statuses with snapshots', async () => {
+    const processor = new StockPriceETLProcessor({ query: vi.fn() } as never);
+    const internals = processor as unknown as {
+      fetcher: { healthCheck: ReturnType<typeof vi.fn> };
+      writer: { getLatestSnapshot: ReturnType<typeof vi.fn> };
+    };
+    internals.fetcher = {
+      healthCheck: vi.fn().mockResolvedValue({ status: 'degraded' }),
+    };
+    internals.writer = {
+      getLatestSnapshot: vi.fn().mockResolvedValue({
+        date: '2026-05-01',
+        price: 512.34,
+        symbol: 'SPY',
+      }),
+    };
+
+    await expect(processor.healthCheck()).resolves.toEqual({
+      status: 'unhealthy',
+      details: 'Unknown state',
+    });
+  });
 });
