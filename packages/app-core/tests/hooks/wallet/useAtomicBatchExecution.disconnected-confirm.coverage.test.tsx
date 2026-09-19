@@ -91,4 +91,30 @@ describe('useAtomicBatchExecution disconnected confirmation coverage', () => {
     act(() => hook.result.current.cancelBatchExecution());
     await expect(execution).rejects.toThrow();
   });
+
+  it('fails closed if the Privy access token expires between preview and confirmation', async () => {
+    mocks.preparePrivyAtomicBatch.mockResolvedValue(preview);
+    const connected = makeDeps(WALLET_ADDRESS);
+    vi.mocked(connected.getAccessToken)
+      .mockResolvedValueOnce('access-token')
+      .mockResolvedValueOnce(null);
+    const hook = renderHook(() => useAtomicBatchExecution(connected));
+
+    let execution: Promise<unknown> | undefined;
+    await act(async () => {
+      execution = hook.result.current.executeAtomicBatch([transaction], 8453);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(hook.result.current.simulationPreview?.status).toBe('passed');
+
+    await expect(hook.result.current.confirmBatchExecution()).rejects.toThrow(
+      'Privy access token unavailable',
+    );
+    expect(connected.signPreviewTypedData).toHaveBeenCalledOnce();
+    expect(connected.generateAuthorizationSignature).toHaveBeenCalledOnce();
+    expect(mocks.sendPrivyAtomicBatch).not.toHaveBeenCalled();
+
+    act(() => hook.result.current.cancelBatchExecution());
+    await expect(execution).rejects.toThrow();
+  });
 });
