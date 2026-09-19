@@ -93,32 +93,29 @@ describe('useAtomicBatchExecution disconnected confirmation coverage', () => {
     await executionRejection;
   });
 
-  it(
-    'fails closed if the Privy access token expires between preview and confirmation',
-    async () => {
-      mocks.preparePrivyAtomicBatch.mockResolvedValue(preview);
-      const connected = makeDeps(WALLET_ADDRESS);
-      const hook = renderHook(() => useAtomicBatchExecution(connected));
+  it('fails closed if the Privy access token expires between preview and confirmation', async () => {
+    mocks.preparePrivyAtomicBatch.mockResolvedValue(preview);
+    const connected = makeDeps(WALLET_ADDRESS);
+    const hook = renderHook(() => useAtomicBatchExecution(connected));
 
-      let execution: Promise<unknown> | undefined;
-      await act(async () => {
-        execution = hook.result.current.executeAtomicBatch([transaction], 8453);
-        await new Promise((resolve) => setTimeout(resolve, 0));
-      });
-      expect(hook.result.current.simulationPreview?.status).toBe('passed');
-      const executionRejection = expect(execution).rejects.toThrow(
-        'Privy user access token is invalid or expired. Please re-login.',
-      );
+    let execution: Promise<unknown> | undefined;
+    await act(async () => {
+      execution = hook.result.current.executeAtomicBatch([transaction], 8453);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(hook.result.current.simulationPreview?.status).toBe('passed');
+    const executionRejection = expect(execution).rejects.toThrow(
+      'Privy user access token is invalid or expired. Please re-login.',
+    );
 
-      vi.mocked(connected.getAccessToken).mockResolvedValue(null);
+    vi.mocked(connected.getAccessToken).mockResolvedValue(null);
 
-      await expect(
-        hook.result.current.confirmBatchExecution(),
-      ).resolves.toBeUndefined();
-      await executionRejection;
-      expect(connected.signPreviewTypedData).toHaveBeenCalledOnce();
-      expect(connected.generateAuthorizationSignature).toHaveBeenCalledOnce();
-      expect(mocks.sendPrivyAtomicBatch).not.toHaveBeenCalled();
-    },
-  );
+    await expect(
+      hook.result.current.confirmBatchExecution(),
+    ).resolves.toBeUndefined();
+    await executionRejection;
+    expect(connected.signPreviewTypedData).toHaveBeenCalledOnce();
+    expect(connected.generateAuthorizationSignature).toHaveBeenCalledOnce();
+    expect(mocks.sendPrivyAtomicBatch).not.toHaveBeenCalled();
+  });
 });
