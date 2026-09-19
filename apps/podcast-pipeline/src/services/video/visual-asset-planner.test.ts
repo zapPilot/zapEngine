@@ -833,7 +833,11 @@ describe('planVisualAssets', () => {
     const acquireImage = vi
       .fn()
       .mockRejectedValueOnce(new Error('Image download timed out'))
-      .mockRejectedValueOnce(new Error('unsupported raster content type'))
+      .mockRejectedValueOnce(
+        new Error(
+          'Remote asset is not an image or uses an unsupported raster format',
+        ),
+      )
       .mockRejectedValueOnce(new Error('animated image is not supported'))
       .mockRejectedValueOnce(
         new Error('Image exceeds the 25 MiB download limit'),

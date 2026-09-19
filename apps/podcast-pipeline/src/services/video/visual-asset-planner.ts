@@ -1419,7 +1419,7 @@ function safeCandidateRejectionCause(error: unknown): string {
   ) {
     return 'dimensions-too-small';
   }
-  if (/unsupported raster|not an image|content type/i.test(message)) {
+  if (/unsupported raster|not an image/i.test(message)) {
     return 'unsupported-format';
   }
   if (/animated|multi-page/i.test(message)) return 'animated-image';

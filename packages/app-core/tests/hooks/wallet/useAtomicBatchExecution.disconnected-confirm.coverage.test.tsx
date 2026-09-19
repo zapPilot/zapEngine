@@ -100,20 +100,22 @@ describe('useAtomicBatchExecution disconnected confirmation coverage', () => {
     let execution: Promise<unknown> | undefined;
     await act(async () => {
       execution = hook.result.current.executeAtomicBatch([transaction], 8453);
+      execution.catch(() => {});
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
     expect(hook.result.current.simulationPreview?.status).toBe('passed');
 
     vi.mocked(connected.getAccessToken).mockResolvedValue(null);
 
-    await expect(hook.result.current.confirmBatchExecution()).rejects.toThrow(
-      'Privy user access token is invalid or expired. Please re-login.',
-    );
+    await act(async () => {
+      await hook.result.current.confirmBatchExecution();
+    });
     expect(connected.signPreviewTypedData).toHaveBeenCalledOnce();
     expect(connected.generateAuthorizationSignature).toHaveBeenCalledOnce();
     expect(mocks.sendPrivyAtomicBatch).not.toHaveBeenCalled();
 
-    act(() => hook.result.current.cancelBatchExecution());
-    await expect(execution).rejects.toThrow();
+    await expect(execution).rejects.toThrow(
+      'Privy user access token is invalid or expired. Please re-login.',
+    );
   });
 });
