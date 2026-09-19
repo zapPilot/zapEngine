@@ -1181,7 +1181,7 @@ describe('planVisualAssets episode image pool', () => {
       'Image request failed with HTTP 403',
       'Image download timed out',
       'fullBleed image long edge is 1300px; 1600px is required',
-      'unsupported raster content type',
+      'Remote asset is not an image or uses an unsupported raster format',
       'animated image is not supported',
       'Image exceeds the 25 MiB download limit',
       'private or reserved IP',
