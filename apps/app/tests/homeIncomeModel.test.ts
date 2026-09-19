@@ -76,15 +76,20 @@ describe('buildHomeIncomeView', () => {
         { protocol: 'GMX V2', averageDaily: 3 },
         { protocol: 'Aave', chain: 'arbitrum', averageDaily: -0.25 },
         { protocol: 'Morpho', chain: 'arbitrum', averageDaily: -1 },
-        { protocol: 'hyperliquid', averageDaily: -1 },
+        { protocol: 'hyperliquid', averageDaily: -0.5 },
       ]),
     );
 
     expect(result.status).toBe('ready');
-    expect(result.incomeMonthlyUsd).toBeCloseTo(76);
-    expect(result.costMonthlyUsd).toBeCloseTo(-38);
-    expect(result.passiveMonthlyUsd).toBeCloseTo(38);
+    expect(result.incomeMonthlyUsd).toBeCloseTo(167.2);
+    expect(result.costMonthlyUsd).toBeCloseTo(-53.2);
+    expect(result.passiveMonthlyUsd).toBeCloseTo(114);
     expect(result.protocolRows).toEqual([
+      expect.objectContaining({
+        protocol: 'GMX V2',
+        label: 'GMX V2',
+        monthlyNetUsd: expect.closeTo(91.2),
+      }),
       expect.objectContaining({
         protocol: 'Morpho',
         chain: 'ethereum',
@@ -103,10 +108,68 @@ describe('buildHomeIncomeView', () => {
         monthlyNetUsd: -30.4,
       }),
       expect.objectContaining({
+        protocol: 'hyperliquid',
+        label: 'HLP',
+        monthlyNetUsd: -15.2,
+      }),
+      expect.objectContaining({
         protocol: 'Aave',
         chain: 'arbitrum',
         monthlyNetUsd: -7.6,
       }),
+    ]);
+  });
+
+  it('keeps GMX V2 and HLP carry as rows under their product labels', () => {
+    const result = buildHomeIncomeView(
+      summary([
+        { protocol: 'Morpho', chain: 'base', averageDaily: 0.5 },
+        {
+          protocol: 'GMX V2',
+          chain: 'arb',
+          averageDaily: 4,
+          tokenSymbols: ['WBTC', 'USDC'],
+          positionTypes: ['Liquidity Pool'],
+        },
+        {
+          protocol: 'hyperliquid',
+          chain: 'hyperliquid',
+          averageDaily: 1,
+          tokenSymbols: ['USDC'],
+          positionTypes: ['Hyperliquidity Provider (HLP)'],
+        },
+      ]),
+    );
+
+    expect(result.status).toBe('ready');
+    expect(result.incomeMonthlyUsd).toBeCloseTo(167.2);
+    expect(result.costMonthlyUsd).toBe(0);
+    expect(result.passiveMonthlyUsd).toBeCloseTo(167.2);
+    expect(result.protocolRows).toEqual([
+      {
+        protocol: 'GMX V2',
+        label: 'GMX V2',
+        chain: 'arb',
+        monthlyNetUsd: 121.6,
+        tokenSymbols: ['WBTC', 'USDC'],
+        positionTypes: ['Liquidity Pool'],
+      },
+      {
+        protocol: 'hyperliquid',
+        label: 'HLP',
+        chain: 'hyperliquid',
+        monthlyNetUsd: 30.4,
+        tokenSymbols: ['USDC'],
+        positionTypes: ['Hyperliquidity Provider (HLP)'],
+      },
+      {
+        protocol: 'Morpho',
+        label: 'Morpho',
+        chain: 'base',
+        monthlyNetUsd: 15.2,
+        tokenSymbols: [],
+        positionTypes: [],
+      },
     ]);
   });
 
@@ -204,6 +267,7 @@ describe('partitionIncomeRowsByCoverage', () => {
     monthlyNetUsd: number,
   ): HomeProtocolIncomeRow => ({
     protocol,
+    label: protocol,
     monthlyNetUsd,
     tokenSymbols: [],
     positionTypes: [],

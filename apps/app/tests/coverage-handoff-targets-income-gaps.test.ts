@@ -222,6 +222,7 @@ describe('coverage handoff: home income sorting and rollup', () => {
   it('keeps a single tail visible but rolls up two or more tail rows', () => {
     const rows = [100, 10, 5, -100, -10, -5].map((monthlyNetUsd, index) => ({
       protocol: `p${index}`,
+      label: `p${index}`,
       monthlyNetUsd,
       tokenSymbols: [],
       positionTypes: [],
