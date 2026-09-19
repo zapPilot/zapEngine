@@ -42,3 +42,5 @@ runbook.
 - **Run workspace tasks through Turbo** (`pnpm turbo run <task>
 --filter=@zapengine/control-center`) so internal package builds resolve
   before type-check, lint, or tests.
+
+- `/api/growth` mixes 30-day PostHog unique people and cumulative per-job waitlist counts. Lanes gain first-touch analytics only after the landing instrumentation deploys. Discord CTA means intent, while guild membership totals cannot be attributed to a lane.

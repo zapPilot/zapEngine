@@ -1,4 +1,4 @@
-import { LINKS } from '@/config/links';
+import { DiscordLink } from './DiscordLink';
 import { AppCtaLink } from './AppCtaLink';
 
 export function ClosingCta() {
@@ -19,14 +19,9 @@ export function ClosingCta() {
           <AppCtaLink className="zp-btn zp-btn-primary" location="closing">
             Join waitlist <span aria-hidden>→</span>
           </AppCtaLink>
-          <a
-            className="zp-btn zp-btn-ghost"
-            href={LINKS.social.github}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read the strategy
-          </a>
+          <DiscordLink className="zp-btn zp-btn-ghost" location="closing">
+            Join the Discord
+          </DiscordLink>
           {/* jscpd:ignore-end */}
         </div>
       </div>

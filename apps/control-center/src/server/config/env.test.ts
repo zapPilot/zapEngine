@@ -89,3 +89,10 @@ describe('checkCostSyncCredentials', () => {
     ).toContainEqual({ name: 'FLY_API_TOKEN', present: true });
   });
 });
+
+it('reads the public Discord invite code', () => {
+  expect(
+    readControlCenterConfig({ DISCORD_INVITE_CODE: 'd3vXUtcFCJ' })
+      .DISCORD_INVITE_CODE,
+  ).toBe('d3vXUtcFCJ');
+});

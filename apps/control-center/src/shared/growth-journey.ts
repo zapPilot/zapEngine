@@ -9,6 +9,8 @@ export type SocialGrowthJourney =
       message: null;
       landingVisitors30d: number;
       ctaUsers30d: number;
+      discordCtaUsers30d: number;
+      discordCtaPostWaitlistUsers30d: number;
       appVisitors30d: number;
       walletConnectedUsers30d: number;
       landingThreads30d: number;
@@ -23,6 +25,8 @@ export type SocialGrowthJourney =
       message: string;
       landingVisitors30d: null;
       ctaUsers30d: null;
+      discordCtaUsers30d: null;
+      discordCtaPostWaitlistUsers30d: null;
       appVisitors30d: null;
       walletConnectedUsers30d: null;
       landingThreads30d: null;
@@ -32,3 +36,22 @@ export type SocialGrowthJourney =
       landingDirect30d: null;
       landingOther30d: null;
     };
+
+export function unavailableGrowthJourney(message: string): SocialGrowthJourney {
+  return {
+    status: 'unavailable',
+    message,
+    landingVisitors30d: null,
+    ctaUsers30d: null,
+    discordCtaUsers30d: null,
+    discordCtaPostWaitlistUsers30d: null,
+    appVisitors30d: null,
+    walletConnectedUsers30d: null,
+    landingThreads30d: null,
+    landingX30d: null,
+    landingYoutube30d: null,
+    landingRednote30d: null,
+    landingDirect30d: null,
+    landingOther30d: null,
+  };
+}

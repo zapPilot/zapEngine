@@ -75,3 +75,19 @@ function utmField(
 function text(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
+
+export function firstTouchSuperProperties(
+  attribution: WaitlistAttribution | null,
+): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const [field, property] of [
+    ['utmSource', 'first_touch_utm_source'],
+    ['utmMedium', 'first_touch_utm_medium'],
+    ['utmCampaign', 'first_touch_utm_campaign'],
+    ['utmContent', 'first_touch_utm_content'],
+  ] as const) {
+    const value = attribution?.[field];
+    if (value) result[property] = value;
+  }
+  return result;
+}

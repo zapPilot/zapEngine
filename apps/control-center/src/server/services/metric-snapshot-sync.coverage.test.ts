@@ -13,9 +13,12 @@ const state = vi.hoisted(() => ({
 vi.mock('./operations/aggregate.js', () => ({
   createOperationsService: () => ({
     getGrowth: async () => ({
+      community: { memberCount: null },
       journey: {
         landingVisitors30d: 320,
         ctaUsers30d: 0,
+        discordCtaUsers30d: 0,
+        discordCtaPostWaitlistUsers30d: 0,
         appVisitors30d: 3,
         walletConnectedUsers30d: 0,
       },

@@ -355,6 +355,17 @@ function inputs(overrides: Partial<StatementInputs> = {}): StatementInputs {
     operationsSocial: operationsSocial(),
     podcastPipeline: podcastPipeline(),
     podcastCosts: podcastCosts(),
+    community: {
+      status: 'unavailable',
+      message: 'not configured',
+      inviteCode: null,
+      guildId: null,
+      guildName: null,
+      memberCount: null,
+      presenceCount: null,
+      inviteExpiresAt: null,
+      observedAt: '2026-09-19T00:00:00Z',
+    },
     metricSeries: new Map(),
     ...overrides,
   };

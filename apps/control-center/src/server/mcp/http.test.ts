@@ -224,6 +224,23 @@ describe('Ops MCP HTTP protocol', () => {
       observedAt: SNAPSHOT.generatedAt,
       status: 'unknown' as const,
       windowDays: 30 as const,
+      community: {
+        status: 'unavailable' as const,
+        message: 'offline',
+        inviteCode: null,
+        guildId: null,
+        guildName: null,
+        memberCount: null,
+        presenceCount: null,
+        inviteExpiresAt: null,
+        observedAt: '2026-09-19T00:00:00Z',
+      },
+      lanes: [],
+      laneSources: {
+        posthog: { status: 'unavailable' as const, message: 'offline' },
+        socialPosts: { status: 'unavailable' as const, message: 'offline' },
+        waitlist: { status: 'unavailable' as const, message: 'offline' },
+      },
       journey: await loadGrowthJourney({ config: readControlCenterConfig({}) }),
     };
     vi.mocked(operations.getGrowth).mockResolvedValue(growth);

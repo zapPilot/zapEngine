@@ -8,6 +8,10 @@ const ACCOUNT_ENGINE_ORIGIN =
 export const LINKS = {
   waitlistApi: `${ACCOUNT_ENGINE_ORIGIN}/waitlist`,
   telegramBot: 'https://t.me/zap_pilot_bot',
-  social: { github: 'https://github.com/zapPilot' },
+  social: {
+    github: 'https://github.com/zapPilot',
+    discord: 'https://discord.gg/d3vXUtcFCJ',
+    x: 'https://x.com/fromfedtochain',
+  },
   support: { contactUs: 'mailto:zap-pilot.org@ud.me' },
 } as const;

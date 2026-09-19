@@ -11,6 +11,8 @@ const EVIDENCE = {
   landingVisitors30d: 109,
   ctaUsers7d: 1,
   ctaUsers30d: 1,
+  discordCtaUsers30d: 0,
+  discordCtaPostWaitlistUsers30d: 0,
   appVisitors7d: 5,
   appVisitors30d: 6,
   walletConnectedUsers7d: 4,
@@ -58,6 +60,7 @@ describe('product acquisition projection', () => {
 describe('ruleProductDemand', () => {
   it('turns the acquisition read into a decision-oriented Product insight', () => {
     const finding = ruleProductDemand({
+      community: { status: 'unavailable' },
       operations: operations(),
     } as unknown as StatementInputs);
 
@@ -66,7 +69,7 @@ describe('ruleProductDemand', () => {
       .join('');
 
     expect(sentence).toBe(
-      '109 landing visitors in 30d; 1 showed waitlist CTA intent (0.9%). 6 app visitors overall; 5 wallet connects were observed overall, not attributed to the waitlist.',
+      '109 landing visitors in 30d; 1 showed waitlist CTA intent (0.9%); 0 showed Discord CTA intent (0 after joining the waitlist). 6 app visitors overall; 5 wallet connects were observed overall, not attributed to the waitlist.',
     );
     expect(finding.fact).toEqual({
       kicker: 'Because · product demand',
@@ -78,6 +81,7 @@ describe('ruleProductDemand', () => {
 
   it('stays silent when PostHog acquisition is unavailable', () => {
     const finding = ruleProductDemand({
+      community: { status: 'unavailable' },
       operations: operations('degraded'),
     } as unknown as StatementInputs);
 
@@ -88,6 +92,7 @@ describe('ruleProductDemand', () => {
     'shows persisted demand with %s PostHog',
     (status) => {
       const finding = ruleProductDemand({
+        community: { status: 'unavailable' },
         operations: operations(status),
         socialGrowth: {
           waitlist: {
@@ -115,4 +120,21 @@ describe('ruleProductDemand', () => {
       expect(finding.fact?.value).toBe('42 total waitlist signups');
     },
   );
+  it('labels Discord intent and guild totals without assigning membership to a source', () => {
+    const finding = ruleProductDemand({
+      operations: operations(),
+      community: { status: 'ok', memberCount: 37 },
+    } as unknown as StatementInputs);
+    const sentence = finding.segments
+      .map((s) => ('value' in s ? s.value : s.text))
+      .join('');
+    expect(sentence).toContain(
+      '0 showed Discord CTA intent (0 after joining the waitlist)',
+    );
+    expect(sentence).toContain(
+      '37 Discord members (guild total, not attributable to any source)',
+    );
+    expect(finding.status).toBe('healthy');
+    expect(finding.deltaTone).toBe('neutral');
+  });
 });

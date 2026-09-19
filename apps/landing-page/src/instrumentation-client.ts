@@ -1,5 +1,9 @@
 import * as Sentry from '@sentry/nextjs';
 import posthog from 'posthog-js';
+import {
+  captureWaitlistFirstTouch,
+  firstTouchSuperProperties,
+} from './lib/waitlist-attribution';
 
 const sentryDsn = process.env['NEXT_PUBLIC_SENTRY_DSN']?.trim();
 const posthogKey = process.env['NEXT_PUBLIC_POSTHOG_KEY']?.trim();
@@ -45,4 +49,6 @@ if (posthogKey) {
   // which surface produced it. Registered rather than passed per call so
   // autocaptured `$pageview` carries it too.
   posthog.register({ surface: 'landing' });
+  const firstTouch = firstTouchSuperProperties(captureWaitlistFirstTouch());
+  if (Object.keys(firstTouch).length > 0) posthog.register(firstTouch);
 }

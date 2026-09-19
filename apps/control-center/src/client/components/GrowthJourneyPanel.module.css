@@ -261,3 +261,34 @@
     min-height: 0;
   }
 }
+
+.community {
+  padding: 20px 22px;
+  border-top: 1px solid var(--line);
+}
+
+.community h3 {
+  margin: 0 0 16px;
+  font-size: 15px;
+  font-weight: 550;
+}
+
+.community p {
+  margin: 14px 0 0;
+  color: var(--ink-dim);
+  font-size: 10.5px;
+  line-height: 1.55;
+}
+
+.branch {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+}
+
+@media (max-width: 860px) {
+  .branch {
+    grid-template-columns: 1fr;
+  }
+}

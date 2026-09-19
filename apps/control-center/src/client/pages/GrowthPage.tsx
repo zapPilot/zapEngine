@@ -1,5 +1,7 @@
 import { Lightbulb, TrendingDown, UserPlus, Video } from 'lucide-react';
 
+import type { OperationsGrowthResponse } from '../../shared/growth.js';
+import { GrowthLaneTable } from '../components/GrowthLaneTable.js';
 import type { SocialGrowthJourney } from '../../shared/growth-journey.js';
 import type {
   SocialGrowthResponse,
@@ -26,6 +28,7 @@ const CONFIDENCE_TONE: Record<string, Tone> = {
 export const CURRENT_RELEASE_SLOTS_JST = ['09:30', '12:00', '16:00'] as const;
 
 export function GrowthPage(props: {
+  acquisition: OperationsGrowthResponse | null;
   data: SocialPerformanceResponse | null;
   growth: SocialGrowthResponse | null;
   journey: SocialGrowthJourney | null;
@@ -42,7 +45,11 @@ export function GrowthPage(props: {
         />
       </div>
 
-      <GrowthJourneyPanel growth={props.growth} journey={props.journey} />
+      <GrowthJourneyPanel
+        growth={props.growth}
+        journey={props.journey}
+        community={props.acquisition?.community ?? null}
+      />
 
       <PublishingCadence />
 
@@ -73,6 +80,10 @@ export function GrowthPage(props: {
           <WaitlistCard growth={props.growth} />
         </Card>
       </div>
+
+      <Card title="Podcast → Discord 逐集漏斗">
+        <GrowthLaneTable acquisition={props.acquisition} />
+      </Card>
 
       <div className="cc-grid rel-main">
         <Card
@@ -197,6 +208,12 @@ function leakItems(
         id: 'landing-cta',
         label: '到站訪客沒有點擊 Waitlist CTA',
         to: journey.ctaUsers30d,
+      },
+      {
+        from: journey.landingVisitors30d,
+        id: 'landing-discord',
+        label: '到站訪客沒有點擊 Discord CTA',
+        to: journey.discordCtaUsers30d,
       },
       {
         from: journey.appVisitors30d,

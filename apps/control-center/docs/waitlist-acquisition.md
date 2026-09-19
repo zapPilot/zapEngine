@@ -1,4 +1,4 @@
-# Waitlist acquisition contract
+# Acquisition and community contract
 
 The public marketing acquisition path is:
 
@@ -68,8 +68,59 @@ independent source failures. Local integration verification uses isolated
 PostgreSQL/PostgREST plus the real route and Control Center services; no production
 signup is required.
 
-Deploy in order: root waitlist migration → account-engine → landing page and
+Deploy in order: root waitlist migration → account-engine → landing page (first-touch + Discord CTA) and
 social publisher → Control Center. Check signup success, exact lead totals and
 canonical source attribution, then confirm the Home/Product/Growth statements
 agree. Applying the production migration, publishing and sending email are
 separate operations from this local integration.
+
+## Discord and per-episode acquisition
+
+`GET /api/growth` and MCP `ops_growth` (server version 0.10.0) return
+`journey`, `community`, `lanes`, and `laneSources`. The obsolete
+`/api/growth-journey` route is removed. Refresh propagates `force` to both
+social-growth and Discord caches. Overall `status` depends only on the journey;
+PostHog lanes, social posts, waitlist, and community each degrade independently.
+
+Landing registers `first_touch_utm_source`, `first_touch_utm_medium`,
+`first_touch_utm_campaign` (episode UUID), and `first_touch_utm_content` (language)
+from the same localStorage record used by the waitlist POST. Missing values are
+omitted. Existing stored first touch wins over a later URL. Only events collected
+after this instrumentation deploys carry these properties.
+
+Closing, footer, successful waitlist signup, and `/discord/` emit
+`discord_cta_clicked { location, target: 'discord', post_waitlist }` through GA and
+PostHog. `location` is `closing`, `footer`, `waitlist_success`, or `redirect`.
+`post_waitlist: false` means unknown, not evidence of no signup. This event proves
+click intent, never membership. The static `/discord/` client hop sends a beacon
+before navigating after 600 ms, with an untracked fallback link and noindex metadata.
+Hero remains waitlist-only; podcast publishing copy is unchanged.
+
+Journey uses separate ordered one-day funnels for landing → waitlist CTA and
+landing → Discord CTA over 30 days. Audience reporting also counts distinct Discord
+CTA users and the subset carrying `post_waitlist=true`. App and wallet counts remain
+independent observations. Per-lane CTA counts are independent distinct people, not
+ordered conversion rates.
+
+Lanes join episode × platform × language across first-touch PostHog rows (30 days,
+200-row cap), recent social posts (30 days, 500-row cap), and cumulative waitlist
+job conversions. Multiple jobs in one lane sum their signups; newest post metadata
+wins. Final rows sort newest first, then platform/language/episode, capped at 60.
+Missing language is `unknown`. Rednote has no outbound links and is excluded from
+acquisition lanes. `null` means unavailable, while `0` means successfully measured
+with no matching activity. Sources can be available with empty rows; an empty or
+zero initial view is expected before instrumented traffic accumulates. Mixed
+windows and sources must not be divided into a purported conversion rate.
+
+`DISCORD_INVITE_CODE=d3vXUtcFCJ` is public, not a credential. The adapter reads the
+Discord public invite endpoint with `with_counts=true`, without Authorization,
+with a ten-second deadline and a fifteen-minute cache. `community.memberCount` is
+an approximate guild total including existing members: it cannot be attributed to
+any episode or acquisition source. An invalid/expired invite is unavailable, not
+zero. The nightly sync persists `discord_cta_users_30d`,
+`discord_cta_post_waitlist_users_30d`, and `discord_members`; null values are skipped.
+No bot, membership identity join, or presence snapshot is introduced.
+
+Deploy landing first, then Control Center with the public invite configured through
+the env manifest/destination rail. Verify live invite availability and expiry;
+do not assume that a particular member count or invite lifetime remains constant.

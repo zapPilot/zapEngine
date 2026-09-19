@@ -25,6 +25,8 @@ import { inspectOperationalSignal } from './inspection/inspect.js';
 import type { SentryInspectionOptions } from './inspection/sentry-options.js';
 import { investigateOperationalSignal } from './investigation.js';
 import { collectPosthogSignals } from './posthog.js';
+import { createSocialGrowthService } from '../social-growth.js';
+import { createDiscordCommunityReader } from './discord.js';
 import { createOperationsGrowth } from './growth.js';
 import { prioritize } from './prioritize.js';
 import { collectProductSignals } from './product.js';
@@ -130,8 +132,16 @@ export function createOperationsService(input: {
   config: ControlCenterConfig;
   now?: () => Date;
   adapters?: Partial<OperationsAdapters>;
+  socialGrowth?: ReturnType<typeof createSocialGrowthService>;
 }) {
   const now = input.now ?? (() => new Date());
+  const socialGrowth =
+    input.socialGrowth ??
+    createSocialGrowthService({ config: input.config, now });
+  const getCommunity = createDiscordCommunityReader({
+    config: input.config,
+    now,
+  });
   const adapters = defaultAdapters(input.config, now, input.adapters);
   const backlog = createAgentBacklogService({ config: input.config, now });
 
@@ -217,7 +227,13 @@ export function createOperationsService(input: {
 
   return {
     getOperations,
-    getGrowth: createOperationsGrowth({ config: input.config, now }),
+    getGrowth: createOperationsGrowth({
+      config: input.config,
+      now,
+      socialGrowth,
+      community: getCommunity,
+    }),
+    getCommunity,
     getSocial,
     getCustomers,
     getBacklog: backlog.getBacklog,

@@ -16,7 +16,6 @@ import type { SocialPerformanceResponse } from '../shared/types.js';
 import type { ControlCenterConfig } from './config/env.js';
 import { registerOpsMcpHttp } from './mcp/http.js';
 import { captureServerException } from './observability/sentry.js';
-import { createGrowthJourneyService } from './services/growth-journey.js';
 import { createOperationsService } from './services/operations/aggregate.js';
 import { createOverviewService } from './services/overview.js';
 import { createPipelineQueuesService } from './services/pipeline-queues.js';
@@ -100,11 +99,11 @@ export function createControlCenterApp(input: {
   // Injected separately from the overview service on purpose: the two share no
   // state, and folding operations into createOverviewService would force every
   // existing fake of it to grow methods its tests do not care about.
-  const operations =
-    input.operations ?? createOperationsService({ config: input.config });
   const socialGrowth =
     input.socialGrowth ?? createSocialGrowthService({ config: input.config });
-  const growthJourney = createGrowthJourneyService({ config: input.config });
+  const operations =
+    input.operations ??
+    createOperationsService({ config: input.config, socialGrowth });
   const socialReleaseCleanup = createSocialReleaseCleanupService({
     config: input.config,
   });
@@ -159,8 +158,8 @@ export function createControlCenterApp(input: {
   app.get('/api/social-growth', async (context) => {
     return context.json(await socialGrowth.getSocialGrowth(isForced(context)));
   });
-  app.get('/api/growth-journey', async (context) => {
-    return context.json(await growthJourney.getJourney(isForced(context)));
+  app.get('/api/growth', async (context) => {
+    return context.json(await operations.getGrowth(isForced(context)));
   });
 
   app.get('/api/operations/operator-history', async (context) => {

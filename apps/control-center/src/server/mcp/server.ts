@@ -52,7 +52,7 @@ const areaSchema = z
 
 export function createOpsMcpServer(operations: OpsMcpOperations): McpServer {
   const server = new McpServer(
-    { name: 'zap-pilot-ops', version: '0.9.0' },
+    { name: 'zap-pilot-ops', version: '0.10.0' },
     {
       instructions:
         'operator.actions[].allowed describes only the ops-operator-runner, not agent permission to open reviewed PRs. Start with ops_status. For a priority incident, use ops_investigate next: it correlates bounded GitHub, Sentry, Fly, product/customer, social, and relevant PostHog evidence into one deterministic packet, exposes explicit repository-backed provider correlation, and carries a read-only remediation facts block. Read remediation.blockers before proposing any fix: operational priority is impact, not permission, and missing or unproven evidence fails closed. Use ops_inspect_signal only for extra provider drill-down. For safe background engineering work, use ops_backlog to inspect GitHub-backed agent tasks and ops_backlog_claim to mark one ready task as working. Release unsuitable work with ops_backlog_release. Backlog writes are constrained to zapPilot/zapEngine and remain disabled unless the server explicitly enables them. The Sentry remediation tool may only resolve one explicit issue after its existing verification gates pass.',
@@ -179,7 +179,7 @@ export function createOpsMcpServer(operations: OpsMcpOperations): McpServer {
     {
       title: 'Growth journey',
       description:
-        'Read the lazy 30-day PostHog growth journey, including the ordered landing-to-CTA funnel. Availability is not product health. App and wallet counts are independent aggregates, not later funnel steps. Use for growth hypotheses and operator experiment proposals, never reliability priorities or agent backlog.',
+        'Read two 30-day ordered, 1-day-window PostHog funnels: landing to waitlist CTA and landing to Discord CTA. Includes first-touch episode/platform/language lanes (PostHog 30-day unique people versus cumulative waitlist signups), per-source laneSources availability, and Discord guild member counts. Discord CTA proves intent, not membership; guild totals cannot be attributed to any source or lane. Availability is not product health. App and wallet counts are independent aggregates, not later funnel steps. Use for growth hypotheses and operator experiment proposals, never reliability priorities or agent backlog.',
       inputSchema: forceSchema,
       annotations: READ_ONLY_ANNOTATIONS,
     },

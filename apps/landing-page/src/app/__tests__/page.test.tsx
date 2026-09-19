@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import LandingPage from '../page';
 
 describe('LandingPage', () => {
@@ -113,5 +113,24 @@ describe('LandingPage', () => {
       ).toHaveLength(3);
       expect(document.querySelector('a[href*="v2.zap-pilot.org"]')).toBeNull();
     });
+  });
+  it('offers tracked Discord links and clearly named footer social links', () => {
+    render(<LandingPage />);
+    const discord = screen.getAllByRole('link', { name: /Discord/ });
+    expect(discord).toHaveLength(2);
+    for (const link of discord)
+      expect(link).toHaveAttribute('href', 'https://discord.gg/d3vXUtcFCJ');
+    const footer = within(screen.getByRole('contentinfo'));
+    expect(footer.getByRole('link', { name: 'GitHub' })).toHaveAttribute(
+      'href',
+      'https://github.com/zapPilot',
+    );
+    expect(footer.getByRole('link', { name: 'X' })).toHaveAttribute(
+      'href',
+      'https://x.com/fromfedtochain',
+    );
+    expect(
+      screen.queryByRole('link', { name: 'Read the strategy' }),
+    ).not.toBeInTheDocument();
   });
 });

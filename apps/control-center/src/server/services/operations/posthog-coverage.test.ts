@@ -8,7 +8,7 @@ const CONFIG = readControlCenterConfig({
   POSTHOG_PERSONAL_API_KEY: 'phx-key',
   POSTHOG_PROJECT_ID: '4242',
 });
-const ROW = [318, 1204, 90, 300, 4, 12, 20, 55, 8, 21, 6];
+const ROW = [318, 1204, 90, 300, 4, 12, 20, 55, 8, 21, 6, 0, 0];
 
 afterEach(() => {
   vi.unstubAllGlobals();

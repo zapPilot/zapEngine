@@ -6,15 +6,18 @@ description: Review Zap Pilot acquisition and activation outcomes and propose fa
 # Growth review
 
 Run independently of incident triage. Use `ops_growth force:true` for the lazy
-30-day PostHog journey. Use Control Center read-only `/api/growth-journey`,
-`/api/overview` and `/api/social-performance` only for relevant supporting evidence.
+30-day PostHog journey. Use Control Center read-only `/api/growth`,
+`/api/overview`, `/api/social-growth` and `/api/social-performance` only for relevant supporting evidence.
 Use the canonical production environment from the coverage-review skill for local
 reads. Record observation timestamps, windows, source, missing data and truncation.
 
 `available` means readable telemetry, not effective growth. `unknown` means stop
 outcome inference and propose the missing measurement. The ordered funnel joins
 landing to CTA within one day; app and wallet counts are independent aggregates.
-Do not claim a person-level cross-provider join. Zero events need instrumentation
+Discord CTA is intent, not membership. Community member totals are guild-wide and
+must never be divided by lane counts or attributed to a source. Lanes mix 30-day
+PostHog counts and cumulative waitlist signups; inspect `laneSources` and retain
+null (unavailable) versus zero (measured). Do not claim a person-level cross-provider join. Zero events need instrumentation
 and eligible-traffic checks; WAU/MAU need targets, history and a defined population.
 
 ## Experiment proposal

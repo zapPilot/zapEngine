@@ -12,7 +12,7 @@ const CONFIG = readControlCenterConfig({
 });
 
 const QUERY_URL = 'https://us.i.posthog.com/api/projects/4242/query/';
-const ROW = [318, 1204, 90, 300, 4, 12, 20, 55, 8, 21, 6];
+const ROW = [318, 1204, 90, 300, 4, 12, 20, 55, 8, 21, 6, 0, 0];
 const EVIDENCE = {
   uniqueUsers7d: 318,
   uniqueUsers30d: 1204,
@@ -20,6 +20,8 @@ const EVIDENCE = {
   landingVisitors30d: 300,
   ctaUsers7d: 4,
   ctaUsers30d: 12,
+  discordCtaUsers30d: 0,
+  discordCtaPostWaitlistUsers30d: 0,
   appVisitors7d: 20,
   appVisitors30d: 55,
   walletConnectedUsers7d: 8,

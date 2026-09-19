@@ -17,6 +17,7 @@ import {
 } from '@/lib/waitlist-attribution';
 
 import styles from './AppCtaLink.module.css';
+import { DiscordLink } from './DiscordLink';
 
 /**
  * The single public-product CTA used across marketing surfaces.
@@ -55,6 +56,11 @@ export function AppCtaLink({
       if (previousFocus instanceof HTMLElement) previousFocus.focus();
     };
   }, [open]);
+
+  useEffect(() => {
+    if (joined && open)
+      dialogRef.current?.querySelector<HTMLElement>('a[href]')?.focus();
+  }, [joined, open]);
 
   const openWaitlist = () => {
     captureWaitlistFirstTouch();
@@ -128,7 +134,7 @@ export function AppCtaLink({
                   if (event.key !== 'Tab') return;
                   const controls =
                     dialogRef.current?.querySelectorAll<HTMLElement>(
-                      'button:not(:disabled), input:not([tabindex="-1"]):not(:disabled)',
+                      'a[href], button:not(:disabled), input:not([tabindex="-1"]):not(:disabled)',
                     );
                   const first = controls?.[0];
                   const last = controls?.[controls.length - 1];
@@ -165,6 +171,14 @@ export function AppCtaLink({
                     <p>
                       We’ll let you know when the new Zap Pilot app is ready.
                     </p>
+                    <p>Join our community for updates and conversation.</p>
+                    <DiscordLink
+                      className={styles['successCta']}
+                      location="waitlist_success"
+                      postWaitlist
+                    >
+                      Join the Discord →
+                    </DiscordLink>
                   </div>
                 ) : (
                   <>

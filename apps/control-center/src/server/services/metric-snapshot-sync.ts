@@ -43,9 +43,12 @@ export async function syncMetricSnapshots(input: {
     throw new Error('Supabase ops repository is not configured');
   }
 
-  const operations = createOperationsService({ config: input.config });
   const overview = createOverviewService({ config: input.config });
   const socialGrowth = createSocialGrowthService({ config: input.config });
+  const operations = createOperationsService({
+    config: input.config,
+    socialGrowth,
+  });
   const podcastPipeline = createPodcastPipelineService({
     config: input.config,
   });
@@ -87,6 +90,10 @@ export async function syncMetricSnapshots(input: {
   const values: Record<string, number | null> = {
     landing_visitors_30d: growthResponse.journey.landingVisitors30d,
     cta_users_30d: growthResponse.journey.ctaUsers30d,
+    discord_cta_users_30d: growthResponse.journey.discordCtaUsers30d,
+    discord_cta_post_waitlist_users_30d:
+      growthResponse.journey.discordCtaPostWaitlistUsers30d,
+    discord_members: growthResponse.community.memberCount,
     app_visitors_30d: growthResponse.journey.appVisitors30d,
     wallet_connected_users_30d: growthResponse.journey.walletConnectedUsers30d,
     active_portfolios_7d: product.activePortfolios7d,

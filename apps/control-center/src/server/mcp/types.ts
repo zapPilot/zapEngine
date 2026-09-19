@@ -12,7 +12,7 @@ import type {
   OperationsResponse,
   OperationsSocialResponse,
 } from '../../shared/types.js';
-import type { OperationsGrowthResponse } from '../services/operations/growth.js';
+import type { OperationsGrowthResponse } from '../../shared/growth.js';
 import type { SentryInspectionOptions } from '../services/operations/inspection/sentry-options.js';
 import type { SignalInspection } from '../services/operations/inspection/types.js';
 import type { IncidentPacket } from '../services/operations/investigation.js';

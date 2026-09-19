@@ -7,6 +7,7 @@ import type { MetricSnapshotRepository } from './metric-snapshots.js';
 const NOW = new Date('2026-09-17T07:42:00.000Z');
 
 const state = vi.hoisted(() => ({
+  memberCount: null as number | null,
   operations: { domains: [{ status: 'healthy' }, { status: 'degraded' }] },
   overview: {
     projectedCostUsd: 60.8 as number | null,
@@ -33,9 +34,12 @@ const state = vi.hoisted(() => ({
 vi.mock('./operations/aggregate.js', () => ({
   createOperationsService: () => ({
     getGrowth: async () => ({
+      community: { memberCount: state.memberCount },
       journey: {
         landingVisitors30d: 320,
         ctaUsers30d: 0,
+        discordCtaUsers30d: 0,
+        discordCtaPostWaitlistUsers30d: 0,
         appVisitors30d: 3,
         walletConnectedUsers30d: 0,
       },
@@ -66,6 +70,7 @@ vi.mock('./podcast-costs.js', () => ({
 
 function defaults() {
   return {
+    memberCount: null as number | null,
     operations: { domains: [{ status: 'healthy' }, { status: 'degraded' }] },
     overview: {
       projectedCostUsd: 60.8 as number | null,
@@ -120,10 +125,10 @@ describe('syncMetricSnapshots', () => {
     expect(upsert).toHaveBeenCalledWith(
       expect.objectContaining({ metricKey: 'cta_users_30d', value: 0 }),
     );
-    expect(result.persisted).toBe(19);
-    expect(result.skipped).toEqual([]);
+    expect(result.persisted).toBe(21);
+    expect(result.skipped).toEqual(['discord_members']);
     expect(result.syncedAt).toBe(NOW.toISOString());
-    expect(upsert).toHaveBeenCalledTimes(19);
+    expect(upsert).toHaveBeenCalledTimes(21);
     expect(upsert).toHaveBeenCalledWith({
       metricKey: 'healthy_domains',
       date: '2026-09-17',
@@ -166,11 +171,11 @@ describe('syncMetricSnapshots', () => {
       repository: repo,
     });
 
-    expect(result.persisted).toBe(17);
+    expect(result.persisted).toBe(19);
     expect(result.skipped).toEqual(
       expect.arrayContaining(['usage_run_rate_usd', 'fresh_24h']),
     );
-    expect(upsert).toHaveBeenCalledTimes(17);
+    expect(upsert).toHaveBeenCalledTimes(19);
   });
 
   it('reports failed writes separately from missing readings', async () => {
@@ -182,10 +187,10 @@ describe('syncMetricSnapshots', () => {
       repository: repo,
     });
 
-    expect(result.persisted).toBe(18);
-    expect(result.skipped).toEqual([]);
+    expect(result.persisted).toBe(20);
+    expect(result.skipped).toEqual(['discord_members']);
     expect(result.failed).toEqual(['wau']);
-    expect(upsert).toHaveBeenCalledTimes(19);
+    expect(upsert).toHaveBeenCalledTimes(21);
   });
 
   it('throws when no ops repository is configured', async () => {
@@ -196,5 +201,28 @@ describe('syncMetricSnapshots', () => {
         repository: null,
       }),
     ).rejects.toThrow('Supabase ops repository is not configured');
+  });
+  it('persists guild counts independently from CTA intent', async () => {
+    state.memberCount = 37;
+    const { repo, upsert } = repository();
+    const result = await syncMetricSnapshots({
+      config: readControlCenterConfig({}),
+      now: NOW,
+      repository: repo,
+    });
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ metricKey: 'discord_members', value: 37 }),
+    );
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ metricKey: 'discord_cta_users_30d', value: 0 }),
+    );
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metricKey: 'discord_cta_post_waitlist_users_30d',
+        value: 0,
+      }),
+    );
+    expect(result.persisted).toBe(22);
+    expect(result.skipped).not.toContain('discord_members');
   });
 });

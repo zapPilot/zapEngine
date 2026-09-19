@@ -12,3 +12,6 @@ See @README.md for project overview.
 
 - The track-record page defaults to committed backtest data (`src/data/track-record-source.ts`). Live IPFS is an explicit reader opt-in; publishing a live snapshot does not replace the default backtest view.
 - `test:strategy-snapshot:fast` uses the committed fixture's `reference_date`, not the wall clock. Only the refresh workflow advances that date. Regenerating fixtures changes landing-page numbers; do not change expected values merely to make the gate pass.
+
+- `/discord/` is a client hop in the static export. Do not replace it with a Vercel 30x rule: that would bypass analytics.
+- `first_touch_utm_*` and the waitlist POST share the same localStorage first-touch record, captured during client instrumentation.

@@ -16,6 +16,7 @@ describe('async cache', () => {
     expect(load).toHaveBeenCalledTimes(1);
 
     await expect(cache.get(true)).resolves.toBe('second');
+    expect(load).toHaveBeenLastCalledWith(true);
     time = 121;
     await expect(cache.get()).resolves.toBe('second');
     expect(load).toHaveBeenCalledTimes(3);

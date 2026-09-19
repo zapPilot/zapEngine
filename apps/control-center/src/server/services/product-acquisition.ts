@@ -8,6 +8,8 @@ export interface ProductAcquisitionMetrics {
   landingVisitors30d: number | null;
   ctaUsers7d: number | null;
   ctaUsers30d: number | null;
+  discordCtaUsers30d: number | null;
+  discordCtaPostWaitlistUsers30d: number | null;
   appVisitors7d: number | null;
   appVisitors30d: number | null;
   walletConnectedUsers7d: number | null;
@@ -42,6 +44,11 @@ export function productAcquisitionFromOperations(
     landingVisitors30d: evidenceNumber(signal, 'landingVisitors30d'),
     ctaUsers7d: evidenceNumber(signal, 'ctaUsers7d'),
     ctaUsers30d: evidenceNumber(signal, 'ctaUsers30d'),
+    discordCtaUsers30d: evidenceNumber(signal, 'discordCtaUsers30d'),
+    discordCtaPostWaitlistUsers30d: evidenceNumber(
+      signal,
+      'discordCtaPostWaitlistUsers30d',
+    ),
     appVisitors7d: evidenceNumber(signal, 'appVisitors7d'),
     appVisitors30d: evidenceNumber(signal, 'appVisitors30d'),
     walletConnectedUsers7d: evidenceNumber(signal, 'walletConnectedUsers7d'),
