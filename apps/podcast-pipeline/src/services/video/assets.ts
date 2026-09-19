@@ -35,17 +35,6 @@ export type SupportedRemoteImageContentType =
   | 'image/png'
   | 'image/webp';
 
-const ALLOWED_IMAGE_CONTENT_TYPES = new Map<
-  SupportedRemoteImageContentType | 'image/jpg',
-  'avif' | 'jpeg' | 'png' | 'webp'
->([
-  ['image/avif', 'avif'],
-  ['image/jpeg', 'jpeg'],
-  ['image/jpg', 'jpeg'],
-  ['image/png', 'png'],
-  ['image/webp', 'webp'],
-]);
-
 export type ResolvedSlideAsset =
   | {
       kind: 'image';
@@ -456,10 +445,7 @@ async function downloadRemoteImage(
   url: string,
   outputPath: string,
   options: ResolveSlideAssetOptions,
-): Promise<{
-  contentType: SupportedRemoteImageContentType;
-  sha256: string;
-}> {
+): Promise<{ sha256: string }> {
   return runWithDeadline(
     async (signal) => {
       const response = await fetchWithSafeRedirects(url, {
@@ -472,28 +458,11 @@ async function downloadRemoteImage(
         throw new Error(`Image request failed with HTTP ${response.status}`);
       }
 
-      const contentType = response.headers
-        .get('content-type')
-        ?.split(';', 1)[0]
-        ?.trim()
-        .toLowerCase();
-      if (
-        !contentType ||
-        !ALLOWED_IMAGE_CONTENT_TYPES.has(contentType as never)
-      ) {
-        throw new Error(
-          'Remote asset is not an image or uses an unsupported raster format',
-        );
-      }
-
+      // Treat HTTP Content-Type as advisory only. Publisher/CDN image endpoints
+      // frequently use generic or stale MIME metadata; the actual raster decoder
+      // below is the security and format boundary.
       const streamed = await streamResponseToFile(response, outputPath, signal);
-      return {
-        contentType:
-          contentType === 'image/jpg'
-            ? 'image/jpeg'
-            : (contentType as SupportedRemoteImageContentType),
-        sha256: streamed.sha256,
-      };
+      return { sha256: streamed.sha256 };
     },
     options.signal,
     options.timeoutMs ?? DEFAULT_DOWNLOAD_TIMEOUT_MS,
@@ -501,26 +470,54 @@ async function downloadRemoteImage(
   );
 }
 
+function decodedContentType(
+  format: string | undefined,
+): SupportedRemoteImageContentType | null {
+  switch (format) {
+    case 'avif':
+      return 'image/avif';
+    case 'jpeg':
+      return 'image/jpeg';
+    case 'png':
+      return 'image/png';
+    case 'webp':
+      return 'image/webp';
+    default:
+      return null;
+  }
+}
+
 async function inspectDownloadedImage(
   outputPath: string,
-  contentType: SupportedRemoteImageContentType,
   layout: 'fullBleed' | 'contain' | 'framed',
   allowSmallDimensions = false,
-): Promise<{ width: number; height: number }> {
+): Promise<{
+  width: number;
+  height: number;
+  contentType: SupportedRemoteImageContentType;
+}> {
   const metadata = await sharp(outputPath, {
     failOn: 'error',
     limitInputPixels: MAX_REMOTE_IMAGE_PIXELS,
     animated: false,
-  }).metadata();
+  })
+    .metadata()
+    .catch(() => {
+      throw new Error(
+        'Remote asset is not an image or uses an unsupported raster format',
+      );
+    });
   if (!metadata.width || !metadata.height) {
     throw new Error('Image dimensions could not be read');
   }
   if ((metadata.pages ?? 1) !== 1) {
     throw new Error('Animated or multi-page images are not supported');
   }
-  const expectedFormat = ALLOWED_IMAGE_CONTENT_TYPES.get(contentType);
-  if (metadata.format !== expectedFormat) {
-    throw new Error('Image content type does not match decoded format');
+  const contentType = decodedContentType(metadata.format);
+  if (!contentType) {
+    throw new Error(
+      'Remote asset is not an image or uses an unsupported raster format',
+    );
   }
   if (
     metadata.width > MAX_REMOTE_IMAGE_DIMENSION ||
@@ -565,7 +562,11 @@ async function inspectDownloadedImage(
     .raw()
     .toBuffer();
 
-  return { width: metadata.width, height: metadata.height };
+  return {
+    width: metadata.width,
+    height: metadata.height,
+    contentType,
+  };
 }
 
 export async function acquireRemoteImage(
@@ -583,17 +584,15 @@ export async function acquireRemoteImage(
   );
   const downloaded = await downloadRemoteImage(url, outputPath, options);
   try {
-    const dimensions = await inspectDownloadedImage(
+    const inspected = await inspectDownloadedImage(
       outputPath,
-      downloaded.contentType,
       options.layout ?? 'framed',
       options.allowSmallDimensions ?? false,
     );
     return {
       path: outputPath,
-      contentType: downloaded.contentType,
       sha256: downloaded.sha256,
-      ...dimensions,
+      ...inspected,
     };
   } catch (error) {
     await rm(outputPath, { force: true });
@@ -623,7 +622,7 @@ async function resolveRemoteImage(
   const outputPath = join(workingDirectory, `${slide.id}${extension}`);
 
   try {
-    const { contentType, sha256 } = await downloadRemoteImage(
+    const { sha256 } = await downloadRemoteImage(
       slide.asset.url,
       outputPath,
       options,
@@ -632,20 +631,24 @@ async function resolveRemoteImage(
       throw new Error('Image SHA-256 does not match the manifest');
     }
 
+    // Scene assets in a render manifest have already passed the planner's
+    // source-quality gate and were mirrored to R2 under this exact SHA. Reapply
+    // decode/safety checks here, but do not reject a mandatory publisher cover
+    // (or any other accepted asset) under a second, drifting dimension policy.
     const metadata = await inspectDownloadedImage(
       outputPath,
-      contentType,
       slide.asset.layout,
+      true,
     );
 
     const dataUri = ownsDirectory
-      ? toDataUri(contentType, await readFile(outputPath))
+      ? toDataUri(metadata.contentType, await readFile(outputPath))
       : undefined;
 
     return {
       kind: 'image',
       ...(dataUri ? { dataUri } : { filePath: outputPath }),
-      contentType,
+      contentType: metadata.contentType,
       layout: slide.asset.layout,
       position: slide.asset.position,
       width: metadata.width,
