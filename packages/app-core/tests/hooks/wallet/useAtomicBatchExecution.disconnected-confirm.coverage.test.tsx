@@ -26,7 +26,9 @@ vi.mock('@core/utils', () => ({
 
 const WALLET_ADDRESS = '0x2222222222222222222222222222222222222222';
 
-function makeDeps(walletAddress: string | undefined): AtomicBatchExecutionDeps {
+function makeDeps(
+  walletAddress: string | undefined,
+): AtomicBatchExecutionDeps {
   return {
     getAccessToken: vi.fn(async () => 'access-token'),
     signPreviewTypedData: vi.fn(async () => '0xusersig' as `0x${string}`),
