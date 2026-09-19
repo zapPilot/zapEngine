@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { extname, join } from 'node:path';
 import { Readable } from 'node:stream';
 
-import sharp from 'sharp';
+import sharp, { type Metadata } from 'sharp';
 
 import { abortError, throwIfAborted } from '../../lib/abort.js';
 import { runWithDeadline } from '../../lib/deadline.js';
@@ -471,17 +471,21 @@ async function downloadRemoteImage(
 }
 
 function decodedContentType(
-  format: string | undefined,
+  metadata: Pick<Metadata, 'format' | 'compression'>,
 ): SupportedRemoteImageContentType | null {
-  switch (format) {
-    case 'avif':
-      return 'image/avif';
+  switch (metadata.format) {
     case 'jpeg':
       return 'image/jpeg';
     case 'png':
       return 'image/png';
     case 'webp':
       return 'image/webp';
+    // libvips decodes AVIF through heifload and reports the whole HEIF family
+    // as `heif`, so a `case 'avif'` never matches and every AVIF og:image was
+    // rejected as an unsupported format. `compression` is the discriminator:
+    // `av1` is AVIF, `hevc` is HEIC, and only AVIF is in our supported set.
+    case 'heif':
+      return metadata.compression === 'av1' ? 'image/avif' : null;
     default:
       return null;
   }
@@ -516,7 +520,7 @@ async function inspectDownloadedImage(
   if ((metadata.pages ?? 1) !== 1) {
     throw new Error('Animated or multi-page images are not supported');
   }
-  const contentType = decodedContentType(metadata.format);
+  const contentType = decodedContentType(metadata);
   if (!contentType) {
     throw new Error(
       'Remote asset is not an image or uses an unsupported raster format',

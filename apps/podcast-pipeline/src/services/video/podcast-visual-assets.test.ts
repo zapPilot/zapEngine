@@ -180,7 +180,11 @@ describe('planPodcastVisualAssets', () => {
     const directory = await temporaryDirectory();
     const acquireImage = vi
       .fn()
-      .mockRejectedValueOnce(new Error('content type mismatch'))
+      .mockRejectedValueOnce(
+        new Error(
+          'Remote asset is not an image or uses an unsupported raster format',
+        ),
+      )
       .mockResolvedValueOnce(acquired('body-photo'));
 
     await expect(

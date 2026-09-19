@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { deflateSync } from 'node:zlib';
 
 import sharp from 'sharp';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -46,6 +47,44 @@ const openSource: SlideSource = {
 
 function hash(buffer: Buffer): string {
   return createHash('sha256').update(buffer).digest('hex');
+}
+
+// A structurally valid PNG whose IHDR declares more pixels than
+// MAX_REMOTE_IMAGE_PIXELS while both edges stay under MAX_REMOTE_IMAGE_DIMENSION,
+// so only libvips' own `limitInputPixels` can reject it. Built by hand because a
+// real 9000x9000 raster would cost 243 MB to generate for a 68-byte fixture.
+function oversizedPngHeader(width: number, height: number): Buffer {
+  const table = Array.from({ length: 256 }, (_unused, index) => {
+    let value = index;
+    for (let bit = 0; bit < 8; bit += 1) {
+      value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
+    }
+    return value >>> 0;
+  });
+  const checksum = (buffer: Buffer): number => {
+    let crc = 0xffffffff;
+    for (const byte of buffer) crc = table[(crc ^ byte) & 0xff]! ^ (crc >>> 8);
+    return (crc ^ 0xffffffff) >>> 0;
+  };
+  const chunk = (type: string, data: Buffer): Buffer => {
+    const typed = Buffer.concat([Buffer.from(type, 'ascii'), data]);
+    const length = Buffer.alloc(4);
+    length.writeUInt32BE(data.length);
+    const trailer = Buffer.alloc(4);
+    trailer.writeUInt32BE(checksum(typed));
+    return Buffer.concat([length, typed, trailer]);
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8; // bit depth
+  ihdr[9] = 2; // truecolour
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', ihdr),
+    chunk('IDAT', deflateSync(Buffer.alloc(16))),
+    chunk('IEND', Buffer.alloc(0)),
+  ]);
 }
 
 function imageResponse(
@@ -176,6 +215,33 @@ describe('resolveSlideAsset', () => {
     });
   });
 
+  it('resolves an AVIF manifest image as image/avif', async () => {
+    const buffer = await sharp({
+      create: { width: 1_200, height: 630, channels: 3, background: '#123456' },
+    })
+      .avif({ quality: 50, effort: 0 })
+      .toBuffer();
+
+    const resolved = await resolveSlideAsset(
+      remoteImageSlide({
+        imageHash: hash(buffer),
+        url: 'https://example.test/og.avif',
+      }),
+      async () => imageResponse(buffer, { contentType: 'image/avif' }),
+    );
+
+    expect(resolved).toMatchObject({
+      kind: 'image',
+      contentType: 'image/avif',
+      width: 1_200,
+      height: 630,
+    });
+    if (resolved.kind !== 'image') {
+      throw new Error('Expected a resolved AVIF image');
+    }
+    expect(resolved.dataUri).toMatch(/^data:image\/avif;base64,/);
+  });
+
   it.each([
     { layout: 'contain' as const, width: 370, height: 208 },
     { layout: 'fullBleed' as const, width: 640, height: 360 },
@@ -231,17 +297,26 @@ describe('resolveSlideAsset', () => {
     });
   });
 
+  const htmlBody = Buffer.from(
+    '<!doctype html><html><body>not an image</body></html>',
+  );
+
   it.each([
     {
       label: 'HTTP failure',
       response: () => imageResponse(Buffer.from('missing'), { status: 404 }),
       message: 'Image request failed with HTTP 404',
+      imageHash: '0'.repeat(64),
     },
     {
+      // This row carries the body's real hash deliberately. The SHA-256 gate
+      // runs before the decoder, so a placeholder hash short-circuits there and
+      // the case stops proving that HTML bytes are rejected as a raster format
+      // — which is the whole boundary now that Content-Type is only advisory.
       label: 'non-image response',
-      response: () =>
-        imageResponse(Buffer.from('html'), { contentType: 'text/html' }),
+      response: () => imageResponse(htmlBody, { contentType: 'text/html' }),
       message: 'Remote asset is not an image',
+      imageHash: hash(htmlBody),
     },
     {
       label: 'oversized declaration',
@@ -250,10 +325,11 @@ describe('resolveSlideAsset', () => {
           contentLength: 25 * 1024 * 1024 + 1,
         }),
       message: 'Image exceeds the 25 MiB download limit',
+      imageHash: '0'.repeat(64),
     },
-  ])('falls back for a $label', async ({ response, message }) => {
+  ])('falls back for a $label', async ({ response, message, imageHash }) => {
     const resolved = await resolveSlideAsset(
-      remoteImageSlide({ imageHash: '0'.repeat(64) }),
+      remoteImageSlide({ imageHash }),
       async () => response(),
     );
 
@@ -685,6 +761,30 @@ describe('acquireRemoteImage', () => {
     },
   );
 
+  it('accepts AVIF, which libvips reports as heif rather than avif', async () => {
+    const directory = await tempDirectory();
+    const avif = await sharp({
+      create: { width: 1_200, height: 630, channels: 3, background: '#123456' },
+    })
+      .avif({ quality: 50, effort: 0 })
+      .toBuffer();
+
+    const result = await acquireRemoteImage('https://example.test/og.avif', {
+      workingDirectory: directory,
+      filename: 'og-avif',
+      fetchImage: async () =>
+        imageResponse(avif, { contentType: 'image/avif' }),
+      resolveHost: async () => ['8.8.8.8'],
+    });
+
+    expect(result).toMatchObject({
+      contentType: 'image/avif',
+      width: 1_200,
+      height: 630,
+      sha256: hash(avif),
+    });
+  });
+
   it.each([false, true])(
     'removes pixel-unsafe downloads with allowSmallDimensions=%s',
     async (allowSmallDimensions) => {
@@ -711,6 +811,24 @@ describe('acquireRemoteImage', () => {
       await expect(stat(join(directory, 'wide.image'))).rejects.toThrow();
     },
   );
+
+  it("reports libvips' own pixel-limit rejection as a size failure", async () => {
+    const directory = await tempDirectory();
+    // 9000x9000 = 77.2 M px: over the pixel ceiling but under the per-edge
+    // ceiling, so the explicit dimension check above cannot see it and only
+    // sharp's `limitInputPixels` raises.
+    const bomb = oversizedPngHeader(9_000, 9_000);
+
+    await expect(
+      acquireRemoteImage('https://example.test/pixel-bomb.png', {
+        workingDirectory: directory,
+        filename: 'pixel-bomb',
+        fetchImage: async () => imageResponse(bomb),
+        resolveHost: async () => ['8.8.8.8'],
+      }),
+    ).rejects.toThrow('Image exceeds the safe pixel-dimension limit');
+    await expect(stat(join(directory, 'pixel-bomb.image'))).rejects.toThrow();
+  });
 
   it('rejects successful HTTP responses with no body', async () => {
     const directory = await tempDirectory();
