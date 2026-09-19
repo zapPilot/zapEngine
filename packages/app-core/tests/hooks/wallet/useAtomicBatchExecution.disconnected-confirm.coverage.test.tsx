@@ -106,21 +106,19 @@ describe('useAtomicBatchExecution disconnected confirmation coverage', () => {
         await new Promise((resolve) => setTimeout(resolve, 0));
       });
       expect(hook.result.current.simulationPreview?.status).toBe('passed');
-      const executionRejection = expect(execution).rejects.toThrow();
+      const executionRejection = expect(execution).rejects.toThrow(
+        'Privy user access token is invalid or expired. Please re-login.',
+      );
 
       vi.mocked(connected.getAccessToken).mockResolvedValue(null);
 
       await expect(
         hook.result.current.confirmBatchExecution(),
-      ).rejects.toThrow(
-        'Privy user access token is invalid or expired. Please re-login.',
-      );
+      ).resolves.toBeUndefined();
+      await executionRejection;
       expect(connected.signPreviewTypedData).toHaveBeenCalledOnce();
       expect(connected.generateAuthorizationSignature).toHaveBeenCalledOnce();
       expect(mocks.sendPrivyAtomicBatch).not.toHaveBeenCalled();
-
-      act(() => hook.result.current.cancelBatchExecution());
-      await executionRejection;
     },
   );
 });
