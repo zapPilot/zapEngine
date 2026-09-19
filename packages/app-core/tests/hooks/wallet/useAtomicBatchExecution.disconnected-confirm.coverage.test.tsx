@@ -108,7 +108,7 @@ describe('useAtomicBatchExecution disconnected confirmation coverage', () => {
     expect(hook.result.current.simulationPreview?.status).toBe('passed');
 
     await expect(hook.result.current.confirmBatchExecution()).rejects.toThrow(
-      'Privy access token unavailable',
+      'Privy user access token is invalid or expired. Please re-login.',
     );
     expect(connected.signPreviewTypedData).toHaveBeenCalledOnce();
     expect(connected.generateAuthorizationSignature).toHaveBeenCalledOnce();
