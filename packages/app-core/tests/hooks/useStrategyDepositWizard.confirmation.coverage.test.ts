@@ -142,9 +142,7 @@ describe('useStrategyDepositWizard confirmation coverage', () => {
       await advancePromise;
     });
 
-    expect(result.current.wizard.error).toContain(
-      'Transaction step is missing chain id',
-    );
+    expect(result.current.wizard.error).toContain('Transaction step is missing chain id');
     expect(mocks.waitForTransactionReceipt).not.toHaveBeenCalled();
   });
 });
