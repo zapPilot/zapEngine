@@ -39,7 +39,10 @@ const PUBLIC_BARRELS = [
   {
     path: 'src/lib/analytics/index.ts',
     load: () => import('@core/lib/analytics'),
-    expectedExports: ['classifyIncomeProtocol', 'transformToPerformanceChart'],
+    expectedExports: [
+      'estimateMonthlyIncomeUsd',
+      'transformToPerformanceChart',
+    ],
   },
   {
     path: 'src/lib/errors/index.ts',

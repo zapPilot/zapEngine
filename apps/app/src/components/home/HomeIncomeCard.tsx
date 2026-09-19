@@ -137,7 +137,7 @@ function IncomeRow({ row }: { row: HomeProtocolIncomeRow }) {
   return (
     <View
       accessible
-      accessibilityLabel={[row.protocol, metadata, tokenLabel, amount]
+      accessibilityLabel={[row.label, metadata, tokenLabel, amount]
         .filter(Boolean)
         .join(', ')}
       className="flex-row items-center gap-3 py-2"
@@ -145,7 +145,7 @@ function IncomeRow({ row }: { row: HomeProtocolIncomeRow }) {
       <PositionIcon row={row} />
       <View className="min-w-0 flex-1">
         <Text numberOfLines={1} className="text-[13px] text-ink">
-          {row.protocol}
+          {row.label}
         </Text>
         {metadata ? (
           <Text

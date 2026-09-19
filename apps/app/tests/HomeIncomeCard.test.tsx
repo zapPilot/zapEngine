@@ -93,8 +93,10 @@ vi.mock('@/providers/ContentLanguageProvider', () => ({
 function row(
   overrides: Partial<HomeProtocolIncomeRow> & { monthlyNetUsd: number },
 ): HomeProtocolIncomeRow {
+  const protocol = overrides.protocol ?? 'Morpho';
   return {
-    protocol: 'Morpho',
+    protocol,
+    label: protocol,
     tokenSymbols: [],
     positionTypes: [],
     ...overrides,
@@ -225,6 +227,34 @@ describe('HomeIncomeCard', () => {
     expect(
       container.querySelector<HTMLElement>('div.relative.h-11')?.style.width,
     ).toBe('36px');
+  });
+
+  it('names the HLP row by its product while the mark keeps the venue identity', async () => {
+    await render(
+      view([
+        row({
+          protocol: 'hyperliquid',
+          label: 'HLP',
+          chain: 'hyperliquid',
+          positionTypes: ['Hyperliquidity Provider (HLP)'],
+          monthlyNetUsd: 30.4,
+        }),
+      ]),
+    );
+
+    expect(labels()).toEqual([
+      'HLP, hyperliquid · Hyperliquidity Provider (HLP), +$30.40',
+    ]);
+    expect(
+      container
+        .querySelector('[data-protocol-icon]')
+        ?.getAttribute('data-protocol-icon'),
+    ).toBe('hyperliquid');
+    const texts = [...container.querySelectorAll('span')].map(
+      (node) => node.textContent,
+    );
+    expect(texts).toContain('HLP');
+    expect(texts).not.toContain('hyperliquid');
   });
 });
 
