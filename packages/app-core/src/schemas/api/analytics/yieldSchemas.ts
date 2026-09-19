@@ -14,11 +14,24 @@ export const protocolYieldTodaySchema = z.object({
   yield_usd: z.number(),
 });
 
+export const tokenPositionValueSchema = z.object({
+  symbol: z.string(),
+  value_usd: z.number(),
+});
+
 export const protocolYieldBreakdownSchema = z.object({
   protocol: z.string(),
   chain: z.string().nullable().optional(),
   token_symbols: z.array(z.string()).optional(),
   position_types: z.array(z.string()).optional(),
+  /**
+   * Net USD value of the position on the latest observed day. The window yield
+   * is the day-over-day change in exactly this value, so the two reconcile.
+   * Optional so an analytics-engine that has not shipped the field still parses.
+   */
+  position_value_usd: z.number().nullable().optional(),
+  /** Composition of `position_value_usd`; borrowed legs are negative. */
+  token_values: z.array(tokenPositionValueSchema).optional(),
   window: protocolYieldWindowSchema,
   today: protocolYieldTodaySchema.nullable().optional(),
 });

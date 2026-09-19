@@ -17,6 +17,8 @@ function summary(
     averageDaily: number;
     tokenSymbols?: string[];
     positionTypes?: string[];
+    positionValue?: number;
+    tokenValues?: { symbol: string; value_usd: number }[];
   }[],
   observedDays = 30,
   windowKey = '30d',
@@ -47,6 +49,8 @@ function summary(
           chain: item.chain,
           token_symbols: item.tokenSymbols,
           position_types: item.positionTypes,
+          position_value_usd: item.positionValue,
+          token_values: item.tokenValues,
           window: {
             total_yield_usd: item.averageDaily * observedDays,
             average_daily_yield_usd: item.averageDaily,
@@ -152,6 +156,7 @@ describe('buildHomeIncomeView', () => {
         chain: 'arb',
         monthlyNetUsd: 121.6,
         tokenSymbols: ['WBTC', 'USDC'],
+        tokenValues: [],
         positionTypes: ['Liquidity Pool'],
       },
       {
@@ -160,6 +165,7 @@ describe('buildHomeIncomeView', () => {
         chain: 'hyperliquid',
         monthlyNetUsd: 30.4,
         tokenSymbols: ['USDC'],
+        tokenValues: [],
         positionTypes: ['Hyperliquidity Provider (HLP)'],
       },
       {
@@ -168,9 +174,45 @@ describe('buildHomeIncomeView', () => {
         chain: 'base',
         monthlyNetUsd: 15.2,
         tokenSymbols: [],
+        tokenValues: [],
         positionTypes: [],
       },
     ]);
+  });
+
+  it('carries the position value the yield accrued on and the rate it implies', () => {
+    const result = buildHomeIncomeView(
+      summary([
+        {
+          protocol: 'Morpho',
+          chain: 'ethereum',
+          averageDaily: -2.4,
+          positionValue: 50_000,
+          tokenValues: [
+            { symbol: 'wstETH', value_usd: 70_000 },
+            { symbol: 'USDT', value_usd: -20_000 },
+          ],
+        },
+      ]),
+    );
+
+    const row = result.protocolRows[0];
+    expect(row?.positionValueUsd).toBe(50_000);
+    expect(row?.monthlyNetUsd).toBeCloseTo(-72.96);
+    expect(row?.impliedAnnualPct).toBeCloseTo(-1.751, 3);
+    expect(row?.tokenValues).toEqual([
+      { symbol: 'wstETH', valueUsd: 70_000 },
+      { symbol: 'USDT', valueUsd: -20_000 },
+    ]);
+  });
+
+  it('withholds the implied rate when the position is worth nothing to divide by', () => {
+    const result = buildHomeIncomeView(
+      summary([{ protocol: 'Aave', averageDaily: -1, positionValue: -500 }]),
+    );
+
+    expect(result.protocolRows[0]).toMatchObject({ positionValueUsd: -500 });
+    expect(result.protocolRows[0]?.impliedAnnualPct).toBeUndefined();
   });
 
   it('includes synthetic ETH staking income in passive headline totals', () => {
@@ -270,6 +312,7 @@ describe('partitionIncomeRowsByCoverage', () => {
     label: protocol,
     monthlyNetUsd,
     tokenSymbols: [],
+    tokenValues: [],
     positionTypes: [],
   });
 

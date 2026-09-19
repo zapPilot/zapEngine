@@ -11,6 +11,7 @@ from src.models.yield_returns import (
     ProtocolYieldBreakdown,
     ProtocolYieldToday,
     ProtocolYieldWindow,
+    TokenPositionValue,
 )
 
 ETH_STAKING_PROTOCOL_NAME = "ETH Staking"
@@ -22,6 +23,8 @@ _EXCLUDED_POSITION_TYPES = {"Liquidity Pool", "Farming"}
 class EthStakingExposure:
     total_usd: float
     token_symbols: tuple[str, ...]
+    # Per-symbol staked value, largest first, summing to ``total_usd``.
+    values_by_symbol: tuple[tuple[str, float], ...] = ()
 
 
 def aggregate_benchmark_lst_exposure(rows: list[dict[str, Any]]) -> EthStakingExposure:
@@ -34,7 +37,7 @@ def aggregate_benchmark_lst_exposure(rows: list[dict[str, Any]]) -> EthStakingEx
     representations cannot double count it.
     """
     exposure_by_identity: dict[tuple[str, str, str, str], float] = {}
-    symbols: set[str] = set()
+    symbol_by_identity: dict[tuple[str, str, str, str], str] = {}
 
     for row in rows:
         if str(row.get("exposure_type") or "") not in _ELIGIBLE_EXPOSURE_TYPES:
@@ -66,11 +69,19 @@ def aggregate_benchmark_lst_exposure(rows: list[dict[str, Any]]) -> EthStakingEx
         exposure_by_identity[identity] = max(
             exposure_by_identity.get(identity, 0.0), usd_value
         )
-        symbols.add(asset.symbol)
+        symbol_by_identity[identity] = asset.symbol
+
+    values_by_symbol: dict[str, float] = {}
+    for identity, usd_value in exposure_by_identity.items():
+        symbol = symbol_by_identity[identity]
+        values_by_symbol[symbol] = values_by_symbol.get(symbol, 0.0) + usd_value
 
     return EthStakingExposure(
-        total_usd=sum(exposure_by_identity.values()),
-        token_symbols=tuple(sorted(symbols, key=str.lower)),
+        total_usd=sum(values_by_symbol.values()),
+        token_symbols=tuple(sorted(values_by_symbol, key=str.lower)),
+        values_by_symbol=tuple(
+            sorted(values_by_symbol.items(), key=lambda item: (-item[1], item[0]))
+        ),
     )
 
 
@@ -105,6 +116,11 @@ def with_eth_staking_income(
                 chain=None,
                 token_symbols=list(exposure.token_symbols),
                 position_types=[],
+                position_value_usd=exposure.total_usd,
+                token_values=[
+                    TokenPositionValue(symbol=symbol, value_usd=value)
+                    for symbol, value in exposure.values_by_symbol
+                ],
                 window=ProtocolYieldWindow(
                     total_yield_usd=daily_income_usd * days,
                     average_daily_yield_usd=daily_income_usd,

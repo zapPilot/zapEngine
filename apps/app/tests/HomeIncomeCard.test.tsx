@@ -98,6 +98,7 @@ function row(
     protocol,
     label: protocol,
     tokenSymbols: [],
+    tokenValues: [],
     positionTypes: [],
     ...overrides,
   };
@@ -216,9 +217,8 @@ describe('HomeIncomeCard', () => {
     expect(
       container.querySelector<HTMLElement>('div.relative.h-11')?.style.width,
     ).toBe('66px');
-    expect(labels()).toEqual([
-      'Morpho, Lending, USDC / WETH / DAI / USDT, +$60.80',
-    ]);
+    expect(labels()).toEqual(['Morpho, Lending, +$60.80']);
+    expect(container.textContent).not.toContain('USDC / WETH / DAI / USDT');
   });
 
   it('sizes the icon to the protocol mark alone when no tokens are reported', async () => {
@@ -255,6 +255,120 @@ describe('HomeIncomeCard', () => {
     );
     expect(texts).toContain('HLP');
     expect(texts).not.toContain('hyperliquid');
+  });
+});
+
+describe('HomeIncomeCard position value', () => {
+  function toggle(): HTMLButtonElement | null {
+    return container.querySelector<HTMLButtonElement>('button[aria-expanded]');
+  }
+
+  it('puts the position value beside the monthly amount it was earned on', async () => {
+    await render(
+      view([
+        row({
+          protocol: 'Morpho',
+          chain: 'ethereum',
+          monthlyNetUsd: -81.84,
+          positionValueUsd: 50_000,
+        }),
+      ]),
+    );
+
+    expect(container.textContent).toContain(
+      'home.incomePositionValue|$50,000.00',
+    );
+    expect(labels()).toEqual([
+      'Morpho, ethereum, home.incomePositionValue|$50,000.00, −$81.84',
+    ]);
+    expect(toggle()).toBeNull();
+  });
+
+  it('reveals the implied rate and the tokens behind an aggregated row on tap', async () => {
+    await render(
+      view([
+        row({
+          protocol: 'Morpho',
+          chain: 'ethereum',
+          monthlyNetUsd: -81.84,
+          positionValueUsd: 50_000,
+          impliedAnnualPct: -2.4,
+          tokenSymbols: ['wstETH', 'USDT'],
+          tokenValues: [
+            { symbol: 'wstETH', valueUsd: 70_000 },
+            { symbol: 'USDT', valueUsd: -20_000 },
+          ],
+        }),
+      ]),
+    );
+
+    expect(toggle()?.getAttribute('aria-expanded')).toBe('false');
+    expect(container.textContent).not.toContain('home.incomeComposition');
+
+    await act(async () => {
+      toggle()?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(toggle()?.getAttribute('aria-expanded')).toBe('true');
+    expect(container.textContent).toContain('home.incomeImpliedRate|−2.4%');
+    expect(container.textContent).toContain('home.incomeComposition');
+    expect(container.textContent).toContain('home.incomeCompositionBasis');
+    expect(labels()).toContain('wstETH, +$70,000.00');
+    expect(labels()).toContain('USDT, −$20,000.00');
+  });
+
+  it('leaves the borrow note out when every leg is a deposit', async () => {
+    await render(
+      view([
+        row({
+          protocol: 'GMX V2',
+          monthlyNetUsd: 63.83,
+          positionValueUsd: 12_000,
+          impliedAnnualPct: 6.4,
+          tokenValues: [{ symbol: 'USDC', valueUsd: 12_000 }],
+        }),
+      ]),
+    );
+    await act(async () => {
+      toggle()?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(container.textContent).toContain('home.incomeImpliedRate|+6.4%');
+    expect(container.textContent).not.toContain('home.incomeCompositionBasis');
+  });
+
+  it('keeps the rolled-up tail free of a second level of taps', async () => {
+    const detailed = (protocol: string, monthlyNetUsd: number) =>
+      row({
+        protocol,
+        monthlyNetUsd,
+        tokenValues: [{ symbol: 'USDC', valueUsd: 100 }],
+      });
+
+    await render(
+      view([
+        detailed('Morpho', 100),
+        detailed('Frax', 40),
+        detailed('Pendle', 5),
+        detailed('Curve', 3),
+        detailed('Yearn', 2),
+        detailed('Aave', -20),
+        detailed('Spark', -4),
+      ]),
+    );
+
+    // Three visible rows plus the tail disclosure.
+    expect(container.querySelectorAll('button[aria-expanded]')).toHaveLength(4);
+
+    const tail = [...container.querySelectorAll('button[aria-expanded]')].at(
+      -1,
+    );
+    await act(async () => {
+      tail?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(container.querySelectorAll('button[aria-expanded]')).toHaveLength(4);
+    expect(labels()).toContain('Pendle, +$5.00');
   });
 });
 

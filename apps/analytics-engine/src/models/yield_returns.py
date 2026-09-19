@@ -224,6 +224,19 @@ class ProtocolYieldToday(BaseModel):
     yield_usd: float = Field(..., description="Protocol yield on the latest day")
 
 
+class TokenPositionValue(BaseModel):
+    """Signed USD value one token contributes to a protocol position."""
+
+    symbol: str = Field(..., description="Token symbol or identifier")
+    value_usd: float = Field(
+        ...,
+        description=(
+            "Signed USD value held in this token on the latest observed day. "
+            "Borrowed legs are negative, so the entries sum to position_value_usd."
+        ),
+    )
+
+
 class ProtocolYieldBreakdown(BaseModel):
     """Protocol-level yield breakdown with latest day and window metrics."""
 
@@ -238,6 +251,21 @@ class ProtocolYieldBreakdown(BaseModel):
     position_types: list[str] = Field(
         default_factory=list,
         description="Portfolio position archetypes observed for this protocol in the window",
+    )
+    position_value_usd: float | None = Field(
+        None,
+        description=(
+            "Net USD value of the position on the latest observed day of the "
+            "window. The window's yield measures the day-over-day change in "
+            "exactly this value, so yield over it is the observed rate."
+        ),
+    )
+    token_values: list[TokenPositionValue] = Field(
+        default_factory=list,
+        description=(
+            "Composition of position_value_usd on the latest observed day, "
+            "largest absolute value first"
+        ),
     )
     window: ProtocolYieldWindow = Field(
         ..., description="Protocol yield metrics across the requested window"

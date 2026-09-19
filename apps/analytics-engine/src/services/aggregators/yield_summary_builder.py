@@ -15,6 +15,7 @@ from src.models.yield_returns import (
     ProtocolYieldToday,
     ProtocolYieldWindow,
     StatisticalSummary,
+    TokenPositionValue,
     YieldSummaryResponse,
 )
 from src.services.strategy.outlier_filter_strategy import (
@@ -83,6 +84,31 @@ class _DayBucket:
     value: float = 0.0
     token_symbols: set[str] = field(default_factory=set)
     position_types: set[str] = field(default_factory=set)
+    # ``None`` until a delta reports one, so a window without position values
+    # reads as "unknown" rather than as a position worth nothing.
+    position_value_usd: float | None = None
+    token_values: dict[str, float] = field(default_factory=dict)
+
+
+def _holding_usd(holding: Any) -> float:
+    """USD value of one token holding, tolerating partial snapshot payloads."""
+    if not isinstance(holding, dict):
+        return 0.0
+    try:
+        return float(holding.get("amount") or 0.0) * float(holding.get("price") or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _token_values(bucket: _DayBucket) -> list[TokenPositionValue]:
+    """Largest exposure first, so an expanded row leads with what carries it."""
+    return [
+        TokenPositionValue(symbol=symbol, value_usd=value)
+        for symbol, value in sorted(
+            bucket.token_values.items(), key=lambda item: (-abs(item[1]), item[0])
+        )
+        if value
+    ]
 
 
 def _group_deltas(
@@ -96,11 +122,22 @@ def _group_deltas(
         bucket = grouped[key][_delta_date(delta)]
         bucket.value += float(delta["token_yield_usd"])
 
+        current_usd = delta.get("current_usd")
+        if current_usd is not None:
+            bucket.position_value_usd = (bucket.position_value_usd or 0.0) + float(
+                current_usd
+            )
+
         current_amounts = delta.get("current_amounts")
         if isinstance(current_amounts, dict):
-            bucket.token_symbols.update(
-                str(symbol) for symbol in current_amounts if symbol
-            )
+            for raw_symbol, holding in current_amounts.items():
+                if not raw_symbol:
+                    continue
+                symbol = str(raw_symbol)
+                bucket.token_symbols.add(symbol)
+                bucket.token_values[symbol] = bucket.token_values.get(
+                    symbol, 0.0
+                ) + _holding_usd(holding)
 
         position_type = delta.get("name_item")
         if position_type:
@@ -159,6 +196,7 @@ def _build_window(
 
         values = list(kept.values())
         latest_day = max(window_series)
+        latest_bucket = window_series[latest_day]
         token_symbols, position_types = _window_metadata(window_series)
         breakdown.append(
             ProtocolYieldBreakdown(
@@ -166,6 +204,8 @@ def _build_window(
                 chain=chain or None,
                 token_symbols=token_symbols,
                 position_types=position_types,
+                position_value_usd=latest_bucket.position_value_usd,
+                token_values=_token_values(latest_bucket),
                 window=ProtocolYieldWindow(
                     total_yield_usd=sum(values),
                     average_daily_yield_usd=mean(values) if values else 0.0,
@@ -175,7 +215,7 @@ def _build_window(
                 ),
                 today=ProtocolYieldToday(
                     date=latest_day.isoformat(),
-                    yield_usd=window_series[latest_day].value,
+                    yield_usd=latest_bucket.value,
                 ),
             )
         )

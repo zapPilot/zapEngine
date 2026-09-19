@@ -225,6 +225,7 @@ describe('coverage handoff: home income sorting and rollup', () => {
       label: `p${index}`,
       monthlyNetUsd,
       tokenSymbols: [],
+      tokenValues: [],
       positionTypes: [],
     }));
     const partitioned = partitionIncomeRowsByCoverage(rows, 0.5);

@@ -10,6 +10,12 @@ const ETH_STAKING_PROTOCOL = 'ETH Staking';
  *  ambiguous. The raw name stays the row identity for icons and keys. */
 const PROTOCOL_ROW_LABELS: Record<string, string> = { hyperliquid: 'HLP' };
 
+/** One token's signed share of a row's position value; borrows are negative. */
+export interface HomeTokenValue {
+  symbol: string;
+  valueUsd: number;
+}
+
 export interface HomeProtocolIncomeRow {
   protocol: string;
   /** What the row is called on screen, which the venue name does not always
@@ -23,7 +29,16 @@ export interface HomeProtocolIncomeRow {
    * which is an estimate of return rather than a fee or APR model.
    */
   monthlyNetUsd: number;
+  /**
+   * Net USD value the row's yield accrued on, absent until the backend reports
+   * it. Netted against borrows, so a borrowing row is still worth what its
+   * collateral exceeds its debt by.
+   */
+  positionValueUsd?: number;
+  /** Annualized rate implied by `monthlyNetUsd` over `positionValueUsd`. */
+  impliedAnnualPct?: number;
   tokenSymbols: string[];
+  tokenValues: HomeTokenValue[];
   positionTypes: string[];
 }
 
@@ -36,6 +51,16 @@ export interface HomeIncomeView {
   windowDays: number;
   observedDays: number;
   protocolRows: HomeProtocolIncomeRow[];
+}
+
+/** The rate the reader can check by hand from the two numbers on the row.
+ *  A position that is net debt has no meaningful base to divide by. */
+function impliedAnnualPct(
+  monthlyNetUsd: number,
+  positionValueUsd: number | undefined,
+): number | undefined {
+  if (positionValueUsd === undefined || positionValueUsd <= 0) return undefined;
+  return ((monthlyNetUsd * 12) / positionValueUsd) * 100;
 }
 
 function sortProtocolRows(
@@ -80,18 +105,28 @@ export function buildHomeIncomeView(
   }
 
   const protocolRows = window.protocol_breakdown
-    .map(
-      (item): HomeProtocolIncomeRow => ({
+    .map((item): HomeProtocolIncomeRow => {
+      const monthlyNetUsd = estimateMonthlyIncomeUsd(
+        item.window.average_daily_yield_usd,
+      );
+      const positionValueUsd = item.position_value_usd ?? undefined;
+      const annualPct = impliedAnnualPct(monthlyNetUsd, positionValueUsd);
+
+      return {
         protocol: item.protocol,
         label: PROTOCOL_ROW_LABELS[item.protocol] ?? item.protocol,
         ...(item.chain ? { chain: item.chain } : {}),
-        monthlyNetUsd: estimateMonthlyIncomeUsd(
-          item.window.average_daily_yield_usd,
-        ),
+        monthlyNetUsd,
+        ...(positionValueUsd === undefined ? {} : { positionValueUsd }),
+        ...(annualPct === undefined ? {} : { impliedAnnualPct: annualPct }),
         tokenSymbols: item.token_symbols ?? [],
+        tokenValues: (item.token_values ?? []).map((token) => ({
+          symbol: token.symbol,
+          valueUsd: token.value_usd,
+        })),
         positionTypes: item.position_types ?? [],
-      }),
-    )
+      };
+    })
     .filter((row) => Math.abs(row.monthlyNetUsd) >= MIN_DISPLAY_MONTHLY_USD)
     .sort(sortProtocolRows);
 

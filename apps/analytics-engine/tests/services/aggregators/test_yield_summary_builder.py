@@ -16,6 +16,7 @@ def _delta(
     chain: str = "ethereum",
     *,
     current_amounts: dict[str, object] | None = None,
+    current_usd: float | None = None,
     name_item: str | None = None,
 ) -> dict[str, object]:
     return {
@@ -24,6 +25,7 @@ def _delta(
         "chain": chain,
         "token_yield_usd": value,
         "current_amounts": current_amounts or {},
+        "current_usd": current_usd,
         "name_item": name_item,
     }
 
@@ -151,3 +153,46 @@ def test_position_metadata_is_scoped_to_each_window() -> None:
     full = summary.windows["30d"].protocol_breakdown[0]
     assert full.token_symbols == ["DAI", "USDC"]
     assert full.position_types == ["Lending", "Staked"]
+
+
+def test_breakdown_reports_latest_day_position_value_and_composition() -> None:
+    end = date(2026, 8, 20)
+    deltas = [
+        _delta(
+            end - timedelta(days=1),
+            1,
+            current_usd=40_000.0,
+            current_amounts={
+                "wstETH": {"amount": 10.0, "price": 3_000.0},
+                "USDT": {"amount": -5_000.0, "price": 1.0},
+            },
+        ),
+        _delta(
+            end,
+            2,
+            current_usd=42_000.0,
+            current_amounts={
+                "wstETH": {"amount": 10.0, "price": 3_200.0},
+                "USDT": {"amount": -6_000.0, "price": 1.0},
+            },
+        ),
+    ]
+
+    window = build_yield_summary("user", deltas, ("7d",), "none").windows["7d"]
+    row = window.protocol_breakdown[0]
+
+    assert row.position_value_usd == pytest.approx(42_000.0)
+    assert [(item.symbol, item.value_usd) for item in row.token_values] == [
+        ("wstETH", pytest.approx(32_000.0)),
+        ("USDT", pytest.approx(-6_000.0)),
+    ]
+
+
+def test_position_value_is_absent_when_no_delta_reports_one() -> None:
+    deltas = [_delta(date(2026, 8, 20), 1)]
+
+    window = build_yield_summary("user", deltas, ("7d",), "none").windows["7d"]
+    row = window.protocol_breakdown[0]
+
+    assert row.position_value_usd is None
+    assert row.token_values == []

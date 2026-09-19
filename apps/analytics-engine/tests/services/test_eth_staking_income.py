@@ -212,6 +212,28 @@ def test_multiple_lst_positions_aggregate_into_one_eth_staking_row_and_keep_morp
     assert morpho.window.average_daily_yield_usd == pytest.approx(-2.0)
 
 
+def test_staking_row_reports_staked_value_as_the_base_its_income_accrues_on():
+    exposure = aggregate_benchmark_lst_exposure(
+        [
+            _exposure_row("wstETH", amount=2.0, price=3_000.0, source_id="morpho-1"),
+            _exposure_row("cbETH", amount=1.0, price=2_900.0, source_id="aave-1"),
+        ]
+    )
+    observed = build_yield_summary("user", [], ("30d",), "none")
+
+    result = with_eth_staking_income(observed, exposure, benchmark_apr=0.025)
+    staking = result.windows["30d"].protocol_breakdown[0]
+
+    assert staking.position_value_usd == pytest.approx(8_900.0)
+    assert [(item.symbol, item.value_usd) for item in staking.token_values] == [
+        ("wstETH", pytest.approx(6_000.0)),
+        ("cbETH", pytest.approx(2_900.0)),
+    ]
+    assert staking.window.average_daily_yield_usd == pytest.approx(
+        (staking.position_value_usd * 0.025) / 365.0
+    )
+
+
 def test_lido_apr_percentage_is_normalized_explicitly():
     assert LidoStakingAprProvider._parse_apr(
         {"data": {"smaApr": 2.5}}
@@ -366,6 +388,13 @@ async def test_yield_summary_keeps_morpho_cost_and_adds_staking_source(db_sessio
         (6_000.0 * 0.025) / 365.0
     )
     assert morpho.window.average_daily_yield_usd == pytest.approx(-1.0)
+    # End to end: snapshot -> aggregate -> delta -> summary keeps the collateral
+    # net of the borrow, which is the base the -1.0/day carry accrued on.
+    assert morpho.position_value_usd == pytest.approx(6_000.0 - 101.0)
+    assert [(item.symbol, item.value_usd) for item in morpho.token_values] == [
+        ("wstETH", pytest.approx(6_000.0)),
+        ("USDT", pytest.approx(-101.0)),
+    ]
 
 
 @pytest.mark.asyncio

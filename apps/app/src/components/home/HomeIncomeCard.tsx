@@ -23,7 +23,12 @@ import {
   type HomeProtocolIncomeRow,
   partitionIncomeRowsByCoverage,
 } from '@/integration/homeIncomeModel';
-import { formatPct, formatSignedUsd, formatUsd } from '@/lib/format';
+import {
+  formatPct,
+  formatSignedPct,
+  formatSignedUsd,
+  formatUsd,
+} from '@/lib/format';
 import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 
 interface HomeIncomeCardProps {
@@ -126,22 +131,96 @@ function PositionIcon({ row }: { row: HomeProtocolIncomeRow }) {
   );
 }
 
-function IncomeRow({ row }: { row: HomeProtocolIncomeRow }) {
+/** What the collapsed row hides: the rate its two visible numbers imply, and
+ *  the tokens the protocol aggregate is actually made of. */
+function IncomeRowDetail({ row }: { row: HomeProtocolIncomeRow }) {
+  const { t } = useContentLanguage();
+  const hasBorrowedLeg = row.tokenValues.some((token) => token.valueUsd < 0);
+
+  return (
+    <View className="mb-1 ml-3 border-l border-line pl-3">
+      {row.impliedAnnualPct === undefined ? null : (
+        <Text className="py-1 font-mono text-[10.5px] text-ink-dim">
+          {t('home.incomeImpliedRate', {
+            rate: formatSignedPct(row.impliedAnnualPct),
+          })}
+        </Text>
+      )}
+      {row.tokenValues.length > 0 ? (
+        <Text className="mt-1 text-[10px] text-ink-faint">
+          {t('home.incomeComposition')}
+        </Text>
+      ) : null}
+      {row.tokenValues.map((token) => (
+        <View
+          key={token.symbol}
+          accessible
+          accessibilityLabel={`${token.symbol}, ${formatSignedUsd(
+            token.valueUsd,
+          )}`}
+          className="flex-row items-center gap-2 py-1"
+        >
+          <TokenIcon
+            symbol={token.symbol}
+            size={TOKEN_BADGE_SIZE}
+            alt={token.symbol}
+          />
+          <Text
+            numberOfLines={1}
+            className="min-w-0 flex-1 text-[11.5px] text-ink-dim"
+          >
+            {token.symbol}
+          </Text>
+          <Text
+            className={`font-mono text-[11px] ${
+              token.valueUsd < 0 ? 'text-[#ef9292]' : 'text-ink-dim'
+            }`}
+          >
+            {formatSignedUsd(token.valueUsd)}
+          </Text>
+        </View>
+      ))}
+      {hasBorrowedLeg ? (
+        <Text className="mt-1 text-[9.5px] leading-[14px] text-ink-faint">
+          {t('home.incomeCompositionBasis')}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
+function IncomeRow({
+  row,
+  expandable = true,
+}: {
+  row: HomeProtocolIncomeRow;
+  /** The rolled-up tail renders inside a disclosure already; a second level of
+   *  taps there buys detail nobody went looking for. */
+  expandable?: boolean;
+}) {
+  const { t } = useContentLanguage();
+  const [expanded, setExpanded] = useState(false);
   const metadata = [row.chain, row.positionTypes[0]]
     .filter(Boolean)
     .join(' · ');
-  const tokenLabel = row.tokenSymbols.join(' / ');
   const amount = formatSignedUsd(row.monthlyNetUsd);
   const isCost = row.monthlyNetUsd < 0;
+  const positionLabel =
+    row.positionValueUsd === undefined
+      ? null
+      : t('home.incomePositionValue', {
+          amount: formatUsd(row.positionValueUsd),
+        });
+  const canExpand =
+    expandable &&
+    (row.tokenValues.length > 0 || row.impliedAnnualPct !== undefined);
+  const accessibilityLabel = [row.label, metadata, positionLabel, amount]
+    .filter(Boolean)
+    .join(', ');
+  const Chevron = expanded ? ChevronDown : ChevronRight;
 
-  return (
-    <View
-      accessible
-      accessibilityLabel={[row.label, metadata, tokenLabel, amount]
-        .filter(Boolean)
-        .join(', ')}
-      className="flex-row items-center gap-3 py-2"
-    >
+  const summary = (
+    <>
       <PositionIcon row={row} />
       <View className="min-w-0 flex-1">
         <Text numberOfLines={1} className="text-[13px] text-ink">
@@ -155,20 +234,60 @@ function IncomeRow({ row }: { row: HomeProtocolIncomeRow }) {
             {metadata}
           </Text>
         ) : null}
-        {tokenLabel ? (
-          <Text numberOfLines={1} className="mt-0.5 text-[10.5px] text-ink-dim">
-            {tokenLabel}
+      </View>
+      <View className="items-end">
+        <Text
+          className={`font-mono-semibold text-[12px] ${
+            isCost ? 'text-[#ef9292]' : 'text-accent'
+          }`}
+        >
+          {amount}
+        </Text>
+        {positionLabel ? (
+          <Text className="mt-0.5 font-mono text-[9.5px] text-ink-faint">
+            {positionLabel}
           </Text>
         ) : null}
       </View>
-      <Text
-        className={`font-mono-semibold text-[12px] ${
-          isCost ? 'text-[#ef9292]' : 'text-accent'
-        }`}
+      {/* Held open whether or not this row expands, so every amount in the
+          card lines up against the same right edge. */}
+      <View className="w-3.5 shrink-0 items-center">
+        {canExpand ? (
+          <Chevron
+            size={14}
+            strokeWidth={2}
+            color={tokens.color['ink-faint']}
+          />
+        ) : null}
+      </View>
+    </>
+  );
+
+  if (!canExpand) {
+    return (
+      <View
+        accessible
+        accessibilityLabel={accessibilityLabel}
+        className="flex-row items-center gap-3 py-2"
       >
-        {amount}
-      </Text>
-    </View>
+        {summary}
+      </View>
+    );
+  }
+
+  return (
+    <>
+      <Tap
+        accessibilityRole="button"
+        accessibilityState={{ expanded }}
+        accessibilityLabel={accessibilityLabel}
+        onPress={() => setExpanded((current) => !current)}
+        className="flex-row items-center gap-3 py-2"
+      >
+        {summary}
+      </Tap>
+      {expanded ? <IncomeRowDetail row={row} /> : null}
+    </>
   );
 }
 
@@ -209,6 +328,7 @@ function OtherIncomeRow({ partition }: { partition: HomeIncomePartition }) {
             <IncomeRow
               key={`${row.protocol}:${row.chain ?? ''}:other`}
               row={row}
+              expandable={false}
             />
           ))
         : null}
