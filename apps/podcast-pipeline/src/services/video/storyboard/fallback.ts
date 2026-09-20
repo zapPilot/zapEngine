@@ -18,7 +18,12 @@ import {
   canonicalSentenceRangeText,
   splitCanonicalSentences,
 } from './sentences.js';
-import { normalizeNumericToken, NUMERIC_TOKEN_PATTERN } from './validation.js';
+import {
+  MAX_SCENE_DURATION_MS,
+  MIN_SCENE_DURATION_MS,
+  normalizeNumericToken,
+  NUMERIC_TOKEN_PATTERN,
+} from './validation.js';
 import { stableSceneId } from './visual-plan.js';
 
 const keywordSegmenter = new Intl.Segmenter('zh-Hant', {
@@ -1053,40 +1058,6 @@ function deterministicSearchIntents(
   return ['editorial concept'];
 }
 
-function sentenceGroups<T extends { text: string }>(
-  sentences: readonly T[],
-  groupCount: number,
-): T[][] {
-  const weights = sentences.map((sentence) => speakingUnits(sentence.text));
-  const prefixWeights = [0];
-  for (const weight of weights) {
-    prefixWeights.push(prefixWeights.at(-1)! + weight);
-  }
-  const totalWeight = prefixWeights.at(-1)!;
-  const boundaries = [0];
-  for (let group = 1; group < groupCount; group += 1) {
-    const previous = boundaries.at(-1)!;
-    const min = previous + 1;
-    const max = sentences.length - (groupCount - group);
-    const target = (totalWeight * group) / groupCount;
-    let selected = min;
-    for (let candidate = min + 1; candidate <= max; candidate += 1) {
-      if (
-        Math.abs(prefixWeights[candidate]! - target) <
-        Math.abs(prefixWeights[selected]! - target)
-      ) {
-        selected = candidate;
-      }
-    }
-    boundaries.push(selected);
-  }
-  boundaries.push(sentences.length);
-
-  return boundaries
-    .slice(0, -1)
-    .map((start, index) => sentences.slice(start, boundaries[index + 1]));
-}
-
 function searchTextUnits(script: string, groupCount: number): SearchTextUnit[] {
   const sentences = splitCanonicalSentences(script);
   if (sentences.length >= groupCount) return sentences;
@@ -1116,67 +1087,300 @@ function searchTextUnits(script: string, groupCount: number): SearchTextUnit[] {
 }
 
 /**
- * Splits the English search script into one weight-balanced slice per scene.
- * The canonical and English scripts are not sentence-aligned, so this is the
- * only mapping available; the LLM enrichment pass reuses it so it reads the
- * same English span the deterministic intents were built from.
+ * Splits ordered English search evidence according to the relative spoken
+ * weight of each canonical scene. Translation sentences are not 1:1 with the
+ * canonical script, so preserving cumulative story progress is safer than
+ * giving every scene an equal-sized English slice.
  */
-export function balancedSearchEvidenceGroups(
+export function weightedSearchEvidenceGroups(
   script: string,
-  groupCount: number,
+  groupWeights: readonly number[],
 ): string[] | null {
   if (!script.trim()) return null;
+  if (groupWeights.length === 0) return [];
+  const groupCount = groupWeights.length;
   const units = searchTextUnits(script, groupCount);
   if (units.length === 0) return null;
 
+  const weights = groupWeights.map((weight) =>
+    Number.isFinite(weight) && weight > 0 ? weight : 1,
+  );
+  const totalGroupWeight = weights.reduce((sum, weight) => sum + weight, 0);
+  const cumulativeGroupFractions = weights
+    .slice(0, -1)
+    .reduce<number[]>((fractions, weight) => {
+      const previous = fractions.at(-1) ?? 0;
+      fractions.push(previous + weight / totalGroupWeight);
+      return fractions;
+    }, []);
+
   if (units.length < groupCount) {
-    return Array.from({ length: groupCount }, (_, index) => {
+    let cumulative = 0;
+    return weights.map((weight) => {
+      const midpoint = (cumulative + weight / 2) / totalGroupWeight;
+      cumulative += weight;
       const unitIndex = Math.min(
         units.length - 1,
-        Math.floor((index * units.length) / groupCount),
+        Math.floor(midpoint * units.length),
       );
       return units[unitIndex]!.text;
     });
   }
 
-  return sentenceGroups(units, groupCount).map((group) => {
+  const unitWeights = units.map((unit) => speakingUnits(unit.text));
+  const prefixUnitWeights = [0];
+  for (const weight of unitWeights) {
+    prefixUnitWeights.push(prefixUnitWeights.at(-1)! + weight);
+  }
+  const totalUnitWeight = prefixUnitWeights.at(-1)!;
+  const boundaries = [0];
+
+  for (const [index, fraction] of cumulativeGroupFractions.entries()) {
+    const previous = boundaries.at(-1)!;
+    const min = previous + 1;
+    const remainingGroups = groupCount - index - 1;
+    const max = units.length - remainingGroups;
+    const target = totalUnitWeight * fraction;
+    let selected = min;
+    for (let candidate = min + 1; candidate <= max; candidate += 1) {
+      if (
+        Math.abs(prefixUnitWeights[candidate]! - target) <
+        Math.abs(prefixUnitWeights[selected]! - target)
+      ) {
+        selected = candidate;
+      }
+    }
+    boundaries.push(selected);
+  }
+  boundaries.push(units.length);
+
+  const groups: string[] = [];
+  let boundaryStart = 0;
+  for (const boundaryEnd of boundaries.slice(1)) {
+    const group = units.slice(boundaryStart, boundaryEnd);
+    boundaryStart = boundaryEnd;
     const first = group[0]!;
     const last = group.at(-1)!;
-    return script.slice(first.startOffset, last.endOffset).trim();
-  });
+    groups.push(script.slice(first.startOffset, last.endOffset).trim());
+  }
+  return groups;
 }
 
-function chooseBalancedGroups(
+function sentenceWeight(group: readonly CanonicalSentence[]): number {
+  return group.reduce((sum, sentence) => sum + speakingUnits(sentence.text), 0);
+}
+
+function estimatedGroupDurationMs(
+  group: readonly CanonicalSentence[],
+  totalWeight: number,
+  durationMs: number,
+): number {
+  const weight = sentenceWeight(group);
+  return totalWeight > 0 ? (durationMs * weight) / totalWeight : 0;
+}
+
+function namedVisualAnchors(text: string): Set<string> {
+  const matches =
+    text.match(
+      /\b[A-Z][A-Za-z0-9.+&/-]*(?:\s+[A-Z][A-Za-z0-9.+&/-]*){0,3}\b/gu,
+    ) ?? [];
+  return new Set(
+    matches
+      .map((match) => match.trim())
+      .filter((match) => {
+        const normalized = normalizedKeyword(match);
+        if (SEARCH_NOISE_WORDS.has(normalized)) return false;
+        return (
+          /[A-Z]{2,}/u.test(match) ||
+          /[a-z][A-Z]/u.test(match) ||
+          /\d/u.test(match) ||
+          match.includes(' ')
+        );
+      })
+      .map(normalizedKeyword),
+  );
+}
+
+// The split/merge loops below re-score the same sentence pairs on every pass,
+// so a long episode asks these two pure lookups thousands of times for the
+// same sentence. Both are keyed on the sentence object, which lives only for
+// the duration of one planning call.
+const sentenceConceptCache = new WeakMap<CanonicalSentence, string | null>();
+const sentenceAnchorCache = new WeakMap<CanonicalSentence, Set<string>>();
+
+function sentenceConcept(sentence: CanonicalSentence): string | null {
+  const cached = sentenceConceptCache.get(sentence);
+  if (cached !== undefined) return cached;
+  const concept = selectPhotographicConcept('', sentence.text)?.subject ?? null;
+  sentenceConceptCache.set(sentence, concept);
+  return concept;
+}
+
+function sentenceAnchors(sentence: CanonicalSentence): Set<string> {
+  const cached = sentenceAnchorCache.get(sentence);
+  if (cached) return cached;
+  const anchors = namedVisualAnchors(sentence.text);
+  sentenceAnchorCache.set(sentence, anchors);
+  return anchors;
+}
+
+function semanticBoundaryStrength(
+  left: CanonicalSentence,
+  right: CanonicalSentence,
+): number {
+  const leftConcept = sentenceConcept(left);
+  const rightConcept = sentenceConcept(right);
+  if (leftConcept && rightConcept && leftConcept !== rightConcept) return 3;
+
+  const leftAnchors = sentenceAnchors(left);
+  const rightAnchors = sentenceAnchors(right);
+  if (leftAnchors.size > 0 && rightAnchors.size > 0) {
+    const shared = [...leftAnchors].some((anchor) => rightAnchors.has(anchor));
+    if (!shared) return 2;
+  }
+  if ((leftConcept && !rightConcept) || (!leftConcept && rightConcept))
+    return 1;
+  return 0;
+}
+
+function bestSemanticSplitIndex(
+  group: readonly CanonicalSentence[],
+): number | null {
+  if (group.length < 2) return null;
+  const total = sentenceWeight(group);
+  let prefix = 0;
+  let bestIndex = 1;
+  let bestScore = Number.NEGATIVE_INFINITY;
+  for (let index = 1; index < group.length; index += 1) {
+    prefix += speakingUnits(group[index - 1]!.text);
+    const strength = semanticBoundaryStrength(group[index - 1]!, group[index]!);
+    const balance = Math.abs(total / 2 - prefix);
+    const score = strength * 100_000 - balance;
+    if (score > bestScore) {
+      bestIndex = index;
+      bestScore = score;
+    }
+  }
+  return bestIndex;
+}
+
+function splitLargestGroup(
+  groups: CanonicalSentence[][],
+  totalWeight: number,
+  durationMs: number,
+): boolean {
+  const candidates = groups
+    .map((group, index) => ({
+      group,
+      index,
+      duration: estimatedGroupDurationMs(group, totalWeight, durationMs),
+    }))
+    .filter(({ group }) => group.length > 1)
+    .sort((left, right) => right.duration - left.duration);
+  const candidate = candidates[0];
+  if (!candidate) return false;
+  const splitIndex = bestSemanticSplitIndex(candidate.group);
+  if (splitIndex === null) return false;
+  groups.splice(
+    candidate.index,
+    1,
+    candidate.group.slice(0, splitIndex),
+    candidate.group.slice(splitIndex),
+  );
+  return true;
+}
+
+function mergeCost(
+  left: readonly CanonicalSentence[],
+  right: readonly CanonicalSentence[],
+  totalWeight: number,
+  durationMs: number,
+): number {
+  const combined = [...left, ...right];
+  const duration = estimatedGroupDurationMs(combined, totalWeight, durationMs);
+  const boundaryStrength = semanticBoundaryStrength(left.at(-1)!, right[0]!);
+  const overflow = Math.max(0, duration - MAX_SCENE_DURATION_MS);
+  return boundaryStrength * 100_000 + overflow * 10 + duration;
+}
+
+function mergeCheapestAdjacentGroups(
+  groups: CanonicalSentence[][],
+  totalWeight: number,
+  durationMs: number,
+): boolean {
+  if (groups.length < 2) return false;
+  let bestIndex = 0;
+  let bestCost = Number.POSITIVE_INFINITY;
+  for (let index = 0; index < groups.length - 1; index += 1) {
+    const cost = mergeCost(
+      groups[index]!,
+      groups[index + 1]!,
+      totalWeight,
+      durationMs,
+    );
+    if (cost < bestCost) {
+      bestIndex = index;
+      bestCost = cost;
+    }
+  }
+  groups.splice(bestIndex, 2, [
+    ...groups[bestIndex]!,
+    ...groups[bestIndex + 1]!,
+  ]);
+  return true;
+}
+
+function chooseSemanticGroups(
   sentences: readonly CanonicalSentence[],
   minGroups: number,
   maxGroups: number,
   durationMs: number,
 ): CanonicalSentence[][] {
-  let best: CanonicalSentence[][] = [];
-  let bestPenalty = Number.POSITIVE_INFINITY;
-  const totalWeight = sentences.reduce(
-    (sum, sentence) => sum + speakingUnits(sentence.text),
-    0,
-  );
-  for (let groupCount = minGroups; groupCount <= maxGroups; groupCount += 1) {
-    const groups = sentenceGroups(sentences, groupCount);
-    const penalty = groups.reduce((sum, group) => {
-      const weight = group.reduce(
-        (groupSum, sentence) => groupSum + speakingUnits(sentence.text),
-        0,
-      );
-      const estimatedDuration = (durationMs * weight) / totalWeight;
-      const under = Math.max(0, 9_000 - estimatedDuration);
-      const over = Math.max(0, estimatedDuration - 12_000);
-      const targetDelta = Math.abs(10_500 - estimatedDuration) * 0.05;
-      return sum + under + over + targetDelta;
-    }, 0);
-    if (penalty < bestPenalty) {
-      best = groups;
-      bestPenalty = penalty;
+  const totalWeight = sentenceWeight(sentences);
+  const groups: CanonicalSentence[][] = [];
+  let current: CanonicalSentence[] = [];
+
+  for (const sentence of sentences) {
+    if (current.length === 0) {
+      current = [sentence];
+      continue;
+    }
+    const currentDuration = estimatedGroupDurationMs(
+      current,
+      totalWeight,
+      durationMs,
+    );
+    const withNextDuration = estimatedGroupDurationMs(
+      [...current, sentence],
+      totalWeight,
+      durationMs,
+    );
+    const semanticChange = semanticBoundaryStrength(current.at(-1)!, sentence);
+    const shouldCut =
+      currentDuration >= MIN_SCENE_DURATION_MS &&
+      (semanticChange >= 2 || withNextDuration > MAX_SCENE_DURATION_MS);
+    if (shouldCut) {
+      groups.push(current);
+      current = [sentence];
+    } else {
+      current.push(sentence);
     }
   }
-  return best;
+  if (current.length > 0) groups.push(current);
+
+  while (
+    groups.length < minGroups &&
+    splitLargestGroup(groups, totalWeight, durationMs)
+  ) {
+    // Split the longest remaining scene, preferring a semantic boundary.
+  }
+  while (
+    groups.length > maxGroups &&
+    mergeCheapestAdjacentGroups(groups, totalWeight, durationMs)
+  ) {
+    // Keep required bounds without casually merging across a subject change.
+  }
+  return groups;
 }
 
 function rangeText(
@@ -1218,14 +1422,17 @@ export function createDeterministicStoryboard(input: {
           input.sentences.length,
           input.script,
         );
-  const groups = chooseBalancedGroups(
+  const groups = chooseSemanticGroups(
     input.sentences,
     range.min,
     range.max,
     input.durationMs,
   );
   const searchEvidenceGroups = input.searchScript
-    ? balancedSearchEvidenceGroups(input.searchScript, groups.length)
+    ? weightedSearchEvidenceGroups(
+        input.searchScript,
+        groups.map(sentenceWeight),
+      )
     : null;
   const searchTitle = input.searchTitle?.trim() || input.title;
 

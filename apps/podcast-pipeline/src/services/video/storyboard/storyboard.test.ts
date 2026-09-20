@@ -119,7 +119,7 @@ describe('image-only storyboard validation and fallback', () => {
     });
 
     expect(validation.success).toBe(true);
-    expect(draft.scenes.length).toBeGreaterThanOrEqual(8);
+    expect(draft.scenes.length).toBeGreaterThanOrEqual(5);
     expect(draft.scenes.length).toBeLessThanOrEqual(10);
     expect(draft.scenes.map((scene) => scene.sceneId)).toEqual(
       draft.scenes.map((_, index) => stableSceneId(index)),
@@ -133,12 +133,14 @@ describe('image-only storyboard validation and fallback', () => {
     );
   });
 
-  it('uses balanced English search groups without changing canonical scene anchors', async () => {
+  it('aligns English evidence to semantic scenes without changing canonical anchors', async () => {
+    // Each sentence names a different photographic concept, so the semantic
+    // planner cuts on every boundary and the English evidence splits 2:2:2:2.
     const canonicalScript = [
-      '市場流動性持續變化。',
-      '政策預期影響債券。',
-      '企業投資評估風險。',
-      '能源轉型帶動需求。',
+      '太陽能電廠擴張裝置容量。',
+      '貨運港口升級轉運設備。',
+      '資料中心擴建伺服器機房。',
+      '森林復育恢復原生棲地。',
     ].join('');
     const englishScript = [
       'Solar panels expand.',
@@ -188,7 +190,7 @@ describe('image-only storyboard validation and fallback', () => {
       englishSearchDraft.scenes
         .flatMap((scene) => scene.imageSearchIntent)
         .join(' '),
-    ).not.toMatch(/市場|政策|企業|能源/u);
+    ).not.toMatch(/太陽能|貨運|資料中心|森林/u);
     expect(
       validateStoryboardDraft(englishSearchDraft, {
         script: canonicalScript,

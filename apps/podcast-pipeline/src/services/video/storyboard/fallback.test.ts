@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  balancedSearchEvidenceGroups,
   createDeterministicStoryboard,
   createDeterministicStoryboardProvider,
+  weightedSearchEvidenceGroups,
 } from './fallback.js';
 import { splitCanonicalSentences } from './sentences.js';
 
@@ -29,16 +29,16 @@ function storyboard(input: {
   });
 }
 
-describe('balancedSearchEvidenceGroups', () => {
+describe('weightedSearchEvidenceGroups', () => {
   it('returns null for blank search evidence', () => {
-    expect(balancedSearchEvidenceGroups('', 3)).toBeNull();
-    expect(balancedSearchEvidenceGroups('   \n ', 3)).toBeNull();
+    expect(weightedSearchEvidenceGroups('', [1, 1, 1])).toBeNull();
+    expect(weightedSearchEvidenceGroups('   \n ', [1, 1, 1])).toBeNull();
   });
 
   it('groups existing sentences when enough sentence boundaries exist', () => {
-    const groups = balancedSearchEvidenceGroups(
+    const groups = weightedSearchEvidenceGroups(
       'Alpha is short. Beta contains substantially more explanatory words. Gamma closes.',
-      2,
+      [1, 1],
     );
 
     expect(groups).toHaveLength(2);
@@ -47,26 +47,44 @@ describe('balancedSearchEvidenceGroups', () => {
   });
 
   it('falls back from sentences to word units when the English script has no punctuation', () => {
-    expect(balancedSearchEvidenceGroups('alpha beta gamma delta', 3)).toEqual([
-      'alpha',
-      'beta gamma',
-      'delta',
-    ]);
+    expect(
+      weightedSearchEvidenceGroups('alpha beta gamma delta', [1, 1, 1]),
+    ).toEqual(['alpha', 'beta gamma', 'delta']);
   });
 
   it('falls back to character units and repeats the closest unit when groups outnumber units', () => {
-    expect(balancedSearchEvidenceGroups('@@', 3)).toEqual(['@', '@', '@']);
-    expect(balancedSearchEvidenceGroups('x', 3)).toEqual(['x', 'x', 'x']);
+    expect(weightedSearchEvidenceGroups('@@', [1, 1, 1])).toEqual([
+      '@',
+      '@',
+      '@',
+    ]);
+    expect(weightedSearchEvidenceGroups('x', [1, 1, 1])).toEqual([
+      'x',
+      'x',
+      'x',
+    ]);
   });
 
   it('moves a weighted boundary when a later candidate is closer to the target', () => {
-    const groups = balancedSearchEvidenceGroups(
+    const groups = weightedSearchEvidenceGroups(
       'tiny. This middle sentence contains many many many many many words. end.',
-      2,
+      [1, 1],
     );
     expect(groups).toHaveLength(2);
     expect(groups?.join(' ')).toContain('middle sentence');
     expect(groups?.every((group) => group.length > 0)).toBe(true);
+  });
+
+  it('maps English evidence using the actual relative scene weights', () => {
+    const groups = weightedSearchEvidenceGroups(
+      'Alpha opens. Beta expands. Gamma explains more. Delta closes.',
+      [1, 3],
+    );
+
+    expect(groups).toEqual([
+      'Alpha opens.',
+      'Beta expands. Gamma explains more. Delta closes.',
+    ]);
   });
 });
 
@@ -175,12 +193,39 @@ describe('createDeterministicStoryboard', () => {
     ).toBe(true);
   });
 
-  it('balances uneven canonical sentences across allowed scene counts', () => {
+  it('prefers a semantic subject boundary over an equal-duration cut', () => {
+    const script = [
+      'NVIDIA builds GPU systems.',
+      'Data centers install the accelerators.',
+      'Wall Street banks finance new bonds.',
+      'Cargo ports move freight shipments.',
+    ].join(' ');
+    const result = storyboard({
+      title: 'AI infrastructure financing',
+      script,
+      durationMs: 24_000,
+    });
+
+    expect(result.scenes).toHaveLength(3);
+    const sceneEndingAtSecondSentence = result.scenes.find(
+      (scene) => scene.endSentenceId === 's0002',
+    );
+    expect(sceneEndingAtSecondSentence).toBeDefined();
+    expect(
+      result.scenes.some((scene) => {
+        const start = Number(scene.startSentenceId.slice(1));
+        const end = Number(scene.endSentenceId.slice(1));
+        return start <= 2 && end >= 3;
+      }),
+    ).toBe(false);
+  });
+
+  it('keeps uneven narration inside the flexible scene-count safety envelope', () => {
     const script = [
       'Short.',
       'This sentence contains substantially more spoken material and therefore carries much more weight than its neighbors.',
       'Tiny.',
-      'Another long explanatory sentence provides enough language to influence the balancing penalty calculation.',
+      'Another long explanatory sentence provides enough language to influence the balancing calculation.',
       'End.',
     ].join(' ');
     const result = storyboard({
@@ -189,7 +234,8 @@ describe('createDeterministicStoryboard', () => {
       durationMs: 42_000,
     });
 
-    expect(result.scenes.length).toBeGreaterThanOrEqual(4);
+    expect(result.scenes.length).toBeGreaterThanOrEqual(3);
+    expect(result.scenes.length).toBeLessThanOrEqual(5);
     expect(result.scenes.at(-1)?.endSentenceId).toBe('s0005');
   });
 });

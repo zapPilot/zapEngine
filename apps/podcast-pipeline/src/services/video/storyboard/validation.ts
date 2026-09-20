@@ -37,18 +37,29 @@ function zodIssues(error: z.ZodError): StoryboardValidationIssue[] {
   }));
 }
 
+// Shared with the semantic storyboard planner so the safety envelope and the
+// cut selection cannot drift apart.
+export const MIN_SCENE_DURATION_MS = 4_000;
+export const MAX_SCENE_DURATION_MS = 18_000;
+
 export function storyboardSceneCountRange(
   durationMs: number,
   sentenceCount: number,
 ): { min: number; max: number } {
   const available = Math.min(Math.max(sentenceCount, 1), MAX_STORYBOARD_SLIDES);
+  // Scene count is only a safety envelope. Actual cuts are selected by the
+  // semantic storyboard planner, so a coherent visual can breathe while a
+  // subject change can cut early.
   const min = Math.min(
     available,
-    Math.max(1, Math.floor(durationMs / 12_000) + 1),
+    Math.max(1, Math.ceil(durationMs / MAX_SCENE_DURATION_MS)),
   );
   const max = Math.max(
     min,
-    Math.min(available, Math.max(1, Math.ceil(durationMs / 9_000))),
+    Math.min(
+      available,
+      Math.max(1, Math.ceil(durationMs / MIN_SCENE_DURATION_MS)),
+    ),
   );
   return { min, max };
 }
