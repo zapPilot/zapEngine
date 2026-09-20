@@ -247,6 +247,48 @@ describe('usePodcastPlayer native source handoff', () => {
     });
   });
 
+  it('keeps the source clock fenced when playback is paused during loading', async () => {
+    const harness = await render();
+
+    audio.status.isLoaded = true;
+    audio.status.playing = true;
+    audio.status.currentTime = 295;
+    audio.status.duration = 300;
+    audio.player.replace.mockImplementationOnce(() => {
+      audio.player.currentStatus.isLoaded = false;
+      audio.player.currentStatus.duration = 0;
+    });
+
+    await act(async () => queue.args?.playEpisode(nextEpisode));
+    act(() => harness.current().pause());
+
+    expect(harness.current()).toMatchObject({
+      nowPlaying: nextEpisode,
+      currentTime: 0,
+      duration: 0,
+    });
+
+    audio.player.play.mockClear();
+    audio.player.currentStatus.isLoaded = true;
+    audio.player.currentStatus.duration = 240;
+    await harness.redraw();
+
+    expect(audio.player.seekTo).toHaveBeenCalledWith(0);
+    expect(audio.player.play).not.toHaveBeenCalled();
+
+    audio.status.playing = false;
+    audio.status.currentTime = 0;
+    audio.status.duration = 240;
+    await harness.redraw();
+
+    expect(harness.current()).toMatchObject({
+      nowPlaying: nextEpisode,
+      isPlaying: false,
+      currentTime: 0,
+      duration: 240,
+    });
+  });
+
   it('preserves a non-zero paused handoff after the replacement source loads', async () => {
     const harness = await render();
 
