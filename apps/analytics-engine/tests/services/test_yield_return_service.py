@@ -464,3 +464,81 @@ async def test_wallet_returns_are_empty_without_wallet_rows(db_session):
     response = await service.get_daily_yield_returns(user_id=user_id, days=30)
 
     assert response.wallet_returns == []
+
+
+@pytest.mark.asyncio
+async def test_daily_and_summary_share_matching_base_window(db_session):
+    from unittest.mock import patch
+
+    user_id = uuid4()
+    day0 = datetime(2026, 8, 1, tzinfo=UTC)
+    query = StubQueryService(
+        [
+            _build_snapshot(user_id, "Aave", day0, supply_amount=100),
+            _build_snapshot(
+                user_id, "Aave", day0 + timedelta(days=1), supply_amount=103
+            ),
+        ]
+    )
+    service = YieldReturnService(
+        db_session, query, PortfolioAnalyticsContext(), NullAprProvider()
+    )
+    with patch.object(
+        query, "fetch_time_range_query", wraps=query.fetch_time_range_query
+    ) as fetch:
+        daily = await service.get_daily_yield_returns(
+            user_id, days=31, min_threshold=10
+        )
+        assert daily.daily_returns == []
+        summary = await service.get_yield_summary(
+            user_id, windows=("30d",), min_threshold=0
+        )
+        assert summary.windows["30d"].protocol_breakdown[0].window.total_yield_usd == 3
+        position_calls = [
+            c
+            for c in fetch.call_args_list
+            if c.kwargs["query_name"] == QUERY_NAMES.PORTFOLIO_YIELD_SNAPSHOTS
+        ]
+        assert len(position_calls) == 1
+        await service._fetch_yield_deltas(user_id, 32, None, 0)
+        await service._fetch_yield_deltas(user_id, 31, "0xabc", 0)
+        await service._fetch_yield_deltas(uuid4(), 31, None, 0)
+        assert fetch.call_count == 5  # Four position reads plus wallet attribution.
+
+
+@pytest.mark.asyncio
+async def test_concurrent_yield_base_reads_share_one_query(db_session):
+    import asyncio
+    from threading import Event
+    from unittest.mock import patch
+
+    user_id = uuid4()
+    entered, release = Event(), Event()
+    query = StubQueryService([])
+    services = [
+        YieldReturnService(
+            db_session, query, PortfolioAnalyticsContext(), NullAprProvider()
+        )
+        for _ in range(2)
+    ]
+
+    def slow_fetch(**kwargs):
+        entered.set()
+        assert release.wait(5)
+        return []
+
+    with patch.object(query, "fetch_time_range_query", side_effect=slow_fetch) as fetch:
+        first = asyncio.create_task(
+            services[0]._fetch_yield_deltas(user_id, 31, None, 0)
+        )
+        try:
+            assert await asyncio.to_thread(entered.wait, 5)
+            second = asyncio.create_task(
+                services[1]._fetch_yield_deltas(user_id, 31, None, 10)
+            )
+            await asyncio.sleep(0.05)
+        finally:
+            release.set()
+        results = await asyncio.gather(first, second)
+        assert fetch.call_count == 1
+        assert results[0] == results[1]

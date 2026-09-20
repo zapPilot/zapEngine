@@ -471,3 +471,40 @@ class TestUncoveredBranches:
         # USDC with None amount/price → not skipped (float(None) raises TypeError)
         # amount=float(None) raises TypeError → skipped
         assert len(pos.debt_tokens) == 0
+
+
+def test_summary_and_detail_share_snapshot(
+    borrowing_service,
+    mock_db,
+    mock_query_service,
+    mock_canonical_snapshot_service,
+    user_id,
+):
+    mock_query_service.execute_query.return_value = [_raw_position()]
+    summary = borrowing_service.get_borrowing_summary(user_id, 1000, 500, 500)
+    detail_service = BorrowingService(
+        mock_db, mock_query_service, mock_canonical_snapshot_service
+    )
+    detail = detail_service.get_borrowing_positions(user_id)
+    assert summary.worst_health_rate == detail.worst_health_rate
+    assert mock_query_service.execute_query.call_count == 1
+
+    from datetime import timedelta
+
+    snapshot = mock_canonical_snapshot_service.get_snapshot_date.return_value
+    detail_service.get_borrowing_positions(user_id, snapshot + timedelta(days=1))
+    detail_service.get_borrowing_positions(uuid4(), snapshot)
+    assert mock_query_service.execute_query.call_count == 3
+
+
+def test_failed_borrowing_query_is_not_cached(
+    borrowing_service, mock_query_service, user_id
+):
+    mock_query_service.execute_query.side_effect = [
+        RuntimeError("offline"),
+        [_raw_position()],
+    ]
+    with pytest.raises(ValueError, match="no borrowing positions"):
+        borrowing_service.get_borrowing_positions(user_id)
+    assert borrowing_service.get_borrowing_positions(user_id).total_debt_usd == 500
+    assert mock_query_service.execute_query.call_count == 2

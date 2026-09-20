@@ -8,12 +8,14 @@ to eliminate duplication and ensure consistent health rate calculations.
 from __future__ import annotations
 
 import logging
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any, Literal
 from uuid import UUID
 
 from sqlalchemy.orm import Session
 
+from src.core.cache_service import analytics_cache, build_service_cache_key
+from src.core.constants import CACHE_TTL_BUNDLE_HOURS
 from src.core.utils import parse_iso_datetime
 from src.models.borrowing import (
     BorrowingPosition,
@@ -220,7 +222,7 @@ class BorrowingService:
                 user_id,
             )
 
-        try:
+        def fetch() -> list[dict[str, Any]]:
             return self.query_service.execute_query(
                 self.db,
                 QUERY_NAMES.BORROWING_POSITIONS_BY_USER,
@@ -228,6 +230,18 @@ class BorrowingService:
                     "user_id": str(user_id),
                     "snapshot_date": snapshot_date,
                 },
+            )
+
+        try:
+            # Without a resolved snapshot, a long-lived key could hide new data.
+            if snapshot_date is None:
+                return fetch()
+            return analytics_cache.get_or_compute(
+                build_service_cache_key(
+                    "BorrowingService", "v1", "raw_positions", user_id, snapshot_date
+                ),
+                fetch,
+                timedelta(hours=CACHE_TTL_BUNDLE_HOURS),
             )
         except Exception as e:
             logger.error("Failed to fetch borrowing positions: %s", e, exc_info=True)

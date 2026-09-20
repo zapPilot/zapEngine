@@ -16,6 +16,7 @@
  * - useAllocationTimeseries
  */
 
+import { CACHE_WINDOW } from '@core/config/cacheWindow';
 import { queryKeys } from '@core/lib/state/queryClient';
 import {
   type DashboardWindowParams,
@@ -29,7 +30,7 @@ import { useQuery, type UseQueryResult } from '@tanstack/react-query';
  * Allows customization of React Query behavior
  */
 interface DashboardQueryOptions {
-  /** Override staleTime (default: 2 minutes) */
+  /** Override staleTime (default: shared ETL cache window) */
   staleTime?: number;
   /** Override refetchOnMount behavior */
   refetchOnMount?: boolean | 'always';
@@ -40,7 +41,7 @@ interface DashboardQueryOptions {
  *
  * Fetches all dashboard analytics in a single optimized API call with:
  * - 12-hour server-side cache (matches backend cache)
- * - 2-minute stale time (matches backend HTTP cache)
+ * - Shared ETL stale time and garbage collection window
  * - Automatic refetch on window focus
  * - Graceful degradation for partial failures
  *
@@ -97,8 +98,8 @@ export function usePortfolioDashboard(
       getPortfolioDashboard(userId!, params),
     enabled: !!userId,
     // Cache configuration with overrides
-    staleTime: options.staleTime ?? 2 * 60 * 1000, // Default: 2 minutes (matches backend HTTP cache)
-    gcTime: 12 * 60 * 60 * 1000, // 12 hours (matches backend server cache)
+    staleTime: options.staleTime ?? CACHE_WINDOW.staleTimeMs,
+    gcTime: CACHE_WINDOW.gcTimeMs,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
     ...(options.refetchOnMount !== undefined && {

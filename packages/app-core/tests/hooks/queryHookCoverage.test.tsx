@@ -94,8 +94,8 @@ describe('query hook coverage', () => {
     });
     expect(config).toMatchObject({
       enabled: true,
-      refetchInterval: 5 * 60 * 1000,
     });
+    expect(config.refetchInterval).toBeUndefined();
     await expect(config.queryFn()).resolves.toEqual({ ok: true });
     expect(mocks.getLandingPagePortfolioData).toHaveBeenCalledWith('user-1');
     expect(result.current.data).toBe('query-data');
@@ -110,12 +110,12 @@ describe('query hook coverage', () => {
     renderHook(() => useLandingPageData('user-1', true, true));
     config = mocks.useQuery.mock.calls.at(-1)?.[0];
     expect(config.enabled).toBe(false);
-    expect(config.refetchInterval).toBe(5 * 60 * 1000);
+    expect(config.refetchInterval).toBeUndefined();
 
     renderHook(() => useLandingPageData('user-1', false, false));
     config = mocks.useQuery.mock.calls.at(-1)?.[0];
     expect(config.enabled).toBe(false);
-    expect(config.refetchInterval).toBe(false);
+    expect(config.refetchInterval).toBeUndefined();
   });
 
   it('configures portfolio dashboard defaults and returns dashboard alias', async () => {
@@ -124,8 +124,8 @@ describe('query hook coverage', () => {
     const config = mocks.useQuery.mock.calls.at(-1)?.[0];
 
     expect(config.enabled).toBe(true);
-    expect(config.staleTime).toBe(2 * 60 * 1000);
-    expect(config.gcTime).toBe(12 * 60 * 60 * 1000);
+    expect(config.staleTime).toBe(60 * 60 * 1000);
+    expect(config.gcTime).toBe(24 * 60 * 60 * 1000);
     expect(config.refetchOnMount).toBeUndefined();
     await expect(config.queryFn()).resolves.toEqual({ dashboard: true });
     expect(mocks.getPortfolioDashboard).toHaveBeenCalledWith('user-1', {});

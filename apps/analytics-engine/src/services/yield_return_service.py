@@ -252,22 +252,40 @@ class YieldReturnService(BaseAnalyticsService):
         min_threshold: float,
     ) -> tuple[datetime, datetime, list[dict[str, Any]]]:
         """Fetch snapshots and calculate significant token/USD balance deltas."""
+        wallet_key, ttl_hours = self._wallet_cache_config(wallet_address)
         start_date, end_date = self.context.calculate_date_range(days)
-        rows = await run_in_threadpool(
-            self.query_service.fetch_time_range_query,
-            db=self.db,
-            query_name=QUERY_NAMES.PORTFOLIO_YIELD_SNAPSHOTS,
-            user_id=user_id,
-            start_date=start_date,
-            end_date=end_date,
-            wallet_address=wallet_address,
+        # Keep exact windows separate: calculating deltas over a larger window
+        # would introduce a predecessor at the smaller window's first snapshot.
+        cache_key = self._cache_key(
+            "yield_deltas",
+            user_id,
+            wallet_key,
+            days,
+            end_date.date().isoformat(),
         )
-        self._logger.info("Fetched %d snapshots from database", len(rows))
-        token_agg, usd_agg = YieldReturnAggregator.aggregate_snapshots(user_id, rows)
-        token_deltas = YieldReturnAggregator.calculate_snapshot_deltas(token_agg)
-        usd_deltas = YieldReturnAggregator.calculate_usd_balance_deltas(usd_agg)
+
+        def compute() -> tuple[datetime, datetime, list[dict[str, Any]]]:
+            rows = self.query_service.fetch_time_range_query(
+                db=self.db,
+                query_name=QUERY_NAMES.PORTFOLIO_YIELD_SNAPSHOTS,
+                user_id=user_id,
+                start_date=start_date,
+                end_date=end_date,
+                wallet_address=wallet_address,
+            )
+            self._logger.info("Fetched %d snapshots from database", len(rows))
+            token_agg, usd_agg = YieldReturnAggregator.aggregate_snapshots(
+                user_id, rows
+            )
+            token_deltas = YieldReturnAggregator.calculate_snapshot_deltas(token_agg)
+            usd_deltas = YieldReturnAggregator.calculate_usd_balance_deltas(usd_agg)
+            return start_date, end_date, token_deltas + usd_deltas
+
+        start_date, end_date, deltas = await run_in_threadpool(
+            self._with_cache, cache_key, compute, ttl_hours=ttl_hours
+        )
         filtered = YieldReturnAggregator.filter_significant_deltas(
-            token_deltas + usd_deltas, min_threshold
+            deltas, min_threshold
         )
         return start_date, end_date, filtered
 

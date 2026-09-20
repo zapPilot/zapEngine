@@ -1,5 +1,11 @@
 // @vitest-environment jsdom
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { CACHE_WINDOW } from '@core/config/cacheWindow';
+import { queryKeys } from '@core/lib/state/queryClient';
+import {
+  QueryClient,
+  QueryClientProvider,
+  useQuery,
+} from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { createElement, type ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -67,6 +73,48 @@ describe('useEtlJobPolling', () => {
       queryKey: ['portfolio-dashboard', 'user-1'],
     });
     expect(result.current.state.jobId).toBe('job-1');
+  });
+
+  it('refetches fresh analytics queries when ETL completes', async () => {
+    mocks.getEtlJobStatus.mockResolvedValue({
+      jobId: 'job-fresh',
+      status: 'completed',
+      createdAt: '2026-08-02T00:00:00.000Z',
+    });
+    const { client, wrapper } = createHarness();
+    const keys = [
+      queryKeys.portfolio.landingPage('user-1'),
+      queryKeys.portfolioDashboard.detail('user-1', {}),
+      queryKeys.dailyYield.list('user-1', 30, null),
+    ];
+    const fetchers = keys.map(() => vi.fn().mockResolvedValue('after-etl'));
+    keys.forEach((key) => client.setQueryData(key, 'before-etl'));
+    const { result } = renderHook(
+      () => {
+        useQuery({
+          queryKey: keys[0]!,
+          queryFn: fetchers[0]!,
+          staleTime: CACHE_WINDOW.staleTimeMs,
+        });
+        useQuery({
+          queryKey: keys[1]!,
+          queryFn: fetchers[1]!,
+          staleTime: CACHE_WINDOW.staleTimeMs,
+        });
+        useQuery({
+          queryKey: keys[2]!,
+          queryFn: fetchers[2]!,
+          staleTime: CACHE_WINDOW.staleTimeMs,
+        });
+        return useEtlJobPolling();
+      },
+      { wrapper },
+    );
+    fetchers.forEach((fetcher) => expect(fetcher).not.toHaveBeenCalled());
+    act(() => result.current.startPolling('job-fresh', 'user-1'));
+    await waitFor(() => expect(result.current.state.status).toBe('completed'));
+    fetchers.forEach((fetcher) => expect(fetcher).toHaveBeenCalledTimes(1));
+    keys.forEach((key) => expect(client.getQueryData(key)).toBe('after-etl'));
   });
 
   it('stops with a failed status and exposes the ETL error', async () => {

@@ -1,3 +1,4 @@
+import { CACHE_WINDOW } from '@core/config/cacheWindow';
 import { queryKeys } from '@core/lib/state/queryClient';
 import { getDailyYieldReturns } from '@core/services/analyticsService';
 import { useQuery } from '@tanstack/react-query';
@@ -23,8 +24,8 @@ export function useDailyYieldReturns(
       return getDailyYieldReturns(userId, days, walletFilter ?? undefined);
     },
     enabled: !!userId,
-    staleTime: 5 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
+    staleTime: CACHE_WINDOW.staleTimeMs,
+    gcTime: CACHE_WINDOW.gcTimeMs,
     retry: 2,
   });
 }
