@@ -219,7 +219,7 @@ describe('PodcastProgressTracker persistence lifecycle', () => {
   });
 
   it('does not carry the outgoing clock into a fresh episode', () => {
-    player = makePlayer({ currentTime: 61, duration: 300 });
+    player = makePlayer({ currentTime: 295, duration: 300 });
     renderTracker();
     vi.mocked(progressContext.setPosition).mockClear();
     vi.mocked(progressContext.markListened).mockClear();
@@ -233,10 +233,10 @@ describe('PodcastProgressTracker persistence lifecycle', () => {
     ];
 
     // Source identity changes before expo-audio publishes the new source clock,
-    // so this render still carries the outgoing episode's 61-second position.
+    // so this render still carries the outgoing episode's near-end position.
     player = makePlayer({
       nowPlaying: nextEpisode,
-      currentTime: 61,
+      currentTime: 295,
       duration: 300,
       sections: nextSections,
     });
@@ -244,7 +244,7 @@ describe('PodcastProgressTracker persistence lifecycle', () => {
 
     expect(progressContext.setPosition).not.toHaveBeenCalledWith(
       'episode-2',
-      61,
+      295,
       'main',
       undefined,
     );
@@ -257,7 +257,7 @@ describe('PodcastProgressTracker persistence lifecycle', () => {
     act(() => appStateMock.emit('background'));
     expect(progressContext.setPosition).not.toHaveBeenCalledWith(
       'episode-2',
-      61,
+      295,
       'main',
       undefined,
     );
