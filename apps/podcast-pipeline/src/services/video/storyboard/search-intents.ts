@@ -12,6 +12,7 @@ import {
   podcastBrandVisualKind,
   splitPodcastVisualSections,
 } from '../../podcast-packaging.js';
+import { speakingUnits } from '../text-units.js';
 import {
   MAX_SEARCH_ENTITIES_PER_SCENE,
   MAX_SEARCH_INTENTS_PER_SCENE,
@@ -19,7 +20,6 @@ import {
   type StoryboardDraft,
 } from './draft.js';
 import { englishWords, isEnglishOnly } from './english-text.js';
-import { speakingUnits } from '../text-units.js';
 import { weightedSearchEvidenceGroups } from './fallback.js';
 import {
   type CanonicalSentence,
