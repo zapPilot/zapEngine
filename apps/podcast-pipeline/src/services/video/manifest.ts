@@ -182,18 +182,6 @@ function validateManifest(
     (manifest.clip.transitionMs * manifest.clip.fps) / 1_000,
   );
 
-  if (
-    contentEndMs >= 85_000 &&
-    contentEndMs <= 95_000 &&
-    (manifest.slides.length < 8 || manifest.slides.length > 10)
-  ) {
-    context.addIssue({
-      code: 'custom',
-      message: 'A 90-second image video must contain 8-10 scenes',
-      path: ['slides'],
-    });
-  }
-
   manifest.slides.forEach((slide, index) => {
     const previousSlide = manifest.slides[index - 1];
     const expectedStartMs = previousSlide?.endMs ?? 0;
