@@ -58,6 +58,14 @@ const episode: PodcastEpisode = {
   lastPositionSeconds: 0,
 };
 
+const nextEpisode: PodcastEpisode = {
+  ...episode,
+  id: 'article-2',
+  localizationId: 'episode-2',
+  title: 'Episode 2',
+  hlsUrl: 'https://example.com/next.m3u8',
+};
+
 const CLASSROOM_SECTIONS_LEGACY = [
   { kind: 'main' as const, hlsUrl: episode.hlsUrl, languageCode: null },
   {
@@ -208,6 +216,75 @@ describe('PodcastProgressTracker persistence lifecycle', () => {
       undefined,
     );
     root = createRoot(container);
+  });
+
+  it('does not carry the outgoing clock into a fresh episode', () => {
+    player = makePlayer({ currentTime: 61, duration: 300 });
+    renderTracker();
+    vi.mocked(progressContext.setPosition).mockClear();
+    vi.mocked(progressContext.markListened).mockClear();
+
+    const nextSections = [
+      {
+        kind: 'main' as const,
+        hlsUrl: nextEpisode.hlsUrl,
+        languageCode: null,
+      },
+    ];
+
+    // Source identity changes before expo-audio publishes the new source clock,
+    // so this render still carries the outgoing episode's 61-second position.
+    player = makePlayer({
+      nowPlaying: nextEpisode,
+      currentTime: 61,
+      duration: 300,
+      sections: nextSections,
+    });
+    renderTracker();
+
+    expect(progressContext.setPosition).not.toHaveBeenCalledWith(
+      'episode-2',
+      61,
+      'main',
+      undefined,
+    );
+    expect(progressContext.markListened).not.toHaveBeenCalledWith(
+      'episode-2',
+      true,
+    );
+
+    // Even an immediate app-background flush must not persist the stale clock.
+    act(() => appStateMock.emit('background'));
+    expect(progressContext.setPosition).not.toHaveBeenCalledWith(
+      'episode-2',
+      61,
+      'main',
+      undefined,
+    );
+
+    // Once the replacement source reports its own clock, tracking resumes from
+    // that episode instead of inheriting the previous position.
+    player = makePlayer({
+      nowPlaying: nextEpisode,
+      currentTime: 0,
+      duration: 240,
+      sections: nextSections,
+    });
+    renderTracker();
+    player = makePlayer({
+      nowPlaying: nextEpisode,
+      currentTime: 11,
+      duration: 240,
+      sections: nextSections,
+    });
+    renderTracker();
+
+    expect(progressContext.setPosition).toHaveBeenLastCalledWith(
+      'episode-2',
+      11,
+      'main',
+      undefined,
+    );
   });
 
   it('flushes when the classroom language changes within the same section kind', () => {
