@@ -451,9 +451,7 @@ export function usePodcastPlayer(): PodcastPlayer {
   const seekRelative = useCallback(
     (deltaSeconds: number) => {
       const pendingPosition = pendingHandoffRef.current?.seconds;
-      seek(
-        finiteSeconds(pendingPosition ?? status.currentTime) + deltaSeconds,
-      );
+      seek(finiteSeconds(pendingPosition ?? status.currentTime) + deltaSeconds);
     },
     [seek, status.currentTime],
   );
