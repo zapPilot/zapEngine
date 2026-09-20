@@ -293,6 +293,41 @@ describe('usePodcastPlayer native source handoff', () => {
     });
   });
 
+  it('releases the clock fence when playback is paused just after the handoff starts', async () => {
+    const harness = await render();
+
+    audio.status.currentTime = 295;
+    audio.status.duration = 300;
+    audio.player.replace.mockImplementationOnce(() => {
+      audio.player.currentStatus.isLoaded = false;
+      audio.player.currentStatus.duration = 0;
+      audio.status.isLoaded = false;
+    });
+    await act(async () => queue.args?.playEpisode(nextEpisode));
+
+    audio.player.currentStatus.isLoaded = true;
+    audio.player.currentStatus.duration = 240;
+    audio.status.isLoaded = true;
+    await harness.redraw();
+    expect(audio.player.seekTo).toHaveBeenCalledWith(0);
+    expect(audio.player.play).toHaveBeenCalled();
+
+    // The native player can advance slightly before the lagging status hook
+    // observes the replacement source and the user pauses it.
+    act(() => harness.current().pause());
+    audio.status.playing = false;
+    audio.status.currentTime = 1;
+    audio.status.duration = 240;
+    await harness.redraw();
+
+    expect(harness.current()).toMatchObject({
+      nowPlaying: nextEpisode,
+      isPlaying: false,
+      currentTime: 1,
+      duration: 240,
+    });
+  });
+
   it('preserves a non-zero paused handoff after the replacement source loads', async () => {
     const harness = await render();
 
