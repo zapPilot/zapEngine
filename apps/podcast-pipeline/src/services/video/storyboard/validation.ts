@@ -37,6 +37,11 @@ function zodIssues(error: z.ZodError): StoryboardValidationIssue[] {
   }));
 }
 
+// Shared with the semantic storyboard planner so the safety envelope and the
+// cut selection cannot drift apart.
+export const MIN_SCENE_DURATION_MS = 4_000;
+export const MAX_SCENE_DURATION_MS = 18_000;
+
 export function storyboardSceneCountRange(
   durationMs: number,
   sentenceCount: number,
@@ -47,11 +52,14 @@ export function storyboardSceneCountRange(
   // subject change can cut early.
   const min = Math.min(
     available,
-    Math.max(1, Math.ceil(durationMs / 18_000)),
+    Math.max(1, Math.ceil(durationMs / MAX_SCENE_DURATION_MS)),
   );
   const max = Math.max(
     min,
-    Math.min(available, Math.max(1, Math.ceil(durationMs / 4_000))),
+    Math.min(
+      available,
+      Math.max(1, Math.ceil(durationMs / MIN_SCENE_DURATION_MS)),
+    ),
   );
   return { min, max };
 }

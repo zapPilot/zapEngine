@@ -127,10 +127,10 @@ describe('applyPodcastBrandingToStoryboard', () => {
       90_000,
     );
 
-    expect(content.scenes.length).toBeGreaterThanOrEqual(7);
-    expect(content.scenes.length).toBeLessThanOrEqual(9);
-    expect(branded.scenes.length).toBeGreaterThanOrEqual(8);
-    expect(branded.scenes.length).toBeLessThanOrEqual(10);
+    // Twelve evenly weighted sentences with no subject change, so the planner
+    // merges adjacent pairs until each scene fits under the 18s ceiling.
+    expect(content.scenes).toHaveLength(6);
+    expect(branded.scenes).toHaveLength(content.scenes.length + 1);
     expect(branded.scenes.at(-1)?.endSentenceId).toBe(
       splitCanonicalSentences(script).at(-1)?.id,
     );
@@ -158,7 +158,7 @@ describe('applyPodcastBrandingToStoryboard', () => {
     const content = createDeterministicStoryboard({
       title: '長篇市場觀察',
       script: editorialScript,
-      durationMs: 12.8 * 60_000,
+      durationMs: 20 * 60_000,
       sentences: editorialSentences,
       isPackaged: true,
     });
@@ -166,7 +166,7 @@ describe('applyPodcastBrandingToStoryboard', () => {
     const branded = applyAndValidatePodcastBrandingToStoryboard(
       script,
       content,
-      12.8 * 60_000,
+      20 * 60_000,
     );
 
     expect(content.scenes).toHaveLength(63);

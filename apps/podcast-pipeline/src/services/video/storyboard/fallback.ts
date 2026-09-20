@@ -18,7 +18,12 @@ import {
   canonicalSentenceRangeText,
   splitCanonicalSentences,
 } from './sentences.js';
-import { normalizeNumericToken, NUMERIC_TOKEN_PATTERN } from './validation.js';
+import {
+  MAX_SCENE_DURATION_MS,
+  MIN_SCENE_DURATION_MS,
+  normalizeNumericToken,
+  NUMERIC_TOKEN_PATTERN,
+} from './validation.js';
 import { stableSceneId } from './visual-plan.js';
 
 const keywordSegmenter = new Intl.Segmenter('zh-Hant', {
@@ -1053,40 +1058,6 @@ function deterministicSearchIntents(
   return ['editorial concept'];
 }
 
-function sentenceGroups<T extends { text: string }>(
-  sentences: readonly T[],
-  groupCount: number,
-): T[][] {
-  const weights = sentences.map((sentence) => speakingUnits(sentence.text));
-  const prefixWeights = [0];
-  for (const weight of weights) {
-    prefixWeights.push(prefixWeights.at(-1)! + weight);
-  }
-  const totalWeight = prefixWeights.at(-1)!;
-  const boundaries = [0];
-  for (let group = 1; group < groupCount; group += 1) {
-    const previous = boundaries.at(-1)!;
-    const min = previous + 1;
-    const max = sentences.length - (groupCount - group);
-    const target = (totalWeight * group) / groupCount;
-    let selected = min;
-    for (let candidate = min + 1; candidate <= max; candidate += 1) {
-      if (
-        Math.abs(prefixWeights[candidate]! - target) <
-        Math.abs(prefixWeights[selected]! - target)
-      ) {
-        selected = candidate;
-      }
-    }
-    boundaries.push(selected);
-  }
-  boundaries.push(sentences.length);
-
-  return boundaries
-    .slice(0, -1)
-    .map((start, index) => sentences.slice(start, boundaries[index + 1]));
-}
-
 function searchTextUnits(script: string, groupCount: number): SearchTextUnit[] {
   const sentences = splitCanonicalSentences(script);
   if (sentences.length >= groupCount) return sentences;
@@ -1183,37 +1154,28 @@ export function weightedSearchEvidenceGroups(
   }
   boundaries.push(units.length);
 
-  return boundaries.slice(0, -1).map((boundaryStart, index) => {
-    const group = units.slice(boundaryStart, boundaries[index + 1]);
+  const groups: string[] = [];
+  let boundaryStart = 0;
+  for (const boundaryEnd of boundaries.slice(1)) {
+    const group = units.slice(boundaryStart, boundaryEnd);
+    boundaryStart = boundaryEnd;
     const first = group[0]!;
     const last = group.at(-1)!;
-    return script.slice(first.startOffset, last.endOffset).trim();
-  });
+    groups.push(script.slice(first.startOffset, last.endOffset).trim());
+  }
+  return groups;
 }
 
-/** Backward-compatible equal-weight helper used by tests and tooling. */
-export function balancedSearchEvidenceGroups(
-  script: string,
-  groupCount: number,
-): string[] | null {
-  return weightedSearchEvidenceGroups(
-    script,
-    Array.from({ length: groupCount }, () => 1),
-  );
+function sentenceWeight(group: readonly CanonicalSentence[]): number {
+  return group.reduce((sum, sentence) => sum + speakingUnits(sentence.text), 0);
 }
-
-const MIN_SEMANTIC_SCENE_MS = 4_000;
-const MAX_SEMANTIC_SCENE_MS = 18_000;
 
 function estimatedGroupDurationMs(
   group: readonly CanonicalSentence[],
   totalWeight: number,
   durationMs: number,
 ): number {
-  const weight = group.reduce(
-    (sum, sentence) => sum + speakingUnits(sentence.text),
-    0,
-  );
+  const weight = sentenceWeight(group);
   return totalWeight > 0 ? (durationMs * weight) / totalWeight : 0;
 }
 
@@ -1254,7 +1216,8 @@ function semanticBoundaryStrength(
     const shared = [...leftAnchors].some((anchor) => rightAnchors.has(anchor));
     if (!shared) return 2;
   }
-  if ((leftConcept && !rightConcept) || (!leftConcept && rightConcept)) return 1;
+  if ((leftConcept && !rightConcept) || (!leftConcept && rightConcept))
+    return 1;
   return 0;
 }
 
@@ -1262,19 +1225,13 @@ function bestSemanticSplitIndex(
   group: readonly CanonicalSentence[],
 ): number | null {
   if (group.length < 2) return null;
-  const total = group.reduce(
-    (sum, sentence) => sum + speakingUnits(sentence.text),
-    0,
-  );
+  const total = sentenceWeight(group);
   let prefix = 0;
   let bestIndex = 1;
   let bestScore = Number.NEGATIVE_INFINITY;
   for (let index = 1; index < group.length; index += 1) {
     prefix += speakingUnits(group[index - 1]!.text);
-    const strength = semanticBoundaryStrength(
-      group[index - 1]!,
-      group[index]!,
-    );
+    const strength = semanticBoundaryStrength(group[index - 1]!, group[index]!);
     const balance = Math.abs(total / 2 - prefix);
     const score = strength * 100_000 - balance;
     if (score > bestScore) {
@@ -1320,7 +1277,7 @@ function mergeCost(
   const combined = [...left, ...right];
   const duration = estimatedGroupDurationMs(combined, totalWeight, durationMs);
   const boundaryStrength = semanticBoundaryStrength(left.at(-1)!, right[0]!);
-  const overflow = Math.max(0, duration - MAX_SEMANTIC_SCENE_MS);
+  const overflow = Math.max(0, duration - MAX_SCENE_DURATION_MS);
   return boundaryStrength * 100_000 + overflow * 10 + duration;
 }
 
@@ -1344,11 +1301,10 @@ function mergeCheapestAdjacentGroups(
       bestCost = cost;
     }
   }
-  groups.splice(
-    bestIndex,
-    2,
-    [...groups[bestIndex]!, ...groups[bestIndex + 1]!],
-  );
+  groups.splice(bestIndex, 2, [
+    ...groups[bestIndex]!,
+    ...groups[bestIndex + 1]!,
+  ]);
   return true;
 }
 
@@ -1358,10 +1314,7 @@ function chooseSemanticGroups(
   maxGroups: number,
   durationMs: number,
 ): CanonicalSentence[][] {
-  const totalWeight = sentences.reduce(
-    (sum, sentence) => sum + speakingUnits(sentence.text),
-    0,
-  );
+  const totalWeight = sentenceWeight(sentences);
   const groups: CanonicalSentence[][] = [];
   let current: CanonicalSentence[] = [];
 
@@ -1382,8 +1335,8 @@ function chooseSemanticGroups(
     );
     const semanticChange = semanticBoundaryStrength(current.at(-1)!, sentence);
     const shouldCut =
-      currentDuration >= MIN_SEMANTIC_SCENE_MS &&
-      (semanticChange >= 2 || withNextDuration > MAX_SEMANTIC_SCENE_MS);
+      currentDuration >= MIN_SCENE_DURATION_MS &&
+      (semanticChange >= 2 || withNextDuration > MAX_SCENE_DURATION_MS);
     if (shouldCut) {
       groups.push(current);
       current = [sentence];
@@ -1456,12 +1409,7 @@ export function createDeterministicStoryboard(input: {
   const searchEvidenceGroups = input.searchScript
     ? weightedSearchEvidenceGroups(
         input.searchScript,
-        groups.map((group) =>
-          group.reduce(
-            (sum, sentence) => sum + speakingUnits(sentence.text),
-            0,
-          ),
-        ),
+        groups.map(sentenceWeight),
       )
     : null;
   const searchTitle = input.searchTitle?.trim() || input.title;

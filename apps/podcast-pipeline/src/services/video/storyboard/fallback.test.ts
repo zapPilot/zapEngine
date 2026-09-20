@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  balancedSearchEvidenceGroups,
   createDeterministicStoryboard,
   createDeterministicStoryboardProvider,
   weightedSearchEvidenceGroups,
@@ -30,16 +29,16 @@ function storyboard(input: {
   });
 }
 
-describe('balancedSearchEvidenceGroups', () => {
+describe('weightedSearchEvidenceGroups', () => {
   it('returns null for blank search evidence', () => {
-    expect(balancedSearchEvidenceGroups('', 3)).toBeNull();
-    expect(balancedSearchEvidenceGroups('   \n ', 3)).toBeNull();
+    expect(weightedSearchEvidenceGroups('', [1, 1, 1])).toBeNull();
+    expect(weightedSearchEvidenceGroups('   \n ', [1, 1, 1])).toBeNull();
   });
 
   it('groups existing sentences when enough sentence boundaries exist', () => {
-    const groups = balancedSearchEvidenceGroups(
+    const groups = weightedSearchEvidenceGroups(
       'Alpha is short. Beta contains substantially more explanatory words. Gamma closes.',
-      2,
+      [1, 1],
     );
 
     expect(groups).toHaveLength(2);
@@ -48,22 +47,28 @@ describe('balancedSearchEvidenceGroups', () => {
   });
 
   it('falls back from sentences to word units when the English script has no punctuation', () => {
-    expect(balancedSearchEvidenceGroups('alpha beta gamma delta', 3)).toEqual([
-      'alpha',
-      'beta gamma',
-      'delta',
-    ]);
+    expect(
+      weightedSearchEvidenceGroups('alpha beta gamma delta', [1, 1, 1]),
+    ).toEqual(['alpha', 'beta gamma', 'delta']);
   });
 
   it('falls back to character units and repeats the closest unit when groups outnumber units', () => {
-    expect(balancedSearchEvidenceGroups('@@', 3)).toEqual(['@', '@', '@']);
-    expect(balancedSearchEvidenceGroups('x', 3)).toEqual(['x', 'x', 'x']);
+    expect(weightedSearchEvidenceGroups('@@', [1, 1, 1])).toEqual([
+      '@',
+      '@',
+      '@',
+    ]);
+    expect(weightedSearchEvidenceGroups('x', [1, 1, 1])).toEqual([
+      'x',
+      'x',
+      'x',
+    ]);
   });
 
   it('moves a weighted boundary when a later candidate is closer to the target', () => {
-    const groups = balancedSearchEvidenceGroups(
+    const groups = weightedSearchEvidenceGroups(
       'tiny. This middle sentence contains many many many many many words. end.',
-      2,
+      [1, 1],
     );
     expect(groups).toHaveLength(2);
     expect(groups?.join(' ')).toContain('middle sentence');
@@ -206,11 +211,13 @@ describe('createDeterministicStoryboard', () => {
       (scene) => scene.endSentenceId === 's0002',
     );
     expect(sceneEndingAtSecondSentence).toBeDefined();
-    expect(result.scenes.some((scene) => {
-      const start = Number(scene.startSentenceId.slice(1));
-      const end = Number(scene.endSentenceId.slice(1));
-      return start <= 2 && end >= 3;
-    })).toBe(false);
+    expect(
+      result.scenes.some((scene) => {
+        const start = Number(scene.startSentenceId.slice(1));
+        const end = Number(scene.endSentenceId.slice(1));
+        return start <= 2 && end >= 3;
+      }),
+    ).toBe(false);
   });
 
   it('keeps uneven narration inside the flexible scene-count safety envelope', () => {
