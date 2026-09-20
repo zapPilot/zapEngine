@@ -327,7 +327,10 @@ export function usePodcastPlayer(): PodcastPlayer {
     if (appliedHandoffIdRef.current === handoff.id) {
       const observedDuration = finiteSeconds(status.duration);
       const observedPosition = finiteSeconds(status.currentTime);
-      const positionTolerance = handoff.shouldPlay ? 2 : 0.25;
+      // The status hook can trail the native player by one or more ticks.
+      // Even a handoff that is paused immediately after playback starts may
+      // legitimately settle a little past its requested target.
+      const positionTolerance = 2;
       const statusCaughtUp =
         status.isLoaded &&
         currentStatus.isLoaded &&
