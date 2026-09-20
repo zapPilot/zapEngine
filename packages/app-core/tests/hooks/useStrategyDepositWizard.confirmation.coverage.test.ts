@@ -131,10 +131,10 @@ describe('useStrategyDepositWizard confirmation coverage', () => {
     expect(result.current.wizard.steps[1]?.kind).toBe('transaction');
 
     let advancePromise: Promise<void> | undefined;
-    act(() => {
+    await act(async () => {
       advancePromise = result.current.advance();
+      await waitFor(() => expect(mocks.sendTransaction).toHaveBeenCalledOnce());
     });
-    await waitFor(() => expect(mocks.sendTransaction).toHaveBeenCalledOnce());
 
     result.current.wizard.steps[1]!.chainId = undefined;
     releaseSend?.(HASH);
