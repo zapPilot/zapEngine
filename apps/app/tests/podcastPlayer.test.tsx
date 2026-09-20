@@ -247,6 +247,41 @@ describe('usePodcastPlayer native source handoff', () => {
     });
   });
 
+  it('preserves a non-zero paused handoff after the replacement source loads', async () => {
+    const harness = await render();
+
+    audio.player.replace.mockImplementationOnce(() => {
+      audio.player.currentStatus.isLoaded = false;
+      audio.player.currentStatus.duration = 0;
+    });
+    await act(async () => queue.args?.playEpisodeAt(nextEpisode, 90, false));
+
+    expect(harness.current()).toMatchObject({
+      nowPlaying: nextEpisode,
+      currentTime: 0,
+      duration: 0,
+    });
+    expect(audio.player.seekTo).not.toHaveBeenCalled();
+
+    audio.player.currentStatus.isLoaded = true;
+    audio.player.currentStatus.duration = 240;
+    await harness.redraw();
+    expect(audio.player.seekTo).toHaveBeenCalledWith(90);
+
+    audio.status.isLoaded = true;
+    audio.status.playing = false;
+    audio.status.currentTime = 90;
+    audio.status.duration = 240;
+    await harness.redraw();
+
+    expect(harness.current()).toMatchObject({
+      nowPlaying: nextEpisode,
+      isPlaying: false,
+      currentTime: 90,
+      duration: 240,
+    });
+  });
+
   it('fences section switches too so the outgoing section clock cannot leak', async () => {
     const harness = await render();
     const classroom: PodcastPlaybackSection = {
