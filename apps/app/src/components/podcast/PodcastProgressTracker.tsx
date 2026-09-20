@@ -102,10 +102,15 @@ export function PodcastProgressTracker(): null {
             isPlaying,
           };
 
+    const episodeChanged =
+      previous !== null &&
+      next !== null &&
+      previous.localizationId !== next.localizationId;
+
     if (
       previous !== null &&
       (next === null ||
-        previous.localizationId !== next.localizationId ||
+        episodeChanged ||
         previous.currentSection !== next.currentSection ||
         previous.currentSectionLanguage !== next.currentSectionLanguage)
     ) {
@@ -122,12 +127,17 @@ export function PodcastProgressTracker(): null {
       persistSnapshot(next, true);
     }
 
-    latestPlaybackRef.current = next;
-    if (next !== null) {
+    // `nowPlaying` can update before the underlying media status does. During
+    // that render, currentTime/duration still belong to the outgoing episode.
+    // Never attribute that stale clock to the newly selected localization.
+    // Clearing the snapshot also prevents an immediate background flush from
+    // persisting the outgoing position under the new episode id.
+    latestPlaybackRef.current = episodeChanged ? null : next;
+    if (next !== null && !episodeChanged) {
       persistSnapshot(next, false);
     }
 
-    if (nowPlaying === null) return;
+    if (nowPlaying === null || episodeChanged) return;
     const localizationId = nowPlaying.localizationId;
     // Only finalize as listened when the LAST section finishes. If main narration
     // ends but a classroom section is still pending, the episode stays unheard
