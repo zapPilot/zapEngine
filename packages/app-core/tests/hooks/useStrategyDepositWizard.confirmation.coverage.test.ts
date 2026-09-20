@@ -136,7 +136,9 @@ describe('useStrategyDepositWizard confirmation coverage', () => {
     });
 
     expect(mocks.sendTransaction).toHaveBeenCalledOnce();
-    expect(result.current.wizard.error).toContain('Transaction step is missing chain id');
+    expect(result.current.wizard.error).toContain(
+      'Transaction step is missing chain id',
+    );
     expect(mocks.waitForTransactionReceipt).not.toHaveBeenCalled();
   });
 });
