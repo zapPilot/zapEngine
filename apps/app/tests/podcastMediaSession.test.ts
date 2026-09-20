@@ -6,6 +6,7 @@ import {
   IDLE_REMOTE_COMMAND_HANDLERS,
   registerPodcastMediaSessionHandlers,
   resolvePodcastRemoteCommand,
+  shouldReclaimPodcastMediaSession,
   type PodcastMediaSessionHandlers,
 } from '@/integration/podcastMediaSession';
 import { createPodcastEpisodeFactory } from './support/podcastEpisode';
@@ -110,6 +111,15 @@ describe('buildPodcastMediaMetadata', () => {
 
     expect(withoutVideo).not.toHaveProperty('artworkUrl');
     expect(withBlankThumbnail).not.toHaveProperty('artworkUrl');
+  });
+});
+
+describe('shouldReclaimPodcastMediaSession', () => {
+  it('reclaims ownership only when podcast audio resumes', () => {
+    expect(shouldReclaimPodcastMediaSession(false, true)).toBe(true);
+    expect(shouldReclaimPodcastMediaSession(true, true)).toBe(false);
+    expect(shouldReclaimPodcastMediaSession(true, false)).toBe(false);
+    expect(shouldReclaimPodcastMediaSession(false, false)).toBe(false);
   });
 });
 
