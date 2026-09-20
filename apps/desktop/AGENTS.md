@@ -20,6 +20,18 @@ See @../AGENTS.md for shared application guidelines.
 - Keep `zappilotv2` consistent with the Expo app configuration.
 - Do not weaken Electron isolation/security settings to work around renderer integration problems.
 
+## Packaging
+
+From the repository root, use the production-aware one-command Mac package flow:
+
+\`\`\`bash
+pnpm desktop:mac
+\`\`\`
+
+This runs the desktop \`package\` task through \`scripts/env/run.mjs --environment prod\`, so committed production values and Infisical prod secrets are merged before the web renderer and Electron bundle are built. The packaged app and DMG are written under \`apps/desktop/release/\`.
+
+Do not replace the canonical env runner with bare \`infisical run --env=prod -- ...\`; that can omit committed production values from \`config/env/prod.env\`.
+
 ## Verification
 
 Run the workspace gates through Turbo. Changes under `src/main/**`, `src/preload/**`, `scripts/build.mjs`, or `electron-builder.yml` must also pass:
