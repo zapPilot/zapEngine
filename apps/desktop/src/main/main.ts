@@ -11,7 +11,7 @@ import { registerAppProtocolHandler, registerAppScheme } from './appProtocol';
 import { configureMainAppCoreEnv } from './config';
 import { extractDeepLink, registerDeepLinkScheme } from './deepLinks';
 import { openExternalUrl } from './externalAuth';
-import { startLoopbackServer } from './loopbackServer';
+import { resolveRendererUrl } from './rendererUrl';
 import {
   clampIntervalMs,
   createRebalanceScheduler,
@@ -83,11 +83,7 @@ async function initializeApp(): Promise<void> {
   const webRoot = resolveWebRoot();
   registerAppProtocolHandler(webRoot);
 
-  let url = process.env['ZAP_ELECTRON_DEV_URL'];
-  if (!url && process.env['ZAP_ELECTRON_LOOPBACK'] === '1') {
-    const port = Number(process.env['ZAP_ELECTRON_LOOPBACK_PORT'] ?? '3105');
-    url = await startLoopbackServer(webRoot, port);
-  }
+  const url = await resolveRendererUrl(webRoot, app.isPackaged, process.env);
 
   const window = createMainWindow(url);
   mainWindow = window;

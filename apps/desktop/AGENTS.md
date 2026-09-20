@@ -32,9 +32,14 @@ This rebuilds the desktop package and then opens the packaged app at
 \`apps/desktop/release/mac-arm64/Zap Pilot.app\`. The DMG is also written under
 \`apps/desktop/release/\`.
 
-The script intentionally does not pin a production environment; callers that
-need a specific external environment wrapper should provide it outside
-\`pnpm desktop:mac\`.
+The script selects the canonical production environment, including committed
+production API URLs and Infisical production secrets. An outer
+`infisical run --env=prod --` wrapper is unnecessary.
+
+Packaged apps serve the renderer at `http://127.0.0.1:3105/` because Privy's
+embedded wallet rejects `app://bundle/` even when Electron marks it secure.
+Unpackaged runs retain the dev URL and opt-in loopback paths; otherwise they
+use `app://bundle/`. `ZAP_ELECTRON_LOOPBACK_PORT` overrides the loopback port.
 
 ## Verification
 

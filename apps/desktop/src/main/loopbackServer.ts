@@ -18,10 +18,8 @@ const MIME_TYPES = new Map([
 ]);
 
 /**
- * Privy-origin fallback (spike path (b)): serve the same web export over
- * 127.0.0.1 so the renderer runs on an http origin that the Privy dashboard
- * accepts. Enabled with ZAP_ELECTRON_LOOPBACK=1; shares resolveWebAsset with
- * the app:// protocol handler so SPA fallback rules stay identical.
+ * Serve the web export on a loopback origin accepted by Privy's embedded wallet.
+ * Shares the SPA asset resolver with the app:// protocol handler.
  */
 export function startLoopbackServer(
   webRoot: string,
