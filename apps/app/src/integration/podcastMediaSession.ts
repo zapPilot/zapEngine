@@ -38,6 +38,19 @@ export interface PodcastMediaMetadata {
   artworkUrl?: string;
 }
 
+/**
+ * iOS Now Playing ownership is process-global and can be taken by expo-video or
+ * another app while this AudioPlayer instance still considers its lock-screen
+ * controls registered. Re-claim only on an actual paused -> playing edge so a
+ * pause used for an audio -> video handoff never steals ownership back.
+ */
+export function shouldReclaimPodcastMediaSession(
+  wasPlaying: boolean,
+  isPlaying: boolean,
+): boolean {
+  return !wasPlaying && isPlaying;
+}
+
 export function buildPodcastMediaMetadata(
   episode: PodcastEpisode,
   section: PodcastSectionKind,
