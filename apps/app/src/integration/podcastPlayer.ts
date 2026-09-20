@@ -487,7 +487,9 @@ export function usePodcastPlayer(): PodcastPlayer {
   return useMemo(() => {
     // A source replacement is not allowed to expose the previous source's
     // clock. Keep the public clock at zero until the queued seek for the new
-    // source succeeds and the status hook catches up.
+    // source succeeds and the status hook catches up. This pure helper only
+    // stores callbacks; it cannot invoke a ref-reading playback action here.
+    // eslint-disable-next-line react-hooks/refs
     return createPodcastPlayerSnapshot({
       nowPlaying,
       isPlaying: status.playing,
