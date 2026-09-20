@@ -121,21 +121,11 @@ describe('video lifecycle messages', () => {
     );
   });
 
-  it.each([
-    ['zh-Hant', '🇹🇼 繁中'],
-    ['ja', '🇯🇵 日文'],
-    ['en', '🇺🇸 英文'],
-  ] as const)(
-    'labels completed %s videos and links to that localization',
-    (languageCode, label) => {
-      const link = `https://from-fed-to-chain-api.fly.dev/e/episode%2F1?lang=${languageCode}`;
-
-      expect(buildEpisodeShareUrl('episode/1', languageCode)).toBe(link);
-      expect(
-        buildTelegramVideoCompletedMessage('episode/1', languageCode),
-      ).toBe(`🎬 ${label}影片完成\n${link}`);
-    },
-  );
+  it('groups all completed video languages into one concise message', () => {
+    expect(buildTelegramVideoCompletedMessage('episode/1')).toBe(
+      '🎬 三語影片完成：🇹🇼 繁中・🇯🇵 日文・🇺🇸 英文\nhttps://from-fed-to-chain-api.fly.dev/e/episode%2F1?lang=zh-Hant',
+    );
+  });
 
   it.each([
     ['ja', '🇯🇵 日文'],

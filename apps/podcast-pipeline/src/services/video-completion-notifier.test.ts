@@ -9,14 +9,12 @@ import {
 const episodeId = '78c0a4f6-3e10-49de-ae0d-985e2b42b460';
 
 describe('video completion notifier', () => {
-  it('retries durable completed rows through Telegram', async () => {
+  it('sends one durable Telegram notification after all language videos complete', async () => {
     const rpc = vi.fn().mockResolvedValue({
       data: [
         {
-          episode_localization_id: '43b4e15e-daee-400a-9911-4bd28e502948',
           telegram_chat_id: '5266667564',
           episode_id: episodeId,
-          language_code: 'en',
         },
       ],
       error: null,
@@ -32,20 +30,19 @@ describe('video completion notifier', () => {
     expect(rpc).toHaveBeenCalledWith(VIDEO_COMPLETION_NOTICE_RPC, {
       p_limit: 20,
     });
+    expect(notify).toHaveBeenCalledTimes(1);
     expect(notify).toHaveBeenCalledWith(
       '5266667564',
-      `🎬 🇺🇸 英文影片完成\nhttps://from-fed-to-chain-api.fly.dev/e/${episodeId}?lang=en`,
+      `🎬 三語影片完成：🇹🇼 繁中・🇯🇵 日文・🇺🇸 英文\nhttps://from-fed-to-chain-api.fly.dev/e/${episodeId}?lang=zh-Hant`,
     );
   });
 
-  it('leaves a failed Telegram send for the next sweep', async () => {
+  it('leaves a failed grouped Telegram send for the next sweep', async () => {
     const rpc = vi.fn().mockResolvedValue({
       data: [
         {
-          episode_localization_id: '43b4e15e-daee-400a-9911-4bd28e502948',
           telegram_chat_id: '5266667564',
           episode_id: episodeId,
-          language_code: 'en',
         },
       ],
       error: null,
@@ -63,7 +60,7 @@ describe('video completion notifier', () => {
 
     expect(notify).toHaveBeenCalledTimes(2);
     expect(logger.error).toHaveBeenCalledWith(
-      '[video-completion-notifier] notification not delivered; will retry',
+      '[video-completion-notifier] grouped notification not delivered; will retry',
       expect.any(Error),
     );
   });
