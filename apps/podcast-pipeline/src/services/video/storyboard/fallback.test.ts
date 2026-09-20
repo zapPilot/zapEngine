@@ -193,7 +193,7 @@ describe('createDeterministicStoryboard', () => {
       'NVIDIA builds GPU systems.',
       'Data centers install the accelerators.',
       'Wall Street banks finance new bonds.',
-      'Investors trade the debt.',
+      'Cargo ports move freight shipments.',
     ].join(' ');
     const result = storyboard({
       title: 'AI infrastructure financing',
