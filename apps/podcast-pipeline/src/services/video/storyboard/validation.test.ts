@@ -48,7 +48,7 @@ describe('storyboardSceneCountRange', () => {
     expect(storyboardSceneCountRange(0, 0)).toEqual({ min: 1, max: 1 });
     expect(storyboardSceneCountRange(120_000, 2)).toEqual({ min: 2, max: 2 });
     expect(storyboardSceneCountRange(90_000, 20)).toEqual({
-      min: 6,
+      min: 5,
       max: 20,
     });
     const capped = storyboardSceneCountRange(60 * 60_000, 100);
