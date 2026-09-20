@@ -86,6 +86,7 @@ export function usePodcastPlayer(): PodcastPlayer {
     useState<PodcastPlaybackSection | null>(null);
   const pendingHandoffRef = useRef<PendingPodcastPlaybackHandoff | null>(null);
   const handoffIdRef = useRef(0);
+  const seekingHandoffIdRef = useRef<number | null>(null);
   const [handoffRevision, setHandoffRevision] = useState(0);
   const finishGateRef = useRef(createPodcastFinishGate());
   const lockScreenActiveRef = useRef(false);
@@ -181,6 +182,20 @@ export function usePodcastPlayer(): PodcastPlayer {
     setHandoffRevision((current) => current + 1);
   }, []);
 
+  const schedulePendingHandoff = useCallback(
+    (seconds: number, shouldPlay: boolean) => {
+      const handoffId = handoffIdRef.current + 1;
+      handoffIdRef.current = handoffId;
+      pendingHandoffRef.current = {
+        id: handoffId,
+        seconds: finiteSeconds(seconds),
+        shouldPlay,
+      };
+      setHandoffRevision((current) => current + 1);
+    },
+    [],
+  );
+
   const pause = useCallback(() => {
     cancelPendingHandoff();
     audioPlayer.pause();
@@ -198,14 +213,20 @@ export function usePodcastPlayer(): PodcastPlayer {
   const playEpisode = useCallback(
     (episode: PodcastEpisode) => {
       cancelPendingHandoff();
+      audioPlayer.pause();
       beginPodcastPlaybackSource(finishGateRef.current);
       audioPlayer.replace({ uri: episode.hlsUrl, name: episode.title });
       audioPlayer.setPlaybackRate(speedForSection(speedPreferences, 'main'));
       setNowPlaying(episode);
       setActiveSection(null);
-      audioPlayer.play();
+      schedulePendingHandoff(0, true);
     },
-    [audioPlayer, cancelPendingHandoff, speedPreferences],
+    [
+      audioPlayer,
+      cancelPendingHandoff,
+      schedulePendingHandoff,
+      speedPreferences,
+    ],
   );
 
   const playEpisodeSection = useCallback(
@@ -228,21 +249,14 @@ export function usePodcastPlayer(): PodcastPlayer {
       setNowPlaying(episode);
       setActiveSection(section);
 
-      const startAt = finiteSeconds(atSeconds);
-      if (startAt > 0) {
-        const handoffId = handoffIdRef.current + 1;
-        handoffIdRef.current = handoffId;
-        pendingHandoffRef.current = {
-          id: handoffId,
-          seconds: startAt,
-          shouldPlay,
-        };
-        setHandoffRevision((current) => current + 1);
-      } else if (shouldPlay) {
-        audioPlayer.play();
-      }
+      schedulePendingHandoff(atSeconds, shouldPlay);
     },
-    [audioPlayer, cancelPendingHandoff, speedPreferences],
+    [
+      audioPlayer,
+      cancelPendingHandoff,
+      schedulePendingHandoff,
+      speedPreferences,
+    ],
   );
 
   // Swap the loaded source to a section of the current episode (main or
@@ -259,14 +273,7 @@ export function usePodcastPlayer(): PodcastPlayer {
   const playEpisodeAt = useCallback(
     (episode: PodcastEpisode, seconds: number, shouldPlay: boolean) => {
       audioPlayer.pause();
-
-      const handoffId = handoffIdRef.current + 1;
-      handoffIdRef.current = handoffId;
-      pendingHandoffRef.current = {
-        id: handoffId,
-        seconds: finiteSeconds(seconds),
-        shouldPlay,
-      };
+      schedulePendingHandoff(seconds, shouldPlay);
 
       if (!isSamePodcastEpisode(nowPlaying, episode)) {
         beginPodcastPlaybackSource(finishGateRef.current);
@@ -278,7 +285,7 @@ export function usePodcastPlayer(): PodcastPlayer {
 
       setHandoffRevision((current) => current + 1);
     },
-    [audioPlayer, nowPlaying, speedPreferences],
+    [audioPlayer, nowPlaying, schedulePendingHandoff, speedPreferences],
   );
   // jscpd:ignore-end
 
@@ -314,14 +321,24 @@ export function usePodcastPlayer(): PodcastPlayer {
     const handoff = pendingHandoffRef.current;
     const currentStatus = audioPlayer.currentStatus;
     const duration = finiteSeconds(currentStatus.duration);
-    if (handoff === null || !currentStatus.isLoaded || duration <= 0) return;
+    if (
+      handoff === null ||
+      seekingHandoffIdRef.current === handoff.id ||
+      !currentStatus.isLoaded ||
+      duration <= 0
+    ) {
+      return;
+    }
 
-    pendingHandoffRef.current = null;
+    seekingHandoffIdRef.current = handoff.id;
     const target = clampPodcastPlaybackSeconds(handoff.seconds, duration);
     void audioPlayer
       .seekTo(target)
       .then(() => {
         if (handoffIdRef.current !== handoff.id) return;
+        pendingHandoffRef.current = null;
+        seekingHandoffIdRef.current = null;
+        setHandoffRevision((current) => current + 1);
         if (handoff.shouldPlay) {
           audioPlayer.play();
         } else {
@@ -329,14 +346,23 @@ export function usePodcastPlayer(): PodcastPlayer {
         }
       })
       .catch(() => {
-        if (handoffIdRef.current === handoff.id) audioPlayer.pause();
+        if (handoffIdRef.current !== handoff.id) return;
+        seekingHandoffIdRef.current = null;
+        audioPlayer.pause();
       });
-  }, [audioPlayer, handoffRevision, status.duration, status.isLoaded]);
+  }, [
+    audioPlayer,
+    handoffRevision,
+    status.currentTime,
+    status.duration,
+    status.isLoaded,
+  ]);
 
   useEffect(
     () => () => {
       handoffIdRef.current += 1;
       pendingHandoffRef.current = null;
+      seekingHandoffIdRef.current = null;
     },
     [],
   );
@@ -428,14 +454,16 @@ export function usePodcastPlayer(): PodcastPlayer {
 
   // jscpd:ignore-start — platform snapshots implement the same public contract
   return useMemo(() => {
-    // This pure helper only stores callbacks; it cannot invoke a ref-reading
-    // playback action while React is rendering.
+    // A source replacement is not allowed to expose the previous source's
+    // clock. Keep the public clock at zero until the queued seek for the new
+    // source succeeds; the revision state makes ref changes observable here.
     // eslint-disable-next-line react-hooks/refs
+    const hasPendingHandoff = pendingHandoffRef.current !== null;
     return createPodcastPlayerSnapshot({
       nowPlaying,
       isPlaying: status.playing,
-      currentTime: status.currentTime,
-      duration: status.duration,
+      currentTime: hasPendingHandoff ? 0 : status.currentTime,
+      duration: hasPendingHandoff ? 0 : status.duration,
       speed,
       sections,
       currentSection,
@@ -455,6 +483,7 @@ export function usePodcastPlayer(): PodcastPlayer {
       setSpeed,
     });
   }, [
+    handoffRevision,
     nowPlaying,
     pause,
     queueState,
