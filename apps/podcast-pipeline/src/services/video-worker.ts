@@ -24,7 +24,6 @@ import {
   renderJobCapacity,
 } from './render-admission.js';
 import {
-  buildTelegramVideoCompletedMessage,
   buildTelegramVideoFailedMessage,
   buildTelegramVideoRetryReplyMarkup,
   sendMessage,
@@ -169,9 +168,9 @@ export function createVideoWorker(
   const visualRepository =
     options.visualRepository ?? getVideoVisualJobRepository();
   const coordinator = options.coordinator ?? heavyWorkCoordinator;
-  // Default to the throwing sender so the reap sweep can tell whether a failure
-  // notice was actually delivered before marking it notified. The completion
-  // path wraps this in safelyNotify, so a thrown error is still swallowed there.
+  // Default to the throwing sender so the failure reap sweep can tell whether
+  // a notice was actually delivered before marking it notified. Successful
+  // renders are grouped by episode and notified by video-completion-notifier.
   const notify = options.notify ?? sendMessage;
   const leaseOwner = options.leaseOwner ?? createVideoWorkerLeaseOwner();
   const pollIntervalMs =
@@ -677,26 +676,6 @@ export function createVideoWorker(
         concurrentJobsPeak: activeJob.concurrentPeak,
       });
 
-      const latestJob = await repository
-        .find(job.episode_localization_id)
-        .catch((error) => {
-          logger.error(
-            '[video-worker] completed job notification lookup failed',
-            toError(error),
-          );
-          return job;
-        });
-      if (latestJob?.telegram_chat_id) {
-        await safelyNotify(
-          notify,
-          latestJob.telegram_chat_id,
-          buildTelegramVideoCompletedMessage(
-            source.episodeId,
-            source.languageCode,
-          ),
-          logger,
-        );
-      }
       outcome = 'completed';
       return 'completed';
     } catch (error) {
@@ -1120,23 +1099,6 @@ class VideoLeaseLostError extends Error {
   constructor(kind: 'visual' | 'localization', jobId: string) {
     super(`Video ${kind} job lease lost: ${jobId}`);
     this.name = 'VideoLeaseLostError';
-  }
-}
-
-async function safelyNotify(
-  notify: (
-    chatId: TelegramChatId,
-    text: string,
-    options?: TelegramSendMessageOptions,
-  ) => Promise<void>,
-  chatId: TelegramChatId,
-  message: string,
-  logger: VideoWorkerLogger,
-): Promise<void> {
-  try {
-    await notify(chatId, message);
-  } catch (error) {
-    logger.error('[video-worker] Telegram notification failed', toError(error));
   }
 }
 

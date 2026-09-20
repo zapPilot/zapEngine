@@ -270,7 +270,7 @@ describe('createVideoWorker', () => {
     sentry.capturePipelineException.mockReset();
   });
 
-  it('processes one job, persists provenance, completes, and notifies the latest chat', async () => {
+  it('processes one job, persists provenance, and defers completion notification to the grouped sweeper', async () => {
     const repository = makeRepository();
     const notify = vi.fn().mockResolvedValue(undefined);
     const processJob: ProcessEpisodeVideoJob = vi
@@ -307,10 +307,7 @@ describe('createVideoWorker', () => {
       'worker-1',
       completion,
     );
-    expect(notify).toHaveBeenCalledWith(
-      'latest-chat',
-      expect.stringContaining('影片完成'),
-    );
+    expect(notify).not.toHaveBeenCalled();
   });
 
   it('claims and completes shared visual work before localization renders', async () => {
@@ -1412,65 +1409,6 @@ describe('createVideoWorker', () => {
       'worker-1',
       expect.stringContaining('lease lost'),
     );
-  });
-
-  it('skips completion notification when the latest job has no Telegram chat', async () => {
-    const repository = makeRepository();
-    vi.mocked(repository.find).mockResolvedValue(
-      job({ telegram_chat_id: null }),
-    );
-    const notify = vi.fn();
-    const worker = createVideoWorker({
-      repository,
-      processJob: vi.fn().mockResolvedValue(completion),
-      notify,
-      leaseOwner: 'worker-1',
-    });
-
-    await expect(worker.runOnce()).resolves.toBe('completed');
-    expect(notify).not.toHaveBeenCalled();
-  });
-
-  it('continues without notification when latest job lookup throws', async () => {
-    const repository = makeRepository();
-    vi.mocked(repository.find).mockRejectedValue(
-      new Error('find lookup exploded'),
-    );
-    const errorLogs: { msg: string; details?: unknown }[] = [];
-    const logger = {
-      info: vi.fn(),
-      error: (msg: string, details?: unknown) => {
-        errorLogs.push({ msg, details });
-      },
-    };
-    const processJob: ProcessEpisodeVideoJob = vi
-      .fn()
-      .mockImplementation(async (_job, _source, context) => {
-        await context.saveManifest({
-          manifest: { schemaVersion: 'v1' },
-          manifestHash: 'manifest-hash',
-          rendererVersion: 'renderer-v1',
-          storyboardProvider: 'deterministic',
-          storyboardModel: 'model',
-          storyboardPromptVersion: 'prompt-v1',
-          scriptHash: 'script-hash',
-        });
-        return completion;
-      });
-    const worker = createVideoWorker({
-      repository,
-      processJob,
-      notify: vi.fn().mockResolvedValue(undefined),
-      logger,
-      leaseOwner: 'worker-1',
-    });
-
-    await expect(worker.runOnce()).resolves.toBe('completed');
-    expect(
-      errorLogs.some((entry) =>
-        entry.msg.includes('completed job notification lookup failed'),
-      ),
-    ).toBe(true);
   });
 
   it('returns failed and logs unknown status when visualRepository.fail itself throws', async () => {

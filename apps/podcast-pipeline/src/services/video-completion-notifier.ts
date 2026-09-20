@@ -1,7 +1,5 @@
 import { toError } from '../lib/errorMessage.js';
 import { createSweepNotifier } from '../lib/polling-sweeper.js';
-import type { LanguageClassroomLanguageCode } from '../types.js';
-import { isLanguageClassroomLanguageCode } from './podcast/classroom-language.js';
 import {
   getPipelineSupabase,
   type PipelineSupabaseClient,
@@ -15,13 +13,11 @@ import {
 
 const DEFAULT_SWEEP_INTERVAL_MS = 15_000;
 export const VIDEO_COMPLETION_NOTICE_RPC =
-  'reap_completed_episode_video_notifications';
+  'reap_completed_episode_video_notification_groups';
 
 interface CompletionNotificationRow {
-  episode_localization_id: string | null;
   telegram_chat_id: string | null;
   episode_id: string | null;
-  language_code: string | null;
 }
 
 interface CompletionLogger {
@@ -74,39 +70,26 @@ async function sweepOnce(
       : [];
   } catch (error) {
     logger.error(
-      '[video-completion-notifier] failed to reap completion notifications',
+      '[video-completion-notifier] failed to reap grouped completion notifications',
       toError(error),
     );
     return;
   }
 
   for (const completion of completions) {
-    const languageCode = parseLanguageCode(completion.language_code);
-    if (
-      !completion.episode_id ||
-      !completion.telegram_chat_id ||
-      !languageCode
-    ) {
+    if (!completion.episode_id || !completion.telegram_chat_id) {
       continue;
     }
     try {
       await notify(
         completion.telegram_chat_id,
-        buildTelegramVideoCompletedMessage(completion.episode_id, languageCode),
+        buildTelegramVideoCompletedMessage(completion.episode_id),
       );
     } catch (error) {
       logger.error(
-        '[video-completion-notifier] notification not delivered; will retry',
+        '[video-completion-notifier] grouped notification not delivered; will retry',
         toError(error),
       );
     }
   }
-}
-
-function parseLanguageCode(
-  value: string | null,
-): LanguageClassroomLanguageCode | null {
-  return value !== null && isLanguageClassroomLanguageCode(value)
-    ? value
-    : null;
 }
