@@ -47,6 +47,10 @@ describe('storyboardSceneCountRange', () => {
   it('clamps empty and very large inputs to valid scene ranges', () => {
     expect(storyboardSceneCountRange(0, 0)).toEqual({ min: 1, max: 1 });
     expect(storyboardSceneCountRange(120_000, 2)).toEqual({ min: 2, max: 2 });
+    expect(storyboardSceneCountRange(90_000, 20)).toEqual({
+      min: 5,
+      max: 20,
+    });
     const capped = storyboardSceneCountRange(60 * 60_000, 100);
     expect(capped.min).toBe(64);
     expect(capped.max).toBe(64);
