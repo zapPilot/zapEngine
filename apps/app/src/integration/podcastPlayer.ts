@@ -206,14 +206,12 @@ export function usePodcastPlayer(): PodcastPlayer {
   const toggleCurrentPlayback = useCallback(() => {
     const handoff = pendingHandoffRef.current;
     if (handoff !== null) {
-      const shouldPlay = !handoff.shouldPlay;
-      pendingHandoffRef.current = { ...handoff, shouldPlay };
+      pendingHandoffRef.current = {
+        ...handoff,
+        shouldPlay: !handoff.shouldPlay,
+      };
       setHandoffRevision((current) => current + 1);
-      if (appliedHandoffIdRef.current === handoff.id && shouldPlay) {
-        audioPlayer.play();
-      } else {
-        audioPlayer.pause();
-      }
+      audioPlayer.pause();
       return;
     }
 
@@ -327,21 +325,22 @@ export function usePodcastPlayer(): PodcastPlayer {
     if (appliedHandoffIdRef.current === handoff.id) {
       const observedDuration = finiteSeconds(status.duration);
       const observedPosition = finiteSeconds(status.currentTime);
-      // The status hook can trail the native player by one or more ticks.
-      // Even a handoff that is paused immediately after playback starts may
-      // legitimately settle a little past its requested target.
-      const positionTolerance = 2;
       const statusCaughtUp =
         status.isLoaded &&
         currentStatus.isLoaded &&
         duration > 0 &&
         Math.abs(observedDuration - duration) < 0.5 &&
-        Math.abs(observedPosition - target) <= positionTolerance;
+        Math.abs(observedPosition - target) <= 0.25;
       if (statusCaughtUp) {
         pendingHandoffRef.current = null;
         seekingHandoffIdRef.current = null;
         appliedHandoffIdRef.current = null;
         setHasPendingHandoff(false);
+        if (handoff.shouldPlay) {
+          audioPlayer.play();
+        } else {
+          audioPlayer.pause();
+        }
       }
       return;
     }
@@ -361,14 +360,9 @@ export function usePodcastPlayer(): PodcastPlayer {
         if (handoffIdRef.current !== handoff.id) return;
         seekingHandoffIdRef.current = null;
         appliedHandoffIdRef.current = handoff.id;
-        const latestHandoff = pendingHandoffRef.current;
-        if (latestHandoff?.id === handoff.id && latestHandoff.shouldPlay) {
-          audioPlayer.play();
-        } else {
-          audioPlayer.pause();
-        }
-        // Keep the public clock masked until useAudioPlayerStatus catches up
-        // with the authoritative currentStatus for the replacement source.
+        audioPlayer.pause();
+        // Keep the public clock masked and playback paused until
+        // useAudioPlayerStatus catches up with the replacement source.
         setHandoffRevision((current) => current + 1);
       })
       .catch(() => {
