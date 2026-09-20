@@ -198,6 +198,7 @@ describe('usePodcastPlayer native source handoff', () => {
     audio.player.replace.mockImplementationOnce(() => {
       audio.player.currentStatus.isLoaded = false;
       audio.player.currentStatus.duration = 0;
+      audio.status.isLoaded = false;
     });
     await act(async () => queue.args?.playEpisode(nextEpisode));
 
@@ -220,6 +221,7 @@ describe('usePodcastPlayer native source handoff', () => {
     // Once the replacement source itself is loaded, seek it explicitly to zero.
     audio.player.currentStatus.isLoaded = true;
     audio.player.currentStatus.duration = 240;
+    audio.status.isLoaded = true;
     await harness.redraw();
     expect(audio.player.seekTo).toHaveBeenCalledWith(0);
     expect(audio.player.play).toHaveBeenCalled();
@@ -257,6 +259,7 @@ describe('usePodcastPlayer native source handoff', () => {
     audio.player.replace.mockImplementationOnce(() => {
       audio.player.currentStatus.isLoaded = false;
       audio.player.currentStatus.duration = 0;
+      audio.status.isLoaded = false;
     });
 
     await act(async () => queue.args?.playEpisode(nextEpisode));
@@ -271,6 +274,7 @@ describe('usePodcastPlayer native source handoff', () => {
     audio.player.play.mockClear();
     audio.player.currentStatus.isLoaded = true;
     audio.player.currentStatus.duration = 240;
+    audio.status.isLoaded = true;
     await harness.redraw();
 
     expect(audio.player.seekTo).toHaveBeenCalledWith(0);
@@ -295,6 +299,7 @@ describe('usePodcastPlayer native source handoff', () => {
     audio.player.replace.mockImplementationOnce(() => {
       audio.player.currentStatus.isLoaded = false;
       audio.player.currentStatus.duration = 0;
+      audio.status.isLoaded = false;
     });
     await act(async () => queue.args?.playEpisodeAt(nextEpisode, 90, false));
 
@@ -307,6 +312,7 @@ describe('usePodcastPlayer native source handoff', () => {
 
     audio.player.currentStatus.isLoaded = true;
     audio.player.currentStatus.duration = 240;
+    audio.status.isLoaded = true;
     await harness.redraw();
     expect(audio.player.seekTo).toHaveBeenCalledWith(90);
 
@@ -343,6 +349,7 @@ describe('usePodcastPlayer native source handoff', () => {
     audio.player.replace.mockImplementationOnce(() => {
       audio.player.currentStatus.isLoaded = false;
       audio.player.currentStatus.duration = 0;
+      audio.status.isLoaded = false;
     });
     await act(async () =>
       queue.args?.playEpisodeSection(episode, classroom, 0, true),
