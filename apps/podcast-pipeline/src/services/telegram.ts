@@ -139,9 +139,7 @@ export function buildTelegramAudioReadyMessage(
   return [ingestSummary, lifecycle, buildEpisodeShareUrl(episodeId)].join('\n');
 }
 
-export function buildTelegramVideoCompletedMessage(
-  episodeId: string,
-): string {
+export function buildTelegramVideoCompletedMessage(episodeId: string): string {
   return [
     '🎬 三語影片完成：🇹🇼 繁中・🇯🇵 日文・🇺🇸 英文',
     buildEpisodeShareUrl(episodeId),
