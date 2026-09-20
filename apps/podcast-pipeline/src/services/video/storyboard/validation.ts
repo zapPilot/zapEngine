@@ -47,7 +47,7 @@ export function storyboardSceneCountRange(
   // subject change can cut early.
   const min = Math.min(
     available,
-    Math.max(1, Math.floor(durationMs / 18_000) + 1),
+    Math.max(1, Math.ceil(durationMs / 18_000)),
   );
   const max = Math.max(
     min,
