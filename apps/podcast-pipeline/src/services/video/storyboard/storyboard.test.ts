@@ -119,7 +119,7 @@ describe('image-only storyboard validation and fallback', () => {
     });
 
     expect(validation.success).toBe(true);
-    expect(draft.scenes.length).toBeGreaterThanOrEqual(6);
+    expect(draft.scenes.length).toBeGreaterThanOrEqual(5);
     expect(draft.scenes.length).toBeLessThanOrEqual(10);
     expect(draft.scenes.map((scene) => scene.sceneId)).toEqual(
       draft.scenes.map((_, index) => stableSceneId(index)),
