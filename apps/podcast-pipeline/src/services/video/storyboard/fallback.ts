@@ -1201,17 +1201,39 @@ function namedVisualAnchors(text: string): Set<string> {
   );
 }
 
+// The split/merge loops below re-score the same sentence pairs on every pass,
+// so a long episode asks these two pure lookups thousands of times for the
+// same sentence. Both are keyed on the sentence object, which lives only for
+// the duration of one planning call.
+const sentenceConceptCache = new WeakMap<CanonicalSentence, string | null>();
+const sentenceAnchorCache = new WeakMap<CanonicalSentence, Set<string>>();
+
+function sentenceConcept(sentence: CanonicalSentence): string | null {
+  const cached = sentenceConceptCache.get(sentence);
+  if (cached !== undefined) return cached;
+  const concept = selectPhotographicConcept('', sentence.text)?.subject ?? null;
+  sentenceConceptCache.set(sentence, concept);
+  return concept;
+}
+
+function sentenceAnchors(sentence: CanonicalSentence): Set<string> {
+  const cached = sentenceAnchorCache.get(sentence);
+  if (cached) return cached;
+  const anchors = namedVisualAnchors(sentence.text);
+  sentenceAnchorCache.set(sentence, anchors);
+  return anchors;
+}
+
 function semanticBoundaryStrength(
   left: CanonicalSentence,
   right: CanonicalSentence,
 ): number {
-  const leftConcept = selectPhotographicConcept('', left.text)?.subject ?? null;
-  const rightConcept =
-    selectPhotographicConcept('', right.text)?.subject ?? null;
+  const leftConcept = sentenceConcept(left);
+  const rightConcept = sentenceConcept(right);
   if (leftConcept && rightConcept && leftConcept !== rightConcept) return 3;
 
-  const leftAnchors = namedVisualAnchors(left.text);
-  const rightAnchors = namedVisualAnchors(right.text);
+  const leftAnchors = sentenceAnchors(left);
+  const rightAnchors = sentenceAnchors(right);
   if (leftAnchors.size > 0 && rightAnchors.size > 0) {
     const shared = [...leftAnchors].some((anchor) => rightAnchors.has(anchor));
     if (!shared) return 2;
