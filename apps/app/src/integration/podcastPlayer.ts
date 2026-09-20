@@ -87,6 +87,7 @@ export function usePodcastPlayer(): PodcastPlayer {
   const pendingHandoffRef = useRef<PendingPodcastPlaybackHandoff | null>(null);
   const handoffIdRef = useRef(0);
   const seekingHandoffIdRef = useRef<number | null>(null);
+  const appliedHandoffIdRef = useRef<number | null>(null);
   const [handoffRevision, setHandoffRevision] = useState(0);
   const finishGateRef = useRef(createPodcastFinishGate());
   const lockScreenActiveRef = useRef(false);
@@ -317,10 +318,31 @@ export function usePodcastPlayer(): PodcastPlayer {
 
   useEffect(() => {
     const handoff = pendingHandoffRef.current;
+    if (handoff === null) return;
+
     const currentStatus = audioPlayer.currentStatus;
     const duration = finiteSeconds(currentStatus.duration);
+    const target = clampPodcastPlaybackSeconds(handoff.seconds, duration);
+
+    if (appliedHandoffIdRef.current === handoff.id) {
+      const observedDuration = finiteSeconds(status.duration);
+      const observedPosition = finiteSeconds(status.currentTime);
+      const positionTolerance = handoff.shouldPlay ? 2 : 0.25;
+      const statusCaughtUp =
+        status.isLoaded &&
+        currentStatus.isLoaded &&
+        duration > 0 &&
+        Math.abs(observedDuration - duration) < 0.01 &&
+        Math.abs(observedPosition - target) <= positionTolerance;
+      if (statusCaughtUp) {
+        pendingHandoffRef.current = null;
+        appliedHandoffIdRef.current = null;
+        setHandoffRevision((current) => current + 1);
+      }
+      return;
+    }
+
     if (
-      handoff === null ||
       seekingHandoffIdRef.current === handoff.id ||
       !currentStatus.isLoaded ||
       duration <= 0
@@ -329,19 +351,20 @@ export function usePodcastPlayer(): PodcastPlayer {
     }
 
     seekingHandoffIdRef.current = handoff.id;
-    const target = clampPodcastPlaybackSeconds(handoff.seconds, duration);
     void audioPlayer
       .seekTo(target)
       .then(() => {
         if (handoffIdRef.current !== handoff.id) return;
-        pendingHandoffRef.current = null;
         seekingHandoffIdRef.current = null;
-        setHandoffRevision((current) => current + 1);
+        appliedHandoffIdRef.current = handoff.id;
         if (handoff.shouldPlay) {
           audioPlayer.play();
         } else {
           audioPlayer.pause();
         }
+        // Keep the public clock masked until useAudioPlayerStatus catches up
+        // with the authoritative currentStatus for the replacement source.
+        setHandoffRevision((current) => current + 1);
       })
       .catch(() => {
         if (handoffIdRef.current !== handoff.id) return;
@@ -361,6 +384,7 @@ export function usePodcastPlayer(): PodcastPlayer {
       handoffIdRef.current += 1;
       pendingHandoffRef.current = null;
       seekingHandoffIdRef.current = null;
+      appliedHandoffIdRef.current = null;
     },
     [],
   );
