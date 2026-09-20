@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   balancedSearchEvidenceGroups,
   createDeterministicStoryboard,
+  weightedSearchEvidenceGroups,
   createDeterministicStoryboardProvider,
 } from './fallback.js';
 import { splitCanonicalSentences } from './sentences.js';
@@ -67,6 +68,18 @@ describe('balancedSearchEvidenceGroups', () => {
     expect(groups).toHaveLength(2);
     expect(groups?.join(' ')).toContain('middle sentence');
     expect(groups?.every((group) => group.length > 0)).toBe(true);
+  });
+
+  it('maps English evidence using the actual relative scene weights', () => {
+    const groups = weightedSearchEvidenceGroups(
+      'Alpha opens. Beta expands. Gamma explains more. Delta closes.',
+      [1, 3],
+    );
+
+    expect(groups).toEqual([
+      'Alpha opens.',
+      'Beta expands. Gamma explains more. Delta closes.',
+    ]);
   });
 });
 
@@ -175,12 +188,37 @@ describe('createDeterministicStoryboard', () => {
     ).toBe(true);
   });
 
-  it('balances uneven canonical sentences across allowed scene counts', () => {
+  it('prefers a semantic subject boundary over an equal-duration cut', () => {
+    const script = [
+      'NVIDIA builds GPU systems.',
+      'Data centers install the accelerators.',
+      'Wall Street banks finance new bonds.',
+      'Investors trade the debt.',
+    ].join(' ');
+    const result = storyboard({
+      title: 'AI infrastructure financing',
+      script,
+      durationMs: 24_000,
+    });
+
+    expect(result.scenes).toHaveLength(3);
+    const sceneEndingAtSecondSentence = result.scenes.find(
+      (scene) => scene.endSentenceId === 's0002',
+    );
+    expect(sceneEndingAtSecondSentence).toBeDefined();
+    expect(result.scenes.some((scene) => {
+      const start = Number(scene.startSentenceId.slice(1));
+      const end = Number(scene.endSentenceId.slice(1));
+      return start <= 2 && end >= 3;
+    })).toBe(false);
+  });
+
+  it('keeps uneven narration inside the flexible scene-count safety envelope', () => {
     const script = [
       'Short.',
       'This sentence contains substantially more spoken material and therefore carries much more weight than its neighbors.',
       'Tiny.',
-      'Another long explanatory sentence provides enough language to influence the balancing penalty calculation.',
+      'Another long explanatory sentence provides enough language to influence the balancing calculation.',
       'End.',
     ].join(' ');
     const result = storyboard({
@@ -189,7 +227,8 @@ describe('createDeterministicStoryboard', () => {
       durationMs: 42_000,
     });
 
-    expect(result.scenes.length).toBeGreaterThanOrEqual(4);
+    expect(result.scenes.length).toBeGreaterThanOrEqual(3);
+    expect(result.scenes.length).toBeLessThanOrEqual(5);
     expect(result.scenes.at(-1)?.endSentenceId).toBe('s0005');
   });
 });
