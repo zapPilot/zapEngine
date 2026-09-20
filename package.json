@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "node scripts/env/run.mjs -- bash scripts/dev.sh",
     "build": "node scripts/env/run.mjs -- bash scripts/build.sh",
-    "desktop:mac": "turbo run package --filter=@zapengine/desktop",
+    "desktop:mac": "node scripts/env/run.mjs --environment prod -- turbo run package --filter=@zapengine/desktop",
     "type-check": "turbo run type-check",
     "test": "bash scripts/test.sh",
     "lint": "bash scripts/lint.sh",
