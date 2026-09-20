@@ -332,11 +332,14 @@ export function usePodcastPlayer(): PodcastPlayer {
         status.isLoaded &&
         currentStatus.isLoaded &&
         duration > 0 &&
-        Math.abs(observedDuration - duration) < 0.01 &&
+        Math.abs(observedDuration - duration) < 0.5 &&
         Math.abs(observedPosition - target) <= positionTolerance;
       if (statusCaughtUp) {
         pendingHandoffRef.current = null;
         appliedHandoffIdRef.current = null;
+        // Ref state changed at an external media-status boundary; publish one
+        // revision so the memoized public snapshot can unmask the new clock.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setHandoffRevision((current) => current + 1);
       }
       return;
