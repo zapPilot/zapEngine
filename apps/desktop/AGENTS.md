@@ -22,15 +22,19 @@ See @../AGENTS.md for shared application guidelines.
 
 ## Packaging
 
-From the repository root, use the production-aware one-command Mac package flow:
+From the repository root, use the one-command Mac package flow:
 
 \`\`\`bash
 pnpm desktop:mac
 \`\`\`
 
-This runs the desktop \`package\` task through \`scripts/env/run.mjs --environment prod\`, so committed production values and Infisical prod secrets are merged before the web renderer and Electron bundle are built. The packaged app and DMG are written under \`apps/desktop/release/\`.
+This rebuilds the desktop package and then opens the packaged app at
+\`apps/desktop/release/mac-arm64/Zap Pilot.app\`. The DMG is also written under
+\`apps/desktop/release/\`.
 
-Do not replace the canonical env runner with bare \`infisical run --env=prod -- ...\`; that can omit committed production values from \`config/env/prod.env\`.
+The script intentionally does not pin a production environment; callers that
+need a specific external environment wrapper should provide it outside
+\`pnpm desktop:mac\`.
 
 ## Verification
 
