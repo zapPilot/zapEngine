@@ -42,13 +42,16 @@ export function storyboardSceneCountRange(
   sentenceCount: number,
 ): { min: number; max: number } {
   const available = Math.min(Math.max(sentenceCount, 1), MAX_STORYBOARD_SLIDES);
+  // Scene count is only a safety envelope. Actual cuts are selected by the
+  // semantic storyboard planner, so a coherent visual can breathe while a
+  // subject change can cut early.
   const min = Math.min(
     available,
-    Math.max(1, Math.floor(durationMs / 12_000) + 1),
+    Math.max(1, Math.floor(durationMs / 18_000) + 1),
   );
   const max = Math.max(
     min,
-    Math.min(available, Math.max(1, Math.ceil(durationMs / 9_000))),
+    Math.min(available, Math.max(1, Math.ceil(durationMs / 4_000))),
   );
   return { min, max };
 }
