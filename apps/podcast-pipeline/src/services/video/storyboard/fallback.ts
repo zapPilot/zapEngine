@@ -1220,7 +1220,7 @@ function estimatedGroupDurationMs(
 function namedVisualAnchors(text: string): Set<string> {
   const matches =
     text.match(
-      /\\b[A-Z][A-Za-z0-9.+&/-]*(?:\\s+[A-Z][A-Za-z0-9.+&/-]*){0,3}\\b/gu,
+      /\b[A-Z][A-Za-z0-9.+&/-]*(?:\s+[A-Z][A-Za-z0-9.+&/-]*){0,3}\b/gu,
     ) ?? [];
   return new Set(
     matches
@@ -1231,7 +1231,7 @@ function namedVisualAnchors(text: string): Set<string> {
         return (
           /[A-Z]{2,}/u.test(match) ||
           /[a-z][A-Z]/u.test(match) ||
-          /\\d/u.test(match) ||
+          /\d/u.test(match) ||
           match.includes(' ')
         );
       })
@@ -1393,10 +1393,16 @@ function chooseSemanticGroups(
   }
   if (current.length > 0) groups.push(current);
 
-  while (groups.length < minGroups && splitLargestGroup(groups, totalWeight, durationMs)) {
+  while (
+    groups.length < minGroups &&
+    splitLargestGroup(groups, totalWeight, durationMs)
+  ) {
     // Split the longest remaining scene, preferring a semantic boundary.
   }
-  while (groups.length > maxGroups && mergeCheapestAdjacentGroups(groups, totalWeight, durationMs)) {
+  while (
+    groups.length > maxGroups &&
+    mergeCheapestAdjacentGroups(groups, totalWeight, durationMs)
+  ) {
     // Keep required bounds without casually merging across a subject change.
   }
   return groups;
