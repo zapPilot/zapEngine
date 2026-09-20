@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import {
   balancedSearchEvidenceGroups,
   createDeterministicStoryboard,
-  weightedSearchEvidenceGroups,
   createDeterministicStoryboardProvider,
+  weightedSearchEvidenceGroups,
 } from './fallback.js';
 import { splitCanonicalSentences } from './sentences.js';
 
