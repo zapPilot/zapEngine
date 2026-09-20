@@ -224,7 +224,7 @@ describe('usePodcastPlayer native source handoff', () => {
     audio.status.isLoaded = true;
     await harness.redraw();
     expect(audio.player.seekTo).toHaveBeenCalledWith(0);
-    expect(audio.player.play).toHaveBeenCalled();
+    expect(audio.player.play).not.toHaveBeenCalled();
 
     // The hook may still lag one or more renders after seekTo resolves.
     expect(harness.current()).toMatchObject({
@@ -239,12 +239,13 @@ describe('usePodcastPlayer native source handoff', () => {
 
     // Release the fence only when hook status matches the replacement source.
     audio.status.isLoaded = true;
-    audio.status.currentTime = 0.5;
+    audio.status.currentTime = 0;
     audio.status.duration = 240;
     await harness.redraw();
+    expect(audio.player.play).toHaveBeenCalled();
     expect(harness.current()).toMatchObject({
       nowPlaying: nextEpisode,
-      currentTime: 0.5,
+      currentTime: 0,
       duration: 240,
     });
   });
@@ -293,7 +294,7 @@ describe('usePodcastPlayer native source handoff', () => {
     });
   });
 
-  it('releases the clock fence when playback is paused just after the handoff starts', async () => {
+  it('honors pause after seek applies but before the status hook catches up', async () => {
     const harness = await render();
 
     audio.status.currentTime = 295;
@@ -310,20 +311,19 @@ describe('usePodcastPlayer native source handoff', () => {
     audio.status.isLoaded = true;
     await harness.redraw();
     expect(audio.player.seekTo).toHaveBeenCalledWith(0);
-    expect(audio.player.play).toHaveBeenCalled();
+    expect(audio.player.play).not.toHaveBeenCalled();
 
-    // The native player can advance slightly before the lagging status hook
-    // observes the replacement source and the user pauses it.
     act(() => harness.current().pause());
     audio.status.playing = false;
-    audio.status.currentTime = 1;
+    audio.status.currentTime = 0;
     audio.status.duration = 240;
     await harness.redraw();
 
+    expect(audio.player.play).not.toHaveBeenCalled();
     expect(harness.current()).toMatchObject({
       nowPlaying: nextEpisode,
       isPlaying: false,
-      currentTime: 1,
+      currentTime: 0,
       duration: 240,
     });
   });
