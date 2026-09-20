@@ -13,6 +13,7 @@ import {
   buildPodcastMediaMetadata,
   IDLE_REMOTE_COMMAND_HANDLERS,
   resolvePodcastRemoteCommand,
+  shouldReclaimPodcastMediaSession,
 } from '@/integration/podcastMediaSession';
 import type { PodcastPlayer } from '@/integration/podcastPlayerTypes';
 import type { PendingPodcastPlaybackHandoff } from '@/integration/podcastPlayerShared';
@@ -88,6 +89,7 @@ export function usePodcastPlayer(): PodcastPlayer {
   const [handoffRevision, setHandoffRevision] = useState(0);
   const finishGateRef = useRef(createPodcastFinishGate());
   const lockScreenActiveRef = useRef(false);
+  const previousPlayingRef = useRef(false);
   const remoteCommandRef = useRef<PodcastRemoteCommandHandlers>(
     IDLE_REMOTE_COMMAND_HANDLERS,
   );
@@ -135,6 +137,33 @@ export function usePodcastPlayer(): PodcastPlayer {
       audioPlayer.setActiveForLockScreen(true, metadata, LOCK_SCREEN_OPTIONS);
     }
   }, [audioPlayer, nowPlaying, currentSection, currentSectionLanguage]);
+
+  // `expo-video` and other apps can take the process-wide iOS Now Playing
+  // session without changing our AudioPlayer's local registration state. When
+  // podcast audio actually resumes, explicitly claim the session again. Do not
+  // do this on pause: audio -> video intentionally gives ownership to video.
+  useEffect(() => {
+    const shouldReclaim = shouldReclaimPodcastMediaSession(
+      previousPlayingRef.current,
+      status.playing,
+    );
+    previousPlayingRef.current = status.playing;
+    if (!shouldReclaim || nowPlaying === null) return;
+
+    const metadata = buildPodcastMediaMetadata(
+      nowPlaying,
+      currentSection,
+      currentSectionLanguage,
+    );
+    lockScreenActiveRef.current = true;
+    audioPlayer.setActiveForLockScreen(true, metadata, LOCK_SCREEN_OPTIONS);
+  }, [
+    audioPlayer,
+    nowPlaying,
+    currentSection,
+    currentSectionLanguage,
+    status.playing,
+  ]);
 
   useEffect(
     () => () => {
