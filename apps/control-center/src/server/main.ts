@@ -7,19 +7,11 @@ console.log(
   `[sentry] ${sentryEnabled ? 'enabled' : 'disabled'} environment=${process.env['NODE_ENV'] ?? 'unknown'} release=${process.env['APP_COMMIT_SHA'] ?? 'unknown'}`,
 );
 
-const [
-  { createControlCenterApp },
-  { readControlCenterConfig },
-  { registerPodcastAbandonRoute },
-] = await Promise.all([
-  import('./app.js'),
-  import('./config/env.js'),
-  import('./register-podcast-abandon.js'),
-]);
+const [{ createControlCenterApp }, { readControlCenterConfig }] =
+  await Promise.all([import('./app.js'), import('./config/env.js')]);
 
 const config = readControlCenterConfig();
 const app = createControlCenterApp({ config });
-registerPodcastAbandonRoute(app, { config });
 serve({
   fetch: app.fetch,
   hostname: '127.0.0.1',

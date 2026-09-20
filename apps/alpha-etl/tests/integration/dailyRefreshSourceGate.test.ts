@@ -108,7 +108,7 @@ function vaultDetails(): VaultDetailsResponse {
     followerState: {
       user: PRIORITY_WALLET,
       vaultAddress: VAULT_ADDRESS,
-      totalAccountValue: 50_000,
+      vaultEquity: 50_000,
       maxWithdrawable: 48_000,
     },
     relationship: { type: 'follower' },

@@ -40,7 +40,6 @@ const optionalNumeric = z.preprocess(
 export const FollowerStateSchema = z.object({
   user: z.string(),
   vaultAddress: z.string().optional(),
-  totalAccountValue: optionalNumeric,
   vaultEquity: optionalNumeric,
   maxWithdrawable: optionalNumeric,
   maxDistributable: optionalNumeric,
@@ -142,8 +141,7 @@ export function deriveTvlFromPortfolio(
 export function resolveVaultValue(
   followerState: z.infer<typeof FollowerStateSchema>,
 ): number | null {
-  const vaultValue =
-    followerState.totalAccountValue ?? followerState.vaultEquity;
+  const vaultValue = followerState.vaultEquity;
   if (vaultValue === undefined || !Number.isFinite(vaultValue)) {
     return null;
   }

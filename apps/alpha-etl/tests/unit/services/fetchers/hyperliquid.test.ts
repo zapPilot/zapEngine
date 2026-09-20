@@ -82,7 +82,6 @@ describe('HyperliquidFetcher', () => {
         followerState: {
           user: userWallet,
           vaultAddress,
-          totalAccountValue: 5000,
           vaultEquity: 4800,
           maxWithdrawable: 4000,
           maxDistributable: 3000,
@@ -206,8 +205,7 @@ describe('HyperliquidFetcher', () => {
         totalVlm: 3000000, // Already a number
         followerState: {
           user: userWallet,
-          totalAccountValue: 8000, // Already a number
-          vaultEquity: 7500,
+          vaultEquity: 7500, // Already a number
         },
       });
 
@@ -220,7 +218,7 @@ describe('HyperliquidFetcher', () => {
 
       expect(result.apr).toBe(0.35);
       expect(result.totalVlm).toBe(3000000);
-      expect(result.followerState?.totalAccountValue).toBe(8000);
+      expect(result.followerState?.vaultEquity).toBe(7500);
     });
 
     it('handles optionalNumeric with null/undefined values', async () => {
@@ -230,7 +228,7 @@ describe('HyperliquidFetcher', () => {
         totalVlm: null as unknown,
         followerState: {
           user: userWallet,
-          totalAccountValue: 5000,
+          vaultEquity: 5000,
           maxWithdrawable: null as unknown,
           pnl: undefined,
         },
@@ -309,16 +307,20 @@ describe('HyperliquidFetcher', () => {
   describe('extractPositionData', () => {
     const userWallet = '0xuser123';
 
-    it('extracts position data with valid followerState', async () => {
+    // Mirrors the live `vaultDetails` followerState payload, which carries
+    // vault equity only: there is no account-wide balance field to prefer.
+    it('extracts position data from the live followerState shape', async () => {
       const vaultDetails = createValidVaultResponse({
         followerState: {
           user: userWallet,
-          vaultAddress: '0xvault',
-          totalAccountValue: 10000,
           vaultEquity: 9500,
-          maxWithdrawable: 8000,
-          maxDistributable: 7000,
+          pnl: 200,
+          allTimePnl: 500,
+          daysFollowing: 45,
+          vaultEntryTime: 1_700_000_000,
+          lockupUntil: 1_700_600_000,
         },
+        maxWithdrawable: 8000,
         relationship: { type: 'follower' },
       });
 
@@ -326,7 +328,8 @@ describe('HyperliquidFetcher', () => {
 
       expect(result).not.toBeNull();
       expect(result?.userWallet).toBe(userWallet);
-      expect(result?.vaultUsdValue).toBe(10000);
+      expect(result?.hlpBalance).toBe(9500);
+      expect(result?.vaultUsdValue).toBe(9500);
       expect(result?.maxWithdrawable).toBe(8000);
       expect(result?.relationshipType).toBe('follower');
     });
@@ -342,12 +345,13 @@ describe('HyperliquidFetcher', () => {
       expect(logger.warn).toHaveBeenCalled();
     });
 
-    it('returns null when vault value is undefined', async () => {
+    it('returns null when followerState carries no vaultEquity', async () => {
       const vaultDetails = createValidVaultResponse({
         followerState: {
           user: userWallet,
-          vaultAddress: '0xvault',
-          // No totalAccountValue or vaultEquity
+          pnl: 200,
+          allTimePnl: 500,
+          daysFollowing: 45,
         },
       });
 
@@ -364,7 +368,7 @@ describe('HyperliquidFetcher', () => {
         apr: 0.1,
         followerState: {
           user: userWallet,
-          totalAccountValue: 5000,
+          vaultEquity: 5000,
         },
         maxWithdrawable: 4000, // Fallback for followerState.maxWithdrawable
       };
@@ -428,8 +432,8 @@ describe('HyperliquidFetcher', () => {
       const vaultDetails = createValidVaultResponse({
         totalFollowers: undefined,
         followers: [
-          { user: '0x1', totalAccountValue: 1000 },
-          { user: '0x2', totalAccountValue: 2000 },
+          { user: '0x1', vaultEquity: 1000 },
+          { user: '0x2', vaultEquity: 2000 },
         ],
       });
 
@@ -643,7 +647,7 @@ describe('HyperliquidFetcher', () => {
         leader: '0xabc',
         apr: 0.1,
         followerState: {
-          totalAccountValue: 1000,
+          vaultEquity: 1000,
           maxWithdrawable: undefined,
         },
         maxWithdrawable: 500,
@@ -657,7 +661,7 @@ describe('HyperliquidFetcher', () => {
         leader: '0xabc',
         apr: 0.1,
         followerState: {
-          totalAccountValue: 1000,
+          vaultEquity: 1000,
           maxWithdrawable: undefined,
         },
         maxWithdrawable: undefined,

@@ -36,8 +36,7 @@ describe('Specific Fetchers', () => {
         {
           vaultAddress: '0x123',
           followerState: {
-            totalAccountValue: Infinity,
-            vaultEquity: undefined,
+            vaultEquity: Infinity,
           },
         } as unknown,
         '0xUser',

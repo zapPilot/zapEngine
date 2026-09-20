@@ -15,6 +15,10 @@ import type {
 import type { SocialPerformanceResponse } from '../shared/types.js';
 import type { ControlCenterConfig } from './config/env.js';
 import { registerOpsMcpHttp } from './mcp/http.js';
+import {
+  type PodcastAbandonService,
+  registerPodcastAbandonRoute,
+} from './register-podcast-abandon.js';
 import { captureServerException } from './observability/sentry.js';
 import { createOperationsService } from './services/operations/aggregate.js';
 import { createOverviewService } from './services/overview.js';
@@ -47,6 +51,7 @@ export function createControlCenterApp(input: {
   podcastPipeline?: ReturnType<typeof createPodcastPipelineService>;
   podcastCosts?: ReturnType<typeof createPodcastCostService>;
   podcastVisual?: ReturnType<typeof createPodcastVisualService>;
+  podcastAbandon?: PodcastAbandonService;
   statements?: ReturnType<typeof createStatementsService>;
   /**
    * Present only where the deployment itself is the trust boundary. Vercel's
@@ -298,6 +303,13 @@ export function createControlCenterApp(input: {
   registerOpsMcpHttp(app, {
     operations,
     token: input.config.OPS_MCP_TOKEN,
+  });
+
+  // Registered here rather than by each entry point: the catch-all below ends
+  // the chain, so a route added to the returned app can never be reached.
+  registerPodcastAbandonRoute(app, {
+    config: input.config,
+    service: input.podcastAbandon,
   });
 
   // Without this an unmatched API path answers with Hono's text/plain 404 and

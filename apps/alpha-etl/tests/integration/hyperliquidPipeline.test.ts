@@ -122,7 +122,6 @@ const createMockVaultDetailsResponse = (
   followerState: {
     user: '0x1234567890123456789012345678901234567890',
     vaultAddress: '0xdfc24b077bc1425ad1dea75bcb6f8158e10df303',
-    totalAccountValue: 50000,
     vaultEquity: 50000,
     maxWithdrawable: 48000,
     maxDistributable: 49000,
@@ -223,7 +222,6 @@ describe('Hyperliquid Pipeline Integration Tests', () => {
           followerState: {
             ...createMockVaultDetailsResponse().followerState!,
             user: user.wallet,
-            totalAccountValue: 50000 + index * 10000,
             vaultEquity: 50000 + index * 10000,
           },
         }),
@@ -240,8 +238,8 @@ describe('Hyperliquid Pipeline Integration Tests', () => {
           userWallet: dueUsers[index].wallet,
           vaultAddress: response.vaultAddress,
           vaultName: response.name || 'HLP Vault',
-          hlpBalance: response.followerState!.totalAccountValue!,
-          vaultUsdValue: response.followerState!.totalAccountValue!,
+          hlpBalance: response.followerState!.vaultEquity!,
+          vaultUsdValue: response.followerState!.vaultEquity!,
           maxWithdrawable: response.followerState!.maxWithdrawable ?? null,
           relationshipType: 'follower',
           leaderAddress: response.leader,
@@ -328,7 +326,6 @@ describe('Hyperliquid Pipeline Integration Tests', () => {
         followerState: {
           ...createMockVaultDetailsResponse().followerState!,
           user: dueUsers[0].wallet,
-          totalAccountValue: 75000,
           vaultEquity: 75000,
           maxWithdrawable: 72000,
         },
@@ -1067,7 +1064,6 @@ describe('Hyperliquid Pipeline Integration Tests', () => {
           followerState: {
             ...createMockVaultDetailsResponse().followerState!,
             user: user.wallet,
-            totalAccountValue: 50000 + index * 1000,
             vaultEquity: 50000 + index * 1000,
           },
         });

@@ -69,7 +69,7 @@ describe('HyperliquidFetcher', () => {
       const response = buildResponse({
         followerState: {
           user: wallet,
-          totalAccountValue: 123.45,
+          vaultEquity: 123.45,
           maxWithdrawable: 100,
         },
       });
@@ -117,7 +117,7 @@ describe('HyperliquidFetcher', () => {
       });
 
       const response = buildResponse({
-        followerState: { user: wallet, totalAccountValue: 10 },
+        followerState: { user: wallet, vaultEquity: 10 },
       });
 
       let callIndex = 0;
@@ -255,7 +255,6 @@ describe('HyperliquidFetcher', () => {
       const data = buildResponse({
         followerState: {
           user: wallet,
-          totalAccountValue: undefined,
           vaultEquity: 250.5,
           maxWithdrawable: 50,
         },
@@ -294,7 +293,6 @@ describe('HyperliquidFetcher', () => {
       const data = buildResponse({
         followerState: {
           user: wallet,
-          totalAccountValue: undefined,
           vaultEquity: 'not-a-number' as unknown as number,
           maxWithdrawable: undefined,
           maxDistributable: undefined,
@@ -352,8 +350,7 @@ describe('HyperliquidFetcher', () => {
         maxWithdrawable: 25,
         followerState: {
           user: wallet,
-          totalAccountValue: 10,
-          vaultEquity: undefined,
+          vaultEquity: 10,
           maxWithdrawable: undefined,
         },
       });
@@ -371,7 +368,7 @@ describe('HyperliquidFetcher', () => {
           {
             user: wallet,
             vaultAddress: vault,
-            totalAccountValue: 1,
+            vaultEquity: 1,
             maxWithdrawable: 0,
             maxDistributable: 0,
           },
@@ -400,7 +397,7 @@ describe('HyperliquidFetcher', () => {
     it('returns results when at least one fetch succeeds', async () => {
       const fetcher = new HyperliquidFetcher({ rateLimitRpm: 6000 });
       const success = buildResponse({
-        followerState: { user: wallet, totalAccountValue: 1 },
+        followerState: { user: wallet, vaultEquity: 1 },
       });
 
       const spy = vi.spyOn(fetcher, 'getVaultDetails');

@@ -40,7 +40,7 @@ describe('HyperliquidDataTransformer', () => {
     followerState: {
       user: '0xwallet',
       vaultAddress: '0xvault',
-      totalAccountValue: '100',
+      vaultEquity: '100',
       maxWithdrawable: '10',
       maxDistributable: undefined,
     },

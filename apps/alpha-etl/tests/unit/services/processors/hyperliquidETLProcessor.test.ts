@@ -159,7 +159,7 @@ const createMockVaultDetails = (
   followerState: {
     user: '0xwallet',
     vaultAddress,
-    totalAccountValue: '100',
+    vaultEquity: '100',
     maxWithdrawable: '10',
     maxDistributable: undefined,
   },
