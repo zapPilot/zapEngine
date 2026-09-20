@@ -93,6 +93,12 @@ const makeEpisode = createPodcastEpisodeFactory({
 });
 
 const episode = makeEpisode();
+const nextEpisode = makeEpisode({
+  id: 'article-2',
+  localizationId: 'loc-2',
+  title: 'Episode two',
+  hlsUrl: 'https://cdn.example/next.m3u8',
+});
 
 interface Harness {
   current(): PodcastPlayer;
@@ -147,6 +153,8 @@ beforeEach(() => {
   audio.status.isLoaded = true;
   audio.status.duration = 0;
   audio.status.currentTime = 0;
+  audio.player.currentStatus.isLoaded = true;
+  audio.player.currentStatus.duration = 0;
   queue.args = null;
   active = null;
 });
@@ -157,6 +165,237 @@ afterEach(async () => {
     active.container.remove();
     active = null;
   }
+});
+
+describe('usePodcastPlayer native source handoff', () => {
+  it('keeps a replacement episode at 0/0 until the new source clock catches up', async () => {
+    const harness = await render();
+
+    // Start episode A and let its initial zero-position handoff settle.
+    audio.player.currentStatus.isLoaded = true;
+    audio.player.currentStatus.duration = 300;
+    await act(async () => queue.args?.playEpisode(episode));
+    audio.status.isLoaded = true;
+    audio.status.currentTime = 0;
+    audio.status.duration = 300;
+    await harness.redraw();
+
+    audio.status.playing = true;
+    audio.status.currentTime = 295;
+    await harness.redraw();
+    expect(harness.current()).toMatchObject({
+      nowPlaying: episode,
+      currentTime: 295,
+      duration: 300,
+    });
+
+    audio.player.pause.mockClear();
+    audio.player.play.mockClear();
+    audio.player.seekTo.mockClear();
+
+    // Native replace can publish the new episode identity before
+    // useAudioPlayerStatus stops reporting A's 295/300 clock.
+    audio.player.replace.mockImplementationOnce(() => {
+      audio.player.currentStatus.isLoaded = false;
+      audio.player.currentStatus.duration = 0;
+      audio.status.isLoaded = false;
+    });
+    await act(async () => queue.args?.playEpisode(nextEpisode));
+
+    expect(audio.player.pause).toHaveBeenCalled();
+    expect(harness.current()).toMatchObject({
+      nowPlaying: nextEpisode,
+      currentTime: 0,
+      duration: 0,
+    });
+    expect(audio.player.seekTo).not.toHaveBeenCalled();
+
+    // Multiple renders with the outgoing hook status must remain fenced.
+    await harness.redraw();
+    await harness.redraw();
+    expect(harness.current()).toMatchObject({
+      currentTime: 0,
+      duration: 0,
+    });
+
+    // Once the replacement source itself is loaded, seek it explicitly to zero.
+    audio.player.currentStatus.isLoaded = true;
+    audio.player.currentStatus.duration = 240;
+    audio.status.isLoaded = true;
+    await harness.redraw();
+    expect(audio.player.seekTo).toHaveBeenCalledWith(0);
+    expect(audio.player.play).not.toHaveBeenCalled();
+
+    // The hook may still lag one or more renders after seekTo resolves.
+    expect(harness.current()).toMatchObject({
+      currentTime: 0,
+      duration: 0,
+    });
+    await harness.redraw();
+    expect(harness.current()).toMatchObject({
+      currentTime: 0,
+      duration: 0,
+    });
+
+    // Release the fence only when hook status matches the replacement source.
+    audio.status.isLoaded = true;
+    audio.status.currentTime = 0;
+    audio.status.duration = 240;
+    await harness.redraw();
+    expect(audio.player.play).toHaveBeenCalled();
+    expect(harness.current()).toMatchObject({
+      nowPlaying: nextEpisode,
+      currentTime: 0,
+      duration: 240,
+    });
+  });
+
+  it('keeps the source clock fenced when playback is paused during loading', async () => {
+    const harness = await render();
+
+    audio.status.isLoaded = true;
+    audio.status.playing = true;
+    audio.status.currentTime = 295;
+    audio.status.duration = 300;
+    audio.player.replace.mockImplementationOnce(() => {
+      audio.player.currentStatus.isLoaded = false;
+      audio.player.currentStatus.duration = 0;
+      audio.status.isLoaded = false;
+    });
+
+    await act(async () => queue.args?.playEpisode(nextEpisode));
+    act(() => harness.current().pause());
+
+    expect(harness.current()).toMatchObject({
+      nowPlaying: nextEpisode,
+      currentTime: 0,
+      duration: 0,
+    });
+
+    audio.player.play.mockClear();
+    audio.player.currentStatus.isLoaded = true;
+    audio.player.currentStatus.duration = 240;
+    audio.status.isLoaded = true;
+    await harness.redraw();
+
+    expect(audio.player.seekTo).toHaveBeenCalledWith(0);
+    expect(audio.player.play).not.toHaveBeenCalled();
+
+    audio.status.playing = false;
+    audio.status.currentTime = 0;
+    audio.status.duration = 240;
+    await harness.redraw();
+
+    expect(harness.current()).toMatchObject({
+      nowPlaying: nextEpisode,
+      isPlaying: false,
+      currentTime: 0,
+      duration: 240,
+    });
+  });
+
+  it('honors pause after seek applies but before the status hook catches up', async () => {
+    const harness = await render();
+
+    audio.status.currentTime = 295;
+    audio.status.duration = 300;
+    audio.player.replace.mockImplementationOnce(() => {
+      audio.player.currentStatus.isLoaded = false;
+      audio.player.currentStatus.duration = 0;
+      audio.status.isLoaded = false;
+    });
+    await act(async () => queue.args?.playEpisode(nextEpisode));
+
+    audio.player.currentStatus.isLoaded = true;
+    audio.player.currentStatus.duration = 240;
+    audio.status.isLoaded = true;
+    await harness.redraw();
+    expect(audio.player.seekTo).toHaveBeenCalledWith(0);
+    expect(audio.player.play).not.toHaveBeenCalled();
+
+    act(() => harness.current().pause());
+    audio.status.playing = false;
+    audio.status.currentTime = 0;
+    audio.status.duration = 240;
+    await harness.redraw();
+
+    expect(audio.player.play).not.toHaveBeenCalled();
+    expect(harness.current()).toMatchObject({
+      nowPlaying: nextEpisode,
+      isPlaying: false,
+      currentTime: 0,
+      duration: 240,
+    });
+  });
+
+  it('preserves a non-zero paused handoff after the replacement source loads', async () => {
+    const harness = await render();
+
+    audio.player.replace.mockImplementationOnce(() => {
+      audio.player.currentStatus.isLoaded = false;
+      audio.player.currentStatus.duration = 0;
+      audio.status.isLoaded = false;
+    });
+    await act(async () => queue.args?.playEpisodeAt(nextEpisode, 90, false));
+
+    expect(harness.current()).toMatchObject({
+      nowPlaying: nextEpisode,
+      currentTime: 0,
+      duration: 0,
+    });
+    expect(audio.player.seekTo).not.toHaveBeenCalled();
+
+    audio.player.currentStatus.isLoaded = true;
+    audio.player.currentStatus.duration = 240;
+    audio.status.isLoaded = true;
+    await harness.redraw();
+    expect(audio.player.seekTo).toHaveBeenCalledWith(90);
+
+    audio.status.isLoaded = true;
+    audio.status.playing = false;
+    audio.status.currentTime = 90;
+    audio.status.duration = 240;
+    await harness.redraw();
+
+    expect(harness.current()).toMatchObject({
+      nowPlaying: nextEpisode,
+      isPlaying: false,
+      currentTime: 90,
+      duration: 240,
+    });
+  });
+
+  it('fences section switches too so the outgoing section clock cannot leak', async () => {
+    const harness = await render();
+    const classroom: PodcastPlaybackSection = {
+      kind: 'classroom',
+      hlsUrl: 'https://cdn.example/classroom.m3u8',
+      languageCode: null,
+    };
+
+    audio.player.currentStatus.isLoaded = true;
+    audio.player.currentStatus.duration = 300;
+    await act(async () => queue.args?.playEpisode(episode));
+    audio.status.isLoaded = true;
+    audio.status.currentTime = 120;
+    audio.status.duration = 300;
+    await harness.redraw();
+
+    audio.player.replace.mockImplementationOnce(() => {
+      audio.player.currentStatus.isLoaded = false;
+      audio.player.currentStatus.duration = 0;
+      audio.status.isLoaded = false;
+    });
+    await act(async () =>
+      queue.args?.playEpisodeSection(episode, classroom, 0, true),
+    );
+
+    expect(harness.current()).toMatchObject({
+      currentSection: 'classroom',
+      currentTime: 0,
+      duration: 0,
+    });
+  });
 });
 
 describe('usePodcastPlayer iOS Now Playing reclaim', () => {
