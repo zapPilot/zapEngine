@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -377,3 +377,56 @@ def test_safe_json_loads_more_edge_cases():
     # Valid JSON but not a dict (covers 58)
     assert YieldReturnAggregator._safe_json_loads("[1, 2, 3]") == {}
     assert YieldReturnAggregator._safe_json_loads("123") == {}
+
+
+def _hlp_row(user_id: UUID, snapshot_at: datetime, usd_value: float) -> dict[str, Any]:
+    return _build_usd_balance_snapshot(
+        user_id,
+        "hyperliquid",
+        snapshot_at,
+        chain="hyperliquid",
+        name_item="Hyperliquidity Provider (HLP)",
+        usd_value=usd_value,
+    )
+
+
+def test_aggregate_usd_balance_sums_one_venue_across_a_bundles_wallets() -> None:
+    """A bundle holding HLP from two wallets must report the whole position.
+
+    The aggregation key carries no wallet, so both rows land in one bucket.
+    Keeping only the last writer hid a $28.8k vault behind a $38 one, because
+    the second wallet is fetched a couple of seconds later and therefore sorts
+    last.
+    """
+    user_id = uuid4()
+    day = datetime(2026, 9, 19, 13, 42, 15, tzinfo=UTC)
+
+    aggregated = YieldReturnAggregator.aggregate_usd_balance_snapshots(
+        user_id,
+        [
+            _hlp_row(user_id, day, 28_857.68),
+            _hlp_row(user_id, day + timedelta(seconds=2), 38.82),
+        ],
+    )
+
+    assert len(aggregated) == 1
+    assert aggregated[0]["usd_balance"] == pytest.approx(28_896.50)
+
+
+def test_usd_balance_deltas_track_the_bundle_total_not_one_wallet() -> None:
+    """Carry is the change in the whole position, not in whichever wallet won."""
+    user_id = uuid4()
+    day1 = datetime(2026, 9, 18, 14, 0, tzinfo=UTC)
+    day2 = day1 + timedelta(days=1)
+    rows = []
+    for day, big, small in ((day1, 28_856.90, 38.81), (day2, 28_857.68, 38.82)):
+        rows.append(_hlp_row(user_id, day, big))
+        rows.append(_hlp_row(user_id, day + timedelta(seconds=2), small))
+
+    aggregated = YieldReturnAggregator.aggregate_usd_balance_snapshots(user_id, rows)
+    deltas = YieldReturnAggregator.calculate_usd_balance_deltas(aggregated)
+
+    assert len(deltas) == 1
+    assert deltas[0]["current_usd"] == pytest.approx(28_896.50)
+    assert deltas[0]["previous_usd"] == pytest.approx(28_895.71)
+    assert deltas[0]["token_yield_usd"] == pytest.approx(0.79)

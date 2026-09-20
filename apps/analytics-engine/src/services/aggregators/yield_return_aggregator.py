@@ -265,7 +265,12 @@ class YieldReturnAggregator:
             key = cls._snapshot_identity(row, snapshot_at, use_name_fallback=False)
             _chain, protocol_name, date_str = key
             aggregated_snapshot = aggregated[key]
-            aggregated_snapshot["usd_balance"] = usd_value
+            # Accumulate, matching the token path. The key is
+            # (chain, protocol, date) with no wallet in it, so a bundle holding
+            # the same venue from two wallets lands both rows here. Assigning
+            # would keep only whichever wallet the reader happened to emit last
+            # and silently hide the rest of the position.
+            aggregated_snapshot["usd_balance"] += usd_value
             cls._apply_row_snapshot_fields(
                 aggregated_snapshot,
                 row,
