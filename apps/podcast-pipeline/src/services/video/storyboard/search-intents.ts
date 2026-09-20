@@ -19,7 +19,8 @@ import {
   type StoryboardDraft,
 } from './draft.js';
 import { englishWords, isEnglishOnly } from './english-text.js';
-import { balancedSearchEvidenceGroups } from './fallback.js';
+import { speakingUnits } from '../text-units.js';
+import { weightedSearchEvidenceGroups } from './fallback.js';
 import {
   type CanonicalSentence,
   canonicalSentenceRangeText,
@@ -827,9 +828,6 @@ function searchIntentScenes(
   const contentScenes = request.draft.scenes.filter(
     (scene) => podcastBrandVisualKind(scene.imageSearchIntent) === null,
   );
-  const searchEvidence = request.searchScript
-    ? balancedSearchEvidenceGroups(request.searchScript, contentScenes.length)
-    : null;
   const sections = splitPodcastVisualSections(request.script);
   const sentenceIndex = new Map(
     sentences.map((sentence) => [sentence.id, sentence.index]),
@@ -841,7 +839,7 @@ function searchIntentScenes(
     ? (sections.body.at(-1)?.index ?? sentences.length - 1)
     : sentences.length - 1;
   const scenes: SearchIntentScene[] = [];
-  for (const [index, scene] of contentScenes.entries()) {
+  for (const scene of contentScenes) {
     const startIndex = sentenceIndex.get(scene.startSentenceId);
     const endIndex = sentenceIndex.get(scene.endSentenceId);
     if (startIndex === undefined || endIndex === undefined) return null;
@@ -861,12 +859,20 @@ function searchIntentScenes(
       clippedEndId,
     )?.trim();
     if (!text) return null;
-    const searchText = searchEvidence?.[index]?.trim();
-    scenes.push({
-      sceneId: scene.sceneId,
-      text,
-      ...(searchText ? { searchText } : {}),
-    });
+    scenes.push({ sceneId: scene.sceneId, text });
   }
-  return scenes;
+
+  const searchEvidence = request.searchScript
+    ? weightedSearchEvidenceGroups(
+        request.searchScript,
+        scenes.map((scene) => speakingUnits(scene.text)),
+      )
+    : null;
+  return scenes.map((scene, index) => {
+    const searchText = searchEvidence?.[index]?.trim();
+    return {
+      ...scene,
+      ...(searchText ? { searchText } : {}),
+    };
+  });
 }
