@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { useStrategyDepositWizard } from '@core/hooks/useStrategyDepositWizard';
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
 import { MORPHO_VAULTS } from '@zapengine/intent-engine';
 import type { StrategyDepositPlan } from '@zapengine/types/api';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -112,12 +112,6 @@ describe('useStrategyDepositWizard confirmation coverage', () => {
   });
 
   it('fails safely if a submitted transaction loses its chain id before confirmation', async () => {
-    let releaseSend: ((hash: typeof HASH) => void) | undefined;
-    mocks.sendTransaction.mockReturnValue(
-      new Promise<typeof HASH>((resolve) => {
-        releaseSend = resolve;
-      }),
-    );
     const { result } = renderHook(() => useStrategyDepositWizard());
 
     await act(async () => {
@@ -126,22 +120,22 @@ describe('useStrategyDepositWizard confirmation coverage', () => {
         totalUsd6: PLAN.totalUsd6,
         fundingSources: [{ chainId: 8453, fromToken: BASE_USDC }],
       });
+    });
+    await act(async () => {
       await result.current.advance();
     });
+    expect(result.current.wizard.currentIndex).toBe(1);
     expect(result.current.wizard.steps[1]?.kind).toBe('transaction');
 
-    let advancePromise: Promise<void> | undefined;
+    mocks.sendTransaction.mockImplementation(async () => {
+      result.current.wizard.steps[1]!.chainId = undefined;
+      return HASH;
+    });
     await act(async () => {
-      advancePromise = result.current.advance();
-      await waitFor(() => expect(mocks.sendTransaction).toHaveBeenCalledOnce());
+      await result.current.advance();
     });
 
-    result.current.wizard.steps[1]!.chainId = undefined;
-    releaseSend?.(HASH);
-    await act(async () => {
-      await advancePromise;
-    });
-
+    expect(mocks.sendTransaction).toHaveBeenCalledOnce();
     expect(result.current.wizard.error).toContain('Transaction step is missing chain id');
     expect(mocks.waitForTransactionReceipt).not.toHaveBeenCalled();
   });
