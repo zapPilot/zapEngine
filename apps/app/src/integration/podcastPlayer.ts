@@ -282,8 +282,6 @@ export function usePodcastPlayer(): PodcastPlayer {
         setNowPlaying(episode);
         setActiveSection(null);
       }
-
-      setHandoffRevision((current) => current + 1);
     },
     [audioPlayer, nowPlaying, schedulePendingHandoff, speedPreferences],
   );
