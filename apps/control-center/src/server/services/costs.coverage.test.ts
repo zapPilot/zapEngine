@@ -17,7 +17,7 @@ describe('costs coverage', () => {
       pricingRates: [],
       now: NOW,
     });
-    expect(providers).toHaveLength(5);
+    expect(providers).toHaveLength(6);
     expect(providers.every((p) => p.status === 'unconfigured')).toBe(true);
     expect(providers.find((p) => p.provider === 'fly')?.message).toBe(
       'Not connected',

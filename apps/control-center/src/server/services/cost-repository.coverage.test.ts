@@ -45,7 +45,7 @@ describe('cost repository null-payload branches', () => {
     expect(history.currentMonthDaily).toEqual([]);
     expect(history.monthlyTotals).toEqual([]);
     expect(history.cashSpendUsd).toBe(2);
-    expect(history.previousMonthByProvider).toHaveLength(5);
+    expect(history.previousMonthByProvider).toHaveLength(6);
     expect(
       history.previousMonthByProvider.every(
         (entry) => entry.accruedCostUsd === null,

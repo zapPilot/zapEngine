@@ -33,6 +33,8 @@ describe('checkCostSyncCredentials', () => {
     DEBANK_API_KEY: 'debank-key',
     OPENROUTER_MANAGEMENT_KEY: 'management-key',
     BRAVE_SEARCH_API_KEY: 'brave-key',
+    CLOUDFLARE_API_TOKEN: 'cf-token',
+    CLOUDFLARE_ACCOUNT_ID: 'cf-account',
   };
 
   it('reports every credential present in manual Fly mode', () => {
@@ -58,6 +60,8 @@ describe('checkCostSyncCredentials', () => {
       'DEBANK_API_KEY',
       'OPENROUTER_MANAGEMENT_KEY',
       'BRAVE_SEARCH_API_KEY',
+      'CLOUDFLARE_API_TOKEN',
+      'CLOUDFLARE_ACCOUNT_ID',
     ]);
   });
 

@@ -113,6 +113,42 @@ export function openRouterRow(
 }
 
 /**
+ * Cloudflare's own billed figure for the account so far this month, with the
+ * undiscounted list price beside it. Sub-cent on purpose: an R2 month starts
+ * in fractions of a cent, and a fixture rounded to pennies would hide the one
+ * rounding mistake that matters here.
+ */
+export function cloudflareRow(
+  overrides: Partial<CostSnapshot> = {},
+): CostProviderResult {
+  return providerRow({
+    provider: 'cloudflare',
+    label: 'Cloudflare',
+    money: {
+      accruedCostUsd: 0.017001,
+      projectedCostUsd: 0.18,
+      costType: 'actual',
+      source: 'api',
+      usage: [
+        {
+          key: 'list_cost_usd',
+          label: 'List price before discounts',
+          unit: 'usd',
+          value: 0.017001,
+        },
+        {
+          key: 'charge_rows',
+          label: 'Billed charge rows',
+          unit: 'units',
+          value: 6,
+        },
+      ],
+    },
+    overrides,
+  });
+}
+
+/**
  * A flat monthly plan: the whole commitment is owed the moment the month
  * starts, so accrued and projected are the same figure and neither prorates.
  */

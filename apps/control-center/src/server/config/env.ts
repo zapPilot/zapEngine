@@ -19,6 +19,8 @@ const schema = z.object({
   DEBANK_API_KEY: optionalString,
   DEBANK_BASE_URL: optionalString,
   BRAVE_SEARCH_API_KEY: optionalString,
+  CLOUDFLARE_API_TOKEN: optionalString,
+  CLOUDFLARE_ACCOUNT_ID: optionalString,
   FLY_COST_MODE: z.enum(['manual', 'flyctl']).default('manual'),
   SUPABASE_URL: optionalString,
   SUPABASE_SERVICE_ROLE_KEY: optionalString,
@@ -95,6 +97,17 @@ export function checkCostSyncCredentials(
     {
       name: 'BRAVE_SEARCH_API_KEY',
       present: Boolean(config.BRAVE_SEARCH_API_KEY),
+    },
+    // Both halves are listed separately although the collector needs the pair:
+    // half a credential reports the same "not connected" as none at all, and
+    // the gate's job is to name which half the environment dropped.
+    {
+      name: 'CLOUDFLARE_API_TOKEN',
+      present: Boolean(config.CLOUDFLARE_API_TOKEN),
+    },
+    {
+      name: 'CLOUDFLARE_ACCOUNT_ID',
+      present: Boolean(config.CLOUDFLARE_ACCOUNT_ID),
     },
   ];
 

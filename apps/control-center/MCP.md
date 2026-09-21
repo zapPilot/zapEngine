@@ -2,10 +2,16 @@
 
 The Control Center exposes the normalized operations model to agents over two MCP transports. Reads remain the default. Mutations are narrowly allowlisted: backlog lifecycle actions are constrained to low-risk `zapPilot/zapEngine` Issues, while Sentry resolution remains a separately verified single-issue action.
 
-| Transport   | Entry point                                                                        | Authentication                         | Intended use                                         |
-| ----------- | ---------------------------------------------------------------------------------- | -------------------------------------- | ---------------------------------------------------- |
-| stdio       | `/.mcp.json` (Claude Code) or `/opencode.json` (OpenCode) -> `scripts/ops-mcp.mjs` | local Infisical access                 | repository-local agents                              |
-| remote HTTP | `POST /api/mcp`                                                                    | `Authorization: Bearer $OPS_MCP_TOKEN` | remote MCP clients using the deployed Control Center |
+The last row is not a Control Center surface. It is the one third-party MCP
+the agent profiles register beside ours, and it never proxies through
+`zap-pilot-ops`: its authority is whatever the operator's own read-only OAuth
+grant allows, and nothing about it reaches `/api/mcp`.
+
+| Transport                | Entry point                                                                                            | Authentication                                               | Intended use                                          |
+| ------------------------ | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------ | ----------------------------------------------------- |
+| stdio                    | `/.mcp.json` (Claude Code) or `/opencode.json` (OpenCode) -> `scripts/ops-mcp.mjs`                     | local Infisical access                                       | repository-local agents                               |
+| remote HTTP              | `POST /api/mcp`                                                                                        | `Authorization: Bearer $OPS_MCP_TOKEN`                       | remote MCP clients using the deployed Control Center  |
+| vendor HTTP (Cloudflare) | `/.mcp.json`, `/opencode.json`, `.claude/mcp.coverage-review.json` -> `https://mcp.cloudflare.com/mcp` | interactive OAuth, read permissions only; no committed token | vendor exploration of Cloudflare billing and R2 reads |
 
 ## Credential boundaries
 
