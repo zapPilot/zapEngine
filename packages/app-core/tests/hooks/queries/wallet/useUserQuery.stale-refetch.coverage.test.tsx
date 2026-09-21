@@ -75,7 +75,11 @@ it('returns safely when a pre-bootstrap refetch callback outlives its wallet ses
 
   mocks.activeAddress.value = null;
   rerender();
-  await waitFor(() => expect(result.current.isConnected).toBe(false));
+  // isConnected reflects the provider immediately, but the session-ref cleanup
+  // happens in an effect. A changed refetch callback proves that cleanup render
+  // completed before we exercise the stale callback.
+  await waitFor(() => expect(result.current.refetch).not.toBe(staleRefetch));
+  expect(result.current.isConnected).toBe(false);
 
   let staleResult: unknown = Symbol('pending');
   await act(async () => {
