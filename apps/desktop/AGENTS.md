@@ -70,6 +70,14 @@ Run it through Turbo so workspace dependencies build first via the `package`
 task's ordering (`^build` plus `@zapengine/app#build:web` for the renderer
 export). That package gate rebuilds the app web export and catches renderer/package drift that unit tests cannot.
 
+`scripts/build.mjs` bakes `SENTRY_DESKTOP_DSN` and `APP_COMMIT_SHA` under their
+canonical names, and Turbo runs in its default strict env mode, so both are
+listed in the `package` task's `env` in the root `turbo.json`. Without that
+entry they arrive empty and Sentry silently never starts. `scripts/dev.sh`
+solves the same problem with `--env-mode=loose`; packaging keeps the explicit
+list instead, so nothing new reaches a shipped DMG without showing up in a
+`turbo.json` diff.
+
 Use that script rather than invoking Turbo directly. Turbo forwards
 `EXPO_PUBLIC_*`, `VITE_*`, and every `globalEnv` name from whatever shell
 started it, so a bare `turbo run package` bakes the developer's own
