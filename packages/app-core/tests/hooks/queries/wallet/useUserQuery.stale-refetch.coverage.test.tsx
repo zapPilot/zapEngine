@@ -25,7 +25,10 @@ vi.mock('@core/providers/walletContext', () => ({
 }));
 
 import { useCurrentUser } from '@core/hooks/queries/wallet/useUserQuery';
-import { resetAccountBootstrapForTests } from '@core/lib/state/accountBootstrap';
+import {
+  resetAccountBootstrapForTests,
+  suspendAccountBootstrap,
+} from '@core/lib/state/accountBootstrap';
 
 function createWrapper() {
   const client = new QueryClient({
@@ -34,14 +37,6 @@ function createWrapper() {
 
   return ({ children }: { children: ReactNode }) =>
     createElement(QueryClientProvider, { client }, children);
-}
-
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((res) => {
-    resolve = res;
-  });
-  return { promise, resolve };
 }
 
 beforeEach(() => {
@@ -54,34 +49,35 @@ afterEach(() => {
   resetAccountBootstrapForTests();
 });
 
-it('returns safely when a pre-bootstrap refetch callback outlives its wallet session', async () => {
-  const bootstrap = deferred<{ user_id: string; is_new_user: boolean }>();
+it('ignores a stale pre-bootstrap refetch after the wallet disconnects', async () => {
+  // Keep the session unready without an unresolved transport promise. This
+  // guarantees the captured callback routes through ensureSessionAccount().
+  suspendAccountBootstrap('0xaaa');
   mocks.activeAddress.value = '0xaaa';
-  mocks.connectWallet.mockReturnValue(bootstrap.promise);
 
   const { result, rerender } = renderHook(() => useCurrentUser(), {
     wrapper: createWrapper(),
   });
-
-  // Keep bootstrap pending so this callback is guaranteed to have captured
-  // bootstrapReady=false and therefore routes through ensureSessionAccount().
   const staleRefetch = result.current.refetch;
-  await waitFor(() => expect(mocks.connectWallet).toHaveBeenCalledTimes(1));
 
-  mocks.activeAddress.value = null;
+  await act(async () => {});
+  expect(result.current.isConnected).toBe(true);
+  expect(mocks.connectWallet).not.toHaveBeenCalled();
+
+  // Flush the disconnect effect so sessionWalletRef is null before invoking
+  // the old callback. It must then take ensureSessionAccount's no-wallet guard.
   await act(async () => {
+    mocks.activeAddress.value = null;
     rerender();
   });
-  expect(result.current.isConnected).toBe(false);
+  await waitFor(() => expect(result.current.isConnected).toBe(false));
 
-  // The disconnect effect has synchronously cleared sessionWalletRef by the
-  // time act() settles, so the stale callback takes ensureSessionAccount's
-  // no-wallet guard instead of joining the still-pending bootstrap request.
-  await expect(staleRefetch()).resolves.toBeUndefined();
-  expect(mocks.connectWallet).toHaveBeenCalledTimes(1);
-
-  bootstrap.resolve({ user_id: 'user-1', is_new_user: false });
+  let staleResult: unknown;
   await act(async () => {
-    await bootstrap.promise;
+    staleResult = await staleRefetch();
   });
+
+  expect(staleResult).toBeUndefined();
+  expect(mocks.connectWallet).not.toHaveBeenCalled();
+  expect(mocks.getUserByWallet).not.toHaveBeenCalled();
 });
