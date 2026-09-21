@@ -112,7 +112,7 @@ import { runSocialCatchUpOnce, runSocialDaemonTick } from './daemon.js';
 import { SocialCopyGenerationError } from './publish-error.js';
 
 const NOW = new Date('2026-09-02T01:00:00.000Z'); // 10:00 JST
-const NOW_AFTER_HOURS = new Date('2026-09-02T10:30:00.000Z'); // 19:30 JST
+const NOW_AFTER_HOURS = new Date('2026-09-02T14:30:00.000Z'); // 23:30 JST
 const FIRST_STARTED_AT = '2026-09-01T00:00:00.000Z';
 const ARTICLE_A = '123e4567-e89b-42d3-a456-426614174000';
 const ARTICLE_B = '123e4567-e89b-42d3-a456-426614174111';
@@ -410,8 +410,8 @@ describe('NON-NEGOTIABLE episode release cohort contract', () => {
 
     expect(slotOf(ARTICLE_A)).toBe('2026-09-02T03:00:00.000Z');
     expect(slotOf(ARTICLE_B)).toBe('2026-09-02T07:00:00.000Z');
-    expect(slotOf(ARTICLE_C)).toBe('2026-09-03T00:30:00.000Z');
-    expect(slotOf(ARTICLE_D)).toBe('2026-09-03T03:00:00.000Z');
+    expect(slotOf(ARTICLE_C)).toBe('2026-09-02T12:00:00.000Z');
+    expect(slotOf(ARTICLE_D)).toBe('2026-09-03T00:30:00.000Z');
   });
 
   it('fences fresh episodes behind a partial publish recovery cohort', async () => {
