@@ -11,7 +11,7 @@ const ARTICLE_A = '123e4567-e89b-42d3-a456-426614174000';
 const ARTICLE_B = '123e4567-e89b-42d3-a456-426614174111';
 const ARTICLE_C = '123e4567-e89b-42d3-a456-426614174222';
 
-// Article slots are 09:30 / 12:00 / 16:00 JST, three articles per JST day.
+// Article slots are 09:30 / 12:00 / 16:00 / 21:00 JST, four articles per JST day.
 const SEP_01_1200 = '2026-09-01T03:00:00.000Z';
 const SEP_01_1600 = '2026-09-01T07:00:00.000Z';
 const SEP_02_0930 = '2026-09-02T00:30:00.000Z';
@@ -207,13 +207,13 @@ describe('planPendingSocialReleaseCohorts · missed cohorts', () => {
         ...at(SEP_02_1600),
         completed_at: '2026-08-20T04:00:00.000Z',
       }),
-      // 17:15 JST is not an article slot, and every 09-01 slot has passed.
+      // 17:15 JST is not an article slot, and by 23:00 every 09-01 slot has passed.
       row(ARTICLE_A, 'a-rednote', at('2026-09-01T08:15:00.000Z')),
     ];
 
     const plan = planPendingSocialReleaseCohorts(
       rows,
-      new Date('2026-09-01T09:00:00.000Z'),
+      new Date('2026-09-01T14:00:00.000Z'),
       GRACE_MS,
     );
 
