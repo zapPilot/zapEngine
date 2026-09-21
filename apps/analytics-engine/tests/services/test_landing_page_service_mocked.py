@@ -16,8 +16,10 @@ from src.models.portfolio_snapshot import (
     PortfolioSnapshot,
     WalletTrendOverride,
 )
+from src.services.portfolio.borrowing_service import BorrowingService
 from src.services.portfolio.landing_page_service import LandingPageService
 from src.services.portfolio.roi_calculator import ROICalculator
+from src.services.shared.query_names import QUERY_NAMES
 from src.services.shared.value_objects import WalletAggregate
 
 
@@ -116,6 +118,21 @@ class TestLandingPageServiceInitialization:
                 pool_performance_service=MagicMock(),
                 canonical_snapshot_service=MagicMock(),
                 borrowing_service=MagicMock(),
+            )
+
+    def test_init_raises_on_missing_borrowing_service(
+        self, mock_db, mock_wallet_service, mock_query_service
+    ):
+        with pytest.raises(ValueError, match="Borrowing service is required"):
+            LandingPageService(
+                db=mock_db,
+                wallet_service=mock_wallet_service,
+                query_service=mock_query_service,
+                roi_calculator=MagicMock(),
+                portfolio_snapshot_service=MagicMock(),
+                pool_performance_service=MagicMock(),
+                canonical_snapshot_service=MagicMock(),
+                borrowing_service=None,
             )
 
 
@@ -294,6 +311,38 @@ class TestDegradedResponsesAreNotCached:
         assert first.portfolio_roi.recommended_roi == 0.0
         assert mock_snapshot_service.get_portfolio_snapshot.call_count == 2
 
+    def test_borrowing_failure_degrades_without_caching(
+        self, landing_page_service, mock_snapshot_service, mock_pool_service
+    ):
+        mock_snapshot_service.get_portfolio_snapshot.return_value = (
+            self._populated_snapshot()
+        )
+        mock_pool_service.get_pool_performance.return_value = []
+        landing_page_service.borrowing_service.get_borrowing_summary.side_effect = (
+            RuntimeError("borrowing query failed")
+        )
+        user_id = uuid4()
+
+        first = landing_page_service.get_landing_page_data(user_id)
+        landing_page_service.get_landing_page_data(user_id)
+
+        assert first.borrowing_summary.has_debt is False
+        assert mock_snapshot_service.get_portfolio_snapshot.call_count == 2
+
+    def test_borrowing_summary_receives_the_canonical_snapshot(
+        self, landing_page_service, mock_snapshot_service, mock_pool_service
+    ):
+        """The shared per-snapshot cache only works if the date is passed down."""
+        mock_snapshot_service.get_portfolio_snapshot.return_value = (
+            self._populated_snapshot()
+        )
+        mock_pool_service.get_pool_performance.return_value = []
+
+        landing_page_service.get_landing_page_data(uuid4())
+
+        call = landing_page_service.borrowing_service.get_borrowing_summary.call_args
+        assert call.kwargs["snapshot_date"] == date(2025, 1, 1)
+
     def test_healthy_response_is_cached(
         self, landing_page_service, mock_snapshot_service, mock_pool_service
     ):
@@ -393,3 +442,93 @@ class TestCacheDisabled:
         landing_page_service.get_landing_page_data(user_id)
 
         assert mock_snapshot_service.get_portfolio_snapshot.call_count == 1
+
+
+class RecordingQueryService:
+    """Query service that counts executions per query name."""
+
+    def __init__(self, rows: list[dict]) -> None:
+        self.rows = rows
+        self.executions: list[str] = []
+
+    def execute_query(self, db, query_name, params=None) -> list[dict]:
+        self.executions.append(query_name)
+        return self.rows
+
+
+def test_landing_and_positions_share_one_borrowing_query(
+    mock_db,
+    mock_wallet_service,
+    mock_snapshot_service,
+    mock_pool_service,
+):
+    """A cold home load must read borrowing positions once, not twice."""
+    snapshot_date = date(2025, 1, 1)
+    query_service = RecordingQueryService(
+        [
+            {
+                "protocol_id": "morpho",
+                "protocol_name": "Morpho",
+                "chain": "eth",
+                "total_collateral_usd": 1000.0,
+                "total_debt_usd": 500.0,
+                "net_value_usd": 500.0,
+                "protocol_health_rate": 2.5,
+                "collateral_tokens": [],
+                "debt_tokens": [],
+                "last_updated": datetime(2025, 1, 1, 12, 0),
+            }
+        ]
+    )
+    borrowing_service = BorrowingService(mock_db, query_service)
+
+    canonical_snapshot_service = MagicMock()
+    canonical_snapshot_service.get_snapshot_info.return_value = SnapshotInfo(
+        snapshot_date=snapshot_date, wallet_count=1, last_updated=None
+    )
+    snapshot = MagicMock(spec=PortfolioSnapshot)
+    snapshot.wallet_addresses = ["0x123"]
+    snapshot.wallet_override = None
+    snapshot.to_portfolio_summary.return_value = {
+        "total_value_usd": 1000.0,
+        "total_assets": 1500.0,
+        "total_debt": 500.0,
+        "net_portfolio_value": 1000.0,
+        "wallet_count": 1,
+        "wallet_token_count": 1,
+        "wallet_assets": {
+            "btc": 0.0,
+            "eth": 1500.0,
+            "stablecoins": 0.0,
+            "others": 0.0,
+        },
+    }
+    mock_snapshot_service.get_portfolio_snapshot.return_value = snapshot
+    mock_wallet_service.get_wallet_token_summaries_batch.return_value = {
+        "0x123": WalletAggregate(total_value=1500.0, token_count=1)
+    }
+    mock_pool_service.get_pool_performance.return_value = []
+
+    landing_page_service = LandingPageService(
+        db=mock_db,
+        wallet_service=mock_wallet_service,
+        query_service=MagicMock(),
+        roi_calculator=MagicMock(),
+        portfolio_snapshot_service=mock_snapshot_service,
+        pool_performance_service=mock_pool_service,
+        canonical_snapshot_service=canonical_snapshot_service,
+        borrowing_service=borrowing_service,
+    )
+
+    landing = landing_page_service.get_landing_page_data(uuid4())
+    user_id = uuid4()
+    landing_page_service.get_landing_page_data(user_id)
+    positions = borrowing_service.get_borrowing_positions(
+        user_id, snapshot_date=snapshot_date
+    )
+
+    assert landing.borrowing_summary.has_debt is True
+    assert positions.total_debt_usd == 500.0
+    assert (
+        query_service.executions.count(QUERY_NAMES.BORROWING_POSITIONS_BY_USER) == 2
+    ), "one query per user, shared by the landing bundle and the positions endpoint"

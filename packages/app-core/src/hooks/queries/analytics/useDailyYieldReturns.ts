@@ -1,6 +1,9 @@
-import { CACHE_WINDOW } from '@core/config/cacheWindow';
+import { createQueryConfig } from '@core/hooks/queries/queryDefaults';
 import { queryKeys } from '@core/lib/state/queryClient';
-import { getDailyYieldReturns } from '@core/services/analyticsService';
+import {
+  type DailyYieldReturnsResponse,
+  getDailyYieldReturns,
+} from '@core/services/analyticsService';
 import { useQuery } from '@tanstack/react-query';
 
 /**
@@ -8,14 +11,17 @@ import { useQuery } from '@tanstack/react-query';
  *
  * Every reader shares this cache slice, so a post-ETL `dailyYield.byUser`
  * invalidation refreshes all of them at once. `walletFilter` is `null` for the
- * bundle aggregation.
+ * bundle aggregation. Timing and retry come from the shared ETL profile.
  */
 export function useDailyYieldReturns(
   userId: string | undefined,
   days: number,
   walletFilter: string | null = null,
 ) {
-  return useQuery({
+  // Explicit TError: the shared retry predicate takes `unknown`, which would
+  // otherwise widen this hook's published error type.
+  return useQuery<DailyYieldReturnsResponse, Error>({
+    ...createQueryConfig(),
     queryKey: queryKeys.dailyYield.list(userId, days, walletFilter),
     queryFn: () => {
       if (!userId) {
@@ -24,8 +30,5 @@ export function useDailyYieldReturns(
       return getDailyYieldReturns(userId, days, walletFilter ?? undefined);
     },
     enabled: !!userId,
-    staleTime: CACHE_WINDOW.staleTimeMs,
-    gcTime: CACHE_WINDOW.gcTimeMs,
-    retry: 2,
   });
 }

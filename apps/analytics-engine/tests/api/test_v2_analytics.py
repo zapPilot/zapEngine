@@ -36,6 +36,9 @@ from src.services.dependencies import (
     get_wallet_service,
     get_yield_return_service,
 )
+from src.services.portfolio.canonical_snapshot_service import (
+    CanonicalSnapshotService,
+)
 from src.services.shared.query_service import QueryService
 from src.services.yield_return_service import YieldReturnService
 
@@ -280,13 +283,23 @@ class BlockingQueryService(QueryService):
         self.blocked_at = 0.0
 
     def execute_query(self, db, query_name, params=None) -> list[dict[str, Any]]:
+        self._block()
+        return []
+
+    def execute_query_one(self, db, query_name, params=None) -> dict[str, Any] | None:
+        # The canonical snapshot lookup lands here; blocking it too is what
+        # makes an anchor resolved on the event loop show up as a stalled
+        # /healthz instead of passing silently.
+        self._block()
+        return None
+
+    def _block(self) -> None:
         self.calls += 1
         if not self.blocking_started.is_set():
             self.blocked_at = time.perf_counter()
             # Ordered before set() so the loop side never reads a stale stamp.
             self.blocking_started.set()
         time.sleep(self.block_seconds)
-        return []
 
 
 class NullStakingAprProvider:
@@ -309,6 +322,7 @@ async def test_slow_yield_request_does_not_stall_healthz(
         query_service=query_service,
         context=PortfolioAnalyticsContext(),
         staking_apr_provider=NullStakingAprProvider(),
+        canonical_snapshot_service=CanonicalSnapshotService(db_session, query_service),
     )
     user_id = uuid4()
 

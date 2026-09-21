@@ -14,6 +14,9 @@ from src.services.dependencies import (
     get_yield_return_service,
 )
 from src.services.market.lido_staking_apr_provider import LidoStakingAprProvider
+from src.services.portfolio.canonical_snapshot_service import (
+    CanonicalSnapshotService,
+)
 
 
 def test_get_analytics_context_returns_instance():
@@ -84,14 +87,19 @@ def test_get_rolling_analytics_service_returns_instance():
 def test_get_yield_return_service_returns_instance():
     """Verify get_yield_return_service creates service instance."""
     provider = get_staking_apr_provider()
+    canonical = CanonicalSnapshotService(Mock(), Mock())
     service = get_yield_return_service(
         db=Mock(),
         query_service=Mock(),
         context=get_analytics_context(),
         staking_apr_provider=provider,
+        canonical_snapshot_service=canonical,
     )
     assert service is not None
     assert hasattr(service, "get_daily_yield_returns")
+    # Yield cache keys are pinned to the canonical snapshot, so a missing
+    # wiring here would silently serve stale windows for a whole ETL cycle.
+    assert service._canonical_snapshot_service is canonical
 
 
 def test_get_staking_apr_provider_returns_lido_provider():

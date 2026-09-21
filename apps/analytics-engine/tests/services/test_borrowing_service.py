@@ -7,14 +7,17 @@ Unified tests for the consolidated BorrowingService, covering:
 - Summary aggregation
 """
 
-from datetime import UTC, datetime
-from unittest.mock import MagicMock
+from datetime import UTC, date, datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
 
+from src.core.cache_service import analytics_cache, build_service_cache_key
 from src.models.portfolio import BorrowingRiskMetrics
 from src.services.portfolio.borrowing_service import BorrowingService
+
+# Callers resolve the canonical snapshot date and hand it to the service.
+SNAPSHOT_DATE = date(2026, 1, 10)
 
 
 @pytest.fixture
@@ -24,19 +27,9 @@ def user_id() -> UUID:
 
 
 @pytest.fixture
-def mock_canonical_snapshot_service():
-    """Mock canonical snapshot service."""
-    service = MagicMock()
-    service.get_snapshot_date.return_value = datetime.now(UTC).date()
-    return service
-
-
-@pytest.fixture
-def borrowing_service(mock_db, mock_query_service, mock_canonical_snapshot_service):
+def borrowing_service(mock_db, mock_query_service):
     """BorrowingService instance with mocked dependencies."""
-    return BorrowingService(
-        mock_db, mock_query_service, mock_canonical_snapshot_service
-    )
+    return BorrowingService(mock_db, mock_query_service)
 
 
 def _raw_position(
@@ -78,7 +71,9 @@ class TestGetBorrowingPositions:
             )
         ]
 
-        result = borrowing_service.get_borrowing_positions(user_id)
+        result = borrowing_service.get_borrowing_positions(
+            user_id, snapshot_date=SNAPSHOT_DATE
+        )
 
         assert len(result.positions) == 1
         assert result.positions[0].health_rate == 1.2
@@ -95,7 +90,9 @@ class TestGetBorrowingPositions:
             )
         ]
 
-        result = borrowing_service.get_borrowing_positions(user_id)
+        result = borrowing_service.get_borrowing_positions(
+            user_id, snapshot_date=SNAPSHOT_DATE
+        )
 
         assert len(result.positions) == 1
         assert result.positions[0].health_rate == 2.25
@@ -111,7 +108,9 @@ class TestGetBorrowingPositions:
             _raw_position(protocol_health_rate=1.6),  # Warning
         ]
 
-        result = borrowing_service.get_borrowing_positions(user_id)
+        result = borrowing_service.get_borrowing_positions(
+            user_id, snapshot_date=SNAPSHOT_DATE
+        )
 
         assert len(result.positions) == 3
         assert result.positions[0].health_rate == 1.1
@@ -126,7 +125,9 @@ class TestGetBorrowingPositions:
         mock_query_service.execute_query.return_value = []
 
         with pytest.raises(ValueError, match="no borrowing positions"):
-            borrowing_service.get_borrowing_positions(user_id)
+            borrowing_service.get_borrowing_positions(
+                user_id, snapshot_date=SNAPSHOT_DATE
+            )
 
     def test_token_transformation(self, borrowing_service, mock_query_service, user_id):
         """Verify token lists are transformed correctly."""
@@ -137,7 +138,9 @@ class TestGetBorrowingPositions:
             )
         ]
 
-        result = borrowing_service.get_borrowing_positions(user_id)
+        result = borrowing_service.get_borrowing_positions(
+            user_id, snapshot_date=SNAPSHOT_DATE
+        )
         pos = result.positions[0]
 
         assert len(pos.collateral_tokens) == 1
@@ -157,7 +160,11 @@ class TestCalculateBorrowingRisk:
     ):
         """Verify returns None when portfolio has no debt."""
         result = borrowing_service.calculate_borrowing_risk(
-            user_id, total_assets_usd=10000.0, total_debt_usd=0.0, total_net_usd=10000.0
+            user_id,
+            total_assets_usd=10000.0,
+            total_debt_usd=0.0,
+            total_net_usd=10000.0,
+            snapshot_date=SNAPSHOT_DATE,
         )
         assert result is None
 
@@ -182,6 +189,7 @@ class TestCalculateBorrowingRisk:
             total_assets_usd=9000.0,
             total_debt_usd=3000.0,
             total_net_usd=6000.0,
+            snapshot_date=SNAPSHOT_DATE,
         )
 
         assert isinstance(result, BorrowingRiskMetrics)
@@ -211,6 +219,7 @@ class TestGetBorrowingSummary:
             total_assets_usd=10000.0,
             total_debt_usd=1000.0,
             total_net_usd=9000.0,
+            snapshot_date=SNAPSHOT_DATE,
         )
 
         assert summary.has_debt is True
@@ -229,6 +238,7 @@ class TestGetBorrowingSummary:
             total_assets_usd=10000.0,
             total_debt_usd=0.0,
             total_net_usd=10000.0,
+            snapshot_date=SNAPSHOT_DATE,
         )
 
         assert summary.has_debt is False
@@ -250,6 +260,7 @@ class TestEdgeCasesAndBoundaries:
             total_assets_usd=1000.0,
             total_debt_usd=1000.0,  # Net = 0
             total_net_usd=0.0,
+            snapshot_date=SNAPSHOT_DATE,
         )
         # Early return None when net worth <= 0
         assert result is None
@@ -262,7 +273,9 @@ class TestEdgeCasesAndBoundaries:
 
         # This will raise ValueError because no positions found
         with pytest.raises(ValueError, match="no borrowing positions"):
-            borrowing_service.get_borrowing_positions(user_id)
+            borrowing_service.get_borrowing_positions(
+                user_id, snapshot_date=SNAPSHOT_DATE
+            )
 
     def test_all_positions_filtered_due_to_zero_debt(
         self, borrowing_service, mock_query_service, user_id
@@ -283,6 +296,7 @@ class TestEdgeCasesAndBoundaries:
             total_assets_usd=10000.0,
             total_debt_usd=1000.0,  # Has debt, so will try to fetch
             total_net_usd=9000.0,
+            snapshot_date=SNAPSHOT_DATE,
         )
         # All positions filtered out → returns None
         assert result is None
@@ -295,7 +309,9 @@ class TestEdgeCasesAndBoundaries:
             _raw_position(protocol_health_rate=1.8)  # In warning range
         ]
 
-        result = borrowing_service.get_borrowing_positions(user_id)
+        result = borrowing_service.get_borrowing_positions(
+            user_id, snapshot_date=SNAPSHOT_DATE
+        )
 
         assert result.positions[0].health_status == "WARNING"
 
@@ -307,7 +323,9 @@ class TestEdgeCasesAndBoundaries:
             _raw_position(protocol_health_rate=1.3)  # Critical range
         ]
 
-        result = borrowing_service.get_borrowing_positions(user_id)
+        result = borrowing_service.get_borrowing_positions(
+            user_id, snapshot_date=SNAPSHOT_DATE
+        )
 
         assert result.positions[0].health_status == "CRITICAL"
 
@@ -319,7 +337,9 @@ class TestEdgeCasesAndBoundaries:
             _raw_position(protocol_health_rate=2.5)  # Healthy range
         ]
 
-        result = borrowing_service.get_borrowing_positions(user_id)
+        result = borrowing_service.get_borrowing_positions(
+            user_id, snapshot_date=SNAPSHOT_DATE
+        )
 
         assert result.positions[0].health_status == "HEALTHY"
 
@@ -338,7 +358,9 @@ class TestEdgeCasesAndBoundaries:
             "2025-01-15T10:30:00Z"
         )
 
-        result = borrowing_service.get_borrowing_positions(user_id)
+        result = borrowing_service.get_borrowing_positions(
+            user_id, snapshot_date=SNAPSHOT_DATE
+        )
 
         assert result.positions[0].updated_at is not None
 
@@ -346,34 +368,31 @@ class TestEdgeCasesAndBoundaries:
 class TestQueryExceptionHandling:
     """Tests for query exception handling."""
 
-    def test_query_exception_returns_empty_list(
+    def test_query_exception_propagates_from_risk(
         self, borrowing_service, mock_query_service, user_id
     ):
-        """Query exception is caught and returns empty list.
-
-        The _fetch_raw_positions method catches exceptions and returns [].
-        This means calculate_borrowing_risk will return None (no positions).
-        """
+        """A failed query must not be mistaken for a debt-free portfolio."""
         mock_query_service.execute_query.side_effect = Exception("Database error")
 
-        result = borrowing_service.calculate_borrowing_risk(
-            user_id,
-            total_assets_usd=10000.0,
-            total_debt_usd=1000.0,
-            total_net_usd=9000.0,
-        )
-        # Exception is caught, returns None due to empty positions
-        assert result is None
+        with pytest.raises(Exception, match="Database error"):
+            borrowing_service.calculate_borrowing_risk(
+                user_id,
+                total_assets_usd=10000.0,
+                total_debt_usd=1000.0,
+                total_net_usd=9000.0,
+                snapshot_date=SNAPSHOT_DATE,
+            )
 
-    def test_get_positions_raises_on_empty(
+    def test_query_exception_propagates_from_positions(
         self, borrowing_service, mock_query_service, user_id
     ):
-        """get_borrowing_positions raises ValueError on empty result."""
+        """The endpoint must answer 500, not a 404 that hides the outage."""
         mock_query_service.execute_query.side_effect = Exception("Database error")
 
-        # Exception is caught → empty list → raises ValueError
-        with pytest.raises(ValueError, match="no borrowing positions"):
-            borrowing_service.get_borrowing_positions(user_id)
+        with pytest.raises(Exception, match="Database error"):
+            borrowing_service.get_borrowing_positions(
+                user_id, snapshot_date=SNAPSHOT_DATE
+            )
 
 
 class TestUncoveredBranches:
@@ -395,6 +414,7 @@ class TestUncoveredBranches:
             total_assets_usd=5000.0,
             total_debt_usd=1000.0,  # debt > 0, so we won't hit the early return
             total_net_usd=4000.0,
+            snapshot_date=SNAPSHOT_DATE,
         )
 
         assert summary.has_debt is True
@@ -426,6 +446,7 @@ class TestUncoveredBranches:
             total_assets_usd=5000.0,
             total_debt_usd=100.0,
             total_net_usd=4900.0,
+            snapshot_date=SNAPSHOT_DATE,
         )
         assert result is None
 
@@ -440,7 +461,9 @@ class TestUncoveredBranches:
 
         mock_query_service.execute_query.return_value = [raw]
 
-        result = borrowing_service.get_borrowing_positions(user_id)
+        result = borrowing_service.get_borrowing_positions(
+            user_id, snapshot_date=SNAPSHOT_DATE
+        )
 
         assert len(result.positions) == 1
         assert result.positions[0].updated_at is not None
@@ -462,7 +485,9 @@ class TestUncoveredBranches:
         )
         mock_query_service.execute_query.return_value = [raw]
 
-        result = borrowing_service.get_borrowing_positions(user_id)
+        result = borrowing_service.get_borrowing_positions(
+            user_id, snapshot_date=SNAPSHOT_DATE
+        )
 
         pos = result.positions[0]
         # ETH with "not-a-number" amount → skipped; WBTC valid → kept
@@ -473,38 +498,92 @@ class TestUncoveredBranches:
         assert len(pos.debt_tokens) == 0
 
 
-def test_summary_and_detail_share_snapshot(
-    borrowing_service,
-    mock_db,
-    mock_query_service,
-    mock_canonical_snapshot_service,
-    user_id,
-):
-    mock_query_service.execute_query.return_value = [_raw_position()]
-    summary = borrowing_service.get_borrowing_summary(user_id, 1000, 500, 500)
-    detail_service = BorrowingService(
-        mock_db, mock_query_service, mock_canonical_snapshot_service
-    )
-    detail = detail_service.get_borrowing_positions(user_id)
-    assert summary.worst_health_rate == detail.worst_health_rate
-    assert mock_query_service.execute_query.call_count == 1
+class TestRawPositionsCache:
+    """One query per (user, canonical snapshot) across both entry points."""
 
-    from datetime import timedelta
+    def test_summary_and_detail_share_one_query(
+        self, borrowing_service, mock_db, mock_query_service, user_id
+    ):
+        """The landing bundle and the positions endpoint read the same rows."""
+        mock_query_service.execute_query.return_value = [_raw_position()]
 
-    snapshot = mock_canonical_snapshot_service.get_snapshot_date.return_value
-    detail_service.get_borrowing_positions(user_id, snapshot + timedelta(days=1))
-    detail_service.get_borrowing_positions(uuid4(), snapshot)
-    assert mock_query_service.execute_query.call_count == 3
+        summary = borrowing_service.get_borrowing_summary(
+            user_id, 1000, 500, 500, snapshot_date=SNAPSHOT_DATE
+        )
+        detail_service = BorrowingService(mock_db, mock_query_service)
+        detail = detail_service.get_borrowing_positions(
+            user_id, snapshot_date=SNAPSHOT_DATE
+        )
 
+        assert summary.worst_health_rate == detail.worst_health_rate
+        assert mock_query_service.execute_query.call_count == 1
+        assert (
+            analytics_cache.get(
+                build_service_cache_key(
+                    "BorrowingService",
+                    "v1",
+                    "raw_positions",
+                    user_id,
+                    "2026-01-10",
+                )
+            )
+            is not None
+        )
 
-def test_failed_borrowing_query_is_not_cached(
-    borrowing_service, mock_query_service, user_id
-):
-    mock_query_service.execute_query.side_effect = [
-        RuntimeError("offline"),
-        [_raw_position()],
-    ]
-    with pytest.raises(ValueError, match="no borrowing positions"):
-        borrowing_service.get_borrowing_positions(user_id)
-    assert borrowing_service.get_borrowing_positions(user_id).total_debt_usd == 500
-    assert mock_query_service.execute_query.call_count == 2
+    def test_new_snapshot_is_a_different_entry(
+        self, borrowing_service, mock_query_service, user_id
+    ):
+        """A new ETL run must not be served yesterday's positions."""
+        mock_query_service.execute_query.return_value = [_raw_position()]
+
+        borrowing_service.get_borrowing_positions(user_id, snapshot_date=SNAPSHOT_DATE)
+        borrowing_service.get_borrowing_positions(
+            user_id, snapshot_date=SNAPSHOT_DATE + timedelta(days=1)
+        )
+
+        assert mock_query_service.execute_query.call_count == 2
+
+    def test_debt_free_user_is_cached_too(
+        self, borrowing_service, mock_query_service, user_id
+    ):
+        """The empty answer is the common case; it must not re-query."""
+        mock_query_service.execute_query.return_value = []
+
+        for _attempt in range(2):
+            with pytest.raises(ValueError, match="no borrowing positions"):
+                borrowing_service.get_borrowing_positions(
+                    user_id, snapshot_date=SNAPSHOT_DATE
+                )
+
+        assert mock_query_service.execute_query.call_count == 1
+
+    def test_failed_query_is_not_cached(
+        self, borrowing_service, mock_query_service, user_id
+    ):
+        """A transient outage must not freeze into the 12-hour window."""
+        mock_query_service.execute_query.side_effect = [
+            RuntimeError("offline"),
+            [_raw_position()],
+        ]
+
+        with pytest.raises(RuntimeError, match="offline"):
+            borrowing_service.get_borrowing_positions(
+                user_id, snapshot_date=SNAPSHOT_DATE
+            )
+        result = borrowing_service.get_borrowing_positions(
+            user_id, snapshot_date=SNAPSHOT_DATE
+        )
+
+        assert result.total_debt_usd == 500
+        assert mock_query_service.execute_query.call_count == 2
+
+    def test_missing_snapshot_bypasses_the_cache(
+        self, borrowing_service, mock_query_service, user_id
+    ):
+        """Without an anchor the query follows MAX(snapshot_date); never pin it."""
+        mock_query_service.execute_query.return_value = [_raw_position()]
+
+        borrowing_service.get_borrowing_positions(user_id, snapshot_date=None)
+        borrowing_service.get_borrowing_positions(user_id, snapshot_date=None)
+
+        assert mock_query_service.execute_query.call_count == 2

@@ -72,6 +72,16 @@ describe('useEtlJobPolling', () => {
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: ['portfolio-dashboard', 'user-1'],
     });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ['dailyYield', 'user-1'],
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ['desktop', 'portfolio', 'dailyYield', 'user-1'],
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ['desktop', 'strategy-suggestion', 'user-1'],
+    });
+    expect(invalidateSpy).toHaveBeenCalledTimes(5);
     expect(result.current.state.jobId).toBe('job-1');
   });
 

@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   useQuery: vi.fn(),
+  useQueryClient: vi.fn(),
+  refreshPortfolioQueryCaches: vi.fn(),
   getLandingPagePortfolioData: vi.fn(),
   getPortfolioDashboard: vi.fn(),
   getMarketDashboardData: vi.fn(),
@@ -16,6 +18,12 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@tanstack/react-query', () => ({
   useQuery: (...args: unknown[]) => mocks.useQuery(...args),
+  useQueryClient: () => mocks.useQueryClient(),
+}));
+
+vi.mock('@core/lib/state/portfolioQueryRefresh', () => ({
+  refreshPortfolioQueryCaches: (...args: unknown[]) =>
+    mocks.refreshPortfolioQueryCaches(...args),
 }));
 
 vi.mock('@core/lib/state/queryClient', () => ({
@@ -63,6 +71,7 @@ vi.mock('@core/hooks/queries/wallet/useUserQuery', () => ({
   useCurrentUser: () => mocks.useCurrentUser(),
 }));
 
+import { CACHE_WINDOW } from '@core/config/cacheWindow';
 import { usePortfolioDashboard } from '@core/hooks/analytics/usePortfolioDashboard';
 import { useLandingPageData } from '@core/hooks/queries/analytics/usePortfolioQuery';
 import { useMarketDashboardQuery } from '@core/hooks/queries/market/useMarketDashboardQuery';
@@ -74,6 +83,7 @@ describe('query hook coverage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.createQueryConfig.mockReturnValue({ retry: 'config' });
+    mocks.useQueryClient.mockReturnValue({ invalidateQueries: vi.fn() });
     mocks.createLoggedQueryFn.mockImplementation(
       (_message: string, fn: () => Promise<unknown>) => fn,
     );
@@ -95,7 +105,9 @@ describe('query hook coverage', () => {
     expect(config).toMatchObject({
       enabled: true,
     });
-    expect(config.refetchInterval).toBeUndefined();
+    // Home's single recurring poll: the only way a long-open session notices
+    // the scheduled ETL.
+    expect(config.refetchInterval).toBe(CACHE_WINDOW.staleTimeMs);
     await expect(config.queryFn()).resolves.toEqual({ ok: true });
     expect(mocks.getLandingPagePortfolioData).toHaveBeenCalledWith('user-1');
     expect(result.current.data).toBe('query-data');
@@ -110,12 +122,13 @@ describe('query hook coverage', () => {
     renderHook(() => useLandingPageData('user-1', true, true));
     config = mocks.useQuery.mock.calls.at(-1)?.[0];
     expect(config.enabled).toBe(false);
-    expect(config.refetchInterval).toBeUndefined();
+    expect(config.refetchInterval).toBe(CACHE_WINDOW.staleTimeMs);
 
     renderHook(() => useLandingPageData('user-1', false, false));
     config = mocks.useQuery.mock.calls.at(-1)?.[0];
     expect(config.enabled).toBe(false);
-    expect(config.refetchInterval).toBeUndefined();
+    // An inactive tab must not keep a timer alive.
+    expect(config.refetchInterval).toBe(false);
   });
 
   it('configures portfolio dashboard defaults and returns dashboard alias', async () => {
@@ -123,9 +136,14 @@ describe('query hook coverage', () => {
     const { result } = renderHook(() => usePortfolioDashboard('user-1'));
     const config = mocks.useQuery.mock.calls.at(-1)?.[0];
 
-    expect(config.enabled).toBe(true);
-    expect(config.staleTime).toBe(60 * 60 * 1000);
-    expect(config.gcTime).toBe(24 * 60 * 60 * 1000);
+    expect(mocks.createQueryConfig).toHaveBeenCalledWith();
+    expect(config).toMatchObject({ enabled: true, retry: 'config' });
+    // Timing and refetch policy come from the shared ETL profile; hardcoding
+    // them here is what let the dashboard drift away from the cache window.
+    expect(config).not.toHaveProperty('staleTime');
+    expect(config).not.toHaveProperty('gcTime');
+    expect(config).not.toHaveProperty('refetchOnWindowFocus');
+    expect(config).not.toHaveProperty('refetchOnReconnect');
     expect(config.refetchOnMount).toBeUndefined();
     await expect(config.queryFn()).resolves.toEqual({ dashboard: true });
     expect(mocks.getPortfolioDashboard).toHaveBeenCalledWith('user-1', {});

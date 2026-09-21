@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from unittest.mock import AsyncMock
 from uuid import UUID, uuid4
@@ -357,6 +357,18 @@ class _FailingAprProvider:
         raise RuntimeError("Lido unavailable")
 
 
+class _StubCanonicalSnapshotService:
+    """Pins the yield window to the last day these fixtures cover."""
+
+    def __init__(self, snapshot_date: date) -> None:
+        self.snapshot_date = snapshot_date
+
+    def get_snapshot_date(
+        self, user_id: UUID, wallet_address: str | None = None
+    ) -> date:
+        return self.snapshot_date
+
+
 @pytest.mark.asyncio
 async def test_yield_summary_keeps_morpho_cost_and_adds_staking_source(db_session):
     user_id = uuid4()
@@ -373,6 +385,9 @@ async def test_yield_summary_keeps_morpho_cost_and_adds_staking_source(db_sessio
         query_service,  # type: ignore[arg-type]
         PortfolioAnalyticsContext(),
         staking_apr_provider=_StaticAprProvider(),
+        canonical_snapshot_service=_StubCanonicalSnapshotService(
+            (day0 + timedelta(days=1)).date()
+        ),
     )
 
     response = await service.get_yield_summary(
@@ -413,6 +428,9 @@ async def test_yield_summary_survives_apr_failure_and_preserves_morpho_cost(db_s
         query_service,  # type: ignore[arg-type]
         PortfolioAnalyticsContext(),
         staking_apr_provider=_FailingAprProvider(),
+        canonical_snapshot_service=_StubCanonicalSnapshotService(
+            (day0 + timedelta(days=1)).date()
+        ),
     )
 
     response = await service.get_yield_summary(
@@ -444,6 +462,9 @@ async def test_yield_summary_degrades_when_exposure_query_fails(db_session):
         query_service,  # type: ignore[arg-type]
         PortfolioAnalyticsContext(),
         staking_apr_provider=_StaticAprProvider(),
+        canonical_snapshot_service=_StubCanonicalSnapshotService(
+            (day0 + timedelta(days=1)).date()
+        ),
     )
 
     response = await service.get_yield_summary(
