@@ -262,9 +262,19 @@
 .rel-cost-top > * {
   min-width: 0;
 }
-.rel-cost-trend {
+.rel-cost-trend,
+.rel-cost-breakdown {
   display: grid;
   gap: 6px;
+}
+.rel-cost-provider-label {
+  display: grid;
+  gap: 2px;
+}
+.rel-cost-provider-label small {
+  font-size: 10.5px;
+  line-height: 1.35;
+  color: var(--ink-faint);
 }
 
 .rel-anomalies {

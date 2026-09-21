@@ -168,6 +168,7 @@ export function ReliabilityPage(props: {
         >
           <CostOverview
             costHistory={props.costHistory}
+            overview={props.overview}
             podcastCosts={props.podcastCosts}
           />
         </Card>
@@ -268,6 +269,7 @@ function WorkflowHealth(props: { operations: OperationsResponse | null }) {
 
 function CostOverview(props: {
   costHistory: CostHistoryResponse | null;
+  overview: OverviewResponse | null;
   podcastCosts: PodcastCostResponse | null;
 }) {
   const daily = props.costHistory?.currentMonthDaily ?? [];
@@ -295,7 +297,10 @@ function CostOverview(props: {
           tone="warning"
         />
       </div>
-      <BarRows rows={providerRows(latest)} />
+      <div className="rel-cost-breakdown">
+        <span className="cc-stat-label">Cost by service · month to date</span>
+        <BarRows rows={providerRows(props.overview?.providers ?? [])} />
+      </div>
       {anomalies.length > 0 ? (
         <ul className="rel-anomalies">
           {anomalies.map((entry) => (
@@ -357,15 +362,38 @@ function providerSpend(
   );
 }
 
-function providerRows(
-  latest: CostHistoryResponse['currentMonthDaily'][number] | null,
-): BarRow[] {
-  return (latest?.providers ?? []).map((entry) => ({
-    id: entry.provider,
-    label: entry.label,
-    value: entry.accruedCostUsd === null ? '—' : usd(entry.accruedCostUsd),
-    weight: entry.accruedCostUsd,
-  }));
+function providerRows(providers: OverviewResponse['providers']): BarRow[] {
+  return [...providers]
+    .sort((left, right) => {
+      const leftCost = left.snapshot?.accruedCostUsd ?? null;
+      const rightCost = right.snapshot?.accruedCostUsd ?? null;
+      if (leftCost === null && rightCost === null) {
+        return 0;
+      }
+      if (leftCost === null) {
+        return 1;
+      }
+      if (rightCost === null) {
+        return -1;
+      }
+      return rightCost - leftCost;
+    })
+    .map((entry) => {
+      const accruedCostUsd = entry.snapshot?.accruedCostUsd ?? null;
+      return {
+        id: entry.provider,
+        label: (
+          <span className="rel-cost-provider-label">
+            <span>{entry.label}</span>
+            {accruedCostUsd === null && entry.message ? (
+              <small>{entry.message}</small>
+            ) : null}
+          </span>
+        ),
+        value: accruedCostUsd === null ? '—' : usd(accruedCostUsd),
+        weight: accruedCostUsd,
+      };
+    });
 }
 
 interface CostAnomaly {
