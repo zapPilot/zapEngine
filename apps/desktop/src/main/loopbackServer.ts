@@ -2,6 +2,8 @@ import { createReadStream } from 'node:fs';
 import { createServer } from 'node:http';
 import { extname } from 'node:path';
 
+import { ANALYTICS_PROXY_PATH } from '../shared/ipc';
+import { analyticsUpstreamUrl, proxyAnalyticsRequest } from './analyticsProxy';
 import { resolveWebAsset } from './appProtocol';
 
 const MIME_TYPES = new Map([
@@ -27,6 +29,10 @@ export function startLoopbackServer(
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const server = createServer((request, response) => {
+      if (request.url?.startsWith(`${ANALYTICS_PROXY_PATH}/`)) {
+        void proxyAnalyticsRequest(request, response, analyticsUpstreamUrl());
+        return;
+      }
       if (request.method !== 'GET' && request.method !== 'HEAD') {
         response.writeHead(405).end();
         return;

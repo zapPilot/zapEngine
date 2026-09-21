@@ -41,6 +41,17 @@ embedded wallet rejects `app://bundle/` even when Electron marks it secure.
 Unpackaged runs retain the dev URL and opt-in loopback paths; otherwise they
 use `app://bundle/`. `ZAP_ELECTRON_LOOPBACK_PORT` overrides the loopback port.
 
+The loopback origin is not on the analytics API's production CORS allowlist,
+so the renderer must not call it directly. Packaged (and opt-in loopback)
+renderers reach analytics through the same-origin transport at
+`/__zap/analytics`, served by `src/main/analyticsProxy.ts` against the
+`ANALYTICS_ENGINE_URL` baked in by `scripts/build.mjs`. The proxy only
+forwards to that fixed upstream (GET/HEAD/POST, no cookies, no redirects,
+no upstream CORS headers); the app web export selects it via
+`apps/app/src/config/analyticsApiUrl.web.ts` when the preload bridge
+advertises the proxy path. Do not fix renderer data gaps by widening
+production CORS or weakening Electron `webSecurity`.
+
 ## Verification
 
 Run the workspace gates through Turbo. Changes under `src/main/**`, `src/preload/**`, `scripts/build.mjs`, or `electron-builder.yml` must also pass:

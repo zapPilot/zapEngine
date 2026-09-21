@@ -85,7 +85,12 @@ async function initializeApp(): Promise<void> {
 
   const url = await resolveRendererUrl(webRoot, app.isPackaged, process.env);
 
-  const window = createMainWindow(url);
+  const window = createMainWindow(
+    url,
+    app.isPackaged ||
+      (!process.env['ZAP_ELECTRON_DEV_URL'] &&
+        process.env['ZAP_ELECTRON_LOOPBACK'] === '1'),
+  );
   mainWindow = window;
 
   window.on('close', (event) => {
