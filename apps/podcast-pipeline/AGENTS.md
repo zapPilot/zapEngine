@@ -92,6 +92,7 @@ Changing this behavior requires explicit product approval. Do not rewrite this i
 ## Deployment gate and recovery
 
 - The podcast lanes in [deploy-fly.yml](../../.github/workflows/deploy-fly.yml) and [env-apply.yml](../../.github/workflows/env-apply.yml) share a DB-backed gate fenced by `deployment_id` + `owner_token`: `open → draining → rolling_out → open`. Never interrupt an active render with rollout signals.
+- Both lanes validate before they acquire the gate: deploy-fly.yml runs its verify script, and env-apply.yml runs a read-only `pnpm env:sync --target podcast-pipeline` dry run. A manifest or `validateProductionEnv` rejection must fail the job while the gate is still `open`, never fence it in `recovery_required` without a single write having happened. Keep any new pre-write check ahead of `prepare`.
 - Drain is bounded to 100 minutes; the job timeout is 150 minutes. A drain timeout happens before rollout and reopens only the same owner's gate. Failure after rollout starts leaves `recovery_required`.
 - A stale heartbeat never automatically reopens claims. Do not add automatic stale-unlock.
 - The render-capacity reconciler reads the same gate and fails closed when it cannot read it; it must not wake capacity.
