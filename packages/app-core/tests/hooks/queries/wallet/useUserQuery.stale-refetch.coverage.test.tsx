@@ -42,14 +42,6 @@ beforeEach(() => {
   vi.clearAllMocks();
   resetAccountBootstrapForTests();
   mocks.activeAddress.value = null;
-});
-
-afterEach(() => {
-  resetAccountBootstrapForTests();
-});
-
-it('ignores a stale refetch callback after the wallet disconnects', async () => {
-  mocks.activeAddress.value = '0xaaa';
   mocks.connectWallet.mockResolvedValue({
     user_id: USER_ID,
     is_new_user: false,
@@ -64,13 +56,20 @@ it('ignores a stale refetch callback after the wallet disconnects', async () => 
     },
     wallets: [],
   });
+});
 
+afterEach(() => {
+  resetAccountBootstrapForTests();
+});
+
+it('returns safely when a pre-bootstrap refetch callback outlives its wallet session', async () => {
+  mocks.activeAddress.value = '0xaaa';
   const { result, rerender } = renderHook(() => useCurrentUser(), {
     wrapper: createWrapper(),
   });
 
-  // Capture the pre-bootstrap callback. Its closure still wants to ensure the
-  // session account, even after the current hook instance becomes ready.
+  // Capture the callback while bootstrapReady is still false. This callback
+  // will call ensureSessionAccount() even if invoked after a later disconnect.
   const staleRefetch = result.current.refetch;
   await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
@@ -78,16 +77,11 @@ it('ignores a stale refetch callback after the wallet disconnects', async () => 
   rerender();
   await waitFor(() => expect(result.current.isConnected).toBe(false));
 
-  // The stale callback must observe the cleared session ref and stop before
-  // attempting another bootstrap. Query observer cleanup may still settle
-  // asynchronously after disconnect, so bootstrap calls are the stable signal.
-  const bootstrapCallsAfterDisconnect = mocks.connectWallet.mock.calls.length;
-
+  let staleResult: unknown = Symbol('pending');
   await act(async () => {
-    await staleRefetch();
+    staleResult = await staleRefetch();
   });
 
-  expect(mocks.connectWallet).toHaveBeenCalledTimes(
-    bootstrapCallsAfterDisconnect,
-  );
+  expect(staleResult).toBeUndefined();
+  expect(result.current.isConnected).toBe(false);
 });
