@@ -24,6 +24,7 @@ export function buildClientTargetEnv(
 export function auditSecretClassification(
   committedByEnvironment: Record<string, ParsedEnv>,
 ): string[];
+export declare const DESKTOP_PRODUCTION_CORS_ORIGIN: string;
 export function validateProductionEnv(
   env: Record<string, string | undefined>,
 ): string[];

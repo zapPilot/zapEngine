@@ -5,6 +5,7 @@ import test from 'node:test';
 import {
   auditSecretClassification,
   buildClientTargetEnv,
+  DESKTOP_PRODUCTION_CORS_ORIGIN,
   parseEnv,
   projectEnv,
   validateEnv,
@@ -178,4 +179,29 @@ test('production validation rejects local endpoints and placeholders', () => {
   });
   assert.ok(errors.some((error) => error.includes('ACCOUNT_API_URL')));
   assert.ok(errors.some((error) => error.includes('LIFI_INTEGRATOR')));
+});
+
+test('production validation allows only the packaged desktop loopback CORS origin', () => {
+  assert.equal(
+    DESKTOP_PRODUCTION_CORS_ORIGIN,
+    'http://127.0.0.1:3105',
+  );
+  const allowed = validateProductionEnv({
+    CORS_ALLOWED_ORIGINS: `https://app.zap-pilot.org,${DESKTOP_PRODUCTION_CORS_ORIGIN}`,
+    PLAN_SIMULATION_REQUIRED: 'true',
+  });
+  assert.ok(
+    !allowed.some((error) => error.includes('CORS_ALLOWED_ORIGINS')),
+    `unexpected CORS error: ${allowed.join('; ')}`,
+  );
+
+  const rejected = validateProductionEnv({
+    CORS_ALLOWED_ORIGINS: `https://app.zap-pilot.org,${DESKTOP_PRODUCTION_CORS_ORIGIN},http://localhost:3000`,
+    PLAN_SIMULATION_REQUIRED: 'true',
+  });
+  assert.ok(
+    rejected.some((error) =>
+      error.includes('CORS_ALLOWED_ORIGINS contains a local-only host'),
+    ),
+  );
 });

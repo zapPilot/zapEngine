@@ -302,6 +302,8 @@ export function auditSecretClassification(committedByEnvironment) {
   return errors;
 }
 
+export const DESKTOP_PRODUCTION_CORS_ORIGIN = 'http://127.0.0.1:3105';
+
 export function validateProductionEnv(env) {
   const errors = [];
   const unsafeHost =
@@ -312,7 +314,22 @@ export function validateProductionEnv(env) {
     if (!value) continue;
     const definition = ENV_MANIFEST[name];
     if (!definition || definition.kind === 'host') continue;
-    if (unsafeHost.test(value))
+    // Keep parity with analytics-engine's DESKTOP_PRODUCTION_CORS_ORIGIN:
+    // the packaged Electron renderer serves at this fixed loopback origin and
+    // calls the production analytics API directly. Any other local-only host
+    // in CORS_ALLOWED_ORIGINS remains rejected.
+    const valueForLocalHostCheck =
+      name === 'CORS_ALLOWED_ORIGINS'
+        ? String(value)
+            .split(',')
+            .map((origin) => origin.trim())
+            .filter(
+              (origin) =>
+                origin && origin !== DESKTOP_PRODUCTION_CORS_ORIGIN,
+            )
+            .join(',')
+        : value;
+    if (unsafeHost.test(valueForLocalHostCheck))
       errors.push(`${name} contains a local-only host`);
     if (placeholder.test(value)) errors.push(`${name} contains a placeholder`);
     if (
