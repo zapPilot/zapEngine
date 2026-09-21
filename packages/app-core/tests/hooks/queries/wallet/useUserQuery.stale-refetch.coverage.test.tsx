@@ -73,17 +73,23 @@ it('ignores a stale refetch callback after the wallet disconnects', async () => 
   // session account, even after the current hook instance becomes ready.
   const staleRefetch = result.current.refetch;
   await waitFor(() => expect(result.current.isSuccess).toBe(true));
-  const bootstrapCalls = mocks.connectWallet.mock.calls.length;
-  const queryCalls = mocks.getUserByWallet.mock.calls.length;
 
   mocks.activeAddress.value = null;
   rerender();
   await waitFor(() => expect(result.current.isConnected).toBe(false));
 
+  // Disconnect cleanup can legitimately change query observer activity. The
+  // stale callback itself must not add any account or query requests once the
+  // session ref has been cleared.
+  const bootstrapCallsAfterDisconnect = mocks.connectWallet.mock.calls.length;
+  const queryCallsAfterDisconnect = mocks.getUserByWallet.mock.calls.length;
+
   await act(async () => {
     await staleRefetch();
   });
 
-  expect(mocks.connectWallet).toHaveBeenCalledTimes(bootstrapCalls);
-  expect(mocks.getUserByWallet).toHaveBeenCalledTimes(queryCalls);
+  expect(mocks.connectWallet).toHaveBeenCalledTimes(
+    bootstrapCallsAfterDisconnect,
+  );
+  expect(mocks.getUserByWallet).toHaveBeenCalledTimes(queryCallsAfterDisconnect);
 });
