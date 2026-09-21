@@ -82,6 +82,19 @@ jobs:
 
       - uses: ./.github/actions/setup-env-tooling
 
+      # Deliberately ahead of the gate, mirroring the verify step in
+      # deploy-fly.yml: an apply that cannot pass its own value validation must
+      # not have closed production render claims first. Without `--apply` the
+      # same run resolves the manifest and runs the classification audit,
+      # `validateProductionEnv` and the required-key check, then exits before
+      # writing to any store, so a rejected value fails the job while the gate
+      # is still `open`. Run 35562279148 fenced the gate in `recovery_required`
+      # for 1.5 h over a local-only host in CORS_ALLOWED_ORIGINS that never
+      # reached a single Fly secret.
+      - name: Validate podcast-pipeline environment before gate
+        if: matrix.target == 'podcast-pipeline' && github.event.inputs.dry_run != 'true'
+        run: pnpm env:sync --target podcast-pipeline
+
       - name: Drain podcast render fleet
         if: matrix.target == 'podcast-pipeline' && github.event.inputs.dry_run != 'true'
         id: podcast_drain

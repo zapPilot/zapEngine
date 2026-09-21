@@ -11,6 +11,7 @@ import { invalidateEpisodeSearchCache } from './episode-search.js';
 import { failedStepName } from './ingest/step.js';
 import {
   parsePodcastIngestJobRow,
+  PODCAST_INGEST_MAX_CONCURRENT_JOBS,
   PodcastIngestJobContractError,
   type PodcastIngestJobRow,
   type PodcastIngestJobStore,
@@ -26,8 +27,8 @@ import {
   type EpisodeVideoLifecycle,
   sendTelegramNotification,
   TELEGRAM_INFLIGHT_TEXT,
+  TELEGRAM_QUEUED_TEXT,
   TELEGRAM_RETRY_REPLY_MARKUP,
-  TELEGRAM_START_TEXT,
   type TelegramChatId,
 } from './telegram.js';
 import {
@@ -43,6 +44,12 @@ interface InflightTelegramIngest {
   latestChatId: TelegramChatId | null;
   promise: Promise<void>;
   durableJobId?: string;
+}
+
+interface PendingLocalIngest {
+  chatId: TelegramChatId;
+  url: string;
+  languageCode: LanguageClassroomLanguageCode;
 }
 
 interface TelegramIngestQueueOptions {
@@ -98,6 +105,7 @@ export function createTelegramIngestQueue(
   options: TelegramIngestQueueOptions = {},
 ): TelegramIngestQueue {
   const inflightIngests = new Map<string, InflightTelegramIngest>();
+  const localPendingIngests: PendingLocalIngest[] = [];
   const owner = randomUUID();
   const defaultJobStore =
     process.env['NODE_ENV'] === 'test' ? null : podcastIngestJobStore;
@@ -156,12 +164,6 @@ export function createTelegramIngestQueue(
     languageCode: LanguageClassroomLanguageCode,
   ): Promise<void> {
     const heartbeat = startHeartbeat(inflight.durableJobId);
-    if (inflight.latestChatId !== null) {
-      await sendTelegramNotification(
-        inflight.latestChatId,
-        TELEGRAM_START_TEXT,
-      );
-    }
 
     try {
       const { ingest: result, videoJob } =
@@ -237,6 +239,11 @@ export function createTelegramIngestQueue(
     } finally {
       if (inflightIngests.get(key) === inflight) {
         inflightIngests.delete(key);
+        if (jobStore) {
+          void recoverNow();
+        } else {
+          pumpLocalQueue();
+        }
       }
     }
   }
@@ -273,42 +280,71 @@ export function createTelegramIngestQueue(
     void clearWhenDone(key, inflight);
   }
 
-  async function persistClaimAndStart(
+  function pumpLocalQueue(): void {
+    while (
+      inflightIngests.size < PODCAST_INGEST_MAX_CONCURRENT_JOBS &&
+      localPendingIngests.length > 0
+    ) {
+      const pending = localPendingIngests.shift()!;
+      startLocalJob(pending.chatId, pending.url, pending.languageCode);
+    }
+  }
+
+  function enqueueLocalPending(
+    chatId: TelegramChatId,
+    url: string,
+    languageCode: LanguageClassroomLanguageCode,
+  ): void {
+    const key = queueKey(url, languageCode);
+    const active = inflightIngests.get(key);
+    if (active) {
+      active.latestChatId = chatId;
+      scheduleMessage(chatId, TELEGRAM_INFLIGHT_TEXT);
+      return;
+    }
+
+    const pending = localPendingIngests.find(
+      (job) => queueKey(job.url, job.languageCode) === key,
+    );
+    if (pending) {
+      pending.chatId = chatId;
+      scheduleMessage(chatId, TELEGRAM_INFLIGHT_TEXT);
+      return;
+    }
+
+    localPendingIngests.push({ chatId, url, languageCode });
+    scheduleMessage(chatId, TELEGRAM_QUEUED_TEXT);
+    pumpLocalQueue();
+  }
+
+  async function persistAndPump(
     chatId: TelegramChatId,
     url: string,
     languageCode: LanguageClassroomLanguageCode,
   ): Promise<void> {
     if (!jobStore) {
-      startLocalJob(chatId, url, languageCode);
+      enqueueLocalPending(chatId, url, languageCode);
       return;
     }
 
     try {
       const queued = await jobStore.enqueue({ chatId, url, languageCode });
-      const claimed = await jobStore.claim(
-        queued.id,
-        owner,
-        INGEST_LEASE_SECONDS,
+      scheduleMessage(
+        chatId,
+        queued.status === 'processing'
+          ? TELEGRAM_INFLIGHT_TEXT
+          : TELEGRAM_QUEUED_TEXT,
       );
-      if (!claimed) {
-        scheduleMessage(chatId, TELEGRAM_INFLIGHT_TEXT);
-        return;
-      }
-      startLocalJob(
-        claimed.telegram_chat_id ?? chatId,
-        claimed.source_url,
-        claimed.language_code,
-        claimed.id,
-      );
+      await recoverNow();
     } catch (error) {
-      // Persistence is a recovery aid, not a reason to reject a user request.
-      // If Supabase is briefly unavailable the existing resumable ingest path
-      // still works exactly as before; it simply loses automatic crash pickup.
+      // A temporary persistence outage must not fan out unbounded local work.
+      // Fall back to the same bounded local admission queue; crash recovery is
+      // the only property lost while Supabase is unavailable.
       console.error('[telegram-ingest-queue] durable enqueue failed', {
         url,
         error: errorMessage(error),
       });
-      startLocalJob(chatId, url, languageCode);
+      enqueueLocalPending(chatId, url, languageCode);
     }
   }
 
@@ -347,7 +383,7 @@ export function createTelegramIngestQueue(
     }
 
     process.nextTick(() => {
-      void persistClaimAndStart(chatId, url, languageCode);
+      void persistAndPump(chatId, url, languageCode);
     });
   }
 
@@ -387,8 +423,11 @@ export function createTelegramIngestQueue(
     if (!jobStore || recovering) return;
     recovering = true;
     try {
-      const job = await jobStore.claimNext(owner, INGEST_LEASE_SECONDS);
-      if (job) await startRecoveredJob(job);
+      while (inflightIngests.size < PODCAST_INGEST_MAX_CONCURRENT_JOBS) {
+        const job = await jobStore.claimNext(owner, INGEST_LEASE_SECONDS);
+        if (!job) break;
+        await startRecoveredJob(job);
+      }
     } catch (error) {
       if (error instanceof PodcastIngestJobContractError) {
         // The production store validates the RPC result before returning it,
