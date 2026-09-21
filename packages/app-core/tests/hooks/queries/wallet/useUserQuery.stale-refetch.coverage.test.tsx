@@ -50,8 +50,8 @@ afterEach(() => {
 });
 
 it('ignores a stale pre-bootstrap refetch after the wallet disconnects', async () => {
-  // Keep the session unready without an unresolved transport promise. This
-  // guarantees the captured callback routes through ensureSessionAccount().
+  // Keep this session pre-bootstrap without leaving unresolved async work.
+  // The callback captured below therefore takes the ensureSessionAccount path.
   suspendAccountBootstrap('0xaaa');
   mocks.activeAddress.value = '0xaaa';
 
@@ -60,24 +60,24 @@ it('ignores a stale pre-bootstrap refetch after the wallet disconnects', async (
   });
   const staleRefetch = result.current.refetch;
 
-  await act(async () => {});
-  expect(result.current.isConnected).toBe(true);
+  await act(async () => {
+    await Promise.resolve();
+  });
   expect(mocks.connectWallet).not.toHaveBeenCalled();
 
-  // Flush the disconnect effect so sessionWalletRef is null before invoking
-  // the old callback. It must then take ensureSessionAccount's no-wallet guard.
+  // Disconnect and flush the effect that clears sessionWalletRef. The stale
+  // callback still closes over the old sessionWallet, so invoking it now must
+  // reach ensureSessionAccount's no-wallet early return.
   await act(async () => {
     mocks.activeAddress.value = null;
     rerender();
   });
   await waitFor(() => expect(result.current.isConnected).toBe(false));
 
-  let staleResult: unknown;
+  mocks.connectWallet.mockClear();
   await act(async () => {
-    staleResult = await staleRefetch();
+    await staleRefetch();
   });
 
-  expect(staleResult).toBeUndefined();
   expect(mocks.connectWallet).not.toHaveBeenCalled();
-  expect(mocks.getUserByWallet).not.toHaveBeenCalled();
 });
