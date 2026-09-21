@@ -35,6 +35,7 @@ import {
   aggregateRenderLane,
   type EpisodeRenderQueueItem,
 } from './episode-queue.js';
+import { itemMatches } from './pipeline-queue-filter.js';
 
 const POLL_MS = 7_000;
 
@@ -560,21 +561,6 @@ function filterLane<T extends { title: string; episodeId?: string }>(
     attention: lane.attention.filter(matches),
     ...(lane.abandoned ? { abandoned: lane.abandoned.filter(matches) } : {}),
   };
-}
-
-export function itemMatches(
-  title: string,
-  episodeId: string | undefined,
-  rawQuery: string,
-): boolean {
-  const query = rawQuery.trim().toLocaleLowerCase();
-  if (!query) {
-    return true;
-  }
-  if (title.toLocaleLowerCase().includes(query)) {
-    return true;
-  }
-  return Boolean(episodeId?.toLocaleLowerCase().includes(query));
 }
 
 function kindLabel(kind: PipelineQueueItem['kind']): string {

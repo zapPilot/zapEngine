@@ -16,7 +16,8 @@ import type {
   PipelineQueueItem,
   PipelineQueuesResponse,
 } from '../../shared/pipeline-queues.js';
-import { itemMatches, PipelineQueuesBoard } from './PipelineQueuesBoard.js';
+import { PipelineQueuesBoard } from './PipelineQueuesBoard.js';
+import { itemMatches } from './pipeline-queue-filter.js';
 
 const EPISODE_ID = '11111111-1111-4111-8111-111111111111';
 const TIMER_HANDLE = 1 as unknown as ReturnType<typeof window.setInterval>;
