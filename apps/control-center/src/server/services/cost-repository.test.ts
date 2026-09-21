@@ -203,7 +203,7 @@ describe('createCostRepository', () => {
       status: 'ok',
       snapshot: { accruedCostUsd: 0.12 },
     });
-    expect(providers).toHaveLength(5);
+    expect(providers).toHaveLength(6);
     const firstQuery = client.queries.get('ops_cost_snapshots')?.[0];
     expect(firstQuery?.['order']).toHaveBeenNthCalledWith(1, 'snapshot_date', {
       ascending: false,
@@ -211,8 +211,8 @@ describe('createCostRepository', () => {
     expect(firstQuery?.['order']).toHaveBeenNthCalledWith(2, 'fetched_at', {
       ascending: false,
     });
-    expect(firstQuery?.['limit']).toHaveBeenCalledWith(100);
-    await expect(repository.loadLatestProviders(now)).resolves.toHaveLength(5);
+    expect(firstQuery?.['limit']).toHaveBeenCalledWith(120);
+    await expect(repository.loadLatestProviders(now)).resolves.toHaveLength(6);
   });
 
   it('propagates a current-provider read error', async () => {
@@ -269,6 +269,7 @@ describe('createCostRepository', () => {
       { provider: 'debank', accruedCostUsd: null },
       { provider: 'openrouter', accruedCostUsd: 0.12 },
       { provider: 'brave', accruedCostUsd: null },
+      { provider: 'cloudflare', accruedCostUsd: null },
       { provider: 'supabase', accruedCostUsd: null },
       { provider: 'fly', accruedCostUsd: null },
     ]);

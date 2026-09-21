@@ -6,8 +6,12 @@ import { fetchDeBankCostSnapshot } from './debank.js';
 import { createFixedMonthlyCostSnapshot } from './fixed.js';
 import { fetchOpenRouterCostSnapshot } from './openrouter.js';
 import {
+  CLOUDFLARE_R2_ROWS,
+  cloudflareRow,
+  cloudflareUsageResponse,
   createOpenRouterKeyFetcher,
   expectBraveSearchAuthCall,
+  fetchCloudflareUsageSnapshot,
 } from './test-helpers.js';
 
 function createDeBankFetcher(
@@ -273,6 +277,82 @@ describe('cost providers', () => {
     );
     await expect(failure).rejects.toBeInstanceOf(UsageNotMeasurableError);
   });
+
+  it('sums Cloudflare charge rows into an actual monthly snapshot', async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValue(cloudflareUsageResponse(CLOUDFLARE_R2_ROWS));
+
+    const snapshot = await fetchCloudflareUsageSnapshot(CLOUDFLARE_R2_ROWS, {
+      fetch: fetcher,
+    });
+
+    expect(snapshot).toMatchObject({
+      provider: 'cloudflare',
+      accruedCostUsd: 0.017001,
+      costType: 'actual',
+      source: 'api',
+      periodStart: '2026-09-01T00:00:00.000Z',
+    });
+    expect(snapshot.usage).toEqual([
+      {
+        key: 'charge_rows',
+        label: 'Billed charge rows',
+        unit: 'units',
+        value: 6,
+      },
+      {
+        key: 'list_cost_usd',
+        label: 'List price before discounts',
+        unit: 'usd',
+        value: 0.017001,
+      },
+      {
+        key: 'product_families',
+        label: 'Billed product families',
+        unit: 'units',
+        value: 1,
+      },
+      {
+        key: 'metric_r2_class_a_operations',
+        label: 'R2 Class A Operations (operations)',
+        unit: 'units',
+        value: 3_600,
+      },
+      {
+        key: 'metric_r2_standard_storage',
+        label: 'R2 Standard Storage (GB-hours)',
+        unit: 'units',
+        value: 39,
+      },
+    ]);
+    const [url, init] = fetcher.mock.calls[0] as [URL, RequestInit];
+    expect(url.href).toBe(
+      'https://api.cloudflare.com/client/v4/accounts/acct-1/billable/usage?from=2026-09-01&to=2026-09-04',
+    );
+    expect(init.headers).toEqual({
+      accept: 'application/json',
+      authorization: 'Bearer cf-token',
+    });
+  });
+
+  it.each([
+    [undefined, 320],
+    [9.2, 19.13],
+  ])(
+    'damps the Cloudflare projection with prior month %s',
+    async (priorMonthTotalUsd, expected) => {
+      const snapshot = await fetchCloudflareUsageSnapshot(
+        [cloudflareRow({ EffectiveCost: 2, ListCost: 2 })],
+        {
+          now: new Date('2026-09-01T04:30:00.000Z'),
+          priorMonthTotalUsd,
+        },
+      );
+
+      expect(snapshot.projectedCostUsd).toBeCloseTo(expected, 2);
+    },
+  );
 
   it('keeps DeBank USD cost unknown without a unit price, prior month or not', async () => {
     const fetcher = createDeBankFetcher([

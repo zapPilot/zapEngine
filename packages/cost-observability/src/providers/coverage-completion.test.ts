@@ -3,10 +3,13 @@ import { describe, expect, it, vi } from 'vitest';
 import * as costObservability from '../index.js';
 import {
   braveTestResponse,
+  cloudflareRow,
+  cloudflareUsageResponse,
   createOpenRouterKeyFetcher,
   expectBraveSearchAuthCall,
   expectFreshZeroCostSnapshot,
   fetchBraveQuotaSnapshot,
+  fetchCloudflareUsageSnapshot,
 } from './test-helpers.js';
 
 const NOW = new Date('2026-09-01T00:00:00.000Z');
@@ -87,6 +90,18 @@ describe('coverage completion', () => {
     });
     expectFreshZeroCostSnapshot(brave);
     expectBraveSearchAuthCall(braveFetcher, 'count=1', 'entry-key');
+
+    const cloudflare = await costObservability.fetchCloudflareCostSnapshot({
+      apiToken: 'entry-token',
+      accountId: 'entry-account',
+      fetch: vi
+        .fn()
+        .mockResolvedValue(cloudflareUsageResponse([cloudflareRow()])),
+      now: NOW,
+    });
+    expect(cloudflare.usage).toContainEqual(
+      expect.objectContaining({ key: 'charge_rows', value: 1 }),
+    );
   });
 
   it('executes every shared test-helper default and override', async () => {
@@ -103,5 +118,31 @@ describe('coverage completion', () => {
 
     const snapshot = await fetchBraveQuotaSnapshot(BRAVE_QUOTA_HEADERS, NOW);
     expectFreshZeroCostSnapshot(snapshot);
+
+    expect(cloudflareRow()).toMatchObject({
+      BillingCurrency: 'USD',
+      x_BillableMetricId: 'r2_storage_gb_hours',
+    });
+    const emptyUsage = cloudflareUsageResponse([]);
+    expect(emptyUsage.status).toBe(200);
+    expect(await emptyUsage.json()).toEqual({
+      success: true,
+      errors: [],
+      messages: [],
+      result: [],
+    });
+    const rejected = cloudflareUsageResponse([cloudflareRow()], {
+      status: 429,
+      success: false,
+      errors: [{ code: 10_000 }],
+    });
+    expect(rejected.status).toBe(429);
+    expect(await rejected.json()).toMatchObject({
+      success: false,
+      errors: [{ code: 10_000 }],
+      result: null,
+    });
+    const cloudflare = await fetchCloudflareUsageSnapshot([cloudflareRow()]);
+    expect(cloudflare.accruedCostUsd).toBe(0.000257);
   });
 });

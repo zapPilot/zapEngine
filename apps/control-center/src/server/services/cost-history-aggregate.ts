@@ -43,6 +43,7 @@ export const PROVIDER_LABELS: Record<CostProvider, string> = {
   debank: 'DeBank',
   openrouter: 'OpenRouter',
   brave: 'Brave Search',
+  cloudflare: 'Cloudflare',
   supabase: 'Supabase',
   fly: 'Fly.io',
 };
@@ -61,6 +62,16 @@ export const FLY_RUN_RATE_ONLY_MESSAGE =
 const METERED_UNPRICED_MESSAGE = 'Usage synced; USD cost unknown';
 
 /**
+ * Cloudflare's own bill is the only price this collector will publish, so a
+ * charge row that carries no cost field leaves the month genuinely unknown.
+ * There is no rate card to add — unlike the metered providers, the remedy is
+ * not ours — which is why it says something different from the metered
+ * message it sits next to.
+ */
+export const CLOUDFLARE_UNPRICED_MESSAGE =
+  'Usage synced; Cloudflare reported no cost figures';
+
+/**
  * Why a persisted row carries no accrued cost.
  *
  * Both cases are successful collections whose dollar figure is genuinely
@@ -74,6 +85,9 @@ export function describeSnapshot(row: SnapshotRow): string | null {
   }
   if (row.provider === 'fly' && row.source === 'api') {
     return FLY_RUN_RATE_ONLY_MESSAGE;
+  }
+  if (row.provider === 'cloudflare') {
+    return CLOUDFLARE_UNPRICED_MESSAGE;
   }
   return row.provider === 'debank' || row.provider === 'brave'
     ? METERED_UNPRICED_MESSAGE
@@ -156,6 +170,9 @@ function defaultCostType(provider: CostProvider): CostType {
   }
   if (provider === 'debank' || provider === 'brave') {
     return 'list-price-equivalent';
+  }
+  if (provider === 'cloudflare') {
+    return 'actual';
   }
   return 'estimated';
 }

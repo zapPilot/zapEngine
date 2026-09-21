@@ -131,7 +131,12 @@ export function createCostRepository(
         // it meets per provider, so the newest has to arrive first.
         .order('snapshot_date', { ascending: false })
         .order('fetched_at', { ascending: false })
-        .limit(100);
+        // 20 days x 6 providers. The window is in rows, not days, so a
+        // roster that grows without this shrinks how far back the newest
+        // row per provider can be found -- and a provider whose sync
+        // stalled silently degrades from "Last reading ..." to "No
+        // snapshot yet".
+        .limit(120);
       if (error) {
         throw error;
       }

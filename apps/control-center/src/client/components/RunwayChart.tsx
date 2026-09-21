@@ -39,11 +39,11 @@ const TOOLTIP_ID = 'runway-tooltip';
 const BAND_RIGHT = VIEW_WIDTH;
 
 /**
- * Six lines is what stays scannable while the pointer is moving. Four
- * providers is the whole roster today, so this only ever bites if the roster
- * grows — at which point the overflow collapses into one residual line rather
- * than vanishing, because a breakdown that no longer adds up to the header is
- * the same silent omission this chart exists to end.
+ * Six lines is what stays scannable while the pointer is moving. Six
+ * providers is the whole roster today, so the seventh is what starts the
+ * residual line — the overflow collapses into one rather than vanishing,
+ * because a breakdown that no longer adds up to the header is the same silent
+ * omission this chart exists to end.
  */
 const MAX_TOOLTIP_LINES = 6;
 
