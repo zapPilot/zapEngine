@@ -25,7 +25,12 @@ const CONFIDENCE_TONE: Record<string, Tone> = {
   medium: 'warning',
 };
 
-export const CURRENT_RELEASE_SLOTS_JST = ['09:30', '12:00', '16:00'] as const;
+export const CURRENT_RELEASE_SLOTS_JST = [
+  '09:30',
+  '12:00',
+  '16:00',
+  '21:00',
+] as const;
 
 export function GrowthPage(props: {
   acquisition: OperationsGrowthResponse | null;
@@ -161,7 +166,7 @@ function PublishingCadence() {
           style={{
             display: 'grid',
             gap: '8px',
-            gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+            gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
           }}
         >
           {CURRENT_RELEASE_SLOTS_JST.map((slot) => (
@@ -178,7 +183,7 @@ function PublishingCadence() {
             </strong>
           ))}
         </div>
-        <small>JST · 3 article slots per day</small>
+        <small>JST · 4 article slots per day</small>
       </div>
       <div className="brief-direction">
         <span>Publishing contract</span>
