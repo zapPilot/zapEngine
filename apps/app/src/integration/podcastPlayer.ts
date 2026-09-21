@@ -87,7 +87,9 @@ export function usePodcastPlayer(): PodcastPlayer {
   const pendingHandoffRef = useRef<PendingPodcastPlaybackHandoff | null>(null);
   const handoffIdRef = useRef(0);
   const seekingHandoffIdRef = useRef<number | null>(null);
-  const appliedHandoffIdRef = useRef<number | null>(null);
+  // UI-only clock fence: masks public currentTime/duration until the status
+  // hook confirms the new source clock. Never blocks audioPlayer.play().
+  const clockFenceRef = useRef<{ id: number; seconds: number } | null>(null);
   const [handoffRevision, setHandoffRevision] = useState(0);
   const [hasPendingHandoff, setHasPendingHandoff] = useState(false);
   const finishGateRef = useRef(createPodcastFinishGate());
@@ -182,12 +184,13 @@ export function usePodcastPlayer(): PodcastPlayer {
       const handoffId = handoffIdRef.current + 1;
       handoffIdRef.current = handoffId;
       seekingHandoffIdRef.current = null;
-      appliedHandoffIdRef.current = null;
+      const fencedSeconds = finiteSeconds(seconds);
       pendingHandoffRef.current = {
         id: handoffId,
-        seconds: finiteSeconds(seconds),
+        seconds: fencedSeconds,
         shouldPlay,
       };
+      clockFenceRef.current = { id: handoffId, seconds: fencedSeconds };
       setHasPendingHandoff(true);
       setHandoffRevision((current) => current + 1);
     },
@@ -314,37 +317,38 @@ export function usePodcastPlayer(): PodcastPlayer {
     return () => subscription.remove();
   }, [audioPlayer]);
 
+  // Settles the playback gate with the LATEST user intent (re-read from the
+  // ref so a pause/toggle that landed mid-seek wins over the stale closure).
+  // The clock fence intentionally stays up; it only masks the UI clock.
+  const settlePlaybackHandoff = useCallback(
+    (handoff: PendingPodcastPlaybackHandoff, seekError?: unknown) => {
+      if (handoffIdRef.current !== handoff.id) return;
+      const latest = pendingHandoffRef.current;
+      if (latest === null || latest.id !== handoff.id) return;
+      if (seekError !== undefined) {
+        console.warn('[podcastPlayer] handoff seek failed', seekError);
+      }
+      pendingHandoffRef.current = null;
+      seekingHandoffIdRef.current = null;
+      if (latest.shouldPlay) {
+        audioPlayer.play();
+      } else {
+        audioPlayer.pause();
+      }
+    },
+    [audioPlayer],
+  );
+
+  // Playback handoff (the only gate allowed to drive audio output):
+  // replace -> loaded -> seekTo(target) -> on resolve, honor the LATEST user
+  // intent and finish. The public clock fence stays up independently; audio
+  // must never wait for useAudioPlayerStatus precision while paused.
   useEffect(() => {
     const handoff = pendingHandoffRef.current;
     if (handoff === null) return;
 
     const currentStatus = audioPlayer.currentStatus;
     const duration = finiteSeconds(currentStatus.duration);
-    const target = clampPodcastPlaybackSeconds(handoff.seconds, duration);
-
-    if (appliedHandoffIdRef.current === handoff.id) {
-      const observedDuration = finiteSeconds(status.duration);
-      const observedPosition = finiteSeconds(status.currentTime);
-      const statusCaughtUp =
-        status.isLoaded &&
-        currentStatus.isLoaded &&
-        duration > 0 &&
-        Math.abs(observedDuration - duration) < 0.5 &&
-        Math.abs(observedPosition - target) <= 0.25;
-      if (statusCaughtUp) {
-        pendingHandoffRef.current = null;
-        seekingHandoffIdRef.current = null;
-        appliedHandoffIdRef.current = null;
-        setHasPendingHandoff(false);
-        if (handoff.shouldPlay) {
-          audioPlayer.play();
-        } else {
-          audioPlayer.pause();
-        }
-      }
-      return;
-    }
-
     if (
       seekingHandoffIdRef.current === handoff.id ||
       !currentStatus.isLoaded ||
@@ -353,26 +357,55 @@ export function usePodcastPlayer(): PodcastPlayer {
       return;
     }
 
+    const target = clampPodcastPlaybackSeconds(handoff.seconds, duration);
     seekingHandoffIdRef.current = handoff.id;
     void audioPlayer
       .seekTo(target)
       .then(() => {
-        if (handoffIdRef.current !== handoff.id) return;
-        seekingHandoffIdRef.current = null;
-        appliedHandoffIdRef.current = handoff.id;
-        audioPlayer.pause();
-        // Keep the public clock masked and playback paused until
-        // useAudioPlayerStatus catches up with the replacement source.
-        setHandoffRevision((current) => current + 1);
+        settlePlaybackHandoff(handoff);
       })
-      .catch(() => {
-        if (handoffIdRef.current !== handoff.id) return;
-        seekingHandoffIdRef.current = null;
-        audioPlayer.pause();
+      .catch((error: unknown) => {
+        settlePlaybackHandoff(handoff, error);
       });
   }, [
     audioPlayer,
     handoffRevision,
+    settlePlaybackHandoff,
+    status.currentTime,
+    status.duration,
+    status.isLoaded,
+  ]);
+
+  // Clock fence (UI/data correctness only): keep the public clock at 0/0 until
+  // the status hook confirms the replacement source clock. Releasing late only
+  // leaves the UI at 0:00 briefly; it must never stall audio.
+  useEffect(() => {
+    if (!hasPendingHandoff) return;
+    const fence = clockFenceRef.current;
+    if (fence === null) {
+      setHasPendingHandoff(false);
+      return;
+    }
+
+    const currentStatus = audioPlayer.currentStatus;
+    const duration = finiteSeconds(currentStatus.duration);
+    const target = clampPodcastPlaybackSeconds(fence.seconds, duration);
+    const observedDuration = finiteSeconds(status.duration);
+    const observedPosition = finiteSeconds(status.currentTime);
+    const statusCaughtUp =
+      status.isLoaded &&
+      currentStatus.isLoaded &&
+      duration > 0 &&
+      Math.abs(observedDuration - duration) < 0.5 &&
+      Math.abs(observedPosition - target) <= 0.25;
+    if (statusCaughtUp) {
+      clockFenceRef.current = null;
+      setHasPendingHandoff(false);
+    }
+  }, [
+    audioPlayer,
+    handoffRevision,
+    hasPendingHandoff,
     status.currentTime,
     status.duration,
     status.isLoaded,
@@ -383,7 +416,7 @@ export function usePodcastPlayer(): PodcastPlayer {
       handoffIdRef.current += 1;
       pendingHandoffRef.current = null;
       seekingHandoffIdRef.current = null;
-      appliedHandoffIdRef.current = null;
+      clockFenceRef.current = null;
     },
     [],
   );
@@ -437,6 +470,21 @@ export function usePodcastPlayer(): PodcastPlayer {
         return;
       }
 
+      // Playback already handed off but the UI clock is still fenced: update
+      // the fence target and seek directly. Do not re-enter the playback gate
+      // and do not pause; the fence releases when the hook catches up.
+      const fence = clockFenceRef.current;
+      if (fence !== null) {
+        const nextSeconds = finiteSeconds(seconds);
+        clockFenceRef.current = { ...fence, seconds: nextSeconds };
+        const fenceDuration = finiteSeconds(audioPlayer.currentStatus.duration);
+        void audioPlayer.seekTo(
+          clampPodcastPlaybackSeconds(nextSeconds, fenceDuration),
+        );
+        setHandoffRevision((current) => current + 1);
+        return;
+      }
+
       const duration = finiteSeconds(status.duration);
       const target =
         duration > 0 ? Math.min(Math.max(0, seconds), duration) : 0;
@@ -447,8 +495,11 @@ export function usePodcastPlayer(): PodcastPlayer {
 
   const seekRelative = useCallback(
     (deltaSeconds: number) => {
-      const pendingPosition = pendingHandoffRef.current?.seconds;
-      seek(finiteSeconds(pendingPosition ?? status.currentTime) + deltaSeconds);
+      const pendingPosition =
+        pendingHandoffRef.current?.seconds ??
+        clockFenceRef.current?.seconds ??
+        status.currentTime;
+      seek(finiteSeconds(pendingPosition) + deltaSeconds);
     },
     [seek, status.currentTime],
   );
@@ -483,8 +534,9 @@ export function usePodcastPlayer(): PodcastPlayer {
   // jscpd:ignore-start — platform snapshots implement the same public contract
   return useMemo(() => {
     // A source replacement is not allowed to expose the previous source's
-    // clock. Keep the public clock at zero until the queued seek for the new
-    // source succeeds and the status hook catches up. This pure helper only
+    // clock. Keep the public clock at zero until the status hook confirms the
+    // new source clock. This fence is UI-only and never gates audio playback.
+    // This pure helper only
     // stores callbacks; it cannot invoke a ref-reading playback action here.
     // eslint-disable-next-line react-hooks/refs
     return createPodcastPlayerSnapshot({

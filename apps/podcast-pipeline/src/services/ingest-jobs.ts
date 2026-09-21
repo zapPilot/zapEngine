@@ -7,7 +7,7 @@ import { getPipelineSupabase } from './supabase-client.js';
 import { expectNoError, maybeOne } from './supabase-rows.js';
 import type { TelegramChatId } from './telegram.js';
 
-export const PODCAST_INGEST_MAX_CONCURRENT_JOBS = 5;
+export const PODCAST_INGEST_MAX_CONCURRENT_JOBS = 4;
 
 export type PodcastIngestJobStatus =
   | 'queued'
