@@ -10,7 +10,13 @@ import type {
   OperationsResponse,
   PodcastCostResponse,
 } from '../../shared/types.js';
-import { podcastEpisodeCostFixture } from '../__fixtures__/dashboard.js';
+import {
+  costProviderFixture,
+  costSnapshotFixture,
+  flyRunRateProviderFixture,
+  overviewFixture,
+  podcastEpisodeCostFixture,
+} from '../__fixtures__/dashboard.js';
 import { ReliabilityPage } from './ReliabilityPage.js';
 
 afterEach(cleanup);
@@ -129,6 +135,36 @@ describe('Reliability combines operational risk and cost', () => {
 });
 
 describe('Reliability cost reading', () => {
+  const providerOverview = overviewFixture({
+    providers: [
+      costProviderFixture({
+        provider: 'openrouter',
+        label: 'OpenRouter',
+        snapshot: costSnapshotFixture({
+          provider: 'openrouter',
+          accruedCostUsd: 12,
+        }),
+      }),
+      costProviderFixture({
+        provider: 'cloudflare',
+        label: 'Cloudflare',
+        snapshot: costSnapshotFixture({
+          provider: 'cloudflare',
+          accruedCostUsd: 5,
+        }),
+      }),
+      costProviderFixture({
+        provider: 'supabase',
+        label: 'Supabase',
+        snapshot: costSnapshotFixture({
+          provider: 'supabase',
+          accruedCostUsd: 3,
+        }),
+      }),
+      flyRunRateProviderFixture(),
+    ],
+  });
+
   it('shows today spend as the delta from month-to-date accrual', () => {
     renderPage();
     expect(screen.getByText('Spend today')).toBeVisible();
@@ -165,6 +201,47 @@ describe('Reliability cost reading', () => {
       },
     });
     expect(screen.getByText(/execution_id does not exist/)).toBeVisible();
+  });
+
+  it('shows the canonical provider roster with month-to-date accrued cost', () => {
+    renderPage({ overview: providerOverview });
+
+    expect(screen.getByText('Cost by service · month to date')).toBeVisible();
+    for (const [label, amount] of [
+      ['OpenRouter', '$12.00'],
+      ['Cloudflare', '$5.00'],
+      ['Supabase', '$3.00'],
+    ] as const) {
+      const row = screen.getByText(label).closest('.cc-bar-row');
+      expect(row).toHaveTextContent(amount);
+    }
+
+    const fly = screen.getByText('Fly.io').closest('.cc-bar-row');
+    expect(fly).toHaveTextContent('—');
+    expect(fly).not.toHaveTextContent('$0.00');
+    expect(fly).toHaveTextContent(/run-rate/i);
+  });
+
+  it('orders known costs descending and keeps unknown providers last', () => {
+    const { container } = renderPage({ overview: providerOverview });
+
+    const labels = Array.from(
+      container.querySelectorAll(
+        '.rel-cost-breakdown .cc-bar-label > .rel-cost-provider-label > span',
+      ),
+    ).map((element) => element.textContent);
+    expect(labels).toEqual(['OpenRouter', 'Cloudflare', 'Supabase', 'Fly.io']);
+  });
+
+  it('does not depend on the latest history point to include a provider', () => {
+    renderPage({ overview: providerOverview });
+
+    expect(
+      costHistory.currentMonthDaily
+        .at(-1)
+        ?.providers.some((provider) => provider.provider === 'cloudflare'),
+    ).toBe(false);
+    expect(screen.getByText('Cloudflare')).toBeVisible();
   });
 });
 
