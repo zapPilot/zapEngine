@@ -251,6 +251,7 @@ Control Center reads this ledger through `GET /api/costs/podcast` and presents e
 - OpenRouter: `usage_monthly` from `GET /api/v1/key`, stored as `actual` usage cost. `OPENROUTER_MANAGEMENT_KEY` takes precedence over the completion key. For the first seven days of a month its month-end projection blends the current month's pace with the previous month's daily rate, weighted further toward the current month each day and identical to plain linear extrapolation from day seven onward. A month that has barely started is a weak sample: extrapolating the 9.5 hours of traffic on the 1st turned a real `$0.13` month-to-date into a `$9.67` projection, while last month's rate is a serviceable prior until the current one has enough days to speak for itself.
 - DeBank: balance and daily units from `GET /v1/account/units`. The list price is resolved from versioned `ops.cost_rates`; the initial rate is `$200 / 1,000,000 units = $0.0002 / unit`. There is no env price override. Its projection uses the same early-month blend, for the same reason.
 - Brave Search: every sync performs one successful Images Search request because Brave has no separate usage endpoint; that probe is itself billable and counted against the quota. The collector selects the longest advertised rate-limit window, rejects responses that expose only a sub-day window, and prices `limit - remaining` using the versioned `search_request` rate (`$5 / 1,000 requests`). It records gross list-price-equivalent cost and separately displays the hard-coded `$5` monthly promotional credit and estimated post-credit bill. Brave's documented long window is a rolling 30-day window rather than a calendar-month counter, so the stored accrued value and month-end projection are operational estimates: a mid-month quota reset can make both understate calendar-month activity until request deltas are accumulated independently.
+- Cloudflare: month-to-date charge rows from `GET /accounts/{account_id}/billable/usage`, authenticated with an account-scoped **Billing Read** token (`CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID`). The accrued figure is the sum of the current period's rows at `EffectiveCost -> ContractedCost -> ListCost`, stored as `actual`: it is what Cloudflare says it charged, so there is no `ops.cost_rates` row and no way for our rate card to drift from theirs. R2's published rates are deliberately not re-derived here -- storage is billed on a daily-peak GB-month average, free tiers come off first and units round up, so a figure computed from bytes would be plausible and wrong. `usage` carries `list_cost_usd` (undiscounted list price, omitted when any row lacks it), `charge_rows`, `product_families` and one item per billable metric, so an account that enables a second Cloudflare product shows it without a code change. Rows that carry no cost field at all leave accrued and projected `null` with the usage still recorded, reported as "Usage synced; Cloudflare reported no cost figures". Billing data lags, so an early-month read is real but incomplete and the projection is damped by the previous month the same way OpenRouter's is. A non-USD billing currency fails the sync rather than being summed into a dollar total.
 - Supabase: the versioned `pro_plan` rate currently seeds `$25/month`. It is a `fixed` committed monthly cost, so accrued and projected are both `$25` rather than a time-linear estimate. In the UI, accrued therefore means fixed monthly commitments plus variable usage accrued so far; it is not a day-by-day prorated cash charge.
 - Fly.io: Fly publishes no billing API. `FLY_COST_MODE=flyctl` therefore remains usage evidence rather than spend: it persists a compute run-rate under the `compute_run_rate_monthly` usage key alongside the Machine census, and leaves accrued and projected empty. A signed-in local `pnpm ops` session separately runs the Fly billing reader, which reads the billed month-to-date figure from the dashboard and persists it as a recorded bill (`source = 'scraped'`). `pnpm ops:cost snapshot fly <usd>` remains the manual fallback and writes the same kind of billed reading with `source = 'manual'`. The run-rate is what every Machine currently in state `started` would cost at list price if it ran for the whole month, which is a saturation ceiling and not a forecast — Fly bills per second, the collector only ever sees one instant, the podcast render group is on-demand and up for minutes at a time, and a stopped Machine pays only rootfs at `$0.15/GB/month`. One performance-2x that happened to be rendering at 04:30 UTC was accordingly priced at a full month (`2 × $32.19`) and produced a `$67.70` projection against a real bill of about `$14`. The run-rate is equally blind to historical runtime, bandwidth, dedicated IPs, certificates, reservations, and other invoice adjustments, so actual cash spend still belongs in `cost_transactions`.
 
@@ -343,11 +344,26 @@ pnpm ops:cost transaction debank top_up 200 "1M API units"
 ```
 
 GitHub Actions is the sole recurring owner of `pnpm ops:sync` and runs it daily
-at 04:30 UTC through `.github/workflows/ops-cost-sync.yml`. It requires these
-repository secrets: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`,
-`DEBANK_API_KEY`, `OPENROUTER_MANAGEMENT_KEY`, and `FLY_API_TOKEN`. The Fly token
-must allow the CLI to inspect the deployed Zap Engine apps. The dashboard scraper
-is a separate local reader owned by `pnpm ops`, not a GitHub Actions cost source.
+at 04:30 UTC through `.github/workflows/ops-cost-sync.yml`, as
+`node scripts/env/run.mjs --environment prod -- pnpm ops:sync`.
+
+Provider credentials are not repository secrets. They arrive through the
+Infisical prod rail, and only `FLY_API_TOKEN` and the three `INFISICAL_*` values
+are configured as repository secrets -- an unset `secrets.*` mapping is an empty
+string that would override an injected value rather than fall back to it. The
+Infisical `prod` keys this job needs are `SUPABASE_URL`,
+`SUPABASE_SERVICE_ROLE_KEY`, `DEBANK_API_KEY`, `OPENROUTER_MANAGEMENT_KEY`,
+`BRAVE_SEARCH_API_KEY`, `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
+
+Every one of those must also be listed in `apps/control-center/turbo.json` under
+`ops:sync.env`: turbo runs in strict env mode, so a key that is present in
+Infisical but missing there is stripped before the process starts and the
+provider reports itself unconfigured. `checkCostSyncCredentials` refuses to sync
+in that case rather than persisting a shorter list and exiting 0.
+
+The Fly token must allow the CLI to inspect the deployed Zap Engine apps. The
+dashboard scraper is a separate local reader owned by `pnpm ops`, not a GitHub
+Actions cost source.
 
 For recovery, inspect the failed workflow step and provider summary, correct
 the affected credential or provider outage, then use **Run workflow**. Confirm
