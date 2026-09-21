@@ -96,7 +96,7 @@ lanes first, then may release **at most one** article cohort before exiting.
 
 For that one invocation only:
 
-- the 09:00–18:00 JST watch window is ignored;
+- the 09:00–23:00 JST watch window is ignored;
 - missed-slot alignment/rescheduling is skipped, so an overdue cohort remains
   claimable at its original timestamp;
 - a partial cohort still fences every fresh article, including while its
