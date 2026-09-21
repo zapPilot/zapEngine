@@ -16,7 +16,7 @@
  * - useAllocationTimeseries
  */
 
-import { CACHE_WINDOW } from '@core/config/cacheWindow';
+import { createQueryConfig } from '@core/hooks/queries/queryDefaults';
 import { queryKeys } from '@core/lib/state/queryClient';
 import {
   type DashboardWindowParams,
@@ -40,9 +40,11 @@ interface DashboardQueryOptions {
  * Unified portfolio dashboard hook with React Query
  *
  * Fetches all dashboard analytics in a single optimized API call with:
- * - 12-hour server-side cache (matches backend cache)
+ * - Server-side cache keyed on the canonical snapshot
  * - Shared ETL stale time and garbage collection window
- * - Automatic refetch on window focus
+ * - No automatic refetching: the hourly landing poll notices a finished ETL
+ *   and invalidates this query, so focus/reconnect refetches would only add
+ *   duplicate traffic for data that has not moved
  * - Graceful degradation for partial failures
  *
  * @param userId - User identifier (required)
@@ -91,17 +93,16 @@ export function usePortfolioDashboard(
 ): UseQueryResult<UnifiedDashboardResponse> & {
   dashboard: UnifiedDashboardResponse | undefined;
 } {
-  const queryResult = useQuery({
+  // Explicit TError: the shared retry predicate takes `unknown`, which would
+  // otherwise widen this hook's published error type.
+  const queryResult = useQuery<UnifiedDashboardResponse, Error>({
+    ...createQueryConfig(),
     queryKey: queryKeys.portfolioDashboard.detail(userId, params),
     queryFn: () =>
       // Safe: enabled condition ensures userId is non-null
       getPortfolioDashboard(userId!, params),
     enabled: !!userId,
-    // Cache configuration with overrides
-    staleTime: options.staleTime ?? CACHE_WINDOW.staleTimeMs,
-    gcTime: CACHE_WINDOW.gcTimeMs,
-    refetchOnWindowFocus: true,
-    refetchOnReconnect: true,
+    ...(options.staleTime !== undefined && { staleTime: options.staleTime }),
     ...(options.refetchOnMount !== undefined && {
       refetchOnMount: options.refetchOnMount,
     }),

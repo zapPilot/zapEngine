@@ -10,6 +10,23 @@ vi.mock('@core/services/analyticsService', () => ({
   getDailyYieldReturns: mocks.getDailyYieldReturns,
 }));
 
+// Keep the real timings, drop the real retry: the guard test below forces a
+// rejected refetch, and two backoff waits would sit on vitest's timeout.
+vi.mock('@core/hooks/queries/queryDefaults', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@core/hooks/queries/queryDefaults')>();
+  return {
+    ...actual,
+    createQueryConfig: (
+      options?: Parameters<typeof actual.createQueryConfig>[0],
+    ) => ({
+      ...actual.createQueryConfig(options),
+      retry: false,
+    }),
+  };
+});
+
+import { CACHE_WINDOW } from '@core/config/cacheWindow';
 import { useDailyYieldReturns } from '@core/hooks/queries/analytics/useDailyYieldReturns';
 import { queryKeys } from '@core/lib/state/queryClient';
 
@@ -42,6 +59,16 @@ describe('useDailyYieldReturns', () => {
     expect(
       client.getQueryData(queryKeys.dailyYield.list('user-123', 365, null)),
     ).toEqual({ daily_returns: [] });
+    // Timing is the shared ETL profile, not a hook-local constant.
+    expect(
+      client
+        .getQueryCache()
+        .find({ queryKey: queryKeys.dailyYield.list('user-123', 365, null) })
+        ?.options,
+    ).toMatchObject({
+      staleTime: CACHE_WINDOW.staleTimeMs,
+      gcTime: CACHE_WINDOW.gcTimeMs,
+    });
   });
 
   it('forwards a wallet filter to the service', async () => {

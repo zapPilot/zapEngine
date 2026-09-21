@@ -12,7 +12,11 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from src.core.cache_service import analytics_cache, build_service_cache_key
+from src.core.cache_service import (
+    SINGLE_FLIGHT_WAIT_SECONDS,
+    analytics_cache,
+    build_service_cache_key,
+)
 from src.core.config import settings
 from src.core.constants import CACHE_TTL_BUNDLE_HOURS, CACHE_TTL_WALLET_HOURS
 from src.core.utils import row_to_dict
@@ -203,6 +207,8 @@ class BaseAnalyticsService(CacheKeyMixin):
         cache_key: str,
         fetcher: Callable[[], CacheT],
         ttl_hours: float | None = None,
+        *,
+        wait_timeout: float = SINGLE_FLIGHT_WAIT_SECONDS,
     ) -> CacheT:
         """
         Execute operation with caching and single-flight de-duplication.
@@ -214,6 +220,10 @@ class BaseAnalyticsService(CacheKeyMixin):
             cache_key: Unique cache key (use ``_cache_key`` for namespaced keys)
             fetcher: Callable that computes the result (only called on cache miss)
             ttl_hours: Optional TTL in hours (uses default 12 hours if None)
+            wait_timeout: Seconds a follower waits for the leader before
+                computing for itself. Raise it above the default for fetchers
+                that legitimately run longer than one minute, otherwise the
+                follower duplicates the very query this cache exists to avoid.
 
         Returns:
             Cached or freshly computed result
@@ -225,7 +235,7 @@ class BaseAnalyticsService(CacheKeyMixin):
             >>> return self._with_cache(cache_key, compute_trends)
         """
         return analytics_cache.get_or_compute(
-            cache_key, fetcher, self._cache_ttl(ttl_hours)
+            cache_key, fetcher, self._cache_ttl(ttl_hours), wait_timeout=wait_timeout
         )
 
     async def _with_async_cache(
@@ -237,7 +247,10 @@ class BaseAnalyticsService(CacheKeyMixin):
         """Async variant of ``_with_cache`` for coroutine-based fetchers.
 
         Single-flight collapsing is thread-based and cannot span awaits, so this
-        path keeps the plain look-up / compute / store sequence.
+        path keeps the plain look-up / compute / store sequence. Concurrent
+        misses on the same key therefore duplicate the in-memory assembly only:
+        the expensive I/O underneath sits behind ``_with_cache``, which does
+        collapse.
         """
         if not settings.analytics_cache_enabled:
             return await fetcher()

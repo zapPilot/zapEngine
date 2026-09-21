@@ -27,23 +27,19 @@ class TestServiceCoverageGaps:
                 canonical_snapshot_service=None,
             )
 
-        # Test default borrowing_service creation
-        # We need to mock the import or ensure BorrowingService can be instantiated
-        # Easier to just pass everything else and let it try to instantiate.
-        # But instantiating BorrowingRiskService might need dependencies.
-        # It needs db, query_service, canonical_snapshot_service.
-        # We provide those.
-
-        svc = LandingPageService(
-            db=db,
-            wallet_service=wallet_service,
-            query_service=query_service,
-            portfolio_snapshot_service=MagicMock(),
-            pool_performance_service=MagicMock(),
-            canonical_snapshot_service=MagicMock(),
-            borrowing_service=None,  # Should trigger default creation
-        )
-        assert svc.borrowing_service is not None
+        # The borrowing service is injected like every other collaborator; a
+        # self-built one would resolve its own snapshot and defeat the shared
+        # per-snapshot cache the landing bundle relies on.
+        with pytest.raises(ValueError, match="Borrowing service is required"):
+            LandingPageService(
+                db=db,
+                wallet_service=wallet_service,
+                query_service=query_service,
+                portfolio_snapshot_service=MagicMock(),
+                pool_performance_service=MagicMock(),
+                canonical_snapshot_service=MagicMock(),
+                borrowing_service=None,
+            )
 
     def test_landing_page_cross_service_consistency(self):
         """Test _validate_cross_service_consistency error (lines 402+)."""

@@ -50,9 +50,12 @@ class DatabaseManager:
             cli_options.append(
                 f"-c statement_timeout={settings.db_statement_timeout_ms}"
             )
+        # Yield windows are sliced on midnight-UTC boundaries while snapshots are
+        # bucketed per day by the session's time zone; pinning it keeps the two
+        # definitions of "a day" identical whatever the server default is.
+        cli_options.append("-c TimeZone=UTC")
 
-        if cli_options:
-            connect_args["options"] = " ".join(cli_options)
+        connect_args["options"] = " ".join(cli_options)
 
         # Create validated connection pool configuration from settings
         pool_config = ConnectionPoolConfig(

@@ -16,7 +16,7 @@ from uuid import uuid4
 
 import pytest
 
-from src.core.cache_service import analytics_cache
+from src.core.cache_service import SINGLE_FLIGHT_WAIT_SECONDS, analytics_cache
 from src.core.config import settings
 from src.services.shared.base_analytics_service import BaseAnalyticsService
 
@@ -78,6 +78,25 @@ def test_with_cache_exception_fallback(analytics_service: BaseAnalyticsService):
         result = analytics_service._with_cache("test_key", lambda: {"data": "computed"})
 
     assert result == {"data": "computed"}
+
+
+def test_with_cache_forwards_the_single_flight_wait(
+    analytics_service: BaseAnalyticsService,
+):
+    """Fetchers slower than the default wait need to raise their own timeout."""
+    with patch.object(
+        analytics_cache, "get_or_compute", return_value={"data": "computed"}
+    ) as get_or_compute:
+        analytics_service._with_cache("default_key", lambda: {"data": "computed"})
+        analytics_service._with_cache(
+            "slow_key", lambda: {"data": "computed"}, wait_timeout=125.0
+        )
+
+    assert (
+        get_or_compute.call_args_list[0].kwargs["wait_timeout"]
+        == SINGLE_FLIGHT_WAIT_SECONDS
+    )
+    assert get_or_compute.call_args_list[1].kwargs["wait_timeout"] == 125.0
 
 
 def test_with_cache_ttl_override_expires_entry(analytics_service: BaseAnalyticsService):
