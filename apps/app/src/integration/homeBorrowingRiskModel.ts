@@ -1,4 +1,4 @@
-import type { BorrowingPositionsResponse } from '@zapengine/app-core/services';
+import type { BorrowingPositionsResponse } from '@zapengine/app-core/services/analyticsService';
 
 export interface HomeBorrowingRiskPosition {
   protocol: string;

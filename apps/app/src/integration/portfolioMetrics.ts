@@ -1,7 +1,7 @@
 import type {
   DailyYieldReturnsResponse,
   LandingPageResponse,
-} from '@zapengine/app-core/services';
+} from '@zapengine/app-core/services/analyticsService';
 import { isFiniteNumber } from '@zapengine/types/shared';
 
 /**

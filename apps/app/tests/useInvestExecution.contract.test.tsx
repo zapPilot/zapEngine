@@ -50,7 +50,7 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('@zapengine/app-core/hooks/queries', () => ({
+vi.mock('@zapengine/app-core/lib/state/queryClient', () => ({
   queryKeys: { desktop: { all: ['desktop'] } },
 }));
 

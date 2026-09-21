@@ -19,8 +19,8 @@
  * so the component is pulled in dynamically inside `renderHomeScreen`.
  */
 
-import type { EtlJobPollingState } from '@zapengine/app-core/hooks/wallet';
-import type { DailyYieldReturnsResponse } from '@zapengine/app-core/services';
+import type { EtlJobPollingState } from '@zapengine/app-core/hooks/wallet/useEtlJobPolling';
+import type { DailyYieldReturnsResponse } from '@zapengine/app-core/services/analyticsService';
 import type { DailySuggestionResponse } from '@zapengine/app-core/types/strategy';
 import { act, useEffect, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';

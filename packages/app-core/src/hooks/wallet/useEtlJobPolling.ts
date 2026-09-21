@@ -17,7 +17,7 @@ import {
   type EtlJobStatus,
   getEtlJobStatus,
   triggerWalletDataFetch,
-} from '@core/services';
+} from '@core/services/accountService';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 

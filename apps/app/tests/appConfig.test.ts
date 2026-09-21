@@ -147,16 +147,29 @@ describe('App Store submission config', () => {
     expect(appConfig.ios?.config?.usesNonExemptEncryption).toBe(false);
   });
 
-  it('declares collected email data to match the Privy auth flow', () => {
+  it('declares the linked account and financial data used by iOS read-only portfolio', () => {
     const collectedTypes =
       appConfig.ios?.privacyManifests?.NSPrivacyCollectedDataTypes ?? [];
-    expect(collectedTypes).toContainEqual({
-      NSPrivacyCollectedDataType: 'NSPrivacyCollectedDataTypeEmailAddress',
+    const appFunctionality = {
       NSPrivacyCollectedDataTypeLinked: true,
       NSPrivacyCollectedDataTypeTracking: false,
       NSPrivacyCollectedDataTypePurposes: [
         'NSPrivacyCollectedDataTypePurposeAppFunctionality',
       ],
+    };
+
+    expect(collectedTypes).toContainEqual({
+      NSPrivacyCollectedDataType: 'NSPrivacyCollectedDataTypeEmailAddress',
+      ...appFunctionality,
+    });
+    expect(collectedTypes).toContainEqual({
+      NSPrivacyCollectedDataType: 'NSPrivacyCollectedDataTypeUserID',
+      ...appFunctionality,
+    });
+    expect(collectedTypes).toContainEqual({
+      NSPrivacyCollectedDataType:
+        'NSPrivacyCollectedDataTypeOtherFinancialInfo',
+      ...appFunctionality,
     });
   });
 });

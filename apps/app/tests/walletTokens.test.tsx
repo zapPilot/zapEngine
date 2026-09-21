@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   AlchemyWalletBalancesSnapshot,
   AlchemyWalletChain,
-} from '@zapengine/app-core/services';
+} from '@zapengine/app-core/services/alchemyWalletService';
 
 import type { WalletAssetsQueryData } from '@/integration/moralisWallet';
 import {
@@ -27,14 +27,19 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
   };
 });
 
-vi.mock('@zapengine/app-core/services', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('@zapengine/app-core/services')>();
-  return {
-    ...actual,
-    getAlchemyWalletBalancesSnapshot: getSnapshotMock,
-  };
-});
+vi.mock(
+  '@zapengine/app-core/services/alchemyWalletService',
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import('@zapengine/app-core/services/alchemyWalletService')
+      >();
+    return {
+      ...actual,
+      getAlchemyWalletBalancesSnapshot: getSnapshotMock,
+    };
+  },
+);
 
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }

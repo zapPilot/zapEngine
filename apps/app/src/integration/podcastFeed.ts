@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 // Deep imports on purpose: the `hooks/queries` barrel re-exports every
 // wallet/market/strategy hook, and those pull the `services` barrel — which
 // drags the whole DeFi execution surface (incl. the Hyperliquid SDK) into the
-// podcast-only iOS bundle. See scripts/assert-ios-bundle-clean.cjs.
+// read-only iOS bundle. See scripts/assert-ios-bundle-clean.cjs.
 import { getRuntimeEnv } from '@zapengine/app-core/lib/env/runtimeEnv';
 import { createQueryConfig } from '@zapengine/app-core/hooks/queries/queryDefaults';
 import { queryKeys } from '@zapengine/app-core/lib/state/queryClient';

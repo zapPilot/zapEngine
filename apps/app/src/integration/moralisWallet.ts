@@ -1,19 +1,20 @@
 import { useQuery } from '@tanstack/react-query';
-import { CHAIN_BRAND, TOKEN_BRAND } from '@zapengine/brand-assets';
-import {
-  createQueryConfig,
-  queryKeys,
-} from '@zapengine/app-core/hooks/queries';
+import { CHAIN_BRAND } from '@zapengine/brand-assets/chains';
+import { TOKEN_BRAND } from '@zapengine/brand-assets/tokens';
+import { createQueryConfig } from '@zapengine/app-core/hooks/queries/queryDefaults';
+import { queryKeys } from '@zapengine/app-core/lib/state/queryClient';
+import { parseBaseUnits } from '@zapengine/app-core/lib/wallet/usd6';
 import {
   getMoralisWalletHistory,
-  getSupportedWalletTokenSymbol,
-  getSupportedWalletTokenDefinition,
   type MoralisChainHistory,
   type MoralisWalletChain,
+} from '@zapengine/app-core/services/moralisWalletService';
+import {
+  getSupportedWalletTokenDefinition,
+  getSupportedWalletTokenSymbol,
   type SupportedWalletTokenSymbol,
-} from '@zapengine/app-core/services';
-import { parseBaseUnits } from '@zapengine/app-core/lib/wallet/usd6';
-import { formatTokenBaseUnits } from '@zapengine/app-core/utils';
+} from '@zapengine/app-core/services/walletTokenCatalog';
+import { formatTokenBaseUnits } from '@zapengine/app-core/utils/formatting/tokenAmount';
 
 import {
   ACTIVITY_BUCKETS,
@@ -28,15 +29,12 @@ import {
   summarizeCategoryFlows,
   type MappedActivityEvent,
 } from '@/integration/activityEventModel';
-import {
-  BASE_DEPOSIT_TOKENS,
-  type DesktopDepositToken,
-} from '@/integration/depositTokens';
+import type { DesktopDepositToken } from '@/integration/depositTokens';
 import { formatTokenAmount, numberFrom, truncateAddress } from '@/lib/format';
 
 export type MoralisChainKey = MoralisWalletChain;
 
-export type { MoralisWalletHistoryResponse } from '@zapengine/app-core/services';
+export type { MoralisWalletHistoryResponse } from '@zapengine/app-core/services/moralisWalletService';
 
 type SupportedWalletSymbol = SupportedWalletTokenSymbol;
 
@@ -177,13 +175,14 @@ export function buildWalletAssetsResult(
   },
   enabled: boolean,
 ): UseWalletAssetsResult {
+  const assets = query.data?.assets ?? [];
   const rows = query.data?.rows ?? [];
-  const liveValues = rows
-    .map((row) => row.usdValue)
+  const liveValues = assets
+    .map((asset) => asset.usdValue)
     .filter((value): value is number => typeof value === 'number');
 
   return {
-    assets: query.data?.assets ?? [],
+    assets,
     rows,
     chainRows: query.data?.chainRows ?? [],
     failedChains: query.data?.failedChains ?? [],
@@ -474,40 +473,6 @@ export function buildDesktopWalletAssets(
       };
     })
     .sort((a, b) => (b.usdValue ?? 0) - (a.usdValue ?? 0));
-}
-
-function depositTokenFor(
-  asset: DesktopWalletAsset,
-): DesktopDepositToken | null {
-  if (!asset.chains.includes('base')) {
-    return null;
-  }
-  return (
-    BASE_DEPOSIT_TOKENS.find((token) => token.symbol === asset.symbol) ?? null
-  );
-}
-
-export function buildInvestableBalanceRows(
-  assets: DesktopWalletAsset[],
-): InvestableBalanceRow[] {
-  return assets.map((asset) => {
-    const depositToken = depositTokenFor(asset);
-    return {
-      token: {
-        symbol: asset.symbol,
-        name: asset.name || tokenBrandName(asset.symbol),
-      },
-      chains: asset.chains,
-      depositToken,
-      balance: asset.rawAmount > 0 ? String(asset.rawAmount) : null,
-      amountLabel: asset.amountLabel,
-      usdValue: asset.usdValue,
-      usdPrice: asset.usdPrice,
-      isDepositSupported: depositToken !== null,
-      isLoading: false,
-      isError: false,
-    };
-  });
 }
 
 function bucketForTimestamp(timestamp: number, nowMs: number): ActivityBucket {

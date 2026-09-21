@@ -43,7 +43,7 @@ vi.mock('@/integration/nativePrivyLogin', () => ({
 vi.mock('@zapengine/app-core/providers/walletContext', () => ({
   useWalletProvider: () => mocks.provider,
 }));
-vi.mock('@zapengine/app-core/hooks/wallet', () => ({
+vi.mock('@zapengine/app-core/hooks/wallet/useWalletList', () => ({
   useWalletList: (args: Record<string, unknown>) => {
     mocks.listArgs = args;
     return {
@@ -53,6 +53,8 @@ vi.mock('@zapengine/app-core/hooks/wallet', () => ({
       setWallets: mocks.setWallets,
     };
   },
+}));
+vi.mock('@zapengine/app-core/hooks/wallet/useWalletMutations', () => ({
   useWalletMutations: (args: Record<string, unknown>) => {
     mocks.mutationArgs = args;
     return {
@@ -63,6 +65,8 @@ vi.mock('@zapengine/app-core/hooks/wallet', () => ({
       handleDeleteWallet: mocks.handleDeleteWallet,
     };
   },
+}));
+vi.mock('@zapengine/app-core/hooks/wallet/useWalletLabels', () => ({
   useWalletLabels: (args: Record<string, unknown>) => {
     mocks.labelsArgs = args;
     return { handleEditLabel: mocks.handleEditLabel };

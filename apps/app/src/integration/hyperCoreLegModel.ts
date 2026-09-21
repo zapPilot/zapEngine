@@ -1,5 +1,5 @@
 import type { HyperliquidAgentSessionStatus } from '@zapengine/app-core/hooks/useHyperliquidAgentSession';
-import type { HyperCoreAccountMode } from '@zapengine/app-core/services';
+import type { HyperCoreAccountMode } from '@zapengine/app-core/services/hyperliquidService';
 import { formatUnits } from 'viem';
 
 import { hlpSpotSignatureLabel } from '@/integration/hlpSpotDepositModel';

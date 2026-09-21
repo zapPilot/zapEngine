@@ -1,4 +1,4 @@
-import { formatTokenBaseUnits } from '@zapengine/app-core/utils';
+import { formatTokenBaseUnits } from '@zapengine/app-core/utils/formatting/tokenAmount';
 import type {
   PrivySimulationApproval,
   PrivySimulationContract,

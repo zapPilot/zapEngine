@@ -1,6 +1,6 @@
 import { createQueryConfig } from '@zapengine/app-core/hooks/queries/queryDefaults';
 import { queryKeys } from '@zapengine/app-core/lib/state/queryClient';
-import { getBorrowingPositions } from '@zapengine/app-core/services';
+import { getBorrowingPositions } from '@zapengine/app-core/services/analyticsService';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 

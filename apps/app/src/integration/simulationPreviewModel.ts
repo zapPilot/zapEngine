@@ -1,13 +1,11 @@
 import type { PrivyBatchExecutionPhase } from '@zapengine/app-core/hooks/wallet/useAtomicBatchExecution';
-import {
-  formatAddress as formatWalletAddress,
-  formatCompactTokenAmount,
-} from '@zapengine/app-core/utils';
+import { formatAddress as formatWalletAddress } from '@zapengine/app-core/utils/formatters';
+import { formatCompactTokenAmount } from '@zapengine/app-core/utils/formatting/tokenAmount';
 import {
   CHAIN_BRAND,
   type ChainBrandKey,
   chainBrandKeyForChainId,
-} from '@zapengine/brand-assets';
+} from '@zapengine/brand-assets/chains';
 import type {
   ReviewedDepositPlan,
   PrivyPrepareSendCallsResponse,

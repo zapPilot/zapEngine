@@ -1,4 +1,4 @@
-import { CHAIN_BRAND } from '@zapengine/brand-assets';
+import { CHAIN_BRAND } from '@zapengine/brand-assets/chains';
 import { isWalletAddress } from '@zapengine/types';
 
 import type { ChainKey } from '@/integration/activityTypes';

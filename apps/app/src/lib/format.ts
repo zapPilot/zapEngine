@@ -3,8 +3,8 @@
 import {
   formatAddress,
   formatCurrency,
-  numberFrom,
-} from '@zapengine/app-core/utils';
+} from '@zapengine/app-core/utils/formatters';
+import { numberFrom } from '@zapengine/app-core/utils/mathUtils';
 
 export { numberFrom };
 

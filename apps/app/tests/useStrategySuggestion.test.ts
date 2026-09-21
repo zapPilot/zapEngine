@@ -13,11 +13,13 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@tanstack/react-query', () => ({ useQuery: mocks.useQuery }));
-vi.mock('@zapengine/app-core/hooks/queries', () => ({
+vi.mock('@zapengine/app-core/hooks/queries/queryDefaults', () => ({
   createQueryConfig: mocks.createQueryConfig,
+}));
+vi.mock('@zapengine/app-core/lib/state/queryClient', () => ({
   queryKeys: { desktop: { strategySuggestion: mocks.strategySuggestion } },
 }));
-vi.mock('@zapengine/app-core/services', () => ({
+vi.mock('@zapengine/app-core/services/strategyService', () => ({
   getDailySuggestion: mocks.getDailySuggestion,
 }));
 

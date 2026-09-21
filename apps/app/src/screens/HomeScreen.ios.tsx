@@ -1,1 +1,1 @@
-export { PodcastOnlyStubScreen as HomeScreen } from '@/screens/podcastOnlyStub';
+export { HomeScreen } from '@/screens/HomeScreen.shared';

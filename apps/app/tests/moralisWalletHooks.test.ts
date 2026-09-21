@@ -14,14 +14,19 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
   };
 });
 
-vi.mock('@zapengine/app-core/services', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('@zapengine/app-core/services')>();
-  return {
-    ...actual,
-    getMoralisWalletHistory: getMoralisWalletHistoryMock,
-  };
-});
+vi.mock(
+  '@zapengine/app-core/services/moralisWalletService',
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import('@zapengine/app-core/services/moralisWalletService')
+      >();
+    return {
+      ...actual,
+      getMoralisWalletHistory: getMoralisWalletHistoryMock,
+    };
+  },
+);
 
 beforeEach(() => {
   useQueryMock.mockReset();

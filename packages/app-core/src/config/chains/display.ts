@@ -1,8 +1,8 @@
-import { HYPERCORE_CHAIN_ID } from '@zapengine/types/api';
-
 import { SUPPORTED_CHAINS } from './definitions';
 
-export { HYPERCORE_CHAIN_ID };
+// Immutable public HyperCore network id. Kept local so this display-only module
+// does not import the transaction-heavy @zapengine/types/api root barrel.
+export const HYPERCORE_CHAIN_ID = 1337;
 
 /**
  * Display-only chain metadata (names, icons, explorer links). Deliberately

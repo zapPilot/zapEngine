@@ -1,1 +1,1 @@
-export { PodcastOnlyStubScreen as ActivityScreen } from '@/screens/podcastOnlyStub';
+export { ActivityScreen } from '@/screens/ActivityScreen.shared';

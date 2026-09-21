@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { hlpSpendableShortfallUsd6 } from '@zapengine/app-core/lib/wallet/depositWizardMachine';
-import { getHlpSpotDepositPlan } from '@zapengine/app-core/services';
-import type { HyperCoreAccountMode } from '@zapengine/app-core/services';
+import type { HyperCoreAccountMode } from '@zapengine/app-core/services/hyperliquidService';
+import { getHlpSpotDepositPlan } from '@zapengine/app-core/services/planOrchestrationService';
 import type { HlpSpotDepositPlan } from '@zapengine/types/api';
 
 import { hlpSpendableUsd6 } from '@/integration/hyperliquidPanelModel';

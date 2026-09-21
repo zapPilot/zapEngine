@@ -4,7 +4,6 @@ import {
   buildActivityGroupsFromMoralisHistory,
   buildChainTokenBalanceRows,
   buildDesktopWalletAssets,
-  buildInvestableBalanceRows,
   type MoralisChainKey,
   type MoralisWalletHistoryResponse,
   type WalletTokenBalancesResponse,
@@ -12,6 +11,7 @@ import {
   normalizeWalletAddressList,
 } from '@/integration/moralisWallet';
 import { ARBITRUM_DEPOSIT_TOKENS } from '@/integration/depositTokens';
+import { buildInvestableBalanceRows } from '@/integration/investableBalanceRows';
 import { balanceForFundingToken } from '@/integration/investAmountModel';
 
 function balances(

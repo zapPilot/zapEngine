@@ -1,5 +1,5 @@
 import { estimateMonthlyIncomeUsd } from '@zapengine/app-core/lib/analytics';
-import type { YieldReturnsSummaryResponse } from '@zapengine/app-core/services';
+import type { YieldReturnsSummaryResponse } from '@zapengine/app-core/services/analyticsService';
 
 export const MIN_OBSERVED_DAYS = 7;
 export const MIN_DISPLAY_MONTHLY_USD = 0.005;

@@ -2,6 +2,8 @@ import { equalsAddress } from '@zapengine/types/shared';
 import { toHex, type Chain } from 'viem';
 import { arbitrum, base, mainnet, optimism } from 'viem/chains';
 
+import { isLinkedAccountRecord } from '@/integration/privyLinkedAccounts';
+
 /**
  * Chains the native wallet may switch to. Ethereum is here because mainnet
  * USDC/ETH can fund HyperCore; HyperCore itself (1337) never appears, since it
@@ -23,12 +25,6 @@ const CHAIN_BY_ID = new Map<number, Chain>(
 export interface ConnectedWalletListItem {
   address: string;
   isActive: boolean;
-}
-
-type LinkedAccountRecord = Record<PropertyKey, unknown>;
-
-function isLinkedAccountRecord(value: unknown): value is LinkedAccountRecord {
-  return typeof value === 'object' && value !== null;
 }
 
 /**

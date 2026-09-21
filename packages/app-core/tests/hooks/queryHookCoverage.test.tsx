@@ -48,11 +48,11 @@ vi.mock('@core/lib/state/queryClient', () => ({
 vi.mock('@core/services/analyticsService', () => ({
   getLandingPagePortfolioData: (...args: unknown[]) =>
     mocks.getLandingPagePortfolioData(...args),
+  getPortfolioDashboard: (...args: unknown[]) =>
+    mocks.getPortfolioDashboard(...args),
 }));
 
 vi.mock('@core/services', () => ({
-  getPortfolioDashboard: (...args: unknown[]) =>
-    mocks.getPortfolioDashboard(...args),
   getMarketDashboardData: (...args: unknown[]) =>
     mocks.getMarketDashboardData(...args),
   fetchRegimeHistory: (...args: unknown[]) => mocks.fetchRegimeHistory(...args),

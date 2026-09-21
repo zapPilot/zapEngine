@@ -3,7 +3,7 @@ import {
   disconnectTelegram,
   getTelegramStatus,
   requestTelegramToken,
-} from '@zapengine/app-core/services';
+} from '@zapengine/app-core/services/telegramService';
 import {
   useCallback,
   useEffect,

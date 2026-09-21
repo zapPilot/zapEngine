@@ -1,4 +1,4 @@
-import { CHAIN_BRAND } from '@zapengine/brand-assets';
+import { CHAIN_BRAND } from '@zapengine/brand-assets/chains';
 import { HLP_MIN_DEPOSIT_USD6, HYPERCORE_CHAIN_ID } from '@zapengine/types/api';
 
 import {

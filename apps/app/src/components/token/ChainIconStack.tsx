@@ -1,7 +1,7 @@
-import type { ChainBrandKey } from '@zapengine/brand-assets';
+import type { ChainBrandKey } from '@zapengine/brand-assets/chains';
 import { Image, View } from 'react-native';
 
-import { CHAIN_ICON_SRC } from '@/data/assetIcons';
+import { CHAIN_ICON_SRC } from '@/data/chainIcons';
 
 interface ChainIconStackProps {
   chains: readonly ChainBrandKey[];

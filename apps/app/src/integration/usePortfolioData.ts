@@ -1,9 +1,7 @@
-import { calculateAllocation } from '@zapengine/app-core/adapters';
-import { usePortfolioDashboard } from '@zapengine/app-core/hooks/analytics';
-import {
-  useDailyYieldReturns,
-  useLandingPageData,
-} from '@zapengine/app-core/hooks/queries';
+import { calculateAllocation } from '@zapengine/app-core/adapters/portfolio/allocationAdapter';
+import { usePortfolioDashboard } from '@zapengine/app-core/hooks/analytics/usePortfolioDashboard';
+import { useDailyYieldReturns } from '@zapengine/app-core/hooks/queries/analytics/useDailyYieldReturns';
+import { useLandingPageData } from '@zapengine/app-core/hooks/queries/analytics/usePortfolioQuery';
 import { tokens } from '@zapengine/design-tokens/tokens';
 import { useMemo } from 'react';
 

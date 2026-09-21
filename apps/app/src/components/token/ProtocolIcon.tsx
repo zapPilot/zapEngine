@@ -1,7 +1,11 @@
-import { PROTOCOL_BRAND, protocolBrandKeyFor } from '@zapengine/brand-assets';
-import { Image, Text, View } from 'react-native';
+import {
+  PROTOCOL_BRAND,
+  protocolBrandKeyFor,
+} from '@zapengine/brand-assets/protocols';
+import { Image, Text } from 'react-native';
 
-import { PROTOCOL_ICON_SRC } from '@/data/assetIcons';
+import { PROTOCOL_ICON_SRC } from '@/data/protocolIcons';
+import { ProtocolIconFrame } from '@/components/token/ProtocolIconFrame';
 
 interface ProtocolIconProps {
   /** Raw protocol identifier from a plan leg or copy; normalized internally. */
@@ -12,9 +16,8 @@ interface ProtocolIconProps {
 }
 
 /**
- * Squircle venue mark. The shape is the point: a rounded square says "a place
- * you put money into", where a circle says "an asset you hold". Falls back to a
- * monogram, so an unrecognized protocol still reads as a venue.
+ * Squircle venue mark. Falls back to a monogram, so an unrecognized protocol
+ * still reads as a venue.
  */
 export function ProtocolIcon({
   protocol,
@@ -26,19 +29,7 @@ export function ProtocolIcon({
   const iconSrc = brandKey ? PROTOCOL_ICON_SRC[brandKey] : undefined;
 
   return (
-    <View
-      className="shrink-0 items-center justify-center overflow-hidden border border-line bg-[rgba(255,255,255,.04)]"
-      // Proportional rather than a fixed `rounded-xl`: at the 18–26pt sizes
-      // this renders at, a 12px radius rounds the square into a circle and the
-      // asset-versus-venue shape distinction disappears.
-      style={{ width: size, height: size, borderRadius: size * 0.28 }}
-      {...(labelled
-        ? { accessible: true, accessibilityLabel: label }
-        : {
-            accessibilityElementsHidden: true,
-            importantForAccessibility: 'no-hide-descendants' as const,
-          })}
-    >
+    <ProtocolIconFrame label={label} size={size} labelled={labelled}>
       {iconSrc ? (
         <Image
           source={iconSrc}
@@ -53,6 +44,6 @@ export function ProtocolIcon({
           {label.slice(0, 1).toUpperCase()}
         </Text>
       )}
-    </View>
+    </ProtocolIconFrame>
   );
 }

@@ -6,6 +6,8 @@
 
 import { tokens } from '@zapengine/design-tokens/tokens';
 
+import { DEMO_PROTOCOL_LABELS } from '@/data/demoProtocolLabels';
+
 import type {
   ActivityCategoryFlow,
   ActivityFilter,
@@ -224,7 +226,7 @@ export const DEMO: DemoData = {
           ],
           chain: 'arbitrum',
           methodLabel: 'multicall',
-          protocol: 'GMX V2',
+          protocol: DEMO_PROTOCOL_LABELS.gmxV2,
           gasFeeLabel: '0.000023 ETH',
           tokenSymbol: 'CBBTC',
         },

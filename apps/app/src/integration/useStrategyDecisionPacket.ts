@@ -1,4 +1,4 @@
-import { useMarketDashboardQuery } from '@zapengine/app-core/hooks/queries';
+import { useMarketDashboardQuery } from '@zapengine/app-core/hooks/queries/market/useMarketDashboardQuery';
 import {
   buildTradeActions,
   deriveAllocationDiff,
@@ -12,7 +12,7 @@ import {
   type StatusPanelContent,
   type TriggerEvidence,
 } from '@zapengine/app-core/services/suggestion';
-import type { MarketDashboardResponse } from '@zapengine/app-core/services';
+import type { MarketDashboardResponse } from '@zapengine/app-core/services/analyticsService';
 import type { DailySuggestionResponse } from '@zapengine/app-core/types/strategy';
 
 import { useStrategySuggestion } from '@/integration/useStrategySuggestion';

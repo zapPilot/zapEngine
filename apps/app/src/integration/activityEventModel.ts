@@ -1,16 +1,17 @@
-import { PROTOCOL_BRAND, protocolBrandKeyFor } from '@zapengine/brand-assets';
 import {
   ALLOCATION_CATEGORIES,
   getAllocationCategoryForToken,
   type AllocationCategoryKey,
 } from '@zapengine/app-core/lib/domain/allocationCategories';
+import type {
+  MoralisWalletChain,
+  MoralisWalletHistoryEvent,
+  MoralisWalletTransfer,
+} from '@zapengine/app-core/services/moralisWalletService';
 import {
   getSupportedWalletTokenSymbol,
   type SupportedWalletTokenSymbol,
-  type MoralisWalletChain,
-  type MoralisWalletHistoryEvent,
-  type MoralisWalletTransfer,
-} from '@zapengine/app-core/services';
+} from '@zapengine/app-core/services/walletTokenCatalog';
 
 import type {
   ActivityCategoryDelta,
@@ -23,6 +24,7 @@ import type {
   ChainKey,
   MetricTone,
 } from '@/integration/activityTypes';
+import { resolveProtocolDisplay } from '@/integration/protocolDisplay';
 import {
   formatSignedTokenAmount,
   formatSignedUsd,
@@ -81,12 +83,8 @@ function protocolLabel(event: MoralisWalletHistoryEvent): string | undefined {
   const entities = [event.to_address_entity, event.from_address_entity]
     .map((entity) => entity?.trim())
     .filter((entity): entity is string => Boolean(entity));
-  const known = entities.find((entity) => protocolBrandKeyFor(entity));
-  if (known) {
-    const key = protocolBrandKeyFor(known)!;
-    return PROTOCOL_BRAND[key].label;
-  }
-  return entities[0];
+  const displays = entities.map((entity) => resolveProtocolDisplay(entity));
+  return displays.find((display) => display.known)?.label ?? entities[0];
 }
 
 function gasFeeLabel(

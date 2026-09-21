@@ -1,8 +1,4 @@
-import {
-  CHAIN_BRAND,
-  PROTOCOL_BRAND,
-  protocolBrandKeyFor,
-} from '@zapengine/brand-assets';
+import { CHAIN_BRAND } from '@zapengine/brand-assets/chains';
 import { getExplorerTxUrl } from '@zapengine/app-core/config/chains/display';
 import * as Clipboard from 'expo-clipboard';
 import { Copy, ExternalLink } from 'lucide-react-native';
@@ -15,6 +11,7 @@ import { Card } from '@/components/ui/Card';
 import { Pill } from '@/components/ui/Pill';
 import { Tap } from '@/components/ui/Tap';
 import type { ActivityEvent } from '@/integration/activityTypes';
+import { resolveProtocolDisplay } from '@/integration/protocolDisplay';
 import { cn } from '@/lib/cn';
 
 function relativeTimeLabel(value: string): string {
@@ -47,9 +44,7 @@ function actionLabel(event: ActivityEvent): string {
 }
 
 function protocolLabel(protocol: string | undefined): string | undefined {
-  if (!protocol) return undefined;
-  const key = protocolBrandKeyFor(protocol);
-  return key ? PROTOCOL_BRAND[key].label : protocol;
+  return protocol ? resolveProtocolDisplay(protocol).label : undefined;
 }
 
 function compactHash(hash: string): string {

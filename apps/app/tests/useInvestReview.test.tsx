@@ -20,7 +20,7 @@ const mocks = vi.hoisted(() => ({
   invest: { stageDrafts: [] as StageDraft[] },
 }));
 
-vi.mock('@zapengine/app-core/services', () => ({
+vi.mock('@zapengine/app-core/services/planOrchestrationService', () => ({
   getDepositReview: mocks.getDepositReview,
 }));
 

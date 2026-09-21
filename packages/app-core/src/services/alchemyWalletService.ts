@@ -1,7 +1,7 @@
 import { getRuntimeEnv } from '@core/lib/env/runtimeEnv';
 import { httpGet, httpPost } from '@core/lib/http';
 import { createApiServiceCaller } from '@core/lib/http/createServiceCaller';
-import { numberFrom } from '@core/utils';
+import { numberFrom } from '@core/utils/mathUtils';
 import { formatUnits } from 'viem';
 
 import {

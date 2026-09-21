@@ -1,6 +1,6 @@
 import { queryKeys } from '@core/lib/state/queryClient';
 import type { UserCryptoWallet } from '@core/schemas/api/accountSchemas';
-import { getUserWallets } from '@core/services';
+import { getUserWallets } from '@core/services/accountService';
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 
 import { createQueryConfig } from '../queryDefaults';

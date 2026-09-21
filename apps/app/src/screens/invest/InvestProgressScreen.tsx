@@ -1,7 +1,7 @@
 import { useDepositWizard } from '@zapengine/app-core/hooks/useDepositWizard';
 import { extractErrorMessage } from '@zapengine/app-core/lib/errors';
 import { hlpStepFromPlan } from '@zapengine/app-core/lib/wallet/depositWizardMachine';
-import { getHyperCoreSpendableUsdc } from '@zapengine/app-core/services';
+import { getHyperCoreSpendableUsdc } from '@zapengine/app-core/services/hyperliquidService';
 import type { DepositPlan, ReviewedDepositPlan } from '@zapengine/types/api';
 import { Redirect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';

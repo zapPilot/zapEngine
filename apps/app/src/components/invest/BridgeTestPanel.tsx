@@ -1,10 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { useBridgeTest } from '@zapengine/app-core/hooks/useBridgeTest';
-import { chainBrandKeyForChainId } from '@zapengine/brand-assets';
+import { chainBrandKeyForChainId } from '@zapengine/brand-assets/chains';
 import {
   getOnChainTokenBalance,
   NATIVE_TOKEN_ADDRESS,
-} from '@zapengine/app-core/services';
+} from '@zapengine/app-core/services/tokenBalanceService';
 import { ExternalLink } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
 import { Linking, Text, TextInput, View } from 'react-native';

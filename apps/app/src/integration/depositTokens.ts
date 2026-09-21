@@ -1,4 +1,4 @@
-import type { ChainBrandKey } from '@zapengine/brand-assets';
+import type { ChainBrandKey } from '@zapengine/brand-assets/chains';
 import {
   BASE_CHAIN_ID,
   BASE_USDC_ADDRESS,

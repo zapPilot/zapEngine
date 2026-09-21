@@ -156,6 +156,64 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  ios-bundle-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        if: github.event_name != 'workflow_dispatch'
+        with:
+          filters: |
+            app_ios:
+              - 'apps/app/src/**'
+              - 'apps/app/assets/**'
+              - 'apps/app/app.config.ts'
+              - 'apps/app/babel.config.js'
+              - 'apps/app/entrypoint.js'
+              - 'apps/app/global.css'
+              - 'apps/app/metro.config.js'
+              - 'apps/app/package.json'
+              - 'apps/app/scripts/assert-ios-bundle-clean.cjs'
+              - 'apps/app/tailwind.config.js'
+              - 'packages/app-core/src/**'
+              - 'packages/app-core/package.json'
+              - 'packages/design-tokens/src/**'
+              - 'packages/design-tokens/package.json'
+              - 'packages/design-tokens/tokens.json'
+              - 'packages/intent-engine/src/**'
+              - 'packages/intent-engine/package.json'
+              - 'packages/types/src/**'
+              - 'packages/types/package.json'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'patches/**'
+              - 'turbo.json'
+              - '.npmrc'
+              - '.nvmrc'
+              - '.github/actions/setup-workspace/**'
+              - '.github/workflows/ci.yml'
+
+      - uses: ./.github/actions/setup-workspace
+        if: github.event_name == 'workflow_dispatch' || steps.filter.outputs.app_ios == 'true'
+        with:
+          uv: 'false'
+
+      - name: Export iOS bundle with source map
+        if: github.event_name == 'workflow_dispatch' || steps.filter.outputs.app_ios == 'true'
+        run: >-
+          pnpm --filter @zapengine/app exec expo export
+          --platform ios
+          --output-dir dist/ios
+          --source-maps
+
+      - name: Assert iOS read-only bundle boundary
+        if: github.event_name == 'workflow_dispatch' || steps.filter.outputs.app_ios == 'true'
+        run: pnpm --filter @zapengine/app run ios:bundle-check
+
   security:
     runs-on: ubuntu-latest
     timeout-minutes: 10

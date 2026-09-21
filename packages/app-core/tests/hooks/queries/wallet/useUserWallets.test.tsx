@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
   getUserWallets: vi.fn(),
 }));
 
-vi.mock('@core/services', () => ({
+vi.mock('@core/services/accountService', () => ({
   getUserWallets: mocks.getUserWallets,
 }));
 

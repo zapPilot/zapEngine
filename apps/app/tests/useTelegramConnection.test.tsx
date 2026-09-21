@@ -19,7 +19,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@zapengine/app-core/lib/errors', () => ({
   extractErrorMessage: mocks.extractErrorMessage,
 }));
-vi.mock('@zapengine/app-core/services', () => ({
+vi.mock('@zapengine/app-core/services/telegramService', () => ({
   getTelegramStatus: mocks.getTelegramStatus,
   requestTelegramToken: mocks.requestTelegramToken,
   disconnectTelegram: mocks.disconnectTelegram,
