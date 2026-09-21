@@ -121,9 +121,10 @@ import {
   runSocialDaemonTick,
 } from './daemon.js';
 
-// 19:00 JST: outside the publish window, so a tick discovers and reschedules
-// but claims nothing. NOW_PUBLISHING is 10:00 JST, inside it.
+// 19:00 JST: inside the 09:00–23:00 publish window. The outside-window case
+// uses its own 23:30 JST timestamp. NOW_PUBLISHING is 10:00 JST, inside it.
 const NOW = new Date('2026-08-16T10:00:00.000Z');
+const NOW_AFTER_HOURS = new Date('2026-08-16T14:30:00.000Z');
 const NOW_PUBLISHING = new Date('2026-08-16T01:00:00.000Z');
 const EPISODE_ID = '123e4567-e89b-42d3-a456-426614174000';
 const EPISODE_CREATED_AT = '2026-08-24T00:00:00.000Z';
@@ -324,7 +325,7 @@ describe('social daemon', () => {
     mocks.claimSocialPublishJob.mockResolvedValue(publishJob());
 
     await runSocialDaemonTick({
-      now: NOW,
+      now: NOW_AFTER_HOURS,
       firstStartedAt: '2026-08-16T00:00:00.000Z',
     });
 
@@ -962,11 +963,11 @@ describe('social daemon', () => {
       fullCohortCandidates(EPISODE_ID, '2026-08-10T00:00:00.000Z'),
     );
 
-    // 17:00 JST: every article slot for today is behind us, so the cohort waits
+    // 22:00 JST: every article slot for today is behind us, so the cohort waits
     // for tomorrow's first slot rather than becoming instantly due and
     // publishing off-slot.
     await runSocialDaemonTick({
-      now: new Date('2026-08-16T08:00:00.000Z'),
+      now: new Date('2026-08-16T13:00:00.000Z'),
       firstStartedAt: '2026-08-01T00:00:00.000Z',
     });
 
