@@ -6,6 +6,7 @@ import {
 } from '../../shared/types.js';
 import { readControlCenterConfig } from '../config/env.js';
 import {
+  cloudflareRow,
   costRepositoryFake,
   flyBilledRow,
   flyRunRateOnlyRow,
@@ -37,6 +38,7 @@ const OPENROUTER = openRouterRow();
 const SUPABASE_FIXED = supabaseFixedRow();
 const FLY_RUN_RATE_ONLY = flyRunRateOnlyRow();
 const FLY_BILLED = flyBilledRow();
+const CLOUDFLARE = cloudflareRow();
 
 const NOW = new Date('2026-09-02T06:55:34.382Z');
 
@@ -122,6 +124,19 @@ describe('createOverviewService', () => {
       projectedCostUsd: 25,
       costType: 'fixed',
     });
+  });
+
+  // An R2 month opens in fractions of a cent. Rounding it to pennies
+  // anywhere on the way to the header would report $0.00 for spend that is
+  // real, which is the same fabrication the unpriced providers exist to avoid.
+  it('keeps a sub-cent Cloudflare accrual in the headline total', async () => {
+    const result = await overviewFor([OPENROUTER, CLOUDFLARE]);
+
+    expect(result.accruedCostUsd).toBeCloseTo(0.14489137, 8);
+    expect(
+      result.providers.find((provider) => provider.provider === 'cloudflare')
+        ?.snapshot?.accruedCostUsd,
+    ).toBe(0.017001);
   });
 
   it('never lets the Fly compute run-rate reach projectedCostUsd', async () => {

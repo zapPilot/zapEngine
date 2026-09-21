@@ -400,6 +400,12 @@ export const ENV_MANIFEST = {
   CONTROL_CENTER_PORT: server(['control-center']),
   CONTROL_CENTER_CACHE_TTL_MS: server(['control-center']),
   FLY_COST_MODE: server(['control-center']),
+  // Cloudflare billing reader for `ops:sync`. The account id is not a secret in
+  // the credential sense but stays out of the public repo; both live in
+  // Infisical prod and `checkCostSyncCredentials` -- not `requiredFor` --
+  // refuses to run the nightly sync without them.
+  CLOUDFLARE_API_TOKEN: server(['control-center'], { sensitive: true }),
+  CLOUDFLARE_ACCOUNT_ID: server(['control-center'], { sensitive: true }),
   // Read-only credentials for the operations snapshot. Deliberately without
   // `requiredFor`: each adapter reports `unknown` rather than failing when its
   // credential is absent, so the dashboard ships before the tokens exist.
