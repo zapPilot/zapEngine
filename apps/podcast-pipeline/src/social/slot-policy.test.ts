@@ -75,6 +75,7 @@ describe('nextReleaseSlot', () => {
       new Date('2026-09-01T05:30:00.000Z'),
       new Date('2026-09-01T06:00:00.000Z'),
       new Date('2026-09-01T08:15:00.000Z'),
+      new Date('2026-09-01T08:45:00.000Z'),
     ];
     expect(offSlot).toHaveLength(SOCIAL_RELEASE_DAILY_CAP);
 
@@ -83,8 +84,8 @@ describe('nextReleaseSlot', () => {
   });
 
   it('never schedules a slot that already passed today', () => {
-    const afternoon = new Date('2026-09-01T08:00:00.000Z');
-    const slot = nextReleaseSlot({ after: afternoon, scheduled: [] });
+    const lateEvening = new Date('2026-09-01T12:01:00.000Z');
+    const slot = nextReleaseSlot({ after: lateEvening, scheduled: [] });
     expect(slot?.toISOString()).toBe('2026-09-02T00:30:00.000Z');
   });
 
@@ -132,8 +133,8 @@ describe('occupiesReleaseBudget', () => {
 describe('withinPublishWindow', () => {
   it.each([
     ['2026-09-01T00:30:00.000Z', true],
-    ['2026-09-01T08:59:00.000Z', true],
-    ['2026-09-01T09:01:00.000Z', false],
+    ['2026-09-01T13:59:00.000Z', true],
+    ['2026-09-01T14:00:00.000Z', false],
     ['2026-08-31T23:59:00.000Z', false],
   ])('%s inside working hours: %s', (iso, expected) => {
     expect(withinPublishWindow(new Date(iso), SOCIAL_PUBLISH_WINDOW_JST)).toBe(

@@ -108,8 +108,8 @@ when multilingual distribution started) get no lanes at all.
 constant is what stops a re-rendered old video from making the whole back
 catalogue publishable in one tick.
 
-Current article timing is **3 articles per JST day at 09:30, 12:00 and 16:00
-JST**. Each article takes one of those times and every active lane of that
+Current article timing is **4 articles per JST day at 09:30, 12:00, 16:00 and
+21:00 JST**. Each article takes one of those times and every active lane of that
 article receives it.
 
 The cap and the slot list move together: `nextReleaseSlot()` places at most one
@@ -147,7 +147,7 @@ copy, or explicitly registered packaging experiments. It must not derive a
 separate publish budget or time from each platform. Changing the fixed language
 mapping is now a product-contract change rather than an active optimization arm.
 
-The long-lived daemon is constrained to the code-owned 09:00–18:00 JST watch
+The long-lived daemon is constrained to the code-owned 09:00–23:00 JST watch
 window because Rednote and X drive local browser sessions. The explicit
 `pnpm ops --social-once` operator path is the only exception: it may publish one
 catch-up article outside that window, while preserving all retry, readiness,
@@ -233,8 +233,9 @@ last_error: Release held: zh-Hant social copy generation failed after 3 attempts
 
 There is no Telegram notice, same as a media hold; the fatal path keeps its own.
 The backoff ladder is 5/10/20/40/80/160/320 minutes ≈ 10.6 hours of delay in
-total, so inside the 09:00–18:00 JST publish window an article that can never
-produce acceptable copy reaches `blocked` after roughly two days.
+total, so inside the 09:00–23:00 JST publish window an article that can never
+produce acceptable copy may carry into the next watch window before reaching
+`blocked`.
 
 ## Missed slots and production queue repair
 
