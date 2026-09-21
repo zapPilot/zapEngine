@@ -52,14 +52,20 @@
       "dependsOn": ["^build"],
       "outputs": ["dist/**"],
       "inputs": ["$TURBO_DEFAULT$", ".env*", "!**/*.md"],
-      "env": ["EXPO_PUBLIC_*", "VITE_*"]
+      "env": ["EXPO_PUBLIC_*", "VITE_*", "ZAP_ENV_CLIENT_TARGET"]
     },
     "package": {
       "dependsOn": ["^build", "@zapengine/app#build:web"],
       "cache": false,
       "outputs": ["dist/**"],
       "inputs": ["$TURBO_DEFAULT$", ".env*", "!**/*.md"],
-      "env": ["EXPO_PUBLIC_*", "VITE_*"]
+      "env": [
+        "EXPO_PUBLIC_*",
+        "VITE_*",
+        "SENTRY_DESKTOP_DSN",
+        "APP_COMMIT_SHA",
+        "ZAP_ENV_CLIENT_TARGET"
+      ]
     },
     "codegen": {
       "inputs": ["$TURBO_DEFAULT$", "tokens.json", "!src/generated/**"],

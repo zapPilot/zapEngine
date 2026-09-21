@@ -32,34 +32,48 @@ This rebuilds the desktop package and then opens the packaged app at
 \`apps/desktop/release/mac-arm64/Zap Pilot.app\`. The DMG is also written under
 \`apps/desktop/release/\`.
 
-The script selects the canonical production environment, including committed
-production API URLs and Infisical production secrets. An outer
-`infisical run --env=prod --` wrapper is unnecessary.
+The script resolves the canonical production environment, then starts the
+desktop package command through the env runner's `--client-target desktop`
+boundary. Only desktop-targeted client values, desktop/all host metadata, a
+small non-secret OS environment allowlist, and public bundler projections reach
+the package process; manifest-managed server secrets and unrelated parent-shell
+credentials are stripped even if they already exist before the build starts.
+An outer `infisical run --env=prod --` wrapper is unnecessary.
 
 Packaged apps serve the renderer at `http://127.0.0.1:3105/` because Privy's
 embedded wallet rejects `app://bundle/` even when Electron marks it secure.
 Unpackaged runs retain the dev URL and opt-in loopback paths; otherwise they
 use `app://bundle/`. `ZAP_ELECTRON_LOOPBACK_PORT` overrides the loopback port.
 
-The loopback origin is not on the analytics API's production CORS allowlist,
-so the renderer must not call it directly. Packaged (and opt-in loopback)
-renderers reach analytics through the same-origin transport at
-`/__zap/analytics`, served by `src/main/analyticsProxy.ts` against the
-`ANALYTICS_ENGINE_URL` baked in by `scripts/build.mjs`. The proxy only
-forwards to that fixed upstream (GET/HEAD/POST, no cookies, no redirects,
-no upstream CORS headers); the app web export selects it via
-`apps/app/src/config/analyticsApiUrl.web.ts` when the preload bridge
-advertises the proxy path. Do not fix renderer data gaps by widening
-production CORS or weakening Electron `webSecurity`.
+The packaged renderer calls the production analytics API directly. Production
+CORS explicitly allows the fixed packaged origin `http://127.0.0.1:3105`;
+other localhost/loopback origins remain rejected. `3105` is therefore pinned in
+three places — `src/main/rendererUrl.ts`, the analytics service's
+`DESKTOP_PRODUCTION_CORS_ORIGIN`, and `config/env/prod.env` — and a drift guard
+in the analytics tests keeps them in step. Keep API authentication and
+authorization independent of CORS, and do not weaken Electron `webSecurity`.
+
+Source maps are built but never packaged: `electron-builder.yml` filters `.map`
+out of both `files` and `extraResources`. They carry full `sourcesContent` for
+the app and every bundled dependency, and they roughly doubled the DMG. Upload
+them to Sentry if symbolication is needed; do not ship them.
 
 ## Verification
 
 Run the workspace gates through Turbo. Changes under `src/main/**`, `src/preload/**`, `scripts/build.mjs`, or `electron-builder.yml` must also pass:
 
 ```bash
-pnpm turbo run package --filter=@zapengine/desktop
+pnpm desktop:package
 ```
 
 Run it through Turbo so workspace dependencies build first via the `package`
 task's ordering (`^build` plus `@zapengine/app#build:web` for the renderer
 export). That package gate rebuilds the app web export and catches renderer/package drift that unit tests cannot.
+
+Use that script rather than invoking Turbo directly. Turbo forwards
+`EXPO_PUBLIC_*`, `VITE_*`, and every `globalEnv` name from whatever shell
+started it, so a bare `turbo run package` bakes the developer's own
+environment into `release/`. `desktop:package` routes the build through
+`scripts/env/run.mjs --client-target desktop`, which is what restricts it to
+desktop-targeted values. `pnpm desktop:mac` is the same build plus opening the
+result.

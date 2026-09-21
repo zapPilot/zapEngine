@@ -2,15 +2,11 @@ import { join } from 'node:path';
 
 import { BrowserWindow } from 'electron';
 
-import { ANALYTICS_PROXY_ARGUMENT } from '../shared/ipc';
 import { APP_START_URL } from './appProtocol';
 import { openExternalUrl } from './externalAuth';
 
 /** Uses an http URL for an expo dev server or loopback fallback when given. */
-export function createMainWindow(
-  url?: string,
-  analyticsProxyEnabled = false,
-): BrowserWindow {
+export function createMainWindow(url?: string): BrowserWindow {
   const win = new BrowserWindow({
     width: 430,
     height: 900,
@@ -21,9 +17,6 @@ export function createMainWindow(
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
-      additionalArguments: analyticsProxyEnabled
-        ? [ANALYTICS_PROXY_ARGUMENT]
-        : [],
       preload: join(__dirname, '../preload/preload.cjs'),
     },
   });

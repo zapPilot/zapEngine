@@ -2,8 +2,13 @@
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 
-import { ENV_MANIFEST } from '../../config/env.manifest.mjs';
-import { loadEnvFile, mergeEnv, projectAllClientEnv } from './lib.mjs';
+import { ENV_MANIFEST, ENV_TARGETS } from '../../config/env.manifest.mjs';
+import {
+  buildClientTargetEnv,
+  loadEnvFile,
+  mergeEnv,
+  projectAllClientEnv,
+} from './lib.mjs';
 import { resolveValues } from './sources.mjs';
 
 const separator = process.argv.indexOf('--');
@@ -15,7 +20,7 @@ const localEnv =
 const command = rawCommand.filter((argument) => argument !== '--local-env');
 if (command.length === 0) {
   console.error(
-    'usage: node scripts/env/run.mjs [--environment dev|prod] -- <command> [args...]',
+    'usage: node scripts/env/run.mjs [--environment dev|prod] [--client-target <target>] -- <command> [args...]',
   );
   process.exit(2);
 }
@@ -27,6 +32,20 @@ const environment =
   environmentIndex >= 0 ? runnerArgs[environmentIndex + 1] : 'dev';
 if (!['dev', 'prod'].includes(environment)) {
   console.error('Unknown environment. Expected dev or prod.');
+  process.exit(2);
+}
+
+const clientTargetIndex = runnerArgs.indexOf('--client-target');
+const clientTarget =
+  clientTargetIndex >= 0 ? runnerArgs[clientTargetIndex + 1] : undefined;
+if (clientTargetIndex >= 0 && !clientTarget) {
+  console.error('--client-target requires a target name.');
+  process.exit(2);
+}
+if (clientTarget && !ENV_TARGETS.includes(clientTarget)) {
+  console.error(
+    `Unknown client target "${clientTarget}". Expected one of: ${ENV_TARGETS.join(', ')}.`,
+  );
   process.exit(2);
 }
 
@@ -58,7 +77,15 @@ if (localEnv) {
   }
 }
 const canonical = mergeEnv(sourceValues);
-const env = { ...canonical, ...projectAllClientEnv(canonical) };
+const env = clientTarget
+  ? {
+      ...buildClientTargetEnv(canonical, clientTarget),
+      // Build configs that also read a local .env (app.config.ts,
+      // next.config.ts) need to know a boundary is in force, or they merge
+      // the stripped values straight back in.
+      ZAP_ENV_CLIENT_TARGET: clientTarget,
+    }
+  : { ...canonical, ...projectAllClientEnv(canonical) };
 
 const child = spawn(command[0], command.slice(1), {
   cwd: repoRoot,

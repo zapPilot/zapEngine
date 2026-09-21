@@ -73,30 +73,120 @@ export function mergeEnv(fileValues, processValues = process.env) {
   return merged;
 }
 
+/**
+ * Public prefixes a target's build actually reads. `desktop` needs both: the
+ * Electron main process reads `VITE_*`, while its renderer is the same Expo
+ * web export as `web` and only reads `EXPO_PUBLIC_*`.
+ */
+const TARGET_PROJECTION_KINDS = {
+  expo: ['expo'],
+  'landing-page': ['next'],
+  desktop: ['vite', 'expo'],
+};
+
 export function projectEnv(canonicalEnv, target) {
   const projected = {};
-  const projectionKind =
-    target === 'expo' ? 'expo' : target === 'landing-page' ? 'next' : 'vite';
+  const projectionKinds = TARGET_PROJECTION_KINDS[target] ?? ['vite'];
   for (const [canonicalName, definition] of Object.entries(ENV_MANIFEST)) {
     const value = canonicalEnv[canonicalName];
     if (value === undefined) continue;
     if (definition.kind !== 'client') continue;
     if (!definition.targets.includes(target)) continue;
 
-    const projectedName = definition.projections[projectionKind];
-    if (projectedName) projected[projectedName] = value;
+    for (const projectionKind of projectionKinds) {
+      const projectedName = definition.projections[projectionKind];
+      if (projectedName) projected[projectedName] = value;
+    }
   }
   return projected;
 }
 
+/**
+ * Untargeted merge for rails that build several apps at once. Targets sharing
+ * a public name collide here and the last one wins, so `desktop` is applied
+ * before `expo` to leave the native rail's values in place. Use
+ * `buildClientTargetEnv` when one target's values must be exact.
+ */
 export function projectAllClientEnv(canonicalEnv) {
   return Object.assign(
     {},
     projectEnv(canonicalEnv, 'web'),
-    projectEnv(canonicalEnv, 'expo'),
     projectEnv(canonicalEnv, 'desktop'),
+    projectEnv(canonicalEnv, 'expo'),
     projectEnv(canonicalEnv, 'landing-page'),
   );
+}
+
+function isTargetedAt(definition, target) {
+  return (
+    definition.targets.includes('all') || definition.targets.includes(target)
+  );
+}
+
+const CLIENT_BUILD_HOST_ENV = new Set([
+  'PATH',
+  'HOME',
+  'USER',
+  'LOGNAME',
+  'SHELL',
+  'PWD',
+  'TMPDIR',
+  'TMP',
+  'TEMP',
+  'TERM',
+  'TERM_PROGRAM',
+  'TERM_PROGRAM_VERSION',
+  'COLORTERM',
+  'LANG',
+  'SHLVL',
+  'NO_COLOR',
+  'FORCE_COLOR',
+]);
+
+function isAllowedClientBuildHostEnv(name) {
+  return CLIENT_BUILD_HOST_ENV.has(name) || name.startsWith('LC_');
+}
+
+/**
+ * Build the environment for an untrusted client build.
+ *
+ * The caller may have resolved the full canonical environment (including
+ * Infisical server secrets), but client build processes must receive only:
+ * - canonical client values explicitly targeted at this client
+ * - host/build metadata explicitly targeted at this client (or all targets)
+ * - projected public bundler aliases derived from those allowed client values
+ * - a small allowlist of non-secret OS environment needed to launch tooling
+ *
+ * Server values, stale public projections, and unrelated parent-shell values
+ * are removed even when they were already present before the build starts.
+ */
+export function buildClientTargetEnv(
+  canonicalEnv,
+  target,
+  processValues = process.env,
+) {
+  const env = {};
+
+  for (const [name, value] of Object.entries(processValues)) {
+    if (value === undefined) continue;
+    if (!isAllowedClientBuildHostEnv(name)) continue;
+    env[name] = value;
+  }
+
+  const allowedCanonical = {};
+  for (const [name, definition] of Object.entries(ENV_MANIFEST)) {
+    if (!isTargetedAt(definition, target)) continue;
+    if (definition.kind !== 'client' && definition.kind !== 'host') continue;
+
+    const value = canonicalEnv[name];
+    if (value !== undefined) allowedCanonical[name] = value;
+  }
+
+  return {
+    ...env,
+    ...allowedCanonical,
+    ...projectAllClientEnv(allowedCanonical),
+  };
 }
 
 export function validateEnv(env, { target, capability } = {}) {
@@ -161,9 +251,7 @@ const PUBLIC_EVM_ADDRESS_LIST =
   /^0x[A-Fa-f0-9]{40}(?:\s*,\s*0x[A-Fa-f0-9]{40})*$/u;
 
 function isCredentialLikeValue(value) {
-  return (
-    !PUBLIC_EVM_ADDRESS_LIST.test(value) && CREDENTIAL_VALUE.test(value)
-  );
+  return !PUBLIC_EVM_ADDRESS_LIST.test(value) && CREDENTIAL_VALUE.test(value);
 }
 
 export function auditSecretClassification(committedByEnvironment) {

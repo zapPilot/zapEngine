@@ -2,10 +2,26 @@ import path from 'node:path';
 
 import type { ExpoConfig } from 'expo/config';
 
-import { loadEnvFile, mergeEnv, projectEnv } from '../../scripts/env/lib.mjs';
+import {
+  buildClientTargetEnv,
+  loadEnvFile,
+  mergeEnv,
+  projectEnv,
+} from '../../scripts/env/lib.mjs';
 
+/**
+ * The local .env is an offline convenience for running Expo directly. When
+ * `scripts/env/run.mjs --client-target` provisioned this process it has
+ * already decided what this target may see, so the merged set is re-filtered
+ * through the same boundary — otherwise a local .env silently resurrects the
+ * values that were stripped and bakes them into the bundle.
+ */
 const repoRootEnv = path.resolve(__dirname, '../../.env');
-const canonicalEnv = mergeEnv(loadEnvFile(repoRootEnv).values, process.env);
+const mergedEnv = mergeEnv(loadEnvFile(repoRootEnv).values, process.env);
+const clientTarget = process.env.ZAP_ENV_CLIENT_TARGET;
+const canonicalEnv = clientTarget
+  ? buildClientTargetEnv(mergedEnv, clientTarget, process.env)
+  : mergedEnv;
 Object.assign(process.env, canonicalEnv, projectEnv(canonicalEnv, 'expo'));
 
 /**

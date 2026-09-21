@@ -4,9 +4,6 @@
  * esbuild bundles and vitest can consume it directly.
  */
 
-export const ANALYTICS_PROXY_PATH = '/__zap/analytics';
-export const ANALYTICS_PROXY_ARGUMENT = '--zap-analytics-proxy';
-
 export const IPC_CHANNELS = {
   /** main → renderer: a rebalance proposal is ready (background scheduler). */
   rebalanceProposal: 'zap:rebalance-proposal',

@@ -10,10 +10,16 @@ files:
   - dist/**
   - package.json
   - '!node_modules'
+  # Source maps are built for local debugging and Sentry upload, never shipped:
+  # they carry full sourcesContent for the app and every bundled dependency.
+  - '!dist/**/*.map'
 
 extraResources:
   - from: ../app/dist/web
     to: web
+    filter:
+      - '**/*'
+      - '!**/*.map'
 
 mac:
   category: public.app-category.finance

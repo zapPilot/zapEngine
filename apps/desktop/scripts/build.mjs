@@ -23,9 +23,6 @@ await build({
   entryPoints: ['src/main/entry.ts'],
   outfile: 'dist/main/main.cjs',
   define: {
-    __ANALYTICS_ENGINE_URL__: JSON.stringify(
-      process.env['ANALYTICS_ENGINE_URL']?.trim() ?? '',
-    ),
     __SENTRY_DESKTOP_DSN__: JSON.stringify(bakedDsn),
     __SENTRY_DESKTOP_RELEASE__: JSON.stringify(bakedRelease),
   },

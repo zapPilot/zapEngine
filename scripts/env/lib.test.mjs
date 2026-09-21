@@ -4,6 +4,7 @@ import test from 'node:test';
 
 import {
   auditSecretClassification,
+  buildClientTargetEnv,
   parseEnv,
   projectEnv,
   validateEnv,
@@ -36,6 +37,56 @@ test('projectEnv exposes only declared client values', () => {
   assert.deepEqual(projected, {
     EXPO_PUBLIC_ACCOUNT_API_URL: 'https://account',
   });
+});
+
+test('client target env strips server secrets and unrelated client values', () => {
+  const env = buildClientTargetEnv(
+    {
+      ACCOUNT_API_URL: 'https://account.example',
+      ANALYTICS_ENGINE_URL: 'https://analytics.example',
+      PRIVY_WEB_APP_ID: 'privy-web',
+      PRIVY_MOBILE_APP_ID: 'privy-mobile',
+      SUPABASE_SERVICE_ROLE_KEY: 'service-role-secret',
+      OPENROUTER_API_KEY: 'openrouter-secret',
+      SENTRY_DESKTOP_DSN: 'desktop-dsn',
+      SENTRY_ZAP_PILOT_NATIVE_DSN: 'native-dsn',
+      APP_COMMIT_SHA: 'abc123',
+      ZAP_ELECTRON_LOOPBACK_PORT: '3105',
+    },
+    'desktop',
+    {
+      PATH: '/usr/bin',
+      HOME: '/tmp/home',
+      SUPABASE_SERVICE_ROLE_KEY: 'already-in-parent',
+      EXPO_PUBLIC_PRIVY_CLIENT_ID: 'stale-mobile-client-id',
+      VITE_ACCOUNT_API_URL: 'stale-account-url',
+      GH_TOKEN: 'unmanaged-github-secret',
+      NPM_TOKEN: 'unmanaged-npm-secret',
+    },
+  );
+
+  assert.equal(env.PATH, '/usr/bin');
+  assert.equal(env.HOME, '/tmp/home');
+  assert.equal(env.ACCOUNT_API_URL, 'https://account.example');
+  assert.equal(env.VITE_ACCOUNT_API_URL, 'https://account.example');
+  assert.equal(env.EXPO_PUBLIC_ACCOUNT_API_URL, 'https://account.example');
+  assert.equal(env.PRIVY_WEB_APP_ID, 'privy-web');
+  assert.equal(env.VITE_PRIVY_APP_ID, 'privy-web');
+  assert.equal(env.APP_COMMIT_SHA, 'abc123');
+  assert.equal(env.ZAP_ELECTRON_LOOPBACK_PORT, '3105');
+
+  // The Electron main process reads VITE_*, its renderer reads EXPO_PUBLIC_*,
+  // and neither may pick up the native app's DSN.
+  assert.equal(env.VITE_SENTRY_DSN, 'desktop-dsn');
+  assert.equal(env.EXPO_PUBLIC_SENTRY_DSN, 'desktop-dsn');
+  assert.equal(env.SENTRY_ZAP_PILOT_NATIVE_DSN, undefined);
+
+  assert.equal(env.SUPABASE_SERVICE_ROLE_KEY, undefined);
+  assert.equal(env.OPENROUTER_API_KEY, undefined);
+  assert.equal(env.PRIVY_MOBILE_APP_ID, undefined);
+  assert.equal(env.EXPO_PUBLIC_PRIVY_CLIENT_ID, undefined);
+  assert.equal(env.GH_TOKEN, undefined);
+  assert.equal(env.NPM_TOKEN, undefined);
 });
 
 test('validateEnv applies capability-specific requirements', () => {

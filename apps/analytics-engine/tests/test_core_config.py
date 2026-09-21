@@ -2,11 +2,17 @@
 Unit tests for src.core.config.Settings behavior
 """
 
-import pytest
+from pathlib import Path
 
-from src.core.config import Environment, Settings
+import pytest
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.testclient import TestClient
+
+from src.core.config import DESKTOP_PRODUCTION_CORS_ORIGIN, Environment, Settings
 
 PRODUCTION_DATABASE_URL = "postgresql+asyncpg://ro/url"
+REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
 def test_settings_defaults_parse_correctly(monkeypatch):
@@ -106,9 +112,9 @@ def test_production_rejects_empty_cors_origins():
         )
 
 
-def test_production_rejects_local_only_cors_origins():
-    """Production should reject localhost-only CORS origins."""
-    with pytest.raises(ValueError, match="must not include localhost"):
+def test_production_rejects_unapproved_local_cors_origins():
+    """Production should reject local origins other than the packaged desktop origin."""
+    with pytest.raises(ValueError, match="other localhost or loopback origins"):
         Settings(
             NODE_ENV="production",
             DATABASE_READ_ONLY_URL=PRODUCTION_DATABASE_URL,
@@ -116,14 +122,109 @@ def test_production_rejects_local_only_cors_origins():
         )
 
 
-def test_production_rejects_mixed_local_cors_origins():
-    """Production should reject local origins even when public origins are present."""
-    with pytest.raises(ValueError, match="must not include localhost"):
+def test_production_rejects_mixed_unapproved_local_cors_origins():
+    """Production should reject unapproved local origins even with public origins."""
+    with pytest.raises(ValueError, match="other localhost or loopback origins"):
         Settings(
             NODE_ENV="production",
             DATABASE_READ_ONLY_URL=PRODUCTION_DATABASE_URL,
             CORS_ALLOWED_ORIGINS="https://app.zap-pilot.org,http://0.0.0.0:3000",
         )
+
+
+def test_production_accepts_packaged_desktop_loopback_origin():
+    """The fixed packaged desktop origin may call the production API directly."""
+    settings = Settings(
+        NODE_ENV="production",
+        DATABASE_READ_ONLY_URL=PRODUCTION_DATABASE_URL,
+        CORS_ALLOWED_ORIGINS="https://app.zap-pilot.org,http://127.0.0.1:3105",
+    )
+
+    assert settings.allowed_origins == [
+        "https://app.zap-pilot.org",
+        "http://127.0.0.1:3105",
+    ]
+
+
+def _production_settings(origins: str) -> Settings:
+    return Settings(
+        NODE_ENV="production",
+        DATABASE_READ_ONLY_URL=PRODUCTION_DATABASE_URL,
+        CORS_ALLOWED_ORIGINS=origins,
+    )
+
+
+def _cors_app(settings: Settings) -> FastAPI:
+    """Mirror the middleware wiring in src.main for a given Settings."""
+    app = FastAPI()
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.allowed_origins,
+        allow_origin_regex=settings.cors_allow_origin_regex,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    return app
+
+
+def test_production_disables_the_loopback_origin_regex():
+    """The regex is what would otherwise admit every loopback port."""
+    settings = _production_settings(
+        f"https://app.zap-pilot.org,{DESKTOP_PRODUCTION_CORS_ORIGIN}"
+    )
+
+    assert settings.cors_allow_origin_regex is None
+
+
+@pytest.mark.parametrize(
+    ("origin", "allowed"),
+    (
+        (DESKTOP_PRODUCTION_CORS_ORIGIN, True),
+        ("http://127.0.0.1:49152", False),
+        ("http://localhost:3105", False),
+    ),
+)
+def test_production_cors_preflight_admits_only_the_packaged_desktop_origin(
+    origin: str, allowed: bool
+):
+    """Browser-visible behavior, not just the validator that built the list."""
+    client = TestClient(
+        _cors_app(
+            _production_settings(
+                f"https://app.zap-pilot.org,{DESKTOP_PRODUCTION_CORS_ORIGIN}"
+            )
+        )
+    )
+
+    response = client.options(
+        "/",
+        headers={
+            "Origin": origin,
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+
+    assert ("access-control-allow-origin" in response.headers) is allowed
+
+
+def test_committed_production_cors_origins_match_the_desktop_constant():
+    """`3105` also lives in the desktop renderer and in config/env/prod.env.
+
+    Without this, changing the packaged loopback port stays green locally and
+    crash-loops the service on the next production boot.
+    """
+    prod_env = (REPO_ROOT / "config" / "env" / "prod.env").read_text()
+    line = next(
+        raw for raw in prod_env.splitlines() if raw.startswith("CORS_ALLOWED_ORIGINS=")
+    )
+    origins = line.split("=", 1)[1].split(",")
+
+    local_origins = [
+        origin for origin in origins if Settings._is_local_cors_origin(origin)
+    ]
+
+    assert local_origins == [DESKTOP_PRODUCTION_CORS_ORIGIN]
 
 
 def test_production_accepts_explicit_public_cors_origins():

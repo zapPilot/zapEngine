@@ -138,7 +138,9 @@ export const ENV_MANIFEST = {
   ),
   SENTRY_DESKTOP_DSN: client(
     ['desktop'],
-    { vite: 'VITE_SENTRY_DSN' },
+    // Main process reads VITE_SENTRY_DSN; the renderer is an Expo web export
+    // and only reads EXPO_PUBLIC_SENTRY_DSN.
+    { vite: 'VITE_SENTRY_DSN', expo: 'EXPO_PUBLIC_SENTRY_DSN' },
     { sensitive: true },
   ),
   SENTRY_LANDING_PAGE_DSN: client(
@@ -154,6 +156,7 @@ export const ENV_MANIFEST = {
     'alpha-etl',
     'analytics-engine',
     'podcast-pipeline',
+    'desktop',
   ]),
   NEXT_RUNTIME: host(['landing-page']),
   ALPHA_ETL_DATABASE_URL: server(['alpha-etl'], {
@@ -456,6 +459,9 @@ export const ENV_MANIFEST = {
 
   // CI, build, and operational tooling. These remain inventoried without
   // encouraging developers to place ephemeral values in their local .env.
+  // Set by `scripts/env/run.mjs --client-target` so build configs that also
+  // read a local .env do not resurrect values the target boundary stripped.
+  ZAP_ENV_CLIENT_TARGET: host(['all'], { documented: false }),
   CI: host(['all'], { documented: false }),
   PORT: host(['all'], { documented: false }),
   GITHUB_SHA: host(['all'], { documented: false }),

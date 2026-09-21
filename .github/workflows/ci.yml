@@ -250,6 +250,9 @@ jobs:
               - '.nvmrc'
             analytics-engine:
               - 'apps/analytics-engine/**'
+              # A CORS origin drift guard reads this file; without it here, a
+              # prod.env-only change never runs the test that validates it.
+              - 'config/env/prod.env'
               - '.dockerignore'
             podcast-pipeline:
               - 'apps/podcast-pipeline/**'

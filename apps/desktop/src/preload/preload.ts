@@ -3,8 +3,6 @@ import '@sentry/electron/preload';
 import { contextBridge, ipcRenderer } from 'electron';
 
 import {
-  ANALYTICS_PROXY_ARGUMENT,
-  ANALYTICS_PROXY_PATH,
   IPC_CHANNELS,
   type RebalanceProposal,
   type SchedulerContext,
@@ -17,10 +15,6 @@ import {
  */
 const zapDesktop = {
   platform: 'electron' as const,
-  analyticsProxyPath: process.argv.includes(ANALYTICS_PROXY_ARGUMENT)
-    ? ANALYTICS_PROXY_PATH
-    : undefined,
-
   onRebalanceProposal(
     callback: (proposal: RebalanceProposal) => void,
   ): () => void {

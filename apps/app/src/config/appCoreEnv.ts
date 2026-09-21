@@ -1,5 +1,4 @@
 import { APP_RUNTIME } from '@/config/appRuntime';
-import { resolveAnalyticsApiUrl } from '@/config/analyticsApiUrl';
 import type { ExpoExtraConfig } from '@/config/mobileRuntimeConfig';
 
 // Metro defines __DEV__ at build/runtime; vitest (node) does not, so guard the read.
@@ -22,9 +21,7 @@ export function buildAppCoreEnvSource(
 
   return {
     VITE_ACCOUNT_API_URL: process.env.EXPO_PUBLIC_ACCOUNT_API_URL,
-    VITE_ANALYTICS_ENGINE_URL: resolveAnalyticsApiUrl(
-      process.env.EXPO_PUBLIC_ANALYTICS_ENGINE_URL,
-    ),
+    VITE_ANALYTICS_ENGINE_URL: process.env.EXPO_PUBLIC_ANALYTICS_ENGINE_URL,
     VITE_PRIVY_APP_ID: privyAppId,
     VITE_ALCHEMY_API_KEY:
       process.env.EXPO_PUBLIC_ALCHEMY_API_KEY || extra.alchemyApiKey,

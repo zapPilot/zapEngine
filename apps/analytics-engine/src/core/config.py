@@ -25,6 +25,13 @@ DEV_ALLOWED_ORIGINS = (
     "http://localhost:8000",
 )
 LOCAL_CORS_HOSTS = {"localhost", "0.0.0.0", "::1"}
+# The packaged Electron renderer's fixed loopback origin (see
+# apps/desktop/src/main/rendererUrl.ts and config/env/prod.env — the three must
+# agree). Admitting it is safe only while this API carries no ambient
+# credential: CORS runs with allow_credentials=True, and any local process can
+# bind this port, so re-evaluate this entry before adding cookies or
+# Authorization.
+DESKTOP_PRODUCTION_CORS_ORIGIN = "http://127.0.0.1:3105"
 LOCAL_DEV_CORS_ORIGIN_REGEX = r"^https?://(?:localhost|127\.0\.0\.1)(?::[0-9]{1,5})?$"
 
 
@@ -430,7 +437,7 @@ class Settings(BaseSettings):
         self._validate_production_cors_origins()
 
     def _validate_production_cors_origins(self) -> None:
-        """Require explicit non-local CORS origins in production."""
+        """Require explicit production origins, allowing only the packaged desktop loopback."""
         if "allowed_origins" not in self.model_fields_set:
             raise ValueError(
                 "CORS_ALLOWED_ORIGINS must be explicitly set in production environment"
@@ -445,12 +452,17 @@ class Settings(BaseSettings):
                 "CORS_ALLOWED_ORIGINS must contain at least one origin in production environment"
             )
 
-        local_origins = [
-            origin for origin in allowed_origins if self._is_local_cors_origin(origin)
+        unsupported_local_origins = [
+            origin
+            for origin in allowed_origins
+            if self._is_local_cors_origin(origin)
+            and origin != DESKTOP_PRODUCTION_CORS_ORIGIN
         ]
-        if local_origins:
+        if unsupported_local_origins:
             raise ValueError(
-                "Production CORS_ALLOWED_ORIGINS must not include localhost or loopback origins"
+                "Production CORS_ALLOWED_ORIGINS may only include the packaged desktop "
+                f"loopback origin {DESKTOP_PRODUCTION_CORS_ORIGIN}; other localhost or "
+                "loopback origins are not allowed"
             )
 
     @staticmethod
