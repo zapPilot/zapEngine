@@ -114,9 +114,6 @@ import {
 } from './strategy.js';
 
 const POLL_INTERVAL_MS = 60_000;
-// A transient Supabase disconnection typically costs ~78s of socket time plus
-// 60s poll; 5 ticks ≈ 10 minutes of tolerance before escalating to fatal.
-const TRANSIENT_NETWORK_RETRY_LIMIT = 5;
 const METRIC_LOOKBACK_DAYS = 8;
 const STRATEGY_REFRESH_INTERVAL_MS = 6 * 60 * 60_000;
 const OWNER = `${hostname()}:${process.pid}`;
@@ -231,12 +228,11 @@ export async function runSocialDaemon(
       });
       if (
         !(error instanceof SocialReleaseFailureError) &&
-        isTransientNetworkError(error) &&
-        consecutiveTransientFailures < TRANSIENT_NETWORK_RETRY_LIMIT
+        isTransientNetworkError(error)
       ) {
         consecutiveTransientFailures += 1;
         log(
-          `⚠️ [social-daemon] transient network failure · retry ${consecutiveTransientFailures}/${TRANSIENT_NETWORK_RETRY_LIMIT} · next check in 60s · ${errorMessage(error).split('\n')[0]}`,
+          `⚠️ [social-daemon] network unavailable · ${consecutiveTransientFailures} failed tick(s) · retrying in 60s · ${errorMessage(error).split('\n')[0]}`,
         );
         await sleep(POLL_INTERVAL_MS);
         continue;
@@ -365,12 +361,12 @@ function finishSocialCatchUp(
  *
  * One exception is handled by the main loop: socket/DNS-layer transient
  * network failures (`isTransientNetworkError`) that are not a
- * `SocialReleaseFailureError` are retried for up to
- * `TRANSIENT_NETWORK_RETRY_LIMIT` consecutive ticks, because `reconcile` on
- * the next tick is already the correct recovery path for a Supabase blip that
- * happened before any transport started. `SocialReleaseFailureError` and all
- * other errors remain fatal, and this retry does not turn the daemon into a
- * watch runner — it is a bounded delay before the existing fatal path.
+ * `SocialReleaseFailureError` are retried indefinitely at the normal poll
+ * interval. A laptop may be offline for hours, and `reconcile` on the first
+ * successful tick is already the correct recovery path for a Supabase blip
+ * that happened before any transport started. `SocialReleaseFailureError`
+ * and all other errors remain fatal so an ambiguous publish transport result
+ * can never be retried blindly and create duplicate posts.
  */
 export async function runSocialDaemonTick(input: {
   now: Date;
