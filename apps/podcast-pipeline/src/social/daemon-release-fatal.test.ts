@@ -504,7 +504,9 @@ describe('transient network failures retry inside the daemon loop', () => {
     );
     expect(sleep).toHaveBeenNthCalledWith(1, 60_000);
     expect(mocks.listUnfinishedSocialPublishJobs).toHaveBeenCalledTimes(2);
-    expect(log).toHaveBeenCalledWith(expect.stringContaining('retry 1/5'));
+    expect(log).toHaveBeenCalledWith(
+      expect.stringContaining('network unavailable · 1 failed tick(s)'),
+    );
   });
 
   it('still fatals when the same network error is wrapped in SocialReleaseFailureError', async () => {
@@ -531,18 +533,31 @@ describe('transient network failures retry inside the daemon loop', () => {
     expect(sleep).not.toHaveBeenCalled();
   });
 
-  it('fatals after 6 consecutive transient failures (5 retries)', async () => {
+  it('keeps retrying transient failures beyond the old five-retry limit', async () => {
     const transient = buildTransientPostgrestError();
     mocks.listUnfinishedSocialPublishJobs.mockRejectedValue(transient);
-    const sleep = vi.fn().mockResolvedValue(undefined);
+    const sleep = vi
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('stop-loop'));
+    const log = vi.fn();
     const recordTick = vi.fn().mockResolvedValue(undefined);
 
     await expect(
-      runSocialDaemon({ now: () => NOW, sleep, log: vi.fn(), recordTick }),
-    ).rejects.toThrow('fetch failed');
+      runSocialDaemon({ now: () => NOW, sleep, log, recordTick }),
+    ).rejects.toThrow('stop-loop');
 
-    expect(sleep).toHaveBeenCalledTimes(5);
+    expect(mocks.listUnfinishedSocialPublishJobs).toHaveBeenCalledTimes(7);
+    expect(sleep).toHaveBeenCalledTimes(7);
     expect(sleep).toHaveBeenCalledWith(60_000);
+    expect(log).toHaveBeenCalledWith(
+      expect.stringContaining('network unavailable · 7 failed tick(s)'),
+    );
   });
 
   it('resets the streak after a successful tick and recovers after the earlier failures', async () => {
@@ -586,8 +601,9 @@ describe('transient network failures retry inside the daemon loop', () => {
     expect(log).toHaveBeenCalledWith(
       expect.stringContaining('network recovered after 3 failed tick(s)'),
     );
-    // After the reset, the next 5 failures are still retried, not fatal.
-    // Total sleeps: 3 retries + 1 success + 5 retries = 9 before the final success's sleep that throws.
+    // After the reset, later failures are still retried and the streak starts
+    // from zero again. Total sleeps: 3 retries + 1 success + 5 retries = 9
+    // before the final success's sleep that throws.
     expect(sleep).toHaveBeenCalledTimes(10);
   });
 });
