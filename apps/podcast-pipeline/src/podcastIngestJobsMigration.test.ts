@@ -3,6 +3,8 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { PODCAST_INGEST_MAX_CONCURRENT_JOBS } from './services/ingest-jobs.js';
+
 const repoRoot = path.resolve(process.cwd(), '../..');
 const migration = fs.readFileSync(
   path.join(
@@ -15,6 +17,13 @@ const emptyClaimFixMigration = fs.readFileSync(
   path.join(
     repoRoot,
     'supabase/migrations/20260830224500_fix_podcast_ingest_claim_empty_result.sql',
+  ),
+  'utf8',
+);
+const boundedConcurrencyMigration = fs.readFileSync(
+  path.join(
+    repoRoot,
+    'supabase/migrations/20260921163000_bound_podcast_ingest_concurrency.sql',
   ),
   'utf8',
 );
@@ -52,6 +61,19 @@ describe('podcast ingest jobs migration', () => {
     expect(emptyClaimFixMigration).toMatch(
       /returning \* into v_job;[\s\S]*if v_job\.id is null then[\s\S]*return null;/i,
     );
+  });
+
+  it('bounds claims globally to the same three-job capacity as the app pump', () => {
+    expect(boundedConcurrencyMigration).toContain(
+      `v_capacity constant integer := ${PODCAST_INGEST_MAX_CONCURRENT_JOBS};`,
+    );
+    expect(boundedConcurrencyMigration).toMatch(/pg_advisory_xact_lock/i);
+    expect(boundedConcurrencyMigration).toMatch(
+      /status = 'processing'[\s\S]*lease_expires_at > now\(\)[\s\S]*v_active_jobs >= v_capacity/i,
+    );
+    expect(
+      boundedConcurrencyMigration.match(/pg_advisory_xact_lock/gi),
+    ).toHaveLength(2);
   });
 
   it('keeps the table and queue RPCs service-role only', () => {

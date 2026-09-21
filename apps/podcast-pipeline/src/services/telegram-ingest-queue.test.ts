@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { createDeferred } from '../__fixtures__/index-test.js';
+
 const mocks = vi.hoisted(() => ({
   perform: vi.fn(),
   invalidate: vi.fn(),
@@ -33,8 +35,8 @@ vi.mock('./telegram.js', () => ({
   buildTelegramFailureMessage: mocks.failure,
   sendTelegramNotification: mocks.send,
   TELEGRAM_INFLIGHT_TEXT: 'inflight',
+  TELEGRAM_QUEUED_TEXT: 'queued',
   TELEGRAM_RETRY_REPLY_MARKUP: { inline_keyboard: [['retry']] },
-  TELEGRAM_START_TEXT: 'start',
 }));
 
 import { createTelegramIngestQueue } from './telegram-ingest-queue.js';
@@ -181,6 +183,41 @@ describe('Telegram ingest queue', () => {
       expect(mocks.send).toHaveBeenCalledWith('chat-new', 'ready:queued'),
     );
     expect(mocks.perform).toHaveBeenCalledTimes(1);
+  });
+
+  it('bounds the local fallback queue to three active ingests', async () => {
+    const runs = Array.from({ length: 4 }, () => createDeferred<unknown>());
+    mocks.perform.mockImplementation(() => {
+      const run = runs[mocks.perform.mock.calls.length - 1];
+      if (!run) throw new Error('unexpected ingest');
+      return run.promise;
+    });
+    const queue = createTelegramIngestQueue();
+
+    for (let index = 0; index < 4; index += 1) {
+      queue.enqueue(
+        `chat-${index}`,
+        `https://example.test/capacity-${index}`,
+        'zh-Hant',
+      );
+    }
+
+    await vi.waitFor(() => expect(mocks.perform).toHaveBeenCalledTimes(3));
+    expect(mocks.perform).not.toHaveBeenCalledWith(
+      'https://example.test/capacity-3',
+      'zh-Hant',
+      expect.anything(),
+    );
+
+    runs[0]!.resolve({
+      ingest: ingestResult(),
+      videoJob: { status: 'queued' },
+    });
+    await vi.waitFor(() => expect(mocks.perform).toHaveBeenCalledTimes(4));
+
+    for (const run of runs.slice(1)) {
+      run.resolve({ ingest: ingestResult(), videoJob: { status: 'queued' } });
+    }
   });
 
   it('schedules standalone messages on the next tick', async () => {

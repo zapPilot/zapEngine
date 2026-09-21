@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { createDeferred } from '../__fixtures__/index-test.js';
 import {
   PodcastIngestJobContractError,
   type PodcastIngestJobRow,
@@ -33,8 +34,8 @@ vi.mock('./telegram.js', () => ({
   buildTelegramFailureMessage: vi.fn(() => 'failed'),
   sendTelegramNotification: mocks.send,
   TELEGRAM_INFLIGHT_TEXT: 'inflight',
+  TELEGRAM_QUEUED_TEXT: 'queued',
   TELEGRAM_RETRY_REPLY_MARKUP: { inline_keyboard: [['retry']] },
-  TELEGRAM_START_TEXT: 'start',
 }));
 
 import { createTelegramIngestQueue } from './telegram-ingest-queue.js';
@@ -80,8 +81,11 @@ beforeEach(() => {
 });
 
 describe('durable Telegram ingest queue', () => {
-  it('persists and claims before starting ingest, then marks the job completed', async () => {
-    const store = fakeStore();
+  it('persists into the backlog and claims through the bounded pump', async () => {
+    const claimed = row();
+    const store = fakeStore({
+      claimNext: vi.fn().mockResolvedValueOnce(claimed).mockResolvedValue(null),
+    });
     const queue = createTelegramIngestQueue({
       jobStore: store,
       startRecoveryLoop: false,
@@ -95,7 +99,8 @@ describe('durable Telegram ingest queue', () => {
       url: 'https://example.test/article',
       languageCode: 'zh-Hant',
     });
-    expect(store.claim).toHaveBeenCalledTimes(1);
+    expect(store.claim).not.toHaveBeenCalled();
+    expect(store.claimNext).toHaveBeenCalled();
     await vi.waitFor(() =>
       expect(store.finish).toHaveBeenCalledWith(
         row().id,
@@ -107,7 +112,10 @@ describe('durable Telegram ingest queue', () => {
   });
 
   it('does not duplicate work when another process owns a live lease', async () => {
-    const store = fakeStore({ claim: vi.fn(async () => null) });
+    const store = fakeStore({
+      enqueue: vi.fn(async () => row({ status: 'processing' })),
+      claimNext: vi.fn(async () => null),
+    });
     const queue = createTelegramIngestQueue({
       jobStore: store,
       startRecoveryLoop: false,
@@ -119,6 +127,53 @@ describe('durable Telegram ingest queue', () => {
       expect(mocks.send).toHaveBeenCalledWith('chat-1', 'inflight'),
     );
     expect(mocks.perform).not.toHaveBeenCalled();
+  });
+
+  it('never claims a fourth durable job until one of three active jobs finishes', async () => {
+    const jobs = Array.from({ length: 4 }, (_, index) =>
+      row({
+        id: `00000000-0000-4000-8000-00000000010${index}`,
+        source_url: `https://example.test/capacity-${index}`,
+        telegram_chat_id: `chat-${index}`,
+      }),
+    );
+    const claimNext = vi
+      .fn()
+      .mockResolvedValueOnce(jobs[0])
+      .mockResolvedValueOnce(jobs[1])
+      .mockResolvedValueOnce(jobs[2])
+      .mockResolvedValueOnce(jobs[3])
+      .mockResolvedValue(null);
+    const store = fakeStore({ claimNext });
+    const runs = Array.from({ length: 4 }, () => createDeferred<unknown>());
+    mocks.perform.mockImplementation(() => {
+      const run = runs[mocks.perform.mock.calls.length - 1];
+      if (!run) throw new Error('unexpected ingest');
+      return run.promise;
+    });
+    const queue = createTelegramIngestQueue({
+      jobStore: store,
+      startRecoveryLoop: false,
+    });
+
+    await queue.recoverNow();
+
+    await vi.waitFor(() => expect(mocks.perform).toHaveBeenCalledTimes(3));
+    expect(claimNext).toHaveBeenCalledTimes(3);
+
+    runs[0]!.resolve({
+      ingest: { episode: { id: 'episode-1' } },
+      videoJob: { status: 'queued' },
+    });
+    await vi.waitFor(() => expect(mocks.perform).toHaveBeenCalledTimes(4));
+    expect(claimNext).toHaveBeenCalledTimes(4);
+
+    for (const run of runs.slice(1)) {
+      run.resolve({
+        ingest: { episode: { id: 'episode-1' } },
+        videoJob: { status: 'queued' },
+      });
+    }
   });
 
   it('claims a stale queued/processing job during recovery and resumes it', async () => {
@@ -196,7 +251,7 @@ describe('durable Telegram ingest queue', () => {
       source_url: null,
     } as unknown as PodcastIngestJobRow;
     const store = fakeStore({
-      claimNext: vi.fn(async () => poison),
+      claimNext: vi.fn().mockResolvedValueOnce(poison).mockResolvedValue(null),
     });
     const queue = createTelegramIngestQueue({
       jobStore: store,
