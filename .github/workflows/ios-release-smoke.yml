@@ -1,0 +1,130 @@
+name: iOS Release Smoke
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+  TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
+
+jobs:
+  detect-ios-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      app_ios: ${{ steps.filter.outputs.app_ios }}
+    steps:
+      - uses: actions/checkout@v7
+        if: github.event_name != 'workflow_dispatch'
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        if: github.event_name != 'workflow_dispatch'
+        with:
+          filters: |
+            app_ios:
+              # Runtime/native inputs only. Tests, docs, lint config, and other
+              # package-only QA changes stay on the normal Linux gates.
+              - 'apps/app/src/**'
+              - 'apps/app/assets/**'
+              - 'apps/app/app.config.ts'
+              - 'apps/app/babel.config.js'
+              - 'apps/app/entrypoint.js'
+              - 'apps/app/global.css'
+              - 'apps/app/metro.config.js'
+              - 'apps/app/package.json'
+              - 'apps/app/tailwind.config.js'
+              - 'apps/app/scripts/assert-ios-native-dependencies.cjs'
+              - 'apps/app/scripts/assert-workspace-dist-fresh.cjs'
+              - 'apps/app/scripts/ios-release-smoke.mjs'
+              - 'apps/app/scripts/sync-ios-native.mjs'
+              - 'apps/app/scripts/with-app-store-icon.cjs'
+              - 'packages/app-core/src/**'
+              - 'packages/app-core/package.json'
+              - 'packages/design-tokens/src/**'
+              - 'packages/design-tokens/package.json'
+              - 'packages/design-tokens/tokens.json'
+              - 'packages/intent-engine/src/**'
+              - 'packages/intent-engine/package.json'
+              - 'packages/types/src/**'
+              - 'packages/types/package.json'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'patches/**'
+              - 'turbo.json'
+              - '.npmrc'
+              - '.nvmrc'
+              - '.github/actions/setup-workspace/**'
+              - '.github/workflows/ios-release-smoke.yml'
+
+  # Local equivalent:
+  # `pnpm turbo run test:ios:release-smoke --filter=@zapengine/app`
+  ios-release-smoke:
+    needs: [detect-ios-changes]
+    if: github.event_name == 'workflow_dispatch' || needs.detect-ios-changes.outputs.app_ios == 'true'
+    runs-on: macos-26
+    # Validation only: a newer iOS-relevant SHA contains the older SHA's changes,
+    # so obsolete native builds can be replaced without touching deployment.
+    # Keeping concurrency on this job (not the whole workflow) means a later
+    # non-iOS push cannot cancel an iOS smoke that is still relevant.
+    concurrency:
+      group: ios-release-smoke-${{ github.ref }}
+      cancel-in-progress: true
+    # A cold Expo/Pods Release compile can exceed 45 minutes on a fresh image.
+    # The build step has its own tighter cap so diagnostics still have time to run.
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: ./.github/actions/setup-workspace
+        with:
+          uv: 'false'
+        env:
+          EAS_BUILD: 'true'
+          HUSKY: '0'
+
+      - name: Show Apple toolchain
+        run: |
+          xcodebuild -version
+          pod --version
+          xcrun simctl list runtimes
+
+      - name: Build and cold-launch iOS Release
+        id: ios_smoke
+        timeout-minutes: 65
+        run: >-
+          pnpm turbo run test:ios:release-smoke
+          --filter=@zapengine/app
+          --log-order=stream
+
+      - name: Show iOS smoke failure tail
+        if: always() && steps.ios_smoke.outcome != 'success'
+        run: |
+          for log in \
+            apps/app/test-results/ios-release-smoke/prebuild-and-pods.log \
+            apps/app/test-results/ios-release-smoke/xcodebuild.log; do
+            if [[ -f "$log" ]]; then
+              echo "::group::$log (last 200 lines)"
+              tail -n 200 "$log"
+              echo "::endgroup::"
+            fi
+          done
+
+      - name: Upload iOS smoke failure artifacts
+        if: always() && steps.ios_smoke.outcome != 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-ios-release-smoke-${{ github.run_attempt }}
+          path: apps/app/test-results/ios-release-smoke
+          if-no-files-found: ignore
+          retention-days: 7

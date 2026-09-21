@@ -64,7 +64,7 @@ if ! jq -e 'type == "array" and all(.[]; type == "string")' <<<"$changes" >/dev/
 fi
 
 # Registry order, not PATHS_CHANGES order, and names outside the registry
-# (app_ios, or a typo in a filter key) are ignored rather than invented.
+# (for example, a typo in a filter key) are ignored rather than invented.
 changed_apps() {
   jq -c --argjson changes "$changes" \
     '[.[] | select(.app as $a | $changes | index($a))]' "$REGISTRY_FILE"

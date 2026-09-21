@@ -140,7 +140,9 @@ Archive** in Xcode. A Release bundle also runs the same dependency guard, so
 bypassing the command with stale Pods fails the archive instead of emitting a
 crash-on-launch app.
 
-The macOS `test:ios:release-smoke` gate performs a clean Expo prebuild in CI,
+The dedicated `.github/workflows/ios-release-smoke.yml` workflow runs the macOS
+`test:ios:release-smoke` gate independently from the serialized production CI/deploy
+rail. It performs a clean Expo prebuild in CI,
 builds the actual Release simulator app with embedded JavaScript, verifies
 `RNCAsyncStorage` is linked, installs it, cold-launches it, and requires it to
 remain alive for 15 seconds without fatal React Native log signatures. Failure
