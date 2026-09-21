@@ -42,8 +42,8 @@ export interface TelegramSendMessageOptions {
 export const TELEGRAM_HELP_TEXT =
   '貼 PANews URL 產生 podcast。\n/retry <URL|episodeId> 重啟卡住步驟\n/status <episodeId> 查看三語音頻、visual、render 狀態。';
 export const TELEGRAM_NO_URL_TEXT = '請貼一個 http(s) 文章網址';
+export const TELEGRAM_QUEUED_TEXT = '收到，已加入處理佇列。';
 export const TELEGRAM_INFLIGHT_TEXT = '這個 URL 已在處理中，完成後我會通知你。';
-export const TELEGRAM_START_TEXT = '收到，開始處理文章。';
 export const TELEGRAM_RETRY_CALLBACK_DATA = 'retry_ingest';
 export const TELEGRAM_RETRY_VIDEO_CALLBACK_PREFIX = 'retry_video:';
 export const TELEGRAM_RETRY_REPLY_MARKUP: TelegramInlineKeyboardMarkup = {
