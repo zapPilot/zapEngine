@@ -19,7 +19,9 @@ node scripts/operations/agent-session.mjs coverage-review
 
 The launcher requires a terminal, refuses CI and arbitrary extra flags, ignores
 user/project/local settings, and uses `--strict-mcp-config`. The first three
-modes register only the canonical MCP. Coverage review loads
+modes register the canonical MCP and the Cloudflare vendor connector; a session
+without an OAuth grant simply sees the latter as unauthenticated. Coverage
+review loads
 `.claude/mcp.coverage-review.json` and `.claude/settings.coverage-review.json`.
 These boundaries apply to this launcher, not arbitrary already-open Codex or
 Claude sessions. Start a fresh session instead of invoking exploration in triage.
@@ -29,6 +31,22 @@ only database/debugging/docs feature groups. `execute_sql`, migrations and other
 mutations are denied. Authenticate the project-scoped server interactively via
 Claude's `/mcp` if needed; do not put access tokens in committed configuration.
 See the [official options](https://supabase.com/docs/guides/ai-tools/mcp#configuration-options).
+
+Cloudflare is the one vendor MCP registered in every profile, including the
+three non-exploration ones, because reading a bill is not exploration. It is
+declared with a URL and nothing else: authenticate it interactively through
+Claude's `/mcp` (OpenCode: `opencode mcp auth cloudflare`) and grant read
+permissions only -- account settings, billing, analytics and R2 storage reads --
+and no write permission at all.
+
+The grant is the whole authority boundary, not a tool allowlist. Cloudflare's
+server exposes just `search()` and `execute()` over an API of more than 2,500
+endpoints; `execute()` runs generated JavaScript against any endpoint the grant
+permits, so denying a tool name here would only leave a docs-only connector
+while changing nothing about what it can reach. A bearer token is also
+supported and is deliberately unused: a token in committed configuration would
+hand every clone of this repository whatever it allows. See
+[Cloudflare's own MCP servers](https://developers.cloudflare.com/agents/model-context-protocol/cloudflare/servers-for-cloudflare/).
 
 Fly runs through `scripts/operations/fly-readonly-mcp.mjs`, which exposes only six
 reviewed read tools, rejects unknown tools and arguments, and never forwards

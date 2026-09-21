@@ -25,6 +25,10 @@ test('exploration scopes Supabase to read-only and routes Fly through the read-o
   assert.deepEqual(config.mcpServers.fly.args, [
     'scripts/operations/fly-readonly-mcp.mjs',
   ]);
+  assert.deepEqual(config.mcpServers.cloudflare, {
+    type: 'http',
+    url: 'https://mcp.cloudflare.com/mcp',
+  });
   const settings = JSON.parse(
     readFileSync(
       new URL('../../.claude/settings.coverage-review.json', import.meta.url),

@@ -3,6 +3,10 @@
     "zap-pilot-ops": {
       "command": "node",
       "args": ["scripts/ops-mcp.mjs"]
+    },
+    "cloudflare": {
+      "type": "http",
+      "url": "https://mcp.cloudflare.com/mcp"
     }
   }
 }

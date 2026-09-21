@@ -32,6 +32,11 @@ exploration session with writes denied. Availability is session-specific; do not
 infer that a provider lacks an API or MCP from its absence here. Do not enable or
 reconfigure providers during this review, or expose them to triage/worker.
 
+Cloudflare is the one deliberate exception: its vendor MCP is registered in the
+triage and worker profiles too, so a session there may already hold it. It stays
+read-only by grant, not by an allowlist -- never authorize a write permission on
+it, and it remains out of scope for this review's own changes.
+
 ## Outcome check
 
 The PostHog audience and product engagement signals carry counters with a fixed
