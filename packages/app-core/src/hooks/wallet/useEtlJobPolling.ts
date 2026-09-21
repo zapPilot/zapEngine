@@ -11,18 +11,14 @@
  * - Provides retry-friendly terminal states and error handling
  */
 
-import { queryKeys } from '@core/lib/state/queryClient';
+import { refreshPortfolioQueryCaches } from '@core/lib/state/portfolioQueryRefresh';
 import {
   type EtlJobResponse,
   type EtlJobStatus,
   getEtlJobStatus,
   triggerWalletDataFetch,
 } from '@core/services';
-import {
-  type QueryClient,
-  useQuery,
-  useQueryClient,
-} from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 /**
@@ -102,31 +98,6 @@ function deriveStatus(
   if (latestStatus) return latestStatus;
   if (triggerError) return 'failed';
   return jobId ? 'pending' : 'idle';
-}
-
-async function refreshPortfolioQueryCaches(
-  queryClient: QueryClient,
-  userId: string | null,
-): Promise<void> {
-  const invalidations: Promise<void>[] = [
-    queryClient.invalidateQueries({ queryKey: queryKeys.portfolio.all }),
-  ];
-
-  if (userId) {
-    invalidations.push(
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.portfolioDashboard.byUser(userId),
-      }),
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.dailyYield.byUser(userId),
-      }),
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.desktop.portfolio.dailyYieldByUser(userId),
-      }),
-    );
-  }
-
-  await Promise.all(invalidations);
 }
 
 /**

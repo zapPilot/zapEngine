@@ -2,6 +2,7 @@ export const COST_PROVIDERS = [
   'debank',
   'openrouter',
   'brave',
+  'cloudflare',
   'supabase',
   'fly',
 ] as const;

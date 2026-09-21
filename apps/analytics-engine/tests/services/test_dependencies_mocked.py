@@ -77,12 +77,7 @@ class TestDependencyFactories:
         """Should create BorrowingService."""
         mock_db = Mock(spec=Session)
         mock_query = Mock()
-        mock_canonical = Mock()
-        service = get_borrowing_service(
-            db=mock_db,
-            query_service=mock_query,
-            canonical_snapshot_service=mock_canonical,
-        )
+        service = get_borrowing_service(db=mock_db, query_service=mock_query)
         assert service is not None
 
     def test_get_sentiment_database_service(self):

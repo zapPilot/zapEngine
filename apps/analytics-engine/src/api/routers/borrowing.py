@@ -65,10 +65,7 @@ def get_borrowing_positions(
         HTTPException 500: Database or service error
     """
     try:
-        snapshot_date = None
-        if canonical_snapshot_service is not None:
-            snapshot_date = canonical_snapshot_service.get_snapshot_date(user_id)
-
+        snapshot_date = canonical_snapshot_service.get_snapshot_date(user_id)
         result = borrowing_service.get_borrowing_positions(
             user_id, snapshot_date=snapshot_date
         )

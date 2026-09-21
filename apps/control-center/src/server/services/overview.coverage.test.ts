@@ -35,7 +35,7 @@ describe('overview coverage', () => {
     expect(result.providers.every((p) => p.status === 'unconfigured')).toBe(
       true,
     );
-    expect(result.providers).toHaveLength(5);
+    expect(result.providers).toHaveLength(6);
     expect(result.accruedCostUsd).toBeNull();
     expect(result.socialReach).toBe(10);
     await expect(service.getCostHistory()).resolves.toMatchObject({
@@ -125,7 +125,7 @@ describe('overview coverage', () => {
       loadSocial: loadSocialMock(),
     });
     const result = await service.getOverview();
-    expect(result.providers).toHaveLength(5);
+    expect(result.providers).toHaveLength(6);
     expect(Date.parse(result.generatedAt)).not.toBeNaN();
   });
 });

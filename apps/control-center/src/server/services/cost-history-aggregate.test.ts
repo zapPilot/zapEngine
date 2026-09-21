@@ -6,6 +6,7 @@ import {
   aggregateByProviderForMonth,
   aggregateDaily,
   aggregateMonthly,
+  CLOUDFLARE_UNPRICED_MESSAGE,
   describeSnapshot,
   FLY_RUN_RATE_ONLY_MESSAGE,
   rowToSnapshot,
@@ -187,6 +188,7 @@ describe('aggregateByProviderForMonth', () => {
       { provider: 'debank', accruedCostUsd: null },
       { provider: 'openrouter', accruedCostUsd: 0 },
       { provider: 'brave', accruedCostUsd: null },
+      { provider: 'cloudflare', accruedCostUsd: null },
       { provider: 'supabase', accruedCostUsd: null },
       { provider: 'fly', accruedCostUsd: null },
     ]);
@@ -277,6 +279,13 @@ describe('toProviderResults', () => {
       costType: 'list-price-equivalent',
       message: 'No snapshot yet',
     });
+    // Cloudflare reports what it actually billed, so an empty card must not
+    // default to the `estimated` basis the roster's tail carries.
+    expect(card('cloudflare')).toMatchObject({
+      status: 'unconfigured',
+      costType: 'actual',
+      message: 'No snapshot yet',
+    });
   });
 
   it('keeps the first row met per provider, so the query must be newest-first', () => {
@@ -300,6 +309,9 @@ describe('describeSnapshot', () => {
     expect(
       describeSnapshot(row({ provider: 'brave', accrued_cost_usd: null })),
     ).toBe('Usage synced; USD cost unknown');
+    expect(
+      describeSnapshot(row({ provider: 'cloudflare', accrued_cost_usd: null })),
+    ).toBe(CLOUDFLARE_UNPRICED_MESSAGE);
     expect(
       describeSnapshot(
         row({ provider: 'fly', accrued_cost_usd: 14.02, source: 'manual' }),

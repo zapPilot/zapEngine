@@ -20,7 +20,7 @@ from src.core.constants import CATEGORIES
 from src.core.exceptions import CrossServiceConsistencyError, ValidationError
 from src.core.financial_utils import calculate_percentage_rounded
 from src.models.analytics_responses import SnapshotInfo
-from src.models.portfolio import PortfolioResponse
+from src.models.portfolio import BorrowingSummary, PortfolioResponse
 from src.models.portfolio_snapshot import WalletTrendOverride
 from src.services.portfolio.borrowing_service import BorrowingService
 from src.services.portfolio.canonical_snapshot_service import CanonicalSnapshotService
@@ -118,15 +118,10 @@ class LandingPageService(CacheKeyMixin):
             "Canonical snapshot service is required",
         )
 
-        if borrowing_service is None:
-            from src.services.portfolio.borrowing_service import BorrowingService
-
-            borrowing_service = BorrowingService(
-                db=self.db,
-                query_service=query_service,
-                canonical_snapshot_service=self.canonical_snapshot_service,
-            )
-        self.borrowing_service = borrowing_service
+        self.borrowing_service = self._require_dependency(
+            borrowing_service,
+            "Borrowing service is required",
+        )
 
         self.portfolio_aggregator = portfolio_aggregator or PortfolioAggregator()
         self.roi_calculator = roi_calculator or ROICalculator(query_service)
@@ -323,11 +318,11 @@ class LandingPageService(CacheKeyMixin):
             chains_count = len({p.get("chain") for p in pool_details if p.get("chain")})
 
         with _timed("borrowing_summary calculation"):
-            borrowing_summary = self.borrowing_service.get_borrowing_summary(
-                user_id=user_id,
-                total_assets_usd=portfolio_summary["total_assets"],
-                total_debt_usd=portfolio_summary["total_debt"],
-                total_net_usd=portfolio_summary["net_portfolio_value"],
+            borrowing_summary = self._fetch_borrowing_summary(
+                user_id,
+                snapshot_date=snapshot_date,
+                portfolio_summary=portfolio_summary,
+                degradation=degradation,
             )
 
         return _LandingComponents(
@@ -475,6 +470,33 @@ class LandingPageService(CacheKeyMixin):
             )
             degradation.components.append("roi")
             return self.roi_calculator.empty_result()
+
+    def _fetch_borrowing_summary(
+        self,
+        user_id: UUID,
+        *,
+        snapshot_date: date,
+        portfolio_summary: dict[str, Any],
+        degradation: _LandingDegradation,
+    ) -> BorrowingSummary:
+        """Summarize borrowing health, degrading to placeholders on failure."""
+        try:
+            return self.borrowing_service.get_borrowing_summary(
+                user_id=user_id,
+                total_assets_usd=portfolio_summary["total_assets"],
+                total_debt_usd=portfolio_summary["total_debt"],
+                total_net_usd=portfolio_summary["net_portfolio_value"],
+                snapshot_date=snapshot_date,
+            )
+        except Exception as exc:
+            logger.error(
+                "Failed to summarize borrowing for user %s: %s.",
+                user_id,
+                exc,
+                exc_info=True,
+            )
+            degradation.components.append("borrowing")
+            return BorrowingSummary.empty(has_debt=portfolio_summary["total_debt"] > 0)
 
     def _fetch_pool_details(
         self,

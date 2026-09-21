@@ -9,14 +9,18 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
-from datetime import datetime
-from typing import Any, Protocol
+from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import UTC, date, datetime, time, timedelta
+from typing import Any, Generic, Protocol, TypeVar
 from uuid import UUID
 
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
+from src.core.cache_service import SINGLE_FLIGHT_WAIT_SECONDS
+from src.core.config import settings
 from src.core.filter_utils import normalize_filter
 from src.models.yield_returns import (
     DailyWalletReturn,
@@ -33,25 +37,84 @@ from src.services.aggregators.delta_outliers import (
 )
 from src.services.aggregators.token_attribution import build_token_breakdown
 from src.services.aggregators.wallet_attribution_aggregator import (
+    WalletTokenHolding,
     aggregate_wallet_snapshots,
     build_wallet_returns,
     calculate_wallet_deltas,
 )
 from src.services.aggregators.yield_return_aggregator import YieldReturnAggregator
-from src.services.aggregators.yield_summary_builder import build_yield_summary
+from src.services.aggregators.yield_summary_builder import (
+    WINDOW_DAYS,
+    build_yield_summary,
+)
 from src.services.analytics.analytics_context import PortfolioAnalyticsContext
 from src.services.analytics.eth_staking_income import (
     EthStakingExposure,
     aggregate_benchmark_lst_exposure,
     with_eth_staking_income,
 )
+from src.services.portfolio.canonical_snapshot_service import CanonicalSnapshotService
 from src.services.shared.base_analytics_service import BaseAnalyticsService
 from src.services.shared.query_names import QUERY_NAMES
 from src.services.shared.query_service import QueryService
 
+# One scan wide enough for every window the home screen asks for: the summary
+# already reads max(window)+1 days, so the shared base never costs more than
+# the most expensive request did on its own.
+YIELD_BASE_WINDOW_DAYS = max(WINDOW_DAYS.values()) + 1
+
+WindowPayloadT = TypeVar("WindowPayloadT")
+
+WalletDays = dict[str, dict[str, WalletTokenHolding]]
+
 
 class StakingAprProvider(Protocol):
     async def get_benchmark_apr(self) -> float | None: ...
+
+
+@dataclass(frozen=True)
+class CachedWindow(Generic[WindowPayloadT]):
+    """Aggregated snapshot data with the window it was measured over."""
+
+    start_date: datetime
+    end_date: datetime
+    payload: WindowPayloadT
+
+
+@dataclass(frozen=True)
+class PositionAggregates:
+    """Per-day position buckets, cached before deltas are taken.
+
+    Raw snapshot rows for 91 days reach tens of megabytes; the cache deep-copies
+    every value it hands out, so the aggregated buckets are what get stored.
+    Deltas stay outside the cache because they must be recomputed per window -
+    slicing them instead would keep a predecessor the narrow window never saw.
+    """
+
+    token_snapshots: list[dict[str, Any]]
+    usd_snapshots: list[dict[str, Any]]
+
+    def since(self, day: str) -> PositionAggregates:
+        """Drop buckets before ``day`` (a ``YYYY-MM-DD`` string)."""
+        return PositionAggregates(
+            token_snapshots=[
+                bucket
+                for bucket in self.token_snapshots
+                if bucket["snapshot_at"] >= day
+            ],
+            usd_snapshots=[
+                bucket for bucket in self.usd_snapshots if bucket["snapshot_at"] >= day
+            ],
+        )
+
+
+def _wallet_days_since(by_day: WalletDays, day: str) -> WalletDays:
+    """Drop wallet-token days before ``day`` (a ``YYYY-MM-DD`` string)."""
+    return {
+        bucket_day: holdings
+        for bucket_day, holdings in by_day.items()
+        if bucket_day >= day
+    }
 
 
 class YieldReturnService(BaseAnalyticsService):
@@ -63,11 +126,16 @@ class YieldReturnService(BaseAnalyticsService):
     response, ``/healthz`` included. The offloaded calls stay strictly
     sequential because ``self.db`` is a single Session shared by this request;
     two threads must never touch it at once.
+
+    Daily returns and the multi-window summary read one cached
+    ``YIELD_BASE_WINDOW_DAYS`` scan per canonical snapshot and slice it to the
+    requested window, so a cold home load pays for that scan once rather than
+    once per endpoint and once per range the user switches to.
     """
 
-    # v2 adds wallet_returns and the per-delta outlier flag; a v1 entry cached
-    # for its full 12 hours would otherwise serve the old shape after deploy.
-    CACHE_VERSION = "v2"
+    # v3 caches aggregated windows keyed on the canonical snapshot date; v2
+    # entries hold a different payload type under a differently shaped key.
+    CACHE_VERSION = "v3"
 
     def __init__(
         self,
@@ -75,10 +143,12 @@ class YieldReturnService(BaseAnalyticsService):
         query_service: QueryService,
         context: PortfolioAnalyticsContext,
         staking_apr_provider: StakingAprProvider,
+        canonical_snapshot_service: CanonicalSnapshotService,
     ) -> None:
         super().__init__(db, query_service, context)
         self._logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
         self._staking_apr_provider = staking_apr_provider
+        self._canonical_snapshot_service = canonical_snapshot_service
 
     async def get_daily_yield_returns(
         self,
@@ -92,6 +162,7 @@ class YieldReturnService(BaseAnalyticsService):
     ) -> YieldReturnsResponse:
         """Return daily yield data for the requested filters."""
         wallet_key, ttl_hours = self._wallet_cache_config(wallet_address)
+        snapshot_date = await self._resolve_snapshot_anchor(user_id, wallet_address)
         cache_key = self._cache_key(
             "daily_yield_returns",
             user_id,
@@ -100,6 +171,7 @@ class YieldReturnService(BaseAnalyticsService):
             f"threshold:{self._normalize_float(min_threshold)}",
             f"protocols:{normalize_filter(protocols)}",
             f"chains:{normalize_filter(chains)}",
+            self._anchor_key_part(snapshot_date),
         )
 
         async def compute() -> YieldReturnsResponse:
@@ -112,7 +184,7 @@ class YieldReturnService(BaseAnalyticsService):
             )
 
             start_date, end_date, filtered = await self._fetch_yield_deltas(
-                user_id, days, wallet_address, min_threshold
+                user_id, days, wallet_address, min_threshold, snapshot_date
             )
             # Fenced over the whole requested window before any protocol/chain
             # filter, so narrowing the response never moves another series'
@@ -122,7 +194,7 @@ class YieldReturnService(BaseAnalyticsService):
                 filtered, protocols, chains, outlier_keys
             )
             wallet_returns = await self._fetch_wallet_returns(
-                user_id, wallet_address, start_date, end_date
+                user_id, wallet_address, days, snapshot_date
             )
 
             self._logger.info(
@@ -162,6 +234,7 @@ class YieldReturnService(BaseAnalyticsService):
     ) -> MultiWindowYieldSummaryResponse:
         """Return observed protocol carry plus current synthetic ETH staking carry."""
         wallet_key, ttl_hours = self._wallet_cache_config(wallet_address)
+        snapshot_date = await self._resolve_snapshot_anchor(user_id, wallet_address)
         cache_key = self._cache_key(
             "yield_summary",
             user_id,
@@ -169,6 +242,7 @@ class YieldReturnService(BaseAnalyticsService):
             ",".join(windows),
             outlier_strategy,
             f"threshold:{self._normalize_float(min_threshold)}",
+            self._anchor_key_part(snapshot_date),
         )
 
         async def compute_observed() -> MultiWindowYieldSummaryResponse:
@@ -177,6 +251,7 @@ class YieldReturnService(BaseAnalyticsService):
                 max(int(window.removesuffix("d")) for window in windows) + 1,
                 wallet_address,
                 min_threshold,
+                snapshot_date,
             )
             return build_yield_summary(str(user_id), deltas, windows, outlier_strategy)
 
@@ -244,76 +319,175 @@ class YieldReturnService(BaseAnalyticsService):
             )
             return observed_summary
 
+    async def _resolve_snapshot_anchor(
+        self, user_id: UUID, wallet_address: str | None
+    ) -> date | None:
+        """Resolve the canonical snapshot date every cache key is pinned to.
+
+        Offloaded like every other DB hop: the 5-minute cache in front of it
+        misses often enough that an inline call would run SQL on the loop.
+        """
+        return await run_in_threadpool(
+            self._canonical_snapshot_service.get_snapshot_date,
+            user_id,
+            wallet_address,
+        )
+
+    @staticmethod
+    def _anchor_key_part(snapshot_date: date | None) -> str:
+        """Render the snapshot anchor so a new ETL run moves every key."""
+        if snapshot_date is None:
+            return "snapshot:none"
+        return f"snapshot:{snapshot_date.isoformat()}"
+
+    def _analysis_window(
+        self, days: int, snapshot_date: date | None
+    ) -> tuple[datetime, datetime]:
+        """Return the half-open window analysed for one request.
+
+        Anchoring on the canonical snapshot keeps every window midnight-aligned,
+        so a narrow slice of the shared base scan covers exactly the same whole
+        days a dedicated query would have. Without a snapshot the user has no
+        position rows at all, so the wall-clock window is as good as any.
+        """
+        if snapshot_date is None:
+            return self.context.calculate_date_range(days)
+        end_date = datetime.combine(
+            snapshot_date + timedelta(days=1), time.min, tzinfo=UTC
+        )
+        return end_date - timedelta(days=days), end_date
+
+    @staticmethod
+    def _base_window_wait_timeout() -> float:
+        """Seconds a follower waits for the shared base scan.
+
+        The 60s default is shorter than a cold 91-day scan, which would make
+        every concurrent home request run its own copy of the one query this
+        cache exists to collapse.
+        """
+        if settings.db_statement_timeout_ms <= 0:
+            return SINGLE_FLIGHT_WAIT_SECONDS
+        return settings.db_statement_timeout_ms / 1000 + 5
+
+    async def _load_window(
+        self,
+        *,
+        namespace: str,
+        query_name: str,
+        user_id: UUID,
+        wallet_address: str | None,
+        days: int,
+        snapshot_date: date | None,
+        aggregate: Callable[[list[dict[str, Any]]], WindowPayloadT],
+        narrow: Callable[[WindowPayloadT, str], WindowPayloadT],
+    ) -> CachedWindow[WindowPayloadT]:
+        """Read one aggregated window, reusing the cached base scan when possible."""
+        wallet_key, ttl_hours = self._wallet_cache_config(wallet_address)
+        use_base = settings.analytics_cache_enabled and days <= YIELD_BASE_WINDOW_DAYS
+        fetch_days = YIELD_BASE_WINDOW_DAYS if use_base else days
+
+        def fetch() -> CachedWindow[WindowPayloadT]:
+            start_date, end_date = self._analysis_window(fetch_days, snapshot_date)
+            rows = self.query_service.fetch_time_range_query(
+                db=self.db,
+                query_name=query_name,
+                user_id=user_id,
+                start_date=start_date,
+                end_date=end_date,
+                wallet_address=wallet_address,
+            )
+            self._logger.info(
+                "Fetched %d rows for %s over %d days", len(rows), namespace, fetch_days
+            )
+            return CachedWindow(start_date, end_date, aggregate(rows))
+
+        if not use_base:
+            return await run_in_threadpool(fetch)
+
+        base = await run_in_threadpool(
+            self._with_cache,
+            self._cache_key(
+                namespace,
+                user_id,
+                wallet_key,
+                YIELD_BASE_WINDOW_DAYS,
+                self._anchor_key_part(snapshot_date),
+            ),
+            fetch,
+            ttl_hours=ttl_hours,
+            wait_timeout=self._base_window_wait_timeout(),
+        )
+        start_date = base.end_date - timedelta(days=days)
+        return CachedWindow(
+            start_date,
+            base.end_date,
+            narrow(base.payload, start_date.date().isoformat()),
+        )
+
     async def _fetch_yield_deltas(
         self,
         user_id: UUID,
         days: int,
         wallet_address: str | None,
         min_threshold: float,
+        snapshot_date: date | None,
     ) -> tuple[datetime, datetime, list[dict[str, Any]]]:
         """Fetch snapshots and calculate significant token/USD balance deltas."""
-        wallet_key, ttl_hours = self._wallet_cache_config(wallet_address)
-        start_date, end_date = self.context.calculate_date_range(days)
-        # Keep exact windows separate: calculating deltas over a larger window
-        # would introduce a predecessor at the smaller window's first snapshot.
-        cache_key = self._cache_key(
-            "yield_deltas",
-            user_id,
-            wallet_key,
-            days,
-            end_date.date().isoformat(),
-        )
 
-        def compute() -> tuple[datetime, datetime, list[dict[str, Any]]]:
-            rows = self.query_service.fetch_time_range_query(
-                db=self.db,
-                query_name=QUERY_NAMES.PORTFOLIO_YIELD_SNAPSHOTS,
-                user_id=user_id,
-                start_date=start_date,
-                end_date=end_date,
-                wallet_address=wallet_address,
-            )
-            self._logger.info("Fetched %d snapshots from database", len(rows))
+        def aggregate(rows: list[dict[str, Any]]) -> PositionAggregates:
             token_agg, usd_agg = YieldReturnAggregator.aggregate_snapshots(
                 user_id, rows
             )
-            token_deltas = YieldReturnAggregator.calculate_snapshot_deltas(token_agg)
-            usd_deltas = YieldReturnAggregator.calculate_usd_balance_deltas(usd_agg)
-            return start_date, end_date, token_deltas + usd_deltas
+            return PositionAggregates(token_agg, usd_agg)
 
-        start_date, end_date, deltas = await run_in_threadpool(
-            self._with_cache, cache_key, compute, ttl_hours=ttl_hours
+        window = await self._load_window(
+            namespace="position_aggregates",
+            query_name=QUERY_NAMES.PORTFOLIO_YIELD_SNAPSHOTS,
+            user_id=user_id,
+            wallet_address=wallet_address,
+            days=days,
+            snapshot_date=snapshot_date,
+            aggregate=aggregate,
+            narrow=PositionAggregates.since,
+        )
+        # Deltas are derived after the slice: the first day of a narrow window
+        # must not inherit a predecessor that only the base window saw.
+        deltas = YieldReturnAggregator.calculate_snapshot_deltas(
+            window.payload.token_snapshots
+        ) + YieldReturnAggregator.calculate_usd_balance_deltas(
+            window.payload.usd_snapshots
         )
         filtered = YieldReturnAggregator.filter_significant_deltas(
             deltas, min_threshold
         )
-        return start_date, end_date, filtered
+        return window.start_date, window.end_date, filtered
 
     async def _fetch_wallet_returns(
         self,
         user_id: UUID,
         wallet_address: str | None,
-        start_date: datetime,
-        end_date: datetime,
+        days: int,
+        snapshot_date: date | None,
     ) -> list[DailyWalletReturn]:
         """Attribute idle wallet balances over the position window.
 
-        A failure here is not swallowed: without wallet coverage every wallet
-        price move would silently reappear as an unexplained residual, which is
-        worse than the frontend hiding the breakdown entirely.
+        Shares the position path's anchor and window so the two attributions
+        always describe the same days. A failure here is not swallowed: without
+        wallet coverage every wallet price move would silently reappear as an
+        unexplained residual, which is worse than the frontend hiding the
+        breakdown entirely.
         """
-        rows = await run_in_threadpool(
-            self.query_service.fetch_time_range_query,
-            db=self.db,
+        window = await self._load_window(
+            namespace="wallet_token_days",
             query_name=QUERY_NAMES.WALLET_TOKEN_ATTRIBUTION_SNAPSHOTS,
             user_id=user_id,
-            start_date=start_date,
-            end_date=end_date,
             wallet_address=wallet_address,
+            days=days,
+            snapshot_date=snapshot_date,
+            aggregate=aggregate_wallet_snapshots,
+            narrow=_wallet_days_since,
         )
-        self._logger.info("Fetched %d wallet token rows from database", len(rows))
-        deltas = calculate_wallet_deltas(aggregate_wallet_snapshots(rows))
-        return build_wallet_returns(deltas)
+        return build_wallet_returns(calculate_wallet_deltas(window.payload))
 
     @staticmethod
     def _normalize_float(value: float) -> str:

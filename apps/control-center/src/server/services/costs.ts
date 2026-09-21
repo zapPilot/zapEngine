@@ -1,6 +1,7 @@
 import {
   createFixedMonthlyCostSnapshot,
   fetchBraveCostSnapshot,
+  fetchCloudflareCostSnapshot,
   fetchDeBankCostSnapshot,
   fetchOpenRouterCostSnapshot,
   resolvePricingRate,
@@ -17,6 +18,7 @@ import type {
   ProviderMonthCost,
 } from '../../shared/types.js';
 import type { ControlCenterConfig } from '../config/env.js';
+import { CLOUDFLARE_UNPRICED_MESSAGE } from './cost-history-aggregate.js';
 import { fetchFlyRunRateSnapshot, type FlyctlRunner } from './fly.js';
 
 interface CostSource {
@@ -39,9 +41,11 @@ export interface CollectedCostProvider extends CostProviderResult {
  * `priorMonthTotals` is what the metered providers need to survive the first
  * days of a month: extrapolating a few hours of spend across thirty days turns
  * pocket change into a scary headline, so the loaders anchor the unelapsed part
- * of the month to what the provider actually cost last month. Only metered
- * providers get it — Supabase is a flat commitment with nothing to project, and
- * Fly's collector reports no cost at all.
+ * of the month to what the provider actually cost last month. Cloudflare
+ * anchors on it too: its billing data lags, so an early-month read is a real
+ * figure that is simply incomplete. Only these providers get it — Supabase is a
+ * flat commitment with nothing to project, and Fly's collector reports no cost
+ * at all.
  */
 export async function collectCostProviders(input: {
   config: ControlCenterConfig;
@@ -65,6 +69,11 @@ export async function collectCostProviders(input: {
     metricKey: 'search_request',
     at: now,
   });
+  // Cloudflare needs both halves. Holding only one reports "not connected"
+  // rather than sending a request that is certain to be rejected.
+  const cloudflareConfigured = Boolean(
+    input.config.CLOUDFLARE_API_TOKEN && input.config.CLOUDFLARE_ACCOUNT_ID,
+  );
   const supabaseRate = resolvePricingRate(input.pricingRates, {
     provider: 'supabase',
     metricKey: 'pro_plan',
@@ -116,6 +125,21 @@ export async function collectCostProviders(input: {
           fetch: input.fetch,
           now,
           priorMonthTotalUsd: priorMonthTotal('brave'),
+        }),
+    },
+    {
+      provider: 'cloudflare',
+      label: 'Cloudflare',
+      costType: 'actual',
+      configured: cloudflareConfigured,
+      pricingRateId: null,
+      load: () =>
+        fetchCloudflareCostSnapshot({
+          apiToken: input.config.CLOUDFLARE_API_TOKEN!,
+          accountId: input.config.CLOUDFLARE_ACCOUNT_ID!,
+          fetch: input.fetch,
+          now,
+          priorMonthTotalUsd: priorMonthTotal('cloudflare'),
         }),
     },
     {
@@ -173,10 +197,7 @@ async function loadSource(source: CostSource): Promise<CollectedCostProvider> {
       costType: snapshot.costType,
       snapshot,
       pricingRateId: source.pricingRateId,
-      message:
-        meteredRateMissing(source) && snapshot.accruedCostUsd === null
-          ? 'Usage synced; USD cost unknown'
-          : null,
+      message: unpricedMessage(source, snapshot),
     };
   } catch (error) {
     // A provider that answered but can no longer be measured is not an
@@ -207,6 +228,25 @@ async function loadSource(source: CostSource): Promise<CollectedCostProvider> {
       message: safeProviderError(error),
     };
   }
+}
+
+/**
+ * Why a successfully collected snapshot still carries no dollar figure. A
+ * metered provider is missing our own rate card; Cloudflare answered with
+ * charge rows that carry no cost field at all, which is not something a rate
+ * card here would fix — so the two do not share a sentence.
+ */
+function unpricedMessage(
+  source: CostSource,
+  snapshot: CostSnapshot,
+): string | null {
+  if (snapshot.accruedCostUsd !== null) {
+    return null;
+  }
+  if (meteredRateMissing(source)) {
+    return 'Usage synced; USD cost unknown';
+  }
+  return source.provider === 'cloudflare' ? CLOUDFLARE_UNPRICED_MESSAGE : null;
 }
 
 function meteredRateMissing(source: CostSource): boolean {
@@ -246,7 +286,7 @@ function staticUnconfiguredSource(
 
 function safeProviderError(error: unknown): string {
   if (error instanceof Error) {
-    if (/^Brave Search /u.test(error.message)) {
+    if (/^(?:Brave Search|Cloudflare) /u.test(error.message)) {
       return error.message;
     }
     if (/\(\d{3}\)$/.test(error.message)) {

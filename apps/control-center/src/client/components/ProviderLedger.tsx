@@ -18,6 +18,12 @@ const PRIMARY_USAGE_KEY: Record<CostProvider, string> = {
   fly: FLY_RUN_RATE_USAGE_KEY,
   openrouter: 'monthly',
   brave: 'monthly_requests',
+  // Cloudflare's accrued column already carries the effective bill, so the
+  // usage column leads with undiscounted list price -- the one figure that
+  // says something the money column does not. It is omitted when any charge
+  // row lacks `ListCost`, and the cell then reads as unknown rather than as
+  // a total that quietly left rows out.
+  cloudflare: 'list_cost_usd',
   supabase: 'monthly_plan',
 };
 

@@ -1,7 +1,12 @@
-import type { CostPricingRate, FetchLike } from '@zapengine/cost-observability';
+import type {
+  CostPricingRate,
+  CostProvider,
+  FetchLike,
+} from '@zapengine/cost-observability';
 import { describe, expect, it, vi } from 'vitest';
 
 import { readControlCenterConfig } from '../config/env.js';
+import { CLOUDFLARE_UNPRICED_MESSAGE } from './cost-history-aggregate.js';
 import { collectCostProviders } from './costs.js';
 
 const NOW = new Date('2026-09-11T09:00:00.000Z');
@@ -16,26 +21,83 @@ const BRAVE_RATE: CostPricingRate = {
   effectiveTo: null,
 };
 
+const CLOUDFLARE_ENV = {
+  CLOUDFLARE_API_TOKEN: 'cf-token',
+  CLOUDFLARE_ACCOUNT_ID: 'cf-account',
+};
+
 /**
- * Only Brave carries a credential, so every other source reports itself
- * unconfigured without reaching the network. `FLY_COST_MODE` is left at its
- * `manual` default for the same reason -- this file is about how a collector
- * failure is classified, not about the roster.
+ * Only the provider under test carries a credential, so every other source
+ * reports itself unconfigured without reaching the network. `FLY_COST_MODE` is
+ * left at its `manual` default for the same reason -- this file is about how a
+ * collector failure is classified, not about the roster.
  */
-async function collectBrave(fetcher: FetchLike) {
+async function collectProvider(input: {
+  provider: CostProvider;
+  env: Record<string, string>;
+  fetch: FetchLike;
+  pricingRates?: CostPricingRate[];
+}) {
   const providers = await collectCostProviders({
-    config: readControlCenterConfig({ BRAVE_SEARCH_API_KEY: 'brave-key' }),
-    pricingRates: [BRAVE_RATE],
-    fetch: fetcher,
+    config: readControlCenterConfig(input.env),
+    pricingRates: input.pricingRates ?? [],
+    fetch: input.fetch,
     now: NOW,
   });
-  const brave = providers.find((provider) => provider.provider === 'brave');
-  expect(brave).toBeDefined();
-  return brave!;
+  const collected = providers.find(
+    (entry) => entry.provider === input.provider,
+  );
+  expect(collected).toBeDefined();
+  return collected!;
+}
+
+function collectBrave(fetcher: FetchLike) {
+  return collectProvider({
+    provider: 'brave',
+    env: { BRAVE_SEARCH_API_KEY: 'brave-key' },
+    fetch: fetcher,
+    pricingRates: [BRAVE_RATE],
+  });
+}
+
+function collectCloudflare(
+  fetcher: FetchLike,
+  env: Record<string, string> = CLOUDFLARE_ENV,
+) {
+  return collectProvider({ provider: 'cloudflare', env, fetch: fetcher });
 }
 
 function braveResponse(headers: Record<string, string>) {
   return new Response(JSON.stringify({ results: [] }), { headers });
+}
+
+/**
+ * The package keeps its own Cloudflare fixtures, but they are internal to it,
+ * so the smallest envelope that satisfies the collector is declared here --
+ * the same way this file already stubs Brave with a bare header response.
+ */
+function cloudflareUsageResponse(
+  rows: Record<string, unknown>[],
+  status = 200,
+) {
+  return new Response(
+    JSON.stringify({ success: true, errors: [], messages: [], result: rows }),
+    { status },
+  );
+}
+
+function cloudflareChargeRow(overrides: Record<string, unknown> = {}) {
+  return {
+    BillingCurrency: 'USD',
+    ConsumedQuantity: 1_200,
+    ConsumedUnit: 'operations',
+    EffectiveCost: 0.0054,
+    ListCost: 0.0054,
+    x_BillableMetricId: 'r2_class_a_operations',
+    x_BillableMetricName: 'R2 Class A Operations',
+    x_ProductFamilyName: 'R2',
+    ...overrides,
+  };
 }
 
 describe('cost provider collection', () => {
@@ -105,5 +167,102 @@ describe('cost provider collection', () => {
     expect(brave.status).toBe('unconfigured');
     expect(brave.snapshot).toBeNull();
     expect(brave.message).toContain('not measurable');
+  });
+});
+
+describe('Cloudflare cost collection', () => {
+  it('collects a Cloudflare bill as an actual figure with no rate card', async () => {
+    const cloudflare = await collectCloudflare(
+      vi
+        .fn()
+        .mockResolvedValue(cloudflareUsageResponse([cloudflareChargeRow()])),
+    );
+
+    expect(cloudflare).toMatchObject({
+      status: 'ok',
+      costType: 'actual',
+      pricingRateId: null,
+      message: null,
+    });
+    expect(cloudflare.snapshot?.accruedCostUsd).toBe(0.0054);
+  });
+
+  // 403 rather than a retryable status on purpose: `collectCostProviders`
+  // exposes no sleeper, so a 5xx here would spend the collector's real backoff
+  // and put this file within reach of the CI test timeout.
+  it('passes a Cloudflare status failure through to the operator', async () => {
+    const cloudflare = await collectCloudflare(
+      vi.fn().mockResolvedValue(cloudflareUsageResponse([], 403)),
+    );
+
+    expect(cloudflare.status).toBe('error');
+    expect(cloudflare.message).toBe(
+      'Cloudflare billable usage request failed (403)',
+    );
+  });
+
+  // The allowlist used to pass only Brave's prefix or a trailing status code.
+  // This message has neither a status nor Brave's name, and is still ours.
+  it('passes an authored Cloudflare message through without a status code', async () => {
+    const cloudflare = await collectCloudflare(
+      vi
+        .fn()
+        .mockResolvedValue(
+          cloudflareUsageResponse([
+            cloudflareChargeRow({ BillingCurrency: 'EUR' }),
+          ]),
+        ),
+    );
+
+    expect(cloudflare.status).toBe('error');
+    expect(cloudflare.message).toBe(
+      'Cloudflare billable usage reported a non-USD currency (EUR)',
+    );
+  });
+
+  it('masks a Cloudflare failure it did not author', async () => {
+    const cloudflare = await collectCloudflare(
+      vi
+        .fn()
+        .mockResolvedValue(
+          cloudflareUsageResponse([
+            cloudflareChargeRow({ x_BillableMetricId: '' }),
+          ]),
+        ),
+    );
+
+    expect(cloudflare.status).toBe('error');
+    expect(cloudflare.message).toBe('Provider request failed');
+  });
+
+  it('reports half a Cloudflare credential as not connected', async () => {
+    const fetcher = vi.fn();
+
+    const cloudflare = await collectCloudflare(fetcher, {
+      CLOUDFLARE_API_TOKEN: 'cf-token',
+    });
+
+    expect(cloudflare).toMatchObject({
+      status: 'unconfigured',
+      costType: 'actual',
+      message: 'Not connected',
+    });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it('keeps a Cloudflare row with no cost field collected but unpriced', async () => {
+    const cloudflare = await collectCloudflare(
+      vi
+        .fn()
+        .mockResolvedValue(
+          cloudflareUsageResponse([
+            cloudflareChargeRow({ EffectiveCost: null, ListCost: null }),
+          ]),
+        ),
+    );
+
+    expect(cloudflare.status).toBe('ok');
+    expect(cloudflare.snapshot?.accruedCostUsd).toBeNull();
+    expect(cloudflare.message).toBe(CLOUDFLARE_UNPRICED_MESSAGE);
   });
 });

@@ -5,11 +5,18 @@ import * as costObservability from '../index.js';
 import { resolvePricingRate, type CostPricingRate } from '../pricing.js';
 import { currentUtcPeriod, projectMonthEnd, roundUsd } from '../time.js';
 import { fetchBraveCostSnapshot } from './brave.js';
+import { fetchCloudflareCostSnapshot } from './cloudflare.js';
 import { fetchDeBankCostSnapshot } from './debank.js';
 import { createFixedMonthlyCostSnapshot } from './fixed.js';
 import { normalizeNonNegative, roundUsageUsd } from './numbers.js';
 import { fetchOpenRouterCostSnapshot } from './openrouter.js';
-import { expectFreshZeroCostSnapshot } from './test-helpers.js';
+import {
+  cloudflareRow,
+  cloudflareUsageResponse,
+  expectDefaultCollectorCall,
+  expectFreshZeroCostSnapshot,
+  fetchCloudflareUsageSnapshot,
+} from './test-helpers.js';
 
 const NOW = new Date('2026-09-01T00:00:00.000Z');
 const jsonResponse = (value: unknown, status = 200) =>
@@ -427,6 +434,268 @@ describe('Brave retry and quota boundaries', () => {
   });
 });
 
+describe('Cloudflare failures and boundaries', () => {
+  const costFallbacks: [string, Record<string, unknown>, number][] = [
+    ['contracted', { EffectiveCost: null, ContractedCost: 0.5 }, 0.5],
+    [
+      'list',
+      { EffectiveCost: null, ContractedCost: null, ListCost: 0.25 },
+      0.25,
+    ],
+  ];
+  const currencies: [string, Record<string, unknown>][] = [
+    ['an explicit USD currency', { BillingCurrency: 'USD' }],
+    ['a null currency', { BillingCurrency: null }],
+    ['an absent currency', { BillingCurrency: undefined }],
+  ];
+  const rejections: [string, unknown[], string][] = [
+    [
+      'a coded rejection',
+      [{ code: 10_000 }],
+      'Cloudflare billable usage request was rejected (error code 10000)',
+    ],
+    [
+      'an uncoded rejection',
+      [],
+      'Cloudflare billable usage request was rejected (no error code)',
+    ],
+  ];
+
+  it('does not retry a rejected Cloudflare credential', async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      cloudflareUsageResponse([], {
+        status: 401,
+        success: false,
+        errors: [{ code: 10_000 }],
+      }),
+    );
+    const sleep = vi.fn().mockResolvedValue(undefined);
+
+    await expect(
+      fetchCloudflareUsageSnapshot([], { fetch: fetcher, sleep }),
+    ).rejects.toThrow('Cloudflare billable usage request failed (401)');
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(sleep).not.toHaveBeenCalled();
+  });
+
+  it('retries a transient Cloudflare failure and gives up after three', async () => {
+    const recovering = vi
+      .fn()
+      .mockResolvedValueOnce(
+        cloudflareUsageResponse([], { status: 503, success: false }),
+      )
+      .mockResolvedValueOnce(cloudflareUsageResponse([]));
+    const sleep = vi.fn().mockResolvedValue(undefined);
+
+    const snapshot = await fetchCloudflareUsageSnapshot([], {
+      fetch: recovering,
+      sleep,
+    });
+    expect(snapshot.accruedCostUsd).toBe(0);
+    expect(sleep.mock.calls).toEqual([[250]]);
+
+    await expect(
+      fetchCloudflareUsageSnapshot([], {
+        fetch: vi.fn().mockRejectedValue(new TypeError('fetch failed')),
+        sleep: vi.fn().mockResolvedValue(undefined),
+      }),
+    ).rejects.toThrow(
+      'Cloudflare billable usage request failed after 3 attempts: fetch failed',
+    );
+  });
+
+  it.each(rejections)(
+    'names %s by its account error code',
+    async (_label, errors, message) => {
+      await expect(
+        fetchCloudflareUsageSnapshot([], {
+          fetch: vi
+            .fn()
+            .mockResolvedValue(
+              cloudflareUsageResponse([], { success: false, errors }),
+            ),
+        }),
+      ).rejects.toThrow(message);
+    },
+  );
+
+  // A payload we cannot parse is a Cloudflare change to notice, never a
+  // vendor that stopped publishing a quantity.
+  it('keeps a structurally broken Cloudflare payload a plain failure', async () => {
+    const invalidRow = fetchCloudflareUsageSnapshot([
+      cloudflareRow({ x_BillableMetricId: '' }),
+    ]);
+    await expect(invalidRow).rejects.toThrow();
+    await expect(invalidRow).rejects.not.toBeInstanceOf(
+      UsageNotMeasurableError,
+    );
+
+    const notJson = fetchCloudflareUsageSnapshot([], {
+      fetch: vi.fn().mockResolvedValue(new Response('<html>502</html>')),
+    });
+    await expect(notJson).rejects.toThrow();
+    await expect(notJson).rejects.not.toBeInstanceOf(UsageNotMeasurableError);
+  });
+
+  it.each(currencies)('accepts %s', async (_label, overrides) => {
+    const snapshot = await fetchCloudflareUsageSnapshot([
+      cloudflareRow(overrides),
+    ]);
+
+    expect(snapshot.accruedCostUsd).toBe(0.000257);
+  });
+
+  it('refuses to sum a non-USD Cloudflare bill into a dollar ledger', async () => {
+    await expect(
+      fetchCloudflareUsageSnapshot([cloudflareRow({ BillingCurrency: 'EUR' })]),
+    ).rejects.toThrow(
+      'Cloudflare billable usage reported a non-USD currency (EUR)',
+    );
+  });
+
+  it.each(costFallbacks)(
+    'falls back to the %s cost',
+    async (_label, overrides, expected) => {
+      const snapshot = await fetchCloudflareUsageSnapshot([
+        cloudflareRow(overrides),
+      ]);
+
+      expect(snapshot.accruedCostUsd).toBe(expected);
+    },
+  );
+
+  it('keeps the whole total unknown when one Cloudflare row carries no cost', async () => {
+    const snapshot = await fetchCloudflareUsageSnapshot([
+      cloudflareRow(),
+      cloudflareRow({
+        EffectiveCost: null,
+        ContractedCost: null,
+        ListCost: null,
+      }),
+    ]);
+
+    expect(snapshot.accruedCostUsd).toBeNull();
+    expect(snapshot.projectedCostUsd).toBeNull();
+    expect(snapshot.usage.map((item) => item.key)).toEqual([
+      'charge_rows',
+      'product_families',
+      'metric_r2_standard_storage',
+    ]);
+  });
+
+  it('reports a Cloudflare account with nothing billable as zero', async () => {
+    const snapshot = await fetchCloudflareUsageSnapshot([]);
+
+    expect(snapshot.accruedCostUsd).toBe(0);
+    expect(snapshot.projectedCostUsd).toBe(0);
+    expect(snapshot.usage).toEqual([
+      {
+        key: 'charge_rows',
+        label: 'Billed charge rows',
+        unit: 'units',
+        value: 0,
+      },
+      {
+        key: 'list_cost_usd',
+        label: 'List price before discounts',
+        unit: 'usd',
+        value: 0,
+      },
+    ]);
+  });
+
+  // A `Correction` row reverses an earlier charge. Dropping it would bill us
+  // for usage Cloudflare has already taken back.
+  it('keeps a Cloudflare correction row in the total and the metric', async () => {
+    const snapshot = await fetchCloudflareUsageSnapshot([
+      cloudflareRow({ ConsumedQuantity: 1_000, EffectiveCost: 3, ListCost: 3 }),
+      cloudflareRow({
+        ChargeClass: 'Correction',
+        ConsumedQuantity: -100,
+        EffectiveCost: -0.5,
+        ListCost: -0.5,
+      }),
+    ]);
+
+    expect(snapshot.accruedCostUsd).toBe(2.5);
+    expect(snapshot.usage).toContainEqual(
+      expect.objectContaining({
+        key: 'metric_r2_standard_storage',
+        value: 900,
+      }),
+    );
+  });
+
+  it('aggregates repeated Cloudflare metrics and disambiguates a reused name', async () => {
+    const snapshot = await fetchCloudflareUsageSnapshot([
+      cloudflareRow({ ConsumedQuantity: 1 }),
+      cloudflareRow({ ConsumedQuantity: 2 }),
+      cloudflareRow({
+        ConsumedQuantity: 4,
+        x_BillableMetricId: 'zzz_legacy_storage',
+        x_BillableMetricName: 'R2 Standard Storage',
+      }),
+    ]);
+
+    expect(
+      snapshot.usage.filter((item) => item.key.startsWith('metric_')),
+    ).toEqual([
+      {
+        key: 'metric_r2_standard_storage',
+        label: 'R2 Standard Storage (GB-hours)',
+        unit: 'units',
+        value: 3,
+      },
+      {
+        key: 'metric_r2_standard_storage_zzz_legacy_storage',
+        label: 'R2 Standard Storage (GB-hours)',
+        unit: 'units',
+        value: 4,
+      },
+    ]);
+  });
+
+  it('counts distinct Cloudflare families and drops an incomplete list price', async () => {
+    const snapshot = await fetchCloudflareUsageSnapshot([
+      cloudflareRow(),
+      cloudflareRow({
+        ListCost: null,
+        x_BillableMetricId: 'workers_requests',
+        x_BillableMetricName: 'Workers Requests',
+        x_ProductFamilyName: 'Workers',
+      }),
+      cloudflareRow({
+        x_BillableMetricId: 'r2_class_b_operations',
+        x_BillableMetricName: 'R2 Class B Operations',
+        x_ProductFamilyName: null,
+      }),
+    ]);
+
+    expect(snapshot.usage).toContainEqual(
+      expect.objectContaining({ key: 'product_families', value: 2 }),
+    );
+    expect(snapshot.usage.map((item) => item.key)).not.toContain(
+      'list_cost_usd',
+    );
+  });
+
+  it('encodes the Cloudflare account id and honours a custom base URL', async () => {
+    const fetcher = vi.fn().mockResolvedValue(cloudflareUsageResponse([]));
+
+    await fetchCloudflareUsageSnapshot([], {
+      accountId: 'acct/1',
+      baseUrl: 'https://cloudflare.example/v4',
+      fetch: fetcher,
+      now: new Date('2026-09-01T09:31:00.000Z'),
+    });
+
+    const [url] = fetcher.mock.calls[0] as [URL];
+    expect(url.href).toBe(
+      'https://cloudflare.example/v4/accounts/acct%2F1/billable/usage?from=2026-09-01&to=2026-09-01',
+    );
+  });
+});
+
 describe('provider defaults through the public surface', () => {
   it('exports every cost collector and shared runtime value', () => {
     expect(costObservability.fetchBraveCostSnapshot).toBe(
@@ -441,10 +710,14 @@ describe('provider defaults through the public surface', () => {
     expect(costObservability.createFixedMonthlyCostSnapshot).toBe(
       createFixedMonthlyCostSnapshot,
     );
+    expect(costObservability.fetchCloudflareCostSnapshot).toBe(
+      fetchCloudflareCostSnapshot,
+    );
     expect(costObservability.COST_PROVIDERS).toEqual([
       'debank',
       'openrouter',
       'brave',
+      'cloudflare',
       'supabase',
       'fly',
     ]);
@@ -509,6 +782,30 @@ describe('provider defaults through the public surface', () => {
     );
   });
 
+  it('uses Cloudflare global fetch, clock, and endpoint defaults', async () => {
+    const fetcher = vi.fn().mockResolvedValue(cloudflareUsageResponse([]));
+
+    const snapshot = await withGlobalFetch(
+      fetcher as typeof globalThis.fetch,
+      () =>
+        fetchCloudflareCostSnapshot({
+          apiToken: 'cf-token',
+          accountId: 'acct-1',
+        }),
+    );
+
+    expectFreshZeroCostSnapshot(snapshot);
+    const url = expectDefaultCollectorCall(fetcher, {
+      urlSubstring:
+        'https://api.cloudflare.com/client/v4/accounts/acct-1/billable/usage?from=',
+      headerName: 'authorization',
+      headerValue: 'Bearer cf-token',
+    });
+    expect(url.searchParams.get('from')).toBe(
+      `${new Date().toISOString().slice(0, 8)}01`,
+    );
+  });
+
   it('uses Brave global fetch, clock, and endpoint defaults', async () => {
     const fetcher = vi
       .fn()
@@ -520,13 +817,11 @@ describe('provider defaults through the public surface', () => {
     );
 
     expectFreshZeroCostSnapshot(snapshot);
-    const [url, init] = fetcher.mock.calls[0] as [URL, RequestInit];
-    expect(url.href).toContain(
-      'https://api.search.brave.com/res/v1/images/search?',
-    );
-    expect(
-      (init.headers as Record<string, string>)['x-subscription-token'],
-    ).toBe('brave-key');
+    expectDefaultCollectorCall(fetcher, {
+      urlSubstring: 'https://api.search.brave.com/res/v1/images/search?',
+      headerName: 'x-subscription-token',
+      headerValue: 'brave-key',
+    });
   });
 });
 

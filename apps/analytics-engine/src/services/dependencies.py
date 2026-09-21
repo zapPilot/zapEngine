@@ -137,16 +137,14 @@ def get_risk_metrics_service(
 def get_borrowing_service(
     db: Session = Depends(get_db),
     query_service: QueryService = Depends(get_query_service),
-    canonical_snapshot_service: CanonicalSnapshotService = Depends(
-        get_canonical_snapshot_service
-    ),
 ) -> BorrowingService:
     """
     Create BorrowingService instance with dependency injection.
 
-    Unified service for all borrowing analytics (positions + risk).
+    Unified service for all borrowing analytics (positions + risk). Callers
+    resolve the canonical snapshot date themselves and pass it in.
     """
-    return BorrowingService(db, query_service, canonical_snapshot_service)
+    return BorrowingService(db, query_service)
 
 
 def get_drawdown_analysis_service(
@@ -177,9 +175,14 @@ def get_yield_return_service(
     query_service: QueryService = Depends(get_query_service),
     context: PortfolioAnalyticsContext = Depends(get_analytics_context),
     staking_apr_provider: LidoStakingAprProvider = Depends(get_staking_apr_provider),
+    canonical_snapshot_service: CanonicalSnapshotService = Depends(
+        get_canonical_snapshot_service
+    ),
 ) -> YieldReturnService:
     """Create YieldReturnService instance with explicit wiring."""
-    return YieldReturnService(db, query_service, context, staking_apr_provider)
+    return YieldReturnService(
+        db, query_service, context, staking_apr_provider, canonical_snapshot_service
+    )
 
 
 def get_pool_performance_aggregator() -> PoolPerformanceAggregator:

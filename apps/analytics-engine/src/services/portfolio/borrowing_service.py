@@ -14,7 +14,7 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from src.core.cache_service import analytics_cache, build_service_cache_key
+from src.core.cache_service import analytics_cache
 from src.core.constants import CACHE_TTL_BUNDLE_HOURS
 from src.core.utils import parse_iso_datetime
 from src.models.borrowing import (
@@ -23,14 +23,14 @@ from src.models.borrowing import (
     TokenDetail,
 )
 from src.models.portfolio import BorrowingRiskMetrics, BorrowingSummary
-from src.services.portfolio.canonical_snapshot_service import CanonicalSnapshotService
+from src.services.shared.base_analytics_service import CacheKeyMixin
 from src.services.shared.query_names import QUERY_NAMES
 from src.services.shared.query_service import QueryService
 
 logger = logging.getLogger(__name__)
 
 
-class BorrowingService:
+class BorrowingService(CacheKeyMixin):
     """
     Unified service for all borrowing analytics.
 
@@ -44,7 +44,11 @@ class BorrowingService:
     - Single source of truth for health rate thresholds
     - Consistent calculation logic across detail view and summary view
     - Prefers protocol-provided health rates, falls back to conservative LTV
+    - Callers resolve the canonical snapshot date and pass it in, so the
+      landing bundle and the positions endpoint share one cached query
     """
+
+    CACHE_VERSION = "v1"
 
     # Risk thresholds (Industry standard for DeFi lending)
     HEALTHY_THRESHOLD = 2.0  # ≥2.0 = healthy (200% collateralization)
@@ -64,26 +68,19 @@ class BorrowingService:
             return "WARNING"
         return "CRITICAL"
 
-    def __init__(
-        self,
-        db: Session,
-        query_service: QueryService,
-        canonical_snapshot_service: CanonicalSnapshotService | None = None,
-    ):
+    def __init__(self, db: Session, query_service: QueryService):
         """
         Initialize BorrowingService.
 
         Args:
             db: Database session
             query_service: Query service for executing SQL
-            canonical_snapshot_service: Service for getting canonical snapshot dates
         """
         self.db = db
         self.query_service = query_service
-        self.canonical_snapshot_service = canonical_snapshot_service
 
     def get_borrowing_positions(
-        self, user_id: UUID, snapshot_date: date | None = None
+        self, user_id: UUID, *, snapshot_date: date | None
     ) -> BorrowingPositionsResponse:
         """
         Get all borrowing positions for a user with per-position risk metrics.
@@ -120,6 +117,8 @@ class BorrowingService:
         total_assets_usd: float,
         total_debt_usd: float,
         total_net_usd: float,
+        *,
+        snapshot_date: date | None,
     ) -> BorrowingRiskMetrics | None:
         """
         Calculate aggregated risk metrics for the entire portfolio.
@@ -138,7 +137,7 @@ class BorrowingService:
 
         # Fetch positions to calculate worst health rate and counts
         # We reuse the same fetch logic but process it into metrics
-        raw_positions = self._fetch_raw_positions(user_id, snapshot_date=None)
+        raw_positions = self._fetch_raw_positions(user_id, snapshot_date)
         if not raw_positions:
             return None
 
@@ -173,13 +172,19 @@ class BorrowingService:
             position_count=len(positions),
         )
 
+    # jscpd:ignore-start
+    # Reason: the summary is the risk calculation's own inputs narrowed to a
+    # display shape, so the two necessarily take the same portfolio totals.
     def get_borrowing_summary(
         self,
         user_id: UUID,
         total_assets_usd: float,
         total_debt_usd: float,
         total_net_usd: float,
+        *,
+        snapshot_date: date | None,
     ) -> BorrowingSummary:
+        # jscpd:ignore-end
         """
         Get a summary of borrowing status (lighter weight than full positions list).
         """
@@ -187,7 +192,11 @@ class BorrowingService:
             return BorrowingSummary.empty(has_debt=False)
 
         metrics = self.calculate_borrowing_risk(
-            user_id, total_assets_usd, total_debt_usd, total_net_usd
+            user_id,
+            total_assets_usd,
+            total_debt_usd,
+            total_net_usd,
+            snapshot_date=snapshot_date,
         )
 
         if metrics is None:
@@ -210,17 +219,16 @@ class BorrowingService:
         )
 
     def _fetch_raw_positions(
-        self, user_id: UUID, snapshot_date: date | None = None
+        self, user_id: UUID, snapshot_date: date | None
     ) -> list[dict[str, Any]]:
-        """Fetch raw position data from DB using canonical snapshot date."""
-        # Get canonical snapshot date if not provided
-        if snapshot_date is None and self.canonical_snapshot_service:
-            snapshot_date = self.canonical_snapshot_service.get_snapshot_date(user_id)
-            logger.debug(
-                "Using canonical snapshot_date=%s for borrowing positions (user %s)",
-                snapshot_date,
-                user_id,
-            )
+        """Fetch raw position data once per (user, canonical snapshot date).
+
+        The landing bundle and ``/borrowing/positions`` both land here on every
+        home load; sharing one entry is what keeps the second one free. A
+        failure is deliberately not swallowed: an empty list would be indexed
+        as a real "no debt" answer and frozen into the landing cache for the
+        rest of the ETL window.
+        """
 
         def fetch() -> list[dict[str, Any]]:
             return self.query_service.execute_query(
@@ -232,20 +240,16 @@ class BorrowingService:
                 },
             )
 
-        try:
-            # Without a resolved snapshot, a long-lived key could hide new data.
-            if snapshot_date is None:
-                return fetch()
-            return analytics_cache.get_or_compute(
-                build_service_cache_key(
-                    "BorrowingService", "v1", "raw_positions", user_id, snapshot_date
-                ),
-                fetch,
-                timedelta(hours=CACHE_TTL_BUNDLE_HOURS),
-            )
-        except Exception as e:
-            logger.error("Failed to fetch borrowing positions: %s", e, exc_info=True)
-            return []
+        # Without a resolved snapshot the query follows MAX(snapshot_date), so a
+        # long-lived key under it could hide the next ETL run's data.
+        if snapshot_date is None:
+            return fetch()
+
+        return analytics_cache.get_or_compute(
+            self._cache_key("raw_positions", user_id, snapshot_date.isoformat()),
+            fetch,
+            timedelta(hours=CACHE_TTL_BUNDLE_HOURS),
+        )
 
     def _transform_positions(
         self, raw_positions: list[dict[str, Any]]

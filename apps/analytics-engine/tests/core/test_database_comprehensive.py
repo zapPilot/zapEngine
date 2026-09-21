@@ -32,6 +32,16 @@ class TestDatabaseManagerExtensive:
         finally:
             engine.dispose()
 
+    def test_connect_options_pin_the_session_time_zone(self):
+        """Day bucketing happens in the session TZ; the slice boundary is UTC."""
+        manager = DatabaseManager("postgresql://user:pass@localhost:5432/db")
+
+        with patch("src.core.database.create_engine") as create_engine_mock:
+            manager.init_database()
+
+        options = create_engine_mock.call_args.kwargs["connect_args"]["options"]
+        assert "-c TimeZone=UTC" in options
+
     def test_close_database_no_engine(self):
         """Test closing database when no engine exists"""
         manager = DatabaseManager("test://db")
