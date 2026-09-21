@@ -7,8 +7,8 @@ runs unusually long without a compiler or test failure.
 
 1. Read the job conclusion and final emitted step.
 2. Inspect the uploaded `prebuild-and-pods.log` and `xcodebuild.log` tail.
-3. Confirm the PR matches the workflow's narrow `app_ios` runtime/native path
-   filter. Test-, docs-, and lint-only changes should remain on Linux gates.
+3. Confirm the PR matches the dedicated workflow's narrow runtime/native
+   `paths` filter. Test-, docs-, and lint-only changes should remain on Linux gates.
 4. Treat cancellation or timeout without a compiler/test error as infrastructure
    evidence, not proof of a product regression.
 
