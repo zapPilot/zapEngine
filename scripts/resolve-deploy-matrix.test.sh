@@ -142,10 +142,9 @@ assert_resolve "push main two apps reversed" "push" "refs/heads/main" "" '["podc
 
 echo ""
 echo "[5c] push main + non-registry filter keys are ignored"
-# app_ios is a real filter key with no Fly app behind it; a typo must not
-# silently widen or narrow the matrix either.
-assert_resolve "push main ios only" "push" "refs/heads/main" "" '["app_ios"]' "[]" "[]"
-assert_resolve "push main ios plus app" "push" "refs/heads/main" "" '["app_ios","alpha-etl"]' "$ALPHA_JSON" "[]"
+# Unknown filter keys must not silently widen or narrow the Fly matrix.
+assert_resolve "push main unknown only" "push" "refs/heads/main" "" '["not-a-fly-app"]' "[]" "[]"
+assert_resolve "push main unknown plus app" "push" "refs/heads/main" "" '["not-a-fly-app","alpha-etl"]' "$ALPHA_JSON" "[]"
 assert_resolve "push main typo" "push" "refs/heads/main" "" '["alpha_etl"]' "[]" "[]"
 
 echo ""
