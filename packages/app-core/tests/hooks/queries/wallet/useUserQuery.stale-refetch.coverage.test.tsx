@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { createElement, type ReactNode } from 'react';
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { beforeEach, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   connectWallet: vi.fn(),
@@ -25,10 +25,6 @@ vi.mock('@core/providers/walletContext', () => ({
 }));
 
 import { useCurrentUser } from '@core/hooks/queries/wallet/useUserQuery';
-import {
-  resetAccountBootstrapForTests,
-  suspendAccountBootstrap,
-} from '@core/lib/state/accountBootstrap';
 
 function createWrapper() {
   const client = new QueryClient({
@@ -41,39 +37,30 @@ function createWrapper() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  resetAccountBootstrapForTests();
   mocks.activeAddress.value = null;
 });
 
-afterEach(() => {
-  resetAccountBootstrapForTests();
-});
-
 it('ignores a stale pre-bootstrap refetch after the wallet disconnects', async () => {
-  // Keep this session pre-bootstrap without leaving unresolved async work.
-  // The callback captured below therefore takes the ensureSessionAccount path.
-  suspendAccountBootstrap('0xaaa');
   mocks.activeAddress.value = '0xaaa';
 
   const { result, rerender } = renderHook(() => useCurrentUser(), {
     wrapper: createWrapper(),
   });
+
+  // Capture the first-render callback while bootstrapReady is still false.
+  // It therefore closes over the ensureSessionAccount path even if the normal
+  // mount effect subsequently finishes bootstrap.
   const staleRefetch = result.current.refetch;
 
-  await act(async () => {
-    await Promise.resolve();
-  });
-  expect(mocks.connectWallet).not.toHaveBeenCalled();
-
-  // Disconnect and flush the effect that clears sessionWalletRef. The stale
-  // callback still closes over the old sessionWallet, so invoking it now must
-  // reach ensureSessionAccount's no-wallet early return.
   await act(async () => {
     mocks.activeAddress.value = null;
     rerender();
   });
   await waitFor(() => expect(result.current.isConnected).toBe(false));
 
+  // Ignore bootstrap work from the original connected render. From this point
+  // onward the disconnect effect has cleared sessionWalletRef, so the stale
+  // callback must stop at ensureSessionAccount's no-wallet early return.
   mocks.connectWallet.mockClear();
   await act(async () => {
     await staleRefetch();
