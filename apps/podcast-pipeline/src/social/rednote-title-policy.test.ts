@@ -12,8 +12,9 @@ describe('Rednote title policy', () => {
     const prompt = await readFile(REDNOTE_PROMPT, 'utf8');
 
     expect(prompt).toContain(
-      'Rednote must use the same underlying editorial/title strategy as the other social platforms',
+      'Rednote must use the same underlying editorial/title',
     );
+    expect(prompt).toContain('strategy as the other social platforms');
     expect(prompt).toContain(
       'Do not replace a material subject such as Virtuals, Ethereum, Bitcoin',
     );

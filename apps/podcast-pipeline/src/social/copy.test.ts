@@ -29,6 +29,7 @@ import {
   latinLetterRatio,
   parseGeneratedSocialCopy,
   weightedTweetLength,
+  YOUTUBE_TITLE_MAX_CHARACTERS,
 } from './copy.js';
 import { SocialCopyGenerationError } from './publish-error.js';
 import { RednoteSemanticRiskError } from './rednote-semantic-risk.js';
@@ -175,8 +176,17 @@ describe('generateSocialCopy', () => {
     expect(request?.messages[0]?.content).toContain(
       'Apply platform-specific restrictions only to their corresponding fields.',
     );
+    // The canonical headline policy has to actually reach the system prompt;
+    // it is generated into prompts/ from .agents/, so a broken drift gate or a
+    // missing read shows up here rather than at the next release.
     expect(request?.messages[0]?.content).toContain(
-      "Lead with the episode's real economic or technology thesis",
+      '## Headline policy (every title field)',
+    );
+    expect(request?.messages[0]?.content).toContain(
+      'first pool, not being clicked once, is the job.',
+    );
+    expect(request?.messages[0]?.content).toContain(
+      '**Never produce it with words swapped.**',
     );
     expect(request?.messages[0]?.content).toContain(
       'Never disguise restricted content with misspellings, homophones, emoji substitutions or coded wording to evade moderation.',
@@ -196,6 +206,47 @@ describe('generateSocialCopy', () => {
       `${'中'.repeat(125)}\n\n官網 https://www.zap-pilot.org`,
     );
     expect(weightedTweetLength(published)).toBe(280);
+  });
+
+  it("supplies the publisher's own headline alongside the editorial title", async () => {
+    // Script stage always overwrites `episode_localizations.title` with an
+    // LLM-written one, so without this block the writer never sees how the
+    // story was actually headlined -- and the similarity check it feeds has
+    // nothing to compare against.
+    llmMocks.createOpenRouterChatCompletion.mockResolvedValue(
+      socialCompletion(socialCopyJson('原始標題文案')),
+    );
+
+    await generateSocialCopy({
+      episode: { ...ZH_EPISODE, sourceTitle: 'Nvidia buys HuggingFace' },
+    });
+
+    const prompt = String(
+      llmMocks.createOpenRouterChatCompletion.mock.calls[0]?.[1]?.messages.at(
+        -1,
+      )?.content,
+    );
+    expect(prompt).toContain('Publisher headline');
+    expect(prompt).toContain('Nvidia buys HuggingFace');
+    expect(prompt).toContain('Episode title');
+    expect(prompt.indexOf('Episode title')).toBeLessThan(
+      prompt.indexOf('Nvidia buys HuggingFace'),
+    );
+  });
+
+  it('omits the publisher headline block for an episode without a source title', async () => {
+    llmMocks.createOpenRouterChatCompletion.mockResolvedValue(
+      socialCompletion(socialCopyJson('沒有原始標題')),
+    );
+
+    await generateSocialCopy({ episode: ZH_EPISODE });
+
+    const prompt = String(
+      llmMocks.createOpenRouterChatCompletion.mock.calls[0]?.[1]?.messages.at(
+        -1,
+      )?.content,
+    );
+    expect(prompt).not.toContain('Publisher headline');
   });
 
   it('includes learned strategy guidance in the generation prompt when provided', async () => {
@@ -883,6 +934,55 @@ describe('parseGeneratedSocialCopy', () => {
         /moderation-risk wording/,
       );
     }
+  });
+
+  it('rejects a YouTube title past the 100-character maximum', () => {
+    const payload = JSON.parse(
+      socialCopyJson('有效文案'),
+    ) as GeneratedSocialCopy;
+    payload.youtube!.title = '脈'.repeat(YOUTUBE_TITLE_MAX_CHARACTERS + 1);
+
+    expect(() => parseGeneratedSocialCopy(JSON.stringify(payload))).toThrow(
+      new RegExp(
+        `YouTube title is 101 characters; the maximum is ${YOUTUBE_TITLE_MAX_CHARACTERS}`,
+        'u',
+      ),
+    );
+  });
+
+  it('accepts a YouTube title exactly at the maximum', () => {
+    const payload = JSON.parse(
+      socialCopyJson('有效文案'),
+    ) as GeneratedSocialCopy;
+    payload.youtube!.title = '脈'.repeat(YOUTUBE_TITLE_MAX_CHARACTERS);
+
+    expect(
+      parseGeneratedSocialCopy(JSON.stringify(payload)).youtube?.title,
+    ).toHaveLength(YOUTUBE_TITLE_MAX_CHARACTERS);
+  });
+
+  it('rejects a YouTube title containing a URL', () => {
+    const payload = JSON.parse(
+      socialCopyJson('有效文案'),
+    ) as GeneratedSocialCopy;
+    payload.youtube!.title = '完整脈絡 https://www.zap-pilot.org';
+
+    expect(() => parseGeneratedSocialCopy(JSON.stringify(payload))).toThrow(
+      /must not contain a URL/u,
+    );
+  });
+
+  it('rejects a Rednote title that is the publisher headline reworded', () => {
+    const payload = JSON.parse(
+      socialCopyJson('有效文案'),
+    ) as GeneratedSocialCopy;
+    payload.rednote!.title = '收購開源模型平台押注生態';
+
+    expect(() =>
+      parseGeneratedSocialCopy(JSON.stringify(payload), 'zh-Hant', undefined, {
+        publisherHeadline: '輝達收購開源模型平台押注生態系統',
+      }),
+    ).toThrow(/publisher headline/u);
   });
 
   it('rejects a missing Rednote title', () => {

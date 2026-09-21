@@ -19,7 +19,7 @@ Prefer hooks based on:
 
 Never invent facts, opinions or certainty not supported by the episode. Do not add current facts from outside the supplied episode context.
 
-Names should earn their place. Keep a person's name only when they are broadly recognizable or their identity is material to understanding the story. Otherwise replace unfamiliar interviewees, operators, creators or usernames with the relevant role, or state the point directly. When unsure, omit the name.
+Names earn their place by role, not by fame. A company, product, protocol, institution, asset or country that the story is _about_ stays — removing it makes the story unidentifiable. A person who is merely the source of a claim — an interviewee, analyst, operator, creator or username — is replaced by their role, or dropped so the claim itself leads. When both compete for the same space, the subject wins. This is the same rule the headline policy applies to titles; it governs body copy too.
 
 Do not sound like:
 

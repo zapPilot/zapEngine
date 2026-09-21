@@ -12,6 +12,7 @@ import {
   unwrapNestedJsonPayload,
 } from '../services/llm.js';
 import { convertTextToZhTW } from '../services/opencc.js';
+import { describeHeadlineQualityIssue } from './headline-quality.js';
 import {
   describeSensitiveMatches,
   findSensitiveTerms,
@@ -191,9 +192,32 @@ const ALL_COPY_BLOCKS: SocialCopyBlocks = {
   youtube: true,
 };
 
+/**
+ * The publisher's own headline for the source article, when the episode
+ * carries one. Threaded down to the two title fields so a title can be
+ * rejected for being that headline reworded; everything else in the schema
+ * ignores it.
+ */
+interface HeadlineContext {
+  publisherHeadline?: string;
+}
+
+function addHeadlineQualityIssue(
+  title: string,
+  context: z.RefinementCtx,
+  headline: HeadlineContext,
+): void {
+  const issue = describeHeadlineQualityIssue({
+    title,
+    publisherHeadline: headline.publisherHeadline,
+  });
+  if (issue) context.addIssue({ code: 'custom', message: issue });
+}
+
 function generatedSocialCopySchema(
   languageCode: SocialLanguageCode,
   blocks: SocialCopyBlocks,
+  headline: HeadlineContext = {},
 ) {
   const line = languageLine(languageCode);
   const x = z.object({
@@ -208,12 +232,14 @@ function generatedSocialCopySchema(
     hookType: z.enum(SOCIAL_HOOK_TYPES),
     title: line.superRefine((title, context) => {
       const length = Array.from(title).length;
-      if (length <= REDNOTE_TITLE_MAX_CHARACTERS) return;
-
-      context.addIssue({
-        code: 'custom',
-        message: `Rednote title is ${length} characters; the maximum is ${REDNOTE_TITLE_MAX_CHARACTERS}.`,
-      });
+      if (length > REDNOTE_TITLE_MAX_CHARACTERS) {
+        context.addIssue({
+          code: 'custom',
+          message: `Rednote title is ${length} characters; the maximum is ${REDNOTE_TITLE_MAX_CHARACTERS}.`,
+        });
+        return;
+      }
+      addHeadlineQualityIssue(title, context, headline);
     }),
     body:
       languageCode === 'zh-Hant'
@@ -231,7 +257,9 @@ function generatedSocialCopySchema(
           code: 'custom',
           message: `YouTube title is ${length} characters; the maximum is ${YOUTUBE_TITLE_MAX_CHARACTERS}.`,
         });
+        return;
       }
+      addHeadlineQualityIssue(title, context, headline);
     }),
   });
   return z
@@ -360,8 +388,13 @@ export function parseGeneratedSocialCopy(
   raw: string,
   languageCode: SocialLanguageCode = 'zh-Hant',
   blocks: SocialCopyBlocks = ALL_COPY_BLOCKS,
+  headline: HeadlineContext = {},
 ): GeneratedSocialCopy {
-  const parsed = generatedSocialCopySchema(languageCode, blocks).parse(
+  const parsed = generatedSocialCopySchema(
+    languageCode,
+    blocks,
+    headline,
+  ).parse(
     unwrapNestedJsonPayload(JSON.parse(stripJsonFence(raw.trim())), [
       'x',
       'threads',
@@ -403,6 +436,7 @@ export async function generateSocialCopy(input: {
   // gate checks.
   const [
     commonRules,
+    headlineRules,
     xRules,
     threadsRules,
     rednoteRules,
@@ -411,6 +445,10 @@ export async function generateSocialCopy(input: {
     languageRules,
   ] = await Promise.all([
     readPrompt('editorial.md'),
+    // Generated from .agents/skills/social-headline/HEADLINE.md and held in
+    // sync by `pnpm lint headline-policy`; edit the canonical file, not this
+    // one's source.
+    readPrompt('headline.md'),
     blocks.x ? readPrompt('x.md') : Promise.resolve(''),
     blocks.threads ? readPrompt('threads.md') : Promise.resolve(''),
     blocks.rednote ? readPrompt('rednote.md') : Promise.resolve(''),
@@ -438,6 +476,7 @@ export async function generateSocialCopy(input: {
             role: 'system',
             content: buildSystemPrompt(
               commonRules,
+              headlineRules,
               xRules,
               threadsRules,
               `${rednoteRules}\n\n${rednoteRiskRules}`,
@@ -475,7 +514,9 @@ export async function generateSocialCopy(input: {
         throw new Error('OpenRouter returned empty social copy.');
       }
 
-      parsed = parseGeneratedSocialCopy(content, languageCode, blocks);
+      parsed = parseGeneratedSocialCopy(content, languageCode, blocks, {
+        publisherHeadline: input.episode.sourceTitle,
+      });
       // The term lists ran inside the schema above. This is the framing half of
       // the gate, and it has to be here rather than in the schema because it is
       // an LLM call: a verdict of risk becomes the next attempt's retry reason,
@@ -523,6 +564,7 @@ async function readPrompt(filename: string): Promise<string> {
 
 function buildSystemPrompt(
   commonRules: string,
+  headlineRules: string,
   xRules: string,
   threadsRules: string,
   rednoteRules: string,
@@ -579,7 +621,7 @@ function buildSystemPrompt(
   ]
     .filter(Boolean)
     .join(' ');
-  return `${commonRules}\n\n## Output language (${languageCode})\n${languageRules}\n\nEvery requested output must express the same underlying episode thesis. Each platform block classifies its own rhetorical opening as hookType. Apply platform-specific restrictions only to their corresponding fields.\n\n${blockRules}\n\nReturn JSON only with exactly this shape:\n{\n${shape}\n}\n\nAllowed topic values: ${SOCIAL_TOPICS.join(', ')}.\nAllowed hookType values: ${SOCIAL_HOOK_TYPES.join(', ')}.\n\n${restrictions}`;
+  return `${commonRules}\n\n## Headline policy (every title field)\n${headlineRules}\n\n## Output language (${languageCode})\n${languageRules}\n\nEvery requested output must express the same underlying episode thesis. Each platform block classifies its own rhetorical opening as hookType. Apply platform-specific restrictions only to their corresponding fields.\n\n${blockRules}\n\nReturn JSON only with exactly this shape:\n{\n${shape}\n}\n\nAllowed topic values: ${SOCIAL_TOPICS.join(', ')}.\nAllowed hookType values: ${SOCIAL_HOOK_TYPES.join(', ')}.\n\n${restrictions}`;
 }
 
 function copyBlocksForPlatforms(
@@ -638,7 +680,14 @@ function buildEpisodePrompt(
     ? `\n\nPackaging experiment assignments:${packagingBlocks}\nThese assignments override style preferences for their platform, but never editorial, platform, language, factual-grounding, or safety rules.`
     : '';
 
-  return `Create social copy for this completed episode.\n\nTitle:\n${episode.title}\n\nSummary:\n${episode.summary}\n\nDescription / source article:\n${episode.description ?? ''}\n\nFull podcast transcript:\n${episode.transcript}\n\nEpisode URL:\n${episode.episodeUrl}${strategyBlock}${platformStrategyBlock}${packagingBlock}${feedbackBlock}${retryBlock}`;
+  // The editorial title is LLM-written and has already replaced the
+  // publisher's. Both are supplied, labelled, because the headline policy
+  // treats them differently: one is the angle, the other is evidence.
+  const publisherHeadlineBlock = episode.sourceTitle?.trim()
+    ? `\n\nPublisher headline (the source outlet's own, for topic and fact evidence -- never a sentence template, and never to reword):\n${episode.sourceTitle.trim()}`
+    : '';
+
+  return `Create social copy for this completed episode.\n\nTitle:\n${episode.title}${publisherHeadlineBlock}\n\nSummary:\n${episode.summary}\n\nDescription / source article:\n${episode.description ?? ''}\n\nFull podcast transcript:\n${episode.transcript}\n\nEpisode URL:\n${episode.episodeUrl}${strategyBlock}${platformStrategyBlock}${packagingBlock}${feedbackBlock}${retryBlock}`;
 }
 
 /**
