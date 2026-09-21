@@ -27,22 +27,34 @@ export interface PackagingAssignment {
  * Packaging experiments are independent from the fixed language allocation.
  * Keep only explicitly registered treatments here; concluding the language
  * experiment does not implicitly activate new X/Threads/YouTube copy tests.
+ *
+ * `activePackagingExperiment` takes the first entry matching a platform and
+ * language, so a platform carries exactly one live experiment. Superseding one
+ * means replacing its entry, not appending beside it -- a second rednote entry
+ * would simply never be reached.
  */
 export const PACKAGING_EXPERIMENTS: readonly PackagingExperiment[] = [
+  // v2 supersedes `rednote-packaging-v1-zh-Hant` (direct / hook_first), which
+  // ran 2026-08-31..09-21 and separated only on dead rate, never on reach:
+  // both arms sat inside the same ~100-180 view band. The v1 assignments stay
+  // in `social_experiment_assignments` as the pre-policy baseline. v2 exists
+  // so the headline policy's effect is attributable rather than confounded
+  // with every other change in the same release; its arms test which of the
+  // policy's three axes moves a post out of the first traffic pool.
   {
-    key: 'rednote-packaging-v1-zh-Hant',
+    key: 'rednote-headline-v2-zh-Hant',
     platform: 'rednote',
     languageCode: 'zh-Hant',
     variants: [
       {
-        variant: 'direct',
+        variant: 'stakes',
         instruction:
-          'Write the Rednote title as a direct statement of the grounded episode finding without inventing certainty or exaggerating it.',
+          "Write the Rednote title so the reader outside this industry can tell what is at stake for them -- their money, prices, job, or country. Keep the episode's named subject and invent no certainty.",
       },
       {
-        variant: 'hook_first',
+        variant: 'reversal',
         instruction:
-          'Write the Rednote title to lead with the strongest grounded curiosity hook without exaggerating the episode finding.',
+          "Write the Rednote title around the grounded reversal in the episode -- what turned out not to be true, or the opposite of what the reader expects. Keep the episode's named subject and overstate nothing.",
       },
     ],
   },

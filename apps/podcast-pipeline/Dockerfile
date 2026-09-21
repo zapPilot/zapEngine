@@ -30,6 +30,7 @@ RUN pnpm --filter @zapengine/design-tokens build \
  && pnpm --filter @zapengine/podcast-pipeline deploy --legacy /out \
  && cp -R apps/podcast-pipeline/assets /out/assets \
  && cp -R apps/podcast-pipeline/prompts /out/prompts \
+ && test -f /out/prompts/social/headline.md \
  && test -f /out/dist/index.js \
  && test -f /out/dist/release-heartbeat.js \
  && test -f /out/dist/worker.js
