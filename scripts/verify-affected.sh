@@ -43,9 +43,10 @@ if [ "$mode" = "changed" ]; then
   # turbo --affected only reads commits, so stage everything (including
   # untracked) into a throwaway index and build a commit object off HEAD that is
   # never referenced by any ref — the real index and working tree are untouched.
+  # In a linked worktree .git is a file, so ask git where the index actually is.
   head_ref=$(git rev-parse HEAD)
   tmp_index="$(mktemp)"
-  cp .git/index "$tmp_index"
+  cp "$(git rev-parse --git-path index)" "$tmp_index"
 
   GIT_INDEX_FILE="$tmp_index" git add -A
 
