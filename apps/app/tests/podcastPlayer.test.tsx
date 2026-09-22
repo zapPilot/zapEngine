@@ -168,7 +168,7 @@ afterEach(async () => {
 });
 
 describe('usePodcastPlayer native source handoff', () => {
-  it('keeps a replacement episode at 0/0 until the new source clock catches up', async () => {
+  it('plays the replacement on seek resolve even when the status hook stays stale', async () => {
     const harness = await render();
 
     // Start episode A and let its initial zero-position handoff settle.
@@ -179,6 +179,7 @@ describe('usePodcastPlayer native source handoff', () => {
     audio.status.currentTime = 0;
     audio.status.duration = 300;
     await harness.redraw();
+    await act(async () => {});
 
     audio.status.playing = true;
     audio.status.currentTime = 295;
@@ -210,39 +211,32 @@ describe('usePodcastPlayer native source handoff', () => {
     });
     expect(audio.player.seekTo).not.toHaveBeenCalled();
 
-    // Multiple renders with the outgoing hook status must remain fenced.
-    await harness.redraw();
-    await harness.redraw();
-    expect(harness.current()).toMatchObject({
-      currentTime: 0,
-      duration: 0,
-    });
-
-    // Once the replacement source itself is loaded, seek it explicitly to zero.
+    // The replacement source loads, but the React hook keeps reporting the
+    // outgoing 295/300 clock (the paused-AVPlayer case from iOS release).
     audio.player.currentStatus.isLoaded = true;
     audio.player.currentStatus.duration = 240;
     audio.status.isLoaded = true;
+    audio.status.currentTime = 295;
+    audio.status.duration = 300;
     await harness.redraw();
     expect(audio.player.seekTo).toHaveBeenCalledWith(0);
-    expect(audio.player.play).not.toHaveBeenCalled();
 
-    // The hook may still lag one or more renders after seekTo resolves.
+    // seekTo resolves with no hook update: audio must still resume. Playback
+    // is gated on the seek, never on hook precision.
+    await act(async () => {});
+    expect(audio.player.play).toHaveBeenCalled();
+
+    // ...but the public clock must not leak the stale 295/300.
     expect(harness.current()).toMatchObject({
+      nowPlaying: nextEpisode,
       currentTime: 0,
       duration: 0,
     });
-    await harness.redraw();
-    expect(harness.current()).toMatchObject({
-      currentTime: 0,
-      duration: 0,
-    });
 
-    // Release the fence only when hook status matches the replacement source.
-    audio.status.isLoaded = true;
+    // The fence releases only when the hook confirms the new clock.
     audio.status.currentTime = 0;
     audio.status.duration = 240;
     await harness.redraw();
-    expect(audio.player.play).toHaveBeenCalled();
     expect(harness.current()).toMatchObject({
       nowPlaying: nextEpisode,
       currentTime: 0,
@@ -294,11 +288,9 @@ describe('usePodcastPlayer native source handoff', () => {
     });
   });
 
-  it('honors pause after seek applies but before the status hook catches up', async () => {
+  it('does not replay when paused before seek resolves', async () => {
     const harness = await render();
 
-    audio.status.currentTime = 295;
-    audio.status.duration = 300;
     audio.player.replace.mockImplementationOnce(() => {
       audio.player.currentStatus.isLoaded = false;
       audio.player.currentStatus.duration = 0;
@@ -309,22 +301,75 @@ describe('usePodcastPlayer native source handoff', () => {
     audio.player.currentStatus.isLoaded = true;
     audio.player.currentStatus.duration = 240;
     audio.status.isLoaded = true;
+
+    // Hold the native seek in flight so the pause below lands first.
+    let resolveSeek!: () => void;
+    const seekGate = new Promise<undefined>((resolve) => {
+      resolveSeek = () => resolve(undefined);
+    });
+    audio.player.seekTo.mockImplementationOnce(() => seekGate);
+    audio.player.play.mockClear();
+    audio.player.pause.mockClear();
     await harness.redraw();
     expect(audio.player.seekTo).toHaveBeenCalledWith(0);
     expect(audio.player.play).not.toHaveBeenCalled();
 
+    // Pausing mid-seek flips the latest intent; the late resolve must honor it.
     act(() => harness.current().pause());
+    await act(async () => {});
+    expect(audio.player.play).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveSeek();
+    });
+    expect(audio.player.play).not.toHaveBeenCalled();
+
     audio.status.playing = false;
     audio.status.currentTime = 0;
     audio.status.duration = 240;
     await harness.redraw();
-
-    expect(audio.player.play).not.toHaveBeenCalled();
     expect(harness.current()).toMatchObject({
       nowPlaying: nextEpisode,
       isPlaying: false,
       currentTime: 0,
       duration: 240,
+    });
+  });
+
+  it('keeps pause/play direct while the clock fence is up after playback starts', async () => {
+    const harness = await render();
+
+    audio.player.currentStatus.isLoaded = true;
+    audio.player.currentStatus.duration = 240;
+    await act(async () => queue.args?.playEpisode(nextEpisode));
+    // The hook never confirms the new clock; playback must not care.
+    audio.status.isLoaded = true;
+    audio.status.currentTime = 295;
+    audio.status.duration = 300;
+    await harness.redraw();
+    await act(async () => {});
+    expect(audio.player.seekTo).toHaveBeenCalledWith(0);
+    expect(audio.player.play).toHaveBeenCalled();
+    expect(harness.current()).toMatchObject({
+      currentTime: 0,
+      duration: 0,
+    });
+
+    // The playback gate is done, so pause acts directly even fenced.
+    audio.player.pause.mockClear();
+    audio.player.play.mockClear();
+    act(() => harness.current().pause());
+    expect(audio.player.pause).toHaveBeenCalledTimes(1);
+    expect(audio.player.play).not.toHaveBeenCalled();
+
+    // And resume acts directly too, without waiting for the fence.
+    audio.status.playing = false;
+    await harness.redraw();
+    act(() => queue.args?.toggleCurrentPlayback());
+    expect(audio.player.play).toHaveBeenCalledTimes(1);
+    expect(harness.current()).toMatchObject({
+      currentTime: 0,
+      duration: 0,
     });
   });
 
@@ -365,7 +410,125 @@ describe('usePodcastPlayer native source handoff', () => {
     });
   });
 
-  it('fences section switches too so the outgoing section clock cannot leak', async () => {
+  it('resumes non-zero positions on seek resolve without hook precision', async () => {
+    const harness = await render();
+
+    audio.player.replace.mockImplementationOnce(() => {
+      audio.player.currentStatus.isLoaded = false;
+      audio.player.currentStatus.duration = 0;
+      audio.status.isLoaded = false;
+    });
+    await act(async () => queue.args?.playEpisodeAt(nextEpisode, 90, true));
+
+    expect(harness.current()).toMatchObject({
+      nowPlaying: nextEpisode,
+      currentTime: 0,
+      duration: 0,
+    });
+
+    // The hook still reports a stale clock; the 90s seek must still resume.
+    audio.player.currentStatus.isLoaded = true;
+    audio.player.currentStatus.duration = 240;
+    audio.status.isLoaded = true;
+    audio.status.currentTime = 295;
+    audio.status.duration = 300;
+    audio.player.play.mockClear();
+    await harness.redraw();
+    expect(audio.player.seekTo).toHaveBeenCalledWith(90);
+    await act(async () => {});
+    expect(audio.player.play).toHaveBeenCalled();
+    expect(harness.current()).toMatchObject({
+      nowPlaying: nextEpisode,
+      currentTime: 0,
+      duration: 0,
+    });
+
+    audio.status.currentTime = 90;
+    audio.status.duration = 240;
+    await harness.redraw();
+    expect(harness.current()).toMatchObject({
+      nowPlaying: nextEpisode,
+      currentTime: 90,
+      duration: 240,
+    });
+  });
+
+  it('seeks directly while only the clock fence is up', async () => {
+    const harness = await render();
+
+    audio.player.currentStatus.isLoaded = true;
+    audio.player.currentStatus.duration = 240;
+    await act(async () => queue.args?.playEpisode(nextEpisode));
+    audio.status.isLoaded = true;
+    audio.status.currentTime = 295;
+    audio.status.duration = 300;
+    await harness.redraw();
+    await act(async () => {});
+    expect(audio.player.play).toHaveBeenCalled();
+    expect(harness.current()).toMatchObject({
+      currentTime: 0,
+      duration: 0,
+    });
+
+    // Playback is done; a user seek updates the fence target and seeks at
+    // once instead of re-entering the playback gate.
+    audio.player.seekTo.mockClear();
+    audio.player.play.mockClear();
+    act(() => harness.current().seek(30));
+    expect(audio.player.seekTo).toHaveBeenCalledWith(30);
+    expect(audio.player.play).not.toHaveBeenCalled();
+    expect(harness.current()).toMatchObject({
+      currentTime: 0,
+      duration: 0,
+    });
+
+    audio.status.currentTime = 30;
+    audio.status.duration = 240;
+    await harness.redraw();
+    expect(harness.current()).toMatchObject({
+      currentTime: 30,
+      duration: 240,
+    });
+  });
+
+  it('ends the handoff and warns instead of deadlocking when seek fails', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const harness = await render();
+
+      audio.player.replace.mockImplementationOnce(() => {
+        audio.player.currentStatus.isLoaded = false;
+        audio.player.currentStatus.duration = 0;
+        audio.status.isLoaded = false;
+      });
+      await act(async () => queue.args?.playEpisode(nextEpisode));
+
+      audio.player.currentStatus.isLoaded = true;
+      audio.player.currentStatus.duration = 240;
+      audio.status.isLoaded = true;
+      audio.player.seekTo.mockRejectedValueOnce(new Error('seek failed'));
+      audio.player.play.mockClear();
+      audio.player.pause.mockClear();
+      await harness.redraw();
+      await act(async () => {});
+      expect(audio.player.seekTo).toHaveBeenCalledWith(0);
+      expect(warn).toHaveBeenCalledWith(
+        '[podcastPlayer] handoff seek failed',
+        expect.anything(),
+      );
+      // The handoff ends with the latest intent (play) instead of stalling.
+      expect(audio.player.play).toHaveBeenCalled();
+
+      // Controls are direct afterwards: the failed handoff cannot eat them.
+      audio.player.pause.mockClear();
+      act(() => harness.current().pause());
+      expect(audio.player.pause).toHaveBeenCalledTimes(1);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('applies section switches on seek resolve despite a stale hook', async () => {
     const harness = await render();
     const classroom: PodcastPlaybackSection = {
       kind: 'classroom',
@@ -380,12 +543,15 @@ describe('usePodcastPlayer native source handoff', () => {
     audio.status.currentTime = 120;
     audio.status.duration = 300;
     await harness.redraw();
+    await act(async () => {});
 
     audio.player.replace.mockImplementationOnce(() => {
       audio.player.currentStatus.isLoaded = false;
       audio.player.currentStatus.duration = 0;
       audio.status.isLoaded = false;
     });
+    audio.player.play.mockClear();
+    audio.player.seekTo.mockClear();
     await act(async () =>
       queue.args?.playEpisodeSection(episode, classroom, 0, true),
     );
@@ -394,6 +560,31 @@ describe('usePodcastPlayer native source handoff', () => {
       currentSection: 'classroom',
       currentTime: 0,
       duration: 0,
+    });
+
+    // The hook still reports the outgoing main-section clock.
+    audio.player.currentStatus.isLoaded = true;
+    audio.player.currentStatus.duration = 200;
+    audio.status.isLoaded = true;
+    audio.status.currentTime = 120;
+    audio.status.duration = 300;
+    await harness.redraw();
+    expect(audio.player.seekTo).toHaveBeenCalledWith(0);
+    await act(async () => {});
+    expect(audio.player.play).toHaveBeenCalled();
+    expect(harness.current()).toMatchObject({
+      currentSection: 'classroom',
+      currentTime: 0,
+      duration: 0,
+    });
+
+    audio.status.currentTime = 0;
+    audio.status.duration = 200;
+    await harness.redraw();
+    expect(harness.current()).toMatchObject({
+      currentSection: 'classroom',
+      currentTime: 0,
+      duration: 200,
     });
   });
 });

@@ -157,12 +157,6 @@ describe('queryKeys', () => {
       'wallet-assets',
       ['0x1', '0x2'],
     ]);
-    expect(queryKeys.desktop.walletHistory(['0x1'])).toEqual([
-      'desktop',
-      'moralis',
-      'wallet-history',
-      ['0x1'],
-    ]);
     expect(queryKeys.desktop.podcast.episodes('ja')).toEqual([
       'desktop',
       'podcast',

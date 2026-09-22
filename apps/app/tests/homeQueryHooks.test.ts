@@ -17,17 +17,16 @@ vi.mock('react', () => ({
   useMemo: <T>(factory: () => T): T => factory(),
 }));
 vi.mock('@tanstack/react-query', () => ({ useQuery: mocks.useQuery }));
-vi.mock('@zapengine/app-core/hooks/queries', () => ({
-  createQueryConfig: mocks.createQueryConfig,
-}));
 vi.mock('@zapengine/app-core/hooks/queries/queryDefaults', () => ({
   createQueryConfig: mocks.createQueryConfig,
 }));
 vi.mock('@zapengine/app-core/lib/state/queryClient', () => ({
   queryKeys: { portfolio: { borrowingPositions: mocks.borrowingKey } },
 }));
-vi.mock('@zapengine/app-core/services', () => ({
+vi.mock('@zapengine/app-core/services/analyticsService', () => ({
   getBorrowingPositions: mocks.getBorrowingPositions,
+}));
+vi.mock('@zapengine/app-core/services/hyperliquidService', () => ({
   getHyperCoreSpendableUsdc: mocks.getHyperCoreSpendableUsdc,
 }));
 vi.mock('@zapengine/app-core/hooks/queries/analytics/useYieldSummary', () => ({

@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 // Deep imports on purpose: the `hooks/queries` barrel re-exports every
 // wallet/market/strategy hook, and those pull the `services` barrel — which
 // drags the whole DeFi execution surface (incl. the Hyperliquid SDK) into the
-// podcast-only iOS bundle. See scripts/assert-ios-bundle-clean.cjs.
+// read-only iOS bundle. See scripts/assert-ios-bundle-clean.cjs.
 import { getRuntimeEnv } from '@zapengine/app-core/lib/env/runtimeEnv';
 import { createQueryConfig } from '@zapengine/app-core/hooks/queries/queryDefaults';
 import { queryKeys } from '@zapengine/app-core/lib/state/queryClient';
@@ -552,6 +552,44 @@ export function getPodcastEpisodeShareUrl(
   );
   url.searchParams.set('lang', episode.languageCode);
   return url.toString();
+}
+
+export interface PodcastEpisodeRouteParams {
+  episodeId?: string | string[];
+  lang?: string | string[];
+  language?: string | string[];
+}
+
+export function parsePodcastEpisodeRouteParams(
+  params: PodcastEpisodeRouteParams,
+  fallbackLanguageCode = '',
+): { episodeId: string; languageCode: string } {
+  const firstValue = (value: string | string[] | undefined): string =>
+    Array.isArray(value) ? (value[0] ?? '') : (value ?? '');
+
+  return {
+    episodeId: decodeURIComponent(firstValue(params.episodeId)),
+    languageCode:
+      firstValue(params.lang) ||
+      firstValue(params.language) ||
+      fallbackLanguageCode,
+  };
+}
+
+export function podcastEpisodeRoutePath(
+  episodeId: string,
+  languageCode: string,
+): string {
+  const normalizedEpisodeId = episodeId.trim();
+  if (normalizedEpisodeId === '') {
+    return '/podcast';
+  }
+
+  const route = `/podcast/${encodeURIComponent(normalizedEpisodeId)}`;
+  const normalizedLanguageCode = languageCode.trim();
+  return normalizedLanguageCode === ''
+    ? route
+    : `${route}?lang=${encodeURIComponent(normalizedLanguageCode)}`;
 }
 
 async function fetchPodcastJson<T>(

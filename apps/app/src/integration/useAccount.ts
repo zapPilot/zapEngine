@@ -2,58 +2,18 @@ import { useUser } from '@zapengine/app-core/hooks/queries/wallet/useUser';
 import { useWalletProvider } from '@zapengine/app-core/providers/walletContext';
 import { useCallback, useMemo } from 'react';
 
+import type {
+  ConnectOutcome,
+  DesktopAccount,
+} from '@/integration/accountTypes';
 import { resolveViewingState } from '@/integration/bundleViewModel';
 import { getBundleViewUserId } from '@/integration/bundleViewParam';
 import { isPrivyLoginCancellation } from '@/integration/nativePrivyLogin';
 
-/**
- * Outcome of {@link DesktopAccount.connect}. Dismissing Privy's login UI is a
- * normal user action, not a failure, so it resolves as `'cancelled'` rather
- * than rejecting — a rejection escapes every fire-and-forget call site as an
- * unhandled promise rejection and lands in Sentry.
- *
- * `'connected'` means the connect call ran to completion; on web that is the
- * handoff to Privy's modal, which app-core resolves without waiting.
- */
-export type ConnectOutcome = 'connected' | 'cancelled';
-
-export interface DesktopAccount {
-  /** A wallet/account is connected (Privy embedded wallet present). */
-  isConnected: boolean;
-  isConnecting: boolean;
-  /** Active EOA address, or null when disconnected. */
-  address: string | null;
-  /** Bundle wallet addresses used for read-only portfolio/activity data. */
-  walletAddresses: string[];
-  /** Bundle wallets with user-defined labels for portfolio-level attribution. */
-  walletEntries: { address: string; label: string | null }[];
-  /** Resolved Zap Pilot user id (from account-engine), or null. */
-  userId: string | null;
-  /** First-login ETL job returned by account-engine, if one was scheduled. */
-  etlJobId: string | null;
-  /** Whether account-engine created this user during the current connection. */
-  isNewUser: boolean;
-  /** User id whose bundle the screens display: URL `?userId=` or `userId`. */
-  viewingUserId: string | null;
-  /** False when viewing someone else's bundle — hide write affordances. */
-  isOwnBundle: boolean;
-  /** Connected and waiting on account-engine before `viewingUserId` settles. */
-  isResolvingViewingUser: boolean;
-  /** Connected wallet whose account-engine user record failed to load. */
-  isUserResolutionFailed: boolean;
-  /** No live subject to display — screens render DEMO data. */
-  isDemo: boolean;
-  email: string | null;
-  /** Still resolving the backend user record after connect. */
-  loadingUser: boolean;
-  /** Error raised while connecting the wallet itself. */
-  connectionError: string | null;
-  /** Error raised while loading the connected wallet's account record. */
-  userResolutionError: string | null;
-  connect: () => Promise<ConnectOutcome>;
-  retryUserResolution: () => Promise<unknown>;
-  disconnect: () => Promise<void>;
-}
+export type {
+  ConnectOutcome,
+  DesktopAccount,
+} from '@/integration/accountTypes';
 
 // A fresh `[]` per render gives every consumer a changed dependency for a
 // bundle that did not change, so the empty case has one shared identity.

@@ -1,4 +1,7 @@
-import { CHAIN_BRAND, type ChainBrandKey } from '@zapengine/brand-assets';
+import {
+  CHAIN_BRAND,
+  type ChainBrandKey,
+} from '@zapengine/brand-assets/chains';
 import { HYPERCORE_CHAIN_ID } from '@zapengine/types/api';
 
 import type {

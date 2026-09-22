@@ -6,11 +6,11 @@ import { MobilePrivyProvider } from '@/providers/MobilePrivyProvider';
 
 void SplashScreen.preventAutoHideAsync();
 
-// iOS ships podcast-only, so this intentionally skips WalletProvider (viem
-// createWalletClient, useEmbeddedEthereumWallet, useAtomicBatchExecution,
-// SimulationPreviewSheet) and supportedChains (walletBackendModel ->
-// viem/chains) to keep the wallet backend out of the iOS bundle. Privy is
-// used for email authentication only.
+// iOS ships podcast + read-only portfolio analytics. It intentionally skips
+// WalletProvider (viem createWalletClient, useEmbeddedEthereumWallet,
+// useAtomicBatchExecution, SimulationPreviewSheet) and supportedChains so the
+// signing/execution backend stays outside the iOS bundle. Privy is used for
+// authentication and reading linked-account metadata only.
 export const AppProviders = createAppProviders({
   requiresMobilePrivy: true,
   missingConfigTarget: 'iOS podcast flow',

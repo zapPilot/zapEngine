@@ -1,4 +1,4 @@
-import { queryKeys } from '@zapengine/app-core/hooks/queries';
+import { queryKeys } from '@zapengine/app-core/lib/state/queryClient';
 import { useWalletProvider } from '@zapengine/app-core/providers/walletContext';
 import type {
   DepositReviewGroup,

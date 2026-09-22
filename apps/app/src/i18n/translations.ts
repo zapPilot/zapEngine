@@ -10,7 +10,6 @@ export const en = {
   'tabs.home': 'Home',
   'tabs.strategy': 'Strategy',
   'tabs.podcast': 'Podcast',
-  'tabs.activity': 'Activity',
   'tabs.account': 'Account',
   'tabs.signInHint': 'Open this tab to continue with Privy',
   'tabs.bar': 'App tabs',
@@ -36,9 +35,23 @@ export const en = {
   'account.settingsTitle': 'Settings',
   'account.iosAuthBody':
     'Signed in with Privy. The iOS app uses Privy only for account authentication.',
-  'account.webFeaturesTitle': 'Zap Pilot Web',
+  'account.webFeaturesTitle': 'Read-only on iOS',
   'account.webFeaturesBody':
-    'Additional Zap Pilot features are available in the web app.',
+    'Portfolio viewing is read-only on iOS. Investing, rebalancing, and withdrawals are available on Zap Pilot Web.',
+  'account.watchAddressTitle': 'Tracked portfolio address',
+  'account.watchAddressBody':
+    'If this Privy account has no Zap Pilot portfolio, enter an Ethereum address to view its portfolio in watch-only mode.',
+  'account.watchAddressPlaceholder': '0x wallet address',
+  'account.watchAddressSave': 'Save tracked address',
+  'account.watchAddressClear': 'Clear tracked address',
+  'account.watchAddressInvalid': 'Enter a valid 42-character Ethereum address.',
+  'account.watchAddressSaved': 'Tracked address saved.',
+  'home.iosReadOnlyConnectTitle': 'View your portfolio',
+  'home.iosReadOnlyConnectBody':
+    'Sign in with Privy to view your Zap Pilot portfolio. If your account has no portfolio, you can enter an address to track from the Account tab.',
+  'financialFeature.readOnlyTitle': 'Read-only on iOS',
+  'financialFeature.readOnlyBody':
+    'Portfolio viewing is read-only on iOS. Investing, rebalancing, and withdrawals are available on Zap Pilot Web.',
   'account.signOut': 'Sign out',
   'podcast.title': 'Podcast',
   'podcast.searchEpisodes': 'Search podcast episodes',
@@ -205,21 +218,6 @@ export const en = {
   'portfolio.nonCustodialTitle': 'Non-custodial execution',
   'portfolio.nonCustodialBody':
     'Your wallet approves every transaction before assets move.',
-  'activity.title': 'Activity',
-  'activity.all': 'All',
-  'activity.categoryFilter': 'Activity category',
-  'activity.noActivity': 'No activity yet',
-  'activity.noActivityMessage': 'Wallet activity will appear here.',
-  'activity.noCategoryActivity': 'No activity in this category yet.',
-  'activity.netFlow': 'Net flow',
-  'activity.recent': 'Recent',
-  'activity.group.today': 'Today',
-  'activity.group.week': 'This week',
-  'activity.group.earlier': 'Earlier',
-  'activity.error': 'Couldn’t load activity',
-  'activity.errorMessage': 'Check your connection and try again.',
-  'activity.retry': 'Retry',
-  'activity.failed': 'Failed',
 } as const;
 
 export type TranslationKey = keyof typeof en;
@@ -237,7 +235,6 @@ export const zhHant = {
   'tabs.home': '首頁',
   'tabs.strategy': '策略',
   'tabs.podcast': 'Podcast',
-  'tabs.activity': '活動',
   'tabs.account': '帳戶',
   'tabs.signInHint': '開啟此分頁並透過 Privy 繼續',
   'tabs.bar': '應用程式分頁',
@@ -260,8 +257,23 @@ export const zhHant = {
     '錢包已連線，但 Zap Pilot 無法載入帳戶資料。請重試以繼續。',
   'account.settingsTitle': '設定',
   'account.iosAuthBody': '已透過 Privy 登入，iOS 版僅使用 Privy 進行帳戶驗證。',
-  'account.webFeaturesTitle': 'Zap Pilot 網頁版',
-  'account.webFeaturesBody': '更多 Zap Pilot 功能可在網頁版使用。',
+  'account.webFeaturesTitle': 'iOS 為唯讀模式',
+  'account.webFeaturesBody':
+    'iOS 上僅提供投資組合唯讀查看；投資、再平衡與提領請至 Zap Pilot 網頁版。',
+  'account.watchAddressTitle': '追蹤的投資組合位址',
+  'account.watchAddressBody':
+    '如果這個 Privy 帳號沒有 Zap Pilot 投資組合，可以輸入 Ethereum 位址，以 watch-only 模式查看。',
+  'account.watchAddressPlaceholder': '0x 錢包位址',
+  'account.watchAddressSave': '儲存追蹤位址',
+  'account.watchAddressClear': '清除追蹤位址',
+  'account.watchAddressInvalid': '請輸入有效的 42 字元 Ethereum 位址。',
+  'account.watchAddressSaved': '已儲存追蹤位址。',
+  'home.iosReadOnlyConnectTitle': '查看你的投資組合',
+  'home.iosReadOnlyConnectBody':
+    '使用 Privy 登入即可查看 Zap Pilot 投資組合；如果帳號沒有投資組合，也可以到「帳戶」分頁輸入想追蹤的位址。',
+  'financialFeature.readOnlyTitle': 'iOS 為唯讀模式',
+  'financialFeature.readOnlyBody':
+    'iOS 上僅提供投資組合唯讀查看；投資、再平衡與提領請至 Zap Pilot 網頁版。',
   'account.signOut': '登出',
   'podcast.title': 'Podcast',
   'podcast.searchEpisodes': '搜尋 Podcast 節目',
@@ -419,21 +431,6 @@ export const zhHant = {
   'portfolio.metric.sharpe': '夏普比率',
   'portfolio.nonCustodialTitle': '非託管執行',
   'portfolio.nonCustodialBody': '資產移動前，每筆交易都需由你的錢包確認。',
-  'activity.title': '活動',
-  'activity.all': '全部',
-  'activity.categoryFilter': '活動分類',
-  'activity.noActivity': '尚無活動',
-  'activity.noActivityMessage': '錢包活動會顯示在這裡。',
-  'activity.noCategoryActivity': '此分類尚無活動。',
-  'activity.netFlow': '淨流向',
-  'activity.recent': '近期',
-  'activity.group.today': '今天',
-  'activity.group.week': '本週',
-  'activity.group.earlier': '更早',
-  'activity.error': '無法載入活動',
-  'activity.errorMessage': '請檢查連線後再試一次。',
-  'activity.retry': '重試',
-  'activity.failed': '失敗',
 } satisfies TranslationDictionary;
 
 export const ja = {
@@ -446,7 +443,6 @@ export const ja = {
   'tabs.home': 'ホーム',
   'tabs.strategy': 'ストラテジー',
   'tabs.podcast': 'ポッドキャスト',
-  'tabs.activity': 'アクティビティ',
   'tabs.account': 'アカウント',
   'tabs.signInHint': 'このタブを開き、Privyで続行します',
   'tabs.bar': 'アプリのタブ',
@@ -472,9 +468,24 @@ export const ja = {
   'account.settingsTitle': '設定',
   'account.iosAuthBody':
     'Privyでサインイン中です。iOS版ではPrivyをアカウント認証のみに使用します。',
-  'account.webFeaturesTitle': 'Zap Pilot ウェブ版',
+  'account.webFeaturesTitle': 'iOSでは閲覧専用',
   'account.webFeaturesBody':
-    'その他のZap Pilot機能はウェブ版でご利用いただけます。',
+    'iOSではポートフォリオを閲覧専用で確認できます。投資、リバランス、出金はZap Pilot Webをご利用ください。',
+  'account.watchAddressTitle': '追跡するポートフォリオアドレス',
+  'account.watchAddressBody':
+    'このPrivyアカウントにZap Pilotのポートフォリオがない場合、Ethereumアドレスを入力して閲覧専用で確認できます。',
+  'account.watchAddressPlaceholder': '0x ウォレットアドレス',
+  'account.watchAddressSave': '追跡アドレスを保存',
+  'account.watchAddressClear': '追跡アドレスを消去',
+  'account.watchAddressInvalid':
+    '42文字の有効なEthereumアドレスを入力してください。',
+  'account.watchAddressSaved': '追跡アドレスを保存しました。',
+  'home.iosReadOnlyConnectTitle': 'ポートフォリオを表示',
+  'home.iosReadOnlyConnectBody':
+    'PrivyでサインインするとZap Pilotのポートフォリオを表示できます。ポートフォリオがない場合は、アカウントタブで追跡するアドレスを入力できます。',
+  'financialFeature.readOnlyTitle': 'iOSでは閲覧専用',
+  'financialFeature.readOnlyBody':
+    'iOSではポートフォリオを閲覧専用で確認できます。投資、リバランス、出金はZap Pilot Webをご利用ください。',
   'account.signOut': 'サインアウト',
   'podcast.title': 'ポッドキャスト',
   'podcast.searchEpisodes': 'ポッドキャストを検索',
@@ -639,23 +650,6 @@ export const ja = {
   'portfolio.nonCustodialTitle': 'ノンカストディアル実行',
   'portfolio.nonCustodialBody':
     '資産が移動する前に、すべての取引をウォレットで承認します。',
-  'activity.title': 'アクティビティ',
-  'activity.all': 'すべて',
-  'activity.categoryFilter': 'アクティビティのカテゴリ',
-  'activity.noActivity': 'アクティビティはまだありません',
-  'activity.noActivityMessage':
-    'ウォレットのアクティビティがここに表示されます。',
-  'activity.noCategoryActivity':
-    'このカテゴリのアクティビティはまだありません。',
-  'activity.netFlow': 'ネットフロー',
-  'activity.recent': '直近',
-  'activity.group.today': '今日',
-  'activity.group.week': '今週',
-  'activity.group.earlier': 'それ以前',
-  'activity.error': 'アクティビティを読み込めませんでした',
-  'activity.errorMessage': '接続を確認してもう一度お試しください。',
-  'activity.retry': '再試行',
-  'activity.failed': '失敗',
 } satisfies TranslationDictionary;
 
 export const TRANSLATIONS: Readonly<

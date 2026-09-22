@@ -22,7 +22,7 @@ import {
   type DashboardWindowParams,
   getPortfolioDashboard,
   type UnifiedDashboardResponse,
-} from '@core/services';
+} from '@core/services/analyticsService';
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 
 /**

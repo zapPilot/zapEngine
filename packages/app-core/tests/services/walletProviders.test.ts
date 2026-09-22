@@ -4,7 +4,6 @@ import {
   getAlchemyWalletBalancesSnapshot,
   getAlchemyWalletTokenBalances,
 } from '../../src/services/alchemyWalletService';
-import { getMoralisWalletHistory } from '../../src/services/moralisWalletService';
 import {
   getSupportedWalletTokenSymbol,
   normalizeSupportedWalletTokenSymbol,
@@ -15,7 +14,6 @@ const fetchMock = vi.fn<typeof fetch>();
 beforeEach(() => {
   configureAppCoreEnv({
     VITE_ALCHEMY_API_KEY: ' test-key ',
-    VITE_MORALIS_API_KEY: ' history-key ',
   });
   vi.stubGlobal('fetch', fetchMock);
   fetchMock.mockReset();
@@ -177,60 +175,6 @@ describe('Alchemy transport and balance aggregation', () => {
       'Missing VITE_ALCHEMY_API_KEY',
     );
     expect(fetchMock).not.toHaveBeenCalled();
-  });
-});
-describe('Moralis transport', () => {
-  it('requests each supported chain with a bounded history and API key', async () => {
-    fetchMock.mockResolvedValue(
-      Response.json({
-        result: [
-          {
-            hash: 'tx',
-            erc20_transfers: [{ token_symbol: 'USDC', value_formatted: '2' }],
-          },
-        ],
-        cursor: 'next',
-      }),
-    );
-    // Response bodies are consumed once per request.
-    fetchMock.mockImplementation(async () =>
-      Response.json({
-        result: [
-          {
-            hash: 'tx',
-            erc20_transfers: [{ token_symbol: 'USDC', value_formatted: '2' }],
-          },
-        ],
-        cursor: 'next',
-      }),
-    );
-    const result = await getMoralisWalletHistory('0xwallet', { limit: 3 });
-    expect(result.map((r) => r.chain)).toEqual(['eth', 'base', 'arbitrum']);
-    expect(result[0]?.response).toMatchObject({
-      cursor: 'next',
-      result: [{ hash: 'tx' }],
-    });
-    for (const [url, init] of fetchMock.mock.calls) {
-      expect(new URL(String(url)).searchParams.get('limit')).toBe('3');
-      expect(init?.headers).toMatchObject({ 'X-API-Key': 'history-key' });
-    }
-  });
-  it('defaults absent result to empty history, rejects malformed data and missing keys', async () => {
-    fetchMock.mockImplementation(async () => Response.json({}));
-    expect(
-      (await getMoralisWalletHistory('0xwallet'))[0]?.response.result,
-    ).toEqual([]);
-    expect(
-      new URL(String(fetchMock.mock.calls[0]?.[0])).searchParams.get('limit'),
-    ).toBe('10');
-    fetchMock.mockImplementation(async () =>
-      Response.json({ result: 'invalid' }),
-    );
-    await expect(getMoralisWalletHistory('0xwallet')).rejects.toThrow();
-    configureAppCoreEnv({ VITE_MORALIS_API_KEY: '' });
-    await expect(getMoralisWalletHistory('0xwallet')).rejects.toThrow(
-      'Missing VITE_MORALIS_API_KEY',
-    );
   });
 });
 describe('supported token identity', () => {

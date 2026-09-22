@@ -1,8 +1,7 @@
--- Raise podcast ingest concurrency to four jobs to match
--- PODCAST_INGEST_MAX_CONCURRENT_JOBS. Replaces the three-job ceiling from
--- 20260921163000_bound_podcast_ingest_concurrency without editing that
--- already-applied migration. The Node pump uses the same capacity; the
--- advisory lock keeps the limit global across overlapping Fly app machines.
+-- Raise podcast ingest concurrency from 3 to 4 to match
+-- PODCAST_INGEST_MAX_CONCURRENT_JOBS. The Node pump and the claim RPCs must
+-- enforce the same ceiling under a transaction advisory lock so blue/green
+-- overlap cannot multiply it.
 create or replace function from_fed_to_chain.claim_podcast_ingest_job(
   p_job_id uuid,
   p_owner text,
@@ -112,10 +111,6 @@ begin
     updated_at = now()
   where id = v_job_id
   returning * into v_job;
-
-  if v_job.id is null then
-    return null;
-  end if;
 
   return v_job;
 end;

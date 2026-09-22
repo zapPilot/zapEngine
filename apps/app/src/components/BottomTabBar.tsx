@@ -1,11 +1,5 @@
 import { tokens } from '@zapengine/design-tokens/tokens';
-import {
-  Activity,
-  Headphones,
-  House,
-  Sparkles,
-  User,
-} from 'lucide-react-native';
+import { Headphones, House, Sparkles, User } from 'lucide-react-native';
 import type { ComponentType, ReactElement } from 'react';
 import { Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -33,7 +27,6 @@ const TABS: readonly TabItem[] = [
   { name: 'home', labelKey: 'tabs.home', Icon: House },
   { name: 'strategy', labelKey: 'tabs.strategy', Icon: Sparkles },
   { name: 'podcast', labelKey: 'tabs.podcast', Icon: Headphones },
-  { name: 'activity', labelKey: 'tabs.activity', Icon: Activity },
   { name: 'account', labelKey: 'tabs.account', Icon: User },
 ];
 

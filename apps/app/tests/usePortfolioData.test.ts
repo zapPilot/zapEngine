@@ -14,22 +14,21 @@ import {
 const useLandingPageDataMock = vi.hoisted(() => vi.fn());
 const usePortfolioDashboardMock = vi.hoisted(() => vi.fn());
 const useDailyYieldReturnsMock = vi.hoisted(() => vi.fn());
-vi.mock('@zapengine/app-core/hooks/analytics', () => ({
+vi.mock('@zapengine/app-core/hooks/analytics/usePortfolioDashboard', () => ({
   usePortfolioDashboard: usePortfolioDashboardMock,
 }));
-
-// These tests call the hook as a plain function, so its React Query observers
-// have to be stubbed. Partial, because the rest of the package loads for real.
-vi.mock('@zapengine/app-core/hooks/queries', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('@zapengine/app-core/hooks/queries')>();
-
-  return {
-    ...actual,
+vi.mock(
+  '@zapengine/app-core/hooks/queries/analytics/usePortfolioQuery',
+  () => ({
     useLandingPageData: useLandingPageDataMock,
+  }),
+);
+vi.mock(
+  '@zapengine/app-core/hooks/queries/analytics/useDailyYieldReturns',
+  () => ({
     useDailyYieldReturns: useDailyYieldReturnsMock,
-  };
-});
+  }),
+);
 
 function mockSettledSources() {
   useLandingPageDataMock.mockReturnValue({

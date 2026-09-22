@@ -1,1 +1,1 @@
-export { PodcastOnlyStubScreen as PortfolioScreen } from '@/screens/podcastOnlyStub';
+export { PortfolioScreen } from '@/screens/PortfolioScreen.shared';

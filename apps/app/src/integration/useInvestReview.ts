@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { handleHTTPError } from '@zapengine/app-core/lib/http';
-import { getDepositReview } from '@zapengine/app-core/services';
+import { getDepositReview } from '@zapengine/app-core/services/planOrchestrationService';
 import type {
   DepositReviewGroup,
   ReviewedDepositPlan,

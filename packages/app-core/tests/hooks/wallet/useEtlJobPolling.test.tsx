@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
   triggerWalletDataFetch: vi.fn(),
 }));
 
-vi.mock('@core/services', () => ({
+vi.mock('@core/services/accountService', () => ({
   getEtlJobStatus: mocks.getEtlJobStatus,
   triggerWalletDataFetch: mocks.triggerWalletDataFetch,
 }));

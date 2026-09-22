@@ -1,7 +1,7 @@
 import type {
   HyperCoreAccountMode,
   HyperCoreSpendableUsdc,
-} from '@zapengine/app-core/services';
+} from '@zapengine/app-core/services/hyperliquidService';
 
 export function hlpSpendableUsd6(
   balance: HyperCoreSpendableUsdc | undefined,

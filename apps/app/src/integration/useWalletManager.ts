@@ -1,8 +1,6 @@
-import {
-  useWalletLabels,
-  useWalletList,
-  useWalletMutations,
-} from '@zapengine/app-core/hooks/wallet';
+import { useWalletLabels } from '@zapengine/app-core/hooks/wallet/useWalletLabels';
+import { useWalletList } from '@zapengine/app-core/hooks/wallet/useWalletList';
+import { useWalletMutations } from '@zapengine/app-core/hooks/wallet/useWalletMutations';
 import { useWalletProvider } from '@zapengine/app-core/providers/walletContext';
 import type { WalletData } from '@zapengine/app-core/lib/validation/walletUtils';
 import { equalsAddress } from '@zapengine/types/shared';

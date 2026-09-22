@@ -21,6 +21,11 @@
       "import": "./dist/api/index.js",
       "require": "./dist/api/index.js"
     },
+    "./api/marketDashboard": {
+      "types": "./dist/api/marketDashboard.d.ts",
+      "import": "./dist/api/marketDashboard.js",
+      "require": "./dist/api/marketDashboard.js"
+    },
     "./strategy": {
       "types": "./dist/strategy/index.d.ts",
       "import": "./dist/strategy/index.js",

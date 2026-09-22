@@ -1,6 +1,6 @@
 import { Text, View } from 'react-native';
 
-import type { MetricTone } from '@/integration/activityTypes';
+import type { MetricTone } from '@/integration/portfolioTypes';
 import { cn } from '@/lib/cn';
 
 export interface Metric {

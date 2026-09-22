@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { ConnectGateCard } from '@/components/connect/ConnectGateCard';
-import { CONNECT_GATE_COPY } from '@/components/connect/connectGateCopy';
+import { useDemoGateCopy } from '@/components/home/useDemoGateCopy';
 import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 
 interface DemoConnectOverlayProps {
@@ -58,13 +58,15 @@ export function DemoConnectOverlay({
   isConnecting,
   error,
 }: DemoConnectOverlayProps) {
+  const { title, body } = useDemoGateCopy();
+
   return (
     <BlurredOverlayFrame>
       <View className="w-full max-w-[360px]">
         <ConnectGateCard
           variant="overlay"
-          title={CONNECT_GATE_COPY.demoTitle}
-          body={CONNECT_GATE_COPY.demoBody}
+          title={title}
+          body={body}
           onConnect={onConnect}
           isConnecting={isConnecting}
           error={error}

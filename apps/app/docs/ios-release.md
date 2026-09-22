@@ -60,8 +60,11 @@ App Store Connect holds the listing copy; this is the source of truth for the
 **App Review Information → Notes** field, because it is the part reviewers read
 that depends on facts about this repository.
 
-> This update continues the existing From Fed to Chain podcast experience with an
-> updated design and branding.
+> This update includes the existing Zap Pilot podcast experience plus a
+> read-only portfolio dashboard. Home and Portfolio display existing
+> portfolio analytics for the signed-in account or a user-entered watch-only
+> address. The iOS dashboard is informational only and cannot move assets or
+> execute transactions.
 >
 > All podcasts and editorial content available in the app are original
 > first-party content produced by us. The app does not aggregate podcasts,
@@ -72,9 +75,24 @@ The second paragraph exists because a separate, never-shipped app record was
 rejected under Guideline 4.2.2 as an internet content aggregator. The content is
 first-party; the notes say so plainly.
 
-Do not describe wallet, swap, or rebalance functionality here. Those surfaces are
-kept out of the iOS build and its bundle (Guideline 3.1.5(b)(i)), enforced by
-`scripts/assert-ios-bundle-clean.cjs`.
+Do not describe wallet, swap, or rebalance functionality here. Those execution
+surfaces are kept out of the iOS build and its bundle; the iOS product statement
+is simply that portfolio analytics are read-only. The binary boundary is enforced
+by `scripts/assert-ios-bundle-clean.cjs` using both Hermes marker counts and the
+exported source-map module list.
+
+## App Privacy checklist
+
+The read-only dashboard adds account-linked portfolio data to the iOS product.
+`app.config.ts` therefore declares `NSPrivacyCollectedDataTypeUserID` and
+`NSPrivacyCollectedDataTypeOtherFinancialInfo` in addition to email, all for App
+Functionality, linked to the user, and not used for tracking.
+
+Before submitting an update, manually keep **App Store Connect → App Privacy** in
+sync with the binary: disclose **User ID** and **Other Financial Info** (portfolio
+assets / debts / related financial analytics) as data linked to the user and not
+used for tracking. This App Store Connect questionnaire is not repository-managed
+and cannot be changed by Expo config.
 
 ## One-time EAS setup
 

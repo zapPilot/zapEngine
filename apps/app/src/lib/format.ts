@@ -3,8 +3,8 @@
 import {
   formatAddress,
   formatCurrency,
-  numberFrom,
-} from '@zapengine/app-core/utils';
+} from '@zapengine/app-core/utils/formatters';
+import { numberFrom } from '@zapengine/app-core/utils/mathUtils';
 
 export { numberFrom };
 
@@ -49,15 +49,6 @@ export function formatTokenAmount(
     maximumFractionDigits: tokenAmountFractionDigits(symbol, context),
   });
   return `${amountLabel} ${symbol}`;
-}
-
-export function formatSignedTokenAmount(
-  amount: number,
-  symbol: string,
-  context: TokenAmountDisplayContext,
-): string {
-  const sign = amount >= 0 ? '+' : '−';
-  return `${sign}${formatTokenAmount(Math.abs(amount), symbol, context)}`;
 }
 
 /** Split a USD amount into a whole part and a `.dd` fraction for the

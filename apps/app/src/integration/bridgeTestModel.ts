@@ -3,7 +3,7 @@ import {
   USDC_ADDRESS,
 } from '@zapengine/app-core/constants/bridgeChains';
 import { parseBaseUnits } from '@zapengine/app-core/lib/wallet/usd6';
-import { CHAIN_BRAND } from '@zapengine/brand-assets';
+import { CHAIN_BRAND } from '@zapengine/brand-assets/chains';
 import type { Address } from 'viem';
 
 export interface BridgeChainOption {

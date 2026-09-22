@@ -27,10 +27,18 @@ vi.mock('@zapengine/app-core/hooks/analytics/usePortfolioDashboard', () => ({
 // Fully replaced rather than partially: `react` is stubbed down to useMemo
 // above, so loading the real query package here would be loading it against a
 // React that barely exists.
-vi.mock('@zapengine/app-core/hooks/queries', () => ({
-  useDailyYieldReturns: useDailyYieldReturnsMock,
-  useLandingPageData: useLandingPageDataMock,
-}));
+vi.mock(
+  '@zapengine/app-core/hooks/queries/analytics/useDailyYieldReturns',
+  () => ({
+    useDailyYieldReturns: useDailyYieldReturnsMock,
+  }),
+);
+vi.mock(
+  '@zapengine/app-core/hooks/queries/analytics/usePortfolioQuery',
+  () => ({
+    useLandingPageData: useLandingPageDataMock,
+  }),
+);
 
 vi.mock('@/integration/useStrategySuggestion', () => ({
   useStrategySuggestion: useStrategySuggestionMock,

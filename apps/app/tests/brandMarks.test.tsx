@@ -35,13 +35,15 @@ vi.mock('react-native', () => ({
 
 // Metro resolves these through `require`, which vitest cannot run. The mark
 // identity is all these tests need, so each entry is its own sentinel string.
-vi.mock('@/data/assetIcons', () => ({
+vi.mock('@/data/chainIcons', () => ({
   CHAIN_ICON_SRC: {
     ethereum: 'mark:chains/ethereum',
     base: 'mark:chains/base',
     arbitrum: 'mark:chains/arbitrum',
     hyperliquid: 'mark:chains/hyperliquid',
   },
+}));
+vi.mock('@/data/tokenIcons', () => ({
   TOKEN_ICON_SRC: {
     USDC: 'mark:tokens/usdc',
     USDT: 'mark:tokens/usdt',
@@ -53,6 +55,8 @@ vi.mock('@/data/assetIcons', () => ({
     SPY: 'mark:tokens/spy',
     ALT: 'mark:tokens/alt',
   },
+}));
+vi.mock('@/data/protocolIcons', () => ({
   PROTOCOL_ICON_SRC: {
     morpho: 'mark:protocols/morpho',
     'gmx-v2': 'mark:protocols/gmx-v2',
@@ -60,6 +64,7 @@ vi.mock('@/data/assetIcons', () => ({
     ondo: 'mark:protocols/ondo',
     aave: 'mark:protocols/aave',
     lido: 'mark:protocols/lido',
+    'eth-staking': 'mark:protocols/eth-staking',
   },
 }));
 

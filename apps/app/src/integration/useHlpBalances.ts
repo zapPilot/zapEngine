@@ -1,9 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
-import { createQueryConfig } from '@zapengine/app-core/hooks/queries';
+import { createQueryConfig } from '@zapengine/app-core/hooks/queries/queryDefaults';
 import {
   getHyperCoreSpendableUsdc,
   type HyperCoreSpendableUsdc,
-} from '@zapengine/app-core/services';
+} from '@zapengine/app-core/services/hyperliquidService';
 
 export interface HlpBalanceResult<T> {
   balance: T | undefined;

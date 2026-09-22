@@ -1,9 +1,4 @@
-export type AppTabName =
-  | 'home'
-  | 'strategy'
-  | 'podcast'
-  | 'activity'
-  | 'account';
+export type AppTabName = 'home' | 'strategy' | 'podcast' | 'account';
 
 export const DEFAULT_APP_TAB: AppTabName = 'podcast';
 export const DEFAULT_APP_TAB_PATH = '/podcast' as const;
@@ -12,15 +7,10 @@ export const APP_TAB_NAMES: readonly AppTabName[] = [
   'home',
   'strategy',
   'podcast',
-  'activity',
   'account',
 ];
 
-const GUEST_ACCESSIBLE_TABS = new Set<AppTabName>([
-  'home',
-  'podcast',
-  'activity',
-]);
+const GUEST_ACCESSIBLE_TABS = new Set<AppTabName>(['home', 'podcast']);
 
 export function isTabAccessible(
   tabName: AppTabName,

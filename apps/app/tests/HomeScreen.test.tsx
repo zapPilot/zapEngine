@@ -63,10 +63,16 @@ vi.mock(
   '@/providers/ContentLanguageProvider',
   async () => (await harness()).homeScreenMocks.contentLanguage,
 );
-vi.mock(
-  '@/data/assetIcons',
-  async () => (await harness()).homeScreenMocks.assetIcons,
-);
+vi.mock('@/data/chainIcons', async () => ({
+  CHAIN_ICON_SRC: (await harness()).homeScreenMocks.assetIcons.CHAIN_ICON_SRC,
+}));
+vi.mock('@/data/tokenIcons', async () => ({
+  TOKEN_ICON_SRC: (await harness()).homeScreenMocks.assetIcons.TOKEN_ICON_SRC,
+}));
+vi.mock('@/data/protocolIcons', async () => ({
+  PROTOCOL_ICON_SRC: (await harness()).homeScreenMocks.assetIcons
+    .PROTOCOL_ICON_SRC,
+}));
 vi.mock(
   '@/components/ui/Tap',
   async () => (await harness()).homeScreenMocks.tap,
@@ -108,7 +114,7 @@ vi.mock(
   async () => (await harness()).homeScreenMocks.useAccount,
 );
 vi.mock(
-  '@zapengine/app-core/hooks/wallet',
+  '@zapengine/app-core/hooks/wallet/useEtlJobPolling',
   async () => (await harness()).homeScreenMocks.etlJobPolling,
 );
 vi.mock(
@@ -116,8 +122,18 @@ vi.mock(
   async () => (await harness()).homeScreenMocks.portfolioDashboard,
 );
 vi.mock(
-  '@zapengine/app-core/hooks/queries',
-  async () => (await harness()).homeScreenMocks.appCoreQueries,
+  '@zapengine/app-core/hooks/queries/analytics/useDailyYieldReturns',
+  async () => ({
+    useDailyYieldReturns: (await harness()).homeScreenMocks.appCoreQueries
+      .useDailyYieldReturns,
+  }),
+);
+vi.mock(
+  '@zapengine/app-core/hooks/queries/analytics/usePortfolioQuery',
+  async () => ({
+    useLandingPageData: (await harness()).homeScreenMocks.appCoreQueries
+      .useLandingPageData,
+  }),
 );
 vi.mock(
   '@/integration/useStrategySuggestion',

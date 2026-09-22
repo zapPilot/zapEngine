@@ -1,9 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
-import {
-  createQueryConfig,
-  queryKeys,
-} from '@zapengine/app-core/hooks/queries';
-import { getStrategyConfigs, runBacktest } from '@zapengine/app-core/services';
+import { createQueryConfig } from '@zapengine/app-core/hooks/queries/queryDefaults';
+import { queryKeys } from '@zapengine/app-core/lib/state/queryClient';
+import { runBacktest } from '@zapengine/app-core/services/backtestingService';
+import { getStrategyConfigs } from '@zapengine/app-core/services/strategyService';
 import type {
   BacktestCompareConfigV3,
   BacktestRequest,
@@ -17,7 +16,7 @@ import type {
   StrategyPreset,
 } from '@zapengine/app-core/types/strategy';
 
-import { type MetricTone } from '@/integration/activityTypes';
+import { type MetricTone } from '@/integration/portfolioTypes';
 import { formatOr, formatPct, formatSignedPct, formatUsd } from '@/lib/format';
 
 const DCA_CLASSIC_STRATEGY_ID = 'dca_classic';

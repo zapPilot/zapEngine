@@ -260,6 +260,16 @@ describe('podcast video audio analysis', () => {
     expect(processRunner).toHaveBeenCalledOnce();
     expect(processRunner).toHaveBeenCalledWith('/opt/ffmpeg', [
       '-y',
+      '-rw_timeout',
+      '30000000',
+      '-reconnect',
+      '1',
+      '-reconnect_streamed',
+      '1',
+      '-reconnect_on_network_error',
+      '1',
+      '-reconnect_delay_max',
+      '10',
       '-i',
       'https://cdn.example.com/episodes/e/localizations/zh-Hant/main/playlist.m3u8',
       '-map',
@@ -268,6 +278,45 @@ describe('podcast video audio analysis', () => {
       'copy',
       '/work/narration.m4a',
     ]);
+  });
+
+  // ffmpeg's rw_timeout defaults to 0 (never), which is how a stalled R2 socket
+  // held a visual job for 16h34m on 2026-09-21. The reconnect options that fix
+  // it are private to http/https: ffmpeg exits with "Option reconnect not found"
+  // when they are passed for a local path, so the gating is load-bearing and
+  // both sides of it are pinned here.
+  it.each([
+    ['ffprobe duration', () => probeAudioDurationMs],
+    ['ffmpeg silence detection', () => detectAudioSilences],
+  ])('bounds remote reads but not local ones for %s', async (_label, pick) => {
+    const remoteRunner = vi.fn().mockResolvedValue({
+      stdout: '{"format":{"duration":"90"}}',
+      stderr: '',
+    });
+    const localRunner = vi.fn().mockResolvedValue({
+      stdout: '{"format":{"duration":"90"}}',
+      stderr: '',
+    });
+    const run = pick();
+
+    await run(
+      'https://cdn.example.com/episodes/e/localizations/zh-Hant/main/playlist.m3u8',
+      { processRunner: remoteRunner },
+    );
+    await run('/work/narration.m4a', { processRunner: localRunner });
+
+    const remoteArgs = remoteRunner.mock.calls[0]?.[1] as string[];
+    expect(remoteArgs).toContain('-rw_timeout');
+    expect(remoteArgs).toContain('-reconnect');
+    expect(remoteArgs.indexOf('-rw_timeout')).toBeLessThan(
+      remoteArgs.lastIndexOf(
+        'https://cdn.example.com/episodes/e/localizations/zh-Hant/main/playlist.m3u8',
+      ),
+    );
+
+    const localArgs = localRunner.mock.calls[0]?.[1] as string[];
+    expect(localArgs).not.toContain('-rw_timeout');
+    expect(localArgs).not.toContain('-reconnect');
   });
 
   it('forwards the abort signal through the process runner contract', async () => {

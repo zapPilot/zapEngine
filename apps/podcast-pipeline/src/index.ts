@@ -58,7 +58,7 @@ import {
 } from './services/request-validation.js';
 import {
   APPLE_APP_SITE_ASSOCIATION,
-  buildEpisodeSharePageHtml,
+  resolveEpisodeShare,
 } from './services/share-page.js';
 import {
   answerTelegramCallbackQuery,
@@ -196,17 +196,22 @@ export function createApp(): Hono {
     const languageCode = parsePrimaryLanguageCode(
       c.req.query('lang') ?? c.req.query('language'),
     );
-    const html = await buildEpisodeSharePageHtml({
+    const resolution = await resolveEpisodeShare({
       id,
       languageCode,
       userAgent: c.req.header('user-agent'),
+      accept: c.req.header('accept'),
     });
 
-    if (!html) {
+    if (resolution.kind === 'not-found') {
       return c.notFound();
     }
 
-    return c.html(html);
+    c.header('Vary', 'User-Agent, Accept');
+    c.header('Cache-Control', 'no-store');
+    return resolution.kind === 'redirect'
+      ? c.redirect(resolution.location, 302)
+      : c.html(resolution.html);
   });
 
   app.post('/ingest', async (c) => {

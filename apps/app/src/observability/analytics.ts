@@ -1,7 +1,7 @@
 /**
  * Native half of the product-analytics platform split.
  *
- * The iOS build ships podcast-only and the store builds carry no analytics SDK,
+ * The iOS build ships podcast + read-only portfolio and carries no analytics SDK,
  * so every entry point here is inert. Crucially this module must never import
  * `posthog-js` — that import is what would pull a browser SDK into the Hermes
  * bundle guarded by `scripts/assert-ios-bundle-clean.cjs`.

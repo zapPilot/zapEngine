@@ -25,7 +25,6 @@ export function buildAppCoreEnvSource(
     VITE_PRIVY_APP_ID: privyAppId,
     VITE_ALCHEMY_API_KEY:
       process.env.EXPO_PUBLIC_ALCHEMY_API_KEY || extra.alchemyApiKey,
-    VITE_MORALIS_API_KEY: process.env.EXPO_PUBLIC_MORALIS_API_KEY,
     VITE_PODCAST_API_URL: process.env.EXPO_PUBLIC_PODCAST_API_URL,
     VITE_PRIVY_CLIENT_ID: process.env.EXPO_PUBLIC_PRIVY_CLIENT_ID,
     VITE_SENTRY_DSN: process.env.EXPO_PUBLIC_SENTRY_DSN,

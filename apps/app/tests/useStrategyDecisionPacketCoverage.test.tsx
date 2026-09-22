@@ -14,9 +14,12 @@ const mocks = vi.hoisted(() => ({
   suggestion: vi.fn(),
 }));
 
-vi.mock('@zapengine/app-core/hooks/queries', () => ({
-  useMarketDashboardQuery: mocks.dashboard,
-}));
+vi.mock(
+  '@zapengine/app-core/hooks/queries/market/useMarketDashboardQuery',
+  () => ({
+    useMarketDashboardQuery: mocks.dashboard,
+  }),
+);
 
 vi.mock('@zapengine/app-core/services/suggestion', () => ({
   buildTradeActions: () => [],

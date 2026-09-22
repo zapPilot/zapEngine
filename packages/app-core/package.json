@@ -18,9 +18,49 @@
       "types": "./dist/services/suggestion/index.d.ts",
       "import": "./dist/services/suggestion/index.js"
     },
+    "./services/alchemyWalletService": {
+      "types": "./dist/services/alchemyWalletService.d.ts",
+      "import": "./dist/services/alchemyWalletService.js"
+    },
+    "./services/backtestingService": {
+      "types": "./dist/services/backtestingService.d.ts",
+      "import": "./dist/services/backtestingService.js"
+    },
+    "./services/analyticsService": {
+      "types": "./dist/services/analyticsService.d.ts",
+      "import": "./dist/services/analyticsService.js"
+    },
+    "./services/hyperliquidService": {
+      "types": "./dist/services/hyperliquidService.d.ts",
+      "import": "./dist/services/hyperliquidService.js"
+    },
+    "./services/planOrchestrationService": {
+      "types": "./dist/services/planOrchestrationService.d.ts",
+      "import": "./dist/services/planOrchestrationService.js"
+    },
+    "./services/telegramService": {
+      "types": "./dist/services/telegramService.d.ts",
+      "import": "./dist/services/telegramService.js"
+    },
+    "./services/tokenBalanceService": {
+      "types": "./dist/services/tokenBalanceService.d.ts",
+      "import": "./dist/services/tokenBalanceService.js"
+    },
+    "./services/strategyService": {
+      "types": "./dist/services/strategyService.d.ts",
+      "import": "./dist/services/strategyService.js"
+    },
+    "./services/walletTokenCatalog": {
+      "types": "./dist/services/walletTokenCatalog.d.ts",
+      "import": "./dist/services/walletTokenCatalog.js"
+    },
     "./adapters": {
       "types": "./dist/adapters/index.d.ts",
       "import": "./dist/adapters/index.js"
+    },
+    "./adapters/portfolio/allocationAdapter": {
+      "types": "./dist/adapters/portfolio/allocationAdapter.d.ts",
+      "import": "./dist/adapters/portfolio/allocationAdapter.js"
     },
     "./config/chains/display": {
       "types": "./dist/config/chains/display.d.ts",
@@ -66,9 +106,21 @@
       "types": "./dist/hooks/queries/analytics/usePortfolioDataProgressive.d.ts",
       "import": "./dist/hooks/queries/analytics/usePortfolioDataProgressive.js"
     },
+    "./hooks/queries/analytics/useDailyYieldReturns": {
+      "types": "./dist/hooks/queries/analytics/useDailyYieldReturns.d.ts",
+      "import": "./dist/hooks/queries/analytics/useDailyYieldReturns.js"
+    },
+    "./hooks/queries/analytics/usePortfolioQuery": {
+      "types": "./dist/hooks/queries/analytics/usePortfolioQuery.d.ts",
+      "import": "./dist/hooks/queries/analytics/usePortfolioQuery.js"
+    },
     "./hooks/queries/analytics/useYieldSummary": {
       "types": "./dist/hooks/queries/analytics/useYieldSummary.d.ts",
       "import": "./dist/hooks/queries/analytics/useYieldSummary.js"
+    },
+    "./hooks/queries/market/useMarketDashboardQuery": {
+      "types": "./dist/hooks/queries/market/useMarketDashboardQuery.d.ts",
+      "import": "./dist/hooks/queries/market/useMarketDashboardQuery.js"
     },
     "./hooks/queries/market/useRegimeHistoryQuery": {
       "types": "./dist/hooks/queries/market/useRegimeHistoryQuery.d.ts",
@@ -113,6 +165,22 @@
     "./hooks/wallet/useAtomicBatchExecution": {
       "types": "./dist/hooks/wallet/useAtomicBatchExecution.d.ts",
       "import": "./dist/hooks/wallet/useAtomicBatchExecution.js"
+    },
+    "./hooks/wallet/useEtlJobPolling": {
+      "types": "./dist/hooks/wallet/useEtlJobPolling.d.ts",
+      "import": "./dist/hooks/wallet/useEtlJobPolling.js"
+    },
+    "./hooks/wallet/useWalletLabels": {
+      "types": "./dist/hooks/wallet/useWalletLabels.d.ts",
+      "import": "./dist/hooks/wallet/useWalletLabels.js"
+    },
+    "./hooks/wallet/useWalletList": {
+      "types": "./dist/hooks/wallet/useWalletList.d.ts",
+      "import": "./dist/hooks/wallet/useWalletList.js"
+    },
+    "./hooks/wallet/useWalletMutations": {
+      "types": "./dist/hooks/wallet/useWalletMutations.d.ts",
+      "import": "./dist/hooks/wallet/useWalletMutations.js"
     },
     "./hooks/wallet/usePrivyWalletBackend": {
       "types": "./dist/hooks/wallet/usePrivyWalletBackend.d.ts",
@@ -225,6 +293,18 @@
     "./types/strategy": {
       "types": "./dist/types/strategy.d.ts",
       "import": "./dist/types/strategy.js"
+    },
+    "./utils/formatters": {
+      "types": "./dist/utils/formatters.d.ts",
+      "import": "./dist/utils/formatters.js"
+    },
+    "./utils/mathUtils": {
+      "types": "./dist/utils/mathUtils.d.ts",
+      "import": "./dist/utils/mathUtils.js"
+    },
+    "./utils/formatting/tokenAmount": {
+      "types": "./dist/utils/formatting/tokenAmount.d.ts",
+      "import": "./dist/utils/formatting/tokenAmount.js"
     },
     "./utils/walletValidation": {
       "types": "./dist/utils/walletValidation.d.ts",

@@ -58,8 +58,45 @@ function invokeRunner(
     : runner(executable, args);
 }
 
+function isRemoteAudioSource(audioSource: string): boolean {
+  return /^https?:\/\//i.test(audioSource);
+}
+
+/**
+ * ffmpeg's `rw_timeout` defaults to 0, which means no timeout at all: a
+ * half-open socket to R2 leaves the process blocked in `read()` with no error,
+ * no exit and no progress. A visual job wedged exactly that way for 16h34m on
+ * 2026-09-21, holding a dedicated CPU while its lease heartbeat — a timer, not
+ * a progress signal — kept renewing the row out of reach of the claim RPC's
+ * expired-lease reaper.
+ *
+ * The reconnect options are private to the http/https protocol. Passing them
+ * for a local path makes ffmpeg fail with `Option reconnect not found` (ffprobe
+ * tolerates them, ffmpeg does not), so they are only ever emitted for a remote
+ * source. A deadline around the call is still the hard bound; these flags stop
+ * a recoverable stall from reaching it and make an unrecoverable one legible.
+ */
+const REMOTE_IO_TIMEOUT_US = 30_000_000;
+const REMOTE_RECONNECT_DELAY_MAX_SECONDS = 10;
+
+function remoteInputArgs(audioSource: string): string[] {
+  if (!isRemoteAudioSource(audioSource)) return [];
+  return [
+    '-rw_timeout',
+    String(REMOTE_IO_TIMEOUT_US),
+    '-reconnect',
+    '1',
+    '-reconnect_streamed',
+    '1',
+    '-reconnect_on_network_error',
+    '1',
+    '-reconnect_delay_max',
+    String(REMOTE_RECONNECT_DELAY_MAX_SECONDS),
+  ];
+}
+
 export function assertMainNarrationAudioSource(audioSource: string): void {
-  if (!/^https?:\/\//i.test(audioSource)) return;
+  if (!isRemoteAudioSource(audioSource)) return;
   const pathname = new URL(audioSource).pathname.toLowerCase();
   if (pathname.includes('/classroom/')) {
     throw new Error('Video audio must use main narration, not classroom audio');
@@ -85,7 +122,17 @@ export async function downloadNarrationAudio(
   await invokeRunner(
     options.processRunner ?? runProcess,
     options.ffmpegPath ?? resolveVideoFfmpegPath(),
-    ['-y', '-i', audioSource, '-map', '0:a:0', '-c', 'copy', outputPath],
+    [
+      '-y',
+      ...remoteInputArgs(audioSource),
+      '-i',
+      audioSource,
+      '-map',
+      '0:a:0',
+      '-c',
+      'copy',
+      outputPath,
+    ],
     options.signal,
   );
 }
@@ -105,6 +152,7 @@ export async function probeAudioDurationMs(
     [
       '-v',
       'error',
+      ...remoteInputArgs(audioSource),
       '-show_entries',
       'format=duration',
       '-of',
@@ -175,6 +223,7 @@ export async function detectAudioSilences(
     [
       '-hide_banner',
       '-nostdin',
+      ...remoteInputArgs(audioSource),
       '-i',
       audioSource,
       '-vn',

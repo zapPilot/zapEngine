@@ -11,6 +11,21 @@
       "import": "./dist/index.js",
       "require": "./dist/index.js"
     },
+    "./chains": {
+      "types": "./dist/chains.d.ts",
+      "import": "./dist/chains.js",
+      "require": "./dist/chains.js"
+    },
+    "./tokens": {
+      "types": "./dist/tokens.d.ts",
+      "import": "./dist/tokens.js",
+      "require": "./dist/tokens.js"
+    },
+    "./protocols": {
+      "types": "./dist/protocols.d.ts",
+      "import": "./dist/protocols.js",
+      "require": "./dist/protocols.js"
+    },
     "./assets/*": "./assets/*"
   },
   "files": [

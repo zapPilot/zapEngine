@@ -1,4 +1,4 @@
-import { CHAIN_BRAND } from '@zapengine/brand-assets';
+import { CHAIN_BRAND } from '@zapengine/brand-assets/chains';
 import { Lock } from 'lucide-react-native';
 import { useState } from 'react';
 import { Text, TextInput, View } from 'react-native';

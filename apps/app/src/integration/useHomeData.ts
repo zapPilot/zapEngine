@@ -1,8 +1,6 @@
 import { usePortfolioDashboard } from '@zapengine/app-core/hooks/analytics/usePortfolioDashboard';
-import {
-  useDailyYieldReturns,
-  useLandingPageData,
-} from '@zapengine/app-core/hooks/queries';
+import { useDailyYieldReturns } from '@zapengine/app-core/hooks/queries/analytics/useDailyYieldReturns';
+import { useLandingPageData } from '@zapengine/app-core/hooks/queries/analytics/usePortfolioQuery';
 import { isNotFoundError } from '@zapengine/app-core/lib/errors';
 import {
   buildTradeActions,

@@ -1,12 +1,13 @@
+import type { ChainBrandKey } from '@zapengine/brand-assets/chains';
 import {
-  type ChainBrandKey,
   TOKEN_BRAND,
   tokenBrandSymbolFor,
-} from '@zapengine/brand-assets';
+} from '@zapengine/brand-assets/tokens';
 import { useState } from 'react';
 import { Image, Text, View } from 'react-native';
 
-import { CHAIN_ICON_SRC, TOKEN_ICON_SRC } from '@/data/assetIcons';
+import { CHAIN_ICON_SRC } from '@/data/chainIcons';
+import { TOKEN_ICON_SRC } from '@/data/tokenIcons';
 
 interface TokenIconProps {
   /** Any casing; resolved through the shared registry. */

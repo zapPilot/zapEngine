@@ -1,4 +1,4 @@
-import type { TelegramStatus } from '@zapengine/app-core/services';
+import type { TelegramStatus } from '@zapengine/app-core/services/telegramService';
 
 export const TELEGRAM_POLL_INTERVAL_MS = 3_000;
 export const TELEGRAM_MAX_POLL_DURATION_MS = 120_000;

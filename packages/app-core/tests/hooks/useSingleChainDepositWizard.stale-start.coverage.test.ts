@@ -81,7 +81,16 @@ describe('useSingleChainDepositWizard stale start coverage', () => {
     });
 
     expect(mocks.getDepositPlan).toHaveBeenCalledTimes(2);
-    expect(result.current.wizard.request?.fromAmount).toBe('20000000');
+    expect(mocks.getDepositPlan).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ fromAmount: '20000000' }),
+    );
+    const finalLegs = (
+      result.current.wizard.plan as unknown as {
+        legs?: Array<{ fromAmount?: string }>;
+      } | null
+    )?.legs;
+    expect(finalLegs?.[0]?.fromAmount).toBe('20000000');
     expect(result.current.wizard.status).toBe('ready');
   });
 });

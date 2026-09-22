@@ -6,10 +6,10 @@ import {
   listEpisodeVideoSummariesByLocalizationIds,
 } from './db.js';
 import {
-  buildEpisodeSharePageHtml,
   detectPlatform,
   extractIosAppId,
   renderEpisodeSharePage,
+  resolveEpisodeShare,
 } from './share-page.js';
 
 vi.mock('./db.js', () => ({
@@ -51,6 +51,7 @@ describe('renderEpisodeSharePage', () => {
       iosAppStoreUrl: 'https://apps.apple.com/app/id123',
       canonicalUrl: 'https://example.com/e/episode-1?x=1&y=2',
       appDeepLinkUrl: 'zappilotv2://podcast/episode-1',
+      webEpisodeUrl: 'https://v2.zap-pilot.org/podcast/episode-1?lang=zh-Hant',
     });
 
     expect(html).toContain(
@@ -74,6 +75,7 @@ describe('renderEpisodeSharePage', () => {
         'https://apps.apple.com/app/from-fed-to-chain/id6749248542',
       canonicalUrl: 'https://example.com/e/episode-1',
       appDeepLinkUrl: 'zappilotv2://podcast/episode-1',
+      webEpisodeUrl: 'https://v2.zap-pilot.org/podcast/episode-1?lang=zh-Hant',
     });
 
     expect(html).toContain(
@@ -97,10 +99,12 @@ describe('renderEpisodeSharePage', () => {
       iosAppStoreUrl: 'https://apps.apple.com/app/id123',
       canonicalUrl: 'https://example.com/e/episode-1',
       appDeepLinkUrl: 'zappilotv2://podcast/episode-1',
+      webEpisodeUrl: 'https://v2.zap-pilot.org/podcast/episode-1?lang=zh-Hant',
     });
 
     expect(html).not.toContain('http-equiv="refresh"');
     expect(html).toContain('Open in Zap Pilot');
+    expect(html).not.toContain('Listen on the web');
   });
 
   it('renders a non-autoplay HTML5 MP4 player with its poster', () => {
@@ -118,6 +122,7 @@ describe('renderEpisodeSharePage', () => {
       iosAppStoreUrl: 'https://apps.apple.com/app/id123',
       canonicalUrl: 'https://example.com/e/episode-1',
       appDeepLinkUrl: 'zappilotv2://podcast/episode-1',
+      webEpisodeUrl: 'https://v2.zap-pilot.org/podcast/episode-1?lang=zh-Hant',
     });
 
     expect(html).toContain(
@@ -144,6 +149,7 @@ describe('renderEpisodeSharePage', () => {
       iosAppStoreUrl: 'https://apps.apple.com/app/id123',
       canonicalUrl: 'https://example.com/e/episode-1',
       appDeepLinkUrl: 'zappilotv2://podcast/episode-1',
+      webEpisodeUrl: 'https://v2.zap-pilot.org/podcast/episode-1?lang=zh-Hant',
     });
 
     const twitterCard = /name="twitter:description" content="([^"]+)"/.exec(
@@ -168,9 +174,13 @@ describe('renderEpisodeSharePage', () => {
       iosAppStoreUrl: 'https://apps.apple.com/app/id123',
       canonicalUrl: 'https://example.com/e/episode-1',
       appDeepLinkUrl: 'zappilotv2://podcast/episode-1',
+      webEpisodeUrl: 'https://v2.zap-pilot.org/podcast/episode-1?lang=zh-Hant',
     });
 
     expect(html).toContain('From Fed to Chain');
+    expect(html).toContain(
+      '<a class="button button-secondary" href="https://v2.zap-pilot.org/podcast/episode-1?lang=zh-Hant">Listen on the web</a>',
+    );
   });
 
   it('uses fallback description when episode description is empty', () => {
@@ -186,6 +196,7 @@ describe('renderEpisodeSharePage', () => {
       iosAppStoreUrl: 'https://apps.apple.com/app/id123',
       canonicalUrl: 'https://example.com/e/episode-1',
       appDeepLinkUrl: 'zappilotv2://podcast/episode-1',
+      webEpisodeUrl: 'https://v2.zap-pilot.org/podcast/episode-1?lang=zh-Hant',
     });
 
     const twitterCard = /name="twitter:description" content="([^"]+)"/.exec(
@@ -210,6 +221,7 @@ describe('renderEpisodeSharePage', () => {
       iosAppStoreUrl: 'https://apps.apple.com/app/id123',
       canonicalUrl: 'https://example.com/e/episode-1',
       appDeepLinkUrl: 'zappilotv2://podcast/episode-1',
+      webEpisodeUrl: 'https://v2.zap-pilot.org/podcast/episode-1?lang=zh-Hant',
     });
 
     const twitterCard = /name="twitter:description" content="([^"]+)"/.exec(
@@ -222,11 +234,124 @@ describe('renderEpisodeSharePage', () => {
   });
 });
 
-describe('buildEpisodeSharePageHtml', () => {
+describe('resolveEpisodeShare', () => {
   beforeEach(() => {
     findLocalizationMock.mockReset();
     listVideoSummariesMock.mockReset();
     listVideoSummariesMock.mockResolvedValue(new Map());
+  });
+
+  it.each(['zh-Hant', 'ja', 'en'] as const)(
+    'redirects an interactive desktop browser to the %s web localization',
+    async (languageCode) => {
+      const localization = localizationRow({ language_code: languageCode });
+      findLocalizationMock.mockResolvedValue(localization);
+
+      const resolution = await resolveEpisodeShare({
+        id: localization.episode_id,
+        languageCode,
+        userAgent:
+          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/140 Safari/537.36',
+        accept: 'text/html,application/xhtml+xml',
+      });
+
+      expect(resolution).toEqual({
+        kind: 'redirect',
+        location: `https://v2.zap-pilot.org/podcast/${localization.id}?lang=${languageCode}`,
+      });
+      expect(
+        resolution.kind === 'redirect' ? resolution.location : '',
+      ).not.toContain(localization.episode_id);
+      expect(listVideoSummariesMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    'facebookexternalhit/1.1',
+    'Twitterbot/1.0',
+    'TelegramBot (like TwitterBot)',
+  ])('keeps preview metadata for crawler %s', async (userAgent) => {
+    findLocalizationMock.mockResolvedValue(localizationRow());
+
+    const resolution = await resolveEpisodeShare({
+      id: 'episode-1',
+      languageCode: 'zh-Hant',
+      userAgent,
+      accept: 'text/html',
+    });
+
+    expect(resolution.kind).toBe('page');
+    if (resolution.kind !== 'page') return;
+    expect(resolution.html).toContain('property="og:title"');
+    expect(resolution.html).toContain('property="og:image"');
+    expect(resolution.html).toContain('name="twitter:card"');
+  });
+
+  it.each([
+    ['missing user agent', undefined, 'text/html'],
+    [
+      'non-browser accept header',
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+      '*/*',
+    ],
+  ] as const)(
+    'falls back to the HTML page for %s',
+    async (_label, userAgent, accept) => {
+      findLocalizationMock.mockResolvedValue(localizationRow());
+
+      const resolution = await resolveEpisodeShare({
+        id: 'episode-1',
+        languageCode: 'zh-Hant',
+        userAgent,
+        accept,
+      });
+
+      expect(resolution.kind).toBe('page');
+    },
+  );
+
+  it('keeps the iPhone landing page and App Store action', async () => {
+    findLocalizationMock.mockResolvedValue(localizationRow());
+
+    const resolution = await resolveEpisodeShare({
+      id: 'episode-1',
+      languageCode: 'zh-Hant',
+      userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)',
+      accept: 'text/html',
+    });
+
+    expect(resolution.kind).toBe('page');
+    if (resolution.kind !== 'page') return;
+    expect(resolution.html).toContain('Get Zap Pilot');
+    expect(resolution.html).not.toContain('<meta http-equiv="refresh"');
+    expect(resolution.html).not.toContain('window.location.replace');
+  });
+
+  it('keeps the Android landing page', async () => {
+    findLocalizationMock.mockResolvedValue(localizationRow());
+
+    const resolution = await resolveEpisodeShare({
+      id: 'episode-1',
+      languageCode: 'zh-Hant',
+      userAgent: 'Mozilla/5.0 (Linux; Android 13; SM-S918B)',
+      accept: 'text/html',
+    });
+
+    expect(resolution.kind).toBe('page');
+  });
+
+  it('returns not-found before redirecting or loading video metadata', async () => {
+    findLocalizationMock.mockResolvedValue(null);
+
+    const resolution = await resolveEpisodeShare({
+      id: 'missing',
+      languageCode: 'zh-Hant',
+      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+      accept: 'text/html',
+    });
+
+    expect(resolution).toEqual({ kind: 'not-found' });
+    expect(listVideoSummariesMock).not.toHaveBeenCalled();
   });
 
   it('uses the script as description when raw_text is null', async () => {
@@ -234,60 +359,56 @@ describe('buildEpisodeSharePageHtml', () => {
       localizationRow({ raw_text: null, script: 'Script body fallback' }),
     );
 
-    const html = await buildEpisodeSharePageHtml({
+    const resolution = await resolveEpisodeShare({
       id: 'episode-1',
       languageCode: 'zh-Hant',
       userAgent: undefined,
+      accept: undefined,
     });
 
-    expect(html).toContain('Script body fallback');
+    expect(resolution.kind).toBe('page');
+    if (resolution.kind !== 'page') return;
+    expect(resolution.html).toContain('Script body fallback');
   });
 
-  it('uses an empty description when both raw_text and script are null', async () => {
+  it('uses an empty source description when both raw_text and script are null', async () => {
     findLocalizationMock.mockResolvedValue(
       localizationRow({ raw_text: null, script: null }),
     );
 
-    const html = await buildEpisodeSharePageHtml({
+    const resolution = await resolveEpisodeShare({
       id: 'episode-1',
       languageCode: 'zh-Hant',
       userAgent: undefined,
+      accept: undefined,
     });
 
-    expect(html).not.toBeNull();
-    expect(html).toContain('Localization title');
+    expect(resolution.kind).toBe('page');
+    if (resolution.kind !== 'page') return;
+    expect(resolution.html).toContain('Localization title');
   });
 
-  it('returns null when the localization does not exist', async () => {
-    findLocalizationMock.mockResolvedValue(null);
+  it('carries the language into canonical, app, and desktop web links', async () => {
+    const localization = localizationRow({ language_code: 'ja' });
+    findLocalizationMock.mockResolvedValue(localization);
 
-    const html = await buildEpisodeSharePageHtml({
-      id: 'missing',
-      languageCode: 'zh-Hant',
-      userAgent: undefined,
-    });
-
-    expect(html).toBeNull();
-  });
-
-  it('carries the language into the canonical and app deep links', async () => {
-    findLocalizationMock.mockResolvedValue(localizationRow());
-
-    const html = await buildEpisodeSharePageHtml({
+    const resolution = await resolveEpisodeShare({
       id: 'episode-1',
       languageCode: 'ja',
-      userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)',
+      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+      accept: undefined,
     });
 
-    expect(html).not.toBeNull();
-    expect(html).toContain(
+    expect(resolution.kind).toBe('page');
+    if (resolution.kind !== 'page') return;
+    expect(resolution.html).toContain(
       '<link rel="canonical" href="https://from-fed-to-chain-api.fly.dev/e/episode-1?lang=ja">',
     );
-    expect(html).toContain(
-      `app-argument=zappilotv2://podcast/${localizationRow().id}?lang=ja`,
+    expect(resolution.html).toContain(
+      `<a class="button" href="zappilotv2://podcast/${localization.id}?lang=ja">Open in Zap Pilot</a>`,
     );
-    expect(html).toContain(
-      `<a class="button" href="zappilotv2://podcast/${localizationRow().id}?lang=ja">Open in Zap Pilot</a>`,
+    expect(resolution.html).toContain(
+      `https://v2.zap-pilot.org/podcast/${localization.id}?lang=ja`,
     );
   });
 
@@ -315,15 +436,22 @@ describe('buildEpisodeSharePageHtml', () => {
       ]),
     );
 
-    const html = await buildEpisodeSharePageHtml({
+    const resolution = await resolveEpisodeShare({
       id: localization.episode_id,
       languageCode: 'zh-Hant',
       userAgent: undefined,
+      accept: undefined,
     });
 
     expect(listVideoSummariesMock).toHaveBeenCalledWith([localization.id]);
-    expect(html).toContain('<source src="https://cdn.example.com/video.mp4"');
-    expect(html).toContain('poster="https://cdn.example.com/thumbnail.png"');
+    expect(resolution.kind).toBe('page');
+    if (resolution.kind !== 'page') return;
+    expect(resolution.html).toContain(
+      '<source src="https://cdn.example.com/video.mp4"',
+    );
+    expect(resolution.html).toContain(
+      'poster="https://cdn.example.com/thumbnail.png"',
+    );
   });
 });
 

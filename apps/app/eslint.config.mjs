@@ -48,7 +48,37 @@ export default defineConfig([
             {
               name: '@zapengine/app-core/hooks',
               message:
-                'Do not import the broad hooks barrel on React Native. Import the specific hook module (e.g. @zapengine/app-core/hooks/queries/wallet/useUser) — the hooks/* barrels re-export every sibling and drag the app-core services surface into the bundle with them. See scripts/assert-ios-bundle-clean.cjs.',
+                'Do not import the broad hooks barrel on React Native. Import the specific hook module instead.',
+            },
+            {
+              name: '@zapengine/app-core/services',
+              message:
+                'Do not import the services barrel in the app. Deep-import the exact service module so native bundles cannot pull transaction/exchange siblings transitively.',
+            },
+            {
+              name: '@zapengine/app-core/hooks/queries',
+              message:
+                'Do not import the hooks/queries barrel. Deep-import the exact query hook or queryDefaults module.',
+            },
+            {
+              name: '@zapengine/app-core/hooks/wallet',
+              message:
+                'Do not import the hooks/wallet barrel. Deep-import the exact wallet hook module.',
+            },
+            {
+              name: '@zapengine/app-core/hooks/analytics',
+              message:
+                'Do not import the hooks/analytics barrel. Deep-import the exact analytics hook module.',
+            },
+            {
+              name: '@zapengine/app-core/adapters',
+              message:
+                'Do not import the adapters barrel. Deep-import the exact adapter module.',
+            },
+            {
+              name: '@zapengine/app-core/utils',
+              message:
+                'Do not import the utils barrel. Deep-import the exact formatter/math utility module.',
             },
             {
               name: 'wagmi',

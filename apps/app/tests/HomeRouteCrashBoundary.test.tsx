@@ -30,13 +30,7 @@ vi.mock('react-native', () => ({
   View: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
 }));
 
-// FinancialFeatureRoute itself stays real — the boundary's position relative to
-// its iOS lock-screen short circuit is what these tests are about — so only its
-// leaf UI dependencies are stubbed.
 vi.mock('lucide-react-native', () => ({ LockKeyhole: () => null }));
-vi.mock('@/components/OpenZapPilotWebButton', () => ({
-  OpenZapPilotWebButton: () => null,
-}));
 vi.mock('@/components/ui/Card', () => ({
   Card: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
 }));
@@ -159,17 +153,16 @@ describe('Home route crash boundary', () => {
     await unmount(mounted);
   });
 
-  it('never mounts the boundary on the iOS lock-screen path', async () => {
+  it('keeps the Home crash boundary active on iOS now that Home is restored', async () => {
     mocks.platform.OS = 'ios';
     mocks.crash.enabled = true;
 
     const mounted = await mount(<AppShellStandIn />);
 
-    expect(mounted.container.textContent).toContain(
-      'Available on Zap Pilot Web',
-    );
-    expect(mocks.homeScreenRendered).not.toHaveBeenCalled();
-    expect(mocks.onCapturedError).not.toHaveBeenCalled();
+    expect(mocks.homeScreenRendered).toHaveBeenCalled();
+    expect(mounted.container.textContent).toContain('Something went wrong');
+    expect(mounted.container.textContent).toContain('Tab bar');
+    expect(mocks.onCapturedError).toHaveBeenCalledOnce();
 
     await unmount(mounted);
   });

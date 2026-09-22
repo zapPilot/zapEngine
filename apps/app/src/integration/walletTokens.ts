@@ -1,18 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
-import {
-  createQueryConfig,
-  queryKeys,
-} from '@zapengine/app-core/hooks/queries';
+import { createQueryConfig } from '@zapengine/app-core/hooks/queries/queryDefaults';
+import { queryKeys } from '@zapengine/app-core/lib/state/queryClient';
 import {
   ALCHEMY_WALLET_CHAINS,
   getAlchemyWalletBalancesSnapshot,
-} from '@zapengine/app-core/services';
+} from '@zapengine/app-core/services/alchemyWalletService';
 import { useMemo } from 'react';
 
 import {
   buildDesktopWalletAssets,
   buildChainTokenBalanceRows,
-  buildInvestableBalanceRows,
   buildWalletAssetsResult,
   type DesktopWalletAsset,
   type DesktopWalletAssetHolding,
@@ -22,7 +19,8 @@ import {
   type UseWalletAssetsResult,
   type WalletAddressInput,
   type WalletAssetsQueryData,
-} from '@/integration/moralisWallet';
+} from '@/integration/walletAssetModel';
+import { buildInvestableBalanceRows } from '@/integration/investableBalanceRows';
 
 export type {
   DesktopWalletAsset,
@@ -31,6 +29,7 @@ export type {
   InvestableBalanceRow,
   UseWalletAssetsResult,
   WalletAddressInput,
+  WalletAssetsQueryData,
 };
 
 export { normalizeWalletAddressList };
@@ -109,5 +108,3 @@ export function useWalletAssets(
     [data, enabled, error, isError, isLoading, refetch],
   );
 }
-
-export type { MoralisChainKey } from '@/integration/moralisWallet';

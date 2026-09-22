@@ -1,4 +1,4 @@
-import type { ChainBrandKey } from '@zapengine/brand-assets';
+import type { ChainBrandKey } from '@zapengine/brand-assets/chains';
 import { ChevronDown } from 'lucide-react-native';
 import { Text, View } from 'react-native';
 
