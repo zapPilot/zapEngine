@@ -264,7 +264,7 @@ describe('usePodcastPlayer web media lifecycle', () => {
     });
     expect(mediaSession.metadata?.init).toMatchObject({
       title: 'Episode one',
-      artist: 'From Fed to Chain',
+      artist: 'Zap Pilot',
       artwork: [],
     });
     expect(mediaSession.playbackState).toBe('playing');
