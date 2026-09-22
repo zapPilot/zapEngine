@@ -129,8 +129,8 @@ describe('durable Telegram ingest queue', () => {
     expect(mocks.perform).not.toHaveBeenCalled();
   });
 
-  it('never claims a fourth durable job until one of three active jobs finishes', async () => {
-    const jobs = Array.from({ length: 4 }, (_, index) =>
+  it('never claims a fifth durable job until one of four active jobs finishes', async () => {
+    const jobs = Array.from({ length: 5 }, (_, index) =>
       row({
         id: `00000000-0000-4000-8000-00000000010${index}`,
         source_url: `https://example.test/capacity-${index}`,
@@ -143,9 +143,10 @@ describe('durable Telegram ingest queue', () => {
       .mockResolvedValueOnce(jobs[1])
       .mockResolvedValueOnce(jobs[2])
       .mockResolvedValueOnce(jobs[3])
+      .mockResolvedValueOnce(jobs[4])
       .mockResolvedValue(null);
     const store = fakeStore({ claimNext });
-    const runs = Array.from({ length: 4 }, () => createDeferred<unknown>());
+    const runs = Array.from({ length: 5 }, () => createDeferred<unknown>());
     mocks.perform.mockImplementation(() => {
       const run = runs[mocks.perform.mock.calls.length - 1];
       if (!run) throw new Error('unexpected ingest');
@@ -158,15 +159,15 @@ describe('durable Telegram ingest queue', () => {
 
     await queue.recoverNow();
 
-    await vi.waitFor(() => expect(mocks.perform).toHaveBeenCalledTimes(3));
-    expect(claimNext).toHaveBeenCalledTimes(3);
+    await vi.waitFor(() => expect(mocks.perform).toHaveBeenCalledTimes(4));
+    expect(claimNext).toHaveBeenCalledTimes(4);
 
     runs[0]!.resolve({
       ingest: { episode: { id: 'episode-1' } },
       videoJob: { status: 'queued' },
     });
-    await vi.waitFor(() => expect(mocks.perform).toHaveBeenCalledTimes(4));
-    expect(claimNext).toHaveBeenCalledTimes(4);
+    await vi.waitFor(() => expect(mocks.perform).toHaveBeenCalledTimes(5));
+    expect(claimNext).toHaveBeenCalledTimes(5);
 
     for (const run of runs.slice(1)) {
       run.resolve({

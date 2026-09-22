@@ -185,8 +185,8 @@ describe('Telegram ingest queue', () => {
     expect(mocks.perform).toHaveBeenCalledTimes(1);
   });
 
-  it('bounds the local fallback queue to three active ingests', async () => {
-    const runs = Array.from({ length: 4 }, () => createDeferred<unknown>());
+  it('bounds the local fallback queue to four active ingests', async () => {
+    const runs = Array.from({ length: 5 }, () => createDeferred<unknown>());
     mocks.perform.mockImplementation(() => {
       const run = runs[mocks.perform.mock.calls.length - 1];
       if (!run) throw new Error('unexpected ingest');
@@ -194,7 +194,7 @@ describe('Telegram ingest queue', () => {
     });
     const queue = createTelegramIngestQueue();
 
-    for (let index = 0; index < 4; index += 1) {
+    for (let index = 0; index < 5; index += 1) {
       queue.enqueue(
         `chat-${index}`,
         `https://example.test/capacity-${index}`,
@@ -202,9 +202,9 @@ describe('Telegram ingest queue', () => {
       );
     }
 
-    await vi.waitFor(() => expect(mocks.perform).toHaveBeenCalledTimes(3));
+    await vi.waitFor(() => expect(mocks.perform).toHaveBeenCalledTimes(4));
     expect(mocks.perform).not.toHaveBeenCalledWith(
-      'https://example.test/capacity-3',
+      'https://example.test/capacity-4',
       'zh-Hant',
       expect.anything(),
     );
@@ -213,7 +213,7 @@ describe('Telegram ingest queue', () => {
       ingest: ingestResult(),
       videoJob: { status: 'queued' },
     });
-    await vi.waitFor(() => expect(mocks.perform).toHaveBeenCalledTimes(4));
+    await vi.waitFor(() => expect(mocks.perform).toHaveBeenCalledTimes(5));
 
     for (const run of runs.slice(1)) {
       run.resolve({ ingest: ingestResult(), videoJob: { status: 'queued' } });
