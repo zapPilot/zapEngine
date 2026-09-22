@@ -69,3 +69,19 @@ it('ignores a stale pre-bootstrap refetch after the wallet disconnects', async (
 
   expect(mocks.connectWallet).not.toHaveBeenCalled();
 });
+
+it('normalizes a non-Error bootstrap rejection for the current session', async () => {
+  mocks.activeAddress.value = '0xbbb';
+  mocks.connectWallet.mockRejectedValueOnce('bootstrap unavailable');
+
+  const { result } = renderHook(() => useCurrentUser(), {
+    wrapper: createWrapper(),
+  });
+
+  await waitFor(() =>
+    expect(result.current.error).toBe('bootstrap unavailable'),
+  );
+
+  expect(result.current.isSuccess).toBe(false);
+  expect(mocks.getUserByWallet).not.toHaveBeenCalled();
+});
