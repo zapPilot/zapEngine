@@ -1,13 +1,16 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { transformToPerformanceChart } from '../../src/lib/analytics/transformers';
+import {
+  transformToDrawdownChart,
+  transformToPerformanceChart,
+} from '../../src/lib/analytics/transformers';
 import type { UnifiedDashboardResponse } from '../../src/services';
 
 const dashboard = (data: unknown) => data as UnifiedDashboardResponse;
 
 afterEach(() => vi.useRealTimers());
 
-describe('transformToPerformanceChart drawdown fallback coverage', () => {
+describe('analytics transformer fallback coverage', () => {
   it('uses the current timestamp when a finite drawdown portfolio point has no date', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-09-22T12:00:00Z'));
@@ -57,6 +60,29 @@ describe('transformToPerformanceChart drawdown fallback coverage', () => {
         date: '2026-09-21',
         portfolioValue: 100,
       },
+    ]);
+  });
+
+  it('defaults missing underwater drawdown values and dates', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-22T13:00:00Z'));
+
+    const result = transformToDrawdownChart(
+      dashboard({
+        drawdown_analysis: {
+          underwater_recovery: {
+            underwater_data: [
+              {},
+              { date: '2026-09-21', drawdown_pct: -5 },
+            ],
+          },
+        },
+      }),
+    );
+
+    expect(result.points).toEqual([
+      { x: 0, value: 0, date: '2026-09-22T13:00:00.000Z' },
+      { x: 100, value: -5, date: '2026-09-21' },
     ]);
   });
 });
