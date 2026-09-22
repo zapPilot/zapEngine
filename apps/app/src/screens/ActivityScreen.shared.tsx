@@ -57,14 +57,25 @@ export function ActivityScreen() {
     ownAddress: account.address,
   });
 
-  const isLive = account.viewingUserId !== null;
-  const groups = isLive ? (activity.data?.groups ?? []) : DEMO.activity;
-  const summary = isLive
-    ? (activity.data?.summary ?? [])
-    : DEMO.activitySummary;
-  const isLoading = isLive && activity.isLoading;
-  const isError = isLive && !isLoading && activity.isError;
+  // `viewingUserId` is intentionally null while account-engine is resolving a
+  // connected/watch-only subject and after a resolution failure. Those states
+  // are still live states; only `account.isDemo` is allowed to surface demo
+  // activity. Otherwise a transient/failed account lookup silently replaces
+  // the user's feed with fake data.
+  const isDemo = account.isDemo;
+  const groups = isDemo ? DEMO.activity : (activity.data?.groups ?? []);
+  const summary = isDemo
+    ? DEMO.activitySummary
+    : (activity.data?.summary ?? []);
+  const isLoading =
+    !isDemo && (account.isResolvingViewingUser || activity.isLoading);
+  const isAccountError = !isDemo && account.isUserResolutionFailed;
+  const isError =
+    !isDemo && !isLoading && (isAccountError || activity.isError);
   const filteredGroups = filterActivityGroups(groups, filter);
+  const retry = isAccountError
+    ? account.retryUserResolution
+    : activity.refetch;
 
   return (
     <ScreenScrollView>
@@ -96,7 +107,7 @@ export function ActivityScreen() {
             body={t('activity.errorMessage')}
             action={{
               label: t('activity.retry'),
-              onPress: activity.refetch,
+              onPress: () => void retry(),
             }}
           />
         ) : (
