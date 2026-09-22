@@ -10,6 +10,7 @@ details.
 | `db/bootstrap-integration-db.sh`         | Integration test schema setup                       |
 | `quality/audit_sql_params.py`            | SQL parameter naming enforcement                    |
 | `quality/check_service_reachability.py`  | Service dependency validation                       |
+| `research/laya/runner.py`                | Research-only Laya direct-allocation backtest       |
 
 The canonical validation command lives in
 [`src/services/backtesting/COMMANDS.md`](../src/services/backtesting/COMMANDS.md).

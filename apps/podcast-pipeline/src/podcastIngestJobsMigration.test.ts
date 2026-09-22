@@ -27,6 +27,13 @@ const boundedConcurrencyMigration = fs.readFileSync(
   ),
   'utf8',
 );
+const boundedConcurrencyToFourMigration = fs.readFileSync(
+  path.join(
+    repoRoot,
+    'supabase/migrations/20260922120000_bound_podcast_ingest_concurrency_to_4.sql',
+  ),
+  'utf8',
+);
 
 describe('podcast ingest jobs migration', () => {
   it('stores Telegram ingest work durably with lease state', () => {
@@ -63,9 +70,9 @@ describe('podcast ingest jobs migration', () => {
     );
   });
 
-  it('bounds claims globally to the same three-job capacity as the app pump', () => {
+  it('bounds claims globally to the historical three-job capacity', () => {
     expect(boundedConcurrencyMigration).toContain(
-      `v_capacity constant integer := ${PODCAST_INGEST_MAX_CONCURRENT_JOBS};`,
+      'v_capacity constant integer := 3;',
     );
     expect(boundedConcurrencyMigration).toMatch(/pg_advisory_xact_lock/i);
     expect(boundedConcurrencyMigration).toMatch(
@@ -73,6 +80,19 @@ describe('podcast ingest jobs migration', () => {
     );
     expect(
       boundedConcurrencyMigration.match(/pg_advisory_xact_lock/gi),
+    ).toHaveLength(2);
+  });
+
+  it('bounds claims globally to the same four-job capacity as the app pump', () => {
+    expect(boundedConcurrencyToFourMigration).toContain(
+      `v_capacity constant integer := ${PODCAST_INGEST_MAX_CONCURRENT_JOBS};`,
+    );
+    expect(boundedConcurrencyToFourMigration).toMatch(/pg_advisory_xact_lock/i);
+    expect(boundedConcurrencyToFourMigration).toMatch(
+      /status = 'processing'[\s\S]*lease_expires_at > now\(\)[\s\S]*v_active_jobs >= v_capacity/i,
+    );
+    expect(
+      boundedConcurrencyToFourMigration.match(/pg_advisory_xact_lock/gi),
     ).toHaveLength(2);
   });
 

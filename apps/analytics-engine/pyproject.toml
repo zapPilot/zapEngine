@@ -67,6 +67,10 @@ exclude = ["tests/", "test_*.py"]
 explicit_package_bases = true
 namespace_packages = true
 
+[[tool.mypy.overrides]]
+module = ["laya", "laya.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 addopts = ["--import-mode=importlib"]
@@ -106,6 +110,9 @@ exclude_lines = [
 ]
 
 [dependency-groups]
+research = [
+    "laya>=0.3.5",
+]
 dev = [
     "asyncpg>=0.31.0",
     "greenlet>=3.2.3",
