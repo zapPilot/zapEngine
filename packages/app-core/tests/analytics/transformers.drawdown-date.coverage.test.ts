@@ -8,7 +8,9 @@ import type { UnifiedDashboardResponse } from '../../src/services';
 
 const dashboard = (data: unknown) => data as UnifiedDashboardResponse;
 
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe('analytics transformer fallback coverage', () => {
   it('uses current timestamp for undated drawdown points', () => {
