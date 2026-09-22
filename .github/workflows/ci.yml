@@ -202,6 +202,10 @@ jobs:
         with:
           uv: 'false'
 
+      - name: Build workspace dependencies
+        if: github.event_name == 'workflow_dispatch' || steps.filter.outputs.app_ios == 'true'
+        run: pnpm turbo run build --filter='@zapengine/app^...'
+
       - name: Export iOS bundle with source map
         if: github.event_name == 'workflow_dispatch' || steps.filter.outputs.app_ios == 'true'
         run: >-
