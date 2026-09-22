@@ -368,6 +368,37 @@ describe('GET /e/:id share landing page', () => {
     },
   );
 
+  it('redirects an interactive desktop browser to the resolved web localization', async () => {
+    const localization = localizationRow({
+      title: 'Share <Episode>',
+      raw_text: 'Episode summary for preview cards.',
+    });
+    mockFindEpisodeLocalizationByEpisodeId.mockResolvedValue(localization);
+
+    const response = await app.request(`/e/${episodeRow().id}?lang=ja`, {
+      headers: {
+        'user-agent':
+          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/140 Safari/537.36',
+        accept: 'text/html',
+      },
+      redirect: 'manual',
+    });
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get('location')).toBe(
+      `https://v2.zap-pilot.org/podcast/${localization.id}?lang=ja`,
+    );
+    expect(response.headers.get('vary')).toBe('User-Agent, Accept');
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(mockFindEpisodeLocalizationByEpisodeId).toHaveBeenCalledWith(
+      episodeRow().id,
+      'ja',
+    );
+    expect(
+      mockListEpisodeVideoSummariesByLocalizationIds,
+    ).not.toHaveBeenCalled();
+  });
+
   it('returns 404 when the episode localization does not exist', async () => {
     mockFindEpisodeLocalizationByEpisodeId.mockResolvedValue(null);
 
@@ -419,6 +450,7 @@ describe('GET /e/:id share landing page', () => {
 
   it('falls back to the default cover URL for non-record localization values', async () => {
     const localization = Object.assign(() => undefined, {
+      id: localizationRow().id,
       episode_id: episodeRow().id,
       title: 'Function-shaped Localization',
       raw_text: 'Description from a defensive mock shape.',

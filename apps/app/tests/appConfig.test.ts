@@ -22,6 +22,9 @@ describe('store identity', () => {
     expect(appConfig.ios?.bundleIdentifier).toBe(
       'com.example.fromFedToChainApp',
     );
+    expect(appConfig.ios?.associatedDomains).toEqual([
+      'applinks:from-fed-to-chain-api.fly.dev',
+    ]);
   });
 
   it('keeps the native identifiers registered with the Privy mobile client', () => {

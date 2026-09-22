@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { contentTypeExtension } from '../lib/content-type.js';
+import { runWithDeadline } from '../lib/deadline.js';
 import {
   applyAndValidatePodcastBrandingToStoryboard,
   getEnglishBodyScript,
@@ -16,6 +17,7 @@ import {
   uploadEpisodeVisualAssetsToR2,
   uploadEpisodeVisualCheckpointImageToR2,
 } from './storage.js';
+import { downloadNarrationAudio } from './video/audio-analysis.js';
 import {
   deriveSearchSubjects,
   IMAGE_SEARCH_BUDGET,
@@ -88,6 +90,13 @@ export type ProcessEpisodeVideoVisualJob = (
   context: ProcessEpisodeVideoVisualJobContext,
 ) => Promise<EpisodeVideoVisualCompletion>;
 
+/**
+ * Mirrors the render path's narration budget (`episode-video-processor.ts`).
+ * Downloading first is what makes the rest of the audio analysis local, and
+ * therefore incapable of blocking on a stalled R2 socket.
+ */
+const NARRATION_DOWNLOAD_TIMEOUT_MS = 300_000;
+
 type PersistVisualDebug = (
   episodeId: string,
   leaseOwner: string,
@@ -95,6 +104,7 @@ type PersistVisualDebug = (
 ) => Promise<boolean>;
 
 interface EpisodeVideoVisualProcessorDependencies {
+  downloadNarration: typeof downloadNarrationAudio;
   analyzeAudio: typeof analyzeEpisodeAudio;
   generateStoryboard: typeof generateVisualStoryboard;
   enrichSearchIntents: typeof enrichStoryboardSearchIntents;
@@ -111,6 +121,7 @@ interface EpisodeVideoVisualProcessorDependencies {
 }
 
 const defaultDependencies: EpisodeVideoVisualProcessorDependencies = {
+  downloadNarration: downloadNarrationAudio,
   analyzeAudio: analyzeEpisodeAudio,
   generateStoryboard: generateVisualStoryboard,
   enrichSearchIntents: enrichStoryboardSearchIntents,
@@ -168,7 +179,22 @@ export function createEpisodeVideoVisualProcessor(
 
       const prepareStoryboard = async (): Promise<PreparedStoryboard> => {
         context.reportProgress(visualStageProgress('analyzing-audio', 0));
-        const analysis = await dependencies.analyzeAudio(source.hlsUrl, {
+        // Analyse a local copy, never the remote playlist. `detectAudioSilences`
+        // streams the whole episode through a filter, so pointing it at R2 kept
+        // one socket open for the length of the episode with nothing bounding
+        // it — the 2026-09-21 wedge. The download carries the only network
+        // deadline; everything after it reads from disk.
+        const narrationPath = join(outputDirectory, 'narration.m4a');
+        await runWithDeadline(
+          (signal) =>
+            dependencies.downloadNarration(source.hlsUrl, narrationPath, {
+              signal,
+            }),
+          context.signal,
+          NARRATION_DOWNLOAD_TIMEOUT_MS,
+          'Narration download',
+        );
+        const analysis = await dependencies.analyzeAudio(narrationPath, {
           signal: context.signal,
         });
         context.reportProgress(visualStageProgress('analyzing-audio'));

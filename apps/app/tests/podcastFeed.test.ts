@@ -15,7 +15,9 @@ import {
   parsePodcastAudioTrack,
   parsePodcastClassroomTrack,
   parsePodcastEpisode,
+  parsePodcastEpisodeRouteParams,
   parsePodcastEpisodeSearchResult,
+  podcastEpisodeRoutePath,
   podcastVideoRefetchInterval,
 } from '@/integration/podcastFeed';
 import {
@@ -901,4 +903,31 @@ describe('podcast feed client', () => {
       'https://from-fed-to-chain-api.fly.dev/e/ep-1?lang=zh-Hant',
     );
   });
+
+  it('normalizes inbound podcast route params and language aliases', () => {
+    expect(
+      parsePodcastEpisodeRouteParams(
+        {
+          episodeId: ['loc%2Fone', 'ignored'],
+          language: ['ja', 'en'],
+        },
+        'zh-Hant',
+      ),
+    ).toEqual({ episodeId: 'loc/one', languageCode: 'ja' });
+    expect(
+      parsePodcastEpisodeRouteParams({ episodeId: 'loc-1' }, 'zh-Hant'),
+    ).toEqual({ episodeId: 'loc-1', languageCode: 'zh-Hant' });
+  });
+
+  it.each([
+    ['loc-1', 'zh-Hant', '/podcast/loc-1?lang=zh-Hant'],
+    ['', 'zh-Hant', '/podcast'],
+    ['loc-1', '', '/podcast/loc-1'],
+    ['loc/one two', 'zh/Hant', '/podcast/loc%2Fone%20two?lang=zh%2FHant'],
+  ])(
+    'builds podcast episode route path for id=%s language=%s',
+    (episodeId, languageCode, expected) => {
+      expect(podcastEpisodeRoutePath(episodeId, languageCode)).toBe(expected);
+    },
+  );
 });

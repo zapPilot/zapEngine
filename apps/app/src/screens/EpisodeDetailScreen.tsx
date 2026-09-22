@@ -1,7 +1,7 @@
 import { EpisodeDownloadButton } from '@/components/podcast/EpisodeDownloadButton';
 import { downloadedEpisodeRows } from '@/integration/podcastVideoDownloads';
 import { usePodcastDownloads } from '@/providers/PodcastDownloadsProvider';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { ChevronLeft, Share2 } from 'lucide-react-native';
 import { useState } from 'react';
 import { Share, Text, View } from 'react-native';
@@ -36,12 +36,8 @@ import { mergeEpisodeProgress } from '@/integration/podcastProgress';
 import { usePodcastPlayer } from '@/providers/PodcastPlayerProvider';
 import { useEpisodeProgress } from '@/providers/PodcastProgressProvider';
 import { useContentLanguage } from '@/providers/ContentLanguageProvider';
+import { usePodcastEpisodeRoute } from '@/hooks/usePodcastEpisodeRoute';
 import type { ContentLanguageCode } from '@/config/contentLanguages';
-
-function episodeParamToString(value: string | string[] | undefined): string {
-  if (Array.isArray(value)) return value[0] ?? '';
-  return value ?? '';
-}
 
 function EpisodeDetailHeader({
   episode,
@@ -183,11 +179,6 @@ function DetailSkeleton() {
 }
 
 export function EpisodeDetailScreen() {
-  const params = useLocalSearchParams<{
-    episodeId?: string | string[];
-    lang?: string | string[];
-    language?: string | string[];
-  }>();
   const router = useRouter();
   const goBack = () => {
     if (router.canGoBack()) {
@@ -200,13 +191,8 @@ export function EpisodeDetailScreen() {
   const { languageCode: selectedLanguageCode, t } = useContentLanguage();
   const [activeVideoClock, setActiveVideoClock] =
     useState<EpisodeMediaClock | null>(null);
-  const routeEpisodeId = decodeURIComponent(
-    episodeParamToString(params.episodeId),
-  );
-  const routeLanguageCode =
-    episodeParamToString(params.lang) ||
-    episodeParamToString(params.language) ||
-    selectedLanguageCode;
+  const { episodeId: routeEpisodeId, languageCode: routeLanguageCode } =
+    usePodcastEpisodeRoute(selectedLanguageCode);
   const downloads = usePodcastDownloads();
   const offlineEpisode =
     downloadedEpisodeRows(downloads.records, 'newest').find(
