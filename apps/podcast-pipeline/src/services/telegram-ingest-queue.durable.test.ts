@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createDeferred } from '../__fixtures__/index-test.js';
 import {
+  PODCAST_INGEST_MAX_CONCURRENT_JOBS,
   PodcastIngestJobContractError,
   type PodcastIngestJobRow,
   type PodcastIngestJobStore,
@@ -129,23 +130,22 @@ describe('durable Telegram ingest queue', () => {
     expect(mocks.perform).not.toHaveBeenCalled();
   });
 
-  it('never claims a fourth durable job until one of three active jobs finishes', async () => {
-    const jobs = Array.from({ length: 4 }, (_, index) =>
+  it('never claims a fifth durable job until one of four active jobs finishes', async () => {
+    const capacity = PODCAST_INGEST_MAX_CONCURRENT_JOBS;
+    const total = capacity + 1;
+    const jobs = Array.from({ length: total }, (_, index) =>
       row({
         id: `00000000-0000-4000-8000-00000000010${index}`,
         source_url: `https://example.test/capacity-${index}`,
         telegram_chat_id: `chat-${index}`,
       }),
     );
-    const claimNext = vi
-      .fn()
-      .mockResolvedValueOnce(jobs[0])
-      .mockResolvedValueOnce(jobs[1])
-      .mockResolvedValueOnce(jobs[2])
-      .mockResolvedValueOnce(jobs[3])
-      .mockResolvedValue(null);
+    const claimNext = (() => {
+      let callIndex = 0;
+      return vi.fn(async () => jobs[callIndex++] ?? null);
+    })();
     const store = fakeStore({ claimNext });
-    const runs = Array.from({ length: 4 }, () => createDeferred<unknown>());
+    const runs = Array.from({ length: total }, () => createDeferred<unknown>());
     mocks.perform.mockImplementation(() => {
       const run = runs[mocks.perform.mock.calls.length - 1];
       if (!run) throw new Error('unexpected ingest');
@@ -158,15 +158,17 @@ describe('durable Telegram ingest queue', () => {
 
     await queue.recoverNow();
 
-    await vi.waitFor(() => expect(mocks.perform).toHaveBeenCalledTimes(3));
-    expect(claimNext).toHaveBeenCalledTimes(3);
+    await vi.waitFor(() =>
+      expect(mocks.perform).toHaveBeenCalledTimes(capacity),
+    );
+    expect(claimNext).toHaveBeenCalledTimes(capacity);
 
     runs[0]!.resolve({
       ingest: { episode: { id: 'episode-1' } },
       videoJob: { status: 'queued' },
     });
-    await vi.waitFor(() => expect(mocks.perform).toHaveBeenCalledTimes(4));
-    expect(claimNext).toHaveBeenCalledTimes(4);
+    await vi.waitFor(() => expect(mocks.perform).toHaveBeenCalledTimes(total));
+    expect(claimNext).toHaveBeenCalledTimes(total);
 
     for (const run of runs.slice(1)) {
       run.resolve({

@@ -23,7 +23,7 @@ const emptyClaimFixMigration = fs.readFileSync(
 const boundedConcurrencyMigration = fs.readFileSync(
   path.join(
     repoRoot,
-    'supabase/migrations/20260921163000_bound_podcast_ingest_concurrency.sql',
+    'supabase/migrations/20260922064600_raise_podcast_ingest_concurrency_to_4.sql',
   ),
   'utf8',
 );
@@ -63,7 +63,7 @@ describe('podcast ingest jobs migration', () => {
     );
   });
 
-  it('bounds claims globally to the same three-job capacity as the app pump', () => {
+  it('bounds claims globally to the same four-job capacity as the app pump', () => {
     expect(boundedConcurrencyMigration).toContain(
       `v_capacity constant integer := ${PODCAST_INGEST_MAX_CONCURRENT_JOBS};`,
     );
