@@ -126,6 +126,7 @@ coverage.*.json
 
 # backtesting script
 scripts/out/
+reports/laya/cache/
 
 # claude
 .claude/worktrees/
