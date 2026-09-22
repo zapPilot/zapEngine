@@ -48,6 +48,18 @@ describe('parseCacheControlForHint', () => {
     ).toEqual({ staleTimeMs: 60_000, gcTimeMs: 180_000 });
   });
 
+  // Invariant: once a stale extension is observed, later duplicate directives
+  // cannot overwrite the first server-provided value.
+  it('keeps the first stale-while-revalidate directive', async () => {
+    const { parseCacheControlForHint } = await loadCacheControl();
+
+    expect(
+      parseCacheControlForHint(
+        'max-age=30, stale-while-revalidate=10, stale-while-revalidate=20',
+      ),
+    ).toEqual({ staleTimeMs: 30_000, gcTimeMs: 40_000 });
+  });
+
   // Invariant: max-age wins once observed and a malformed stale extension is
   // treated as absent rather than invalidating an otherwise usable hint.
   it('prefers max-age and ignores an invalid stale extension', async () => {
@@ -108,6 +120,19 @@ describe('syncQueryCacheDefaultsFromHint', () => {
     expect(mocks.setDefaultOptions).toHaveBeenCalledTimes(1);
     expect(mocks.setDefaultOptions).toHaveBeenCalledWith({
       queries: { retry: 2, staleTime: 10_000, gcTime: 30_000 },
+      mutations: { retry: 1 },
+    });
+  });
+
+  // Invariant: a cache hint can initialize query defaults even when the client
+  // previously only had mutation defaults.
+  it('creates query defaults when none exist yet', async () => {
+    const { syncQueryCacheDefaultsFromHint } = await loadCacheControl();
+
+    syncQueryCacheDefaultsFromHint({ staleTimeMs: 5_000, gcTimeMs: 15_000 });
+
+    expect(mocks.setDefaultOptions).toHaveBeenCalledWith({
+      queries: { staleTime: 5_000, gcTime: 15_000 },
       mutations: { retry: 1 },
     });
   });
