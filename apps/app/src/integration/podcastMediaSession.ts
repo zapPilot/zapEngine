@@ -12,7 +12,7 @@
 import type { PodcastEpisode } from '@/integration/podcastFeed';
 import type { PodcastSectionKind } from '@/integration/podcastSections';
 
-const PODCAST_ARTIST = 'From Fed to Chain';
+const PODCAST_ARTIST = 'Zap Pilot';
 
 export type PodcastRemoteCommand = 'nextTrack' | 'previousTrack';
 
