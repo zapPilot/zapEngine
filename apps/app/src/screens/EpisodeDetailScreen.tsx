@@ -24,6 +24,7 @@ import {
   getPodcastEpisodeShareUrl,
   isPodcastVideoGenerationPending,
   mergePodcastEpisodeVideo,
+  parsePodcastEpisodeRouteParams,
   usePodcastEpisode,
   usePodcastEpisodes,
 } from '@/integration/podcastFeed';
@@ -37,11 +38,6 @@ import { usePodcastPlayer } from '@/providers/PodcastPlayerProvider';
 import { useEpisodeProgress } from '@/providers/PodcastProgressProvider';
 import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 import type { ContentLanguageCode } from '@/config/contentLanguages';
-
-function episodeParamToString(value: string | string[] | undefined): string {
-  if (Array.isArray(value)) return value[0] ?? '';
-  return value ?? '';
-}
 
 function EpisodeDetailHeader({
   episode,
@@ -200,13 +196,8 @@ export function EpisodeDetailScreen() {
   const { languageCode: selectedLanguageCode, t } = useContentLanguage();
   const [activeVideoClock, setActiveVideoClock] =
     useState<EpisodeMediaClock | null>(null);
-  const routeEpisodeId = decodeURIComponent(
-    episodeParamToString(params.episodeId),
-  );
-  const routeLanguageCode =
-    episodeParamToString(params.lang) ||
-    episodeParamToString(params.language) ||
-    selectedLanguageCode;
+  const { episodeId: routeEpisodeId, languageCode: routeLanguageCode } =
+    parsePodcastEpisodeRouteParams(params, selectedLanguageCode);
   const downloads = usePodcastDownloads();
   const offlineEpisode =
     downloadedEpisodeRows(downloads.records, 'newest').find(

@@ -71,6 +71,7 @@ const config: ExpoConfig = {
     // was Universal. Apple rejects an update that drops a device family the
     // listing already supports (ITMS-90101), so this must stay true.
     supportsTablet: true,
+    associatedDomains: ['applinks:from-fed-to-chain-api.fly.dev'],
     icon: './assets/brand/icon.png',
     config: {
       usesNonExemptEncryption: false,

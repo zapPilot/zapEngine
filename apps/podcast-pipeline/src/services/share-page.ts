@@ -24,14 +24,47 @@ export interface RenderEpisodeSharePageInput {
   iosAppStoreUrl: string;
   canonicalUrl: string;
   appDeepLinkUrl: string;
+  webEpisodeUrl: string;
 }
+
+export type EpisodeShareResolution =
+  | { kind: 'not-found' }
+  | { kind: 'redirect'; location: string }
+  | { kind: 'page'; html: string };
 
 const APP_NAME = 'From Fed to Chain';
 const IOS_APP_STORE_URL =
   'https://apps.apple.com/app/from-fed-to-chain/id6749248542';
 const IOS_APP_ID = extractIosAppId(IOS_APP_STORE_URL);
 const SHARE_BASE_URL = 'https://from-fed-to-chain-api.fly.dev';
+const APP_WEB_ORIGIN = 'https://v2.zap-pilot.org';
 const APP_CUSTOM_SCHEME = 'zappilotv2';
+const LINK_PREVIEW_USER_AGENT_MARKERS = [
+  'facebookexternalhit',
+  'twitterbot',
+  'telegrambot',
+  'slackbot',
+  'discordbot',
+  'whatsapp',
+  'linespider',
+  'skypeuripreview',
+  'embedly',
+  'redditbot',
+  'pinterest',
+  'applebot',
+  'googlebot',
+  'bingbot',
+  'bot',
+  'crawler',
+  'spider',
+  'preview',
+  'curl',
+  'wget',
+  'python-requests',
+  'node-fetch',
+  'okhttp',
+  'go-http-client',
+] as const;
 // Matches apps/app/app.config.ts: the iOS build ships under the App Store
 // listing the Flutter app created. Keep the two in sync.
 const APPLE_APP_ID = 'LP8CA4MT6U.com.example.fromFedToChainApp';
@@ -72,41 +105,70 @@ export function detectPlatform(
   return 'desktop';
 }
 
-export async function buildEpisodeSharePageHtml(input: {
+function episodeWebUrl(
+  localizationId: string,
+  languageCode: LanguageClassroomLanguageCode,
+): string {
+  return `${APP_WEB_ORIGIN}/podcast/${encodeURIComponent(localizationId)}?lang=${encodeURIComponent(languageCode)}`;
+}
+
+function isLinkPreviewCrawler(userAgent: string | undefined): boolean {
+  const normalized = userAgent?.toLowerCase() ?? '';
+  return LINK_PREVIEW_USER_AGENT_MARKERS.some((marker) =>
+    normalized.includes(marker),
+  );
+}
+
+export async function resolveEpisodeShare(input: {
   id: string;
   languageCode: LanguageClassroomLanguageCode;
   userAgent: string | undefined;
-}): Promise<string | null> {
+  accept: string | undefined;
+}): Promise<EpisodeShareResolution> {
   const localization = await findEpisodeLocalizationByEpisodeId(
     input.id,
     input.languageCode,
   );
 
   if (!localization) {
-    return null;
+    return { kind: 'not-found' };
+  }
+
+  const platform = detectPlatform(input.userAgent);
+  const webEpisodeUrl = episodeWebUrl(localization.id, input.languageCode);
+  if (
+    platform === 'desktop' &&
+    Boolean(input.userAgent?.trim()) &&
+    !isLinkPreviewCrawler(input.userAgent) &&
+    input.accept?.toLowerCase().includes('text/html') === true
+  ) {
+    return { kind: 'redirect', location: webEpisodeUrl };
   }
 
   const videoSummaries = await listEpisodeVideoSummariesByLocalizationIds([
     localization.id,
   ]);
   const video = videoSummaries.get(localization.id)?.video ?? null;
-
   const langQuery = `?lang=${encodeURIComponent(input.languageCode)}`;
 
-  return renderEpisodeSharePage({
-    episode: {
-      id: localization.episode_id,
-      title: localization.title,
-      description: localization.raw_text ?? localization.script ?? '',
-      coverUrl: '',
-      video,
-    },
-    platform: detectPlatform(input.userAgent),
-    iosAppId: IOS_APP_ID,
-    iosAppStoreUrl: IOS_APP_STORE_URL,
-    canonicalUrl: `${SHARE_BASE_URL}/e/${encodeURIComponent(input.id)}${langQuery}`,
-    appDeepLinkUrl: `${APP_CUSTOM_SCHEME}://podcast/${encodeURIComponent(localization.id)}${langQuery}`,
-  });
+  return {
+    kind: 'page',
+    html: renderEpisodeSharePage({
+      episode: {
+        id: localization.episode_id,
+        title: localization.title,
+        description: localization.raw_text ?? localization.script ?? '',
+        coverUrl: '',
+        video,
+      },
+      platform,
+      iosAppId: IOS_APP_ID,
+      iosAppStoreUrl: IOS_APP_STORE_URL,
+      canonicalUrl: `${SHARE_BASE_URL}/e/${encodeURIComponent(input.id)}${langQuery}`,
+      appDeepLinkUrl: `${APP_CUSTOM_SCHEME}://podcast/${encodeURIComponent(localization.id)}${langQuery}`,
+      webEpisodeUrl,
+    }),
+  };
 }
 
 export function renderEpisodeSharePage(
@@ -361,14 +423,17 @@ function videoDimensions(videoUrl: string): { width: number; height: number } {
 }
 
 function renderPlatformContent(input: RenderEpisodeSharePageInput): string {
-  const appStoreAction =
-    input.platform === 'ios'
-      ? `
-          <a class="button button-secondary" href="${htmlEscape(input.iosAppStoreUrl)}">Get Zap Pilot</a>`
-      : '';
+  let secondaryAction = '';
+  if (input.platform === 'ios') {
+    secondaryAction = `
+          <a class="button button-secondary" href="${htmlEscape(input.iosAppStoreUrl)}">Get Zap Pilot</a>`;
+  } else if (input.platform === 'desktop') {
+    secondaryAction = `
+          <a class="button button-secondary" href="${htmlEscape(input.webEpisodeUrl)}">Listen on the web</a>`;
+  }
 
   return `<div class="actions">
-          <a class="button" href="${htmlEscape(input.appDeepLinkUrl)}">Open in Zap Pilot</a>${appStoreAction}
+          <a class="button" href="${htmlEscape(input.appDeepLinkUrl)}">Open in Zap Pilot</a>${secondaryAction}
         </div>`;
 }
 
