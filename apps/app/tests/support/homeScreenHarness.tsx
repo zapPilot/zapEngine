@@ -723,7 +723,7 @@ function SparklineStub(props: SparklineProbeProps) {
   return <div data-testid="sparkline" data-points={props.data.length} />;
 }
 
-/** Mirrors `moralisWallet.normalizeWalletAddressList` (trim + lower + dedupe). */
+/** Mirrors `walletAssetModel.normalizeWalletAddressList` (trim + lower + dedupe). */
 function normalizeWalletAddressList(input: unknown): string[] {
   const candidates = Array.isArray(input) ? input : [input];
   const seen = new Set<string>();

@@ -6,15 +6,7 @@
 
 import { tokens } from '@zapengine/design-tokens/tokens';
 
-import { DEMO_PROTOCOL_LABELS } from '@/data/demoProtocolLabels';
-
-import type {
-  ActivityCategoryFlow,
-  ActivityFilter,
-  ActivityGroup,
-  DemoAsset,
-  MetricTone,
-} from '@/integration/activityTypes';
+import type { DemoAsset, MetricTone } from '@/integration/portfolioTypes';
 import type { DailyValuePoint } from '@/integration/portfolioMetrics';
 
 const DEMO_MARKET_ETH_SHARE = 0.6;
@@ -102,8 +94,6 @@ export interface DemoData {
     allocation: { label: string; pct: number; color: string }[];
     lastRebalancedLabel: string;
   };
-  activitySummary: ActivityCategoryFlow[];
-  activity: ActivityGroup[];
 }
 
 export const DEMO: DemoData = {
@@ -201,115 +191,4 @@ export const DEMO: DemoData = {
     lastRebalancedLabel:
       'Auto-managed by Zap Strategy · last rebalanced 2 days ago',
   },
-  activitySummary: [
-    { category: 'btc', usdNet: 1240, label: '+0.0107 CBBTC', share: 0.2 },
-    { category: 'stable', usdNet: 460, label: '+460 USDC', share: 0.6 },
-    { category: 'eth', usdNet: -150, label: '−0.045 ETH', share: 0.2 },
-  ],
-  activity: [
-    {
-      bucket: 'today',
-      events: [
-        {
-          id: 'demo-rebalance-burst',
-          kind: 'rebalance',
-          title: 'Rebalanced portfolio',
-          amountLabel: '+$1,240.00',
-          amountTone: 'positive',
-          status: 'Completed',
-          meta: 'Arbitrum · 32 transactions',
-          time: '4m',
-          category: 'btc',
-          categoryDeltas: [
-            { category: 'btc', usdNet: 1240, label: '+0.0107 CBBTC' },
-            { category: 'stable', usdNet: -1240, label: '−1,240 USDC' },
-          ],
-          chain: 'arbitrum',
-          methodLabel: 'multicall',
-          protocol: DEMO_PROTOCOL_LABELS.gmxV2,
-          gasFeeLabel: '0.000023 ETH',
-          tokenSymbol: 'CBBTC',
-        },
-        {
-          id: 'demo-deposit',
-          kind: 'deposit',
-          title: 'Received USDC',
-          amountLabel: '+$2,500.00',
-          amountTone: 'positive',
-          status: 'Completed',
-          meta: 'Base',
-          time: '1h',
-          category: 'stable',
-          categoryDeltas: [
-            { category: 'stable', usdNet: 2500, label: '+2,500 USDC' },
-          ],
-          chain: 'base',
-          txHash:
-            '0xa467000000000000000000000000000000000000000000000000000000006bc9',
-          protocol: 'Morpho',
-          gasFeeLabel: '0.000012 ETH',
-          tokenSymbol: 'USDC',
-        },
-      ],
-    },
-    {
-      bucket: 'week',
-      events: [
-        {
-          id: 'demo-failed-send',
-          kind: 'withdraw',
-          title: 'Sent ETH',
-          amountLabel: '−$150.00',
-          amountTone: 'negative',
-          status: 'Failed',
-          meta: 'Arbitrum',
-          time: '3d',
-          category: 'eth',
-          categoryDeltas: [
-            { category: 'eth', usdNet: -150, label: '−0.045 ETH' },
-          ],
-          chain: 'arbitrum',
-          txHash:
-            '0x10e4000000000000000000000000000000000000000000000000000000004be8',
-          protocol: 'Aave V3',
-          gasFeeLabel: '0.000009 ETH',
-          tokenSymbol: 'ETH',
-        },
-      ],
-    },
-    {
-      bucket: 'earlier',
-      events: [
-        {
-          id: 'demo-withdraw',
-          kind: 'withdraw',
-          title: 'Sent USDC',
-          amountLabel: '−$800.00',
-          amountTone: 'negative',
-          status: 'Completed',
-          meta: 'Base',
-          time: '2w',
-          category: 'stable',
-          categoryDeltas: [
-            { category: 'stable', usdNet: -800, label: '−800 USDC' },
-          ],
-          chain: 'base',
-          txHash:
-            '0xd47900000000000000000000000000000000000000000000000000000000f020',
-          protocol: 'Ondo Finance',
-          gasFeeLabel: '0.00012 ETH',
-          tokenSymbol: 'USDC',
-        },
-      ],
-    },
-  ],
 };
-
-export const ACTIVITY_FILTERS = [
-  'All',
-  'btc',
-  'eth',
-  'spy',
-  'stable',
-  'alt',
-] as const satisfies readonly ActivityFilter[];

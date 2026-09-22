@@ -51,15 +51,6 @@ export function formatTokenAmount(
   return `${amountLabel} ${symbol}`;
 }
 
-export function formatSignedTokenAmount(
-  amount: number,
-  symbol: string,
-  context: TokenAmountDisplayContext,
-): string {
-  const sign = amount >= 0 ? '+' : '−';
-  return `${sign}${formatTokenAmount(Math.abs(amount), symbol, context)}`;
-}
-
 /** Split a USD amount into a whole part and a `.dd` fraction for the
  * serif-display treatment used across the design (dimmed decimals). */
 export function splitUsd(value: number): { whole: string; fraction: string } {

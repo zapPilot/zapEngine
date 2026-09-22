@@ -30,10 +30,6 @@
       "types": "./dist/services/analyticsService.d.ts",
       "import": "./dist/services/analyticsService.js"
     },
-    "./services/moralisWalletService": {
-      "types": "./dist/services/moralisWalletService.d.ts",
-      "import": "./dist/services/moralisWalletService.js"
-    },
     "./services/hyperliquidService": {
       "types": "./dist/services/hyperliquidService.d.ts",
       "import": "./dist/services/hyperliquidService.js"

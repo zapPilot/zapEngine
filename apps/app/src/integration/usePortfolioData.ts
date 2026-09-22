@@ -5,7 +5,7 @@ import { useLandingPageData } from '@zapengine/app-core/hooks/queries/analytics/
 import { tokens } from '@zapengine/design-tokens/tokens';
 import { useMemo } from 'react';
 
-import type { MetricTone } from '@/integration/activityTypes';
+import type { MetricTone } from '@/integration/portfolioTypes';
 import {
   attachDailyAttribution,
   calculateAdjacentSnapshotChange,

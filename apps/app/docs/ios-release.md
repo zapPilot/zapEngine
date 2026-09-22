@@ -61,7 +61,7 @@ App Store Connect holds the listing copy; this is the source of truth for the
 that depends on facts about this repository.
 
 > This update includes the existing Zap Pilot podcast experience plus a
-> read-only portfolio dashboard. Home, Portfolio, and Activity display existing
+> read-only portfolio dashboard. Home and Portfolio display existing
 > portfolio analytics for the signed-in account or a user-entered watch-only
 > address. The iOS dashboard is informational only and cannot move assets or
 > execute transactions.

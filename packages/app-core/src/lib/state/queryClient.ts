@@ -200,8 +200,6 @@ export const queryKeys = {
       ['desktop', 'strategy', 'default-backtest', days] as const,
     walletAssets: (walletAddresses: readonly string[]) =>
       ['desktop', 'alchemy', 'wallet-assets', walletAddresses] as const,
-    walletHistory: (walletAddresses: readonly string[]) =>
-      ['desktop', 'moralis', 'wallet-history', walletAddresses] as const,
     podcast: {
       episodes: (languageCode: string) =>
         ['desktop', 'podcast', 'episodes', languageCode] as const,

@@ -14,7 +14,6 @@ describe('buildAppCoreEnvSource', () => {
     vi.stubEnv('EXPO_PUBLIC_PRIVY_APP_ID', 'privy-app');
     vi.stubEnv('EXPO_PUBLIC_PRIVY_CLIENT_ID', 'privy-client');
     vi.stubEnv('EXPO_PUBLIC_ALCHEMY_API_KEY', 'alchemy-key');
-    vi.stubEnv('EXPO_PUBLIC_MORALIS_API_KEY', 'moralis-key');
     vi.stubEnv('EXPO_PUBLIC_PODCAST_API_URL', 'https://podcast.example');
     vi.stubEnv('EXPO_PUBLIC_SENTRY_DSN', 'https://public@sentry.example/1');
 
@@ -24,7 +23,6 @@ describe('buildAppCoreEnvSource', () => {
       VITE_PRIVY_APP_ID: 'privy-app',
       VITE_PRIVY_CLIENT_ID: 'privy-client',
       VITE_ALCHEMY_API_KEY: 'alchemy-key',
-      VITE_MORALIS_API_KEY: 'moralis-key',
       VITE_PODCAST_API_URL: 'https://podcast.example',
       VITE_SENTRY_DSN: 'https://public@sentry.example/1',
     });

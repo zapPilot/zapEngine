@@ -2,7 +2,7 @@ import { BASE_DEPOSIT_TOKENS } from '@/integration/depositTokens';
 import type {
   DesktopWalletAsset,
   InvestableBalanceRow,
-} from '@/integration/moralisWallet';
+} from '@/integration/walletAssetModel';
 
 function tokenName(asset: DesktopWalletAsset): string {
   return asset.name || asset.symbol;

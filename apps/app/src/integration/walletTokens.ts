@@ -19,7 +19,7 @@ import {
   type UseWalletAssetsResult,
   type WalletAddressInput,
   type WalletAssetsQueryData,
-} from '@/integration/moralisWallet';
+} from '@/integration/walletAssetModel';
 import { buildInvestableBalanceRows } from '@/integration/investableBalanceRows';
 
 export type {
@@ -29,6 +29,7 @@ export type {
   InvestableBalanceRow,
   UseWalletAssetsResult,
   WalletAddressInput,
+  WalletAssetsQueryData,
 };
 
 export { normalizeWalletAddressList };
@@ -107,5 +108,3 @@ export function useWalletAssets(
     [data, enabled, error, isError, isLoading, refetch],
   );
 }
-
-export type { MoralisChainKey } from '@/integration/moralisWallet';

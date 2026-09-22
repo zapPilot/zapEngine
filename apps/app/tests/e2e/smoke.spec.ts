@@ -173,11 +173,6 @@ const PRIMARY_ROUTES = [
     url: /\/podcast$/,
   },
   {
-    label: 'Activity',
-    path: '/activity',
-    url: /\/activity$/,
-  },
-  {
     label: 'Account',
     path: '/account',
     url: /\/account$/,
@@ -308,7 +303,7 @@ test('renders the web app shell and primary routes without page errors', async (
   await page.setViewportSize({ width: 390, height: 844 });
   await routePodcastFeed(page);
 
-  await test.step('Podcast is the default guest route and all five tabs remain visible', async () => {
+  await test.step('Podcast is the default guest route and all four tabs remain visible', async () => {
     await page.goto('/');
     await expect(page).toHaveURL(/\/podcast$/, {
       timeout: APP_BOOT_TIMEOUT,
@@ -317,14 +312,8 @@ test('renders the web app shell and primary routes without page errors', async (
     const tabs = page
       .getByRole('tablist', { name: 'App tabs' })
       .getByRole('tab');
-    await expect(tabs).toHaveCount(5);
-    await expect(tabs).toHaveText([
-      'Home',
-      'Strategy',
-      'Podcast',
-      'Activity',
-      'Account',
-    ]);
+    await expect(tabs).toHaveCount(4);
+    await expect(tabs).toHaveText(['Home', 'Strategy', 'Podcast', 'Account']);
     await expect(page.getByRole('tab', { name: 'Podcast' })).toHaveAttribute(
       'aria-selected',
       'true',

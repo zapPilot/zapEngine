@@ -8,7 +8,7 @@ import type {
   AlchemyWalletChain,
 } from '@zapengine/app-core/services/alchemyWalletService';
 
-import type { WalletAssetsQueryData } from '@/integration/moralisWallet';
+import type { WalletAssetsQueryData } from '@/integration/walletAssetModel';
 import {
   useWalletAssets,
   type UseWalletAssetsResult,

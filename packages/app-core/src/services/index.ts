@@ -128,17 +128,6 @@ export {
   waitForHyperCoreUsdcArrival,
 } from './hyperliquidService';
 
-// Moralis wallet history POC (desktop/web clients; proxy before production)
-export {
-  getMoralisWalletHistory,
-  MORALIS_WALLET_CHAINS,
-  type MoralisChainHistory,
-  type MoralisWalletChain,
-  type MoralisWalletHistoryEvent,
-  type MoralisWalletHistoryResponse,
-  type MoralisWalletTransfer,
-} from './moralisWalletService';
-
 // Alchemy wallet token balances (desktop/web clients; proxy before production)
 export {
   ALCHEMY_WALLET_CHAINS,

@@ -10,7 +10,6 @@ export const en = {
   'tabs.home': 'Home',
   'tabs.strategy': 'Strategy',
   'tabs.podcast': 'Podcast',
-  'tabs.activity': 'Activity',
   'tabs.account': 'Account',
   'tabs.signInHint': 'Open this tab to continue with Privy',
   'tabs.bar': 'App tabs',
@@ -219,21 +218,6 @@ export const en = {
   'portfolio.nonCustodialTitle': 'Non-custodial execution',
   'portfolio.nonCustodialBody':
     'Your wallet approves every transaction before assets move.',
-  'activity.title': 'Activity',
-  'activity.all': 'All',
-  'activity.categoryFilter': 'Activity category',
-  'activity.noActivity': 'No activity yet',
-  'activity.noActivityMessage': 'Wallet activity will appear here.',
-  'activity.noCategoryActivity': 'No activity in this category yet.',
-  'activity.netFlow': 'Net flow',
-  'activity.recent': 'Recent',
-  'activity.group.today': 'Today',
-  'activity.group.week': 'This week',
-  'activity.group.earlier': 'Earlier',
-  'activity.error': 'Couldn’t load activity',
-  'activity.errorMessage': 'Check your connection and try again.',
-  'activity.retry': 'Retry',
-  'activity.failed': 'Failed',
 } as const;
 
 export type TranslationKey = keyof typeof en;
@@ -251,7 +235,6 @@ export const zhHant = {
   'tabs.home': '首頁',
   'tabs.strategy': '策略',
   'tabs.podcast': 'Podcast',
-  'tabs.activity': '活動',
   'tabs.account': '帳戶',
   'tabs.signInHint': '開啟此分頁並透過 Privy 繼續',
   'tabs.bar': '應用程式分頁',
@@ -448,21 +431,6 @@ export const zhHant = {
   'portfolio.metric.sharpe': '夏普比率',
   'portfolio.nonCustodialTitle': '非託管執行',
   'portfolio.nonCustodialBody': '資產移動前，每筆交易都需由你的錢包確認。',
-  'activity.title': '活動',
-  'activity.all': '全部',
-  'activity.categoryFilter': '活動分類',
-  'activity.noActivity': '尚無活動',
-  'activity.noActivityMessage': '錢包活動會顯示在這裡。',
-  'activity.noCategoryActivity': '此分類尚無活動。',
-  'activity.netFlow': '淨流向',
-  'activity.recent': '近期',
-  'activity.group.today': '今天',
-  'activity.group.week': '本週',
-  'activity.group.earlier': '更早',
-  'activity.error': '無法載入活動',
-  'activity.errorMessage': '請檢查連線後再試一次。',
-  'activity.retry': '重試',
-  'activity.failed': '失敗',
 } satisfies TranslationDictionary;
 
 export const ja = {
@@ -475,7 +443,6 @@ export const ja = {
   'tabs.home': 'ホーム',
   'tabs.strategy': 'ストラテジー',
   'tabs.podcast': 'ポッドキャスト',
-  'tabs.activity': 'アクティビティ',
   'tabs.account': 'アカウント',
   'tabs.signInHint': 'このタブを開き、Privyで続行します',
   'tabs.bar': 'アプリのタブ',
@@ -683,23 +650,6 @@ export const ja = {
   'portfolio.nonCustodialTitle': 'ノンカストディアル実行',
   'portfolio.nonCustodialBody':
     '資産が移動する前に、すべての取引をウォレットで承認します。',
-  'activity.title': 'アクティビティ',
-  'activity.all': 'すべて',
-  'activity.categoryFilter': 'アクティビティのカテゴリ',
-  'activity.noActivity': 'アクティビティはまだありません',
-  'activity.noActivityMessage':
-    'ウォレットのアクティビティがここに表示されます。',
-  'activity.noCategoryActivity':
-    'このカテゴリのアクティビティはまだありません。',
-  'activity.netFlow': 'ネットフロー',
-  'activity.recent': '直近',
-  'activity.group.today': '今日',
-  'activity.group.week': '今週',
-  'activity.group.earlier': 'それ以前',
-  'activity.error': 'アクティビティを読み込めませんでした',
-  'activity.errorMessage': '接続を確認してもう一度お試しください。',
-  'activity.retry': '再試行',
-  'activity.failed': '失敗',
 } satisfies TranslationDictionary;
 
 export const TRANSLATIONS: Readonly<

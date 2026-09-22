@@ -1,4 +1,5 @@
 import { CHAIN_BRAND } from '@zapengine/brand-assets/chains';
+import type { WalletTokenChain } from '@zapengine/app-core/services/walletTokenCatalog';
 import { HLP_MIN_DEPOSIT_USD6, HYPERCORE_CHAIN_ID } from '@zapengine/types/api';
 
 import {
@@ -25,10 +26,7 @@ import {
   type StageDraft,
   type TargetAllocation,
 } from '@/integration/investTargetsModel';
-import type {
-  ChainTokenBalanceRow,
-  MoralisChainKey,
-} from '@/integration/walletTokens';
+import type { ChainTokenBalanceRow } from '@/integration/walletTokens';
 import { formatUsd6 } from '@/lib/format';
 
 export const NATIVE_GAS_RESERVE_USD = 5;
@@ -751,7 +749,7 @@ export function fundingCapacityUsd6(input: CapacityInput): bigint | null {
   return best === 0n && unpriced ? null : best;
 }
 export function unavailableChainIds(
-  failedChains: readonly MoralisChainKey[],
+  failedChains: readonly WalletTokenChain[],
 ): number[] {
   return failedChains.flatMap((c) =>
     c === 'eth' ? [1] : c === 'base' ? [8453] : c === 'arbitrum' ? [42161] : [],
@@ -768,7 +766,7 @@ export function unavailableFundingChains(
       { preferences, gasReserveUsd: NATIVE_GAS_RESERVE_USD },
       STATIC_FUNDING_RANKING,
     );
-    // HyperCore is never a Moralis chain, so its presence alone keeps HLP off
+    // HyperCore is never a wallet token chain, so its presence alone keeps HLP off
     // the hard "retry balances" gate; an empty HyperCore balance still shows
     // up as an ordinary per-candidate rejection.
     return (

@@ -1,7 +1,7 @@
 import type {
   DesktopWalletAsset,
   InvestableBalanceRow,
-} from '@/integration/moralisWallet';
+} from '@/integration/walletAssetModel';
 
 /**
  * iOS is read-only. Home needs wallet assets and totals, not invest funding
