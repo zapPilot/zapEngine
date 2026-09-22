@@ -1,19 +1,12 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useEffect, type ReactElement } from 'react';
 
-import {
-  parsePodcastEpisodeRouteParams,
-  podcastEpisodeRoutePath,
-} from '@/integration/podcastFeed';
+import { podcastEpisodeRoutePath } from '@/integration/podcastFeed';
+import { usePodcastEpisodeRoute } from '@/hooks/usePodcastEpisodeRoute';
 
 export default function EpisodeShareRedirect(): ReactElement | null {
-  const params = useLocalSearchParams<{
-    episodeId?: string | string[];
-    lang?: string | string[];
-    language?: string | string[];
-  }>();
+  const { episodeId, languageCode } = usePodcastEpisodeRoute();
   const router = useRouter();
-  const { episodeId, languageCode } = parsePodcastEpisodeRouteParams(params);
   const href = podcastEpisodeRoutePath(episodeId, languageCode);
 
   useEffect(() => {
