@@ -31,4 +31,32 @@ describe('transformToPerformanceChart drawdown fallback coverage', () => {
       },
     ]);
   });
+
+  it('falls back to the minimum positive value when a trend point omits total value', () => {
+    const result = transformToPerformanceChart(
+      dashboard({
+        trends: {
+          daily_values: [
+            { date: '2026-09-20' },
+            { date: '2026-09-21', total_value_usd: 100 },
+          ],
+        },
+      }),
+    );
+
+    expect(result.points).toEqual([
+      {
+        x: 0,
+        portfolio: 50,
+        date: '2026-09-20',
+        portfolioValue: 100,
+      },
+      {
+        x: 100,
+        portfolio: 50,
+        date: '2026-09-21',
+        portfolioValue: 100,
+      },
+    ]);
+  });
 });
