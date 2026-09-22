@@ -65,6 +65,7 @@ describe('createEpisodeVideoVisualProcessor', () => {
     });
     const generateStoryboard = vi.fn().mockResolvedValue(storyboard());
     const processor = createEpisodeVideoVisualProcessor({
+      downloadNarration: vi.fn().mockResolvedValue(undefined),
       analyzeAudio: vi.fn().mockResolvedValue({
         durationMs: 90_000,
         silences: [],
@@ -157,6 +158,7 @@ describe('createEpisodeVideoVisualProcessor', () => {
     const jobContext = context();
     const reportProgress = vi.mocked(jobContext.reportProgress);
     const processor = createEpisodeVideoVisualProcessor({
+      downloadNarration: vi.fn().mockResolvedValue(undefined),
       analyzeAudio: vi
         .fn()
         .mockResolvedValue({ durationMs: 90_000, silences: [] }),
@@ -250,6 +252,7 @@ describe('createEpisodeVideoVisualProcessor', () => {
       sceneAssignments: [],
     }));
     const processor = createEpisodeVideoVisualProcessor({
+      downloadNarration: vi.fn().mockResolvedValue(undefined),
       analyzeAudio: vi
         .fn()
         .mockResolvedValue({ durationMs: 90_000, silences: [] }),
@@ -338,6 +341,7 @@ describe('createEpisodeVideoVisualProcessor', () => {
     const enrichSearchIntents = keepDeterministicIntents();
     const planAssets = vi.fn().mockResolvedValue(assetPlan());
     const processor = createEpisodeVideoVisualProcessor({
+      downloadNarration: vi.fn().mockResolvedValue(undefined),
       analyzeAudio: vi
         .fn()
         .mockResolvedValue({ durationMs: 90_000, silences: [] }),
@@ -381,6 +385,40 @@ describe('createEpisodeVideoVisualProcessor', () => {
       { signal: expect.any(AbortSignal) },
     );
     expect(planAssets.mock.calls[0]?.[0].articleImages).toEqual([]);
+  });
+
+  // The visual path used to hand `source.hlsUrl` straight to ffmpeg, and
+  // `detectAudioSilences` streams the whole episode, so one stalled R2 socket
+  // held a job for 16h34m on 2026-09-21 while its lease heartbeat kept renewing.
+  // Downloading first is what moves every unbounded read behind a deadline.
+  it('analyses a downloaded copy rather than the remote playlist', async () => {
+    const downloadNarration = vi.fn().mockResolvedValue(undefined);
+    const analyzeAudio = vi
+      .fn()
+      .mockResolvedValue({ durationMs: 90_000, silences: [] });
+    const processor = createEpisodeVideoVisualProcessor(
+      checkpointDependencies({
+        downloadNarration,
+        analyzeAudio,
+        enrichSearchIntents: keepDeterministicIntents(),
+        persistDebug: vi.fn().mockResolvedValue(true),
+      }),
+    );
+
+    await processor(job(), source(), context());
+
+    expect(downloadNarration).toHaveBeenCalledWith(
+      source().hlsUrl,
+      expect.stringContaining('narration'),
+      { signal: expect.any(AbortSignal) },
+    );
+    const analysedSource = analyzeAudio.mock.calls[0]?.[0] as string;
+    expect(analysedSource).toBe(downloadNarration.mock.calls[0]?.[1]);
+    expect(analysedSource).not.toMatch(/^https?:/);
+    // The download carries the deadline, so its signal must not be the job's.
+    expect(downloadNarration.mock.calls[0]?.[2].signal).not.toBe(
+      analyzeAudio.mock.calls[0]?.[1].signal,
+    );
   });
 
   it('rejects a stale source hash without scraping or searching', async () => {
@@ -448,6 +486,7 @@ describe('createEpisodeVideoVisualProcessor', () => {
   it('cleans up its temporary images after an R2 upload failure', async () => {
     const removeDirectory = vi.fn().mockResolvedValue(undefined);
     const processor = createEpisodeVideoVisualProcessor({
+      downloadNarration: vi.fn().mockResolvedValue(undefined),
       analyzeAudio: vi.fn().mockResolvedValue({
         durationMs: 90_000,
         silences: [],
@@ -946,6 +985,7 @@ function checkpointDependencies(
   overrides: Parameters<typeof createEpisodeVideoVisualProcessor>[0] = {},
 ): Parameters<typeof createEpisodeVideoVisualProcessor>[0] {
   return {
+    downloadNarration: vi.fn().mockResolvedValue(undefined),
     analyzeAudio: vi
       .fn()
       .mockResolvedValue({ durationMs: 90_000, silences: [] }),
