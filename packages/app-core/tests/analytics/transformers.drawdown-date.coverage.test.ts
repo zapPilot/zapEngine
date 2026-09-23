@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  aggregateMonthlyPnL,
   transformToDrawdownChart,
   transformToPerformanceChart,
 } from '../../src/lib/analytics/transformers';
@@ -81,5 +82,13 @@ describe('analytics transformer fallback coverage', () => {
       { x: 0, value: 0, date: '2026-09-22T13:00:00.000Z' },
       { x: 100, value: -5, date: '2026-09-21' },
     ]);
+  });
+
+  it('drops monthly PnL entries whose date cannot form a valid month', () => {
+    const result = aggregateMonthlyPnL({
+      daily_returns: [{ date: 'not-a-date', yield_return_usd: 25 }],
+    });
+
+    expect(result).toEqual([]);
   });
 });
