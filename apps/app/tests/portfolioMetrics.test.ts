@@ -47,17 +47,20 @@ describe('portfolioMetrics', () => {
     expect(calculateWindowValueChangePct(dailyValues, 30)).toBe(50);
   });
 
-  it('falls back to the first snapshot when no dated point reaches the window', () => {
-    expect(
-      calculateWindowValueChangePct(
-        [
-          { total_value_usd: 80 },
-          { date: '2026-06-30', total_value_usd: 100 },
-        ],
-        7,
-      ),
-    ).toBe(25);
-  });
+  it(
+    'falls back to the first snapshot when no dated point reaches the window',
+    () => {
+      expect(
+        calculateWindowValueChangePct(
+          [
+            { total_value_usd: 80 },
+            { date: '2026-06-30', total_value_usd: 100 },
+          ],
+          7,
+        ),
+      ).toBe(25);
+    },
+  );
 
   it('returns null for unsafe value-change calculations', () => {
     expect(calculateWindowValueChangePct([], 7)).toBeNull();
