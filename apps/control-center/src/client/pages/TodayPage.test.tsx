@@ -190,9 +190,50 @@ describe('Today as an action inbox', () => {
     expect(screen.queryByText('86')).toBeNull();
   });
 
-  it('reports retry waste as a share of podcast spend', () => {
-    renderToday();
-    expect(screen.getByText('10.0%')).toBeVisible();
+  it('shows confirmed retry waste instead of failed-attempt share', () => {
+    renderToday({
+      podcastCosts: {
+        ...podcastCosts,
+        episodes: [
+          podcastEpisodeCostFixture({
+            confirmedRetryWasteIsLowerBound: false,
+            confirmedRetryWasteUsd: 0.75,
+          }),
+        ],
+      },
+    });
+
+    expect(screen.getByText('Confirmed retry waste')).toBeVisible();
+    expect(screen.getByText('$0.75')).toBeVisible();
+    expect(
+      screen.getByText('Render-only · complete recorded lineage'),
+    ).toBeVisible();
+    expect(screen.queryByText('Podcast failed-attempt share')).toBeNull();
+    expect(screen.queryByText('10.0%')).toBeNull();
+  });
+
+  it('keeps incomplete retry evidence as a lower bound', () => {
+    renderToday({
+      podcastCosts: {
+        ...podcastCosts,
+        episodes: [
+          podcastEpisodeCostFixture({
+            episodeId: 'known-lineage',
+            confirmedRetryWasteIsLowerBound: false,
+            confirmedRetryWasteUsd: 0.75,
+          }),
+          podcastEpisodeCostFixture({
+            episodeId: 'unknown-lineage',
+            confirmedRetryWasteIsLowerBound: true,
+            confirmedRetryWasteUsd: null,
+            unknownLineageStages: 1,
+          }),
+        ],
+      },
+    });
+
+    expect(screen.getByText('≥ $0.75')).toBeVisible();
+    expect(screen.getByText('Render-only · incomplete lineage')).toBeVisible();
   });
 
   it('shows every publish lane of the latest release, not only measured ones', () => {
@@ -269,6 +310,13 @@ describe('Today observer trust', () => {
 });
 
 describe('Today degradation', () => {
+  it('keeps missing lineage unknown instead of reporting zero waste', () => {
+    renderToday();
+
+    expect(screen.getByText('Unknown')).toBeVisible();
+    expect(screen.getByText('No render retry lineage recorded')).toBeVisible();
+  });
+
   it('names the ledger failure instead of reporting zero waste', () => {
     renderToday({
       podcastCosts: {
@@ -278,6 +326,7 @@ describe('Today degradation', () => {
         status: 'error',
       },
     });
+    expect(screen.getByText('Unknown')).toBeVisible();
     expect(screen.getByText(/execution_id does not exist/)).toBeInTheDocument();
   });
 

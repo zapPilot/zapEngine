@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 
 import type { SocialGrowthJourney } from '../../shared/growth-journey.js';
+import { podcastCostEvidenceTotals } from '../../shared/podcast-cost-evidence.js';
 import type {
   PipelineQueuesResponse,
   SocialQueueItem,
@@ -31,7 +32,7 @@ import { statusTone, type Tone } from '../components/ui/tone.js';
 import { integer, percent, relativeTime, usdWhole } from '../format.js';
 import {
   destinationFor,
-  failedAttemptShareStat,
+  evidenceAmountText,
   statusText,
 } from '../operator-model.js';
 import { priorityItems } from '../priority-items.js';
@@ -167,7 +168,7 @@ export function TodayPage(props: {
             />
           }
           icon={CircleDollarSign}
-          subtitle="Month-end projection and failed-attempt spend"
+          subtitle="Month-end projection and confirmed retry waste"
           title="成本與浪費"
           tone="warning"
         >
@@ -437,6 +438,10 @@ function CostGlance(props: {
   data: OverviewResponse | null;
   podcastCosts: PodcastCostResponse | null;
 }) {
+  const evidence = podcastCostEvidenceTotals(
+    props.podcastCosts?.status === 'ok' ? props.podcastCosts.episodes : [],
+  );
+  const retryWaste = evidence.confirmedRetryWaste;
   return (
     <div className="today-cost">
       <Stat
@@ -445,11 +450,35 @@ function CostGlance(props: {
         value={usdWhole(props.data?.projectedCostUsd)}
       />
       <Stat
-        label="Podcast failed-attempt share"
-        {...failedAttemptShareStat(props.podcastCosts)}
+        caption={retryWasteCaption(
+          props.podcastCosts,
+          retryWaste.usd,
+          retryWaste.lowerBound,
+        )}
+        label="Confirmed retry waste"
+        tone={(retryWaste.usd ?? 0) > 0 ? 'warning' : 'neutral'}
+        value={evidenceAmountText(retryWaste)}
       />
     </div>
   );
+}
+
+function retryWasteCaption(
+  data: PodcastCostResponse | null,
+  usd: number | null,
+  lowerBound: boolean,
+): string {
+  if (data?.status !== 'ok') {
+    return data?.message
+      ? `Render-only lineage unavailable · ${data.message}`
+      : 'Render-only lineage unavailable';
+  }
+  if (usd === null) {
+    return 'No render retry lineage recorded';
+  }
+  return lowerBound
+    ? 'Render-only · incomplete lineage'
+    : 'Render-only · complete recorded lineage';
 }
 
 function share(numerator: number, denominator: number): string | null {

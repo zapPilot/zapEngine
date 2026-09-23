@@ -1,9 +1,8 @@
 /**
- * Read-model helpers shared by more than one page.
+ * Read-model helpers shared across dashboard surfaces.
  *
- * These live outside the page files because Today and Reliability both need
- * `failedAttemptShareStat` — a copy in each page would be a duplicate long
- * enough to fail `dup:check`.
+ * Cost evidence semantics live here so diagnostics do not invent different
+ * meanings for failed attempts, unknown evidence, or lower bounds.
  */
 
 import {
@@ -43,7 +42,7 @@ export function failedAttemptCost(
   };
 }
 
-/** The one-number version Today and Reliability both show. */
+/** Reliability's one-number failed-attempt diagnostic. */
 export function failedAttemptShareStat(data: PodcastCostResponse | null): {
   caption: string;
   tone: Tone;
