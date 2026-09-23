@@ -100,7 +100,9 @@ describe('useSingleChainDepositWizard stale start coverage', () => {
     const { result } = renderHook(() => useSingleChainDepositWizard());
 
     await act(async () => {
-      await expect(result.current.start(request('10000000'))).rejects.toThrow('plan unavailable');
+      await expect(
+        result.current.start(request('10000000')),
+      ).rejects.toThrow('plan unavailable');
     });
 
     expect(result.current.wizard).toMatchObject({
