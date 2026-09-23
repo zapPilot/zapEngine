@@ -71,10 +71,7 @@ describe('analytics transformer fallback coverage', () => {
       dashboard({
         drawdown_analysis: {
           underwater_recovery: {
-            underwater_data: [
-              {},
-              { date: '2026-09-21', drawdown_pct: -5 },
-            ],
+            underwater_data: [{}, { date: '2026-09-21', drawdown_pct: -5 }],
           },
         },
       }),
