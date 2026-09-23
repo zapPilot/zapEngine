@@ -1,0 +1,94 @@
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import {
+  aggregateMonthlyPnL,
+  transformToDrawdownChart,
+  transformToPerformanceChart,
+} from '../../src/lib/analytics/transformers';
+import type { UnifiedDashboardResponse } from '../../src/services';
+
+const dashboard = (data: unknown) => data as UnifiedDashboardResponse;
+
+afterEach(() => vi.useRealTimers());
+
+describe('analytics transformer fallback coverage', () => {
+  it('uses current timestamp for undated drawdown points', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-22T12:00:00Z'));
+
+    const result = transformToPerformanceChart(
+      dashboard({
+        drawdown_analysis: {
+          enhanced: {
+            drawdown_data: [{ portfolio_value: 100 }],
+          },
+        },
+      }),
+    );
+
+    expect(result.points).toEqual([
+      {
+        x: 0,
+        portfolio: 50,
+        date: '2026-09-22T12:00:00.000Z',
+        portfolioValue: 100,
+      },
+    ]);
+  });
+
+  it('uses minimum positive value when trend total is missing', () => {
+    const result = transformToPerformanceChart(
+      dashboard({
+        trends: {
+          daily_values: [
+            { date: '2026-09-20' },
+            { date: '2026-09-21', total_value_usd: 100 },
+          ],
+        },
+      }),
+    );
+
+    expect(result.points).toEqual([
+      {
+        x: 0,
+        portfolio: 50,
+        date: '2026-09-20',
+        portfolioValue: 100,
+      },
+      {
+        x: 100,
+        portfolio: 50,
+        date: '2026-09-21',
+        portfolioValue: 100,
+      },
+    ]);
+  });
+
+  it('defaults missing underwater drawdown values and dates', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-22T13:00:00Z'));
+
+    const result = transformToDrawdownChart(
+      dashboard({
+        drawdown_analysis: {
+          underwater_recovery: {
+            underwater_data: [{}, { date: '2026-09-21', drawdown_pct: -5 }],
+          },
+        },
+      }),
+    );
+
+    expect(result.points).toEqual([
+      { x: 0, value: 0, date: '2026-09-22T13:00:00.000Z' },
+      { x: 100, value: -5, date: '2026-09-21' },
+    ]);
+  });
+
+  it('drops monthly PnL entries whose date cannot form a valid month', () => {
+    const result = aggregateMonthlyPnL({
+      daily_returns: [{ date: 'not-a-date', yield_return_usd: 25 }],
+    });
+
+    expect(result).toEqual([]);
+  });
+});

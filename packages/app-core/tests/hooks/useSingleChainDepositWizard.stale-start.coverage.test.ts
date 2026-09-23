@@ -93,4 +93,21 @@ describe('useSingleChainDepositWizard stale start coverage', () => {
     expect(finalLegs?.[0]?.fromAmount).toBe('20000000');
     expect(result.current.wizard.status).toBe('ready');
   });
+
+  it('reports a plan load failure for the active generation', async () => {
+    mocks.getDepositPlan.mockRejectedValueOnce(new Error('plan unavailable'));
+
+    const { result } = renderHook(() => useSingleChainDepositWizard());
+
+    await act(async () => {
+      await expect(result.current.start(request('10000000'))).rejects.toThrow(
+        'plan unavailable',
+      );
+    });
+
+    expect(result.current.wizard).toMatchObject({
+      status: 'failed',
+      error: 'plan unavailable',
+    });
+  });
 });
