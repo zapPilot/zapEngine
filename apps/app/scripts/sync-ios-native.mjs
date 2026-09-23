@@ -11,6 +11,23 @@ const assertIosNativeDependencies = require('./assert-ios-native-dependencies.cj
 const appRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const iosRoot = resolve(appRoot, 'ios');
 const pnpmCommand = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
+const UTF8_LOCALE = 'en_US.UTF-8';
+
+function firstConfiguredLocale(...values) {
+  return values.find((value) => value?.trim());
+}
+
+// CocoaPods runs the installation root through `String#unicode_normalize`, which
+// raises `Encoding::CompatibilityError` when Ruby's default external encoding is
+// ASCII-8BIT. That encoding comes from the locale, so `pod install` aborts on any
+// shell without a UTF-8 locale exported. Only the character-type locale matters,
+// and LC_ALL wins over LC_CTYPE, which wins over LANG.
+export function resolveCocoaPodsLocaleEnv(env) {
+  const configured = firstConfiguredLocale(env.LC_ALL, env.LC_CTYPE, env.LANG);
+  if (/\.utf-?8$/iu.test(configured ?? '')) return {};
+  // LC_ALL is set alongside LANG so an inherited non-UTF-8 LC_CTYPE cannot win.
+  return { LANG: UTF8_LOCALE, LC_ALL: UTF8_LOCALE };
+}
 
 function run(command, args, cwd, logPath, extraEnv = {}) {
   let logFd;
@@ -69,7 +86,11 @@ export function syncIosNative({
   console.log(
     'Installing iOS Pods from the current JavaScript dependencies...',
   );
-  run('pod', ['install'], iosRoot, logPath, env);
+  const inheritedPodEnv = { ...process.env, ...env };
+  run('pod', ['install'], iosRoot, logPath, {
+    ...env,
+    ...resolveCocoaPodsLocaleEnv(inheritedPodEnv),
+  });
 
   assertIosNativeDependencies(appRoot, {
     CONFIGURATION: 'Release',

@@ -186,6 +186,9 @@ export function createApp(): Hono {
   app.get('/.well-known/apple-app-site-association', (c) =>
     c.json(APPLE_APP_SITE_ASSOCIATION),
   );
+  // Android App Links are deliberately disabled while Android is not
+  // publicly released: no intent filters, no Play signing SHA-256, and an
+  // intentionally empty assetlinks document.
   app.get('/.well-known/assetlinks.json', (c) => c.json([]));
   app.get('/e/:id', async (c) => {
     const id = c.req.param('id');

@@ -53,6 +53,7 @@ Canonical procedures live in [docs/android-release.md](./docs/android-release.md
 - The generated `ios/` tree can outlive JavaScript dependency changes. Run `pnpm --filter @zapengine/app ios:native:sync` before native work and `pnpm --filter @zapengine/app ios:archive` for supported archives.
 - Open the generated `.xcworkspace`, not `.xcodeproj`.
 - `scripts/assert-ios-native-dependencies.cjs` and the iOS release smoke test are the guardrails against stale Pods/native dependency drift.
+- `scripts/sync-ios-native.mjs` defaults `LANG`/`LC_ALL` to UTF-8 for `pod install`, because CocoaPods aborts with `Encoding::CompatibilityError` under an ASCII-8BIT locale. It only fills in a locale that is absent or not UTF-8, so keep that override rather than relying on every shell exporting one.
 
 ## Patched Expo modules
 

@@ -195,5 +195,12 @@ describe('evaluated native config (plugin end-state)', () => {
       assertMissingModProviders: false,
     });
     expect(modded.ios?.infoPlist?.UIBackgroundModes).toContain('audio');
+    // A plain `appConfig.ios.associatedDomains` assertion does not prove the
+    // native entitlement survives config-plugin evaluation. Assert the value
+    // prebuild will actually write so a Universal Link regression goes red
+    // here rather than on a device without the entitlement.
+    expect(
+      modded.ios?.entitlements?.['com.apple.developer.associated-domains'],
+    ).toContain('applinks:from-fed-to-chain-api.fly.dev');
   }, 30_000);
 });

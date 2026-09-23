@@ -156,6 +156,83 @@ for ordinary releases. If an out-of-band Xcode upload later jumps ahead of EAS,
 update `release-baselines.json` to the new observed App Store Connect floor and
 realign EAS before building again.
 
+## Capability changes invalidate the provisioning profile
+
+Adding an entitlement to `app.config.ts` changes what Apple must grant through
+the App ID. A provisioning profile issued before that change cannot sign the
+build, and Xcode only says so at code signing, after the whole archive has
+already been produced:
+
+```text
+Provisioning profile "... AppStore ..." does not support the Associated Domains capability.
+```
+
+Running prebuild again does not help. It regenerates
+`ios/ZapPilot/ZapPilot.entitlements`, which is the side that already moved ahead
+of Apple.
+
+EAS Build owns that remote state. Its auto capability signing enables every
+capability present in the generated entitlements and disables every capability
+that is enabled remotely but absent from them. That cuts both ways: the
+Universal Link entitlement (`associatedDomains`) landed in `app.config.ts` on
+2026-09-22, while the App Store profile in the Apple account was issued on
+2026-09-12 from a commit that deliberately declared none — so that profile
+carries no Associated Domains grant. Building from an older commit that lacks a
+capability disables it again.
+
+`ios:archive` refuses to open Xcode when the two disagree. It compares the
+generated entitlements against `ios.provisioningProfile.capabilities` in
+`release-baselines.json`, which records what the current App Store profile is
+known to carry. Like `ascBuildNumberFloor`, that value is an operator
+attestation: update it only after the profile has actually been reissued.
+
+To recover after adding or removing a capability:
+
+1. Reissue the profile through EAS, from a commit that declares the capability:
+
+   ```bash
+   pnpm --filter @zapengine/app ios:release
+   ```
+
+   Auto capability signing updates the App ID during credential setup, and EAS
+   reissues the profile the change invalidated. This consumes a remote build
+   number, so take this path when the release is the point. Keep the existing
+   Distribution Certificate — the profile is the stale part, and rotating the
+   certificate invalidates every other profile signed against it.
+
+2. If EAS Build itself is the thing that is broken and the Xcode fallback is the
+   only path, do the same work by hand: enable the capability on the App ID in
+   **Certificates, Identifiers & Profiles → Identifiers →
+   `com.example.fromFedToChainApp`**, then regenerate the App Store profile in:
+
+   ```bash
+   pnpm --filter @zapengine/app ios:credentials
+   ```
+
+   A profile generated while the App ID lacks the capability carries no grant,
+   so the portal change has to come first.
+
+3. Verify the reissued profile rather than trusting that it was regenerated.
+   Xcode's distribution step lists App Store profiles from the Apple account,
+   not only the ones cached under
+   `~/Library/Developer/Xcode/UserData/Provisioning Profiles`, so a superseded
+   profile stays selectable until it is removed remotely. Decode the profile
+   Xcode selects and read its entitlements:
+
+   ```bash
+   security cms -D -i profile.mobileprovision | plutil -extract Entitlements xml1 -o - -
+   ```
+
+4. Record the verified capability set in `release-baselines.json` under
+   `ios.provisioningProfile`, with the date it was observed, and commit it.
+
+5. Re-run the supported flow and confirm the archive gets past code signing:
+
+   ```bash
+   pnpm --filter @zapengine/app ios:native:sync
+   pnpm --filter @zapengine/app ios:archive
+   ```
+
 ## Build and release
 
 Before building, run the app workspace gate:
@@ -212,6 +289,15 @@ next EAS production build.
 - **Interactive Apple login requested:** the App Store Connect API key is not on
   EAS. Complete step 1; CI cannot answer a two-factor prompt.
 - **Missing distribution certificate or provisioning profile:** complete step 2.
+- **`Provisioning profile ... does not support the ... capability`:** a
+  capability was added after the profile was issued. Follow
+  [Capability changes invalidate the provisioning
+  profile](#capability-changes-invalidate-the-provisioning-profile); do not
+  rotate the distribution certificate for it.
+- **`ios:archive` stops at the signing preflight:** the generated entitlements
+  declare a capability that `release-baselines.json` does not record on the
+  profile. Same section; the baseline is updated last, after the profile is
+  verified.
 - **`ascAppId` error:** verify `submit.production.ios.ascAppId` in `eas.json`.
 - **`ios:version:check` says EAS is below the ASC floor:** run `ios:version:init`
   once and set EAS to at least the highest build already present in App Store

@@ -3,6 +3,11 @@
     "appVersion": "3.0.1",
     "ascBuildNumberFloor": 204,
     "observedAt": "2026-09-06",
-    "note": "Highest build ever uploaded to the shipped listing (ASC app 6749248542): 204, from the Flutter app. The store's released version string is 2.03, which Apple reads as major 2 minor 3, so the Expo app first released as 3.0.0 to outrank it; 3.0.1 follows because the 3.0.0 train is closed for new builds. The next production build is 205."
+    "note": "Highest build ever uploaded to the shipped listing (ASC app 6749248542): 204, from the Flutter app. The store's released version string is 2.03, which Apple reads as major 2 minor 3, so the Expo app first released as 3.0.0 to outrank it; 3.0.1 follows because the 3.0.0 train is closed for new builds. The next production build is 205.",
+    "provisioningProfile": {
+      "capabilities": [],
+      "observedAt": "2026-09-22",
+      "note": "App ID capabilities the current App Store provisioning profile for com.example.fromFedToChainApp is known to carry. EAS auto capability signing rewrites the App ID from the generated entitlements on every EAS build, and the profile in the Apple account was issued on 2026-09-12 from a commit that deliberately declared none. Update this list only after regenerating the profile; the procedure is in docs/ios-release.md."
+    }
   }
 }

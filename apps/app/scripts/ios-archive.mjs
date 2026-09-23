@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { assertIosSignedCapabilities } from './assert-ios-signed-capabilities.mjs';
 import {
   loadIosArchiveEnv,
   writeIosArchiveXcodeEnv,
@@ -47,6 +48,11 @@ try {
     archiveEnv,
   );
   syncIosNative({ env: archiveEnv });
+  // Prebuild has just written the entitlements Xcode will sign. Apple grants
+  // those capabilities through the provisioning profile, which Xcode only
+  // validates at the end of an archive, so check the recorded profile state
+  // here instead of after a full build.
+  assertIosSignedCapabilities(appRoot);
   const xcodeEnvPath = writeIosArchiveXcodeEnv(appRoot, archiveEnv);
 
   run('open', [workspacePath], appRoot, archiveEnv);

@@ -204,7 +204,23 @@ export function EpisodeDetailScreen() {
   const player = usePodcastPlayer();
   const { progress, isHydrated: progressIsHydrated } = useEpisodeProgress();
   const feedEpisodes = feedQuery.data ?? [];
-  const feedEpisode = findPodcastEpisodeById(feedEpisodes, routeEpisodeId);
+  // A shared URL carries an explicit language that wins over the receiver's
+  // current global feed language. `findPodcastEpisodeById` matches both
+  // canonical and localization IDs, so a canonical ID from an inbound
+  // Universal Link can match the same episode in the wrong-language feed.
+  // Only reuse the feed episode when its language agrees with the route;
+  // otherwise fall through to `routeEpisodeId` + `routeLanguageCode`, which
+  // the backend resolves as the requested localization.
+  const candidateFeedEpisode = findPodcastEpisodeById(
+    feedEpisodes,
+    routeEpisodeId,
+  );
+  const feedEpisode =
+    candidateFeedEpisode !== null &&
+    (routeLanguageCode === '' ||
+      candidateFeedEpisode.languageCode === routeLanguageCode)
+      ? candidateFeedEpisode
+      : null;
   const isFeedVideoGenerationPending =
     isPodcastVideoGenerationPending(feedEpisode);
   const pendingFeedVideoGeneration = isFeedVideoGenerationPending
