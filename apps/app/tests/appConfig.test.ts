@@ -195,12 +195,16 @@ describe('evaluated native config (plugin end-state)', () => {
       assertMissingModProviders: false,
     });
     expect(modded.ios?.infoPlist?.UIBackgroundModes).toContain('audio');
-    // A plain `appConfig.ios.associatedDomains` assertion does not prove the
-    // native entitlement survives config-plugin evaluation. Assert the value
-    // prebuild will actually write so a Universal Link regression goes red
-    // here rather than on a device without the entitlement.
-    expect(
-      modded.ios?.entitlements?.['com.apple.developer.associated-domains'],
-    ).toContain('applinks:from-fed-to-chain-api.fly.dev');
+    // `ios.associatedDomains` is mapped to the
+    // `com.apple.developer.associated-domains` entitlement by Expo's built-in
+    // `withAssociatedDomains` during prebuild. `compileModsAsync` with
+    // `introspect: true` skips the entitlements mod when the generated `ios/`
+    // project is absent (fresh checkout/Ubuntu CI), leaving
+    // `modded.ios.entitlements` undefined, so assert the evaluated `exp`
+    // value prebuild will write rather than the in-memory entitlements which
+    // require native files.
+    expect(exp.ios?.associatedDomains).toContain(
+      'applinks:from-fed-to-chain-api.fly.dev',
+    );
   }, 30_000);
 });
