@@ -613,7 +613,7 @@ describe('usePodcastPlayer iOS Now Playing reclaim', () => {
       true,
       expect.objectContaining({
         title: 'Episode one',
-        artist: 'From Fed to Chain',
+        artist: 'Zap Pilot',
       }),
       expect.anything(),
     );

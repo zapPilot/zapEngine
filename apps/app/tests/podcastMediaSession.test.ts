@@ -52,11 +52,11 @@ describe('buildPodcastMediaMetadata', () => {
 
     expect(buildPodcastMediaMetadata(episode, 'main')).toEqual({
       title: 'Fed holds rates',
-      artist: 'From Fed to Chain',
+      artist: 'Zap Pilot',
     });
     expect(buildPodcastMediaMetadata(episode, 'classroom')).toEqual({
       title: 'Fed holds rates — Language Classroom',
-      artist: 'From Fed to Chain',
+      artist: 'Zap Pilot',
     });
   });
 
@@ -65,11 +65,11 @@ describe('buildPodcastMediaMetadata', () => {
 
     expect(buildPodcastMediaMetadata(episode, 'classroom', 'ja')).toEqual({
       title: 'Fed holds rates — Language Classroom (JA)',
-      artist: 'From Fed to Chain',
+      artist: 'Zap Pilot',
     });
     expect(buildPodcastMediaMetadata(episode, 'classroom', 'en')).toEqual({
       title: 'Fed holds rates — Language Classroom (EN)',
-      artist: 'From Fed to Chain',
+      artist: 'Zap Pilot',
     });
   });
 
@@ -78,7 +78,7 @@ describe('buildPodcastMediaMetadata', () => {
 
     expect(buildPodcastMediaMetadata(episode, 'main', 'ja')).toEqual({
       title: 'Fed holds rates',
-      artist: 'From Fed to Chain',
+      artist: 'Zap Pilot',
     });
   });
 
