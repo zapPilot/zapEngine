@@ -135,7 +135,7 @@ function createRednoteJob(input: SocialPublishJobsInput): SocialPublishJob {
   const videoPath = requireVideoPath(platform, input);
   const { title, hashtags } = composeForPublish(platform, input);
   if (!title) {
-    throw new Error('Rednote publishing requires a generated title.');
+    throw new Error('Rednote publishing requires the canonical episode title.');
   }
   // The last mile: `copy.ts` gates each generated field, but only what is
   // actually composed for publish is what Rednote review reads. The note
