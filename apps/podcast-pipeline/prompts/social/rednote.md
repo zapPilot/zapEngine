@@ -1,15 +1,11 @@
 # Rednote / 小紅書
 
-Write for a consumer feed, not as a research report. The rules here cover
-Rednote's format and its publishing surface only. The shared headline policy
-governs the title itself; Rednote must use the same underlying editorial/title
-strategy as the other social platforms, and a finance or crypto story does not
-become broader, vaguer, or safer-sounding merely because it is being published
-here.
+Write for a consumer feed, not as a research report. The episode title is
+already finalized upstream and is published unchanged; do not generate,
+rewrite, shorten, or optimize another Rednote-specific title here.
 
 Output fields:
 
-- `title`: a curiosity-driven consumer title, at most 20 characters.
 - `body`: roughly 100 to 400 Traditional Chinese characters.
 - `hashtags`: 3 to 5 relevant topics, without hashtag spam.
 
