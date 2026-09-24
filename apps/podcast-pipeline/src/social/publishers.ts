@@ -24,6 +24,8 @@ interface SocialPublishJobsInput {
   xVideoPath?: string;
   /** Per-platform landing destinations carrying durable release attribution. */
   destinationUrlByPlatform?: Partial<Record<SocialPlatform, string>>;
+  /** Bounded migration override for already-queued Rednote jobs only. */
+  titleOverrideByPlatform?: Partial<Record<SocialPlatform, string>>;
   /** Break-glass override for `social:publish`; the daemon always publishes public. */
   youtubePrivacyStatus?: YouTubePrivacyStatus;
   onLog?: (message: string) => void;
@@ -133,10 +135,19 @@ function createYouTubeJob(input: SocialPublishJobsInput): SocialPublishJob {
 function createRednoteJob(input: SocialPublishJobsInput): SocialPublishJob {
   const platform = 'rednote';
   const videoPath = requireVideoPath(platform, input);
-  const { title, hashtags } = composeForPublish(platform, input);
+  const composed = composeForPublish(platform, input);
+  const title =
+    input.titleOverrideByPlatform?.[platform]?.trim() || composed.title;
+  const { hashtags } = composed;
   if (!title?.trim()) {
     throw new Error(
       'Rednote publishing requires the canonical episode title.',
+    );
+  }
+  const titleLength = Array.from(title).length;
+  if (titleLength > 20) {
+    throw new Error(
+      `Rednote title is ${titleLength} characters; canonical titles must be at most 20 so the platform cannot truncate them.`,
     );
   }
   // The last mile: `copy.ts` gates each generated field, but only what is
