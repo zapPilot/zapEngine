@@ -24,7 +24,7 @@ If the episode is explicitly about asset prices or trading, keep that subject fa
 
 Do not replace a material subject such as Virtuals, Ethereum, Bitcoin, a stablecoin, the Fed, Wall Street, or a named company with a generic label such as 產業、平台、金融科技、科技公司 or 市場 merely to reduce perceived moderation risk. Exact finance and crypto terminology is allowed when it is central to the episode. A generic label is acceptable only when it is genuinely the clearest description of the story, not as a safety substitute for a concrete subject.
 
-The four investment-direction red lines that follow this file are hard rules, not preferences. They prevent direct allocation/timing advice and unsupported certainty; they must not be interpreted as a reason to erase the episode's named subject from the title.
+The four investment-direction red lines that follow this file are hard rules, not preferences. They prevent direct allocation/timing advice and unsupported certainty; they must not be interpreted as a reason to erase the episode's named subject from the body or topics.
 
 ## Body and hashtags
 
