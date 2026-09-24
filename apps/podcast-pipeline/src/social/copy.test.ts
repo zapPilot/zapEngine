@@ -887,8 +887,8 @@ describe('parseGeneratedSocialCopy', () => {
       parseGeneratedSocialCopy(
         JSON.stringify({
           topic: 'eth',
-          x: { hookType: 'explainer', text: 'x copy' },
-          threads: { hookType: 'question', text: 'threads copy?' },
+          x: { hookType: 'explainer', text: '有效文案' },
+          threads: { hookType: 'question', text: '有效討論？' },
           rednote: {
             hookType: 'explainer',
             body: '正文內容',
