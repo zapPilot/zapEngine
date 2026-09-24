@@ -156,8 +156,8 @@ describe('buildSocialPostRecord', () => {
       platform: 'youtube',
       postUrl: 'https://www.youtube.com/watch?v=video-1',
       platformPostId: 'video-1',
-      generatedTitle: 'AI 產生的 YouTube 標題',
-      publishedTitle: '編輯後的 YouTube 標題？',
+      generatedTitle: '市場更新',
+      publishedTitle: '市場更新',
       generatedBody:
         '完整說明\n\n更多市場洞察與工具：https://www.zap-pilot.org',
       publishedBody:
@@ -167,7 +167,7 @@ describe('buildSocialPostRecord', () => {
     });
   });
 
-  it('projects Rednote titles, hashtags, and full video duration', () => {
+  it('projects the canonical Rednote title, hashtags, and full video duration', () => {
     expect(
       buildSocialPostRecord({
         episodeId: 'episode-1',
@@ -179,8 +179,8 @@ describe('buildSocialPostRecord', () => {
       }),
     ).toMatchObject({
       platform: 'rednote',
-      generatedTitle: 'AI 產生標題',
-      publishedTitle: '利率真的轉向？',
+      generatedTitle: '市場更新',
+      publishedTitle: '市場更新',
       generatedBody: 'AI 產生的正文',
       publishedBody: '編輯後的正文含數字２',
       hashtags: ['總經', '利率', '市場事件'],
@@ -273,7 +273,7 @@ describe('createSocialPostPersister', () => {
     await persist({ platform: 'youtube', result: result() });
     expect(insert).toHaveBeenCalledWith(
       expect.objectContaining({
-        generatedTitle: 'AI 產生的 YouTube 標題',
+        generatedTitle: '市場更新',
         generatedBody:
           '完整說明\n\n更多市場洞察與工具：https://www.zap-pilot.org',
       }),
