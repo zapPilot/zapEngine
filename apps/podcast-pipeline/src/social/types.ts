@@ -73,14 +73,6 @@ export interface SocialEpisode {
   id: string;
   languageCode: SocialLanguageCode;
   title: string;
-  /**
-   * The publisher's own headline for the source article. The editorial title
-   * above is LLM-written and always overwrites it at script stage, so this is
-   * the only channel through which the writer sees how the story was actually
-   * headlined. Used as topic evidence and as the similarity floor that stops
-   * a synonym-swapped rewrite.
-   */
-  sourceTitle?: string;
   description?: string;
   summary: string;
   transcript: string;
@@ -104,15 +96,11 @@ export interface GeneratedSocialCopy {
   };
   rednote?: {
     hookType: SocialHookType;
-    /** @deprecated Ignored. The platform title is always episode.title. */
-    title?: string;
     body: string;
     hashtags: string[];
   };
   youtube?: {
     hookType: SocialHookType;
-    /** @deprecated Ignored. The platform title is always episode.title. */
-    title?: string;
   };
 }
 
