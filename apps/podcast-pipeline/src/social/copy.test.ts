@@ -29,7 +29,6 @@ import {
   latinLetterRatio,
   parseGeneratedSocialCopy,
   weightedTweetLength,
-  YOUTUBE_TITLE_MAX_CHARACTERS,
 } from './copy.js';
 import { SocialCopyGenerationError } from './publish-error.js';
 import { RednoteSemanticRiskError } from './rednote-semantic-risk.js';
@@ -176,18 +175,10 @@ describe('generateSocialCopy', () => {
     expect(request?.messages[0]?.content).toContain(
       'Apply platform-specific restrictions only to their corresponding fields.',
     );
-    // The canonical headline policy has to actually reach the system prompt;
-    // it is generated into prompts/ from .agents/, so a broken drift gate or a
-    // missing read shows up here rather than at the next release.
-    expect(request?.messages[0]?.content).toContain(
+    expect(request?.messages[0]?.content).not.toContain(
       '## Headline policy (every title field)',
     );
-    expect(request?.messages[0]?.content).toContain(
-      'first pool, not being clicked once, is the job.',
-    );
-    expect(request?.messages[0]?.content).toContain(
-      '**Never produce it with words swapped.**',
-    );
+    expect(request?.messages[0]?.content).not.toContain('"title": "..."');
     expect(request?.messages[0]?.content).toContain(
       'Never disguise restricted content with misspellings, homophones, emoji substitutions or coded wording to evade moderation.',
     );
@@ -208,11 +199,7 @@ describe('generateSocialCopy', () => {
     expect(weightedTweetLength(published)).toBe(280);
   });
 
-  it("supplies the publisher's own headline alongside the editorial title", async () => {
-    // Script stage always overwrites `episode_localizations.title` with an
-    // LLM-written one, so without this block the writer never sees how the
-    // story was actually headlined -- and the similarity check it feeds has
-    // nothing to compare against.
+  it('does not send the publisher headline back through social title generation', async () => {
     llmMocks.createOpenRouterChatCompletion.mockResolvedValue(
       socialCompletion(socialCopyJson('原始標題文案')),
     );
@@ -226,12 +213,10 @@ describe('generateSocialCopy', () => {
         -1,
       )?.content,
     );
-    expect(prompt).toContain('Publisher headline');
-    expect(prompt).toContain('Nvidia buys HuggingFace');
+    expect(prompt).toContain('Canonical title (already finalized; do not rewrite it):');
     expect(prompt).toContain('Episode title');
-    expect(prompt.indexOf('Episode title')).toBeLessThan(
-      prompt.indexOf('Nvidia buys HuggingFace'),
-    );
+    expect(prompt).not.toContain('Publisher headline');
+    expect(prompt).not.toContain('Nvidia buys HuggingFace');
   });
 
   it('omits the publisher headline block for an episode without a source title', async () => {
@@ -300,7 +285,7 @@ describe('generateSocialCopy', () => {
         rednote: {
           key: 'rednote-packaging-v1-zh-Hant',
           variant: 'hook_first',
-          instruction: 'Write the Rednote title with a grounded hook first.',
+          instruction: 'Lead the Rednote body with a grounded hook.',
         },
       },
     });
@@ -314,7 +299,7 @@ describe('generateSocialCopy', () => {
       prompt.indexOf('Performance guidance from prior posts'),
     ).toBeLessThan(prompt.indexOf('Packaging experiment assignments'));
     expect(prompt).toContain(
-      '[rednote-packaging-v1-zh-Hant · hook_first] Write the Rednote title with a grounded hook first.',
+      '[rednote-packaging-v1-zh-Hant · hook_first] Lead the Rednote body with a grounded hook.',
     );
     expect(prompt).toContain(
       'never editorial, platform, language, factual-grounding, or safety rules',
@@ -670,7 +655,7 @@ function socialCompletion(content: string): object {
 }
 
 describe('parseGeneratedSocialCopy', () => {
-  it('accepts generated title output for a YouTube-only batch', () => {
+  it('ignores legacy generated title output for a YouTube-only batch', () => {
     expect(
       parseGeneratedSocialCopy(
         JSON.stringify({
@@ -682,7 +667,7 @@ describe('parseGeneratedSocialCopy', () => {
       ),
     ).toEqual({
       topic: 'technology',
-      youtube: { hookType: 'explainer', title: 'How agents change work' },
+      youtube: { hookType: 'explainer' },
     });
   });
 
@@ -870,25 +855,6 @@ describe('parseGeneratedSocialCopy', () => {
     ).toBe('以太坊社群在臺灣的討論');
   });
 
-  it('measures the Rednote title after conversion', () => {
-    expect(() =>
-      parseGeneratedSocialCopy(
-        JSON.stringify({
-          topic: 'eth',
-          x: { hookType: 'question', text: '有效文案' },
-          threads: { hookType: 'question', text: '有效討論文案？' },
-          rednote: {
-            hookType: 'question',
-            title: '這個標題實在太長了根本塞不進小紅書的欄位裡面',
-            body: '正文內容',
-            hashtags: ['以太坊', '質押', '投資'],
-          },
-          youtube: { hookType: 'question', title: '有效影片標題？' },
-        }),
-      ),
-    ).toThrow(/Rednote title is 22 characters; the maximum is 20/);
-  });
-
   it('rejects accented Latin letters drifting in from another language', () => {
     expect(() =>
       parseGeneratedSocialCopy(socialCopyJson('質押收益歸零，código 全燒。')),
@@ -917,9 +883,6 @@ describe('parseGeneratedSocialCopy', () => {
   it('rejects Rednote moderation-risk wording in the title, body or a hashtag', () => {
     for (const mutate of [
       (payload: GeneratedSocialCopy) => {
-        payload.rednote!.title = '穩賺不賠的支付紅利';
-      },
-      (payload: GeneratedSocialCopy) => {
         payload.rednote!.body = '加我微信就能拿到內幕消息';
       },
       (payload: GeneratedSocialCopy) => {
@@ -936,57 +899,8 @@ describe('parseGeneratedSocialCopy', () => {
     }
   });
 
-  it('rejects a YouTube title past the 100-character maximum', () => {
-    const payload = JSON.parse(
-      socialCopyJson('有效文案'),
-    ) as GeneratedSocialCopy;
-    payload.youtube!.title = '脈'.repeat(YOUTUBE_TITLE_MAX_CHARACTERS + 1);
-
-    expect(() => parseGeneratedSocialCopy(JSON.stringify(payload))).toThrow(
-      new RegExp(
-        `YouTube title is 101 characters; the maximum is ${YOUTUBE_TITLE_MAX_CHARACTERS}`,
-        'u',
-      ),
-    );
-  });
-
-  it('accepts a YouTube title exactly at the maximum', () => {
-    const payload = JSON.parse(
-      socialCopyJson('有效文案'),
-    ) as GeneratedSocialCopy;
-    payload.youtube!.title = '脈'.repeat(YOUTUBE_TITLE_MAX_CHARACTERS);
-
+  it('accepts Rednote copy without a generated title', () => {
     expect(
-      parseGeneratedSocialCopy(JSON.stringify(payload)).youtube?.title,
-    ).toHaveLength(YOUTUBE_TITLE_MAX_CHARACTERS);
-  });
-
-  it('rejects a YouTube title containing a URL', () => {
-    const payload = JSON.parse(
-      socialCopyJson('有效文案'),
-    ) as GeneratedSocialCopy;
-    payload.youtube!.title = '完整脈絡 https://www.zap-pilot.org';
-
-    expect(() => parseGeneratedSocialCopy(JSON.stringify(payload))).toThrow(
-      /must not contain a URL/u,
-    );
-  });
-
-  it('rejects a Rednote title that is the publisher headline reworded', () => {
-    const payload = JSON.parse(
-      socialCopyJson('有效文案'),
-    ) as GeneratedSocialCopy;
-    payload.rednote!.title = '收購開源模型平台押注生態';
-
-    expect(() =>
-      parseGeneratedSocialCopy(JSON.stringify(payload), 'zh-Hant', undefined, {
-        publisherHeadline: '輝達收購開源模型平台押注生態系統',
-      }),
-    ).toThrow(/publisher headline/u);
-  });
-
-  it('rejects a missing Rednote title', () => {
-    expect(() =>
       parseGeneratedSocialCopy(
         JSON.stringify({
           topic: 'eth',
@@ -997,10 +911,14 @@ describe('parseGeneratedSocialCopy', () => {
             body: 'body',
             hashtags: ['a', 'b', 'c'],
           },
-          youtube: { hookType: 'explainer', title: 'video title' },
+          youtube: { hookType: 'explainer' },
         }),
-      ),
-    ).toThrow();
+      ).rednote,
+    ).toMatchObject({
+      hookType: 'explainer',
+      body: 'body',
+      hashtags: ['a', 'b', 'c'],
+    });
   });
 
   it('rejects empty copy', () => {
