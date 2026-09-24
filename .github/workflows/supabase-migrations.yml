@@ -29,6 +29,66 @@ jobs:
       - name: Rebuild from committed migrations
         run: supabase db reset --local --no-seed
 
+      # alpha_raw and ops are reached by direct Postgres roles and definer
+      # RPCs, not the Data API, so the Supabase advisor never flags a table
+      # added there without RLS. A direct-connect role that no policy names
+      # fails silently instead: it reads zero rows and raises nothing.
+      - name: Require RLS and direct-role policies in internal schemas
+        env:
+          LOCAL_DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: |
+          psql "$LOCAL_DB_URL" --no-psqlrc -v ON_ERROR_STOP=1 <<'SQL'
+          do $$
+          declare
+            checked integer;
+            without_rls text;
+            without_policy text;
+          begin
+            select count(*),
+                   string_agg(format('%I.%I', n.nspname, c.relname), ', '
+                              order by n.nspname, c.relname)
+                     filter (where not c.relrowsecurity)
+              into checked, without_rls
+              from pg_class c
+              join pg_namespace n on n.oid = c.relnamespace
+             where n.nspname in ('alpha_raw', 'ops')
+               and c.relkind in ('r', 'p');
+
+            if checked = 0 then
+              raise exception 'No tables found in alpha_raw or ops; the guard would pass vacuously';
+            end if;
+            if without_rls is not null then
+              raise exception 'RLS is disabled on: %', without_rls;
+            end if;
+
+            select string_agg(format('%I.%I for %I', n.nspname, c.relname, r.rolname), ', '
+                              order by n.nspname, c.relname, r.rolname)
+              into without_policy
+              from pg_class c
+              join pg_namespace n on n.oid = c.relnamespace
+              cross join pg_roles r
+             where n.nspname in ('alpha_raw', 'ops')
+               and c.relkind in ('r', 'p')
+               and r.rolcanlogin
+               and not r.rolbypassrls
+               and not r.rolsuper
+               and has_table_privilege(r.oid, c.oid, 'SELECT, INSERT, UPDATE, DELETE')
+               and not exists (
+                 select 1
+                   from pg_policy p
+                  where p.polrelid = c.oid
+                    and p.polroles && array[r.oid, 0::oid]
+               );
+
+            if without_policy is not null then
+              raise exception 'Direct-connect roles hold grants but no RLS policy on: %', without_policy;
+            end if;
+
+            raise notice 'RLS and direct-role policies cover all % tables in alpha_raw and ops', checked;
+          end
+          $$;
+          SQL
+
       - name: Stop local Supabase
         if: always()
         run: supabase stop --no-backup

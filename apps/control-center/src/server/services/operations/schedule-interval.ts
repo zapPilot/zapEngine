@@ -11,16 +11,23 @@ const DAY_MS = 24 * HOUR_MS;
 export const DEFAULT_STALE_AFTER_MS = 48 * HOUR_MS;
 
 /**
- * How often `.github/workflows/ops-operator.yml` fires. The operator repairs at
- * most one fingerprint per cycle, so the cadence is also the ceiling on repairs
- * per day; hourly leaves 24 slots against an observed ~7 actionable cycles.
+ * How often `.github/workflows/ops-operator.yml` is declared to fire. GitHub
+ * delivers schedules best effort: declared hourly it managed about six runs a
+ * day, so an hourly contract read critical about 30% of the time while every
+ * cycle succeeded. Four hours is a period GitHub can plausibly keep, and a
+ * signal that is only red when something is wrong is one people keep reading.
+ *
+ * The operator repairs at most one fingerprint per cycle, so the cadence is
+ * also the ceiling on repairs per day: six declared slots, which is what GitHub
+ * was already delivering. A faster guarantee needs a trigger outside GitHub's
+ * scheduler, not a shorter number here.
  *
  * This is the only place the cadence is written as a duration. The heartbeat
  * thresholds and the operator-facing wording derive from it, and a test asserts
  * the committed registry row still agrees — the previous drift was a workflow
  * change landing against thresholds calibrated for a different period.
  */
-export const OPS_OPERATOR_CADENCE_MS = HOUR_MS;
+export const OPS_OPERATOR_CADENCE_MS = 4 * HOUR_MS;
 
 const CRON_FIELDS = 5;
 

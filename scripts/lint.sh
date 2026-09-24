@@ -7,6 +7,8 @@ set -euo pipefail
 case "${1:-}" in
   repo)
     # Repository drift checks (config + scripts + snapshot-sync + EAS toolchain), in order.
+    # The live run can only catch false failures; the unit tests catch a guard that stopped checking.
+    tsx --test scripts/lint/config-drift.test.ts
     tsx scripts/lint/config-drift.ts
     tsx scripts/lint/scripts-drift.ts
     tsx scripts/lint/snapshot-sync.ts
