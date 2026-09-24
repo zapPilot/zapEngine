@@ -49,7 +49,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.prepareSocialBatchAssets.mockResolvedValue({
     episode,
-    video: { path: '/tmp/video.mp4' },
+    video: { path: '/fixtures/video.mp4' },
   });
   mocks.createSocialPublishJobs.mockReturnValue([
     { platform: 'rednote', publish: vi.fn() },
