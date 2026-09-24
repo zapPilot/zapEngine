@@ -202,21 +202,20 @@ function generatedSocialCopySchema(
     hookType: z.enum(SOCIAL_HOOK_TYPES),
     text: threadsTextSchema(languageCode),
   });
-  const rednote = z
-    .object({
-      hookType: z.enum(SOCIAL_HOOK_TYPES),
-      body:
-        languageCode === 'zh-Hant'
-          ? RednoteBodySchema
-          : line.superRefine(addNoUrlIssue),
-      hashtags: z.array(line).min(3).max(5),
-    })
-    .strict();
-  const youtube = z
-    .object({
-      hookType: z.enum(SOCIAL_HOOK_TYPES),
-    })
-    .strict();
+  // Unknown legacy fields (including the retired per-platform title) are
+  // stripped by Zod. Durable queued payloads can drain safely, while the typed
+  // contract and generation prompt no longer expose a second title.
+  const rednote = z.object({
+    hookType: z.enum(SOCIAL_HOOK_TYPES),
+    body:
+      languageCode === 'zh-Hant'
+        ? RednoteBodySchema
+        : line.superRefine(addNoUrlIssue),
+    hashtags: z.array(line).min(3).max(5),
+  });
+  const youtube = z.object({
+    hookType: z.enum(SOCIAL_HOOK_TYPES),
+  });
   return z
     .object({
       topic: z.enum(SOCIAL_TOPICS),
