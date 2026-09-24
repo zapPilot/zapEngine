@@ -52,11 +52,10 @@ function socialCopyJson(xText: string): string {
     threads: { hookType: 'contrarian', text: `${xText} 延伸討論` },
     rednote: {
       hookType: 'question',
-      title: '標題',
       body: '正文內容',
       hashtags: ['以太坊', '美聯儲', '投資'],
     },
-    youtube: { hookType: 'explainer', title: '這集值得看的核心脈絡' },
+    youtube: { hookType: 'explainer' },
   });
 }
 
@@ -862,7 +861,7 @@ describe('parseGeneratedSocialCopy', () => {
     ).toThrow(/Latin letters; the maximum is 35%/);
   });
 
-  it('rejects Rednote moderation-risk wording in the title, body or a hashtag', () => {
+  it('rejects Rednote moderation-risk wording in the body or a hashtag', () => {
     for (const mutate of [
       (payload: GeneratedSocialCopy) => {
         payload.rednote!.body = '加我微信就能拿到內幕消息';
