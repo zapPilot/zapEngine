@@ -891,16 +891,16 @@ describe('parseGeneratedSocialCopy', () => {
           threads: { hookType: 'question', text: 'threads copy?' },
           rednote: {
             hookType: 'explainer',
-            body: 'body',
-            hashtags: ['a', 'b', 'c'],
+            body: '正文內容',
+            hashtags: ['以太坊', '市場', '研究'],
           },
           youtube: { hookType: 'explainer' },
         }),
       ).rednote,
     ).toMatchObject({
       hookType: 'explainer',
-      body: 'body',
-      hashtags: ['a', 'b', 'c'],
+      body: '正文內容',
+      hashtags: ['以太坊', '市場', '研究'],
     });
   });
 
