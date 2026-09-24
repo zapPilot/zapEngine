@@ -319,6 +319,42 @@ describe('createSocialPublishJobs', () => {
     });
   });
 
+  it('uses a bounded legacy Rednote title override for already-queued jobs', async () => {
+    const [job] = createSocialPublishJobs({
+      platforms: ['rednote'],
+      copy,
+      episode: {
+        ...episode,
+        title: '這是一個已渲染但超過二十字的舊 canonical episode title',
+      },
+      videoUrl: VIDEO_URL,
+      videoPath: VIDEO_PATH,
+      titleOverrideByPlatform: { rednote: '舊佇列短標題' },
+    });
+
+    await job?.publish();
+
+    expect(mocks.publishRednote).toHaveBeenCalledWith({
+      title: '舊佇列短標題',
+      hashtags: copy.rednote!.hashtags,
+      videoPath: VIDEO_PATH,
+    });
+  });
+
+  it('fails closed instead of letting Rednote truncate a long canonical title', () => {
+    expect(() =>
+      createSocialPublishJobs({
+        platforms: ['rednote'],
+        copy,
+        episode: { ...episode, title: '標'.repeat(21) },
+        videoUrl: VIDEO_URL,
+        videoPath: VIDEO_PATH,
+      }),
+    ).toThrow(/canonical titles must be at most 20/);
+
+    expect(mocks.createPlaywrightRednotePublisher).not.toHaveBeenCalled();
+  });
+
   it('rejects Rednote before publishing when the canonical episode title is blank', () => {
     expect(() =>
       createSocialPublishJobs({
