@@ -210,7 +210,9 @@ describe('generateSocialCopy', () => {
         -1,
       )?.content,
     );
-    expect(prompt).toContain('Canonical title (already finalized; do not rewrite it):');
+    expect(prompt).toContain(
+      'Canonical title (already finalized; do not rewrite it):',
+    );
     expect(prompt).toContain('Episode title');
     expect(prompt).not.toContain('Publisher headline');
   });
