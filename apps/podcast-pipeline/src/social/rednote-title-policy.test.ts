@@ -17,9 +17,7 @@ describe('Rednote canonical title policy', () => {
     expect(prompt).toContain(
       'do not generate, rewrite, shorten, or optimize another Rednote-specific title',
     );
-    expect(prompt).not.toContain(
-      '`title`: a curiosity-driven consumer title',
-    );
+    expect(prompt).not.toContain('`title`: a curiosity-driven consumer title');
   });
 
   it('keeps finance and crypto framing rules on the body and topics', async () => {
