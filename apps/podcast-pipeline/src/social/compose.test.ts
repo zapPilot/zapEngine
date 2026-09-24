@@ -9,11 +9,10 @@ const copy: GeneratedSocialCopy = {
   threads: { hookType: 'contrarian', text: '利率轉向，真的開始了嗎？' },
   rednote: {
     hookType: 'question',
-    title: '利率真的轉向？',
     body: '這集拆解了三個訊號。',
     hashtags: ['宏觀經濟', '市場結構', '產業研究'],
   },
-  youtube: { hookType: 'explainer', title: '聯準會的下一步' },
+  youtube: { hookType: 'explainer' },
 };
 
 const episode: Pick<SocialEpisode, 'title' | 'summary' | 'description'> = {
