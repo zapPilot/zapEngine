@@ -29,9 +29,7 @@ describe('legacy Rednote title override migration', () => {
     );
 
     const overrides = [
-      ...migration.matchAll(
-        /when '[0-9a-f-]+'::uuid then '([^']+)'/giu,
-      ),
+      ...migration.matchAll(/when '[0-9a-f-]+'::uuid then '([^']+)'/giu),
     ].map((match) => match[1] ?? '');
 
     expect(overrides).toHaveLength(26);
@@ -43,6 +41,8 @@ describe('legacy Rednote title override migration', () => {
 
   it('backfills only already queued or failed jobs and never rewrites episode localizations', () => {
     expect(migration).toMatch(/status in \('queued', 'failed'\)/i);
-    expect(migration).not.toMatch(/update from_fed_to_chain\.episode_localizations/i);
+    expect(migration).not.toMatch(
+      /update from_fed_to_chain\.episode_localizations/i,
+    );
   });
 });
