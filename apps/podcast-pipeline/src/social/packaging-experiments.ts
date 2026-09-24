@@ -15,20 +15,14 @@ export interface PackagingAssignment {
  * daemon/copy boundary so old callers continue to work while returning no
  * assignments.
  */
-export function activePackagingExperiment(
+export const activePackagingExperiment: (
   platform: SocialPlatform,
   languageCode: SocialLanguageCode,
-): undefined {
-  void platform;
-  void languageCode;
-  return;
-}
+) => undefined = () => {};
 
-export async function resolvePackagingAssignments(input: {
+export const resolvePackagingAssignments: (input: {
   episodeId: string;
   languageCode: SocialLanguageCode;
   platforms: readonly SocialPlatform[];
-}): Promise<Partial<Record<SocialPlatform, PackagingAssignment>>> {
-  void input;
-  return {};
-}
+}) => Promise<Partial<Record<SocialPlatform, PackagingAssignment>>> = () =>
+  Promise.resolve({});
