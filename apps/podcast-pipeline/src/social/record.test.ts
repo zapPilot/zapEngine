@@ -27,11 +27,10 @@ const generated: GeneratedSocialCopy = {
   threads: { hookType: 'explainer', text: 'AI 產生的 Threads 文案' },
   rednote: {
     hookType: 'contrarian',
-    title: 'AI 產生標題',
     body: 'AI 產生的正文',
     hashtags: ['以太坊', '質押', '投資'],
   },
-  youtube: { hookType: 'explainer', title: 'AI 產生的 YouTube 標題' },
+  youtube: { hookType: 'explainer' },
 };
 const published: GeneratedSocialCopy = {
   topic: 'macro',
@@ -39,11 +38,10 @@ const published: GeneratedSocialCopy = {
   threads: { hookType: 'question', text: '編輯後的 Threads 文案？２０２６' },
   rednote: {
     hookType: 'question',
-    title: '利率真的轉向？',
     body: '編輯後的正文含數字２',
     hashtags: ['總經', '利率', '市場事件'],
   },
-  youtube: { hookType: 'question', title: '編輯後的 YouTube 標題？' },
+  youtube: { hookType: 'question' },
 };
 beforeEach(() => {
   vi.clearAllMocks();
