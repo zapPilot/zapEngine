@@ -35,7 +35,6 @@ export interface PackagingAssignment {
  */
 export const PACKAGING_EXPERIMENTS: readonly PackagingExperiment[] = [];
 
-
 export function activePackagingExperiment(
   platform: SocialPlatform,
   languageCode: SocialLanguageCode,
