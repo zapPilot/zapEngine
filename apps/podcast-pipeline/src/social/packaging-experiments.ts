@@ -16,16 +16,19 @@ export interface PackagingAssignment {
  * assignments.
  */
 export function activePackagingExperiment(
-  _platform: SocialPlatform,
-  _languageCode: SocialLanguageCode,
+  platform: SocialPlatform,
+  languageCode: SocialLanguageCode,
 ): undefined {
-  return undefined;
+  void platform;
+  void languageCode;
+  return;
 }
 
-export async function resolvePackagingAssignments(_input: {
+export async function resolvePackagingAssignments(input: {
   episodeId: string;
   languageCode: SocialLanguageCode;
   platforms: readonly SocialPlatform[];
 }): Promise<Partial<Record<SocialPlatform, PackagingAssignment>>> {
+  void input;
   return {};
 }
