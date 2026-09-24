@@ -115,7 +115,7 @@ export interface ThreadsPublishInput {
 }
 
 export interface RednotePublishInput {
-  /** Rednote's own title field, filled last -- see `rednote-playwright.ts`. */
+  /** Canonical episode title placed into Rednote's native title field. */
   title: string;
   hashtags: string[];
   videoPath: string;
