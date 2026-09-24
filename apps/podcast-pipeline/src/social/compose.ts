@@ -88,7 +88,7 @@ function composePlatformContent(
     case 'rednote': {
       const rednote = requireCopyBlock(input.copy.rednote, 'rednote');
       return {
-        title: rednote.title,
+        title: input.episode.title,
         body: rednote.body,
         hashtags: [...rednote.hashtags],
         hookType: rednote.hookType,
@@ -97,7 +97,7 @@ function composePlatformContent(
     case 'youtube': {
       const youtube = requireCopyBlock(input.copy.youtube, 'youtube');
       return {
-        title: youtube.title,
+        title: input.episode.title,
         body: composeYouTubeDescription(input.episode, input.destinationUrl),
         hashtags: [],
         hookType: youtube.hookType,
