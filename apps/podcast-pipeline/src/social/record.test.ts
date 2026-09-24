@@ -186,6 +186,26 @@ describe('buildSocialPostRecord', () => {
     });
   });
 
+  it('records the actual legacy Rednote override without rewriting generated truth', () => {
+    expect(
+      buildSocialPostRecord({
+        episodeId: 'episode-1',
+        platform: 'rednote',
+        result: result(),
+        snapshot,
+        episode,
+        titleOverride: '舊佇列短標題',
+        videoDurationSeconds: 321,
+      }),
+    ).toMatchObject({
+      generatedTitle: '市場更新',
+      publishedTitle: '舊佇列短標題',
+      contentFeatures: expect.objectContaining({
+        titleChars: Array.from('舊佇列短標題').length,
+      }),
+    });
+  });
+
   // A generated hashtag with no matching Rednote topic is skipped rather than
   // typed in as literal text, so the note carries fewer topics than the copy
   // asked for. Recording the requested set would credit the learner's
