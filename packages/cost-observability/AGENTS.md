@@ -49,11 +49,10 @@ measurable-vs-broken boundary beside it — do not widen
 `UsageNotMeasurableError` to cover malformed data.
 
 Cloudflare is pinned against `CLOUDFLARE_R2_ROWS` in
-`src/providers/test-helpers.ts`, which is **not** a live capture: it is shaped
-from Cloudflare's documented Billing API V2 (FOCUS) response with placeholder
-account identifiers. Two things it asserts are therefore still unconfirmed
-against a real payload — the per-row cost precedence
-(`EffectiveCost` → `ContractedCost` → `ListCost`) and whether `ListCost` is
-populated mid-period, which is what decides whether the dashboard's Cloudflare
-usage cell shows a figure or an em dash. Replace the fixture with a redacted
-live capture when one is available and re-check both.
+`src/providers/test-helpers.ts`, shaped from a redacted live capture of the v1
+`GET /accounts/{id}/billable-usage` response (2026-09-24): identifiers are
+placeholders and quantities are invented, but the field set is real. That
+capture confirmed that `EffectiveCost`, `ContractedCost` and `ListCost` are all
+populated mid-period. The v2 `billable/usage` endpoint is a restricted alpha
+that answers 403 (code 1171) even to a Billing Read token, so do not switch
+back to it until Cloudflare enables it for the account.

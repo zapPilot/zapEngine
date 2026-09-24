@@ -121,7 +121,7 @@ describe('coverage completion', () => {
 
     expect(cloudflareRow()).toMatchObject({
       BillingCurrency: 'USD',
-      x_BillableMetricId: 'r2_storage_gb_hours',
+      ServiceName: 'R2 Data Storage (First 10GB-Month included)',
     });
     const emptyUsage = cloudflareUsageResponse([]);
     expect(emptyUsage.status).toBe(200);
