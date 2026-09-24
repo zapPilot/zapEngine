@@ -103,11 +103,10 @@ const copy: GeneratedSocialCopy = {
   threads: { hookType: 'contrarian', text: '市場轉向，大家怎麼看？' },
   rednote: {
     hookType: 'question',
-    title: '小紅書標題',
     body: '小紅書正文',
     hashtags: ['以太坊', '美聯儲', '投資'],
   },
-  youtube: { hookType: 'explainer', title: '市場轉向的三個訊號' },
+  youtube: { hookType: 'explainer' },
 };
 const CTA = '官網 https://www.zap-pilot.org';
 const originalExitCode = process.exitCode;
