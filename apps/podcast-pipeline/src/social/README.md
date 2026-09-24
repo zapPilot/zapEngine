@@ -143,9 +143,9 @@ The platform transports run sequentially and can therefore complete seconds or
 a few minutes apart. That is one release cycle, not staggered scheduling.
 
 Reach optimization may change article-level frequency, candidate article slots,
-copy, or explicitly registered packaging experiments. It must not derive a
-separate publish budget or time from each platform. Changing the fixed language
-mapping is now a product-contract change rather than an active optimization arm.
+or body copy. It must not derive a separate publish budget, time, or title from
+each platform. Changing the fixed language mapping is now a product-contract
+change rather than an active optimization arm.
 
 The long-lived daemon is constrained to the code-owned 09:00–23:00 JST watch
 window because Rednote and X drive local browser sessions. The explicit
@@ -453,12 +453,19 @@ frozen merely because historical keys still exist in the database. Stale active
 strategy rows for language lanes no longer present in
 `SOCIAL_LANGUAGE_BY_PLATFORM` are retired by the normal strategy refresh.
 
-Packaging experiments remain separate. `packaging-experiments.ts` currently
-registers only `rednote-packaging-v1-zh-Hant`; concluding the language experiment
-does not implicitly activate a new X, Threads, or YouTube packaging treatment.
-Any packaging treatment is report-only with respect to release semantics: it
-cannot change release lanes, article timestamps, media readiness, topic
-eligibility, or safety gates.
+Platform-specific packaging experiments are currently disabled.
+`packaging-experiments.ts` deliberately returns no assignments.
+
+Visible titles have one source of truth: the selected
+`episode_localizations.title`. Rednote and YouTube publish that title directly;
+X and Threads have no separate title field. Secondary-language localization
+titles are pure translations of the canonical title, not platform rewrites.
+
+New canonical Traditional Chinese titles are constrained upstream to 20 Unicode
+characters so Rednote can publish the exact same title without truncation.
+`social_publish_jobs.legacy_title_override` exists only for the finite set of
+Rednote jobs that were already queued with >20-character titles when this
+contract changed. New jobs must leave it null; it is not a new title strategy.
 
 ## Account follower snapshots
 
