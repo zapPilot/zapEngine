@@ -33,32 +33,8 @@ export interface PackagingAssignment {
  * means replacing its entry, not appending beside it -- a second rednote entry
  * would simply never be reached.
  */
-export const PACKAGING_EXPERIMENTS: readonly PackagingExperiment[] = [
-  // v2 supersedes `rednote-packaging-v1-zh-Hant` (direct / hook_first), which
-  // ran 2026-08-31..09-21 and separated only on dead rate, never on reach:
-  // both arms sat inside the same ~100-180 view band. The v1 assignments stay
-  // in `social_experiment_assignments` as the pre-policy baseline. v2 exists
-  // so the headline policy's effect is attributable rather than confounded
-  // with every other change in the same release; its arms test which of the
-  // policy's three axes moves a post out of the first traffic pool.
-  {
-    key: 'rednote-headline-v2-zh-Hant',
-    platform: 'rednote',
-    languageCode: 'zh-Hant',
-    variants: [
-      {
-        variant: 'stakes',
-        instruction:
-          "Write the Rednote title so the reader outside this industry can tell what is at stake for them -- their money, prices, job, or country. Keep the episode's named subject and invent no certainty.",
-      },
-      {
-        variant: 'reversal',
-        instruction:
-          "Write the Rednote title around the grounded reversal in the episode -- what turned out not to be true, or the opposite of what the reader expects. Keep the episode's named subject and overstate nothing.",
-      },
-    ],
-  },
-];
+export const PACKAGING_EXPERIMENTS: readonly PackagingExperiment[] = [];
+
 
 export function activePackagingExperiment(
   platform: SocialPlatform,
