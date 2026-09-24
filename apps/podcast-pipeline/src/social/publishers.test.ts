@@ -55,11 +55,10 @@ const copy: GeneratedSocialCopy = {
   threads: { hookType: 'contrarian', text: '市場正在改變嗎？' },
   rednote: {
     hookType: 'question',
-    title: '市場更新',
     body: '正文',
     hashtags: ['市場', '投資', '宏觀'],
   },
-  youtube: { hookType: 'explainer', title: '市場更新' },
+  youtube: { hookType: 'explainer' },
 };
 
 beforeEach(() => {
