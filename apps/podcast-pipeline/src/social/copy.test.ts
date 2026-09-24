@@ -199,27 +199,7 @@ describe('generateSocialCopy', () => {
     expect(weightedTweetLength(published)).toBe(280);
   });
 
-  it('does not send the publisher headline back through social title generation', async () => {
-    llmMocks.createOpenRouterChatCompletion.mockResolvedValue(
-      socialCompletion(socialCopyJson('原始標題文案')),
-    );
-
-    await generateSocialCopy({
-      episode: { ...ZH_EPISODE, sourceTitle: 'Nvidia buys HuggingFace' },
-    });
-
-    const prompt = String(
-      llmMocks.createOpenRouterChatCompletion.mock.calls[0]?.[1]?.messages.at(
-        -1,
-      )?.content,
-    );
-    expect(prompt).toContain('Canonical title (already finalized; do not rewrite it):');
-    expect(prompt).toContain('Episode title');
-    expect(prompt).not.toContain('Publisher headline');
-    expect(prompt).not.toContain('Nvidia buys HuggingFace');
-  });
-
-  it('omits the publisher headline block for an episode without a source title', async () => {
+  it('sends only the finalized canonical title to social copy generation', async () => {
     llmMocks.createOpenRouterChatCompletion.mockResolvedValue(
       socialCompletion(socialCopyJson('沒有原始標題')),
     );
@@ -231,6 +211,8 @@ describe('generateSocialCopy', () => {
         -1,
       )?.content,
     );
+    expect(prompt).toContain('Canonical title (already finalized; do not rewrite it):');
+    expect(prompt).toContain('Episode title');
     expect(prompt).not.toContain('Publisher headline');
   });
 
