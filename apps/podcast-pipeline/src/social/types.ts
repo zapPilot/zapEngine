@@ -104,13 +104,15 @@ export interface GeneratedSocialCopy {
   };
   rednote?: {
     hookType: SocialHookType;
-    title: string;
+    /** @deprecated Ignored. The platform title is always episode.title. */
+    title?: string;
     body: string;
     hashtags: string[];
   };
   youtube?: {
     hookType: SocialHookType;
-    title: string;
+    /** @deprecated Ignored. The platform title is always episode.title. */
+    title?: string;
   };
 }
 
