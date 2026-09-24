@@ -285,8 +285,8 @@ describe('createSocialPublishJobs', () => {
 
     for (const blank of [
       {
-        copy: { ...copy, youtube: { ...copy.youtube!, title: '   ' } },
-        episode,
+        copy,
+        episode: { ...episode, title: '   ' },
       },
       { copy, episode: { title: '市場更新', summary: '   ' } },
     ]) {
@@ -303,7 +303,7 @@ describe('createSocialPublishJobs', () => {
     }
   });
 
-  it('builds Rednote with its native title field and no off-platform CTA', async () => {
+  it('builds Rednote with the canonical episode title and no off-platform CTA', async () => {
     const [job] = createSocialPublishJobs({
       platforms: ['rednote'],
       copy,
@@ -314,22 +314,22 @@ describe('createSocialPublishJobs', () => {
 
     await job?.publish();
     expect(mocks.publishRednote).toHaveBeenCalledWith({
-      title: copy.rednote!.title,
+      title: episode.title,
       hashtags: copy.rednote!.hashtags,
       videoPath: VIDEO_PATH,
     });
   });
 
-  it('rejects Rednote before publishing when the copy carries no title', () => {
+  it('rejects Rednote before publishing when the canonical episode title is blank', () => {
     expect(() =>
       createSocialPublishJobs({
         platforms: ['rednote'],
-        copy: { ...copy, rednote: { ...copy.rednote!, title: '' } },
-        episode,
+        copy,
+        episode: { ...episode, title: '   ' },
         videoUrl: VIDEO_URL,
         videoPath: VIDEO_PATH,
       }),
-    ).toThrow('Rednote publishing requires a generated title.');
+    ).toThrow('Rednote publishing requires the canonical episode title.');
 
     expect(mocks.createPlaywrightRednotePublisher).not.toHaveBeenCalled();
   });
