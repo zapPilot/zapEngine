@@ -11,10 +11,11 @@ describe('Rednote canonical title policy', () => {
   it('forbids generating a second platform-specific title', async () => {
     const prompt = await readFile(REDNOTE_PROMPT, 'utf8');
 
-    expect(prompt).toContain(
+    const normalizedPrompt = prompt.replace(/\s+/gu, ' ');
+    expect(normalizedPrompt).toContain(
       'The episode title is already finalized upstream and is published unchanged',
     );
-    expect(prompt).toContain(
+    expect(normalizedPrompt).toContain(
       'do not generate, rewrite, shorten, or optimize another Rednote-specific title',
     );
     expect(prompt).not.toContain('`title`: a curiosity-driven consumer title');
