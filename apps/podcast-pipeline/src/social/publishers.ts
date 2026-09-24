@@ -140,9 +140,7 @@ function createRednoteJob(input: SocialPublishJobsInput): SocialPublishJob {
     input.titleOverrideByPlatform?.[platform]?.trim() || composed.title;
   const { hashtags } = composed;
   if (!title?.trim()) {
-    throw new Error(
-      'Rednote publishing requires the canonical episode title.',
-    );
+    throw new Error('Rednote publishing requires the canonical episode title.');
   }
   const titleLength = Array.from(title).length;
   if (titleLength > 20) {
