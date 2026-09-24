@@ -1433,6 +1433,7 @@ async function publishLanguageBatch(
       platform: job.platform,
       experimentKey: job.experiment_key,
       experimentVariant: job.experiment_variant,
+      titleOverride: job.legacy_title_override ?? null,
     })),
     episode: preparedCopy.episode,
     packagingByPlatform: preparedCopy.packagingByPlatform,
