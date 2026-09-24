@@ -37,7 +37,47 @@ function fixture(rule: string, asset?: string) {
           enabled: true,
           trades_7d: 1,
           max_trades_7d: 3,
-          cooldown_skipped_rules: ['other_rule'],
+          portfolio_rule_matches: [
+            {
+              rule_name: 'cross_down_exit',
+              matched: true,
+              would_have_acted_action: 'sell',
+              suppressed_by: null,
+            },
+            {
+              rule_name: 'cross_up_equal_weight',
+              matched: true,
+              would_have_acted_action: 'buy',
+              suppressed_by: null,
+            },
+            {
+              rule_name: 'fgi_downshift_dca_sell',
+              matched: false,
+              would_have_acted_action: null,
+              suppressed_by: null,
+            },
+          ],
+          cooldown_skipped_rules: [
+            {
+              rule: 'cross_down_exit',
+              last_executed_at: '2026-08-10',
+              cooldown_days: 30,
+              remaining_days: 18,
+            },
+            {
+              rule: 'cross_up_equal_weight',
+              cooldown_days: 30,
+              remaining_days: 25,
+              trigger_symbols: ['BTC'],
+              symbol_cooldowns: [
+                {
+                  symbol: 'BTC',
+                  last_executed_at: '2026-08-17',
+                  remaining_days: 25,
+                },
+              ],
+            },
+          ],
         },
       },
     },
@@ -64,11 +104,11 @@ describe('suggestion evidence', () => {
   });
 
   it('derives guard state and allocation rows', () => {
-    const data = fixture('cross_up_equal_weight');
+    const data = fixture('dma_overextension_dca_sell');
     expect(deriveGuardStates(data)).toMatchObject({
       cooldown: { active: true, remainingDays: 2 },
       quota: { trades7d: 1, maxTrades7d: 3 },
-      skippedRules: ['other_rule'],
+      skippedRules: ['cross_down_exit', 'cross_up_equal_weight'],
     });
     expect(deriveAllocationDiff(data)).toEqual({
       before: [
@@ -80,6 +120,24 @@ describe('suggestion evidence', () => {
         { label: 'ETH', value: 80 },
       ],
     });
+  });
+
+  it('keeps evidence when matching rules were skipped for cooldown', () => {
+    const data = fixture('regime_no_signal_hold');
+    data.action.reason_code = 'regime_no_signal';
+    expect(deriveTriggerEvidence(data)).toMatchObject({
+      kind: 'none',
+      ruleName: 'regime_no_signal_hold',
+      ruleLabel: 'Regime no signal',
+    });
+    expect(deriveGuardStates(data).skippedRules).toEqual([
+      'cross_down_exit',
+      'cross_up_equal_weight',
+    ]);
+    expect(deriveAllocationDiff(data).before).toEqual([
+      { label: 'BTC', value: 40 },
+      { label: 'STABLE', value: 60 },
+    ]);
   });
 
   it('uses reason-code evidence when no matched rule is present', () => {

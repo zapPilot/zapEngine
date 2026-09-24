@@ -289,6 +289,158 @@ describe('AnalyticsClientService', () => {
       },
     };
 
+    const ruleBasedSuggestion = {
+      as_of: '2026-09-24T01:45:12.345678Z',
+      config_id: 'dma_fgi_portfolio_rules_default',
+      config_display_name: 'DMA FGI Portfolio Rules',
+      strategy_id: 'dma_fgi_portfolio_rules',
+      action: {
+        status: 'action_required',
+        required: true,
+        kind: 'rebalance',
+        reason_code: 'portfolio_eth_btc_ratio_rotation_to_eth',
+        transfers: [
+          { from_bucket: 'btc', to_bucket: 'eth', amount_usd: 4200 },
+          { from_bucket: 'stable', to_bucket: 'eth', amount_usd: 1600 },
+        ],
+      },
+      context: {
+        market: {
+          date: '2026-09-24',
+          token_price: { btc: 112000, eth: 4300, spy: 655 },
+          sentiment: 39,
+          sentiment_label: 'fear',
+          macro_fear_greed: {
+            score: 44,
+            label: 'fear',
+            source: 'cnn',
+            updated_at: '2026-09-23T21:00:00Z',
+            raw_rating: 'fear',
+          },
+        },
+        signal: {
+          id: 'dma_fgi_flat_minimum_signal',
+          regime: 'fear',
+          raw_value: 39,
+          confidence: 1,
+          details: {
+            dma: {
+              dma_200: 98000,
+              distance: 0.143,
+              zone: 'above',
+              cross_event: 'cross_up',
+              cooldown_active: false,
+              cooldown_remaining_days: 0,
+              cooldown_blocked_zone: null,
+              fgi_slope: -0.02,
+              outer_dma_asset: 'BTC',
+            },
+            ratio: {
+              ratio: 0.0384,
+              ratio_dma_200: 0.0371,
+              distance: 0.035,
+              zone: 'above',
+              cross_event: 'cross_up',
+              cooldown_active: false,
+              cooldown_remaining_days: 0,
+              cooldown_blocked_zone: null,
+            },
+          },
+        },
+        portfolio: {
+          spot_usd: 8400,
+          stable_usd: 1600,
+          total_value: 10000,
+          allocation: { spot: 0.84, stable: 0.16 },
+          asset_allocation: {
+            btc: 0.42,
+            eth: 0.42,
+            spy: 0,
+            stable: 0.16,
+            alt: 0,
+          },
+          spot_asset: null,
+          total_assets_usd: 10000,
+          total_debt_usd: 0,
+          total_net_usd: 10000,
+        },
+        target: {
+          allocation: { btc: 0, eth: 1, spy: 0, stable: 0, alt: 0 },
+        },
+        strategy: {
+          stance: 'sell',
+          reason_code: 'portfolio_eth_btc_ratio_rotation_to_eth',
+          rule_group: 'cross',
+          details: {
+            allocation_name: 'portfolio_eth_btc_ratio_rotation_to_eth',
+            decision_score: 1,
+            portfolio_rule_assets: ['BTC', 'ETH'],
+            matched_rule_name: 'eth_btc_ratio_rotation',
+            portfolio_rule_matches: [
+              {
+                rule_name: 'cross_down_exit',
+                matched: true,
+                would_have_acted_action: 'sell',
+                suppressed_by: null,
+              },
+              {
+                rule_name: 'cross_up_equal_weight',
+                matched: true,
+                would_have_acted_action: 'buy',
+                suppressed_by: null,
+              },
+              {
+                rule_name: 'eth_btc_ratio_rotation',
+                matched: true,
+                would_have_acted_action: 'sell',
+                suppressed_by: null,
+              },
+              {
+                rule_name: 'eth_btc_deviation_dca',
+                matched: false,
+                would_have_acted_action: null,
+                suppressed_by: null,
+              },
+              {
+                rule_name: 'dma_overextension_dca_sell',
+                matched: true,
+                would_have_acted_action: 'sell',
+                suppressed_by: 'eth_btc_ratio_rotation',
+              },
+              {
+                rule_name: 'fgi_downshift_dca_sell',
+                matched: false,
+                would_have_acted_action: null,
+                suppressed_by: null,
+              },
+            ],
+            cooldown_skipped_rules: [
+              {
+                rule: 'cross_down_exit',
+                last_executed_at: '2026-09-10',
+                cooldown_days: 30,
+                remaining_days: 16,
+              },
+              {
+                rule: 'cross_up_equal_weight',
+                cooldown_days: 30,
+                remaining_days: 5,
+                trigger_symbols: ['BTC'],
+                symbol_cooldowns: [
+                  {
+                    symbol: 'BTC',
+                    last_executed_at: '2026-08-30',
+                    remaining_days: 5,
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      },
+      data_freshness: null,
+    };
+
     it('returns a validated narrow response', async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
@@ -296,6 +448,18 @@ describe('AnalyticsClientService', () => {
       });
       const result = await service.getDailySuggestion('user-1');
       expect(result).not.toHaveProperty('future');
+    });
+
+    it('accepts the rule-based strategy payload with rule-trace diagnostics', async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(ruleBasedSuggestion),
+      });
+      const result = await service.getDailySuggestion('user-1');
+      const details = result.context.strategy.details;
+      expect(details?.matched_rule_name).toBe('eth_btc_ratio_rotation');
+      expect(details).not.toHaveProperty('portfolio_rule_matches');
+      expect(details).not.toHaveProperty('cooldown_skipped_rules');
     });
 
     it('retries one timeout and succeeds', async () => {

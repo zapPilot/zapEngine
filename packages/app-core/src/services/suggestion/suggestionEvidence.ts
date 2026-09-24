@@ -17,6 +17,13 @@ const indicatorSchema = z
     fgi_slope: optionalNumber,
   })
   .nullish();
+const cooldownSkippedRuleSchema = z.looseObject({
+  rule: z.string(),
+  cooldown_days: optionalNumber,
+  remaining_days: optionalNumber,
+  last_executed_at: optionalString,
+  trigger_symbols: z.array(z.string()).nullish(),
+});
 
 const suggestionEvidenceSchema = z.looseObject({
   action: z.looseObject({ reason_code: z.string() }),
@@ -50,7 +57,7 @@ const suggestionEvidenceSchema = z.looseObject({
       details: z
         .looseObject({
           matched_rule_name: optionalString,
-          cooldown_skipped_rules: z.array(z.string()).nullish(),
+          cooldown_skipped_rules: z.array(cooldownSkippedRuleSchema).nullish(),
           enabled: z.boolean().nullish(),
           max_trades_7d: optionalNumber,
           max_trades_30d: optionalNumber,
@@ -197,7 +204,8 @@ export function deriveGuardStates(input: unknown): GuardStates {
             maxTrades30d: strategy.max_trades_30d ?? null,
             nextTradeDate: strategy.next_trade_date ?? null,
           },
-    skippedRules: strategy?.cooldown_skipped_rules ?? [],
+    skippedRules:
+      strategy?.cooldown_skipped_rules?.map(({ rule }) => rule) ?? [],
   };
 }
 
