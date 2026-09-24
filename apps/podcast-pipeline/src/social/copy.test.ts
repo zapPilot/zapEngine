@@ -356,6 +356,7 @@ describe('generateSocialCopy', () => {
         body: 'ekom buscando 燃燒',
         hashtags: ['以太坊', '質押', '投資'],
       },
+      youtube: { hookType: 'risk_warning' },
     });
     llmMocks.createOpenRouterChatCompletion
       .mockResolvedValueOnce(socialCompletion('{bad json'))
@@ -703,6 +704,7 @@ describe('parseGeneratedSocialCopy', () => {
           body: '大家都在看 ETH，但這集真正想拆的是背後的利率與流動性脈絡。',
           hashtags: ['#以太坊', '美聯儲', '#投資'],
         },
+        youtube: { hookType: 'explainer' },
       }),
     );
 
@@ -820,6 +822,7 @@ describe('parseGeneratedSocialCopy', () => {
             body: '正文內容',
             hashtags: ['以太坊', '质押', '加密货币'],
           },
+          youtube: { hookType: 'explainer' },
         }),
       ).rednote!.hashtags,
     ).toEqual(['以太坊', '質押', '加密貨幣']);
@@ -850,6 +853,7 @@ describe('parseGeneratedSocialCopy', () => {
             body: 'ekom buscando 燃燒',
             hashtags: ['以太坊', '質押', '投資'],
           },
+          youtube: { hookType: 'risk_warning' },
         }),
       ),
     ).toThrow(/Latin letters; the maximum is 35%/);
@@ -908,6 +912,7 @@ describe('parseGeneratedSocialCopy', () => {
             body: 'body',
             hashtags: ['a', 'b', 'c'],
           },
+          youtube: { hookType: 'explainer' },
         }),
       ),
     ).toThrow();
