@@ -789,7 +789,11 @@ ${scriptPayload('「软件市场进入新阶段」', '生成講稿')}
       })
       .mockResolvedValueOnce({
         choices: [
-          { message: { content: scriptPayload('市場流動性重新定價', 'Script') } },
+          {
+            message: {
+              content: scriptPayload('市場流動性重新定價', 'Script'),
+            },
+          },
         ],
         provider: 'Cloudflare',
         model: 'test/model',
