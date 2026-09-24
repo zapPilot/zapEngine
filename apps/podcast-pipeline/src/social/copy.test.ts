@@ -353,11 +353,9 @@ describe('generateSocialCopy', () => {
       threads: { hookType: 'explainer', text: 'staking burn discussion' },
       rednote: {
         hookType: 'risk_warning',
-        title: 'qual Poo 燃換 LE?',
         body: 'ekom buscando 燃燒',
         hashtags: ['以太坊', '質押', '投資'],
       },
-      youtube: { hookType: 'risk_warning', title: 'staking burn' },
     });
     llmMocks.createOpenRouterChatCompletion
       .mockResolvedValueOnce(socialCompletion('{bad json'))
@@ -702,11 +700,9 @@ describe('parseGeneratedSocialCopy', () => {
         threads: { hookType: 'question', text: 'ETH 這波究竟在交易什麼？' },
         rednote: {
           hookType: 'contrarian',
-          title: 'ETH到底在漲什麼？',
           body: '大家都在看 ETH，但這集真正想拆的是背後的利率與流動性脈絡。',
           hashtags: ['#以太坊', '美聯儲', '#投資'],
         },
-        youtube: { hookType: 'explainer', title: 'ETH 這波到底在交易什麼' },
       }),
     );
 
@@ -821,11 +817,9 @@ describe('parseGeneratedSocialCopy', () => {
           threads: { hookType: 'question', text: '有效討論文案？' },
           rednote: {
             hookType: 'explainer',
-            title: '標題',
             body: '正文內容',
             hashtags: ['以太坊', '质押', '加密货币'],
           },
-          youtube: { hookType: 'explainer', title: '有效影片標題' },
         }),
       ).rednote!.hashtags,
     ).toEqual(['以太坊', '質押', '加密貨幣']);
@@ -853,11 +847,9 @@ describe('parseGeneratedSocialCopy', () => {
           threads: { hookType: 'explainer', text: 'staking burn discussion' },
           rednote: {
             hookType: 'risk_warning',
-            title: 'qual Poo 燃換 LE?',
             body: 'ekom buscando 燃燒',
             hashtags: ['以太坊', '質押', '投資'],
           },
-          youtube: { hookType: 'risk_warning', title: 'staking burn' },
         }),
       ),
     ).toThrow(/Latin letters; the maximum is 35%/);
@@ -913,11 +905,9 @@ describe('parseGeneratedSocialCopy', () => {
           threads: { hookType: 'question', text: 'threads copy?' },
           rednote: {
             hookType: 'explainer',
-            title: 'title',
             body: 'body',
             hashtags: ['a', 'b', 'c'],
           },
-          youtube: { hookType: 'explainer', title: 'video title' },
         }),
       ),
     ).toThrow();
