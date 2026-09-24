@@ -954,7 +954,7 @@ ${scriptPayload('「软件市场进入新阶段」', '生成講稿')}
 
     const title = 'Sensitive article title';
     const articleText = 'Sensitive article body that must not be logged';
-    const generatedTitle = 'Sensitive generated title that must not be logged';
+    const generatedTitle = 'Sensitive title';
     const generatedScript =
       'Sensitive generated script that must not be logged';
     const generatedPayload = scriptPayload(generatedTitle, generatedScript);
