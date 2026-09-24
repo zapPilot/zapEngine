@@ -27,11 +27,10 @@ const generated: GeneratedSocialCopy = {
   threads: { hookType: 'explainer', text: 'AI 產生的 Threads 文案' },
   rednote: {
     hookType: 'contrarian',
-    title: 'AI 產生標題',
     body: 'AI 產生的正文',
     hashtags: ['以太坊', '質押', '投資'],
   },
-  youtube: { hookType: 'explainer', title: 'AI 產生的 YouTube 標題' },
+  youtube: { hookType: 'explainer' },
 };
 const published: GeneratedSocialCopy = {
   topic: 'macro',
@@ -39,11 +38,10 @@ const published: GeneratedSocialCopy = {
   threads: { hookType: 'question', text: '編輯後的 Threads 文案？２０２６' },
   rednote: {
     hookType: 'question',
-    title: '利率真的轉向？',
     body: '編輯後的正文含數字２',
     hashtags: ['總經', '利率', '市場事件'],
   },
-  youtube: { hookType: 'question', title: '編輯後的 YouTube 標題？' },
+  youtube: { hookType: 'question' },
 };
 beforeEach(() => {
   vi.clearAllMocks();
@@ -156,8 +154,8 @@ describe('buildSocialPostRecord', () => {
       platform: 'youtube',
       postUrl: 'https://www.youtube.com/watch?v=video-1',
       platformPostId: 'video-1',
-      generatedTitle: 'AI 產生的 YouTube 標題',
-      publishedTitle: '編輯後的 YouTube 標題？',
+      generatedTitle: '市場更新',
+      publishedTitle: '市場更新',
       generatedBody:
         '完整說明\n\n更多市場洞察與工具：https://www.zap-pilot.org',
       publishedBody:
@@ -167,7 +165,7 @@ describe('buildSocialPostRecord', () => {
     });
   });
 
-  it('projects Rednote titles, hashtags, and full video duration', () => {
+  it('projects the canonical Rednote title, hashtags, and full video duration', () => {
     expect(
       buildSocialPostRecord({
         episodeId: 'episode-1',
@@ -179,12 +177,32 @@ describe('buildSocialPostRecord', () => {
       }),
     ).toMatchObject({
       platform: 'rednote',
-      generatedTitle: 'AI 產生標題',
-      publishedTitle: '利率真的轉向？',
+      generatedTitle: '市場更新',
+      publishedTitle: '市場更新',
       generatedBody: 'AI 產生的正文',
       publishedBody: '編輯後的正文含數字２',
       hashtags: ['總經', '利率', '市場事件'],
       videoDurationSec: 321,
+    });
+  });
+
+  it('records the actual legacy Rednote override without rewriting generated truth', () => {
+    expect(
+      buildSocialPostRecord({
+        episodeId: 'episode-1',
+        platform: 'rednote',
+        result: result(),
+        snapshot,
+        episode,
+        titleOverride: '舊佇列短標題',
+        videoDurationSeconds: 321,
+      }),
+    ).toMatchObject({
+      generatedTitle: '市場更新',
+      publishedTitle: '舊佇列短標題',
+      contentFeatures: expect.objectContaining({
+        titleChars: Array.from('舊佇列短標題').length,
+      }),
     });
   });
 
@@ -273,7 +291,7 @@ describe('createSocialPostPersister', () => {
     await persist({ platform: 'youtube', result: result() });
     expect(insert).toHaveBeenCalledWith(
       expect.objectContaining({
-        generatedTitle: 'AI 產生的 YouTube 標題',
+        generatedTitle: '市場更新',
         generatedBody:
           '完整說明\n\n更多市場洞察與工具：https://www.zap-pilot.org',
       }),

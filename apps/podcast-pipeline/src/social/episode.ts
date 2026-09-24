@@ -94,10 +94,6 @@ export function buildSocialEpisode(input: {
     id: input.episode.id,
     languageCode,
     title: input.localization.title.trim() || sourceTitle || '',
-    // Carried separately from `title` on purpose: script stage overwrites the
-    // localization title with an LLM-written one, so by the time social copy
-    // runs the publisher's own headline is only reachable here.
-    ...(sourceTitle ? { sourceTitle } : {}),
     description,
     summary: summarize(summarySource),
     transcript,

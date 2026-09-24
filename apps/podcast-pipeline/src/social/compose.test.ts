@@ -9,11 +9,10 @@ const copy: GeneratedSocialCopy = {
   threads: { hookType: 'contrarian', text: '利率轉向，真的開始了嗎？' },
   rednote: {
     hookType: 'question',
-    title: '利率真的轉向？',
     body: '這集拆解了三個訊號。',
     hashtags: ['宏觀經濟', '市場結構', '產業研究'],
   },
-  youtube: { hookType: 'explainer', title: '聯準會的下一步' },
+  youtube: { hookType: 'explainer' },
 };
 
 const episode: Pick<SocialEpisode, 'title' | 'summary' | 'description'> = {
@@ -38,9 +37,9 @@ describe('composeSocialContent', () => {
     });
   });
 
-  it('maps Rednote onto its own title field with no off-platform CTA', () => {
+  it('uses the canonical episode title for Rednote with no off-platform CTA', () => {
     expect(composeSocialContent('rednote', { copy, episode })).toEqual({
-      title: '利率真的轉向？',
+      title: '聯準會的下一步',
       body: '這集拆解了三個訊號。',
       hashtags: ['宏觀經濟', '市場結構', '產業研究'],
       hookType: 'question',
@@ -63,7 +62,7 @@ describe('composeSocialContent', () => {
     ).toBe('本集摘要。\n\n更多市場洞察與工具：https://www.zap-pilot.org');
   });
 
-  it('preserves the validated generated YouTube title and truncates the description to 4500', () => {
+  it('uses the canonical episode title for YouTube and truncates the description to 4500', () => {
     const composed = composeSocialContent('youtube', {
       copy,
       episode: {
@@ -72,7 +71,7 @@ describe('composeSocialContent', () => {
         description: '   ',
       },
     });
-    expect(composed.title).toBe('聯準會的下一步');
+    expect(composed.title).toBe(`  ${'界'.repeat(120)}  `);
     expect(composed.body.startsWith('S'.repeat(4_500))).toBe(true);
     expect(composed.body).toContain('https://www.zap-pilot.org');
   });

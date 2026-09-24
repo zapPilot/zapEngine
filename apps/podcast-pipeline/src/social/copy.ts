@@ -12,7 +12,6 @@ import {
   unwrapNestedJsonPayload,
 } from '../services/llm.js';
 import { convertTextToZhTW } from '../services/opencc.js';
-import { describeHeadlineQualityIssue } from './headline-quality.js';
 import {
   describeSensitiveMatches,
   findSensitiveTerms,
@@ -37,7 +36,6 @@ import {
 } from './types.js';
 
 const X_TOTAL_MAX_WEIGHTED_LENGTH = 280;
-export const YOUTUBE_TITLE_MAX_CHARACTERS = 100;
 const X_URL_WEIGHT = 23;
 const URL_PATTERN = /https?:\/\/[^\s]+/giu;
 const SINGLE_URL_PATTERN = /https?:\/\/[^\s]+/iu;
@@ -167,7 +165,6 @@ function threadsTextSchema(
   });
 }
 
-const REDNOTE_TITLE_MAX_CHARACTERS = 20;
 const RednoteBodySchema = TraditionalChineseLine.superRefine(
   (body, context) => {
     if (!SINGLE_URL_PATTERN.test(body)) return;
@@ -192,32 +189,9 @@ const ALL_COPY_BLOCKS: SocialCopyBlocks = {
   youtube: true,
 };
 
-/**
- * The publisher's own headline for the source article, when the episode
- * carries one. Threaded down to the two title fields so a title can be
- * rejected for being that headline reworded; everything else in the schema
- * ignores it.
- */
-interface HeadlineContext {
-  publisherHeadline?: string;
-}
-
-function addHeadlineQualityIssue(
-  title: string,
-  context: z.RefinementCtx,
-  headline: HeadlineContext,
-): void {
-  const issue = describeHeadlineQualityIssue({
-    title,
-    publisherHeadline: headline.publisherHeadline,
-  });
-  if (issue) context.addIssue({ code: 'custom', message: issue });
-}
-
 function generatedSocialCopySchema(
   languageCode: SocialLanguageCode,
   blocks: SocialCopyBlocks,
-  headline: HeadlineContext = {},
 ) {
   const line = languageLine(languageCode);
   const x = z.object({
@@ -228,19 +202,11 @@ function generatedSocialCopySchema(
     hookType: z.enum(SOCIAL_HOOK_TYPES),
     text: threadsTextSchema(languageCode),
   });
+  // Unknown legacy fields (including the retired per-platform title) are
+  // stripped by Zod. Durable queued payloads can drain safely, while the typed
+  // contract and generation prompt no longer expose a second title.
   const rednote = z.object({
     hookType: z.enum(SOCIAL_HOOK_TYPES),
-    title: line.superRefine((title, context) => {
-      const length = Array.from(title).length;
-      if (length > REDNOTE_TITLE_MAX_CHARACTERS) {
-        context.addIssue({
-          code: 'custom',
-          message: `Rednote title is ${length} characters; the maximum is ${REDNOTE_TITLE_MAX_CHARACTERS}.`,
-        });
-        return;
-      }
-      addHeadlineQualityIssue(title, context, headline);
-    }),
     body:
       languageCode === 'zh-Hant'
         ? RednoteBodySchema
@@ -249,18 +215,6 @@ function generatedSocialCopySchema(
   });
   const youtube = z.object({
     hookType: z.enum(SOCIAL_HOOK_TYPES),
-    title: line.superRefine((title, context) => {
-      addNoUrlIssue(title, context);
-      const length = Array.from(title).length;
-      if (length > YOUTUBE_TITLE_MAX_CHARACTERS) {
-        context.addIssue({
-          code: 'custom',
-          message: `YouTube title is ${length} characters; the maximum is ${YOUTUBE_TITLE_MAX_CHARACTERS}.`,
-        });
-        return;
-      }
-      addHeadlineQualityIssue(title, context, headline);
-    }),
   });
   return z
     .object({
@@ -283,10 +237,8 @@ function generatedSocialCopySchema(
       const combined = [
         copy.x?.text,
         copy.threads?.text,
-        copy.rednote?.title,
         copy.rednote?.body,
         ...(copy.rednote?.hashtags ?? []),
-        copy.youtube?.title,
       ]
         .filter((value): value is string => Boolean(value))
         .join('\n');
@@ -356,11 +308,10 @@ function addNoUrlIssue(value: string, context: z.RefinementCtx): void {
 // `describeValidationFailure` into a regeneration attempt. Issues are reported
 // per field so the model is told which one to restate.
 function addRednoteSensitiveTermIssues(
-  copy: { rednote: { title: string; body: string; hashtags: string[] } },
+  copy: { rednote: { body: string; hashtags: string[] } },
   context: z.RefinementCtx,
 ): void {
   const fields: { path: (string | number)[]; value: string }[] = [
-    { path: ['rednote', 'title'], value: copy.rednote.title },
     { path: ['rednote', 'body'], value: copy.rednote.body },
     ...copy.rednote.hashtags.map((tag, index) => ({
       path: ['rednote', 'hashtags', index],
@@ -388,13 +339,8 @@ export function parseGeneratedSocialCopy(
   raw: string,
   languageCode: SocialLanguageCode = 'zh-Hant',
   blocks: SocialCopyBlocks = ALL_COPY_BLOCKS,
-  headline: HeadlineContext = {},
 ): GeneratedSocialCopy {
-  const parsed = generatedSocialCopySchema(
-    languageCode,
-    blocks,
-    headline,
-  ).parse(
+  const parsed = generatedSocialCopySchema(languageCode, blocks).parse(
     unwrapNestedJsonPayload(JSON.parse(stripJsonFence(raw.trim())), [
       'x',
       'threads',
@@ -436,7 +382,6 @@ export async function generateSocialCopy(input: {
   // gate checks.
   const [
     commonRules,
-    headlineRules,
     xRules,
     threadsRules,
     rednoteRules,
@@ -445,10 +390,6 @@ export async function generateSocialCopy(input: {
     languageRules,
   ] = await Promise.all([
     readPrompt('editorial.md'),
-    // Generated from .agents/skills/social-headline/HEADLINE.md and held in
-    // sync by `pnpm lint headline-policy`; edit the canonical file, not this
-    // one's source.
-    readPrompt('headline.md'),
     blocks.x ? readPrompt('x.md') : Promise.resolve(''),
     blocks.threads ? readPrompt('threads.md') : Promise.resolve(''),
     blocks.rednote ? readPrompt('rednote.md') : Promise.resolve(''),
@@ -476,7 +417,6 @@ export async function generateSocialCopy(input: {
             role: 'system',
             content: buildSystemPrompt(
               commonRules,
-              headlineRules,
               xRules,
               threadsRules,
               `${rednoteRules}\n\n${rednoteRiskRules}`,
@@ -514,16 +454,18 @@ export async function generateSocialCopy(input: {
         throw new Error('OpenRouter returned empty social copy.');
       }
 
-      parsed = parseGeneratedSocialCopy(content, languageCode, blocks, {
-        publisherHeadline: input.episode.sourceTitle,
-      });
+      parsed = parseGeneratedSocialCopy(content, languageCode, blocks);
       // The term lists ran inside the schema above. This is the framing half of
       // the gate, and it has to be here rather than in the schema because it is
       // an LLM call: a verdict of risk becomes the next attempt's retry reason,
       // so the model rewrites the note instead of the release failing.
       if (languageCode === 'zh-Hant' && parsed.rednote) {
         await assertRednoteSemanticRisk({
-          rednote: parsed.rednote,
+          rednote: {
+            title: input.episode.title,
+            body: parsed.rednote.body,
+            hashtags: parsed.rednote.hashtags,
+          },
           episode: input.episode,
         });
       }
@@ -564,7 +506,6 @@ async function readPrompt(filename: string): Promise<string> {
 
 function buildSystemPrompt(
   commonRules: string,
-  headlineRules: string,
   xRules: string,
   threadsRules: string,
   rednoteRules: string,
@@ -597,11 +538,11 @@ function buildSystemPrompt(
       : []),
     ...(blocks.rednote
       ? [
-          '  "rednote": {\n    "hookType": "one allowed hook type",\n    "title": "...",\n    "body": "...",\n    "hashtags": ["tag without #", "..."]\n  }',
+          '  "rednote": {\n    "hookType": "one allowed hook type",\n    "body": "...",\n    "hashtags": ["tag without #", "..."]\n  }',
         ]
       : []),
     ...(blocks.youtube
-      ? ['  "youtube": { "hookType": "one allowed hook type", "title": "..." }']
+      ? ['  "youtube": { "hookType": "one allowed hook type" }']
       : []),
   ];
   const shape = shapeFields.join(',\n');
@@ -613,15 +554,12 @@ function buildSystemPrompt(
       ? 'Threads text must not contain a URL or closing CTA and must not be identical to X text.'
       : '',
     blocks.rednote
-      ? 'Rednote title must be at most 20 characters. Rednote body must not contain a URL or website CTA. Hashtags must contain 3 to 5 items without the # prefix.'
-      : '',
-    blocks.youtube
-      ? `YouTube title must be at most ${YOUTUBE_TITLE_MAX_CHARACTERS} characters and contain no URL.`
+      ? 'Rednote body must not contain a URL or website CTA. Hashtags must contain 3 to 5 items without the # prefix.'
       : '',
   ]
     .filter(Boolean)
     .join(' ');
-  return `${commonRules}\n\n## Headline policy (every title field)\n${headlineRules}\n\n## Output language (${languageCode})\n${languageRules}\n\nEvery requested output must express the same underlying episode thesis. Each platform block classifies its own rhetorical opening as hookType. Apply platform-specific restrictions only to their corresponding fields.\n\n${blockRules}\n\nReturn JSON only with exactly this shape:\n{\n${shape}\n}\n\nAllowed topic values: ${SOCIAL_TOPICS.join(', ')}.\nAllowed hookType values: ${SOCIAL_HOOK_TYPES.join(', ')}.\n\n${restrictions}`;
+  return `${commonRules}\n\n## Output language (${languageCode})\n${languageRules}\n\nEvery requested output must express the same underlying episode thesis. Each platform block classifies its own rhetorical opening as hookType. Apply platform-specific restrictions only to their corresponding fields.\n\n${blockRules}\n\nReturn JSON only with exactly this shape:\n{\n${shape}\n}\n\nAllowed topic values: ${SOCIAL_TOPICS.join(', ')}.\nAllowed hookType values: ${SOCIAL_HOOK_TYPES.join(', ')}.\n\n${restrictions}`;
 }
 
 function copyBlocksForPlatforms(
@@ -680,14 +618,7 @@ function buildEpisodePrompt(
     ? `\n\nPackaging experiment assignments:${packagingBlocks}\nThese assignments override style preferences for their platform, but never editorial, platform, language, factual-grounding, or safety rules.`
     : '';
 
-  // The editorial title is LLM-written and has already replaced the
-  // publisher's. Both are supplied, labelled, because the headline policy
-  // treats them differently: one is the angle, the other is evidence.
-  const publisherHeadlineBlock = episode.sourceTitle?.trim()
-    ? `\n\nPublisher headline (the source outlet's own, for topic and fact evidence -- never a sentence template, and never to reword):\n${episode.sourceTitle.trim()}`
-    : '';
-
-  return `Create social copy for this completed episode.\n\nTitle:\n${episode.title}${publisherHeadlineBlock}\n\nSummary:\n${episode.summary}\n\nDescription / source article:\n${episode.description ?? ''}\n\nFull podcast transcript:\n${episode.transcript}\n\nEpisode URL:\n${episode.episodeUrl}${strategyBlock}${platformStrategyBlock}${packagingBlock}${feedbackBlock}${retryBlock}`;
+  return `Create social copy for this completed episode.\n\nCanonical title (already finalized; do not rewrite it):\n${episode.title}\n\nSummary:\n${episode.summary}\n\nDescription / source article:\n${episode.description ?? ''}\n\nFull podcast transcript:\n${episode.transcript}\n\nEpisode URL:\n${episode.episodeUrl}${strategyBlock}${platformStrategyBlock}${packagingBlock}${feedbackBlock}${retryBlock}`;
 }
 
 /**
@@ -705,7 +636,7 @@ function buildRetryBlock(
     .map((failure, index) => `${index + 1}. ${failure}`)
     .join('\n');
   const previousNoteBlock = previousRednote
-    ? `\n\nYour previous rednote note was:\ntitle: ${previousRednote.title}\nbody: ${previousRednote.body}\nhashtags: ${previousRednote.hashtags.join(', ')}\nEdit only the part that was flagged. Keep the episode's named subject and the same finding, and leave every sentence that was not flagged exactly as it is.`
+    ? `\n\nYour previous rednote note was:\nbody: ${previousRednote.body}\nhashtags: ${previousRednote.hashtags.join(', ')}\nEdit only the part that was flagged. Keep the episode's named subject and the same finding, and leave every sentence that was not flagged exactly as it is.`
     : '';
   return `\n\nEarlier attempts were rejected for these reasons, oldest first:\n${history}\nFix the newest reason without reintroducing any earlier one -- an attempt that repairs the last rejection by bringing an earlier one back is rejected again.${previousNoteBlock}\nReturn valid JSON with every required field.`;
 }

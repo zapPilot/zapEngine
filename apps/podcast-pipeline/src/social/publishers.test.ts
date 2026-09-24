@@ -55,11 +55,10 @@ const copy: GeneratedSocialCopy = {
   threads: { hookType: 'contrarian', text: '市場正在改變嗎？' },
   rednote: {
     hookType: 'question',
-    title: '市場更新',
     body: '正文',
     hashtags: ['市場', '投資', '宏觀'],
   },
-  youtube: { hookType: 'explainer', title: '市場更新' },
+  youtube: { hookType: 'explainer' },
 };
 
 beforeEach(() => {
@@ -285,8 +284,8 @@ describe('createSocialPublishJobs', () => {
 
     for (const blank of [
       {
-        copy: { ...copy, youtube: { ...copy.youtube!, title: '   ' } },
-        episode,
+        copy,
+        episode: { ...episode, title: '   ' },
       },
       { copy, episode: { title: '市場更新', summary: '   ' } },
     ]) {
@@ -303,7 +302,7 @@ describe('createSocialPublishJobs', () => {
     }
   });
 
-  it('builds Rednote with its native title field and no off-platform CTA', async () => {
+  it('builds Rednote with the canonical episode title and no off-platform CTA', async () => {
     const [job] = createSocialPublishJobs({
       platforms: ['rednote'],
       copy,
@@ -314,22 +313,58 @@ describe('createSocialPublishJobs', () => {
 
     await job?.publish();
     expect(mocks.publishRednote).toHaveBeenCalledWith({
-      title: copy.rednote!.title,
+      title: episode.title,
       hashtags: copy.rednote!.hashtags,
       videoPath: VIDEO_PATH,
     });
   });
 
-  it('rejects Rednote before publishing when the copy carries no title', () => {
+  it('uses a bounded legacy Rednote title override for already-queued jobs', async () => {
+    const [job] = createSocialPublishJobs({
+      platforms: ['rednote'],
+      copy,
+      episode: {
+        ...episode,
+        title: '這是一個已渲染但超過二十字的舊 canonical episode title',
+      },
+      videoUrl: VIDEO_URL,
+      videoPath: VIDEO_PATH,
+      titleOverrideByPlatform: { rednote: '舊佇列短標題' },
+    });
+
+    await job?.publish();
+
+    expect(mocks.publishRednote).toHaveBeenCalledWith({
+      title: '舊佇列短標題',
+      hashtags: copy.rednote!.hashtags,
+      videoPath: VIDEO_PATH,
+    });
+  });
+
+  it('fails closed instead of letting Rednote truncate a long canonical title', () => {
     expect(() =>
       createSocialPublishJobs({
         platforms: ['rednote'],
-        copy: { ...copy, rednote: { ...copy.rednote!, title: '' } },
-        episode,
+        copy,
+        episode: { ...episode, title: '標'.repeat(21) },
         videoUrl: VIDEO_URL,
         videoPath: VIDEO_PATH,
       }),
-    ).toThrow('Rednote publishing requires a generated title.');
+    ).toThrow(/canonical titles must be at most 20/);
+
+    expect(mocks.createPlaywrightRednotePublisher).not.toHaveBeenCalled();
+  });
+
+  it('rejects Rednote before publishing when the canonical episode title is blank', () => {
+    expect(() =>
+      createSocialPublishJobs({
+        platforms: ['rednote'],
+        copy,
+        episode: { ...episode, title: '   ' },
+        videoUrl: VIDEO_URL,
+        videoPath: VIDEO_PATH,
+      }),
+    ).toThrow('Rednote publishing requires the canonical episode title.');
 
     expect(mocks.createPlaywrightRednotePublisher).not.toHaveBeenCalled();
   });

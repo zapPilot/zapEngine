@@ -373,7 +373,7 @@ describe('normalizeEditorialTitle', () => {
     '**這是粗體標題**',
     '__這是粗體標題__',
     '第一行\n第二行',
-    '標'.repeat(61),
+    '標'.repeat(21),
     null,
   ])('rejects the invalid editorial title %j', (value) => {
     expect(normalizeEditorialTitle(value)).toBeNull();
@@ -776,6 +776,40 @@ ${scriptPayload('「软件市场进入新阶段」', '生成講稿')}
     );
   });
 
+  it('re-asks when the canonical title exceeds 20 characters', async () => {
+    const mockCreate = vi
+      .fn()
+      .mockResolvedValueOnce({
+        choices: [
+          { message: { content: scriptPayload('標'.repeat(21), 'Script') } },
+        ],
+        provider: 'Cloudflare',
+        model: 'test/model',
+        usage: { cost: 0.01 },
+      })
+      .mockResolvedValueOnce({
+        choices: [
+          {
+            message: {
+              content: scriptPayload('市場流動性重新定價', 'Script'),
+            },
+          },
+        ],
+        provider: 'Cloudflare',
+        model: 'test/model',
+        usage: { cost: 0.02 },
+      });
+    mockOpenAIClient(mockCreate);
+
+    const result = await generateScriptWithLLM('Title', 'Text');
+
+    expect(result.title).toBe('市場流動性重新定價');
+    expect(mockCreate).toHaveBeenCalledTimes(2);
+    expect(
+      String(mockCreate.mock.calls[1]?.[0]?.messages?.[1]?.content),
+    ).toContain('title_over_20_characters');
+  });
+
   it('re-asks once when a JSON-shaped response is invalid', async () => {
     const mockCreate = vi
       .fn()
@@ -920,7 +954,7 @@ ${scriptPayload('「软件市场进入新阶段」', '生成講稿')}
 
     const title = 'Sensitive article title';
     const articleText = 'Sensitive article body that must not be logged';
-    const generatedTitle = 'Sensitive generated title that must not be logged';
+    const generatedTitle = 'Sensitive title';
     const generatedScript =
       'Sensitive generated script that must not be logged';
     const generatedPayload = scriptPayload(generatedTitle, generatedScript);

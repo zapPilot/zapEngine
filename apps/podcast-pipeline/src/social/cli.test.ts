@@ -103,11 +103,10 @@ const copy: GeneratedSocialCopy = {
   threads: { hookType: 'contrarian', text: '市場轉向，大家怎麼看？' },
   rednote: {
     hookType: 'question',
-    title: '小紅書標題',
     body: '小紅書正文',
     hashtags: ['以太坊', '美聯儲', '投資'],
   },
-  youtube: { hookType: 'explainer', title: '市場轉向的三個訊號' },
+  youtube: { hookType: 'explainer' },
 };
 const CTA = '官網 https://www.zap-pilot.org';
 const originalExitCode = process.exitCode;
@@ -389,10 +388,9 @@ describe('runSocialCli media preparation', () => {
     expect(console.log).toHaveBeenCalledWith(
       `🎬 video: 10m 00s, 5.0 MB\n${VIDEO.path}`,
     );
-    // Review previews Rednote's own title field, not a hook line prepended to
-    // the description. The preview never prints the generated body: it is not
-    // part of what actually gets published.
-    expect(console.log).toHaveBeenCalledWith(`標題：${copy.rednote!.title}`);
+    // Review previews the canonical episode title. The preview never prints
+    // the generated body: it is not part of what actually gets published.
+    expect(console.log).toHaveBeenCalledWith(`標題：${episode.title}`);
     expect(console.log).not.toHaveBeenCalledWith(copy.rednote!.body);
   });
 

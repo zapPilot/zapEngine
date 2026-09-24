@@ -61,6 +61,7 @@ export function buildSocialPostRecord(input: {
   videoDurationSeconds: number;
   xVideoDurationSeconds?: number;
   destinationUrl?: string;
+  titleOverride?: string;
   packagingExperiment?: { key: string; variant: string };
 }): NewSocialPost {
   // Recorded through the same composition the publisher used, so telemetry
@@ -83,6 +84,7 @@ export function buildSocialPostRecord(input: {
   // reports `body: ''`, and that is what makes `bodyChars` honest.
   const publishedHashtags = input.result.hashtags ?? published.hashtags;
   const publishedBody = input.result.body ?? published.body;
+  const publishedTitle = input.titleOverride?.trim() || published.title;
 
   return {
     episodeId: input.episodeId,
@@ -97,7 +99,7 @@ export function buildSocialPostRecord(input: {
     topic: input.snapshot.published.topic,
     hookType: published.hookType,
     generatedTitle: generated.title,
-    publishedTitle: published.title,
+    publishedTitle,
     generatedBody: generated.body,
     publishedBody,
     hashtags: publishedHashtags,
@@ -107,7 +109,7 @@ export function buildSocialPostRecord(input: {
       input.xVideoDurationSeconds,
     ),
     contentFeatures: buildContentFeatures({
-      title: published.title,
+      title: publishedTitle,
       body: publishedBody,
       hashtags: publishedHashtags,
       ...(input.packagingExperiment
@@ -142,6 +144,7 @@ export function createSocialPostPersister(input: {
   >;
   packagingByPlatform?: Partial<Record<SocialPlatform, PackagingAssignment>>;
   destinationUrlByPlatform?: Partial<Record<SocialPlatform, string>>;
+  titleOverrideByPlatform?: Partial<Record<SocialPlatform, string>>;
   snapshot: SocialCopySnapshot;
   episode: SocialComposeEpisode;
   videoDurationSeconds: number;
@@ -168,6 +171,9 @@ export function createSocialPostPersister(input: {
         : {}),
       ...(input.destinationUrlByPlatform?.[platform]
         ? { destinationUrl: input.destinationUrlByPlatform[platform] }
+        : {}),
+      ...(input.titleOverrideByPlatform?.[platform]
+        ? { titleOverride: input.titleOverrideByPlatform[platform] }
         : {}),
       result,
       snapshot: input.snapshot,

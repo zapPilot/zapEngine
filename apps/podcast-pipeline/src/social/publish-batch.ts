@@ -27,6 +27,8 @@ export interface SocialBatchPlatform {
   platform: SocialPlatform;
   experimentKey?: string | null;
   experimentVariant?: string | null;
+  /** Existing queued Rednote jobs only; new jobs must leave this null. */
+  titleOverride?: string | null;
 }
 
 export interface PreparedSocialBatchCopy {
@@ -128,6 +130,13 @@ export async function publishSocialBatch(input: {
     ]),
   ) as Partial<Record<SocialPlatform, string>>;
 
+  const titleOverrideByPlatform = Object.fromEntries(
+    input.platforms.flatMap(({ platform, titleOverride }) => {
+      const normalized = titleOverride?.trim();
+      return normalized ? [[platform, normalized]] : [];
+    }),
+  ) as Partial<Record<SocialPlatform, string>>;
+
   const jobs = createSocialPublishJobs({
     platforms,
     copy: snapshot.published,
@@ -135,6 +144,7 @@ export async function publishSocialBatch(input: {
     videoUrl: episode.videoUrl,
     thumbnailUrl: episode.videoThumbnailUrl,
     destinationUrlByPlatform,
+    titleOverrideByPlatform,
     ...(video ? { videoPath: video.path } : {}),
     ...(teaserVideo ? { xVideoPath: teaserVideo.path } : {}),
     ...(input.youtubePrivacyStatus
@@ -157,6 +167,7 @@ export async function publishSocialBatch(input: {
     experimentByPlatform,
     packagingByPlatform,
     destinationUrlByPlatform,
+    titleOverrideByPlatform,
     snapshot,
     episode,
     videoDurationSeconds: episode.videoDurationSeconds,

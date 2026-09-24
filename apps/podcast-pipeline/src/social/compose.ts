@@ -88,7 +88,7 @@ function composePlatformContent(
     case 'rednote': {
       const rednote = requireCopyBlock(input.copy.rednote, 'rednote');
       return {
-        title: rednote.title,
+        title: input.episode.title,
         body: rednote.body,
         hashtags: [...rednote.hashtags],
         hookType: rednote.hookType,
@@ -97,7 +97,7 @@ function composePlatformContent(
     case 'youtube': {
       const youtube = requireCopyBlock(input.copy.youtube, 'youtube');
       return {
-        title: youtube.title,
+        title: input.episode.title,
         body: composeYouTubeDescription(input.episode, input.destinationUrl),
         hashtags: [],
         hookType: youtube.hookType,
@@ -113,8 +113,8 @@ function requireCopyBlock<T>(block: T | undefined, name: string): T {
   throw new Error(`Generated social copy is missing the ${name} block.`);
 }
 
-// YouTube descriptions remain episode-derived; only the title participates in
-// copy generation and packaging experiments.
+// YouTube metadata remains episode-derived. The title is the canonical
+// episode localization title; social generation only supplies hook metadata.
 export function composeYouTubeDescription(
   episode: SocialComposeEpisode,
   destinationUrl?: string,

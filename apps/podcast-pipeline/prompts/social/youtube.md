@@ -1,7 +1,8 @@
-# YouTube title
+# YouTube metadata
 
-Write a platform-native video title under the shared headline policy. It may be descriptive or hook-led according to its packaging assignment.
+The episode title is already finalized upstream and is published unchanged on
+YouTube. Do not generate, rewrite, shorten, or optimize a YouTube-specific
+title.
 
-At most 100 characters. No URL. Return only the title and its hook classification — the description is assembled from the episode separately.
-
-Do not use an unsupported superlative, invented certainty, or clickbait that overstates the episode.
+Return only the hook classification requested by the JSON schema. The
+description is assembled from the episode separately.

@@ -15,65 +15,25 @@ import {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.getOrCreateExperimentAssignment.mockResolvedValue({
-    experiment_key: 'rednote-headline-v2-zh-Hant',
-    episode_id: 'episode-1',
-    variant: 'reversal',
-    assigned_at: '2026-08-30T00:00:00.000Z',
-  });
 });
 
 describe('packaging experiments', () => {
-  it('keeps Rednote active while X, Threads, and YouTube language tests stay unconfounded', () => {
-    expect(activePackagingExperiment('rednote', 'zh-Hant')?.key).toBe(
-      'rednote-headline-v2-zh-Hant',
-    );
-    for (const platform of ['x', 'threads', 'youtube'] as const) {
+  it('has no active platform-specific title experiment', () => {
+    for (const platform of ['rednote', 'x', 'threads', 'youtube'] as const) {
       for (const language of ['zh-Hant', 'ja', 'en'] as const) {
         expect(activePackagingExperiment(platform, language)).toBeUndefined();
       }
     }
   });
 
-  it('creates no packaging assignment for a rotating language lane', async () => {
+  it('creates no packaging assignments for any lane', async () => {
     await expect(
       resolvePackagingAssignments({
         episodeId: 'episode-1',
-        languageCode: 'ja',
-        platforms: ['threads', 'x', 'youtube'],
+        languageCode: 'zh-Hant',
+        platforms: ['rednote', 'threads', 'x', 'youtube'],
       }),
     ).resolves.toEqual({});
     expect(mocks.getOrCreateExperimentAssignment).not.toHaveBeenCalled();
-  });
-
-  it('still resolves the Rednote packaging treatment', async () => {
-    await expect(
-      resolvePackagingAssignments({
-        episodeId: 'episode-1',
-        languageCode: 'zh-Hant',
-        platforms: ['rednote'],
-      }),
-    ).resolves.toEqual({
-      rednote: expect.objectContaining({
-        key: 'rednote-headline-v2-zh-Hant',
-        variant: 'reversal',
-      }),
-    });
-  });
-
-  it('fails loudly when the Rednote persisted variant is no longer registered', async () => {
-    mocks.getOrCreateExperimentAssignment.mockResolvedValue({
-      experiment_key: 'rednote-headline-v2-zh-Hant',
-      episode_id: 'episode-1',
-      variant: 'retired',
-      assigned_at: '2026-08-30T00:00:00.000Z',
-    });
-    await expect(
-      resolvePackagingAssignments({
-        episodeId: 'episode-1',
-        languageCode: 'zh-Hant',
-        platforms: ['rednote'],
-      }),
-    ).rejects.toThrow(/not registered/u);
   });
 });

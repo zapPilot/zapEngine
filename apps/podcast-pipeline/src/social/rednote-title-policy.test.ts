@@ -7,37 +7,28 @@ const REDNOTE_PROMPT = new URL(
   import.meta.url,
 );
 
-describe('Rednote title policy', () => {
-  it('keeps concrete finance and crypto subjects instead of safety-genericizing them', async () => {
+describe('Rednote canonical title policy', () => {
+  it('forbids generating a second platform-specific title', async () => {
     const prompt = await readFile(REDNOTE_PROMPT, 'utf8');
 
-    expect(prompt).toContain(
-      'Rednote must use the same underlying editorial/title',
+    const normalizedPrompt = prompt.replace(/\s+/gu, ' ');
+    expect(normalizedPrompt).toContain(
+      'The episode title is already finalized upstream and is published unchanged',
     );
-    expect(prompt).toContain('strategy as the other social platforms');
+    expect(normalizedPrompt).toContain(
+      'do not generate, rewrite, shorten, or optimize another Rednote-specific title',
+    );
+    expect(prompt).not.toContain('`title`: a curiosity-driven consumer title');
+  });
+
+  it('keeps finance and crypto framing rules on the body and topics', async () => {
+    const prompt = await readFile(REDNOTE_PROMPT, 'utf8');
+
     expect(prompt).toContain(
       'Do not replace a material subject such as Virtuals, Ethereum, Bitcoin',
     );
     expect(prompt).toContain(
-      'Exact finance and crypto terminology is allowed when it is central to the episode',
-    );
-    expect(prompt).not.toContain('Prefer neutral topic labels such as');
-    expect(prompt).not.toContain(
-      'instead of leading with the asset label when a broader description is still accurate',
-    );
-  });
-
-  it('keeps format and investment-direction constraints separate from topic identity', async () => {
-    const prompt = await readFile(REDNOTE_PROMPT, 'utf8');
-
-    expect(prompt).toContain(
-      '`title`: a curiosity-driven consumer title, at most 20 characters.',
-    );
-    expect(prompt).toContain(
       'Never recommend buying, selling or holding an asset',
-    );
-    expect(prompt).toContain(
-      "they must not be interpreted as a reason to erase the episode's named subject from the title",
     );
   });
 });

@@ -44,6 +44,11 @@ export interface SocialPublishJobRow {
   language_code: PrimaryLanguageCode;
   experiment_key: string | null;
   experiment_variant: string | null;
+  /**
+   * Bounded migration field for Rednote jobs queued before canonical titles
+   * were constrained to the platform limit. New jobs leave it null.
+   */
+  legacy_title_override?: string | null;
   status: 'queued' | 'processing' | 'completed' | 'failed';
   scheduled_at: string;
   next_attempt_at: string;

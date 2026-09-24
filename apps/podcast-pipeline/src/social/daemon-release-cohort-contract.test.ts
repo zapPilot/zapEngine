@@ -513,7 +513,10 @@ describe('NON-NEGOTIABLE episode release cohort contract', () => {
   it('holds only the episode that lost media and still publishes the others', async () => {
     mocks.claimReleaseCohortJobs.mockResolvedValue([
       ...claimedCohort(ARTICLE_A),
-      claimedLane(ARTICLE_B, 'rednote', 'zh-Hant', 'b-rednote'),
+      {
+        ...claimedLane(ARTICLE_B, 'rednote', 'zh-Hant', 'b-rednote'),
+        legacy_title_override: '舊佇列短標題',
+      },
     ]);
     mocks.listSocialPublishCandidatesForEpisodes.mockResolvedValue([
       candidate(ARTICLE_A, 'zh-Hant'),
@@ -537,7 +540,15 @@ describe('NON-NEGOTIABLE episode release cohort contract', () => {
 
     expect(mocks.publishSocialBatch).toHaveBeenCalledOnce();
     expect(mocks.publishSocialBatch).toHaveBeenCalledWith(
-      expect.objectContaining({ episodeId: ARTICLE_B }),
+      expect.objectContaining({
+        episodeId: ARTICLE_B,
+        platforms: [
+          expect.objectContaining({
+            platform: 'rednote',
+            titleOverride: '舊佇列短標題',
+          }),
+        ],
+      }),
     );
     expect(mocks.completeSocialPublishJob).toHaveBeenCalledWith(
       expect.objectContaining({ jobId: 'b-rednote' }),
