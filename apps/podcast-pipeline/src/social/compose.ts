@@ -113,8 +113,8 @@ function requireCopyBlock<T>(block: T | undefined, name: string): T {
   throw new Error(`Generated social copy is missing the ${name} block.`);
 }
 
-// YouTube descriptions remain episode-derived; only the title participates in
-// copy generation and packaging experiments.
+// YouTube metadata remains episode-derived. The title is the canonical
+// episode localization title; social generation only supplies hook metadata.
 export function composeYouTubeDescription(
   episode: SocialComposeEpisode,
   destinationUrl?: string,
