@@ -129,11 +129,17 @@ insert against a legacy cohort.
   using standardized metric windows (especially 24h). Do not compare raw X vs
   Threads vs YouTube view counts as though their distributions were
   interchangeable.
-- Packaging experiments are separate from lane allocation. Keep only treatments
-  explicitly registered in `packaging-experiments.ts`; ending the language test
-  does not silently invent a new packaging experiment.
-- Strategy learning may adapt copy guidance for a platform-language lane but
-  cannot alter lane allocation, readiness, or release timing.
+- Platform-specific packaging experiments are disabled.
+  `packaging-experiments.ts` intentionally returns no assignments.
+- `episode_localizations.title` is the only normal visible title authority.
+  Rednote and YouTube publish it directly; X and Threads generate no title.
+  Never reintroduce a platform headline prompt, validator, experiment, or title
+  field in `GeneratedSocialCopy`.
+- `social_publish_jobs.legacy_title_override` is migration-only for the finite
+  queue that predated the 20-character canonical-title contract. New enqueue
+  paths must never populate it.
+- Strategy learning may adapt body-copy guidance for a platform-language lane
+  but cannot alter title, lane allocation, readiness, or release timing.
 
 Any change to the fixed mapping, the coverage rule, the back-catalogue fence,
 the durable-lane rule, or the one-article/one-timestamp transaction boundary
