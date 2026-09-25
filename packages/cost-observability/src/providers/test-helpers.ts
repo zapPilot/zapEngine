@@ -95,52 +95,42 @@ export function fetchBraveQuotaSnapshot(
 }
 
 /**
- * The constant half of a Cloudflare FOCUS charge row. Every field Cloudflare
- * documents is present so a spec can null one out and see the collector's
- * answer, rather than discovering that the field was never in the fixture.
+ * The constant half of a Cloudflare FOCUS charge row, carrying every field the
+ * v1 `billable-usage` endpoint returns so a spec can null one out and see the
+ * collector's answer.
  *
- * NOT captured from our own account: this is shaped from Cloudflare's
- * documented Billing API V2 response, with account-identifying fields written
- * as obvious placeholders. The per-row cost precedence it pins
- * (`EffectiveCost` -> `ContractedCost` -> `ListCost`) is still unconfirmed
- * against a live payload — see `AGENTS.md`.
+ * Shaped from a live capture of our own account (2026-09-24) with the account,
+ * billing-account and subscription identifiers replaced by placeholders and the
+ * quantities invented. The capture confirmed the cost precedence columns
+ * (`EffectiveCost`, `ContractedCost`, `ListCost`) are all populated mid-period.
  */
 const CLOUDFLARE_BASE_ROW = {
-  BilledCost: null,
+  BilledCost: 0.000257,
   BillingAccountId: 'billing-account-redacted',
   BillingAccountName: 'account-name-redacted',
   BillingCurrency: 'USD',
-  BillingPeriodEnd: '2026-10-01T00:00:00Z',
   BillingPeriodStart: '2026-09-01T00:00:00Z',
   ChargeCategory: 'Usage',
   ChargeClass: null,
-  ChargeDescription: 'Cloudflare R2 Standard storage',
-  ChargeFrequency: 'Usage-Based',
+  ChargeDescription:
+    'R2 Data Storage (First 10GB-Month included) usage measured in GB-months',
   ChargePeriodEnd: '2026-09-02T00:00:00Z',
   ChargePeriodStart: '2026-09-01T00:00:00Z',
   ConsumedQuantity: 12.5,
-  ConsumedUnit: 'GB-hours',
-  ContractedCost: null,
-  ContractedUnitPrice: null,
+  ConsumedUnit: 'GB-months',
+  ContractedCost: 0.000257,
+  CumulatedContractedCost: 0.000257,
+  CumulatedPricingQuantity: 12.5,
   EffectiveCost: 0.000257,
-  HostProviderName: 'Cloudflare',
-  InvoiceIssuerName: 'Cloudflare',
+  HostProviderName: 'Cloudflare, Inc.',
+  InvoiceIssuerName: 'Cloudflare, Inc.',
   ListCost: 0.000257,
-  ListUnitPrice: 0.0000205,
   PricingQuantity: 12.5,
-  PricingUnit: 'GB-hours',
-  RegionId: null,
-  RegionName: null,
-  ServiceProviderName: 'Cloudflare',
-  SubAccountId: null,
-  SubAccountName: null,
-  x_BillableMetricId: 'r2_storage_gb_hours',
-  x_BillableMetricName: 'R2 Standard Storage',
-  x_ProductCategoryName: 'Storage',
-  x_ProductFamilyId: 'r2',
-  x_ProductFamilyName: 'R2',
-  x_ZoneId: null,
-  x_ZoneName: null,
+  PricingUnit: 'GB-months',
+  ServiceFamilyName: 'R2',
+  ServiceName: 'R2 Data Storage (First 10GB-Month included)',
+  ServiceProviderName: 'Cloudflare, Inc.',
+  SubscriptionId: 'subscription-redacted',
 };
 
 export function cloudflareRow(
@@ -184,29 +174,36 @@ export function fetchCloudflareUsageSnapshot(
 
 /**
  * Three charge periods across two R2 metrics: the smallest fixture that still
- * exercises per-metric grouping, multi-day accrual and sub-cent rounding at
- * once.
+ * exercises per-metric grouping, multi-day accrual, sub-cent rounding and the
+ * empty `ConsumedUnit` a count-priced metric reports, at once.
  */
+const CLOUDFLARE_CLASS_A_OPERATIONS = {
+  ChargeDescription:
+    'R2 Storage Class A Operations (First 1M included) usage measured in Count',
+  ConsumedUnit: '',
+  PricingUnit: 'Count',
+  ServiceName: 'R2 Storage Class A Operations (First 1M included)',
+};
+
 export const CLOUDFLARE_R2_ROWS = [
   cloudflareRow({}),
   cloudflareRow({
     ChargePeriodEnd: '2026-09-02T00:00:00Z',
     ChargePeriodStart: '2026-09-01T00:00:00Z',
-    ChargeDescription: 'Cloudflare R2 Class A operations',
+    ...CLOUDFLARE_CLASS_A_OPERATIONS,
     ConsumedQuantity: 1_200,
-    ConsumedUnit: 'operations',
+    BilledCost: 0.0054,
+    ContractedCost: 0.0054,
     EffectiveCost: 0.0054,
     ListCost: 0.0054,
-    ListUnitPrice: 0.0000045,
     PricingQuantity: 1_200,
-    PricingUnit: 'operations',
-    x_BillableMetricId: 'r2_class_a_operations',
-    x_BillableMetricName: 'R2 Class A Operations',
   }),
   cloudflareRow({
     ChargePeriodEnd: '2026-09-03T00:00:00Z',
     ChargePeriodStart: '2026-09-02T00:00:00Z',
     ConsumedQuantity: 13,
+    BilledCost: 0.000267,
+    ContractedCost: 0.000267,
     EffectiveCost: 0.000267,
     ListCost: 0.000267,
     PricingQuantity: 13,
@@ -214,21 +211,20 @@ export const CLOUDFLARE_R2_ROWS = [
   cloudflareRow({
     ChargePeriodEnd: '2026-09-03T00:00:00Z',
     ChargePeriodStart: '2026-09-02T00:00:00Z',
-    ChargeDescription: 'Cloudflare R2 Class A operations',
+    ...CLOUDFLARE_CLASS_A_OPERATIONS,
     ConsumedQuantity: 900,
-    ConsumedUnit: 'operations',
+    BilledCost: 0.00405,
+    ContractedCost: 0.00405,
     EffectiveCost: 0.00405,
     ListCost: 0.00405,
-    ListUnitPrice: 0.0000045,
     PricingQuantity: 900,
-    PricingUnit: 'operations',
-    x_BillableMetricId: 'r2_class_a_operations',
-    x_BillableMetricName: 'R2 Class A Operations',
   }),
   cloudflareRow({
     ChargePeriodEnd: '2026-09-04T00:00:00Z',
     ChargePeriodStart: '2026-09-03T00:00:00Z',
     ConsumedQuantity: 13.5,
+    BilledCost: 0.000277,
+    ContractedCost: 0.000277,
     EffectiveCost: 0.000277,
     ListCost: 0.000277,
     PricingQuantity: 13.5,
@@ -236,15 +232,12 @@ export const CLOUDFLARE_R2_ROWS = [
   cloudflareRow({
     ChargePeriodEnd: '2026-09-04T00:00:00Z',
     ChargePeriodStart: '2026-09-03T00:00:00Z',
-    ChargeDescription: 'Cloudflare R2 Class A operations',
+    ...CLOUDFLARE_CLASS_A_OPERATIONS,
     ConsumedQuantity: 1_500,
-    ConsumedUnit: 'operations',
+    BilledCost: 0.00675,
+    ContractedCost: 0.00675,
     EffectiveCost: 0.00675,
     ListCost: 0.00675,
-    ListUnitPrice: 0.0000045,
     PricingQuantity: 1_500,
-    PricingUnit: 'operations',
-    x_BillableMetricId: 'r2_class_a_operations',
-    x_BillableMetricName: 'R2 Class A Operations',
   }),
 ];

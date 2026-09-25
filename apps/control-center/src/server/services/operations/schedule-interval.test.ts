@@ -88,9 +88,9 @@ describe('OPS_OPERATOR_CADENCE_MS', () => {
     const entry = registry.find((row) => row.name === 'ops-operator');
 
     // The literal, not just the estimate: `estimateCronIntervalMs` ignores the
-    // minute field, so `*/5 * * * *` and `0 * * * *` are indistinguishable to
-    // it and a regression to the old sub-hourly cron would slip through.
-    expect(entry?.schedule).toBe('0 * * * *');
+    // minute field, so `*/5 */4 * * *` and `17 */4 * * *` are indistinguishable
+    // to it and a regression to a sub-hourly cron would slip through.
+    expect(entry?.schedule).toBe('17 */4 * * *');
     expect(estimateCronIntervalMs(entry?.schedule ?? '')).toBe(
       OPS_OPERATOR_CADENCE_MS,
     );

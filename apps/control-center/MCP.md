@@ -213,7 +213,7 @@ GitHub workflow inspection selects scheduled runs; recent-failure selects main r
 Each triage/worker run comments on the single pinned `triage-log` issue. Workers use a stable harness/hostname agentId, claim through MCP, and inspect open PRs before coding. New work closes via `Fixes` references; already-fixed is the verified exception above.
 
 Both `/triage` and `/worker` are manual, with no headless runner or schedule.
-The hourly `ops-operator` schedule in [OPERATOR.md](./OPERATOR.md) is a separate system.
+The four-hourly `ops-operator` schedule in [OPERATOR.md](./OPERATOR.md) is a separate system.
 GitHub Issues and labels are the work state; there is no lease DB and labels are
 not transactions.
 

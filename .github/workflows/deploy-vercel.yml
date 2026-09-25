@@ -8,10 +8,6 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: deploy-vercel-${{ github.event.workflow_run.head_branch }}
-  cancel-in-progress: true
-
 jobs:
   deploy:
     if: >-
@@ -19,7 +15,19 @@ jobs:
       github.event.workflow_run.event == 'push' &&
       github.event.workflow_run.head_branch == 'main'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Every completed CI run starts this workflow, including red runs whose
+    # deploy job is skipped. Only a job that passes its `if` joins a job-level
+    # group, so those skipped runs cannot cancel or displace a waiting green
+    # deploy. A running deploy is never cancelled: its Vercel builds would keep
+    # going and hold the team's single build slot ahead of the next deploy. The
+    # default single pending slot still lets a newer green SHA replace an older
+    # waiting one.
+    concurrency:
+      group: deploy-vercel-production
+      cancel-in-progress: false
+    # scripts/deploy-vercel-main.mjs gives up 25 minutes after creating the
+    # deployments; the rest covers checkout and the last status poll.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
         with:

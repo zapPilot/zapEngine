@@ -90,12 +90,12 @@ function cloudflareChargeRow(overrides: Record<string, unknown> = {}) {
   return {
     BillingCurrency: 'USD',
     ConsumedQuantity: 1_200,
-    ConsumedUnit: 'operations',
+    ConsumedUnit: '',
     EffectiveCost: 0.0054,
     ListCost: 0.0054,
-    x_BillableMetricId: 'r2_class_a_operations',
-    x_BillableMetricName: 'R2 Class A Operations',
-    x_ProductFamilyName: 'R2',
+    PricingUnit: 'Count',
+    ServiceFamilyName: 'R2',
+    ServiceName: 'R2 Storage Class A Operations (First 1M included)',
     ...overrides,
   };
 }
@@ -225,9 +225,7 @@ describe('Cloudflare cost collection', () => {
       vi
         .fn()
         .mockResolvedValue(
-          cloudflareUsageResponse([
-            cloudflareChargeRow({ x_BillableMetricId: '' }),
-          ]),
+          cloudflareUsageResponse([cloudflareChargeRow({ ServiceName: '' })]),
         ),
     );
 

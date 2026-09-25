@@ -6,7 +6,14 @@ import { ENV_DESTINATIONS } from '../config/env.destinations.mjs';
 const VERCEL_TARGETS = ['web', 'landing-page', 'control-center-vercel'];
 const GITHUB_REPO_ID = 1211979661;
 const POLL_INTERVAL_MS = 5_000;
-const DEPLOY_TIMEOUT_MS = 12 * 60 * 1_000;
+const MINUTE_MS = 60 * 1_000;
+// The Vercel team builds one deployment at a time, so the three production
+// deployments queue behind each other (and behind any builds left over from an
+// earlier run). Time spent QUEUED says nothing about build health, so the build
+// limit only starts once Vercel picks the deployment up; the overall limit
+// still bounds a queue that never drains.
+const BUILD_TIMEOUT_MS = 15 * MINUTE_MS;
+export const OVERALL_TIMEOUT_MS = 25 * MINUTE_MS;
 const FAILURE_STATES = new Set(['ERROR', 'CANCELED']);
 
 export async function deployVercelMain(input = {}) {
@@ -64,15 +71,16 @@ export async function deployVercelMain(input = {}) {
       console.log(
         `${destination.project}: created ${deployment.id}${deployment.url ? ` (${deployment.url})` : ''}`,
       );
-      return { destination, deployment };
+      return { destination, deployment, createdAt: now() };
     }),
   );
 
   await Promise.all(
-    deployments.map(({ destination, deployment }) =>
+    deployments.map(({ destination, deployment, createdAt }) =>
       waitForDeployment({
         destination,
         deployment,
+        createdAt,
         token,
         fetchImpl,
         sleep,
@@ -83,51 +91,104 @@ export async function deployVercelMain(input = {}) {
 }
 
 async function waitForDeployment(input) {
-  const deadline = input.now() + DEPLOY_TIMEOUT_MS;
+  const project = input.destination.project;
+  const timing = {
+    createdAt: input.createdAt,
+    buildStartedAt: null,
+    observedAt: input.createdAt,
+  };
   let deployment = input.deployment;
+  let lastState;
+  let inspectorUrl;
 
+  const observe = (next) => {
+    deployment = next;
+    timing.observedAt = input.now();
+    inspectorUrl = deployment.inspectorUrl || inspectorUrl;
+    if (timing.buildStartedAt === null && deployment.readyState !== 'QUEUED') {
+      timing.buildStartedAt = timing.observedAt;
+    }
+    const settled = settleDeployment(deployment, project, inspectorUrl);
+    if (settled) {
+      console.log(
+        `${project}: production deployment READY (${formatTiming(timing)})`,
+      );
+    } else if (deployment.readyState !== lastState) {
+      console.log(
+        `${project}: ${deployment.readyState} (${formatTiming(timing)})`,
+      );
+    }
+    lastState = deployment.readyState;
+    return settled;
+  };
+
+  if (observe(deployment)) return;
   while (true) {
-    const state = deployment.readyState;
-    if (state === 'READY') {
-      if (deployment.aliasError) {
-        throw new Error(
-          `Vercel deployment ${deployment.id} for ${input.destination.project} ` +
-            `is ready but production aliasing failed: ${JSON.stringify(deployment.aliasError)}`,
-        );
-      }
-      console.log(`${input.destination.project}: production deployment READY`);
-      return;
-    }
-    if (FAILURE_STATES.has(state)) {
-      throw new Error(
-        `Vercel deployment ${deployment.id} for ${input.destination.project} ended ${state}`,
-      );
-    }
-    if (input.now() >= deadline) {
-      deployment = await fetchDeploymentStatus(input, deployment.id);
-      if (deployment.readyState === 'READY') {
-        if (deployment.aliasError) {
-          throw new Error(
-            `Vercel deployment ${deployment.id} for ${input.destination.project} ` +
-              `is ready but production aliasing failed: ${JSON.stringify(deployment.aliasError)}`,
-          );
-        }
-        console.log(`${input.destination.project}: production deployment READY`);
-        return;
-      }
-      if (FAILURE_STATES.has(deployment.readyState)) {
-        throw new Error(
-          `Vercel deployment ${deployment.id} for ${input.destination.project} ended ${deployment.readyState}`,
-        );
-      }
-      throw new Error(
-        `Timed out waiting for Vercel deployment ${deployment.id} for ${input.destination.project}`,
-      );
-    }
-
     await input.sleep(POLL_INTERVAL_MS);
-    deployment = await fetchDeploymentStatus(input, deployment.id);
+    // Deciding before the read means a timeout is only ever reported from a
+    // state read after the deadline, so a build that finished during the last
+    // sleep still counts as READY.
+    const deadlinePassed = input.now() >= deadlineFor(timing);
+    if (observe(await fetchDeploymentStatus(input, deployment.id))) return;
+    if (deadlinePassed) break;
   }
+
+  const limit =
+    deadlineFor(timing) === timing.createdAt + OVERALL_TIMEOUT_MS
+      ? `${OVERALL_TIMEOUT_MS / MINUTE_MS}-minute overall limit`
+      : `${BUILD_TIMEOUT_MS / MINUTE_MS}-minute build limit`;
+  throw new Error(
+    `Timed out waiting for Vercel deployment ${deployment.id} for ${project}: ` +
+      `still ${deployment.readyState} after ${formatTiming(timing)} ` +
+      `(exceeded the ${limit})${formatInspector(inspectorUrl)}`,
+  );
+}
+
+function deadlineFor(timing) {
+  const overallDeadline = timing.createdAt + OVERALL_TIMEOUT_MS;
+  if (timing.buildStartedAt === null) return overallDeadline;
+  return Math.min(overallDeadline, timing.buildStartedAt + BUILD_TIMEOUT_MS);
+}
+
+function settleDeployment(deployment, project, inspectorUrl) {
+  const state = deployment.readyState;
+  if (state === 'READY') {
+    if (deployment.aliasError) {
+      throw new Error(
+        `Vercel deployment ${deployment.id} for ${project} ` +
+          `is ready but production aliasing failed: ${JSON.stringify(deployment.aliasError)}` +
+          formatInspector(inspectorUrl),
+      );
+    }
+    return true;
+  }
+  if (FAILURE_STATES.has(state)) {
+    throw new Error(
+      `Vercel deployment ${deployment.id} for ${project} ended ${state}` +
+        formatInspector(inspectorUrl),
+    );
+  }
+  return false;
+}
+
+function formatTiming(timing) {
+  const queuedUntil = timing.buildStartedAt ?? timing.observedAt;
+  const building =
+    timing.buildStartedAt === null
+      ? 0
+      : timing.observedAt - timing.buildStartedAt;
+  return (
+    `${formatMinutes(queuedUntil - timing.createdAt)} min queued, ` +
+    `${formatMinutes(building)} min building`
+  );
+}
+
+function formatMinutes(ms) {
+  return (ms / MINUTE_MS).toFixed(1);
+}
+
+function formatInspector(inspectorUrl) {
+  return inspectorUrl ? `; inspect ${inspectorUrl}` : '';
 }
 
 async function fetchDeploymentStatus(input, deploymentId) {
@@ -138,7 +199,10 @@ async function fetchDeploymentStatus(input, deploymentId) {
   const response = await input.fetchImpl(endpoint, {
     headers: { Authorization: `Bearer ${input.token}` },
   });
-  const deployment = await readJsonResponse(response, input.destination.project);
+  const deployment = await readJsonResponse(
+    response,
+    input.destination.project,
+  );
   if (!response.ok) {
     throw new Error(
       `Vercel deployment status failed for ${input.destination.project}: ` +

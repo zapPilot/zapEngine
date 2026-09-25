@@ -523,7 +523,7 @@ describe('Cloudflare failures and boundaries', () => {
   // vendor that stopped publishing a quantity.
   it('keeps a structurally broken Cloudflare payload a plain failure', async () => {
     const invalidRow = fetchCloudflareUsageSnapshot([
-      cloudflareRow({ x_BillableMetricId: '' }),
+      cloudflareRow({ ServiceName: '' }),
     ]);
     await expect(invalidRow).rejects.toThrow();
     await expect(invalidRow).rejects.not.toBeInstanceOf(
@@ -579,7 +579,7 @@ describe('Cloudflare failures and boundaries', () => {
     expect(snapshot.usage.map((item) => item.key)).toEqual([
       'charge_rows',
       'product_families',
-      'metric_r2_standard_storage',
+      'metric_r2_data_storage_first_10gb_month_included',
     ]);
   });
 
@@ -620,20 +620,19 @@ describe('Cloudflare failures and boundaries', () => {
     expect(snapshot.accruedCostUsd).toBe(2.5);
     expect(snapshot.usage).toContainEqual(
       expect.objectContaining({
-        key: 'metric_r2_standard_storage',
+        key: 'metric_r2_data_storage_first_10gb_month_included',
         value: 900,
       }),
     );
   });
 
-  it('aggregates repeated Cloudflare metrics and disambiguates a reused name', async () => {
+  it('aggregates repeated Cloudflare metrics and keeps slug collisions apart', async () => {
     const snapshot = await fetchCloudflareUsageSnapshot([
       cloudflareRow({ ConsumedQuantity: 1 }),
       cloudflareRow({ ConsumedQuantity: 2 }),
       cloudflareRow({
         ConsumedQuantity: 4,
-        x_BillableMetricId: 'zzz_legacy_storage',
-        x_BillableMetricName: 'R2 Standard Storage',
+        ServiceName: 'R2 Data Storage - First 10GB-Month included',
       }),
     ]);
 
@@ -641,18 +640,31 @@ describe('Cloudflare failures and boundaries', () => {
       snapshot.usage.filter((item) => item.key.startsWith('metric_')),
     ).toEqual([
       {
-        key: 'metric_r2_standard_storage',
-        label: 'R2 Standard Storage (GB-hours)',
+        key: 'metric_r2_data_storage_first_10gb_month_included',
+        label: 'R2 Data Storage (First 10GB-Month included) (GB-months)',
         unit: 'units',
         value: 3,
       },
       {
-        key: 'metric_r2_standard_storage_zzz_legacy_storage',
-        label: 'R2 Standard Storage (GB-hours)',
+        key: 'metric_r2_data_storage_first_10gb_month_included_2',
+        label: 'R2 Data Storage - First 10GB-Month included (GB-months)',
         unit: 'units',
         value: 4,
       },
     ]);
+  });
+
+  it('labels a Cloudflare metric that reports no unit by its name alone', async () => {
+    const snapshot = await fetchCloudflareUsageSnapshot([
+      cloudflareRow({ ConsumedUnit: '', PricingUnit: null }),
+    ]);
+
+    expect(snapshot.usage).toContainEqual(
+      expect.objectContaining({
+        key: 'metric_r2_data_storage_first_10gb_month_included',
+        label: 'R2 Data Storage (First 10GB-Month included)',
+      }),
+    );
   });
 
   it('counts distinct Cloudflare families and drops an incomplete list price', async () => {
@@ -660,14 +672,12 @@ describe('Cloudflare failures and boundaries', () => {
       cloudflareRow(),
       cloudflareRow({
         ListCost: null,
-        x_BillableMetricId: 'workers_requests',
-        x_BillableMetricName: 'Workers Requests',
-        x_ProductFamilyName: 'Workers',
+        ServiceFamilyName: 'Workers',
+        ServiceName: 'Workers Requests',
       }),
       cloudflareRow({
-        x_BillableMetricId: 'r2_class_b_operations',
-        x_BillableMetricName: 'R2 Class B Operations',
-        x_ProductFamilyName: null,
+        ServiceFamilyName: null,
+        ServiceName: 'R2 Storage Class B Operations (First 10M included)',
       }),
     ]);
 
@@ -691,7 +701,7 @@ describe('Cloudflare failures and boundaries', () => {
 
     const [url] = fetcher.mock.calls[0] as [URL];
     expect(url.href).toBe(
-      'https://cloudflare.example/v4/accounts/acct%2F1/billable/usage?from=2026-09-01&to=2026-09-01',
+      'https://cloudflare.example/v4/accounts/acct%2F1/billable-usage?from=2026-09-01&to=2026-09-01',
     );
   });
 });
@@ -797,7 +807,7 @@ describe('provider defaults through the public surface', () => {
     expectFreshZeroCostSnapshot(snapshot);
     const url = expectDefaultCollectorCall(fetcher, {
       urlSubstring:
-        'https://api.cloudflare.com/client/v4/accounts/acct-1/billable/usage?from=',
+        'https://api.cloudflare.com/client/v4/accounts/acct-1/billable-usage?from=',
       headerName: 'authorization',
       headerValue: 'Bearer cf-token',
     });

@@ -314,21 +314,21 @@ describe('cost providers', () => {
         value: 1,
       },
       {
-        key: 'metric_r2_class_a_operations',
-        label: 'R2 Class A Operations (operations)',
-        unit: 'units',
-        value: 3_600,
-      },
-      {
-        key: 'metric_r2_standard_storage',
-        label: 'R2 Standard Storage (GB-hours)',
+        key: 'metric_r2_data_storage_first_10gb_month_included',
+        label: 'R2 Data Storage (First 10GB-Month included) (GB-months)',
         unit: 'units',
         value: 39,
+      },
+      {
+        key: 'metric_r2_storage_class_a_operations_first_1m_included',
+        label: 'R2 Storage Class A Operations (First 1M included) (Count)',
+        unit: 'units',
+        value: 3_600,
       },
     ]);
     const [url, init] = fetcher.mock.calls[0] as [URL, RequestInit];
     expect(url.href).toBe(
-      'https://api.cloudflare.com/client/v4/accounts/acct-1/billable/usage?from=2026-09-01&to=2026-09-04',
+      'https://api.cloudflare.com/client/v4/accounts/acct-1/billable-usage?from=2026-09-01&to=2026-09-04',
     );
     expect(init.headers).toEqual({
       accept: 'application/json',
