@@ -25,7 +25,7 @@ function store(input: {
               state: input.state ?? 'succeeded',
               failureStreak: input.failureStreak ?? 0,
               cadenceMinutes:
-                input.cadenceMinutes === undefined ? 60 : input.cadenceMinutes,
+                input.cadenceMinutes === undefined ? 240 : input.cadenceMinutes,
               sourceSha: input.sourceSha ?? 'current-sha',
               runId: input.runId ?? '12345',
             },
@@ -45,15 +45,18 @@ function minutesAgo(minutes: number): string {
 }
 
 describe('operator heartbeat signal', () => {
-  // Thresholds are 120m and 180m, and the comparisons are strict, so the
-  // interior values stay clear of both edges and the boundary rows below pin
-  // which side of each edge the equality case falls on.
+  // Thresholds are 8h and 12h (two and three four-hour cadences), and the
+  // comparisons are strict, so the interior values stay clear of both edges
+  // and the paired boundary rows below pin which side of each edge the
+  // equality case and the first minute past it fall on.
   it.each([
     [30, 'healthy', 'ops-operator heartbeat is fresh'],
-    [120, 'healthy', 'ops-operator heartbeat is fresh'],
-    [150, 'degraded', 'ops-operator heartbeat is delayed'],
-    [180, 'degraded', 'ops-operator heartbeat is delayed'],
-    [200, 'critical', 'ops-operator heartbeat is stale'],
+    [480, 'healthy', 'ops-operator heartbeat is fresh'],
+    [481, 'degraded', 'ops-operator heartbeat is delayed'],
+    [600, 'degraded', 'ops-operator heartbeat is delayed'],
+    [720, 'degraded', 'ops-operator heartbeat is delayed'],
+    [721, 'critical', 'ops-operator heartbeat is stale'],
+    [800, 'critical', 'ops-operator heartbeat is stale'],
   ] as const)(
     'maps a %im successful heartbeat to %s',
     async (minutes, status, title) => {
@@ -95,16 +98,32 @@ describe('operator heartbeat signal', () => {
 
   it('degrades a fresh heartbeat produced by a superseded cadence', async () => {
     const signal = await collectOperatorHeartbeatSignal(
-      store({ observedAt: minutesAgo(30), cadenceMinutes: 5 }),
+      store({ observedAt: minutesAgo(30), cadenceMinutes: 60 }),
       NOW,
     );
 
     expect(signal).toMatchObject({
       status: 'degraded',
       title: 'ops-operator heartbeat comes from a different schedule',
-      evidence: { cadenceMinutes: 5 },
+      evidence: { cadenceMinutes: 60 },
     });
-    expect(signal.detail).toContain('60 minutes');
+    expect(signal.detail).toContain('60-minute cadence');
+    expect(signal.detail).toContain('every 240 minutes');
+  });
+
+  // A cadence mismatch only degrades, so it must not be able to mask a
+  // scheduler that has stopped altogether.
+  it('keeps a superseded-cadence heartbeat critical once it is stale', async () => {
+    const signal = await collectOperatorHeartbeatSignal(
+      store({ observedAt: minutesAgo(721), cadenceMinutes: 60 }),
+      NOW,
+    );
+
+    expect(signal).toMatchObject({
+      status: 'critical',
+      title: 'ops-operator heartbeat is stale',
+      evidence: { cadenceMinutes: 60, heartbeatAgeMinutes: 721 },
+    });
   });
 
   it('keeps the current retry degraded after one failed cycle', async () => {

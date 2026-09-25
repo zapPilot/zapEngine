@@ -1,7 +1,12 @@
 name: Ops Operator
 on:
   schedule:
-    - cron: '0 * * * *'
+    # Every four hours, off the top of the hour. GitHub runs schedules on a
+    # best-effort basis and sheds more of them at :00; declared hourly, it still
+    # delivered only about six runs a day. OPERATOR.md has the evidence and what
+    # a tighter guarantee would need. Change the registry row and
+    # OPS_OPERATOR_CADENCE_MS together with this line.
+    - cron: '17 */4 * * *'
   workflow_dispatch:
 permissions:
   contents: read
@@ -16,7 +21,7 @@ jobs:
     # This job never reaches a Fly/EAS/Vercel destination: `run.mjs` imports
     # `sources.mjs`, never `remote.mjs`, and the operator reads Fly state via
     # the Machines API with FLY_OPS_TOKEN from that rail. Requiring the
-    # destination tokens would let an unrelated rotation break the hourly
+    # destination tokens would let an unrelated rotation break the operator
     # loop, so only the Infisical machine identity is mandatory here.
     env:
       INFISICAL_UNIVERSAL_AUTH_CLIENT_ID: ${{ secrets.INFISICAL_UNIVERSAL_AUTH_CLIENT_ID }}

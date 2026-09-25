@@ -1,6 +1,6 @@
 # Bounded operator runbook
 
-The integrated #437/#438 operator is scheduled to run against production every hour. Local tests do not execute the production scheduler or provider mutations.
+The integrated #437/#438 operator is scheduled to run against production every four hours, on GitHub's best-effort scheduler. Local tests do not execute the production scheduler or provider mutations.
 
 ## Commands and policy
 
@@ -21,26 +21,93 @@ resolution after deploy-aware recovery verification. An incident gets at most on
 repair attempt, including failed or unknown attempts; there is no automatic budget
 reset.
 
-`.github/workflows/ops-operator.yml` runs hourly and invokes the bounded
-mutation path directly. A cycle repairs at most one fingerprint, so the cadence
-is also the ceiling on repairs per day; 24 slots sit well above the observed
-load of roughly seven actionable cycles. There is no repository-variable
-rollout switch: automation safety is enforced by the operator's target,
-deployment, lease, checkpoint, one-repair-budget, verification, and
-authorization gates. Existing environment injection supplies server-only
-credentials. Never run these commands against production merely to test the
-implementation.
+`.github/workflows/ops-operator.yml` is scheduled every four hours and invokes
+the bounded mutation path directly. A cycle repairs at most one fingerprint, so
+the cadence is also the ceiling on repairs per day: six declared slots, about
+what GitHub already delivered against the earlier hourly schedule, and slightly
+below the roughly seven actionable cycles a day observed when that schedule was
+chosen. Anything past one fingerprint waits for a later cycle. There is no
+repository-variable rollout switch: automation safety is enforced by the
+operator's target, deployment, lease, checkpoint, one-repair-budget,
+verification, and authorization gates. Existing environment injection supplies
+server-only credentials. Never run these commands against production merely to
+test the implementation.
 
 The operator does not judge its own liveness from completed GitHub workflow runs.
 Each cycle writes a durable heartbeat before it reads the operations snapshot,
 and Control Center uses that heartbeat for the existing
 `github-actions:workflow/ops-operator.yml` condition. The thresholds are two and
 three times the cadence, so one missed firing reads as a slow scheduler and two
-as a stopped one: a heartbeat of 120 minutes or less is healthy, more than 120
-and up to 180 minutes is degraded, and more than 180 minutes is critical.
-This avoids the unavoidable one-cycle lag of asking an in-progress workflow to
-inspect only its own completed runs. Manual `workflow_dispatch` runs still do not
-reset failure streaks for any other scheduled workflow.
+as a stopped one: a heartbeat of 8 hours (480 minutes) or less is healthy, more
+than 8 and up to 12 hours is degraded, and more than 12 hours (720 minutes) is
+critical. This avoids the unavoidable one-cycle lag of asking an in-progress
+workflow to inspect only its own completed runs. Manual `workflow_dispatch` runs
+still do not reset failure streaks for any other scheduled workflow.
+
+Each heartbeat also records the cadence it ran under. After the cadence
+changes, the stored heartbeat reads degraded ("comes from a different
+schedule") until the first cycle under the new schedule writes a fresh one. A
+manual `workflow_dispatch` of `ops-operator.yml` also clears it: a dispatched
+run is an ordinary production cycle and writes the same heartbeat. Staleness is
+checked first, so a mismatched heartbeat older than the critical window still
+reads critical. The writer (the workflow, from `main`) and the reader (Control
+Center on Vercel) deploy separately, so a cycle that runs before the Control
+Center deployment is READY writes the new cadence against the old reader and
+the mismatch lasts another cycle. Dispatch the workflow once after that
+deployment is READY.
+
+## Schedule and freshness contract
+
+The declared cadence is every four hours, cron `17 */4 * * *`, and GitHub's
+scheduled Actions are accepted as best effort. The minute is off the hour
+because GitHub documents the start of every hour as its high-load point, when
+scheduled runs are more likely to be delayed or dropped. The cadence is written
+once, as `OPS_OPERATOR_CADENCE_MS` in
+`src/server/services/operations/schedule-interval.ts`; the cron, the
+`ops-operator` row in `.github/schedules.json`, and that constant change
+together, and `lint schedules` plus `schedule-interval.test.ts` fail if they
+drift.
+
+Four hours comes from what GitHub actually delivered, not from what the
+repository declared. From 2026-09-14 to 2026-09-24 the hourly `0 * * * *`
+schedule declared 24 slots a day and GitHub ran about 5.9 of them. The median
+gap between runs was about 234 minutes and the longest about 456 minutes. 54 of
+56 gaps exceeded the old 120-minute degraded threshold and 41 exceeded the old
+180-minute critical one; weighted by time, the heartbeat was critical about 30%
+of the time while every cycle succeeded. The earlier `*/5` schedule got the
+same six or so runs a day, so declaring more slots does not buy more runs. Over
+the same period every daily cron in the repository started four to five hours
+late.
+
+What this accepts: a failure the operator can repair may wait one or two cycles,
+four to eight hours, before its attempt. Whether GitHub keeps every four-hourly
+slot is not yet proven. The drops look load-driven, so this schedule can still
+lose slots. If the heartbeat keeps crossing 8 hours, that is the signal to add
+an external trigger, not to widen the windows again.
+
+A faster SLO needs a trigger outside GitHub's scheduler. Once one exists,
+shorten the cron and `OPS_OPERATOR_CADENCE_MS` together, and register the
+trigger in `.github/schedules.json`. Options considered:
+
+- **Pipedream `workflow_dispatch`.** An hourly Pipedream schedule POSTs to the
+  `ops-operator.yml` dispatch endpoint and the GitHub cron stays as a backup.
+  Pipedream is already a registered runtime. It needs a fine-grained PAT, owned
+  by `zapPilot` with Actions read/write on `zapPilot/zapEngine` only, stored
+  outside Infisical, with an expiry to rotate. The Pipedream plan's credit and
+  active-workflow limits are unverified. A 24-a-day workflow on a capped plan
+  could starve the `daily-suggestion` and `weekly-report` jobs that already
+  run there.
+- **Self-redispatch.** Each run waits out the interval and then dispatches the
+  next with `gh workflow run`, using `GITHUB_TOKEN` with `actions: write`.
+  `workflow_dispatch` is the event GitHub lets `GITHUB_TOKEN` trigger, so no
+  new credential is needed. The cost is a runner held almost continuously,
+  which takes one of the free organization's concurrent-job slots. The chain
+  can also break, and then only the cron restarts it.
+- **Rejected:** `pg_cron` with `pg_net`, which needs a new extension and a
+  Vault secret on a database the operator itself monitors. A Vercel cron,
+  because Control Center is on the Hobby tier, which allows one run a day. An
+  in-process timer in account-engine or podcast-pipeline, which would tie the
+  monitor to a service it watches.
 
 ## Fix registration and observation
 
