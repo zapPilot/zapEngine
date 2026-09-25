@@ -86,8 +86,6 @@ export const DailySuggestionSubsetSchema = z.object({
       details: z
         .object({
           matched_rule_name: nullableString,
-          portfolio_rule_matches: z.array(z.string()).nullish(),
-          cooldown_skipped_rules: z.array(z.string()).nullish(),
           enabled: z.boolean().nullish(),
           min_trade_interval_days: nullableNumber,
           max_trades_7d: nullableNumber,
