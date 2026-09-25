@@ -20,8 +20,12 @@ export interface CloudflareCostInput {
 
 /**
  * One FOCUS-shaped charge row. Only the fields this collector reads are
- * declared; the payload carries about thirty more and `looseObject` keeps them
+ * declared; the payload carries about twenty more and `looseObject` keeps them
  * rather than failing on a field Cloudflare adds later.
+ *
+ * `ServiceName` is the billable metric: the v1 payload has no separate metric
+ * id. `ConsumedUnit` is an empty string on count-priced metrics, so the label
+ * falls back to `PricingUnit`.
  *
  * `ConsumedQuantity` is deliberately not `.nonnegative()`: a `ChargeClass`
  * of `Correction` reverses an earlier charge, and dropping those rows would
@@ -30,13 +34,13 @@ export interface CloudflareCostInput {
 const billableRowSchema = z.looseObject({
   BillingCurrency: z.string().nullish(),
   ConsumedQuantity: z.number(),
-  ConsumedUnit: z.string(),
+  ConsumedUnit: z.string().nullish(),
   ContractedCost: z.number().nullish(),
   EffectiveCost: z.number().nullish(),
   ListCost: z.number().nullish(),
-  x_BillableMetricId: z.string().min(1),
-  x_BillableMetricName: z.string().min(1),
-  x_ProductFamilyName: z.string().nullish(),
+  PricingUnit: z.string().nullish(),
+  ServiceFamilyName: z.string().nullish(),
+  ServiceName: z.string().min(1),
 });
 
 type BillableRow = z.infer<typeof billableRowSchema>;
@@ -49,7 +53,9 @@ const envelopeSchema = z.looseObject({
 
 /**
  * The whole Cloudflare account's month-to-date bill, read from the Billing
- * API's billable-usage endpoint.
+ * API's v1 billable-usage endpoint. The v2 `billable/usage` endpoint is a
+ * restricted alpha: it answers 403 (code 1171) to a token that already holds
+ * Billing Read, so it cannot be used until Cloudflare enables it per account.
  *
  * R2 is the only Cloudflare product we knowingly pay for, but the accrued
  * figure is the account total on purpose: a ledger that silently excluded a
@@ -104,7 +110,7 @@ function buildEndpoint(
 ): URL {
   const baseUrl = input.baseUrl ?? CLOUDFLARE_API_BASE_URL;
   return new URL(
-    `${baseUrl}/accounts/${encodeURIComponent(input.accountId)}/billable/usage?from=${utcDate(periodStart)}&to=${utcDate(periodEnd)}`,
+    `${baseUrl}/accounts/${encodeURIComponent(input.accountId)}/billable-usage?from=${utcDate(periodStart)}&to=${utcDate(periodEnd)}`,
   );
 }
 
@@ -149,8 +155,8 @@ function assertUsdOnly(rows: BillableRow[]): void {
 /**
  * What the row actually costs us, in the order Cloudflare's own precedence
  * runs: a negotiated effective price wins over the contracted one, which wins
- * over list. `BilledCost` is deliberately absent — it is populated at invoice
- * time, so mid-month it is null on every row and would zero the whole month.
+ * over list. `BilledCost` is deliberately absent: FOCUS defines it as the
+ * invoiced amount, which settles at invoice time rather than as usage accrues.
  */
 function effectiveRowCost(row: BillableRow): number | null {
   return row.EffectiveCost ?? row.ContractedCost ?? row.ListCost ?? null;
@@ -183,7 +189,7 @@ function buildUsageItems(rows: BillableRow[]): CostUsageItem[] {
   const listCostUsd = sumRowCosts(rows, (row) => row.ListCost);
   const productFamilies = new Set(
     rows
-      .map((row) => row.x_ProductFamilyName)
+      .map((row) => row.ServiceFamilyName)
       .filter((name): name is string => typeof name === 'string'),
   );
   return [
@@ -221,33 +227,33 @@ function buildUsageItems(rows: BillableRow[]): CostUsageItem[] {
  * One item per billable metric, which is where "the bill went up" becomes
  * "Class A operations tripled".
  *
- * Grouping keys on the metric id rather than its display name: Cloudflare has
- * reused a name across products before, and collapsing two metrics into one
- * item would hide the quantity that moved. The key still reads from the name,
- * because `r2_storage_gb_hours` is what an operator recognises — a name
- * collision only then falls back to appending the id.
+ * Grouping keys on the exact service name, and two names that slug the same
+ * get a numeric suffix rather than being collapsed: merging two metrics into
+ * one item would hide the quantity that moved.
  */
 function metricUsageItems(rows: BillableRow[]): CostUsageItem[] {
   const byMetric = new Map<string, BillableRow[]>();
   for (const row of rows) {
-    const group = byMetric.get(row.x_BillableMetricId) ?? [];
+    const group = byMetric.get(row.ServiceName) ?? [];
     group.push(row);
-    byMetric.set(row.x_BillableMetricId, group);
+    byMetric.set(row.ServiceName, group);
   }
 
   const takenKeys = new Set<string>();
   const items: CostUsageItem[] = [];
-  for (const metricId of [...byMetric.keys()].sort()) {
-    const group = byMetric.get(metricId)!;
+  for (const serviceName of [...byMetric.keys()].sort()) {
+    const group = byMetric.get(serviceName)!;
     const sample = group[0]!;
-    const preferredKey = `metric_${slugifyMetricName(sample.x_BillableMetricName)}`;
-    const key = takenKeys.has(preferredKey)
-      ? `${preferredKey}_${slugifyMetricName(metricId)}`
-      : preferredKey;
+    const preferredKey = `metric_${slugifyMetricName(serviceName)}`;
+    let key = preferredKey;
+    for (let suffix = 2; takenKeys.has(key); suffix += 1) {
+      key = `${preferredKey}_${suffix}`;
+    }
     takenKeys.add(key);
+    const unit = sample.ConsumedUnit || sample.PricingUnit;
     items.push({
       key,
-      label: `${sample.x_BillableMetricName} (${sample.ConsumedUnit})`,
+      label: unit ? `${serviceName} (${unit})` : serviceName,
       unit: 'units',
       value: roundUsageUsd(
         group.reduce((sum, row) => sum + row.ConsumedQuantity, 0),
