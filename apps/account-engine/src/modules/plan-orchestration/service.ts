@@ -10,6 +10,7 @@ import {
   GMX_V2_BASKET_MARKET_KEYS,
   GMX_V2_EXECUTION_FEE_WEI,
   GMX_V2_GAS_ESTIMATES,
+  GmxDepositTooSmallError,
   type GmxV2MarketKey,
   type IntentEngine,
   type LiFiAdapter,
@@ -332,7 +333,7 @@ function gmxCollateralBudget(params: {
   const executionFees =
     BigInt(GMX_V2_EXECUTION_FEE_WEI) * BigInt(params.orderCount);
   if (totalBudget <= executionFees) {
-    throw new Error(
+    throw new GmxDepositTooSmallError(
       `Native ETH GMX amount must exceed ${formatEther(executionFees)} ETH because keeper execution fees are included in the entered amount.`,
     );
   }
@@ -344,7 +345,7 @@ function splitGmxBasketAmount(amount: string): string[] {
   const poolCount = BigInt(GMX_V2_BASKET_MARKET_KEYS.length);
   const share = total / poolCount;
   if (share <= 0n) {
-    throw new Error(
+    throw new GmxDepositTooSmallError(
       `GMX basket deposit amount is too small to split ${poolCount.toString()} ways`,
     );
   }
@@ -539,8 +540,9 @@ async function buildGmxV2BasketDeposit(params: {
     }),
   ]);
   const sharedApprovalGas = transactionGasUnits(approvals);
-  const approvalGasPerPlan = sharedApprovalGas / 4n;
-  const approvalGasRemainder = sharedApprovalGas % 4n;
+  const planCount = BigInt(plans.length);
+  const approvalGasPerPlan = sharedApprovalGas / planCount;
+  const approvalGasRemainder = sharedApprovalGas % planCount;
   const gasUsdByPlan = plans.map((plan, index) =>
     gasUsdFromUnits({
       gasUnits:

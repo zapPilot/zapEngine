@@ -2,29 +2,10 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import type { DailySnapshot } from '@zapengine/types/strategy';
 import type { TrackRecordHookState } from '@/hooks/useTrackRecord';
-import { MarketSeriesChart } from '../MarketSeriesChart';
 import { NavCurveChart } from '../NavCurveChart';
 import { PositionsTable } from '../PositionsTable';
 import { RebalanceTable } from '../RebalanceTable';
-import { SentimentChart } from '../SentimentChart';
 import { VerificationPanel } from '../VerificationPanel';
-
-const point = { date: '2026-01-01', value: 0 };
-
-function market(overrides: Record<string, unknown> = {}) {
-  return {
-    kicker: 'Signal',
-    title: 'Market',
-    color: 'currentColor',
-    formatValue: (value: number) => String(value),
-    points: [{ ...point, dma: null }],
-    dmaLabel: '200-DMA',
-    tokenSymbol: undefined,
-    tokenPair: undefined,
-    caption: undefined,
-    ...overrides,
-  };
-}
 
 function snapshot(regime?: string): DailySnapshot {
   return {
@@ -66,23 +47,6 @@ function snapshot(regime?: string): DailySnapshot {
 }
 
 describe('track-record presentation edge branches', () => {
-  it('renders missing DMA, token pairs, captions, and both flat-domain fallbacks', () => {
-    const { rerender } = render(<MarketSeriesChart {...market()} />);
-    expect(screen.queryByText(/[▲▼].*200-DMA/)).not.toBeInTheDocument();
-
-    rerender(
-      <MarketSeriesChart
-        {...market({
-          points: [{ date: '2026-01-01', value: 5, dma: 5 }],
-          tokenPair: ['ETH', 'BTC'],
-          caption: 'Pair caption',
-        })}
-      />,
-    );
-    expect(screen.getByText('Pair caption')).toBeInTheDocument();
-    expect(screen.getByText(/▲.*200-DMA/)).toBeInTheDocument();
-  });
-
   it('renders a NAV curve whose initial value is zero', () => {
     render(<NavCurveChart snapshots={[snapshot()]} />);
     expect(screen.getByText('100.00')).toBeInTheDocument();
@@ -97,24 +61,6 @@ describe('track-record presentation edge branches', () => {
     );
     expect(screen.getByText('ETH')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /0x1/ })).toBeInTheDocument();
-  });
-
-  it.each([
-    [10, 'Extreme Fear'],
-    [35, 'Fear'],
-    [50, 'Neutral'],
-    [60, 'Greed'],
-    [80, 'Extreme Greed'],
-  ])('infers sentiment regime for %s', (value, expected) => {
-    const { unmount } = render(
-      <SentimentChart
-        kicker="Sentiment"
-        title="Crypto FGI"
-        points={[{ date: '2026-01-01', value, regime: null }]}
-      />,
-    );
-    expect(screen.getByText(`${value} · ${expected}`)).toBeInTheDocument();
-    unmount();
   });
 
   it('renders verification loading without a class name', () => {

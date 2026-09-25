@@ -1,3 +1,4 @@
+import { equalsAddress } from '@zapengine/types/shared';
 import { getAddress, type Address, type PublicClient } from 'viem';
 
 import {
@@ -5,6 +6,7 @@ import {
   type GmxV2PricingAdapter,
 } from '../adapters/gmx-v2-pricing.adapter.js';
 import type { LiFiAdapter } from '../adapters/lifi.adapter.js';
+import { GmxDepositTooSmallError } from '../errors/intent.errors.js';
 import {
   encodeGmxV2CreateDepositMulticall,
   GMX_V2_ADDRESSES,
@@ -14,7 +16,9 @@ import {
   GMX_V2_FUNDING_TOKENS,
   GMX_V2_GAS_ESTIMATES,
   GMX_V2_MARKETS,
+  GMX_V2_SWAP_PATHS,
   GMX_V2_TOKENS,
+  type GmxV2FundedSide,
   type GmxV2Market,
   type GmxV2MarketKey,
 } from '../protocols/gmx-v2/index.js';
@@ -59,7 +63,7 @@ function applyDepositSlippage(
   const minimum =
     (estimatedMarketTokens * slippageMultiplier + 9_999n) / 10_000n;
   if (minimum <= 0n || minimum >= estimatedMarketTokens) {
-    throw new Error(
+    throw new GmxDepositTooSmallError(
       'GMX deposit amount is too small to retain a GM-token slippage buffer',
     );
   }
@@ -80,10 +84,6 @@ function depositSlippageBps(value: number | undefined): number {
   return slippageBps;
 }
 
-function normalizeAddress(address: Address): string {
-  return address.toLowerCase();
-}
-
 function approvalFromQuote(
   quote: TransactionQuote,
 ): PreparedTransaction | null {
@@ -102,79 +102,109 @@ function parseStep(tx: PreparedTransaction): PreparedTransaction {
   return PreparedTransactionSchema.parse(tx);
 }
 
-function marketTokenMatches(token: Address, candidate: Address): boolean {
-  return normalizeAddress(token) === normalizeAddress(candidate);
+/**
+ * The side a deposit token enters, and the hops that turn it into that side's
+ * pool token.
+ */
+interface GmxV2DepositRoute {
+  side: GmxV2FundedSide;
+  swapPath: GmxV2Market[];
 }
 
-function directCollateralToken(
-  market: GmxV2Market,
-  fromToken: Address,
-): Address | null {
-  if (
-    marketTokenMatches(fromToken, GMX_V2_TOKENS.ETH.address) &&
-    (marketTokenMatches(market.longToken, GMX_V2_TOKENS.WETH.address) ||
-      marketTokenMatches(market.shortToken, GMX_V2_TOKENS.WETH.address))
-  ) {
-    return GMX_V2_TOKENS.WETH.address;
-  }
-  if (marketTokenMatches(fromToken, market.longToken)) {
-    return market.longToken;
-  }
-  if (marketTokenMatches(fromToken, market.shortToken)) {
-    return market.shortToken;
-  }
-  return null;
-}
-
-function depositSideAmounts(
-  market: GmxV2Market,
-  collateralToken: Address,
-  amount: bigint,
-): { longTokenAmount: bigint; shortTokenAmount: bigint } {
-  // Single-collateral GM markets (longToken === shortToken, e.g. GM BTC/BTC
-  // [WBTC.b-WBTC.b]) reject a deposit funded on only one side: the GMX
-  // ExchangeRouter reverts before the DepositHandler even runs. They must be
-  // funded on BOTH sides — half long, half short — which makes the multicall
-  // emit two transfers, exactly as the GMX UI does. Verified against a real
-  // on-chain GM BTC/BTC deposit and a Tenderly Arbitrum fork. See
-  // docs/gmx-v2-implementation-notes.md (Gate 1).
-  if (
-    normalizeAddress(market.longToken) === normalizeAddress(market.shortToken)
-  ) {
-    if (!marketTokenMatches(collateralToken, market.longToken)) {
-      throw new Error(
-        'GMX single-collateral deposit token must match the pool token',
+/**
+ * Straight onto the side whose pool token `token` already is, otherwise
+ * through the shortest configured GMX swap path into either pool token.
+ */
+function depositRoute(market: GmxV2Market, token: Address): GmxV2DepositRoute {
+  const routes = (['long', 'short'] as const).flatMap(
+    (side): GmxV2DepositRoute[] => {
+      const poolToken = side === 'long' ? market.longToken : market.shortToken;
+      if (equalsAddress(token, poolToken)) {
+        return [{ side, swapPath: [] }];
+      }
+      const path = GMX_V2_SWAP_PATHS.find(
+        (candidate) =>
+          equalsAddress(candidate.from, token) &&
+          equalsAddress(candidate.to, poolToken),
       );
-    }
-    const longTokenAmount = amount / 2n;
-    return { longTokenAmount, shortTokenAmount: amount - longTokenAmount };
+      return path
+        ? [{ side, swapPath: path.via.map((key) => GMX_V2_MARKETS[key]) }]
+        : [];
+    },
+  );
+  // Fewest hops wins; the sort is stable, so the long side takes a tie.
+  const [route] = routes.sort(
+    (left, right) => left.swapPath.length - right.swapPath.length,
+  );
+  if (!route) {
+    throw new Error(
+      `GMX v2 has no swap path from ${token} into ${market.name}`,
+    );
+  }
+  return route;
+}
+
+/**
+ * USDT has no deep GMX market (see GMX_V2_SWAP_PATHS), so it enters the
+ * deposit as USDC. A 6-decimal stable-to-stable swap keeps a real slippage
+ * buffer down to cents; only sub-cent dust trips the guard.
+ */
+async function swapUsdtToUsdc(
+  input: BuildGmxV2SupplyTxInput,
+  fromToken: Address,
+  adapter: LiFiAdapter,
+): Promise<{
+  approval: PreparedTransaction | null;
+  step: PreparedTransaction;
+  usdcAmount: string;
+}> {
+  const swapQuote = await adapter.getSwapQuote({
+    fromChain: GMX_V2_ARBITRUM_CHAIN_ID,
+    toChain: GMX_V2_ARBITRUM_CHAIN_ID,
+    fromToken,
+    toToken: GMX_V2_TOKENS.USDC.address,
+    fromAmount: input.fromAmount,
+    fromAddress: input.userAddress,
+    toAddress: input.userAddress,
+    slippageBps: 50,
+  });
+
+  // A floor at or above the quote leaves the on-chain swap zero tolerance, so
+  // any execution rounding reverts it — and the atomic batch with it. See
+  // docs/gmx-v2-implementation-notes.md (Gate 2).
+  const toAmountMin = BigInt(swapQuote.estimate.toAmountMin);
+  if (toAmountMin <= 0n || toAmountMin >= BigInt(swapQuote.estimate.toAmount)) {
+    throw new GmxDepositTooSmallError(
+      `GMX v2 ${input.marketKey} deposit too small: the USDT to USDC swap ` +
+        `output has no slippage buffer (toAmountMin ${swapQuote.estimate.toAmountMin}, ` +
+        `toAmount ${swapQuote.estimate.toAmount}); increase the deposit amount.`,
+    );
   }
 
-  if (marketTokenMatches(collateralToken, market.longToken)) {
-    return { longTokenAmount: amount, shortTokenAmount: 0n };
-  }
-  if (marketTokenMatches(collateralToken, market.shortToken)) {
-    return { longTokenAmount: 0n, shortTokenAmount: amount };
-  }
-  throw new Error(
-    'GMX deposit token must match the market long or short token',
-  );
+  return {
+    approval: approvalFromQuote(swapQuote),
+    step: parseStep(swapQuote.transaction),
+    usdcAmount: swapQuote.estimate.toAmountMin,
+  };
 }
 
 function buildDepositStep(params: {
   market: GmxV2Market;
   receiver: Address;
-  collateralToken: Address;
-  collateralAmount: string;
+  depositToken: Address;
+  depositAmount: string;
+  route: GmxV2DepositRoute;
   estimatedMarketTokens: string;
   minMarketTokens: string;
   useNativeWntCollateral: boolean;
 }): PreparedTransaction {
-  const amount = BigInt(params.collateralAmount);
   const multicall = encodeGmxV2CreateDepositMulticall({
     receiver: params.receiver,
     market: params.market,
-    ...depositSideAmounts(params.market, params.collateralToken, amount),
+    initialToken: params.depositToken,
+    amount: BigInt(params.depositAmount),
+    side: params.route.side,
+    swapPath: params.route.swapPath.map((hop) => hop.marketToken),
     minMarketTokens: BigInt(params.minMarketTokens),
     useNativeWntCollateral: params.useNativeWntCollateral,
   });
@@ -192,6 +222,7 @@ function buildDepositStep(params: {
       route: {
         tool: 'gmx-v2-direct',
         marketKey: params.market.key,
+        swapPath: params.route.swapPath.map((hop) => hop.key),
         asyncSettlement: true,
         executionFeeWei: GMX_V2_EXECUTION_FEE_WEI,
         estimate: {
@@ -203,6 +234,12 @@ function buildDepositStep(params: {
   });
 }
 
+/**
+ * GM deposits are funded in a single transfer. A funding token that is not
+ * the pool's own token is converted by GMX's keeper along a swap path inside
+ * the deposit, so the only slippage bound is the 18-decimal minMarketTokens
+ * and small legs still mint.
+ */
 export async function buildGmxV2SupplyTx(
   input: BuildGmxV2SupplyTxInput,
   adapter: LiFiAdapter,
@@ -215,12 +252,10 @@ export async function buildGmxV2SupplyTx(
   );
 
   const market = GMX_V2_MARKETS[input.marketKey];
-  const normalizedFromToken = getAddress(input.fromToken);
-  const supportedFundingToken = GMX_V2_FUNDING_TOKENS.some(
-    (address) =>
-      normalizeAddress(address) === normalizeAddress(normalizedFromToken),
-  );
-  if (!supportedFundingToken) {
+  const fromToken = getAddress(input.fromToken);
+  if (
+    !GMX_V2_FUNDING_TOKENS.some((address) => equalsAddress(address, fromToken))
+  ) {
     throw new Error(
       'GMX v2 funding token must be canonical Arbitrum USDC, USDT, native ETH, or WETH',
     );
@@ -228,67 +263,33 @@ export async function buildGmxV2SupplyTx(
   const slippageBps = depositSlippageBps(input.slippageBps);
   const approvals: PreparedTransaction[] = [];
   const steps: PreparedTransaction[] = [];
-  let collateralAmount = input.fromAmount;
-  const directCollateral = directCollateralToken(market, normalizedFromToken);
-  const collateralToken = directCollateral ?? market.collateralToken;
-  const useNativeWntCollateral =
-    directCollateral !== null &&
-    marketTokenMatches(normalizedFromToken, GMX_V2_TOKENS.ETH.address) &&
-    marketTokenMatches(collateralToken, GMX_V2_TOKENS.WETH.address);
+  const useNativeWntCollateral = equalsAddress(
+    fromToken,
+    GMX_V2_TOKENS.ETH.address,
+  );
+  let depositToken: Address = useNativeWntCollateral
+    ? GMX_V2_TOKENS.WETH.address
+    : fromToken;
+  let depositAmount = input.fromAmount;
 
-  if (directCollateral === null) {
-    const swapQuote = await adapter.getSwapQuote({
-      fromChain: GMX_V2_ARBITRUM_CHAIN_ID,
-      toChain: GMX_V2_ARBITRUM_CHAIN_ID,
-      fromToken: normalizedFromToken,
-      toToken: collateralToken,
-      fromAmount: input.fromAmount,
-      fromAddress: input.userAddress,
-      toAddress: input.userAddress,
-      slippageBps: 50,
-    });
-
-    const swapApproval = approvalFromQuote(swapQuote);
-    if (swapApproval) {
-      approvals.push(swapApproval);
+  if (equalsAddress(fromToken, GMX_V2_TOKENS.USDT.address)) {
+    const swap = await swapUsdtToUsdc(input, fromToken, adapter);
+    if (swap.approval) {
+      approvals.push(swap.approval);
     }
-
-    steps.push(parseStep(swapQuote.transaction));
-    collateralAmount = swapQuote.estimate.toAmountMin;
-    validatePositiveAmount(
-      collateralAmount,
-      'GMX deposit amount must be greater than zero',
-    );
-
-    // Dust guard: at tiny sizes the swap output is a 2-digit number of
-    // 8-decimal WBTC units, so LiFi's slippage buffer rounds away to nothing
-    // (toAmountMin === toAmount) — the on-chain swap then has ZERO tolerance
-    // and reverts inside LiFi GenericSwapFacetV3 on any execution rounding,
-    // taking the whole EIP-7702 atomic batch with it. Reject early with a clear
-    // message instead of an opaque on-chain revert. (The ~0.001-ETH GMX
-    // execution fee also makes such dust deposits economically nonsensical.)
-    // See docs/gmx-v2-implementation-notes.md (Gate 2).
-    if (
-      BigInt(swapQuote.estimate.toAmountMin) >=
-      BigInt(swapQuote.estimate.toAmount)
-    ) {
-      throw new Error(
-        `GMX v2 ${input.marketKey} deposit too small: swap output has no ` +
-          `slippage buffer (toAmountMin ${swapQuote.estimate.toAmountMin} === ` +
-          `toAmount ${swapQuote.estimate.toAmount}); increase the deposit amount.`,
-      );
-    }
+    steps.push(swap.step);
+    depositToken = GMX_V2_TOKENS.USDC.address;
+    depositAmount = swap.usdcAmount;
   }
 
-  const sideAmounts = depositSideAmounts(
-    market,
-    collateralToken,
-    BigInt(collateralAmount),
-  );
+  const route = depositRoute(market, depositToken);
   const estimatedMarketTokens = await pricingAdapter.getDepositAmountOut({
     publicClient,
     market,
-    ...sideAmounts,
+    initialToken: depositToken,
+    amount: BigInt(depositAmount),
+    side: route.side,
+    swapPath: route.swapPath,
   });
   const minMarketTokens = applyDepositSlippage(
     estimatedMarketTokens,
@@ -298,9 +299,9 @@ export async function buildGmxV2SupplyTx(
   if (!useNativeWntCollateral) {
     approvals.push(
       createApprovalTx({
-        tokenAddress: collateralToken,
+        tokenAddress: depositToken,
         spenderAddress: GMX_V2_ADDRESSES.router,
-        amount: collateralAmount,
+        amount: depositAmount,
       }),
     );
   }
@@ -309,8 +310,9 @@ export async function buildGmxV2SupplyTx(
     buildDepositStep({
       market,
       receiver: input.userAddress,
-      collateralToken,
-      collateralAmount,
+      depositToken,
+      depositAmount,
+      route,
       estimatedMarketTokens: estimatedMarketTokens.toString(),
       minMarketTokens: minMarketTokens.toString(),
       useNativeWntCollateral,

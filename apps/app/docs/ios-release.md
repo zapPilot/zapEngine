@@ -63,7 +63,10 @@ that depends on facts about this repository.
 > This update includes the existing Zap Pilot podcast experience plus a
 > read-only portfolio dashboard. Home and Portfolio display existing
 > portfolio analytics for the signed-in account or a user-entered watch-only
-> address. The iOS dashboard is informational only and cannot move assets or
+> address. Strategy displays the strategy's daily assessment alongside public
+> market indicators (BTC, ETH, and S&P 500 prices against their 200-day
+> moving averages, the ETH/BTC ratio, and crypto and macro Fear & Greed
+> indices). The iOS dashboard is informational only and cannot move assets or
 > execute transactions.
 >
 > All podcasts and editorial content available in the app are original

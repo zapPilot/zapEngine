@@ -2,7 +2,9 @@
 Unit tests for MarketDashboardService.
 
 Tests cover:
-- _map_sentiment_to_regime: boundary values for all 5 regime bands
+- fgi regime tag: classified from the day's provider label exactly like the
+  strategy's RegimeClassifier (normalization, neutral fallback, label wins
+  over the numeric average)
 - get_market_dashboard: registry shape, per-series value population,
   derived indicators (is_above), regime tag, SPY weekend forward-fill,
   and response metadata.
@@ -14,9 +16,15 @@ from datetime import date
 from typing import Any
 from unittest.mock import Mock
 
-from src.models.market_dashboard import SeriesFrequency, SeriesKind
+import pytest
+
+from src.models.market_dashboard import SeriesFrequency, SeriesKind, SeriesPoint
 from src.models.regime_tracking import RegimeId
 from src.models.token_price import TokenPriceSnapshot
+from src.services.backtesting.signals.dma_gated_fgi.regime_classifier import (
+    VALID_REGIME_LABELS,
+    RegimeClassifier,
+)
 from src.services.market.market_dashboard_service import MarketDashboardService
 
 
@@ -87,38 +95,88 @@ def _make_service(
     )
 
 
-class TestMapSentimentToRegime:
-    """Boundary-value tests for _map_sentiment_to_regime static method."""
+_NO_LABEL = object()
 
-    def test_extreme_fear_lower_bound(self):
-        assert MarketDashboardService._map_sentiment_to_regime(0) == RegimeId.ef
 
-    def test_extreme_fear_upper_bound(self):
-        assert MarketDashboardService._map_sentiment_to_regime(25) == RegimeId.ef
+def _fgi_point_for_day(
+    primary_classification: object = _NO_LABEL,
+    avg_sentiment: float = 50.0,
+) -> SeriesPoint:
+    """Run one sentiment aggregate row through the dashboard; return its FGI point."""
+    d = date(2025, 1, 15)
+    row: dict[str, Any] = {"snapshot_date": d, "avg_sentiment": avg_sentiment}
+    if primary_classification is not _NO_LABEL:
+        row["primary_classification"] = primary_classification
+    service = _make_service(
+        prices=[_make_price_snapshot(d, 95000.0)],
+        sentiment_rows=[row],
+    )
+    return service.get_market_dashboard(days=30).snapshots[0].values["fgi"]
 
-    def test_fear_lower_bound(self):
-        assert MarketDashboardService._map_sentiment_to_regime(26) == RegimeId.f
 
-    def test_fear_upper_bound(self):
-        assert MarketDashboardService._map_sentiment_to_regime(45) == RegimeId.f
+class TestFgiRegimeFromProviderLabel:
+    """The fgi regime tag uses the strategy's label-only regime classification."""
 
-    def test_neutral_lower_bound(self):
-        assert MarketDashboardService._map_sentiment_to_regime(46) == RegimeId.n
+    @pytest.mark.parametrize(
+        ("label", "expected"),
+        [
+            ("Extreme Fear", "ef"),
+            ("Fear", "f"),
+            ("Neutral", "n"),
+            ("Greed", "g"),
+            ("Extreme Greed", "eg"),
+            ("extreme_fear", "ef"),
+            ("extreme_greed", "eg"),
+            ("EXTREME greed", "eg"),
+            ("  Neutral  ", "n"),
+            ("Extreme-Fear", "ef"),
+        ],
+    )
+    def test_provider_label_maps_to_regime_id(self, label: str, expected: str):
+        assert _fgi_point_for_day(label).tags["regime"] == expected
 
-    def test_neutral_upper_bound(self):
-        assert MarketDashboardService._map_sentiment_to_regime(54) == RegimeId.n
+    @pytest.mark.parametrize("label", [None, "", "   ", "Bullish", 90])
+    def test_invalid_label_falls_back_to_neutral(self, label: object):
+        # An average of 90 would have tagged "eg" under numeric cutoffs.
+        fgi = _fgi_point_for_day(label, avg_sentiment=90.0)
+        assert fgi.value == 90.0
+        assert fgi.tags["regime"] == "n"
 
-    def test_greed_lower_bound(self):
-        assert MarketDashboardService._map_sentiment_to_regime(55) == RegimeId.g
+    def test_missing_label_falls_back_to_neutral(self):
+        fgi = _fgi_point_for_day(avg_sentiment=10.0)
+        assert fgi.value == 10.0
+        assert fgi.tags["regime"] == "n"
 
-    def test_greed_upper_bound(self):
-        assert MarketDashboardService._map_sentiment_to_regime(75) == RegimeId.g
+    @pytest.mark.parametrize(
+        ("avg_sentiment", "label", "expected_value", "expected_regime"),
+        [
+            # Rounds to 76 (numeric band "eg"), but the providers said Greed.
+            (75.6, "Greed", 76.0, "g"),
+            # Rounds to 74 (numeric band "g"), but the providers said Extreme Greed.
+            (74.4, "Extreme Greed", 74.0, "eg"),
+            # 25 sits in numeric band "ef", but the providers said Fear.
+            (25.0, "Fear", 25.0, "f"),
+        ],
+    )
+    def test_provider_label_wins_over_numeric_band(
+        self,
+        avg_sentiment: float,
+        label: str,
+        expected_value: float,
+        expected_regime: str,
+    ):
+        fgi = _fgi_point_for_day(label, avg_sentiment=avg_sentiment)
+        assert fgi.value == expected_value
+        assert fgi.tags["regime"] == expected_regime
 
-    def test_extreme_greed_lower_bound(self):
-        assert MarketDashboardService._map_sentiment_to_regime(76) == RegimeId.eg
-
-    def test_extreme_greed_upper_bound(self):
-        assert MarketDashboardService._map_sentiment_to_regime(100) == RegimeId.eg
+    @pytest.mark.parametrize(
+        "label",
+        [*sorted(VALID_REGIME_LABELS), "Extreme Fear", "Greed", "Bullish", None],
+    )
+    def test_agrees_with_strategy_regime_classifier(self, label: object):
+        strategy_regime = RegimeClassifier().classify_from_sentiment({"label": label})
+        dashboard_regime = RegimeId(_fgi_point_for_day(label).tags["regime"])
+        assert dashboard_regime.label.lower().replace(" ", "_") == strategy_regime
 
 
 class TestSeriesRegistry:
@@ -334,7 +392,13 @@ class TestGetMarketDashboard:
     def test_fgi_carries_regime_tag(self):
         d = date(2025, 1, 15)
         prices = [_make_price_snapshot(d, 95000.0)]
-        sentiment_rows = [{"snapshot_date": d, "avg_sentiment": 45.0}]
+        sentiment_rows = [
+            {
+                "snapshot_date": d,
+                "avg_sentiment": 45.0,
+                "primary_classification": "Fear",
+            }
+        ]
 
         service = _make_service(prices=prices, sentiment_rows=sentiment_rows)
         result = service.get_market_dashboard(days=30)
@@ -415,7 +479,13 @@ class TestGetMarketDashboard:
     def test_sentiment_string_date_is_parsed(self):
         d = date(2025, 3, 1)
         prices = [_make_price_snapshot(d, 88000.0)]
-        sentiment_rows = [{"snapshot_date": "2025-03-01", "avg_sentiment": 75.0}]
+        sentiment_rows = [
+            {
+                "snapshot_date": "2025-03-01",
+                "avg_sentiment": 75.0,
+                "primary_classification": "Greed",
+            }
+        ]
 
         service = _make_service(prices=prices, sentiment_rows=sentiment_rows)
         result = service.get_market_dashboard(days=30)

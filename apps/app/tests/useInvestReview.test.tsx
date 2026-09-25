@@ -1,5 +1,10 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { APIError } from '@zapengine/app-core/lib/http';
+import {
+  GMX_DEPOSIT_TOO_SMALL_ERROR_CODE,
+  HLP_DEPOSIT_TOO_SMALL_ERROR_CODE,
+} from '@zapengine/types/api';
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -24,7 +29,8 @@ vi.mock('@zapengine/app-core/services/planOrchestrationService', () => ({
   getDepositReview: mocks.getDepositReview,
 }));
 
-vi.mock('@zapengine/app-core/lib/http', () => ({
+vi.mock('@zapengine/app-core/lib/http', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@zapengine/app-core/lib/http')>()),
   handleHTTPError: (error: unknown) =>
     error instanceof Error ? error.message : String(error),
 }));
@@ -104,12 +110,14 @@ function Probe({
   return null;
 }
 
-async function render(): Promise<Harness> {
+async function render(
+  queries: { retry?: number | false; retryDelay?: number } = {},
+): Promise<Harness> {
   const container = document.createElement('div');
   document.body.appendChild(container);
   const root = createRoot(container);
   const client = new QueryClient({
-    defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    defaultOptions: { queries: { retry: false, gcTime: 0, ...queries } },
   });
   let value: UseInvestReviewResult | null = null;
 
@@ -232,6 +240,75 @@ describe('useInvestReview', () => {
 
     expect(harness.current().isError).toBe(true);
     expect(harness.current().errorMessage).toContain('chain 8453');
+  });
+
+  // A client that would retry, with a delay long enough that no retry fires
+  // during the test: what is observed is the first failure alone.
+  const retryingClient = { retry: 2, retryDelay: 60_000 };
+
+  it('explains a GMX leg refused as too small, without retrying it', async () => {
+    mocks.invest.stageDrafts = [gmxDraft];
+    mocks.getDepositReview.mockRejectedValue(
+      new APIError(
+        'GMX v2 btc-btc deposit too small: swap output has no slippage buffer',
+        422,
+        GMX_DEPOSIT_TOO_SMALL_ERROR_CODE,
+      ),
+    );
+    const harness = await render(retryingClient);
+
+    expect(mocks.getDepositReview).toHaveBeenCalledOnce();
+    expect(harness.current().isError).toBe(true);
+    expect(harness.current().amountTooSmall?.title).toBe(
+      'Crypto share too small',
+    );
+    expect(harness.current().errorMessage).toContain(
+      'Crypto share is too small for GMX',
+    );
+  });
+
+  it('explains an HLP share the bridge lands under the vault minimum, without retrying it', async () => {
+    mocks.invest.stageDrafts = [
+      {
+        ...hlpDraft,
+        ingress: 'lifi',
+        sourceToken: BASE_DEPOSIT_TOKENS[0],
+        usd6: '10003500',
+        fromAmount: '10003500',
+      },
+    ];
+    mocks.getDepositReview.mockRejectedValue(
+      new APIError(
+        'HLP allocation is below the vault minimum of 10000000 perp USDC base units (quoted 9978491)',
+        422,
+        HLP_DEPOSIT_TOO_SMALL_ERROR_CODE,
+      ),
+    );
+    const harness = await render(retryingClient);
+
+    expect(mocks.getDepositReview).toHaveBeenCalledOnce();
+    expect(harness.current().isError).toBe(true);
+    expect(harness.current().amountTooSmall).toEqual({
+      title: 'HLP share too small',
+      message:
+        'After bridge fees your HLP share would reach Hyperliquid below its $10.00 minimum. Increase the amount or the Stable percentage.',
+    });
+    expect(harness.current().errorMessage).toBe(
+      harness.current().amountTooSmall?.message,
+    );
+  });
+
+  it("keeps the client's retry policy for every other failure", async () => {
+    mocks.invest.stageDrafts = [gmxDraft];
+    mocks.getDepositReview.mockRejectedValue(
+      new APIError('Plan simulation unavailable: timeout', 503),
+    );
+    const harness = await render(retryingClient);
+
+    // Still waiting on its first retry rather than failed outright.
+    expect(mocks.getDepositReview).toHaveBeenCalledOnce();
+    expect(harness.current().isError).toBe(false);
+    expect(harness.current().amountTooSmall).toBeNull();
   });
 
   it('supports explicit retry and refresh of all reviewed batches', async () => {

@@ -1,9 +1,12 @@
+import { equalsAddress } from '@zapengine/types/shared';
 import { getAddress, zeroAddress, type Address, type PublicClient } from 'viem';
 
+import { GmxDepositTooSmallError } from '../errors/intent.errors.js';
 import {
   GMX_V2_ADDRESSES,
   GMX_V2_ORACLE_URLS,
   GMX_V2_READER_ABI,
+  type GmxV2FundedSide,
   type GmxV2Market,
 } from '../protocols/gmx-v2/index.js';
 
@@ -16,8 +19,12 @@ interface GmxOracleTicker {
 export interface GmxV2DepositQuoteInput {
   publicClient: PublicClient;
   market: GmxV2Market;
-  longTokenAmount: bigint;
-  shortTokenAmount: bigint;
+  /** The token the deposit is funded with — WETH for native ETH. */
+  initialToken: Address;
+  amount: bigint;
+  side: GmxV2FundedSide;
+  /** Markets the keeper swaps `initialToken` through before minting. */
+  swapPath: readonly GmxV2Market[];
 }
 
 export interface GmxV2PricingAdapter {
@@ -65,18 +72,57 @@ function priceProps(ticker: GmxOracleTicker) {
   };
 }
 
+function readerMarket(market: GmxV2Market) {
+  return {
+    marketToken: market.marketToken,
+    indexToken: market.indexToken,
+    longToken: market.longToken,
+    shortToken: market.shortToken,
+  };
+}
+
+function readerPrices(
+  tickers: readonly GmxOracleTicker[],
+  market: GmxV2Market,
+) {
+  return {
+    indexTokenPrice: priceProps(tickerFor(tickers, market.indexToken)),
+    longTokenPrice: priceProps(tickerFor(tickers, market.longToken)),
+    shortTokenPrice: priceProps(tickerFor(tickers, market.shortToken)),
+  };
+}
+
 export class GmxV2ReaderPricingAdapter implements GmxV2PricingAdapter {
   async getDepositAmountOut(input: GmxV2DepositQuoteInput): Promise<bigint> {
     const tickers = await fetchOracleTickers();
-    const indexTokenPrice = priceProps(
-      tickerFor(tickers, input.market.indexToken),
-    );
-    const longTokenPrice = priceProps(
-      tickerFor(tickers, input.market.longToken),
-    );
-    const shortTokenPrice = priceProps(
-      tickerFor(tickers, input.market.shortToken),
-    );
+
+    // Hop by hop, as the keeper executes it: each output funds the next hop.
+    let token = input.initialToken;
+    let amount = input.amount;
+    for (const hop of input.swapPath) {
+      const [amountOut] = await input.publicClient.readContract({
+        address: GMX_V2_ADDRESSES.syntheticsReader,
+        abi: GMX_V2_READER_ABI,
+        functionName: 'getSwapAmountOut',
+        args: [
+          GMX_V2_ADDRESSES.dataStore,
+          readerMarket(hop),
+          readerPrices(tickers, hop),
+          token,
+          amount,
+          zeroAddress,
+        ],
+      });
+      if (amountOut <= 0n) {
+        throw new GmxDepositTooSmallError(
+          `GMX deposit amount rounds to zero when swapped through ${hop.name}`,
+        );
+      }
+      token = equalsAddress(token, hop.longToken)
+        ? hop.shortToken
+        : hop.longToken;
+      amount = amountOut;
+    }
 
     return input.publicClient.readContract({
       address: GMX_V2_ADDRESSES.syntheticsReader,
@@ -84,15 +130,10 @@ export class GmxV2ReaderPricingAdapter implements GmxV2PricingAdapter {
       functionName: 'getDepositAmountOut',
       args: [
         GMX_V2_ADDRESSES.dataStore,
-        {
-          marketToken: input.market.marketToken,
-          indexToken: input.market.indexToken,
-          longToken: input.market.longToken,
-          shortToken: input.market.shortToken,
-        },
-        { indexTokenPrice, longTokenPrice, shortTokenPrice },
-        input.longTokenAmount,
-        input.shortTokenAmount,
+        readerMarket(input.market),
+        readerPrices(tickers, input.market),
+        input.side === 'long' ? amount : 0n,
+        input.side === 'short' ? amount : 0n,
         zeroAddress,
         3,
         true,

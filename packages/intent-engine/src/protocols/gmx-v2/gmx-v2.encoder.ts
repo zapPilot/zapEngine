@@ -6,6 +6,7 @@ import {
   GMX_V2_EXCHANGE_ROUTER_ABI,
   GMX_V2_EXECUTION_FEE_WEI,
   GMX_V2_TOKENS,
+  type GmxV2FundedSide,
   type GmxV2Market,
 } from './gmx-v2.constants.js';
 
@@ -15,8 +16,8 @@ export const ZERO_ADDRESS =
 export interface GmxV2CreateDepositParams {
   receiver: Address;
   marketToken: Address;
-  longToken: Address;
-  shortToken: Address;
+  initialLongToken: Address;
+  initialShortToken: Address;
   executionFee: bigint;
   callbackContract?: Address;
   uiFeeReceiver?: Address;
@@ -31,11 +32,18 @@ export interface GmxV2CreateDepositParams {
 export interface GmxV2CreateDepositMulticallParams {
   receiver: Address;
   market: GmxV2Market;
-  longTokenAmount: bigint;
-  shortTokenAmount: bigint;
+  /**
+   * The one token sent into the DepositVault. It is the funded side's own pool
+   * token unless `swapPath` converts it into that token.
+   */
+  initialToken: Address;
+  amount: bigint;
+  side: GmxV2FundedSide;
+  /** Market tokens the keeper swaps `initialToken` through before minting. */
+  swapPath?: readonly Address[];
   executionFee?: bigint;
   minMarketTokens: bigint;
-  /** Fund WETH collateral by wrapping native ETH inside ExchangeRouter. */
+  /** Fund WETH by wrapping native ETH inside ExchangeRouter. */
   useNativeWntCollateral?: boolean;
 }
 
@@ -98,8 +106,8 @@ export function encodeGmxV2CreateDeposit(
           callbackContract: params.callbackContract ?? ZERO_ADDRESS,
           uiFeeReceiver: params.uiFeeReceiver ?? ZERO_ADDRESS,
           market: params.marketToken,
-          initialLongToken: params.longToken,
-          initialShortToken: params.shortToken,
+          initialLongToken: params.initialLongToken,
+          initialShortToken: params.initialShortToken,
           longTokenSwapPath: [...(params.longTokenSwapPath ?? [])],
           shortTokenSwapPath: [...(params.shortTokenSwapPath ?? [])],
         },
@@ -116,11 +124,22 @@ export function encodeGmxV2CreateDeposit(
 export function encodeGmxV2CreateDepositMulticall(
   params: GmxV2CreateDepositMulticallParams,
 ): { data: Hex; value: string } {
-  if (params.longTokenAmount <= 0n && params.shortTokenAmount <= 0n) {
+  if (params.amount <= 0n) {
     throw new Error('GMX deposit amount must be greater than zero');
   }
   if (params.minMarketTokens <= 0n) {
     throw new Error('GMX minMarketTokens must be greater than zero');
+  }
+
+  const fundsLong = params.side === 'long';
+  const poolToken = fundsLong
+    ? params.market.longToken
+    : params.market.shortToken;
+  const swapPath = params.swapPath ?? [];
+  if (swapPath.length === 0 && !equalsAddress(params.initialToken, poolToken)) {
+    throw new Error(
+      'GMX deposit token must be the funded pool token unless a swap path converts it',
+    );
   }
 
   const executionFee = params.executionFee ?? BigInt(GMX_V2_EXECUTION_FEE_WEI);
@@ -129,34 +148,41 @@ export function encodeGmxV2CreateDepositMulticall(
   ];
   let value = executionFee;
 
-  const appendCollateral = (token: Address, amount: bigint) => {
-    if (amount <= 0n) {
-      return;
+  if (params.useNativeWntCollateral) {
+    if (!equalsAddress(params.initialToken, GMX_V2_TOKENS.WETH.address)) {
+      throw new Error('Native GMX collateral can only fund WETH');
     }
-
-    if (params.useNativeWntCollateral) {
-      if (!equalsAddress(token, GMX_V2_TOKENS.WETH.address)) {
-        throw new Error('Native GMX collateral can only fund WETH');
-      }
-      calls.push(encodeGmxV2SendWnt(GMX_V2_ADDRESSES.depositVault, amount));
-      value += amount;
-      return;
-    }
-
     calls.push(
-      encodeGmxV2SendTokens(token, GMX_V2_ADDRESSES.depositVault, amount),
+      encodeGmxV2SendWnt(GMX_V2_ADDRESSES.depositVault, params.amount),
     );
-  };
+    value += params.amount;
+  } else {
+    calls.push(
+      encodeGmxV2SendTokens(
+        params.initialToken,
+        GMX_V2_ADDRESSES.depositVault,
+        params.amount,
+      ),
+    );
+  }
 
-  appendCollateral(params.market.longToken, params.longTokenAmount);
-  appendCollateral(params.market.shortToken, params.shortTokenAmount);
-
+  // The DepositVault books a token's whole transfer to the first side naming
+  // it, so one transfer funds even a single-collateral market. The unfunded
+  // side must name the market's own token: the keeper passes its zero amount
+  // through unswapped and cancels the deposit with InvalidSwapOutputToken
+  // unless that token is already the pool token.
   calls.push(
     encodeGmxV2CreateDeposit({
       receiver: params.receiver,
       marketToken: params.market.marketToken,
-      longToken: params.market.longToken,
-      shortToken: params.market.shortToken,
+      initialLongToken: fundsLong
+        ? params.initialToken
+        : params.market.longToken,
+      initialShortToken: fundsLong
+        ? params.market.shortToken
+        : params.initialToken,
+      longTokenSwapPath: fundsLong ? swapPath : [],
+      shortTokenSwapPath: fundsLong ? [] : swapPath,
       executionFee,
       minMarketTokens: params.minMarketTokens,
     }),

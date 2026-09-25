@@ -237,29 +237,23 @@ describe('singleChainDepositExecution', () => {
     mocks.readContract
       .mockReset()
       .mockResolvedValueOnce(1n)
-      .mockResolvedValueOnce(2n)
-      .mockResolvedValueOnce(3n)
-      .mockResolvedValueOnce(4n);
+      .mockResolvedValueOnce(2n);
     const packed = await readSingleChainPositionBalance(basketRequest, USER);
-    expect(mocks.readContract).toHaveBeenCalledTimes(4);
-    expect(packed).toBe(1n + (2n << 256n) + (3n << 512n) + (4n << 768n));
+    expect(mocks.readContract).toHaveBeenCalledTimes(2);
+    expect(packed).toBe(1n + (2n << 256n));
   });
 
   it('configures settlement polling and stops only after every position increases', async () => {
     await waitForSingleChainPositionIncrease({
       request: basketRequest,
       address: USER,
-      baseline: 1n + (2n << 256n) + (3n << 512n) + (4n << 768n),
+      baseline: 1n + (2n << 256n),
     });
     const basketConfig = mocks.pollUntil.mock.calls.at(-1)?.[0];
     expect(basketConfig.intervalMs).toBe(4_000);
     expect(basketConfig.timeoutMs).toBe(5 * 60_000);
-    expect(
-      basketConfig.shouldStop(2n + (3n << 256n) + (4n << 512n) + (5n << 768n)),
-    ).toBe(true);
-    expect(
-      basketConfig.shouldStop(2n + (2n << 256n) + (4n << 512n) + (5n << 768n)),
-    ).toBe(false);
+    expect(basketConfig.shouldStop(2n + (3n << 256n))).toBe(true);
+    expect(basketConfig.shouldStop(2n + (2n << 256n))).toBe(false);
     await basketConfig.fn();
 
     await waitForSingleChainPositionIncrease({

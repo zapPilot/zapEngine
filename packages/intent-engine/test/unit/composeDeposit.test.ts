@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { decodeFunctionData, erc20Abi, type Address } from 'viem';
 
 import type { LiFiAdapter } from '../../src/adapters/lifi.adapter.js';
+import { HlpDepositTooSmallError } from '../../src/errors/intent.errors.js';
 import {
   HYPERCORE_PERPS_USDC,
   HYPERLIQUID_BRIDGE2_ADDRESS,
@@ -516,6 +517,41 @@ describe('composeDeposit', () => {
     ).rejects.toThrow('HLP allocation is below the vault minimum');
   });
 
+  it('refuses an HLP share at the minimum once the LI.FI fee lands it below', async () => {
+    const { adapter, getQuote } = makeAdapter();
+    const { publicClients } = makePublicClients();
+    // Live Base USDC -> HyperCore quote (polymerStandard, 2026-09-25): a flat
+    // 25 bps fee, so exactly $10.00 in promises $9.975 of perp USDC.
+    getQuote.mockResolvedValueOnce(
+      makeQuote({
+        kind: 'BRIDGE',
+        fromAmount: '10000000',
+        toAmountMin: '9975000',
+        gasCostUsd: '0.20',
+        executionDuration: 1080,
+        toChainId: 1337,
+        toToken: HYPERCORE_PERPS_USDC,
+      }),
+    );
+
+    const compose = composeDeposit(
+      {
+        fromToken: BASE_USDC,
+        fromAmount: '10000000',
+        sourceChainId: 8453,
+        userAddress: USER,
+        split: { 1337: 1 },
+      },
+      { adapter, publicClients: publicClients as never },
+    );
+
+    await expect(compose).rejects.toBeInstanceOf(HlpDepositTooSmallError);
+    await expect(compose).rejects.toMatchObject({
+      code: 'HLP_DEPOSIT_TOO_SMALL',
+      message: expect.stringContaining('quoted 9975000'),
+    });
+  });
+
   it('escrows native Arbitrum USDC through Bridge2 instead of quoting LI.FI', async () => {
     const { adapter, getQuote } = makeAdapter();
     const { publicClients, readContract } = makePublicClients();
@@ -665,7 +701,7 @@ describe('composeDeposit', () => {
         },
         { adapter, publicClients: publicClients as never },
       ),
-    ).rejects.toThrow('HLP allocation is below the vault minimum');
+    ).rejects.toBeInstanceOf(HlpDepositTooSmallError);
     expect(getQuote).not.toHaveBeenCalled();
   });
 

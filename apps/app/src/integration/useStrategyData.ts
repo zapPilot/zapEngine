@@ -1,13 +1,10 @@
 import { useRegimeHistory } from '@zapengine/app-core/hooks/queries/market/useRegimeHistoryQuery';
-import { useSentimentData } from '@zapengine/app-core/hooks/queries/market/useSentimentQuery';
 
 import { DEMO } from '@/data/demo';
 import {
   compositionRows,
   currentModeLabelFor,
   demoTextOrDash,
-  liveNumberOrDemo,
-  liveTextOrDemo,
   regimeDisplayFromRegime,
 } from '@/integration/strategyPresentation';
 import { useDefaultStrategyBacktest } from '@/integration/useDefaultStrategyBacktest';
@@ -20,8 +17,10 @@ import {
  * Shape consumed by StrategyScreen. Disconnected/demo mode can still use DEMO;
  * connected unavailable fields are explicit dashes.
  */
-export type StrategyData = (typeof DEMO)['strategy'] & {
-  backtest: (typeof DEMO)['strategy']['backtest'] & {
+type DemoStrategy = (typeof DEMO)['strategy'];
+
+export type StrategyData = Omit<DemoStrategy, 'quote' | 'backtest'> & {
+  backtest: Omit<DemoStrategy['backtest'], 'sentiment'> & {
     chartData: number[];
     displayName: string | null;
   };
@@ -50,21 +49,20 @@ function unavailableBacktestMetrics(): StrategyData['backtest']['metrics'] {
 /**
  * Container hook for the Strategy screen.
  *
- * Wires the cleanly-available live signals — Fear & Greed sentiment value +
- * quote, current market regime, target allocation, and default backtest
- * metrics/chart data when analytics is available.
+ * Wires the cleanly-available live signals — current market regime, target
+ * allocation, and default backtest metrics/chart data when analytics is
+ * available.
  *
  * @param userId Resolved account-engine user id, or null while connecting.
- *   Sentiment/regime are market-wide (not user-scoped), so the hooks run as soon
- *   as the screen mounts; userId only gates the "still resolving identity" state.
+ *   Regime is market-wide (not user-scoped), so its hook runs as soon as the
+ *   screen mounts; userId only gates the "still resolving identity" state.
  */
 export function useStrategyData(
   userId: string | null,
   isConnected: boolean,
   backtestDays?: number,
 ): UseStrategyDataResult {
-  // Market-wide signals — no userId needed; run unconditionally (React rules).
-  const sentiment = useSentimentData();
+  // Market-wide regime — no userId needed; run unconditionally (React rules).
   const regime = useRegimeHistory();
   const suggestion = useStrategySuggestion(userId);
   const defaultBacktest = useDefaultStrategyBacktest(backtestDays);
@@ -75,27 +73,12 @@ export function useStrategyData(
 
   const isLoading =
     isDemo ||
-    sentiment.isLoading ||
     regime.isLoading ||
     suggestion.isLoading ||
     defaultBacktest.isLoading;
   // Regime degrades to DEFAULT_REGIME_HISTORY internally (never errors), so a
-  // genuine failure here is sentiment-only.
-  const isError = sentiment.isError || defaultBacktest.isError;
-
-  // --- Live: Fear & Greed sentiment marker (0–100) ---
-  const sentimentValue = liveNumberOrDemo(
-    sentiment.data?.value,
-    demoBacktest.sentiment,
-    isDemo,
-  );
-
-  // --- Live: contrarian discipline quote tied to current sentiment ---
-  const quote = liveTextOrDemo(
-    sentiment.data?.quote?.quote,
-    demoStrategy.quote,
-    isDemo,
-  );
+  // genuine failure here is backtest-only.
+  const isError = defaultBacktest.isError;
 
   // --- Live: current market regime → human-readable mode label ---
   const { regimeLabel, marketModeLabel } = regimeDisplayFromRegime(
@@ -130,7 +113,6 @@ export function useStrategyData(
     estApyLabel:
       defaultBacktest.data?.returnLabel ??
       demoTextOrDash(demoStrategy.estApyLabel, isDemo),
-    quote,
     marketModeLabel,
     pillars,
     backtest: {
@@ -146,7 +128,6 @@ export function useStrategyData(
       metrics: backtestMetrics,
       currentModeLabel,
       allocation,
-      sentiment: sentimentValue,
       chartData: defaultBacktest.data?.chartData ?? [],
       displayName: defaultBacktest.data?.displayName ?? null,
     },

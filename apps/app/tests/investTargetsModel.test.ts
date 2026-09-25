@@ -9,6 +9,8 @@ import {
   normalizePercentInput,
   percentInputToBps,
   isValidTargetAllocation,
+  HLP_LIFI_HEADROOM_BPS,
+  hlpMinimumShareUsd6,
   targetMinimumUsd6,
   targetUsd6Shares,
   hlpIngressFor,
@@ -91,19 +93,78 @@ describe('isValidTargetAllocation', () => {
   });
 });
 
-describe('targetMinimumUsd6', () => {
-  it("is driven by HLP's $10 floor at the default 57% weight", () => {
-    expect(targetMinimumUsd6(defaults)).toBe(17_543_860n);
+describe('hlpMinimumShareUsd6', () => {
+  it('asks exactly the vault minimum of routes that land 1:1', () => {
+    expect(hlpMinimumShareUsd6('hypercore')).toBe(10_000_000n);
+    expect(hlpMinimumShareUsd6('bridge2')).toBe(10_000_000n);
+    expect(hlpMinimumShareUsd6(null)).toBe(10_000_000n);
   });
 
-  it('falls back to each destination on its own', () => {
-    expect(targetMinimumUsd6(allocation(10_000, 0, 0))).toBe(10_000n);
-    expect(targetMinimumUsd6(allocation(0, 10_000, 0))).toBe(1_000_000n);
-    expect(targetMinimumUsd6(allocation(0, 0, 10_000))).toBe(10_000_000n);
+  it('adds the LI.FI headroom so the quoted output still clears $10', () => {
+    const share = hlpMinimumShareUsd6('lifi');
+    expect(share).toBe(10_204_082n);
+    expect((share * (10_000n - HLP_LIFI_HEADROOM_BPS)) / 10_000n).toBe(
+      10_000_000n,
+    );
+  });
+});
+
+describe('targetMinimumUsd6', () => {
+  it("is driven by HLP's $10 floor at the default 57% weight", () => {
+    // $17.543860 rounds up to the first whole cent that clears it.
+    expect(targetMinimumUsd6(defaults, 'bridge2')).toBe(17_550_000n);
+    expect(targetMinimumUsd6(defaults, 'hypercore')).toBe(17_550_000n);
+    expect(targetMinimumUsd6(defaults, null)).toBe(17_550_000n);
+  });
+
+  it('sizes a LI.FI-funded HLP share for what the bridge delivers', () => {
+    // At $17.55 the HLP share is $10.0035; Base USDC's live 25 bps LI.FI fee
+    // (2026-09-25) promises $9.978 of it, which the vault would refuse.
+    const feeFree = targetUsd6Shares('17550000', defaults)!.hlp;
+    expect(feeFree).toBe(10_003_500n);
+    expect((feeFree * 9_975n) / 10_000n).toBeLessThan(10_000_000n);
+
+    expect(targetMinimumUsd6(defaults, 'lifi')).toBe(17_910_000n);
+  });
+
+  it('ignores a small Crypto share, since GMX has no deposit minimum', () => {
+    const mix = resolveTargetAllocations({
+      crypto: 100,
+      stable: 9_900,
+      sp500: 0,
+    });
+    expect(mix.map((a) => a.weightBps)).toEqual([495, 100, 9_405]);
+    // HLP at 94.05% needs $10.632643; the $1 GMX floor used to force $100.
+    const minimum = targetMinimumUsd6(mix, 'bridge2');
+    expect(minimum).toBe(10_640_000n);
+    expect(
+      targetUsd6Shares(minimum.toString(), mix)!.hlp,
+    ).toBeGreaterThanOrEqual(10_000_000n);
+    expect(targetMinimumUsd6(mix, 'lifi')).toBe(10_850_000n);
+  });
+
+  it('keeps every LI.FI minimum above $10 after the worst measured quote', () => {
+    // 122 bps: Ethereum ETH -> HyperCore over Relay near $10 (2026-09-25).
+    for (let hlp = 100; hlp <= 10_000; hlp += 100) {
+      const mix = allocation(10_000 - hlp, 0, hlp);
+      const minimum = targetMinimumUsd6(mix, 'lifi');
+      const share = targetUsd6Shares(minimum.toString(), mix)!.hlp;
+      expect((share * (10_000n - 122n)) / 10_000n).toBeGreaterThanOrEqual(
+        10_000_000n,
+      );
+    }
+  });
+
+  it('only sets a minimum when HLP is funded', () => {
+    expect(targetMinimumUsd6(allocation(10_000, 0, 0), 'lifi')).toBe(0n);
+    expect(targetMinimumUsd6(allocation(0, 10_000, 0), 'lifi')).toBe(0n);
+    expect(targetMinimumUsd6(allocation(0, 0, 10_000), 'bridge2')).toBe(
+      10_000_000n,
+    );
   });
 
   it('is zero for an invalid allocation rather than guessing', () => {
-    expect(targetMinimumUsd6(allocation(4_000, 3_500, 2_400))).toBe(0n);
+    expect(targetMinimumUsd6(allocation(4_000, 3_500, 2_400), 'lifi')).toBe(0n);
   });
 });
 

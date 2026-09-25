@@ -10,6 +10,11 @@ Adding a new data source to the wire payload: register a descriptor in
 The current frontend Market Overview chart still needs explicit line
 registration, flattening, normalization, tooltip formatting, and tests before a
 new series is visible.
+
+The `fgi` regime tag is classified from the day's provider label
+(`primary_classification`) with the strategy's label-only `RegimeClassifier`,
+never from numeric cutoffs on the daily average, so a borderline average cannot
+tag a different regime than the one the strategy reads from the same label.
 """
 
 import logging
@@ -28,6 +33,9 @@ from src.models.market_dashboard import (
 )
 from src.models.regime_tracking import RegimeId
 from src.services.backtesting.data.forward_fill import forward_fill_on_dates
+from src.services.backtesting.signals.dma_gated_fgi.regime_classifier import (
+    RegimeClassifier,
+)
 from src.services.market._coercion import coerce_dma_snapshot_date
 from src.services.market.macro_fear_greed_history import (
     resolve_macro_fear_greed_history,
@@ -91,6 +99,17 @@ _SERIES_REGISTRY: dict[str, SeriesDescriptor] = {
 
 _PRIMARY_SERIES = "btc"
 
+_FGI_REGIME_CLASSIFIER = RegimeClassifier()
+
+# Wire short codes for the classifier's regime labels.
+_REGIME_ID_BY_LABEL: dict[str, RegimeId] = {
+    "extreme_fear": RegimeId.ef,
+    "fear": RegimeId.f,
+    "neutral": RegimeId.n,
+    "greed": RegimeId.g,
+    "extreme_greed": RegimeId.eg,
+}
+
 
 def _dma_series_point(point: dict[str, Any], *, value_key: str) -> SeriesPoint:
     """Build a dashboard point with its optional DMA indicator."""
@@ -103,6 +122,18 @@ def _dma_series_point(point: dict[str, Any], *, value_key: str) -> SeriesPoint:
             is_above=bool(raw_is_above) if raw_is_above is not None else None,
         )
     return SeriesPoint(value=float(point[value_key]), indicators=indicators)
+
+
+def _fgi_series_point(row: dict[str, Any]) -> SeriesPoint:
+    """Build a day's FGI point; its regime follows the strategy's label-only rule."""
+    regime_label = _FGI_REGIME_CLASSIFIER.classify_from_sentiment(
+        {"label": row.get("primary_classification")}
+    )
+    sentiment_int = int(round(float(row["avg_sentiment"])))
+    return SeriesPoint(
+        value=float(sentiment_int),
+        tags={"regime": _REGIME_ID_BY_LABEL[regime_label].value},
+    )
 
 
 class MarketDashboardService:
@@ -126,19 +157,6 @@ class MarketDashboardService:
         self.sentiment_service = sentiment_service
         self.stock_price_service = stock_price_service
         self.macro_fear_greed_service = macro_fear_greed_service
-
-    @staticmethod
-    def _map_sentiment_to_regime(value: int) -> RegimeId:
-        """Map sentiment value (0-100) to market regime."""
-        if value <= 25:
-            return RegimeId.ef
-        if value <= 45:
-            return RegimeId.f
-        if value <= 54:
-            return RegimeId.n
-        if value <= 75:
-            return RegimeId.g
-        return RegimeId.eg
 
     def get_market_dashboard(self, days: int = 365) -> MarketDashboardResponse:
         """Retrieve and combine market data for the specified period."""
@@ -176,10 +194,10 @@ class MarketDashboardService:
             end_date=end_date,
         )
 
-        sentiment_map: dict[date, float] = {}
-        for row in sentiment_rows:
-            s_date = coerce_dma_snapshot_date(row["snapshot_date"])
-            sentiment_map[s_date] = float(row["avg_sentiment"])
+        fgi_points: dict[date, SeriesPoint] = {
+            coerce_dma_snapshot_date(row["snapshot_date"]): _fgi_series_point(row)
+            for row in sentiment_rows
+        }
 
         # SPY trades weekdays only; BTC is daily. Forward-fill SPY across the
         # BTC timeline so the merged series stays aligned without recharts
@@ -234,14 +252,9 @@ class MarketDashboardService:
             if ratio_point is not None:
                 values["eth_btc"] = _dma_series_point(ratio_point, value_key="ratio")
 
-            sentiment_val = sentiment_map.get(p_date)
-            if sentiment_val is not None:
-                sentiment_int = int(round(sentiment_val))
-                regime = self._map_sentiment_to_regime(sentiment_int)
-                values["fgi"] = SeriesPoint(
-                    value=float(sentiment_int),
-                    tags={"regime": regime.value},
-                )
+            fgi_point = fgi_points.get(p_date)
+            if fgi_point is not None:
+                values["fgi"] = fgi_point
 
             macro_fear_greed = macro_fear_greed_filled.get(p_date)
             if macro_fear_greed is not None:

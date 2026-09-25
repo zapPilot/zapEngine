@@ -7,12 +7,19 @@ import type { Address } from 'viem';
 
 export const GMX_V2_ARBITRUM_CHAIN_ID = 42161;
 
+/**
+ * GMX redeploys its handlers and ExchangeRouter and revokes the old router's
+ * roles, so a stale exchangeRouter reverts every deposit and withdrawal. The
+ * vaults, DataStore, and Router (the approval spender) survive upgrades.
+ * Re-check the router with RoleStore.hasRole(exchangeRouter, CONTROLLER) —
+ * see docs/gmx-v2-implementation-notes.md.
+ */
 export const GMX_V2_ADDRESSES = {
-  exchangeRouter: '0x1C3fa76e6E1088bCE750f23a5BFcffa1efEF6A41',
+  exchangeRouter: '0x7dE39FF2e232A2203196788d37e234cF8F1b83f1',
   depositVault: '0xF89e77e8Dc11691C9e8757e84aaFbCD8A67d7A55',
   withdrawalVault: '0x0628D46b5D145f183AdB6Ef1f2c97eD1C4701C55',
   dataStore: '0xFD70de6b91282D8017aA4E741e9Ae325CAb992d8',
-  syntheticsReader: '0x470fbC46bcC0f16532691Df360A07d8Bf5ee0789',
+  syntheticsReader: '0xfA26cBb46e2614609406de08CA1Dc7f70a684184',
   router: '0x7452c558d45f8afC8c83dAe62C3f8A5BE19c71f6',
 } as const satisfies Record<string, Address>;
 
@@ -62,6 +69,7 @@ export const GMX_V2_FUNDING_TOKENS = [
 /** One-percent protection for the asynchronous GM-token mint quote. */
 export const GMX_V2_DEFAULT_DEPOSIT_SLIPPAGE_BPS = 100;
 
+/** The market side a deposit's funding token enters. */
 export type GmxV2FundedSide = 'long' | 'short';
 
 export interface GmxV2Market {
@@ -71,17 +79,20 @@ export interface GmxV2Market {
   readonly indexToken: Address;
   readonly longToken: Address;
   readonly shortToken: Address;
-  readonly fundedSide: GmxV2FundedSide;
+  /** The market's representative pool token, reported as a withdrawal's output. */
   readonly collateralToken: Address;
 }
 
 export type GmxV2MarketKey = 'btc-btc' | 'eth-eth' | 'btc-usdc' | 'eth-usdc';
 
+/**
+ * The strategy's GMX basket: pure BTC and ETH exposure. The USDC-collateral
+ * markets stay fully supported (single-market deposits, withdrawals, existing
+ * holdings) but are deliberately left out of the basket.
+ */
 export const GMX_V2_BASKET_MARKET_KEYS = [
   'btc-btc',
   'eth-eth',
-  'btc-usdc',
-  'eth-usdc',
 ] as const satisfies readonly GmxV2MarketKey[];
 
 export const GMX_V2_MARKETS = {
@@ -92,7 +103,6 @@ export const GMX_V2_MARKETS = {
     indexToken: '0x47904963fc8b2340414262125aF798B9655E58Cd',
     longToken: GMX_V2_TOKENS.WBTC_B.address,
     shortToken: GMX_V2_TOKENS.USDC.address,
-    fundedSide: 'short',
     collateralToken: GMX_V2_TOKENS.USDC.address,
   },
   'eth-usdc': {
@@ -102,7 +112,6 @@ export const GMX_V2_MARKETS = {
     indexToken: GMX_V2_TOKENS.WETH.address,
     longToken: GMX_V2_TOKENS.WETH.address,
     shortToken: GMX_V2_TOKENS.USDC.address,
-    fundedSide: 'short',
     collateralToken: GMX_V2_TOKENS.USDC.address,
   },
   'btc-btc': {
@@ -112,7 +121,6 @@ export const GMX_V2_MARKETS = {
     indexToken: '0x47904963fc8b2340414262125aF798B9655E58Cd',
     longToken: GMX_V2_TOKENS.WBTC_B.address,
     shortToken: GMX_V2_TOKENS.WBTC_B.address,
-    fundedSide: 'long',
     collateralToken: GMX_V2_TOKENS.WBTC_B.address,
   },
   'eth-eth': {
@@ -122,10 +130,46 @@ export const GMX_V2_MARKETS = {
     indexToken: GMX_V2_TOKENS.WETH.address,
     longToken: GMX_V2_TOKENS.WETH.address,
     shortToken: GMX_V2_TOKENS.WETH.address,
-    fundedSide: 'long',
     collateralToken: GMX_V2_TOKENS.WETH.address,
   },
 } as const satisfies Record<GmxV2MarketKey, GmxV2Market>;
+
+/**
+ * Swap paths GMX's keeper runs before minting, for a funding token that is not
+ * the target pool's own token. Every hop is one of the deep two-token markets
+ * (btc-usdc: WBTC.b<->USDC, eth-usdc: WETH<->USDC), so the only slippage bound
+ * is the 18-decimal minMarketTokens and a leg of a few cents still mints. USDT
+ * has no path on purpose: GMX's only USDT market (swap-only USDC/USDT, market
+ * 0xB686…c4) held ~2.8k USDC on 2026-09-25, so USDT enters as USDC through
+ * LI.FI first. Each path was executed by a keeper on an Arbitrum fork — see
+ * docs/gmx-v2-implementation-notes.md.
+ */
+export const GMX_V2_SWAP_PATHS = [
+  {
+    from: GMX_V2_TOKENS.USDC.address,
+    to: GMX_V2_TOKENS.WBTC_B.address,
+    via: ['btc-usdc'],
+  },
+  {
+    from: GMX_V2_TOKENS.USDC.address,
+    to: GMX_V2_TOKENS.WETH.address,
+    via: ['eth-usdc'],
+  },
+  {
+    from: GMX_V2_TOKENS.WETH.address,
+    to: GMX_V2_TOKENS.USDC.address,
+    via: ['eth-usdc'],
+  },
+  {
+    from: GMX_V2_TOKENS.WETH.address,
+    to: GMX_V2_TOKENS.WBTC_B.address,
+    via: ['eth-usdc', 'btc-usdc'],
+  },
+] as const satisfies readonly {
+  readonly from: Address;
+  readonly to: Address;
+  readonly via: readonly GmxV2MarketKey[];
+}[];
 
 export const GMX_V2_EXECUTION_FEE_WEI = '1000000000000000';
 
@@ -163,6 +207,32 @@ function payableFunctionAbi<
   } as const;
 }
 
+const PRICE_COMPONENTS = [
+  { name: 'min', type: UINT256 },
+  { name: 'max', type: UINT256 },
+] as const;
+
+const READER_MARKET_INPUT = {
+  name: 'market',
+  type: 'tuple',
+  components: [
+    { name: 'marketToken', type: ADDRESS },
+    { name: 'indexToken', type: ADDRESS },
+    { name: 'longToken', type: ADDRESS },
+    { name: 'shortToken', type: ADDRESS },
+  ],
+} as const;
+
+const READER_PRICES_INPUT = {
+  name: 'prices',
+  type: 'tuple',
+  components: [
+    { name: 'indexTokenPrice', type: 'tuple', components: PRICE_COMPONENTS },
+    { name: 'longTokenPrice', type: 'tuple', components: PRICE_COMPONENTS },
+    { name: 'shortTokenPrice', type: 'tuple', components: PRICE_COMPONENTS },
+  ],
+} as const;
+
 export const GMX_V2_READER_ABI = [
   {
     name: 'getDepositAmountOut',
@@ -170,46 +240,8 @@ export const GMX_V2_READER_ABI = [
     stateMutability: 'view',
     inputs: [
       { name: 'dataStore', type: ADDRESS },
-      {
-        name: 'market',
-        type: 'tuple',
-        components: [
-          { name: 'marketToken', type: ADDRESS },
-          { name: 'indexToken', type: ADDRESS },
-          { name: 'longToken', type: ADDRESS },
-          { name: 'shortToken', type: ADDRESS },
-        ],
-      },
-      {
-        name: 'prices',
-        type: 'tuple',
-        components: [
-          {
-            name: 'indexTokenPrice',
-            type: 'tuple',
-            components: [
-              { name: 'min', type: UINT256 },
-              { name: 'max', type: UINT256 },
-            ],
-          },
-          {
-            name: 'longTokenPrice',
-            type: 'tuple',
-            components: [
-              { name: 'min', type: UINT256 },
-              { name: 'max', type: UINT256 },
-            ],
-          },
-          {
-            name: 'shortTokenPrice',
-            type: 'tuple',
-            components: [
-              { name: 'min', type: UINT256 },
-              { name: 'max', type: UINT256 },
-            ],
-          },
-        ],
-      },
+      READER_MARKET_INPUT,
+      READER_PRICES_INPUT,
       { name: 'longTokenAmount', type: UINT256 },
       { name: 'shortTokenAmount', type: UINT256 },
       { name: 'uiFeeReceiver', type: ADDRESS },
@@ -217,6 +249,37 @@ export const GMX_V2_READER_ABI = [
       { name: 'includeVirtualInventoryImpact', type: 'bool' },
     ],
     outputs: [{ name: 'marketTokensOut', type: UINT256 }],
+  },
+  {
+    // One swap hop, priced exactly as SwapUtils executes it (fees and impact
+    // included). Shape per the verified Reader source at syntheticsReader.
+    name: 'getSwapAmountOut',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [
+      { name: 'dataStore', type: ADDRESS },
+      READER_MARKET_INPUT,
+      READER_PRICES_INPUT,
+      { name: 'tokenIn', type: ADDRESS },
+      { name: 'amountIn', type: UINT256 },
+      { name: 'uiFeeReceiver', type: ADDRESS },
+    ],
+    outputs: [
+      { name: 'amountOut', type: UINT256 },
+      { name: 'impactAmount', type: 'int256' },
+      {
+        name: 'fees',
+        type: 'tuple',
+        components: [
+          { name: 'feeReceiverAmount', type: UINT256 },
+          { name: 'feeAmountForPool', type: UINT256 },
+          { name: 'amountAfterFees', type: UINT256 },
+          { name: 'uiFeeReceiver', type: ADDRESS },
+          { name: 'uiFeeReceiverFactor', type: UINT256 },
+          { name: 'uiFeeAmount', type: UINT256 },
+        ],
+      },
+    ],
   },
 ] as const;
 

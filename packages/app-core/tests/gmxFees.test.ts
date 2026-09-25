@@ -13,4 +13,9 @@ describe('GMX basket fees', () => {
         BigInt(GMX_V2_BASKET_MARKET_KEYS.length),
     );
   });
+
+  it('is 0.002 ETH for the BTC + ETH basket', () => {
+    expect(GMX_V2_BASKET_MARKET_KEYS).toEqual(['btc-btc', 'eth-eth']);
+    expect(GMX_V2_BASKET_EXECUTION_FEE_WEI).toBe(2_000_000_000_000_000n);
+  });
 });

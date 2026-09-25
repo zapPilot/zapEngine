@@ -86,8 +86,8 @@ describe('coverage handoff: target allocation validation', () => {
   it('returns zero for an absent position and invalid minimum plan', () => {
     expect(weightBpsFor(allocations, 'hlp')).toBe(6000);
     expect(weightBpsFor(allocations.slice(0, 2), 'hlp')).toBe(0);
-    expect(targetMinimumUsd6([])).toBe(0n);
-    expect(targetMinimumUsd6(allocations)).toBeGreaterThan(0n);
+    expect(targetMinimumUsd6([], 'lifi')).toBe(0n);
+    expect(targetMinimumUsd6(allocations, 'bridge2')).toBeGreaterThan(0n);
   });
 
   it('rejects malformed totals and preserves every integer unit', () => {

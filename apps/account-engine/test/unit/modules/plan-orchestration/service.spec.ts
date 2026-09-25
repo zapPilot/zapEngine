@@ -1,3 +1,9 @@
+import {
+  buildGmxV2SupplyTx,
+  GMX_V2_EXCHANGE_ROUTER_ABI,
+  GMX_V2_MARKETS,
+  GmxDepositTooSmallError,
+} from '@zapengine/intent-engine';
 import { type DepositPlan, NATIVE_TOKEN_ADDRESS } from '@zapengine/types/api';
 import {
   type Address,
@@ -15,7 +21,7 @@ const USER = '0x1111111111111111111111111111111111111111' as Address;
 const USDC = '0xaf88d065e77c8cC2239327C5EDb3A432268e5831' as Address;
 const USDT = '0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9' as Address;
 const GMX_ROUTER = '0x7452c558d45f8afC8c83dAe62C3f8A5BE19c71f6' as Address;
-const EXCHANGE_ROUTER = '0x1C3fa76e6E1088bCE750f23a5BFcffa1efEF6A41' as Address;
+const EXCHANGE_ROUTER = '0x7dE39FF2e232A2203196788d37e234cF8F1b83f1' as Address;
 const BASE_USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as Address;
 const ETHEREUM_USDC = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48' as Address;
 
@@ -310,20 +316,20 @@ describe('plan-orchestration chain batches', () => {
 
     expect(Object.keys(result.reviews)).toEqual(['chain-42161']);
     expect(simulateBundle).toHaveBeenCalledTimes(1);
-    // Four GMX supplies then the Bridge2 transfer, in position order.
-    expect(plan.legs).toHaveLength(5);
-    expect(plan.legs[4]!.protocol).toBe('hyperliquid');
-    expect(plan.calls).toHaveLength(5);
-    expect(plan.calls[4]!.to).toBe(USDC);
+    // Two GMX supplies then the Bridge2 transfer, in position order.
+    expect(plan.legs).toHaveLength(3);
+    expect(plan.legs[2]!.protocol).toBe('hyperliquid');
+    expect(plan.calls).toHaveLength(3);
+    expect(plan.calls[2]!.to).toBe(USDC);
     expect(plan.approvals).toHaveLength(1);
     // The follow-up still names its own bridge leg after the shift.
     expect(plan.followUps?.[0]).toMatchObject({
-      afterLegIndex: 4,
-      amount: { source: 'bridge-output', legIndex: 4 },
+      afterLegIndex: 2,
+      amount: { source: 'bridge-output', legIndex: 2 },
     });
     // Both positions contributed: the HLP plan alone quotes 0.02.
     expect(Number.parseFloat(plan.totalGasUsd)).toBeGreaterThan(0.02);
-    expect(simulateBundle.mock.calls[0]![0].calls).toHaveLength(6);
+    expect(simulateBundle.mock.calls[0]![0].calls).toHaveLength(4);
   });
 
   it('runs the bundle gate once over the merged batch', async () => {
@@ -337,7 +343,7 @@ describe('plan-orchestration chain batches', () => {
     });
 
     expect(bundleGate).toHaveBeenCalledTimes(1);
-    expect(bundleGate.mock.calls[0]![0].calls).toHaveLength(6);
+    expect(bundleGate.mock.calls[0]![0].calls).toHaveLength(4);
   });
 
   it('builds the same plan a single-position legacy request would', async () => {
@@ -358,9 +364,9 @@ describe('plan-orchestration chain batches', () => {
   });
 
   it('caps a shared source token against every position drawing on it', async () => {
-    // The mocked basket approves 4 x 1000 USDC. Alone that is above what GMX
+    // The mocked basket approves 2 x 1000 USDC. Alone that is above what GMX
     // asked for; together with HLP's share of the same token it is not.
-    const gmxOnly = { ...gmxPosition, amount: '3000' };
+    const gmxOnly = { ...gmxPosition, amount: '1500' };
     const hlpShare = { ...hlpPosition, fromAmount: '2000' };
 
     await expect(
@@ -1145,7 +1151,7 @@ describe('plan-orchestration service', () => {
     });
   });
 
-  it('splits the Arbitrum GMX basket across all four markets', async () => {
+  it('splits the Arbitrum GMX basket across its BTC and ETH markets', async () => {
     const { service, buildGmxV2Supply } = makeService(0n);
 
     const plan = await service.buildDeposit({
@@ -1161,30 +1167,124 @@ describe('plan-orchestration service', () => {
         input.fromAmount,
       ]),
     ).toEqual([
-      ['btc-btc', '2500'],
-      ['eth-eth', '2500'],
-      ['btc-usdc', '2500'],
-      ['eth-usdc', '2503'],
+      ['btc-btc', '5001'],
+      ['eth-eth', '5002'],
     ]);
-    expect(plan.legs.map((leg) => leg.fromAmount)).toEqual([
-      '2500',
-      '2500',
-      '2500',
-      '2503',
-    ]);
+    expect(plan.legs.map((leg) => leg.fromAmount)).toEqual(['5001', '5002']);
     expect(plan.legs.map((leg) => leg.label)).toEqual([
       'GMX BTC/BTC',
       'GMX ETH/ETH',
-      'GMX BTC/USDC',
-      'GMX ETH/USDC',
     ]);
-    expect(plan.legs).toHaveLength(4);
-    expect(plan.calls).toHaveLength(4);
+    expect(plan.legs).toHaveLength(2);
+    expect(plan.calls).toHaveLength(2);
     expect(plan.approvals).toHaveLength(1);
+    // Both 800k supply steps plus the one shared 60k approval, at 0.1 gwei and
+    // $3000 ETH: every unit of the approval is attributed to some leg.
+    expect(plan.totalGasUsd).toBe('0.498');
     expect(plan.sourceChainId).toBe(42161);
   });
 
-  it('treats native ETH basket amount as the total budget including four keeper fees', async () => {
+  it('plans a cent-sized USDC basket through GMX swap paths with the real builder', async () => {
+    // Stable 99% / Crypto 1% at the $10.64 minimum: $0.1064 for two pools.
+    // Swapped by LI.FI this failed as dust; the GMX swap path must plan it.
+    const getSwapQuote = vi.fn();
+    const getDepositAmountOut = vi
+      .fn()
+      .mockResolvedValue(40_000_000_000_000_000n);
+    const readContract = vi.fn().mockResolvedValue(0n);
+    const service = createPlanOrchestrationService({
+      intentEngine: {
+        buildGmxV2Supply: (intent, publicClient) =>
+          buildGmxV2SupplyTx(intent, { getSwapQuote } as never, publicClient, {
+            getDepositAmountOut,
+          }),
+        buildGmxV2Withdraw: vi.fn(),
+        buildWithdrawSwap: vi.fn(),
+        buildSupply: vi.fn(),
+        buildSwap: vi.fn(),
+        getTokenPrice: vi.fn().mockResolvedValue({ priceUSD: '3000' }),
+      },
+      adapter: {} as never,
+      publicClients: {
+        42161: {
+          readContract,
+          getGasPrice: vi.fn().mockResolvedValue(100_000_000n),
+        },
+      } as never,
+    });
+
+    const plan = await service.buildDeposit({
+      kind: 'gmx-v2-basket',
+      fromToken: USDC,
+      amount: '106400',
+      userAddress: USER,
+    });
+
+    expect(getSwapQuote).not.toHaveBeenCalled();
+    // The two legs share one bounded USDC allowance to GMX's router.
+    expect(plan.approvals).toHaveLength(1);
+    expect(plan.approvals[0]!.to).toBe(USDC);
+    expect(
+      decodeFunctionData({
+        abi: erc20Abi,
+        data: plan.approvals[0]!.data as `0x${string}`,
+      }).args,
+    ).toEqual([GMX_ROUTER, 106_400n]);
+    expect(plan.legs.map((leg) => [leg.fromAmount, leg.toAmountMin])).toEqual([
+      ['53200', '39600000000000000'],
+      ['53200', '39600000000000000'],
+    ]);
+    expect(plan.calls.map((call) => call.to)).toEqual([
+      EXCHANGE_ROUTER,
+      EXCHANGE_ROUTER,
+    ]);
+    const deposits = plan.calls.map((call) => {
+      const [, , createDeposit] = (
+        decodeFunctionData({
+          abi: GMX_V2_EXCHANGE_ROUTER_ABI,
+          data: call.data as `0x${string}`,
+        }).args[0] as `0x${string}`[]
+      ).map((inner) =>
+        decodeFunctionData({ abi: GMX_V2_EXCHANGE_ROUTER_ABI, data: inner }),
+      );
+      const [params] = createDeposit!.args as unknown as [
+        {
+          addresses: {
+            initialLongToken: Address;
+            longTokenSwapPath: readonly Address[];
+          };
+        },
+      ];
+      return params.addresses;
+    });
+    expect(deposits).toEqual([
+      expect.objectContaining({
+        initialLongToken: USDC,
+        longTokenSwapPath: [GMX_V2_MARKETS['btc-usdc'].marketToken],
+      }),
+      expect.objectContaining({
+        initialLongToken: USDC,
+        longTokenSwapPath: [GMX_V2_MARKETS['eth-usdc'].marketToken],
+      }),
+    ]);
+  });
+
+  it('rejects a basket amount too small to split across its markets', async () => {
+    const { service, buildGmxV2Supply } = makeService(0n);
+
+    const build = service.buildDeposit({
+      kind: 'gmx-v2-basket',
+      fromToken: USDC,
+      amount: '1',
+      userAddress: USER,
+    });
+
+    await expect(build).rejects.toBeInstanceOf(GmxDepositTooSmallError);
+    await expect(build).rejects.toThrow('too small to split 2 ways');
+    expect(buildGmxV2Supply).not.toHaveBeenCalled();
+  });
+
+  it('treats native ETH basket amount as the total budget including both keeper fees', async () => {
     const { service, buildGmxV2Supply } = makeService(0n);
 
     await service.buildDeposit({
@@ -1196,25 +1296,21 @@ describe('plan-orchestration service', () => {
 
     expect(
       buildGmxV2Supply.mock.calls.map(([input]) => input.fromAmount),
-    ).toEqual([
-      '1250000000000000',
-      '1250000000000000',
-      '1250000000000000',
-      '1250000000000000',
-    ]);
+    ).toEqual(['3500000000000000', '3500000000000000']);
   });
 
   it('rejects native ETH basket budgets that do not exceed keeper fees', async () => {
     const { service, buildGmxV2Supply } = makeService(0n);
 
-    await expect(
-      service.buildDeposit({
-        kind: 'gmx-v2-basket',
-        fromToken: NATIVE_TOKEN_ADDRESS,
-        amount: '4000000000000000',
-        userAddress: USER,
-      }),
-    ).rejects.toThrow('must exceed 0.004 ETH');
+    const build = service.buildDeposit({
+      kind: 'gmx-v2-basket',
+      fromToken: NATIVE_TOKEN_ADDRESS,
+      amount: '2000000000000000',
+      userAddress: USER,
+    });
+
+    await expect(build).rejects.toBeInstanceOf(GmxDepositTooSmallError);
+    await expect(build).rejects.toThrow('must exceed 0.002 ETH');
     expect(buildGmxV2Supply).not.toHaveBeenCalled();
   });
 

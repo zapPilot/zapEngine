@@ -1,4 +1,4 @@
-import { Redirect } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
 import { Text, View } from 'react-native';
 
 import { ChainBatchReviewCard } from '@/components/invest/ChainBatchReviewCard';
@@ -47,6 +47,7 @@ function capabilityNotice(
 }
 
 export function InvestRouteScreen() {
+  const router = useRouter();
   const invest = useInvest();
   const review = useInvestReview();
   const hyperCoreDraft = invest.hyperCoreFundingDraft;
@@ -107,6 +108,14 @@ export function InvestRouteScreen() {
               <SkeletonBlock className="h-[180px] w-full rounded-2xl" />
               <SkeletonBlock className="h-[180px] w-full rounded-2xl" />
             </>
+          ) : review.isError && review.amountTooSmall ? (
+            // Retrying the same frozen amounts cannot succeed, so the only
+            // useful action is back to the amount step.
+            <InlineErrorCard
+              title={review.amountTooSmall.title}
+              body={review.amountTooSmall.message}
+              action={{ label: 'Change amount', onPress: () => router.back() }}
+            />
           ) : review.isError ? (
             <InlineErrorCard
               title="Tenderly review unavailable"

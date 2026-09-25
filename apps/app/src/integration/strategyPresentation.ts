@@ -3,25 +3,6 @@ import { tokens } from '@zapengine/design-tokens/tokens';
 
 import type { CompositionTarget } from '@/integration/useStrategySuggestion';
 
-export function liveNumberOrDemo(
-  value: unknown,
-  demoValue: number | null,
-  isDemo: boolean,
-): number | null {
-  if (typeof value === 'number') {
-    return value;
-  }
-  return isDemo ? demoValue : null;
-}
-
-export function liveTextOrDemo(
-  value: string | null | undefined,
-  demoValue: string,
-  isDemo: boolean,
-): string {
-  return value ?? (isDemo ? demoValue : '—');
-}
-
 export function demoTextOrDash(
   demoValue: string,
   isDemo: boolean,

@@ -19,7 +19,7 @@ describe('sector allocation', () => {
   it('resolves the recommendation deterministically and derives the HLP minimum', () => {
     const allocations = resolveTargetAllocations(defaults);
     expect(allocations.map((a) => a.weightBps)).toEqual([300, 4000, 5700]);
-    expect(targetMinimumUsd6(allocations)).toBe(17543860n);
+    expect(targetMinimumUsd6(allocations, 'bridge2')).toBe(17550000n);
     expect(resolveTargetAllocations(defaults)).toEqual(allocations);
     expect(sectorAllocationSummary(defaults)).toBe(
       'Crypto 40%, Stable 60%, S&P 500 0%',

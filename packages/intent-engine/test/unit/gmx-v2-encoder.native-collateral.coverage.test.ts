@@ -18,8 +18,9 @@ describe('GMX v2 deposit encoder native collateral coverage', () => {
       encodeGmxV2CreateDepositMulticall({
         receiver: USER,
         market,
-        longTokenAmount: 0n,
-        shortTokenAmount: 1n,
+        initialToken: market.shortToken,
+        amount: 1n,
+        side: 'short',
         minMarketTokens: 1n,
         useNativeWntCollateral: true,
       }),

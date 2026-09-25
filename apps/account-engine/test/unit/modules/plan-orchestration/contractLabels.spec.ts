@@ -60,8 +60,9 @@ describe('decodeProtocolMethod', () => {
     const { data } = encodeGmxV2CreateDepositMulticall({
       receiver: WALLET,
       market: GMX_V2_MARKETS['eth-usdc'],
-      longTokenAmount: 0n,
-      shortTokenAmount: 5_000_000n,
+      initialToken: GMX_V2_MARKETS['eth-usdc'].shortToken,
+      amount: 5_000_000n,
+      side: 'short',
       minMarketTokens: 1n,
     });
 

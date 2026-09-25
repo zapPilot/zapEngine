@@ -1,5 +1,6 @@
 import { ChevronDown } from 'lucide-react-native';
 import type { ReactNode } from 'react';
+import { View } from 'react-native';
 import { Tap } from '@/components/ui/Tap';
 export function Disclosure({
   expanded,
@@ -29,11 +30,11 @@ export function Disclosure({
         onPress={onToggle}
       >
         {header}
-        <ChevronDown
-          size={chevronSize}
-          color="#a1a1aa"
-          style={{ transform: [{ rotate: expanded ? '180deg' : '0deg' }] }}
-        />
+        {/* Rotate a wrapper: on web lucide forwards `style` to the inner path,
+            which then spins around the viewBox origin and leaves the icon. */}
+        <View style={{ transform: [{ rotate: expanded ? '180deg' : '0deg' }] }}>
+          <ChevronDown size={chevronSize} color="#a1a1aa" />
+        </View>
       </Tap>
       {expanded ? children : null}
     </>

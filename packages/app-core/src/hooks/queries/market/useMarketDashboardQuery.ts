@@ -1,4 +1,4 @@
-import { getMarketDashboardData } from '@core/services';
+import { getMarketDashboardData } from '@core/services/analyticsService';
 import { useQuery } from '@tanstack/react-query';
 
 import { createQueryConfig } from '../queryDefaults';

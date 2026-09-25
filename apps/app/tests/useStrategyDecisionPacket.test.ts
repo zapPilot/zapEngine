@@ -1,10 +1,6 @@
-import type { MarketDashboardResponse } from '@zapengine/app-core/services';
 import type { DailySuggestionResponse } from '@zapengine/app-core/types/strategy';
 
-import {
-  decisionPacketFromSuggestion,
-  evidenceChartFromDashboard,
-} from '@/integration/useStrategyDecisionPacket';
+import { decisionPacketFromSuggestion } from '@/integration/useStrategyDecisionPacket';
 
 const suggestion = {
   as_of: '2026-08-22',
@@ -30,7 +26,17 @@ const suggestion = {
       stance: 'buy',
       reason_code: 'ratio',
       rule_group: 'rotation',
-      details: { matched_rule_name: 'eth_btc_ratio_rotation' },
+      details: {
+        matched_rule_name: 'eth_btc_ratio_rotation',
+        portfolio_rule_matches: [
+          { rule_name: 'cross_down_exit', matched: false, suppressed_by: null },
+          {
+            rule_name: 'eth_btc_ratio_rotation',
+            matched: true,
+            suppressed_by: null,
+          },
+        ],
+      },
     },
   },
 } as unknown as DailySuggestionResponse;
@@ -51,35 +57,11 @@ describe('strategy Decision Packet builders', () => {
       label: 'ETH',
       value: 100,
     });
-  });
-
-  it('extracts values and nullable DMA overlay from dashboard snapshots', () => {
-    const dashboard = {
-      series: {},
-      meta: {},
-      snapshots: [
-        {
-          snapshot_date: '2026-08-21',
-          values: {
-            eth_btc: {
-              value: 0.04,
-              indicators: { dma_200: { value: 0.038, is_above: true } },
-              tags: {},
-            },
-          },
-        },
-        {
-          snapshot_date: '2026-08-22',
-          values: { eth_btc: { value: 0.041, indicators: {}, tags: {} } },
-        },
-      ],
-    } as unknown as MarketDashboardResponse;
-    expect(evidenceChartFromDashboard(dashboard, 'eth_btc')).toEqual({
-      values: [0.04, 0.041],
-      dma: [0.038, null],
-      latestValue: 0.041,
-      latestDma: null,
-    });
-    expect(evidenceChartFromDashboard(dashboard, null)).toBeNull();
+    expect(
+      result.ruleTrace.map(({ ruleName, status }) => [ruleName, status]),
+    ).toEqual([
+      ['cross_down_exit', 'not_matched'],
+      ['eth_btc_ratio_rotation', 'fired'],
+    ]);
   });
 });

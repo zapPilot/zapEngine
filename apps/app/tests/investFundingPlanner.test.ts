@@ -7,6 +7,8 @@ import {
 import {
   planFunding,
   fundingCapacityUsd6,
+  fundingMinimum,
+  fundingMinimumMessage,
   STATIC_FUNDING_RANKING,
   fundingPlanSummary,
   fundingBlockerMessage,
@@ -16,7 +18,10 @@ import {
   type FundingCandidate,
   type FundingPreferences,
 } from '@/integration/investFundingPlanner';
-import { resolveTargetAllocations } from '@/integration/investSectorModel';
+import {
+  DEFAULT_SECTOR_WEIGHTS,
+  resolveTargetAllocations,
+} from '@/integration/investSectorModel';
 import {
   chainBatchDrafts,
   stageDraftsKey,
@@ -237,8 +242,10 @@ describe('automatic funding', () => {
       stable: 0,
       sp500: 0,
     });
+    // $4 at the fixture's $2000 ETH is exactly the two-pool basket's
+    // 0.002 ETH of keeper fees, which leaves nothing to deposit.
     expect(
-      plan(input([row(A[2], 100)], crypto), 8000000n).blockers[0]?.kind,
+      plan(input([row(A[2], 100)], crypto), 4000000n).blockers[0]?.kind,
     ).toBe('gmx-eth-budget');
     expect(plan(input([], [])).blockers).toEqual([
       { kind: 'invalid-allocation' },
@@ -255,7 +262,7 @@ describe('automatic funding', () => {
       input([], defaults, {}, [8453]),
       input([row(A[2], 100)], crypto),
     ]) {
-      const result = plan(config, 8000000n);
+      const result = plan(config, 4000000n);
       expect(fundingBlockerMessage(result.blockers[0]!)).toBeTruthy();
     }
     expect(
@@ -434,5 +441,115 @@ describe('HyperCore as a funding source', () => {
     expect(declined.warnings).not.toContainEqual({
       kind: 'hypercore-balance-unavailable',
     });
+  });
+});
+
+describe('fundingMinimum', () => {
+  // The recommended mix: 57% HLP, so $17.55 over a fee-free route and $17.91
+  // over LI.FI.
+  const recommended = resolveTargetAllocations(DEFAULT_SECTOR_WEIGHTS);
+  const minimumAt = (config: ReturnType<typeof input>, amount: bigint) =>
+    fundingMinimum({
+      ...config,
+      demand: { totalUsd6: amount.toString(), allocations: config.allocations },
+    });
+  const hlpStage = (config: ReturnType<typeof input>, amount: bigint) =>
+    plan(config, amount).stages?.find((stage) => stage.positionId === 'hlp');
+
+  it('holds a Bridge2-funded HLP share to the vault minimum alone', () => {
+    const config = input([row(B[0], 100), row(A[0], 100)], recommended);
+    expect(hlpStage(config, 17_550_000n)).toMatchObject({ ingress: 'bridge2' });
+    expect(minimumAt(config, 0n)).toEqual({
+      usd6: 17_550_000n,
+      hlpRoute: 'bridge2',
+    });
+  });
+
+  it('holds a HyperCore-funded HLP share to the vault minimum alone', () => {
+    const config = input(
+      [row(B[0], 100), row(A[0], 8)],
+      recommended,
+      {},
+      [],
+      50_000_000n,
+    );
+    expect(minimumAt(config, 17_550_000n)).toEqual({
+      usd6: 17_550_000n,
+      hlpRoute: 'hypercore',
+    });
+  });
+
+  it('raises the minimum when LI.FI funds HLP, so the old floor is refused', () => {
+    // Arbitrum USDC covers GMX but not HLP as well, so HLP bridges from Base.
+    const config = input([row(B[0], 100), row(A[0], 8)], recommended);
+    // At the input-based $17.55, the plan would bridge a $10.0035 HLP share
+    // that LI.FI's fee lands under $10 — the review failure this prevents.
+    expect(hlpStage(config, 17_550_000n)).toMatchObject({
+      ingress: 'lifi',
+      usd6: '10003500',
+    });
+    expect(minimumAt(config, 17_550_000n)).toEqual({
+      usd6: 17_910_000n,
+      hlpRoute: 'lifi',
+    });
+    expect(minimumAt(config, 17_910_000n).usd6).toBe(17_910_000n);
+    expect(minimumAt(config, 19_000_000n).usd6).toBe(17_910_000n);
+  });
+
+  it('reads the route at the fee-free floor while the amount is below it', () => {
+    // All Stable: 95% HLP, so $10.53 fee-free and $10.75 over LI.FI.
+    const config = input([row(B[0], 100)], stable, {}, [], 50_000_000n);
+    // Below $10 HyperCore is never a candidate, so a $5 plan bridges HLP over
+    // LI.FI — but at the minimum the Hyperliquid balance funds it 1:1.
+    expect(
+      plan(config, 5_000_000n).options.hlp!.find(
+        (o) => o.candidate.kind === 'hypercore',
+      )?.rejection,
+    ).toBe('below-minimum');
+    expect(hlpStage(config, 5_000_000n)).toMatchObject({ ingress: 'lifi' });
+    expect(minimumAt(config, 5_000_000n)).toEqual({
+      usd6: 10_530_000n,
+      hlpRoute: 'hypercore',
+    });
+  });
+
+  it('follows a source the user chose over the cheaper route', () => {
+    const rows = [row(B[0], 100), row(A[0], 100)];
+    expect(minimumAt(input(rows, stable), 0n)).toEqual({
+      usd6: 10_530_000n,
+      hlpRoute: 'bridge2',
+    });
+    const offArbitrum = input(rows, stable, {
+      42161: FUNDING_SOURCE_EXCLUDED,
+    });
+    expect(minimumAt(offArbitrum, 0n)).toEqual({
+      usd6: 10_750_000n,
+      hlpRoute: 'lifi',
+    });
+  });
+
+  it('keeps the vault minimum when no source can fund HLP yet', () => {
+    expect(minimumAt(input([], recommended), 0n)).toEqual({
+      usd6: 17_550_000n,
+      hlpRoute: null,
+    });
+  });
+
+  it('sets no minimum for a mix without HLP', () => {
+    expect(minimumAt(input([row(B[0], 100)], morpho), 0n)).toEqual({
+      usd6: 0n,
+      hlpRoute: null,
+    });
+  });
+
+  it('says when bridge fees are why the minimum is higher', () => {
+    expect(fundingMinimumMessage({ usd6: 17_910_000n, hlpRoute: 'lifi' })).toBe(
+      "Enter at least $17.91 so your HLP share still meets Hyperliquid's $10.00 minimum after LI.FI bridge fees.",
+    );
+    expect(
+      fundingMinimumMessage({ usd6: 17_550_000n, hlpRoute: 'bridge2' }),
+    ).toBe(
+      "Enter at least $17.55 so your HLP share meets Hyperliquid's $10.00 minimum.",
+    );
   });
 });

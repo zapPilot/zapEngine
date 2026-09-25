@@ -63,8 +63,8 @@ describe('singleChainDepositMachine', () => {
 
     const basket = prepared(basketRequest);
     expect(basket.steps[2]).toMatchObject({
-      label: 'Verify GMX 4-pool basket position',
-      detail: 'Wait for all four GMX market-token balances to increase.',
+      label: 'Verify GMX 2-pool basket position',
+      detail: 'Wait for both GMX market-token balances to increase.',
     });
 
     const gmx = prepared(gmxRequest);

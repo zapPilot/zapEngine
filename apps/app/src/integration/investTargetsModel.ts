@@ -14,18 +14,11 @@ import { ARBITRUM_GMX_BASKET_EXECUTION_FEE_WEI } from '@/integration/investAmoun
 
 export type InvestPositionId = 'morpho-base' | 'gmx-arbitrum' | 'hlp';
 
-/** Morpho accepts dust, so this floor only keeps the test deposit meaningful. */
-const MIN_BASE_MORPHO_DEPOSIT_USD6 = 10_000n;
-/** Below $1 the four GMX keeper fees dominate the deposit. */
-const MIN_ARBITRUM_GMX_DEPOSIT_USD6 = 1_000_000n;
-
 export interface InvestPosition {
   id: InvestPositionId;
   label: string;
   /** Chain + venue, shown under the label on the allocation editor. */
   detail: string;
-  /** Smallest deposit this destination accepts, in 6-decimal USD. */
-  minUsd6: bigint;
   venue: string;
   protocol: string;
   chainKey: import('@zapengine/brand-assets').ChainBrandKey;
@@ -44,7 +37,6 @@ export const INVEST_POSITIONS: readonly InvestPosition[] = [
     protocol: 'morpho',
     chainKey: 'base',
     detail: 'Base · Morpho USDC vault',
-    minUsd6: MIN_BASE_MORPHO_DEPOSIT_USD6,
   },
   {
     id: 'gmx-arbitrum',
@@ -53,7 +45,6 @@ export const INVEST_POSITIONS: readonly InvestPosition[] = [
     protocol: 'gmx-v2',
     chainKey: 'arbitrum',
     detail: 'Arbitrum · diversified GM basket',
-    minUsd6: MIN_ARBITRUM_GMX_DEPOSIT_USD6,
   },
   {
     id: 'hlp',
@@ -62,7 +53,6 @@ export const INVEST_POSITIONS: readonly InvestPosition[] = [
     protocol: 'hyperliquid',
     chainKey: 'hyperliquid',
     detail: 'Hyperliquid · official HLP vault',
-    minUsd6: HLP_MIN_DEPOSIT_USD6,
   },
 ];
 
@@ -115,23 +105,55 @@ function ceilDiv(numerator: bigint, denominator: bigint): bigint {
   return (numerator + denominator - 1n) / denominator;
 }
 
+const USD6_PER_CENT = 10_000n;
+
+/** How an HLP allocation reaches HyperCore. */
+export type HlpIngress = 'bridge2' | 'lifi';
+
+/** How the HLP share is funded: USDC already on HyperCore, or an EVM ingress. */
+export type HlpFundingRoute = 'hypercore' | HlpIngress;
+
 /**
- * Smallest total that keeps every funded destination above its own minimum.
- * The default sector mix puts 57% in HLP: its $10 floor requires $17.55.
+ * The vault minimum is checked on LI.FI's quoted `toAmountMin`, i.e. the HLP
+ * share less the bridge fee and our 50 bps slippage allowance. Live quotes near
+ * $10 (2026-09-25) came in 25 bps under the share from Base USDC, ~96 from
+ * Ethereum USDC, ~75 from Base ETH and up to ~122 from Arbitrum/Ethereum ETH.
+ * 200 bps clears the worst with room for fee drift and for any gap between our
+ * ETH price and LI.FI's. A quote that still falls short is refused at review
+ * with `HLP_DEPOSIT_TOO_SMALL`.
+ */
+export const HLP_LIFI_HEADROOM_BPS = 200n;
+
+/**
+ * The HLP share a route needs for $10 to arrive. HyperCore and Bridge2 land
+ * 1:1; only LI.FI loses value on the way. A share with no route yet has no
+ * route cost to cover, so the vault's own minimum is all it can be held to.
+ */
+export function hlpMinimumShareUsd6(route: HlpFundingRoute | null): bigint {
+  return route === 'lifi'
+    ? ceilDiv(HLP_MIN_DEPOSIT_USD6 * 10_000n, 10_000n - HLP_LIFI_HEADROOM_BPS)
+    : HLP_MIN_DEPOSIT_USD6;
+}
+
+/**
+ * Smallest total whose HLP share still clears the vault's $10 floor on arrival
+ * — the only deposit minimum in the mix, as neither Morpho nor GMX has one.
+ * Rounded up to a whole cent so the figure the user reads is one they can
+ * type: the default 57% HLP needs $17.55 over HyperCore or Bridge2 and $17.91
+ * over LI.FI; 99% Stable (94.05% HLP) needs $10.64 and $10.85.
  */
 export function targetMinimumUsd6(
   allocations: readonly TargetAllocation[],
+  hlpRoute: HlpFundingRoute | null,
 ): bigint {
   if (!isValidTargetAllocation(allocations)) return 0n;
-
-  let minimum = 0n;
-  for (const position of INVEST_POSITIONS) {
-    const weightBps = weightBpsFor(allocations, position.id);
-    if (weightBps <= 0) continue;
-    const required = ceilDiv(position.minUsd6 * 10_000n, BigInt(weightBps));
-    if (required > minimum) minimum = required;
-  }
-  return minimum;
+  const hlpBps = weightBpsFor(allocations, 'hlp');
+  if (hlpBps <= 0) return 0n;
+  const required = ceilDiv(
+    hlpMinimumShareUsd6(hlpRoute) * 10_000n,
+    BigInt(hlpBps),
+  );
+  return ceilDiv(required, USD6_PER_CENT) * USD6_PER_CENT;
 }
 
 /**
@@ -171,9 +193,6 @@ export function targetUsd6Shares(
   });
   return shares;
 }
-
-/** How an HLP allocation reaches HyperCore. */
-export type HlpIngress = 'bridge2' | 'lifi';
 
 export function hlpIngressFor(token: DesktopDepositToken): HlpIngress {
   return token.chainId === SUPPORTED_DEPOSIT_CHAINS.ARBITRUM &&

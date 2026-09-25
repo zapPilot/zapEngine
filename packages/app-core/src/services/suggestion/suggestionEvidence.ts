@@ -50,7 +50,6 @@ const suggestionEvidenceSchema = z.looseObject({
       details: z
         .looseObject({
           matched_rule_name: optionalString,
-          cooldown_skipped_rules: z.array(z.string()).nullish(),
           enabled: z.boolean().nullish(),
           max_trades_7d: optionalNumber,
           max_trades_30d: optionalNumber,
@@ -59,6 +58,30 @@ const suggestionEvidenceSchema = z.looseObject({
           next_trade_date: optionalString,
         })
         .nullish(),
+    }),
+  }),
+});
+
+// Parsed apart from suggestionEvidenceSchema so a trace the app cannot read
+// degrades only the trace, never the trigger/guard evidence around it.
+const ruleTraceSchema = z.looseObject({
+  context: z.looseObject({
+    strategy: z.looseObject({
+      details: z.looseObject({
+        matched_rule_name: optionalString,
+        portfolio_rule_matches: z.array(
+          z.looseObject({
+            rule_name: z.string(),
+            matched: z.boolean(),
+            suppressed_by: optionalString,
+          }),
+        ),
+        cooldown_skipped_rules: z
+          .array(
+            z.looseObject({ rule: z.string(), remaining_days: optionalNumber }),
+          )
+          .nullish(),
+      }),
     }),
   }),
 });
@@ -85,7 +108,18 @@ export interface GuardStates {
         nextTradeDate: string | null;
       }
     | 'unavailable';
-  skippedRules: string[];
+}
+export type RuleTraceStatus =
+  | 'fired'
+  | 'cooldown'
+  | 'shadowed'
+  | 'inactive'
+  | 'not_matched';
+export interface RuleTraceEntry {
+  ruleName: string;
+  status: RuleTraceStatus;
+  suppressedBy: string | null;
+  cooldownRemainingDays: number | null;
 }
 export interface AllocationDiff {
   before: { label: string; value: number }[];
@@ -169,8 +203,7 @@ export function deriveTriggerEvidence(input: unknown): TriggerEvidence {
 
 export function deriveGuardStates(input: unknown): GuardStates {
   const parsed = suggestionEvidenceSchema.safeParse(input);
-  if (!parsed.success)
-    return { cooldown: 'unavailable', quota: 'unavailable', skippedRules: [] };
+  if (!parsed.success) return { cooldown: 'unavailable', quota: 'unavailable' };
   const data = parsed.data;
   const rule = data.context.strategy.details?.matched_rule_name;
   const indicator = rule?.startsWith('eth_btc_')
@@ -197,8 +230,47 @@ export function deriveGuardStates(input: unknown): GuardStates {
             maxTrades30d: strategy.max_trades_30d ?? null,
             nextTradeDate: strategy.next_trade_date ?? null,
           },
-    skippedRules: strategy?.cooldown_skipped_rules ?? [],
   };
+}
+
+/** Every rule the strategy evaluated today, in its priority order. */
+export function deriveRuleTrace(input: unknown): RuleTraceEntry[] {
+  const parsed = ruleTraceSchema.safeParse(input);
+  if (!parsed.success) return [];
+  const details = parsed.data.context.strategy.details;
+  const cooldowns = new Map(
+    (details.cooldown_skipped_rules ?? []).map((entry) => [
+      entry.rule,
+      entry.remaining_days ?? null,
+    ]),
+  );
+  return details.portfolio_rule_matches.map((match) => ({
+    ruleName: match.rule_name,
+    status: ruleTraceStatus(
+      match,
+      details.matched_rule_name,
+      cooldowns.has(match.rule_name),
+    ),
+    suppressedBy: match.suppressed_by ?? null,
+    cooldownRemainingDays: cooldowns.get(match.rule_name) ?? null,
+  }));
+}
+
+function ruleTraceStatus(
+  match: {
+    rule_name: string;
+    matched: boolean;
+    suppressed_by?: string | null | undefined;
+  },
+  winner: string | null | undefined,
+  inCooldown: boolean,
+): RuleTraceStatus {
+  if (match.rule_name === winner) return 'fired';
+  if (!match.matched) return 'not_matched';
+  if (inCooldown) return 'cooldown';
+  // A matched rule that neither won, cooled down, nor lost to the winner was
+  // skipped because the strategy config disables it.
+  return match.suppressed_by ? 'shadowed' : 'inactive';
 }
 
 export function deriveAllocationDiff(input: unknown): AllocationDiff {

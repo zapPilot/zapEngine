@@ -373,7 +373,7 @@ describe('PlanOrchestrationDepositRequestSchema (discriminated union)', () => {
     ).toBe(true);
   });
 
-  it('accepts the four-pool Arbitrum GMX basket request', () => {
+  it('accepts the Arbitrum GMX basket request', () => {
     expect(
       PlanOrchestrationDepositRequestSchema.safeParse({
         kind: 'gmx-v2-basket',

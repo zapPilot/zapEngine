@@ -50,11 +50,11 @@ vi.mock('@core/services/analyticsService', () => ({
     mocks.getLandingPagePortfolioData(...args),
   getPortfolioDashboard: (...args: unknown[]) =>
     mocks.getPortfolioDashboard(...args),
+  getMarketDashboardData: (...args: unknown[]) =>
+    mocks.getMarketDashboardData(...args),
 }));
 
 vi.mock('@core/services', () => ({
-  getMarketDashboardData: (...args: unknown[]) =>
-    mocks.getMarketDashboardData(...args),
   fetchRegimeHistory: (...args: unknown[]) => mocks.fetchRegimeHistory(...args),
   fetchMarketSentiment: (...args: unknown[]) =>
     mocks.fetchMarketSentiment(...args),

@@ -4,10 +4,11 @@ Universal Expo React Native workspace for Zap Pilot across iOS, Android, and web
 The Electron desktop shell packages this app's static web export.
 
 The iOS App Store build ships podcast plus a read-only portfolio dashboard.
-Home, Portfolio, and Activity can render live analytics, while `.ios.tsx`/`.ios.ts`
-platform splits keep transaction/signing surfaces and their imports out of the
-iOS binary. Strategy, Send, Wallets, and Invest remain behind the informational
-iOS read-only route. Android and web keep the full DeFi feature set.
+Home, Portfolio, Activity, and Strategy (today's decision and its market
+signals) can render live analytics, while `.ios.tsx`/`.ios.ts` platform splits
+keep transaction/signing surfaces and their imports out of the iOS binary.
+Send, Wallets, and Invest remain behind the informational iOS read-only route.
+Android and web keep the full DeFi feature set.
 
 ## Runtime
 
@@ -185,5 +186,5 @@ play/pause/seek, and deep link `zappilotv2://home`.
 
 On iOS this checklist covers podcast play/pause/seek, cold start, deep link,
 Privy email sign-in/sign-out, watch-only address entry, and live Home / Portfolio /
-Activity analytics. Strategy, Send, Wallets, and Invest remain informational-only
+Activity / Strategy analytics. Send, Wallets, and Invest remain informational-only
 routes, and transaction/signing controls do not exist in the iOS binary.

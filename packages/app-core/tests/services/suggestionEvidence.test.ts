@@ -1,6 +1,7 @@
 import {
   deriveAllocationDiff,
   deriveGuardStates,
+  deriveRuleTrace,
   deriveTriggerEvidence,
 } from '../../src/services/suggestion/suggestionEvidence';
 
@@ -37,7 +38,47 @@ function fixture(rule: string, asset?: string) {
           enabled: true,
           trades_7d: 1,
           max_trades_7d: 3,
-          cooldown_skipped_rules: ['other_rule'],
+          // Backend shape (portfolio_rules/_matcher.py): one object per rule.
+          cooldown_skipped_rules: [
+            {
+              rule: 'cross_down_exit',
+              cooldown_days: 30,
+              remaining_days: 4,
+              trigger_symbols: ['BTC'],
+            },
+          ],
+          portfolio_rule_matches: [
+            {
+              rule_name: 'cross_down_exit',
+              matched: true,
+              would_have_acted_action: 'sell',
+              suppressed_by: null,
+            },
+            {
+              rule_name: 'eth_btc_ratio_rotation',
+              matched: false,
+              would_have_acted_action: null,
+              suppressed_by: null,
+            },
+            {
+              rule_name: rule,
+              matched: true,
+              would_have_acted_action: 'sell',
+              suppressed_by: null,
+            },
+            {
+              rule_name: 'fgi_downshift_dca_sell',
+              matched: true,
+              would_have_acted_action: 'sell',
+              suppressed_by: rule,
+            },
+            {
+              rule_name: 'cross_up_equal_weight',
+              matched: true,
+              would_have_acted_action: 'buy',
+              suppressed_by: null,
+            },
+          ],
         },
       },
     },
@@ -68,7 +109,6 @@ describe('suggestion evidence', () => {
     expect(deriveGuardStates(data)).toMatchObject({
       cooldown: { active: true, remainingDays: 2 },
       quota: { trades7d: 1, maxTrades7d: 3 },
-      skippedRules: ['other_rule'],
     });
     expect(deriveAllocationDiff(data)).toEqual({
       before: [
@@ -162,11 +202,9 @@ describe('suggestion evidence', () => {
     const unavailable = fixture('cross_up');
     unavailable.context.signal.details.dma = {} as never;
     unavailable.context.strategy.details.enabled = null as never;
-    unavailable.context.strategy.details.cooldown_skipped_rules = null as never;
     expect(deriveGuardStates(unavailable)).toEqual({
       cooldown: 'unavailable',
       quota: 'unavailable',
-      skippedRules: [],
     });
   });
 
@@ -196,6 +234,88 @@ describe('suggestion evidence', () => {
     expect(deriveAllocationDiff(data)).toEqual({
       before: [],
       after: [{ label: 'SPY', value: 10 }],
+    });
+  });
+
+  it('keeps trigger evidence when cooldown skips arrive as backend objects', () => {
+    const evidence = deriveTriggerEvidence(
+      fixture('dma_overextension_dca_sell', 'BTC'),
+    );
+    expect(evidence).toMatchObject({
+      kind: 'dma',
+      ruleName: 'dma_overextension_dca_sell',
+      chartSeriesId: 'btc',
+    });
+    expect(evidence.metrics).toContainEqual({
+      label: 'Distance',
+      value: '+10.0%',
+    });
+    expect(
+      deriveGuardStates(fixture('dma_overextension_dca_sell')).quota,
+    ).not.toBe('unavailable');
+  });
+
+  it('explains every evaluated rule in priority order', () => {
+    expect(deriveRuleTrace(fixture('dma_overextension_dca_sell'))).toEqual([
+      {
+        ruleName: 'cross_down_exit',
+        status: 'cooldown',
+        suppressedBy: null,
+        cooldownRemainingDays: 4,
+      },
+      {
+        ruleName: 'eth_btc_ratio_rotation',
+        status: 'not_matched',
+        suppressedBy: null,
+        cooldownRemainingDays: null,
+      },
+      {
+        ruleName: 'dma_overextension_dca_sell',
+        status: 'fired',
+        suppressedBy: null,
+        cooldownRemainingDays: null,
+      },
+      {
+        ruleName: 'fgi_downshift_dca_sell',
+        status: 'shadowed',
+        suppressedBy: 'dma_overextension_dca_sell',
+        cooldownRemainingDays: null,
+      },
+      {
+        ruleName: 'cross_up_equal_weight',
+        status: 'inactive',
+        suppressedBy: null,
+        cooldownRemainingDays: null,
+      },
+    ]);
+  });
+
+  it('returns an empty trace when the backend omits or garbles it', () => {
+    const missing = fixture('cross_up');
+    delete (
+      missing.context.strategy.details as { portfolio_rule_matches?: unknown }
+    ).portfolio_rule_matches;
+    expect(deriveRuleTrace(missing)).toEqual([]);
+
+    const garbled = fixture('cross_up');
+    garbled.context.strategy.details.portfolio_rule_matches = [
+      'cross_up',
+    ] as never;
+    expect(deriveRuleTrace(garbled)).toEqual([]);
+    // A garbled trace must not take the trigger evidence down with it.
+    expect(deriveTriggerEvidence(garbled).kind).toBe('dma');
+  });
+
+  it('reports cooldown without a day count when the backend omits it', () => {
+    const data = fixture('dma_overextension_dca_sell');
+    data.context.strategy.details.cooldown_skipped_rules = [
+      { rule: 'cross_down_exit' },
+    ] as never;
+    expect(deriveRuleTrace(data)[0]).toEqual({
+      ruleName: 'cross_down_exit',
+      status: 'cooldown',
+      suppressedBy: null,
+      cooldownRemainingDays: null,
     });
   });
 });

@@ -1,28 +1,21 @@
-import { useMarketDashboardQuery } from '@zapengine/app-core/hooks/queries/market/useMarketDashboardQuery';
 import {
   buildTradeActions,
   deriveAllocationDiff,
   deriveGuardStates,
+  deriveRuleTrace,
   deriveTriggerEvidence,
   formatRegimeLabel,
   getStatusPanelContent,
   type AllocationDiff,
   type DerivedTradeAction,
   type GuardStates,
+  type RuleTraceEntry,
   type StatusPanelContent,
   type TriggerEvidence,
 } from '@zapengine/app-core/services/suggestion';
-import type { MarketDashboardResponse } from '@zapengine/app-core/services/analyticsService';
 import type { DailySuggestionResponse } from '@zapengine/app-core/types/strategy';
 
 import { useStrategySuggestion } from '@/integration/useStrategySuggestion';
-
-export interface EvidenceChart {
-  values: number[];
-  dma: (number | null)[];
-  latestValue: number | null;
-  latestDma: number | null;
-}
 
 export interface StrategyDecisionPacket {
   status: DailySuggestionResponse['action']['status'];
@@ -33,6 +26,7 @@ export interface StrategyDecisionPacket {
   actions: DerivedTradeAction[];
   statusPanel: StatusPanelContent;
   trigger: TriggerEvidence;
+  ruleTrace: RuleTraceEntry[];
   guards: GuardStates;
   allocation: AllocationDiff;
 }
@@ -50,54 +44,19 @@ export function decisionPacketFromSuggestion(
     actions,
     statusPanel: getStatusPanelContent(data, actions),
     trigger: deriveTriggerEvidence(data),
+    ruleTrace: deriveRuleTrace(data),
     guards: deriveGuardStates(data),
     allocation: deriveAllocationDiff(data),
   };
 }
 
-export function evidenceChartFromDashboard(
-  dashboard: MarketDashboardResponse | undefined,
-  seriesId: TriggerEvidence['chartSeriesId'],
-): EvidenceChart | null {
-  if (!dashboard || !seriesId) return null;
-  const points = dashboard.snapshots.flatMap((snapshot) => {
-    const point = snapshot.values[seriesId];
-    return point
-      ? [
-          {
-            value: point.value,
-            dma: point.indicators['dma_200']?.value ?? null,
-          },
-        ]
-      : [];
-  });
-  if (points.length < 2) return null;
-  const latest = points.at(-1)!;
-  return {
-    values: points.map((point) => point.value),
-    dma: points.map((point) => point.dma),
-    latestValue: latest.value,
-    latestDma: latest.dma,
-  };
-}
-
 export function useStrategyDecisionPacket(userId: string | null) {
   const suggestion = useStrategySuggestion(userId);
-  const packet = suggestion.data
-    ? decisionPacketFromSuggestion(suggestion.data)
-    : null;
-  const dashboard = useMarketDashboardQuery(365, {
-    enabled: packet?.trigger.chartSeriesId != null,
-  });
   return {
-    data: packet,
-    chart: evidenceChartFromDashboard(
-      dashboard.data,
-      packet?.trigger.chartSeriesId ?? null,
-    ),
-    isLoading:
-      suggestion.isLoading ||
-      (packet?.trigger.chartSeriesId != null && dashboard.isLoading),
-    isError: suggestion.isError || dashboard.isError,
+    data: suggestion.data
+      ? decisionPacketFromSuggestion(suggestion.data)
+      : null,
+    isLoading: suggestion.isLoading,
+    isError: suggestion.isError,
   };
 }

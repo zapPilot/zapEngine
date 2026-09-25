@@ -1,3 +1,8 @@
+import {
+  GMX_DEPOSIT_TOO_SMALL_ERROR_CODE,
+  HLP_DEPOSIT_TOO_SMALL_ERROR_CODE,
+} from '@zapengine/types/api';
+
 export type IntentErrorCode =
   | 'INTENT_ENGINE_ERROR'
   | 'VALIDATION_ERROR'
@@ -7,7 +12,9 @@ export type IntentErrorCode =
   | 'UNSUPPORTED_CHAIN'
   | 'UNSUPPORTED_TOKEN'
   | 'EXECUTION_ERROR'
-  | 'SIMULATION_FAILED';
+  | 'SIMULATION_FAILED'
+  | typeof GMX_DEPOSIT_TOO_SMALL_ERROR_CODE
+  | typeof HLP_DEPOSIT_TOO_SMALL_ERROR_CODE;
 
 export class IntentEngineError extends Error {
   public readonly code: IntentErrorCode;
@@ -169,6 +176,33 @@ export class ExecutionError extends IntentEngineError {
       ...super.toJSON(),
       hash: this.hash,
     };
+  }
+}
+
+/**
+ * A GMX deposit leg too small to execute safely. GMX itself takes any amount;
+ * what breaks is dust on our side — a funding swap whose output is too few
+ * units to keep a slippage buffer, or an amount that cannot cover the keeper
+ * fees or split across the basket. Typed so the HTTP layer can answer with a
+ * client error the app explains, instead of an opaque 500.
+ */
+export class GmxDepositTooSmallError extends IntentEngineError {
+  constructor(message: string) {
+    super(message, { code: GMX_DEPOSIT_TOO_SMALL_ERROR_CODE });
+    this.name = 'GmxDepositTooSmallError';
+  }
+}
+
+/**
+ * An HLP leg whose quoted HyperCore output is below the vault minimum. The
+ * floor is checked on what the ingress promises to deliver, not on the amount
+ * sent, so a LI.FI bridge fee can push an HLP share at the minimum under it.
+ * Typed for the same reason as `GmxDepositTooSmallError`.
+ */
+export class HlpDepositTooSmallError extends IntentEngineError {
+  constructor(message: string) {
+    super(message, { code: HLP_DEPOSIT_TOO_SMALL_ERROR_CODE });
+    this.name = 'HlpDepositTooSmallError';
   }
 }
 

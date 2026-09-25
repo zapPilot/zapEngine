@@ -1,11 +1,13 @@
 import { tokens } from '@zapengine/design-tokens/tokens';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowRight, Info, TriangleAlert } from 'lucide-react-native';
+import { ArrowRight, TriangleAlert } from 'lucide-react-native';
 import { useEffect, useRef, useState } from 'react';
 import { type LayoutChangeEvent, ScrollView, Text, View } from 'react-native';
 
 import { Card } from '@/components/ui/Card';
 import { DecisionPacketCard } from '@/components/strategy/DecisionPacketCard';
+import { MarketSignalsCard } from '@/components/strategy/MarketSignalsCard';
+import { StrategyHeader } from '@/components/strategy/StrategyHeader';
 import { AllocationBar } from '@/components/charts/AllocationBar';
 import { Pill } from '@/components/ui/Pill';
 import { MetricsGrid } from '@/components/metrics/MetricsGrid';
@@ -15,7 +17,6 @@ import { RangeTabs } from '@/components/ui/RangeTabs';
 import { Sparkline } from '@/components/charts/Sparkline';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
-import { Tap } from '@/components/ui/Tap';
 import { DEMO } from '@/data/demo';
 import {
   RANGE_OPTIONS,
@@ -23,6 +24,7 @@ import {
   strategyBacktestDaysForRange,
 } from '@/integration/strategyRanges';
 import { useAccount } from '@/integration/useAccount';
+import { useMarketSignals } from '@/integration/useMarketSignals';
 import { useStrategyData } from '@/integration/useStrategyData';
 import { useStrategyDecisionPacket } from '@/integration/useStrategyDecisionPacket';
 import { createStrategyStartAction } from '@/integration/strategyStartAction';
@@ -45,6 +47,7 @@ export function StrategyScreen() {
     strategyBacktestDaysForRange(range),
   );
   const decision = useStrategyDecisionPacket(account.userId);
+  const signals = useMarketSignals();
 
   const isDemo = !account.isConnected;
   const strategy = result.data ?? DEMO.strategy;
@@ -54,10 +57,6 @@ export function StrategyScreen() {
       ? result.data.backtest.chartData
       : DEMO.home.sparkline;
   const allocation = strategy.backtest.allocation;
-  const sentiment =
-    typeof strategy.backtest.sentiment === 'number'
-      ? strategy.backtest.sentiment
-      : 50;
   const startStrategy = createStrategyStartAction(authAction.run, () =>
     router.push('/invest/amount'),
   );
@@ -90,21 +89,24 @@ export function StrategyScreen() {
 
   return (
     <ScreenScrollView scrollRef={scrollRef}>
-      <View className="flex-row items-start justify-between px-5 pt-2">
-        <View>
-          <Text className="font-serif text-[27px] leading-[31px] text-ink">
-            Zap Strategy
-          </Text>
-          <Text className="mt-1.5 font-mono text-[9px] uppercase tracking-[0.99px] text-[#9a8f78]">
-            Disciplined Portfolio Autopilot
-          </Text>
-        </View>
-        <Tap className="h-[34px] w-[34px] items-center justify-center rounded-full border border-line bg-[rgba(255,255,255,.05)]">
-          <Info size={17} strokeWidth={1.8} color={tokens.color['ink-dim']} />
-        </Tap>
-      </View>
+      <StrategyHeader />
 
-      <View className="mx-5 mt-5 flex-row items-center justify-between">
+      {!isDemo ? (
+        <View onLayout={measureDecisionPacket}>
+          <DecisionPacketCard
+            packet={decision.data}
+            loading={decision.isLoading}
+          />
+        </View>
+      ) : null}
+
+      <MarketSignalsCard
+        signals={signals.data}
+        loading={signals.isLoading}
+        highlightedSignalId={decision.data?.trigger.chartSeriesId ?? null}
+      />
+
+      <View className="mx-5 mt-6 flex-row items-center justify-between">
         <Text className="font-sans-semibold text-[14px] text-ink">
           {t('strategy.backtest')}
         </Text>
@@ -192,36 +194,6 @@ export function StrategyScreen() {
             </View>
           ))}
         </View>
-      </Card>
-
-      {!isDemo ? (
-        <View onLayout={measureDecisionPacket}>
-          <DecisionPacketCard
-            packet={decision.data}
-            chart={decision.chart}
-            loading={decision.isLoading}
-          />
-        </View>
-      ) : null}
-
-      <Card className="mx-5 mt-4 p-4">
-        <View className="flex-row items-center justify-between">
-          <Text className="font-sans-semibold text-[15px] text-ink">
-            {t('strategy.fearAndGreed')}
-          </Text>
-          <Text className="font-mono text-[12px] text-accent">
-            {Math.round(sentiment)}
-          </Text>
-        </View>
-        <View className="mt-3 h-2 rounded-full bg-[rgba(255,255,255,.08)]">
-          <View
-            className="h-2 rounded-full bg-accent"
-            style={{ width: `${Math.max(0, Math.min(100, sentiment))}%` }}
-          />
-        </View>
-        <Text className="mt-3 font-serif text-[18px] italic text-[#d4cdbc]">
-          {`"${strategy.quote}"`}
-        </Text>
       </Card>
 
       {result.data && !result.data.hasTargetAllocation && !isDemo ? (

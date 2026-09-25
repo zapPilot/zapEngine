@@ -4,8 +4,6 @@ import {
   compositionRows,
   currentModeLabelFor,
   demoTextOrDash,
-  liveNumberOrDemo,
-  liveTextOrDemo,
   regimeDisplayFromRegime,
 } from '@/integration/strategyPresentation';
 
@@ -14,16 +12,7 @@ vi.mock('@zapengine/app-core/lib/domain/regime', () => ({
 }));
 
 describe('strategy presentation fallbacks', () => {
-  it('prefers valid live numbers and otherwise distinguishes demo from unavailable', () => {
-    expect(liveNumberOrDemo(0, 42, true)).toBe(0);
-    expect(liveNumberOrDemo('42', 42, true)).toBe(42);
-    expect(liveNumberOrDemo(undefined, 42, false)).toBeNull();
-  });
-
-  it('preserves live text, demo text, and connected dashes', () => {
-    expect(liveTextOrDemo('', 'demo', true)).toBe('');
-    expect(liveTextOrDemo(null, 'demo', true)).toBe('demo');
-    expect(liveTextOrDemo(undefined, 'demo', false)).toBe('—');
+  it('distinguishes demo text from connected dashes', () => {
     expect(demoTextOrDash('demo', true)).toBe('demo');
     expect(demoTextOrDash('demo', false)).toBe('—');
     expect(demoTextOrDash('demo', false, 'custom')).toBe('custom');

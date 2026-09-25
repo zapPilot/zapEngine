@@ -38,6 +38,24 @@ export const STRATEGY_MIN_DEPOSIT_USD6 = 10_000_000n;
  * before any plan is built; `intent-engine` re-exports the string form.
  */
 export const HLP_MIN_DEPOSIT_USD6 = 10_000_000n;
+
+/**
+ * `code` of the plan-orchestration error body when a GMX deposit is too small
+ * to execute — e.g. a USDC→WBTC swap whose output is too few units to keep a
+ * slippage buffer. GMX has no deposit minimum of its own; this is the dust
+ * limit of our funding swaps, so clients tell the user to size up rather than
+ * retry.
+ */
+export const GMX_DEPOSIT_TOO_SMALL_ERROR_CODE = 'GMX_DEPOSIT_TOO_SMALL';
+
+/**
+ * `code` of the plan-orchestration error body when an HLP leg would reach
+ * HyperCore below `HLP_MIN_DEPOSIT_USD6`. The vault minimum is checked on the
+ * bridge's quoted output, so a LI.FI route whose fee and slippage floor eat
+ * into an HLP share at the minimum lands here; clients tell the user to size
+ * up rather than retry.
+ */
+export const HLP_DEPOSIT_TOO_SMALL_ERROR_CODE = 'HLP_DEPOSIT_TOO_SMALL';
 export const BASE_USDC_ADDRESS = CANONICAL_TOKEN_ADDRESSES[8453].USDC;
 
 /** Canonical USDC per supported source chain, for request validation. */

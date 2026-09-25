@@ -1,5 +1,9 @@
 import { zValidator } from '@hono/zod-validator';
-import { PlanSafetyViolationError } from '@zapengine/intent-engine';
+import {
+  GmxDepositTooSmallError,
+  HlpDepositTooSmallError,
+  PlanSafetyViolationError,
+} from '@zapengine/intent-engine';
 import {
   PlanOrchestrationDepositRequestSchema,
   PlanOrchestrationDepositReviewRequestSchema,
@@ -17,12 +21,21 @@ import type { PlanOrchestrationService } from './service';
 // place they gain HTTP meaning. Fail-closed mapping: a plan
 // violating safety invariants is a bad request (400), a plan whose
 // simulation reverts is unprocessable (422), and a simulation outage refuses
-// service (503) rather than shipping an unsimulated plan.
+// service (503) rather than shipping an unsimulated plan. A GMX leg too small
+// to execute, or an HLP leg whose bridge output misses the vault minimum, is
+// also unprocessable, and carries a `code` so the client can tell the user to
+// size up instead of showing the raw builder message.
 function mapPlanError(
   error: unknown,
-): { statusCode: number; message: string } | undefined {
+): { statusCode: number; message: string; code?: string } | undefined {
   if (error instanceof PlanSafetyViolationError) {
     return { statusCode: 400, message: error.message };
+  }
+  if (
+    error instanceof GmxDepositTooSmallError ||
+    error instanceof HlpDepositTooSmallError
+  ) {
+    return { statusCode: 422, code: error.code, message: error.message };
   }
   if (error instanceof PlanSimulationFailedError) {
     return { statusCode: 422, message: error.message };

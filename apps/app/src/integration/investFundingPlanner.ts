@@ -18,10 +18,13 @@ import {
 import {
   INVEST_POSITIONS,
   GMX_BASKET_EXECUTION_FEE_LABEL,
+  targetMinimumUsd6,
   targetUsd6Shares,
   weightBpsFor,
   isValidTargetAllocation,
   hlpIngressFor,
+  hlpMinimumShareUsd6,
+  type HlpFundingRoute,
   type InvestPositionId,
   type StageDraft,
   type TargetAllocation,
@@ -346,8 +349,9 @@ function evaluate(
   else if (availableUsd6 === null) rejection = 'no-price';
   else if (availableUsd6 < usd6) rejection = 'insufficient';
   else if (fromAmount === null) rejection = 'no-price';
-  else if (c.kind === 'hypercore' && usd6 < HLP_MIN_DEPOSIT_USD6)
-    // The only place the vault's own $10 floor is stated inside the planner.
+  else if (c.kind === 'hypercore' && usd6 < hlpMinimumShareUsd6('hypercore'))
+    // The spot-funded leg's request schema refuses a share under the vault's
+    // $10 floor, so HyperCore is not a candidate below it.
     rejection = 'below-minimum';
   else if (
     id === 'gmx-arbitrum' &&
@@ -747,6 +751,49 @@ export function fundingCapacityUsd6(input: CapacityInput): bigint | null {
       best = exact;
   }
   return best === 0n && unpriced ? null : best;
+}
+export interface FundingMinimum {
+  usd6: bigint;
+  /** The HLP route the minimum is sized for; null when nothing funds HLP. */
+  hlpRoute: HlpFundingRoute | null;
+}
+function hlpFundingRoute(
+  assignments: readonly FundingAssignment[],
+): HlpFundingRoute | null {
+  const hlp = assignments.find((a) => a.positionId === 'hlp');
+  if (!hlp) return null;
+  return hlp.source.kind === 'hypercore'
+    ? 'hypercore'
+    : hlpIngressFor(hlp.source.token);
+}
+/**
+ * The smallest total this wallet can invest in this mix. HLP's $10 is checked
+ * on what reaches HyperCore, so the floor is sized for the route the planner
+ * picks for HLP at the entered amount. Below the fee-free floor the route is
+ * read at that floor instead: under $10 HyperCore is never a candidate, so a
+ * smaller amount would size the minimum for a route the user would not get.
+ */
+export function fundingMinimum(input: PlanInput): FundingMinimum {
+  const { allocations, totalUsd6 } = input.demand;
+  const floor = targetMinimumUsd6(allocations, null);
+  if (floor === 0n) return { usd6: 0n, hlpRoute: null };
+  const entered = /^\d+$/u.test(totalUsd6) ? BigInt(totalUsd6) : 0n;
+  const probe = planFunding({
+    ...input,
+    demand: {
+      allocations,
+      totalUsd6: (entered > floor ? entered : floor).toString(),
+    },
+  });
+  const hlpRoute = hlpFundingRoute(probe.assignments);
+  return { usd6: targetMinimumUsd6(allocations, hlpRoute), hlpRoute };
+}
+export function fundingMinimumMessage(minimum: FundingMinimum): string {
+  const amount = formatUsd6(minimum.usd6);
+  const floor = formatUsd6(HLP_MIN_DEPOSIT_USD6);
+  return minimum.hlpRoute === 'lifi'
+    ? `Enter at least ${amount} so your HLP share still meets Hyperliquid's ${floor} minimum after LI.FI bridge fees.`
+    : `Enter at least ${amount} so your HLP share meets Hyperliquid's ${floor} minimum.`;
 }
 export function unavailableChainIds(
   failedChains: readonly WalletTokenChain[],

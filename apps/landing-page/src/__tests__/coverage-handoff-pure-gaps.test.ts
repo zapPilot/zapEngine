@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { parseDailyAllocations } from '../data/track-record-allocations';
 import { coverageDays, getDistributionSnapshot } from '../data/distribution';
-import { signalsAsOf } from '../data/market-signals';
 import {
   captureWaitlistFirstTouch,
   readWaitlistAttribution,
@@ -36,10 +35,6 @@ describe('coverage handoff: landing data boundaries', () => {
         },
       }),
     ).toBeNull();
-  });
-
-  it('reports no signal date for an empty history', () => {
-    expect(signalsAsOf({ snapshots: [] } as never)).toBe('');
   });
 
   it('does not touch browser storage during server rendering', () => {

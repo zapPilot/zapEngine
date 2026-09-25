@@ -14,6 +14,7 @@ import {
   GMX_V2_EXCHANGE_ROUTER_ABI,
   GMX_V2_EXECUTION_FEE_WEI,
   GMX_V2_MARKETS,
+  GMX_V2_TOKENS,
   type GmxV2Market,
 } from '../../src/protocols/gmx-v2/gmx-v2.constants.js';
 
@@ -27,10 +28,40 @@ const SELECTORS = {
   createDeposit: '0xc82aa41b',
 } as const;
 
-function collateralAmounts(market: GmxV2Market, amount: bigint) {
-  return market.fundedSide === 'long'
-    ? { longTokenAmount: amount, shortTokenAmount: 0n }
-    : { longTokenAmount: 0n, shortTokenAmount: amount };
+function directDeposit(market: GmxV2Market, amount: bigint) {
+  return {
+    initialToken: market.collateralToken,
+    amount,
+    side:
+      market.collateralToken === market.longToken
+        ? ('long' as const)
+        : ('short' as const),
+  };
+}
+
+interface DecodedCreateDeposit {
+  addresses: {
+    receiver: Address;
+    market: Address;
+    initialLongToken: Address;
+    initialShortToken: Address;
+    longTokenSwapPath: readonly Address[];
+    shortTokenSwapPath: readonly Address[];
+  };
+  executionFee: bigint;
+  minMarketTokens: bigint;
+}
+
+function decodeMulticall(data: Hex) {
+  const calls = decodeMulticallCalls(data).map((call) =>
+    decodeFunctionData({ abi: GMX_V2_EXCHANGE_ROUTER_ABI, data: call }),
+  );
+  const createDeposit = calls.at(-1)!;
+  expect(createDeposit.functionName).toBe('createDeposit');
+  return {
+    calls,
+    params: (createDeposit.args as unknown as [DecodedCreateDeposit])[0],
+  };
 }
 
 function decodeMulticallCalls(data: Hex): Hex[] {
@@ -81,8 +112,8 @@ describe('GMX v2 calldata encoders', () => {
     const data = encodeGmxV2CreateDeposit({
       receiver: USER,
       marketToken: market.marketToken,
-      longToken: market.longToken,
-      shortToken: market.shortToken,
+      initialLongToken: market.longToken,
+      initialShortToken: market.shortToken,
       executionFee: BigInt(GMX_V2_EXECUTION_FEE_WEI),
       minMarketTokens: MIN_MARKET_TOKENS,
     });
@@ -137,7 +168,7 @@ describe('GMX v2 calldata encoders', () => {
       const { data, value } = encodeGmxV2CreateDepositMulticall({
         receiver: USER,
         market,
-        ...collateralAmounts(market, amount),
+        ...directDeposit(market, amount),
         minMarketTokens: MIN_MARKET_TOKENS,
       });
 
@@ -157,8 +188,7 @@ describe('GMX v2 calldata encoders', () => {
         BigInt(GMX_V2_EXECUTION_FEE_WEI),
       ]);
 
-      const fundedToken =
-        market.fundedSide === 'long' ? market.longToken : market.shortToken;
+      const fundedToken = market.collateralToken;
       const sendTokens = decodeFunctionData({
         abi: GMX_V2_EXCHANGE_ROUTER_ABI,
         data: calls[1]!,
@@ -201,8 +231,7 @@ describe('GMX v2 calldata encoders', () => {
       encodeGmxV2CreateDepositMulticall({
         receiver: USER,
         market: GMX_V2_MARKETS['btc-usdc'],
-        longTokenAmount: 0n,
-        shortTokenAmount: 0n,
+        ...directDeposit(GMX_V2_MARKETS['btc-usdc'], 0n),
         minMarketTokens: MIN_MARKET_TOKENS,
       }),
     ).toThrow('GMX deposit amount must be greater than zero');
@@ -213,8 +242,7 @@ describe('GMX v2 calldata encoders', () => {
       encodeGmxV2CreateDepositMulticall({
         receiver: USER,
         market: GMX_V2_MARKETS['btc-usdc'],
-        longTokenAmount: 0n,
-        shortTokenAmount: 10_000n,
+        ...directDeposit(GMX_V2_MARKETS['btc-usdc'], 10_000n),
         minMarketTokens: 0n,
       }),
     ).toThrow('GMX minMarketTokens must be greater than zero');
@@ -335,56 +363,115 @@ describe('GMX v2 calldata encoders', () => {
   });
 
   it.each(['btc-btc', 'eth-eth'] as const)(
-    'funds both sides of the single-collateral %s market with two sendTokens',
+    'funds the single-collateral %s market with one transfer',
     (key) => {
-      // Single-collateral GM markets (longToken === shortToken, e.g. GM BTC/BTC
-      // [WBTC.b-WBTC.b]) must be funded on BOTH the long and short side, or GMX's
-      // createDeposit reverts before the DepositHandler runs. The encoder emits a
-      // SEPARATE sendTokens per side, so the two WBTC.b / WETH transfers seen
-      // on-chain (and on the GMX UI) are correct and intended, not a duplicate.
-      // See docs/gmx-v2-implementation-notes.md (Gate 1).
+      // The DepositVault books a token's whole balance change to the first
+      // side naming it, so one transfer funds both sides of a market whose
+      // long and short token are the same. Verified by a keeper execution on
+      // an Arbitrum fork (docs/gmx-v2-implementation-notes.md).
       const market = GMX_V2_MARKETS[key];
-      expect(market.longToken).toBe(market.shortToken);
-
-      // Distinct halves prove the two legs are independent and ordered long→short.
-      const longTokenAmount = 745n;
-      const shortTokenAmount = 746n;
       const { data } = encodeGmxV2CreateDepositMulticall({
         receiver: USER,
         market,
-        longTokenAmount,
-        shortTokenAmount,
+        initialToken: market.longToken,
+        amount: 1_491n,
+        side: 'long',
         minMarketTokens: MIN_MARKET_TOKENS,
       });
 
-      const calls = decodeMulticallCalls(data);
-      // sendWnt + sendTokens(long) + sendTokens(short) + createDeposit
-      expect(calls).toHaveLength(4);
-
-      const sends = calls
-        .map((call) =>
-          decodeFunctionData({ abi: GMX_V2_EXCHANGE_ROUTER_ABI, data: call }),
-        )
-        .filter((decoded) => decoded.functionName === 'sendTokens');
-      expect(sends).toHaveLength(2);
-      expect(sends[0]!.args).toEqual([
+      const { calls, params } = decodeMulticall(data);
+      expect(calls.map((call) => call.functionName)).toEqual([
+        'sendWnt',
+        'sendTokens',
+        'createDeposit',
+      ]);
+      expect(calls[1]!.args).toEqual([
         market.longToken,
         GMX_V2_ADDRESSES.depositVault,
-        longTokenAmount,
+        1_491n,
       ]);
-      expect(sends[1]!.args).toEqual([
-        market.shortToken,
-        GMX_V2_ADDRESSES.depositVault,
-        shortTokenAmount,
-      ]);
-
-      // Both legs fund the pool in the SAME collateral (WBTC.b / WETH), never USDC,
-      // and the two halves sum to the full deposit.
-      expect(sends[0]!.args[0]).toBe(sends[1]!.args[0]);
-      expect(sends[0]!.args[0]).toBe(market.collateralToken);
-      expect(
-        (sends[0]!.args[2] as bigint) + (sends[1]!.args[2] as bigint),
-      ).toBe(longTokenAmount + shortTokenAmount);
+      expect(params.addresses.initialLongToken).toBe(market.longToken);
+      expect(params.addresses.initialShortToken).toBe(market.shortToken);
+      expect(params.addresses.longTokenSwapPath).toEqual([]);
+      expect(params.addresses.shortTokenSwapPath).toEqual([]);
     },
   );
+
+  it('sends USDC into btc-btc and lets the keeper swap it through btc-usdc', () => {
+    const market = GMX_V2_MARKETS['btc-btc'];
+    const hop = GMX_V2_MARKETS['btc-usdc'].marketToken;
+    const { data, value } = encodeGmxV2CreateDepositMulticall({
+      receiver: USER,
+      market,
+      initialToken: GMX_V2_TOKENS.USDC.address,
+      amount: 53_200n,
+      side: 'long',
+      swapPath: [hop],
+      minMarketTokens: MIN_MARKET_TOKENS,
+    });
+
+    expect(value).toBe(GMX_V2_EXECUTION_FEE_WEI);
+    const { calls, params } = decodeMulticall(data);
+    expect(calls[1]!.args).toEqual([
+      GMX_V2_TOKENS.USDC.address,
+      GMX_V2_ADDRESSES.depositVault,
+      53_200n,
+    ]);
+    expect(params.addresses).toMatchObject({
+      market: market.marketToken,
+      initialLongToken: GMX_V2_TOKENS.USDC.address,
+      // The unfunded side names the pool token itself: its zero amount skips
+      // the swap, and any other token cancels the deposit at execution with
+      // InvalidSwapOutputToken.
+      initialShortToken: market.shortToken,
+      longTokenSwapPath: [hop],
+      shortTokenSwapPath: [],
+    });
+  });
+
+  it('routes a swapped short-side deposit through the short swap path', () => {
+    const market = GMX_V2_MARKETS['btc-usdc'];
+    const hop = GMX_V2_MARKETS['eth-usdc'].marketToken;
+    const { data, value } = encodeGmxV2CreateDepositMulticall({
+      receiver: USER,
+      market,
+      initialToken: GMX_V2_TOKENS.WETH.address,
+      amount: 20_000_000_000_000n,
+      side: 'short',
+      swapPath: [hop],
+      minMarketTokens: MIN_MARKET_TOKENS,
+      useNativeWntCollateral: true,
+    });
+
+    expect(value).toBe(
+      (BigInt(GMX_V2_EXECUTION_FEE_WEI) + 20_000_000_000_000n).toString(),
+    );
+    const { calls, params } = decodeMulticall(data);
+    expect(calls.map((call) => call.functionName)).toEqual([
+      'sendWnt',
+      'sendWnt',
+      'createDeposit',
+    ]);
+    expect(params.addresses).toMatchObject({
+      initialLongToken: market.longToken,
+      initialShortToken: GMX_V2_TOKENS.WETH.address,
+      longTokenSwapPath: [],
+      shortTokenSwapPath: [hop],
+    });
+  });
+
+  it('rejects a token that is not the pool token without a swap path', () => {
+    expect(() =>
+      encodeGmxV2CreateDepositMulticall({
+        receiver: USER,
+        market: GMX_V2_MARKETS['btc-btc'],
+        initialToken: GMX_V2_TOKENS.USDC.address,
+        amount: 53_200n,
+        side: 'long',
+        minMarketTokens: MIN_MARKET_TOKENS,
+      }),
+    ).toThrow(
+      'GMX deposit token must be the funded pool token unless a swap path converts it',
+    );
+  });
 });

@@ -1,26 +1,41 @@
+import type { RuleTraceEntry } from '@zapengine/app-core/services/suggestion';
+import { tokens } from '@zapengine/design-tokens/tokens';
+import { humanizeSlug } from '@zapengine/types/shared';
 import { Text, View } from 'react-native';
 
-import { IndicatorLineChart } from '@/components/charts/IndicatorLineChart';
 import { AllocationBar } from '@/components/charts/AllocationBar';
 import { Card } from '@/components/ui/Card';
 import { Pill } from '@/components/ui/Pill';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
-import type {
-  EvidenceChart,
-  StrategyDecisionPacket,
-} from '@/integration/useStrategyDecisionPacket';
-import { formatOr } from '@/lib/format';
+import type { TranslationKey } from '@/i18n/translations';
+import type { StrategyDecisionPacket } from '@/integration/useStrategyDecisionPacket';
+import { cn } from '@/lib/cn';
 import { useContentLanguage } from '@/providers/ContentLanguageProvider';
 
 interface DecisionPacketCardProps {
   packet: StrategyDecisionPacket | null;
-  chart: EvidenceChart | null;
   loading: boolean;
+}
+
+// Rule names are frozen wire ids; unknown ones fall back to a humanized slug.
+const RULE_LABEL_KEYS: Readonly<Record<string, TranslationKey>> = {
+  cross_down_exit: 'strategy.rule.crossDownExit',
+  cross_up_equal_weight: 'strategy.rule.crossUpEqualWeight',
+  eth_btc_ratio_rotation: 'strategy.rule.ethBtcRatioRotation',
+  eth_btc_deviation_dca: 'strategy.rule.ethBtcDeviationDca',
+  dma_overextension_dca_sell: 'strategy.rule.dmaOverextensionDcaSell',
+  fgi_downshift_dca_sell: 'strategy.rule.fgiDownshiftDcaSell',
+};
+
+type Translate = ReturnType<typeof useContentLanguage>['t'];
+
+function ruleLabel(t: Translate, ruleName: string): string {
+  const key = RULE_LABEL_KEYS[ruleName];
+  return key ? t(key) : humanizeSlug(ruleName, {}, ruleName);
 }
 
 export function DecisionPacketCard({
   packet,
-  chart,
   loading,
 }: DecisionPacketCardProps) {
   const { t } = useContentLanguage();
@@ -86,25 +101,22 @@ export function DecisionPacketCard({
 
       <Section title={t('strategy.trigger').toUpperCase()}>
         <Text className="text-[12px] text-ink-dim">
-          {packet.trigger.ruleLabel}
+          {packet.trigger.ruleName
+            ? ruleLabel(t, packet.trigger.ruleName)
+            : packet.trigger.ruleLabel}
         </Text>
         {packet.trigger.metrics.map((metric) => (
           <Row key={metric.label} label={metric.label} value={metric.value} />
         ))}
-        {chart ? (
-          <View className="mt-3">
-            <IndicatorLineChart
-              series={chart.values}
-              overlay={chart.dma}
-              gradientId="strategyDecisionEvidence"
-            />
-            <Row
-              label="Latest / 200-DMA"
-              value={`${formatNumber(chart.latestValue)} / ${formatNumber(chart.latestDma)}`}
-            />
-          </View>
-        ) : null}
       </Section>
+
+      {packet.ruleTrace.length > 0 ? (
+        <Section title={t('strategy.why').toUpperCase()}>
+          {packet.ruleTrace.map((entry) => (
+            <RuleTraceRow key={entry.ruleName} entry={entry} />
+          ))}
+        </Section>
+      ) : null}
 
       <Section title={t('strategy.checks').toUpperCase()}>
         <Row label="FGI" value={packet.fearGreed?.toString() ?? '—'} />
@@ -148,6 +160,66 @@ function Section({
     </View>
   );
 }
+const RULE_STATUS_COLORS: Readonly<Record<RuleTraceEntry['status'], string>> = {
+  fired: tokens.color.accent,
+  cooldown: tokens.color['ink-dim'],
+  shadowed: tokens.color['ink-dim'],
+  inactive: tokens.color['ink-faint'],
+  not_matched: tokens.color['ink-faint'],
+};
+
+function RuleTraceRow({ entry }: { entry: RuleTraceEntry }) {
+  const { t } = useContentLanguage();
+  const fired = entry.status === 'fired';
+  return (
+    <View className="mt-1.5 flex-row items-center gap-2">
+      <View
+        className="h-[7px] w-[7px] rounded-full"
+        style={{
+          backgroundColor: fired ? RULE_STATUS_COLORS.fired : 'transparent',
+          borderColor: RULE_STATUS_COLORS[entry.status],
+          borderWidth: 1,
+        }}
+      />
+      <Text
+        className={cn(
+          'flex-1 text-[12px]',
+          fired ? 'font-sans-semibold text-ink' : 'text-ink-dim',
+        )}
+      >
+        {ruleLabel(t, entry.ruleName)}
+      </Text>
+      <Text
+        className="font-mono text-[10.5px]"
+        style={{ color: RULE_STATUS_COLORS[entry.status] }}
+      >
+        {ruleStatusLabel(t, entry)}
+      </Text>
+    </View>
+  );
+}
+
+function ruleStatusLabel(t: Translate, entry: RuleTraceEntry): string {
+  switch (entry.status) {
+    case 'fired':
+      return t('strategy.ruleStatus.fired');
+    case 'cooldown':
+      return entry.cooldownRemainingDays === null
+        ? t('strategy.ruleStatus.cooldown')
+        : t('strategy.ruleStatus.cooldownDays', {
+            days: entry.cooldownRemainingDays,
+          });
+    case 'shadowed':
+      return t('strategy.ruleStatus.shadowed', {
+        rule: ruleLabel(t, entry.suppressedBy ?? ''),
+      });
+    case 'inactive':
+      return t('strategy.ruleStatus.inactive');
+    case 'not_matched':
+      return t('strategy.ruleStatus.notMatched');
+  }
+}
+
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <View className="mt-1 flex-row items-start justify-between gap-3">
@@ -192,10 +264,5 @@ function AllocationRows({
         />
       ) : null}
     </View>
-  );
-}
-function formatNumber(value: number | null): string {
-  return formatOr(value, (v) =>
-    v.toLocaleString('en-US', { maximumFractionDigits: 5 }),
   );
 }

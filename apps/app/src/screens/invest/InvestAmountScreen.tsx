@@ -21,7 +21,6 @@ import {
   bpsToPercentInput,
   normalizePercentInput,
   percentInputToBps,
-  targetMinimumUsd6,
   targetUsd6Shares,
 } from '@/integration/investTargetsModel';
 import {
@@ -33,6 +32,8 @@ import {
 import {
   planFunding,
   fundingCapacityUsd6,
+  fundingMinimum,
+  fundingMinimumMessage,
   unavailableChainIds,
   unavailableFundingChains,
   fundingBlockerMessage,
@@ -49,6 +50,13 @@ import { useHyperCoreSpendable } from '@/integration/useHlpBalances';
 import { useInvest } from '@/integration/useInvest';
 import { useWalletAssets } from '@/integration/walletTokens';
 import { formatUsd6 } from '@/lib/format';
+
+/**
+ * Stand-in total for the source preview before any amount is typed, used only
+ * when the mix has no HLP and therefore no minimum to preview at. It is not a
+ * floor: the planner needs some positive total to rank funding sources.
+ */
+const NO_MINIMUM_PREVIEW_USD6 = 1_000_000n;
 
 export function InvestAmountScreen() {
   const router = useRouter();
@@ -74,16 +82,25 @@ export function InvestAmountScreen() {
     preferences: invest.fundingPreferences,
     gasReserveUsd: NATIVE_GAS_RESERVE_USD,
   };
-  const minimumUsd6 = targetMinimumUsd6(invest.targetAllocations);
+  const minimum = fundingMinimum({
+    demand: {
+      totalUsd6: invest.totalUsd6,
+      allocations: invest.targetAllocations,
+    },
+    supply,
+    constraints,
+  });
+  const minimumUsd6 = minimum.usd6;
   const amountUsd6 = BigInt(invest.totalUsd6);
   const capacityUsd6 = fundingCapacityUsd6({
     allocations: invest.targetAllocations,
     supply,
     constraints,
   });
+  const previewUsd6 = minimumUsd6 > 0n ? minimumUsd6 : NO_MINIMUM_PREVIEW_USD6;
   const plan = planFunding({
     demand: {
-      totalUsd6: amountUsd6 > 0n ? invest.totalUsd6 : minimumUsd6.toString(),
+      totalUsd6: amountUsd6 > 0n ? invest.totalUsd6 : previewUsd6.toString(),
       allocations: invest.targetAllocations,
     },
     supply,
@@ -127,7 +144,7 @@ export function InvestAmountScreen() {
     amountUsd6 <= 0n
       ? null
       : amountUsd6 < minimumUsd6
-        ? `Enter at least ${formatUsd6(minimumUsd6)} so every position clears its own minimum.`
+        ? fundingMinimumMessage(minimum)
         : capacityUsd6 !== null && amountUsd6 > capacityUsd6
           ? 'This amount is more than your wallet can fund right now.'
           : plan.blockers[0]

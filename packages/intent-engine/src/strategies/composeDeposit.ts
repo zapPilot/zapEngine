@@ -17,6 +17,7 @@ import {
 import { buildBridgeTx } from '../builders/bridge.builder.js';
 import { buildHyperliquidBridge2DepositTx } from '../builders/hyperliquid-bridge2.builder.js';
 import { buildSupplyTx } from '../builders/supply.builder.js';
+import { HlpDepositTooSmallError } from '../errors/intent.errors.js';
 import {
   buildHlpDepositFollowUp,
   HLP_MIN_DEPOSIT_USD,
@@ -376,7 +377,7 @@ export async function composeDeposit(
         // Checked against the quoted output (6-decimal perp USDC) rather than
         // the allocation, which may be denominated in a different source token.
         if (BigInt(quote.estimate.toAmountMin) < BigInt(HLP_MIN_DEPOSIT_USD)) {
-          throw new Error(
+          throw new HlpDepositTooSmallError(
             `HLP allocation is below the vault minimum of ${HLP_MIN_DEPOSIT_USD} perp USDC base units (quoted ${quote.estimate.toAmountMin})`,
           );
         }

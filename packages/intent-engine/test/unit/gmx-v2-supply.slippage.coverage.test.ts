@@ -4,6 +4,7 @@ import type { Address, PublicClient } from 'viem';
 import type { GmxV2PricingAdapter } from '../../src/adapters/gmx-v2-pricing.adapter.js';
 import type { LiFiAdapter } from '../../src/adapters/lifi.adapter.js';
 import { buildGmxV2SupplyTx } from '../../src/builders/gmx-v2-supply.builder.js';
+import { GmxDepositTooSmallError } from '../../src/errors/intent.errors.js';
 import {
   GMX_V2_DEFAULT_DEPOSIT_SLIPPAGE_BPS,
   GMX_V2_TOKENS,
@@ -30,14 +31,14 @@ describe('buildGmxV2SupplyTx deposit slippage boundaries', () => {
   it.each([0n, 1n])(
     'rejects estimated GM-token output %s when no slippage buffer can remain',
     async (estimatedMarketTokens) => {
-      await expect(
-        buildGmxV2SupplyTx(
-          BASE_INPUT,
-          ADAPTER,
-          PUBLIC_CLIENT,
-          pricingAdapterFor(estimatedMarketTokens),
-        ),
-      ).rejects.toThrow(
+      const build = buildGmxV2SupplyTx(
+        BASE_INPUT,
+        ADAPTER,
+        PUBLIC_CLIENT,
+        pricingAdapterFor(estimatedMarketTokens),
+      );
+      await expect(build).rejects.toBeInstanceOf(GmxDepositTooSmallError);
+      await expect(build).rejects.toThrow(
         'GMX deposit amount is too small to retain a GM-token slippage buffer',
       );
     },

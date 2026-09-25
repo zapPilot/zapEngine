@@ -1,4 +1,13 @@
-import type { DepositPlan, WithdrawPlan } from '@zapengine/types/api';
+import {
+  GmxDepositTooSmallError,
+  HlpDepositTooSmallError,
+} from '@zapengine/intent-engine';
+import {
+  type DepositPlan,
+  GMX_DEPOSIT_TOO_SMALL_ERROR_CODE,
+  HLP_DEPOSIT_TOO_SMALL_ERROR_CODE,
+  type WithdrawPlan,
+} from '@zapengine/types/api';
 import { Hono } from 'hono';
 import { encodeFunctionData, erc20Abi, maxUint256 } from 'viem';
 import { describe, expect, it, vi } from 'vitest';
@@ -403,6 +412,84 @@ describe('POST /plan-orchestration/deposit/review', () => {
     expect(service.buildDepositReview).toHaveBeenCalledWith(
       expect.objectContaining({ sourceChainId: 1, split: { '1337': 1 } }),
     );
+  });
+
+  it('answers a GMX leg too small to execute with 422 and its code', async () => {
+    const message =
+      'GMX v2 btc-btc deposit too small: swap output has no slippage buffer';
+    const service: PlanOrchestrationService = {
+      buildDeposit: vi.fn().mockResolvedValue(plan),
+      buildDepositReview: vi
+        .fn()
+        .mockRejectedValue(new GmxDepositTooSmallError(message)),
+      buildWithdraw: vi.fn().mockResolvedValue(withdrawPlan),
+    };
+    const { app } = createApp(service);
+
+    const response = await app.request(
+      'http://localhost/plan-orchestration/deposit/review',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          kind: 'chain-batch',
+          userAddress: USER,
+          sourceChainId: 42161,
+          positions: [
+            { kind: 'gmx-v2-basket', fromToken: ARBITRUM_USDC, amount: '106' },
+          ],
+        }),
+      },
+    );
+
+    // A client error the app can explain, not a 500 that reaches Sentry.
+    expect(response.status).toBe(422);
+    expect(await response.json()).toEqual({
+      statusCode: 422,
+      code: GMX_DEPOSIT_TOO_SMALL_ERROR_CODE,
+      message,
+    });
+  });
+
+  it('answers an HLP leg whose bridge output misses the vault minimum with 422 and its code', async () => {
+    const message =
+      'HLP allocation is below the vault minimum of 10000000 perp USDC base units (quoted 9904231)';
+    const service: PlanOrchestrationService = {
+      buildDeposit: vi.fn().mockResolvedValue(plan),
+      buildDepositReview: vi
+        .fn()
+        .mockRejectedValue(new HlpDepositTooSmallError(message)),
+      buildWithdraw: vi.fn().mockResolvedValue(withdrawPlan),
+    };
+    const { app } = createApp(service);
+
+    const response = await app.request(
+      'http://localhost/plan-orchestration/deposit/review',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          kind: 'chain-batch',
+          userAddress: USER,
+          sourceChainId: 1,
+          positions: [
+            {
+              kind: 'invest',
+              fromToken: ETHEREUM_USDC,
+              fromAmount: '10000000',
+              split: { '1337': 1 },
+            },
+          ],
+        }),
+      },
+    );
+
+    expect(response.status).toBe(422);
+    expect(await response.json()).toEqual({
+      statusCode: 422,
+      code: HLP_DEPOSIT_TOO_SMALL_ERROR_CODE,
+      message,
+    });
   });
 });
 
