@@ -61,6 +61,38 @@ afterEach(async () => {
 });
 
 describe('YouTube publisher', () => {
+  it('rejects invalid title length before creating an upload session', async () => {
+    const videoPath = await fixtureVideo();
+    const thumbnailBytes = await fixtureThumbnailPng();
+    const fetchImpl = vi.fn<typeof fetch>(async (input) => {
+      const url = String(input);
+      if (url === THUMBNAIL_URL) {
+        return new Response(new Uint8Array(thumbnailBytes), {
+          status: 200,
+          headers: { 'content-type': 'image/png' },
+        });
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    const publisher = createYouTubePublisher({
+      fetchImpl: withChannelProbe(fetchImpl),
+    });
+
+    await expect(
+      publisher.publishYouTube({
+        title: 'A'.repeat(101),
+        description: 'Description',
+        videoPath,
+        thumbnailUrl: THUMBNAIL_URL,
+        privacyStatus: 'public',
+      }),
+    ).rejects.toThrow(
+      /Step: create_upload_session[\s\S]+YouTube title must contain 1-100 characters; received 101/u,
+    );
+
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
   it('uses global fetch and the real clock when no options are injected', async () => {
     const videoPath = await fixtureVideo();
     const thumbnailBytes = await fixtureThumbnailPng();

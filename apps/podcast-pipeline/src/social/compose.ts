@@ -21,6 +21,7 @@ export interface ComposedSocialContent {
   hookType: SocialHookType;
 }
 
+export const YOUTUBE_TITLE_MAX_CHARACTERS = 100;
 const YOUTUBE_DESCRIPTION_MAX_CHARACTERS = 4500;
 
 /**
@@ -97,7 +98,7 @@ function composePlatformContent(
     case 'youtube': {
       const youtube = requireCopyBlock(input.copy.youtube, 'youtube');
       return {
-        title: input.episode.title,
+        title: fitYouTubeTitle(input.episode.title),
         body: composeYouTubeDescription(input.episode, input.destinationUrl),
         hashtags: [],
         hookType: youtube.hookType,
@@ -115,6 +116,19 @@ function requireCopyBlock<T>(block: T | undefined, name: string): T {
 
 // YouTube metadata remains episode-derived. The title is the canonical
 // episode localization title; social generation only supplies hook metadata.
+// Legacy localizations can predate the current title-length contract, so the
+// transport projection fits those titles deterministically instead of asking an
+// LLM to invent a second platform-specific headline.
+function fitYouTubeTitle(title: string): string {
+  const normalized = title.trim();
+  const characters = Array.from(normalized);
+  if (characters.length <= YOUTUBE_TITLE_MAX_CHARACTERS) return normalized;
+  return `${characters
+    .slice(0, YOUTUBE_TITLE_MAX_CHARACTERS - 1)
+    .join('')
+    .trimEnd()}…`;
+}
+
 export function composeYouTubeDescription(
   episode: SocialComposeEpisode,
   destinationUrl?: string,

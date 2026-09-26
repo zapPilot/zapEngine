@@ -23,6 +23,9 @@ const TRANSLATION_MODEL = 'openrouter/free';
 const TRANSLATION_MAX_ATTEMPTS = 2;
 const TRANSLATION_MAX_CHUNK_CHARS = 2_000;
 const TRANSLATION_RETRY_DELAY_MS = 500;
+const TRANSLATED_TITLE_MAX_CHARACTERS: Partial<
+  Record<SecondaryLanguageCode, number>
+> = { en: 100 };
 const TARGET_LANGUAGE_NAMES: Record<SecondaryLanguageCode, string> = {
   ja: 'Japanese',
   en: 'English',
@@ -264,7 +267,7 @@ async function translateFieldsWithOpenRouter<K extends string>(
       fields: Object.fromEntries(
         keys.map((key) => [
           key,
-          readTranslatedField(payload, key, fields[key]),
+          readTranslatedField(payload, key, fields[key], targetLanguageCode),
         ]),
       ) as Record<K, string>,
       cost: [costLine],
@@ -413,11 +416,18 @@ function buildTranslationSystemPrompt(
   targetLanguageCode: SecondaryLanguageCode,
   outputFormat: Record<string, string>,
 ): string {
+  const titleMaxCharacters =
+    TRANSLATED_TITLE_MAX_CHARACTERS[targetLanguageCode];
   return [
     `Translate Traditional Chinese into ${TARGET_LANGUAGE_NAMES[targetLanguageCode]}.`,
     'Preserve meaning, paragraph breaks, URLs, numbers, tickers, names, and technical terms.',
     'Do not summarize, explain, or add markdown.',
     'Keep any field whose input value is empty as an empty string.',
+    ...(titleMaxCharacters && 'title' in outputFormat
+      ? [
+          `For the title field, keep the translated title at most ${titleMaxCharacters} Unicode characters including spaces and punctuation. Keep it faithful, but prefer concise natural wording when a literal translation would exceed the limit.`,
+        ]
+      : []),
     `Return valid JSON only in this shape: ${JSON.stringify(outputFormat)}`,
   ].join('\n');
 }
@@ -466,6 +476,7 @@ function readTranslatedField(
   payload: Record<string, unknown>,
   field: string,
   sourceText: string,
+  targetLanguageCode: SecondaryLanguageCode,
 ): string {
   if (sourceText.length === 0) {
     return '';
@@ -485,6 +496,16 @@ function readTranslatedField(
   if (looksLikeModelChatter(value)) {
     throw new TranslationResponseError(
       `OpenRouter translation returned explanatory ${field}`,
+    );
+  }
+  const maxCharacters =
+    field === 'title'
+      ? TRANSLATED_TITLE_MAX_CHARACTERS[targetLanguageCode]
+      : undefined;
+  const characterCount = Array.from(value.trim()).length;
+  if (maxCharacters && characterCount > maxCharacters) {
+    throw new TranslationResponseError(
+      `OpenRouter translation returned ${field} over ${maxCharacters} characters (${characterCount})`,
     );
   }
   return value;
