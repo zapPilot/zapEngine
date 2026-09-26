@@ -77,3 +77,4 @@ export * from './withdraw.js';
 export * from './privy-wallet.js';
 export * from './execution-review.js';
 export * from './rotate.js';
+export * from './agent-run.js';

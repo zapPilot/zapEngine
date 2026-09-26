@@ -43,7 +43,7 @@ describe('intent validator registry coverage', () => {
   });
 
   it('rejects a vault known on another chain with mismatch details', () => {
-    const vaultAddress = MORPHO_VAULTS[CHAIN_IDS.BASE].MOONWELL_USDC;
+    const vaultAddress = MORPHO_VAULTS[CHAIN_IDS.BASE].SPARK_USDC;
     let caught: unknown;
 
     try {

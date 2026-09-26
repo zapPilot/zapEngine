@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { Multibaas } from '../lib/multibaas.js';
 import { ETH_VAULT, USDC, USDC_VAULT, WETH } from './demoRule.js';
-import { multibaasSetup } from './multibaasSetup.js';
+import { missingRegistrations, multibaasSetup } from './multibaasSetup.js';
 
 function fake(
   contracts: { label: string; version: string }[],
@@ -76,5 +76,36 @@ describe('MultiBaas setup', () => {
     await expect(
       multibaasSetup(conflict as unknown as Multibaas, () => undefined),
     ).rejects.toThrow('already points at');
+  });
+  it('reports every registration a run still needs', async () => {
+    const legacy = fake([], {
+      usdc: { address: USDC, contracts: [{ label: 'usdctoken' }] },
+      sparkusdcvault: {
+        address: USDC_VAULT,
+        contracts: [{ label: 'sparkusdcvault' }],
+      },
+      weth: { address: USDC, contracts: [{ label: 'wethtoken' }] },
+      clearstarethvault: { address: ETH_VAULT, contracts: [] },
+    });
+    expect(await missingRegistrations(legacy)).toEqual([
+      'weth/wethtoken',
+      'clearstarethvault/clearstarethvault',
+    ]);
+    const ready = fake([], {
+      weth: {
+        address: WETH.toLowerCase(),
+        contracts: [{ label: 'wethtoken' }],
+      },
+      clearstarethvault: {
+        address: ETH_VAULT,
+        contracts: [{ label: 'clearstarethvault' }],
+      },
+      usdc: { address: USDC, contracts: [{ label: 'usdctoken' }] },
+      sparkusdcvault: {
+        address: USDC_VAULT,
+        contracts: [{ label: 'sparkusdcvault' }],
+      },
+    });
+    expect(await missingRegistrations(ready)).toEqual([]);
   });
 });

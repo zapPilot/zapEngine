@@ -147,7 +147,7 @@ export interface RouteProtocolContext {
 /** Display label for a single-chain plan's lone protocol when its legs carry
  * no more specific server-provided label (e.g. a plain Morpho supply). */
 const SINGLE_CHAIN_PROTOCOL_LABELS: Record<string, string> = {
-  morpho: 'Morpho Moonwell USDC',
+  morpho: 'Morpho Spark USDC',
 };
 
 /** A plan orchestration response is the multi-chain strategy shape when it

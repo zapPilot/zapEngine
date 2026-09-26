@@ -1,6 +1,8 @@
-import { CHAIN_BRAND } from '@zapengine/brand-assets/chains';
+import { tokens } from '@zapengine/design-tokens/tokens';
 
-export const BASE_BLUE = CHAIN_BRAND.base.color;
-
-/** Rings, connectors, and arcs: #0052ff as a 2px line on the #0a0a0a page is too dark. */
-export const BASE_BLUE_BRIGHT = '#5b93ff';
+/**
+ * AI Wallet keeps its decorative accent aligned with the app-wide design
+ * system. Chain branding belongs to chain marks, not the page chrome.
+ */
+export const AI_WALLET_ACCENT = tokens.color.accent;
+export const AI_WALLET_ACCENT_MUTED = tokens.color['accent-muted'];

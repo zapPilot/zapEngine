@@ -182,7 +182,7 @@ function routeDetails(
   }
   return {
     label: 'Deposit Morpho vault',
-    detail: 'Moonwell USDC · Base · exact wallet action',
+    detail: 'Spark USDC · Base · exact wallet action',
   };
 }
 

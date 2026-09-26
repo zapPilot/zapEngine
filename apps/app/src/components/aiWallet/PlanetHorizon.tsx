@@ -1,3 +1,4 @@
+import { tokens } from '@zapengine/design-tokens/tokens';
 import { useId } from 'react';
 import { View } from 'react-native';
 import Svg, {
@@ -9,8 +10,8 @@ import Svg, {
 } from 'react-native-svg';
 
 import {
-  BASE_BLUE,
-  BASE_BLUE_BRIGHT,
+  AI_WALLET_ACCENT,
+  AI_WALLET_ACCENT_MUTED,
 } from '@/components/aiWallet/aiWalletTheme';
 
 const VIEW_WIDTH = 400;
@@ -60,9 +61,17 @@ export function PlanetHorizon() {
             r={200}
             gradientUnits="userSpaceOnUse"
           >
-            <Stop offset="0" stopColor={BASE_BLUE_BRIGHT} stopOpacity={0.38} />
-            <Stop offset="0.45" stopColor={BASE_BLUE} stopOpacity={0.14} />
-            <Stop offset="1" stopColor={BASE_BLUE} stopOpacity={0} />
+            <Stop offset="0" stopColor={AI_WALLET_ACCENT} stopOpacity={0.22} />
+            <Stop
+              offset="0.45"
+              stopColor={AI_WALLET_ACCENT_MUTED}
+              stopOpacity={0.1}
+            />
+            <Stop
+              offset="1"
+              stopColor={AI_WALLET_ACCENT_MUTED}
+              stopOpacity={0}
+            />
           </RadialGradient>
           <RadialGradient
             id={`${id}-body`}
@@ -71,9 +80,17 @@ export function PlanetHorizon() {
             r={230}
             gradientUnits="userSpaceOnUse"
           >
-            <Stop offset="0" stopColor="#123a9c" stopOpacity={0.9} />
-            <Stop offset="0.4" stopColor="#0a2266" stopOpacity={0.6} />
-            <Stop offset="1" stopColor="#050c24" stopOpacity={0} />
+            <Stop
+              offset="0"
+              stopColor={tokens.color['surface-elevated']}
+              stopOpacity={0.9}
+            />
+            <Stop
+              offset="0.4"
+              stopColor={tokens.color['bg-2']}
+              stopOpacity={0.72}
+            />
+            <Stop offset="1" stopColor={tokens.color.bg} stopOpacity={0} />
           </RadialGradient>
           <LinearGradient
             id={`${id}-arc`}
@@ -83,13 +100,17 @@ export function PlanetHorizon() {
             y2={LIMB_TOP + 110}
             gradientUnits="userSpaceOnUse"
           >
-            <Stop offset="0" stopColor={BASE_BLUE_BRIGHT} stopOpacity={1} />
+            <Stop offset="0" stopColor={AI_WALLET_ACCENT} stopOpacity={0.78} />
             <Stop
               offset="0.5"
-              stopColor={BASE_BLUE_BRIGHT}
-              stopOpacity={0.55}
+              stopColor={AI_WALLET_ACCENT_MUTED}
+              stopOpacity={0.45}
             />
-            <Stop offset="1" stopColor={BASE_BLUE_BRIGHT} stopOpacity={0} />
+            <Stop
+              offset="1"
+              stopColor={AI_WALLET_ACCENT_MUTED}
+              stopOpacity={0}
+            />
           </LinearGradient>
         </Defs>
         <Circle

@@ -20,9 +20,16 @@ import { createLaya } from './lib/laya.js';
 import { createMultibaas } from './lib/multibaas.js';
 import { createPodcast } from './lib/podcast.js';
 import { createTelegram } from './lib/telegram.js';
-import { type DemoOptions, runDemo } from './services/demo.js';
+import {
+  type DemoOptions,
+  type DemoProgress,
+  runDemo,
+} from './services/demo.js';
 import { rotateRequest, TRIGGER_EPISODE } from './services/demoRule.js';
-import { multibaasSetup } from './services/multibaasSetup.js';
+import {
+  missingRegistrations,
+  multibaasSetup,
+} from './services/multibaasSetup.js';
 import { createTriggerServer } from './services/triggerServer.js';
 
 export interface MainDeps {
@@ -82,15 +89,28 @@ export async function main(
       'Telegram needs PIPELINE_TELEGRAM_BOT_TOKEN and --chat or PIPELINE_TELEGRAM_ALLOWED_USER_IDS',
     );
   const podcast = createPodcast(http, env.podcastUrl);
-  const demo = async (options: DemoOptions, runLog: (line: string) => void) => {
+  const now = deps.now ?? Date.now;
+  const demo = async (
+    options: DemoOptions,
+    runLog: (line: string) => void,
+    progress: (event: DemoProgress) => void,
+  ) => {
     const { blockNumber } = await multibaas.status();
+    // An unregistered alias only fails as "HTTP 400: invalid address" at its
+    // own step, possibly after earlier steps were already broadcast.
+    const missing = await missingRegistrations(multibaas);
+    if (missing.length > 0)
+      throw new Error(
+        `MultiBaas is missing ${missing.join(', ')}; run \`pnpm --filter @zapengine/news-agent agent multibaas-setup\`. Nothing was signed`,
+      );
     runLog(
       `🤖 Agent    ${account.address} · MultiBaas on Base (block ${blockNumber})`,
     );
     return runDemo(options, {
       wallet: account.address,
       log: runLog,
-      now: deps.now ?? Date.now,
+      progress,
+      now,
       sleep:
         deps.sleep ??
         (async (ms) => {
@@ -117,9 +137,11 @@ export async function main(
 
   if (args.command === 'serve') {
     const server = createTriggerServer({
+      episode: TRIGGER_EPISODE,
       log,
-      run: (runLog) =>
-        demo({ episode: TRIGGER_EPISODE, execute: true }, runLog),
+      now,
+      run: (runLog, progress) =>
+        demo({ episode: TRIGGER_EPISODE, execute: true }, runLog, progress),
     });
     server.listen(args.port, '127.0.0.1', () =>
       log(
@@ -131,6 +153,8 @@ export async function main(
   const outcome = await demo(
     { episode: args.episode!, execute: args.execute, replay: args.replay },
     log,
+    // The CLI prints its log; only `serve` has a timeline to feed.
+    () => {},
   );
   log(`Outcome: ${outcome}`);
 }

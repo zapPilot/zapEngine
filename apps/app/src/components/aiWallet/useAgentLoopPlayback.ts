@@ -11,16 +11,19 @@ import {
 /**
  * Steps the agent-loop timeline one row at a time. A replay is user-started;
  * a live run starts by itself when polling finds a deposit that was not there
- * on the first successful load.
+ * on the first successful load, unless `suppressLive` says the local agent
+ * already showed that run step by step.
  */
 export function useAgentLoopPlayback({
   latestDepositHash,
   activityLoaded,
   stepCount,
+  suppressLive,
 }: {
   latestDepositHash: string | null;
   activityLoaded: boolean;
   stepCount: number;
+  suppressLive: boolean;
 }) {
   const [playback, setPlayback] = useState<AgentLoopPlayback | null>(null);
   const baseline = useRef<DepositBaseline>(undefined);
@@ -29,10 +32,10 @@ export function useAgentLoopPlayback({
     if (!activityLoaded) return;
     const previous = baseline.current;
     baseline.current = { hash: latestDepositHash };
-    if (isNewDeposit(previous, latestDepositHash)) {
+    if (!suppressLive && isNewDeposit(previous, latestDepositHash)) {
       setPlayback({ mode: 'live', index: 0 });
     }
-  }, [activityLoaded, latestDepositHash]);
+  }, [activityLoaded, latestDepositHash, suppressLive]);
 
   useEffect(() => {
     if (playback === null) return;

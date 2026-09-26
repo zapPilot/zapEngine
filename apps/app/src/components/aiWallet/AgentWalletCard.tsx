@@ -20,8 +20,6 @@ import type { AgentPosition } from '@/integration/agentActivity';
 import { truncateAddress } from '@/lib/format';
 
 interface AgentWalletCardProps {
-  /** Grow to the height of the row it sits in (wide layout). */
-  fill: boolean;
   agentAddress: string;
   configured: boolean;
   position: AgentPosition | undefined;
@@ -40,9 +38,9 @@ const USDC_UNIT: AssetUnit = {
   decimals: USDC_DECIMALS,
   fractionDigits: 2,
 };
-// The rotation moves fractions of a milli-ETH, so two decimals would read 0.00.
-const WETH_UNIT: AssetUnit = {
-  symbol: 'WETH',
+// The position is held as WETH on-chain, but the wallet presents it as ETH.
+const ETH_DISPLAY_UNIT: AssetUnit = {
+  symbol: 'ETH',
   decimals: WETH_DECIMALS,
   fractionDigits: 6,
 };
@@ -55,7 +53,6 @@ function formatBalance(amount: bigint, unit: AssetUnit): string {
 }
 
 export function AgentWalletCard({
-  fill,
   agentAddress,
   configured,
   position,
@@ -77,10 +74,7 @@ export function AgentWalletCard({
   };
 
   return (
-    <Card
-      className={fill ? 'flex-1' : ''}
-      style={{ borderColor: 'rgba(91,147,255,.22)' }}
-    >
+    <Card>
       <PlanetHorizon />
       <View className="px-6 pb-6" style={{ paddingTop: PLANET_CONTENT_OFFSET }}>
         <Text className="font-mono-medium text-[11px] uppercase tracking-[2px] text-ink-dim">
@@ -98,7 +92,7 @@ export function AgentWalletCard({
               accessibilityRole="button"
               accessibilityLabel="Copy agent wallet address"
               onPress={copyAddress}
-              className="h-9 w-9 items-center justify-center rounded-full border border-line-hi bg-[rgba(10,10,10,.4)]"
+              className="h-9 w-9 items-center justify-center rounded-full border border-line-hi bg-surface"
             >
               <Copy size={15} color={tokens.color['ink-dim']} />
             </Tap>
@@ -106,27 +100,40 @@ export function AgentWalletCard({
         </View>
 
         <View className="mt-5 border-t border-line pt-1">
-          <AssetRow
-            icon={<TokenIcon symbol="USDC" size={34} />}
+          <PositionRow
+            icon={<TokenIcon symbol="USDC" size={26} />}
             label="USDC"
+            metadata="Wallet"
             amount={position?.idleUsdc}
             unit={USDC_UNIT}
             loading={balancesLoading}
           />
-          <AssetRow
-            icon={<ProtocolIcon protocol="morpho" size={34} />}
-            label="Morpho / Clearstar"
-            amount={position?.ethVaultWeth}
-            unit={WETH_UNIT}
-            loading={balancesLoading}
-          />
-          <AssetRow
-            icon={<ProtocolIcon protocol="morpho" size={34} />}
-            label="Morpho / Spark"
-            amount={position?.depositedUsdc}
-            unit={USDC_UNIT}
-            loading={balancesLoading}
-          />
+
+          <View className="mt-1 border-t border-line pt-4">
+            <View className="flex-row items-center gap-3 pb-1">
+              <ProtocolIcon protocol="morpho" size={40} />
+              <Text className="font-sans-semibold text-[16px] text-ink">
+                Morpho
+              </Text>
+            </View>
+
+            <PositionRow
+              icon={<TokenIcon symbol="ETH" size={26} />}
+              label="ETH"
+              metadata="Clearstar"
+              amount={position?.ethVaultWeth}
+              unit={ETH_DISPLAY_UNIT}
+              loading={balancesLoading}
+            />
+            <PositionRow
+              icon={<TokenIcon symbol="USDC" size={26} />}
+              label="USDC"
+              metadata="Spark"
+              amount={position?.depositedUsdc}
+              unit={USDC_UNIT}
+              loading={balancesLoading}
+            />
+          </View>
         </View>
         {note === null ? null : (
           <Text className="mt-1 text-[11px] leading-4 text-ink-faint">
@@ -138,28 +145,38 @@ export function AgentWalletCard({
   );
 }
 
-function AssetRow({
+function PositionRow({
   icon,
   label,
+  metadata,
   amount,
   unit,
   loading,
 }: {
   icon: ReactNode;
   label: string;
+  metadata: string;
   amount: bigint | undefined;
   unit: AssetUnit;
   loading: boolean;
 }) {
   return (
-    <View className="flex-row items-center gap-3 py-3">
+    <View className="flex-row items-center gap-3 py-2.5">
       {icon}
-      <Text
-        className="min-w-0 flex-1 font-sans-medium text-[15px] text-ink"
-        numberOfLines={1}
-      >
-        {label}
-      </Text>
+      <View className="min-w-0 flex-1">
+        <Text
+          className="font-sans-medium text-[15px] leading-5 text-ink"
+          numberOfLines={1}
+        >
+          {label}
+        </Text>
+        <Text
+          className="text-[10px] leading-[14px] text-ink-faint"
+          numberOfLines={1}
+        >
+          {metadata}
+        </Text>
+      </View>
       {loading ? (
         <SkeletonBlock className="h-7 w-24 rounded-lg" />
       ) : (

@@ -92,19 +92,19 @@ export const MORPHO_VAULT_CATALOG: readonly VaultMeta[] = [
   {
     protocol: 'morpho',
     chainId: CHAIN_IDS.BASE,
-    vaultAddress: MORPHO_VAULTS[CHAIN_IDS.BASE].MOONWELL_USDC,
+    vaultAddress: MORPHO_VAULTS[CHAIN_IDS.BASE].SPARK_USDC,
     assetAddress: TOKENS[CHAIN_IDS.BASE].USDC,
     assetSymbol: 'USDC',
-    name: 'Moonwell USDC',
+    name: 'Spark USDC',
     capabilities: MORPHO_CAPABILITIES,
   },
   {
     protocol: 'morpho',
     chainId: CHAIN_IDS.BASE,
-    vaultAddress: MORPHO_VAULTS[CHAIN_IDS.BASE].SEAMLESS_WETH,
+    vaultAddress: MORPHO_VAULTS[CHAIN_IDS.BASE].MOONWELL_WETH,
     assetAddress: TOKENS[CHAIN_IDS.BASE].WETH,
     assetSymbol: 'WETH',
-    name: 'Seamless WETH',
+    name: 'Moonwell Flagship ETH',
     capabilities: MORPHO_CAPABILITIES,
   },
 ] as const;

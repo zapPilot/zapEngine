@@ -36,11 +36,37 @@ async function initialized() {
   return { paths, lines, key: (await readFile(paths.key, 'utf8')).trim() };
 }
 
+const ALIAS_URL = /\/chains\/ethereum\/addresses(?:\/([^/]+)(\/contracts)?)?$/;
+
+// Remembers what `multibaas-setup` registers, as MultiBaas would.
 function router() {
+  const aliases = new Map<
+    string,
+    { address: string; contracts: { label: string }[] }
+  >();
   return vi.fn<typeof fetch>(async (input, init) => {
     const url = String(input);
-    if (url.includes('/chains/ethereum/addresses/') && init?.method === 'GET')
-      return new Response(JSON.stringify({ status: 404 }), { status: 404 });
+    const alias = ALIAS_URL.exec(url);
+    if (alias) {
+      const body = init?.body
+        ? (JSON.parse(String(init.body)) as {
+            alias?: string;
+            address?: string;
+            label?: string;
+          })
+        : {};
+      const [, name, link] = alias;
+      if (!name)
+        aliases.set(body.alias!, { address: body.address!, contracts: [] });
+      else if (link) aliases.get(name)?.contracts.push({ label: body.label! });
+      else {
+        const found = aliases.get(name);
+        return found
+          ? json({ status: 200, result: { alias: name, ...found } })
+          : new Response(JSON.stringify({ status: 404 }), { status: 404 });
+      }
+      return json({ status: 200, result: null });
+    }
     if (url.endsWith('/chains/ethereum/status'))
       return json({ status: 200, result: { chainID: 8453, blockNumber: 9 } });
     if (url.endsWith('/v1/systemone'))
@@ -100,6 +126,23 @@ describe('CLI entry', () => {
       String(url).includes('/methods/'),
     );
     expect(composeCalls).toHaveLength(0);
+  });
+  it('stops before planning when a MultiBaas registration is missing', async () => {
+    const { paths } = await initialized();
+    const fetcher = router();
+    await expect(
+      main(['demo', '--episode', EPISODE], {
+        paths,
+        fetcher,
+        env,
+        log: () => undefined,
+      }),
+    ).rejects.toThrow(
+      'MultiBaas is missing weth/wethtoken, clearstarethvault/clearstarethvault, usdc/usdctoken, sparkusdcvault/sparkusdcvault; run `pnpm --filter @zapengine/news-agent agent multibaas-setup`',
+    );
+    const urls = fetcher.mock.calls.map(([url]) => String(url));
+    expect(urls.some((url) => url.endsWith('/rotate/review'))).toBe(false);
+    expect(urls.some((url) => url.includes('/methods/'))).toBe(false);
   });
   it('refuses to execute without a Telegram destination', async () => {
     const { paths } = await initialized();

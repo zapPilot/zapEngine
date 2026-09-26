@@ -1,4 +1,9 @@
-import type { PlanOrchestrationRotateReviewResponse } from '@zapengine/types/api';
+import {
+  AGENT_RUN_STEP_IDS,
+  type AgentRunStatus,
+  AgentRunStatusSchema,
+  type PlanOrchestrationRotateReviewResponse,
+} from '@zapengine/types/api';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { LayaVerdict } from '../lib/laya.js';
@@ -11,7 +16,13 @@ import {
   SWAP_FROM,
   wallet,
 } from '../test-utils/fixtures.js';
-import { type DemoDeps, message, runDemo } from './demo.js';
+import {
+  type DemoDeps,
+  type DemoOutcome,
+  type DemoProgress,
+  message,
+  runDemo,
+} from './demo.js';
 import {
   ETH_VAULT,
   LIFI_DIAMOND as LIFI_ADDRESS,
@@ -20,6 +31,12 @@ import {
   USDC_VAULT as USDC_VAULT_ADDRESS,
   WETH,
 } from './demoRule.js';
+import {
+  applyProgress,
+  finishRun,
+  idleRunStatus,
+  startRun,
+} from './runStatus.js';
 
 const USDC = USDC_ADDRESS as `0x${string}`;
 const USDC_VAULT = USDC_VAULT_ADDRESS as `0x${string}`;
@@ -120,6 +137,7 @@ function setup(
   const deps = {
     wallet,
     log: (line: string) => lines.push(line),
+    progress: vi.fn<DemoDeps['progress']>(),
     now: () => clock,
     sleep: vi.fn(async (ms: number) => {
       clock += ms;
@@ -147,6 +165,47 @@ function setup(
 }
 
 const execute = { episode, execute: true };
+
+const progressOf = (deps: DemoDeps) =>
+  vi.mocked(deps.progress).mock.calls.map(([event]) => event);
+
+// What `serve` would report for these events: the status the app renders.
+function timeline(
+  deps: DemoDeps,
+  result: { outcome: DemoOutcome } | { error: string },
+): AgentRunStatus {
+  const running = progressOf(deps).reduce(
+    applyProgress,
+    startRun(idleRunStatus(episode), now),
+  );
+  return AgentRunStatusSchema.parse(finishRun(running, result, now + 1));
+}
+
+async function failure(run: Promise<unknown>): Promise<{ error: string }> {
+  const error = await run.then(
+    () => new Error('expected the run to fail'),
+    (reason: unknown) => reason,
+  );
+  return { error: String(error) };
+}
+
+const states = (status: AgentRunStatus) =>
+  AGENT_RUN_STEP_IDS.map((id) => status.steps[id].state);
+
+/** Every MultiBaas and signing call, in the order they happened. */
+function chainCalls(deps: ReturnType<typeof setup>['deps']) {
+  const mocks = { ...deps.multibaas, sign: deps.sign };
+  return Object.entries(mocks)
+    .flatMap(([name, mock]) =>
+      mock.mock.calls.map((args, index) => ({
+        name,
+        args,
+        order: mock.mock.invocationCallOrder[index]!,
+      })),
+    )
+    .sort((left, right) => left.order - right.order)
+    .map(({ name, args }) => [name, args]);
+}
 
 describe('single-shot demo', () => {
   it('dry-runs any episode without composing or signing', async () => {
@@ -475,6 +534,148 @@ describe('single-shot demo', () => {
       ).rejects.toThrow('is not a confirmed agent');
       expect(deps.notify).not.toHaveBeenCalled();
     }
+  });
+  it('reports each rotation transaction through steps 4–6 as Tx k/N', async () => {
+    const review = approvedReview({ approveUsdc: true });
+    review.reviews['chain-8453']!.shareUrls = [
+      'https://dashboard.tenderly.co/shared/simulation/a',
+      'https://dashboard.tenderly.co/shared/simulation/b',
+    ];
+    const { deps } = setup(review);
+    expect(await runDemo(execute, deps)).toBe('confirmed');
+    const events = progressOf(deps);
+
+    const order = events
+      .map((event) => event.step)
+      .filter((step, index, all) => step !== all[index - 1]);
+    expect(order).toEqual([
+      'news',
+      'analyze',
+      'intent',
+      ...Array.from({ length: 5 }, () => ['compose', 'sign', 'confirm']).flat(),
+      'deliver',
+    ]);
+    const composed = events.filter((event) => event.step === 'compose');
+    expect(
+      composed
+        .map((event) => event.transaction)
+        .filter((tx, index, all) => tx !== all[index - 1]),
+    ).toEqual([
+      { kind: 'approve', index: 1, total: 5 },
+      { kind: 'approve', index: 2, total: 5 },
+      { kind: 'redeem', index: 3, total: 5 },
+      { kind: 'swap', index: 4, total: 5 },
+      { kind: 'deposit', index: 5, total: 5 },
+    ]);
+    // Steps 4–6 always name their transaction; the others never do.
+    for (const event of events)
+      expect(event.transaction !== undefined).toBe(
+        ['compose', 'sign', 'confirm'].includes(event.step),
+      );
+    expect(
+      events.find((event) => event.transaction?.kind === 'swap')?.text,
+    ).toContain('byte for byte');
+    expect(events.find((event) => event.step === 'intent')?.text).toContain(
+      'not chosen by Laya',
+    );
+    // URLs travel only as labelled links, never inside the text.
+    for (const event of events) expect(event.text).not.toMatch(/https?:/);
+    expect(
+      events.flatMap((event) => (event.link ? [event.link.label] : [])),
+    ).toEqual(['Tenderly', 'Tenderly', ...Array(5).fill('Basescan'), 'Story']);
+
+    const status = timeline(deps, { outcome: 'confirmed' });
+    expect(states(status)).toEqual(Array(7).fill('done'));
+    const depositBroadcast = events.find(
+      (event) => event.transaction?.kind === 'deposit' && event.hash,
+    )!;
+    expect(status.depositHash).toBe(depositBroadcast.hash);
+    expect(depositBroadcast.link?.url).toBe(
+      `https://basescan.org/tx/${depositBroadcast.hash}`,
+    );
+    expect(status.steps.confirm.entries.at(-1)?.text).toBe(
+      'MultiBaas event index has the Deposit event',
+    );
+    expect(status.steps.deliver.entries.at(-1)).toEqual({
+      text: 'Telegram sent with the story smart link',
+      link: {
+        label: 'Story',
+        url: `https://podcast.example/e/${episode}?lang=en`,
+      },
+    });
+  });
+  it('marks the intent step failed when the guard blocks', async () => {
+    const review = approvedReview();
+    review.reviews['chain-8453']!.status = 'failed';
+    const { deps } = setup(review);
+    expect(await runDemo(execute, deps)).toBe('blocked');
+    const status = timeline(deps, { outcome: 'blocked' });
+    expect(status.error).toBe(
+      'Blocked: Review did not pass. Nothing was signed.',
+    );
+    expect(states(status).slice(0, 4)).toEqual([
+      'done',
+      'done',
+      'failed',
+      'waiting',
+    ]);
+  });
+  it('fails the confirm step and composes nothing more when MultiBaas never catches up', async () => {
+    const { deps, multibaas } = setup();
+    multibaas.call.mockResolvedValue(0n);
+    const status = timeline(deps, await failure(runDemo(execute, deps)));
+    expect(status.steps.confirm.state).toBe('failed');
+    expect(status.error).toContain('still reads weth allowance 0 after 30s');
+    expect(status.transaction).toEqual({ kind: 'approve', index: 1, total: 4 });
+    expect(
+      progressOf(deps).filter((event) => event.step === 'compose'),
+    ).toHaveLength(2);
+    expect(multibaas.compose).toHaveBeenCalledTimes(1);
+  });
+  it('fails the confirm step with the deposit hash when the deposit reverts', async () => {
+    const { deps, multibaas } = setup();
+    multibaas.receipt
+      .mockReset()
+      .mockImplementation(async () =>
+        multibaas.submitSigned.mock.calls.length === 4
+          ? { ...receipt, data: { ...receipt.data, status: '0x0' } }
+          : receipt,
+      );
+    const status = timeline(deps, await failure(runDemo(execute, deps)));
+    expect(status.error).toContain('deposit');
+    expect(status.error).toContain('reverted on-chain');
+    expect(status.steps.confirm.state).toBe('failed');
+    expect(status.transaction).toEqual({ kind: 'deposit', index: 4, total: 4 });
+    expect(status.depositHash).toMatch(/^0x[0-9a-f]{64}$/);
+    expect(deps.notify).not.toHaveBeenCalled();
+  });
+  it('runs exactly the same when the progress sink throws', async () => {
+    const normal = setup();
+    const broken = setup();
+    broken.deps.progress.mockImplementation(() => {
+      throw new Error('display down');
+    });
+    expect(await runDemo(execute, broken.deps)).toBe(
+      await runDemo(execute, normal.deps),
+    );
+    expect(chainCalls(normal.deps).length).toBeGreaterThan(10);
+    expect(chainCalls(broken.deps)).toEqual(chainCalls(normal.deps));
+    expect(broken.deps.progress).toHaveBeenCalledTimes(
+      normal.deps.progress.mock.calls.length,
+    );
+    expect(broken.lines.join('\n')).toContain(
+      'Progress display failed (Error: display down); the run continues',
+    );
+  });
+  it('reports no plan or transaction steps for a replay', async () => {
+    const { deps, multibaas } = setup();
+    multibaas.receipt.mockReset().mockResolvedValue(receipt);
+    await runDemo({ episode, execute: false, replay: hash }, deps);
+    expect(
+      progressOf(deps).some(
+        (event: DemoProgress) => !['news', 'analyze'].includes(event.step),
+      ),
+    ).toBe(false);
   });
   it('describes a partial Laya distribution without inventing values', () => {
     const text = message({

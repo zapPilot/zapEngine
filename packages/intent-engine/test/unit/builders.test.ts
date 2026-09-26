@@ -11,11 +11,10 @@ import type { TransactionQuote } from '../../src/types/transaction.types.js';
 
 const FROM_ADDRESS = '0x1234567890123456789012345678901234567890' as Address;
 
-// Base chain: USDC, MOONWELL_USDC
+// Base chain: USDC, SPARK_USDC
 const BASE_USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as Address;
-const BASE_MOONWELL_USDC =
-  '0x7BfA7C4f149E7415b73bdeDfe609237e29CBF34A' as Address;
-const BASE_SEAMLESS_WETH =
+const BASE_SPARK_USDC = '0x7BfA7C4f149E7415b73bdeDfe609237e29CBF34A' as Address;
+const BASE_MOONWELL_WETH =
   '0xa0E430870c4604CcfC7B38Ca7845B1FF653D0ff1' as Address;
 const BASE_WETH = '0x4200000000000000000000000000000000000006' as Address;
 
@@ -31,7 +30,7 @@ function makeStubQuote(
 ): TransactionQuote {
   return {
     transaction: {
-      to: BASE_MOONWELL_USDC,
+      to: BASE_SPARK_USDC,
       data: '0xdeadbeef',
       value: '0',
       chainId: 8453,
@@ -157,7 +156,7 @@ describe('buildSupplyTx', () => {
         chainId: 8453,
         fromToken: BASE_USDC,
         fromAmount: '5000000',
-        vaultAddress: BASE_MOONWELL_USDC,
+        vaultAddress: BASE_SPARK_USDC,
         protocol: 'morpho',
       },
       adapter,
@@ -165,14 +164,14 @@ describe('buildSupplyTx', () => {
     );
 
     expect(readContract).toHaveBeenCalledWith({
-      address: BASE_MOONWELL_USDC,
+      address: BASE_SPARK_USDC,
       abi: MORPHO_VAULT_ABI,
       functionName: 'asset',
     });
     expect(getContractCallQuote).not.toHaveBeenCalled();
     expect(getSwapQuote).not.toHaveBeenCalled();
 
-    expect(result.transaction.to).toBe(BASE_MOONWELL_USDC);
+    expect(result.transaction.to).toBe(BASE_SPARK_USDC);
     expect(result.transaction.data.slice(0, 10)).toBe(DEPOSIT_SELECTOR);
     expect(result.transaction.value).toBe('0');
     expect(result.transaction.chainId).toBe(8453);
@@ -217,7 +216,7 @@ describe('buildSupplyTx', () => {
         chainId: 8453,
         fromToken: BASE_WETH,
         fromAmount: '5000000',
-        vaultAddress: BASE_MOONWELL_USDC,
+        vaultAddress: BASE_SPARK_USDC,
         protocol: 'morpho',
       },
       adapter,
@@ -225,7 +224,7 @@ describe('buildSupplyTx', () => {
     );
 
     expect(readContract).toHaveBeenCalledWith({
-      address: BASE_MOONWELL_USDC,
+      address: BASE_SPARK_USDC,
       abi: MORPHO_VAULT_ABI,
       functionName: 'asset',
     });
@@ -235,7 +234,7 @@ describe('buildSupplyTx', () => {
     expect(args.fromChain).toBe(8453);
     expect(args.toChain).toBe(8453);
     expect(args.fromToken).toBe(BASE_WETH);
-    expect(args.toToken).toBe(BASE_MOONWELL_USDC);
+    expect(args.toToken).toBe(BASE_SPARK_USDC);
     expect(args.fromAmount).toBe('5000000');
     expect(args.fromAddress).toBe(FROM_ADDRESS);
     expect(args.intentType).toBe('SUPPLY');
@@ -248,12 +247,12 @@ describe('buildWithdrawTx', () => {
       type: 'WITHDRAW',
       fromAddress: FROM_ADDRESS,
       chainId: 8453,
-      vaultAddress: BASE_MOONWELL_USDC,
+      vaultAddress: BASE_SPARK_USDC,
       shareAmount: '1000000000000000000',
       protocol: 'morpho',
     });
 
-    expect(tx.to).toBe(BASE_MOONWELL_USDC);
+    expect(tx.to).toBe(BASE_SPARK_USDC);
     expect(tx.value).toBe('0');
     expect(tx.chainId).toBe(8453);
     expect(tx.meta.intentType).toBe('WITHDRAW');
@@ -277,8 +276,8 @@ describe('buildRotateTx', () => {
   let readContract: ReturnType<typeof vi.fn>;
   let publicClient: PublicClient;
   const vaultAssets: Record<string, Address> = {
-    [BASE_MOONWELL_USDC.toLowerCase()]: BASE_USDC,
-    [BASE_SEAMLESS_WETH.toLowerCase()]: BASE_WETH,
+    [BASE_SPARK_USDC.toLowerCase()]: BASE_USDC,
+    [BASE_MOONWELL_WETH.toLowerCase()]: BASE_WETH,
   };
 
   let swapMock: ReturnType<typeof makeAdapterMock>;
@@ -327,8 +326,8 @@ describe('buildRotateTx', () => {
         type: 'ROTATE',
         fromAddress: FROM_ADDRESS,
         chainId: 8453,
-        fromVault: BASE_MOONWELL_USDC,
-        toVault: BASE_SEAMLESS_WETH,
+        fromVault: BASE_SPARK_USDC,
+        toVault: BASE_MOONWELL_WETH,
         shareAmount: '1000000',
         protocol: 'morpho',
         ...overrides,
@@ -354,10 +353,10 @@ describe('buildRotateTx', () => {
 
     expect(plan.steps).toHaveLength(3);
     const [redeem, swap, deposit] = plan.steps;
-    expect(redeem?.to).toBe(BASE_MOONWELL_USDC);
+    expect(redeem?.to).toBe(BASE_SPARK_USDC);
     expect(redeem?.data.slice(0, 10)).toBe(REDEEM_SELECTOR);
     expect(swap?.to).toBe('0x000000000000000000000000000000000000F00D');
-    expect(deposit?.to).toBe(BASE_SEAMLESS_WETH);
+    expect(deposit?.to).toBe(BASE_MOONWELL_WETH);
     expect(deposit?.meta.intentType).toBe('ROTATE_DEPOSIT');
     expect(
       decodeFunctionData({
@@ -374,7 +373,7 @@ describe('buildRotateTx', () => {
       },
       {
         tokenAddress: BASE_WETH,
-        spenderAddress: BASE_SEAMLESS_WETH,
+        spenderAddress: BASE_MOONWELL_WETH,
         amount: '495000000000000000',
       },
     ]);
@@ -389,8 +388,8 @@ describe('buildRotateTx', () => {
 
   it('rotates the other way with the same primitive', async () => {
     const plan = await rotate({
-      fromVault: BASE_SEAMLESS_WETH,
-      toVault: BASE_MOONWELL_USDC,
+      fromVault: BASE_MOONWELL_WETH,
+      toVault: BASE_SPARK_USDC,
     });
 
     expect(swapMock.getSwapQuote).toHaveBeenCalledWith(
@@ -401,31 +400,31 @@ describe('buildRotateTx', () => {
       }),
     );
     expect(plan.steps.map((step) => step.to)).toEqual([
-      BASE_SEAMLESS_WETH,
+      BASE_MOONWELL_WETH,
       '0x000000000000000000000000000000000000F00D',
-      BASE_MOONWELL_USDC,
+      BASE_SPARK_USDC,
     ]);
   });
 
   it('skips the swap when both vaults hold the same asset', async () => {
-    vaultAssets[BASE_SEAMLESS_WETH.toLowerCase()] = BASE_USDC;
+    vaultAssets[BASE_MOONWELL_WETH.toLowerCase()] = BASE_USDC;
     try {
       const plan = await rotate();
       expect(swapMock.getSwapQuote).not.toHaveBeenCalled();
       expect(plan.steps.map((step) => step.to)).toEqual([
-        BASE_MOONWELL_USDC,
-        BASE_SEAMLESS_WETH,
+        BASE_SPARK_USDC,
+        BASE_MOONWELL_WETH,
       ]);
       expect(plan.depositAmount).toBe('994000');
       expect(plan.approvals).toEqual([
         {
           tokenAddress: BASE_USDC,
-          spenderAddress: BASE_SEAMLESS_WETH,
+          spenderAddress: BASE_MOONWELL_WETH,
           amount: '994000',
         },
       ]);
     } finally {
-      vaultAssets[BASE_SEAMLESS_WETH.toLowerCase()] = BASE_WETH;
+      vaultAssets[BASE_MOONWELL_WETH.toLowerCase()] = BASE_WETH;
     }
   });
 

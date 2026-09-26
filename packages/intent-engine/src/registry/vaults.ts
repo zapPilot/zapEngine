@@ -16,7 +16,7 @@ export const VAULT_REGISTRY: Record<number, BucketRegistry> = {
   [SUPPORTED_CHAINS.BASE]: {
     stable: {
       protocol: 'morpho',
-      vault: '0x7BfA7C4f149E7415b73bdeDfe609237e29CBF34A',
+      vault: '0x7BfA7C4f149E7415b73bdeDfe609237e29CBF34A', // Spark USDC (Morpho)
       asset: USDC_ADDRESS[SUPPORTED_CHAINS.BASE]!,
     },
     btc: null,

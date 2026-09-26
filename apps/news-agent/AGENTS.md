@@ -6,7 +6,11 @@ database, control-center integration, or pnpm ops entry. The one exception is
 where each accepted `POST /runs` is exactly one `demo --execute` run of
 `TRIGGER_EPISODE`. It allows one run at a time, needs the `x-zap-trigger`
 header, and rejects non-localhost origins. Never bind it beyond loopback or
-queue or retry runs.
+queue or retry runs. `GET /runs/current` serves the run's timeline progress
+(`AgentRunStatusSchema` in `@zapengine/types`), built by `runStatus.ts` from
+the demo's `progress` events. It is display only and in memory: the run never
+reads it back, and a failing progress sink is logged and must never change a
+signing, guard, nonce, or retry decision.
 
 - Only the isolated demo EOA created by `init` signs. Its key lives outside the
   repo in `~/.zap-news-agent/agent.key` (0600) and must never be printed,
@@ -25,6 +29,9 @@ queue or retry runs.
   re-encode it, and broadcast it through MultiBaas like every other step. Use
   the raw `wethtoken`/`usdctoken` ABIs: MultiBaas's built-in `erc20interface`
   rescales amounts by `decimals()` and changes calldata.
+- Every run checks the MultiBaas registrations in `multibaasSetup.ts`
+  (`CONTRACTS`) before planning and stops if one is missing. After adding a
+  contract there, rerun `agent multibaas-setup`.
 - The review is always a `warning` because plan-orchestration leaves LI.FI
   calldata undecoded. The guard may accept only that `UNDECODED_METHOD` on the
   swap, and only because it decodes and pins the swap itself.

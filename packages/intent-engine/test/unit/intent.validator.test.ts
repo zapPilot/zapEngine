@@ -192,7 +192,7 @@ describe('Intent Validators', () => {
 
   describe('validateSupplyIntent cross-chain vault check', () => {
     it('throws ValidationError when vault is known on a different chain', () => {
-      // Moonwell USDC vault is on Base (8453), not Ethereum (1)
+      // Spark USDC vault is on Base (8453), not Ethereum (1)
       const intent = {
         type: 'SUPPLY' as const,
         fromAddress: '0x1234567890123456789012345678901234567890',
@@ -213,8 +213,8 @@ describe('Intent Validators', () => {
         type: 'ROTATE' as const,
         fromAddress: '0x1234567890123456789012345678901234567890',
         chainId: 8453,
-        fromVault: '0x7BfA7C4f149E7415b73bdeDfe609237e29CBF34A', // Moonwell USDC
-        toVault: '0xa0E430870c4604CcfC7B38Ca7845B1FF653D0ff1', // Seamless WETH
+        fromVault: '0x7BfA7C4f149E7415b73bdeDfe609237e29CBF34A', // Spark USDC
+        toVault: '0xa0E430870c4604CcfC7B38Ca7845B1FF653D0ff1', // Moonwell Flagship ETH
         shareAmount: '1000000000000000000',
         protocol: 'morpho' as const,
       };
@@ -229,8 +229,8 @@ describe('Intent Validators', () => {
         type: 'ROTATE' as const,
         fromAddress: '0x1234567890123456789012345678901234567890',
         chainId: 8453,
-        fromVault: '0x7BfA7C4f149E7415b73bdeDfe609237e29CBF34A', // Moonwell USDC
-        toVault: '0xa0E430870c4604CcfC7B38Ca7845B1FF653D0ff1', // Seamless WETH
+        fromVault: '0x7BfA7C4f149E7415b73bdeDfe609237e29CBF34A', // Spark USDC
+        toVault: '0xa0E430870c4604CcfC7B38Ca7845B1FF653D0ff1', // Moonwell Flagship ETH
         shareAmount: '1000000000000000000',
         protocol: 'morpho' as const,
         intermediateToken: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', // Base USDC

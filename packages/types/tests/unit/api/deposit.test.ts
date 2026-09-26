@@ -115,7 +115,7 @@ describe('DepositLegSchema', () => {
     const result = DepositLegSchema.safeParse({
       chainId: 8453,
       kind: 'supply',
-      label: 'Morpho Moonwell USDC',
+      label: 'Morpho Spark USDC',
       toToken: VAULT,
       fromAmount: '1000000',
       toAmountMin: '990000',
@@ -124,7 +124,7 @@ describe('DepositLegSchema', () => {
     });
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.label).toBe('Morpho Moonwell USDC');
+      expect(result.data.label).toBe('Morpho Spark USDC');
     }
   });
 

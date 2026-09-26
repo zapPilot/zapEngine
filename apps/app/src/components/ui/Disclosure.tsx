@@ -30,13 +30,24 @@ export function Disclosure({
         onPress={onToggle}
       >
         {header}
-        {/* Rotate a wrapper: on web lucide forwards `style` to the inner path,
-            which then spins around the viewBox origin and leaves the icon. */}
-        <View style={{ transform: [{ rotate: expanded ? '180deg' : '0deg' }] }}>
-          <ChevronDown size={chevronSize} color="#a1a1aa" />
-        </View>
+        <DisclosureChevron expanded={expanded} size={chevronSize} />
       </Tap>
       {expanded ? children : null}
     </>
+  );
+}
+export function DisclosureChevron({
+  expanded,
+  size = 17,
+}: {
+  expanded: boolean;
+  size?: number;
+}) {
+  return (
+    // Rotate a wrapper: on web lucide forwards `style` to the inner path,
+    // which then spins around the viewBox origin and leaves the icon.
+    <View style={{ transform: [{ rotate: expanded ? '180deg' : '0deg' }] }}>
+      <ChevronDown size={size} color="#a1a1aa" />
+    </View>
   );
 }

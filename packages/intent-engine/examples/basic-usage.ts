@@ -47,7 +47,7 @@ async function main() {
     chainId: CHAIN_IDS.BASE,
     fromToken: TOKENS[CHAIN_IDS.BASE].USDC,
     fromAmount: '1000000', // 1 USDC (6 decimals)
-    vaultAddress: MORPHO_VAULTS[CHAIN_IDS.BASE].MOONWELL_USDC,
+    vaultAddress: MORPHO_VAULTS[CHAIN_IDS.BASE].SPARK_USDC,
     protocol: 'morpho',
     slippageBps: 50,
   };
@@ -57,12 +57,12 @@ async function main() {
   // console.log('Supply quote:', supplyQuote);
 
   // Example 3: Withdraw from Morpho vault (direct, no LI.FI needed)
-  // Returns the vault's underlying asset (USDC for MOONWELL_USDC).
+  // Returns the vault's underlying asset (USDC for SPARK_USDC).
   const withdrawTx = engine.buildWithdraw({
     type: 'WITHDRAW',
     fromAddress: userAddress,
     chainId: CHAIN_IDS.BASE,
-    vaultAddress: MORPHO_VAULTS[CHAIN_IDS.BASE].MOONWELL_USDC,
+    vaultAddress: MORPHO_VAULTS[CHAIN_IDS.BASE].SPARK_USDC,
     shareAmount: '1000000000000000000', // Vault shares
     protocol: 'morpho',
   });
