@@ -15,13 +15,14 @@ import { describeError } from '../lib/errors.js';
 import type { LayaVerdict } from '../lib/laya.js';
 import type { ComposedTx, Multibaas } from '../lib/multibaas.js';
 import type { Episode } from '../lib/podcast.js';
-import { dashboardUrl, RULE_ID, USDC, VAULT } from './demoRule.js';
+import { AMOUNT, dashboardUrl, RULE_ID, USDC, VAULT } from './demoRule.js';
 import { guard, vaultAbi } from './guard.js';
 import { DEPOSIT_EVENT, LABELS } from './multibaasSetup.js';
 
 const MAX_GAS = 400_000n;
 const MAX_FEE_PER_GAS = 1_000_000_000n;
 const RECEIPT_TIMEOUT_MS = 90_000;
+const ALLOWANCE_TIMEOUT_MS = 30_000;
 const INDEX_TIMEOUT_MS = 60_000;
 
 export interface DemoOptions {
@@ -49,6 +50,7 @@ export type DemoOutcome = 'blocked' | 'dry-run' | 'confirmed' | 'replayed';
 
 const pct = (value: number | undefined) => `${Math.round((value ?? 0) * 100)}%`;
 const usdc = (value: bigint) => Number(formatUnits(value, 6)).toFixed(2);
+const FIXED_AMOUNT = `exactly ${formatUnits(AMOUNT, 6)} USDC`;
 const basescan = (hash: string) => `https://basescan.org/tx/${hash}`;
 const isSuccess = (status: string) => status === '1' || status === '0x1';
 
@@ -61,7 +63,7 @@ export async function runDemo(
   log(`📰 News     ${news.title}`);
   const analysis = await analyze(news, deps);
   log(
-    `🎯 Action   ${RULE_ID}: deposit exactly 1 USDC into the Spark USDC vault on Base (fixed, not chosen by Laya)`,
+    `🎯 Action   ${RULE_ID}: deposit ${FIXED_AMOUNT} into the Spark USDC vault on Base (fixed, not chosen by Laya)`,
   );
   log(`📊 Live     ${dashboardUrl(options.episode, analysis)}`);
   if (options.replay)
@@ -203,6 +205,9 @@ async function executeStep(
   log(
     `✅ Confirmed ${step} in block ${BigInt(receipt.data.blockNumber)}${events ? ` · MultiBaas decoded: ${events}` : ''}`,
   );
+  // MultiBaas returns the receipt before its gas estimation sees that block,
+  // so composing the deposit right away reverts on "exceeds allowance".
+  if (step === 'approve') await waitForAllowance(deps);
   return hash;
 }
 
@@ -212,6 +217,29 @@ async function waitForReceipt(hash: Hex, deps: DemoDeps) {
     const receipt = await deps.multibaas.receipt(hash);
     if (receipt) return receipt;
     if (deps.now() >= deadline) return null;
+    await deps.sleep(2_000);
+  }
+}
+
+async function waitForAllowance(deps: DemoDeps): Promise<void> {
+  const deadline = deps.now() + ALLOWANCE_TIMEOUT_MS;
+  for (;;) {
+    const allowance = await deps.multibaas.call(
+      LABELS.usdc.alias,
+      LABELS.usdc.contract,
+      'allowance',
+      [deps.wallet, VAULT],
+    );
+    if (allowance >= AMOUNT) {
+      deps.log(
+        `🔓 Allowance ${formatUnits(allowance, 6)} USDC visible to MultiBaas`,
+      );
+      return;
+    }
+    if (deps.now() >= deadline)
+      throw new Error(
+        `Approval confirmed but MultiBaas still reads allowance ${allowance} after 30s; not composing the deposit, not retrying`,
+      );
     await deps.sleep(2_000);
   }
 }
@@ -321,7 +349,7 @@ export function message(input: {
       : '🚨 Zap Agent acted on the news',
     `📰 ${news.title}`,
     `🧠 Laya analysis: ${analysis ? describeAnalysis(analysis) : 'not available'}`,
-    '🎯 Fixed action: deposit exactly 1 USDC into the Spark USDC vault (Morpho, Base)',
+    `🎯 Fixed action: deposit ${FIXED_AMOUNT} into the Spark USDC vault (Morpho, Base)`,
     `✅ Confirmed on Base: ${basescan(hash)}`,
     `💼 Position: ${usdc(position.vault)} USDC in vault · ${usdc(position.idle)} USDC idle`,
     `📊 Live dashboard: ${dashboardUrl(options.episode, analysis)}`,

@@ -19,8 +19,10 @@ export const VAULT_ADDRESS: Address =
 
 export const DEMO_EPISODE_LANGUAGE = 'en';
 
-export const FIXED_ACTION_COPY =
-  'Every run makes the same move: deposit exactly 1 USDC into the Spark USDC vault on Base. Laya analyzes the story for context only; it never picks the trade, keys, contracts, or amounts.';
+/** Mirrors `AMOUNT` in apps/news-agent/src/services/demoRule.ts. */
+export const FIXED_DEPOSIT_USDC = '0.1';
+
+export const FIXED_ACTION_COPY = `Every run makes the same move: deposit exactly ${FIXED_DEPOSIT_USDC} USDC into the Spark USDC vault on Base. Laya analyzes the story for context only; it never picks the trade, keys, contracts, or amounts.`;
 
 export const GUARDRAILS = [
   'Spend cap $5',

@@ -118,7 +118,7 @@ function checkApprovals(approvals: PreparedTransaction[]): string | undefined {
     if (
       decoded.functionName !== 'approve' ||
       decoded.args[0].toLowerCase() !== VAULT.toLowerCase() ||
-      decoded.args[1] > AMOUNT
+      decoded.args[1] !== AMOUNT
     )
       return 'Unexpected approval';
   }

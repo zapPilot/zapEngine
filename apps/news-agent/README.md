@@ -3,8 +3,8 @@
 ## One-sentence summary
 
 For any podcast news story, a local model (Laya) analyzes it for context, and a
-guardrailed agent wallet then makes one fixed move, depositing exactly 1 USDC
-into the Spark USDC vault on Base. Every transaction is composed, broadcast,
+guardrailed agent wallet then makes one fixed move, depositing exactly 0.1
+USDC into the Spark USDC vault on Base. Every transaction is composed, broadcast,
 verified, and indexed through MultiBaas; the agent then pushes a Telegram story
 link and the evidence shows live on
 [v2.zap-pilot.org/ai-wallet](https://v2.zap-pilot.org/ai-wallet).
@@ -20,9 +20,9 @@ News (podcast API) → Laya analysis (local, non-blocking) → fixed action
 Laya does not decide or shape the trade: its analysis is shown to people, and
 if the model is down or fails the run continues without it. The model never
 touches keys, contract addresses, or amounts. The only action the agent can
-take is hard-coded in `src/services/demoRule.ts`: approve and deposit 1 USDC
-into `0x7BfA7C4f149E7415b73bdeDfe609237e29CBF34A` for itself, before
-2026-10-04.
+take is hard-coded in `src/services/demoRule.ts`: approve (only when the
+remaining allowance is short) and deposit 0.1 USDC into
+`0x7BfA7C4f149E7415b73bdeDfe609237e29CBF34A` for itself, before 2026-10-04.
 
 The dashboard has no backend: the CLI prints (and sends to Telegram) a link
 like `/ai-wallet?episode=<id>&hack=…&eth=…` so the tab can show the story and
@@ -52,8 +52,10 @@ Safety properties of the MultiBaas integration:
   MultiBaas-composed `from/to/data/value` are identical to the reviewed plan,
   the guard still passes (review `passed`, exact vault, receiver, amount,
   fingerprint, > 60 s before expiry), and gas/fees are within demo bounds.
-- The deposit is composed only after the approve receipt is confirmed, because
-  MultiBaas gas estimation needs the allowance.
+- The deposit is composed only after the approve receipt is confirmed and the
+  MultiBaas `allowance` view call reads the approved amount, because MultiBaas
+  gas estimation needs the allowance. Waiting is a read, not a retry: after 30 s
+  the run stops without composing the deposit.
 - Any mismatch, revert, or 90 s receipt timeout stops the run. Nothing retries.
 
 ## Team
@@ -113,5 +115,10 @@ pnpm --filter @zapengine/news-agent dup:check
 - Composing a transaction from an unfunded address fails gas estimation
   (`gas required exceeds allowance (0)`), and `gas` cannot be supplied to skip
   it.
+- A transaction receipt becomes available before the same deployment's gas
+  estimation sees that block. The first live run composed the deposit right
+  after the approve receipt, and estimation reverted with
+  `ERC20: transfer amount exceeds allowance`. The agent now waits until an
+  `allowance` view call reads the approval.
 
 Owner to add further observations from the live demo.

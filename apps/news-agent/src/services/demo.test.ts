@@ -10,7 +10,11 @@ import {
   wallet,
 } from '../test-utils/fixtures.js';
 import { type DemoDeps, message, runDemo } from './demo.js';
-import { USDC as USDC_ADDRESS, VAULT as VAULT_ADDRESS } from './demoRule.js';
+import {
+  AMOUNT,
+  USDC as USDC_ADDRESS,
+  VAULT as VAULT_ADDRESS,
+} from './demoRule.js';
 
 const USDC = USDC_ADDRESS as `0x${string}`;
 const VAULT = VAULT_ADDRESS as `0x${string}`;
@@ -112,6 +116,7 @@ describe('single-shot demo', () => {
     expect(multibaas.compose).not.toHaveBeenCalled();
     expect(deps.sign).not.toHaveBeenCalled();
     const output = lines.join('\n');
+    expect(output).toContain('deposit exactly 0.1 USDC');
     expect(output).toContain('fixed, not chosen by Laya');
     expect(output).toContain(
       `https://v2.zap-pilot.org/ai-wallet?episode=${episode}&hack=0.9400&eth=upward&upward=0.8000`,
@@ -155,7 +160,7 @@ describe('single-shot demo', () => {
       'approve',
       'deposit',
     ]);
-    expect(multibaas.compose.mock.calls[1]![3]).toEqual(['1000000', wallet]);
+    expect(multibaas.compose.mock.calls[1]![3]).toEqual(['100000', wallet]);
     expect(multibaas.submitSigned).toHaveBeenCalledTimes(2);
     expect(deps.sign.mock.calls[0]![0]).toMatchObject({
       chainId: 8453,
@@ -168,6 +173,41 @@ describe('single-shot demo', () => {
     expect(text).toContain('https://basescan.org/tx/0x');
     expect(text).toContain('1.00 USDC in vault · 2.00 USDC idle');
     expect(lines.join('\n')).toContain('MultiBaas event index has Deposit');
+  });
+  it('composes the deposit only once MultiBaas reads the allowance', async () => {
+    const { deps, lines, multibaas } = setup();
+    multibaas.call.mockResolvedValueOnce(0n).mockResolvedValueOnce(AMOUNT);
+    expect(await runDemo({ episode, execute: true }, deps)).toBe('confirmed');
+    const reads = multibaas.call.mock.calls.flatMap((call, index) =>
+      call[2] === 'allowance'
+        ? [
+            {
+              args: call[3],
+              order: multibaas.call.mock.invocationCallOrder[index]!,
+            },
+          ]
+        : [],
+    );
+    expect(reads.map((read) => read.args)).toEqual([
+      [wallet, VAULT],
+      [wallet, VAULT],
+    ]);
+    expect(multibaas.compose.mock.invocationCallOrder[1]).toBeGreaterThan(
+      reads.at(-1)!.order,
+    );
+    expect(lines.join('\n')).toContain(
+      'Allowance 0.1 USDC visible to MultiBaas',
+    );
+  });
+  it('stops after the approve when MultiBaas never reads the allowance', async () => {
+    const { deps, multibaas } = setup();
+    multibaas.call.mockResolvedValue(0n);
+    await expect(runDemo({ episode, execute: true }, deps)).rejects.toThrow(
+      'still reads allowance 0 after 30s; not composing the deposit',
+    );
+    expect(multibaas.compose).toHaveBeenCalledTimes(1);
+    expect(multibaas.submitSigned).toHaveBeenCalledTimes(1);
+    expect(deps.notify).not.toHaveBeenCalled();
   });
   it('warns but still reports when the indexer lags', async () => {
     const { deps, lines, multibaas } = setup(approvedReview(false));

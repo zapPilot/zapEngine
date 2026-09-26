@@ -15,7 +15,7 @@ describe('fixed demo guard', () => {
     for (const approve of [true, false])
       expect(guard(approvedReview(approve), wallet, now).allowed).toBe(true);
     expect(planRequest(wallet)).toMatchObject({
-      fromAmount: '1000000',
+      fromAmount: '100000',
       split: { '8453': 1 },
     });
   });
@@ -145,7 +145,7 @@ describe('fixed demo guard', () => {
     review.plan.calls[0]!.value = 'not a number';
     expect(guard(review, wallet, now).allowed).toBe(false);
   });
-  it.each(['amount', 'spender', 'token', 'method', 'count'])(
+  it.each(['amount', 'under-amount', 'spender', 'token', 'method', 'count'])(
     'rejects approval %s',
     (mode) => {
       const review = approvedReview(true);
@@ -155,6 +155,12 @@ describe('fixed demo guard', () => {
           abi: erc20Abi,
           functionName: 'approve',
           args: [VAULT, AMOUNT + 1n],
+        });
+      if (mode === 'under-amount')
+        approval.data = encodeFunctionData({
+          abi: erc20Abi,
+          functionName: 'approve',
+          args: [VAULT, AMOUNT - 1n],
         });
       if (mode === 'spender')
         approval.data = encodeFunctionData({

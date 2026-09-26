@@ -10,7 +10,11 @@ import { PulseDot } from '@/components/aiWallet/PulseDot';
 import { useAgentLoopPlayback } from '@/components/aiWallet/useAgentLoopPlayback';
 import { Pill } from '@/components/ui/Pill';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
-import { AGENT_ADDRESS, DEMO_EPISODE_LANGUAGE } from '@/config/aiWalletDemo';
+import {
+  AGENT_ADDRESS,
+  DEMO_EPISODE_LANGUAGE,
+  FIXED_DEPOSIT_USDC,
+} from '@/config/aiWalletDemo';
 import { useNowTicker } from '@/hooks/useNowTicker';
 import {
   formatRelativeTime,
@@ -113,8 +117,8 @@ export function AiWalletScreen() {
         <AiWalletHeader lastActionMs={lastActionMs} nowMs={nowMs} />
         <Text className="mt-2 px-5 text-[13px] leading-5 text-ink-dim">
           Reads a news story, has local Laya analyze it, then makes one fixed,
-          guardrailed move: exactly 1 USDC into the Spark vault. Every step is
-          checkable on Base.
+          guardrailed move: exactly {FIXED_DEPOSIT_USDC} USDC into the Spark
+          vault. Every step is checkable on Base.
         </Text>
         {wide ? (
           <View className="mt-6 flex-row items-start gap-5 px-5">

@@ -19,6 +19,9 @@ HTTP server, database, control-center integration, or pnpm ops entry.
   `erc20interface` rescales amounts by `decimals()` and changes calldata.
 - One attempt per step. A revert, timeout, or mismatch stops the run; never
   retry automatically or reuse a nonce by hand.
+- A confirmed approve receipt does not mean MultiBaas gas estimation sees the
+  allowance yet. Waiting for the `allowance` view call is a read, not a retry;
+  a failed step must never be composed or submitted again.
 - Only `--execute` signs. `--replay` never sends a transaction and must stay
   labelled as a replay everywhere it is shown.
 - Podcast data is read-only.

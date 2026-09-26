@@ -1,5 +1,6 @@
 /** Pure state model for the AI Wallet "agent loop" timeline and its playback. */
 
+import { FIXED_DEPOSIT_USDC } from '@/config/aiWalletDemo';
 import type { LayaAnalysis } from '@/integration/agentRunContext';
 
 export type AgentLoopStepId =
@@ -70,7 +71,7 @@ export function agentLoopSteps(
     {
       id: 'action',
       label: 'Fixed action',
-      detail: 'Always exactly 1 USDC into the Spark vault, never model-chosen',
+      detail: `Always exactly ${FIXED_DEPOSIT_USDC} USDC into the Spark vault, never model-chosen`,
     },
     {
       id: 'review',
