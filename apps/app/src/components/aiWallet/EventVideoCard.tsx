@@ -11,10 +11,6 @@ import {
   View,
 } from 'react-native';
 
-import {
-  BASE_BLUE,
-  BASE_BLUE_BRIGHT,
-} from '@/components/aiWallet/aiWalletTheme';
 import { formatPodcastClock } from '@/components/podcast/episodeFormatters';
 import { Card } from '@/components/ui/Card';
 import { GlowCircle } from '@/components/ui/GlowCircle';
@@ -89,7 +85,7 @@ export function EventVideoCard({
         )}
       >
         <View className="flex-row items-center justify-between gap-3">
-          <Text className="font-mono-medium text-[11px] uppercase tracking-[2.4px] text-[#8fb2ff]">
+          <Text className="font-mono-medium text-[11px] uppercase tracking-[2.4px] text-accent">
             Event video
           </Text>
           {episode === undefined ? null : (
@@ -121,10 +117,10 @@ export function EventVideoCard({
 
 function DeliveryPending() {
   return (
-    <View className="absolute inset-0 items-center justify-center gap-3 bg-[rgba(10,10,10,.62)] px-6">
+    <View className="absolute inset-0 items-center justify-center gap-3 bg-bg/60 px-6">
       <ActivityIndicator
         size="small"
-        color={BASE_BLUE_BRIGHT}
+        color={tokens.color.accent}
         accessibilityLabel="Video delivery pending"
       />
       <Text className="text-center font-sans-medium text-[13px] leading-[18px] text-ink-dim">
@@ -200,8 +196,8 @@ function Thumbnail({
   return (
     <>
       {thumbnailUrl === null ? (
-        <View className="absolute inset-0 items-center justify-center bg-[rgba(0,82,255,.06)]">
-          <GlowCircle size={320} color={BASE_BLUE} opacity={0.45} />
+        <View className="absolute inset-0 items-center justify-center bg-accent-soft">
+          <GlowCircle size={320} color={tokens.color.accent} opacity={0.18} />
         </View>
       ) : (
         <Image
@@ -212,7 +208,7 @@ function Thumbnail({
         />
       )}
       <LinearGradient
-        colors={['rgba(14,14,16,0)', tokens.color['bg-2']]}
+        colors={[`${tokens.color['bg-2']}00`, tokens.color['bg-2']]}
         start={wide ? { x: 0.45, y: 0.5 } : { x: 0.5, y: 0.4 }}
         end={wide ? { x: 1, y: 0.5 } : { x: 0.5, y: 1 }}
         // LinearGradient has no NativeWind interop, so className would be dropped.
@@ -225,8 +221,7 @@ function Thumbnail({
             accessibilityRole="button"
             accessibilityLabel="Watch the story"
             onPress={onWatch}
-            className="h-16 w-16 items-center justify-center rounded-full border-2 bg-[rgba(10,10,10,.55)]"
-            style={{ borderColor: BASE_BLUE_BRIGHT }}
+            className="h-16 w-16 items-center justify-center rounded-full border-2 border-accent bg-bg/60"
           >
             <Play
               size={22}

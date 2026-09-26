@@ -15,7 +15,6 @@ import {
 import { Fragment, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Linking, Text, View } from 'react-native';
 
-import { BASE_BLUE_BRIGHT } from '@/components/aiWallet/aiWalletTheme';
 import { PulseDot } from '@/components/aiWallet/PulseDot';
 import { ChainMark } from '@/components/token/ChainMark';
 import { DisclosureChevron } from '@/components/ui/Disclosure';
@@ -302,12 +301,12 @@ function LinkChip({ link, context }: { link: AgentRunLink; context: string }) {
       accessibilityRole="link"
       accessibilityLabel={`${link.label}: ${context}`}
       onPress={() => void Linking.openURL(link.url)}
-      className="flex-row items-center gap-1.5 self-start rounded-pill border border-[rgba(91,147,255,.45)] bg-[rgba(0,82,255,.12)] px-3 py-1"
+      className="flex-row items-center gap-1.5 self-start rounded-pill border border-line-hi bg-accent-soft px-3 py-1"
     >
-      <Text className="font-sans-medium text-[12px] text-[#a9c4ff]">
+      <Text className="font-sans-medium text-[12px] text-accent">
         {link.label}
       </Text>
-      <ExternalLink size={11} color={BASE_BLUE_BRIGHT} />
+      <ExternalLink size={11} color={tokens.color.accent} />
     </Tap>
   );
 }
@@ -320,7 +319,7 @@ function Connector({ visible, lit }: { visible: boolean; lit: boolean }) {
         backgroundColor: !visible
           ? 'transparent'
           : lit
-            ? BASE_BLUE_BRIGHT
+            ? tokens.color.accent
             : LINE_IDLE,
       }}
     />
@@ -341,7 +340,7 @@ function StepRing({
 }) {
   if (final) {
     return (
-      <View className="h-10 w-10 items-center justify-center rounded-full border-2 border-success bg-[rgba(122,216,143,.12)]">
+      <View className="h-10 w-10 items-center justify-center rounded-full border-2 border-success bg-success/[0.12]">
         <Check size={18} color={tokens.color.success} strokeWidth={2.6} />
       </View>
     );
@@ -359,29 +358,26 @@ function StepRing({
     return (
       <View
         accessibilityLabel={`Step ${number} failed`}
-        className="h-8 w-8 items-center justify-center rounded-full border-2 border-error bg-[rgba(255,111,97,.14)]"
+        className="h-8 w-8 items-center justify-center rounded-full border-2 border-error bg-error/[0.14]"
       >
         <X size={15} color={tokens.color.error} strokeWidth={2.6} />
       </View>
     );
   }
   return (
-    <View
-      className="h-8 w-8 items-center justify-center rounded-full border-2 bg-[rgba(0,82,255,.14)]"
-      style={{ borderColor: BASE_BLUE_BRIGHT }}
-    >
+    <View className="h-8 w-8 items-center justify-center rounded-full border-2 border-accent bg-accent-soft">
       {tone === 'done' ? (
-        <Text className="font-mono-semibold text-[12px] text-[#a9c4ff]">
+        <Text className="font-mono-semibold text-[12px] text-accent">
           {number}
         </Text>
       ) : spinner ? (
         <ActivityIndicator
           size="small"
-          color={BASE_BLUE_BRIGHT}
+          color={tokens.color.accent}
           accessibilityLabel={`Step ${number} in progress`}
         />
       ) : (
-        <PulseDot color={BASE_BLUE_BRIGHT} size={7} />
+        <PulseDot color={tokens.color.accent} size={7} />
       )}
     </View>
   );
@@ -412,5 +408,5 @@ function StepIcon({
 function iconColor(tone: AgentLoopStepTone, final: boolean): string {
   if (tone === 'waiting') return tokens.color['ink-faint'];
   if (tone === 'failed') return tokens.color.error;
-  return final && tone === 'done' ? tokens.color.success : BASE_BLUE_BRIGHT;
+  return final && tone === 'done' ? tokens.color.success : tokens.color.accent;
 }

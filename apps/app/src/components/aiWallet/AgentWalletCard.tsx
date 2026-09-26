@@ -74,7 +74,7 @@ export function AgentWalletCard({
   };
 
   return (
-    <Card style={{ borderColor: 'rgba(91,147,255,.22)' }}>
+    <Card>
       <PlanetHorizon />
       <View className="px-6 pb-6" style={{ paddingTop: PLANET_CONTENT_OFFSET }}>
         <Text className="font-mono-medium text-[11px] uppercase tracking-[2px] text-ink-dim">
@@ -92,7 +92,7 @@ export function AgentWalletCard({
               accessibilityRole="button"
               accessibilityLabel="Copy agent wallet address"
               onPress={copyAddress}
-              className="h-9 w-9 items-center justify-center rounded-full border border-line-hi bg-[rgba(10,10,10,.4)]"
+              className="h-9 w-9 items-center justify-center rounded-full border border-line-hi bg-surface"
             >
               <Copy size={15} color={tokens.color['ink-dim']} />
             </Tap>
