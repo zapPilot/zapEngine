@@ -132,8 +132,10 @@ insert against a legacy cohort.
 - Platform-specific packaging experiments are disabled.
   `packaging-experiments.ts` intentionally returns no assignments.
 - `episode_localizations.title` is the only normal visible title authority.
-  Rednote and YouTube publish it directly; X and Threads generate no title.
-  Never reintroduce a platform headline prompt, validator, experiment, or title
+  Rednote publishes it directly; YouTube uses the same canonical title and only
+  applies a deterministic 100-character transport fit for legacy rows that
+  predate the current translation-length contract. X and Threads generate no
+  title. Never reintroduce a platform headline prompt, experiment, or title
   field in `GeneratedSocialCopy`.
 - `social_publish_jobs.legacy_title_override` is migration-only for the finite
   queue that predated the 20-character canonical-title contract. New enqueue

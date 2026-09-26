@@ -457,9 +457,13 @@ Platform-specific packaging experiments are currently disabled.
 `packaging-experiments.ts` deliberately returns no assignments.
 
 Visible titles have one source of truth: the selected
-`episode_localizations.title`. Rednote and YouTube publish that title directly;
-X and Threads have no separate title field. Secondary-language localization
-titles are pure translations of the canonical title, not platform rewrites.
+`episode_localizations.title`. Rednote publishes that title directly; YouTube
+uses the same canonical title and deterministically fits only legacy over-100
+character rows to its 100-character transport limit. X and Threads have no
+separate title field. New English localization titles are validated at
+translation time to stay within 100 Unicode characters, so normal releases do
+not need the legacy fit. Secondary-language localization titles remain
+translations of the canonical title, not platform-written headlines.
 
 New canonical Traditional Chinese titles are constrained upstream to 20 Unicode
 characters so Rednote can publish the exact same title without truncation.
