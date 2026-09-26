@@ -116,6 +116,7 @@ function makeService(allowance: bigint) {
       buildGmxV2Supply,
       buildGmxV2Withdraw,
       buildWithdrawSwap,
+      buildRotate: vi.fn(),
       getTokenPrice,
       buildSupply: vi.fn(),
       buildSwap: vi.fn(),
@@ -155,6 +156,7 @@ function makeInvestService({
       buildGmxV2Supply: vi.fn(),
       buildGmxV2Withdraw: vi.fn(),
       buildWithdrawSwap: vi.fn(),
+      buildRotate: vi.fn(),
       buildSupply: vi.fn(),
       buildSwap: vi.fn(),
       getTokenPrice: vi.fn(),
@@ -257,6 +259,7 @@ function makeChainBatchService(
       buildGmxV2Supply,
       buildGmxV2Withdraw: vi.fn(),
       buildWithdrawSwap: vi.fn(),
+      buildRotate: vi.fn(),
       buildSupply: vi.fn(),
       buildSwap: vi.fn(),
       getTokenPrice: vi.fn().mockResolvedValue({
@@ -596,6 +599,7 @@ describe('plan-orchestration service', () => {
         getTokenPrice,
         buildGmxV2Withdraw: vi.fn(),
         buildWithdrawSwap: vi.fn(),
+        buildRotate: vi.fn(),
       },
       adapter: { getQuote: vi.fn(), getContractCallQuote: vi.fn() } as never,
       publicClients: {
@@ -725,6 +729,7 @@ describe('plan-orchestration service', () => {
         buildGmxV2Supply: vi.fn(),
         buildGmxV2Withdraw: vi.fn(),
         buildWithdrawSwap: vi.fn(),
+        buildRotate: vi.fn(),
         buildSupply: vi.fn(),
         buildSwap: vi.fn(),
         getTokenPrice: vi.fn(),
@@ -786,6 +791,7 @@ describe('plan-orchestration service', () => {
         buildGmxV2Supply: vi.fn(),
         buildGmxV2Withdraw: vi.fn(),
         buildWithdrawSwap: vi.fn(),
+        buildRotate: vi.fn(),
         buildSupply: vi.fn(),
         buildSwap: vi.fn(),
         getTokenPrice: vi.fn(),
@@ -831,6 +837,7 @@ describe('plan-orchestration service', () => {
         buildGmxV2Supply: vi.fn(),
         buildGmxV2Withdraw: vi.fn(),
         buildWithdrawSwap: vi.fn(),
+        buildRotate: vi.fn(),
         buildSupply: vi.fn(),
         buildSwap: vi.fn(),
         getTokenPrice: vi.fn(),
@@ -873,6 +880,7 @@ describe('plan-orchestration service', () => {
         buildGmxV2Supply: vi.fn(),
         buildGmxV2Withdraw: vi.fn(),
         buildWithdrawSwap: vi.fn(),
+        buildRotate: vi.fn(),
         buildSupply: vi.fn(),
         buildSwap: vi.fn(),
         getTokenPrice: vi.fn(),
@@ -917,6 +925,7 @@ describe('plan-orchestration service', () => {
         buildGmxV2Supply: vi.fn(),
         buildGmxV2Withdraw: vi.fn(),
         buildWithdrawSwap: vi.fn(),
+        buildRotate: vi.fn(),
         buildSupply: vi.fn(),
         buildSwap: vi.fn(),
         getTokenPrice: vi.fn(),
@@ -1000,6 +1009,7 @@ describe('plan-orchestration service', () => {
         buildGmxV2Supply: vi.fn(),
         buildGmxV2Withdraw: vi.fn(),
         buildWithdrawSwap: vi.fn(),
+        buildRotate: vi.fn(),
         buildSupply: vi.fn(),
         buildSwap: vi.fn(),
         getTokenPrice: vi.fn(),
@@ -1200,6 +1210,7 @@ describe('plan-orchestration service', () => {
           }),
         buildGmxV2Withdraw: vi.fn(),
         buildWithdrawSwap: vi.fn(),
+        buildRotate: vi.fn(),
         buildSupply: vi.fn(),
         buildSwap: vi.fn(),
         getTokenPrice: vi.fn().mockResolvedValue({ priceUSD: '3000' }),
@@ -1615,6 +1626,7 @@ describe('plan-orchestration service', () => {
         getTokenPrice,
         buildGmxV2Withdraw: vi.fn(),
         buildWithdrawSwap: vi.fn(),
+        buildRotate: vi.fn(),
         buildSwap: vi.fn(),
       },
       adapter: {} as never,
@@ -1671,5 +1683,218 @@ describe('plan-orchestration service', () => {
         blocked: false,
       });
     }
+  });
+});
+
+describe('plan-orchestration rotate review', () => {
+  const WETH = '0x4200000000000000000000000000000000000006' as Address;
+  const ETH_VAULT = '0xBCA4E2E24A7cFa776E4282CC8Eb06f04738b71da' as Address;
+  const USDC_VAULT = '0x7BfA7C4f149E7415b73bdeDfe609237e29CBF34A' as Address;
+  const LIFI_DIAMOND = '0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE' as Address;
+
+  const rotation = (overrides: Record<string, unknown> = {}) => ({
+    steps: [
+      {
+        to: ETH_VAULT,
+        data: '0xba087652',
+        value: '0',
+        chainId: 8453,
+        gasLimit: '200000',
+        meta: { intentType: 'WITHDRAW' },
+      },
+      {
+        to: LIFI_DIAMOND,
+        data: '0x5fd9ae2e',
+        value: '0',
+        chainId: 8453,
+        gasLimit: '1051330',
+        meta: {
+          intentType: 'SWAP',
+          route: { estimate: { toAmount: '272360', toAmountMin: '270998' } },
+        },
+      },
+      {
+        to: USDC_VAULT,
+        data: '0x6e553f65',
+        value: '0',
+        chainId: 8453,
+        gasLimit: '150000',
+        meta: { intentType: 'ROTATE_DEPOSIT' },
+      },
+    ],
+    approvals: [
+      {
+        tokenAddress: WETH,
+        spenderAddress: LIFI_DIAMOND,
+        amount: '101836563160665',
+      },
+      { tokenAddress: BASE_USDC, spenderAddress: USDC_VAULT, amount: '270998' },
+    ],
+    assetToken: WETH,
+    depositToken: BASE_USDC,
+    redeemAmount: '101836563160665',
+    depositAmount: '270998',
+    estimates: {
+      totalGasUsd: '0.01',
+      totalDuration: 30,
+      expectedOutput: '272360',
+    },
+    ...overrides,
+  });
+
+  function makeRotateService(plan = rotation()) {
+    // The WETH allowance is empty; the USDC one already covers the deposit.
+    const readContract = vi.fn(async ({ address }: { address: Address }) =>
+      address === WETH ? 0n : 900_000n,
+    );
+    const buildRotate = vi.fn().mockResolvedValue(plan);
+    const simulateBundle = vi.fn().mockResolvedValue({
+      status: 'warning',
+      chainId: 8453,
+      walletAddress: USER.toLowerCase(),
+      calls: [],
+      assetChanges: [],
+      approvals: [],
+      contracts: [],
+      warnings: [
+        {
+          code: 'UNDECODED_METHOD',
+          message: 'Call 3 method could not be decoded',
+          callIndex: 2,
+          address: LIFI_DIAMOND.toLowerCase(),
+        },
+      ],
+      blockNumber: 1,
+      callGas: '0',
+      simulationIds: ['sim-1'],
+      shareUrls: [],
+      simulationFingerprint: `0x${'11'.repeat(32)}`,
+      riskHash: `0x${'22'.repeat(32)}`,
+    });
+    const bundleGate = vi.fn();
+    const service = createPlanOrchestrationService({
+      intentEngine: {
+        buildGmxV2Supply: vi.fn(),
+        buildGmxV2Withdraw: vi.fn(),
+        buildWithdrawSwap: vi.fn(),
+        buildRotate,
+        buildSupply: vi.fn(),
+        buildSwap: vi.fn(),
+        getTokenPrice: vi.fn(),
+      },
+      adapter: {} as never,
+      publicClients: { 8453: { readContract } } as never,
+      simulation: {
+        adapter: { simulateBundle: bundleGate },
+        reviewService: { simulateBundle },
+      },
+    });
+    return { service, buildRotate, simulateBundle, bundleGate };
+  }
+
+  const request = {
+    userAddress: USER,
+    chainId: 8453,
+    fromVault: ETH_VAULT,
+    toVault: USDC_VAULT,
+    shareAmount: '100000000000000',
+  };
+
+  it('plans redeem → swap → deposit with only the approvals still needed', async () => {
+    const { service, buildRotate, simulateBundle, bundleGate } =
+      makeRotateService();
+
+    const result = await service.buildRotateReview(request);
+
+    expect(buildRotate).toHaveBeenCalledWith(
+      {
+        type: 'ROTATE',
+        protocol: 'morpho',
+        fromAddress: USER,
+        chainId: 8453,
+        fromVault: ETH_VAULT,
+        toVault: USDC_VAULT,
+        shareAmount: '100000000000000',
+      },
+      expect.anything(),
+    );
+    expect(result.plan.approvals).toHaveLength(1);
+    expect(result.plan.approvals[0]!.to).toBe(WETH);
+    expect(
+      decodeFunctionData({
+        abi: erc20Abi,
+        data: result.plan.approvals[0]!.data as `0x${string}`,
+      }).args,
+    ).toEqual([LIFI_DIAMOND, 101836563160665n]);
+    expect(result.plan.calls.map((call) => call.to)).toEqual([
+      ETH_VAULT,
+      LIFI_DIAMOND,
+      USDC_VAULT,
+    ]);
+
+    // One rich review over the exact batch, and no pass/fail gate on top.
+    expect(bundleGate).not.toHaveBeenCalled();
+    expect(simulateBundle).toHaveBeenCalledTimes(1);
+    expect(simulateBundle.mock.calls[0]![0].calls).toHaveLength(4);
+    expect(result.reviews['chain-8453']).toMatchObject({
+      status: 'warning',
+      blocked: false,
+      executionAllowed: true,
+      requiresRiskAcknowledgement: true,
+      batchFingerprint: keccak256(
+        toBytes(
+          JSON.stringify({
+            chainId: 8453,
+            transactions: [...result.plan.approvals, ...result.plan.calls].map(
+              (call) => ({
+                chainId: call.chainId,
+                to: call.to.toLowerCase(),
+                data: call.data,
+                value: call.value,
+              }),
+            ),
+          }),
+        ),
+      ),
+    });
+  });
+
+  it('refuses a plan whose approval exceeds the redeemed amount', async () => {
+    const plan = rotation();
+    const { service, simulateBundle } = makeRotateService({
+      ...plan,
+      approvals: [
+        { ...plan.approvals[0]!, amount: '101836563160666' },
+        plan.approvals[1]!,
+      ],
+    });
+
+    await expect(service.buildRotateReview(request)).rejects.toThrow(
+      /above the intent amount/,
+    );
+    expect(simulateBundle).not.toHaveBeenCalled();
+  });
+
+  it('refuses a swap quoted beyond the slippage ceiling', async () => {
+    const plan = rotation();
+    const swap = plan.steps[1]!;
+    const { service } = makeRotateService({
+      ...plan,
+      steps: [
+        plan.steps[0]!,
+        {
+          ...swap,
+          meta: {
+            ...swap.meta,
+            route: { estimate: { toAmount: '272360', toAmountMin: '200000' } },
+          },
+        },
+        plan.steps[2]!,
+      ],
+    });
+
+    await expect(service.buildRotateReview(request)).rejects.toThrow(
+      /slippage cap/,
+    );
   });
 });

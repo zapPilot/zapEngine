@@ -50,8 +50,8 @@ function router() {
           eth_pressure: { choice: 'upward', probabilities: { upward: 0.78 } },
         },
       });
-    if (url.endsWith('/plan-orchestration/deposit/review'))
-      return json(approvedReview(true));
+    if (url.endsWith('/plan-orchestration/rotate/review'))
+      return json(approvedReview());
     if (url.includes(`/episodes/${EPISODE}`))
       return json({ id: EPISODE, title: 'Bitget hacked', script: 'text' });
     if (url.endsWith('/contracts')) return json({ status: 200, result: [] });

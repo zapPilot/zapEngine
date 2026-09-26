@@ -18,15 +18,22 @@ queue or retry runs.
 - Laya is non-blocking analysis for people. It never gates or shapes the trade
   and never chooses keys, contracts, or amounts; the action is fixed in
   `demoRule.ts`. Do not describe Laya as deciding the trading strategy.
-- Plan exclusively through plan-orchestration `/deposit/review`. Sign only when
-  the guard passes and MultiBaas-composed `to/data/value` equal the reviewed
-  plan byte for byte. Use the raw `usdctoken` ABI for USDC: MultiBaas's built-in
-  `erc20interface` rescales amounts by `decimals()` and changes calldata.
+- Plan exclusively through plan-orchestration `/rotate/review`. Sign only when
+  the guard passes. Approve, redeem and deposit must be composed by MultiBaas
+  with `to/data/value` equal to the reviewed plan byte for byte. The LI.FI swap
+  cannot be composed: sign its reviewed `to/data/value` unchanged, never
+  re-encode it, and broadcast it through MultiBaas like every other step. Use
+  the raw `wethtoken`/`usdctoken` ABIs: MultiBaas's built-in `erc20interface`
+  rescales amounts by `decimals()` and changes calldata.
+- The review is always a `warning` because plan-orchestration leaves LI.FI
+  calldata undecoded. The guard may accept only that `UNDECODED_METHOD` on the
+  swap, and only because it decodes and pins the swap itself.
 - One attempt per step. A revert, timeout, or mismatch stops the run; never
   retry automatically or reuse a nonce by hand.
-- A confirmed approve receipt does not mean MultiBaas gas estimation sees the
-  allowance yet. Waiting for the `allowance` view call is a read, not a retry;
-  a failed step must never be composed or submitted again.
+- A confirmed receipt does not mean MultiBaas gas estimation sees that block
+  yet. Waiting for the `allowance` (after an approve) or the swapped USDC
+  balance (after the swap) is a read, not a retry; a failed step must never be
+  composed or submitted again. Each step's nonce must follow the previous one.
 - Only `--execute` signs. `--replay` never sends a transaction and must stay
   labelled as a replay everywhere it is shown.
 - Podcast data is read-only.

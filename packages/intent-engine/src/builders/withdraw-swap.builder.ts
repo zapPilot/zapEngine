@@ -32,14 +32,19 @@ export interface WithdrawSwapPlan extends RotateTransactionPlan {
   assetToken: Address;
   /** Estimated assets out of the redeem (`previewRedeem`), as a wei string. */
   redeemAmount: string;
+  /**
+   * Guaranteed amount of the output token: the swap's `toAmountMin`, or the
+   * redeem estimate when no swap is needed.
+   */
+  minOutput: string;
 }
 
 /**
  * Build a withdraw-and-swap plan: redeem shares from a Morpho vault, then — if
  * the requested output token differs from the vault's underlying asset — swap
  * the redeemed asset into `toToken` via LI.FI, delivering the chosen token to
- * the user's own wallet. Unlike buildRotateTx the LI.FI target is a plain
- * token (intent `SWAP`), not another vault, and there is no final supply leg.
+ * the user's own wallet. The LI.FI target is a plain token (intent `SWAP`);
+ * buildRotateTx builds on this plan and adds the destination vault deposit.
  *
  * Like rotate, the swap is quoted against `previewRedeem` — the actual redeem
  * output on execution may drift slightly (vault share price moves), which is
@@ -93,6 +98,7 @@ export async function buildWithdrawSwapTx(
       },
       assetToken,
       redeemAmount: redeemAmount.toString(),
+      minOutput: redeemAmount.toString(),
     };
   }
 
@@ -117,5 +123,6 @@ export async function buildWithdrawSwapTx(
     approval: swapQuote.approval,
     assetToken,
     redeemAmount: redeemAmount.toString(),
+    minOutput: swapQuote.estimate.toAmountMin,
   };
 }

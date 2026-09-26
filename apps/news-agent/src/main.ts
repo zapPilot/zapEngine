@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { setTimeout } from 'node:timers/promises';
 import { pathToFileURL } from 'node:url';
 
-import { PlanOrchestrationDepositReviewResponseSchema } from '@zapengine/types/api';
+import { PlanOrchestrationRotateReviewResponseSchema } from '@zapengine/types/api';
 import { privateKeyToAccount } from 'viem/accounts';
 
 import { argumentsFor } from './config/arguments.js';
@@ -21,7 +21,7 @@ import { createMultibaas } from './lib/multibaas.js';
 import { createPodcast } from './lib/podcast.js';
 import { createTelegram } from './lib/telegram.js';
 import { type DemoOptions, runDemo } from './services/demo.js';
-import { planRequest, TRIGGER_EPISODE } from './services/demoRule.js';
+import { rotateRequest, TRIGGER_EPISODE } from './services/demoRule.js';
 import { multibaasSetup } from './services/multibaasSetup.js';
 import { createTriggerServer } from './services/triggerServer.js';
 
@@ -99,10 +99,10 @@ export async function main(
       episode: podcast.episode,
       laya: createLaya(http, args.layaUrl),
       review: async () =>
-        PlanOrchestrationDepositReviewResponseSchema.parse(
+        PlanOrchestrationRotateReviewResponseSchema.parse(
           await http.postJson(
-            `${env.accountUrl.replace(/\/$/, '')}/plan-orchestration/deposit/review`,
-            planRequest(account.address),
+            `${env.accountUrl.replace(/\/$/, '')}/plan-orchestration/rotate/review`,
+            rotateRequest(account.address),
             {},
             90_000,
           ),

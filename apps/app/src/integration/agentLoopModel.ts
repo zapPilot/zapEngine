@@ -20,7 +20,7 @@ export const AGENT_LOOP_STEPS: readonly AgentLoopStep[] = [
   { id: 'news', label: 'News detected' },
   { id: 'analyze', label: 'Local Laya analysis' },
   { id: 'intent', label: 'Agent intent' },
-  { id: 'compose', label: 'MultiBaas transaction composed' },
+  { id: 'compose', label: 'MultiBaas composed · LI.FI swap routed' },
   { id: 'sign', label: 'Wallet signs locally' },
   { id: 'confirm', label: 'Confirmed on Base' },
   { id: 'deliver', label: 'Video delivered' },

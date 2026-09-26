@@ -26,12 +26,16 @@ export interface AgentContracts {
   agentAddress: Address;
   usdcAddress: Address;
   vaultAddress: Address;
+  /** Source of each rotation; its shares are valued in WETH. */
+  ethVaultAddress: Address;
 }
 
 export interface AgentPosition {
   idleUsdc: bigint;
   vaultShares: bigint;
   depositedUsdc: bigint;
+  ethVaultShares: bigint;
+  ethVaultWeth: bigint;
 }
 
 export class AgentActivityRequestError extends Error {
@@ -203,7 +207,13 @@ export async function readAgentPosition(
   client: AgentPositionClient,
   contracts: AgentContracts,
 ): Promise<AgentPosition> {
-  const [idleUsdc, vaultShares] = await client.multicall({
+  const shareBalance = (vault: Address) => ({
+    address: vault,
+    abi: erc4626Abi,
+    functionName: 'balanceOf' as const,
+    args: [contracts.agentAddress] as const,
+  });
+  const [idleUsdc, vaultShares, ethVaultShares] = await client.multicall({
     allowFailure: false,
     contracts: [
       {
@@ -212,22 +222,28 @@ export async function readAgentPosition(
         functionName: 'balanceOf',
         args: [contracts.agentAddress],
       },
-      {
-        address: contracts.vaultAddress,
-        abi: erc4626Abi,
-        functionName: 'balanceOf',
-        args: [contracts.agentAddress],
-      },
+      shareBalance(contracts.vaultAddress),
+      shareBalance(contracts.ethVaultAddress),
     ],
   });
-  const depositedUsdc =
-    vaultShares === 0n
-      ? 0n
-      : await client.readContract({
-          address: contracts.vaultAddress,
+  const toAssets = (vault: Address, shares: bigint) =>
+    shares === 0n
+      ? Promise.resolve(0n)
+      : client.readContract({
+          address: vault,
           abi: erc4626Abi,
           functionName: 'convertToAssets',
-          args: [vaultShares],
+          args: [shares],
         });
-  return { idleUsdc, vaultShares, depositedUsdc };
+  const [depositedUsdc, ethVaultWeth] = await Promise.all([
+    toAssets(contracts.vaultAddress, vaultShares),
+    toAssets(contracts.ethVaultAddress, ethVaultShares),
+  ]);
+  return {
+    idleUsdc,
+    vaultShares,
+    depositedUsdc,
+    ethVaultShares,
+    ethVaultWeth,
+  };
 }

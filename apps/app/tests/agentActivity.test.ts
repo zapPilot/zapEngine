@@ -16,12 +16,14 @@ import {
 const AGENT: Address = '0x01C6f4C7204834d8844e0355560876E2f0E7667E';
 const USDC: Address = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 const VAULT: Address = '0x7BfA7C4f149E7415b73bdeDfe609237e29CBF34A';
+const ETH_VAULT: Address = '0xBCA4E2E24A7cFa776E4282CC8Eb06f04738b71da';
 const OTHER: Address = '0x1111111111111111111111111111111111111111';
 
 const CONTRACTS: AgentContracts = {
   agentAddress: AGENT,
   usdcAddress: USDC,
   vaultAddress: VAULT,
+  ethVaultAddress: ETH_VAULT,
 };
 
 function blockscoutItem(overrides: Record<string, unknown>) {
@@ -305,15 +307,17 @@ describe('activity summaries', () => {
 });
 
 describe('readAgentPosition', () => {
-  function mockClient(balances: readonly [bigint, bigint], assets: bigint) {
+  function mockClient(balances: readonly [bigint, bigint, bigint]) {
     return {
       multicall: vi.fn(async () => balances),
-      readContract: vi.fn(async () => assets),
+      readContract: vi.fn(async ({ address }: { address: Address }) =>
+        address === VAULT ? 1_000_123n : 400_000_000_000_000n,
+      ),
     };
   }
 
-  it('reads idle USDC and converts vault shares to USDC', async () => {
-    const client = mockClient([4_000_000n, 950_000n], 1_000_123n);
+  it('reads idle USDC and values both vault positions', async () => {
+    const client = mockClient([4_000_000n, 950_000n, 392_785_993_229_241n]);
 
     const position = await readAgentPosition(
       client as unknown as Parameters<typeof readAgentPosition>[0],
@@ -324,6 +328,8 @@ describe('readAgentPosition', () => {
       idleUsdc: 4_000_000n,
       vaultShares: 950_000n,
       depositedUsdc: 1_000_123n,
+      ethVaultShares: 392_785_993_229_241n,
+      ethVaultWeth: 400_000_000_000_000n,
     });
     expect(client.multicall).toHaveBeenCalledWith({
       allowFailure: false,
@@ -338,19 +344,29 @@ describe('readAgentPosition', () => {
           functionName: 'balanceOf',
           args: [AGENT],
         }),
+        expect.objectContaining({
+          address: ETH_VAULT,
+          functionName: 'balanceOf',
+          args: [AGENT],
+        }),
       ],
     });
-    expect(client.readContract).toHaveBeenCalledWith(
+    expect(client.readContract.mock.calls.map(([call]) => call)).toEqual([
       expect.objectContaining({
         address: VAULT,
         functionName: 'convertToAssets',
         args: [950_000n],
       }),
-    );
+      expect.objectContaining({
+        address: ETH_VAULT,
+        functionName: 'convertToAssets',
+        args: [392_785_993_229_241n],
+      }),
+    ]);
   });
 
-  it('skips the conversion when the agent holds no vault shares', async () => {
-    const client = mockClient([0n, 0n], 99n);
+  it('skips the conversion for a vault the agent holds no shares in', async () => {
+    const client = mockClient([0n, 0n, 5n]);
 
     const position = await readAgentPosition(
       client as unknown as Parameters<typeof readAgentPosition>[0],
@@ -358,7 +374,10 @@ describe('readAgentPosition', () => {
     );
 
     expect(position.depositedUsdc).toBe(0n);
-    expect(client.readContract).not.toHaveBeenCalled();
+    expect(client.readContract).toHaveBeenCalledTimes(1);
+    expect(client.readContract).toHaveBeenCalledWith(
+      expect.objectContaining({ address: ETH_VAULT }),
+    );
   });
 
   it('propagates RPC failures', async () => {

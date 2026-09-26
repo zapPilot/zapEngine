@@ -1,139 +1,299 @@
-import { encodeFunctionData, erc20Abi } from 'viem';
+import type { PlanOrchestrationRotateReviewResponse } from '@zapengine/types/api';
 import { describe, expect, it } from 'vitest';
 
 import {
+  approve,
   approvedReview,
   deposit,
+  MIN_OUT,
   now,
+  redeem,
+  refingerprint,
+  swap,
+  SWAP_FROM,
   wallet,
 } from '../test-utils/fixtures.js';
-import { AMOUNT, planRequest, RULE_EXPIRES_AT, VAULT } from './demoRule.js';
-import { fingerprint, guard } from './guard.js';
+import {
+  ETH_VAULT,
+  LIFI_DIAMOND,
+  rotateRequest,
+  RULE_EXPIRES_AT,
+  SHARES,
+  USDC,
+  USDC_VAULT,
+  WETH,
+} from './demoRule.js';
+import { guard } from './guard.js';
 
-describe('fixed demo guard', () => {
-  it('permits the exact reviewed deposit with optional approval', () => {
-    for (const approve of [true, false])
-      expect(guard(approvedReview(approve), wallet, now).allowed).toBe(true);
-    expect(planRequest(wallet)).toMatchObject({
-      fromAmount: '100000',
-      split: { '8453': 1 },
+type Review = PlanOrchestrationRotateReviewResponse;
+const group = (review: Review) => review.reviews['chain-8453']!;
+const other: `0x${string}` = '0x3333333333333333333333333333333333333333';
+
+describe('fixed rotation guard', () => {
+  it.each([
+    ['no approvals', { approveWeth: false }],
+    ['the WETH approval', { approveWeth: true }],
+    ['both approvals', { approveWeth: true, approveUsdc: true }],
+  ])('permits the exact reviewed rotation with %s', (_, options) => {
+    const verdict = guard(approvedReview(options), wallet, now);
+    expect(verdict).toMatchObject({ allowed: true, depositAmount: MIN_OUT });
+    expect(verdict.transactions.at(-1)!.to).toBe(USDC_VAULT);
+  });
+
+  it('asks plan-orchestration for exactly the fixed rotation', () => {
+    expect(rotateRequest(wallet)).toEqual({
+      userAddress: wallet,
+      chainId: 8453,
+      fromVault: ETH_VAULT,
+      toVault: USDC_VAULT,
+      shareAmount: SHARES.toString(),
     });
   });
-  it.each(['warning', 'failed', 'unavailable'])(
-    'rejects %s reviews',
-    (status) => {
-      const review = approvedReview();
-      Object.assign(review.reviews['chain-8453']!, { status });
-      expect(guard(review, wallet, now).allowed).toBe(false);
-    },
-  );
-  it.each([
+
+  it('accepts a review that decoded every call', () => {
+    const review = approvedReview();
+    Object.assign(group(review), {
+      status: 'passed',
+      warnings: [],
+      requiresRiskAcknowledgement: false,
+    });
+    expect(guard(review, wallet, now).allowed).toBe(true);
+  });
+
+  it.each(['failed', 'unavailable'])('rejects %s reviews', (status) => {
+    const review = approvedReview();
+    Object.assign(group(review), { status });
+    expect(guard(review, wallet, now).reason).toBe('Review did not pass');
+  });
+
+  it.each<[string, (review: Review) => void]>([
+    [
+      'an unlimited-approval warning',
+      (r) => {
+        group(r).warnings.push({
+          code: 'UNLIMITED_APPROVAL',
+          message: 'unlimited',
+          callIndex: 0,
+        });
+      },
+    ],
+    [
+      'an undecoded call other than the swap',
+      (r) => {
+        group(r).warnings[0]!.callIndex = 1;
+      },
+    ],
+    [
+      'an undecoded call on another contract',
+      (r) => {
+        group(r).warnings[0]!.address = other;
+      },
+    ],
+    [
+      'a warning without a risk acknowledgement',
+      (r) => {
+        group(r).requiresRiskAcknowledgement = false;
+      },
+    ],
+  ])('rejects %s', (_, mutate) => {
+    const review = approvedReview();
+    mutate(review);
+    expect(guard(review, wallet, now).reason).toBe('Review did not pass');
+  });
+
+  it.each<[string, (review: Review) => void, string]>([
     [
       'chain',
-      (r: ReturnType<typeof approvedReview>) => {
-        r.plan.calls[0]!.chainId = 1;
+      (r) => {
+        r.plan.calls[1]!.chainId = 1;
       },
+      'Wrong chain',
     ],
     [
-      'value',
-      (r: ReturnType<typeof approvedReview>) => {
-        r.plan.calls[0]!.value = '1';
+      'native value',
+      (r) => {
+        r.plan.calls[1]!.value = '1';
       },
+      'Native value forbidden',
     ],
     [
-      'target',
-      (r: ReturnType<typeof approvedReview>) => {
-        r.plan.calls[0]!.to = wallet;
+      'source vault',
+      (r) => {
+        r.plan.calls[0]!.to = USDC_VAULT;
       },
+      'Unexpected source vault',
+    ],
+    ...(
+      [
+        ['redeem shares', redeem(SHARES + 1n)],
+        ['redeem receiver', redeem(SHARES, other)],
+        ['redeem owner', redeem(SHARES, wallet, other)],
+      ] as const
+    ).map(
+      ([name, call]) =>
+        [
+          name,
+          (r: Review) => {
+            r.plan.calls[0] = call;
+          },
+          'Wrong redeem shares, receiver or owner',
+        ] as [string, (review: Review) => void, string],
+    ),
+    [
+      'swap target',
+      (r) => {
+        r.plan.calls[1] = swap({ to: other });
+      },
+      'Unexpected swap target',
     ],
     [
-      'amount',
-      (r: ReturnType<typeof approvedReview>) => {
-        r.plan.calls[0] = deposit(AMOUNT + 1n);
+      'swap receiver',
+      (r) => {
+        r.plan.calls[1] = swap({ receiver: other });
       },
+      'Swap pays someone else',
     ],
     [
-      'receiver',
-      (r: ReturnType<typeof approvedReview>) => {
-        r.plan.calls[0] = deposit(AMOUNT, VAULT);
+      'swap output token',
+      (r) => {
+        r.plan.calls[1] = swap({ receivingAssetId: WETH });
       },
+      'Swap must sell WETH for USDC',
     ],
     [
-      'malformed',
-      (r: ReturnType<typeof approvedReview>) => {
-        r.plan.calls[0]!.data = '0x';
+      'swap minimum',
+      (r) => {
+        r.plan.calls[1] = swap({ minOut: 0n });
       },
+      'Swap has no minimum output',
     ],
     [
-      'empty',
-      (r: ReturnType<typeof approvedReview>) => {
-        r.plan.calls = [];
+      'swap facet',
+      (r) => {
+        r.plan.calls[1]!.data = '0x12345678';
       },
+      'Malformed review or calldata',
     ],
     [
-      'many calls',
-      (r: ReturnType<typeof approvedReview>) => {
-        r.plan.calls.push(deposit());
+      'destination vault',
+      (r) => {
+        r.plan.calls[2] = deposit(MIN_OUT, wallet, ETH_VAULT);
       },
+      'Unexpected destination vault',
     ],
     [
-      'extra group',
-      (r: ReturnType<typeof approvedReview>) => {
-        r.reviews['other'] = r.reviews['chain-8453']!;
+      'deposit amount',
+      (r) => {
+        r.plan.calls[2] = deposit(MIN_OUT + 1n);
       },
+      'Deposit must be the swap minimum, for the agent',
     ],
     [
-      'execution disallowed',
-      (r: ReturnType<typeof approvedReview>) => {
-        r.reviews['chain-8453']!.executionAllowed = false;
+      'deposit receiver',
+      (r) => {
+        r.plan.calls[2] = deposit(MIN_OUT, other);
       },
+      'Deposit must be the swap minimum, for the agent',
     ],
     [
-      'blocked',
-      (r: ReturnType<typeof approvedReview>) => {
-        r.reviews['chain-8453']!.blocked = true;
+      'step count',
+      (r) => {
+        r.plan.calls.pop();
       },
+      'Unexpected steps',
     ],
     [
-      'risk',
-      (r: ReturnType<typeof approvedReview>) => {
-        r.reviews['chain-8453']!.requiresRiskAcknowledgement = true;
+      'swap approval amount',
+      (r) => {
+        r.plan.approvals[0] = approve(WETH, LIFI_DIAMOND, SWAP_FROM + 1n);
       },
+      'Unexpected approval',
     ],
     [
-      'wallet',
-      (r: ReturnType<typeof approvedReview>) => {
-        r.reviews['chain-8453']!.walletAddress = VAULT;
+      'swap approval spender',
+      (r) => {
+        r.plan.approvals[0] = approve(WETH, other, SWAP_FROM);
       },
+      'Unexpected approval',
+    ],
+    [
+      'approval token',
+      (r) => {
+        r.plan.approvals[0] = approve(ETH_VAULT, LIFI_DIAMOND, SWAP_FROM);
+      },
+      'Unexpected approval token',
+    ],
+    [
+      'deposit approval amount',
+      (r) => {
+        r.plan.approvals.push(approve(USDC, USDC_VAULT, MIN_OUT + 1n));
+      },
+      'Unexpected approval',
+    ],
+    [
+      'duplicate approval',
+      (r) => {
+        r.plan.approvals.push(r.plan.approvals[0]!);
+      },
+      'Unexpected approval token',
+    ],
+    [
+      'review group count',
+      (r) => {
+        r.reviews['other'] = group(r);
+      },
+      'Unexpected review groups',
+    ],
+    [
+      'blocked review',
+      (r) => {
+        group(r).blocked = true;
+      },
+      'Review did not pass',
+    ],
+    [
+      'disallowed review',
+      (r) => {
+        group(r).executionAllowed = false;
+      },
+      'Review did not pass',
+    ],
+    [
+      'review wallet',
+      (r) => {
+        group(r).walletAddress = other;
+      },
+      'Review wallet or chain mismatch',
     ],
     [
       'review chain',
-      (r: ReturnType<typeof approvedReview>) => {
-        r.reviews['chain-8453']!.chainId = 1;
+      (r) => {
+        group(r).chainId = 1;
       },
+      'Review wallet or chain mismatch',
     ],
     [
       'group expiry',
-      (r: ReturnType<typeof approvedReview>) => {
-        r.reviews['chain-8453']!.expiresAt = now + 60_000;
+      (r) => {
+        group(r).expiresAt = now + 60_000;
       },
+      'Group review expires too soon',
     ],
     [
-      'expiry',
-      (r: ReturnType<typeof approvedReview>) => {
+      'review expiry',
+      (r) => {
         r.expiresAt = now + 60_000;
       },
+      'Review expires too soon',
     ],
-  ] as const)('rejects %s', (_, mutate) => {
+  ])('rejects a wrong %s', (_, mutate, reason) => {
     const review = approvedReview();
     mutate(review);
-    review.reviews['chain-8453']!.batchFingerprint = fingerprint(8453, [
-      ...review.plan.approvals,
-      ...review.plan.calls,
-    ]);
-    expect(guard(review, wallet, now).allowed).toBe(false);
+    refingerprint(review);
+    expect(guard(review, wallet, now).reason).toBe(reason);
   });
-  it('rejects expired rule, fingerprint tampering and malformed numbers', () => {
+
+  it('rejects an expired rule, a tampered batch and malformed numbers', () => {
     expect(guard(approvedReview(), wallet, RULE_EXPIRES_AT).reason).toBe(
       'Demo rule expired',
     );
@@ -145,42 +305,4 @@ describe('fixed demo guard', () => {
     review.plan.calls[0]!.value = 'not a number';
     expect(guard(review, wallet, now).allowed).toBe(false);
   });
-  it.each(['amount', 'under-amount', 'spender', 'token', 'method', 'count'])(
-    'rejects approval %s',
-    (mode) => {
-      const review = approvedReview(true);
-      const approval = review.plan.approvals[0]!;
-      if (mode === 'amount')
-        approval.data = encodeFunctionData({
-          abi: erc20Abi,
-          functionName: 'approve',
-          args: [VAULT, AMOUNT + 1n],
-        });
-      if (mode === 'under-amount')
-        approval.data = encodeFunctionData({
-          abi: erc20Abi,
-          functionName: 'approve',
-          args: [VAULT, AMOUNT - 1n],
-        });
-      if (mode === 'spender')
-        approval.data = encodeFunctionData({
-          abi: erc20Abi,
-          functionName: 'approve',
-          args: [wallet, AMOUNT],
-        });
-      if (mode === 'token') approval.to = VAULT;
-      if (mode === 'method')
-        approval.data = encodeFunctionData({
-          abi: erc20Abi,
-          functionName: 'transfer',
-          args: [VAULT, AMOUNT],
-        });
-      if (mode === 'count') review.plan.approvals.push(approval);
-      review.reviews['chain-8453']!.batchFingerprint = fingerprint(8453, [
-        ...review.plan.approvals,
-        ...review.plan.calls,
-      ]);
-      expect(guard(review, wallet, now).allowed).toBe(false);
-    },
-  );
 });

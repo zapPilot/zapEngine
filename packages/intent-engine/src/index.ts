@@ -195,7 +195,7 @@ import type {
 import type {
   PreparedTransaction,
   TransactionQuote,
-  RotateTransactionPlan,
+  RotatePlan,
   ExecutionResult,
 } from './types/transaction.types.js';
 
@@ -239,11 +239,14 @@ export interface IntentEngine {
     publicClient: PublicClient,
   ): Promise<WithdrawSwapPlan>;
 
-  /** Build a rotate transaction plan (requires a PublicClient for on-chain previews) */
+  /**
+   * Build a vault-to-vault rotation: redeem, LI.FI swap when the assets
+   * differ, then deposit (requires a PublicClient for on-chain previews).
+   */
   buildRotate(
     intent: RotateIntentInput,
     publicClient: PublicClient,
-  ): Promise<RotateTransactionPlan>;
+  ): Promise<RotatePlan>;
 
   /** Build a GMX v2 GM market supply plan for the dev-only Arbitrum path */
   buildGmxV2Supply(

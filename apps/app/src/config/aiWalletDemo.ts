@@ -17,6 +17,11 @@ export const USDC_DECIMALS = 6;
 export const VAULT_ADDRESS: Address =
   '0x7BfA7C4f149E7415b73bdeDfe609237e29CBF34A';
 
+/** Clearstar Core ETH (a Morpho Vault V2 holding WETH); the rotation's source. */
+export const ETH_VAULT_ADDRESS: Address =
+  '0xBCA4E2E24A7cFa776E4282CC8Eb06f04738b71da';
+export const WETH_DECIMALS = 18;
+
 export const DEMO_EPISODE_LANGUAGE = 'en';
 
 /** `pnpm agent serve` in apps/news-agent; only reachable from a local dev build. */

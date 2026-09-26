@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Multibaas } from '../lib/multibaas.js';
-import { USDC, VAULT } from './demoRule.js';
+import { ETH_VAULT, USDC, USDC_VAULT, WETH } from './demoRule.js';
 import { multibaasSetup } from './multibaasSetup.js';
 
 function fake(
@@ -29,12 +29,16 @@ describe('MultiBaas setup', () => {
     const lines: string[] = [];
     await multibaasSetup(mb as unknown as Multibaas, (l) => lines.push(l));
     expect(mb.createContract.mock.calls.map((c) => c[0].label)).toEqual([
+      'wethtoken',
+      'clearstarethvault',
       'usdctoken',
       'sparkusdcvault',
     ]);
     expect(mb.createAddress.mock.calls).toEqual([
+      ['weth', WETH],
+      ['clearstarethvault', ETH_VAULT],
       ['usdc', USDC],
-      ['sparkusdcvault', VAULT],
+      ['sparkusdcvault', USDC_VAULT],
     ]);
     expect(mb.linkContract).toHaveBeenCalledWith('usdc', {
       label: 'usdctoken',
@@ -46,13 +50,20 @@ describe('MultiBaas setup', () => {
   it('is idempotent and refuses a conflicting alias', async () => {
     const done = fake(
       [
+        { label: 'wethtoken', version: '1.0' },
+        { label: 'clearstarethvault', version: '1.0' },
         { label: 'usdctoken', version: '1.0' },
         { label: 'sparkusdcvault', version: '1.0' },
       ],
       {
+        weth: { address: WETH, contracts: [{ label: 'wethtoken' }] },
+        clearstarethvault: {
+          address: ETH_VAULT,
+          contracts: [{ label: 'clearstarethvault' }],
+        },
         usdc: { address: USDC, contracts: [{ label: 'usdctoken' }] },
         sparkusdcvault: {
-          address: VAULT,
+          address: USDC_VAULT,
           contracts: [{ label: 'sparkusdcvault' }],
         },
       },
@@ -61,7 +72,7 @@ describe('MultiBaas setup', () => {
     expect(done.createContract).not.toHaveBeenCalled();
     expect(done.createAddress).not.toHaveBeenCalled();
     expect(done.linkContract).not.toHaveBeenCalled();
-    const conflict = fake([], { usdc: { address: VAULT, contracts: [] } });
+    const conflict = fake([], { weth: { address: USDC, contracts: [] } });
     await expect(
       multibaasSetup(conflict as unknown as Multibaas, () => undefined),
     ).rejects.toThrow('already points at');

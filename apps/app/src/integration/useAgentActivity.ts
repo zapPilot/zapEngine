@@ -6,6 +6,7 @@ import {
   AGENT_ADDRESS,
   BASE_RPC_URLS,
   BLOCKSCOUT_API_URL,
+  ETH_VAULT_ADDRESS,
   POSITION_POLL_INTERVAL_MS,
   USDC_ADDRESS,
   VAULT_ADDRESS,
@@ -22,6 +23,7 @@ const AGENT_CONTRACTS: AgentContracts = {
   agentAddress: AGENT_ADDRESS,
   usdcAddress: USDC_ADDRESS,
   vaultAddress: VAULT_ADDRESS,
+  ethVaultAddress: ETH_VAULT_ADDRESS,
 };
 
 export const AGENT_CONFIGURED = isAgentConfigured(AGENT_ADDRESS);

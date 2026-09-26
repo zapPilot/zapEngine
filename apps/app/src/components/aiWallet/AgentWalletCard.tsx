@@ -15,7 +15,7 @@ import { TokenIcon } from '@/components/token/TokenIcon';
 import { Card } from '@/components/ui/Card';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { Tap } from '@/components/ui/Tap';
-import { USDC_DECIMALS } from '@/config/aiWalletDemo';
+import { USDC_DECIMALS, WETH_DECIMALS } from '@/config/aiWalletDemo';
 import type { AgentPosition } from '@/integration/agentActivity';
 import { truncateAddress } from '@/lib/format';
 
@@ -29,10 +29,28 @@ interface AgentWalletCardProps {
   failed: boolean;
 }
 
-function formatUsdcBalance(amount: bigint): string {
-  return Number(formatUnits(amount, USDC_DECIMALS)).toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+interface AssetUnit {
+  symbol: string;
+  decimals: number;
+  fractionDigits: number;
+}
+
+const USDC_UNIT: AssetUnit = {
+  symbol: 'USDC',
+  decimals: USDC_DECIMALS,
+  fractionDigits: 2,
+};
+// The rotation moves fractions of a milli-ETH, so two decimals would read 0.00.
+const WETH_UNIT: AssetUnit = {
+  symbol: 'WETH',
+  decimals: WETH_DECIMALS,
+  fractionDigits: 6,
+};
+
+function formatBalance(amount: bigint, unit: AssetUnit): string {
+  return Number(formatUnits(amount, unit.decimals)).toLocaleString('en-US', {
+    minimumFractionDigits: unit.fractionDigits,
+    maximumFractionDigits: unit.fractionDigits,
   });
 }
 
@@ -92,12 +110,21 @@ export function AgentWalletCard({
             icon={<TokenIcon symbol="USDC" size={34} />}
             label="USDC"
             amount={position?.idleUsdc}
+            unit={USDC_UNIT}
+            loading={balancesLoading}
+          />
+          <AssetRow
+            icon={<ProtocolIcon protocol="morpho" size={34} />}
+            label="Morpho / Clearstar"
+            amount={position?.ethVaultWeth}
+            unit={WETH_UNIT}
             loading={balancesLoading}
           />
           <AssetRow
             icon={<ProtocolIcon protocol="morpho" size={34} />}
             label="Morpho / Spark"
             amount={position?.depositedUsdc}
+            unit={USDC_UNIT}
             loading={balancesLoading}
           />
         </View>
@@ -115,11 +142,13 @@ function AssetRow({
   icon,
   label,
   amount,
+  unit,
   loading,
 }: {
   icon: ReactNode;
   label: string;
   amount: bigint | undefined;
+  unit: AssetUnit;
   loading: boolean;
 }) {
   return (
@@ -136,9 +165,11 @@ function AssetRow({
       ) : (
         <View className="flex-row items-baseline gap-1.5">
           <Text className="font-sans-semibold text-[24px] leading-[30px] text-ink">
-            {amount === undefined ? '—' : formatUsdcBalance(amount)}
+            {amount === undefined ? '—' : formatBalance(amount, unit)}
           </Text>
-          <Text className="font-mono text-[11px] text-ink-dim">USDC</Text>
+          <Text className="font-mono text-[11px] text-ink-dim">
+            {unit.symbol}
+          </Text>
         </View>
       )}
     </View>

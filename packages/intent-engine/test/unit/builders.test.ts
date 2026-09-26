@@ -276,22 +276,31 @@ describe('buildWithdrawTx', () => {
 describe('buildRotateTx', () => {
   let readContract: ReturnType<typeof vi.fn>;
   let publicClient: PublicClient;
+  const vaultAssets: Record<string, Address> = {
+    [BASE_MOONWELL_USDC.toLowerCase()]: BASE_USDC,
+    [BASE_SEAMLESS_WETH.toLowerCase()]: BASE_WETH,
+  };
+
+  let swapMock: ReturnType<typeof makeAdapterMock>;
 
   beforeEach(() => {
-    readContract = vi.fn();
+    readContract = vi.fn(
+      ({
+        address,
+        functionName,
+      }: {
+        address: Address;
+        functionName: string;
+      }) => {
+        if (functionName === 'previewRedeem') return Promise.resolve(994_000n);
+        if (functionName === 'asset')
+          return Promise.resolve(vaultAssets[address.toLowerCase()]);
+        throw new Error(`unexpected read ${functionName}`);
+      },
+    );
     publicClient = { readContract } as unknown as PublicClient;
-  });
-
-  it('previews redeem, resolves both vault assets, and builds a 2-step plan', async () => {
-    // previewRedeem → 994_000 assets out
-    readContract.mockResolvedValueOnce(994_000n);
-    // fromVault.asset() → USDC
-    readContract.mockResolvedValueOnce(BASE_USDC);
-    // toVault.asset()   → WETH (cross-asset rotation)
-    readContract.mockResolvedValueOnce(BASE_WETH);
-
-    const { adapter, getQuote, getContractCallQuote } = makeAdapterMock();
-    getQuote.mockResolvedValueOnce(
+    swapMock = makeAdapterMock();
+    swapMock.getSwapQuote.mockResolvedValue(
       makeStubQuote({
         transaction: {
           to: '0x000000000000000000000000000000000000F00D' as Address,
@@ -299,19 +308,21 @@ describe('buildRotateTx', () => {
           value: '0',
           chainId: 8453,
           gasLimit: '400000',
-          meta: { intentType: 'SUPPLY' },
+          meta: { intentType: 'SWAP' },
         },
         estimate: {
           fromAmount: '994000',
-          toAmount: '500000000000000000', // 0.5 WETH
+          toAmount: '500000000000000000',
           toAmountMin: '495000000000000000',
           gasCostUsd: '1.25',
           executionDuration: 30,
         },
       }),
     );
+  });
 
-    const plan = await buildRotateTx(
+  const rotate = (overrides: Record<string, unknown> = {}) =>
+    buildRotateTx(
       {
         type: 'ROTATE',
         fromAddress: FROM_ADDRESS,
@@ -320,66 +331,107 @@ describe('buildRotateTx', () => {
         toVault: BASE_SEAMLESS_WETH,
         shareAmount: '1000000',
         protocol: 'morpho',
+        ...overrides,
       },
-      adapter,
+      swapMock.adapter,
       publicClient,
     );
 
-    // Read the redeem preview and source vault asset for the LI.FI quote.
-    expect(readContract).toHaveBeenCalledTimes(2);
-    expect(readContract).toHaveBeenNthCalledWith(1, {
-      address: BASE_MOONWELL_USDC,
-      abi: MORPHO_VAULT_ABI,
-      functionName: 'previewRedeem',
-      args: [1_000_000n],
-    });
-    expect(readContract).toHaveBeenNthCalledWith(2, {
-      address: BASE_MOONWELL_USDC,
-      abi: MORPHO_VAULT_ABI,
-      functionName: 'asset',
+  it('redeems, swaps via LI.FI, then deposits the guaranteed minimum', async () => {
+    const plan = await rotate({ slippageBps: 30 });
+
+    expect(swapMock.getQuote).not.toHaveBeenCalled();
+    expect(swapMock.getSwapQuote).toHaveBeenCalledWith({
+      fromChain: 8453,
+      toChain: 8453,
+      fromToken: BASE_USDC,
+      toToken: BASE_WETH,
+      fromAmount: '994000',
+      fromAddress: FROM_ADDRESS,
+      toAddress: FROM_ADDRESS,
+      slippageBps: 30,
     });
 
-    // LI.FI step uses the previewed redeemed asset amount as exact input.
-    expect(getContractCallQuote).not.toHaveBeenCalled();
-    const quoteArgs = getQuote.mock.calls[0]?.[0];
-    expect(quoteArgs.fromToken).toBe(BASE_USDC);
-    expect(quoteArgs.toToken).toBe(BASE_SEAMLESS_WETH);
-    expect(quoteArgs.fromAmount).toBe('994000');
-    expect(quoteArgs.intentType).toBe('SUPPLY');
+    expect(plan.steps).toHaveLength(3);
+    const [redeem, swap, deposit] = plan.steps;
+    expect(redeem?.to).toBe(BASE_MOONWELL_USDC);
+    expect(redeem?.data.slice(0, 10)).toBe(REDEEM_SELECTOR);
+    expect(swap?.to).toBe('0x000000000000000000000000000000000000F00D');
+    expect(deposit?.to).toBe(BASE_SEAMLESS_WETH);
+    expect(deposit?.meta.intentType).toBe('ROTATE_DEPOSIT');
+    expect(
+      decodeFunctionData({
+        abi: MORPHO_VAULT_ABI,
+        data: deposit!.data as `0x${string}`,
+      }).args,
+    ).toEqual([495_000_000_000_000_000n, FROM_ADDRESS]);
 
-    // Plan shape
-    expect(plan.steps).toHaveLength(2);
-    expect(plan.steps[0]?.to).toBe(BASE_MOONWELL_USDC);
-    expect(plan.steps[0]?.data.slice(0, 10)).toBe(REDEEM_SELECTOR);
-    expect(plan.steps[0]?.meta.intentType).toBe('ROTATE_WITHDRAW');
-    expect(plan.steps[1]?.meta.intentType).toBe('SUPPLY');
-    expect(plan.estimates.expectedOutput).toBe('500000000000000000');
-    expect(plan.estimates.totalDuration).toBe(30);
-    expect(plan.approval?.tokenAddress).toBe(BASE_USDC);
+    expect(plan.approvals).toEqual([
+      {
+        tokenAddress: BASE_USDC,
+        spenderAddress: '0x0000000000000000000000000000000000000aaa',
+        amount: '1000000',
+      },
+      {
+        tokenAddress: BASE_WETH,
+        spenderAddress: BASE_SEAMLESS_WETH,
+        amount: '495000000000000000',
+      },
+    ]);
+    expect(plan).toMatchObject({
+      assetToken: BASE_USDC,
+      depositToken: BASE_WETH,
+      redeemAmount: '994000',
+      depositAmount: '495000000000000000',
+      estimates: { expectedOutput: '500000000000000000', totalDuration: 30 },
+    });
+  });
+
+  it('rotates the other way with the same primitive', async () => {
+    const plan = await rotate({
+      fromVault: BASE_SEAMLESS_WETH,
+      toVault: BASE_MOONWELL_USDC,
+    });
+
+    expect(swapMock.getSwapQuote).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fromToken: BASE_WETH,
+        toToken: BASE_USDC,
+        slippageBps: 50,
+      }),
+    );
+    expect(plan.steps.map((step) => step.to)).toEqual([
+      BASE_SEAMLESS_WETH,
+      '0x000000000000000000000000000000000000F00D',
+      BASE_MOONWELL_USDC,
+    ]);
+  });
+
+  it('skips the swap when both vaults hold the same asset', async () => {
+    vaultAssets[BASE_SEAMLESS_WETH.toLowerCase()] = BASE_USDC;
+    try {
+      const plan = await rotate();
+      expect(swapMock.getSwapQuote).not.toHaveBeenCalled();
+      expect(plan.steps.map((step) => step.to)).toEqual([
+        BASE_MOONWELL_USDC,
+        BASE_SEAMLESS_WETH,
+      ]);
+      expect(plan.depositAmount).toBe('994000');
+      expect(plan.approvals).toEqual([
+        {
+          tokenAddress: BASE_USDC,
+          spenderAddress: BASE_SEAMLESS_WETH,
+          amount: '994000',
+        },
+      ]);
+    } finally {
+      vaultAssets[BASE_SEAMLESS_WETH.toLowerCase()] = BASE_WETH;
+    }
   });
 
   it('surfaces LI.FI adapter errors rather than silently succeeding', async () => {
-    readContract.mockResolvedValueOnce(1n);
-    readContract.mockResolvedValueOnce(BASE_USDC);
-    readContract.mockResolvedValueOnce(BASE_WETH);
+    swapMock.getSwapQuote.mockRejectedValueOnce(new Error('LI.FI down'));
 
-    const { adapter, getQuote } = makeAdapterMock();
-    getQuote.mockRejectedValueOnce(new Error('LI.FI down'));
-
-    await expect(
-      buildRotateTx(
-        {
-          type: 'ROTATE',
-          fromAddress: FROM_ADDRESS,
-          chainId: 8453,
-          fromVault: BASE_MOONWELL_USDC,
-          toVault: BASE_SEAMLESS_WETH,
-          shareAmount: '1',
-          protocol: 'morpho',
-        },
-        adapter,
-        publicClient,
-      ),
-    ).rejects.toThrow(/LI\.FI down/);
+    await expect(rotate()).rejects.toThrow(/LI\.FI down/);
   });
 });

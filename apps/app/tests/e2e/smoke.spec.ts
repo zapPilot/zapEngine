@@ -12,7 +12,7 @@ const AGENT_LOOP_LABELS = [
   'News detected',
   'Local Laya analysis',
   'Agent intent',
-  'MultiBaas transaction composed',
+  'MultiBaas composed · LI.FI swap routed',
   'Wallet signs locally',
   'Confirmed on Base',
   'Video delivered',
