@@ -36,8 +36,8 @@ export function argumentsFor(argv: string[]) {
       .parse(values.chat);
   if (values.execute && values.replay)
     throw new Error('--execute and --replay are exclusive');
-  if ((values.execute || values.replay) && !values.episode)
-    throw new Error('--execute and --replay require --episode');
+  if (command === 'demo' && !values.episode)
+    throw new Error('demo requires --episode <episodes.id>');
   return {
     command,
     multibaasUrl: values['multibaas-url'],

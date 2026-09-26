@@ -2,24 +2,31 @@
 
 ## One-sentence summary
 
-When breaking news lands, a local classifier (Laya) decides whether it matches a
-fixed rule, and a guardrailed agent wallet deposits exactly 1 USDC into the
-Spark USDC vault on Base, with every transaction composed, broadcast, verified,
-and indexed through MultiBaas, then pushes a Telegram story link and shows the
-evidence live on [v2.zap-pilot.org/ai-wallet](https://v2.zap-pilot.org/ai-wallet).
+For any podcast news story, a local model (Laya) analyzes it for context, and a
+guardrailed agent wallet then makes one fixed move, depositing exactly 1 USDC
+into the Spark USDC vault on Base. Every transaction is composed, broadcast,
+verified, and indexed through MultiBaas; the agent then pushes a Telegram story
+link and the evidence shows live on
+[v2.zap-pilot.org/ai-wallet](https://v2.zap-pilot.org/ai-wallet).
 
 ```text
-News (podcast API) → Laya (local, probabilities only) → fixed rule
+News (podcast API) → Laya analysis (local, non-blocking) → fixed action
   → plan-orchestration review (intent-engine + Tenderly) → guard
   → MultiBaas compose → byte-equal check vs plan → local EOA signs
   → MultiBaas submit → MultiBaas receipt → MultiBaas Deposit event index
   → MultiBaas view calls (position) → Telegram smart link → AI Wallet tab
 ```
 
-The model never touches keys, contract addresses, or amounts. The only action
-the agent can take is hard-coded in `src/services/demoRule.ts`: approve and
-deposit 1 USDC into `0x7BfA7C4f149E7415b73bdeDfe609237e29CBF34A` for itself,
-before 2026-10-04.
+Laya does not decide or shape the trade: its analysis is shown to people, and
+if the model is down or fails the run continues without it. The model never
+touches keys, contract addresses, or amounts. The only action the agent can
+take is hard-coded in `src/services/demoRule.ts`: approve and deposit 1 USDC
+into `0x7BfA7C4f149E7415b73bdeDfe609237e29CBF34A` for itself, before
+2026-10-04.
+
+The dashboard has no backend: the CLI prints (and sends to Telegram) a link
+like `/ai-wallet?episode=<id>&hack=…&eth=…` so the tab can show the story and
+Laya's analysis for that run. Everything about transactions is read from chain.
 
 ## MultiBaas usage
 
@@ -69,11 +76,10 @@ pnpm --filter @zapengine/news-agent agent init \
 # 2. Register contracts and aliases (idempotent).
 pnpm --filter @zapengine/news-agent agent multibaas-setup
 
-# 3. Local Laya classifier.
+# 3. Local Laya model (optional: the run continues without it).
 LAYA_PRELOAD=1 LAYA_DEVICE=mps uvx --from 'laya[serve]' laya-serve
 
-# 4. Dry-runs (no signing). The fixture is always dry-run only.
-node scripts/env/run.mjs --environment prod -- pnpm --filter @zapengine/news-agent agent demo
+# 4. Dry-run with any existing episode (no signing).
 node scripts/env/run.mjs --environment prod -- pnpm --filter @zapengine/news-agent agent demo --episode <episodes.id>
 
 # 5. Real transaction, then Telegram.
@@ -86,8 +92,7 @@ node scripts/env/run.mjs --environment prod -- pnpm --filter @zapengine/news-age
 The CLI reads `ACCOUNT_API_URL`, `PODCAST_API_URL`,
 `PIPELINE_TELEGRAM_BOT_TOKEN`, and `PIPELINE_TELEGRAM_ALLOWED_USER_IDS` (first ID
 is the default chat; override with `--chat=<id>`). `--laya-url` defaults to
-`http://127.0.0.1:8000`. The rule fires when Laya rates the story an exchange
-hack at ≥ 80 % and ETH flow `upward`.
+`http://127.0.0.1:8000`. Only `--execute` signs and spends.
 
 ```bash
 pnpm turbo run lint type-check test:coverage deadcode --filter=@zapengine/news-agent

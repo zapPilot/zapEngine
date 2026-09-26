@@ -10,14 +10,15 @@ HTTP server, database, control-center integration, or pnpm ops entry.
 - Keep the wallet below $5 and refill manually: the balance is the real spending
   boundary; `guard.ts` is defense in depth. Revoke by moving the balance or
   revoking the MultiBaas API key.
-- Laya only classifies. It never chooses keys, contracts, or amounts; the action
-  is fixed in `demoRule.ts`.
+- Laya is non-blocking analysis for people. It never gates or shapes the trade
+  and never chooses keys, contracts, or amounts; the action is fixed in
+  `demoRule.ts`. Do not describe Laya as deciding the trading strategy.
 - Plan exclusively through plan-orchestration `/deposit/review`. Sign only when
   the guard passes and MultiBaas-composed `to/data/value` equal the reviewed
   plan byte for byte. Use the raw `usdctoken` ABI for USDC: MultiBaas's built-in
   `erc20interface` rescales amounts by `decimals()` and changes calldata.
 - One attempt per step. A revert, timeout, or mismatch stops the run; never
   retry automatically or reuse a nonce by hand.
-- The built-in fixture is dry-run only. `--replay` never sends a transaction and
-  must stay labelled as a replay everywhere it is shown.
+- Only `--execute` signs. `--replay` never sends a transaction and must stay
+  labelled as a replay everywhere it is shown.
 - Podcast data is read-only.

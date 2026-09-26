@@ -12,42 +12,41 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { SectionLabel } from '@/components/ui/SectionLabel';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
-import {
-  BASESCAN_URL,
-  DECISION_RULE_COPY,
-  EXCHANGE_HACK_THRESHOLD,
-  LAYA_MODEL,
-  LAYA_SNAPSHOT,
-} from '@/config/aiWalletDemo';
+import { BASESCAN_URL, FIXED_ACTION_COPY } from '@/config/aiWalletDemo';
 import {
   basescanTxUrl,
   formatRelativeTime,
   type AgentTransaction,
 } from '@/integration/agentActivity';
 import {
+  ANALYSIS_NOT_PROVIDED,
   AWAITING_FIRST_ACTION_DETAIL,
   formatProbability,
 } from '@/integration/agentLoopModel';
+import {
+  LAYA_PRESSURES,
+  type LayaAnalysis,
+} from '@/integration/agentRunContext';
 import { truncateAddress } from '@/lib/format';
 
 interface DecisionCardProps {
-  headline: string;
-  headlineIsLive: boolean;
+  /** `null` when the page was opened without a run link. */
+  headline: string | null;
   headlineLoading: boolean;
+  analysis: LayaAnalysis | null;
   latestDeposit: AgentTransaction | null;
   nowMs: number;
-  onWatchStory: () => void;
+  onWatchStory: (() => void) | null;
 }
 
-const PRESSURE_ROWS = [
-  { label: 'Upward', value: LAYA_SNAPSHOT.ethPressure.upward, chosen: true },
-  { label: 'None', value: LAYA_SNAPSHOT.ethPressure.none, chosen: false },
-  {
-    label: 'Downward',
-    value: LAYA_SNAPSHOT.ethPressure.downward,
-    chosen: false,
-  },
-] as const;
+const PRESSURE_LABELS = {
+  upward: 'Upward',
+  downward: 'Downward',
+  none: 'None',
+} as const;
+
+const RUN_LINK_HINT =
+  "Open the dashboard link from the agent's terminal or Telegram message to see the story it read.";
 
 function toPercent(probability: number): number {
   return probability * 100;
@@ -55,15 +54,15 @@ function toPercent(probability: number): number {
 
 export function DecisionCard({
   headline,
-  headlineIsLive,
   headlineLoading,
+  analysis,
   latestDeposit,
   nowMs,
   onWatchStory,
 }: DecisionCardProps) {
   return (
     <Card className="p-5">
-      <CardHeading eyebrow="Decision" title="Why the agent moved" />
+      <CardHeading eyebrow="This run" title="What the agent read" />
 
       <View className="mt-4 rounded-2xl border border-line bg-[rgba(255,255,255,.03)] p-4">
         <View className="flex-row flex-wrap items-center justify-between gap-2">
@@ -75,10 +74,8 @@ export function DecisionCard({
             />
             <SectionLabel>Fed to Chain · headline</SectionLabel>
           </View>
-          {headlineLoading ? null : (
-            <StatusBadge tone={headlineIsLive ? 'live' : 'snapshot'}>
-              {headlineIsLive ? 'Live feed' : 'Snapshot'}
-            </StatusBadge>
+          {headline === null || headlineLoading ? null : (
+            <StatusBadge tone="live">Live feed</StatusBadge>
           )}
         </View>
         {headlineLoading ? (
@@ -86,6 +83,8 @@ export function DecisionCard({
             <SkeletonBlock className="h-5 w-full rounded-md" />
             <SkeletonBlock className="h-5 w-3/4 rounded-md" />
           </View>
+        ) : headline === null ? (
+          <NotProvided hint={RUN_LINK_HINT} />
         ) : (
           <Text className="mt-2.5 font-serif text-[22px] leading-[27px] text-ink">
             {headline}
@@ -96,47 +95,28 @@ export function DecisionCard({
       <View className="mt-5">
         <View className="flex-row flex-wrap items-center justify-between gap-2">
           <View className="flex-row items-center gap-2">
-            <SectionLabel>Laya&apos;s read</SectionLabel>
+            <SectionLabel>Laya&apos;s analysis</SectionLabel>
             <Text className="font-mono text-[10px] text-ink-faint">
-              {LAYA_MODEL}
+              local model · context only
             </Text>
           </View>
-          <StatusBadge tone="snapshot">Snapshot</StatusBadge>
+          {analysis === null ? null : (
+            <StatusBadge tone="snapshot">From run link</StatusBadge>
+          )}
         </View>
-
-        <Text className="mt-3 text-[12.5px] text-ink-dim">
-          Is this an exchange hack?
-        </Text>
-        <ProbabilityRow
-          label="Yes"
-          probability={LAYA_SNAPSHOT.exchangeHack.yes}
-          chosen
-          threshold={EXCHANGE_HACK_THRESHOLD}
-        />
-        <Text className="ml-[80px] mt-1 font-mono text-[9.5px] text-ink-faint">
-          Marker = rule threshold (≥{' '}
-          {Math.round(toPercent(EXCHANGE_HACK_THRESHOLD))}%)
-        </Text>
-
-        <Text className="mt-4 text-[12.5px] text-ink-dim">
-          Which way does it push ETH?
-        </Text>
-        {PRESSURE_ROWS.map((row) => (
-          <ProbabilityRow
-            key={row.label}
-            label={row.label}
-            probability={row.value}
-            chosen={row.chosen}
-          />
-        ))}
+        {analysis === null ? (
+          <NotProvided hint="The agent acts the same way without it." />
+        ) : (
+          <LayaAnalysisRows analysis={analysis} />
+        )}
       </View>
 
       <View className="mt-5 flex-row gap-3 rounded-2xl border border-[rgba(212,197,163,.22)] bg-[rgba(212,197,163,.05)] p-4">
         <Scale size={16} color={tokens.color.accent} strokeWidth={1.8} />
         <View className="min-w-0 flex-1">
-          <SectionLabel className="text-[#9a8f78]">Fixed rule</SectionLabel>
+          <SectionLabel className="text-[#9a8f78]">Fixed action</SectionLabel>
           <Text className="mt-1.5 text-[12.5px] leading-[19px] text-ink">
-            {DECISION_RULE_COPY}
+            {FIXED_ACTION_COPY}
           </Text>
         </View>
       </View>
@@ -169,17 +149,64 @@ export function DecisionCard({
         )}
       </View>
 
-      <PrimaryButton
-        variant="secondary"
-        className="mt-5"
-        accessibilityRole="button"
-        accessibilityLabel="Watch the story"
-        onPress={onWatchStory}
-      >
-        <Play size={15} color={tokens.color.ink} fill={tokens.color.ink} />
-        Watch the story
-      </PrimaryButton>
+      {onWatchStory === null ? null : (
+        <PrimaryButton
+          variant="secondary"
+          className="mt-5"
+          accessibilityRole="button"
+          accessibilityLabel="Watch the story"
+          onPress={onWatchStory}
+        >
+          <Play size={15} color={tokens.color.ink} fill={tokens.color.ink} />
+          Watch the story
+        </PrimaryButton>
+      )}
     </Card>
+  );
+}
+
+function NotProvided({ hint }: { hint: string }) {
+  return (
+    <View className="mt-2.5">
+      <Text className="font-sans-semibold text-[14px] text-ink-dim">
+        {ANALYSIS_NOT_PROVIDED}
+      </Text>
+      <Text className="mt-1 text-[11.5px] leading-[17px] text-ink-faint">
+        {hint}
+      </Text>
+    </View>
+  );
+}
+
+function LayaAnalysisRows({ analysis }: { analysis: LayaAnalysis }) {
+  const pressures = LAYA_PRESSURES.flatMap((key) => {
+    const probability = analysis.probabilities[key];
+    return probability === undefined ? [] : [{ key, probability }];
+  });
+  return (
+    <>
+      <Text className="mt-3 text-[12.5px] text-ink-dim">
+        Is this an exchange hack?
+      </Text>
+      <ProbabilityRow label="Yes" probability={analysis.exchangeHack} chosen />
+      <Text className="mt-4 text-[12.5px] text-ink-dim">
+        Which way does it push ETH?
+      </Text>
+      {pressures.length === 0 ? (
+        <Text className="mt-2 text-[12px] text-ink">
+          {PRESSURE_LABELS[analysis.pressure]}
+        </Text>
+      ) : (
+        pressures.map(({ key, probability }) => (
+          <ProbabilityRow
+            key={key}
+            label={PRESSURE_LABELS[key]}
+            probability={probability}
+            chosen={key === analysis.pressure}
+          />
+        ))
+      )}
+    </>
   );
 }
 
@@ -187,12 +214,10 @@ function ProbabilityRow({
   label,
   probability,
   chosen,
-  threshold,
 }: {
   label: string;
   probability: number;
   chosen: boolean;
-  threshold?: number;
 }) {
   const value = toPercent(probability);
   const valueLabel = formatProbability(probability);
@@ -214,13 +239,6 @@ function ProbabilityRow({
           accessibilityLabel={`${label} ${valueLabel}`}
           fillClassName={chosen ? 'bg-accent' : 'bg-ink-faint'}
         />
-        {threshold === undefined ? null : (
-          <View
-            pointerEvents="none"
-            className="absolute bottom-0 top-0 w-[2px] rounded-full bg-ink"
-            style={{ left: `${toPercent(threshold)}%`, opacity: 0.7 }}
-          />
-        )}
       </View>
       <Text
         className={

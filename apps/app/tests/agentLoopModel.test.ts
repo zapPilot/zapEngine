@@ -9,10 +9,12 @@ import {
   isNewDeposit,
   type AgentLoopPlayback,
 } from '@/integration/agentLoopModel';
+import type { LayaAnalysis } from '@/integration/agentRunContext';
 
-const LAYA = {
-  exchangeHack: { yes: 0.9587 },
-  ethPressure: { upward: 0.7751, downward: 0.1255, none: 0.0993 },
+const LAYA: LayaAnalysis = {
+  exchangeHack: 0.9587,
+  pressure: 'upward',
+  probabilities: { upward: 0.7751, downward: 0.1255, none: 0.0993 },
 };
 
 function tones(playback: AgentLoopPlayback | null, hasDeposit: boolean) {
@@ -22,12 +24,12 @@ function tones(playback: AgentLoopPlayback | null, hasDeposit: boolean) {
 }
 
 describe('agentLoopSteps', () => {
-  it('lists the eight loop steps in order with the Laya snapshot in the decision', () => {
+  it('lists the eight loop steps in order with the run analysis as context', () => {
     const steps = agentLoopSteps(LAYA);
     expect(steps.map((step) => step.label)).toEqual([
       'News in',
-      'Laya decides',
-      'Rule fires',
+      'Laya analyzes',
+      'Fixed action',
       'Plan & Tenderly review',
       'Composed via MultiBaas',
       'Signed & broadcast',
@@ -37,6 +39,15 @@ describe('agentLoopSteps', () => {
     expect(steps[1]?.detail).toBe(
       'Exchange hack 95.9% · upward ETH pressure 77.5%',
     );
+    expect(steps[2]?.detail).toContain('never model-chosen');
+  });
+
+  it('says the analysis was not provided instead of inventing one', () => {
+    expect(agentLoopSteps(null)[1]?.detail).toBe('Analysis not provided');
+    expect(
+      agentLoopSteps({ ...LAYA, pressure: 'none', probabilities: {} })[1]
+        ?.detail,
+    ).toBe('Exchange hack 95.9% · none ETH pressure');
   });
 });
 

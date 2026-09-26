@@ -8,6 +8,7 @@ import { localPaths } from './config/local.js';
 import { main } from './main.js';
 import { approvedReview } from './test-utils/fixtures.js';
 
+const EPISODE = '11111111-1111-4111-8111-111111111111';
 const env = () => ({
   accountUrl: 'https://account.example',
   podcastUrl: 'https://podcast.example',
@@ -51,6 +52,8 @@ function router() {
       });
     if (url.endsWith('/plan-orchestration/deposit/review'))
       return json(approvedReview(true));
+    if (url.includes(`/episodes/${EPISODE}`))
+      return json({ id: EPISODE, title: 'Bitget hacked', script: 'text' });
     if (url.endsWith('/contracts')) return json({ status: 200, result: [] });
     return json({ status: 200, result: null });
   });
@@ -78,7 +81,7 @@ describe('CLI entry', () => {
       fetcher,
       log: (line) => lines.push(line),
     });
-    await main(['demo'], {
+    await main(['demo', '--episode', EPISODE], {
       paths,
       fetcher,
       env,
@@ -89,6 +92,7 @@ describe('CLI entry', () => {
     const output = lines.join('\n');
     expect(output).toContain('MultiBaas setup complete');
     expect(output).toContain('Laya     exchange hack 96%');
+    expect(output).toContain('News     Bitget hacked');
     // The fixture review is for another wallet, so the guard must block it.
     expect(output).toContain('Outcome: blocked');
     expect(output).not.toContain(key.slice(2));
@@ -101,15 +105,11 @@ describe('CLI entry', () => {
     const { paths } = await initialized();
     const fetcher = router();
     await expect(
-      main(
-        [
-          'demo',
-          '--episode',
-          '11111111-1111-4111-8111-111111111111',
-          '--execute',
-        ],
-        { paths, fetcher, env },
-      ),
+      main(['demo', '--episode', EPISODE, '--execute'], {
+        paths,
+        fetcher,
+        env,
+      }),
     ).rejects.toThrow('Telegram needs');
     expect(fetcher).not.toHaveBeenCalled();
   });

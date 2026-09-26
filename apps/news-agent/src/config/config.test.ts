@@ -59,6 +59,7 @@ describe('arguments', () => {
     expect(argumentsFor(['multibaas-setup']).command).toBe('multibaas-setup');
   });
   it.each([
+    [['demo']],
     [['demo', '--execute']],
     [['demo', '--replay', hash]],
     [['demo', '--episode', episode, '--execute', '--replay', hash]],

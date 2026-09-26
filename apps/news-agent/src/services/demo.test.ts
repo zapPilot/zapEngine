@@ -105,25 +105,37 @@ function setup(review = approvedReview(true)) {
 }
 
 describe('single-shot demo', () => {
-  it('dry-runs the built-in fixture without composing or signing', async () => {
+  it('dry-runs any episode without composing or signing', async () => {
     const { deps, lines, multibaas } = setup();
-    expect(await runDemo({ execute: false }, deps)).toBe('dry-run');
-    expect(deps.episode).not.toHaveBeenCalled();
+    expect(await runDemo({ episode, execute: false }, deps)).toBe('dry-run');
+    expect(deps.episode).toHaveBeenCalledWith(episode);
     expect(multibaas.compose).not.toHaveBeenCalled();
     expect(deps.sign).not.toHaveBeenCalled();
-    expect(lines.join('\n')).toContain('built-in fixture, dry-run only');
+    const output = lines.join('\n');
+    expect(output).toContain('fixed, not chosen by Laya');
+    expect(output).toContain(
+      `https://v2.zap-pilot.org/ai-wallet?episode=${episode}&hack=0.9400&eth=upward&upward=0.8000`,
+    );
   });
-  it('sends nothing when Laya does not fire the rule', async () => {
-    for (const verdict of [
-      { ...yes, exchangeHack: 0.79 },
-      { ...yes, pressure: 'none' as const },
-    ]) {
-      const { deps } = setup();
-      deps.laya.mockResolvedValue(verdict);
-      expect(await runDemo({ episode, execute: true }, deps)).toBe('skipped');
-      expect(deps.review).not.toHaveBeenCalled();
-      expect(deps.sign).not.toHaveBeenCalled();
-    }
+  it('proceeds with the fixed action whatever Laya concludes', async () => {
+    const { deps } = setup();
+    deps.laya.mockResolvedValue({
+      ...yes,
+      exchangeHack: 0.01,
+      pressure: 'downward',
+    });
+    expect(await runDemo({ episode, execute: true }, deps)).toBe('confirmed');
+  });
+  it('keeps going without analysis when Laya is unavailable', async () => {
+    const { deps, lines } = setup();
+    deps.laya.mockRejectedValue(new Error('fetch failed'));
+    expect(await runDemo({ episode, execute: true }, deps)).toBe('confirmed');
+    expect(lines.join('\n')).toContain(
+      'analysis unavailable (Error: fetch failed); continuing without it',
+    );
+    const [text] = deps.notify.mock.calls[0]!;
+    expect(text).toContain('🧠 Laya analysis: not available');
+    expect(text).toContain(`ai-wallet?episode=${episode}\n`);
   });
   it('stops when the guard blocks the review', async () => {
     const review = approvedReview(true);
@@ -152,7 +164,7 @@ describe('single-shot demo', () => {
     });
     const [text, preview] = deps.notify.mock.calls[0]!;
     expect(preview).toBe(`https://podcast.example/e/${episode}?lang=en`);
-    expect(text).toContain('🚨 Zap Agent acted on breaking news');
+    expect(text).toContain('🚨 Zap Agent acted on the news');
     expect(text).toContain('https://basescan.org/tx/0x');
     expect(text).toContain('1.00 USDC in vault · 2.00 USDC idle');
     expect(lines.join('\n')).toContain('MultiBaas event index has Deposit');
@@ -264,16 +276,19 @@ describe('single-shot demo', () => {
       expect(deps.notify).not.toHaveBeenCalled();
     }
   });
-  it('omits the story link without an episode', () => {
+  it('describes a partial Laya distribution without inventing values', () => {
     const text = message({
       news: { title: 'x' },
-      verdict: { ...yes, pressureProbabilities: {} },
+      analysis: { ...yes, pressureProbabilities: {} },
       hash,
       position: { vault: 0n, idle: 0n },
-      options: { execute: false },
-      deps: { smartLink: () => 'unused' },
+      options: { episode, execute: false },
+      deps: { smartLink: () => 'https://podcast.example/e/x' },
     });
-    expect(text).not.toContain('Watch the story');
     expect(text).toContain('ETH pressure upward 0%');
+    expect(text).toContain(
+      `ai-wallet?episode=${episode}&hack=0.9400&eth=upward\n`,
+    );
+    expect(text).toContain('Watch the story: https://podcast.example/e/x');
   });
 });

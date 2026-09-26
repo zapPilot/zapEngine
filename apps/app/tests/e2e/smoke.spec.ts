@@ -3,9 +3,11 @@ import { expect, test, type Page } from '@playwright/test';
 import {
   AGENT_ADDRESS,
   BASE_RPC_URLS,
-  DEMO_EPISODE_ID,
   VAULT_ADDRESS,
 } from '../../src/config/aiWalletDemo';
+
+const RUN_EPISODE_ID = '11111111-1111-4111-8111-111111111111';
+const RUN_LINK = `/ai-wallet?episode=${RUN_EPISODE_ID}&hack=0.9500&eth=upward&upward=0.7800&downward=0.1200&none=0.1000`;
 
 const PODCAST_FIXTURE = {
   items: [
@@ -258,14 +260,16 @@ async function routeAiWalletSources(page: Page): Promise<void> {
       });
     },
   );
-  if (DEMO_EPISODE_ID !== '') {
-    await page.route(
-      `**/episodes/${encodeURIComponent(DEMO_EPISODE_ID)}?**`,
-      async (route) => {
-        await route.fulfill({ status: 404, body: 'not found' });
-      },
-    );
-  }
+  await page.route(`**/episodes/${RUN_EPISODE_ID}?**`, async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ...PODCAST_FIXTURE.items[0],
+        id: RUN_EPISODE_ID,
+        title: 'E2E agent story',
+      }),
+    });
+  });
 }
 
 async function routePodcastFeed(page: Page): Promise<void> {
@@ -500,10 +504,16 @@ test('renders the web app shell and primary routes without page errors', async (
     await expect(page.getByText('Sign in to continue')).toHaveCount(0);
     await expect(page.getByText('Guardrails', { exact: true })).toBeVisible();
     await expect(page.getByText('Spend cap $5')).toBeVisible();
-    await expect(page.getByText('Laya decides')).toBeVisible();
+    await expect(
+      page.getByText('Laya analyzes', { exact: true }),
+    ).toBeVisible();
+    await expect(page.getByText('Analysis not provided')).toBeVisible();
+    await expect(page.getByText('Not provided', { exact: true })).toHaveCount(
+      2,
+    );
     await expect(
       page.getByRole('button', { name: 'Watch the story' }),
-    ).toBeVisible();
+    ).toHaveCount(0);
 
     const replayButton = page.getByRole('button', { name: 'Replay last run' });
     await expect(replayButton).toBeVisible();
@@ -527,6 +537,19 @@ test('renders the web app shell and primary routes without page errors', async (
     expect(documentMetrics.scrollWidth).toBeLessThanOrEqual(
       documentMetrics.clientWidth + 1,
     );
+  });
+
+  await test.step('AI Wallet shows the story and analysis from a run link', async () => {
+    await page.goto(RUN_LINK);
+    await expectHealthyRoute(page);
+    await expect(page.getByText('E2E agent story')).toBeVisible();
+    await expect(page.getByText('From run link')).toBeVisible();
+    await expect(
+      page.getByText('Exchange hack 95.0% · upward ETH pressure 78.0%'),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Watch the story' }),
+    ).toBeVisible();
   });
 
   await test.step('locked tabs start sign-in without leaving the guest route', async () => {

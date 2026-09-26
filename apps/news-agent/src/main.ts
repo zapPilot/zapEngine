@@ -83,7 +83,7 @@ export async function main(
   );
   const podcast = createPodcast(http, env.podcastUrl);
   const outcome = await runDemo(
-    { episode: args.episode, execute: args.execute, replay: args.replay },
+    { episode: args.episode!, execute: args.execute, replay: args.replay },
     {
       wallet: account.address,
       log,

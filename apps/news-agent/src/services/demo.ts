@@ -11,18 +11,11 @@ import {
   type TransactionSerializableEIP1559,
 } from 'viem';
 
+import { describeError } from '../lib/errors.js';
 import type { LayaVerdict } from '../lib/laya.js';
 import type { ComposedTx, Multibaas } from '../lib/multibaas.js';
 import type { Episode } from '../lib/podcast.js';
-import {
-  DASHBOARD_URL,
-  FIXTURE,
-  HACK_THRESHOLD,
-  RULE_ID,
-  ruleFires,
-  USDC,
-  VAULT,
-} from './demoRule.js';
+import { dashboardUrl, RULE_ID, USDC, VAULT } from './demoRule.js';
 import { guard, vaultAbi } from './guard.js';
 import { DEPOSIT_EVENT, LABELS } from './multibaasSetup.js';
 
@@ -32,7 +25,7 @@ const RECEIPT_TIMEOUT_MS = 90_000;
 const INDEX_TIMEOUT_MS = 60_000;
 
 export interface DemoOptions {
-  episode?: string;
+  episode: string;
   execute: boolean;
   replay?: Hex;
 }
@@ -52,12 +45,7 @@ export interface DemoDeps {
   notify: (text: string, previewUrl: string) => Promise<void>;
   smartLink: (episodeId: string) => string;
 }
-export type DemoOutcome =
-  | 'skipped'
-  | 'blocked'
-  | 'dry-run'
-  | 'confirmed'
-  | 'replayed';
+export type DemoOutcome = 'blocked' | 'dry-run' | 'confirmed' | 'replayed';
 
 const pct = (value: number | undefined) => `${Math.round((value ?? 0) * 100)}%`;
 const usdc = (value: bigint) => Number(formatUnits(value, 6)).toFixed(2);
@@ -69,25 +57,15 @@ export async function runDemo(
   deps: DemoDeps,
 ): Promise<DemoOutcome> {
   const { log } = deps;
-  const news = options.episode ? await deps.episode(options.episode) : FIXTURE;
+  const news = await deps.episode(options.episode);
+  log(`📰 News     ${news.title}`);
+  const analysis = await analyze(news, deps);
   log(
-    `📰 News     ${news.title}${options.episode ? '' : '  (built-in fixture, dry-run only)'}`,
+    `🎯 Action   ${RULE_ID}: deposit exactly 1 USDC into the Spark USDC vault on Base (fixed, not chosen by Laya)`,
   );
-  const verdict = await deps.laya(news.title, news.script);
-  log(
-    `🧠 Laya     exchange hack ${pct(verdict.exchangeHack)} · ETH pressure ${verdict.pressure} ${pct(verdict.pressureProbabilities[verdict.pressure])}  (${verdict.model}, local)`,
-  );
-  if (!ruleFires(verdict)) {
-    log(
-      `⏸  Rule     not triggered: needs exchange hack ≥ ${pct(HACK_THRESHOLD)} and upward ETH pressure. No transaction.`,
-    );
-    return 'skipped';
-  }
-  log(
-    `⚡ Rule     ${RULE_ID} fired → deposit exactly 1 USDC into the Spark USDC vault on Base`,
-  );
+  log(`📊 Live     ${dashboardUrl(options.episode, analysis)}`);
   if (options.replay)
-    return replay(options.replay, options, news, verdict, deps);
+    return replay(options.replay, options, news, analysis, deps);
 
   const review = await deps.review();
   const group = review.reviews['chain-8453'];
@@ -113,12 +91,35 @@ export async function runDemo(
   await verifyIndexed(depositHash!, deps);
   const position = await readPosition(deps);
   await deps.notify(
-    message({ news, verdict, hash: depositHash!, position, options, deps }),
-    deps.smartLink(options.episode!),
+    message({ news, analysis, hash: depositHash!, position, options, deps }),
+    deps.smartLink(options.episode),
   );
   log('📨 Telegram sent with the story smart link');
   return 'confirmed';
 }
+
+// Analysis is context for people, never a gate: an unavailable or failing
+// Laya must not stop the fixed action.
+async function analyze(
+  news: { title: string; script: string },
+  deps: DemoDeps,
+): Promise<LayaVerdict | null> {
+  try {
+    const analysis = await deps.laya(news.title, news.script);
+    deps.log(
+      `🧠 Laya     ${describeAnalysis(analysis)}  (${analysis.model}, local)`,
+    );
+    return analysis;
+  } catch (error) {
+    deps.log(
+      `🧠 Laya     analysis unavailable (${describeError(error)}); continuing without it`,
+    );
+    return null;
+  }
+}
+
+const describeAnalysis = (analysis: LayaVerdict) =>
+  `exchange hack ${pct(analysis.exchangeHack)} · ETH pressure ${analysis.pressure} ${pct(analysis.pressureProbabilities[analysis.pressure])}`;
 
 function composeArgs(planned: PreparedTransaction) {
   const data = planned.data as Hex;
@@ -272,7 +273,7 @@ async function replay(
   hash: Hex,
   options: DemoOptions,
   news: { title: string },
-  verdict: LayaVerdict,
+  analysis: LayaVerdict | null,
   deps: DemoDeps,
 ): Promise<DemoOutcome> {
   const [tx, receipt] = await Promise.all([
@@ -298,8 +299,8 @@ async function replay(
   );
   const position = await readPosition(deps);
   await deps.notify(
-    message({ news, verdict, hash, position, options, deps }),
-    deps.smartLink(options.episode!),
+    message({ news, analysis, hash, position, options, deps }),
+    deps.smartLink(options.episode),
   );
   deps.log('📨 Telegram sent (marked as replay)');
   return 'replayed';
@@ -307,25 +308,23 @@ async function replay(
 
 export function message(input: {
   news: { title: string };
-  verdict: LayaVerdict;
+  analysis: LayaVerdict | null;
   hash: Hex;
   position: { vault: bigint; idle: bigint };
   options: DemoOptions;
   deps: Pick<DemoDeps, 'smartLink'>;
 }): string {
-  const { news, verdict, hash, position, options } = input;
+  const { news, analysis, hash, position, options } = input;
   return [
     options.replay
       ? "🔁 Replay of Zap Agent's last confirmed action (no new transaction)"
-      : '🚨 Zap Agent acted on breaking news',
+      : '🚨 Zap Agent acted on the news',
     `📰 ${news.title}`,
-    `🧠 Laya: exchange hack ${pct(verdict.exchangeHack)} · ETH pressure ${verdict.pressure} ${pct(verdict.pressureProbabilities[verdict.pressure])}`,
-    '⚡ Rule: deposit exactly 1 USDC into the Spark USDC vault (Morpho, Base)',
+    `🧠 Laya analysis: ${analysis ? describeAnalysis(analysis) : 'not available'}`,
+    '🎯 Fixed action: deposit exactly 1 USDC into the Spark USDC vault (Morpho, Base)',
     `✅ Confirmed on Base: ${basescan(hash)}`,
     `💼 Position: ${usdc(position.vault)} USDC in vault · ${usdc(position.idle)} USDC idle`,
-    `📊 Live dashboard: ${DASHBOARD_URL}`,
-    ...(options.episode
-      ? [`🎬 Watch the story: ${input.deps.smartLink(options.episode)}`]
-      : []),
+    `📊 Live dashboard: ${dashboardUrl(options.episode, analysis)}`,
+    `🎬 Watch the story: ${input.deps.smartLink(options.episode)}`,
   ].join('\n');
 }

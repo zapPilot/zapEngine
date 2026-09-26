@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo } from 'react';
 import { Text, useWindowDimensions, View } from 'react-native';
 
@@ -10,13 +10,7 @@ import { PulseDot } from '@/components/aiWallet/PulseDot';
 import { useAgentLoopPlayback } from '@/components/aiWallet/useAgentLoopPlayback';
 import { Pill } from '@/components/ui/Pill';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
-import {
-  AGENT_ADDRESS,
-  DEMO_EPISODE_ID,
-  DEMO_EPISODE_LANGUAGE,
-  FALLBACK_HEADLINE,
-  LAYA_SNAPSHOT,
-} from '@/config/aiWalletDemo';
+import { AGENT_ADDRESS, DEMO_EPISODE_LANGUAGE } from '@/config/aiWalletDemo';
 import { useNowTicker } from '@/hooks/useNowTicker';
 import {
   formatRelativeTime,
@@ -24,6 +18,7 @@ import {
   latestConfirmedDeposit,
 } from '@/integration/agentActivity';
 import { agentLoopSteps } from '@/integration/agentLoopModel';
+import { parseAgentRunContext } from '@/integration/agentRunContext';
 import {
   podcastEpisodeRoutePath,
   usePodcastEpisode,
@@ -35,16 +30,18 @@ import {
 } from '@/integration/useAgentActivity';
 
 const WIDE_LAYOUT_MIN_WIDTH = 900;
-const AGENT_LOOP_STEPS = agentLoopSteps(LAYA_SNAPSHOT);
 
 export function AiWalletScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const wide = width >= WIDE_LAYOUT_MIN_WIDTH;
   const nowMs = useNowTicker(true);
+  const params = useLocalSearchParams();
+  const run = useMemo(() => parseAgentRunContext(params), [params]);
+  const steps = useMemo(() => agentLoopSteps(run.analysis), [run.analysis]);
 
   const transactions = useAgentTransactions();
-  const episode = usePodcastEpisode(DEMO_EPISODE_ID, DEMO_EPISODE_LANGUAGE);
+  const episode = usePodcastEpisode(run.episodeId ?? '', DEMO_EPISODE_LANGUAGE);
 
   const latestDeposit = useMemo(
     () => latestConfirmedDeposit(transactions.data ?? []),
@@ -58,10 +55,11 @@ export function AiWalletScreen() {
   const { playback, replay } = useAgentLoopPlayback({
     latestDepositHash: latestDeposit?.hash ?? null,
     activityLoaded: transactions.isSuccess,
-    stepCount: AGENT_LOOP_STEPS.length,
+    stepCount: steps.length,
   });
 
   const liveHeadline = episode.data?.title.trim() ?? '';
+  const episodeId = run.episodeId;
 
   const hero = (
     <AgentHeroCard
@@ -74,21 +72,24 @@ export function AiWalletScreen() {
   );
   const decision = (
     <DecisionCard
-      headline={liveHeadline === '' ? FALLBACK_HEADLINE : liveHeadline}
-      headlineIsLive={liveHeadline !== ''}
+      headline={liveHeadline === '' ? null : liveHeadline}
       headlineLoading={episode.isLoading}
+      analysis={run.analysis}
       latestDeposit={latestDeposit}
       nowMs={nowMs}
-      onWatchStory={() =>
-        router.push(
-          podcastEpisodeRoutePath(DEMO_EPISODE_ID, DEMO_EPISODE_LANGUAGE),
-        )
+      onWatchStory={
+        episodeId === null
+          ? null
+          : () =>
+              router.push(
+                podcastEpisodeRoutePath(episodeId, DEMO_EPISODE_LANGUAGE),
+              )
       }
     />
   );
   const loop = (
     <AgentLoopCard
-      steps={AGENT_LOOP_STEPS}
+      steps={steps}
       playback={playback}
       latestDeposit={latestDeposit}
       nowMs={nowMs}
@@ -111,8 +112,9 @@ export function AiWalletScreen() {
       <View className="w-full max-w-[1200px] self-center">
         <AiWalletHeader lastActionMs={lastActionMs} nowMs={nowMs} />
         <Text className="mt-2 px-5 text-[13px] leading-5 text-ink-dim">
-          Reads the news, asks Laya, and moves exactly 1 USDC when a fixed rule
-          fires. Every step is checkable on Base.
+          Reads a news story, has local Laya analyze it, then makes one fixed,
+          guardrailed move: exactly 1 USDC into the Spark vault. Every step is
+          checkable on Base.
         </Text>
         {wide ? (
           <View className="mt-6 flex-row items-start gap-5 px-5">

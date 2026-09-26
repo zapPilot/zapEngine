@@ -1,9 +1,11 @@
 /** Pure state model for the AI Wallet "agent loop" timeline and its playback. */
 
+import type { LayaAnalysis } from '@/integration/agentRunContext';
+
 export type AgentLoopStepId =
   | 'news'
-  | 'decide'
-  | 'rule'
+  | 'analyze'
+  | 'action'
   | 'review'
   | 'compose'
   | 'sign'
@@ -16,11 +18,6 @@ export interface AgentLoopStep {
   id: AgentLoopStepId;
   label: string;
   detail: string;
-}
-
-export interface LayaAnswers {
-  exchangeHack: { yes: number };
-  ethPressure: { upward: number; downward: number; none: number };
 }
 
 /** `live` is reserved for a deposit that polling discovered on this page. */
@@ -42,12 +39,23 @@ export type DepositBaseline = { hash: string | null } | undefined;
 export const AWAITING_FIRST_ACTION_DETAIL =
   'Waiting for the first on-chain action';
 
-/** One decimal: the snapshot is real model output, so keep its precision. */
+/** One decimal: Laya's output is real model output, so keep its precision. */
 export function formatProbability(probability: number): string {
   return `${(probability * 100).toFixed(1)}%`;
 }
 
-export function agentLoopSteps(laya: LayaAnswers): readonly AgentLoopStep[] {
+export const ANALYSIS_NOT_PROVIDED = 'Not provided';
+
+function describeAnalysis(analysis: LayaAnalysis | null): string {
+  if (analysis === null)
+    return `Analysis ${ANALYSIS_NOT_PROVIDED.toLowerCase()}`;
+  const pressure = analysis.probabilities[analysis.pressure];
+  return `Exchange hack ${formatProbability(analysis.exchangeHack)} · ${analysis.pressure} ETH pressure${pressure === undefined ? '' : ` ${formatProbability(pressure)}`}`;
+}
+
+export function agentLoopSteps(
+  analysis: LayaAnalysis | null,
+): readonly AgentLoopStep[] {
   return [
     {
       id: 'news',
@@ -55,14 +63,14 @@ export function agentLoopSteps(laya: LayaAnswers): readonly AgentLoopStep[] {
       detail: 'A Fed to Chain story reaches the news agent',
     },
     {
-      id: 'decide',
-      label: 'Laya decides',
-      detail: `Exchange hack ${formatProbability(laya.exchangeHack.yes)} · upward ETH pressure ${formatProbability(laya.ethPressure.upward)}`,
+      id: 'analyze',
+      label: 'Laya analyzes',
+      detail: describeAnalysis(analysis),
     },
     {
-      id: 'rule',
-      label: 'Rule fires',
-      detail: 'Fixed rule maps the answers to exactly 1 USDC',
+      id: 'action',
+      label: 'Fixed action',
+      detail: 'Always exactly 1 USDC into the Spark vault, never model-chosen',
     },
     {
       id: 'review',
