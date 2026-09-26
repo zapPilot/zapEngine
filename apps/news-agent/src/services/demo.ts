@@ -11,8 +11,10 @@ import {
   formatUnits,
   type Hex,
   keccak256,
-  type TransactionSerializableEIP1559,
+  type SignedAuthorization,
+  type TransactionSerializableEIP7702,
 } from 'viem';
+import { encodeExecuteData } from 'viem/experimental/erc7821';
 
 import { describeError } from '../lib/errors.js';
 import type { LayaVerdict } from '../lib/laya.js';
@@ -20,6 +22,7 @@ import type { ComposedTx, Multibaas } from '../lib/multibaas.js';
 import type { Episode } from '../lib/podcast.js';
 import {
   dashboardUrl,
+  EIP7702_DELEGATE,
   ETH_VAULT,
   LIFI_DIAMOND,
   RULE_ID,
@@ -35,9 +38,12 @@ const MAX_GAS = 500_000n;
 // LI.FI quotes a generous gas limit for its routes (1.0–1.7M observed); unused
 // gas is not charged.
 const MAX_SWAP_GAS = 2_000_000n;
+// Covers the approvals, redeem, LI.FI swap and deposit in one type-4
+// transaction; unused gas is not charged.
+const MAX_BATCH_GAS = 5_000_000n;
+const BATCH_GAS_OVERHEAD = 150_000n;
 const MAX_FEE_PER_GAS = 1_000_000_000n;
 const RECEIPT_TIMEOUT_MS = 90_000;
-const VISIBLE_TIMEOUT_MS = 30_000;
 const INDEX_TIMEOUT_MS = 60_000;
 
 export interface DemoOptions {
@@ -67,7 +73,12 @@ export interface DemoDeps {
     Multibaas,
     'compose' | 'call' | 'submitSigned' | 'receipt' | 'transaction' | 'events'
   >;
-  sign: (tx: TransactionSerializableEIP1559) => Promise<Hex>;
+  signAuthorization: (authorization: {
+    address: `0x${string}`;
+    chainId: number;
+    nonce: number;
+  }) => Promise<SignedAuthorization>;
+  sign: (tx: TransactionSerializableEIP7702) => Promise<Hex>;
   notify: (text: string, previewUrl: string) => Promise<void>;
   smartLink: (episodeId: string) => string;
 }
@@ -79,19 +90,12 @@ interface Position {
   idle: bigint;
 }
 
-/** Nonce and fee caps of the last signed step; the swap continues from them. */
-interface RunState {
-  nonce: number | undefined;
+/** Nonce, gas and fee caps of the single atomic batch transaction. */
+interface BatchEnvelope {
+  nonce: number;
+  gas: bigint;
   maxFeePerGas: bigint;
   maxPriorityFeePerGas: bigint;
-}
-
-/** One transaction of the run: timeline steps 4–6 repeat for each. */
-interface StepContext {
-  review: PlanOrchestrationRotateReviewResponse;
-  deps: DemoDeps;
-  run: RunState;
-  transaction: AgentRunTransaction;
 }
 
 const pct = (value: number | undefined) => `${Math.round((value ?? 0) * 100)}%`;
@@ -171,35 +175,14 @@ export async function runDemo(
     return 'dry-run';
   }
 
-  const run: RunState = {
-    nonce: undefined,
-    maxFeePerGas: 0n,
-    maxPriorityFeePerGas: 0n,
-  };
-  const total = verdict.transactions.length;
-  let deposit: { hash: Hex; context: StepContext } | undefined;
-  for (const [position, planned] of verdict.transactions.entries()) {
-    const index = position + 1;
-    if (same(planned.to, LIFI_DIAMOND)) {
-      await executeSwap(planned, verdict.depositAmount, {
-        review,
-        deps,
-        run,
-        transaction: { kind: 'swap', index, total },
-      });
-      continue;
-    }
-    const call = composeArgs(planned);
-    const context: StepContext = {
-      review,
-      deps,
-      run,
-      transaction: { kind: call.step, index, total },
-    };
-    const hash = await executeComposed(planned, call, context);
-    if (call.step === 'deposit') deposit = { hash, context };
-  }
-  await verifyIndexed(deposit!.hash, deposit!.context);
+  const envelope = await composeBatch(verdict.transactions, deps);
+  const hash = await executeAtomicBatch(
+    verdict.transactions,
+    review,
+    envelope,
+    deps,
+  );
+  await verifyIndexed(hash, deps);
   emit(deps, {
     step: 'deliver',
     text: 'Reading the new position with MultiBaas view calls',
@@ -208,7 +191,7 @@ export async function runDemo(
   emit(deps, { step: 'deliver', text: describePosition(position) });
   emit(deps, { step: 'deliver', text: 'Sending the story to Telegram' });
   await deps.notify(
-    message({ news, analysis, hash: deposit!.hash, position, options, deps }),
+    message({ news, analysis, hash, position, options, deps }),
     deps.smartLink(options.episode),
   );
   log('📨 Telegram sent with the story smart link');
@@ -230,20 +213,6 @@ function emit(deps: DemoDeps, event: DemoProgress): void {
       `⚠️  Progress display failed (${describeError(error)}); the run continues`,
     );
   }
-}
-
-function report(
-  context: StepContext,
-  step: AgentRunStepId,
-  text: string,
-  extra: Pick<DemoProgress, 'link' | 'hash'> = {},
-): void {
-  emit(context.deps, {
-    step,
-    text,
-    transaction: context.transaction,
-    ...extra,
-  });
 }
 
 // Analysis is context for people, never a gate: an unavailable or failing
@@ -337,181 +306,156 @@ function recheck(
     throw new Error(`Guard re-check failed before signing: ${verdict.reason}`);
 }
 
-async function executeComposed(
-  planned: PreparedTransaction,
-  call: ComposeCall,
-  context: StepContext,
-): Promise<Hex> {
-  const { review, deps, run } = context;
-  const { log, multibaas, wallet } = deps;
-  const { step, alias, contract, args } = call;
-  report(
-    context,
-    'compose',
-    `Composing ${step} with MultiBaas (${alias}/${contract})`,
-  );
-  const composed = await multibaas.compose(alias, contract, step, args, wallet);
-  log(
-    `🧩 Compose  ${step} via MultiBaas (${alias}/${contract}, nonce ${composed.nonce}, gas ${composed.gas})`,
-  );
-  report(
-    context,
-    'compose',
-    `MultiBaas composed ${step} at nonce ${composed.nonce}, gas estimate ${composed.gas}`,
-  );
-  if (!matchesPlan(composed, planned, wallet))
-    throw new Error(
-      `MultiBaas ${step} differs from the reviewed plan; refusing to sign`,
+// MultiBaas composes each call it can estimate against current chain state and
+// must match the reviewed plan byte for byte. The LI.FI swap is aggregator
+// calldata, and the deposit spends USDC that the approve and swap create inside
+// this same batch, so both are signed exactly as reviewed on Tenderly.
+async function composeBatch(
+  transactions: readonly PreparedTransaction[],
+  deps: DemoDeps,
+): Promise<BatchEnvelope> {
+  const composed: ComposedTx[] = [];
+  let gas = BATCH_GAS_OVERHEAD;
+  for (const planned of transactions) {
+    if (same(planned.to, LIFI_DIAMOND)) {
+      if (
+        planned.gasLimit === undefined ||
+        BigInt(planned.gasLimit) > MAX_SWAP_GAS
+      )
+        throw new Error('LI.FI swap gas limit missing or outside demo bounds');
+      gas += BigInt(planned.gasLimit);
+      emit(deps, {
+        step: 'compose',
+        text: 'LI.FI route reused from the reviewed quote, byte for byte; MultiBaas cannot compose it',
+      });
+      continue;
+    }
+    const { step, alias, contract, args } = composeArgs(planned);
+    if (step === 'deposit') {
+      gas += MAX_GAS;
+      emit(deps, {
+        step: 'compose',
+        text: 'Deposit pinned from the reviewed plan; it spends USDC the approve and swap create inside this batch',
+      });
+      continue;
+    }
+    emit(deps, {
+      step: 'compose',
+      text: `Composing ${step} with MultiBaas (${alias}/${contract})`,
+    });
+    const transaction = await deps.multibaas.compose(
+      alias,
+      contract,
+      step,
+      args,
+      deps.wallet,
     );
-  report(
-    context,
-    'sign',
-    `Bytes match the reviewed plan; checking nonce, guard and gas bounds before signing ${step}`,
-  );
-  // A stale nonce means MultiBaas has not seen the previous step's block.
-  if (run.nonce !== undefined && composed.nonce !== run.nonce + 1)
-    throw new Error(
-      `MultiBaas ${step} nonce ${composed.nonce}, expected ${run.nonce + 1}; refusing to sign`,
+    if (!matchesPlan(transaction, planned, deps.wallet))
+      throw new Error(
+        `MultiBaas ${step} differs from the reviewed plan; refusing to sign`,
+      );
+    const estimated = BigInt(transaction.gas);
+    if (estimated > MAX_GAS)
+      throw new Error(`MultiBaas ${step} gas/fee outside demo bounds`);
+    // The first live deposit ran out of gas at exactly MultiBaas' estimate.
+    gas += (estimated * 3n) / 2n;
+    composed.push(transaction);
+    deps.log(
+      `🧩 Compose  ${step} via MultiBaas (${alias}/${contract}, nonce ${transaction.nonce}, gas ${transaction.gas})`,
     );
-  recheck(review, deps);
-  const estimated = BigInt(composed.gas);
-  // MultiBaas returns the exact estimate, and the vault deposit costs more once
-  // the mined block's state differs: the first live deposit ran out of gas at
-  // exactly the estimate. Unused gas is not charged.
-  const buffered = (estimated * 3n) / 2n;
-  const gas = buffered < MAX_GAS ? buffered : MAX_GAS;
-  const maxFeePerGas = BigInt(composed.gasFeeCap);
-  const maxPriorityFeePerGas = BigInt(composed.gasTipCap);
+    emit(deps, {
+      step: 'compose',
+      text: `MultiBaas composed ${step}; bytes match the reviewed plan`,
+    });
+  }
+
+  const first = composed[0];
+  if (!first) throw new Error('MultiBaas composed no transaction');
+  if (composed.some((transaction) => transaction.nonce !== first.nonce))
+    throw new Error('MultiBaas returned different nonces for one batch');
+  const maxFeePerGas = composed.reduce(
+    (max, tx) => (BigInt(tx.gasFeeCap) > max ? BigInt(tx.gasFeeCap) : max),
+    0n,
+  );
+  const maxPriorityFeePerGas = composed.reduce(
+    (max, tx) => (BigInt(tx.gasTipCap) > max ? BigInt(tx.gasTipCap) : max),
+    0n,
+  );
   if (
-    estimated > MAX_GAS ||
+    gas > MAX_BATCH_GAS ||
     maxFeePerGas > MAX_FEE_PER_GAS ||
     maxPriorityFeePerGas > maxFeePerGas
   )
-    throw new Error(`MultiBaas ${step} gas/fee outside demo bounds`);
-  const hash = await signAndConfirm(
-    step,
-    {
-      chainId: 8453,
-      type: 'eip1559',
-      to: composed.to as `0x${string}`,
-      data: composed.data as Hex,
-      value: BigInt(composed.value),
-      nonce: composed.nonce,
-      gas,
-      maxFeePerGas,
-      maxPriorityFeePerGas,
-    },
-    context,
-  );
-  Object.assign(run, {
-    nonce: composed.nonce,
-    maxFeePerGas,
-    maxPriorityFeePerGas,
-  });
-  // MultiBaas returns the receipt before its gas estimation sees that block,
-  // so composing the next step right away can revert on "exceeds allowance".
-  if (step === 'approve') {
-    const [spender, amount] = args as [string, string];
-    await waitUntilVisible(
-      `${alias} allowance`,
-      () =>
-        multibaas.call(alias, contract, 'allowance', [deps.wallet, spender]),
-      BigInt(amount),
-      context,
-    );
-  }
-  return hash;
+    throw new Error('Atomic EIP-7702 batch gas/fee outside demo bounds');
+  return { nonce: first.nonce, gas, maxFeePerGas, maxPriorityFeePerGas };
 }
 
-// The swap's calldata comes from the LI.FI quote and MultiBaas cannot compose
-// it. It is signed exactly as reviewed, continuing the nonce and fee caps of
-// the MultiBaas-composed redeem before it, and broadcast through MultiBaas.
-async function executeSwap(
-  planned: PreparedTransaction,
-  depositAmount: bigint,
-  context: StepContext,
+async function executeAtomicBatch(
+  transactions: readonly PreparedTransaction[],
+  review: PlanOrchestrationRotateReviewResponse,
+  envelope: BatchEnvelope,
+  deps: DemoDeps,
 ): Promise<Hex> {
-  const { review, deps, run } = context;
-  report(
-    context,
-    'compose',
-    'LI.FI route reused from the reviewed quote, byte for byte; MultiBaas cannot compose it',
-  );
-  if (run.nonce === undefined)
-    throw new Error('The swap must follow a MultiBaas-composed step');
-  if (planned.gasLimit === undefined || BigInt(planned.gasLimit) > MAX_SWAP_GAS)
-    throw new Error('LI.FI swap gas limit missing or outside demo bounds');
-  report(context, 'sign', 'Re-checking the guard before signing the swap');
   recheck(review, deps);
-  const readIdle = () =>
-    deps.multibaas.call(LABELS.usdc.alias, LABELS.usdc.contract, 'balanceOf', [
-      deps.wallet,
-    ]);
-  const idleBefore = await readIdle();
-  const nonce = run.nonce + 1;
-  deps.log(
-    `🔀 Swap     LI.FI route from the reviewed plan, byte for byte (nonce ${nonce}, gas ${planned.gasLimit})`,
-  );
-  const hash = await signAndConfirm(
-    'swap',
-    {
-      chainId: 8453,
-      type: 'eip1559',
-      to: planned.to as `0x${string}`,
-      data: planned.data as Hex,
-      value: BigInt(planned.value),
-      nonce,
-      gas: BigInt(planned.gasLimit),
-      maxFeePerGas: run.maxFeePerGas,
-      maxPriorityFeePerGas: run.maxPriorityFeePerGas,
-    },
-    context,
-  );
-  run.nonce = nonce;
-  // The deposit is composed next; MultiBaas must see the swapped USDC first.
-  await waitUntilVisible(
-    'swapped USDC',
-    readIdle,
-    idleBefore + depositAmount,
-    context,
-  );
-  return hash;
-}
-
-async function signAndConfirm(
-  step: string,
-  tx: TransactionSerializableEIP1559,
-  context: StepContext,
-): Promise<Hex> {
-  const { deps } = context;
-  const signed = await deps.sign(tx);
+  emit(deps, {
+    step: 'sign',
+    text: 'Guard re-checked; signing one EIP-7702 authorization and one atomic ERC-7821 batch locally',
+  });
+  const authorization = await deps.signAuthorization({
+    address: EIP7702_DELEGATE,
+    chainId: 8453,
+    // The same EOA submits the type-4 transaction, so its authorization nonce
+    // is the account nonce after this transaction consumes the current one.
+    nonce: envelope.nonce + 1,
+  });
+  const calls = transactions.map((transaction) => ({
+    to: transaction.to as `0x${string}`,
+    data: transaction.data as Hex,
+    value: BigInt(transaction.value),
+  }));
+  const signed = await deps.sign({
+    chainId: 8453,
+    type: 'eip7702',
+    to: deps.wallet,
+    data: encodeExecuteData({ calls }),
+    value: calls.reduce((sum, call) => sum + call.value, 0n),
+    nonce: envelope.nonce,
+    gas: envelope.gas,
+    maxFeePerGas: envelope.maxFeePerGas,
+    maxPriorityFeePerGas: envelope.maxPriorityFeePerGas,
+    authorizationList: [authorization],
+  });
   const hash = keccak256(signed);
   await deps.multibaas.submitSigned(signed);
   deps.log(
-    `✍️  Signed   ${step} locally, broadcast via MultiBaas → ${basescan(hash)}`,
+    `✍️  Signed   EIP-7702 atomic batch (${calls.length} calls) locally, broadcast via MultiBaas → ${basescan(hash)}`,
   );
-  report(context, 'sign', `Signed ${step} locally, broadcast via MultiBaas`, {
-    link: { label: 'Basescan', url: basescan(hash) },
+  emit(deps, {
+    step: 'sign',
+    text: `EIP-7702 atomic batch of ${calls.length} calls signed locally and submitted through MultiBaas`,
     hash,
   });
-  report(context, 'confirm', `Waiting for the ${step} receipt from MultiBaas`);
+
+  emit(deps, {
+    step: 'confirm',
+    text: 'Waiting for the atomic batch receipt from MultiBaas',
+  });
   const receipt = await waitForReceipt(hash, deps);
   if (!receipt)
     throw new Error(
-      `${step} ${hash} not confirmed within 90s; check Basescan, not retrying`,
+      `Atomic batch ${hash} not confirmed within 90s; check Basescan, not retrying`,
     );
   if (!isSuccess(receipt.data.status))
-    throw new Error(`${step} ${hash} reverted on-chain`);
+    throw new Error(`Atomic batch ${hash} reverted on-chain`);
   const block = BigInt(receipt.data.blockNumber);
   const events = (receipt.events ?? []).map((event) => event.name).join(', ');
   deps.log(
-    `✅ Confirmed ${step} in block ${block}${events ? ` · MultiBaas decoded: ${events}` : ''}`,
+    `✅ Confirmed atomic batch in block ${block}${events ? ` · MultiBaas decoded: ${events}` : ''}`,
   );
-  report(
-    context,
-    'confirm',
-    `Confirmed ${step} in block ${block}${events ? ` · MultiBaas decoded ${events}` : ''}`,
-  );
+  emit(deps, {
+    step: 'confirm',
+    text: `Atomic batch confirmed in block ${block}${events ? ` · MultiBaas decoded ${events}` : ''}`,
+  });
   return hash;
 }
 
@@ -527,37 +471,11 @@ async function waitForReceipt(hash: Hex, deps: DemoDeps) {
 
 // Waiting on a view call is a read, not a retry: the confirmed step is never
 // resubmitted, and the next one is not composed until MultiBaas sees it.
-async function waitUntilVisible(
-  what: string,
-  read: () => Promise<bigint>,
-  minimum: bigint,
-  context: StepContext,
-): Promise<void> {
-  const { deps } = context;
-  report(context, 'confirm', `Waiting until MultiBaas reads the ${what}`);
-  const deadline = deps.now() + VISIBLE_TIMEOUT_MS;
-  for (;;) {
-    const value = await read();
-    if (value >= minimum) {
-      deps.log(`🔓 Visible  ${what} ${value} reads back from MultiBaas`);
-      report(context, 'confirm', `MultiBaas reads ${what} ${value}`);
-      return;
-    }
-    if (deps.now() >= deadline)
-      throw new Error(
-        `Step confirmed but MultiBaas still reads ${what} ${value} after 30s; not composing the next step, not retrying`,
-      );
-    await deps.sleep(2_000);
-  }
-}
-
-async function verifyIndexed(hash: Hex, context: StepContext): Promise<void> {
-  const { deps } = context;
-  report(
-    context,
-    'confirm',
-    'Checking the MultiBaas event index for the Deposit event',
-  );
+async function verifyIndexed(hash: Hex, deps: DemoDeps): Promise<void> {
+  emit(deps, {
+    step: 'confirm',
+    text: 'Checking the MultiBaas event index for the Deposit event',
+  });
   const deadline = deps.now() + INDEX_TIMEOUT_MS;
   for (;;) {
     const events = await deps.multibaas
@@ -573,18 +491,20 @@ async function verifyIndexed(hash: Hex, context: StepContext): Promise<void> {
         .map((input) => `${input.name}=${String(input.value)}`)
         .join(' ');
       deps.log(`🔎 Indexed  MultiBaas event index has Deposit(${fields})`);
-      report(context, 'confirm', 'MultiBaas event index has the Deposit event');
+      emit(deps, {
+        step: 'confirm',
+        text: 'MultiBaas event index has the Deposit event',
+      });
       return;
     }
     if (deps.now() >= deadline) {
       deps.log(
         '⚠️  Indexed  MultiBaas has not indexed the Deposit event yet (indexer lag); the receipt is already confirmed',
       );
-      report(
-        context,
-        'confirm',
-        'MultiBaas has not indexed the Deposit event yet (indexer lag); the receipt is already confirmed',
-      );
+      emit(deps, {
+        step: 'confirm',
+        text: 'MultiBaas has not indexed the Deposit event yet (indexer lag); the receipt is already confirmed',
+      });
       return;
     }
     await deps.sleep(3_000);
@@ -630,13 +550,22 @@ async function replay(
     tx.data.to !== null && same(tx.data.to, USDC_VAULT)
       ? decodeFunctionData({ abi: erc4626Abi, data: tx.data.input as Hex })
       : undefined;
+  const directDeposit =
+    deposit?.functionName === 'deposit' && same(deposit.args[1], deps.wallet);
+  // An EIP-7702 batch calls the agent itself; its receipt carries the deposit.
+  const batchDeposit =
+    tx.data.to !== null &&
+    same(tx.data.to, deps.wallet) &&
+    (receipt?.events ?? []).some(
+      (event) =>
+        event.name === 'Deposit' && same(event.contract.address, USDC_VAULT),
+    );
   if (
     tx.isPending ||
     !receipt ||
     !isSuccess(receipt.data.status) ||
     !same(tx.from, deps.wallet) ||
-    deposit?.functionName !== 'deposit' ||
-    !same(deposit.args[1], deps.wallet)
+    !(directDeposit || batchDeposit)
   )
     throw new Error(
       `Replay ${hash} is not a confirmed agent → Spark vault deposit; nothing sent`,

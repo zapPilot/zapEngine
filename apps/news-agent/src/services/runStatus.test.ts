@@ -86,20 +86,18 @@ describe('run status', () => {
     }
   });
 
-  it('records only the deposit hash, from its broadcast on', () => {
+  it('records the atomic batch hash from its broadcast on', () => {
     const run = apply(started(), [
-      { step: 'sign', text: 'swap sent', transaction: swap, hash },
-      { step: 'confirm', text: 'waiting', transaction: swap },
+      { step: 'sign', text: 'signing', transaction: deposit },
     ]);
     expect(run.depositHash).toBeNull();
     const broadcast = applyProgress(run, {
       step: 'sign',
-      text: 'deposit sent',
-      transaction: deposit,
+      text: 'batch sent',
       hash,
     });
     expect(broadcast.depositHash).toBe(hash);
-    // Steps without a transaction (deliver) keep the last one.
+    // Later steps without a hash or transaction keep both.
     expect(
       applyProgress(broadcast, { step: 'deliver', text: 'sent' }),
     ).toMatchObject({ transaction: deposit, depositHash: hash });

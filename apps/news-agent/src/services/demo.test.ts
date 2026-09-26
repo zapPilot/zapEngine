@@ -4,6 +4,7 @@ import {
   AgentRunStatusSchema,
   type PlanOrchestrationRotateReviewResponse,
 } from '@zapengine/types/api';
+import { encodeExecuteData } from 'viem/experimental/erc7821';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { LayaVerdict } from '../lib/laya.js';
@@ -24,6 +25,7 @@ import {
   runDemo,
 } from './demo.js';
 import {
+  EIP7702_DELEGATE,
   ETH_VAULT,
   LIFI_DIAMOND as LIFI_ADDRESS,
   SHARES,
@@ -131,7 +133,8 @@ function setup(
   };
   const sign = async (to: string | null | undefined) => {
     chain.signed += 1;
-    if (to?.toLowerCase() === LIFI_DIAMOND.toLowerCase()) chain.idle += MIN_OUT;
+    // The atomic batch carries the LI.FI swap, which credits the USDC.
+    if (to?.toLowerCase() === wallet.toLowerCase()) chain.idle += MIN_OUT;
     return `0x02f8${chain.signed.toString(16).padStart(2, '0')}` as const;
   };
   const deps = {
@@ -150,6 +153,14 @@ function setup(
     laya: vi.fn(async () => yes),
     review: vi.fn(async () => review),
     multibaas,
+    signAuthorization: vi.fn<DemoDeps['signAuthorization']>(
+      async (authorization) => ({
+        ...authorization,
+        r: '0x01',
+        s: '0x02',
+        yParity: 0,
+      }),
+    ),
     sign: vi.fn<DemoDeps['sign']>(async (tx) => sign(tx.to)),
     notify: vi.fn<DemoDeps['notify']>(async () => undefined),
     smartLink: (id: string) => `https://podcast.example/e/${id}?lang=en`,
@@ -257,11 +268,12 @@ describe('single-shot demo', () => {
     delete review.reviews['chain-8453'];
     expect(await runDemo(execute, setup(review).deps)).toBe('blocked');
   });
-  it('approves, redeems, swaps, deposits, verifies the index and notifies', async () => {
+  it('signs one EIP-7702 batch, verifies the index and notifies', async () => {
     const { deps, lines, multibaas, review } = setup();
     expect(await runDemo(execute, deps)).toBe('confirmed');
 
-    // Every step but the LI.FI swap is composed by MultiBaas.
+    // MultiBaas composes what it can estimate now; the deposit depends on the
+    // approve and swap inside the same batch, so it is pinned from the plan.
     expect(
       multibaas.compose.mock.calls.map(([alias, , step, args]) => [
         alias,
@@ -271,24 +283,42 @@ describe('single-shot demo', () => {
     ).toEqual([
       ['weth', 'approve', [LIFI_DIAMOND, SWAP_FROM.toString()]],
       ['clearstarethvault', 'redeem', [SHARES.toString(), wallet, wallet]],
-      ['sparkusdcvault', 'deposit', [MIN_OUT.toString(), wallet]],
     ]);
-    expect(multibaas.submitSigned).toHaveBeenCalledTimes(4);
-    const signed = deps.sign.mock.calls.map(([tx]) => tx);
-    expect(signed.map((tx) => tx.nonce)).toEqual([5, 6, 7, 8]);
-    // The swap is the reviewed plan byte for byte, continuing the redeem's
-    // nonce and fee caps with LI.FI's own gas limit.
-    const swap = review.plan.calls[1]!;
-    expect(signed[2]).toEqual({
+    expect(deps.signAuthorization).toHaveBeenCalledWith({
+      address: EIP7702_DELEGATE,
       chainId: 8453,
-      type: 'eip1559',
-      to: swap.to,
-      data: swap.data,
+      nonce: FIRST_NONCE + 1,
+    });
+    expect(multibaas.submitSigned).toHaveBeenCalledTimes(1);
+    const planned = [...review.plan.approvals, ...review.plan.calls];
+    const [tx] = deps.sign.mock.calls.map(([signed]) => signed);
+    expect(tx).toEqual({
+      chainId: 8453,
+      type: 'eip7702',
+      to: wallet,
+      data: encodeExecuteData({
+        calls: planned.map((call) => ({
+          to: call.to as `0x${string}`,
+          data: call.data as `0x${string}`,
+          value: BigInt(call.value),
+        })),
+      }),
       value: 0n,
-      nonce: 7,
-      gas: 1_051_330n,
+      nonce: FIRST_NONCE,
+      // overhead + 1.5x each MultiBaas estimate + LI.FI limit + deposit budget
+      gas: 150_000n + 90_000n * 2n + 1_051_330n + 500_000n,
       maxFeePerGas: 10_000_000n,
       maxPriorityFeePerGas: 1_000n,
+      authorizationList: [
+        {
+          address: EIP7702_DELEGATE,
+          chainId: 8453,
+          nonce: FIRST_NONCE + 1,
+          r: '0x01',
+          s: '0x02',
+          yParity: 0,
+        },
+      ],
     });
 
     const [text, preview] = deps.notify.mock.calls[0]!;
@@ -299,71 +329,19 @@ describe('single-shot demo', () => {
     expect(text).toContain(
       '0.000300 WETH in Clearstar · 1.00 USDC in Spark · 1.67 USDC idle',
     );
-    const output = lines.join('\n');
-    expect(output).toContain('MultiBaas event index has Deposit');
-    expect(output).toContain(`swapped USDC ${IDLE_USDC + MIN_OUT}`);
+    expect(lines.join('\n')).toContain('MultiBaas event index has Deposit');
   });
-  it('composes the next step only once MultiBaas reads the allowance', async () => {
-    const { deps, multibaas } = setup();
-    multibaas.call.mockResolvedValueOnce(0n).mockResolvedValueOnce(SWAP_FROM);
-    expect(await runDemo(execute, deps)).toBe('confirmed');
-    const allowanceReads = multibaas.call.mock.calls.flatMap((call, index) =>
-      call[2] === 'allowance'
-        ? [
-            {
-              args: call[3],
-              order: multibaas.call.mock.invocationCallOrder[index]!,
-            },
-          ]
-        : [],
-    );
-    expect(allowanceReads.map((read) => read.args)).toEqual([
-      [wallet, LIFI_DIAMOND],
-      [wallet, LIFI_DIAMOND],
-    ]);
-    expect(multibaas.compose.mock.invocationCallOrder[1]).toBeGreaterThan(
-      allowanceReads.at(-1)!.order,
-    );
-  });
-  it('stops after the approve when MultiBaas never reads the allowance', async () => {
-    const { deps, multibaas } = setup();
-    multibaas.call.mockResolvedValue(0n);
-    await expect(runDemo(execute, deps)).rejects.toThrow(
-      'still reads weth allowance 0 after 30s; not composing the next step',
-    );
-    expect(multibaas.compose).toHaveBeenCalledTimes(1);
-    expect(multibaas.submitSigned).toHaveBeenCalledTimes(1);
-    expect(deps.notify).not.toHaveBeenCalled();
-  });
-  it('composes the deposit only once MultiBaas sees the swapped USDC', async () => {
-    const { deps, multibaas, chain } = setup();
-    // The swap lands on chain but MultiBaas keeps reading the old balance.
-    deps.sign.mockImplementation(async () => {
-      chain.signed += 1;
-      return `0x02f8${chain.signed.toString(16).padStart(2, '0')}`;
-    });
-    await expect(runDemo(execute, deps)).rejects.toThrow(
-      `still reads swapped USDC ${IDLE_USDC} after 30s`,
-    );
-    expect(multibaas.compose.mock.calls.map((call) => call[2])).toEqual([
-      'approve',
-      'redeem',
-    ]);
-    expect(multibaas.submitSigned).toHaveBeenCalledTimes(3);
-  });
-  it('refuses a composed step whose nonce is stale', async () => {
+  it('refuses a batch whose MultiBaas nonces disagree', async () => {
     const { deps, multibaas } = setup();
     const original = multibaas.compose.getMockImplementation()!;
     multibaas.compose
       .mockImplementationOnce(original)
       .mockImplementationOnce(async (...args) => ({
         ...(await original(...args)),
-        nonce: FIRST_NONCE,
+        nonce: FIRST_NONCE + 1,
       }));
-    await expect(runDemo(execute, deps)).rejects.toThrow(
-      'redeem nonce 5, expected 6; refusing to sign',
-    );
-    expect(deps.sign).toHaveBeenCalledTimes(1);
+    await expect(runDemo(execute, deps)).rejects.toThrow('different nonces');
+    expect(deps.sign).not.toHaveBeenCalled();
   });
   it.each([
     ['missing', undefined],
@@ -377,7 +355,7 @@ describe('single-shot demo', () => {
     await expect(runDemo(execute, deps)).rejects.toThrow(
       'LI.FI swap gas limit missing or outside demo bounds',
     );
-    expect(deps.sign).toHaveBeenCalledTimes(2);
+    expect(deps.sign).not.toHaveBeenCalled();
   });
   it('warns but still reports when the indexer lags', async () => {
     const { deps, lines, multibaas } = setup(
@@ -405,26 +383,6 @@ describe('single-shot demo', () => {
       );
       expect(deps.sign).not.toHaveBeenCalled();
     }
-  });
-  it('signs composed steps with a 1.5x gas buffer capped at the demo bound', async () => {
-    const { deps, multibaas } = setup();
-    const original = multibaas.compose.getMockImplementation()!;
-    multibaas.compose
-      .mockImplementationOnce(async (...args) => ({
-        ...(await original(...args)),
-        gas: 259_547,
-      }))
-      .mockImplementationOnce(async (...args) => ({
-        ...(await original(...args)),
-        gas: 400_000,
-      }));
-    expect(await runDemo(execute, deps)).toBe('confirmed');
-    expect(deps.sign.mock.calls.map(([tx]) => tx.gas)).toEqual([
-      389_320n,
-      500_000n,
-      1_051_330n,
-      90_000n,
-    ]);
   });
   it('refuses out-of-bounds gas and an expired re-check', async () => {
     const overGas = setup();
@@ -457,20 +415,6 @@ describe('single-shot demo', () => {
     expect(deps.sign).not.toHaveBeenCalled();
     expect(late.deps.sign).not.toHaveBeenCalled();
   });
-  it('re-checks the guard before signing the swap', async () => {
-    const { deps, advance } = setup();
-    const original = deps.sign.getMockImplementation()!;
-    deps.sign
-      .mockImplementationOnce(original)
-      .mockImplementationOnce(async (tx) => {
-        advance(300_000);
-        return original(tx);
-      });
-    await expect(runDemo(execute, deps)).rejects.toThrow(
-      'Guard re-check failed',
-    );
-    expect(deps.sign).toHaveBeenCalledTimes(2);
-  });
   it('reports a revert or a missing receipt without retrying', async () => {
     const reverted = setup();
     reverted.multibaas.receipt.mockReset().mockResolvedValue({
@@ -480,7 +424,7 @@ describe('single-shot demo', () => {
     await expect(runDemo(execute, reverted.deps)).rejects.toThrow(
       'reverted on-chain',
     );
-    expect(reverted.multibaas.compose).toHaveBeenCalledTimes(1);
+    expect(reverted.multibaas.submitSigned).toHaveBeenCalledTimes(1);
     expect(reverted.deps.notify).not.toHaveBeenCalled();
     const missing = setup();
     missing.multibaas.receipt.mockReset().mockResolvedValue(null);
@@ -535,7 +479,7 @@ describe('single-shot demo', () => {
       expect(deps.notify).not.toHaveBeenCalled();
     }
   });
-  it('reports each rotation transaction through steps 4–6 as Tx k/N', async () => {
+  it('reports one atomic batch through compose, sign and confirm', async () => {
     const review = approvedReview({ approveUsdc: true });
     review.reviews['chain-8453']!.shareUrls = [
       'https://dashboard.tenderly.co/shared/simulation/a',
@@ -552,47 +496,31 @@ describe('single-shot demo', () => {
       'news',
       'analyze',
       'intent',
-      ...Array.from({ length: 5 }, () => ['compose', 'sign', 'confirm']).flat(),
+      'compose',
+      'sign',
+      'confirm',
       'deliver',
     ]);
-    const composed = events.filter((event) => event.step === 'compose');
+    for (const event of events) expect(event.transaction).toBeUndefined();
     expect(
-      composed
-        .map((event) => event.transaction)
-        .filter((tx, index, all) => tx !== all[index - 1]),
-    ).toEqual([
-      { kind: 'approve', index: 1, total: 5 },
-      { kind: 'approve', index: 2, total: 5 },
-      { kind: 'redeem', index: 3, total: 5 },
-      { kind: 'swap', index: 4, total: 5 },
-      { kind: 'deposit', index: 5, total: 5 },
-    ]);
-    // Steps 4–6 always name their transaction; the others never do.
-    for (const event of events)
-      expect(event.transaction !== undefined).toBe(
-        ['compose', 'sign', 'confirm'].includes(event.step),
-      );
-    expect(
-      events.find((event) => event.transaction?.kind === 'swap')?.text,
-    ).toContain('byte for byte');
+      events.filter((event) => event.step === 'compose').map((e) => e.text),
+    ).toContain(
+      'LI.FI route reused from the reviewed quote, byte for byte; MultiBaas cannot compose it',
+    );
     expect(events.find((event) => event.step === 'intent')?.text).toContain(
       'not chosen by Laya',
     );
-    // URLs travel only as labelled links, never inside the text.
+    // URLs travel only as labelled links, never inside the text; the batch
+    // hash reaches the timeline once, as the confirm step's Basescan link.
     for (const event of events) expect(event.text).not.toMatch(/https?:/);
     expect(
       events.flatMap((event) => (event.link ? [event.link.label] : [])),
-    ).toEqual(['Tenderly', 'Tenderly', ...Array(5).fill('Basescan'), 'Story']);
+    ).toEqual(['Tenderly', 'Tenderly', 'Story']);
+    expect(events.filter((event) => event.hash)).toHaveLength(1);
 
     const status = timeline(deps, { outcome: 'confirmed' });
     expect(states(status)).toEqual(Array(7).fill('done'));
-    const depositBroadcast = events.find(
-      (event) => event.transaction?.kind === 'deposit' && event.hash,
-    )!;
-    expect(status.depositHash).toBe(depositBroadcast.hash);
-    expect(depositBroadcast.link?.url).toBe(
-      `https://basescan.org/tx/${depositBroadcast.hash}`,
-    );
+    expect(status.depositHash).toBe(events.find((event) => event.hash)!.hash);
     expect(status.steps.confirm.entries.at(-1)?.text).toBe(
       'MultiBaas event index has the Deposit event',
     );
@@ -620,32 +548,17 @@ describe('single-shot demo', () => {
       'waiting',
     ]);
   });
-  it('fails the confirm step and composes nothing more when MultiBaas never catches up', async () => {
+  it('fails the confirm step with the batch hash when the batch reverts', async () => {
     const { deps, multibaas } = setup();
-    multibaas.call.mockResolvedValue(0n);
+    multibaas.receipt.mockReset().mockResolvedValue({
+      ...receipt,
+      data: { ...receipt.data, status: '0x0' },
+    });
     const status = timeline(deps, await failure(runDemo(execute, deps)));
-    expect(status.steps.confirm.state).toBe('failed');
-    expect(status.error).toContain('still reads weth allowance 0 after 30s');
-    expect(status.transaction).toEqual({ kind: 'approve', index: 1, total: 4 });
-    expect(
-      progressOf(deps).filter((event) => event.step === 'compose'),
-    ).toHaveLength(2);
-    expect(multibaas.compose).toHaveBeenCalledTimes(1);
-  });
-  it('fails the confirm step with the deposit hash when the deposit reverts', async () => {
-    const { deps, multibaas } = setup();
-    multibaas.receipt
-      .mockReset()
-      .mockImplementation(async () =>
-        multibaas.submitSigned.mock.calls.length === 4
-          ? { ...receipt, data: { ...receipt.data, status: '0x0' } }
-          : receipt,
-      );
-    const status = timeline(deps, await failure(runDemo(execute, deps)));
-    expect(status.error).toContain('deposit');
+    expect(status.error).toContain('Atomic batch');
     expect(status.error).toContain('reverted on-chain');
     expect(status.steps.confirm.state).toBe('failed');
-    expect(status.transaction).toEqual({ kind: 'deposit', index: 4, total: 4 });
+    expect(status.transaction).toBeNull();
     expect(status.depositHash).toMatch(/^0x[0-9a-f]{64}$/);
     expect(deps.notify).not.toHaveBeenCalled();
   });
@@ -658,7 +571,7 @@ describe('single-shot demo', () => {
     expect(await runDemo(execute, broken.deps)).toBe(
       await runDemo(execute, normal.deps),
     );
-    expect(chainCalls(normal.deps).length).toBeGreaterThan(10);
+    expect(chainCalls(normal.deps).length).toBeGreaterThan(5);
     expect(chainCalls(broken.deps)).toEqual(chainCalls(normal.deps));
     expect(broken.deps.progress).toHaveBeenCalledTimes(
       normal.deps.progress.mock.calls.length,

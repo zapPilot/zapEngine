@@ -25,11 +25,15 @@ vi.mock('react-native', () => ({
   ActivityIndicator: ({ accessibilityLabel }: NativeProps) => (
     <div role="progressbar" aria-label={accessibilityLabel} />
   ),
+  Image: () => null,
   Linking: { openURL: vi.fn() },
 }));
+vi.mock('@/components/token/TokenIcon', () => ({ TokenIcon: () => null }));
 vi.mock('lucide-react-native', () => {
   const Icon = () => null;
   return {
+    ArrowDownRight: Icon,
+    ArrowUpRight: Icon,
     ChartNoAxesColumnIncreasing: Icon,
     Check: Icon,
     ChevronDown: Icon,
@@ -171,7 +175,21 @@ describe('AgentTimeline', () => {
     await click(intent);
     expect(intent.getAttribute('aria-expanded')).toBe('false');
     expect(view.textContent).not.toContain('plan-orchestration builds');
-    expect(view.textContent).toContain('final deposit is also looked up');
+    expect(view.textContent).toContain(
+      'deposit is also looked up in the MultiBaas event index',
+    );
+  });
+
+  it('names the sell decision only once the run reaches the intent step', async () => {
+    const before = await render({ playback: { mode: 'replay', index: 1 } });
+    expect(stepButton(before, 'Agent intent').textContent).not.toContain(
+      'Sell ETH',
+    );
+    await act(async () => root!.unmount());
+    const reached = await render({ run: running });
+    expect(stepButton(reached, 'Agent intent').textContent).toContain(
+      'Agent intent · Sell ETH',
+    );
   });
 
   it('opens a run entry link from its chip', async () => {
@@ -190,7 +208,7 @@ describe('AgentTimeline', () => {
     const progress = view.querySelectorAll('[role="progressbar"]');
     expect(progress).toHaveLength(1);
     expect(progress[0]?.getAttribute('aria-label')).toBe('Step 5 in progress');
-    expect(stepButton(view, 'Wallet signs locally').textContent).toContain(
+    expect(stepButton(view, 'EIP-7702 atomic batch').textContent).toContain(
       'Tx 3/5 · swap — Re-checking the guard before signing the swap',
     );
     expect(view.querySelector('[data-testid="pulse"]')).toBeNull();

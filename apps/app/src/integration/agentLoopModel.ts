@@ -35,17 +35,17 @@ const STEP_COPY: Readonly<Record<AgentLoopStepId, Omit<AgentLoopStep, 'id'>>> =
     compose: {
       label: 'MultiBaas composed · LI.FI swap routed',
       explanation:
-        'Each transaction runs steps 4–6 in turn. MultiBaas composes the approve, redeem and deposit calls, which must match the reviewed plan byte for byte. The LI.FI swap arrives as finished calldata from the quote and is signed unchanged.',
+        'MultiBaas composes the approve and redeem calls, which must match the reviewed plan byte for byte. The LI.FI swap arrives as finished calldata from the quote, and the deposit spends USDC created inside the same batch, so both are used exactly as Tenderly reviewed them.',
     },
     sign: {
-      label: 'Wallet signs locally',
+      label: 'EIP-7702 atomic batch',
       explanation:
-        "The agent's isolated key signs on this machine after re-checking the nonce, the guard and gas bounds. The signed transaction is broadcast through MultiBaas.",
+        "After re-checking the guard and gas bounds, the agent's isolated key signs one EIP-7702 authorization and one ERC-7821 batch on this machine. The single signed transaction is broadcast through MultiBaas.",
     },
     confirm: {
       label: 'Confirmed on Base',
       explanation:
-        'MultiBaas returns the receipt. The next transaction is composed only once MultiBaas reads the new state, and the final deposit is also looked up in the MultiBaas event index.',
+        'MultiBaas returns the one batch receipt: every call succeeds together or the whole batch reverts. The deposit is also looked up in the MultiBaas event index.',
     },
     deliver: {
       label: 'Video delivered',

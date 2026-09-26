@@ -10,6 +10,8 @@ export const ETH_VAULT = '0xBCA4E2E24A7cFa776E4282CC8Eb06f04738b71da';
 export const USDC_VAULT = '0x7BfA7C4f149E7415b73bdeDfe609237e29CBF34A';
 /** Target of every LI.FI swap; its calldata comes from the LI.FI quote. */
 export const LIFI_DIAMOND = '0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE';
+/** Audited MetaMask EIP-7702 delegate used as the atomic ERC-7821 executor. */
+export const EIP7702_DELEGATE = '0x63c0c19a282a1B52b07dD5a65b58948A07DAE32B';
 /** Clearstar shares rotated per run (18 decimals, ~0.0001 WETH). */
 export const SHARES = 100_000_000_000_000n;
 /** The story `serve` runs on every trigger; swap it to demo another one. */

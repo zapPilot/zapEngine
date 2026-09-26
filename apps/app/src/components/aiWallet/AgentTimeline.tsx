@@ -140,7 +140,10 @@ export function AgentTimeline({
                       )}
                       numberOfLines={2}
                     >
-                      {step.label}
+                      {/* The decision appears only once the run reaches it. */}
+                      {step.id === 'intent' && tone !== 'waiting'
+                        ? `${step.label} · Sell ETH`
+                        : step.label}
                     </Text>
                     {liveLine === null ? null : (
                       <Text

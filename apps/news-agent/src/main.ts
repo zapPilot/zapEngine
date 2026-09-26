@@ -128,6 +128,8 @@ export async function main(
           ),
         ),
       multibaas,
+      signAuthorization: (authorization) =>
+        account.signAuthorization(authorization),
       sign: (tx) => account.signTransaction(tx),
       notify: (text, previewUrl) =>
         createTelegram(http, token!)(chat!, text, previewUrl),

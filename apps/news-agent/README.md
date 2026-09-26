@@ -17,7 +17,7 @@ News (podcast API) → Laya analysis (local, non-blocking) → fixed action
   → plan-orchestration /rotate/review (intent-engine + LI.FI quote + Tenderly) → guard
   → per step: approve / redeem / deposit composed by MultiBaas, byte-equal to the plan
               LI.FI swap signed exactly as reviewed (MultiBaas cannot compose it)
-  → local EOA signs → MultiBaas submit → MultiBaas receipt
+  → local EOA signs one EIP-7702 atomic batch → MultiBaas submit → MultiBaas receipt
   → MultiBaas Deposit event index → MultiBaas view calls (position)
   → Telegram smart link → AI Wallet tab
 ```
@@ -53,13 +53,12 @@ interface; no other RPC is used by the CLI.
 | Setup     | `POST /contracts/{label}` uploads raw ABIs (`wethtoken`/`usdctoken` = viem `erc20Abi`, `clearstarethvault`/`sparkusdcvault` = viem `erc4626Abi`) |
 |           | `POST /chains/ethereum/addresses` aliases `weth`, `clearstarethvault`, `usdc` and `sparkusdcvault`                                               |
 |           | `POST /chains/ethereum/addresses/{alias}/contracts` links them with `startingBlock` = current block for the indexer                              |
-| Compose   | `POST …/addresses/{alias}/contracts/{label}/methods/{approve,redeem,deposit}` with `from` returns an unsigned EIP-1559 tx                        |
-| Broadcast | `POST /chains/ethereum/transactions/submit` with every locally signed raw tx, including the LI.FI swap                                           |
+| Compose   | `POST …/addresses/{alias}/contracts/{label}/methods/{approve,redeem}` with `from` returns the calldata, nonce, gas estimate and fee caps         |
+| Broadcast | `POST /chains/ethereum/transactions/submit` with the one locally signed EIP-7702 type-4 batch                                                    |
 | Confirm   | `GET /chains/ethereum/transactions/receipt/{hash}` (status + decoded `Approval`/`Withdraw`/`Transfer`/`Deposit` events)                          |
-| Wait      | view calls `allowance` after an approve and USDC `balanceOf` after the swap, before composing the next step                                      |
 | Index     | `GET /events?tx_hash=…&contract_label=sparkusdcvault&event_signature=Deposit(address,address,uint256,uint256)`                                   |
 | Read      | view calls `balanceOf` + `convertToAssets` (both vaults) and `balanceOf` (USDC) for the live position                                            |
-| Replay    | `GET /chains/ethereum/transactions/{hash}` + receipt to prove a past tx was a successful agent → Spark vault deposit                             |
+| Replay    | `GET /chains/ethereum/transactions/{hash}` + receipt to prove a past tx (direct or batch) made a successful agent → Spark vault deposit          |
 
 Safety properties of the MultiBaas integration:
 
@@ -73,18 +72,19 @@ Safety properties of the MultiBaas integration:
   `warning` with one `UNDECODED_METHOD` on the swap. The guard accepts that one
   warning and nothing else; any other warning, or a `failed`/`unavailable`
   review, blocks the run.
-- Approve, redeem and deposit are signed only if the MultiBaas-composed
-  `from/to/data/value` equal the reviewed plan. The LI.FI swap is never
-  re-encoded: its reviewed `to/data/value` are signed as-is with the next nonce
-  and the fee caps MultiBaas composed for the redeem. Every nonce must follow
-  the previous one.
-- Gas limits are 1.5x the MultiBaas estimate (capped at 500k), and the swap uses
-  LI.FI's own limit (capped at 2M). Unused gas is not charged.
-- The next step is composed only once MultiBaas reads the previous one: the
-  `allowance` after an approve and the swapped USDC after the swap, because
-  MultiBaas gas estimation lags its receipts. Waiting is a read, not a retry:
-  after 30 s the run stops without composing the next step. A stop between
-  steps leaves WETH or USDC idle in the agent wallet; nothing is lost.
+- The whole rotation is one EIP-7702 transaction: the agent authorizes the
+  MetaMask EIP-7702 delegate (`EIP7702_DELEGATE`) and calls its own ERC-7821
+  `execute` with every reviewed call in order. All calls succeed together or
+  the whole batch reverts; there is one hash and one Basescan link.
+- Approve and redeem are included only if the MultiBaas-composed
+  `from/to/data/value` equal the reviewed plan, and all compositions must
+  share one nonce. MultiBaas estimates against current chain state, so it
+  cannot compose the deposit, which spends USDC that the approve and swap
+  create inside the same batch. The deposit and the LI.FI swap are signed
+  exactly as reviewed on Tenderly.
+- Batch gas is 150k overhead + 1.5x each MultiBaas estimate (each capped at
+  500k) + LI.FI's own limit (capped at 2M) + a 500k deposit budget, capped at
+  5M. Unused gas is not charged.
 - Any mismatch, revert, or 90 s receipt timeout stops the run. Nothing retries.
 
 ## Team

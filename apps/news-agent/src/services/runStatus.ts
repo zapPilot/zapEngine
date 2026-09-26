@@ -81,10 +81,8 @@ export function applyProgress(
             index: transaction.index,
             total: transaction.total,
           },
-    depositHash:
-      transaction?.kind === 'deposit' && event.hash !== undefined
-        ? event.hash
-        : status.depositHash,
+    // Only the atomic batch broadcast carries a hash; it holds the deposit.
+    depositHash: event.hash ?? status.depositHash,
     steps: mapSteps(status.steps, (step, index) => ({
       state: stateAround(index, target),
       entries:

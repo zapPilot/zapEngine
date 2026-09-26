@@ -60,7 +60,7 @@ describe('AGENT_LOOP_STEPS', () => {
       'Local Laya analysis',
       'Agent intent',
       'MultiBaas composed · LI.FI swap routed',
-      'Wallet signs locally',
+      'EIP-7702 atomic batch',
       'Confirmed on Base',
       'Video delivered',
     ]);

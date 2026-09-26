@@ -35,12 +35,12 @@ signing, guard, nonce, or retry decision.
 - The review is always a `warning` because plan-orchestration leaves LI.FI
   calldata undecoded. The guard may accept only that `UNDECODED_METHOD` on the
   swap, and only because it decodes and pins the swap itself.
-- One attempt per step. A revert, timeout, or mismatch stops the run; never
-  retry automatically or reuse a nonce by hand.
-- A confirmed receipt does not mean MultiBaas gas estimation sees that block
-  yet. Waiting for the `allowance` (after an approve) or the swapped USDC
-  balance (after the swap) is a read, not a retry; a failed step must never be
-  composed or submitted again. Each step's nonce must follow the previous one.
+- One attempt per run: the rotation is a single EIP-7702 atomic batch. A
+  revert, timeout, or mismatch stops the run; never retry automatically or
+  reuse a nonce by hand.
+- MultiBaas composes only calls it can estimate against current chain state
+  (approve, redeem). Anything that depends on an earlier call in the same batch
+  (the deposit) is signed exactly as reviewed on Tenderly.
 - Only `--execute` signs. `--replay` never sends a transaction and must stay
   labelled as a replay everywhere it is shown.
 - Podcast data is read-only.
