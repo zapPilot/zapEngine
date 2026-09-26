@@ -8,7 +8,6 @@ import {
   BLOCKSCOUT_API_URL,
   POSITION_POLL_INTERVAL_MS,
   USDC_ADDRESS,
-  USDC_DECIMALS,
   VAULT_ADDRESS,
 } from '@/config/aiWalletDemo';
 import {
@@ -23,7 +22,6 @@ const AGENT_CONTRACTS: AgentContracts = {
   agentAddress: AGENT_ADDRESS,
   usdcAddress: USDC_ADDRESS,
   vaultAddress: VAULT_ADDRESS,
-  usdcDecimals: USDC_DECIMALS,
 };
 
 export const AGENT_CONFIGURED = isAgentConfigured(AGENT_ADDRESS);

@@ -19,18 +19,6 @@ export const VAULT_ADDRESS: Address =
 
 export const DEMO_EPISODE_LANGUAGE = 'en';
 
-/** Mirrors `AMOUNT` in apps/news-agent/src/services/demoRule.ts. */
-export const FIXED_DEPOSIT_USDC = '0.1';
-
-export const FIXED_ACTION_COPY = `Every run makes the same move: deposit exactly ${FIXED_DEPOSIT_USDC} USDC into the Spark USDC vault on Base. Laya analyzes the story for context only; it never picks the trade, keys, contracts, or amounts.`;
-
-export const GUARDRAILS = [
-  'Spend cap $5',
-  'USDC → Spark vault only',
-  'Simulated before signing',
-  'Expires Oct 4',
-] as const;
-
 export const BLOCKSCOUT_API_URL = 'https://base.blockscout.com/api/v2';
 /** Tried in order; the public Base endpoint rate-limits aggressively. */
 export const BASE_RPC_URLS = [

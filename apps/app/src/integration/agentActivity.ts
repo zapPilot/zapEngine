@@ -5,34 +5,27 @@ import {
   erc20Abi,
   erc4626Abi,
   fallback,
-  formatEther,
-  formatUnits,
   http,
-  maxUint256,
   type Address,
   type Hex,
 } from 'viem';
 import { base } from 'viem/chains';
 
-export type AgentTransactionKind = 'approve' | 'deposit' | 'other';
-export type AgentTransactionStatus = 'ok' | 'error' | 'pending';
+type AgentTransactionStatus = 'ok' | 'error' | 'pending';
 
 export interface AgentTransaction {
   hash: string;
-  kind: AgentTransactionKind;
-  label: string;
+  /** `deposit` is the agent's vault deposit; everything else is `other`. */
+  kind: 'deposit' | 'other';
   status: AgentTransactionStatus;
   /** Null while Blockscout still reports the transaction as pending. */
   timestampMs: number | null;
-  /** Sent by the agent, as opposed to funding or other inbound transfers. */
-  outgoing: boolean;
 }
 
 export interface AgentContracts {
   agentAddress: Address;
   usdcAddress: Address;
   vaultAddress: Address;
-  usdcDecimals: number;
 }
 
 export interface AgentPosition {
@@ -98,110 +91,22 @@ function readTimestampMs(record: BlockscoutRow): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-type DecodedCall =
-  | { functionName: 'approve'; spender: string; amount: bigint }
-  | { functionName: 'deposit'; amount: bigint }
-  | null;
-
-function decodeAgentCall(
-  kindHint: 'usdc' | 'vault' | null,
-  input: string | null,
-): DecodedCall {
-  if (kindHint === null || input === null || !input.startsWith('0x')) {
-    return null;
-  }
+function decodesAsDeposit(input: string | null): boolean {
+  if (input === null || !input.startsWith('0x')) return false;
   try {
-    if (kindHint === 'usdc') {
-      const call = decodeFunctionData({ abi: erc20Abi, data: input as Hex });
-      return call.functionName === 'approve'
-        ? {
-            functionName: 'approve',
-            spender: call.args[0],
-            amount: call.args[1],
-          }
-        : null;
-    }
     const call = decodeFunctionData({ abi: erc4626Abi, data: input as Hex });
-    return call.functionName === 'deposit'
-      ? { functionName: 'deposit', amount: call.args[0] }
-      : null;
+    return call.functionName === 'deposit';
   } catch {
-    return null;
+    return false;
   }
 }
 
-export function formatUsdcAmount(amount: bigint, decimals: number): string {
-  // Wallets approve "infinite" allowances as values near 2^256.
-  if (amount >= maxUint256 / 2n) return 'unlimited';
-  const value = Number(formatUnits(amount, decimals));
-  return value.toLocaleString('en-US', { maximumFractionDigits: 2 });
-}
-
-function methodLabel(method: string | null): string {
-  if (method === null || /^0x[0-9a-fA-F]*$/.test(method)) return 'Transaction';
-  return `${method.charAt(0).toUpperCase()}${method.slice(1)}`;
-}
-
-function readWei(record: BlockscoutRow): bigint {
-  const value = readString(record, 'value');
-  if (value === null || !/^\d+$/.test(value)) return 0n;
-  return BigInt(value);
-}
-
-function otherLabel(
-  item: BlockscoutRow,
-  method: string | null,
-  outgoing: boolean,
-): string {
-  const input = readString(item, 'raw_input');
-  const wei = readWei(item);
-  if ((input === null || input === '0x') && wei > 0n) {
-    return `${outgoing ? 'Sent' : 'Received'} ${formatEther(wei)} ETH`;
-  }
-  return methodLabel(method);
-}
-
-function classifyTransaction(
-  item: BlockscoutRow,
-  contracts: AgentContracts,
-  outgoing: boolean,
-): Pick<AgentTransaction, 'kind' | 'label'> {
-  const to = readAddress(item, 'to');
-  const method = readString(item, 'method');
-  const target = sameAddress(to, contracts.usdcAddress)
-    ? 'usdc'
-    : sameAddress(to, contracts.vaultAddress)
-      ? 'vault'
-      : null;
-  const call = decodeAgentCall(target, readString(item, 'raw_input'));
-
-  if (
-    target === 'usdc' &&
-    (method === 'approve' || call?.functionName === 'approve')
-  ) {
-    const amount =
-      call?.functionName === 'approve'
-        ? ` ${formatUsdcAmount(call.amount, contracts.usdcDecimals)}`
-        : '';
-    const forVault =
-      call?.functionName !== 'approve' ||
-      sameAddress(call.spender, contracts.vaultAddress);
-    return {
-      kind: 'approve',
-      label: `Approve${amount} USDC${forVault ? ' for Spark vault' : ''}`,
-    };
-  }
-  if (
-    target === 'vault' &&
-    (method === 'deposit' || call?.functionName === 'deposit')
-  ) {
-    const amount =
-      call?.functionName === 'deposit'
-        ? ` ${formatUsdcAmount(call.amount, contracts.usdcDecimals)}`
-        : '';
-    return { kind: 'deposit', label: `Deposit${amount} USDC into Spark vault` };
-  }
-  return { kind: 'other', label: otherLabel(item, method, outgoing) };
+function isVaultDeposit(item: BlockscoutRow, vaultAddress: Address): boolean {
+  if (!sameAddress(readAddress(item, 'to'), vaultAddress)) return false;
+  return (
+    readString(item, 'method') === 'deposit' ||
+    decodesAsDeposit(readString(item, 'raw_input'))
+  );
 }
 
 /**
@@ -222,17 +127,14 @@ export function parseBlockscoutTransactions(
     if (item === null) return [];
     const hash = readString(item, 'hash');
     if (hash === null) return [];
-    const outgoing = sameAddress(
-      readAddress(item, 'from'),
-      contracts.agentAddress,
-    );
     return [
       {
         hash,
-        ...classifyTransaction(item, contracts, outgoing),
+        kind: isVaultDeposit(item, contracts.vaultAddress)
+          ? 'deposit'
+          : 'other',
         status: readStatus(item),
         timestampMs: readTimestampMs(item),
-        outgoing,
       },
     ];
   });
@@ -268,31 +170,15 @@ export function latestConfirmedDeposit(
   );
 }
 
-/** Inbound funding is not an agent action, so only outgoing rows count. */
-export function latestAgentActionTimestamp(
-  transactions: readonly AgentTransaction[],
-): number | null {
-  let latest: number | null = null;
-  for (const transaction of transactions) {
-    if (
-      transaction.outgoing &&
-      transaction.timestampMs !== null &&
-      (latest === null || transaction.timestampMs > latest)
-    ) {
-      latest = transaction.timestampMs;
-    }
-  }
-  return latest;
-}
-
-export function formatRelativeTime(timestampMs: number, nowMs: number): string {
-  const seconds = Math.max(0, Math.floor((nowMs - timestampMs) / 1000));
-  if (seconds < 60) return 'just now';
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
+/**
+ * Local wall-clock `HH:MM:SS`, padded by hand: `Intl` with `hour12: false`
+ * renders midnight as `24:00:00` on some engines.
+ */
+export function formatClockTime(timestampMs: number): string {
+  const date = new Date(timestampMs);
+  return [date.getHours(), date.getMinutes(), date.getSeconds()]
+    .map((part) => String(part).padStart(2, '0'))
+    .join(':');
 }
 
 export function basescanTxUrl(basescanUrl: string, hash: string): string {
