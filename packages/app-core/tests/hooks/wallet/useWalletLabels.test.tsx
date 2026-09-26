@@ -38,7 +38,7 @@ const WALLET: WalletData = {
 function makeHarness(
   overrides: Partial<Parameters<typeof useWalletLabels>[0]> = {},
 ) {
-  let wallets = [WALLET];
+  let wallets = overrides.wallets ?? [WALLET];
   const setWallets = vi.fn((updater) => {
     wallets = typeof updater === 'function' ? updater(wallets) : updater;
   });
@@ -120,6 +120,25 @@ describe('useWalletLabels', () => {
       'wallet-1',
       { isLoading: false, error: null },
     );
+  });
+
+  it('preserves non-target wallets during an optimistic label update', async () => {
+    const otherWallet: WalletData = {
+      ...WALLET,
+      id: 'wallet-2',
+      address: '0x2222222222222222222222222222222222222222',
+      label: 'Other label',
+    };
+    const harness = makeHarness({ wallets: [WALLET, otherWallet] });
+
+    await act(async () => {
+      await harness.result.current.handleEditLabel('wallet-1', 'New label');
+    });
+
+    expect(harness.getWallets()).toEqual([
+      { ...WALLET, label: 'New label' },
+      otherWallet,
+    ]);
   });
 
   it('rolls back and exposes an API failure message', async () => {
