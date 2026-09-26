@@ -16,10 +16,11 @@ export function argumentsFor(argv: string[]) {
       replay: { type: 'string' },
       chat: { type: 'string' },
       'laya-url': { type: 'string' },
+      port: { type: 'string' },
     },
   });
   const command = z
-    .enum(['init', 'multibaas-setup', 'demo'])
+    .enum(['init', 'multibaas-setup', 'demo', 'serve'])
     .parse(positionals[0]);
   if (positionals.length !== 1)
     throw new Error('Unexpected positional arguments');
@@ -47,5 +48,11 @@ export function argumentsFor(argv: string[]) {
     replay: values.replay as `0x${string}` | undefined,
     chat: values.chat,
     layaUrl: z.url().parse(values['laya-url'] ?? 'http://127.0.0.1:8000'),
+    port: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(65_535)
+      .parse(values.port ?? '8787'),
   };
 }

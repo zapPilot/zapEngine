@@ -19,6 +19,9 @@ export const VAULT_ADDRESS: Address =
 
 export const DEMO_EPISODE_LANGUAGE = 'en';
 
+/** `pnpm agent serve` in apps/news-agent; only reachable from a local dev build. */
+export const LOCAL_TRIGGER_URL = 'http://127.0.0.1:8787';
+
 export const BLOCKSCOUT_API_URL = 'https://base.blockscout.com/api/v2';
 /** Tried in order; the public Base endpoint rate-limits aggressively. */
 export const BASE_RPC_URLS = [

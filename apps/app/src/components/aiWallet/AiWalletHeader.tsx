@@ -1,5 +1,5 @@
 import { tokens } from '@zapengine/design-tokens/tokens';
-import { Play } from 'lucide-react-native';
+import { Play, Zap } from 'lucide-react-native';
 import { Text, View } from 'react-native';
 
 import { BASE_BLUE_BRIGHT } from '@/components/aiWallet/aiWalletTheme';
@@ -14,6 +14,8 @@ interface AiWalletHeaderProps {
   replayLabel: string;
   replayDisabled: boolean;
   onReplay: () => void;
+  /** `null` outside local dev, where no agent can be triggered. */
+  runNow: { busy: boolean; onPress: () => void } | null;
 }
 
 export function AiWalletHeader({
@@ -23,6 +25,7 @@ export function AiWalletHeader({
   replayLabel,
   replayDisabled,
   onReplay,
+  runNow,
 }: AiWalletHeaderProps) {
   return (
     <View
@@ -44,33 +47,60 @@ export function AiWalletHeader({
         </Text>
         <AgentStatus configured={configured} reconnecting={reconnecting} />
       </View>
-      <Tap
-        accessibilityRole="button"
-        accessibilityLabel={replayLabel}
-        accessibilityState={{ disabled: replayDisabled }}
-        disabled={replayDisabled}
-        onPress={onReplay}
+      <View
         className={cn(
-          'min-h-12 flex-row items-center gap-3 rounded-pill border border-[rgba(91,147,255,.55)] bg-[rgba(0,82,255,.12)] py-1.5 pl-1.5 pr-5',
-          wide ? 'min-w-0 max-w-[480px] shrink' : 'max-w-full self-start',
-          replayDisabled && 'opacity-40',
+          'flex-row flex-wrap items-center gap-3',
+          wide ? 'min-w-0 shrink justify-end' : 'max-w-full',
         )}
       >
-        <View className="h-9 w-9 items-center justify-center rounded-full border border-[rgba(91,147,255,.45)] bg-[rgba(91,147,255,.16)]">
-          <Play
-            size={14}
-            color={BASE_BLUE_BRIGHT}
-            fill={BASE_BLUE_BRIGHT}
-            style={{ marginLeft: 2 }}
-          />
-        </View>
-        <Text
-          className="shrink font-sans-semibold text-[14px] text-ink"
-          numberOfLines={1}
+        {runNow === null ? null : (
+          <Tap
+            accessibilityRole="button"
+            accessibilityLabel={
+              runNow.busy ? 'Agent running…' : 'Run agent now'
+            }
+            accessibilityState={{ disabled: runNow.busy }}
+            disabled={runNow.busy}
+            onPress={runNow.onPress}
+            className={cn(
+              'min-h-12 flex-row items-center gap-2 rounded-pill bg-[#0052ff] px-5',
+              runNow.busy && 'opacity-40',
+            )}
+          >
+            <Zap size={15} color={tokens.color.ink} fill={tokens.color.ink} />
+            <Text className="font-sans-semibold text-[14px] text-ink">
+              {runNow.busy ? 'Agent running…' : 'Run agent now'}
+            </Text>
+          </Tap>
+        )}
+        <Tap
+          accessibilityRole="button"
+          accessibilityLabel={replayLabel}
+          accessibilityState={{ disabled: replayDisabled }}
+          disabled={replayDisabled}
+          onPress={onReplay}
+          className={cn(
+            'min-h-12 flex-row items-center gap-3 rounded-pill border border-[rgba(91,147,255,.55)] bg-[rgba(0,82,255,.12)] py-1.5 pl-1.5 pr-5',
+            wide ? 'min-w-0 max-w-[480px] shrink' : 'max-w-full',
+            replayDisabled && 'opacity-40',
+          )}
         >
-          {replayLabel}
-        </Text>
-      </Tap>
+          <View className="h-9 w-9 items-center justify-center rounded-full border border-[rgba(91,147,255,.45)] bg-[rgba(91,147,255,.16)]">
+            <Play
+              size={14}
+              color={BASE_BLUE_BRIGHT}
+              fill={BASE_BLUE_BRIGHT}
+              style={{ marginLeft: 2 }}
+            />
+          </View>
+          <Text
+            className="shrink font-sans-semibold text-[14px] text-ink"
+            numberOfLines={1}
+          >
+            {replayLabel}
+          </Text>
+        </Tap>
+      </View>
     </View>
   );
 }

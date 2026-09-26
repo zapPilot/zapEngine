@@ -20,9 +20,10 @@ import { createLaya } from './lib/laya.js';
 import { createMultibaas } from './lib/multibaas.js';
 import { createPodcast } from './lib/podcast.js';
 import { createTelegram } from './lib/telegram.js';
-import { runDemo } from './services/demo.js';
-import { planRequest } from './services/demoRule.js';
+import { type DemoOptions, runDemo } from './services/demo.js';
+import { planRequest, TRIGGER_EPISODE } from './services/demoRule.js';
 import { multibaasSetup } from './services/multibaasSetup.js';
+import { createTriggerServer } from './services/triggerServer.js';
 
 export interface MainDeps {
   paths?: LocalPaths;
@@ -73,20 +74,22 @@ export async function main(
       .find(Boolean);
   const token = env.telegramToken;
   // Fail before any signing if the story cannot be delivered afterwards.
-  if ((args.execute || args.replay) && (!token || !chat))
+  if (
+    (args.execute || args.replay || args.command === 'serve') &&
+    (!token || !chat)
+  )
     throw new Error(
       'Telegram needs PIPELINE_TELEGRAM_BOT_TOKEN and --chat or PIPELINE_TELEGRAM_ALLOWED_USER_IDS',
     );
-  const { blockNumber } = await multibaas.status();
-  log(
-    `🤖 Agent    ${account.address} · MultiBaas on Base (block ${blockNumber})`,
-  );
   const podcast = createPodcast(http, env.podcastUrl);
-  const outcome = await runDemo(
-    { episode: args.episode!, execute: args.execute, replay: args.replay },
-    {
+  const demo = async (options: DemoOptions, runLog: (line: string) => void) => {
+    const { blockNumber } = await multibaas.status();
+    runLog(
+      `🤖 Agent    ${account.address} · MultiBaas on Base (block ${blockNumber})`,
+    );
+    return runDemo(options, {
       wallet: account.address,
-      log,
+      log: runLog,
       now: deps.now ?? Date.now,
       sleep:
         deps.sleep ??
@@ -109,7 +112,25 @@ export async function main(
       notify: (text, previewUrl) =>
         createTelegram(http, token!)(chat!, text, previewUrl),
       smartLink: podcast.smartLink,
-    },
+    });
+  };
+
+  if (args.command === 'serve') {
+    const server = createTriggerServer({
+      log,
+      run: (runLog) =>
+        demo({ episode: TRIGGER_EPISODE, execute: true }, runLog),
+    });
+    server.listen(args.port, '127.0.0.1', () =>
+      log(
+        `🟢 Trigger  POST http://127.0.0.1:${args.port}/runs runs episode ${TRIGGER_EPISODE} for real`,
+      ),
+    );
+    return;
+  }
+  const outcome = await demo(
+    { episode: args.episode!, execute: args.execute, replay: args.replay },
+    log,
   );
   log(`Outcome: ${outcome}`);
 }

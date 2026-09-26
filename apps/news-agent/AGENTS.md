@@ -1,7 +1,12 @@
 # News agent demo
 
 Read ../AGENTS.md. Single-shot local CLI run with tsx: no daemon, watch runner,
-HTTP server, database, control-center integration, or pnpm ops entry.
+database, control-center integration, or pnpm ops entry. The one exception is
+`pnpm agent serve`: a 127.0.0.1-only trigger for the local AI Wallet button,
+where each accepted `POST /runs` is exactly one `demo --execute` run of
+`TRIGGER_EPISODE`. It allows one run at a time, needs the `x-zap-trigger`
+header, and rejects non-localhost origins. Never bind it beyond loopback or
+queue or retry runs.
 
 - Only the isolated demo EOA created by `init` signs. Its key lives outside the
   repo in `~/.zap-news-agent/agent.key` (0600) and must never be printed,

@@ -8,6 +8,7 @@ import { AiWalletHeader } from '@/components/aiWallet/AiWalletHeader';
 import { BASE_BLUE } from '@/components/aiWallet/aiWalletTheme';
 import { EventVideoCard } from '@/components/aiWallet/EventVideoCard';
 import { useAgentLoopPlayback } from '@/components/aiWallet/useAgentLoopPlayback';
+import { useLocalAgentTrigger } from '@/components/aiWallet/useLocalAgentTrigger';
 import { GlowCircle } from '@/components/ui/GlowCircle';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { AGENT_ADDRESS, DEMO_EPISODE_LANGUAGE } from '@/config/aiWalletDemo';
@@ -45,6 +46,8 @@ export function AiWalletScreen() {
     activityLoaded: transactions.isSuccess,
     stepCount: AGENT_LOOP_STEPS.length,
   });
+
+  const agentTrigger = useLocalAgentTrigger(latestDeposit?.hash ?? null);
 
   const title = episode.data?.title.trim() ?? '';
   const eventTitle = title === '' ? null : title;
@@ -100,6 +103,11 @@ export function AiWalletScreen() {
             replayLabel={replayButtonLabel(playback, eventTitle)}
             replayDisabled={latestDeposit === null || playback !== null}
             onReplay={replay}
+            runNow={
+              agentTrigger.available
+                ? { busy: agentTrigger.busy, onPress: agentTrigger.trigger }
+                : null
+            }
           />
           {wide ? (
             <View className="mt-8 flex-row items-stretch gap-10 px-5">
