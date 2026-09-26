@@ -52,6 +52,7 @@ Safety properties of the MultiBaas integration:
   MultiBaas-composed `from/to/data/value` are identical to the reviewed plan,
   the guard still passes (review `passed`, exact vault, receiver, amount,
   fingerprint, > 60 s before expiry), and gas/fees are within demo bounds.
+  The gas limit is 1.5x the MultiBaas estimate, capped at 500k.
 - The deposit is composed only after the approve receipt is confirmed and the
   MultiBaas `allowance` view call reads the approved amount, because MultiBaas
   gas estimation needs the allowance. Waiting is a read, not a retry: after 30 s
@@ -120,5 +121,9 @@ pnpm --filter @zapengine/news-agent dup:check
   after the approve receipt, and estimation reverted with
   `ERC20: transfer amount exceeds allowance`. The agent now waits until an
   `allowance` view call reads the approval.
+- The composed `gas` is the exact estimate with no headroom. The first live
+  deposit used that limit as-is and ran out of gas at exactly 259,547, because
+  the Morpho vault's deposit path cost more in the mined block. The agent now
+  signs with a 1.5x buffer.
 
 Owner to add further observations from the live demo.

@@ -19,7 +19,7 @@ import { AMOUNT, dashboardUrl, RULE_ID, USDC, VAULT } from './demoRule.js';
 import { guard, vaultAbi } from './guard.js';
 import { DEPOSIT_EVENT, LABELS } from './multibaasSetup.js';
 
-const MAX_GAS = 400_000n;
+const MAX_GAS = 500_000n;
 const MAX_FEE_PER_GAS = 1_000_000_000n;
 const RECEIPT_TIMEOUT_MS = 90_000;
 const ALLOWANCE_TIMEOUT_MS = 30_000;
@@ -169,11 +169,16 @@ async function executeStep(
   const recheck = guard(review, wallet, deps.now());
   if (!recheck.allowed)
     throw new Error(`Guard re-check failed before signing: ${recheck.reason}`);
-  const gas = BigInt(composed.gas);
+  const estimated = BigInt(composed.gas);
+  // MultiBaas returns the exact estimate, and the vault deposit costs more once
+  // the mined block's state differs: the first live deposit ran out of gas at
+  // exactly the estimate. Unused gas is not charged.
+  const buffered = (estimated * 3n) / 2n;
+  const gas = buffered < MAX_GAS ? buffered : MAX_GAS;
   const maxFeePerGas = BigInt(composed.gasFeeCap);
   const maxPriorityFeePerGas = BigInt(composed.gasTipCap);
   if (
-    gas > MAX_GAS ||
+    estimated > MAX_GAS ||
     maxFeePerGas > MAX_FEE_PER_GAS ||
     maxPriorityFeePerGas > maxFeePerGas
   )

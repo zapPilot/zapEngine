@@ -234,7 +234,35 @@ describe('single-shot demo', () => {
       expect(deps.sign).not.toHaveBeenCalled();
     }
   });
+  it('signs with a 1.5x gas buffer capped at the demo bound', async () => {
+    const { deps, multibaas } = setup();
+    const original = multibaas.compose.getMockImplementation()!;
+    multibaas.compose
+      .mockImplementationOnce(async (...args) => ({
+        ...(await original(...args)),
+        gas: 259_547,
+      }))
+      .mockImplementationOnce(async (...args) => ({
+        ...(await original(...args)),
+        gas: 400_000,
+      }));
+    expect(await runDemo({ episode, execute: true }, deps)).toBe('confirmed');
+    expect(deps.sign.mock.calls.map(([tx]) => tx.gas)).toEqual([
+      389_320n,
+      500_000n,
+    ]);
+  });
   it('refuses out-of-bounds gas and an expired re-check', async () => {
+    const overGas = setup();
+    const composeGas = overGas.multibaas.compose.getMockImplementation()!;
+    overGas.multibaas.compose.mockImplementation(async (...args) => ({
+      ...(await composeGas(...args)),
+      gas: 500_001,
+    }));
+    await expect(
+      runDemo({ episode, execute: true }, overGas.deps),
+    ).rejects.toThrow('gas/fee outside demo bounds');
+    expect(overGas.deps.sign).not.toHaveBeenCalled();
     const { deps, multibaas } = setup();
     const original = multibaas.compose.getMockImplementation()!;
     multibaas.compose.mockImplementation(async (...args) => ({
