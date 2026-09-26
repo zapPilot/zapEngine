@@ -105,7 +105,8 @@ pnpm --filter @zapengine/news-agent agent init \
 # Fund the printed address on Base with a small Clearstar Core ETH position
 # (≈0.0004 WETH covers 3 runs) plus ~0.0005 ETH for gas (keep < $5).
 
-# 2. Register contracts and aliases (idempotent).
+# 2. Register contracts and aliases (idempotent). Re-run after changing CONTRACTS in
+#    src/services/multibaasSetup.ts: every run checks them first and stops before planning.
 pnpm --filter @zapengine/news-agent agent multibaas-setup
 
 # 3. Local Laya model (optional: the run continues without it).

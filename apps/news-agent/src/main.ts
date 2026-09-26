@@ -26,7 +26,10 @@ import {
   runDemo,
 } from './services/demo.js';
 import { rotateRequest, TRIGGER_EPISODE } from './services/demoRule.js';
-import { multibaasSetup } from './services/multibaasSetup.js';
+import {
+  missingRegistrations,
+  multibaasSetup,
+} from './services/multibaasSetup.js';
 import { createTriggerServer } from './services/triggerServer.js';
 
 export interface MainDeps {
@@ -93,6 +96,13 @@ export async function main(
     progress: (event: DemoProgress) => void,
   ) => {
     const { blockNumber } = await multibaas.status();
+    // An unregistered alias only fails as "HTTP 400: invalid address" at its
+    // own step, possibly after earlier steps were already broadcast.
+    const missing = await missingRegistrations(multibaas);
+    if (missing.length > 0)
+      throw new Error(
+        `MultiBaas is missing ${missing.join(', ')}; run \`pnpm --filter @zapengine/news-agent agent multibaas-setup\`. Nothing was signed`,
+      );
     runLog(
       `🤖 Agent    ${account.address} · MultiBaas on Base (block ${blockNumber})`,
     );

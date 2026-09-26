@@ -29,6 +29,9 @@ signing, guard, nonce, or retry decision.
   re-encode it, and broadcast it through MultiBaas like every other step. Use
   the raw `wethtoken`/`usdctoken` ABIs: MultiBaas's built-in `erc20interface`
   rescales amounts by `decimals()` and changes calldata.
+- Every run checks the MultiBaas registrations in `multibaasSetup.ts`
+  (`CONTRACTS`) before planning and stops if one is missing. After adding a
+  contract there, rerun `agent multibaas-setup`.
 - The review is always a `warning` because plan-orchestration leaves LI.FI
   calldata undecoded. The guard may accept only that `UNDECODED_METHOD` on the
   swap, and only because it decodes and pins the swap itself.
