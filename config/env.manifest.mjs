@@ -45,15 +45,7 @@ const WEB_TARGETS = ['web', 'desktop'];
 const APP_TARGETS = ['web', 'expo', 'desktop'];
 
 export const ENV_MANIFEST = {
-  MULTIBAAS_BASE_URL: server(['news-agent'], {
-    sensitive: true,
-    environments: ['prod'],
-  }),
-  MULTIBAAS_API_KEY: server(['news-agent'], {
-    sensitive: true,
-    environments: ['prod'],
-  }),
-  ACCOUNT_API_URL: client([...APP_TARGETS, 'news-agent'], {
+  ACCOUNT_API_URL: client(APP_TARGETS, {
     vite: 'VITE_ACCOUNT_API_URL',
     expo: 'EXPO_PUBLIC_ACCOUNT_API_URL',
   }),
@@ -61,7 +53,7 @@ export const ENV_MANIFEST = {
     vite: 'VITE_ANALYTICS_ENGINE_URL',
     expo: 'EXPO_PUBLIC_ANALYTICS_ENGINE_URL',
   }),
-  PODCAST_API_URL: client([...APP_TARGETS, 'news-agent'], {
+  PODCAST_API_URL: client(APP_TARGETS, {
     vite: 'VITE_PODCAST_API_URL',
     expo: 'EXPO_PUBLIC_PODCAST_API_URL',
   }),
@@ -164,14 +156,14 @@ export const ENV_MANIFEST = {
     sensitive: true,
   }),
   SUPABASE_URL: server(
-    ['account-engine', 'podcast-pipeline', 'control-center', 'news-agent'],
+    ['account-engine', 'podcast-pipeline', 'control-center'],
     {
       requiredFor: ['account-engine:base', 'podcast-pipeline:base'],
       sensitive: true,
     },
   ),
   SUPABASE_SERVICE_ROLE_KEY: server(
-    ['account-engine', 'podcast-pipeline', 'control-center', 'news-agent'],
+    ['account-engine', 'podcast-pipeline', 'control-center'],
     {
       requiredFor: ['account-engine:base', 'podcast-pipeline:base'],
       sensitive: true,
@@ -207,7 +199,7 @@ export const ENV_MANIFEST = {
   LIFI_API_KEY: server(['account-engine'], { sensitive: true }),
   DEPOSIT_DEFAULT_SPLIT: server(['account-engine']),
   HYPERLIQUID_NETWORK: server(['account-engine']),
-  RPC_URL_BASE: server(['account-engine', 'news-agent'], { sensitive: true }),
+  RPC_URL_BASE: server(['account-engine'], { sensitive: true }),
   RPC_URL_ETHEREUM: server(['account-engine'], { sensitive: true }),
   RPC_URL_ARBITRUM: server(['account-engine'], { sensitive: true }),
   PRIVY_APP_ID: server(['account-engine'], {
@@ -339,20 +331,13 @@ export const ENV_MANIFEST = {
   COINMARKETCAP_API_URL: server(['alpha-etl']),
   ALPHA_VANTAGE_API_KEY: server(['alpha-etl'], { sensitive: true }),
 
-  OPENROUTER_API_KEY: server(
-    ['podcast-pipeline', 'control-center', 'news-agent'],
-    {
-      sensitive: true,
-    },
-  ),
-  OPENROUTER_BASE_URL: server([
-    'podcast-pipeline',
-    'control-center',
-    'news-agent',
-  ]),
+  OPENROUTER_API_KEY: server(['podcast-pipeline', 'control-center'], {
+    sensitive: true,
+  }),
+  OPENROUTER_BASE_URL: server(['podcast-pipeline', 'control-center']),
   OPENROUTER_MANAGEMENT_KEY: server(['control-center'], { sensitive: true }),
   OPENROUTER_TIMEOUT_MS: server(['podcast-pipeline']),
-  LLM_MODEL: server(['podcast-pipeline', 'news-agent'], {
+  LLM_MODEL: server(['podcast-pipeline'], {
     requiredFor: ['podcast-pipeline:base'],
   }),
   LLM_FALLBACK_MODELS: server(['podcast-pipeline']),
@@ -394,18 +379,15 @@ export const ENV_MANIFEST = {
   R2_PUBLIC_BASE_URL: server(['podcast-pipeline'], {
     requiredFor: ['podcast-pipeline:media'],
   }),
-  PIPELINE_TELEGRAM_BOT_TOKEN: server(['podcast-pipeline', 'news-agent'], {
+  PIPELINE_TELEGRAM_BOT_TOKEN: server(['podcast-pipeline'], {
     sensitive: true,
   }),
   PIPELINE_TELEGRAM_WEBHOOK_SECRET: server(['podcast-pipeline'], {
     sensitive: true,
   }),
-  PIPELINE_TELEGRAM_ALLOWED_USER_IDS: server(
-    ['podcast-pipeline', 'news-agent'],
-    {
-      sensitive: true,
-    },
-  ),
+  PIPELINE_TELEGRAM_ALLOWED_USER_IDS: server(['podcast-pipeline'], {
+    sensitive: true,
+  }),
   PIPELINE_TELEGRAM_ALLOWED_SOURCE_HOSTS: server(['podcast-pipeline']),
   INGEST_ADMIN_TOKEN: server(['podcast-pipeline'], { sensitive: true }),
   SCRIPT_PROMPT_PATH: server(['podcast-pipeline']),
@@ -462,11 +444,7 @@ export const ENV_MANIFEST = {
     sensitive: true,
     requiredFor: ['podcast-pipeline:base'],
   }),
-  SUPABASE_DB_SCHEMA: server([
-    'podcast-pipeline',
-    'control-center',
-    'news-agent',
-  ]),
+  SUPABASE_DB_SCHEMA: server(['podcast-pipeline', 'control-center']),
 
   ZAP_ELECTRON_DEV_URL: host(['desktop']),
   ZAP_ELECTRON_WEB_ROOT: host(['desktop']),

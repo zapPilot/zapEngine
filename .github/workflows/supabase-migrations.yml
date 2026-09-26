@@ -5,7 +5,6 @@ on:
     branches: [main]
     paths:
       - 'supabase/migrations/**'
-      - 'supabase/tests/**'
       - 'supabase/config.toml'
       - '.github/workflows/supabase-migrations.yml'
 
@@ -29,11 +28,6 @@ jobs:
 
       - name: Rebuild from committed migrations
         run: supabase db reset --local --no-seed
-
-      - name: Verify news agent persistence invariants
-        env:
-          LOCAL_DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
-        run: psql "$LOCAL_DB_URL" --no-psqlrc -v ON_ERROR_STOP=1 -f supabase/tests/news_agent_actions.sql
 
       # alpha_raw and ops are reached by direct Postgres roles and definer
       # RPCs, not the Data API, so the Supabase advisor never flags a table

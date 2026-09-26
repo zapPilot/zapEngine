@@ -1,17 +1,23 @@
 # News agent demo
 
-Read ../AGENTS.md. Plain functions, local tsx only; no watch runner, HTTP server,
-control-center integration, or pnpm ops entry.
+Read ../AGENTS.md. Single-shot local CLI run with tsx: no daemon, watch runner,
+HTTP server, database, control-center integration, or pnpm ops entry.
 
-Only the operator-owned demo wallet is supported. Never use user wallets,
-delegations, or session keys. Expansion requires the shared Unattended wallet
-policy. Keep wallet funding below $5 and refill manually: wallet balance is the
-actual spending boundary; the guard is defense in depth.
-
-Revoke without the daemon by revoking the MultiBaas API key, disabling the Azure
-key, or moving the wallet balance. Never store private keys here.
-
-Only import shared contracts from @zapengine/types. Plan exclusively through
-plan-orchestration and sign only reviewed batches. Podcast tables are read-only.
-Each arm permits at most one on-chain attempt. Ambiguous evidence requires
-manual attention, never a fresh nonce or automatic second attempt.
+- Only the isolated demo EOA created by `init` signs. Its key lives outside the
+  repo in `~/.zap-news-agent/agent.key` (0600) and must never be printed,
+  logged, committed, or sent anywhere. Never use user wallets, delegations, or
+  session keys; expansion requires the shared Unattended wallet policy.
+- Keep the wallet below $5 and refill manually: the balance is the real spending
+  boundary; `guard.ts` is defense in depth. Revoke by moving the balance or
+  revoking the MultiBaas API key.
+- Laya only classifies. It never chooses keys, contracts, or amounts; the action
+  is fixed in `demoRule.ts`.
+- Plan exclusively through plan-orchestration `/deposit/review`. Sign only when
+  the guard passes and MultiBaas-composed `to/data/value` equal the reviewed
+  plan byte for byte. Use the raw `usdctoken` ABI for USDC: MultiBaas's built-in
+  `erc20interface` rescales amounts by `decimals()` and changes calldata.
+- One attempt per step. A revert, timeout, or mismatch stops the run; never
+  retry automatically or reuse a nonce by hand.
+- The built-in fixture is dry-run only. `--replay` never sends a transaction and
+  must stay labelled as a replay everywhere it is shown.
+- Podcast data is read-only.

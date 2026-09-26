@@ -1,124 +1,116 @@
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-vi.mock('./config/env.js', () => ({ readEnv: vi.fn() }));
-vi.mock('./lib/chain.js', () => ({ createChain: vi.fn() }));
-vi.mock('./lib/http.js', () => ({ createHttp: vi.fn() }));
-vi.mock('./lib/multibaas.js', () => ({ createMultibaas: vi.fn() }));
-vi.mock('./lib/openrouter.js', () => ({ createRecognizer: vi.fn() }));
-vi.mock('./lib/supabase.js', () => ({ createStore: vi.fn() }));
-vi.mock('./services/daemon.js', () => ({ daemon: vi.fn() }));
-vi.mock('./services/smoke.js', () => ({ smoke: vi.fn() }));
-import { readEnv } from './config/env.js';
-import { createChain } from './lib/chain.js';
-import { createHttp } from './lib/http.js';
-import { createMultibaas } from './lib/multibaas.js';
-import { createRecognizer } from './lib/openrouter.js';
-import { createStore } from './lib/supabase.js';
-import { main } from './main.js';
-import { daemon } from './services/daemon.js';
-import { smoke } from './services/smoke.js';
-import {
-  action,
-  approvedReview,
-  memoryStore,
-  now,
-  wallet,
-} from './test-utils/fixtures.js';
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
-beforeEach(() => {
-  vi.spyOn(console, 'log').mockImplementation(() => {});
-  vi.spyOn(Date, 'now').mockReturnValue(now);
-  vi.mocked(readEnv).mockReturnValue({
-    supabaseUrl: 'https://db.example',
-    supabaseKey: 'key',
-    dbSchema: 'from_fed_to_chain',
-    accountUrl: 'https://account.example',
-    podcastUrl: 'https://podcast.example',
-    rpcUrl: 'https://rpc.example',
-    model: 'model',
-    openrouterKey: 'key',
-    openrouterUrl: 'https://llm.example',
-    multibaasUrl: 'https://mb.example',
-    multibaasKey: 'key',
-    allowedUserIds: '',
-  });
-  vi.mocked(createStore).mockReturnValue(memoryStore().store);
-  vi.mocked(createChain).mockReturnValue({
-    assertChain: vi.fn(),
-    nonce: vi.fn(),
-    prepare: vi.fn(),
-    receipt: vi.fn(),
-  });
-  vi.mocked(createHttp).mockReturnValue({
-    getJson: vi.fn(),
-    postJson: vi.fn().mockResolvedValue(approvedReview()),
-  });
-  vi.mocked(createMultibaas).mockReturnValue({
-    chainStatus: vi.fn(),
-    listHsmWallets: vi.fn().mockResolvedValue(wallet),
-    submit: vi.fn(),
-    txmByNonce: vi.fn(),
-  });
-  vi.mocked(createRecognizer).mockReturnValue(
-    vi.fn().mockResolvedValue({ matches: true, evidence: 'quote' }),
+import { describe, expect, it, vi } from 'vitest';
+
+import { localPaths } from './config/local.js';
+import { main } from './main.js';
+import { approvedReview } from './test-utils/fixtures.js';
+
+const env = () => ({
+  accountUrl: 'https://account.example',
+  podcastUrl: 'https://podcast.example',
+  allowedUserIds: '',
+});
+const json = (body: unknown) =>
+  new Response(JSON.stringify(body), { status: 200 });
+
+async function initialized() {
+  const dir = await mkdtemp(join(tmpdir(), 'agent-main-'));
+  const keyFile = join(dir, 'mb-key');
+  await writeFile(keyFile, 'mb-secret\n');
+  const paths = localPaths(join(dir, 'home'));
+  const lines: string[] = [];
+  await main(
+    [
+      'init',
+      '--multibaas-url',
+      'https://mb.example',
+      '--multibaas-key-file',
+      keyFile,
+    ],
+    { paths, log: (line) => lines.push(line) },
   );
-});
-afterEach(() => {
-  vi.restoreAllMocks();
-  vi.clearAllMocks();
-});
-it('report only reads persistent actions without initializing a signer', async () => {
-  await main(['report', '--limit', '5']);
-  expect(createMultibaas).not.toHaveBeenCalled();
-  expect(createStore('url', 'key').list).toHaveBeenCalledWith(
-    expect.any(Array),
-    undefined,
-    5,
-  );
-});
-it('evaluate with an explicit wallet needs no MultiBaas and writes no action', async () => {
-  await main([
-    'evaluate',
-    '--episode',
-    action().episode_id,
-    '--wallet',
-    wallet,
-  ]);
-  expect(createMultibaas).not.toHaveBeenCalled();
-  expect(createStore('url', 'key').cas).not.toHaveBeenCalled();
-  expect(console.log).toHaveBeenCalledWith(
-    expect.stringContaining('"allowed": true'),
-  );
-});
-it('evaluate skips keyword-free LLM calls while still obtaining a review', async () => {
-  vi.mocked(createStore('url', 'key').episode).mockResolvedValue({
-    id: 'id',
-    title: 'other',
-    raw_text: 'article',
-    source_url: 'url',
+  return { paths, lines, key: (await readFile(paths.key, 'utf8')).trim() };
+}
+
+function router() {
+  return vi.fn<typeof fetch>(async (input, init) => {
+    const url = String(input);
+    if (url.includes('/chains/ethereum/addresses/') && init?.method === 'GET')
+      return new Response(JSON.stringify({ status: 404 }), { status: 404 });
+    if (url.endsWith('/chains/ethereum/status'))
+      return json({ status: 200, result: { chainID: 8453, blockNumber: 9 } });
+    if (url.endsWith('/v1/systemone'))
+      return json({
+        answers: {
+          exchange_hack: { noul: 0.96 },
+          eth_pressure: { choice: 'upward', probabilities: { upward: 0.78 } },
+        },
+      });
+    if (url.endsWith('/plan-orchestration/deposit/review'))
+      return json(approvedReview(true));
+    if (url.endsWith('/contracts')) return json({ status: 200, result: [] });
+    return json({ status: 200, result: null });
   });
-  await main(['evaluate', '--episode', action().episode_id]);
-  expect(
-    createRecognizer(createHttp(), 'url', 'key', 'model'),
-  ).not.toHaveBeenCalled();
-});
-it('run validates both chains and one wallet before passing control to daemon', async () => {
-  await main(['run', '--once']);
-  expect(daemon).toHaveBeenCalled();
-  const input = vi.mocked(daemon).mock.calls[0]![0];
-  expect(await input.review()).toEqual(approvedReview());
-  expect(input.http.postJson).toHaveBeenCalledWith(
-    'https://account.example/plan-orchestration/deposit/review',
-    expect.objectContaining({ userAddress: wallet, fromAmount: '1000000' }),
-    {},
-    90000,
-  );
-});
-it('dispatches explicit smoke and rejects missing signing credentials', async () => {
-  await main(['smoke']);
-  expect(smoke).toHaveBeenCalled();
-  await vi.mocked(smoke).mock.calls[0]![3](0);
-  const env = readEnv();
-  delete env.multibaasKey;
-  vi.mocked(readEnv).mockReturnValue(env);
-  await expect(main(['run', '--once'])).rejects.toThrow();
+}
+
+describe('CLI entry', () => {
+  it('creates the agent wallet without ever printing the private key', async () => {
+    const { paths, lines, key } = await initialized();
+    expect(lines[0]).toMatch(/^Created agent wallet 0x[0-9a-fA-F]{40}/);
+    expect(lines.join('\n')).not.toContain(key.slice(2));
+    expect(JSON.parse(await readFile(paths.multibaas, 'utf8'))).toEqual({
+      url: 'https://mb.example',
+      apiKey: 'mb-secret',
+    });
+    const again: string[] = [];
+    await main(['init'], { paths, log: (line) => again.push(line) });
+    expect(again[0]).toMatch(/^Reusing agent wallet/);
+  });
+  it('runs setup and a dry-run demo through the injected transport', async () => {
+    const { paths, key } = await initialized();
+    const fetcher = router();
+    const lines: string[] = [];
+    await main(['multibaas-setup'], {
+      paths,
+      fetcher,
+      log: (line) => lines.push(line),
+    });
+    await main(['demo'], {
+      paths,
+      fetcher,
+      env,
+      log: (line) => lines.push(line),
+      now: () => Date.parse('2026-09-26T00:00:00Z'),
+      sleep: async () => undefined,
+    });
+    const output = lines.join('\n');
+    expect(output).toContain('MultiBaas setup complete');
+    expect(output).toContain('Laya     exchange hack 96%');
+    // The fixture review is for another wallet, so the guard must block it.
+    expect(output).toContain('Outcome: blocked');
+    expect(output).not.toContain(key.slice(2));
+    const composeCalls = fetcher.mock.calls.filter(([url]) =>
+      String(url).includes('/methods/'),
+    );
+    expect(composeCalls).toHaveLength(0);
+  });
+  it('refuses to execute without a Telegram destination', async () => {
+    const { paths } = await initialized();
+    const fetcher = router();
+    await expect(
+      main(
+        [
+          'demo',
+          '--episode',
+          '11111111-1111-4111-8111-111111111111',
+          '--execute',
+        ],
+        { paths, fetcher, env },
+      ),
+    ).rejects.toThrow('Telegram needs');
+    expect(fetcher).not.toHaveBeenCalled();
+  });
 });

@@ -810,9 +810,6 @@ importers:
 
   apps/news-agent:
     dependencies:
-      '@supabase/supabase-js':
-        specifier: 'catalog:'
-        version: 2.108.1
       '@zapengine/types':
         specifier: workspace:*
         version: link:../../packages/types

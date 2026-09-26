@@ -1,30 +1,53 @@
-# News-triggered Curvegrid demo
+# Zap Agent: news-triggered on-chain agent (Curvegrid demo)
 
 ## One-sentence summary
 
-A local agent recognizes one explicitly configured news fixture, obtains the
-existing Zap Pilot deposit review, and deposits 1 USDC from an operator-owned
-Base wallet into Morpho, then reports persisted execution evidence in Telegram.
-The fixture's interpretation is demo logic, not a general trading strategy.
+When breaking news lands, a local classifier (Laya) decides whether it matches a
+fixed rule, and a guardrailed agent wallet deposits exactly 1 USDC into the
+Spark USDC vault on Base, with every transaction composed, broadcast, verified,
+and indexed through MultiBaas, then pushes a Telegram story link and shows the
+evidence live on [v2.zap-pilot.org/ai-wallet](https://v2.zap-pilot.org/ai-wallet).
+
+```text
+News (podcast API) → Laya (local, probabilities only) → fixed rule
+  → plan-orchestration review (intent-engine + Tenderly) → guard
+  → MultiBaas compose → byte-equal check vs plan → local EOA signs
+  → MultiBaas submit → MultiBaas receipt → MultiBaas Deposit event index
+  → MultiBaas view calls (position) → Telegram smart link → AI Wallet tab
+```
+
+The model never touches keys, contract addresses, or amounts. The only action
+the agent can take is hard-coded in `src/services/demoRule.ts`: approve and
+deposit 1 USDC into `0x7BfA7C4f149E7415b73bdeDfe609237e29CBF34A` for itself,
+before 2026-10-04.
 
 ## MultiBaas usage
 
-MultiBaas Cloud Wallet signs through Azure Key Vault; no private key enters this
-app. The authoritative plan comes from account-engine's
-`/plan-orchestration/deposit/review`. The adapter uses `/api/v0/hsm/wallets`,
-`/api/v0/chains/ethereum/hsm/submit`, and nonce-filtered TXM queries. Actual TXM
-`included` plus `failed: false` means success; `failed: true` means revert.
-When TXM omits `failed`, the Base receipt decides; inclusion still unresolved at
-the poll deadline stops with `needs_attention`.
+Base Mainnet deployment (chain ID 8453). MultiBaas is the agent's whole chain
+interface; no other RPC is used by the CLI.
 
-One arm permits one attempt across all episodes. The database also excludes
-concurrent active actions on the same wallet. Each step persists its exact
-payload and nonce before submission. Recovery checks the payload, uses the same
-nonce only when both latest and pending nonce remain unchanged, and never
-rebuilds an expired review. Claims have a two-minute lease with CAS fencing;
-active claims are not stolen at startup. A `needs_attention` action reserves the
-wallet until an operator reconciles it. Do not modify database status to retry
-without checking TXM and the chain.
+| Step      | MultiBaas API                                                                                                       |
+| --------- | ------------------------------------------------------------------------------------------------------------------- |
+| Setup     | `POST /contracts/{label}` uploads raw ABIs (`usdctoken` = viem `erc20Abi`, `sparkusdcvault` = viem `erc4626Abi`)    |
+|           | `POST /chains/ethereum/addresses` aliases `usdc` and `sparkusdcvault`                                               |
+|           | `POST /chains/ethereum/addresses/{alias}/contracts` links them with `startingBlock` = current block for the indexer |
+| Compose   | `POST …/addresses/{alias}/contracts/{label}/methods/{approve,deposit}` with `from` returns an unsigned EIP-1559 tx  |
+| Broadcast | `POST /chains/ethereum/transactions/submit` with the locally signed raw tx                                          |
+| Confirm   | `GET /chains/ethereum/transactions/receipt/{hash}` (status + decoded `Approval`/`Transfer`/`Deposit` events)        |
+| Index     | `GET /events?tx_hash=…&contract_label=sparkusdcvault&event_signature=Deposit(address,address,uint256,uint256)`      |
+| Read      | view calls `balanceOf` + `convertToAssets` (vault) and `balanceOf` (USDC) for the live position                     |
+| Replay    | `GET /chains/ethereum/transactions/{hash}` + receipt to prove a past tx was a successful agent → vault deposit      |
+
+Safety properties of the MultiBaas integration:
+
+- The authoritative plan comes from account-engine
+  `/plan-orchestration/deposit/review`. The agent signs only if the
+  MultiBaas-composed `from/to/data/value` are identical to the reviewed plan,
+  the guard still passes (review `passed`, exact vault, receiver, amount,
+  fingerprint, > 60 s before expiry), and gas/fees are within demo bounds.
+- The deposit is composed only after the approve receipt is confirmed, because
+  MultiBaas gas estimation needs the allowance.
+- Any mismatch, revert, or 90 s receipt timeout stops the run. Nothing retries.
 
 ## Team
 
@@ -32,58 +55,58 @@ Owner to supply team names and hackathon details before submission.
 
 ## Setup and testing
 
-Use Node 24 and pnpm 10.30.3. Create a Base Mainnet MultiBaas deployment and one
-Azure Cloud Wallet. Maintain less than $5 total value, funded manually (about
-2 USDC plus gas). Only this operator wallet is supported. Revocation independent
-of the daemon: revoke the MultiBaas API key, disable the Azure key, or withdraw
-the wallet balance.
-
-Merge the environment manifest **before** adding `MULTIBAAS_BASE_URL` and
-`MULTIBAAS_API_KEY` to Infisical prod. Never use `--client-target news-agent`:
-that projection removes signing secrets. The dev environment cannot sign.
+Node 24, pnpm 10.30.3, [uv](https://docs.astral.sh/uv/).
 
 ```bash
 pnpm install
 pnpm turbo run build --filter=@zapengine/news-agent^...
-node scripts/env/run.mjs --environment prod -- pnpm --filter @zapengine/news-agent agent evaluate --episode <episodes.id> --wallet <operator-eoa>
-node scripts/env/run.mjs --environment prod -- pnpm --filter @zapengine/news-agent agent run --once
-node scripts/env/run.mjs --environment prod -- pnpm --filter @zapengine/news-agent agent report --limit 20
+
+# 1. Isolated agent wallet + MultiBaas credentials in ~/.zap-news-agent (0600).
+pnpm --filter @zapengine/news-agent agent init \
+  --multibaas-url https://<deployment>.multibaas.com --multibaas-key-file <api-key-file>
+# Fund the printed address on Base with ~3 USDC + 0.0005 ETH (keep < $5).
+
+# 2. Register contracts and aliases (idempotent).
+pnpm --filter @zapengine/news-agent agent multibaas-setup
+
+# 3. Local Laya classifier.
+LAYA_PRELOAD=1 LAYA_DEVICE=mps uvx --from 'laya[serve]' laya-serve
+
+# 4. Dry-runs (no signing). The fixture is always dry-run only.
+node scripts/env/run.mjs --environment prod -- pnpm --filter @zapengine/news-agent agent demo
+node scripts/env/run.mjs --environment prod -- pnpm --filter @zapengine/news-agent agent demo --episode <episodes.id>
+
+# 5. Real transaction, then Telegram.
+node scripts/env/run.mjs --environment prod -- pnpm --filter @zapengine/news-agent agent demo --episode <episodes.id> --execute
+
+# 6. Re-show the story without spending: verifies the tx via MultiBaas, then notifies as a replay.
+node scripts/env/run.mjs --environment prod -- pnpm --filter @zapengine/news-agent agent demo --episode <episodes.id> --replay <txHash>
 ```
 
-`evaluate` reads only and needs no MultiBaas credentials with `--wallet`.
-`run` defaults to dry-run: it persists discovery/decisions, prints review and
-guard results, and neither signs nor notifies. Explicit live commands:
+The CLI reads `ACCOUNT_API_URL`, `PODCAST_API_URL`,
+`PIPELINE_TELEGRAM_BOT_TOKEN`, and `PIPELINE_TELEGRAM_ALLOWED_USER_IDS` (first ID
+is the default chat; override with `--chat=<id>`). `--laya-url` defaults to
+`http://127.0.0.1:8000`. The rule fires when Laya rates the story an exchange
+hack at ≥ 80 % and ETH flow `upward`.
 
 ```bash
-node scripts/env/run.mjs --environment prod -- pnpm --filter @zapengine/news-agent agent smoke
-node scripts/env/run.mjs --environment prod -- pnpm --filter @zapengine/news-agent agent run --execute --arm demo
+pnpm turbo run lint type-check test:coverage deadcode --filter=@zapengine/news-agent
+pnpm --filter @zapengine/news-agent format:check
+pnpm --filter @zapengine/news-agent dup:check
 ```
-
-`smoke` submits a zero-ETH self-transfer and prints its nonce/hash; do not repeat
-an unresolved smoke. `--since` overrides the six-hour discovery window and
-`--episode` targets one episode. The demo rule expires at 2026-10-04 00:00 UTC.
-Only start the real demo after deployment finishes and the podcast ingest gate
-returns to `open`; then submit the fixture PANews URL to the existing bot.
-Notifications wait for the zh-Hant video to complete/fail or twelve hours and
-link to `/e/<episodeId>?lang=zh-Hant`. Test the universal link on an entitled iOS
-build. No podcast pipeline or app UI changes are required.
-
-```bash
-pnpm turbo run type-check lint test:coverage deadcode dup:check --filter=@zapengine/news-agent
-pnpm verify branch
-pnpm lint repo
-pnpm format check
-pnpm lint dead-env
-pnpm env:status --offline
-supabase db reset --local --no-seed
-psql postgresql://postgres:postgres@127.0.0.1:54322/postgres --no-psqlrc -v ON_ERROR_STOP=1 -f supabase/tests/news_agent_actions.sql
-```
-
-Production review, smoke, and Telegram/iOS end-to-end evidence require the
-owner's funded EOA and provisioned services. Merging triggers production
-services/migration; obtain owner approval before merging.
 
 ## MultiBaas feedback
 
-Owner to add observed provisioning, signing, and TXM feedback after the live
-smoke and demo; do not present untested behavior as a successful integration.
+- The built-in `erc20interface` applies a `decimals` type conversion to
+  `approve(tokens)` and `balanceOf` output, so `"1000000"` means one million
+  USDC, not 1 USDC. An agent that must match a reviewed plan byte for byte needs
+  a raw ABI; we upload viem's `erc20Abi` as `usdctoken`.
+- Uploading an interface-only contract fails with a database not-null error
+  unless `bin` is sent (an empty string works).
+- `GET /chains/ethereum/addresses` omits linked contracts; idempotent setup has
+  to read each alias individually.
+- Composing a transaction from an unfunded address fails gas estimation
+  (`gas required exceeds allowance (0)`), and `gas` cannot be supplied to skip
+  it.
+
+Owner to add further observations from the live demo.

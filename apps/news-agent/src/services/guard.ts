@@ -12,7 +12,7 @@ import {
 
 import { AMOUNT, RULE_EXPIRES_AT, USDC, VAULT } from './demoRule.js';
 
-const vaultAbi = parseAbi([
+export const vaultAbi = parseAbi([
   'function deposit(uint256 assets, address receiver) returns (uint256 shares)',
 ]);
 export function fingerprint(

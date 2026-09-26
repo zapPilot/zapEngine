@@ -1,7 +1,7 @@
 {
   "name": "@zapengine/news-agent",
   "version": "0.0.1",
-  "description": "Local Curvegrid news-triggered operator wallet demo",
+  "description": "Local Curvegrid news-triggered agent demo (single-shot CLI)",
   "private": true,
   "type": "module",
   "main": "dist/main.js",
@@ -25,7 +25,6 @@
     "agent": "tsx src/main.ts"
   },
   "dependencies": {
-    "@supabase/supabase-js": "catalog:",
     "@zapengine/types": "workspace:*",
     "zod": "catalog:",
     "viem": "catalog:"

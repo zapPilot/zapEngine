@@ -7,13 +7,7 @@ import {
   now,
   wallet,
 } from '../test-utils/fixtures.js';
-import {
-  AMOUNT,
-  hasKeyword,
-  planRequest,
-  RULE_EXPIRES_AT,
-  VAULT,
-} from './demoRule.js';
+import { AMOUNT, planRequest, RULE_EXPIRES_AT, VAULT } from './demoRule.js';
 import { fingerprint, guard } from './guard.js';
 
 describe('fixed demo guard', () => {
@@ -24,8 +18,6 @@ describe('fixed demo guard', () => {
       fromAmount: '1000000',
       split: { '8453': 1 },
     });
-    expect(hasKeyword('BITGET', '')).toBe(true);
-    expect(hasKeyword('', 'bitget 新聞')).toBe(true);
   });
   it.each(['warning', 'failed', 'unavailable'])(
     'rejects %s reviews',
