@@ -45,6 +45,7 @@ function createApp(
     buildDeposit: vi.fn().mockResolvedValue(plan),
     buildDepositReview: vi.fn(),
     buildWithdraw: vi.fn().mockResolvedValue(withdrawPlan),
+    buildRotateReview: vi.fn(),
   },
 ) {
   const app = new Hono();
@@ -349,6 +350,7 @@ describe('POST /plan-orchestration/deposit/review', () => {
       buildDeposit: vi.fn().mockResolvedValue(plan),
       buildDepositReview: vi.fn().mockResolvedValue(review),
       buildWithdraw: vi.fn().mockResolvedValue(withdrawPlan),
+      buildRotateReview: vi.fn(),
     };
     const { app } = createApp(service);
 
@@ -389,6 +391,7 @@ describe('POST /plan-orchestration/deposit/review', () => {
         reviews: {},
       }),
       buildWithdraw: vi.fn().mockResolvedValue(withdrawPlan),
+      buildRotateReview: vi.fn(),
     };
     const { app } = createApp(service);
 
@@ -423,6 +426,7 @@ describe('POST /plan-orchestration/deposit/review', () => {
         .fn()
         .mockRejectedValue(new GmxDepositTooSmallError(message)),
       buildWithdraw: vi.fn().mockResolvedValue(withdrawPlan),
+      buildRotateReview: vi.fn(),
     };
     const { app } = createApp(service);
 
@@ -460,6 +464,7 @@ describe('POST /plan-orchestration/deposit/review', () => {
         .fn()
         .mockRejectedValue(new HlpDepositTooSmallError(message)),
       buildWithdraw: vi.fn().mockResolvedValue(withdrawPlan),
+      buildRotateReview: vi.fn(),
     };
     const { app } = createApp(service);
 
@@ -570,6 +575,47 @@ describe('POST /plan-orchestration/withdraw', () => {
 
     expect(response.status).toBe(400);
     expect(service.buildWithdraw).not.toHaveBeenCalled();
+  });
+});
+
+describe('POST /plan-orchestration/rotate/review', () => {
+  const body = {
+    userAddress: USER,
+    chainId: 8453,
+    fromVault: '0x4444444444444444444444444444444444444444',
+    toVault: '0x5555555555555555555555555555555555555555',
+    shareAmount: '100000000000000',
+  };
+  const post = (app: Hono, payload: unknown) =>
+    app.request('http://localhost/plan-orchestration/rotate/review', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+  it('validates the rotation and returns the review', async () => {
+    const review = { plan: { calls: [] } };
+    const { app, service } = createApp();
+    vi.mocked(service.buildRotateReview).mockResolvedValue(review as never);
+
+    const response = await post(app, body);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual(review);
+    expect(service.buildRotateReview).toHaveBeenCalledWith(body);
+  });
+
+  it.each([
+    ['the same vault on both sides', { toVault: body.fromVault }],
+    ['zero shares', { shareAmount: '0' }],
+    ['a malformed vault', { fromVault: '0x1234' }],
+  ])('rejects %s before planning', async (_, override) => {
+    const { app, service } = createApp();
+
+    const response = await post(app, { ...body, ...override });
+
+    expect(response.status).toBe(400);
+    expect(service.buildRotateReview).not.toHaveBeenCalled();
   });
 });
 

@@ -32,10 +32,14 @@ import {
   type PlanOrchestrationDepositReviewRequest,
   type PlanOrchestrationDepositReviewResponse,
   PlanOrchestrationDepositReviewResponseSchema,
+  type PlanOrchestrationRotateReviewRequest,
+  type PlanOrchestrationRotateReviewResponse,
+  PlanOrchestrationRotateReviewResponseSchema,
   type PlanOrchestrationWithdrawRequest,
   type PreparedTransaction,
   type PrivyBatchChainId,
   PrivyBatchChainIdSchema,
+  RotatePlanSchema,
   STRATEGY_DEPOSIT_ID,
   type StrategyDepositPlan,
   StrategyDepositPlanSchema,
@@ -84,6 +88,10 @@ export interface PlanOrchestrationService {
   buildWithdraw(
     request: PlanOrchestrationWithdrawRequest,
   ): Promise<WithdrawPlan>;
+  /** Plan a vault-to-vault rotation and attach its Tenderly review. */
+  buildRotateReview: (
+    request: PlanOrchestrationRotateReviewRequest,
+  ) => Promise<PlanOrchestrationRotateReviewResponse>;
 }
 
 /** Rich review rail injected by the account-engine composition root. */
@@ -107,6 +115,7 @@ export interface PlanOrchestrationServiceDeps {
     | 'buildGmxV2Supply'
     | 'buildGmxV2Withdraw'
     | 'buildWithdrawSwap'
+    | 'buildRotate'
     | 'buildSupply'
     | 'buildSwap'
     | 'getTokenPrice'
@@ -1128,37 +1137,29 @@ function unavailableExecutionReview(params: {
   };
 }
 
-async function buildDepositReviewResponse(params: {
-  request: PlanOrchestrationDepositReviewRequest;
-  buildDeposit: (
-    request: PlanOrchestrationDepositRequest,
-    simulation?: PlanSimulationDeps,
-  ) => Promise<PlanOrchestrationDepositPlan>;
+/**
+ * One Tenderly review per execution group, bound to the plan by fingerprints.
+ * Shared by every `/…/review` endpoint so their evidence and flags stay
+ * identical.
+ */
+async function reviewPlanGroups(params: {
+  groups: ReviewExecutionGroup[];
+  planFingerprint: `0x${string}`;
+  userAddress: string;
   reviewService: PlanReviewSimulationService | undefined;
-}): Promise<PlanOrchestrationDepositReviewResponse> {
-  // Build with the pass/fail bundle gate omitted.  This preserves all pure
-  // safety checks while ensuring the endpoint performs exactly one Tenderly
-  // call per execution group rather than first running the pass/fail gate and
-  // then asking Tenderly for rich evidence again.
-  const plan = await params.buildDeposit(params.request);
-  if ('kind' in plan && plan.kind === 'hlp-spot-deposit') {
-    throw new Error(
-      'Spot-funded HLP deposits have no EVM batch to simulate; they are reviewed client-side and signed directly',
-    );
-  }
-  const reviewedAt = Date.now();
-  const expiresAt = reviewedAt + DEPOSIT_REVIEW_EXPIRY_MS;
-  const planFingerprint = reviewFingerprint(plan);
-
-  const reviews = Object.fromEntries(
+  reviewedAt: number;
+  expiresAt: number;
+}) {
+  const { planFingerprint, reviewedAt, expiresAt } = params;
+  return Object.fromEntries(
     await Promise.all(
-      reviewExecutionGroups(plan).map(async (group) => {
+      params.groups.map(async (group) => {
         let review: TenderlySimulationReview;
         const batchChain = PrivyBatchChainIdSchema.safeParse(group.chainId);
         if (!params.reviewService) {
           review = unavailableExecutionReview({
             group,
-            userAddress: params.request.userAddress,
+            userAddress: params.userAddress,
             reason: 'Tenderly simulation is not configured',
           });
         } else if (!batchChain.success) {
@@ -1168,20 +1169,20 @@ async function buildDepositReviewResponse(params: {
           // wallet layer is what refuses to batch on an unsupported chain.
           review = unavailableExecutionReview({
             group,
-            userAddress: params.request.userAddress,
+            userAddress: params.userAddress,
             reason: `Tenderly review is unavailable for chain ${group.chainId}`,
           });
         } else {
           try {
             review = await params.reviewService.simulateBundle({
               chainId: batchChain.data,
-              walletAddress: params.request.userAddress,
+              walletAddress: params.userAddress,
               calls: [...group.approvals, ...group.calls],
             });
           } catch (error) {
             review = unavailableExecutionReview({
               group,
-              userAddress: params.request.userAddress,
+              userAddress: params.userAddress,
               reason:
                 error instanceof Error
                   ? `Tenderly simulation unavailable: ${error.message}`
@@ -1226,6 +1227,38 @@ async function buildDepositReviewResponse(params: {
       }),
     ),
   );
+}
+
+async function buildDepositReviewResponse(params: {
+  request: PlanOrchestrationDepositReviewRequest;
+  buildDeposit: (
+    request: PlanOrchestrationDepositRequest,
+    simulation?: PlanSimulationDeps,
+  ) => Promise<PlanOrchestrationDepositPlan>;
+  reviewService: PlanReviewSimulationService | undefined;
+}): Promise<PlanOrchestrationDepositReviewResponse> {
+  // Build with the pass/fail bundle gate omitted.  This preserves all pure
+  // safety checks while ensuring the endpoint performs exactly one Tenderly
+  // call per execution group rather than first running the pass/fail gate and
+  // then asking Tenderly for rich evidence again.
+  const plan = await params.buildDeposit(params.request);
+  if ('kind' in plan && plan.kind === 'hlp-spot-deposit') {
+    throw new Error(
+      'Spot-funded HLP deposits have no EVM batch to simulate; they are reviewed client-side and signed directly',
+    );
+  }
+  const reviewedAt = Date.now();
+  const expiresAt = reviewedAt + DEPOSIT_REVIEW_EXPIRY_MS;
+  const planFingerprint = reviewFingerprint(plan);
+
+  const reviews = await reviewPlanGroups({
+    groups: reviewExecutionGroups(plan),
+    planFingerprint,
+    userAddress: params.request.userAddress,
+    reviewService: params.reviewService,
+    reviewedAt,
+    expiresAt,
+  });
 
   return PlanOrchestrationDepositReviewResponseSchema.parse({
     plan,
@@ -1553,6 +1586,82 @@ export function createPlanOrchestrationService({
         }),
         { userAddress: request.userAddress, simulation },
       );
+    },
+
+    async buildRotateReview(request) {
+      const { chainId } = request;
+      const publicClient = publicClientFor(publicClients, chainId);
+      const userAddress = request.userAddress as Address;
+      const rotation = await intentEngine.buildRotate(
+        {
+          type: 'ROTATE',
+          protocol: 'morpho',
+          fromAddress: userAddress,
+          chainId,
+          fromVault: request.fromVault,
+          toVault: request.toVault,
+          shareAmount: request.shareAmount,
+        },
+        publicClient,
+      );
+      // Each allowance read is independent; order follows the plan's steps.
+      const approvals = (
+        await Promise.all(
+          rotation.approvals.map((approval) =>
+            neededApprovalFromRequirement({
+              approval,
+              owner: userAddress,
+              publicClient,
+              chainId,
+            }),
+          ),
+        )
+      ).flat();
+      const plan = RotatePlanSchema.parse({
+        approvals,
+        calls: rotation.steps,
+        totalGasUsd: rotation.estimates.totalGasUsd,
+        sourceChainId: chainId,
+      });
+      // Pure checks only: the review below is the single Tenderly call.
+      await assertPlanSafety({
+        plan,
+        userAddress: request.userAddress,
+        intents: [
+          { fromToken: rotation.assetToken, fromAmount: rotation.redeemAmount },
+          {
+            fromToken: rotation.depositToken,
+            fromAmount: rotation.depositAmount,
+          },
+        ],
+        simulation: undefined,
+      });
+
+      const reviewedAt = Date.now();
+      const expiresAt = reviewedAt + DEPOSIT_REVIEW_EXPIRY_MS;
+      const planFingerprint = reviewFingerprint(plan);
+      const reviews = await reviewPlanGroups({
+        groups: [
+          {
+            id: `chain-${chainId}`,
+            chainId,
+            approvals: plan.approvals,
+            calls: plan.calls,
+          },
+        ],
+        planFingerprint,
+        userAddress: request.userAddress,
+        reviewService: simulation?.reviewService,
+        reviewedAt,
+        expiresAt,
+      });
+      return PlanOrchestrationRotateReviewResponseSchema.parse({
+        plan,
+        planFingerprint,
+        reviewedAt,
+        expiresAt,
+        reviews,
+      });
     },
   };
 }

@@ -28,7 +28,7 @@ database URLs.
 - analytics-engine emits pytest-cov Cobertura at `coverage.xml`; the aggregator
   also accepts `htmlcov/coverage.xml` as a fallback.
 
-A complete sweep contains 14 workspaces:
+A complete sweep contains 15 workspaces:
 
 ```text
 apps/account-engine
@@ -38,6 +38,7 @@ apps/app
 apps/control-center
 apps/desktop
 apps/landing-page
+apps/news-agent
 apps/podcast-pipeline
 packages/app-core
 packages/brand-assets
@@ -51,7 +52,7 @@ After a full run, verify completeness with:
 
 ```bash
 pnpm exec tsx scripts/coverage-summary.ts
-jq '.workspaces | length' coverage/summary.json # 14
+jq '.workspaces | length' coverage/summary.json # 15
 ```
 
 ## Agent handoff
@@ -98,7 +99,7 @@ pnpm tsx scripts/coverage-handoff.ts
 
 The first command validates the aggregation/handoff scripts. The second runs
 `turbo run test:coverage`, which enforces the absolute workspace floors below,
-and then aggregates the 14 workspaces. The handoff generator only reads those
+and then aggregates the 15 workspaces. The handoff generator only reads those
 existing outputs. CI uploads `coverage/HANDOFF.md`, `coverage/handoff.json`, and
 `coverage/summary.json` together as `coverage-handoff` for 30 days, while
 per-workspace HTML reports remain a separate seven-day artifact.
@@ -114,6 +115,7 @@ per-workspace HTML reports remain a separate seven-day artifact.
 | `apps/control-center`         | 80         | 71       | 82        | 80    |
 | `apps/desktop`                | 100        | 100      | 100       | 100   |
 | `apps/landing-page`           | 83         | 75       | 89        | 84    |
+| `apps/news-agent`             | 90         | 80       | 90        | 90    |
 | `apps/podcast-pipeline`       | 91         | 80       | 92        | 92    |
 | `packages/app-core`           | 75         | 66       | 73        | 76    |
 | `packages/brand-assets`       | 100        | 100      | 100       | 100   |

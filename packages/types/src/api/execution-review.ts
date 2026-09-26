@@ -108,14 +108,16 @@ export const DepositReviewGroupSchema = z.discriminatedUnion('status', [
 export const PlanOrchestrationDepositReviewRequestSchema =
   PlanOrchestrationDepositRequestSchema;
 
+/** What every plan-orchestration review response wraps around its plan. */
+export const PlanReviewEnvelopeShape = {
+  planFingerprint: SimulationBytes32Schema,
+  reviewedAt: z.number().int().positive(),
+  expiresAt: z.number().int().positive(),
+  reviews: z.record(z.string().min(1), DepositReviewGroupSchema),
+};
+
 export const PlanOrchestrationDepositReviewResponseSchema = z
-  .object({
-    plan: ReviewedDepositPlanSchema,
-    planFingerprint: SimulationBytes32Schema,
-    reviewedAt: z.number().int().positive(),
-    expiresAt: z.number().int().positive(),
-    reviews: z.record(z.string().min(1), DepositReviewGroupSchema),
-  })
+  .object({ plan: ReviewedDepositPlanSchema, ...PlanReviewEnvelopeShape })
   .strict();
 
 export type ExecutionSimulationToken = z.infer<
