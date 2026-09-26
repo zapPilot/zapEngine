@@ -39,14 +39,14 @@ interface IntentEngineConfig {
 
 **IntentEngine interface:**
 
-| Method                                    | Description                                |
-| ----------------------------------------- | ------------------------------------------ |
-| `buildSwap(intent)`                       | Build a swap transaction via LI.FI         |
-| `buildSupply(intent, publicClient)`       | Build a supply (deposit) transaction       |
-| `buildWithdraw(intent)`                   | Build a withdraw transaction               |
-| `buildRotate(intent, publicClient)`       | Build a rotate transaction plan            |
-| `getExecutionStrategy(wallet?, chainId?)` | Determine best execution strategy          |
-| `executeWithEIP7702(txs, wallet)`         | Execute batched transactions with EIP-7702 |
+| Method                                    | Description                                           |
+| ----------------------------------------- | ----------------------------------------------------- |
+| `buildSwap(intent)`                       | Build a swap transaction via LI.FI                    |
+| `buildSupply(intent, publicClient)`       | Build a supply (deposit) transaction                  |
+| `buildWithdraw(intent)`                   | Build a withdraw transaction                          |
+| `buildRotate(intent, publicClient)`       | Build a vault rotation: redeem → LI.FI swap → deposit |
+| `getExecutionStrategy(wallet?, chainId?)` | Determine best execution strategy                     |
+| `executeWithEIP7702(txs, wallet)`         | Execute batched transactions with EIP-7702            |
 
 ## Exports
 

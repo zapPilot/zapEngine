@@ -85,6 +85,7 @@ describe('buildWithdrawSwapTx', () => {
     expect(plan.steps[0]!.meta.intentType).toBe('WITHDRAW');
     expect(plan.approval).toBeUndefined();
     expect(plan.estimates.expectedOutput).toBe(REDEEM_OUT.toString());
+    expect(plan.minOutput).toBe(REDEEM_OUT.toString());
   });
 
   it('defaults swap slippage to 50 bps', async () => {
@@ -147,5 +148,7 @@ describe('buildWithdrawSwapTx', () => {
       amount: REDEEM_OUT.toString(),
     });
     expect(plan.estimates.expectedOutput).toBe('12345');
+    // The guaranteed amount is the quote's minimum, not its estimate.
+    expect(plan.minOutput).toBe('12000');
   });
 });

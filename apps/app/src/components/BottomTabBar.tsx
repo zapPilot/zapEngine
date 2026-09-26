@@ -1,7 +1,7 @@
 import { tokens } from '@zapengine/design-tokens/tokens';
-import { Headphones, House, Sparkles, User } from 'lucide-react-native';
+import { Bot, Headphones, House, Sparkles, User } from 'lucide-react-native';
 import type { ComponentType, ReactElement } from 'react';
-import { Text, View } from 'react-native';
+import { Platform, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Tap } from '@/components/ui/Tap';
@@ -23,10 +23,18 @@ interface TabItem {
   Icon: TabIcon;
 }
 
+const AI_WALLET_TAB: TabItem = {
+  name: 'ai-wallet',
+  labelKey: 'tabs.aiWallet',
+  Icon: Bot,
+};
+
+// The iOS App Store build stays podcast-only; its AI Wallet route is a stub.
 const TABS: readonly TabItem[] = [
   { name: 'home', labelKey: 'tabs.home', Icon: House },
   { name: 'strategy', labelKey: 'tabs.strategy', Icon: Sparkles },
   { name: 'podcast', labelKey: 'tabs.podcast', Icon: Headphones },
+  ...(Platform.OS === 'ios' ? [] : [AI_WALLET_TAB]),
   { name: 'account', labelKey: 'tabs.account', Icon: User },
 ];
 

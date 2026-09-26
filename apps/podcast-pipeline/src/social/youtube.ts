@@ -283,6 +283,13 @@ async function createUploadSession(input: {
   accessToken: string;
   fetchImpl: typeof fetch;
 }): Promise<string> {
+  const title = input.input.title.trim();
+  const titleCharacters = Array.from(title).length;
+  if (!title || titleCharacters > 100) {
+    throw new Error(
+      `YouTube title must contain 1-100 characters; received ${titleCharacters}.`,
+    );
+  }
   const file = await stat(input.input.videoPath);
   const url = new URL(RESUMABLE_UPLOAD_URL);
   url.searchParams.set('uploadType', 'resumable');
@@ -298,7 +305,7 @@ async function createUploadSession(input: {
     },
     body: JSON.stringify({
       snippet: {
-        title: input.input.title,
+        title,
         description: input.input.description,
         categoryId: '27',
         defaultLanguage: input.input.languageCode ?? 'zh-Hant',

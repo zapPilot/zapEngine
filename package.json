@@ -102,6 +102,13 @@
     "apps/analytics-engine/**/*.py": [
       "pnpm --filter @zapengine/analytics-engine exec uv run ruff check --fix",
       "pnpm --filter @zapengine/analytics-engine exec uv run ruff format"
+    ],
+    "apps/news-agent/**/*.{ts,tsx}": [
+      "pnpm --filter @zapengine/news-agent exec eslint --fix",
+      "pnpm --filter @zapengine/news-agent exec prettier --write"
+    ],
+    "apps/news-agent/{*.json,*.config.*}": [
+      "pnpm --filter @zapengine/news-agent exec prettier --write"
     ]
   }
 }

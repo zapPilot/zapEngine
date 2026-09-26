@@ -62,7 +62,7 @@ describe('composeSocialContent', () => {
     ).toBe('本集摘要。\n\n更多市場洞察與工具：https://www.zap-pilot.org');
   });
 
-  it('uses the canonical episode title for YouTube and truncates the description to 4500', () => {
+  it('fits legacy overlong canonical titles to YouTube limits and truncates the description to 4500', () => {
     const composed = composeSocialContent('youtube', {
       copy,
       episode: {
@@ -71,7 +71,8 @@ describe('composeSocialContent', () => {
         description: '   ',
       },
     });
-    expect(composed.title).toBe(`  ${'界'.repeat(120)}  `);
+    expect(composed.title).toBe(`${'界'.repeat(99)}…`);
+    expect(Array.from(composed.title ?? '')).toHaveLength(100);
     expect(composed.body.startsWith('S'.repeat(4_500))).toBe(true);
     expect(composed.body).toContain('https://www.zap-pilot.org');
   });

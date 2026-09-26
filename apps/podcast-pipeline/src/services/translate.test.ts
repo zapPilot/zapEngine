@@ -257,6 +257,46 @@ describe('translateCanonicalScript', () => {
     expect(mocks.createOpenRouterChatCompletion).toHaveBeenCalledTimes(1);
   });
 
+  it('retries an overlong English title and keeps the canonical translation within YouTube limits', async () => {
+    vi.useFakeTimers();
+    mocks.createOpenRouterChatCompletion
+      .mockResolvedValueOnce(
+        completion(
+          JSON.stringify({
+            title: 'A'.repeat(101),
+            script: 'Translated body',
+          }),
+        ),
+      )
+      .mockResolvedValueOnce(
+        completion(
+          JSON.stringify({
+            title: 'Concise English title',
+            script: 'Translated body',
+          }),
+        ),
+      );
+
+    const promise = translateCanonicalScript({
+      title: '這是一個需要翻譯的標題',
+      script: '這是正文。',
+      targetLanguageCode: 'en',
+    });
+    await vi.advanceTimersByTimeAsync(500);
+
+    await expect(promise).resolves.toMatchObject({
+      title: 'Concise English title',
+      script: 'Translated body',
+    });
+    expect(mocks.createOpenRouterChatCompletion).toHaveBeenCalledTimes(2);
+    expect(translationSystemMessageForCall(0)).toContain(
+      'at most 100 Unicode characters',
+    );
+    expect(translationUserMessageForCall(1)).toContain(
+      'title over 100 characters (101)',
+    );
+  });
+
   it('keeps a 2,000-character script in one request with its title', async () => {
     const script = '字'.repeat(2_000);
     mockEchoedTranslation();
@@ -477,6 +517,16 @@ function translationInputForCall(index: number): Record<string, string> {
   const [, request] =
     mocks.createOpenRouterChatCompletion.mock.calls[index] ?? [];
   return translationInputFromRequest(request);
+}
+
+function translationSystemMessageForCall(index: number): string {
+  const [, request] =
+    mocks.createOpenRouterChatCompletion.mock.calls[index] ?? [];
+  const content = request?.messages?.[0]?.content;
+  if (typeof content !== 'string') {
+    throw new Error(`Translation call ${index} has no system message`);
+  }
+  return content;
 }
 
 function translationUserMessageForCall(index: number): string {
