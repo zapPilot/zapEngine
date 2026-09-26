@@ -457,19 +457,21 @@ Platform-specific packaging experiments are currently disabled.
 `packaging-experiments.ts` deliberately returns no assignments.
 
 Visible titles have one source of truth: the selected
-`episode_localizations.title`. Rednote publishes that title directly; YouTube
-uses the same canonical title and deterministically fits only legacy over-100
-character rows to its 100-character transport limit. X and Threads have no
-separate title field. New English localization titles are validated at
-translation time to stay within 100 Unicode characters, so normal releases do
-not need the legacy fit. Secondary-language localization titles remain
-translations of the canonical title, not platform-written headlines.
+`episode_localizations.title`. The script LLM is instructed to keep the
+canonical title within 20 Unicode characters, but that is a generation
+preference rather than an ingest gate. If the model returns a longer valid
+title, it is persisted unchanged.
 
-New canonical Traditional Chinese titles are constrained upstream to 20 Unicode
-characters so Rednote can publish the exact same title without truncation.
+Platform limits are enforced only at the final transport projection: Rednote
+hard-truncates the canonical title to 20 Unicode characters and YouTube
+hard-truncates it to 100. X and Threads have no separate title field. Secondary
+language localization titles remain translations of the canonical title, not
+platform-written headlines.
+
 `social_publish_jobs.legacy_title_override` exists only for the finite set of
-Rednote jobs that were already queued with >20-character titles when this
-contract changed. New jobs must leave it null; it is not a new title strategy.
+already-queued Rednote jobs that predate the canonical-title migration. New jobs
+must leave it null; it is not a new title strategy, and any override is subject
+to the same final Rednote transport truncation.
 
 ## Account follower snapshots
 

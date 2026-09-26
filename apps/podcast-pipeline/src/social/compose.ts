@@ -21,6 +21,7 @@ export interface ComposedSocialContent {
   hookType: SocialHookType;
 }
 
+export const REDNOTE_TITLE_MAX_CHARACTERS = 20;
 export const YOUTUBE_TITLE_MAX_CHARACTERS = 100;
 const YOUTUBE_DESCRIPTION_MAX_CHARACTERS = 4500;
 
@@ -89,7 +90,7 @@ function composePlatformContent(
     case 'rednote': {
       const rednote = requireCopyBlock(input.copy.rednote, 'rednote');
       return {
-        title: input.episode.title,
+        title: fitRednoteTitle(input.episode.title),
         body: rednote.body,
         hashtags: [...rednote.hashtags],
         hookType: rednote.hookType,
@@ -114,19 +115,24 @@ function requireCopyBlock<T>(block: T | undefined, name: string): T {
   throw new Error(`Generated social copy is missing the ${name} block.`);
 }
 
-// YouTube metadata remains episode-derived. The title is the canonical
-// episode localization title; social generation only supplies hook metadata.
-// Legacy localizations can predate the current title-length contract, so the
-// transport projection fits those titles deterministically instead of asking an
-// LLM to invent a second platform-specific headline.
-function fitYouTubeTitle(title: string): string {
+// Titles remain episode-derived. The LLM is asked to keep the canonical title
+// short, but platform transport limits are enforced here deterministically so a
+// model ignoring that preference never blocks ingest or creates a second
+// platform-specific headline.
+function fitTitleToTransportLimit(
+  title: string,
+  maxCharacters: number,
+): string {
   const normalized = title.trim();
-  const characters = Array.from(normalized);
-  if (characters.length <= YOUTUBE_TITLE_MAX_CHARACTERS) return normalized;
-  return `${characters
-    .slice(0, YOUTUBE_TITLE_MAX_CHARACTERS - 1)
-    .join('')
-    .trimEnd()}…`;
+  return Array.from(normalized).slice(0, maxCharacters).join('').trimEnd();
+}
+
+export function fitRednoteTitle(title: string): string {
+  return fitTitleToTransportLimit(title, REDNOTE_TITLE_MAX_CHARACTERS);
+}
+
+function fitYouTubeTitle(title: string): string {
+  return fitTitleToTransportLimit(title, YOUTUBE_TITLE_MAX_CHARACTERS);
 }
 
 export function composeYouTubeDescription(

@@ -13,10 +13,10 @@ describe('Rednote canonical title policy', () => {
 
     const normalizedPrompt = prompt.replace(/\s+/gu, ' ');
     expect(normalizedPrompt).toContain(
-      'The episode title is already finalized upstream and is published unchanged',
+      'The episode title is already finalized upstream; do not generate, rewrite, shorten, or optimize another Rednote-specific title here.',
     );
     expect(normalizedPrompt).toContain(
-      'do not generate, rewrite, shorten, or optimize another Rednote-specific title',
+      'the publisher truncates it deterministically at the final platform boundary',
     );
     expect(prompt).not.toContain('`title`: a curiosity-driven consumer title');
   });

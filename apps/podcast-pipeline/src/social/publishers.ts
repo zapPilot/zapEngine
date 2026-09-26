@@ -1,4 +1,8 @@
-import { composeSocialContent, type SocialComposeEpisode } from './compose.js';
+import {
+  composeSocialContent,
+  fitRednoteTitle,
+  type SocialComposeEpisode,
+} from './compose.js';
 import { assertRednoteCopySafe } from './lexicon/index.js';
 import { platformLabel, platformVideoMode } from './platforms.js';
 import { createPlaywrightRednotePublisher } from './rednote-playwright.js';
@@ -136,18 +140,13 @@ function createRednoteJob(input: SocialPublishJobsInput): SocialPublishJob {
   const platform = 'rednote';
   const videoPath = requireVideoPath(platform, input);
   const composed = composeForPublish(platform, input);
-  const title =
+  const rawTitle =
     input.titleOverrideByPlatform?.[platform]?.trim() || composed.title;
   const { hashtags } = composed;
-  if (!title?.trim()) {
+  if (!rawTitle?.trim()) {
     throw new Error('Rednote publishing requires the canonical episode title.');
   }
-  const titleLength = Array.from(title).length;
-  if (titleLength > 20) {
-    throw new Error(
-      `Rednote title is ${titleLength} characters; canonical titles must be at most 20 so the platform cannot truncate them.`,
-    );
-  }
+  const title = fitRednoteTitle(rawTitle);
   // The last mile: `copy.ts` gates each generated field, but only what is
   // actually composed for publish is what Rednote review reads. The note
   // carries no prose body, so only the title and topics need this check.

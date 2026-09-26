@@ -1,8 +1,10 @@
 # Rednote / 小紅書
 
 Write for a consumer feed, not as a research report. The episode title is
-already finalized upstream and is published unchanged; do not generate,
-rewrite, shorten, or optimize another Rednote-specific title here.
+already finalized upstream; do not generate, rewrite, shorten, or optimize
+another Rednote-specific title here. If the canonical title exceeds Rednote's
+transport limit, the publisher truncates it deterministically at the final
+platform boundary.
 
 Output fields:
 

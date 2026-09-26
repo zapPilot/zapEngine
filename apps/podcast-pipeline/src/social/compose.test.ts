@@ -46,6 +46,16 @@ describe('composeSocialContent', () => {
     });
   });
 
+  it('hard-truncates an over-limit Rednote title only at the transport projection', () => {
+    const composed = composeSocialContent('rednote', {
+      copy,
+      episode: { ...episode, title: '標'.repeat(21) },
+    });
+
+    expect(composed.title).toBe('標'.repeat(20));
+    expect(Array.from(composed.title ?? '')).toHaveLength(20);
+  });
+
   it('assembles YouTube metadata from the episode, preferring the article description', () => {
     expect(composeSocialContent('youtube', { copy, episode })).toEqual({
       title: '聯準會的下一步',
@@ -62,7 +72,7 @@ describe('composeSocialContent', () => {
     ).toBe('本集摘要。\n\n更多市場洞察與工具：https://www.zap-pilot.org');
   });
 
-  it('fits legacy overlong canonical titles to YouTube limits and truncates the description to 4500', () => {
+  it('hard-truncates overlong canonical titles to YouTube limits and truncates the description to 4500', () => {
     const composed = composeSocialContent('youtube', {
       copy,
       episode: {
@@ -71,7 +81,7 @@ describe('composeSocialContent', () => {
         description: '   ',
       },
     });
-    expect(composed.title).toBe(`${'界'.repeat(99)}…`);
+    expect(composed.title).toBe('界'.repeat(100));
     expect(Array.from(composed.title ?? '')).toHaveLength(100);
     expect(composed.body.startsWith('S'.repeat(4_500))).toBe(true);
     expect(composed.body).toContain('https://www.zap-pilot.org');

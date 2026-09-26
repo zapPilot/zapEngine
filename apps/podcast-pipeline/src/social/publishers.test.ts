@@ -341,18 +341,22 @@ describe('createSocialPublishJobs', () => {
     });
   });
 
-  it('fails closed instead of letting Rednote truncate a long canonical title', () => {
-    expect(() =>
-      createSocialPublishJobs({
-        platforms: ['rednote'],
-        copy,
-        episode: { ...episode, title: '標'.repeat(21) },
-        videoUrl: VIDEO_URL,
-        videoPath: VIDEO_PATH,
-      }),
-    ).toThrow(/canonical titles must be at most 20/);
+  it('hard-truncates a long canonical title at the Rednote publish boundary', async () => {
+    const [job] = createSocialPublishJobs({
+      platforms: ['rednote'],
+      copy,
+      episode: { ...episode, title: '標'.repeat(21) },
+      videoUrl: VIDEO_URL,
+      videoPath: VIDEO_PATH,
+    });
 
-    expect(mocks.createPlaywrightRednotePublisher).not.toHaveBeenCalled();
+    await job?.publish();
+
+    expect(mocks.publishRednote).toHaveBeenCalledWith({
+      title: '標'.repeat(20),
+      hashtags: copy.rednote!.hashtags,
+      videoPath: VIDEO_PATH,
+    });
   });
 
   it('rejects Rednote before publishing when the canonical episode title is blank', () => {

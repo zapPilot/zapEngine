@@ -98,11 +98,7 @@ interface ParsedScriptPayload {
 class ScriptPayloadValidationError extends Error {
   constructor(
     message: string,
-    readonly reason:
-      | 'invalid_json'
-      | 'missing_script'
-      | 'invalid_title'
-      | 'packaged_body',
+    readonly reason: 'invalid_json' | 'missing_script' | 'packaged_body',
     readonly detail: string | null = null,
     options?: ErrorOptions,
   ) {
@@ -337,7 +333,7 @@ export function normalizeEditorialTitle(value: unknown): string | null {
   }
 
   const characterCount = [...normalized].length;
-  if (characterCount < 4 || characterCount > 20) return null;
+  if (characterCount < 4 || characterCount > 60) return null;
 
   return convertTextToZhTW(normalized);
 }
@@ -376,17 +372,6 @@ function parseScriptPayload(content: string): ParsedScriptPayload {
 
   const rawTitle = payload['title'];
   const title = normalizeEditorialTitle(rawTitle);
-  if (
-    typeof rawTitle === 'string' &&
-    rawTitle.trim() &&
-    Array.from(rawTitle.trim()).length > 20
-  ) {
-    throw new ScriptPayloadValidationError(
-      'LLM returned an editorial title over 20 characters',
-      'invalid_title',
-      'title_over_20_characters',
-    );
-  }
   let titleFallbackReason: ScriptTitleFallbackReason | null = null;
   if (title === null) {
     titleFallbackReason =
