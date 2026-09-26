@@ -27,6 +27,7 @@ function alchemyResponses(
     pricesFail?: boolean;
     failedNetwork?: string;
     invalidRpc?: boolean;
+    rpcErrorWithoutMessage?: boolean;
     empty?: boolean;
   } = {},
 ) {
@@ -59,6 +60,7 @@ function alchemyResponses(
     if (options.failedNetwork && url.includes(options.failedNetwork))
       return Response.json({ error: { message: 'RPC unavailable' } });
     if (options.invalidRpc) return Response.json({});
+    if (options.rpcErrorWithoutMessage) return Response.json({ error: {} });
     const rpc = JSON.parse(String(init?.body));
     if (rpc.method === 'eth_getBalance')
       return Response.json({
@@ -160,6 +162,10 @@ describe('Alchemy transport and balance aggregation', () => {
     alchemyResponses({ failedNetwork: '.g.alchemy.com/v2/' });
     await expect(getAlchemyWalletBalancesSnapshot('0xwallet')).rejects.toThrow(
       'RPC unavailable',
+    );
+    alchemyResponses({ rpcErrorWithoutMessage: true });
+    await expect(getAlchemyWalletBalancesSnapshot('0xwallet')).rejects.toThrow(
+      'unknown error',
     );
   });
   it('supports genuinely empty wallets and checks configuration before transport', async () => {

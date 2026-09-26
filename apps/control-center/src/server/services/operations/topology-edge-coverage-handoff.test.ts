@@ -76,6 +76,23 @@ describe('coverage handoff: topology edge contracts', () => {
       'fly:app/analytics-engine-xws3ra',
     );
   });
+
+  it('maps a render workflow key to the process-group Fly signal', () => {
+    topology.push({
+      workspace: '@zapengine/render-worker',
+      flyApp: 'render-worker',
+      sentryProject: 'render-worker',
+      githubWorkflows: ['video-render.yml'],
+      impact: 'social-media',
+    });
+
+    const result = resolveOperationalTopology(
+      'github-actions:workflow/video-render.yml',
+    );
+    expect(result.relatedFingerprints.fly).toBe(
+      'fly:process-group/render-worker/render',
+    );
+  });
 });
 
 describe('coverage handoff: Fly billing parser numeric boundaries', () => {

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { readControlCenterConfig } from '../config/env.js';
 import { collectCostProviders } from './costs.js';
+import { CLOUDFLARE_UNPRICED_MESSAGE } from './cost-history-aggregate.js';
 
 const NOW = new Date('2026-09-11T09:00:00.000Z');
 
@@ -126,5 +127,53 @@ describe('costs coverage', () => {
     });
     const fly = providers.find((p) => p.provider === 'fly');
     expect(fly?.status).not.toBe('unconfigured');
+  });
+
+  it('explains a Cloudflare sync whose charge rows carry no cost field', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      Response.json({
+        success: true,
+        errors: [],
+        result: [
+          {
+            ServiceName: 'R2 Data Storage',
+            ConsumedQuantity: 12.5,
+            BillingCurrency: 'USD',
+          },
+        ],
+      }),
+    );
+    const providers = await collectCostProviders({
+      config: config({
+        CLOUDFLARE_API_TOKEN: 'cf-token',
+        CLOUDFLARE_ACCOUNT_ID: 'acct-1',
+      }),
+      pricingRates: [],
+      fetch: fetchImpl,
+      now: NOW,
+    });
+    expect(providers.find((p) => p.provider === 'cloudflare')).toMatchObject({
+      status: 'ok',
+      message: CLOUDFLARE_UNPRICED_MESSAGE,
+    });
+  });
+
+  it('reports unknown USD cost for metered usage collected without a rate', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      Response.json({
+        balance: 100,
+        stats: [{ usage: 7, remains: 93, date: '2026-09-11' }],
+      }),
+    );
+    const providers = await collectCostProviders({
+      config: config({ DEBANK_API_KEY: 'k' }),
+      pricingRates: [],
+      fetch: fetchImpl,
+      now: NOW,
+    });
+    expect(providers.find((p) => p.provider === 'debank')).toMatchObject({
+      status: 'ok',
+      message: 'Usage synced; USD cost unknown',
+    });
   });
 });
