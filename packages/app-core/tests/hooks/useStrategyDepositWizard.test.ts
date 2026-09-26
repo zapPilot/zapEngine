@@ -45,7 +45,7 @@ const PLAN: StrategyDepositPlan = {
   allocations: [
     {
       id: 'morpho-base-usdc',
-      label: 'Morpho Moonwell USDC',
+      label: 'Morpho Spark USDC',
       weightBps: 4000,
       chainId: 8453,
       protocol: 'morpho',
@@ -94,7 +94,7 @@ const PLAN: StrategyDepositPlan = {
       approvals: [],
       calls: [
         {
-          to: MORPHO_VAULTS[8453].MOONWELL_USDC,
+          to: MORPHO_VAULTS[8453].SPARK_USDC,
           data: '0x1234',
           value: '0',
           chainId: 8453,

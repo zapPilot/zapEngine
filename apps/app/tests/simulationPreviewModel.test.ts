@@ -102,7 +102,7 @@ const STRATEGY_PLAN: StrategyDepositPlan = {
   allocations: [
     {
       id: 'morpho-base-usdc',
-      label: 'Morpho Moonwell USDC',
+      label: 'Morpho Spark USDC',
       weightBps: 4000,
       chainId: SUPPORTED_DEPOSIT_CHAINS.BASE,
       protocol: 'morpho',
@@ -467,7 +467,7 @@ describe('resolveRouteProtocols', () => {
       {
         id: 'morpho-base-usdc',
         protocol: 'morpho',
-        label: 'Morpho Moonwell USDC',
+        label: 'Morpho Spark USDC',
         badge: '40%',
       },
     ]);
@@ -482,7 +482,7 @@ describe('resolveRouteProtocols', () => {
       {
         id: `morpho-${TOKEN.toLowerCase()}-0`,
         protocol: 'morpho',
-        label: 'Morpho Moonwell USDC',
+        label: 'Morpho Spark USDC',
         badge: '100%',
       },
     ]);

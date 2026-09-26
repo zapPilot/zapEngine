@@ -57,8 +57,8 @@ describe('singleChainDepositMachine', () => {
 
     const invest = prepared(investRequest);
     expect(invest.steps[2]).toMatchObject({
-      label: 'Verify Morpho Moonwell position',
-      detail: 'Wait for Moonwell USDC vault shares to increase.',
+      label: 'Verify Morpho Spark position',
+      detail: 'Wait for Spark USDC vault shares to increase.',
     });
 
     const basket = prepared(basketRequest);

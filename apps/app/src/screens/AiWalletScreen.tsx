@@ -1,3 +1,4 @@
+import { tokens } from '@zapengine/design-tokens/tokens';
 import { useLocalSearchParams } from 'expo-router';
 import { useMemo } from 'react';
 import { useWindowDimensions, View } from 'react-native';
@@ -5,19 +6,21 @@ import { useWindowDimensions, View } from 'react-native';
 import { AgentTimeline } from '@/components/aiWallet/AgentTimeline';
 import { AgentWalletCard } from '@/components/aiWallet/AgentWalletCard';
 import { AiWalletHeader } from '@/components/aiWallet/AiWalletHeader';
-import { BASE_BLUE } from '@/components/aiWallet/aiWalletTheme';
 import { EventVideoCard } from '@/components/aiWallet/EventVideoCard';
 import { useAgentLoopPlayback } from '@/components/aiWallet/useAgentLoopPlayback';
-import { useLocalAgentTrigger } from '@/components/aiWallet/useLocalAgentTrigger';
+import { useLocalAgentRun } from '@/components/aiWallet/useLocalAgentRun';
 import { GlowCircle } from '@/components/ui/GlowCircle';
 import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { AGENT_ADDRESS, DEMO_EPISODE_LANGUAGE } from '@/config/aiWalletDemo';
 import { latestConfirmedDeposit } from '@/integration/agentActivity';
 import {
   AGENT_LOOP_STEPS,
-  replayButtonLabel,
+  isRunInProgress,
 } from '@/integration/agentLoopModel';
-import { parseRunEpisodeId } from '@/integration/agentRunContext';
+import {
+  parseRunEpisodeId,
+  storyEpisodeId,
+} from '@/integration/agentRunContext';
 import { usePodcastEpisode } from '@/integration/podcastFeed';
 import {
   AGENT_CONFIGURED,
@@ -31,7 +34,12 @@ export function AiWalletScreen() {
   const { width } = useWindowDimensions();
   const wide = width >= WIDE_LAYOUT_MIN_WIDTH;
   const params = useLocalSearchParams();
-  const episodeId = useMemo(() => parseRunEpisodeId(params), [params]);
+  const urlEpisodeId = useMemo(() => parseRunEpisodeId(params), [params]);
+
+  const agentRun = useLocalAgentRun();
+  const run = agentRun.run;
+  const runInProgress = isRunInProgress(run);
+  const episodeId = storyEpisodeId({ urlEpisodeId, run });
 
   const transactions = useAgentTransactions();
   const episode = usePodcastEpisode(episodeId ?? '', DEMO_EPISODE_LANGUAGE);
@@ -40,21 +48,22 @@ export function AiWalletScreen() {
     () => latestConfirmedDeposit(transactions.data ?? []),
     [transactions.data],
   );
-  const position = useAgentPosition(latestDeposit?.hash ?? null);
-  const { playback, replay } = useAgentLoopPlayback({
+  // A finished run's deposit re-reads the vault at once; Blockscout's latest
+  // deposit covers every other case, including the deployed site.
+  const finishedRunDeposit =
+    run !== null && run.finishedAt !== null ? run.depositHash : null;
+  const position = useAgentPosition(
+    finishedRunDeposit ?? latestDeposit?.hash ?? null,
+  );
+  const { playback } = useAgentLoopPlayback({
     latestDepositHash: latestDeposit?.hash ?? null,
     activityLoaded: transactions.isSuccess,
     stepCount: AGENT_LOOP_STEPS.length,
+    suppressLive: run !== null && run.state !== 'idle',
   });
-
-  const agentTrigger = useLocalAgentTrigger(latestDeposit?.hash ?? null);
-
-  const title = episode.data?.title.trim() ?? '';
-  const eventTitle = title === '' ? null : title;
 
   const wallet = (
     <AgentWalletCard
-      fill={wide}
       agentAddress={AGENT_ADDRESS}
       configured={AGENT_CONFIGURED}
       position={position.data}
@@ -64,6 +73,7 @@ export function AiWalletScreen() {
   );
   const timeline = (
     <AgentTimeline
+      run={run}
       playback={playback}
       latestDeposit={latestDeposit}
       awaitingFirstAction={
@@ -83,14 +93,14 @@ export function AiWalletScreen() {
         >
           <GlowCircle
             size={760}
-            color={BASE_BLUE}
-            opacity={0.3}
+            color={tokens.color.accent}
+            opacity={0.14}
             className="left-[-300px] top-[-220px]"
           />
           <GlowCircle
             size={680}
-            color={BASE_BLUE}
-            opacity={0.16}
+            color={tokens.color.accent}
+            opacity={0.08}
             className="right-[-280px] top-[360px]"
           />
         </View>
@@ -100,12 +110,9 @@ export function AiWalletScreen() {
             wide={wide}
             configured={AGENT_CONFIGURED}
             reconnecting={transactions.isError}
-            replayLabel={replayButtonLabel(playback, eventTitle)}
-            replayDisabled={latestDeposit === null || playback !== null}
-            onReplay={replay}
             runNow={
-              agentTrigger.available
-                ? { busy: agentTrigger.busy, onPress: agentTrigger.trigger }
+              agentRun.available
+                ? { phase: agentRun.phase, onPress: agentRun.start }
                 : null
             }
           />
@@ -127,6 +134,7 @@ export function AiWalletScreen() {
               episode={episode.data}
               loading={episode.isLoading}
               failed={episode.isError}
+              pending={runInProgress}
             />
           </View>
         </View>

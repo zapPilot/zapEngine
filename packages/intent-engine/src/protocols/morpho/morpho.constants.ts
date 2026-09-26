@@ -41,10 +41,10 @@ export const MORPHO_VAULTS = {
     RE7_WETH: '0x78Fc2c2eD1A4cDb5402365934aE5648aDAd094d0' as Address,
   },
   [CHAIN_IDS.BASE]: {
-    // Moonwell USDC vault on Base
-    MOONWELL_USDC: '0x7BfA7C4f149E7415b73bdeDfe609237e29CBF34A' as Address,
-    // Seamless WETH vault
-    SEAMLESS_WETH: '0xa0E430870c4604CcfC7B38Ca7845B1FF653D0ff1' as Address,
+    // Spark USDC vault on Base
+    SPARK_USDC: '0x7BfA7C4f149E7415b73bdeDfe609237e29CBF34A' as Address,
+    // Moonwell Flagship ETH vault
+    MOONWELL_WETH: '0xa0E430870c4604CcfC7B38Ca7845B1FF653D0ff1' as Address,
   },
 } as const;
 

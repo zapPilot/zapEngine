@@ -56,6 +56,22 @@ export const LABELS = {
 export const DEPOSIT_EVENT = 'Deposit(address,address,uint256,uint256)';
 const VERSION = '1.0';
 
+/** Registrations a run composes or reads through that MultiBaas lacks. */
+export async function missingRegistrations(
+  multibaas: Pick<Multibaas, 'address'>,
+): Promise<string[]> {
+  const found = await Promise.all(
+    CONTRACTS.map(({ alias }) => multibaas.address(alias)),
+  );
+  return CONTRACTS.flatMap(({ alias, target, contract }, index) => {
+    const existing = found[index];
+    const ready =
+      existing?.address.toLowerCase() === target.toLowerCase() &&
+      existing.contracts?.some((c) => c.label === contract.label) === true;
+    return ready ? [] : [`${alias}/${contract.label}`];
+  });
+}
+
 // Idempotent: re-running only fills in whatever registration is missing.
 export async function multibaasSetup(
   multibaas: Multibaas,
