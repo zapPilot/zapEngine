@@ -65,7 +65,7 @@ export async function runDemo(
   log(
     `🎯 Action   ${RULE_ID}: deposit ${FIXED_AMOUNT} into the Spark USDC vault on Base (fixed, not chosen by Laya)`,
   );
-  log(`📊 Live     ${dashboardUrl(options.episode, analysis)}`);
+  log(`📊 Live     ${dashboardUrl(options.episode)}`);
   if (options.replay)
     return replay(options.replay, options, news, analysis, deps);
 
@@ -357,7 +357,7 @@ export function message(input: {
     `🎯 Fixed action: deposit ${FIXED_AMOUNT} into the Spark USDC vault (Morpho, Base)`,
     `✅ Confirmed on Base: ${basescan(hash)}`,
     `💼 Position: ${usdc(position.vault)} USDC in vault · ${usdc(position.idle)} USDC idle`,
-    `📊 Live dashboard: ${dashboardUrl(options.episode, analysis)}`,
+    `📊 Live dashboard: ${dashboardUrl(options.episode)}`,
     `🎬 Watch the story: ${input.deps.smartLink(options.episode)}`,
   ].join('\n');
 }

@@ -71,7 +71,6 @@ export function AgentTimeline({
       <View className={cn(stretch && 'flex-1')}>
         {AGENT_LOOP_STEPS.map((step, index) => {
           const tone = tones[index] ?? 'waiting';
-          const previous = tones[index - 1];
           const next = tones[index + 1];
           const isFinal = index === AGENT_LOOP_STEPS.length - 1;
           const deposit = step.id === 'confirm' ? latestDeposit : null;
@@ -82,10 +81,7 @@ export function AgentTimeline({
               deposit={deposit}
               rail={
                 <>
-                  <Connector
-                    visible={previous !== undefined}
-                    lit={tone !== 'waiting'}
-                  />
+                  <Connector visible={index > 0} lit={tone !== 'waiting'} />
                   <StepRing
                     number={index + 1}
                     tone={tone}

@@ -1,19 +1,12 @@
-import {
-  encodeFunctionData,
-  erc20Abi,
-  erc4626Abi,
-  maxUint256,
-  type Address,
-} from 'viem';
+import { encodeFunctionData, erc20Abi, erc4626Abi, type Address } from 'viem';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
   AgentActivityRequestError,
   basescanTxUrl,
   fetchAgentTransactions,
-  formatRelativeTime,
+  formatClockTime,
   isAgentConfigured,
-  latestAgentActionTimestamp,
   latestConfirmedDeposit,
   parseBlockscoutTransactions,
   readAgentPosition,
@@ -29,7 +22,6 @@ const CONTRACTS: AgentContracts = {
   agentAddress: AGENT,
   usdcAddress: USDC,
   vaultAddress: VAULT,
-  usdcDecimals: 6,
 };
 
 function blockscoutItem(overrides: Record<string, unknown>) {
@@ -116,112 +108,57 @@ const FIXTURE = {
 };
 
 describe('parseBlockscoutTransactions', () => {
-  it('classifies approve, deposit, and other transactions with friendly labels', () => {
+  it('singles out vault deposits and keeps status and block time', () => {
     const transactions = parseBlockscoutTransactions(FIXTURE, CONTRACTS);
 
     expect(transactions).toEqual([
       {
         hash: '0xpending',
         kind: 'deposit',
-        label: 'Deposit 1 USDC into Spark vault',
         status: 'pending',
         timestampMs: null,
-        outgoing: true,
       },
       {
         hash: '0xdeposit',
         kind: 'deposit',
-        label: 'Deposit 1 USDC into Spark vault',
         status: 'ok',
         timestampMs: Date.parse('2026-09-26T04:41:27.000Z'),
-        outgoing: true,
       },
       {
         hash: '0xapprove',
-        kind: 'approve',
-        label: 'Approve 1 USDC for Spark vault',
+        kind: 'other',
         status: 'ok',
         timestampMs: Date.parse('2026-09-26T04:41:21.000Z'),
-        outgoing: true,
       },
       {
         hash: '0xfailed',
         kind: 'deposit',
-        label: 'Deposit 1 USDC into Spark vault',
         status: 'error',
         timestampMs: Date.parse('2026-09-25T00:00:00.000Z'),
-        outgoing: true,
       },
       {
         hash: '0xtransfer',
         kind: 'other',
-        label: 'Transfer',
         status: 'ok',
         timestampMs: Date.parse('2026-09-24T00:00:00.000Z'),
-        outgoing: true,
       },
       {
         hash: '0xselector',
         kind: 'other',
-        label: 'Transaction',
         status: 'ok',
         timestampMs: null,
-        outgoing: true,
       },
       {
         hash: '0xfunding',
         kind: 'other',
-        label: 'Received 0.0005 ETH',
         status: 'ok',
         timestampMs: Date.parse('2026-09-27T00:00:00.000Z'),
-        outgoing: false,
       },
     ]);
   });
 
-  it('labels unlimited and non-vault approvals honestly', () => {
-    const [unlimited, otherSpender] = parseBlockscoutTransactions(
-      {
-        items: [
-          blockscoutItem({
-            hash: '0x1',
-            method: 'approve',
-            to: { hash: USDC },
-            raw_input: encodeFunctionData({
-              abi: erc20Abi,
-              functionName: 'approve',
-              args: [VAULT, maxUint256],
-            }),
-          }),
-          blockscoutItem({
-            hash: '0x2',
-            method: 'approve',
-            to: { hash: USDC },
-            raw_input: encodeFunctionData({
-              abi: erc20Abi,
-              functionName: 'approve',
-              args: [OTHER, 2_500_000n],
-            }),
-          }),
-        ],
-      },
-      CONTRACTS,
-    );
-
-    expect(unlimited?.label).toBe('Approve unlimited USDC for Spark vault');
-    expect(otherSpender?.label).toBe('Approve 2.5 USDC');
-  });
-
-  it('labels plain ETH transfers the agent sends', () => {
-    const [sent] = parseBlockscoutTransactions(
-      { items: [blockscoutItem({ hash: '0x1', value: '1000000000000000' })] },
-      CONTRACTS,
-    );
-    expect(sent).toMatchObject({ label: 'Sent 0.001 ETH', outgoing: true });
-  });
-
-  it('falls back to the method name when calldata is not decodable', () => {
-    const [deposit, approveToOther] = parseBlockscoutTransactions(
+  it('recognises a vault deposit by method name or by calldata alone', () => {
+    const [byMethod, byCalldata, notDeposit] = parseBlockscoutTransactions(
       {
         items: [
           blockscoutItem({
@@ -232,19 +169,42 @@ describe('parseBlockscoutTransactions', () => {
           }),
           blockscoutItem({
             hash: '0x2',
-            method: 'approve',
-            to: { hash: OTHER },
+            method: '0x6e553f65',
+            to: { hash: VAULT },
+            raw_input: DEPOSIT_INPUT,
+          }),
+          blockscoutItem({
+            hash: '0x3',
+            method: null,
+            to: { hash: VAULT },
+            raw_input: '0xdeadbeef',
           }),
         ],
       },
       CONTRACTS,
     );
 
-    expect(deposit).toMatchObject({
-      kind: 'deposit',
-      label: 'Deposit USDC into Spark vault',
-    });
-    expect(approveToOther).toMatchObject({ kind: 'other', label: 'Approve' });
+    expect(byMethod?.kind).toBe('deposit');
+    expect(byCalldata?.kind).toBe('deposit');
+    expect(notDeposit?.kind).toBe('other');
+  });
+
+  it('does not count a deposit call sent to another contract', () => {
+    const [elsewhere] = parseBlockscoutTransactions(
+      {
+        items: [
+          blockscoutItem({
+            hash: '0x1',
+            method: 'deposit',
+            to: { hash: OTHER },
+            raw_input: DEPOSIT_INPUT,
+          }),
+        ],
+      },
+      CONTRACTS,
+    );
+
+    expect(elsewhere?.kind).toBe('other');
   });
 
   it('rejects a payload without an items array', () => {
@@ -320,20 +280,16 @@ describe('activity summaries', () => {
     ).toBeNull();
   });
 
-  it('reports the newest agent-sent timestamp, ignoring inbound funding', () => {
-    expect(latestAgentActionTimestamp(transactions)).toBe(
-      Date.parse('2026-09-26T04:41:27.000Z'),
+  it('formats block time as a local HH:MM:SS clock', () => {
+    expect(formatClockTime(new Date(2026, 8, 26, 10, 24, 8).getTime())).toBe(
+      '10:24:08',
     );
-    expect(latestAgentActionTimestamp([])).toBeNull();
-  });
-
-  it('formats relative time buckets', () => {
-    const now = Date.parse('2026-09-26T12:00:00.000Z');
-    expect(formatRelativeTime(now - 5_000, now)).toBe('just now');
-    expect(formatRelativeTime(now + 5_000, now)).toBe('just now');
-    expect(formatRelativeTime(now - 2 * 60_000, now)).toBe('2m ago');
-    expect(formatRelativeTime(now - 3 * 3_600_000, now)).toBe('3h ago');
-    expect(formatRelativeTime(now - 2 * 86_400_000, now)).toBe('2d ago');
+    expect(formatClockTime(new Date(2026, 8, 26, 0, 5, 9).getTime())).toBe(
+      '00:05:09',
+    );
+    expect(formatClockTime(new Date(2026, 8, 26, 23, 59, 59).getTime())).toBe(
+      '23:59:59',
+    );
   });
 
   it('builds Basescan links and recognises the unconfigured agent', () => {

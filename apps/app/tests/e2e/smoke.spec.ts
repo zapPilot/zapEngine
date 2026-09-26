@@ -7,7 +7,16 @@ import {
 } from '../../src/config/aiWalletDemo';
 
 const RUN_EPISODE_ID = '11111111-1111-4111-8111-111111111111';
-const RUN_LINK = `/ai-wallet?episode=${RUN_EPISODE_ID}&hack=0.9500&eth=upward&upward=0.7800&downward=0.1200&none=0.1000`;
+const RUN_LINK = `/ai-wallet?episode=${RUN_EPISODE_ID}`;
+const AGENT_LOOP_LABELS = [
+  'News detected',
+  'Local Laya analysis',
+  'Agent intent',
+  'MultiBaas transaction composed',
+  'Wallet signs locally',
+  'Confirmed on Base',
+  'Video delivered',
+] as const;
 
 const PODCAST_FIXTURE = {
   items: [
@@ -267,6 +276,11 @@ async function routeAiWalletSources(page: Page): Promise<void> {
         ...PODCAST_FIXTURE.items[0],
         id: RUN_EPISODE_ID,
         title: 'E2E agent story',
+        video: {
+          url: 'https://media.example.test/agent-story/video.mp4',
+          thumbnailUrl: 'https://media.example.test/agent-story/thumbnail.png',
+          durationSeconds: 42,
+        },
       }),
     });
   });
@@ -502,15 +516,10 @@ test('renders the web app shell and primary routes without page errors', async (
     await expect(page).toHaveURL(/\/ai-wallet$/);
     await expectHealthyRoute(page);
     await expect(page.getByText('Sign in to continue')).toHaveCount(0);
-    await expect(page.getByText('Guardrails', { exact: true })).toBeVisible();
-    await expect(page.getByText('Spend cap $5')).toBeVisible();
-    await expect(
-      page.getByText('Laya analyzes', { exact: true }),
-    ).toBeVisible();
-    await expect(page.getByText('Analysis not provided')).toBeVisible();
-    await expect(page.getByText('Not provided', { exact: true })).toHaveCount(
-      2,
-    );
+    for (const label of AGENT_LOOP_LABELS) {
+      await expect(page.getByText(label, { exact: true })).toBeVisible();
+    }
+    await expect(page.getByText('Not provided', { exact: true })).toBeVisible();
     await expect(
       page.getByRole('button', { name: 'Watch the story' }),
     ).toHaveCount(0);
@@ -519,15 +528,23 @@ test('renders the web app shell and primary routes without page errors', async (
     await expect(replayButton).toBeVisible();
     if (AGENT_ADDRESS === ZERO_ADDRESS) {
       await expect(
-        page.getByText('Waiting for the first on-chain action').first(),
+        page.getByText('Not deployed', { exact: true }),
+      ).toBeVisible();
+      await expect(
+        page.getByText('Waiting for the first on-chain action'),
       ).toBeVisible();
       await expect(replayButton).toBeDisabled();
     } else {
+      await expect(page.getByText('Agent monitoring on Base')).toBeVisible();
       await expect(
-        page.getByText('Deposit 1 USDC into Spark vault').first(),
+        page.getByRole('link', {
+          name: 'View the confirmed deposit on Basescan',
+        }),
       ).toBeVisible();
+      // The block time renders in the local zone; only the seconds are fixed.
+      await expect(page.getByText(/^\d{2}:\d{2}:27$/)).toBeVisible();
       await replayButton.click();
-      await expect(page.getByText('Replay', { exact: true })).toBeVisible();
+      await expect(page.getByText('Replaying…', { exact: true })).toBeVisible();
     }
 
     const documentMetrics = await page.evaluate(() => ({
@@ -539,17 +556,19 @@ test('renders the web app shell and primary routes without page errors', async (
     );
   });
 
-  await test.step('AI Wallet shows the story and analysis from a run link', async () => {
+  await test.step('AI Wallet shows the story from a run link', async () => {
     await page.goto(RUN_LINK);
     await expectHealthyRoute(page);
-    await expect(page.getByText('E2E agent story')).toBeVisible();
-    await expect(page.getByText('From run link')).toBeVisible();
     await expect(
-      page.getByText('Exchange hack 95.0% · upward ETH pressure 78.0%'),
+      page.getByText('E2E agent story', { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Replay E2E agent story' }),
     ).toBeVisible();
     await expect(
       page.getByRole('button', { name: 'Watch the story' }),
     ).toBeVisible();
+    await expect(page.getByText('0:42', { exact: true })).toBeVisible();
   });
 
   await test.step('locked tabs start sign-in without leaving the guest route', async () => {

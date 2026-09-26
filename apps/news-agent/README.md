@@ -25,8 +25,8 @@ remaining allowance is short) and deposit 0.1 USDC into
 `0x7BfA7C4f149E7415b73bdeDfe609237e29CBF34A` for itself, before 2026-10-04.
 
 The dashboard has no backend: the CLI prints (and sends to Telegram) a link
-like `/ai-wallet?episode=<id>&hack=…&eth=…` so the tab can show the story and
-Laya's analysis for that run. Everything about transactions is read from chain.
+like `/ai-wallet?episode=<id>` so the tab can show the story for that run.
+Everything about transactions is read from chain.
 
 ## MultiBaas usage
 

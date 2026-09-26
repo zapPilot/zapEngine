@@ -119,7 +119,7 @@ describe('single-shot demo', () => {
     expect(output).toContain('deposit exactly 0.1 USDC');
     expect(output).toContain('fixed, not chosen by Laya');
     expect(output).toContain(
-      `https://v2.zap-pilot.org/ai-wallet?episode=${episode}&hack=0.9400&eth=upward&upward=0.8000`,
+      `https://v2.zap-pilot.org/ai-wallet?episode=${episode}\n`,
     );
   });
   it('proceeds with the fixed action whatever Laya concludes', async () => {
@@ -354,9 +354,7 @@ describe('single-shot demo', () => {
       deps: { smartLink: () => 'https://podcast.example/e/x' },
     });
     expect(text).toContain('ETH pressure upward 0%');
-    expect(text).toContain(
-      `ai-wallet?episode=${episode}&hack=0.9400&eth=upward\n`,
-    );
+    expect(text).toContain(`ai-wallet?episode=${episode}\n`);
     expect(text).toContain('Watch the story: https://podcast.example/e/x');
   });
 });
