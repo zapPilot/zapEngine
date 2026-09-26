@@ -14,6 +14,7 @@ export default function TabsLayout(): ReactElement {
       <Tabs.Screen name="home" />
       <Tabs.Screen name="strategy" />
       <Tabs.Screen name="podcast" />
+      <Tabs.Screen name="ai-wallet" />
       <Tabs.Screen name="account" />
     </Tabs>
   );

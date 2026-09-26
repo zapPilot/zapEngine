@@ -13,14 +13,21 @@ describe('app tab navigation', () => {
     expect(DEFAULT_APP_TAB_PATH).toBe('/podcast');
   });
 
-  it('keeps the four-tab order with Podcast in the middle', () => {
-    expect(APP_TAB_NAMES).toEqual(['home', 'strategy', 'podcast', 'account']);
+  it('keeps the five-tab order with Podcast in the middle', () => {
+    expect(APP_TAB_NAMES).toEqual([
+      'home',
+      'strategy',
+      'podcast',
+      'ai-wallet',
+      'account',
+    ]);
   });
 
-  it('lets guests open Home and Podcast', () => {
+  it('lets guests open Home, Podcast, and AI Wallet', () => {
     expect(APP_TAB_NAMES.filter((tab) => isTabAccessible(tab, false))).toEqual([
       'home',
       'podcast',
+      'ai-wallet',
     ]);
     expect(APP_TAB_NAMES.filter((tab) => !isTabAccessible(tab, false))).toEqual(
       ['strategy', 'account'],

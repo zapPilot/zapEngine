@@ -15,6 +15,8 @@ interface ProgressBarProps {
   height?: number;
   /** Track-level overrides such as width or margin. */
   className?: string;
+  /** Fill colour override; defaults to the accent fill. */
+  fillClassName?: string;
 }
 
 const ANIMATION_DURATION_MS = 400;
@@ -38,6 +40,7 @@ export function ProgressBar({
   accessibilityLabel,
   height = 6,
   className,
+  fillClassName = 'bg-accent',
 }: ProgressBarProps) {
   const [progress] = useState(() => new Animated.Value(clampPercent(value)));
   const [trackWidth, setTrackWidth] = useState(0);
@@ -79,7 +82,7 @@ export function ProgressBar({
       style={{ height }}
     >
       <Animated.View
-        className="h-full rounded-pill bg-accent"
+        className={cn('h-full rounded-pill', fillClassName)}
         style={{
           width: progress.interpolate({
             inputRange: [0, 100],

@@ -1,5 +1,12 @@
 import { expect, test, type Page } from '@playwright/test';
 
+import {
+  AGENT_ADDRESS,
+  BASE_RPC_URLS,
+  DEMO_EPISODE_ID,
+  VAULT_ADDRESS,
+} from '../../src/config/aiWalletDemo';
+
 const PODCAST_FIXTURE = {
   items: [
     {
@@ -156,6 +163,29 @@ const VIDEO_PODCAST_FIXTURE = {
   nextCursor: null,
 };
 
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+const BASE_RPC_HOSTS = new Set(
+  BASE_RPC_URLS.map((url) => new URL(url).hostname),
+);
+const AI_WALLET_DEPOSIT_HASH =
+  '0xbb70b5e006b62320084091aaab6f2b77421c07352ae50dc4489056837f19dd17';
+
+const BLOCKSCOUT_FIXTURE = {
+  items: [
+    {
+      hash: AI_WALLET_DEPOSIT_HASH,
+      status: 'ok',
+      result: 'success',
+      method: 'deposit',
+      timestamp: '2026-09-26T04:41:27.000000Z',
+      to: { hash: VAULT_ADDRESS },
+      raw_input:
+        '0x6e553f6500000000000000000000000000000000000000000000000000000000000f424000000000000000000000000001c6f4c7204834d8844e0355560876e2f0e7667e',
+    },
+  ],
+  next_page_params: null,
+};
+
 const PRIMARY_ROUTES = [
   {
     label: 'Home',
@@ -171,6 +201,11 @@ const PRIMARY_ROUTES = [
     label: 'Podcast',
     path: '/podcast',
     url: /\/podcast$/,
+  },
+  {
+    label: 'AI Wallet',
+    path: '/ai-wallet',
+    url: /\/ai-wallet$/,
   },
   {
     label: 'Account',
@@ -198,7 +233,43 @@ async function routePodcastCatalog(page: Page): Promise<void> {
   });
 }
 
+/**
+ * The AI Wallet tab reads Blockscout, the public Base RPC, and one podcast
+ * episode. Keep all three off the network so the smoke run stays hermetic.
+ */
+async function routeAiWalletSources(page: Page): Promise<void> {
+  await page.route('https://base.blockscout.com/**', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify(BLOCKSCOUT_FIXTURE),
+    });
+  });
+  await page.route(
+    (url) => BASE_RPC_HOSTS.has(url.hostname),
+    async (route) => {
+      const request = route.request().postDataJSON() as { id?: number };
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: request.id ?? 1,
+          error: { code: -32000, message: 'Base RPC is disabled in e2e' },
+        }),
+      });
+    },
+  );
+  if (DEMO_EPISODE_ID !== '') {
+    await page.route(
+      `**/episodes/${encodeURIComponent(DEMO_EPISODE_ID)}?**`,
+      async (route) => {
+        await route.fulfill({ status: 404, body: 'not found' });
+      },
+    );
+  }
+}
+
 async function routePodcastFeed(page: Page): Promise<void> {
+  await routeAiWalletSources(page);
   await routePodcastCatalog(page);
   await page.route('**/episodes?**', async (route) => {
     await route.fulfill({
@@ -303,7 +374,7 @@ test('renders the web app shell and primary routes without page errors', async (
   await page.setViewportSize({ width: 390, height: 844 });
   await routePodcastFeed(page);
 
-  await test.step('Podcast is the default guest route and all four tabs remain visible', async () => {
+  await test.step('Podcast is the default guest route and all five tabs remain visible', async () => {
     await page.goto('/');
     await expect(page).toHaveURL(/\/podcast$/, {
       timeout: APP_BOOT_TIMEOUT,
@@ -312,8 +383,14 @@ test('renders the web app shell and primary routes without page errors', async (
     const tabs = page
       .getByRole('tablist', { name: 'App tabs' })
       .getByRole('tab');
-    await expect(tabs).toHaveCount(4);
-    await expect(tabs).toHaveText(['Home', 'Strategy', 'Podcast', 'Account']);
+    await expect(tabs).toHaveCount(5);
+    await expect(tabs).toHaveText([
+      'Home',
+      'Strategy',
+      'Podcast',
+      'AI Wallet',
+      'Account',
+    ]);
     await expect(page.getByRole('tab', { name: 'Podcast' })).toHaveAttribute(
       'aria-selected',
       'true',
@@ -413,6 +490,43 @@ test('renders the web app shell and primary routes without page errors', async (
 
     await page.getByRole('tab', { name: 'Podcast' }).click();
     await expect(page).toHaveURL(/\/podcast$/);
+  });
+
+  await test.step('guest can open AI Wallet without signing in', async () => {
+    await page.goto('/podcast');
+    await page.getByRole('tab', { name: 'AI Wallet' }).click();
+    await expect(page).toHaveURL(/\/ai-wallet$/);
+    await expectHealthyRoute(page);
+    await expect(page.getByText('Sign in to continue')).toHaveCount(0);
+    await expect(page.getByText('Guardrails', { exact: true })).toBeVisible();
+    await expect(page.getByText('Spend cap $5')).toBeVisible();
+    await expect(page.getByText('Laya decides')).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Watch the story' }),
+    ).toBeVisible();
+
+    const replayButton = page.getByRole('button', { name: 'Replay last run' });
+    await expect(replayButton).toBeVisible();
+    if (AGENT_ADDRESS === ZERO_ADDRESS) {
+      await expect(
+        page.getByText('Waiting for the first on-chain action').first(),
+      ).toBeVisible();
+      await expect(replayButton).toBeDisabled();
+    } else {
+      await expect(
+        page.getByText('Deposit 1 USDC into Spark vault').first(),
+      ).toBeVisible();
+      await replayButton.click();
+      await expect(page.getByText('Replay', { exact: true })).toBeVisible();
+    }
+
+    const documentMetrics = await page.evaluate(() => ({
+      clientWidth: document.documentElement.clientWidth,
+      scrollWidth: document.documentElement.scrollWidth,
+    }));
+    expect(documentMetrics.scrollWidth).toBeLessThanOrEqual(
+      documentMetrics.clientWidth + 1,
+    );
   });
 
   await test.step('locked tabs start sign-in without leaving the guest route', async () => {
