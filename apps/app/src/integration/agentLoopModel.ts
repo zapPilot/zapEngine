@@ -72,22 +72,22 @@ export function agentLoopSteps(laya: LayaAnswers): readonly AgentLoopStep[] {
     {
       id: 'compose',
       label: 'Composed via MultiBaas',
-      detail: 'Calldata from the usdctoken and sparkusdcvault contract ABIs',
+      detail: 'Unsigned tx must match the reviewed plan byte for byte',
     },
     {
       id: 'sign',
       label: 'Signed & broadcast',
-      detail: 'Agent key signs inside the $5 spend cap',
+      detail: 'Local agent key signs; MultiBaas broadcasts to Base',
     },
     {
       id: 'confirm',
       label: 'Confirmed on Base',
-      detail: 'Deposit lands in the Spark USDC vault',
+      detail: 'Receipt and Deposit event read back from MultiBaas',
     },
     {
       id: 'notify',
       label: 'Telegram smart link',
-      detail: 'Owner gets the receipt with a Basescan link',
+      detail: 'Story video link and Basescan receipt sent to Telegram',
     },
   ];
 }
