@@ -187,3 +187,5 @@ After linking, Turbo checks remote cache on local misses — `pnpm verify` stays
   ([runbook](./apps/app/docs/android-release.md#ci-release))
 - **Desktop** → local/manual macOS DMG build from `apps/desktop`
 - CI triggers on push to `main` and PRs; deploys only on `main`
+
+Curvegrid hackathon demo: [news-triggered local agent](apps/news-agent/README.md).

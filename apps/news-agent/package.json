@@ -1,0 +1,49 @@
+{
+  "name": "@zapengine/news-agent",
+  "version": "0.0.1",
+  "description": "Local Curvegrid news-triggered operator wallet demo",
+  "private": true,
+  "type": "module",
+  "main": "dist/main.js",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "type-check": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "test:ci": "vitest run --coverage",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "deadcode": "knip --files --exports --dependencies --treat-config-hints-as-errors",
+    "dup:check": "node ../../scripts/lint/run-jscpd.mjs src",
+    "clean": "rm -rf dist coverage .jscpd tsconfig.tsbuildinfo",
+    "dev": "node -e \"console.log('Use agent run explicitly')\"",
+    "lint": "eslint src/ --max-warnings 0",
+    "agent": "tsx src/main.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "catalog:",
+    "@zapengine/types": "workspace:*",
+    "zod": "catalog:",
+    "viem": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "@zapengine/eslint-config": "workspace:*",
+    "@zapengine/knip-config": "workspace:*",
+    "@zapengine/tsconfig": "workspace:*",
+    "eslint": "catalog:",
+    "knip": "catalog:",
+    "prettier": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": "24.x"
+  }
+}
