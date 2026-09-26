@@ -5,6 +5,8 @@ import type { WalletTokenChain } from '@zapengine/app-core/services/walletTokenC
 import {
   buildChainTokenBalanceRows,
   buildDesktopWalletAssets,
+  buildWalletAssetsResult,
+  type DesktopWalletAsset,
   type WalletTokenBalancesResponse,
   normalizeWalletAddressList,
 } from '@/integration/walletAssetModel';
@@ -276,5 +278,488 @@ describe('wallet asset mapping', () => {
         usdValue: 25,
       }),
     ]);
+  });
+});
+
+describe('wallet asset result and fallback branches', () => {
+  it('falls back to brand names when the indexer omits them', () => {
+    const assets = buildDesktopWalletAssets([
+      balances('base', [
+        {
+          symbol: 'USDC',
+          token_address: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+          balance_formatted: '10',
+          usd_value: 10,
+        },
+      ]),
+    ]);
+
+    expect(assets).toEqual([
+      expect.objectContaining({ symbol: 'USDC', name: 'USD Coin' }),
+    ]);
+
+    const rows = buildChainTokenBalanceRows([
+      {
+        symbol: 'USDC',
+        name: '',
+        rawAmount: 10,
+        usdPrice: 1,
+        usdValue: 10,
+        amountLabel: '10 USDC',
+        chains: ['base'],
+        holdings: [
+          {
+            chain: 'base',
+            chainId: 8453,
+            tokenAddress: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+            decimals: 6,
+            balance: '10',
+            balanceBaseUnits: '10000000',
+            rawAmount: 10,
+            usdValue: 10,
+          },
+        ],
+      } as DesktopWalletAsset,
+    ]);
+    expect(rows[0]?.token).toEqual({ symbol: 'USDC', name: 'USD Coin' });
+  });
+
+  it('assembles the hook result with summed live values and status', async () => {
+    const refetch = async () => 'refetched';
+    const result = buildWalletAssetsResult(
+      {
+        data: {
+          assets: [
+            {
+              symbol: 'USDC',
+              name: 'USD Coin',
+              rawAmount: 10,
+              usdPrice: 1,
+              usdValue: 100,
+              amountLabel: '10 USDC',
+              chains: ['base'],
+              holdings: [],
+            },
+            {
+              symbol: 'WETH',
+              name: 'Wrapped Ether',
+              rawAmount: 1,
+              usdPrice: 200,
+              usdValue: 200,
+              amountLabel: '1 WETH',
+              chains: ['base'],
+              holdings: [],
+            },
+          ],
+          rows: [],
+          chainRows: [],
+          failedChains: ['base'],
+        },
+        isLoading: false,
+        isError: false,
+        error: null,
+        refetch,
+      },
+      true,
+    );
+
+    expect(result.totalUsdValue).toBe(300);
+    expect(result).toMatchObject({
+      isConnected: true,
+      isLoading: false,
+      isError: false,
+      error: null,
+      failedChains: ['base'],
+    });
+    await expect(result.refetch()).resolves.toBe('refetched');
+
+    const disconnected = buildWalletAssetsResult(
+      {
+        data: null,
+        isLoading: true,
+        isError: false,
+        error: undefined,
+        refetch: undefined,
+      },
+      false,
+    );
+    expect(disconnected).toMatchObject({
+      assets: [],
+      rows: [],
+      chainRows: [],
+      failedChains: [],
+      totalUsdValue: null,
+      isConnected: false,
+      isLoading: false,
+      isError: false,
+      error: null,
+    });
+    await expect(disconnected.refetch()).resolves.toBeUndefined();
+  });
+
+  it('reports upstream query errors instead of empty values', () => {
+    const failure = new Error('wallet balances failed');
+    const result = buildWalletAssetsResult(
+      {
+        data: undefined,
+        isLoading: false,
+        isError: true,
+        error: failure,
+        refetch: undefined,
+      },
+      true,
+    );
+
+    expect(result).toMatchObject({
+      totalUsdValue: null,
+      isConnected: true,
+      isLoading: false,
+      isError: true,
+      error: failure,
+    });
+  });
+
+  it('treats zero and missing prices as unknown instead of pricing dust', () => {
+    expect(
+      buildDesktopWalletAssets([
+        balances('base', [
+          {
+            symbol: 'USDC',
+            name: 'USD Coin',
+            token_address: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+            balance_formatted: '0',
+            usd_value: 0,
+          },
+          {
+            symbol: 'ETH',
+            name: 'Ethereum',
+            native_token: true,
+          },
+        ]),
+      ]),
+    ).toEqual([]);
+
+    const unpriced = buildDesktopWalletAssets([
+      balances('base', [
+        {
+          symbol: 'USDC',
+          name: 'USD Coin',
+          token_address: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+          balance_formatted: '2',
+          usd_value: 0,
+        },
+      ]),
+    ]);
+    expect(unpriced[0]).toMatchObject({
+      symbol: 'USDC',
+      usdValue: null,
+      usdPrice: null,
+    });
+
+    const rows = buildChainTokenBalanceRows([
+      {
+        symbol: 'USDC',
+        name: 'USD Coin',
+        rawAmount: 0,
+        usdPrice: null,
+        usdValue: 100,
+        amountLabel: '0 USDC',
+        chains: ['base'],
+        holdings: [
+          {
+            chain: 'base',
+            chainId: 8453,
+            tokenAddress: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+            decimals: 6,
+            balance: '0',
+            balanceBaseUnits: '0',
+            rawAmount: 0,
+            usdValue: 100,
+          },
+        ],
+      } as DesktopWalletAsset,
+    ]);
+    expect(rows[0]?.usdPrice).toBeNull();
+  });
+
+  it('skips unknown chains, missing snapshots, and spam balances', () => {
+    const assets = buildDesktopWalletAssets([
+      { chain: 'solana', response: { result: [] } } as never,
+      {
+        chain: 'base',
+        response: {},
+      } as never,
+      balances('base', [
+        {
+          symbol: 'USDC',
+          name: 'Spam Coin',
+          token_address: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+          balance_formatted: '999',
+          usd_value: 999,
+          possible_spam: true,
+        },
+        {
+          symbol: 'USDC',
+          name: 'USD Coin',
+          token_address: '0x833589FCD6EDB6E08F4C7C32D4F71B54BDA02913',
+          balance_formatted: '5',
+          usd_value: 5,
+        },
+      ]),
+    ]);
+
+    expect(assets).toEqual([
+      expect.objectContaining({
+        symbol: 'USDC',
+        rawAmount: 5,
+        usdValue: 5,
+        holdings: [
+          expect.objectContaining({
+            tokenAddress: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+          }),
+        ],
+      }),
+    ]);
+  });
+
+  it('accumulates repeated holdings and falls back for sparse chain rows', () => {
+    const assets = buildDesktopWalletAssets([
+      balances('base', [
+        {
+          symbol: 'USDC',
+          name: 'USD Coin',
+          token_address: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+          balance_formatted: '10',
+          usd_value: 100,
+        },
+        {
+          symbol: 'USDC',
+          name: 'USD Coin',
+          token_address: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+          balance_formatted: '5',
+          usd_value: 0,
+        },
+      ]),
+    ]);
+
+    expect(assets[0]).toMatchObject({
+      rawAmount: 15,
+      usdValue: 100,
+      chains: ['base'],
+    });
+    expect(assets[0]?.holdings).toHaveLength(1);
+    expect(assets[0]?.holdings[0]).toMatchObject({
+      rawAmount: 15,
+      usdValue: 100,
+      balanceBaseUnits: '15000000',
+    });
+
+    const rows = buildChainTokenBalanceRows([
+      {
+        symbol: 'USDC',
+        name: '',
+        rawAmount: 5,
+        usdPrice: null,
+        usdValue: null,
+        amountLabel: '5 USDC',
+        chains: ['ethereum'],
+        holdings: [
+          {
+            chain: 'ethereum',
+            chainId: 999,
+            tokenAddress: null,
+            decimals: 6,
+            rawAmount: 5,
+            usdValue: null,
+          },
+          {
+            chain: 'base',
+            chainId: 8453,
+            tokenAddress: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+            decimals: 6,
+            balance: '3',
+            balanceBaseUnits: '3000000',
+            rawAmount: 3,
+            usdValue: 3,
+          },
+        ],
+      } as DesktopWalletAsset,
+    ]);
+
+    expect(rows.map((row) => row.id)).toEqual(['8453:USDC', '999:USDC']);
+    const sparse = rows.find((row) => row.id === '999:USDC');
+    expect(sparse).toMatchObject({
+      chainLabel: '999',
+      balance: '5',
+      balanceBaseUnits: '5000000',
+      usdValue: null,
+      usdPrice: null,
+      token: { symbol: 'USDC', name: 'USD Coin' },
+    });
+  });
+
+  it('tolerates malformed and missing indexer amounts without losing USD', () => {
+    const assets = buildDesktopWalletAssets([
+      balances('base', [
+        {
+          symbol: 'USDC',
+          name: 'USD Coin',
+          token_address: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+          balance_formatted: 'not-a-number',
+          usd_value: 50,
+        },
+      ]),
+      balances('eth', [
+        {
+          native_token: true,
+          usd_value: 3000,
+        },
+      ]),
+    ]);
+
+    const malformed = assets.find((asset) => asset.symbol === 'USDC');
+    expect(malformed).toMatchObject({ usdValue: 50, usdPrice: null });
+    expect(malformed?.holdings[0]?.balanceBaseUnits).toBe('0');
+
+    const missing = assets.find((asset) => asset.symbol === 'ETH');
+    expect(missing).toMatchObject({
+      name: 'Ethereum',
+      rawAmount: 0,
+      usdValue: 3000,
+      usdPrice: null,
+    });
+    expect(missing?.holdings[0]).toMatchObject({
+      balance: '0',
+      balanceBaseUnits: '0',
+    });
+  });
+
+  it('orders priced assets before unpriced ones regardless of input order', () => {
+    const unpricedFirst = buildDesktopWalletAssets([
+      balances('base', [
+        {
+          symbol: 'WETH',
+          name: 'Wrapped Ether',
+          token_address: '0x4200000000000000000000000000000000000006',
+          balance_formatted: '2',
+          usd_value: 0,
+        },
+      ]),
+      balances('base', [
+        {
+          symbol: 'USDC',
+          name: 'USD Coin',
+          token_address: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+          balance_formatted: '10',
+          usd_value: 10,
+        },
+      ]),
+    ]);
+    expect(unpricedFirst.map((asset) => asset.symbol)).toEqual([
+      'USDC',
+      'WETH',
+    ]);
+
+    const pricedFirst = buildDesktopWalletAssets([
+      balances('base', [
+        {
+          symbol: 'USDC',
+          name: 'USD Coin',
+          token_address: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+          balance_formatted: '10',
+          usd_value: 10,
+        },
+      ]),
+      balances('base', [
+        {
+          symbol: 'WETH',
+          name: 'Wrapped Ether',
+          token_address: '0x4200000000000000000000000000000000000006',
+          balance_formatted: '2',
+          usd_value: 0,
+        },
+      ]),
+    ]);
+    expect(pricedFirst.map((asset) => asset.symbol)).toEqual(['USDC', 'WETH']);
+    expect(pricedFirst[1]).toMatchObject({ usdValue: null });
+  });
+
+  it('sorts sparse chain rows with missing prices last', () => {
+    const holdings = [
+      {
+        chain: 'base',
+        chainId: 8453,
+        tokenAddress: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+        decimals: 6,
+        balance: '5',
+        balanceBaseUnits: '5000000',
+        rawAmount: 5,
+        usdValue: null,
+      },
+      {
+        chain: 'ethereum',
+        chainId: 1,
+        tokenAddress: null,
+        decimals: 6,
+        balance: '2',
+        balanceBaseUnits: '2000000',
+        rawAmount: 2,
+        usdValue: 2,
+      },
+      {
+        chain: 'arbitrum',
+        chainId: 42161,
+        tokenAddress: '0xaf88d065e77c8cc2239327c5edb3a432268e5831',
+        decimals: 6,
+        balance: '1',
+        balanceBaseUnits: '1000000',
+        rawAmount: 1,
+        usdValue: 1,
+      },
+    ] as DesktopWalletAsset['holdings'];
+
+    for (const ordered of [holdings, [...holdings].reverse()]) {
+      const rows = buildChainTokenBalanceRows([
+        {
+          symbol: 'USDC',
+          name: 'USD Coin',
+          rawAmount: 8,
+          usdPrice: null,
+          usdValue: 8,
+          amountLabel: '8 USDC',
+          chains: ['base', 'ethereum', 'arbitrum'],
+          holdings: ordered,
+        } as DesktopWalletAsset,
+      ]);
+
+      expect(rows.map((row) => row.usdValue)).toEqual([2, 1, null]);
+    }
+  });
+
+  it('renders corrupt holdings as zero units instead of crashing', () => {
+    const rows = buildChainTokenBalanceRows([
+      {
+        symbol: 'USDC',
+        name: 'USD Coin',
+        rawAmount: Number.NaN,
+        usdPrice: null,
+        holdings: [
+          {
+            chain: 'base',
+            chainId: 8453,
+            tokenAddress: null,
+            decimals: 6,
+            rawAmount: Number.NaN,
+            usdValue: null,
+          },
+        ],
+      } as unknown as DesktopWalletAsset,
+    ]);
+
+    expect(rows[0]).toMatchObject({
+      balance: 'NaN',
+      balanceBaseUnits: '0',
+      usdPrice: null,
+    });
   });
 });
