@@ -24,6 +24,37 @@ response.
 id, so a client can resolve "this episode, in a different language" without
 already knowing that language's localization id.
 
+## Episode share links
+
+The one public share contract is
+`https://link.zap-pilot.org/e/<episodeId>?lang=<zh-Hant|ja|en>`. Every surface
+that hands out a link — the app's share sheet, Telegram notices, and social copy —
+builds it with `buildPodcastEpisodeShareUrl` from `@zapengine/types/shared`, so
+there is no host override to configure.
+
+- **App installed (iOS):** `/.well-known/apple-app-site-association` claims
+  `/e/*`, and the app's Associated Domains claim this host and the Fly API host.
+  The OS opens the app before any HTTP request is made.
+- **Link-preview crawlers, and requests without a User-Agent or an HTML
+  `Accept`:** `GET /e/:id` returns an HTML page carrying only the Open Graph /
+  Twitter metadata and a "Listen on the web" link.
+- **Every other browser, on any platform:** a `302` to
+  `https://v2.zap-pilot.org/podcast/<localizationId>?lang=`. Both responses send
+  `Vary: User-Agent, Accept` and `Cache-Control: no-store`.
+- **Android App Links are deferred.** `assetlinks.json` is `[]` and the app
+  declares no intent filter, so Android browsers always take the `302`.
+
+`https://from-fed-to-chain-api.fly.dev/e/...` links shared before the link host
+existed stay valid permanently: the same Fly app serves both hosts, and the app
+keeps claiming the old one. Do not remove that route or its Associated Domain.
+
+The link host is operator-owned infrastructure outside this repository: a `link`
+CNAME to `from-fed-to-chain-api.fly.dev` in the Unstoppable Domains DNS for
+`zap-pilot.org`, plus a Fly-issued certificate
+(`fly certs add link.zap-pilot.org -a from-fed-to-chain-api`, then
+`fly certs check` until it is issued). Hono serves the same routes whatever the
+`Host` header says, so the host needs no code change.
+
 ## Environment
 
 Runtime keys are registered in root `config/env.manifest.mjs`. Non-secret values

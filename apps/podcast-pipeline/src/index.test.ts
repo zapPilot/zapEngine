@@ -325,79 +325,76 @@ describe('GET /e/:id share landing page', () => {
     );
   });
 
+  it('renders preview metadata on the link host for a link-preview crawler', async () => {
+    const response = await app.request(`/e/${episodeRow().id}?lang=en`, {
+      headers: {
+        'user-agent': 'TelegramBot (like TwitterBot)',
+        accept: 'text/html',
+      },
+    });
+    const html = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toContain('text/html');
+    expect(response.headers.get('vary')).toBe('User-Agent, Accept');
+    expect(mockFindEpisodeLocalizationByEpisodeId).toHaveBeenCalledWith(
+      episodeRow().id,
+      'en',
+    );
+    expect(html).toContain(
+      'property="og:title" content="Share &lt;Episode&gt;"',
+    );
+    expect(html).toContain(
+      'property="og:description" content="Episode summary for preview cards."',
+    );
+    expect(html).toContain(
+      `property="og:url" content="https://link.zap-pilot.org/e/${episodeRow().id}?lang=en"`,
+    );
+    expect(html).toContain('Listen on the web');
+  });
+
   it.each([
     [
-      'ios',
-      'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)',
-      'Open in Zap Pilot',
+      'iPhone',
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
     ],
     [
-      'android',
-      'Mozilla/5.0 (Linux; Android 13; SM-S918B)',
-      'Open in Zap Pilot',
+      'Android',
+      'Mozilla/5.0 (Linux; Android 13; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Mobile Safari/537.36',
     ],
     [
       'desktop',
-      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
-      'Open in Zap Pilot',
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/140 Safari/537.36',
     ],
   ])(
-    'renders an %s share page with preview metadata',
-    async (_label, ua, cta) => {
-      const response = await app.request(`/e/${episodeRow().id}`, {
-        headers: { 'user-agent': ua },
+    'redirects an interactive %s browser to the resolved web localization',
+    async (_label, ua) => {
+      const localization = localizationRow({
+        title: 'Share <Episode>',
+        raw_text: 'Episode summary for preview cards.',
       });
-      const html = await response.text();
+      mockFindEpisodeLocalizationByEpisodeId.mockResolvedValue(localization);
 
-      expect(response.status).toBe(200);
-      expect(response.headers.get('content-type')).toContain('text/html');
+      const response = await app.request(`/e/${episodeRow().id}?lang=en`, {
+        headers: { 'user-agent': ua, accept: 'text/html' },
+        redirect: 'manual',
+      });
+
+      expect(response.status).toBe(302);
+      expect(response.headers.get('location')).toBe(
+        `https://v2.zap-pilot.org/podcast/${localization.id}?lang=en`,
+      );
+      expect(response.headers.get('vary')).toBe('User-Agent, Accept');
+      expect(response.headers.get('cache-control')).toBe('no-store');
       expect(mockFindEpisodeLocalizationByEpisodeId).toHaveBeenCalledWith(
         episodeRow().id,
-        'zh-Hant',
+        'en',
       );
-      expect(html).toContain(
-        'property="og:title" content="Share &lt;Episode&gt;"',
-      );
-      expect(html).toContain(
-        'property="og:description" content="Episode summary for preview cards."',
-      );
-      expect(html).toContain(
-        `property="og:url" content="https://from-fed-to-chain-api.fly.dev/e/${episodeRow().id}?lang=zh-Hant"`,
-      );
-      expect(html).toContain(cta);
+      expect(
+        mockListEpisodeVideoSummariesByLocalizationIds,
+      ).not.toHaveBeenCalled();
     },
   );
-
-  it('redirects an interactive desktop browser to the resolved web localization', async () => {
-    const localization = localizationRow({
-      title: 'Share <Episode>',
-      raw_text: 'Episode summary for preview cards.',
-    });
-    mockFindEpisodeLocalizationByEpisodeId.mockResolvedValue(localization);
-
-    const response = await app.request(`/e/${episodeRow().id}?lang=ja`, {
-      headers: {
-        'user-agent':
-          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/140 Safari/537.36',
-        accept: 'text/html',
-      },
-      redirect: 'manual',
-    });
-
-    expect(response.status).toBe(302);
-    expect(response.headers.get('location')).toBe(
-      `https://v2.zap-pilot.org/podcast/${localization.id}?lang=ja`,
-    );
-    expect(response.headers.get('vary')).toBe('User-Agent, Accept');
-    expect(response.headers.get('cache-control')).toBe('no-store');
-    expect(mockFindEpisodeLocalizationByEpisodeId).toHaveBeenCalledWith(
-      episodeRow().id,
-      'ja',
-    );
-    expect(
-      mockListEpisodeVideoSummariesByLocalizationIds,
-    ).not.toHaveBeenCalled();
-  });
 
   it('returns 404 when the episode localization does not exist', async () => {
     mockFindEpisodeLocalizationByEpisodeId.mockResolvedValue(null);
@@ -1713,7 +1710,7 @@ describe('POST /telegram/webhook', () => {
         '💰 Total $0.00009',
         '- 外語小教室: $0.00009',
         '🎬 音頻完成／影片排程中',
-        `https://from-fed-to-chain-api.fly.dev/e/${episodeRow().id}?lang=zh-Hant`,
+        `https://link.zap-pilot.org/e/${episodeRow().id}?lang=zh-Hant`,
       ].join('\n'),
     ]);
     expect(mockInvalidateEpisodeSearchCache).toHaveBeenCalledTimes(1);
@@ -1795,7 +1792,7 @@ describe('POST /telegram/webhook', () => {
         '💰 Total $0.00001',
         '- 外語小教室: $0.00001',
         '🎬 音頻完成／影片排程中',
-        `https://from-fed-to-chain-api.fly.dev/e/${episodeRow().id}?lang=zh-Hant`,
+        `https://link.zap-pilot.org/e/${episodeRow().id}?lang=zh-Hant`,
       ].join('\n'),
     ]);
   });
@@ -1819,7 +1816,7 @@ describe('POST /telegram/webhook', () => {
         '《Localization title》',
         'https://cdn.example.com/playlist.m3u8',
         '🎬 音頻完成／影片排程中',
-        `https://from-fed-to-chain-api.fly.dev/e/${episodeRow().id}?lang=zh-Hant`,
+        `https://link.zap-pilot.org/e/${episodeRow().id}?lang=zh-Hant`,
       ].join('\n'),
     );
     expect(telegramMessageTexts()[1]).not.toContain('💰');

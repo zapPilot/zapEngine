@@ -196,6 +196,15 @@ generated entitlements against `ios.provisioningProfile.capabilities` in
 known to carry. Like `ascBuildNumberFloor`, that value is an operator
 attestation: update it only after the profile has actually been reissued.
 
+The Associated Domains entitlement lists two hosts:
+`applinks:link.zap-pilot.org`, the episode share host
+(`PODCAST_SHARE_ORIGIN` in `@zapengine/types/shared`), and
+`applinks:from-fed-to-chain-api.fly.dev`, which keeps share links sent before
+that host existed opening the app. Adding or removing a domain changes the
+entitlement's value, not the capability set, so it needs no reissued profile
+and the `ios:archive` comparison still passes. A new domain only takes effect
+once a build carrying it is installed on the device.
+
 To recover after adding or removing a capability:
 
 1. Enable the capability on the App ID first, in the Apple Developer portal

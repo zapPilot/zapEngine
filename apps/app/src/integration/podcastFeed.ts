@@ -8,6 +8,7 @@ import { getRuntimeEnv } from '@zapengine/app-core/lib/env/runtimeEnv';
 import { createQueryConfig } from '@zapengine/app-core/hooks/queries/queryDefaults';
 import { queryKeys } from '@zapengine/app-core/lib/state/queryClient';
 import {
+  buildPodcastEpisodeShareUrl,
   PODCAST_VIDEO_PROGRESS_STAGES,
   type PodcastLanguageClassroomKeyword,
   type PodcastLanguageClassroomLesson,
@@ -547,11 +548,7 @@ export function getPodcastApiUrl(): string {
 export function getPodcastEpisodeShareUrl(
   episode: Pick<PodcastEpisode, 'id' | 'languageCode'>,
 ): string {
-  const url = new URL(
-    `${getPodcastApiUrl()}/e/${encodeURIComponent(episode.id)}`,
-  );
-  url.searchParams.set('lang', episode.languageCode);
-  return url.toString();
+  return buildPodcastEpisodeShareUrl(episode.id, episode.languageCode);
 }
 
 export interface PodcastEpisodeRouteParams {

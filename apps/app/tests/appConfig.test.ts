@@ -4,6 +4,8 @@ import { getConfig } from 'expo/config';
 import { compileModsAsync } from 'expo/config-plugins';
 import { describe, expect, it, vi } from 'vitest';
 
+import { PODCAST_SHARE_ORIGIN } from '@zapengine/types/shared';
+
 import { projectEnv } from '../../../scripts/env/lib.mjs';
 import appConfig, { shouldEnableDevClientPlugin } from '../app.config';
 
@@ -24,7 +26,14 @@ describe('store identity', () => {
     );
     expect(appConfig.ios?.associatedDomains).toEqual([
       'applinks:from-fed-to-chain-api.fly.dev',
+      'applinks:link.zap-pilot.org',
     ]);
+  });
+
+  it('claims the host the shared share-link builder points at', () => {
+    expect(appConfig.ios?.associatedDomains).toContain(
+      `applinks:${new URL(PODCAST_SHARE_ORIGIN).host}`,
+    );
   });
 
   it('keeps the native identifiers registered with the Privy mobile client', () => {
@@ -203,8 +212,9 @@ describe('evaluated native config (plugin end-state)', () => {
     // `modded.ios.entitlements` undefined, so assert the evaluated `exp`
     // value prebuild will write rather than the in-memory entitlements which
     // require native files.
-    expect(exp.ios?.associatedDomains).toContain(
+    expect(exp.ios?.associatedDomains).toEqual([
       'applinks:from-fed-to-chain-api.fly.dev',
-    );
+      'applinks:link.zap-pilot.org',
+    ]);
   }, 30_000);
 });

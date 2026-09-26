@@ -1,6 +1,8 @@
 import { timingSafeEqual } from 'node:crypto';
 
-import { getTelegramBotToken, trimTrailingSlash } from '../lib/env.js';
+import { buildPodcastEpisodeShareUrl } from '@zapengine/types/shared';
+
+import { getTelegramBotToken } from '../lib/env.js';
 import { errorMessage } from '../lib/errorMessage.js';
 import { isRecord } from '../lib/typeGuards.js';
 import { capturePipelineException } from '../observability/sentry.js';
@@ -104,23 +106,11 @@ export function parseTelegramCommand(text: string): TelegramCommand | null {
   if (name === 'retry' || name === 'status') return { name, argument };
   return { name: 'unknown', argument: null };
 }
-const DEFAULT_EPISODE_SHARE_BASE_URL = 'https://from-fed-to-chain-api.fly.dev';
-
 const VIDEO_LANGUAGE_LABELS: Record<LanguageClassroomLanguageCode, string> = {
   'zh-Hant': '🇹🇼 繁中',
   ja: '🇯🇵 日文',
   en: '🇺🇸 英文',
 };
-
-export function buildEpisodeShareUrl(
-  episodeId: string,
-  languageCode: LanguageClassroomLanguageCode = 'zh-Hant',
-): string {
-  const configuredBase =
-    process.env['PODCAST_PUBLIC_BASE_URL']?.trim() ||
-    DEFAULT_EPISODE_SHARE_BASE_URL;
-  return `${trimTrailingSlash(configuredBase)}/e/${encodeURIComponent(episodeId)}?lang=${encodeURIComponent(languageCode)}`;
-}
 
 export type EpisodeVideoLifecycle = 'completed' | 'queued' | 'unavailable';
 
@@ -136,13 +126,17 @@ export function buildTelegramAudioReadyMessage(
   videoLifecycle: EpisodeVideoLifecycle = 'queued',
 ): string {
   const lifecycle = AUDIO_READY_LIFECYCLE_LABELS[videoLifecycle];
-  return [ingestSummary, lifecycle, buildEpisodeShareUrl(episodeId)].join('\n');
+  return [
+    ingestSummary,
+    lifecycle,
+    buildPodcastEpisodeShareUrl(episodeId, 'zh-Hant'),
+  ].join('\n');
 }
 
 export function buildTelegramVideoCompletedMessage(episodeId: string): string {
   return [
     '🎬 三語影片完成：🇹🇼 繁中・🇯🇵 日文・🇺🇸 英文',
-    buildEpisodeShareUrl(episodeId),
+    buildPodcastEpisodeShareUrl(episodeId, 'zh-Hant'),
   ].join('\n');
 }
 
@@ -162,7 +156,7 @@ export function buildTelegramVideoFailedMessage(
   return [
     `⚠️ ${VIDEO_LANGUAGE_LABELS[languageCode]}影片失敗，但音頻仍可使用`,
     ...(reason ? [`原因：${publicTelegramErrorMessage(reason)}`] : []),
-    buildEpisodeShareUrl(episodeId, languageCode),
+    buildPodcastEpisodeShareUrl(episodeId, languageCode),
   ].join('\n');
 }
 

@@ -30,7 +30,6 @@ const EPISODE_ID = '550e8400-e29b-41d4-a716-446655440000';
 
 afterEach(() => {
   vi.clearAllMocks();
-  vi.unstubAllEnvs();
 });
 
 beforeEach(() => {
@@ -50,12 +49,14 @@ describe('parseSocialEpisodeId', () => {
     expect(parseSocialEpisodeId(EPISODE_ID.toUpperCase())).toBe(EPISODE_ID);
   });
 
-  it('extracts the UUID from an episode share URL', () => {
-    expect(
-      parseSocialEpisodeId(
-        `https://from-fed-to-chain-api.fly.dev/e/${EPISODE_ID}?lang=zh-Hant`,
-      ),
-    ).toBe(EPISODE_ID);
+  it.each([
+    ['link host', `https://link.zap-pilot.org/e/${EPISODE_ID}?lang=en`],
+    [
+      'legacy API host',
+      `https://from-fed-to-chain-api.fly.dev/e/${EPISODE_ID}?lang=zh-Hant`,
+    ],
+  ])('extracts the UUID from a %s share URL', (_label, url) => {
+    expect(parseSocialEpisodeId(url)).toBe(EPISODE_ID);
   });
 
   it('rejects well-formed URLs without an episode path', () => {
@@ -89,8 +90,6 @@ describe('buildSocialEpisode', () => {
   };
 
   it('maps a completed canonical episode and video', () => {
-    vi.stubEnv('PODCAST_PUBLIC_BASE_URL', 'https://podcast.example/base/');
-
     const result = buildSocialEpisode({
       episode,
       localization,
@@ -112,7 +111,25 @@ describe('buildSocialEpisode', () => {
       videoThumbnailUrl: 'https://cdn.example/thumbnail.jpg',
     });
     expect(result.episodeUrl).toBe(
-      `https://podcast.example/base/e/${EPISODE_ID}?lang=zh-Hant`,
+      `https://link.zap-pilot.org/e/${EPISODE_ID}?lang=zh-Hant`,
+    );
+  });
+
+  it('links a translated lane to its own language', () => {
+    const result = buildSocialEpisode({
+      episode,
+      localization: { ...localization, language_code: 'ja' },
+      video: {
+        url: 'https://cdn.example/video.mp4',
+        thumbnailUrl: 'https://cdn.example/thumbnail.jpg',
+        durationSeconds: 173,
+      },
+      languageCode: 'ja',
+    });
+
+    expect(result.languageCode).toBe('ja');
+    expect(result.episodeUrl).toBe(
+      `https://link.zap-pilot.org/e/${EPISODE_ID}?lang=ja`,
     );
   });
 
