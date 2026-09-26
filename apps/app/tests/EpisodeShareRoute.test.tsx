@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import EpisodeShareRoute from '@/app/e/[episodeId]';
 
-const routerReplace = vi.fn();
+const routerReplace = vi.hoisted(() => vi.fn());
 
 vi.mock('expo-router', () => ({
   useRouter: () => ({ replace: routerReplace }),
