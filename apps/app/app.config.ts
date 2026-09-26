@@ -71,7 +71,12 @@ const config: ExpoConfig = {
     // was Universal. Apple rejects an update that drops a device family the
     // listing already supports (ITMS-90101), so this must stay true.
     supportsTablet: true,
-    associatedDomains: ['applinks:from-fed-to-chain-api.fly.dev'],
+    // `link.zap-pilot.org` is the share host; the API host stays claimed so
+    // share links sent before the move keep opening the app.
+    associatedDomains: [
+      'applinks:from-fed-to-chain-api.fly.dev',
+      'applinks:link.zap-pilot.org',
+    ],
     icon: './assets/brand/icon.png',
     config: {
       usesNonExemptEncryption: false,

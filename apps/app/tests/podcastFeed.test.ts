@@ -900,7 +900,19 @@ describe('podcast feed client', () => {
 
   it('builds the canonical HTTPS episode share URL with language', () => {
     expect(getPodcastEpisodeShareUrl(parsePodcastEpisode(episode()))).toBe(
-      'https://from-fed-to-chain-api.fly.dev/e/ep-1?lang=zh-Hant',
+      'https://link.zap-pilot.org/e/ep-1?lang=zh-Hant',
+    );
+    expect(
+      getPodcastEpisodeShareUrl(
+        parsePodcastEpisode(episode({ languageCode: 'en' })),
+      ),
+    ).toBe('https://link.zap-pilot.org/e/ep-1?lang=en');
+  });
+
+  it('keeps share URLs on the link host when the API host is overridden', () => {
+    process.env['VITE_PODCAST_API_URL'] = 'http://localhost:3000';
+    expect(getPodcastEpisodeShareUrl(parsePodcastEpisode(episode()))).toBe(
+      'https://link.zap-pilot.org/e/ep-1?lang=zh-Hant',
     );
   });
 

@@ -1,3 +1,5 @@
+import { buildPodcastEpisodeShareUrl } from '@zapengine/types/shared';
+
 import type {
   EpisodeVideoResponse,
   LanguageClassroomLanguageCode,
@@ -6,8 +8,6 @@ import {
   findEpisodeLocalizationByEpisodeId,
   listEpisodeVideoSummariesByLocalizationIds,
 } from './db.js';
-
-export type SharePagePlatform = 'ios' | 'android' | 'desktop';
 
 export interface SharePageEpisode {
   id: string;
@@ -19,11 +19,7 @@ export interface SharePageEpisode {
 
 export interface RenderEpisodeSharePageInput {
   episode: SharePageEpisode;
-  platform: SharePagePlatform;
-  iosAppId: string;
-  iosAppStoreUrl: string;
   canonicalUrl: string;
-  appDeepLinkUrl: string;
   webEpisodeUrl: string;
 }
 
@@ -33,12 +29,7 @@ export type EpisodeShareResolution =
   | { kind: 'page'; html: string };
 
 const APP_NAME = 'From Fed to Chain';
-const IOS_APP_STORE_URL =
-  'https://apps.apple.com/app/from-fed-to-chain/id6749248542';
-const IOS_APP_ID = extractIosAppId(IOS_APP_STORE_URL);
-const SHARE_BASE_URL = 'https://from-fed-to-chain-api.fly.dev';
 const APP_WEB_ORIGIN = 'https://v2.zap-pilot.org';
-const APP_CUSTOM_SCHEME = 'zappilotv2';
 const LINK_PREVIEW_USER_AGENT_MARKERS = [
   'facebookexternalhit',
   'twitterbot',
@@ -88,23 +79,6 @@ export const APPLE_APP_SITE_ASSOCIATION = {
   },
 };
 
-export function detectPlatform(
-  userAgent: string | undefined,
-): SharePagePlatform {
-  const ua = userAgent ?? '';
-  if (/iPhone|iPad|iPod/i.test(ua)) {
-    return 'ios';
-  }
-  if (/Macintosh/i.test(ua) && /Mobile/i.test(ua)) {
-    return 'ios';
-  }
-  if (/Android/i.test(ua)) {
-    return 'android';
-  }
-
-  return 'desktop';
-}
-
 function episodeWebUrl(
   localizationId: string,
   languageCode: LanguageClassroomLanguageCode,
@@ -134,10 +108,12 @@ export async function resolveEpisodeShare(input: {
     return { kind: 'not-found' };
   }
 
-  const platform = detectPlatform(input.userAgent);
+  // An installed app claims /e/* through the OS before any request is made, so
+  // a browser that reaches this handler has no app to open the link in. Every
+  // platform therefore goes to the web episode; only link-preview crawlers and
+  // non-browser clients get the metadata page.
   const webEpisodeUrl = episodeWebUrl(localization.id, input.languageCode);
   if (
-    platform === 'desktop' &&
     Boolean(input.userAgent?.trim()) &&
     !isLinkPreviewCrawler(input.userAgent) &&
     input.accept?.toLowerCase().includes('text/html') === true
@@ -149,7 +125,6 @@ export async function resolveEpisodeShare(input: {
     localization.id,
   ]);
   const video = videoSummaries.get(localization.id)?.video ?? null;
-  const langQuery = `?lang=${encodeURIComponent(input.languageCode)}`;
 
   return {
     kind: 'page',
@@ -161,11 +136,7 @@ export async function resolveEpisodeShare(input: {
         coverUrl: '',
         video,
       },
-      platform,
-      iosAppId: IOS_APP_ID,
-      iosAppStoreUrl: IOS_APP_STORE_URL,
-      canonicalUrl: `${SHARE_BASE_URL}/e/${encodeURIComponent(input.id)}${langQuery}`,
-      appDeepLinkUrl: `${APP_CUSTOM_SCHEME}://podcast/${encodeURIComponent(localization.id)}${langQuery}`,
+      canonicalUrl: buildPodcastEpisodeShareUrl(input.id, input.languageCode),
       webEpisodeUrl,
     }),
   };
@@ -182,21 +153,6 @@ export function renderEpisodeSharePage(
     input.episode.coverUrl.trim() ||
     DEFAULT_SHARE_IMAGE_URL;
   const episodeMedia = renderEpisodeMedia(coverUrl, video);
-  const platformContent = renderPlatformContent({
-    ...input,
-    episode: {
-      ...input.episode,
-      title,
-      description,
-      coverUrl,
-    },
-  });
-  const appleSmartBannerMeta =
-    input.platform === 'ios'
-      ? `<meta name="apple-itunes-app" content="app-id=${htmlEscape(
-          input.iosAppId,
-        )}, app-argument=${htmlEscape(input.appDeepLinkUrl)}">`
-      : '';
   const videoSize = video ? videoDimensions(video.url) : null;
   const openGraphVideoMeta =
     video && videoSize
@@ -224,7 +180,6 @@ export function renderEpisodeSharePage(
   <meta name="twitter:title" content="${htmlEscape(title)}">
   <meta name="twitter:description" content="${htmlEscape(description)}">
   <meta name="twitter:image" content="${htmlEscape(coverUrl)}">
-  ${appleSmartBannerMeta}
   <style>
     :root {
       color-scheme: light dark;
@@ -326,11 +281,6 @@ export function renderEpisodeSharePage(
       text-decoration: none;
     }
 
-    a.button.button-secondary {
-      background: #eef2f7;
-      color: #171717;
-    }
-
     @media (max-width: 560px) {
       body {
         padding: 22px 14px;
@@ -381,11 +331,6 @@ export function renderEpisodeSharePage(
         color: #171717;
       }
 
-      a.button.button-secondary {
-        background: #2f3642;
-        color: #faf7f1;
-      }
-
     }
   </style>
 </head>
@@ -397,7 +342,9 @@ export function renderEpisodeSharePage(
         <p class="eyebrow">${APP_NAME}</p>
         <h1>${htmlEscape(title)}</h1>
         <p>${htmlEscape(description)}</p>
-        ${platformContent}
+        <div class="actions">
+          <a class="button" href="${htmlEscape(input.webEpisodeUrl)}">Listen on the web</a>
+        </div>
       </div>
     </section>
   </main>
@@ -420,21 +367,6 @@ function videoDimensions(videoUrl: string): { width: number; height: number } {
   return isLegacyLandscape
     ? { width: 1920, height: 1080 }
     : { width: 1080, height: 1920 };
-}
-
-function renderPlatformContent(input: RenderEpisodeSharePageInput): string {
-  let secondaryAction = '';
-  if (input.platform === 'ios') {
-    secondaryAction = `
-          <a class="button button-secondary" href="${htmlEscape(input.iosAppStoreUrl)}">Get Zap Pilot</a>`;
-  } else if (input.platform === 'desktop') {
-    secondaryAction = `
-          <a class="button button-secondary" href="${htmlEscape(input.webEpisodeUrl)}">Listen on the web</a>`;
-  }
-
-  return `<div class="actions">
-          <a class="button" href="${htmlEscape(input.appDeepLinkUrl)}">Open in Zap Pilot</a>${secondaryAction}
-        </div>`;
 }
 
 function renderEpisodeMedia(
@@ -463,15 +395,6 @@ function summarizeDescription(description: string, title: string): string {
   }
 
   return `${normalized.slice(0, 217).trimEnd()}...`;
-}
-
-export function extractIosAppId(appStoreUrl: string): string {
-  const appId = /\/id(\d+)(?:\D|$)/.exec(appStoreUrl)?.[1];
-  if (!appId) {
-    throw new Error('IOS_APP_STORE_URL must include a numeric /id value');
-  }
-
-  return appId;
 }
 
 function htmlEscape(value: string): string {
