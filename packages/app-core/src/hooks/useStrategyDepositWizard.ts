@@ -66,7 +66,7 @@ async function readPositionBalance(
     ? GMX_V2_MARKETS[marketKey].marketToken
     : step.groupId === 'base-morpho' &&
         step.transaction?.meta.intentType === 'SUPPLY'
-      ? MORPHO_VAULTS[8453].MOONWELL_USDC
+      ? MORPHO_VAULTS[8453].SPARK_USDC
       : null;
   if (!positionToken) return null;
   return publicClient.readContract({

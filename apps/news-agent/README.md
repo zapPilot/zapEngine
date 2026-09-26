@@ -118,7 +118,10 @@ node scripts/env/run.mjs --environment prod -- pnpm --filter @zapengine/news-age
 node scripts/env/run.mjs --environment prod -- pnpm --filter @zapengine/news-agent agent demo --episode <episodes.id> --execute
 
 # 5b. Local AI Wallet "Run agent now" button: serves 127.0.0.1:8787; each
-#     click is one real --execute run of TRIGGER_EPISODE (src/services/demoRule.ts).
+#     click is one real --execute run of TRIGGER_EPISODE (src/services/demoRule.ts),
+#     and GET /runs/current feeds the tab's live timeline. `agent serve` and
+#     `expo start` both read @zapengine/types from its dist, so build it first.
+pnpm turbo run build --filter=@zapengine/types
 node scripts/env/run.mjs --environment prod -- pnpm --filter @zapengine/news-agent agent serve
 
 # 6. Re-show the story without spending: verifies the tx via MultiBaas, then notifies as a replay.

@@ -216,7 +216,7 @@ describe('useSingleChainDepositWizard', () => {
     expect(mocks.getDepositPlan).toHaveBeenNthCalledWith(1, baseRequest);
     expect(baseHook.result.current.wizard.steps[2]).toMatchObject({
       kind: 'settlement',
-      label: 'Verify Morpho Moonwell position',
+      label: 'Verify Morpho Spark position',
       chainId: 8453,
     });
     baseHook.unmount();

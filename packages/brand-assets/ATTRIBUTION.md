@@ -43,9 +43,9 @@ beyond the normalization described below, and imply no endorsement.
 | `protocols/morpho.png`      | `morpho.svg`      | Official — `https://cdn.morpho.org/assets/logos/morpho.svg`                                                                                                                                                            |
 | `protocols/ondo.png`        | `ondo.svg`        | Official — `https://ondo.finance/favicon.svg`                                                                                                                                                                          |
 
-Moonwell has no asset here on purpose. Moonwell curates a Morpho vault rather
+Spark has no asset here on purpose. Spark curates a Morpho vault rather
 than being a protocol the deposit lands in, so it is rendered as the Morpho mark
-next to the text "Moonwell USDC".
+next to the text "Spark USDC".
 
 ## Normalization applied by `scripts/rasterize.mjs`
 

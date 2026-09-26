@@ -19,7 +19,7 @@ import { CHAIN_IDS } from '../../src/types/chain.types.js';
 
 const BASE_USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as Address;
 
-const MOONWELL_USDC = '0x7BfA7C4f149E7415b73bdeDfe609237e29CBF34A' as Address;
+const SPARK_USDC = '0x7BfA7C4f149E7415b73bdeDfe609237e29CBF34A' as Address;
 const STEAKHOUSE_USDC = '0xBEEF01735c132Ada46AA9aA4c54623cAA92A64CB' as Address;
 
 describe('lookupVault', () => {
@@ -31,8 +31,8 @@ describe('lookupVault', () => {
     });
 
     expect(vault).not.toBeNull();
-    expect(vault!.name).toBe('Moonwell USDC');
-    expect(vault!.vaultAddress).toBe(MOONWELL_USDC);
+    expect(vault!.name).toBe('Spark USDC');
+    expect(vault!.vaultAddress).toBe(SPARK_USDC);
   });
 
   it('resolves vault by protocol, chainId, and asset symbol', () => {
@@ -106,15 +106,15 @@ describe('lookupVault', () => {
 describe('findVaultByAddress', () => {
   it('resolves vault by exact vault address', () => {
     const vault = findVaultByAddress({
-      vaultAddress: MOONWELL_USDC,
+      vaultAddress: SPARK_USDC,
     });
 
     expect(vault).not.toBeNull();
-    expect(vault!.name).toBe('Moonwell USDC');
+    expect(vault!.name).toBe('Spark USDC');
   });
 
   it('resolves vault by address with mixed case checksum', () => {
-    const mixedCase = MOONWELL_USDC.toUpperCase() as Address;
+    const mixedCase = SPARK_USDC.toUpperCase() as Address;
     const vault = findVaultByAddress({
       vaultAddress: mixedCase,
     });
@@ -134,7 +134,7 @@ describe('findVaultByAddress', () => {
 
   it('filters by chainId when provided', () => {
     const vault = findVaultByAddress({
-      vaultAddress: MOONWELL_USDC,
+      vaultAddress: SPARK_USDC,
       chainId: CHAIN_IDS.BASE,
     });
 
@@ -152,7 +152,7 @@ describe('findVaultByAddress', () => {
 
   it('returns null when protocol filter does not match', () => {
     const vault = findVaultByAddress({
-      vaultAddress: MOONWELL_USDC,
+      vaultAddress: SPARK_USDC,
       protocol: 'unknown' as 'morpho',
     });
 
@@ -161,7 +161,7 @@ describe('findVaultByAddress', () => {
 
   it('returns null when chainId filter does not match', () => {
     const vault = findVaultByAddress({
-      vaultAddress: MOONWELL_USDC,
+      vaultAddress: SPARK_USDC,
       chainId: CHAIN_IDS.ETHEREUM,
     });
 

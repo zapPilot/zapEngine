@@ -161,7 +161,7 @@ export async function assertSingleChainPreflight(params: {
 
 function positionTokens(request: SingleChainDepositRequest): Address[] {
   if (request.kind === 'invest') {
-    return [MORPHO_VAULTS[base.id].MOONWELL_USDC];
+    return [MORPHO_VAULTS[base.id].SPARK_USDC];
   }
   if (request.kind === 'gmx-v2-basket') {
     return GMX_V2_BASKET_MARKET_KEYS.map(

@@ -1,9 +1,10 @@
 import { tokens } from '@zapengine/design-tokens/tokens';
 import { Play, Zap } from 'lucide-react-native';
-import { Text, View } from 'react-native';
+import { ActivityIndicator, Text, View } from 'react-native';
 
 import { BASE_BLUE_BRIGHT } from '@/components/aiWallet/aiWalletTheme';
 import { PulseDot } from '@/components/aiWallet/PulseDot';
+import type { AgentRunPhase } from '@/components/aiWallet/useLocalAgentRun';
 import { Tap } from '@/components/ui/Tap';
 import { cn } from '@/lib/cn';
 
@@ -15,8 +16,14 @@ interface AiWalletHeaderProps {
   replayDisabled: boolean;
   onReplay: () => void;
   /** `null` outside local dev, where no agent can be triggered. */
-  runNow: { busy: boolean; onPress: () => void } | null;
+  runNow: { phase: AgentRunPhase; onPress: () => void } | null;
 }
+
+const RUN_NOW_LABELS: Readonly<Record<AgentRunPhase, string>> = {
+  idle: 'Run agent now',
+  starting: 'Starting…',
+  running: 'Agent running…',
+};
 
 export function AiWalletHeader({
   wide,
@@ -53,26 +60,7 @@ export function AiWalletHeader({
           wide ? 'min-w-0 shrink justify-end' : 'max-w-full',
         )}
       >
-        {runNow === null ? null : (
-          <Tap
-            accessibilityRole="button"
-            accessibilityLabel={
-              runNow.busy ? 'Agent running…' : 'Run agent now'
-            }
-            accessibilityState={{ disabled: runNow.busy }}
-            disabled={runNow.busy}
-            onPress={runNow.onPress}
-            className={cn(
-              'min-h-12 flex-row items-center gap-2 rounded-pill bg-[#0052ff] px-5',
-              runNow.busy && 'opacity-40',
-            )}
-          >
-            <Zap size={15} color={tokens.color.ink} fill={tokens.color.ink} />
-            <Text className="font-sans-semibold text-[14px] text-ink">
-              {runNow.busy ? 'Agent running…' : 'Run agent now'}
-            </Text>
-          </Tap>
-        )}
+        {runNow === null ? null : <RunNowButton {...runNow} />}
         <Tap
           accessibilityRole="button"
           accessibilityLabel={replayLabel}
@@ -102,6 +90,48 @@ export function AiWalletHeader({
         </Tap>
       </View>
     </View>
+  );
+}
+
+function RunNowButton({
+  phase,
+  onPress,
+}: {
+  phase: AgentRunPhase;
+  onPress: () => void;
+}) {
+  const busy = phase !== 'idle';
+  const label = RUN_NOW_LABELS[phase];
+  return (
+    <Tap
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: busy, busy }}
+      disabled={busy}
+      onPress={onPress}
+      // Disabled looks come from classes: web drops a style object on a
+      // disabled Pressable.
+      className={cn(
+        'min-h-12 flex-row items-center gap-2 rounded-pill px-5',
+        busy
+          ? 'border border-line-hi bg-[rgba(255,255,255,.06)]'
+          : 'border border-[#0052ff] bg-[#0052ff]',
+      )}
+    >
+      {busy ? (
+        <ActivityIndicator size="small" color={tokens.color['ink-dim']} />
+      ) : (
+        <Zap size={15} color={tokens.color.ink} fill={tokens.color.ink} />
+      )}
+      <Text
+        className={cn(
+          'font-sans-semibold text-[14px]',
+          busy ? 'text-ink-dim' : 'text-ink',
+        )}
+      >
+        {label}
+      </Text>
+    </Tap>
   );
 }
 

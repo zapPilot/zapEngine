@@ -1,4 +1,6 @@
 import type {
+  AgentRunStepId,
+  AgentRunTransaction,
   PlanOrchestrationRotateReviewResponse,
   PreparedTransaction,
 } from '@zapengine/types/api';
@@ -43,9 +45,19 @@ export interface DemoOptions {
   execute: boolean;
   replay?: Hex;
 }
+/** One timeline line for the local AI Wallet; display only, never read back. */
+export interface DemoProgress {
+  step: AgentRunStepId;
+  text: string;
+  link?: { label: string; url: string };
+  transaction?: AgentRunTransaction;
+  /** The transaction's hash, from the moment it is broadcast. */
+  hash?: Hex;
+}
 export interface DemoDeps {
   wallet: `0x${string}`;
   log: (line: string) => void;
+  progress: (event: DemoProgress) => void;
   now: () => number;
   sleep: (ms: number) => Promise<void>;
   episode: (id: string) => Promise<Episode>;
@@ -74,6 +86,14 @@ interface RunState {
   maxPriorityFeePerGas: bigint;
 }
 
+/** One transaction of the run: timeline steps 4–6 repeat for each. */
+interface StepContext {
+  review: PlanOrchestrationRotateReviewResponse;
+  deps: DemoDeps;
+  run: RunState;
+  transaction: AgentRunTransaction;
+}
+
 const pct = (value: number | undefined) => `${Math.round((value ?? 0) * 100)}%`;
 const usdc = (value: bigint) => Number(formatUnits(value, 6)).toFixed(2);
 const weth = (value: bigint) => Number(formatUnits(value, 18)).toFixed(6);
@@ -89,8 +109,10 @@ export async function runDemo(
   deps: DemoDeps,
 ): Promise<DemoOutcome> {
   const { log } = deps;
+  emit(deps, { step: 'news', text: 'Reading the story from the podcast API' });
   const news = await deps.episode(options.episode);
   log(`📰 News     ${news.title}`);
+  emit(deps, { step: 'news', text: news.title });
   const analysis = await analyze(news, deps);
   log(
     `🎯 Action   ${RULE_ID}: ${FIXED_ACTION} on Base, ${ROUTE} (fixed, not chosen by Laya)`,
@@ -99,6 +121,14 @@ export async function runDemo(
   if (options.replay)
     return replay(options.replay, options, news, analysis, deps);
 
+  emit(deps, {
+    step: 'intent',
+    text: `Fixed action ${RULE_ID}: ${FIXED_ACTION}. Set in code, not chosen by Laya`,
+  });
+  emit(deps, {
+    step: 'intent',
+    text: 'Requesting the plan-orchestration rotate review with a Tenderly simulation',
+  });
   const review = await deps.review();
   const group = review.reviews['chain-8453'];
   const verdict = guard(review, deps.wallet, deps.now());
@@ -109,11 +139,31 @@ export async function runDemo(
   log(
     `🛡  Plan     plan-orchestration rotate review + Tenderly: ${group?.status ?? 'missing'}${undecoded} · guard: ${verdict.reason}`,
   );
-  for (const url of group?.shareUrls ?? []) log(`            ${url}`);
+  emit(deps, {
+    step: 'intent',
+    text: `Review ${group?.status ?? 'missing'}${undecoded}`,
+  });
+  const shareUrls = group?.shareUrls ?? [];
+  for (const [index, url] of shareUrls.entries()) {
+    log(`            ${url}`);
+    emit(deps, {
+      step: 'intent',
+      text: `Tenderly simulation ${index + 1}/${shareUrls.length}`,
+      link: { label: 'Tenderly', url },
+    });
+  }
   if (!verdict.allowed) {
     log(`⛔ Blocked  ${verdict.reason}. Nothing was signed.`);
+    emit(deps, {
+      step: 'intent',
+      text: `Blocked: ${verdict.reason}. Nothing was signed.`,
+    });
     return 'blocked';
   }
+  emit(deps, {
+    step: 'intent',
+    text: 'Guard passed: chain, vaults, amounts, receivers and the LI.FI route are pinned',
+  });
   if (!options.execute) {
     log(
       '🧪 Dry-run  stopping before MultiBaas compose. Pass --execute to sign.',
@@ -126,21 +176,74 @@ export async function runDemo(
     maxFeePerGas: 0n,
     maxPriorityFeePerGas: 0n,
   };
-  let depositHash: Hex | undefined;
-  for (const planned of verdict.transactions) {
-    const hash = same(planned.to, LIFI_DIAMOND)
-      ? await executeSwap(planned, verdict.depositAmount, review, deps, run)
-      : await executeComposed(planned, review, deps, run);
-    if (same(planned.to, USDC_VAULT)) depositHash = hash;
+  const total = verdict.transactions.length;
+  let deposit: { hash: Hex; context: StepContext } | undefined;
+  for (const [position, planned] of verdict.transactions.entries()) {
+    const index = position + 1;
+    if (same(planned.to, LIFI_DIAMOND)) {
+      await executeSwap(planned, verdict.depositAmount, {
+        review,
+        deps,
+        run,
+        transaction: { kind: 'swap', index, total },
+      });
+      continue;
+    }
+    const call = composeArgs(planned);
+    const context: StepContext = {
+      review,
+      deps,
+      run,
+      transaction: { kind: call.step, index, total },
+    };
+    const hash = await executeComposed(planned, call, context);
+    if (call.step === 'deposit') deposit = { hash, context };
   }
-  await verifyIndexed(depositHash!, deps);
+  await verifyIndexed(deposit!.hash, deposit!.context);
+  emit(deps, {
+    step: 'deliver',
+    text: 'Reading the new position with MultiBaas view calls',
+  });
   const position = await readPosition(deps);
+  emit(deps, { step: 'deliver', text: describePosition(position) });
+  emit(deps, { step: 'deliver', text: 'Sending the story to Telegram' });
   await deps.notify(
-    message({ news, analysis, hash: depositHash!, position, options, deps }),
+    message({ news, analysis, hash: deposit!.hash, position, options, deps }),
     deps.smartLink(options.episode),
   );
   log('📨 Telegram sent with the story smart link');
+  emit(deps, {
+    step: 'deliver',
+    text: 'Telegram sent with the story smart link',
+    link: { label: 'Story', url: deps.smartLink(options.episode) },
+  });
   return 'confirmed';
+}
+
+// Progress is display only: a failing sink is logged and must never stop a
+// run that may already have broadcast transactions.
+function emit(deps: DemoDeps, event: DemoProgress): void {
+  try {
+    deps.progress(event);
+  } catch (error) {
+    deps.log(
+      `⚠️  Progress display failed (${describeError(error)}); the run continues`,
+    );
+  }
+}
+
+function report(
+  context: StepContext,
+  step: AgentRunStepId,
+  text: string,
+  extra: Pick<DemoProgress, 'link' | 'hash'> = {},
+): void {
+  emit(context.deps, {
+    step,
+    text,
+    transaction: context.transaction,
+    ...extra,
+  });
 }
 
 // Analysis is context for people, never a gate: an unavailable or failing
@@ -149,16 +252,28 @@ async function analyze(
   news: { title: string; script: string },
   deps: DemoDeps,
 ): Promise<LayaVerdict | null> {
+  emit(deps, {
+    step: 'analyze',
+    text: 'Asking the local Laya model for context',
+  });
   try {
     const analysis = await deps.laya(news.title, news.script);
     deps.log(
       `🧠 Laya     ${describeAnalysis(analysis)}  (${analysis.model}, local)`,
     );
+    emit(deps, {
+      step: 'analyze',
+      text: `${describeAnalysis(analysis)} (${analysis.model}, local)`,
+    });
     return analysis;
   } catch (error) {
     deps.log(
       `🧠 Laya     analysis unavailable (${describeError(error)}); continuing without it`,
     );
+    emit(deps, {
+      step: 'analyze',
+      text: `Laya unavailable (${describeError(error)}); the run continues without it`,
+    });
     return null;
   }
 }
@@ -167,7 +282,7 @@ const describeAnalysis = (analysis: LayaVerdict) =>
   `exchange hack ${pct(analysis.exchangeHack)} · ETH pressure ${analysis.pressure} ${pct(analysis.pressureProbabilities[analysis.pressure])}`;
 
 interface ComposeCall {
-  step: 'approve' | 'redeem' | 'deposit';
+  step: Exclude<AgentRunTransaction['kind'], 'swap'>;
   alias: string;
   contract: string;
   args: string[];
@@ -224,20 +339,35 @@ function recheck(
 
 async function executeComposed(
   planned: PreparedTransaction,
-  review: PlanOrchestrationRotateReviewResponse,
-  deps: DemoDeps,
-  run: RunState,
+  call: ComposeCall,
+  context: StepContext,
 ): Promise<Hex> {
+  const { review, deps, run } = context;
   const { log, multibaas, wallet } = deps;
-  const { step, alias, contract, args } = composeArgs(planned);
+  const { step, alias, contract, args } = call;
+  report(
+    context,
+    'compose',
+    `Composing ${step} with MultiBaas (${alias}/${contract})`,
+  );
   const composed = await multibaas.compose(alias, contract, step, args, wallet);
   log(
     `🧩 Compose  ${step} via MultiBaas (${alias}/${contract}, nonce ${composed.nonce}, gas ${composed.gas})`,
+  );
+  report(
+    context,
+    'compose',
+    `MultiBaas composed ${step} at nonce ${composed.nonce}, gas estimate ${composed.gas}`,
   );
   if (!matchesPlan(composed, planned, wallet))
     throw new Error(
       `MultiBaas ${step} differs from the reviewed plan; refusing to sign`,
     );
+  report(
+    context,
+    'sign',
+    `Bytes match the reviewed plan; checking nonce, guard and gas bounds before signing ${step}`,
+  );
   // A stale nonce means MultiBaas has not seen the previous step's block.
   if (run.nonce !== undefined && composed.nonce !== run.nonce + 1)
     throw new Error(
@@ -271,7 +401,7 @@ async function executeComposed(
       maxFeePerGas,
       maxPriorityFeePerGas,
     },
-    deps,
+    context,
   );
   Object.assign(run, {
     nonce: composed.nonce,
@@ -287,7 +417,7 @@ async function executeComposed(
       () =>
         multibaas.call(alias, contract, 'allowance', [deps.wallet, spender]),
       BigInt(amount),
-      deps,
+      context,
     );
   }
   return hash;
@@ -299,14 +429,19 @@ async function executeComposed(
 async function executeSwap(
   planned: PreparedTransaction,
   depositAmount: bigint,
-  review: PlanOrchestrationRotateReviewResponse,
-  deps: DemoDeps,
-  run: RunState,
+  context: StepContext,
 ): Promise<Hex> {
+  const { review, deps, run } = context;
+  report(
+    context,
+    'compose',
+    'LI.FI route reused from the reviewed quote, byte for byte; MultiBaas cannot compose it',
+  );
   if (run.nonce === undefined)
     throw new Error('The swap must follow a MultiBaas-composed step');
   if (planned.gasLimit === undefined || BigInt(planned.gasLimit) > MAX_SWAP_GAS)
     throw new Error('LI.FI swap gas limit missing or outside demo bounds');
+  report(context, 'sign', 'Re-checking the guard before signing the swap');
   recheck(review, deps);
   const readIdle = () =>
     deps.multibaas.call(LABELS.usdc.alias, LABELS.usdc.contract, 'balanceOf', [
@@ -330,7 +465,7 @@ async function executeSwap(
       maxFeePerGas: run.maxFeePerGas,
       maxPriorityFeePerGas: run.maxPriorityFeePerGas,
     },
-    deps,
+    context,
   );
   run.nonce = nonce;
   // The deposit is composed next; MultiBaas must see the swapped USDC first.
@@ -338,7 +473,7 @@ async function executeSwap(
     'swapped USDC',
     readIdle,
     idleBefore + depositAmount,
-    deps,
+    context,
   );
   return hash;
 }
@@ -346,14 +481,20 @@ async function executeSwap(
 async function signAndConfirm(
   step: string,
   tx: TransactionSerializableEIP1559,
-  deps: DemoDeps,
+  context: StepContext,
 ): Promise<Hex> {
+  const { deps } = context;
   const signed = await deps.sign(tx);
   const hash = keccak256(signed);
   await deps.multibaas.submitSigned(signed);
   deps.log(
     `✍️  Signed   ${step} locally, broadcast via MultiBaas → ${basescan(hash)}`,
   );
+  report(context, 'sign', `Signed ${step} locally, broadcast via MultiBaas`, {
+    link: { label: 'Basescan', url: basescan(hash) },
+    hash,
+  });
+  report(context, 'confirm', `Waiting for the ${step} receipt from MultiBaas`);
   const receipt = await waitForReceipt(hash, deps);
   if (!receipt)
     throw new Error(
@@ -361,9 +502,15 @@ async function signAndConfirm(
     );
   if (!isSuccess(receipt.data.status))
     throw new Error(`${step} ${hash} reverted on-chain`);
+  const block = BigInt(receipt.data.blockNumber);
   const events = (receipt.events ?? []).map((event) => event.name).join(', ');
   deps.log(
-    `✅ Confirmed ${step} in block ${BigInt(receipt.data.blockNumber)}${events ? ` · MultiBaas decoded: ${events}` : ''}`,
+    `✅ Confirmed ${step} in block ${block}${events ? ` · MultiBaas decoded: ${events}` : ''}`,
+  );
+  report(
+    context,
+    'confirm',
+    `Confirmed ${step} in block ${block}${events ? ` · MultiBaas decoded ${events}` : ''}`,
   );
   return hash;
 }
@@ -384,13 +531,16 @@ async function waitUntilVisible(
   what: string,
   read: () => Promise<bigint>,
   minimum: bigint,
-  deps: DemoDeps,
+  context: StepContext,
 ): Promise<void> {
+  const { deps } = context;
+  report(context, 'confirm', `Waiting until MultiBaas reads the ${what}`);
   const deadline = deps.now() + VISIBLE_TIMEOUT_MS;
   for (;;) {
     const value = await read();
     if (value >= minimum) {
       deps.log(`🔓 Visible  ${what} ${value} reads back from MultiBaas`);
+      report(context, 'confirm', `MultiBaas reads ${what} ${value}`);
       return;
     }
     if (deps.now() >= deadline)
@@ -401,7 +551,13 @@ async function waitUntilVisible(
   }
 }
 
-async function verifyIndexed(hash: Hex, deps: DemoDeps): Promise<void> {
+async function verifyIndexed(hash: Hex, context: StepContext): Promise<void> {
+  const { deps } = context;
+  report(
+    context,
+    'confirm',
+    'Checking the MultiBaas event index for the Deposit event',
+  );
   const deadline = deps.now() + INDEX_TIMEOUT_MS;
   for (;;) {
     const events = await deps.multibaas
@@ -417,17 +573,26 @@ async function verifyIndexed(hash: Hex, deps: DemoDeps): Promise<void> {
         .map((input) => `${input.name}=${String(input.value)}`)
         .join(' ');
       deps.log(`🔎 Indexed  MultiBaas event index has Deposit(${fields})`);
+      report(context, 'confirm', 'MultiBaas event index has the Deposit event');
       return;
     }
     if (deps.now() >= deadline) {
       deps.log(
         '⚠️  Indexed  MultiBaas has not indexed the Deposit event yet (indexer lag); the receipt is already confirmed',
       );
+      report(
+        context,
+        'confirm',
+        'MultiBaas has not indexed the Deposit event yet (indexer lag); the receipt is already confirmed',
+      );
       return;
     }
     await deps.sleep(3_000);
   }
 }
+
+const describePosition = (position: Position) =>
+  `${weth(position.ethVault)} WETH in Clearstar · ${usdc(position.usdcVault)} USDC in Spark · ${usdc(position.idle)} USDC idle`;
 
 async function readPosition(deps: DemoDeps): Promise<Position> {
   const { multibaas, wallet } = deps;
@@ -445,10 +610,9 @@ async function readPosition(deps: DemoDeps): Promise<Position> {
     call(LABELS.ethVault, 'convertToAssets', [ethShares.toString()]),
     call(LABELS.usdcVault, 'convertToAssets', [usdcShares.toString()]),
   ]);
-  deps.log(
-    `💼 Position ${weth(ethVault)} WETH in Clearstar · ${usdc(usdcVault)} USDC in Spark · ${usdc(idle)} USDC idle (MultiBaas view calls)`,
-  );
-  return { ethVault, usdcVault, idle };
+  const position = { ethVault, usdcVault, idle };
+  deps.log(`💼 Position ${describePosition(position)} (MultiBaas view calls)`);
+  return position;
 }
 
 async function replay(
@@ -507,7 +671,7 @@ export function message(input: {
     `🎯 Fixed action: ${FIXED_ACTION} (Morpho, Base)`,
     `🔀 Route: ${ROUTE}; the swap is routed by LI.FI`,
     `✅ Confirmed on Base: ${basescan(hash)}`,
-    `💼 Position: ${weth(position.ethVault)} WETH in Clearstar · ${usdc(position.usdcVault)} USDC in Spark · ${usdc(position.idle)} USDC idle`,
+    `💼 Position: ${describePosition(position)}`,
     `📊 Live dashboard: ${dashboardUrl(options.episode)}`,
     `🎬 Watch the story: ${input.deps.smartLink(options.episode)}`,
   ].join('\n');

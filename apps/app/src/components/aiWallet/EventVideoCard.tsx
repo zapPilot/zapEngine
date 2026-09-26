@@ -2,7 +2,14 @@ import { tokens } from '@zapengine/design-tokens/tokens';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { ExternalLink, Play } from 'lucide-react-native';
-import { Image, Linking, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Image,
+  Linking,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 import {
   BASE_BLUE,
@@ -28,6 +35,8 @@ interface EventVideoCardProps {
   episode: PodcastEpisode | undefined;
   loading: boolean;
   failed: boolean;
+  /** A local run is in progress: its video is delivered after the deposit. */
+  pending: boolean;
 }
 
 const RUN_LINK_HINT =
@@ -39,10 +48,11 @@ export function EventVideoCard({
   episode,
   loading,
   failed,
+  pending,
 }: EventVideoCardProps) {
   const router = useRouter();
   const onWatch =
-    episodeId === null || episode === undefined
+    pending || episodeId === null || episode === undefined
       ? null
       : () =>
           router.push(
@@ -70,6 +80,7 @@ export function EventVideoCard({
             onWatch={onWatch}
           />
         )}
+        {pending ? <DeliveryPending /> : null}
       </View>
       <View
         className={cn(
@@ -94,15 +105,32 @@ export function EventVideoCard({
             </Tap>
           )}
         </View>
-        <StoryDetails
-          wide={wide}
-          episodeId={episodeId}
-          episode={episode}
-          loading={loading}
-          failed={failed}
-        />
+        <View className={cn(pending && 'opacity-50')}>
+          <StoryDetails
+            wide={wide}
+            episodeId={episodeId}
+            episode={episode}
+            loading={loading}
+            failed={failed}
+          />
+        </View>
       </View>
     </Card>
+  );
+}
+
+function DeliveryPending() {
+  return (
+    <View className="absolute inset-0 items-center justify-center gap-3 bg-[rgba(10,10,10,.62)] px-6">
+      <ActivityIndicator
+        size="small"
+        color={BASE_BLUE_BRIGHT}
+        accessibilityLabel="Video delivery pending"
+      />
+      <Text className="text-center font-sans-medium text-[13px] leading-[18px] text-ink-dim">
+        Delivering after the deposit confirms
+      </Text>
+    </View>
   );
 }
 
@@ -112,7 +140,7 @@ function StoryDetails({
   episode,
   loading,
   failed,
-}: EventVideoCardProps) {
+}: Omit<EventVideoCardProps, 'pending'>) {
   if (episodeId === null) {
     return (
       <View>

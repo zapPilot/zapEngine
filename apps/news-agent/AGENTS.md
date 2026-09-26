@@ -6,7 +6,11 @@ database, control-center integration, or pnpm ops entry. The one exception is
 where each accepted `POST /runs` is exactly one `demo --execute` run of
 `TRIGGER_EPISODE`. It allows one run at a time, needs the `x-zap-trigger`
 header, and rejects non-localhost origins. Never bind it beyond loopback or
-queue or retry runs.
+queue or retry runs. `GET /runs/current` serves the run's timeline progress
+(`AgentRunStatusSchema` in `@zapengine/types`), built by `runStatus.ts` from
+the demo's `progress` events. It is display only and in memory: the run never
+reads it back, and a failing progress sink is logged and must never change a
+signing, guard, nonce, or retry decision.
 
 - Only the isolated demo EOA created by `init` signs. Its key lives outside the
   repo in `~/.zap-news-agent/agent.key` (0600) and must never be printed,

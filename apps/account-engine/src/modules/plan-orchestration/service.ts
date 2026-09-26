@@ -954,8 +954,7 @@ async function buildStrategyDeposit(params: {
     publicClients,
     SUPPORTED_DEPOSIT_CHAINS.ARBITRUM,
   );
-  const morphoVault =
-    MORPHO_VAULTS[SUPPORTED_DEPOSIT_CHAINS.BASE].MOONWELL_USDC;
+  const morphoVault = MORPHO_VAULTS[SUPPORTED_DEPOSIT_CHAINS.BASE].SPARK_USDC;
   const plans = await buildStrategyAllocationPlans({
     funding,
     userAddress,
@@ -995,7 +994,7 @@ async function buildStrategyDeposit(params: {
     allocations: [
       {
         id: 'morpho-base-usdc',
-        label: 'Morpho Moonwell USDC',
+        label: 'Morpho Spark USDC',
         weightBps: 4_000,
         chainId: SUPPORTED_DEPOSIT_CHAINS.BASE,
         protocol: 'morpho',

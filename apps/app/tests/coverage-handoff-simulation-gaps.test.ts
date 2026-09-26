@@ -110,7 +110,7 @@ describe('coverage handoff: simulation preview boundaries', () => {
     const routes = resolveRouteProtocols(plan, 'ignored', { morpho: 4000 });
     expect(routes[0]).toMatchObject({
       protocol: 'morpho',
-      label: 'Morpho Moonwell USDC',
+      label: 'Morpho Spark USDC',
       badge: '40%',
     });
     expect(routes[1]).toMatchObject({
