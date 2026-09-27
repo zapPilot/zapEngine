@@ -2,7 +2,11 @@ import { useDepositWizard } from '@zapengine/app-core/hooks/useDepositWizard';
 import { extractErrorMessage } from '@zapengine/app-core/lib/errors';
 import { hlpStepFromPlan } from '@zapengine/app-core/lib/wallet/depositWizardMachine';
 import { getHyperCoreSpendableUsdc } from '@zapengine/app-core/services/hyperliquidService';
-import type { DepositPlan, ReviewedDepositPlan } from '@zapengine/types/api';
+import type {
+  DepositPlan,
+  HyperliquidVaultDepositStep,
+  ReviewedDepositPlan,
+} from '@zapengine/types/api';
 import { Redirect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, Text, View } from 'react-native';
@@ -10,6 +14,8 @@ import { formatUnits, type Address, type Hash } from 'viem';
 
 import { ChainBatchReviewCard } from '@/components/invest/ChainBatchReviewCard';
 import { ProgressTimelineRow } from '@/components/invest/ProgressTimelineRow';
+import { ChainIconStack } from '@/components/token/ChainIconStack';
+import { ChainMark } from '@/components/token/ChainMark';
 import { StepHeader } from '@/components/invest/StepHeader';
 import { WizardDoneCard } from '@/components/invest/WizardDoneCard';
 import { InlineErrorCard } from '@/components/ui/InlineErrorCard';
@@ -18,7 +24,6 @@ import { ScreenScrollView } from '@/components/ui/ScreenScrollView';
 import { Tap } from '@/components/ui/Tap';
 import { useCheckpointAutoAdvance } from '@/hooks/useCheckpointAutoAdvance';
 import { useHyperliquidAgent } from '@/hooks/useHyperliquidAgent';
-import { useNowTicker } from '@/hooks/useNowTicker';
 import {
   hlpProgressRows,
   hlpRetryMode,
@@ -28,15 +33,18 @@ import {
   unsafeResumeReason,
   type HlpRowKey,
 } from '@/integration/hlpProgressModel';
-import { advanceCheckpoint } from '@/integration/checkpointAdvanceModel';
+import {
+  advanceCheckpoint,
+  confirmCheckpointReview,
+} from '@/integration/checkpointAdvanceModel';
 import {
   hlpStageProgressInput,
   investDoneStatusLabel,
   queueTone,
-  reviewGroupBlocked,
 } from '@/integration/investReviewModel';
 import { hyperliquidAccountUrl } from '@/integration/investExecutionModel';
 import {
+  chainBatchActionSummary,
   chainBatchDrafts,
   chainBatchLabel,
 } from '@/integration/investTargetsModel';
@@ -84,6 +92,7 @@ export function InvestProgressScreen() {
   const router = useRouter();
   const account = useAccount();
   const invest = useInvest();
+  const setHlpBaselineUsd6 = invest.setHlpBaselineUsd6;
   // Checkpoints re-review one stage at a time; mounting this screen must not
   // re-review the batches the user already confirmed.
   const review = useInvestReview({ autoReview: false });
@@ -109,6 +118,11 @@ export function InvestProgressScreen() {
   const hlpIndex = batches.findIndex((batch) =>
     batch.positions.some((draft) => draft.positionId === 'hlp'),
   );
+  const hlpDraft =
+    hlpIndex >= 0
+      ? batches[hlpIndex]?.positions.find((draft) => draft.positionId === 'hlp')
+      : undefined;
+  const hlpSourceChainKey = hlpDraft?.sourceToken.chainKey ?? null;
   const hlpPlan =
     hlpIndex >= 0 ? asDepositPlan(reviewedQueue[hlpIndex]?.plan) : null;
   const hlpStep = hlpPlan ? hlpStepFromPlan(hlpPlan) : null;
@@ -133,6 +147,8 @@ export function InvestProgressScreen() {
 
   const [checkpointPending, setCheckpointPending] = useState(false);
   const [checkpointError, setCheckpointError] = useState<string | null>(null);
+  const [checkpointNeedsConfirmation, setCheckpointNeedsConfirmation] =
+    useState(false);
   const [flowError, setFlowError] = useState<string | null>(null);
   const resumedKeyRef = useRef<string | null>(null);
   const autoDepositAttemptedRef = useRef(false);
@@ -143,7 +159,6 @@ export function InvestProgressScreen() {
     latestProgressRef.current = reviewedProgress;
   }, [reviewedProgress]);
 
-  const checkpointNow = useNowTicker(reviewedProgress?.phase === 'checkpoint');
   const allBatchesComplete =
     reviewedProgress?.phase === 'complete' &&
     currentIndex === reviewedQueue.length - 1;
@@ -261,10 +276,23 @@ export function InvestProgressScreen() {
     runGuarded(runHlpDeposit);
   }, [hlpModel, runGuarded, runHlpDeposit]);
 
+  const captureHlpBaseline = useCallback(
+    async (step: HyperliquidVaultDepositStep) => {
+      const userAddress = account.address as Address | null;
+      if (!userAddress) throw new Error('HLP preflight is unavailable.');
+      const baseline = await getHyperCoreSpendableUsdc({
+        user: userAddress,
+        apiUrl: step.signing.apiUrl,
+      });
+      setHlpBaselineUsd6(baseline.spendableUsd6.toString());
+    },
+    [account.address, setHlpBaselineUsd6],
+  );
+
   /**
-   * Carry the flow from this checkpoint to the next batch. Runs on its own once
-   * the checkpoint is reached and again only when a person presses Retry: every
-   * non-submitted outcome is something they have to look at.
+   * Carry the flow from this checkpoint to the next batch. The automatic pass
+   * re-reviews once. If live quote bytes changed, it freezes and renders that
+   * fresh review so a person can explicitly confirm the exact visible batch.
    */
   const advanceToNextBatch = useCallback(async () => {
     if (!nextEntry || checkpointPending) return;
@@ -280,20 +308,13 @@ export function InvestProgressScreen() {
 
     setCheckpointPending(true);
     setCheckpointError(null);
+    setCheckpointNeedsConfirmation(false);
     try {
       const outcome = await advanceCheckpoint({
         reviewNext: () => review.reviewBatch(nextIndex),
         queued: nextEntry,
         now: () => Date.now(),
-        captureHlpBaseline: async (step) => {
-          const userAddress = account.address as Address | null;
-          if (!userAddress) throw new Error('HLP preflight is unavailable.');
-          const baseline = await getHyperCoreSpendableUsdc({
-            user: userAddress,
-            apiUrl: step.signing.apiUrl,
-          });
-          invest.setHlpBaselineUsd6(baseline.spendableUsd6.toString());
-        },
+        captureHlpBaseline,
         submitNext: submitNextReviewedBatch,
       });
       if (outcome.status === 'submitted' || !stillAtThisCheckpoint()) return;
@@ -304,18 +325,19 @@ export function InvestProgressScreen() {
           review: outcome.fresh.review,
         });
       }
+      setCheckpointNeedsConfirmation(outcome.status === 'review-changed');
       setCheckpointError(outcome.reason);
     } catch (error: unknown) {
       if (stillAtThisCheckpoint()) {
+        setCheckpointNeedsConfirmation(false);
         setCheckpointError(extractErrorMessage(error));
       }
     } finally {
       setCheckpointPending(false);
     }
   }, [
-    account.address,
+    captureHlpBaseline,
     checkpointPending,
-    invest,
     nextEntry,
     nextIndex,
     review,
@@ -323,7 +345,50 @@ export function InvestProgressScreen() {
     updateReviewedQueueEntry,
   ]);
 
-  // One automatic attempt per checkpoint; a Retry press is the only replay.
+  /** Submit the fresh review already rendered above without generating a third quote. */
+  const confirmUpdatedNextBatch = useCallback(async () => {
+    if (!nextEntry || checkpointPending) return;
+    const startedCallsId = latestProgressRef.current?.callsId ?? null;
+    const stillAtThisCheckpoint = () => {
+      const progress = latestProgressRef.current;
+      return (
+        progress !== null &&
+        progress.callsId === startedCallsId &&
+        progress.phase === 'checkpoint'
+      );
+    };
+
+    setCheckpointPending(true);
+    setCheckpointError(null);
+    try {
+      const outcome = await confirmCheckpointReview({
+        reviewed: nextEntry,
+        now: () => Date.now(),
+        captureHlpBaseline,
+        submitNext: submitNextReviewedBatch,
+      });
+      if (outcome.status === 'submitted' || !stillAtThisCheckpoint()) {
+        setCheckpointNeedsConfirmation(false);
+        return;
+      }
+      setCheckpointNeedsConfirmation(false);
+      setCheckpointError(outcome.reason);
+    } catch (error: unknown) {
+      if (stillAtThisCheckpoint()) {
+        setCheckpointNeedsConfirmation(false);
+        setCheckpointError(extractErrorMessage(error));
+      }
+    } finally {
+      setCheckpointPending(false);
+    }
+  }, [
+    captureHlpBaseline,
+    checkpointPending,
+    nextEntry,
+    submitNextReviewedBatch,
+  ]);
+
+  // One automatic re-review per checkpoint; only an explicit Retry requests another.
   useCheckpointAutoAdvance(
     reviewedProgress?.phase === 'checkpoint' &&
       nextEntry &&
@@ -421,8 +486,8 @@ export function InvestProgressScreen() {
         </Text>
         <Text className="mt-2 text-[12px] leading-[18px] text-ink-dim">
           Confirmed batches stay locked. Each later batch is re-reviewed against
-          the chain it executes on and only continues when that evidence still
-          matches what you approved.
+          the chain it executes on. If a live quote changes, you review that
+          updated batch once before it is sent.
         </Text>
 
         <View className="mt-5 rounded-[18px] border border-line bg-[rgba(255,255,255,.02)] px-4 pt-4">
@@ -431,8 +496,20 @@ export function InvestProgressScreen() {
             return (
               <ProgressTimelineRow
                 key={`${entry.review.groupId}-${index}`}
+                leadingVisual={
+                  batch?.positions[0] ? (
+                    <ChainMark
+                      chainKey={batch.positions[0].sourceToken.chainKey}
+                      size={20}
+                    />
+                  ) : undefined
+                }
                 label={batch ? chainBatchLabel(batch) : `Batch ${index + 1}`}
-                detail={`Chain ${entry.review.chainId} · reviewed wallet batch`}
+                detail={
+                  batch
+                    ? chainBatchActionSummary(batch)
+                    : `Reviewed wallet batch on chain ${entry.review.chainId}`
+                }
                 tone={queueTone({
                   index,
                   currentIndex,
@@ -451,6 +528,16 @@ export function InvestProgressScreen() {
           {rows.map((row, index) => (
             <ProgressTimelineRow
               key={row.key}
+              leadingVisual={
+                row.key === 'bridge' && hlpSourceChainKey ? (
+                  <ChainIconStack
+                    chains={[hlpSourceChainKey, 'hyperliquid']}
+                    size={18}
+                  />
+                ) : (
+                  <ChainMark chainKey="hyperliquid" size={20} />
+                )
+              }
               label={hlpRowLabel(row.key)}
               detail={hlpRowDetail(row.key, wizard.hlp)}
               tone={row.state}
@@ -481,15 +568,24 @@ export function InvestProgressScreen() {
                 >
                   {checkpointError}
                 </Text>
+                {checkpointNeedsConfirmation ? (
+                  <Text className="mt-2 text-[10.5px] leading-4 text-ink-dim">
+                    The card above is the refreshed review. Confirming sends
+                    exactly this batch without generating another quote.
+                  </Text>
+                ) : null}
                 <PrimaryButton
                   className="mt-4"
-                  disabled={
-                    checkpointPending ||
-                    reviewGroupBlocked(nextEntry.review, checkpointNow)
+                  disabled={checkpointPending}
+                  onPress={() =>
+                    void (checkpointNeedsConfirmation
+                      ? confirmUpdatedNextBatch()
+                      : advanceToNextBatch())
                   }
-                  onPress={() => void advanceToNextBatch()}
                 >
-                  Retry next batch
+                  {checkpointNeedsConfirmation
+                    ? 'Confirm updated batch'
+                    : 'Retry next batch'}
                 </PrimaryButton>
               </>
             ) : (

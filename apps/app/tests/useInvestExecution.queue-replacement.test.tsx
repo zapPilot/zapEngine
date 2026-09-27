@@ -31,6 +31,10 @@ const mocks = vi.hoisted(() => ({
   waitForReviewedBatch: vi.fn(),
   trackEvent: vi.fn(),
   invest: { stageDrafts: [] as StageDraft[] },
+  account: {
+    userId: 'user-1' as string | null,
+    walletAddresses: ['0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'] as string[],
+  },
   wallet: {
     account: {
       address: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
@@ -44,10 +48,40 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@zapengine/app-core/lib/state/queryClient', () => ({
-  queryKeys: { desktop: { all: ['desktop'] } },
+  queryKeys: {
+    portfolio: { all: ['portfolio'] },
+    portfolioDashboard: {
+      byUser: (userId: string) => ['portfolio-dashboard', userId],
+    },
+    dailyYield: { byUser: (userId: string) => ['dailyYield', userId] },
+    desktop: {
+      portfolio: {
+        dailyYieldByUser: (userId: string) => [
+          'desktop',
+          'portfolio',
+          'dailyYield',
+          userId,
+        ],
+      },
+      strategySuggestion: (userId: string) => [
+        'desktop',
+        'strategy-suggestion',
+        userId,
+      ],
+      walletAssets: (walletAddresses: readonly string[]) => [
+        'desktop',
+        'alchemy',
+        'wallet-assets',
+        walletAddresses,
+      ],
+    },
+  },
 }));
 vi.mock('@zapengine/app-core/providers/walletContext', () => ({
   useWalletProvider: () => mocks.wallet,
+}));
+vi.mock('@/integration/useAccount', () => ({
+  useAccount: () => mocks.account,
 }));
 vi.mock('@/integration/useInvest', () => ({ useInvest: () => mocks.invest }));
 vi.mock('@/observability/analytics', () => ({ trackEvent: mocks.trackEvent }));
@@ -120,6 +154,8 @@ let cleanup: (() => Promise<void>) | null = null;
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.invest.stageDrafts = [stageDraft()];
+  mocks.account.userId = 'user-1';
+  mocks.account.walletAddresses = [WALLET];
   mocks.wallet.executeReviewedBatch = mocks.executeReviewedBatch;
   mocks.wallet.waitForReviewedBatch = mocks.waitForReviewedBatch;
   mocks.executeReviewedBatch

@@ -23,6 +23,7 @@ import {
   resolveDepositExecutionCapability,
 } from '@/integration/investExecutionModel';
 import { stageDraftsKey } from '@/integration/investTargetsModel';
+import { useAccount } from '@/integration/useAccount';
 import { useInvest } from '@/integration/useInvest';
 import { trackEvent } from '@/observability/analytics';
 
@@ -166,6 +167,7 @@ const InvestExecutionContext =
 export function InvestExecutionProvider({ children }: { children: ReactNode }) {
   const wallet = useWalletProvider();
   const queryClient = useQueryClient();
+  const account = useAccount();
   const { stageDrafts, hyperCoreFundingDraft } = useInvest();
   const invalidatedDone = useRef(false);
   const previousDraftKey = useRef('');
@@ -388,16 +390,51 @@ export function InvestExecutionProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  // The wallet-level batches are done once the last queued group completes;
-  // refresh the portfolio views the invest flow just changed.
+  // The wallet-level batches are done once the last queued group completes.
+  // Refresh only account/portfolio data that the investment can change. The
+  // historical strategy backtest and podcast queries share the `desktop`
+  // namespace but are unrelated to a wallet execution and must not be rerun.
   const allBatchesComplete =
     reviewedProgress?.phase === 'complete' &&
     reviewedProgress.groupIndex === reviewedQueue.length - 1;
   useEffect(() => {
     if (!allBatchesComplete || invalidatedDone.current) return;
     invalidatedDone.current = true;
-    void queryClient.invalidateQueries({ queryKey: queryKeys.desktop.all });
-  }, [allBatchesComplete, queryClient]);
+    const invalidations = [
+      queryClient.invalidateQueries({ queryKey: queryKeys.portfolio.all }),
+    ];
+    if (account.userId) {
+      invalidations.push(
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.portfolioDashboard.byUser(account.userId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.dailyYield.byUser(account.userId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.desktop.portfolio.dailyYieldByUser(
+            account.userId,
+          ),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.desktop.strategySuggestion(account.userId),
+        }),
+      );
+    }
+    if (account.walletAddresses.length > 0) {
+      invalidations.push(
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.desktop.walletAssets(account.walletAddresses),
+        }),
+      );
+    }
+    void Promise.all(invalidations);
+  }, [
+    account.userId,
+    account.walletAddresses,
+    allBatchesComplete,
+    queryClient,
+  ]);
 
   const value: InvestExecutionContextValue = {
     capability,

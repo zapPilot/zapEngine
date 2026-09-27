@@ -7,12 +7,27 @@ type TimelineTone = 'waiting' | 'active' | 'done' | 'failed';
 interface ProgressTimelineRowProps {
   /** Overrides the tone-derived circle glyph for screen-specific nuances. */
   icon?: ReactNode;
+  /** Chain/protocol artwork shown beside the step title. */
+  leadingVisual?: ReactNode;
   label: string;
   detail: string;
   tone: TimelineTone;
   isLast?: boolean;
   /** Extra lines rendered under the detail (hashes, ids). */
   children?: ReactNode;
+}
+
+function toneLabel(tone: TimelineTone): string {
+  if (tone === 'done') return 'Done';
+  if (tone === 'active') return 'In progress';
+  if (tone === 'failed') return 'Needs attention';
+  return 'Next';
+}
+
+function toneTextColor(tone: TimelineTone): string {
+  if (tone === 'done' || tone === 'active') return '#d4c5a3';
+  if (tone === 'failed') return '#ef7474';
+  return '#71717a';
 }
 
 function toneIcon(tone: TimelineTone): ReactElement {
@@ -31,6 +46,7 @@ function toneIcon(tone: TimelineTone): ReactElement {
 /** The single timeline row every execution progress screen draws. */
 export function ProgressTimelineRow({
   icon,
+  leadingVisual,
   label,
   detail,
   tone,
@@ -72,17 +88,51 @@ export function ProgressTimelineRow({
           />
         ) : null}
       </View>
-      <View className="flex-1 pb-5 pt-1">
-        <Text
-          className="font-sans-semibold text-[13.5px]"
-          style={{ color: tone === 'waiting' ? '#71717a' : '#f4f4f5' }}
+      <View className="flex-1 pb-4">
+        <View
+          className="rounded-[14px] px-3 py-2.5"
+          style={{
+            borderWidth: active || tone === 'failed' ? 1 : 0,
+            borderColor:
+              tone === 'failed'
+                ? 'rgba(239,116,116,.28)'
+                : 'rgba(212,197,163,.22)',
+            backgroundColor: active
+              ? 'rgba(212,197,163,.055)'
+              : tone === 'failed'
+                ? 'rgba(239,116,116,.035)'
+                : 'transparent',
+          }}
         >
-          {label}
-        </Text>
-        <Text className="mt-1 text-[11px] leading-[16px] text-ink-dim">
-          {detail}
-        </Text>
-        {children}
+          <View className="flex-row items-center gap-2">
+            {leadingVisual ? (
+              <View className="h-6 min-w-6 items-center justify-center">
+                {leadingVisual}
+              </View>
+            ) : null}
+            <Text
+              className="min-w-0 flex-1 font-sans-semibold text-[13.5px]"
+              style={{ color: tone === 'waiting' ? '#71717a' : '#f4f4f5' }}
+            >
+              {label}
+            </Text>
+            <View
+              className="rounded-full border px-2 py-0.5"
+              style={{ borderColor: `${toneTextColor(tone)}33` }}
+            >
+              <Text
+                className="font-sans-medium text-[9px]"
+                style={{ color: toneTextColor(tone) }}
+              >
+                {toneLabel(tone)}
+              </Text>
+            </View>
+          </View>
+          <Text className="mt-1.5 text-[11px] leading-[16px] text-ink-dim">
+            {detail}
+          </Text>
+          {children}
+        </View>
       </View>
     </View>
   );

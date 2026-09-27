@@ -38,6 +38,10 @@ const mocks = vi.hoisted(() => ({
     stageDrafts: [] as StageDraft[],
     hyperCoreFundingDraft: null as HyperCoreFundingDraft | null,
   },
+  account: {
+    userId: 'user-1' as string | null,
+    walletAddresses: ['0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'] as string[],
+  },
   wallet: {
     account: {
       address: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
@@ -51,11 +55,42 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@zapengine/app-core/lib/state/queryClient', () => ({
-  queryKeys: { desktop: { all: ['desktop'] } },
+  queryKeys: {
+    portfolio: { all: ['portfolio'] },
+    portfolioDashboard: {
+      byUser: (userId: string) => ['portfolio-dashboard', userId],
+    },
+    dailyYield: { byUser: (userId: string) => ['dailyYield', userId] },
+    desktop: {
+      portfolio: {
+        dailyYieldByUser: (userId: string) => [
+          'desktop',
+          'portfolio',
+          'dailyYield',
+          userId,
+        ],
+      },
+      strategySuggestion: (userId: string) => [
+        'desktop',
+        'strategy-suggestion',
+        userId,
+      ],
+      walletAssets: (walletAddresses: readonly string[]) => [
+        'desktop',
+        'alchemy',
+        'wallet-assets',
+        walletAddresses,
+      ],
+    },
+  },
 }));
 
 vi.mock('@zapengine/app-core/providers/walletContext', () => ({
   useWalletProvider: () => mocks.wallet,
+}));
+
+vi.mock('@/integration/useAccount', () => ({
+  useAccount: () => mocks.account,
 }));
 
 vi.mock('@/integration/useInvest', () => ({
@@ -205,6 +240,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.invest.stageDrafts = [stageDraft('1000000')];
   mocks.invest.hyperCoreFundingDraft = null;
+  mocks.account.userId = 'user-1';
+  mocks.account.walletAddresses = [WALLET];
   mocks.wallet.account = { address: WALLET, isConnected: true };
   mocks.wallet.isConnected = true;
   mocks.wallet.executionMode = 'eip7702';
@@ -516,6 +553,37 @@ describe('InvestExecutionProvider reviewed execution contract', () => {
     });
     await settle();
 
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['desktop'] });
+    const invalidatedKeys = invalidateSpy.mock.calls.map(
+      ([input]) => input!.queryKey,
+    );
+    expect(invalidatedKeys).toContainEqual(['portfolio']);
+    expect(invalidatedKeys).toContainEqual(['portfolio-dashboard', 'user-1']);
+    expect(invalidatedKeys).toContainEqual(['dailyYield', 'user-1']);
+    expect(invalidatedKeys).toContainEqual([
+      'desktop',
+      'portfolio',
+      'dailyYield',
+      'user-1',
+    ]);
+    expect(invalidatedKeys).toContainEqual([
+      'desktop',
+      'strategy-suggestion',
+      'user-1',
+    ]);
+    expect(invalidatedKeys).toContainEqual([
+      'desktop',
+      'alchemy',
+      'wallet-assets',
+      [WALLET],
+    ]);
+    expect(invalidatedKeys).not.toContainEqual(['desktop']);
+    expect(
+      invalidatedKeys.some(
+        (key) =>
+          key?.[0] === 'desktop' &&
+          key?.[1] === 'strategy' &&
+          key?.[2] === 'default-backtest',
+      ),
+    ).toBe(false);
   });
 });

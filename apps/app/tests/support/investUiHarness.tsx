@@ -14,6 +14,18 @@ interface NativeProps {
   disabled?: boolean;
 }
 vi.mock('react-native', () => ({
+  Image: ({
+    accessibilityLabel,
+    accessible,
+  }: {
+    accessibilityLabel?: string;
+    accessible?: boolean;
+  }) => (
+    <span
+      role={accessible ? 'img' : undefined}
+      aria-label={accessibilityLabel}
+    />
+  ),
   Text: ({ children }: NativeProps) => <span>{children}</span>,
   View: ({ children, accessibilityLabel, accessibilityState }: NativeProps) => (
     <div

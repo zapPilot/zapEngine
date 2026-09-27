@@ -9,6 +9,7 @@ import {
   advanceCheckpoint,
   CHECKPOINT_BLOCKED_REASON,
   CHECKPOINT_REVIEW_CHANGED_REASON,
+  confirmCheckpointReview,
   type CheckpointReviewedBatch,
 } from '@/integration/checkpointAdvanceModel';
 
@@ -95,6 +96,47 @@ function ports(
     ...overrides,
   };
 }
+
+describe('confirmCheckpointReview', () => {
+  it('submits the exact refreshed batch without rebuilding or re-reviewing it', async () => {
+    const refreshed = batch({ review: group({ batchFingerprint: HASH_A }) });
+    const submitNext = vi.fn(async () => ({ status: 'submitted' as const }));
+
+    await expect(
+      confirmCheckpointReview({
+        reviewed: refreshed,
+        now: () => NOW,
+        captureHlpBaseline: vi.fn(async () => undefined),
+        submitNext,
+      }),
+    ).resolves.toEqual({ status: 'submitted' });
+
+    expect(submitNext).toHaveBeenCalledTimes(1);
+    expect(submitNext).toHaveBeenCalledWith({
+      plan: refreshed.plan,
+      review: refreshed.review,
+    });
+  });
+
+  it('refuses a refreshed review that expired before the user confirmed it', async () => {
+    const refreshed = batch({ review: group({ expiresAt: NOW - 1 }) });
+    const submitNext = vi.fn(async () => ({ status: 'submitted' as const }));
+
+    await expect(
+      confirmCheckpointReview({
+        reviewed: refreshed,
+        now: () => NOW,
+        captureHlpBaseline: vi.fn(async () => undefined),
+        submitNext,
+      }),
+    ).resolves.toEqual({
+      status: 'blocked',
+      fresh: refreshed,
+      reason: CHECKPOINT_BLOCKED_REASON,
+    });
+    expect(submitNext).not.toHaveBeenCalled();
+  });
+});
 
 describe('advanceCheckpoint', () => {
   it('submits the re-reviewed batch when every fingerprint still matches', async () => {
