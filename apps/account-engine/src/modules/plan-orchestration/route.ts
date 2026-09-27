@@ -7,7 +7,6 @@ import {
 import {
   PlanOrchestrationDepositRequestSchema,
   PlanOrchestrationDepositReviewRequestSchema,
-  PlanOrchestrationRotateReviewRequestSchema,
   PlanOrchestrationWithdrawRequestSchema,
 } from '@zapengine/types/api';
 import { type Context, Hono } from 'hono';
@@ -92,15 +91,6 @@ export function createPlanOrchestrationRoutes(
     (c) => {
       const body = c.req.valid('json');
       return handlePlanRequest(c, () => service.buildWithdraw(body));
-    },
-  );
-
-  app.post(
-    '/rotate/review',
-    zValidator('json', PlanOrchestrationRotateReviewRequestSchema),
-    (c) => {
-      const body = c.req.valid('json');
-      return handlePlanRequest(c, () => service.buildRotateReview(body));
     },
   );
 
