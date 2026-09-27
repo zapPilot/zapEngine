@@ -1,24 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
 
-import {
-  AGENT_ADDRESS,
-  BASE_RPC_URLS,
-  LOCAL_TRIGGER_URL,
-  VAULT_ADDRESS,
-} from '../../src/config/aiWalletDemo';
-
-const RUN_EPISODE_ID = '11111111-1111-4111-8111-111111111111';
-const RUN_LINK = `/ai-wallet?episode=${RUN_EPISODE_ID}`;
-const AGENT_LOOP_LABELS = [
-  'News detected',
-  'Local Laya analysis',
-  'Agent intent',
-  'MultiBaas composed · LI.FI swap routed',
-  'EIP-7702 atomic batch',
-  'Confirmed on Base',
-  'Video delivered',
-] as const;
-
 const PODCAST_FIXTURE = {
   items: [
     {
@@ -175,142 +156,6 @@ const VIDEO_PODCAST_FIXTURE = {
   nextCursor: null,
 };
 
-const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
-const BASE_RPC_HOSTS = new Set(
-  BASE_RPC_URLS.map((url) => new URL(url).hostname),
-);
-const AI_WALLET_DEPOSIT_HASH =
-  '0xbb70b5e006b62320084091aaab6f2b77421c07352ae50dc4489056837f19dd17';
-
-const BLOCKSCOUT_FIXTURE = {
-  items: [
-    {
-      hash: AI_WALLET_DEPOSIT_HASH,
-      status: 'ok',
-      result: 'success',
-      method: 'deposit',
-      timestamp: '2026-09-26T04:41:27.000000Z',
-      to: { hash: VAULT_ADDRESS },
-      raw_input:
-        '0x6e553f6500000000000000000000000000000000000000000000000000000000000f424000000000000000000000000001c6f4c7204834d8844e0355560876e2f0e7667e',
-    },
-  ],
-  next_page_params: null,
-};
-
-const AGENT_RUN_STEPS = [
-  'news',
-  'analyze',
-  'intent',
-  'compose',
-  'sign',
-  'confirm',
-  'deliver',
-] as const;
-type AgentRunStepFixture = {
-  state: 'waiting' | 'active' | 'done' | 'failed';
-  entries: { text: string; link: { label: string; url: string } | null }[];
-};
-
-/** A `pnpm agent serve` status with every step before `active` done. */
-function agentRunFixture(
-  state: 'idle' | 'running' | 'succeeded',
-  active: (typeof AGENT_RUN_STEPS)[number] | null,
-  entries: Partial<
-    Record<(typeof AGENT_RUN_STEPS)[number], AgentRunStepFixture['entries']>
-  > = {},
-) {
-  const activeIndex = active === null ? -1 : AGENT_RUN_STEPS.indexOf(active);
-  const steps = Object.fromEntries(
-    AGENT_RUN_STEPS.map((id, index) => {
-      let stepState: AgentRunStepFixture['state'] = 'waiting';
-      if (state === 'succeeded' || index < activeIndex) stepState = 'done';
-      else if (index === activeIndex) stepState = 'active';
-      return [id, { state: stepState, entries: entries[id] ?? [] }];
-    }),
-  );
-  return {
-    state,
-    episode: RUN_EPISODE_ID,
-    startedAt: state === 'idle' ? null : 1_000,
-    finishedAt: state === 'succeeded' ? 2_000 : null,
-    error: null,
-    transaction: state === 'idle' ? null : { kind: 'swap', index: 3, total: 5 },
-    depositHash: state === 'succeeded' ? AI_WALLET_DEPOSIT_HASH : null,
-    steps,
-  };
-}
-
-const RUN_ENTRIES = {
-  news: [{ text: 'E2E agent story', link: null }],
-  intent: [
-    {
-      text: 'Review warning (LI.FI swap calldata left undecoded; the guard decodes it)',
-      link: null,
-    },
-    {
-      text: 'Tenderly simulation 1/2',
-      link: {
-        label: 'Tenderly',
-        url: 'https://dashboard.tenderly.co/shared/simulation/1',
-      },
-    },
-    {
-      text: 'Tenderly simulation 2/2',
-      link: {
-        label: 'Tenderly',
-        url: 'https://dashboard.tenderly.co/shared/simulation/2',
-      },
-    },
-  ],
-  sign: [
-    {
-      text: 'Re-checking the guard before signing the swap',
-      link: null,
-    },
-  ],
-};
-
-/** A mutable stand-in for `pnpm agent serve`; the test moves the run along. */
-async function routeLocalAgent(page: Page) {
-  const agent = {
-    status: agentRunFixture('idle', null) as unknown,
-    posts: 0,
-  };
-  await page.route(`${LOCAL_TRIGGER_URL}/**`, async (route) => {
-    const request = route.request();
-    const headers = {
-      'access-control-allow-origin': request.headers()['origin'] ?? '*',
-      'access-control-allow-methods': 'GET, POST',
-      'access-control-allow-headers': 'x-zap-trigger',
-      'cache-control': 'no-store',
-    };
-    if (request.method() === 'OPTIONS') {
-      await route.fulfill({ status: 204, headers });
-      return;
-    }
-    if (request.method() === 'POST') {
-      agent.posts += 1;
-      agent.status = agentRunFixture('running', 'sign', RUN_ENTRIES);
-    }
-    await route.fulfill({
-      status: request.method() === 'POST' ? 202 : 200,
-      headers,
-      contentType: 'application/json',
-      body: JSON.stringify(agent.status),
-    });
-  });
-  return agent;
-}
-
-async function expectNoHorizontalOverflow(page: Page): Promise<void> {
-  const metrics = await page.evaluate(() => ({
-    clientWidth: document.documentElement.clientWidth,
-    scrollWidth: document.documentElement.scrollWidth,
-  }));
-  expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth + 1);
-}
-
 const PRIMARY_ROUTES = [
   {
     label: 'Home',
@@ -326,11 +171,6 @@ const PRIMARY_ROUTES = [
     label: 'Podcast',
     path: '/podcast',
     url: /\/podcast$/,
-  },
-  {
-    label: 'AI Wallet',
-    path: '/ai-wallet',
-    url: /\/ai-wallet$/,
   },
   {
     label: 'Account',
@@ -358,56 +198,7 @@ async function routePodcastCatalog(page: Page): Promise<void> {
   });
 }
 
-/**
- * The AI Wallet tab reads Blockscout, the public Base RPC, and one podcast
- * episode. Keep all three off the network so the smoke run stays hermetic.
- * The e2e host is 127.0.0.1, so the tab also asks the local news agent for
- * its run; that is refused unless a test mocks it, so e2e can never reach a
- * developer's real `pnpm agent serve` (every accepted run spends funds).
- */
-async function routeAiWalletSources(page: Page): Promise<void> {
-  await page.route(`${LOCAL_TRIGGER_URL}/**`, (route) =>
-    route.abort('connectionrefused'),
-  );
-  await page.route('https://base.blockscout.com/**', async (route) => {
-    await route.fulfill({
-      contentType: 'application/json',
-      body: JSON.stringify(BLOCKSCOUT_FIXTURE),
-    });
-  });
-  await page.route(
-    (url) => BASE_RPC_HOSTS.has(url.hostname),
-    async (route) => {
-      const request = route.request().postDataJSON() as { id?: number };
-      await route.fulfill({
-        contentType: 'application/json',
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: request.id ?? 1,
-          error: { code: -32000, message: 'Base RPC is disabled in e2e' },
-        }),
-      });
-    },
-  );
-  await page.route(`**/episodes/${RUN_EPISODE_ID}?**`, async (route) => {
-    await route.fulfill({
-      contentType: 'application/json',
-      body: JSON.stringify({
-        ...PODCAST_FIXTURE.items[0],
-        id: RUN_EPISODE_ID,
-        title: 'E2E agent story',
-        video: {
-          url: 'https://media.example.test/agent-story/video.mp4',
-          thumbnailUrl: 'https://media.example.test/agent-story/thumbnail.png',
-          durationSeconds: 42,
-        },
-      }),
-    });
-  });
-}
-
 async function routePodcastFeed(page: Page): Promise<void> {
-  await routeAiWalletSources(page);
   await routePodcastCatalog(page);
   await page.route('**/episodes?**', async (route) => {
     await route.fulfill({
@@ -512,7 +303,7 @@ test('renders the web app shell and primary routes without page errors', async (
   await page.setViewportSize({ width: 390, height: 844 });
   await routePodcastFeed(page);
 
-  await test.step('Podcast is the default guest route and all five tabs remain visible', async () => {
+  await test.step('Podcast is the default guest route and all four tabs remain visible', async () => {
     await page.goto('/');
     await expect(page).toHaveURL(/\/podcast$/, {
       timeout: APP_BOOT_TIMEOUT,
@@ -521,14 +312,8 @@ test('renders the web app shell and primary routes without page errors', async (
     const tabs = page
       .getByRole('tablist', { name: 'App tabs' })
       .getByRole('tab');
-    await expect(tabs).toHaveCount(5);
-    await expect(tabs).toHaveText([
-      'Home',
-      'Strategy',
-      'Podcast',
-      'AI Wallet',
-      'Account',
-    ]);
+    await expect(tabs).toHaveCount(4);
+    await expect(tabs).toHaveText(['Home', 'Strategy', 'Podcast', 'Account']);
     await expect(page.getByRole('tab', { name: 'Podcast' })).toHaveAttribute(
       'aria-selected',
       'true',
@@ -630,67 +415,6 @@ test('renders the web app shell and primary routes without page errors', async (
     await expect(page).toHaveURL(/\/podcast$/);
   });
 
-  await test.step('guest can open AI Wallet without signing in', async () => {
-    await page.goto('/podcast');
-    await page.getByRole('tab', { name: 'AI Wallet' }).click();
-    await expect(page).toHaveURL(/\/ai-wallet$/);
-    await expectHealthyRoute(page);
-    await expect(page.getByText('Sign in to continue')).toHaveCount(0);
-    for (const label of AGENT_LOOP_LABELS) {
-      await expect(page.getByText(label, { exact: true })).toBeVisible();
-    }
-    await expect(page.getByText('Not provided', { exact: true })).toBeVisible();
-    await expect(
-      page.getByRole('button', { name: 'Watch the story' }),
-    ).toHaveCount(0);
-
-    const replayButton = page.getByRole('button', { name: 'Replay last run' });
-    await expect(replayButton).toBeVisible();
-    if (AGENT_ADDRESS === ZERO_ADDRESS) {
-      await expect(
-        page.getByText('Not deployed', { exact: true }),
-      ).toBeVisible();
-      await expect(
-        page.getByText('Waiting for the first on-chain action'),
-      ).toBeVisible();
-      await expect(replayButton).toBeDisabled();
-    } else {
-      await expect(page.getByText('Agent monitoring on Base')).toBeVisible();
-      await expect(
-        page.getByRole('link', {
-          name: 'View the confirmed deposit on Basescan',
-        }),
-      ).toBeVisible();
-      // The block time renders in the local zone; only the seconds are fixed.
-      await expect(page.getByText(/^\d{2}:\d{2}:27$/)).toBeVisible();
-      await replayButton.click();
-      await expect(page.getByText('Replaying…', { exact: true })).toBeVisible();
-    }
-
-    const documentMetrics = await page.evaluate(() => ({
-      clientWidth: document.documentElement.clientWidth,
-      scrollWidth: document.documentElement.scrollWidth,
-    }));
-    expect(documentMetrics.scrollWidth).toBeLessThanOrEqual(
-      documentMetrics.clientWidth + 1,
-    );
-  });
-
-  await test.step('AI Wallet shows the story from a run link', async () => {
-    await page.goto(RUN_LINK);
-    await expectHealthyRoute(page);
-    await expect(
-      page.getByText('E2E agent story', { exact: true }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole('button', { name: 'Replay E2E agent story' }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole('button', { name: 'Watch the story' }),
-    ).toBeVisible();
-    await expect(page.getByText('0:42', { exact: true })).toBeVisible();
-  });
-
   await test.step('locked tabs start sign-in without leaving the guest route', async () => {
     for (const label of ['Strategy', 'Account'] as const) {
       await page.goto('/podcast');
@@ -736,94 +460,6 @@ test('renders the web app shell and primary routes without page errors', async (
     await expectHealthyRoute(page);
     await expect(page.getByText('Sign in to continue')).toBeVisible();
   });
-
-  expect(pageErrors).toEqual([]);
-});
-
-test('AI Wallet follows a local agent run step by step', async ({ page }) => {
-  const pageErrors: string[] = [];
-  page.on('pageerror', (error) => {
-    pageErrors.push(`${page.url()}: ${error.stack ?? error.message}`);
-  });
-  await routeAiWalletSources(page);
-  const agent = await routeLocalAgent(page);
-
-  for (const viewport of [
-    { width: 390, height: 844 },
-    { width: 1280, height: 900 },
-  ]) {
-    await test.step(`${viewport.width}px`, async () => {
-      agent.status = agentRunFixture('idle', null);
-      agent.posts = 0;
-      await page.setViewportSize(viewport);
-      await page.goto('/ai-wallet');
-      await expectHealthyRoute(page);
-      await expect(page.getByText('Not provided', { exact: true })).toBeVisible(
-        { timeout: APP_BOOT_TIMEOUT },
-      );
-
-      await page.getByRole('button', { name: 'Run agent now' }).click();
-      const running = page.getByRole('button', { name: 'Agent running…' });
-      await expect(running).toBeVisible();
-      await expect(running).toBeDisabled();
-      await expect(
-        page.getByRole('button', { name: 'Replay E2E agent story' }),
-      ).toBeDisabled();
-
-      await expect(
-        page.getByRole('progressbar', { name: 'Step 5 in progress' }),
-      ).toBeVisible();
-      await expect(
-        page.getByText(
-          'Tx 3/5 · swap — Re-checking the guard before signing the swap',
-        ),
-      ).toBeVisible();
-      await expect(
-        page.getByText('Delivering after the deposit confirms'),
-      ).toBeVisible();
-      await expect(
-        page.getByRole('button', { name: 'Watch the story' }),
-      ).toHaveCount(0);
-
-      const intent = page.getByRole('button', { name: /^Agent intent/ });
-      await intent.click();
-      await expect(intent).toHaveAttribute('aria-expanded', 'true');
-      const lastTenderly = page.getByRole('link', {
-        name: 'Tenderly: Tenderly simulation 2/2',
-      });
-      await expect(
-        page.getByRole('link', { name: 'Tenderly: Tenderly simulation 1/2' }),
-      ).toBeVisible();
-      await expect(lastTenderly).toBeVisible();
-      // The open panel pushes the next row down instead of drawing over it.
-      const panelBottom = await lastTenderly.boundingBox();
-      const nextRow = await page
-        .getByRole('button', { name: /^MultiBaas composed/ })
-        .boundingBox();
-      if (panelBottom === null || nextRow === null) {
-        throw new Error('Timeline rows have no layout bounds');
-      }
-      expect(panelBottom.y + panelBottom.height).toBeLessThanOrEqual(nextRow.y);
-      await expectNoHorizontalOverflow(page);
-
-      agent.status = agentRunFixture('succeeded', null, RUN_ENTRIES);
-      await expect(
-        page.getByRole('button', { name: 'Watch the story' }),
-      ).toBeVisible();
-      await expect(
-        page.getByText('Delivering after the deposit confirms'),
-      ).toHaveCount(0);
-      await expect(
-        page.getByRole('button', { name: 'Run agent now' }),
-      ).toBeEnabled();
-      await expect(
-        page.getByRole('link', { name: "View this run's deposit on Basescan" }),
-      ).toContainText(/^\d{2}:\d{2}:27$/);
-      await expect(page.getByRole('progressbar')).toHaveCount(0);
-      await expectNoHorizontalOverflow(page);
-      expect(agent.posts).toBe(1);
-    });
-  }
 
   expect(pageErrors).toEqual([]);
 });

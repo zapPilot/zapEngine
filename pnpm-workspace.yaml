@@ -1,5 +1,6 @@
 packages:
   - apps/*
+  - '!apps/news-agent'
   - packages/*
 
 allowBuilds:

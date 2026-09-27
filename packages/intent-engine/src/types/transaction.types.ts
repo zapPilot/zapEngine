@@ -29,13 +29,7 @@ export interface TransactionQuote {
   route?: unknown; // LI.FI RouteExtended for debugging
 }
 
-export interface ApprovalRequirement {
-  tokenAddress: Address;
-  spenderAddress: Address;
-  amount: string;
-}
-
-// Multi-step transaction plan (redeem, then an optional LI.FI step)
+// Multi-step transaction plan (for rotate)
 export interface RotateTransactionPlan {
   steps: PreparedTransaction[];
   estimates: {
@@ -45,29 +39,13 @@ export interface RotateTransactionPlan {
   };
   // Approval required before the LI.FI step, if any. Callers should prepend
   // this approval for EIP-7702 bundles or send it first in sequential mode.
-  approval?: ApprovalRequirement;
+  approval?: {
+    tokenAddress: Address;
+    spenderAddress: Address;
+    amount: string;
+  };
   // Execution strategy determined at runtime
   strategy?: 'eip7702' | 'sequential';
-}
-
-// Vault-to-vault rotation: redeem, swap only when the underlying assets
-// differ, then deposit into the destination vault.
-export interface RotatePlan {
-  steps: PreparedTransaction[];
-  /** Every approval the steps need, in execution order. */
-  approvals: ApprovalRequirement[];
-  /** Source vault asset (`fromVault.asset()`), what the redeem returns. */
-  assetToken: Address;
-  /** Destination vault asset (`toVault.asset()`), what the deposit spends. */
-  depositToken: Address;
-  /** `previewRedeem(shareAmount)`, as a wei string. */
-  redeemAmount: string;
-  /**
-   * Exact assets deposited: the swap's guaranteed minimum output, or the
-   * redeemed amount when no swap is needed. Any better fill stays idle.
-   */
-  depositAmount: string;
-  estimates: RotateTransactionPlan['estimates'];
 }
 
 // Execution result
