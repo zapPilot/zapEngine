@@ -125,7 +125,7 @@ export function ChartHoverLayer({
     event.preventDefault();
     setActiveIndex(
       (previous) =>
-        nextIndexForKey(stroke, previous ?? 0, total, eventIndices) ?? previous,
+        nextIndexForKey(stroke, previous ?? 0, total, eventIndices)!,
     );
   }
 

@@ -53,7 +53,7 @@ export function AppCtaLink({
     document.body.style.overflow = 'hidden';
     return () => {
       document.body.style.overflow = overflow;
-      if (previousFocus instanceof HTMLElement) previousFocus.focus();
+      previousFocus!.focus();
     };
   }, [open]);
 

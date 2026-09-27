@@ -31,11 +31,7 @@ export function BacktestProof() {
           {METRICS.map((metric) => (
             <div key={metric.label} className="zp-metric">
               <p className="zp-metric-label">{metric.label}</p>
-              <p
-                className={METRIC_VALUE_CLASS[metric.tone] ?? 'zp-metric-value'}
-              >
-                {metric.value}
-              </p>
+              <p className={METRIC_VALUE_CLASS[metric.tone]!}>{metric.value}</p>
               <p className="zp-metric-sub">{metric.sublabel}</p>
             </div>
           ))}

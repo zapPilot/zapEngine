@@ -24,7 +24,6 @@ function isFormFieldTarget(target: EventTarget | null): boolean {
 }
 
 function scrollToSlide(id: PitchSlideId) {
-  if (typeof document === 'undefined') return;
   const element = document.getElementById(`slide-${id}`);
   if (element !== null) {
     element.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -32,7 +31,6 @@ function scrollToSlide(id: PitchSlideId) {
 }
 
 function setCounter(index: number) {
-  if (typeof document === 'undefined') return;
   const node = document.querySelector('[data-pitch-counter-current]');
   if (node !== null) {
     node.textContent = String(index + 1).padStart(2, '0');
@@ -93,8 +91,6 @@ export function PitchNav() {
 
   // Sync active slide with scroll position via IntersectionObserver.
   useEffect(() => {
-    if (typeof document === 'undefined') return;
-
     const elements = PITCH_SLIDES.map((slide) =>
       document.getElementById(`slide-${slide.id}`),
     ).filter((element): element is HTMLElement => element !== null);

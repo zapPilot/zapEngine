@@ -206,12 +206,12 @@ function classify(
   const gained = RISK_ASSETS.filter((asset) => (deltas.get(asset) ?? 0) > 0);
   const target = gained[0]
     ? gained.reduce((best, asset) =>
-        (deltas.get(asset) ?? 0) > (deltas.get(best) ?? 0) ? asset : best,
+        deltas.get(asset)! > deltas.get(best)! ? asset : best,
       )
     : null;
   const fromAssets = RISK_ASSETS.filter(
     (asset) => (deltas.get(asset) ?? 0) < 0,
-  ).sort((a, b) => (deltas.get(a) ?? 0) - (deltas.get(b) ?? 0));
+  ).sort((a, b) => deltas.get(a)! - deltas.get(b)!);
   const amountPercent = Math.round(Math.max(riskIn, riskOut) * 10) / 10;
 
   if (riskIn > 0 && riskOut > 0) {

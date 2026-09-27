@@ -69,7 +69,7 @@ export function NavCurveChart({
   const domainMax = Math.ceil(Math.max(...values) / 10) * 10 + 10;
   const yTicks = geometry.midAndMaxTicks(domainMin, domainMax);
   const { startDate, endDate } = geometry.chartDateRange(points);
-  const endValue = points[points.length - 1]?.value.toFixed(2) ?? '0';
+  const endValue = points[points.length - 1]!.value.toFixed(2);
   const markers = buildChartMarkers(events, points, domainMin, domainMax);
   const allocations = snapshots.map(allocationFromSnapshot);
   const tradedIndices = new Set(markers.map((marker) => marker.index));
