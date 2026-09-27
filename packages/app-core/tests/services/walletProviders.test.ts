@@ -29,6 +29,7 @@ function alchemyResponses(
     invalidRpc?: boolean;
     rpcErrorWithoutMessage?: boolean;
     empty?: boolean;
+    symbolPriceFallback?: boolean;
   } = {},
 ) {
   fetchMock.mockImplementation(async (input, init) => {
@@ -39,7 +40,9 @@ function alchemyResponses(
       if (url.includes('by-symbol'))
         return Response.json({
           data: [
-            { symbol: 'eth', prices: [{ currency: 'usd', value: '2000' }] },
+            options.symbolPriceFallback
+              ? { symbol: 'eth', prices: [], price: '2100' }
+              : { symbol: 'eth', prices: [{ currency: 'usd', value: '2000' }] },
             { prices: [] },
           ],
         });
@@ -140,6 +143,19 @@ describe('Alchemy transport and balance aggregation', () => {
     });
     expect(String(rpcCall[0])).toBe(
       'https://eth-mainnet.g.alchemy.com/v2/test-key',
+    );
+  });
+  it('uses the legacy symbol price when structured prices are absent', async () => {
+    alchemyResponses({ symbolPriceFallback: true });
+    const result = await getAlchemyWalletBalancesSnapshot('0xwallet');
+    expect(result.balances[0]?.response.result).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          symbol: 'ETH',
+          usd_price: 2100,
+          usd_value: 2100,
+        }),
+      ]),
     );
   });
   it('survives blocked price service and partial RPC failure', async () => {
