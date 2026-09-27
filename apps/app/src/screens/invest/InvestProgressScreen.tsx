@@ -298,6 +298,24 @@ export function InvestProgressScreen() {
     );
   }, []);
 
+  const runCheckpointAction = useCallback(
+    async (startedCallsId: string | null, action: () => Promise<void>) => {
+      setCheckpointPending(true);
+      setCheckpointError(null);
+      setCheckpointNeedsConfirmation(false);
+      try {
+        await action();
+      } catch (error: unknown) {
+        if (checkpointStillCurrent(startedCallsId)) {
+          setCheckpointError(extractErrorMessage(error));
+        }
+      } finally {
+        setCheckpointPending(false);
+      }
+    },
+    [checkpointStillCurrent],
+  );
+
   /**
    * Carry the flow from this checkpoint to the next batch. The automatic pass
    * re-reviews once. If live quote bytes changed, it freezes and renders that
@@ -307,10 +325,7 @@ export function InvestProgressScreen() {
     if (!nextEntry || checkpointPending) return;
     const startedCallsId = latestProgressRef.current?.callsId ?? null;
 
-    setCheckpointPending(true);
-    setCheckpointError(null);
-    setCheckpointNeedsConfirmation(false);
-    try {
+    await runCheckpointAction(startedCallsId, async () => {
       const outcome = await advanceCheckpoint({
         reviewNext: () => review.reviewBatch(nextIndex),
         queued: nextEntry,
@@ -318,7 +333,12 @@ export function InvestProgressScreen() {
         captureHlpBaseline,
         submitNext: submitNextReviewedBatch,
       });
-      if (outcome.status === 'submitted' || !checkpointStillCurrent(startedCallsId)) return;
+      if (
+        outcome.status === 'submitted' ||
+        !checkpointStillCurrent(startedCallsId)
+      ) {
+        return;
+      }
       if (outcome.status !== 'rejected') {
         updateReviewedQueueEntry({
           index: nextIndex,
@@ -328,14 +348,7 @@ export function InvestProgressScreen() {
       }
       setCheckpointNeedsConfirmation(outcome.status === 'review-changed');
       setCheckpointError(outcome.reason);
-    } catch (error: unknown) {
-      if (checkpointStillCurrent(startedCallsId)) {
-        setCheckpointNeedsConfirmation(false);
-        setCheckpointError(extractErrorMessage(error));
-      }
-    } finally {
-      setCheckpointPending(false);
-    }
+    });
   }, [
     captureHlpBaseline,
     checkpointPending,
@@ -343,6 +356,7 @@ export function InvestProgressScreen() {
     nextEntry,
     nextIndex,
     review,
+    runCheckpointAction,
     submitNextReviewedBatch,
     updateReviewedQueueEntry,
   ]);
@@ -352,34 +366,27 @@ export function InvestProgressScreen() {
     if (!nextEntry || checkpointPending) return;
     const startedCallsId = latestProgressRef.current?.callsId ?? null;
 
-    setCheckpointPending(true);
-    setCheckpointError(null);
-    try {
+    await runCheckpointAction(startedCallsId, async () => {
       const outcome = await confirmCheckpointReview({
         reviewed: nextEntry,
         now: () => Date.now(),
         captureHlpBaseline,
         submitNext: submitNextReviewedBatch,
       });
-      if (outcome.status === 'submitted' || !checkpointStillCurrent(startedCallsId)) {
-        setCheckpointNeedsConfirmation(false);
+      if (
+        outcome.status === 'submitted' ||
+        !checkpointStillCurrent(startedCallsId)
+      ) {
         return;
       }
-      setCheckpointNeedsConfirmation(false);
       setCheckpointError(outcome.reason);
-    } catch (error: unknown) {
-      if (checkpointStillCurrent(startedCallsId)) {
-        setCheckpointNeedsConfirmation(false);
-        setCheckpointError(extractErrorMessage(error));
-      }
-    } finally {
-      setCheckpointPending(false);
-    }
+    });
   }, [
     captureHlpBaseline,
     checkpointPending,
     checkpointStillCurrent,
     nextEntry,
+    runCheckpointAction,
     submitNextReviewedBatch,
   ]);
 
