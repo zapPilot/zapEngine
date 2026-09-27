@@ -203,7 +203,6 @@ export function InvestExecutionProvider({ children }: { children: ReactNode }) {
       previousDraftKey.current = executionDraftKey;
       return;
     }
-    if (previousDraftKey.current === executionDraftKey) return;
     previousDraftKey.current = executionDraftKey;
     reset();
   }, [executionDraftKey, reset]);
@@ -233,18 +232,14 @@ export function InvestExecutionProvider({ children }: { children: ReactNode }) {
       groupIndex: number,
     ): Promise<void> => {
       if (!wallet.waitForReviewedBatch) {
-        setReviewedProgress((current) =>
-          current?.callsId === submission.callsId &&
-          current.groupIndex === groupIndex
-            ? {
-                ...current,
-                phase:
-                  queue.length > groupIndex + 1 ? 'checkpoint' : 'submitted',
-                statusNote:
-                  'This wallet accepted the batch, but does not expose calls status.',
-              }
-            : current,
-        );
+        setReviewedProgress({
+          ...submission,
+          phase: queue.length > groupIndex + 1 ? 'checkpoint' : 'submitted',
+          groupIndex,
+          groupCount: queue.length,
+          statusNote:
+            'This wallet accepted the batch, but does not expose calls status.',
+        });
         return;
       }
       const status = await wallet.waitForReviewedBatch({

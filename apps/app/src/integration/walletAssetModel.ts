@@ -243,9 +243,7 @@ interface WalletAggregationEntry {
 type WalletAggregationMap = Map<SupportedWalletSymbol, WalletAggregationEntry>;
 
 function sortChains(chains: AssetChainKey[]): AssetChainKey[] {
-  return [...chains].sort(
-    (a, b) => (CHAIN_ORDER.get(a) ?? 99) - (CHAIN_ORDER.get(b) ?? 99),
-  );
+  return [...chains].sort((a, b) => CHAIN_ORDER.get(a)! - CHAIN_ORDER.get(b)!);
 }
 
 function aggregateChainBalance(

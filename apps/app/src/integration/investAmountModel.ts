@@ -131,5 +131,5 @@ export function singleChainFromAmount(params: {
   const fromAmount =
     (totalUsd6 * 10n ** BigInt(params.token.decimals)) /
     BigInt(priceUsd6Number);
-  return fromAmount > 0n ? fromAmount.toString() : null;
+  return fromAmount.toString();
 }
