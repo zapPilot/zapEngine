@@ -299,12 +299,28 @@ export function InvestProgressScreen() {
   }, []);
 
   const runCheckpointAction = useCallback(
-    async (startedCallsId: string | null, action: () => Promise<void>) => {
+    async (
+      action: () => Promise<Awaited<ReturnType<typeof advanceCheckpoint>>>,
+      handlePaused: (
+        outcome: Exclude<
+          Awaited<ReturnType<typeof advanceCheckpoint>>,
+          { status: 'submitted' }
+        >,
+      ) => void,
+    ) => {
+      const startedCallsId = latestProgressRef.current?.callsId ?? null;
       setCheckpointPending(true);
       setCheckpointError(null);
       setCheckpointNeedsConfirmation(false);
       try {
-        await action();
+        const outcome = await action();
+        if (
+          outcome.status === 'submitted' ||
+          !checkpointStillCurrent(startedCallsId)
+        ) {
+          return;
+        }
+        handlePaused(outcome);
       } catch (error: unknown) {
         if (checkpointStillCurrent(startedCallsId)) {
           setCheckpointError(extractErrorMessage(error));
@@ -323,36 +339,31 @@ export function InvestProgressScreen() {
    */
   const advanceToNextBatch = useCallback(async () => {
     if (!nextEntry || checkpointPending) return;
-    const startedCallsId = latestProgressRef.current?.callsId ?? null;
 
-    await runCheckpointAction(startedCallsId, async () => {
-      const outcome = await advanceCheckpoint({
-        reviewNext: () => review.reviewBatch(nextIndex),
-        queued: nextEntry,
-        now: () => Date.now(),
-        captureHlpBaseline,
-        submitNext: submitNextReviewedBatch,
-      });
-      if (
-        outcome.status === 'submitted' ||
-        !checkpointStillCurrent(startedCallsId)
-      ) {
-        return;
-      }
-      if (outcome.status !== 'rejected') {
-        updateReviewedQueueEntry({
-          index: nextIndex,
-          plan: outcome.fresh.plan,
-          review: outcome.fresh.review,
-        });
-      }
-      setCheckpointNeedsConfirmation(outcome.status === 'review-changed');
-      setCheckpointError(outcome.reason);
-    });
+    await runCheckpointAction(
+      () =>
+        advanceCheckpoint({
+          reviewNext: () => review.reviewBatch(nextIndex),
+          queued: nextEntry,
+          now: () => Date.now(),
+          captureHlpBaseline,
+          submitNext: submitNextReviewedBatch,
+        }),
+      (outcome) => {
+        if (outcome.status !== 'rejected') {
+          updateReviewedQueueEntry({
+            index: nextIndex,
+            plan: outcome.fresh.plan,
+            review: outcome.fresh.review,
+          });
+        }
+        setCheckpointNeedsConfirmation(outcome.status === 'review-changed');
+        setCheckpointError(outcome.reason);
+      },
+    );
   }, [
     captureHlpBaseline,
     checkpointPending,
-    checkpointStillCurrent,
     nextEntry,
     nextIndex,
     review,
@@ -364,27 +375,20 @@ export function InvestProgressScreen() {
   /** Submit the fresh review already rendered above without generating a third quote. */
   const confirmUpdatedNextBatch = useCallback(async () => {
     if (!nextEntry || checkpointPending) return;
-    const startedCallsId = latestProgressRef.current?.callsId ?? null;
 
-    await runCheckpointAction(startedCallsId, async () => {
-      const outcome = await confirmCheckpointReview({
-        reviewed: nextEntry,
-        now: () => Date.now(),
-        captureHlpBaseline,
-        submitNext: submitNextReviewedBatch,
-      });
-      if (
-        outcome.status === 'submitted' ||
-        !checkpointStillCurrent(startedCallsId)
-      ) {
-        return;
-      }
-      setCheckpointError(outcome.reason);
-    });
+    await runCheckpointAction(
+      () =>
+        confirmCheckpointReview({
+          reviewed: nextEntry,
+          now: () => Date.now(),
+          captureHlpBaseline,
+          submitNext: submitNextReviewedBatch,
+        }),
+      (outcome) => setCheckpointError(outcome.reason),
+    );
   }, [
     captureHlpBaseline,
     checkpointPending,
-    checkpointStillCurrent,
     nextEntry,
     runCheckpointAction,
     submitNextReviewedBatch,
