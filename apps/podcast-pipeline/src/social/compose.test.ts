@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { composeSocialContent } from './compose.js';
+import { applyPlatformCta } from './platforms.js';
 import type { GeneratedSocialCopy, SocialEpisode } from './types.js';
 
 const copy: GeneratedSocialCopy = {
@@ -119,9 +120,25 @@ describe('composeSocialContent', () => {
     });
   });
 
+  it('rejects a missing platform copy block instead of composing empty content', () => {
+    expect(() =>
+      composeSocialContent('x', {
+        copy: { ...copy, x: undefined },
+        episode,
+      }),
+    ).toThrow('Generated social copy is missing the x block.');
+  });
+
   it('rejects unsupported platform values at the exhaustive boundary', () => {
     expect(() =>
       composeSocialContent('mastodon' as never, { copy, episode }),
     ).toThrow('Unsupported social platform: mastodon');
+  });
+
+  it('fails closed when even the Threads CTA alone exceeds the post limit', () => {
+    const oversizedUrl = `https://example.test/${'a'.repeat(600)}`;
+    expect(() =>
+      applyPlatformCta('threads', '正文', 'zh-Hant', oversizedUrl),
+    ).toThrow('Threads CTA exceeds the post length limit');
   });
 });

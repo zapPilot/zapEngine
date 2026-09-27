@@ -205,6 +205,27 @@ describe('buildEpisodeVideoGenerationResponse', () => {
 
     expect(result.status).toBe('processing');
   });
+
+  it('clamps stored visual progress into the 0-100 display range', () => {
+    for (const [progress, expected] of [
+      [null, 0],
+      [Number.NaN, 0],
+      [Number.POSITIVE_INFINITY, 0],
+      [-12.4, 0],
+      [42.4, 42],
+      [150.6, 100],
+    ] as const) {
+      const result = buildEpisodeVideoGenerationResponse({
+        episodeId: 'episode-1',
+        visualJob: visualJob({
+          status: 'processing',
+          progress_percent: progress,
+        }),
+        jobs: [],
+      });
+      expect(result.visual?.progressPercent).toBe(expected);
+    }
+  });
 });
 
 describe('completedVideoResponse', () => {

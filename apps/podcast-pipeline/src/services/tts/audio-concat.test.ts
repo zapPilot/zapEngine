@@ -136,4 +136,23 @@ describe('concatMp3Buffers', () => {
       'concat=n=3:v=0:a=1',
     );
   });
+
+  it('rejects when ffmpeg reports an encode error', async () => {
+    // `concatMp3Buffers` subscribes `end` first, then `error`: keep `end`
+    // inert for this run so only the error settles the promise.
+    mockFfmpegChain.on.mockImplementationOnce(() => mockFfmpegChain);
+    mockFfmpegChain.on.mockImplementationOnce(
+      (event: string, cb: (err?: Error) => void) => {
+        if (event === 'error') {
+          queueMicrotask(() => cb(new Error('ffmpeg failed')));
+        }
+        return mockFfmpegChain;
+      },
+    );
+    vi.mocked(readFileSync).mockReturnValue(Buffer.from('combined'));
+
+    await expect(
+      concatMp3Buffers([Buffer.from('first'), Buffer.from('second')]),
+    ).rejects.toThrow('ffmpeg failed');
+  });
 });
