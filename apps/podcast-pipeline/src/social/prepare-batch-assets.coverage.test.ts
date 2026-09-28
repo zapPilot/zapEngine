@@ -1,3 +1,6 @@
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import { prepareSocialBatchAssets } from './prepare-batch-assets.js';
@@ -19,8 +22,16 @@ const episode: SocialEpisode = {
 describe('prepare batch assets coverage', () => {
   it('reuses supplied assets without logging when no logger is given', async () => {
     // WHY: the `?? noop` fallback only runs when `onLog` is omitted.
-    const video = { path: '/tmp/video.mp4', sizeBytes: 10, reused: true };
-    const teaserVideo = { path: '/tmp/teaser.mp4', sizeBytes: 5, reused: true };
+    const video = {
+      path: join(tmpdir(), 'video.mp4'),
+      sizeBytes: 10,
+      reused: true,
+    };
+    const teaserVideo = {
+      path: join(tmpdir(), 'teaser.mp4'),
+      sizeBytes: 5,
+      reused: true,
+    };
     const assets = await prepareSocialBatchAssets({
       episodeId: episode.id,
       languageCode: 'zh-Hant',
@@ -34,9 +45,8 @@ describe('prepare batch assets coverage', () => {
 
   it('formats durations and byte sizes on both sides of the megabyte line', async () => {
     // WHY: format helpers carry branches for sub-megabyte and minute values.
-    const { formatBytes, formatDuration } = await import(
-      './prepare-batch-assets.js'
-    );
+    const { formatBytes, formatDuration } =
+      await import('./prepare-batch-assets.js');
     expect(formatDuration(65)).toBe('1m 05s');
     expect(formatDuration(30)).toBe('0m 30s');
     expect(formatBytes(512 * 1024)).toContain('KB');

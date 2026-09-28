@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { splitCanonicalSentences } from './sentences.js';
 import { generateStoryboard } from './orchestrator.js';
 import type {
   StoryboardProvider,
   StoryboardProviderRequest,
 } from './provider.js';
+import { splitCanonicalSentences } from './sentences.js';
 
 const script = [
   '今天先看市場流動性的變化。',

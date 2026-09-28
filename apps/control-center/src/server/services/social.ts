@@ -307,10 +307,8 @@ function isLearnable(post: SocialPostRow, metric: SocialMetricRow): boolean {
     return false;
   }
   // isLearnable only runs on the filtered samples stream, where views is
-  // never null; the fallback satisfies the SocialMetricRow type.
-  /* v8 ignore start */
-  return (metric.views ?? 0) > 1;
-  /* v8 ignore stop */
+  // never null.
+  return metric.views! > 1;
 }
 
 function topExample(
@@ -333,11 +331,8 @@ function bestTopic(
   const groups = new Map<string, number[]>();
   for (const sample of samples) {
     const values = groups.get(sample.post.topic) ?? [];
-    // Null-view rows never reach bestTopic (see the samples filter), so this
-    // fallback satisfies the SocialMetricRow type, not a reachable state.
-    /* v8 ignore start */
-    values.push(sample.metric.views ?? 0);
-    /* v8 ignore stop */
+    // Null-view rows never reach bestTopic (see the samples filter).
+    values.push(sample.metric.views!);
     groups.set(sample.post.topic, values);
   }
   const candidates = [...groups.entries()]
@@ -461,11 +456,8 @@ function median(values: number[]): number {
   const sorted = [...values].sort((a, b) => a - b);
   const middle = Math.floor(sorted.length / 2);
   // Every median() caller passes a guarded non-empty array, so indexed
-  // access into this dense array never misses; the fallbacks satisfy
-  // noUncheckedIndexedAccess.
-  /* v8 ignore start */
+  // access into this dense array never misses.
   return sorted.length % 2
-    ? (sorted[middle] ?? 0)
-    : ((sorted[middle - 1] ?? 0) + (sorted[middle] ?? 0)) / 2;
-  /* v8 ignore stop */
+    ? sorted[middle]!
+    : (sorted[middle - 1]! + sorted[middle]!) / 2;
 }

@@ -145,11 +145,8 @@ export function createAgentBacklogService(input: {
     const backlog = await cache.get(true);
     if (backlog.status !== 'ok') {
       // Every non-ok snapshot comes from emptyResponse, whose message is
-      // always a string, so this fallback guards the response type, not a
-      // reachable state.
-      /* v8 ignore start */
-      throw new Error(backlog.message ?? 'Agent backlog is unavailable.');
-      /* v8 ignore stop */
+      // always a string.
+      throw new Error(backlog.message!);
     }
     const areas = (inputValue.areas ?? []).flatMap((area) => {
       const normalized = normalizeArea(area);

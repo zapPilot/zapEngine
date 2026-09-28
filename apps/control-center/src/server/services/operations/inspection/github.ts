@@ -124,43 +124,26 @@ export async function inspectGithubSignal(input: {
   // collector: skipped workflow_run wrappers are not recovery, while a real
   // later success is. Fetch a wide enough window to see through wrapper churn.
   const decisiveCompleted = completed.filter(isRecentFailureDecisiveRun);
+  // runs is non-empty past the length guard above, so target always resolves.
   const target =
-    input.parsed.kind === 'recent-failure'
+    (input.parsed.kind === 'recent-failure'
       ? (decisiveCompleted[0] ?? completed[0] ?? runs[0])
-      : (completed.find(isFailedRun) ?? completed[0] ?? runs[0]);
-  // runs is non-empty past the length guard above, so target always resolves
-  // and the empty selections below are type-level defense, not reachable.
-  /* v8 ignore start */
-  const failedJobs = target
-    ? await inspectRunJobs(target, token, input.fetchImpl)
-    : [];
-  /* v8 ignore stop */
+      : (completed.find(isFailedRun) ?? completed[0] ?? runs[0]))!;
+  const failedJobs = await inspectRunJobs(target, token, input.fetchImpl);
 
   return {
     fingerprint: input.fingerprint,
     source: 'github-actions',
     status: 'ok',
     inspectedAt: input.inspectedAt.toISOString(),
-    summary: target
-      ? `${workflow}: inspected run ${target.id} (${target.conclusion ?? target.status}).`
-      : // target is always defined past the runs.length guard above.
-        /* v8 ignore start */
-        `${workflow}: run history was readable but no run could be selected.`,
-    /* v8 ignore stop */
+    summary: `${workflow}: inspected run ${target.id} (${target.conclusion ?? target.status}).`,
     entities: [
       { type: 'github-workflow', id: workflow },
-      // target is always defined (see above), so the empty spread never runs.
-      /* v8 ignore start */
-      ...(target
-        ? [
-            {
-              type: 'github-run' as const,
-              id: String(target.id),
-              url: target.html_url ?? null,
-            },
-          ]
-        : []),
-      /* v8 ignore stop */
+      {
+        type: 'github-run' as const,
+        id: String(target.id),
+        url: target.html_url ?? null,
+      },
     ],
     evidence: {
       workflow,
@@ -169,16 +152,12 @@ export async function inspectGithubSignal(input: {
         input.parsed.kind === 'recent-failure'
           ? 'Newest decisive completed run (success or failure); skipped wrappers do not recover an older failure.'
           : 'Newest failed completed run, otherwise newest completed or current run.',
-      commitsSinceFailure:
-        target && isFailedRun(target)
-          ? await commitsSinceRun(target, token, input.fetchImpl)
-          : null,
+      commitsSinceFailure: isFailedRun(target)
+        ? await commitsSinceRun(target, token, input.fetchImpl)
+        : null,
       commitsSinceFailureScope:
         'Commits on main after the failed run head SHA. Their presence is not evidence that any of them fixes the failure.',
-      // target is always defined (see above); the null arm is type-level defense.
-      /* v8 ignore start */
-      selectedRun: target ? summarizeRun(target) : null,
-      /* v8 ignore stop */
+      selectedRun: summarizeRun(target),
       recentRuns: runs.slice(0, RUN_EVIDENCE_LIMIT).map(summarizeRun),
       failedJobs,
     },
@@ -222,11 +201,8 @@ async function inspectRunJobs(
         id: job.id,
         name: job.name,
         status: job.status,
-        // Only failed jobs reach this mapper (filtered above), and a failed
-        // job has a decisive non-empty conclusion by definition.
-        /* v8 ignore start */
-        conclusion: job.conclusion ?? null,
-        /* v8 ignore stop */
+        // Only failed jobs reach this mapper (filtered above).
+        conclusion: job.conclusion!,
         startedAt: job.started_at ?? null,
         completedAt: job.completed_at ?? null,
         url: job.html_url ?? null,
@@ -238,11 +214,8 @@ async function inspectRunJobs(
                   {
                     name: parsed.data.name,
                     number: parsed.data.number ?? null,
-                    // isFailedConclusion just matched, so conclusion is a
-                    // decisive non-empty string here.
-                    /* v8 ignore start */
-                    conclusion: parsed.data.conclusion ?? null,
-                    /* v8 ignore stop */
+                    // isFailedConclusion just matched.
+                    conclusion: parsed.data.conclusion!,
                     startedAt: parsed.data.started_at ?? null,
                     completedAt: parsed.data.completed_at ?? null,
                   },
@@ -305,9 +278,7 @@ function extractErrorExcerpt(raw: string): string {
     index += 1
   ) {
     // index stays in bounds by the loop guard over a dense split() array.
-    /* v8 ignore start */
-    if (!hit.test(lines[index] ?? '')) {
-      /* v8 ignore stop */
+    if (!hit.test(lines[index]!)) {
       continue;
     }
     for (
