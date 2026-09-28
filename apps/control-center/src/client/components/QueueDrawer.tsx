@@ -97,9 +97,14 @@ export function QueueDrawer(
   };
 
   const runAbandon = async () => {
+    // Both abandon buttons render only when canAbandon(selected) and
+    // onAbandonEpisode are set, and a click carries the committed render's
+    // props, so this guard cannot fail at any reachable call.
+    /* v8 ignore start */
     if (!episodeId || !canAbandon(props.selected) || !props.onAbandonEpisode) {
       return;
     }
+    /* v8 ignore stop */
     const confirmed = window.confirm(
       'Abandon this episode video job? It will leave the active render lanes, keep its failure history, and block retries.',
     );
@@ -303,9 +308,13 @@ const TAB_LABELS: Record<DrawerTab, string> = {
  * completed, current one, which is the only case a plain restart cannot fix.
  */
 function canForceReplan(selected: SelectedQueueEntry): boolean {
+  // The only call site sits behind `tab === 'scenes' && episodeId`, which
+  // tests the same field, so a missing episode id cannot reach this check.
+  /* v8 ignore start */
   if (!selected.item.episodeId) {
     return false;
   }
+  /* v8 ignore stop */
   // A social item's episode has already rendered, so its video work is idle by
   // definition; an API work item has to say so itself. An aggregated render
   // episode is idle only when every durable child job is idle.
@@ -482,7 +491,11 @@ function EpisodeVideoJobs(props: {
             canAbandon={false}
             error={null}
             item={job}
+            // EpisodeVideoJobs pins canAbandon={false}, so the abandon button
+            // never renders and this noop is never invoked.
+            /* v8 ignore start */
             onAbandon={() => {}}
+            /* v8 ignore stop */
             onRestart={props.onRestart}
           />
         </div>

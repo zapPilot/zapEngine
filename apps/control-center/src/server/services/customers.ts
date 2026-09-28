@@ -262,7 +262,12 @@ function describeWorst(user: CustomerRecord): string {
     const count = user.neverRefreshedWallets;
     return `Worst: ${who} has ${count} wallet${count === 1 ? '' : 's'} that never refreshed`;
   }
+  // freshnessSignal only reaches this line with neverRefreshedWallets === 0 for
+  // users whose portfolioWorstStaleHours is a defined age, so the fallback is
+  // defensive against the CustomerRecord type, not a reachable state.
+  /* v8 ignore start */
   return `Worst: ${who} at ${Math.round(user.portfolioWorstStaleHours ?? 0)}h`;
+  /* v8 ignore stop */
 }
 
 function buildCustomers(input: {

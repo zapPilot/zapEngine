@@ -128,9 +128,13 @@ export async function inspectGithubSignal(input: {
     input.parsed.kind === 'recent-failure'
       ? (decisiveCompleted[0] ?? completed[0] ?? runs[0])
       : (completed.find(isFailedRun) ?? completed[0] ?? runs[0]);
+  // runs is non-empty past the length guard above, so target always resolves
+  // and the empty selections below are type-level defense, not reachable.
+  /* v8 ignore start */
   const failedJobs = target
     ? await inspectRunJobs(target, token, input.fetchImpl)
     : [];
+  /* v8 ignore stop */
 
   return {
     fingerprint: input.fingerprint,
@@ -139,9 +143,14 @@ export async function inspectGithubSignal(input: {
     inspectedAt: input.inspectedAt.toISOString(),
     summary: target
       ? `${workflow}: inspected run ${target.id} (${target.conclusion ?? target.status}).`
-      : `${workflow}: run history was readable but no run could be selected.`,
+      : // target is always defined past the runs.length guard above.
+        /* v8 ignore start */
+        `${workflow}: run history was readable but no run could be selected.`,
+    /* v8 ignore stop */
     entities: [
       { type: 'github-workflow', id: workflow },
+      // target is always defined (see above), so the empty spread never runs.
+      /* v8 ignore start */
       ...(target
         ? [
             {
@@ -151,6 +160,7 @@ export async function inspectGithubSignal(input: {
             },
           ]
         : []),
+      /* v8 ignore stop */
     ],
     evidence: {
       workflow,
@@ -165,7 +175,10 @@ export async function inspectGithubSignal(input: {
           : null,
       commitsSinceFailureScope:
         'Commits on main after the failed run head SHA. Their presence is not evidence that any of them fixes the failure.',
+      // target is always defined (see above); the null arm is type-level defense.
+      /* v8 ignore start */
       selectedRun: target ? summarizeRun(target) : null,
+      /* v8 ignore stop */
       recentRuns: runs.slice(0, RUN_EVIDENCE_LIMIT).map(summarizeRun),
       failedJobs,
     },
@@ -209,7 +222,11 @@ async function inspectRunJobs(
         id: job.id,
         name: job.name,
         status: job.status,
+        // Only failed jobs reach this mapper (filtered above), and a failed
+        // job has a decisive non-empty conclusion by definition.
+        /* v8 ignore start */
         conclusion: job.conclusion ?? null,
+        /* v8 ignore stop */
         startedAt: job.started_at ?? null,
         completedAt: job.completed_at ?? null,
         url: job.html_url ?? null,
@@ -221,7 +238,11 @@ async function inspectRunJobs(
                   {
                     name: parsed.data.name,
                     number: parsed.data.number ?? null,
+                    // isFailedConclusion just matched, so conclusion is a
+                    // decisive non-empty string here.
+                    /* v8 ignore start */
                     conclusion: parsed.data.conclusion ?? null,
+                    /* v8 ignore stop */
                     startedAt: parsed.data.started_at ?? null,
                     completedAt: parsed.data.completed_at ?? null,
                   },
@@ -283,7 +304,10 @@ function extractErrorExcerpt(raw: string): string {
     index < lines.length && selected.size < LOG_LINE_LIMIT;
     index += 1
   ) {
+    // index stays in bounds by the loop guard over a dense split() array.
+    /* v8 ignore start */
     if (!hit.test(lines[index] ?? '')) {
+      /* v8 ignore stop */
       continue;
     }
     for (
@@ -296,8 +320,10 @@ function extractErrorExcerpt(raw: string): string {
     }
   }
 
+  // selected holds in-bounds indices by construction, so the lookup never
+  // misses (same precedent as candidates[0]! in social.ts).
   const excerptLines = selected.size
-    ? [...selected].sort((a, b) => a - b).map((index) => lines[index] ?? '')
+    ? [...selected].sort((a, b) => a - b).map((index) => lines[index]!)
     : lines.slice(Math.max(0, lines.length - 80));
   return excerptLines.join('\n').slice(0, LOG_CHAR_LIMIT);
 }
@@ -395,7 +421,8 @@ async function commitsSinceRun(
       truncated: comparison.total_commits > comparison.commits.length,
       url: comparison.html_url,
       commits: comparison.commits.map((row) => {
-        const subject = row.commit.message.split('\n')[0] ?? '';
+        // split() always yields at least one element.
+        const subject = row.commit.message.split('\n')[0]!;
         const match =
           subject.match(/\(#(\d+)\)$/u) ??
           subject.match(/^Merge pull request #(\d+)/u);

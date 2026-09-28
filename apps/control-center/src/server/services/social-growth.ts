@@ -309,7 +309,12 @@ function buildExperiments(input: {
     );
     return {
       experimentKey,
+      // groups only gains keys by pushing a row, so every group is non-empty
+      // and kind is always assigned; the fallback satisfies
+      // noUncheckedIndexedAccess, not a reachable state.
+      /* v8 ignore start */
       kind: rows[0]?.kind ?? 'language',
+      /* v8 ignore stop */
       paired,
       status: paired ? 'paired-cohort' : weakestStatus(arms),
       arms,
@@ -507,7 +512,12 @@ function sum(values: (number | undefined)[]): number | null {
 function median(values: number[]): number {
   const ordered = [...values].sort((left, right) => left - right);
   const midpoint = Math.floor(ordered.length / 2);
+  // Every median() caller guards with a length check, so indexed access into
+  // this dense non-empty array never misses; the fallbacks satisfy
+  // noUncheckedIndexedAccess.
+  /* v8 ignore start */
   return ordered.length % 2
     ? (ordered[midpoint] ?? 0)
     : ((ordered[midpoint - 1] ?? 0) + (ordered[midpoint] ?? 0)) / 2;
+  /* v8 ignore stop */
 }

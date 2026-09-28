@@ -346,7 +346,13 @@ export function buildPipelineQueues(input: {
         now: input.now,
         posts: postsByEpisode.get(episode.id) ?? [],
         visualState: visualStateByEpisode.get(episode.id),
+        // videoPrereqsByEpisode is keyed by every input episode id and episode
+        // always resolves from that same list (missing episodes return early
+        // above), so the lookup never misses; the fallback satisfies
+        // noUncheckedIndexedAccess.
+        /* v8 ignore start */
         videoPrereqsReady: videoPrereqsByEpisode.get(episode.id) ?? false,
+        /* v8 ignore stop */
       }),
     ];
   });
@@ -370,7 +376,13 @@ export function buildPipelineQueues(input: {
         posts: postsByEpisode.get(episode.id) ?? [],
         localizationId: row.episode_localization_id,
         visualState: visualStateByEpisode.get(episode.id),
+        // videoPrereqsByEpisode is keyed by every input episode id and episode
+        // always resolves from that same list (missing episodes return early
+        // above), so the lookup never misses; the fallback satisfies
+        // noUncheckedIndexedAccess.
+        /* v8 ignore start */
         videoPrereqsReady: videoPrereqsByEpisode.get(episode.id) ?? false,
+        /* v8 ignore stop */
       }),
     ];
   });

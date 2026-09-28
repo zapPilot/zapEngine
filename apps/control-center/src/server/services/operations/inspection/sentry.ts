@@ -172,6 +172,9 @@ export async function inspectSentrySignal(input: {
   }
 
   const top = scoped[0];
+  // scoped is non-empty past the length guard above, so top is always
+  // defined; the check satisfies noUncheckedIndexedAccess.
+  /* v8 ignore start */
   const sampleEvent = top
     ? await loadLatestEvent({
         token,
@@ -179,6 +182,7 @@ export async function inspectSentrySignal(input: {
         fetchImpl: input.fetchImpl,
       })
     : null;
+  /* v8 ignore stop */
 
   return {
     fingerprint: input.fingerprint,

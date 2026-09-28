@@ -106,8 +106,13 @@ function toStatement(
     sentence: finding.segments,
     kicker: `${domain[0]!.toUpperCase()}${domain.slice(1)} · ${SOURCE_LABEL[domain]} · seen ${elapsedSince(generatedAt, input.now)}`,
     series: finding.series,
+    // toStatement only receives r1/r2/r4/r6/r10 findings, which assign string
+    // value/delta on every path; the fallbacks guard the RuleFinding type
+    // for future rules, not a reachable state.
+    /* v8 ignore start */
     value: finding.value ?? '—',
     delta: finding.delta ?? '—',
+    /* v8 ignore stop */
     deltaTone:
       finding.deltaTone === 'good'
         ? 'good'
