@@ -289,14 +289,17 @@ export function InvestProgressScreen() {
     [account.address, setHlpBaselineUsd6],
   );
 
-  const checkpointStillCurrent = useCallback((startedCallsId: string | null) => {
-    const progress = latestProgressRef.current;
-    return (
-      progress !== null &&
-      progress.callsId === startedCallsId &&
-      progress.phase === 'checkpoint'
-    );
-  }, []);
+  const checkpointStillCurrent = useCallback(
+    (startedCallsId: string | null) => {
+      const progress = latestProgressRef.current;
+      return (
+        progress !== null &&
+        progress.callsId === startedCallsId &&
+        progress.phase === 'checkpoint'
+      );
+    },
+    [],
+  );
 
   const runCheckpointAction = useCallback(
     async (
