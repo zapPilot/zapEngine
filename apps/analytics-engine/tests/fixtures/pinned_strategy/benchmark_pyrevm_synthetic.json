@@ -1,0 +1,78 @@
+{
+  "backend": "pyrevm",
+  "compare": {
+    "False": {
+      "overhead_ratio": 1.723100468297005,
+      "parity": {
+        "asset_observations": 1487,
+        "days": 500,
+        "distance_relative_threshold_failures": 0,
+        "executions": 11,
+        "matched": 33,
+        "max_distance_absolute_error": 8.326672684688674e-17,
+        "max_distance_relative_error": 8.326672684688667e-16,
+        "max_target_error": 1.1102230246251565e-16,
+        "threshold_flips": 0
+      },
+      "python": 0.47774262505117804,
+      "shadow": 0.8231985409511253
+    },
+    "True": {
+      "overhead_ratio": 1.5132420817609356,
+      "parity": {
+        "asset_observations": 1487,
+        "days": 500,
+        "distance_relative_threshold_failures": 0,
+        "executions": 12,
+        "matched": 13,
+        "max_distance_absolute_error": 8.326672684688674e-17,
+        "max_distance_relative_error": 8.326672684688667e-16,
+        "max_target_error": 1.1102230246251565e-16,
+        "threshold_flips": 0
+      },
+      "python": 0.5255640420364216,
+      "shadow": 0.7953056250698864
+    }
+  },
+  "history": "synthetic-boundary-stream",
+  "latency": {
+    "commit": {
+      "daily_45_calls_ms": 7.477515,
+      "execution_gas": 5549,
+      "gas": 32669,
+      "gas_semantics": "transaction including intrinsic calldata",
+      "median_us": 166.167,
+      "p95_us": 185.167,
+      "study_144000_calls_s": 23.928048
+    },
+    "cross_down_exit": {
+      "daily_45_calls_ms": 6.4256400000000005,
+      "execution_gas": 12328,
+      "gas": 38476,
+      "gas_semantics": "transaction including intrinsic calldata",
+      "median_us": 142.792,
+      "p95_us": 180.75,
+      "study_144000_calls_s": 20.562048
+    },
+    "observe": {
+      "daily_45_calls_ms": 9.4340475,
+      "execution_gas": 6259,
+      "gas": 30459,
+      "gas_semantics": "transaction including intrinsic calldata",
+      "median_us": 209.6455,
+      "p95_us": 596.417,
+      "study_144000_calls_s": 30.188952
+    },
+    "warmup": {
+      "daily_45_calls_ms": 5.3962650000000005,
+      "execution_gas": 2088,
+      "gas": 25924,
+      "gas_semantics": "transaction including intrinsic calldata",
+      "median_us": 119.917,
+      "p95_us": 145.209,
+      "study_144000_calls_s": 17.268048
+    }
+  },
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "python": "3.11.15"
+}
