@@ -117,12 +117,12 @@ export function useDepositWizard({
   const watchBridgeLeg = useCallback(
     async (params: {
       plan: DepositPlan;
+      leg: DepositPlan['legs'][number];
       legIndex: number;
       sourceTxHash: Hash;
       signal: AbortSignal;
     }): Promise<boolean> => {
-      const leg = params.plan.legs[params.legIndex];
-      if (!leg) return false;
+      const { leg } = params;
       dispatch({
         type: 'BRIDGE_UPDATE',
         legIndex: params.legIndex,
@@ -136,7 +136,6 @@ export function useDepositWizard({
       // balance delta `watchHlpArrival` waits on. LI.FI routes into HyperCore
       // also carry `protocol: 'hyperliquid'`, so key off the bridge id.
       if (leg.bridge === HYPERLIQUID_BRIDGE2_BRIDGE_ID) {
-        if (params.signal.aborted) return false;
         dispatch({
           type: 'BRIDGE_UPDATE',
           legIndex: params.legIndex,
@@ -198,6 +197,7 @@ export function useDepositWizard({
           leg.kind === 'bridge'
             ? watchBridgeLeg({
                 plan,
+                leg,
                 legIndex,
                 sourceTxHash,
                 signal: controller.signal,
@@ -261,7 +261,7 @@ export function useDepositWizard({
     }
 
     const usd6 = resolveHlpDepositUsd6(step, wizard.hlp.arrivedUsd6);
-    const signal = abortRef.current?.signal;
+    const signal = abortRef.current?.signal as AbortSignal;
     const vaultAddress = step.action.vaultAddress as Address;
     dispatch({ type: 'HL_SUBMITTED' });
 
@@ -273,7 +273,7 @@ export function useDepositWizard({
             user: userAddress,
             vaultAddress,
             apiUrl: step.signing.apiUrl,
-            ...(signal ? { signal } : {}),
+            signal,
           })
         )?.equityUsd6 ?? 0n;
       if (signal?.aborted) return;
@@ -310,7 +310,7 @@ export function useDepositWizard({
         vaultAddress,
         equityBeforeUsd6,
         apiUrl: step.signing.apiUrl,
-        ...(signal ? { signal } : {}),
+        signal,
       });
       if (signal?.aborted) return;
       dispatch({ type: 'HL_CONFIRMED', vaultEquityUsd6: equityUsd6 });

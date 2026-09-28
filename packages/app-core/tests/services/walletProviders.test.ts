@@ -184,6 +184,73 @@ describe('Alchemy transport and balance aggregation', () => {
       'unknown error',
     );
   });
+  it('treats astronomically large balances as non-finite numeric values without crashing', async () => {
+    const hugeRawBalance = `0x1${'0'.repeat(1024)}`;
+    fetchMock.mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.includes('/tokens/by-symbol')) {
+        return Response.json({
+          data: [
+            { symbol: 'eth', prices: [{ currency: 'usd', value: '2000' }] },
+          ],
+        });
+      }
+      if (url.includes('/tokens/by-address')) {
+        return Response.json({
+          data: [
+            {
+              network: 'eth-mainnet',
+              address: addresses.eth.USDC[0],
+              prices: [{ currency: 'usd', value: '1' }],
+            },
+          ],
+        });
+      }
+      const rpc = JSON.parse(String(init?.body));
+      if (rpc.method === 'eth_getBalance') {
+        return Response.json({ result: hugeRawBalance });
+      }
+      const chain = url.includes('eth-mainnet')
+        ? 'eth'
+        : url.includes('base-mainnet')
+          ? 'base'
+          : 'arbitrum';
+      return Response.json({
+        result: {
+          tokenBalances: [
+            {
+              contractAddress: addresses[chain].USDC[0],
+              tokenBalance: hugeRawBalance,
+            },
+          ],
+        },
+      });
+    });
+
+    const result = await getAlchemyWalletBalancesSnapshot('0xwallet');
+    const ethBalances = result.balances.find((entry) => entry.chain === 'eth');
+    expect(ethBalances?.response.result).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ symbol: 'USDC', usd_value: 0 }),
+        expect.objectContaining({ symbol: 'ETH', usd_value: 0 }),
+      ]),
+    );
+  });
+
+  it('uses the generic all-chains failure when rejected reasons are not Error objects', async () => {
+    alchemyResponses({ empty: true });
+    const allSettled = vi.spyOn(Promise, 'allSettled').mockResolvedValueOnce([
+      { status: 'rejected', reason: 'eth failed' },
+      { status: 'rejected', reason: 'base failed' },
+      { status: 'rejected', reason: 'arbitrum failed' },
+    ] as PromiseSettledResult<never>[]);
+
+    await expect(getAlchemyWalletBalancesSnapshot('0xwallet')).rejects.toThrow(
+      'Alchemy wallet balance requests failed on every chain.',
+    );
+    allSettled.mockRestore();
+  });
+
   it('supports genuinely empty wallets and checks configuration before transport', async () => {
     alchemyResponses({ empty: true });
     expect(
