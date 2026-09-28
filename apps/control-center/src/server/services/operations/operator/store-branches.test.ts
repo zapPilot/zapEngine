@@ -73,6 +73,25 @@ describe('operator store persistence branches', () => {
     );
   });
 
+  it('records null provenance when GitHub metadata is blank', async () => {
+    vi.stubEnv('GITHUB_SHA', '');
+    vi.stubEnv('GITHUB_RUN_ID', '');
+    const { rpc, client } = rpcClient(() => ({ data: null, error: null }));
+    fakeClient.current = client;
+
+    await createOperatorStore(CONFIGURED).recordHeartbeat('test', 'succeeded');
+
+    expect(rpc).toHaveBeenCalledWith(
+      'ops_record_operator_heartbeat_v2',
+      expect.objectContaining({
+        p_actor: 'test',
+        p_state: 'succeeded',
+        p_source_sha: null,
+        p_run_id: null,
+      }),
+    );
+  });
+
   it('falls back to the legacy heartbeat while the migration propagates', async () => {
     const { rpc, client } = rpcClient((name) =>
       name === 'ops_record_operator_heartbeat_v2'

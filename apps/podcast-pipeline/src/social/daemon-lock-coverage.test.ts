@@ -46,9 +46,11 @@ const {
 const noSleep = (): Promise<void> => Promise.resolve();
 
 function errno(code: string): NodeJS.ErrnoException {
-  const error = new Error(`${code}: injected filesystem fault`);
-  (error as NodeJS.ErrnoException).code = code;
-  return error as NodeJS.ErrnoException;
+  const error: NodeJS.ErrnoException = new Error(
+    `${code}: injected filesystem fault`,
+  );
+  error.code = code;
+  return error;
 }
 
 async function scratchLockPath(): Promise<string> {
@@ -164,18 +166,18 @@ describe('isProcessAliveDefault', () => {
   });
 
   it('treats a permission error as a live process owned by someone else', () => {
-    const kill = vi.spyOn(process, 'kill').mockImplementation((() => {
+    const kill = vi.spyOn(process, 'kill').mockImplementation(() => {
       throw errno('EPERM');
-    }) as typeof process.kill);
+    });
 
     expect(isProcessAliveDefault(4242)).toBe(true);
     expect(kill).toHaveBeenCalledWith(4242, 0);
   });
 
   it('treats a missing pid as dead', () => {
-    const kill = vi.spyOn(process, 'kill').mockImplementation((() => {
+    vi.spyOn(process, 'kill').mockImplementation(() => {
       throw errno('ESRCH');
-    }) as typeof process.kill);
+    });
 
     expect(isProcessAliveDefault(4242)).toBe(false);
   });

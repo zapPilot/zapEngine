@@ -141,7 +141,7 @@ export async function inspectGithubSignal(input: {
     entities: [
       { type: 'github-workflow', id: workflow },
       {
-        type: 'github-run',
+        type: 'github-run' as const,
         id: String(target.id),
         url: target.html_url ?? null,
       },
