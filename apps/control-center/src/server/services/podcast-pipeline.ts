@@ -519,11 +519,8 @@ function videoState(
   }
   // Reaching this line requires ttsStatus 'completed', which ttsState only
   // returns when every language has a row, and every language row yields a
-  // render entry — so one side is always present. The 'pending' outcome here
-  // is unreachable; the genuine pending path returns early above.
-  /* v8 ignore start */
-  return visual || renders.length > 0 ? 'queued' : 'pending';
-  /* v8 ignore stop */
+  // render entry. The genuine pending path returns early above.
+  return 'queued';
 }
 
 function currentPhaseFor(

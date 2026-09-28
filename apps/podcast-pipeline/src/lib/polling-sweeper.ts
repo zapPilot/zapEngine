@@ -47,10 +47,8 @@ export function createPollingSweeper(
     try {
       await work;
     } finally {
-      // Single-flight guarantees `active` is still this run's work; the guard
-      // only protects against future lifecycle changes.
-      /* v8 ignore next -- @preserve single-flight keeps active stable */
-      if (active === work) active = null;
+      // Single-flight guarantees `active` is still this run's work.
+      active = null;
     }
   };
 

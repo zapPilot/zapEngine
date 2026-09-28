@@ -95,6 +95,167 @@ const NOW = new Date('2026-08-16T10:00:00.000Z');
 class StopDaemon extends Error {}
 
 describe('social daemon queue summary coverage', () => {
+  it('formats the compact operator queue with media, backlog-style lists, upcoming items, and attention lanes', async () => {
+    mocks.getSocialQueueSnapshot.mockResolvedValue({
+      pendingCount: 5,
+      episodeQueue: [
+        {
+          episodeId: 'episode-1',
+          title: 'First title',
+          nextAt: '2026-08-16T09:00:00.000Z',
+          laneCount: 2,
+          lanes: [
+            { platform: 'rednote', languageCode: 'zh-Hant' },
+            { platform: 'x', languageCode: 'ja' },
+          ],
+        },
+        {
+          episodeId: 'episode-2',
+          title: null,
+          nextAt: '2026-08-16T11:30:00.000Z',
+          laneCount: 1,
+          lanes: [{ platform: 'threads', languageCode: 'zh-Hant' }],
+        },
+        {
+          episodeId: 'episode-3',
+          title: 'Third title',
+          nextAt: '2026-08-16T12:00:00.000Z',
+          laneCount: 1,
+          lanes: [{ platform: 'youtube', languageCode: 'en' }],
+        },
+        {
+          episodeId: 'episode-4',
+          title: 'Fourth title',
+          nextAt: '2026-08-16T13:00:00.000Z',
+          laneCount: 1,
+          lanes: [{ platform: 'x', languageCode: 'ja' }],
+        },
+      ],
+      nextByLane: {
+        'x|ja': {
+          episodeId: 'episode-1',
+          platform: 'x',
+          languageCode: 'ja',
+          title: 'Japanese lane',
+          nextAt: '2026-08-16T09:00:00.000Z',
+          status: 'failed',
+          attemptCount: 2,
+          attemptsExhausted: false,
+          experiment: null,
+        },
+        'threads|zh-Hant': {
+          episodeId: 'episode-2',
+          platform: 'threads',
+          languageCode: 'zh-Hant',
+          title: null,
+          nextAt: '2026-08-16T09:00:00.000Z',
+          status: 'processing',
+          attemptCount: 1,
+          attemptsExhausted: false,
+          experiment: null,
+        },
+        'rednote|zh-Hant': {
+          episodeId: 'episode-3',
+          platform: 'rednote',
+          languageCode: 'zh-Hant',
+          title: 'Blocked lane',
+          nextAt: '2026-08-16T09:00:00.000Z',
+          status: 'failed',
+          attemptCount: 8,
+          attemptsExhausted: true,
+          experiment: null,
+        },
+        'youtube|en': {
+          episodeId: 'episode-4',
+          platform: 'youtube',
+          languageCode: 'en',
+          title: 'Fourth abnormal lane',
+          nextAt: '2026-08-16T09:00:00.000Z',
+          status: 'failed',
+          attemptCount: 3,
+          attemptsExhausted: false,
+          experiment: null,
+        },
+      },
+      waitingVideos: [
+        {
+          episodeId: 'wait-1',
+          title: 'Waiting one',
+          languageCodes: ['zh-Hant', 'ja'],
+        },
+        {
+          episodeId: 'wait-2',
+          title: null,
+          languageCodes: ['en'],
+        },
+        {
+          episodeId: 'wait-3',
+          title: 'Waiting three',
+          languageCodes: ['ja'],
+        },
+        {
+          episodeId: 'wait-4',
+          title: 'Waiting four',
+          languageCodes: ['en'],
+        },
+      ],
+    });
+    const log = vi.fn();
+
+    await expect(
+      runSocialDaemon({
+        now: () => NOW,
+        log,
+        verbose: false,
+        recordTick: vi.fn(),
+        sleep: async () => {
+          throw new StopDaemon('stop after one tick');
+        },
+      }),
+    ).rejects.toBeInstanceOf(StopDaemon);
+
+    const text = log.mock.calls.map(([message]) => String(message)).join('\n');
+    expect(text).toContain('Social Publisher');
+    expect(text).toContain('Waiting for media · 4 articles');
+    expect(text).toContain('+1 more');
+    expect(text).toContain('Upcoming');
+    expect(text).toContain('+1 more scheduled');
+    expect(text).toContain('Attention · 4 lanes need review');
+    expect(text).toContain('blocked after 8 attempts');
+  });
+
+  it('logs recovery after one transient network tick and suppresses an unchanged compact queue snapshot', async () => {
+    mocks.listUnfinishedSocialPublishJobs
+      .mockRejectedValueOnce(new TypeError('fetch failed'))
+      .mockResolvedValue([]);
+    mocks.getSocialQueueSnapshot.mockResolvedValue({
+      pendingCount: 0,
+      episodeQueue: [],
+      nextByLane: {},
+      waitingVideos: [],
+    });
+    const log = vi.fn();
+    let sleeps = 0;
+
+    await expect(
+      runSocialDaemon({
+        now: () => NOW,
+        log,
+        verbose: false,
+        recordTick: vi.fn(),
+        sleep: async () => {
+          sleeps += 1;
+          if (sleeps >= 2) throw new StopDaemon('stop after recovery');
+        },
+      }),
+    ).rejects.toBeInstanceOf(StopDaemon);
+
+    const text = log.mock.calls.map(([message]) => String(message)).join('\n');
+    expect(text).toContain('network unavailable');
+    expect(text).toContain('network recovered after 1 failed tick');
+    expect(text.match(/Queue · clear/g)).toHaveLength(1);
+  });
+
   it('formats singular article queues, fallback ids, invalid dates, and abnormal lanes', async () => {
     mocks.getSocialQueueSnapshot.mockResolvedValue({
       pendingCount: 1,

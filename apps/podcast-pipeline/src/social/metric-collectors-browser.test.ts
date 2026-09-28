@@ -80,10 +80,21 @@ function promiseMethod<T>(value: T) {
   return vi.fn().mockResolvedValue(value);
 }
 
-function metricLocator(input: { aria?: string | null; text?: string } = {}) {
+function metricLocator(
+  input: {
+    aria?: string | null;
+    text?: string;
+    ariaError?: Error;
+    textError?: Error;
+  } = {},
+) {
   const leaf = {
-    getAttribute: promiseMethod(input.aria ?? null),
-    innerText: promiseMethod(input.text ?? ''),
+    getAttribute: input.ariaError
+      ? vi.fn().mockRejectedValue(input.ariaError)
+      : promiseMethod(input.aria ?? null),
+    innerText: input.textError
+      ? vi.fn().mockRejectedValue(input.textError)
+      : promiseMethod(input.text ?? ''),
   };
   return { first: () => leaf };
 }
@@ -93,10 +104,31 @@ function xArticle(
     body?: string;
     href?: string | null;
     datetime?: string | null;
-    comments?: { aria?: string | null; text?: string };
-    reposts?: { aria?: string | null; text?: string };
-    likes?: { aria?: string | null; text?: string };
-    views?: { aria?: string | null; text?: string };
+    datetimeError?: Error;
+    comments?: {
+      aria?: string | null;
+      text?: string;
+      ariaError?: Error;
+      textError?: Error;
+    };
+    reposts?: {
+      aria?: string | null;
+      text?: string;
+      ariaError?: Error;
+      textError?: Error;
+    };
+    likes?: {
+      aria?: string | null;
+      text?: string;
+      ariaError?: Error;
+      textError?: Error;
+    };
+    views?: {
+      aria?: string | null;
+      text?: string;
+      ariaError?: Error;
+      textError?: Error;
+    };
   } = {},
 ) {
   const body = input.body ?? 'X published body';
@@ -117,7 +149,9 @@ function xArticle(
       if (selector === 'time') {
         return {
           first: () => ({
-            getAttribute: promiseMethod(input.datetime ?? null),
+            getAttribute: input.datetimeError
+              ? vi.fn().mockRejectedValue(input.datetimeError)
+              : promiseMethod(input.datetime ?? null),
           }),
         };
       }
@@ -156,6 +190,7 @@ interface RednoteCardInput {
   searchText?: string;
   impressionRaw?: string | null;
   reviewText?: string;
+  durationError?: Error;
 }
 
 function noteImpression(noteId: string): string {
@@ -194,7 +229,11 @@ function rednoteCard(input: RednoteCardInput = {}) {
         };
       }
       if (selector === '.play_time') {
-        return { textContent: promiseMethod(input.duration ?? null) };
+        return {
+          textContent: input.durationError
+            ? vi.fn().mockRejectedValue(input.durationError)
+            : promiseMethod(input.duration ?? null),
+        };
       }
       if (selector === '.note-card__stat') {
         return {
@@ -980,5 +1019,100 @@ describe('metrics browser session', () => {
 
     await expect(session.close()).rejects.toThrow('context teardown failed');
     expect(second.close).toHaveBeenCalledOnce();
+  });
+});
+
+describe('browser collector failure fallbacks', () => {
+  it('falls back to null X metrics when both aria and rendered text reads reject', async () => {
+    installPage(
+      xPage([
+        xArticle({
+          comments: {
+            ariaError: new Error('aria unavailable'),
+            textError: new Error('text unavailable'),
+          },
+          reposts: {
+            ariaError: new Error('aria unavailable'),
+            textError: new Error('text unavailable'),
+          },
+          likes: {
+            ariaError: new Error('aria unavailable'),
+            textError: new Error('text unavailable'),
+          },
+          views: { textError: new Error('text unavailable') },
+        }),
+      ]),
+    );
+
+    await expect(collectXMetrics(post('x'))).resolves.toMatchObject({
+      views: null,
+      likes: null,
+      comments: null,
+      shares: null,
+    });
+  });
+
+  it('skips an X card whose timestamp attribute read rejects', async () => {
+    installPage(
+      xPage([
+        xArticle({ datetimeError: new Error('detached') }),
+        xArticle({
+          datetime: '2026-08-16T02:00:00.000Z',
+          href: '/zap/status/987654321',
+          body: 'matched body',
+        }),
+      ]),
+    );
+
+    await expect(
+      inspectXPublishedPostAt('2026-08-16T02:00:00.000Z', 'https://x.com/zap'),
+    ).resolves.toMatchObject({
+      platformPostId: '987654321',
+      publishedBody: 'matched body',
+    });
+  });
+
+  it('turns a Rednote duration read failure into the existing unreadable-duration error', async () => {
+    installPage(
+      rednotePage({
+        cards: [
+          rednoteCard({
+            noteId: 'duration-error',
+            time: '2026-08-16 10:00',
+            durationError: new Error('detached'),
+          }),
+        ],
+      }),
+    );
+
+    await expect(
+      inspectRednotePublishedPost('2026-08-16T02:00:00.000Z'),
+    ).rejects.toThrow('has no readable video duration');
+  });
+
+  it('executes the registry default Rednote callbacks when identity and review status change', async () => {
+    installPage(
+      rednotePage({
+        cards: [
+          rednoteCard({
+            noteId: 'registry-defaults',
+            searchText: '發佈標題',
+            stats: ['1', '2', '3', '4', '5'],
+          }),
+        ],
+      }),
+    );
+
+    await expect(
+      createMetricCollectors().rednote(
+        post('rednote', {
+          platform_post_id: null,
+          review_status: 'under_review',
+        }),
+      ),
+    ).resolves.toMatchObject({
+      status: 'collected',
+      metrics: { views: 1 },
+    });
   });
 });

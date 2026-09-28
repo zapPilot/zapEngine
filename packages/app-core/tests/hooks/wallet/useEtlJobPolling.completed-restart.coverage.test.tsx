@@ -34,6 +34,32 @@ beforeEach(() => {
 });
 
 describe('useEtlJobPolling completed restart coverage', () => {
+  it('does not publish completion after reset while cache refresh is still in flight', async () => {
+    mocks.getEtlJobStatus.mockResolvedValue({
+      jobId: 'job-stale',
+      status: 'completed',
+      createdAt: '2026-09-18T00:00:00.000Z',
+    });
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const { invalidateSpy, wrapper } = createHarness();
+    invalidateSpy.mockImplementationOnce(() => gate);
+    const { result } = renderHook(() => useEtlJobPolling(), { wrapper });
+
+    act(() => result.current.startPolling('job-stale', 'user-1'));
+    await waitFor(() => expect(result.current.state.status).toBe('completing'));
+    act(() => result.current.reset());
+    expect(result.current.state.status).toBe('idle');
+
+    await act(async () => {
+      release();
+      await gate;
+    });
+    expect(result.current.state.status).toBe('idle');
+  });
+
   it('does not refresh portfolio caches twice when restarting an already completed job', async () => {
     mocks.getEtlJobStatus.mockResolvedValue({
       jobId: 'job-completed',

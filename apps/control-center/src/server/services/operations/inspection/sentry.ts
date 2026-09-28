@@ -171,18 +171,13 @@ export async function inspectSentrySignal(input: {
     };
   }
 
-  const top = scoped[0];
-  // scoped is non-empty past the length guard above, so top is always
-  // defined; the check satisfies noUncheckedIndexedAccess.
-  /* v8 ignore start */
-  const sampleEvent = top
-    ? await loadLatestEvent({
-        token,
-        issueId: top.id,
-        fetchImpl: input.fetchImpl,
-      })
-    : null;
-  /* v8 ignore stop */
+  // scoped is non-empty past the length guard above.
+  const top = scoped[0]!;
+  const sampleEvent = await loadLatestEvent({
+    token,
+    issueId: top.id,
+    fetchImpl: input.fetchImpl,
+  });
 
   return {
     fingerprint: input.fingerprint,

@@ -86,6 +86,16 @@ describe('weightedSearchEvidenceGroups', () => {
       'Beta expands. Gamma explains more. Delta closes.',
     ]);
   });
+
+  it('normalizes non-positive and non-finite group weights', () => {
+    const groups = weightedSearchEvidenceGroups(
+      'Alpha opens. Beta expands. Gamma closes.',
+      [0, Number.NaN, -5],
+    );
+    expect(groups).toHaveLength(3);
+    expect(groups?.join(' ')).toContain('Alpha opens.');
+    expect(groups?.join(' ')).toContain('Gamma closes.');
+  });
 });
 
 describe('createDeterministicStoryboard', () => {
@@ -237,6 +247,68 @@ describe('createDeterministicStoryboard', () => {
     expect(result.scenes.length).toBeGreaterThanOrEqual(3);
     expect(result.scenes.length).toBeLessThanOrEqual(5);
     expect(result.scenes.at(-1)?.endSentenceId).toBe('s0005');
+  });
+
+  it('splits the largest residual group to meet the minimum scene count', () => {
+    const script = [
+      'This first sentence contains a very large amount of spoken material with many repeated explanatory words about ordinary marmalade ledgers and shelves and jars and inventory and record keeping for a long extended discussion that continues for quite a while.',
+      'Tiny.',
+      'Small.',
+      'Brief.',
+      'End.',
+    ].join(' ');
+    const result = storyboard({
+      title: 'Plain inventory notes',
+      script,
+      durationMs: 40_000,
+    });
+
+    expect(result.scenes).toHaveLength(3);
+    expect(result.scenes.map((scene) => scene.startSentenceId)).toEqual([
+      's0001',
+      's0002',
+      's0004',
+    ]);
+  });
+
+  it('uses supplied packaging mode and falls back to sentence text when canonical ids do not resolve', () => {
+    const sentences = [
+      {
+        id: 'custom-a',
+        index: 0,
+        text: 'Custom first sentence.',
+        startOffset: 0,
+        endOffset: 22,
+      },
+      {
+        id: 'custom-b',
+        index: 1,
+        text: 'Custom second sentence.',
+        startOffset: 23,
+        endOffset: 46,
+      },
+    ];
+
+    const packaged = createDeterministicStoryboard({
+      title: 'Custom',
+      script: 'Different script text.',
+      durationMs: 20_000,
+      sentences,
+      isPackaged: true,
+    });
+    const unpackaged = createDeterministicStoryboard({
+      title: 'Custom',
+      script: 'Different script text.',
+      durationMs: 20_000,
+      sentences,
+      isPackaged: false,
+    });
+
+    expect(packaged.scenes.length).toBeGreaterThan(0);
+    expect(unpackaged.scenes.length).toBeGreaterThan(0);
+    expect(
+      packaged.scenes.flatMap((scene) => scene.imageSearchIntent).join(' '),
+    ).toContain('Custom');
   });
 });
 

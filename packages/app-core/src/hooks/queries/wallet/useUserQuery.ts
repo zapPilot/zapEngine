@@ -56,16 +56,12 @@ interface BuildUserInfoInput {
   userId: string;
   profileData: UserProfileResponse;
   fallbackWallet?: string | null;
-  isNewUser?: boolean;
-  etlJobId?: string | null;
 }
 
 function buildUserInfo({
   userId,
   profileData,
   fallbackWallet,
-  isNewUser,
-  etlJobId,
 }: BuildUserInfoInput): UserInfo {
   const wallets = profileData.wallets || [];
   const userEmail = profileData.user?.email || '';
@@ -91,8 +87,6 @@ function buildUserInfo({
     visibleWallets: bundleWallets,
     totalWallets: bundleWallets.length,
     totalVisibleWallets: bundleWallets.length,
-    ...(isNewUser && { isNewUser }),
-    ...(etlJobId && { etlJobId }),
   };
 }
 

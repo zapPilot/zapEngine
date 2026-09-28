@@ -104,8 +104,8 @@ export function isApprovedWalletConnector(connector: {
 export function formatApprovedWalletList(): string {
   const labels = APPROVED_WALLETS.map((wallet) => wallet.label);
   if (labels.length === 1) {
-    return labels[0] ?? '';
+    return labels[0] as string;
   }
-  const lastLabel = labels.pop();
-  return `${labels.join(', ')}, or ${lastLabel ?? ''}`;
+  const lastLabel = labels.pop() as string;
+  return `${labels.join(', ')}, or ${lastLabel}`;
 }

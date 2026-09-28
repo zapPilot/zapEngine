@@ -114,9 +114,11 @@ describe('coverage handoff: pure app-core boundary behavior', () => {
     );
   });
 
-  it('recognizes numeric status fields without requiring Error subclasses', () => {
+  it('recognizes only numeric status fields without requiring Error subclasses', () => {
     expect(isClientError({ status: 400 })).toBe(true);
     expect(isNotFoundError({ status: 404 })).toBe(true);
+    expect(isClientError({ status: '400' })).toBe(false);
+    expect(isNotFoundError({ status: '404' })).toBe(false);
   });
 
   it('uses currency defaults when both optional flags are omitted', () => {

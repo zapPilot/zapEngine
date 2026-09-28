@@ -111,6 +111,49 @@ describe('useStrategyDepositWizard confirmation coverage', () => {
     });
   });
 
+  it('confirms a non-position transaction without waiting for a position balance', async () => {
+    const nonPositionPlan = {
+      ...PLAN,
+      executionGroups: [
+        {
+          ...PLAN.executionGroups[0]!,
+          calls: [
+            {
+              ...PLAN.executionGroups[0]!.calls[0]!,
+              meta: {
+                intentType: 'SWAP',
+                route: { marketKey: 'future-market' },
+              },
+            },
+          ],
+        },
+      ],
+    } as StrategyDepositPlan;
+    mocks.getStrategyDepositPlan.mockResolvedValue(nonPositionPlan);
+    mocks.sendTransaction.mockResolvedValue(HASH);
+
+    const { result } = renderHook(() => useStrategyDepositWizard());
+    await act(async () => {
+      await result.current.start({
+        userAddress: USER,
+        totalUsd6: PLAN.totalUsd6,
+        fundingSources: [{ chainId: 8453, fromToken: BASE_USDC }],
+      });
+    });
+    await act(async () => {
+      await result.current.advance();
+    });
+    await act(async () => {
+      await result.current.advance();
+    });
+
+    expect(mocks.sendTransaction).toHaveBeenCalledOnce();
+    expect(mocks.waitForTransactionReceipt).toHaveBeenCalledWith({
+      hash: HASH,
+    });
+    expect(result.current.wizard.error).toBeNull();
+  });
+
   it('fails safely if a submitted transaction loses its chain id before confirmation', async () => {
     const { result } = renderHook(() => useStrategyDepositWizard());
 

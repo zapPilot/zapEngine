@@ -304,9 +304,9 @@ export function aggregateMonthlyPnL(
     .sort(([a], [b]) => a.localeCompare(b))
     .slice(-12)
     .map(([monthKey, yieldUSD]) => {
-      const [yearStr, monthStr] = monthKey.split('-');
-      const year = parseInt(yearStr ?? '', 10);
-      const month = parseInt(monthStr ?? '', 10);
+      const [yearStr, monthStr] = monthKey.split('-') as [string, string];
+      const year = parseInt(yearStr, 10);
+      const month = parseInt(monthStr, 10);
 
       if (!year || !month || month < 1 || month > 12) {
         return null;
@@ -316,9 +316,10 @@ export function aggregateMonthlyPnL(
       const portfolioValue =
         portfolioValues.find((pv) => pv.date && pv.date >= monthStart)
           ?.total_value_usd ?? 100000;
+      const monthLabel = MONTH_ABBREVIATIONS[month - 1] as string;
 
       return {
-        month: MONTH_ABBREVIATIONS[month - 1] ?? 'N/A',
+        month: monthLabel,
         year,
         value: portfolioValue > 0 ? (yieldUSD / portfolioValue) * 100 : 0,
       };

@@ -167,6 +167,17 @@ describe('depositWizardReducer', () => {
     expect(state.hlp.vaultEquityUsd6).toBe(29_400_000n);
   });
 
+  it('keeps protocol absent for protocol-less plan legs', () => {
+    const protocolLess: DepositPlan = {
+      ...plan,
+      legs: [{ ...plan.legs[0]!, protocol: undefined }],
+      calls: [plan.calls[0]!],
+      followUps: undefined,
+    };
+    const state = run([{ type: 'PLAN_LOADED', plan: protocolLess }]);
+    expect(state.legs[0]).not.toHaveProperty('protocol');
+  });
+
   it('goes straight to done when the plan has neither bridges nor an HLP step', () => {
     const baseOnly: DepositPlan = {
       ...plan,

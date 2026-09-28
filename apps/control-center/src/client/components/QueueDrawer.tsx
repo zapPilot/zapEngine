@@ -96,15 +96,10 @@ export function QueueDrawer(
     }
   };
 
-  const runAbandon = async () => {
-    // Both abandon buttons render only when canAbandon(selected) and
-    // onAbandonEpisode are set, and a click carries the committed render's
-    // props, so this guard cannot fail at any reachable call.
-    /* v8 ignore start */
-    if (!episodeId || !canAbandon(props.selected) || !props.onAbandonEpisode) {
-      return;
-    }
-    /* v8 ignore stop */
+  const runAbandon = async (
+    targetEpisodeId: string,
+    abandonEpisode: (episodeId: string) => Promise<void>,
+  ) => {
     const confirmed = window.confirm(
       'Abandon this episode video job? It will leave the active render lanes, keep its failure history, and block retries.',
     );
@@ -115,7 +110,7 @@ export function QueueDrawer(
     setAbandoning(true);
     setAbandonError(null);
     try {
-      await props.onAbandonEpisode(episodeId);
+      await abandonEpisode(targetEpisodeId);
       props.onClose();
     } catch (cause) {
       setAbandonError(
@@ -174,7 +169,9 @@ export function QueueDrawer(
                     <button
                       className="refresh-button queue-retry queue-abandon"
                       disabled={restarting || abandoning}
-                      onClick={() => void runAbandon()}
+                      onClick={() =>
+                        void runAbandon(episodeId!, props.onAbandonEpisode!)
+                      }
                       type="button"
                     >
                       <ArchiveX aria-hidden="true" size={15} />
@@ -220,7 +217,9 @@ export function QueueDrawer(
                   }
                   error={restartError}
                   item={item as PipelineQueueItem}
-                  onAbandon={() => void runAbandon()}
+                  onAbandon={() =>
+                    void runAbandon(episodeId!, props.onAbandonEpisode!)
+                  }
                   onRestart={runRestart}
                 />
               )}
@@ -308,13 +307,8 @@ const TAB_LABELS: Record<DrawerTab, string> = {
  * completed, current one, which is the only case a plain restart cannot fix.
  */
 function canForceReplan(selected: SelectedQueueEntry): boolean {
-  // The only call site sits behind `tab === 'scenes' && episodeId`, which
-  // tests the same field, so a missing episode id cannot reach this check.
-  /* v8 ignore start */
-  if (!selected.item.episodeId) {
-    return false;
-  }
-  /* v8 ignore stop */
+  // The only call site sits behind `tab === 'scenes' && episodeId`, so the
+  // selected entry already has an episode id here.
   // A social item's episode has already rendered, so its video work is idle by
   // definition; an API work item has to say so itself. An aggregated render
   // episode is idle only when every durable child job is idle.
@@ -365,7 +359,7 @@ function RecoveryActions(props: {
   error: string | null;
   abandonError: string | null;
   onRestart: (action: PodcastPipelineRestartAction) => void;
-  onAbandon: () => void;
+  onAbandon?: () => void;
 }) {
   const { actions } = props.item;
   return (
@@ -491,11 +485,6 @@ function EpisodeVideoJobs(props: {
             canAbandon={false}
             error={null}
             item={job}
-            // EpisodeVideoJobs pins canAbandon={false}, so the abandon button
-            // never renders and this noop is never invoked.
-            /* v8 ignore start */
-            onAbandon={() => {}}
-            /* v8 ignore stop */
             onRestart={props.onRestart}
           />
         </div>

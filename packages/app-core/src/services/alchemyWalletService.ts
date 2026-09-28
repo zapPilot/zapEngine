@@ -211,10 +211,6 @@ async function fetchPriceByAddress(
   apiKey: string,
   requests: { address: string; network: string }[],
 ): Promise<Map<string, number>> {
-  if (requests.length === 0) {
-    return new Map();
-  }
-
   const payload = await fetchAlchemyPrices(() =>
     httpPost<{ data?: TokenPriceByAddressResult[] }>(
       `${ALCHEMY_PRICE_BASE_URL}/tokens/by-address`,
@@ -236,10 +232,6 @@ async function fetchPriceBySymbol(
   apiKey: string,
   symbols: readonly string[],
 ): Promise<Map<string, number>> {
-  if (symbols.length === 0) {
-    return new Map();
-  }
-
   const query = new URLSearchParams();
   for (const symbol of symbols) {
     query.append('symbols', symbol);

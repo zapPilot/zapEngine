@@ -34,7 +34,7 @@ export type EtlJobResponse = EtlJobTriggerResponse;
 
 const ACCOUNT_SERVICE_ERROR_MESSAGE = 'Account service error';
 
-function mapConflictMessage(message: string | undefined): string {
+function mapConflictMessage(message: string): string {
   if (message?.includes('wallet already belongs to another user')) {
     return message;
   }
@@ -43,24 +43,24 @@ function mapConflictMessage(message: string | undefined): string {
     return 'This wallet is already associated with an account.';
   }
 
-  if (message?.includes('email')) {
+  if (message.includes('email')) {
     return 'This email address is already in use.';
   }
 
-  return message ?? ACCOUNT_SERVICE_ERROR_MESSAGE;
+  return message;
 }
 
 function mapAccountServiceErrorMessage(
   status: number | undefined,
-  message: string | undefined,
+  message: string,
 ): string {
   switch (status) {
     case 400:
-      if (message?.includes('wallet')) {
+      if (message.includes('wallet')) {
         return 'Invalid wallet address format. Must be a 42-character Ethereum address.';
       }
 
-      return message ?? ACCOUNT_SERVICE_ERROR_MESSAGE;
+      return message;
     case 404:
       return 'User account not found. Please connect your wallet first.';
     case 409:
@@ -68,7 +68,7 @@ function mapAccountServiceErrorMessage(
     case 422:
       return 'Invalid request data. Please check your input and try again.';
     default:
-      return message ?? ACCOUNT_SERVICE_ERROR_MESSAGE;
+      return message;
   }
 }
 

@@ -466,4 +466,55 @@ describe('YouTube metric collection', () => {
       'youtube',
     ]);
   });
+
+  it('executes the YouTube registry wrapper with injected fetch', async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async (input) => {
+      const url = new URL(String(input));
+      if (url.hostname === 'www.googleapis.com') {
+        return json({
+          items: [
+            {
+              id: 'video-1',
+              statistics: {
+                viewCount: '11',
+                likeCount: '2',
+                commentCount: '1',
+              },
+            },
+          ],
+        });
+      }
+      return json({ rows: [] });
+    });
+    const collectors = createMetricCollectors({ fetchImpl });
+
+    await expect(
+      collectors.youtube(post('youtube', 'video-1')),
+    ).resolves.toMatchObject({
+      status: 'collected',
+      metrics: { views: 11, likes: 2, comments: 1 },
+    });
+  });
+
+  it('treats invalid JSON response bodies as null payloads for API errors', async () => {
+    const invalidJson = (status: number) =>
+      new Response('not-json', {
+        status,
+        headers: { 'content-type': 'application/json' },
+      });
+
+    await expect(
+      collectThreadsMetrics(
+        post('threads'),
+        vi.fn<typeof fetch>().mockResolvedValue(invalidJson(500)),
+      ),
+    ).rejects.toThrow('Threads insights failed with HTTP 500');
+
+    await expect(
+      collectYouTubeMetrics(
+        post('youtube', 'video-1'),
+        vi.fn<typeof fetch>().mockResolvedValue(invalidJson(500)),
+      ),
+    ).rejects.toThrow('YouTube statistics failed with HTTP 500');
+  });
 });
