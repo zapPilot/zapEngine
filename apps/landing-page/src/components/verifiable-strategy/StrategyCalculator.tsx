@@ -7,7 +7,14 @@ import {
   DEFAULT_EXAMPLE_DATE,
   strategyData,
 } from '@/config/verifiable-strategy';
-import { inputFromExample } from '@/lib/verifiable-strategy/encoding';
+import {
+  inputFromExample,
+  validateInput,
+} from '@/lib/verifiable-strategy/encoding';
+import {
+  scenarioInput,
+  type Scenario,
+} from '@/lib/verifiable-strategy/scenarios';
 import {
   calculatorClient,
   runCalculator,
@@ -19,11 +26,10 @@ import type {
   Dataset,
   Example,
 } from '@/lib/verifiable-strategy/types';
-import { AllocationResult } from './AllocationResult';
+import { ContractAnswer } from './ContractAnswer';
+import { ScenarioPicker } from './ScenarioPicker';
 import { CalculatorForm } from './CalculatorForm';
-import { CalculatorSteps } from './CalculatorSteps';
 import { ContractIdentityCard } from './ContractIdentityCard';
-import { VerifyYourself } from './VerifyYourself';
 
 function ExampleCalculator({
   example,
@@ -34,63 +40,89 @@ function ExampleCalculator({
 }) {
   const original = inputFromExample(example);
   const [input, setInput] = useState(original);
-  const [state, setState] = useState<'idle' | 'running' | 'done' | 'error'>(
-    'idle',
-  );
+  const [scenario, setScenario] = useState<Scenario | null>('real');
+  const [state, setState] = useState<
+    'idle' | 'calling' | 'done' | 'stale' | 'error'
+  >('idle');
   const [result, setResult] = useState<CalculatorResult | null>(null);
+  const [submitted, setSubmitted] = useState<CalculatorInput | null>(null);
   const [error, setError] = useState('');
-  const edited = JSON.stringify(input) !== JSON.stringify(original);
-  function change(value: CalculatorInput) {
+  const historical =
+    scenario === 'real' && JSON.stringify(input) === JSON.stringify(original);
+  function change(value: CalculatorInput, selected: Scenario | null = null) {
     setInput(value);
-    setResult(null);
-    setState('idle');
+    setScenario(selected);
+    setState(result ? 'stale' : 'idle');
     setError('');
   }
   async function run() {
-    setState('running');
+    if (
+      !data.deployment ||
+      state === 'calling' ||
+      Object.keys(validateInput(input)).length
+    )
+      return;
+    setState('calling');
     setResult(null);
     setError('');
+    setSubmitted(input);
     try {
       setResult(await runCalculator(input, data));
       setState('done');
     } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : 'RPC calculation failed',
-      );
+      const message =
+        cause instanceof Error ? cause.message : 'RPC calculation failed';
+      const next = /codehash|bytecode|contract/i.test(message)
+        ? 'Check the deployment address and pinned artifact before retrying.'
+        : /network/i.test(message)
+          ? 'Use an Arbitrum Sepolia RPC, then retry.'
+          : 'Check your connection and retry the call.';
+      setError(`${message} ${next}`);
       setState('error');
     }
   }
   return (
     <>
-      <p>
-        Historical example: <strong>{example.date}</strong> ·{' '}
-        <a href="/track-record/rebalances/">Published backtest events ↗</a>
-      </p>
-      <CalculatorForm
-        input={input}
-        onChange={change}
-        running={state === 'running'}
-        onRun={() => void run()}
+      <ScenarioPicker
+        date={example.date}
+        selected={scenario}
+        disabled={state === 'calling'}
+        onSelect={(selected) =>
+          change(scenarioInput(example, selected), selected)
+        }
       />
-      {edited && (
-        <button
-          type="button"
-          onClick={() => change(original)}
-          disabled={state === 'running'}
-        >
-          Restore historical inputs
-        </button>
-      )}
-      {state === 'error' && <p role="alert">{error}</p>}
-      {state === 'done' && result && (
-        <>
-          <CalculatorSteps result={result} />
-          <AllocationResult result={result} example={example} edited={edited} />
-          <VerifyYourself result={result} deployment={data.deployment!} />
-        </>
-      )}
-      <details className="track-record-calculator-card">
-        <summary>Example provenance & Python target</summary>
+      <button
+        className="track-record-calculator-restore"
+        type="button"
+        disabled={state === 'calling'}
+        onClick={() => change(original, 'real')}
+      >
+        Restore real inputs
+      </button>
+      <div className="track-record-calculator-layout">
+        <CalculatorForm
+          input={input}
+          onChange={change}
+          running={state === 'calling'}
+          onRun={() => void run()}
+          result={state === 'done' ? (result ?? undefined) : undefined}
+        />
+        <ContractAnswer
+          result={result}
+          submitted={submitted}
+          example={example}
+          data={data}
+          stale={state === 'stale'}
+          historical={historical}
+          running={state === 'calling'}
+          disabled={
+            !data.deployment || !!Object.keys(validateInput(input)).length
+          }
+          error={error}
+        />
+      </div>
+      <details>
+        <summary>Recorded example provenance</summary>
         <pre>
           {JSON.stringify(
             {
@@ -136,32 +168,25 @@ export function StrategyCalculator({
   }, [data]);
   return (
     <div className="track-record-calculator">
-      <p className="track-record-calculator-eyebrow">
-        Verifiable strategy · Research demonstration
-      </p>
-      <h1>On-chain Strategy Calculator</h1>
-      <p>
-        Recompute one historical exit with public, immutable Vyper bytecode.
-        Read-only calls. No wallet required.
-      </p>
+      <header>
+        <h1>On-chain calculator</h1>
+        <p>
+          Run one Zap Pilot exit rule on its public Vyper contract. Enter a day
+          of prices, call the contract, and see the allocation it returns.
+        </p>
+        <span className="pending-badge">
+          Research slice: 1 of 6 rules, not the production strategy
+        </span>
+      </header>
       <ContractIdentityCard data={data} verification={verification} />
-      {!data.deployment ? (
-        <section className="track-record-calculator-card" role="status">
-          <h2>Not deployed yet</h2>
-          <p>
-            The research slice has not been deployed to Arbitrum Sepolia. The
-            2025-10-18 example will appear after its real inputs and Python
-            result have been verified. No simulated chain result is shown.
-          </p>
-        </section>
-      ) : example ? (
+      {example ? (
         <ExampleCalculator key={example.date} example={example} data={data} />
       ) : (
         <p role="status">
           No verified historical example is available for {requested}.
         </p>
       )}
-      <section className="track-record-calculator-card track-record-calculator-grid">
+      <section className="track-record-calculator-grid track-record-calculator-limits">
         <div>
           <h2>What this proves</h2>
           <p>

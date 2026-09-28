@@ -2147,7 +2147,8 @@
    palette validator if any of them changes. See chartMarkers.tsx. */
 .shell-root .chart-event-layer,
 .shell-root .chart-legend,
-.shell-root .chart-tooltip {
+.shell-root .chart-tooltip,
+.shell-root .track-record-calculator {
   --event-btc: #f7931a;
   --event-eth: #627eea;
   --event-spy: #7ad88f;
@@ -3299,13 +3300,18 @@
   }
 }
 
-/* Research calculator shares the track-record shell and evidence styling. */
+/* Research calculator uses the same asset colors and type as track record. */
 .shell-root .track-record-calculator {
   display: grid;
   gap: 24px;
 }
+.shell-root .track-record-calculator :where(div, section, aside, form, header) {
+  min-width: 0;
+}
 .shell-root .track-record-calculator h1 {
-  font-size: clamp(2rem, 5vw, 3.4rem);
+  font-family: var(--font-serif), Georgia, serif;
+  font-weight: 400;
+  font-size: clamp(2.5rem, 5vw, 4rem);
   line-height: 1.1;
   margin: 0;
 }
@@ -3313,32 +3319,112 @@
   font-size: 1.25rem;
   margin: 12px 0;
 }
+.shell-root .track-record-calculator h3 {
+  font-size: 1rem;
+  margin: 16px 0;
+}
 .shell-root .track-record-calculator p {
   line-height: 1.65;
 }
-.shell-root .track-record-calculator-card {
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  padding: 24px;
-  background: var(--surface);
-  min-width: 0;
+.shell-root .track-record-calculator header {
+  max-width: 740px;
 }
-.shell-root .track-record-calculator-eyebrow {
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  font-size: 0.75rem;
+.shell-root .track-record-calculator .pending-badge {
+  text-transform: none;
+  letter-spacing: normal;
+  display: inline-block;
+  max-width: 100%;
+  white-space: normal;
+  line-height: 1.7;
+}
+.shell-root .track-record-calculator-identity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+  padding: 18px 0;
+  border-block: 1px solid var(--line);
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+.shell-root .track-record-calculator-identity code {
+  white-space: nowrap;
+  display: inline-block;
+  vertical-align: bottom;
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.shell-root .track-record-calculator-scenarios {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+.shell-root .track-record-calculator button {
+  cursor: pointer;
+}
+.shell-root .track-record-calculator-scenarios button,
+.shell-root .track-record-calculator-identity button,
+.shell-root .track-record-calculator-restore {
+  border: 1px solid var(--line-hi);
+  border-radius: var(--radius-control);
+  background: transparent;
+  padding: 10px 12px;
+  color: var(--ink);
+  font-size: 0.8rem;
+}
+.shell-root .track-record-calculator-scenarios button[aria-pressed='true'] {
+  border-color: var(--accent);
   color: var(--accent);
+  background: var(--surface);
+}
+.shell-root .track-record-calculator-restore {
+  justify-self: start;
+}
+.shell-root .track-record-calculator-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  gap: 40px;
+  align-items: start;
+}
+.shell-root .track-record-calculator-answer {
+  position: sticky;
+  top: 90px;
+  border: 1px solid var(--line-hi);
+  border-radius: var(--radius-card);
+  padding: 28px;
+  background: var(--surface);
+  box-shadow: 0 12px 40px #0002;
+}
+.shell-root .track-record-calculator-verdict {
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: clamp(1.8rem, 3vw, 2.5rem);
+  line-height: 1.2 !important;
+}
+.shell-root .track-record-calculator-backtest {
+  border-top: 1px solid var(--line);
+  padding-top: 20px;
+  color: var(--ink-dim);
 }
 .shell-root .track-record-calculator-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 24px;
+  gap: 32px;
+}
+.shell-root .track-record-calculator-limits {
+  border-top: 1px solid var(--line);
+  padding-top: 20px;
 }
 .shell-root .track-record-calculator fieldset {
   border: 0;
   padding: 0;
   margin: 0;
   min-width: 0;
+}
+.shell-root .track-record-calculator-asset {
+  border-top: 1px solid var(--line);
+  padding: 20px 0;
 }
 .shell-root .track-record-calculator-input-row {
   display: grid;
@@ -3349,24 +3435,30 @@
 .shell-root .track-record-calculator label {
   display: grid;
   gap: 6px;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
 }
 .shell-root .track-record-calculator input:not([type='checkbox']) {
   width: 100%;
   min-width: 0;
   padding: 10px;
   border: 1px solid var(--line-hi);
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   background: var(--bg);
   color: var(--ink);
-  font: inherit;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+.shell-root .track-record-calculator input[aria-invalid='true'] {
+  border-color: var(--danger, var(--accent));
 }
 .shell-root .track-record-calculator-weights {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
+  margin-top: 20px;
 }
-.shell-root .track-record-calculator-check {
+.shell-root .track-record-calculator .track-record-calculator-check {
   display: flex;
   align-items: center;
   margin: 20px 0;
@@ -3374,26 +3466,21 @@
 .shell-root .track-record-calculator-button {
   background: var(--accent);
   color: var(--bg);
-  padding: 12px 20px;
-  border-radius: 8px;
+  padding: 14px 20px;
+  border-radius: var(--radius-control);
   border: 0;
-  cursor: pointer;
+  width: 100%;
+  margin: 16px 0;
 }
 .shell-root .track-record-calculator button:disabled {
-  opacity: 0.6;
-  cursor: wait;
+  opacity: 0.5;
+  cursor: not-allowed;
 }
-.shell-root .track-record-calculator button:focus-visible,
-.shell-root .track-record-calculator input:focus-visible {
+.shell-root
+  .track-record-calculator
+  :where(button, input, summary, a):focus-visible {
   outline: 3px solid var(--accent);
   outline-offset: 3px;
-}
-.shell-root .track-record-calculator dd {
-  margin: 6px 0 16px;
-  overflow-wrap: anywhere;
-}
-.shell-root .track-record-calculator dt {
-  font-weight: 600;
 }
 .shell-root .track-record-calculator pre {
   max-width: 100%;
@@ -3402,41 +3489,99 @@
   padding: 16px;
   font-size: 0.75rem;
 }
+.shell-root .track-record-calculator :where(code, pre, b),
+.shell-root .track-record-calculator-track span {
+  font-family: var(--font-mono), monospace;
+  font-variant-numeric: tabular-nums;
+}
 .shell-root .track-record-calculator summary {
   cursor: pointer;
   padding: 12px 0;
   font-weight: 600;
 }
-.shell-root .track-record-calculator-scroll {
-  overflow-x: auto;
-}
-.shell-root .track-record-calculator table {
-  width: 100%;
-  border-collapse: collapse;
-  text-align: left;
-}
-.shell-root .track-record-calculator th,
-.shell-root .track-record-calculator td {
-  padding: 10px;
-  border-bottom: 1px solid var(--line);
-  white-space: nowrap;
-}
 .shell-root .track-record-calculator-match {
-  color: var(--success);
-  font-weight: 600;
+  color: var(--event-spy);
 }
-@media (max-width: 640px) {
+.shell-root .track-record-calculator-error {
+  color: var(--danger, var(--accent));
+}
+.shell-root .track-record-calculator-stale {
+  opacity: 0.5;
+}
+.shell-root .track-record-calculator-track > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.shell-root .track-record-calculator-track span {
+  font-size: 0.75rem;
+}
+.shell-root .track-record-calculator-track > svg {
+  width: 100%;
+  height: 64px;
+}
+.shell-root .track-record-calculator-track small {
+  color: var(--ink-dim);
+  font-size: 0.7rem;
+}
+.shell-root .track-baseline {
+  stroke: var(--line-hi);
+}
+.shell-root .track-average {
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+.shell-root .track-record-calculator-cross {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 8px;
+}
+.shell-root .track-record-calculator-cross svg {
+  width: 12px;
+  height: 12px;
+  fill: currentColor;
+}
+.shell-root .track-record-calculator-allocation > div:last-child {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin: 10px 0;
+  font-size: 0.7rem;
+}
+@media (max-width: 1099px) {
+  .shell-root .track-record-calculator-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 24px;
+  }
+  .shell-root .track-record-calculator-answer {
+    position: static;
+    padding: 20px;
+  }
+}
+@media (max-width: 767px) {
+  .shell-root .track-record-calculator-layout,
   .shell-root .track-record-calculator-grid {
     grid-template-columns: 1fr;
   }
-  .shell-root .track-record-calculator-card {
-    padding: 18px;
+  .shell-root .track-record-calculator-track > div {
+    flex-wrap: wrap;
   }
 }
-
-.shell-root .track-record-calculator .pending-badge {
-  display: inline-block;
-  max-width: 100%;
-  white-space: normal;
-  line-height: 1.7;
+@media (max-width: 479px) {
+  .shell-root .track-record-calculator-weights {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .shell-root .track-record-calculator-scenarios {
+    align-items: stretch;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .shell-root .track-record-calculator *,
+  .shell-root .track-record-calculator *::before,
+  .shell-root .track-record-calculator *::after {
+    animation: none !important;
+    transition: none !important;
+  }
 }

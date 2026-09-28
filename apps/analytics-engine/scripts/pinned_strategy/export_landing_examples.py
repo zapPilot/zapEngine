@@ -57,43 +57,11 @@ def obs_args(obs):
     return [(int(row["price"]["wad"]), int(row["dma"]["wad"])) for row in obs]
 
 
-def generate(dates, *, validate_only=False):
-    artifact = json.loads(ARTIFACT.read_text())
-    deployment = json.loads(DEPLOYMENTS.read_text())
-    if dates and deployment is None and not validate_only:
-        raise RuntimeError(
-            "Deploy first; no historical example is published without deployment identity"
-        )
-    if (
-        deployment is not None
-        and deployment["runtimeCodehash"] != artifact["runtime_codehash"]
-    ):
-        raise RuntimeError("Deployment artifact mismatch")
+def replay(dates):
+    """Replay recorded Python inputs and pyrevm without consulting rolling snapshots."""
     examples = []
     if dates:
-        published = json.loads(TRACK_RECORD.read_text())
-        if not HISTORY.exists():
-            subprocess.run(
-                [
-                    sys.executable,
-                    str(ROOT / "scripts/pinned_strategy/record_market_history.py"),
-                    "--start",
-                    published["window"]["start"],
-                    "--end",
-                    published["window"]["end"],
-                ],
-                cwd=ROOT,
-                check=True,
-            )
         history = read_history()
-        if (
-            history[2].isoformat() != published["window"]["start"]
-            or history[3].isoformat() != published["window"]["end"]
-        ):
-            raise RuntimeError(
-                "Recorded window differs from the published track record; obtain a matching approved recording"
-            )
-        events = published["events"]
         evm = SliceEVM()
 
         class ExportShadow(shadow.Shadow):
@@ -173,33 +141,6 @@ def generate(dates, *, validate_only=False):
                         <= Decimal("1e-12")
                         for i in range(4)
                     ), "Decimal-input EVM target differs from Python"
-                    event = next(
-                        e
-                        for e in events
-                        if e["date"] == snapshot.current_date.isoformat()
-                        and e["reason"] == "portfolio_cross_down_exit"
-                    )
-                    series = next(
-                        series
-                        for series in published["series"]
-                        if series["id"] == "strategy"
-                    )
-                    index = next(
-                        i
-                        for i, row in enumerate(series["values"])
-                        if row["date"] == snapshot.current_date.isoformat()
-                    )
-                    published_target = [
-                        str(v) for v in published["allocations"]["values"][index]
-                    ]
-                    assert published["allocations"]["assets"] == list(KEYS[:4])
-                    assert all(
-                        abs(Decimal(python_target[i]) - Decimal(published_target[i]))
-                        <= Decimal("0.00005")
-                        for i in range(4)
-                    ), (
-                        "Replayed target differs from the published four-decimal allocation"
-                    )
                     examples.append(
                         {
                             "date": snapshot.current_date.isoformat(),
@@ -213,19 +154,14 @@ def generate(dates, *, validate_only=False):
                             "priorStates": [list(s) for s in self.before],
                             "expected": {
                                 "pythonTarget": python_target,
-                                "publishedTarget": published_target,
                                 "pyrevmTarget": [str(v) for v in result[6]],
                                 "triggerMask": result[3],
                                 "exitMask": result[4],
                                 "liquidatedMask": result[5],
                             },
-                            "publishedEvent": event,
                             "provenance": {
                                 "historySha256": hashlib.sha256(
                                     HISTORY.read_bytes()
-                                ).hexdigest(),
-                                "trackRecordSha256": hashlib.sha256(
-                                    TRACK_RECORD.read_bytes()
                                 ).hexdigest(),
                                 "source": "read-only production compare inputs; replayed Python strategy",
                                 "encoding": "engine float round-trip decimal, floored to 18 decimal places; allocation tolerance 1e-12",
@@ -243,6 +179,79 @@ def generate(dates, *, validate_only=False):
         assert {e["date"] for e in examples} == set(dates), (
             "Requested decision date missing"
         )
+    return examples
+
+
+def validate_publication(examples, published):
+    history = read_history()
+    if (history[2].isoformat(), history[3].isoformat()) != (
+        published["window"]["start"],
+        published["window"]["end"],
+    ):
+        raise RuntimeError(
+            "Recorded window differs from the published track record; obtain a matching approved recording"
+        )
+    assert published["allocations"]["assets"] == list(KEYS[:4])
+    series = next(s for s in published["series"] if s["id"] == "strategy")
+    for example in examples:
+        event = next(
+            e
+            for e in published["events"]
+            if e["date"] == example["date"]
+            and e["reason"] == "portfolio_cross_down_exit"
+        )
+        index = next(
+            i
+            for i, row in enumerate(series["values"])
+            if row["date"] == example["date"]
+        )
+        target = list(map(str, published["allocations"]["values"][index]))
+        assert all(
+            abs(Decimal(a) - Decimal(b)) <= Decimal("0.00005")
+            for a, b in zip(example["expected"]["pythonTarget"], target, strict=True)
+        ), "Replayed target differs from the published four-decimal allocation"
+        example["expected"]["publishedTarget"] = target
+        example["publishedEvent"] = event
+        example["provenance"]["trackRecordSha256"] = hashlib.sha256(
+            TRACK_RECORD.read_bytes()
+        ).hexdigest()
+
+
+def generate(dates, *, validate_only=False, refresh_deployment=False):
+    artifact = json.loads(ARTIFACT.read_text())
+    deployment = json.loads(DEPLOYMENTS.read_text())
+    if (
+        deployment is not None
+        and deployment["runtimeCodehash"] != artifact["runtime_codehash"]
+    ):
+        raise RuntimeError("Deployment artifact mismatch")
+    if refresh_deployment:
+        payload = json.loads(OUTPUT.read_text())
+        if (
+            payload["runtimeCodehash"] != artifact["runtime_codehash"]
+            or payload["abi"] != artifact["abi"]
+        ):
+            raise RuntimeError("Published artifact mismatch")
+        payload["deployment"] = deployment
+        write_payload(payload)
+        return payload
+    if dates and not HISTORY.exists():
+        published = json.loads(TRACK_RECORD.read_text())
+        subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts/pinned_strategy/record_market_history.py"),
+                "--start",
+                published["window"]["start"],
+                "--end",
+                published["window"]["end"],
+            ],
+            cwd=ROOT,
+            check=True,
+        )
+    examples = replay(dates)
+    if examples and not validate_only:
+        validate_publication(examples, json.loads(TRACK_RECORD.read_text()))
     source_commit = subprocess.check_output(
         [
             "git",
@@ -268,6 +277,11 @@ def generate(dates, *, validate_only=False):
     }
     if validate_only:
         return payload
+    write_payload(payload)
+    return payload
+
+
+def write_payload(payload):
     OUTPUT.write_text(json.dumps(payload, indent=2) + "\n")
     subprocess.run(
         ["pnpm", "exec", "prettier", "--write", str(OUTPUT)], cwd=LANDING, check=True
@@ -288,11 +302,22 @@ def main():
         action="store_true",
         help="Replay approved recorded inputs without publishing or requiring deployment",
     )
+    parser.add_argument(
+        "--refresh-deployment",
+        action="store_true",
+        help="Update deployment only; preserve frozen examples without replay",
+    )
     args = parser.parse_args()
+    if args.refresh_deployment and (args.empty or args.validate_only):
+        parser.error(
+            "--refresh-deployment cannot be combined with --empty or --validate-only"
+        )
     for value in args.dates:
         date.fromisoformat(value)
     payload = generate(
-        [] if args.empty else args.dates, validate_only=args.validate_only
+        [] if args.empty else args.dates,
+        validate_only=args.validate_only,
+        refresh_deployment=args.refresh_deployment,
     )
     if args.validate_only:
         print(

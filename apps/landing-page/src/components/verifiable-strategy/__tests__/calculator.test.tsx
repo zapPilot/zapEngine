@@ -9,7 +9,7 @@ import {
 } from '@/lib/verifiable-strategy/__tests__/fixtures';
 import { inputFromExample } from '@/lib/verifiable-strategy/encoding';
 import { runCalculator } from '@/lib/verifiable-strategy/onchain';
-import { AllocationResult } from '../AllocationResult';
+import { ContractAnswer } from '../ContractAnswer';
 import { CalculatorForm } from '../CalculatorForm';
 
 const state = vi.hoisted(() => ({ query: new URLSearchParams(), fail: false }));
@@ -40,22 +40,19 @@ afterEach(cleanup);
 it('always identifies the research slice and shows honest undeployed state', () => {
   render(<CalculatorPage />);
   expect(
-    screen.getByText(/Research slice · 1 of 6 rules · Not production/),
+    screen.getByText(
+      /Research slice: 1 of 6 rules, not the production strategy/,
+    ),
   ).toBeInTheDocument();
-  expect(
-    screen.getByRole('heading', { name: 'Not deployed yet' }),
-  ).toBeInTheDocument();
-  expect(
-    screen.queryByRole('button', { name: 'Run on-chain calculation' }),
-  ).not.toBeInTheDocument();
+  expect(screen.getByText(/Contract not deployed yet/)).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Call contract' })).toBeDisabled();
+  expect(screen.getByLabelText('current BTC price')).not.toHaveValue('');
 });
-it('runs the default example, shows match, and clears stale outputs after edits', async () => {
+it('runs the default example, shows match, and labels stale outputs after edits', async () => {
   render(<StrategyCalculator data={dataset} />);
   await screen.findByText(/Codehash matches/);
-  fireEvent.click(
-    screen.getByRole('button', { name: 'Run on-chain calculation' }),
-  );
-  await screen.findByText('Matches the published 2025-10-18 decision ✓');
+  fireEvent.click(screen.getByRole('button', { name: 'Call contract' }));
+  await screen.findByText('✓ Same result as the Python backtest');
   const before = screen.getAllByText(/cast call/)[1]!.textContent;
   Object.defineProperty(navigator, 'clipboard', {
     configurable: true,
@@ -69,16 +66,15 @@ it('runs the default example, shows match, and clears stale outputs after edits'
     target: { value: '89' },
   });
   expect(
-    screen.queryByText('Matches the published 2025-10-18 decision ✓'),
+    screen.getByText('Previous answer — inputs changed'),
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByText('✓ Same result as the Python backtest'),
   ).not.toBeInTheDocument();
-  fireEvent.click(
-    screen.getByRole('button', { name: 'Run on-chain calculation' }),
-  );
+  fireEvent.click(screen.getByRole('button', { name: 'Call contract' }));
   await screen.findByText('Custom inputs — no historical-match claim.');
   expect(screen.getAllByText(/cast call/)[1]!.textContent).not.toBe(before);
-  fireEvent.click(
-    screen.getByRole('button', { name: 'Restore historical inputs' }),
-  );
+  fireEvent.click(screen.getByRole('button', { name: 'Restore real inputs' }));
   expect(screen.getByLabelText('current BTC price')).toHaveValue('90');
 });
 it('selects the date query and displays errors without a historical match', async () => {
@@ -93,9 +89,7 @@ it('selects the date query and displays errors without a historical match', asyn
   state.query = new URLSearchParams('date=2025-10-18');
   state.fail = true;
   render(<StrategyCalculator data={dataset} />);
-  fireEvent.click(
-    screen.getByRole('button', { name: 'Run on-chain calculation' }),
-  );
+  fireEvent.click(screen.getByRole('button', { name: 'Call contract' }));
   await screen.findByRole('alert');
   expect(screen.queryByText(/Matches the published/)).not.toBeInTheDocument();
 });
@@ -127,9 +121,99 @@ it('does not claim a match for cooldown or unmatched candidates', async () => {
   const result = await runCalculator(inputFromExample(example), dataset);
   result.exit.cooled_off = true;
   result.exit.remaining_days = 3;
-  render(<AllocationResult result={result} example={example} edited={false} />);
-  expect(screen.getByText(/No executable exit/)).toBeInTheDocument();
+  render(
+    <ContractAnswer
+      result={result}
+      submitted={inputFromExample(example)}
+      example={example}
+      data={dataset}
+      stale={false}
+      historical={true}
+      running={false}
+      disabled={false}
+      error=""
+    />,
+  );
+  expect(screen.getByText(/The exit rule is cooling down/)).toBeInTheDocument();
   expect(
     screen.getByText('Does not match the published decision.'),
   ).toBeInTheDocument();
+});
+
+it('edits all scenarios before deployment, validates fields, and never calls', () => {
+  render(<StrategyCalculator data={{ ...dataset, deployment: null }} />);
+  fireEvent.click(
+    screen.getByRole('button', { name: 'BTC holds above its average' }),
+  );
+  expect(screen.getByLabelText('current BTC price')).toHaveValue('101');
+  expect(screen.getByRole('img', { name: /BTC: yesterday/ })).toHaveAttribute(
+    'aria-label',
+    expect.stringContaining('today +1.00%'),
+  );
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Exit rule cooling down' }),
+  );
+  expect(
+    screen.getByLabelText('Last exit executed (blank means none)'),
+  ).toHaveValue('2025-10-08');
+  fireEvent.click(
+    screen.getByRole('button', { name: 'BTC closes on its average' }),
+  );
+  expect(screen.getByLabelText('current BTC price')).toHaveValue('100');
+  fireEvent.change(screen.getByLabelText('current BTC price'), {
+    target: { value: '1.0000000000000000001' },
+  });
+  expect(screen.getByLabelText('current BTC price')).toHaveAttribute(
+    'aria-invalid',
+    'true',
+  );
+  expect(
+    screen.getByLabelText('current BTC price'),
+  ).toHaveAccessibleDescription(/18 places/);
+  fireEvent.change(screen.getByLabelText('BTC allocation percent'), {
+    target: { value: '24.5' },
+  });
+  expect(screen.getByText('Total is 99.5%, must be 100%')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Restore real inputs' }));
+  expect(screen.getByLabelText('current BTC price')).toHaveValue('90');
+  expect(screen.getByRole('button', { name: 'Call contract' })).toBeDisabled();
+  fireEvent.submit(document.getElementById('strategy-calculator')!);
+  expect(screen.queryByText(/Same result/)).not.toBeInTheDocument();
+});
+it('supports date and last-exit edits and form submission', async () => {
+  render(<StrategyCalculator data={dataset} />);
+  fireEvent.change(screen.getByLabelText('Decision day'), {
+    target: { value: '2025-10-19' },
+  });
+  expect(screen.getByLabelText('Previous day')).toHaveAttribute(
+    'aria-invalid',
+    'true',
+  );
+  expect(screen.getByRole('button', { name: 'Call contract' })).toBeDisabled();
+  fireEvent.change(screen.getByLabelText('Previous day'), {
+    target: { value: '2025-10-18' },
+  });
+  fireEvent.change(
+    screen.getByLabelText('Last exit executed (blank means none)'),
+    { target: { value: '2025-10-10' } },
+  );
+  fireEvent.submit(document.getElementById('strategy-calculator')!);
+  await screen.findByText('Custom inputs — no historical-match claim.');
+});
+it('copies the full codehash with an accessible failure fallback', async () => {
+  Object.defineProperty(navigator, 'clipboard', {
+    configurable: true,
+    value: { writeText: vi.fn().mockRejectedValue(new Error('Denied')) },
+  });
+  render(<StrategyCalculator data={{ ...dataset, deployment: null }} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Copy codehash' }));
+  await screen.findByRole('button', { name: 'Select codehash to copy' });
+  vi.mocked(navigator.clipboard.writeText).mockResolvedValue(undefined);
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Select codehash to copy' }),
+  );
+  await screen.findByRole('button', { name: 'Copied' });
+  expect(navigator.clipboard.writeText).toHaveBeenLastCalledWith(
+    dataset.runtimeCodehash,
+  );
 });

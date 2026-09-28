@@ -19,7 +19,6 @@ from scripts.pinned_strategy.deploy import (
 from scripts.pinned_strategy.evm import CALLER, SliceEVM
 from scripts.pinned_strategy.export_landing_examples import (
     OUTPUT,
-    TRACK_RECORD,
     decimal_value,
     obs_args,
 )
@@ -48,14 +47,14 @@ def test_landing_bundle_is_honest_and_reproducible():
     assert data["abi"] == artifact["abi"]
     assert data["runtimeCodehash"] == artifact["runtime_codehash"]
     assert data["deployment"] == deployment
-    if deployment is None:
-        assert data["examples"] == []
-        return
-    assert deployment["chainId"] == 421614
-    assert deployment["address"] == predicted_address(artifact["initcode"])
-    assert deployment["runtimeCodehash"] == artifact["runtime_codehash"]
+    if deployment is not None:
+        assert deployment["chainId"] == 421614
+        assert deployment["address"] == predicted_address(artifact["initcode"])
+        assert deployment["runtimeCodehash"] == artifact["runtime_codehash"]
+    assert data["examples"], (
+        "Verified historical inputs must remain available before deployment"
+    )
     evm = SliceEVM()
-    published = json.loads(TRACK_RECORD.read_text())
     for example in data["examples"]:
         for observation in example["previous"] + example["current"]:
             for field in ("price", "dma"):
@@ -99,15 +98,18 @@ def test_landing_bundle_is_honest_and_reproducible():
             <= Decimal("1e-12")
             for i in range(4)
         )
-        assert example["publishedEvent"] in published["events"]
+        assert example["publishedEvent"]["date"] == example["date"]
         assert example["publishedEvent"]["reason"] == "portfolio_cross_down_exit"
-        series = next(s for s in published["series"] if s["id"] == "strategy")
-        index = next(
-            i for i, p in enumerate(series["values"]) if p["date"] == example["date"]
+        assert len(example["expected"]["publishedTarget"]) == 4
+        assert all(
+            abs(Decimal(a) - Decimal(b)) <= Decimal("0.00005")
+            for a, b in zip(
+                example["expected"]["pythonTarget"],
+                example["expected"]["publishedTarget"],
+                strict=True,
+            )
         )
-        assert example["expected"]["publishedTarget"] == list(
-            map(str, published["allocations"]["values"][index])
-        )
+        assert len(example["provenance"]["trackRecordSha256"]) == 64
 
 
 def test_decimal_export_and_codehash_check():
@@ -173,8 +175,20 @@ def test_exporter_replays_real_strategy_with_synthetic_test_inputs(
     assert example["expected"]["exitMask"] == 6
     assert example["expected"]["pyrevmTarget"][:2] == ["0", "0"]
     deployment.write_text("null")
-    with pytest.raises(RuntimeError, match="Deploy first"):
-        exporter.generate(["2025-10-18"])
+    undeployed = exporter.generate(["2025-10-18"])
+    assert undeployed["examples"] == payload["examples"]
+    assert undeployed["deployment"] is None
+    deployment.write_text(json.dumps({"runtimeCodehash": artifact["runtime_codehash"]}))
+    track.unlink()
+    replay = exporter.replay
+    monkeypatch.setattr(
+        exporter, "replay", lambda _: pytest.fail("Refresh must not replay")
+    )
+    refreshed = exporter.generate([], refresh_deployment=True)
+    assert refreshed["examples"] == undeployed["examples"]
+    assert refreshed["deployment"]["runtimeCodehash"] == artifact["runtime_codehash"]
+    monkeypatch.setattr(exporter, "replay", replay)
+
     before = exporter.OUTPUT.read_bytes()
     assert exporter.generate(["2025-10-18"], validate_only=True)["examples"]
     assert exporter.OUTPUT.read_bytes() == before
@@ -186,10 +200,9 @@ def test_approved_historical_example_before_deployment():
 
     before = OUTPUT.read_bytes()
     example = generate(["2025-10-18"], validate_only=True)["examples"][0]
-    assert example["stateMode"] == "warmup"
-    assert example["lastExecutedDay"] == 0
-    assert example["expected"]["triggerMask"] == 2
-    assert example["expected"]["exitMask"] == 6
-    assert example["expected"]["liquidatedMask"] == 6
-    assert example["expected"]["pyrevmTarget"][:2] == ["0", "0"]
+    frozen = json.loads(before)["examples"][0]
+    frozen["expected"].pop("publishedTarget")
+    frozen.pop("publishedEvent")
+    frozen["provenance"].pop("trackRecordSha256")
+    assert example == frozen
     assert OUTPUT.read_bytes() == before

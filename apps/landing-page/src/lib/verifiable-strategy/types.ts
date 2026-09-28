@@ -53,12 +53,18 @@ export interface Example {
   priorStates: number[][];
   expected: {
     pythonTarget: string[];
+    publishedTarget: string[];
     pyrevmTarget: string[];
     triggerMask: number;
     exitMask: number;
     liquidatedMask: number;
   };
-  publishedEvent: { date: string; reason: string; fromAssets: string[] };
+  publishedEvent: {
+    date: string;
+    reason: string;
+    fromAssets: string[];
+    amountPercent: number;
+  };
   provenance: {
     source: string;
     historySha256: string;

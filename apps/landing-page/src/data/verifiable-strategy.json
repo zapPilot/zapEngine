@@ -377,5 +377,140 @@
     }
   ],
   "deployment": null,
-  "examples": []
+  "examples": [
+    {
+      "date": "2025-10-18",
+      "previousDate": "2025-10-17",
+      "previous": [
+        {
+          "symbol": "SPY",
+          "price": {
+            "decimal": "660.628417970000000000",
+            "wad": "660628417970000000000"
+          },
+          "dma": {
+            "decimal": "598.553798370000000000",
+            "wad": "598553798370000000000"
+          }
+        },
+        {
+          "symbol": "BTC",
+          "price": {
+            "decimal": "108076.728620330000000000",
+            "wad": "108076728620330000000000"
+          },
+          "dma": {
+            "decimal": "107535.295063450000000000",
+            "wad": "107535295063450000000000"
+          }
+        },
+        {
+          "symbol": "ETH",
+          "price": {
+            "decimal": "3890.199301250000000000",
+            "wad": "3890199301250000000000"
+          },
+          "dma": {
+            "decimal": "3171.441613070000000000",
+            "wad": "3171441613070000000000"
+          }
+        }
+      ],
+      "current": [
+        {
+          "symbol": "SPY",
+          "price": {
+            "decimal": "660.628417970000000000",
+            "wad": "660628417970000000000"
+          },
+          "dma": {
+            "decimal": "598.553798370000000000",
+            "wad": "598553798370000000000"
+          }
+        },
+        {
+          "symbol": "BTC",
+          "price": {
+            "decimal": "106443.611949850000000000",
+            "wad": "106443611949850000000000"
+          },
+          "dma": {
+            "decimal": "107641.667275250000000000",
+            "wad": "107641667275250000000000"
+          }
+        },
+        {
+          "symbol": "ETH",
+          "price": {
+            "decimal": "3831.244175840000000000",
+            "wad": "3831244175840000000000"
+          },
+          "dma": {
+            "decimal": "3181.070376950000000000",
+            "wad": "3181070376950000000000"
+          }
+        }
+      ],
+      "allocation": [
+        {
+          "decimal": "0.133925388034267320",
+          "wad": "133925388034267320"
+        },
+        {
+          "decimal": "0.003504375694207595",
+          "wad": "3504375694207595"
+        },
+        {
+          "decimal": "0.038812862059842550",
+          "wad": "38812862059842550"
+        },
+        {
+          "decimal": "0.823757374211682500",
+          "wad": "823757374211682500"
+        },
+        {
+          "decimal": "0.000000000000000000",
+          "wad": "0"
+        }
+      ],
+      "lastExecutedDay": 0,
+      "crossOnTouch": true,
+      "stateMode": "warmup",
+      "priorStates": [
+        [1, 1, 0, 0],
+        [1, 1, 0, 0],
+        [1, 1, 0, 0]
+      ],
+      "expected": {
+        "pythonTarget": [
+          "0.000000000000000000",
+          "0.000000000000000000",
+          "0.038812862059842550",
+          "0.961187137940157400"
+        ],
+        "pyrevmTarget": ["0", "0", "38812862059842551", "961187137940157449"],
+        "triggerMask": 2,
+        "exitMask": 6,
+        "liquidatedMask": 6,
+        "publishedTarget": ["0.0", "0.0", "0.0388", "0.9612"]
+      },
+      "provenance": {
+        "historySha256": "2458d658e844ce0934ed99c861354180cbb801be0324ff3c019c1d42165c46f7",
+        "source": "read-only production compare inputs; replayed Python strategy",
+        "encoding": "engine float round-trip decimal, floored to 18 decimal places; allocation tolerance 1e-12",
+        "trackRecordSha256": "9aac7c4476c27ff1e181e880e05509f19b25933bea241b984d332cb44ba582ca"
+      },
+      "publishedEvent": {
+        "date": "2025-10-18",
+        "type": "sell",
+        "toAsset": null,
+        "fromAssets": ["BTC", "ETH"],
+        "amountUsd": 1937.18,
+        "amountPercent": 13.75,
+        "stableDeltaUsd": 1937.18,
+        "indexedValue": 140.91,
+        "reason": "portfolio_cross_down_exit"
+      }
+    }
+  ]
 }

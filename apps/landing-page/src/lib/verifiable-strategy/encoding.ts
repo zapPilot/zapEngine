@@ -41,7 +41,10 @@ export function epochDay(value: string): number {
 }
 export function inputFromExample(example: Example): CalculatorInput {
   const prices = (rows: Example['current']) =>
-    rows.map((row) => ({ price: row.price.decimal, dma: row.dma.decimal }));
+    rows.map((row) => ({
+      price: formatUnits(BigInt(row.price.wad), 18),
+      dma: formatUnits(BigInt(row.dma.wad), 18),
+    }));
   return {
     date: example.date,
     previousDate: example.previousDate,
@@ -90,4 +93,73 @@ export function encodeInputs(input: CalculatorInput) {
     current: obs(input.current),
     allocation,
   };
+}
+
+export function dateFromDay(day: number): string {
+  return day === 0 ? '' : new Date(day * 86400000).toISOString().slice(0, 10);
+}
+export function dayFromDate(date: string): number {
+  return date === '' ? 0 : epochDay(date);
+}
+
+export function validateInput(input: CalculatorInput): Record<string, string> {
+  const errors: Record<string, string> = {};
+  const check = (key: string, run: () => unknown) => {
+    try {
+      run();
+    } catch (error) {
+      errors[key] = error instanceof Error ? error.message : 'Invalid input';
+    }
+  };
+  check('date', () => epochDay(input.date));
+  check('previousDate', () => {
+    if (epochDay(input.previousDate) !== epochDay(input.date) - 1)
+      throw new Error('Warmup must use the previous calendar day');
+  });
+  for (const period of ['previous', 'current'] as const) {
+    input[period].forEach((row, index) => {
+      for (const field of ['price', 'dma'] as const) {
+        check(`${period}.${index}.${field}`, () => {
+          const value = decimalToWad(row[field]);
+          if (value > (2n ** 255n - 1n) / WAD)
+            throw new Error('Price or DMA exceeds safe slice range');
+        });
+      }
+    });
+  }
+  input.allocation.forEach((value, index) =>
+    check(`allocation.${index}`, () => percentToWad(value)),
+  );
+  check('allocation', () => {
+    const total = input.allocation
+      .map(percentToWad)
+      .reduce((a, b) => a + b, 0n);
+    if (total < WAD - 1000000n || total > WAD + 1000000n)
+      throw new Error(`Total is ${wadToPercent(total)}%, must be 100%`);
+  });
+  check('lastExecutedDay', () => {
+    if (
+      !Number.isInteger(input.lastExecutedDay) ||
+      input.lastExecutedDay < 0 ||
+      input.lastExecutedDay > epochDay(input.date)
+    )
+      throw new Error('Last exit must be on or before the decision day');
+  });
+  return errors;
+}
+
+// Presentation only: signed basis points from input prices, never a cross decision.
+export function distancePercent(
+  row: CalculatorInput['current'][number],
+): string | null {
+  try {
+    const price = decimalToWad(row.price),
+      dma = decimalToWad(row.dma);
+    if (price === 0n || dma === 0n) return null;
+    const points = ((price - dma) * 10000n) / dma;
+    const absolute = points < 0n ? -points : points;
+    return `${points < 0n ? '−' : '+'}${absolute / 100n}.${(absolute % 100n).toString().padStart(2, '0')}%`;
+  } catch {
+    return null;
+  }
 }

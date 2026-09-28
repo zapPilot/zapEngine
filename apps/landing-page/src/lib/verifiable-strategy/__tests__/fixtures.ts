@@ -45,6 +45,7 @@ export const example: Example = {
   ],
   expected: {
     pythonTarget: ['0', '0', '0.25', '0.75'],
+    publishedTarget: ['0', '0', '0.25', '0.75'],
     pyrevmTarget: [
       '0',
       '0',
@@ -59,6 +60,7 @@ export const example: Example = {
     date: '2025-10-18',
     reason: 'portfolio_cross_down_exit',
     fromAssets: ['BTC', 'ETH'],
+    amountPercent: 50,
   },
   provenance: {
     source: 'Synthetic test only',

@@ -22,7 +22,7 @@ export function VerifyYourself({
     }
   }
   return (
-    <section className="track-record-calculator-card">
+    <section className="track-record-calculator-verify">
       <h2>Verify it yourself</h2>
       <p>
         Each call includes the exact inputs used above, pinned to the same

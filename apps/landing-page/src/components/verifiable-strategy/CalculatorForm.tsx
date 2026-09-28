@@ -1,136 +1,210 @@
-import { ALLOCATION_ASSETS, ASSETS } from '@/lib/verifiable-strategy/encoding';
-import type { CalculatorInput } from '@/lib/verifiable-strategy/types';
+import {
+  ALLOCATION_ASSETS,
+  ASSETS,
+  dateFromDay,
+  dayFromDate,
+  validateInput,
+} from '@/lib/verifiable-strategy/encoding';
+import type {
+  CalculatorInput,
+  CalculatorResult,
+} from '@/lib/verifiable-strategy/types';
+import { AllocationPreview } from './AllocationPreview';
+import { AssetCrossTrack } from './AssetCrossTrack';
 
 export function CalculatorForm({
   input,
   onChange,
   running,
   onRun,
+  result,
 }: {
   input: CalculatorInput;
   onChange: (value: CalculatorInput) => void;
   running: boolean;
   onRun: () => void;
+  result?: CalculatorResult;
 }) {
-  function setObservation(
+  const errors = validateInput(input);
+  function field(
+    key: string,
+    label: string,
+    value: string,
+    update: (value: string) => void,
+    type = 'text',
+  ) {
+    return (
+      <label>
+        {label
+          .replace(/^previous (BTC|ETH|SPY) /, 'Yesterday ')
+          .replace(/^current (BTC|ETH|SPY) /, 'Today ')
+          .replace(/dma$/, '200-day average')}
+        <input
+          type={type}
+          aria-label={label}
+          inputMode={type === 'text' ? 'decimal' : undefined}
+          value={value}
+          aria-invalid={!!errors[key]}
+          aria-describedby={
+            [
+              errors[key] ? `error-${key}` : '',
+              key.startsWith('allocation.') ? 'allocation-total' : '',
+            ]
+              .filter(Boolean)
+              .join(' ') || undefined
+          }
+          onChange={(e) => update(e.target.value)}
+        />
+        {errors[key] && (
+          <small className="track-record-calculator-error" id={`error-${key}`}>
+            {errors[key]}
+          </small>
+        )}
+      </label>
+    );
+  }
+  function observation(
     period: 'previous' | 'current',
     index: number,
-    field: 'price' | 'dma',
+    key: 'price' | 'dma',
     value: string,
   ) {
     onChange({
       ...input,
       [period]: input[period].map((row, i) =>
-        i === index ? { ...row, [field]: value } : row,
+        i === index ? { ...row, [key]: value } : row,
       ),
     });
   }
   return (
     <form
-      className="track-record-calculator-card"
-      onSubmit={(event) => {
-        event.preventDefault();
-        onRun();
+      id="strategy-calculator"
+      noValidate
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!Object.keys(errors).length) onRun();
       }}
     >
-      <h2>1. Inspect the inputs</h2>
-      <p>
-        USD prices and 200-day moving averages. Decimal strings are encoded
-        directly to WAD. Zero means missing data.
-      </p>
+      <h2>Inputs</h2>
+      <p>USD prices and 200-day averages. Zero means missing data.</p>
       <fieldset disabled={running}>
-        <legend>Market observations</legend>
-        <div className="track-record-calculator-grid">
-          {(['previous', 'current'] as const).map((period) => (
-            <section key={period}>
-              <h3>
-                {period === 'previous'
-                  ? `Previous day · ${input.previousDate}`
-                  : `Decision day · ${input.date}`}
-              </h3>
-              {ASSETS.map((asset, index) => (
-                <div className="track-record-calculator-input-row" key={asset}>
-                  {(['price', 'dma'] as const).map((field) => (
-                    <label key={field}>
-                      {asset} {field === 'dma' ? 'DMA-200' : 'price'}
-                      <input
-                        aria-label={`${period} ${asset} ${field}`}
-                        inputMode="decimal"
-                        value={input[period][index]![field]}
-                        onChange={(event) =>
-                          setObservation(
-                            period,
-                            index,
-                            field,
-                            event.target.value,
-                          )
-                        }
-                      />
-                    </label>
-                  ))}
-                </div>
-              ))}
-            </section>
-          ))}
+        <legend className="sr-only">Decision inputs</legend>
+        <div className="track-record-calculator-input-row">
+          {field(
+            'date',
+            'Decision day',
+            input.date,
+            (value) => onChange({ ...input, date: value }),
+            'date',
+          )}
+          {field(
+            'previousDate',
+            'Previous day',
+            input.previousDate,
+            (value) => onChange({ ...input, previousDate: value }),
+            'date',
+          )}
         </div>
-        <h3>Decision-time allocation (%)</h3>
-        <div className="track-record-calculator-weights">
-          {ALLOCATION_ASSETS.map((asset, index) => (
-            <label key={asset}>
-              {asset}
-              <input
-                aria-label={`${asset} allocation percent`}
-                inputMode="decimal"
-                value={input.allocation[index]}
-                onChange={(event) =>
-                  onChange({
-                    ...input,
-                    allocation: input.allocation.map((value, i) =>
-                      i === index ? event.target.value : value,
-                    ),
-                  })
-                }
-              />
-            </label>
-          ))}
-        </div>
+        {[1, 2, 0].map((index) => (
+          <section
+            className="track-record-calculator-asset"
+            key={ASSETS[index]}
+          >
+            <AssetCrossTrack
+              asset={ASSETS[index]!}
+              previous={input.previous[index]!}
+              current={input.current[index]!}
+              view={result?.views[index]}
+            />
+            {(['previous', 'current'] as const).map((period) => (
+              <div key={period} className="track-record-calculator-input-row">
+                {(['price', 'dma'] as const).map((key) => (
+                  <div key={key}>
+                    {field(
+                      `${period}.${index}.${key}`,
+                      `${period} ${ASSETS[index]} ${key}`,
+                      input[period][index]![key],
+                      (value) => observation(period, index, key, value),
+                    )}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </section>
+        ))}
+        <section className="track-record-calculator-asset">
+          <h3>Allocation before the decision</h3>
+          <AllocationPreview
+            values={input.allocation}
+            label="Allocation before the decision"
+          />
+          <div className="track-record-calculator-weights">
+            {ALLOCATION_ASSETS.map((asset, index) => (
+              <div key={asset}>
+                {field(
+                  `allocation.${index}`,
+                  `${asset} allocation percent`,
+                  input.allocation[index]!,
+                  (value) =>
+                    onChange({
+                      ...input,
+                      allocation: input.allocation.map((old, i) =>
+                        i === index ? value : old,
+                      ),
+                    }),
+                )}
+              </div>
+            ))}
+          </div>
+          <p
+            id="allocation-total"
+            className={
+              errors['allocation']
+                ? 'track-record-calculator-error'
+                : 'track-record-calculator-match'
+            }
+          >
+            {errors['allocation'] ?? 'Total 100% ✓'}
+          </p>
+        </section>
         <label className="track-record-calculator-check">
           <input
             type="checkbox"
             checked={input.crossOnTouch}
-            onChange={(event) =>
-              onChange({ ...input, crossOnTouch: event.target.checked })
+            onChange={(e) =>
+              onChange({ ...input, crossOnTouch: e.target.checked })
             }
-          />{' '}
-          Count touching DMA as a cross
+          />
+          Count touching the line as a cross
         </label>
-        <p>
-          Last executed exit:{' '}
-          {input.lastExecutedDay === 0
-            ? 'none'
-            : new Date(input.lastExecutedDay * 86400000)
-                .toISOString()
-                .slice(0, 10)}
-          .
-        </p>
-        {input.stateMode === 'warmup' ? (
-          <p>
-            No active DMA cooldown in this example. Prior zones are derived from
-            the previous day.
-          </p>
-        ) : (
+        {field(
+          'lastExecutedDay',
+          'Last exit executed (blank means none)',
+          dateFromDay(input.lastExecutedDay),
+          (value) => {
+            try {
+              onChange({ ...input, lastExecutedDay: dayFromDate(value) });
+            } catch {
+              onChange({ ...input, lastExecutedDay: -1 });
+            }
+          },
+          'date',
+        )}
+        {input.stateMode === 'explicit' ? (
           <div role="note">
             <strong>This example requires explicit historical state.</strong>
             <p>
-              Warmup alone cannot reproduce its state. Observe uses the
-              published prior state below; its honesty is not proven on-chain.
+              Observe uses the published prior state below; its honesty is not
+              proven on-chain.
             </p>
             <pre>{JSON.stringify(input.priorStates)}</pre>
           </div>
+        ) : (
+          <p>
+            Prior zones come from the previous day. No active DMA cooldown in
+            the recorded starting state.
+          </p>
         )}
-        <button className="track-record-calculator-button" type="submit">
-          {running ? 'Calling Arbitrum Sepolia…' : 'Run on-chain calculation'}
-        </button>
       </fieldset>
     </form>
   );

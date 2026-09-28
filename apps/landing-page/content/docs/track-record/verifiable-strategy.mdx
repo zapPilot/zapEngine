@@ -7,7 +7,7 @@ The [On-chain Calculator](/track-record/calculator/?date=2025-10-18) demonstrate
 
 ## Current availability
 
-Until a real deployment and verified historical export are committed, the page says **Not deployed yet**. No placeholder address, invented market data or simulated chain output is published. The intended first example is the 2025-10-18 BTC cross-down event: exit BTC and ETH, retaining SPY.
+Verified inputs are available before deployment. Edit the 2025-10-18 real example or try the three what-if scenarios; the crossing tracks visualize your inputs without deciding crosses. **Call contract** stays disabled until a real Arbitrum Sepolia deployment is committed. The recorded Python backtest event is labeled separately; no simulated chain answer is displayed. Once deployed, press **Call contract** to read the contract.
 
 ## Verification method
 
@@ -17,7 +17,7 @@ Until a real deployment and verified historical export are committed, the page s
 4. Call `cross_down_exit` with the observed views, pre-decision allocation and last execution day. Review the trigger, exit and liquidated masks, cooldown and resulting allocation.
 5. For an unedited example, compare the exact WAD result with the exported pyrevm result. Export also checks the Python winner and target (absolute per-cell tolerance `1e-12`), and the published allocation to its four-decimal rounding precision (`0.00005`).
 
-All three calls and the bytecode check use the same block number. RPC failures, a wrong network, absent code or a mismatched codehash prevent a result. Editing inputs clears the previous result and removes the historical-match claim.
+All three calls and the bytecode check use the same block number. RPC failures, a wrong network, absent code or a mismatched codehash prevent a result. Editing inputs dims the previous answer, labels it stale, and removes the historical-match claim until another call.
 
 Inputs are decimal strings parsed directly with `parseUnits(value, 18)`; excess decimal places are rejected instead of silently rounded in the browser. Allocation totals must equal 100% within a `1e-12` share tolerance to accommodate the original Python weights’ round-trip rounding. This avoids JavaScript float conversion. It does **not** establish general Python-float parity: the original spike's epsilon and near-DMA counterexamples remain unresolved. The exporter identifies that the engine's original data is float and records its round-trip decimal encoding.
 
@@ -79,10 +79,16 @@ infisical run --env=prod -- env DATABASE_READ_ONLY=true \
 uv run pytest tests/scripts/pinned_strategy -q
 ```
 
-The exporter requires deployment identity first. It records the actual published 500-day window if no recording exists, rejects a mismatched window, replays the Python strategy with EVM shadow checks, verifies the decision against the committed track record, then writes and formats only its dedicated landing JSON. No private keys or database URLs are included. The existing epsilon parity test remains red until the numerical semantics are explicitly decided; it is not disabled for the demo.
+The exporter can publish verified historical inputs before deployment. It records the actual published 500-day window if no recording exists, rejects a mismatched window, replays the Python strategy with EVM shadow checks, verifies the decision against the committed track record, then writes and formats only its dedicated landing JSON. No private keys or database URLs are included. The existing epsilon parity test remains red until the numerical semantics are explicitly decided; it is not disabled for the demo.
 
 To validate an approved recording before deployment without changing the public JSON, run `uv run python scripts/pinned_strategy/export_landing_examples.py --validate-only --dates 2025-10-18`. This checks historical Python/pyrevm parity; it does not verify a live deployment. Recorded-history tests also retain the strict DMA-distance relative-error gate, which can fail on the documented Python float versus integer-WAD difference.
 
-For an honest undeployed page, `export_landing_examples.py --empty` exports the real artifact metadata and an empty example list.
+After deployment, preserve the frozen examples and update only deployment metadata:
+
+```sh
+uv run python scripts/pinned_strategy/export_landing_examples.py --refresh-deployment
+```
+
+This does not replay history or read the rolling track record. Rebuild the landing page after updating the bundle. Publication with `--dates` still requires a matching recorded window and checks the published event and four-decimal allocation. Tests compare recorded replay fields exactly against the frozen example, independently of daily track-record refreshes. `--empty` explicitly clears examples and is not needed for the normal deployment workflow.
 
 References: [deterministic CREATE2 proxy](https://github.com/Arachnid/deterministic-deployment-proxy), [Sourcify verification](https://docs.sourcify.dev/docs/api/), [Arbitrum network information](https://docs.arbitrum.io/arbitrum-bridge/quickstart).
