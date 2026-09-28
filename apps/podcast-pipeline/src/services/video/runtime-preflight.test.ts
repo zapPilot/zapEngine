@@ -1,4 +1,5 @@
 /* eslint-disable sonarjs/publicly-writable-directories -- test uses controlled /tmp paths as mock harness data */
+import sharp from 'sharp';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { VideoProcessResult, VideoProcessRunner } from './ffmpeg-video.js';
@@ -111,6 +112,53 @@ describe('assertVideoRenderRuntime', () => {
     expect(report).toMatchObject({
       subtitleBurnInVerified: true,
       subtitleFrameMaxChannel: 244,
+    });
+  });
+
+  it('uses the default filesystem and frame-inspection dependencies for the smoke path', async () => {
+    const processRunner = capableRunner();
+    processRunner.mockImplementation(async (_executable, args) => {
+      if (args.includes('-filters')) {
+        return {
+          stdout:
+            'xfade zoompan ass overlay pad fade apad afade amix asplit aformat sidechaincompress',
+          stderr: '',
+        };
+      }
+      if (args.includes('-encoders')) {
+        return { stdout: 'libx264 aac', stderr: '' };
+      }
+      if (args.includes('-h')) {
+        return { stdout: 'normalize', stderr: '' };
+      }
+      if (args.includes('-frames:v')) {
+        const framePath = args.at(-1);
+        if (!framePath) {
+          throw new Error('Expected subtitle smoke frame output path');
+        }
+        await sharp({
+          create: {
+            width: 1,
+            height: 1,
+            channels: 3,
+            background: { r: 255, g: 255, b: 255 },
+          },
+        })
+          .png()
+          .toFile(framePath);
+      }
+      return { stdout: '', stderr: '' };
+    });
+
+    const report = await assertVideoRenderRuntime({
+      ffmpegPath: '/usr/bin/ffmpeg',
+      verifySubtitleBurnIn: true,
+      dependencies: { processRunner },
+    });
+
+    expect(report).toMatchObject({
+      subtitleBurnInVerified: true,
+      subtitleFrameMaxChannel: 255,
     });
   });
 
