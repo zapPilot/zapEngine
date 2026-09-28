@@ -25,7 +25,7 @@ need to repeat worktree authorization.
 0. Sweep your own open PRs and clear them before claiming new work:
 
    ```bash
-   gh pr list --state open --author i-xtsu-sixyou-ken-mei --search "Agent-Backlog-PR: true in:body"
+   gh pr list --state open --author "$(gh api user --jq .login)" --search "Agent-Backlog-PR: true in:body"
    ```
 
    Run the merge check on each, merge only allowed PRs and skip pending checks.
@@ -34,16 +34,13 @@ need to repeat worktree authorization.
    `security` failures on `triage-log`: they need Playwright, CI secrets or
    lockfile changes that are outside worker scope.
 
-1. Preflight. Read root and scoped `AGENTS.md`, verify MCP reachability, and
-   confirm identity before any write:
+1. Preflight. Read root and scoped `AGENTS.md` and verify MCP reachability:
 
    ```bash
-   gh api user --jq .login                        # i-xtsu-sixyou-ken-mei
-   git config user.email                          # ...@users.noreply.github.com
    gh issue list --label triage-log --state open  # exactly one
    ```
 
-   Stop on mismatch. Accept optional `area:<slug>` or `#<issue>` user input.
+   Accept optional `area:<slug>` or `#<issue>` user input.
 
 2. Claim one issue:
 
@@ -89,8 +86,8 @@ need to repeat worktree authorization.
 7. Open a PR using `.github/pull_request_template.md`: Intent, Scope, Validation
    (one PASS line per gate), Validation gaps, Known unrelated failures.
    `Agent-Backlog-PR: true` must sit on its own line, with one `Fixes #<issue>`
-   line per completed issue. Push over HTTPS as root `AGENTS.md` requires; a failed
-   push stops the run and never justifies switching identity or bypassing hooks.
+   line per completed issue. A failed push stops the run and never justifies
+   bypassing hooks.
 
 8. Wait for CI with bounded polling: at most 20 polls roughly 120 seconds apart,
    split into separate waits so user updates still arrive. Rerun the merge check

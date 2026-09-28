@@ -36,7 +36,7 @@ hypothesis, write an operator issue draft with:
 - Follow-up result: improved, worsened, unchanged or inconclusive, with evidence.
 
 Publish only when issue creation is authorized, using existing `operator` and
-appropriate area labels and the repository's required GitHub account. Search open
+appropriate area labels. Search open
 and closed issues by fingerprint first; update an existing proposal with changed
 evidence rather than creating duplicates. Without publication authorization,
 return issue-ready drafts. Output at most three actionable experiments per review.
