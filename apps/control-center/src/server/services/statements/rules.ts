@@ -288,14 +288,12 @@ export function ruleR4(input: StatementInputs): RuleFinding {
   const positive = platforms.filter((p) => (p.followersDelta7d ?? 0) > 0);
   const dominant = positive.length
     ? positive.reduce((best, next) =>
-        (next.followersDelta7d ?? 0) > (best.followersDelta7d ?? 0)
-          ? next
-          : best,
+        next.followersDelta7d! > best.followersDelta7d! ? next : best,
       )
     : null;
   const share =
     dominant && totalDelta7d && totalDelta7d > 0
-      ? (dominant.followersDelta7d ?? 0) / totalDelta7d
+      ? dominant.followersDelta7d! / totalDelta7d
       : null;
 
   finding.status = 'healthy';
@@ -361,15 +359,14 @@ export function ruleR5(input: StatementInputs): RuleFinding {
     )
     .sort(
       (a, b) =>
-        (b.bestTopicLiftVsPlatformMedian ?? 0) -
-        (a.bestTopicLiftVsPlatformMedian ?? 0),
+        b.bestTopicLiftVsPlatformMedian! - a.bestTopicLiftVsPlatformMedian!,
     )[0];
 
   if (candidate) {
     finding.segments.push(
       { text: `Posts on ${candidate.bestTopic} do ` },
       {
-        value: `${(candidate.bestTopicLiftVsPlatformMedian ?? 0).toFixed(1)}×`,
+        value: `${candidate.bestTopicLiftVsPlatformMedian!.toFixed(1)}×`,
         tone: 'success',
       },
       { text: ` the ${candidate.platform} median` },
@@ -381,7 +378,7 @@ export function ruleR5(input: StatementInputs): RuleFinding {
     );
     finding.fact = {
       kicker: 'Because · topic',
-      value: `${candidate.bestTopic}: ${(candidate.bestTopicLiftVsPlatformMedian ?? 0).toFixed(1)}× ${candidate.platform} median`,
+      value: `${candidate.bestTopic}: ${candidate.bestTopicLiftVsPlatformMedian!.toFixed(1)}× ${candidate.platform} median`,
       note: `n=${candidate.bestTopicSamples ?? 0} · ${candidate.confidence} confidence`,
     };
   } else {
@@ -677,7 +674,7 @@ export function ruleR11(input: StatementInputs): RuleFinding {
   if (overdue.length > 0) {
     finding.status = 'degraded';
     const worst = overdue.reduce((a, b) =>
-      (b.overdueMinutes ?? 0) > (a.overdueMinutes ?? 0) ? b : a,
+      b.overdueMinutes! > a.overdueMinutes! ? b : a,
     );
     finding.segments.push(
       {
@@ -694,7 +691,7 @@ export function ruleR11(input: StatementInputs): RuleFinding {
     kicker: 'Because · queue',
     value: `${overdue.length} overdue`,
     note: overdue.length
-      ? `worst: ${Math.max(...overdue.map((j) => j.overdueMinutes ?? 0))}m`
+      ? `worst: ${Math.max(...overdue.map((j) => j.overdueMinutes!))}m`
       : 'queue is current',
   };
   return finding;

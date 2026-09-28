@@ -172,7 +172,10 @@ function buildRecentFailureSignal(
   );
   const alertingBlindSpot = workflow === 'cron-failure-alert.yml';
   const status = alertingBlindSpot || streak >= 2 ? 'critical' : 'degraded';
-  const conclusion = latest.conclusion ?? 'without a conclusion';
+  // `latest` passed `isFailure`, which requires a non-null failure conclusion,
+  // and `decisiveRuns` already excluded null-conclusion rows. The fallback is
+  // dead, so the non-null assertion removes an unreachable branch.
+  const conclusion = latest.conclusion!;
   const branch = latest.branch ?? 'unknown branch';
 
   return buildSignal({
