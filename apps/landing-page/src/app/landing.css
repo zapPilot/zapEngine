@@ -3298,3 +3298,145 @@
     animation: none;
   }
 }
+
+/* Research calculator shares the track-record shell and evidence styling. */
+.shell-root .track-record-calculator {
+  display: grid;
+  gap: 24px;
+}
+.shell-root .track-record-calculator h1 {
+  font-size: clamp(2rem, 5vw, 3.4rem);
+  line-height: 1.1;
+  margin: 0;
+}
+.shell-root .track-record-calculator h2 {
+  font-size: 1.25rem;
+  margin: 12px 0;
+}
+.shell-root .track-record-calculator p {
+  line-height: 1.65;
+}
+.shell-root .track-record-calculator-card {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 24px;
+  background: var(--surface);
+  min-width: 0;
+}
+.shell-root .track-record-calculator-eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.75rem;
+  color: var(--accent);
+}
+.shell-root .track-record-calculator-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+.shell-root .track-record-calculator fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.shell-root .track-record-calculator-input-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 12px 0;
+}
+.shell-root .track-record-calculator label {
+  display: grid;
+  gap: 6px;
+  font-size: 0.85rem;
+}
+.shell-root .track-record-calculator input:not([type='checkbox']) {
+  width: 100%;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--line-hi);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+}
+.shell-root .track-record-calculator-weights {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 12px;
+}
+.shell-root .track-record-calculator-check {
+  display: flex;
+  align-items: center;
+  margin: 20px 0;
+}
+.shell-root .track-record-calculator-button {
+  background: var(--accent);
+  color: var(--bg);
+  padding: 12px 20px;
+  border-radius: 8px;
+  border: 0;
+  cursor: pointer;
+}
+.shell-root .track-record-calculator button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+.shell-root .track-record-calculator button:focus-visible,
+.shell-root .track-record-calculator input:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+.shell-root .track-record-calculator dd {
+  margin: 6px 0 16px;
+  overflow-wrap: anywhere;
+}
+.shell-root .track-record-calculator dt {
+  font-weight: 600;
+}
+.shell-root .track-record-calculator pre {
+  max-width: 100%;
+  overflow: auto;
+  background: var(--bg-2);
+  padding: 16px;
+  font-size: 0.75rem;
+}
+.shell-root .track-record-calculator summary {
+  cursor: pointer;
+  padding: 12px 0;
+  font-weight: 600;
+}
+.shell-root .track-record-calculator-scroll {
+  overflow-x: auto;
+}
+.shell-root .track-record-calculator table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+.shell-root .track-record-calculator th,
+.shell-root .track-record-calculator td {
+  padding: 10px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+.shell-root .track-record-calculator-match {
+  color: var(--success);
+  font-weight: 600;
+}
+@media (max-width: 640px) {
+  .shell-root .track-record-calculator-grid {
+    grid-template-columns: 1fr;
+  }
+  .shell-root .track-record-calculator-card {
+    padding: 18px;
+  }
+}
+
+.shell-root .track-record-calculator .pending-badge {
+  display: inline-block;
+  max-width: 100%;
+  white-space: normal;
+  line-height: 1.7;
+}

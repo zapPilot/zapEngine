@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useTrackRecord } from '@/hooks/useTrackRecord';
 import { TrackRecordNav } from '@/components/track-record/TrackRecordNav';
 import {
@@ -16,6 +17,8 @@ export default function TrackRecordLayout({
   children: React.ReactNode;
 }) {
   const state = useTrackRecord();
+  const isCalculator =
+    usePathname()?.replace(/\/$/, '') === '/track-record/calculator';
   const hasLiveData =
     state.source === 'live' && hasLiveTrackRecordData(state.meta);
 
@@ -36,22 +39,24 @@ export default function TrackRecordLayout({
             <span>Track Record</span>
           </nav>
 
-          <TrackRecordSourceControls>
-            <TrackRecordSourceToggle
-              source={state.source}
-              onChange={state.setSource}
-            />
-            {state.source === 'backtest' ? (
-              <div className="pending-badge">Backtest</div>
-            ) : hasLiveData ? (
-              <div className="live-badge">
-                <span className="live-dot" aria-hidden />
-                Live
-              </div>
-            ) : (
-              <div className="pending-badge">Live unavailable</div>
-            )}
-          </TrackRecordSourceControls>
+          {!isCalculator && (
+            <TrackRecordSourceControls>
+              <TrackRecordSourceToggle
+                source={state.source}
+                onChange={state.setSource}
+              />
+              {state.source === 'backtest' ? (
+                <div className="pending-badge">Backtest</div>
+              ) : hasLiveData ? (
+                <div className="live-badge">
+                  <span className="live-dot" aria-hidden />
+                  Live
+                </div>
+              ) : (
+                <div className="pending-badge">Live unavailable</div>
+              )}
+            </TrackRecordSourceControls>
+          )}
         </header>
 
         <TrackRecordNav />

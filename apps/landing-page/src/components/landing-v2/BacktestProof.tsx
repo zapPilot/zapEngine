@@ -64,6 +64,12 @@ export function BacktestProof() {
           ))}
         </div>
         <p className="zp-footnote">{backtestDisclaimer()}</p>
+        <p>
+          <a href="/track-record/calculator/?date=2025-10-18">
+            Verify the 2025-10-18 exit on-chain →
+          </a>{' '}
+          <span className="zp-footnote">Research slice · 1 of 6 rules</span>
+        </p>
       </div>
     </section>
   );

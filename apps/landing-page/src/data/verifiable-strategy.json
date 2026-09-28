@@ -1,0 +1,381 @@
+{
+  "schemaVersion": 1,
+  "rulesCovered": ["cross_down_exit"],
+  "researchOnly": true,
+  "compiler": "0.4.3",
+  "evmVersion": "shanghai",
+  "runtimeCodehash": "0xc34735d87c23ebd06260a554d0e5a15f8d6616c16b3d73c296ee29cd837acf50",
+  "sourceUrl": "https://github.com/zapPilot/zapEngine/blob/177adca6e07e55cf4f9c016a395863dc6bfe77ab/apps/analytics-engine/contracts/pinned_strategy/dma_cross_down_slice.vy",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "components": [
+            {
+              "name": "observed",
+              "type": "uint8"
+            },
+            {
+              "name": "actionable",
+              "type": "uint8"
+            },
+            {
+              "name": "end_day",
+              "type": "uint32"
+            },
+            {
+              "name": "blocked",
+              "type": "uint8"
+            }
+          ],
+          "name": "states",
+          "type": "tuple[3]"
+        },
+        {
+          "components": [
+            {
+              "name": "price",
+              "type": "uint256"
+            },
+            {
+              "name": "dma",
+              "type": "uint256"
+            }
+          ],
+          "name": "obs",
+          "type": "tuple[3]"
+        }
+      ],
+      "name": "warmup",
+      "outputs": [
+        {
+          "components": [
+            {
+              "name": "observed",
+              "type": "uint8"
+            },
+            {
+              "name": "actionable",
+              "type": "uint8"
+            },
+            {
+              "name": "end_day",
+              "type": "uint32"
+            },
+            {
+              "name": "blocked",
+              "type": "uint8"
+            }
+          ],
+          "name": "",
+          "type": "tuple[3]"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "components": [
+            {
+              "name": "observed",
+              "type": "uint8"
+            },
+            {
+              "name": "actionable",
+              "type": "uint8"
+            },
+            {
+              "name": "end_day",
+              "type": "uint32"
+            },
+            {
+              "name": "blocked",
+              "type": "uint8"
+            }
+          ],
+          "name": "states",
+          "type": "tuple[3]"
+        },
+        {
+          "components": [
+            {
+              "name": "price",
+              "type": "uint256"
+            },
+            {
+              "name": "dma",
+              "type": "uint256"
+            }
+          ],
+          "name": "obs",
+          "type": "tuple[3]"
+        },
+        {
+          "name": "day",
+          "type": "uint32"
+        },
+        {
+          "name": "cross_on_touch",
+          "type": "bool"
+        }
+      ],
+      "name": "observe",
+      "outputs": [
+        {
+          "components": [
+            {
+              "name": "zone",
+              "type": "uint8"
+            },
+            {
+              "name": "cross",
+              "type": "uint8"
+            },
+            {
+              "name": "actionable_cross",
+              "type": "uint8"
+            },
+            {
+              "name": "active",
+              "type": "bool"
+            },
+            {
+              "name": "remaining",
+              "type": "uint32"
+            },
+            {
+              "name": "blocked",
+              "type": "uint8"
+            },
+            {
+              "name": "distance",
+              "type": "int256"
+            }
+          ],
+          "name": "",
+          "type": "tuple[3]"
+        },
+        {
+          "components": [
+            {
+              "name": "observed",
+              "type": "uint8"
+            },
+            {
+              "name": "actionable",
+              "type": "uint8"
+            },
+            {
+              "name": "end_day",
+              "type": "uint32"
+            },
+            {
+              "name": "blocked",
+              "type": "uint8"
+            }
+          ],
+          "name": "",
+          "type": "tuple[3]"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "components": [
+            {
+              "name": "observed",
+              "type": "uint8"
+            },
+            {
+              "name": "actionable",
+              "type": "uint8"
+            },
+            {
+              "name": "end_day",
+              "type": "uint32"
+            },
+            {
+              "name": "blocked",
+              "type": "uint8"
+            }
+          ],
+          "name": "states",
+          "type": "tuple[3]"
+        },
+        {
+          "components": [
+            {
+              "name": "zone",
+              "type": "uint8"
+            },
+            {
+              "name": "cross",
+              "type": "uint8"
+            },
+            {
+              "name": "actionable_cross",
+              "type": "uint8"
+            },
+            {
+              "name": "active",
+              "type": "bool"
+            },
+            {
+              "name": "remaining",
+              "type": "uint32"
+            },
+            {
+              "name": "blocked",
+              "type": "uint8"
+            },
+            {
+              "name": "distance",
+              "type": "int256"
+            }
+          ],
+          "name": "views",
+          "type": "tuple[3]"
+        },
+        {
+          "name": "day",
+          "type": "uint32"
+        },
+        {
+          "name": "selected_mask",
+          "type": "uint8"
+        },
+        {
+          "name": "group_is_cross",
+          "type": "bool"
+        },
+        {
+          "name": "forced_down_mask",
+          "type": "uint8"
+        }
+      ],
+      "name": "commit",
+      "outputs": [
+        {
+          "components": [
+            {
+              "name": "observed",
+              "type": "uint8"
+            },
+            {
+              "name": "actionable",
+              "type": "uint8"
+            },
+            {
+              "name": "end_day",
+              "type": "uint32"
+            },
+            {
+              "name": "blocked",
+              "type": "uint8"
+            }
+          ],
+          "name": "",
+          "type": "tuple[3]"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "components": [
+            {
+              "name": "zone",
+              "type": "uint8"
+            },
+            {
+              "name": "cross",
+              "type": "uint8"
+            },
+            {
+              "name": "actionable_cross",
+              "type": "uint8"
+            },
+            {
+              "name": "active",
+              "type": "bool"
+            },
+            {
+              "name": "remaining",
+              "type": "uint32"
+            },
+            {
+              "name": "blocked",
+              "type": "uint8"
+            },
+            {
+              "name": "distance",
+              "type": "int256"
+            }
+          ],
+          "name": "views",
+          "type": "tuple[3]"
+        },
+        {
+          "name": "allocation",
+          "type": "uint256[5]"
+        },
+        {
+          "name": "last_executed_day",
+          "type": "uint32"
+        },
+        {
+          "name": "day",
+          "type": "uint32"
+        }
+      ],
+      "name": "cross_down_exit",
+      "outputs": [
+        {
+          "components": [
+            {
+              "name": "matched",
+              "type": "bool"
+            },
+            {
+              "name": "cooled_off",
+              "type": "bool"
+            },
+            {
+              "name": "remaining_days",
+              "type": "uint32"
+            },
+            {
+              "name": "trigger_mask",
+              "type": "uint8"
+            },
+            {
+              "name": "exit_mask",
+              "type": "uint8"
+            },
+            {
+              "name": "liquidated_mask",
+              "type": "uint8"
+            },
+            {
+              "name": "target",
+              "type": "uint256[4]"
+            }
+          ],
+          "name": "",
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    }
+  ],
+  "deployment": null,
+  "examples": []
+}

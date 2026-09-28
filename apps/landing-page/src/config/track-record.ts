@@ -33,4 +33,5 @@ export const TABS = [
   { href: '/track-record/positions', label: 'Positions' },
   { href: '/track-record/rebalances', label: 'Rebalances' },
   { href: '/track-record/verification', label: 'Verification' },
+  { href: '/track-record/calculator', label: 'On-chain Calculator' },
 ] as const;

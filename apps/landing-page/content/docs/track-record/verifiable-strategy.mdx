@@ -1,0 +1,88 @@
+---
+title: Verifiable Strategy — Research Slice
+description: Recompute a single DMA exit using public Vyper bytecode on Arbitrum Sepolia.
+---
+
+The [On-chain Calculator](/track-record/calculator/?date=2025-10-18) demonstrates **one of six rules**, `cross_down_exit`, plus its per-asset DMA state machine. It is a **research slice, not the production strategy**. It does not execute trades or require a wallet.
+
+## Current availability
+
+Until a real deployment and verified historical export are committed, the page says **Not deployed yet**. No placeholder address, invented market data or simulated chain output is published. The intended first example is the 2025-10-18 BTC cross-down event: exit BTC and ETH, retaining SPY.
+
+## Verification method
+
+1. Check the chain ID is Arbitrum Sepolia (`421614`). Fetch `eth_getCode` at a fixed block and compare its keccak256 hash against the compiled artifact.
+2. Call `warmup` with the previous day's SPY/BTC/ETH prices and DMA values. This derives zones rather than trusting a backend-provided cross flag.
+3. Call `observe` with that state and the decision day's observations. An example whose original state cannot be reconstructed from warmup must publish explicit state. The page clearly says when that state is used instead.
+4. Call `cross_down_exit` with the observed views, pre-decision allocation and last execution day. Review the trigger, exit and liquidated masks, cooldown and resulting allocation.
+5. For an unedited example, compare the exact WAD result with the exported pyrevm result. Export also checks the Python winner and target (absolute per-cell tolerance `1e-12`), and the published allocation to its four-decimal rounding precision (`0.00005`).
+
+All three calls and the bytecode check use the same block number. RPC failures, a wrong network, absent code or a mismatched codehash prevent a result. Editing inputs clears the previous result and removes the historical-match claim.
+
+Inputs are decimal strings parsed directly with `parseUnits(value, 18)`; excess decimal places are rejected instead of silently rounded in the browser. Allocation totals must equal 100% within a `1e-12` share tolerance to accommodate the original Python weights’ round-trip rounding. This avoids JavaScript float conversion. It does **not** establish general Python-float parity: the original spike's epsilon and near-DMA counterexamples remain unresolved. The exporter identifies that the engine's original data is float and records its round-trip decimal encoding.
+
+## What this proves
+
+Given the displayed inputs, this bytecode produces the displayed output. You can independently inspect its source, deployment, codehash and each call.
+
+It does not prove market prices or DMA are correct, authenticate backend prior state, prove the completeness of the other five rules, or prove production executed a trade. The published decision is a backtest event. An allocation match is not proof of live funds or returns.
+
+## Reproduce with cast or curl
+
+After a successful run, expand **Verify it yourself**. The page generates complete commands for all three calls, including their actual calldata and the fixed block. For example, replace these placeholders with the values shown there:
+
+```sh
+cast call "$CONTRACT_ADDRESS" --data "$CALLDATA" \
+  --block "$BLOCK_NUMBER" \
+  --rpc-url https://sepolia-rollup.arbitrum.io/rpc
+
+curl -s https://sepolia-rollup.arbitrum.io/rpc \
+  -H 'Content-Type: application/json' \
+  --data '{"jsonrpc":"2.0","id":1,"method":"eth_call","params":[{"to":"<contract address>","data":"<encoded calldata>"},"<hex block number>"]}'
+```
+
+The copied calldata already includes preceding call results. The expanded inputs/outputs let you verify those connections independently. `eth_call` is read-only; no signing key or gas payment is needed.
+
+## Rebuild the codehash
+
+Use the pinned GitHub source link in the identity card and its repository revision:
+
+```sh
+cd apps/analytics-engine
+uv sync --locked
+uv run python scripts/pinned_strategy/compile.py --check
+```
+
+This recompiles using Vyper `0.4.3`, Shanghai and gas optimization, then checks the ABI, initcode, runtime bytecode, source hash and runtime keccak256 against the committed artifact. Hash runtime bytecode, not initcode. The page independently hashes `eth_getCode` from the deployed address.
+
+## Operator workflow
+
+Stay on the branch containing the spike artifact. No production strategy or marketing snapshot regeneration is needed.
+
+```sh
+cd apps/analytics-engine
+# Dry run: predicts the CREATE2 address without sending anything.
+uv run python scripts/pinned_strategy/deploy.py
+# Operator terminal only: hidden getpass prompt, then explicit DEPLOY confirmation.
+uv run python scripts/pinned_strategy/deploy.py --broadcast
+# If verification was interrupted, resume without signing again:
+uv run python scripts/pinned_strategy/deploy.py --transaction <deployment-tx-hash>
+```
+
+The script verifies the deterministic deployer's code, limits chain ID to Arbitrum Sepolia, verifies deployed runtime code, saves `deployments.json`, and submits source/settings to Sourcify. A pending Sourcify result is recorded honestly and can be resumed. Fund the operator account with **Arbitrum Sepolia test ETH**; never put a private key in environment variables, shell arguments or chat.
+
+After explicit approval to use production read-only secrets:
+
+```sh
+infisical run --env=prod -- env DATABASE_READ_ONLY=true \
+  uv run python scripts/pinned_strategy/export_landing_examples.py --dates 2025-10-18
+uv run pytest tests/scripts/pinned_strategy -q
+```
+
+The exporter requires deployment identity first. It records the actual published 500-day window if no recording exists, rejects a mismatched window, replays the Python strategy with EVM shadow checks, verifies the decision against the committed track record, then writes and formats only its dedicated landing JSON. No private keys or database URLs are included. The existing epsilon parity test remains red until the numerical semantics are explicitly decided; it is not disabled for the demo.
+
+To validate an approved recording before deployment without changing the public JSON, run `uv run python scripts/pinned_strategy/export_landing_examples.py --validate-only --dates 2025-10-18`. This checks historical Python/pyrevm parity; it does not verify a live deployment. Recorded-history tests also retain the strict DMA-distance relative-error gate, which can fail on the documented Python float versus integer-WAD difference.
+
+For an honest undeployed page, `export_landing_examples.py --empty` exports the real artifact metadata and an empty example list.
+
+References: [deterministic CREATE2 proxy](https://github.com/Arachnid/deterministic-deployment-proxy), [Sourcify verification](https://docs.sourcify.dev/docs/api/), [Arbitrum network information](https://docs.arbitrum.io/arbitrum-bridge/quickstart).

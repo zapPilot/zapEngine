@@ -12,6 +12,8 @@ import RebalancesPage from '../rebalances/page';
 import VerificationPage from '../verification/page';
 
 const useTrackRecord = vi.hoisted(() => vi.fn());
+const pathname = vi.hoisted(() => ({ value: '/track-record' }));
+vi.mock('next/navigation', () => ({ usePathname: () => pathname.value }));
 vi.mock('@/hooks/useTrackRecord', () => ({ useTrackRecord }));
 vi.mock('next/link', () => ({
   default: ({
@@ -67,6 +69,7 @@ function state(
 
 beforeEach(() => {
   vi.clearAllMocks();
+  pathname.value = '/track-record';
   useTrackRecord.mockReturnValue(state());
 });
 
@@ -189,4 +192,22 @@ describe('track-record subroutes', () => {
     render(<VerificationPage />);
     expect(screen.getByText(/committed backtest dataset/)).toBeInTheDocument();
   });
+});
+
+it('shows calculator navigation and hides unrelated source controls on its route', () => {
+  pathname.value = '/track-record/calculator/';
+  render(
+    <TrackRecordLayout>
+      <p>calculator</p>
+    </TrackRecordLayout>,
+  );
+  expect(
+    screen.getByRole('link', { name: 'On-chain Calculator' }),
+  ).toHaveAttribute('href', '/track-record/calculator');
+  expect(
+    screen.queryByRole('button', { name: 'Backtest' }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole('button', { name: 'Live' }),
+  ).not.toBeInTheDocument();
 });
