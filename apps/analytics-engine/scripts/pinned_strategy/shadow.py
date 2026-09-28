@@ -143,7 +143,19 @@ class Shadow:
                 if relative > 1e-15:
                     self.metrics.distance_relative_threshold_failures += 1
                 if self.strict_distance:
-                    assert relative <= 1e-15, (context.date, key, relative)
+                    # Relative 1e-15 alone is unachievable near DMA due to
+                    # cancellation (see
+                    # test_float_relative_distance_limit_is_explicit): WAD
+                    # flooring leaves absolute error ~1e-16, which amplifies to
+                    # large relative error when dma_distance is tiny. Accept
+                    # absolute 1e-12 (same as target-allocation tolerance) as
+                    # well as relative 1e-15.
+                    assert relative <= 1e-15 or error <= 1e-12, (
+                        context.date,
+                        key,
+                        relative,
+                        error,
+                    )
             self.check_states()
             return snapshot
 

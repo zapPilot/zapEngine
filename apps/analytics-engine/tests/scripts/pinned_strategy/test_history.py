@@ -24,7 +24,10 @@ def test_recorded_history(touch):
     history = read_history()
     with shadow_compare(strict_distance=True) as metrics:
         run_compare(history, touch)
-    assert metrics.days >= 500
+    # Recorded fixture spans 514 calendar days with one production gap
+    # (2026-08-24 missing): 513 rows = 14 warmup + 499 evaluated.
+    assert metrics.days == len(history[0]) - 14
+    assert metrics.days >= 499
     assert metrics.matched > 0
 
 

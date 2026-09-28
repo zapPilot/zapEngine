@@ -1,4 +1,4 @@
-"""Exact binary-float to WAD flooring and ABI encoding for the slice."""
+"""Round-trip decimal to WAD flooring and ABI encoding for the slice."""
 
 from __future__ import annotations
 
@@ -21,9 +21,16 @@ EMPTY_STATES = ((0, 0, 0, 0),) * 3
 def to_wad(value: float) -> int:
     if not math.isfinite(value) or value < 0:
         raise ValueError("WAD input must be finite and nonnegative")
+    # Use the round-trip decimal (str) so test/shadow WADs match the published
+    # landing export (export_landing_examples.decimal_value), which quantizes
+    # Decimal(str(value)) to 18 places. Binary-exact Decimal(value) flooring
+    # maps 1e-12 to 999999 (below EPSILON) while the published form maps it to
+    # 1000000, producing a discrete liquidation-mask mismatch and inflating DMA
+    # distance relative error above 1e-15 on recorded history.
     with localcontext() as context:
         context.prec = 1100
-        result = int((Decimal(value) * WAD).to_integral_value(rounding=ROUND_FLOOR))
+        decimal = Decimal(str(value)).quantize(Decimal("1e-18"), rounding=ROUND_FLOOR)
+        result = int(decimal * WAD)
     if result >= 2**256:
         raise ValueError("WAD input exceeds uint256")
     return result

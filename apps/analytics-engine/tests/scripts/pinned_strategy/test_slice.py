@@ -65,7 +65,9 @@ def test_codec():
     check_collisions(values)
     assert list(map(to_wad, values)) == sorted(set(map(to_wad, values)))
     for value in values:
-        assert Decimal(to_wad(value)) <= Decimal(value) * WAD
+        # to_wad floors Decimal(str(value)) (round-trip decimal, matching the
+        # landing export) rather than binary-exact Decimal(value).
+        assert Decimal(to_wad(value)) <= Decimal(str(value)) * WAD
     with pytest.raises(ValueError, match="collision"):
         check_collisions([0.0, 1e-20])
     for value in [float("nan"), float("inf"), -1.0, 1e100]:
