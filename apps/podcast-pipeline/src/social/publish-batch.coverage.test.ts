@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
+  loadSocialCopySnapshot: vi.fn().mockResolvedValue(null),
+  saveSocialCopySnapshot: vi
+    .fn()
+    .mockImplementation((_id, _language, copy) => Promise.resolve(copy)),
   getSocialEpisode: vi.fn(),
   resolvePackagingAssignments: vi.fn(),
   generateSocialCopy: vi.fn(),
@@ -8,6 +12,11 @@ const mocks = vi.hoisted(() => ({
   createSocialPublishJobs: vi.fn(),
   createSocialPostPersister: vi.fn(),
   publishSocialPlatforms: vi.fn(),
+}));
+
+vi.mock('./copy-snapshot-store.js', () => ({
+  loadSocialCopySnapshot: mocks.loadSocialCopySnapshot,
+  saveSocialCopySnapshot: mocks.saveSocialCopySnapshot,
 }));
 
 vi.mock('./episode.js', async (importOriginal) => ({

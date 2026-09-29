@@ -1,5 +1,9 @@
 import { socialLandingUrl } from '../brand/cta.js';
 import { generateSocialCopy } from './copy.js';
+import {
+  loadSocialCopySnapshot,
+  saveSocialCopySnapshot,
+} from './copy-snapshot-store.js';
 import { getSocialEpisode } from './episode.js';
 import {
   type PackagingAssignment,
@@ -60,6 +64,14 @@ export async function prepareSocialBatchCopy(input: {
   logLlm?: boolean;
 }): Promise<PreparedSocialBatchCopy> {
   const episode = await getSocialEpisode(input.episodeId, input.languageCode);
+  const existing = await loadSocialCopySnapshot(
+    input.episodeId,
+    input.languageCode,
+  );
+  if (existing) {
+    assertSnapshotPlatforms(existing.snapshot, input.platforms);
+    return { episode, ...existing };
+  }
   const packagingByPlatform = await resolvePackagingAssignments({
     episodeId: input.episodeId,
     languageCode: input.languageCode,
@@ -75,15 +87,33 @@ export async function prepareSocialBatchCopy(input: {
       ? { strategyGuidanceByPlatform: input.strategyGuidanceByPlatform }
       : {}),
   });
-  return {
-    episode,
-    packagingByPlatform,
-    snapshot: {
-      generated: generated.copy,
-      published: generated.copy,
-      model: generated.model,
+  const saved = await saveSocialCopySnapshot(
+    input.episodeId,
+    input.languageCode,
+    {
+      packagingByPlatform,
+      snapshot: {
+        generated: generated.copy,
+        published: generated.copy,
+        model: generated.model,
+      },
     },
-  };
+  );
+  assertSnapshotPlatforms(saved.snapshot, input.platforms);
+  return { episode, ...saved };
+}
+
+function assertSnapshotPlatforms(
+  snapshot: SocialCopySnapshot,
+  platforms: readonly SocialPlatform[],
+): void {
+  for (const platform of platforms) {
+    if (!snapshot.generated[platform] || !snapshot.published[platform]) {
+      throw new Error(
+        `Durable social copy snapshot is missing ${platform}; refusing to regenerate release copy`,
+      );
+    }
+  }
 }
 
 export async function publishSocialBatch(input: {
