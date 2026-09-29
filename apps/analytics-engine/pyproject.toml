@@ -97,7 +97,7 @@ omit = [
 ]
 
 [tool.coverage.report]
-fail_under = 95
+fail_under = 100
 exclude_lines = [
     "pragma: no cover",
     "if TYPE_CHECKING:",
@@ -178,7 +178,7 @@ ignore-signatures = true
 [tool.pylint.reports]
 # Set to yes to activate formatted output reports
 output-format = "colorized"
-# Tells whether to display full report or only messages
+# Tells whether to display full report only if messages are present
 reports = false
 # Score threshold for code quality (not relevant for duplicate-only mode)
 fail-under = 10
